@@ -125,6 +125,18 @@ func mergeSkillsConfig(target *SkillsConfig, file *SkillsFileConfig) {
 	if file.CacheTTLSeconds != nil {
 		target.CacheTTLSeconds = *file.CacheTTLSeconds
 	}
+	if file.MetaOrchestratorEnabled != nil {
+		target.MetaOrchestratorEnabled = *file.MetaOrchestratorEnabled
+	}
+	if file.SoulAutoEvolutionEnabled != nil {
+		target.SoulAutoEvolutionEnabled = *file.SoulAutoEvolutionEnabled
+	}
+	if strings.TrimSpace(file.ProactiveLevel) != "" {
+		target.ProactiveLevel = strings.TrimSpace(file.ProactiveLevel)
+	}
+	if strings.TrimSpace(file.PolicyPath) != "" {
+		target.PolicyPath = strings.TrimSpace(file.PolicyPath)
+	}
 	if file.AutoActivation != nil {
 		mergeSkillsAutoActivationConfig(&target.AutoActivation, file.AutoActivation)
 	}

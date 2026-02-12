@@ -92,6 +92,57 @@ func TestBuildSkillsSection_NoMatchStillAvoidsCatalog(t *testing.T) {
 	}
 }
 
+func TestBuildSkillsSection_MetaOrchestratorSummaryAndSoulGate(t *testing.T) {
+	dir := t.TempDir()
+	writeSkillFile(t, dir, "meta-orchestrator", "Meta skill.", `
+triggers:
+  intent_patterns:
+    - update
+  confidence_threshold: 0.5
+capabilities: [orchestrate_skills]
+governance_level: high
+activation_mode: auto
+`, "# Meta Orchestrator\n\nDo orchestration.\n")
+	writeSkillFile(t, dir, "soul-self-evolution", "Soul update skill.", `
+triggers:
+  intent_patterns:
+    - update
+  confidence_threshold: 0.5
+capabilities: [self_evolve_soul]
+governance_level: critical
+activation_mode: auto
+`, "# Soul Skill\n\nModify soul.\n")
+
+	t.Setenv("ALEX_SKILLS_DIR", dir)
+	skills.InvalidateCache()
+
+	cfg := agent.SkillsConfig{
+		AutoActivation: agent.SkillAutoActivationConfig{
+			Enabled:             true,
+			MaxActivated:        4,
+			TokenBudget:         10_000,
+			ConfidenceThreshold: 0.5,
+			CacheTTLSeconds:     0,
+			FallbackToIndex:     true,
+		},
+		MetaOrchestratorEnabled:  true,
+		SoulAutoEvolutionEnabled: false,
+		ProactiveLevel:           "medium",
+		PolicyPath:               "",
+	}
+
+	out := buildSkillsSection(logging.Nop(), "please update profile", nil, "session-2", cfg)
+	if !strings.Contains(out, "# Meta Skill Orchestration") {
+		t.Fatalf("expected meta orchestration summary, got %q", out)
+	}
+	if !strings.Contains(out, "Blocked skills: soul-self-evolution") {
+		t.Fatalf("expected soul skill to be blocked, got %q", out)
+	}
+	if strings.Contains(out, "## Skill: soul-self-evolution") {
+		t.Fatalf("did not expect soul skill body when soul auto evolution disabled, got %q", out)
+	}
+}
+
 func writeSkillFile(t *testing.T, root string, name string, description string, extraFrontMatter string, body string) {
 	t.Helper()
 

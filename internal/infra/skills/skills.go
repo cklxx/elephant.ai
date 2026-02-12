@@ -20,15 +20,21 @@ type Skill struct {
 	Body        string `yaml:"-"`
 	SourcePath  string `yaml:"-"`
 
-	Triggers       *SkillTriggers `yaml:"triggers,omitempty"`
-	Priority       int            `yaml:"priority,omitempty"`
-	ExclusiveGroup string         `yaml:"exclusive_group,omitempty"`
-	Prerequisites  []string       `yaml:"prerequisites,omitempty"`
-	RequiresTools  []string       `yaml:"requires_tools,omitempty"`
-	MaxTokens      int            `yaml:"max_tokens,omitempty"`
-	Cooldown       int            `yaml:"cooldown,omitempty"`
-	Output         *SkillOutput   `yaml:"output,omitempty"`
-	Chain          []ChainStep    `yaml:"chain,omitempty"`
+	Triggers         *SkillTriggers `yaml:"triggers,omitempty"`
+	Priority         int            `yaml:"priority,omitempty"`
+	ExclusiveGroup   string         `yaml:"exclusive_group,omitempty"`
+	Prerequisites    []string       `yaml:"prerequisites,omitempty"`
+	RequiresTools    []string       `yaml:"requires_tools,omitempty"`
+	MaxTokens        int            `yaml:"max_tokens,omitempty"`
+	Cooldown         int            `yaml:"cooldown,omitempty"`
+	Output           *SkillOutput   `yaml:"output,omitempty"`
+	Chain            []ChainStep    `yaml:"chain,omitempty"`
+	Capabilities     []string       `yaml:"capabilities,omitempty"`
+	GovernanceLevel  string         `yaml:"governance_level,omitempty"`
+	ActivationMode   string         `yaml:"activation_mode,omitempty"`
+	DependsOnSkills  []string       `yaml:"depends_on_skills,omitempty"`
+	ProducesEvents   []string       `yaml:"produces_events,omitempty"`
+	RequiresApproval bool           `yaml:"requires_approval,omitempty"`
 
 	// HasRunScript is true when a run.py exists alongside the SKILL.md.
 	// Python skills are invoked via: shell_exec python3 skills/<name>/run.py '{...}'
@@ -167,17 +173,23 @@ func discoverSkillFiles(root string) ([]string, error) {
 }
 
 type skillFrontMatter struct {
-	Name           string         `yaml:"name"`
-	Description    string         `yaml:"description"`
-	Triggers       *SkillTriggers `yaml:"triggers,omitempty"`
-	Priority       int            `yaml:"priority,omitempty"`
-	ExclusiveGroup string         `yaml:"exclusive_group,omitempty"`
-	Prerequisites  []string       `yaml:"prerequisites,omitempty"`
-	RequiresTools  []string       `yaml:"requires_tools,omitempty"`
-	MaxTokens      int            `yaml:"max_tokens,omitempty"`
-	Cooldown       int            `yaml:"cooldown,omitempty"`
-	Output         *SkillOutput   `yaml:"output,omitempty"`
-	Chain          []ChainStep    `yaml:"chain,omitempty"`
+	Name             string         `yaml:"name"`
+	Description      string         `yaml:"description"`
+	Triggers         *SkillTriggers `yaml:"triggers,omitempty"`
+	Priority         int            `yaml:"priority,omitempty"`
+	ExclusiveGroup   string         `yaml:"exclusive_group,omitempty"`
+	Prerequisites    []string       `yaml:"prerequisites,omitempty"`
+	RequiresTools    []string       `yaml:"requires_tools,omitempty"`
+	MaxTokens        int            `yaml:"max_tokens,omitempty"`
+	Cooldown         int            `yaml:"cooldown,omitempty"`
+	Output           *SkillOutput   `yaml:"output,omitempty"`
+	Chain            []ChainStep    `yaml:"chain,omitempty"`
+	Capabilities     []string       `yaml:"capabilities,omitempty"`
+	GovernanceLevel  string         `yaml:"governance_level,omitempty"`
+	ActivationMode   string         `yaml:"activation_mode,omitempty"`
+	DependsOnSkills  []string       `yaml:"depends_on_skills,omitempty"`
+	ProducesEvents   []string       `yaml:"produces_events,omitempty"`
+	RequiresApproval bool           `yaml:"requires_approval,omitempty"`
 }
 
 func parseSkillFile(path string) (Skill, error) {
@@ -206,27 +218,44 @@ func parseSkillFile(path string) (Skill, error) {
 	_, hasRunScript := os.Stat(runScript)
 
 	skill := Skill{
-		Name:           strings.TrimSpace(meta.Name),
-		Description:    strings.TrimSpace(meta.Description),
-		Title:          title,
-		Body:           body,
-		SourcePath:     path,
-		Triggers:       meta.Triggers,
-		Priority:       meta.Priority,
-		ExclusiveGroup: meta.ExclusiveGroup,
-		Prerequisites:  meta.Prerequisites,
-		RequiresTools:  meta.RequiresTools,
-		MaxTokens:      meta.MaxTokens,
-		Cooldown:       meta.Cooldown,
-		Output:         meta.Output,
-		Chain:          meta.Chain,
-		HasRunScript:   hasRunScript == nil,
+		Name:             strings.TrimSpace(meta.Name),
+		Description:      strings.TrimSpace(meta.Description),
+		Title:            title,
+		Body:             body,
+		SourcePath:       path,
+		Triggers:         meta.Triggers,
+		Priority:         meta.Priority,
+		ExclusiveGroup:   meta.ExclusiveGroup,
+		Prerequisites:    meta.Prerequisites,
+		RequiresTools:    meta.RequiresTools,
+		MaxTokens:        meta.MaxTokens,
+		Cooldown:         meta.Cooldown,
+		Output:           meta.Output,
+		Chain:            meta.Chain,
+		Capabilities:     meta.Capabilities,
+		GovernanceLevel:  strings.ToLower(strings.TrimSpace(meta.GovernanceLevel)),
+		ActivationMode:   strings.ToLower(strings.TrimSpace(meta.ActivationMode)),
+		DependsOnSkills:  meta.DependsOnSkills,
+		ProducesEvents:   meta.ProducesEvents,
+		RequiresApproval: meta.RequiresApproval,
+		HasRunScript:     hasRunScript == nil,
 	}
 	if skill.Priority == 0 {
 		skill.Priority = 5
 	}
 	if skill.MaxTokens == 0 {
 		skill.MaxTokens = 2000
+	}
+	if skill.GovernanceLevel == "" {
+		skill.GovernanceLevel = "medium"
+	}
+	switch skill.ActivationMode {
+	case "", "auto", "semi_auto", "manual":
+	default:
+		skill.ActivationMode = "auto"
+	}
+	if skill.ActivationMode == "" {
+		skill.ActivationMode = "auto"
 	}
 	return skill, nil
 }

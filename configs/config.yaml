@@ -41,6 +41,10 @@ runtime:
         enabled: false
         store_path: "${ALEX_SKILL_FEEDBACK_PATH}"
       cache_ttl_seconds: 300
+      meta_orchestrator_enabled: true
+      soul_auto_evolution_enabled: true
+      proactive_level: "medium"
+      policy_path: "configs/skills/meta-orchestrator.yaml"
     scheduler:
       enabled: true
       trigger_timeout_seconds: 900

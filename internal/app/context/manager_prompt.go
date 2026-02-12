@@ -316,7 +316,27 @@ func buildSkillsSection(logger logging.Logger, taskInput string, messages []port
 		}
 	}
 
+	var orchestrationSummary string
+	if cfg.MetaOrchestratorEnabled {
+		metaPolicy, policyErr := skills.LoadMetaPolicy(cfg.PolicyPath)
+		if policyErr != nil {
+			logging.OrNop(logger).Warn("Failed to load meta skill policy %q: %v", cfg.PolicyPath, policyErr)
+			metaPolicy = skills.DefaultMetaPolicy()
+		}
+		metaPlan := skills.OrchestrateMatches(matches, skills.OrchestrationConfig{
+			Enabled:                  cfg.MetaOrchestratorEnabled,
+			SoulAutoEvolutionEnabled: cfg.SoulAutoEvolutionEnabled,
+			ProactiveLevel:           cfg.ProactiveLevel,
+		}, metaPolicy)
+		matches = metaPlan.Selected
+		orchestrationSummary = strings.TrimSpace(skills.RenderOrchestrationSummary(metaPlan))
+	}
+
 	var sb strings.Builder
+	if orchestrationSummary != "" {
+		sb.WriteString(orchestrationSummary)
+		sb.WriteString("\n\n")
+	}
 	if len(matches) > 0 {
 		sb.WriteString("# Activated Skills\n\n")
 		sb.WriteString("The following skills were automatically activated based on the current task. Follow their workflow instructions.\n\n")

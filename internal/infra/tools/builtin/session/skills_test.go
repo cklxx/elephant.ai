@@ -21,6 +21,9 @@ func TestSkillsToolListAndShow(t *testing.T) {
 	content := `---
 name: sample_skill
 description: Sample description.
+capabilities: [lark_chat]
+governance_level: medium
+activation_mode: auto
 ---
 # Sample Skill
 
@@ -63,6 +66,16 @@ Hello world.
 	}
 	if !strings.Contains(showResult.Content, "Hello world") {
 		t.Fatalf("expected show to return body content, got %q", showResult.Content)
+	}
+	if showResult.Metadata["governance_level"] != "medium" {
+		t.Fatalf("expected governance metadata, got %+v", showResult.Metadata)
+	}
+	if showResult.Metadata["activation_mode"] != "auto" {
+		t.Fatalf("expected activation metadata, got %+v", showResult.Metadata)
+	}
+	caps, ok := showResult.Metadata["capabilities"].([]string)
+	if !ok || len(caps) != 1 || caps[0] != "lark_chat" {
+		t.Fatalf("expected capabilities metadata, got %+v", showResult.Metadata["capabilities"])
 	}
 }
 

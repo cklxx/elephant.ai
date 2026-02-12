@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-12 23:00
+Updated: 2026-02-13 01:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -25,6 +25,7 @@ Updated: 2026-02-12 23:00
 - Bash scripts under `set -u` must guard array expansions (avoid unbound variable errors).
 - Subscription model selection should remain request-scoped (web/local) and avoid mutating managed overrides YAML; persist pins in non-YAML state when needed.
 - Skills resolution rule: `ALEX_SKILLS_DIR` overrides all; otherwise default `~/.alex/skills` with repo `skills/` missing-only sync and user-copy preservation.
+- Meta-skills orchestration uses `configs/skills/meta-orchestrator.yaml` + skills frontmatter (`capabilities/governance_level/activation_mode/depends_on_skills/produces_events`) to gate activation and linkage.
 - Keep `make check-arch` green to enforce domain import boundaries and prevent infra leakage regressions.
 - **Pre-push CI gate**: `scripts/pre-push.sh` mirrors CI's fast-fail checks (mod tidy, vet, build, lint, arch, web). Always runs before `git push`. Skip with `SKIP_PRE_PUSH=1`. Manual: `make ci-local`.
 - Lark callbacks: `channels.lark` supports `${ENV}` expansion; callback token/encrypt key also have env fallback keys in bootstrap to avoid silent callback disablement.

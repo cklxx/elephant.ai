@@ -433,3 +433,93 @@ Body.
 		t.Fatalf("expected location to include SKILL.md, got %q", xml)
 	}
 }
+
+func TestLoadParsesMetaOrchestrationFields(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "meta-orchestrator")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	content := `---
+name: meta-orchestrator
+description: Orchestrates skills.
+capabilities: [orchestrate_skills, skill_linkage]
+governance_level: high
+activation_mode: semi_auto
+depends_on_skills: [planner]
+produces_events: [workflow.skill.meta.route_selected]
+requires_approval: true
+---
+# Meta Orchestrator
+
+Body.
+`
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+
+	lib, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	skill, ok := lib.Get("meta-orchestrator")
+	if !ok {
+		t.Fatalf("expected skill to load")
+	}
+	if skill.GovernanceLevel != "high" {
+		t.Fatalf("expected governance high, got %q", skill.GovernanceLevel)
+	}
+	if skill.ActivationMode != "semi_auto" {
+		t.Fatalf("expected activation_mode semi_auto, got %q", skill.ActivationMode)
+	}
+	if len(skill.DependsOnSkills) != 1 || skill.DependsOnSkills[0] != "planner" {
+		t.Fatalf("unexpected depends_on_skills: %v", skill.DependsOnSkills)
+	}
+	if len(skill.ProducesEvents) != 1 || skill.ProducesEvents[0] != "workflow.skill.meta.route_selected" {
+		t.Fatalf("unexpected produces_events: %v", skill.ProducesEvents)
+	}
+	if !skill.RequiresApproval {
+		t.Fatalf("expected requires_approval=true")
+	}
+}
+
+func TestAvailableSkillsXMLIncludesGovernanceAndCapabilities(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "meta-orchestrator")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	content := `---
+name: meta-orchestrator
+description: Orchestrates skills.
+capabilities: [orchestrate_skills]
+governance_level: high
+activation_mode: auto
+---
+# Meta Orchestrator
+
+Body.
+`
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+
+	lib, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	xml := AvailableSkillsXML(lib)
+	if !strings.Contains(xml, "<governance_level>high</governance_level>") {
+		t.Fatalf("expected governance level in xml, got %q", xml)
+	}
+	if !strings.Contains(xml, "<capability>orchestrate_skills</capability>") {
+		t.Fatalf("expected capability in xml, got %q", xml)
+	}
+	if !strings.Contains(xml, "<activation_mode>auto</activation_mode>") {
+		t.Fatalf("expected activation mode in xml, got %q", xml)
+	}
+}

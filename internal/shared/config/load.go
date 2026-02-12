@@ -375,6 +375,19 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	if cfg.Skills.CacheTTLSeconds <= 0 {
 		cfg.Skills.CacheTTLSeconds = 300
 	}
+	cfg.Skills.ProactiveLevel = strings.ToLower(strings.TrimSpace(cfg.Skills.ProactiveLevel))
+	switch cfg.Skills.ProactiveLevel {
+	case "", "low", "medium", "high":
+	default:
+		cfg.Skills.ProactiveLevel = "medium"
+	}
+	if cfg.Skills.ProactiveLevel == "" {
+		cfg.Skills.ProactiveLevel = "medium"
+	}
+	cfg.Skills.PolicyPath = strings.TrimSpace(cfg.Skills.PolicyPath)
+	if cfg.Skills.PolicyPath == "" {
+		cfg.Skills.PolicyPath = "configs/skills/meta-orchestrator.yaml"
+	}
 	if cfg.Attention.MaxDailyNotifications <= 0 {
 		cfg.Attention.MaxDailyNotifications = 5
 	}

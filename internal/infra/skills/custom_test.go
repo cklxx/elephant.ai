@@ -249,6 +249,35 @@ func TestLoadCustomSkills_SanitizesBody(t *testing.T) {
 	}
 }
 
+func TestValidateSkill_InvalidGovernanceAndActivationMode(t *testing.T) {
+	t.Parallel()
+
+	skill := Skill{
+		Name:            "meta-orchestrator",
+		Description:     "meta",
+		GovernanceLevel: "urgent",
+		ActivationMode:  "always",
+	}
+
+	errs := ValidateSkill(skill, CustomSkillConfig{})
+	if len(errs) == 0 {
+		t.Fatal("expected validation errors")
+	}
+
+	var governanceErr, modeErr bool
+	for _, err := range errs {
+		if err.Field == "governance_level" {
+			governanceErr = true
+		}
+		if err.Field == "activation_mode" {
+			modeErr = true
+		}
+	}
+	if !governanceErr || !modeErr {
+		t.Fatalf("expected governance and activation mode errors, got %+v", errs)
+	}
+}
+
 func TestLoadCustomSkills_AllowedTriggers(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

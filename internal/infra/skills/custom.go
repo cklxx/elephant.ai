@@ -237,6 +237,41 @@ func ValidateSkill(skill Skill, config CustomSkillConfig) []ValidationError {
 			Message:   fmt.Sprintf("priority %d must be between 0 and 100", skill.Priority),
 		})
 	}
+	if level := strings.TrimSpace(strings.ToLower(skill.GovernanceLevel)); level != "" {
+		switch level {
+		case "low", "medium", "high", "critical":
+		default:
+			errs = append(errs, ValidationError{
+				SkillName: name,
+				Field:     "governance_level",
+				Message:   fmt.Sprintf("invalid governance_level %q", skill.GovernanceLevel),
+			})
+		}
+	}
+	if mode := strings.TrimSpace(strings.ToLower(skill.ActivationMode)); mode != "" {
+		switch mode {
+		case "auto", "semi_auto", "manual":
+		default:
+			errs = append(errs, ValidationError{
+				SkillName: name,
+				Field:     "activation_mode",
+				Message:   fmt.Sprintf("invalid activation_mode %q", skill.ActivationMode),
+			})
+		}
+	}
+	for _, dep := range skill.DependsOnSkills {
+		trimmed := strings.TrimSpace(dep)
+		if trimmed == "" {
+			continue
+		}
+		if !namePattern.MatchString(trimmed) {
+			errs = append(errs, ValidationError{
+				SkillName: name,
+				Field:     "depends_on_skills",
+				Message:   fmt.Sprintf("invalid dependency name %q", dep),
+			})
+		}
+	}
 
 	// Trigger type whitelist.
 	if len(config.AllowedTriggers) > 0 && skill.Triggers != nil {

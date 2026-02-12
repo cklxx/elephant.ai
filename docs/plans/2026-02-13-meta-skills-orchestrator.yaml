@@ -1,0 +1,43 @@
+meta:
+  id: "2026-02-13-meta-skills-orchestrator"
+  title: "Meta Skills Orchestrator and Capability Skills"
+  status: "completed"
+  owners: ["codex"]
+  created_at: "2026-02-13"
+  updated_at: "2026-02-13 01:00"
+summary:
+  goal: "Introduce a meta skill orchestration layer so core intrinsic capabilities can be activated, linked, and governed via skills."
+  non_goals:
+    - "Do not rewrite tool registry architecture in this change."
+    - "Do not introduce memory/RAG dependencies into domain agent ports."
+phases:
+  - id: "phase-1"
+    name: "Schema and config extension"
+    status: "completed"
+    deliverables:
+      - "Extend skill frontmatter schema with capability/governance/link fields."
+      - "Extend runtime and domain skills config with meta orchestrator controls."
+  - id: "phase-2"
+    name: "Meta orchestration runtime"
+    status: "completed"
+    deliverables:
+      - "Add policy model and loader for configs/skills/meta-orchestrator.yaml."
+      - "Add orchestration planning (filter, order, linkage, risk summary)."
+      - "Inject orchestration summary into prompt skills section."
+  - id: "phase-3"
+    name: "Capability skills"
+    status: "completed"
+    deliverables:
+      - "Add skills: meta-orchestrator, lark-conversation-governor, autonomous-scheduler, soul-self-evolution."
+      - "Add run.py and tests for each skill."
+  - id: "phase-4"
+    name: "Validation and docs"
+    status: "completed"
+    deliverables:
+      - "Update skills guide and sample config."
+      - "Run lint/tests and code review skill before merge."
+acceptance:
+  - "Skills parser exposes new metadata fields without breaking existing skills."
+  - "Prompt can render a deterministic meta orchestration section when enabled."
+  - "New capability skills execute via run.py and pass unit tests."
+  - "Policy defaults and config parsing are stable with missing/partial settings."

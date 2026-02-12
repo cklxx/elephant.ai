@@ -224,9 +224,13 @@ type MemoryIndexFileConfig struct {
 }
 
 type SkillsFileConfig struct {
-	AutoActivation  *SkillsAutoActivationFileConfig `yaml:"auto_activation"`
-	Feedback        *SkillsFeedbackFileConfig       `yaml:"feedback"`
-	CacheTTLSeconds *int                            `yaml:"cache_ttl_seconds"`
+	AutoActivation           *SkillsAutoActivationFileConfig `yaml:"auto_activation"`
+	Feedback                 *SkillsFeedbackFileConfig       `yaml:"feedback"`
+	CacheTTLSeconds          *int                            `yaml:"cache_ttl_seconds"`
+	MetaOrchestratorEnabled  *bool                           `yaml:"meta_orchestrator_enabled"`
+	SoulAutoEvolutionEnabled *bool                           `yaml:"soul_auto_evolution_enabled"`
+	ProactiveLevel           string                          `yaml:"proactive_level"`
+	PolicyPath               string                          `yaml:"policy_path"`
 }
 
 type SkillsAutoActivationFileConfig struct {

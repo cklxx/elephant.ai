@@ -105,10 +105,12 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 
 		content := skill.Body
 		meta := map[string]any{
-			"name":        skill.Name,
-			"title":       skill.Title,
-			"description": skill.Description,
-			"source_path": skill.SourcePath,
+			"name":             skill.Name,
+			"title":            skill.Title,
+			"description":      skill.Description,
+			"source_path":      skill.SourcePath,
+			"governance_level": skill.GovernanceLevel,
+			"activation_mode":  skill.ActivationMode,
 		}
 		if skill.HasRunScript {
 			meta["type"] = "python"
@@ -117,6 +119,16 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		if len(skill.RequiresTools) > 0 {
 			meta["requires_tools"] = skill.RequiresTools
 		}
+		if len(skill.Capabilities) > 0 {
+			meta["capabilities"] = skill.Capabilities
+		}
+		if len(skill.DependsOnSkills) > 0 {
+			meta["depends_on_skills"] = skill.DependsOnSkills
+		}
+		if len(skill.ProducesEvents) > 0 {
+			meta["produces_events"] = skill.ProducesEvents
+		}
+		meta["requires_approval"] = skill.RequiresApproval
 		return &ports.ToolResult{
 			CallID:   call.ID,
 			Content:  content,

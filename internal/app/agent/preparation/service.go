@@ -592,5 +592,9 @@ func buildSkillsConfig(cfg runtimeconfig.SkillsConfig) agent.SkillsConfig {
 			Enabled:   cfg.Feedback.Enabled,
 			StorePath: cfg.Feedback.StorePath,
 		},
+		MetaOrchestratorEnabled:  cfg.MetaOrchestratorEnabled,
+		SoulAutoEvolutionEnabled: cfg.SoulAutoEvolutionEnabled,
+		ProactiveLevel:           cfg.ProactiveLevel,
+		PolicyPath:               cfg.PolicyPath,
 	}
 }

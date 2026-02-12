@@ -27,10 +27,24 @@ func IndexMarkdown(library Library) string {
 		if desc == "" {
 			desc = "(no description)"
 		}
+		metaTags := make([]string, 0, 3)
+		if level := strings.TrimSpace(skill.GovernanceLevel); level != "" {
+			metaTags = append(metaTags, "gov:"+level)
+		}
+		if mode := strings.TrimSpace(skill.ActivationMode); mode != "" {
+			metaTags = append(metaTags, "mode:"+mode)
+		}
+		if len(skill.Capabilities) > 0 {
+			metaTags = append(metaTags, "cap:"+strings.Join(skill.Capabilities, ","))
+		}
+		suffix := ""
+		if len(metaTags) > 0 {
+			suffix = " [" + strings.Join(metaTags, " | ") + "]"
+		}
 		if skill.HasRunScript {
-			builder.WriteString(fmt.Sprintf("- `%s` [py] — %s\n", skill.Name, desc))
+			builder.WriteString(fmt.Sprintf("- `%s` [py]%s — %s\n", skill.Name, suffix, desc))
 		} else {
-			builder.WriteString(fmt.Sprintf("- `%s` — %s\n", skill.Name, desc))
+			builder.WriteString(fmt.Sprintf("- `%s`%s — %s\n", skill.Name, suffix, desc))
 		}
 	}
 	return strings.TrimSpace(builder.String())
@@ -53,6 +67,23 @@ func AvailableSkillsXML(library Library) string {
 		builder.WriteString("  <skill>\n")
 		builder.WriteString(fmt.Sprintf("    <name>%s</name>\n", escapeXML(skill.Name)))
 		builder.WriteString(fmt.Sprintf("    <description>%s</description>\n", escapeXML(desc)))
+		if level := strings.TrimSpace(skill.GovernanceLevel); level != "" {
+			builder.WriteString(fmt.Sprintf("    <governance_level>%s</governance_level>\n", escapeXML(level)))
+		}
+		if mode := strings.TrimSpace(skill.ActivationMode); mode != "" {
+			builder.WriteString(fmt.Sprintf("    <activation_mode>%s</activation_mode>\n", escapeXML(mode)))
+		}
+		if len(skill.Capabilities) > 0 {
+			builder.WriteString("    <capabilities>\n")
+			for _, capability := range skill.Capabilities {
+				trimmed := strings.TrimSpace(capability)
+				if trimmed == "" {
+					continue
+				}
+				builder.WriteString(fmt.Sprintf("      <capability>%s</capability>\n", escapeXML(trimmed)))
+			}
+			builder.WriteString("    </capabilities>\n")
+		}
 		if skill.HasRunScript {
 			builder.WriteString("    <type>python</type>\n")
 			builder.WriteString(fmt.Sprintf("    <exec>python3 skills/%s/run.py '{...}'</exec>\n", escapeXML(skill.Name)))

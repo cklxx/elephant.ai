@@ -263,9 +263,13 @@ type MemoryIndexConfig struct {
 
 // SkillsConfig controls skill activation and feedback.
 type SkillsConfig struct {
-	AutoActivation  SkillsAutoActivationConfig `json:"auto_activation" yaml:"auto_activation"`
-	Feedback        SkillsFeedbackConfig       `json:"feedback" yaml:"feedback"`
-	CacheTTLSeconds int                        `json:"cache_ttl_seconds" yaml:"cache_ttl_seconds"`
+	AutoActivation           SkillsAutoActivationConfig `json:"auto_activation" yaml:"auto_activation"`
+	Feedback                 SkillsFeedbackConfig       `json:"feedback" yaml:"feedback"`
+	CacheTTLSeconds          int                        `json:"cache_ttl_seconds" yaml:"cache_ttl_seconds"`
+	MetaOrchestratorEnabled  bool                       `json:"meta_orchestrator_enabled" yaml:"meta_orchestrator_enabled"`
+	SoulAutoEvolutionEnabled bool                       `json:"soul_auto_evolution_enabled" yaml:"soul_auto_evolution_enabled"`
+	ProactiveLevel           string                     `json:"proactive_level" yaml:"proactive_level"`
+	PolicyPath               string                     `json:"policy_path" yaml:"policy_path"`
 }
 
 type SkillsAutoActivationConfig struct {
@@ -393,7 +397,11 @@ func DefaultProactiveConfig() ProactiveConfig {
 			Feedback: SkillsFeedbackConfig{
 				Enabled: false,
 			},
-			CacheTTLSeconds: 300,
+			CacheTTLSeconds:          300,
+			MetaOrchestratorEnabled:  true,
+			SoulAutoEvolutionEnabled: true,
+			ProactiveLevel:           "medium",
+			PolicyPath:               "configs/skills/meta-orchestrator.yaml",
 		},
 		OKR: OKRProactiveConfig{
 			Enabled:    true,

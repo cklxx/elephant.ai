@@ -1,5 +1,5 @@
 # Skills integration
-> Last updated: 2025-02-05
+> Last updated: 2026-02-13
 
 This guide explains how `alex` discovers and serves skills (Markdown playbooks) following the [Agent Skills specification](https://agentskills.io/integrate-skills).
 
@@ -15,6 +15,14 @@ description: Extract text and tables from PDFs.
 # PDF Processing
 ...body...
 ```
+
+Optional frontmatter for meta orchestration:
+- `capabilities`: declarative capability tags (for example `lark_chat`, `self_schedule`, `self_evolve_soul`)
+- `governance_level`: `low|medium|high|critical`
+- `activation_mode`: `auto|semi_auto|manual`
+- `depends_on_skills`: activation dependencies by skill name
+- `produces_events`: declared event names emitted by the skill
+- `requires_approval`: whether policy should gate auto activation
 
 ## Discovery
 `alex` searches for skills in this order:
@@ -50,6 +58,11 @@ At startup we parse frontmatter to build a compact catalog for prompts and the `
 - `action=list` renders the catalog (names + descriptions).
 - `action=show` returns a specific skill body.
 - `action=search` ranks matches by name/description/body.
+
+## Meta orchestration policy
+- Runtime can apply additional activation and linkage rules from `configs/skills/meta-orchestrator.yaml`.
+- Policy controls activation defaults, governance gates, immutable SOUL sections, and skill linkage edges.
+- Prompt injection includes a compact orchestration summary (`Meta Skill Orchestration`) when enabled.
 
 ## Security considerations
 Running skill-bundled scripts can be risky. Prefer:
