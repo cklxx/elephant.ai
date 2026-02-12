@@ -10,9 +10,10 @@ import (
 
 func TestSubagentDisplaySuccess(t *testing.T) {
 	display := NewSubagentDisplay()
+	base := zeroBase()
 
 	initialLines := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent:  &domain.WorkflowToolStartedEvent{},
+		OriginalEvent:  domain.NewToolStartedEvent(base, 0, "", "", nil),
 		SubtaskIndex:   0,
 		TotalSubtasks:  2,
 		SubtaskPreview: "Investigate login bug",
@@ -26,7 +27,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	}
 
 	noOutput := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowToolCompletedEvent{},
+		OriginalEvent: domain.NewToolCompletedEvent(base, "", "", "", nil, 0, nil, nil),
 		SubtaskIndex:  0,
 	})
 	if len(noOutput) != 0 {
@@ -34,7 +35,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	}
 
 	lines := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 120},
+		OriginalEvent: domain.NewResultFinalEvent(base, "", 0, 120, "", 0, false, false, nil),
 		SubtaskIndex:  0,
 	})
 	if len(lines) != 1 {
@@ -51,7 +52,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	}
 
 	secondStart := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent:  &domain.WorkflowToolStartedEvent{},
+		OriginalEvent:  domain.NewToolStartedEvent(base, 0, "", "", nil),
 		SubtaskIndex:   1,
 		TotalSubtasks:  2,
 		SubtaskPreview: "Prepare release plan",
@@ -61,12 +62,12 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	}
 
 	display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowToolCompletedEvent{},
+		OriginalEvent: domain.NewToolCompletedEvent(base, "", "", "", nil, 0, nil, nil),
 		SubtaskIndex:  1,
 	})
 
 	completion := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 80},
+		OriginalEvent: domain.NewResultFinalEvent(base, "", 0, 80, "", 0, false, false, nil),
 		SubtaskIndex:  1,
 	})
 
@@ -92,9 +93,10 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 
 func TestSubagentDisplayFailure(t *testing.T) {
 	display := NewSubagentDisplay()
+	base := zeroBase()
 
 	firstLines := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent:  &domain.WorkflowToolStartedEvent{},
+		OriginalEvent:  domain.NewToolStartedEvent(base, 0, "", "", nil),
 		SubtaskIndex:   0,
 		TotalSubtasks:  1,
 		SubtaskPreview: "Draft release notes",
@@ -111,7 +113,7 @@ func TestSubagentDisplayFailure(t *testing.T) {
 	}
 
 	failure := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowNodeFailedEvent{Error: assertError("timeout exceeded")},
+		OriginalEvent: domain.NewNodeFailedEvent(base, 0, "", assertError("timeout exceeded"), false),
 		SubtaskIndex:  0,
 	})
 	if len(failure) != 2 {
@@ -136,9 +138,10 @@ func TestSubagentDisplayFailure(t *testing.T) {
 
 func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 	display := NewSubagentDisplay()
+	base := zeroBase()
 
 	header := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowToolStartedEvent{},
+		OriginalEvent: domain.NewToolStartedEvent(base, 0, "", "", nil),
 		SubtaskIndex:  0,
 		TotalSubtasks: 1,
 	})
@@ -147,7 +150,7 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 	}
 
 	firstCompletion := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 10},
+		OriginalEvent: domain.NewResultFinalEvent(base, "", 0, 10, "", 0, false, false, nil),
 		SubtaskIndex:  0,
 	})
 	if len(firstCompletion) != 2 {
@@ -159,7 +162,7 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 
 	// Introduce another subtask with an updated total count.
 	secondStart := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowToolStartedEvent{},
+		OriginalEvent: domain.NewToolStartedEvent(base, 0, "", "", nil),
 		SubtaskIndex:  1,
 		TotalSubtasks: 2,
 	})
@@ -174,7 +177,7 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 	}
 
 	secondCompletion := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 20},
+		OriginalEvent: domain.NewResultFinalEvent(base, "", 0, 20, "", 0, false, false, nil),
 		SubtaskIndex:  1,
 	})
 	if len(secondCompletion) != 2 {
@@ -190,9 +193,10 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 
 func TestSubagentDisplayUpdatesHeaderWhenMaxParallelIncreases(t *testing.T) {
 	display := NewSubagentDisplay()
+	base := zeroBase()
 
 	initial := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowToolStartedEvent{},
+		OriginalEvent: domain.NewToolStartedEvent(base, 0, "", "", nil),
 		SubtaskIndex:  0,
 		TotalSubtasks: 2,
 		MaxParallel:   1,
@@ -205,7 +209,7 @@ func TestSubagentDisplayUpdatesHeaderWhenMaxParallelIncreases(t *testing.T) {
 	}
 
 	update := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowToolStartedEvent{},
+		OriginalEvent: domain.NewToolStartedEvent(base, 0, "", "", nil),
 		SubtaskIndex:  1,
 		TotalSubtasks: 2,
 		MaxParallel:   3,
@@ -223,11 +227,12 @@ func TestSubagentDisplayUpdatesHeaderWhenMaxParallelIncreases(t *testing.T) {
 
 func TestSubagentDisplayFastCompletingTasks(t *testing.T) {
 	display := NewSubagentDisplay()
+	base := zeroBase()
 
 	// Simulate a task that completes immediately without any intermediate events
 	// (first event is the final result)
 	lines := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent:  &domain.WorkflowResultFinalEvent{TotalTokens: 50},
+		OriginalEvent:  domain.NewResultFinalEvent(base, "", 0, 50, "", 0, false, false, nil),
 		SubtaskIndex:   0,
 		TotalSubtasks:  3,
 		SubtaskPreview: "Fast task 1",
@@ -250,7 +255,7 @@ func TestSubagentDisplayFastCompletingTasks(t *testing.T) {
 
 	// Second fast-completing task
 	lines2 := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent:  &domain.WorkflowResultFinalEvent{TotalTokens: 30},
+		OriginalEvent:  domain.NewResultFinalEvent(base, "", 0, 30, "", 0, false, false, nil),
 		SubtaskIndex:   1,
 		TotalSubtasks:  3,
 		SubtaskPreview: "Fast task 2",
@@ -270,7 +275,7 @@ func TestSubagentDisplayFastCompletingTasks(t *testing.T) {
 
 	// Third fast-failing task
 	lines3 := display.Handle(&orchestration.SubtaskEvent{
-		OriginalEvent:  &domain.WorkflowNodeFailedEvent{Error: assertError("quick failure")},
+		OriginalEvent:  domain.NewNodeFailedEvent(base, 0, "", assertError("quick failure"), false),
 		SubtaskIndex:   2,
 		TotalSubtasks:  3,
 		SubtaskPreview: "Fast task 3",

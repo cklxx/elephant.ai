@@ -17,19 +17,21 @@ import (
 	"alex/internal/shared/utils/id"
 )
 
+func zeroBase() domain.BaseEvent {
+	return domain.NewBaseEvent(agent.LevelCore, "", "", "", time.Time{})
+}
+
 func TestHandleSubtaskEventTracksProgress(t *testing.T) {
 	handler := NewStreamingOutputHandler(nil, false)
 	var out bytes.Buffer
 	handler.SetOutputWriter(&out)
 
+	base := zeroBase()
+
 	startEvent := &orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowToolStartedEvent{
-			CallID:   "call-1",
-			ToolName: "test-tool",
-			Arguments: map[string]interface{}{
-				"path": "file.txt",
-			},
-		},
+		OriginalEvent: domain.NewToolStartedEvent(base, 0, "call-1", "test-tool", map[string]interface{}{
+			"path": "file.txt",
+		}),
 		SubtaskIndex:   0,
 		TotalSubtasks:  2,
 		SubtaskPreview: "process file contents to extract summary data",
@@ -42,22 +44,15 @@ func TestHandleSubtaskEventTracksProgress(t *testing.T) {
 	out.Reset()
 
 	completeEvent := &orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowToolCompletedEvent{
-			CallID:   "call-1",
-			ToolName: "test-tool",
-			Result:   "ok",
-			Duration: time.Millisecond,
-		},
-		SubtaskIndex: 0,
+		OriginalEvent: domain.NewToolCompletedEvent(base, "call-1", "test-tool", "ok", nil, time.Millisecond, nil, nil),
+		SubtaskIndex:  0,
 	}
 
 	handler.handleSubtaskEvent(completeEvent)
 	require.Equal(t, "", out.String(), "tool completion should not emit output directly")
 
 	taskCompleteEvent := &orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowResultFinalEvent{
-			TotalTokens: 128,
-		},
+		OriginalEvent: domain.NewResultFinalEvent(base, "", 0, 128, "", 0, false, false, nil),
 		SubtaskIndex:  0,
 		TotalSubtasks: 2,
 	}
@@ -73,10 +68,10 @@ func TestHandleSubtaskEventHandlesErrors(t *testing.T) {
 	var out bytes.Buffer
 	handler.SetOutputWriter(&out)
 
+	base := zeroBase()
+
 	errEvent := &orchestration.SubtaskEvent{
-		OriginalEvent: &domain.WorkflowNodeFailedEvent{
-			Error: errors.New("boom"),
-		},
+		OriginalEvent: domain.NewNodeFailedEvent(base, 0, "", errors.New("boom"), false),
 		SubtaskIndex:   1,
 		TotalSubtasks:  3,
 		SubtaskPreview: "failing subtask",
@@ -91,7 +86,8 @@ func TestHandleSubtaskEventHandlesErrors(t *testing.T) {
 
 func TestStreamingOutputHandlerStoresCompletionEvent(t *testing.T) {
 	handler := NewStreamingOutputHandler(nil, false)
-	event := &domain.WorkflowResultFinalEvent{TotalIterations: 4, TotalTokens: 512}
+	base := zeroBase()
+	event := domain.NewResultFinalEvent(base, "", 4, 512, "", 0, false, false, nil)
 
 	handler.onTaskComplete(event)
 
@@ -137,7 +133,8 @@ func TestStreamingOutputHandlerPrintCancellation(t *testing.T) {
 	var out bytes.Buffer
 	handler.SetOutputWriter(&out)
 
-	event := &domain.WorkflowResultFinalEvent{TotalIterations: 3, TotalTokens: 256}
+	base := zeroBase()
+	event := domain.NewResultFinalEvent(base, "", 3, 256, "", 0, false, false, nil)
 	handler.printCancellation(event)
 
 	output := out.String()
@@ -151,8 +148,9 @@ func TestStreamingOutputHandlerAssistantMessageStream(t *testing.T) {
 	var out bytes.Buffer
 	handler.SetOutputWriter(&out)
 
-	handler.onAssistantMessage(&domain.WorkflowNodeOutputDeltaEvent{Delta: "Hello", Final: false})
-	handler.onAssistantMessage(&domain.WorkflowNodeOutputDeltaEvent{Final: true})
+	base := zeroBase()
+	handler.onAssistantMessage(domain.NewNodeOutputDeltaEvent(base, 0, 0, "Hello", false, time.Time{}, ""))
+	handler.onAssistantMessage(domain.NewNodeOutputDeltaEvent(base, 0, 0, "", true, time.Time{}, ""))
 
 	require.Contains(t, out.String(), "Hello")
 	require.True(t, strings.HasSuffix(out.String(), "\n"))
@@ -164,8 +162,9 @@ func TestStreamingOutputHandlerAssistantMessageBuffersMarkdownLines(t *testing.T
 	var out bytes.Buffer
 	handler.SetOutputWriter(&out)
 
-	handler.onAssistantMessage(&domain.WorkflowNodeOutputDeltaEvent{Delta: "Hello\nWorld", Final: false})
-	handler.onAssistantMessage(&domain.WorkflowNodeOutputDeltaEvent{Final: true})
+	base := zeroBase()
+	handler.onAssistantMessage(domain.NewNodeOutputDeltaEvent(base, 0, 0, "Hello\nWorld", false, time.Time{}, ""))
+	handler.onAssistantMessage(domain.NewNodeOutputDeltaEvent(base, 0, 0, "", true, time.Time{}, ""))
 
 	require.Contains(t, out.String(), "Hello")
 	require.Contains(t, out.String(), "World")

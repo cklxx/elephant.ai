@@ -555,7 +555,7 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 		t.Fatalf("expected workflow.input.received event to be emitted, but none was recorded for session %s", sessionID)
 	}
 
-	if userTaskEvent.Data.Task != "展示占位符 [sketch.png] 和 [diagram.svg]" {
+	if userTaskEvent.Data.Task != "placeholder [sketch.png] and [diagram.svg]" {
 		t.Fatalf("unexpected task content: %q", userTaskEvent.Data.Task)
 	}
 
