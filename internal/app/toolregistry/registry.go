@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"alex/internal/domain/agent/ports"
@@ -44,9 +45,6 @@ type Config struct {
 	TavilyAPIKey string
 
 	ArkAPIKey      string
-	LLMProvider    string
-	LLMModel       string
-	APIKey         string
 	SandboxBaseURL string
 	MemoryEngine   memory.Engine
 	HTTPLimits     runtimeconfig.HTTPLimitsConfig
@@ -373,22 +371,25 @@ func resolveDisabledTools(config Config) map[string]string {
 		return cloned
 	}
 
-	report := runtimeconfig.ValidateRuntimeConfig(runtimeconfig.RuntimeConfig{
-		Profile:      config.Profile,
-		LLMProvider:  config.LLMProvider,
-		LLMModel:     config.LLMModel,
-		APIKey:       config.APIKey,
-		TavilyAPIKey: config.TavilyAPIKey,
-		ArkAPIKey:    config.ArkAPIKey,
-	})
-
-	disabled := make(map[string]string, len(report.DisabledTools))
-	for _, entry := range report.DisabledTools {
-		if entry.Name == "" {
-			continue
-		}
-		disabled[entry.Name] = entry.Reason
+	if runtimeconfig.NormalizeRuntimeProfile(config.Profile) != runtimeconfig.RuntimeProfileQuickstart {
+		return nil
 	}
+
+	disabled := map[string]string{}
+	if strings.TrimSpace(config.TavilyAPIKey) == "" {
+		disabled["web_search"] = "missing TAVILY_API_KEY in quickstart profile"
+	}
+	if strings.TrimSpace(config.ArkAPIKey) == "" {
+		disabled["text_to_image"] = "missing ARK_API_KEY in quickstart profile"
+		disabled["image_to_image"] = "missing ARK_API_KEY in quickstart profile"
+		disabled["vision_analyze"] = "missing ARK_API_KEY in quickstart profile"
+		disabled["video_generate"] = "missing ARK_API_KEY in quickstart profile"
+	}
+
+	if len(disabled) == 0 {
+		return nil
+	}
+
 	return disabled
 }
 
