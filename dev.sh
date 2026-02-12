@@ -131,6 +131,8 @@ readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
 readonly WEB_PID_FILE="${PID_DIR}/web.pid"
 readonly ACP_PID_FILE="${PID_DIR}/acp.pid"
 readonly ACP_PORT_FILE="${PID_DIR}/acp.port"
+readonly LARK_SUPERVISOR_PID_FILE="${PID_DIR}/lark-supervisor.pid"
+readonly LARK_CAFFEINATE_PID_FILE="${PID_DIR}/lark-caffeinate.pid"
 
 readonly BOOTSTRAP_MARKER="${PID_DIR}/bootstrap.done"
 readonly LARK_ENTRY_SH="${SCRIPT_DIR}/lark.sh"
@@ -1040,6 +1042,42 @@ warn_lark_alias_deprecated() {
   log_warn "Deprecated command './dev.sh ${alias}'. Use './dev.sh lark ${canonical}' instead."
 }
 
+lark_caffeinate_supported() {
+  [[ "$(uname -s)" == "Darwin" ]] || return 1
+  command_exists caffeinate
+}
+
+stop_lark_caffeinate_guard() {
+  local pid
+  pid="$(read_pid "${LARK_CAFFEINATE_PID_FILE}" || true)"
+  if is_process_running "${pid}"; then
+    stop_pid "${pid}" "Lark caffeinate guard" 4 0.1 >/dev/null 2>&1 || true
+  fi
+  rm -f "${LARK_CAFFEINATE_PID_FILE}"
+}
+
+start_lark_caffeinate_guard() {
+  lark_caffeinate_supported || return 0
+
+  local supervisor_pid
+  supervisor_pid="$(read_pid "${LARK_SUPERVISOR_PID_FILE}" || true)"
+  if ! is_process_running "${supervisor_pid}"; then
+    log_warn "Skip caffeinate guard: Lark supervisor is not running yet"
+    return 0
+  fi
+
+  local guard_pid
+  guard_pid="$(read_pid "${LARK_CAFFEINATE_PID_FILE}" || true)"
+  if is_process_running "${guard_pid}"; then
+    return 0
+  fi
+
+  rm -f "${LARK_CAFFEINATE_PID_FILE}"
+  nohup caffeinate -s -w "${supervisor_pid}" >/dev/null 2>&1 &
+  echo "$!" > "${LARK_CAFFEINATE_PID_FILE}"
+  log_info "Lark caffeinate guard enabled (pid=$(cat "${LARK_CAFFEINATE_PID_FILE}" 2>/dev/null || true), supervisor_pid=${supervisor_pid})"
+}
+
 cmd_lark() {
   local subcmd="${1:-up}"
   shift || true
@@ -1051,6 +1089,14 @@ cmd_lark() {
   esac
   log_section "Lark"
   "${LARK_ENTRY_SH}" "${subcmd}" "$@"
+  case "${subcmd}" in
+    up|start|restart)
+      start_lark_caffeinate_guard
+      ;;
+    down|stop)
+      stop_lark_caffeinate_guard
+      ;;
+  esac
 }
 
 cmd_lark_up() {
