@@ -39,7 +39,12 @@ Kernel Engine 是一个 cron 驱动的 OODA 循环（Observe-Orient-Decide-Act�
 ~/.alex/kernel/{kernel_id}/STATE.md
 ```
 
-由 DI builder 中 `resolveStorageDir(cfg.StateDir, "~/.alex/kernel")` 解析，默认 `~/.alex/kernel/default/STATE.md`。
+路径由内建默认值 `DefaultStateRootDir="~/.alex/kernel"` 解析，实际为 `~/.alex/kernel/default/STATE.md`（不再通过 runtime YAML 暴露 `state_dir` 配置）。
+
+同目录下还会在 kernel 构建阶段一次性写入：
+
+- `INIT.md`：kernel 运行配置快照（schedule、路由、agent prompt 模板、seed state）
+- `SYSTEM_PROMPT.md`：当前 `AgentCoordinator.GetSystemPrompt()` 的快照
 
 ### 1.2 生命周期
 
@@ -50,32 +55,31 @@ Kernel Engine 是一个 cron 驱动的 OODA 循环（Observe-Orient-Decide-Act�
                     ┌───────┴───────┐
                     │ Yes           │ No
                     v               v
-              Seed(SeedState)   Read() → content
+              Seed(DefaultSeedStateContent)   Read() → content
               Write seed to     返回文件内容
               STATE.md
                     │
                     v
-              content = SeedState
+              content = DefaultSeedStateContent
 ```
 
 | 阶段 | 操作 | 代码位置 |
 |------|------|---------|
-| **首次启动** | `StateFile.Seed(config.SeedState)` — 仅当文件不存在时写入 | `engine.go:75` |
+| **首次启动** | `StateFile.Seed(DefaultSeedStateContent)` — 仅当文件不存在时写入 | `engine.go` + `container_builder.go` |
+| **kernel 构建时** | `StateFile.SeedInit(...)` / `StateFile.SeedSystemPrompt(...)` | `container_builder.go` |
 | **每个 cycle 开头** | `StateFile.Read()` — 读取当前内容 | `engine.go:70` |
-| **cycle 执行中/结束后** | **不会自动更新** — Engine 只读不写 | — |
+| **cycle 执行中/结束后** | Engine upsert `kernel_runtime` 区块（cycle id/status/error 等） | `engine.go` |
 
 ### 1.3 Seed State（种子状态）
 
-来自 YAML 配置 `proactive.kernel.seed_state`：
+来自内建默认常量 `internal/app/agent/kernel/config.go::DefaultSeedStateContent`：
 
-```yaml
-kernel:
-  seed_state: |
-    # Kernel State
-    ## identity
-    elephant.ai kernel — periodic proactive agent loop.
-    ## recent_actions
-    (none yet)
+```md
+# Kernel State
+## identity
+elephant.ai autonomous kernel
+## recent_actions
+(none yet)
 ```
 
 **关键设计：Seed 只写一次。** `StateFile.Seed()` 内部先 `os.Stat` 检查文件是否存在，已存在则直接返回 nil，不覆盖。这意味着：
@@ -83,16 +87,26 @@ kernel:
 - 第一次 cycle：写入 seed → 读回 seed 内容
 - 后续 cycle：跳过 seed → 直接读取文件
 
-### 1.4 State 更新机制（V1 现状）
+### 1.4 State 更新机制（当前）
 
-**V1 中 Engine 不会写回 STATE.md。** `StateFile.Write()` 方法存在但从未被 Engine 调用。
+Engine 在每次 cycle 结束后会把执行结果 upsert 到 `STATE.md` 的 runtime 区块：
 
-这意味着除非外部进程修改 STATE.md，每个 cycle 的 `{STATE}` 值始终等于 seed state。
+```md
+<!-- KERNEL_RUNTIME:START -->
+## kernel_runtime
+- updated_at: ...
+- cycle_id: ...
+- status: success|partial_success|failed|error
+- dispatched: ...
+- succeeded: ...
+- failed: ...
+- failed_agents: ...
+- duration_ms: ...
+- error: ...
+<!-- KERNEL_RUNTIME:END -->
+```
 
-未来可扩展的方向：
-- Agent 通过 file_write tool 直接修改 STATE.md
-- Engine 在 cycle 结束后根据执行结果更新 STATE.md
-- 引入 LLM 驱动的 state reducer：`new_state = LLM(old_state, cycle_results)`
+该区块用于可观测性，固定为单块替换（不会无限追加）。除该区块外，其余内容仍视为 agent 维护的业务状态。
 
 ---
 
@@ -227,7 +241,7 @@ t=0    cron 触发 RunCycle
        │
 t=1    ┌─ PERCEIVE ─────────────────────────────────────────┐
        │  StateFile.Read() → stateContent                    │
-       │  (首次: Seed → Write seed_state → stateContent)     │
+       │  (首次: Seed → Write default seed → stateContent)   │
        └─────────────────────────────────────────────────────┘
        │
 t=2    ┌─ ORIENT ───────────────────────────────────────────┐
@@ -279,23 +293,11 @@ t=6    汇总 CycleResult{Dispatched, Succeeded, Failed}
 
 ## 5. V1 局限与演进方向
 
-### 5.1 STATE.md 是只读的
+### 5.1 STATE.md 的可观测性区块
 
-当前 Engine 从不调用 `StateFile.Write()`。`{STATE}` 每次 cycle 都是相同的 seed 内容，除非外部修改了文件。
+当前 Engine 会自动回写 `kernel_runtime` 区块，确保即使任务失败（例如 LLM 限流）也能在 `STATE.md` 中看到“本轮是否执行、失败原因是什么”。
 
-**演进路径：**
-
-```
-V1 (当前)                  V2 (计划)
-┌──────────────────┐      ┌──────────────────────────────────┐
-│ Read STATE.md    │      │ Read STATE.md                     │
-│ Plan + Execute   │      │ Plan + Execute                    │
-│ (state 不变)     │      │ state_reducer(old, cycle_result)  │
-│                  │      │ Write STATE.md                    │
-└──────────────────┘      └──────────────────────────────────┘
-```
-
-V2 中可以在 cycle 结束后调用一个 state reducer（可以是 LLM 或规则引擎），将 cycle 执行结果合并回 STATE.md，实现跨 cycle 的状态演进。
+仍可进一步演进为更强的 state reducer（规则/LLM），将业务层摘要（而非仅执行指标）融合回主状态。
 
 ### 5.2 StaticPlanner 无条件分发
 

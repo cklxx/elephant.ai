@@ -354,12 +354,6 @@ func mergeKernelConfig(target *KernelProactiveConfig, file *KernelFileConfig) {
 	if strings.TrimSpace(file.Schedule) != "" {
 		target.Schedule = strings.TrimSpace(file.Schedule)
 	}
-	if strings.TrimSpace(file.StateDir) != "" {
-		target.StateDir = strings.TrimSpace(file.StateDir)
-	}
-	if strings.TrimSpace(file.SeedState) != "" {
-		target.SeedState = file.SeedState // preserve whitespace in seed state content
-	}
 	if file.TimeoutSeconds != nil {
 		target.TimeoutSeconds = *file.TimeoutSeconds
 	}
@@ -452,7 +446,6 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 		file.Timer.StorePath = expandEnvValue(lookup, file.Timer.StorePath)
 	}
 	if file.Kernel != nil {
-		file.Kernel.StateDir = expandEnvValue(lookup, file.Kernel.StateDir)
 		file.Kernel.Channel = expandEnvValue(lookup, file.Kernel.Channel)
 		file.Kernel.UserID = expandEnvValue(lookup, file.Kernel.UserID)
 		file.Kernel.ChatID = expandEnvValue(lookup, file.Kernel.ChatID)

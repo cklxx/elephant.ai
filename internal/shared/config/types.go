@@ -209,8 +209,6 @@ type KernelProactiveConfig struct {
 	Enabled        bool                         `json:"enabled" yaml:"enabled"`
 	KernelID       string                       `json:"kernel_id" yaml:"kernel_id"`
 	Schedule       string                       `json:"schedule" yaml:"schedule"`
-	StateDir       string                       `json:"state_dir" yaml:"state_dir"`
-	SeedState      string                       `json:"seed_state" yaml:"seed_state"`
 	TimeoutSeconds int                          `json:"timeout_seconds" yaml:"timeout_seconds"`
 	LeaseSeconds   int                          `json:"lease_seconds" yaml:"lease_seconds"`
 	MaxConcurrent  int                          `json:"max_concurrent" yaml:"max_concurrent"`
@@ -444,7 +442,6 @@ func DefaultProactiveConfig() ProactiveConfig {
 			Enabled:        false,
 			KernelID:       "default",
 			Schedule:       "*/10 * * * *",
-			StateDir:       "~/.alex/kernel",
 			TimeoutSeconds: 900,
 			LeaseSeconds:   1800,
 			MaxConcurrent:  3,

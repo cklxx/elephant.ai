@@ -169,8 +169,6 @@ type KernelFileConfig struct {
 	Enabled        *bool                   `yaml:"enabled"`
 	KernelID       string                  `yaml:"kernel_id"`
 	Schedule       string                  `yaml:"schedule"`
-	StateDir       string                  `yaml:"state_dir"`
-	SeedState      string                  `yaml:"seed_state"`
 	TimeoutSeconds *int                    `yaml:"timeout_seconds"`
 	LeaseSeconds   *int                    `yaml:"lease_seconds"`
 	MaxConcurrent  *int                    `yaml:"max_concurrent"`

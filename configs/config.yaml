@@ -80,12 +80,6 @@ runtime:
       schedule: "*/30 * * * *"
       channel: "lark"
       user_id: "cklxx"
-      seed_state: |
-        # Kernel State
-        ## identity
-        elephant.ai kernel — periodic proactive agent loop.
-        ## recent_actions
-        (none yet)
   tool_policy:
     enforcement_mode: "warn_allow"
   external_agents:

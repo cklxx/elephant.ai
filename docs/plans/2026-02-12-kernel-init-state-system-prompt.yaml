@@ -1,0 +1,48 @@
+id: 2026-02-12-kernel-init-state-system-prompt
+title: Persist kernel bootstrap docs and remove unused kernel config surface
+status: in_progress
+owner: codex
+created: 2026-02-12
+updated: 2026-02-12T15:25:00-08:00
+summary: >
+  Make kernel runtime state observable by persisting initialization metadata and
+  effective system prompt markdown files, and simplify kernel configuration by
+  removing low-value state path/seed fields in favor of built-in defaults.
+scope:
+  in:
+    - Extend kernel state file helper with INIT.md and SYSTEM_PROMPT.md support
+    - Generate markdown snapshots for kernel init/runtime configuration
+    - Seed docs during kernel engine construction
+    - Remove proactive.kernel.state_dir and proactive.kernel.seed_state from runtime config schema
+    - Switch kernel state path/seed source to code defaults
+    - Add tests for markdown rendering and file seeding behavior
+  out:
+    - Redesigning kernel dispatch planner logic
+    - Changing proactive scheduling semantics
+    - Reworking LLM provider architecture
+steps:
+  - id: inspect-current-kernel-state-flow
+    description: Identify current state file write path and missing docs behavior
+    status: completed
+  - id: implement-kernel-bootstrap-docs
+    description: Add INIT.md and SYSTEM_PROMPT.md rendering and seeding APIs
+    status: completed
+  - id: wire-di-bootstrap
+    description: Seed init/system prompt docs from container builder
+    status: completed
+  - id: remove-low-value-kernel-config
+    description: Remove state_dir/seed_state fields and use internal defaults
+    status: completed
+  - id: verify-with-tests
+    description: Run targeted and package-level tests for kernel flow
+    status: completed
+  - id: full-validation
+    description: Run lint/tests and summarize runtime behavior against real config
+    status: in_progress
+acceptance_criteria:
+  - Kernel state directory contains STATE.md, INIT.md, and SYSTEM_PROMPT.md after startup
+  - INIT.md records kernel runtime config and agent prompt templates
+  - SYSTEM_PROMPT.md records current effective coordinator system prompt
+  - Existing kernel cycle behavior remains backward-compatible
+notes:
+  - Kernel state path is now fixed to ~/.alex/kernel/{kernel_id}; runtime YAML state_dir/seed_state are ignored.
