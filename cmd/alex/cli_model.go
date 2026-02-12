@@ -77,7 +77,8 @@ func listModelsFromWith(
 	)
 
 	catalog := svc.Catalog(ctx)
-	if len(catalog.Providers) == 0 {
+	providers := modelCommandProviders(catalog.Providers)
+	if len(providers) == 0 {
 		if _, err := fmt.Fprintln(out, "未发现可用的订阅模型"); err != nil {
 			return err
 		}
@@ -105,7 +106,7 @@ func listModelsFromWith(
 		return err
 	}
 
-	for _, p := range catalog.Providers {
+	for _, p := range providers {
 		if _, err := fmt.Fprintf(out, "  %s (%s)\n", p.Provider, p.Source); err != nil {
 			return err
 		}
@@ -148,6 +149,21 @@ func listModelsFromWith(
 	return nil
 }
 
+func modelCommandProviders(providers []subscription.CatalogProvider) []subscription.CatalogProvider {
+	if len(providers) == 0 {
+		return nil
+	}
+	out := make([]subscription.CatalogProvider, 0, len(providers))
+	for _, provider := range providers {
+		source := strings.ToLower(strings.TrimSpace(provider.Source))
+		if source == "manual" {
+			continue
+		}
+		out = append(out, provider)
+	}
+	return out
+}
+
 func useModel(out io.Writer, spec string) error {
 	return useModelWith(out, spec, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
 }
@@ -161,7 +177,7 @@ func useModelWith(out io.Writer, spec string, creds runtimeconfig.CLICredentials
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
 		return fmt.Errorf("format: <provider>/<model>, e.g. codex/gpt-5.2-codex")
 	}
-	provider := strings.ToLower(strings.TrimSpace(parts[0]))
+	provider := normalizeCLIProvider(strings.ToLower(strings.TrimSpace(parts[0])))
 	model := strings.TrimSpace(parts[1])
 
 	cred, ok := matchCredential(creds, provider)
@@ -215,12 +231,16 @@ func clearModelWith(out io.Writer, envLookup runtimeconfig.EnvLookup) error {
 }
 
 func matchCredential(creds runtimeconfig.CLICredentials, provider string) (runtimeconfig.CLICredential, bool) {
+	provider = normalizeCLIProvider(provider)
+	codexProvider := normalizeCLIProvider(creds.Codex.Provider)
+	claudeProvider := normalizeCLIProvider(creds.Claude.Provider)
+
 	switch provider {
-	case creds.Codex.Provider:
+	case codexProvider:
 		if creds.Codex.APIKey != "" {
 			return creds.Codex, true
 		}
-	case creds.Claude.Provider:
+	case claudeProvider:
 		if creds.Claude.APIKey != "" {
 			return creds.Claude, true
 		}
@@ -231,6 +251,16 @@ func matchCredential(creds runtimeconfig.CLICredentials, provider string) (runti
 		}, true
 	}
 	return runtimeconfig.CLICredential{}, false
+}
+
+func normalizeCLIProvider(provider string) string {
+	key := strings.ToLower(strings.TrimSpace(provider))
+	switch key {
+	case "claude":
+		return "anthropic"
+	default:
+		return key
+	}
 }
 
 func printModelUsage(out io.Writer) {

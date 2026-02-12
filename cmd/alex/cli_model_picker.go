@@ -27,7 +27,7 @@ func useModelPickerWith(
 	defer cancel()
 
 	catalog := loadSubscriptionCatalog(ctx, creds)
-	providers := selectableCatalogProviders(catalog.Providers)
+	providers := selectableCatalogProviders(modelCommandProviders(catalog.Providers))
 	if len(providers) == 0 {
 		return fmt.Errorf("no selectable subscription providers found; run `alex model list` to inspect credential status")
 	}

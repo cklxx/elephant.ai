@@ -78,6 +78,57 @@ func TestExecuteSetupCommandWithExplicitModel(t *testing.T) {
 	}
 }
 
+func TestExecuteSetupCommandWithProviderAPIKeyDefaults(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	overridesFile := filepath.Join(tmp, "config.yaml")
+	onboardingFile := filepath.Join(tmp, "onboarding_state.json")
+	selectionFile := filepath.Join(tmp, "llm_selection.json")
+	envLookup := func(key string) (string, bool) {
+		if key == "ALEX_CONFIG_PATH" {
+			return overridesFile, true
+		}
+		return "", false
+	}
+
+	var out bytes.Buffer
+	err := executeSetupCommandWith(
+		[]string{"--provider", "openai", "--api-key", "sk-test-openai"},
+		strings.NewReader(""),
+		&out,
+		runtimeconfig.CLICredentials{},
+		envLookup,
+	)
+	if err != nil {
+		t.Fatalf("executeSetupCommandWith error: %v", err)
+	}
+
+	overrides, err := loadManagedOverrides(envLookup)
+	if err != nil {
+		t.Fatalf("load managed overrides: %v", err)
+	}
+	if overrides.LLMProvider == nil || *overrides.LLMProvider != "openai" {
+		t.Fatalf("expected llm_provider=openai, got %#v", overrides.LLMProvider)
+	}
+	if overrides.LLMModel == nil || *overrides.LLMModel == "" {
+		t.Fatalf("expected default llm_model, got %#v", overrides.LLMModel)
+	}
+	if overrides.APIKey == nil || *overrides.APIKey != "sk-test-openai" {
+		t.Fatalf("expected api_key override, got %#v", overrides.APIKey)
+	}
+	if overrides.BaseURL == nil || *overrides.BaseURL == "" {
+		t.Fatalf("expected base_url override, got %#v", overrides.BaseURL)
+	}
+
+	if _, err := os.Stat(onboardingFile); err != nil {
+		t.Fatalf("expected onboarding file, got err=%v", err)
+	}
+	if _, err := os.Stat(selectionFile); !os.IsNotExist(err) {
+		t.Fatalf("expected selection file to be absent, err=%v", err)
+	}
+}
+
 func TestExecuteSetupCommandWithLarkRuntimeConfig(t *testing.T) {
 	t.Parallel()
 
@@ -192,6 +243,24 @@ func TestExecuteSetupCommandLarkRuntimeRequiresCredentialsInNonInteractive(t *te
 		t.Fatalf("expected error when lark credentials are missing")
 	}
 	if !strings.Contains(err.Error(), "--lark-app-id is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestExecuteSetupCommandProviderWithoutAPIKeyFailsInNonInteractive(t *testing.T) {
+	t.Parallel()
+
+	err := executeSetupCommandWith(
+		[]string{"--provider", "openai"},
+		strings.NewReader(""),
+		&bytes.Buffer{},
+		runtimeconfig.CLICredentials{},
+		func(string) (string, bool) { return "", false },
+	)
+	if err == nil {
+		t.Fatalf("expected error when api key is missing")
+	}
+	if !strings.Contains(err.Error(), "--api-key is required") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
