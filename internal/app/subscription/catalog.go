@@ -70,6 +70,7 @@ type CatalogProvider struct {
 	Models            []string              `json:"models,omitempty"`
 	DefaultModel      string                `json:"default_model,omitempty"`
 	RecommendedModels []ModelRecommendation `json:"recommended_models,omitempty"`
+	KeyCreateURL      string                `json:"key_create_url,omitempty"`
 	Selectable        bool                  `json:"selectable"`
 	SetupHint         string                `json:"setup_hint,omitempty"`
 	Error             string                `json:"error,omitempty"`
@@ -159,76 +160,151 @@ func (s *CatalogService) Catalog(ctx context.Context) Catalog {
 }
 
 func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, client *http.Client, maxResponseBytes int) []CatalogProvider {
-	var targets []CatalogProvider
-
-	if creds.Codex.APIKey != "" {
-		target := CatalogProvider{
-			Provider: creds.Codex.Provider,
-			Source:   string(creds.Codex.Source),
-			BaseURL:  creds.Codex.BaseURL,
-		}
-		applyCatalogProviderPreset(&target)
-		targets = append(targets, target)
-	}
-	if creds.Claude.APIKey != "" {
-		baseURL := strings.TrimSpace(creds.Claude.BaseURL)
-		if baseURL == "" {
-			baseURL = "https://api.anthropic.com/v1"
-		}
-		target := CatalogProvider{
-			Provider: creds.Claude.Provider,
-			Source:   string(creds.Claude.Source),
-			BaseURL:  baseURL,
-		}
-		applyCatalogProviderPreset(&target)
-		targets = append(targets, target)
+	type providerAuth struct {
+		apiKey    string
+		accountID string
 	}
 
-	for i := range targets {
-		target := &targets[i]
+	targetByProvider := map[string]CatalogProvider{}
+	authByProvider := map[string]providerAuth{}
+	addTarget := func(provider, source, baseURL, apiKey, accountID string) {
+		key := normalizeCatalogProvider(provider)
+		if key == "" {
+			return
+		}
+		if existing, ok := targetByProvider[key]; ok {
+			// Prefer runtime-discovered provider source over manual metadata source.
+			if existing.Source == "manual" && strings.TrimSpace(source) != "" && source != "manual" {
+				existing.Source = source
+			}
+			if strings.TrimSpace(existing.BaseURL) == "" && strings.TrimSpace(baseURL) != "" {
+				existing.BaseURL = strings.TrimSpace(baseURL)
+			}
+			applyCatalogProviderPreset(&existing)
+			targetByProvider[key] = existing
+		} else {
+			target := CatalogProvider{
+				Provider: key,
+				Source:   strings.TrimSpace(source),
+				BaseURL:  strings.TrimSpace(baseURL),
+			}
+			if target.Source == "" {
+				target.Source = "manual"
+			}
+			applyCatalogProviderPreset(&target)
+			targetByProvider[key] = target
+		}
+		if strings.TrimSpace(apiKey) != "" {
+			authByProvider[key] = providerAuth{
+				apiKey:    strings.TrimSpace(apiKey),
+				accountID: strings.TrimSpace(accountID),
+			}
+		}
+	}
+
+	addTarget(creds.Codex.Provider, string(creds.Codex.Source), creds.Codex.BaseURL, creds.Codex.APIKey, creds.Codex.AccountID)
+	addTarget(creds.Claude.Provider, string(creds.Claude.Source), creds.Claude.BaseURL, creds.Claude.APIKey, "")
+
+	for _, provider := range defaultManualCatalogProviders() {
+		preset, ok := LookupProviderPreset(provider)
+		if !ok {
+			continue
+		}
+		addTarget(preset.Provider, "manual", preset.DefaultBaseURL, "", "")
+	}
+
+	keys := make([]string, 0, len(targetByProvider))
+	for key := range targetByProvider {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		left := keys[i]
+		right := keys[j]
+		leftRank := catalogProviderRank(left)
+		rightRank := catalogProviderRank(right)
+		if leftRank != rightRank {
+			return leftRank < rightRank
+		}
+		return left < right
+	})
+
+	targets := make([]CatalogProvider, 0, len(keys))
+	for _, key := range keys {
+		target := targetByProvider[key]
+		auth := authByProvider[key]
 		if target.Provider == "codex" && target.Source == string(runtimeconfig.SourceCodexCLI) {
 			target.Models = codexFallbackModels(creds.Codex.Model)
-			target.DefaultModel = pickCatalogDefaultModel(*target)
+			target.DefaultModel = pickCatalogDefaultModel(target)
+			targets = append(targets, target)
 			continue
 		}
-		models, err := fetchProviderModels(ctx, client, fetchTarget{
-			provider:  target.Provider,
-			baseURL:   target.BaseURL,
-			apiKey:    pickAPIKey(creds, target.Provider),
-			accountID: pickAccountID(creds, target.Provider),
-		}, maxResponseBytes)
-		if err != nil {
-			target.Error = err.Error()
-			if len(target.Models) == 0 {
+		if auth.apiKey != "" && strings.TrimSpace(target.BaseURL) != "" {
+			models, err := fetchProviderModels(ctx, client, fetchTarget{
+				provider:  target.Provider,
+				baseURL:   target.BaseURL,
+				apiKey:    auth.apiKey,
+				accountID: auth.accountID,
+			}, maxResponseBytes)
+			if err != nil {
+				target.Error = err.Error()
 				target.Models = recommendationIDs(target.RecommendedModels)
+				target.DefaultModel = pickCatalogDefaultModel(target)
+				targets = append(targets, target)
+				continue
 			}
-			target.DefaultModel = pickCatalogDefaultModel(*target)
-			continue
+			target.Models = models
+		} else {
+			target.Models = recommendationIDs(target.RecommendedModels)
 		}
-		target.Models = models
-		target.DefaultModel = pickCatalogDefaultModel(*target)
+		target.DefaultModel = pickCatalogDefaultModel(target)
+		targets = append(targets, target)
 	}
 
 	return targets
 }
 
-func pickAPIKey(creds runtimeconfig.CLICredentials, provider string) string {
-	switch provider {
-	case creds.Codex.Provider:
-		return creds.Codex.APIKey
-	case creds.Claude.Provider:
-		return creds.Claude.APIKey
-	default:
+func normalizeCatalogProvider(provider string) string {
+	key := strings.ToLower(strings.TrimSpace(provider))
+	switch key {
+	case "":
 		return ""
+	case "claude":
+		return "anthropic"
+	default:
+		return key
 	}
 }
 
-func pickAccountID(creds runtimeconfig.CLICredentials, provider string) string {
+func defaultManualCatalogProviders() []string {
+	return []string{
+		"openai",
+		"openrouter",
+		"anthropic",
+		"kimi",
+		"glm",
+		"minimax",
+		"codex",
+	}
+}
+
+func catalogProviderRank(provider string) int {
 	switch provider {
-	case creds.Codex.Provider:
-		return creds.Codex.AccountID
+	case "openai":
+		return 0
+	case "openrouter":
+		return 1
+	case "anthropic":
+		return 2
+	case "kimi":
+		return 3
+	case "glm":
+		return 4
+	case "minimax":
+		return 5
+	case "codex":
+		return 6
 	default:
-		return ""
+		return 50
 	}
 }
 

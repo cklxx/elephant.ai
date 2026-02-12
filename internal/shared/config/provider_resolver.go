@@ -210,7 +210,7 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 			}
-		case "openai", "openrouter", "deepseek":
+		case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
 			if key, ok := lookup("OPENAI_API_KEY"); ok && strings.TrimSpace(key) != "" {
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
@@ -259,7 +259,7 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				cfg.BaseURL = codexCLIBaseURL
 				meta.sources["base_url"] = SourceEnv
 			}
-		case "openai", "openrouter", "deepseek":
+		case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
 			if base, ok := lookup("OPENAI_BASE_URL"); ok && strings.TrimSpace(base) != "" {
 				cfg.BaseURL = strings.TrimSpace(base)
 				meta.sources["base_url"] = SourceEnv

@@ -73,6 +73,17 @@ func TestResolveLLMProfile(t *testing.T) {
 			errSubstr: "incompatible",
 		},
 		{
+			name: "kimi with anthropic key fails",
+			cfg: RuntimeConfig{
+				LLMProvider: "kimi",
+				LLMModel:    "kimi-k2-0711-preview",
+				APIKey:      "sk-ant-abc",
+				BaseURL:     "https://api.moonshot.cn/v1",
+			},
+			wantErr:   true,
+			errSubstr: "incompatible",
+		},
+		{
 			name: "anthropic with openai endpoint fails",
 			cfg: RuntimeConfig{
 				LLMProvider: "anthropic",

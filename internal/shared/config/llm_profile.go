@@ -70,6 +70,8 @@ func normalizeProviderFamily(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
 	case "openai-responses", "responses", "codex":
 		return "codex"
+	case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
+		return "openai"
 	case "anthropic", "claude":
 		return "anthropic"
 	default:

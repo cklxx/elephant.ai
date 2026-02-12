@@ -107,10 +107,13 @@ func TestCatalogServiceUsesCodexFallbackWithoutNetwork(t *testing.T) {
 	}, client, 0)
 
 	catalog := svc.Catalog(context.Background())
-	if len(catalog.Providers) != 1 {
-		t.Fatalf("expected one provider, got %d", len(catalog.Providers))
+	if len(catalog.Providers) < 6 {
+		t.Fatalf("expected manual providers plus codex, got %d providers", len(catalog.Providers))
 	}
-	got := catalog.Providers[0]
+	got, ok := findCatalogProvider(catalog.Providers, "codex")
+	if !ok {
+		t.Fatalf("expected codex provider in catalog, got %#v", catalog.Providers)
+	}
 	if got.Error != "" {
 		t.Fatalf("expected no error, got %q", got.Error)
 	}
@@ -125,6 +128,32 @@ func TestCatalogServiceUsesCodexFallbackWithoutNetwork(t *testing.T) {
 	}
 	if len(got.Models) == 0 || got.Models[0] == "" {
 		t.Fatalf("expected fallback models, got %#v", got.Models)
+	}
+}
+
+func TestCatalogServiceIncludesManualProvidersWithoutCredentials(t *testing.T) {
+	svc := NewCatalogService(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.CLICredentials{}
+	}, &http.Client{}, 0)
+
+	catalog := svc.Catalog(context.Background())
+	for _, provider := range []string{"openai", "openrouter", "anthropic", "kimi", "glm", "minimax"} {
+		got, ok := findCatalogProvider(catalog.Providers, provider)
+		if !ok {
+			t.Fatalf("expected %s provider in catalog, got %#v", provider, catalog.Providers)
+		}
+		if got.Source != "manual" {
+			t.Fatalf("expected %s source=manual, got %q", provider, got.Source)
+		}
+		if got.KeyCreateURL == "" {
+			t.Fatalf("expected %s key_create_url", provider)
+		}
+		if got.DefaultModel == "" {
+			t.Fatalf("expected %s default model", provider)
+		}
+		if len(got.Models) == 0 {
+			t.Fatalf("expected %s fallback recommendation models", provider)
+		}
 	}
 }
 
@@ -148,10 +177,10 @@ func TestCatalogServiceIncludesLlamaServerWhenAvailable(t *testing.T) {
 	}))
 
 	catalog := svc.Catalog(context.Background())
-	if len(catalog.Providers) != 1 {
-		t.Fatalf("expected 1 provider, got %d", len(catalog.Providers))
+	got, ok := findCatalogProvider(catalog.Providers, "llama_server")
+	if !ok {
+		t.Fatalf("expected llama_server provider, got %#v", catalog.Providers)
 	}
-	got := catalog.Providers[0]
 	if got.Provider != "llama_server" {
 		t.Fatalf("expected llama_server provider, got %#v", got)
 	}
@@ -177,7 +206,16 @@ func TestCatalogServiceSkipsLlamaServerWhenUnavailable(t *testing.T) {
 	}))
 
 	catalog := svc.Catalog(context.Background())
-	if len(catalog.Providers) != 0 {
-		t.Fatalf("expected no providers when llama server is unavailable, got %#v", catalog.Providers)
+	if _, ok := findCatalogProvider(catalog.Providers, "llama_server"); ok {
+		t.Fatalf("expected no llama_server provider when unavailable, got %#v", catalog.Providers)
 	}
+}
+
+func findCatalogProvider(providers []CatalogProvider, provider string) (CatalogProvider, bool) {
+	for _, item := range providers {
+		if item.Provider == provider {
+			return item, true
+		}
+	}
+	return CatalogProvider{}, false
 }
