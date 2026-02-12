@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient, type SSEReplayMode, type SessionSnapshotsResponse, type MemorySnapshot } from "@/lib/api";
+import { resolveApiBaseUrl } from "@/lib/api-base";
 import { createRequestGate } from "@/lib/requestGate";
 import { type LogTraceBundle, type WorkflowEventType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -779,6 +780,7 @@ export default function DiagnosticsPage() {
   const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshot | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memoryError, setMemoryError] = useState<string | null>(null);
+  const [sseBaseUrl, setSseBaseUrl] = useState("");
   const debouncedFilter = useDebouncedValue(filter, 140);
   const deferredEvents = useDeferredValue(events);
 
@@ -880,10 +882,20 @@ export default function DiagnosticsPage() {
     setIsConnected(false);
     setIsConnecting(true);
 
-    const source = apiClient.createSSEConnection(sessionId, undefined, {
-      replay: replayMode,
-      debug: true,
-    });
+    let source: EventSource;
+    if (sseBaseUrl) {
+      // Custom base URL (e.g. Lark debug server on :9090)
+      const url = new URL(`${sseBaseUrl.replace(/\/$/, "")}/api/sse`);
+      url.searchParams.set("session_id", sessionId);
+      if (replayMode !== "full") url.searchParams.set("replay", replayMode);
+      url.searchParams.set("debug", "1");
+      source = new EventSource(url.toString());
+    } else {
+      source = apiClient.createSSEConnection(sessionId, undefined, {
+        replay: replayMode,
+        debug: true,
+      });
+    }
 
     source.onopen = () => {
       setIsConnecting(false);
@@ -902,7 +914,7 @@ export default function DiagnosticsPage() {
 
     source.onmessage = (event) => handleIncomingEvent("message", event);
     eventSourceRef.current = source;
-  }, [clearEvents, disconnect, handleIncomingEvent, replayMode, sessionId]);
+  }, [clearEvents, disconnect, handleIncomingEvent, replayMode, sessionId, sseBaseUrl]);
 
   const loadSessionSnapshot = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -1045,6 +1057,14 @@ export default function DiagnosticsPage() {
     setSessionIdInput(candidate);
     autoSeededRef.current = true;
   }, [currentSessionId, sessionHistory, sessionIdInput]);
+
+  // Auto-select Lark debug server when session ID starts with "lark-".
+  useEffect(() => {
+    const id = sessionIdInput.trim();
+    if (id.startsWith("lark-") && !sseBaseUrl) {
+      setSseBaseUrl("http://localhost:9090");
+    }
+  }, [sessionIdInput, sseBaseUrl]);
 
   useEffect(() => {
     if (!autoScroll || events.length === 0) {
@@ -1462,7 +1482,7 @@ export default function DiagnosticsPage() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_140px_auto] md:items-end">
+            <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_140px_180px_auto] md:items-end">
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-muted-foreground">Session ID</p>
                 <Input
@@ -1486,6 +1506,18 @@ export default function DiagnosticsPage() {
                   <option value="full">full</option>
                   <option value="session">session</option>
                   <option value="none">none</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground">SSE Server</p>
+                <select
+                  value={sseBaseUrl}
+                  onChange={(event) => setSseBaseUrl(event.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm"
+                >
+                  <option value="">Web ({resolveApiBaseUrl()})</option>
+                  <option value="http://localhost:9090">Lark Debug (:9090)</option>
+                  <option value="http://localhost:9091">Lark Test (:9091)</option>
                 </select>
               </div>
               <div className="flex flex-wrap items-center gap-2">
