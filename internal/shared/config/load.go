@@ -110,6 +110,12 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		setSource("llm_provider", SourceDefault)
 	}
 
+	// Enforce an atomic provider/model/auth/base_url profile so downstream
+	// components can consume it without provider-specific mismatch handling.
+	if _, err := ResolveLLMProfile(cfg); err != nil {
+		return RuntimeConfig{}, Metadata{}, err
+	}
+
 	return cfg, meta, nil
 }
 

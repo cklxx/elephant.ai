@@ -741,6 +741,27 @@ runtime:
 	}
 }
 
+func TestLoadFailsOnProviderKeyMismatch(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "codex"
+  llm_model: "gpt-5-codex"
+  api_key: "sk-kimi-abc"
+  base_url: "https://chatgpt.com/backend-api/codex"
+`)
+
+	_, _, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{}.Lookup),
+	)
+	if err == nil {
+		t.Fatal("expected provider/key mismatch to fail load")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "invalid llm profile") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestEnvOverridesFile(t *testing.T) {
 	fileData := []byte(`
 runtime:

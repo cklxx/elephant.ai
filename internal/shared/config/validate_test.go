@@ -44,3 +44,24 @@ func TestNormalizeRuntimeProfileDefaultsToStandard(t *testing.T) {
 		t.Fatalf("expected prod alias to normalize to production, got %q", got)
 	}
 }
+
+func TestValidateRuntimeConfigDetectsLLMProfileMismatch(t *testing.T) {
+	report := ValidateRuntimeConfig(RuntimeConfig{
+		Profile:     RuntimeProfileStandard,
+		LLMProvider: "codex",
+		LLMModel:    "gpt-5-codex",
+		APIKey:      "sk-kimi-abc",
+		BaseURL:     codexCLIBaseURL,
+	})
+
+	found := false
+	for _, issue := range report.Errors {
+		if issue.ID == "llm-profile-mismatch" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected llm-profile-mismatch error, got %#v", report.Errors)
+	}
+}

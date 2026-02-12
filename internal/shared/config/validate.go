@@ -93,6 +93,14 @@ func ValidateRuntimeConfig(cfg RuntimeConfig) ValidationReport {
 		}
 	}
 
+	if _, err := ResolveLLMProfile(cfg); err != nil {
+		report.Errors = append(report.Errors, ValidationIssue{
+			ID:      "llm-profile-mismatch",
+			Message: err.Error(),
+			Hint:    "Align llm_provider, api_key and base_url so they target the same vendor/API family.",
+		})
+	}
+
 	if tavilyKey == "" {
 		report.Warnings = append(report.Warnings, ValidationIssue{
 			ID:      "tavily-key",
