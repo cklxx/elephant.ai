@@ -13,15 +13,16 @@ func (e *ReactEngine) observeToolResults(ctx context.Context, state *TaskState, 
 	if state == nil || len(results) == 0 {
 		return
 	}
-	ensureWorldStateMap(state)
+	cog := state.EnsureCognitive()
+	ensureWorldStateMap(cog)
 	updates := make([]map[string]any, 0, len(results))
 	for _, result := range results {
 		updates = append(updates, summarizeToolResultForWorld(result))
 	}
-	state.WorldState["last_tool_results"] = updates
-	state.WorldState["last_iteration"] = iteration
-	state.WorldState["last_updated_at"] = e.clock.Now().Format(time.RFC3339)
-	state.WorldDiff = map[string]any{
+	cog.WorldState["last_tool_results"] = updates
+	cog.WorldState["last_iteration"] = iteration
+	cog.WorldState["last_updated_at"] = e.clock.Now().Format(time.RFC3339)
+	cog.WorldDiff = map[string]any{
 		"iteration":    iteration,
 		"tool_results": updates,
 	}
@@ -74,6 +75,7 @@ func (e *ReactEngine) appendFeedbackSignals(state *TaskState, results []ToolResu
 	if state == nil || len(results) == 0 {
 		return
 	}
+	cog := state.EnsureCognitive()
 	now := e.clock.Now()
 	for _, result := range results {
 		signal := agent.FeedbackSignal{
@@ -82,10 +84,10 @@ func (e *ReactEngine) appendFeedbackSignals(state *TaskState, results []ToolResu
 			Value:     deriveFeedbackValue(result),
 			CreatedAt: now,
 		}
-		state.FeedbackSignals = append(state.FeedbackSignals, signal)
+		cog.FeedbackSignals = append(cog.FeedbackSignals, signal)
 	}
-	if len(state.FeedbackSignals) > maxFeedbackSignals {
-		state.FeedbackSignals = state.FeedbackSignals[len(state.FeedbackSignals)-maxFeedbackSignals:]
+	if len(cog.FeedbackSignals) > maxFeedbackSignals {
+		cog.FeedbackSignals = cog.FeedbackSignals[len(cog.FeedbackSignals)-maxFeedbackSignals:]
 	}
 }
 

@@ -45,12 +45,12 @@ func TestPrepareSeedsPlanBeliefAndKnowledgeRefs(t *testing.T) {
 		t.Fatalf("expected no derived plans after task analysis removal, got %+v", env.State.Plans)
 	}
 
-	if len(env.State.Beliefs) != 0 {
-		t.Fatalf("expected no beliefs seeded without task analysis, got %+v", env.State.Beliefs)
+	if env.State.Cognitive != nil && len(env.State.Cognitive.Beliefs) != 0 {
+		t.Fatalf("expected no beliefs seeded without task analysis, got %+v", env.State.Cognitive.Beliefs)
 	}
 
-	if len(env.State.KnowledgeRefs) != 0 {
-		t.Fatalf("expected no knowledge references seeded without task analysis, got %+v", env.State.KnowledgeRefs)
+	if env.State.Cognitive != nil && len(env.State.Cognitive.KnowledgeRefs) != 0 {
+		t.Fatalf("expected no knowledge references seeded without task analysis, got %+v", env.State.Cognitive.KnowledgeRefs)
 	}
 }
 
@@ -77,15 +77,16 @@ func TestPrepareCapturesWorldStateFromContextManager(t *testing.T) {
 	if env.State == nil {
 		t.Fatalf("expected state to be populated")
 	}
-	if env.State.WorldState == nil {
+	cog := env.State.Cognitive
+	if cog == nil || cog.WorldState == nil {
 		t.Fatalf("expected world state to be seeded")
 	}
-	profile, ok := env.State.WorldState["profile"].(map[string]any)
+	profile, ok := cog.WorldState["profile"].(map[string]any)
 	if !ok || profile["id"] != "local" {
-		t.Fatalf("expected world profile metadata, got %+v", env.State.WorldState)
+		t.Fatalf("expected world profile metadata, got %+v", cog.WorldState)
 	}
-	if env.State.WorldDiff == nil || env.State.WorldDiff["profile_loaded"] != "local" {
-		t.Fatalf("expected world diff to capture profile load, got %+v", env.State.WorldDiff)
+	if cog.WorldDiff == nil || cog.WorldDiff["profile_loaded"] != "local" {
+		t.Fatalf("expected world diff to capture profile load, got %+v", cog.WorldDiff)
 	}
 }
 

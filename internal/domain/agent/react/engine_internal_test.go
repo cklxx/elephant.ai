@@ -214,18 +214,20 @@ func TestBuildContextTurnRecordClonesStructuredFields(t *testing.T) {
 		SOPRefs:     []string{"query"},
 	}}
 	state := &TaskState{
-		SessionID:     "sess-123",
-		Iterations:    4,
-		Plans:         plans,
-		Beliefs:       beliefs,
-		KnowledgeRefs: refs,
-		WorldState: map[string]any{
-			"profile": map[string]any{"id": "local", "environment": "ci"},
+		SessionID:  "sess-123",
+		Iterations: 4,
+		Plans:      plans,
+		Cognitive: &agent.CognitiveExtension{
+			Beliefs:       beliefs,
+			KnowledgeRefs: refs,
+			WorldState: map[string]any{
+				"profile": map[string]any{"id": "local", "environment": "ci"},
+			},
+			WorldDiff: map[string]any{
+				"iteration": 3,
+			},
+			FeedbackSignals: []agent.FeedbackSignal{{Kind: "tool_result", Message: "ok", Value: 1}},
 		},
-		WorldDiff: map[string]any{
-			"iteration": 3,
-		},
-		FeedbackSignals: []agent.FeedbackSignal{{Kind: "tool_result", Message: "ok", Value: 1}},
 	}
 	messages := []ports.Message{{Role: "system", Content: "hello"}}
 	record := buildContextTurnRecord(state, messages, ts, "summary")
@@ -252,10 +254,10 @@ func TestBuildContextTurnRecordClonesStructuredFields(t *testing.T) {
 		t.Fatalf("expected feedback signals to copy, got %+v", record.Feedback)
 	}
 	state.Plans[0].Children[0].Title = "mutated"
-	state.KnowledgeRefs[0].SOPRefs[0] = "mutated"
-	state.WorldState["profile"].(map[string]any)["id"] = "mutated"
-	state.WorldDiff["iteration"] = 99
-	state.FeedbackSignals[0].Message = "changed"
+	state.Cognitive.KnowledgeRefs[0].SOPRefs[0] = "mutated"
+	state.Cognitive.WorldState["profile"].(map[string]any)["id"] = "mutated"
+	state.Cognitive.WorldDiff["iteration"] = 99
+	state.Cognitive.FeedbackSignals[0].Message = "changed"
 	if record.Plans[0].Children[0].Title == "mutated" {
 		t.Fatalf("expected plan deep copy to remain immutable")
 	}
@@ -375,24 +377,28 @@ func TestObserveToolResultsPopulatesWorldDiffAndFeedback(t *testing.T) {
 		},
 	}}
 	engine.observeToolResults(context.Background(), state, 2, results)
-	if state.WorldDiff == nil {
+	cog := state.Cognitive
+	if cog == nil {
+		t.Fatalf("expected cognitive extension to be populated")
+	}
+	if cog.WorldDiff == nil {
 		t.Fatalf("expected world diff to be populated")
 	}
-	if iter, ok := state.WorldDiff["iteration"].(int); !ok || iter != 2 {
-		t.Fatalf("expected diff iteration 2, got %+v", state.WorldDiff)
+	if iter, ok := cog.WorldDiff["iteration"].(int); !ok || iter != 2 {
+		t.Fatalf("expected diff iteration 2, got %+v", cog.WorldDiff)
 	}
-	entries, ok := state.WorldDiff["tool_results"].([]map[string]any)
+	entries, ok := cog.WorldDiff["tool_results"].([]map[string]any)
 	if !ok || len(entries) == 0 {
-		t.Fatalf("expected tool result summary in diff, got %+v", state.WorldDiff)
+		t.Fatalf("expected tool result summary in diff, got %+v", cog.WorldDiff)
 	}
-	if state.WorldState == nil || state.WorldState["last_updated_at"] == "" {
-		t.Fatalf("expected world state last_updated_at set, got %+v", state.WorldState)
+	if cog.WorldState == nil || cog.WorldState["last_updated_at"] == "" {
+		t.Fatalf("expected world state last_updated_at set, got %+v", cog.WorldState)
 	}
-	if len(state.FeedbackSignals) != 1 {
-		t.Fatalf("expected feedback signal captured, got %+v", state.FeedbackSignals)
+	if len(cog.FeedbackSignals) != 1 {
+		t.Fatalf("expected feedback signal captured, got %+v", cog.FeedbackSignals)
 	}
-	if state.FeedbackSignals[0].Value != 0.75 {
-		t.Fatalf("expected reward to propagate, got %v", state.FeedbackSignals[0].Value)
+	if cog.FeedbackSignals[0].Value != 0.75 {
+		t.Fatalf("expected reward to propagate, got %v", cog.FeedbackSignals[0].Value)
 	}
 }
 

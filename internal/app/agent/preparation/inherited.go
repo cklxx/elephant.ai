@@ -46,19 +46,23 @@ func (s *ExecutionPreparationService) applyInheritedStateSnapshot(state *domain.
 	if len(snapshot.Plans) > 0 {
 		state.Plans = agent.ClonePlanNodes(snapshot.Plans)
 	}
-	if len(snapshot.Beliefs) > 0 {
-		state.Beliefs = agent.CloneBeliefs(snapshot.Beliefs)
-	}
-	if len(snapshot.KnowledgeRefs) > 0 {
-		state.KnowledgeRefs = agent.CloneKnowledgeReferences(snapshot.KnowledgeRefs)
-	}
-	if len(snapshot.WorldState) > 0 {
-		state.WorldState = snapshot.WorldState
-	}
-	if len(snapshot.WorldDiff) > 0 {
-		state.WorldDiff = snapshot.WorldDiff
-	}
-	if len(snapshot.FeedbackSignals) > 0 {
-		state.FeedbackSignals = agent.CloneFeedbackSignals(snapshot.FeedbackSignals)
+	if snapshot.Cognitive != nil {
+		src := snapshot.Cognitive
+		dst := state.EnsureCognitive()
+		if len(src.Beliefs) > 0 {
+			dst.Beliefs = agent.CloneBeliefs(src.Beliefs)
+		}
+		if len(src.KnowledgeRefs) > 0 {
+			dst.KnowledgeRefs = agent.CloneKnowledgeReferences(src.KnowledgeRefs)
+		}
+		if len(src.WorldState) > 0 {
+			dst.WorldState = src.WorldState
+		}
+		if len(src.WorldDiff) > 0 {
+			dst.WorldDiff = src.WorldDiff
+		}
+		if len(src.FeedbackSignals) > 0 {
+			dst.FeedbackSignals = agent.CloneFeedbackSignals(src.FeedbackSignals)
+		}
 	}
 }

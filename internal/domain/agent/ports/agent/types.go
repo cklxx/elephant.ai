@@ -90,11 +90,7 @@ type TaskState struct {
 	PendingUserAttachments map[string]core.Attachment
 	Important              map[string]core.ImportantNote
 	Plans                  []PlanNode
-	Beliefs                []Belief
-	KnowledgeRefs          []KnowledgeReference
-	WorldState             map[string]any
-	WorldDiff              map[string]any
-	FeedbackSignals        []FeedbackSignal
+	Cognitive              *CognitiveExtension // optional cognitive architecture fields
 	LatestGoalPrompt       string
 	LatestPlanPrompt       string
 	PlanReviewEnabled      bool

@@ -61,10 +61,11 @@ func buildContextTurnRecord(state *agent.TaskState, messages []ports.Message, ti
 	record.TurnID = state.Iterations
 	record.LLMTurnSeq = state.Iterations
 	record.Plans = agent.ClonePlanNodes(state.Plans)
-	record.Beliefs = agent.CloneBeliefs(state.Beliefs)
-	record.KnowledgeRefs = agent.CloneKnowledgeReferences(state.KnowledgeRefs)
-	record.World = agent.CloneMapAny(state.WorldState)
-	record.Diff = agent.CloneMapAny(state.WorldDiff)
-	record.Feedback = agent.CloneFeedbackSignals(state.FeedbackSignals)
+	cog := state.CognitiveOrEmpty()
+	record.Beliefs = agent.CloneBeliefs(cog.Beliefs)
+	record.KnowledgeRefs = agent.CloneKnowledgeReferences(cog.KnowledgeRefs)
+	record.World = agent.CloneMapAny(cog.WorldState)
+	record.Diff = agent.CloneMapAny(cog.WorldDiff)
+	record.Feedback = agent.CloneFeedbackSignals(cog.FeedbackSignals)
 	return record
 }

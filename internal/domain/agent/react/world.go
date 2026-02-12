@@ -7,11 +7,12 @@ import (
 
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
-func ensureWorldStateMap(state *TaskState) {
-	if state.WorldState == nil {
-		state.WorldState = make(map[string]any)
+func ensureWorldStateMap(cog *agent.CognitiveExtension) {
+	if cog.WorldState == nil {
+		cog.WorldState = make(map[string]any)
 	}
 }
 

@@ -581,12 +581,14 @@ func TestPrepareUsesInheritedStateForSubagent(t *testing.T) {
 			"report.md": {Name: "report.md", Data: "YmFzZQ=="},
 		},
 		AttachmentIterations: map[string]int{"report.md": 4},
-		Plans:                []agent.PlanNode{{ID: "plan-1", Title: "Investigate"}},
-		Beliefs:              []agent.Belief{{Statement: "Delegation works"}},
-		KnowledgeRefs:        []agent.KnowledgeReference{{ID: "rag-1", Description: "Docs"}},
-		WorldState:           map[string]any{"last_tool": "file_read"},
-		WorldDiff:            map[string]any{"iteration": 2},
-		FeedbackSignals:      []agent.FeedbackSignal{{Kind: "info"}},
+		Plans: []agent.PlanNode{{ID: "plan-1", Title: "Investigate"}},
+		Cognitive: &agent.CognitiveExtension{
+			Beliefs:         []agent.Belief{{Statement: "Delegation works"}},
+			KnowledgeRefs:   []agent.KnowledgeReference{{ID: "rag-1", Description: "Docs"}},
+			WorldState:      map[string]any{"last_tool": "file_read"},
+			WorldDiff:       map[string]any{"iteration": 2},
+			FeedbackSignals: []agent.FeedbackSignal{{Kind: "info"}},
+		},
 	}
 
 	ctx := appcontext.MarkSubagentContext(context.Background())
@@ -612,19 +614,23 @@ func TestPrepareUsesInheritedStateForSubagent(t *testing.T) {
 	if len(env.State.Plans) != 1 || env.State.Plans[0].ID != "plan-1" {
 		t.Fatalf("expected inherited plan nodes")
 	}
-	if len(env.State.Beliefs) != 1 || env.State.Beliefs[0].Statement != "Delegation works" {
+	cog := env.State.Cognitive
+	if cog == nil {
+		t.Fatalf("expected cognitive extension to be inherited")
+	}
+	if len(cog.Beliefs) != 1 || cog.Beliefs[0].Statement != "Delegation works" {
 		t.Fatalf("expected inherited beliefs")
 	}
-	if len(env.State.KnowledgeRefs) != 1 || env.State.KnowledgeRefs[0].ID != "rag-1" {
+	if len(cog.KnowledgeRefs) != 1 || cog.KnowledgeRefs[0].ID != "rag-1" {
 		t.Fatalf("expected inherited knowledge references")
 	}
-	if env.State.WorldState["last_tool"] != "file_read" {
+	if cog.WorldState["last_tool"] != "file_read" {
 		t.Fatalf("expected inherited world state")
 	}
-	if env.State.WorldDiff["iteration"] != 2 {
+	if cog.WorldDiff["iteration"] != 2 {
 		t.Fatalf("expected inherited world diff")
 	}
-	if len(env.State.FeedbackSignals) != 1 || env.State.FeedbackSignals[0].Kind != "info" {
+	if len(cog.FeedbackSignals) != 1 || cog.FeedbackSignals[0].Kind != "info" {
 		t.Fatalf("expected inherited feedback signals")
 	}
 }

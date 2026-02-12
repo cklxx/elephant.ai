@@ -172,8 +172,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	}
 
 	var (
-		initialWorldState    map[string]any
-		initialWorldDiff     map[string]any
+		initialCognitive     *agent.CognitiveExtension
 		window               agent.ContextWindow
 		contextWasCompressed bool
 	)
@@ -242,7 +241,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 				len(window.Messages),
 			)
 			session.Messages = window.Messages
-			initialWorldState, initialWorldDiff = buildWorldStateFromWindow(window)
+			initialCognitive = buildCognitiveFromWindow(window)
 			if compressedCount := len(window.Messages); compressedCount < originalCount {
 				contextWasCompressed = true
 				compressionEvent := domain.NewWorkflowDiagnosticContextCompressionEvent(
@@ -443,10 +442,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		AttachmentIterations: make(map[string]int),
 		Important:            preloadedImportant,
 		Plans:                nil,
-		Beliefs:              nil,
-		KnowledgeRefs:        nil,
-		WorldState:           initialWorldState,
-		WorldDiff:            initialWorldDiff,
+		Cognitive:            initialCognitive,
 		PlanReviewEnabled:    appcontext.PlanReviewEnabled(ctx),
 	}
 	for key := range preloadedAttachments {

@@ -352,14 +352,14 @@ func coalesce(values ...string) string {
 	return ""
 }
 
-func buildWorldStateFromWindow(window agent.ContextWindow) (map[string]any, map[string]any) {
+func buildCognitiveFromWindow(window agent.ContextWindow) *agent.CognitiveExtension {
 	profile := window.Static.World
 	envSummary := strings.TrimSpace(window.Static.EnvironmentSummary)
 	hasProfile := profile.ID != "" || profile.Environment != "" || len(profile.Capabilities) > 0 || len(profile.Limits) > 0 || len(profile.CostModel) > 0
 	if !hasProfile && envSummary == "" {
-		return nil, nil
+		return nil
 	}
-	state := make(map[string]any)
+	worldState := make(map[string]any)
 	if hasProfile {
 		profileMap := map[string]any{"id": profile.ID}
 		if profile.Environment != "" {
@@ -374,23 +374,26 @@ func buildWorldStateFromWindow(window agent.ContextWindow) (map[string]any, map[
 		if len(profile.CostModel) > 0 {
 			profileMap["cost_model"] = append([]string(nil), profile.CostModel...)
 		}
-		state["profile"] = profileMap
+		worldState["profile"] = profileMap
 	}
 	if envSummary != "" {
-		state["environment_summary"] = envSummary
+		worldState["environment_summary"] = envSummary
 	}
-	var diff map[string]any
-	if len(state) > 0 {
-		diff = make(map[string]any)
+	var worldDiff map[string]any
+	if len(worldState) > 0 {
+		worldDiff = make(map[string]any)
 		if profile.ID != "" {
-			diff["profile_loaded"] = profile.ID
+			worldDiff["profile_loaded"] = profile.ID
 		}
 		if envSummary != "" {
-			diff["environment_summary"] = envSummary
+			worldDiff["environment_summary"] = envSummary
 		}
 		if len(profile.Capabilities) > 0 {
-			diff["capabilities"] = append([]string(nil), profile.Capabilities...)
+			worldDiff["capabilities"] = append([]string(nil), profile.Capabilities...)
 		}
 	}
-	return state, diff
+	return &agent.CognitiveExtension{
+		WorldState: worldState,
+		WorldDiff:  worldDiff,
+	}
 }

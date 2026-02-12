@@ -81,21 +81,7 @@ func CloneTaskState(state *TaskState) *TaskState {
 	if len(state.Plans) > 0 {
 		cloned.Plans = ClonePlanNodes(state.Plans)
 	}
-	if len(state.Beliefs) > 0 {
-		cloned.Beliefs = CloneBeliefs(state.Beliefs)
-	}
-	if len(state.KnowledgeRefs) > 0 {
-		cloned.KnowledgeRefs = CloneKnowledgeReferences(state.KnowledgeRefs)
-	}
-	if len(state.WorldState) > 0 {
-		cloned.WorldState = CloneMapAny(state.WorldState)
-	}
-	if len(state.WorldDiff) > 0 {
-		cloned.WorldDiff = CloneMapAny(state.WorldDiff)
-	}
-	if len(state.FeedbackSignals) > 0 {
-		cloned.FeedbackSignals = CloneFeedbackSignals(state.FeedbackSignals)
-	}
+	cloned.Cognitive = CloneCognitiveExtension(state.Cognitive)
 	return cloned
 }
 

@@ -24,12 +24,14 @@ func TestTaskStateSnapshotRoundTrip(t *testing.T) {
 			"notes.md": {Name: "notes.md", Data: "YmFzZTY0"},
 		},
 		AttachmentIterations: map[string]int{"notes.md": 2},
-		Plans:                []PlanNode{{ID: "plan-1", Title: "Investigate"}},
-		Beliefs:              []Belief{{Statement: "delegation helps"}},
-		KnowledgeRefs:        []KnowledgeReference{{ID: "rag-1", Description: "Docs"}},
-		WorldState:           map[string]any{"last_tool": "search"},
-		WorldDiff:            map[string]any{"iteration": 3},
-		FeedbackSignals:      []FeedbackSignal{{Kind: "success"}},
+		Plans: []PlanNode{{ID: "plan-1", Title: "Investigate"}},
+		Cognitive: &CognitiveExtension{
+			Beliefs:         []Belief{{Statement: "delegation helps"}},
+			KnowledgeRefs:   []KnowledgeReference{{ID: "rag-1", Description: "Docs"}},
+			WorldState:      map[string]any{"last_tool": "search"},
+			WorldDiff:       map[string]any{"iteration": 3},
+			FeedbackSignals: []FeedbackSignal{{Kind: "success"}},
+		},
 	}
 
 	ctx := WithTaskStateSnapshot(context.Background(), original)
