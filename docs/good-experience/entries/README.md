@@ -1,9 +1,10 @@
 # Index: good-experience/entries
 
-Updated: 2026-02-10
+Updated: 2026-02-12
 
 ## Files
 
+- [2026-02-12-llm-profile-client-provider-decoupling.md](2026-02-12-llm-profile-client-provider-decoupling.md)
 - [2026-02-10-basic-active-suite-zero-na-regression-baseline.md](2026-02-10-basic-active-suite-zero-na-regression-baseline.md)
 - [2026-02-10-context-autonomy-rules-and-safe-env-injection.md](2026-02-10-context-autonomy-rules-and-safe-env-injection.md)
 - [2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review.md](2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review.md)

@@ -1,0 +1,43 @@
+id: "plan-2026-02-12-llm-profile-decoupling"
+title: "Unify LLM Profile Injection and Decouple Agent/Kernel/Tool Components"
+status: "completed"
+owner: "codex"
+created_at: "2026-02-12T12:05:00Z"
+updated_at: "2026-02-12T12:50:00Z"
+context:
+  goals:
+    - "Introduce a single runtime LLM profile resolution path with fail-fast mismatch checks."
+    - "Make coordinator/preparation consume resolved profile rather than ad-hoc provider/key assembly."
+    - "Reduce tool registry config surface to tool-relevant dependencies only."
+    - "Keep kernel focused on scheduling/dispatch loop without LLM config concerns."
+  constraints:
+    - "No compatibility shims; refactor cleanly."
+    - "TDD for logic changes."
+    - "Run full lint + tests before delivery."
+steps:
+  - id: "profile-resolution"
+    title: "Add unified shared LLM profile resolver and fail-fast validation"
+    status: "completed"
+  - id: "agent-injection"
+    title: "Wire profile into coordinator/preparation and remove local mismatch logic"
+    status: "completed"
+  - id: "toolregistry-decouple"
+    title: "Shrink tool registry config to tool-only dependencies"
+    status: "completed"
+  - id: "kernel-loop-verification"
+    title: "Run kernel loop tests and verify state file behavior"
+    status: "completed"
+  - id: "quality-and-review"
+    title: "Run lint/tests, perform mandatory code review, and split commits"
+    status: "completed"
+artifacts:
+  primary_packages:
+    - "internal/shared/config"
+    - "internal/app/agent/config"
+    - "internal/app/agent/coordinator"
+    - "internal/app/agent/preparation"
+    - "internal/app/toolregistry"
+  verification:
+    - "go test ./internal/shared/config ./internal/app/agent/llmclient ./internal/app/agent/preparation ./internal/app/agent/coordinator ./internal/app/agent/hooks ./internal/app/toolregistry ./internal/app/di ./internal/app/agent/kernel ./internal/app/scheduler"
+    - "./scripts/run-golangci-lint.sh run ./..."
+    - "go test ./..."
