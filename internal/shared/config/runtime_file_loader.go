@@ -188,6 +188,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.LLMCacheTTLSeconds = *parsed.LLMCacheTTLSeconds
 		meta.sources["llm_cache_ttl_seconds"] = SourceFile
 	}
+	if parsed.LLMRequestTimeoutSeconds != nil && *parsed.LLMRequestTimeoutSeconds > 0 {
+		cfg.LLMRequestTimeoutSeconds = *parsed.LLMRequestTimeoutSeconds
+		meta.sources["llm_request_timeout_seconds"] = SourceFile
+	}
 	if parsed.UserRateLimitRPS != nil {
 		cfg.UserRateLimitRPS = *parsed.UserRateLimitRPS
 		meta.sources["user_rate_limit_rps"] = SourceFile

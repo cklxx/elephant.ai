@@ -50,7 +50,7 @@ func newBaseClient(model string, config Config, opts baseClientOpts) baseClient 
 	}
 	timeout := opts.defaultTimeout
 	if timeout == 0 {
-		timeout = 120 * time.Second
+		timeout = 30 * time.Minute
 	}
 	if config.Timeout > 0 {
 		timeout = time.Duration(config.Timeout) * time.Second

@@ -10,11 +10,12 @@ import (
 // The profile is intentionally atomic to prevent provider/model/key/base_url mismatch
 // drift across component boundaries.
 type LLMProfile struct {
-	Provider string
-	Model    string
-	APIKey   string
-	BaseURL  string
-	Headers  map[string]string
+	Provider       string
+	Model          string
+	APIKey         string
+	BaseURL        string
+	Headers        map[string]string
+	TimeoutSeconds int
 }
 
 // LLMProfileMismatchError indicates a provider/key/base_url mismatch.
@@ -38,10 +39,11 @@ func (e *LLMProfileMismatchError) Error() string {
 // config heuristics on their own.
 func ResolveLLMProfile(cfg RuntimeConfig) (LLMProfile, error) {
 	profile := LLMProfile{
-		Provider: strings.TrimSpace(cfg.LLMProvider),
-		Model:    strings.TrimSpace(cfg.LLMModel),
-		APIKey:   strings.TrimSpace(cfg.APIKey),
-		BaseURL:  strings.TrimSpace(cfg.BaseURL),
+		Provider:       strings.TrimSpace(cfg.LLMProvider),
+		Model:          strings.TrimSpace(cfg.LLMModel),
+		APIKey:         strings.TrimSpace(cfg.APIKey),
+		BaseURL:        strings.TrimSpace(cfg.BaseURL),
+		TimeoutSeconds: cfg.LLMRequestTimeoutSeconds,
 	}
 	if err := ValidateLLMProfile(profile); err != nil {
 		return LLMProfile{}, err

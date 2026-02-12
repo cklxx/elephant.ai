@@ -82,6 +82,7 @@ type RuntimeConfig struct {
 	ToolMaxConcurrent          int                          `json:"tool_max_concurrent" yaml:"tool_max_concurrent"`
 	LLMCacheSize               int                          `json:"llm_cache_size" yaml:"llm_cache_size"`
 	LLMCacheTTLSeconds         int                          `json:"llm_cache_ttl_seconds" yaml:"llm_cache_ttl_seconds"`
+	LLMRequestTimeoutSeconds   int                          `json:"llm_request_timeout_seconds" yaml:"llm_request_timeout_seconds"`
 	UserRateLimitRPS           float64                      `json:"user_rate_limit_rps" yaml:"user_rate_limit_rps"`
 	UserRateLimitBurst         int                          `json:"user_rate_limit_burst" yaml:"user_rate_limit_burst"`
 	Temperature                float64                      `json:"temperature" yaml:"temperature"`

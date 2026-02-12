@@ -37,6 +37,7 @@ func BuildConfig(profile runtimeconfig.LLMProfile) portsllm.LLMConfig {
 		APIKey:  strings.TrimSpace(profile.APIKey),
 		BaseURL: strings.TrimSpace(profile.BaseURL),
 		Headers: CloneHeaders(profile.Headers),
+		Timeout: profile.TimeoutSeconds,
 	}
 }
 
