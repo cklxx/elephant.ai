@@ -97,7 +97,7 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	// Execute task asynchronously - coordinator returns immediately after creating task record
 	// Background goroutine will handle actual execution and update status
-	task, err := h.coordinator.ExecuteTaskAsync(ctx, req.Task, req.SessionID, req.AgentPreset, req.ToolPreset)
+	task, err := h.tasks.ExecuteTaskAsync(ctx, req.Task, req.SessionID, req.AgentPreset, req.ToolPreset)
 	if err != nil {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to create task")
 		return
@@ -221,7 +221,7 @@ func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task, err := h.coordinator.GetTask(r.Context(), taskID)
+	task, err := h.tasks.GetTask(r.Context(), taskID)
 	if err != nil {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to retrieve task")
 		return
@@ -281,7 +281,7 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 	var total int
 
 	if sessionID != "" {
-		sessionTasks, err := h.coordinator.ListSessionTasks(r.Context(), sessionID)
+		sessionTasks, err := h.tasks.ListSessionTasks(r.Context(), sessionID)
 		if err != nil {
 			h.writeJSONError(w, http.StatusInternalServerError, "Failed to list tasks", err)
 			return
@@ -298,7 +298,7 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 			tasks = sessionTasks[offset:end]
 		}
 	} else {
-		allTasks, totalCount, err := h.coordinator.ListTasks(r.Context(), limit, offset)
+		allTasks, totalCount, err := h.tasks.ListTasks(r.Context(), limit, offset)
 		if err != nil {
 			h.writeJSONError(w, http.StatusInternalServerError, "Failed to list tasks", err)
 			return
@@ -345,7 +345,7 @@ func (h *APIHandler) HandleCancelTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.coordinator.CancelTask(r.Context(), taskID); err != nil {
+	if err := h.tasks.CancelTask(r.Context(), taskID); err != nil {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to cancel task")
 		return
 	}
@@ -362,7 +362,7 @@ func (h *APIHandler) HandleCancelTask(w http.ResponseWriter, r *http.Request) {
 
 // HandleListActiveTasks handles GET /api/tasks/active — returns all currently running/pending tasks.
 func (h *APIHandler) HandleListActiveTasks(w http.ResponseWriter, r *http.Request) {
-	tasks, err := h.coordinator.ListActiveTasks(r.Context())
+	tasks, err := h.tasks.ListActiveTasks(r.Context())
 	if err != nil {
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to list active tasks", err)
 		return
@@ -395,7 +395,7 @@ func (h *APIHandler) HandleListActiveTasks(w http.ResponseWriter, r *http.Reques
 
 // HandleGetTaskStats handles GET /api/tasks/stats — returns aggregated task metrics.
 func (h *APIHandler) HandleGetTaskStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := h.coordinator.GetTaskStats(r.Context())
+	stats, err := h.tasks.GetTaskStats(r.Context())
 	if err != nil {
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to get task stats", err)
 		return

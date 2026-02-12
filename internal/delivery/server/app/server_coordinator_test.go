@@ -131,6 +131,28 @@ func (m *mockAnalytics) Close() error {
 	return nil
 }
 
+// helper creates the 3 services from common deps, matching old NewServerCoordinator defaults.
+func buildServices(
+	agentCoord AgentExecutor,
+	broadcaster *EventBroadcaster,
+	sessionStore storage.SessionStore,
+	taskStore serverPorts.TaskStore,
+	stateStore sessionstate.Store,
+	taskOpts []TaskExecutionServiceOption,
+	sessionOpts []SessionServiceOption,
+	snapshotOpts []SnapshotServiceOption,
+) (*TaskExecutionService, *SessionService, *SnapshotService) {
+	if stateStore != nil {
+		taskOpts = append([]TaskExecutionServiceOption{WithTaskStateStore(stateStore)}, taskOpts...)
+		sessionOpts = append([]SessionServiceOption{WithSessionStateStore(stateStore)}, sessionOpts...)
+		snapshotOpts = append([]SnapshotServiceOption{WithSnapshotStateStore(stateStore)}, snapshotOpts...)
+	}
+	tasks := NewTaskExecutionService(agentCoord, broadcaster, taskStore, taskOpts...)
+	sessions := NewSessionService(agentCoord, sessionStore, broadcaster, sessionOpts...)
+	snapshots := NewSnapshotService(agentCoord, broadcaster, snapshotOpts...)
+	return tasks, sessions, snapshots
+}
+
 // TestSessionIDConsistency verifies the critical P0 fix:
 // Session ID must be generated synchronously and remain consistent
 func TestSessionIDConsistency(t *testing.T) {
@@ -138,64 +160,49 @@ func TestSessionIDConsistency(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-
 	stateStore := sessionstate.NewInMemoryStore()
-
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 
-	serverCoordinator := NewServerCoordinator(
-		agentCoordinator,
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-	)
+	tasks, _, _ := buildServices(agentCoordinator, broadcaster, sessionStore, taskStore, stateStore, nil, nil, nil)
 
 	// Test Case 1: Task created WITHOUT session_id
 	t.Run("EmptySessionID", func(t *testing.T) {
 		ctx := context.Background()
 
-		// Execute task async with empty session ID
-		task, err := serverCoordinator.ExecuteTaskAsync(ctx, "test task", "", "", "")
+		task, err := tasks.ExecuteTaskAsync(ctx, "test task", "", "", "")
 		if err != nil {
 			t.Fatalf("ExecuteTaskAsync failed: %v", err)
 		}
 
-		// Verify task was created
 		if task.ID == "" {
 			t.Fatal("Task ID is empty")
 		}
 
-		// CRITICAL: Verify session_id is NOT empty in the initial response
 		if task.SessionID == "" {
 			t.Fatal("FAILED: session_id is empty in initial response (P0 bug not fixed!)")
 		}
 
-		t.Logf("✓ Session ID present in initial response: %s", task.SessionID)
+		t.Logf("Session ID present in initial response: %s", task.SessionID)
 
-		// Store initial session ID for comparison - get fresh data to avoid race
 		initialTask, err := taskStore.Get(ctx, task.ID)
 		if err != nil {
 			t.Fatalf("Failed to get initial task: %v", err)
 		}
 		initialSessionID := initialTask.SessionID
 
-		// Wait briefly to simulate polling
 		time.Sleep(100 * time.Millisecond)
 
-		// Retrieve task again
 		retrievedTask, err := taskStore.Get(ctx, task.ID)
 		if err != nil {
 			t.Fatalf("Failed to retrieve task: %v", err)
 		}
 
-		// CRITICAL: Verify session ID didn't change
 		if retrievedTask.SessionID != initialSessionID {
 			t.Fatalf("FAILED: Session ID changed!\n  Initial: %s\n  Retrieved: %s",
 				initialSessionID, retrievedTask.SessionID)
 		}
 
-		t.Logf("✓ Session ID remained consistent: %s", retrievedTask.SessionID)
+		t.Logf("Session ID remained consistent: %s", retrievedTask.SessionID)
 	})
 
 	// Test Case 2: Task created WITH explicit session_id
@@ -203,7 +210,6 @@ func TestSessionIDConsistency(t *testing.T) {
 		ctx := context.Background()
 		explicitSessionID := "session-explicit-test"
 
-		// Create session first
 		session := &storage.Session{
 			ID:        explicitSessionID,
 			Messages:  []core.Message{},
@@ -213,14 +219,11 @@ func TestSessionIDConsistency(t *testing.T) {
 		}
 		sessionStore.sessions[explicitSessionID] = session
 
-		// Execute task async with explicit session ID
-		task, err := serverCoordinator.ExecuteTaskAsync(ctx, "test task 2", explicitSessionID, "", "")
+		task, err := tasks.ExecuteTaskAsync(ctx, "test task 2", explicitSessionID, "", "")
 		if err != nil {
 			t.Fatalf("ExecuteTaskAsync failed: %v", err)
 		}
 
-		// CRITICAL: Verify explicit session_id is preserved
-		// Use taskStore.Get() to avoid race condition with background goroutine
 		freshTask, err := taskStore.Get(ctx, task.ID)
 		if err != nil {
 			t.Fatalf("Failed to get fresh task: %v", err)
@@ -231,60 +234,52 @@ func TestSessionIDConsistency(t *testing.T) {
 				explicitSessionID, freshTask.SessionID)
 		}
 
-		t.Logf("✓ Explicit session_id preserved: %s", freshTask.SessionID)
+		t.Logf("Explicit session_id preserved: %s", freshTask.SessionID)
 	})
 
 	// Test Case 3: Verify progress fields are not null (no omitempty)
 	t.Run("ProgressFieldsPresent", func(t *testing.T) {
 		ctx := context.Background()
 
-		task, err := serverCoordinator.ExecuteTaskAsync(ctx, "test task 3", "", "", "")
+		task, err := tasks.ExecuteTaskAsync(ctx, "test task 3", "", "", "")
 		if err != nil {
 			t.Fatalf("ExecuteTaskAsync failed: %v", err)
 		}
 
-		// Progress fields should be 0 initially, not omitted
-		// This is verified by the JSON marshaling, but we can check the values
-		// Get fresh copy to avoid race condition
 		freshTask, err := taskStore.Get(ctx, task.ID)
 		if err != nil {
 			t.Fatalf("Failed to get fresh task: %v", err)
 		}
 
 		if freshTask.CurrentIteration != 0 {
-			t.Logf("⚠ CurrentIteration is %d (expected 0)", freshTask.CurrentIteration)
+			t.Logf("CurrentIteration is %d (expected 0)", freshTask.CurrentIteration)
 		}
 
 		if freshTask.TokensUsed != 0 {
-			t.Logf("⚠ TokensUsed is %d (expected 0)", freshTask.TokensUsed)
+			t.Logf("TokensUsed is %d (expected 0)", freshTask.TokensUsed)
 		}
 
-		t.Logf("✓ Progress fields initialized: current_iteration=%d, tokens_used=%d",
+		t.Logf("Progress fields initialized: current_iteration=%d, tokens_used=%d",
 			freshTask.CurrentIteration, freshTask.TokensUsed)
 	})
 }
 
-func TestServerCoordinatorAnalyticsCapture(t *testing.T) {
+func TestAnalyticsCapture(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-
 	stateStore := sessionstate.NewInMemoryStore()
-
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 	analyticsMock := &mockAnalytics{}
 
-	coordinator := NewServerCoordinator(
-		agentCoordinator,
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-		WithAnalyticsClient(analyticsMock),
+	tasks, _, _ := buildServices(
+		agentCoordinator, broadcaster, sessionStore, taskStore, stateStore,
+		[]TaskExecutionServiceOption{WithTaskAnalytics(analyticsMock)},
+		nil, nil,
 	)
 
 	ctx := context.Background()
-	coordinator.Tasks.emitWorkflowInputReceivedEvent(ctx, "session-analytics", "task-analytics", "capture metrics")
+	tasks.emitWorkflowInputReceivedEvent(ctx, "session-analytics", "task-analytics", "capture metrics")
 
 	if len(analyticsMock.captures) != 1 {
 		t.Fatalf("expected 1 analytics capture, got %d", len(analyticsMock.captures))
@@ -317,15 +312,12 @@ func TestReplaySessionRehydratesSnapshots(t *testing.T) {
 			{SessionID: "sess-99", TurnID: 2, LLMTurnSeq: 2, Summary: "done", Timestamp: time.Unix(2, 0)},
 		},
 	}}
-	coordinator := NewServerCoordinator(
-		agentCoordinator,
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-		WithJournalReader(reader),
+	_, _, snapshots := buildServices(
+		agentCoordinator, broadcaster, sessionStore, taskStore, stateStore,
+		nil, nil,
+		[]SnapshotServiceOption{WithSnapshotJournalReader(reader)},
 	)
-	if err := coordinator.ReplaySession(context.Background(), "sess-99"); err != nil {
+	if err := snapshots.ReplaySession(context.Background(), "sess-99"); err != nil {
 		t.Fatalf("ReplaySession returned error: %v", err)
 	}
 	snapshot, err := stateStore.GetSnapshot(context.Background(), "sess-99", 2)
@@ -340,15 +332,16 @@ func TestReplaySessionRehydratesSnapshots(t *testing.T) {
 func TestReplaySessionErrorsWithoutEntries(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	stateStore := sessionstate.NewInMemoryStore()
-	coordinator := NewServerCoordinator(
+	_, _, snapshots := buildServices(
 		NewMockAgentCoordinator(sessionStore),
 		NewEventBroadcaster(),
 		sessionStore,
 		NewInMemoryTaskStore(),
 		stateStore,
-		WithJournalReader(&stubJournalReader{}),
+		nil, nil,
+		[]SnapshotServiceOption{WithSnapshotJournalReader(&stubJournalReader{})},
 	)
-	if err := coordinator.ReplaySession(context.Background(), "missing"); err == nil {
+	if err := snapshots.ReplaySession(context.Background(), "missing"); err == nil {
 		t.Fatalf("expected error when no entries exist")
 	}
 }
@@ -366,15 +359,16 @@ func TestReplaySessionClearsExistingSnapshots(t *testing.T) {
 			{SessionID: "sess-99", TurnID: 2, LLMTurnSeq: 2, Summary: "two"},
 		},
 	}}
-	coordinator := NewServerCoordinator(
+	_, _, snapshots := buildServices(
 		NewMockAgentCoordinator(sessionStore),
 		NewEventBroadcaster(),
 		sessionStore,
 		NewInMemoryTaskStore(),
 		stateStore,
-		WithJournalReader(reader),
+		nil, nil,
+		[]SnapshotServiceOption{WithSnapshotJournalReader(reader)},
 	)
-	if err := coordinator.ReplaySession(ctx, "sess-99"); err != nil {
+	if err := snapshots.ReplaySession(ctx, "sess-99"); err != nil {
 		t.Fatalf("ReplaySession returned error: %v", err)
 	}
 	if _, err := stateStore.GetSnapshot(ctx, "sess-99", 5); !errors.Is(err, sessionstate.ErrSnapshotNotFound) {
@@ -421,33 +415,20 @@ func TestBroadcasterMapping(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-
 	stateStore := sessionstate.NewInMemoryStore()
-
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 
-	serverCoordinator := NewServerCoordinator(
-		agentCoordinator,
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-	)
+	tasks, _, _ := buildServices(agentCoordinator, broadcaster, sessionStore, taskStore, stateStore, nil, nil, nil)
 
 	ctx := context.Background()
 
-	// Create task without session ID
-	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "test task", "", "", "")
+	task, err := tasks.ExecuteTaskAsync(ctx, "test task", "", "", "")
 	if err != nil {
 		t.Fatalf("ExecuteTaskAsync failed: %v", err)
 	}
 
-	// Wait for background goroutine to register mapping
 	time.Sleep(200 * time.Millisecond)
 
-	// Verify that broadcaster has a mapping for the session ID
-	// (This would require exposing broadcaster internals or using a different test approach)
-	// For now, we just verify the session ID is not empty - get fresh data to avoid race
 	freshTask, err := taskStore.Get(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("Failed to get fresh task: %v", err)
@@ -456,7 +437,7 @@ func TestBroadcasterMapping(t *testing.T) {
 		t.Fatal("Session ID is empty - broadcaster mapping will fail")
 	}
 
-	t.Logf("✓ Task created with valid session ID for broadcaster mapping: %s", freshTask.SessionID)
+	t.Logf("Task created with valid session ID for broadcaster mapping: %s", freshTask.SessionID)
 }
 
 // TestTaskStoreProgressFields verifies that task store properly handles progress fields
@@ -464,19 +445,16 @@ func TestTaskStoreProgressFields(t *testing.T) {
 	taskStore := NewInMemoryTaskStore()
 	ctx := context.Background()
 
-	// Create task
 	task, err := taskStore.Create(ctx, "session-123", "test task", "", "")
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
 	}
 
-	// Update progress
 	err = taskStore.UpdateProgress(ctx, task.ID, 3, 150)
 	if err != nil {
 		t.Fatalf("Failed to update progress: %v", err)
 	}
 
-	// Retrieve and verify
 	retrieved, err := taskStore.Get(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("Failed to retrieve task: %v", err)
@@ -490,7 +468,6 @@ func TestTaskStoreProgressFields(t *testing.T) {
 		t.Fatalf("TokensUsed mismatch: expected 150, got %d", retrieved.TokensUsed)
 	}
 
-	// Set result and verify total fields
 	result := &agent.TaskResult{
 		Answer:     "Done",
 		Iterations: 5,
@@ -516,7 +493,7 @@ func TestTaskStoreProgressFields(t *testing.T) {
 		t.Fatalf("TotalTokens mismatch: expected 300, got %d", final.TotalTokens)
 	}
 
-	t.Logf("✓ Progress fields updated correctly: total_iterations=%d, total_tokens=%d",
+	t.Logf("Progress fields updated correctly: total_iterations=%d, total_tokens=%d",
 		final.TotalIterations, final.TotalTokens)
 }
 
@@ -525,17 +502,10 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-
 	stateStore := sessionstate.NewInMemoryStore()
-
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
-	serverCoordinator := NewServerCoordinator(
-		agentCoordinator,
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-	)
+
+	tasks, _, _ := buildServices(agentCoordinator, broadcaster, sessionStore, taskStore, stateStore, nil, nil, nil)
 
 	original := []core.Attachment{
 		{
@@ -558,7 +528,7 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 
 	ctx := appcontext.WithUserAttachments(context.Background(), original)
 
-	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "展示占位符 [sketch.png] 和 [diagram.svg]", "", "", "")
+	task, err := tasks.ExecuteTaskAsync(ctx, "placeholder [sketch.png] and [diagram.svg]", "", "", "")
 	if err != nil {
 		t.Fatalf("ExecuteTaskAsync failed: %v", err)
 	}
@@ -628,7 +598,6 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 		t.Fatalf("expected diagram source to be user_upload, got %q", diagram.Source)
 	}
 
-	// Ensure original slice data wasn't mutated by context helpers.
 	if original[0].Name != " sketch.png " {
 		t.Fatalf("expected original attachment name to remain trimmed only externally, got %q", original[0].Name)
 	}
@@ -655,7 +624,6 @@ func (m *MockCancellableAgentCoordinator) GetSession(ctx context.Context, id str
 }
 
 func (m *MockCancellableAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
-	// Simulate long-running task that checks for cancellation
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -663,11 +631,9 @@ func (m *MockCancellableAgentCoordinator) ExecuteTask(ctx context.Context, task 
 	for {
 		select {
 		case <-ctx.Done():
-			// Context was cancelled
 			return nil, ctx.Err()
 		case <-ticker.C:
 			if time.Now().After(deadline) {
-				// Task completed successfully
 				return &agent.TaskResult{
 					Answer:     "Mock answer",
 					Iterations: 3,
@@ -695,55 +661,39 @@ func (m *MockCancellableAgentCoordinator) PreviewContextWindow(ctx context.Conte
 
 // TestTaskCancellation verifies task cancellation works correctly
 func TestTaskCancellation(t *testing.T) {
-	// Setup
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-
 	stateStore := sessionstate.NewInMemoryStore()
-
-	// Use a cancellable agent coordinator with 1 second delay
 	agentCoordinator := NewMockCancellableAgentCoordinator(sessionStore, 1*time.Second)
 
-	serverCoordinator := NewServerCoordinator(
-		agentCoordinator,
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-	)
+	tasks, _, _ := buildServices(agentCoordinator, broadcaster, sessionStore, taskStore, stateStore, nil, nil, nil)
 
 	ctx := context.Background()
 
-	// Start a long-running task
-	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "long running task", "", "", "")
+	task, err := tasks.ExecuteTaskAsync(ctx, "long running task", "", "", "")
 	if err != nil {
 		t.Fatalf("ExecuteTaskAsync failed: %v", err)
 	}
 
-	// Wait a bit to ensure task is running
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify task is running
 	runningTask, err := taskStore.Get(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("Failed to get task: %v", err)
 	}
 
 	if runningTask.Status != serverPorts.TaskStatusPending && runningTask.Status != serverPorts.TaskStatusRunning {
-		t.Logf("⚠ Task status is %s (expected pending or running)", runningTask.Status)
+		t.Logf("Task status is %s (expected pending or running)", runningTask.Status)
 	}
 
-	// Cancel the task
-	err = serverCoordinator.CancelTask(ctx, task.ID)
+	err = tasks.CancelTask(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("Failed to cancel task: %v", err)
 	}
 
-	// Wait for cancellation to propagate
 	time.Sleep(200 * time.Millisecond)
 
-	// Verify task was cancelled
 	cancelledTask, err := taskStore.Get(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("Failed to get cancelled task: %v", err)
@@ -769,7 +719,7 @@ func TestTaskCancellation(t *testing.T) {
 		t.Errorf("expected workflow.result.cancelled event in history for session %s", task.SessionID)
 	}
 
-	t.Logf("✓ Task cancelled successfully: status=%s, reason=%s",
+	t.Logf("Task cancelled successfully: status=%s, reason=%s",
 		cancelledTask.Status, cancelledTask.TerminationReason)
 }
 
@@ -778,28 +728,19 @@ func TestCancelNonExistentTask(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-
 	stateStore := sessionstate.NewInMemoryStore()
-
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 
-	serverCoordinator := NewServerCoordinator(
-		agentCoordinator,
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-	)
+	tasks, _, _ := buildServices(agentCoordinator, broadcaster, sessionStore, taskStore, stateStore, nil, nil, nil)
 
 	ctx := context.Background()
 
-	// Try to cancel non-existent task
-	err := serverCoordinator.CancelTask(ctx, "non-existent-task-id")
+	err := tasks.CancelTask(ctx, "non-existent-task-id")
 	if err == nil {
 		t.Error("Expected error when cancelling non-existent task")
 	}
 
-	t.Logf("✓ Correctly returned error for non-existent task: %v", err)
+	t.Logf("Correctly returned error for non-existent task: %v", err)
 }
 
 // TestCancelCompletedTask verifies that completed tasks cannot be cancelled
@@ -807,22 +748,13 @@ func TestCancelCompletedTask(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-
 	stateStore := sessionstate.NewInMemoryStore()
-
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 
-	serverCoordinator := NewServerCoordinator(
-		agentCoordinator,
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-	)
+	tasks, _, _ := buildServices(agentCoordinator, broadcaster, sessionStore, taskStore, stateStore, nil, nil, nil)
 
 	ctx := context.Background()
 
-	// Create and complete a task
 	task, err := taskStore.Create(ctx, "session-1", "test task", "", "")
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
@@ -841,13 +773,12 @@ func TestCancelCompletedTask(t *testing.T) {
 		t.Fatalf("Failed to set result: %v", err)
 	}
 
-	// Try to cancel completed task
-	err = serverCoordinator.CancelTask(ctx, task.ID)
+	err = tasks.CancelTask(ctx, task.ID)
 	if err == nil {
 		t.Error("Expected error when cancelling completed task")
 	}
 
-	t.Logf("✓ Correctly returned error for completed task: %v", err)
+	t.Logf("Correctly returned error for completed task: %v", err)
 }
 
 // TestNoCancelFunctionLeak verifies that cancel functions are cleaned up
@@ -855,36 +786,24 @@ func TestNoCancelFunctionLeak(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-
 	stateStore := sessionstate.NewInMemoryStore()
-
-	// Use fast mock coordinator to quickly complete tasks
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 
-	serverCoordinator := NewServerCoordinator(
-		agentCoordinator,
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-	)
+	tasks, _, _ := buildServices(agentCoordinator, broadcaster, sessionStore, taskStore, stateStore, nil, nil, nil)
 
 	ctx := context.Background()
 
-	// Create multiple tasks
 	taskIDs := make([]string, 5)
 	for i := 0; i < 5; i++ {
-		task, err := serverCoordinator.ExecuteTaskAsync(ctx, "test task", "", "", "")
+		task, err := tasks.ExecuteTaskAsync(ctx, "test task", "", "", "")
 		if err != nil {
 			t.Fatalf("ExecuteTaskAsync failed: %v", err)
 		}
 		taskIDs[i] = task.ID
 	}
 
-	// Wait for tasks to complete
 	time.Sleep(300 * time.Millisecond)
 
-	// Verify all tasks completed
 	for _, taskID := range taskIDs {
 		task, err := taskStore.Get(ctx, taskID)
 		if err != nil {
@@ -892,27 +811,26 @@ func TestNoCancelFunctionLeak(t *testing.T) {
 		}
 
 		if task.Status != serverPorts.TaskStatusCompleted {
-			t.Logf("⚠ Task %s status is %s (expected completed)", taskID, task.Status)
+			t.Logf("Task %s status is %s (expected completed)", taskID, task.Status)
 		}
 	}
 
-	// Check that cancel functions were cleaned up
-	serverCoordinator.cancelMu.RLock()
-	numCancelFuncs := len(serverCoordinator.cancelFuncs)
-	serverCoordinator.cancelMu.RUnlock()
+	// Check that cancel functions were cleaned up via the TaskExecutionService.
+	tasks.cancelMu.RLock()
+	numCancelFuncs := len(tasks.cancelFuncs)
+	tasks.cancelMu.RUnlock()
 
 	if numCancelFuncs != 0 {
 		t.Errorf("Expected 0 cancel functions after tasks completed, got %d", numCancelFuncs)
 	} else {
-		t.Logf("✓ No cancel function leak: all %d tasks cleaned up", len(taskIDs))
+		t.Logf("No cancel function leak: all %d tasks cleaned up", len(taskIDs))
 	}
 }
 
-func TestServerCoordinatorRecordsTaskErrorMetrics(t *testing.T) {
+func TestRecordsTaskErrorMetrics(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-
 	stateStore := sessionstate.NewInMemoryStore()
 	failingAgent := &failingAgentCoordinator{sessionStore: sessionStore, err: errors.New("boom")}
 	metrics := &observability.MetricsCollector{}
@@ -922,16 +840,15 @@ func TestServerCoordinatorRecordsTaskErrorMetrics(t *testing.T) {
 			statusCh <- status
 		},
 	})
-	coordinator := NewServerCoordinator(
-		failingAgent,
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-		WithObservability(&observability.Observability{Metrics: metrics}),
+
+	tasks, _, _ := buildServices(
+		failingAgent, broadcaster, sessionStore, taskStore, stateStore,
+		[]TaskExecutionServiceOption{WithTaskObservability(&observability.Observability{Metrics: metrics})},
+		nil, nil,
 	)
+
 	ctx := context.Background()
-	if _, err := coordinator.ExecuteTaskAsync(ctx, "fail-task", "", "", ""); err != nil {
+	if _, err := tasks.ExecuteTaskAsync(ctx, "fail-task", "", "", ""); err != nil {
 		t.Fatalf("ExecuteTaskAsync failed: %v", err)
 	}
 	select {
@@ -944,7 +861,7 @@ func TestServerCoordinatorRecordsTaskErrorMetrics(t *testing.T) {
 	}
 }
 
-func TestNewServerCoordinator_AppliesTaskExecutionRuntimeConfig(t *testing.T) {
+func TestAppliesTaskExecutionRuntimeConfig(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
@@ -952,49 +869,49 @@ func TestNewServerCoordinator_AppliesTaskExecutionRuntimeConfig(t *testing.T) {
 
 	leaseTTL := 2 * time.Minute
 	leaseRenewInterval := 25 * time.Second
-	coordinator := NewServerCoordinator(
-		NewMockAgentCoordinator(sessionStore),
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-		WithTaskExecutionRuntimeConfig("coordinator-owner", leaseTTL, leaseRenewInterval, 3, 7),
+
+	tasks, _, _ := buildServices(
+		NewMockAgentCoordinator(sessionStore), broadcaster, sessionStore, taskStore, stateStore,
+		[]TaskExecutionServiceOption{
+			WithTaskOwnerID("coordinator-owner"),
+			WithTaskLeaseConfig(leaseTTL, leaseRenewInterval),
+			WithTaskAdmissionLimit(3),
+			WithResumeClaimBatchSize(7),
+		},
+		nil, nil,
 	)
 
-	if coordinator.Tasks.ownerID != "coordinator-owner" {
-		t.Fatalf("expected owner_id coordinator-owner, got %q", coordinator.Tasks.ownerID)
+	if tasks.ownerID != "coordinator-owner" {
+		t.Fatalf("expected owner_id coordinator-owner, got %q", tasks.ownerID)
 	}
-	if coordinator.Tasks.leaseTTL != leaseTTL {
-		t.Fatalf("expected lease ttl %s, got %s", leaseTTL, coordinator.Tasks.leaseTTL)
+	if tasks.leaseTTL != leaseTTL {
+		t.Fatalf("expected lease ttl %s, got %s", leaseTTL, tasks.leaseTTL)
 	}
-	if coordinator.Tasks.leaseRenewInterval != leaseRenewInterval {
-		t.Fatalf("expected lease renew interval %s, got %s", leaseRenewInterval, coordinator.Tasks.leaseRenewInterval)
+	if tasks.leaseRenewInterval != leaseRenewInterval {
+		t.Fatalf("expected lease renew interval %s, got %s", leaseRenewInterval, tasks.leaseRenewInterval)
 	}
-	if cap(coordinator.Tasks.admissionSem) != 3 {
-		t.Fatalf("expected admission capacity 3, got %d", cap(coordinator.Tasks.admissionSem))
+	if cap(tasks.admissionSem) != 3 {
+		t.Fatalf("expected admission capacity 3, got %d", cap(tasks.admissionSem))
 	}
-	if coordinator.Tasks.resumeClaimBatchSize != 7 {
-		t.Fatalf("expected resume claim batch size 7, got %d", coordinator.Tasks.resumeClaimBatchSize)
+	if tasks.resumeClaimBatchSize != 7 {
+		t.Fatalf("expected resume claim batch size 7, got %d", tasks.resumeClaimBatchSize)
 	}
 }
 
-func TestNewServerCoordinator_TaskExecutionRuntimeConfig_AllowsDisablingAdmissionLimiter(t *testing.T) {
+func TestTaskExecutionRuntimeConfig_AllowsDisablingAdmissionLimiter(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
 	stateStore := sessionstate.NewInMemoryStore()
 
-	coordinator := NewServerCoordinator(
-		NewMockAgentCoordinator(sessionStore),
-		broadcaster,
-		sessionStore,
-		taskStore,
-		stateStore,
-		WithTaskExecutionRuntimeConfig("", 0, 0, 0, 0),
+	tasks, _, _ := buildServices(
+		NewMockAgentCoordinator(sessionStore), broadcaster, sessionStore, taskStore, stateStore,
+		[]TaskExecutionServiceOption{WithTaskAdmissionLimit(0)},
+		nil, nil,
 	)
 
-	if coordinator.Tasks.admissionSem != nil {
-		t.Fatalf("expected admission limiter to be disabled when max_in_flight=0, got capacity=%d", cap(coordinator.Tasks.admissionSem))
+	if tasks.admissionSem != nil {
+		t.Fatalf("expected admission limiter to be disabled when max_in_flight=0, got capacity=%d", cap(tasks.admissionSem))
 	}
 }
 

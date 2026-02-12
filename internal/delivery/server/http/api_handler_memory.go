@@ -37,7 +37,7 @@ func (h *APIHandler) HandleGetMemorySnapshot(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	session, err := h.coordinator.GetSession(r.Context(), sessionID)
+	session, err := h.sessions.GetSession(r.Context(), sessionID)
 	if err != nil {
 		h.writeJSONError(w, http.StatusNotFound, "Session not found", err)
 		return

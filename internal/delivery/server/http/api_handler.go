@@ -28,7 +28,9 @@ type MemoryEngine interface {
 
 // APIHandler handles REST API endpoints
 type APIHandler struct {
-	coordinator           *app.ServerCoordinator
+	tasks                 *app.TaskExecutionService
+	sessions              *app.SessionService
+	snapshots             *app.SnapshotService
 	healthChecker         *app.HealthCheckerImpl
 	logger                logging.Logger
 	internalMode          bool
@@ -105,9 +107,18 @@ func WithDevMode(enabled bool) APIHandlerOption {
 }
 
 // NewAPIHandler creates a new API handler
-func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.HealthCheckerImpl, internalMode bool, opts ...APIHandlerOption) *APIHandler {
+func NewAPIHandler(
+	tasks *app.TaskExecutionService,
+	sessions *app.SessionService,
+	snapshots *app.SnapshotService,
+	healthChecker *app.HealthCheckerImpl,
+	internalMode bool,
+	opts ...APIHandlerOption,
+) *APIHandler {
 	handler := &APIHandler{
-		coordinator:           coordinator,
+		tasks:                 tasks,
+		sessions:              sessions,
+		snapshots:             snapshots,
 		healthChecker:         healthChecker,
 		logger:                logging.NewComponentLogger("APIHandler"),
 		internalMode:          internalMode,

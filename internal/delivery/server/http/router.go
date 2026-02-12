@@ -40,11 +40,13 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 		WithSSEDataCache(dataCache),
 		WithSSERunTracker(deps.RunTracker),
 	)
-	shareHandler := NewShareHandler(deps.Coordinator, sseHandler)
+	shareHandler := NewShareHandler(deps.Sessions, sseHandler)
 	internalMode := strings.EqualFold(normalizedEnv, "internal") || strings.EqualFold(normalizedEnv, "evaluation")
 	devMode := strings.EqualFold(normalizedEnv, "development") || strings.EqualFold(normalizedEnv, "dev")
 	apiHandler := NewAPIHandler(
-		deps.Coordinator,
+		deps.Tasks,
+		deps.Sessions,
+		deps.Snapshots,
 		deps.HealthChecker,
 		internalMode,
 		WithAPIObservability(deps.Obs),

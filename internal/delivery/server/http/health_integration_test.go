@@ -34,12 +34,20 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 	broadcaster := app.NewEventBroadcaster()
 	taskStore := app.NewInMemoryTaskStore()
 
-	serverCoordinator := app.NewServerCoordinator(
+	tasksSvc := app.NewTaskExecutionService(
 		container.AgentCoordinator,
 		broadcaster,
-		container.SessionStore,
 		taskStore,
-		container.StateStore,
+	)
+	sessionsSvc := app.NewSessionService(
+		container.AgentCoordinator,
+		container.SessionStore,
+		broadcaster,
+	)
+	snapshotsSvc := app.NewSnapshotService(
+		container.AgentCoordinator,
+		broadcaster,
+		app.WithSnapshotStateStore(container.StateStore),
 	)
 
 	// Setup health checker
@@ -50,7 +58,9 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 	// Create router
 	router := NewRouter(
 		RouterDeps{
-			Coordinator:   serverCoordinator,
+			Tasks:         tasksSvc,
+			Sessions:      sessionsSvc,
+			Snapshots:     snapshotsSvc,
 			Broadcaster:   broadcaster,
 			HealthChecker: healthChecker,
 			AttachmentCfg: attachments.StoreConfig{Dir: t.TempDir()},

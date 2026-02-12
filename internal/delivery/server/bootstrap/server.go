@@ -182,42 +182,65 @@ func RunServer(observabilityConfigPath string) error {
 
 	journalReader := BuildJournalReader(container.SessionDir(), logger)
 
-	coordinatorOpts := []serverApp.ServerCoordinatorOption{
-		serverApp.WithAnalyticsClient(analyticsClient),
-		serverApp.WithJournalReader(journalReader),
-		serverApp.WithObservability(f.Obs),
-		serverApp.WithHistoryStore(container.HistoryStore),
-		serverApp.WithProgressTracker(progressTracker),
-		serverApp.WithTaskExecutionRuntimeConfig(
-			config.TaskExecution.OwnerID,
-			config.TaskExecution.LeaseTTL,
-			config.TaskExecution.LeaseRenewInterval,
-			config.TaskExecution.MaxInFlight,
-			config.TaskExecution.ResumeClaimBatchSize,
-		),
+	// ── Build the 3 standalone services ──
+
+	taskOpts := []serverApp.TaskExecutionServiceOption{
+		serverApp.WithTaskAnalytics(analyticsClient),
+		serverApp.WithTaskObservability(f.Obs),
+		serverApp.WithTaskProgressTracker(progressTracker),
+		serverApp.WithTaskStateStore(container.StateStore),
+	}
+	if ownerID := strings.TrimSpace(config.TaskExecution.OwnerID); ownerID != "" {
+		taskOpts = append(taskOpts, serverApp.WithTaskOwnerID(ownerID))
+	}
+	if config.TaskExecution.LeaseTTL > 0 || config.TaskExecution.LeaseRenewInterval > 0 {
+		taskOpts = append(taskOpts, serverApp.WithTaskLeaseConfig(config.TaskExecution.LeaseTTL, config.TaskExecution.LeaseRenewInterval))
+	}
+	if config.TaskExecution.MaxInFlight > 0 {
+		taskOpts = append(taskOpts, serverApp.WithTaskAdmissionLimit(config.TaskExecution.MaxInFlight))
+	} else {
+		// MaxInFlight == 0 explicitly disables admission limiter.
+		taskOpts = append(taskOpts, serverApp.WithTaskAdmissionLimit(config.TaskExecution.MaxInFlight))
+	}
+	if config.TaskExecution.ResumeClaimBatchSize > 0 {
+		taskOpts = append(taskOpts, serverApp.WithResumeClaimBatchSize(config.TaskExecution.ResumeClaimBatchSize))
 	}
 
 	// Wire bridge orphan resumer when unified task store is available.
 	if container.TaskStore != nil {
 		bridgeWorkDir := workdir.DefaultWorkingDir()
 		resumer := bridge.NewResumer(container.TaskStore, bridge.New(bridge.BridgeConfig{}), nil)
-		coordinatorOpts = append(coordinatorOpts,
-			serverApp.WithCoordinatorBridgeResumer(
+		taskOpts = append(taskOpts,
+			serverApp.WithBridgeResumer(
 				&bridgeResumerAdapter{resumer: resumer},
 				bridgeWorkDir,
 			),
 		)
 	}
 
-	serverCoordinator := serverApp.NewServerCoordinator(
+	tasksSvc := serverApp.NewTaskExecutionService(
 		container.AgentCoordinator,
 		broadcaster,
-		container.SessionStore,
 		taskStore,
-		container.StateStore,
-		coordinatorOpts...,
+		taskOpts...,
 	)
-	if resumed, err := serverCoordinator.ResumePendingTasks(context.Background()); err != nil {
+
+	sessionsSvc := serverApp.NewSessionService(
+		container.AgentCoordinator,
+		container.SessionStore,
+		broadcaster,
+		serverApp.WithSessionStateStore(container.StateStore),
+		serverApp.WithSessionHistoryStore(container.HistoryStore),
+	)
+
+	snapshotsSvc := serverApp.NewSnapshotService(
+		container.AgentCoordinator,
+		broadcaster,
+		serverApp.WithSnapshotStateStore(container.StateStore),
+		serverApp.WithSnapshotJournalReader(journalReader),
+	)
+
+	if resumed, err := tasksSvc.ResumePendingTasks(context.Background()); err != nil {
 		logger.Warn("[Bootstrap] Failed to resume pending/running tasks: %v", err)
 	} else if resumed > 0 {
 		logger.Info("[Bootstrap] Resumed %d pending/running tasks", resumed)
@@ -309,7 +332,9 @@ func RunServer(observabilityConfigPath string) error {
 
 	router := serverHTTP.NewRouter(
 		serverHTTP.RouterDeps{
-			Coordinator:            serverCoordinator,
+			Tasks:                  tasksSvc,
+			Sessions:               sessionsSvc,
+			Snapshots:              snapshotsSvc,
 			Broadcaster:            broadcaster,
 			RunTracker:             progressTracker,
 			HealthChecker:          healthChecker,

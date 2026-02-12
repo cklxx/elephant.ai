@@ -192,10 +192,32 @@ func (c *selectionAwareCoordinator) PreviewContextWindow(ctx context.Context, se
 	return agent.ContextWindowPreview{}, nil
 }
 
+// buildTestServices creates the 3 services from the given executor and stores.
+func buildTestServices(
+	exec app.AgentExecutor,
+	broadcaster *app.EventBroadcaster,
+	sessionStore storage.SessionStore,
+	taskStore serverPorts.TaskStore,
+	stateStore sessionstate.Store,
+	snapshotOpts ...app.SnapshotServiceOption,
+) (*app.TaskExecutionService, *app.SessionService, *app.SnapshotService) {
+	var taskOpts []app.TaskExecutionServiceOption
+	var sessOpts []app.SessionServiceOption
+	if stateStore != nil {
+		taskOpts = append(taskOpts, app.WithTaskStateStore(stateStore))
+		sessOpts = append(sessOpts, app.WithSessionStateStore(stateStore))
+		snapshotOpts = append([]app.SnapshotServiceOption{app.WithSnapshotStateStore(stateStore)}, snapshotOpts...)
+	}
+	tasks := app.NewTaskExecutionService(exec, broadcaster, taskStore, taskOpts...)
+	sessions := app.NewSessionService(exec, sessionStore, broadcaster, sessOpts...)
+	snapshots := app.NewSnapshotService(exec, broadcaster, snapshotOpts...)
+	return tasks, sessions, snapshots
+}
+
 func TestHandleCreateTaskReturnsJSONErrorOnSessionDecodeFailure(t *testing.T) {
 	rootErr := errors.New("json: cannot unmarshal object into Go struct field ToolResult.messages.tool_results.error of type error")
-	coordinator := app.NewServerCoordinator(&failingAgentCoordinator{err: rootErr}, app.NewEventBroadcaster(), nil, nil, nil)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+	tasks, sessions, snapshots := buildTestServices(&failingAgentCoordinator{err: rootErr}, app.NewEventBroadcaster(), nil, nil, nil)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false)
 
 	reqBody := bytes.NewBufferString(`{"task":"demo"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/tasks", reqBody)
@@ -228,8 +250,8 @@ func TestHandleCreateTaskReturnsJSONErrorOnSessionDecodeFailure(t *testing.T) {
 }
 
 func TestHandleCreateTaskReturnsNotFoundOnMissingSession(t *testing.T) {
-	coordinator := app.NewServerCoordinator(&failingAgentCoordinator{err: storage.ErrSessionNotFound}, app.NewEventBroadcaster(), nil, nil, nil)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+	tasks, sessions, snapshots := buildTestServices(&failingAgentCoordinator{err: storage.ErrSessionNotFound}, app.NewEventBroadcaster(), nil, nil, nil)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false)
 
 	reqBody := bytes.NewBufferString(`{"task":"demo","session_id":"missing-session"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/tasks", reqBody)
@@ -246,8 +268,8 @@ func TestHandleCreateTaskReturnsNotFoundOnMissingSession(t *testing.T) {
 }
 
 func TestHandleCreateTaskHonorsBodyLimit(t *testing.T) {
-	coordinator := app.NewServerCoordinator(&stubAgentCoordinator{}, app.NewEventBroadcaster(), nil, nil, nil)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false, WithMaxCreateTaskBodySize(64))
+	tasks, sessions, snapshots := buildTestServices(&stubAgentCoordinator{}, app.NewEventBroadcaster(), nil, nil, nil)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false, WithMaxCreateTaskBodySize(64))
 
 	oversizedPayload := `{"task":"` + strings.Repeat("a", 80) + `"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/tasks", strings.NewReader(oversizedPayload))
@@ -266,15 +288,15 @@ func TestSnapshotHandlers(t *testing.T) {
 	broadcaster := app.NewEventBroadcaster()
 	taskStore := app.NewInMemoryTaskStore()
 	reader := &staticJournalReader{entries: []journal.TurnJournalEntry{{SessionID: "sess-1", TurnID: 1, Summary: "rehydrate"}}}
-	coordinator := app.NewServerCoordinator(
+	tasks, sessions, snapshots := buildTestServices(
 		&stubAgentCoordinator{},
 		broadcaster,
 		sessionStore,
 		taskStore,
 		stateStore,
-		app.WithJournalReader(reader),
+		app.WithSnapshotJournalReader(reader),
 	)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false)
 
 	snapshot := sessionstate.Snapshot{
 		SessionID:  "sess-1",
@@ -333,14 +355,14 @@ func TestHandleCreateSession(t *testing.T) {
 	stateStore := sessionstate.NewInMemoryStore()
 	broadcaster := app.NewEventBroadcaster()
 	taskStore := app.NewInMemoryTaskStore()
-	coordinator := app.NewServerCoordinator(
+	tasks, sessions, snapshots := buildTestServices(
 		storeBackedAgentCoordinator{store: sessionStore},
 		broadcaster,
 		sessionStore,
 		taskStore,
 		stateStore,
 	)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sessions", nil)
 	resp := httptest.NewRecorder()
@@ -370,14 +392,14 @@ func TestHandleListSessionsIncludesTaskSummaryFields(t *testing.T) {
 	broadcaster := app.NewEventBroadcaster()
 	taskStore := app.NewInMemoryTaskStore()
 	defer taskStore.Close()
-	coordinator := app.NewServerCoordinator(
+	tasks, sessions, snapshots := buildTestServices(
 		storeBackedAgentCoordinator{store: sessionStore},
 		broadcaster,
 		sessionStore,
 		taskStore,
 		stateStore,
 	)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false)
 
 	ctx := context.Background()
 	sessionA, err := sessionStore.Create(ctx)
@@ -489,14 +511,14 @@ func (r *staticJournalReader) Stream(_ context.Context, sessionID string, fn fun
 
 func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
 	broadcaster := app.NewEventBroadcaster()
-	coordinator := app.NewServerCoordinator(
+	tasks, sessions, snapshots := buildTestServices(
 		&stubAgentCoordinator{},
 		broadcaster,
 		filestore.New(t.TempDir()),
 		app.NewInMemoryTaskStore(),
 		sessionstate.NewInMemoryStore(),
 	)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), true)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), true)
 
 	attachments := map[string]core.Attachment{
 		"preview.png": {
@@ -587,8 +609,8 @@ func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
 }
 
 func TestHandleGetContextWindowPreviewReturnsWindow(t *testing.T) {
-	coordinator := app.NewServerCoordinator(&previewAgentCoordinator{}, app.NewEventBroadcaster(), nil, nil, nil)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false, WithDevMode(true))
+	tasks, sessions, snapshots := buildTestServices(&previewAgentCoordinator{}, app.NewEventBroadcaster(), nil, nil, nil)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false, WithDevMode(true))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/dev/sessions/dev-ctx/context-window", nil)
 	req.SetPathValue("session_id", "dev-ctx")
@@ -636,8 +658,8 @@ func TestHandleGetContextWindowPreviewReturnsWindow(t *testing.T) {
 }
 
 func TestHandleGetContextWindowPreviewDisabledOutsideDev(t *testing.T) {
-	coordinator := app.NewServerCoordinator(&previewAgentCoordinator{}, app.NewEventBroadcaster(), nil, nil, nil)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+	tasks, sessions, snapshots := buildTestServices(&previewAgentCoordinator{}, app.NewEventBroadcaster(), nil, nil, nil)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/dev/sessions/dev-ctx/context-window", nil)
 	req.SetPathValue("session_id", "dev-ctx")
@@ -687,14 +709,14 @@ func TestHandleGetMemorySnapshot(t *testing.T) {
 		t.Fatalf("save session: %v", err)
 	}
 
-	coordinator := app.NewServerCoordinator(
+	tasks, sessions, snapshots := buildTestServices(
 		storeBackedAgentCoordinator{store: sessionStore},
 		app.NewEventBroadcaster(),
 		sessionStore,
 		app.NewInMemoryTaskStore(),
 		nil,
 	)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false, WithDevMode(true), WithMemoryEngine(engine))
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false, WithDevMode(true), WithMemoryEngine(engine))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/dev/memory?session_id=sess-1", nil)
 	resp := httptest.NewRecorder()
@@ -727,7 +749,7 @@ func TestHandleGetMemorySnapshot(t *testing.T) {
 }
 
 func TestHandleWebVitalsAcceptsPayload(t *testing.T) {
-	handler := NewAPIHandler(nil, app.NewHealthChecker(), false)
+	handler := NewAPIHandler(nil, nil, nil, app.NewHealthChecker(), false)
 	req := httptest.NewRequest(http.MethodPost, "/api/metrics/web-vitals", strings.NewReader(`{"name":"CLS","value":0.1,"page":"/sessions/123"}`))
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
@@ -738,8 +760,6 @@ func TestHandleWebVitalsAcceptsPayload(t *testing.T) {
 }
 
 func TestHandleWebVitalsRejectsBadMethod(t *testing.T) {
-	// Method enforcement is handled by Go 1.22+ method-specific route patterns.
-	// Test through the router to verify the mux returns 405 for wrong methods.
 	router := NewRouter(
 		RouterDeps{
 			Broadcaster:   app.NewEventBroadcaster(),
@@ -757,8 +777,8 @@ func TestHandleWebVitalsRejectsBadMethod(t *testing.T) {
 
 func TestHandleCreateTaskInjectsSelection(t *testing.T) {
 	coord := &selectionAwareCoordinator{got: make(chan struct{})}
-	server := app.NewServerCoordinator(coord, app.NewEventBroadcaster(), nil, app.NewInMemoryTaskStore(), nil)
-	handler := NewAPIHandler(server, app.NewHealthChecker(), false, WithSelectionResolver(subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
+	tasks, sessions, snapshots := buildTestServices(coord, app.NewEventBroadcaster(), nil, app.NewInMemoryTaskStore(), nil)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false, WithSelectionResolver(subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
 		return runtimeconfig.CLICredentials{
 			Codex: runtimeconfig.CLICredential{
 				Provider: "codex",
@@ -791,18 +811,17 @@ func TestHandleCreateTaskInjectsSelection(t *testing.T) {
 
 func TestHandleListActiveTasks(t *testing.T) {
 	taskStore := app.NewInMemoryTaskStore()
-	coordinator := app.NewServerCoordinator(
+	tasks, sessions, snapshots := buildTestServices(
 		&stubAgentCoordinator{},
 		app.NewEventBroadcaster(),
 		nil,
 		taskStore,
 		nil,
 	)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false)
 
 	ctx := context.Background()
 
-	// Create tasks in various states.
 	t1, err := taskStore.Create(ctx, "sess-1", "running task", "", "")
 	if err != nil {
 		t.Fatalf("create task: %v", err)
@@ -813,7 +832,6 @@ func TestHandleListActiveTasks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create task: %v", err)
 	}
-	// t2 stays pending
 
 	t3, err := taskStore.Create(ctx, "sess-2", "completed task", "", "")
 	if err != nil {
@@ -838,7 +856,6 @@ func TestHandleListActiveTasks(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	// Only the running and pending tasks should be returned (not the completed one).
 	if resp.Total != 2 {
 		t.Fatalf("expected 2 active tasks, got %d", resp.Total)
 	}
@@ -856,18 +873,17 @@ func TestHandleListActiveTasks(t *testing.T) {
 
 func TestHandleGetTaskStats(t *testing.T) {
 	taskStore := app.NewInMemoryTaskStore()
-	coordinator := app.NewServerCoordinator(
+	tasks, sessions, snapshots := buildTestServices(
 		&stubAgentCoordinator{},
 		app.NewEventBroadcaster(),
 		nil,
 		taskStore,
 		nil,
 	)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false)
 
 	ctx := context.Background()
 
-	// Create tasks in various states.
 	t1, _ := taskStore.Create(ctx, "sess-1", "running", "", "")
 	_ = taskStore.SetStatus(ctx, t1.ID, serverPorts.TaskStatusRunning)
 

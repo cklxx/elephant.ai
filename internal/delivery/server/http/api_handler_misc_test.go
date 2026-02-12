@@ -11,7 +11,7 @@ import (
 )
 
 func TestHandleDevLogIndexRequiresDevMode(t *testing.T) {
-	handler := NewAPIHandler(nil, nil, false)
+	handler := NewAPIHandler(nil, nil, nil, nil, false)
 	req := httptest.NewRequest(http.MethodGet, "/api/dev/logs/index", nil)
 	rec := httptest.NewRecorder()
 
@@ -23,7 +23,7 @@ func TestHandleDevLogIndexRequiresDevMode(t *testing.T) {
 }
 
 func TestHandleDevLogIndexRejectsInvalidLimit(t *testing.T) {
-	handler := NewAPIHandler(nil, nil, false, WithDevMode(true))
+	handler := NewAPIHandler(nil, nil, nil, nil, false, WithDevMode(true))
 	req := httptest.NewRequest(http.MethodGet, "/api/dev/logs/index?limit=0", nil)
 	rec := httptest.NewRecorder()
 
@@ -53,7 +53,7 @@ func TestHandleDevLogIndexReturnsEntries(t *testing.T) {
 	t.Setenv("ALEX_LOG_DIR", logDir)
 	t.Setenv("ALEX_REQUEST_LOG_DIR", requestDir)
 
-	handler := NewAPIHandler(nil, nil, false, WithDevMode(true))
+	handler := NewAPIHandler(nil, nil, nil, nil, false, WithDevMode(true))
 	req := httptest.NewRequest(http.MethodGet, "/api/dev/logs/index?limit=5", nil)
 	rec := httptest.NewRecorder()
 

@@ -12,7 +12,9 @@ import (
 
 // RouterDeps holds all service dependencies needed to construct the HTTP router.
 type RouterDeps struct {
-	Coordinator            *app.ServerCoordinator
+	Tasks                  *app.TaskExecutionService
+	Sessions               *app.SessionService
+	Snapshots              *app.SnapshotService
 	Broadcaster            *app.EventBroadcaster
 	RunTracker             app.RunTracker
 	HealthChecker          *app.HealthCheckerImpl

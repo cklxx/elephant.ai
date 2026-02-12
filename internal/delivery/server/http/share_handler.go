@@ -12,17 +12,17 @@ import (
 
 // ShareHandler serves read-only share endpoints.
 type ShareHandler struct {
-	coordinator *app.ServerCoordinator
-	sseHandler  *SSEHandler
-	logger      logging.Logger
+	sessions   *app.SessionService
+	sseHandler *SSEHandler
+	logger     logging.Logger
 }
 
 // NewShareHandler creates a share handler.
-func NewShareHandler(coordinator *app.ServerCoordinator, sseHandler *SSEHandler) *ShareHandler {
+func NewShareHandler(sessions *app.SessionService, sseHandler *SSEHandler) *ShareHandler {
 	return &ShareHandler{
-		coordinator: coordinator,
-		sseHandler:  sseHandler,
-		logger:      logging.NewComponentLogger("ShareHandler"),
+		sessions:   sessions,
+		sseHandler: sseHandler,
+		logger:     logging.NewComponentLogger("ShareHandler"),
 	}
 }
 
@@ -39,7 +39,7 @@ func (h *ShareHandler) HandleSharedSession(w http.ResponseWriter, r *http.Reques
 	}
 
 	token := strings.TrimSpace(r.URL.Query().Get("token"))
-	session, err := h.coordinator.ValidateShareToken(r.Context(), sessionID, token)
+	session, err := h.sessions.ValidateShareToken(r.Context(), sessionID, token)
 	if err != nil {
 		if status, msg := mapDomainError(err); status != 0 {
 			http.Error(w, msg, status)

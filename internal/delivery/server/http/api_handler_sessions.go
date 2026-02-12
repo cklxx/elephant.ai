@@ -91,7 +91,7 @@ func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := h.coordinator.GetSession(r.Context(), sessionID)
+	session, err := h.sessions.GetSession(r.Context(), sessionID)
 	if err != nil {
 		h.writeMappedError(w, err, http.StatusNotFound, "Session not found")
 		return
@@ -111,7 +111,7 @@ func (h *APIHandler) HandleGetSessionPersona(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	session, err := h.coordinator.GetSession(r.Context(), sessionID)
+	session, err := h.sessions.GetSession(r.Context(), sessionID)
 	if err != nil {
 		h.writeMappedError(w, err, http.StatusNotFound, "Session not found")
 		return
@@ -147,7 +147,7 @@ func (h *APIHandler) HandleUpdateSessionPersona(w http.ResponseWriter, r *http.R
 		req.UserPersona.UpdatedAt = time.Now()
 	}
 
-	session, err := h.coordinator.UpdateSessionPersona(r.Context(), sessionID, req.UserPersona)
+	session, err := h.sessions.UpdateSessionPersona(r.Context(), sessionID, req.UserPersona)
 	if err != nil {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to update persona")
 		return
@@ -164,7 +164,7 @@ func (h *APIHandler) HandleUpdateSessionPersona(w http.ResponseWriter, r *http.R
 
 // HandleCreateSession handles POST /api/sessions
 func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request) {
-	session, err := h.coordinator.CreateSession(r.Context())
+	session, err := h.sessions.CreateSession(r.Context())
 	if err != nil {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to create session")
 		return
@@ -185,7 +185,7 @@ func (h *APIHandler) HandleCreateSessionShare(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	shareToken, err := h.coordinator.EnsureSessionShareToken(r.Context(), sessionID, false)
+	shareToken, err := h.sessions.EnsureSessionShareToken(r.Context(), sessionID, false)
 	if err != nil {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to create share token")
 		return
@@ -226,13 +226,13 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 		offset = parsed
 	}
 
-	sessionIDs, err := h.coordinator.ListSessions(r.Context(), limit, offset)
+	sessionIDs, err := h.sessions.ListSessions(r.Context(), limit, offset)
 	if err != nil {
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to list sessions", err)
 		return
 	}
 
-	taskSummaries, err := h.coordinator.SummarizeSessionTasks(r.Context(), sessionIDs)
+	taskSummaries, err := h.tasks.SummarizeSessionTasks(r.Context(), sessionIDs)
 	if err != nil {
 		h.logger.Warn("failed to summarize session tasks: %v", err)
 		taskSummaries = map[string]app.SessionTaskSummary{}
@@ -241,7 +241,7 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 	// Convert session IDs to full session objects
 	sessions := make([]SessionResponse, 0, len(sessionIDs))
 	for _, id := range sessionIDs {
-		session, err := h.coordinator.GetSession(r.Context(), id)
+		session, err := h.sessions.GetSession(r.Context(), id)
 		if err != nil {
 			continue // Skip sessions that can't be loaded
 		}
@@ -277,7 +277,7 @@ func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.coordinator.DeleteSession(r.Context(), sessionID); err != nil {
+	if err := h.sessions.DeleteSession(r.Context(), sessionID); err != nil {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to delete session")
 		return
 	}
@@ -306,7 +306,7 @@ func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request)
 		limit = maxSnapshotListLimit
 	}
 	cursor := strings.TrimSpace(r.URL.Query().Get("cursor"))
-	items, nextCursor, err := h.coordinator.ListSnapshots(r.Context(), sessionID, cursor, limit)
+	items, nextCursor, err := h.snapshots.ListSnapshots(r.Context(), sessionID, cursor, limit)
 	if err != nil {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to list snapshots")
 		return
@@ -342,7 +342,7 @@ func (h *APIHandler) HandleGetTurnSnapshot(w http.ResponseWriter, r *http.Reques
 		h.writeJSONError(w, http.StatusBadRequest, "turn_id must be numeric", err)
 		return
 	}
-	snapshot, err := h.coordinator.GetSnapshot(r.Context(), sessionID, turnID)
+	snapshot, err := h.snapshots.GetSnapshot(r.Context(), sessionID, turnID)
 	if err != nil {
 		h.writeMappedError(w, err, http.StatusNotFound, "Snapshot not found")
 		return
@@ -373,7 +373,7 @@ func (h *APIHandler) HandleReplaySession(w http.ResponseWriter, r *http.Request)
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
-	if err := h.coordinator.ReplaySession(r.Context(), sessionID); err != nil {
+	if err := h.snapshots.ReplaySession(r.Context(), sessionID); err != nil {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to schedule replay")
 		return
 	}
@@ -393,7 +393,7 @@ func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newSession, err := h.coordinator.ForkSession(r.Context(), sessionID)
+	newSession, err := h.sessions.ForkSession(r.Context(), sessionID)
 	if err != nil {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to fork session")
 		return

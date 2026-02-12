@@ -39,7 +39,7 @@ func (h *APIHandler) HandleGetContextWindowPreview(w http.ResponseWriter, r *htt
 		http.NotFound(w, r)
 		return
 	}
-	if h.coordinator == nil {
+	if h.snapshots == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "context-window preview unavailable (no coordinator)", nil)
 		return
 	}
@@ -50,7 +50,7 @@ func (h *APIHandler) HandleGetContextWindowPreview(w http.ResponseWriter, r *htt
 		return
 	}
 
-	preview, err := h.coordinator.PreviewContextWindow(r.Context(), sessionID)
+	preview, err := h.snapshots.PreviewContextWindow(r.Context(), sessionID)
 	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, "Failed to build context window", err)
 		return
@@ -80,7 +80,7 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 		http.NotFound(w, r)
 		return
 	}
-	if h.coordinator == nil {
+	if h.snapshots == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "context snapshots unavailable (no coordinator)", nil)
 		return
 	}
@@ -91,7 +91,7 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	snapshots := h.coordinator.GetContextSnapshots(sessionID)
+	snapshots := h.snapshots.GetContextSnapshots(sessionID)
 	response := ContextSnapshotResponse{
 		SessionID: sessionID,
 		Snapshots: make([]ContextSnapshotItem, len(snapshots)),

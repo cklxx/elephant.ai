@@ -46,9 +46,11 @@ func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 		WithSSERunTracker(deps.RunTracker),
 	)
 
-	// API handler — coordinator is nil in debug mode (task endpoints disabled).
+	// API handler — services are nil in debug mode (task endpoints disabled).
 	apiHandler := NewAPIHandler(
-		nil, // no ServerCoordinator
+		nil, // no TaskExecutionService
+		nil, // no SessionService
+		nil, // no SnapshotService
 		deps.HealthChecker,
 		true, // internalMode
 		WithAPIObservability(deps.Obs),

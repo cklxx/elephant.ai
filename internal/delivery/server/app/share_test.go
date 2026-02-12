@@ -74,9 +74,9 @@ func TestEnsureSessionShareToken(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 	store.sessions[session.ID] = session
-	coordinator := NewServerCoordinator(nil, nil, store, nil, nil)
+	sessions := NewSessionService(nil, store, nil)
 
-	token, err := coordinator.EnsureSessionShareToken(context.Background(), "session-1", false)
+	token, err := sessions.EnsureSessionShareToken(context.Background(), "session-1", false)
 	if err != nil {
 		t.Fatalf("ensure share token: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestEnsureSessionShareToken(t *testing.T) {
 		t.Fatalf("expected share token to be set")
 	}
 
-	token2, err := coordinator.EnsureSessionShareToken(context.Background(), "session-1", false)
+	token2, err := sessions.EnsureSessionShareToken(context.Background(), "session-1", false)
 	if err != nil {
 		t.Fatalf("ensure share token again: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestEnsureSessionShareToken(t *testing.T) {
 		t.Fatalf("expected existing token, got %q and %q", token, token2)
 	}
 
-	token3, err := coordinator.EnsureSessionShareToken(context.Background(), "session-1", true)
+	token3, err := sessions.EnsureSessionShareToken(context.Background(), "session-1", true)
 	if err != nil {
 		t.Fatalf("reset share token: %v", err)
 	}
@@ -110,18 +110,18 @@ func TestValidateShareToken(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 	store.sessions[session.ID] = session
-	coordinator := NewServerCoordinator(nil, nil, store, nil, nil)
+	sessions := NewSessionService(nil, store, nil)
 
-	token, err := coordinator.EnsureSessionShareToken(context.Background(), "session-1", false)
+	token, err := sessions.EnsureSessionShareToken(context.Background(), "session-1", false)
 	if err != nil {
 		t.Fatalf("ensure share token: %v", err)
 	}
 
-	if _, err := coordinator.ValidateShareToken(context.Background(), "session-1", "bad-token"); err != ErrShareTokenInvalid {
+	if _, err := sessions.ValidateShareToken(context.Background(), "session-1", "bad-token"); err != ErrShareTokenInvalid {
 		t.Fatalf("expected invalid token error, got %v", err)
 	}
 
-	if _, err := coordinator.ValidateShareToken(context.Background(), "session-1", token); err != nil {
+	if _, err := sessions.ValidateShareToken(context.Background(), "session-1", token); err != nil {
 		t.Fatalf("expected token to validate, got %v", err)
 	}
 }
