@@ -356,17 +356,22 @@ func (pm *ProcessManager) monitorStderr(stderr io.Reader, stderrTail io.Writer, 
 	}
 }
 
-// monitorExit monitors when the process exits unexpectedly
+// monitorExit monitors when the process exits unexpectedly.
+// We must drain stderr BEFORE calling Wait, because Wait closes the pipe
+// (see exec.Cmd.StderrPipe docs: "It is thus incorrect to call Wait before
+// all reads from the pipe have completed.").
 func (pm *ProcessManager) monitorExit(process *exec.Cmd, waitDone chan<- error, stderrDone <-chan struct{}) {
 	if process == nil {
 		return
 	}
 
-	err := process.Wait()
-
+	// Wait for stderr reader to finish (it gets EOF when process exits).
 	if stderrDone != nil {
 		<-stderrDone
 	}
+
+	// Now safe to call Wait — all pipe reads are done.
+	err := process.Wait()
 
 	if waitDone != nil {
 		select {
