@@ -769,7 +769,7 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 		SeedState:        seedState,
 		Agents:           agents,
 	})
-	if err := stateFile.WriteInit(initDoc); err != nil {
+	if err := stateFile.SeedInit(initDoc); err != nil {
 		b.logger.Warn("Kernel init doc write failed: %v", err)
 	}
 
