@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
 )
 
 // testClock is a simple real-time clock for tests.
@@ -435,22 +436,22 @@ func TestExternalProgressEventIncludesArgsAndActivity(t *testing.T) {
 	defer mu.Unlock()
 	found := false
 	for _, evt := range events {
-		progressEvt, ok := evt.(*domain.ExternalAgentProgressEvent)
-		if !ok {
+		progressEvt, ok := evt.(*domain.Event)
+		if !ok || progressEvt.Kind != types.EventExternalAgentProgress {
 			continue
 		}
 		found = true
-		if progressEvt.CurrentTool != "Bash" {
-			t.Fatalf("unexpected tool: %q", progressEvt.CurrentTool)
+		if progressEvt.Data.CurrentTool != "Bash" {
+			t.Fatalf("unexpected tool: %q", progressEvt.Data.CurrentTool)
 		}
-		if progressEvt.CurrentArgs != "ls -la" {
-			t.Fatalf("unexpected args: %q", progressEvt.CurrentArgs)
+		if progressEvt.Data.CurrentArgs != "ls -la" {
+			t.Fatalf("unexpected args: %q", progressEvt.Data.CurrentArgs)
 		}
-		if progressEvt.LastActivity.IsZero() {
+		if progressEvt.Data.LastActivity.IsZero() {
 			t.Fatalf("expected last activity")
 		}
-		if len(progressEvt.FilesTouched) != 1 || progressEvt.FilesTouched[0] != "a.txt" {
-			t.Fatalf("unexpected files touched: %#v", progressEvt.FilesTouched)
+		if len(progressEvt.Data.FilesTouched) != 1 || progressEvt.Data.FilesTouched[0] != "a.txt" {
+			t.Fatalf("unexpected files touched: %#v", progressEvt.Data.FilesTouched)
 		}
 	}
 	if !found {
@@ -490,19 +491,19 @@ func TestManagerEmitsCompletionEventImmediately(t *testing.T) {
 	defer mu.Unlock()
 	found := false
 	for _, evt := range events {
-		completed, ok := evt.(*domain.BackgroundTaskCompletedEvent)
-		if !ok {
+		completed, ok := evt.(*domain.Event)
+		if !ok || completed.Kind != types.EventBackgroundTaskCompleted {
 			continue
 		}
 		found = true
-		if completed.TaskID != "task-1" {
-			t.Fatalf("unexpected task id: %q", completed.TaskID)
+		if completed.Data.TaskID != "task-1" {
+			t.Fatalf("unexpected task id: %q", completed.Data.TaskID)
 		}
-		if completed.Status != "completed" {
-			t.Fatalf("unexpected status: %q", completed.Status)
+		if completed.Data.Status != "completed" {
+			t.Fatalf("unexpected status: %q", completed.Data.Status)
 		}
-		if completed.Answer != "result-1" {
-			t.Fatalf("unexpected answer: %q", completed.Answer)
+		if completed.Data.Answer != "result-1" {
+			t.Fatalf("unexpected answer: %q", completed.Data.Answer)
 		}
 	}
 	if !found {
@@ -670,7 +671,7 @@ func TestDirectParentListenerReceivesCompletion(t *testing.T) {
 	// Verify the normal chain received the completion event.
 	normalFound := false
 	for _, evt := range normalEvents {
-		if ce, ok := evt.(*domain.BackgroundTaskCompletedEvent); ok && ce.TaskID == "direct-1" {
+		if ce, ok := evt.(*domain.Event); ok && ce.Kind == types.EventBackgroundTaskCompleted && ce.Data.TaskID == "direct-1" {
 			normalFound = true
 		}
 	}
@@ -681,10 +682,10 @@ func TestDirectParentListenerReceivesCompletion(t *testing.T) {
 	// Verify the direct bypass also received the completion event.
 	directFound := false
 	for _, evt := range directEvents {
-		if ce, ok := evt.(*domain.BackgroundTaskCompletedEvent); ok && ce.TaskID == "direct-1" {
+		if ce, ok := evt.(*domain.Event); ok && ce.Kind == types.EventBackgroundTaskCompleted && ce.Data.TaskID == "direct-1" {
 			directFound = true
-			if ce.Answer != "direct-result" {
-				t.Errorf("unexpected answer via direct: %q", ce.Answer)
+			if ce.Data.Answer != "direct-result" {
+				t.Errorf("unexpected answer via direct: %q", ce.Data.Answer)
 			}
 		}
 	}
@@ -882,7 +883,7 @@ func TestHeartbeatEmitsDuringExternalExecution(t *testing.T) {
 	// (heartbeat goroutine ran but ticker didn't fire in this short window).
 	completionFound := false
 	for _, evt := range events {
-		if ce, ok := evt.(*domain.BackgroundTaskCompletedEvent); ok && ce.TaskID == "hb-1" {
+		if ce, ok := evt.(*domain.Event); ok && ce.Kind == types.EventBackgroundTaskCompleted && ce.Data.TaskID == "hb-1" {
 			completionFound = true
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	"alex/internal/domain/agent/ports/mocks"
+	"alex/internal/domain/agent/types"
 )
 
 type recordingListener struct {
@@ -43,16 +44,18 @@ func TestReactEngine_FinalAnswerReview_EmitsToolEvents(t *testing.T) {
 	completedCallID := ""
 
 	for idx, evt := range listener.events {
-		switch e := evt.(type) {
-		case *domain.WorkflowToolStartedEvent:
-			if strings.EqualFold(strings.TrimSpace(e.ToolName), "final_answer_review") {
-				startedIdx = idx
-				startedCallID = strings.TrimSpace(e.CallID)
-			}
-		case *domain.WorkflowToolCompletedEvent:
-			if strings.EqualFold(strings.TrimSpace(e.ToolName), "final_answer_review") {
-				completedIdx = idx
-				completedCallID = strings.TrimSpace(e.CallID)
+		if e, ok := evt.(*domain.Event); ok {
+			switch e.Kind {
+			case types.EventToolStarted:
+				if strings.EqualFold(strings.TrimSpace(e.Data.ToolName), "final_answer_review") {
+					startedIdx = idx
+					startedCallID = strings.TrimSpace(e.Data.CallID)
+				}
+			case types.EventToolCompleted:
+				if strings.EqualFold(strings.TrimSpace(e.Data.ToolName), "final_answer_review") {
+					completedIdx = idx
+					completedCallID = strings.TrimSpace(e.Data.CallID)
+				}
 			}
 		}
 	}
@@ -101,8 +104,8 @@ func TestReactEngine_FinalAnswerReview_DoesNotEmitToolEventsWithoutTools(t *test
 	}
 
 	for _, evt := range listener.events {
-		if e, ok := evt.(*domain.WorkflowToolStartedEvent); ok {
-			if strings.EqualFold(strings.TrimSpace(e.ToolName), "final_answer_review") {
+		if e, ok := evt.(*domain.Event); ok && e.Kind == types.EventToolStarted {
+			if strings.EqualFold(strings.TrimSpace(e.Data.ToolName), "final_answer_review") {
 				t.Fatalf("unexpected final_answer_review tool started event")
 			}
 		}

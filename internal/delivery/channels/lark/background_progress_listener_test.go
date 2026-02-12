@@ -567,13 +567,10 @@ func TestDuplicateCompletionIsIdempotent(t *testing.T) {
 	})
 
 	// Path 2: Completion via raw event (direct bypass).
-	ln.OnEvent(&domain.BackgroundTaskCompletedEvent{
-		BaseEvent:  domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
-		TaskID:     "bg-dup",
-		Status:     "completed",
-		Answer:     "second-path",
-		TokensUsed: 100,
-	})
+	ln.OnEvent(domain.NewBackgroundTaskCompletedEvent(
+		domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		"bg-dup", "", "completed", "second-path", "", 0, 0, 100,
+	))
 
 	// Only one update should have fired (from the first path).
 	updates := recorder.CallsByMethod("UpdateMessage")

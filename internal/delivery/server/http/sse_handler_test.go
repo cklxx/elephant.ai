@@ -263,14 +263,9 @@ func TestSSEHandlerReplaysStepEventsAndFiltersLifecycle(t *testing.T) {
 	}
 	firstNode := snapshot.Nodes[0]
 
-	lifecycleEvent := &domain.WorkflowLifecycleUpdatedEvent{
-		BaseEvent:         base,
-		WorkflowID:        snapshot.ID,
-		WorkflowEventType: workflow.EventWorkflowUpdated,
-		Phase:             snapshot.Phase,
-		Node:              &firstNode,
-		Workflow:          snapshot,
-	}
+	lifecycleEvent := domain.NewLifecycleUpdatedEvent(
+		base, snapshot.ID, workflow.EventWorkflowUpdated, snapshot.Phase, &firstNode, snapshot,
+	)
 	lifecycle := domain.NewWorkflowEnvelopeFromEvent(lifecycleEvent, "workflow.lifecycle.updated")
 	if lifecycle == nil {
 		t.Fatal("failed to create lifecycle envelope")
@@ -286,15 +281,9 @@ func TestSSEHandlerReplaysStepEventsAndFiltersLifecycle(t *testing.T) {
 		"workflow":                        snapshot,
 	}
 
-	stepEvent := &domain.WorkflowNodeCompletedEvent{
-		BaseEvent:       base,
-		StepIndex:       0,
-		StepDescription: "context",
-		StepResult:      map[string]string{"status": "ok"},
-		Status:          "succeeded",
-		Iteration:       1,
-		Workflow:        snapshot,
-	}
+	stepEvent := domain.NewNodeCompletedEvent(
+		base, 0, "context", map[string]string{"status": "ok"}, "succeeded", 1, 0, 0, 0, snapshot,
+	)
 	stepEnvelope := domain.NewWorkflowEnvelopeFromEvent(stepEvent, "workflow.node.completed")
 	if stepEnvelope == nil {
 		t.Fatal("failed to create step envelope")
@@ -304,10 +293,10 @@ func TestSSEHandlerReplaysStepEventsAndFiltersLifecycle(t *testing.T) {
 	stepEnvelope.NodeID = "context"
 	stepEnvelope.NodeKind = "step"
 	stepEnvelope.Payload = map[string]any{
-		"step_index":       stepEvent.StepIndex,
-		"step_description": stepEvent.StepDescription,
-		"status":           stepEvent.Status,
-		"iteration":        stepEvent.Iteration,
+		"step_index":       stepEvent.Data.StepIndex,
+		"step_description": stepEvent.Data.StepDescription,
+		"status":           stepEvent.Data.Status,
+		"iteration":        stepEvent.Data.Iteration,
 		"workflow":         snapshot,
 	}
 
@@ -373,10 +362,10 @@ func TestSSEHandlerReplaysStepEventsAndFiltersLifecycle(t *testing.T) {
 	if _, hasNodes := workflowPayload["nodes"]; hasNodes {
 		t.Fatalf("workflow nodes should not be streamed: %v", workflowPayload)
 	}
-	if status := stepPayload["status"]; status != stepEvent.Status {
+	if status := stepPayload["status"]; status != stepEvent.Data.Status {
 		t.Fatalf("unexpected step status: %v", stepEnvelopeEvent.data)
 	}
-	if iteration := stepPayload["iteration"]; iteration != float64(stepEvent.Iteration) { // JSON numbers decode to float64
+	if iteration := stepPayload["iteration"]; iteration != float64(stepEvent.Data.Iteration) { // JSON numbers decode to float64
 		t.Fatalf("unexpected iteration: %v", stepEnvelopeEvent.data)
 	}
 }
@@ -458,13 +447,9 @@ func TestSSEHandlerBlocksReactIterStepNodes(t *testing.T) {
 	now := time.Now()
 	base := domain.NewBaseEvent(agent.LevelCore, sessionID, "task-react", "", now)
 
-	stepEvent := &domain.WorkflowNodeCompletedEvent{
-		BaseEvent:       base,
-		StepIndex:       0,
-		StepDescription: "react step tool",
-		Status:          "succeeded",
-		Iteration:       1,
-	}
+	stepEvent := domain.NewNodeCompletedEvent(
+		base, 0, "react step tool", nil, "succeeded", 1, 0, 0, 0, nil,
+	)
 	stepEnvelope := domain.NewWorkflowEnvelopeFromEvent(stepEvent, "workflow.node.completed")
 	if stepEnvelope == nil {
 		t.Fatal("failed to create step envelope")
@@ -472,10 +457,10 @@ func TestSSEHandlerBlocksReactIterStepNodes(t *testing.T) {
 	stepEnvelope.NodeID = "react:iter:1:tool:video_generate:0"
 	stepEnvelope.NodeKind = "step"
 	stepEnvelope.Payload = map[string]any{
-		"step_index":       stepEvent.StepIndex,
-		"step_description": stepEvent.StepDescription,
-		"status":           stepEvent.Status,
-		"iteration":        stepEvent.Iteration,
+		"step_index":       stepEvent.Data.StepIndex,
+		"step_description": stepEvent.Data.StepDescription,
+		"status":           stepEvent.Data.Status,
+		"iteration":        stepEvent.Data.Iteration,
 	}
 
 	broadcaster.OnEvent(stepEnvelope)
@@ -517,13 +502,9 @@ func TestSSEHandlerDebugModeStreamsReactIterStepNodes(t *testing.T) {
 	now := time.Now()
 	base := domain.NewBaseEvent(agent.LevelCore, sessionID, "task-react", "", now)
 
-	stepEvent := &domain.WorkflowNodeCompletedEvent{
-		BaseEvent:       base,
-		StepIndex:       0,
-		StepDescription: "react step tool",
-		Status:          "succeeded",
-		Iteration:       1,
-	}
+	stepEvent := domain.NewNodeCompletedEvent(
+		base, 0, "react step tool", nil, "succeeded", 1, 0, 0, 0, nil,
+	)
 	stepEnvelope := domain.NewWorkflowEnvelopeFromEvent(stepEvent, "workflow.node.completed")
 	if stepEnvelope == nil {
 		t.Fatal("failed to create step envelope")
@@ -531,10 +512,10 @@ func TestSSEHandlerDebugModeStreamsReactIterStepNodes(t *testing.T) {
 	stepEnvelope.NodeID = "react:iter:1:tool:video_generate:0"
 	stepEnvelope.NodeKind = "step"
 	stepEnvelope.Payload = map[string]any{
-		"step_index":       stepEvent.StepIndex,
-		"step_description": stepEvent.StepDescription,
-		"status":           stepEvent.Status,
-		"iteration":        stepEvent.Iteration,
+		"step_index":       stepEvent.Data.StepIndex,
+		"step_description": stepEvent.Data.StepDescription,
+		"status":           stepEvent.Data.Status,
+		"iteration":        stepEvent.Data.Iteration,
 	}
 
 	broadcaster.OnEvent(stepEnvelope)
@@ -764,24 +745,20 @@ func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
 	now := time.Now()
 	base := domain.NewBaseEvent(agent.LevelSubagent, sessionID, "task-sub", "parent-task", now)
 
-	toolEvent := &domain.WorkflowToolCompletedEvent{
-		BaseEvent: base,
-		CallID:    "call-123",
-		ToolName:  "web_search",
-		Result:    "done",
-		Duration:  250 * time.Millisecond,
-	}
+	toolEvent := domain.NewToolCompletedEvent(
+		base, "call-123", "web_search", "done", nil, 250*time.Millisecond, nil, nil,
+	)
 	envelope := domain.NewWorkflowEnvelopeFromEvent(toolEvent, "workflow.tool.completed")
 	if envelope == nil {
 		t.Fatal("failed to create tool envelope")
 	}
-	envelope.NodeID = toolEvent.CallID
+	envelope.NodeID = toolEvent.Data.CallID
 	envelope.NodeKind = "tool"
 	envelope.Payload = map[string]any{
-		"call_id":   toolEvent.CallID,
-		"tool_name": toolEvent.ToolName,
-		"result":    toolEvent.Result,
-		"duration":  toolEvent.Duration.Milliseconds(),
+		"call_id":   toolEvent.Data.CallID,
+		"tool_name": toolEvent.Data.ToolName,
+		"result":    toolEvent.Data.Result,
+		"duration":  toolEvent.Data.Duration.Milliseconds(),
 	}
 
 	subtask := &stubSubtaskEvent{
@@ -849,7 +826,7 @@ func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
 	if !ok {
 		t.Fatalf("payload missing or wrong type: %v", streamed.data)
 	}
-	if callID := payload["call_id"]; callID != toolEvent.CallID {
+	if callID := payload["call_id"]; callID != toolEvent.Data.CallID {
 		t.Fatalf("unexpected call_id in payload: %v", payload)
 	}
 }
@@ -864,44 +841,36 @@ func TestSSEHandlerStreamsSubagentToolStartAndComplete(t *testing.T) {
 	now := time.Now()
 	base := domain.NewBaseEvent(agent.LevelCore, sessionID, taskID, parentTaskID, now)
 
-	startEvent := &domain.WorkflowToolStartedEvent{
-		BaseEvent: base,
-		Iteration: 1,
-		CallID:    "call-subagent-1",
-		ToolName:  "subagent",
-		Arguments: map[string]any{"prompt": "inspect the backend pipeline"},
-	}
+	startEvent := domain.NewToolStartedEvent(
+		base, 1, "call-subagent-1", "subagent", map[string]interface{}{"prompt": "inspect the backend pipeline"},
+	)
 	startEnvelope := domain.NewWorkflowEnvelopeFromEvent(startEvent, "workflow.tool.started")
 	if startEnvelope == nil {
 		t.Fatal("failed to create start envelope")
 	}
-	startEnvelope.NodeID = startEvent.CallID
+	startEnvelope.NodeID = startEvent.Data.CallID
 	startEnvelope.NodeKind = "tool"
 	startEnvelope.Payload = map[string]any{
-		"call_id":   startEvent.CallID,
-		"tool_name": startEvent.ToolName,
-		"arguments": startEvent.Arguments,
-		"iteration": startEvent.Iteration,
+		"call_id":   startEvent.Data.CallID,
+		"tool_name": startEvent.Data.ToolName,
+		"arguments": startEvent.Data.Arguments,
+		"iteration": startEvent.Data.Iteration,
 	}
 
-	completeEvent := &domain.WorkflowToolCompletedEvent{
-		BaseEvent: base,
-		CallID:    startEvent.CallID,
-		ToolName:  "subagent",
-		Result:    "delegation complete",
-		Duration:  175 * time.Millisecond,
-	}
+	completeEvent := domain.NewToolCompletedEvent(
+		base, startEvent.Data.CallID, "subagent", "delegation complete", nil, 175*time.Millisecond, nil, nil,
+	)
 	completeEnvelope := domain.NewWorkflowEnvelopeFromEvent(completeEvent, "workflow.tool.completed")
 	if completeEnvelope == nil {
 		t.Fatal("failed to create completion envelope")
 	}
-	completeEnvelope.NodeID = completeEvent.CallID
+	completeEnvelope.NodeID = completeEvent.Data.CallID
 	completeEnvelope.NodeKind = "tool"
 	completeEnvelope.Payload = map[string]any{
-		"call_id":   completeEvent.CallID,
-		"tool_name": completeEvent.ToolName,
-		"result":    completeEvent.Result,
-		"duration":  completeEvent.Duration.Milliseconds(),
+		"call_id":   completeEvent.Data.CallID,
+		"tool_name": completeEvent.Data.ToolName,
+		"result":    completeEvent.Data.Result,
+		"duration":  completeEvent.Data.Duration.Milliseconds(),
 	}
 
 	broadcaster.OnEvent(startEnvelope)
@@ -980,7 +949,7 @@ func TestSSEHandler_ReplaysPostgresHistory(t *testing.T) {
 	}
 
 	sessionID := "session-replay-postgres"
-	event := domain.NewWorkflowInputReceivedEvent(
+	event := domain.NewInputReceivedEvent(
 		agent.LevelCore,
 		sessionID,
 		"task-1",

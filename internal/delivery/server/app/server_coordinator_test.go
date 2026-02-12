@@ -12,6 +12,7 @@ import (
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/domain/agent/types"
 	"alex/internal/infra/analytics"
 	"alex/internal/infra/analytics/journal"
 	"alex/internal/infra/observability"
@@ -564,12 +565,12 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 
 	sessionID := task.SessionID
 
-	var userTaskEvent *domain.WorkflowInputReceivedEvent
+	var userTaskEvent *domain.Event
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {
 		history := broadcaster.GetEventHistory(sessionID)
 		for _, event := range history {
-			if typed, ok := event.(*domain.WorkflowInputReceivedEvent); ok {
+			if typed, ok := event.(*domain.Event); ok && typed.Kind == types.EventInputReceived {
 				userTaskEvent = typed
 				break
 			}
@@ -584,21 +585,21 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 		t.Fatalf("expected workflow.input.received event to be emitted, but none was recorded for session %s", sessionID)
 	}
 
-	if userTaskEvent.Task != "展示占位符 [sketch.png] 和 [diagram.svg]" {
-		t.Fatalf("unexpected task content: %q", userTaskEvent.Task)
+	if userTaskEvent.Data.Task != "展示占位符 [sketch.png] 和 [diagram.svg]" {
+		t.Fatalf("unexpected task content: %q", userTaskEvent.Data.Task)
 	}
 
-	if len(userTaskEvent.Attachments) != 2 {
-		t.Fatalf("expected 2 attachments, got %d", len(userTaskEvent.Attachments))
+	if len(userTaskEvent.Data.Attachments) != 2 {
+		t.Fatalf("expected 2 attachments, got %d", len(userTaskEvent.Data.Attachments))
 	}
 
-	if _, exists := userTaskEvent.Attachments[""]; exists {
+	if _, exists := userTaskEvent.Data.Attachments[""]; exists {
 		t.Fatal("blank attachment key should have been filtered out")
 	}
 
-	sketch, ok := userTaskEvent.Attachments["sketch.png"]
+	sketch, ok := userTaskEvent.Data.Attachments["sketch.png"]
 	if !ok {
-		t.Fatalf("missing sanitized attachment key 'sketch.png': %+v", userTaskEvent.Attachments)
+		t.Fatalf("missing sanitized attachment key 'sketch.png': %+v", userTaskEvent.Data.Attachments)
 	}
 	if sketch.Name != "sketch.png" {
 		t.Fatalf("expected trimmed name 'sketch.png', got %q", sketch.Name)
@@ -616,9 +617,9 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 		t.Fatalf("unexpected sketch URI: %q", sketch.URI)
 	}
 
-	diagram, ok := userTaskEvent.Attachments["diagram.svg"]
+	diagram, ok := userTaskEvent.Data.Attachments["diagram.svg"]
 	if !ok {
-		t.Fatalf("missing attachment 'diagram.svg': %+v", userTaskEvent.Attachments)
+		t.Fatalf("missing attachment 'diagram.svg': %+v", userTaskEvent.Data.Attachments)
 	}
 	if diagram.URI != "https://example.com/diagram.svg" {
 		t.Fatalf("unexpected diagram URI: %q", diagram.URI)

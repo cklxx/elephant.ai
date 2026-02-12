@@ -11,6 +11,7 @@ import (
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
 
 	"github.com/stretchr/testify/require"
 )
@@ -146,16 +147,16 @@ func TestReactRuntimeCancellationEmitsCompletionEvent(t *testing.T) {
 	require.Equal(t, "cancelled", result.StopReason)
 
 	events := listener.collected()
-	var completes []*domain.WorkflowResultFinalEvent
+	var completes []*domain.Event
 	for _, evt := range events {
-		if tc, ok := evt.(*domain.WorkflowResultFinalEvent); ok {
+		if tc, ok := evt.(*domain.Event); ok && tc.Kind == types.EventResultFinal {
 			completes = append(completes, tc)
 		}
 	}
 
 	require.Len(t, completes, 1)
-	require.Equal(t, "cancelled", completes[0].StopReason)
-	require.Equal(t, time.Second, completes[0].Duration)
+	require.Equal(t, "cancelled", completes[0].Data.StopReason)
+	require.Equal(t, time.Second, completes[0].Data.Duration)
 	require.Contains(t, tracker.started, workflowNodeFinalize)
 }
 
@@ -179,10 +180,10 @@ func TestReactRuntimeIterationHookEmitsRefreshEvent(t *testing.T) {
 	events := listener.collected()
 	found := false
 	for _, ev := range events {
-		if refresh, ok := ev.(*domain.ProactiveContextRefreshEvent); ok {
+		if refresh, ok := ev.(*domain.Event); ok && refresh.Kind == types.EventProactiveContextRefresh {
 			found = true
-			require.Equal(t, 1, refresh.Iteration)
-			require.Equal(t, 1, refresh.MemoriesInjected)
+			require.Equal(t, 1, refresh.Data.Iteration)
+			require.Equal(t, 1, refresh.Data.MemoriesInjected)
 		}
 	}
 	require.True(t, found, "expected proactive context refresh event")
@@ -216,17 +217,17 @@ func TestBackgroundDispatchEmitsEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var dispatched []*domain.BackgroundTaskDispatchedEvent
+	var dispatched []*domain.Event
 	for _, evt := range listener.collected() {
-		if d, ok := evt.(*domain.BackgroundTaskDispatchedEvent); ok {
+		if d, ok := evt.(*domain.Event); ok && d.Kind == types.EventBackgroundTaskDispatched {
 			dispatched = append(dispatched, d)
 		}
 	}
 	require.Len(t, dispatched, 1)
-	require.Equal(t, "task-1", dispatched[0].TaskID)
-	require.Equal(t, "desc", dispatched[0].Description)
-	require.Equal(t, "prompt", dispatched[0].Prompt)
-	require.Equal(t, "internal", dispatched[0].AgentType)
+	require.Equal(t, "task-1", dispatched[0].Data.TaskID)
+	require.Equal(t, "desc", dispatched[0].Data.Description)
+	require.Equal(t, "prompt", dispatched[0].Data.Prompt)
+	require.Equal(t, "internal", dispatched[0].Data.AgentType)
 }
 
 func TestCleanupEmitsBackgroundCompletionEvents(t *testing.T) {
@@ -259,15 +260,15 @@ func TestCleanupEmitsBackgroundCompletionEvents(t *testing.T) {
 	runtime.bgManager.AwaitAll(2 * time.Second)
 	runtime.cleanupBackgroundTasks()
 
-	var completed []*domain.BackgroundTaskCompletedEvent
+	var completed []*domain.Event
 	for _, evt := range listener.collected() {
-		if c, ok := evt.(*domain.BackgroundTaskCompletedEvent); ok {
+		if c, ok := evt.(*domain.Event); ok && c.Kind == types.EventBackgroundTaskCompleted {
 			completed = append(completed, c)
 		}
 	}
 	require.Len(t, completed, 1)
-	require.Equal(t, "task-1", completed[0].TaskID)
-	require.Equal(t, "completed", completed[0].Status)
+	require.Equal(t, "task-1", completed[0].Data.TaskID)
+	require.Equal(t, "completed", completed[0].Data.Status)
 }
 
 func TestCleanupSkipsAlreadyEmittedBackgroundCompletions(t *testing.T) {
@@ -301,9 +302,9 @@ func TestCleanupSkipsAlreadyEmittedBackgroundCompletions(t *testing.T) {
 	runtime.injectBackgroundNotifications()
 	runtime.cleanupBackgroundTasks()
 
-	var completed []*domain.BackgroundTaskCompletedEvent
+	var completed []*domain.Event
 	for _, evt := range listener.collected() {
-		if c, ok := evt.(*domain.BackgroundTaskCompletedEvent); ok {
+		if c, ok := evt.(*domain.Event); ok && c.Kind == types.EventBackgroundTaskCompleted {
 			completed = append(completed, c)
 		}
 	}
@@ -528,13 +529,13 @@ func TestToolErrorBlocksPlanNodeAndRequestsReplan(t *testing.T) {
 
 	replanEvents := 0
 	for _, event := range listener.collected() {
-		replan, ok := event.(*domain.WorkflowReplanRequestedEvent)
-		if !ok {
+		replan, ok := event.(*domain.Event)
+		if !ok || replan.Kind != types.EventReplanRequested {
 			continue
 		}
 		replanEvents++
-		require.Equal(t, "web_search", replan.ToolName)
-		require.Equal(t, "boom", replan.Error)
+		require.Equal(t, "web_search", replan.Data.ToolName)
+		require.Equal(t, "boom", replan.Data.ErrorStr)
 	}
 	require.Equal(t, 1, replanEvents, "expected one replan requested event")
 }

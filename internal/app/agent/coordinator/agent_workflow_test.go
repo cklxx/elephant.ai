@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
 	"alex/internal/domain/workflow"
 )
 
@@ -57,24 +58,24 @@ func TestWorkflowEventBridgeEmitsLifecycleEvents(t *testing.T) {
 		t.Fatalf("expected 1 event after node added, got %d", len(events))
 	}
 
-	lifecycle, ok := events[0].(*domain.WorkflowLifecycleUpdatedEvent)
+	lifecycle, ok := events[0].(*domain.Event)
 	if !ok {
-		t.Fatalf("expected workflow lifecycle event, got %T", events[0])
+		t.Fatalf("expected *domain.Event, got %T", events[0])
 	}
-	if lifecycle.EventType() != "workflow.lifecycle.updated" {
-		t.Fatalf("unexpected event type: %s", lifecycle.EventType())
+	if lifecycle.Kind != types.EventLifecycleUpdated {
+		t.Fatalf("unexpected event kind: %s", lifecycle.Kind)
 	}
-	if lifecycle.WorkflowID != "wf-1" || lifecycle.WorkflowEventType != workflow.EventNodeAdded {
-		t.Fatalf("unexpected workflow metadata: id=%s type=%s", lifecycle.WorkflowID, lifecycle.WorkflowEventType)
+	if lifecycle.Data.WorkflowID != "wf-1" || lifecycle.Data.WorkflowEventType != workflow.EventNodeAdded {
+		t.Fatalf("unexpected workflow metadata: id=%s type=%s", lifecycle.Data.WorkflowID, lifecycle.Data.WorkflowEventType)
 	}
 	if lifecycle.Timestamp() != ts {
 		t.Fatalf("expected timestamp %v, got %v", ts, lifecycle.Timestamp())
 	}
-	if lifecycle.Node == nil || lifecycle.Node.ID != "step-1" {
-		t.Fatalf("expected node snapshot to be forwarded, got %#v", lifecycle.Node)
+	if lifecycle.Data.Node == nil || lifecycle.Data.Node.ID != "step-1" {
+		t.Fatalf("expected node snapshot to be forwarded, got %#v", lifecycle.Data.Node)
 	}
-	if lifecycle.Workflow == nil || lifecycle.Workflow.Phase != workflow.PhasePending {
-		t.Fatalf("expected workflow snapshot to be forwarded, got %#v", lifecycle.Workflow)
+	if lifecycle.Data.Workflow == nil || lifecycle.Data.Workflow.Phase != workflow.PhasePending {
+		t.Fatalf("expected workflow snapshot to be forwarded, got %#v", lifecycle.Data.Workflow)
 	}
 
 	runningNode := workflow.NodeSnapshot{ID: "step-1", Status: workflow.NodeStatusRunning, Input: map[string]any{"iteration": 2}}
@@ -94,22 +95,28 @@ func TestWorkflowEventBridgeEmitsLifecycleEvents(t *testing.T) {
 		t.Fatalf("expected lifecycle + step start events, got %d", len(events))
 	}
 
-	startLifecycle, ok := events[1].(*domain.WorkflowLifecycleUpdatedEvent)
+	startLifecycle, ok := events[1].(*domain.Event)
 	if !ok {
-		t.Fatalf("expected lifecycle event for node start, got %T", events[1])
+		t.Fatalf("expected *domain.Event for node start lifecycle, got %T", events[1])
 	}
-	if startLifecycle.Phase != workflow.PhaseRunning {
-		t.Fatalf("expected running phase on lifecycle event, got %s", startLifecycle.Phase)
+	if startLifecycle.Kind != types.EventLifecycleUpdated {
+		t.Fatalf("expected lifecycle event kind, got %s", startLifecycle.Kind)
+	}
+	if startLifecycle.Data.Phase != workflow.PhaseRunning {
+		t.Fatalf("expected running phase on lifecycle event, got %s", startLifecycle.Data.Phase)
 	}
 
-	stepStarted, ok := events[2].(*domain.WorkflowNodeStartedEvent)
+	stepStarted, ok := events[2].(*domain.Event)
 	if !ok {
-		t.Fatalf("expected step started event, got %T", events[2])
+		t.Fatalf("expected *domain.Event for step started, got %T", events[2])
 	}
-	if stepStarted.StepIndex != 0 || stepStarted.Iteration != 2 {
-		t.Fatalf("unexpected step metadata: idx=%d iter=%d", stepStarted.StepIndex, stepStarted.Iteration)
+	if stepStarted.Kind != types.EventNodeStarted {
+		t.Fatalf("expected node started event kind, got %s", stepStarted.Kind)
 	}
-	if stepStarted.Input == nil {
+	if stepStarted.Data.StepIndex != 0 || stepStarted.Data.Iteration != 2 {
+		t.Fatalf("unexpected step metadata: idx=%d iter=%d", stepStarted.Data.StepIndex, stepStarted.Data.Iteration)
+	}
+	if stepStarted.Data.Input == nil {
 		t.Fatalf("expected step input to be forwarded")
 	}
 }
@@ -142,17 +149,20 @@ func TestWorkflowEventBridgeUsesLatestContext(t *testing.T) {
 		t.Fatalf("expected lifecycle event only, got %d", len(events))
 	}
 
-	lifecycle, ok := events[0].(*domain.WorkflowLifecycleUpdatedEvent)
+	lifecycleCtx, ok := events[0].(*domain.Event)
 	if !ok {
-		t.Fatalf("expected workflow lifecycle event, got %T", events[0])
+		t.Fatalf("expected *domain.Event, got %T", events[0])
 	}
-	if lifecycle.GetSessionID() != "sess-2" || lifecycle.GetRunID() != "task-2" || lifecycle.GetParentRunID() != "parent-2" {
-		t.Fatalf("unexpected context fields: session=%s run=%s parent=%s", lifecycle.GetSessionID(), lifecycle.GetRunID(), lifecycle.GetParentRunID())
+	if lifecycleCtx.Kind != types.EventLifecycleUpdated {
+		t.Fatalf("expected lifecycle event kind, got %s", lifecycleCtx.Kind)
 	}
-	if lifecycle.GetAgentLevel() != agent.LevelSubagent {
-		t.Fatalf("expected updated agent level, got %s", lifecycle.GetAgentLevel())
+	if lifecycleCtx.GetSessionID() != "sess-2" || lifecycleCtx.GetRunID() != "task-2" || lifecycleCtx.GetParentRunID() != "parent-2" {
+		t.Fatalf("unexpected context fields: session=%s run=%s parent=%s", lifecycleCtx.GetSessionID(), lifecycleCtx.GetRunID(), lifecycleCtx.GetParentRunID())
 	}
-	if lifecycle.Timestamp().IsZero() {
+	if lifecycleCtx.GetAgentLevel() != agent.LevelSubagent {
+		t.Fatalf("expected updated agent level, got %s", lifecycleCtx.GetAgentLevel())
+	}
+	if lifecycleCtx.Timestamp().IsZero() {
 		t.Fatalf("expected bridge to provide timestamp when missing on event")
 	}
 }

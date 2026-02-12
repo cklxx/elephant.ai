@@ -11,6 +11,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/domain/agent/types"
 	"alex/internal/shared/agent/presets"
 	id "alex/internal/shared/utils/id"
 )
@@ -194,15 +195,18 @@ func TestPresetResolver_EmitsWorkflowDiagnosticToolFilteringEvent(t *testing.T) 
 		t.Fatalf("expected 1 event, got %d", len(eventCapturer.events))
 	}
 	event := eventCapturer.events[0]
-	filterEvent, ok := event.(*domain.WorkflowDiagnosticToolFilteringEvent)
+	filterEvent, ok := event.(*domain.Event)
 	if !ok {
-		t.Fatalf("expected WorkflowDiagnosticToolFilteringEvent, got %T", event)
+		t.Fatalf("expected *domain.Event, got %T", event)
+	}
+	if filterEvent.Kind != types.EventDiagnosticToolFiltering {
+		t.Fatalf("expected EventDiagnosticToolFiltering kind, got %s", filterEvent.Kind)
 	}
 	if filterEvent.GetSessionID() != "test-session-123" {
 		t.Errorf("expected sessionID 'test-session-123', got '%s'", filterEvent.GetSessionID())
 	}
-	if filterEvent.PresetName != "Read-Only Access" {
-		t.Errorf("expected preset name 'Read-Only Access', got '%s'", filterEvent.PresetName)
+	if filterEvent.Data.PresetName != "Read-Only Access" {
+		t.Errorf("expected preset name 'Read-Only Access', got '%s'", filterEvent.Data.PresetName)
 	}
 	if registry == baseRegistry {
 		t.Error("expected filtered registry, got base registry")
@@ -221,12 +225,15 @@ func TestPresetResolver_DefaultPresetStillEmitsEvent(t *testing.T) {
 	if len(eventCapturer.events) != 1 {
 		t.Fatalf("expected an event for default preset application, got %d", len(eventCapturer.events))
 	}
-	filterEvent, ok := eventCapturer.events[0].(*domain.WorkflowDiagnosticToolFilteringEvent)
+	filterEvent, ok := eventCapturer.events[0].(*domain.Event)
 	if !ok {
-		t.Fatalf("expected WorkflowDiagnosticToolFilteringEvent, got %T", eventCapturer.events[0])
+		t.Fatalf("expected *domain.Event, got %T", eventCapturer.events[0])
 	}
-	if filterEvent.PresetName != "Full Access" {
-		t.Fatalf("expected Full Access preset name, got %s", filterEvent.PresetName)
+	if filterEvent.Kind != types.EventDiagnosticToolFiltering {
+		t.Fatalf("expected EventDiagnosticToolFiltering kind, got %s", filterEvent.Kind)
+	}
+	if filterEvent.Data.PresetName != "Full Access" {
+		t.Fatalf("expected Full Access preset name, got %s", filterEvent.Data.PresetName)
 	}
 	if registry == nil {
 		t.Fatal("expected registry when resolving default preset")
@@ -271,7 +278,7 @@ func (e *eventCapturer) OnEvent(event agent.AgentEvent) {
 }
 
 func TestWorkflowDiagnosticToolFilteringEventImplementation(t *testing.T) {
-	event := domain.NewWorkflowDiagnosticToolFilteringEvent(
+	event := domain.NewDiagnosticToolFilteringEvent(
 		agent.LevelCore,
 		"test-session",
 		"task-1",
@@ -298,20 +305,20 @@ func TestWorkflowDiagnosticToolFilteringEventImplementation(t *testing.T) {
 	if event.GetAgentLevel() != agent.LevelCore {
 		t.Errorf("Expected agent level LevelCore, got %v", event.GetAgentLevel())
 	}
-	if event.PresetName != "Read-Only Access" {
-		t.Errorf("Expected preset name 'Read-Only Access', got '%s'", event.PresetName)
+	if event.Data.PresetName != "Read-Only Access" {
+		t.Errorf("Expected preset name 'Read-Only Access', got '%s'", event.Data.PresetName)
 	}
-	if event.OriginalCount != 10 {
-		t.Errorf("Expected original count 10, got %d", event.OriginalCount)
+	if event.Data.OriginalCount != 10 {
+		t.Errorf("Expected original count 10, got %d", event.Data.OriginalCount)
 	}
-	if event.FilteredCount != 5 {
-		t.Errorf("Expected filtered count 5, got %d", event.FilteredCount)
+	if event.Data.FilteredCount != 5 {
+		t.Errorf("Expected filtered count 5, got %d", event.Data.FilteredCount)
 	}
-	if event.ToolFilterRatio != 50.0 {
-		t.Errorf("Expected ratio 50%%, got %.2f%%", event.ToolFilterRatio)
+	if event.Data.ToolFilterRatio != 50.0 {
+		t.Errorf("Expected ratio 50%%, got %.2f%%", event.Data.ToolFilterRatio)
 	}
-	if len(event.FilteredTools) != 5 {
-		t.Errorf("Expected 5 filtered tools, got %d", len(event.FilteredTools))
+	if len(event.Data.FilteredTools) != 5 {
+		t.Errorf("Expected 5 filtered tools, got %d", len(event.Data.FilteredTools))
 	}
 }
 

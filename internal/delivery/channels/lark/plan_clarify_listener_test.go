@@ -16,14 +16,12 @@ func TestPlanClarifyListenerPlanMessage(t *testing.T) {
 	gw := &Gateway{messenger: recorder}
 	listener := newPlanClarifyListener(context.Background(), nil, gw, "oc_chat", "om_reply", nil)
 
-	event := &domain.WorkflowToolCompletedEvent{
-		CallID:   "call-1",
-		ToolName: "plan",
-		Result:   "fallback goal",
-		Metadata: map[string]any{
-			"overall_goal_ui": "Ship feature",
-		},
-	}
+	event := domain.NewToolCompletedEvent(
+		domain.NewBaseEvent(agent.LevelCore, "", "", "", time.Now()),
+		"call-1", "plan", "fallback goal", nil, 0,
+		map[string]any{"overall_goal_ui": "Ship feature"},
+		nil,
+	)
 	listener.OnEvent(event)
 
 	calls := recorder.CallsByMethod("ReplyMessage")
@@ -41,15 +39,12 @@ func TestPlanClarifyListenerClarifyQuestionMarksSent(t *testing.T) {
 	gw := &Gateway{messenger: recorder}
 	listener := newPlanClarifyListener(context.Background(), nil, gw, "oc_chat", "om_reply", tracker)
 
-	event := &domain.WorkflowToolCompletedEvent{
-		CallID:   "call-2",
-		ToolName: "clarify",
-		Result:   "task\nWhich env?",
-		Metadata: map[string]any{
-			"needs_user_input": true,
-			"question_to_user": "Which env?",
-		},
-	}
+	event := domain.NewToolCompletedEvent(
+		domain.NewBaseEvent(agent.LevelCore, "", "", "", time.Now()),
+		"call-2", "clarify", "task\nWhich env?", nil, 0,
+		map[string]any{"needs_user_input": true, "question_to_user": "Which env?"},
+		nil,
+	)
 	listener.OnEvent(event)
 
 	calls := recorder.CallsByMethod("ReplyMessage")
@@ -72,15 +67,12 @@ func TestPlanClarifyListenerClarifyOptionsSendsNumberedText(t *testing.T) {
 	}
 	listener := newPlanClarifyListener(context.Background(), nil, gw, "oc_chat", "om_reply", tracker)
 
-	event := &domain.WorkflowToolCompletedEvent{
-		CallID:   "call-2b",
-		ToolName: "clarify",
-		Metadata: map[string]any{
-			"needs_user_input": true,
-			"question_to_user": "Which env?",
-			"options":          []string{"dev", "staging"},
-		},
-	}
+	event := domain.NewToolCompletedEvent(
+		domain.NewBaseEvent(agent.LevelCore, "", "", "", time.Now()),
+		"call-2b", "clarify", "", nil, 0,
+		map[string]any{"needs_user_input": true, "question_to_user": "Which env?", "options": []string{"dev", "staging"}},
+		nil,
+	)
 	listener.OnEvent(event)
 
 	calls := recorder.CallsByMethod("ReplyMessage")

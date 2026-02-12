@@ -153,10 +153,9 @@ func makeTestEvent(sessionID string) agent.AgentEvent {
 }
 
 func makeDiagnosticEvent(sessionID string) agent.AgentEvent {
-	return &domain.WorkflowDiagnosticContextSnapshotEvent{
-		BaseEvent: domain.NewBaseEvent(agent.LevelCore, sessionID, "run-1", "", time.Now()),
-		Iteration: 1,
-	}
+	return domain.NewDiagnosticContextSnapshotEvent(
+		agent.LevelCore, sessionID, "run-1", "", 1, 1, "", nil, nil, time.Now(),
+	)
 }
 
 func newTestStore(inner EventHistoryStore, opts ...AsyncEventHistoryStoreOption) *AsyncEventHistoryStore {

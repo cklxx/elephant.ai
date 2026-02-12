@@ -579,7 +579,7 @@ func TestPostgresEventHistoryStore_CrossInstanceReplay(t *testing.T) {
 		t.Fatalf("ensure schema: %v", err)
 	}
 
-	event := domain.NewWorkflowInputReceivedEvent(
+	event := domain.NewInputReceivedEvent(
 		agent.LevelCore,
 		"session-1",
 		"task-1",
@@ -628,7 +628,7 @@ func TestPostgresEventHistoryStore_HasAndDeleteSession(t *testing.T) {
 		t.Fatal("expected no events before append")
 	}
 
-	event := domain.NewWorkflowInputReceivedEvent(
+	event := domain.NewInputReceivedEvent(
 		agent.LevelCore,
 		sessionID,
 		"task-1",

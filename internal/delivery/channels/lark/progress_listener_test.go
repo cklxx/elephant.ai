@@ -119,22 +119,18 @@ func (l *spyListener) count() int {
 	return len(l.events)
 }
 
-func makeToolStarted(callID, toolName string) *domain.WorkflowToolStartedEvent {
-	return &domain.WorkflowToolStartedEvent{
-		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
-		CallID:    callID,
-		ToolName:  toolName,
-	}
+func makeToolStarted(callID, toolName string) *domain.Event {
+	return domain.NewToolStartedEvent(
+		domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		0, callID, toolName, nil,
+	)
 }
 
-func makeToolCompleted(callID, toolName string, dur time.Duration, err error) *domain.WorkflowToolCompletedEvent {
-	return &domain.WorkflowToolCompletedEvent{
-		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
-		CallID:    callID,
-		ToolName:  toolName,
-		Duration:  dur,
-		Error:     err,
-	}
+func makeToolCompleted(callID, toolName string, dur time.Duration, err error) *domain.Event {
+	return domain.NewToolCompletedEvent(
+		domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		callID, toolName, "", err, dur, nil, nil,
+	)
 }
 
 func makeEnvelopeToolStarted(callID, toolName string) *domain.WorkflowEventEnvelope {
@@ -167,11 +163,11 @@ func makeEnvelopeToolCompleted(callID, toolName string, dur time.Duration, err e
 	}
 }
 
-func makeNodeStarted(iteration int) *domain.WorkflowNodeStartedEvent {
-	return &domain.WorkflowNodeStartedEvent{
-		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
-		Iteration: iteration,
-	}
+func makeNodeStarted(iteration int) *domain.Event {
+	return domain.NewNodeStartedEvent(
+		domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		iteration, 0, 0, "", nil, nil,
+	)
 }
 
 func makeEnvelopeNodeStarted(iteration int) *domain.WorkflowEventEnvelope {
@@ -207,10 +203,9 @@ func TestProgressListenerForwardsNonToolEvents(t *testing.T) {
 	defer pl.Close()
 
 	// Send a non-tool event.
-	ev := &domain.WorkflowInputReceivedEvent{
-		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
-		Task:      "test",
-	}
+	ev := domain.NewInputReceivedEvent(
+		agent.LevelCore, "sess", "run", "", "test", nil, time.Now(),
+	)
 	pl.OnEvent(ev)
 
 	if inner.count() != 1 {
