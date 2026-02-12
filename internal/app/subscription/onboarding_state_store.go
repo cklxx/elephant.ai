@@ -25,6 +25,9 @@ type OnboardingState struct {
 	CompletedAt           string `json:"completed_at,omitempty"`
 	SelectedProvider      string `json:"selected_provider,omitempty"`
 	SelectedModel         string `json:"selected_model,omitempty"`
+	SelectedRuntimeMode   string `json:"selected_runtime_mode,omitempty"`
+	PersistenceMode       string `json:"persistence_mode,omitempty"`
+	LarkConfigured        bool   `json:"lark_configured,omitempty"`
 	UsedSource            string `json:"used_source,omitempty"`
 	AdvancedOverridesUsed bool   `json:"advanced_overrides_used,omitempty"`
 }
@@ -33,6 +36,9 @@ func (s OnboardingState) isZero() bool {
 	return strings.TrimSpace(s.CompletedAt) == "" &&
 		strings.TrimSpace(s.SelectedProvider) == "" &&
 		strings.TrimSpace(s.SelectedModel) == "" &&
+		strings.TrimSpace(s.SelectedRuntimeMode) == "" &&
+		strings.TrimSpace(s.PersistenceMode) == "" &&
+		!s.LarkConfigured &&
 		strings.TrimSpace(s.UsedSource) == "" &&
 		!s.AdvancedOverridesUsed
 }
@@ -137,6 +143,8 @@ func normalizeOnboardingState(state *OnboardingState) {
 	state.CompletedAt = strings.TrimSpace(state.CompletedAt)
 	state.SelectedProvider = strings.ToLower(strings.TrimSpace(state.SelectedProvider))
 	state.SelectedModel = strings.TrimSpace(state.SelectedModel)
+	state.SelectedRuntimeMode = strings.ToLower(strings.TrimSpace(state.SelectedRuntimeMode))
+	state.PersistenceMode = strings.ToLower(strings.TrimSpace(state.PersistenceMode))
 	state.UsedSource = strings.TrimSpace(state.UsedSource)
 }
 

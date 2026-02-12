@@ -105,7 +105,7 @@ Usage:
   alex config clear <field>       Remove a managed override
   alex config validate [--profile <name>] Validate runtime configuration
   alex config path                Show the override file path
-  alex setup                     Run first-run model setup wizard
+  alex setup                     Run first-run setup wizard (runtime + lark + model)
   alex model                     List available subscription models
   alex model use <p/m>           Select a subscription model (e.g. codex/gpt-5.2-codex)
   alex model use                 Select from an interactive picker

@@ -24,8 +24,9 @@ func runDevCommand(args []string) error {
 
 	switch cmd {
 	case "up", "start":
-		larkMode := hasFlag(args, "--lark")
-		return devUp(larkMode)
+		larkRequested := hasFlag(args, "--lark")
+		withAuthDB := hasFlag(args, "--with-authdb")
+		return devUp(larkRequested, withAuthDB)
 	case "down", "stop":
 		return devDown(args...)
 	case "status":
@@ -56,16 +57,13 @@ func runDevCommand(args []string) error {
 	}
 }
 
-func devUp(larkMode bool) error {
-	orch, err := buildOrchestrator()
+func devUp(larkRequested bool, withAuthDB bool) error {
+	orch, err := buildOrchestratorWithLarkOptions(larkRequested, withAuthDB)
 	if err != nil {
 		return err
 	}
 
-	// Resolve lark mode from flag or config
-	if !larkMode {
-		larkMode = orch.Config().LarkMode
-	}
+	larkMode := larkRequested || orch.Config().LarkMode
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -145,7 +143,7 @@ func printDevSummary(orch *devops.Orchestrator, larkMode bool) {
 func devDown(flags ...string) error {
 	stopAll := hasFlag(flags, "--all")
 
-	orch, err := buildOrchestrator()
+	orch, err := buildOrchestratorWithLarkOptions(false, stopAll)
 	if err != nil {
 		return err
 	}
@@ -163,7 +161,7 @@ func devDown(flags ...string) error {
 		return orch.Down(ctx)
 	}
 
-	// Default: keep infra (sandbox, authdb) running for fast re-up
+	// Default: keep infrastructure services running for fast re-up
 	return orch.Down(ctx, true)
 }
 
@@ -327,7 +325,7 @@ func devLint() error {
 
 func devLogsUI() error {
 	// Start all services first, then open log analyzer
-	if err := devUp(false); err != nil {
+	if err := devUp(false, false); err != nil {
 		return err
 	}
 
@@ -353,20 +351,33 @@ func devLogsUI() error {
 }
 
 func buildOrchestrator() (*devops.Orchestrator, error) {
+	// Management commands (status/logs/down/restart) should include auth DB so
+	// they can control/report it even when it was started via --with-authdb.
+	return buildOrchestratorWithLarkOptions(false, true)
+}
+
+func buildOrchestratorWithLarkOptions(larkRequested bool, withAuthDB bool) (*devops.Orchestrator, error) {
 	cfg, err := loadDevConfig()
 	if err != nil {
 		return nil, err
 	}
 
+	effectiveLarkMode := larkRequested || cfg.LarkMode
+	includeAuthDB := !effectiveLarkMode || withAuthDB
+
 	orch := devops.NewOrchestrator(cfg)
 
 	// Build and register all services in dependency order
 	sandboxSvc := buildSandboxService(orch)
-	authdbSvc := buildAuthDBService(orch)
 	backendSvc := buildBackendService(orch)
 	webSvc := buildWebService(orch)
+	servicesToRegister := []devops.Service{sandboxSvc, backendSvc, webSvc}
+	if includeAuthDB {
+		authdbSvc := buildAuthDBService(orch)
+		servicesToRegister = []devops.Service{sandboxSvc, authdbSvc, backendSvc, webSvc}
+	}
 
-	orch.RegisterServices(sandboxSvc, authdbSvc, backendSvc, webSvc)
+	orch.RegisterServices(servicesToRegister...)
 	return orch, nil
 }
 
@@ -560,7 +571,8 @@ Usage:
   alex dev [command]
 
 Commands:
-  up|start [--lark]  Start all dev services (sandbox, auth DB, backend, web)
+  up|start [--lark] [--with-authdb]
+                    Start dev services. In lark mode, auth DB is skipped by default.
   down|stop [--all]  Stop services (default: keep sandbox/authdb running)
   status             Show status of all services
   logs [service]     Tail logs (server|web|all)

@@ -306,7 +306,7 @@ func TestExecuteModelCommandUnknownSubcommand(t *testing.T) {
 }
 
 func TestUseModelPickerWithSingleProviderSingleModel(t *testing.T) {
-	t.Parallel()
+	t.Setenv("LLAMA_SERVER_BASE_URL", "http://127.0.0.1:1/v1")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -342,7 +342,7 @@ func TestUseModelPickerWithSingleProviderSingleModel(t *testing.T) {
 }
 
 func TestUseModelPickerWithMultipleProvidersNonInteractive(t *testing.T) {
-	t.Parallel()
+	t.Setenv("LLAMA_SERVER_BASE_URL", "http://127.0.0.1:1/v1")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

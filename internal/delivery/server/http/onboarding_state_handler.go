@@ -112,6 +112,8 @@ func normalizeOnboardingState(state subscription.OnboardingState) subscription.O
 	state.CompletedAt = strings.TrimSpace(state.CompletedAt)
 	state.SelectedProvider = strings.ToLower(strings.TrimSpace(state.SelectedProvider))
 	state.SelectedModel = strings.TrimSpace(state.SelectedModel)
+	state.SelectedRuntimeMode = strings.ToLower(strings.TrimSpace(state.SelectedRuntimeMode))
+	state.PersistenceMode = strings.ToLower(strings.TrimSpace(state.PersistenceMode))
 	state.UsedSource = strings.TrimSpace(state.UsedSource)
 	return state
 }
@@ -130,6 +132,20 @@ func validateOnboardingState(state subscription.OnboardingState) error {
 			return httpError("state.completed_at must be RFC3339 timestamp")
 		}
 	}
+	if state.SelectedRuntimeMode != "" {
+		switch state.SelectedRuntimeMode {
+		case "cli", "lark", "full-dev":
+		default:
+			return httpError("state.selected_runtime_mode must be one of cli|lark|full-dev")
+		}
+	}
+	if state.PersistenceMode != "" {
+		switch state.PersistenceMode {
+		case "file", "memory":
+		default:
+			return httpError("state.persistence_mode must be one of file|memory")
+		}
+	}
 	return nil
 }
 
@@ -137,6 +153,9 @@ func stateIsEmpty(state subscription.OnboardingState) bool {
 	return strings.TrimSpace(state.CompletedAt) == "" &&
 		strings.TrimSpace(state.SelectedProvider) == "" &&
 		strings.TrimSpace(state.SelectedModel) == "" &&
+		strings.TrimSpace(state.SelectedRuntimeMode) == "" &&
+		strings.TrimSpace(state.PersistenceMode) == "" &&
+		!state.LarkConfigured &&
 		strings.TrimSpace(state.UsedSource) == "" &&
 		!state.AdvancedOverridesUsed
 }
