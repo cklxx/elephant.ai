@@ -23,6 +23,28 @@ Overall judgment:
 - **Reasonable as V1/V1.5 architecture**
 - **Not yet production-grade for horizontal scale without concurrency hardening**
 
+## Update Note (2026-02-12, Phase1 Hardening)
+
+This review was produced on 2026-02-11. The following phase-1 mitigations have
+been implemented on 2026-02-12:
+
+- `TaskExecutionService.ExecuteTaskAsync` now claims newly created tasks via
+  lease ownership before dispatch (`TryClaimTask`).
+- `TaskExecutionService.ResumePendingTasks` now uses atomic claim-based resume
+  (`ClaimResumableTasks`) instead of list-and-spawn.
+- Execution now maintains lease lifecycle (`RenewTaskLease` heartbeat and
+  `ReleaseTaskLease` on exit) to reduce duplicate-execution windows.
+- Web task start path now has process-level admission control (global
+  in-flight semaphore, blocking wait bounded by `server.non_stream_timeout_seconds`).
+- New server YAML knobs were added for lease/admission tuning:
+  `task_execution_*` keys in `server` section.
+
+Items that remain open from this review (outside phase-1 scope) include:
+
+- cross-instance SSE fan-out topology (sticky routing or shared bus),
+- scheduler/timer single-leader control,
+- Lark long-lived map TTL/sweeper lifecycle cleanup.
+
 ## Runtime Architecture Snapshot
 
 ### Web Mode

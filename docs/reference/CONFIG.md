@@ -1,5 +1,5 @@
 # ALEX 配置参考
-> Last updated: 2026-02-10
+> Last updated: 2026-02-12
 
 本文档是 **ALEX 主配置文件（`~/.alex/config.yaml`）** 的说明，覆盖 runtime 以及 server/auth/session/analytics/attachments 等段。`alex` CLI 与 `alex-server` 共享 runtime 配置；`alex-server` 额外读取其他段完成服务侧配置。
 
@@ -117,6 +117,11 @@ apps:
 - `rate_limit_requests_per_minute`：HTTP 请求速率限制（每分钟，默认 600）。
 - `rate_limit_burst`：速率限制突发配额（默认 120）。
 - `non_stream_timeout_seconds`：非流式请求超时（秒，默认 30）。
+- `task_execution_owner_id`：任务执行 claim/lease 的 owner 标识（默认自动生成 `<hostname>:<pid>`）。
+- `task_execution_lease_ttl_seconds`：任务执行 lease TTL（秒，默认 45）。
+- `task_execution_lease_renew_interval_seconds`：任务执行 lease 续租间隔（秒，默认 15）。
+- `task_execution_max_in_flight`：全局并发执行上限（默认 64；设为 0 可关闭 admission limiter）。
+- `task_execution_resume_claim_batch_size`：单次恢复流程最多 claim 的任务数（默认 128）。
 - `event_history_retention_days`：事件历史保留天数（默认 30；设置为 0 关闭自动清理）。
 - `event_history_max_sessions`：内存事件历史保留的最大会话数（默认 100；设置为 0 表示不限制）。
 - `event_history_session_ttl_seconds`：内存事件历史空闲 TTL（秒，默认 3600；设置为 0 表示不启用）。
