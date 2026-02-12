@@ -2,7 +2,7 @@
 
 Date: 2026-02-12
 Owner: cklxx + Codex
-Status: in_progress
+Status: completed
 
 ## Context
 - 目标是让 Lark 模式默认不依赖 Postgres/AuthDB，并将状态存储改为 file/memory。
@@ -31,3 +31,5 @@ Status: in_progress
 - 2026-02-12 14:55: Lark gateway 改为按 persistence mode 装配本地存储，移除对 SessionDB 的依赖路径。
 - 2026-02-12 15:05: `alex dev up --lark` 默认跳过 authdb，增加 `--with-authdb` 显式开关。
 - 2026-02-12 15:18: 扩展 `alex setup` 为新手初始化向导，增加运行模式/Lark 凭据/持久化模式配置写入。
+- 2026-02-12 15:32: 完成 code-review（P0/P1 清零），修复 `~` 持久化路径展开、`dev down --all` authdb 漏停风险、任务存储 cap 误删活跃任务。
+- 2026-02-12 15:44: 全量 `go test ./...` + Go/Web lint 通过，分批提交并 fast-forward 合并回 `main`，临时 worktree 已清理。
