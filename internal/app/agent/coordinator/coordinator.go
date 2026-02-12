@@ -56,16 +56,17 @@ type AgentCoordinator struct {
 	iterationHook    agent.IterationHook
 	checkpointStore  react.CheckpointStore
 
-	prepService         preparationService
-	costDecorator       *cost.CostTrackingDecorator
-	attachmentMigrator  materialports.Migrator
-	attachmentPersister ports.AttachmentPersister
-	hookRegistry        *hooks.Registry
-	okrContextProvider  preparation.OKRContextProvider
-	credentialRefresher preparation.CredentialRefresher
-	timerManager        shared.TimerManagerService // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
-	schedulerService    any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
-	toolSLACollector    *toolspolicy.SLACollector
+	prepService           preparationService
+	costDecorator         *cost.CostTrackingDecorator
+	attachmentMigrator    materialports.Migrator
+	attachmentPersister   ports.AttachmentPersister
+	hookRegistry          *hooks.Registry
+	okrContextProvider    preparation.OKRContextProvider
+	kernelContextProvider preparation.KernelAlignmentContextProvider
+	credentialRefresher   preparation.CredentialRefresher
+	timerManager          shared.TimerManagerService // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
+	schedulerService      any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
+	toolSLACollector      *toolspolicy.SLACollector
 
 	sessionSaveMu sync.Mutex // Protects concurrent session saves
 }
@@ -191,19 +192,20 @@ func NewAgentCoordinator(
 	}
 
 	coordinator.prepService = preparation.NewExecutionPreparationService(preparation.ExecutionPreparationDeps{
-		LLMFactory:          llmFactory,
-		ToolRegistry:        toolRegistry,
-		SessionStore:        sessionStore,
-		ContextMgr:          contextMgr,
-		HistoryMgr:          historyManager,
-		Parser:              parser,
-		Config:              config,
-		Logger:              coordinator.logger,
-		Clock:               coordinator.clock,
-		CostDecorator:       coordinator.costDecorator,
-		CostTracker:         coordinator.costTracker,
-		OKRContextProvider:  coordinator.okrContextProvider,
-		CredentialRefresher: coordinator.credentialRefresher,
+		LLMFactory:            llmFactory,
+		ToolRegistry:          toolRegistry,
+		SessionStore:          sessionStore,
+		ContextMgr:            contextMgr,
+		HistoryMgr:            historyManager,
+		Parser:                parser,
+		Config:                config,
+		Logger:                coordinator.logger,
+		Clock:                 coordinator.clock,
+		CostDecorator:         coordinator.costDecorator,
+		CostTracker:           coordinator.costTracker,
+		OKRContextProvider:    coordinator.okrContextProvider,
+		KernelContextProvider: coordinator.kernelContextProvider,
+		CredentialRefresher:   coordinator.credentialRefresher,
 	})
 
 	if coordinator.contextMgr != nil {
@@ -721,20 +723,21 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 	}
 	logger := c.loggerFor(ctx)
 	prepService := preparation.NewExecutionPreparationService(preparation.ExecutionPreparationDeps{
-		LLMFactory:          c.llmFactory,
-		ToolRegistry:        c.toolRegistry,
-		SessionStore:        c.sessionStore,
-		ContextMgr:          c.contextMgr,
-		HistoryMgr:          c.historyMgr,
-		Parser:              c.parser,
-		Config:              cfg,
-		Logger:              logger,
-		Clock:               c.clock,
-		CostDecorator:       c.costDecorator,
-		EventEmitter:        listener,
-		CostTracker:         c.costTracker,
-		OKRContextProvider:  c.okrContextProvider,
-		CredentialRefresher: c.credentialRefresher,
+		LLMFactory:            c.llmFactory,
+		ToolRegistry:          c.toolRegistry,
+		SessionStore:          c.sessionStore,
+		ContextMgr:            c.contextMgr,
+		HistoryMgr:            c.historyMgr,
+		Parser:                c.parser,
+		Config:                cfg,
+		Logger:                logger,
+		Clock:                 c.clock,
+		CostDecorator:         c.costDecorator,
+		EventEmitter:          listener,
+		CostTracker:           c.costTracker,
+		OKRContextProvider:    c.okrContextProvider,
+		KernelContextProvider: c.kernelContextProvider,
+		CredentialRefresher:   c.credentialRefresher,
 	})
 	return prepService.Prepare(ctx, task, sessionID)
 }
@@ -1282,17 +1285,27 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 		toolPreset = string(presets.ToolPresetFull)
 	}
 	session := &storage.Session{ID: "", Messages: nil}
+	okrContext := ""
+	if c.okrContextProvider != nil {
+		okrContext = c.okrContextProvider()
+	}
+	kernelContext := ""
+	if c.kernelContextProvider != nil {
+		kernelContext = c.kernelContextProvider()
+	}
 	window, err := c.contextMgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{
-		TokenLimit:         c.config.MaxTokens,
-		PersonaKey:         personaKey,
-		ToolMode:           toolMode,
-		ToolPreset:         toolPreset,
-		EnvironmentSummary: c.config.EnvironmentSummary,
-		PromptMode:         c.config.Proactive.Prompt.Mode,
-		PromptTimezone:     c.config.Proactive.Prompt.Timezone,
-		BootstrapFiles:     append([]string(nil), c.config.Proactive.Prompt.BootstrapFiles...),
-		BootstrapMaxChars:  c.config.Proactive.Prompt.BootstrapMaxChars,
-		ReplyTagsEnabled:   c.config.Proactive.Prompt.ReplyTagsEnabled,
+		TokenLimit:             c.config.MaxTokens,
+		PersonaKey:             personaKey,
+		ToolMode:               toolMode,
+		ToolPreset:             toolPreset,
+		EnvironmentSummary:     c.config.EnvironmentSummary,
+		PromptMode:             c.config.Proactive.Prompt.Mode,
+		PromptTimezone:         c.config.Proactive.Prompt.Timezone,
+		BootstrapFiles:         append([]string(nil), c.config.Proactive.Prompt.BootstrapFiles...),
+		BootstrapMaxChars:      c.config.Proactive.Prompt.BootstrapMaxChars,
+		ReplyTagsEnabled:       c.config.Proactive.Prompt.ReplyTagsEnabled,
+		OKRContext:             okrContext,
+		KernelAlignmentContext: kernelContext,
 	})
 	if err != nil {
 		if c.logger != nil {

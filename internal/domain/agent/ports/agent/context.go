@@ -40,21 +40,22 @@ type ContextManager interface {
 
 // ContextWindowConfig drives context composition behaviour.
 type ContextWindowConfig struct {
-	TokenLimit         int
-	PersonaKey         string
-	GoalKey            string
-	WorldKey           string
-	ToolMode           string
-	ToolPreset         string
-	EnvironmentSummary string
-	TaskInput          string
-	PromptMode         string
-	PromptTimezone     string
-	BootstrapFiles     []string
-	BootstrapMaxChars  int
-	ReplyTagsEnabled   bool
-	Skills             SkillsConfig
-	OKRContext         string // Pre-rendered OKR goals section for system prompt injection
+	TokenLimit             int
+	PersonaKey             string
+	GoalKey                string
+	WorldKey               string
+	ToolMode               string
+	ToolPreset             string
+	EnvironmentSummary     string
+	TaskInput              string
+	PromptMode             string
+	PromptTimezone         string
+	BootstrapFiles         []string
+	BootstrapMaxChars      int
+	ReplyTagsEnabled       bool
+	Skills                 SkillsConfig
+	OKRContext             string // Pre-rendered OKR goals section for system prompt injection
+	KernelAlignmentContext string // Pre-rendered kernel mission/soul/user section
 }
 
 // ContextWindow exposes the layered context returned by the manager.

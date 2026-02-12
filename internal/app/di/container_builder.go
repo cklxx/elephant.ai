@@ -17,6 +17,7 @@ import (
 	"alex/internal/app/agent/preparation"
 	ctxmgr "alex/internal/app/context"
 	"alex/internal/app/lifecycle"
+	"alex/internal/app/subscription"
 	toolregistry "alex/internal/app/toolregistry"
 	agent "alex/internal/domain/agent/ports/agent"
 	portsllm "alex/internal/domain/agent/ports/llm"
@@ -162,6 +163,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 
 	hookRegistry := b.buildHookRegistry(memoryEngine, llmFactory)
 	okrContextProvider := b.buildOKRContextProvider()
+	kernelContextProvider := b.buildKernelAlignmentContextProvider()
 	checkpointStore := react.NewFileCheckpointStore(filepath.Join(b.sessionDir, "checkpoints"))
 	credentialRefresher := buildCredentialRefresher()
 
@@ -205,6 +207,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithHookRegistry(hookRegistry),
 		agentcoordinator.WithExternalExecutor(externalExecutor),
 		agentcoordinator.WithOKRContextProvider(okrContextProvider),
+		agentcoordinator.WithKernelAlignmentContextProvider(kernelContextProvider),
 		agentcoordinator.WithCheckpointStore(checkpointStore),
 		agentcoordinator.WithCredentialRefresher(credentialRefresher),
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
@@ -619,6 +622,21 @@ func (b *containerBuilder) buildOKRContextProvider() preparation.OKRContextProvi
 	return preparation.NewOKRContextProvider(store)
 }
 
+func (b *containerBuilder) buildKernelAlignmentContextProvider() preparation.KernelAlignmentContextProvider {
+	if !b.config.Proactive.Enabled || !b.config.Proactive.Kernel.Enabled {
+		return nil
+	}
+	kernelID := strings.TrimSpace(b.config.Proactive.Kernel.KernelID)
+	if kernelID == "" {
+		kernelID = "default"
+	}
+	provider := preparation.NewKernelAlignmentContextProvider(preparation.KernelAlignmentContextConfig{
+		KernelID: kernelID,
+	})
+	b.logger.Info("Kernel alignment context provider enabled (kernel_id=%s)", kernelID)
+	return provider
+}
+
 // buildAlternateFrom creates an AlternateCoordinator that shares the parent
 // container's heavy resources (LLM Factory, Session Store, Memory Engine,
 // Cost Tracker, Context Manager, History Manager, Parser) but owns its own
@@ -639,6 +657,7 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 
 	hookRegistry := b.buildHookRegistry(parent.MemoryEngine, parent.llmFactory)
 	okrContextProvider := b.buildOKRContextProvider()
+	kernelContextProvider := b.buildKernelAlignmentContextProvider()
 	credentialRefresher := buildCredentialRefresher()
 
 	detectedCLIs := codinginfra.DetectLocalCLIs()
@@ -695,6 +714,7 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 		agentcoordinator.WithHookRegistry(hookRegistry),
 		agentcoordinator.WithExternalExecutor(externalExecutor),
 		agentcoordinator.WithOKRContextProvider(okrContextProvider),
+		agentcoordinator.WithKernelAlignmentContextProvider(kernelContextProvider),
 		agentcoordinator.WithCheckpointStore(parent.CheckpointStore),
 		agentcoordinator.WithCredentialRefresher(credentialRefresher),
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
@@ -769,8 +789,9 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 		SeedState:        seedState,
 		Agents:           agents,
 	})
+	// INIT.md is a bootstrap snapshot; keep it immutable after first creation.
 	if err := stateFile.SeedInit(initDoc); err != nil {
-		b.logger.Warn("Kernel init doc write failed: %v", err)
+		b.logger.Warn("Kernel init doc seed failed: %v", err)
 	}
 
 	systemPrompt := strings.TrimSpace(coordinator.GetSystemPrompt())
@@ -784,6 +805,7 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 	planner := kernelagent.NewStaticPlanner(cfg.KernelID, agents)
 	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
 	executor := kernelagent.NewCoordinatorExecutor(coordinator, timeout)
+	executor.SetSelectionResolver(b.buildKernelSelectionResolver())
 
 	engine := kernelagent.NewEngine(
 		kernelagent.KernelConfig{
@@ -792,13 +814,57 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 			SeedState:     seedState,
 			MaxConcurrent: cfg.MaxConcurrent,
 			Channel:       cfg.Channel,
+			ChatID:        cfg.ChatID,
 			UserID:        cfg.UserID,
 		},
 		stateFile, kernelStore, planner, executor, logging.NewKernelLogger("KernelEngine"),
 	)
+	engine.SetSystemPromptProvider(func() string { return coordinator.GetSystemPrompt() })
 
 	b.logger.Info("Kernel engine built (kernel_id=%s, schedule=%s, agents=%d)", cfg.KernelID, cfg.Schedule, len(agents))
 	return engine, nil
+}
+
+func (b *containerBuilder) buildKernelSelectionResolver() kernelagent.SelectionResolver {
+	storePath := subscription.ResolveSelectionStorePath(runtimeconfig.DefaultEnvLookup, nil)
+	store := subscription.NewSelectionStore(storePath)
+	resolver := subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.LoadCLICredentials()
+	})
+
+	return func(ctx context.Context, channel, chatID, userID string) (subscription.ResolvedSelection, bool) {
+		channel = strings.ToLower(strings.TrimSpace(channel))
+		chatID = strings.TrimSpace(chatID)
+		userID = strings.TrimSpace(userID)
+		if channel == "" {
+			return subscription.ResolvedSelection{}, false
+		}
+
+		scopes := make([]subscription.SelectionScope, 0, 3)
+		if chatID != "" {
+			scopes = append(scopes, subscription.SelectionScope{Channel: channel, ChatID: chatID})
+			if userID != "" {
+				scopes = append(scopes, subscription.SelectionScope{Channel: channel, ChatID: chatID, UserID: userID})
+			}
+		}
+		scopes = append(scopes, subscription.SelectionScope{Channel: channel})
+
+		selection, _, ok, err := store.GetWithFallback(ctx, scopes...)
+		if err != nil {
+			b.logger.Warn("Kernel LLM selection load failed: %v", err)
+			return subscription.ResolvedSelection{}, false
+		}
+		if !ok {
+			return subscription.ResolvedSelection{}, false
+		}
+
+		resolved, ok := resolver.Resolve(selection)
+		if !ok {
+			b.logger.Warn("Kernel LLM selection resolve failed: provider=%q model=%q", selection.Provider, selection.Model)
+			return subscription.ResolvedSelection{}, false
+		}
+		return resolved, true
+	}
 }
 
 // buildCredentialRefresher creates a function that re-resolves CLI credentials

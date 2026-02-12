@@ -12,23 +12,24 @@ import (
 )
 
 type systemPromptInput struct {
-	Logger           logging.Logger
-	Static           agent.StaticContext
-	Dynamic          agent.DynamicContext
-	Meta             agent.MetaContext
-	Memory           string
-	OmitEnvironment  bool
-	TaskInput        string
-	Messages         []ports.Message
-	SessionID        string
-	PromptMode       string
-	PromptTimezone   string
-	ReplyTagsEnabled bool
-	BootstrapRecords []bootstrapRecord
-	ToolMode         string
-	SkillsConfig     agent.SkillsConfig
-	OKRContext       string
-	SOPSummaryOnly   bool // If true, only show SOP references without full content
+	Logger                 logging.Logger
+	Static                 agent.StaticContext
+	Dynamic                agent.DynamicContext
+	Meta                   agent.MetaContext
+	Memory                 string
+	OmitEnvironment        bool
+	TaskInput              string
+	Messages               []ports.Message
+	SessionID              string
+	PromptMode             string
+	PromptTimezone         string
+	ReplyTagsEnabled       bool
+	BootstrapRecords       []bootstrapRecord
+	ToolMode               string
+	SkillsConfig           agent.SkillsConfig
+	OKRContext             string
+	KernelAlignmentContext string
+	SOPSummaryOnly         bool // If true, only show SOP references without full content
 }
 
 const (
@@ -54,6 +55,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildKnowledgeSection(input.Static.Knowledge, input.SOPSummaryOnly),
 		buildMemorySection(input.Memory),
 		buildOKRSection(input.OKRContext),
+		buildKernelAlignmentSection(input.KernelAlignmentContext),
 		buildSkillsSection(input.Logger, input.TaskInput, input.Messages, input.SessionID, input.SkillsConfig),
 		buildSelfUpdateSection(),
 		buildWorkspaceSection(),
@@ -77,6 +79,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildToolRoutingSection(),
 		buildSafetySection(),
 		buildGoalsSection(input.Static.Goal),
+		buildKernelAlignmentSection(input.KernelAlignmentContext),
 		buildPoliciesSection(input.Static.Policies),
 		buildWorkspaceSection(),
 		buildDocumentationSection(),
@@ -411,6 +414,14 @@ func buildOKRSection(okrContext string) string {
 		return ""
 	}
 	return "# OKR Goals\n" + trimmed
+}
+
+func buildKernelAlignmentSection(kernelContext string) string {
+	trimmed := strings.TrimSpace(kernelContext)
+	if trimmed == "" {
+		return ""
+	}
+	return "# Kernel Alignment\n" + trimmed
 }
 
 func buildIdentitySection(persona agent.PersonaProfile) string {

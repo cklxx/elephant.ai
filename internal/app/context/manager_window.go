@@ -94,23 +94,24 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 	}
 
 	window.SystemPrompt = composeSystemPrompt(systemPromptInput{
-		Logger:           m.logger,
-		Static:           window.Static,
-		Dynamic:          window.Dynamic,
-		Meta:             window.Meta,
-		Memory:           memorySnapshot,
-		OmitEnvironment:  omitEnvironment,
-		TaskInput:        cfg.TaskInput,
-		Messages:         window.Messages,
-		SessionID:        session.ID,
-		PromptMode:       cfg.PromptMode,
-		PromptTimezone:   cfg.PromptTimezone,
-		ReplyTagsEnabled: cfg.ReplyTagsEnabled,
-		BootstrapRecords: bootstrapRecords,
-		ToolMode:         cfg.ToolMode,
-		SkillsConfig:     cfg.Skills,
-		OKRContext:       cfg.OKRContext,
-		SOPSummaryOnly:   true, // Default to summary-only mode for token optimization
+		Logger:                 m.logger,
+		Static:                 window.Static,
+		Dynamic:                window.Dynamic,
+		Meta:                   window.Meta,
+		Memory:                 memorySnapshot,
+		OmitEnvironment:        omitEnvironment,
+		TaskInput:              cfg.TaskInput,
+		Messages:               window.Messages,
+		SessionID:              session.ID,
+		PromptMode:             cfg.PromptMode,
+		PromptTimezone:         cfg.PromptTimezone,
+		ReplyTagsEnabled:       cfg.ReplyTagsEnabled,
+		BootstrapRecords:       bootstrapRecords,
+		ToolMode:               cfg.ToolMode,
+		SkillsConfig:           cfg.Skills,
+		OKRContext:             cfg.OKRContext,
+		KernelAlignmentContext: cfg.KernelAlignmentContext,
+		SOPSummaryOnly:         true, // Default to summary-only mode for token optimization
 	})
 	markBootstrapInjected(session, includeBootstrap)
 	return window, nil

@@ -41,41 +41,43 @@ type CredentialRefresher func(provider string) (apiKey, baseURL string, ok bool)
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
 type ExecutionPreparationDeps struct {
-	LLMFactory          llm.LLMClientFactory
-	ToolRegistry        tools.ToolRegistry
-	SessionStore        storage.SessionStore
-	ContextMgr          agent.ContextManager
-	HistoryMgr          storage.HistoryManager
-	Parser              tools.FunctionCallParser
-	Config              appconfig.Config
-	Logger              agent.Logger
-	Clock               agent.Clock
-	CostDecorator       *cost.CostTrackingDecorator
-	PresetResolver      *PresetResolver // Optional: if nil, one will be created
-	EventEmitter        agent.EventListener
-	CostTracker         storage.CostTracker
-	OKRContextProvider  OKRContextProvider  // Optional: provides OKR context for system prompt
-	CredentialRefresher CredentialRefresher // Optional: re-resolves CLI credentials at task time
+	LLMFactory            llm.LLMClientFactory
+	ToolRegistry          tools.ToolRegistry
+	SessionStore          storage.SessionStore
+	ContextMgr            agent.ContextManager
+	HistoryMgr            storage.HistoryManager
+	Parser                tools.FunctionCallParser
+	Config                appconfig.Config
+	Logger                agent.Logger
+	Clock                 agent.Clock
+	CostDecorator         *cost.CostTrackingDecorator
+	PresetResolver        *PresetResolver // Optional: if nil, one will be created
+	EventEmitter          agent.EventListener
+	CostTracker           storage.CostTracker
+	OKRContextProvider    OKRContextProvider             // Optional: provides OKR context for system prompt
+	KernelContextProvider KernelAlignmentContextProvider // Optional: kernel mission/soul/user context
+	CredentialRefresher   CredentialRefresher            // Optional: re-resolves CLI credentials at task time
 }
 
 // ExecutionPreparationService prepares everything needed before executing a task.
 type ExecutionPreparationService struct {
-	llmFactory          llm.LLMClientFactory
-	toolRegistry        tools.ToolRegistry
-	sessionStore        storage.SessionStore
-	contextMgr          agent.ContextManager
-	historyMgr          storage.HistoryManager
-	parser              tools.FunctionCallParser
-	config              appconfig.Config
-	logger              agent.Logger
-	clock               agent.Clock
-	costDecorator       *cost.CostTrackingDecorator
-	toolPolicy          toolspolicy.ToolPolicy
-	presetResolver      *PresetResolver
-	eventEmitter        agent.EventListener
-	costTracker         storage.CostTracker
-	okrContextProvider  OKRContextProvider
-	credentialRefresher CredentialRefresher
+	llmFactory            llm.LLMClientFactory
+	toolRegistry          tools.ToolRegistry
+	sessionStore          storage.SessionStore
+	contextMgr            agent.ContextManager
+	historyMgr            storage.HistoryManager
+	parser                tools.FunctionCallParser
+	config                appconfig.Config
+	logger                agent.Logger
+	clock                 agent.Clock
+	costDecorator         *cost.CostTrackingDecorator
+	toolPolicy            toolspolicy.ToolPolicy
+	presetResolver        *PresetResolver
+	eventEmitter          agent.EventListener
+	costTracker           storage.CostTracker
+	okrContextProvider    OKRContextProvider
+	kernelContextProvider KernelAlignmentContextProvider
+	credentialRefresher   CredentialRefresher
 }
 
 // NewExecutionPreparationService creates a service instance.
@@ -111,22 +113,23 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 	toolPolicy := toolspolicy.NewToolPolicy(deps.Config.ToolPolicy)
 
 	return &ExecutionPreparationService{
-		llmFactory:          deps.LLMFactory,
-		toolRegistry:        deps.ToolRegistry,
-		sessionStore:        deps.SessionStore,
-		contextMgr:          deps.ContextMgr,
-		historyMgr:          deps.HistoryMgr,
-		parser:              deps.Parser,
-		config:              deps.Config,
-		logger:              logger,
-		clock:               clock,
-		costDecorator:       costDecorator,
-		toolPolicy:          toolPolicy,
-		presetResolver:      presetResolver,
-		eventEmitter:        eventEmitter,
-		costTracker:         deps.CostTracker,
-		okrContextProvider:  deps.OKRContextProvider,
-		credentialRefresher: deps.CredentialRefresher,
+		llmFactory:            deps.LLMFactory,
+		toolRegistry:          deps.ToolRegistry,
+		sessionStore:          deps.SessionStore,
+		contextMgr:            deps.ContextMgr,
+		historyMgr:            deps.HistoryMgr,
+		parser:                deps.Parser,
+		config:                deps.Config,
+		logger:                logger,
+		clock:                 clock,
+		costDecorator:         costDecorator,
+		toolPolicy:            toolPolicy,
+		presetResolver:        presetResolver,
+		eventEmitter:          eventEmitter,
+		costTracker:           deps.CostTracker,
+		okrContextProvider:    deps.OKRContextProvider,
+		kernelContextProvider: deps.KernelContextProvider,
+		credentialRefresher:   deps.CredentialRefresher,
 	}
 }
 
@@ -208,21 +211,26 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			if s.okrContextProvider != nil {
 				okrContext = s.okrContextProvider()
 			}
+			var kernelContext string
+			if s.kernelContextProvider != nil {
+				kernelContext = s.kernelContextProvider()
+			}
 			var err error
 			window, err = s.contextMgr.BuildWindow(ctx, session, agent.ContextWindowConfig{
-				TokenLimit:         s.config.MaxTokens,
-				PersonaKey:         personaKey,
-				ToolMode:           string(toolMode),
-				ToolPreset:         toolPreset,
-				EnvironmentSummary: s.config.EnvironmentSummary,
-				TaskInput:          task,
-				PromptMode:         s.config.Proactive.Prompt.Mode,
-				PromptTimezone:     s.config.Proactive.Prompt.Timezone,
-				BootstrapFiles:     append([]string(nil), s.config.Proactive.Prompt.BootstrapFiles...),
-				BootstrapMaxChars:  s.config.Proactive.Prompt.BootstrapMaxChars,
-				ReplyTagsEnabled:   s.config.Proactive.Prompt.ReplyTagsEnabled,
-				Skills:             buildSkillsConfig(s.config.Proactive.Skills),
-				OKRContext:         okrContext,
+				TokenLimit:             s.config.MaxTokens,
+				PersonaKey:             personaKey,
+				ToolMode:               string(toolMode),
+				ToolPreset:             toolPreset,
+				EnvironmentSummary:     s.config.EnvironmentSummary,
+				TaskInput:              task,
+				PromptMode:             s.config.Proactive.Prompt.Mode,
+				PromptTimezone:         s.config.Proactive.Prompt.Timezone,
+				BootstrapFiles:         append([]string(nil), s.config.Proactive.Prompt.BootstrapFiles...),
+				BootstrapMaxChars:      s.config.Proactive.Prompt.BootstrapMaxChars,
+				ReplyTagsEnabled:       s.config.Proactive.Prompt.ReplyTagsEnabled,
+				Skills:                 buildSkillsConfig(s.config.Proactive.Skills),
+				OKRContext:             okrContext,
+				KernelAlignmentContext: kernelContext,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("build context window: %w", err)
