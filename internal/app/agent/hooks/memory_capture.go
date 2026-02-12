@@ -7,9 +7,11 @@ import (
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
+	"alex/internal/app/agent/llmclient"
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	"alex/internal/infra/memory"
+	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
 
@@ -122,10 +124,13 @@ func (h *MemoryCaptureHook) captureWithLLM(ctx context.Context, result TaskResul
 	if provider == "" || model == "" {
 		return nil
 	}
-	client, err := h.factory.GetIsolatedClient(provider, model, portsllm.LLMConfig{
-		APIKey:  h.config.APIKey,
-		BaseURL: h.config.BaseURL,
-	})
+	profile := runtimeconfig.LLMProfile{
+		Provider: provider,
+		Model:    model,
+		APIKey:   h.config.APIKey,
+		BaseURL:  h.config.BaseURL,
+	}
+	client, _, err := llmclient.GetIsolatedClientFromProfile(h.factory, profile, nil, false)
 	if err != nil {
 		h.logger.Warn("Memory capture LLM client init failed: %v", err)
 		return nil

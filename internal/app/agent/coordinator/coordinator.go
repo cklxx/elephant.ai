@@ -13,6 +13,7 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/cost"
 	"alex/internal/app/agent/hooks"
+	"alex/internal/app/agent/llmclient"
 	"alex/internal/app/agent/preparation"
 	sessiontitle "alex/internal/app/agent/sessiontitle"
 	"alex/internal/domain/agent"
@@ -88,6 +89,7 @@ func (c *AgentCoordinator) effectiveConfig(ctx context.Context) appconfig.Config
 	cfg := c.config
 	resolver := c.runtimeResolver
 	if resolver == nil {
+		cfg.LLMProfile = cfg.DefaultLLMProfile()
 		return cfg
 	}
 
@@ -97,16 +99,31 @@ func (c *AgentCoordinator) effectiveConfig(ctx context.Context) appconfig.Config
 		if logger != nil {
 			logger.Warn("Runtime config resolve failed: %v", err)
 		}
+		cfg.LLMProfile = cfg.DefaultLLMProfile()
 		return cfg
 	}
 
-	cfg.LLMProvider = runtimeCfg.LLMProvider
-	cfg.LLMModel = runtimeCfg.LLMModel
+	profile, err := runtimeconfig.ResolveLLMProfile(runtimeCfg)
+	if err != nil {
+		logger := c.loggerFor(ctx)
+		if logger != nil {
+			logger.Warn("Runtime LLM profile resolve failed: %v", err)
+		}
+		cfg.LLMProfile = cfg.DefaultLLMProfile()
+		return cfg
+	}
+
+	cfg.LLMProfile = profile
+	cfg.LLMProvider = profile.Provider
+	cfg.LLMModel = profile.Model
+	cfg.APIKey = profile.APIKey
+	cfg.BaseURL = profile.BaseURL
 	cfg.LLMSmallProvider = runtimeCfg.LLMSmallProvider
+	if strings.TrimSpace(cfg.LLMSmallProvider) == "" {
+		cfg.LLMSmallProvider = profile.Provider
+	}
 	cfg.LLMSmallModel = runtimeCfg.LLMSmallModel
 	cfg.LLMVisionModel = runtimeCfg.LLMVisionModel
-	cfg.APIKey = runtimeCfg.APIKey
-	cfg.BaseURL = runtimeCfg.BaseURL
 	cfg.MaxTokens = runtimeCfg.MaxTokens
 	cfg.MaxIterations = runtimeCfg.MaxIterations
 	cfg.ToolMaxConcurrent = runtimeCfg.ToolMaxConcurrent
@@ -148,6 +165,7 @@ func NewAgentCoordinator(
 	if len(config.StopSequences) > 0 {
 		config.StopSequences = append([]string(nil), config.StopSequences...)
 	}
+	config.LLMProfile = config.DefaultLLMProfile()
 
 	coordinator := &AgentCoordinator{
 		llmFactory:   llmFactory,
@@ -703,19 +721,20 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 	}
 	logger := c.loggerFor(ctx)
 	prepService := preparation.NewExecutionPreparationService(preparation.ExecutionPreparationDeps{
-		LLMFactory:         c.llmFactory,
-		ToolRegistry:       c.toolRegistry,
-		SessionStore:       c.sessionStore,
-		ContextMgr:         c.contextMgr,
-		HistoryMgr:         c.historyMgr,
-		Parser:             c.parser,
-		Config:             cfg,
-		Logger:             logger,
-		Clock:              c.clock,
-		CostDecorator:      c.costDecorator,
-		EventEmitter:       listener,
-		CostTracker:        c.costTracker,
-		OKRContextProvider: c.okrContextProvider,
+		LLMFactory:          c.llmFactory,
+		ToolRegistry:        c.toolRegistry,
+		SessionStore:        c.sessionStore,
+		ContextMgr:          c.contextMgr,
+		HistoryMgr:          c.historyMgr,
+		Parser:              c.parser,
+		Config:              cfg,
+		Logger:              logger,
+		Clock:               c.clock,
+		CostDecorator:       c.costDecorator,
+		EventEmitter:        listener,
+		CostTracker:         c.costTracker,
+		OKRContextProvider:  c.okrContextProvider,
+		CredentialRefresher: c.credentialRefresher,
 	})
 	return prepService.Prepare(ctx, task, sessionID)
 }
@@ -987,9 +1006,10 @@ func (c *AgentCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry {
 
 // GetConfig returns the coordinator configuration
 func (c *AgentCoordinator) GetConfig() agent.AgentConfig {
+	profile := c.config.DefaultLLMProfile()
 	return agent.AgentConfig{
-		LLMProvider:   c.config.LLMProvider,
-		LLMModel:      c.config.LLMModel,
+		LLMProvider:   profile.Provider,
+		LLMModel:      profile.Model,
 		MaxTokens:     c.config.MaxTokens,
 		MaxIterations: c.config.MaxIterations,
 		Temperature:   c.config.Temperature,
@@ -1156,10 +1176,13 @@ func obfuscateSessionID(id string) string {
 // GetLLMClient returns an LLM client
 func (c *AgentCoordinator) GetLLMClient() (llm.LLMClient, error) {
 	cfg := c.effectiveConfig(context.Background())
-	client, err := c.llmFactory.GetClient(cfg.LLMProvider, cfg.LLMModel, llm.LLMConfig{
-		APIKey:  cfg.APIKey,
-		BaseURL: cfg.BaseURL,
-	})
+	profile := cfg.DefaultLLMProfile()
+	client, _, err := llmclient.GetClientFromProfile(
+		c.llmFactory,
+		profile,
+		llmclient.CredentialRefresher(c.credentialRefresher),
+		true,
+	)
 	if err != nil {
 		return nil, err
 	}

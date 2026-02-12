@@ -2,97 +2,24 @@ package preparation
 
 import "testing"
 
-func TestSafeKeyPrefix(t *testing.T) {
-	tests := []struct {
-		key  string
-		want string
-	}{
-		{"", "***"},
-		{"short", "***"},
-		{"12345678", "***"},
-		{"sk-kimi-abcdef123456", "sk-kimi-..."},
-		{"sk-ant-api03-xxxx", "sk-ant-a..."},
-		{"sess-codex-xxxx", "sess-cod..."},
+func TestCloneHeaders(t *testing.T) {
+	headers := map[string]string{
+		"Authorization": "Bearer token",
+		"":              "drop",
+		" X-Test ":      "ok",
 	}
-	for _, tt := range tests {
-		t.Run(tt.key, func(t *testing.T) {
-			got := safeKeyPrefix(tt.key)
-			if got != tt.want {
-				t.Errorf("safeKeyPrefix(%q) = %q, want %q", tt.key, got, tt.want)
-			}
-		})
+	cloned := cloneHeaders(headers)
+	if len(cloned) != 2 {
+		t.Fatalf("expected 2 headers, got %d", len(cloned))
 	}
-}
-
-func TestDetectKeyProviderMismatch(t *testing.T) {
-	tests := []struct {
-		name     string
-		provider string
-		apiKey   string
-		wantMM   bool
-	}{
-		{
-			name:     "kimi key sent to codex",
-			provider: "codex",
-			apiKey:   "sk-kimi-abcdef123456",
-			wantMM:   true,
-		},
-		{
-			name:     "anthropic key sent to openai",
-			provider: "openai",
-			apiKey:   "sk-ant-api03-xxxxxxxxxxxx",
-			wantMM:   true,
-		},
-		{
-			name:     "deepseek key sent to openai-responses",
-			provider: "openai-responses",
-			apiKey:   "sk-deepseek-xxxxxxxxxxxx",
-			wantMM:   true,
-		},
-		{
-			name:     "valid openai key with codex provider",
-			provider: "codex",
-			apiKey:   "sk-proj-xxxxxxxx",
-			wantMM:   false,
-		},
-		{
-			name:     "valid session key with codex provider",
-			provider: "codex",
-			apiKey:   "sess-codex-xxxxxxxx",
-			wantMM:   false,
-		},
-		{
-			name:     "valid anthropic key with anthropic provider",
-			provider: "anthropic",
-			apiKey:   "sk-ant-api03-xxxxxxxxxxxx",
-			wantMM:   false,
-		},
-		{
-			name:     "non-anthropic key with anthropic provider",
-			provider: "anthropic",
-			apiKey:   "sk-proj-xxxxxxxxxxxx",
-			wantMM:   true,
-		},
-		{
-			name:     "empty key returns no mismatch",
-			provider: "codex",
-			apiKey:   "",
-			wantMM:   false,
-		},
-		{
-			name:     "kimi provider with kimi key is fine",
-			provider: "kimi",
-			apiKey:   "sk-kimi-abcdef123456",
-			wantMM:   false,
-		},
+	if cloned["Authorization"] != "Bearer token" {
+		t.Fatalf("missing Authorization header: %#v", cloned)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotMM, detail := detectKeyProviderMismatch(tt.provider, tt.apiKey)
-			if gotMM != tt.wantMM {
-				t.Errorf("detectKeyProviderMismatch(%q, %q) mismatch = %v, want %v (detail: %s)",
-					tt.provider, tt.apiKey, gotMM, tt.wantMM, detail)
-			}
-		})
+	if cloned["X-Test"] != "ok" {
+		t.Fatalf("expected trimmed key X-Test, got %#v", cloned)
+	}
+	headers["Authorization"] = "changed"
+	if cloned["Authorization"] != "Bearer token" {
+		t.Fatalf("expected cloned map to be isolated: %#v", cloned)
 	}
 }

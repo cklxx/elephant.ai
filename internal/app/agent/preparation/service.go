@@ -9,6 +9,7 @@ import (
 	appconfig "alex/internal/app/agent/config"
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/cost"
+	"alex/internal/app/agent/llmclient"
 	sessiontitle "alex/internal/app/agent/sessiontitle"
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
@@ -361,78 +362,49 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 
-	effectiveModel := s.config.LLMModel
-	effectiveProvider := s.config.LLMProvider
+	effectiveProfile := s.config.DefaultLLMProfile()
 	if selectionPinned {
-		effectiveProvider = selection.Provider
-		effectiveModel = selection.Model
-	} else if preferSmallModel && strings.TrimSpace(s.config.LLMSmallModel) != "" {
-		effectiveProvider = strings.TrimSpace(s.config.LLMSmallProvider)
-		if effectiveProvider == "" {
-			effectiveProvider = s.config.LLMProvider
+		effectiveProfile.Provider = selection.Provider
+		effectiveProfile.Model = selection.Model
+		effectiveProfile.APIKey = selection.APIKey
+		effectiveProfile.BaseURL = selection.BaseURL
+		effectiveProfile.Headers = cloneHeaders(selection.Headers)
+	} else if preferSmallModel {
+		if smallProfile, ok := s.config.SmallLLMProfile(); ok {
+			effectiveProfile.Provider = smallProfile.Provider
+			effectiveProfile.Model = smallProfile.Model
 		}
-		effectiveModel = s.config.LLMSmallModel
 	}
 	if !selectionPinned && taskNeedsVision(task, preloadedAttachments, appcontext.GetUserAttachments(ctx)) {
-		if visionModel := strings.TrimSpace(s.config.LLMVisionModel); visionModel != "" {
-			effectiveProvider = s.config.LLMProvider
-			effectiveModel = visionModel
+		if visionProfile, ok := s.config.VisionLLMProfile(); ok {
+			effectiveProfile.Provider = visionProfile.Provider
+			effectiveProfile.Model = visionProfile.Model
 		}
 	}
 
-	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", effectiveProvider, effectiveModel)
+	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", effectiveProfile.Provider, effectiveProfile.Model)
 	// Use GetIsolatedClient to ensure session-level cost tracking isolation
 	llmInitStarted := time.Now()
-	llmConfig := llm.LLMConfig{
-		APIKey:  s.config.APIKey,
-		BaseURL: s.config.BaseURL,
-	}
-	// Re-resolve CLI credentials at task time for providers that support
-	// token refresh (e.g. Codex). This keeps long-running
-	// servers (Lark) working even after the initial startup token expires.
-	if !selectionPinned && s.credentialRefresher != nil {
-		if apiKey, baseURL, ok := s.credentialRefresher(effectiveProvider); ok {
-			llmConfig.APIKey = apiKey
-			if baseURL != "" {
-				llmConfig.BaseURL = baseURL
-			}
-		}
-	}
-	if selectionPinned {
-		llmConfig.APIKey = selection.APIKey
-		llmConfig.BaseURL = selection.BaseURL
-		if len(selection.Headers) > 0 {
-			llmConfig.Headers = selection.Headers
-		}
-		// When the pinned selection resolved with an empty API key (e.g.
-		// expired CLI token), try the credential refresher for the selected
-		// provider so that long-running Lark servers can recover automatically.
-		if llmConfig.APIKey == "" && s.credentialRefresher != nil {
-			if apiKey, baseURL, ok := s.credentialRefresher(effectiveProvider); ok {
-				llmConfig.APIKey = apiKey
-				if baseURL != "" {
-					llmConfig.BaseURL = baseURL
-				}
-			}
-		}
-	}
-	apiKeySource := "config"
+	apiKeySource := "profile"
 	if selectionPinned {
 		apiKeySource = "pinned_selection"
 	} else if s.credentialRefresher != nil {
 		apiKeySource = "credential_refresher"
 	}
-	s.logger.Debug("LLM config resolved: provider=%s model=%s pinned=%t api_key_source=%s key_prefix=%s",
-		effectiveProvider, effectiveModel, selectionPinned, apiKeySource, safeKeyPrefix(llmConfig.APIKey))
-	if mismatch, detail := detectKeyProviderMismatch(effectiveProvider, llmConfig.APIKey); mismatch {
-		s.logger.Warn("API key may not match provider %s: %s", effectiveProvider, detail)
-	}
-	llmClient, err := s.llmFactory.GetIsolatedClient(effectiveProvider, effectiveModel, llmConfig)
+	refreshCreds := !selectionPinned || (selectionPinned && strings.TrimSpace(effectiveProfile.APIKey) == "")
+	s.logger.Debug("LLM config resolved: provider=%s model=%s pinned=%t api_key_source=%s",
+		effectiveProfile.Provider, effectiveProfile.Model, selectionPinned, apiKeySource)
+	llmClient, _, err := llmclient.GetIsolatedClientFromProfile(
+		s.llmFactory,
+		effectiveProfile,
+		llmclient.CredentialRefresher(s.credentialRefresher),
+		refreshCreds,
+	)
 	clilatency.PrintfWithContext(ctx,
 		"[latency] llm_client_init_ms=%.2f provider=%s model=%s\n",
 		float64(time.Since(llmInitStarted))/float64(time.Millisecond),
-		strings.TrimSpace(effectiveProvider),
-		strings.TrimSpace(effectiveModel),
+		strings.TrimSpace(effectiveProfile.Provider),
+		strings.TrimSpace(effectiveProfile.Model),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM client: %w", err)
@@ -598,38 +570,8 @@ func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, s
 	})
 }
 
-// safeKeyPrefix returns a short, safe-to-log prefix of an API key.
-func safeKeyPrefix(key string) string {
-	if len(key) <= 8 {
-		return "***"
-	}
-	return key[:8] + "..."
-}
-
-// detectKeyProviderMismatch checks for obvious API key / provider mismatches.
-// It detects known vendor-specific key prefixes being sent to the wrong provider.
-func detectKeyProviderMismatch(provider, apiKey string) (mismatch bool, detail string) {
-	if apiKey == "" {
-		return false, ""
-	}
-	lower := strings.ToLower(provider)
-	prefix := safeKeyPrefix(apiKey)
-
-	// Known non-OpenAI key prefixes that should never be sent to OpenAI/Codex.
-	knownNonOpenAI := []string{"sk-kimi-", "sk-ant-", "sk-deepseek-"}
-	if lower == "codex" || lower == "openai-responses" || lower == "openai" {
-		for _, bad := range knownNonOpenAI {
-			if strings.HasPrefix(apiKey, bad) {
-				return true, fmt.Sprintf("key prefix=%s looks like a %s key, not valid for provider %s",
-					prefix, strings.TrimSuffix(strings.TrimPrefix(bad, "sk-"), "-"), provider)
-			}
-		}
-	}
-	// Anthropic keys start with sk-ant-.
-	if lower == "anthropic" && !strings.HasPrefix(apiKey, "sk-ant-") {
-		return true, fmt.Sprintf("key prefix=%s expected sk-ant-* for provider %s", prefix, provider)
-	}
-	return false, ""
+func cloneHeaders(headers map[string]string) map[string]string {
+	return llmclient.CloneHeaders(headers)
 }
 
 func buildSkillsConfig(cfg runtimeconfig.SkillsConfig) agent.SkillsConfig {

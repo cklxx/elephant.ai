@@ -6,10 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/app/agent/llmclient"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	llm "alex/internal/domain/agent/ports/llm"
 	storage "alex/internal/domain/agent/ports/storage"
+	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/utils/clilatency"
 	id "alex/internal/shared/utils/id"
 )
@@ -26,19 +28,20 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		clilatency.PrintfWithContext(ctx, "[latency] preanalysis=skipped reason=%s\n", analysis.Approach)
 		return analysis, preferSmall
 	}
-	llmConfig := llm.LLMConfig{
-		APIKey:  s.config.APIKey,
-		BaseURL: s.config.BaseURL,
+	defaultProfile := s.config.DefaultLLMProfile()
+	smallProfile := runtimeconfig.LLMProfile{
+		Provider: provider,
+		Model:    model,
+		APIKey:   defaultProfile.APIKey,
+		BaseURL:  defaultProfile.BaseURL,
+		Headers:  llmclient.CloneHeaders(defaultProfile.Headers),
 	}
-	if s.credentialRefresher != nil {
-		if apiKey, baseURL, ok := s.credentialRefresher(provider); ok {
-			llmConfig.APIKey = apiKey
-			if baseURL != "" {
-				llmConfig.BaseURL = baseURL
-			}
-		}
-	}
-	client, err := s.llmFactory.GetIsolatedClient(provider, model, llmConfig)
+	client, _, err := llmclient.GetIsolatedClientFromProfile(
+		s.llmFactory,
+		smallProfile,
+		llmclient.CredentialRefresher(s.credentialRefresher),
+		true,
+	)
 	if err != nil {
 		s.logger.Warn("Task pre-analysis skipped: %v", err)
 		return nil, false
@@ -196,18 +199,11 @@ func shouldSkipContextWindow(task string, session *storage.Session) (bool, strin
 }
 
 func (s *ExecutionPreparationService) resolveSmallModelConfig() (string, string, bool) {
-	model := strings.TrimSpace(s.config.LLMSmallModel)
-	if model == "" {
+	profile, ok := s.config.SmallLLMProfile()
+	if !ok {
 		return "", "", false
 	}
-	provider := strings.TrimSpace(s.config.LLMSmallProvider)
-	if provider == "" {
-		provider = strings.TrimSpace(s.config.LLMProvider)
-	}
-	if provider == "" {
-		return "", "", false
-	}
-	return provider, model, true
+	return profile.Provider, profile.Model, true
 }
 
 type taskAnalysisPayload struct {
