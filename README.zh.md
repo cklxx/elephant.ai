@@ -130,10 +130,9 @@ cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 #        app_id: "cli_xxx"
 #        app_secret: "xxx"
 #        tenant_calendar_id: "cal_xxx" # 租户 token 回退使用的共享日历
-#        cards_enabled: true
-#        card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
-#        card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"
-#    回调地址: /api/lark/card/callback
+#        persistence:
+#          mode: "file"      # file|memory
+#          dir: "~/.alex/lark"
 #
 # 可选：开启日程/任务主动提醒（scheduler）
 #    runtime:
@@ -148,9 +147,9 @@ cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 #            user_id: "ou_xxx"
 #            chat_id: "oc_xxx"
 
-# 3. 构建并启动全部服务（sandbox、auth DB、后端、前端）
+# 3. 构建并启动服务（sandbox、后端、前端）
 make build
-alex setup                     # 首次运行模型/Provider 选择向导
+alex setup                     # 首次初始化向导（运行模式 + Lark + 模型）
 alex dev up
 
 # 4. 或者直接使用 CLI
@@ -170,7 +169,9 @@ alex dev up
 make build                     # 构建 alex 二进制
 
 # 服务生命周期
-alex dev up                    # 启动全部服务（sandbox、auth DB、后端、前端）
+alex dev up                    # 启动服务（sandbox、后端、前端）
+alex dev up --lark             # Lark 模式默认不启动 auth DB
+alex dev up --lark --with-authdb  # Lark 模式显式附带 auth DB
 alex dev down                  # 优雅停止全部服务
 alex dev status                # 显示各服务状态（PID、健康、端口）
 alex dev restart [service]     # 重启指定服务或全部
@@ -184,7 +185,7 @@ alex dev sandbox status        # 检查 sandbox 健康状态
 # 质量保证
 alex dev test                  # 运行 Go 测试（race + coverage）
 alex dev lint                  # 运行 Go + web lint
-alex setup                     # 首次订阅模型配置
+alex setup                     # 首次初始化向导
 
 # 飞书 Supervisor（生产）
 alex dev lark                  # 默认：启动 supervisor 守护进程

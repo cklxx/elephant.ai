@@ -131,10 +131,9 @@ alex config validate --profile quickstart
 #        app_id: "cli_xxx"
 #        app_secret: "xxx"
 #        tenant_calendar_id: "cal_xxx" # shared calendar for tenant token fallback
-#        cards_enabled: true
-#        card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
-#        card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"
-#    callback endpoint: /api/lark/card/callback
+#        persistence:
+#          mode: "file"      # file|memory
+#          dir: "~/.alex/lark"
 #
 # Optional: enable proactive calendar/task reminders (scheduler)
 #    runtime:
@@ -149,9 +148,9 @@ alex config validate --profile quickstart
 #            user_id: "ou_xxx"
 #            chat_id: "oc_xxx"
 
-# 3. Build and run all services (sandbox, auth DB, backend, web)
+# 3. Build and run services (sandbox, backend, web)
 make build
-alex setup                     # one-time provider/model picker
+alex setup                     # first-run wizard (runtime + lark + model)
 alex dev up
 
 # 4. Or use the CLI directly
@@ -171,7 +170,9 @@ All dev environment management is built into the `alex` binary — no shell scri
 make build                     # build the alex binary
 
 # Service lifecycle
-alex dev up                    # start all services (sandbox, auth DB, backend, web)
+alex dev up                    # start services (sandbox, backend, web)
+alex dev up --lark             # lark mode: skips auth DB by default
+alex dev up --lark --with-authdb  # lark mode with explicit auth DB
 alex dev down                  # stop all services gracefully
 alex dev status                # show status of each service (PID, health, port)
 alex dev restart [service]     # restart one or all services
@@ -185,7 +186,7 @@ alex dev sandbox status        # check sandbox health
 # Quality
 alex dev test                  # run Go tests (race + coverage)
 alex dev lint                  # run Go + web lint
-alex setup                     # first-run subscription model setup
+alex setup                     # first-run setup wizard
 
 # Lark supervisor (production)
 alex dev lark                  # default: start supervisor daemon

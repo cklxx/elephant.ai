@@ -190,12 +190,10 @@ apps:
 - 备注：Lark 的 `chat_type` 可能是 `group` 或 `topic_group`（话题群）；本项目均按“群聊”处理（受 `allow_groups` 控制）。
 - `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode（Lark 默认 `tool_preset: lark-local`）。
 - `workspace_dir`：Lark 本地工具工作区根目录（默认进程 working dir）。
-- `cards_enabled`：是否启用 Lark 交互卡片（默认 true，仅错误卡片开启）。
-- `cards_plan_review` / `cards_results` / `cards_errors`：分别控制计划确认/结果/错误卡片发送（默认 `false / false / true`）。结果卡片在存在附件时会升级为“附件卡片”（仅一条卡片，按钮点击后发送文件/图片）；若卡片构建失败则回退为文本回复 + 原有附件发送。
-- 说明：`/model` / `/model list` 在 `cards_enabled=true` 时会优先返回“模型选择卡片”，可直接点击按钮完成 `/model use <provider>/<model>`；若卡片构建失败则自动回退文本列表。
-- `card_callback_verification_token` / `card_callback_encrypt_key`：卡片交互回调配置（用于 `/api/lark/card/callback` 回调校验/解密）。`channels.lark` 段支持 `${ENV}` 插值；当 YAML 未配置时，服务会尝试从环境变量兜底读取：
-  - verification token：`LARK_CARD_CALLBACK_VERIFICATION_TOKEN` / `LARK_VERIFICATION_TOKEN` / `FEISHU_CARD_CALLBACK_VERIFICATION_TOKEN` / `FEISHU_VERIFICATION_TOKEN` / `CARD_CALLBACK_VERIFICATION_TOKEN`
-  - encrypt key：`LARK_CARD_CALLBACK_ENCRYPT_KEY` / `LARK_ENCRYPT_KEY` / `FEISHU_CARD_CALLBACK_ENCRYPT_KEY` / `FEISHU_ENCRYPT_KEY` / `CARD_CALLBACK_ENCRYPT_KEY`
+- `persistence.mode`：Lark 本地持久化模式（`file` 或 `memory`，默认 `file`）。
+- `persistence.dir`：`file` 模式下持久化目录（默认 `~/.alex/lark`）。
+- `persistence.retention_hours`：终态任务保留窗口（小时，默认 `168`）。
+- `persistence.max_tasks_per_chat`：每个 chat 保留任务上限（默认 `200`）。
 - `auto_upload_files`：本地文件写入/替换后自动上传附件（默认 true）。
 - `auto_upload_max_bytes`：自动上传单文件大小上限（默认 2MB）。
 - `auto_upload_allow_ext`：自动上传允许扩展名白名单（默认常见文档/图片）。

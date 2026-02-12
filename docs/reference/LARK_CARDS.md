@@ -1,57 +1,40 @@
 # Lark Interactive Cards
 
-This document describes the Lark/Feishu interactive card integration used by elephant.ai.
+This document describes interactive card behavior used by elephant.ai in Lark.
 
 ## What we send
 
-- **Plan review card**: triggered when the agent stops with `await_user_input` and plan review cards are enabled. Includes goal, plan JSON, and action buttons.
-- **Result card**: sent on success when result cards are enabled (summary + attachments).
-- **Error card**: sent on failure when error cards are enabled (default on).
-- **Model selection card**: sent by `/model` / `/model list` when cards are enabled; users can click a model button directly.
+- **Plan review card**: triggered when the agent stops with `await_user_input`.
+- **Result card**: sent on successful task completion when card rendering succeeds.
+- **Error card**: sent on failures.
+- **Model selection card**: sent by `/model` / `/model list` when supported by the current flow.
 
 ## Callback endpoint
 
-Cards are interactive; button clicks invoke a callback endpoint. Configure your Lark app to call:
+Cards are interactive; button clicks invoke:
 
 - `POST /api/lark/card/callback`
 
-### Required configuration
+## Configuration note
 
-```yaml
-channels:
-  lark:
-    cards_enabled: true
-    cards_plan_review: false
-    cards_results: false
-    cards_errors: true
-    card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
-    card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"
-```
+Card callback and card-toggle fields were removed from `channels.lark` runtime config.
+Current Lark setup only requires:
 
-- `card_callback_verification_token` is the verification token from the Lark app settings.
-- `card_callback_encrypt_key` is optional when callback encryption is disabled.
-- `channels.lark` supports `${ENV}` interpolation. If these fields are omitted in YAML, server fallback env keys are also supported:
-  - verification token: `LARK_CARD_CALLBACK_VERIFICATION_TOKEN`, `LARK_VERIFICATION_TOKEN`, `FEISHU_CARD_CALLBACK_VERIFICATION_TOKEN`, `FEISHU_VERIFICATION_TOKEN`, `CARD_CALLBACK_VERIFICATION_TOKEN`
-  - encrypt key: `LARK_CARD_CALLBACK_ENCRYPT_KEY`, `LARK_ENCRYPT_KEY`, `FEISHU_CARD_CALLBACK_ENCRYPT_KEY`, `FEISHU_ENCRYPT_KEY`, `CARD_CALLBACK_ENCRYPT_KEY`
+- `channels.lark.enabled`
+- `channels.lark.app_id`
+- `channels.lark.app_secret`
+- `channels.lark.persistence.*` (for task/plan/session local persistence)
 
 ## Action tags and behavior
 
 - `plan_review_approve` → injects `OK` as user input.
-- `plan_review_request_changes` → injects the `plan_feedback` form value when provided, otherwise injects `需要修改`.
+- `plan_review_request_changes` → injects `plan_feedback` when provided, else `需要修改`.
 - `confirm_yes` → injects `OK`.
 - `confirm_no` → injects `取消`.
 - `model_use` → injects `/model use <provider>/<model>` from `action.value.text`.
 
-## Card input fields
-
-Plan review cards include an optional input element:
-
-- `name: plan_feedback`
-
-When the user submits via the **提交修改** button, the input value is passed in `action.form_value.plan_feedback`.
-
 ## Notes
 
-- Card callbacks are handled asynchronously; the endpoint returns immediately with a toast, and the action is injected into the Lark gateway as a normal user message.
-- When verification token is missing, callback route still stays active for action events, but URL verification challenge may fail until token is configured.
-- If callbacks are not configured, cards still render but button clicks will not trigger actions; users can respond manually via text.
+- Card callbacks are handled asynchronously.
+- If callback verification is not configured on the Lark platform side, card actions may not be delivered.
+- If callback delivery is unavailable, users can always continue via plain text replies.
