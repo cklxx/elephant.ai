@@ -46,13 +46,13 @@ const (
 
 // BridgeMeta stores checkpoint data for subprocess bridge resilience.
 type BridgeMeta struct {
-	PID          int        `json:"pid,omitempty"`
-	OutputFile   string     `json:"output_file,omitempty"`
-	LastOffset   int64      `json:"last_offset,omitempty"`
-	LastIteration int       `json:"last_iteration,omitempty"`
-	TokensUsed   int        `json:"tokens_used,omitempty"`
-	FilesTouched []string   `json:"files_touched,omitempty"`
-	StartedAt    *time.Time `json:"started_at,omitempty"`
+	PID           int        `json:"pid,omitempty"`
+	OutputFile    string     `json:"output_file,omitempty"`
+	LastOffset    int64      `json:"last_offset,omitempty"`
+	LastIteration int        `json:"last_iteration,omitempty"`
+	TokensUsed    int        `json:"tokens_used,omitempty"`
+	FilesTouched  []string   `json:"files_touched,omitempty"`
+	StartedAt     *time.Time `json:"started_at,omitempty"`
 }
 
 // Task is the unified task record shared across all channels.
@@ -72,7 +72,7 @@ type Task struct {
 	Prompt      string `json:"prompt,omitempty"` // Full original prompt for retry
 
 	// Agent configuration
-	AgentType     string `json:"agent_type"`               // "internal", "claude_code", "codex"
+	AgentType     string `json:"agent_type"` // "internal", "claude_code", "codex"
 	AgentPreset   string `json:"agent_preset,omitempty"`
 	ToolPreset    string `json:"tool_preset,omitempty"`
 	WorkspaceMode string `json:"workspace_mode,omitempty"` // "shared", "branch", "worktree"
@@ -195,6 +195,20 @@ type Store interface {
 
 	// SetBridgeMeta persists bridge checkpoint data.
 	SetBridgeMeta(ctx context.Context, taskID string, meta BridgeMeta) error
+
+	// TryClaimTask tries to claim task ownership for execution. Returns true when
+	// the claim succeeds, false when the task is owned by another live worker.
+	TryClaimTask(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error)
+
+	// ClaimResumableTasks atomically claims tasks in the given statuses for
+	// resume execution and returns the claimed rows.
+	ClaimResumableTasks(ctx context.Context, ownerID string, leaseUntil time.Time, limit int, statuses ...Status) ([]*Task, error)
+
+	// RenewTaskLease extends the lease for a task owned by ownerID.
+	RenewTaskLease(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error)
+
+	// ReleaseTaskLease releases ownership for a task when execution exits.
+	ReleaseTaskLease(ctx context.Context, taskID, ownerID string) error
 
 	// ListBySession returns tasks for a session, newest first.
 	ListBySession(ctx context.Context, sessionID string, limit int) ([]*Task, error)

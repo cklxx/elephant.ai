@@ -28,6 +28,9 @@ const (
 type InMemoryTaskStore struct {
 	mu    sync.RWMutex
 	tasks map[string]*ports.Task
+	// Execution ownership bookkeeping for single-process claim/lease semantics.
+	owners map[string]string
+	leases map[string]time.Time
 
 	retention time.Duration // how long terminal tasks are kept
 	maxSize   int           // hard cap on total tasks
@@ -62,6 +65,8 @@ func WithTaskPersistenceFile(path string) TaskStoreOption {
 func NewInMemoryTaskStore(opts ...TaskStoreOption) *InMemoryTaskStore {
 	s := &InMemoryTaskStore{
 		tasks:     make(map[string]*ports.Task),
+		owners:    make(map[string]string),
+		leases:    make(map[string]time.Time),
 		retention: defaultTaskRetention,
 		maxSize:   defaultMaxTasks,
 		logger:    logging.NewComponentLogger("InMemoryTaskStore"),
@@ -180,6 +185,8 @@ func (s *InMemoryTaskStore) Create(ctx context.Context, sessionID string, descri
 	}
 
 	s.tasks[taskID] = task
+	delete(s.owners, taskID)
+	delete(s.leases, taskID)
 	s.persistLocked()
 
 	// Return a copy to prevent callers from sharing references with the store.
@@ -361,6 +368,8 @@ func (s *InMemoryTaskStore) Delete(ctx context.Context, taskID string) error {
 	}
 
 	delete(s.tasks, taskID)
+	delete(s.owners, taskID)
+	delete(s.leases, taskID)
 	s.persistLocked()
 	return nil
 }
@@ -391,6 +400,8 @@ func (s *InMemoryTaskStore) SetStatus(ctx context.Context, taskID string, status
 		if task.TerminationReason == ports.TerminationReasonNone {
 			task.TerminationReason = ports.TerminationReasonCompleted
 		}
+		delete(s.owners, taskID)
+		delete(s.leases, taskID)
 	case ports.TaskStatusCancelled:
 		if task.CompletedAt == nil {
 			task.CompletedAt = &now
@@ -398,6 +409,8 @@ func (s *InMemoryTaskStore) SetStatus(ctx context.Context, taskID string, status
 		if task.TerminationReason == ports.TerminationReasonNone {
 			task.TerminationReason = ports.TerminationReasonCancelled
 		}
+		delete(s.owners, taskID)
+		delete(s.leases, taskID)
 	case ports.TaskStatusFailed:
 		if task.CompletedAt == nil {
 			task.CompletedAt = &now
@@ -405,6 +418,8 @@ func (s *InMemoryTaskStore) SetStatus(ctx context.Context, taskID string, status
 		if task.TerminationReason == ports.TerminationReasonNone {
 			task.TerminationReason = ports.TerminationReasonError
 		}
+		delete(s.owners, taskID)
+		delete(s.leases, taskID)
 	}
 
 	s.persistLocked()
@@ -426,6 +441,8 @@ func (s *InMemoryTaskStore) SetError(ctx context.Context, taskID string, err err
 	task.TerminationReason = ports.TerminationReasonError
 	now := time.Now()
 	task.CompletedAt = &now
+	delete(s.owners, taskID)
+	delete(s.leases, taskID)
 
 	s.persistLocked()
 	return nil
@@ -446,6 +463,8 @@ func (s *InMemoryTaskStore) SetResult(ctx context.Context, taskID string, result
 	task.TerminationReason = ports.TerminationReasonCompleted
 	now := time.Now()
 	task.CompletedAt = &now
+	delete(s.owners, taskID)
+	delete(s.leases, taskID)
 	task.TotalIterations = result.Iterations
 	task.TokensUsed = result.TokensUsed
 	task.TotalTokens = result.TokensUsed // Total tokens = final tokens used
@@ -496,6 +515,105 @@ func (s *InMemoryTaskStore) SetTerminationReason(ctx context.Context, taskID str
 
 	s.persistLocked()
 	return nil
+}
+
+// TryClaimTask attempts to claim ownership for a task execution.
+func (s *InMemoryTaskStore) TryClaimTask(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	task, exists := s.tasks[taskID]
+	if !exists {
+		return false, NotFoundError(fmt.Sprintf("task %s", taskID))
+	}
+	if isTerminalStatus(task.Status) {
+		return false, nil
+	}
+	if !s.isTaskClaimableLocked(taskID, ownerID, time.Now()) {
+		return false, nil
+	}
+	s.owners[taskID] = ownerID
+	s.leases[taskID] = leaseUntil
+	s.persistLocked()
+	return true, nil
+}
+
+// ClaimResumableTasks claims tasks by status for resume execution.
+func (s *InMemoryTaskStore) ClaimResumableTasks(ctx context.Context, ownerID string, leaseUntil time.Time, limit int, statuses ...ports.TaskStatus) ([]*ports.Task, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if limit <= 0 {
+		limit = 100
+	}
+	if len(statuses) == 0 {
+		return []*ports.Task{}, nil
+	}
+	statusSet := make(map[ports.TaskStatus]struct{}, len(statuses))
+	for _, st := range statuses {
+		statusSet[st] = struct{}{}
+	}
+
+	now := time.Now()
+	claimed := make([]*ports.Task, 0, limit)
+	for _, task := range s.tasks {
+		if _, ok := statusSet[task.Status]; !ok {
+			continue
+		}
+		if !s.isTaskClaimableLocked(task.ID, ownerID, now) {
+			continue
+		}
+		s.owners[task.ID] = ownerID
+		s.leases[task.ID] = leaseUntil
+		taskCopy := *task
+		claimed = append(claimed, &taskCopy)
+		if len(claimed) >= limit {
+			break
+		}
+	}
+	if len(claimed) > 0 {
+		s.persistLocked()
+	}
+	return claimed, nil
+}
+
+// RenewTaskLease refreshes lease for an already owned task.
+func (s *InMemoryTaskStore) RenewTaskLease(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.tasks[taskID]; !exists {
+		return false, NotFoundError(fmt.Sprintf("task %s", taskID))
+	}
+	if s.owners[taskID] != ownerID {
+		return false, nil
+	}
+	s.leases[taskID] = leaseUntil
+	s.persistLocked()
+	return true, nil
+}
+
+// ReleaseTaskLease releases ownership for an owned task.
+func (s *InMemoryTaskStore) ReleaseTaskLease(ctx context.Context, taskID, ownerID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.tasks[taskID]; !exists {
+		return nil
+	}
+	if s.owners[taskID] != ownerID {
+		return nil
+	}
+	delete(s.owners, taskID)
+	delete(s.leases, taskID)
+	s.persistLocked()
+	return nil
+}
+
+func (s *InMemoryTaskStore) isTaskClaimableLocked(taskID, ownerID string, now time.Time) bool {
+	currentOwner := s.owners[taskID]
+	currentLease := s.leases[taskID]
+	return currentOwner == "" || currentOwner == ownerID || currentLease.IsZero() || currentLease.Before(now)
 }
 
 type persistedTaskStore struct {

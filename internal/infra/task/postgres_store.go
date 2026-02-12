@@ -70,15 +70,23 @@ func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
     answer_preview     TEXT NOT NULL DEFAULT '',
     result_json        JSONB,
     error              TEXT NOT NULL DEFAULT '',
-    depends_on         TEXT[] NOT NULL DEFAULT '{}',
-    bridge_meta        JSONB,
-    metadata           JSONB
-)`,
+	    depends_on         TEXT[] NOT NULL DEFAULT '{}',
+	    bridge_meta        JSONB,
+	    metadata           JSONB,
+	    owner_id           TEXT NOT NULL DEFAULT '',
+	    lease_until        TIMESTAMPTZ,
+	    lease_updated_at   TIMESTAMPTZ
+	)`,
+		`ALTER TABLE ` + tasksTable + ` ADD COLUMN IF NOT EXISTS owner_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE ` + tasksTable + ` ADD COLUMN IF NOT EXISTS lease_until TIMESTAMPTZ`,
+		`ALTER TABLE ` + tasksTable + ` ADD COLUMN IF NOT EXISTS lease_updated_at TIMESTAMPTZ`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_session ON ` + tasksTable + ` (session_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_chat_status ON ` + tasksTable + ` (chat_id, status)`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_status ON ` + tasksTable + ` (status)`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_created ON ` + tasksTable + ` (created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_channel ON ` + tasksTable + ` (channel)`,
+		`CREATE INDEX IF NOT EXISTS idx_tasks_status_lease ON ` + tasksTable + ` (status, lease_until)`,
+		`CREATE INDEX IF NOT EXISTS idx_tasks_owner ON ` + tasksTable + ` (owner_id)`,
 
 		`CREATE TABLE IF NOT EXISTS ` + transitionsTable + ` (
     id            BIGSERIAL PRIMARY KEY,
@@ -134,15 +142,17 @@ INSERT INTO `+tasksTable+` (
     description, prompt, agent_type, agent_preset, tool_preset,
     workspace_mode, working_dir, config, status, termination_reason,
     created_at, started_at, updated_at, completed_at,
-    current_iteration, total_iterations, tokens_used, cost_usd,
-    answer_preview, result_json, error, depends_on, bridge_meta, metadata
+	    current_iteration, total_iterations, tokens_used, cost_usd,
+	    answer_preview, result_json, error, depends_on, bridge_meta, metadata,
+	    owner_id, lease_until, lease_updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6,
-    $7, $8, $9, $10, $11,
-    $12, $13, $14, $15, $16,
-    $17, $18, $19, $20,
-    $21, $22, $23, $24,
-    $25, $26, $27, $28, $29, $30
+	    $1, $2, $3, $4, $5, $6,
+	    $7, $8, $9, $10, $11,
+	    $12, $13, $14, $15, $16,
+	    $17, $18, $19, $20,
+	    $21, $22, $23, $24,
+	    $25, $26, $27, $28, $29, $30,
+	    $31, $32, $33
 )`,
 		task.TaskID, task.SessionID, task.ParentTaskID, task.Channel, task.ChatID, task.UserID,
 		task.Description, task.Prompt, task.AgentType, task.AgentPreset, task.ToolPreset,
@@ -150,6 +160,7 @@ INSERT INTO `+tasksTable+` (
 		task.CreatedAt, task.StartedAt, task.UpdatedAt, task.CompletedAt,
 		task.CurrentIteration, task.TotalIterations, task.TokensUsed, task.CostUSD,
 		task.AnswerPreview, nullableRawJSON(task.ResultJSON), task.Error, dependsOn, bridgeMetaJSON, metadataJSON,
+		"", nil, nil,
 	)
 	if err != nil {
 		return fmt.Errorf("create task: %w", err)
@@ -219,6 +230,8 @@ func (s *PostgresStore) SetStatus(ctx context.Context, taskID string, status tas
 		setClauses += fmt.Sprintf(`, termination_reason = CASE WHEN termination_reason = '' THEN $%d ELSE termination_reason END`, idx)
 		args = append(args, string(reason))
 		idx++
+
+		setClauses += `, owner_id = '', lease_until = NULL, lease_updated_at = NULL`
 	}
 
 	if status == taskdomain.StatusRunning {
@@ -296,7 +309,8 @@ func (s *PostgresStore) SetResult(ctx context.Context, taskID string, answer str
 UPDATE `+tasksTable+`
 SET status = $2, termination_reason = $3, answer_preview = $4, result_json = $5,
     tokens_used = $6, total_iterations = current_iteration,
-    completed_at = COALESCE(completed_at, $7), updated_at = $7
+    completed_at = COALESCE(completed_at, $7), updated_at = $7,
+    owner_id = '', lease_until = NULL, lease_updated_at = NULL
 WHERE task_id = $1`,
 		taskID, string(taskdomain.StatusCompleted), string(taskdomain.TerminationCompleted),
 		preview, nullableRawJSON(resultJSON), tokensUsed, now)
@@ -321,7 +335,8 @@ func (s *PostgresStore) SetError(ctx context.Context, taskID string, errText str
 	tag, err := s.pool.Exec(ctx, `
 UPDATE `+tasksTable+`
 SET status = $2, termination_reason = $3, error = $4,
-    completed_at = COALESCE(completed_at, $5), updated_at = $5
+    completed_at = COALESCE(completed_at, $5), updated_at = $5,
+    owner_id = '', lease_until = NULL, lease_updated_at = NULL
 WHERE task_id = $1`,
 		taskID, string(taskdomain.StatusFailed), string(taskdomain.TerminationError), errText, now)
 	if err != nil {
@@ -356,6 +371,118 @@ WHERE task_id = $1`,
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("task %s: not found", taskID)
+	}
+	return nil
+}
+
+// TryClaimTask attempts to claim ownership for a task. The claim succeeds when
+// the task is unowned, already owned by ownerID, or the prior lease expired.
+func (s *PostgresStore) TryClaimTask(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
+	if s == nil || s.pool == nil {
+		return false, fmt.Errorf("task store not initialized")
+	}
+	if taskID == "" {
+		return false, fmt.Errorf("task_id required")
+	}
+	if ownerID == "" {
+		return false, fmt.Errorf("owner_id required")
+	}
+
+	tag, err := s.pool.Exec(ctx, `
+UPDATE `+tasksTable+`
+SET owner_id = $2, lease_until = $3, lease_updated_at = now(), updated_at = now()
+WHERE task_id = $1
+  AND status IN ('pending', 'running', 'waiting_input')
+  AND (
+    owner_id = '' OR owner_id = $2 OR lease_until IS NULL OR lease_until < now()
+  )`,
+		taskID, ownerID, leaseUntil)
+	if err != nil {
+		return false, fmt.Errorf("try claim task: %w", err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// ClaimResumableTasks atomically claims tasks in statuses for resumption and
+// returns the claimed rows.
+func (s *PostgresStore) ClaimResumableTasks(ctx context.Context, ownerID string, leaseUntil time.Time, limit int, statuses ...taskdomain.Status) ([]*taskdomain.Task, error) {
+	if s == nil || s.pool == nil {
+		return nil, fmt.Errorf("task store not initialized")
+	}
+	if ownerID == "" {
+		return nil, fmt.Errorf("owner_id required")
+	}
+	if len(statuses) == 0 {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+
+	statusStrs := make([]string, len(statuses))
+	for i, st := range statuses {
+		statusStrs[i] = string(st)
+	}
+
+	rows, err := s.pool.Query(ctx, `
+WITH candidates AS (
+    SELECT task_id
+    FROM `+tasksTable+`
+    WHERE status = ANY($1)
+      AND (owner_id = '' OR owner_id = $2 OR lease_until IS NULL OR lease_until < now())
+    ORDER BY created_at DESC
+    LIMIT $4
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE `+tasksTable+` AS t
+SET owner_id = $2, lease_until = $3, lease_updated_at = now(), updated_at = now()
+FROM candidates AS c
+WHERE t.task_id = c.task_id
+RETURNING `+allColumns(),
+		statusStrs, ownerID, leaseUntil, limit)
+	if err != nil {
+		return nil, fmt.Errorf("claim resumable tasks: %w", err)
+	}
+	return collectTasks(rows)
+}
+
+// RenewTaskLease extends lease_until for an owned task.
+func (s *PostgresStore) RenewTaskLease(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
+	if s == nil || s.pool == nil {
+		return false, fmt.Errorf("task store not initialized")
+	}
+	if taskID == "" {
+		return false, fmt.Errorf("task_id required")
+	}
+	if ownerID == "" {
+		return false, fmt.Errorf("owner_id required")
+	}
+
+	tag, err := s.pool.Exec(ctx, `
+UPDATE `+tasksTable+`
+SET lease_until = $3, lease_updated_at = now(), updated_at = now()
+WHERE task_id = $1 AND owner_id = $2`,
+		taskID, ownerID, leaseUntil)
+	if err != nil {
+		return false, fmt.Errorf("renew task lease: %w", err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// ReleaseTaskLease clears owner/lease metadata for a task.
+func (s *PostgresStore) ReleaseTaskLease(ctx context.Context, taskID, ownerID string) error {
+	if s == nil || s.pool == nil {
+		return fmt.Errorf("task store not initialized")
+	}
+	if taskID == "" || ownerID == "" {
+		return nil
+	}
+	_, err := s.pool.Exec(ctx, `
+UPDATE `+tasksTable+`
+SET owner_id = '', lease_until = NULL, lease_updated_at = NULL, updated_at = now()
+WHERE task_id = $1 AND owner_id = $2`, taskID, ownerID)
+	if err != nil {
+		return fmt.Errorf("release task lease: %w", err)
 	}
 	return nil
 }
@@ -516,7 +643,8 @@ func (s *PostgresStore) MarkStaleRunning(ctx context.Context, reason string) err
 	_, err := s.pool.Exec(ctx, `
 UPDATE `+tasksTable+`
 SET status = 'failed', termination_reason = 'error', error = $1,
-    updated_at = $2, completed_at = COALESCE(completed_at, $2)
+    updated_at = $2, completed_at = COALESCE(completed_at, $2),
+    owner_id = '', lease_until = NULL, lease_updated_at = NULL
 WHERE status IN ('pending', 'running', 'waiting_input')`,
 		reason, now)
 	if err != nil {
@@ -540,12 +668,16 @@ func (s *PostgresStore) DeleteExpired(ctx context.Context, before time.Time) err
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 func selectAllColumns() string {
-	return `SELECT task_id, session_id, parent_task_id, channel, chat_id, user_id,
-       description, prompt, agent_type, agent_preset, tool_preset,
-       workspace_mode, working_dir, config, status, termination_reason,
-       created_at, started_at, updated_at, completed_at,
-       current_iteration, total_iterations, tokens_used, cost_usd,
-       answer_preview, result_json, error, depends_on, bridge_meta, metadata`
+	return `SELECT ` + allColumns()
+}
+
+func allColumns() string {
+	return `task_id, session_id, parent_task_id, channel, chat_id, user_id,
+	       description, prompt, agent_type, agent_preset, tool_preset,
+	       workspace_mode, working_dir, config, status, termination_reason,
+	       created_at, started_at, updated_at, completed_at,
+	       current_iteration, total_iterations, tokens_used, cost_usd,
+	       answer_preview, result_json, error, depends_on, bridge_meta, metadata`
 }
 
 type rowScanner interface {

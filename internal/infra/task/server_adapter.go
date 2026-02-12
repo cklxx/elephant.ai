@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"alex/internal/delivery/server/ports"
-	taskdomain "alex/internal/domain/task"
 	agent "alex/internal/domain/agent/ports/agent"
+	taskdomain "alex/internal/domain/task"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -153,6 +153,38 @@ func (a *ServerAdapter) SetTerminationReason(ctx context.Context, taskID string,
 	return a.store.SetStatus(ctx, taskID, terminationToStatus(domainReason),
 		taskdomain.WithTransitionReason(string(reason)),
 	)
+}
+
+// TryClaimTask attempts to claim ownership for task execution.
+func (a *ServerAdapter) TryClaimTask(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
+	return a.store.TryClaimTask(ctx, taskID, ownerID, leaseUntil)
+}
+
+// ClaimResumableTasks atomically claims tasks in statuses for resume execution.
+func (a *ServerAdapter) ClaimResumableTasks(ctx context.Context, ownerID string, leaseUntil time.Time, limit int, statuses ...ports.TaskStatus) ([]*ports.Task, error) {
+	domainStatuses := make([]taskdomain.Status, len(statuses))
+	for i, s := range statuses {
+		domainStatuses[i] = serverStatusToDomain(s)
+	}
+	tasks, err := a.store.ClaimResumableTasks(ctx, ownerID, leaseUntil, limit, domainStatuses...)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*ports.Task, len(tasks))
+	for i, t := range tasks {
+		result[i] = domainToServerTask(t)
+	}
+	return result, nil
+}
+
+// RenewTaskLease refreshes the task lease for an owner.
+func (a *ServerAdapter) RenewTaskLease(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
+	return a.store.RenewTaskLease(ctx, taskID, ownerID, leaseUntil)
+}
+
+// ReleaseTaskLease releases task ownership for an owner.
+func (a *ServerAdapter) ReleaseTaskLease(ctx context.Context, taskID, ownerID string) error {
+	return a.store.ReleaseTaskLease(ctx, taskID, ownerID)
 }
 
 // Close is a no-op; the underlying Postgres pool is managed elsewhere.

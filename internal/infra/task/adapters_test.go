@@ -10,8 +10,8 @@ import (
 
 	"alex/internal/delivery/channels/lark"
 	"alex/internal/delivery/server/ports"
-	taskdomain "alex/internal/domain/task"
 	agent "alex/internal/domain/agent/ports/agent"
+	taskdomain "alex/internal/domain/task"
 )
 
 // ── Mock store ──────────────────────────────────────────────────────────────
@@ -19,12 +19,16 @@ import (
 type mockStore struct {
 	tasks       map[string]*taskdomain.Task
 	transitions map[string][]taskdomain.Transition
+	owners      map[string]string
+	leases      map[string]time.Time
 }
 
 func newMockStore() *mockStore {
 	return &mockStore{
 		tasks:       make(map[string]*taskdomain.Task),
 		transitions: make(map[string][]taskdomain.Transition),
+		owners:      make(map[string]string),
+		leases:      make(map[string]time.Time),
 	}
 }
 
@@ -124,6 +128,77 @@ func (m *mockStore) SetBridgeMeta(_ context.Context, taskID string, meta taskdom
 		return fmt.Errorf("task %s: not found", taskID)
 	}
 	t.BridgeMeta = &meta
+	return nil
+}
+
+func (m *mockStore) TryClaimTask(_ context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
+	if _, ok := m.tasks[taskID]; !ok {
+		return false, fmt.Errorf("task %s: not found", taskID)
+	}
+	now := time.Now()
+	currentOwner := m.owners[taskID]
+	currentLease := m.leases[taskID]
+	claimable := currentOwner == "" || currentOwner == ownerID || currentLease.IsZero() || currentLease.Before(now)
+	if !claimable {
+		return false, nil
+	}
+	m.owners[taskID] = ownerID
+	m.leases[taskID] = leaseUntil
+	return true, nil
+}
+
+func (m *mockStore) ClaimResumableTasks(_ context.Context, ownerID string, leaseUntil time.Time, limit int, statuses ...taskdomain.Status) ([]*taskdomain.Task, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	statusSet := make(map[taskdomain.Status]struct{}, len(statuses))
+	for _, status := range statuses {
+		statusSet[status] = struct{}{}
+	}
+
+	now := time.Now()
+	claimed := make([]*taskdomain.Task, 0, limit)
+	for _, t := range m.tasks {
+		if _, ok := statusSet[t.Status]; !ok {
+			continue
+		}
+		currentOwner := m.owners[t.TaskID]
+		currentLease := m.leases[t.TaskID]
+		claimable := currentOwner == "" || currentOwner == ownerID || currentLease.IsZero() || currentLease.Before(now)
+		if !claimable {
+			continue
+		}
+		m.owners[t.TaskID] = ownerID
+		m.leases[t.TaskID] = leaseUntil
+		copy := *t
+		claimed = append(claimed, &copy)
+		if len(claimed) >= limit {
+			break
+		}
+	}
+	return claimed, nil
+}
+
+func (m *mockStore) RenewTaskLease(_ context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
+	if _, ok := m.tasks[taskID]; !ok {
+		return false, fmt.Errorf("task %s: not found", taskID)
+	}
+	if m.owners[taskID] != ownerID {
+		return false, nil
+	}
+	m.leases[taskID] = leaseUntil
+	return true, nil
+}
+
+func (m *mockStore) ReleaseTaskLease(_ context.Context, taskID, ownerID string) error {
+	if _, ok := m.tasks[taskID]; !ok {
+		return nil
+	}
+	if m.owners[taskID] != ownerID {
+		return nil
+	}
+	delete(m.owners, taskID)
+	delete(m.leases, taskID)
 	return nil
 }
 
@@ -528,9 +603,9 @@ func TestLarkAdapter_SetBridgeMeta(t *testing.T) {
 
 	// Create a task first.
 	err := adapter.SaveTask(ctx, lark.TaskRecord{
-		ChatID:  "chat1",
-		TaskID:  "bridge-meta-test",
-		Status:  "running",
+		ChatID: "chat1",
+		TaskID: "bridge-meta-test",
+		Status: "running",
 	})
 	if err != nil {
 		t.Fatalf("SaveTask() error = %v", err)
@@ -599,5 +674,5 @@ type testBridgeInfo struct {
 	outputFile string
 }
 
-func (t testBridgeInfo) BridgePID() int              { return t.pid }
-func (t testBridgeInfo) BridgeOutputFile() string     { return t.outputFile }
+func (t testBridgeInfo) BridgePID() int           { return t.pid }
+func (t testBridgeInfo) BridgeOutputFile() string { return t.outputFile }

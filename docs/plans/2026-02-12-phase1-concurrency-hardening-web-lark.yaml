@@ -39,16 +39,17 @@ progress:
   - "2026-02-12 11:45: 创建 worktree 分支并复制 .env"
   - "2026-02-12 11:47: 初始化计划文件，开始实现"
   - "2026-02-12 11:56: 完成 nil-container 风险修复（LLMFactoryProbe nil-safe + debug bootstrap guard）并补健康端点回归测试"
+  - "2026-02-12 12:07: 完成 lease/claim 基础层（domain/store + server ports + adapter + postgres/inmemory）并新增 claim 集成测试"
 checklist:
   - id: p1
     item: 修复 nil container 健康探针风险并补测试
     status: completed
   - id: p2
     item: 设计并实现任务 lease/claim 存储接口与 postgres/inmemory 实现
-    status: in_progress
+    status: completed
   - id: p3
     item: TaskExecutionService 接入 claim/renew/release（create + resume）
-    status: pending
+    status: in_progress
   - id: p4
     item: 增加全局 task admission semaphore 与配置项
     status: pending

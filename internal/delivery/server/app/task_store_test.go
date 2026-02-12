@@ -740,6 +740,98 @@ func TestInMemoryTaskStore_PersistenceInvalidFileIsIgnored(t *testing.T) {
 	}
 }
 
+func TestInMemoryTaskStore_TaskLeaseClaimLifecycle(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryTaskStore()
+	defer store.Close()
+
+	task, err := store.Create(ctx, "session-1", "claim me", "", "")
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	ok, err := store.TryClaimTask(ctx, task.ID, "owner-a", time.Now().Add(45*time.Second))
+	if err != nil || !ok {
+		t.Fatalf("owner-a first claim failed ok=%v err=%v", ok, err)
+	}
+
+	ok, err = store.TryClaimTask(ctx, task.ID, "owner-b", time.Now().Add(45*time.Second))
+	if err != nil {
+		t.Fatalf("owner-b claim failed: %v", err)
+	}
+	if ok {
+		t.Fatal("owner-b claim should fail while lease is active")
+	}
+
+	ok, err = store.RenewTaskLease(ctx, task.ID, "owner-b", time.Now().Add(45*time.Second))
+	if err != nil {
+		t.Fatalf("renew by wrong owner returned err: %v", err)
+	}
+	if ok {
+		t.Fatal("renew should fail for wrong owner")
+	}
+
+	ok, err = store.RenewTaskLease(ctx, task.ID, "owner-a", time.Now().Add(45*time.Second))
+	if err != nil || !ok {
+		t.Fatalf("renew by owner-a failed ok=%v err=%v", ok, err)
+	}
+
+	if err := store.ReleaseTaskLease(ctx, task.ID, "owner-a"); err != nil {
+		t.Fatalf("release by owner-a failed: %v", err)
+	}
+
+	ok, err = store.TryClaimTask(ctx, task.ID, "owner-b", time.Now().Add(45*time.Second))
+	if err != nil || !ok {
+		t.Fatalf("owner-b reclaim after release failed ok=%v err=%v", ok, err)
+	}
+}
+
+func TestInMemoryTaskStore_ClaimResumableTasks(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryTaskStore()
+	defer store.Close()
+
+	pending, _ := store.Create(ctx, "session-1", "pending", "", "")
+	running, _ := store.Create(ctx, "session-1", "running", "", "")
+	completed, _ := store.Create(ctx, "session-1", "completed", "", "")
+	if err := store.SetStatus(ctx, running.ID, serverPorts.TaskStatusRunning); err != nil {
+		t.Fatalf("set running: %v", err)
+	}
+	if err := store.SetStatus(ctx, completed.ID, serverPorts.TaskStatusCompleted); err != nil {
+		t.Fatalf("set completed: %v", err)
+	}
+
+	claimed, err := store.ClaimResumableTasks(
+		ctx,
+		"resume-owner",
+		time.Now().Add(45*time.Second),
+		10,
+		serverPorts.TaskStatusPending,
+		serverPorts.TaskStatusRunning,
+	)
+	if err != nil {
+		t.Fatalf("claim resumable tasks: %v", err)
+	}
+	if len(claimed) != 2 {
+		t.Fatalf("expected 2 claimed tasks, got %d", len(claimed))
+	}
+
+	claimedIDs := map[string]bool{
+		pending.ID: false,
+		running.ID: false,
+	}
+	for _, task := range claimed {
+		if _, ok := claimedIDs[task.ID]; ok {
+			claimedIDs[task.ID] = true
+		}
+	}
+	for taskID, seen := range claimedIDs {
+		if !seen {
+			t.Fatalf("expected claimed task %s", taskID)
+		}
+	}
+}
+
 func TestIsTerminalStatus(t *testing.T) {
 	tests := []struct {
 		status   serverPorts.TaskStatus

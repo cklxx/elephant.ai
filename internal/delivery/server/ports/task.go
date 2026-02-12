@@ -94,6 +94,18 @@ type TaskStore interface {
 
 	// SetTerminationReason sets the termination reason for a task
 	SetTerminationReason(ctx context.Context, taskID string, reason TerminationReason) error
+
+	// TryClaimTask attempts to claim ownership for task execution.
+	TryClaimTask(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error)
+
+	// ClaimResumableTasks atomically claims tasks in statuses and returns claimed tasks.
+	ClaimResumableTasks(ctx context.Context, ownerID string, leaseUntil time.Time, limit int, statuses ...TaskStatus) ([]*Task, error)
+
+	// RenewTaskLease refreshes the lease for an owned task.
+	RenewTaskLease(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error)
+
+	// ReleaseTaskLease releases ownership for a task.
+	ReleaseTaskLease(ctx context.Context, taskID, ownerID string) error
 }
 
 // TaskListParams represents pagination and filtering parameters
