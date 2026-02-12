@@ -39,6 +39,10 @@ func (h *APIHandler) HandleGetContextWindowPreview(w http.ResponseWriter, r *htt
 		http.NotFound(w, r)
 		return
 	}
+	if h.coordinator == nil {
+		h.writeJSONError(w, http.StatusServiceUnavailable, "context-window preview unavailable (no coordinator)", nil)
+		return
+	}
 
 	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
@@ -74,6 +78,10 @@ func (h *APIHandler) HandleGetContextWindowPreview(w http.ResponseWriter, r *htt
 func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Request) {
 	if !h.internalMode {
 		http.NotFound(w, r)
+		return
+	}
+	if h.coordinator == nil {
+		h.writeJSONError(w, http.StatusServiceUnavailable, "context snapshots unavailable (no coordinator)", nil)
 		return
 	}
 
