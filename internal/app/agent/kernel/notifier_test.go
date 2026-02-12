@@ -10,6 +10,7 @@ import (
 
 func TestFormatCycleNotification_Success(t *testing.T) {
 	result := &kerneldomain.CycleResult{
+		CycleID:    "cycle-1",
 		KernelID:   "default",
 		Status:     kerneldomain.CycleSuccess,
 		Dispatched: 2,
@@ -17,7 +18,7 @@ func TestFormatCycleNotification_Success(t *testing.T) {
 		Duration:   3200 * time.Millisecond,
 	}
 	got := FormatCycleNotification("default", result, nil)
-	want := "Kernel[default] 周期完成 (分发=2 成功=2 耗时=3.2s)"
+	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-1\n- 状态: success\n- 任务总数: 2\n- 已完成: 2\n- 失败: 0\n- 完成率: 100.0%\n- 失败任务: (none)\n- 耗时: 3.2s"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -25,6 +26,7 @@ func TestFormatCycleNotification_Success(t *testing.T) {
 
 func TestFormatCycleNotification_PartialFailure(t *testing.T) {
 	result := &kerneldomain.CycleResult{
+		CycleID:      "cycle-2",
 		KernelID:     "default",
 		Status:       kerneldomain.CyclePartialSuccess,
 		Dispatched:   3,
@@ -34,7 +36,7 @@ func TestFormatCycleNotification_PartialFailure(t *testing.T) {
 		Duration:     5100 * time.Millisecond,
 	}
 	got := FormatCycleNotification("default", result, nil)
-	want := "Kernel[default] 部分失败 (分发=3 成功=2 失败=1 [agent-b] 耗时=5.1s)"
+	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-2\n- 状态: partial_success\n- 任务总数: 3\n- 已完成: 2\n- 失败: 1\n- 完成率: 66.7%\n- 失败任务: agent-b\n- 耗时: 5.1s"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -42,6 +44,7 @@ func TestFormatCycleNotification_PartialFailure(t *testing.T) {
 
 func TestFormatCycleNotification_AllFailed(t *testing.T) {
 	result := &kerneldomain.CycleResult{
+		CycleID:      "cycle-3",
 		KernelID:     "default",
 		Status:       kerneldomain.CycleFailed,
 		Dispatched:   2,
@@ -50,7 +53,7 @@ func TestFormatCycleNotification_AllFailed(t *testing.T) {
 		Duration:     1500 * time.Millisecond,
 	}
 	got := FormatCycleNotification("default", result, nil)
-	want := "Kernel[default] 全部失败 (分发=2 失败=2 [agent-a,agent-b] 耗时=1.5s)"
+	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-3\n- 状态: failed\n- 任务总数: 2\n- 已完成: 0\n- 失败: 2\n- 完成率: 0.0%\n- 失败任务: agent-a,agent-b\n- 耗时: 1.5s"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -58,7 +61,7 @@ func TestFormatCycleNotification_AllFailed(t *testing.T) {
 
 func TestFormatCycleNotification_CycleError(t *testing.T) {
 	got := FormatCycleNotification("default", nil, fmt.Errorf("read state: file not found"))
-	want := "Kernel[default] 周期异常: read state: file not found"
+	want := "Kernel[default] 周期异常\n- 错误: read state: file not found"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
