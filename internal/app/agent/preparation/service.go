@@ -244,7 +244,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			initialCognitive = buildCognitiveFromWindow(window)
 			if compressedCount := len(window.Messages); compressedCount < originalCount {
 				contextWasCompressed = true
-				compressionEvent := domain.NewWorkflowDiagnosticContextCompressionEvent(
+				compressionEvent := domain.NewDiagnosticContextCompressionEvent(
 					agent.LevelCore,
 					session.ID,
 					ids.RunID,
@@ -349,7 +349,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 	if taskAnalysis != nil && taskAnalysis.ReactEmoji != "" {
-		s.eventEmitter.OnEvent(domain.NewWorkflowPreAnalysisEmojiEvent(
+		s.eventEmitter.OnEvent(domain.NewPreAnalysisEmojiEvent(
 			agent.LevelCore,
 			session.ID,
 			ids.RunID,
@@ -539,7 +539,7 @@ func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, s
 			return
 		}
 		if analysis.ReactEmoji != "" {
-			s.eventEmitter.OnEvent(domain.NewWorkflowPreAnalysisEmojiEvent(
+			s.eventEmitter.OnEvent(domain.NewPreAnalysisEmojiEvent(
 				agent.LevelCore,
 				sessionID,
 				ids.RunID,

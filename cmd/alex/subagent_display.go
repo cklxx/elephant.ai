@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/delivery/output"
 	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/types"
 	"alex/internal/infra/tools/builtin/orchestration"
 
 	"github.com/charmbracelet/lipgloss"
@@ -86,11 +87,17 @@ func (d *SubagentDisplay) Handle(event *orchestration.SubtaskEvent) []string {
 	// Track if we need to show start line for fast-completing tasks
 	needsStartLine := !state.started
 
+	// Determine the event kind for branching.
+	var eventKind string
+	if ue, ok := event.OriginalEvent.(*domain.Event); ok {
+		eventKind = ue.Kind
+	}
+
 	if !state.started {
 		state.started = true
 		// For regular events, show start line immediately
-		switch event.OriginalEvent.(type) {
-		case *domain.WorkflowResultFinalEvent, *domain.WorkflowNodeFailedEvent:
+		switch eventKind {
+		case types.EventResultFinal, types.EventNodeFailed:
 			// Don't show start line yet; will show before completion/failure
 		default:
 			lines = append(lines, d.renderStartLine(event.SubtaskIndex, state))
@@ -98,38 +105,38 @@ func (d *SubagentDisplay) Handle(event *orchestration.SubtaskEvent) []string {
 		}
 	}
 
-	switch e := event.OriginalEvent.(type) {
-	case *domain.WorkflowToolCompletedEvent:
-		if !state.done {
-			state.toolCalls++
+	if ue, ok := event.OriginalEvent.(*domain.Event); ok {
+		switch ue.Kind {
+		case types.EventToolCompleted:
+			if !state.done {
+				state.toolCalls++
+			}
+		case types.EventResultFinal:
+			if !state.done {
+				// Show start line first if this is a fast-completing task
+				if needsStartLine {
+					lines = append(lines, d.renderStartLine(event.SubtaskIndex, state))
+				}
+				state.done = true
+				state.tokens = ue.Data.TotalTokens
+				d.completed++
+				d.tokens += ue.Data.TotalTokens
+				d.toolCalls += state.toolCalls
+				lines = append(lines, d.renderCompletionLine(event.SubtaskIndex, state))
+			}
+		case types.EventNodeFailed:
+			if !state.done {
+				// Show start line first if this is a fast-completing task
+				if needsStartLine {
+					lines = append(lines, d.renderStartLine(event.SubtaskIndex, state))
+				}
+				state.done = true
+				state.failed = true
+				state.err = ue.Data.Error
+				d.failed++
+				lines = append(lines, d.renderFailureLine(event.SubtaskIndex, state))
+			}
 		}
-	case *domain.WorkflowResultFinalEvent:
-		if state.done {
-			break
-		}
-		// Show start line first if this is a fast-completing task
-		if needsStartLine {
-			lines = append(lines, d.renderStartLine(event.SubtaskIndex, state))
-		}
-		state.done = true
-		state.tokens = e.TotalTokens
-		d.completed++
-		d.tokens += e.TotalTokens
-		d.toolCalls += state.toolCalls
-		lines = append(lines, d.renderCompletionLine(event.SubtaskIndex, state))
-	case *domain.WorkflowNodeFailedEvent:
-		if state.done {
-			break
-		}
-		// Show start line first if this is a fast-completing task
-		if needsStartLine {
-			lines = append(lines, d.renderStartLine(event.SubtaskIndex, state))
-		}
-		state.done = true
-		state.failed = true
-		state.err = e.Error
-		d.failed++
-		lines = append(lines, d.renderFailureLine(event.SubtaskIndex, state))
 	}
 
 	concluded := d.completed + d.failed

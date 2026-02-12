@@ -298,13 +298,10 @@ func (r *reactRuntime) emitWorkflowToolStartedEvents(calls []ToolCall) {
 	state := r.state
 	for idx := range calls {
 		call := calls[idx]
-		r.engine.emitEvent(&domain.WorkflowToolStartedEvent{
-			BaseEvent: r.engine.newBaseEvent(r.ctx, state.SessionID, state.RunID, state.ParentRunID),
-			Iteration: state.Iterations,
-			CallID:    call.ID,
-			ToolName:  call.Name,
-			Arguments: call.Arguments,
-		})
+		r.engine.emitEvent(domain.NewToolStartedEvent(
+			r.engine.newBaseEvent(r.ctx, state.SessionID, state.RunID, state.ParentRunID),
+			state.Iterations, call.ID, call.Name, call.Arguments,
+		))
 	}
 }
 
@@ -437,13 +434,10 @@ func (r *reactRuntime) startFinalAnswerReviewToolEvent(callID string, attempt in
 	r.finalReviewInFlight = true
 	r.finalReviewAttempt = attempt
 
-	r.engine.emitEvent(&domain.WorkflowToolStartedEvent{
-		BaseEvent: r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-		Iteration: r.state.Iterations,
-		CallID:    callID,
-		ToolName:  "final_answer_review",
-		Arguments: map[string]any{"attempt": attempt},
-	})
+	r.engine.emitEvent(domain.NewToolStartedEvent(
+		r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+		r.state.Iterations, callID, "final_answer_review", map[string]any{"attempt": attempt},
+	))
 }
 
 func (r *reactRuntime) completeFinalAnswerReviewToolEvent(result string) {
@@ -459,14 +453,11 @@ func (r *reactRuntime) completeFinalAnswerReviewToolEvent(result string) {
 	}
 
 	duration := r.engine.clock.Now().Sub(r.finalReviewStartedAt)
-	r.engine.emitEvent(&domain.WorkflowToolCompletedEvent{
-		BaseEvent: r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-		CallID:    callID,
-		ToolName:  "final_answer_review",
-		Result:    strings.TrimSpace(result),
-		Duration:  duration,
-		Metadata:  map[string]any{"attempt": r.finalReviewAttempt},
-	})
+	r.engine.emitEvent(domain.NewToolCompletedEvent(
+		r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+		callID, "final_answer_review", strings.TrimSpace(result), nil, duration,
+		map[string]any{"attempt": r.finalReviewAttempt}, nil,
+	))
 
 	r.finalReviewInFlight = false
 	r.finalReviewCallID = ""
@@ -557,13 +548,10 @@ func (r *reactRuntime) handleToolError(call ToolCall, result ToolResult) {
 		if result.Error != nil {
 			errMsg = result.Error.Error()
 		}
-		r.engine.emitEvent(&domain.WorkflowReplanRequestedEvent{
-			BaseEvent: r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-			CallID:    call.ID,
-			ToolName:  call.Name,
-			Reason:    reason,
-			Error:     errMsg,
-		})
+		r.engine.emitEvent(domain.NewReplanRequestedEvent(
+			r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+			call.ID, call.Name, reason, errMsg,
+		))
 		r.replanRequested = true
 	}
 }
@@ -787,30 +775,25 @@ func (it *reactIteration) think() error {
 
 	tracker.startThink(it.index)
 
-	it.runtime.engine.emitEvent(&domain.WorkflowNodeStartedEvent{
-		BaseEvent:  it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
-		Iteration:  it.index,
-		TotalIters: it.runtime.engine.maxIterations,
-	})
+	it.runtime.engine.emitEvent(domain.NewNodeStartedEvent(
+		it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
+		it.index, it.runtime.engine.maxIterations, 0, "", nil, nil,
+	))
 
 	it.runtime.engine.logger.Debug("THINK phase: Calling LLM with %d messages", len(state.Messages))
-	it.runtime.engine.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-		BaseEvent:    it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
-		Iteration:    it.index,
-		MessageCount: len(state.Messages),
-	})
+	it.runtime.engine.emitEvent(domain.NewNodeOutputDeltaEvent(
+		it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
+		it.index, len(state.Messages), "", false, time.Time{}, "",
+	))
 
 	thought, err := it.runtime.engine.think(it.runtime.ctx, state, services)
 	if err != nil {
 		it.runtime.engine.logger.Error("Think step failed: %v", err)
 
-		it.runtime.engine.emitEvent(&domain.WorkflowNodeFailedEvent{
-			BaseEvent:   it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
-			Iteration:   it.index,
-			Phase:       "think",
-			Error:       err,
-			Recoverable: false,
-		})
+		it.runtime.engine.emitEvent(domain.NewNodeFailedEvent(
+			it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
+			it.index, "think", err, false,
+		))
 		tracker.completeThink(it.index, Message{}, nil, err)
 		it.runtime.finishWorkflow("error", nil, err)
 		return fmt.Errorf("think step failed: %w", err)
@@ -843,13 +826,10 @@ func (it *reactIteration) think() error {
 
 	if len(it.toolCalls) > 0 && !hasPlanCall {
 		meta := extractLLMMetadata(thought.Metadata)
-		it.runtime.engine.emitEvent(&domain.WorkflowNodeOutputSummaryEvent{
-			BaseEvent:     it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
-			Iteration:     it.index,
-			Content:       thought.Content,
-			ToolCallCount: len(it.toolCalls),
-			Metadata:      meta,
-		})
+		it.runtime.engine.emitEvent(domain.NewNodeOutputSummaryEvent(
+			it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
+			it.index, thought.Content, len(it.toolCalls), meta,
+		))
 	}
 
 	it.thought = thought
@@ -955,12 +935,10 @@ func (it *reactIteration) finish() {
 	state.TokenCount = tokenCount
 	it.runtime.engine.logger.Debug("Current token count: %d", tokenCount)
 
-	it.runtime.engine.emitEvent(&domain.WorkflowNodeCompletedEvent{
-		BaseEvent:  it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
-		Iteration:  it.index,
-		TokensUsed: state.TokenCount,
-		ToolsRun:   len(it.toolResult),
-	})
+	it.runtime.engine.emitEvent(domain.NewNodeCompletedEvent(
+		it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
+		0, "", nil, "", it.index, state.TokenCount, len(it.toolResult), 0, nil,
+	))
 
 	it.runtime.engine.logger.Debug("Iteration %d complete, continuing to next iteration", it.index)
 }
@@ -1016,16 +994,11 @@ func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emi
 		attachments := r.engine.decorateFinalResult(r.state, result)
 		if emitCompletionEvent {
 			r.emitFinalAnswerStream(stopReason, result)
-			r.engine.emitEvent(&domain.WorkflowResultFinalEvent{
-				BaseEvent:       r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-				FinalAnswer:     result.Answer,
-				TotalIterations: result.Iterations,
-				TotalTokens:     result.TokensUsed,
-				StopReason:      stopReason,
-				Duration:        result.Duration,
-				StreamFinished:  true,
-				Attachments:     attachments,
-			})
+			r.engine.emitEvent(domain.NewResultFinalEvent(
+				r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+				result.Answer, result.Iterations, result.TokensUsed, stopReason,
+				result.Duration, false, true, attachments,
+			))
 		}
 
 		r.engine.clearCheckpoint(r.ctx, r.state.SessionID)
@@ -1057,16 +1030,11 @@ func (r *reactRuntime) emitFinalAnswerStream(stopReason string, result *TaskResu
 			end = len(runes)
 		}
 		builder.WriteString(string(runes[i:end]))
-		r.engine.emitEvent(&domain.WorkflowResultFinalEvent{
-			BaseEvent:       r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-			FinalAnswer:     builder.String(),
-			TotalIterations: result.Iterations,
-			TotalTokens:     result.TokensUsed,
-			StopReason:      stopReason,
-			Duration:        result.Duration,
-			IsStreaming:     true,
-			StreamFinished:  false,
-		})
+		r.engine.emitEvent(domain.NewResultFinalEvent(
+			r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+			builder.String(), result.Iterations, result.TokensUsed, stopReason,
+			result.Duration, true, false, nil,
+		))
 	}
 }
 
@@ -1094,11 +1062,10 @@ func (r *reactRuntime) applyIterationHook(iteration int) {
 	if result.MemoriesInjected <= 0 {
 		return
 	}
-	r.engine.emitEvent(&domain.ProactiveContextRefreshEvent{
-		BaseEvent:        r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-		Iteration:        iteration,
-		MemoriesInjected: result.MemoriesInjected,
-	})
+	r.engine.emitEvent(domain.NewProactiveContextRefreshEvent(
+		r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+		iteration, result.MemoriesInjected,
+	))
 }
 
 // persistSessionAfterIteration calls the optional sessionPersister callback

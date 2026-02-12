@@ -308,8 +308,13 @@ func (h *SSEHandler) shouldStreamEvent(event agent.AgentEvent, debugMode bool) b
 	}
 
 	// Only stream workflow envelopes and explicit user task submissions.
-	switch base.(type) {
-	case *domain.WorkflowEventEnvelope, *domain.WorkflowInputReceivedEvent:
+	switch e := base.(type) {
+	case *domain.Event:
+		if e.Kind == types.EventInputReceived {
+			return true
+		}
+		return false
+	case *domain.WorkflowEventEnvelope:
 		if env, ok := event.(*domain.WorkflowEventEnvelope); ok && !debugMode {
 			if blockedNodeIDs[env.NodeID] {
 				return false

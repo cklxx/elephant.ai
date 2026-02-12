@@ -85,18 +85,28 @@ func (p *progressListener) OnEvent(event agent.AgentEvent) {
 	}
 
 	switch e := event.(type) {
-	case *domain.WorkflowNodeStartedEvent:
-		p.onNodeStarted(e)
-	case *domain.WorkflowToolStartedEvent:
-		p.onToolStarted(e)
-	case *domain.WorkflowToolCompletedEvent:
-		p.onToolCompleted(e)
+	case *domain.Event:
+		p.onUnifiedEvent(e)
 	case *domain.WorkflowEventEnvelope:
 		p.onEnvelope(e)
 	}
 }
 
-func (p *progressListener) onNodeStarted(e *domain.WorkflowNodeStartedEvent) {
+func (p *progressListener) onUnifiedEvent(e *domain.Event) {
+	if e == nil {
+		return
+	}
+	switch e.Kind {
+	case types.EventNodeStarted:
+		p.onEventNodeStarted(e)
+	case types.EventToolStarted:
+		p.onEventToolStarted(e)
+	case types.EventToolCompleted:
+		p.onEventToolCompleted(e)
+	}
+}
+
+func (p *progressListener) onEventNodeStarted(e *domain.Event) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -104,13 +114,13 @@ func (p *progressListener) onNodeStarted(e *domain.WorkflowNodeStartedEvent) {
 		return
 	}
 
-	p.iteration = e.Iteration
+	p.iteration = e.Data.Iteration
 	p.nodeActive = true
 	p.dirty = true
 	p.scheduleFlush()
 }
 
-func (p *progressListener) onToolStarted(e *domain.WorkflowToolStartedEvent) {
+func (p *progressListener) onEventToolStarted(e *domain.Event) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -118,23 +128,23 @@ func (p *progressListener) onToolStarted(e *domain.WorkflowToolStartedEvent) {
 		return
 	}
 
-	if _, exists := p.toolIndex[e.CallID]; exists {
+	if _, exists := p.toolIndex[e.Data.CallID]; exists {
 		return // duplicate
 	}
 
 	ts := &toolStatus{
-		callID:   e.CallID,
-		toolName: e.ToolName,
+		callID:   e.Data.CallID,
+		toolName: e.Data.ToolName,
 		started:  p.clock(),
 	}
 	p.tools = append(p.tools, ts)
-	p.toolIndex[e.CallID] = ts
+	p.toolIndex[e.Data.CallID] = ts
 	p.nodeActive = false
 	p.dirty = true
 	p.scheduleFlush()
 }
 
-func (p *progressListener) onToolCompleted(e *domain.WorkflowToolCompletedEvent) {
+func (p *progressListener) onEventToolCompleted(e *domain.Event) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -142,14 +152,14 @@ func (p *progressListener) onToolCompleted(e *domain.WorkflowToolCompletedEvent)
 		return
 	}
 
-	ts, ok := p.toolIndex[e.CallID]
+	ts, ok := p.toolIndex[e.Data.CallID]
 	if !ok {
 		return // unknown call
 	}
 
 	ts.done = true
-	ts.errored = e.Error != nil
-	ts.duration = e.Duration
+	ts.errored = e.Data.Error != nil
+	ts.duration = e.Data.Duration
 	p.dirty = true
 	p.scheduleFlush()
 }

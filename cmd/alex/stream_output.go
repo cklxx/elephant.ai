@@ -44,7 +44,7 @@ type StreamingOutputHandler struct {
 	subagentDisplay                 *SubagentDisplay
 	verbose                         bool
 	mu                              sync.Mutex
-	lastCompletion                  *domain.WorkflowResultFinalEvent
+	lastCompletion                  *domain.Event
 	streamedContent                 bool
 	mdBuffer                        *markdownStreamBuffer
 	lastStreamChunkEndedWithNewline bool
@@ -322,38 +322,39 @@ func (b *StreamEventBridge) OnEvent(event agent.AgentEvent) {
 		return
 	}
 
-	// Handle regular events
-	switch e := event.(type) {
-	case *domain.WorkflowNodeStartedEvent:
-		b.handler.onIterationStart(e)
-	case *domain.WorkflowNodeOutputSummaryEvent:
-		b.handler.onThinkComplete(e)
-	case *domain.WorkflowNodeOutputDeltaEvent:
+	// Handle unified domain events
+	if e, ok := event.(*domain.Event); ok {
+		b.handleUnifiedEvent(e)
+		return
+	}
+}
+
+func (b *StreamEventBridge) handleUnifiedEvent(e *domain.Event) {
+	if e == nil {
+		return
+	}
+	switch e.Kind {
+	case types.EventNodeStarted:
+		// Silent - don't print iteration headers in simple mode
+	case types.EventNodeOutputSummary:
+		// Silent - analysis is internal reasoning
+	case types.EventNodeOutputDelta:
 		b.handler.onAssistantMessage(e)
-	case *domain.WorkflowToolStartedEvent:
+	case types.EventToolStarted:
 		b.handler.onToolCallStart(e)
-	case *domain.WorkflowToolCompletedEvent:
+	case types.EventToolCompleted:
 		b.handler.onToolCallComplete(e)
-	case *domain.WorkflowNodeFailedEvent:
+	case types.EventNodeFailed:
 		b.handler.onError(e)
-	case *domain.WorkflowResultFinalEvent:
+	case types.EventResultFinal:
 		b.handler.onTaskComplete(e)
 	}
 }
 
-func (h *StreamingOutputHandler) onIterationStart(event *domain.WorkflowNodeStartedEvent) {
-	// Silent - don't print iteration headers in simple mode
-}
-
-func (h *StreamingOutputHandler) onThinkComplete(event *domain.WorkflowNodeOutputSummaryEvent) {
-	// Silent - don't print analysis output
-	// Analysis is internal reasoning, not user-facing output
-}
-
-func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaEvent) {
+func (h *StreamingOutputHandler) onAssistantMessage(event *domain.Event) {
 	h.streamedContent = true
-	if event.Delta != "" {
-		for _, chunk := range h.mdBuffer.Append(event.Delta) {
+	if event.Data.Delta != "" {
+		for _, chunk := range h.mdBuffer.Append(event.Data.Delta) {
 			if chunk.content == "" {
 				continue
 			}
@@ -369,7 +370,7 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOu
 			h.lastStreamChunkEndedWithNewline = strings.HasSuffix(rendered, "\n")
 		}
 	}
-	if event.Final {
+	if event.Data.Final {
 		trailing := h.mdBuffer.FlushAll()
 		if trailing != "" {
 			rendered := h.renderer.RenderMarkdownStreamChunk(trailing, false)
@@ -390,17 +391,16 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOu
 	}
 }
 
-func (h *StreamingOutputHandler) onToolCallStart(event *domain.WorkflowToolStartedEvent) {
+func (h *StreamingOutputHandler) onToolCallStart(event *domain.Event) {
 	h.streamWriter.Flush()
-	h.activeTools[event.CallID] = ToolInfo{
-		Name:      event.ToolName,
+	h.activeTools[event.Data.CallID] = ToolInfo{
+		Name:      event.Data.ToolName,
 		StartTime: event.Timestamp(),
 	}
 
-	// Use agent level from event
 	outCtx := &types.OutputContext{
 		Level:        event.GetAgentLevel(),
-		Category:     output.CategorizeToolName(event.ToolName),
+		Category:     output.CategorizeToolName(event.Data.ToolName),
 		AgentID:      string(event.GetAgentLevel()),
 		Verbose:      h.verbose,
 		SessionID:    event.GetSessionID(),
@@ -408,18 +408,17 @@ func (h *StreamingOutputHandler) onToolCallStart(event *domain.WorkflowToolStart
 		ParentTaskID: event.GetParentRunID(),
 	}
 
-	rendered := h.renderer.RenderToolCallStart(outCtx, event.ToolName, event.Arguments)
+	rendered := h.renderer.RenderToolCallStart(outCtx, event.Data.ToolName, event.Data.Arguments)
 	h.write(rendered)
 }
 
-func (h *StreamingOutputHandler) onToolCallComplete(event *domain.WorkflowToolCompletedEvent) {
-	info, exists := h.activeTools[event.CallID]
+func (h *StreamingOutputHandler) onToolCallComplete(event *domain.Event) {
+	info, exists := h.activeTools[event.Data.CallID]
 	if !exists {
 		return
 	}
 	h.streamWriter.Flush()
 
-	// Use agent level from event
 	outCtx := &types.OutputContext{
 		Level:        event.GetAgentLevel(),
 		Category:     output.CategorizeToolName(info.Name),
@@ -431,13 +430,13 @@ func (h *StreamingOutputHandler) onToolCallComplete(event *domain.WorkflowToolCo
 	}
 
 	duration := time.Since(info.StartTime)
-	rendered := h.renderer.RenderToolCallComplete(outCtx, info.Name, event.Result, event.Error, duration)
+	rendered := h.renderer.RenderToolCallComplete(outCtx, info.Name, event.Data.Result, event.Data.Error, duration)
 	h.write(rendered)
 
-	delete(h.activeTools, event.CallID)
+	delete(h.activeTools, event.Data.CallID)
 }
 
-func (h *StreamingOutputHandler) onError(event *domain.WorkflowNodeFailedEvent) {
+func (h *StreamingOutputHandler) onError(event *domain.Event) {
 	h.streamWriter.Flush()
 	outCtx := &types.OutputContext{
 		Level:        event.GetAgentLevel(),
@@ -447,11 +446,11 @@ func (h *StreamingOutputHandler) onError(event *domain.WorkflowNodeFailedEvent) 
 		TaskID:       event.GetRunID(),
 		ParentTaskID: event.GetParentRunID(),
 	}
-	rendered := h.renderer.RenderError(outCtx, event.Phase, event.Error)
+	rendered := h.renderer.RenderError(outCtx, event.Data.PhaseLabel, event.Data.Error)
 	h.write(rendered)
 }
 
-func (h *StreamingOutputHandler) onTaskComplete(event *domain.WorkflowResultFinalEvent) {
+func (h *StreamingOutputHandler) onTaskComplete(event *domain.Event) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.lastCompletion = event
@@ -500,15 +499,15 @@ func (h *StreamingOutputHandler) printForcedExit() {
 	h.write("\n⏹️  Force exit requested – terminating immediately.\n")
 }
 
-func (h *StreamingOutputHandler) printCancellation(event *domain.WorkflowResultFinalEvent) {
+func (h *StreamingOutputHandler) printCancellation(event *domain.Event) {
 	summary := "⚠️ Task interrupted"
 	if event != nil {
-		summary = fmt.Sprintf("⚠️ Task interrupted | %d iteration(s) | %d tokens", event.TotalIterations, event.TotalTokens)
+		summary = fmt.Sprintf("⚠️ Task interrupted | %d iteration(s) | %d tokens", event.Data.TotalIterations, event.Data.TotalTokens)
 	}
 	h.write("\n" + summary + "\n")
 }
 
-func (h *StreamingOutputHandler) consumeTaskCompletion() *domain.WorkflowResultFinalEvent {
+func (h *StreamingOutputHandler) consumeTaskCompletion() *domain.Event {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	event := h.lastCompletion
@@ -590,132 +589,51 @@ func (b *StreamEventBridge) handleEnvelopeEvent(env *domain.WorkflowEventEnvelop
 		return
 	}
 
+	evt := envelopeToEvent(env)
+	if evt == nil {
+		return
+	}
+	b.handleUnifiedEvent(evt)
+}
+
+func envelopeToEvent(env *domain.WorkflowEventEnvelope) *domain.Event {
+	if env == nil {
+		return nil
+	}
+	base := envelopeBase(env)
 	switch env.Event {
-	case "workflow.node.started":
-		if evt := envelopeToNodeStarted(env); evt != nil {
-			b.handler.onIterationStart(evt)
+	case types.EventNodeStarted:
+		return domain.NewNodeStartedEvent(base, payloadInt(env.Payload, "iteration"), payloadInt(env.Payload, "total_iters"), payloadInt(env.Payload, "step_index"), payloadString(env.Payload, "step_description"), nil, nil)
+	case types.EventNodeOutputSummary:
+		return domain.NewNodeOutputSummaryEvent(base, payloadInt(env.Payload, "iteration"), payloadString(env.Payload, "content"), payloadInt(env.Payload, "tool_call_count"), nil)
+	case types.EventNodeOutputDelta:
+		return domain.NewNodeOutputDeltaEvent(base, payloadInt(env.Payload, "iteration"), payloadInt(env.Payload, "message_count"), payloadString(env.Payload, "delta"), payloadBool(env.Payload, "final"), payloadTime(env.Payload, "created_at"), payloadString(env.Payload, "source_model"))
+	case types.EventToolStarted:
+		callID := env.NodeID
+		if callID == "" {
+			callID = payloadString(env.Payload, "call_id")
 		}
-	case "workflow.node.output.summary":
-		if evt := envelopeToNodeOutputSummary(env); evt != nil {
-			b.handler.onThinkComplete(evt)
+		return domain.NewToolStartedEvent(base, payloadInt(env.Payload, "iteration"), callID, payloadString(env.Payload, "tool_name"), payloadArgs(env.Payload, "arguments"))
+	case types.EventToolCompleted:
+		callID := env.NodeID
+		if callID == "" {
+			callID = payloadString(env.Payload, "call_id")
 		}
-	case "workflow.node.output.delta":
-		if evt := envelopeToNodeOutputDelta(env); evt != nil {
-			b.handler.onAssistantMessage(evt)
+		var errVal error
+		if msg := payloadString(env.Payload, "error"); msg != "" {
+			errVal = errors.New(msg)
 		}
-	case "workflow.tool.started":
-		if evt := envelopeToToolStarted(env); evt != nil {
-			b.handler.onToolCallStart(evt)
+		return domain.NewToolCompletedEvent(base, callID, payloadString(env.Payload, "tool_name"), payloadString(env.Payload, "result"), errVal, time.Duration(payloadInt64(env.Payload, "duration"))*time.Millisecond, payloadMap(env.Payload, "metadata"), payloadAttachments(env.Payload, "attachments"))
+	case types.EventNodeFailed:
+		var errVal error
+		if msg := payloadString(env.Payload, "error"); msg != "" {
+			errVal = errors.New(msg)
 		}
-	case "workflow.tool.completed":
-		if evt := envelopeToToolCompleted(env); evt != nil {
-			b.handler.onToolCallComplete(evt)
-		}
-	case "workflow.node.failed":
-		if evt := envelopeToNodeFailed(env); evt != nil {
-			b.handler.onError(evt)
-		}
-	case "workflow.result.final":
-		if evt := envelopeToResultFinal(env); evt != nil {
-			b.handler.onTaskComplete(evt)
-		}
-	}
-}
-
-func envelopeToNodeStarted(env *domain.WorkflowEventEnvelope) *domain.WorkflowNodeStartedEvent {
-	return &domain.WorkflowNodeStartedEvent{
-		BaseEvent:       envelopeBase(env),
-		Iteration:       payloadInt(env.Payload, "iteration"),
-		TotalIters:      payloadInt(env.Payload, "total_iters"),
-		StepIndex:       payloadInt(env.Payload, "step_index"),
-		StepDescription: payloadString(env.Payload, "step_description"),
-		Workflow:        nil,
-	}
-}
-
-func envelopeToNodeOutputSummary(env *domain.WorkflowEventEnvelope) *domain.WorkflowNodeOutputSummaryEvent {
-	return &domain.WorkflowNodeOutputSummaryEvent{
-		BaseEvent:     envelopeBase(env),
-		Iteration:     payloadInt(env.Payload, "iteration"),
-		Content:       payloadString(env.Payload, "content"),
-		ToolCallCount: payloadInt(env.Payload, "tool_call_count"),
-	}
-}
-
-func envelopeToNodeOutputDelta(env *domain.WorkflowEventEnvelope) *domain.WorkflowNodeOutputDeltaEvent {
-	return &domain.WorkflowNodeOutputDeltaEvent{
-		BaseEvent:    envelopeBase(env),
-		Iteration:    payloadInt(env.Payload, "iteration"),
-		MessageCount: payloadInt(env.Payload, "message_count"),
-		Delta:        payloadString(env.Payload, "delta"),
-		Final:        payloadBool(env.Payload, "final"),
-		CreatedAt:    payloadTime(env.Payload, "created_at"),
-		SourceModel:  payloadString(env.Payload, "source_model"),
-	}
-}
-
-func envelopeToToolStarted(env *domain.WorkflowEventEnvelope) *domain.WorkflowToolStartedEvent {
-	callID := env.NodeID
-	if callID == "" {
-		callID = payloadString(env.Payload, "call_id")
-	}
-	return &domain.WorkflowToolStartedEvent{
-		BaseEvent: envelopeBase(env),
-		Iteration: payloadInt(env.Payload, "iteration"),
-		CallID:    callID,
-		ToolName:  payloadString(env.Payload, "tool_name"),
-		Arguments: payloadArgs(env.Payload, "arguments"),
-	}
-}
-
-func envelopeToToolCompleted(env *domain.WorkflowEventEnvelope) *domain.WorkflowToolCompletedEvent {
-	callID := env.NodeID
-	if callID == "" {
-		callID = payloadString(env.Payload, "call_id")
-	}
-	var errVal error
-	if msg := payloadString(env.Payload, "error"); msg != "" {
-		errVal = errors.New(msg)
-	}
-
-	return &domain.WorkflowToolCompletedEvent{
-		BaseEvent:   envelopeBase(env),
-		CallID:      callID,
-		ToolName:    payloadString(env.Payload, "tool_name"),
-		Result:      payloadString(env.Payload, "result"),
-		Error:       errVal,
-		Duration:    time.Duration(payloadInt64(env.Payload, "duration")) * time.Millisecond,
-		Metadata:    payloadMap(env.Payload, "metadata"),
-		Attachments: payloadAttachments(env.Payload, "attachments"),
-	}
-}
-
-func envelopeToNodeFailed(env *domain.WorkflowEventEnvelope) *domain.WorkflowNodeFailedEvent {
-	var errVal error
-	if msg := payloadString(env.Payload, "error"); msg != "" {
-		errVal = errors.New(msg)
-	}
-
-	return &domain.WorkflowNodeFailedEvent{
-		BaseEvent:   envelopeBase(env),
-		Iteration:   payloadInt(env.Payload, "iteration"),
-		Phase:       payloadString(env.Payload, "phase"),
-		Error:       errVal,
-		Recoverable: payloadBool(env.Payload, "recoverable"),
-	}
-}
-
-func envelopeToResultFinal(env *domain.WorkflowEventEnvelope) *domain.WorkflowResultFinalEvent {
-	return &domain.WorkflowResultFinalEvent{
-		BaseEvent:       envelopeBase(env),
-		FinalAnswer:     payloadString(env.Payload, "final_answer"),
-		TotalIterations: payloadInt(env.Payload, "total_iterations"),
-		TotalTokens:     payloadInt(env.Payload, "total_tokens"),
-		StopReason:      payloadString(env.Payload, "stop_reason"),
-		Duration:        time.Duration(payloadInt64(env.Payload, "duration")) * time.Millisecond,
-		IsStreaming:     payloadBool(env.Payload, "is_streaming"),
-		StreamFinished:  payloadBool(env.Payload, "stream_finished"),
-		Attachments:     payloadAttachments(env.Payload, "attachments"),
+		return domain.NewNodeFailedEvent(base, payloadInt(env.Payload, "iteration"), payloadString(env.Payload, "phase"), errVal, payloadBool(env.Payload, "recoverable"))
+	case types.EventResultFinal:
+		return domain.NewResultFinalEvent(base, payloadString(env.Payload, "final_answer"), payloadInt(env.Payload, "total_iterations"), payloadInt(env.Payload, "total_tokens"), payloadString(env.Payload, "stop_reason"), time.Duration(payloadInt64(env.Payload, "duration"))*time.Millisecond, payloadBool(env.Payload, "is_streaming"), payloadBool(env.Payload, "stream_finished"), payloadAttachments(env.Payload, "attachments"))
+	default:
+		return nil
 	}
 }
 

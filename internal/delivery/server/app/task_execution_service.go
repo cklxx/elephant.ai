@@ -547,7 +547,7 @@ func (svc *TaskExecutionService) emitWorkflowInputReceivedEvent(ctx context.Cont
 		}
 	}
 
-	event := domain.NewWorkflowInputReceivedEvent(level, sessionID, taskID, parentRunID, task, attachmentMap, time.Now())
+	event := domain.NewInputReceivedEvent(level, sessionID, taskID, parentRunID, task, attachmentMap, time.Now())
 	if logID := id.LogIDFromContext(ctx); logID != "" {
 		event.SetLogID(logID)
 	}
@@ -582,7 +582,7 @@ func (svc *TaskExecutionService) emitWorkflowResultCancelledEvent(ctx context.Co
 		level = agent.LevelCore
 	}
 
-	event := domain.NewWorkflowResultCancelledEvent(
+	event := domain.NewResultCancelledEvent(
 		level,
 		task.SessionID,
 		task.ID,

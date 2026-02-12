@@ -13,6 +13,7 @@ import (
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
 	"alex/internal/infra/attachments"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
@@ -605,18 +606,21 @@ func recordFromEventWithStore(event agent.AgentEvent, store AttachmentStorer) (e
 			record.maxParallel = e.MaxParallel
 		}
 		payload = stripBinaryPayloadsWithStore(e.Payload, store)
-	case *domain.WorkflowInputReceivedEvent:
-		payload = map[string]any{
-			"task":        e.Task,
-			"attachments": stripBinaryPayloadsWithStore(e.Attachments, store),
-		}
-	case *domain.WorkflowDiagnosticContextSnapshotEvent:
-		payload = map[string]any{
-			"iteration":    e.Iteration,
-			"llm_turn_seq": e.LLMTurnSeq,
-			"request_id":   e.RequestID,
-			"messages":     e.Messages,
-			"excluded":     e.Excluded,
+	case *domain.Event:
+		switch e.Kind {
+		case types.EventInputReceived:
+			payload = map[string]any{
+				"task":        e.Data.Task,
+				"attachments": stripBinaryPayloadsWithStore(e.Data.Attachments, store),
+			}
+		case types.EventDiagnosticContextSnapshot:
+			payload = map[string]any{
+				"iteration":    e.Data.Iteration,
+				"llm_turn_seq": e.Data.LLMTurnSeq,
+				"request_id":   e.Data.RequestID,
+				"messages":     e.Data.Messages,
+				"excluded":     e.Data.Excluded,
+			}
 		}
 	}
 
@@ -762,7 +766,7 @@ func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
 	}
 
 	switch record.eventType {
-	case (&domain.WorkflowInputReceivedEvent{}).EventType():
+	case types.EventInputReceived:
 		var payload struct {
 			Task        string                      `json:"task"`
 			Attachments map[string]ports.Attachment `json:"attachments"`
@@ -772,8 +776,8 @@ func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
 				return nil, fmt.Errorf("unmarshal input event payload: %w", err)
 			}
 		}
-		return domain.NewWorkflowInputReceivedEvent(level, record.sessionID, record.runID, record.parentRunID, payload.Task, payload.Attachments, record.eventTS), nil
-	case (&domain.WorkflowDiagnosticContextSnapshotEvent{}).EventType():
+		return domain.NewInputReceivedEvent(level, record.sessionID, record.runID, record.parentRunID, payload.Task, payload.Attachments, record.eventTS), nil
+	case types.EventDiagnosticContextSnapshot:
 		var payload struct {
 			Iteration  int             `json:"iteration"`
 			LLMTurnSeq int             `json:"llm_turn_seq"`
@@ -786,7 +790,7 @@ func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
 				return nil, fmt.Errorf("unmarshal diagnostic payload: %w", err)
 			}
 		}
-		return domain.NewWorkflowDiagnosticContextSnapshotEvent(level, record.sessionID, record.runID, record.parentRunID, payload.Iteration, payload.LLMTurnSeq, payload.RequestID, payload.Messages, payload.Excluded, record.eventTS), nil
+		return domain.NewDiagnosticContextSnapshotEvent(level, record.sessionID, record.runID, record.parentRunID, payload.Iteration, payload.LLMTurnSeq, payload.RequestID, payload.Messages, payload.Excluded, record.eventTS), nil
 	default:
 		payload := map[string]any{}
 		if len(record.payload) > 0 {

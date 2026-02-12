@@ -187,14 +187,10 @@ func (e *ReactEngine) applyContextCheckpoint(
 	state.TokenCount = services.Context.EstimateTokens(state.Messages)
 
 	// --- Emit diagnostic event ---
-	e.emitEvent(&domain.WorkflowDiagnosticContextCheckpointEvent{
-		BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
-		PhaseLabel:      phaseLabel,
-		PrunedMessages:  len(prunable),
-		PrunedTokens:    prunedTokens,
-		SummaryTokens:   summaryTokens,
-		RemainingTokens: state.TokenCount,
-	})
+	e.emitEvent(domain.NewDiagnosticContextCheckpointEvent(
+		e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
+		phaseLabel, len(prunable), prunedTokens, summaryTokens, state.TokenCount,
+	))
 
 	e.logger.Info("Context checkpoint applied: phase=%s pruned=%d pruned_tokens=%d remaining_tokens=%d",
 		phaseLabel, len(prunable), prunedTokens, state.TokenCount)

@@ -143,13 +143,10 @@ func TestSerializingEventListener_FlushWaitsForInFlightEvents(t *testing.T) {
 	}
 }
 
-func newFinalEvent(runID string, finished bool) *domain.WorkflowResultFinalEvent {
+func newFinalEvent(runID string, finished bool) *domain.Event {
 	base := domain.NewBaseEvent(agent.LevelCore, "s1", runID, "", time.Now())
 	base.SetSeq(1)
-	return &domain.WorkflowResultFinalEvent{
-		BaseEvent:      base,
-		StreamFinished: finished,
-	}
+	return domain.NewResultFinalEvent(base, "", 0, 0, "", 0, false, finished, nil)
 }
 
 func waitForEvents(t *testing.T, wg *sync.WaitGroup) {

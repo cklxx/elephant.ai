@@ -290,14 +290,7 @@ func (c workflowEventContext) baseEvent(ts time.Time) domain.BaseEvent {
 }
 
 func (b *workflowEventBridge) emitLifecycle(base domain.BaseEvent, evt workflow.Event) {
-	b.listener.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
-		BaseEvent:         base,
-		WorkflowID:        evt.Workflow,
-		WorkflowEventType: evt.Type,
-		Phase:             evt.Phase,
-		Node:              evt.Node,
-		Workflow:          evt.Snapshot,
-	})
+	b.listener.OnEvent(domain.NewLifecycleUpdatedEvent(base, evt.Workflow, evt.Type, evt.Phase, evt.Node, evt.Snapshot))
 }
 
 func (b *workflowEventBridge) emitStep(base domain.BaseEvent, evt workflow.Event, step *stepPayload) {
@@ -307,25 +300,9 @@ func (b *workflowEventBridge) emitStep(base domain.BaseEvent, evt workflow.Event
 
 	switch evt.Type {
 	case workflow.EventNodeStarted:
-		b.listener.OnEvent(&domain.WorkflowNodeStartedEvent{
-			BaseEvent:       base,
-			StepIndex:       step.index,
-			StepDescription: evt.Node.ID,
-			Iteration:       step.iteration,
-			Input:           evt.Node.Input,
-			Workflow:        evt.Snapshot,
-		})
+		b.listener.OnEvent(domain.NewNodeStartedEvent(base, step.iteration, 0, step.index, evt.Node.ID, evt.Node.Input, evt.Snapshot))
 	case workflow.EventNodeSucceeded, workflow.EventNodeFailed:
-		b.listener.OnEvent(&domain.WorkflowNodeCompletedEvent{
-			BaseEvent:       base,
-			StepIndex:       step.index,
-			StepDescription: evt.Node.ID,
-			StepResult:      step.result,
-			Status:          step.status,
-			Iteration:       step.iteration,
-			Duration:        step.duration,
-			Workflow:        evt.Snapshot,
-		})
+		b.listener.OnEvent(domain.NewNodeCompletedEvent(base, step.index, evt.Node.ID, step.result, step.status, step.iteration, 0, 0, step.duration, evt.Snapshot))
 	}
 }
 

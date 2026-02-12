@@ -36,14 +36,10 @@ func (r *reactRuntime) injectExternalInputRequests() {
 				Source:  ports.MessageSourceSystemPrompt,
 			})
 
-			r.engine.emitEvent(&domain.ExternalInputRequestEvent{
-				BaseEvent: r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-				TaskID:    req.TaskID,
-				AgentType: req.AgentType,
-				RequestID: req.RequestID,
-				Type:      string(req.Type),
-				Summary:   req.Summary,
-			})
+			r.engine.emitEvent(domain.NewExternalInputRequestEvent(
+				r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+				req.TaskID, req.AgentType, req.RequestID, string(req.Type), req.Summary,
+			))
 		default:
 			return
 		}

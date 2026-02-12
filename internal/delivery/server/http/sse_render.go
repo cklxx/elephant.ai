@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
 )
 
 var sseJSONBufferPool = sync.Pool{
@@ -101,11 +102,11 @@ func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *str
 	}
 
 	// Allow direct user input events if they have not been wrapped yet.
-	if input, ok := event.(*domain.WorkflowInputReceivedEvent); ok {
-		if sanitized := sanitizeAttachmentsForStream(input.Attachments, sentAttachments, h.dataCache, false); len(sanitized) > 0 {
+	if e, ok := event.(*domain.Event); ok && e.Kind == types.EventInputReceived {
+		if sanitized := sanitizeAttachmentsForStream(e.Data.Attachments, sentAttachments, h.dataCache, false); len(sanitized) > 0 {
 			data["attachments"] = sanitized
 		}
-		data["task"] = input.Task
+		data["task"] = e.Data.Task
 		return data, nil
 	}
 

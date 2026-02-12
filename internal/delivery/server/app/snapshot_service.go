@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
 	"alex/internal/infra/analytics/journal"
 	sessionstate "alex/internal/infra/session/state_store"
 	"alex/internal/shared/logging"
@@ -150,22 +151,22 @@ func (svc *SnapshotService) GetContextSnapshots(sessionID string) []ContextSnaps
 	snapshots := make([]ContextSnapshotRecord, 0)
 	filter := EventHistoryFilter{
 		SessionID:  sessionID,
-		EventTypes: []string{(&domain.WorkflowDiagnosticContextSnapshotEvent{}).EventType()},
+		EventTypes: []string{types.EventDiagnosticContextSnapshot},
 	}
 	_ = svc.broadcaster.StreamHistory(context.Background(), filter, func(event agent.AgentEvent) error {
-		snapshot, ok := event.(*domain.WorkflowDiagnosticContextSnapshotEvent)
-		if !ok {
+		e, ok := event.(*domain.Event)
+		if !ok || e.Kind != types.EventDiagnosticContextSnapshot {
 			return nil
 		}
 		record := ContextSnapshotRecord{
 			SessionID:   sessionID,
-			RunID:       snapshot.GetRunID(),
-			ParentRunID: snapshot.GetParentRunID(),
-			RequestID:   snapshot.RequestID,
-			Iteration:   snapshot.Iteration,
-			Timestamp:   snapshot.Timestamp(),
-			Messages:    cloneMessages(snapshot.Messages),
-			Excluded:    cloneMessages(snapshot.Excluded),
+			RunID:       e.GetRunID(),
+			ParentRunID: e.GetParentRunID(),
+			RequestID:   e.Data.RequestID,
+			Iteration:   e.Data.Iteration,
+			Timestamp:   e.Timestamp(),
+			Messages:    cloneMessages(e.Data.Messages),
+			Excluded:    cloneMessages(e.Data.Excluded),
 		}
 		snapshots = append(snapshots, record)
 		return nil

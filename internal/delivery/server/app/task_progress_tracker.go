@@ -80,14 +80,17 @@ func (t *TaskProgressTracker) OnEvent(event agent.AgentEvent) {
 			totalTokens := intFromPayload(e.Payload, "total_tokens")
 			_ = t.taskStore.UpdateProgress(ctx, taskID, totalIters, totalTokens)
 		}
-	case *domain.WorkflowResultFinalEvent:
-		_ = t.taskStore.UpdateProgress(ctx, taskID, e.TotalIterations, e.TotalTokens)
-	case *domain.WorkflowNodeCompletedEvent:
-		_ = t.taskStore.UpdateProgress(ctx, taskID, e.Iteration, e.TokensUsed)
-	case *domain.WorkflowNodeStartedEvent:
-		task, err := t.taskStore.Get(ctx, taskID)
-		if err == nil {
-			_ = t.taskStore.UpdateProgress(ctx, taskID, e.Iteration, task.TokensUsed)
+	case *domain.Event:
+		switch e.Kind {
+		case types.EventResultFinal:
+			_ = t.taskStore.UpdateProgress(ctx, taskID, e.Data.TotalIterations, e.Data.TotalTokens)
+		case types.EventNodeCompleted:
+			_ = t.taskStore.UpdateProgress(ctx, taskID, e.Data.Iteration, e.Data.TokensUsed)
+		case types.EventNodeStarted:
+			task, err := t.taskStore.Get(ctx, taskID)
+			if err == nil {
+				_ = t.taskStore.UpdateProgress(ctx, taskID, e.Data.Iteration, task.TokensUsed)
+			}
 		}
 	}
 }

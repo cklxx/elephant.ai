@@ -95,13 +95,10 @@ func (r *reactRuntime) injectBackgroundNotifications() {
 
 // emitBackgroundDispatchedEvent emits a BackgroundTaskDispatchedEvent.
 func (r *reactRuntime) emitBackgroundDispatchedEvent(ctx context.Context, taskID, description, prompt, agentType string) {
-	r.engine.emitEvent(&domain.BackgroundTaskDispatchedEvent{
-		BaseEvent:   r.engine.newBaseEvent(ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-		TaskID:      taskID,
-		Description: description,
-		Prompt:      prompt,
-		AgentType:   agentType,
-	})
+	r.engine.emitEvent(domain.NewBackgroundTaskDispatchedEvent(
+		r.engine.newBaseEvent(ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+		taskID, description, prompt, agentType,
+	))
 }
 
 func (r *reactRuntime) hasBackgroundCompletionEmitted(taskID string) bool {

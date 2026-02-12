@@ -72,7 +72,7 @@ func (e *ReactEngine) think(
 	}
 
 	timestamp := e.clock.Now()
-	snapshot := domain.NewWorkflowDiagnosticContextSnapshotEvent(
+	snapshot := domain.NewDiagnosticContextSnapshotEvent(
 		e.getAgentLevel(ctx),
 		state.SessionID,
 		state.RunID,
@@ -134,14 +134,10 @@ func (e *ReactEngine) think(
 					chunk := streamBuffer.String()
 					streamBuffer.Reset()
 					if chunk != "" {
-						e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-							BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
-							Iteration:   state.Iterations,
-							Delta:       chunk,
-							Final:       false,
-							CreatedAt:   e.clock.Now(),
-							SourceModel: modelName,
-						})
+						e.emitEvent(domain.NewNodeOutputDeltaEvent(
+							e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
+							state.Iterations, 0, chunk, false, e.clock.Now(), modelName,
+						))
 					}
 				}
 			}
@@ -150,14 +146,10 @@ func (e *ReactEngine) think(
 					chunk := streamBuffer.String()
 					streamBuffer.Reset()
 					if chunk != "" {
-						e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-							BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
-							Iteration:   state.Iterations,
-							Delta:       chunk,
-							Final:       false,
-							CreatedAt:   e.clock.Now(),
-							SourceModel: modelName,
-						})
+						e.emitEvent(domain.NewNodeOutputDeltaEvent(
+							e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
+							state.Iterations, 0, chunk, false, e.clock.Now(), modelName,
+						))
 					}
 				}
 			}
@@ -197,14 +189,10 @@ func (e *ReactEngine) think(
 		streamBuffer.Reset()
 		if chunk != "" {
 			streamedContent = true
-			e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-				BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
-				Iteration:   state.Iterations,
-				Delta:       chunk,
-				Final:       false,
-				CreatedAt:   e.clock.Now(),
-				SourceModel: modelName,
-			})
+			e.emitEvent(domain.NewNodeOutputDeltaEvent(
+				e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
+				state.Iterations, 0, chunk, false, e.clock.Now(), modelName,
+			))
 		}
 	}
 
@@ -212,14 +200,10 @@ func (e *ReactEngine) think(
 	if !streamedContent {
 		finalDelta = resp.Content
 	}
-	e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
-		Iteration:   state.Iterations,
-		Delta:       finalDelta,
-		Final:       true,
-		CreatedAt:   e.clock.Now(),
-		SourceModel: modelName,
-	})
+	e.emitEvent(domain.NewNodeOutputDeltaEvent(
+		e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
+		state.Iterations, 0, finalDelta, true, e.clock.Now(), modelName,
+	))
 
 	e.logger.Debug("LLM response received (request_id=%s): content=%d bytes, tool_calls=%d",
 		requestID, len(resp.Content), len(resp.ToolCalls))

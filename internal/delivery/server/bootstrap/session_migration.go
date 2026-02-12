@@ -386,7 +386,7 @@ func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agent.
 			role := strings.ToLower(strings.TrimSpace(msg.Role))
 			switch role {
 			case "user":
-				event := domain.NewWorkflowInputReceivedEvent(
+				event := domain.NewInputReceivedEvent(
 					agent.LevelCore,
 					sessionID,
 					runID,

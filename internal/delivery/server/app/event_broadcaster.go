@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"alex/internal/domain/agent"
-	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
 	"alex/internal/shared/logging"
@@ -581,15 +580,8 @@ func sanitizeBaseEventForHistory(event agent.AgentEvent) agent.AgentEvent {
 			}
 		}
 		return &cloned
-	case *domain.WorkflowInputReceivedEvent:
-		cloned := *e
-		if len(e.Attachments) > 0 {
-			if cleaned, ok := stripBinaryPayloadsWithStore(e.Attachments, nil).(map[string]core.Attachment); ok {
-				cloned.Attachments = cleaned
-			}
-		}
-		return &cloned
-	case *domain.WorkflowDiagnosticContextSnapshotEvent:
+	case *domain.Event:
+		// Pass through unified events (e.g., InputReceived, DiagnosticContextSnapshot).
 		return base
 	default:
 		return base
@@ -732,8 +724,13 @@ func shouldPersistToHistory(event agent.AgentEvent) bool {
 			return false
 		}
 		return true
-	case *domain.WorkflowInputReceivedEvent, *domain.WorkflowDiagnosticContextSnapshotEvent:
-		return true
+	case *domain.Event:
+		switch evt.Kind {
+		case types.EventInputReceived, types.EventDiagnosticContextSnapshot:
+			return true
+		default:
+			return false
+		}
 	default:
 		return false
 	}

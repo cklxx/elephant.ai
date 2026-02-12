@@ -177,11 +177,13 @@ func (l *backgroundProgressListener) OnEvent(event agent.AgentEvent) {
 	switch e := event.(type) {
 	case *domain.WorkflowEventEnvelope:
 		l.onEnvelope(e)
-	case *domain.BackgroundTaskCompletedEvent:
+	case *domain.Event:
 		// Direct bypass path: BackgroundTaskManager sends completion events
 		// directly here when the SerializingEventListener queue may be dead.
 		// Dedup is safe: getTask returns nil after the first handler deletes the task.
-		l.onRawCompleted(e)
+		if e.Kind == types.EventBackgroundTaskCompleted {
+			l.onRawCompleted(e)
+		}
 	}
 }
 
@@ -385,14 +387,14 @@ func (l *backgroundProgressListener) onBackgroundCompleted(env *domain.WorkflowE
 	l.handleCompletion(taskID, status, answer, errText, tokensUsed)
 }
 
-// onRawCompleted handles BackgroundTaskCompletedEvent delivered directly by
+// onRawCompleted handles background task completed events delivered directly by
 // BackgroundTaskManager (bypassing SerializingEventListener). Dedup is safe
 // because getTask returns nil after the first handler deletes the task.
-func (l *backgroundProgressListener) onRawCompleted(e *domain.BackgroundTaskCompletedEvent) {
+func (l *backgroundProgressListener) onRawCompleted(e *domain.Event) {
 	if e == nil {
 		return
 	}
-	l.handleCompletion(e.TaskID, e.Status, e.Answer, e.Error, e.TokensUsed)
+	l.handleCompletion(e.Data.TaskID, e.Data.Status, e.Data.Answer, e.Data.ErrorStr, e.Data.TokensUsed)
 }
 
 // handleCompletion is the shared completion handler for both envelope and raw event paths.

@@ -143,12 +143,10 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 		if chunk == "" && !isComplete {
 			return
 		}
-		b.engine.emitEvent(&domain.WorkflowToolProgressEvent{
-			BaseEvent:  b.engine.newBaseEvent(b.ctx, sessionID, runID, parentRunID),
-			CallID:     tc.ID,
-			Chunk:      chunk,
-			IsComplete: isComplete,
-		})
+		b.engine.emitEvent(domain.NewToolProgressEvent(
+			b.engine.newBaseEvent(b.ctx, sessionID, runID, parentRunID),
+			tc.ID, chunk, isComplete,
+		))
 	})
 	if tc.Name == "subagent" {
 		if snapshot := b.subagentSnapshots[idx]; snapshot != nil {

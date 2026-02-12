@@ -99,12 +99,12 @@ type planClarifyPayload struct {
 
 func (p *planClarifyListener) extractMessage(event agent.AgentEvent) (planClarifyPayload, string) {
 	switch e := event.(type) {
-	case *domain.WorkflowToolCompletedEvent:
-		if e == nil || e.Error != nil {
+	case *domain.Event:
+		if e == nil || e.Kind != types.EventToolCompleted || e.Data.Error != nil {
 			return planClarifyPayload{}, ""
 		}
-		payload := planClarifyMessage(e)
-		return payload, e.CallID
+		payload := planClarifyMessageFromEvent(e)
+		return payload, e.Data.CallID
 	case *domain.WorkflowEventEnvelope:
 		payload := planClarifyMessageFromEnvelope(e)
 		return payload, envelopeCallID(e)
@@ -113,18 +113,18 @@ func (p *planClarifyListener) extractMessage(event agent.AgentEvent) (planClarif
 	}
 }
 
-func planClarifyMessage(e *domain.WorkflowToolCompletedEvent) planClarifyPayload {
-	name := strings.ToLower(strings.TrimSpace(e.ToolName))
+func planClarifyMessageFromEvent(e *domain.Event) planClarifyPayload {
+	name := strings.ToLower(strings.TrimSpace(e.Data.ToolName))
 	switch name {
 	case "plan":
-		if msg := stringMeta(e.Metadata, "overall_goal_ui"); msg != "" {
+		if msg := stringMeta(e.Data.Metadata, "overall_goal_ui"); msg != "" {
 			return planClarifyPayload{message: msg}
 		}
-		return planClarifyPayload{message: strings.TrimSpace(e.Result)}
+		return planClarifyPayload{message: strings.TrimSpace(e.Data.Result)}
 	case "clarify":
-		needsInput := boolMeta(e.Metadata, "needs_user_input")
+		needsInput := boolMeta(e.Data.Metadata, "needs_user_input")
 		if needsInput {
-			if prompt, ok := awaitPromptFromResult(e.Result, e.Metadata); ok {
+			if prompt, ok := awaitPromptFromResult(e.Data.Result, e.Data.Metadata); ok {
 				return planClarifyPayload{
 					message:    prompt.Question,
 					needsInput: true,
@@ -132,10 +132,10 @@ func planClarifyMessage(e *domain.WorkflowToolCompletedEvent) planClarifyPayload
 				}
 			}
 		}
-		if msg := stringMeta(e.Metadata, "task_goal_ui"); msg != "" {
+		if msg := stringMeta(e.Data.Metadata, "task_goal_ui"); msg != "" {
 			return planClarifyPayload{message: msg, needsInput: needsInput}
 		}
-		return planClarifyPayload{message: strings.TrimSpace(e.Result), needsInput: needsInput}
+		return planClarifyPayload{message: strings.TrimSpace(e.Data.Result), needsInput: needsInput}
 	default:
 		return planClarifyPayload{}
 	}

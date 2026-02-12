@@ -7,6 +7,7 @@ import (
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
 )
 
 type acpEventListener struct {
@@ -66,21 +67,26 @@ func (l *acpEventListener) handleEnvelope(env *domain.WorkflowEventEnvelope) {
 }
 
 func envelopeFromDomainEvent(event agent.AgentEvent) *domain.WorkflowEventEnvelope {
-	switch e := event.(type) {
-	case *domain.WorkflowNodeOutputDeltaEvent:
+	e, ok := event.(*domain.Event)
+	if !ok {
+		return nil
+	}
+	d := &e.Data
+	switch e.Kind {
+	case types.EventNodeOutputDelta:
 		payload := map[string]any{
-			"iteration": e.Iteration,
-			"delta":     e.Delta,
-			"final":     e.Final,
+			"iteration": d.Iteration,
+			"delta":     d.Delta,
+			"final":     d.Final,
 		}
-		if !e.CreatedAt.IsZero() {
-			payload["created_at"] = e.CreatedAt
+		if !d.CreatedAt.IsZero() {
+			payload["created_at"] = d.CreatedAt
 		}
-		if e.SourceModel != "" {
-			payload["source_model"] = e.SourceModel
+		if d.SourceModel != "" {
+			payload["source_model"] = d.SourceModel
 		}
-		if e.MessageCount > 0 {
-			payload["message_count"] = e.MessageCount
+		if d.MessageCount > 0 {
+			payload["message_count"] = d.MessageCount
 		}
 		return &domain.WorkflowEventEnvelope{
 			BaseEvent: e.BaseEvent,
@@ -88,62 +94,62 @@ func envelopeFromDomainEvent(event agent.AgentEvent) *domain.WorkflowEventEnvelo
 			NodeKind:  "generation",
 			Payload:   payload,
 		}
-	case *domain.WorkflowToolStartedEvent:
+	case types.EventToolStarted:
 		payload := map[string]any{
-			"tool_name": e.ToolName,
-			"arguments": e.Arguments,
-			"iteration": e.Iteration,
-			"call_id":   e.CallID,
+			"tool_name": d.ToolName,
+			"arguments": d.Arguments,
+			"iteration": d.Iteration,
+			"call_id":   d.CallID,
 		}
 		return &domain.WorkflowEventEnvelope{
 			BaseEvent: e.BaseEvent,
 			Event:     e.EventType(),
-			NodeID:    e.CallID,
+			NodeID:    d.CallID,
 			NodeKind:  "tool",
 			Payload:   payload,
 		}
-	case *domain.WorkflowToolProgressEvent:
+	case types.EventToolProgress:
 		payload := map[string]any{
-			"chunk":       e.Chunk,
-			"is_complete": e.IsComplete,
-			"call_id":     e.CallID,
+			"chunk":       d.Chunk,
+			"is_complete": d.IsComplete,
+			"call_id":     d.CallID,
 		}
 		return &domain.WorkflowEventEnvelope{
 			BaseEvent: e.BaseEvent,
 			Event:     e.EventType(),
-			NodeID:    e.CallID,
+			NodeID:    d.CallID,
 			NodeKind:  "tool",
 			Payload:   payload,
 		}
-	case *domain.WorkflowToolCompletedEvent:
+	case types.EventToolCompleted:
 		payload := map[string]any{
-			"tool_name":   e.ToolName,
-			"result":      e.Result,
-			"duration":    e.Duration.Milliseconds(),
-			"metadata":    e.Metadata,
-			"attachments": e.Attachments,
-			"call_id":     e.CallID,
+			"tool_name":   d.ToolName,
+			"result":      d.Result,
+			"duration":    d.Duration.Milliseconds(),
+			"metadata":    d.Metadata,
+			"attachments": d.Attachments,
+			"call_id":     d.CallID,
 		}
-		if e.Error != nil {
-			payload["error"] = e.Error.Error()
+		if d.Error != nil {
+			payload["error"] = d.Error.Error()
 		}
 		return &domain.WorkflowEventEnvelope{
 			BaseEvent: e.BaseEvent,
 			Event:     e.EventType(),
-			NodeID:    e.CallID,
+			NodeID:    d.CallID,
 			NodeKind:  "tool",
 			Payload:   payload,
 		}
-	case *domain.WorkflowResultFinalEvent:
+	case types.EventResultFinal:
 		payload := map[string]any{
-			"final_answer":     e.FinalAnswer,
-			"total_iterations": e.TotalIterations,
-			"total_tokens":     e.TotalTokens,
-			"stop_reason":      e.StopReason,
-			"duration":         e.Duration.Milliseconds(),
-			"is_streaming":     e.IsStreaming,
-			"stream_finished":  e.StreamFinished,
-			"attachments":      e.Attachments,
+			"final_answer":     d.FinalAnswer,
+			"total_iterations": d.TotalIterations,
+			"total_tokens":     d.TotalTokens,
+			"stop_reason":      d.StopReason,
+			"duration":         d.Duration.Milliseconds(),
+			"is_streaming":     d.IsStreaming,
+			"stream_finished":  d.StreamFinished,
+			"attachments":      d.Attachments,
 		}
 		return &domain.WorkflowEventEnvelope{
 			BaseEvent: e.BaseEvent,

@@ -41,16 +41,11 @@ func (e *ReactEngine) normalizeToolResult(tc ToolCall, state *TaskState, result 
 }
 
 func (e *ReactEngine) emitWorkflowToolCompletedEvent(ctx context.Context, state *TaskState, tc ToolCall, result ToolResult, duration time.Duration) {
-	e.emitEvent(&domain.WorkflowToolCompletedEvent{
-		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
-		CallID:      result.CallID,
-		ToolName:    tc.Name,
-		Result:      result.Content,
-		Error:       result.Error,
-		Duration:    duration,
-		Metadata:    result.Metadata,
-		Attachments: result.Attachments,
-	})
+	e.emitEvent(domain.NewToolCompletedEvent(
+		e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
+		result.CallID, tc.Name, result.Content, result.Error, duration,
+		result.Metadata, result.Attachments,
+	))
 }
 
 // parseToolCalls extracts tool calls from assistant message

@@ -406,7 +406,7 @@ func (g *gatewaySubsystem) Stop() {
 
 func subscribeDiagnostics(broadcaster *serverApp.EventBroadcaster) func() {
 	unsubscribeEnv := diagnostics.SubscribeEnvironments(func(payload diagnostics.EnvironmentPayload) {
-		event := agentdomain.NewWorkflowDiagnosticEnvironmentSnapshotEvent(payload.Host, payload.Captured)
+		event := agentdomain.NewDiagnosticEnvironmentSnapshotEvent(payload.Host, payload.Captured)
 		broadcaster.OnEvent(event)
 	})
 

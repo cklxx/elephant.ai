@@ -703,14 +703,10 @@ func (m *BackgroundTaskManager) ReplyExternalInput(ctx context.Context, resp age
 		bt := m.tasks[resp.TaskID]
 		m.mu.RUnlock()
 		if bt != nil && bt.emitEvent != nil && bt.baseEvent != nil {
-			bt.emitEvent(&domain.ExternalInputResponseEvent{
-				BaseEvent: bt.baseEvent(ctx),
-				TaskID:    resp.TaskID,
-				RequestID: resp.RequestID,
-				Approved:  resp.Approved,
-				OptionID:  resp.OptionID,
-				Message:   resp.Text,
-			})
+			bt.emitEvent(domain.NewExternalInputResponseEvent(
+				bt.baseEvent(ctx),
+				resp.TaskID, resp.RequestID, resp.Approved, resp.OptionID, resp.Text,
+			))
 		}
 	}
 	return nil
@@ -804,20 +800,11 @@ func (m *BackgroundTaskManager) captureProgress(ctx context.Context, bt *backgro
 				elapsed = 0
 			}
 		}
-		bt.emitEvent(&domain.ExternalAgentProgressEvent{
-			BaseEvent:    bt.baseEvent(ctx),
-			TaskID:       bt.id,
-			AgentType:    bt.agentType,
-			Iteration:    p.Iteration,
-			MaxIter:      p.MaxIter,
-			TokensUsed:   p.TokensUsed,
-			CostUSD:      p.CostUSD,
-			CurrentTool:  p.CurrentTool,
-			CurrentArgs:  p.CurrentArgs,
-			FilesTouched: append([]string(nil), p.FilesTouched...),
-			LastActivity: p.LastActivity,
-			Elapsed:      elapsed,
-		})
+		bt.emitEvent(domain.NewExternalAgentProgressEvent(
+			bt.baseEvent(ctx),
+			bt.id, bt.agentType, p.Iteration, p.MaxIter, p.TokensUsed, p.CostUSD,
+			p.CurrentTool, p.CurrentArgs, append([]string(nil), p.FilesTouched...), p.LastActivity, elapsed,
+		))
 	}
 }
 
@@ -847,13 +834,11 @@ func (m *BackgroundTaskManager) runHeartbeat(ctx context.Context, bt *background
 					elapsed = 0
 				}
 			}
-			bt.emitEvent(&domain.ExternalAgentProgressEvent{
-				BaseEvent:   bt.baseEvent(ctx),
-				TaskID:      taskID,
-				AgentType:   agentType,
-				CurrentTool: "__heartbeat__",
-				Elapsed:     elapsed,
-			})
+			bt.emitEvent(domain.NewExternalAgentProgressEvent(
+				bt.baseEvent(ctx),
+				taskID, agentType, 0, 0, 0, 0,
+				"__heartbeat__", "", nil, time.Time{}, elapsed,
+			))
 		case <-ctx.Done():
 			return
 		}
@@ -892,17 +877,10 @@ func (m *BackgroundTaskManager) emitCompletionEvent(ctx context.Context, bt *bac
 		}
 	}
 
-	completedEvent := &domain.BackgroundTaskCompletedEvent{
-		BaseEvent:   bt.baseEvent(ctx),
-		TaskID:      bt.id,
-		Description: description,
-		Status:      string(status),
-		Answer:      answer,
-		Error:       errMsg,
-		Duration:    duration,
-		Iterations:  iterations,
-		TokensUsed:  tokensUsed,
-	}
+	completedEvent := domain.NewBackgroundTaskCompletedEvent(
+		bt.baseEvent(ctx),
+		bt.id, description, string(status), answer, errMsg, duration, iterations, tokensUsed,
+	)
 
 	// 1. Normal chain (may fail if SerializingEventListener queue timed out).
 	bt.emitEvent(completedEvent)

@@ -196,8 +196,8 @@ func isTerminalEvent(event agent.AgentEvent) bool {
 	case types.EventResultCancelled:
 		return true
 	case types.EventResultFinal:
-		if final, ok := event.(*domain.WorkflowResultFinalEvent); ok {
-			return final.StreamFinished
+		if e, ok := event.(*domain.Event); ok {
+			return e.Data.StreamFinished
 		}
 		if envelope, ok := event.(*domain.WorkflowEventEnvelope); ok {
 			return envelopeStreamFinished(envelope)

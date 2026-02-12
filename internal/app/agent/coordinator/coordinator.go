@@ -23,6 +23,7 @@ import (
 	storage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	react "alex/internal/domain/agent/react"
+	"alex/internal/domain/agent/types"
 	materialports "alex/internal/domain/materials/ports"
 	infraruntime "alex/internal/infra/runtime"
 	toolspolicy "alex/internal/infra/tools"
@@ -229,9 +230,9 @@ func (r *planSessionTitleRecorder) OnEvent(event agent.AgentEvent) {
 		return
 	}
 
-	if tc, ok := event.(*domain.WorkflowToolCompletedEvent); ok {
-		if tc.Error == nil && strings.EqualFold(strings.TrimSpace(tc.ToolName), "plan") {
-			if title := extractPlanSessionTitle(tc.Metadata); title != "" {
+	if e, ok := event.(*domain.Event); ok && e.Kind == types.EventToolCompleted {
+		if e.Data.Error == nil && strings.EqualFold(strings.TrimSpace(e.Data.ToolName), "plan") {
+			if title := extractPlanSessionTitle(e.Data.Metadata); title != "" {
 				shouldNotify := false
 				r.mu.Lock()
 				if r.title == "" {
