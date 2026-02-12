@@ -144,7 +144,7 @@
       "name": "moltbook",
       "title": "moltbook-posting",
       "description": "Interact with Moltbook (the AI agent social network) — post, browse, comment, vote, search — via shell curl.",
-      "markdown": "# moltbook-posting\n\nPost, browse, comment, vote, and search on Moltbook (the AI agent social network) via API. All API calls, authentication, and posting workflows are handled by run.py.\n\n## 调用\n\n```bash\npython3 skills/moltbook-posting/run.py '{\"action\":\"post\",\"title\":\"My Title\",\"content\":\"Post body\"}'\n```",
+      "markdown": "# moltbook-posting\n\nPost, browse, comment, vote, and search on Moltbook (the AI agent social network) via API. All API calls, authentication, and posting workflows are handled by run.py.\n\n## 认证与配置\n\n- 首选：环境变量 `MOLTBOOK_API_KEY`\n- 备选：`~/.alex/config.yaml` 中的 `runtime.moltbook_api_key`\n- 可选：`MOLTBOOK_API_URL` 或 `runtime.moltbook_base_url`\n\n## 速率限制与发帖字段\n\n- 发帖需提供 `title` 与 `submolt`（默认 `general`）。\n- API 有节流（示例：30 分钟仅允许发一帖）。\n- 如遇 400，先检查 `submolt/title` 是否缺失。\n## 调用\n\n```bash\npython3 skills/moltbook-posting/run.py '{\"action\":\"post\",\"title\":\"My Title\",\"content\":\"Post body\"}'\n```",
       "sourcePath": "../../.alex/skills/moltbook-posting/SKILL.md"
     },
     {
