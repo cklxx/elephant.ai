@@ -23,7 +23,7 @@
 - [x] Add/adjust loader tests for repair success and non-repair failure cases.
 - [x] Run focused tests, then full lint + full tests.
 - [x] Run mandatory code review workflow and address findings.
-- [ ] Commit incrementally, merge back to `main`, remove temp worktree.
+- [x] Commit incrementally, merge back to `main`, remove temp worktree.
 
 ## Notes
 - This fix is constrained to local config loading path and avoids changing supervisor restart policy.
