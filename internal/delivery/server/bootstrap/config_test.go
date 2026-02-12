@@ -257,6 +257,71 @@ server:
 	}
 }
 
+func TestLoadConfig_ServerTaskExecutionOverrides(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+server:
+  task_execution_owner_id: worker-a
+  task_execution_lease_ttl_seconds: 90
+  task_execution_lease_renew_interval_seconds: 30
+  task_execution_max_in_flight: 33
+  task_execution_resume_claim_batch_size: 77
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+
+	cr, err := LoadConfig()
+	cfg := cr.Config
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if cfg.TaskExecution.OwnerID != "worker-a" {
+		t.Fatalf("expected task execution owner worker-a, got %q", cfg.TaskExecution.OwnerID)
+	}
+	if cfg.TaskExecution.LeaseTTL != 90*time.Second {
+		t.Fatalf("expected task execution lease ttl 90s, got %s", cfg.TaskExecution.LeaseTTL)
+	}
+	if cfg.TaskExecution.LeaseRenewInterval != 30*time.Second {
+		t.Fatalf("expected task execution renew interval 30s, got %s", cfg.TaskExecution.LeaseRenewInterval)
+	}
+	if cfg.TaskExecution.MaxInFlight != 33 {
+		t.Fatalf("expected task execution max in flight 33, got %d", cfg.TaskExecution.MaxInFlight)
+	}
+	if cfg.TaskExecution.ResumeClaimBatchSize != 77 {
+		t.Fatalf("expected task execution resume claim batch size 77, got %d", cfg.TaskExecution.ResumeClaimBatchSize)
+	}
+}
+
+func TestLoadConfig_ServerTaskExecutionAllowsAdmissionDisable(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+server:
+  task_execution_max_in_flight: 0
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+
+	cr, err := LoadConfig()
+	cfg := cr.Config
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.TaskExecution.MaxInFlight != 0 {
+		t.Fatalf("expected task execution max in flight to be disabled (0), got %d", cfg.TaskExecution.MaxInFlight)
+	}
+}
+
 func TestLoadConfig_ProductionProfileRequiresAPIKey(t *testing.T) {
 	clearLoadConfigValidationEnv(t)
 	configPath := filepath.Join(t.TempDir(), "config.yaml")

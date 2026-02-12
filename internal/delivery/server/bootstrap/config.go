@@ -32,6 +32,7 @@ type Config struct {
 	StreamGuard        StreamGuardConfig
 	RateLimit          RateLimitConfig
 	NonStreamTimeout   time.Duration
+	TaskExecution      TaskExecutionConfig
 	EventHistory       EventHistoryConfig
 	Attachment         attachments.StoreConfig
 }
@@ -62,6 +63,15 @@ type StreamGuardConfig struct {
 type RateLimitConfig struct {
 	RequestsPerMinute int
 	Burst             int
+}
+
+// TaskExecutionConfig captures task admission and lease settings.
+type TaskExecutionConfig struct {
+	OwnerID              string
+	LeaseTTL             time.Duration
+	LeaseRenewInterval   time.Duration
+	MaxInFlight          int
+	ResumeClaimBatchSize int
 }
 
 // ChannelsConfig captures server-side channel gateways.
@@ -184,6 +194,12 @@ func LoadConfig() (ConfigResult, error) {
 			Burst:             120,
 		},
 		NonStreamTimeout: 30 * time.Second,
+		TaskExecution: TaskExecutionConfig{
+			LeaseTTL:             45 * time.Second,
+			LeaseRenewInterval:   15 * time.Second,
+			MaxInFlight:          64,
+			ResumeClaimBatchSize: 128,
+		},
 		EventHistory: EventHistoryConfig{
 			Retention:                        30 * 24 * time.Hour,
 			MaxSessions:                      100,
@@ -434,6 +450,25 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if file.Server.NonStreamTimeoutSeconds != nil && *file.Server.NonStreamTimeoutSeconds > 0 {
 		cfg.NonStreamTimeout = time.Duration(*file.Server.NonStreamTimeoutSeconds) * time.Second
+	}
+	if ownerID := strings.TrimSpace(file.Server.TaskExecutionOwnerID); ownerID != "" {
+		cfg.TaskExecution.OwnerID = ownerID
+	}
+	if file.Server.TaskExecutionLeaseTTLSeconds != nil && *file.Server.TaskExecutionLeaseTTLSeconds > 0 {
+		cfg.TaskExecution.LeaseTTL = time.Duration(*file.Server.TaskExecutionLeaseTTLSeconds) * time.Second
+	}
+	if file.Server.TaskExecutionLeaseRenewIntervalSeconds != nil && *file.Server.TaskExecutionLeaseRenewIntervalSeconds > 0 {
+		cfg.TaskExecution.LeaseRenewInterval = time.Duration(*file.Server.TaskExecutionLeaseRenewIntervalSeconds) * time.Second
+	}
+	if file.Server.TaskExecutionMaxInFlight != nil {
+		if *file.Server.TaskExecutionMaxInFlight <= 0 {
+			cfg.TaskExecution.MaxInFlight = 0
+		} else {
+			cfg.TaskExecution.MaxInFlight = *file.Server.TaskExecutionMaxInFlight
+		}
+	}
+	if file.Server.TaskExecutionResumeClaimBatchSize != nil && *file.Server.TaskExecutionResumeClaimBatchSize > 0 {
+		cfg.TaskExecution.ResumeClaimBatchSize = *file.Server.TaskExecutionResumeClaimBatchSize
 	}
 	if file.Server.EventHistoryRetentionDays != nil {
 		days := *file.Server.EventHistoryRetentionDays

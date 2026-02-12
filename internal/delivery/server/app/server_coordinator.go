@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	agentcoordinator "alex/internal/app/agent/coordinator"
@@ -83,6 +84,18 @@ func NewServerCoordinator(
 	if cfg.bridgeResumer != nil && cfg.bridgeWorkDir != "" {
 		taskOpts = append(taskOpts, WithBridgeResumer(cfg.bridgeResumer, cfg.bridgeWorkDir))
 	}
+	if ownerID := strings.TrimSpace(cfg.taskOwnerID); ownerID != "" {
+		taskOpts = append(taskOpts, WithTaskOwnerID(ownerID))
+	}
+	if cfg.taskLeaseTTL > 0 || cfg.taskLeaseRenewInterval > 0 {
+		taskOpts = append(taskOpts, WithTaskLeaseConfig(cfg.taskLeaseTTL, cfg.taskLeaseRenewInterval))
+	}
+	if cfg.taskMaxInFlightConfigured {
+		taskOpts = append(taskOpts, WithTaskAdmissionLimit(cfg.taskMaxInFlight))
+	}
+	if cfg.taskResumeClaimBatchSize > 0 {
+		taskOpts = append(taskOpts, WithResumeClaimBatchSize(cfg.taskResumeClaimBatchSize))
+	}
 	tasks := NewTaskExecutionService(
 		agentCoordinator,
 		broadcaster,
@@ -116,13 +129,19 @@ func NewServerCoordinator(
 
 // coordinatorConfig collects option values before distributing to services.
 type coordinatorConfig struct {
-	analytics       analytics.Client
-	journalReader   journal.Reader
-	obs             *observability.Observability
-	historyStore    sessionstate.Store
-	progressTracker *TaskProgressTracker
-	bridgeResumer   BridgeOrphanResumer
-	bridgeWorkDir   string
+	analytics                analytics.Client
+	journalReader            journal.Reader
+	obs                      *observability.Observability
+	historyStore             sessionstate.Store
+	progressTracker          *TaskProgressTracker
+	bridgeResumer            BridgeOrphanResumer
+	bridgeWorkDir            string
+	taskOwnerID              string
+	taskLeaseTTL             time.Duration
+	taskLeaseRenewInterval   time.Duration
+	taskMaxInFlight          int
+	taskMaxInFlightConfigured bool
+	taskResumeClaimBatchSize int
 }
 
 // ServerCoordinatorOption configures optional behavior for the server coordinator.
@@ -172,6 +191,24 @@ func WithCoordinatorBridgeResumer(resumer BridgeOrphanResumer, workDir string) S
 	return func(cfg *coordinatorConfig) {
 		cfg.bridgeResumer = resumer
 		cfg.bridgeWorkDir = workDir
+	}
+}
+
+// WithTaskExecutionRuntimeConfig configures task lease/admission runtime settings.
+func WithTaskExecutionRuntimeConfig(
+	ownerID string,
+	leaseTTL time.Duration,
+	leaseRenewInterval time.Duration,
+	maxInFlight int,
+	resumeClaimBatchSize int,
+) ServerCoordinatorOption {
+	return func(cfg *coordinatorConfig) {
+		cfg.taskOwnerID = strings.TrimSpace(ownerID)
+		cfg.taskLeaseTTL = leaseTTL
+		cfg.taskLeaseRenewInterval = leaseRenewInterval
+		cfg.taskMaxInFlight = maxInFlight
+		cfg.taskMaxInFlightConfigured = true
+		cfg.taskResumeClaimBatchSize = resumeClaimBatchSize
 	}
 }
 

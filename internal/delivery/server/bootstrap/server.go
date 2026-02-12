@@ -188,6 +188,13 @@ func RunServer(observabilityConfigPath string) error {
 		serverApp.WithObservability(f.Obs),
 		serverApp.WithHistoryStore(container.HistoryStore),
 		serverApp.WithProgressTracker(progressTracker),
+		serverApp.WithTaskExecutionRuntimeConfig(
+			config.TaskExecution.OwnerID,
+			config.TaskExecution.LeaseTTL,
+			config.TaskExecution.LeaseRenewInterval,
+			config.TaskExecution.MaxInFlight,
+			config.TaskExecution.ResumeClaimBatchSize,
+		),
 	}
 
 	// Wire bridge orphan resumer when unified task store is available.

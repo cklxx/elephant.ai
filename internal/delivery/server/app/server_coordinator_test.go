@@ -943,6 +943,60 @@ func TestServerCoordinatorRecordsTaskErrorMetrics(t *testing.T) {
 	}
 }
 
+func TestNewServerCoordinator_AppliesTaskExecutionRuntimeConfig(t *testing.T) {
+	sessionStore := NewMockSessionStore()
+	taskStore := NewInMemoryTaskStore()
+	broadcaster := NewEventBroadcaster()
+	stateStore := sessionstate.NewInMemoryStore()
+
+	leaseTTL := 2 * time.Minute
+	leaseRenewInterval := 25 * time.Second
+	coordinator := NewServerCoordinator(
+		NewMockAgentCoordinator(sessionStore),
+		broadcaster,
+		sessionStore,
+		taskStore,
+		stateStore,
+		WithTaskExecutionRuntimeConfig("coordinator-owner", leaseTTL, leaseRenewInterval, 3, 7),
+	)
+
+	if coordinator.Tasks.ownerID != "coordinator-owner" {
+		t.Fatalf("expected owner_id coordinator-owner, got %q", coordinator.Tasks.ownerID)
+	}
+	if coordinator.Tasks.leaseTTL != leaseTTL {
+		t.Fatalf("expected lease ttl %s, got %s", leaseTTL, coordinator.Tasks.leaseTTL)
+	}
+	if coordinator.Tasks.leaseRenewInterval != leaseRenewInterval {
+		t.Fatalf("expected lease renew interval %s, got %s", leaseRenewInterval, coordinator.Tasks.leaseRenewInterval)
+	}
+	if cap(coordinator.Tasks.admissionSem) != 3 {
+		t.Fatalf("expected admission capacity 3, got %d", cap(coordinator.Tasks.admissionSem))
+	}
+	if coordinator.Tasks.resumeClaimBatchSize != 7 {
+		t.Fatalf("expected resume claim batch size 7, got %d", coordinator.Tasks.resumeClaimBatchSize)
+	}
+}
+
+func TestNewServerCoordinator_TaskExecutionRuntimeConfig_AllowsDisablingAdmissionLimiter(t *testing.T) {
+	sessionStore := NewMockSessionStore()
+	taskStore := NewInMemoryTaskStore()
+	broadcaster := NewEventBroadcaster()
+	stateStore := sessionstate.NewInMemoryStore()
+
+	coordinator := NewServerCoordinator(
+		NewMockAgentCoordinator(sessionStore),
+		broadcaster,
+		sessionStore,
+		taskStore,
+		stateStore,
+		WithTaskExecutionRuntimeConfig("", 0, 0, 0, 0),
+	)
+
+	if coordinator.Tasks.admissionSem != nil {
+		t.Fatalf("expected admission limiter to be disabled when max_in_flight=0, got capacity=%d", cap(coordinator.Tasks.admissionSem))
+	}
+}
+
 type failingAgentCoordinator struct {
 	sessionStore storage.SessionStore
 	err          error

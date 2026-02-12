@@ -165,18 +165,18 @@ type ProactiveFileConfig struct {
 
 // KernelFileConfig mirrors KernelProactiveConfig for YAML decoding.
 type KernelFileConfig struct {
-	Enabled        *bool                    `yaml:"enabled"`
-	KernelID       string                   `yaml:"kernel_id"`
-	Schedule       string                   `yaml:"schedule"`
-	StateDir       string                   `yaml:"state_dir"`
-	SeedState      string                   `yaml:"seed_state"`
-	TimeoutSeconds *int                     `yaml:"timeout_seconds"`
-	LeaseSeconds   *int                     `yaml:"lease_seconds"`
-	MaxConcurrent  *int                     `yaml:"max_concurrent"`
-	Channel        string                   `yaml:"channel"`
-	UserID         string                   `yaml:"user_id"`
-	ChatID         string                   `yaml:"chat_id"`
-	Agents         []KernelAgentFileConfig  `yaml:"agents"`
+	Enabled        *bool                   `yaml:"enabled"`
+	KernelID       string                  `yaml:"kernel_id"`
+	Schedule       string                  `yaml:"schedule"`
+	StateDir       string                  `yaml:"state_dir"`
+	SeedState      string                  `yaml:"seed_state"`
+	TimeoutSeconds *int                    `yaml:"timeout_seconds"`
+	LeaseSeconds   *int                    `yaml:"lease_seconds"`
+	MaxConcurrent  *int                    `yaml:"max_concurrent"`
+	Channel        string                  `yaml:"channel"`
+	UserID         string                  `yaml:"user_id"`
+	ChatID         string                  `yaml:"chat_id"`
+	Agents         []KernelAgentFileConfig `yaml:"agents"`
 }
 
 // KernelAgentFileConfig mirrors KernelAgentProactiveConfig for YAML decoding.
@@ -380,6 +380,11 @@ type ServerConfig struct {
 	RateLimitRequestsPerMinute                   *int     `yaml:"rate_limit_requests_per_minute"`
 	RateLimitBurst                               *int     `yaml:"rate_limit_burst"`
 	NonStreamTimeoutSeconds                      *int     `yaml:"non_stream_timeout_seconds"`
+	TaskExecutionOwnerID                         string   `yaml:"task_execution_owner_id"`
+	TaskExecutionLeaseTTLSeconds                 *int     `yaml:"task_execution_lease_ttl_seconds"`
+	TaskExecutionLeaseRenewIntervalSeconds       *int     `yaml:"task_execution_lease_renew_interval_seconds"`
+	TaskExecutionMaxInFlight                     *int     `yaml:"task_execution_max_in_flight"`
+	TaskExecutionResumeClaimBatchSize            *int     `yaml:"task_execution_resume_claim_batch_size"`
 	EventHistoryRetentionDays                    *int     `yaml:"event_history_retention_days"`
 	EventHistoryMaxSessions                      *int     `yaml:"event_history_max_sessions"`
 	EventHistorySessionTTL                       *int     `yaml:"event_history_session_ttl_seconds"`
