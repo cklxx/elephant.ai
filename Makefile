@@ -5,7 +5,8 @@
 	web-build web-run \
 	server-test-integration dev-up dev-down dev-status dev-logs dev-restart dev-lint dev-test \
 	deploy deploy-docker deploy-test deploy-status \
-	deploy-down eval-server-build eval-server-run eval-server-test
+	deploy-down eval-server-build eval-server-run eval-server-test \
+	ci-local install-hooks
 
 GO ?= scripts/go-with-toolchain.sh
 
@@ -200,3 +201,16 @@ eval-server-run: eval-server-build ## Run eval-server
 eval-server-test: ## Run eval-server + RL + task_mgmt tests
 	@echo "Running eval-server tests..."
 	@$(GO) test ./evaluation/rl/... ./evaluation/task_mgmt/... ./internal/delivery/eval/... -v
+
+## ========================================
+## Local CI
+## ========================================
+
+ci-local: ## Run the same checks CI runs (mod tidy, lint, build, web)
+	@./scripts/pre-push.sh
+
+install-hooks: ## Install git hooks (pre-push CI gate)
+	@echo "Installing pre-push hook..."
+	@cp scripts/pre-push-hook.sh .git/hooks/pre-push 2>/dev/null || true
+	@chmod +x .git/hooks/pre-push
+	@echo "✓ Pre-push hook installed"

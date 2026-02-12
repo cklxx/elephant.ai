@@ -1,6 +1,6 @@
 # Error Experience Index
 
-Updated: 2026-02-03
+Updated: 2026-02-12
 
 ## Indexes
 
