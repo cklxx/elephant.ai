@@ -370,6 +370,7 @@ type LarkBrowserConfig struct {
 // ServerConfig captures server-specific YAML configuration.
 type ServerConfig struct {
 	Port                                         string   `yaml:"port"`
+	DebugPort                                    string   `yaml:"debug_port"`
 	EnableMCP                                    *bool    `yaml:"enable_mcp"`
 	MaxTaskBodyBytes                             *int64   `yaml:"max_task_body_bytes"`
 	AllowedOrigins                               []string `yaml:"allowed_origins"`
