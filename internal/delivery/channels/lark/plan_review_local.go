@@ -12,6 +12,8 @@ import (
 	jsonx "alex/internal/shared/json"
 )
 
+const defaultPlanReviewTTL = 60 * time.Minute
+
 type planReviewStoreDoc struct {
 	Items []PlanReviewPending `json:"items"`
 }

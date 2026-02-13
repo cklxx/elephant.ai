@@ -1,7 +1,6 @@
 // Package task defines the unified task domain model and store port.
 //
-// It replaces the disjoint server InMemoryTaskStore and Lark TaskPostgresStore
-// with a single source of truth that persists task state durably across all
+// It provides a single source of truth that persists task state durably across all
 // channels (web, CLI, Lark) and supports subprocess resilience.
 package task
 
