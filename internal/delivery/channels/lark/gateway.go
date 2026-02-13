@@ -29,6 +29,13 @@ const (
 	messageDedupTTL            = 10 * time.Minute
 	chatSessionBindingChannel  = "lark"
 	defaultRecentChatMaxRounds = 5
+	defaultActiveSlotTTL       = 6 * time.Hour
+	defaultActiveSlotMax       = 2048
+	defaultRelayTTL            = 30 * time.Minute
+	defaultRelayMaxChats       = 2048
+	defaultRelayMaxPerChat     = 64
+	defaultAIChatSessionTTL    = 45 * time.Minute
+	defaultStateCleanupEvery   = 5 * time.Minute
 )
 
 // AgentExecutor is an alias for the shared channel executor interface.
@@ -53,6 +60,7 @@ type sessionSlot struct {
 	sessionID      string
 	lastSessionID  string
 	pendingOptions []string // options awaiting numeric reply
+	lastTouched    time.Time
 }
 
 // Gateway bridges Lark bot messages into the agent runtime.
@@ -82,6 +90,9 @@ type Gateway struct {
 	pendingInputRelays sync.Map           // chatID → *pendingRelayQueue
 	aiCoordinator      *AIChatCoordinator // coordinates multi-bot chat sessions
 	taskWG             sync.WaitGroup     // tracks running task goroutines (for tests)
+	cleanupMu          sync.Mutex
+	cleanupCancel      context.CancelFunc
+	cleanupWG          sync.WaitGroup
 }
 
 type awaitQuestionTracker struct {
@@ -126,6 +137,27 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if cfg.BackgroundProgressEnabled == nil {
 		enabled := true
 		cfg.BackgroundProgressEnabled = &enabled
+	}
+	if cfg.ActiveSlotTTL <= 0 {
+		cfg.ActiveSlotTTL = defaultActiveSlotTTL
+	}
+	if cfg.ActiveSlotMaxEntries <= 0 {
+		cfg.ActiveSlotMaxEntries = defaultActiveSlotMax
+	}
+	if cfg.PendingInputRelayTTL <= 0 {
+		cfg.PendingInputRelayTTL = defaultRelayTTL
+	}
+	if cfg.PendingInputRelayMaxChats <= 0 {
+		cfg.PendingInputRelayMaxChats = defaultRelayMaxChats
+	}
+	if cfg.PendingInputRelayMaxPerChat <= 0 {
+		cfg.PendingInputRelayMaxPerChat = defaultRelayMaxPerChat
+	}
+	if cfg.AIChatSessionTTL <= 0 {
+		cfg.AIChatSessionTTL = defaultAIChatSessionTTL
+	}
+	if cfg.StateCleanupInterval <= 0 {
+		cfg.StateCleanupInterval = defaultStateCleanupEvery
 	}
 	dedupCache, err := lru.New[string, time.Time](messageDedupCacheSize)
 	if err != nil {
@@ -295,6 +327,9 @@ func (g *Gateway) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	runCtx, cancel := context.WithCancel(ctx)
+	g.setCleanupCancel(cancel)
+	g.startStateCleanupLoop(runCtx)
 
 	// Build the REST client for sending replies.
 	var clientOpts []lark.ClientOptionFunc
@@ -331,13 +366,15 @@ func (g *Gateway) Start(ctx context.Context) error {
 	g.wsClient = larkws.NewClient(g.cfg.AppID, g.cfg.AppSecret, wsOpts...)
 
 	g.logger.Info("Lark gateway connecting (app_id=%s)...", g.cfg.AppID)
-	return g.wsClient.Start(ctx)
+	err := g.wsClient.Start(runCtx)
+	g.stopStateCleanupLoop()
+	return err
 }
 
 // Stop releases resources. The WebSocket client does not expose a Stop method;
 // cancelling the context passed to Start is the primary shutdown mechanism.
 func (g *Gateway) Stop() {
-	// The Lark WS client is stopped by cancelling its context.
+	g.stopStateCleanupLoop()
 }
 
 // WaitForTasks blocks until all in-flight task goroutines complete.
@@ -408,6 +445,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 
 	slot := g.getOrCreateSlot(msg.chatID)
 	slot.mu.Lock()
+	slot.lastTouched = g.currentTime()
 	trimmedContent := strings.TrimSpace(msg.content)
 
 	// Natural-language status query should be handled immediately, even when a
@@ -470,6 +508,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	slot.inputCh = inputCh
 	slot.sessionID = sessionID
 	slot.lastSessionID = sessionID
+	slot.lastTouched = g.currentTime()
 	slot.mu.Unlock()
 
 	// Run the task asynchronously so the Lark SDK event handler returns
@@ -490,6 +529,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 			slot.phase = slotIdle
 			slot.sessionID = ""
 		}
+		slot.lastTouched = g.currentTime()
 		slot.mu.Unlock()
 		if awaitingInput {
 			g.drainAndReprocess(inputCh, msg.chatID, msg.chatType)
@@ -500,7 +540,6 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 
 	return nil
 }
-
 // InjectMessage constructs a synthetic P2MessageReceiveV1 event and feeds it
 // through handleMessage. This is the primary entry point for scenario tests:
 // it exercises the full pipeline (dedup, session, context, execution, reply)

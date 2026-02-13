@@ -3,6 +3,7 @@ package lark
 import (
 	"strings"
 	"testing"
+	"time"
 
 	agentports "alex/internal/domain/agent/ports/agent"
 )
@@ -179,5 +180,42 @@ func TestPendingRelayQueue_ReplaceSameTask(t *testing.T) {
 	r = q.PopOldest()
 	if r == nil || r.taskID != "t2" {
 		t.Fatalf("expected t2, got %v", r)
+	}
+}
+
+func TestPendingRelayQueue_PopOldestUnexpiredSkipsExpired(t *testing.T) {
+	now := time.Now()
+	q := &pendingRelayQueue{}
+	q.Push(&pendingInputRelay{taskID: "expired", requestID: "r-exp", createdAt: 1, expiresAt: now.Add(-time.Second).UnixNano()})
+	q.Push(&pendingInputRelay{taskID: "active", requestID: "r-ok", createdAt: 2, expiresAt: now.Add(time.Minute).UnixNano()})
+
+	r := q.PopOldestUnexpired(now)
+	if r == nil || r.taskID != "active" {
+		t.Fatalf("expected active relay, got %v", r)
+	}
+	if q.Len() != 0 {
+		t.Fatalf("expected queue empty after pop, got len=%d", q.Len())
+	}
+}
+
+func TestPendingRelayQueue_PruneExpiredAndTrim(t *testing.T) {
+	now := time.Now()
+	q := &pendingRelayQueue{}
+	q.Push(&pendingInputRelay{taskID: "a", requestID: "r1", createdAt: 1, expiresAt: now.Add(-time.Second).UnixNano()})
+	q.Push(&pendingInputRelay{taskID: "b", requestID: "r2", createdAt: 2, expiresAt: now.Add(time.Minute).UnixNano()})
+	q.Push(&pendingInputRelay{taskID: "c", requestID: "r3", createdAt: 3, expiresAt: now.Add(time.Minute).UnixNano()})
+	q.Push(&pendingInputRelay{taskID: "d", requestID: "r4", createdAt: 4, expiresAt: now.Add(time.Minute).UnixNano()})
+
+	if removed := q.PruneExpired(now); removed != 1 {
+		t.Fatalf("expected one expired relay pruned, got %d", removed)
+	}
+	if q.Len() != 3 {
+		t.Fatalf("expected len=3 after prune, got %d", q.Len())
+	}
+	if dropped := q.TrimToMax(2); dropped != 1 {
+		t.Fatalf("expected one relay dropped by cap, got %d", dropped)
+	}
+	if q.Len() != 2 {
+		t.Fatalf("expected len=2 after trim, got %d", q.Len())
 	}
 }

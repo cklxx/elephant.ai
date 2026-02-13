@@ -171,6 +171,55 @@ channels:
 	}
 }
 
+func TestLoadConfig_LarkRuntimeStateLimits(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+channels:
+  lark:
+    active_slot_ttl_minutes: 90
+    active_slot_max_entries: 1200
+    pending_input_relay_ttl_minutes: 25
+    pending_input_relay_max_chats: 600
+    pending_input_relay_max_per_chat: 20
+    ai_chat_session_ttl_minutes: 30
+    state_cleanup_interval_seconds: 70
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+
+	cr, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	lark := cr.Config.Channels.Lark
+	if lark.ActiveSlotTTL != 90*time.Minute {
+		t.Fatalf("expected active slot ttl 90m, got %s", lark.ActiveSlotTTL)
+	}
+	if lark.ActiveSlotMaxEntries != 1200 {
+		t.Fatalf("expected active slot max 1200, got %d", lark.ActiveSlotMaxEntries)
+	}
+	if lark.PendingInputRelayTTL != 25*time.Minute {
+		t.Fatalf("expected pending relay ttl 25m, got %s", lark.PendingInputRelayTTL)
+	}
+	if lark.PendingInputRelayMaxChats != 600 {
+		t.Fatalf("expected pending relay max chats 600, got %d", lark.PendingInputRelayMaxChats)
+	}
+	if lark.PendingInputRelayMaxPerChat != 20 {
+		t.Fatalf("expected pending relay max per chat 20, got %d", lark.PendingInputRelayMaxPerChat)
+	}
+	if lark.AIChatSessionTTL != 30*time.Minute {
+		t.Fatalf("expected ai chat session ttl 30m, got %s", lark.AIChatSessionTTL)
+	}
+	if lark.StateCleanupInterval != 70*time.Second {
+		t.Fatalf("expected state cleanup interval 70s, got %s", lark.StateCleanupInterval)
+	}
+}
+
 func TestLoadConfig_AuthJWTSecretFromEnvFallback(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	configContent := []byte(`

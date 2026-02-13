@@ -102,6 +102,13 @@ type LarkGatewayConfig struct {
 	PlanReviewEnabled             bool
 	PlanReviewRequireConfirmation bool
 	PlanReviewPendingTTL          time.Duration
+	ActiveSlotTTL                 time.Duration
+	ActiveSlotMaxEntries          int
+	PendingInputRelayTTL          time.Duration
+	PendingInputRelayMaxChats     int
+	PendingInputRelayMaxPerChat   int
+	AIChatSessionTTL              time.Duration
+	StateCleanupInterval          time.Duration
 	PersistenceMode               string
 	PersistenceDir                string
 	PersistenceRetention          time.Duration
@@ -243,12 +250,19 @@ func LoadConfig() (ConfigResult, error) {
 					Headless: true,
 					Timeout:  60 * time.Second,
 				},
-				ReactEmoji:                 "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
-				AutoChatContextSize:        20,
-				PersistenceMode:            larkPersistenceModeFile,
-				PersistenceDir:             "~/.alex/lark",
-				PersistenceRetention:       7 * 24 * time.Hour,
-				PersistenceMaxTasksPerChat: 200,
+				ReactEmoji:                  "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
+				AutoChatContextSize:         20,
+				ActiveSlotTTL:               6 * time.Hour,
+				ActiveSlotMaxEntries:        2048,
+				PendingInputRelayTTL:        30 * time.Minute,
+				PendingInputRelayMaxChats:   2048,
+				PendingInputRelayMaxPerChat: 64,
+				AIChatSessionTTL:            45 * time.Minute,
+				StateCleanupInterval:        5 * time.Minute,
+				PersistenceMode:             larkPersistenceModeFile,
+				PersistenceDir:              "~/.alex/lark",
+				PersistenceRetention:        7 * 24 * time.Hour,
+				PersistenceMaxTasksPerChat:  200,
 			},
 		},
 		Attachment: attachments.StoreConfig{
@@ -420,6 +434,27 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if larkCfg.PlanReviewPendingTTLMinutes != nil && *larkCfg.PlanReviewPendingTTLMinutes > 0 {
 		cfg.Channels.Lark.PlanReviewPendingTTL = time.Duration(*larkCfg.PlanReviewPendingTTLMinutes) * time.Minute
+	}
+	if larkCfg.ActiveSlotTTLMinutes != nil && *larkCfg.ActiveSlotTTLMinutes > 0 {
+		cfg.Channels.Lark.ActiveSlotTTL = time.Duration(*larkCfg.ActiveSlotTTLMinutes) * time.Minute
+	}
+	if larkCfg.ActiveSlotMaxEntries != nil && *larkCfg.ActiveSlotMaxEntries > 0 {
+		cfg.Channels.Lark.ActiveSlotMaxEntries = *larkCfg.ActiveSlotMaxEntries
+	}
+	if larkCfg.PendingInputRelayTTLMinutes != nil && *larkCfg.PendingInputRelayTTLMinutes > 0 {
+		cfg.Channels.Lark.PendingInputRelayTTL = time.Duration(*larkCfg.PendingInputRelayTTLMinutes) * time.Minute
+	}
+	if larkCfg.PendingInputRelayMaxChats != nil && *larkCfg.PendingInputRelayMaxChats > 0 {
+		cfg.Channels.Lark.PendingInputRelayMaxChats = *larkCfg.PendingInputRelayMaxChats
+	}
+	if larkCfg.PendingInputRelayMaxPerChat != nil && *larkCfg.PendingInputRelayMaxPerChat > 0 {
+		cfg.Channels.Lark.PendingInputRelayMaxPerChat = *larkCfg.PendingInputRelayMaxPerChat
+	}
+	if larkCfg.AIChatSessionTTLMinutes != nil && *larkCfg.AIChatSessionTTLMinutes > 0 {
+		cfg.Channels.Lark.AIChatSessionTTL = time.Duration(*larkCfg.AIChatSessionTTLMinutes) * time.Minute
+	}
+	if larkCfg.StateCleanupIntervalSeconds != nil && *larkCfg.StateCleanupIntervalSeconds > 0 {
+		cfg.Channels.Lark.StateCleanupInterval = time.Duration(*larkCfg.StateCleanupIntervalSeconds) * time.Second
 	}
 	if larkCfg.Persistence != nil {
 		if mode := strings.TrimSpace(strings.ToLower(larkCfg.Persistence.Mode)); mode != "" {

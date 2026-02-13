@@ -36,12 +36,13 @@ type pendingInputRelay struct {
 	options   []agentports.InputOption
 	reqType   agentports.InputRequestType
 	createdAt int64 // unix nano, for FIFO ordering
+	expiresAt int64 // unix nano; <=0 means no expiry
 }
 
 // pendingRelayQueue is a thread-safe FIFO queue of pending relays for a single chat.
 type pendingRelayQueue struct {
-	mu      sync.Mutex
-	relays  []*pendingInputRelay
+	mu     sync.Mutex
+	relays []*pendingInputRelay
 }
 
 // Push appends a relay, replacing any existing relay with the same taskID.
@@ -68,6 +69,85 @@ func (q *pendingRelayQueue) PopOldest() *pendingInputRelay {
 	relay := q.relays[0]
 	q.relays = q.relays[1:]
 	return relay
+}
+
+// PopOldestUnexpired removes and returns the oldest non-expired relay.
+func (q *pendingRelayQueue) PopOldestUnexpired(now time.Time) *pendingInputRelay {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if len(q.relays) == 0 {
+		return nil
+	}
+
+	nowUnix := now.UnixNano()
+	idx := 0
+	for idx < len(q.relays) {
+		relay := q.relays[idx]
+		if relay == nil {
+			idx++
+			continue
+		}
+		if relay.expiresAt > 0 && nowUnix > relay.expiresAt {
+			idx++
+			continue
+		}
+		break
+	}
+	if idx >= len(q.relays) {
+		q.relays = q.relays[:0]
+		return nil
+	}
+	relay := q.relays[idx]
+	q.relays = q.relays[idx+1:]
+	return relay
+}
+
+// PruneExpired removes expired relays and returns removed count.
+func (q *pendingRelayQueue) PruneExpired(now time.Time) int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.relays) == 0 {
+		return 0
+	}
+	nowUnix := now.UnixNano()
+	dst := q.relays[:0]
+	removed := 0
+	for _, relay := range q.relays {
+		if relay == nil {
+			removed++
+			continue
+		}
+		if relay.expiresAt > 0 && nowUnix > relay.expiresAt {
+			removed++
+			continue
+		}
+		dst = append(dst, relay)
+	}
+	q.relays = dst
+	return removed
+}
+
+// TrimToMax evicts oldest relays until the queue size is at most max.
+func (q *pendingRelayQueue) TrimToMax(max int) int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if max <= 0 || len(q.relays) <= max {
+		return 0
+	}
+	removed := len(q.relays) - max
+	q.relays = q.relays[removed:]
+	return removed
+}
+
+// OldestCreatedAtUnixNano returns the oldest relay timestamp in queue.
+func (q *pendingRelayQueue) OldestCreatedAtUnixNano() int64 {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.relays) == 0 || q.relays[0] == nil {
+		return 0
+	}
+	return q.relays[0].createdAt
 }
 
 // Len returns the number of pending relays.

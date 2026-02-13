@@ -31,6 +31,13 @@ type Config struct {
 	PlanReviewEnabled             bool
 	PlanReviewRequireConfirmation bool
 	PlanReviewPendingTTL          time.Duration
+	ActiveSlotTTL                 time.Duration // Expire idle in-memory session slots.
+	ActiveSlotMaxEntries          int           // Hard cap for activeSlots map size.
+	PendingInputRelayTTL          time.Duration // Expire stale external input relay requests.
+	PendingInputRelayMaxChats     int           // Hard cap for pendingInputRelays map size.
+	PendingInputRelayMaxPerChat   int           // Hard cap per chat pending relay queue.
+	AIChatSessionTTL              time.Duration // Expire inactive AI chat coordination sessions.
+	StateCleanupInterval          time.Duration // Sweeper interval for in-memory Lark runtime state.
 	// Task management configuration.
 	PersistenceMode            string        // "file" or "memory". Default "file".
 	PersistenceDir             string        // Base dir used by file persistence.

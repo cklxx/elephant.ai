@@ -21,14 +21,32 @@ import (
 // getOrCreateSlot returns the session slot for the given chat, creating one if needed.
 func (g *Gateway) getOrCreateSlot(chatID string) *sessionSlot {
 	slot, _ := g.activeSlots.LoadOrStore(chatID, &sessionSlot{})
-	return slot.(*sessionSlot)
+	s := slot.(*sessionSlot)
+	s.mu.Lock()
+	s.lastTouched = g.currentTime()
+	s.mu.Unlock()
+	return s
 }
 
 // storePendingRelay adds a pending input relay to the per-chat queue.
 func (g *Gateway) storePendingRelay(chatID string, relay *pendingInputRelay) {
+	if relay == nil {
+		return
+	}
+	now := g.currentTime()
+	if g.cfg.PendingInputRelayTTL > 0 {
+		relay.expiresAt = now.Add(g.cfg.PendingInputRelayTTL).UnixNano()
+	}
 	raw, _ := g.pendingInputRelays.LoadOrStore(chatID, &pendingRelayQueue{})
 	queue := raw.(*pendingRelayQueue)
 	queue.Push(relay)
+	queue.PruneExpired(now)
+	if g.cfg.PendingInputRelayMaxPerChat > 0 {
+		queue.TrimToMax(g.cfg.PendingInputRelayMaxPerChat)
+	}
+	if g.cfg.PendingInputRelayMaxChats > 0 {
+		g.prunePendingInputRelays(now)
+	}
 }
 
 // tryResolveInputReply checks whether a pending input relay exists for the chat
@@ -40,9 +58,13 @@ func (g *Gateway) tryResolveInputReply(ctx context.Context, chatID, content stri
 		return false
 	}
 	queue := raw.(*pendingRelayQueue)
-	relay := queue.PopOldest()
+	relay := queue.PopOldestUnexpired(g.currentTime())
 	if relay == nil {
+		g.pendingInputRelays.Delete(chatID)
 		return false
+	}
+	if queue.Len() == 0 {
+		g.pendingInputRelays.Delete(chatID)
 	}
 
 	resp := buildInputResponse(relay, content)
@@ -93,6 +115,7 @@ func (g *Gateway) handleNewSessionCommand(slot *sessionSlot, msg *incomingMessag
 	slot.lastSessionID = newSessionID
 	slot.phase = slotIdle
 	slot.pendingOptions = nil
+	slot.lastTouched = g.currentTime()
 	slot.mu.Unlock()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", newSessionID, msg.senderID, msg.chatID, msg.isGroup)
@@ -114,6 +137,7 @@ func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
 	if sessionID == "" {
 		sessionID = g.memoryIDForChat(msg.chatID)
 	}
+	slot.lastTouched = g.currentTime()
 	slot.mu.Unlock()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
