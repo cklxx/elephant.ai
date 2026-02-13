@@ -228,6 +228,9 @@ func buildDispatchPrompt(agentType, description string) string {
 	return fmt.Sprintf(`[Direct Task Dispatch]
 Immediately dispatch a background task with the following parameters:
 - agent_type: %s
+- task_kind: coding
+- execution_mode: execute
+- autonomy_level: full
 - workspace_mode: worktree
 
 <user_task_description>

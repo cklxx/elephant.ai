@@ -75,6 +75,8 @@ type Task struct {
 	AgentType     string `json:"agent_type"` // "internal", "claude_code", "codex"
 	AgentPreset   string `json:"agent_preset,omitempty"`
 	ToolPreset    string `json:"tool_preset,omitempty"`
+	ExecutionMode string `json:"execution_mode,omitempty"` // "execute" | "plan"
+	AutonomyLevel string `json:"autonomy_level,omitempty"` // "controlled" | "semi" | "full"
 	WorkspaceMode string `json:"workspace_mode,omitempty"` // "shared", "branch", "worktree"
 	WorkingDir    string `json:"working_dir,omitempty"`
 
@@ -98,9 +100,12 @@ type Task struct {
 	CostUSD          float64 `json:"cost_usd,omitempty"`
 
 	// Results
-	AnswerPreview string          `json:"answer_preview,omitempty"`
-	ResultJSON    json.RawMessage `json:"result_json,omitempty"`
-	Error         string          `json:"error,omitempty"`
+	AnswerPreview    string          `json:"answer_preview,omitempty"`
+	ResultJSON       json.RawMessage `json:"result_json,omitempty"`
+	PlanJSON         json.RawMessage `json:"plan_json,omitempty"`
+	RetryAttempt     int             `json:"retry_attempt,omitempty"`
+	ParentPlanTaskID string          `json:"parent_plan_task_id,omitempty"`
+	Error            string          `json:"error,omitempty"`
 
 	// Dependencies
 	DependsOn []string `json:"depends_on,omitempty"`

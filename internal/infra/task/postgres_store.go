@@ -54,6 +54,8 @@ func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
     agent_type         TEXT NOT NULL DEFAULT 'internal',
     agent_preset       TEXT NOT NULL DEFAULT '',
     tool_preset        TEXT NOT NULL DEFAULT '',
+    execution_mode     TEXT NOT NULL DEFAULT '',
+    autonomy_level     TEXT NOT NULL DEFAULT '',
     workspace_mode     TEXT NOT NULL DEFAULT '',
     working_dir        TEXT NOT NULL DEFAULT '',
     config             JSONB,
@@ -69,6 +71,9 @@ func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
     cost_usd           DOUBLE PRECISION NOT NULL DEFAULT 0,
     answer_preview     TEXT NOT NULL DEFAULT '',
     result_json        JSONB,
+    plan_json          JSONB,
+    retry_attempt      INTEGER NOT NULL DEFAULT 0,
+    parent_plan_task_id TEXT NOT NULL DEFAULT '',
     error              TEXT NOT NULL DEFAULT '',
 	    depends_on         TEXT[] NOT NULL DEFAULT '{}',
 	    bridge_meta        JSONB,
@@ -80,6 +85,11 @@ func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
 		`ALTER TABLE ` + tasksTable + ` ADD COLUMN IF NOT EXISTS owner_id TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE ` + tasksTable + ` ADD COLUMN IF NOT EXISTS lease_until TIMESTAMPTZ`,
 		`ALTER TABLE ` + tasksTable + ` ADD COLUMN IF NOT EXISTS lease_updated_at TIMESTAMPTZ`,
+		`ALTER TABLE ` + tasksTable + ` ADD COLUMN IF NOT EXISTS execution_mode TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE ` + tasksTable + ` ADD COLUMN IF NOT EXISTS autonomy_level TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE ` + tasksTable + ` ADD COLUMN IF NOT EXISTS plan_json JSONB`,
+		`ALTER TABLE ` + tasksTable + ` ADD COLUMN IF NOT EXISTS retry_attempt INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE ` + tasksTable + ` ADD COLUMN IF NOT EXISTS parent_plan_task_id TEXT NOT NULL DEFAULT ''`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_session ON ` + tasksTable + ` (session_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_chat_status ON ` + tasksTable + ` (chat_id, status)`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_status ON ` + tasksTable + ` (status)`,
@@ -139,27 +149,27 @@ func (s *PostgresStore) Create(ctx context.Context, task *taskdomain.Task) error
 	_, err := s.pool.Exec(ctx, `
 INSERT INTO `+tasksTable+` (
     task_id, session_id, parent_task_id, channel, chat_id, user_id,
-    description, prompt, agent_type, agent_preset, tool_preset,
+    description, prompt, agent_type, agent_preset, tool_preset, execution_mode, autonomy_level,
     workspace_mode, working_dir, config, status, termination_reason,
     created_at, started_at, updated_at, completed_at,
 	    current_iteration, total_iterations, tokens_used, cost_usd,
-	    answer_preview, result_json, error, depends_on, bridge_meta, metadata,
+	    answer_preview, result_json, plan_json, retry_attempt, parent_plan_task_id, error, depends_on, bridge_meta, metadata,
 	    owner_id, lease_until, lease_updated_at
 ) VALUES (
 	    $1, $2, $3, $4, $5, $6,
-	    $7, $8, $9, $10, $11,
-	    $12, $13, $14, $15, $16,
-	    $17, $18, $19, $20,
-	    $21, $22, $23, $24,
-	    $25, $26, $27, $28, $29, $30,
-	    $31, $32, $33
+	    $7, $8, $9, $10, $11, $12, $13,
+	    $14, $15, $16, $17, $18,
+	    $19, $20, $21, $22,
+	    $23, $24, $25, $26,
+	    $27, $28, $29, $30, $31, $32, $33, $34, $35,
+	    $36, $37, $38
 )`,
 		task.TaskID, task.SessionID, task.ParentTaskID, task.Channel, task.ChatID, task.UserID,
-		task.Description, task.Prompt, task.AgentType, task.AgentPreset, task.ToolPreset,
+		task.Description, task.Prompt, task.AgentType, task.AgentPreset, task.ToolPreset, task.ExecutionMode, task.AutonomyLevel,
 		task.WorkspaceMode, task.WorkingDir, nullableRawJSON(task.Config), string(task.Status), string(task.TerminationReason),
 		task.CreatedAt, task.StartedAt, task.UpdatedAt, task.CompletedAt,
 		task.CurrentIteration, task.TotalIterations, task.TokensUsed, task.CostUSD,
-		task.AnswerPreview, nullableRawJSON(task.ResultJSON), task.Error, dependsOn, bridgeMetaJSON, metadataJSON,
+		task.AnswerPreview, nullableRawJSON(task.ResultJSON), nullableRawJSON(task.PlanJSON), task.RetryAttempt, task.ParentPlanTaskID, task.Error, dependsOn, bridgeMetaJSON, metadataJSON,
 		"", nil, nil,
 	)
 	if err != nil {
@@ -673,11 +683,11 @@ func selectAllColumns() string {
 
 func allColumns() string {
 	return `task_id, session_id, parent_task_id, channel, chat_id, user_id,
-	       description, prompt, agent_type, agent_preset, tool_preset,
+	       description, prompt, agent_type, agent_preset, tool_preset, execution_mode, autonomy_level,
 	       workspace_mode, working_dir, config, status, termination_reason,
 	       created_at, started_at, updated_at, completed_at,
 	       current_iteration, total_iterations, tokens_used, cost_usd,
-	       answer_preview, result_json, error, depends_on, bridge_meta, metadata`
+	       answer_preview, result_json, plan_json, retry_attempt, parent_plan_task_id, error, depends_on, bridge_meta, metadata`
 }
 
 type rowScanner interface {
@@ -689,6 +699,7 @@ func scanTask(row rowScanner) (*taskdomain.Task, error) {
 	var (
 		configJSON     []byte
 		resultJSON     []byte
+		planJSON       []byte
 		bridgeMetaJSON []byte
 		metadataJSON   []byte
 		status         string
@@ -697,11 +708,11 @@ func scanTask(row rowScanner) (*taskdomain.Task, error) {
 
 	err := row.Scan(
 		&t.TaskID, &t.SessionID, &t.ParentTaskID, &t.Channel, &t.ChatID, &t.UserID,
-		&t.Description, &t.Prompt, &t.AgentType, &t.AgentPreset, &t.ToolPreset,
+		&t.Description, &t.Prompt, &t.AgentType, &t.AgentPreset, &t.ToolPreset, &t.ExecutionMode, &t.AutonomyLevel,
 		&t.WorkspaceMode, &t.WorkingDir, &configJSON, &status, &termReason,
 		&t.CreatedAt, &t.StartedAt, &t.UpdatedAt, &t.CompletedAt,
 		&t.CurrentIteration, &t.TotalIterations, &t.TokensUsed, &t.CostUSD,
-		&t.AnswerPreview, &resultJSON, &t.Error, &t.DependsOn, &bridgeMetaJSON, &metadataJSON,
+		&t.AnswerPreview, &resultJSON, &planJSON, &t.RetryAttempt, &t.ParentPlanTaskID, &t.Error, &t.DependsOn, &bridgeMetaJSON, &metadataJSON,
 	)
 	if err != nil {
 		return nil, err
@@ -715,6 +726,9 @@ func scanTask(row rowScanner) (*taskdomain.Task, error) {
 	}
 	if resultJSON != nil {
 		t.ResultJSON = resultJSON
+	}
+	if planJSON != nil {
+		t.PlanJSON = planJSON
 	}
 	if bridgeMetaJSON != nil {
 		var bm taskdomain.BridgeMeta
