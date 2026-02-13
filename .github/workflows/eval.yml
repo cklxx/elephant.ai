@@ -64,7 +64,6 @@ jobs:
     name: PR Eval Gate (Quick)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
       - name: Checkout
@@ -137,7 +136,7 @@ jobs:
               '',
               '</details>',
               '',
-              '> **Note:** This is a soft gate (`continue-on-error: true`). Failures are informational only.',
+              '> **Note:** This is a blocking gate for pull requests targeting `main`.',
             ].join('\n');
 
             // Find and update existing comment or create new one.

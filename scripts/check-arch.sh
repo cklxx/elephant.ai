@@ -15,7 +15,12 @@ declare -a banned_imports=(
 
 violations=""
 for import_path in "${banned_imports[@]}"; do
-  matches="$(rg -n "^[[:space:]]*\"${import_path}\"" "$TARGET_DIR" --glob '*.go' --glob '!**/*_test.go' || true)"
+  # Match both direct imports and subpackages, with or without import aliases.
+  # Examples:
+  #   "alex/internal/app"
+  #   "alex/internal/app/foo"
+  #   appctx "alex/internal/app/context"
+  matches="$(rg -n "^[[:space:]]*([[:alnum:]_]+[[:space:]]+)?\"${import_path}(/[^\\\"]*)?\"" "$TARGET_DIR" --glob '*.go' --glob '!**/*_test.go' || true)"
   if [[ -n "$matches" ]]; then
     violations+="${matches}"$'\n'
   fi

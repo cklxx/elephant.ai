@@ -136,6 +136,33 @@ check_arch() {
   fi
 }
 
+# --- Check: architecture policy ---
+check_arch_policy() {
+  step "architecture policy"
+  if (cd "$REPO_ROOT" && make check-arch-policy 2>&1 >/dev/null); then
+    pass "architecture policy"
+  else
+    echo ""
+    fail "architecture policy violations"
+    errors=$((errors + 1))
+  fi
+}
+
+# --- Check: go test ---
+check_go_test() {
+  step "go test -race"
+  local coverage_tmp
+  coverage_tmp="$(mktemp "${TMPDIR:-/tmp}/prepush-coverage.XXXXXX.out")"
+  if (cd "$REPO_ROOT" && "$GO" test -race -covermode=atomic -coverprofile="$coverage_tmp" ./... 2>&1); then
+    pass "go test -race"
+  else
+    echo ""
+    fail "go test -race failed"
+    errors=$((errors + 1))
+  fi
+  rm -f "$coverage_tmp"
+}
+
 # --- Check: web lint + build ---
 check_web() {
   if [[ "${SKIP_WEB:-}" == "1" ]]; then
@@ -187,8 +214,10 @@ main() {
   if $go_changed; then
     check_go_vet
     check_go_build
+    check_go_test
     check_lint
     check_arch
+    check_arch_policy
   else
     warn "No Go changes detected — skipping Go checks"
   fi
