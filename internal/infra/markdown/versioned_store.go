@@ -43,6 +43,11 @@ func (s *VersionedStore) Init(ctx context.Context) error {
 	if err := os.MkdirAll(s.dir, 0o755); err != nil {
 		return fmt.Errorf("mkdir store dir: %w", err)
 	}
+	// Ensure .tmp files from atomic writes are never committed.
+	gitignore := filepath.Join(s.dir, ".gitignore")
+	if _, err := os.Stat(gitignore); os.IsNotExist(err) {
+		_ = os.WriteFile(gitignore, []byte("*.tmp\n"), 0o644)
+	}
 	return s.git.init(ctx)
 }
 

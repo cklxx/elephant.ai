@@ -191,6 +191,12 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 	updated := upsertKernelRuntimeBlock(stateContent, runtimeBlock)
 	if err := e.stateFile.Write(updated); err != nil {
 		e.logger.Warn("Kernel: persist runtime state failed: %v", err)
+		return
+	}
+
+	// 5. Commit post-cycle state so the final cycle's data is captured.
+	if err := e.stateFile.CommitCycleBoundary(ctx, fmt.Sprintf("post-cycle %s", cycleLabel)); err != nil {
+		e.logger.Debug("Kernel: post-cycle commit: %v", err)
 	}
 }
 
@@ -319,6 +325,10 @@ func parseCycleHistory(content string) []cycleHistoryEntry {
 		return nil
 	}
 	rest := content[idx:]
+	// Stop at the runtime section end marker to avoid parsing content outside the block.
+	if endIdx := strings.Index(rest, kernelRuntimeSectionEnd); endIdx > 0 {
+		rest = rest[:endIdx]
+	}
 
 	var entries []cycleHistoryEntry
 	for _, line := range strings.Split(rest, "\n") {

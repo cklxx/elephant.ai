@@ -223,16 +223,17 @@ type ProactiveConfig struct {
 
 // KernelProactiveConfig configures the kernel agent loop.
 type KernelProactiveConfig struct {
-	Enabled        bool                         `json:"enabled" yaml:"enabled"`
-	KernelID       string                       `json:"kernel_id" yaml:"kernel_id"`
-	Schedule       string                       `json:"schedule" yaml:"schedule"`
-	TimeoutSeconds int                          `json:"timeout_seconds" yaml:"timeout_seconds"`
-	LeaseSeconds   int                          `json:"lease_seconds" yaml:"lease_seconds"`
-	MaxConcurrent  int                          `json:"max_concurrent" yaml:"max_concurrent"`
-	Channel        string                       `json:"channel" yaml:"channel"`
-	UserID         string                       `json:"user_id" yaml:"user_id"`
-	ChatID         string                       `json:"chat_id" yaml:"chat_id"`
-	Agents         []KernelAgentProactiveConfig `json:"agents" yaml:"agents"`
+	Enabled         bool                         `json:"enabled" yaml:"enabled"`
+	KernelID        string                       `json:"kernel_id" yaml:"kernel_id"`
+	Schedule        string                       `json:"schedule" yaml:"schedule"`
+	TimeoutSeconds  int                          `json:"timeout_seconds" yaml:"timeout_seconds"`
+	LeaseSeconds    int                          `json:"lease_seconds" yaml:"lease_seconds"`
+	MaxConcurrent   int                          `json:"max_concurrent" yaml:"max_concurrent"`
+	MaxCycleHistory int                          `json:"max_cycle_history" yaml:"max_cycle_history"` // 0 = default (5)
+	Channel         string                       `json:"channel" yaml:"channel"`
+	UserID          string                       `json:"user_id" yaml:"user_id"`
+	ChatID          string                       `json:"chat_id" yaml:"chat_id"`
+	Agents          []KernelAgentProactiveConfig `json:"agents" yaml:"agents"`
 }
 
 // KernelAgentProactiveConfig defines a single agent within the kernel loop.

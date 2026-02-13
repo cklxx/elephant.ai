@@ -72,7 +72,7 @@ func (g *gitOperations) hasChanges(ctx context.Context) (bool, error) {
 // Format: hash ISO-date subject
 // Returns an empty slice (no error) when the repo has no commits yet.
 func (g *gitOperations) log(ctx context.Context, file string, n int) ([]CommitEntry, error) {
-	args := []string{"log", fmt.Sprintf("--format=%%H %%aI %%s"), fmt.Sprintf("-n%d", n)}
+	args := []string{"log", "--format=%H %aI %s", fmt.Sprintf("-n%d", n)}
 	if file != "" {
 		args = append(args, "--", file)
 	}

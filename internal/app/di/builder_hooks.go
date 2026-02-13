@@ -305,7 +305,7 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 			Schedule:        cfg.Schedule,
 			SeedState:       seedState,
 			MaxConcurrent:   cfg.MaxConcurrent,
-			MaxCycleHistory: 5,
+			MaxCycleHistory: cfg.MaxCycleHistory,
 			Channel:         cfg.Channel,
 			ChatID:          cfg.ChatID,
 			UserID:          cfg.UserID,
