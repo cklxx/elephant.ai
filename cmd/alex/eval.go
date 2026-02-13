@@ -5,12 +5,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	agent_eval "alex/evaluation/agent_eval"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 // handleEval runs the lightweight agent evaluation locally.
@@ -52,6 +54,12 @@ func (c *CLI) handleEval(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))
 	}
+
+	preparedDatasetPath, err := prepareEvalRuntimeEnvironment(*datasetPath)
+	if err != nil {
+		return fmt.Errorf("prepare eval runtime environment: %w", err)
+	}
+	*datasetPath = preparedDatasetPath
 
 	cliManager, err := agent_eval.NewCLIManager(*outputDir)
 	if err != nil {
@@ -102,6 +110,165 @@ func resolveEvalDatasetType(flagValue, datasetPath string) string {
 		return "swe_bench"
 	}
 	return "file"
+}
+
+func prepareEvalRuntimeEnvironment(datasetPath string) (string, error) {
+	trimmedDatasetPath := strings.TrimSpace(datasetPath)
+	projectRoot := resolveEvalProjectRoot(trimmedDatasetPath)
+	if projectRoot == "" {
+		return datasetPath, nil
+	}
+
+	if err := maybeLoadEvalDotEnv(projectRoot); err != nil {
+		return "", err
+	}
+	if err := maybeSetEvalContextConfig(projectRoot); err != nil {
+		return "", err
+	}
+
+	return maybeResolveEvalDatasetPath(trimmedDatasetPath, projectRoot), nil
+}
+
+func resolveEvalProjectRoot(datasetPath string) string {
+	if contextDir, ok := os.LookupEnv("ALEX_CONTEXT_CONFIG_DIR"); ok {
+		if root := deriveRepoRootFromContextDir(contextDir); root != "" {
+			return root
+		}
+	}
+
+	trimmedDatasetPath := strings.TrimSpace(datasetPath)
+	if trimmedDatasetPath != "" {
+		if filepath.IsAbs(trimmedDatasetPath) {
+			if root := findEvalProjectRoot(filepath.Dir(trimmedDatasetPath)); root != "" {
+				return root
+			}
+		} else {
+			if absPath, err := filepath.Abs(trimmedDatasetPath); err == nil && evalPathExists(absPath) {
+				if root := findEvalProjectRoot(filepath.Dir(absPath)); root != "" {
+					return root
+				}
+			}
+		}
+	}
+
+	if wd, err := os.Getwd(); err == nil {
+		if root := findEvalProjectRoot(wd); root != "" {
+			return root
+		}
+	}
+
+	if workspaceRoot := workspaceDirFromManagedConfig(); workspaceRoot != "" {
+		if root := findEvalProjectRoot(workspaceRoot); root != "" {
+			return root
+		}
+	}
+
+	if exe, err := os.Executable(); err == nil {
+		if root := findEvalProjectRoot(filepath.Dir(exe)); root != "" {
+			return root
+		}
+	}
+
+	return ""
+}
+
+func maybeResolveEvalDatasetPath(datasetPath, projectRoot string) string {
+	trimmedDatasetPath := strings.TrimSpace(datasetPath)
+	if trimmedDatasetPath == "" || filepath.IsAbs(trimmedDatasetPath) {
+		return trimmedDatasetPath
+	}
+
+	candidate := filepath.Join(projectRoot, trimmedDatasetPath)
+	if evalPathExists(candidate) {
+		return candidate
+	}
+	return trimmedDatasetPath
+}
+
+func maybeLoadEvalDotEnv(projectRoot string) error {
+	if value, ok := os.LookupEnv("ALEX_DOTENV_PATH"); ok && strings.TrimSpace(value) != "" {
+		return nil
+	}
+
+	dotEnvPath := filepath.Join(projectRoot, ".env")
+	if !evalPathExists(dotEnvPath) {
+		return nil
+	}
+	if err := runtimeconfig.LoadDotEnv(dotEnvPath); err != nil {
+		return fmt.Errorf("load project .env %s: %w", dotEnvPath, err)
+	}
+	return nil
+}
+
+func maybeSetEvalContextConfig(projectRoot string) error {
+	if value, ok := os.LookupEnv("ALEX_CONTEXT_CONFIG_DIR"); ok && strings.TrimSpace(value) != "" {
+		return nil
+	}
+
+	contextConfigDir := filepath.Join(projectRoot, "configs", "context")
+	if !evalDirExists(contextConfigDir) {
+		return nil
+	}
+	if err := os.Setenv("ALEX_CONTEXT_CONFIG_DIR", contextConfigDir); err != nil {
+		return fmt.Errorf("set ALEX_CONTEXT_CONFIG_DIR: %w", err)
+	}
+	return nil
+}
+
+func workspaceDirFromManagedConfig() string {
+	fileCfg, _, err := runtimeconfig.LoadFileConfig()
+	if err != nil || fileCfg.Channels == nil || fileCfg.Channels.Lark == nil {
+		return ""
+	}
+	return strings.TrimSpace(fileCfg.Channels.Lark.WorkspaceDir)
+}
+
+func deriveRepoRootFromContextDir(contextDir string) string {
+	trimmed := strings.TrimSpace(contextDir)
+	if trimmed == "" {
+		return ""
+	}
+	cleaned := filepath.Clean(trimmed)
+	suffix := filepath.Join("configs", "context")
+	if strings.HasSuffix(cleaned, suffix) {
+		root := strings.TrimSuffix(cleaned, suffix)
+		return strings.TrimSuffix(root, string(filepath.Separator))
+	}
+	return findEvalProjectRoot(cleaned)
+}
+
+func findEvalProjectRoot(start string) string {
+	dir := strings.TrimSpace(start)
+	if dir == "" {
+		return ""
+	}
+	current := filepath.Clean(dir)
+	for {
+		if evalIsProjectRoot(current) {
+			return current
+		}
+		parent := filepath.Dir(current)
+		if parent == current || parent == "" {
+			break
+		}
+		current = parent
+	}
+	return ""
+}
+
+func evalIsProjectRoot(path string) bool {
+	return evalPathExists(filepath.Join(path, "go.mod")) &&
+		evalDirExists(filepath.Join(path, "configs", "context"))
+}
+
+func evalPathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func evalDirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 func (c *CLI) listAgentProfiles(args []string) error {
