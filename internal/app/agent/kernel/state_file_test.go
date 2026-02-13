@@ -1,9 +1,13 @@
 package kernel
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"alex/internal/infra/markdown"
+	"alex/internal/shared/logging"
 )
 
 func TestStateFile_ReadNonExistent(t *testing.T) {
@@ -115,5 +119,83 @@ func TestStateFile_WriteCreatesDir(t *testing.T) {
 	}
 	if got != "test" {
 		t.Errorf("got %q, want %q", got, "test")
+	}
+}
+
+func newTestVersionedStateFile(t *testing.T) *StateFile {
+	t.Helper()
+	dir := t.TempDir()
+	store := markdown.NewVersionedStore(markdown.StoreConfig{
+		Dir:        dir,
+		AutoCommit: true,
+		Logger:     logging.Nop(),
+	})
+	if err := store.Init(context.Background()); err != nil {
+		t.Fatalf("store Init: %v", err)
+	}
+	return NewVersionedStateFile(dir, store)
+}
+
+func TestStateFile_VersionedWriteCreatesGitHistory(t *testing.T) {
+	sf := newTestVersionedStateFile(t)
+	ctx := context.Background()
+
+	// Write two versions of STATE.md.
+	if err := sf.Write("v1"); err != nil {
+		t.Fatalf("Write v1: %v", err)
+	}
+	if err := sf.CommitCycleBoundary(ctx, "cycle-1"); err != nil {
+		t.Fatalf("CommitCycleBoundary 1: %v", err)
+	}
+
+	if err := sf.Write("v2"); err != nil {
+		t.Fatalf("Write v2: %v", err)
+	}
+	if err := sf.CommitCycleBoundary(ctx, "cycle-2"); err != nil {
+		t.Fatalf("CommitCycleBoundary 2: %v", err)
+	}
+
+	// Verify current content is v2.
+	got, err := sf.Read()
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if got != "v2" {
+		t.Errorf("expected v2, got %q", got)
+	}
+
+	// Verify git history has 2 commits for STATE.md.
+	entries, err := sf.store.History(ctx, stateFileName, 10)
+	if err != nil {
+		t.Fatalf("History: %v", err)
+	}
+	if len(entries) < 2 {
+		t.Fatalf("expected >= 2 history entries, got %d", len(entries))
+	}
+}
+
+func TestStateFile_CommitCycleBoundary_NoOpWithoutStore(t *testing.T) {
+	sf := NewStateFile(t.TempDir())
+	// Should not error or panic.
+	if err := sf.CommitCycleBoundary(context.Background(), "test"); err != nil {
+		t.Fatalf("CommitCycleBoundary on legacy StateFile: %v", err)
+	}
+}
+
+func TestStateFile_VersionedSeedIdempotent(t *testing.T) {
+	sf := newTestVersionedStateFile(t)
+
+	if err := sf.Seed("first"); err != nil {
+		t.Fatalf("first Seed: %v", err)
+	}
+	if err := sf.Seed("second"); err != nil {
+		t.Fatalf("second Seed: %v", err)
+	}
+	got, err := sf.Read()
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if got != "first" {
+		t.Errorf("Seed not idempotent: got %q, want %q", got, "first")
 	}
 }

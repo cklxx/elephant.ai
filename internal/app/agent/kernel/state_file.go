@@ -1,8 +1,11 @@
 package kernel
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+
+	"alex/internal/infra/markdown"
 )
 
 const (
@@ -15,13 +18,24 @@ const (
 // (STATE.md / INIT.md / SYSTEM_PROMPT.md).
 // STATE.md remains opaque markdown: kernel only upserts a bounded runtime block
 // for observability and otherwise treats the rest as agent-owned content.
+//
+// When constructed with NewVersionedStateFile, all reads/writes are delegated
+// to a VersionedStore for git-backed versioning.
 type StateFile struct {
-	dir string // e.g. ~/.alex/kernel/{kernel_id}/
+	dir   string                   // e.g. ~/.alex/kernel/{kernel_id}/
+	store *markdown.VersionedStore // nil = legacy (plain filesystem) mode
 }
 
 // NewStateFile creates a StateFile rooted in the given directory.
+// Uses plain filesystem I/O without git versioning.
 func NewStateFile(dir string) *StateFile {
 	return &StateFile{dir: dir}
+}
+
+// NewVersionedStateFile creates a StateFile backed by a VersionedStore.
+// All reads/writes are delegated to the store.
+func NewVersionedStateFile(dir string, store *markdown.VersionedStore) *StateFile {
+	return &StateFile{dir: dir, store: store}
 }
 
 func (f *StateFile) namedPath(fileName string) string {
@@ -44,6 +58,9 @@ func (f *StateFile) SystemPromptPath() string {
 }
 
 func (f *StateFile) readNamed(fileName string) (string, error) {
+	if f.store != nil {
+		return f.store.Read(fileName)
+	}
 	data, err := os.ReadFile(f.namedPath(fileName))
 	if os.IsNotExist(err) {
 		return "", nil
@@ -55,6 +72,9 @@ func (f *StateFile) readNamed(fileName string) (string, error) {
 }
 
 func (f *StateFile) writeNamed(fileName, content string) error {
+	if f.store != nil {
+		return f.store.Write(context.Background(), fileName, content)
+	}
 	if err := os.MkdirAll(f.dir, 0o755); err != nil {
 		return err
 	}
@@ -67,6 +87,9 @@ func (f *StateFile) writeNamed(fileName, content string) error {
 }
 
 func (f *StateFile) seedNamed(fileName, content string) error {
+	if f.store != nil {
+		return f.store.Seed(context.Background(), fileName, content)
+	}
 	_, err := os.Stat(f.namedPath(fileName))
 	if err == nil {
 		return nil // already exists, don't overwrite
@@ -123,4 +146,14 @@ func (f *StateFile) SeedInit(content string) error {
 // SeedSystemPrompt writes SYSTEM_PROMPT.md only when it does not already exist.
 func (f *StateFile) SeedSystemPrompt(content string) error {
 	return f.seedNamed(systemPromptFileName, content)
+}
+
+// CommitCycleBoundary commits all pending changes with the given message.
+// No-op when the store is nil (legacy mode).
+func (f *StateFile) CommitCycleBoundary(ctx context.Context, msg string) error {
+	if f.store == nil {
+		return nil
+	}
+	_, err := f.store.CommitAll(ctx, msg)
+	return err
 }
