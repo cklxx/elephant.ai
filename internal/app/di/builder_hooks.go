@@ -21,6 +21,7 @@ import (
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
 	kernelinfra "alex/internal/infra/kernel"
+	"alex/internal/infra/markdown"
 	"alex/internal/infra/llm"
 	"alex/internal/infra/memory"
 	toolspolicy "alex/internal/infra/tools"
@@ -235,8 +236,21 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 	}
 
 	stateRoot := resolveStorageDir("", kernelagent.DefaultStateRootDir)
-	stateFile := kernelagent.NewStateFile(filepath.Join(stateRoot, cfg.KernelID))
+	stateDir := filepath.Join(stateRoot, cfg.KernelID)
 	seedState := kernelagent.DefaultSeedStateContent
+
+	versionedStore := markdown.NewVersionedStore(markdown.StoreConfig{
+		Dir:        stateDir,
+		AutoCommit: true,
+		Logger:     logging.NewKernelLogger("KernelVersionedStore"),
+	})
+	var stateFile *kernelagent.StateFile
+	if err := versionedStore.Init(context.Background()); err != nil {
+		b.logger.Warn("Kernel versioned store init failed: %v (falling back to unversioned)", err)
+		stateFile = kernelagent.NewStateFile(stateDir)
+	} else {
+		stateFile = kernelagent.NewVersionedStateFile(stateDir, versionedStore)
+	}
 
 	agents := make([]kernelagent.AgentConfig, 0, len(cfg.Agents))
 	for _, a := range cfg.Agents {
@@ -287,13 +301,14 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 
 	engine := kernelagent.NewEngine(
 		kernelagent.KernelConfig{
-			KernelID:      cfg.KernelID,
-			Schedule:      cfg.Schedule,
-			SeedState:     seedState,
-			MaxConcurrent: cfg.MaxConcurrent,
-			Channel:       cfg.Channel,
-			ChatID:        cfg.ChatID,
-			UserID:        cfg.UserID,
+			KernelID:        cfg.KernelID,
+			Schedule:        cfg.Schedule,
+			SeedState:       seedState,
+			MaxConcurrent:   cfg.MaxConcurrent,
+			MaxCycleHistory: 5,
+			Channel:         cfg.Channel,
+			ChatID:          cfg.ChatID,
+			UserID:          cfg.UserID,
 		},
 		stateFile, kernelStore, planner, executor, logging.NewKernelLogger("KernelEngine"),
 	)
