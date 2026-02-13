@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"alex/evaluation/swe_bench"
+	"alex/internal/domain/workflow"
 )
 
 // EvaluationMetrics 评估指标
@@ -251,6 +253,16 @@ func (qc *QualityCollector) assessSolutionQuality(result swe_bench.WorkerResult)
 		score += 0.1
 	}
 
+	// Workflow-level failure signals should heavily cap quality.
+	if workflowFailureSignal(result) {
+		score = math.Min(score, 0.25)
+	}
+
+	// Completed-with-error should not appear high quality.
+	if strings.TrimSpace(result.Error) != "" {
+		score = math.Min(score, 0.35)
+	}
+
 	return math.Min(score, 1.0)
 }
 
@@ -259,6 +271,10 @@ func (qc *QualityCollector) assessConsistency(result swe_bench.WorkerResult) flo
 	// 基于解决方案特征的简单一致性评估
 	if result.Status != swe_bench.StatusCompleted {
 		return 0.0
+	}
+
+	if workflowFailureSignal(result) {
+		return 0.2
 	}
 
 	// 基于解决方案长度和复杂性的评估
@@ -270,6 +286,35 @@ func (qc *QualityCollector) assessConsistency(result swe_bench.WorkerResult) flo
 		return 0.8
 	}
 	return 0.4
+}
+
+func workflowFailureSignal(result swe_bench.WorkerResult) bool {
+	if strings.EqualFold(strings.TrimSpace(result.ErrorType), "max_iterations_error") {
+		return true
+	}
+	if strings.Contains(strings.ToLower(strings.TrimSpace(result.Error)), "max iterations") {
+		return true
+	}
+	if result.Workflow == nil {
+		return false
+	}
+	if result.Workflow.Phase == workflow.PhaseFailed {
+		return true
+	}
+	for _, node := range result.Workflow.Nodes {
+		if node.ID != "execute" {
+			continue
+		}
+		output, ok := node.Output.(map[string]any)
+		if !ok {
+			continue
+		}
+		stop, ok := output["stop"].(string)
+		if ok && strings.EqualFold(strings.TrimSpace(stop), "max_iterations") {
+			return true
+		}
+	}
+	return false
 }
 
 // assessComplexityHandling 评估复杂性处理能力
