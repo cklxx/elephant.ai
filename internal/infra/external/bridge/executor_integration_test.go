@@ -5,6 +5,7 @@ package bridge
 import (
 	"context"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -66,6 +67,58 @@ func TestExecutor_Integration_ClaudeCode(t *testing.T) {
 	}
 	t.Logf("Answer: %q, Tokens: %d, Cost: %v, Iters: %d, Progress events: %d",
 		res.Answer, res.TokensUsed, res.Metadata["cost_usd"], res.Iterations, len(progress))
+}
+
+// TestExecutor_Integration_Codex spawns the real Codex bridge and executes
+// a simple autonomous query.
+//
+// Run: go test -tags=integration -run TestExecutor_Integration_Codex -v ./internal/infra/external/bridge/
+func TestExecutor_Integration_Codex(t *testing.T) {
+	if _, err := osexec.LookPath("codex"); err != nil {
+		t.Skip("codex binary not found in PATH")
+	}
+
+	repoRoot := findRepoRoot(t)
+	bridgeScript := filepath.Join(repoRoot, "scripts", "codex_bridge", "codex_bridge.py")
+	if _, err := os.Stat(bridgeScript); err != nil {
+		t.Skipf("codex bridge script not found at %s", bridgeScript)
+	}
+
+	exec := New(BridgeConfig{
+		AgentType:      "codex",
+		Binary:         "codex",
+		PythonBinary:   "python3",
+		BridgeScript:   bridgeScript,
+		ApprovalPolicy: "never",
+		Sandbox:        "danger-full-access",
+		Timeout:        120 * time.Second,
+		MaxTurns:       4,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	const marker = "BRIDGE_CODEX_E2E_OK"
+	res, err := exec.Execute(ctx, agent.ExternalAgentRequest{
+		TaskID:     "integration-test-codex",
+		AgentType:  "codex",
+		Prompt:     "Reply exactly with " + marker,
+		WorkingDir: repoRoot,
+	})
+	if err != nil {
+		t.Fatalf("execute failed: %v", err)
+	}
+	if res == nil {
+		t.Fatal("expected result")
+	}
+	if !strings.Contains(res.Answer, marker) {
+		t.Fatalf("expected answer containing %q, got: %q", marker, res.Answer)
+	}
+	if res.TokensUsed <= 0 {
+		t.Fatalf("expected tokens > 0, got %d", res.TokensUsed)
+	}
+	t.Logf("Answer: %q, Tokens: %d, Cost: %v, Iters: %d",
+		res.Answer, res.TokensUsed, res.Metadata["cost_usd"], res.Iterations)
 }
 
 // TestExecutor_Integration_ToolFiltering verifies that:
