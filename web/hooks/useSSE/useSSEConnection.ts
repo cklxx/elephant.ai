@@ -7,7 +7,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { SSEClient } from "@/lib/events/sseClient";
 import { EventPipeline } from "@/lib/events/eventPipeline";
-import { authClient } from "@/lib/auth/client";
 import { createLogger } from "@/lib/logger";
 import { performanceMonitor } from "@/lib/analytics/performance";
 import type { SSEReplayMode } from "@/lib/api";
@@ -134,7 +133,7 @@ export function useSSEConnection(
     isDisposedRef.current = false;
     connectionStartTimeRef.current = performance.now();
 
-    const token = authClient.getSession()?.accessToken;
+    const token = undefined;
     const replay: SSEReplayMode = hasLocalHistory ? "none" : "session";
 
     const client = new SSEClient(currentSessionId, pipeline, {

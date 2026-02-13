@@ -24,7 +24,6 @@ import { agentEventBus } from "@/lib/events/eventBus";
 import { defaultEventRegistry } from "@/lib/events/eventRegistry";
 import { handleAttachmentEvent, resetAttachmentRegistry } from "@/lib/events/attachmentRegistry";
 import { EventPipeline } from "@/lib/events/eventPipeline";
-import { authClient } from "@/lib/auth/client";
 import { createLogger } from "@/lib/logger";
 
 import { useSSEDeduplication } from "./useSSEDeduplication";
@@ -65,7 +64,7 @@ export function useSSE(
   const previousSessionIdRef = useRef<string | null>(sessionId);
   const finalEventIndexRef = useRef<Map<string, number>>(new Map());
   const finalEventSessionRef = useRef<string | null>(sessionId);
-  const initialUserId = authClient.getSession()?.user.id?.trim() || null;
+  const initialUserId: string | null = null;
   const userIdRef = useRef<string | null>(initialUserId);
   const onEventRef = useRef(onEvent);
   const activeRunIdRef = useRef<string | null>(null);
@@ -314,11 +313,8 @@ export function useSSE(
     const previousSessionId = previousSessionIdRef.current;
     previousSessionIdRef.current = sessionId;
 
-    const currentUserId = authClient.getSession()?.user.id?.trim() || null;
-    const userChanged = userIdRef.current !== currentUserId;
     const sessionChanged = Boolean(previousSessionId) && previousSessionId !== sessionId;
-    const shouldResetAttachments = sessionChanged || userChanged || !currentUserId;
-    userIdRef.current = currentUserId;
+    const shouldResetAttachments = sessionChanged;
 
     cleanup();
 

@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, beforeAll, afterAll, expect, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactElement, ReactNode } from 'react';
+import { ReactElement } from 'react';
 import { LanguageProvider } from '@/lib/i18n';
 import { ConversationPageContent } from '../conversation/ConversationPageContent';
 import type { AnyAgentEvent } from '@/lib/types';
@@ -96,37 +96,6 @@ vi.mock('@/hooks/useSessionStore', () => ({
     mutateAsync: vi.fn(),
     mutate: vi.fn(),
     isPending: false,
-  }),
-}));
-
-vi.mock('@/lib/auth/context', () => ({
-  AuthProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
-  useAuth: () => ({
-    status: 'authenticated',
-    session: null,
-    user: {
-      id: 'test-user',
-      email: 'tester@example.com',
-      displayName: 'Tester',
-      pointsBalance: 0,
-      subscription: {
-        tier: 'free',
-        monthlyPriceCents: 0,
-        expiresAt: null,
-        isPaid: false,
-      },
-    },
-    accessToken: 'token',
-    login: vi.fn(),
-    register: vi.fn(),
-    logout: vi.fn(),
-    refresh: vi.fn(),
-    loginWithProvider: vi.fn(),
-    startOAuth: vi.fn(),
-    awaitOAuthSession: vi.fn(),
-    adjustPoints: vi.fn(),
-    updateSubscription: vi.fn(),
-    listPlans: vi.fn().mockResolvedValue([]),
   }),
 }));
 

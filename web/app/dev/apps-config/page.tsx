@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
-import { RequireAuth } from "@/components/auth/RequireAuth";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,7 +105,6 @@ export default function AppsConfigPage() {
   }, [plugins]);
 
   return (
-    <RequireAuth>
       <div className="min-h-screen bg-slate-50 px-4 py-8 lg:px-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-6">
           <header className="rounded-2xl bg-white/90 p-6 ring-1 ring-slate-200/60">
@@ -259,6 +258,5 @@ export default function AppsConfigPage() {
           )}
         </div>
       </div>
-    </RequireAuth>
   );
 }

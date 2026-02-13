@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, BarChart2, Clock, PlayCircle, RefreshCw } from "lucide-react";
 
-import { RequireAuth } from "@/components/auth/RequireAuth";
+
 import { PageContainer, PageShell, SectionBlock, SectionHeader } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -129,7 +129,6 @@ export default function EvaluationPage() {
     : null;
 
   return (
-    <RequireAuth>
       <PageShell>
         <PageContainer>
           <SectionBlock>
@@ -363,7 +362,6 @@ export default function EvaluationPage() {
           </Card>
         </PageContainer>
       </PageShell>
-    </RequireAuth>
   );
 }
 

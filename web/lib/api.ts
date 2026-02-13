@@ -1,7 +1,6 @@
 // API client for ALEX backend server
 
 import { buildApiUrl } from "./api-base";
-import { authClient } from "./auth/client";
 import { createLogger } from "./logger";
 import {
   CreateTaskRequest,
@@ -22,7 +21,6 @@ import {
   ContextWindowPreviewResponse,
   ContextConfigSnapshot,
   ContextConfigUpdatePayload,
-  SandboxBrowserInfo,
   UserPersonaProfile,
   RuntimeModelCatalog,
   OnboardingStateResponse,
@@ -33,7 +31,6 @@ import {
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
-  skipAuth?: boolean;
 }
 
 export class APIError extends Error {
@@ -55,22 +52,14 @@ const log = createLogger("API");
 async function fetchAPI<T>(
   endpoint: string,
   options: ApiRequestOptions = {},
-  attempt = 0,
 ): Promise<T> {
   const url = buildApiUrl(endpoint);
-  const { skipAuth = false, headers: inputHeaders, ...rest } = options;
+  const { headers: inputHeaders, ...rest } = options;
 
   const headers = new Headers(inputHeaders ?? {});
 
   if (rest.body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
-  }
-
-  if (!skipAuth) {
-    const token = await authClient.ensureAccessToken();
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
   }
 
   try {
@@ -79,15 +68,6 @@ async function fetchAPI<T>(
       headers,
       credentials: rest.credentials ?? "include",
     });
-
-    if (response.status === 401 && !skipAuth && attempt < 1) {
-      try {
-        await authClient.refresh();
-      } catch (refreshError) {
-        log.warn("Refresh token failed after 401", { error: refreshError });
-      }
-      return fetchAPI<T>(endpoint, options, attempt + 1);
-    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -192,13 +172,6 @@ export async function getRuntimeConfigSnapshot(): Promise<RuntimeConfigSnapshot>
 
 export async function getAppsConfigSnapshot(): Promise<AppsConfigSnapshot> {
   return fetchAPI<AppsConfigSnapshot>("/api/internal/config/apps");
-}
-
-export async function getSandboxBrowserInfo(
-  sessionId?: string | null,
-): Promise<SandboxBrowserInfo> {
-  const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
-  return fetchAPI<SandboxBrowserInfo>(`/api/sandbox/browser-info${query}`);
 }
 
 export async function updateRuntimeConfig(
@@ -463,7 +436,7 @@ export async function getSharedSession(
   const params = new URLSearchParams({ token });
   return fetchAPI<SharedSessionResponse>(
     `/api/share/sessions/${sessionId}?${params.toString()}`,
-    { skipAuth: true },
+    {},
   );
 }
 
@@ -517,7 +490,7 @@ export async function createSession(): Promise<{ session_id: string }> {
 export async function getLogTrace(logId: string): Promise<LogTraceBundle> {
   return fetchAPI<LogTraceBundle>(
     `/api/dev/logs?log_id=${encodeURIComponent(logId)}`,
-    { skipAuth: true },
+    {},
   );
 }
 
@@ -530,7 +503,7 @@ export async function getLogIndex(limit = 40, offset = 0): Promise<LogIndexRespo
   });
   return fetchAPI<LogIndexResponse>(
     `/api/dev/logs/index?${params.toString()}`,
-    { skipAuth: true },
+    {},
   );
 }
 
@@ -540,7 +513,7 @@ export async function getStructuredLogTrace(
 ): Promise<StructuredLogBundle> {
   let url = `/api/dev/logs/structured?log_id=${encodeURIComponent(logId)}`;
   if (search) url += `&search=${encodeURIComponent(search)}`;
-  return fetchAPI<StructuredLogBundle>(url, { skipAuth: true });
+  return fetchAPI<StructuredLogBundle>(url, {});
 }
 
 // Dev memory query
@@ -566,17 +539,9 @@ export async function getMemorySnapshot(sessionId: string): Promise<MemorySnapsh
 
 export type SSEReplayMode = "full" | "session" | "none";
 
-export function sseRequiresAccessToken(): boolean {
-  if (typeof window === "undefined") {
-    return true;
-  }
-  const url = new URL(buildApiUrl("/api/sse"));
-  return !window.location?.origin || url.origin !== window.location.origin;
-}
-
 export function createSSEConnection(
   sessionId: string,
-  accessToken?: string,
+  _accessToken?: string,
   options: { replay?: SSEReplayMode; debug?: boolean } = {},
 ): EventSource {
   const url = new URL(buildApiUrl("/api/sse"));
@@ -590,21 +555,13 @@ export function createSSEConnection(
     url.searchParams.set("debug", "1");
   }
 
-  const shouldIncludeAccessToken = sseRequiresAccessToken();
-
-  if (shouldIncludeAccessToken) {
-    const token = accessToken ?? authClient.getSession()?.accessToken;
-    if (token) {
-      url.searchParams.set("access_token", token);
-    }
-  }
   return new EventSource(url.toString(), { withCredentials: true });
 }
 
 // Health check
 
 export async function healthCheck(): Promise<{ status: string }> {
-  return fetchAPI<{ status: string }>("/health", { skipAuth: true });
+  return fetchAPI<{ status: string }>("/health", {});
 }
 
 // Export API client object

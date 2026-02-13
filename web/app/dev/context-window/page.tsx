@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
-import { RequireAuth } from "@/components/auth/RequireAuth";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -458,8 +458,6 @@ function DevContextWindowPage() {
 
 export default function Page() {
   return (
-    <RequireAuth>
       <DevContextWindowPage />
-    </RequireAuth>
   );
 }

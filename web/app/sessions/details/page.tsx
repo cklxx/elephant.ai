@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
-import { RequireAuth } from "@/components/auth/RequireAuth";
+
 import { PageContainer, PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,7 +55,6 @@ function SessionDetailsContent() {
 
 export default function SessionDetailsQueryPage() {
   return (
-    <RequireAuth>
       <PageShell>
         <PageContainer>
           <Suspense fallback={<SessionDetailsFallback />}>
@@ -63,6 +62,5 @@ export default function SessionDetailsQueryPage() {
           </Suspense>
         </PageContainer>
       </PageShell>
-    </RequireAuth>
   );
 }

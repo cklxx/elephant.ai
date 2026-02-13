@@ -2,24 +2,12 @@ import { renderHook, act } from "@testing-library/react";
 import { vi } from "vitest";
 import { useSSE } from "../useSSE";
 import { apiClient } from "@/lib/api";
-import { authClient } from "@/lib/auth/client";
 import { AnyAgentEvent, WorkflowResultFinalEvent } from "@/lib/types";
 
 // Mock the apiClient
 vi.mock("@/lib/api", () => ({
   apiClient: {
     createSSEConnection: vi.fn(),
-  },
-  sseRequiresAccessToken: vi.fn(() => true),
-}));
-
-const mockGetSession = vi.hoisted(() => vi.fn());
-const mockEnsureAccessToken = vi.hoisted(() => vi.fn());
-
-vi.mock("@/lib/auth/client", () => ({
-  authClient: {
-    getSession: mockGetSession,
-    ensureAccessToken: mockEnsureAccessToken,
   },
 }));
 
@@ -117,25 +105,6 @@ describe("useSSE", () => {
     vi.spyOn(Math, 'random').mockReturnValue(0);
     connectionCalls = 0;
 
-    mockGetSession.mockReturnValue({
-      accessToken: "test-token",
-      accessExpiry: new Date(Date.now() + 60_000).toISOString(),
-      refreshExpiry: new Date(Date.now() + 3600_000).toISOString(),
-      user: {
-        id: "test-user",
-        email: "test@example.com",
-        displayName: "Test User",
-        pointsBalance: 0,
-        subscription: {
-          tier: "free",
-          monthlyPriceCents: 0,
-          expiresAt: null,
-          isPaid: false,
-        },
-      },
-    });
-    mockEnsureAccessToken.mockResolvedValue("test-token");
-
     // Setup mock EventSource factory
     (apiClient.createSSEConnection as vi.Mock).mockImplementation(
       (sessionId: string, token?: string) => {
@@ -161,25 +130,11 @@ describe("useSSE", () => {
 
       expect(apiClient.createSSEConnection).toHaveBeenCalledWith(
         "test-session-123",
-        "test-token",
+        undefined,
         { replay: "session" },
       );
       expect(result.current.isConnected).toBe(false);
       expect(result.current.isReconnecting).toBe(false);
-    });
-
-    test("should attempt connection even when access token is missing", async () => {
-      mockGetSession.mockReturnValue(null);
-
-      renderHook(() => useSSE("test-session-123"));
-
-      await waitForConnection(1);
-
-      expect(apiClient.createSSEConnection).toHaveBeenCalledWith(
-        "test-session-123",
-        undefined,
-        { replay: "session" },
-      );
     });
 
     test("should set isConnected to true on successful connection", async () => {
@@ -1067,7 +1022,7 @@ describe("useSSE", () => {
 
       // Final session should be connected
       const calls = (apiClient.createSSEConnection as vi.Mock).mock.calls;
-      expect(calls.at(-1)).toEqual(["session-5", "test-token", { replay: "session" }]);
+      expect(calls.at(-1)).toEqual(["session-5", undefined, { replay: "session" }]);
     });
 
     test("should handle enabled toggle without breaking reconnection", async () => {

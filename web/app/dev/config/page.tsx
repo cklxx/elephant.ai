@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RequireAuth } from "@/components/auth/RequireAuth";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
@@ -304,7 +304,6 @@ export default function ConfigAdminPage() {
   }, [streamState]);
 
   return (
-    <RequireAuth>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
         <Card className="border-primary/30 bg-white/80">
           <CardHeader>
@@ -444,6 +443,5 @@ export default function ConfigAdminPage() {
           </CardContent>
         </Card>
       </div>
-    </RequireAuth>
   );
 }

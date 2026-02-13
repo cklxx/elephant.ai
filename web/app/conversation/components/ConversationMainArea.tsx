@@ -7,7 +7,6 @@ import { TaskInput } from "@/components/agent/TaskInput";
 import { AttachmentPanel } from "@/components/agent/AttachmentPanel";
 import { SkillsPanel } from "@/components/agent/SkillsPanel";
 import { ConnectionBanner } from "@/components/agent/ConnectionBanner";
-import { SandboxDesktopPanel } from "@/components/agent/SandboxDesktopPanel";
 import { SmartErrorBoundary } from "@/components/SmartErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -200,10 +199,6 @@ export const ConversationMainArea = memo(function ConversationMainArea({
 
         <div className="border-t px-3 py-4 sm:px-6 sm:py-6">
           <div className="space-y-4">
-            <SandboxDesktopPanel
-              sessionId={streamSessionId}
-              isRunning={streamIsRunning}
-            />
             <TaskInput
               onSubmit={onSubmit}
               placeholder={inputPlaceholder}

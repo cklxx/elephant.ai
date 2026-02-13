@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { RequireAuth } from "@/components/auth/RequireAuth";
+
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,7 +42,6 @@ export default function ConfigurationWorkbenchPage() {
   );
 
   return (
-    <RequireAuth>
       <div className="min-h-screen bg-slate-50 px-4 py-8 lg:px-8">
         <div className="mx-auto flex max-w-[1400px] flex-col gap-6">
           <header className="rounded-2xl bg-white/90 p-6 ring-1 ring-slate-200/60">
@@ -91,6 +90,5 @@ export default function ConfigurationWorkbenchPage() {
           </Card>
         </div>
       </div>
-    </RequireAuth>
   );
 }

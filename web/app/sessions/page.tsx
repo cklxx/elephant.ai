@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { RequireAuth } from "@/components/auth/RequireAuth";
+
 import { SessionList } from "@/components/session/SessionList";
 import { PageContainer, PageShell, SectionBlock, SectionHeader } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,6 @@ import { useI18n } from "@/lib/i18n";
 export default function SessionsPage() {
   const { t } = useI18n();
   return (
-    <RequireAuth>
       <PageShell>
         <PageContainer>
           <SectionBlock>
@@ -39,6 +38,5 @@ export default function SessionsPage() {
           </Card>
         </PageContainer>
       </PageShell>
-    </RequireAuth>
   );
 }

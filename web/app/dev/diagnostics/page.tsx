@@ -5,7 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Play, RefreshCw, Square, Trash2 } from "lucide-react";
 import { StructuredLogWorkbench } from "@/components/dev-tools/StructuredLogWorkbench";
 import { useDebouncedValue } from "@/components/dev-tools/shared/useDebouncedValue";
-import { RequireAuth } from "@/components/auth/RequireAuth";
+
 import { useSessionStore, useSessions } from "@/hooks/useSessionStore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1440,7 +1440,6 @@ export default function DiagnosticsPage() {
   }, [sessionId, turnSnapshotError, turnSnapshotLoading, turnSnapshotUpdatedAt]);
 
   return (
-    <RequireAuth>
       <div className="min-h-screen bg-slate-50 px-4 py-8 lg:px-8">
         <div className="mx-auto flex max-w-[1400px] flex-col gap-6">
           <header className="rounded-2xl bg-white/90 p-6 ring-1 ring-slate-200/60">
@@ -2057,6 +2056,5 @@ export default function DiagnosticsPage() {
           </div>
         </div>
       </div>
-    </RequireAuth>
   );
 }
