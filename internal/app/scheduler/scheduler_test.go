@@ -73,6 +73,46 @@ func (b *blockingCoordinator) callCount() int {
 	return b.calls
 }
 
+type mockLeaderLock struct {
+	mu           sync.Mutex
+	name         string
+	acquireOK    bool
+	acquireErr   error
+	releaseErr   error
+	acquireCalls int
+	releaseCalls int
+}
+
+func (m *mockLeaderLock) Acquire(_ context.Context) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.acquireCalls++
+	if m.acquireErr != nil {
+		return false, m.acquireErr
+	}
+	return m.acquireOK, nil
+}
+
+func (m *mockLeaderLock) Release(_ context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.releaseCalls++
+	return m.releaseErr
+}
+
+func (m *mockLeaderLock) Name() string {
+	if strings.TrimSpace(m.name) == "" {
+		return "mock-leader-lock"
+	}
+	return m.name
+}
+
+func (m *mockLeaderLock) stats() (acquireCalls int, releaseCalls int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.acquireCalls, m.releaseCalls
+}
+
 // mockNotifier records Lark messages.
 type mockNotifier struct {
 	mu       sync.Mutex
@@ -105,6 +145,70 @@ func TestScheduler_Disabled(t *testing.T) {
 	sched := New(Config{Enabled: false}, nil, nil, nil)
 	if err := sched.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
+	}
+}
+
+func TestScheduler_LeaderLockStandbyWhenNotAcquired(t *testing.T) {
+	lock := &mockLeaderLock{acquireOK: false}
+	sched := New(Config{
+		Enabled: true,
+		StaticTriggers: []config.SchedulerTriggerConfig{
+			{Name: "standby-trigger", Schedule: "* * * * *", Task: "noop"},
+		},
+		LeaderLock: lock,
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	if got := sched.TriggerCount(); got != 0 {
+		t.Fatalf("expected standby scheduler with 0 triggers, got %d", got)
+	}
+	acquireCalls, releaseCalls := lock.stats()
+	if acquireCalls != 1 {
+		t.Fatalf("expected acquire called once, got %d", acquireCalls)
+	}
+	if releaseCalls != 0 {
+		t.Fatalf("expected release not called, got %d", releaseCalls)
+	}
+}
+
+func TestScheduler_LeaderLockAcquireError(t *testing.T) {
+	lock := &mockLeaderLock{acquireErr: errors.New("lock unavailable")}
+	sched := New(Config{Enabled: true, LeaderLock: lock}, &mockCoordinator{}, nil, nil)
+
+	err := sched.Start(context.Background())
+	if err == nil {
+		t.Fatal("expected Start to return leader lock acquire error")
+	}
+	if !strings.Contains(err.Error(), "leader lock") {
+		t.Fatalf("expected leader lock error context, got %v", err)
+	}
+}
+
+func TestScheduler_LeaderLockReleasedOnStop(t *testing.T) {
+	lock := &mockLeaderLock{acquireOK: true}
+	sched := New(Config{Enabled: true, LeaderLock: lock}, &mockCoordinator{}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	sched.Stop()
+	sched.Stop() // idempotent
+
+	acquireCalls, releaseCalls := lock.stats()
+	if acquireCalls != 1 {
+		t.Fatalf("expected acquire called once, got %d", acquireCalls)
+	}
+	if releaseCalls != 1 {
+		t.Fatalf("expected release called once, got %d", releaseCalls)
 	}
 }
 

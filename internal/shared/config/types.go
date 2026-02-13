@@ -304,17 +304,20 @@ type SkillsFeedbackConfig struct {
 
 // SchedulerConfig configures time-based proactive triggers.
 type SchedulerConfig struct {
-	Enabled                bool                     `json:"enabled" yaml:"enabled"`
-	Triggers               []SchedulerTriggerConfig `json:"triggers" yaml:"triggers"`
-	TriggerTimeoutSeconds  int                      `json:"trigger_timeout_seconds" yaml:"trigger_timeout_seconds"`
-	ConcurrencyPolicy      string                   `json:"concurrency_policy" yaml:"concurrency_policy"`
-	JobStorePath           string                   `json:"job_store_path" yaml:"job_store_path"`
-	CooldownSeconds        int                      `json:"cooldown_seconds" yaml:"cooldown_seconds"`
-	MaxConcurrent          int                      `json:"max_concurrent" yaml:"max_concurrent"`
-	RecoveryMaxRetries     int                      `json:"recovery_max_retries" yaml:"recovery_max_retries"`
-	RecoveryBackoffSeconds int                      `json:"recovery_backoff_seconds" yaml:"recovery_backoff_seconds"`
-	CalendarReminder       CalendarReminderConfig   `json:"calendar_reminder" yaml:"calendar_reminder"`
-	Heartbeat              HeartbeatConfig          `json:"heartbeat" yaml:"heartbeat"`
+	Enabled                          bool                     `json:"enabled" yaml:"enabled"`
+	Triggers                         []SchedulerTriggerConfig `json:"triggers" yaml:"triggers"`
+	TriggerTimeoutSeconds            int                      `json:"trigger_timeout_seconds" yaml:"trigger_timeout_seconds"`
+	ConcurrencyPolicy                string                   `json:"concurrency_policy" yaml:"concurrency_policy"`
+	LeaderLockEnabled                bool                     `json:"leader_lock_enabled" yaml:"leader_lock_enabled"`
+	LeaderLockName                   string                   `json:"leader_lock_name" yaml:"leader_lock_name"`
+	LeaderLockAcquireIntervalSeconds int                      `json:"leader_lock_acquire_interval_seconds" yaml:"leader_lock_acquire_interval_seconds"`
+	JobStorePath                     string                   `json:"job_store_path" yaml:"job_store_path"`
+	CooldownSeconds                  int                      `json:"cooldown_seconds" yaml:"cooldown_seconds"`
+	MaxConcurrent                    int                      `json:"max_concurrent" yaml:"max_concurrent"`
+	RecoveryMaxRetries               int                      `json:"recovery_max_retries" yaml:"recovery_max_retries"`
+	RecoveryBackoffSeconds           int                      `json:"recovery_backoff_seconds" yaml:"recovery_backoff_seconds"`
+	CalendarReminder                 CalendarReminderConfig   `json:"calendar_reminder" yaml:"calendar_reminder"`
+	Heartbeat                        HeartbeatConfig          `json:"heartbeat" yaml:"heartbeat"`
 }
 
 // CalendarReminderConfig configures the periodic calendar reminder trigger.
@@ -426,13 +429,16 @@ func DefaultProactiveConfig() ProactiveConfig {
 			AutoInject: true,
 		},
 		Scheduler: SchedulerConfig{
-			Enabled:                false,
-			TriggerTimeoutSeconds:  900,
-			ConcurrencyPolicy:      "skip",
-			CooldownSeconds:        0,
-			MaxConcurrent:          1,
-			RecoveryMaxRetries:     0,
-			RecoveryBackoffSeconds: 60,
+			Enabled:                          false,
+			TriggerTimeoutSeconds:            900,
+			ConcurrencyPolicy:                "skip",
+			LeaderLockEnabled:                true,
+			LeaderLockName:                   "proactive_scheduler",
+			LeaderLockAcquireIntervalSeconds: 15,
+			CooldownSeconds:                  0,
+			MaxConcurrent:                    1,
+			RecoveryMaxRetries:               0,
+			RecoveryBackoffSeconds:           60,
 			CalendarReminder: CalendarReminderConfig{
 				Enabled:          false,
 				Schedule:         "*/15 * * * *",

@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,6 +41,23 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 	recoveryMaxRetries := cfg.Runtime.Proactive.Scheduler.RecoveryMaxRetries
 	recoveryBackoff := time.Duration(cfg.Runtime.Proactive.Scheduler.RecoveryBackoffSeconds) * time.Second
 
+	var leaderLock scheduler.LeaderLock
+	if cfg.Runtime.Proactive.Scheduler.LeaderLockEnabled {
+		if container.SessionDB != nil {
+			lockName := strings.TrimSpace(cfg.Runtime.Proactive.Scheduler.LeaderLockName)
+			acquireInterval := time.Duration(cfg.Runtime.Proactive.Scheduler.LeaderLockAcquireIntervalSeconds) * time.Second
+			leaderLock = newPostgresAdvisoryLock(
+				container.SessionDB,
+				lockName,
+				schedulerOwnerID(),
+				acquireInterval,
+				logger,
+			)
+		} else {
+			logger.Warn("Scheduler leader lock enabled, but session DB is unavailable; running without distributed lock")
+		}
+	}
+
 	schedCfg := scheduler.Config{
 		Enabled:            true,
 		StaticTriggers:     cfg.Runtime.Proactive.Scheduler.Triggers,
@@ -53,6 +71,7 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 		MaxConcurrent:      maxConcurrent,
 		RecoveryMaxRetries: recoveryMaxRetries,
 		RecoveryBackoff:    recoveryBackoff,
+		LeaderLock:         leaderLock,
 	}
 
 	sched := scheduler.New(schedCfg, container.AgentCoordinator, notifier, logger)
@@ -66,6 +85,14 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 
 	logger.Info("Scheduler started (triggers=%d, okr_goals_root=%s)", len(schedCfg.StaticTriggers), goalsRoot)
 	return sched
+}
+
+func schedulerOwnerID() string {
+	host, err := os.Hostname()
+	if err != nil {
+		host = "unknown-host"
+	}
+	return fmt.Sprintf("%s:%d", host, os.Getpid())
 }
 
 // resolveGoalsRoot determines the OKR goals directory path.

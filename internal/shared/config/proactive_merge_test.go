@@ -245,6 +245,27 @@ func TestMergeSchedulerConfig_IncludesChatIDAndCalendarReminder(t *testing.T) {
 	}
 }
 
+func TestMergeSchedulerConfig_LeaderLockFields(t *testing.T) {
+	target := DefaultProactiveConfig().Scheduler
+	file := &SchedulerFileConfig{
+		LeaderLockEnabled:                boolPtr(false),
+		LeaderLockName:                   "scheduler-alpha",
+		LeaderLockAcquireIntervalSeconds: intPtr(9),
+	}
+
+	mergeSchedulerConfig(&target, file)
+
+	if target.LeaderLockEnabled {
+		t.Fatalf("expected leader_lock_enabled=false after merge")
+	}
+	if target.LeaderLockName != "scheduler-alpha" {
+		t.Fatalf("expected leader_lock_name merge, got %q", target.LeaderLockName)
+	}
+	if target.LeaderLockAcquireIntervalSeconds != 9 {
+		t.Fatalf("expected leader_lock_acquire_interval_seconds=9, got %d", target.LeaderLockAcquireIntervalSeconds)
+	}
+}
+
 func TestExpandProactiveFileConfigEnv_SchedulerTriggerAndCalendar(t *testing.T) {
 	lookup := func(key string) (string, bool) {
 		switch key {

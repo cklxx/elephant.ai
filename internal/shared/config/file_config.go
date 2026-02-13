@@ -252,17 +252,20 @@ type SkillsFeedbackFileConfig struct {
 }
 
 type SchedulerFileConfig struct {
-	Enabled                *bool                        `yaml:"enabled"`
-	Triggers               []SchedulerTriggerFileConfig `yaml:"triggers"`
-	CalendarReminder       *CalendarReminderFileConfig  `yaml:"calendar_reminder"`
-	Heartbeat              *HeartbeatFileConfig         `yaml:"heartbeat"`
-	TriggerTimeoutSeconds  *int                         `yaml:"trigger_timeout_seconds"`
-	ConcurrencyPolicy      string                       `yaml:"concurrency_policy"`
-	JobStorePath           string                       `yaml:"job_store_path"`
-	CooldownSeconds        *int                         `yaml:"cooldown_seconds"`
-	MaxConcurrent          *int                         `yaml:"max_concurrent"`
-	RecoveryMaxRetries     *int                         `yaml:"recovery_max_retries"`
-	RecoveryBackoffSeconds *int                         `yaml:"recovery_backoff_seconds"`
+	Enabled                          *bool                        `yaml:"enabled"`
+	Triggers                         []SchedulerTriggerFileConfig `yaml:"triggers"`
+	CalendarReminder                 *CalendarReminderFileConfig  `yaml:"calendar_reminder"`
+	Heartbeat                        *HeartbeatFileConfig         `yaml:"heartbeat"`
+	TriggerTimeoutSeconds            *int                         `yaml:"trigger_timeout_seconds"`
+	ConcurrencyPolicy                string                       `yaml:"concurrency_policy"`
+	LeaderLockEnabled                *bool                        `yaml:"leader_lock_enabled"`
+	LeaderLockName                   string                       `yaml:"leader_lock_name"`
+	LeaderLockAcquireIntervalSeconds *int                         `yaml:"leader_lock_acquire_interval_seconds"`
+	JobStorePath                     string                       `yaml:"job_store_path"`
+	CooldownSeconds                  *int                         `yaml:"cooldown_seconds"`
+	MaxConcurrent                    *int                         `yaml:"max_concurrent"`
+	RecoveryMaxRetries               *int                         `yaml:"recovery_max_retries"`
+	RecoveryBackoffSeconds           *int                         `yaml:"recovery_backoff_seconds"`
 }
 
 type SchedulerTriggerFileConfig struct {
@@ -362,6 +365,13 @@ type LarkChannelConfig struct {
 	PlanReviewEnabled             *bool                  `json:"plan_review_enabled" yaml:"plan_review_enabled"`
 	PlanReviewRequireConfirmation *bool                  `json:"plan_review_require_confirmation" yaml:"plan_review_require_confirmation"`
 	PlanReviewPendingTTLMinutes   *int                   `json:"plan_review_pending_ttl_minutes" yaml:"plan_review_pending_ttl_minutes"`
+	ActiveSlotTTLMinutes          *int                   `json:"active_slot_ttl_minutes" yaml:"active_slot_ttl_minutes"`
+	ActiveSlotMaxEntries          *int                   `json:"active_slot_max_entries" yaml:"active_slot_max_entries"`
+	PendingInputRelayTTLMinutes   *int                   `json:"pending_input_relay_ttl_minutes" yaml:"pending_input_relay_ttl_minutes"`
+	PendingInputRelayMaxChats     *int                   `json:"pending_input_relay_max_chats" yaml:"pending_input_relay_max_chats"`
+	PendingInputRelayMaxPerChat   *int                   `json:"pending_input_relay_max_per_chat" yaml:"pending_input_relay_max_per_chat"`
+	AIChatSessionTTLMinutes       *int                   `json:"ai_chat_session_ttl_minutes" yaml:"ai_chat_session_ttl_minutes"`
+	StateCleanupIntervalSeconds   *int                   `json:"state_cleanup_interval_seconds" yaml:"state_cleanup_interval_seconds"`
 	Persistence                   *LarkPersistenceConfig `json:"persistence" yaml:"persistence"`
 	MaxConcurrentTasks            *int                   `json:"max_concurrent_tasks" yaml:"max_concurrent_tasks"`
 	DefaultPlanMode               *string                `json:"default_plan_mode" yaml:"default_plan_mode"`

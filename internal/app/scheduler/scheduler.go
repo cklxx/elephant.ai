@@ -29,6 +29,14 @@ type Config struct {
 	MaxConcurrent      int
 	RecoveryMaxRetries int
 	RecoveryBackoff    time.Duration
+	LeaderLock         LeaderLock
+}
+
+// LeaderLock coordinates single-leader scheduler execution across processes.
+type LeaderLock interface {
+	Acquire(ctx context.Context) (bool, error)
+	Release(ctx context.Context) error
+	Name() string
 }
 
 // Scheduler manages time-based proactive triggers using robfig/cron.
@@ -48,6 +56,7 @@ type Scheduler struct {
 	recoveryTimers map[string]*time.Timer
 	stopped        chan struct{}
 	stopOnce       sync.Once
+	lockHeld       bool
 }
 
 // New creates a new Scheduler.
@@ -102,9 +111,23 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		s.logger.Info("Scheduler disabled by config")
 		return nil
 	}
+	lockHeld := false
+	if s.config.LeaderLock != nil {
+		acquired, err := s.config.LeaderLock.Acquire(ctx)
+		if err != nil {
+			return fmt.Errorf("scheduler leader lock acquire (%s): %w", s.config.LeaderLock.Name(), err)
+		}
+		if !acquired {
+			s.logger.Info("Scheduler standby: leader lock not acquired (lock=%s)", s.config.LeaderLock.Name())
+			return nil
+		}
+		lockHeld = true
+		s.logger.Info("Scheduler leader lock acquired (lock=%s)", s.config.LeaderLock.Name())
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.lockHeld = lockHeld
 
 	// 0. Load persisted jobs (if configured)
 	if s.jobStore != nil {
@@ -171,6 +194,7 @@ func (s *Scheduler) Stop() {
 		s.mu.Unlock()
 		stopCtx := s.cron.Stop()
 		<-stopCtx.Done()
+		s.releaseLeaderLock()
 		close(s.stopped)
 		s.logger.Info("Scheduler stopped")
 	})
@@ -203,6 +227,7 @@ func (s *Scheduler) Drain(ctx context.Context) error {
 	select {
 	case <-cronDone.Done():
 		// All in-flight triggers completed.
+		s.releaseLeaderLock()
 		s.stopOnce.Do(func() {
 			close(s.stopped)
 		})
@@ -210,11 +235,29 @@ func (s *Scheduler) Drain(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		// Deadline exceeded while waiting for in-flight triggers.
+		s.releaseLeaderLock()
 		s.stopOnce.Do(func() {
 			close(s.stopped)
 		})
 		s.logger.Warn("Scheduler drain timed out: %v", ctx.Err())
 		return fmt.Errorf("scheduler drain: %w", ctx.Err())
+	}
+}
+
+func (s *Scheduler) releaseLeaderLock() {
+	s.mu.Lock()
+	if !s.lockHeld || s.config.LeaderLock == nil {
+		s.mu.Unlock()
+		return
+	}
+	lock := s.config.LeaderLock
+	s.lockHeld = false
+	s.mu.Unlock()
+
+	releaseCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := lock.Release(releaseCtx); err != nil {
+		s.logger.Warn("Scheduler leader lock release failed (lock=%s): %v", lock.Name(), err)
 	}
 }
 

@@ -200,6 +200,15 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 	if strings.TrimSpace(file.ConcurrencyPolicy) != "" {
 		target.ConcurrencyPolicy = strings.TrimSpace(file.ConcurrencyPolicy)
 	}
+	if file.LeaderLockEnabled != nil {
+		target.LeaderLockEnabled = *file.LeaderLockEnabled
+	}
+	if strings.TrimSpace(file.LeaderLockName) != "" {
+		target.LeaderLockName = strings.TrimSpace(file.LeaderLockName)
+	}
+	if file.LeaderLockAcquireIntervalSeconds != nil {
+		target.LeaderLockAcquireIntervalSeconds = *file.LeaderLockAcquireIntervalSeconds
+	}
 	if strings.TrimSpace(file.JobStorePath) != "" {
 		target.JobStorePath = strings.TrimSpace(file.JobStorePath)
 	}
@@ -435,6 +444,7 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 		}
 	}
 	if file.Scheduler != nil {
+		file.Scheduler.LeaderLockName = expandEnvValue(lookup, file.Scheduler.LeaderLockName)
 		for i := range file.Scheduler.Triggers {
 			file.Scheduler.Triggers[i].Task = expandEnvValue(lookup, file.Scheduler.Triggers[i].Task)
 			file.Scheduler.Triggers[i].UserID = expandEnvValue(lookup, file.Scheduler.Triggers[i].UserID)
