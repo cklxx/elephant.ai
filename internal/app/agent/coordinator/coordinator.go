@@ -210,7 +210,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	prepareStarted := time.Now()
 	// Decorate the listener with the workflow envelope translator so downstream
 	// consumers receive workflow event envelopes.
-	eventListener := wrapWithWorkflowEnvelope(listener, nil, c.toolSLACollector)
+	eventListener := wrapWithWorkflowEnvelope(wrapWithSLAEnrichment(listener, c.toolSLACollector), nil)
 	var planTitleRecorder *planSessionTitleRecorder
 	var serializingListener *SerializingEventListener
 	if eventListener != nil && !appcontext.IsSubagentContext(ctx) {

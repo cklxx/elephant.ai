@@ -10,28 +10,22 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
 	"alex/internal/domain/workflow"
-	toolspolicy "alex/internal/infra/tools"
 )
 
 // wrapWithWorkflowEnvelope decorates the provided listener with a translator that
 // converts domain workflow events into the `domain.WorkflowEventEnvelope` contract
 // consumed by downstream adapters (SSE, CLI bridges, replay stores, etc.).
-func wrapWithWorkflowEnvelope(listener agent.EventListener, logger *slog.Logger, slaCollectors ...*toolspolicy.SLACollector) agent.EventListener {
+func wrapWithWorkflowEnvelope(listener agent.EventListener, logger *slog.Logger) agent.EventListener {
 	if listener == nil {
 		return nil
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	var collector *toolspolicy.SLACollector
-	if len(slaCollectors) > 0 {
-		collector = slaCollectors[0]
-	}
 	return &workflowEventTranslator{
 		sink:           listener,
 		logger:         logger,
 		subflowTracker: newSubflowStatsTracker(),
-		slaCollector:   collector,
 	}
 }
 
@@ -39,7 +33,6 @@ type workflowEventTranslator struct {
 	sink           agent.EventListener
 	logger         *slog.Logger
 	subflowTracker *subflowStatsTracker
-	slaCollector   *toolspolicy.SLACollector
 
 	ctxMu sync.RWMutex
 	ctx   workflowEnvelopeContext
@@ -242,20 +235,6 @@ func (t *workflowEventTranslator) translateToolComplete(evt agent.AgentEvent, d 
 		"duration":    d.Duration.Milliseconds(),
 		"metadata":    d.Metadata,
 		"attachments": d.Attachments,
-	}
-	if t != nil && t.slaCollector != nil {
-		sla := t.slaCollector.GetSLA(d.ToolName)
-		payload["tool_sla"] = map[string]any{
-			"tool_name":      sla.ToolName,
-			"p50_latency_ms": sla.P50Latency.Milliseconds(),
-			"p95_latency_ms": sla.P95Latency.Milliseconds(),
-			"p99_latency_ms": sla.P99Latency.Milliseconds(),
-			"error_rate":     sla.ErrorRate,
-			"call_count":     sla.CallCount,
-			"success_rate":   sla.SuccessRate,
-			"cost_usd_total": sla.CostUSDTotal,
-			"cost_usd_avg":   sla.CostUSDAvg,
-		}
 	}
 	if d.Error != nil {
 		payload["error"] = d.Error.Error()

@@ -275,13 +275,14 @@ func TestWorkflowEventTranslatorAddsCallIDToToolPayload(t *testing.T) {
 	}
 }
 
-func TestWorkflowEventTranslatorAddsToolSLAOnToolCompletedWhenCollectorConfigured(t *testing.T) {
+func TestSLADecoratorEnrichesToolCompletedWhenCollectorConfigured(t *testing.T) {
 	sink := &recordingAgentListener{}
 	collector, _ := toolspolicy.NewSLACollector(prometheus.NewRegistry())
 	collector.RecordExecutionWithCost("bash", 120*time.Millisecond, nil, 0.42)
-	translator := wrapWithWorkflowEnvelope(sink, nil, collector)
+	// Chain: translator → sla decorator → sink
+	decorated := wrapWithWorkflowEnvelope(wrapWithSLAEnrichment(sink, collector), nil)
 
-	translator.OnEvent(domain.NewToolCompletedEvent(
+	decorated.OnEvent(domain.NewToolCompletedEvent(
 		domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000003, 0)),
 		"call-123", "bash", "ok", nil, 120*time.Millisecond, nil, nil,
 	))
