@@ -123,3 +123,28 @@ func parseOptionalInt(args map[string]any, key string) (int, bool, error) {
 		return 0, true, fmt.Errorf("%s must be an integer", key)
 	}
 }
+
+func canonicalAgentType(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	switch strings.ToLower(trimmed) {
+	case "":
+		return ""
+	case "internal":
+		return "internal"
+	case "codex":
+		return "codex"
+	case "claude_code", "claude-code", "claude code":
+		return "claude_code"
+	default:
+		return trimmed
+	}
+}
+
+func isCodingExternalAgent(agentType string) bool {
+	switch canonicalAgentType(agentType) {
+	case "codex", "claude_code":
+		return true
+	default:
+		return false
+	}
+}

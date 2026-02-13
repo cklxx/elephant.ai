@@ -171,6 +171,76 @@ func TestBGDispatch_CodingDefaults(t *testing.T) {
 	}
 }
 
+func TestBGDispatch_CodingPlanDefaults(t *testing.T) {
+	d := &mockDispatcher{}
+	ctx := ctxWithDispatcher(d)
+	tool := NewBGDispatch()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-coding-plan",
+		Arguments: map[string]any{
+			"description":    "plan feature",
+			"prompt":         "plan it",
+			"task_kind":      "coding",
+			"agent_type":     "codex",
+			"execution_mode": "plan",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected result error: %v", result.Error)
+	}
+	if len(d.dispatched) != 1 {
+		t.Fatalf("expected dispatch call, got %d", len(d.dispatched))
+	}
+	req := d.dispatched[0].Req
+	if req.ExecutionMode != "plan" {
+		t.Fatalf("expected execution_mode=plan, got %q", req.ExecutionMode)
+	}
+	if req.AutonomyLevel != "full" {
+		t.Fatalf("expected autonomy_level=full, got %q", req.AutonomyLevel)
+	}
+	if req.WorkspaceMode != agent.WorkspaceModeShared {
+		t.Fatalf("expected workspace_mode=shared in plan mode, got %s", req.WorkspaceMode)
+	}
+	if req.Config["verify"] != "false" {
+		t.Fatalf("expected verify=false, got %q", req.Config["verify"])
+	}
+	if req.Config["merge_on_success"] != "false" {
+		t.Fatalf("expected merge_on_success=false, got %q", req.Config["merge_on_success"])
+	}
+}
+
+func TestBGDispatch_CodingNormalizesAgentType(t *testing.T) {
+	d := &mockDispatcher{}
+	ctx := ctxWithDispatcher(d)
+	tool := NewBGDispatch()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-coding-normalize",
+		Arguments: map[string]any{
+			"description": "implement feature",
+			"prompt":      "implement it",
+			"task_kind":   "coding",
+			"agent_type":  "CoDeX",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected result error: %v", result.Error)
+	}
+	if len(d.dispatched) != 1 {
+		t.Fatalf("expected dispatch call, got %d", len(d.dispatched))
+	}
+	if d.dispatched[0].Req.AgentType != "codex" {
+		t.Fatalf("expected normalized agent_type=codex, got %q", d.dispatched[0].Req.AgentType)
+	}
+}
+
 func TestBGDispatch_CodingRequiresExternalAgent(t *testing.T) {
 	d := &mockDispatcher{}
 	ctx := ctxWithDispatcher(d)
@@ -193,6 +263,148 @@ func TestBGDispatch_CodingRequiresExternalAgent(t *testing.T) {
 	}
 	if len(d.dispatched) != 0 {
 		t.Fatalf("expected no dispatch on validation failure, got %d", len(d.dispatched))
+	}
+}
+
+func TestBGPlan_DispatchesTopologicalOrder(t *testing.T) {
+	d := &mockDispatcher{}
+	ctx := ctxWithDispatcher(d)
+	tool := NewBGPlan()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-plan-1",
+		Arguments: map[string]any{
+			"dispatch": true,
+			"defaults": map[string]any{
+				"agent_type":     "codex",
+				"execution_mode": "execute",
+				"autonomy_level": "full",
+			},
+			"tasks": []any{
+				map[string]any{
+					"task_id":     "A",
+					"description": "root",
+					"prompt":      "do A",
+				},
+				map[string]any{
+					"task_id":     "B",
+					"description": "child",
+					"prompt":      "do B",
+					"depends_on":  []any{"A"},
+				},
+				map[string]any{
+					"task_id":     "C",
+					"description": "leaf",
+					"prompt":      "do C",
+					"depends_on":  []any{"B"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected result error: %v", result.Error)
+	}
+	if len(d.dispatched) != 3 {
+		t.Fatalf("expected 3 dispatched tasks, got %d", len(d.dispatched))
+	}
+	gotOrder := []string{
+		d.dispatched[0].Req.TaskID,
+		d.dispatched[1].Req.TaskID,
+		d.dispatched[2].Req.TaskID,
+	}
+	wantOrder := []string{"A", "B", "C"}
+	for i := range wantOrder {
+		if gotOrder[i] != wantOrder[i] {
+			t.Fatalf("unexpected dispatch order: got=%v want=%v", gotOrder, wantOrder)
+		}
+	}
+	if d.dispatched[0].Req.Config["task_kind"] != "coding" {
+		t.Fatalf("expected coding task defaults for external agents")
+	}
+}
+
+func TestBGPlan_NormalizesAgentTypeAndAppliesCodingDefaults(t *testing.T) {
+	d := &mockDispatcher{}
+	ctx := ctxWithDispatcher(d)
+	tool := NewBGPlan()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-plan-normalize",
+		Arguments: map[string]any{
+			"dispatch": true,
+			"defaults": map[string]any{
+				"agent_type": "CoDeX",
+			},
+			"tasks": []any{
+				map[string]any{
+					"task_id":     "A",
+					"description": "root",
+					"prompt":      "do A",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected result error: %v", result.Error)
+	}
+	if len(d.dispatched) != 1 {
+		t.Fatalf("expected 1 dispatched task, got %d", len(d.dispatched))
+	}
+	req := d.dispatched[0].Req
+	if req.AgentType != "codex" {
+		t.Fatalf("expected normalized agent_type=codex, got %q", req.AgentType)
+	}
+	if req.Config["task_kind"] != "coding" {
+		t.Fatalf("expected coding defaults task_kind=coding, got %q", req.Config["task_kind"])
+	}
+}
+
+func TestBGGraph_RendersDependencyGraph(t *testing.T) {
+	d := &mockDispatcher{
+		summaries: []agent.BackgroundTaskSummary{
+			{
+				ID:            "A",
+				AgentType:     "codex",
+				Status:        agent.BackgroundTaskStatusCompleted,
+				ExecutionMode: "execute",
+				AutonomyLevel: "full",
+				Description:   "root task",
+			},
+			{
+				ID:            "B",
+				AgentType:     "claude_code",
+				Status:        agent.BackgroundTaskStatusRunning,
+				ExecutionMode: "plan",
+				AutonomyLevel: "full",
+				DependsOn:     []string{"A"},
+				Description:   "child task",
+			},
+		},
+	}
+	ctx := ctxWithDispatcher(d)
+	tool := NewBGGraph()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{ID: "call-graph-1"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %v", result.Error)
+	}
+	if !strings.Contains(result.Content, "Background Dependency Graph") {
+		t.Fatalf("unexpected content: %s", result.Content)
+	}
+	if !strings.Contains(result.Content, "depends_on: A") {
+		t.Fatalf("expected dependency edge in content: %s", result.Content)
+	}
+	if !strings.Contains(result.Content, "mode=plan autonomy=full") {
+		t.Fatalf("expected execution controls in content: %s", result.Content)
 	}
 }
 

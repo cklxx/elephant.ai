@@ -23,6 +23,8 @@ type BackgroundDispatchRequest struct {
 	Description    string
 	Prompt         string
 	AgentType      string
+	ExecutionMode  string
+	AutonomyLevel  string
 	CausationID    string
 	Config         map[string]string
 	DependsOn      []string
@@ -33,19 +35,21 @@ type BackgroundDispatchRequest struct {
 
 // BackgroundTaskSummary provides a lightweight status view of a background task.
 type BackgroundTaskSummary struct {
-	ID           string
-	Description  string
-	Status       BackgroundTaskStatus
-	AgentType    string
-	StartedAt    time.Time
-	CompletedAt  time.Time
-	Error        string
-	Progress     *ExternalAgentProgress
-	PendingInput *InputRequestSummary
-	Elapsed      time.Duration
-	Workspace    *WorkspaceAllocation
-	FileScope    []string
-	DependsOn    []string
+	ID            string
+	Description   string
+	Status        BackgroundTaskStatus
+	AgentType     string
+	ExecutionMode string
+	AutonomyLevel string
+	StartedAt     time.Time
+	CompletedAt   time.Time
+	Error         string
+	Progress      *ExternalAgentProgress
+	PendingInput  *InputRequestSummary
+	Elapsed       time.Duration
+	Workspace     *WorkspaceAllocation
+	FileScope     []string
+	DependsOn     []string
 }
 
 // BackgroundTaskResult contains the full result of a completed background task.

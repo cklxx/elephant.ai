@@ -157,6 +157,17 @@ func formatTaskSummary(s agent.BackgroundTaskSummary, kind statusGroupKind) stri
 	if s.Description != "" {
 		sb.WriteString(fmt.Sprintf("    desc: %s\n", s.Description))
 	}
+	if s.ExecutionMode != "" || s.AutonomyLevel != "" {
+		mode := s.ExecutionMode
+		if mode == "" {
+			mode = "execute"
+		}
+		level := s.AutonomyLevel
+		if level == "" {
+			level = "controlled"
+		}
+		sb.WriteString(fmt.Sprintf("    execution: mode=%s autonomy=%s\n", mode, level))
+	}
 	if s.Workspace != nil {
 		sb.WriteString(fmt.Sprintf("    workspace: %s", s.Workspace.Mode))
 		if s.Workspace.Branch != "" {

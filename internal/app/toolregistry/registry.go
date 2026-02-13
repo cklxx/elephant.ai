@@ -242,6 +242,8 @@ func (r *Registry) WithoutSubagent() tools.ToolRegistry {
 			"subagent":    true,
 			"explore":     true,
 			"bg_dispatch": true,
+			"bg_plan":     true,
+			"bg_graph":    true,
 			"bg_status":   true,
 			"bg_collect":  true,
 			"ext_reply":   true,
@@ -426,6 +428,8 @@ func (r *Registry) RegisterSubAgent(coordinator orchestration.TaskExecutor) {
 
 	// Register background task tools (dispatcher injected via context at runtime).
 	r.static["bg_dispatch"] = r.wrapDegradation("bg_dispatch", wrapTool(orchestration.NewBGDispatch(), r.policy, r.breakers, r.SLACollector))
+	r.static["bg_plan"] = r.wrapDegradation("bg_plan", wrapTool(orchestration.NewBGPlan(), r.policy, r.breakers, r.SLACollector))
+	r.static["bg_graph"] = r.wrapDegradation("bg_graph", wrapTool(orchestration.NewBGGraph(), r.policy, r.breakers, r.SLACollector))
 	r.static["bg_status"] = r.wrapDegradation("bg_status", wrapTool(orchestration.NewBGStatus(), r.policy, r.breakers, r.SLACollector))
 	r.static["bg_collect"] = r.wrapDegradation("bg_collect", wrapTool(orchestration.NewBGCollect(), r.policy, r.breakers, r.SLACollector))
 	r.static["ext_reply"] = r.wrapDegradation("ext_reply", wrapTool(orchestration.NewExtReply(), r.policy, r.breakers, r.SLACollector))

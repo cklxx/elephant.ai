@@ -13,18 +13,20 @@ import (
 
 // backgroundTask tracks an individual background task.
 type backgroundTask struct {
-	mu          sync.Mutex
-	id          string
-	description string
-	prompt      string
-	agentType   string
-	causationID string
-	status      agent.BackgroundTaskStatus
-	startedAt   time.Time
-	completedAt time.Time
-	result      *agent.TaskResult
-	err         error
-	taskCancel  context.CancelFunc // per-task cancel; nil until Dispatch runs the goroutine
+	mu            sync.Mutex
+	id            string
+	description   string
+	prompt        string
+	agentType     string
+	executionMode string
+	autonomyLevel string
+	causationID   string
+	status        agent.BackgroundTaskStatus
+	startedAt     time.Time
+	completedAt   time.Time
+	result        *agent.TaskResult
+	err           error
+	taskCancel    context.CancelFunc // per-task cancel; nil until Dispatch runs the goroutine
 	// completionSignaled flips once signalCompletion is invoked. AwaitAll uses
 	// this to avoid returning before completion events are emitted.
 	completionSignaled bool
@@ -250,6 +252,8 @@ func (m *BackgroundTaskManager) Dispatch(
 	if agentType == "" {
 		agentType = "internal"
 	}
+	executionMode := normalizeExecutionMode(req.ExecutionMode)
+	autonomyLevel := normalizeAutonomyLevel(req.AutonomyLevel)
 	workspaceMode := req.WorkspaceMode
 	if workspaceMode == "" {
 		workspaceMode = agent.WorkspaceModeShared
@@ -277,6 +281,8 @@ func (m *BackgroundTaskManager) Dispatch(
 		description:    description,
 		prompt:         prompt,
 		agentType:      agentType,
+		executionMode:  executionMode,
+		autonomyLevel:  autonomyLevel,
 		causationID:    req.CausationID,
 		status:         agent.BackgroundTaskStatusPending,
 		startedAt:      m.clock.Now(),
@@ -412,13 +418,15 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 			}
 
 			extResult, execErr := m.externalExecutor.Execute(ctx, agent.ExternalAgentRequest{
-				TaskID:      bt.id,
-				Prompt:      prompt,
-				AgentType:   agentType,
-				WorkingDir:  workingDir,
-				Config:      cloneStringMap(bt.config),
-				SessionID:   m.sessionID,
-				CausationID: bt.causationID,
+				TaskID:        bt.id,
+				Prompt:        prompt,
+				AgentType:     agentType,
+				WorkingDir:    workingDir,
+				Config:        cloneStringMap(bt.config),
+				SessionID:     m.sessionID,
+				CausationID:   bt.causationID,
+				ExecutionMode: bt.executionMode,
+				AutonomyLevel: bt.autonomyLevel,
 				OnProgress: func(p agent.ExternalAgentProgress) {
 					m.captureProgress(ctx, bt, p)
 				},
@@ -550,13 +558,15 @@ func (m *BackgroundTaskManager) Status(ids []string) []agent.BackgroundTaskSumma
 			}
 		}
 		s := agent.BackgroundTaskSummary{
-			ID:          bt.id,
-			Description: bt.description,
-			Status:      bt.status,
-			AgentType:   bt.agentType,
-			StartedAt:   bt.startedAt,
-			CompletedAt: bt.completedAt,
-			Elapsed:     elapsed,
+			ID:            bt.id,
+			Description:   bt.description,
+			Status:        bt.status,
+			AgentType:     bt.agentType,
+			ExecutionMode: bt.executionMode,
+			AutonomyLevel: bt.autonomyLevel,
+			StartedAt:     bt.startedAt,
+			CompletedAt:   bt.completedAt,
+			Elapsed:       elapsed,
 		}
 		if bt.err != nil {
 			s.Error = bt.err.Error()
@@ -1102,6 +1112,26 @@ func parseMergeStrategy(raw string) agent.MergeStrategy {
 		return agent.MergeStrategyReview
 	default:
 		return agent.MergeStrategyAuto
+	}
+}
+
+func normalizeExecutionMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "plan":
+		return "plan"
+	default:
+		return "execute"
+	}
+}
+
+func normalizeAutonomyLevel(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "full":
+		return "full"
+	case "semi":
+		return "semi"
+	default:
+		return "controlled"
 	}
 }
 

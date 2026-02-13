@@ -37,6 +37,14 @@ func NewBGDispatch() *bgDispatch {
 							Type:        "string",
 							Description: `Agent type to use. "internal" (default) uses the built-in subagent. External types include "claude_code" and "codex".`,
 						},
+						"execution_mode": {
+							Type:        "string",
+							Description: `Execution intent: "execute" (default) or "plan" (plan-only mode).`,
+						},
+						"autonomy_level": {
+							Type:        "string",
+							Description: `Autonomy policy: "controlled" (default), "semi", or "full".`,
+						},
 						"config": {
 							Type:        "object",
 							Description: "Optional per-task config overrides (string map) passed to the external agent executor.",
@@ -109,7 +117,8 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	// Validate parameters.
 	for key := range call.Arguments {
 		switch key {
-		case "description", "prompt", "agent_type", "config", "depends_on", "workspace_mode", "file_scope", "inherit_context",
+		case "description", "prompt", "agent_type", "execution_mode", "autonomy_level",
+			"config", "depends_on", "workspace_mode", "file_scope", "inherit_context",
 			"task_kind", "coding_profile", "verify", "verify_build_cmd", "verify_test_cmd", "verify_lint_cmd",
 			"retry_max_attempts", "merge_on_success":
 		default:
@@ -133,7 +142,39 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	agentType := "internal"
 	if raw, ok := call.Arguments["agent_type"]; ok {
 		if str, ok := raw.(string); ok && strings.TrimSpace(str) != "" {
-			agentType = strings.TrimSpace(str)
+			agentType = canonicalAgentType(str)
+		}
+	}
+	executionMode := "execute"
+	if raw, ok := call.Arguments["execution_mode"]; ok {
+		str, ok := raw.(string)
+		if !ok {
+			return &ports.ToolResult{CallID: call.ID, Content: "execution_mode must be a string", Error: fmt.Errorf("execution_mode must be a string")}, nil
+		}
+		switch strings.ToLower(strings.TrimSpace(str)) {
+		case "", "execute":
+			executionMode = "execute"
+		case "plan":
+			executionMode = "plan"
+		default:
+			return &ports.ToolResult{CallID: call.ID, Content: "execution_mode must be one of: execute, plan", Error: fmt.Errorf("invalid execution_mode: %s", str)}, nil
+		}
+	}
+	autonomyLevel := "controlled"
+	if raw, ok := call.Arguments["autonomy_level"]; ok {
+		str, ok := raw.(string)
+		if !ok {
+			return &ports.ToolResult{CallID: call.ID, Content: "autonomy_level must be a string", Error: fmt.Errorf("autonomy_level must be a string")}, nil
+		}
+		switch strings.ToLower(strings.TrimSpace(str)) {
+		case "", "controlled":
+			autonomyLevel = "controlled"
+		case "semi":
+			autonomyLevel = "semi"
+		case "full":
+			autonomyLevel = "full"
+		default:
+			return &ports.ToolResult{CallID: call.ID, Content: "autonomy_level must be one of: controlled, semi, full", Error: fmt.Errorf("invalid autonomy_level: %s", str)}, nil
 		}
 	}
 	configOverrides, err := parseStringMap(call.Arguments, "config")
@@ -199,7 +240,7 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 				Error:   fmt.Errorf("task_kind=coding requires external coding agent_type"),
 			}, nil
 		}
-		if !strings.EqualFold(agentType, "codex") && !strings.EqualFold(agentType, "claude_code") {
+		if !isCodingExternalAgent(agentType) {
 			return &ports.ToolResult{
 				CallID:  call.ID,
 				Content: "task_kind=coding supports only agent_type=codex or claude_code",
@@ -209,19 +250,34 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 
 		// Default to isolated workspace for coding tasks unless explicitly overridden.
 		if workspaceMode == "" {
-			workspaceMode = string(agent.WorkspaceModeWorktree)
+			if executionMode == "plan" {
+				workspaceMode = string(agent.WorkspaceModeShared)
+			} else {
+				workspaceMode = string(agent.WorkspaceModeWorktree)
+			}
 		}
 		if codingProfile == "" {
-			codingProfile = "full_access"
+			if executionMode == "plan" {
+				codingProfile = "plan_only"
+			} else {
+				codingProfile = "full_access"
+			}
 		}
 		if !verifyProvided {
-			verifyEnabled = true
+			verifyEnabled = executionMode != "plan"
 		}
 		if !retryProvided {
-			retryMaxAttempts = 3
+			if executionMode == "plan" {
+				retryMaxAttempts = 1
+			} else {
+				retryMaxAttempts = 3
+			}
 		}
 		if !mergeProvided {
-			mergeOnSuccess = true
+			mergeOnSuccess = executionMode != "plan"
+		}
+		if autonomyLevel == "controlled" {
+			autonomyLevel = "full"
 		}
 		if mergeOnSuccess && !verifyEnabled {
 			return &ports.ToolResult{
@@ -237,6 +293,18 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 			configOverrides = make(map[string]string)
 		}
 		configOverrides["task_kind"] = taskKind
+	}
+	if strings.TrimSpace(executionMode) != "" {
+		if configOverrides == nil {
+			configOverrides = make(map[string]string)
+		}
+		configOverrides["execution_mode"] = executionMode
+	}
+	if strings.TrimSpace(autonomyLevel) != "" {
+		if configOverrides == nil {
+			configOverrides = make(map[string]string)
+		}
+		configOverrides["autonomy_level"] = autonomyLevel
 	}
 	if codingProfile != "" {
 		if configOverrides == nil {
@@ -311,6 +379,8 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		Description:    description,
 		Prompt:         prompt,
 		AgentType:      agentType,
+		ExecutionMode:  executionMode,
+		AutonomyLevel:  autonomyLevel,
 		CausationID:    call.ID,
 		Config:         configOverrides,
 		DependsOn:      dependsOn,
