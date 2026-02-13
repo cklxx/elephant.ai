@@ -20,8 +20,8 @@
 - [x] Add/adjust unit tests and integration coverage.
 - [x] Run full lint + tests.
 - [x] Run mandatory code review flow and capture findings.
-- [ ] Commit in incremental slices.
-- [ ] Merge back to `main` and remove temporary worktree.
+- [x] Commit in incremental slices.
+- [x] Merge back to `main` and remove temporary worktree.
 
 ## Progress Log
 - 2026-02-13: Created implementation branch/worktree and initialized execution plan.
@@ -35,3 +35,4 @@
   - normalized `agent_type` to canonical values (`codex` / `claude_code`) to avoid runtime executor mismatch;
   - ensured codex plan mode honors read-only fallback from normalized request controls.
 - 2026-02-13: Re-ran full validation (`make dev-lint`, `make test`) successfully.
+- 2026-02-13: Split solution into 3 incremental commits, rebased to latest `main`, fast-forward merged, and removed temporary worktree/branch.
