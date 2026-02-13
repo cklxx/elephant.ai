@@ -2,7 +2,6 @@ package http
 
 import (
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -103,11 +102,6 @@ func RateLimitMiddleware(cfg RateLimitConfig) func(http.Handler) http.Handler {
 func rateLimitKey(r *http.Request) string {
 	if r == nil {
 		return ""
-	}
-	if user, ok := CurrentUser(r.Context()); ok {
-		if id := strings.TrimSpace(user.ID); id != "" {
-			return "user:" + id
-		}
 	}
 	if ip := clientIP(r); ip != "" {
 		return "ip:" + ip

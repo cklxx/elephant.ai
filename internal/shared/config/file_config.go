@@ -13,7 +13,6 @@ type FileConfig struct {
 	Apps        *AppsConfig        `json:"apps,omitempty" yaml:"apps"`
 	Channels    *ChannelsConfig    `json:"channels,omitempty" yaml:"channels"`
 	Server      *ServerConfig      `json:"server,omitempty" yaml:"server"`
-	Auth        *AuthConfig        `json:"auth,omitempty" yaml:"auth"`
 	Agent       *AgentConfig       `json:"agent,omitempty" yaml:"agent"`
 	Session     *SessionConfig     `json:"session,omitempty" yaml:"session"`
 	Analytics   *AnalyticsConfig   `json:"analytics,omitempty" yaml:"analytics"`
@@ -423,25 +422,6 @@ type ServerConfig struct {
 	EventHistoryAsyncFlushRequestCoalesceMS      *int     `yaml:"event_history_async_flush_request_coalesce_window_ms"`
 	EventHistoryAsyncBackpressureHighWatermark   *int     `yaml:"event_history_async_backpressure_high_watermark"`
 	EventHistoryDegradeDebugEventsOnBackpressure *bool    `yaml:"event_history_degrade_debug_events_on_backpressure"`
-}
-
-// AuthConfig captures authentication configuration stored in YAML.
-type AuthConfig struct {
-	JWTSecret             string `yaml:"jwt_secret"`
-	AccessTokenTTLMinutes string `yaml:"access_token_ttl_minutes"`
-	RefreshTokenTTLDays   string `yaml:"refresh_token_ttl_days"`
-	StateTTLMinutes       string `yaml:"state_ttl_minutes"`
-	RedirectBaseURL       string `yaml:"redirect_base_url"`
-	GoogleClientID        string `yaml:"google_client_id"`
-	GoogleClientSecret    string `yaml:"google_client_secret"`
-	GoogleAuthURL         string `yaml:"google_auth_url"`
-	GoogleTokenURL        string `yaml:"google_token_url"`
-	GoogleUserInfoURL     string `yaml:"google_userinfo_url"`
-	DatabaseURL           string `yaml:"database_url"`
-	DatabasePoolMaxConns  *int   `yaml:"database_pool_max_conns"`
-	BootstrapEmail        string `yaml:"bootstrap_email"`
-	BootstrapPassword     string `yaml:"bootstrap_password"`
-	BootstrapDisplayName  string `yaml:"bootstrap_display_name"`
 }
 
 // AgentConfig captures agent-level behavioral settings.

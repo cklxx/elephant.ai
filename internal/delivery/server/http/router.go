@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/domain/auth"
 	"alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
@@ -52,23 +51,13 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 		WithAPIObservability(deps.Obs),
 		WithEvaluationService(deps.Evaluation),
 		WithAttachmentStore(attachmentStore),
-		WithSandboxClient(deps.SandboxClient),
 		WithDevMode(devMode),
 		WithMaxCreateTaskBodySize(taskBodyLimit),
 		WithMemoryEngine(deps.MemoryEngine),
 	)
 
-	var authMiddleware func(http.Handler) http.Handler
-	if deps.AuthHandler != nil && deps.AuthService != nil {
-		authMiddleware = AuthMiddleware(deps.AuthService)
-	}
-
-	wrap := func(handler http.Handler) http.Handler {
-		if authMiddleware == nil {
-			return handler
-		}
-		return authMiddleware(handler)
-	}
+	// Identity function — auth middleware removed.
+	wrap := func(handler http.Handler) http.Handler { return handler }
 
 	// Create mux using Go 1.22+ method-specific patterns.
 	mux := http.NewServeMux()
@@ -128,44 +117,6 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 		mux.Handle("/api/data/", routeHandler("/api/data", dataCache.Handler()))
 	}
 	mux.Handle("POST /api/metrics/web-vitals", routeHandler("/api/metrics/web-vitals", http.HandlerFunc(apiHandler.HandleWebVitals)))
-	mux.Handle("GET /api/sandbox/browser-info", routeHandler("/api/sandbox/browser-info", wrap(http.HandlerFunc(apiHandler.HandleSandboxBrowserInfo))))
-	mux.Handle("GET /api/sandbox/browser-screenshot", routeHandler("/api/sandbox/browser-screenshot", wrap(http.HandlerFunc(apiHandler.HandleSandboxBrowserScreenshot))))
-
-	// ── Auth endpoints ──
-	// Auth handlers manage their own method constraints; registered without method prefix.
-
-	if deps.AuthHandler != nil {
-		mux.Handle("/api/auth/register", routeHandler("/api/auth/register", http.HandlerFunc(deps.AuthHandler.HandleRegister)))
-		mux.Handle("/api/auth/login", routeHandler("/api/auth/login", http.HandlerFunc(deps.AuthHandler.HandleLogin)))
-		mux.Handle("/api/auth/logout", routeHandler("/api/auth/logout", http.HandlerFunc(deps.AuthHandler.HandleLogout)))
-		mux.Handle("/api/auth/refresh", routeHandler("/api/auth/refresh", http.HandlerFunc(deps.AuthHandler.HandleRefresh)))
-		mux.Handle("/api/auth/me", routeHandler("/api/auth/me", http.HandlerFunc(deps.AuthHandler.HandleMe)))
-		mux.Handle("/api/auth/plans", routeHandler("/api/auth/plans", http.HandlerFunc(deps.AuthHandler.HandleListPlans)))
-		if internalMode {
-			mux.Handle("/api/auth/points", routeHandler("/api/auth/points", wrap(http.HandlerFunc(deps.AuthHandler.HandleAdjustPoints))))
-			mux.Handle("/api/auth/subscription", routeHandler("/api/auth/subscription", wrap(http.HandlerFunc(deps.AuthHandler.HandleUpdateSubscription))))
-		}
-		mux.Handle("/api/auth/google/login", routeHandler("/api/auth/google/login", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			deps.AuthHandler.HandleOAuthStart(domain.ProviderGoogle, w, r)
-		})))
-		mux.Handle("/api/auth/google/callback", routeHandler("/api/auth/google/callback", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			deps.AuthHandler.HandleOAuthCallback(domain.ProviderGoogle, w, r)
-		})))
-	} else {
-		authDisabled := func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "Authentication module not configured", http.StatusServiceUnavailable)
-		}
-		mux.Handle("/api/auth/register", routeHandler("/api/auth/register", http.HandlerFunc(authDisabled)))
-		mux.Handle("/api/auth/login", routeHandler("/api/auth/login", http.HandlerFunc(authDisabled)))
-		mux.Handle("/api/auth/logout", routeHandler("/api/auth/logout", http.HandlerFunc(authDisabled)))
-		mux.Handle("/api/auth/refresh", routeHandler("/api/auth/refresh", http.HandlerFunc(authDisabled)))
-		mux.Handle("/api/auth/me", routeHandler("/api/auth/me", http.HandlerFunc(authDisabled)))
-		mux.Handle("/api/auth/plans", routeHandler("/api/auth/plans", http.HandlerFunc(authDisabled)))
-		mux.Handle("/api/auth/points", routeHandler("/api/auth/points", http.HandlerFunc(authDisabled)))
-		mux.Handle("/api/auth/subscription", routeHandler("/api/auth/subscription", http.HandlerFunc(authDisabled)))
-		mux.Handle("/api/auth/google/login", routeHandler("/api/auth/google/login", http.HandlerFunc(authDisabled)))
-		mux.Handle("/api/auth/google/callback", routeHandler("/api/auth/google/callback", http.HandlerFunc(authDisabled)))
-	}
 
 	// ── Task endpoints ──
 

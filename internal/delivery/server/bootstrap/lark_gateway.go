@@ -280,14 +280,11 @@ func buildLarkOAuthService(ctx context.Context, cfg Config, container *di.Contai
 		return nil
 	}
 
-	redirectBase := strings.TrimSpace(cfg.Auth.RedirectBaseURL)
-	if redirectBase == "" {
-		port := strings.TrimPrefix(cfg.Port, ":")
-		if port == "" {
-			port = "8080"
-		}
-		redirectBase = fmt.Sprintf("http://localhost:%s", port)
+	port := strings.TrimPrefix(cfg.Port, ":")
+	if port == "" {
+		port = "8080"
 	}
+	redirectBase := fmt.Sprintf("http://localhost:%s", port)
 	if !strings.HasPrefix(redirectBase, "http://") && !strings.HasPrefix(redirectBase, "https://") {
 		redirectBase = "https://" + redirectBase
 	}

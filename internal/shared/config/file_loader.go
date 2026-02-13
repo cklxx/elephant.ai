@@ -73,22 +73,6 @@ func expandFileConfigEnv(lookup EnvLookup, parsed FileConfig) FileConfig {
 			parsed.Server.AllowedOrigins = origins
 		}
 	}
-	if parsed.Auth != nil {
-		parsed.Auth.JWTSecret = expandEnvValue(lookup, parsed.Auth.JWTSecret)
-		parsed.Auth.AccessTokenTTLMinutes = expandEnvValue(lookup, parsed.Auth.AccessTokenTTLMinutes)
-		parsed.Auth.RefreshTokenTTLDays = expandEnvValue(lookup, parsed.Auth.RefreshTokenTTLDays)
-		parsed.Auth.StateTTLMinutes = expandEnvValue(lookup, parsed.Auth.StateTTLMinutes)
-		parsed.Auth.RedirectBaseURL = expandEnvValue(lookup, parsed.Auth.RedirectBaseURL)
-		parsed.Auth.GoogleClientID = expandEnvValue(lookup, parsed.Auth.GoogleClientID)
-		parsed.Auth.GoogleClientSecret = expandEnvValue(lookup, parsed.Auth.GoogleClientSecret)
-		parsed.Auth.GoogleAuthURL = expandEnvValue(lookup, parsed.Auth.GoogleAuthURL)
-		parsed.Auth.GoogleTokenURL = expandEnvValue(lookup, parsed.Auth.GoogleTokenURL)
-		parsed.Auth.GoogleUserInfoURL = expandEnvValue(lookup, parsed.Auth.GoogleUserInfoURL)
-		parsed.Auth.DatabaseURL = expandEnvValue(lookup, parsed.Auth.DatabaseURL)
-		parsed.Auth.BootstrapEmail = expandEnvValue(lookup, parsed.Auth.BootstrapEmail)
-		parsed.Auth.BootstrapPassword = expandEnvValue(lookup, parsed.Auth.BootstrapPassword)
-		parsed.Auth.BootstrapDisplayName = expandEnvValue(lookup, parsed.Auth.BootstrapDisplayName)
-	}
 	if parsed.Agent != nil {
 		parsed.Agent.SessionStaleAfter = expandEnvValue(lookup, parsed.Agent.SessionStaleAfter)
 	}

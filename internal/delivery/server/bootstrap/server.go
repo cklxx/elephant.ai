@@ -23,7 +23,6 @@ import (
 	"alex/internal/infra/diagnostics"
 	"alex/internal/infra/external/bridge"
 	"alex/internal/infra/httpclient"
-	"alex/internal/infra/sandbox"
 	taskinfra "alex/internal/infra/task"
 	"alex/internal/shared/async"
 	runtimeconfig "alex/internal/shared/config"
@@ -290,21 +289,6 @@ func RunServer(observabilityConfigPath string) error {
 	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
 	healthChecker.RegisterProbe(serverApp.NewDegradedProbe(f.Degraded))
 
-	authService, authCleanup, err := BuildAuthService(config, logger)
-	if err != nil {
-		logger.Warn("Authentication disabled: %v", err)
-	}
-	if authCleanup != nil {
-		defer authCleanup()
-	}
-
-	var authHandler *serverHTTP.AuthHandler
-	if authService != nil {
-		secureCookies := strings.EqualFold(config.Runtime.Environment, "production")
-		authHandler = serverHTTP.NewAuthHandler(authService, secureCookies)
-		logger.Info("Authentication module initialized")
-	}
-
 	runtimeUpdates, runtimeReloader := f.RuntimeCacheUpdates()
 	configHandler := serverHTTP.NewConfigHandler(f.ConfigManager(), f.Resolver(), runtimeUpdates, runtimeReloader)
 	onboardingStore := subscription.NewOnboardingStateStore(
@@ -319,11 +303,6 @@ func RunServer(observabilityConfigPath string) error {
 	if container.LarkOAuth != nil {
 		larkOAuthHandler = serverHTTP.NewLarkOAuthHandler(container.LarkOAuth, logger)
 	}
-	sandboxClient := sandbox.NewClient(sandbox.Config{
-		BaseURL:          config.Runtime.SandboxBaseURL,
-		MaxResponseBytes: config.Runtime.HTTPLimits.SandboxMaxResponseBytes,
-	})
-
 	// Hooks bridge: forward Claude Code hook events to Lark.
 	var hooksBridge http.Handler
 	if container.LarkGateway != nil {
@@ -338,14 +317,11 @@ func RunServer(observabilityConfigPath string) error {
 			Broadcaster:            broadcaster,
 			RunTracker:             progressTracker,
 			HealthChecker:          healthChecker,
-			AuthHandler:            authHandler,
-			AuthService:            authService,
 			ConfigHandler:          configHandler,
 			OnboardingStateHandler: onboardingStateHandler,
 			Evaluation:             evaluationService,
 			Obs:                    f.Obs,
 			AttachmentCfg:          config.Attachment,
-			SandboxClient:          sandboxClient,
 			LarkOAuthHandler:       larkOAuthHandler,
 			MemoryEngine:           container.MemoryEngine,
 			HooksBridge:            hooksBridge,

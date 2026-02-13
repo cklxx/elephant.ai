@@ -11,7 +11,6 @@ import (
 type contextKey string
 
 const (
-	authUserContextKey       contextKey = "authUser"
 	canonicalRouteContextKey contextKey = "canonicalRoute"
 )
 

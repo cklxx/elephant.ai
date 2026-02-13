@@ -83,9 +83,6 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	h.logger.Info("Creating task: task='%s', sessionID='%s'", req.Task, req.SessionID)
 
 	ctx := id.WithSessionID(r.Context(), req.SessionID)
-	if user, ok := CurrentUser(r.Context()); ok {
-		ctx = id.WithUserID(ctx, user.ID)
-	}
 	if len(attachments) > 0 {
 		ctx = appcontext.WithUserAttachments(ctx, attachments)
 	}

@@ -43,13 +43,9 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	}
 
 	sessionDBURL := strings.TrimSpace(config.Session.DatabaseURL)
-	authDBURL := strings.TrimSpace(config.Auth.DatabaseURL)
-	switch {
-	case sessionDBURL != "":
+	if sessionDBURL != "" {
 		logger.Debug("Session DB: (set; source=session.database_url)")
-	case authDBURL != "":
-		logger.Debug("Session DB: (fallback to auth.database_url)")
-	default:
+	} else {
 		logger.Debug("Session DB: (not set)")
 	}
 

@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -22,7 +21,6 @@ type Config struct {
 	DebugPort          string // Debug HTTP port for Lark standalone mode (default "9090")
 	EnableMCP          bool
 	EnvironmentSummary string
-	Auth               runtimeconfig.AuthConfig
 	Session            runtimeconfig.SessionConfig
 	Analytics          runtimeconfig.AnalyticsConfig
 	Channels           ChannelsConfig
@@ -277,7 +275,6 @@ func LoadConfig() (ConfigResult, error) {
 	}
 	applyServerFileConfig(&cfg, fileCfg)
 	applyLarkEnvFallback(&cfg, envLookup)
-	applyAuthEnvFallback(&cfg, envLookup)
 	if err := validateLarkPersistenceConfig(&cfg); err != nil {
 		return ConfigResult{}, err
 	}
@@ -305,7 +302,6 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	applyLarkConfig(cfg, file)
 	applyServerHTTPConfig(cfg, file)
-	applyAuthConfig(cfg, file)
 	applySessionConfig(cfg, file)
 	applyAnalyticsConfig(cfg, file)
 	applyAttachmentConfig(cfg, file)
@@ -621,91 +617,6 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if file.Server.AllowedOrigins != nil {
 		cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)
-	}
-}
-
-func applyAuthConfig(cfg *Config, file runtimeconfig.FileConfig) {
-	if file.Auth == nil {
-		return
-	}
-	cfg.Auth = runtimeconfig.AuthConfig{
-		JWTSecret:             strings.TrimSpace(file.Auth.JWTSecret),
-		AccessTokenTTLMinutes: strings.TrimSpace(file.Auth.AccessTokenTTLMinutes),
-		RefreshTokenTTLDays:   strings.TrimSpace(file.Auth.RefreshTokenTTLDays),
-		StateTTLMinutes:       strings.TrimSpace(file.Auth.StateTTLMinutes),
-		RedirectBaseURL:       strings.TrimSpace(file.Auth.RedirectBaseURL),
-		GoogleClientID:        strings.TrimSpace(file.Auth.GoogleClientID),
-		GoogleClientSecret:    strings.TrimSpace(file.Auth.GoogleClientSecret),
-		GoogleAuthURL:         strings.TrimSpace(file.Auth.GoogleAuthURL),
-		GoogleTokenURL:        strings.TrimSpace(file.Auth.GoogleTokenURL),
-		GoogleUserInfoURL:     strings.TrimSpace(file.Auth.GoogleUserInfoURL),
-		DatabaseURL:           strings.TrimSpace(file.Auth.DatabaseURL),
-		DatabasePoolMaxConns:  file.Auth.DatabasePoolMaxConns,
-		BootstrapEmail:        strings.TrimSpace(file.Auth.BootstrapEmail),
-		BootstrapPassword:     file.Auth.BootstrapPassword,
-		BootstrapDisplayName:  strings.TrimSpace(file.Auth.BootstrapDisplayName),
-	}
-}
-
-func applyAuthEnvFallback(cfg *Config, lookup runtimeconfig.EnvLookup) {
-	if cfg == nil {
-		return
-	}
-	if lookup == nil {
-		lookup = runtimeconfig.DefaultEnvLookup
-	}
-
-	if strings.TrimSpace(cfg.Auth.JWTSecret) == "" {
-		cfg.Auth.JWTSecret = lookupFirstNonEmptyEnv(lookup, "AUTH_JWT_SECRET", "JWT_SECRET")
-	}
-	if strings.TrimSpace(cfg.Auth.AccessTokenTTLMinutes) == "" {
-		cfg.Auth.AccessTokenTTLMinutes = lookupFirstNonEmptyEnv(lookup, "AUTH_ACCESS_TOKEN_TTL_MINUTES")
-	}
-	if strings.TrimSpace(cfg.Auth.RefreshTokenTTLDays) == "" {
-		cfg.Auth.RefreshTokenTTLDays = lookupFirstNonEmptyEnv(lookup, "AUTH_REFRESH_TOKEN_TTL_DAYS")
-	}
-	if strings.TrimSpace(cfg.Auth.StateTTLMinutes) == "" {
-		cfg.Auth.StateTTLMinutes = lookupFirstNonEmptyEnv(lookup, "AUTH_STATE_TTL_MINUTES")
-	}
-	if strings.TrimSpace(cfg.Auth.RedirectBaseURL) == "" {
-		cfg.Auth.RedirectBaseURL = lookupFirstNonEmptyEnv(lookup, "AUTH_REDIRECT_BASE_URL")
-	}
-	if strings.TrimSpace(cfg.Auth.GoogleClientID) == "" {
-		cfg.Auth.GoogleClientID = lookupFirstNonEmptyEnv(lookup, "AUTH_GOOGLE_CLIENT_ID")
-	}
-	if strings.TrimSpace(cfg.Auth.GoogleClientSecret) == "" {
-		cfg.Auth.GoogleClientSecret = lookupFirstNonEmptyEnv(lookup, "AUTH_GOOGLE_CLIENT_SECRET")
-	}
-	if strings.TrimSpace(cfg.Auth.GoogleAuthURL) == "" {
-		cfg.Auth.GoogleAuthURL = lookupFirstNonEmptyEnv(lookup, "AUTH_GOOGLE_AUTH_URL")
-	}
-	if strings.TrimSpace(cfg.Auth.GoogleTokenURL) == "" {
-		cfg.Auth.GoogleTokenURL = lookupFirstNonEmptyEnv(lookup, "AUTH_GOOGLE_TOKEN_URL")
-	}
-	if strings.TrimSpace(cfg.Auth.GoogleUserInfoURL) == "" {
-		cfg.Auth.GoogleUserInfoURL = lookupFirstNonEmptyEnv(lookup, "AUTH_GOOGLE_USERINFO_URL")
-	}
-	if strings.TrimSpace(cfg.Auth.DatabaseURL) == "" {
-		cfg.Auth.DatabaseURL = lookupFirstNonEmptyEnv(lookup, "AUTH_DATABASE_URL")
-	}
-	if cfg.Auth.DatabasePoolMaxConns == nil {
-		if value := lookupFirstNonEmptyEnv(lookup, "AUTH_DATABASE_POOL_MAX_CONNS"); value != "" {
-			parsed, err := strconv.Atoi(strings.TrimSpace(value))
-			if err == nil && parsed > 0 {
-				cfg.Auth.DatabasePoolMaxConns = &parsed
-			}
-		}
-	}
-	if strings.TrimSpace(cfg.Auth.BootstrapEmail) == "" {
-		cfg.Auth.BootstrapEmail = lookupFirstNonEmptyEnv(lookup, "AUTH_BOOTSTRAP_EMAIL")
-	}
-	if strings.TrimSpace(cfg.Auth.BootstrapDisplayName) == "" {
-		cfg.Auth.BootstrapDisplayName = lookupFirstNonEmptyEnv(lookup, "AUTH_BOOTSTRAP_DISPLAY_NAME")
-	}
-	if strings.TrimSpace(cfg.Auth.BootstrapPassword) == "" {
-		if value, ok := lookup("AUTH_BOOTSTRAP_PASSWORD"); ok && strings.TrimSpace(value) != "" {
-			cfg.Auth.BootstrapPassword = value
-		}
 	}
 }
 

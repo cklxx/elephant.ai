@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	authapp "alex/internal/app/auth"
 	"alex/internal/delivery/server/app"
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/observability"
@@ -18,14 +17,11 @@ type RouterDeps struct {
 	Broadcaster            *app.EventBroadcaster
 	RunTracker             app.RunTracker
 	HealthChecker          *app.HealthCheckerImpl
-	AuthHandler            *AuthHandler
-	AuthService            *authapp.Service
 	ConfigHandler          *ConfigHandler
 	OnboardingStateHandler *OnboardingStateHandler
 	Evaluation             *app.EvaluationService
 	Obs                    *observability.Observability
 	AttachmentCfg          attachments.StoreConfig
-	SandboxClient          SandboxClient
 	DataCache              *DataCache
 	LarkOAuthHandler       *LarkOAuthHandler
 	MemoryEngine           MemoryEngine

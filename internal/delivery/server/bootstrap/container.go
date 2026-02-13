@@ -1,7 +1,6 @@
 package bootstrap
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -22,13 +21,6 @@ func BuildContainer(config Config) (*di.Container, error) {
 		diConfig.ToolPreset = string(presets.ToolPresetArchitect)
 	}
 	sessionDBURL := strings.TrimSpace(config.Session.DatabaseURL)
-	if sessionDBURL == "" {
-		sessionDBURL = strings.TrimSpace(config.Auth.DatabaseURL)
-	}
-	requireSessionDB := strings.EqualFold(config.Runtime.Environment, "production")
-	if sessionDBURL == "" && requireSessionDB {
-		return nil, fmt.Errorf("session database required in production (set session.database_url or auth.database_url in config.yaml)")
-	}
 	diConfig.SessionDatabaseURL = sessionDBURL
 	if config.Session.PoolMaxConns != nil {
 		diConfig.SessionPoolMaxConns = *config.Session.PoolMaxConns
@@ -48,7 +40,6 @@ func BuildContainer(config Config) (*di.Container, error) {
 	if config.Session.PoolConnectTimeoutSeconds != nil {
 		diConfig.SessionPoolConnectTimeout = time.Duration(*config.Session.PoolConnectTimeoutSeconds) * time.Second
 	}
-	diConfig.RequireSessionDatabase = requireSessionDB
 	diConfig.ToolMode = string(presets.ToolModeWeb)
 	return di.BuildContainer(diConfig)
 }
