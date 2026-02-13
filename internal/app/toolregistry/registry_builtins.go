@@ -29,7 +29,6 @@ func (r *Registry) registerWebTools(config Config) {
 
 func (r *Registry) registerSessionTools() {
 	r.static["skills"] = sessiontools.NewSkills()
-	r.static["kernel_goal"] = sessiontools.NewKernelGoal()
 }
 
 // registerPlatformTools registers the essential platform tools.

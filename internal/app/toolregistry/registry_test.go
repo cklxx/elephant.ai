@@ -62,11 +62,11 @@ func TestNewRegistryRegistersExpectedToolCount(t *testing.T) {
 	for _, def := range defs {
 		names = append(names, def.Name)
 	}
-	// 16 core tools: read_file, write_file, replace_in_file, shell_exec,
-	// execute_code, browser_action, channel, web_search, skills, kernel_goal,
+	// 15 core tools: read_file, write_file, replace_in_file, shell_exec,
+	// execute_code, browser_action, channel, web_search, skills,
 	// plan, clarify, request_user, memory_search, memory_get, context_checkpoint
-	if len(defs) != 16 {
-		t.Fatalf("expected 16 tools, got %d: %v", len(defs), names)
+	if len(defs) != 15 {
+		t.Fatalf("expected 15 tools, got %d: %v", len(defs), names)
 	}
 }
 
@@ -321,7 +321,7 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 		"execute_code", "browser_action",
 		"plan", "clarify", "request_user",
 		"memory_search", "memory_get",
-		"web_search", "skills", "kernel_goal", "channel",
+		"web_search", "skills", "channel",
 	} {
 		if !names[want] {
 			t.Errorf("expected tool %s to be registered", want)
@@ -330,7 +330,7 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 
 	// Deprecated tools MUST NOT be present
 	for _, dropped := range []string{
-		"grep", "ripgrep", "find",
+		"grep", "ripgrep", "find", "kernel_goal",
 		"todo_read", "todo_update", "apps", "music_play",
 		"artifacts_write", "artifacts_list", "artifacts_delete",
 		"a2ui_emit", "artifact_manifest", "pptx_from_images",
