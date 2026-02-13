@@ -177,10 +177,11 @@ func (aa *AlexAgent) ProcessInstance(ctx context.Context, instance Instance) (*W
 		tokensUsed = 500 // Minimum estimate
 	}
 	cost := aa.calculateCost(tokensUsed)
+	status, statusErr, statusErrType := resolveTaskResultStatus(result)
 
 	return &WorkerResult{
 		InstanceID:   instance.ID,
-		Status:       StatusCompleted,
+		Status:       status,
 		Solution:     solutionText,
 		Explanation:  explanation,
 		FilesChanged: filesChanged,
@@ -190,6 +191,8 @@ func (aa *AlexAgent) ProcessInstance(ctx context.Context, instance Instance) (*W
 		Duration:     time.Since(startTime),
 		TokensUsed:   tokensUsed,
 		Cost:         cost,
+		Error:        statusErr,
+		ErrorType:    statusErrType,
 		Trace:        trace,
 		Workflow:     result.Workflow,
 	}, nil
@@ -450,6 +453,42 @@ func toolList(values map[string]any) []string {
 	return tools
 }
 
+func resolveTaskResultStatus(result *agent.TaskResult) (ResultStatus, string, string) {
+	if result == nil {
+		return StatusFailed, "agent returned nil task result", "execution_error"
+	}
+
+	if strings.EqualFold(strings.TrimSpace(result.StopReason), "max_iterations") {
+		return StatusFailed, "task stopped after reaching max iterations", "max_iterations_error"
+	}
+
+	if result.Workflow != nil {
+		if result.Workflow.Phase == workflow.PhaseFailed {
+			return StatusFailed, "workflow ended in failed phase", "workflow_failed"
+		}
+		if strings.EqualFold(strings.TrimSpace(workflowNodeStop(result.Workflow, "execute")), "max_iterations") {
+			return StatusFailed, "execute node stopped at max iterations", "max_iterations_error"
+		}
+	}
+
+	return StatusCompleted, "", ""
+}
+
+func workflowNodeStop(snapshot *workflow.WorkflowSnapshot, nodeID string) string {
+	if snapshot == nil || nodeID == "" {
+		return ""
+	}
+
+	for _, node := range snapshot.Nodes {
+		if node.ID != nodeID {
+			continue
+		}
+		output := mapFromAny(node.Output)
+		return stringFromAny(output["stop"])
+	}
+	return ""
+}
+
 // buildTaskPrompt creates a task prompt from the SWE-Bench instance
 func (aa *AlexAgent) buildTaskPrompt(instance Instance) string {
 	var prompt strings.Builder
@@ -467,6 +506,9 @@ func (aa *AlexAgent) buildTaskPrompt(instance Instance) string {
 		prompt.WriteString("\n\n")
 	}
 
+	prompt.WriteString(buildWorkspaceConventions(instance))
+	prompt.WriteString("\n")
+
 	prompt.WriteString("## Instructions:\n")
 	prompt.WriteString("1. Analyze the problem statement carefully\n")
 	prompt.WriteString("2. Identify the root cause of the issue\n")
@@ -476,6 +518,34 @@ func (aa *AlexAgent) buildTaskPrompt(instance Instance) string {
 	prompt.WriteString("Please provide a complete solution with explanation.\n")
 
 	return prompt.String()
+}
+
+func buildWorkspaceConventions(instance Instance) string {
+	repoName := repoNameFromURL(instance.RepoURL)
+	if repoName == "" {
+		repoName = "repo"
+	}
+
+	var sb strings.Builder
+	sb.WriteString("## Workspace Conventions:\n")
+	sb.WriteString("- Use deterministic local paths before any broad filesystem scan.\n")
+	sb.WriteString(fmt.Sprintf("- Preferred existing checkout: `~/code/%s`\n", repoName))
+	sb.WriteString(fmt.Sprintf("- If missing, clone once to: `/tmp/repos/%s`\n", repoName))
+	sb.WriteString(fmt.Sprintf("- After opening the repo, checkout base commit `%s` before edits/tests.\n", strings.TrimSpace(instance.BaseCommit)))
+	sb.WriteString("- Do not clone to random directories when the preferred path already exists.\n\n")
+	return sb.String()
+}
+
+func repoNameFromURL(repoURL string) string {
+	trimmed := strings.TrimSpace(repoURL)
+	if trimmed == "" {
+		return ""
+	}
+	parts := strings.Split(trimmed, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(parts[len(parts)-1])
 }
 
 // wrapWithUltraThink adds Ultra Think enhancement to the prompt

@@ -4,7 +4,11 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/workflow"
 )
 
 func setTestConfigPath(t *testing.T, content string) {
@@ -107,5 +111,101 @@ runtime:
 	resolved := agent.coordinator.GetConfig()
 	if resolved.MaxIterations != 5 {
 		t.Fatalf("expected max iterations from batch config, got %d", resolved.MaxIterations)
+	}
+}
+
+func TestResolveTaskResultStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		result     *agent.TaskResult
+		wantStatus ResultStatus
+		wantType   string
+	}{
+		{
+			name: "successful workflow remains completed",
+			result: &agent.TaskResult{
+				StopReason: "final_answer",
+				Workflow: &workflow.WorkflowSnapshot{
+					Phase: workflow.PhaseSucceeded,
+				},
+			},
+			wantStatus: StatusCompleted,
+			wantType:   "",
+		},
+		{
+			name: "max iterations stop reason becomes failed",
+			result: &agent.TaskResult{
+				StopReason: "max_iterations",
+				Workflow: &workflow.WorkflowSnapshot{
+					Phase: workflow.PhaseSucceeded,
+				},
+			},
+			wantStatus: StatusFailed,
+			wantType:   "max_iterations_error",
+		},
+		{
+			name: "failed workflow becomes failed",
+			result: &agent.TaskResult{
+				StopReason: "final_answer",
+				Workflow: &workflow.WorkflowSnapshot{
+					Phase: workflow.PhaseFailed,
+				},
+			},
+			wantStatus: StatusFailed,
+			wantType:   "workflow_failed",
+		},
+		{
+			name: "execute node max iterations becomes failed",
+			result: &agent.TaskResult{
+				StopReason: "final_answer",
+				Workflow: &workflow.WorkflowSnapshot{
+					Phase: workflow.PhaseSucceeded,
+					Nodes: []workflow.NodeSnapshot{
+						{
+							ID:     "execute",
+							Status: workflow.NodeStatusSucceeded,
+							Output: map[string]any{"stop": "max_iterations"},
+						},
+					},
+				},
+			},
+			wantStatus: StatusFailed,
+			wantType:   "max_iterations_error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotStatus, gotErr, gotType := resolveTaskResultStatus(tt.result)
+			if gotStatus != tt.wantStatus {
+				t.Fatalf("status mismatch: got=%s want=%s", gotStatus, tt.wantStatus)
+			}
+			if gotType != tt.wantType {
+				t.Fatalf("error type mismatch: got=%s want=%s", gotType, tt.wantType)
+			}
+			if tt.wantStatus == StatusFailed && strings.TrimSpace(gotErr) == "" {
+				t.Fatalf("expected non-empty error for failed status")
+			}
+		})
+	}
+}
+
+func TestBuildTaskPromptIncludesWorkspaceConventions(t *testing.T) {
+	agent := &AlexAgent{}
+	prompt := agent.buildTaskPrompt(Instance{
+		ID:               "django__django-11885",
+		RepoURL:          "django/django",
+		BaseCommit:       "04ac9b45a34440fa447feb6ae934687aacbfc5f4",
+		ProblemStatement: "example",
+	})
+
+	if !strings.Contains(prompt, "## Workspace Conventions:") {
+		t.Fatalf("expected workspace conventions section in prompt")
+	}
+	if !strings.Contains(prompt, "~/code/django") {
+		t.Fatalf("expected default home workspace hint in prompt")
+	}
+	if !strings.Contains(prompt, "/tmp/repos/django") {
+		t.Fatalf("expected deterministic tmp workspace hint in prompt")
 	}
 }
