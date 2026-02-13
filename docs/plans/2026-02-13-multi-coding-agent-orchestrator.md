@@ -18,6 +18,8 @@
 - [x] Extend bridge metadata and execution mapping for codex/claude plan/execute modes.
 - [x] Integrate orchestrator path into Lark task commands.
 - [x] Add/adjust unit tests and integration coverage.
+- [x] Add real `/codex` + `/cc` Lark message-level integration tests through the project gateway entry.
+- [x] Add architecture guard tests to lock external coding-agent unique wiring and runtime entrypoint.
 - [x] Run full lint + tests.
 - [x] Run mandatory code review flow and capture findings.
 - [x] Commit in incremental slices.
@@ -36,3 +38,6 @@
   - ensured codex plan mode honors read-only fallback from normalized request controls.
 - 2026-02-13: Re-ran full validation (`make dev-lint`, `make test`) successfully.
 - 2026-02-13: Split solution into 3 incremental commits, rebased to latest `main`, fast-forward merged, and removed temporary worktree/branch.
+- 2026-02-13: Added real codex bridge integration test (`TestExecutor_Integration_Codex`) and managed multi-agent integration test (`TestManagedExternalExecutor_Integration_BothAgents`).
+- 2026-02-13: Added Lark `/codex` + `/cc` real integration test (`TestGatewayIntegration_TaskCommandsDispatchRealExternalAgents`) to verify gateway entry -> managed executor -> bridge chain.
+- 2026-02-13: Added static architecture guards to enforce unique managed-executor wiring and single `externalExecutor.Execute` runtime callsite.
