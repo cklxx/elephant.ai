@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"alex/internal/infra/markdown"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/markdown"
 )
 
 func TestStateFile_ReadNonExistent(t *testing.T) {

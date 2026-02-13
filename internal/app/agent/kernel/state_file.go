@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"alex/internal/infra/markdown"
+	"alex/internal/shared/markdown"
 )
 
 const (
