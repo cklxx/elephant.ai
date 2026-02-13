@@ -11,13 +11,14 @@ const (
 // DI-only concerns (Enabled, TimeoutSeconds, LeaseSeconds, Agents) stay in
 // KernelProactiveConfig and are consumed by the DI builder.
 type KernelConfig struct {
-	KernelID      string `yaml:"kernel_id"`
-	Schedule      string `yaml:"schedule"`
-	SeedState     string `yaml:"seed_state"`
-	MaxConcurrent int    `yaml:"max_concurrent"`
-	Channel       string `yaml:"channel"`
-	ChatID        string `yaml:"chat_id"`
-	UserID        string `yaml:"user_id"`
+	KernelID        string `yaml:"kernel_id"`
+	Schedule        string `yaml:"schedule"`
+	SeedState       string `yaml:"seed_state"`
+	MaxConcurrent   int    `yaml:"max_concurrent"`
+	MaxCycleHistory int    `yaml:"max_cycle_history"` // rolling history rows; default 5
+	Channel         string `yaml:"channel"`
+	ChatID          string `yaml:"chat_id"`
+	UserID          string `yaml:"user_id"`
 }
 
 // AgentConfig defines a single agent that the kernel dispatches.

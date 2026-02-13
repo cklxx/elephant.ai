@@ -151,6 +151,18 @@ func (e *Engine) RunCycle(ctx context.Context) (result *kerneldomain.CycleResult
 }
 
 func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycleErr error) {
+	ctx := context.Background()
+
+	// 1. Commit pre-cycle snapshot (if versioned store is available).
+	cycleLabel := "(none)"
+	if result != nil {
+		cycleLabel = result.CycleID
+	}
+	if err := e.stateFile.CommitCycleBoundary(ctx, fmt.Sprintf("pre-cycle %s", cycleLabel)); err != nil {
+		e.logger.Debug("Kernel: pre-cycle commit: %v", err)
+	}
+
+	// 2. Read current STATE.md.
 	stateContent, err := e.stateFile.Read()
 	if err != nil {
 		e.logger.Warn("Kernel: read state for runtime persistence failed: %v", err)
@@ -160,7 +172,22 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 		stateContent = e.config.SeedState
 	}
 
-	runtimeBlock := renderKernelRuntimeBlock(result, cycleErr, time.Now())
+	// 3. Parse existing cycle history and prepend new entry.
+	now := time.Now()
+	history := parseCycleHistory(stateContent)
+	newEntry := buildCycleHistoryEntry(result, cycleErr, now)
+	history = append([]cycleHistoryEntry{newEntry}, history...)
+
+	maxHistory := e.config.MaxCycleHistory
+	if maxHistory <= 0 {
+		maxHistory = 5
+	}
+	if len(history) > maxHistory {
+		history = history[:maxHistory]
+	}
+
+	// 4. Render runtime block with rolling history.
+	runtimeBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history)
 	updated := upsertKernelRuntimeBlock(stateContent, runtimeBlock)
 	if err := e.stateFile.Write(updated); err != nil {
 		e.logger.Warn("Kernel: persist runtime state failed: %v", err)
@@ -180,21 +207,39 @@ func (e *Engine) persistSystemPromptSnapshot() {
 	}
 }
 
-func renderKernelRuntimeBlock(result *kerneldomain.CycleResult, cycleErr error, now time.Time) string {
+// cycleHistoryEntry represents one row in the rolling cycle history table.
+type cycleHistoryEntry struct {
+	CycleID    string
+	Status     string
+	Dispatched string
+	Succeeded  string
+	Failed     string
+	Summary    string
+	UpdatedAt  string
+}
+
+func renderKernelRuntimeBlockWithHistory(result *kerneldomain.CycleResult, cycleErr error, now time.Time, history []cycleHistoryEntry) string {
+	lines := renderKernelRuntimeLines(result, cycleErr, now)
+	lines = append(lines, "")
+	lines = append(lines, renderCycleHistoryTable(history))
+	return strings.Join(lines, "\n")
+}
+
+func renderKernelRuntimeLines(result *kerneldomain.CycleResult, cycleErr error, now time.Time) []string {
 	lines := []string{
 		"## kernel_runtime",
 		fmt.Sprintf("- updated_at: %s", now.UTC().Format(time.RFC3339)),
 	}
 	if result == nil {
 		lines = append(lines,
-			"- cycle_id: (none)",
-			"- status: error",
-			"- dispatched: 0",
-			"- succeeded: 0",
-			"- failed: 0",
-			"- failed_agents: (none)",
-			"- agent_summary: (none)",
-			"- duration_ms: 0",
+			"- latest_cycle_id: (none)",
+			"- latest_status: error",
+			"- latest_dispatched: 0",
+			"- latest_succeeded: 0",
+			"- latest_failed: 0",
+			"- latest_failed_agents: (none)",
+			"- latest_agent_summary: (none)",
+			"- latest_duration_ms: 0",
 		)
 	} else {
 		failedAgents := "(none)"
@@ -202,22 +247,117 @@ func renderKernelRuntimeBlock(result *kerneldomain.CycleResult, cycleErr error, 
 			failedAgents = strings.Join(result.FailedAgents, ", ")
 		}
 		lines = append(lines,
-			fmt.Sprintf("- cycle_id: %s", result.CycleID),
-			fmt.Sprintf("- status: %s", result.Status),
-			fmt.Sprintf("- dispatched: %d", result.Dispatched),
-			fmt.Sprintf("- succeeded: %d", result.Succeeded),
-			fmt.Sprintf("- failed: %d", result.Failed),
-			fmt.Sprintf("- failed_agents: %s", failedAgents),
-			fmt.Sprintf("- agent_summary: %s", renderStateAgentSummary(result.AgentSummary)),
-			fmt.Sprintf("- duration_ms: %d", result.Duration.Milliseconds()),
+			fmt.Sprintf("- latest_cycle_id: %s", result.CycleID),
+			fmt.Sprintf("- latest_status: %s", result.Status),
+			fmt.Sprintf("- latest_dispatched: %d", result.Dispatched),
+			fmt.Sprintf("- latest_succeeded: %d", result.Succeeded),
+			fmt.Sprintf("- latest_failed: %d", result.Failed),
+			fmt.Sprintf("- latest_failed_agents: %s", failedAgents),
+			fmt.Sprintf("- latest_agent_summary: %s", renderStateAgentSummary(result.AgentSummary)),
+			fmt.Sprintf("- latest_duration_ms: %d", result.Duration.Milliseconds()),
 		)
 	}
 	if cycleErr != nil {
-		lines = append(lines, fmt.Sprintf("- error: %s", cycleErr.Error()))
+		lines = append(lines, fmt.Sprintf("- latest_error: %s", cycleErr.Error()))
 	} else {
-		lines = append(lines, "- error: (none)")
+		lines = append(lines, "- latest_error: (none)")
+	}
+	return lines
+}
+
+func buildCycleHistoryEntry(result *kerneldomain.CycleResult, cycleErr error, now time.Time) cycleHistoryEntry {
+	if result == nil {
+		errMsg := "(none)"
+		if cycleErr != nil {
+			errMsg = compactSummary(cycleErr.Error(), 80)
+		}
+		return cycleHistoryEntry{
+			CycleID:    "(none)",
+			Status:     "error",
+			Dispatched: "0",
+			Succeeded:  "0",
+			Failed:     "0",
+			Summary:    errMsg,
+			UpdatedAt:  now.UTC().Format(time.RFC3339),
+		}
+	}
+	summary := renderStateAgentSummary(result.AgentSummary)
+	// Compact for table cells.
+	summary = compactSummary(summary, 120)
+	// Replace pipe characters to avoid breaking the markdown table.
+	summary = strings.ReplaceAll(summary, "|", "/")
+	return cycleHistoryEntry{
+		CycleID:    result.CycleID,
+		Status:     string(result.Status),
+		Dispatched: fmt.Sprintf("%d", result.Dispatched),
+		Succeeded:  fmt.Sprintf("%d", result.Succeeded),
+		Failed:     fmt.Sprintf("%d", result.Failed),
+		Summary:    summary,
+		UpdatedAt:  now.UTC().Format(time.RFC3339),
+	}
+}
+
+func renderCycleHistoryTable(entries []cycleHistoryEntry) string {
+	lines := []string{
+		"### cycle_history",
+		"| cycle_id | status | dispatched | succeeded | failed | summary | updated_at |",
+		"|----------|--------|------------|-----------|--------|---------|------------|",
+	}
+	for _, e := range entries {
+		lines = append(lines, fmt.Sprintf("| %s | %s | %s | %s | %s | %s | %s |",
+			e.CycleID, e.Status, e.Dispatched, e.Succeeded, e.Failed, e.Summary, e.UpdatedAt))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// parseCycleHistory extracts cycle_history table rows from existing STATE.md content.
+// Returns empty slice if no history table is found (backward compatible).
+func parseCycleHistory(content string) []cycleHistoryEntry {
+	// Find "### cycle_history" section.
+	idx := strings.Index(content, "### cycle_history")
+	if idx < 0 {
+		return nil
+	}
+	rest := content[idx:]
+
+	var entries []cycleHistoryEntry
+	for _, line := range strings.Split(rest, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "|") || !strings.HasSuffix(line, "|") {
+			continue
+		}
+		// Skip header and separator rows.
+		if strings.Contains(line, "cycle_id") || strings.Contains(line, "--------") {
+			continue
+		}
+		cells := splitTableRow(line)
+		if len(cells) < 7 {
+			continue
+		}
+		entries = append(entries, cycleHistoryEntry{
+			CycleID:    cells[0],
+			Status:     cells[1],
+			Dispatched: cells[2],
+			Succeeded:  cells[3],
+			Failed:     cells[4],
+			Summary:    cells[5],
+			UpdatedAt:  cells[6],
+		})
+	}
+	return entries
+}
+
+// splitTableRow splits a markdown table row "|a|b|c|" into trimmed cell values.
+func splitTableRow(line string) []string {
+	// Trim leading/trailing pipe.
+	line = strings.TrimPrefix(line, "|")
+	line = strings.TrimSuffix(line, "|")
+	parts := strings.Split(line, "|")
+	cells := make([]string, 0, len(parts))
+	for _, p := range parts {
+		cells = append(cells, strings.TrimSpace(p))
+	}
+	return cells
 }
 
 func renderStateAgentSummary(entries []kerneldomain.AgentCycleSummary) string {

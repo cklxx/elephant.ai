@@ -305,8 +305,11 @@ func TestEngine_RunCycle_SeedState(t *testing.T) {
 	if !strings.Contains(content, "## kernel_runtime") {
 		t.Fatalf("state missing kernel runtime section: %q", content)
 	}
-	if !strings.Contains(content, "- agent_summary: ") {
+	if !strings.Contains(content, "- latest_agent_summary: ") {
 		t.Fatalf("state missing agent summary line: %q", content)
+	}
+	if !strings.Contains(content, "### cycle_history") {
+		t.Fatalf("state missing cycle history section: %q", content)
 	}
 }
 
@@ -497,6 +500,63 @@ func TestEngine_RunCycle_RecoversStaleDispatchesWhenSupported(t *testing.T) {
 	defer store.mu.Unlock()
 	if store.recoverHits == 0 {
 		t.Fatal("expected stale recovery hook to be called")
+	}
+}
+
+func TestEngine_RunCycle_RollingHistory(t *testing.T) {
+	exec := &mockExecutor{summaries: []string{"done a", "done b"}}
+	engine, _ := newTestEngine(t, exec)
+	engine.config.MaxCycleHistory = 10
+
+	// Run 3 cycles.
+	for i := 0; i < 3; i++ {
+		exec.mu.Lock()
+		exec.idx = 0
+		exec.mu.Unlock()
+		if _, err := engine.RunCycle(context.Background()); err != nil {
+			t.Fatalf("cycle %d: %v", i, err)
+		}
+	}
+
+	content, err := engine.stateFile.Read()
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	// Parse the history table — should have 3 rows.
+	history := parseCycleHistory(content)
+	if len(history) != 3 {
+		t.Fatalf("expected 3 history rows, got %d", len(history))
+	}
+	// Most recent should be first.
+	if history[0].Status != "success" {
+		t.Errorf("expected latest status=success, got %q", history[0].Status)
+	}
+}
+
+func TestEngine_RunCycle_RollingHistoryTruncation(t *testing.T) {
+	exec := &mockExecutor{summaries: []string{"done a", "done b"}}
+	engine, _ := newTestEngine(t, exec)
+	engine.config.MaxCycleHistory = 5
+
+	// Run 7 cycles.
+	for i := 0; i < 7; i++ {
+		exec.mu.Lock()
+		exec.idx = 0
+		exec.mu.Unlock()
+		if _, err := engine.RunCycle(context.Background()); err != nil {
+			t.Fatalf("cycle %d: %v", i, err)
+		}
+	}
+
+	content, err := engine.stateFile.Read()
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	history := parseCycleHistory(content)
+	if len(history) != 5 {
+		t.Fatalf("expected 5 history rows (truncated), got %d", len(history))
 	}
 }
 
