@@ -218,13 +218,13 @@ func (g *Gateway) buildModelStatus(ctx context.Context, msg *incomingMessage) st
 
 func (g *Gateway) buildModelList(ctx context.Context, msg *incomingMessage) string {
 	status := g.buildModelStatus(ctx, msg)
-	catalog := g.loadModelCatalog(ctx)
+	catalog := g.loadUsableModelCatalog(ctx)
 	return formatModelListText(status, catalog)
 }
 
 func (g *Gateway) buildModelListReply(ctx context.Context, msg *incomingMessage) (string, string) {
 	status := g.buildModelStatus(ctx, msg)
-	catalog := g.loadModelCatalog(ctx)
+	catalog := g.loadUsableModelCatalog(ctx)
 	textReply := formatModelListText(status, catalog)
 	return "text", textContent(textReply)
 }
@@ -265,6 +265,20 @@ func formatModelListText(status string, catalog subscription.Catalog) string {
 	return strings.Join(lines, "\n")
 }
 
+func (g *Gateway) loadCLICredentials() runtimeconfig.CLICredentials {
+	if g != nil && g.cliCredsLoader != nil {
+		return g.cliCredsLoader()
+	}
+	return runtimeconfig.LoadCLICredentials()
+}
+
+func (g *Gateway) loadUsableModelCatalog(ctx context.Context) subscription.Catalog {
+	catalog := g.loadModelCatalog(ctx)
+	creds := g.loadCLICredentials()
+	catalog.Providers = filterUsableCatalogProviders(creds, catalog.Providers)
+	return catalog
+}
+
 func (g *Gateway) loadModelCatalog(ctx context.Context) subscription.Catalog {
 	if ctx == nil {
 		ctx = context.Background()
@@ -273,12 +287,7 @@ func (g *Gateway) loadModelCatalog(ctx context.Context) subscription.Catalog {
 	defer cancel()
 
 	client := &http.Client{Timeout: 20 * time.Second}
-	loadCreds := func() runtimeconfig.CLICredentials {
-		return runtimeconfig.LoadCLICredentials()
-	}
-	if g != nil && g.cliCredsLoader != nil {
-		loadCreds = g.cliCredsLoader
-	}
+	loadCreds := func() runtimeconfig.CLICredentials { return g.loadCLICredentials() }
 	llamaResolver := func(context.Context) (subscription.LlamaServerTarget, bool) {
 		return resolveLlamaServerTarget(runtimeconfig.DefaultEnvLookup)
 	}
@@ -295,6 +304,24 @@ func (g *Gateway) loadModelCatalog(ctx context.Context) subscription.Catalog {
 	return svc.Catalog(ctx)
 }
 
+func filterUsableCatalogProviders(creds runtimeconfig.CLICredentials, providers []subscription.CatalogProvider) []subscription.CatalogProvider {
+	if len(providers) == 0 {
+		return nil
+	}
+	out := make([]subscription.CatalogProvider, 0, len(providers))
+	for _, provider := range providers {
+		key := strings.ToLower(strings.TrimSpace(provider.Provider))
+		if key == "" {
+			continue
+		}
+		if _, ok := matchSubscriptionCredential(creds, key); !ok {
+			continue
+		}
+		out = append(out, provider)
+	}
+	return out
+}
+
 func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, spec string, chatOnly bool) error {
 	if g == nil || msg == nil || g.llmSelections == nil {
 		return fmt.Errorf("selection store not available")
@@ -306,13 +333,7 @@ func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, s
 	provider := strings.ToLower(strings.TrimSpace(parts[0]))
 	model := strings.TrimSpace(parts[1])
 
-	loadCreds := func() runtimeconfig.CLICredentials {
-		return runtimeconfig.LoadCLICredentials()
-	}
-	if g != nil && g.cliCredsLoader != nil {
-		loadCreds = g.cliCredsLoader
-	}
-	creds := loadCreds()
+	creds := g.loadCLICredentials()
 	cred, ok := matchSubscriptionCredential(creds, provider)
 	if !ok {
 		return fmt.Errorf("no subscription credential found for %q", provider)

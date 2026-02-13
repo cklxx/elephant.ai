@@ -47,6 +47,25 @@ func TestBuildModelListIncludesLlamaServerWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestBuildModelListSkipsProvidersWithoutCredentials(t *testing.T) {
+	t.Parallel()
+
+	gw := &Gateway{
+		logger: logging.OrNop(nil),
+		cliCredsLoader: func() runtimeconfig.CLICredentials {
+			return runtimeconfig.CLICredentials{}
+		},
+		llamaResolver: func(context.Context) (subscription.LlamaServerTarget, bool) {
+			return subscription.LlamaServerTarget{}, false
+		},
+	}
+
+	out := gw.buildModelList(context.Background(), &incomingMessage{chatID: "oc_test", senderID: "ou_test"})
+	if !strings.Contains(out, "未发现可用的订阅模型") {
+		t.Fatalf("expected no usable providers notice, got:\n%s", out)
+	}
+}
+
 func TestResolveLlamaServerTarget(t *testing.T) {
 	t.Parallel()
 
