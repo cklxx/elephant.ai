@@ -12,7 +12,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/domain/agent/types"
-	"alex/internal/shared/agent/presets"
+	"alex/internal/domain/agent/presets"
 	id "alex/internal/shared/utils/id"
 )
 

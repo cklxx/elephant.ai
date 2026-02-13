@@ -16,7 +16,7 @@ import (
 	"alex/internal/infra/mcp"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
-	"alex/internal/shared/agent/presets"
+	"alex/internal/domain/agent/presets"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 )

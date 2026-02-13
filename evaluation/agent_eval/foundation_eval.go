@@ -16,7 +16,7 @@ import (
 	"alex/internal/app/toolregistry"
 	ports "alex/internal/domain/agent/ports"
 	"alex/internal/infra/memory"
-	"alex/internal/shared/agent/presets"
+	"alex/internal/domain/agent/presets"
 
 	"gopkg.in/yaml.v3"
 )

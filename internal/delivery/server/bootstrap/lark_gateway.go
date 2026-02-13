@@ -12,7 +12,7 @@ import (
 	"alex/internal/delivery/channels/lark"
 	serverApp "alex/internal/delivery/server/app"
 	larkoauth "alex/internal/infra/lark/oauth"
-	"alex/internal/shared/agent/presets"
+	"alex/internal/domain/agent/presets"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 )

@@ -9,7 +9,7 @@ import (
 
 	"alex/internal/delivery/channels"
 	"alex/internal/infra/attachments"
-	"alex/internal/shared/agent/presets"
+	"alex/internal/domain/agent/presets"
 	runtimeconfig "alex/internal/shared/config"
 	configadmin "alex/internal/shared/config/admin"
 )

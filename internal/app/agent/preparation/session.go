@@ -11,7 +11,7 @@ import (
 	storage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	toolspolicy "alex/internal/infra/tools"
-	"alex/internal/shared/agent/presets"
+	"alex/internal/domain/agent/presets"
 )
 
 func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string) (*storage.Session, error) {

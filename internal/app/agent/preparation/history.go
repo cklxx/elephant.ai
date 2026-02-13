@@ -10,7 +10,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	llm "alex/internal/domain/agent/ports/llm"
 	storage "alex/internal/domain/agent/ports/storage"
-	"alex/internal/shared/agent/textutil"
+	"alex/internal/domain/agent/textutil"
 	"alex/internal/shared/token"
 	id "alex/internal/shared/utils/id"
 )

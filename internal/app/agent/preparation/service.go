@@ -18,7 +18,7 @@ import (
 	storage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	toolspolicy "alex/internal/infra/tools"
-	"alex/internal/shared/agent/presets"
+	"alex/internal/domain/agent/presets"
 	"alex/internal/shared/async"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/utils/clilatency"

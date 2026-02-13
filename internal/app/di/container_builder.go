@@ -38,7 +38,7 @@ import (
 	taskinfra "alex/internal/infra/task"
 	toolspolicy "alex/internal/infra/tools"
 	okrtools "alex/internal/infra/tools/builtin/okr"
-	"alex/internal/shared/agent/presets"
+	"alex/internal/domain/agent/presets"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/parser"

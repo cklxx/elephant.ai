@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"alex/internal/app/toolregistry"
-	"alex/internal/shared/agent/presets"
+	"alex/internal/domain/agent/presets"
 )
 
 // ConfigFromRuntimeConfig maps the shared RuntimeConfig into the dependency

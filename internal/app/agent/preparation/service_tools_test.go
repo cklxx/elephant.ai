@@ -12,7 +12,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
-	"alex/internal/shared/agent/presets"
+	"alex/internal/domain/agent/presets"
 )
 
 func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
