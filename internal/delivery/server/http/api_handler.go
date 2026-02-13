@@ -14,12 +14,6 @@ const (
 	defaultMaxCreateTaskBodySize int64 = 20 << 20 // 20 MiB
 )
 
-// SandboxClient is the subset used by API handlers for sandbox HTTP endpoints.
-type SandboxClient interface {
-	DoJSON(ctx context.Context, method, path string, body any, sessionID string, out any) error
-	GetBytes(ctx context.Context, path, sessionID string) ([]byte, error)
-}
-
 // MemoryEngine is the subset used by API handlers for dev memory inspection.
 type MemoryEngine interface {
 	RootDir() string
@@ -38,7 +32,6 @@ type APIHandler struct {
 	obs                   *observability.Observability
 	evaluationSvc         *app.EvaluationService
 	attachmentStore       *AttachmentStore
-	sandboxClient         SandboxClient
 	maxCreateTaskBodySize int64
 	selectionResolver     *subscription.SelectionResolver
 	memoryEngine          MemoryEngine
@@ -66,13 +59,6 @@ func WithEvaluationService(service *app.EvaluationService) APIHandlerOption {
 func WithAttachmentStore(store *AttachmentStore) APIHandlerOption {
 	return func(handler *APIHandler) {
 		handler.attachmentStore = store
-	}
-}
-
-// WithSandboxClient wires a sandbox client for sandbox-related endpoints.
-func WithSandboxClient(client SandboxClient) APIHandlerOption {
-	return func(handler *APIHandler) {
-		handler.sandboxClient = client
 	}
 }
 

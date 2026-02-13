@@ -30,7 +30,6 @@ type RuntimeFileConfig struct {
 	APIKey                     string                    `yaml:"api_key"`
 	ArkAPIKey                  string                    `yaml:"ark_api_key"`
 	BaseURL                    string                    `yaml:"base_url"`
-	SandboxBaseURL             string                    `yaml:"sandbox_base_url"`
 	ACPExecutorAddr            string                    `yaml:"acp_executor_addr"`
 	ACPExecutorCWD             string                    `yaml:"acp_executor_cwd"`
 	ACPExecutorMode            string                    `yaml:"acp_executor_mode"`
@@ -118,7 +117,6 @@ type HTTPLimitsFileConfig struct {
 	WebSearchMaxResponseBytes   *int `yaml:"web_search_max_response_bytes"`
 	MusicSearchMaxResponseBytes *int `yaml:"music_search_max_response_bytes"`
 	ModelListMaxResponseBytes   *int `yaml:"model_list_max_response_bytes"`
-	SandboxMaxResponseBytes     *int `yaml:"sandbox_max_response_bytes"`
 }
 
 // ExternalAgentsFileConfig mirrors ExternalAgentsConfig for YAML decoding.

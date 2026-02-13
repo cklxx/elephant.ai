@@ -76,10 +76,6 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.BaseURL = parsed.BaseURL
 		meta.sources["base_url"] = SourceFile
 	}
-	if parsed.SandboxBaseURL != "" {
-		cfg.SandboxBaseURL = parsed.SandboxBaseURL
-		meta.sources["sandbox_base_url"] = SourceFile
-	}
 	if parsed.ACPExecutorAddr != "" {
 		cfg.ACPExecutorAddr = parsed.ACPExecutorAddr
 		meta.sources["acp_executor_addr"] = SourceFile
@@ -335,7 +331,6 @@ func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) Runt
 	parsed.APIKey = expandEnvValue(lookup, parsed.APIKey)
 	parsed.ArkAPIKey = expandEnvValue(lookup, parsed.ArkAPIKey)
 	parsed.BaseURL = expandEnvValue(lookup, parsed.BaseURL)
-	parsed.SandboxBaseURL = expandEnvValue(lookup, parsed.SandboxBaseURL)
 	parsed.ACPExecutorAddr = expandEnvValue(lookup, parsed.ACPExecutorAddr)
 	parsed.ACPExecutorCWD = expandEnvValue(lookup, parsed.ACPExecutorCWD)
 	parsed.ACPExecutorMode = expandEnvValue(lookup, parsed.ACPExecutorMode)

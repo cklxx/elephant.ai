@@ -2,13 +2,11 @@ package http
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"alex/internal/infra/sandbox"
 	"alex/internal/shared/logging"
 )
 
@@ -40,51 +38,6 @@ func (h *APIHandler) HandleWebVitals(w http.ResponseWriter, r *http.Request) {
 		h.obs.Metrics.RecordWebVital(r.Context(), payload.Name, payload.Label, page, payload.Value, payload.Delta)
 	}
 	w.WriteHeader(http.StatusAccepted)
-}
-
-// HandleSandboxBrowserInfo proxies sandbox browser info for the web console.
-func (h *APIHandler) HandleSandboxBrowserInfo(w http.ResponseWriter, r *http.Request) {
-	if h.sandboxClient == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Sandbox not configured", nil)
-		return
-	}
-
-	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
-	var response sandbox.Response[sandbox.BrowserInfo]
-	if err := h.sandboxClient.DoJSON(r.Context(), http.MethodGet, "/v1/browser/info", nil, sessionID, &response); err != nil {
-		h.writeJSONError(w, http.StatusBadGateway, "Sandbox request failed", err)
-		return
-	}
-	if !response.Success {
-		h.writeJSONError(w, http.StatusBadGateway, "Sandbox browser info failed", errors.New(response.Message))
-		return
-	}
-	if response.Data == nil {
-		h.writeJSONError(w, http.StatusBadGateway, "Sandbox browser info empty", nil)
-		return
-	}
-
-	h.writeJSON(w, http.StatusOK, response.Data)
-}
-
-// HandleSandboxBrowserScreenshot proxies sandbox browser screenshots for the web console.
-func (h *APIHandler) HandleSandboxBrowserScreenshot(w http.ResponseWriter, r *http.Request) {
-	if h.sandboxClient == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Sandbox not configured", nil)
-		return
-	}
-
-	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
-	payload, err := h.sandboxClient.GetBytes(r.Context(), "/v1/browser/screenshot", sessionID)
-	if err != nil {
-		h.writeJSONError(w, http.StatusBadGateway, "Sandbox screenshot failed", err)
-		return
-	}
-
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Type", "image/png")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(payload)
 }
 
 // HandleDevLogTrace returns log excerpts correlated by log id.

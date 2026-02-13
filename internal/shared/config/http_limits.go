@@ -35,12 +35,6 @@ func applyHTTPLimitsFileConfig(cfg *RuntimeConfig, meta *Metadata, file *HTTPLim
 			meta.sources["http_limits.model_list_max_response_bytes"] = SourceFile
 		}
 	}
-	if file.SandboxMaxResponseBytes != nil {
-		limits.SandboxMaxResponseBytes = *file.SandboxMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.sandbox_max_response_bytes"] = SourceFile
-		}
-	}
 }
 
 func applyHTTPLimitsOverrides(cfg *RuntimeConfig, meta *Metadata, overrides *HTTPLimitsOverrides) {
@@ -76,12 +70,6 @@ func applyHTTPLimitsOverrides(cfg *RuntimeConfig, meta *Metadata, overrides *HTT
 		limits.ModelListMaxResponseBytes = *overrides.ModelListMaxResponseBytes
 		if meta != nil {
 			meta.sources["http_limits.model_list_max_response_bytes"] = SourceOverride
-		}
-	}
-	if overrides.SandboxMaxResponseBytes != nil {
-		limits.SandboxMaxResponseBytes = *overrides.SandboxMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.sandbox_max_response_bytes"] = SourceOverride
 		}
 	}
 }

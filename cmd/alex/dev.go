@@ -39,8 +39,6 @@ func runDevCommand(args []string) error {
 		return devLogs(target)
 	case "restart":
 		return devRestart(args...)
-	case "sandbox":
-		return devSandbox(args)
 	case "test":
 		return devTest()
 	case "lint":
@@ -98,7 +96,6 @@ func printDevSummary(orch *devops.Orchestrator, larkMode bool) {
 	serviceURLs := map[string]string{
 		"backend": fmt.Sprintf("http://localhost:%d", cfg.ServerPort),
 		"web":     fmt.Sprintf("http://localhost:%d", cfg.WebPort),
-		"sandbox": cfg.SandboxBaseURL,
 	}
 	for _, s := range orch.Status(ctx) {
 		url := serviceURLs[s.Name]
@@ -211,66 +208,6 @@ func devRestart(names ...string) error {
 	return orch.Restart(ctx, names...)
 }
 
-func devSandbox(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("sandbox requires a subcommand: up, down, status")
-	}
-
-	orch, err := buildOrchestrator()
-	if err != nil {
-		return err
-	}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
-	// Find sandbox service
-	var sandbox devops.Service
-	for _, svc := range []string{"sandbox"} {
-		statuses := orch.Status(ctx)
-		for i, s := range statuses {
-			if s.Name == svc {
-				_ = i
-				break
-			}
-		}
-	}
-	_ = sandbox
-
-	// Use orchestrator's sandbox directly
-	switch args[0] {
-	case "up":
-		cfg := orch.Config()
-		if err := ensureLocalBootstrap(cfg.ProjectDir); err != nil {
-			orch.Section().Warn("Bootstrap: %v", err)
-		}
-		sandboxSvc := buildSandboxService(orch)
-		if err := sandboxSvc.Start(ctx); err != nil {
-			return err
-		}
-		orch.Section().Success("Sandbox ready: %s", cfg.SandboxBaseURL)
-		return nil
-	case "down":
-		sandboxSvc := buildSandboxService(orch)
-		if err := sandboxSvc.Stop(ctx); err != nil {
-			return err
-		}
-		orch.Section().Success("Sandbox stopped")
-		return nil
-	case "status":
-		sandboxSvc := buildSandboxService(orch)
-		hr := sandboxSvc.Health(ctx)
-		if hr.Healthy {
-			orch.Section().Success("Sandbox: ready %s", orch.Config().SandboxBaseURL)
-		} else {
-			orch.Section().Warn("Sandbox: unavailable %s", orch.Config().SandboxBaseURL)
-		}
-		return nil
-	default:
-		return fmt.Errorf("unknown sandbox command: %s", args[0])
-	}
-}
-
 func devTest() error {
 	projectDir, err := os.Getwd()
 	if err != nil {
@@ -362,72 +299,13 @@ func buildOrchestratorWithLarkOptions(larkRequested bool, withAuthDB bool) (*dev
 		return nil, err
 	}
 
-	effectiveLarkMode := larkRequested || cfg.LarkMode
-	includeAuthDB := !effectiveLarkMode || withAuthDB
-
 	orch := devops.NewOrchestrator(cfg)
 
 	// Build and register all services in dependency order
-	sandboxSvc := buildSandboxService(orch)
 	backendSvc := buildBackendService(orch)
 	webSvc := buildWebService(orch)
-	servicesToRegister := []devops.Service{sandboxSvc, backendSvc, webSvc}
-	if includeAuthDB {
-		authdbSvc := buildAuthDBService(orch)
-		servicesToRegister = []devops.Service{sandboxSvc, authdbSvc, backendSvc, webSvc}
-	}
-
-	orch.RegisterServices(servicesToRegister...)
+	orch.RegisterServices(backendSvc, webSvc)
 	return orch, nil
-}
-
-func buildSandboxService(orch *devops.Orchestrator) *services.SandboxService {
-	cfg := orch.Config()
-	workspaceDir := ""
-	if raw, ok := os.LookupEnv("SANDBOX_WORKSPACE_DIR"); ok {
-		workspaceDir = strings.TrimSpace(raw)
-	}
-	if workspaceDir == "" {
-		workspaceDir = cfg.ProjectDir
-	}
-
-	return services.NewSandboxService(
-		orch.Docker(),
-		orch.Ports(),
-		orch.Health(),
-		orch.Section(),
-		services.SandboxConfig{
-			ContainerName:       cfg.SandboxContainer,
-			Image:               cfg.SandboxImage,
-			Port:                cfg.SandboxPort,
-			BaseURL:             cfg.SandboxBaseURL,
-			WorkspaceDir:        workspaceDir,
-			AutoInstallCLI:      cfg.SandboxAutoInstallCLI,
-			SandboxConfigPath:   cfg.SandboxConfigPath,
-			ACPPort:             cfg.ACPPort,
-			ACPHost:             cfg.ACPHost,
-			ACPRunMode:          cfg.ACPRunMode,
-			StartACPWithSandbox: cfg.StartACPWithSandbox,
-			ProjectDir:          cfg.ProjectDir,
-			PIDDir:              cfg.PIDDir,
-			LogDir:              cfg.LogDir,
-		},
-	)
-}
-
-func buildAuthDBService(orch *devops.Orchestrator) *services.AuthDBService {
-	cfg := orch.Config()
-	return services.NewAuthDBService(
-		orch.Health(),
-		orch.Section(),
-		services.AuthDBConfig{
-			DatabaseURL: cfg.AuthDatabaseURL,
-			JWTSecret:   cfg.AuthJWTSecret,
-			Skip:        cfg.SkipLocalAuthDB,
-			ProjectDir:  cfg.ProjectDir,
-			LogDir:      cfg.LogDir,
-		},
-	)
 }
 
 func buildBackendService(orch *devops.Orchestrator) *services.BackendService {

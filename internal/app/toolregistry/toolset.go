@@ -18,14 +18,12 @@ func NormalizeToolset(value string) Toolset {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case string(ToolsetLarkLocal), "local":
 		return ToolsetLarkLocal
-	case string(ToolsetDefault), "":
-		return ToolsetDefault
 	default:
 		return ToolsetDefault
 	}
 }
 
-// BrowserConfig configures local browser tooling when sandbox is disabled.
+// BrowserConfig configures local browser tooling.
 type BrowserConfig struct {
 	Connector        string
 	CDPURL           string

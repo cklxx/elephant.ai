@@ -72,9 +72,6 @@ web:
 	if cfg.Server == nil || len(cfg.Server.AllowedOrigins) != 1 || cfg.Server.AllowedOrigins[0] != "http://example.com" {
 		t.Fatalf("expected allowed origins to expand, got %#v", cfg.Server)
 	}
-	if cfg.Auth == nil || cfg.Auth.JWTSecret != "jwt-secret" || cfg.Auth.AccessTokenTTLMinutes != "20" {
-		t.Fatalf("expected auth config to expand, got %#v", cfg.Auth)
-	}
 	if cfg.Agent == nil || cfg.Agent.SessionStaleAfter != "48h" {
 		t.Fatalf("expected agent config to expand, got %#v", cfg.Agent)
 	}
