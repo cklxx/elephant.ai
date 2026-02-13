@@ -20,8 +20,8 @@ type fileCostStore struct {
 	mu      sync.RWMutex
 }
 
-// NewFileCostStore creates a new file-based cost store
-func NewFileCostStore(baseDir string) (agentstorage.CostStore, error) {
+// NewFileCostStore creates a new file-based cost store.
+func NewFileCostStore(baseDir string) (*fileCostStore, error) {
 	// Expand home directory
 	if strings.HasPrefix(baseDir, "~/") {
 		home, err := os.UserHomeDir()

@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
+	agent "alex/internal/domain/agent/ports/agent"
 	portsllm "alex/internal/domain/agent/ports/llm"
-	tools "alex/internal/domain/agent/ports/tools"
 	alexerrors "alex/internal/shared/errors"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -25,7 +25,7 @@ type Factory struct {
 	circuitBreakerConfig alexerrors.CircuitBreakerConfig
 	userRateLimit        rate.Limit
 	userRateBurst        int
-	toolCallParser       tools.FunctionCallParser
+	toolCallParser       agent.FunctionCallParser
 	HealthRegistry       *HealthRegistry
 }
 
@@ -103,7 +103,7 @@ func (f *Factory) DisableRetry() {
 
 // EnableToolCallParsing enables automatic parsing of <tool_call>...</tool_call>
 // fallbacks when upstream providers do not return native tool calls.
-func (f *Factory) EnableToolCallParsing(parser tools.FunctionCallParser) {
+func (f *Factory) EnableToolCallParsing(parser agent.FunctionCallParser) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.toolCallParser = parser

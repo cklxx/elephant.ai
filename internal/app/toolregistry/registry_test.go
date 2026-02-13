@@ -140,7 +140,7 @@ func (stubCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry {
 	return nil
 }
 
-func (stubCoordinator) GetParser() tools.FunctionCallParser {
+func (stubCoordinator) GetParser() agent.FunctionCallParser {
 	return nil
 }
 

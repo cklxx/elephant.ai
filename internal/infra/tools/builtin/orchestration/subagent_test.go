@@ -125,7 +125,7 @@ func (r *sessionIDRecorder) GetLLMClient() (llm.LLMClient, error) { return nil, 
 func (r *sessionIDRecorder) GetToolRegistryWithoutSubagent() tools.ToolRegistry {
 	return nil
 }
-func (r *sessionIDRecorder) GetParser() tools.FunctionCallParser     { return nil }
+func (r *sessionIDRecorder) GetParser() agent.FunctionCallParser     { return nil }
 func (r *sessionIDRecorder) GetContextManager() agent.ContextManager { return nil }
 func (r *sessionIDRecorder) GetSystemPrompt() string                 { return "" }
 
@@ -170,7 +170,7 @@ func (*workflowRecordingCoordinator) ListSessions(ctx context.Context, limit int
 func (*workflowRecordingCoordinator) GetConfig() agent.AgentConfig                       { return agent.AgentConfig{} }
 func (*workflowRecordingCoordinator) GetLLMClient() (llm.LLMClient, error)               { return nil, nil }
 func (*workflowRecordingCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry { return nil }
-func (*workflowRecordingCoordinator) GetParser() tools.FunctionCallParser                { return nil }
+func (*workflowRecordingCoordinator) GetParser() agent.FunctionCallParser                { return nil }
 func (*workflowRecordingCoordinator) GetContextManager() agent.ContextManager            { return nil }
 func (*workflowRecordingCoordinator) GetSystemPrompt() string                            { return "" }
 
@@ -201,7 +201,7 @@ func (*attachmentCoordinator) ListSessions(ctx context.Context, limit int, offse
 func (*attachmentCoordinator) GetConfig() agent.AgentConfig                       { return agent.AgentConfig{} }
 func (*attachmentCoordinator) GetLLMClient() (llm.LLMClient, error)               { return nil, nil }
 func (*attachmentCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry { return nil }
-func (*attachmentCoordinator) GetParser() tools.FunctionCallParser                { return nil }
+func (*attachmentCoordinator) GetParser() agent.FunctionCallParser                { return nil }
 func (*attachmentCoordinator) GetContextManager() agent.ContextManager            { return nil }
 func (*attachmentCoordinator) GetSystemPrompt() string                            { return "" }
 
@@ -246,7 +246,7 @@ func (*concurrencyCoordinator) ListSessions(ctx context.Context, limit int, offs
 func (*concurrencyCoordinator) GetConfig() agent.AgentConfig                       { return agent.AgentConfig{} }
 func (*concurrencyCoordinator) GetLLMClient() (llm.LLMClient, error)               { return nil, nil }
 func (*concurrencyCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry { return nil }
-func (*concurrencyCoordinator) GetParser() tools.FunctionCallParser                { return nil }
+func (*concurrencyCoordinator) GetParser() agent.FunctionCallParser                { return nil }
 func (*concurrencyCoordinator) GetContextManager() agent.ContextManager            { return nil }
 func (*concurrencyCoordinator) GetSystemPrompt() string                            { return "" }
 

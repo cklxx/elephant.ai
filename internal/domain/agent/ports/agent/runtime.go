@@ -3,15 +3,14 @@ package agent
 import (
 	"context"
 	"time"
+
+	"alex/internal/shared/logging"
 )
 
-// Logger provides the minimal logging contract required by the domain layer.
-type Logger interface {
-	Debug(format string, args ...interface{})
-	Info(format string, args ...interface{})
-	Warn(format string, args ...interface{})
-	Error(format string, args ...interface{})
-}
+// Logger is the logging contract used across the agent runtime.
+// It is a type alias for logging.Logger so that both names are
+// interchangeable without import-path gymnastics.
+type Logger = logging.Logger
 
 // Clock represents a time source that can be replaced in tests.
 type Clock interface {
@@ -112,14 +111,7 @@ func IsSilentMode(ctx context.Context) bool {
 // NoopLogger is a Logger implementation that discards all messages.
 type NoopLogger struct{}
 
-// Debug implements Logger.
-func (NoopLogger) Debug(string, ...interface{}) {}
-
-// Info implements Logger.
-func (NoopLogger) Info(string, ...interface{}) {}
-
-// Warn implements Logger.
-func (NoopLogger) Warn(string, ...interface{}) {}
-
-// Error implements Logger.
-func (NoopLogger) Error(string, ...interface{}) {}
+func (NoopLogger) Debug(string, ...any) {}
+func (NoopLogger) Info(string, ...any)  {}
+func (NoopLogger) Warn(string, ...any)  {}
+func (NoopLogger) Error(string, ...any) {}

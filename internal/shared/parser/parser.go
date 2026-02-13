@@ -6,7 +6,7 @@ import (
 	"regexp"
 
 	"alex/internal/domain/agent/ports"
-	tools "alex/internal/domain/agent/ports/tools"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 // Pre-compiled regexes for hot path performance (avoid recompilation per call)
@@ -22,7 +22,7 @@ var (
 
 type parser struct{}
 
-func New() tools.FunctionCallParser {
+func New() agent.FunctionCallParser {
 	return &parser{}
 }
 

@@ -59,41 +59,18 @@ func (IDsAdapter) WithLogID(ctx context.Context, logID string) context.Context {
 	return id.WithLogID(ctx, logID)
 }
 
-// LatencyAdapter forwards runtime latency logs to CLI latency output.
-type LatencyAdapter struct{}
-
-func (LatencyAdapter) PrintfWithContext(ctx context.Context, format string, args ...any) {
-	clilatency.PrintfWithContext(ctx, format, args...)
-}
-
-// JSONCodecAdapter marshals runtime payloads for prompt embedding.
-type JSONCodecAdapter struct{}
-
-func (JSONCodecAdapter) Marshal(v any) ([]byte, error) {
-	return jsonx.Marshal(v)
-}
-
-// GoRunnerAdapter bridges async goroutine helpers.
-type GoRunnerAdapter struct{}
-
-func (GoRunnerAdapter) Go(logger agent.Logger, name string, fn func()) {
-	async.Go(logger, name, fn)
-}
-
-// WorkingDirResolverAdapter resolves working dir from request context.
-type WorkingDirResolverAdapter struct{}
-
-func (WorkingDirResolverAdapter) ResolveWorkingDir(ctx context.Context) string {
-	return pathutil.GetPathResolverFromContext(ctx).ResolvePath(".")
-}
-
-// WorkspaceManagerFactoryAdapter creates workspace managers for background tasks.
-type WorkspaceManagerFactoryAdapter struct{}
-
-func (WorkspaceManagerFactoryAdapter) NewWorkspaceManager(workingDir string, logger agent.Logger) agent.WorkspaceManager {
-	workingDir = strings.TrimSpace(workingDir)
-	if workingDir == "" {
-		return nil
+// Infrastructure adapter functions — wired once at startup, read by the coordinator.
+// Do not reassign these at runtime; tests should inject fakes via the domain config structs.
+var (
+	LatencyReporter      agent.LatencyReporterFunc      = clilatency.PrintfWithContext
+	JSONCodec            agent.JSONMarshalFunc           = jsonx.Marshal
+	GoRunner             agent.GoRunnerFunc              = func(logger agent.Logger, name string, fn func()) { async.Go(logger, name, fn) }
+	WorkingDirResolver   agent.WorkingDirResolverFunc    = func(ctx context.Context) string { return pathutil.GetPathResolverFromContext(ctx).ResolvePath(".") }
+	WorkspaceManagerFactory agent.WorkspaceManagerFactoryFunc = func(workingDir string, logger agent.Logger) agent.WorkspaceManager {
+		workingDir = strings.TrimSpace(workingDir)
+		if workingDir == "" {
+			return nil
+		}
+		return workspace.NewManager(workingDir, logger)
 	}
-	return workspace.NewManager(workingDir, logger)
-}
+)

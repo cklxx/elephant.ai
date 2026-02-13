@@ -84,7 +84,7 @@ func (b *toolCallBatch) execute() []ToolResult {
 	wg.Add(len(b.calls))
 
 	for i := 0; i < limit; i++ {
-		b.engine.goRunner.Go(b.engine.logger, "react.toolBatch.worker", func() {
+		b.engine.goRunner(b.engine.logger, "react.toolBatch.worker", func() {
 			for idx := range jobs {
 				b.runCall(idx, b.calls[idx])
 				wg.Done()

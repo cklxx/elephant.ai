@@ -81,7 +81,7 @@ func (r *recordingCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegist
 	return nil
 }
 
-func (r *recordingCoordinator) GetParser() tools.FunctionCallParser {
+func (r *recordingCoordinator) GetParser() agent.FunctionCallParser {
 	return nil
 }
 

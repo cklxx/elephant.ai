@@ -720,7 +720,7 @@ func (r *reactRuntime) injectPlanReviewMarker(goal string, internalPlan any, run
 
 	planText := ""
 	if internalPlan != nil {
-		if data, err := r.engine.jsonCodec.Marshal(internalPlan); err == nil {
+		if data, err := r.engine.jsonCodec(internalPlan); err == nil {
 			planText = string(data)
 		}
 	}

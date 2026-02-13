@@ -4,14 +4,14 @@ import (
 	"context"
 	"strings"
 
+	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
-	tools "alex/internal/domain/agent/ports/tools"
 )
 
 type toolCallParsingClient struct {
 	underlying portsllm.LLMClient
-	parser     tools.FunctionCallParser
+	parser     agent.FunctionCallParser
 }
 
 var (
@@ -19,7 +19,7 @@ var (
 	_ portsllm.StreamingLLMClient = (*toolCallParsingClient)(nil)
 )
 
-func WrapWithToolCallParsing(client portsllm.LLMClient, parser tools.FunctionCallParser) portsllm.LLMClient {
+func WrapWithToolCallParsing(client portsllm.LLMClient, parser agent.FunctionCallParser) portsllm.LLMClient {
 	if client == nil || parser == nil {
 		return client
 	}

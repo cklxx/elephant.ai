@@ -19,11 +19,11 @@ type ReactEngine struct {
 	clock               agent.Clock
 	idGenerator         agent.IDGenerator
 	idContextReader     agent.IDContextReader
-	latencyReporter     agent.LatencyReporter
-	jsonCodec           agent.JSONCodec
-	goRunner            agent.GoRunner
-	workingDirResolver  agent.WorkingDirResolver
-	workspaceMgrFactory agent.WorkspaceManagerFactory
+	latencyReporter     agent.LatencyReporterFunc
+	jsonCodec           agent.JSONMarshalFunc
+	goRunner            agent.GoRunnerFunc
+	workingDirResolver  agent.WorkingDirResolverFunc
+	workspaceMgrFactory agent.WorkspaceManagerFactoryFunc
 	eventListener       EventListener // Optional event listener for TUI
 	completion          completionConfig
 	finalAnswerReview   FinalAnswerReviewConfig
@@ -104,11 +104,11 @@ type ReactEngineConfig struct {
 	Clock               agent.Clock
 	IDGenerator         agent.IDGenerator
 	IDContextReader     agent.IDContextReader
-	LatencyReporter     agent.LatencyReporter
-	JSONCodec           agent.JSONCodec
-	GoRunner            agent.GoRunner
-	WorkingDirResolver  agent.WorkingDirResolver
-	WorkspaceMgrFactory agent.WorkspaceManagerFactory
+	LatencyReporter     agent.LatencyReporterFunc
+	JSONCodec           agent.JSONMarshalFunc
+	GoRunner            agent.GoRunnerFunc
+	WorkingDirResolver  agent.WorkingDirResolverFunc
+	WorkspaceMgrFactory agent.WorkspaceManagerFactoryFunc
 	EventListener       EventListener
 	CompletionDefaults  CompletionDefaults
 	FinalAnswerReview   FinalAnswerReviewConfig

@@ -2,7 +2,6 @@ package react
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -76,34 +75,6 @@ func (defaultIDContextReader) WithCausationID(ctx context.Context, causationID s
 }
 func (defaultIDContextReader) WithLogID(ctx context.Context, logID string) context.Context {
 	return withContextValue(ctx, fallbackLogKey, logID)
-}
-
-type defaultLatencyReporter struct{}
-
-func (defaultLatencyReporter) PrintfWithContext(context.Context, string, ...any) {}
-
-type defaultJSONCodec struct{}
-
-func (defaultJSONCodec) Marshal(v any) ([]byte, error) {
-	return json.Marshal(v)
-}
-
-type defaultGoRunner struct{}
-
-func (defaultGoRunner) Go(_ agent.Logger, _ string, fn func()) {
-	go fn()
-}
-
-type defaultWorkingDirResolver struct{}
-
-func (defaultWorkingDirResolver) ResolveWorkingDir(context.Context) string {
-	return "."
-}
-
-type defaultWorkspaceManagerFactory struct{}
-
-func (defaultWorkspaceManagerFactory) NewWorkspaceManager(string, agent.Logger) agent.WorkspaceManager {
-	return nil
 }
 
 func defaultIdentifier(prefix string) string {

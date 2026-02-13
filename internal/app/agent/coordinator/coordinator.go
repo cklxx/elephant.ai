@@ -46,7 +46,7 @@ type AgentCoordinator struct {
 	sessionStore     storage.SessionStore
 	contextMgr       agent.ContextManager
 	historyMgr       storage.HistoryManager
-	parser           tools.FunctionCallParser
+	parser           agent.FunctionCallParser
 	costTracker      storage.CostTracker
 	config           appconfig.Config
 	runtimeResolver  RuntimeConfigResolver
@@ -159,7 +159,7 @@ func NewAgentCoordinator(
 	sessionStore storage.SessionStore,
 	contextMgr agent.ContextManager,
 	historyManager storage.HistoryManager,
-	parser tools.FunctionCallParser,
+	parser agent.FunctionCallParser,
 	costTracker storage.CostTracker,
 	config appconfig.Config,
 	opts ...CoordinatorOption,
@@ -487,11 +487,11 @@ func (c *AgentCoordinator) ExecuteTask(
 	logger.Info("Delegating to ReactEngine...")
 	completionDefaults := buildCompletionDefaultsFromConfig(effectiveCfg)
 	idAdapter := infraruntime.IDsAdapter{}
-	latencyReporter := infraruntime.LatencyAdapter{}
-	jsonCodec := infraruntime.JSONCodecAdapter{}
-	goRunner := infraruntime.GoRunnerAdapter{}
-	workingDirResolver := infraruntime.WorkingDirResolverAdapter{}
-	workspaceMgrFactory := infraruntime.WorkspaceManagerFactoryAdapter{}
+	latencyReporter := infraruntime.LatencyReporter
+	jsonCodec := infraruntime.JSONCodec
+	goRunner := infraruntime.GoRunner
+	workingDirResolver := infraruntime.WorkingDirResolver
+	workspaceMgrFactory := infraruntime.WorkspaceManagerFactory
 
 	backgroundExecutor := func(bgCtx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 		bgCtx = appcontext.MarkSubagentContext(bgCtx)
@@ -1194,7 +1194,7 @@ func (c *AgentCoordinator) GetLLMClient() (llm.LLMClient, error) {
 }
 
 // GetParser returns the function call parser
-func (c *AgentCoordinator) GetParser() tools.FunctionCallParser {
+func (c *AgentCoordinator) GetParser() agent.FunctionCallParser {
 	return c.parser
 }
 

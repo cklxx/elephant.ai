@@ -36,25 +36,17 @@ type IDContextReader interface {
 	WithLogID(ctx context.Context, logID string) context.Context
 }
 
-// LatencyReporter emits runtime latency diagnostics.
-type LatencyReporter interface {
-	PrintfWithContext(ctx context.Context, format string, args ...any)
-}
+// LatencyReporterFunc emits runtime latency diagnostics.
+type LatencyReporterFunc func(ctx context.Context, format string, args ...any)
 
-// JSONCodec serializes values used in runtime prompts.
-type JSONCodec interface {
-	Marshal(v any) ([]byte, error)
-}
+// JSONMarshalFunc serializes values used in runtime prompts.
+type JSONMarshalFunc func(v any) ([]byte, error)
 
-// GoRunner executes asynchronous work with a named task label.
-type GoRunner interface {
-	Go(logger Logger, name string, fn func())
-}
+// GoRunnerFunc executes asynchronous work with a named task label.
+type GoRunnerFunc func(logger Logger, name string, fn func())
 
-// WorkingDirResolver resolves the execution working directory from context.
-type WorkingDirResolver interface {
-	ResolveWorkingDir(ctx context.Context) string
-}
+// WorkingDirResolverFunc resolves the execution working directory from context.
+type WorkingDirResolverFunc func(ctx context.Context) string
 
 // WorkspaceManager allocates and merges isolated execution workspaces.
 type WorkspaceManager interface {
@@ -62,7 +54,5 @@ type WorkspaceManager interface {
 	Merge(ctx context.Context, alloc *WorkspaceAllocation, strategy MergeStrategy) (*MergeResult, error)
 }
 
-// WorkspaceManagerFactory constructs workspace managers for a working directory.
-type WorkspaceManagerFactory interface {
-	NewWorkspaceManager(workingDir string, logger Logger) WorkspaceManager
-}
+// WorkspaceManagerFactoryFunc constructs workspace managers for a working directory.
+type WorkspaceManagerFactoryFunc func(workingDir string, logger Logger) WorkspaceManager

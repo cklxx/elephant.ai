@@ -30,24 +30,6 @@ type CostTracker interface {
 	Export(ctx context.Context, format ExportFormat, filter ExportFilter) ([]byte, error)
 }
 
-// CostStore persists cost and usage data
-type CostStore interface {
-	// SaveUsage saves a usage record
-	SaveUsage(ctx context.Context, record UsageRecord) error
-
-	// GetBySession retrieves all usage records for a session
-	GetBySession(ctx context.Context, sessionID string) ([]UsageRecord, error)
-
-	// GetByDateRange retrieves records within a date range
-	GetByDateRange(ctx context.Context, start, end time.Time) ([]UsageRecord, error)
-
-	// GetByModel retrieves records for a specific model
-	GetByModel(ctx context.Context, model string) ([]UsageRecord, error)
-
-	// ListAll retrieves all usage records
-	ListAll(ctx context.Context) ([]UsageRecord, error)
-}
-
 // UsageRecord represents a single LLM usage event
 type UsageRecord struct {
 	ID              string         `json:"id"`

@@ -1,6 +1,9 @@
 package react
 
 import (
+	"context"
+	"encoding/json"
+
 	"alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
 )
@@ -26,23 +29,23 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 	}
 	latencyReporter := cfg.LatencyReporter
 	if latencyReporter == nil {
-		latencyReporter = defaultLatencyReporter{}
+		latencyReporter = func(context.Context, string, ...any) {}
 	}
 	jsonCodec := cfg.JSONCodec
 	if jsonCodec == nil {
-		jsonCodec = defaultJSONCodec{}
+		jsonCodec = json.Marshal
 	}
 	goRunner := cfg.GoRunner
 	if goRunner == nil {
-		goRunner = defaultGoRunner{}
+		goRunner = func(_ agent.Logger, _ string, fn func()) { go fn() }
 	}
 	workingDirResolver := cfg.WorkingDirResolver
 	if workingDirResolver == nil {
-		workingDirResolver = defaultWorkingDirResolver{}
+		workingDirResolver = func(context.Context) string { return "." }
 	}
 	workspaceMgrFactory := cfg.WorkspaceMgrFactory
 	if workspaceMgrFactory == nil {
-		workspaceMgrFactory = defaultWorkspaceManagerFactory{}
+		workspaceMgrFactory = func(string, agent.Logger) agent.WorkspaceManager { return nil }
 	}
 
 	stopReasons := cfg.StopReasons

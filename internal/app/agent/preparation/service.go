@@ -46,7 +46,7 @@ type ExecutionPreparationDeps struct {
 	SessionStore          storage.SessionStore
 	ContextMgr            agent.ContextManager
 	HistoryMgr            storage.HistoryManager
-	Parser                tools.FunctionCallParser
+	Parser                agent.FunctionCallParser
 	Config                appconfig.Config
 	Logger                agent.Logger
 	Clock                 agent.Clock
@@ -66,7 +66,7 @@ type ExecutionPreparationService struct {
 	sessionStore          storage.SessionStore
 	contextMgr            agent.ContextManager
 	historyMgr            storage.HistoryManager
-	parser                tools.FunctionCallParser
+	parser                agent.FunctionCallParser
 	config                appconfig.Config
 	logger                agent.Logger
 	clock                 agent.Clock

@@ -59,7 +59,7 @@ type BackgroundTaskManager struct {
 	workspaceMgr agent.WorkspaceManager
 	idGenerator  agent.IDGenerator
 	idContext    agent.IDContextReader
-	goRunner     agent.GoRunner
+	goRunner     agent.GoRunnerFunc
 
 	// executeTask delegates to coordinator.ExecuteTask for internal subagents.
 	executeTask func(ctx context.Context, prompt, sessionID string,
@@ -84,9 +84,9 @@ type BackgroundManagerConfig struct {
 	Clock               agent.Clock
 	IDGenerator         agent.IDGenerator
 	IDContextReader     agent.IDContextReader
-	GoRunner            agent.GoRunner
-	WorkingDirResolver  agent.WorkingDirResolver
-	WorkspaceMgrFactory agent.WorkspaceManagerFactory
+	GoRunner            agent.GoRunnerFunc
+	WorkingDirResolver  agent.WorkingDirResolverFunc
+	WorkspaceMgrFactory agent.WorkspaceManagerFactoryFunc
 	ExecuteTask         func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
 	ExternalExecutor    agent.ExternalAgentExecutor
 	SessionID           string
@@ -129,9 +129,9 @@ func newBackgroundTaskManagerWithDeps(
 	clock agent.Clock,
 	idGenerator agent.IDGenerator,
 	idContextReader agent.IDContextReader,
-	goRunner agent.GoRunner,
-	workingDirResolver agent.WorkingDirResolver,
-	workspaceMgrFactory agent.WorkspaceManagerFactory,
+	goRunner agent.GoRunnerFunc,
+	workingDirResolver agent.WorkingDirResolverFunc,
+	workspaceMgrFactory agent.WorkspaceManagerFactoryFunc,
 	executeTask func(ctx context.Context, prompt, sessionID string,
 		listener agent.EventListener) (*agent.TaskResult, error),
 	externalExecutor agent.ExternalAgentExecutor,
@@ -147,23 +147,23 @@ func newBackgroundTaskManagerWithDeps(
 		idContextReader = defaultIDContextReader{}
 	}
 	if goRunner == nil {
-		goRunner = defaultGoRunner{}
+		goRunner = func(_ agent.Logger, _ string, fn func()) { go fn() }
 	}
 	if workingDirResolver == nil {
-		workingDirResolver = defaultWorkingDirResolver{}
+		workingDirResolver = func(context.Context) string { return "." }
 	}
 	if workspaceMgrFactory == nil {
-		workspaceMgrFactory = defaultWorkspaceManagerFactory{}
+		workspaceMgrFactory = func(string, agent.Logger) agent.WorkspaceManager { return nil }
 	}
 
 	taskCtx, cancel := context.WithCancel(context.Background())
 	workingDir := ""
 	if workingDirResolver != nil {
-		workingDir = strings.TrimSpace(workingDirResolver.ResolveWorkingDir(runCtx))
+		workingDir = strings.TrimSpace(workingDirResolver(runCtx))
 	}
 	var workspaceMgr agent.WorkspaceManager
 	if workspaceMgrFactory != nil && workingDir != "" {
-		workspaceMgr = workspaceMgrFactory.NewWorkspaceManager(workingDir, logger)
+		workspaceMgr = workspaceMgrFactory(workingDir, logger)
 	}
 
 	var inputExecutor agent.InteractiveExternalExecutor
@@ -201,7 +201,7 @@ func newBackgroundTaskManagerWithDeps(
 	}
 
 	if inputExecutor != nil && externalInputCh != nil {
-		goRunner.Go(logger, "bg.externalInput", func() {
+		goRunner(logger, "bg.externalInput", func() {
 			manager.forwardExternalInputRequests()
 		})
 	}
@@ -348,7 +348,7 @@ func (m *BackgroundTaskManager) Dispatch(
 	taskCtx, taskCancel := context.WithCancel(taskCtx)
 	bt.taskCancel = taskCancel
 
-	m.goRunner.Go(m.logger, "bg-task:"+taskID, func() {
+	m.goRunner(m.logger, "bg-task:"+taskID, func() {
 		m.runTask(taskCtx, bt, agentType)
 	})
 
@@ -406,7 +406,7 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 			// to keep the SerializingEventListener queue alive during long idle periods.
 			heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
 			if bt.emitEvent != nil && bt.baseEvent != nil {
-				m.goRunner.Go(m.logger, "bg-heartbeat:"+bt.id, func() {
+				m.goRunner(m.logger, "bg-heartbeat:"+bt.id, func() {
 					m.runHeartbeat(heartbeatCtx, bt)
 				})
 			}

@@ -12,14 +12,24 @@ import (
 	"alex/internal/shared/logging"
 )
 
+// CostStore is the persistence contract consumed by the tracker.
+// Extracted from ports/storage to follow consumer-side interface ownership.
+type CostStore interface {
+	SaveUsage(ctx context.Context, record storage.UsageRecord) error
+	GetBySession(ctx context.Context, sessionID string) ([]storage.UsageRecord, error)
+	GetByDateRange(ctx context.Context, start, end time.Time) ([]storage.UsageRecord, error)
+	GetByModel(ctx context.Context, model string) ([]storage.UsageRecord, error)
+	ListAll(ctx context.Context) ([]storage.UsageRecord, error)
+}
+
 // costTracker implements the CostTracker interface
 type costTracker struct {
-	store  storage.CostStore
+	store  CostStore
 	logger logging.Logger
 }
 
-// NewCostTracker creates a new cost tracker instance
-func NewCostTracker(store storage.CostStore) storage.CostTracker {
+// NewCostTracker creates a new cost tracker instance.
+func NewCostTracker(store CostStore) storage.CostTracker {
 	return &costTracker{
 		store:  store,
 		logger: logging.NewComponentLogger("CostTracker"),
