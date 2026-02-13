@@ -3,11 +3,14 @@ package kernel
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"alex/internal/app/workdir"
 	kerneldomain "alex/internal/domain/kernel"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
@@ -190,7 +193,12 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 	runtimeBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history)
 	updated := upsertKernelRuntimeBlock(stateContent, runtimeBlock)
 	if err := e.stateFile.Write(updated); err != nil {
-		e.logger.Warn("Kernel: persist runtime state failed: %v", err)
+		fallbackPath, fallbackErr := writeKernelStateFallback(updated)
+		if fallbackErr != nil {
+			e.logger.Warn("Kernel: persist runtime state failed: %v (fallback write to %s failed: %v)", err, fallbackPath, fallbackErr)
+			return
+		}
+		e.logger.Warn("Kernel: persist runtime state failed: %v (fallback written to %s)", err, fallbackPath)
 		return
 	}
 
@@ -198,6 +206,19 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 	if err := e.stateFile.CommitCycleBoundary(ctx, fmt.Sprintf("post-cycle %s", cycleLabel)); err != nil {
 		e.logger.Debug("Kernel: post-cycle commit: %v", err)
 	}
+}
+
+func writeKernelStateFallback(content string) (string, error) {
+	baseDir := workdir.DefaultWorkingDir()
+	artifactsDir := filepath.Join(baseDir, "artifacts")
+	fallbackPath := filepath.Join(artifactsDir, "kernel_state.md")
+	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+		return fallbackPath, err
+	}
+	if err := os.WriteFile(fallbackPath, []byte(content), 0o644); err != nil {
+		return fallbackPath, err
+	}
+	return fallbackPath, nil
 }
 
 func (e *Engine) persistSystemPromptSnapshot() {

@@ -3,6 +3,8 @@ package kernel
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -207,6 +209,41 @@ func TestEngine_RunCycle_AllSucceed(t *testing.T) {
 		}
 	}
 	store.mu.Unlock()
+}
+
+func TestWriteKernelStateFallback(t *testing.T) {
+	dir := t.TempDir()
+	previousDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(previousDir)
+	})
+
+	content := "# STATE\nfallback\n"
+	path, err := writeKernelStateFallback(content)
+	if err != nil {
+		t.Fatalf("writeKernelStateFallback: %v", err)
+	}
+	resolvedDir := dir
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		resolvedDir = resolved
+	}
+	expectedPath := filepath.Join(resolvedDir, "artifacts", "kernel_state.md")
+	if path != expectedPath {
+		t.Fatalf("expected path %s, got %s", expectedPath, path)
+	}
+	data, err := os.ReadFile(expectedPath)
+	if err != nil {
+		t.Fatalf("read fallback: %v", err)
+	}
+	if string(data) != content {
+		t.Fatalf("unexpected content: %s", string(data))
+	}
 }
 
 func TestEngine_RunCycle_PassesRoutingMeta(t *testing.T) {
