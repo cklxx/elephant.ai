@@ -126,8 +126,9 @@ type HTTPLimitsConfig struct {
 
 // ExternalAgentsConfig configures external agent executors.
 type ExternalAgentsConfig struct {
-	ClaudeCode ClaudeCodeConfig `json:"claude_code" yaml:"claude_code"`
-	Codex      CodexConfig      `json:"codex" yaml:"codex"`
+	MaxParallelAgents int              `json:"max_parallel_agents" yaml:"max_parallel_agents"`
+	ClaudeCode        ClaudeCodeConfig `json:"claude_code" yaml:"claude_code"`
+	Codex             CodexConfig      `json:"codex" yaml:"codex"`
 }
 
 type ClaudeCodeConfig struct {
@@ -136,25 +137,31 @@ type ClaudeCodeConfig struct {
 	DefaultModel           string            `json:"default_model" yaml:"default_model"`
 	DefaultMode            string            `json:"default_mode" yaml:"default_mode"`
 	AutonomousAllowedTools []string          `json:"autonomous_allowed_tools" yaml:"autonomous_allowed_tools"`
+	PlanAllowedTools       []string          `json:"plan_allowed_tools" yaml:"plan_allowed_tools"`
 	MaxBudgetUSD           float64           `json:"max_budget_usd" yaml:"max_budget_usd"`
 	MaxTurns               int               `json:"max_turns" yaml:"max_turns"`
 	Timeout                time.Duration     `json:"timeout" yaml:"timeout"`
+	ResumeEnabled          bool              `json:"resume_enabled" yaml:"resume_enabled"`
 	Env                    map[string]string `json:"env" yaml:"env"`
 }
 
 type CodexConfig struct {
-	Enabled        bool              `json:"enabled" yaml:"enabled"`
-	Binary         string            `json:"binary" yaml:"binary"`
-	DefaultModel   string            `json:"default_model" yaml:"default_model"`
-	ApprovalPolicy string            `json:"approval_policy" yaml:"approval_policy"`
-	Sandbox        string            `json:"sandbox" yaml:"sandbox"`
-	Timeout        time.Duration     `json:"timeout" yaml:"timeout"`
-	Env            map[string]string `json:"env" yaml:"env"`
+	Enabled            bool              `json:"enabled" yaml:"enabled"`
+	Binary             string            `json:"binary" yaml:"binary"`
+	DefaultModel       string            `json:"default_model" yaml:"default_model"`
+	ApprovalPolicy     string            `json:"approval_policy" yaml:"approval_policy"`
+	Sandbox            string            `json:"sandbox" yaml:"sandbox"`
+	PlanApprovalPolicy string            `json:"plan_approval_policy" yaml:"plan_approval_policy"`
+	PlanSandbox        string            `json:"plan_sandbox" yaml:"plan_sandbox"`
+	Timeout            time.Duration     `json:"timeout" yaml:"timeout"`
+	ResumeEnabled      bool              `json:"resume_enabled" yaml:"resume_enabled"`
+	Env                map[string]string `json:"env" yaml:"env"`
 }
 
 // DefaultExternalAgentsConfig provides baseline defaults for external agents.
 func DefaultExternalAgentsConfig() ExternalAgentsConfig {
 	return ExternalAgentsConfig{
+		MaxParallelAgents: 4,
 		ClaudeCode: ClaudeCodeConfig{
 			Enabled:     false,
 			Binary:      "claude",
@@ -164,16 +171,26 @@ func DefaultExternalAgentsConfig() ExternalAgentsConfig {
 			AutonomousAllowedTools: []string{
 				"*",
 			},
-			Env: map[string]string{},
+			PlanAllowedTools: []string{
+				"Read",
+				"Glob",
+				"Grep",
+				"WebSearch",
+			},
+			ResumeEnabled: true,
+			Env:           map[string]string{},
 		},
 		Codex: CodexConfig{
-			Enabled:        false,
-			Binary:         "codex",
-			DefaultModel:   "gpt-5.2-codex",
-			ApprovalPolicy: "never",
-			Sandbox:        "danger-full-access",
-			Timeout:        30 * time.Minute,
-			Env:            map[string]string{},
+			Enabled:            false,
+			Binary:             "codex",
+			DefaultModel:       "gpt-5.2-codex",
+			ApprovalPolicy:     "never",
+			Sandbox:            "danger-full-access",
+			PlanApprovalPolicy: "never",
+			PlanSandbox:        "read-only",
+			Timeout:            30 * time.Minute,
+			ResumeEnabled:      true,
+			Env:                map[string]string{},
 		},
 	}
 }

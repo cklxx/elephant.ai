@@ -36,24 +36,29 @@ func NewRegistry(cfg config.ExternalAgentsConfig, logger logging.Logger) *Regist
 			DefaultModel:           cfg.ClaudeCode.DefaultModel,
 			DefaultMode:            cfg.ClaudeCode.DefaultMode,
 			AutonomousAllowedTools: cfg.ClaudeCode.AutonomousAllowedTools,
+			PlanAllowedTools:       cfg.ClaudeCode.PlanAllowedTools,
 			MaxBudgetUSD:           cfg.ClaudeCode.MaxBudgetUSD,
 			MaxTurns:               cfg.ClaudeCode.MaxTurns,
 			Timeout:                cfg.ClaudeCode.Timeout,
+			ResumeEnabled:          cfg.ClaudeCode.ResumeEnabled,
 			Env:                    cfg.ClaudeCode.Env,
 		})
 		registry.register(exec)
 	}
 	if cfg.Codex.Enabled {
 		exec := bridge.New(bridge.BridgeConfig{
-			AgentType:      "codex",
-			Binary:         cfg.Codex.Binary,
-			Interactive:    false,
-			APIKey:         cfg.Codex.Env["OPENAI_API_KEY"],
-			DefaultModel:   cfg.Codex.DefaultModel,
-			ApprovalPolicy: cfg.Codex.ApprovalPolicy,
-			Sandbox:        cfg.Codex.Sandbox,
-			Timeout:        cfg.Codex.Timeout,
-			Env:            cfg.Codex.Env,
+			AgentType:          "codex",
+			Binary:             cfg.Codex.Binary,
+			Interactive:        false,
+			APIKey:             cfg.Codex.Env["OPENAI_API_KEY"],
+			DefaultModel:       cfg.Codex.DefaultModel,
+			ApprovalPolicy:     cfg.Codex.ApprovalPolicy,
+			Sandbox:            cfg.Codex.Sandbox,
+			PlanApprovalPolicy: cfg.Codex.PlanApprovalPolicy,
+			PlanSandbox:        cfg.Codex.PlanSandbox,
+			Timeout:            cfg.Codex.Timeout,
+			ResumeEnabled:      cfg.Codex.ResumeEnabled,
+			Env:                cfg.Codex.Env,
 		})
 		registry.register(exec)
 	}

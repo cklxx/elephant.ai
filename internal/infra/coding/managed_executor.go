@@ -73,9 +73,24 @@ func (m *ManagedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 		return nil, fmt.Errorf("external executor is not configured")
 	}
 
-	cfg := cloneStringMap(req.Config)
+	cfg := applyExecutionControls(req.AgentType, req.ExecutionMode, req.AutonomyLevel, req.Config)
+	effectiveMode := normalizeExecutionMode(req.ExecutionMode)
+	effectiveAutonomy := normalizeAutonomyLevel(req.AutonomyLevel)
+	if effectiveMode == executionModePlan {
+		req.Prompt = buildPlanOnlyPrompt(req.Prompt)
+	}
+
 	if !isCodingTask(cfg) {
-		return m.base.Execute(ctx, req)
+		req.Config = cfg
+		res, err := m.base.Execute(ctx, req)
+		if res != nil {
+			if res.Metadata == nil {
+				res.Metadata = make(map[string]any)
+			}
+			res.Metadata["execution_mode"] = effectiveMode
+			res.Metadata["autonomy_level"] = effectiveAutonomy
+		}
+		return res, err
 	}
 	cfg = applyCodingDefaults(req.AgentType, cfg)
 
@@ -117,6 +132,8 @@ func (m *ManagedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 				result.Metadata["verify"] = lastVerify
 				result.Metadata["retry_attempt"] = attempt
 				result.Metadata["coding_profile"] = cfg[configCodingProfile]
+				result.Metadata["execution_mode"] = effectiveMode
+				result.Metadata["autonomy_level"] = effectiveAutonomy
 				return result, nil
 			} else {
 				lastErr = fmt.Errorf("attempt %d/%d verification failed: %w", attempt, retries, verifyErr)
@@ -138,6 +155,8 @@ func (m *ManagedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 	}
 	lastResult.Metadata["retry_attempts"] = retries
 	lastResult.Metadata["coding_profile"] = cfg[configCodingProfile]
+	lastResult.Metadata["execution_mode"] = effectiveMode
+	lastResult.Metadata["autonomy_level"] = effectiveAutonomy
 	if lastVerify != nil {
 		lastResult.Metadata["verify"] = lastVerify
 	}

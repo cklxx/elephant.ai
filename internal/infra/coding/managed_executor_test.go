@@ -194,3 +194,46 @@ func TestManagedExternalExecutor_CodingVerifyDisabledSkipsVerification(t *testin
 		t.Fatalf("expected no verification commands when verify=false, got %v", runner.calls)
 	}
 }
+
+func TestManagedExternalExecutor_PlanModeForCodexUsesReadOnlyDefaults(t *testing.T) {
+	base := &stubExternalExecutor{
+		results: []*agent.ExternalAgentResult{
+			{Answer: "plan output"},
+		},
+	}
+	wrapped := NewManagedExternalExecutor(base, nil)
+
+	result, err := wrapped.Execute(context.Background(), agent.ExternalAgentRequest{
+		TaskID:        "task-plan-1",
+		AgentType:     "codex",
+		Prompt:        "design rollout",
+		ExecutionMode: "plan",
+		AutonomyLevel: "full",
+		Config:        map[string]string{"task_kind": "general"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result")
+	}
+	if len(base.reqs) != 1 {
+		t.Fatalf("expected 1 execution call, got %d", len(base.reqs))
+	}
+	cfg := base.reqs[0].Config
+	if cfg["sandbox"] != "read-only" {
+		t.Fatalf("expected sandbox=read-only, got %+v", cfg)
+	}
+	if cfg["approval_policy"] != "never" {
+		t.Fatalf("expected approval_policy=never, got %+v", cfg)
+	}
+	if !strings.Contains(base.reqs[0].Prompt, "[Plan Mode]") {
+		t.Fatalf("expected plan prompt enrichment, got %q", base.reqs[0].Prompt)
+	}
+	if result.Metadata["execution_mode"] != "plan" {
+		t.Fatalf("expected metadata execution_mode=plan, got %+v", result.Metadata)
+	}
+	if result.Metadata["autonomy_level"] != "full" {
+		t.Fatalf("expected metadata autonomy_level=full, got %+v", result.Metadata)
+	}
+}

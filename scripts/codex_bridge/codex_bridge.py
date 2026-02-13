@@ -147,6 +147,15 @@ def main() -> None:
         _write_done_sentinel()
         sys.exit(1)
 
+    execution_mode = str(cfg.get("execution_mode", "execute") or "execute").strip().lower()
+    autonomy_level = str(cfg.get("autonomy_level", "controlled") or "controlled").strip().lower()
+    if execution_mode == "plan":
+        prompt = (
+            prompt
+            + "\n\n[Plan Mode]\nProvide an implementation plan only. "
+            + "Do not modify files or execute destructive operations."
+        )
+
     # Build codex exec command.
     codex_binary = str(cfg.get("binary") or "codex").strip() or "codex"
     cmd = [codex_binary, "exec", "--json"]
@@ -157,6 +166,10 @@ def main() -> None:
 
     # Sandbox mode: read-only | workspace-write | danger-full-access
     sandbox = cfg.get("sandbox")
+    if not sandbox and execution_mode == "plan":
+        sandbox = "read-only"
+    elif not sandbox and autonomy_level == "full":
+        sandbox = "danger-full-access"
     if sandbox:
         cmd.extend(["--sandbox", sandbox])
 
@@ -165,6 +178,10 @@ def main() -> None:
     #   "dangerously-auto" → --dangerously-bypass-approvals-and-sandbox
     #   other              → ignored (codex uses its default)
     approval = cfg.get("approval_policy", "")
+    if not approval and execution_mode == "plan":
+        approval = "never"
+    elif not approval and autonomy_level == "full":
+        approval = "never"
     if approval == "full-auto":
         cmd.append("--full-auto")
     elif approval == "dangerously-auto":

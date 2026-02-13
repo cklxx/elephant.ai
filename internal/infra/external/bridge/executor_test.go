@@ -176,6 +176,52 @@ func TestExecutor_Codex_ParsesToolAndResult(t *testing.T) {
 	}
 }
 
+func TestExecutor_CodexPlanModeUsesSandboxFallbackFromRequest(t *testing.T) {
+	exec := New(BridgeConfig{
+		AgentType:          "codex",
+		ApprovalPolicy:     "on-request",
+		Sandbox:            "workspace-write",
+		PlanApprovalPolicy: "on-request",
+		PlanSandbox:        "workspace-write",
+		Timeout:            2 * time.Second,
+		PythonBinary:       "/usr/bin/python3",
+		BridgeScript:       "/fake/codex_bridge.py",
+	})
+
+	out := strings.Join([]string{
+		`{"type":"result","answer":"plan output","tokens":1200,"cost":0,"iters":1,"is_error":false}`,
+		"",
+	}, "\n")
+
+	fake := &fakeBridgeRunner{stdout: strings.NewReader(out)}
+	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+
+	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
+		TaskID:        "t-codex-plan",
+		AgentType:     "codex",
+		Prompt:        "plan migration",
+		ExecutionMode: "plan",
+		Config: map[string]string{
+			"approval_policy": "never",
+			"sandbox":         "read-only",
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute failed: %v", err)
+	}
+
+	var cfg bridgeConfig
+	if err := json.Unmarshal([]byte(strings.TrimSpace(fake.stdin.String())), &cfg); err != nil {
+		t.Fatalf("unmarshal stdin config: %v", err)
+	}
+	if cfg.ApprovalPolicy != "never" {
+		t.Fatalf("expected approval_policy=never, got %q", cfg.ApprovalPolicy)
+	}
+	if cfg.Sandbox != "read-only" {
+		t.Fatalf("expected sandbox=read-only, got %q", cfg.Sandbox)
+	}
+}
+
 func TestExecutor_HandlesErrorEvent(t *testing.T) {
 	exec := New(BridgeConfig{
 		AgentType:    "claude_code",

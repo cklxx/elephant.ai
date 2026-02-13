@@ -124,8 +124,9 @@ type HTTPLimitsFileConfig struct {
 
 // ExternalAgentsFileConfig mirrors ExternalAgentsConfig for YAML decoding.
 type ExternalAgentsFileConfig struct {
-	ClaudeCode *ClaudeCodeFileConfig `yaml:"claude_code"`
-	Codex      *CodexFileConfig      `yaml:"codex"`
+	MaxParallelAgents *int                  `yaml:"max_parallel_agents"`
+	ClaudeCode        *ClaudeCodeFileConfig `yaml:"claude_code"`
+	Codex             *CodexFileConfig      `yaml:"codex"`
 }
 
 type ClaudeCodeFileConfig struct {
@@ -134,20 +135,25 @@ type ClaudeCodeFileConfig struct {
 	DefaultModel           string            `yaml:"default_model"`
 	DefaultMode            string            `yaml:"default_mode"`
 	AutonomousAllowedTools []string          `yaml:"autonomous_allowed_tools"`
+	PlanAllowedTools       []string          `yaml:"plan_allowed_tools"`
 	MaxBudgetUSD           *float64          `yaml:"max_budget_usd"`
 	MaxTurns               *int              `yaml:"max_turns"`
 	Timeout                string            `yaml:"timeout"`
+	ResumeEnabled          *bool             `yaml:"resume_enabled"`
 	Env                    map[string]string `yaml:"env"`
 }
 
 type CodexFileConfig struct {
-	Enabled        *bool             `yaml:"enabled"`
-	Binary         string            `yaml:"binary"`
-	DefaultModel   string            `yaml:"default_model"`
-	ApprovalPolicy string            `yaml:"approval_policy"`
-	Sandbox        string            `yaml:"sandbox"`
-	Timeout        string            `yaml:"timeout"`
-	Env            map[string]string `yaml:"env"`
+	Enabled            *bool             `yaml:"enabled"`
+	Binary             string            `yaml:"binary"`
+	DefaultModel       string            `yaml:"default_model"`
+	ApprovalPolicy     string            `yaml:"approval_policy"`
+	Sandbox            string            `yaml:"sandbox"`
+	PlanApprovalPolicy string            `yaml:"plan_approval_policy"`
+	PlanSandbox        string            `yaml:"plan_sandbox"`
+	Timeout            string            `yaml:"timeout"`
+	ResumeEnabled      *bool             `yaml:"resume_enabled"`
+	Env                map[string]string `yaml:"env"`
 }
 
 // ProactiveFileConfig mirrors ProactiveConfig for YAML decoding.

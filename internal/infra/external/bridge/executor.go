@@ -33,16 +33,20 @@ type BridgeConfig struct {
 	DefaultModel           string
 	DefaultMode            string
 	AutonomousAllowedTools []string
+	PlanAllowedTools       []string
 	MaxBudgetUSD           float64
 	MaxTurns               int
 
 	// Codex fields.
-	ApprovalPolicy string
-	Sandbox        string
+	ApprovalPolicy     string
+	Sandbox            string
+	PlanApprovalPolicy string
+	PlanSandbox        string
 
 	// Common fields.
-	Timeout time.Duration
-	Env     map[string]string
+	Timeout       time.Duration
+	Env           map[string]string
+	ResumeEnabled bool
 
 	// Detached mode: subprocess survives parent death.
 	// When true, bridge output goes to a file instead of stdout pipe.
@@ -137,6 +141,9 @@ type bridgeConfig struct {
 	// Codex-specific fields.
 	ApprovalPolicy string `json:"approval_policy,omitempty"`
 	Sandbox        string `json:"sandbox,omitempty"`
+	// Cross-agent execution controls.
+	ExecutionMode string `json:"execution_mode,omitempty"`
+	AutonomyLevel string `json:"autonomy_level,omitempty"`
 }
 
 func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) (*agent.ExternalAgentResult, error) {
@@ -153,22 +160,32 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 	bridgeScript := e.resolveBridgeScript()
 
 	bcfg := bridgeConfig{
-		Prompt:       req.Prompt,
-		Model:        model,
-		Mode:         mode,
-		MaxTurns:     maxTurns,
-		MaxBudgetUSD: maxBudget,
-		WorkingDir:   req.WorkingDir,
-		Binary:       pickString(req.Config, "binary", e.cfg.Binary),
+		Prompt:        req.Prompt,
+		Model:         model,
+		Mode:          mode,
+		MaxTurns:      maxTurns,
+		MaxBudgetUSD:  maxBudget,
+		WorkingDir:    req.WorkingDir,
+		Binary:        pickString(req.Config, "binary", e.cfg.Binary),
+		ExecutionMode: normalizeExecutionMode(req.ExecutionMode, req.Config),
+		AutonomyLevel: normalizeAutonomyLevel(req.AutonomyLevel, req.Config),
 	}
 
 	// Agent-type specific config.
 	switch e.cfg.AgentType {
 	case "claude_code":
-		if strings.EqualFold(mode, "autonomous") {
+		if bcfg.ExecutionMode == "plan" {
+			bcfg.Mode = "autonomous"
+		}
+		if strings.EqualFold(bcfg.Mode, "autonomous") {
 			allowedTools := e.cfg.AutonomousAllowedTools
 			if override := pickString(req.Config, "allowed_tools", ""); override != "" {
 				allowedTools = splitList(override)
+			} else if bcfg.ExecutionMode == "plan" {
+				allowedTools = e.cfg.PlanAllowedTools
+				if len(allowedTools) == 0 {
+					allowedTools = []string{"Read", "Glob", "Grep", "WebSearch"}
+				}
 			}
 			bcfg.AllowedTools = allowedTools
 		} else if e.cfg.Interactive {
@@ -182,6 +199,32 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 	case "codex":
 		bcfg.ApprovalPolicy = pickString(req.Config, "approval_policy", e.cfg.ApprovalPolicy)
 		bcfg.Sandbox = pickString(req.Config, "sandbox", e.cfg.Sandbox)
+		if bcfg.ExecutionMode == "plan" {
+			planApproval := pickString(req.Config, "plan_approval_policy", "")
+			if strings.TrimSpace(planApproval) == "" {
+				planApproval = bcfg.ApprovalPolicy
+			}
+			if strings.TrimSpace(planApproval) == "" {
+				planApproval = e.cfg.PlanApprovalPolicy
+			}
+			bcfg.ApprovalPolicy = planApproval
+
+			planSandbox := pickString(req.Config, "plan_sandbox", "")
+			if strings.TrimSpace(planSandbox) == "" {
+				planSandbox = bcfg.Sandbox
+			}
+			if strings.TrimSpace(planSandbox) == "" {
+				planSandbox = e.cfg.PlanSandbox
+			}
+			bcfg.Sandbox = planSandbox
+
+			if strings.TrimSpace(bcfg.ApprovalPolicy) == "" {
+				bcfg.ApprovalPolicy = "never"
+			}
+			if strings.TrimSpace(bcfg.Sandbox) == "" {
+				bcfg.Sandbox = "read-only"
+			}
+		}
 	}
 
 	env := cloneStringMap(e.cfg.Env)
@@ -246,6 +289,7 @@ func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentR
 		errMsg := formatProcessError(req.AgentType, err, proc.StderrTail())
 		return result, errors.New(e.maybeAppendAuthHint(errMsg, proc.StderrTail()))
 	}
+	enrichPlanMetadata(result, bcfg.ExecutionMode)
 	return result, nil
 }
 
@@ -333,6 +377,7 @@ func (e *Executor) executeDetached(ctx context.Context, req agent.ExternalAgentR
 		errMsg := formatProcessError(req.AgentType, err, proc.StderrTail())
 		return result, errors.New(e.maybeAppendAuthHint(errMsg, proc.StderrTail()))
 	}
+	enrichPlanMetadata(result, bcfg.ExecutionMode)
 	return result, nil
 }
 
@@ -572,6 +617,42 @@ func cloneStringMap(in map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func normalizeExecutionMode(raw string, cfg map[string]string) string {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	if mode == "" && cfg != nil {
+		mode = strings.ToLower(strings.TrimSpace(cfg["execution_mode"]))
+	}
+	if mode == "plan" {
+		return "plan"
+	}
+	return "execute"
+}
+
+func normalizeAutonomyLevel(raw string, cfg map[string]string) string {
+	level := strings.ToLower(strings.TrimSpace(raw))
+	if level == "" && cfg != nil {
+		level = strings.ToLower(strings.TrimSpace(cfg["autonomy_level"]))
+	}
+	switch level {
+	case "full", "semi":
+		return level
+	default:
+		return "controlled"
+	}
+}
+
+func enrichPlanMetadata(result *agent.ExternalAgentResult, executionMode string) {
+	if result == nil || executionMode != "plan" {
+		return
+	}
+	if result.Metadata == nil {
+		result.Metadata = make(map[string]any)
+	}
+	if strings.TrimSpace(result.Answer) != "" {
+		result.Metadata["plan"] = result.Answer
+	}
 }
 
 func formatProcessError(agentName string, err error, stderrTail string) string {

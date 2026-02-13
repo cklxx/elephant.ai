@@ -176,13 +176,19 @@ async def main() -> None:
         },
     )
 
+    execution_mode = str(cfg.get("execution_mode", "execute") or "execute").strip().lower()
+
     # Permission mode.
     mode = cfg.get("mode", "interactive")
+    if execution_mode == "plan":
+        mode = "autonomous"
     if mode == "autonomous":
         opts.permission_mode = "bypassPermissions"
         allowed = cfg.get("allowed_tools")
         if allowed:
             opts.allowed_tools = allowed
+        elif execution_mode == "plan":
+            opts.allowed_tools = ["Read", "Glob", "Grep", "WebSearch"]
     else:
         opts.permission_mode = "default"
         perm_cfg = cfg.get("permission_mcp_config")
@@ -194,6 +200,12 @@ async def main() -> None:
         _emit({"type": "error", "message": "prompt is required"})
         _write_done_sentinel()
         sys.exit(1)
+    if execution_mode == "plan":
+        prompt = (
+            prompt
+            + "\n\n[Plan Mode]\nProvide an implementation plan only. "
+            + "Do not modify files or execute destructive operations."
+        )
 
     try:
         async with ClaudeSDKClient(opts) as client:

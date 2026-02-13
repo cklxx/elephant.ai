@@ -31,6 +31,12 @@ type ExternalAgentRequest struct {
 	Config      map[string]string
 	SessionID   string
 	CausationID string
+	// ExecutionMode controls the high-level execution intent:
+	// "execute" (default) or "plan" (plan-only mode).
+	ExecutionMode string
+	// AutonomyLevel controls approval/sandbox behavior policy:
+	// "controlled" (default), "semi", or "full".
+	AutonomyLevel string
 
 	// OnProgress is called whenever the external agent reports progress.
 	OnProgress func(ExternalAgentProgress)

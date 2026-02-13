@@ -87,6 +87,7 @@ runtime:
   tool_policy:
     enforcement_mode: "warn_allow"
   external_agents:
+    max_parallel_agents: 4
     claude_code:
       enabled: false
       binary: "claude"
@@ -96,8 +97,14 @@ runtime:
         - "Glob"
         - "Grep"
         - "WebSearch"
+      plan_allowed_tools:
+        - "Read"
+        - "Glob"
+        - "Grep"
+        - "WebSearch"
       max_turns: 50
       timeout: "30m"
+      resume_enabled: true
       env:
         ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
     codex:
@@ -106,7 +113,10 @@ runtime:
       default_model: "gpt-5.2-codex"
       approval_policy: "on-request"
       sandbox: "workspace-write"
+      plan_approval_policy: "never"
+      plan_sandbox: "read-only"
       timeout: "30m"
+      resume_enabled: true
       env:
         OPENAI_API_KEY: "${OPENAI_API_KEY}"
 auth:
