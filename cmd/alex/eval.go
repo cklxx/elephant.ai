@@ -40,6 +40,7 @@ func (c *CLI) handleEval(args []string) error {
 
 	defaultDataset := filepath.Join("evaluation", "swe_bench", "real_instances.json")
 	datasetPath := fs.String("dataset", defaultDataset, "Path to the SWE-Bench dataset file")
+	datasetType := fs.String("dataset-type", "", "Dataset type (auto|swe_bench|general_agent|eval_set|file)")
 	outputDir := fs.String("output", "./evaluation_results", "Directory to write evaluation outputs")
 	instanceLimit := fs.Int("limit", 3, "Number of instances to evaluate")
 	workers := fs.Int("workers", 2, "Maximum concurrent workers")
@@ -59,6 +60,7 @@ func (c *CLI) handleEval(args []string) error {
 
 	options := agent_eval.DefaultEvaluationOptions()
 	options.DatasetPath = *datasetPath
+	options.DatasetType = resolveEvalDatasetType(*datasetType, *datasetPath)
 	options.OutputDir = *outputDir
 	options.InstanceLimit = *instanceLimit
 	options.MaxWorkers = *workers
@@ -80,6 +82,26 @@ func (c *CLI) handleEval(args []string) error {
 	}
 
 	return nil
+}
+
+func resolveEvalDatasetType(flagValue, datasetPath string) string {
+	explicit := strings.ToLower(strings.TrimSpace(flagValue))
+	switch explicit {
+	case "swe_bench", "general_agent", "eval_set", "file", "huggingface":
+		return explicit
+	}
+
+	trimmedPath := strings.ToLower(strings.TrimSpace(datasetPath))
+	if trimmedPath == "" {
+		return "general_agent"
+	}
+	if strings.Contains(trimmedPath, "general_agent_eval") {
+		return "general_agent"
+	}
+	if strings.Contains(trimmedPath, "swe_bench") || strings.Contains(trimmedPath, "real_instances") {
+		return "swe_bench"
+	}
+	return "file"
 }
 
 func (c *CLI) listAgentProfiles(args []string) error {

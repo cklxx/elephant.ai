@@ -21,6 +21,7 @@ func clearConfigValidationKeyEnv(t *testing.T) {
 }
 
 func TestLoadConfigDefaultTemperatureUsesPresetButNotMarkedSet(t *testing.T) {
+	clearConfigValidationKeyEnv(t)
 	t.Setenv("HOME", t.TempDir())
 
 	cfg, err := loadConfig()
@@ -90,6 +91,7 @@ runtime:
 }
 
 func TestLoadConfigAppliesManagedOverrides(t *testing.T) {
+	clearConfigValidationKeyEnv(t)
 	root := t.TempDir()
 	overridesPath := filepath.Join(root, "config.yaml")
 	store := configadmin.NewFileStore(overridesPath)
