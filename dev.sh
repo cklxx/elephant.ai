@@ -69,6 +69,11 @@ source "${SCRIPT_DIR}/scripts/lib/common/http.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/cgo.sh"
 source "${SCRIPT_DIR}/scripts/lib/acp_host.sh"
 
+# Check if SANDBOX_BASE_URL points to a local address (previously in sandbox.sh).
+is_local_sandbox_url() {
+  [[ "${SANDBOX_BASE_URL}" =~ ^https?://(localhost|127\.0\.0\.1)(:|/) ]]
+}
+
 load_dotenv() {
   local env_file="${SCRIPT_DIR}/.env"
   if [[ ! -f "$env_file" ]]; then

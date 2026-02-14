@@ -51,6 +51,11 @@ source "${SCRIPT_DIR}/scripts/lib/common/http.sh"
 source "${SCRIPT_DIR}/scripts/lib/acp_host.sh"
 source "${SCRIPT_DIR}/scripts/lib/deploy_common.sh"
 
+# Check if SANDBOX_BASE_URL points to a local address (previously in sandbox.sh).
+is_local_sandbox_url() {
+    [[ "${SANDBOX_BASE_URL}" =~ ^https?://(localhost|127\.0\.0\.1)(:|/) ]]
+}
+
 COMPOSE_CORE_VARS=()
 COMPOSE_MISSING_VARS=()
 
