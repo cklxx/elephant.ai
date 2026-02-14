@@ -24,6 +24,13 @@ const kernelDefaultSummaryInstruction = `Kernel post-run requirement:
 - Summarize: completed work, concrete evidence/artifacts, remaining risks/next step.
 - Keep it concise (3-6 bullets) and factual.`
 
+const kernelRetryInstruction = `Kernel retry requirement:
+- Your previous attempt was not autonomously complete.
+- Do NOT ask questions, confirmations, or A/B choices.
+- Execute at least one concrete real tool action now.
+- If ~/.alex/kernel/default/* is blocked, use ./kernel_sync/* workspace fallback immediately.
+- Return a factual "## 执行总结" with concrete actions and artifact paths.`
+
 // ExecutionResult captures the essential completion information from one dispatch.
 type ExecutionResult struct {
 	TaskID  string
@@ -107,11 +114,16 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 	if err != nil {
 		return ExecutionResult{}, err
 	}
-	if dispatchStillAwaitsUserConfirmation(result) {
-		return ExecutionResult{}, errKernelAwaitingUserConfirmation
-	}
-	if !containsSuccessfulRealToolExecution(result) {
-		return ExecutionResult{}, errKernelNoRealToolAction
+	if validateErr := validateKernelDispatchResult(result); validateErr != nil {
+		retryPrompt := appendKernelRetryInstruction(taskPrompt, result)
+		retryResult, retryErr := e.coordinator.ExecuteTask(execCtx, retryPrompt, sessionID, nil)
+		if retryErr != nil {
+			return ExecutionResult{}, retryErr
+		}
+		if retryValidateErr := validateKernelDispatchResult(retryResult); retryValidateErr != nil {
+			return ExecutionResult{}, retryValidateErr
+		}
+		result = retryResult
 	}
 	return ExecutionResult{
 		TaskID:  sessionID,
@@ -128,6 +140,21 @@ func appendKernelSummaryInstruction(prompt string) string {
 		return kernelDefaultSummaryInstruction
 	}
 	return trimmed + "\n\n" + kernelDefaultSummaryInstruction
+}
+
+func appendKernelRetryInstruction(prompt string, result *agent.TaskResult) string {
+	var previousSummary string
+	if result != nil {
+		previousSummary = strings.TrimSpace(extractKernelExecutionSummary(result))
+	}
+	sections := []string{
+		strings.TrimSpace(prompt),
+		kernelRetryInstruction,
+	}
+	if previousSummary != "" {
+		sections = append(sections, "Previous attempt summary:\n"+previousSummary)
+	}
+	return strings.Join(sections, "\n\n")
 }
 
 func extractKernelExecutionSummary(result *agent.TaskResult) string {
@@ -207,6 +234,16 @@ func containsSuccessfulRealToolExecution(result *agent.TaskResult) bool {
 		}
 	}
 	return false
+}
+
+func validateKernelDispatchResult(result *agent.TaskResult) error {
+	if dispatchStillAwaitsUserConfirmation(result) {
+		return errKernelAwaitingUserConfirmation
+	}
+	if !containsSuccessfulRealToolExecution(result) {
+		return errKernelNoRealToolAction
+	}
+	return nil
 }
 
 func dispatchStillAwaitsUserConfirmation(result *agent.TaskResult) bool {

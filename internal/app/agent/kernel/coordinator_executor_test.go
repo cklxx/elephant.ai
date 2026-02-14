@@ -19,13 +19,24 @@ type stubTaskRunner struct {
 	lastPrompt string
 	lastCtx    context.Context
 	result     *agent.TaskResult
+	results    []*agent.TaskResult
 	err        error
+	prompts    []string
+	idx        int
 }
 
 func (s *stubTaskRunner) ExecuteTask(ctx context.Context, task string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
 	s.lastCtx = ctx
 	s.lastPrompt = task
-	return s.result, s.err
+	s.prompts = append(s.prompts, task)
+	var result *agent.TaskResult
+	if s.idx < len(s.results) {
+		result = s.results[s.idx]
+		s.idx++
+	} else {
+		result = s.result
+	}
+	return result, s.err
 }
 
 func TestCoordinatorExecutor_AppendsSummaryInstructionAndExtractsSummary(t *testing.T) {
@@ -240,6 +251,140 @@ func TestCoordinatorExecutor_FailsWhenStopReasonAwaitUserInput(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "awaiting user confirmation") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestCoordinatorExecutor_RetriesAutonomouslyAfterConfirmationLoop(t *testing.T) {
+	runner := &stubTaskRunner{
+		results: []*agent.TaskResult{
+			{
+				Answer: "## 执行总结\n- 我的理解是你要我改成 `./kernel_sync/...`——对吗？",
+				Messages: []core.Message{
+					{
+						Role: "assistant",
+						ToolCalls: []core.ToolCall{
+							{ID: "call-1", Name: "read_file"},
+						},
+					},
+					{
+						Role: "tool",
+						ToolResults: []core.ToolResult{
+							{CallID: "call-1", Content: "ok"},
+						},
+					},
+				},
+			},
+			{
+				Answer: "## 执行总结\n- 已写入 ./kernel_sync/knowledge/topic.md\n- 已更新 ./kernel_sync/goal/GOAL.md",
+				Messages: []core.Message{
+					{
+						Role: "assistant",
+						ToolCalls: []core.ToolCall{
+							{ID: "call-2", Name: "write_file"},
+						},
+					},
+					{
+						Role: "tool",
+						ToolResults: []core.ToolResult{
+							{CallID: "call-2", Content: "ok"},
+						},
+					},
+				},
+			},
+		},
+	}
+	exec := NewCoordinatorExecutor(runner, 0)
+
+	res, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
+	if err != nil {
+		t.Fatalf("expected autonomous retry success, got error: %v", err)
+	}
+	if strings.TrimSpace(res.Summary) == "" {
+		t.Fatalf("expected non-empty summary after retry")
+	}
+	if len(runner.prompts) != 2 {
+		t.Fatalf("expected 2 attempts, got %d", len(runner.prompts))
+	}
+	if !strings.Contains(runner.prompts[1], "Kernel retry requirement") {
+		t.Fatalf("expected retry prompt guidance, got: %q", runner.prompts[1])
+	}
+}
+
+func TestCoordinatorExecutor_RetriesWhenFirstAttemptHasNoRealToolAction(t *testing.T) {
+	runner := &stubTaskRunner{
+		results: []*agent.TaskResult{
+			{
+				Answer: "## 执行总结\n- 已规划下一步",
+				Messages: []core.Message{
+					{
+						Role: "assistant",
+						ToolCalls: []core.ToolCall{
+							{ID: "call-1", Name: "plan"},
+						},
+					},
+				},
+			},
+			{
+				Answer: "## 执行总结\n- 已执行 read_file 并更新草稿",
+				Messages: []core.Message{
+					{
+						Role: "assistant",
+						ToolCalls: []core.ToolCall{
+							{ID: "call-2", Name: "read_file"},
+						},
+					},
+					{
+						Role: "tool",
+						ToolResults: []core.ToolResult{
+							{CallID: "call-2", Content: "ok"},
+						},
+					},
+				},
+			},
+		},
+	}
+	exec := NewCoordinatorExecutor(runner, 0)
+
+	res, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
+	if err != nil {
+		t.Fatalf("expected retry success after no-real-tool first attempt, got: %v", err)
+	}
+	if strings.TrimSpace(res.Summary) == "" {
+		t.Fatalf("expected non-empty summary after retry")
+	}
+	if len(runner.prompts) != 2 {
+		t.Fatalf("expected 2 attempts, got %d", len(runner.prompts))
+	}
+}
+
+func TestCoordinatorExecutor_DoesNotRetryWhenFirstAttemptIsValid(t *testing.T) {
+	runner := &stubTaskRunner{
+		result: &agent.TaskResult{
+			Answer: "## 执行总结\n- 已执行 read_file 并完成分析",
+			Messages: []core.Message{
+				{
+					Role: "assistant",
+					ToolCalls: []core.ToolCall{
+						{ID: "call-1", Name: "read_file"},
+					},
+				},
+				{
+					Role: "tool",
+					ToolResults: []core.ToolResult{
+						{CallID: "call-1", Content: "ok"},
+					},
+				},
+			},
+		},
+	}
+	exec := NewCoordinatorExecutor(runner, 0)
+
+	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
+	if err != nil {
+		t.Fatalf("expected success without retry, got: %v", err)
+	}
+	if len(runner.prompts) != 1 {
+		t.Fatalf("expected single attempt for valid result, got %d", len(runner.prompts))
 	}
 }
 
