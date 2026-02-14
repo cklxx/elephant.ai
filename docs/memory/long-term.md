@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-14 13:00
+Updated: 2026-02-14 22:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -67,6 +67,7 @@ Updated: 2026-02-14 13:00
 - Lark loop gate 的 codex auto-fix 应默认关闭并显式开关启用（`LARK_LOOP_AUTOFIX_ENABLED=1`），否则会出现“非预期自动改代码”体验。
 - Lark 普通会话链路里的 background progress listener 清理必须使用 `Release()`（不是 `Close()`），否则 foreground 返回后会丢失 coding task 完成通知。
 - Kernel 在共享订阅上使用分钟级连续调度会触发配额突发限流；默认应保持低频 cadence（`0,30 * * * *`）并以 `STATE.md` 的 `kernel_runtime`（含 `agent_summary`）作为执行观测真相源。
+- Kernel 无人值守周期必须“直接执行并落地结果”，禁止以“我的理解是…对吗/选项 A/B”结束；遇到 `~/.alex/kernel/default/*` 写入受限时应自动切换到工作区镜像路径（如 `./kernel_sync/...`）继续执行并记录。
 - 需要实时做 kernel 端到端验证时可直接执行 `go run ./cmd/alex-server kernel-once`，无需等待 cron。
 
 ## Items

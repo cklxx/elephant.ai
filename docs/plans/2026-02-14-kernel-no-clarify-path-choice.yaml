@@ -1,0 +1,42 @@
+id: 2026-02-14-kernel-no-clarify-path-choice
+title: Kernel delegated tasks should execute proactively without path-choice clarification loops
+status: completed
+owner: codex
+created: 2026-02-14
+updated: 2026-02-14T22:24:42+08:00
+summary: >
+  Eliminate kernel-cycle outcomes where delegated work ends with path-choice
+  clarification questions instead of autonomous execution. Default to a safe
+  workspace-local path strategy and continue execution unless a true approval
+  gate is present.
+scope:
+  in:
+    - Trace where delegated kernel work chooses clarify/request_user for path selection
+    - Implement a default workspace-local path policy that avoids optional A/B questioning
+    - Add regression tests for autonomous behavior in delegated kernel execution
+    - Validate with targeted test run and lint
+  out:
+    - Redesigning kernel scheduler cadence
+    - Reworking unrelated Lark transport or notifier formatting
+steps:
+  - id: locate-root-cause
+    description: Identify prompt/tooling logic that emits path-selection clarification messages
+    status: completed
+  - id: implement-default-path-policy
+    description: Force deterministic workspace-local default path behavior for delegated runs
+    status: completed
+  - id: add-regression-tests
+    description: Add tests proving no clarify/request_user is emitted for this class of task
+    status: completed
+  - id: verify-quality-gates
+    description: Run focused tests, then full lint/test checks before delivery
+    status: completed
+acceptance_criteria:
+  - Kernel delegated run no longer asks user to choose between equivalent workspace paths
+  - Delegated execution proceeds automatically with a safe default path
+  - New regression tests fail before fix and pass after fix
+  - Full lint and tests pass before merge
+notes:
+  - Apply autonomy-first behavior and reserve user questioning for explicit approval/safety gates only.
+  - 2026-02-14: Added kernel executor prompt hardening and autonomous-completion guard that fails dispatches still awaiting user confirmation.
+  - 2026-02-14: Passed full `./scripts/pre-push.sh` quality gate (go mod tidy, vet, build, go test -race, lint, arch checks).
