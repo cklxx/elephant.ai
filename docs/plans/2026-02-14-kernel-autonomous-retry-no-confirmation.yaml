@@ -1,0 +1,40 @@
+id: 2026-02-14-kernel-autonomous-retry-no-confirmation
+title: Kernel dispatch autonomous retry when first attempt asks confirmation or lacks real tool action
+status: completed
+owner: codex
+created: 2026-02-14
+updated: 2026-02-14T22:59:07+08:00
+summary: >
+  Improve kernel dispatch autonomy by retrying once in the same cycle when the
+  first subtask result still asks user confirmation or has no successful real
+  tool action. This avoids waiting for the next cycle and reduces proactive
+  stalls.
+scope:
+  in:
+    - Add one-shot retry logic in kernel coordinator executor
+    - Inject dedicated retry prompt rules to forbid confirmation loops
+    - Add regression tests for retry-after-confirmation and retry-after-plan-only paths
+    - Run full quality gates (lint/tests/arch) before delivery
+  out:
+    - Scheduler cadence changes
+    - Changes to non-kernel orchestration behavior
+steps:
+  - id: identify-retry-opportunity
+    description: Confirm first-attempt validation failures can be auto-recovered within same cycle
+    status: completed
+  - id: implement-kernel-retry
+    description: Add retry prompt and one-shot retry execution path for validation failures
+    status: completed
+  - id: add-regression-tests
+    description: Add tests for confirmation-loop retry and no-real-tool retry
+    status: completed
+  - id: run-quality-gates
+    description: Execute full pre-push checks including go test -race, lint, and architecture checks
+    status: completed
+acceptance_criteria:
+  - Kernel retries once automatically when first result awaits confirmation
+  - Kernel retries once automatically when first result lacks a successful real tool action
+  - If retry still fails validation, dispatch remains failed with explicit reason
+  - Full repository quality gates pass
+notes:
+  - 2026-02-14: Passed `./scripts/pre-push.sh` after retry logic + tests (go mod tidy, vet, build, go test -race, lint, arch).
