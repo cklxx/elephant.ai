@@ -45,8 +45,10 @@ func (s *TaskPostgresStore) EnsureSchema(ctx context.Context) error {
     completed_at TIMESTAMPTZ,
     answer_preview TEXT NOT NULL DEFAULT '',
     error TEXT NOT NULL DEFAULT '',
-    tokens_used INTEGER NOT NULL DEFAULT 0
+    tokens_used INTEGER NOT NULL DEFAULT 0,
+    merge_status TEXT NOT NULL DEFAULT ''
 );`, taskRegistryTable),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS merge_status TEXT NOT NULL DEFAULT '';`, taskRegistryTable),
 		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_chat_status ON %s (chat_id, status);`, taskRegistryTable, taskRegistryTable),
 		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_created ON %s (created_at);`, taskRegistryTable, taskRegistryTable),
 	}
@@ -78,8 +80,8 @@ func (s *TaskPostgresStore) SaveTask(ctx context.Context, task TaskRecord) error
 	}
 
 	_, err := s.pool.Exec(ctx, `
-INSERT INTO `+taskRegistryTable+` (task_id, chat_id, user_id, agent_type, description, status, created_at, updated_at, answer_preview, error, tokens_used)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+INSERT INTO `+taskRegistryTable+` (task_id, chat_id, user_id, agent_type, description, status, created_at, updated_at, answer_preview, error, tokens_used, merge_status)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 ON CONFLICT (task_id)
 DO UPDATE SET chat_id = EXCLUDED.chat_id,
               user_id = EXCLUDED.user_id,
@@ -89,9 +91,10 @@ DO UPDATE SET chat_id = EXCLUDED.chat_id,
               updated_at = EXCLUDED.updated_at,
               answer_preview = EXCLUDED.answer_preview,
               error = EXCLUDED.error,
-              tokens_used = EXCLUDED.tokens_used
+              tokens_used = EXCLUDED.tokens_used,
+              merge_status = EXCLUDED.merge_status
 `, task.TaskID, task.ChatID, task.UserID, task.AgentType, task.Description,
-		task.Status, task.CreatedAt, task.UpdatedAt, task.AnswerPreview, task.Error, task.TokensUsed)
+		task.Status, task.CreatedAt, task.UpdatedAt, task.AnswerPreview, task.Error, task.TokensUsed, task.MergeStatus)
 	if err != nil {
 		return fmt.Errorf("save task: %w", err)
 	}
@@ -123,9 +126,10 @@ UPDATE `+taskRegistryTable+`
 SET status = $2, updated_at = $3, completed_at = COALESCE($4, completed_at),
     answer_preview = COALESCE($5, answer_preview),
     error = COALESCE($6, error),
-    tokens_used = COALESCE($7, tokens_used)
+    tokens_used = COALESCE($7, tokens_used),
+    merge_status = COALESCE($8, merge_status)
 WHERE task_id = $1
-`, taskID, status, now, completedAt, o.answerPreview, o.errorText, o.tokensUsed)
+`, taskID, status, now, completedAt, o.answerPreview, o.errorText, o.tokensUsed, o.mergeStatus)
 	if err != nil {
 		return fmt.Errorf("update task status: %w", err)
 	}
@@ -145,13 +149,13 @@ func (s *TaskPostgresStore) GetTask(ctx context.Context, taskID string) (TaskRec
 	var completedAt *time.Time
 	row := s.pool.QueryRow(ctx, `
 SELECT task_id, chat_id, user_id, agent_type, description, status,
-       created_at, updated_at, completed_at, answer_preview, error, tokens_used
+       created_at, updated_at, completed_at, answer_preview, error, tokens_used, merge_status
 FROM `+taskRegistryTable+`
 WHERE task_id = $1
 `, taskID)
 	if err := row.Scan(&rec.TaskID, &rec.ChatID, &rec.UserID, &rec.AgentType,
 		&rec.Description, &rec.Status, &rec.CreatedAt, &rec.UpdatedAt,
-		&completedAt, &rec.AnswerPreview, &rec.Error, &rec.TokensUsed); err != nil {
+		&completedAt, &rec.AnswerPreview, &rec.Error, &rec.TokensUsed, &rec.MergeStatus); err != nil {
 		if err == pgx.ErrNoRows {
 			return TaskRecord{}, false, nil
 		}
@@ -175,8 +179,8 @@ func (s *TaskPostgresStore) ListByChat(ctx context.Context, chatID string, activ
 		limit = 20
 	}
 
-	query := `SELECT task_id, chat_id, user_id, agent_type, description, status,
-       created_at, updated_at, completed_at, answer_preview, error, tokens_used
+query := `SELECT task_id, chat_id, user_id, agent_type, description, status,
+       created_at, updated_at, completed_at, answer_preview, error, tokens_used, merge_status
 FROM ` + taskRegistryTable + ` WHERE chat_id = $1`
 	if activeOnly {
 		query += ` AND status IN ('pending', 'running', 'waiting_input')`
@@ -195,7 +199,7 @@ FROM ` + taskRegistryTable + ` WHERE chat_id = $1`
 		var completedAt *time.Time
 		if err := rows.Scan(&rec.TaskID, &rec.ChatID, &rec.UserID, &rec.AgentType,
 			&rec.Description, &rec.Status, &rec.CreatedAt, &rec.UpdatedAt,
-			&completedAt, &rec.AnswerPreview, &rec.Error, &rec.TokensUsed); err != nil {
+			&completedAt, &rec.AnswerPreview, &rec.Error, &rec.TokensUsed, &rec.MergeStatus); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
 		if completedAt != nil {

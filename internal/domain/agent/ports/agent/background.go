@@ -17,6 +17,13 @@ const (
 	BackgroundTaskStatusCancelled BackgroundTaskStatus = "cancelled"
 )
 
+// MergeStatus captures background task merge outcomes for completion notices.
+const (
+	MergeStatusNotMerged = "not merged"
+	MergeStatusMerged    = "merged/success"
+	MergeStatusFailed    = "merge failed"
+)
+
 // BackgroundDispatchRequest captures inputs for background task dispatch.
 type BackgroundDispatchRequest struct {
 	TaskID         string
@@ -101,7 +108,7 @@ type ExternalWorkspaceMerger interface {
 // BackgroundTaskManager, bypassing the event listener chain. This ensures
 // TaskStore is updated even when the SerializingEventListener queue times out.
 type BackgroundCompletionNotifier interface {
-	NotifyCompletion(ctx context.Context, taskID, status, answer, errText string, tokensUsed int)
+	NotifyCompletion(ctx context.Context, taskID, status, answer, errText, mergeStatus string, tokensUsed int)
 }
 
 // BridgeMetaPersister is an optional extension of BackgroundCompletionNotifier

@@ -263,6 +263,14 @@ func (s *PostgresStore) SetStatus(ctx context.Context, taskID string, status tas
 	if p.TokensUsed != nil {
 		setClauses += fmt.Sprintf(`, tokens_used = $%d`, idx)
 		args = append(args, *p.TokensUsed)
+		idx++
+	}
+	if meta := stringifyMetadata(p.Metadata); len(meta) > 0 {
+		metaJSON := marshalJSONOrNil(meta)
+		if metaJSON != nil {
+			setClauses += fmt.Sprintf(`, metadata = COALESCE(metadata, '{}'::jsonb) || $%d`, idx)
+			args = append(args, metaJSON)
+		}
 	}
 
 	_, err = tx.Exec(ctx, `UPDATE `+tasksTable+` SET `+setClauses+` WHERE task_id = $1`, args...)
@@ -786,6 +794,22 @@ func marshalJSONOrNil(v any) []byte {
 		return nil
 	}
 	return data
+}
+
+func stringifyMetadata(meta map[string]any) map[string]string {
+	if len(meta) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(meta))
+	for k, v := range meta {
+		if s, ok := v.(string); ok {
+			out[k] = s
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func nullableRawJSON(raw json.RawMessage) []byte {

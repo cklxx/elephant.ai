@@ -276,6 +276,7 @@ type EventData struct {
 	Prompt      string `json:"prompt,omitempty"`
 	AgentType   string `json:"agent_type,omitempty"`
 	Answer      string `json:"answer,omitempty"`
+	MergeStatus string `json:"merge_status,omitempty"`
 	Iterations  int    `json:"iterations,omitempty"`
 
 	// --- External agent progress --------------------------------------------

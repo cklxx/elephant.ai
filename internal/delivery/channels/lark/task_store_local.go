@@ -152,6 +152,9 @@ func (s *TaskLocalStore) UpdateStatus(ctx context.Context, taskID, status string
 	if values.TokensUsed != nil {
 		task.TokensUsed = *values.TokensUsed
 	}
+	if values.MergeStatus != nil {
+		task.MergeStatus = *values.MergeStatus
+	}
 	s.tasks[taskID] = task
 	s.evictLocked(now)
 	return s.persistLocked()

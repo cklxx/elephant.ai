@@ -281,7 +281,7 @@ func (g *Gateway) SetAIChatCoordinator(coordinator *AIChatCoordinator) {
 // NotifyCompletion implements agent.BackgroundCompletionNotifier. It writes
 // the final task status directly to TaskStore, ensuring persistence even when
 // the event listener chain is broken (e.g. SerializingEventListener idle timeout).
-func (g *Gateway) NotifyCompletion(ctx context.Context, taskID, status, answer, errText string, tokensUsed int) {
+func (g *Gateway) NotifyCompletion(ctx context.Context, taskID, status, answer, errText, mergeStatus string, tokensUsed int) {
 	if g == nil || g.taskStore == nil {
 		return
 	}
@@ -297,6 +297,9 @@ func (g *Gateway) NotifyCompletion(ctx context.Context, taskID, status, answer, 
 	}
 	if tokensUsed > 0 {
 		opts = append(opts, WithTokensUsed(tokensUsed))
+	}
+	if mergeStatus != "" {
+		opts = append(opts, WithMergeStatus(mergeStatus))
 	}
 	if err := g.taskStore.UpdateStatus(storeCtx, taskID, status, opts...); err != nil {
 		g.logger.Warn("CompletionNotifier: TaskStore update failed for %s: %v", taskID, err)

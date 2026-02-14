@@ -19,6 +19,7 @@ type TaskRecord struct {
 	AnswerPreview string
 	Error         string
 	TokensUsed    int
+	MergeStatus   string
 }
 
 // TaskStore persists task records for the Lark gateway.
@@ -39,6 +40,7 @@ type taskUpdateOptions struct {
 	answerPreview *string
 	errorText     *string
 	tokensUsed    *int
+	mergeStatus   *string
 }
 
 // WithAnswerPreview sets the answer preview on status update.
@@ -56,12 +58,18 @@ func WithTokensUsed(tokens int) TaskUpdateOption {
 	return func(o *taskUpdateOptions) { o.tokensUsed = &tokens }
 }
 
+// WithMergeStatus sets the merge status on status update.
+func WithMergeStatus(status string) TaskUpdateOption {
+	return func(o *taskUpdateOptions) { o.mergeStatus = &status }
+}
+
 // TaskUpdateValues holds the resolved values from TaskUpdateOption functions.
 // Exported to allow external adapter implementations to read option values.
 type TaskUpdateValues struct {
 	AnswerPreview *string
 	ErrorText     *string
 	TokensUsed    *int
+	MergeStatus   *string
 }
 
 // ResolveTaskUpdateOptions applies all options and returns the resolved values.
@@ -74,5 +82,6 @@ func ResolveTaskUpdateOptions(opts []TaskUpdateOption) TaskUpdateValues {
 		AnswerPreview: o.answerPreview,
 		ErrorText:     o.errorText,
 		TokensUsed:    o.tokensUsed,
+		MergeStatus:   o.mergeStatus,
 	}
 }

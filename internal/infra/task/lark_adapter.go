@@ -16,6 +16,8 @@ type LarkAdapter struct {
 
 var _ lark.TaskStore = (*LarkAdapter)(nil)
 
+const larkMergeStatusMetaKey = "merge_status"
+
 // NewLarkAdapter wraps a unified task store to satisfy the Lark gateway's TaskStore port.
 func NewLarkAdapter(store taskdomain.Store) *LarkAdapter {
 	return &LarkAdapter{store: store}
@@ -69,6 +71,11 @@ func (a *LarkAdapter) UpdateStatus(ctx context.Context, taskID, status string, o
 	}
 	if vals.TokensUsed != nil {
 		transOpts = append(transOpts, taskdomain.WithTransitionTokens(*vals.TokensUsed))
+	}
+	if vals.MergeStatus != nil {
+		transOpts = append(transOpts, taskdomain.WithTransitionMeta(map[string]any{
+			larkMergeStatusMetaKey: *vals.MergeStatus,
+		}))
 	}
 
 	return a.store.SetStatus(ctx, taskID, taskdomain.Status(status), transOpts...)
@@ -186,6 +193,11 @@ func domainToLarkRecord(t *taskdomain.Task) lark.TaskRecord {
 		AnswerPreview: t.AnswerPreview,
 		Error:         t.Error,
 		TokensUsed:    t.TokensUsed,
+	}
+	if t.Metadata != nil {
+		if mergeStatus, ok := t.Metadata[larkMergeStatusMetaKey]; ok {
+			rec.MergeStatus = mergeStatus
+		}
 	}
 	if t.CompletedAt != nil {
 		rec.CompletedAt = *t.CompletedAt

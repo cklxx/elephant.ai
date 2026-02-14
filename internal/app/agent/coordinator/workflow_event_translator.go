@@ -181,6 +181,7 @@ func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *doma
 			"status":      d.Status,
 			"answer":      d.Answer,
 			"error":       d.ErrorStr,
+			"merge_status": d.MergeStatus,
 			"duration":    d.Duration.Milliseconds(),
 			"iterations":  d.Iterations,
 			"tokens_used": d.TokensUsed,
