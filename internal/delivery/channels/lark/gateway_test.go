@@ -2430,6 +2430,9 @@ func (s *stubTaskStore) UpdateStatus(_ context.Context, taskID, status string, o
 		if update.tokensUsed != nil {
 			s.tasks[i].TokensUsed = *update.tokensUsed
 		}
+		if update.mergeStatus != nil {
+			s.tasks[i].MergeStatus = *update.mergeStatus
+		}
 		return nil
 	}
 	return nil

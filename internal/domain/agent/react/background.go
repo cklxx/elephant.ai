@@ -44,6 +44,7 @@ type backgroundTask struct {
 	workspace        *agent.WorkspaceAllocation
 	fileScope        []string
 	config           map[string]string
+	mergeStatus      string
 }
 
 // BackgroundTaskManager manages background task lifecycle within a single run.
@@ -285,6 +286,7 @@ func (m *BackgroundTaskManager) Dispatch(
 		autonomyLevel:  autonomyLevel,
 		causationID:    req.CausationID,
 		status:         agent.BackgroundTaskStatusPending,
+		mergeStatus:    agent.MergeStatusNotMerged,
 		startedAt:      m.clock.Now(),
 		emitEvent:      sink.emitEvent,
 		baseEvent:      sink.baseEvent,
@@ -484,6 +486,7 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 		nStatus := string(bt.status)
 		nAnswer := ""
 		nTokens := 0
+		nMerge := bt.mergeStatus
 		if bt.result != nil {
 			nAnswer = bt.result.Answer
 			nTokens = bt.result.TokensUsed
@@ -493,7 +496,7 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 			nErr = bt.err.Error()
 		}
 		bt.mu.Unlock()
-		notifier.NotifyCompletion(ctx, bt.id, nStatus, nAnswer, nErr, nTokens)
+		notifier.NotifyCompletion(ctx, bt.id, nStatus, nAnswer, nErr, nMerge, nTokens)
 	}
 
 	m.signalCompletion(bt.id)
@@ -503,6 +506,9 @@ func (m *BackgroundTaskManager) tryAutoMerge(ctx context.Context, bt *background
 	bt.mu.Lock()
 	cfg := cloneStringMap(bt.config)
 	alloc := bt.workspace
+	if bt.mergeStatus == "" {
+		bt.mergeStatus = agent.MergeStatusNotMerged
+	}
 	bt.mu.Unlock()
 
 	if !strings.EqualFold(strings.TrimSpace(cfg["task_kind"]), "coding") {
@@ -512,26 +518,41 @@ func (m *BackgroundTaskManager) tryAutoMerge(ctx context.Context, bt *background
 		return nil
 	}
 	if !parseConfigBoolDefault(cfg["verify"], true) {
+		bt.mu.Lock()
+		bt.mergeStatus = agent.MergeStatusFailed
+		bt.mu.Unlock()
 		return fmt.Errorf("auto merge requires verify=true for coding tasks")
 	}
 	if alloc == nil || alloc.Mode == agent.WorkspaceModeShared {
 		return nil
 	}
 	if m.workspaceMgr == nil {
+		bt.mu.Lock()
+		bt.mergeStatus = agent.MergeStatusFailed
+		bt.mu.Unlock()
 		return fmt.Errorf("auto merge requested but workspace manager is not available")
 	}
 
 	strategy := parseMergeStrategy(cfg["merge_strategy"])
 	mergeResult, err := m.workspaceMgr.Merge(ctx, alloc, strategy)
 	if err != nil {
+		bt.mu.Lock()
+		bt.mergeStatus = agent.MergeStatusFailed
+		bt.mu.Unlock()
 		return fmt.Errorf("auto merge failed: %w", err)
 	}
 	if mergeResult != nil && !mergeResult.Success {
+		bt.mu.Lock()
+		bt.mergeStatus = agent.MergeStatusFailed
+		bt.mu.Unlock()
 		return fmt.Errorf("auto merge failed for branch %q", mergeResult.Branch)
 	}
 	if result != nil && mergeResult != nil && strings.TrimSpace(mergeResult.Branch) != "" {
 		result.Answer = strings.TrimSpace(result.Answer + "\n\n[Auto Merge] branch=" + mergeResult.Branch + " strategy=" + string(strategy))
 	}
+	bt.mu.Lock()
+	bt.mergeStatus = agent.MergeStatusMerged
+	bt.mu.Unlock()
 	return nil
 }
 
@@ -865,6 +886,7 @@ func (m *BackgroundTaskManager) emitCompletionEvent(ctx context.Context, bt *bac
 	status := bt.status
 	startedAt := bt.startedAt
 	completedAt := bt.completedAt
+	mergeStatus := bt.mergeStatus
 	answer := ""
 	iterations := 0
 	tokensUsed := 0
@@ -891,6 +913,7 @@ func (m *BackgroundTaskManager) emitCompletionEvent(ctx context.Context, bt *bac
 		bt.baseEvent(ctx),
 		bt.id, description, string(status), answer, errMsg, duration, iterations, tokensUsed,
 	)
+	completedEvent.Data.MergeStatus = mergeStatus
 
 	// 1. Normal chain (may fail if SerializingEventListener queue timed out).
 	bt.emitEvent(completedEvent)

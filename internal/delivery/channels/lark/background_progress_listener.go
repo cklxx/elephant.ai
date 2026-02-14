@@ -40,6 +40,7 @@ type bgTaskTracker struct {
 	status         string
 	progressMsgID  string
 	pendingSummary string
+	mergeStatus    string
 
 	interval time.Duration
 	window   time.Duration
@@ -383,8 +384,9 @@ func (l *backgroundProgressListener) onBackgroundCompleted(env *domain.WorkflowE
 	status := strings.TrimSpace(asString(env.Payload["status"]))
 	answer := asString(env.Payload["answer"])
 	errText := asString(env.Payload["error"])
+	mergeStatus := asString(env.Payload["merge_status"])
 	tokensUsed := asInt(env.Payload["tokens_used"])
-	l.handleCompletion(taskID, status, answer, errText, tokensUsed)
+	l.handleCompletion(taskID, status, answer, errText, mergeStatus, tokensUsed)
 }
 
 // onRawCompleted handles background task completed events delivered directly by
@@ -394,11 +396,11 @@ func (l *backgroundProgressListener) onRawCompleted(e *domain.Event) {
 	if e == nil {
 		return
 	}
-	l.handleCompletion(e.Data.TaskID, e.Data.Status, e.Data.Answer, e.Data.ErrorStr, e.Data.TokensUsed)
+	l.handleCompletion(e.Data.TaskID, e.Data.Status, e.Data.Answer, e.Data.ErrorStr, e.Data.MergeStatus, e.Data.TokensUsed)
 }
 
 // handleCompletion is the shared completion handler for both envelope and raw event paths.
-func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, errText string, tokensUsed int) {
+func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, errText, mergeStatus string, tokensUsed int) {
 	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
 		return
@@ -410,6 +412,7 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 	}
 
 	status = strings.TrimSpace(status)
+	mergeStatus = normalizeMergeStatus(mergeStatus)
 
 	t.mu.Lock()
 	if status != "" {
@@ -417,6 +420,7 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 	} else {
 		t.status = "completed"
 	}
+	t.mergeStatus = mergeStatus
 	// Stash result in pendingSummary so flush can format without racing payload.
 	if errText != "" {
 		t.pendingSummary = truncateForLark(errText, 1500)
@@ -438,6 +442,9 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 	}
 	if answer != "" {
 		updateOpts = append(updateOpts, WithAnswerPreview(truncateForLark(answer, 1500)))
+	}
+	if mergeStatus != "" {
+		updateOpts = append(updateOpts, WithMergeStatus(mergeStatus))
 	}
 	if tokensUsed > 0 {
 		updateOpts = append(updateOpts, WithTokensUsed(tokensUsed))
@@ -465,8 +472,10 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 	messageID := t.progressMsgID
 	status := t.status
 	startedAt := t.startedAt
+	taskID := t.taskID
 	description := t.description
 	pending := t.pendingSummary
+	mergeStatus := t.mergeStatus
 	last := t.lastProgress
 	t.mu.Unlock()
 
@@ -491,6 +500,7 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 		b.WriteString(pending)
 	case "completed":
 		b.WriteString("任务已完成\n")
+		l.writeCompletionMeta(&b, taskID, status, mergeStatus)
 		l.writeDescription(&b, description)
 		b.WriteString(fmt.Sprintf("⏱ 共耗时 %s\n", formatElapsed(elapsed)))
 		if strings.TrimSpace(pending) != "" {
@@ -499,6 +509,7 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 		}
 	case "failed":
 		b.WriteString("任务出错了\n")
+		l.writeCompletionMeta(&b, taskID, status, mergeStatus)
 		l.writeDescription(&b, description)
 		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
 		if strings.TrimSpace(pending) != "" {
@@ -507,6 +518,7 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 		}
 	case "cancelled":
 		b.WriteString("任务已取消\n")
+		l.writeCompletionMeta(&b, taskID, status, mergeStatus)
 		l.writeDescription(&b, description)
 		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
 	default:
@@ -546,6 +558,21 @@ func (l *backgroundProgressListener) writeDescription(b *strings.Builder, descri
 		b.WriteString("📋 ")
 		b.WriteString(truncateForLark(desc, 120))
 		b.WriteString("\n")
+	}
+}
+
+func (l *backgroundProgressListener) writeCompletionMeta(b *strings.Builder, taskID, status, mergeStatus string) {
+	taskID = strings.TrimSpace(taskID)
+	status = strings.TrimSpace(status)
+	mergeStatus = normalizeMergeStatus(mergeStatus)
+	if taskID != "" {
+		b.WriteString(fmt.Sprintf("task_id: %s\n", taskID))
+	}
+	if status != "" {
+		b.WriteString(fmt.Sprintf("status: %s\n", status))
+	}
+	if mergeStatus != "" {
+		b.WriteString(fmt.Sprintf("merge: %s\n", mergeStatus))
 	}
 }
 
@@ -667,6 +694,22 @@ func asStringSlice(v any) []string {
 	}
 }
 
+func normalizeMergeStatus(status string) string {
+	status = strings.TrimSpace(status)
+	switch strings.ToLower(status) {
+	case "":
+		return agent.MergeStatusNotMerged
+	case "merged", "merged/success":
+		return agent.MergeStatusMerged
+	case "merge_failed", "merge failed":
+		return agent.MergeStatusFailed
+	case "not_merged", "not merged":
+		return agent.MergeStatusNotMerged
+	default:
+		return status
+	}
+}
+
 func truncateForLark(s string, max int) string {
 	s = strings.TrimSpace(s)
 	runes := []rune(s)
@@ -768,7 +811,7 @@ func (l *backgroundProgressListener) checkTaskStoreCompletions() {
 		}
 		if rec.Status == "completed" || rec.Status == "failed" || rec.Status == "cancelled" {
 			l.logger.Info("Poller detected completed task %s (status=%s), delivering notification", taskID, rec.Status)
-			l.handleCompletion(taskID, rec.Status, rec.AnswerPreview, rec.Error, rec.TokensUsed)
+			l.handleCompletion(taskID, rec.Status, rec.AnswerPreview, rec.Error, rec.MergeStatus, rec.TokensUsed)
 		}
 	}
 }

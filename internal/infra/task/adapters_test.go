@@ -79,6 +79,16 @@ func (m *mockStore) SetStatus(_ context.Context, taskID string, status taskdomai
 	if p.TokensUsed != nil {
 		t.TokensUsed = *p.TokensUsed
 	}
+	if len(p.Metadata) > 0 {
+		if t.Metadata == nil {
+			t.Metadata = make(map[string]string)
+		}
+		for key, val := range p.Metadata {
+			if s, ok := val.(string); ok {
+				t.Metadata[key] = s
+			}
+		}
+	}
 	return nil
 }
 
@@ -516,6 +526,7 @@ func TestLarkAdapter_UpdateStatusWithOptions(t *testing.T) {
 	err := adapter.UpdateStatus(ctx, "lark-task-3", "completed",
 		lark.WithAnswerPreview("done!"),
 		lark.WithTokensUsed(2000),
+		lark.WithMergeStatus(agent.MergeStatusMerged),
 	)
 	if err != nil {
 		t.Fatalf("UpdateStatus() error = %v", err)
@@ -530,6 +541,9 @@ func TestLarkAdapter_UpdateStatusWithOptions(t *testing.T) {
 	}
 	if got.TokensUsed != 2000 {
 		t.Errorf("TokensUsed = %d, want %d", got.TokensUsed, 2000)
+	}
+	if got.MergeStatus != agent.MergeStatusMerged {
+		t.Errorf("MergeStatus = %q, want %q", got.MergeStatus, agent.MergeStatusMerged)
 	}
 }
 

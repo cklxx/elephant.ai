@@ -541,6 +541,9 @@ func TestTryAutoMerge_CodingSuccess(t *testing.T) {
 	if !strings.Contains(result.Answer, "[Auto Merge]") {
 		t.Fatalf("expected auto merge marker in answer, got %q", result.Answer)
 	}
+	if bt.mergeStatus != agent.MergeStatusMerged {
+		t.Fatalf("expected merge status %q, got %q", agent.MergeStatusMerged, bt.mergeStatus)
+	}
 }
 
 func TestTryAutoMerge_RequiresVerifyForCoding(t *testing.T) {
@@ -563,6 +566,9 @@ func TestTryAutoMerge_RequiresVerifyForCoding(t *testing.T) {
 	}
 	if ws.mergeCalls != 0 {
 		t.Fatalf("expected no merge calls, got %d", ws.mergeCalls)
+	}
+	if bt.mergeStatus != agent.MergeStatusFailed {
+		t.Fatalf("expected merge status %q, got %q", agent.MergeStatusFailed, bt.mergeStatus)
 	}
 }
 
@@ -703,11 +709,11 @@ func TestCompletionNotifierCalledOnCompletion(t *testing.T) {
 	var notifications []completionNotification
 
 	notifier := &mockCompletionNotifier{
-		onNotify: func(ctx context.Context, taskID, status, answer, errText string, tokensUsed int) {
+		onNotify: func(ctx context.Context, taskID, status, answer, errText, mergeStatus string, tokensUsed int) {
 			mu.Lock()
 			defer mu.Unlock()
 			notifications = append(notifications, completionNotification{
-				taskID: taskID, status: status, answer: answer, errText: errText, tokensUsed: tokensUsed,
+				taskID: taskID, status: status, answer: answer, errText: errText, mergeStatus: mergeStatus, tokensUsed: tokensUsed,
 			})
 		},
 	}
@@ -753,6 +759,9 @@ func TestCompletionNotifierCalledOnCompletion(t *testing.T) {
 	if n.answer != "notified-result" {
 		t.Errorf("unexpected answer: %q", n.answer)
 	}
+	if n.mergeStatus != agent.MergeStatusNotMerged {
+		t.Errorf("unexpected merge status: %q", n.mergeStatus)
+	}
 }
 
 // TestCompletionNotifierCalledOnFailure verifies that CompletionNotifier
@@ -762,11 +771,11 @@ func TestCompletionNotifierCalledOnFailure(t *testing.T) {
 	var notifications []completionNotification
 
 	notifier := &mockCompletionNotifier{
-		onNotify: func(ctx context.Context, taskID, status, answer, errText string, tokensUsed int) {
+		onNotify: func(ctx context.Context, taskID, status, answer, errText, mergeStatus string, tokensUsed int) {
 			mu.Lock()
 			defer mu.Unlock()
 			notifications = append(notifications, completionNotification{
-				taskID: taskID, status: status, answer: answer, errText: errText, tokensUsed: tokensUsed,
+				taskID: taskID, status: status, answer: answer, errText: errText, mergeStatus: mergeStatus, tokensUsed: tokensUsed,
 			})
 		},
 	}
@@ -808,6 +817,9 @@ func TestCompletionNotifierCalledOnFailure(t *testing.T) {
 	}
 	if n.errText != "task exploded" {
 		t.Errorf("unexpected error: %q", n.errText)
+	}
+	if n.mergeStatus != agent.MergeStatusNotMerged {
+		t.Errorf("unexpected merge status: %q", n.mergeStatus)
 	}
 }
 
@@ -897,16 +909,17 @@ type completionNotification struct {
 	status     string
 	answer     string
 	errText    string
+	mergeStatus string
 	tokensUsed int
 }
 
 type mockCompletionNotifier struct {
-	onNotify func(ctx context.Context, taskID, status, answer, errText string, tokensUsed int)
+	onNotify func(ctx context.Context, taskID, status, answer, errText, mergeStatus string, tokensUsed int)
 }
 
-func (m *mockCompletionNotifier) NotifyCompletion(ctx context.Context, taskID, status, answer, errText string, tokensUsed int) {
+func (m *mockCompletionNotifier) NotifyCompletion(ctx context.Context, taskID, status, answer, errText, mergeStatus string, tokensUsed int) {
 	if m.onNotify != nil {
-		m.onNotify(ctx, taskID, status, answer, errText, tokensUsed)
+		m.onNotify(ctx, taskID, status, answer, errText, mergeStatus, tokensUsed)
 	}
 }
 

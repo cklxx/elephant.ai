@@ -502,10 +502,12 @@ func TestWorkflowEventTranslator_EnvelopesBackgroundTaskEvents(t *testing.T) {
 		"bg-1", "desc", "prompt", "codex",
 	))
 
-	translator.OnEvent(domain.NewBackgroundTaskCompletedEvent(
+	completed := domain.NewBackgroundTaskCompletedEvent(
 		domain.NewBaseEvent(agent.LevelCore, "sess", "run", "parent", ts),
 		"bg-1", "desc", "completed", "answer", "", 1500*time.Millisecond, 2, 10,
-	))
+	)
+	completed.Data.MergeStatus = agent.MergeStatusMerged
+	translator.OnEvent(completed)
 
 	events := sink.snapshot()
 	if got := len(events); got != 2 {
@@ -535,6 +537,9 @@ func TestWorkflowEventTranslator_EnvelopesBackgroundTaskEvents(t *testing.T) {
 	}
 	if second.Payload["status"] != "completed" {
 		t.Fatalf("unexpected payload status: %#v", second.Payload["status"])
+	}
+	if second.Payload["merge_status"] != agent.MergeStatusMerged {
+		t.Fatalf("unexpected payload merge_status: %#v", second.Payload["merge_status"])
 	}
 }
 
