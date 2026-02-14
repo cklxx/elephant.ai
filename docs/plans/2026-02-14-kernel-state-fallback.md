@@ -24,4 +24,4 @@ Kernel state writes can fail under sandbox path restrictions (e.g., `~/.alex/ker
 - [x] Step 2: Add restricted-write detection + disable further writes.
 - [x] Step 3: Update fallback path + runtime/log notes.
 - [x] Step 4: Update/extend tests.
-- [ ] Step 5: Run lint + tests, review, commit, and merge.
+- [x] Step 5: Run lint + tests, review, commit, and merge.
