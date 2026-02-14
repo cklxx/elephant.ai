@@ -228,9 +228,9 @@ func TestWriteKernelStateFallback(t *testing.T) {
 		}
 	})
 
-	path, err := writeKernelStateFallback(content)
+	path, err := WriteKernelStateFallback(content)
 	if err != nil {
-		t.Fatalf("writeKernelStateFallback: %v", err)
+		t.Fatalf("WriteKernelStateFallback: %v", err)
 	}
 	if path != kernelStateFallbackPath {
 		t.Fatalf("expected path %s, got %s", kernelStateFallbackPath, path)
@@ -279,11 +279,29 @@ func TestRenderKernelRuntimeBlockWithHistory_IncludesFallbackPath(t *testing.T) 
 	}
 }
 
-func TestPersistSystemPromptSnapshot_SkipsWhenRestricted(t *testing.T) {
+func TestPersistSystemPromptSnapshot_WritesFallbackWhenRestricted(t *testing.T) {
 	exec := &mockExecutor{}
 	engine, _ := newTestEngine(t, exec)
 	engine.stateWriteRestricted.Store(true)
 	engine.SetSystemPromptProvider(func() string { return "kernel prompt v2" })
+
+	original, err := os.ReadFile(kernelStateFallbackPath)
+	originalExists := err == nil
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatalf("read existing fallback: %v", err)
+	}
+	if originalExists {
+		if err := os.Remove(kernelStateFallbackPath); err != nil {
+			t.Fatalf("remove existing fallback: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		if originalExists {
+			_ = os.WriteFile(kernelStateFallbackPath, original, 0o644)
+		} else {
+			_ = os.Remove(kernelStateFallbackPath)
+		}
+	})
 
 	engine.persistSystemPromptSnapshot()
 
@@ -291,6 +309,16 @@ func TestPersistSystemPromptSnapshot_SkipsWhenRestricted(t *testing.T) {
 		t.Fatalf("expected no system prompt snapshot write when restricted")
 	} else if !os.IsNotExist(err) {
 		t.Fatalf("stat system prompt: %v", err)
+	}
+	data, err := os.ReadFile(kernelStateFallbackPath)
+	if err != nil {
+		t.Fatalf("read fallback: %v", err)
+	}
+	if !strings.Contains(string(data), "SYSTEM_PROMPT.md fallback") {
+		t.Fatalf("expected fallback section, got %q", string(data))
+	}
+	if !strings.Contains(string(data), "kernel prompt v2") {
+		t.Fatalf("expected fallback prompt, got %q", string(data))
 	}
 }
 
