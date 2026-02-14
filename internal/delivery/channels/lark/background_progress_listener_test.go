@@ -175,6 +175,15 @@ func TestBackgroundProgressListener_CompletionUpdatesImmediatelyAndStops(t *test
 	if !strings.Contains(updates[0].Content, "done") {
 		t.Fatalf("expected completion content, got %q", updates[0].Content)
 	}
+	if !strings.Contains(updates[0].Content, "task_id: bg-1") {
+		t.Fatalf("expected task_id in completion content, got %q", updates[0].Content)
+	}
+	if !strings.Contains(updates[0].Content, "status: completed") {
+		t.Fatalf("expected status in completion content, got %q", updates[0].Content)
+	}
+	if !strings.Contains(updates[0].Content, "merge: not merged") {
+		t.Fatalf("expected merge status in completion content, got %q", updates[0].Content)
+	}
 
 	// Ensure no periodic updates fire after completion.
 	time.Sleep(100 * time.Millisecond)
@@ -464,6 +473,15 @@ func TestBgProgressListener_CancelledCtxDoesNotBreakAPICalls(t *testing.T) {
 	if !strings.Contains(lastUpdate.Content, "finished after cancel") {
 		t.Fatalf("expected completion content, got %q", lastUpdate.Content)
 	}
+	if !strings.Contains(lastUpdate.Content, "task_id: bg-1") {
+		t.Fatalf("expected task_id in completion content, got %q", lastUpdate.Content)
+	}
+	if !strings.Contains(lastUpdate.Content, "status: completed") {
+		t.Fatalf("expected status in completion content, got %q", lastUpdate.Content)
+	}
+	if !strings.Contains(lastUpdate.Content, "merge: not merged") {
+		t.Fatalf("expected merge status in completion content, got %q", lastUpdate.Content)
+	}
 }
 
 func TestBackgroundProgressListener_InputRequestUpdatesImmediately(t *testing.T) {
@@ -634,7 +652,8 @@ func TestCompletionPollerCatchesMissedEvents(t *testing.T) {
 	// Simulate CompletionNotifier writing directly to TaskStore (Batch 2),
 	// without any event reaching the listener.
 	_ = store.UpdateStatus(context.Background(), "bg-poll", "completed",
-		WithAnswerPreview("polled-answer"))
+		WithAnswerPreview("polled-answer"),
+		WithMergeStatus(agent.MergeStatusMerged))
 
 	// Wait for poller to detect the completed task.
 	deadline := time.Now().Add(2 * time.Second)
@@ -652,6 +671,19 @@ func TestCompletionPollerCatchesMissedEvents(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 done:
+	updates := recorder.CallsByMethod("UpdateMessage")
+	found := false
+	for _, u := range updates {
+		if strings.Contains(u.Content, "task_id: bg-poll") {
+			found = true
+			if !strings.Contains(u.Content, "merge: merged/success") {
+				t.Fatalf("expected merge status in poller completion, got %q", u.Content)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected poller completion update content to include task_id")
+	}
 
 	// Listener should auto-close after poller delivers completion.
 	deadline = time.Now().Add(1 * time.Second)
@@ -800,6 +832,9 @@ func (s *inMemoryTaskStore) UpdateStatus(_ context.Context, taskID, status strin
 	}
 	if o.tokensUsed != nil {
 		rec.TokensUsed = *o.tokensUsed
+	}
+	if o.mergeStatus != nil {
+		rec.MergeStatus = *o.mergeStatus
 	}
 	s.tasks[taskID] = rec
 	return nil
