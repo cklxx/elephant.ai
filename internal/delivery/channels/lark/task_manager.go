@@ -371,7 +371,9 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 	if backgroundEnabled {
 		replyTo := replyTarget(msg.messageID, msg.isGroup)
 		bgLn := newBackgroundProgressListener(execCtx, listener, g, msg.chatID, replyTo, g.logger, g.cfg.BackgroundProgressInterval, g.cfg.BackgroundProgressWindow)
-		cleanups = append(cleanups, bgLn.Close)
+		// Release keeps the listener alive for tracked background tasks so
+		// completion notifications can still be delivered after foreground return.
+		cleanups = append(cleanups, bgLn.Release)
 		listener = bgLn
 	}
 	// Input request listener bridges external agent permission/input requests to Lark.
