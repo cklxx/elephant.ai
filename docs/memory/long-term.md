@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-14 22:00
+Updated: 2026-02-14 23:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -68,6 +68,8 @@ Updated: 2026-02-14 22:00
 - Lark 普通会话链路里的 background progress listener 清理必须使用 `Release()`（不是 `Close()`），否则 foreground 返回后会丢失 coding task 完成通知。
 - Kernel 在共享订阅上使用分钟级连续调度会触发配额突发限流；默认应保持低频 cadence（`0,30 * * * *`）并以 `STATE.md` 的 `kernel_runtime`（含 `agent_summary`）作为执行观测真相源。
 - Kernel 无人值守周期必须“直接执行并落地结果”，禁止以“我的理解是…对吗/选项 A/B”结束；遇到 `~/.alex/kernel/default/*` 写入受限时应自动切换到工作区镜像路径（如 `./kernel_sync/...`）继续执行并记录。
+- Kernel 周期通知应附带主动性指标（actionable 比例、auto-recovered 次数、blocked 分类），让 Lark notice 侧可直接判断是否需要介入。
+- 7C 输出优化应采用低风险整形：允许空白规范化与重复压缩，但必须保留结构化 Markdown（列表/表格/代码块）语义。
 - 需要实时做 kernel 端到端验证时可直接执行 `go run ./cmd/alex-server kernel-once`，无需等待 cron。
 
 ## Items
