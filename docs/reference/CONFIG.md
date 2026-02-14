@@ -295,7 +295,6 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - `profile`：运行 profile。`quickstart` 允许可选能力降级，`standard` 为默认行为，`production` 启用严格校验。
 - `api_key`：API key（生产建议用 env 注入，不要提交到 git）。
 - `base_url`：OpenAI-compatible base URL。
-- `sandbox_base_url`：AIO Sandbox API 根地址（**不含 `/v1`**）。
 - `max_tokens`：请求 `max_tokens`。
 - `temperature`：采样温度；显式写入 `0` 会被保留。
 - `top_p`：Top-P 采样。
@@ -319,9 +318,8 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 ### 工具与运行体验
 
-- `tool_preset`：工具预设标签：`sandbox` / `safe` / `read-only` / `full` / `architect` / `lark-local`。当前实现中这些 preset 不做 allow/deny 裁剪（均为 unrestricted），主要用于策略标注与兼容；非法值会报错。
+- `tool_preset`：工具预设标签：`safe` / `read-only` / `full` / `architect` / `lark-local`。当前实现中这些 preset 不做 allow/deny 裁剪（均为 unrestricted），主要用于策略标注与兼容；非法值会报错。
 - `toolset`：内置工具实现选择。规范值为 `default` 和 `lark-local`；`local` 会归一化到 `lark-local`（本地文件/命令/浏览器实现）。
-- 运行时工具模式由入口决定：`alex` 为 CLI 模式、`alex-server` 为 Web 模式（Web 默认使用 sandbox 工具；如显式设置 `toolset: local` 则会启用本地实现）。
 - `agent_preset`：agent 预设（按项目内 presets 定义）。
 - `verbose`：verbose 模式（CLI/Server 的输出更详细）。
 - `session_dir`：会话存储目录（支持 `~` 与 `$ENV` 展开）。
@@ -463,7 +461,7 @@ runtime:
 
 - `acp_executor_addr`：ACP executor 地址（`http://host:port`）。默认先读 `ACP_PORT` / `.pids/acp.port`（配合 `ACP_HOST`），否则回退 `http://127.0.0.1:9000`。
 - `acp_executor_cwd`：executor 工作目录（绝对路径）。默认 `/workspace`；若 host 侧目录不存在会跳过 `chdir`。
-- `acp_executor_mode`：executor 工具模式（`sandbox` / `safe` / `read-only` / `full`）。默认 `sandbox`。
+- `acp_executor_mode`：executor 工具模式（`safe` / `read-only` / `full`）。默认 `host`。
 - `acp_executor_auto_approve`：自动批准 executor 的权限请求（布尔）。默认 `true`。
 - `acp_executor_max_cli_calls`：单次任务最大 CLI 调用次数。
 - `acp_executor_max_duration_seconds`：单次任务最大执行时长（秒）。
@@ -550,4 +548,4 @@ runtime:
 - **控制图片体积**：base64 会显著膨胀 payload，且不同 provider 有请求大小上限；优先使用可访问的远程 URL 或在入库/上传阶段做压缩/缩放。
 - **Ollama 仅接受 inline base64 图片**：如果你给 attachment 只填了远程 `uri`，需要确保同时提供 `data`（或 data URI）才能走 `messages[].images`。
 - **避免把大体积 data URI 打进日志**：图片常以 `data:image/...;base64,...` 出现；项目已在 LLM request log 里做脱敏，但仍建议避免在业务日志中打印原始附件。
-- **工具调用安全**：优先用 `toolset` 控制执行实现边界（sandbox vs local），并避免让模型“发明未声明工具”。项目已在基础层对 tool-call 解析做了 declared-tools 过滤；`tool_preset` 当前主要用于策略标注与兼容，而非 allow/deny 闸门。
+- **工具调用安全**：用 `toolset` 控制执行实现边界，并避免让模型"发明未声明工具"。项目已在基础层对 tool-call 解析做了 declared-tools 过滤；`tool_preset` 当前主要用于策略标注与兼容，而非 allow/deny 闸门。

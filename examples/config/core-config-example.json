@@ -4,6 +4,5 @@
   "llm_vision_model": "openai/gpt-4o-mini",
   "api_key": "your-openrouter-key-here",
   "base_url": "https://openrouter.ai/api/v1",
-  "sandbox_base_url": "http://localhost:18086",
   "tool_preset": "safe"
 }

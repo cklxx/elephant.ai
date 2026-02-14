@@ -188,7 +188,6 @@ func TestIsValidToolPreset(t *testing.T) {
 		{"full", "full", true},
 		{"read-only", "read-only", true},
 		{"safe", "safe", true},
-		{"sandbox", "sandbox", true},
 		{"architect", "architect", true},
 		{"lark-local", "lark-local", true},
 		{"invalid", "invalid", false},
@@ -355,34 +354,6 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "sandbox allows file_read",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetSandbox,
-			toolName:  "file_read",
-			wantAllow: true,
-		},
-		{
-			name:      "sandbox allows bash",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetSandbox,
-			toolName:  "bash",
-			wantAllow: true,
-		},
-		{
-			name:      "sandbox allows shell_exec",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetSandbox,
-			toolName:  "shell_exec",
-			wantAllow: true,
-		},
-		{
-			name:      "sandbox allows execute_code",
-			mode:      ToolModeCLI,
-			preset:    ToolPresetSandbox,
-			toolName:  "execute_code",
-			wantAllow: true,
-		},
-		{
 			name:      "lark-local allows read_file",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetLarkLocal,
@@ -521,8 +492,8 @@ func TestGetAllPresets(t *testing.T) {
 
 func TestGetAllToolPresets(t *testing.T) {
 	presets := GetAllToolPresets()
-	if len(presets) != 6 {
-		t.Errorf("GetAllToolPresets() returned %d presets, want 6", len(presets))
+	if len(presets) != 5 {
+		t.Errorf("GetAllToolPresets() returned %d presets, want 5", len(presets))
 	}
 
 	// Check all expected presets are present
@@ -530,7 +501,6 @@ func TestGetAllToolPresets(t *testing.T) {
 		ToolPresetFull:      false,
 		ToolPresetReadOnly:  false,
 		ToolPresetSafe:      false,
-		ToolPresetSandbox:   false,
 		ToolPresetArchitect: false,
 		ToolPresetLarkLocal: false,
 	}

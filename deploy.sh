@@ -48,7 +48,6 @@ source "${SCRIPT_DIR}/scripts/lib/common/logging.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/process.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/ports.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/http.sh"
-source "${SCRIPT_DIR}/scripts/lib/common/sandbox.sh"
 source "${SCRIPT_DIR}/scripts/lib/acp_host.sh"
 source "${SCRIPT_DIR}/scripts/lib/deploy_common.sh"
 

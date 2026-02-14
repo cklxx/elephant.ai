@@ -583,8 +583,7 @@ type HTTPLimitsOverrides struct {
 	WebFetchMaxResponseBytes    *int `json:"web_fetch_max_response_bytes,omitempty" yaml:"web_fetch_max_response_bytes,omitempty"`
 	WebSearchMaxResponseBytes   *int `json:"web_search_max_response_bytes,omitempty" yaml:"web_search_max_response_bytes,omitempty"`
 	MusicSearchMaxResponseBytes *int `json:"music_search_max_response_bytes,omitempty" yaml:"music_search_max_response_bytes,omitempty"`
-	ModelListMaxResponseBytes   *int `json:"model_list_max_response_bytes,omitempty" yaml:"model_list_max_response_bytes,omitempty"`
-	SandboxMaxResponseBytes     *int `json:"sandbox_max_response_bytes,omitempty" yaml:"sandbox_max_response_bytes,omitempty"`
+	ModelListMaxResponseBytes *int `json:"model_list_max_response_bytes,omitempty" yaml:"model_list_max_response_bytes,omitempty"`
 }
 
 // EnvLookup resolves the value for an environment variable.

@@ -25,7 +25,7 @@
 #   SANDBOX_BASE_URL=...        # Sandbox base URL override (default http://localhost:18086)
 #   SANDBOX_AUTO_INSTALL_CLI=1  # Auto-install Codex/Claude Code in sandbox (default 1)
 #   START_ACP_WITH_SANDBOX=1    # Start ACP serve alongside sandbox (default 1)
-#   ACP_RUN_MODE=sandbox|host   # Run ACP in sandbox container or on host (default sandbox)
+#   ACP_RUN_MODE=host           # ACP run mode (default host)
 #   ACP_PORT=0                  # ACP port override (0 = auto-pick)
 #   ACP_HOST=127.0.0.1           # ACP bind host (default 127.0.0.1)
 #   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop our backend/web conflicts (default 1)
@@ -57,7 +57,7 @@ SANDBOX_BASE_URL="${SANDBOX_BASE_URL:-http://localhost:${SANDBOX_PORT}}"
 SANDBOX_CONTAINER_NAME="${SANDBOX_CONTAINER_NAME:-alex-sandbox}"
 SANDBOX_AUTO_INSTALL_CLI="${SANDBOX_AUTO_INSTALL_CLI:-1}"
 START_ACP_WITH_SANDBOX="${START_ACP_WITH_SANDBOX:-1}"
-ACP_RUN_MODE="${ACP_RUN_MODE:-sandbox}"
+ACP_RUN_MODE="${ACP_RUN_MODE:-host}"
 ACP_PORT="${ACP_PORT:-0}"
 ACP_HOST="${ACP_HOST:-${DEFAULT_ACP_HOST}}"
 AUTO_STOP_CONFLICTING_PORTS="${AUTO_STOP_CONFLICTING_PORTS:-1}"

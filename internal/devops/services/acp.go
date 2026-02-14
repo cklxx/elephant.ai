@@ -19,15 +19,14 @@ import (
 type ACPConfig struct {
 	Port       int
 	Host       string
-	RunMode    string // "sandbox" or "host"
-	Enabled    bool   // START_ACP_WITH_SANDBOX
+	RunMode    string // "host" (only mode after sandbox removal)
+	Enabled    bool
 	ProjectDir string
 	LogDir     string
 	PIDDir     string
 }
 
-// ACPService manages the ACP daemon (host mode only).
-// Sandbox-mode ACP is managed by SandboxService.
+// ACPService manages the ACP daemon.
 type ACPService struct {
 	pm            *process.Manager
 	ports         *port.Allocator
@@ -67,12 +66,6 @@ func (s *ACPService) Health(_ context.Context) health.Result {
 
 func (s *ACPService) Start(ctx context.Context) error {
 	if !s.config.Enabled {
-		s.state.Store(devops.StateHealthy)
-		return nil
-	}
-
-	// ACP in sandbox mode is handled by SandboxService
-	if s.config.RunMode == "sandbox" {
 		s.state.Store(devops.StateHealthy)
 		return nil
 	}
@@ -130,7 +123,7 @@ func (s *ACPService) Start(ctx context.Context) error {
 }
 
 func (s *ACPService) Stop(ctx context.Context) error {
-	if !s.config.Enabled || s.config.RunMode == "sandbox" {
+	if !s.config.Enabled {
 		s.state.Store(devops.StateStopped)
 		return nil
 	}

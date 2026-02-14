@@ -57,8 +57,8 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.ACPExecutorCWD != "/workspace" {
 		t.Fatalf("expected default ACP executor cwd to be /workspace, got %q", cfg.ACPExecutorCWD)
 	}
-	if cfg.ACPExecutorMode != "sandbox" {
-		t.Fatalf("expected default ACP executor mode to be sandbox, got %q", cfg.ACPExecutorMode)
+	if cfg.ACPExecutorMode != "full" {
+		t.Fatalf("expected default ACP executor mode to be full, got %q", cfg.ACPExecutorMode)
 	}
 	if !cfg.ACPExecutorAutoApprove {
 		t.Fatalf("expected default ACP executor auto approve to be true")

@@ -25,7 +25,7 @@ type DevConfig struct {
 	// ACP
 	ACPPort    int    `env:"ACP_PORT" yaml:"acp_port" default:"0"`
 	ACPHost    string `env:"ACP_HOST" yaml:"acp_host" default:"127.0.0.1"`
-	ACPRunMode string `env:"ACP_RUN_MODE" yaml:"acp_run_mode" default:"sandbox"`
+	ACPRunMode string `env:"ACP_RUN_MODE" yaml:"acp_run_mode" default:"host"`
 
 	// Auto-management
 	AutoStopConflictingPorts bool   `env:"AUTO_STOP_CONFLICTING_PORTS" yaml:"auto_stop_conflicting_ports" default:"true"`

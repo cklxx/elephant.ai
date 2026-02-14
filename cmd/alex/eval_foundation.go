@@ -17,7 +17,7 @@ func (c *CLI) runFoundationEvaluation(args []string) error {
 
 	outputDir := fs.String("output", "./evaluation_results/foundation", "Directory to write foundation evaluation outputs")
 	mode := fs.String("mode", "web", "Tool mode: web|cli")
-	preset := fs.String("preset", "full", "Tool preset (mode-aware, e.g. full/read-only/safe/sandbox/architect/lark-local)")
+	preset := fs.String("preset", "full", "Tool preset (mode-aware, e.g. full/read-only/safe/architect/lark-local)")
 	toolset := fs.String("toolset", "default", "Toolset to register: default|lark-local")
 	casesPath := fs.String("cases", "evaluation/agent_eval/datasets/foundation_eval_cases.yaml", "Path to foundation implicit-intent scenario set (YAML)")
 	topK := fs.Int("top-k", 3, "Top-K cutoff for implicit discoverability pass/fail")

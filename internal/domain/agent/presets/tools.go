@@ -22,7 +22,6 @@ const (
 	ToolPresetFull      ToolPreset = "full"
 	ToolPresetReadOnly  ToolPreset = "read-only"
 	ToolPresetSafe      ToolPreset = "safe"
-	ToolPresetSandbox   ToolPreset = "sandbox"
 	ToolPresetArchitect ToolPreset = "architect"
 	ToolPresetLarkLocal ToolPreset = "lark-local"
 )
@@ -63,7 +62,7 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 				"Architect Access",
 				"Unrestricted tool access for architect preset in web mode",
 			), nil
-		case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetSandbox:
+		case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe:
 			return unrestrictedToolConfig(
 				"Web Mode",
 				"Unrestricted tool access for web mode",
@@ -94,11 +93,6 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 		case ToolPresetSafe:
 			return unrestrictedToolConfig(
 				"Safe Mode",
-				"All tools available - preset label retained for compatibility",
-			), nil
-		case ToolPresetSandbox:
-			return unrestrictedToolConfig(
-				"Sandbox Access",
 				"All tools available - preset label retained for compatibility",
 			), nil
 		case ToolPresetArchitect:
@@ -200,7 +194,6 @@ func GetAllToolPresets() []ToolPreset {
 		ToolPresetFull,
 		ToolPresetReadOnly,
 		ToolPresetSafe,
-		ToolPresetSandbox,
 		ToolPresetArchitect,
 		ToolPresetLarkLocal,
 	}
@@ -209,7 +202,7 @@ func GetAllToolPresets() []ToolPreset {
 // IsValidToolPreset checks if a tool preset is valid
 func IsValidToolPreset(preset string) bool {
 	switch ToolPreset(preset) {
-	case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetSandbox, ToolPresetArchitect, ToolPresetLarkLocal:
+	case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetArchitect, ToolPresetLarkLocal:
 		return true
 	default:
 		return false

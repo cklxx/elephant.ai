@@ -28,7 +28,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		BaseURL:                    DefaultLLMBaseURL,
 		ACPExecutorAddr:            defaultACPExecutorAddr(options.envLookup),
 		ACPExecutorCWD:             defaultACPExecutorCWD(),
-		ACPExecutorMode:            "sandbox",
+		ACPExecutorMode:            "full",
 		ACPExecutorAutoApprove:     true,
 		ACPExecutorMaxCLICalls:     12,
 		ACPExecutorMaxDuration:     900,
