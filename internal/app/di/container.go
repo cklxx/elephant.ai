@@ -25,7 +25,6 @@ import (
 	"alex/internal/shared/async"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // LarkGateway is the minimal gateway surface needed outside delivery/channel.
@@ -56,9 +55,8 @@ type Container struct {
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
 	mcpInitCancel    context.CancelFunc
-	SessionDB        *pgxpool.Pool
-	TaskStore        taskdomain.Store // Unified durable task store (nil if SessionDB is nil)
-	KernelEngine     KernelEngine     // nil if kernel disabled or no DB
+	TaskStore    taskdomain.Store // Unified durable task store (nil when unavailable)
+	KernelEngine KernelEngine    // nil if kernel disabled
 	LarkGateway      LarkGateway
 	LarkOAuth        *larkoauth.Service
 
@@ -73,15 +71,6 @@ type Container struct {
 	mcpMu        sync.Mutex
 }
 
-const (
-	defaultSessionPoolMaxConns          = 25
-	defaultSessionPoolMinConns          = 5
-	defaultSessionPoolMaxConnLifetime   = 1 * time.Hour
-	defaultSessionPoolMaxConnIdleTime   = 30 * time.Minute
-	defaultSessionPoolHealthCheckPeriod = 1 * time.Minute
-	defaultSessionPoolConnectTimeout    = 5 * time.Second
-	defaultSessionStatementCache        = 256
-)
 
 // Config holds the dependency injection configuration
 type Config struct {
@@ -94,7 +83,6 @@ type Config struct {
 	APIKey                     string
 	ArkAPIKey                  string
 	BaseURL                    string
-	SandboxBaseURL             string
 	ACPExecutorAddr            string
 	ACPExecutorCWD             string
 	ACPExecutorMode            string
@@ -136,23 +124,12 @@ type Config struct {
 	EnvironmentSummary string
 
 	// Storage Configuration
-	SessionDir                   string // Directory for session storage (default: ~/.alex/sessions)
-	CostDir                      string // Directory for cost tracking (default: ~/.alex/costs)
-	MemoryDir                    string // Directory for file-based memory storage (default: ~/.alex/memory)
-	SessionStaleAfter            time.Duration
-	SessionDatabaseURL           string // Optional database URL for session persistence
-	SessionPoolMaxConns          int
-	SessionPoolMinConns          int
-	SessionPoolMaxConnLifetime   time.Duration
-	SessionPoolMaxConnIdleTime   time.Duration
-	SessionPoolHealthCheckPeriod time.Duration
-	SessionPoolConnectTimeout    time.Duration
-	MaxSessionMessages           *int // Maximum messages to retain per session (default: 1000)
-	ToolPolicy                   toolspolicy.ToolPolicyConfig
-	BrowserConfig                toolregistry.BrowserConfig
-
-	// RequireSessionDatabase enforces Postgres-backed session persistence when true.
-	RequireSessionDatabase bool
+	SessionDir        string // Directory for session storage (default: ~/.alex/sessions)
+	CostDir           string // Directory for cost tracking (default: ~/.alex/costs)
+	MemoryDir         string // Directory for file-based memory storage (default: ~/.alex/memory)
+	SessionStaleAfter time.Duration
+	ToolPolicy        toolspolicy.ToolPolicyConfig
+	BrowserConfig     toolregistry.BrowserConfig
 
 	// Feature Flags
 	EnableMCP bool // Enable MCP tool registration (requires external dependencies)
@@ -233,11 +210,6 @@ func (c *Container) Shutdown() error {
 
 	if c.toolRegistry != nil {
 		c.toolRegistry.Close()
-	}
-
-	if c.SessionDB != nil {
-		c.SessionDB.Close()
-		c.SessionDB = nil
 	}
 
 	logger.Info("Container shutdown complete")

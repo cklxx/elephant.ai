@@ -20,7 +20,6 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		APIKey:                     runtime.APIKey,
 		ArkAPIKey:                  runtime.ArkAPIKey,
 		BaseURL:                    runtime.BaseURL,
-		SandboxBaseURL:             runtime.SandboxBaseURL,
 		ACPExecutorAddr:            runtime.ACPExecutorAddr,
 		ACPExecutorCWD:             runtime.ACPExecutorCWD,
 		ACPExecutorMode:            runtime.ACPExecutorMode,

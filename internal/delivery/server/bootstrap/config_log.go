@@ -42,13 +42,6 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 		logger.Debug("API Key: (not set; source=%s)", config.RuntimeMeta.Source("api_key"))
 	}
 
-	sessionDBURL := strings.TrimSpace(config.Session.DatabaseURL)
-	if sessionDBURL != "" {
-		logger.Debug("Session DB: (set; source=session.database_url)")
-	} else {
-		logger.Debug("Session DB: (not set)")
-	}
-
 	logger.Debug("Max Tokens: %d (source=%s)", runtimeCfg.MaxTokens, config.RuntimeMeta.Source("max_tokens"))
 	logger.Debug("Max Iterations: %d (source=%s)", runtimeCfg.MaxIterations, config.RuntimeMeta.Source("max_iterations"))
 	logger.Debug("Temperature: %.2f (provided=%t; source=%s)", runtimeCfg.Temperature, runtimeCfg.TemperatureProvided, config.RuntimeMeta.Source("temperature"))

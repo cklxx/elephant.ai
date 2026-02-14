@@ -29,7 +29,6 @@ import (
 	"alex/internal/shared/logging"
 	"alex/internal/shared/markdown"
 	"alex/internal/shared/parser"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFactory portsllm.LLMClientFactory) *hooks.Registry {
@@ -71,16 +70,15 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 
 func (b *containerBuilder) buildToolRegistry(_ *llm.Factory, memoryEngine memory.Engine, slaCollector *toolspolicy.SLACollector) (*toolregistry.Registry, error) {
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
-		Profile:        b.config.Profile,
-		TavilyAPIKey:   b.config.TavilyAPIKey,
-		ArkAPIKey:      b.config.ArkAPIKey,
-		SandboxBaseURL: b.config.SandboxBaseURL,
-		MemoryEngine:   memoryEngine,
-		HTTPLimits:     b.config.HTTPLimits,
-		ToolPolicy:     toolspolicy.NewToolPolicy(b.config.ToolPolicy),
-		SLACollector:   slaCollector,
-		Toolset:        b.config.Toolset,
-		BrowserConfig:  b.config.BrowserConfig,
+		Profile:       b.config.Profile,
+		TavilyAPIKey:  b.config.TavilyAPIKey,
+		ArkAPIKey:     b.config.ArkAPIKey,
+		MemoryEngine:  memoryEngine,
+		HTTPLimits:    b.config.HTTPLimits,
+		ToolPolicy:    toolspolicy.NewToolPolicy(b.config.ToolPolicy),
+		SLACollector:  slaCollector,
+		Toolset:       b.config.Toolset,
+		BrowserConfig: b.config.BrowserConfig,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
@@ -221,7 +219,7 @@ func memoryGateFunc(enabled bool) func(context.Context) bool {
 }
 
 // buildKernelEngine creates the kernel agent loop engine from config.
-func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *agentcoordinator.AgentCoordinator) (*kernelagent.Engine, error) {
+func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.AgentCoordinator) (*kernelagent.Engine, error) {
 	cfg := b.config.Proactive.Kernel
 
 	// Validate cron schedule at build time (fail fast).
@@ -230,7 +228,8 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 	}
 
 	leaseDuration := time.Duration(cfg.LeaseSeconds) * time.Second
-	kernelStore := kernelinfra.NewPostgresStore(pool, leaseDuration)
+	kernelStoreDir := resolveStorageDir("", "~/.alex/kernel")
+	kernelStore := kernelinfra.NewFileStore(kernelStoreDir, leaseDuration)
 	if err := kernelStore.EnsureSchema(context.Background()); err != nil {
 		return nil, fmt.Errorf("kernel dispatch schema: %w", err)
 	}

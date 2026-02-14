@@ -22,24 +22,10 @@ type DevConfig struct {
 	WebPort int    `env:"WEB_PORT" yaml:"web_port" default:"3000"`
 	WebDir  string `yaml:"web_dir" default:"./web"`
 
-	// Sandbox
-	SandboxPort           int    `env:"SANDBOX_PORT" yaml:"sandbox_port" default:"18086"`
-	SandboxImage          string `env:"SANDBOX_IMAGE" yaml:"sandbox_image" default:"ghcr.io/agent-infra/sandbox:latest"`
-	SandboxContainer      string `env:"SANDBOX_CONTAINER_NAME" yaml:"sandbox_container" default:"alex-sandbox"`
-	SandboxBaseURL        string `env:"SANDBOX_BASE_URL" yaml:"sandbox_base_url"`
-	SandboxAutoInstallCLI bool   `env:"SANDBOX_AUTO_INSTALL_CLI" yaml:"sandbox_auto_install_cli" default:"true"`
-	SandboxConfigPath     string `yaml:"sandbox_config_path" default:"/root/.alex/config.yaml"`
-
 	// ACP
-	ACPPort             int    `env:"ACP_PORT" yaml:"acp_port" default:"0"`
-	ACPHost             string `env:"ACP_HOST" yaml:"acp_host" default:"127.0.0.1"`
-	ACPRunMode          string `env:"ACP_RUN_MODE" yaml:"acp_run_mode" default:"sandbox"`
-	StartACPWithSandbox bool   `env:"START_ACP_WITH_SANDBOX" yaml:"start_acp_with_sandbox" default:"true"`
-
-	// Auth DB
-	AuthDatabaseURL string `env:"AUTH_DATABASE_URL" yaml:"auth_database_url"`
-	AuthJWTSecret   string `env:"AUTH_JWT_SECRET" yaml:"auth_jwt_secret" default:"dev-secret-change-me"`
-	SkipLocalAuthDB bool   `env:"SKIP_LOCAL_AUTH_DB" yaml:"skip_local_auth_db"`
+	ACPPort    int    `env:"ACP_PORT" yaml:"acp_port" default:"0"`
+	ACPHost    string `env:"ACP_HOST" yaml:"acp_host" default:"127.0.0.1"`
+	ACPRunMode string `env:"ACP_RUN_MODE" yaml:"acp_run_mode" default:"sandbox"`
 
 	// Auto-management
 	AutoStopConflictingPorts bool   `env:"AUTO_STOP_CONFLICTING_PORTS" yaml:"auto_stop_conflicting_ports" default:"true"`
@@ -96,10 +82,6 @@ func LoadDevConfig(configPath string) (*DevConfig, error) {
 
 	if strings.TrimSpace(cfg.PIDDir) == ".pids" {
 		cfg.PIDDir = defaultSharedPIDDir(configPath, cfg.ProjectDir)
-	}
-
-	if cfg.SandboxBaseURL == "" {
-		cfg.SandboxBaseURL = fmt.Sprintf("http://localhost:%d", cfg.SandboxPort)
 	}
 
 	cfg.PIDDir = cfg.resolvePath(cfg.PIDDir)

@@ -10,6 +10,30 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 )
 
+type stubSubtaskWrapper struct {
+	inner agent.AgentEvent
+	meta  agent.SubtaskMetadata
+	level agent.AgentLevel
+}
+
+func (w *stubSubtaskWrapper) EventType() string            { return w.inner.EventType() }
+func (w *stubSubtaskWrapper) Timestamp() time.Time         { return w.inner.Timestamp() }
+func (w *stubSubtaskWrapper) GetSessionID() string         { return w.inner.GetSessionID() }
+func (w *stubSubtaskWrapper) GetRunID() string             { return w.inner.GetRunID() }
+func (w *stubSubtaskWrapper) GetParentRunID() string       { return w.inner.GetParentRunID() }
+func (w *stubSubtaskWrapper) GetCorrelationID() string     { return w.inner.GetCorrelationID() }
+func (w *stubSubtaskWrapper) GetCausationID() string       { return w.inner.GetCausationID() }
+func (w *stubSubtaskWrapper) GetEventID() string           { return w.inner.GetEventID() }
+func (w *stubSubtaskWrapper) GetSeq() uint64               { return w.inner.GetSeq() }
+func (w *stubSubtaskWrapper) SubtaskDetails() agent.SubtaskMetadata { return w.meta }
+func (w *stubSubtaskWrapper) WrappedEvent() agent.AgentEvent        { return w.inner }
+func (w *stubSubtaskWrapper) GetAgentLevel() agent.AgentLevel {
+	if w.level != "" {
+		return w.level
+	}
+	return agent.LevelSubagent
+}
+
 type capturingHistoryStore struct {
 	mu   sync.Mutex
 	last agent.AgentEvent

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	appconfig "alex/internal/app/agent/config"
 	agentcoordinator "alex/internal/app/agent/coordinator"
@@ -13,7 +12,6 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	react "alex/internal/domain/agent/react"
-	taskdomain "alex/internal/domain/task"
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
 	"alex/internal/infra/mcp"
@@ -23,7 +21,6 @@ import (
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/parser"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type containerBuilder struct {
@@ -37,30 +34,6 @@ type sessionResources struct {
 	sessionStore agentstorage.SessionStore
 	stateStore   sessionstate.Store
 	historyStore sessionstate.Store
-	sessionDB    *pgxpool.Pool
-	taskStore    taskdomain.Store // unified task store (nil if Postgres unavailable)
-}
-
-type sessionPoolOptions struct {
-	maxConns       int
-	minConns       int
-	maxLifetime    time.Duration
-	maxIdle        time.Duration
-	healthCheck    time.Duration
-	connectTimeout time.Duration
-}
-
-type postgresInitError struct {
-	step string
-	err  error
-}
-
-func (e postgresInitError) Error() string {
-	return fmt.Sprintf("failed to %s: %v", e.step, e.err)
-}
-
-func (e postgresInitError) Unwrap() error {
-	return e.err
 }
 
 // BuildContainer builds the dependency injection container with the given configuration.
@@ -208,8 +181,6 @@ func (b *containerBuilder) Build() (*Container, error) {
 		CheckpointStore:  checkpointStore,
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,
-		SessionDB:        resources.sessionDB,
-		TaskStore:        resources.taskStore,
 		config:           b.config,
 		toolRegistry:     toolRegistry,
 		llmFactory:       llmFactory,
@@ -219,9 +190,9 @@ func (b *containerBuilder) Build() (*Container, error) {
 		container.Drainables = append(container.Drainables, drainable)
 	}
 
-	// Build kernel engine if enabled and Postgres is available.
-	if resources.sessionDB != nil && b.config.Proactive.Kernel.Enabled {
-		kernelEngine, err := b.buildKernelEngine(resources.sessionDB, coordinator)
+	// Build kernel engine if enabled.
+	if b.config.Proactive.Kernel.Enabled {
+		kernelEngine, err := b.buildKernelEngine(coordinator)
 		if err != nil {
 			b.logger.Warn("Kernel engine init failed: %v (kernel disabled)", err)
 		} else {

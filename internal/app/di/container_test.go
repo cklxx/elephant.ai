@@ -3,13 +3,9 @@ package di
 import (
 	"os"
 	"testing"
-	"time"
 
 	codinginfra "alex/internal/infra/coding"
-	"alex/internal/infra/session/postgresstore"
-	sessionstate "alex/internal/infra/session/state_store"
 	runtimeconfig "alex/internal/shared/config"
-	"alex/internal/shared/testutil"
 )
 
 func TestResolveStorageDir(t *testing.T) {
@@ -197,58 +193,6 @@ func TestApplyDetectedExternalAgents_RespectsCustomBinaryPath(t *testing.T) {
 	}
 }
 
-func TestResolveSessionPoolOptionsDefaults(t *testing.T) {
-	options := resolveSessionPoolOptions(Config{})
-	if options.maxConns != defaultSessionPoolMaxConns {
-		t.Fatalf("maxConns = %d, want %d", options.maxConns, defaultSessionPoolMaxConns)
-	}
-	if options.minConns != defaultSessionPoolMinConns {
-		t.Fatalf("minConns = %d, want %d", options.minConns, defaultSessionPoolMinConns)
-	}
-	if options.maxLifetime != defaultSessionPoolMaxConnLifetime {
-		t.Fatalf("maxLifetime = %s, want %s", options.maxLifetime, defaultSessionPoolMaxConnLifetime)
-	}
-	if options.maxIdle != defaultSessionPoolMaxConnIdleTime {
-		t.Fatalf("maxIdle = %s, want %s", options.maxIdle, defaultSessionPoolMaxConnIdleTime)
-	}
-	if options.healthCheck != defaultSessionPoolHealthCheckPeriod {
-		t.Fatalf("healthCheck = %s, want %s", options.healthCheck, defaultSessionPoolHealthCheckPeriod)
-	}
-	if options.connectTimeout != defaultSessionPoolConnectTimeout {
-		t.Fatalf("connectTimeout = %s, want %s", options.connectTimeout, defaultSessionPoolConnectTimeout)
-	}
-}
-
-func TestResolveSessionPoolOptionsOverrides(t *testing.T) {
-	config := Config{
-		SessionPoolMaxConns:          42,
-		SessionPoolMinConns:          7,
-		SessionPoolMaxConnLifetime:   3 * time.Hour,
-		SessionPoolMaxConnIdleTime:   12 * time.Minute,
-		SessionPoolHealthCheckPeriod: 2 * time.Minute,
-		SessionPoolConnectTimeout:    8 * time.Second,
-	}
-	options := resolveSessionPoolOptions(config)
-	if options.maxConns != config.SessionPoolMaxConns {
-		t.Fatalf("maxConns = %d, want %d", options.maxConns, config.SessionPoolMaxConns)
-	}
-	if options.minConns != config.SessionPoolMinConns {
-		t.Fatalf("minConns = %d, want %d", options.minConns, config.SessionPoolMinConns)
-	}
-	if options.maxLifetime != config.SessionPoolMaxConnLifetime {
-		t.Fatalf("maxLifetime = %s, want %s", options.maxLifetime, config.SessionPoolMaxConnLifetime)
-	}
-	if options.maxIdle != config.SessionPoolMaxConnIdleTime {
-		t.Fatalf("maxIdle = %s, want %s", options.maxIdle, config.SessionPoolMaxConnIdleTime)
-	}
-	if options.healthCheck != config.SessionPoolHealthCheckPeriod {
-		t.Fatalf("healthCheck = %s, want %s", options.healthCheck, config.SessionPoolHealthCheckPeriod)
-	}
-	if options.connectTimeout != config.SessionPoolConnectTimeout {
-		t.Fatalf("connectTimeout = %s, want %s", options.connectTimeout, config.SessionPoolConnectTimeout)
-	}
-}
-
 func TestBuildContainer(t *testing.T) {
 	// This is an integration test to verify the container can be built
 	t.Run("builds successfully with valid config", func(t *testing.T) {
@@ -357,81 +301,6 @@ func TestContainer_Lifecycle(t *testing.T) {
 			t.Errorf("Second Shutdown() error = %v", err)
 		}
 	})
-}
-
-func TestBuildContainer_RequireSessionDatabase(t *testing.T) {
-	t.Run("fails when session database is required but missing", func(t *testing.T) {
-		config := Config{
-			LLMProvider:            "mock",
-			LLMModel:               "test",
-			MaxTokens:              100000,
-			MaxIterations:          20,
-			SessionDir:             "/tmp/alex-test-require-db-sessions",
-			CostDir:                "/tmp/alex-test-require-db-costs",
-			EnableMCP:              false,
-			RequireSessionDatabase: true,
-			SessionDatabaseURL:     "",
-		}
-
-		if _, err := BuildContainer(config); err == nil {
-			t.Fatal("BuildContainer() should fail when session database is required but missing")
-		}
-	})
-
-	t.Run("fails when session database URL is invalid", func(t *testing.T) {
-		config := Config{
-			LLMProvider:            "mock",
-			LLMModel:               "test",
-			MaxTokens:              100000,
-			MaxIterations:          20,
-			SessionDir:             "/tmp/alex-test-invalid-db-sessions",
-			CostDir:                "/tmp/alex-test-invalid-db-costs",
-			EnableMCP:              false,
-			RequireSessionDatabase: true,
-			SessionDatabaseURL:     "not-a-database-url",
-		}
-
-		if _, err := BuildContainer(config); err == nil {
-			t.Fatal("BuildContainer() should fail when session database URL is invalid")
-		}
-	})
-}
-
-func TestBuildContainer_UsesPostgresStores(t *testing.T) {
-	_, dbURL, cleanup := testutil.NewPostgresTestPool(t)
-	defer cleanup()
-
-	config := Config{
-		LLMProvider:            "mock",
-		LLMModel:               "test",
-		MaxTokens:              100000,
-		MaxIterations:          20,
-		SessionDir:             "/tmp/alex-test-postgres-sessions",
-		CostDir:                "/tmp/alex-test-postgres-costs",
-		EnableMCP:              false,
-		RequireSessionDatabase: true,
-		SessionDatabaseURL:     dbURL,
-	}
-
-	container, err := BuildContainer(config)
-	if err != nil {
-		t.Fatalf("BuildContainer() error = %v", err)
-	}
-	defer func() { _ = container.Shutdown() }()
-
-	if container.SessionDB == nil {
-		t.Fatal("expected session DB to be initialized")
-	}
-
-	if _, ok := container.SessionStore.(*postgresstore.Store); !ok {
-		t.Fatalf("expected Postgres session store, got %T", container.SessionStore)
-	}
-	if _, ok := container.StateStore.(*sessionstate.PostgresStore); !ok {
-		t.Fatalf("expected Postgres state store, got %T", container.StateStore)
-	}
-	if _, ok := container.HistoryStore.(*sessionstate.PostgresStore); !ok {
-		t.Fatalf("expected Postgres history store, got %T", container.HistoryStore)
-	}
 }
 
 func TestMCPInitializationTracker(t *testing.T) {

@@ -19,7 +19,6 @@ import (
 	"alex/internal/domain/agent/types"
 	"alex/internal/domain/workflow"
 	"alex/internal/infra/attachments"
-	"alex/internal/shared/testutil"
 )
 
 // sseResponseRecorder captures streamed SSE payloads without buffering or flushing semantics.
@@ -935,64 +934,6 @@ func TestSSEHandlerStreamsSubagentToolStartAndComplete(t *testing.T) {
 		if toolPayload["tool_name"] != "subagent" {
 			t.Fatalf("expected tool_name subagent, got %v", toolPayload["tool_name"])
 		}
-	}
-}
-
-func TestSSEHandler_ReplaysPostgresHistory(t *testing.T) {
-	pool, _, cleanup := testutil.NewPostgresTestPool(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	historyStore := serverapp.NewPostgresEventHistoryStore(pool)
-	if err := historyStore.EnsureSchema(ctx); err != nil {
-		t.Fatalf("ensure history schema: %v", err)
-	}
-
-	sessionID := "session-replay-postgres"
-	event := domain.NewInputReceivedEvent(
-		agent.LevelCore,
-		sessionID,
-		"task-1",
-		"",
-		"hello",
-		nil,
-		time.Now(),
-	)
-	writer := serverapp.NewEventBroadcaster(serverapp.WithEventHistoryStore(historyStore))
-	writer.OnEvent(event)
-
-	reader := serverapp.NewEventBroadcaster(serverapp.WithEventHistoryStore(historyStore))
-	handler := NewSSEHandler(reader)
-
-	reqCtx, cancel := context.WithCancel(context.Background())
-	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id="+sessionID+"&replay=session", nil).WithContext(reqCtx)
-	rec := newSSERecorder()
-
-	done := make(chan struct{})
-	go func() {
-		handler.HandleSSEStream(rec, req)
-		close(done)
-	}()
-
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("SSE handler did not terminate after context cancellation")
-	}
-
-	events := parseSSEStream(t, rec.BodyString())
-	found := false
-	for _, evt := range events {
-		if evt.event == event.EventType() {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected replayed event %q, got %#v", event.EventType(), events)
 	}
 }
 

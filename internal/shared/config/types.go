@@ -54,7 +54,6 @@ type RuntimeConfig struct {
 	APIKey                     string                       `json:"api_key" yaml:"api_key"`
 	ArkAPIKey                  string                       `json:"ark_api_key" yaml:"ark_api_key"`
 	BaseURL                    string                       `json:"base_url" yaml:"base_url"`
-	SandboxBaseURL             string                       `json:"sandbox_base_url" yaml:"sandbox_base_url"`
 	ACPExecutorAddr            string                       `json:"acp_executor_addr" yaml:"acp_executor_addr"`
 	ACPExecutorCWD             string                       `json:"acp_executor_cwd" yaml:"acp_executor_cwd"`
 	ACPExecutorMode            string                       `json:"acp_executor_mode" yaml:"acp_executor_mode"`
@@ -121,7 +120,6 @@ type HTTPLimitsConfig struct {
 	WebSearchMaxResponseBytes   int `json:"web_search_max_response_bytes" yaml:"web_search_max_response_bytes"`
 	MusicSearchMaxResponseBytes int `json:"music_search_max_response_bytes" yaml:"music_search_max_response_bytes"`
 	ModelListMaxResponseBytes   int `json:"model_list_max_response_bytes" yaml:"model_list_max_response_bytes"`
-	SandboxMaxResponseBytes     int `json:"sandbox_max_response_bytes" yaml:"sandbox_max_response_bytes"`
 }
 
 // ExternalAgentsConfig configures external agent executors.
@@ -203,7 +201,6 @@ func DefaultHTTPLimitsConfig() HTTPLimitsConfig {
 		WebSearchMaxResponseBytes:   DefaultHTTPMaxResponse,
 		MusicSearchMaxResponseBytes: DefaultHTTPMaxResponse,
 		ModelListMaxResponseBytes:   512 * 1024,
-		SandboxMaxResponseBytes:     8 * 1024 * 1024,
 	}
 }
 
@@ -525,7 +522,6 @@ type Overrides struct {
 	APIKey                     *string              `json:"api_key,omitempty" yaml:"api_key,omitempty"`
 	ArkAPIKey                  *string              `json:"ark_api_key,omitempty" yaml:"ark_api_key,omitempty"`
 	BaseURL                    *string              `json:"base_url,omitempty" yaml:"base_url,omitempty"`
-	SandboxBaseURL             *string              `json:"sandbox_base_url,omitempty" yaml:"sandbox_base_url,omitempty"`
 	ACPExecutorAddr            *string              `json:"acp_executor_addr,omitempty" yaml:"acp_executor_addr,omitempty"`
 	ACPExecutorCWD             *string              `json:"acp_executor_cwd,omitempty" yaml:"acp_executor_cwd,omitempty"`
 	ACPExecutorMode            *string              `json:"acp_executor_mode,omitempty" yaml:"acp_executor_mode,omitempty"`

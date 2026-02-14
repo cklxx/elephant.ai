@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"alex/internal/app/subscription"
-	"alex/internal/app/workdir"
 	serverApp "alex/internal/delivery/server/app"
 	serverHTTP "alex/internal/delivery/server/http"
 	"alex/internal/delivery/server/ports"
@@ -21,9 +20,7 @@ import (
 	"alex/internal/infra/analytics"
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/diagnostics"
-	"alex/internal/infra/external/bridge"
 	"alex/internal/infra/httpclient"
-	taskinfra "alex/internal/infra/task"
 	"alex/internal/shared/async"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
@@ -47,9 +44,7 @@ func RunServer(observabilityConfigPath string) error {
 
 	// ── Phase 2: Optional services (failure records degraded, continues) ──
 
-	var attachmentStore *attachments.Store
 	var historyStore serverApp.EventHistoryStore
-	var asyncHistoryStore *serverApp.AsyncEventHistoryStore
 	var analyticsClient analytics.Client
 	var analyticsCleanup func()
 
@@ -62,7 +57,6 @@ func RunServer(observabilityConfigPath string) error {
 				if err != nil {
 					return err
 				}
-				attachmentStore = store
 				client := httpclient.NewWithCircuitBreaker(45*time.Second, logger, "attachment_migrator")
 				migrator := materials.NewAttachmentStoreMigrator(store, client, config.Attachment.CloudflarePublicBaseURL, logger)
 				container.AgentCoordinator.SetAttachmentMigrator(migrator)
@@ -75,44 +69,12 @@ func RunServer(observabilityConfigPath string) error {
 		{
 			Name: "event-history", Required: false,
 			Init: func() error {
-				if container.SessionDB == nil {
-					return nil // not an error, just not configured
-				}
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				historyOpts := []serverApp.PostgresEventHistoryStoreOption{}
-				if attachmentStore != nil {
-					historyOpts = append(historyOpts, serverApp.WithHistoryAttachmentStore(attachmentStore))
-				}
-				if config.EventHistory.Retention > 0 {
-					historyOpts = append(historyOpts, serverApp.WithHistoryRetention(config.EventHistory.Retention))
-				}
-				pgHistory := serverApp.NewPostgresEventHistoryStore(container.SessionDB, historyOpts...)
-				if err := pgHistory.EnsureSchema(ctx); err != nil {
+				eventsDir := filepath.Join(container.SessionDir(), "_server")
+				fileHistory := serverApp.NewFileEventHistoryStore(eventsDir)
+				if err := fileHistory.EnsureSchema(context.Background()); err != nil {
 					return err
 				}
-				historyStore = pgHistory
-				asyncHistoryOpts := []serverApp.AsyncEventHistoryStoreOption{}
-				if config.EventHistory.AsyncBatchSize > 0 {
-					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryBatchSize(config.EventHistory.AsyncBatchSize))
-				}
-				if config.EventHistory.AsyncFlushInterval > 0 {
-					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryFlushInterval(config.EventHistory.AsyncFlushInterval))
-				}
-				if config.EventHistory.AsyncAppendTimeout > 0 {
-					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryAppendTimeout(config.EventHistory.AsyncAppendTimeout))
-				}
-				if config.EventHistory.AsyncQueueCapacity > 0 {
-					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryQueueCapacity(config.EventHistory.AsyncQueueCapacity))
-				}
-				if config.EventHistory.AsyncFlushRequestCoalesceWindow >= 0 {
-					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryFlushRequestCoalesceWindow(config.EventHistory.AsyncFlushRequestCoalesceWindow))
-				}
-				if config.EventHistory.AsyncBackpressureHighWatermark > 0 {
-					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryBackpressureHighWatermark(config.EventHistory.AsyncBackpressureHighWatermark))
-				}
-				asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryDegradeDebugEventsOnBackpressure(config.EventHistory.DegradeDebugEventsOnBackpressure))
-				asyncHistoryStore = serverApp.NewAsyncEventHistoryStore(pgHistory, asyncHistoryOpts...)
+				historyStore = fileHistory
 				return nil
 			},
 		},
@@ -129,19 +91,11 @@ func RunServer(observabilityConfigPath string) error {
 		return fmt.Errorf("optional stages: %w", err)
 	}
 
-	if asyncHistoryStore != nil {
-		defer func() { _ = asyncHistoryStore.Close() }()
-	}
 	if analyticsCleanup != nil {
 		defer analyticsCleanup()
 	}
-
-	broadcasterHistoryStore := historyStore
-	if asyncHistoryStore != nil {
-		broadcasterHistoryStore = asyncHistoryStore
-	}
 	broadcasterOpts := []serverApp.EventBroadcasterOption{
-		serverApp.WithEventHistoryStore(broadcasterHistoryStore),
+		serverApp.WithEventHistoryStore(historyStore),
 	}
 	if config.EventHistory.MaxEvents > 0 {
 		broadcasterOpts = append(broadcasterOpts, serverApp.WithMaxHistory(config.EventHistory.MaxEvents))
@@ -154,26 +108,15 @@ func RunServer(observabilityConfigPath string) error {
 	}
 	broadcaster := serverApp.NewEventBroadcaster(broadcasterOpts...)
 
-	// Task store: prefer unified Postgres store when SessionDB is available,
-	// falling back to the in-memory store with file persistence.
+	// Task store: in-memory with file persistence.
 	var taskStore ports.TaskStore
-	var taskStoreCleanup func()
-	if container.TaskStore != nil {
-		adapter := taskinfra.NewServerAdapter(container.TaskStore)
-		taskStore = adapter
-		taskStoreCleanup = func() {}
-		logger.Info("[Bootstrap] Task store backed by unified Postgres store")
-	} else {
-		taskStoreOpts := []serverApp.TaskStoreOption{}
-		if sessionDir := strings.TrimSpace(container.SessionDir()); sessionDir != "" {
-			taskStoreOpts = append(taskStoreOpts, serverApp.WithTaskPersistenceFile(filepath.Join(sessionDir, "_server", "tasks.json")))
-		}
-		memStore := serverApp.NewInMemoryTaskStore(taskStoreOpts...)
-		taskStore = memStore
-		taskStoreCleanup = func() { memStore.Close() }
-		logger.Info("[Bootstrap] Task store backed by in-memory store (Postgres unavailable)")
+	taskStoreOpts := []serverApp.TaskStoreOption{}
+	if sessionDir := strings.TrimSpace(container.SessionDir()); sessionDir != "" {
+		taskStoreOpts = append(taskStoreOpts, serverApp.WithTaskPersistenceFile(filepath.Join(sessionDir, "_server", "tasks.json")))
 	}
-	defer taskStoreCleanup()
+	memStore := serverApp.NewInMemoryTaskStore(taskStoreOpts...)
+	taskStore = memStore
+	defer memStore.Close()
 	progressTracker := serverApp.NewTaskProgressTracker(taskStore)
 
 	cleanupDiagnostics := subscribeDiagnostics(broadcaster)
@@ -203,18 +146,6 @@ func RunServer(observabilityConfigPath string) error {
 	}
 	if config.TaskExecution.ResumeClaimBatchSize > 0 {
 		taskOpts = append(taskOpts, serverApp.WithResumeClaimBatchSize(config.TaskExecution.ResumeClaimBatchSize))
-	}
-
-	// Wire bridge orphan resumer when unified task store is available.
-	if container.TaskStore != nil {
-		bridgeWorkDir := workdir.DefaultWorkingDir()
-		resumer := bridge.NewResumer(container.TaskStore, bridge.New(bridge.BridgeConfig{}), nil)
-		taskOpts = append(taskOpts,
-			serverApp.WithBridgeResumer(
-				&bridgeResumerAdapter{resumer: resumer},
-				bridgeWorkDir,
-			),
-		)
 	}
 
 	tasksSvc := serverApp.NewTaskExecutionService(
@@ -264,25 +195,7 @@ func RunServer(observabilityConfigPath string) error {
 		return fmt.Errorf("gateway stages: %w", err)
 	}
 
-	// ── Phase 4: Session migration (best-effort) ──
-
-	if historyStore != nil {
-		migrationCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		if err := MigrateSessionsToDatabase(
-			migrationCtx,
-			container.SessionDir(),
-			container.SessionStore,
-			container.StateStore,
-			container.HistoryStore,
-			historyStore,
-			logger,
-		); err != nil {
-			logger.Warn("Session migration failed: %v", err)
-		}
-	}
-
-	// ── Phase 5: HTTP layer ──
+	// ── Phase 4: HTTP layer ──
 
 	healthChecker := serverApp.NewHealthChecker()
 	healthChecker.RegisterProbe(serverApp.NewMCPProbe(container, config.EnableMCP))
@@ -361,24 +274,6 @@ func RunServer(observabilityConfigPath string) error {
 	}
 
 	return serveUntilSignal(server, logger)
-}
-
-// bridgeResumerAdapter wraps bridge.Resumer to implement serverApp.BridgeOrphanResumer.
-type bridgeResumerAdapter struct {
-	resumer *bridge.Resumer
-}
-
-func (a *bridgeResumerAdapter) ResumeOrphans(ctx context.Context, workDir string) []serverApp.OrphanResumeResult {
-	results := a.resumer.ResumeOrphans(ctx, workDir)
-	out := make([]serverApp.OrphanResumeResult, len(results))
-	for i, r := range results {
-		out[i] = serverApp.OrphanResumeResult{
-			TaskID: r.TaskID,
-			Action: string(r.Action),
-			Error:  r.Error,
-		}
-	}
-	return out
 }
 
 // gatewaySubsystem adapts the start/cleanup gateway pattern to the Subsystem interface.

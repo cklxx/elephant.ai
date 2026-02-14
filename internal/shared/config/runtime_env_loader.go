@@ -40,10 +40,6 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.BaseURL = value
 		meta.sources["base_url"] = SourceEnv
 	}
-	if value, ok := lookup("SANDBOX_BASE_URL"); ok && value != "" {
-		cfg.SandboxBaseURL = value
-		meta.sources["sandbox_base_url"] = SourceEnv
-	}
 	if value, ok := lookup("ACP_EXECUTOR_ADDR"); ok && value != "" {
 		cfg.ACPExecutorAddr = value
 		meta.sources["acp_executor_addr"] = SourceEnv

@@ -21,8 +21,6 @@ auth:
   access_token_ttl_minutes: "${AUTH_ACCESS_TOKEN_TTL_MINUTES}"
 agent:
   session_stale_after: "${SESSION_STALE_AFTER}"
-session:
-  database_url: "${SESSION_DB}"
 analytics:
   posthog_api_key: "${POSTHOG_API_KEY}"
 attachments:
@@ -40,7 +38,6 @@ web:
 		"AUTH_JWT_SECRET":               "jwt-secret",
 		"AUTH_ACCESS_TOKEN_TTL_MINUTES": "20",
 		"SESSION_STALE_AFTER":           "48h",
-		"SESSION_DB":                    "postgres://localhost:5432/app",
 		"POSTHOG_API_KEY":               "ph-key",
 		"CF_ACCOUNT":                    "cf-account",
 		"WEB_HOST":                      "localhost:3000",
@@ -74,9 +71,6 @@ web:
 	}
 	if cfg.Agent == nil || cfg.Agent.SessionStaleAfter != "48h" {
 		t.Fatalf("expected agent config to expand, got %#v", cfg.Agent)
-	}
-	if cfg.Session == nil || cfg.Session.DatabaseURL != "postgres://localhost:5432/app" {
-		t.Fatalf("expected session config to expand, got %#v", cfg.Session)
 	}
 	if cfg.Analytics == nil || cfg.Analytics.PostHogAPIKey != "ph-key" {
 		t.Fatalf("expected analytics config to expand, got %#v", cfg.Analytics)

@@ -17,17 +17,11 @@ func TestApplyDefaults(t *testing.T) {
 	if cfg.WebPort != 3000 {
 		t.Errorf("WebPort = %d, want 3000", cfg.WebPort)
 	}
-	if cfg.SandboxPort != 18086 {
-		t.Errorf("SandboxPort = %d, want 18086", cfg.SandboxPort)
-	}
 	if cfg.ACPHost != "127.0.0.1" {
 		t.Errorf("ACPHost = %q, want 127.0.0.1", cfg.ACPHost)
 	}
 	if cfg.CGOMode != "auto" {
 		t.Errorf("CGOMode = %q, want auto", cfg.CGOMode)
-	}
-	if !cfg.SandboxAutoInstallCLI {
-		t.Error("SandboxAutoInstallCLI should default to true")
 	}
 	if !cfg.AutoStopConflictingPorts {
 		t.Error("AutoStopConflictingPorts should default to true")
@@ -52,10 +46,8 @@ func TestApplyDefaultsSupervisor(t *testing.T) {
 func TestApplyEnv(t *testing.T) {
 	os.Setenv("SERVER_PORT", "9090")
 	os.Setenv("WEB_PORT", "4000")
-	os.Setenv("SANDBOX_PORT", "28086")
 	defer os.Unsetenv("SERVER_PORT")
 	defer os.Unsetenv("WEB_PORT")
-	defer os.Unsetenv("SANDBOX_PORT")
 
 	cfg := &DevConfig{}
 	applyDefaults(cfg)
@@ -66,9 +58,6 @@ func TestApplyEnv(t *testing.T) {
 	}
 	if cfg.WebPort != 4000 {
 		t.Errorf("WebPort = %d, want 4000", cfg.WebPort)
-	}
-	if cfg.SandboxPort != 28086 {
-		t.Errorf("SandboxPort = %d, want 28086", cfg.SandboxPort)
 	}
 }
 

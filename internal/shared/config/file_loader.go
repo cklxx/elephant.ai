@@ -77,7 +77,6 @@ func expandFileConfigEnv(lookup EnvLookup, parsed FileConfig) FileConfig {
 		parsed.Agent.SessionStaleAfter = expandEnvValue(lookup, parsed.Agent.SessionStaleAfter)
 	}
 	if parsed.Session != nil {
-		parsed.Session.DatabaseURL = expandEnvValue(lookup, parsed.Session.DatabaseURL)
 		parsed.Session.Dir = expandEnvValue(lookup, parsed.Session.Dir)
 	}
 	if parsed.Analytics != nil {

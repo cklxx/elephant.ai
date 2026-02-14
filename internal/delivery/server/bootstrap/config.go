@@ -624,32 +624,8 @@ func applySessionConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if file.Session == nil {
 		return
 	}
-	if dbURL := strings.TrimSpace(file.Session.DatabaseURL); dbURL != "" {
-		cfg.Session.DatabaseURL = dbURL
-	}
 	if dir := strings.TrimSpace(file.Session.Dir); dir != "" {
 		cfg.Session.Dir = dir
-	}
-	if file.Session.PoolMaxConns != nil {
-		cfg.Session.PoolMaxConns = file.Session.PoolMaxConns
-	}
-	if file.Session.PoolMinConns != nil {
-		cfg.Session.PoolMinConns = file.Session.PoolMinConns
-	}
-	if file.Session.PoolMaxConnLifetimeSeconds != nil {
-		cfg.Session.PoolMaxConnLifetimeSeconds = file.Session.PoolMaxConnLifetimeSeconds
-	}
-	if file.Session.PoolMaxConnIdleSeconds != nil {
-		cfg.Session.PoolMaxConnIdleSeconds = file.Session.PoolMaxConnIdleSeconds
-	}
-	if file.Session.PoolHealthCheckSeconds != nil {
-		cfg.Session.PoolHealthCheckSeconds = file.Session.PoolHealthCheckSeconds
-	}
-	if file.Session.PoolConnectTimeoutSeconds != nil {
-		cfg.Session.PoolConnectTimeoutSeconds = file.Session.PoolConnectTimeoutSeconds
-	}
-	if file.Session.CacheSize != nil {
-		cfg.Session.CacheSize = file.Session.CacheSize
 	}
 }
 

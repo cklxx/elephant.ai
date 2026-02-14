@@ -429,15 +429,7 @@ type AgentConfig struct {
 
 // SessionConfig captures session persistence configuration.
 type SessionConfig struct {
-	DatabaseURL                string `yaml:"database_url"`
-	Dir                        string `yaml:"dir"`
-	PoolMaxConns               *int   `yaml:"pool_max_conns"`
-	PoolMinConns               *int   `yaml:"pool_min_conns"`
-	PoolMaxConnLifetimeSeconds *int   `yaml:"pool_max_conn_lifetime_seconds"`
-	PoolMaxConnIdleSeconds     *int   `yaml:"pool_max_conn_idle_seconds"`
-	PoolHealthCheckSeconds     *int   `yaml:"pool_health_check_seconds"`
-	PoolConnectTimeoutSeconds  *int   `yaml:"pool_connect_timeout_seconds"`
-	CacheSize                  *int   `yaml:"cache_size"`
+	Dir string `yaml:"dir"`
 }
 
 // AnalyticsConfig captures analytics configuration.

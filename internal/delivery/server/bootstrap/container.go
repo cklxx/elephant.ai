@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"strings"
-	"time"
 
 	"alex/internal/app/di"
 	"alex/internal/domain/agent/presets"
@@ -19,26 +18,6 @@ func BuildContainer(config Config) (*di.Container, error) {
 	}
 	if strings.TrimSpace(diConfig.ToolPreset) == "" {
 		diConfig.ToolPreset = string(presets.ToolPresetArchitect)
-	}
-	sessionDBURL := strings.TrimSpace(config.Session.DatabaseURL)
-	diConfig.SessionDatabaseURL = sessionDBURL
-	if config.Session.PoolMaxConns != nil {
-		diConfig.SessionPoolMaxConns = *config.Session.PoolMaxConns
-	}
-	if config.Session.PoolMinConns != nil {
-		diConfig.SessionPoolMinConns = *config.Session.PoolMinConns
-	}
-	if config.Session.PoolMaxConnLifetimeSeconds != nil {
-		diConfig.SessionPoolMaxConnLifetime = time.Duration(*config.Session.PoolMaxConnLifetimeSeconds) * time.Second
-	}
-	if config.Session.PoolMaxConnIdleSeconds != nil {
-		diConfig.SessionPoolMaxConnIdleTime = time.Duration(*config.Session.PoolMaxConnIdleSeconds) * time.Second
-	}
-	if config.Session.PoolHealthCheckSeconds != nil {
-		diConfig.SessionPoolHealthCheckPeriod = time.Duration(*config.Session.PoolHealthCheckSeconds) * time.Second
-	}
-	if config.Session.PoolConnectTimeoutSeconds != nil {
-		diConfig.SessionPoolConnectTimeout = time.Duration(*config.Session.PoolConnectTimeoutSeconds) * time.Second
 	}
 	diConfig.ToolMode = string(presets.ToolModeWeb)
 	return di.BuildContainer(diConfig)

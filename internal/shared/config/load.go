@@ -26,7 +26,6 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		LLMSmallProvider:           DefaultLLMProvider,
 		LLMSmallModel:              DefaultLLMModel,
 		BaseURL:                    DefaultLLMBaseURL,
-		SandboxBaseURL:             "http://localhost:18086",
 		ACPExecutorAddr:            defaultACPExecutorAddr(options.envLookup),
 		ACPExecutorCWD:             defaultACPExecutorCWD(),
 		ACPExecutorMode:            "sandbox",
@@ -188,7 +187,6 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
 	cfg.ArkAPIKey = strings.TrimSpace(cfg.ArkAPIKey)
 	cfg.BaseURL = strings.TrimSpace(cfg.BaseURL)
-	cfg.SandboxBaseURL = strings.TrimSpace(cfg.SandboxBaseURL)
 	cfg.ACPExecutorAddr = strings.TrimSpace(cfg.ACPExecutorAddr)
 	cfg.ACPExecutorCWD = strings.TrimSpace(cfg.ACPExecutorCWD)
 	cfg.ACPExecutorMode = strings.TrimSpace(cfg.ACPExecutorMode)
@@ -306,9 +304,6 @@ func normalizeHTTPLimits(cfg *HTTPLimitsConfig) {
 	}
 	if cfg.ModelListMaxResponseBytes <= 0 {
 		cfg.ModelListMaxResponseBytes = 512 * 1024
-	}
-	if cfg.SandboxMaxResponseBytes <= 0 {
-		cfg.SandboxMaxResponseBytes = 8 * 1024 * 1024
 	}
 }
 

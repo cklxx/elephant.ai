@@ -33,10 +33,6 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.BaseURL = *overrides.BaseURL
 		meta.sources["base_url"] = SourceOverride
 	}
-	if overrides.SandboxBaseURL != nil {
-		cfg.SandboxBaseURL = *overrides.SandboxBaseURL
-		meta.sources["sandbox_base_url"] = SourceOverride
-	}
 	if overrides.ACPExecutorAddr != nil {
 		cfg.ACPExecutorAddr = *overrides.ACPExecutorAddr
 		meta.sources["acp_executor_addr"] = SourceOverride

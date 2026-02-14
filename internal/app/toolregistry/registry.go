@@ -43,9 +43,8 @@ type Config struct {
 
 	TavilyAPIKey string
 
-	ArkAPIKey      string
-	SandboxBaseURL string
-	MemoryEngine   memory.Engine
+	ArkAPIKey    string
+	MemoryEngine memory.Engine
 	HTTPLimits     runtimeconfig.HTTPLimitsConfig
 	ToolPolicy     toolspolicy.ToolPolicy
 	BreakerConfig  CircuitBreakerConfig
