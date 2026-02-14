@@ -118,10 +118,6 @@ func (s *FileEventHistoryStore) Stream(ctx context.Context, filter EventHistoryF
 		}
 
 		event := agentEventFromRecord(rec)
-		if event == nil {
-			continue
-		}
-
 		if err := fn(event); err != nil {
 			return err
 		}
