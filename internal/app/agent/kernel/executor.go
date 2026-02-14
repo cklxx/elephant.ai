@@ -10,6 +10,7 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/subscription"
 	agent "alex/internal/domain/agent/ports/agent"
+	toolshared "alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -102,6 +103,10 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 			execCtx = appcontext.WithLLMSelection(execCtx, selection)
 		}
 	}
+
+	// Kernel cycles are unattended — auto-approve all tool executions to
+	// prevent deadlocks on approval gates.
+	execCtx = toolshared.WithAutoApprove(execCtx, true)
 
 	if e.timeout > 0 {
 		var cancel context.CancelFunc

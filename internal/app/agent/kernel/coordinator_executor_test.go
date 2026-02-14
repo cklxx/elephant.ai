@@ -12,6 +12,7 @@ import (
 	"alex/internal/app/subscription"
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	toolshared "alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -426,6 +427,24 @@ func TestCompactSummary_TruncatesByRunes(t *testing.T) {
 	}
 	if !utf8.ValidString(got) {
 		t.Fatalf("expected valid utf-8 summary, got %q", got)
+	}
+}
+
+func TestCoordinatorExecutor_SetsAutoApproveInContext(t *testing.T) {
+	runner := &stubTaskRunner{
+		result: &agent.TaskResult{
+			Answer:   "## 执行总结\n- done",
+			Messages: []core.Message{assistantMessageWithToolCalls("shell_exec")},
+		},
+	}
+	exec := NewCoordinatorExecutor(runner, 0)
+
+	_, err := exec.Execute(context.Background(), "agent-a", "test auto-approve", map[string]string{})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !toolshared.GetAutoApproveFromContext(runner.lastCtx) {
+		t.Fatal("expected auto-approve=true in kernel dispatch context")
 	}
 }
 

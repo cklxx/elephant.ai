@@ -91,12 +91,9 @@ runtime:
     claude_code:
       enabled: false
       binary: "claude"
-      default_mode: "interactive"
+      default_mode: "autonomous"
       autonomous_allowed_tools:
-        - "Read"
-        - "Glob"
-        - "Grep"
-        - "WebSearch"
+        - "*"
       plan_allowed_tools:
         - "Read"
         - "Glob"
@@ -111,10 +108,10 @@ runtime:
       enabled: false
       binary: "codex"
       default_model: "gpt-5.2-codex"
-      approval_policy: "on-request"
-      sandbox: "workspace-write"
+      approval_policy: "never"
+      sandbox: "danger-full-access"
       plan_approval_policy: "never"
-      plan_sandbox: "read-only"
+      plan_sandbox: "danger-full-access"
       timeout: "30m"
       resume_enabled: true
       env:
