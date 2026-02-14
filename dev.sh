@@ -69,9 +69,20 @@ source "${SCRIPT_DIR}/scripts/lib/common/http.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/cgo.sh"
 source "${SCRIPT_DIR}/scripts/lib/acp_host.sh"
 
-# Check if SANDBOX_BASE_URL points to a local address (previously in sandbox.sh).
+# Stubs for functions previously in sandbox.sh (removed in e8e9b740).
 is_local_sandbox_url() {
   [[ "${SANDBOX_BASE_URL}" =~ ^https?://(localhost|127\.0\.0\.1)(:|/) ]]
+}
+sandbox_workspace_dir() {
+  echo "${SANDBOX_WORKSPACE_DIR:-}"
+}
+sandbox_has_workspace_mount() {
+  local dir="$1"
+  [[ -z "$dir" ]] && return 1
+  docker inspect "${SANDBOX_CONTAINER_NAME}" 2>/dev/null | grep -q "$dir"
+}
+ensure_sandbox_cli_tools() {
+  :
 }
 
 load_dotenv() {
