@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	kerneldomain "alex/internal/domain/kernel"
@@ -42,6 +43,9 @@ func FormatCycleNotification(kernelID string, result *kerneldomain.CycleResult, 
 		fmt.Sprintf("- 完成率: %.1f%%", rate),
 		fmt.Sprintf("- 失败任务: %s", failedAgents),
 	}
+	autonomy := summarizeAutonomySignals(result)
+	lines = append(lines, fmt.Sprintf("- 主动性: actionable=%d/%d, auto_recovered=%d, blocked_awaiting_input=%d, blocked_no_action=%d",
+		autonomy.Actionable, autonomy.Total, autonomy.AutoRecovered, autonomy.BlockedAwaitingInput, autonomy.BlockedNoAction))
 	if len(result.AgentSummary) == 0 {
 		lines = append(lines, "- 执行总结: (none)")
 	} else {
@@ -84,4 +88,59 @@ func formatAgentSummaryLine(entry kerneldomain.AgentCycleSummary) string {
 		summary = "(empty summary)"
 	}
 	return fmt.Sprintf("[%s|%s] %s", entry.AgentID, status, summary)
+}
+
+type autonomySignalSummary struct {
+	Total                int
+	Actionable           int
+	AutoRecovered        int
+	BlockedAwaitingInput int
+	BlockedNoAction      int
+}
+
+func summarizeAutonomySignals(result *kerneldomain.CycleResult) autonomySignalSummary {
+	signals := autonomySignalSummary{}
+	if result == nil {
+		return signals
+	}
+	signals.Total = len(result.AgentSummary)
+	for _, entry := range result.AgentSummary {
+		switch entry.Status {
+		case kerneldomain.DispatchDone:
+			signals.Actionable++
+			if extractAttempts(entry.Summary) > defaultKernelAttemptCount {
+				signals.AutoRecovered++
+			}
+		case kerneldomain.DispatchFailed:
+			lowerErr := strings.ToLower(strings.TrimSpace(entry.Error))
+			if strings.Contains(lowerErr, strings.ToLower(errKernelAwaitingUserConfirmation.Error())) {
+				signals.BlockedAwaitingInput++
+			}
+			if strings.Contains(lowerErr, strings.ToLower(errKernelNoRealToolAction.Error())) {
+				signals.BlockedNoAction++
+			}
+		}
+	}
+	return signals
+}
+
+func extractAttempts(summary string) int {
+	lower := strings.ToLower(summary)
+	idx := strings.Index(lower, "attempts=")
+	if idx < 0 {
+		return defaultKernelAttemptCount
+	}
+	start := idx + len("attempts=")
+	end := start
+	for end < len(lower) && lower[end] >= '0' && lower[end] <= '9' {
+		end++
+	}
+	if end <= start {
+		return defaultKernelAttemptCount
+	}
+	value, err := strconv.Atoi(lower[start:end])
+	if err != nil || value <= 0 {
+		return defaultKernelAttemptCount
+	}
+	return value
 }

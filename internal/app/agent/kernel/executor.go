@@ -23,7 +23,8 @@ const kernelDefaultSummaryInstruction = `Kernel post-run requirement:
 - If blocked, report exact tool error and mark task as blocked.
 - In your final answer, include a section titled "## 执行总结".
 - Summarize: completed work, concrete evidence/artifacts, remaining risks/next step.
-- Keep it concise (3-6 bullets) and factual.`
+- Keep it concise (3-6 bullets) and factual.
+- Follow 7C quality for user-visible text: correct, clear, concise, concrete, complete, coherent, courteous.`
 
 const kernelRetryInstruction = `Kernel retry requirement:
 - Your previous attempt was not autonomously complete.
@@ -34,8 +35,11 @@ const kernelRetryInstruction = `Kernel retry requirement:
 
 // ExecutionResult captures the essential completion information from one dispatch.
 type ExecutionResult struct {
-	TaskID  string
-	Summary string
+	TaskID        string
+	Summary       string
+	Attempts      int
+	RecoveredFrom string
+	Autonomy      string
 }
 
 // TaskRunner is the minimal task execution contract used by the kernel executor.
@@ -57,6 +61,14 @@ type CoordinatorExecutor struct {
 
 var errKernelNoRealToolAction = errors.New("kernel dispatch completed without successful real tool action")
 var errKernelAwaitingUserConfirmation = errors.New("kernel dispatch completed while still awaiting user confirmation")
+
+const (
+	kernelAutonomyActionable  = "actionable"
+	kernelAutonomyAwaiting    = "awaiting_input"
+	kernelAutonomyNoTool      = "no_real_action"
+	kernelAutonomyInvalid     = "invalid_result"
+	defaultKernelAttemptCount = 1
+)
 
 // NewCoordinatorExecutor creates an executor backed by the given AgentCoordinator.
 func NewCoordinatorExecutor(coordinator TaskRunner, timeout time.Duration) *CoordinatorExecutor {
@@ -119,21 +131,39 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 	if err != nil {
 		return ExecutionResult{}, err
 	}
+	attempts := defaultKernelAttemptCount
+	recoveredFrom := ""
 	if validateErr := validateKernelDispatchResult(result); validateErr != nil {
+		recoveredFrom = classifyKernelValidationError(validateErr)
 		retryPrompt := appendKernelRetryInstruction(taskPrompt, result)
 		retryResult, retryErr := e.coordinator.ExecuteTask(execCtx, retryPrompt, sessionID, nil)
 		if retryErr != nil {
 			return ExecutionResult{}, retryErr
 		}
+		attempts++
 		if retryValidateErr := validateKernelDispatchResult(retryResult); retryValidateErr != nil {
 			return ExecutionResult{}, retryValidateErr
 		}
 		result = retryResult
 	}
 	return ExecutionResult{
-		TaskID:  sessionID,
-		Summary: extractKernelExecutionSummary(result),
+		TaskID:        sessionID,
+		Summary:       extractKernelExecutionSummary(result),
+		Attempts:      attempts,
+		RecoveredFrom: recoveredFrom,
+		Autonomy:      kernelAutonomyActionable,
 	}, nil
+}
+
+func classifyKernelValidationError(err error) string {
+	switch {
+	case errors.Is(err, errKernelAwaitingUserConfirmation):
+		return kernelAutonomyAwaiting
+	case errors.Is(err, errKernelNoRealToolAction):
+		return kernelAutonomyNoTool
+	default:
+		return kernelAutonomyInvalid
+	}
 }
 
 func appendKernelSummaryInstruction(prompt string) string {

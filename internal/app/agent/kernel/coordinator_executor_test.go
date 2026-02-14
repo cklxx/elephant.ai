@@ -309,6 +309,15 @@ func TestCoordinatorExecutor_RetriesAutonomouslyAfterConfirmationLoop(t *testing
 	if !strings.Contains(runner.prompts[1], "Kernel retry requirement") {
 		t.Fatalf("expected retry prompt guidance, got: %q", runner.prompts[1])
 	}
+	if res.Attempts != 2 {
+		t.Fatalf("expected attempts=2 after retry, got %d", res.Attempts)
+	}
+	if res.RecoveredFrom != kernelAutonomyAwaiting {
+		t.Fatalf("expected recovered_from=%s, got %q", kernelAutonomyAwaiting, res.RecoveredFrom)
+	}
+	if res.Autonomy != kernelAutonomyActionable {
+		t.Fatalf("expected autonomy=%s, got %q", kernelAutonomyActionable, res.Autonomy)
+	}
 }
 
 func TestCoordinatorExecutor_RetriesWhenFirstAttemptHasNoRealToolAction(t *testing.T) {
@@ -356,6 +365,12 @@ func TestCoordinatorExecutor_RetriesWhenFirstAttemptHasNoRealToolAction(t *testi
 	if len(runner.prompts) != 2 {
 		t.Fatalf("expected 2 attempts, got %d", len(runner.prompts))
 	}
+	if res.Attempts != 2 {
+		t.Fatalf("expected attempts=2 after retry, got %d", res.Attempts)
+	}
+	if res.RecoveredFrom != kernelAutonomyNoTool {
+		t.Fatalf("expected recovered_from=%s, got %q", kernelAutonomyNoTool, res.RecoveredFrom)
+	}
 }
 
 func TestCoordinatorExecutor_DoesNotRetryWhenFirstAttemptIsValid(t *testing.T) {
@@ -380,12 +395,18 @@ func TestCoordinatorExecutor_DoesNotRetryWhenFirstAttemptIsValid(t *testing.T) {
 	}
 	exec := NewCoordinatorExecutor(runner, 0)
 
-	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
+	res, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err != nil {
 		t.Fatalf("expected success without retry, got: %v", err)
 	}
 	if len(runner.prompts) != 1 {
 		t.Fatalf("expected single attempt for valid result, got %d", len(runner.prompts))
+	}
+	if res.Attempts != 1 {
+		t.Fatalf("expected attempts=1, got %d", res.Attempts)
+	}
+	if res.RecoveredFrom != "" {
+		t.Fatalf("expected empty recovered_from for first-attempt success, got %q", res.RecoveredFrom)
 	}
 }
 

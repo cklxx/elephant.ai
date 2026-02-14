@@ -563,11 +563,12 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 				e.logger.Warn("Kernel: dispatch %s (agent=%s) failed: %v", d.DispatchID, d.AgentID, execErr)
 			} else {
 				result.Succeeded++
+				summary := decorateAutonomySummary(execResult)
 				result.AgentSummary = append(result.AgentSummary, kerneldomain.AgentCycleSummary{
 					AgentID: d.AgentID,
 					TaskID:  execResult.TaskID,
 					Status:  kerneldomain.DispatchDone,
-					Summary: execResult.Summary,
+					Summary: summary,
 				})
 				if markErr := e.store.MarkDispatchDone(ctx, d.DispatchID, execResult.TaskID); markErr != nil {
 					e.logger.Warn("Kernel: mark done %s: %v", d.DispatchID, markErr)
@@ -594,6 +595,26 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 	}
 
 	return result
+}
+
+func decorateAutonomySummary(result ExecutionResult) string {
+	summary := strings.TrimSpace(result.Summary)
+	autonomy := strings.TrimSpace(result.Autonomy)
+	if autonomy == "" {
+		autonomy = kernelAutonomyActionable
+	}
+	parts := []string{fmt.Sprintf("autonomy=%s", autonomy)}
+	if result.Attempts > defaultKernelAttemptCount {
+		parts = append(parts, fmt.Sprintf("attempts=%d", result.Attempts))
+	}
+	if recovered := strings.TrimSpace(result.RecoveredFrom); recovered != "" {
+		parts = append(parts, fmt.Sprintf("recovered_from=%s", recovered))
+	}
+	prefix := "[" + strings.Join(parts, ", ") + "]"
+	if summary == "" {
+		return prefix
+	}
+	return prefix + " " + summary
 }
 
 // Run starts the main loop, scheduling RunCycle according to the cron expression.

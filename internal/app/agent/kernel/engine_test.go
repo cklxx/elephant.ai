@@ -200,6 +200,10 @@ func TestEngine_RunCycle_AllSucceed(t *testing.T) {
 	if result.AgentSummary[0].Summary == "" || result.AgentSummary[1].Summary == "" {
 		t.Fatalf("expected non-empty summaries: %#v", result.AgentSummary)
 	}
+	if !strings.Contains(result.AgentSummary[0].Summary, "autonomy=actionable") ||
+		!strings.Contains(result.AgentSummary[1].Summary, "autonomy=actionable") {
+		t.Fatalf("expected autonomy marker in summaries: %#v", result.AgentSummary)
+	}
 	if exec.callCount() != 2 {
 		t.Errorf("expected 2 executor calls, got %d", exec.callCount())
 	}
