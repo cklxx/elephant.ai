@@ -6,7 +6,6 @@ runtime:
   llm_vision_model: "gpt-4o-mini"
   api_key: "${LLM_API_KEY}"
   base_url: "https://api.openai.com/v1"
-  sandbox_base_url: "http://localhost:18086"
   tool_preset: "safe"
   # toolset: "local" # alias: "lark-local" (enables local browser/file/exec tools)
   # browser:
@@ -25,7 +24,7 @@ runtime:
   # user_rate_limit_rps: 1.0
   # user_rate_limit_burst: 3
 
-# Optional: server + auth + attachments sections (uncomment to use).
+# Optional: server + attachments sections (uncomment to use).
 # server:
 #   port: "8080"
 #   enable_mcp: true
@@ -39,21 +38,6 @@ runtime:
 #   event_history_retention_days: 30
 #   allowed_origins:
 #     - "http://localhost:3000"
-# auth:
-#   jwt_secret: "${AUTH_JWT_SECRET}"
-#   access_token_ttl_minutes: "15"
-#   refresh_token_ttl_days: "30"
-#   redirect_base_url: "http://localhost:8080"
-#   database_url: "${AUTH_DATABASE_URL}"
-# session:
-#   database_url: "${ALEX_SESSION_DATABASE_URL}"
-#   pool_max_conns: 25
-#   pool_min_conns: 5
-#   pool_max_conn_lifetime_seconds: 3600
-#   pool_max_conn_idle_seconds: 1800
-#   pool_health_check_seconds: 30
-#   pool_connect_timeout_seconds: 5
-#   cache_size: 256
 # attachments:
 #   provider: "cloudflare"
 #   cloudflare_account_id: "${CLOUDFLARE_ACCOUNT_ID}"

@@ -18,11 +18,6 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - TAVILY_API_KEY=${TAVILY_API_KEY:-}
       - ARK_API_KEY=${ARK_API_KEY:-}
-      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-}
-      - AUTH_DATABASE_URL=${AUTH_DATABASE_URL:-}
-      - AUTH_BOOTSTRAP_PASSWORD=${AUTH_BOOTSTRAP_PASSWORD:-}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
-      - ALEX_SESSION_DATABASE_URL=${ALEX_SESSION_DATABASE_URL:-postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable}
       - ALEX_WEB_SESSION_DIR=/data/sessions
       - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-}
       - CLOUDFLARE_ACCESS_KEY_ID=${CLOUDFLARE_ACCESS_KEY_ID:-}
@@ -38,7 +33,6 @@ services:
     restart: unless-stopped
     depends_on:
       - redis
-      - auth-db
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -92,25 +86,6 @@ services:
     networks:
       - alex-network
 
-  # Auth DB for login flows (optional; enable via AUTH_DATABASE_URL)
-  auth-db:
-    image: ${AUTH_DB_IMAGE:-postgres:15}
-    container_name: alex-auth-db
-    environment:
-      - POSTGRES_USER=${AUTH_DB_USER:-alex}
-      - POSTGRES_PASSWORD=${AUTH_DB_PASSWORD:-alex}
-      - POSTGRES_DB=${AUTH_DB_NAME:-alex_auth}
-    volumes:
-      - auth-db-data:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-alex} -d ${AUTH_DB_NAME:-alex_auth}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - alex-network
-
   # Nginx reverse proxy (optional - for production)
   nginx:
     image: ${NGINX_IMAGE:-nginx:alpine}
@@ -132,8 +107,6 @@ volumes:
   alex-sessions:
     driver: local
   redis-data:
-    driver: local
-  auth-db-data:
     driver: local
 
 networks:

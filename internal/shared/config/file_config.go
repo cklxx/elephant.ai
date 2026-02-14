@@ -412,14 +412,7 @@ type ServerConfig struct {
 	EventHistoryRetentionDays                    *int     `yaml:"event_history_retention_days"`
 	EventHistoryMaxSessions                      *int     `yaml:"event_history_max_sessions"`
 	EventHistorySessionTTL                       *int     `yaml:"event_history_session_ttl_seconds"`
-	EventHistoryMaxEvents                        *int     `yaml:"event_history_max_events"`
-	EventHistoryAsyncBatchSize                   *int     `yaml:"event_history_async_batch_size"`
-	EventHistoryAsyncFlushMS                     *int     `yaml:"event_history_async_flush_interval_ms"`
-	EventHistoryAsyncAppendMS                    *int     `yaml:"event_history_async_append_timeout_ms"`
-	EventHistoryAsyncQueueSize                   *int     `yaml:"event_history_async_queue_capacity"`
-	EventHistoryAsyncFlushRequestCoalesceMS      *int     `yaml:"event_history_async_flush_request_coalesce_window_ms"`
-	EventHistoryAsyncBackpressureHighWatermark   *int     `yaml:"event_history_async_backpressure_high_watermark"`
-	EventHistoryDegradeDebugEventsOnBackpressure *bool    `yaml:"event_history_degrade_debug_events_on_backpressure"`
+	EventHistoryMaxEvents *int `yaml:"event_history_max_events"`
 }
 
 // AgentConfig captures agent-level behavioral settings.

@@ -8,7 +8,6 @@ runtime:
   llm_vision_model: "gpt-4o-mini"
   api_key: "${LLM_API_KEY}"
   base_url: "https://api.openai.com/v1"
-  sandbox_base_url: "http://localhost:18086"
   tool_preset: "safe"
   # toolset: "local" # alias: "lark-local" (enables local browser/file/exec tools)
   # browser:

@@ -119,19 +119,7 @@ runtime:
       resume_enabled: true
       env:
         OPENAI_API_KEY: "${OPENAI_API_KEY}"
-auth:
-  jwt_secret: "${AUTH_JWT_SECRET}"
-  access_token_ttl_minutes: "15"
-  refresh_token_ttl_days: "30"
-  redirect_base_url: "http://localhost:8080"
-  database_url: "${AUTH_DATABASE_URL}"
-  bootstrap_email: "admin@example.com"
-  bootstrap_password: "${AUTH_BOOTSTRAP_PASSWORD}"
-  bootstrap_display_name: "Admin"
-  google_client_id: "995307180463-l6km9ahp48b9rep4d2fmvg75pkdmnrk2.apps.googleusercontent.com"
-  google_client_secret: "${GOOGLE_CLIENT_SECRET}"
 session:
-  database_url: "${ALEX_SESSION_DATABASE_URL}"
   dir: "${ALEX_WEB_SESSION_DIR}"
 attachments:
   provider: "cloudflare"
@@ -142,7 +130,4 @@ attachments:
   cloudflare_bucket: "${CLOUDFLARE_BUCKET}"
   cloudflare_public_base_url: "${CLOUDFLARE_PUBLIC_BASE_URL}"
   cloudflare_key_prefix: "${CLOUDFLARE_ATTACHMENT_KEY_PREFIX}"
-server:
-  event_history_async_flush_request_coalesce_window_ms: 8
-  event_history_async_backpressure_high_watermark: 6553
-  event_history_degrade_debug_events_on_backpressure: true
+server: {}
