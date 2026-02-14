@@ -2,15 +2,17 @@ package kernel
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"alex/internal/app/workdir"
 	kerneldomain "alex/internal/domain/kernel"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
@@ -24,6 +26,7 @@ var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month 
 const (
 	kernelRuntimeSectionStart = "<!-- KERNEL_RUNTIME:START -->"
 	kernelRuntimeSectionEnd   = "<!-- KERNEL_RUNTIME:END -->"
+	kernelStateFallbackPath   = "/Users/bytedance/code/elephant.ai/artifacts/kernel_state.md"
 )
 
 // ValidateSchedule checks whether the given cron expression is valid.
@@ -51,6 +54,8 @@ type Engine struct {
 	stopped  chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup // tracks in-flight RunCycle goroutines
+
+	stateWriteRestricted atomic.Bool
 }
 
 type staleDispatchRecoverer interface {
@@ -100,13 +105,26 @@ func (e *Engine) RunCycle(ctx context.Context) (result *kerneldomain.CycleResult
 	// 1. Read STATE.md (opaque text).
 	stateContent, err := e.stateFile.Read()
 	if err != nil {
-		return nil, fmt.Errorf("read state: %w", err)
+		if e.markStateWritesRestricted(err) {
+			e.logger.Warn("Kernel: read state blocked by sandbox restrictions; using seed state and fallback path %s", kernelStateFallbackPath)
+			stateContent = e.config.SeedState
+		} else {
+			return nil, fmt.Errorf("read state: %w", err)
+		}
 	}
 	if stateContent == "" {
-		if seedErr := e.stateFile.Seed(e.config.SeedState); seedErr != nil {
-			return nil, fmt.Errorf("seed state: %w", seedErr)
+		if e.stateWriteRestricted.Load() {
+			stateContent = e.config.SeedState
+		} else if seedErr := e.stateFile.Seed(e.config.SeedState); seedErr != nil {
+			if e.markStateWritesRestricted(seedErr) {
+				e.logger.Warn("Kernel: seed state blocked by sandbox restrictions; using in-memory seed and fallback path %s", kernelStateFallbackPath)
+				stateContent = e.config.SeedState
+			} else {
+				return nil, fmt.Errorf("seed state: %w", seedErr)
+			}
+		} else {
+			stateContent = e.config.SeedState
 		}
-		stateContent = e.config.SeedState
 	}
 
 	// 2. Recover stale running dispatches from previous interrupted cycles.
@@ -161,15 +179,22 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 	if result != nil {
 		cycleLabel = result.CycleID
 	}
-	if err := e.stateFile.CommitCycleBoundary(ctx, fmt.Sprintf("pre-cycle %s", cycleLabel)); err != nil {
-		e.logger.Debug("Kernel: pre-cycle commit: %v", err)
+	if !e.stateWriteRestricted.Load() {
+		if err := e.stateFile.CommitCycleBoundary(ctx, fmt.Sprintf("pre-cycle %s", cycleLabel)); err != nil {
+			e.logger.Debug("Kernel: pre-cycle commit: %v", err)
+		}
 	}
 
 	// 2. Read current STATE.md.
 	stateContent, err := e.stateFile.Read()
 	if err != nil {
-		e.logger.Warn("Kernel: read state for runtime persistence failed: %v", err)
-		return
+		if e.stateWriteRestricted.Load() || e.markStateWritesRestricted(err) {
+			e.logger.Warn("Kernel: read state for runtime persistence blocked by sandbox restrictions; using seed state and fallback path %s", kernelStateFallbackPath)
+			stateContent = e.config.SeedState
+		} else {
+			e.logger.Warn("Kernel: read state for runtime persistence failed: %v", err)
+			return
+		}
 	}
 	if strings.TrimSpace(stateContent) == "" {
 		stateContent = e.config.SeedState
@@ -190,10 +215,26 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 	}
 
 	// 4. Render runtime block with rolling history.
-	runtimeBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history)
+	runtimeBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history, "")
 	updated := upsertKernelRuntimeBlock(stateContent, runtimeBlock)
+	if e.stateWriteRestricted.Load() {
+		fallbackBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history, kernelStateFallbackPath)
+		fallbackContent := upsertKernelRuntimeBlock(stateContent, fallbackBlock)
+		fallbackPath, fallbackErr := writeKernelStateFallback(fallbackContent)
+		if fallbackErr != nil {
+			e.logger.Warn("Kernel: persist runtime state skipped due to sandbox restrictions (fallback write to %s failed: %v)", fallbackPath, fallbackErr)
+			return
+		}
+		e.logger.Warn("Kernel: state writes restricted; runtime state persisted to %s", fallbackPath)
+		return
+	}
 	if err := e.stateFile.Write(updated); err != nil {
-		fallbackPath, fallbackErr := writeKernelStateFallback(updated)
+		if e.markStateWritesRestricted(err) {
+			e.logger.Warn("Kernel: state write blocked by sandbox restrictions; using fallback path %s", kernelStateFallbackPath)
+		}
+		fallbackBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history, kernelStateFallbackPath)
+		fallbackContent := upsertKernelRuntimeBlock(stateContent, fallbackBlock)
+		fallbackPath, fallbackErr := writeKernelStateFallback(fallbackContent)
 		if fallbackErr != nil {
 			e.logger.Warn("Kernel: persist runtime state failed: %v (fallback write to %s failed: %v)", err, fallbackPath, fallbackErr)
 			return
@@ -203,15 +244,50 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 	}
 
 	// 5. Commit post-cycle state so the final cycle's data is captured.
-	if err := e.stateFile.CommitCycleBoundary(ctx, fmt.Sprintf("post-cycle %s", cycleLabel)); err != nil {
-		e.logger.Debug("Kernel: post-cycle commit: %v", err)
+	if !e.stateWriteRestricted.Load() {
+		if err := e.stateFile.CommitCycleBoundary(ctx, fmt.Sprintf("post-cycle %s", cycleLabel)); err != nil {
+			e.logger.Debug("Kernel: post-cycle commit: %v", err)
+		}
 	}
 }
 
+func (e *Engine) markStateWritesRestricted(err error) bool {
+	if !isSandboxPathRestriction(err) {
+		return false
+	}
+	e.stateWriteRestricted.CompareAndSwap(false, true)
+	return true
+}
+
+func isSandboxPathRestriction(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, fs.ErrPermission) || os.IsPermission(err) {
+		return true
+	}
+	lower := strings.ToLower(err.Error())
+	if strings.Contains(lower, "permission denied") {
+		return true
+	}
+	if strings.Contains(lower, "operation not permitted") {
+		return true
+	}
+	if strings.Contains(lower, "read-only file system") {
+		return true
+	}
+	if strings.Contains(lower, "path must stay within the working directory") {
+		return true
+	}
+	if strings.Contains(lower, "sandbox") && strings.Contains(lower, "restrict") {
+		return true
+	}
+	return false
+}
+
 func writeKernelStateFallback(content string) (string, error) {
-	baseDir := workdir.DefaultWorkingDir()
-	artifactsDir := filepath.Join(baseDir, "artifacts")
-	fallbackPath := filepath.Join(artifactsDir, "kernel_state.md")
+	fallbackPath := filepath.Clean(kernelStateFallbackPath)
+	artifactsDir := filepath.Dir(fallbackPath)
 	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
 		return fallbackPath, err
 	}
@@ -225,11 +301,19 @@ func (e *Engine) persistSystemPromptSnapshot() {
 	if e.systemPromptProvider == nil {
 		return
 	}
+	if e.stateWriteRestricted.Load() {
+		e.logger.Warn("Kernel: skipping system prompt snapshot (state writes restricted; fallback path %s)", kernelStateFallbackPath)
+		return
+	}
 	prompt := strings.TrimSpace(e.systemPromptProvider())
 	if prompt == "" {
 		return
 	}
 	if err := e.stateFile.WriteSystemPrompt(RenderSystemPromptMarkdown(prompt, time.Now())); err != nil {
+		if e.markStateWritesRestricted(err) {
+			e.logger.Warn("Kernel: system prompt snapshot blocked by sandbox restrictions; using fallback path %s", kernelStateFallbackPath)
+			return
+		}
 		e.logger.Warn("Kernel: persist system prompt snapshot failed: %v", err)
 	}
 }
@@ -245,14 +329,14 @@ type cycleHistoryEntry struct {
 	UpdatedAt  string
 }
 
-func renderKernelRuntimeBlockWithHistory(result *kerneldomain.CycleResult, cycleErr error, now time.Time, history []cycleHistoryEntry) string {
-	lines := renderKernelRuntimeLines(result, cycleErr, now)
+func renderKernelRuntimeBlockWithHistory(result *kerneldomain.CycleResult, cycleErr error, now time.Time, history []cycleHistoryEntry, fallbackPath string) string {
+	lines := renderKernelRuntimeLines(result, cycleErr, now, fallbackPath)
 	lines = append(lines, "")
 	lines = append(lines, renderCycleHistoryTable(history))
 	return strings.Join(lines, "\n")
 }
 
-func renderKernelRuntimeLines(result *kerneldomain.CycleResult, cycleErr error, now time.Time) []string {
+func renderKernelRuntimeLines(result *kerneldomain.CycleResult, cycleErr error, now time.Time, fallbackPath string) []string {
 	lines := []string{
 		"## kernel_runtime",
 		fmt.Sprintf("- updated_at: %s", now.UTC().Format(time.RFC3339)),
@@ -288,6 +372,9 @@ func renderKernelRuntimeLines(result *kerneldomain.CycleResult, cycleErr error, 
 		lines = append(lines, fmt.Sprintf("- latest_error: %s", cycleErr.Error()))
 	} else {
 		lines = append(lines, "- latest_error: (none)")
+	}
+	if strings.TrimSpace(fallbackPath) != "" {
+		lines = append(lines, fmt.Sprintf("- state_write_fallback: %s", fallbackPath))
 	}
 	return lines
 }

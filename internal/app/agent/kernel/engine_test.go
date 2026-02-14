@@ -2,12 +2,14 @@ package kernel
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	kerneldomain "alex/internal/domain/kernel"
 	"alex/internal/shared/logging"
@@ -212,37 +214,83 @@ func TestEngine_RunCycle_AllSucceed(t *testing.T) {
 }
 
 func TestWriteKernelStateFallback(t *testing.T) {
-	dir := t.TempDir()
-	previousDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
+	content := "# STATE\nfallback\n"
+	original, err := os.ReadFile(kernelStateFallbackPath)
+	originalExists := err == nil
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatalf("read existing fallback: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = os.Chdir(previousDir)
+		if originalExists {
+			_ = os.WriteFile(kernelStateFallbackPath, original, 0o644)
+		} else {
+			_ = os.Remove(kernelStateFallbackPath)
+		}
 	})
 
-	content := "# STATE\nfallback\n"
 	path, err := writeKernelStateFallback(content)
 	if err != nil {
 		t.Fatalf("writeKernelStateFallback: %v", err)
 	}
-	resolvedDir := dir
-	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
-		resolvedDir = resolved
+	if path != kernelStateFallbackPath {
+		t.Fatalf("expected path %s, got %s", kernelStateFallbackPath, path)
 	}
-	expectedPath := filepath.Join(resolvedDir, "artifacts", "kernel_state.md")
-	if path != expectedPath {
-		t.Fatalf("expected path %s, got %s", expectedPath, path)
-	}
-	data, err := os.ReadFile(expectedPath)
+	data, err := os.ReadFile(kernelStateFallbackPath)
 	if err != nil {
 		t.Fatalf("read fallback: %v", err)
 	}
 	if string(data) != content {
 		t.Fatalf("unexpected content: %s", string(data))
+	}
+}
+
+func TestIsSandboxPathRestriction(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil", err: nil, want: false},
+		{name: "permission", err: fs.ErrPermission, want: true},
+		{name: "wrapped permission", err: fmt.Errorf("open: %w", fs.ErrPermission), want: true},
+		{name: "path error", err: &os.PathError{Op: "open", Path: "/restricted", Err: fs.ErrPermission}, want: true},
+		{name: "permission denied string", err: errors.New("permission denied"), want: true},
+		{name: "sandbox restriction", err: errors.New("sandbox path restriction: denied"), want: true},
+		{name: "path guard", err: errors.New("path must stay within the working directory"), want: true},
+		{name: "other", err: errors.New("disk full"), want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isSandboxPathRestriction(tc.err); got != tc.want {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestRenderKernelRuntimeBlockWithHistory_IncludesFallbackPath(t *testing.T) {
+	block := renderKernelRuntimeBlockWithHistory(nil, nil, time.Date(2026, 2, 14, 0, 0, 0, 0, time.UTC), nil, kernelStateFallbackPath)
+	if !strings.Contains(block, "state_write_fallback") {
+		t.Fatalf("expected fallback note, got %q", block)
+	}
+	if !strings.Contains(block, kernelStateFallbackPath) {
+		t.Fatalf("expected fallback path in block, got %q", block)
+	}
+}
+
+func TestPersistSystemPromptSnapshot_SkipsWhenRestricted(t *testing.T) {
+	exec := &mockExecutor{}
+	engine, _ := newTestEngine(t, exec)
+	engine.stateWriteRestricted.Store(true)
+	engine.SetSystemPromptProvider(func() string { return "kernel prompt v2" })
+
+	engine.persistSystemPromptSnapshot()
+
+	if _, err := os.Stat(engine.stateFile.SystemPromptPath()); err == nil {
+		t.Fatalf("expected no system prompt snapshot write when restricted")
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat system prompt: %v", err)
 	}
 }
 
@@ -486,9 +534,19 @@ func TestEngine_NotifierNotCalledOnEmptyCycle(t *testing.T) {
 
 func TestEngine_NotifierCalledOnError(t *testing.T) {
 	exec := &mockExecutor{}
-	// Use a state file dir that doesn't exist to trigger a read error.
 	store := newMemStore()
-	sf := NewStateFile("/nonexistent-path-for-test")
+	badFile, err := os.CreateTemp("", "kernel-state-file")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	badPath := badFile.Name()
+	t.Cleanup(func() {
+		_ = os.Remove(badPath)
+	})
+	if err := badFile.Close(); err != nil {
+		t.Fatalf("close temp file: %v", err)
+	}
+	sf := NewStateFile(badPath)
 	planner := NewStaticPlanner("k", []AgentConfig{
 		{AgentID: "a", Prompt: "p", Enabled: true},
 	})
