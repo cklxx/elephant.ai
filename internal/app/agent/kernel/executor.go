@@ -16,6 +16,9 @@ import (
 const kernelDefaultSummaryInstruction = `Kernel post-run requirement:
 - You MUST complete at least one real tool action (for example: read_file, shell_exec, write_file).
 - Do NOT claim completion without tool evidence.
+- Kernel cycles are unattended. Do NOT end with questions, confirmations, or A/B choices for the user.
+- If a write to ~/.alex/kernel/default/* is blocked by sandbox/path restriction, switch immediately to workspace fallback paths under ./kernel_sync/ (knowledge/, goal/, drafts/, proposals/) and continue in the same cycle.
+- For reversible path decisions, choose a sensible default and execute; report what you chose in "## 执行总结".
 - If blocked, report exact tool error and mark task as blocked.
 - In your final answer, include a section titled "## 执行总结".
 - Summarize: completed work, concrete evidence/artifacts, remaining risks/next step.
@@ -45,6 +48,7 @@ type CoordinatorExecutor struct {
 }
 
 var errKernelNoRealToolAction = errors.New("kernel dispatch completed without successful real tool action")
+var errKernelAwaitingUserConfirmation = errors.New("kernel dispatch completed while still awaiting user confirmation")
 
 // NewCoordinatorExecutor creates an executor backed by the given AgentCoordinator.
 func NewCoordinatorExecutor(coordinator TaskRunner, timeout time.Duration) *CoordinatorExecutor {
@@ -102,6 +106,9 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 	result, err := e.coordinator.ExecuteTask(execCtx, taskPrompt, sessionID, nil)
 	if err != nil {
 		return ExecutionResult{}, err
+	}
+	if dispatchStillAwaitsUserConfirmation(result) {
+		return ExecutionResult{}, errKernelAwaitingUserConfirmation
 	}
 	if !containsSuccessfulRealToolExecution(result) {
 		return ExecutionResult{}, errKernelNoRealToolAction
@@ -199,6 +206,50 @@ func containsSuccessfulRealToolExecution(result *agent.TaskResult) bool {
 			return true
 		}
 	}
+	return false
+}
+
+func dispatchStillAwaitsUserConfirmation(result *agent.TaskResult) bool {
+	if result == nil {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input") {
+		return true
+	}
+	if _, ok := agent.ExtractAwaitUserInputPrompt(result.Messages); ok {
+		return true
+	}
+	return answerContainsUserConfirmationPrompt(result.Answer)
+}
+
+func answerContainsUserConfirmationPrompt(answer string) bool {
+	trimmed := strings.TrimSpace(answer)
+	if trimmed == "" {
+		return false
+	}
+	lower := strings.ToLower(trimmed)
+
+	if strings.Contains(lower, "do you want me") ||
+		strings.Contains(lower, "my understanding is") && strings.Contains(lower, "?") ||
+		strings.Contains(lower, "please confirm") ||
+		strings.Contains(lower, "please choose") ||
+		strings.Contains(lower, "option a") && strings.Contains(lower, "option b") {
+		return true
+	}
+
+	if strings.Contains(trimmed, "我的理解是") && (strings.Contains(trimmed, "对吗") || strings.Contains(trimmed, "是否")) {
+		return true
+	}
+	if strings.Contains(trimmed, "你要我") && strings.Contains(trimmed, "吗") {
+		return true
+	}
+	if strings.Contains(trimmed, "请确认") || strings.Contains(trimmed, "请选择") || strings.Contains(trimmed, "请回复") {
+		return true
+	}
+	if strings.Contains(trimmed, "可选") && (strings.Contains(lower, "a)") || strings.Contains(lower, "b)")) {
+		return true
+	}
+
 	return false
 }
 

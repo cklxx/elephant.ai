@@ -44,6 +44,9 @@ func TestCoordinatorExecutor_AppendsSummaryInstructionAndExtractsSummary(t *test
 	if !strings.Contains(runner.lastPrompt, "## 执行总结") {
 		t.Fatalf("expected summary instruction appended, got prompt: %q", runner.lastPrompt)
 	}
+	if !strings.Contains(runner.lastPrompt, "./kernel_sync/") {
+		t.Fatalf("expected kernel fallback guidance in prompt, got prompt: %q", runner.lastPrompt)
+	}
 	if !strings.Contains(res.Summary, "## 执行总结") {
 		t.Fatalf("expected summary extracted from answer, got: %q", res.Summary)
 	}
@@ -173,6 +176,69 @@ func TestCoordinatorExecutor_FailsWhenRealToolResultIsError(t *testing.T) {
 		t.Fatal("expected failure when real tool result failed")
 	}
 	if !strings.Contains(err.Error(), "real tool action") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestCoordinatorExecutor_FailsWhenResultAwaitsUserConfirmation(t *testing.T) {
+	runner := &stubTaskRunner{
+		result: &agent.TaskResult{
+			Answer: "## 执行总结\n- 我这边先不继续硬写 `~/.alex/kernel/default/...` 了。\n- 我的理解是你要我下一轮改成 `./kernel_sync/...`，然后由 kernel 同步——对吗？\n- 可选：A) 按 `./kernel_sync/knowledge|goal|drafts` 执行 B) 你指定路径",
+			Messages: []core.Message{
+				{
+					Role: "assistant",
+					ToolCalls: []core.ToolCall{
+						{ID: "call-1", Name: "read_file"},
+					},
+				},
+				{
+					Role: "tool",
+					ToolResults: []core.ToolResult{
+						{CallID: "call-1", Content: "ok"},
+					},
+				},
+			},
+		},
+	}
+	exec := NewCoordinatorExecutor(runner, 0)
+
+	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
+	if err == nil {
+		t.Fatal("expected failure when result still awaits user confirmation")
+	}
+	if !strings.Contains(err.Error(), "awaiting user confirmation") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestCoordinatorExecutor_FailsWhenStopReasonAwaitUserInput(t *testing.T) {
+	runner := &stubTaskRunner{
+		result: &agent.TaskResult{
+			Answer:     "## 执行总结\n- 等待用户确认",
+			StopReason: "await_user_input",
+			Messages: []core.Message{
+				{
+					Role: "assistant",
+					ToolCalls: []core.ToolCall{
+						{ID: "call-1", Name: "shell_exec"},
+					},
+				},
+				{
+					Role: "tool",
+					ToolResults: []core.ToolResult{
+						{CallID: "call-1", Content: "ok"},
+					},
+				},
+			},
+		},
+	}
+	exec := NewCoordinatorExecutor(runner, 0)
+
+	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
+	if err == nil {
+		t.Fatal("expected failure when stop reason is await_user_input")
+	}
+	if !strings.Contains(err.Error(), "awaiting user confirmation") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
