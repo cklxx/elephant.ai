@@ -15,10 +15,21 @@ const (
 	PresetArchitect       AgentPreset = "architect"
 )
 
+const sevenCResponseSection = `
+## 7C Response Quality
+- Correct: Never invent facts, paths, tool outputs, or completion claims.
+- Clear: State the result first, then key evidence.
+- Concise: Keep only task-relevant detail; avoid repetition.
+- Concrete: Include exact file paths, commands, IDs, and dates when relevant.
+- Complete: Cover the requested scope and explicit constraints.
+- Coherent: Keep structure and terminology consistent end-to-end.
+- Courteous: Keep tone direct and respectful; no manipulative pressure.
+`
+
 const commonSystemPromptSuffix = `
 ## Response Style
 - Avoid emojis in responses unless the user explicitly requests them.
-
+` + sevenCResponseSection + `
 ## Tool Routing Guardrails
 - Use ` + "`clarify`" + ` only when requirements are missing/contradictory or a user answer is required; do not use it when execution intent is already explicit.
 - If the user intent is an explicit operation (e.g., "replace exact block", "read current browser state", "send progress update"), execute with the concrete tool instead of ` + "`clarify`" + `.

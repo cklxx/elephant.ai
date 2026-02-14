@@ -652,7 +652,7 @@ func (g *Gateway) buildReply(result *agent.TaskResult, execErr error) string {
 			}
 		}
 	}
-	return reply
+	return channels.ShapeReply7C(reply)
 }
 
 // extractThinkingFallback scans messages in reverse for the last assistant

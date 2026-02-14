@@ -3,7 +3,6 @@ package channels
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -97,8 +96,9 @@ func BuildReplyCore(cfg BaseConfig, result *agent.TaskResult, execErr error) str
 	if execErr != nil {
 		reply = fmt.Sprintf("执行失败：%v", execErr)
 	} else if result != nil {
-		reply = strings.TrimSpace(result.Answer)
+		reply = result.Answer
 	}
+	reply = ShapeReply7C(reply)
 	if reply == "" {
 		return ""
 	}
