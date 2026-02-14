@@ -238,6 +238,7 @@ func allowedExtraRoots() []string {
 
 	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
 		add(filepath.Join(home, ".alex", "memory"))
+		add(filepath.Join(home, ".alex", "kernel"))
 	}
 
 	return roots
