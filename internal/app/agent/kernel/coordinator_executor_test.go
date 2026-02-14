@@ -56,8 +56,8 @@ func TestCoordinatorExecutor_AppendsSummaryInstructionAndExtractsSummary(t *test
 	if !strings.Contains(runner.lastPrompt, "## 执行总结") {
 		t.Fatalf("expected summary instruction appended, got prompt: %q", runner.lastPrompt)
 	}
-	if !strings.Contains(runner.lastPrompt, "./kernel_sync/") {
-		t.Fatalf("expected kernel fallback guidance in prompt, got prompt: %q", runner.lastPrompt)
+	if !strings.Contains(runner.lastPrompt, "~/.alex/kernel/default/") {
+		t.Fatalf("expected kernel write path guidance in prompt, got prompt: %q", runner.lastPrompt)
 	}
 	if !strings.Contains(res.Summary, "## 执行总结") {
 		t.Fatalf("expected summary extracted from answer, got: %q", res.Summary)

@@ -18,7 +18,7 @@ const kernelDefaultSummaryInstruction = `Kernel post-run requirement:
 - You MUST complete at least one real tool action (for example: read_file, shell_exec, write_file).
 - Do NOT claim completion without tool evidence.
 - Kernel cycles are unattended. Do NOT end with questions, confirmations, or A/B choices for the user.
-- If a write to ~/.alex/kernel/default/* is blocked by sandbox/path restriction, switch immediately to workspace fallback paths under ./kernel_sync/ (knowledge/, goal/, drafts/, proposals/) and continue in the same cycle.
+- Write files directly to ~/.alex/kernel/default/ (this path is authorized and writable).
 - For reversible path decisions, choose a sensible default and execute; report what you chose in "## 执行总结".
 - If blocked, report exact tool error and mark task as blocked.
 - In your final answer, include a section titled "## 执行总结".
@@ -30,7 +30,7 @@ const kernelRetryInstruction = `Kernel retry requirement:
 - Your previous attempt was not autonomously complete.
 - Do NOT ask questions, confirmations, or A/B choices.
 - Execute at least one concrete real tool action now.
-- If ~/.alex/kernel/default/* is blocked, use ./kernel_sync/* workspace fallback immediately.
+- Write files directly to ~/.alex/kernel/default/ (this path is authorized and writable).
 - Return a factual "## 执行总结" with concrete actions and artifact paths.`
 
 // ExecutionResult captures the essential completion information from one dispatch.

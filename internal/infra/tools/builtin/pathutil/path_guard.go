@@ -183,12 +183,27 @@ func pathWithinBase(base, target string) bool {
 		if !errors.Is(err, fs.ErrNotExist) {
 			return false
 		}
-		parent := filepath.Dir(targetClean)
-		parentResolved, err := filepath.EvalSymlinks(parent)
-		if err != nil {
-			return false
+		// Walk up from targetClean until we find an existing ancestor,
+		// then reconstruct the resolved path with the remaining suffix.
+		cur := targetClean
+		var suffix []string
+		for {
+			parent := filepath.Dir(cur)
+			suffix = append([]string{filepath.Base(cur)}, suffix...)
+			resolved, resolveErr := filepath.EvalSymlinks(parent)
+			if resolveErr == nil {
+				targetResolved = filepath.Join(append([]string{resolved}, suffix...)...)
+				break
+			}
+			if !errors.Is(resolveErr, fs.ErrNotExist) {
+				return false
+			}
+			if parent == cur {
+				// Reached filesystem root without finding existing ancestor.
+				return false
+			}
+			cur = parent
 		}
-		targetResolved = filepath.Join(parentResolved, filepath.Base(targetClean))
 	}
 
 	rel, err := filepath.Rel(baseResolved, targetResolved)
