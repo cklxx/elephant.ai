@@ -2,11 +2,7 @@ package kernel
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -26,7 +22,6 @@ var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month 
 const (
 	kernelRuntimeSectionStart = "<!-- KERNEL_RUNTIME:START -->"
 	kernelRuntimeSectionEnd   = "<!-- KERNEL_RUNTIME:END -->"
-	kernelStateFallbackPath   = "/Users/bytedance/code/elephant.ai/artifacts/kernel_state.md"
 )
 
 // ValidateSchedule checks whether the given cron expression is valid.
@@ -220,7 +215,7 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 	if e.stateWriteRestricted.Load() {
 		fallbackBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history, kernelStateFallbackPath)
 		fallbackContent := upsertKernelRuntimeBlock(stateContent, fallbackBlock)
-		fallbackPath, fallbackErr := writeKernelStateFallback(fallbackContent)
+		fallbackPath, fallbackErr := WriteKernelStateFallback(fallbackContent)
 		if fallbackErr != nil {
 			e.logger.Warn("Kernel: persist runtime state skipped due to sandbox restrictions (fallback write to %s failed: %v)", fallbackPath, fallbackErr)
 			return
@@ -234,7 +229,7 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 		}
 		fallbackBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history, kernelStateFallbackPath)
 		fallbackContent := upsertKernelRuntimeBlock(stateContent, fallbackBlock)
-		fallbackPath, fallbackErr := writeKernelStateFallback(fallbackContent)
+		fallbackPath, fallbackErr := WriteKernelStateFallback(fallbackContent)
 		if fallbackErr != nil {
 			e.logger.Warn("Kernel: persist runtime state failed: %v (fallback write to %s failed: %v)", err, fallbackPath, fallbackErr)
 			return
@@ -259,59 +254,32 @@ func (e *Engine) markStateWritesRestricted(err error) bool {
 	return true
 }
 
-func isSandboxPathRestriction(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, fs.ErrPermission) || os.IsPermission(err) {
-		return true
-	}
-	lower := strings.ToLower(err.Error())
-	if strings.Contains(lower, "permission denied") {
-		return true
-	}
-	if strings.Contains(lower, "operation not permitted") {
-		return true
-	}
-	if strings.Contains(lower, "read-only file system") {
-		return true
-	}
-	if strings.Contains(lower, "path must stay within the working directory") {
-		return true
-	}
-	if strings.Contains(lower, "sandbox") && strings.Contains(lower, "restrict") {
-		return true
-	}
-	return false
-}
-
-func writeKernelStateFallback(content string) (string, error) {
-	fallbackPath := filepath.Clean(kernelStateFallbackPath)
-	artifactsDir := filepath.Dir(fallbackPath)
-	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
-		return fallbackPath, err
-	}
-	if err := os.WriteFile(fallbackPath, []byte(content), 0o644); err != nil {
-		return fallbackPath, err
-	}
-	return fallbackPath, nil
-}
-
 func (e *Engine) persistSystemPromptSnapshot() {
 	if e.systemPromptProvider == nil {
-		return
-	}
-	if e.stateWriteRestricted.Load() {
-		e.logger.Warn("Kernel: skipping system prompt snapshot (state writes restricted; fallback path %s)", kernelStateFallbackPath)
 		return
 	}
 	prompt := strings.TrimSpace(e.systemPromptProvider())
 	if prompt == "" {
 		return
 	}
-	if err := e.stateFile.WriteSystemPrompt(RenderSystemPromptMarkdown(prompt, time.Now())); err != nil {
+	rendered := RenderSystemPromptMarkdown(prompt, time.Now())
+	if e.stateWriteRestricted.Load() {
+		fallbackPath, fallbackErr := AppendKernelStateFallback("SYSTEM_PROMPT.md fallback", rendered)
+		if fallbackErr != nil {
+			e.logger.Warn("Kernel: system prompt snapshot skipped due to sandbox restrictions (fallback write to %s failed: %v)", fallbackPath, fallbackErr)
+			return
+		}
+		e.logger.Warn("Kernel: system prompt snapshot skipped due to sandbox restrictions; fallback written to %s", fallbackPath)
+		return
+	}
+	if err := e.stateFile.WriteSystemPrompt(rendered); err != nil {
 		if e.markStateWritesRestricted(err) {
-			e.logger.Warn("Kernel: system prompt snapshot blocked by sandbox restrictions; using fallback path %s", kernelStateFallbackPath)
+			fallbackPath, fallbackErr := AppendKernelStateFallback("SYSTEM_PROMPT.md fallback", rendered)
+			if fallbackErr != nil {
+				e.logger.Warn("Kernel: system prompt snapshot blocked by sandbox restrictions (fallback write to %s failed: %v)", fallbackPath, fallbackErr)
+				return
+			}
+			e.logger.Warn("Kernel: system prompt snapshot blocked by sandbox restrictions; fallback written to %s", fallbackPath)
 			return
 		}
 		e.logger.Warn("Kernel: persist system prompt snapshot failed: %v", err)

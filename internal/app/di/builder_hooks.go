@@ -290,8 +290,18 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 	if systemPrompt == "" {
 		systemPrompt = preparation.DefaultSystemPrompt
 	}
-	if err := stateFile.WriteSystemPrompt(kernelagent.RenderSystemPromptMarkdown(systemPrompt, seededAt)); err != nil {
-		b.logger.Warn("Kernel system prompt doc write failed: %v", err)
+	renderedSystemPrompt := kernelagent.RenderSystemPromptMarkdown(systemPrompt, seededAt)
+	if err := stateFile.WriteSystemPrompt(renderedSystemPrompt); err != nil {
+		if kernelagent.IsSandboxPathRestriction(err) {
+			fallbackPath, fallbackErr := kernelagent.AppendKernelStateFallback("SYSTEM_PROMPT.md fallback", renderedSystemPrompt)
+			if fallbackErr != nil {
+				b.logger.Warn("Kernel system prompt doc write blocked by sandbox restrictions (fallback write to %s failed: %v)", fallbackPath, fallbackErr)
+			} else {
+				b.logger.Warn("Kernel system prompt doc write blocked by sandbox restrictions; fallback written to %s", fallbackPath)
+			}
+		} else {
+			b.logger.Warn("Kernel system prompt doc write failed: %v", err)
+		}
 	}
 
 	planner := kernelagent.NewStaticPlanner(cfg.KernelID, agents)
