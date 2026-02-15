@@ -2,36 +2,46 @@ package oauth
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
-	"sync"
-	"time"
+
+	"alex/internal/infra/filestore"
+	jsonx "alex/internal/shared/json"
 )
 
 type FileTokenStore struct {
-	mu   sync.Mutex
-	path string
-	data map[string]Token
-	now  func() time.Time
+	coll *filestore.Collection[string, Token]
 }
 
 func NewFileTokenStore(dir string) (*FileTokenStore, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("dir required")
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := filestore.EnsureDir(dir); err != nil {
 		return nil, fmt.Errorf("mkdir %s: %w", dir, err)
 	}
-	store := &FileTokenStore{
-		path: filepath.Join(dir, "tokens.json"),
-		data: make(map[string]Token),
-		now:  time.Now,
-	}
-	_ = store.load()
-	return store, nil
+	coll := filestore.NewCollection[string, Token](filestore.CollectionConfig{
+		FilePath: filepath.Join(dir, "tokens.json"),
+		Perm:     0o600,
+		Name:     "oauth_token",
+	})
+	// Direct map format (no envelope wrapper).
+	coll.SetUnmarshalDoc(func(data []byte) (map[string]Token, error) {
+		var decoded map[string]Token
+		if err := jsonx.Unmarshal(data, &decoded); err != nil {
+			return nil, err
+		}
+		m := make(map[string]Token, len(decoded))
+		for k, v := range decoded {
+			if k == "" || v.OpenID == "" {
+				continue
+			}
+			m[k] = v
+		}
+		return m, nil
+	})
+	_ = coll.Load()
+	return &FileTokenStore{coll: coll}, nil
 }
 
 func (s *FileTokenStore) EnsureSchema(_ context.Context) error { return nil }
@@ -43,12 +53,11 @@ func (s *FileTokenStore) Get(ctx context.Context, openID string) (Token, error) 
 	if openID == "" {
 		return Token{}, fmt.Errorf("open_id required")
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if token, ok := s.data[openID]; ok {
-		return token, nil
+	token, ok := s.coll.Get(openID)
+	if !ok {
+		return Token{}, ErrTokenNotFound
 	}
-	return Token{}, ErrTokenNotFound
+	return token, nil
 }
 
 func (s *FileTokenStore) Upsert(ctx context.Context, token Token) error {
@@ -59,12 +68,9 @@ func (s *FileTokenStore) Upsert(ctx context.Context, token Token) error {
 		return fmt.Errorf("open_id required")
 	}
 	if token.UpdatedAt.IsZero() {
-		token.UpdatedAt = s.now()
+		token.UpdatedAt = s.coll.Now()
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.data[token.OpenID] = token
-	return s.flushLocked()
+	return s.coll.Put(token.OpenID, token)
 }
 
 func (s *FileTokenStore) Delete(ctx context.Context, openID string) error {
@@ -74,46 +80,7 @@ func (s *FileTokenStore) Delete(ctx context.Context, openID string) error {
 	if openID == "" {
 		return fmt.Errorf("open_id required")
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.data, openID)
-	return s.flushLocked()
-}
-
-func (s *FileTokenStore) load() error {
-	data, err := os.ReadFile(s.path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-	var decoded map[string]Token
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-	for k, v := range decoded {
-		if k == "" || v.OpenID == "" {
-			continue
-		}
-		s.data[k] = v
-	}
-	return nil
-}
-
-func (s *FileTokenStore) flushLocked() error {
-	payload, err := json.MarshalIndent(s.data, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal tokens: %w", err)
-	}
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, payload, 0o600); err != nil {
-		return fmt.Errorf("write tmp: %w", err)
-	}
-	if err := os.Rename(tmp, s.path); err != nil {
-		return fmt.Errorf("rename: %w", err)
-	}
-	return nil
+	return s.coll.Delete(openID)
 }
 
 var _ TokenStore = (*FileTokenStore)(nil)

@@ -3,12 +3,10 @@ package lark
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
+	"alex/internal/infra/filestore"
 	jsonx "alex/internal/shared/json"
 )
 
@@ -21,11 +19,8 @@ type planReviewStoreDoc struct {
 // PlanReviewLocalStore is a local (memory/file) PlanReviewStore.
 // When filePath is empty the store is in-memory only.
 type PlanReviewLocalStore struct {
-	mu       sync.RWMutex
-	filePath string
-	ttl      time.Duration
-	now      func() time.Time
-	items    map[string]PlanReviewPending
+	coll *filestore.Collection[string, PlanReviewPending]
+	ttl  time.Duration
 }
 
 // NewPlanReviewMemoryStore creates an in-memory plan review store.
@@ -39,11 +34,11 @@ func NewPlanReviewFileStore(dir string, ttl time.Duration) (*PlanReviewLocalStor
 	if trimmedDir == "" {
 		return nil, fmt.Errorf("plan review file store dir is required")
 	}
-	if err := os.MkdirAll(trimmedDir, 0o755); err != nil {
+	if err := filestore.EnsureDir(trimmedDir); err != nil {
 		return nil, fmt.Errorf("create plan review file store dir: %w", err)
 	}
-	store := newPlanReviewLocalStore(filepath.Join(trimmedDir, "plan_review_pending.json"), ttl)
-	if err := store.load(); err != nil {
+	store := newPlanReviewLocalStore(trimmedDir+"/plan_review_pending.json", ttl)
+	if err := store.coll.Load(); err != nil {
 		return nil, err
 	}
 	return store, nil
@@ -53,12 +48,39 @@ func newPlanReviewLocalStore(filePath string, ttl time.Duration) *PlanReviewLoca
 	if ttl <= 0 {
 		ttl = defaultPlanReviewTTL
 	}
-	return &PlanReviewLocalStore{
-		filePath: filePath,
-		ttl:      ttl,
-		now:      time.Now,
-		items:    make(map[string]PlanReviewPending),
-	}
+	coll := filestore.NewCollection[string, PlanReviewPending](filestore.CollectionConfig{
+		FilePath: filePath,
+		Perm:     0o600,
+		Name:     "plan_review",
+	})
+	coll.SetMarshalDoc(func(m map[string]PlanReviewPending) ([]byte, error) {
+		doc := planReviewStoreDoc{Items: make([]PlanReviewPending, 0, len(m))}
+		for _, p := range m {
+			doc.Items = append(doc.Items, p)
+		}
+		return filestore.MarshalJSONIndent(doc)
+	})
+	coll.SetUnmarshalDoc(func(data []byte) (map[string]PlanReviewPending, error) {
+		var doc planReviewStoreDoc
+		if err := jsonx.Unmarshal(data, &doc); err != nil {
+			return nil, fmt.Errorf("decode plan review store: %w", err)
+		}
+		now := time.Now()
+		m := make(map[string]PlanReviewPending, len(doc.Items))
+		for _, p := range doc.Items {
+			key := planReviewKey(p.UserID, p.ChatID)
+			if key == "::" {
+				continue
+			}
+			// Evict expired on load.
+			if !p.ExpiresAt.IsZero() && now.After(p.ExpiresAt) {
+				continue
+			}
+			m[key] = p
+		}
+		return m, nil
+	})
+	return &PlanReviewLocalStore{coll: coll, ttl: ttl}
 }
 
 func planReviewKey(userID, chatID string) string {
@@ -73,13 +95,7 @@ func (s *PlanReviewLocalStore) EnsureSchema(ctx context.Context) error {
 	if s == nil {
 		return fmt.Errorf("plan review store not initialized")
 	}
-	if s.filePath == "" {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(s.filePath), 0o755); err != nil {
-		return fmt.Errorf("ensure plan review directory: %w", err)
-	}
-	return nil
+	return s.coll.EnsureDir()
 }
 
 // SavePending writes pending plan review state.
@@ -95,7 +111,7 @@ func (s *PlanReviewLocalStore) SavePending(ctx context.Context, pending PlanRevi
 	if pending.UserID == "" || pending.ChatID == "" {
 		return fmt.Errorf("user_id and chat_id required")
 	}
-	now := s.now()
+	now := s.coll.Now()
 	if pending.CreatedAt.IsZero() {
 		pending.CreatedAt = now
 	}
@@ -103,11 +119,17 @@ func (s *PlanReviewLocalStore) SavePending(ctx context.Context, pending PlanRevi
 		pending.ExpiresAt = now.Add(s.ttl)
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.items[planReviewKey(pending.UserID, pending.ChatID)] = pending
-	s.evictExpiredLocked(now)
-	return s.persistLocked()
+	key := planReviewKey(pending.UserID, pending.ChatID)
+	return s.coll.Mutate(func(items map[string]PlanReviewPending) error {
+		items[key] = pending
+		filestore.EvictByTTL(items, now, 0, func(v PlanReviewPending) time.Time {
+			if v.ExpiresAt.IsZero() {
+				return now // never evict items without expiry
+			}
+			return v.ExpiresAt
+		})
+		return nil
+	})
 }
 
 // GetPending fetches pending plan review state if present and not expired.
@@ -124,18 +146,15 @@ func (s *PlanReviewLocalStore) GetPending(ctx context.Context, userID, chatID st
 		return PlanReviewPending{}, false, nil
 	}
 
-	now := s.now()
+	now := s.coll.Now()
 	key := planReviewKey(userID, chatID)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	pending, ok := s.items[key]
+	pending, ok := s.coll.Get(key)
 	if !ok {
 		return PlanReviewPending{}, false, nil
 	}
 	if !pending.ExpiresAt.IsZero() && now.After(pending.ExpiresAt) {
-		delete(s.items, key)
-		_ = s.persistLocked()
+		_ = s.coll.Delete(key)
 		return PlanReviewPending{}, false, nil
 	}
 	return pending, true, nil
@@ -154,75 +173,12 @@ func (s *PlanReviewLocalStore) ClearPending(ctx context.Context, userID, chatID 
 	if userID == "" || chatID == "" {
 		return nil
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.items, planReviewKey(userID, chatID))
-	return s.persistLocked()
+	return s.coll.Delete(planReviewKey(userID, chatID))
 }
 
-func (s *PlanReviewLocalStore) evictExpiredLocked(now time.Time) {
-	for key, pending := range s.items {
-		if pending.ExpiresAt.IsZero() {
-			continue
-		}
-		if now.After(pending.ExpiresAt) {
-			delete(s.items, key)
-		}
-	}
-}
-
-func (s *PlanReviewLocalStore) load() error {
-	if s.filePath == "" {
-		return nil
-	}
-	data, err := os.ReadFile(s.filePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("read plan review store: %w", err)
-	}
-	var doc planReviewStoreDoc
-	if err := jsonx.Unmarshal(data, &doc); err != nil {
-		return fmt.Errorf("decode plan review store: %w", err)
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, pending := range doc.Items {
-		key := planReviewKey(pending.UserID, pending.ChatID)
-		if key == "::" {
-			continue
-		}
-		s.items[key] = pending
-	}
-	s.evictExpiredLocked(s.now())
-	return nil
-}
-
-func (s *PlanReviewLocalStore) persistLocked() error {
-	if s.filePath == "" {
-		return nil
-	}
-	doc := planReviewStoreDoc{
-		Items: make([]PlanReviewPending, 0, len(s.items)),
-	}
-	for _, pending := range s.items {
-		doc.Items = append(doc.Items, pending)
-	}
-	data, err := jsonx.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode plan review store: %w", err)
-	}
-	data = append(data, '\n')
-	tmp := s.filePath + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return fmt.Errorf("write plan review temp file: %w", err)
-	}
-	if err := os.Rename(tmp, s.filePath); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("commit plan review file: %w", err)
-	}
-	return nil
+// SetNow overrides the time function for testing.
+func (s *PlanReviewLocalStore) SetNow(fn func() time.Time) {
+	s.coll.Now = fn
 }
 
 var _ PlanReviewStore = (*PlanReviewLocalStore)(nil)

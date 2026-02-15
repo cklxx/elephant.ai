@@ -133,7 +133,7 @@ func TestPlanReviewLocalStore_Expiry(t *testing.T) {
 	ctx := context.Background()
 	store := NewPlanReviewMemoryStore(10 * time.Millisecond)
 	start := time.Now().UTC()
-	store.now = func() time.Time { return start }
+	store.SetNow(func() time.Time { return start })
 
 	if err := store.SavePending(ctx, PlanReviewPending{
 		UserID:        "u1",
@@ -144,7 +144,7 @@ func TestPlanReviewLocalStore_Expiry(t *testing.T) {
 		t.Fatalf("SavePending() error = %v", err)
 	}
 
-	store.now = func() time.Time { return start.Add(20 * time.Millisecond) }
+	store.SetNow(func() time.Time { return start.Add(20 * time.Millisecond) })
 	_, ok, err := store.GetPending(ctx, "u1", "c1")
 	if err != nil {
 		t.Fatalf("GetPending() error = %v", err)
