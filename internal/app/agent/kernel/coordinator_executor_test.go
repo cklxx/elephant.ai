@@ -451,6 +451,30 @@ func TestCompactSummary_TruncatesByRunes(t *testing.T) {
 	}
 }
 
+func TestCoordinatorExecutor_InjectsFounderDirective(t *testing.T) {
+	runner := &stubTaskRunner{
+		result: &agent.TaskResult{
+			Answer:   "## 执行总结\n- done",
+			Messages: []core.Message{assistantMessageWithToolCalls("read_file")},
+		},
+	}
+	exec := NewCoordinatorExecutor(runner, 0)
+
+	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(runner.lastPrompt, "创始人心态") {
+		t.Fatalf("expected founder directive in prompt, got: %q", runner.lastPrompt)
+	}
+	if !strings.Contains(runner.lastPrompt, "永不询问") {
+		t.Fatalf("expected 永不询问 in founder directive, got: %q", runner.lastPrompt)
+	}
+	if !strings.HasPrefix(runner.lastPrompt, kernelFounderDirective) {
+		t.Fatal("expected founder directive to be prepended to prompt")
+	}
+}
+
 func TestCoordinatorExecutor_SetsAutoApproveInContext(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{

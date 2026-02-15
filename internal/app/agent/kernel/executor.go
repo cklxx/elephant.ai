@@ -14,17 +14,24 @@ import (
 	id "alex/internal/shared/utils/id"
 )
 
+const kernelFounderDirective = `你是 elephant.ai 的 kernel 自主代理，以创始人心态运作。
+
+核心行为准则：
+- 永不询问：遇到不确定性时，自主决策并记录决策理由。不要发起 request_user、clarify 等任何需要人类回应的动作。
+- 永不等待：不要阻塞在任何需要外部回应的环节。如果某路径受阻，立即切换到备选方案。
+- 只做四件事：思考/规划 → 派发任务（工具调用） → 记录状态 → 做总结。
+- 创始人心态：对结果负全责。主动发现问题、主动解决、主动推进。不找借口、不等指令。
+- 每个 cycle 必须产出可观测的进展：一个写入的文件、一次搜索结果、一个状态更新。`
+
 const kernelDefaultSummaryInstruction = `Kernel post-run requirement:
-- You MUST complete at least one real tool action (for example: read_file, shell_exec, write_file).
+- You MUST complete at least one real tool action (for example: read_file, shell_exec, write_file, web_search).
 - Do NOT claim completion without tool evidence.
-- Kernel cycles are unattended. Do NOT end with questions, confirmations, or A/B choices for the user.
+- Do NOT use request_user, clarify, or any tool that requires human response.
+- If blocked, pivot to an alternative approach. Record the blocker and your decision in the summary.
 - Write files directly to ~/.alex/kernel/default/ (this path is authorized and writable).
-- For reversible path decisions, choose a sensible default and execute; report what you chose in "## 执行总结".
-- If blocked, report exact tool error and mark task as blocked.
 - In your final answer, include a section titled "## 执行总结".
-- Summarize: completed work, concrete evidence/artifacts, remaining risks/next step.
-- Keep it concise (3-6 bullets) and factual.
-- Follow 7C quality for user-visible text: correct, clear, concise, concrete, complete, coherent, courteous.`
+- Summarize: completed work, concrete evidence/artifacts, decisions made, remaining risks/next step.
+- Keep it concise (3-6 bullets) and factual.`
 
 const kernelRetryInstruction = `Kernel retry requirement:
 - Your previous attempt was not autonomously complete.
@@ -126,7 +133,7 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 		defer cancel()
 	}
 
-	taskPrompt := appendKernelSummaryInstruction(prompt)
+	taskPrompt := wrapKernelPrompt(prompt)
 	result, err := e.coordinator.ExecuteTask(execCtx, taskPrompt, sessionID, nil)
 	if err != nil {
 		return ExecutionResult{}, err
@@ -166,15 +173,20 @@ func classifyKernelValidationError(err error) string {
 	}
 }
 
-func appendKernelSummaryInstruction(prompt string) string {
+func wrapKernelPrompt(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
-	if strings.Contains(trimmed, "## 执行总结") {
-		return trimmed
-	}
 	if trimmed == "" {
-		return kernelDefaultSummaryInstruction
+		trimmed = kernelDefaultSummaryInstruction
 	}
-	return trimmed + "\n\n" + kernelDefaultSummaryInstruction
+	var b strings.Builder
+	b.WriteString(kernelFounderDirective)
+	b.WriteString("\n\n")
+	b.WriteString(trimmed)
+	if !strings.Contains(trimmed, "## 执行总结") {
+		b.WriteString("\n\n")
+		b.WriteString(kernelDefaultSummaryInstruction)
+	}
+	return b.String()
 }
 
 func appendKernelRetryInstruction(prompt string, result *agent.TaskResult) string {

@@ -4,7 +4,7 @@ const (
 	// DefaultStateRootDir is the fixed storage root for kernel markdown artifacts.
 	DefaultStateRootDir = "~/.alex/kernel"
 	// DefaultSeedStateContent initializes STATE.md on first boot.
-	DefaultSeedStateContent = "# Kernel State\n## identity\nelephant.ai autonomous kernel\n## recent_actions\n(none yet)\n"
+	DefaultSeedStateContent = "# Kernel State\n## identity\nelephant.ai autonomous kernel — founder mindset.\n永不询问、永不等待、只派发任务、记录状态、做总结、思考规划。\n## recent_actions\n(none yet)\n"
 )
 
 // KernelConfig holds only the fields the Engine reads at runtime.
