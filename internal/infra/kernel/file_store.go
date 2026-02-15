@@ -3,7 +3,6 @@ package kernel
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -12,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"alex/internal/domain/kernel"
+	"alex/internal/infra/filestore"
 	jsonx "alex/internal/shared/json"
 )
 
@@ -51,7 +51,7 @@ func (s *FileStore) EnsureSchema(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(s.filePath), 0o755); err != nil {
+	if err := filestore.EnsureParentDir(s.filePath); err != nil {
 		return fmt.Errorf("create dispatch store dir: %w", err)
 	}
 	return s.load()
@@ -267,11 +267,8 @@ func (s *FileStore) ListRecentByAgent(ctx context.Context, kernelID string) (map
 // --- internal helpers ---
 
 func (s *FileStore) load() error {
-	data, err := os.ReadFile(s.filePath)
+	data, err := filestore.ReadFileOrEmpty(s.filePath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
 		return fmt.Errorf("read dispatch store: %w", err)
 	}
 	if len(data) == 0 {
@@ -312,13 +309,8 @@ func (s *FileStore) persistLocked() error {
 	}
 	data = append(data, '\n')
 
-	tmp := s.filePath + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return fmt.Errorf("write dispatch store temp: %w", err)
-	}
-	if err := os.Rename(tmp, s.filePath); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("commit dispatch store: %w", err)
+	if err := filestore.AtomicWrite(s.filePath, data, 0o600); err != nil {
+		return fmt.Errorf("write dispatch store: %w", err)
 	}
 	return nil
 }
