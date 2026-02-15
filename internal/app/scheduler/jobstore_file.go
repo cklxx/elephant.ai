@@ -9,6 +9,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"alex/internal/infra/filestore"
 )
 
 // FileJobStore persists jobs as individual JSON files inside a directory.
@@ -53,12 +55,8 @@ func (s *FileJobStore) Save(_ context.Context, job Job) error {
 		return fmt.Errorf("jobstore: marshal failed: %w", err)
 	}
 
-	if err := os.MkdirAll(s.dir, 0o755); err != nil {
-		return fmt.Errorf("jobstore: create dir failed: %w", err)
-	}
-
 	path := s.path(job.ID)
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := filestore.AtomicWrite(path, data, 0o644); err != nil {
 		return fmt.Errorf("jobstore: write failed: %w", err)
 	}
 	return nil
@@ -173,7 +171,7 @@ func (s *FileJobStore) UpdateStatus(_ context.Context, jobID string, status JobS
 		return fmt.Errorf("jobstore: marshal failed: %w", err)
 	}
 
-	if err := os.WriteFile(s.path(jobID), data, 0o644); err != nil {
+	if err := filestore.AtomicWrite(s.path(jobID), data, 0o644); err != nil {
 		return fmt.Errorf("jobstore: write failed: %w", err)
 	}
 	return nil

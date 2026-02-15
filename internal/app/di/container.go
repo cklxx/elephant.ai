@@ -3,8 +3,6 @@ package di
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -17,6 +15,7 @@ import (
 	kerneldomain "alex/internal/domain/kernel"
 	taskdomain "alex/internal/domain/task"
 	larkoauth "alex/internal/infra/lark/oauth"
+	"alex/internal/infra/filestore"
 	"alex/internal/infra/llm"
 	"alex/internal/infra/mcp"
 	"alex/internal/infra/memory"
@@ -368,42 +367,10 @@ func nextBackoff(current, max time.Duration) time.Duration {
 	return next
 }
 
-// resolveStorageDir resolves a storage directory path, handling ~ expansion and environment variables
+// resolveStorageDir resolves a storage directory path, handling ~ expansion and environment variables.
+// Delegates to filestore.ResolvePath.
 func resolveStorageDir(configured, defaultPath string) string {
-	// Use configured path if provided, otherwise use default
-	path := configured
-	if path == "" {
-		path = defaultPath
-	}
-
-	// Handle empty path edge case
-	if path == "" {
-		return path
-	}
-
-	// Expand ~ to home directory
-	if len(path) > 0 && path[0] == '~' {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			// Handle ~/ and ~ cases
-			if len(path) > 1 && path[1] == '/' {
-				// ~/path -> /home/user/path
-				path = filepath.Join(home, path[2:])
-			} else if len(path) == 1 {
-				// ~ -> /home/user
-				path = home
-			} else {
-				// ~path (no slash) -> /home/user/path (treat as relative)
-				path = filepath.Join(home, path[1:])
-			}
-		}
-		// If UserHomeDir fails, leave path as-is (will fail later with clear error)
-	}
-
-	// Expand environment variables like $HOME
-	path = os.ExpandEnv(path)
-
-	return path
+	return filestore.ResolvePath(configured, defaultPath)
 }
 
 // HasLLMFactory reports whether the container holds an initialised LLM factory.

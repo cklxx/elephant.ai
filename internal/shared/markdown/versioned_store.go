@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"alex/internal/infra/filestore"
 	"alex/internal/shared/logging"
 )
 
@@ -132,13 +133,5 @@ func (s *VersionedStore) commitAllLockedCheck(ctx context.Context, msg string) (
 
 func (s *VersionedStore) atomicWrite(fileName, content string) error {
 	target := filepath.Join(s.dir, fileName)
-	dir := filepath.Dir(target)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	tmp := target + ".tmp"
-	if err := os.WriteFile(tmp, []byte(content), 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, target)
+	return filestore.AtomicWrite(target, []byte(content), 0o644)
 }

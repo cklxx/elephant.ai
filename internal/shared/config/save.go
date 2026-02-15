@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"alex/internal/infra/filestore"
 	"gopkg.in/yaml.v3"
 )
 
@@ -61,10 +61,7 @@ func SaveFollowPreferences(followTranscript, followStream bool, opts ...Option) 
 	}
 	encoded = append(encoded, '\n')
 
-	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
-		return "", fmt.Errorf("ensure config directory: %w", err)
-	}
-	if err := os.WriteFile(configPath, encoded, 0o600); err != nil {
+	if err := filestore.AtomicWrite(configPath, encoded, 0o600); err != nil {
 		return "", fmt.Errorf("write config file: %w", err)
 	}
 

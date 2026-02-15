@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"alex/internal/infra/filestore"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/json"
 )
@@ -254,18 +255,8 @@ func (s *SelectionStore) saveDocLocked(ctx context.Context, doc selectionStoreDo
 	}
 	data = append(data, '\n')
 
-	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("ensure selection store directory: %w", err)
-	}
-
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return fmt.Errorf("write selection store temp: %w", err)
-	}
-	if err := os.Rename(tmp, s.path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("commit selection store: %w", err)
+	if err := filestore.AtomicWrite(s.path, data, 0o600); err != nil {
+		return fmt.Errorf("write selection store: %w", err)
 	}
 	return nil
 }

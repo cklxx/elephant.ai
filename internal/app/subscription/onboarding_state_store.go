@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/infra/filestore"
 	runtimeconfig "alex/internal/shared/config"
 	jsonx "alex/internal/shared/json"
 )
@@ -211,18 +212,8 @@ func (s *OnboardingStateStore) saveDocLocked(ctx context.Context, doc onboarding
 	}
 	data = append(data, '\n')
 
-	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("ensure onboarding state directory: %w", err)
-	}
-
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return fmt.Errorf("write onboarding state temp: %w", err)
-	}
-	if err := os.Rename(tmp, s.path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("commit onboarding state: %w", err)
+	if err := filestore.AtomicWrite(s.path, data, 0o600); err != nil {
+		return fmt.Errorf("write onboarding state: %w", err)
 	}
 	return nil
 }
