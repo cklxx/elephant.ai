@@ -1,6 +1,7 @@
 # Kernel Prompt & State File Flow
 
 Created: 2026-02-11
+Updated: 2026-02-15
 
 ---
 
@@ -9,7 +10,7 @@ Created: 2026-02-11
 Kernel Engine 是一个 cron 驱动的 OODA 循环（Observe-Orient-Decide-Act），每 `*/10` 分钟执行一次。核心数据流有两条：
 
 1. **State 流** — `STATE.md` 文件，在每个 cycle 开头被读取，注入到 agent prompt 中
-2. **Prompt 流** — 从 YAML 配置的模板 → `{STATE}` 占位符替换 → Postgres dispatch queue → AgentCoordinator 执行
+2. **Prompt 流** — 从 YAML 配置的模板 → `{STATE}` 占位符替换 → FileStore dispatch queue → AgentCoordinator 执行
 
 ```
                     ┌─────────────────────────────────────────────┐
@@ -17,7 +18,7 @@ Kernel Engine 是一个 cron 驱动的 OODA 循环（Observe-Orient-Decide-Act�
                     │                                               │
   ┌──────────┐     │  ┌───────┐   ┌─────────┐   ┌──────────────┐ │
   │ STATE.md │────>│  │ Read  │──>│ Planner │──>│ Dispatch Queue│ │
-  │ (file)   │     │  └───────┘   │         │   │  (Postgres)   │ │
+  │ (file)   │     │  └───────┘   │         │   │  (JSON file)  │ │
   └──────────┘     │              │{STATE}  │   └──────┬───────┘ │
                     │              │replace  │          │         │
   ┌──────────┐     │              └─────────┘          v         │
@@ -41,7 +42,7 @@ go run ./cmd/alex-server kernel-once
 
 行为：
 
-- 复用当前 runtime 配置与真实依赖（DB/LLM/工具链）。
+- 复用当前 runtime 配置与真实依赖（LLM/工具链）。
 - 仅执行一次 `RunCycle()`，并输出 cycle 结果（cycle_id/status/dispatched/succeeded/failed）。
 - 同步更新 `~/.alex/kernel/{kernel_id}/STATE.md` 的 `kernel_runtime` 区块及 `SYSTEM_PROMPT.md` 快照。
 
@@ -83,7 +84,7 @@ go run ./cmd/alex-server kernel-once
 |------|------|---------|
 | **首次启动** | `StateFile.Seed(DefaultSeedStateContent)` — 仅当文件不存在时写入 | `engine.go` + `container_builder.go` |
 | **kernel 构建时** | `StateFile.WriteInit(...)` / `StateFile.WriteSystemPrompt(...)` | `container_builder.go` |
-| **每个 cycle 开头** | `StateFile.Read()` — 读取当前内容 | `engine.go:70` |
+| **每个 cycle 开头** | `StateFile.Read()` — 读取当前内容 | `engine.go:101` |
 | **cycle 执行中/结束后** | Engine upsert `kernel_runtime` 区块（cycle id/status/error 等） | `engine.go` |
 
 ### 1.3 Seed State（种子状态）
@@ -93,7 +94,8 @@ go run ./cmd/alex-server kernel-once
 ```md
 # Kernel State
 ## identity
-elephant.ai autonomous kernel
+elephant.ai autonomous kernel — founder mindset.
+永不询问、永不等待、只派发任务、记录状态、做总结、思考规划。
 ## recent_actions
 (none yet)
 ```
@@ -111,18 +113,24 @@ Engine 在每次 cycle 结束后会把执行结果 upsert 到 `STATE.md` 的 run
 <!-- KERNEL_RUNTIME:START -->
 ## kernel_runtime
 - updated_at: ...
-- cycle_id: ...
-- status: success|partial_success|failed|error
-- dispatched: ...
-- succeeded: ...
-- failed: ...
-- failed_agents: ...
-- duration_ms: ...
-- error: ...
+- latest_cycle_id: ...
+- latest_status: success|partial_success|failed|error
+- latest_dispatched: ...
+- latest_succeeded: ...
+- latest_failed: ...
+- latest_failed_agents: ...
+- latest_agent_summary: agent-a[done]: [autonomy=actionable] ...
+- latest_duration_ms: ...
+- latest_error: ...
+
+### cycle_history
+| cycle_id | status | dispatched | succeeded | failed | summary | updated_at |
+|----------|--------|------------|-----------|--------|---------|------------|
+| run-xxx  | success| 1          | 1         | 0      | ...     | 2026-...   |
 <!-- KERNEL_RUNTIME:END -->
 ```
 
-该区块用于可观测性，固定为单块替换（不会无限追加）。除该区块外，其余内容仍视为 agent 维护的业务状态。
+该区块用于可观测性，固定为单块替换（不会无限追加）。`cycle_history` 表保留最近 `MaxCycleHistory`（默认 5）轮记录，允许趋势分析。除该区块外，其余内容仍视为 agent 维护的业务状态。
 
 ---
 
@@ -131,7 +139,7 @@ Engine 在每次 cycle 结束后会把执行结果 upsert 到 `STATE.md` 的 run
 ### 2.1 总览：从配置到执行
 
 ```
-   YAML config                StaticPlanner              Postgres               Executor
+   YAML config                StaticPlanner              FileStore              Executor
    ┌──────────┐              ┌──────────────┐          ┌──────────┐          ┌────────────┐
    │ agents:  │              │              │          │ dispatch │          │            │
    │  - prompt│──AgentConfig─>│  {STATE} →   │─DispatchSpec─>│  queue   │─Dispatch──>│ Coordinator│
@@ -188,26 +196,26 @@ DispatchSpec{
 }
 ```
 
-### 2.4 阶段 3：Dispatch Queue（Postgres 持久化）
+### 2.4 阶段 3：Dispatch Queue（FileStore 持久化）
 
-`Engine.RunCycle()` 将 specs 写入 Postgres：
+`Engine.RunCycle()` 将 specs 写入 FileStore（`~/.alex/kernel/dispatches.json`）：
 
 ```
-engine.go:103  →  store.EnqueueDispatches(ctx, kernelID, cycleID, specs)
+engine.go:157  →  store.EnqueueDispatches(ctx, kernelID, cycleID, specs)
 ```
 
-写入的行：
+写入的字段：
 
-| 列 | 值 |
-|----|----|
-| `dispatch_id` | 唯一 ID（`id.NewRunID()`） |
+| 字段 | 值 |
+|------|----|
+| `dispatch_id` | 唯一 ID（`uuid.New()`） |
 | `kernel_id` | `"default"` |
 | `cycle_id` | 当次 cycle 的唯一 ID |
 | `agent_id` | `"daily-report"` |
 | `prompt` | **完整的、已替换 {STATE} 的 prompt** |
 | `priority` | `10` |
 | `status` | `"pending"` |
-| `metadata` | agent 配置中的 metadata（JSONB） |
+| `metadata` | agent 配置中的 metadata |
 
 **Dispatch 状态机：**
 
@@ -227,7 +235,7 @@ running → failed   :  MarkDispatchFailed()    (engine.go:164)
 
 ### 2.5 阶段 4：Executor（AgentCoordinator 执行）
 
-`CoordinatorExecutor.Execute()` (`executor.go:32-51`)：
+`CoordinatorExecutor.Execute()` (`executor.go:101-163`)：
 
 ```go
 sessionID := fmt.Sprintf("kernel-%s-%s", agentID, runID)
@@ -275,7 +283,7 @@ t=3    ┌─ DECIDE ───────────────────�
        │
 t=4    ┌─ ACT (enqueue) ────────────────────────────────────┐
        │  store.EnqueueDispatches(kernelID, cycleID, specs)  │
-       │  → []Dispatch (status=pending, 写入 Postgres)       │
+       │  → []Dispatch (status=pending, 写入 FileStore)       │
        └─────────────────────────────────────────────────────┘
        │
 t=5    ┌─ ACT (execute, 并发, 受 MaxConcurrent 限制) ───────┐
@@ -301,27 +309,33 @@ t=6    汇总 CycleResult{Dispatched, Succeeded, Failed}
 |------|---------|--------|
 | STATE.md | 本地文件 `~/.alex/kernel/{id}/STATE.md` | 持久，跨 cycle 保留 |
 | Agent 模板 prompt | YAML 配置 → 内存 `AgentConfig.Prompt` | 随进程生命周期 |
-| 展开后的 prompt | Postgres `kernel_dispatch_tasks.prompt` | 持久，可审计 |
-| Dispatch 状态 | Postgres `kernel_dispatch_tasks.status` | 持久 |
-| 执行结果 | Session store（Postgres/文件） | 持久 |
+| 展开后的 prompt | FileStore `~/.alex/kernel/dispatches.json` | 持久，可审计 |
+| Dispatch 状态 | FileStore `~/.alex/kernel/dispatches.json` | 持久 |
+| 执行结果 | Session store（文件） | 持久 |
 
 ---
 
-## 5. V1 局限与演进方向
+## 5. 相关文档
 
-### 5.1 STATE.md 的可观测性区块
+- [Kernel Deep Dive](kernel-deep-dive.md) — 完整架构梳理：Engine 代码走读、Executor 验证与重试、FileStore 并发设计、Prompt 工程、Lark 集成链路、演进脉络
+
+---
+
+## 6. 局限与演进方向
+
+### 6.1 STATE.md 的可观测性区块
 
 当前 Engine 会自动回写 `kernel_runtime` 区块，确保即使任务失败（例如 LLM 限流）也能在 `STATE.md` 中看到“本轮是否执行、失败原因是什么”。
 
 仍可进一步演进为更强的 state reducer（规则/LLM），将业务层摘要（而非仅执行指标）融合回主状态。
 
-### 5.2 StaticPlanner 无条件分发
+### 6.2 StaticPlanner 无条件分发
 
 当前 planner 只做简单过滤（enabled + 非 running），不会根据 STATE 内容做智能决策。
 
 **演进路径：** 引入 `LLMPlanner`，读取 STATE 后让 LLM 决定本轮应该执行哪些 agent、优先级如何调整。
 
-### 5.3 Prompt 模板只有 {STATE} 一个占位符
+### 6.3 Prompt 模板只有 {STATE} 一个占位符
 
 未来可扩展为：
 - `{RECENT_RESULTS}` — 上一轮各 agent 的执行摘要
