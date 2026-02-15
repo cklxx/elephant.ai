@@ -150,3 +150,4 @@ proactive:
   - P1: Engine.Drain() now waits for in-flight cycle via WaitGroup
   - P1: Metadata map copied before concurrent mutation in executeDispatches
   - Cleanup: Removed dead code in TestEngine_RunCycle_PartialFailure
+- 2026-02-14: Postgres dispatch store replaced with file-based `FileStore` (`~/.alex/kernel/dispatches.json`). See [kernel-deep-dive.md](../kernel-deep-dive.md).
