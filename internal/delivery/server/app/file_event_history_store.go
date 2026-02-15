@@ -13,6 +13,7 @@ import (
 
 	agentdomain "alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/filestore"
 	jsonx "alex/internal/shared/json"
 )
 
@@ -32,7 +33,7 @@ func NewFileEventHistoryStore(dir string) *FileEventHistoryStore {
 
 // EnsureSchema creates the events directory if it does not exist.
 func (s *FileEventHistoryStore) EnsureSchema(_ context.Context) error {
-	return os.MkdirAll(s.eventsDir(), 0o755)
+	return filestore.EnsureDir(s.eventsDir())
 }
 
 // Append serialises the event and appends it as a single JSONL line to the session file.
@@ -55,7 +56,7 @@ func (s *FileEventHistoryStore) Append(ctx context.Context, event agent.AgentEve
 	defer s.mu.Unlock()
 
 	path := s.sessionPath(rec.SessionID)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := filestore.EnsureParentDir(path); err != nil {
 		return fmt.Errorf("ensure events dir: %w", err)
 	}
 

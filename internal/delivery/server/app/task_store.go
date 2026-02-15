@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -13,6 +11,7 @@ import (
 
 	"alex/internal/delivery/server/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/filestore"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
 )
@@ -625,11 +624,12 @@ func (s *InMemoryTaskStore) loadFromDisk() {
 	if s.persistencePath == "" {
 		return
 	}
-	data, err := os.ReadFile(s.persistencePath)
+	data, err := filestore.ReadFileOrEmpty(s.persistencePath)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			s.logger.Warn("failed to load task persistence file %s: %v", s.persistencePath, err)
-		}
+		s.logger.Warn("failed to load task persistence file %s: %v", s.persistencePath, err)
+		return
+	}
+	if len(data) == 0 {
 		return
 	}
 
@@ -672,18 +672,7 @@ func (s *InMemoryTaskStore) persistLocked() {
 		return
 	}
 
-	if err := os.MkdirAll(filepath.Dir(s.persistencePath), 0o755); err != nil {
-		s.logger.Warn("failed to create task persistence directory for %s: %v", s.persistencePath, err)
-		return
-	}
-
-	tmpPath := fmt.Sprintf("%s.tmp-%d", s.persistencePath, time.Now().UnixNano())
-	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
-		s.logger.Warn("failed to write task persistence temp file %s: %v", tmpPath, err)
-		return
-	}
-	if err := os.Rename(tmpPath, s.persistencePath); err != nil {
-		_ = os.Remove(tmpPath)
-		s.logger.Warn("failed to atomically persist task store to %s: %v", s.persistencePath, err)
+	if err := filestore.AtomicWrite(s.persistencePath, data, 0o600); err != nil {
+		s.logger.Warn("failed to persist task store to %s: %v", s.persistencePath, err)
 	}
 }
