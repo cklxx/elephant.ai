@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"alex/internal/infra/filestore"
 )
 
 // CheckpointVersion is the current schema version. Bump this when the
@@ -136,11 +138,7 @@ func (s *FileCheckpointStore) Save(_ context.Context, cp *Checkpoint) error {
 	}
 
 	path := s.path(cp.SessionID)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("checkpoint: create dir failed: %w", err)
-	}
-
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := filestore.AtomicWrite(path, data, 0o644); err != nil {
 		return fmt.Errorf("checkpoint: write failed: %w", err)
 	}
 	return nil
@@ -196,13 +194,8 @@ func (s *FileCheckpointStore) SaveArchive(_ context.Context, archive *Checkpoint
 		return fmt.Errorf("checkpoint: archive marshal failed: %w", err)
 	}
 
-	dir := filepath.Join(s.Dir, archive.SessionID, "archive")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("checkpoint: archive create dir failed: %w", err)
-	}
-
-	path := filepath.Join(dir, fmt.Sprintf("%d.json", archive.Seq))
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	path := filepath.Join(s.Dir, archive.SessionID, "archive", fmt.Sprintf("%d.json", archive.Seq))
+	if err := filestore.AtomicWrite(path, data, 0o644); err != nil {
 		return fmt.Errorf("checkpoint: archive write failed: %w", err)
 	}
 	return nil

@@ -13,6 +13,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	storage "alex/internal/domain/agent/ports/storage"
+	fstore "alex/internal/infra/filestore"
 	"alex/internal/shared/json"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
@@ -136,7 +137,7 @@ func (s *store) Save(ctx context.Context, session *storage.Session) error {
 		return err
 	}
 	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", session.ID))
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := fstore.AtomicWrite(path, data, 0o644); err != nil {
 		return err
 	}
 
@@ -150,7 +151,7 @@ func (s *store) Save(ctx context.Context, session *storage.Session) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal attachments: %w", err)
 	}
-	if err := os.WriteFile(attachmentsPath, attachmentData, 0o644); err != nil {
+	if err := fstore.AtomicWrite(attachmentsPath, attachmentData, 0o644); err != nil {
 		return fmt.Errorf("failed to write attachments: %w", err)
 	}
 

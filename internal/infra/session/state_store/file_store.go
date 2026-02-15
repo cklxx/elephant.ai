@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/infra/filestore"
 	"alex/internal/shared/json"
 )
 
@@ -69,7 +70,7 @@ func (s *FileStore) SaveSnapshot(ctx context.Context, snapshot Snapshot) error {
 		return fmt.Errorf("marshal snapshot: %w", err)
 	}
 	path := filepath.Join(s.sessionDir(snapshot.SessionID), s.filename(snapshot.TurnID))
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := filestore.AtomicWrite(path, data, 0o644); err != nil {
 		return fmt.Errorf("write snapshot: %w", err)
 	}
 	return nil

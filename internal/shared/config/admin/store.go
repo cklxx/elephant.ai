@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"alex/internal/infra/filestore"
 	runtimeconfig "alex/internal/shared/config"
 	"gopkg.in/yaml.v3"
 )
@@ -79,11 +79,8 @@ func (s *FileStore) SaveOverrides(ctx context.Context, overrides runtimeconfig.O
 	if err != nil {
 		return fmt.Errorf("encode managed config: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		return fmt.Errorf("ensure managed config directory: %w", err)
-	}
 	encoded = append(encoded, '\n')
-	if err := os.WriteFile(s.path, encoded, 0o600); err != nil {
+	if err := filestore.AtomicWrite(s.path, encoded, 0o600); err != nil {
 		return fmt.Errorf("write managed config: %w", err)
 	}
 	return nil
