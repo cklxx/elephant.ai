@@ -1,0 +1,47 @@
+# GitHub Pages Configuration for elephant.ai
+
+# Site settings
+title: "elephant.ai - Proactive AI Assistant"
+description: "One runtime, every surface, always ready. Proactive AI assistant for Lark, WeChat, CLI, and web."
+baseurl: ""
+url: ""
+
+# GitHub Pages settings
+plugins:
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-readme-index
+  - jekyll-default-layout
+  - jekyll-titles-from-headings
+
+# Markdown settings
+markdown: kramdown
+kramdown:
+  input: GFM
+  hard_wrap: false
+  syntax_highlighter: rouge
+
+# File handling
+include:
+  - README.md
+  - guides/
+  - assets/
+
+exclude:
+  - web/
+  - node_modules/
+  - vendor/
+
+# Navigation
+navigation:
+  - title: Home
+    url: /
+  - title: Quick Start
+    url: /guides/quickstart
+
+# Theme
+theme: minima
+
+# GitHub repository
+github:
+  repository_url: https://github.com/cklxx/elephant.ai
