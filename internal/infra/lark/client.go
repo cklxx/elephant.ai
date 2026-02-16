@@ -63,6 +63,31 @@ func (c *Client) Drive() *DriveService {
 	return &DriveService{client: c.raw}
 }
 
+// Sheets returns the sheets sub-service.
+func (c *Client) Sheets() *SheetsService {
+	return &SheetsService{client: c.raw}
+}
+
+// OKR returns the OKR sub-service.
+func (c *Client) OKR() *OKRService {
+	return &OKRService{client: c.raw}
+}
+
+// Contact returns the contact sub-service.
+func (c *Client) Contact() *ContactService {
+	return &ContactService{client: c.raw}
+}
+
+// Mail returns the mail sub-service.
+func (c *Client) Mail() *MailService {
+	return &MailService{client: c.raw}
+}
+
+// VC returns the video conference sub-service.
+func (c *Client) VC() *VCService {
+	return &VCService{client: c.raw}
+}
+
 // --- Shared helpers ---
 
 // CallOption configures a single API call (e.g. user or tenant access token).
