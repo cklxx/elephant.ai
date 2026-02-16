@@ -101,7 +101,7 @@ func (e *Engine) RunCycle(ctx context.Context) (result *kerneldomain.CycleResult
 	stateContent, err := e.stateFile.Read()
 	if err != nil {
 		if e.markStateWritesRestricted(err) {
-			e.logger.Warn("Kernel: read state blocked by sandbox restrictions; using seed state and fallback path %s", kernelStateFallbackPath)
+			e.logger.Warn("Kernel: read state blocked by sandbox restrictions; using seed state and fallback path %s", kernelStateFallbackPath())
 			stateContent = e.config.SeedState
 		} else {
 			return nil, fmt.Errorf("read state: %w", err)
@@ -112,7 +112,7 @@ func (e *Engine) RunCycle(ctx context.Context) (result *kerneldomain.CycleResult
 			stateContent = e.config.SeedState
 		} else if seedErr := e.stateFile.Seed(e.config.SeedState); seedErr != nil {
 			if e.markStateWritesRestricted(seedErr) {
-				e.logger.Warn("Kernel: seed state blocked by sandbox restrictions; using in-memory seed and fallback path %s", kernelStateFallbackPath)
+				e.logger.Warn("Kernel: seed state blocked by sandbox restrictions; using in-memory seed and fallback path %s", kernelStateFallbackPath())
 				stateContent = e.config.SeedState
 			} else {
 				return nil, fmt.Errorf("seed state: %w", seedErr)
@@ -184,7 +184,7 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 	stateContent, err := e.stateFile.Read()
 	if err != nil {
 		if e.stateWriteRestricted.Load() || e.markStateWritesRestricted(err) {
-			e.logger.Warn("Kernel: read state for runtime persistence blocked by sandbox restrictions; using seed state and fallback path %s", kernelStateFallbackPath)
+			e.logger.Warn("Kernel: read state for runtime persistence blocked by sandbox restrictions; using seed state and fallback path %s", kernelStateFallbackPath())
 			stateContent = e.config.SeedState
 		} else {
 			e.logger.Warn("Kernel: read state for runtime persistence failed: %v", err)
@@ -213,7 +213,7 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 	runtimeBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history, "")
 	updated := upsertKernelRuntimeBlock(stateContent, runtimeBlock)
 	if e.stateWriteRestricted.Load() {
-		fallbackBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history, kernelStateFallbackPath)
+		fallbackBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history, kernelStateFallbackPath())
 		fallbackContent := upsertKernelRuntimeBlock(stateContent, fallbackBlock)
 		fallbackPath, fallbackErr := WriteKernelStateFallback(fallbackContent)
 		if fallbackErr != nil {
@@ -225,9 +225,9 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 	}
 	if err := e.stateFile.Write(updated); err != nil {
 		if e.markStateWritesRestricted(err) {
-			e.logger.Warn("Kernel: state write blocked by sandbox restrictions; using fallback path %s", kernelStateFallbackPath)
+			e.logger.Warn("Kernel: state write blocked by sandbox restrictions; using fallback path %s", kernelStateFallbackPath())
 		}
-		fallbackBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history, kernelStateFallbackPath)
+		fallbackBlock := renderKernelRuntimeBlockWithHistory(result, cycleErr, now, history, kernelStateFallbackPath())
 		fallbackContent := upsertKernelRuntimeBlock(stateContent, fallbackBlock)
 		fallbackPath, fallbackErr := WriteKernelStateFallback(fallbackContent)
 		if fallbackErr != nil {

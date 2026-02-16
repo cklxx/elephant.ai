@@ -4,13 +4,23 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
-const kernelStateFallbackPath = "/Users/bytedance/code/elephant.ai/artifacts/kernel_state.md"
+// kernelStateFallbackPath returns an absolute path to the fallback state file
+// under the current working directory's artifacts/ folder. The result is
+// computed once and cached so that subsequent calls are allocation-free.
+var kernelStateFallbackPath = sync.OnceValue(func() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		wd = "."
+	}
+	return filepath.Join(wd, "artifacts", "kernel_state.md")
+})
 
 // WriteKernelStateFallback persists the provided content to the fallback path.
 func WriteKernelStateFallback(content string) (string, error) {
-	fallbackPath := filepath.Clean(kernelStateFallbackPath)
+	fallbackPath := filepath.Clean(kernelStateFallbackPath())
 	artifactsDir := filepath.Dir(fallbackPath)
 	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
 		return fallbackPath, err
@@ -23,7 +33,7 @@ func WriteKernelStateFallback(content string) (string, error) {
 
 // AppendKernelStateFallback appends a section to the fallback path.
 func AppendKernelStateFallback(sectionTitle, content string) (string, error) {
-	fallbackPath := filepath.Clean(kernelStateFallbackPath)
+	fallbackPath := filepath.Clean(kernelStateFallbackPath())
 	artifactsDir := filepath.Dir(fallbackPath)
 	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
 		return fallbackPath, err
