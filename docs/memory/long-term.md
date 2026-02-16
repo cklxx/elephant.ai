@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-14 23:00
+Updated: 2026-02-16 18:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -96,3 +96,10 @@ Updated: 2026-02-14 23:00
 - Continuously review best practices and execution flow; record improvements in guides/entries as they are discovered.
 - Commit often, prefer small commits. Run full lint+tsc after changes.
 - Keep `agent/ports` free of memory/RAG dependencies; inject memory service at engine/app layers to avoid import cycles.
+
+### Architecture Review (2026-02-16)
+- **P0 issues**: (1) Domain layer leaks Lark concepts in `presets/tools.go` and `prompts.go`; (2) Event system 4-layer decorator chain (emit→serialize→translate→enrich→title); (3) Context/attachment ownership split unclear between `app/context/` and `domain/react/`; (4) Background task uses `context.Background()` detached context at `background.go:162`.
+- **God Structs**: AgentCoordinator (17 fields, 23 imports), ReactEngine (29 fields), reactRuntime (1,078 LOC, 33 methods, 15+ state vars), Gateway (24 fields, 31 methods).
+- **Test gaps**: react/ 56%, coordinator/ 60%, infra/llm/ 57% untested.
+- **Storage proliferation**: 8 independent store abstractions with Session/History overlap.
+- **Improvement plan**: `docs/plans/architecture-review-2026-02-16.md` — Phase 1 decouple, Phase 2 split god structs, Phase 3 unify events/storage, Phase 4 test coverage.
