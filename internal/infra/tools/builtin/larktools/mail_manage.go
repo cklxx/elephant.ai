@@ -96,7 +96,10 @@ func (t *larkMailManage) getMailgroup(ctx context.Context, client *larkapi.Clien
 }
 
 func (t *larkMailManage) createMailgroup(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
-	email := shared.StringArg(call.Arguments, "email")
+	email, errResult := shared.RequireStringArg(call.Arguments, call.ID, "email")
+	if errResult != nil {
+		return errResult, nil
+	}
 	name := shared.StringArg(call.Arguments, "name")
 	description := shared.StringArg(call.Arguments, "description")
 

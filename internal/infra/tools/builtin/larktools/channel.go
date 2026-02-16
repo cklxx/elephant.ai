@@ -149,11 +149,11 @@ func NewLarkChannel() tools.ToolExecutor {
 						},
 						"start_time": {
 							Type:        "string",
-							Description: "Unix seconds: start time for create_event/query_events/update_event; filter for history.",
+							Description: "Unix seconds: start time for create_event/query_events/update_event/list_meetings; filter for history.",
 						},
 						"end_time": {
 							Type:        "string",
-							Description: "Unix seconds: end time for create_event/query_events/update_event; filter for history.",
+							Description: "Unix seconds: end time for create_event/query_events/update_event/list_meetings; filter for history.",
 						},
 						"description": {
 							Type:        "string",
@@ -211,7 +211,7 @@ func NewLarkChannel() tools.ToolExecutor {
 						},
 						"user_id_type": {
 							Type:        "string",
-							Description: "User ID type for task operations.",
+							Description: "User ID type for task/contact operations (open_id/union_id/user_id).",
 						},
 						"user_access_token": {
 							Type:        "string",

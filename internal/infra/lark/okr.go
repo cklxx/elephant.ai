@@ -107,6 +107,10 @@ func (s *OKRService) ListUserOKRs(ctx context.Context, userID string, periodID s
 	builder := larkokr.NewListUserOkrReqBuilder().
 		UserId(userID)
 
+	if periodID != "" {
+		builder.PeriodIds([]string{periodID})
+	}
+
 	resp, err := s.client.Okr.V1.UserOkr.List(ctx, builder.Build(), buildOpts(opts)...)
 	if err != nil {
 		return nil, fmt.Errorf("list user okrs: %w", err)
@@ -118,7 +122,7 @@ func (s *OKRService) ListUserOKRs(ctx context.Context, userID string, periodID s
 		return nil, fmt.Errorf("list user okrs: unexpected nil data in response")
 	}
 
-	var okrs []OKR
+	okrs := make([]OKR, 0, len(resp.Data.OkrList))
 	for _, item := range resp.Data.OkrList {
 		okrs = append(okrs, parseOKR(item))
 	}
@@ -141,7 +145,7 @@ func (s *OKRService) BatchGetOKRs(ctx context.Context, okrIDs []string, opts ...
 		return nil, fmt.Errorf("batch get okrs: unexpected nil data in response")
 	}
 
-	var okrs []OKR
+	okrs := make([]OKR, 0, len(resp.Data.OkrList))
 	for _, item := range resp.Data.OkrList {
 		okrs = append(okrs, parseOKR(item))
 	}
