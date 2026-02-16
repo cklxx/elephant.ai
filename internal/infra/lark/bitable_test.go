@@ -2,7 +2,6 @@ package lark
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"testing"
 )
@@ -10,7 +9,7 @@ import (
 func TestGetBitableApp(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"app": map[string]interface{}{
 				"app_token": "app_abc123",
 				"name":      "Project Tracker",
@@ -35,7 +34,7 @@ func TestGetBitableApp(t *testing.T) {
 func TestListBitableTables(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"items": []map[string]interface{}{
 				{"table_id": "tbl_1", "name": "Tasks", "revision": 10},
 				{"table_id": "tbl_2", "name": "Bugs", "revision": 5},
@@ -69,7 +68,7 @@ func TestCreateBitableTable(t *testing.T) {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"table_id": "tbl_new",
 		}))
 	})
@@ -88,7 +87,7 @@ func TestListBitableRecords(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		total := 2
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"items": []map[string]interface{}{
 				{"record_id": "rec_1", "fields": map[string]interface{}{"Name": "Alice", "Age": 30}},
 				{"record_id": "rec_2", "fields": map[string]interface{}{"Name": "Bob", "Age": 25}},
@@ -120,12 +119,8 @@ func TestListBitableRecords(t *testing.T) {
 
 func TestCreateBitableRecord(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
-		body := readBody(r)
-		var req map[string]interface{}
-		json.Unmarshal(body, &req)
-
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"record": map[string]interface{}{
 				"record_id": "rec_new",
 				"fields":    map[string]interface{}{"Name": "Charlie"},
@@ -147,7 +142,7 @@ func TestCreateBitableRecord(t *testing.T) {
 func TestUpdateBitableRecord(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"record": map[string]interface{}{
 				"record_id": "rec_1",
 				"fields":    map[string]interface{}{"Name": "Alice Updated"},
@@ -172,7 +167,7 @@ func TestDeleteBitableRecord(t *testing.T) {
 			t.Errorf("expected DELETE, got %s", r.Method)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", nil))
+		mustWrite(t, w, jsonResponse(0, "ok", nil))
 	})
 	defer srv.Close()
 
@@ -185,7 +180,7 @@ func TestDeleteBitableRecord(t *testing.T) {
 func TestListBitableFields(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"items": []map[string]interface{}{
 				{"field_name": "Name", "type": 1},
 				{"field_name": "Age", "type": 2},
@@ -212,7 +207,7 @@ func TestListBitableFields(t *testing.T) {
 func TestBitableAPIError(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(99991, "no permission", nil))
+		mustWrite(t, w, jsonResponse(99991, "no permission", nil))
 	})
 	defer srv.Close()
 

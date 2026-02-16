@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
+	"testing"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 )
@@ -68,6 +69,13 @@ func readBody(r *http.Request) []byte {
 	b, _ := io.ReadAll(r.Body)
 	r.Body.Close()
 	return b
+}
+
+func mustWrite(t *testing.T, w http.ResponseWriter, body []byte) {
+	t.Helper()
+	if _, err := w.Write(body); err != nil {
+		t.Errorf("write response: %v", err)
+	}
 }
 
 // counter is a simple atomic counter for sequencing mock responses.

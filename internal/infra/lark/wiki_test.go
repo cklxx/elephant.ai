@@ -9,7 +9,7 @@ import (
 func TestListSpaces(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"items": []map[string]interface{}{
 				{"space_id": "space_1", "name": "Engineering", "visibility": "private"},
 				{"space_id": "space_2", "name": "Product", "visibility": "public"},
@@ -37,7 +37,7 @@ func TestListSpaces(t *testing.T) {
 func TestGetSpace(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"space": map[string]interface{}{
 				"space_id":    "space_1",
 				"name":        "Engineering",
@@ -63,7 +63,7 @@ func TestGetSpace(t *testing.T) {
 func TestListNodes(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"items": []map[string]interface{}{
 				{
 					"node_token":        "node_abc",
@@ -108,7 +108,7 @@ func TestCreateNode(t *testing.T) {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"node": map[string]interface{}{
 				"node_token":        "node_new",
 				"space_id":          "space_1",
@@ -142,7 +142,7 @@ func TestCreateNode(t *testing.T) {
 func TestGetNode(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"node": map[string]interface{}{
 				"node_token": "node_abc",
 				"space_id":   "space_1",
@@ -168,7 +168,7 @@ func TestGetNode(t *testing.T) {
 func TestListSpacesAPIError(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(99991, "no permission", nil))
+		mustWrite(t, w, jsonResponse(99991, "no permission", nil))
 	})
 	defer srv.Close()
 

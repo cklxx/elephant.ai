@@ -12,7 +12,7 @@ func TestCreateDocument(t *testing.T) {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"document": map[string]interface{}{
 				"document_id": "doc_abc123",
 				"title":       "Test Document",
@@ -39,7 +39,7 @@ func TestCreateDocument(t *testing.T) {
 func TestGetDocument(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"document": map[string]interface{}{
 				"document_id": "doc_xyz",
 				"title":       "My Doc",
@@ -64,7 +64,7 @@ func TestGetDocument(t *testing.T) {
 func TestGetDocumentRawContent(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"content": "Hello, world!",
 		}))
 	})
@@ -83,7 +83,7 @@ func TestListDocumentBlocks(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		hasMore := false
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"items": []map[string]interface{}{
 				{"block_id": "blk_1", "block_type": 1, "parent_id": "doc_root"},
 				{"block_id": "blk_2", "block_type": 2, "parent_id": "blk_1"},
@@ -111,7 +111,7 @@ func TestListDocumentBlocks(t *testing.T) {
 func TestCreateDocumentAPIError(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(99991, "permission denied", nil))
+		mustWrite(t, w, jsonResponse(99991, "permission denied", nil))
 	})
 	defer srv.Close()
 

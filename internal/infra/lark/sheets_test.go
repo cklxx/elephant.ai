@@ -12,7 +12,7 @@ func TestCreateSpreadsheet(t *testing.T) {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"spreadsheet": map[string]interface{}{
 				"spreadsheet_token": "ss_token_123",
 				"title":             "Test Sheet",
@@ -41,7 +41,7 @@ func TestCreateSpreadsheet(t *testing.T) {
 func TestGetSpreadsheet(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"spreadsheet": map[string]interface{}{
 				"title": "My Sheet",
 				"token": "ss_token_456",
@@ -66,7 +66,7 @@ func TestGetSpreadsheet(t *testing.T) {
 func TestListSheets(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"sheets": []map[string]interface{}{
 				{"sheet_id": "sheet_1", "title": "Sheet1", "index": 0},
 				{"sheet_id": "sheet_2", "title": "Sheet2", "index": 1},
@@ -96,7 +96,7 @@ func TestListSheets(t *testing.T) {
 func TestSheetsAPIError(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(99991, "no permission", nil))
+		mustWrite(t, w, jsonResponse(99991, "no permission", nil))
 	})
 	defer srv.Close()
 

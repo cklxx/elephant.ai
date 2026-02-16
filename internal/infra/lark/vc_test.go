@@ -9,7 +9,7 @@ import (
 func TestListMeetings(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"meeting_list": []map[string]interface{}{
 				{
 					"meeting_id":         "m_1",
@@ -56,7 +56,7 @@ func TestListMeetings(t *testing.T) {
 func TestGetMeeting(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"meeting": map[string]interface{}{
 				"id":         "m_123",
 				"topic":      "Design Review",
@@ -94,7 +94,7 @@ func TestGetMeeting(t *testing.T) {
 func TestListRooms(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"rooms": []map[string]interface{}{
 				{
 					"room_id":     "room_1",
@@ -132,7 +132,7 @@ func TestListRooms(t *testing.T) {
 func TestVCAPIError(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(99991, "no permission", nil))
+		mustWrite(t, w, jsonResponse(99991, "no permission", nil))
 	})
 	defer srv.Close()
 

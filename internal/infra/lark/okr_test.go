@@ -9,7 +9,7 @@ import (
 func TestListOKRPeriods(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"items": []map[string]interface{}{
 				{"id": "period_1", "zh_name": "2026 Q1", "status": 0},
 				{"id": "period_2", "zh_name": "2025 Q4", "status": 0},
@@ -44,7 +44,7 @@ func TestListOKRPeriods(t *testing.T) {
 func TestListUserOKRs(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"okr_list": []map[string]interface{}{
 				{
 					"id":        "okr_1",
@@ -100,7 +100,7 @@ func TestListUserOKRs(t *testing.T) {
 func TestBatchGetOKRs(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"okr_list": []map[string]interface{}{
 				{"id": "okr_1", "name": "OKR A", "period_id": "p1"},
 				{"id": "okr_2", "name": "OKR B", "period_id": "p1"},
@@ -127,7 +127,7 @@ func TestBatchGetOKRs(t *testing.T) {
 func TestOKRAPIError(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(99991, "permission denied", nil))
+		mustWrite(t, w, jsonResponse(99991, "permission denied", nil))
 	})
 	defer srv.Close()
 

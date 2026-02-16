@@ -9,7 +9,7 @@ import (
 func TestListMailgroups(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"items": []map[string]interface{}{
 				{
 					"mailgroup_id":         "mg_1",
@@ -54,7 +54,7 @@ func TestListMailgroups(t *testing.T) {
 func TestGetMailgroup(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"mailgroup_id":         "mg_1",
 			"email":                "team@example.com",
 			"name":                 "Team",
@@ -85,7 +85,7 @@ func TestCreateMailgroup(t *testing.T) {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"mailgroup_id": "mg_new",
 			"email":        "new@example.com",
 			"name":         "New Group",
@@ -111,7 +111,7 @@ func TestCreateMailgroup(t *testing.T) {
 func TestMailAPIError(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(99991, "permission denied", nil))
+		mustWrite(t, w, jsonResponse(99991, "permission denied", nil))
 	})
 	defer srv.Close()
 

@@ -9,7 +9,7 @@ import (
 func TestListDriveFiles(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"files": []map[string]interface{}{
 				{"token": "file_1", "name": "report.pdf", "type": "file"},
 				{"token": "folder_1", "name": "Documents", "type": "folder"},
@@ -46,7 +46,7 @@ func TestCreateDriveFolder(t *testing.T) {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"token": "folder_new",
 			"url":   "https://example.com/folder",
 		}))
@@ -68,7 +68,7 @@ func TestCreateDriveFolder(t *testing.T) {
 func TestCopyDriveFile(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"file": map[string]interface{}{
 				"token": "file_copy",
 				"url":   "https://example.com/copy",
@@ -92,7 +92,7 @@ func TestDeleteDriveFile(t *testing.T) {
 			t.Errorf("expected DELETE, got %s", r.Method)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", nil))
+		mustWrite(t, w, jsonResponse(0, "ok", nil))
 	})
 	defer srv.Close()
 
@@ -105,7 +105,7 @@ func TestDeleteDriveFile(t *testing.T) {
 func TestDriveAPIError(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(99991, "access denied", nil))
+		mustWrite(t, w, jsonResponse(99991, "access denied", nil))
 	})
 	defer srv.Close()
 

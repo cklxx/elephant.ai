@@ -9,14 +9,14 @@ import (
 func TestGetUser(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"user": map[string]interface{}{
-				"user_id":  "user_123",
-				"open_id":  "ou_abc",
-				"name":     "Alice",
-				"en_name":  "Alice Smith",
-				"email":    "alice@example.com",
-				"mobile":   "+86-1234567890",
+				"user_id":        "user_123",
+				"open_id":        "ou_abc",
+				"name":           "Alice",
+				"en_name":        "Alice Smith",
+				"email":          "alice@example.com",
+				"mobile":         "+86-1234567890",
 				"department_ids": []string{"dept_1", "dept_2"},
 				"status": map[string]interface{}{
 					"is_activated": true,
@@ -50,7 +50,7 @@ func TestGetUser(t *testing.T) {
 func TestListUsers(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"items": []map[string]interface{}{
 				{"user_id": "user_1", "open_id": "ou_1", "name": "Alice"},
 				{"user_id": "user_2", "open_id": "ou_2", "name": "Bob"},
@@ -82,7 +82,7 @@ func TestListUsers(t *testing.T) {
 func TestGetDepartment(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"department": map[string]interface{}{
 				"department_id":        "dept_1",
 				"name":                 "Engineering",
@@ -112,7 +112,7 @@ func TestGetDepartment(t *testing.T) {
 func TestListDepartments(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"items": []map[string]interface{}{
 				{"department_id": "dept_1", "name": "Engineering"},
 				{"department_id": "dept_2", "name": "Product"},
@@ -139,7 +139,7 @@ func TestListDepartments(t *testing.T) {
 func TestContactAPIError(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(99991, "no permission", nil))
+		mustWrite(t, w, jsonResponse(99991, "no permission", nil))
 	})
 	defer srv.Close()
 
