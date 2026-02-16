@@ -17,13 +17,25 @@ import (
 // original safety levels from the pre-consolidated individual tools.
 func actionSafetyLevel(action string) (dangerous bool, level int) {
 	switch action {
-	case "history", "query_events", "list_tasks":
+	// Read-only actions — no approval needed.
+	case "history", "query_events", "list_tasks",
+		"read_doc", "read_doc_content",
+		"list_wiki_spaces", "list_wiki_nodes", "get_wiki_node",
+		"list_bitable_tables", "list_bitable_records", "list_bitable_fields",
+		"list_drive_files":
 		return false, ports.SafetyLevelReadOnly
+	// Reversible write actions.
 	case "send_message", "upload_file":
 		return true, ports.SafetyLevelReversible
-	case "create_event", "update_event", "create_task", "update_task":
+	// High-impact create/update actions.
+	case "create_event", "update_event", "create_task", "update_task",
+		"create_doc", "create_wiki_node",
+		"create_bitable_record", "update_bitable_record",
+		"create_drive_folder", "copy_drive_file":
 		return true, ports.SafetyLevelHighImpact
-	case "delete_event", "delete_task":
+	// Irreversible delete actions.
+	case "delete_event", "delete_task",
+		"delete_bitable_record", "delete_drive_file":
 		return true, ports.SafetyLevelIrreversible
 	default:
 		return true, ports.SafetyLevelHighImpact
@@ -32,40 +44,50 @@ func actionSafetyLevel(action string) (dangerous bool, level int) {
 
 type larkChannel struct {
 	shared.BaseTool
-	chat     *larkSendMessage
-	history  *larkChatHistory
-	upload   *larkUploadFile
+	chat      *larkSendMessage
+	history   *larkChatHistory
+	upload    *larkUploadFile
 	calCreate *larkCalendarCreate
 	calQuery  *larkCalendarQuery
 	calUpdate *larkCalendarUpdate
 	calDelete *larkCalendarDelete
 	task      *larkTaskManage
+	docx     *larkDocxManage
+	wiki     *larkWikiManage
+	bitable  *larkBitableManage
+	drive    *larkDriveManage
 }
 
 // NewLarkChannel constructs a unified Lark channel tool that dispatches to
-// sub-handlers via the "action" parameter. It replaces the 8 individual Lark
-// tools (send_message, history, upload_file, create_event, query_events,
-// update_event, delete_event, list_tasks/create_task/update_task/delete_task).
+// sub-handlers via the "action" parameter.
 func NewLarkChannel() tools.ToolExecutor {
 	return &larkChannel{
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "channel",
-				Description: "Unified Lark channel tool. Dispatches to thread messaging, calendar, and task operations via the 'action' parameter. " +
-					"Actions: send_message (text to chat), upload_file (file attachment), history (chat history), " +
+				Description: "Unified Lark channel tool. Dispatches to messaging, calendar, task, document, wiki, bitable, and drive operations via the 'action' parameter. " +
+					"Actions: send_message/upload_file/history (messaging), " +
 					"create_event/query_events/update_event/delete_event (calendar), " +
-					"list_tasks/create_task/update_task/delete_task (tasks). " +
+					"list_tasks/create_task/update_task/delete_task (tasks), " +
+					"create_doc/read_doc/read_doc_content (documents), " +
+					"list_wiki_spaces/list_wiki_nodes/create_wiki_node/get_wiki_node (wiki), " +
+					"list_bitable_tables/list_bitable_records/create_bitable_record/update_bitable_record/delete_bitable_record/list_bitable_fields (bitable), " +
+					"list_drive_files/create_drive_folder/copy_drive_file/delete_drive_file (drive). " +
 					"Write actions require approval. Only available inside a Lark chat context.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
 						"action": {
-							Type: "string",
+							Type:        "string",
 							Description: "Action to perform.",
 							Enum: []any{
 								"send_message", "upload_file", "history",
 								"create_event", "query_events", "update_event", "delete_event",
 								"list_tasks", "create_task", "update_task", "delete_task",
+								"create_doc", "read_doc", "read_doc_content",
+								"list_wiki_spaces", "list_wiki_nodes", "create_wiki_node", "get_wiki_node",
+								"list_bitable_tables", "list_bitable_records", "create_bitable_record", "update_bitable_record", "delete_bitable_record", "list_bitable_fields",
+								"list_drive_files", "create_drive_folder", "copy_drive_file", "delete_drive_file",
 							},
 						},
 						// send_message params
@@ -90,14 +112,14 @@ func NewLarkChannel() tools.ToolExecutor {
 							Type:        "integer",
 							Description: "Max upload size for upload_file (default 20MiB).",
 						},
-						// history params
+						// history / pagination params
 						"page_size": {
 							Type:        "integer",
-							Description: "Number of items to retrieve (history: default 20 max 50; list_tasks: default 50 max 100; query_events: default 50 max 1000).",
+							Description: "Number of items to retrieve (varies by action).",
 						},
 						"page_token": {
 							Type:        "string",
-							Description: "Pagination token for history/list_tasks/query_events.",
+							Description: "Pagination token for paginated actions.",
 						},
 						// calendar params
 						"summary": {
@@ -114,7 +136,7 @@ func NewLarkChannel() tools.ToolExecutor {
 						},
 						"description": {
 							Type:        "string",
-							Description: "Description for create_event/update_event or create_task/update_task.",
+							Description: "Description for create_event/update_event, create_task/update_task, or wiki node.",
 						},
 						"timezone": {
 							Type:        "string",
@@ -178,15 +200,87 @@ func NewLarkChannel() tools.ToolExecutor {
 							Type:        "string",
 							Description: "Idempotency token for create_task.",
 						},
+						// docx params
+						"document_id": {
+							Type:        "string",
+							Description: "Document ID for read_doc/read_doc_content.",
+						},
+						"title": {
+							Type:        "string",
+							Description: "Document title for create_doc; wiki node title for create_wiki_node.",
+						},
+						"folder_token": {
+							Type:        "string",
+							Description: "Folder token for create_doc, list_drive_files, create_drive_folder, copy_drive_file.",
+						},
+						// wiki params
+						"space_id": {
+							Type:        "string",
+							Description: "Wiki space ID for list_wiki_nodes/create_wiki_node.",
+						},
+						"node_token": {
+							Type:        "string",
+							Description: "Wiki node token for get_wiki_node; parent node for create_wiki_node.",
+						},
+						"parent_node_token": {
+							Type:        "string",
+							Description: "Parent node token for create_wiki_node.",
+						},
+						"obj_type": {
+							Type:        "string",
+							Description: "Object type for create_wiki_node (doc/docx/sheet/bitable).",
+						},
+						// bitable params
+						"app_token": {
+							Type:        "string",
+							Description: "Bitable app token for bitable operations.",
+						},
+						"table_id": {
+							Type:        "string",
+							Description: "Bitable table ID for record/field operations.",
+						},
+						"table_name": {
+							Type:        "string",
+							Description: "Table name for list_bitable_tables.",
+						},
+						"record_id": {
+							Type:        "string",
+							Description: "Record ID for update_bitable_record/delete_bitable_record.",
+						},
+						"fields": {
+							Type:        "object",
+							Description: "Field key-value map for create_bitable_record/update_bitable_record.",
+						},
+						"filter": {
+							Type:        "string",
+							Description: "Filter expression for list_bitable_records.",
+						},
+						"sort": {
+							Type:        "string",
+							Description: "Sort expression for list_bitable_records.",
+						},
+						// drive params
+						"file_token": {
+							Type:        "string",
+							Description: "File token for copy_drive_file/delete_drive_file.",
+						},
+						"file_type": {
+							Type:        "string",
+							Description: "File type for copy_drive_file/delete_drive_file (default: file).",
+						},
+						"name": {
+							Type:        "string",
+							Description: "Name for create_drive_folder, copy_drive_file, or bitable table.",
+						},
 					},
 					Required: []string{"action"},
 				},
 			},
 			ports.ToolMetadata{
 				Name:        "channel",
-				Version:     "1.0.0",
+				Version:     "2.0.0",
 				Category:    "lark",
-				Tags:        []string{"lark", "channel", "chat", "thread", "message", "status_update", "notify", "calendar", "tasks"},
+				Tags:        []string{"lark", "channel", "chat", "message", "calendar", "tasks", "docx", "wiki", "bitable", "drive"},
 				Dangerous:   false, // Per-action approval handled inside Execute
 				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
@@ -199,6 +293,10 @@ func NewLarkChannel() tools.ToolExecutor {
 		calUpdate: &larkCalendarUpdate{},
 		calDelete: &larkCalendarDelete{},
 		task:      &larkTaskManage{},
+		docx:     &larkDocxManage{},
+		wiki:     &larkWikiManage{},
+		bitable:  &larkBitableManage{},
+		drive:    &larkDriveManage{},
 	}
 }
 
@@ -226,8 +324,7 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	action = strings.ToLower(strings.TrimSpace(action))
 
 	// Per-action approval: check safety level and request approval for
-	// dangerous actions. Read-only actions (history, query_events, list_tasks)
-	// skip approval entirely.
+	// dangerous actions. Read-only actions skip approval entirely.
 	dangerous, safetyLevel := actionSafetyLevel(action)
 	if dangerous {
 		if result, err := c.requireActionApproval(ctx, call, action, safetyLevel); result != nil || err != nil {
@@ -239,12 +336,14 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	stripped := c.stripAction(call)
 
 	switch action {
+	// --- messaging ---
 	case "send_message":
 		return c.chat.Execute(ctx, c.rewriteCall(call, "content"))
 	case "upload_file":
 		return c.upload.Execute(ctx, stripped)
 	case "history":
 		return c.history.Execute(ctx, stripped)
+	// --- calendar ---
 	case "create_event":
 		return c.calCreate.Execute(ctx, stripped)
 	case "query_events":
@@ -253,6 +352,7 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		return c.calUpdate.Execute(ctx, stripped)
 	case "delete_event":
 		return c.calDelete.Execute(ctx, stripped)
+	// --- tasks ---
 	case "list_tasks":
 		return c.task.Execute(ctx, c.taskCall(call, "list"))
 	case "create_task":
@@ -261,6 +361,44 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		return c.task.Execute(ctx, c.taskCall(call, "update"))
 	case "delete_task":
 		return c.task.Execute(ctx, c.taskCall(call, "delete"))
+	// --- docx ---
+	case "create_doc":
+		return c.docx.Execute(ctx, c.subActionCall(call, "create"))
+	case "read_doc":
+		return c.docx.Execute(ctx, c.subActionCall(call, "read"))
+	case "read_doc_content":
+		return c.docx.Execute(ctx, c.subActionCall(call, "read_content"))
+	// --- wiki ---
+	case "list_wiki_spaces":
+		return c.wiki.Execute(ctx, c.subActionCall(call, "list_spaces"))
+	case "list_wiki_nodes":
+		return c.wiki.Execute(ctx, c.subActionCall(call, "list_nodes"))
+	case "create_wiki_node":
+		return c.wiki.Execute(ctx, c.subActionCall(call, "create_node"))
+	case "get_wiki_node":
+		return c.wiki.Execute(ctx, c.subActionCall(call, "get_node"))
+	// --- bitable ---
+	case "list_bitable_tables":
+		return c.bitable.Execute(ctx, c.subActionCall(call, "list_tables"))
+	case "list_bitable_records":
+		return c.bitable.Execute(ctx, c.subActionCall(call, "list_records"))
+	case "create_bitable_record":
+		return c.bitable.Execute(ctx, c.subActionCall(call, "create_record"))
+	case "update_bitable_record":
+		return c.bitable.Execute(ctx, c.subActionCall(call, "update_record"))
+	case "delete_bitable_record":
+		return c.bitable.Execute(ctx, c.subActionCall(call, "delete_record"))
+	case "list_bitable_fields":
+		return c.bitable.Execute(ctx, c.subActionCall(call, "list_fields"))
+	// --- drive ---
+	case "list_drive_files":
+		return c.drive.Execute(ctx, c.subActionCall(call, "list_files"))
+	case "create_drive_folder":
+		return c.drive.Execute(ctx, c.subActionCall(call, "create_folder"))
+	case "copy_drive_file":
+		return c.drive.Execute(ctx, c.subActionCall(call, "copy_file"))
+	case "delete_drive_file":
+		return c.drive.Execute(ctx, c.subActionCall(call, "delete_file"))
 	default:
 		err := fmt.Errorf("unsupported channel action: %s", action)
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -333,6 +471,26 @@ func (c *larkChannel) rewriteCall(call ports.ToolCall, allowedKeys ...string) po
 			args[k] = v
 		}
 	}
+	return ports.ToolCall{
+		ID:        call.ID,
+		Name:      call.Name,
+		Arguments: args,
+		SessionID: call.SessionID,
+		TaskID:    call.TaskID,
+	}
+}
+
+// subActionCall rewrites the channel call by replacing the channel-level action
+// with the sub-handler's internal action name.
+func (c *larkChannel) subActionCall(call ports.ToolCall, subAction string) ports.ToolCall {
+	args := make(map[string]any, len(call.Arguments))
+	for k, v := range call.Arguments {
+		if k == "action" {
+			continue
+		}
+		args[k] = v
+	}
+	args["action"] = subAction
 	return ports.ToolCall{
 		ID:        call.ID,
 		Name:      call.Name,
