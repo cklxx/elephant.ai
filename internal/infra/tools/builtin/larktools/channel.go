@@ -22,7 +22,12 @@ func actionSafetyLevel(action string) (dangerous bool, level int) {
 		"read_doc", "read_doc_content",
 		"list_wiki_spaces", "list_wiki_nodes", "get_wiki_node",
 		"list_bitable_tables", "list_bitable_records", "list_bitable_fields",
-		"list_drive_files":
+		"list_drive_files",
+		"get_spreadsheet", "list_sheets",
+		"list_okr_periods", "list_user_okrs", "batch_get_okrs",
+		"get_user", "list_users", "get_department", "list_departments",
+		"list_mailgroups", "get_mailgroup",
+		"list_meetings", "get_meeting", "list_rooms":
 		return false, ports.SafetyLevelReadOnly
 	// Reversible write actions.
 	case "send_message", "upload_file":
@@ -31,7 +36,8 @@ func actionSafetyLevel(action string) (dangerous bool, level int) {
 	case "create_event", "update_event", "create_task", "update_task",
 		"create_doc", "create_wiki_node",
 		"create_bitable_record", "update_bitable_record",
-		"create_drive_folder", "copy_drive_file":
+		"create_drive_folder", "copy_drive_file",
+		"create_spreadsheet", "create_mailgroup":
 		return true, ports.SafetyLevelHighImpact
 	// Irreversible delete actions.
 	case "delete_event", "delete_task",
@@ -52,10 +58,15 @@ type larkChannel struct {
 	calUpdate *larkCalendarUpdate
 	calDelete *larkCalendarDelete
 	task      *larkTaskManage
-	docx     *larkDocxManage
-	wiki     *larkWikiManage
-	bitable  *larkBitableManage
-	drive    *larkDriveManage
+	docx    *larkDocxManage
+	wiki    *larkWikiManage
+	bitable *larkBitableManage
+	drive   *larkDriveManage
+	sheets  *larkSheetsManage
+	okr     *larkOKRManage
+	contact *larkContactManage
+	mail    *larkMailManage
+	vc      *larkVCManage
 }
 
 // NewLarkChannel constructs a unified Lark channel tool that dispatches to
@@ -65,14 +76,19 @@ func NewLarkChannel() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "channel",
-				Description: "Unified Lark channel tool. Dispatches to messaging, calendar, task, document, wiki, bitable, and drive operations via the 'action' parameter. " +
+				Description: "Unified Lark channel tool. Dispatches to messaging, calendar, task, document, wiki, bitable, drive, sheets, OKR, contact, mail, and VC operations via the 'action' parameter. " +
 					"Actions: send_message/upload_file/history (messaging), " +
 					"create_event/query_events/update_event/delete_event (calendar), " +
 					"list_tasks/create_task/update_task/delete_task (tasks), " +
 					"create_doc/read_doc/read_doc_content (documents), " +
 					"list_wiki_spaces/list_wiki_nodes/create_wiki_node/get_wiki_node (wiki), " +
 					"list_bitable_tables/list_bitable_records/create_bitable_record/update_bitable_record/delete_bitable_record/list_bitable_fields (bitable), " +
-					"list_drive_files/create_drive_folder/copy_drive_file/delete_drive_file (drive). " +
+					"list_drive_files/create_drive_folder/copy_drive_file/delete_drive_file (drive), " +
+					"create_spreadsheet/get_spreadsheet/list_sheets (sheets), " +
+					"list_okr_periods/list_user_okrs/batch_get_okrs (OKR), " +
+					"get_user/list_users/get_department/list_departments (contact), " +
+					"list_mailgroups/get_mailgroup/create_mailgroup (mail), " +
+					"list_meetings/get_meeting/list_rooms (VC). " +
 					"Write actions require approval. Only available inside a Lark chat context.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
@@ -88,6 +104,11 @@ func NewLarkChannel() tools.ToolExecutor {
 								"list_wiki_spaces", "list_wiki_nodes", "create_wiki_node", "get_wiki_node",
 								"list_bitable_tables", "list_bitable_records", "create_bitable_record", "update_bitable_record", "delete_bitable_record", "list_bitable_fields",
 								"list_drive_files", "create_drive_folder", "copy_drive_file", "delete_drive_file",
+								"create_spreadsheet", "get_spreadsheet", "list_sheets",
+								"list_okr_periods", "list_user_okrs", "batch_get_okrs",
+								"get_user", "list_users", "get_department", "list_departments",
+								"list_mailgroups", "get_mailgroup", "create_mailgroup",
+								"list_meetings", "get_meeting", "list_rooms",
 							},
 						},
 						// send_message params
@@ -268,6 +289,52 @@ func NewLarkChannel() tools.ToolExecutor {
 							Type:        "string",
 							Description: "Name for create_drive_folder, copy_drive_file, or bitable table.",
 						},
+						// sheets params
+						"spreadsheet_token": {
+							Type:        "string",
+							Description: "Spreadsheet token for get_spreadsheet/list_sheets.",
+						},
+						// okr params
+						"user_id": {
+							Type:        "string",
+							Description: "User ID for get_user/list_user_okrs.",
+						},
+						"period_id": {
+							Type:        "string",
+							Description: "OKR period ID for list_user_okrs.",
+						},
+						"okr_ids": {
+							Type:        "array",
+							Description: "OKR IDs for batch_get_okrs.",
+							Items:       &ports.Property{Type: "string"},
+						},
+						// contact params
+						"department_id": {
+							Type:        "string",
+							Description: "Department ID for list_users/get_department.",
+						},
+						"parent_department_id": {
+							Type:        "string",
+							Description: "Parent department ID for list_departments (default: root).",
+						},
+						// mail params
+						"mailgroup_id": {
+							Type:        "string",
+							Description: "Mailgroup ID for get_mailgroup.",
+						},
+						"email": {
+							Type:        "string",
+							Description: "Email address for create_mailgroup.",
+						},
+						// vc params
+						"meeting_id": {
+							Type:        "string",
+							Description: "Meeting ID for get_meeting.",
+						},
+						"room_level_id": {
+							Type:        "string",
+							Description: "Room level ID for list_rooms.",
+						},
 					},
 					Required: []string{"action"},
 				},
@@ -276,7 +343,7 @@ func NewLarkChannel() tools.ToolExecutor {
 				Name:        "channel",
 				Version:     "2.0.0",
 				Category:    "lark",
-				Tags:        []string{"lark", "channel", "chat", "message", "calendar", "tasks", "docx", "wiki", "bitable", "drive"},
+				Tags:        []string{"lark", "channel", "chat", "message", "calendar", "tasks", "docx", "wiki", "bitable", "drive", "sheets", "okr", "contact", "mail", "vc"},
 				Dangerous:   false, // Per-action approval handled inside Execute
 				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
@@ -289,10 +356,15 @@ func NewLarkChannel() tools.ToolExecutor {
 		calUpdate: &larkCalendarUpdate{},
 		calDelete: &larkCalendarDelete{},
 		task:      &larkTaskManage{},
-		docx:     &larkDocxManage{},
-		wiki:     &larkWikiManage{},
-		bitable:  &larkBitableManage{},
-		drive:    &larkDriveManage{},
+		docx:    &larkDocxManage{},
+		wiki:    &larkWikiManage{},
+		bitable: &larkBitableManage{},
+		drive:   &larkDriveManage{},
+		sheets:  &larkSheetsManage{},
+		okr:     &larkOKRManage{},
+		contact: &larkContactManage{},
+		mail:    &larkMailManage{},
+		vc:      &larkVCManage{},
 	}
 }
 
@@ -395,6 +467,43 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		return c.drive.Execute(ctx, c.subActionCall(call, "copy_file"))
 	case "delete_drive_file":
 		return c.drive.Execute(ctx, c.subActionCall(call, "delete_file"))
+	// --- sheets ---
+	case "create_spreadsheet":
+		return c.sheets.Execute(ctx, c.subActionCall(call, "create"))
+	case "get_spreadsheet":
+		return c.sheets.Execute(ctx, c.subActionCall(call, "get"))
+	case "list_sheets":
+		return c.sheets.Execute(ctx, c.subActionCall(call, "list_sheets"))
+	// --- okr ---
+	case "list_okr_periods":
+		return c.okr.Execute(ctx, c.subActionCall(call, "list_periods"))
+	case "list_user_okrs":
+		return c.okr.Execute(ctx, c.subActionCall(call, "list_user_okrs"))
+	case "batch_get_okrs":
+		return c.okr.Execute(ctx, c.subActionCall(call, "batch_get"))
+	// --- contact ---
+	case "get_user":
+		return c.contact.Execute(ctx, c.subActionCall(call, "get_user"))
+	case "list_users":
+		return c.contact.Execute(ctx, c.subActionCall(call, "list_users"))
+	case "get_department":
+		return c.contact.Execute(ctx, c.subActionCall(call, "get_department"))
+	case "list_departments":
+		return c.contact.Execute(ctx, c.subActionCall(call, "list_departments"))
+	// --- mail ---
+	case "list_mailgroups":
+		return c.mail.Execute(ctx, c.subActionCall(call, "list_mailgroups"))
+	case "get_mailgroup":
+		return c.mail.Execute(ctx, c.subActionCall(call, "get_mailgroup"))
+	case "create_mailgroup":
+		return c.mail.Execute(ctx, c.subActionCall(call, "create_mailgroup"))
+	// --- vc ---
+	case "list_meetings":
+		return c.vc.Execute(ctx, c.subActionCall(call, "list_meetings"))
+	case "get_meeting":
+		return c.vc.Execute(ctx, c.subActionCall(call, "get_meeting"))
+	case "list_rooms":
+		return c.vc.Execute(ctx, c.subActionCall(call, "list_rooms"))
 	default:
 		err := fmt.Errorf("unsupported channel action: %s", action)
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
