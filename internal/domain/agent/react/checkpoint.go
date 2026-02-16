@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"alex/internal/infra/filestore"
 )
 
 // CheckpointVersion is the current schema version. Bump this when the
@@ -138,7 +137,7 @@ func (s *FileCheckpointStore) Save(_ context.Context, cp *Checkpoint) error {
 	}
 
 	path := s.path(cp.SessionID)
-	if err := filestore.AtomicWrite(path, data, 0o644); err != nil {
+	if err := atomicWrite(path, data, 0o644); err != nil {
 		return fmt.Errorf("checkpoint: write failed: %w", err)
 	}
 	return nil
@@ -195,7 +194,7 @@ func (s *FileCheckpointStore) SaveArchive(_ context.Context, archive *Checkpoint
 	}
 
 	path := filepath.Join(s.Dir, archive.SessionID, "archive", fmt.Sprintf("%d.json", archive.Seq))
-	if err := filestore.AtomicWrite(path, data, 0o644); err != nil {
+	if err := atomicWrite(path, data, 0o644); err != nil {
 		return fmt.Errorf("checkpoint: archive write failed: %w", err)
 	}
 	return nil
@@ -204,4 +203,21 @@ func (s *FileCheckpointStore) SaveArchive(_ context.Context, archive *Checkpoint
 // path returns the filesystem path for the given session's checkpoint.
 func (s *FileCheckpointStore) path(sessionID string) string {
 	return filepath.Join(s.Dir, sessionID+".json")
+}
+
+// atomicWrite writes data via a temporary file + rename to prevent partial writes.
+// This is a domain-local copy to avoid importing infra/filestore.
+func atomicWrite(filePath string, data []byte, perm os.FileMode) error {
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		return err
+	}
+	tmp := filePath + ".tmp"
+	if err := os.WriteFile(tmp, data, perm); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, filePath); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }

@@ -97,12 +97,9 @@ func TestCollection_MutateWithRollback(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
+	// The map was directly mutated inside the callback, but the collection
+	// restores via snapshot on error — verify rollback restored the value.
 	v, _ := c.Get("a")
-	if v != 999 {
-		// Note: the map was directly mutated, but the collection restores via snapshot
-	}
-	// Actually verify rollback restored the map.
-	v, _ = c.Get("a")
 	if v != 1 {
 		t.Fatalf("expected rollback to restore a=1, got %d", v)
 	}
