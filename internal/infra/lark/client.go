@@ -43,6 +43,26 @@ func (c *Client) Task() *TaskService {
 	return &TaskService{client: c.raw}
 }
 
+// Docx returns the document sub-service.
+func (c *Client) Docx() *DocxService {
+	return &DocxService{client: c.raw}
+}
+
+// Wiki returns the wiki sub-service.
+func (c *Client) Wiki() *WikiService {
+	return &WikiService{client: c.raw}
+}
+
+// Bitable returns the bitable sub-service.
+func (c *Client) Bitable() *BitableService {
+	return &BitableService{client: c.raw}
+}
+
+// Drive returns the drive sub-service.
+func (c *Client) Drive() *DriveService {
+	return &DriveService{client: c.raw}
+}
+
 // --- Shared helpers ---
 
 // CallOption configures a single API call (e.g. user or tenant access token).
