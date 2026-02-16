@@ -2,7 +2,6 @@ package lark
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"testing"
 )
@@ -130,6 +129,3 @@ func TestCreateDocumentAPIError(t *testing.T) {
 		t.Errorf("expected code 99991, got %d", apiErr.Code)
 	}
 }
-
-// docxJSON is a test helper (unused import guard).
-var _ = json.Marshal

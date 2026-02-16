@@ -67,6 +67,9 @@ func (s *WikiService) ListSpaces(ctx context.Context, req ListSpacesRequest, opt
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
 	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("list wiki spaces: unexpected nil data in response")
+	}
 
 	spaces := make([]WikiSpace, 0, len(resp.Data.Items))
 	for _, item := range resp.Data.Items {
@@ -101,6 +104,9 @@ func (s *WikiService) GetSpace(ctx context.Context, spaceID string, opts ...Call
 	}
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("get wiki space: unexpected nil data in response")
 	}
 
 	space := parseWikiSpace(resp.Data.Space)
@@ -146,6 +152,9 @@ func (s *WikiService) ListNodes(ctx context.Context, req ListNodesRequest, opts 
 	}
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("list wiki nodes: unexpected nil data in response")
 	}
 
 	nodes := make([]WikiNode, 0, len(resp.Data.Items))
@@ -199,6 +208,9 @@ func (s *WikiService) CreateNode(ctx context.Context, req CreateNodeRequest, opt
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
 	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("create wiki node: unexpected nil data in response")
+	}
 
 	node := parseWikiNode(resp.Data.Node)
 	return &node, nil
@@ -216,6 +228,9 @@ func (s *WikiService) GetNode(ctx context.Context, nodeToken string, opts ...Cal
 	}
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("get wiki node: unexpected nil data in response")
 	}
 
 	node := parseWikiNode(resp.Data.Node)

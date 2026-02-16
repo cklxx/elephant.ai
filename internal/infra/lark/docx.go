@@ -55,6 +55,9 @@ func (s *DocxService) CreateDocument(ctx context.Context, req CreateDocumentRequ
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
 	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("create document: unexpected nil data in response")
+	}
 
 	return parseDocument(resp.Data.Document), nil
 }
@@ -71,6 +74,9 @@ func (s *DocxService) GetDocument(ctx context.Context, documentID string, opts .
 	}
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("get document: unexpected nil data in response")
 	}
 
 	return parseDocument(resp.Data.Document), nil
@@ -116,6 +122,9 @@ func (s *DocxService) ListDocumentBlocks(ctx context.Context, documentID string,
 	}
 	if !resp.Success() {
 		return nil, "", false, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	if resp.Data == nil {
+		return nil, "", false, fmt.Errorf("list document blocks: unexpected nil data in response")
 	}
 
 	blocks := make([]DocumentBlock, 0, len(resp.Data.Items))

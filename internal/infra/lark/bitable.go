@@ -55,6 +55,9 @@ func (s *BitableService) GetApp(ctx context.Context, appToken string, opts ...Ca
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
 	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("get bitable app: unexpected nil data in response")
+	}
 
 	return parseBitableDisplayApp(resp.Data.App), nil
 }
@@ -97,6 +100,9 @@ func (s *BitableService) ListTables(ctx context.Context, req ListTablesRequest, 
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
 	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("list bitable tables: unexpected nil data in response")
+	}
 
 	tables := make([]BitableTable, 0, len(resp.Data.Items))
 	for _, item := range resp.Data.Items {
@@ -138,6 +144,9 @@ func (s *BitableService) CreateTable(ctx context.Context, appToken, tableName st
 	}
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("create bitable table: unexpected nil data in response")
 	}
 
 	result := &BitableTable{}
@@ -189,6 +198,9 @@ func (s *BitableService) ListRecords(ctx context.Context, req ListRecordsRequest
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
 	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("list bitable records: unexpected nil data in response")
+	}
 
 	records := make([]BitableRecord, 0, len(resp.Data.Items))
 	for _, item := range resp.Data.Items {
@@ -235,6 +247,9 @@ func (s *BitableService) CreateRecord(ctx context.Context, appToken, tableID str
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
 	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("create bitable record: unexpected nil data in response")
+	}
 
 	result := parseBitableRecord(resp.Data.Record)
 	return &result, nil
@@ -259,6 +274,9 @@ func (s *BitableService) UpdateRecord(ctx context.Context, appToken, tableID, re
 	}
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("update bitable record: unexpected nil data in response")
 	}
 
 	result := parseBitableRecord(resp.Data.Record)
@@ -298,6 +316,9 @@ func (s *BitableService) ListFields(ctx context.Context, appToken, tableID strin
 	}
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("list bitable fields: unexpected nil data in response")
 	}
 
 	fields := make([]BitableField, 0, len(resp.Data.Items))
@@ -358,6 +379,9 @@ func parseBitableFieldForList(field *larkbitable.AppTableFieldForList) BitableFi
 		return BitableField{}
 	}
 	f := BitableField{}
+	if field.FieldId != nil {
+		f.FieldID = *field.FieldId
+	}
 	if field.FieldName != nil {
 		f.FieldName = *field.FieldName
 	}

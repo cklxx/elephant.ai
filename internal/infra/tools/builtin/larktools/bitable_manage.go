@@ -150,19 +150,18 @@ func (t *larkBitableManage) createRecord(ctx context.Context, client *larkapi.Cl
 		return errResult, nil
 	}
 
-	fields := shared.StringMapArg(call.Arguments, "fields")
-	if len(fields) == 0 {
+	fieldsRaw, ok := call.Arguments["fields"]
+	if !ok || fieldsRaw == nil {
 		err := fmt.Errorf("fields parameter is required for create_record")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
-
-	// Convert string map to interface map for SDK compatibility.
-	fieldsIface := make(map[string]interface{}, len(fields))
-	for k, v := range fields {
-		fieldsIface[k] = v
+	fieldsMap, ok := fieldsRaw.(map[string]interface{})
+	if !ok {
+		err := fmt.Errorf("fields must be a JSON object, got %T", fieldsRaw)
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	record, err := client.Bitable().CreateRecord(ctx, appToken, tableID, fieldsIface)
+	record, err := client.Bitable().CreateRecord(ctx, appToken, tableID, fieldsMap)
 	if err != nil {
 		return &ports.ToolResult{
 			CallID:  call.ID,
@@ -194,18 +193,18 @@ func (t *larkBitableManage) updateRecord(ctx context.Context, client *larkapi.Cl
 		return errResult, nil
 	}
 
-	fields := shared.StringMapArg(call.Arguments, "fields")
-	if len(fields) == 0 {
+	fieldsRaw, ok := call.Arguments["fields"]
+	if !ok || fieldsRaw == nil {
 		err := fmt.Errorf("fields parameter is required for update_record")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
-
-	fieldsIface := make(map[string]interface{}, len(fields))
-	for k, v := range fields {
-		fieldsIface[k] = v
+	fieldsMap, ok := fieldsRaw.(map[string]interface{})
+	if !ok {
+		err := fmt.Errorf("fields must be a JSON object, got %T", fieldsRaw)
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	_, err := client.Bitable().UpdateRecord(ctx, appToken, tableID, recordID, fieldsIface)
+	_, err := client.Bitable().UpdateRecord(ctx, appToken, tableID, recordID, fieldsMap)
 	if err != nil {
 		return &ports.ToolResult{
 			CallID:  call.ID,

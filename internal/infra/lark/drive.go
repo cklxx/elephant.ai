@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkdrive "github.com/larksuite/oapi-sdk-go/v3/service/drive/v1"
@@ -69,6 +70,9 @@ func (s *DriveService) ListFiles(ctx context.Context, req ListFilesRequest, opts
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
 	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("list drive files: unexpected nil data in response")
+	}
 
 	files := make([]DriveFile, 0, len(resp.Data.Files))
 	for _, item := range resp.Data.Files {
@@ -111,6 +115,9 @@ func (s *DriveService) CreateFolder(ctx context.Context, folderToken, name strin
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
 	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("create drive folder: unexpected nil data in response")
+	}
 
 	result := &DriveFile{Name: name, Type: "folder"}
 	if resp.Data.Token != nil {
@@ -143,6 +150,9 @@ func (s *DriveService) CopyFile(ctx context.Context, fileToken, targetFolder, ne
 	}
 	if !resp.Success() {
 		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("copy drive file: unexpected nil data in response")
 	}
 
 	result := &DriveFile{Name: newName, Type: fileType}
@@ -226,6 +236,9 @@ func (s *DriveService) UploadFile(ctx context.Context, req UploadFileRequest, op
 	if !resp.Success() {
 		return "", &APIError{Code: resp.Code, Msg: resp.Msg}
 	}
+	if resp.Data == nil {
+		return "", fmt.Errorf("upload drive file: unexpected nil data in response")
+	}
 
 	if resp.Data.FileToken != nil {
 		return *resp.Data.FileToken, nil
@@ -287,7 +300,6 @@ func parseTimestampInt(ts string) int64 {
 	if ts == "" || ts == "0" {
 		return 0
 	}
-	var result int64
-	fmt.Sscanf(ts, "%d", &result)
+	result, _ := strconv.ParseInt(ts, 10, 64)
 	return result
 }

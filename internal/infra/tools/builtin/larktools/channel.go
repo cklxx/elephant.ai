@@ -239,10 +239,6 @@ func NewLarkChannel() tools.ToolExecutor {
 							Type:        "string",
 							Description: "Bitable table ID for record/field operations.",
 						},
-						"table_name": {
-							Type:        "string",
-							Description: "Table name for list_bitable_tables.",
-						},
 						"record_id": {
 							Type:        "string",
 							Description: "Record ID for update_bitable_record/delete_bitable_record.",
