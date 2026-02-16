@@ -1,7 +1,3 @@
----
-layout: none
-permalink: /
----
 <!DOCTYPE html>
 <html lang="en">
 
@@ -10,9 +6,9 @@ permalink: /
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>elephant.ai - Proactive AI Assistant</title>
     <meta name="description"
-        content="Proactive AI assistant that embeds into daily workflows — Lark, WeChat, CLI, and web — remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously.">
+        content="Proactive AI assistant that embeds into Lark, WeChat, CLI, and web. Remembers context, takes initiative with built-in skills, and executes real work autonomously.">
     <meta name="keywords"
-        content="AI assistant, proactive AI, Lark bot, WeChat bot, persistent memory, autonomous agent, ReAct, multi-provider LLM, Go, developer tools">
+        content="AI assistant, proactive AI, Lark bot, WeChat bot, ReAct agent, persistent memory, autonomous execution, Go, multi-provider LLM">
     <meta name="author" content="elephant.ai">
     <meta name="robots" content="index, follow">
 
@@ -21,19 +17,24 @@ permalink: /
     <meta property="og:url" content="https://cklxx.github.io/elephant.ai/">
     <meta property="og:title" content="elephant.ai - Proactive AI Assistant">
     <meta property="og:description"
-        content="One runtime, every surface, always ready. Proactive AI that remembers, takes initiative, and executes real work autonomously.">
+        content="One runtime, every surface, always ready. Proactive AI assistant for Lark, WeChat, CLI, and web.">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="https://cklxx.github.io/elephant.ai/">
     <meta property="twitter:title" content="elephant.ai - Proactive AI Assistant">
     <meta property="twitter:description"
-        content="One runtime, every surface, always ready. Proactive AI that remembers, takes initiative, and executes real work autonomously.">
+        content="One runtime, every surface, always ready. Proactive AI assistant for Lark, WeChat, CLI, and web.">
 
+    <!-- PWA Manifest -->
     <meta name="theme-color" content="#00d4ff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="elephant.ai">
 
     <!-- Preload critical resources -->
     <link rel="preload" href="https://fonts.gstatic.com" as="font" type="font/woff2" crossorigin>
+
     <link
         href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
@@ -182,6 +183,7 @@ permalink: /
             color: var(--text-muted);
             margin-bottom: 2rem;
             font-weight: 300;
+            font-style: italic;
         }
 
         .cta-group {
@@ -230,7 +232,7 @@ permalink: /
             border-color: var(--accent-color);
         }
 
-        /* Terminal Demo */
+        /* Terminal */
         .terminal {
             background: linear-gradient(135deg, #000 0%, #0a0a0a 100%);
             border-radius: 12px;
@@ -395,7 +397,7 @@ permalink: /
             animation: fadeInUp 0.15s ease-out;
         }
 
-        /* Terminal cursor */
+        /* Cursor */
         .terminal-cursor {
             display: inline-block;
             background-color: var(--success-color);
@@ -475,7 +477,7 @@ permalink: /
             line-height: 1.6;
         }
 
-        /* Architecture section */
+        /* Architecture Section */
         .architecture {
             padding: 6rem 0;
         }
@@ -494,43 +496,49 @@ permalink: /
         }
 
         .arch-layers {
-            max-width: 700px;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-width: 800px;
             margin: 0 auto;
         }
 
         .arch-layer {
             background: rgba(17, 17, 17, 0.6);
             border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 1.25rem 2rem;
-            margin-bottom: 0.5rem;
-            text-align: center;
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
             transition: all 0.3s ease;
-            position: relative;
         }
 
         .arch-layer:hover {
             border-color: var(--accent-color);
-            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.08);
+            transform: translateX(5px);
         }
 
-        .arch-layer .layer-name {
-            font-weight: 600;
+        .arch-layer-icon {
+            font-size: 2rem;
+            flex-shrink: 0;
+        }
+
+        .arch-layer-content h3 {
             color: var(--accent-color);
-            font-size: 1rem;
+            font-size: 1.1rem;
+            margin-bottom: 0.3rem;
         }
 
-        .arch-layer .layer-desc {
-            color: var(--text-muted);
-            font-size: 0.85rem;
-            margin-top: 0.25rem;
+        .arch-layer-content p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
         }
 
         .arch-arrow {
             text-align: center;
             color: var(--text-muted);
             font-size: 1.2rem;
-            margin: 0.15rem 0;
         }
 
         /* Stats */
@@ -581,27 +589,11 @@ permalink: /
             .terminal { max-width: min(98vw, 1600px); width: min(98vw, 1600px); min-height: 500px; padding: 2rem; }
             .terminal-title { max-width: 400px; font-size: 0.9rem; }
             .terminal-content { font-size: 1rem; padding: 1rem; }
-            .command, .output { font-size: 0.95rem; }
         }
 
         @media (min-width: 1200px) and (max-width: 1399px) {
             .terminal { max-width: min(95vw, 1400px); width: min(95vw, 1400px); min-height: 450px; padding: 1.8rem; }
             .terminal-content { font-size: 0.9rem; padding: 0.8rem; }
-            .command { font-size: 0.9rem; }
-            .output { font-size: 0.85rem; }
-            .terminal-title { max-width: 300px; font-size: 0.85rem; }
-        }
-
-        @media (min-width: 1025px) and (max-width: 1199px) {
-            .terminal { max-width: min(90vw, 1200px); width: min(90vw, 1200px); min-height: 400px; }
-            .terminal-content { font-size: 0.85rem; }
-            .terminal-title { max-width: 250px; }
-        }
-
-        @media (max-width: 1024px) {
-            .terminal { max-width: min(95vw, 1000px); width: min(95vw, 1000px); min-height: 350px; padding: 1rem; }
-            .terminal-content { font-size: 0.8rem; }
-            .terminal-title { max-width: 200px; }
         }
 
         @media (max-width: 768px) {
@@ -614,14 +606,9 @@ permalink: /
             .terminal-content { font-size: 0.75rem; padding: 0.4rem; }
             .command, .output { font-size: 0.7rem; line-height: 1.2; margin: 0.1rem 0; }
             .terminal-title { max-width: 150px; font-size: 0.7rem; }
+            .arch-layer { flex-direction: column; text-align: center; }
         }
 
-        @media (max-height: 600px) {
-            .terminal-content { line-height: 1.0; padding: 0.4rem; }
-            .command, .output { margin: 0.02rem 0; line-height: 1.0; }
-        }
-
-        /* Scroll indicator */
         .scroll-indicator {
             position: absolute;
             bottom: 2rem;
@@ -661,7 +648,7 @@ permalink: /
                 <div class="hero-content">
                     <h1>elephant.ai</h1>
                     <p class="subtitle">Proactive AI Assistant for Every Surface</p>
-                    <p class="tagline">One runtime. Lark, WeChat, CLI, Web. Remembers everything. Always ready.</p>
+                    <p class="tagline">One runtime, every surface, always ready.</p>
 
                     <div class="cta-group">
                         <a href="https://github.com/cklxx/elephant.ai" class="btn btn-primary" target="_blank">
@@ -680,14 +667,16 @@ permalink: /
                             <span class="terminal-title">elephant.ai</span>
                         </div>
                         <div class="terminal-content" id="terminal-content">
-                            <div class="loading-text">elephant.ai - Proactive AI Assistant</div>
-                            <div class="loading-text">Agent: Initializing...</div>
+                            <div class="loading-text">elephant.ai v2.0 - Proactive AI Assistant</div>
+                            <div class="loading-text">ReAct Agent: Initializing...</div>
                             <div class="prompt-line">$ <span class="terminal-cursor"></span></div>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="scroll-indicator">Scroll to explore</div>
+            <div class="scroll-indicator">
+                Scroll to explore
+            </div>
         </section>
 
         <section class="features" id="features">
@@ -697,37 +686,37 @@ permalink: /
                     <div class="feature-card">
                         <span class="feature-icon">&#x1F4AC;</span>
                         <h3>Channel-Native</h3>
-                        <p>First-class participant in Lark groups, WeChat chats, CLI, and web dashboard. No app-switching, no context loss.</p>
+                        <p>First-class participant in Lark groups, WeChat chats, CLI, and web dashboard. No app switching needed.</p>
                     </div>
 
                     <div class="feature-card">
                         <span class="feature-icon">&#x1F9E0;</span>
                         <h3>Persistent Memory</h3>
-                        <p>Remembers conversations, decisions, and context across sessions. Auto-saves Lark and WeChat messages. Retrieves relevant history before you ask.</p>
+                        <p>Remembers conversations, decisions, and context across sessions. The assistant retrieves relevant history automatically.</p>
                     </div>
 
                     <div class="feature-card">
                         <span class="feature-icon">&#x1F680;</span>
                         <h3>Autonomous Execution</h3>
-                        <p>ReAct loop runs Think-Act-Observe to completion: web search, code execution, file ops, browser automation &mdash; without hand-holding.</p>
+                        <p>ReAct loop runs Think-Act-Observe to completion: web search, code execution, file ops, browser automation.</p>
                     </div>
 
                     <div class="feature-card">
                         <span class="feature-icon">&#x1F4DA;</span>
                         <h3>Built-in Skills</h3>
-                        <p>Markdown-driven workflows for deep research, meeting notes, email drafting, slide decks, video production, and code review.</p>
+                        <p>15+ markdown-driven workflows: deep research, meeting notes, email drafting, slide decks, video production, code review.</p>
                     </div>
 
                     <div class="feature-card">
                         <span class="feature-icon">&#x1F310;</span>
                         <h3>Multi-Provider LLM</h3>
-                        <p>Seamless integration with OpenAI, Claude, DeepSeek, ARK, Ollama, and more. Switch models per chat or globally.</p>
+                        <p>Seamless integration with OpenAI, Claude, DeepSeek, ARK, Gemini, Ollama, and more. No vendor lock-in.</p>
                     </div>
 
                     <div class="feature-card">
-                        <span class="feature-icon">&#x1F6E1;</span>
+                        <span class="feature-icon">&#x1F6E1;&#xFE0F;</span>
                         <h3>Approval Gates</h3>
-                        <p>Proactivity requires safety. Risky tool calls need explicit human approval via CLI, web, or chat. Full audit trail.</p>
+                        <p>Proactivity with safety. Risky tool calls require explicit human approval via CLI, web, or chat.</p>
                     </div>
                 </div>
             </div>
@@ -736,26 +725,38 @@ permalink: /
         <section class="architecture" id="architecture">
             <div class="container">
                 <h2>Architecture</h2>
-                <p class="arch-subtitle">Clean port/adapter boundaries. One runtime powers every surface.</p>
+                <p class="arch-subtitle">Clean port/adapter boundaries. Multi-provider. Observable.</p>
                 <div class="arch-layers">
                     <div class="arch-layer">
-                        <div class="layer-name">Delivery</div>
-                        <div class="layer-desc">CLI, Server, Web, Lark, WeChat</div>
+                        <div class="arch-layer-icon">&#x1F4E1;</div>
+                        <div class="arch-layer-content">
+                            <h3>Delivery Layer</h3>
+                            <p>CLI, Server (HTTP/SSE), Web Dashboard, Lark Bot, WeChat Bot</p>
+                        </div>
                     </div>
-                    <div class="arch-arrow">&darr;</div>
+                    <div class="arch-arrow">&#x2193;</div>
                     <div class="arch-layer">
-                        <div class="layer-name">Agent Application</div>
-                        <div class="layer-desc">Preparation, coordination, cost accounting</div>
+                        <div class="arch-layer-icon">&#x2699;&#xFE0F;</div>
+                        <div class="arch-layer-content">
+                            <h3>Agent Application</h3>
+                            <p>Task preparation, coordination, cost accounting, context assembly</p>
+                        </div>
                     </div>
-                    <div class="arch-arrow">&darr;</div>
+                    <div class="arch-arrow">&#x2193;</div>
                     <div class="arch-layer">
-                        <div class="layer-name">Domain</div>
-                        <div class="layer-desc">ReAct loop, typed events, approvals, context assembly</div>
+                        <div class="arch-layer-icon">&#x1F9E0;</div>
+                        <div class="arch-layer-content">
+                            <h3>Domain (ReAct Loop)</h3>
+                            <p>Typed events, approval gates, Think-Act-Observe cycle</p>
+                        </div>
                     </div>
-                    <div class="arch-arrow">&darr;</div>
+                    <div class="arch-arrow">&#x2193;</div>
                     <div class="arch-layer">
-                        <div class="layer-name">Infrastructure Adapters</div>
-                        <div class="layer-desc">LLM, tools, memory, storage, observability</div>
+                        <div class="arch-layer-icon">&#x1F50C;</div>
+                        <div class="arch-layer-content">
+                            <h3>Infrastructure Adapters</h3>
+                            <p>LLM providers, tools, memory store, RAG, observability</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -763,7 +764,7 @@ permalink: /
 
         <section class="stats">
             <div class="container">
-                <h2>At a Glance</h2>
+                <h2>By the Numbers</h2>
                 <div class="stats-grid">
                     <div class="stat-item">
                         <span class="stat-number">15+</span>
@@ -771,15 +772,15 @@ permalink: /
                     </div>
                     <div class="stat-item">
                         <span class="stat-number">6+</span>
-                        <div class="stat-label">LLM Providers</div>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-number">4</span>
                         <div class="stat-label">Delivery Channels</div>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-number">&infin;</span>
-                        <div class="stat-label">Persistent Memory</div>
+                        <span class="stat-number">8+</span>
+                        <div class="stat-label">LLM Providers</div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">Go</span>
+                        <div class="stat-label">Powered Runtime</div>
                     </div>
                 </div>
             </div>
@@ -788,7 +789,7 @@ permalink: /
 
     <footer class="footer">
         <div class="container">
-            <p>&copy; 2025&ndash;2026 elephant.ai. Built for workflows that never forget.</p>
+            <p>&copy; 2025-2026 elephant.ai. Proactive AI for every surface.</p>
         </div>
     </footer>
 
@@ -798,7 +799,9 @@ permalink: /
             anchor.addEventListener('click', function (e) {
                 e.preventDefault();
                 const target = document.querySelector(this.getAttribute('href'));
-                if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
             });
         });
 
@@ -825,15 +828,20 @@ permalink: /
 
             const observer = new MutationObserver((mutations) => {
                 let shouldScroll = false;
-                mutations.forEach((m) => {
-                    if ((m.type === 'childList' && m.addedNodes.length > 0) || m.type === 'characterData') shouldScroll = true;
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'childList' && mutation.addedNodes.length > 0) shouldScroll = true;
+                    if (mutation.type === 'characterData') shouldScroll = true;
                 });
-                if (shouldScroll) requestAnimationFrame(() => smoothScrollToBottom());
+                if (shouldScroll) {
+                    requestAnimationFrame(() => smoothScrollToBottom());
+                }
             });
+
             observer.observe(terminalContent, { childList: true, subtree: true, characterData: true });
 
             let isUserScrolling = false;
             let scrollTimeout;
+
             terminalContent.addEventListener('scroll', () => {
                 const isAtBottom = Math.abs(terminalContent.scrollHeight - terminalContent.clientHeight - terminalContent.scrollTop) < 5;
                 if (!isAtBottom) {
@@ -858,94 +866,99 @@ permalink: /
 
         const demoScenarios = [
             {
-                command: '[Lark Group] @elephant "Help me draft the weekly report"',
+                command: '[Lark Group] @elephant "Help me research context engineering best practices"',
                 output: [
-                    '',
                     'Thinking...',
                     '',
-                    'memory_recall(scope="recent_week", chat_id="dev-team")',
-                    '  Retrieved 23 messages from this week',
-                    '  Key topics: API migration, performance fix, design review',
+                    'think("User wants a deep research on context engineering...")',
+                    '  Planning multi-source research with web search and memory recall...',
                     '',
-                    'draft_report(format="markdown")',
-                    '  ## Weekly Report - Feb 16, 2026',
-                    '  ### Completed',
-                    '  - API migration to v3 (Mon-Tue)',
-                    '  - Fixed P0 latency regression (-40% p99)',
-                    '  - Design review for notification system',
-                    '  ### In Progress',
-                    '  - Notification service implementation',
+                    'memory_recall(query="context engineering")',
+                    '  Found 3 relevant memories from previous sessions',
                     '',
-                    'Report drafted from chat context. Shall I post it to the channel?',
+                    'web_search(query="context engineering LLM best practices 2026")',
+                    '  Searching 5 authoritative sources...',
+                    '  - Anthropic docs: context window management',
+                    '  - Langchain: retrieval-augmented generation patterns',
+                    '  - Research paper: layered context assembly',
                     '',
-                    'Done in 2.1s'
+                    'Result:',
+                    '  Context engineering focuses on what goes INTO the prompt,',
+                    '  not how you phrase it. Key practices: layered retrieval,',
+                    '  structured memory injection, and adaptive summarization.',
+                    '',
+                    'Task completed in 4.2s | Saved to memory'
                 ]
             },
             {
-                command: '[CLI] elephant "Deep research: state of AI agents 2026"',
+                command: '[WeChat] "Draft a meeting summary from today\'s standup"',
                 output: [
+                    'Thinking...',
                     '',
+                    'think("User wants meeting notes from today\'s standup...")',
+                    '  Activating skill: meeting-notes',
+                    '',
+                    'memory_recall(query="standup today", scope="chat")',
+                    '  Found 12 messages from today\'s standup conversation',
+                    '',
+                    'skill_execute(name="meeting-notes")',
+                    '  Extracting action items, decisions, and blockers...',
+                    '',
+                    'Result:',
+                    '  ## Standup Summary - Feb 16',
+                    '  Decisions: Migrate to FileStore for kernel state',
+                    '  Action items: 3 assigned, 1 blocked',
+                    '  Next sync: tomorrow 10am',
+                    '',
+                    'Task completed in 2.1s | Sent to chat'
+                ]
+            },
+            {
+                command: '[CLI] elephant "Analyze the agent loop architecture"',
+                output: [
+                    'Thinking...',
+                    '',
+                    'think("Analyzing the ReAct agent loop architecture...")',
+                    '  Need to read domain layer and trace execution flow...',
+                    '',
+                    'file_read(path="internal/agent/domain/react/")',
+                    '  Found 8 files: loop.go, events.go, approval.go ...',
+                    '',
+                    'code_analysis(scope="agent domain")',
+                    '  Architecture: Clean hexagonal with port/adapter pattern',
+                    '  Flow: Prepare -> Think -> Act -> Observe -> Loop',
+                    '  Events: Typed event stream with SSE delivery',
+                    '  Safety: Approval gates on risky tool calls',
+                    '',
+                    'Result:',
+                    '  ReAct loop with 4-layer architecture.',
+                    '  15+ built-in tools, typed events, approval gates.',
+                    '  Multi-provider LLM support via adapter pattern.',
+                    '',
+                    'Task completed in 1.8s'
+                ]
+            },
+            {
+                command: '[Lark] @elephant --skill deep-research "Compare ReAct vs Plan-and-Execute agents"',
+                output: [
                     'Activating skill: deep-research',
                     '',
-                    'web_search(query="AI agent frameworks 2026 survey")',
-                    '  Found 12 sources across arxiv, blog posts, docs',
+                    'think("Deep comparison of agent architectures...")',
+                    '  Planning systematic research with multiple sources...',
                     '',
-                    'web_search(query="autonomous agent benchmarks 2026")',
-                    '  Found 8 benchmark comparisons',
+                    'web_search(query="ReAct vs Plan-and-Execute agent comparison")',
+                    '  Found 8 relevant papers and blog posts',
                     '',
-                    'synthesize(sources=20, format="report")',
-                    '  Generating comprehensive analysis...',
-                    '  Writing to: reports/ai-agents-2026.md',
+                    'browser_read(url="arxiv.org/abs/...")',
+                    '  Extracting key findings from ReAct paper...',
                     '',
-                    '15-page report saved. Key finding: tool-use agents',
-                    'outperform pure-reasoning by 2.3x on SWE-bench.',
+                    'Result:',
+                    '  ## ReAct vs Plan-and-Execute',
+                    '  ReAct: interleaved reasoning + action, better for dynamic tasks',
+                    '  Plan-and-Execute: upfront planning, better for structured workflows',
+                    '  elephant.ai uses ReAct with optional plan-first mode.',
                     '',
-                    'Done in 45.2s'
-                ]
-            },
-            {
-                command: '[WeChat] "Summarize the meeting notes from yesterday"',
-                output: [
-                    '',
-                    'Thinking...',
-                    '',
-                    'memory_search(query="meeting yesterday", limit=5)',
-                    '  Found: Product sync 2026-02-15 14:00',
-                    '  Participants: 6 people, duration: 45min',
-                    '',
-                    'summarize(style="action_items")',
-                    '  ## Product Sync - Feb 15',
-                    '  Decisions:',
-                    '  1. Launch notifications MVP by Feb 28',
-                    '  2. Defer analytics dashboard to March',
-                    '  Action items:',
-                    '  - @alice: finalize API spec (Feb 18)',
-                    '  - @bob: load test report (Feb 20)',
-                    '',
-                    'Done in 1.8s'
-                ]
-            },
-            {
-                command: '[Web] "Review this PR and check for security issues"',
-                output: [
-                    '',
-                    'Activating skill: code-review',
-                    '',
-                    'git_diff(pr=142, files=8)',
-                    '  Reviewing 342 lines changed across 8 files...',
-                    '',
-                    'security_scan(focus="OWASP top 10")',
-                    '  P0: SQL injection in user_handler.go:47',
-                    '     raw string concat in query builder',
-                    '  P1: Missing rate limit on /api/auth/token',
-                    '',
-                    'code_quality()',
-                    '  Style: consistent with codebase',
-                    '  Tests: 3 new tests, coverage 78% -> 82%',
-                    '',
-                    '2 security findings (1 P0, 1 P1). Fix before merge.',
-                    '',
-                    'Done in 3.4s'
+                    'Deep research completed in 12.3s | 8 sources cited'
                 ]
             }
         ];
@@ -958,7 +971,9 @@ permalink: /
                 prompt.style.color = 'var(--success-color)';
                 prompt.innerHTML = '$ <span class="terminal-cursor"></span>';
                 terminalContent.appendChild(prompt);
-                setTimeout(() => { if (terminalContent.contains(prompt)) terminalContent.removeChild(prompt); }, 200);
+                setTimeout(() => {
+                    if (terminalContent.contains(prompt)) terminalContent.removeChild(prompt);
+                }, 200);
             }
         }
 
@@ -976,27 +991,31 @@ permalink: /
                     line.style.setProperty('white-space', 'pre-wrap', 'important');
                     line.style.setProperty('overflow', 'hidden', 'important');
 
-                    // Color coding
-                    if (text.match(/^\w+\(/)) {
-                        line.style.setProperty('color', 'var(--success-color)', 'important');
-                        line.style.setProperty('font-weight', '500', 'important');
-                    } else if (text.startsWith('  ')) {
-                        line.style.setProperty('color', 'var(--text-secondary)', 'important');
-                        line.style.setProperty('padding-left', '0.5rem', 'important');
-                    } else if (text.startsWith('Thinking') || text.startsWith('Activating')) {
+                    // Color by content
+                    if (text.startsWith('think(') || text.startsWith('Thinking')) {
                         line.style.setProperty('color', 'var(--accent-color)', 'important');
                         line.style.setProperty('font-weight', '500', 'important');
-                    } else if (text.startsWith('Done')) {
+                    } else if (text.startsWith('  ') && !text.startsWith('  ##')) {
+                        line.style.setProperty('color', 'var(--text-secondary)', 'important');
+                        line.style.setProperty('padding-left', '0.5rem', 'important');
+                    } else if (text.startsWith('Result:')) {
+                        line.style.setProperty('color', '#ffdd44', 'important');
+                        line.style.setProperty('font-weight', '500', 'important');
+                    } else if (text.includes('completed')) {
                         line.style.setProperty('color', 'var(--success-color)', 'important');
                         line.style.setProperty('font-weight', '600', 'important');
-                    } else if (text.includes('P0:') || text.includes('P1:')) {
-                        line.style.setProperty('color', '#ff6666', 'important');
+                    } else if (text.includes('memory_recall') || text.includes('web_search') || text.includes('file_read') || text.includes('code_analysis') || text.includes('browser_read') || text.includes('skill_execute')) {
+                        line.style.setProperty('color', 'var(--success-color)', 'important');
+                        line.style.setProperty('font-weight', '500', 'important');
+                    } else if (text.startsWith('Activating skill')) {
+                        line.style.setProperty('color', '#ffaa00', 'important');
                     }
 
                     terminalContent.appendChild(line);
                     requestAnimationFrame(() => {
-                        if (terminalContent.scrollHeight > terminalContent.clientHeight)
+                        if (terminalContent.scrollHeight > terminalContent.clientHeight) {
                             terminalContent.scrollTo({ top: terminalContent.scrollHeight, behavior: 'smooth' });
+                        }
                     });
                     resolve();
                 }, delay || 0);
@@ -1010,18 +1029,22 @@ permalink: /
                 commandLine.className = 'command';
                 commandLine.innerHTML = '$ <span class="terminal-cursor"></span>';
                 commandLine.style.setProperty('max-width', '100%', 'important');
+                commandLine.style.setProperty('box-sizing', 'border-box', 'important');
                 commandLine.style.setProperty('word-break', 'break-all', 'important');
                 commandLine.style.setProperty('overflow-wrap', 'anywhere', 'important');
                 commandLine.style.setProperty('white-space', 'pre-wrap', 'important');
+                commandLine.style.setProperty('overflow', 'hidden', 'important');
                 terminalContent.appendChild(commandLine);
 
                 let i = 0;
                 const typeChar = () => {
                     if (i < command.length) {
-                        commandLine.innerHTML = '$ ' + command.substring(0, ++i) + '<span class="terminal-cursor"></span>';
+                        commandLine.innerHTML = '$ ' + command.substring(0, i + 1) + '<span class="terminal-cursor"></span>';
+                        i++;
                         requestAnimationFrame(() => {
-                            if (terminalContent.scrollHeight > terminalContent.clientHeight)
+                            if (terminalContent.scrollHeight > terminalContent.clientHeight) {
                                 terminalContent.scrollTo({ top: terminalContent.scrollHeight, behavior: 'smooth' });
+                            }
                         });
                         setTimeout(typeChar, 30);
                     } else {
@@ -1038,8 +1061,7 @@ permalink: /
             await typeCommand(scenario.command);
             for (let i = 0; i < scenario.output.length; i++) {
                 const line = scenario.output[i];
-                const delay = line.startsWith('Thinking') || line.startsWith('Activating') ? 100 :
-                    line.startsWith('Done') ? 120 : 60;
+                const delay = line.includes('completed') ? 120 : line.includes('think') ? 100 : 60;
                 await addLine(line, 'output', delay);
             }
             await addLine('', 'output', 200);
@@ -1047,33 +1069,43 @@ permalink: /
         }
 
         async function runTerminalDemo() {
-            await new Promise(r => setTimeout(r, 100));
+            await new Promise(resolve => setTimeout(resolve, 100));
             while (true) {
-                await runScenario(demoScenarios[currentScenario]);
-                await new Promise(r => setTimeout(r, 1500));
+                const scenario = demoScenarios[currentScenario];
+                await runScenario(scenario);
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 currentScenario = (currentScenario + 1) % demoScenarios.length;
                 if (currentScenario === 0) {
-                    await new Promise(r => setTimeout(r, 2000));
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                     clearTerminal();
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             }
         }
 
         function startTerminalDemo() {
-            if (initTerminal()) { clearTerminal(); runTerminalDemo(); }
+            if (initTerminal()) {
+                clearTerminal();
+                runTerminalDemo();
+            }
         }
 
-        document.addEventListener('DOMContentLoaded', () => setTimeout(startTerminalDemo, 500));
-        if (document.readyState !== 'loading') setTimeout(startTerminalDemo, 300);
+        document.addEventListener('DOMContentLoaded', function () {
+            setTimeout(startTerminalDemo, 500);
+        });
+
+        if (document.readyState !== 'loading') {
+            setTimeout(startTerminalDemo, 300);
+        }
 
         // Parallax
         window.addEventListener('scroll', () => {
+            const scrolled = window.pageYOffset;
             const bgAnimation = document.querySelector('.bg-animation');
-            if (bgAnimation) bgAnimation.style.transform = 'translateY(' + (window.pageYOffset * 0.5) + 'px)';
+            if (bgAnimation) bgAnimation.style.transform = 'translateY(' + (scrolled * 0.5) + 'px)';
         });
 
-        // Feature card hover
+        // Feature cards hover
         document.querySelectorAll('.feature-card').forEach(card => {
             card.addEventListener('mouseenter', function () { this.style.background = 'rgba(0, 212, 255, 0.05)'; });
             card.addEventListener('mouseleave', function () { this.style.background = 'rgba(17, 17, 17, 0.5)'; });
