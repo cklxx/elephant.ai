@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"alex/internal/delivery/channels"
-	"alex/internal/infra/attachments"
 	"alex/internal/domain/agent/presets"
+	"alex/internal/infra/attachments"
 	runtimeconfig "alex/internal/shared/config"
 	configadmin "alex/internal/shared/config/admin"
 )
@@ -207,10 +207,10 @@ func LoadConfig() (ConfigResult, error) {
 			ResumeClaimBatchSize: 128,
 		},
 		EventHistory: EventHistoryConfig{
-			Retention:                        30 * 24 * time.Hour,
-			MaxSessions:                      100,
-			SessionTTL:                       1 * time.Hour,
-			MaxEvents: 1000,
+			Retention:   30 * 24 * time.Hour,
+			MaxSessions: 100,
+			SessionTTL:  1 * time.Hour,
+			MaxEvents:   1000,
 		},
 		Session: runtimeconfig.SessionConfig{
 			Dir: "~/.alex/sessions",
@@ -222,7 +222,7 @@ func LoadConfig() (ConfigResult, error) {
 					AllowGroups:   true,
 					AllowDirect:   true,
 					AgentPreset:   string(presets.PresetDefault),
-					ToolPreset:    string(presets.ToolPresetLarkLocal),
+					ToolPreset:    string(presets.ToolPresetFull),
 					ReplyTimeout:  3 * time.Minute,
 				},
 				BaseDomain:         "https://open.larkoffice.com",

@@ -23,7 +23,6 @@ const (
 	ToolPresetReadOnly  ToolPreset = "read-only"
 	ToolPresetSafe      ToolPreset = "safe"
 	ToolPresetArchitect ToolPreset = "architect"
-	ToolPresetLarkLocal ToolPreset = "lark-local"
 )
 
 // ToolConfig contains tool access configuration for a preset
@@ -67,11 +66,6 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 				"Web Mode",
 				"Unrestricted tool access for web mode",
 			), nil
-		case ToolPresetLarkLocal:
-			return unrestrictedToolConfig(
-				"Lark Local",
-				"Unrestricted tool access for lark-local preset in web mode",
-			), nil
 		default:
 			return nil, fmt.Errorf("unknown tool preset: %s", preset)
 		}
@@ -98,11 +92,6 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 		case ToolPresetArchitect:
 			return unrestrictedToolConfig(
 				"Architect Access",
-				"All tools available - preset label retained for compatibility",
-			), nil
-		case ToolPresetLarkLocal:
-			return unrestrictedToolConfig(
-				"Lark Local",
 				"All tools available - preset label retained for compatibility",
 			), nil
 		default:
@@ -195,14 +184,13 @@ func GetAllToolPresets() []ToolPreset {
 		ToolPresetReadOnly,
 		ToolPresetSafe,
 		ToolPresetArchitect,
-		ToolPresetLarkLocal,
 	}
 }
 
 // IsValidToolPreset checks if a tool preset is valid
 func IsValidToolPreset(preset string) bool {
 	switch ToolPreset(preset) {
-	case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetArchitect, ToolPresetLarkLocal:
+	case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetArchitect:
 		return true
 	default:
 		return false

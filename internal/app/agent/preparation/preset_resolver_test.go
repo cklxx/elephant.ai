@@ -11,8 +11,8 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	tools "alex/internal/domain/agent/ports/tools"
-	"alex/internal/domain/agent/types"
 	"alex/internal/domain/agent/presets"
+	"alex/internal/domain/agent/types"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -99,6 +99,23 @@ func TestPresetResolver_ResolveToolRegistry_InvalidPreset(t *testing.T) {
 	tools := registry.List()
 	if len(tools) != len(baseRegistry.tools) {
 		t.Fatalf("expected fallback to full preset, got %d tools", len(tools))
+	}
+}
+
+func TestPresetResolver_ResolveToolRegistry_LegacyLarkLocalPresetFallsBackToFull(t *testing.T) {
+	logger := &testLogger{}
+	resolver := NewPresetResolver(logger)
+	baseRegistry := &mockToolRegistry{
+		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "bash"}, {Name: "web_search"}},
+	}
+
+	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, presets.ToolModeCLI, "lark-local")
+	if registry == nil {
+		t.Fatal("expected registry when legacy lark-local preset is provided")
+	}
+	tools := registry.List()
+	if len(tools) != len(baseRegistry.tools) {
+		t.Fatalf("expected legacy lark-local preset to fallback to full and retain all tools, got %d", len(tools))
 	}
 }
 
