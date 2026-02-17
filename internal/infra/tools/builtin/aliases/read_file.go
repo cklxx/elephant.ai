@@ -1,6 +1,7 @@
 package aliases
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +12,20 @@ import (
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
+)
+
+const (
+	// readFileLargeFileThreshold is the byte size above which we use
+	// streaming preview when no line range is specified.
+	readFileLargeFileThreshold = 50 * 1024 // 50 KB
+
+	// readFileMaxPreviewLines is the number of lines returned as preview
+	// for large files.
+	readFileMaxPreviewLines = 200
+
+	// readFileSingleLineMaxBytes is the threshold above which a single
+	// line is considered degenerate (e.g. minified JS/JSON).
+	readFileSingleLineMaxBytes = 50 * 1024 // 50 KB
 )
 
 type readFile struct {
@@ -57,43 +72,140 @@ func (t *readFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
+	hasRange := false
+	startLine, startOK := intArgOptional(call.Arguments, "start_line")
+	_, endOK := intArgOptional(call.Arguments, "end_line")
+	if startOK || endOK {
+		hasRange = true
+	}
+
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+	fileSize := info.Size()
+
+	// Large file without explicit range: streaming preview.
+	if fileSize > readFileLargeFileThreshold && !hasRange {
+		return t.readLargeFilePreview(call.ID, resolved, fileSize)
+	}
+
+	// Normal path: read entire file.
 	content, err := os.ReadFile(resolved)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
 	output := string(content)
-	if start, ok := intArgOptional(call.Arguments, "start_line"); ok || hasEndLine(call.Arguments) {
-		end, _ := intArgOptional(call.Arguments, "end_line")
-		if start < 0 {
-			start = 0
+	totalLines := strings.Count(output, "\n") + 1
+
+	metadata := map[string]any{
+		"path":            resolved,
+		"tool_name":       "read_file",
+		"total_lines":     totalLines,
+		"file_size_bytes": int(fileSize),
+	}
+
+	// Apply line range slicing.
+	if hasRange {
+		endLine, _ := intArgOptional(call.Arguments, "end_line")
+		if startLine < 0 {
+			startLine = 0
 		}
 		lines := strings.Split(output, "\n")
-		if start >= len(lines) {
+		if startLine >= len(lines) {
 			output = ""
 		} else {
-			if end <= 0 || end > len(lines) {
-				end = len(lines)
+			if endLine <= 0 || endLine > len(lines) {
+				endLine = len(lines)
 			}
-			if end < start {
+			if endLine < startLine {
 				err := fmt.Errorf("end_line must be >= start_line")
 				return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 			}
-			output = strings.Join(lines[start:end], "\n")
+			output = strings.Join(lines[startLine:endLine], "\n")
+			metadata["shown_range"] = [2]int{startLine, endLine}
 		}
 	}
 
 	return &ports.ToolResult{
 		CallID:   call.ID,
 		Content:  output,
-		Metadata: map[string]any{"path": resolved},
+		Metadata: metadata,
 	}, nil
 }
 
-func hasEndLine(args map[string]any) bool {
-	if args == nil {
-		return false
+// readLargeFilePreview uses a scanner to read only the first N lines,
+// avoiding loading the full file into memory. It also detects degenerate
+// single-line files (e.g. minified JS/JSON).
+func (t *readFile) readLargeFilePreview(callID, resolved string, fileSize int64) (*ports.ToolResult, error) {
+	f, err := os.Open(resolved)
+	if err != nil {
+		return &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}, nil
 	}
-	_, ok := args["end_line"]
-	return ok
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024) // 1 MB max line length
+
+	var lines []string
+	var totalLines int
+	var firstLineLen int
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		totalLines++
+		if totalLines == 1 {
+			firstLineLen = len(line)
+		}
+		if totalLines <= readFileMaxPreviewLines {
+			lines = append(lines, line)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return &ports.ToolResult{CallID: callID, Content: fmt.Sprintf("error scanning file: %v", err), Error: err}, nil
+	}
+
+	metadata := map[string]any{
+		"path":            resolved,
+		"tool_name":       "read_file",
+		"total_lines":     totalLines,
+		"file_size_bytes": int(fileSize),
+	}
+
+	// Single-line degenerate file (e.g. minified JS/JSON).
+	if totalLines <= 2 && firstLineLen > readFileSingleLineMaxBytes {
+		metadata["single_line_file"] = true
+		desc := fmt.Sprintf(
+			"[Large single-line file: %s, %d bytes, %d line(s). "+
+				"This appears to be a minified or generated file. "+
+				"Use shell_exec with `head -c <bytes>` or `jq` to inspect specific parts, "+
+				"or use start_line=0 end_line=1 to force-read the first line (will be truncated).]",
+			resolved, fileSize, totalLines,
+		)
+		return &ports.ToolResult{
+			CallID:   callID,
+			Content:  desc,
+			Metadata: metadata,
+		}, nil
+	}
+
+	// Normal large file: return preview + hint.
+	preview := strings.Join(lines, "\n")
+	shownLines := len(lines)
+
+	hint := fmt.Sprintf(
+		"\n\n[File preview: showing first %d of %d lines (%d bytes total). "+
+			"Use start_line/end_line to read specific sections, e.g. start_line=%d end_line=%d.]",
+		shownLines, totalLines, fileSize, shownLines, min(shownLines+readFileMaxPreviewLines, totalLines),
+	)
+	metadata["shown_range"] = [2]int{0, shownLines}
+	metadata["preview_mode"] = true
+
+	return &ports.ToolResult{
+		CallID:   callID,
+		Content:  preview + hint,
+		Metadata: metadata,
+	}, nil
 }
