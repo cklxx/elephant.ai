@@ -1139,7 +1139,7 @@ func TestTruncateToolResultContentOverLimit(t *testing.T) {
 	if !strings.Contains(got, "[Content truncated:") {
 		t.Fatalf("expected truncation hint, got %q", got[len(got)-200:])
 	}
-	if !strings.Contains(got, "offset/limit or line_start/line_end") {
+	if !strings.Contains(got, "start_line/end_line") {
 		t.Fatalf("expected line-range hint, got %q", got[len(got)-200:])
 	}
 	// The hint must show total lines (200 lines + trailing newline = 201).
@@ -1179,6 +1179,99 @@ func TestBuildToolMessagesTruncatesLargeResult(t *testing.T) {
 	// Original result preserved in ToolResults.
 	if messages[0].ToolResults[0].Content != bigContent {
 		t.Fatalf("expected original content preserved in ToolResults")
+	}
+}
+
+func TestTruncateToolResultWithMetadataFileHint(t *testing.T) {
+	// Build content exceeding limit.
+	var b strings.Builder
+	for i := 0; i < 300; i++ {
+		fmt.Fprintf(&b, "line %03d: %s\n", i, strings.Repeat("y", 40))
+	}
+	content := b.String()
+	if len(content) <= 8000 {
+		t.Fatalf("test setup: content should exceed 8000 chars")
+	}
+
+	metadata := map[string]any{
+		"tool_name":       "read_file",
+		"total_lines":     300,
+		"file_size_bytes": len(content),
+		"shown_range":     [2]int{0, 300},
+	}
+
+	got := truncateToolResultWithMetadata(content, 8000, metadata)
+
+	// Must produce file-specific hint.
+	if !strings.Contains(got, "File size:") {
+		t.Fatalf("expected file-specific hint with File size, got: %s", got[len(got)-300:])
+	}
+	if !strings.Contains(got, "Use start_line=") {
+		t.Fatalf("expected start_line suggestion in hint")
+	}
+	// Must NOT contain generic hint phrasing.
+	if strings.Contains(got, "start_line/end_line parameters to view remaining") {
+		t.Fatalf("should not contain generic hint when file metadata is available")
+	}
+}
+
+func TestTruncateToolResultWithMetadataNilGenericHint(t *testing.T) {
+	content := strings.Repeat("a line of text\n", 800) // ~12000 chars
+	if len(content) <= 8000 {
+		t.Fatalf("test setup: content should exceed 8000 chars")
+	}
+
+	got := truncateToolResultWithMetadata(content, 8000, nil)
+
+	// Must produce generic hint.
+	if !strings.Contains(got, "start_line/end_line parameters to view remaining") {
+		t.Fatalf("expected generic hint, got: %s", got[len(got)-200:])
+	}
+	// Must NOT contain file-specific phrases.
+	if strings.Contains(got, "File size:") {
+		t.Fatalf("should not contain file-specific hint without metadata")
+	}
+}
+
+func TestTruncateToolResultWithMetadataUnderLimit(t *testing.T) {
+	content := "short content"
+	metadata := map[string]any{
+		"tool_name":       "read_file",
+		"total_lines":     1,
+		"file_size_bytes": 13,
+	}
+	got := truncateToolResultWithMetadata(content, 8000, metadata)
+	if got != content {
+		t.Fatalf("expected content unchanged, got %q", got)
+	}
+}
+
+func TestBuildToolMessagesUsesFileMetadataForHint(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	var b strings.Builder
+	for i := 0; i < 300; i++ {
+		fmt.Fprintf(&b, "line %03d: %s\n", i, strings.Repeat("z", 40))
+	}
+	bigContent := b.String()
+
+	results := []ToolResult{{
+		CallID:  "call-file",
+		Content: bigContent,
+		Metadata: map[string]any{
+			"tool_name":       "read_file",
+			"total_lines":     300,
+			"file_size_bytes": len(bigContent),
+			"shown_range":     [2]int{0, 300},
+		},
+	}}
+
+	messages := engine.buildToolMessages(results)
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	// Should have file-specific hint, not generic.
+	if !strings.Contains(messages[0].Content, "File size:") {
+		t.Fatalf("expected file-specific hint in message")
 	}
 }
 

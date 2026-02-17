@@ -72,14 +72,21 @@ func (e *ReactEngine) parseToolCalls(msg Message, parser agent.FunctionCallParse
 
 // truncateToolResultContent caps content at maxToolResultContentChars,
 // cutting at the nearest preceding line boundary to avoid splitting a line
-// in half.  When truncation occurs, a hint is appended telling the LLM to
-// use offset/limit or line_start/line_end to view the remaining content.
+// in half.  When truncation occurs, a hint is appended telling the LLM how
+// much content remains and suggesting it request a specific range.
 func truncateToolResultContent(content string, limit int) string {
+	return truncateToolResultWithMetadata(content, limit, nil)
+}
+
+// truncateToolResultWithMetadata is the metadata-aware variant.  When the
+// tool result carries structured metadata (e.g. read_file with total_lines
+// and file_size_bytes), it produces a file-specific hint with line ranges
+// and next-range suggestions.  For all other tools it falls back to a
+// generic hint.
+func truncateToolResultWithMetadata(content string, limit int, metadata map[string]any) string {
 	if len(content) <= limit {
 		return content
 	}
-
-	totalLines := strings.Count(content, "\n") + 1
 
 	// Find the last newline at or before the limit so we cut at a line boundary.
 	cut := strings.LastIndex(content[:limit], "\n")
@@ -88,12 +95,36 @@ func truncateToolResultContent(content string, limit int) string {
 	}
 
 	shownLines := strings.Count(content[:cut], "\n") + 1
-
 	truncated := content[:cut]
+
+	// File-specific hint when rich metadata is available.
+	toolName, _ := metadata["tool_name"].(string)
+	totalLinesM, hasLines := metadata["total_lines"].(int)
+	fileSizeM, hasSize := metadata["file_size_bytes"].(int)
+
+	if toolName == "read_file" && hasLines && hasSize {
+		rangeStart := 0
+		if sr, ok := metadata["shown_range"].([2]int); ok {
+			rangeStart = sr[0]
+		}
+		nextStart := rangeStart + shownLines
+		truncated += fmt.Sprintf(
+			"\n\n[Content truncated: showing lines %d-%d of %d total (%d/%d bytes). "+
+				"File size: %d bytes. "+
+				"Use start_line=%d end_line=%d to continue reading.]",
+			rangeStart, rangeStart+shownLines-1, totalLinesM,
+			cut, len(content), fileSizeM,
+			nextStart, min(nextStart+200, totalLinesM),
+		)
+		return truncated
+	}
+
+	// Generic hint for other tools.
+	totalLines := strings.Count(content, "\n") + 1
 	truncated += fmt.Sprintf(
 		"\n\n[Content truncated: showing %d/%d lines (%d/%d chars). "+
-			"Use offset/limit or line_start/line_end parameters to view remaining content.]",
-		shownLines, totalLines, cut, len(content),
+			"Use start_line/end_line parameters to view remaining content, e.g. start_line=%d.]",
+		shownLines, totalLines, cut, len(content), shownLines,
 	)
 	return truncated
 }
@@ -113,7 +144,7 @@ func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 		}
 
 		content = strings.TrimSpace(content)
-		content = truncateToolResultContent(content, maxToolResultContentChars)
+		content = truncateToolResultWithMetadata(content, maxToolResultContentChars, result.Metadata)
 
 		msg := Message{
 			Role:        "tool",
