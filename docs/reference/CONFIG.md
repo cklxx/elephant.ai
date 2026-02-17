@@ -188,7 +188,7 @@ apps:
 - `allow_groups` / `allow_direct`：是否响应群聊/私聊。
 - `allow_groups` 说明：代码侧“收到就响应”，但 **平台侧是否投递群消息** 取决于应用权限/订阅能力。若只开通“获取用户在群组中@机器人的消息”，机器人只能收到 @ 它的群消息；要接收群内所有消息需额外权限“获取群组中所有消息”。（平台不投递的消息，代码无法补救。）
 - 备注：Lark 的 `chat_type` 可能是 `group` 或 `topic_group`（话题群）；本项目均按“群聊”处理（受 `allow_groups` 控制）。
-- `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode（Lark 默认 `tool_preset: lark-local`）。
+- `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode（Lark 默认 `tool_preset: full`）。
 - `workspace_dir`：Lark 本地工具工作区根目录（默认进程 working dir）。
 - `persistence.mode`：Lark 本地持久化模式（`file` 或 `memory`，默认 `file`）。
 - `persistence.dir`：`file` 模式下持久化目录（默认 `~/.alex/lark`）。
@@ -318,7 +318,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 ### 工具与运行体验
 
-- `tool_preset`：工具预设标签：`safe` / `read-only` / `full` / `architect` / `lark-local`。当前实现中这些 preset 不做 allow/deny 裁剪（均为 unrestricted），主要用于策略标注与兼容；非法值会报错。
+- `tool_preset`：工具预设标签：`safe` / `read-only` / `full` / `architect`。当前实现中这些 preset 不做 allow/deny 裁剪（均为 unrestricted），主要用于策略标注；非法值在解析阶段会回退到 `full` 并记录告警。
 - `toolset`：内置工具实现选择。规范值为 `default` 和 `lark-local`；`local` 会归一化到 `lark-local`（本地文件/命令/浏览器实现）。
 - `agent_preset`：agent 预设（按项目内 presets 定义）。
 - `verbose`：verbose 模式（CLI/Server 的输出更详细）。
