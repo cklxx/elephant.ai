@@ -219,7 +219,7 @@ func memoryGateFunc(enabled bool) func(context.Context) bool {
 }
 
 // buildKernelEngine creates the kernel agent loop engine from config.
-func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.AgentCoordinator) (*kernelagent.Engine, error) {
+func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.AgentCoordinator, llmFactory portsllm.LLMClientFactory) (*kernelagent.Engine, error) {
 	cfg := b.config.Proactive.Kernel
 
 	// Validate cron schedule at build time (fail fast).
@@ -303,7 +303,58 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 		}
 	}
 
-	planner := kernelagent.NewStaticPlanner(cfg.KernelID, agents)
+	// Build planner: HybridPlanner (LLM + static fallback) when llm_planner enabled.
+	staticPlanner := kernelagent.NewStaticPlanner(cfg.KernelID, agents)
+	var planner kernelagent.Planner = staticPlanner
+
+	if cfg.LLMPlanner.Enabled && llmFactory != nil {
+		provider := strings.TrimSpace(cfg.LLMPlanner.Provider)
+		model := strings.TrimSpace(cfg.LLMPlanner.Model)
+		if provider == "" {
+			provider = strings.TrimSpace(b.config.LLMSmallProvider)
+		}
+		if provider == "" {
+			provider = strings.TrimSpace(b.config.LLMProvider)
+		}
+		if model == "" {
+			model = strings.TrimSpace(b.config.LLMSmallModel)
+		}
+		if model == "" {
+			model = strings.TrimSpace(b.config.LLMModel)
+		}
+
+		plannerTimeout := time.Duration(cfg.LLMPlanner.TimeoutSeconds) * time.Second
+		if plannerTimeout <= 0 {
+			plannerTimeout = 30 * time.Second
+		}
+		maxDispatches := cfg.LLMPlanner.MaxDispatches
+		if maxDispatches <= 0 {
+			maxDispatches = 5
+		}
+		goalFilePath := cfg.LLMPlanner.GoalFile
+		if goalFilePath == "" {
+			goalFilePath = filepath.Join(stateDir, "GOAL.md")
+		}
+
+		llmPlanner := kernelagent.NewLLMPlanner(
+			cfg.KernelID,
+			llmFactory,
+			kernelagent.LLMPlannerConfig{
+				Provider:      provider,
+				Model:         model,
+				APIKey:        b.config.APIKey,
+				BaseURL:       b.config.BaseURL,
+				MaxDispatches: maxDispatches,
+				GoalFilePath:  goalFilePath,
+				Timeout:       plannerTimeout,
+			},
+			agents,
+			logging.NewKernelLogger("LLMPlanner"),
+		)
+		planner = kernelagent.NewHybridPlanner(staticPlanner, llmPlanner, logging.NewKernelLogger("HybridPlanner"))
+		b.logger.Info("Kernel LLM planner enabled (provider=%s model=%s goal=%s)", provider, model, goalFilePath)
+	}
+
 	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
 	executor := kernelagent.NewCoordinatorExecutor(coordinator, timeout)
 	executor.SetSelectionResolver(b.buildKernelSelectionResolver())

@@ -192,7 +192,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 
 	// Build kernel engine if enabled.
 	if b.config.Proactive.Kernel.Enabled {
-		kernelEngine, err := b.buildKernelEngine(coordinator)
+		kernelEngine, err := b.buildKernelEngine(coordinator, llmFactory)
 		if err != nil {
 			b.logger.Warn("Kernel engine init failed: %v (kernel disabled)", err)
 		} else {

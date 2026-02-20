@@ -39,6 +39,9 @@ type KernelEngine interface {
 	Name() string
 	Drain(ctx context.Context) error
 	SetNotifier(func(ctx context.Context, result *kerneldomain.CycleResult, err error))
+	// TriggerNow signals the engine to run a cycle immediately without waiting
+	// for the next cron tick. Non-blocking and idempotent.
+	TriggerNow() bool
 }
 
 // Container holds all application dependencies

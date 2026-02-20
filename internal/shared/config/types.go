@@ -230,7 +230,18 @@ type KernelProactiveConfig struct {
 	Channel         string                       `json:"channel" yaml:"channel"`
 	UserID          string                       `json:"user_id" yaml:"user_id"`
 	ChatID          string                       `json:"chat_id" yaml:"chat_id"`
+	LLMPlanner      KernelLLMPlannerConfig       `json:"llm_planner" yaml:"llm_planner"`
 	Agents          []KernelAgentProactiveConfig `json:"agents" yaml:"agents"`
+}
+
+// KernelLLMPlannerConfig configures the LLM-driven dynamic planner.
+type KernelLLMPlannerConfig struct {
+	Enabled        bool   `json:"enabled" yaml:"enabled"`
+	Provider       string `json:"provider" yaml:"provider"`               // empty = fallback to llm_small_provider
+	Model          string `json:"model" yaml:"model"`                     // empty = fallback to llm_small_model
+	MaxDispatches  int    `json:"max_dispatches" yaml:"max_dispatches"`   // default 5
+	GoalFile       string `json:"goal_file" yaml:"goal_file"`             // empty = ~/.alex/kernel/{id}/GOAL.md
+	TimeoutSeconds int    `json:"timeout_seconds" yaml:"timeout_seconds"` // default 30
 }
 
 // KernelAgentProactiveConfig defines a single agent within the kernel loop.

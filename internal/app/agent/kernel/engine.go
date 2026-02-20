@@ -46,9 +46,10 @@ type Engine struct {
 	notifier             CycleNotifier // optional; called after non-empty cycles
 	systemPromptProvider func() string
 
-	stopped  chan struct{}
-	stopOnce sync.Once
-	wg       sync.WaitGroup // tracks in-flight RunCycle goroutines
+	stopped   chan struct{}
+	stopOnce  sync.Once
+	wg        sync.WaitGroup // tracks in-flight RunCycle goroutines
+	triggerCh chan struct{}   // buffered(1); signals an immediate out-of-schedule cycle
 
 	stateWriteRestricted atomic.Bool
 }
@@ -85,6 +86,7 @@ func NewEngine(
 		executor:  executor,
 		logger:    logging.OrNop(logger),
 		stopped:   make(chan struct{}),
+		triggerCh: make(chan struct{}, 1),
 	}
 }
 
@@ -617,7 +619,21 @@ func decorateAutonomySummary(result ExecutionResult) string {
 	return prefix + " " + summary
 }
 
+// TriggerNow signals the engine to run a cycle immediately without waiting for
+// the next cron tick. It is non-blocking and idempotent. Returns true if the
+// signal was accepted (no trigger is already pending).
+func (e *Engine) TriggerNow() bool {
+	select {
+	case e.triggerCh <- struct{}{}:
+		e.logger.Info("Kernel[%s] immediate cycle triggered", e.config.KernelID)
+		return true
+	default:
+		return false // already pending
+	}
+}
+
 // Run starts the main loop, scheduling RunCycle according to the cron expression.
+// It also listens on the trigger channel for immediate out-of-schedule cycles.
 // It blocks until the context is cancelled or Stop is called.
 func (e *Engine) Run(ctx context.Context) {
 	sched, err := cronParser.Parse(e.config.Schedule)
@@ -642,25 +658,36 @@ func (e *Engine) Run(ctx context.Context) {
 			timer.Stop()
 			e.logger.Info("Kernel[%s] stopped", e.config.KernelID)
 			return
+		case <-e.triggerCh:
+			timer.Stop()
+			e.runCycleWithLogging(ctx)
 		case <-timer.C:
-			e.wg.Add(1)
-			func() {
-				defer e.wg.Done()
-				result, cycleErr := e.RunCycle(ctx)
-				if cycleErr != nil {
-					e.logger.Warn("Kernel[%s] RunCycle error: %v", e.config.KernelID, cycleErr)
-				} else {
-					e.logger.Info("Kernel[%s] cycle %s: %s (dispatched=%d ok=%d fail=%d %s)",
-						e.config.KernelID, result.CycleID, result.Status,
-						result.Dispatched, result.Succeeded, result.Failed, result.Duration)
-				}
-				// Notify on non-empty cycles or errors.
-				if e.notifier != nil {
-					if cycleErr != nil || (result != nil && result.Dispatched > 0) {
-						e.notifier(ctx, result, cycleErr)
-					}
-				}
-			}()
+			// Drain any pending trigger since we're running now anyway.
+			select {
+			case <-e.triggerCh:
+			default:
+			}
+			e.runCycleWithLogging(ctx)
+		}
+	}
+}
+
+// runCycleWithLogging executes one cycle with logging and notification.
+func (e *Engine) runCycleWithLogging(ctx context.Context) {
+	e.wg.Add(1)
+	defer e.wg.Done()
+	result, cycleErr := e.RunCycle(ctx)
+	if cycleErr != nil {
+		e.logger.Warn("Kernel[%s] RunCycle error: %v", e.config.KernelID, cycleErr)
+	} else {
+		e.logger.Info("Kernel[%s] cycle %s: %s (dispatched=%d ok=%d fail=%d %s)",
+			e.config.KernelID, result.CycleID, result.Status,
+			result.Dispatched, result.Succeeded, result.Failed, result.Duration)
+	}
+	// Notify on non-empty cycles or errors.
+	if e.notifier != nil {
+		if cycleErr != nil || (result != nil && result.Dispatched > 0) {
+			e.notifier(ctx, result, cycleErr)
 		}
 	}
 }
