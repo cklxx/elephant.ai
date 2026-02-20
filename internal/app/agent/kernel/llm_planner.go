@@ -70,6 +70,8 @@ func NewLLMPlanner(
 
 // Plan calls the LLM to decide which agents to dispatch and with what prompts.
 func (p *LLMPlanner) Plan(ctx context.Context, stateContent string, recentByAgent map[string]kerneldomain.Dispatch) ([]kerneldomain.DispatchSpec, error) {
+	p.logger.Info("LLMPlanner: starting plan (provider=%s model=%s timeout=%s)", p.config.Provider, p.config.Model, p.config.Timeout)
+
 	goalContent := p.readGoalFile()
 	planningPrompt := p.buildPlanningPrompt(stateContent, goalContent, recentByAgent)
 
@@ -90,16 +92,29 @@ func (p *LLMPlanner) Plan(ctx context.Context, stateContent string, recentByAgen
 			{Role: "user", Content: planningPrompt},
 		},
 		Temperature: 0.3,
-		MaxTokens:   2000,
+		MaxTokens:   8192,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("llm planner: complete: %w", err)
 	}
 
-	decisions, err := parsePlanningDecisions(resp.Content)
+	responseText := resp.Content
+	// Some models (e.g. kimi-for-coding) put output in thinking/reasoning; fallback.
+	if strings.TrimSpace(responseText) == "" && len(resp.Thinking.Parts) > 0 {
+		for _, part := range resp.Thinking.Parts {
+			if strings.Contains(part.Text, "[") {
+				responseText = part.Text
+				p.logger.Info("LLMPlanner: using thinking content as response (%d chars)", len(responseText))
+				break
+			}
+		}
+	}
+	p.logger.Info("LLMPlanner: LLM response (%d chars, stop=%s): %.200s", len(responseText), resp.StopReason, responseText)
+
+	decisions, err := parsePlanningDecisions(responseText)
 	if err != nil {
-		p.logger.Warn("LLMPlanner: parse failed (%v); returning empty", err)
-		return nil, nil
+		p.logger.Warn("LLMPlanner: parse failed (%v); raw response: %.500s", err, responseText)
+		return nil, fmt.Errorf("llm planner: parse: %w", err)
 	}
 
 	specs := p.toDispatchSpecs(decisions, stateContent, recentByAgent)
@@ -289,9 +304,10 @@ func (p *HybridPlanner) Plan(ctx context.Context, stateContent string, recentByA
 		return p.static.Plan(ctx, stateContent, recentByAgent)
 	}
 	if len(llmSpecs) == 0 {
-		p.logger.Debug("HybridPlanner: LLMPlanner returned empty plan; falling back to static")
+		p.logger.Info("HybridPlanner: LLMPlanner returned empty plan; falling back to static")
 		return p.static.Plan(ctx, stateContent, recentByAgent)
 	}
+	p.logger.Info("HybridPlanner: using LLM plan (%d specs)", len(llmSpecs))
 	return llmSpecs, nil
 }
 

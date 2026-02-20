@@ -285,7 +285,7 @@ func TestLLMPlanner_Plan_LLMError(t *testing.T) {
 	}
 }
 
-func TestLLMPlanner_Plan_ParseError_ReturnsNil(t *testing.T) {
+func TestLLMPlanner_Plan_ParseError_ReturnsError(t *testing.T) {
 	client := &mockPlannerClient{
 		response: &core.CompletionResponse{Content: "I don't know what to do"},
 		model:    "gpt-4o-mini",
@@ -298,8 +298,8 @@ func TestLLMPlanner_Plan_ParseError_ReturnsNil(t *testing.T) {
 	}, nil, nil)
 
 	specs, err := p.Plan(context.Background(), "state", nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected error on parse failure")
 	}
 	if specs != nil {
 		t.Errorf("expected nil specs on parse failure, got %v", specs)

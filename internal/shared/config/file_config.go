@@ -169,16 +169,29 @@ type ProactiveFileConfig struct {
 
 // KernelFileConfig mirrors KernelProactiveConfig for YAML decoding.
 type KernelFileConfig struct {
-	Enabled        *bool                   `yaml:"enabled"`
-	KernelID       string                  `yaml:"kernel_id"`
-	Schedule       string                  `yaml:"schedule"`
-	TimeoutSeconds *int                    `yaml:"timeout_seconds"`
-	LeaseSeconds   *int                    `yaml:"lease_seconds"`
-	MaxConcurrent  *int                    `yaml:"max_concurrent"`
-	Channel        string                  `yaml:"channel"`
-	UserID         string                  `yaml:"user_id"`
-	ChatID         string                  `yaml:"chat_id"`
-	Agents         []KernelAgentFileConfig `yaml:"agents"`
+	Enabled        *bool                        `yaml:"enabled"`
+	KernelID       string                       `yaml:"kernel_id"`
+	Schedule       string                       `yaml:"schedule"`
+	TimeoutSeconds *int                         `yaml:"timeout_seconds"`
+	LeaseSeconds   *int                         `yaml:"lease_seconds"`
+	MaxConcurrent  *int                         `yaml:"max_concurrent"`
+	Channel        string                       `yaml:"channel"`
+	UserID         string                       `yaml:"user_id"`
+	ChatID         string                       `yaml:"chat_id"`
+	LLMPlanner     *KernelLLMPlannerFileConfig  `yaml:"llm_planner"`
+	Agents         []KernelAgentFileConfig      `yaml:"agents"`
+}
+
+// KernelLLMPlannerFileConfig mirrors KernelLLMPlannerConfig for YAML decoding.
+type KernelLLMPlannerFileConfig struct {
+	Enabled        *bool  `yaml:"enabled"`
+	Provider       string `yaml:"provider"`
+	Model          string `yaml:"model"`
+	APIKey         string `yaml:"api_key"`
+	BaseURL        string `yaml:"base_url"`
+	MaxDispatches  *int   `yaml:"max_dispatches"`
+	GoalFile       string `yaml:"goal_file"`
+	TimeoutSeconds *int   `yaml:"timeout_seconds"`
 }
 
 // KernelAgentFileConfig mirrors KernelAgentProactiveConfig for YAML decoding.

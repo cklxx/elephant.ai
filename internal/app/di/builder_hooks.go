@@ -310,6 +310,8 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 	if cfg.LLMPlanner.Enabled && llmFactory != nil {
 		provider := strings.TrimSpace(cfg.LLMPlanner.Provider)
 		model := strings.TrimSpace(cfg.LLMPlanner.Model)
+		apiKey := strings.TrimSpace(cfg.LLMPlanner.APIKey)
+		baseURL := strings.TrimSpace(cfg.LLMPlanner.BaseURL)
 		if provider == "" {
 			provider = strings.TrimSpace(b.config.LLMSmallProvider)
 		}
@@ -321,6 +323,12 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 		}
 		if model == "" {
 			model = strings.TrimSpace(b.config.LLMModel)
+		}
+		if apiKey == "" {
+			apiKey = b.config.APIKey
+		}
+		if baseURL == "" {
+			baseURL = b.config.BaseURL
 		}
 
 		plannerTimeout := time.Duration(cfg.LLMPlanner.TimeoutSeconds) * time.Second
@@ -342,8 +350,8 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 			kernelagent.LLMPlannerConfig{
 				Provider:      provider,
 				Model:         model,
-				APIKey:        b.config.APIKey,
-				BaseURL:       b.config.BaseURL,
+				APIKey:        apiKey,
+				BaseURL:       baseURL,
 				MaxDispatches: maxDispatches,
 				GoalFilePath:  goalFilePath,
 				Timeout:       plannerTimeout,
@@ -353,6 +361,8 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 		)
 		planner = kernelagent.NewHybridPlanner(staticPlanner, llmPlanner, logging.NewKernelLogger("HybridPlanner"))
 		b.logger.Info("Kernel LLM planner enabled (provider=%s model=%s goal=%s)", provider, model, goalFilePath)
+		logging.NewKernelLogger("HybridPlanner").Info("HybridPlanner created (provider=%s model=%s baseURL=%s goal=%s maxDispatches=%d timeout=%s)",
+			provider, model, baseURL, goalFilePath, maxDispatches, plannerTimeout)
 	}
 
 	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second

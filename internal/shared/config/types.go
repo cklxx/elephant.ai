@@ -239,6 +239,8 @@ type KernelLLMPlannerConfig struct {
 	Enabled        bool   `json:"enabled" yaml:"enabled"`
 	Provider       string `json:"provider" yaml:"provider"`               // empty = fallback to llm_small_provider
 	Model          string `json:"model" yaml:"model"`                     // empty = fallback to llm_small_model
+	APIKey         string `json:"api_key" yaml:"api_key"`                 // empty = fallback to global api_key
+	BaseURL        string `json:"base_url" yaml:"base_url"`               // empty = fallback to global base_url
 	MaxDispatches  int    `json:"max_dispatches" yaml:"max_dispatches"`   // default 5
 	GoalFile       string `json:"goal_file" yaml:"goal_file"`             // empty = ~/.alex/kernel/{id}/GOAL.md
 	TimeoutSeconds int    `json:"timeout_seconds" yaml:"timeout_seconds"` // default 30

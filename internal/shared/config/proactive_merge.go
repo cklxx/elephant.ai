@@ -393,6 +393,32 @@ func mergeKernelConfig(target *KernelProactiveConfig, file *KernelFileConfig) {
 	if strings.TrimSpace(file.ChatID) != "" {
 		target.ChatID = strings.TrimSpace(file.ChatID)
 	}
+	if file.LLMPlanner != nil {
+		if file.LLMPlanner.Enabled != nil {
+			target.LLMPlanner.Enabled = *file.LLMPlanner.Enabled
+		}
+		if strings.TrimSpace(file.LLMPlanner.Provider) != "" {
+			target.LLMPlanner.Provider = strings.TrimSpace(file.LLMPlanner.Provider)
+		}
+		if strings.TrimSpace(file.LLMPlanner.Model) != "" {
+			target.LLMPlanner.Model = strings.TrimSpace(file.LLMPlanner.Model)
+		}
+		if strings.TrimSpace(file.LLMPlanner.APIKey) != "" {
+			target.LLMPlanner.APIKey = strings.TrimSpace(file.LLMPlanner.APIKey)
+		}
+		if strings.TrimSpace(file.LLMPlanner.BaseURL) != "" {
+			target.LLMPlanner.BaseURL = strings.TrimSpace(file.LLMPlanner.BaseURL)
+		}
+		if file.LLMPlanner.MaxDispatches != nil {
+			target.LLMPlanner.MaxDispatches = *file.LLMPlanner.MaxDispatches
+		}
+		if strings.TrimSpace(file.LLMPlanner.GoalFile) != "" {
+			target.LLMPlanner.GoalFile = strings.TrimSpace(file.LLMPlanner.GoalFile)
+		}
+		if file.LLMPlanner.TimeoutSeconds != nil {
+			target.LLMPlanner.TimeoutSeconds = *file.LLMPlanner.TimeoutSeconds
+		}
+	}
 	if len(file.Agents) > 0 {
 		agents := make([]KernelAgentProactiveConfig, 0, len(file.Agents))
 		for _, a := range file.Agents {
@@ -473,6 +499,13 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 		file.Kernel.ChatID = expandEnvValue(lookup, file.Kernel.ChatID)
 		for i := range file.Kernel.Agents {
 			file.Kernel.Agents[i].Prompt = expandEnvValue(lookup, file.Kernel.Agents[i].Prompt)
+		}
+		if file.Kernel.LLMPlanner != nil {
+			file.Kernel.LLMPlanner.Provider = expandEnvValue(lookup, file.Kernel.LLMPlanner.Provider)
+			file.Kernel.LLMPlanner.Model = expandEnvValue(lookup, file.Kernel.LLMPlanner.Model)
+			file.Kernel.LLMPlanner.APIKey = expandEnvValue(lookup, file.Kernel.LLMPlanner.APIKey)
+			file.Kernel.LLMPlanner.BaseURL = expandEnvValue(lookup, file.Kernel.LLMPlanner.BaseURL)
+			file.Kernel.LLMPlanner.GoalFile = expandEnvValue(lookup, file.Kernel.LLMPlanner.GoalFile)
 		}
 	}
 }
