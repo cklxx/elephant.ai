@@ -1,0 +1,307 @@
+logical_layer,module_l1,module_l2,module_l3,file_count,code_file_count,test_file_count,total_lines,code_lines,dominant_capability,dominant_capability_line_share
+delivery,internal/delivery,internal/delivery/server,internal/delivery/server/ports,127,126,45,24017,23889,HTTP API 路由、中间件与会话接口,0.4628
+infra,internal/infra,internal/infra/tools,internal/infra/tools,113,113,40,22207,22207,内建工具实现（文件、记忆、日历、子代理等）,0.8853
+domain,internal/domain,internal/domain/agent,internal/domain/agent/types,117,116,31,21815,21484,ReAct 推理循环、工具编排与后台任务运行时,0.6819
+delivery,internal/delivery,internal/delivery/channels,internal/delivery/channels,75,75,35,19903,19903,Lark 渠道网关、适配与会话桥接,0.9874
+app,internal/app,internal/app/agent,internal/app/agent/sessiontitle,91,91,45,19743,19743,应用层会话编排与事件翻译,0.3405
+web,web/components,web/components/agent,web/components/agent/tooling,73,73,21,14892,14892,Agent 事件与卡片 UI 组件,1.0000
+evaluation,evaluation/agent_eval,evaluation/agent_eval,evaluation/agent_eval,31,30,12,14354,13929,评测数据、脚本与结果,1.0000
+cmd,cmd/alex,cmd/alex,cmd/alex,73,73,26,13758,13758,命令行程序入口,1.0000
+infra,internal/infra,internal/infra/lark,internal/infra/lark,50,50,22,10867,10867,Lark 基础设施客户端与 OAuth/日历能力,1.0000
+shared,internal/shared,internal/shared/config,internal/shared/config,48,48,19,9760,9760,跨层共享基础能力,1.0000
+infra,internal/infra,internal/infra/llm,internal/infra/llm,50,50,21,9377,9377,LLM 提供方适配与调用基础设施,0.8916
+app,internal/app,internal/app/context,internal/app/context,34,34,18,8007,8007,上下文预算与策略管理,1.0000
+web,web/app,web/app/dev,web/app/dev,11,11,0,7203,7203,Web 运维/调试界面,1.0000
+web,web/lib,web/lib,web/lib,28,28,1,6447,6447,Web API 客户端与共享库,1.0000
+evaluation,evaluation/swe_bench,evaluation/swe_bench,evaluation/swe_bench,22,17,3,5796,4802,评测数据、脚本与结果,1.0000
+infra,internal/infra,internal/infra/external,internal/infra/external/workspace,18,18,9,4450,4450,外部代理/子进程桥接能力,1.0000
+scripts,scripts,scripts,scripts,29,29,0,4302,4302,自动化脚本与研发工具链,1.0000
+infra,internal/infra,internal/infra/skills,internal/infra/skills,16,16,6,4162,4162,基础设施层实现,1.0000
+scripts,scripts/lark,scripts/lark,scripts/lark,9,9,0,3779,3779,自动化脚本与研发工具链,1.0000
+app,internal/app,internal/app/scheduler,internal/app/scheduler,13,13,3,3451,3451,计划调度应用逻辑,1.0000
+infra,internal/infra,internal/infra/mcp,internal/infra/mcp,12,12,6,3241,3241,基础设施层实现,1.0000
+web,web/hooks,web/hooks/__tests__,web/hooks/__tests__,9,9,9,3139,3139,Web Hook 层,1.0000
+tests,tests/scripts,tests/scripts,tests/scripts,11,11,11,3118,3118,集成测试与回归测试,1.0000
+app,internal/app,internal/app/toolregistry,internal/app/toolregistry,13,13,5,3082,3082,工具注册与生命周期管理,1.0000
+infra,internal/infra,internal/infra/memory,internal/infra/memory,15,15,4,2525,2525,长期记忆存储、索引与检索,1.0000
+shared,internal/shared,internal/shared/errors,internal/shared/errors,7,6,3,2933,2477,跨层共享基础能力,1.0000
+web,web/app,web/app/conversation,web/app/conversation,16,16,0,2456,2456,Web 会话主界面,1.0000
+web,web/components,web/components/ui,web/components/ui,27,27,0,2447,2447,Web 通用 UI 组件,1.0000
+devops,internal/devops,internal/devops/supervisor,internal/devops/supervisor,8,8,4,2353,2353,运维与进程管理能力,1.0000
+web,web/lib,web/lib/events,web/lib/events,15,15,4,2180,2180,Web API 客户端与共享库,1.0000
+infra,internal/infra,internal/infra/observability,internal/infra/observability,10,10,3,2130,2130,日志、指标、追踪可观测性基础设施,1.0000
+web,web/lib,web/lib/__tests__,web/lib/__tests__,17,17,17,2105,2105,Web API 客户端与共享库,1.0000
+app,internal/app,internal/app/subscription,internal/app/subscription,9,9,4,2083,2083,订阅业务应用逻辑,1.0000
+delivery,internal/delivery,internal/delivery/output,internal/delivery/output,12,12,2,1917,1917,输出渲染与格式化交付,1.0000
+app,internal/app,internal/app/di,internal/app/di,8,8,2,1886,1886,依赖注入与装配入口,1.0000
+web,web/components,web/components/visualizer,web/components/visualizer,11,11,0,1792,1792,Web 组件层,1.0000
+infra,internal/infra,internal/infra/coding,internal/infra/coding,16,16,6,1740,1740,基础设施层实现,1.0000
+shared,internal/shared,internal/shared/logging,internal/shared/logging,9,9,4,1543,1543,跨层共享基础能力,1.0000
+shared,internal/shared,internal/shared/timer,internal/shared/timer,5,5,2,1499,1499,跨层共享基础能力,1.0000
+web,web/hooks,web/hooks/useSSE,web/hooks/useSSE,7,7,0,1461,1461,SSE 连接与流式事件 Hook,1.0000
+shared,internal/shared,internal/shared/utils,internal/shared/utils,10,10,4,1454,1454,跨层共享基础能力,1.0000
+evaluation,evaluation/rl,evaluation/rl,evaluation/rl,9,9,4,1418,1418,评测数据、脚本与结果,1.0000
+web,web/hooks,web/hooks,web/hooks,15,12,0,2597,1312,Web Hook 层,0.9863
+delivery,internal/delivery,internal/delivery/presentation,internal/delivery/presentation/formatter,2,2,1,1274,1274,展示层格式器与视图模型,1.0000
+app,internal/app,internal/app/notification,internal/app/notification,2,2,1,1260,1260,通知分发应用逻辑,1.0000
+root,deploy.sh,deploy.sh,deploy.sh,1,1,0,1203,1203,deploy.sh 子模块实现,1.0000
+infra,internal/infra,internal/infra/task,internal/infra/task,3,3,1,1203,1203,基础设施层实现,1.0000
+infra,internal/infra,internal/infra/attachments,internal/infra/attachments,8,8,3,1153,1153,附件基础设施处理,1.0000
+web,web/lib,web/lib/types,web/lib/types/ui,14,14,0,1130,1130,Web API 客户端与共享库,1.0000
+shared,internal/shared,internal/shared/signals,internal/shared/signals,2,2,1,1111,1111,跨层共享基础能力,1.0000
+web,web/lib,web/lib/attachments,web/lib/attachments,6,6,1,1082,1082,Web API 客户端与共享库,1.0000
+web,web/components,web/components/home,web/components/home,7,7,1,1060,1060,Web 组件层,1.0000
+web,web/components,web/components/dev-tools,web/components/dev-tools/shared,6,6,1,1002,1002,Web 组件层,1.0000
+infra,internal/infra,internal/infra/session,internal/infra/session/state_store,6,6,2,970,970,会话状态持久化与文件存储,1.0000
+infra,internal/infra,internal/infra/integration,internal/infra/integration,2,2,2,943,943,基础设施层实现,1.0000
+app,internal/app,internal/app/reminder,internal/app/reminder,7,7,3,939,939,提醒业务应用服务,1.0000
+tests,tests/utils,tests/utils,tests/utils,1,1,1,879,879,集成测试与回归测试,1.0000
+infra,internal/infra,internal/infra/acp,internal/infra/acp,4,4,1,841,841,ACP 协议与执行基础设施,1.0000
+devops,internal/devops,internal/devops,internal/devops,5,5,2,839,839,运维与进程管理能力,1.0000
+devops,internal/devops,internal/devops/services,internal/devops/services,4,4,1,822,822,运维与进程管理能力,1.0000
+root,dev.sh,dev.sh,dev.sh,1,1,0,783,783,dev.sh 子模块实现,1.0000
+infra,internal/infra,internal/infra/moltbook,internal/infra/moltbook,4,4,1,772,772,基础设施层实现,1.0000
+delivery,internal/delivery,internal/delivery/eval,internal/delivery/eval/http,5,5,0,769,769,评测交付层接口与引导,1.0000
+infra,internal/infra,internal/infra/filestore,internal/infra/filestore,6,6,3,753,753,文件存储基础设施,1.0000
+infra,internal/infra,internal/infra/storage,internal/infra/storage,3,3,1,733,733,通用存储基础设施,1.0000
+evaluation,evaluation/task_mgmt,evaluation/task_mgmt,evaluation/task_mgmt,5,5,2,732,732,评测数据、脚本与结果,1.0000
+domain,internal/domain,internal/domain/workflow,internal/domain/workflow,3,3,1,665,665,工作流 DAG 结构与执行规则,1.0000
+domain,internal/domain,internal/domain/materials,internal/domain/materials/ports,5,5,1,646,646,附件/材料领域模型与迁移,1.0000
+infra,internal/infra,internal/infra/backup,internal/infra/backup,2,2,1,633,633,基础设施层实现,1.0000
+web,web/lib,web/lib/mocks,web/lib/mocks,2,2,1,629,629,Web API 客户端与共享库,1.0000
+web,web/scripts,web/scripts,web/scripts,3,3,0,624,624,Web 前端应用,1.0000
+web,web/e2e,web/e2e,web/e2e,8,8,8,623,623,Web 端到端测试,1.0000
+shared,internal/shared,internal/shared/markdown,internal/shared/markdown,4,4,2,617,617,跨层共享基础能力,1.0000
+infra,internal/infra,internal/infra/httpclient,internal/infra/httpclient,7,7,2,593,593,HTTP 客户端封装,1.0000
+web,web/app,web/app/__tests__,web/app/__tests__,3,3,3,590,590,Web 前端应用,1.0000
+web,web/app,web/app/api,web/app/api/visualizer,5,5,0,565,565,Next.js API 路由,1.0000
+infra,internal/infra,internal/infra/environment,internal/infra/environment,3,3,1,544,544,基础设施层实现,1.0000
+web,web/app,web/app/evaluation,web/app/evaluation,1,1,0,540,540,Web 前端应用,1.0000
+infra,internal/infra,internal/infra/analytics,internal/infra/analytics,8,8,3,534,534,基础设施层实现,1.0000
+web,web,web,web,21,7,0,33260,532,Web 前端应用,1.0000
+devops,internal/devops,internal/devops/process,internal/devops/process,2,2,1,525,525,运维与进程管理能力,1.0000
+scripts,scripts/lib,scripts/lib/common,scripts/lib/common,7,7,0,508,508,自动化脚本与研发工具链,1.0000
+evaluation,evaluation/gate,evaluation/gate,evaluation/gate,2,2,1,440,440,评测数据、脚本与结果,1.0000
+tests,tests,tests,tests,2,1,2,664,429,集成测试与回归测试,1.0000
+scripts,scripts/skill_runner,scripts/skill_runner,scripts/skill_runner,4,4,0,421,421,自动化脚本与研发工具链,1.0000
+infra,internal/infra,internal/infra/llamacpp,internal/infra/llamacpp,2,2,1,419,419,基础设施层实现,1.0000
+web,web/app,web/app/sessions,web/app/sessions,3,3,0,417,417,会话列表与详情页,1.0000
+web,web/components,web/components/layout,web/components/layout,5,5,0,407,407,Web 组件层,1.0000
+root,eval-web/app,eval-web/app/debug,eval-web/app/debug,6,6,0,400,400,评测流程实现,1.0000
+root,tools/chrome-extension,tools/chrome-extension/elephant-bridge,tools/chrome-extension/elephant-bridge,4,2,0,464,355,工具调用与策略控制,1.0000
+skills,skills/image-creation,skills/image-creation,skills/image-creation,3,2,0,394,333,技能模板与流程资产,1.0000
+scripts,scripts/skill_runner,scripts/skill_runner/tests,scripts/skill_runner/tests,4,4,4,332,332,自动化脚本与研发工具链,1.0000
+infra,internal/infra,internal/infra/kernel,internal/infra/kernel,1,1,0,328,328,基础设施层实现,1.0000
+domain,internal/domain,internal/domain/task,internal/domain/task,2,2,1,319,319,任务领域实体与状态语义,1.0000
+infra,internal/infra,internal/infra/devops,internal/infra/devops/shadow,6,6,2,317,317,基础设施层实现,1.0000
+web,web/components,web/components,web/components,1,1,0,307,307,Web 组件层,1.0000
+web,web/lib,web/lib/errors,web/lib/errors/__tests__,2,2,1,304,304,Web API 客户端与共享库,1.0000
+scripts,scripts/codex_bridge,scripts/codex_bridge,scripts/codex_bridge,2,2,0,293,293,自动化脚本与研发工具链,1.0000
+scripts,scripts/cli,scripts/cli/tavily,scripts/cli/tavily/tests,3,3,2,290,290,自动化脚本与研发工具链,1.0000
+scripts,scripts/arch,scripts/arch,scripts/arch,1,1,0,278,278,自动化脚本与研发工具链,1.0000
+scripts,scripts/lib,scripts/lib,scripts/lib,2,2,0,276,276,自动化脚本与研发工具链,1.0000
+web,web/lib,web/lib/analytics,web/lib/analytics,3,3,0,275,275,Web API 客户端与共享库,1.0000
+devops,internal/devops,internal/devops/docker,internal/devops/docker,1,1,0,273,273,运维与进程管理能力,1.0000
+root,eval-web/app,eval-web/app/rl-data,eval-web/app/rl-data,2,2,0,261,261,评测流程实现,1.0000
+scripts,scripts/cc_bridge,scripts/cc_bridge,scripts/cc_bridge,3,2,0,253,252,自动化脚本与研发工具链,1.0000
+root,examples,examples,examples,2,1,0,497,250,examples 子模块实现,1.0000
+scripts,scripts/cli,scripts/cli/timer,scripts/cli/timer,3,3,2,250,250,自动化脚本与研发工具链,1.0000
+web,web/components,web/components/__tests__,web/components/__tests__,1,1,1,234,234,Web 组件层,1.0000
+skills,skills/moltbook-posting,skills/moltbook-posting,skills/moltbook-posting,2,1,0,265,229,技能模板与流程资产,1.0000
+skills,skills/soul-self-evolution,skills/soul-self-evolution,skills/soul-self-evolution,2,1,0,259,223,技能模板与流程资产,1.0000
+root,Makefile,Makefile,Makefile,1,1,0,216,216,Makefile 子模块实现,1.0000
+web,web/components,web/components/session,web/components/session,2,2,0,216,216,Web 组件层,1.0000
+devops,internal/devops,internal/devops/log,internal/devops/log,2,2,0,215,215,运维与进程管理能力,1.0000
+skills,skills/meta-orchestrator,skills/meta-orchestrator,skills/meta-orchestrator,2,1,0,246,212,技能模板与流程资产,1.0000
+devops,internal/devops,internal/devops/port,internal/devops/port,2,2,1,211,211,运维与进程管理能力,1.0000
+skills,skills/video-production,skills/video-production,skills/video-production,3,2,0,230,199,技能模板与流程资产,1.0000
+root,npm/alex-code,npm/alex-code,npm/alex-code,2,1,0,233,197,npm/alex-code 子模块实现,1.0000
+web,web/tests,web/tests/performance,web/tests/performance,1,1,1,196,196,Web 测试与性能校验,1.0000
+skills,skills/autonomous-scheduler,skills/autonomous-scheduler,skills/autonomous-scheduler,2,1,0,228,194,技能模板与流程资产,1.0000
+cmd,cmd/alex-server,cmd/alex-server,cmd/alex-server,2,2,1,189,189,命令行程序入口,1.0000
+infra,internal/infra,internal/infra/diagnostics,internal/infra/diagnostics,2,2,1,179,179,基础设施层实现,1.0000
+root,eval-web/lib,eval-web/lib/types,eval-web/lib/types,3,3,0,174,174,评测流程实现,1.0000
+web,web/app,web/app/share,web/app/share,2,2,0,174,174,Web 前端应用,1.0000
+devops,internal/devops,internal/devops/health,internal/devops/health,1,1,0,173,173,运维与进程管理能力,1.0000
+skills,skills/bitable-data,skills/bitable-data,skills/bitable-data,2,1,0,274,173,技能模板与流程资产,1.0000
+root,eval-web/app,eval-web/app/evaluations,eval-web/app/evaluations,2,2,0,172,172,评测流程实现,1.0000
+shared,internal/shared,internal/shared/uxphrases,internal/shared/uxphrases,1,1,0,171,171,跨层共享基础能力,1.0000
+skills,skills/auto-skill-creation,skills/auto-skill-creation,skills/auto-skill-creation,2,1,0,195,171,技能模板与流程资产,1.0000
+shared,internal/shared,internal/shared/token,internal/shared/token,2,2,1,164,164,跨层共享基础能力,1.0000
+scripts,scripts/browser,scripts/browser,scripts/browser,1,1,0,151,151,自动化脚本与研发工具链,1.0000
+web,web/lib,web/lib/visualizer,web/lib/visualizer,2,2,0,149,149,Web API 客户端与共享库,1.0000
+skills,skills/wiki-knowledge,skills/wiki-knowledge,skills/wiki-knowledge,2,1,0,227,145,技能模板与流程资产,1.0000
+skills,skills/deep-research,skills/deep-research,skills/deep-research,2,1,0,191,143,技能模板与流程资产,1.0000
+root,lark.sh,lark.sh,lark.sh,1,1,0,142,142,Lark 平台集成能力,1.0000
+skills,skills/drive-file,skills/drive-file,skills/drive-file,2,1,0,219,141,技能模板与流程资产,1.0000
+skills,skills/okr-management,skills/okr-management,skills/okr-management,2,1,0,165,141,技能模板与流程资产,1.0000
+skills,skills/eval-systematic-optimization,skills/eval-systematic-optimization,skills/eval-systematic-optimization,2,1,0,174,136,技能模板与流程资产,1.0000
+skills,skills/calendar-management,skills/calendar-management,skills/calendar-management,2,1,0,178,129,技能模板与流程资产,1.0000
+skills,skills/background-tasks,skills/background-tasks,skills/background-tasks,2,1,0,152,126,技能模板与流程资产,1.0000
+skills,skills/code-review,skills/code-review/tests,skills/code-review/tests,2,2,2,125,125,技能模板与流程资产,1.0000
+skills,skills/contact-lookup,skills/contact-lookup,skills/contact-lookup,2,1,0,202,124,技能模板与流程资产,1.0000
+skills,skills/web-page-editing,skills/web-page-editing,skills/web-page-editing,2,1,0,148,123,技能模板与流程资产,1.0000
+skills,skills/soul-self-evolution,skills/soul-self-evolution/tests,skills/soul-self-evolution/tests,2,2,2,122,122,技能模板与流程资产,1.0000
+skills,skills/eval-systematic-optimization,skills/eval-systematic-optimization/tests,skills/eval-systematic-optimization/tests,2,2,2,119,119,技能模板与流程资产,1.0000
+skills,skills/json-render-templates,skills/json-render-templates,skills/json-render-templates,2,1,0,141,117,技能模板与流程资产,1.0000
+skills,skills/lark-conversation-governor,skills/lark-conversation-governor,skills/lark-conversation-governor,2,1,0,148,116,技能模板与流程资产,1.0000
+skills,skills/scheduled-tasks,skills/scheduled-tasks,skills/scheduled-tasks,2,1,0,142,116,技能模板与流程资产,1.0000
+skills,skills/doc-management,skills/doc-management,skills/doc-management,2,1,0,172,115,技能模板与流程资产,1.0000
+skills,skills/meeting-automation,skills/meeting-automation,skills/meeting-automation,2,1,0,183,115,技能模板与流程资产,1.0000
+skills,skills/image-creation,skills/image-creation/tests,skills/image-creation/tests,2,2,2,113,113,技能模板与流程资产,1.0000
+skills,skills/ppt-deck,skills/ppt-deck,skills/ppt-deck,2,1,0,135,111,技能模板与流程资产,1.0000
+skills,skills/artifact-management,skills/artifact-management,skills/artifact-management,2,1,0,137,110,技能模板与流程资产,1.0000
+skills,skills/deep-research,skills/deep-research/tests,skills/deep-research/tests,2,2,2,110,110,技能模板与流程资产,1.0000
+skills,skills/memory-search,skills/memory-search,skills/memory-search,2,1,0,135,110,技能模板与流程资产,1.0000
+skills,skills/self-test,skills/self-test,skills/self-test,2,1,0,133,109,技能模板与流程资产,1.0000
+skills,skills/code-review,skills/code-review,skills/code-review,2,1,0,132,108,技能模板与流程资产,1.0000
+skills,skills/sheets-report,skills/sheets-report,skills/sheets-report,2,1,0,167,107,技能模板与流程资产,1.0000
+skills,skills/email-lark,skills/email-lark,skills/email-lark,2,1,0,173,106,技能模板与流程资产,1.0000
+root,eval-web/components,eval-web/components/eval,eval-web/components/eval,3,3,0,105,105,评测流程实现,1.0000
+domain,internal/domain,internal/domain/kernel,internal/domain/kernel,2,2,0,105,105,内核级领域抽象,1.0000
+skills,skills/okr-native,skills/okr-native,skills/okr-native,2,1,0,170,105,技能模板与流程资产,1.0000
+skills,skills/task-delegation,skills/task-delegation,skills/task-delegation,2,1,0,128,103,技能模板与流程资产,1.0000
+skills,skills/config-management,skills/config-management,skills/config-management,2,1,0,128,102,技能模板与流程资产,1.0000
+root,eval-web/components,eval-web/components/layout,eval-web/components/layout,2,2,0,101,101,评测流程实现,1.0000
+shared,internal/shared,internal/shared/async,internal/shared/async,2,2,1,101,101,跨层共享基础能力,1.0000
+skills,skills/best-practice-search,skills/best-practice-search,skills/best-practice-search,2,1,0,145,101,技能模板与流程资产,1.0000
+skills,skills/calendar-management,skills/calendar-management/tests,skills/calendar-management/tests,2,2,2,101,101,技能模板与流程资产,1.0000
+skills,skills/a2ui-templates,skills/a2ui-templates,skills/a2ui-templates,2,1,0,123,99,技能模板与流程资产,1.0000
+skills,skills/okr-management,skills/okr-management/tests,skills/okr-management/tests,2,2,2,99,99,技能模板与流程资产,1.0000
+skills,skills/artifact-management,skills/artifact-management/tests,skills/artifact-management/tests,2,2,2,97,97,技能模板与流程资产,1.0000
+root,eval-web,eval-web,eval-web,7,4,0,9462,96,评测流程实现,1.0000
+skills,skills/self-test,skills/self-test/tests,skills/self-test/tests,2,2,2,96,96,技能模板与流程资产,1.0000
+web,web/app,web/app,web/app,4,3,0,400,96,Web 前端应用,1.0000
+skills,skills/video-production,skills/video-production/tests,skills/video-production/tests,2,2,2,94,94,技能模板与流程资产,1.0000
+root,eval-web/app,eval-web/app/dashboard,eval-web/app/dashboard,1,1,0,93,93,评测流程实现,1.0000
+skills,skills/json-render-templates,skills/json-render-templates/tests,skills/json-render-templates/tests,2,2,2,89,89,技能模板与流程资产,1.0000
+skills,skills/diagram-to-image,skills/diagram-to-image/tests,skills/diagram-to-image/tests,2,2,2,88,88,技能模板与流程资产,1.0000
+skills,skills/research-briefing,skills/research-briefing/tests,skills/research-briefing/tests,2,2,2,88,88,技能模板与流程资产,1.0000
+web,web/.storybook,web/.storybook,web/.storybook,2,2,0,88,88,Web 前端应用,1.0000
+skills,skills/meta-orchestrator,skills/meta-orchestrator/tests,skills/meta-orchestrator/tests,2,2,2,87,87,技能模板与流程资产,1.0000
+skills,skills/ppt-deck,skills/ppt-deck/tests,skills/ppt-deck/tests,2,2,2,87,87,技能模板与流程资产,1.0000
+skills,skills/music-discovery,skills/music-discovery,skills/music-discovery,2,1,0,110,86,技能模板与流程资产,1.0000
+skills,skills/background-tasks,skills/background-tasks/tests,skills/background-tasks/tests,2,2,2,85,85,技能模板与流程资产,1.0000
+skills,skills/moltbook-posting,skills/moltbook-posting/tests,skills/moltbook-posting/tests,2,2,2,85,85,技能模板与流程资产,1.0000
+skills,skills/research-briefing,skills/research-briefing,skills/research-briefing,2,1,0,124,85,技能模板与流程资产,1.0000
+skills,skills/autonomous-scheduler,skills/autonomous-scheduler/tests,skills/autonomous-scheduler/tests,2,2,2,84,84,技能模板与流程资产,1.0000
+skills,skills/scheduled-tasks,skills/scheduled-tasks/tests,skills/scheduled-tasks/tests,2,2,2,84,84,技能模板与流程资产,1.0000
+skills,skills/audio-tts,skills/audio-tts,skills/audio-tts,2,1,0,126,83,技能模板与流程资产,1.0000
+skills,skills/memory-search,skills/memory-search/tests,skills/memory-search/tests,2,2,2,83,83,技能模板与流程资产,1.0000
+shared,internal/shared,internal/shared/parser,internal/shared/parser,1,1,0,82,82,跨层共享基础能力,1.0000
+skills,skills/a2ui-templates,skills/a2ui-templates/tests,skills/a2ui-templates/tests,2,2,2,82,82,技能模板与流程资产,1.0000
+skills,skills/config-management,skills/config-management/tests,skills/config-management/tests,2,2,2,81,81,技能模板与流程资产,1.0000
+skills,skills/diagram-to-image,skills/diagram-to-image,skills/diagram-to-image,2,1,0,124,81,技能模板与流程资产,1.0000
+skills,skills/social-trends,skills/social-trends,skills/social-trends,2,1,0,117,81,技能模板与流程资产,1.0000
+skills,skills/meeting-notes,skills/meeting-notes,skills/meeting-notes,2,1,0,104,80,技能模板与流程资产,1.0000
+skills,skills/social-trends,skills/social-trends/tests,skills/social-trends/tests,2,2,2,80,80,技能模板与流程资产,1.0000
+root,third_party/sqlite-vec-go-bindings,third_party/sqlite-vec-go-bindings/cgo,third_party/sqlite-vec-go-bindings/cgo,5,3,0,9869,79,third_party/sqlite-vec-go-bindings/cgo 子模块实现,1.0000
+skills,skills/auto-skill-creation,skills/auto-skill-creation/tests,skills/auto-skill-creation/tests,2,2,2,78,78,技能模板与流程资产,1.0000
+skills,skills/desktop-automation,skills/desktop-automation/tests,skills/desktop-automation/tests,2,2,2,78,78,技能模板与流程资产,1.0000
+skills,skills/web-page-editing,skills/web-page-editing/tests,skills/web-page-editing/tests,2,2,2,78,78,技能模板与流程资产,1.0000
+scripts,scripts/cc_hooks,scripts/cc_hooks,scripts/cc_hooks,2,1,0,105,77,自动化脚本与研发工具链,1.0000
+web,web/e2e,web/e2e/utils,web/e2e/utils,2,2,2,77,77,Web 端到端测试,1.0000
+infra,internal/infra,internal/infra/runtime,internal/infra/runtime,1,1,0,76,76,运行时基础设施,1.0000
+skills,skills/best-practice-search,skills/best-practice-search/tests,skills/best-practice-search/tests,2,2,2,76,76,技能模板与流程资产,1.0000
+skills,skills/email-drafting,skills/email-drafting,skills/email-drafting,2,1,0,100,76,技能模板与流程资产,1.0000
+skills,skills/desktop-automation,skills/desktop-automation,skills/desktop-automation,2,1,0,99,74,技能模板与流程资产,1.0000
+web,web/components,web/components/status,web/components/status/__tests__,2,2,1,74,74,Web 组件层,1.0000
+skills,skills/timer-management,skills/timer-management/tests,skills/timer-management/tests,2,2,2,72,72,技能模板与流程资产,1.0000
+skills,skills/music-discovery,skills/music-discovery/tests,skills/music-discovery/tests,2,2,2,71,71,技能模板与流程资产,1.0000
+skills,skills/meeting-notes,skills/meeting-notes/tests,skills/meeting-notes/tests,2,2,2,70,70,技能模板与流程资产,1.0000
+skills,skills/task-delegation,skills/task-delegation/tests,skills/task-delegation/tests,2,2,2,68,68,技能模板与流程资产,1.0000
+root,eval-web/lib,eval-web/lib,eval-web/lib,2,2,0,66,66,API 交付接口,0.9091
+skills,skills/email-drafting,skills/email-drafting/tests,skills/email-drafting/tests,2,2,2,66,66,技能模板与流程资产,1.0000
+app,internal/app,internal/app/toolcontext,internal/app/toolcontext,1,1,0,59,59,工具调用上下文编排,1.0000
+skills,skills/timer-management,skills/timer-management,skills/timer-management,2,1,0,99,55,技能模板与流程资产,1.0000
+delivery,internal/delivery,internal/delivery/schedulerapi,internal/delivery/schedulerapi,1,1,0,49,49,调度 API 交付接口,1.0000
+skills,skills/lark-conversation-governor,skills/lark-conversation-governor/tests,skills/lark-conversation-governor/tests,2,2,2,46,46,技能模板与流程资产,1.0000
+web,web/components,web/components/analytics,web/components/analytics,1,1,0,45,45,Web 组件层,1.0000
+root,eval-web/app,eval-web/app/sessions,eval-web/app/sessions,1,1,0,42,42,会话状态管理,1.0000
+root,eval-web/app,eval-web/app,eval-web/app,3,2,0,111,41,评测流程实现,1.0000
+root,deploy/docker,deploy/docker,deploy/docker,6,1,0,431,37,deploy/docker 子模块实现,1.0000
+app,internal/app,internal/app/lifecycle,internal/app/lifecycle,1,1,0,29,29,应用生命周期管理,1.0000
+cmd,cmd/alex-web,cmd/alex-web,cmd/alex-web,1,1,0,24,24,命令行程序入口,1.0000
+app,internal/app,internal/app/artifactruntime,internal/app/artifactruntime,1,1,0,21,21,应用层服务与用例编排,1.0000
+cmd,cmd/eval-server,cmd/eval-server,cmd/eval-server,1,1,0,19,19,命令行程序入口,1.0000
+app,internal/app,internal/app/workdir,internal/app/workdir,1,1,0,17,17,应用层服务与用例编排,1.0000
+shared,internal/shared,internal/shared/json,internal/shared/json,1,1,0,15,15,跨层共享基础能力,1.0000
+root,.github,.github,.github,2,1,0,34,10,.github 子模块实现,1.0000
+web,web/app,web/app/en,web/app/en,1,1,0,5,5,Web 前端应用,1.0000
+web,web/app,web/app/zh,web/app/zh,1,1,0,5,5,Web 前端应用,1.0000
+root,.dockerignore,.dockerignore,.dockerignore,1,0,0,60,0,,0.0000
+root,.env.example,.env.example,.env.example,1,0,0,55,0,,0.0000
+root,.gitattributes,.gitattributes,.gitattributes,1,0,0,1,0,,0.0000
+root,.github/workflows,.github/workflows,.github/workflows,9,0,0,1445,0,,0.0000
+root,.gitignore,.gitignore,.gitignore,1,0,0,163,0,,0.0000
+root,.mcp.json.example,.mcp.json.example,.mcp.json.example,1,0,0,38,0,,0.0000
+root,AGENTS.md,AGENTS.md,AGENTS.md,1,0,0,91,0,,0.0000
+root,CLAUDE.md,CLAUDE.md,CLAUDE.md,1,0,0,165,0,,0.0000
+root,CONTRIBUTING.md,CONTRIBUTING.md,CONTRIBUTING.md,1,0,0,37,0,,0.0000
+root,LICENSE,LICENSE,LICENSE,1,0,0,21,0,,0.0000
+root,README.md,README.md,README.md,1,0,0,284,0,,0.0000
+root,README.zh.md,README.zh.md,README.zh.md,1,0,0,283,0,,0.0000
+root,ROADMAP.md,ROADMAP.md,ROADMAP.md,1,0,0,72,0,,0.0000
+root,VISUALIZER_QUICKSTART.md,VISUALIZER_QUICKSTART.md,VISUALIZER_QUICKSTART.md,1,0,0,189,0,,0.0000
+root,VISUALIZER_README.md,VISUALIZER_README.md,VISUALIZER_README.md,1,0,0,324,0,,0.0000
+root,VISUALIZER_TROUBLESHOOTING.md,VISUALIZER_TROUBLESHOOTING.md,VISUALIZER_TROUBLESHOOTING.md,1,0,0,316,0,,0.0000
+configs,configs/arch,configs/arch,configs/arch,2,0,0,622,0,,0.0000
+configs,configs,configs,configs,3,0,0,163,0,,0.0000
+configs,configs/context,configs/context,configs/context,1,0,0,28,0,,0.0000
+configs,configs/context,configs/context/goals,configs/context/goals,1,0,0,6,0,,0.0000
+configs,configs/context,configs/context/knowledge,configs/context/knowledge,4,0,0,39,0,,0.0000
+configs,configs/context,configs/context/personas,configs/context/personas,1,0,0,5,0,,0.0000
+configs,configs/context,configs/context/policies,configs/context/policies,1,0,0,16,0,,0.0000
+configs,configs/context,configs/context/worlds,configs/context/worlds,1,0,0,15,0,,0.0000
+configs,configs/eval,configs/eval/rubrics,configs/eval/rubrics,2,0,0,89,0,,0.0000
+configs,configs/eval,configs/eval/sets,configs/eval/sets,2,0,0,28,0,,0.0000
+configs,configs/skills,configs/skills,configs/skills,1,0,0,22,0,,0.0000
+docs,docs,docs,docs,14,0,0,4768,0,,0.0000
+docs,docs/analysis,docs/analysis,docs/analysis,15,0,0,1678,0,,0.0000
+docs,docs/analytics,docs/analytics,docs/analytics,1,0,0,16,0,,0.0000
+docs,docs/error-experience,docs/error-experience,docs/error-experience,2,0,0,20,0,,0.0000
+docs,docs/error-experience,docs/error-experience/entries,docs/error-experience/entries,36,0,0,1003,0,,0.0000
+docs,docs/error-experience,docs/error-experience/summary,docs/error-experience/summary/entries,49,0,0,217,0,,0.0000
+docs,docs/good-experience,docs/good-experience,docs/good-experience,2,0,0,20,0,,0.0000
+docs,docs/good-experience,docs/good-experience/entries,docs/good-experience/entries,46,0,0,753,0,,0.0000
+docs,docs/good-experience,docs/good-experience/summary,docs/good-experience/summary/entries,46,0,0,140,0,,0.0000
+docs,docs/guides,docs/guides,docs/guides,7,0,0,424,0,,0.0000
+docs,docs/memory,docs/memory,docs/memory,3,0,0,134,0,,0.0000
+docs,docs/operations,docs/operations,docs/operations,6,0,0,509,0,,0.0000
+docs,docs/plans,docs/plans,docs/plans,471,0,0,31161,0,,0.0000
+docs,docs/reference,docs/reference,docs/reference,19,0,0,2486,0,,0.0000
+docs,docs/reference,docs/reference/images,docs/reference/images,6,0,0,0,0,,0.0000
+docs,docs/research,docs/research,docs/research,17,0,0,2373,0,,0.0000
+docs,docs/reviews,docs/reviews,docs/reviews,8,0,0,723,0,,0.0000
+docs,docs/roadmap,docs/roadmap/draft,docs/roadmap/draft,6,0,0,1861,0,,0.0000
+docs,docs/roadmap,docs/roadmap,docs/roadmap,3,0,0,661,0,,0.0000
+evaluation,evaluation/agent_eval,evaluation/agent_eval/datasets,evaluation/agent_eval/datasets,65,0,0,6091,0,,0.0000
+evaluation,evaluation/agent_eval,evaluation/agent_eval/report_templates,evaluation/agent_eval/report_templates,1,0,0,86,0,,0.0000
+evaluation,evaluation/skills_e2e,evaluation/skills_e2e,evaluation/skills_e2e,1,0,0,414,0,,0.0000
+evaluation,evaluation/swe_bench,evaluation/swe_bench/real_test_results,evaluation/swe_bench/real_test_results,6,0,0,418,0,,0.0000
+root,examples/config,examples/config,examples/config,6,0,0,154,0,,0.0000
+root,examples/local_av,examples/local_av,examples/local_av,1,0,0,50,0,,0.0000
+root,go.mod,go.mod,go.mod,1,0,0,99,0,,0.0000
+root,go.sum,go.sum,go.sum,1,0,0,278,0,,0.0000
+root,models/functiongemma,models/functiongemma,models/functiongemma,1,0,0,0,0,,0.0000
+root,npm/alex-darwin-amd64,npm/alex-darwin-amd64,npm/alex-darwin-amd64,1,0,0,34,0,,0.0000
+root,npm/alex-darwin-arm64,npm/alex-darwin-arm64,npm/alex-darwin-arm64,1,0,0,34,0,,0.0000
+root,npm/alex-linux-amd64,npm/alex-linux-amd64,npm/alex-linux-amd64,1,0,0,34,0,,0.0000
+root,npm/alex-linux-arm64,npm/alex-linux-arm64,npm/alex-linux-arm64,1,0,0,34,0,,0.0000
+root,npm/alex-windows-amd64,npm/alex-windows-amd64/bin,npm/alex-windows-amd64/bin,1,0,0,2,0,,0.0000
+root,npm/alex-windows-amd64,npm/alex-windows-amd64,npm/alex-windows-amd64,1,0,0,34,0,,0.0000
+root,proto/materials,proto/materials/v1,proto/materials/v1,1,0,0,168,0,,0.0000
+root,pytest.ini,pytest.ini,pytest.ini,1,0,0,2,0,,0.0000
+root,rfc,rfc,rfc,1,0,0,9,0,,0.0000
+skills,skills/code-review,skills/code-review/references,skills/code-review/references,4,0,0,423,0,,0.0000
+tests,tests/acceptance,tests/acceptance,tests/acceptance,1,0,1,17,0,,0.0000
+tests,tests/acceptance,tests/acceptance/results,tests/acceptance/results,4,0,4,57,0,,0.0000
+tests,tests/config,tests/config,tests/config,1,0,1,511,0,,0.0000
+tests,tests/scenarios,tests/scenarios/lark,tests/scenarios/lark,12,0,12,344,0,,0.0000
+root,third_party/sqlite-vec-go-bindings,third_party/sqlite-vec-go-bindings,third_party/sqlite-vec-go-bindings,2,0,0,32,0,,0.0000
+web,web/docs,web/docs,web/docs,13,0,0,3216,0,,0.0000
+web,web/docs,web/docs/plans,web/docs/plans,1,0,0,135,0,,0.0000
+web,web/e2e,web/e2e/fixtures,web/e2e/fixtures,1,0,1,0,0,,0.0000
+web,web/lib,web/lib/generated,web/lib/generated,1,0,0,228,0,,0.0000
+web,web/public,web/public,web/public,2,0,0,0,0,,0.0000
+web,web/tests,web/tests,web/tests,3,0,3,990,0,,0.0000

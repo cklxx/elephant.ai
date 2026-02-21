@@ -1,0 +1,2778 @@
+{
+  "total_files": 2735,
+  "total_lines": 454834,
+  "total_bytes": 560757546,
+  "binary_files": 10,
+  "code_files": 1709,
+  "code_lines": 328716,
+  "coverage_basis": "git ls-files",
+  "by_layer": {
+    "web": {
+      "files": 361,
+      "lines": 95766,
+      "code_files": 322,
+      "code_lines": 56880,
+      "bytes": 3439870
+    },
+    "infra": {
+      "files": 368,
+      "lines": 71690,
+      "code_files": 368,
+      "code_lines": 71690,
+      "bytes": 1970242
+    },
+    "docs": {
+      "files": 757,
+      "lines": 48947,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 5272804
+    },
+    "delivery": {
+      "files": 222,
+      "lines": 47929,
+      "code_files": 221,
+      "code_lines": 47801,
+      "bytes": 1375869
+    },
+    "app": {
+      "files": 181,
+      "lines": 40577,
+      "code_files": 181,
+      "code_lines": 40577,
+      "bytes": 1214410
+    },
+    "evaluation": {
+      "files": 142,
+      "lines": 29749,
+      "code_files": 63,
+      "code_lines": 21321,
+      "bytes": 1044514
+    },
+    "root": {
+      "files": 102,
+      "lines": 29367,
+      "code_files": 41,
+      "code_lines": 4823,
+      "bytes": 543802573
+    },
+    "domain": {
+      "files": 129,
+      "lines": 23550,
+      "code_files": 128,
+      "code_lines": 23219,
+      "bytes": 689263
+    },
+    "shared": {
+      "files": 92,
+      "lines": 19450,
+      "code_files": 91,
+      "code_lines": 18994,
+      "bytes": 576381
+    },
+    "cmd": {
+      "files": 77,
+      "lines": 13990,
+      "code_files": 77,
+      "code_lines": 13990,
+      "bytes": 371324
+    },
+    "scripts": {
+      "files": 70,
+      "lines": 11238,
+      "code_files": 68,
+      "code_lines": 11209,
+      "bytes": 336786
+    },
+    "skills": {
+      "files": 158,
+      "lines": 10547,
+      "code_files": 111,
+      "code_lines": 8375,
+      "bytes": 328501
+    },
+    "tests": {
+      "files": 32,
+      "lines": 5590,
+      "code_files": 13,
+      "code_lines": 4426,
+      "bytes": 158302
+    },
+    "devops": {
+      "files": 25,
+      "lines": 5411,
+      "code_files": 25,
+      "code_lines": 5411,
+      "bytes": 139031
+    },
+    "configs": {
+      "files": 19,
+      "lines": 1033,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 37676
+    }
+  },
+  "by_module_l2": {
+    "web": {
+      "layer": "web",
+      "files": 21,
+      "lines": 33260,
+      "code_files": 7,
+      "code_lines": 532,
+      "bytes": 1154857
+    },
+    "docs/plans": {
+      "layer": "docs",
+      "files": 471,
+      "lines": 31161,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 1334893
+    },
+    "internal/delivery/server": {
+      "layer": "delivery",
+      "files": 127,
+      "lines": 24017,
+      "code_files": 126,
+      "code_lines": 23889,
+      "bytes": 705262
+    },
+    "internal/infra/tools": {
+      "layer": "infra",
+      "files": 113,
+      "lines": 22207,
+      "code_files": 113,
+      "code_lines": 22207,
+      "bytes": 640448
+    },
+    "internal/domain/agent": {
+      "layer": "domain",
+      "files": 117,
+      "lines": 21815,
+      "code_files": 116,
+      "code_lines": 21484,
+      "bytes": 637674
+    },
+    "internal/delivery/channels": {
+      "layer": "delivery",
+      "files": 75,
+      "lines": 19903,
+      "code_files": 75,
+      "code_lines": 19903,
+      "bytes": 557755
+    },
+    "internal/app/agent": {
+      "layer": "app",
+      "files": 91,
+      "lines": 19743,
+      "code_files": 91,
+      "code_lines": 19743,
+      "bytes": 602884
+    },
+    "web/components/agent": {
+      "layer": "web",
+      "files": 73,
+      "lines": 14892,
+      "code_files": 73,
+      "code_lines": 14892,
+      "bytes": 477057
+    },
+    "evaluation/agent_eval": {
+      "layer": "evaluation",
+      "files": 31,
+      "lines": 14354,
+      "code_files": 30,
+      "code_lines": 13929,
+      "bytes": 465624
+    },
+    "cmd/alex": {
+      "layer": "cmd",
+      "files": 73,
+      "lines": 13758,
+      "code_files": 73,
+      "code_lines": 13758,
+      "bytes": 365880
+    },
+    "internal/infra/lark": {
+      "layer": "infra",
+      "files": 50,
+      "lines": 10867,
+      "code_files": 50,
+      "code_lines": 10867,
+      "bytes": 301797
+    },
+    "third_party/sqlite-vec-go-bindings/cgo": {
+      "layer": "root",
+      "files": 5,
+      "lines": 9869,
+      "code_files": 3,
+      "code_lines": 79,
+      "bytes": 308083
+    },
+    "internal/shared/config": {
+      "layer": "shared",
+      "files": 48,
+      "lines": 9760,
+      "code_files": 48,
+      "code_lines": 9760,
+      "bytes": 322325
+    },
+    "eval-web": {
+      "layer": "root",
+      "files": 7,
+      "lines": 9462,
+      "code_files": 4,
+      "code_lines": 96,
+      "bytes": 326881
+    },
+    "internal/infra/llm": {
+      "layer": "infra",
+      "files": 50,
+      "lines": 9377,
+      "code_files": 50,
+      "code_lines": 9377,
+      "bytes": 260942
+    },
+    "internal/app/context": {
+      "layer": "app",
+      "files": 34,
+      "lines": 8007,
+      "code_files": 34,
+      "code_lines": 8007,
+      "bytes": 241042
+    },
+    "web/app/dev": {
+      "layer": "web",
+      "files": 11,
+      "lines": 7203,
+      "code_files": 11,
+      "code_lines": 7203,
+      "bytes": 276912
+    },
+    "web/lib": {
+      "layer": "web",
+      "files": 28,
+      "lines": 6447,
+      "code_files": 28,
+      "code_lines": 6447,
+      "bytes": 212875
+    },
+    "evaluation/agent_eval/datasets": {
+      "layer": "evaluation",
+      "files": 65,
+      "lines": 6091,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 276553
+    },
+    "evaluation/swe_bench": {
+      "layer": "evaluation",
+      "files": 22,
+      "lines": 5796,
+      "code_files": 17,
+      "code_lines": 4802,
+      "bytes": 169192
+    },
+    "docs": {
+      "layer": "docs",
+      "files": 14,
+      "lines": 4768,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 163158
+    },
+    "internal/infra/external": {
+      "layer": "infra",
+      "files": 18,
+      "lines": 4450,
+      "code_files": 18,
+      "code_lines": 4450,
+      "bytes": 121885
+    },
+    "scripts": {
+      "layer": "scripts",
+      "files": 29,
+      "lines": 4302,
+      "code_files": 29,
+      "code_lines": 4302,
+      "bytes": 128641
+    },
+    "internal/infra/skills": {
+      "layer": "infra",
+      "files": 16,
+      "lines": 4162,
+      "code_files": 16,
+      "code_lines": 4162,
+      "bytes": 115374
+    },
+    "scripts/lark": {
+      "layer": "scripts",
+      "files": 9,
+      "lines": 3779,
+      "code_files": 9,
+      "code_lines": 3779,
+      "bytes": 113862
+    },
+    "internal/app/scheduler": {
+      "layer": "app",
+      "files": 13,
+      "lines": 3451,
+      "code_files": 13,
+      "code_lines": 3451,
+      "bytes": 90927
+    },
+    "internal/infra/mcp": {
+      "layer": "infra",
+      "files": 12,
+      "lines": 3241,
+      "code_files": 12,
+      "code_lines": 3241,
+      "bytes": 81177
+    },
+    "web/docs": {
+      "layer": "web",
+      "files": 13,
+      "lines": 3216,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 130640
+    },
+    "web/hooks/__tests__": {
+      "layer": "web",
+      "files": 9,
+      "lines": 3139,
+      "code_files": 9,
+      "code_lines": 3139,
+      "bytes": 93839
+    },
+    "tests/scripts": {
+      "layer": "tests",
+      "files": 11,
+      "lines": 3118,
+      "code_files": 11,
+      "code_lines": 3118,
+      "bytes": 87153
+    },
+    "internal/app/toolregistry": {
+      "layer": "app",
+      "files": 13,
+      "lines": 3082,
+      "code_files": 13,
+      "code_lines": 3082,
+      "bytes": 92902
+    },
+    "internal/shared/errors": {
+      "layer": "shared",
+      "files": 7,
+      "lines": 2933,
+      "code_files": 6,
+      "code_lines": 2477,
+      "bytes": 72582
+    },
+    "web/hooks": {
+      "layer": "web",
+      "files": 15,
+      "lines": 2597,
+      "code_files": 12,
+      "code_lines": 1312,
+      "bytes": 76570
+    },
+    "internal/infra/memory": {
+      "layer": "infra",
+      "files": 15,
+      "lines": 2525,
+      "code_files": 15,
+      "code_lines": 2525,
+      "bytes": 61240
+    },
+    "docs/reference": {
+      "layer": "docs",
+      "files": 19,
+      "lines": 2486,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 105420
+    },
+    "web/app/conversation": {
+      "layer": "web",
+      "files": 16,
+      "lines": 2456,
+      "code_files": 16,
+      "code_lines": 2456,
+      "bytes": 75141
+    },
+    "web/components/ui": {
+      "layer": "web",
+      "files": 27,
+      "lines": 2447,
+      "code_files": 27,
+      "code_lines": 2447,
+      "bytes": 70566
+    },
+    "docs/research": {
+      "layer": "docs",
+      "files": 17,
+      "lines": 2373,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 101250
+    },
+    "internal/devops/supervisor": {
+      "layer": "devops",
+      "files": 8,
+      "lines": 2353,
+      "code_files": 8,
+      "code_lines": 2353,
+      "bytes": 62629
+    },
+    "web/lib/events": {
+      "layer": "web",
+      "files": 15,
+      "lines": 2180,
+      "code_files": 15,
+      "code_lines": 2180,
+      "bytes": 65178
+    },
+    "internal/infra/observability": {
+      "layer": "infra",
+      "files": 10,
+      "lines": 2130,
+      "code_files": 10,
+      "code_lines": 2130,
+      "bytes": 56605
+    },
+    "web/lib/__tests__": {
+      "layer": "web",
+      "files": 17,
+      "lines": 2105,
+      "code_files": 17,
+      "code_lines": 2105,
+      "bytes": 64768
+    },
+    "internal/app/subscription": {
+      "layer": "app",
+      "files": 9,
+      "lines": 2083,
+      "code_files": 9,
+      "code_lines": 2083,
+      "bytes": 60984
+    },
+    "internal/delivery/output": {
+      "layer": "delivery",
+      "files": 12,
+      "lines": 1917,
+      "code_files": 12,
+      "code_lines": 1917,
+      "bytes": 54555
+    },
+    "internal/app/di": {
+      "layer": "app",
+      "files": 8,
+      "lines": 1886,
+      "code_files": 8,
+      "code_lines": 1886,
+      "bytes": 59885
+    },
+    "docs/roadmap/draft": {
+      "layer": "docs",
+      "files": 6,
+      "lines": 1861,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 96219
+    },
+    "web/components/visualizer": {
+      "layer": "web",
+      "files": 11,
+      "lines": 1792,
+      "code_files": 11,
+      "code_lines": 1792,
+      "bytes": 55815
+    },
+    "internal/infra/coding": {
+      "layer": "infra",
+      "files": 16,
+      "lines": 1740,
+      "code_files": 16,
+      "code_lines": 1740,
+      "bytes": 46337
+    },
+    "docs/analysis": {
+      "layer": "docs",
+      "files": 15,
+      "lines": 1678,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 74971
+    },
+    "internal/shared/logging": {
+      "layer": "shared",
+      "files": 9,
+      "lines": 1543,
+      "code_files": 9,
+      "code_lines": 1543,
+      "bytes": 45903
+    },
+    "internal/shared/timer": {
+      "layer": "shared",
+      "files": 5,
+      "lines": 1499,
+      "code_files": 5,
+      "code_lines": 1499,
+      "bytes": 36244
+    },
+    "web/hooks/useSSE": {
+      "layer": "web",
+      "files": 7,
+      "lines": 1461,
+      "code_files": 7,
+      "code_lines": 1461,
+      "bytes": 43325
+    },
+    "internal/shared/utils": {
+      "layer": "shared",
+      "files": 10,
+      "lines": 1454,
+      "code_files": 10,
+      "code_lines": 1454,
+      "bytes": 37572
+    },
+    ".github/workflows": {
+      "layer": "root",
+      "files": 9,
+      "lines": 1445,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 40918
+    },
+    "evaluation/rl": {
+      "layer": "evaluation",
+      "files": 9,
+      "lines": 1418,
+      "code_files": 9,
+      "code_lines": 1418,
+      "bytes": 38264
+    },
+    "internal/delivery/presentation": {
+      "layer": "delivery",
+      "files": 2,
+      "lines": 1274,
+      "code_files": 2,
+      "code_lines": 1274,
+      "bytes": 34008
+    },
+    "internal/app/notification": {
+      "layer": "app",
+      "files": 2,
+      "lines": 1260,
+      "code_files": 2,
+      "code_lines": 1260,
+      "bytes": 35087
+    },
+    "deploy.sh": {
+      "layer": "root",
+      "files": 1,
+      "lines": 1203,
+      "code_files": 1,
+      "code_lines": 1203,
+      "bytes": 38322
+    },
+    "internal/infra/task": {
+      "layer": "infra",
+      "files": 3,
+      "lines": 1203,
+      "code_files": 3,
+      "code_lines": 1203,
+      "bytes": 34412
+    },
+    "internal/infra/attachments": {
+      "layer": "infra",
+      "files": 8,
+      "lines": 1153,
+      "code_files": 8,
+      "code_lines": 1153,
+      "bytes": 29839
+    },
+    "web/lib/types": {
+      "layer": "web",
+      "files": 14,
+      "lines": 1130,
+      "code_files": 14,
+      "code_lines": 1130,
+      "bytes": 26256
+    },
+    "internal/shared/signals": {
+      "layer": "shared",
+      "files": 2,
+      "lines": 1111,
+      "code_files": 2,
+      "code_lines": 1111,
+      "bytes": 32198
+    },
+    "web/lib/attachments": {
+      "layer": "web",
+      "files": 6,
+      "lines": 1082,
+      "code_files": 6,
+      "code_lines": 1082,
+      "bytes": 31168
+    },
+    "web/components/home": {
+      "layer": "web",
+      "files": 7,
+      "lines": 1060,
+      "code_files": 7,
+      "code_lines": 1060,
+      "bytes": 33944
+    },
+    "docs/error-experience/entries": {
+      "layer": "docs",
+      "files": 36,
+      "lines": 1003,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 44766
+    },
+    "web/components/dev-tools": {
+      "layer": "web",
+      "files": 6,
+      "lines": 1002,
+      "code_files": 6,
+      "code_lines": 1002,
+      "bytes": 31299
+    },
+    "web/tests": {
+      "layer": "web",
+      "files": 3,
+      "lines": 990,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 20641
+    },
+    "internal/infra/session": {
+      "layer": "infra",
+      "files": 6,
+      "lines": 970,
+      "code_files": 6,
+      "code_lines": 970,
+      "bytes": 25404
+    },
+    "internal/infra/integration": {
+      "layer": "infra",
+      "files": 2,
+      "lines": 943,
+      "code_files": 2,
+      "code_lines": 943,
+      "bytes": 25699
+    },
+    "internal/app/reminder": {
+      "layer": "app",
+      "files": 7,
+      "lines": 939,
+      "code_files": 7,
+      "code_lines": 939,
+      "bytes": 26601
+    },
+    "tests/utils": {
+      "layer": "tests",
+      "files": 1,
+      "lines": 879,
+      "code_files": 1,
+      "code_lines": 879,
+      "bytes": 28628
+    },
+    "internal/infra/acp": {
+      "layer": "infra",
+      "files": 4,
+      "lines": 841,
+      "code_files": 4,
+      "code_lines": 841,
+      "bytes": 19015
+    },
+    "internal/devops": {
+      "layer": "devops",
+      "files": 5,
+      "lines": 839,
+      "code_files": 5,
+      "code_lines": 839,
+      "bytes": 21302
+    },
+    "internal/devops/services": {
+      "layer": "devops",
+      "files": 4,
+      "lines": 822,
+      "code_files": 4,
+      "code_lines": 822,
+      "bytes": 22227
+    },
+    "dev.sh": {
+      "layer": "root",
+      "files": 1,
+      "lines": 783,
+      "code_files": 1,
+      "code_lines": 783,
+      "bytes": 20918
+    },
+    "internal/infra/moltbook": {
+      "layer": "infra",
+      "files": 4,
+      "lines": 772,
+      "code_files": 4,
+      "code_lines": 772,
+      "bytes": 20621
+    },
+    "internal/delivery/eval": {
+      "layer": "delivery",
+      "files": 5,
+      "lines": 769,
+      "code_files": 5,
+      "code_lines": 769,
+      "bytes": 22140
+    },
+    "docs/good-experience/entries": {
+      "layer": "docs",
+      "files": 46,
+      "lines": 753,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 46315
+    },
+    "internal/infra/filestore": {
+      "layer": "infra",
+      "files": 6,
+      "lines": 753,
+      "code_files": 6,
+      "code_lines": 753,
+      "bytes": 17529
+    },
+    "internal/infra/storage": {
+      "layer": "infra",
+      "files": 3,
+      "lines": 733,
+      "code_files": 3,
+      "code_lines": 733,
+      "bytes": 17171
+    },
+    "evaluation/task_mgmt": {
+      "layer": "evaluation",
+      "files": 5,
+      "lines": 732,
+      "code_files": 5,
+      "code_lines": 732,
+      "bytes": 18720
+    },
+    "docs/reviews": {
+      "layer": "docs",
+      "files": 8,
+      "lines": 723,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 26719
+    },
+    "internal/domain/workflow": {
+      "layer": "domain",
+      "files": 3,
+      "lines": 665,
+      "code_files": 3,
+      "code_lines": 665,
+      "bytes": 19289
+    },
+    "tests": {
+      "layer": "tests",
+      "files": 2,
+      "lines": 664,
+      "code_files": 1,
+      "code_lines": 429,
+      "bytes": 17852
+    },
+    "docs/roadmap": {
+      "layer": "docs",
+      "files": 3,
+      "lines": 661,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 46609
+    },
+    "internal/domain/materials": {
+      "layer": "domain",
+      "files": 5,
+      "lines": 646,
+      "code_files": 5,
+      "code_lines": 646,
+      "bytes": 17106
+    },
+    "internal/infra/backup": {
+      "layer": "infra",
+      "files": 2,
+      "lines": 633,
+      "code_files": 2,
+      "code_lines": 633,
+      "bytes": 17263
+    },
+    "web/lib/mocks": {
+      "layer": "web",
+      "files": 2,
+      "lines": 629,
+      "code_files": 2,
+      "code_lines": 629,
+      "bytes": 19412
+    },
+    "web/scripts": {
+      "layer": "web",
+      "files": 3,
+      "lines": 624,
+      "code_files": 3,
+      "code_lines": 624,
+      "bytes": 17482
+    },
+    "web/e2e": {
+      "layer": "web",
+      "files": 8,
+      "lines": 623,
+      "code_files": 8,
+      "code_lines": 623,
+      "bytes": 21948
+    },
+    "configs/arch": {
+      "layer": "configs",
+      "files": 2,
+      "lines": 622,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 22785
+    },
+    "internal/shared/markdown": {
+      "layer": "shared",
+      "files": 4,
+      "lines": 617,
+      "code_files": 4,
+      "code_lines": 617,
+      "bytes": 15809
+    },
+    "internal/infra/httpclient": {
+      "layer": "infra",
+      "files": 7,
+      "lines": 593,
+      "code_files": 7,
+      "code_lines": 593,
+      "bytes": 13835
+    },
+    "web/app/__tests__": {
+      "layer": "web",
+      "files": 3,
+      "lines": 590,
+      "code_files": 3,
+      "code_lines": 590,
+      "bytes": 17430
+    },
+    "web/app/api": {
+      "layer": "web",
+      "files": 5,
+      "lines": 565,
+      "code_files": 5,
+      "code_lines": 565,
+      "bytes": 15163
+    },
+    "internal/infra/environment": {
+      "layer": "infra",
+      "files": 3,
+      "lines": 544,
+      "code_files": 3,
+      "code_lines": 544,
+      "bytes": 13719
+    },
+    "web/app/evaluation": {
+      "layer": "web",
+      "files": 1,
+      "lines": 540,
+      "code_files": 1,
+      "code_lines": 540,
+      "bytes": 20297
+    },
+    "internal/infra/analytics": {
+      "layer": "infra",
+      "files": 8,
+      "lines": 534,
+      "code_files": 8,
+      "code_lines": 534,
+      "bytes": 14507
+    },
+    "internal/devops/process": {
+      "layer": "devops",
+      "files": 2,
+      "lines": 525,
+      "code_files": 2,
+      "code_lines": 525,
+      "bytes": 12673
+    },
+    "tests/config": {
+      "layer": "tests",
+      "files": 1,
+      "lines": 511,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 13827
+    },
+    "docs/operations": {
+      "layer": "docs",
+      "files": 6,
+      "lines": 509,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 14308
+    },
+    "scripts/lib/common": {
+      "layer": "scripts",
+      "files": 7,
+      "lines": 508,
+      "code_files": 7,
+      "code_lines": 508,
+      "bytes": 11786
+    },
+    "examples": {
+      "layer": "root",
+      "files": 2,
+      "lines": 497,
+      "code_files": 1,
+      "code_lines": 250,
+      "bytes": 13603
+    },
+    "tools/chrome-extension/elephant-bridge": {
+      "layer": "root",
+      "files": 4,
+      "lines": 464,
+      "code_files": 2,
+      "code_lines": 355,
+      "bytes": 12001
+    },
+    "evaluation/gate": {
+      "layer": "evaluation",
+      "files": 2,
+      "lines": 440,
+      "code_files": 2,
+      "code_lines": 440,
+      "bytes": 12880
+    },
+    "deploy/docker": {
+      "layer": "root",
+      "files": 6,
+      "lines": 431,
+      "code_files": 1,
+      "code_lines": 37,
+      "bytes": 11385
+    },
+    "docs/guides": {
+      "layer": "docs",
+      "files": 7,
+      "lines": 424,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 16534
+    },
+    "skills/code-review/references": {
+      "layer": "skills",
+      "files": 4,
+      "lines": 423,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 12774
+    },
+    "scripts/skill_runner": {
+      "layer": "scripts",
+      "files": 4,
+      "lines": 421,
+      "code_files": 4,
+      "code_lines": 421,
+      "bytes": 12446
+    },
+    "internal/infra/llamacpp": {
+      "layer": "infra",
+      "files": 2,
+      "lines": 419,
+      "code_files": 2,
+      "code_lines": 419,
+      "bytes": 10832
+    },
+    "evaluation/swe_bench/real_test_results": {
+      "layer": "evaluation",
+      "files": 6,
+      "lines": 418,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 32128
+    },
+    "web/app/sessions": {
+      "layer": "web",
+      "files": 3,
+      "lines": 417,
+      "code_files": 3,
+      "code_lines": 417,
+      "bytes": 13938
+    },
+    "evaluation/skills_e2e": {
+      "layer": "evaluation",
+      "files": 1,
+      "lines": 414,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 28506
+    },
+    "web/components/layout": {
+      "layer": "web",
+      "files": 5,
+      "lines": 407,
+      "code_files": 5,
+      "code_lines": 407,
+      "bytes": 11116
+    },
+    "eval-web/app/debug": {
+      "layer": "root",
+      "files": 6,
+      "lines": 400,
+      "code_files": 6,
+      "code_lines": 400,
+      "bytes": 12660
+    },
+    "web/app": {
+      "layer": "web",
+      "files": 4,
+      "lines": 400,
+      "code_files": 3,
+      "code_lines": 96,
+      "bytes": 10353
+    },
+    "skills/image-creation": {
+      "layer": "skills",
+      "files": 3,
+      "lines": 394,
+      "code_files": 2,
+      "code_lines": 333,
+      "bytes": 12666
+    },
+    "tests/scenarios/lark": {
+      "layer": "tests",
+      "files": 12,
+      "lines": 344,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 8468
+    },
+    "scripts/skill_runner/tests": {
+      "layer": "scripts",
+      "files": 4,
+      "lines": 332,
+      "code_files": 4,
+      "code_lines": 332,
+      "bytes": 11878
+    },
+    "internal/infra/kernel": {
+      "layer": "infra",
+      "files": 1,
+      "lines": 328,
+      "code_files": 1,
+      "code_lines": 328,
+      "bytes": 8719
+    },
+    "VISUALIZER_README.md": {
+      "layer": "root",
+      "files": 1,
+      "lines": 324,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 7600
+    },
+    "internal/domain/task": {
+      "layer": "domain",
+      "files": 2,
+      "lines": 319,
+      "code_files": 2,
+      "code_lines": 319,
+      "bytes": 10922
+    },
+    "internal/infra/devops": {
+      "layer": "infra",
+      "files": 6,
+      "lines": 317,
+      "code_files": 6,
+      "code_lines": 317,
+      "bytes": 8411
+    },
+    "VISUALIZER_TROUBLESHOOTING.md": {
+      "layer": "root",
+      "files": 1,
+      "lines": 316,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 6165
+    },
+    "web/components": {
+      "layer": "web",
+      "files": 1,
+      "lines": 307,
+      "code_files": 1,
+      "code_lines": 307,
+      "bytes": 9647
+    },
+    "web/lib/errors": {
+      "layer": "web",
+      "files": 2,
+      "lines": 304,
+      "code_files": 2,
+      "code_lines": 304,
+      "bytes": 8480
+    },
+    "scripts/codex_bridge": {
+      "layer": "scripts",
+      "files": 2,
+      "lines": 293,
+      "code_files": 2,
+      "code_lines": 293,
+      "bytes": 9220
+    },
+    "scripts/cli/tavily": {
+      "layer": "scripts",
+      "files": 3,
+      "lines": 290,
+      "code_files": 3,
+      "code_lines": 290,
+      "bytes": 9898
+    },
+    "README.md": {
+      "layer": "root",
+      "files": 1,
+      "lines": 284,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 12031
+    },
+    "README.zh.md": {
+      "layer": "root",
+      "files": 1,
+      "lines": 283,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 11492
+    },
+    "go.sum": {
+      "layer": "root",
+      "files": 1,
+      "lines": 278,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 25294
+    },
+    "scripts/arch": {
+      "layer": "scripts",
+      "files": 1,
+      "lines": 278,
+      "code_files": 1,
+      "code_lines": 278,
+      "bytes": 10443
+    },
+    "scripts/lib": {
+      "layer": "scripts",
+      "files": 2,
+      "lines": 276,
+      "code_files": 2,
+      "code_lines": 276,
+      "bytes": 6434
+    },
+    "web/lib/analytics": {
+      "layer": "web",
+      "files": 3,
+      "lines": 275,
+      "code_files": 3,
+      "code_lines": 275,
+      "bytes": 6460
+    },
+    "skills/bitable-data": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 274,
+      "code_files": 1,
+      "code_lines": 173,
+      "bytes": 9143
+    },
+    "internal/devops/docker": {
+      "layer": "devops",
+      "files": 1,
+      "lines": 273,
+      "code_files": 1,
+      "code_lines": 273,
+      "bytes": 7216
+    },
+    "skills/moltbook-posting": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 265,
+      "code_files": 1,
+      "code_lines": 229,
+      "bytes": 8189
+    },
+    "eval-web/app/rl-data": {
+      "layer": "root",
+      "files": 2,
+      "lines": 261,
+      "code_files": 2,
+      "code_lines": 261,
+      "bytes": 10780
+    },
+    "skills/soul-self-evolution": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 259,
+      "code_files": 1,
+      "code_lines": 223,
+      "bytes": 8430
+    },
+    "scripts/cc_bridge": {
+      "layer": "scripts",
+      "files": 3,
+      "lines": 253,
+      "code_files": 2,
+      "code_lines": 252,
+      "bytes": 7531
+    },
+    "scripts/cli/timer": {
+      "layer": "scripts",
+      "files": 3,
+      "lines": 250,
+      "code_files": 3,
+      "code_lines": 250,
+      "bytes": 7640
+    },
+    "skills/meta-orchestrator": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 246,
+      "code_files": 1,
+      "code_lines": 212,
+      "bytes": 8022
+    },
+    "web/components/__tests__": {
+      "layer": "web",
+      "files": 1,
+      "lines": 234,
+      "code_files": 1,
+      "code_lines": 234,
+      "bytes": 7244
+    },
+    "npm/alex-code": {
+      "layer": "root",
+      "files": 2,
+      "lines": 233,
+      "code_files": 1,
+      "code_lines": 197,
+      "bytes": 8189
+    },
+    "skills/video-production": {
+      "layer": "skills",
+      "files": 3,
+      "lines": 230,
+      "code_files": 2,
+      "code_lines": 199,
+      "bytes": 6995
+    },
+    "skills/autonomous-scheduler": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 228,
+      "code_files": 1,
+      "code_lines": 194,
+      "bytes": 6872
+    },
+    "web/lib/generated": {
+      "layer": "web",
+      "files": 1,
+      "lines": 228,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 30277
+    },
+    "skills/wiki-knowledge": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 227,
+      "code_files": 1,
+      "code_lines": 145,
+      "bytes": 6907
+    },
+    "skills/drive-file": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 219,
+      "code_files": 1,
+      "code_lines": 141,
+      "bytes": 6687
+    },
+    "docs/error-experience/summary": {
+      "layer": "docs",
+      "files": 49,
+      "lines": 217,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 19389
+    },
+    "Makefile": {
+      "layer": "root",
+      "files": 1,
+      "lines": 216,
+      "code_files": 1,
+      "code_lines": 216,
+      "bytes": 7274
+    },
+    "web/components/session": {
+      "layer": "web",
+      "files": 2,
+      "lines": 216,
+      "code_files": 2,
+      "code_lines": 216,
+      "bytes": 7053
+    },
+    "internal/devops/log": {
+      "layer": "devops",
+      "files": 2,
+      "lines": 215,
+      "code_files": 2,
+      "code_lines": 215,
+      "bytes": 4549
+    },
+    "internal/devops/port": {
+      "layer": "devops",
+      "files": 2,
+      "lines": 211,
+      "code_files": 2,
+      "code_lines": 211,
+      "bytes": 4503
+    },
+    "skills/contact-lookup": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 202,
+      "code_files": 1,
+      "code_lines": 124,
+      "bytes": 6132
+    },
+    "web/tests/performance": {
+      "layer": "web",
+      "files": 1,
+      "lines": 196,
+      "code_files": 1,
+      "code_lines": 196,
+      "bytes": 6623
+    },
+    "skills/auto-skill-creation": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 195,
+      "code_files": 1,
+      "code_lines": 171,
+      "bytes": 5299
+    },
+    "skills/deep-research": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 191,
+      "code_files": 1,
+      "code_lines": 143,
+      "bytes": 5687
+    },
+    "VISUALIZER_QUICKSTART.md": {
+      "layer": "root",
+      "files": 1,
+      "lines": 189,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 4566
+    },
+    "cmd/alex-server": {
+      "layer": "cmd",
+      "files": 2,
+      "lines": 189,
+      "code_files": 2,
+      "code_lines": 189,
+      "bytes": 4491
+    },
+    "skills/meeting-automation": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 183,
+      "code_files": 1,
+      "code_lines": 115,
+      "bytes": 5433
+    },
+    "internal/infra/diagnostics": {
+      "layer": "infra",
+      "files": 2,
+      "lines": 179,
+      "code_files": 2,
+      "code_lines": 179,
+      "bytes": 4118
+    },
+    "skills/calendar-management": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 178,
+      "code_files": 1,
+      "code_lines": 129,
+      "bytes": 5449
+    },
+    "eval-web/lib/types": {
+      "layer": "root",
+      "files": 3,
+      "lines": 174,
+      "code_files": 3,
+      "code_lines": 174,
+      "bytes": 3562
+    },
+    "skills/eval-systematic-optimization": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 174,
+      "code_files": 1,
+      "code_lines": 136,
+      "bytes": 5632
+    },
+    "web/app/share": {
+      "layer": "web",
+      "files": 2,
+      "lines": 174,
+      "code_files": 2,
+      "code_lines": 174,
+      "bytes": 5729
+    },
+    "internal/devops/health": {
+      "layer": "devops",
+      "files": 1,
+      "lines": 173,
+      "code_files": 1,
+      "code_lines": 173,
+      "bytes": 3932
+    },
+    "skills/email-lark": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 173,
+      "code_files": 1,
+      "code_lines": 106,
+      "bytes": 4923
+    },
+    "eval-web/app/evaluations": {
+      "layer": "root",
+      "files": 2,
+      "lines": 172,
+      "code_files": 2,
+      "code_lines": 172,
+      "bytes": 6307
+    },
+    "skills/doc-management": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 172,
+      "code_files": 1,
+      "code_lines": 115,
+      "bytes": 4929
+    },
+    "internal/shared/uxphrases": {
+      "layer": "shared",
+      "files": 1,
+      "lines": 171,
+      "code_files": 1,
+      "code_lines": 171,
+      "bytes": 5036
+    },
+    "skills/okr-native": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 170,
+      "code_files": 1,
+      "code_lines": 105,
+      "bytes": 4842
+    },
+    "proto/materials/v1": {
+      "layer": "root",
+      "files": 1,
+      "lines": 168,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 3827
+    },
+    "skills/sheets-report": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 167,
+      "code_files": 1,
+      "code_lines": 107,
+      "bytes": 4897
+    },
+    "CLAUDE.md": {
+      "layer": "root",
+      "files": 1,
+      "lines": 165,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 10417
+    },
+    "skills/okr-management": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 165,
+      "code_files": 1,
+      "code_lines": 141,
+      "bytes": 4723
+    },
+    "internal/shared/token": {
+      "layer": "shared",
+      "files": 2,
+      "lines": 164,
+      "code_files": 2,
+      "code_lines": 164,
+      "bytes": 4179
+    },
+    ".gitignore": {
+      "layer": "root",
+      "files": 1,
+      "lines": 163,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 1848
+    },
+    "configs": {
+      "layer": "configs",
+      "files": 3,
+      "lines": 163,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 4834
+    },
+    "examples/config": {
+      "layer": "root",
+      "files": 6,
+      "lines": 154,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 4683
+    },
+    "skills/background-tasks": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 152,
+      "code_files": 1,
+      "code_lines": 126,
+      "bytes": 4302
+    },
+    "scripts/browser": {
+      "layer": "scripts",
+      "files": 1,
+      "lines": 151,
+      "code_files": 1,
+      "code_lines": 151,
+      "bytes": 4054
+    },
+    "web/lib/visualizer": {
+      "layer": "web",
+      "files": 2,
+      "lines": 149,
+      "code_files": 2,
+      "code_lines": 149,
+      "bytes": 3809
+    },
+    "skills/lark-conversation-governor": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 148,
+      "code_files": 1,
+      "code_lines": 116,
+      "bytes": 4612
+    },
+    "skills/web-page-editing": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 148,
+      "code_files": 1,
+      "code_lines": 123,
+      "bytes": 4137
+    },
+    "skills/best-practice-search": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 145,
+      "code_files": 1,
+      "code_lines": 101,
+      "bytes": 6303
+    },
+    "lark.sh": {
+      "layer": "root",
+      "files": 1,
+      "lines": 142,
+      "code_files": 1,
+      "code_lines": 142,
+      "bytes": 2934
+    },
+    "skills/scheduled-tasks": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 142,
+      "code_files": 1,
+      "code_lines": 116,
+      "bytes": 3873
+    },
+    "skills/json-render-templates": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 141,
+      "code_files": 1,
+      "code_lines": 117,
+      "bytes": 4508
+    },
+    "docs/good-experience/summary": {
+      "layer": "docs",
+      "files": 46,
+      "lines": 140,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 15251
+    },
+    "skills/artifact-management": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 137,
+      "code_files": 1,
+      "code_lines": 110,
+      "bytes": 4029
+    },
+    "skills/memory-search": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 135,
+      "code_files": 1,
+      "code_lines": 110,
+      "bytes": 3855
+    },
+    "skills/ppt-deck": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 135,
+      "code_files": 1,
+      "code_lines": 111,
+      "bytes": 4307
+    },
+    "web/docs/plans": {
+      "layer": "web",
+      "files": 1,
+      "lines": 135,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 7144
+    },
+    "docs/memory": {
+      "layer": "docs",
+      "files": 3,
+      "lines": 134,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 14850
+    },
+    "skills/self-test": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 133,
+      "code_files": 1,
+      "code_lines": 109,
+      "bytes": 4225
+    },
+    "skills/code-review": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 132,
+      "code_files": 1,
+      "code_lines": 108,
+      "bytes": 4101
+    },
+    "skills/config-management": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 128,
+      "code_files": 1,
+      "code_lines": 102,
+      "bytes": 3563
+    },
+    "skills/task-delegation": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 128,
+      "code_files": 1,
+      "code_lines": 103,
+      "bytes": 3591
+    },
+    "skills/audio-tts": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 126,
+      "code_files": 1,
+      "code_lines": 83,
+      "bytes": 3435
+    },
+    "skills/code-review/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 125,
+      "code_files": 2,
+      "code_lines": 125,
+      "bytes": 3968
+    },
+    "skills/diagram-to-image": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 124,
+      "code_files": 1,
+      "code_lines": 81,
+      "bytes": 3676
+    },
+    "skills/research-briefing": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 124,
+      "code_files": 1,
+      "code_lines": 85,
+      "bytes": 4536
+    },
+    "skills/a2ui-templates": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 123,
+      "code_files": 1,
+      "code_lines": 99,
+      "bytes": 3495
+    },
+    "skills/soul-self-evolution/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 122,
+      "code_files": 2,
+      "code_lines": 122,
+      "bytes": 3687
+    },
+    "skills/eval-systematic-optimization/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 119,
+      "code_files": 2,
+      "code_lines": 119,
+      "bytes": 4393
+    },
+    "skills/social-trends": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 117,
+      "code_files": 1,
+      "code_lines": 81,
+      "bytes": 2993
+    },
+    "skills/image-creation/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 113,
+      "code_files": 2,
+      "code_lines": 113,
+      "bytes": 4264
+    },
+    "eval-web/app": {
+      "layer": "root",
+      "files": 3,
+      "lines": 111,
+      "code_files": 2,
+      "code_lines": 41,
+      "bytes": 2655
+    },
+    "skills/deep-research/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 110,
+      "code_files": 2,
+      "code_lines": 110,
+      "bytes": 4107
+    },
+    "skills/music-discovery": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 110,
+      "code_files": 1,
+      "code_lines": 86,
+      "bytes": 2964
+    },
+    "eval-web/components/eval": {
+      "layer": "root",
+      "files": 3,
+      "lines": 105,
+      "code_files": 3,
+      "code_lines": 105,
+      "bytes": 3689
+    },
+    "internal/domain/kernel": {
+      "layer": "domain",
+      "files": 2,
+      "lines": 105,
+      "code_files": 2,
+      "code_lines": 105,
+      "bytes": 4272
+    },
+    "scripts/cc_hooks": {
+      "layer": "scripts",
+      "files": 2,
+      "lines": 105,
+      "code_files": 1,
+      "code_lines": 77,
+      "bytes": 2953
+    },
+    "skills/meeting-notes": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 104,
+      "code_files": 1,
+      "code_lines": 80,
+      "bytes": 3062
+    },
+    "eval-web/components/layout": {
+      "layer": "root",
+      "files": 2,
+      "lines": 101,
+      "code_files": 2,
+      "code_lines": 101,
+      "bytes": 5111
+    },
+    "internal/shared/async": {
+      "layer": "shared",
+      "files": 2,
+      "lines": 101,
+      "code_files": 2,
+      "code_lines": 101,
+      "bytes": 1996
+    },
+    "skills/calendar-management/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 101,
+      "code_files": 2,
+      "code_lines": 101,
+      "bytes": 3577
+    },
+    "skills/email-drafting": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 100,
+      "code_files": 1,
+      "code_lines": 76,
+      "bytes": 2980
+    },
+    "go.mod": {
+      "layer": "root",
+      "files": 1,
+      "lines": 99,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 4230
+    },
+    "skills/desktop-automation": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 99,
+      "code_files": 1,
+      "code_lines": 74,
+      "bytes": 2792
+    },
+    "skills/okr-management/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 99,
+      "code_files": 2,
+      "code_lines": 99,
+      "bytes": 2885
+    },
+    "skills/timer-management": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 99,
+      "code_files": 1,
+      "code_lines": 55,
+      "bytes": 2342
+    },
+    "skills/artifact-management/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 97,
+      "code_files": 2,
+      "code_lines": 97,
+      "bytes": 2826
+    },
+    "skills/self-test/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 96,
+      "code_files": 2,
+      "code_lines": 96,
+      "bytes": 3496
+    },
+    "skills/video-production/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 94,
+      "code_files": 2,
+      "code_lines": 94,
+      "bytes": 3441
+    },
+    "eval-web/app/dashboard": {
+      "layer": "root",
+      "files": 1,
+      "lines": 93,
+      "code_files": 1,
+      "code_lines": 93,
+      "bytes": 3187
+    },
+    "AGENTS.md": {
+      "layer": "root",
+      "files": 1,
+      "lines": 91,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 6145
+    },
+    "configs/eval/rubrics": {
+      "layer": "configs",
+      "files": 2,
+      "lines": 89,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 2270
+    },
+    "skills/json-render-templates/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 89,
+      "code_files": 2,
+      "code_lines": 89,
+      "bytes": 2985
+    },
+    "skills/diagram-to-image/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 88,
+      "code_files": 2,
+      "code_lines": 88,
+      "bytes": 3063
+    },
+    "skills/research-briefing/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 88,
+      "code_files": 2,
+      "code_lines": 88,
+      "bytes": 3076
+    },
+    "web/.storybook": {
+      "layer": "web",
+      "files": 2,
+      "lines": 88,
+      "code_files": 2,
+      "code_lines": 88,
+      "bytes": 1773
+    },
+    "skills/meta-orchestrator/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 87,
+      "code_files": 2,
+      "code_lines": 87,
+      "bytes": 2616
+    },
+    "skills/ppt-deck/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 87,
+      "code_files": 2,
+      "code_lines": 87,
+      "bytes": 2969
+    },
+    "evaluation/agent_eval/report_templates": {
+      "layer": "evaluation",
+      "files": 1,
+      "lines": 86,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 2647
+    },
+    "skills/background-tasks/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 85,
+      "code_files": 2,
+      "code_lines": 85,
+      "bytes": 2625
+    },
+    "skills/moltbook-posting/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 85,
+      "code_files": 2,
+      "code_lines": 85,
+      "bytes": 2884
+    },
+    "skills/autonomous-scheduler/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 84,
+      "code_files": 2,
+      "code_lines": 84,
+      "bytes": 2535
+    },
+    "skills/scheduled-tasks/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 84,
+      "code_files": 2,
+      "code_lines": 84,
+      "bytes": 2414
+    },
+    "skills/memory-search/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 83,
+      "code_files": 2,
+      "code_lines": 83,
+      "bytes": 2372
+    },
+    "internal/shared/parser": {
+      "layer": "shared",
+      "files": 1,
+      "lines": 82,
+      "code_files": 1,
+      "code_lines": 82,
+      "bytes": 2181
+    },
+    "skills/a2ui-templates/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 82,
+      "code_files": 2,
+      "code_lines": 82,
+      "bytes": 2776
+    },
+    "skills/config-management/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 81,
+      "code_files": 2,
+      "code_lines": 81,
+      "bytes": 2322
+    },
+    "skills/social-trends/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 80,
+      "code_files": 2,
+      "code_lines": 80,
+      "bytes": 2915
+    },
+    "skills/auto-skill-creation/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 78,
+      "code_files": 2,
+      "code_lines": 78,
+      "bytes": 2727
+    },
+    "skills/desktop-automation/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 78,
+      "code_files": 2,
+      "code_lines": 78,
+      "bytes": 2649
+    },
+    "skills/web-page-editing/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 78,
+      "code_files": 2,
+      "code_lines": 78,
+      "bytes": 2551
+    },
+    "web/e2e/utils": {
+      "layer": "web",
+      "files": 2,
+      "lines": 77,
+      "code_files": 2,
+      "code_lines": 77,
+      "bytes": 1985
+    },
+    "internal/infra/runtime": {
+      "layer": "infra",
+      "files": 1,
+      "lines": 76,
+      "code_files": 1,
+      "code_lines": 76,
+      "bytes": 3343
+    },
+    "skills/best-practice-search/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 76,
+      "code_files": 2,
+      "code_lines": 76,
+      "bytes": 2689
+    },
+    "web/components/status": {
+      "layer": "web",
+      "files": 2,
+      "lines": 74,
+      "code_files": 2,
+      "code_lines": 74,
+      "bytes": 1839
+    },
+    "ROADMAP.md": {
+      "layer": "root",
+      "files": 1,
+      "lines": 72,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 2576
+    },
+    "skills/timer-management/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 72,
+      "code_files": 2,
+      "code_lines": 72,
+      "bytes": 3084
+    },
+    "skills/music-discovery/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 71,
+      "code_files": 2,
+      "code_lines": 71,
+      "bytes": 2377
+    },
+    "skills/meeting-notes/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 70,
+      "code_files": 2,
+      "code_lines": 70,
+      "bytes": 2322
+    },
+    "skills/task-delegation/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 68,
+      "code_files": 2,
+      "code_lines": 68,
+      "bytes": 1955
+    },
+    "eval-web/lib": {
+      "layer": "root",
+      "files": 2,
+      "lines": 66,
+      "code_files": 2,
+      "code_lines": 66,
+      "bytes": 2065
+    },
+    "skills/email-drafting/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 66,
+      "code_files": 2,
+      "code_lines": 66,
+      "bytes": 2133
+    },
+    ".dockerignore": {
+      "layer": "root",
+      "files": 1,
+      "lines": 60,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 458
+    },
+    "internal/app/toolcontext": {
+      "layer": "app",
+      "files": 1,
+      "lines": 59,
+      "code_files": 1,
+      "code_lines": 59,
+      "bytes": 2232
+    },
+    "tests/acceptance/results": {
+      "layer": "tests",
+      "files": 4,
+      "lines": 57,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 1714
+    },
+    ".env.example": {
+      "layer": "root",
+      "files": 1,
+      "lines": 55,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 1763
+    },
+    "examples/local_av": {
+      "layer": "root",
+      "files": 1,
+      "lines": 50,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 1071
+    },
+    "internal/delivery/schedulerapi": {
+      "layer": "delivery",
+      "files": 1,
+      "lines": 49,
+      "code_files": 1,
+      "code_lines": 49,
+      "bytes": 2149
+    },
+    "skills/lark-conversation-governor/tests": {
+      "layer": "skills",
+      "files": 2,
+      "lines": 46,
+      "code_files": 2,
+      "code_lines": 46,
+      "bytes": 1506
+    },
+    "web/components/analytics": {
+      "layer": "web",
+      "files": 1,
+      "lines": 45,
+      "code_files": 1,
+      "code_lines": 45,
+      "bytes": 1050
+    },
+    "eval-web/app/sessions": {
+      "layer": "root",
+      "files": 1,
+      "lines": 42,
+      "code_files": 1,
+      "code_lines": 42,
+      "bytes": 1409
+    },
+    "configs/context/knowledge": {
+      "layer": "configs",
+      "files": 4,
+      "lines": 39,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 1827
+    },
+    ".mcp.json.example": {
+      "layer": "root",
+      "files": 1,
+      "lines": 38,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 954
+    },
+    "CONTRIBUTING.md": {
+      "layer": "root",
+      "files": 1,
+      "lines": 37,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 747
+    },
+    ".github": {
+      "layer": "root",
+      "files": 2,
+      "lines": 34,
+      "code_files": 1,
+      "code_lines": 10,
+      "bytes": 928
+    },
+    "npm/alex-darwin-amd64": {
+      "layer": "root",
+      "files": 1,
+      "lines": 34,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 601
+    },
+    "npm/alex-darwin-arm64": {
+      "layer": "root",
+      "files": 1,
+      "lines": 34,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 601
+    },
+    "npm/alex-linux-amd64": {
+      "layer": "root",
+      "files": 1,
+      "lines": 34,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 596
+    },
+    "npm/alex-linux-arm64": {
+      "layer": "root",
+      "files": 1,
+      "lines": 34,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 598
+    },
+    "npm/alex-windows-amd64": {
+      "layer": "root",
+      "files": 1,
+      "lines": 34,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 604
+    },
+    "third_party/sqlite-vec-go-bindings": {
+      "layer": "root",
+      "files": 2,
+      "lines": 32,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 1202
+    },
+    "internal/app/lifecycle": {
+      "layer": "app",
+      "files": 1,
+      "lines": 29,
+      "code_files": 1,
+      "code_lines": 29,
+      "bytes": 776
+    },
+    "configs/context": {
+      "layer": "configs",
+      "files": 1,
+      "lines": 28,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 1280
+    },
+    "configs/eval/sets": {
+      "layer": "configs",
+      "files": 2,
+      "lines": 28,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 744
+    },
+    "cmd/alex-web": {
+      "layer": "cmd",
+      "files": 1,
+      "lines": 24,
+      "code_files": 1,
+      "code_lines": 24,
+      "bytes": 634
+    },
+    "configs/skills": {
+      "layer": "configs",
+      "files": 1,
+      "lines": 22,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 607
+    },
+    "LICENSE": {
+      "layer": "root",
+      "files": 1,
+      "lines": 21,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 1062
+    },
+    "internal/app/artifactruntime": {
+      "layer": "app",
+      "files": 1,
+      "lines": 21,
+      "code_files": 1,
+      "code_lines": 21,
+      "bytes": 670
+    },
+    "docs/error-experience": {
+      "layer": "docs",
+      "files": 2,
+      "lines": 20,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 356
+    },
+    "docs/good-experience": {
+      "layer": "docs",
+      "files": 2,
+      "lines": 20,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 354
+    },
+    "cmd/eval-server": {
+      "layer": "cmd",
+      "files": 1,
+      "lines": 19,
+      "code_files": 1,
+      "code_lines": 19,
+      "bytes": 319
+    },
+    "internal/app/workdir": {
+      "layer": "app",
+      "files": 1,
+      "lines": 17,
+      "code_files": 1,
+      "code_lines": 17,
+      "bytes": 420
+    },
+    "tests/acceptance": {
+      "layer": "tests",
+      "files": 1,
+      "lines": 17,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 660
+    },
+    "configs/context/policies": {
+      "layer": "configs",
+      "files": 1,
+      "lines": 16,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 1956
+    },
+    "docs/analytics": {
+      "layer": "docs",
+      "files": 1,
+      "lines": 16,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 478
+    },
+    "configs/context/worlds": {
+      "layer": "configs",
+      "files": 1,
+      "lines": 15,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 526
+    },
+    "internal/shared/json": {
+      "layer": "shared",
+      "files": 1,
+      "lines": 15,
+      "code_files": 1,
+      "code_lines": 15,
+      "bytes": 356
+    },
+    "rfc": {
+      "layer": "root",
+      "files": 1,
+      "lines": 9,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 491
+    },
+    "configs/context/goals": {
+      "layer": "configs",
+      "files": 1,
+      "lines": 6,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 705
+    },
+    "configs/context/personas": {
+      "layer": "configs",
+      "files": 1,
+      "lines": 5,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 142
+    },
+    "web/app/en": {
+      "layer": "web",
+      "files": 1,
+      "lines": 5,
+      "code_files": 1,
+      "code_lines": 5,
+      "bytes": 136
+    },
+    "web/app/zh": {
+      "layer": "web",
+      "files": 1,
+      "lines": 5,
+      "code_files": 1,
+      "code_lines": 5,
+      "bytes": 136
+    },
+    "npm/alex-windows-amd64/bin": {
+      "layer": "root",
+      "files": 1,
+      "lines": 2,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 58
+    },
+    "pytest.ini": {
+      "layer": "root",
+      "files": 1,
+      "lines": 2,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 43
+    },
+    ".gitattributes": {
+      "layer": "root",
+      "files": 1,
+      "lines": 1,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 53
+    },
+    "docs/reference/images": {
+      "layer": "docs",
+      "files": 6,
+      "lines": 0,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 3150964
+    },
+    "models/functiongemma": {
+      "layer": "root",
+      "files": 1,
+      "lines": 0,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 542847936
+    },
+    "web/e2e/fixtures": {
+      "layer": "web",
+      "files": 1,
+      "lines": 0,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 68
+    },
+    "web/public": {
+      "layer": "web",
+      "files": 2,
+      "lines": 0,
+      "code_files": 0,
+      "code_lines": 0,
+      "bytes": 252427
+    }
+  },
+  "top_code_files": [
+    {
+      "path": "evaluation/agent_eval/foundation_eval.go",
+      "line_count": 2741,
+      "logical_layer": "evaluation",
+      "module_l2": "evaluation/agent_eval",
+      "capability": "评测数据、脚本与结果"
+    },
+    {
+      "path": "web/app/dev/conversation-debug/page.tsx",
+      "line_count": 2170,
+      "logical_layer": "web",
+      "module_l2": "web/app/dev",
+      "capability": "Web 运维/调试界面"
+    },
+    {
+      "path": "web/app/dev/diagnostics/page.tsx",
+      "line_count": 2060,
+      "logical_layer": "web",
+      "module_l2": "web/app/dev",
+      "capability": "Web 运维/调试界面"
+    },
+    {
+      "path": "scripts/lark/supervisor.sh",
+      "line_count": 1383,
+      "logical_layer": "scripts",
+      "module_l2": "scripts/lark",
+      "capability": "自动化脚本与研发工具链"
+    },
+    {
+      "path": "internal/domain/agent/react/background.go",
+      "line_count": 1227,
+      "logical_layer": "domain",
+      "module_l2": "internal/domain/agent",
+      "capability": "ReAct 推理循环、工具编排与后台任务运行时"
+    },
+    {
+      "path": "deploy.sh",
+      "line_count": 1203,
+      "logical_layer": "root",
+      "module_l2": "deploy.sh",
+      "capability": "deploy.sh 子模块实现"
+    },
+    {
+      "path": "web/components/agent/JsonRenderRenderer.tsx",
+      "line_count": 1104,
+      "logical_layer": "web",
+      "module_l2": "web/components/agent",
+      "capability": "Agent 事件与卡片 UI 组件"
+    },
+    {
+      "path": "internal/domain/agent/react/runtime.go",
+      "line_count": 1078,
+      "logical_layer": "domain",
+      "module_l2": "internal/domain/agent",
+      "capability": "ReAct 推理循环、工具编排与后台任务运行时"
+    },
+    {
+      "path": "cmd/alex/cli.go",
+      "line_count": 1047,
+      "logical_layer": "cmd",
+      "module_l2": "cmd/alex",
+      "capability": "命令行程序入口"
+    },
+    {
+      "path": "internal/delivery/server/app/task_execution_service.go",
+      "line_count": 987,
+      "logical_layer": "delivery",
+      "module_l2": "internal/delivery/server",
+      "capability": "Server 应用服务（任务、会话、快照、事件广播）"
+    },
+    {
+      "path": "internal/delivery/server/app/event_broadcaster.go",
+      "line_count": 955,
+      "logical_layer": "delivery",
+      "module_l2": "internal/delivery/server",
+      "capability": "Server 应用服务（任务、会话、快照、事件广播）"
+    },
+    {
+      "path": "web/lib/json-render-ssr.ts",
+      "line_count": 947,
+      "logical_layer": "web",
+      "module_l2": "web/lib",
+      "capability": "Web API 客户端与共享库"
+    },
+    {
+      "path": "internal/domain/agent/ports/mocks/tool_scenarios.go",
+      "line_count": 945,
+      "logical_layer": "domain",
+      "module_l2": "internal/domain/agent",
+      "capability": "Agent 域端口定义与依赖抽象"
+    },
+    {
+      "path": "internal/app/agent/coordinator/workflow_event_translator.go",
+      "line_count": 941,
+      "logical_layer": "app",
+      "module_l2": "internal/app/agent",
+      "capability": "应用层会话编排与事件翻译"
+    },
+    {
+      "path": "web/lib/a2ui-ssr.ts",
+      "line_count": 931,
+      "logical_layer": "web",
+      "module_l2": "web/lib",
+      "capability": "Web API 客户端与共享库"
+    },
+    {
+      "path": "evaluation/agent_eval/foundation_suite.go",
+      "line_count": 906,
+      "logical_layer": "evaluation",
+      "module_l2": "evaluation/agent_eval",
+      "capability": "评测数据、脚本与结果"
+    },
+    {
+      "path": "internal/delivery/channels/lark/gateway.go",
+      "line_count": 888,
+      "logical_layer": "delivery",
+      "module_l2": "internal/delivery/channels",
+      "capability": "Lark 渠道网关、适配与会话桥接"
+    },
+    {
+      "path": "internal/delivery/presentation/formatter/formatter.go",
+      "line_count": 861,
+      "logical_layer": "delivery",
+      "module_l2": "internal/delivery/presentation",
+      "capability": "展示层格式器与视图模型"
+    },
+    {
+      "path": "web/app/dev/log-analyzer/page.tsx",
+      "line_count": 856,
+      "logical_layer": "web",
+      "module_l2": "web/app/dev",
+      "capability": "Web 运维/调试界面"
+    },
+    {
+      "path": "web/components/agent/ArtifactPreviewCard.tsx",
+      "line_count": 855,
+      "logical_layer": "web",
+      "module_l2": "web/components/agent",
+      "capability": "Agent 事件与卡片 UI 组件"
+    },
+    {
+      "path": "evaluation/agent_eval/evaluation_manager.go",
+      "line_count": 845,
+      "logical_layer": "evaluation",
+      "module_l2": "evaluation/agent_eval",
+      "capability": "评测数据、脚本与结果"
+    },
+    {
+      "path": "internal/domain/agent/react/attachments.go",
+      "line_count": 836,
+      "logical_layer": "domain",
+      "module_l2": "internal/domain/agent",
+      "capability": "ReAct 推理循环、工具编排与后台任务运行时"
+    },
+    {
+      "path": "internal/delivery/channels/lark/background_progress_listener.go",
+      "line_count": 817,
+      "logical_layer": "delivery",
+      "module_l2": "internal/delivery/channels",
+      "capability": "Lark 渠道网关、适配与会话桥接"
+    },
+    {
+      "path": "cmd/alex/stream_output.go",
+      "line_count": 810,
+      "logical_layer": "cmd",
+      "module_l2": "cmd/alex",
+      "capability": "命令行程序入口"
+    },
+    {
+      "path": "internal/domain/agent/events.go",
+      "line_count": 794,
+      "logical_layer": "domain",
+      "module_l2": "internal/domain/agent",
+      "capability": "Agent 领域模型、事件与核心行为"
+    },
+    {
+      "path": "dev.sh",
+      "line_count": 783,
+      "logical_layer": "root",
+      "module_l2": "dev.sh",
+      "capability": "dev.sh 子模块实现"
+    },
+    {
+      "path": "internal/app/context/manager_prompt.go",
+      "line_count": 750,
+      "logical_layer": "app",
+      "module_l2": "internal/app/context",
+      "capability": "上下文预算与策略管理"
+    },
+    {
+      "path": "evaluation/agent_eval/reporter.go",
+      "line_count": 730,
+      "logical_layer": "evaluation",
+      "module_l2": "evaluation/agent_eval",
+      "capability": "评测数据、脚本与结果"
+    },
+    {
+      "path": "internal/infra/tools/builtin/orchestration/subagent.go",
+      "line_count": 727,
+      "logical_layer": "infra",
+      "module_l2": "internal/infra/tools",
+      "capability": "内建工具实现（文件、记忆、日历、子代理等）"
+    },
+    {
+      "path": "internal/infra/external/bridge/executor.go",
+      "line_count": 723,
+      "logical_layer": "infra",
+      "module_l2": "internal/infra/external",
+      "capability": "外部代理/子进程桥接能力"
+    }
+  ]
+}
