@@ -127,6 +127,34 @@ type ExternalAgentsConfig struct {
 	MaxParallelAgents int              `json:"max_parallel_agents" yaml:"max_parallel_agents"`
 	ClaudeCode        ClaudeCodeConfig `json:"claude_code" yaml:"claude_code"`
 	Codex             CodexConfig      `json:"codex" yaml:"codex"`
+	Teams             []TeamConfig     `json:"teams" yaml:"teams"`
+}
+
+// TeamConfig defines a reusable agent team with role-based collaboration.
+type TeamConfig struct {
+	Name        string            `json:"name" yaml:"name"`
+	Description string            `json:"description" yaml:"description"`
+	Roles       []TeamRoleConfig  `json:"roles" yaml:"roles"`
+	Stages      []TeamStageConfig `json:"stages" yaml:"stages"`
+}
+
+// TeamRoleConfig defines a single role within a team.
+type TeamRoleConfig struct {
+	Name           string            `json:"name" yaml:"name"`
+	AgentType      string            `json:"agent_type" yaml:"agent_type"`
+	PromptTemplate string            `json:"prompt_template" yaml:"prompt_template"`
+	ExecutionMode  string            `json:"execution_mode" yaml:"execution_mode"`
+	AutonomyLevel  string            `json:"autonomy_level" yaml:"autonomy_level"`
+	WorkspaceMode  string            `json:"workspace_mode" yaml:"workspace_mode"`
+	Config         map[string]string `json:"config" yaml:"config"`
+	InheritContext bool              `json:"inherit_context" yaml:"inherit_context"`
+}
+
+// TeamStageConfig defines an execution stage within a team workflow.
+// Stages execute in order; within a stage, all role tasks run in parallel.
+type TeamStageConfig struct {
+	Name  string   `json:"name" yaml:"name"`
+	Roles []string `json:"roles" yaml:"roles"`
 }
 
 type ClaudeCodeConfig struct {
