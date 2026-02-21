@@ -425,5 +425,6 @@ func (r *Registry) RegisterSubAgent(coordinator orchestration.TaskExecutor) {
 	r.static["bg_collect"] = r.wrapDegradation("bg_collect", wrapTool(orchestration.NewBGCollect(), r.policy, r.breakers, r.SLACollector))
 	r.static["ext_reply"] = r.wrapDegradation("ext_reply", wrapTool(orchestration.NewExtReply(), r.policy, r.breakers, r.SLACollector))
 	r.static["ext_merge"] = r.wrapDegradation("ext_merge", wrapTool(orchestration.NewExtMerge(), r.policy, r.breakers, r.SLACollector))
+	r.static["team_dispatch"] = r.wrapDegradation("team_dispatch", wrapTool(orchestration.NewTeamDispatch(), r.policy, r.breakers, r.SLACollector))
 	r.defsDirty = true
 }
