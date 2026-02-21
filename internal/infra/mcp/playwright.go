@@ -2,26 +2,34 @@ package mcp
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 )
 
-// PlaywrightBrowserConfig holds the subset of browser settings needed to
-// construct a Playwright MCP server configuration.
+// PlaywrightBrowserConfig holds the subset of browser configuration used to
+// build a Playwright MCP ServerConfig. The fields mirror
+// toolregistry.BrowserConfig so callers can translate directly.
 type PlaywrightBrowserConfig struct {
 	Connector   string        // "extension" (default), "headless", "cdp"
-	CDPURL      string        // CDP endpoint URL (used when Connector="cdp")
-	ChromePath  string        // Custom Chrome/Chromium binary path
-	Headless    bool          // Force headless even in extension mode
-	UserDataDir string        // Persistent browser profile directory
+	CDPURL      string        // CDP endpoint for connector="cdp"
+	ChromePath  string        // Custom Chrome/Edge binary path
+	Headless    bool          // Explicit headless flag (used by "headless" connector)
+	UserDataDir string        // Browser profile directory
 	Timeout     time.Duration // Per-action timeout
 	BridgeToken string        // PLAYWRIGHT_MCP_EXTENSION_TOKEN for auto-approval
+	ExtraCaps   []string      // Additional --caps values (e.g. "vision", "pdf")
+	Browser     string        // Browser channel: chrome, firefox, webkit, msedge
 }
 
+const playwrightMCPPackage = "@playwright/mcp@latest"
+
+// PlaywrightServerName is the canonical MCP server name used when registering
+// the Playwright browser server. Tools will be prefixed mcp__playwright__*.
+const PlaywrightServerName = "playwright"
+
 // PlaywrightServerConfig translates a PlaywrightBrowserConfig into an MCP
-// ServerConfig suitable for spawning the @playwright/mcp server via npx.
+// ServerConfig that can be passed to Registry.StartServerWithConfig.
 func PlaywrightServerConfig(cfg PlaywrightBrowserConfig) ServerConfig {
-	args := []string{"-y", "@playwright/mcp@latest"}
+	args := []string{"-y", playwrightMCPPackage}
 	env := map[string]string{}
 
 	connector := cfg.Connector
@@ -50,8 +58,14 @@ func PlaywrightServerConfig(cfg PlaywrightBrowserConfig) ServerConfig {
 		args = append(args, "--user-data-dir", cfg.UserDataDir)
 	}
 	if cfg.Timeout > 0 {
-		ms := int(cfg.Timeout / time.Millisecond)
-		args = append(args, "--timeout", strconv.Itoa(ms))
+		ms := fmt.Sprintf("%d", cfg.Timeout.Milliseconds())
+		args = append(args, "--timeout-action", ms)
+	}
+	if cfg.Browser != "" {
+		args = append(args, "--browser", cfg.Browser)
+	}
+	for _, cap := range cfg.ExtraCaps {
+		args = append(args, "--caps", cap)
 	}
 
 	return ServerConfig{
@@ -61,33 +75,10 @@ func PlaywrightServerConfig(cfg PlaywrightBrowserConfig) ServerConfig {
 	}
 }
 
-// PlaywrightServerName is the canonical MCP server name used when registering
-// the Playwright browser server. Tools will be prefixed mcp__playwright__*.
-const PlaywrightServerName = "playwright"
-
 // WithPlaywrightBrowser returns a RegistryOption that pre-registers a
 // Playwright MCP server configuration to be started during Initialize().
 func WithPlaywrightBrowser(cfg PlaywrightBrowserConfig) RegistryOption {
 	return func(r *Registry) {
-		if r.playwrightConfig == nil {
-			r.playwrightConfig = &cfg
-		}
+		r.playwrightConfig = &cfg
 	}
-}
-
-// startPlaywrightIfConfigured starts the Playwright MCP server when a config
-// was provided via WithPlaywrightBrowser. Called from Initialize().
-func (r *Registry) startPlaywrightIfConfigured() error {
-	if r.playwrightConfig == nil {
-		return nil
-	}
-
-	serverCfg := PlaywrightServerConfig(*r.playwrightConfig)
-	r.logger.Info("Starting Playwright MCP server (connector=%s)", r.playwrightConfig.Connector)
-
-	if err := r.startServer(PlaywrightServerName, serverCfg); err != nil {
-		return fmt.Errorf("playwright MCP server: %w", err)
-	}
-
-	return nil
 }

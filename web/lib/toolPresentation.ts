@@ -339,22 +339,13 @@ export function userFacingToolTitle(input: {
     return formatTitle(query);
   }
 
-  if (tool === "browser_action") {
-    const actions =
-      input.arguments?.actions ??
-      input.metadata?.sandbox_browser?.actions ??
-      null;
-    const summary = summarizeSandboxActions(actions);
-    return formatTitle(summary);
-  }
-
-  if (tool === "browser_dom") {
-    const steps =
-      input.arguments?.steps ??
-      input.metadata?.sandbox_browser_dom?.steps ??
-      null;
-    const summary = summarizeSandboxDOMSteps(steps);
-    return formatTitle(summary);
+  // Playwright MCP browser tools — show the primary argument as title hint
+  if (tool.startsWith("mcp__playwright__browser_")) {
+    const url = pickFirstHint(input.arguments, ["url"]);
+    const text = pickFirstHint(input.arguments, ["text", "value"]);
+    const ref = pickFirstHint(input.arguments, ["ref", "element"]);
+    const hint = joinHints([url, text, ref]);
+    return formatTitle(hint);
   }
 
   if (tool === "web_fetch" || tool === "read_url_content" || tool === "open_browser_url" || tool === "read_browser_page") {
@@ -497,15 +488,6 @@ export function userFacingToolSummary(input: {
       : input.error.trim();
   }
 
-  if (tool === "browser_action") {
-    const actions =
-      input.metadata?.sandbox_browser?.actions ?? input.metadata?.actions ?? null;
-    const summary = summarizeSandboxActions(actions);
-    if (summary) {
-      return summary;
-    }
-  }
-
   if (tool === "todo_update") {
     const counts = getTodoCounts(input.metadata);
     if (counts) {
@@ -539,12 +521,6 @@ export function userFacingToolSummary(input: {
 
   const sanitized = stripSystemReminders(input.result ?? "");
   if (!sanitized) return undefined;
-  if (tool === "browser_action") {
-    return sanitized
-      .replace(/screenshot captured\./i, "")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
   return sanitized.length > 100 ? `${sanitized.slice(0, 100)}…` : sanitized;
 }
 
@@ -571,13 +547,6 @@ export function userFacingToolResultText(input: {
   if (tool === "todo_update") {
     // Keep the task list, but strip internal reminders.
     return sanitized;
-  }
-
-  if (tool === "browser_action") {
-    return sanitized
-      .replace(/screenshot captured\./i, "")
-      .replace(/\s+/g, " ")
-      .trim();
   }
 
   return sanitized;

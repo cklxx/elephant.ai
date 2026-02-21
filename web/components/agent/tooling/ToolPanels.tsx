@@ -131,7 +131,7 @@ export function ToolResultPanel({
   metadata?: Record<string, any> | null;
 }) {
   const normalizedTool = (toolName ?? "").toLowerCase().trim();
-  const hideAttachments = normalizedTool === "browser_action";
+  const hideAttachments = normalizedTool.startsWith("mcp__playwright__browser_");
   if (error) {
     return (
       <SimplePanel>

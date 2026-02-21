@@ -65,7 +65,7 @@ func TestNewRegistryRegistersExpectedToolCount(t *testing.T) {
 	// 14 core tools: read_file, write_file, replace_in_file, shell_exec,
 	// execute_code, channel, web_search, skills,
 	// plan, clarify, request_user, memory_search, memory_get, context_checkpoint
-	// (browser tools are now provided by Playwright MCP server, not static registration)
+	// (browser tools now provided by Playwright MCP, registered dynamically)
 	if len(defs) != 14 {
 		t.Fatalf("expected 14 tools, got %d: %v", len(defs), names)
 	}
@@ -316,7 +316,7 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 		names[def.Name] = true
 	}
 
-	// Core tools MUST be present
+	// Core tools MUST be present (browser tools now via Playwright MCP, not static)
 	for _, want := range []string{
 		"read_file", "write_file", "replace_in_file", "shell_exec",
 		"execute_code",
@@ -342,7 +342,7 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 		"okr_read", "okr_write",
 		"set_timer", "list_timers", "cancel_timer",
 		"scheduler_create_job", "scheduler_list_jobs", "scheduler_delete_job",
-		"browser_action", "browser_info", "browser_screenshot", "browser_dom",
+		"browser_info", "browser_screenshot", "browser_dom",
 		"list_dir", "search_file", "write_attachment",
 		"lark_send_message", "lark_chat_history", "lark_upload_file",
 		"lark_calendar_create", "lark_calendar_query",

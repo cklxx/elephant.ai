@@ -83,8 +83,15 @@ func (r *Registry) Initialize() error {
 	config, err := r.configLoader.Load()
 	if err != nil {
 		r.logger.Warn("Failed to load MCP config: %v", err)
-		// Not a fatal error - just means no MCP servers configured
-		return nil
+		config = &Config{MCPServers: make(map[string]ServerConfig)}
+	}
+
+	// Inject Playwright MCP server if configured via code (not .mcp.json).
+	if r.playwrightConfig != nil {
+		if _, exists := config.MCPServers["playwright"]; !exists {
+			config.AddServer("playwright", PlaywrightServerConfig(*r.playwrightConfig))
+			r.logger.Info("Injected Playwright MCP browser server (connector=%s)", r.playwrightConfig.Connector)
+		}
 	}
 
 	// Validate configuration
@@ -92,12 +99,7 @@ func (r *Registry) Initialize() error {
 		return fmt.Errorf("invalid MCP configuration: %w", err)
 	}
 
-	// Start Playwright MCP browser server if configured programmatically.
-	if err := r.startPlaywrightIfConfigured(); err != nil {
-		r.logger.Error("Failed to start Playwright MCP server: %v", err)
-	}
-
-	// Start all active servers from .mcp.json config files.
+	// Start all active servers (includes injected Playwright if configured).
 	activeServers := config.GetActiveServers()
 	r.logger.Info("Starting %d MCP servers", len(activeServers))
 
