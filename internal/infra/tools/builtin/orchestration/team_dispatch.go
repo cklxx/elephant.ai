@@ -143,10 +143,15 @@ func (t *teamDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports
 			}
 
 			if err := dispatcher.Dispatch(ctx, req); err != nil {
+				msg := fmt.Sprintf("dispatch failed for role %q: %v", roleName, err)
+				if len(dispatchedIDs) > 0 {
+					msg += fmt.Sprintf(" (already dispatched: %v — use bg_status to monitor or cancel)", dispatchedIDs)
+				}
 				return &ports.ToolResult{
-					CallID:  call.ID,
-					Content: fmt.Sprintf("dispatch failed for role %q: %v", roleName, err),
-					Error:   err,
+					CallID:   call.ID,
+					Content:  msg,
+					Error:    err,
+					Metadata: map[string]any{"partial_dispatch": dispatchedIDs},
 				}, nil
 			}
 			dispatchedIDs = append(dispatchedIDs, taskID)
@@ -158,10 +163,9 @@ func (t *teamDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports
 		CallID:  call.ID,
 		Content: content,
 		Metadata: map[string]any{
-			"team":           teamName,
-			"task_ids":       dispatchedIDs,
-			"role_task_ids":  roleTaskIDs,
-			"dispatched_ids": dispatchedIDs,
+			"team":          teamName,
+			"task_ids":      dispatchedIDs,
+			"role_task_ids": roleTaskIDs,
 		},
 	}, nil
 }
@@ -232,9 +236,14 @@ func validateTeam(team *agent.TeamDefinition) error {
 		if role.AgentType == "" {
 			return fmt.Errorf("team %q role %q has no agent_type", team.Name, role.Name)
 		}
+		if _, exists := roleSet[role.Name]; exists {
+			return fmt.Errorf("team %q has duplicate role name %q", team.Name, role.Name)
+		}
 		roleSet[role.Name] = struct{}{}
 	}
 
+	// Track which roles are referenced by stages.
+	referencedRoles := make(map[string]int, len(team.Roles))
 	for _, stage := range team.Stages {
 		if len(stage.Roles) == 0 {
 			return fmt.Errorf("team %q stage %q has no roles", team.Name, stage.Name)
@@ -243,6 +252,18 @@ func validateTeam(team *agent.TeamDefinition) error {
 			if _, ok := roleSet[roleName]; !ok {
 				return fmt.Errorf("team %q stage %q references unknown role %q", team.Name, stage.Name, roleName)
 			}
+			referencedRoles[roleName]++
+		}
+	}
+
+	// Each role must appear in exactly one stage.
+	for _, role := range team.Roles {
+		count := referencedRoles[role.Name]
+		if count == 0 {
+			return fmt.Errorf("team %q role %q is not assigned to any stage", team.Name, role.Name)
+		}
+		if count > 1 {
+			return fmt.Errorf("team %q role %q appears in %d stages (must be exactly 1)", team.Name, role.Name, count)
 		}
 	}
 
@@ -335,11 +356,12 @@ func normalizeAutonomy(raw string) string {
 	}
 }
 
-func truncateGoal(goal string, maxLen int) string {
-	if len(goal) <= maxLen {
+func truncateGoal(goal string, maxRunes int) string {
+	runes := []rune(goal)
+	if len(runes) <= maxRunes {
 		return goal
 	}
-	return goal[:maxLen-3] + "..."
+	return string(runes[:maxRunes-3]) + "..."
 }
 
 func formatTeamSummary(team *agent.TeamDefinition, roleTaskIDs map[string]string, dispatched []string) string {

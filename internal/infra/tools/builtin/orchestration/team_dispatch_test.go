@@ -470,6 +470,159 @@ func TestRenderTeamPrompt(t *testing.T) {
 	}
 }
 
+func TestValidateTeam_DuplicateRoleName(t *testing.T) {
+	team := agent.TeamDefinition{
+		Name: "dup-roles",
+		Roles: []agent.TeamRoleDefinition{
+			{Name: "worker", AgentType: "codex"},
+			{Name: "worker", AgentType: "claude_code"},
+		},
+		Stages: []agent.TeamStageDefinition{{Name: "s1", Roles: []string{"worker"}}},
+	}
+	err := validateTeam(&team)
+	if err == nil {
+		t.Fatal("expected error for duplicate role name")
+	}
+	if !strings.Contains(err.Error(), "duplicate role name") {
+		t.Errorf("expected 'duplicate role name' in error, got %q", err.Error())
+	}
+}
+
+func TestValidateTeam_RoleNotInAnyStage(t *testing.T) {
+	team := agent.TeamDefinition{
+		Name: "orphan-role",
+		Roles: []agent.TeamRoleDefinition{
+			{Name: "active", AgentType: "codex"},
+			{Name: "orphan", AgentType: "claude_code"},
+		},
+		Stages: []agent.TeamStageDefinition{{Name: "s1", Roles: []string{"active"}}},
+	}
+	err := validateTeam(&team)
+	if err == nil {
+		t.Fatal("expected error for role not in any stage")
+	}
+	if !strings.Contains(err.Error(), "not assigned to any stage") {
+		t.Errorf("expected 'not assigned to any stage' in error, got %q", err.Error())
+	}
+}
+
+func TestValidateTeam_RoleInMultipleStages(t *testing.T) {
+	team := agent.TeamDefinition{
+		Name: "multi-stage-role",
+		Roles: []agent.TeamRoleDefinition{
+			{Name: "worker", AgentType: "codex"},
+		},
+		Stages: []agent.TeamStageDefinition{
+			{Name: "s1", Roles: []string{"worker"}},
+			{Name: "s2", Roles: []string{"worker"}},
+		},
+	}
+	err := validateTeam(&team)
+	if err == nil {
+		t.Fatal("expected error for role in multiple stages")
+	}
+	if !strings.Contains(err.Error(), "appears in") {
+		t.Errorf("expected 'appears in' in error, got %q", err.Error())
+	}
+}
+
+func TestBuildStageDeps_ThreeStages(t *testing.T) {
+	roleTaskIDs := map[string]string{
+		"a": "task-a",
+		"b": "task-b",
+		"c": "task-c",
+		"d": "task-d",
+	}
+	stages := []agent.TeamStageDefinition{
+		{Name: "s1", Roles: []string{"a"}},
+		{Name: "s2", Roles: []string{"b", "c"}},
+		{Name: "s3", Roles: []string{"d"}},
+	}
+	deps := buildStageDeps(stages, roleTaskIDs)
+
+	// Stage 1: no deps.
+	if len(deps["a"]) != 0 {
+		t.Errorf("expected no deps for 'a', got %v", deps["a"])
+	}
+
+	// Stage 2: depends on stage 1 (a).
+	if len(deps["b"]) != 1 || deps["b"][0] != "task-a" {
+		t.Errorf("expected deps['b']=[task-a], got %v", deps["b"])
+	}
+	if len(deps["c"]) != 1 || deps["c"][0] != "task-a" {
+		t.Errorf("expected deps['c']=[task-a], got %v", deps["c"])
+	}
+
+	// Stage 3: depends on stage 2 (b, c).
+	if len(deps["d"]) != 2 {
+		t.Fatalf("expected 2 deps for 'd', got %v", deps["d"])
+	}
+	depSet := map[string]bool{}
+	for _, d := range deps["d"] {
+		depSet[d] = true
+	}
+	if !depSet["task-b"] || !depSet["task-c"] {
+		t.Errorf("expected deps on task-b and task-c, got %v", deps["d"])
+	}
+}
+
+func TestTeamDispatch_PartialDispatchError(t *testing.T) {
+	// Dispatcher succeeds on first call, fails on second.
+	callCount := 0
+	d := &mockDispatcher{}
+	origDispatch := d.Dispatch
+	_ = origDispatch // mockDispatcher is struct-based, override via custom dispatcher below.
+
+	// We need a custom dispatcher that fails on the second call.
+	pd := &partialFailDispatcher{}
+	ctx := ctxWithDispatcher(pd)
+	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{testTeam})
+	tool := NewTeamDispatch()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-partial",
+		Arguments: map[string]any{
+			"team": "execute_and_report",
+			"goal": "partial fail",
+		},
+	})
+
+	_ = callCount
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error on partial dispatch failure")
+	}
+	// Error should mention already dispatched tasks.
+	if !strings.Contains(result.Content, "already dispatched") {
+		t.Errorf("expected 'already dispatched' in error, got %q", result.Content)
+	}
+	// Metadata should have partial_dispatch.
+	if result.Metadata == nil {
+		t.Fatal("expected metadata with partial_dispatch")
+	}
+	ids, ok := result.Metadata["partial_dispatch"].([]string)
+	if !ok || len(ids) != 1 {
+		t.Errorf("expected 1 partial dispatch ID, got %v", result.Metadata["partial_dispatch"])
+	}
+}
+
+// partialFailDispatcher succeeds on first Dispatch, fails on second.
+type partialFailDispatcher struct {
+	mockDispatcher
+	calls int
+}
+
+func (p *partialFailDispatcher) Dispatch(ctx context.Context, req agent.BackgroundDispatchRequest) error {
+	p.calls++
+	if p.calls > 1 {
+		return fmt.Errorf("dispatch limit reached")
+	}
+	p.dispatched = append(p.dispatched, dispatchCall{Req: req})
+	return nil
+}
+
 func TestTruncateGoal(t *testing.T) {
 	if truncateGoal("short", 100) != "short" {
 		t.Error("short goal should not be truncated")
@@ -481,5 +634,23 @@ func TestTruncateGoal(t *testing.T) {
 	}
 	if !strings.HasSuffix(truncated, "...") {
 		t.Error("expected ... suffix")
+	}
+}
+
+func TestTruncateGoal_MultiByte(t *testing.T) {
+	// Chinese characters are multi-byte (3 bytes each in UTF-8).
+	goal := strings.Repeat("中", 30) // 30 runes, 90 bytes
+	truncated := truncateGoal(goal, 10)
+	runes := []rune(truncated)
+	if len(runes) != 10 {
+		t.Errorf("expected 10 runes, got %d", len(runes))
+	}
+	if !strings.HasSuffix(truncated, "...") {
+		t.Error("expected ... suffix")
+	}
+	// Should be 7 Chinese chars + "..."
+	expected := strings.Repeat("中", 7) + "..."
+	if truncated != expected {
+		t.Errorf("expected %q, got %q", expected, truncated)
 	}
 }
