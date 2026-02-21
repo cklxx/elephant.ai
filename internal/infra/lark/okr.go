@@ -105,7 +105,8 @@ func (s *OKRService) ListPeriods(ctx context.Context, req ListPeriodsRequest, op
 // ListUserOKRs lists OKRs for a specific user in a period.
 func (s *OKRService) ListUserOKRs(ctx context.Context, userID string, periodID string, opts ...CallOption) ([]OKR, error) {
 	builder := larkokr.NewListUserOkrReqBuilder().
-		UserId(userID)
+		UserId(userID).
+		UserIdType("open_id")
 
 	if periodID != "" {
 		builder.PeriodIds([]string{periodID})
@@ -132,7 +133,8 @@ func (s *OKRService) ListUserOKRs(ctx context.Context, userID string, periodID s
 // BatchGetOKRs retrieves OKRs by IDs.
 func (s *OKRService) BatchGetOKRs(ctx context.Context, okrIDs []string, opts ...CallOption) ([]OKR, error) {
 	builder := larkokr.NewBatchGetOkrReqBuilder().
-		OkrIds(okrIDs)
+		OkrIds(okrIDs).
+		UserIdType("open_id")
 
 	resp, err := s.client.Okr.V1.Okr.BatchGet(ctx, builder.Build(), buildOpts(opts)...)
 	if err != nil {

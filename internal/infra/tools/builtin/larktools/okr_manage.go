@@ -9,6 +9,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	larkapi "alex/internal/infra/lark"
 	"alex/internal/infra/tools/builtin/shared"
+	id "alex/internal/shared/utils/id"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 )
@@ -73,9 +74,14 @@ func (t *larkOKRManage) listPeriods(ctx context.Context, client *larkapi.Client,
 }
 
 func (t *larkOKRManage) listUserOKRs(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
-	userID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "user_id")
-	if errResult != nil {
-		return errResult, nil
+	userID := shared.StringArg(call.Arguments, "user_id")
+	if userID == "" {
+		// Auto-resolve from context: the sender's open_id is stored by BuildBaseContext.
+		userID = id.UserIDFromContext(ctx)
+	}
+	if userID == "" {
+		err := fmt.Errorf("user_id is required (provide it explicitly or send from a Lark chat)")
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 	periodID := shared.StringArg(call.Arguments, "period_id")
 
