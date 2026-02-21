@@ -297,7 +297,7 @@ func NewLarkChannel() tools.ToolExecutor {
 						// okr params
 						"user_id": {
 							Type:        "string",
-							Description: "User ID for get_user/list_user_okrs.",
+							Description: "User ID (open_id). Optional for get_user and list_user_okrs — auto-resolved from the current sender when omitted. Only provide to query a different user.",
 						},
 						"period_id": {
 							Type:        "string",

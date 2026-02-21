@@ -34,7 +34,7 @@ cooldown: 30
 ### get_user
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| user_id | string | 是 | 用户 ID |
+| user_id | string | 否 | 用户 open_id。**省略时自动使用当前发送者的 open_id**，查询"我是谁"时无需提供。仅在查询其他人时才需指定。 |
 | user_id_type | string | 否 | ID 类型 (open_id/union_id/user_id，默认 open_id) |
 
 ### list_users
@@ -60,7 +60,10 @@ cooldown: 30
 ## 示例
 
 ```
-查找用户信息
+查看我的信息（自动使用当前用户）
+-> channel(action="get_user")
+
+查找其他用户信息（需指定 user_id）
 -> channel(action="get_user", user_id="ou_xxx")
 
 列出工程部成员
