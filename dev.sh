@@ -1342,11 +1342,14 @@ usage() {
 elephant.ai dev helper
 
 Usage:
+  ./dev.sh                 # Start lark (default)
   ./dev.sh [command]
 
 Commands:
+  lark [cmd]     Manage lark stack (default: up)
+                 cmd: up|down|restart|status|logs|doctor|cycle
   up|start       Start backend + web only (background)
-  up --lark      Start backend + web + lark (recommended)
+  up --lark      Start backend + web + lark
   sandbox-up     Start sandbox + ACP only
   sandbox-down   Stop sandbox + ACP only
   sandbox-status Show sandbox + ACP status
@@ -1354,8 +1357,6 @@ Commands:
   down-all       Stop everything including sandbox + authdb
   status         Show status + ports
   logs           Tail logs (optional: server|web)
-  lark [cmd]     Manage lark stack via ./lark.sh (default: up)
-                 cmd: up|down|restart|status|logs|doctor|cycle
   logs-ui        Start services and open the diagnostics workbench
   test           Run Go tests (CI parity)
   lint           Run Go + web lint
@@ -1366,7 +1367,7 @@ Legacy aliases still accepted:
 EOF
 }
 
-cmd="${1:-all-up}"
+cmd="${1:-lark}"
 shift || true
 
 case "$cmd" in
