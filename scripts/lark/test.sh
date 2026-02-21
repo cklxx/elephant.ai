@@ -21,7 +21,6 @@ Usage:
 Runs alex-server in standalone Lark WebSocket mode from the test worktree.
 
 Behavior:
-  - Ensures local auth DB is running (docker, migrations)
   - Ensures persistent test worktree exists at .worktrees/test and syncs .env
   - Builds and starts alex-server from the test worktree
 
@@ -32,7 +31,6 @@ Env:
   LARK_NOTICE_STATE_FILE Notice binding state path (default: <repo>/.worktrees/test/tmp/lark-notice.state.json)
   FORCE_REBUILD=1      Force rebuild on start (default: 1)
   SKIP_LOCAL_AUTH_DB=1 Skip local auth DB auto-setup (default: 0)
-  LARK_REQUIRE_DOCKER=1 Ensure docker sandbox is running before startup (default: 1)
 EOF
 }
 
@@ -64,8 +62,6 @@ TEST_CONFIG="${TEST_CONFIG:-$HOME/.alex/test.yaml}"
 ALEX_LOG_DIR="${ALEX_LOG_DIR:-${TEST_ROOT}/logs}"
 NOTICE_STATE_FILE="${LARK_NOTICE_STATE_FILE:-${ROOT}/.worktrees/test/tmp/lark-notice.state.json}"
 FORCE_REBUILD="${FORCE_REBUILD:-1}"
-LARK_REQUIRE_DOCKER="${LARK_REQUIRE_DOCKER:-1}"
-DEV_SH="${ROOT}/dev.sh"
 BOOTSTRAP_SH="${ROOT}/scripts/setup_local_runtime.sh"
 CLEANUP_ORPHANS_SH="${ROOT}/scripts/lark/cleanup_orphan_agents.sh"
 
@@ -89,16 +85,6 @@ ensure_local_bootstrap() {
   MAIN_CONFIG="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}" \
     TEST_CONFIG="${TEST_CONFIG}" \
     "${BOOTSTRAP_SH}" >/dev/null
-}
-
-ensure_lark_sandbox() {
-  if [[ "${LARK_REQUIRE_DOCKER}" != "1" ]]; then
-    return 0
-  fi
-  command -v docker >/dev/null 2>&1 || die "docker not found but Lark mode requires sandbox Docker (set LARK_REQUIRE_DOCKER=0 to bypass)"
-  [[ -x "${DEV_SH}" ]] || die "Missing ${DEV_SH}"
-  log_info "Ensuring docker sandbox for lark mode..."
-  (cd "${ROOT}" && "${DEV_SH}" sandbox-up)
 }
 
 cleanup_orphan_lark_agents() {
@@ -166,7 +152,6 @@ start() {
   ensure_local_bootstrap
   [[ -f "${TEST_CONFIG}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG}"
   print_runtime_binding
-  ensure_lark_sandbox
   cleanup_orphan_lark_agents
 
   maybe_setup_auth_db
