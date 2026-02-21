@@ -20,52 +20,21 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SERVER_PORT=8080
 readonly WEB_PORT=3000
-readonly DEFAULT_SANDBOX_PORT=18086
-readonly DEFAULT_SANDBOX_IMAGE="ghcr.io/agent-infra/sandbox:latest"
 readonly PID_DIR="${SCRIPT_DIR}/.pids"
 readonly LOG_DIR="${SCRIPT_DIR}/logs"
 readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
 readonly WEB_PID_FILE="${PID_DIR}/web.pid"
-readonly ACP_PID_FILE="${PID_DIR}/acp.pid"
-readonly ACP_PORT_FILE="${PID_DIR}/acp.port"
 readonly SERVER_LOG="${LOG_DIR}/server.log"
 readonly WEB_LOG="${LOG_DIR}/web.log"
-readonly ACP_LOG="${LOG_DIR}/acp.log"
 readonly BIN_DIR="${SCRIPT_DIR}/.bin"
 readonly DOCKER_COMPOSE_BIN="${BIN_DIR}/docker-compose"
 readonly ALEX_CONFIG_PATH="${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}"
-readonly DEFAULT_ACP_HOST="127.0.0.1"
-SANDBOX_PORT="${SANDBOX_PORT:-${DEFAULT_SANDBOX_PORT}}"
-SANDBOX_IMAGE="${SANDBOX_IMAGE:-${DEFAULT_SANDBOX_IMAGE}}"
-SANDBOX_BASE_URL="${SANDBOX_BASE_URL:-http://localhost:${SANDBOX_PORT}}"
-SANDBOX_CONTAINER_NAME="${SANDBOX_CONTAINER_NAME:-alex-sandbox}"
-SANDBOX_AUTO_INSTALL_CLI="${SANDBOX_AUTO_INSTALL_CLI:-1}"
-START_ACP_WITH_SANDBOX="${START_ACP_WITH_SANDBOX:-1}"
-ACP_PORT="${ACP_PORT:-0}"
-ACP_HOST="${ACP_HOST:-${DEFAULT_ACP_HOST}}"
 
 source "${SCRIPT_DIR}/scripts/lib/common/logging.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/process.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/ports.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/http.sh"
-source "${SCRIPT_DIR}/scripts/lib/acp_host.sh"
 source "${SCRIPT_DIR}/scripts/lib/deploy_common.sh"
-
-# Stubs for functions previously in sandbox.sh (removed in e8e9b740).
-is_local_sandbox_url() {
-    [[ "${SANDBOX_BASE_URL}" =~ ^https?://(localhost|127\.0\.0\.1)(:|/) ]]
-}
-sandbox_workspace_dir() {
-    echo "${SANDBOX_WORKSPACE_DIR:-}"
-}
-sandbox_has_workspace_mount() {
-    local dir="$1"
-    [[ -z "$dir" ]] && return 1
-    docker inspect "${SANDBOX_CONTAINER_NAME}" 2>/dev/null | grep -q "$dir"
-}
-ensure_sandbox_cli_tools() {
-    :
-}
 
 COMPOSE_CORE_VARS=()
 COMPOSE_MISSING_VARS=()
@@ -99,126 +68,6 @@ banner() {
     local line
     line="$(printf '%*s' 80 '' | tr ' ' '─')"
     echo -e "${C_CYAN}${line}${C_RESET}"
-}
-
-###############################################################################
-# Process Management
-###############################################################################
-
-start_acp_daemon() {
-    start_acp_daemon_host
-}
-
-stop_acp_daemon() {
-    stop_acp_daemon_host
-}
-
-start_sandbox() {
-    if ! is_local_sandbox_url; then
-        wait_for_health "${SANDBOX_BASE_URL}/v1/docs" "Sandbox"
-        return $?
-    fi
-
-    if ! command_exists docker; then
-        log_error "docker not found; cannot start sandbox"
-        return 1
-    fi
-
-    start_acp_daemon
-    local acp_container_host="host.docker.internal"
-    local acp_addr="${acp_container_host}:${ACP_PORT}"
-
-    if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
-        log_info "Sandbox already running (container ${SANDBOX_CONTAINER_NAME})"
-        wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "Sandbox"
-        ensure_sandbox_cli_tools
-        log_info "ACP server injected at ${acp_addr}"
-        return $?
-    fi
-
-    if docker ps -a --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
-        log_info "Starting sandbox container ${SANDBOX_CONTAINER_NAME}..."
-        docker start "${SANDBOX_CONTAINER_NAME}" >/dev/null
-    else
-        log_info "Starting sandbox container ${SANDBOX_CONTAINER_NAME} on :${SANDBOX_PORT}..."
-        docker run -d --name "${SANDBOX_CONTAINER_NAME}" \
-            --add-host "host.docker.internal:host-gateway" \
-            -e "ACP_SERVER_HOST=${acp_container_host}" \
-            -e "ACP_SERVER_PORT=${ACP_PORT}" \
-            -e "ACP_SERVER_ADDR=${acp_addr}" \
-            -p "${SANDBOX_PORT}:8080" \
-            "${SANDBOX_IMAGE}" >/dev/null
-    fi
-
-    wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "Sandbox"
-    ensure_sandbox_cli_tools
-    log_info "ACP server injected at ${acp_addr}"
-}
-
-stop_sandbox() {
-    if ! is_local_sandbox_url; then
-        return 0
-    fi
-    if ! command_exists docker; then
-        return 0
-    fi
-    if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
-        log_info "Stopping sandbox container ${SANDBOX_CONTAINER_NAME}..."
-        docker stop "${SANDBOX_CONTAINER_NAME}" >/dev/null
-    fi
-    stop_acp_daemon
-}
-
-sandbox_ready() {
-    if ! command_exists curl; then
-        return 1
-    fi
-    curl -sf --noproxy '*' "${SANDBOX_BASE_URL}/v1/docs" >/dev/null 2>&1
-}
-
-wait_for_docker_health() {
-    local container_name=$1
-    local max_attempts=${2:-30}
-
-    log_info "Waiting for $container_name to be healthy..."
-
-    for i in $(seq 1 $max_attempts); do
-        local health_status
-        health_status=$(docker inspect --format='{{.State.Health.Status}}' "$container_name" 2>/dev/null || echo "none")
-
-        case "$health_status" in
-            healthy)
-                log_success "$container_name is healthy!"
-                return 0
-                ;;
-            none)
-                # Container has no health check, check if it's running
-                if docker ps --filter "name=^${container_name}$" --format '{{.Names}}' | grep -q "^${container_name}$"; then
-                    log_success "$container_name is running!"
-                    return 0
-                fi
-                ;;
-            starting)
-                # Still starting, continue waiting
-                ;;
-            unhealthy)
-                log_error "$container_name is unhealthy"
-                return 1
-                ;;
-            *)
-                # Container doesn't exist or is not running
-                if [[ $i -eq $max_attempts ]]; then
-                    log_error "$container_name failed to start within ${max_attempts}s"
-                    return 1
-                fi
-                ;;
-        esac
-
-        sleep 1
-    done
-
-    log_error "$container_name failed to become healthy within ${max_attempts}s"
-    return 1
 }
 
 ###############################################################################
@@ -503,8 +352,6 @@ EOF
     else
         log_success "API key configured: ${OPENAI_API_KEY:0:12}..."
     fi
-
-    # Verify .env.development exists
 }
 
 ensure_local_auth_db() {
@@ -720,10 +567,6 @@ start_backend() {
     fi
 
     log_info "Starting backend on :$SERVER_PORT..."
-    local acp_executor_addr=""
-    if acp_executor_addr="$(resolve_acp_executor_addr)"; then
-        log_info "Using ACP executor at ${acp_executor_addr}"
-    fi
 
     # Rotate logs
     if [[ -f "$SERVER_LOG" ]]; then
@@ -731,7 +574,7 @@ start_backend() {
     fi
 
     # Start server in background with deploy mode flag
-    ALEX_SERVER_MODE=deploy ACP_EXECUTOR_ADDR="${acp_executor_addr}" ./alex-web > "$SERVER_LOG" 2>&1 &
+    ALEX_SERVER_MODE=deploy ./alex-web > "$SERVER_LOG" 2>&1 &
     local pid=$!
     echo "$pid" > "$SERVER_PID_FILE"
 
@@ -796,7 +639,6 @@ cmd_start() {
     # Build & start
     build_backend || die "Backend build failed"
     install_frontend_deps || die "Frontend dependency installation failed"
-    start_sandbox || die "Sandbox failed to start"
     start_backend || die "Backend failed to start"
     start_frontend || die "Frontend failed to start"
 
@@ -809,7 +651,6 @@ cmd_start() {
     echo -e "  ${C_CYAN}Web UI:${C_RESET}  http://localhost:$WEB_PORT"
     echo -e "  ${C_CYAN}API:${C_RESET}     http://localhost:$SERVER_PORT"
     echo -e "  ${C_CYAN}Health:${C_RESET}  http://localhost:$SERVER_PORT/health"
-    echo -e "  ${C_CYAN}Sandbox:${C_RESET} ${SANDBOX_BASE_URL}"
     echo ""
     echo -e "${C_YELLOW}Commands:${C_RESET}"
     echo -e "  ./deploy.sh logs     # Tail logs"
@@ -837,7 +678,6 @@ cmd_stop() {
 
     stop_service "Backend" "$SERVER_PID_FILE"
     stop_service "Frontend" "$WEB_PID_FILE"
-    stop_sandbox
 
     # Clean up port bindings
     kill_process_on_port "$SERVER_PORT" || true
@@ -881,22 +721,6 @@ cmd_status() {
         fi
     else
         echo -e "${C_RED}✗${C_RESET} Frontend:  Not running"
-    fi
-
-    echo ""
-    if sandbox_ready; then
-        echo -e "${C_GREEN}✓${C_RESET} Sandbox:   Ready (${SANDBOX_BASE_URL})"
-    else
-        echo -e "${C_YELLOW}⚠${C_RESET} Sandbox:   Unavailable (${SANDBOX_BASE_URL})"
-    fi
-
-    local acp_pid acp_port
-    acp_pid="$(read_pid "$ACP_PID_FILE" || true)"
-    acp_port="$(cat "$ACP_PORT_FILE" 2>/dev/null || true)"
-    if is_process_running "$acp_pid"; then
-        echo -e "${C_GREEN}✓${C_RESET} ACP:       Running (PID: ${acp_pid}) ${ACP_HOST}:${acp_port}"
-    else
-        echo -e "${C_YELLOW}⚠${C_RESET} ACP:       Stopped"
     fi
 
     echo ""
@@ -1060,7 +884,6 @@ cmd_cn() {
     export BASE_GO_IMAGE="${BASE_GO_IMAGE:-docker.m.daocloud.io/library/golang:1.24-alpine}"
     export BASE_RUNTIME_IMAGE="${BASE_RUNTIME_IMAGE:-docker.m.daocloud.io/library/alpine:latest}"
     export BASE_NODE_IMAGE="${BASE_NODE_IMAGE:-docker.m.daocloud.io/library/node:20-alpine}"
-    export SANDBOX_IMAGE="${SANDBOX_IMAGE:-enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest}"
 
     print_cn_mirrors
 

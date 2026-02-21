@@ -153,13 +153,10 @@ func devDown(flags ...string) error {
 	ctx := context.Background()
 
 	if stopAll {
-		// --all: stop everything including infra + remove bootstrap marker
 		removeBootstrapMarker(orch.Config().PIDDir)
-		return orch.Down(ctx)
 	}
 
-	// Default: keep infrastructure services running for fast re-up
-	return orch.Down(ctx, true)
+	return orch.Down(ctx)
 }
 
 func devStatus() error {
@@ -451,13 +448,10 @@ Usage:
 Commands:
   up|start [--lark] [--with-authdb]
                     Start dev services. In lark mode, auth DB is skipped by default.
-  down|stop [--all]  Stop services (default: keep sandbox/authdb running)
+  down|stop [--all]  Stop services
   status             Show status of all services
   logs [service]     Tail logs (server|web|all)
   restart [service]  Restart specified service(s) or all
-  sandbox up         Start sandbox only
-  sandbox down       Stop sandbox only
-  sandbox status     Show sandbox status
   test               Run Go tests (CI parity)
   lint               Run Go + web lint
   logs-ui            Start services and open log analyzer

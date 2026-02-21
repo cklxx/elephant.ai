@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 
-	"alex/internal/devops/docker"
 	"alex/internal/devops/health"
 	devlog "alex/internal/devops/log"
 	"alex/internal/devops/port"
@@ -29,7 +28,6 @@ type Orchestrator struct {
 	logMgr   *devlog.Manager
 	ports    *port.Allocator
 	procMgr  *process.Manager
-	docker   docker.Client
 	config   *DevConfig
 	section  *devlog.SectionWriter
 }
@@ -41,14 +39,12 @@ func NewOrchestrator(cfg *DevConfig) *Orchestrator {
 	pa := port.NewAllocator()
 	pm := process.NewManager(cfg.PIDDir, cfg.LogDir)
 	lm := devlog.NewManager(cfg.LogDir)
-	dc := docker.NewCLIClient()
 
 	return &Orchestrator{
 		health:  hc,
 		logMgr:  lm,
 		ports:   pa,
 		procMgr: pm,
-		docker:  dc,
 		config:  cfg,
 		section: section,
 	}
@@ -62,9 +58,6 @@ func (o *Orchestrator) Ports() *port.Allocator { return o.ports }
 
 // ProcessManager returns the process manager.
 func (o *Orchestrator) ProcessManager() *process.Manager { return o.procMgr }
-
-// Docker returns the docker client.
-func (o *Orchestrator) Docker() docker.Client { return o.docker }
 
 // Section returns the section writer.
 func (o *Orchestrator) Section() *devlog.SectionWriter { return o.section }
@@ -97,24 +90,11 @@ func (o *Orchestrator) Up(ctx context.Context) error {
 	return nil
 }
 
-// infraServices are long-lived services that are expensive to restart.
-var infraServices = map[string]bool{
-	"sandbox": true,
-	"authdb":  true,
-}
-
 // Down stops registered services in reverse order.
-// When keepInfra is true, infrastructure services (sandbox, authdb) are
-// left running to speed up subsequent "alex dev up" invocations.
-func (o *Orchestrator) Down(ctx context.Context, keepInfra ...bool) error {
-	keep := len(keepInfra) > 0 && keepInfra[0]
+func (o *Orchestrator) Down(ctx context.Context) error {
 	var lastErr error
 	for i := len(o.services) - 1; i >= 0; i-- {
 		svc := o.services[i]
-		if keep && infraServices[svc.Name()] {
-			o.section.Info("Keeping %s running", svc.Name())
-			continue
-		}
 		if err := svc.Stop(ctx); err != nil {
 			o.section.Error("Failed to stop %s: %v", svc.Name(), err)
 			lastErr = err

@@ -17,9 +17,6 @@ func TestApplyDefaults(t *testing.T) {
 	if cfg.WebPort != 3000 {
 		t.Errorf("WebPort = %d, want 3000", cfg.WebPort)
 	}
-	if cfg.ACPHost != "127.0.0.1" {
-		t.Errorf("ACPHost = %q, want 127.0.0.1", cfg.ACPHost)
-	}
 	if cfg.CGOMode != "auto" {
 		t.Errorf("CGOMode = %q, want auto", cfg.CGOMode)
 	}
