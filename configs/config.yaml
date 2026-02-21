@@ -116,6 +116,53 @@ runtime:
       resume_enabled: true
       env:
         OPENAI_API_KEY: "${OPENAI_API_KEY}"
+    teams:
+      - name: "execute_and_report"
+        description: "Codex executes technical tasks, Claude Code summarizes results"
+        roles:
+          - name: "executor"
+            agent_type: "codex"
+            prompt_template: |
+              [Team Role: Technical Executor]
+              You are executing a technical task as part of a team workflow.
+              Complete the following goal with concrete implementation.
+              Report all files changed, commands run, and test results.
+
+              Goal: {GOAL}
+
+              Execute immediately. Do not ask for clarification.
+            execution_mode: "execute"
+            autonomy_level: "full"
+            workspace_mode: "worktree"
+            config:
+              task_kind: "coding"
+              verify: "true"
+              merge_on_success: "true"
+          - name: "reporter"
+            agent_type: "claude_code"
+            prompt_template: |
+              [Team Role: Reporter / Summarizer]
+              You are summarizing execution results as part of a team workflow.
+              The executor has completed their work. Their results are in the
+              Collaboration Context above.
+
+              Produce a structured summary:
+              1. Accomplishments
+              2. Key decisions
+              3. Files changed and their purpose
+              4. Issues / follow-ups
+              5. Overall assessment
+
+              Original goal: {GOAL}
+            execution_mode: "execute"
+            autonomy_level: "full"
+            workspace_mode: "shared"
+            inherit_context: true
+        stages:
+          - name: "execution"
+            roles: ["executor"]
+          - name: "reporting"
+            roles: ["reporter"]
 session:
   dir: "${ALEX_WEB_SESSION_DIR}"
 attachments:
