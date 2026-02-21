@@ -152,7 +152,7 @@ check_arch_policy() {
 check_go_test() {
   step "go test -race"
   local coverage_tmp
-  coverage_tmp="$(mktemp "${TMPDIR:-/tmp}/prepush-coverage.XXXXXX.out")"
+  coverage_tmp="$(mktemp "${TMPDIR:-/tmp}/prepush-coverage.XXXXXX")"
   if (cd "$REPO_ROOT" && "$GO" test -race -covermode=atomic -coverprofile="$coverage_tmp" ./... 2>&1); then
     pass "go test -race"
   else
