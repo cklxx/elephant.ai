@@ -71,6 +71,13 @@ cooldown: 30
 → channel(action="copy_drive_file", file_token="fileXXX", folder_token="folderYYY", name="副本.pdf")
 ```
 
+## 自动执行原则
+
+- **根目录默认**：用户说"看看我的文件"时，直接调用 `channel(action="list_drive_files")`，默认列出根目录，不要问 folder_token。
+- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。
+- **链式浏览**：列出文件后如果用户想进入某个文件夹，自动用该文件夹的 token 再次查询。
+- **名称智能推断**：创建文件夹时如果用户没给名称，根据上下文自动命名。
+
 ## 安全等级
 
 - `list_drive_files`: L1 只读

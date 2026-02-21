@@ -54,6 +54,14 @@ cooldown: 30
 -> channel(action="list_sheets", spreadsheet_token="shtcnXXX")
 ```
 
+## 自动执行原则
+
+- **folder_token 可选**：创建表格时省略 folder_token 则创建在用户根目录，不要问用户放哪个文件夹。
+- **title 智能推断**：用户说"创建一个表格"时，根据上下文自动生成标题（如"数据报表 2026-02-21"），不要问用户取什么名。
+- **零交互查询**：用户提供 spreadsheet_token 后，直接查询，不要二次确认。
+- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。
+- **链式自动执行**：获取表格信息后自动列出所有工作表，方便用户一次看到完整结构。
+
 ## 安全等级
 
 - `get_spreadsheet` / `list_sheets`: L1 只读，无需审批

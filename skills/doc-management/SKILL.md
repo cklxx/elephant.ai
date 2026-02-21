@@ -51,6 +51,13 @@ cooldown: 30
 → channel(action="read_doc_content", document_id="doxcnXXX")
 ```
 
+## 自动执行原则
+
+- **folder_token 可选**：创建文档时省略 folder_token 则创建在用户根目录，不要问用户放哪个文件夹。
+- **title 智能推断**：用户说"创建一个文档"时，根据上下文自动生成标题，不要问用户取什么名。
+- **链式自动执行**：读取文档元信息后，如果用户需要内容，自动调用 `read_doc_content`，不要二次确认。
+- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。
+
 ## 安全等级
 
 - `read_doc` / `read_doc_content`: L1 只读，无需审批

@@ -89,7 +89,9 @@ func NewLarkChannel() tools.ToolExecutor {
 					"get_user/list_users/get_department/list_departments (contact), " +
 					"list_mailgroups/get_mailgroup/create_mailgroup (mail), " +
 					"list_meetings/get_meeting/list_rooms (VC). " +
-					"Write actions require approval. Only available inside a Lark chat context.",
+					"Write actions require approval. Only available inside a Lark chat context. " +
+					"IMPORTANT: Execute autonomously — never ask the user for IDs, tokens, or timestamps that can be auto-resolved from context or discovered via read-only actions. " +
+					"user_id defaults to current sender; folder_token defaults to root; timestamps should be computed from natural language.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -149,11 +151,11 @@ func NewLarkChannel() tools.ToolExecutor {
 						},
 						"start_time": {
 							Type:        "string",
-							Description: "Unix seconds: start time for create_event/query_events/update_event/list_meetings; filter for history.",
+							Description: "Unix seconds: start time for create_event/query_events/update_event/list_meetings; filter for history. Auto-compute from natural language like 'today'/'this week' — never ask the user for raw timestamps.",
 						},
 						"end_time": {
 							Type:        "string",
-							Description: "Unix seconds: end time for create_event/query_events/update_event/list_meetings; filter for history.",
+							Description: "Unix seconds: end time for create_event/query_events/update_event/list_meetings; filter for history. Auto-compute from natural language — never ask the user for raw timestamps.",
 						},
 						"description": {
 							Type:        "string",
@@ -202,7 +204,7 @@ func NewLarkChannel() tools.ToolExecutor {
 						},
 						"assignee_ids": {
 							Type:        "array",
-							Description: "Assignee IDs for create_task.",
+							Description: "Assignee IDs for create_task. Optional — defaults to current sender if omitted.",
 							Items:       &ports.Property{Type: "string"},
 						},
 						"assignee_type": {
@@ -211,11 +213,11 @@ func NewLarkChannel() tools.ToolExecutor {
 						},
 						"user_id_type": {
 							Type:        "string",
-							Description: "User ID type for task/contact operations (open_id/union_id/user_id).",
+							Description: "User ID type for task/contact operations. Defaults to open_id — do not ask the user which type to use.",
 						},
 						"user_access_token": {
 							Type:        "string",
-							Description: "User access token for task operations.",
+							Description: "User access token for task operations. Internal only — never ask the user for this.",
 						},
 						"client_token": {
 							Type:        "string",
@@ -232,12 +234,12 @@ func NewLarkChannel() tools.ToolExecutor {
 						},
 						"folder_token": {
 							Type:        "string",
-							Description: "Folder token for create_doc, list_drive_files, create_drive_folder, copy_drive_file.",
+							Description: "Folder token for create_doc, list_drive_files, create_drive_folder, copy_drive_file. Optional — defaults to root folder if omitted.",
 						},
 						// wiki params
 						"space_id": {
 							Type:        "string",
-							Description: "Wiki space ID for list_wiki_nodes/create_wiki_node.",
+							Description: "Wiki space ID for list_wiki_nodes/create_wiki_node. If unknown, call list_wiki_spaces first — never ask the user for space IDs.",
 						},
 						"node_token": {
 							Type:        "string",
@@ -254,11 +256,11 @@ func NewLarkChannel() tools.ToolExecutor {
 						// bitable params
 						"app_token": {
 							Type:        "string",
-							Description: "Bitable app token for bitable operations.",
+							Description: "Bitable app token for bitable operations. Extract from Bitable URLs the user shares — never ask for raw tokens.",
 						},
 						"table_id": {
 							Type:        "string",
-							Description: "Bitable table ID for record/field operations.",
+							Description: "Bitable table ID for record/field operations. If unknown, call list_bitable_tables first — never ask the user for table IDs.",
 						},
 						"record_id": {
 							Type:        "string",
@@ -311,11 +313,11 @@ func NewLarkChannel() tools.ToolExecutor {
 						// contact params
 						"department_id": {
 							Type:        "string",
-							Description: "Department ID for list_users/get_department.",
+							Description: "Department ID for list_users/get_department. If unknown, call list_departments or get_user first — never ask the user for department IDs.",
 						},
 						"parent_department_id": {
 							Type:        "string",
-							Description: "Parent department ID for list_departments (default: root).",
+							Description: "Parent department ID for list_departments. Optional — defaults to root department if omitted.",
 						},
 						// mail params
 						"mailgroup_id": {

@@ -89,6 +89,13 @@ cooldown: 30
 → channel(action="create_bitable_record", app_token="appXXX", table_id="tblXXX", fields={"Name":"Alice","Score":"95"})
 ```
 
+## 自动执行原则
+
+- **链式自动发现**：用户提供 app_token 后，自动调用 `list_bitable_tables` 获取所有表，再自动 `list_bitable_fields` 获取字段定义，不要中间问用户。
+- **禁止交互式菜单**：不要给出 table_id 列表让用户选择，如果只有一个表则直接使用，多个表时按名称匹配用户意图。
+- **字段智能映射**：写入记录时根据字段定义自动转换类型，不要问用户字段名怎么写。
+- **分页自动处理**：数据量大时自动翻页获取全部数据，不要问用户"要继续获取下一页吗"。
+
 ## 安全等级
 
 - `list_bitable_tables` / `list_bitable_records` / `list_bitable_fields`: L1 只读

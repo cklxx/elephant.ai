@@ -63,6 +63,14 @@ cooldown: 30
 -> channel(action="batch_get_okrs", okr_ids=["okr_1", "okr_2"])
 ```
 
+## 自动执行原则
+
+- **user_id 自动解析**：省略时从当前发送者的 open_id 自动获取，不要向用户询问。
+- **period_id 自动推断**：省略时查询当前进行中的周期。先调用 `list_okr_periods` 获取最新周期 ID，再自动传入 `list_user_okrs`。
+- **零参数调用**：用户说"查看我的 OKR"时，直接调用 `channel(action="list_user_okrs")`，不需要任何参数。
+- **禁止交互式菜单**：不要给出 [1] [2] [3] 选项让用户选择，直接执行最合理的操作。
+- **链式自动执行**：获取 OKR 列表后，如果用户想看详情，自动提取 okr_ids 调用 `batch_get_okrs`，不要二次确认。
+
 ## 安全等级
 
 - 所有操作: L1 只读，无需审批

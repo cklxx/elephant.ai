@@ -71,6 +71,13 @@ cooldown: 30
 → channel(action="get_wiki_node", node_token="wikcnXXX")
 ```
 
+## 自动执行原则
+
+- **零参数查询**：用户说"看看知识库"时，直接调用 `channel(action="list_wiki_spaces")`，不需要任何参数。
+- **禁止交互式菜单**：不要给出选项让用户选择知识空间，如果只有一个空间则直接使用。
+- **链式自动执行**：列出空间后自动列出根节点，方便用户一次看到完整结构。
+- **title 智能推断**：创建节点时如果用户没给标题，根据上下文自动生成。
+
 ## 安全等级
 
 - `list_wiki_spaces` / `list_wiki_nodes` / `get_wiki_node`: L1 只读

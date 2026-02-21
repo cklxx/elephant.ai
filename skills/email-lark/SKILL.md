@@ -61,6 +61,12 @@ cooldown: 30
 -> channel(action="create_mailgroup", email="team@company.com", name="Team Group")
 ```
 
+## 自动执行原则
+
+- **零参数查询**：用户说"看看邮件组"时，直接调用 `channel(action="list_mailgroups")`，不需要任何参数。
+- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。
+- **链式自动执行**：列出邮件组后，如果用户想看详情，自动提取 mailgroup_id 调用 `get_mailgroup`。
+
 ## 安全等级
 
 - `list_mailgroups` / `get_mailgroup`: L1 只读，无需审批
