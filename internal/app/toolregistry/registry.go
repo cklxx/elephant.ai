@@ -13,7 +13,6 @@ import (
 	toolspolicy "alex/internal/infra/tools"
 	runtimeconfig "alex/internal/shared/config"
 
-	"alex/internal/infra/tools/builtin/browser"
 	"alex/internal/infra/tools/builtin/orchestration"
 )
 
@@ -29,7 +28,6 @@ type Registry struct {
 	breakers     *circuitBreakerStore
 	degradation  DegradationConfig
 	SLACollector *toolspolicy.SLACollector
-	browserMgr   *browser.Manager
 }
 
 // filteredRegistry wraps a parent registry and excludes certain tools
@@ -320,15 +318,9 @@ func (r *Registry) List() []ports.ToolDefinition {
 	return defs
 }
 
-// Close releases managed resources (e.g. the shared Chrome process).
+// Close releases managed resources.
 func (r *Registry) Close() {
-	if r == nil {
-		return
-	}
-	if r.browserMgr != nil {
-		r.browserMgr.Close()
-		r.browserMgr = nil
-	}
+	// No-op: browser automation is managed by the MCP registry lifecycle.
 }
 
 func (r *Registry) Unregister(name string) error {

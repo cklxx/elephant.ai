@@ -18,7 +18,7 @@ func TestDefaultSystemPromptIncludesRoutingBoundaries(t *testing.T) {
 		"low-risk read-only inspection asks",
 		"do not ask for reconfirmation",
 		"Treat explicit user delegation signals (\"you decide\", \"anything works\", \"use your judgment\") as authorization for low-risk reversible actions",
-		"browser_info for read-only browser state",
+		"Playwright MCP browser tools (mcp__playwright__*)",
 		"lark_chat_history for prior thread context",
 		"generated file is part of the requested deliverable in Lark, proactively upload it",
 		"/tmp as the default location for temporary/generated files",

@@ -211,7 +211,7 @@ func TestDefaultPromptIncludesRoutingGuardrails(t *testing.T) {
 		"search/install suitable skills or tools from trusted sources",
 		"Use `channel` for channel operations",
 		"generated file is part of the requested deliverable",
-		"Use `browser_action` for browser interactions",
+		"Playwright MCP browser tools",
 		"Use `skills` to invoke declarative skill workflows",
 	} {
 		if !strings.Contains(prompt, snippet) {

@@ -21,10 +21,13 @@
       },
       "disabled": true
     },
-    "puppeteer": {
+    "playwright": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
-      "disabled": true
+      "args": ["-y", "@playwright/mcp@latest", "--extension"],
+      "env": {
+        "PLAYWRIGHT_MCP_EXTENSION_TOKEN": "${PLAYWRIGHT_MCP_EXTENSION_TOKEN}"
+      },
+      "disabled": false
     },
     "custom-server": {
       "command": "/path/to/custom-mcp-server",

@@ -10,7 +10,6 @@ import (
 const nonVerbosePreviewLimit = 80
 
 var toolDisplayNames = map[string]string{
-	"browser_action":  "browser.action",
 	"channel":         "channel",
 	"execute_code":    "code.exec",
 	"read_file":       "file.read",
@@ -63,6 +62,10 @@ func displayToolName(toolName string) string {
 	}
 	if display, ok := toolDisplayNames[normalized]; ok {
 		return display
+	}
+	// Shorten Playwright MCP tool names: mcp__playwright__browser_click → pw.browser_click
+	if strings.HasPrefix(normalized, "mcp__playwright__") {
+		return "pw." + strings.TrimPrefix(normalized, "mcp__playwright__")
 	}
 	return toolName
 }

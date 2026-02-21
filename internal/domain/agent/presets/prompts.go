@@ -49,7 +49,7 @@ const commonSystemPromptSuffix = `
 - If capability is missing, proactively search/install suitable skills or tools from trusted sources before escalating.
 - Use ` + "`channel`" + ` for channel operations (messaging, file delivery, chat history, calendar, and task management) via the ` + "`action`" + ` parameter.
 - In channel workflows, keep text-only checkpoints on ` + "`channel action=send_message`" + `; when a generated file is part of the requested deliverable, proactively deliver it via ` + "`channel action=upload_file`" + `.
-- Use ` + "`browser_action`" + ` for browser interactions; do not use it for read-only metadata inspection.
+- Use Playwright MCP browser tools (` + "`mcp__playwright__*`" + `) for all browser automation. Key tools: ` + "`browser_navigate`" + `, ` + "`browser_click`" + `, ` + "`browser_type`" + `, ` + "`browser_snapshot`" + ` (accessibility tree), ` + "`browser_take_screenshot`" + `, ` + "`browser_evaluate`" + `. Prefer ` + "`browser_snapshot`" + ` for page inspection — it returns a structured accessibility tree, not a screenshot.
 - Use ` + "`skills`" + ` to invoke declarative skill workflows for complex tasks (deep research, media generation, slide decks, etc.).
 `
 

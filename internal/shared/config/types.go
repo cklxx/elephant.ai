@@ -101,7 +101,12 @@ type RuntimeConfig struct {
 	ExternalAgents             ExternalAgentsConfig         `json:"external_agents" yaml:"external_agents"`
 }
 
-// BrowserConfig configures local browser tooling when sandbox is disabled.
+// BrowserConfig configures browser automation via the Playwright MCP server.
+// Connector selects the connection mode:
+//   - "extension" (default): connect to user's existing Chrome via the Playwright
+//     MCP Bridge extension; reuses authenticated sessions and cookies.
+//   - "headless": launch an isolated headless browser instance.
+//   - "cdp": connect to an existing Chrome DevTools Protocol endpoint.
 type BrowserConfig struct {
 	Connector      string `json:"connector" yaml:"connector"`
 	CDPURL         string `json:"cdp_url" yaml:"cdp_url"`

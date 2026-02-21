@@ -45,7 +45,7 @@ func TestNewRegistryRegistersLarkLocalTools(t *testing.T) {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	for _, want := range []string{"read_file", "write_file", "replace_in_file", "shell_exec", "execute_code", "browser_action", "channel"} {
+	for _, want := range []string{"read_file", "write_file", "replace_in_file", "shell_exec", "execute_code", "channel"} {
 		if _, err := registry.Get(want); err != nil {
 			t.Fatalf("expected %s to be registered for lark-local toolset: %v", want, err)
 		}
@@ -62,11 +62,12 @@ func TestNewRegistryRegistersExpectedToolCount(t *testing.T) {
 	for _, def := range defs {
 		names = append(names, def.Name)
 	}
-	// 15 core tools: read_file, write_file, replace_in_file, shell_exec,
-	// execute_code, browser_action, channel, web_search, skills,
+	// 14 core tools: read_file, write_file, replace_in_file, shell_exec,
+	// execute_code, channel, web_search, skills,
 	// plan, clarify, request_user, memory_search, memory_get, context_checkpoint
-	if len(defs) != 15 {
-		t.Fatalf("expected 15 tools, got %d: %v", len(defs), names)
+	// (browser tools are now provided by Playwright MCP server, not static registration)
+	if len(defs) != 14 {
+		t.Fatalf("expected 14 tools, got %d: %v", len(defs), names)
 	}
 }
 
@@ -318,7 +319,7 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 	// Core tools MUST be present
 	for _, want := range []string{
 		"read_file", "write_file", "replace_in_file", "shell_exec",
-		"execute_code", "browser_action",
+		"execute_code",
 		"plan", "clarify", "request_user",
 		"memory_search", "memory_get",
 		"web_search", "skills", "channel",
@@ -341,7 +342,7 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 		"okr_read", "okr_write",
 		"set_timer", "list_timers", "cancel_timer",
 		"scheduler_create_job", "scheduler_list_jobs", "scheduler_delete_job",
-		"browser_info", "browser_screenshot", "browser_dom",
+		"browser_action", "browser_info", "browser_screenshot", "browser_dom",
 		"list_dir", "search_file", "write_attachment",
 		"lark_send_message", "lark_chat_history", "lark_upload_file",
 		"lark_calendar_create", "lark_calendar_query",

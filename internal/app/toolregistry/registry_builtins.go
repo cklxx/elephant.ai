@@ -2,7 +2,6 @@ package toolregistry
 
 import (
 	"alex/internal/infra/tools/builtin/aliases"
-	"alex/internal/infra/tools/builtin/browser"
 	"alex/internal/infra/tools/builtin/larktools"
 	memorytools "alex/internal/infra/tools/builtin/memory"
 	sessiontools "alex/internal/infra/tools/builtin/session"
@@ -31,20 +30,12 @@ func (r *Registry) registerSessionTools() {
 }
 
 // registerPlatformTools registers the essential platform tools (local only).
+// Browser automation is provided by the Playwright MCP server registered in the
+// MCP registry; no static browser tool is needed here.
 func (r *Registry) registerPlatformTools(config Config) error {
 	fileConfig := shared.FileToolConfig{}
 	shellConfig := shared.ShellToolConfig{}
 
-	browserCfg := browser.Config{
-		CDPURL:      config.BrowserConfig.CDPURL,
-		ChromePath:  config.BrowserConfig.ChromePath,
-		Headless:    config.BrowserConfig.Headless,
-		UserDataDir: config.BrowserConfig.UserDataDir,
-		Timeout:     config.BrowserConfig.Timeout,
-	}
-	browserMgr := browser.NewManager(browserCfg)
-	r.browserMgr = browserMgr
-	r.static["browser_action"] = browser.NewBrowserAction(browserMgr)
 	r.static["read_file"] = aliases.NewReadFile(fileConfig)
 	r.static["write_file"] = aliases.NewWriteFile(fileConfig)
 	r.static["replace_in_file"] = aliases.NewReplaceInFile(fileConfig)

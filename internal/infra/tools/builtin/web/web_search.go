@@ -56,7 +56,7 @@ func newWebSearch(apiKey string, client *http.Client, cfg WebSearchConfig) *webS
 				Description: `Discover authoritative web sources when no trusted/fixed URL is provided yet (search-first step).
 
 Returns relevant results with summaries and URLs. After selecting one approved URL, use web_fetch for page retrieval.
-Do not use web_search for manual browser interactions/click flows; use browser_action.
+Do not use web_search for manual browser interactions/click flows; use Playwright MCP browser tools (mcp__playwright__*).
 
 Setup:
 1. Get API key from https://app.tavily.com/

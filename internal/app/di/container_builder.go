@@ -110,7 +110,17 @@ func (b *containerBuilder) Build() (*Container, error) {
 		externalExecutor = codinginfra.NewManagedExternalExecutor(externalRegistry, b.logger)
 	}
 
-	mcpRegistry := mcp.NewRegistry()
+	mcpRegistry := mcp.NewRegistry(
+		mcp.WithPlaywrightBrowser(mcp.PlaywrightBrowserConfig{
+			Connector:   b.config.BrowserConfig.Connector,
+			CDPURL:      b.config.BrowserConfig.CDPURL,
+			ChromePath:  b.config.BrowserConfig.ChromePath,
+			Headless:    b.config.BrowserConfig.Headless,
+			UserDataDir: b.config.BrowserConfig.UserDataDir,
+			Timeout:     b.config.BrowserConfig.Timeout,
+			BridgeToken: b.config.BrowserConfig.BridgeToken,
+		}),
+	)
 	tracker := newMCPInitializationTracker()
 
 	hookRegistry := b.buildHookRegistry(memoryEngine, llmFactory)

@@ -14,13 +14,14 @@ import (
 
 // Registry manages MCP servers and their tools
 type Registry struct {
-	configLoader *ConfigLoader
-	servers      map[string]*ServerInstance
-	toolAdapters map[string]*ToolAdapter
-	mu           sync.RWMutex
-	logger       logging.Logger
-	ctx          context.Context
-	cancel       context.CancelFunc
+	configLoader     *ConfigLoader
+	servers          map[string]*ServerInstance
+	toolAdapters     map[string]*ToolAdapter
+	mu               sync.RWMutex
+	logger           logging.Logger
+	ctx              context.Context
+	cancel           context.CancelFunc
+	playwrightConfig *PlaywrightBrowserConfig
 }
 
 // ServerInstance represents a running MCP server
@@ -91,7 +92,12 @@ func (r *Registry) Initialize() error {
 		return fmt.Errorf("invalid MCP configuration: %w", err)
 	}
 
-	// Start all active servers
+	// Start Playwright MCP browser server if configured programmatically.
+	if err := r.startPlaywrightIfConfigured(); err != nil {
+		r.logger.Error("Failed to start Playwright MCP server: %v", err)
+	}
+
+	// Start all active servers from .mcp.json config files.
 	activeServers := config.GetActiveServers()
 	r.logger.Info("Starting %d MCP servers", len(activeServers))
 
