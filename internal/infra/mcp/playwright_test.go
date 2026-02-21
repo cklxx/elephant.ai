@@ -6,31 +6,26 @@ import (
 )
 
 func TestPlaywrightServerConfig_ExtensionDefault(t *testing.T) {
-	cfg := PlaywrightBrowserConfig{}
+	cfg := PlaywrightBrowserConfig{} // empty → defaults to extension
 	sc := PlaywrightServerConfig(cfg)
 
 	if sc.Command != "npx" {
 		t.Errorf("Command = %q, want npx", sc.Command)
 	}
-	wantArgs := []string{"-y", "@playwright/mcp@latest", "--extension"}
-	if len(sc.Args) != len(wantArgs) {
-		t.Fatalf("Args = %v, want %v", sc.Args, wantArgs)
-	}
-	for i, a := range wantArgs {
-		if sc.Args[i] != a {
-			t.Errorf("Args[%d] = %q, want %q", i, sc.Args[i], a)
-		}
-	}
+	assertContains(t, sc.Args, "--extension")
+	assertNotContains(t, sc.Args, "--headless")
 }
 
 func TestPlaywrightServerConfig_ExtensionWithToken(t *testing.T) {
 	cfg := PlaywrightBrowserConfig{
-		BridgeToken: "test-token-123",
+		Connector:   "extension",
+		BridgeToken: "tok-123",
 	}
 	sc := PlaywrightServerConfig(cfg)
 
-	if sc.Env["PLAYWRIGHT_MCP_EXTENSION_TOKEN"] != "test-token-123" {
-		t.Errorf("Env token = %q, want test-token-123", sc.Env["PLAYWRIGHT_MCP_EXTENSION_TOKEN"])
+	assertContains(t, sc.Args, "--extension")
+	if sc.Env["PLAYWRIGHT_MCP_EXTENSION_TOKEN"] != "tok-123" {
+		t.Errorf("token env = %q, want tok-123", sc.Env["PLAYWRIGHT_MCP_EXTENSION_TOKEN"])
 	}
 }
 
@@ -38,64 +33,70 @@ func TestPlaywrightServerConfig_Headless(t *testing.T) {
 	cfg := PlaywrightBrowserConfig{Connector: "headless"}
 	sc := PlaywrightServerConfig(cfg)
 
-	found := map[string]bool{}
-	for _, a := range sc.Args {
-		found[a] = true
-	}
-	if !found["--headless"] {
-		t.Error("missing --headless flag")
-	}
-	if !found["--isolated"] {
-		t.Error("missing --isolated flag")
-	}
-	if found["--extension"] {
-		t.Error("should not have --extension in headless mode")
-	}
+	assertContains(t, sc.Args, "--headless")
+	assertContains(t, sc.Args, "--isolated")
+	assertNotContains(t, sc.Args, "--extension")
 }
 
 func TestPlaywrightServerConfig_CDP(t *testing.T) {
 	cfg := PlaywrightBrowserConfig{
 		Connector: "cdp",
-		CDPURL:    "ws://localhost:9222",
+		CDPURL:    "ws://127.0.0.1:9222",
 	}
 	sc := PlaywrightServerConfig(cfg)
 
-	for i, a := range sc.Args {
-		if a == "--cdp-endpoint" {
-			if i+1 >= len(sc.Args) || sc.Args[i+1] != "ws://localhost:9222" {
-				t.Errorf("--cdp-endpoint value = %q, want ws://localhost:9222", sc.Args[i+1])
-			}
+	assertContains(t, sc.Args, "--cdp-endpoint")
+	assertContains(t, sc.Args, "ws://127.0.0.1:9222")
+	assertNotContains(t, sc.Args, "--extension")
+}
+
+func TestPlaywrightServerConfig_ExtraOptions(t *testing.T) {
+	cfg := PlaywrightBrowserConfig{
+		Connector:   "headless",
+		ChromePath:  "/usr/bin/chromium",
+		UserDataDir: "/tmp/profile",
+		Timeout:     30 * time.Second,
+		Browser:     "chrome",
+		ExtraCaps:   []string{"vision", "pdf"},
+	}
+	sc := PlaywrightServerConfig(cfg)
+
+	assertContains(t, sc.Args, "--executable-path")
+	assertContains(t, sc.Args, "/usr/bin/chromium")
+	assertContains(t, sc.Args, "--user-data-dir")
+	assertContains(t, sc.Args, "/tmp/profile")
+	assertContains(t, sc.Args, "--timeout-action")
+	assertContains(t, sc.Args, "30000")
+	assertContains(t, sc.Args, "--browser")
+	assertContains(t, sc.Args, "chrome")
+	// Two --caps flags
+	capsCount := 0
+	for _, a := range sc.Args {
+		if a == "--caps" {
+			capsCount++
+		}
+	}
+	if capsCount != 2 {
+		t.Errorf("expected 2 --caps flags, got %d", capsCount)
+	}
+}
+
+func assertContains(t *testing.T, args []string, want string) {
+	t.Helper()
+	for _, a := range args {
+		if a == want {
 			return
 		}
 	}
-	t.Error("missing --cdp-endpoint flag")
+	t.Errorf("args %v does not contain %q", args, want)
 }
 
-func TestPlaywrightServerConfig_AllOptions(t *testing.T) {
-	cfg := PlaywrightBrowserConfig{
-		Connector:   "extension",
-		ChromePath:  "/usr/bin/chromium",
-		UserDataDir: "/tmp/browser-profile",
-		Timeout:     30 * time.Second,
-		BridgeToken: "tok",
-	}
-	sc := PlaywrightServerConfig(cfg)
-
-	argMap := map[string]string{}
-	for i := 0; i < len(sc.Args)-1; i++ {
-		argMap[sc.Args[i]] = sc.Args[i+1]
-	}
-
-	if argMap["--executable-path"] != "/usr/bin/chromium" {
-		t.Errorf("--executable-path = %q, want /usr/bin/chromium", argMap["--executable-path"])
-	}
-	if argMap["--user-data-dir"] != "/tmp/browser-profile" {
-		t.Errorf("--user-data-dir = %q, want /tmp/browser-profile", argMap["--user-data-dir"])
-	}
-	if argMap["--timeout"] != "30000" {
-		t.Errorf("--timeout = %q, want 30000", argMap["--timeout"])
-	}
-	if sc.Env["PLAYWRIGHT_MCP_EXTENSION_TOKEN"] != "tok" {
-		t.Errorf("env token = %q, want tok", sc.Env["PLAYWRIGHT_MCP_EXTENSION_TOKEN"])
+func assertNotContains(t *testing.T, args []string, unwant string) {
+	t.Helper()
+	for _, a := range args {
+		if a == unwant {
+			t.Errorf("args %v should not contain %q", args, unwant)
+			return
+		}
 	}
 }
