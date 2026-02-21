@@ -25,8 +25,7 @@ func runDevCommand(args []string) error {
 	switch cmd {
 	case "up", "start":
 		larkRequested := hasFlag(args, "--lark")
-		withAuthDB := hasFlag(args, "--with-authdb")
-		return devUp(larkRequested, withAuthDB)
+		return devUp(larkRequested)
 	case "down", "stop":
 		return devDown(args...)
 	case "status":
@@ -55,8 +54,8 @@ func runDevCommand(args []string) error {
 	}
 }
 
-func devUp(larkRequested bool, withAuthDB bool) error {
-	orch, err := buildOrchestratorWithLarkOptions(larkRequested, withAuthDB)
+func devUp(larkRequested bool) error {
+	orch, err := buildOrchestrator()
 	if err != nil {
 		return err
 	}
@@ -140,7 +139,7 @@ func printDevSummary(orch *devops.Orchestrator, larkMode bool) {
 func devDown(flags ...string) error {
 	stopAll := hasFlag(flags, "--all")
 
-	orch, err := buildOrchestratorWithLarkOptions(false, stopAll)
+	orch, err := buildOrchestrator()
 	if err != nil {
 		return err
 	}
@@ -259,7 +258,7 @@ func devLint() error {
 
 func devLogsUI() error {
 	// Start all services first, then open log analyzer
-	if err := devUp(false, false); err != nil {
+	if err := devUp(false); err != nil {
 		return err
 	}
 
@@ -285,20 +284,12 @@ func devLogsUI() error {
 }
 
 func buildOrchestrator() (*devops.Orchestrator, error) {
-	// Management commands (status/logs/down/restart) should include auth DB so
-	// they can control/report it even when it was started via --with-authdb.
-	return buildOrchestratorWithLarkOptions(false, true)
-}
-
-func buildOrchestratorWithLarkOptions(larkRequested bool, withAuthDB bool) (*devops.Orchestrator, error) {
 	cfg, err := loadDevConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	orch := devops.NewOrchestrator(cfg)
-
-	// Build and register all services in dependency order
 	backendSvc := buildBackendService(orch)
 	webSvc := buildWebService(orch)
 	orch.RegisterServices(backendSvc, webSvc)
@@ -446,9 +437,8 @@ Usage:
   alex dev [command]
 
 Commands:
-  up|start [--lark] [--with-authdb]
-                    Start dev services. In lark mode, auth DB is skipped by default.
-  down|stop [--all]  Stop services
+  up|start [--lark]  Start dev services (backend + web)
+  down|stop [--all]  Stop services (--all resets bootstrap marker)
   status             Show status of all services
   logs [service]     Tail logs (server|web|all)
   restart [service]  Restart specified service(s) or all
