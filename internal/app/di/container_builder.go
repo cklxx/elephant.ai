@@ -163,6 +163,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithCheckpointStore(checkpointStore),
 		agentcoordinator.WithCredentialRefresher(credentialRefresher),
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
+		agentcoordinator.WithTeamDefinitions(convertTeamConfigs(b.config.ExternalAgents.Teams)),
 	)
 
 	// Register subagent tool after coordinator is created.
@@ -320,4 +321,41 @@ func (b *containerBuilder) isExternalAgentEnabled(agentType string) bool {
 	default:
 		return false
 	}
+}
+
+// convertTeamConfigs maps config-layer TeamConfig to domain-layer TeamDefinition.
+func convertTeamConfigs(configs []runtimeconfig.TeamConfig) []agent.TeamDefinition {
+	if len(configs) == 0 {
+		return nil
+	}
+	teams := make([]agent.TeamDefinition, 0, len(configs))
+	for _, cfg := range configs {
+		roles := make([]agent.TeamRoleDefinition, 0, len(cfg.Roles))
+		for _, r := range cfg.Roles {
+			roles = append(roles, agent.TeamRoleDefinition{
+				Name:           r.Name,
+				AgentType:      r.AgentType,
+				PromptTemplate: r.PromptTemplate,
+				ExecutionMode:  r.ExecutionMode,
+				AutonomyLevel:  r.AutonomyLevel,
+				WorkspaceMode:  r.WorkspaceMode,
+				Config:         r.Config,
+				InheritContext: r.InheritContext,
+			})
+		}
+		stages := make([]agent.TeamStageDefinition, 0, len(cfg.Stages))
+		for _, s := range cfg.Stages {
+			stages = append(stages, agent.TeamStageDefinition{
+				Name:  s.Name,
+				Roles: s.Roles,
+			})
+		}
+		teams = append(teams, agent.TeamDefinition{
+			Name:        cfg.Name,
+			Description: cfg.Description,
+			Roles:       roles,
+			Stages:      stages,
+		})
+	}
+	return teams
 }

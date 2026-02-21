@@ -115,3 +115,11 @@ func WithToolSLACollector(collector *toolspolicy.SLACollector) CoordinatorOption
 		}
 	}
 }
+
+// WithTeamDefinitions provides pre-configured agent team definitions for
+// the team_dispatch tool.
+func WithTeamDefinitions(teams []agent.TeamDefinition) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		c.teamDefinitions = teams
+	}
+}

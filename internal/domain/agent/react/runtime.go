@@ -184,6 +184,11 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 		r.ctx = agent.WithBackgroundDispatcher(r.ctx, newBackgroundDispatcherWithEvents(r, r.bgManager))
 	}
 
+	// Inject team definitions for team_dispatch tool.
+	if len(r.engine.teamDefinitions) > 0 {
+		r.ctx = agent.WithTeamDefinitions(r.ctx, r.engine.teamDefinitions)
+	}
+
 	for r.state.Iterations < r.engine.maxIterations {
 		// Inject background completion notifications before each iteration.
 		r.injectBackgroundNotifications()

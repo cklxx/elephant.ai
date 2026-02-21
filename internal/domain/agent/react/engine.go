@@ -42,6 +42,8 @@ type ReactEngine struct {
 	backgroundManager *BackgroundTaskManager
 	// Optional external agent executor for non-internal agent types.
 	externalExecutor agent.ExternalAgentExecutor
+	// Pre-configured team definitions for team_dispatch tool.
+	teamDefinitions []agent.TeamDefinition
 }
 
 type workflowRecorder struct {
@@ -128,6 +130,8 @@ type ReactEngineConfig struct {
 	// ExternalExecutor handles external code agents (e.g., Claude Code CLI).
 	// Optional; when nil only "internal" agent type is supported.
 	ExternalExecutor agent.ExternalAgentExecutor
+	// TeamDefinitions are pre-configured agent teams available to the team_dispatch tool.
+	TeamDefinitions []agent.TeamDefinition
 }
 
 type FinalAnswerReviewConfig struct {

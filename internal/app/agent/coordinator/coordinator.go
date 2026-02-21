@@ -51,6 +51,7 @@ type AgentCoordinator struct {
 	externalExecutor agent.ExternalAgentExecutor
 	bgRegistry       *backgroundTaskRegistry
 	iterationHook    agent.IterationHook
+	teamDefinitions  []agent.TeamDefinition
 	checkpointStore  react.CheckpointStore
 
 	prepService           preparationService
@@ -431,6 +432,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		BackgroundExecutor: backgroundExecutor,
 		BackgroundManager:  bgManager,
 		ExternalExecutor:   c.externalExecutor,
+		TeamDefinitions:    c.teamDefinitions,
 	})
 
 	if eventListener != nil {

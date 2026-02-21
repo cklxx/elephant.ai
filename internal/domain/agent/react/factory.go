@@ -90,6 +90,7 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		backgroundExecutor:  cfg.BackgroundExecutor,
 		backgroundManager:   cfg.BackgroundManager,
 		externalExecutor:    cfg.ExternalExecutor,
+		teamDefinitions:     cfg.TeamDefinitions,
 	}
 }
 
