@@ -22,6 +22,14 @@ func normalizeToolSchema(schema ports.ParameterSchema) ports.ParameterSchema {
 	if normalized.Properties == nil {
 		normalized.Properties = map[string]ports.Property{}
 	}
+	// Ensure array properties always have items — providers like Codex reject
+	// array schemas without an items field.
+	for name, prop := range normalized.Properties {
+		if prop.Type == "array" && prop.Items == nil {
+			prop.Items = &ports.Property{Type: "string"}
+			normalized.Properties[name] = prop
+		}
+	}
 	return normalized
 }
 

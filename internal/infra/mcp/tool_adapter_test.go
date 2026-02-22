@@ -173,6 +173,81 @@ func TestToolAdapter_Definition(t *testing.T) {
 	}
 }
 
+func TestToolAdapter_Definition_ArrayItemsPreserved(t *testing.T) {
+	schema := ToolSchema{
+		Name:        "browser_click",
+		Description: "Click an element",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"selector": map[string]interface{}{
+					"type":        "string",
+					"description": "CSS selector",
+				},
+				"modifiers": map[string]interface{}{
+					"type":        "array",
+					"description": "Keyboard modifiers",
+					"items": map[string]interface{}{
+						"type": "string",
+						"enum": []interface{}{"Alt", "Control", "Meta", "Shift"},
+					},
+				},
+			},
+			"required": []interface{}{"selector"},
+		},
+	}
+
+	adapter := NewToolAdapter("playwright", nil, schema)
+	def := adapter.Definition()
+
+	modProp, exists := def.Parameters.Properties["modifiers"]
+	if !exists {
+		t.Fatal("Expected 'modifiers' parameter to exist")
+	}
+	if modProp.Type != "array" {
+		t.Errorf("Expected type 'array', got %s", modProp.Type)
+	}
+	if modProp.Items == nil {
+		t.Fatal("Expected Items to be set for array property — this caused Codex 'array schema missing items' rejection")
+	}
+	if modProp.Items.Type != "string" {
+		t.Errorf("Expected items type 'string', got %s", modProp.Items.Type)
+	}
+	if len(modProp.Items.Enum) != 4 {
+		t.Errorf("Expected 4 enum values in items, got %d", len(modProp.Items.Enum))
+	}
+}
+
+func TestToolAdapter_Definition_ArrayWithoutItemsDefaultsToString(t *testing.T) {
+	schema := ToolSchema{
+		Name:        "test_tool",
+		Description: "Test",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"tags": map[string]interface{}{
+					"type":        "array",
+					"description": "A list of tags",
+				},
+			},
+		},
+	}
+
+	adapter := NewToolAdapter("test", nil, schema)
+	def := adapter.Definition()
+
+	tagsProp, exists := def.Parameters.Properties["tags"]
+	if !exists {
+		t.Fatal("Expected 'tags' parameter to exist")
+	}
+	if tagsProp.Items == nil {
+		t.Fatal("Expected Items to default to string for bare array property")
+	}
+	if tagsProp.Items.Type != "string" {
+		t.Errorf("Expected default items type 'string', got %s", tagsProp.Items.Type)
+	}
+}
+
 func TestToolAdapter_Metadata(t *testing.T) {
 	schema := ToolSchema{
 		Name:        "test_tool",

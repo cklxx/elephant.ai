@@ -123,24 +123,7 @@ func (t *ToolAdapter) convertInputSchema() ports.ParameterSchema {
 	if inputSchema, ok := t.toolSchema.InputSchema["properties"].(map[string]interface{}); ok {
 		for propName, propValue := range inputSchema {
 			if propMap, ok := propValue.(map[string]interface{}); ok {
-				prop := ports.Property{}
-
-				// Extract type
-				if typeVal, ok := propMap["type"].(string); ok {
-					prop.Type = typeVal
-				}
-
-				// Extract description
-				if descVal, ok := propMap["description"].(string); ok {
-					prop.Description = descVal
-				}
-
-				// Extract enum if present
-				if enumVal, ok := propMap["enum"].([]interface{}); ok {
-					prop.Enum = enumVal
-				}
-
-				schema.Properties[propName] = prop
+				schema.Properties[propName] = convertPropertyMap(propMap)
 			}
 		}
 	}
@@ -155,6 +138,33 @@ func (t *ToolAdapter) convertInputSchema() ports.ParameterSchema {
 	}
 
 	return schema
+}
+
+// convertPropertyMap converts an MCP JSON Schema property map to a ports.Property.
+// It handles nested items for array types recursively.
+func convertPropertyMap(propMap map[string]interface{}) ports.Property {
+	prop := ports.Property{}
+
+	if typeVal, ok := propMap["type"].(string); ok {
+		prop.Type = typeVal
+	}
+	if descVal, ok := propMap["description"].(string); ok {
+		prop.Description = descVal
+	}
+	if enumVal, ok := propMap["enum"].([]interface{}); ok {
+		prop.Enum = enumVal
+	}
+	if itemsVal, ok := propMap["items"].(map[string]interface{}); ok {
+		items := convertPropertyMap(itemsVal)
+		prop.Items = &items
+	}
+	// Safety: array properties without items default to string items to prevent
+	// upstream rejections from providers that strictly validate JSON Schema.
+	if prop.Type == "array" && prop.Items == nil {
+		prop.Items = &ports.Property{Type: "string"}
+	}
+
+	return prop
 }
 
 // formatContent converts MCP content blocks to a single string
