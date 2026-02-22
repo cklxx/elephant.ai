@@ -23,6 +23,11 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	if len(droppedCallIDs) > 0 {
 		c.logger.Warn("%sDropped %d orphan function_call_output item(s): %s", prefix, len(droppedCallIDs), strings.Join(droppedCallIDs, ", "))
 	}
+	if len(input) == 0 {
+		emptyErr := fmt.Errorf("responses input is empty after converting %d message(s) — nothing to send", len(req.Messages))
+		c.logger.Warn("%s%v", prefix, emptyErr)
+		return nil, emptyErr
+	}
 	payload := map[string]any{
 		"model":  c.model,
 		"input":  input,
