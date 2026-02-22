@@ -199,20 +199,18 @@ func TestDefaultPromptIncludesRoutingGuardrails(t *testing.T) {
 	}
 	prompt := config.SystemPrompt
 	for _, snippet := range []string{
-		"Use `request_user` for explicit human approval/consent/manual gates",
-		"explicit low-risk read-only inspection requests",
-		"do not ask for reconfirmation",
-		"Treat explicit user delegation signals (\"you decide\", \"anything works\", \"use your judgment\") as authorization for low-risk reversible actions",
-		"Exhaust safe deterministic attempts before asking the user",
-		"If intent is unclear, inspect memory and thread context first",
-		"Distinguish repo files vs memory notes",
-		"Prefer `execute_code` for deterministic recalculation/metric/invariant checks",
-		"Default temporary/generated files to `/tmp`",
-		"search/install suitable skills or tools from trusted sources",
-		"Use `channel` for channel operations",
-		"generated file is part of the requested deliverable",
-		"Playwright MCP browser tools",
-		"Use `skills` to invoke declarative skill workflows",
+		// 7C Response Quality with NEVER patterns
+		"NEVER invent facts",
+		"NEVER bury the conclusion",
+		"NEVER repeat information already stated",
+		"NEVER silently drop requirements",
+		// Response style forbidden patterns
+		"NEVER use emojis unless",
+		"NEVER start responses with filler",
+		// Tool routing reinforcement (slimmed to 3 key rules)
+		"ONLY when critical input is missing after all viable tool attempts fail",
+		"ONLY for explicit human gates (login, 2FA, CAPTCHA",
+		"NEVER for single-step actions",
 	} {
 		if !strings.Contains(prompt, snippet) {
 			t.Fatalf("expected system prompt to contain %q", snippet)
