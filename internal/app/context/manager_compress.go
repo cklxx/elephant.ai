@@ -10,12 +10,70 @@ import (
 	"alex/internal/shared/token"
 )
 
-// EstimateTokens counts tokens using tiktoken (cl100k_base).
+// EstimateTokens counts tokens for all message components: content, tool calls,
+// tool results, thinking parts, and structural overhead. Previous implementation
+// only counted msg.Content, leading to severe underestimates that caused
+// context_length_exceeded errors at the LLM provider.
 func (m *manager) EstimateTokens(messages []ports.Message) int {
 	count := 0
 	for _, msg := range messages {
+		count += EstimateMessageTokens(msg)
+	}
+	return count
+}
+
+// EstimateMessageTokens counts tokens for a single message including all
+// components that contribute to the actual token count sent to the LLM.
+func EstimateMessageTokens(msg ports.Message) int {
+	// Per-message overhead: role tag, separators (~4 tokens).
+	count := 4
+
+	// Content (primary text).
+	if msg.Content != "" {
 		count += tokenutil.CountTokens(msg.Content)
 	}
+
+	// Tool calls: each call has name + JSON-serialized arguments.
+	for _, call := range msg.ToolCalls {
+		count += tokenutil.EstimateFast(call.Name)
+		count += tokenutil.EstimateFast(call.ID)
+		for key, val := range call.Arguments {
+			count += tokenutil.EstimateFast(key)
+			switch v := val.(type) {
+			case string:
+				count += tokenutil.CountTokens(v)
+			default:
+				// Non-string args: estimate ~10 tokens per entry.
+				count += 10
+			}
+		}
+		// Structural overhead per tool call (~8 tokens for JSON wrapper).
+		count += 8
+	}
+
+	// Thinking parts.
+	for _, part := range msg.Thinking.Parts {
+		if part.Text != "" {
+			count += tokenutil.CountTokens(part.Text)
+		}
+	}
+
+	// Tool call ID (for tool result messages).
+	if msg.ToolCallID != "" {
+		count += tokenutil.EstimateFast(msg.ToolCallID) + 4
+	}
+
+	// Attachments: base64 image data is expensive. Use a flat estimate per
+	// image since actual vision token cost is model-dependent and opaque.
+	for _, att := range msg.Attachments {
+		if att.Data != "" {
+			count += 500 // flat estimate for base64-encoded image
+		}
+		if att.Description != "" {
+			count += tokenutil.EstimateFast(att.Description)
+		}
+	}
+
 	return count
 }
 

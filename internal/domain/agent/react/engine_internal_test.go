@@ -12,6 +12,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/ports/storage"
 	materialports "alex/internal/domain/materials/ports"
 )
 
@@ -1484,3 +1485,192 @@ func TestCompactToolResultAttachmentsClearsStateToolResults(t *testing.T) {
 		t.Fatalf("expected URI preserved, got %q", results[0].Attachments["report.pdf"].URI)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// isContextLengthExceeded tests
+// ---------------------------------------------------------------------------
+
+func TestIsContextLengthExceeded(t *testing.T) {
+	tests := []struct {
+		name   string
+		err    error
+		expect bool
+	}{
+		{
+			name:   "nil error",
+			err:    nil,
+			expect: false,
+		},
+		{
+			name:   "generic error",
+			err:    fmt.Errorf("something went wrong"),
+			expect: false,
+		},
+		{
+			name:   "anthropic context_length_exceeded",
+			err:    fmt.Errorf(`llm error: {"type":"error","error":{"type":"invalid_request_error","code":"context_length_exceeded","message":"Your input exceeds the context window of this model."}}`),
+			expect: true,
+		},
+		{
+			name:   "openai context window error",
+			err:    fmt.Errorf("This model's maximum context length is 128000 tokens. However, your messages resulted in 150000 tokens."),
+			expect: true,
+		},
+		{
+			name:   "wrapped error with context_length_exceeded",
+			err:    fmt.Errorf("LLM call failed: %w", fmt.Errorf("status 400: context_length_exceeded")),
+			expect: true,
+		},
+		{
+			name:   "context window phrase",
+			err:    fmt.Errorf("Your input exceeds the context window of this model"),
+			expect: true,
+		},
+		{
+			name:   "rate limit error (should not match)",
+			err:    fmt.Errorf("rate limit exceeded, please retry"),
+			expect: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isContextLengthExceeded(tt.err)
+			if got != tt.expect {
+				t.Errorf("isContextLengthExceeded(%v) = %v, want %v", tt.err, got, tt.expect)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// emergencyTrimState tests
+// ---------------------------------------------------------------------------
+
+func TestEmergencyTrimStateReducesMessages(t *testing.T) {
+	state := &TaskState{
+		Messages: []Message{
+			{Role: "system", Content: "System prompt", Source: ports.MessageSourceSystemPrompt},
+			{Role: "user", Content: "Turn 1"},
+			{Role: "assistant", Content: "Reply 1"},
+			{Role: "user", Content: "Turn 2"},
+			{Role: "assistant", Content: "Reply 2"},
+			{Role: "user", Content: "Turn 3"},
+			{Role: "assistant", Content: "Reply 3"},
+			{Role: "user", Content: "Turn 4"},
+			{Role: "assistant", Content: "Reply 4"},
+		},
+	}
+	before := len(state.Messages)
+	emergencyTrimState(state, Services{})
+	after := len(state.Messages)
+
+	if after >= before {
+		t.Errorf("expected fewer messages after trim, got before=%d after=%d", before, after)
+	}
+
+	// System prompt should be preserved.
+	if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
+		t.Errorf("expected system prompt preserved at index 0, got source=%q", state.Messages[0].Source)
+	}
+}
+
+func TestEmergencyTrimStateNilState(t *testing.T) {
+	// Should not panic.
+	emergencyTrimState(nil, Services{})
+}
+
+// ---------------------------------------------------------------------------
+// enforceContextBudget tests
+// ---------------------------------------------------------------------------
+
+func TestEnforceContextBudgetNoopUnderLimit(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{
+		CompletionDefaults: CompletionDefaults{
+			ContextTokenLimit: intPtr(100000),
+		},
+	})
+	mockCtx := &mockContextManager{
+		estimateFunc: func(msgs []ports.Message) int { return 5000 },
+	}
+	state := &TaskState{}
+	services := Services{
+		Context: mockCtx,
+	}
+	messages := []ports.Message{
+		{Role: "user", Content: "Hello"},
+	}
+	result := engine.enforceContextBudget(messages, state, services)
+	if len(result) != len(messages) {
+		t.Errorf("expected messages unchanged when under budget, got %d vs %d", len(result), len(messages))
+	}
+}
+
+func TestEnforceContextBudgetTrimsWhenOverLimit(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{
+		CompletionDefaults: CompletionDefaults{
+			ContextTokenLimit: intPtr(100),
+		},
+	})
+	callCount := 0
+	mockCtx := &mockContextManager{
+		estimateFunc: func(msgs []ports.Message) int {
+			callCount++
+			// First call: over budget; subsequent: report smaller.
+			if callCount <= 1 {
+				return 200
+			}
+			return 50
+		},
+		autoCompactFunc: func(msgs []ports.Message, limit int) ([]ports.Message, bool) {
+			return msgs[:1], true
+		},
+	}
+	state := &TaskState{}
+	services := Services{
+		Context: mockCtx,
+	}
+	messages := []ports.Message{
+		{Role: "system", Content: "System", Source: ports.MessageSourceSystemPrompt},
+		{Role: "user", Content: "Turn 1"},
+		{Role: "assistant", Content: "Reply 1"},
+		{Role: "user", Content: "Turn 2"},
+		{Role: "assistant", Content: "Reply 2"},
+	}
+	result := engine.enforceContextBudget(messages, state, services)
+	if len(result) >= len(messages) {
+		t.Errorf("expected fewer messages after budget enforcement, got %d vs %d", len(result), len(messages))
+	}
+}
+
+// mockContextManager for enforceContextBudget tests.
+type mockContextManager struct {
+	estimateFunc    func([]ports.Message) int
+	autoCompactFunc func([]ports.Message, int) ([]ports.Message, bool)
+}
+
+func (m *mockContextManager) EstimateTokens(msgs []ports.Message) int {
+	if m.estimateFunc != nil {
+		return m.estimateFunc(msgs)
+	}
+	return 0
+}
+func (m *mockContextManager) Compress(msgs []ports.Message, target int) ([]ports.Message, error) {
+	return msgs, nil
+}
+func (m *mockContextManager) AutoCompact(msgs []ports.Message, limit int) ([]ports.Message, bool) {
+	if m.autoCompactFunc != nil {
+		return m.autoCompactFunc(msgs, limit)
+	}
+	return msgs, false
+}
+func (m *mockContextManager) ShouldCompress(msgs []ports.Message, limit int) bool { return false }
+func (m *mockContextManager) Preload(ctx context.Context) error                   { return nil }
+func (m *mockContextManager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
+	return agent.ContextWindow{}, nil
+}
+func (m *mockContextManager) RecordTurn(ctx context.Context, record agent.ContextTurnRecord) error {
+	return nil
+}
+
+func intPtr(v int) *int { return &v }

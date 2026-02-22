@@ -189,3 +189,154 @@ func TestKeepRecentTurns_TrimOldTurns(t *testing.T) {
 		t.Errorf("first kept message = %q, want 'Turn 2'", result[0].Content)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// EstimateMessageTokens tests
+// ---------------------------------------------------------------------------
+
+func TestEstimateMessageTokensContentOnly(t *testing.T) {
+	msg := ports.Message{Role: "user", Content: "Hello world"}
+	tokens := EstimateMessageTokens(msg)
+	// Should count content + 4 overhead.
+	if tokens <= 4 {
+		t.Errorf("expected tokens > 4 for content message, got %d", tokens)
+	}
+}
+
+func TestEstimateMessageTokensWithToolCalls(t *testing.T) {
+	msgPlain := ports.Message{Role: "assistant", Content: "I will search."}
+	msgWithTools := ports.Message{
+		Role:    "assistant",
+		Content: "I will search.",
+		ToolCalls: []ports.ToolCall{
+			{
+				ID:   "call_123",
+				Name: "web_search",
+				Arguments: map[string]any{
+					"query": "how to fix context length exceeded errors in LLM applications",
+				},
+			},
+		},
+	}
+
+	plainTokens := EstimateMessageTokens(msgPlain)
+	withToolTokens := EstimateMessageTokens(msgWithTools)
+
+	if withToolTokens <= plainTokens {
+		t.Errorf("message with tool calls (%d) should have more tokens than plain (%d)",
+			withToolTokens, plainTokens)
+	}
+}
+
+func TestEstimateMessageTokensWithThinking(t *testing.T) {
+	msgNoThink := ports.Message{Role: "assistant", Content: "Answer."}
+	msgWithThink := ports.Message{
+		Role:    "assistant",
+		Content: "Answer.",
+		Thinking: ports.Thinking{
+			Parts: []ports.ThinkingPart{
+				{Text: "Let me think about this problem step by step and consider all the options."},
+			},
+		},
+	}
+
+	plainTokens := EstimateMessageTokens(msgNoThink)
+	thinkTokens := EstimateMessageTokens(msgWithThink)
+
+	if thinkTokens <= plainTokens {
+		t.Errorf("message with thinking (%d) should have more tokens than plain (%d)",
+			thinkTokens, plainTokens)
+	}
+}
+
+func TestEstimateMessageTokensWithAttachments(t *testing.T) {
+	msgNoAtt := ports.Message{Role: "user", Content: "Analyze this."}
+	msgWithAtt := ports.Message{
+		Role:    "user",
+		Content: "Analyze this.",
+		Attachments: map[string]ports.Attachment{
+			"image.png": {
+				Name:      "image.png",
+				MediaType: "image/png",
+				Data:      "iVBORw0KGgoAAAANSUhEUg==", // fake base64
+			},
+		},
+	}
+
+	plainTokens := EstimateMessageTokens(msgNoAtt)
+	attTokens := EstimateMessageTokens(msgWithAtt)
+
+	if attTokens <= plainTokens {
+		t.Errorf("message with attachment (%d) should have more tokens than plain (%d)",
+			attTokens, plainTokens)
+	}
+	// Attachment with data should add at least 500 tokens.
+	if attTokens < plainTokens+500 {
+		t.Errorf("attachment estimate should add ~500 tokens, got delta=%d", attTokens-plainTokens)
+	}
+}
+
+func TestEstimateMessageTokensWithToolCallID(t *testing.T) {
+	msgNoID := ports.Message{Role: "tool", Content: "Result content."}
+	msgWithID := ports.Message{
+		Role:       "tool",
+		Content:    "Result content.",
+		ToolCallID: "call_abc123def456",
+	}
+
+	plainTokens := EstimateMessageTokens(msgNoID)
+	idTokens := EstimateMessageTokens(msgWithID)
+
+	if idTokens <= plainTokens {
+		t.Errorf("message with tool_call_id (%d) should have more tokens than plain (%d)",
+			idTokens, plainTokens)
+	}
+}
+
+func TestEstimateTokensCountsAllComponents(t *testing.T) {
+	// Regression test: previous implementation only counted msg.Content,
+	// causing severe underestimates and context_length_exceeded errors.
+	mgr := &manager{}
+	messages := []ports.Message{
+		{Role: "system", Content: "You are a helpful assistant."},
+		{Role: "user", Content: "Search for information about Go."},
+		{
+			Role:    "assistant",
+			Content: "I'll search for that.",
+			ToolCalls: []ports.ToolCall{
+				{
+					ID:   "call_1",
+					Name: "web_search",
+					Arguments: map[string]any{
+						"query": "Go programming language information",
+					},
+				},
+			},
+			Thinking: ports.Thinking{
+				Parts: []ports.ThinkingPart{
+					{Text: "The user wants me to search for Go programming language."},
+				},
+			},
+		},
+		{
+			Role:       "tool",
+			Content:    "Go is a statically typed, compiled programming language designed at Google.",
+			ToolCallID: "call_1",
+		},
+	}
+
+	fullEstimate := mgr.EstimateTokens(messages)
+
+	// Old (content-only) estimate for comparison.
+	contentOnly := 0
+	for _, msg := range messages {
+		if msg.Content != "" {
+			contentOnly += len([]rune(msg.Content)) / 4 // rough estimate
+		}
+	}
+
+	if fullEstimate <= contentOnly {
+		t.Errorf("full estimate (%d) should exceed content-only estimate (%d)",
+			fullEstimate, contentOnly)
+	}
+}

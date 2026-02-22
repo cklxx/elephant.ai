@@ -73,10 +73,11 @@ type toolCallBatch struct {
 }
 
 type completionConfig struct {
-	temperature   float64
-	maxTokens     int
-	topP          float64
-	stopSequences []string
+	temperature       float64
+	maxTokens         int
+	contextTokenLimit int // budget for input messages (triggers trim when exceeded)
+	topP              float64
+	stopSequences     []string
 }
 
 // WorkflowTracker captures the minimal workflow operations the ReAct engine
@@ -92,10 +93,11 @@ type WorkflowTracker interface {
 
 // CompletionDefaults defines optional overrides for LLM completion behaviour.
 type CompletionDefaults struct {
-	Temperature   *float64
-	MaxTokens     *int
-	TopP          *float64
-	StopSequences []string
+	Temperature       *float64
+	MaxTokens         *int
+	ContextTokenLimit *int // Optional: input token budget; when exceeded, messages are trimmed before LLM call.
+	TopP              *float64
+	StopSequences     []string
 }
 
 // ReactEngineConfig captures the dependencies required to construct a ReactEngine.

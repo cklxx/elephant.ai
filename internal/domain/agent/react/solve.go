@@ -44,6 +44,12 @@ func (e *ReactEngine) think(
 	requestID := e.idGenerator.NewRequestIDWithLogID(e.idContextReader.LogIDFromContext(ctx))
 	filteredMessages, excluded := splitMessagesForLLM(state.Messages)
 
+	// Pre-flight context budget enforcement: estimate full token count and
+	// trim messages before sending to prevent context_length_exceeded errors.
+	if services.Context != nil && e.completion.contextTokenLimit > 0 {
+		filteredMessages = e.enforceContextBudget(filteredMessages, state, services)
+	}
+
 	e.logger.Debug(
 		"Preparing LLM request (request_id=%s): messages=%d (filtered=%d, excluded=%d), tools=%d",
 		requestID,
@@ -230,4 +236,121 @@ func (e *ReactEngine) think(
 		Metadata:  meta,
 		Source:    ports.MessageSourceAssistantReply,
 	}, nil
+}
+
+// enforceContextBudget trims messages when estimated tokens exceed the context
+// budget. It first tries AutoCompact (summarize older messages), then falls
+// back to aggressive trimming (keep only recent turns).
+func (e *ReactEngine) enforceContextBudget(
+	messages []ports.Message,
+	state *TaskState,
+	services Services,
+) []ports.Message {
+	limit := e.completion.contextTokenLimit
+	estimated := services.Context.EstimateTokens(messages)
+	if estimated <= limit {
+		return messages
+	}
+
+	e.logger.Warn("Context budget exceeded: estimated=%d limit=%d messages=%d — applying auto-compact",
+		estimated, limit, len(messages))
+
+	// Layer 1: Try AutoCompact (summarize older messages).
+	compacted, ok := services.Context.AutoCompact(messages, limit)
+	if ok {
+		afterCompact := services.Context.EstimateTokens(compacted)
+		e.logger.Info("Auto-compact reduced tokens: %d → %d (limit=%d)", estimated, afterCompact, limit)
+		if afterCompact <= limit {
+			// Also update state.Messages so subsequent iterations benefit.
+			state.Messages = rebuildStateMessages(state.Messages, compacted)
+			return compacted
+		}
+		messages = compacted
+		estimated = afterCompact
+	}
+
+	// Layer 2: Aggressive trim — keep system/important + last N turns.
+	// Start with 4 turns, reduce until under budget.
+	for turns := 4; turns >= 1; turns-- {
+		trimmed := aggressiveTrimMessages(messages, turns)
+		afterTrim := services.Context.EstimateTokens(trimmed)
+		e.logger.Info("Aggressive trim (turns=%d): %d → %d tokens (limit=%d)",
+			turns, estimated, afterTrim, limit)
+		if afterTrim <= limit {
+			state.Messages = rebuildStateMessages(state.Messages, trimmed)
+			return trimmed
+		}
+	}
+
+	// Last resort: keep only system/important messages + the very last message.
+	e.logger.Warn("All trimming strategies insufficient — keeping only preserved messages + last message")
+	trimmed := aggressiveTrimMessages(messages, 1)
+	state.Messages = rebuildStateMessages(state.Messages, trimmed)
+	return trimmed
+}
+
+// aggressiveTrimMessages keeps system/important/checkpoint messages and the
+// last N user-initiated turns, inserting a compression summary for removed
+// messages. This is a package-internal wrapper around the same logic used by
+// the context package's AggressiveTrim.
+func aggressiveTrimMessages(messages []ports.Message, maxTurns int) []ports.Message {
+	if maxTurns <= 0 {
+		maxTurns = 1
+	}
+
+	var preserved, conversation []ports.Message
+	for _, msg := range messages {
+		switch msg.Source {
+		case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceCheckpoint:
+			preserved = append(preserved, msg)
+		default:
+			conversation = append(conversation, msg)
+		}
+	}
+
+	kept := keepRecentTurnsLocal(conversation, maxTurns)
+
+	result := make([]ports.Message, 0, len(preserved)+len(kept)+1)
+	result = append(result, preserved...)
+	if len(kept) > 0 && len(conversation) > len(kept) {
+		result = append(result, ports.Message{
+			Role:    "system",
+			Content: "[Context trimmed to fit model window. Earlier conversation was removed.]",
+			Source:  ports.MessageSourceSystemPrompt,
+		})
+	}
+	result = append(result, kept...)
+	return result
+}
+
+// keepRecentTurnsLocal mirrors context.keepRecentTurns for use within react.
+func keepRecentTurnsLocal(messages []ports.Message, maxTurns int) []ports.Message {
+	if len(messages) == 0 || maxTurns <= 0 {
+		return nil
+	}
+	var turnStarts []int
+	for i, msg := range messages {
+		if strings.EqualFold(strings.TrimSpace(msg.Role), "user") {
+			turnStarts = append(turnStarts, i)
+		}
+	}
+	if len(turnStarts) == 0 {
+		return messages
+	}
+	start := 0
+	if len(turnStarts) > maxTurns {
+		start = turnStarts[len(turnStarts)-maxTurns]
+	} else {
+		start = turnStarts[0]
+	}
+	return messages[start:]
+}
+
+// rebuildStateMessages replaces non-debug/non-eval messages in the original
+// state with the trimmed set. This is a best-effort update — if the trimmed
+// set is a subset, we just use it directly.
+func rebuildStateMessages(original, trimmed []ports.Message) []ports.Message {
+	// Simple approach: use the trimmed messages as the new state.
+	// The debug/eval messages were already excluded by splitMessagesForLLM.
+	return trimmed
 }

@@ -792,6 +792,12 @@ func (it *reactIteration) think() error {
 	))
 
 	thought, err := it.runtime.engine.think(it.runtime.ctx, state, services)
+	if err != nil && isContextLengthExceeded(err) {
+		// Context length exceeded — apply emergency trim and retry once.
+		it.runtime.engine.logger.Warn("Context length exceeded, applying emergency trim and retrying think step")
+		emergencyTrimState(state, services)
+		thought, err = it.runtime.engine.think(it.runtime.ctx, state, services)
+	}
 	if err != nil {
 		it.runtime.engine.logger.Error("Think step failed: %v", err)
 
@@ -1080,4 +1086,29 @@ func (r *reactRuntime) persistSessionAfterIteration() {
 	if r.engine.sessionPersister != nil {
 		r.engine.sessionPersister(r.ctx, nil, r.state)
 	}
+}
+
+// isContextLengthExceeded checks whether the error indicates the LLM provider
+// rejected the request because the input exceeded the model's context window.
+func isContextLengthExceeded(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "context_length_exceeded") ||
+		strings.Contains(msg, "context window") ||
+		strings.Contains(msg, "maximum context length") ||
+		strings.Contains(msg, "token limit exceeded") ||
+		strings.Contains(msg, "exceeds the model's maximum context")
+}
+
+// emergencyTrimState applies aggressive trimming to state.Messages when the
+// LLM rejects the request due to context length. This is the last-resort
+// safety net after pre-flight enforcement has already been attempted.
+func emergencyTrimState(state *TaskState, services Services) {
+	if state == nil {
+		return
+	}
+	trimmed := aggressiveTrimMessages(state.Messages, 2)
+	state.Messages = trimmed
 }

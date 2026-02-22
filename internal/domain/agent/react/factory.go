@@ -105,6 +105,13 @@ func buildCompletionDefaults(cfg CompletionDefaults) completionConfig {
 		maxTokens = *cfg.MaxTokens
 	}
 
+	// Default context token limit: 8x the output budget.
+	// For maxTokens=12000, this is 96000 — safe for 128K+ models.
+	contextTokenLimit := maxTokens * 8
+	if cfg.ContextTokenLimit != nil && *cfg.ContextTokenLimit > 0 {
+		contextTokenLimit = *cfg.ContextTokenLimit
+	}
+
 	topP := 1.0
 	if cfg.TopP != nil {
 		topP = *cfg.TopP
@@ -114,9 +121,10 @@ func buildCompletionDefaults(cfg CompletionDefaults) completionConfig {
 	copy(stopSequences, cfg.StopSequences)
 
 	return completionConfig{
-		temperature:   temperature,
-		maxTokens:     maxTokens,
-		topP:          topP,
-		stopSequences: stopSequences,
+		temperature:       temperature,
+		maxTokens:         maxTokens,
+		contextTokenLimit: contextTokenLimit,
+		topP:              topP,
+		stopSequences:     stopSequences,
 	}
 }
