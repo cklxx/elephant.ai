@@ -352,6 +352,12 @@ func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, s
 	if err := g.llmSelections.Set(ctx, scope, selection); err != nil {
 		return err
 	}
+	// Clear legacy chat+user scope to avoid stale overrides.
+	if legacyScope, ok := legacyChatUserScope(msg); ok {
+		if err := g.llmSelections.Clear(ctx, legacyScope); err != nil {
+			g.logger.Warn("Lark LLM legacy scope clear failed: %v", err)
+		}
+	}
 	if err := markLarkOnboardingComplete(ctx, selection); err != nil {
 		g.logger.Warn("Lark onboarding state update failed: %v", err)
 	}
