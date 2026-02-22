@@ -324,5 +324,40 @@ func isTerminalDispatchStatus(s kernel.DispatchStatus) bool {
 	}
 }
 
+// RecoverStaleRunning marks dispatches stuck in "running" longer than
+// leaseDuration as "failed". This prevents permanently blocked agents
+// when a previous cycle's executor crashed without completing.
+func (s *FileStore) RecoverStaleRunning(_ context.Context, kernelID string) (int, error) {
+	now := s.now()
+	cutoff := now.Add(-s.leaseDuration)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var recovered int
+	for id, d := range s.dispatches {
+		if d.KernelID != kernelID {
+			continue
+		}
+		if d.Status != kernel.DispatchRunning {
+			continue
+		}
+		if d.UpdatedAt.After(cutoff) {
+			continue
+		}
+		d.Status = kernel.DispatchFailed
+		d.Error = fmt.Sprintf("recovered: stale running since %s (lease=%s)", d.UpdatedAt.Format("2006-01-02T15:04:05Z"), s.leaseDuration)
+		d.UpdatedAt = now
+		s.dispatches[id] = d
+		recovered++
+	}
+	if recovered > 0 {
+		if err := s.persistLocked(); err != nil {
+			return 0, fmt.Errorf("persist after stale recovery: %w", err)
+		}
+	}
+	return recovered, nil
+}
+
 // Compile-time interface check.
 var _ kernel.Store = (*FileStore)(nil)
