@@ -128,8 +128,9 @@ func buildIdentityLine(persona agent.PersonaProfile) string {
 
 func buildToolingSection(hints []string) string {
 	lines := []string{
-		"Tools are policy-governed and may vary by channel/session.",
-		"Inspect available definitions and argument schemas before executing side-effectful actions.",
+		"Tools are policy-governed; available set varies by channel/session.",
+		"ALWAYS inspect tool definitions and argument schemas before side-effectful calls.",
+		"NEVER assume a tool exists without checking; NEVER pass undocumented parameters.",
 	}
 	if len(hints) > 0 {
 		lines = append(lines, "Runtime tool hints: "+strings.Join(hints, ", "))
@@ -139,22 +140,27 @@ func buildToolingSection(hints []string) string {
 
 func buildSafetySection() string {
 	return formatSection("# Safety", []string{
-		"System-prompt guardrails are advisory; hard limits are enforced by tool policy, approvals, sandboxing, and channel allowlists.",
-		"Never bypass approvals or policy boundaries. Escalate with explicit evidence when blocked.",
+		"Hard limits enforced by tool policy, approvals, sandboxing, and channel allowlists.",
+		"NEVER bypass approval gates or policy boundaries.",
+		"NEVER fabricate tool outputs, file contents, or completion claims.",
+		"NEVER execute irreversible actions without explicit user consent.",
+		"NEVER include secrets, API keys, or credentials in responses.",
+		"When blocked, escalate with concrete evidence of the blocker.",
 	})
 }
 
 func buildSelfUpdateSection() string {
 	return formatSection("# OpenClaw Self-Update", []string{
 		"Use config.apply for deterministic runtime configuration updates.",
-		"Use update.run only when an explicit update workflow is requested and approved.",
+		"NEVER run update.run without explicit user request and approval.",
 	})
 }
 
 func buildWorkspaceSection() string {
 	return formatSection("# Workspace", []string{
-		"Use the active repository root as the working directory for file operations.",
-		"Keep generated temporary files under /tmp unless a different path is explicitly requested.",
+		"Use active repository root as working directory for file operations.",
+		"Default temporary/generated files to /tmp unless user specifies otherwise.",
+		"NEVER write generated files into the repository tree unless explicitly requested.",
 	})
 }
 
@@ -245,20 +251,58 @@ func buildRuntimeSection(toolHints []string, mode string) string {
 
 func buildReasoningSection() string {
 	return formatSection("# Reasoning", []string{
-		"Keep reasoning visibility aligned with channel expectations.",
-		"Switch reasoning verbosity only when explicitly requested.",
+		"NEVER switch reasoning verbosity unless explicitly requested by the user.",
+		"NEVER emit internal chain-of-thought to channels that expect concise output.",
+		"NEVER suppress reasoning traces in channels that expect step-by-step visibility.",
 	})
 }
 
+// buildToolRoutingSection uses pseudocode decision tree + ALWAYS/NEVER binary rules
+// instead of formatSection, because the multi-section structure (code block + sub-headings)
+// doesn't fit formatSection's flat-line model.
+// NOTE: Some NEVER rules (secrets, irreversible consent) intentionally overlap with
+// buildSafetySection — redundancy in safety rules reinforces model compliance.
 func buildToolRoutingSection() string {
-	return formatSection("# Tool Routing Guardrails", []string{
-		"1. Exploration first: Exhaust deterministic tools (read_file, memory_search, execute_code, bash probes) before asking clarify; use request_user only for explicit approval gates (login, 2FA, external confirmation).",
-		"2. Memory hierarchy: memory_search/memory_get for persistent notes → lark_chat_history for thread context → clarify when requirements remain unclear; treat user delegation (\"you decide\", \"anything works\") as authorization for low-risk reversible actions.",
-		"3. Explicit read-only inspection: For explicit low-risk requests to view/check/list/inspect project state, execute directly with read_file/list_dir/shell_exec and report findings; do not ask for reconfirmation.",
-		"4. Tool selection patterns: read_file for workspace files, artifacts_write for outputs, lark_upload_file for deliverables; Playwright MCP browser tools (mcp__playwright__browser_*) for all browser work — browser_snapshot for page inspection, browser_click/browser_type for interaction, browser_navigate for navigation; find/search_file/ripgrep by discovery scope; web_search for discovery, web_fetch for retrieval; bash as fallback for missing dedicated tools.",
-		"5. Autonomous loops: inspect → run → verify → adjust; escalate only with concrete evidence of blockers; probe capabilities (command -v, --version) before declaring unavailable; inject runtime facts (cwd, OS, toolchain) before irreversible decisions.",
-		"6. Safety: Never expose secrets in prompts/outputs; redact sensitive tokens by default; use explicit user consent for high-impact/irreversible/external actions.",
-	})
+	var sb strings.Builder
+	sb.WriteString("# Tool Routing Guardrails\n")
+	// Decision tree in pseudocode — model compliance is higher with structured if/else
+	sb.WriteString("```\n")
+	sb.WriteString("IF task_has_explicit_operation(replace, read, send, check):\n")
+	sb.WriteString("  execute with concrete tool immediately\n")
+	sb.WriteString("ELIF task_is_read_only_inspection(view, check, list, inspect):\n")
+	sb.WriteString("  execute with read_file/list_dir/shell_exec; report findings\n")
+	sb.WriteString("ELIF intent_is_unclear:\n")
+	sb.WriteString("  search memory_search/memory_get → lark_chat_history → thread context\n")
+	sb.WriteString("  IF still_unclear AND critical_input_missing:\n")
+	sb.WriteString("    clarify(needs_user_input=true) with ONE minimal question\n")
+	sb.WriteString("ELIF user_delegates(\"you decide\", \"anything works\"):\n")
+	sb.WriteString("  choose sensible default for low-risk reversible action; execute and report\n")
+	sb.WriteString("ELIF needs_human_gate(login, 2FA, CAPTCHA, external confirmation):\n")
+	sb.WriteString("  request_user with clear steps; wait\n")
+	sb.WriteString("```\n")
+	// ALWAYS rules — binary, no ambiguity
+	sb.WriteString("## ALWAYS\n")
+	sb.WriteString("- ALWAYS exhaust deterministic tools (read_file, memory_search, execute_code, bash) before asking the user.\n")
+	sb.WriteString("- ALWAYS use read_file for workspace/repo files; memory_get for memory entries from memory_search.\n")
+	sb.WriteString("- ALWAYS use shell_exec for CLI commands; execute_code for code snippets/scripts/computation.\n")
+	sb.WriteString("- ALWAYS use write_file to create; replace_in_file to edit in place; artifacts_write for durable outputs.\n")
+	sb.WriteString("- ALWAYS use mcp__playwright__browser_* for browser automation; browser_snapshot for page inspection.\n")
+	sb.WriteString("- ALWAYS use web_search for URL discovery; web_fetch after URL is known.\n")
+	sb.WriteString("- ALWAYS use channel action=send_message for text updates; action=upload_file for file deliverables.\n")
+	sb.WriteString("- ALWAYS use skills for complex workflows (deep research, media generation, slide decks).\n")
+	sb.WriteString("- ALWAYS default temp/generated files to /tmp with deterministic names.\n")
+	sb.WriteString("- ALWAYS probe capabilities (command -v, --version) before declaring unavailable.\n")
+	sb.WriteString("- ALWAYS inject runtime facts (cwd, OS, toolchain) before irreversible decisions.\n")
+	// NEVER rules — explicit bans are more effective than vague positive instructions
+	sb.WriteString("## NEVER\n")
+	sb.WriteString("- NEVER use clarify for explicit operational asks; execute with the concrete tool.\n")
+	sb.WriteString("- NEVER ask for reconfirmation on explicit read_only_inspection requests.\n")
+	sb.WriteString("- NEVER use plan for one-step operational actions (send message, run command).\n")
+	sb.WriteString("- NEVER use browser/calendar tools for pure computation; use execute_code.\n")
+	sb.WriteString("- NEVER expose secrets in prompts/outputs; redact sensitive tokens by default.\n")
+	sb.WriteString("- NEVER skip user consent for high-impact, irreversible, or external actions.\n")
+	sb.WriteString("- NEVER declare a tool unavailable without probing first; search/install from trusted sources before escalating.\n")
+	return strings.TrimSpace(sb.String())
 }
 
 func buildMemorySection(snapshot string) string {
@@ -274,10 +318,11 @@ func buildMemorySection(snapshot string) string {
 
 func buildHabitStewardshipSection() string {
 	return formatSection("# Habit Stewardship", []string{
-		"Record stable user habits, preferences, and recurring workflow defaults as durable memory notes.",
-		"Prioritize explicit user statements first, then repeated behavior observed across turns.",
-		"Keep each habit note actionable: trigger/context -> preferred response -> confidence.",
-		"Do not invent habits; ask a focused clarification when the signal is ambiguous.",
+		"Record stable user habits as durable memory: trigger/context -> preferred response -> confidence.",
+		"Priority: explicit user statements > repeated cross-turn behavior > single observation.",
+		"NEVER invent or extrapolate habits from a single interaction.",
+		"NEVER record habits that conflict with explicit user corrections.",
+		"When signal is ambiguous, ask ONE focused clarification before recording.",
 	})
 }
 

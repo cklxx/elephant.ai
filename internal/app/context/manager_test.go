@@ -208,16 +208,16 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 			t.Fatalf("expected system prompt to include section %q, got %q", section, window.SystemPrompt)
 		}
 	}
-	// Check for compressed tool routing meta-rules
+	// Check for decision tree + ALWAYS/NEVER tool routing rules
 	for _, snippet := range []string{
-		"Exploration first",
-		"Memory hierarchy",
-		"Explicit read-only inspection",
-		"Tool selection patterns",
-		"user delegation",
-		"request_user only for explicit approval gates",
-		"bash as fallback",
-		"inject runtime facts",
+		"task_has_explicit_operation",
+		"read_only_inspection",
+		"memory_search/memory_get",
+		"user_delegates",
+		"needs_human_gate",
+		"ALWAYS exhaust deterministic tools",
+		"ALWAYS inject runtime facts",
+		"NEVER expose secrets",
 		"host shell execution with any available PATH tool",
 	} {
 		if !strings.Contains(window.SystemPrompt, snippet) {
