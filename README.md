@@ -8,11 +8,23 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Lark-native proactive personal agent.**
+**Personal local agent that maximizes human judgment leverage.**
 
 [中文文档](README.zh.md)
 
-elephant.ai lives inside your Lark groups and DMs as a first-class participant — not a bot you have to summon. It reads the room, remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. CLI and web dashboard are there when you need them, but Lark is home.
+elephant.ai lives inside your Lark groups and DMs as a first-class participant — not a bot you have to summon. It reads the room, remembers context across conversations, compresses context to keep long runs effective, takes initiative with built-in skills, and executes real work autonomously. CLI and web dashboard are there when you need them, but Lark is home.
+
+---
+
+## Core Objective (2026 refresh)
+
+Build a personal local agent that helps one person leverage maximum model intelligence with minimum attention cost:
+
+- **Attention-saving first** — concise status loops, high-signal summaries, reduced noise.
+- **Judgment leverage** — the agent explores/executes; the human focuses on goals, constraints, and final decisions.
+- **Proactive + overrideable** — suggest and act early, but keep user authority explicit.
+- **Subagent leverage** — parallelize exploration with subagents, then converge into a single decision-ready output.
+- **Context compression** — preserve decision-critical history while preventing context bloat.
 
 ---
 
@@ -25,16 +37,18 @@ Most AI assistants sit outside your workflow — a separate app, a separate tab,
 | **Always present** | Lives in your Lark groups and DMs via WebSocket. No `/slash` commands — just talk naturally. |
 | **Reads the room** | Auto-fetches recent chat history as context. Understands the conversation before replying. |
 | **Persistent memory** | Remembers conversations, decisions, and context across sessions. Never repeat yourself. |
+| **Context compression** | Compacts long conversations into high-signal summaries so quality stays stable over time. |
 | **Autonomous execution** | Full Think → Act → Observe loop. Web search, code, documents, browser — all from a Lark message. |
+| **Subagent leverage** | Runs parallel subagent tasks and converges them into one actionable outcome. |
 | **Live progress** | Shows tool execution progress and emoji reactions in real time while working. |
 | **Built-in skills** | Deep research, meeting notes, email drafting, slide decks, video production — triggered by natural language. |
 | **Approval gates** | Knows when to ask before acting. Risky operations require explicit human approval right in the chat. |
 
 ---
 
-## North Star: Calendar + Tasks closed loop (M0)
+## North Star Scenario: Calendar + Tasks closed loop (M0)
 
-The core vertical slice lives entirely in Lark: **read calendar/tasks → propose actions → write with approval → proactively follow up**.
+The flagship vertical slice lives entirely in Lark: **read calendar/tasks → propose actions → write with approval → proactively follow up**.
 
 Implemented building blocks:
 - **Calendar tools:** query/create/update/delete events (`lark_calendar_*`)

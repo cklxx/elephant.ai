@@ -4,6 +4,15 @@ Updated: 2026-02-11
 
 This roadmap is a **guided navigation + execution priority** for the current codebase.
 
+## 0) Core objective (2026 refresh)
+
+Build elephant.ai as a **personal local agent** that maximizes one person's judgment leverage by combining:
+
+- proactive execution that is always user-overrideable,
+- context compression that protects quality in long sessions,
+- attention-saving delivery loops (high signal, low noise),
+- parallel subagent exploration that converges into clear decisions.
+
 ## 1) Recommended reading order
 
 1. `README.md` / `README.zh.md`
@@ -45,8 +54,12 @@ Key entrypoints:
 - Scope: `internal/app/agent/coordinator/workflow_event_translator.go`, `internal/delivery/server/http/`, `internal/delivery/channels/lark/`, `web/hooks/useSSE/`.
 
 ### P2: Memory quality and policy tuning
-- Improve memory retrieval precision and policy gating for proactive usage.
+- Improve memory retrieval precision, context compression quality, and policy gating for proactive usage.
 - Scope: `internal/infra/memory`, `internal/app/context`, `internal/app/agent/hooks`.
+
+### P2: Attention-saving UX and subagent leverage
+- Improve in-flight status compression, subagent saturation control, and decision-ready summaries.
+- Scope: `internal/domain/agent/react`, `web/components/agent`, `cmd/alex`.
 
 ### P2: External agent orchestration maturity
 - Improve external bridge robustness, permission flow UX, and observability.

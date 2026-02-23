@@ -6,7 +6,13 @@ elephant.ai is an out-of-the-box Lark-native proactive AI assistant.
 One LLM API key + one Lark bot config = a persistent, context-aware agent that manages your calendar, tasks, and daily workflows autonomously.
 North-star metrics: **WTCR** (Weighted Task Completion Rate), **TimeSaved**, **Accuracy**.
 
-## North Star: Calendar + Tasks Closed Loop
+2026 refresh: treat elephant.ai as a **personal local agent leverage system**:
+- Save human attention through concise, high-signal progress loops.
+- Use context compression to keep long-running quality stable.
+- Maximize single-user throughput via controlled subagent parallelism.
+- Preserve explicit user override authority for risky or sensitive actions.
+
+## North Star Scenario: Calendar + Tasks Closed Loop
 
 The primary vertical slice: the assistant reads your calendar and tasks, reminds you proactively, creates/updates events and tasks on your behalf (with approval), and learns from your patterns over time.
 
@@ -23,10 +29,10 @@ The primary vertical slice: the assistant reads your calendar and tasks, reminds
 
 ## OKR Tree (Global)
 
-- **O0 (Product NSM):** complete the Calendar + Tasks closed loop, improve WTCR + TimeSaved.
-- **O1 (Agent Core):** planning reliability + proactive context + memory structure.
+- **O0 (Product NSM):** complete the Calendar + Tasks closed loop, improve WTCR + TimeSaved under attention-saving constraints.
+- **O1 (Agent Core):** planning reliability + proactive context + memory structure + context compression quality.
   - **KR1.4** (Steward) 跨轮结构化状态闭环可用（STATE 注入 → 解析 → 持久化 → 再注入）
-- **O2 (System Interaction):** tool SLA baseline + routing + scheduler reliability.
+- **O2 (System Interaction):** tool SLA baseline + routing + scheduler reliability + subagent parallelism control.
 - **O3 (Lark Ecosystem):** Calendar/Tasks CRUD + approval gate + proactive follow-up.
 - **O4 (Shadow DevOps):** eval/baseline/reporting + human-gated release loop.
 - **OS (Shared Infra):** event bus + observability + config/auth/error handling.
