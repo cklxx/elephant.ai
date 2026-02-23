@@ -2,7 +2,6 @@ package context
 
 import (
 	"alex/internal/domain/agent/ports"
-	"alex/internal/shared/token"
 )
 
 // ModelCostProfile captures per-model pricing and context-window limits used for
@@ -120,7 +119,7 @@ func TrimMessages(messages []ports.Message, config TrimConfig) TrimResult {
 		entries[i] = trimEntry{
 			index:     i,
 			msg:       msg,
-			tokens:    tokenutil.CountTokens(msg.Content),
+			tokens:    EstimateMessageTokens(msg),
 			preserved: preserved,
 			priority:  sourcePriority(msg.Source),
 		}

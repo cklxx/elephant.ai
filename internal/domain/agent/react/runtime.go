@@ -147,6 +147,7 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 				},
 				sessionID,
 				engine.eventListener,
+				0,
 			)
 			runtime.bgManagerOwned = true
 		}

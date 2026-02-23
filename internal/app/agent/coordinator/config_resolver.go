@@ -63,6 +63,7 @@ func (c *AgentCoordinator) effectiveConfig(ctx context.Context) appconfig.Config
 	cfg.MaxTokens = runtimeCfg.MaxTokens
 	cfg.MaxIterations = runtimeCfg.MaxIterations
 	cfg.ToolMaxConcurrent = runtimeCfg.ToolMaxConcurrent
+	cfg.MaxBackgroundTasks = runtimeCfg.ExternalAgents.MaxParallelAgents
 	cfg.Temperature = runtimeCfg.Temperature
 	cfg.TemperatureProvided = runtimeCfg.TemperatureProvided
 	cfg.TopP = runtimeCfg.TopP

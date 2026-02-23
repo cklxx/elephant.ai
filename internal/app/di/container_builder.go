@@ -154,6 +154,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 			MaxTokens:           b.config.MaxTokens,
 			MaxIterations:       b.config.MaxIterations,
 			ToolMaxConcurrent:   b.config.ToolMaxConcurrent,
+			MaxBackgroundTasks:  b.config.ExternalAgents.MaxParallelAgents,
 			Temperature:         b.config.Temperature,
 			TemperatureProvided: b.config.TemperatureProvided,
 			TopP:                b.config.TopP,

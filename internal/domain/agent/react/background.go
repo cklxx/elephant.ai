@@ -76,8 +76,9 @@ type BackgroundTaskManager struct {
 	emitEvent        func(event agent.AgentEvent)
 	baseEvent        func(ctx context.Context) domain.BaseEvent
 
-	sessionID      string
-	parentListener agent.EventListener
+	sessionID          string
+	parentListener     agent.EventListener
+	maxConcurrentTasks int
 }
 
 // BackgroundManagerConfig configures a shared background task manager.
@@ -93,6 +94,7 @@ type BackgroundManagerConfig struct {
 	ExecuteTask         func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
 	ExternalExecutor    agent.ExternalAgentExecutor
 	SessionID           string
+	MaxConcurrentTasks  int
 }
 
 // newBackgroundTaskManager creates a new manager bound to the current run context.
@@ -123,6 +125,7 @@ func newBackgroundTaskManager(
 		baseEvent,
 		sessionID,
 		parentListener,
+		0,
 	)
 }
 
@@ -142,6 +145,7 @@ func newBackgroundTaskManagerWithDeps(
 	baseEvent func(ctx context.Context) domain.BaseEvent,
 	sessionID string,
 	parentListener agent.EventListener,
+	maxConcurrentTasks int,
 ) *BackgroundTaskManager {
 	if idGenerator == nil {
 		idGenerator = defaultIDGenerator{}
@@ -181,26 +185,27 @@ func newBackgroundTaskManagerWithDeps(
 	}
 
 	manager := &BackgroundTaskManager{
-		tasks:            make(map[string]*backgroundTask),
-		completions:      make(chan string, 64),
-		logger:           logger,
-		clock:            clock,
-		taskCtx:          taskCtx,
-		cancelAll:        cancel,
-		runCtx:           runCtx,
-		workingDir:       workingDir,
-		workspaceMgr:     workspaceMgr,
-		idGenerator:      idGenerator,
-		idContext:        idContextReader,
-		goRunner:         goRunner,
-		executeTask:      executeTask,
-		externalExecutor: externalExecutor,
-		inputExecutor:    inputExecutor,
-		externalInputCh:  externalInputCh,
-		emitEvent:        emitEvent,
-		baseEvent:        baseEvent,
-		sessionID:        sessionID,
-		parentListener:   parentListener,
+		tasks:              make(map[string]*backgroundTask),
+		completions:        make(chan string, 64),
+		logger:             logger,
+		clock:              clock,
+		taskCtx:            taskCtx,
+		cancelAll:          cancel,
+		runCtx:             runCtx,
+		workingDir:         workingDir,
+		workspaceMgr:       workspaceMgr,
+		idGenerator:        idGenerator,
+		idContext:          idContextReader,
+		goRunner:           goRunner,
+		executeTask:        executeTask,
+		externalExecutor:   externalExecutor,
+		inputExecutor:      inputExecutor,
+		externalInputCh:    externalInputCh,
+		emitEvent:          emitEvent,
+		baseEvent:          baseEvent,
+		sessionID:          sessionID,
+		parentListener:     parentListener,
+		maxConcurrentTasks: maxConcurrentTasks,
 	}
 
 	if inputExecutor != nil && externalInputCh != nil {
@@ -229,6 +234,7 @@ func NewBackgroundTaskManager(cfg BackgroundManagerConfig) *BackgroundTaskManage
 		nil,
 		cfg.SessionID,
 		nil,
+		cfg.MaxConcurrentTasks,
 	)
 }
 
@@ -275,6 +281,13 @@ func (m *BackgroundTaskManager) Dispatch(
 	if _, exists := m.tasks[taskID]; exists {
 		m.mu.Unlock()
 		return fmt.Errorf("background task %q already exists", taskID)
+	}
+	if m.maxConcurrentTasks > 0 {
+		active := m.activeTaskCountLocked()
+		if active >= m.maxConcurrentTasks {
+			m.mu.Unlock()
+			return fmt.Errorf("background task limit reached: %d active (max=%d)", active, m.maxConcurrentTasks)
+		}
 	}
 
 	bt := &backgroundTask{
@@ -361,6 +374,20 @@ func (m *BackgroundTaskManager) Dispatch(
 	})
 
 	return nil
+}
+
+func (m *BackgroundTaskManager) activeTaskCountLocked() int {
+	active := 0
+	for _, bt := range m.tasks {
+		bt.mu.Lock()
+		status := bt.status
+		bt.mu.Unlock()
+		switch status {
+		case agent.BackgroundTaskStatusPending, agent.BackgroundTaskStatusBlocked, agent.BackgroundTaskStatusRunning:
+			active++
+		}
+	}
+	return active
 }
 
 // runTask executes a background task, routing to internal or external executor.

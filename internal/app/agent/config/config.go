@@ -21,6 +21,7 @@ type Config struct {
 	MaxTokens           int
 	MaxIterations       int
 	ToolMaxConcurrent   int
+	MaxBackgroundTasks  int
 	Temperature         float64
 	TemperatureProvided bool
 	TopP                float64

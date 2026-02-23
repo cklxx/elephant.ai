@@ -399,6 +399,7 @@ func (c *AgentCoordinator) ExecuteTask(
 				ExecuteTask:         backgroundExecutor,
 				ExternalExecutor:    c.externalExecutor,
 				SessionID:           env.Session.ID,
+				MaxConcurrentTasks:  effectiveCfg.MaxBackgroundTasks,
 			})
 		})
 	}

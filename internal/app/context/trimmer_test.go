@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"alex/internal/domain/agent/ports"
-	"alex/internal/shared/token"
 )
 
 // helper: build a message with the given source and content.
@@ -17,7 +16,7 @@ func msg(source ports.MessageSource, role, content string) ports.Message {
 func sumTokens(msgs []ports.Message) int {
 	n := 0
 	for _, m := range msgs {
-		n += tokenutil.CountTokens(m.Content)
+		n += EstimateMessageTokens(m)
 	}
 	return n
 }
@@ -35,7 +34,7 @@ func TestTrimMessages_BasicTrimming(t *testing.T) {
 
 	totalBefore := sumTokens(messages)
 	// Set budget to less than total so trimming must occur.
-	budget := totalBefore - tokenutil.CountTokens(messages[2].Content) + 1
+	budget := totalBefore - EstimateMessageTokens(messages[2]) + 1
 	result := TrimMessages(messages, TrimConfig{MaxTokens: budget})
 
 	if result.TotalTokens > budget {
@@ -52,6 +51,38 @@ func TestTrimMessages_BasicTrimming(t *testing.T) {
 	}
 }
 
+func TestTrimMessages_IncludesToolCallAndAttachmentTokens(t *testing.T) {
+	heavy := ports.Message{
+		Role:    "assistant",
+		Content: "I will call a tool now.",
+		Source:  ports.MessageSourceAssistantReply,
+		ToolCalls: []ports.ToolCall{
+			{
+				ID:   "call-1",
+				Name: "web_search",
+				Arguments: map[string]any{
+					"query": "long detailed query with parameters",
+				},
+			},
+		},
+		Attachments: map[string]ports.Attachment{
+			"img": {Name: "img.png", Data: "aGVsbG8=", Description: "preview"},
+		},
+	}
+	light := msg(ports.MessageSourceUserInput, "user", "ok")
+	messages := []ports.Message{heavy, light}
+
+	budget := EstimateMessageTokens(heavy)
+	result := TrimMessages(messages, TrimConfig{MaxTokens: budget})
+
+	if result.TotalTokens > budget {
+		t.Fatalf("expected total tokens <= %d, got %d", budget, result.TotalTokens)
+	}
+	if len(result.Trimmed) == 0 {
+		t.Fatalf("expected at least one message trimmed under tight budget")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // 2. Preserved sources: SystemPrompt and Important always kept
 // ---------------------------------------------------------------------------
@@ -65,7 +96,7 @@ func TestTrimMessages_PreservedSources(t *testing.T) {
 	}
 
 	// Set a very small budget — only preserved messages should survive.
-	preservedTokens := tokenutil.CountTokens(messages[0].Content) + tokenutil.CountTokens(messages[1].Content)
+	preservedTokens := EstimateMessageTokens(messages[0]) + EstimateMessageTokens(messages[1])
 	result := TrimMessages(messages, TrimConfig{
 		MaxTokens:        preservedTokens + 1,
 		PreservedSources: []ports.MessageSource{ports.MessageSourceSystemPrompt, ports.MessageSourceImportant},
@@ -250,8 +281,8 @@ func TestTrimMessages_OrderPreservation(t *testing.T) {
 
 	total := sumTokens(messages)
 	// Trim enough to remove debug and evaluation messages.
-	debugTokens := tokenutil.CountTokens(messages[2].Content)
-	evalTokens := tokenutil.CountTokens(messages[5].Content)
+	debugTokens := EstimateMessageTokens(messages[2])
+	evalTokens := EstimateMessageTokens(messages[5])
 	budget := total - debugTokens - evalTokens + 1
 	result := TrimMessages(messages, TrimConfig{
 		MaxTokens:        budget,

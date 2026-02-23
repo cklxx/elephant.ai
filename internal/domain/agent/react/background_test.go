@@ -55,6 +55,20 @@ func newTestManager(executor func(ctx context.Context, prompt, sessionID string,
 	)
 }
 
+func newTestManagerWithMax(
+	executor func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error),
+	maxConcurrent int,
+) *BackgroundTaskManager {
+	return NewBackgroundTaskManager(BackgroundManagerConfig{
+		RunContext:         context.Background(),
+		Logger:             agent.NoopLogger{},
+		Clock:              testClock{},
+		ExecuteTask:        executor,
+		SessionID:          "test-session",
+		MaxConcurrentTasks: maxConcurrent,
+	})
+}
+
 func dispatchTask(t *BackgroundTaskManager, taskID, description, prompt, agentType, causationID string) error {
 	return t.Dispatch(context.Background(), agent.BackgroundDispatchRequest{
 		TaskID:      taskID,
@@ -108,6 +122,40 @@ func TestDuplicateID(t *testing.T) {
 	err = dispatchTask(mgr, "dup", "desc2", "prompt2", "", "")
 	if err == nil {
 		t.Fatal("expected error on duplicate ID")
+	}
+}
+
+func TestDispatchRespectsMaxConcurrentTasks(t *testing.T) {
+	hold := make(chan struct{})
+	executor := func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+		select {
+		case <-hold:
+			return &agent.TaskResult{Answer: "ok"}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	mgr := newTestManagerWithMax(executor, 1)
+	defer mgr.Shutdown()
+
+	if err := dispatchTask(mgr, "task-1", "desc", "prompt", "", ""); err != nil {
+		t.Fatalf("first dispatch should succeed: %v", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+
+	err := dispatchTask(mgr, "task-2", "desc", "prompt", "", "")
+	if err == nil {
+		t.Fatal("expected limit error on second dispatch while first is active")
+	}
+	if !strings.Contains(err.Error(), "limit reached") {
+		t.Fatalf("expected limit reached error, got %v", err)
+	}
+
+	close(hold)
+	mgr.AwaitAll(2 * time.Second)
+
+	if err := dispatchTask(mgr, "task-3", "desc", "prompt", "", ""); err != nil {
+		t.Fatalf("dispatch should succeed after active task completes: %v", err)
 	}
 }
 
@@ -905,12 +953,12 @@ func TestHeartbeatEmitsDuringExternalExecution(t *testing.T) {
 }
 
 type completionNotification struct {
-	taskID     string
-	status     string
-	answer     string
-	errText    string
+	taskID      string
+	status      string
+	answer      string
+	errText     string
 	mergeStatus string
-	tokensUsed int
+	tokensUsed  int
 }
 
 type mockCompletionNotifier struct {
