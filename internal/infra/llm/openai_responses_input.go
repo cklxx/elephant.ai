@@ -7,6 +7,11 @@ import (
 	"alex/internal/shared/json"
 )
 
+const (
+	responsesFallbackInputText     = "Continue with the current task based on the available context and instructions."
+	responsesFallbackInputMaxChars = 2000
+)
+
 // Responses input item shapes follow OpenAI Responses API.
 // Source: opencode dev branch
 // - packages/opencode/src/provider/sdk/openai-compatible/src/responses/openai-responses-api-types.ts
@@ -83,6 +88,51 @@ func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.
 		}
 	}
 	return items, strings.Join(instructionsParts, "\n\n")
+}
+
+func synthesizeFallbackResponsesInput(msgs []ports.Message, instructions string) ([]map[string]any, bool) {
+	if fallback := lastNonEmptyMessageContent(msgs, "user"); fallback != "" {
+		return buildFallbackResponsesInputItem(fallback), true
+	}
+	if fallback := lastNonEmptyMessageContent(msgs, "assistant"); fallback != "" {
+		return buildFallbackResponsesInputItem(fallback), true
+	}
+	if strings.TrimSpace(instructions) != "" {
+		return buildFallbackResponsesInputItem(responsesFallbackInputText), true
+	}
+	return nil, false
+}
+
+func lastNonEmptyMessageContent(msgs []ports.Message, role string) string {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		msgRole := strings.ToLower(strings.TrimSpace(msgs[i].Role))
+		if msgRole != role {
+			continue
+		}
+		text := strings.TrimSpace(msgs[i].Content)
+		if text == "" {
+			continue
+		}
+		if len(text) > responsesFallbackInputMaxChars {
+			text = text[:responsesFallbackInputMaxChars]
+		}
+		return text
+	}
+	return ""
+}
+
+func buildFallbackResponsesInputItem(text string) []map[string]any {
+	return []map[string]any{
+		{
+			"role": "user",
+			"content": []map[string]any{
+				{
+					"type": "input_text",
+					"text": text,
+				},
+			},
+		},
+	}
 }
 
 // pruneOrphanFunctionCallOutputs removes Responses API function_call_output

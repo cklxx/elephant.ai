@@ -619,6 +619,126 @@ func TestOpenAIResponsesClientSetsInstructionsForCodex(t *testing.T) {
 	}
 }
 
+func TestOpenAIResponsesClientSynthesizesInputWhenCodexInputIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	var gotInput []any
+	var gotInstructions string
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Path; got != "/backend-api/codex/responses" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+
+		instructions, ok := payload["instructions"].(string)
+		if !ok {
+			t.Fatalf("expected instructions string, got %#v", payload["instructions"])
+		}
+		gotInstructions = instructions
+
+		input, ok := payload["input"].([]any)
+		if !ok {
+			t.Fatalf("expected input list, got %#v", payload["input"])
+		}
+		gotInput = input
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatalf("expected http.Flusher")
+		}
+
+		events := []string{
+			`{"type":"response.output_text.delta","item_id":"item-1","delta":"ok"}`,
+			`{"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`,
+			`[DONE]`,
+		}
+		for _, evt := range events {
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", evt); err != nil {
+				t.Fatalf("write event: %v", err)
+			}
+			flusher.Flush()
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/backend-api/codex",
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{
+			{Role: "system", Content: "system instructions"},
+			{Role: "user", Content: ""},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if strings.TrimSpace(gotInstructions) != "system instructions" {
+		t.Fatalf("unexpected instructions: %q", gotInstructions)
+	}
+	if len(gotInput) != 1 {
+		t.Fatalf("expected 1 synthesized input item, got %d", len(gotInput))
+	}
+
+	inputMsg, ok := gotInput[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected synthesized input item map, got %#v", gotInput[0])
+	}
+	if inputMsg["role"] != "user" {
+		t.Fatalf("expected synthesized input role=user, got %#v", inputMsg["role"])
+	}
+	content, ok := inputMsg["content"].([]any)
+	if !ok || len(content) == 0 {
+		t.Fatalf("expected synthesized input content, got %#v", inputMsg["content"])
+	}
+	part, ok := content[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected synthesized content part map, got %#v", content[0])
+	}
+	if part["type"] != "input_text" {
+		t.Fatalf("expected synthesized content type input_text, got %#v", part["type"])
+	}
+	text, _ := part["text"].(string)
+	if strings.TrimSpace(text) == "" {
+		t.Fatal("expected synthesized fallback input text to be non-empty")
+	}
+}
+
+func TestOpenAIResponsesClientErrorsWhenInputEmptyAndNoFallback(t *testing.T) {
+	t.Parallel()
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: "http://127.0.0.1:65535/backend-api/codex",
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{
+			{Role: "user", Content: ""},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error for empty codex input without fallback context")
+	}
+	if !strings.Contains(err.Error(), "responses input is empty") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestOpenAIResponsesClientOmitsToolCallsForCodex(t *testing.T) {
 	t.Parallel()
 

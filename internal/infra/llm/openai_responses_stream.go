@@ -24,6 +24,12 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		c.logger.Warn("%sDropped %d orphan function_call_output item(s): %s", prefix, len(droppedCallIDs), strings.Join(droppedCallIDs, ", "))
 	}
 	if len(input) == 0 {
+		if fallbackInput, ok := synthesizeFallbackResponsesInput(req.Messages, instructions); ok {
+			input = fallbackInput
+			c.logger.Warn("%sResponses input was empty after conversion; synthesized fallback input from %d message(s).", prefix, len(req.Messages))
+		}
+	}
+	if len(input) == 0 {
 		emptyErr := fmt.Errorf("responses input is empty after converting %d message(s) — nothing to send", len(req.Messages))
 		c.logger.Warn("%s%v", prefix, emptyErr)
 		return nil, emptyErr
