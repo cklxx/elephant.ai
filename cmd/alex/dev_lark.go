@@ -314,6 +314,7 @@ func larkLogs() error {
 	logFiles := []string{
 		filepath.Join(cfg.LogDir, "lark-supervisor.log"),
 		filepath.Join(cfg.MainRoot, "logs", "lark-main.log"),
+		filepath.Join(cfg.MainRoot, "logs", "lark-kernel.log"),
 		filepath.Join(cfg.TestRoot, "logs", "lark-test.log"),
 		filepath.Join(cfg.TestRoot, "logs", "lark-loop.log"),
 	}
@@ -407,6 +408,7 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 	mainSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "main.sh")
 	testSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "test.sh")
+	kernelSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "kernel.sh")
 	loopSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "loop-agent.sh")
 
 	sup.RegisterComponent(&supervisor.Component{
@@ -441,6 +443,23 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 		},
 		PIDFile: filepath.Join(cfg.PIDDir, "lark-test.pid"),
 		SHAFile: filepath.Join(cfg.PIDDir, "lark-test.sha"),
+	})
+
+	sup.RegisterComponent(&supervisor.Component{
+		Name: "kernel",
+		StartFn: func(ctx context.Context) error {
+			cmd := exec.CommandContext(ctx, kernelSH, "restart")
+			return cmd.Run()
+		},
+		StopFn: func(ctx context.Context) error {
+			cmd := exec.CommandContext(ctx, kernelSH, "stop")
+			return cmd.Run()
+		},
+		HealthFn: func() string {
+			return checkPIDHealth(filepath.Join(cfg.PIDDir, "lark-kernel.pid"))
+		},
+		PIDFile: filepath.Join(cfg.PIDDir, "lark-kernel.pid"),
+		SHAFile: filepath.Join(cfg.PIDDir, "lark-kernel.sha"),
 	})
 
 	sup.RegisterComponent(&supervisor.Component{
