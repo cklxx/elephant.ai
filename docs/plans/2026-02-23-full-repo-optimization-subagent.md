@@ -33,14 +33,13 @@ Execute a repo-wide optimization pass with priority on correctness, security, re
    - LLM fallback filtering and stream robustness
 3. `completed` Fix P2/P3 optimization debt:
    - retry-after aware backoff
-   - bounded user limiter store
    - large file read streaming and attachment/upload bounds
    - frontend timer cleanup and preview throttling
 4. `completed` Test and CI alignment:
    - add/adjust tests for changed logic
-   - wire integration-tag checks where feasible
-   - reduce flake hotspots where touched
-5. `in_progress` Validation + review:
+   - run repository CI-equivalent gates (`go vet/build/test -race/lint/arch`)
+   - run explicit `web lint + build` validation
+5. `completed` Validation + review:
    - run full lint + tests
    - mandatory code review checklist pass
    - incremental commits and merge back to `main`
@@ -53,3 +52,4 @@ Execute a repo-wide optimization pass with priority on correctness, security, re
 - 2026-02-23 20:49: Closed remaining hook-command quoting risk in Lark CC hooks and added regression coverage.
 - 2026-02-23 21:02: Completed tools/observability hardening slice: execute_code arg-safe execution, AutoUploadConfig gating for execute_code/shell_exec, recursive nested secret redaction in instrumentation, and large-file range streaming in read_file.
 - 2026-02-23 21:03: Added/updated tests for command interpolation safety, upload gating behavior, nested redaction, and large-file invalid range handling; verified with targeted go test runs.
+- 2026-02-23 21:16: Rebased onto latest `main`, reran full pre-push gates (including web checks), fast-forward merged back to `main`, and removed temporary worktree/branch.
