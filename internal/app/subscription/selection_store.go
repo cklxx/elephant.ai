@@ -86,8 +86,8 @@ func (s *SelectionStore) Get(ctx context.Context, scope SelectionScope) (Selecti
 	if s == nil {
 		return Selection{}, false, nil
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return Selection{}, false, ctx.Err()
+	if err := contextErr(ctx); err != nil {
+		return Selection{}, false, err
 	}
 	key, err := scope.key()
 	if err != nil {
@@ -111,8 +111,8 @@ func (s *SelectionStore) GetWithFallback(ctx context.Context, scopes ...Selectio
 	if s == nil || len(scopes) == 0 {
 		return Selection{}, SelectionScope{}, false, nil
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return Selection{}, SelectionScope{}, false, ctx.Err()
+	if err := contextErr(ctx); err != nil {
+		return Selection{}, SelectionScope{}, false, err
 	}
 
 	keys := make([]string, len(scopes))
@@ -143,8 +143,8 @@ func (s *SelectionStore) Set(ctx context.Context, scope SelectionScope, selectio
 	if s == nil || s.path == "" {
 		return fmt.Errorf("selection store not configured")
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
+	if err := contextErr(ctx); err != nil {
+		return err
 	}
 	key, err := scope.key()
 	if err != nil {
@@ -169,8 +169,8 @@ func (s *SelectionStore) Clear(ctx context.Context, scope SelectionScope) error 
 	if s == nil || s.path == "" {
 		return nil
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
+	if err := contextErr(ctx); err != nil {
+		return err
 	}
 	key, err := scope.key()
 	if err != nil {
@@ -201,8 +201,8 @@ func (s *SelectionStore) loadDocLocked(ctx context.Context) (selectionStoreDoc, 
 	if s.path == "" {
 		return selectionStoreDoc{}, fmt.Errorf("selection store path not configured")
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return selectionStoreDoc{}, ctx.Err()
+	if err := contextErr(ctx); err != nil {
+		return selectionStoreDoc{}, err
 	}
 
 	data, err := os.ReadFile(s.path)
@@ -236,8 +236,8 @@ func (s *SelectionStore) saveDocLocked(ctx context.Context, doc selectionStoreDo
 	if s.path == "" {
 		return fmt.Errorf("selection store path not configured")
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
+	if err := contextErr(ctx); err != nil {
+		return err
 	}
 	doc.Version = selectionStoreVersion
 	if doc.Selections == nil {
@@ -259,4 +259,11 @@ func (s *SelectionStore) saveDocLocked(ctx context.Context, doc selectionStoreDo
 		return fmt.Errorf("write selection store: %w", err)
 	}
 	return nil
+}
+
+func contextErr(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.Err()
 }

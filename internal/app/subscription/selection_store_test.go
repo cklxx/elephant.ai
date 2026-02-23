@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -241,5 +242,28 @@ func TestGetWithFallback_ReturnsMatchedScope(t *testing.T) {
 		if matched.Channel != "lark" || matched.ChatID != "" {
 			t.Fatalf("expected channel-level scope match, got %#v", matched)
 		}
+	}
+}
+
+func TestSelectionStoreOperationsRespectCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	store := NewSelectionStore(filepath.Join(t.TempDir(), "llm_selection.json"))
+	scope := SelectionScope{Channel: "cli"}
+	selection := Selection{Mode: "cli", Provider: "anthropic", Model: "claude-sonnet-4"}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := store.Set(ctx, scope, selection); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Set expected context canceled, got %v", err)
+	}
+	if _, _, err := store.Get(ctx, scope); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Get expected context canceled, got %v", err)
+	}
+	if _, _, _, err := store.GetWithFallback(ctx, scope); !errors.Is(err, context.Canceled) {
+		t.Fatalf("GetWithFallback expected context canceled, got %v", err)
+	}
+	if err := store.Clear(ctx, scope); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Clear expected context canceled, got %v", err)
 	}
 }

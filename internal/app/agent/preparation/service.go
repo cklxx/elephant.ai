@@ -177,20 +177,15 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		contextWasCompressed bool
 	)
 
-	toolMode := presets.ToolMode(strings.TrimSpace(s.config.ToolMode))
-	if toolMode == "" {
-		toolMode = presets.ToolModeCLI
-	}
-	toolPreset := strings.TrimSpace(s.config.ToolPreset)
+	toolMode := presets.NormalizeToolMode(s.config.ToolMode)
+	toolPreset := presets.DefaultToolPresetForMode(toolMode, s.config.ToolPreset)
 	if s.presetResolver != nil {
 		if resolved, source := s.presetResolver.resolveToolPreset(ctx, toolMode, toolPreset); resolved != "" {
-			toolPreset = resolved
+			toolPreset = strings.TrimSpace(resolved)
 			s.logger.Info("Using tool preset %s (source=%s)", resolved, source)
 		}
 	}
-	if toolMode == presets.ToolModeCLI && toolPreset == "" {
-		toolPreset = string(presets.ToolPresetFull)
-	}
+	toolPreset = presets.DefaultToolPresetForMode(toolMode, toolPreset)
 	personaKey := s.config.AgentPreset
 	if s.presetResolver != nil {
 		if preset, source := s.presetResolver.resolveAgentPreset(ctx, s.config.AgentPreset); preset != "" {

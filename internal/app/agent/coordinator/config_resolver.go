@@ -104,21 +104,17 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 		return preparation.DefaultSystemPrompt
 	}
 	personaKey := c.config.AgentPreset
-	toolMode := c.config.ToolMode
-	if strings.TrimSpace(toolMode) == "" {
-		toolMode = string(presets.ToolModeCLI)
-	}
-	toolPreset := c.config.ToolPreset
+	toolMode := presets.NormalizeToolMode(c.config.ToolMode)
+	toolPreset := presets.DefaultToolPresetForMode(toolMode, c.config.ToolPreset)
 	if c.prepService != nil {
 		if resolved := c.prepService.ResolveAgentPreset(context.Background(), personaKey); resolved != "" {
 			personaKey = resolved
 		}
 		if resolved := c.prepService.ResolveToolPreset(context.Background(), toolPreset); resolved != "" {
-			toolPreset = resolved
+			toolPreset = strings.TrimSpace(resolved)
 		}
-	} else if toolPreset == "" {
-		toolPreset = string(presets.ToolPresetFull)
 	}
+	toolPreset = presets.DefaultToolPresetForMode(toolMode, toolPreset)
 	session := &storage.Session{ID: "", Messages: nil}
 	okrContext := ""
 	if c.okrContextProvider != nil {
@@ -131,7 +127,7 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 	window, err := c.contextMgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{
 		TokenLimit:             c.config.MaxTokens,
 		PersonaKey:             personaKey,
-		ToolMode:               toolMode,
+		ToolMode:               string(toolMode),
 		ToolPreset:             toolPreset,
 		EnvironmentSummary:     c.config.EnvironmentSummary,
 		PromptMode:             c.config.Proactive.Prompt.Mode,
@@ -171,14 +167,11 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 		return preview, err
 	}
 
-	toolMode := presets.ToolMode(strings.TrimSpace(cfg.ToolMode))
-	if toolMode == "" {
-		toolMode = presets.ToolModeCLI
-	}
-	toolPreset := strings.TrimSpace(cfg.ToolPreset)
+	toolMode := presets.NormalizeToolMode(cfg.ToolMode)
+	toolPreset := presets.DefaultToolPresetForMode(toolMode, cfg.ToolPreset)
 	if c.prepService != nil {
 		if resolved := c.prepService.ResolveToolPreset(ctx, toolPreset); resolved != "" {
-			toolPreset = resolved
+			toolPreset = strings.TrimSpace(resolved)
 		}
 		if resolved := c.prepService.ResolveAgentPreset(ctx, cfg.AgentPreset); resolved != "" {
 			preview.PersonaKey = resolved
@@ -187,9 +180,7 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 	if preview.PersonaKey == "" {
 		preview.PersonaKey = cfg.AgentPreset
 	}
-	if toolMode == presets.ToolModeCLI && toolPreset == "" {
-		toolPreset = string(presets.ToolPresetFull)
-	}
+	toolPreset = presets.DefaultToolPresetForMode(toolMode, toolPreset)
 	window, err := c.contextMgr.BuildWindow(ctx, session, agent.ContextWindowConfig{
 		TokenLimit:         cfg.MaxTokens,
 		PersonaKey:         preview.PersonaKey,
