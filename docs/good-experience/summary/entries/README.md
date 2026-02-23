@@ -35,3 +35,7 @@ Updated: 2026-02-23
 - [2026-02-08-server-e2e-auth-devlogs-guardrails.md](2026-02-08-server-e2e-auth-devlogs-guardrails.md)
 - [2026-01-30-continuous-practice-optimization.md](2026-01-30-continuous-practice-optimization.md)
 - [2026-01-30-proactive-hooks-skills.md](2026-01-30-proactive-hooks-skills.md)
+
+## Authoring
+- Summary entries should add a `## Metadata` block with `id`, `tags`, and `derived_from` links.
+- Template: `docs/memory/networked/entry-template.md`.

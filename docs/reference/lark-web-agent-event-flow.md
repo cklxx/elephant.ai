@@ -1,6 +1,6 @@
 # Lark / Web / CLI Agent Event Flow
 
-Updated: 2026-02-10
+Updated: 2026-02-23
 
 ## Scope
 - Lark gateway request handling and event feedback.
@@ -32,6 +32,15 @@ Key files:
 - `internal/delivery/channels/lark/progress_listener.go`
 - `internal/delivery/channels/lark/background_progress_listener.go`
 - `internal/delivery/channels/lark/plan_clarify_listener.go`
+
+### Lark memory context + graph recall
+- Gateway sets `user_id` and memory policy in context (`memory_enabled` gated).
+- Retrieval chain for historical continuity:
+  1. `memory_search` (discover candidates)
+  2. `memory_get` (read exact memory lines)
+  3. `memory_related` (expand graph-linked entries)
+  4. `lark_chat_history` (recent thread recall)
+- Chat/session fallback identity remains `memoryIDForChat(chat_id)` for deterministic Lark chat memory IDs.
 
 ---
 

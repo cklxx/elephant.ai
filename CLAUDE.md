@@ -137,6 +137,10 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 
 ### Memory sources
 Use: error entries + summaries, good entries + summaries, and `docs/memory/long-term.md`.
+Treat these as graph nodes backed by:
+- `docs/memory/index.yaml`
+- `docs/memory/edges.yaml`
+- `docs/memory/tags.yaml`
 
 ### First-run memory load (mandatory)
 On the first run in a repo session:
@@ -146,7 +150,8 @@ On the first run in a repo session:
    - **Frequency**: topics that repeat across entries score higher.
    - **Relevance**: lexical overlap with the current task and current files wins.
 3. Keep only the top 8–12 items as the **active memory set**.
-4. Store the remaining items as **cold memory** (not loaded unless requested).
+4. Expand 1-hop graph neighbors from `edges.yaml` for active nodes (max 6, relevance-ranked).
+5. Store the remaining items as **cold memory** (not loaded unless requested).
 
 ### Progressive disclosure (on-demand)
 Only expand memory beyond the active set when:
@@ -158,8 +163,10 @@ Only expand memory beyond the active set when:
 - Use summaries first; only open full entries if summaries are insufficient.
 - Prefer the most recent item when multiple entries discuss the same topic.
 - If two items are equally relevant, pick the one with higher recurrence across entries.
+- For Lark tasks, retrieval order is: `memory_search -> memory_get -> memory_related -> lark_chat_history`.
 
 ### Long-term memory doc rules
 - `docs/memory/long-term.md` stores only durable, long-lived lessons.
 - Always update the `Updated:` timestamp to hour precision (`YYYY-MM-DD HH:00`).
 - On the **first memory load each day**, re-rank memories (recency/frequency/relevance), refresh the active set, and update the long-term doc if needed.
+- After editing memory docs, regenerate graph artifacts with `go run ./scripts/memory/backfill_networked.go`.

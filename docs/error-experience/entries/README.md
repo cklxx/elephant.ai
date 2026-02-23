@@ -1,6 +1,6 @@
 # Index: error-experience/entries
 
-Updated: 2026-02-12
+Updated: 2026-02-23
 
 ## Files
 
@@ -30,3 +30,7 @@ Updated: 2026-02-12
 - [2026-02-02-subagent-dangling-tool-output.md](2026-02-02-subagent-dangling-tool-output.md)
 - [2026-02-03-codex-o3-chatgpt-subscription.md](2026-02-03-codex-o3-chatgpt-subscription.md)
 - [2026-02-03-subagent-parallel-burst-upstream-rejection.md](2026-02-03-subagent-parallel-burst-upstream-rejection.md)
+
+## Authoring
+- New entries should add a `## Metadata` block with `id`, `tags`, and `links`.
+- Template: `docs/memory/networked/entry-template.md`.

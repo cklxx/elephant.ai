@@ -38,3 +38,7 @@ Updated: 2026-02-23
 - [2026-01-24-streaming-ui-performance-guardrails.md](2026-01-24-streaming-ui-performance-guardrails.md)
 - [2026-01-30-continuous-practice-optimization.md](2026-01-30-continuous-practice-optimization.md)
 - [2026-01-30-proactive-hooks-skills.md](2026-01-30-proactive-hooks-skills.md)
+
+## Authoring
+- New entries should add a `## Metadata` block with `id`, `tags`, and `links`.
+- Template: `docs/memory/networked/entry-template.md`.

@@ -38,6 +38,10 @@ Safety guardrails for prompts:
 ## Memory loading (minimal, repeatable)
 - First run in repo: read latest 3–5 items from error/good entries + summaries + `docs/memory/long-term.md`, rank by recency/frequency/relevance, keep top 8–12 as active memory.
 - Use summaries first; open full entries only if summaries are insufficient.
+- Treat repo memory as a graph: maintain nodes/edges/tags in `docs/memory/index.yaml`, `docs/memory/edges.yaml`, `docs/memory/tags.yaml`.
+- After selecting active memory, expand only 1-hop linked nodes from `edges.yaml` (cap 6) by relevance; keep remaining as cold memory.
+- For Lark-agent tasks, include nodes tagged `lark`/`memory` and follow retrieval order `memory_search -> memory_get -> memory_related -> lark_chat_history`.
+- After changing memory docs, run `go run ./scripts/memory/backfill_networked.go` to refresh graph artifacts.
 - Expand beyond active memory only when a known pattern is relevant or tests fail with known signatures.
 - Update `docs/memory/long-term.md` `Updated:` to hour precision; refresh active set on first load each day.
 

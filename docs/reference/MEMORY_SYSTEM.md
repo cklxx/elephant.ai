@@ -1,12 +1,12 @@
 # Markdown Memory System
 
-Updated: 2026-02-03
+Updated: 2026-02-23
 
 ## Overview
 - Memory is Markdown-only; Markdown files are the single source of truth under `~/.alex/memory/`.
 - Long-term memory is curated in `MEMORY.md`.
 - Daily notes are append-only in `memory/YYYY-MM-DD.md`.
-- Search with `memory_search`, then read exact lines with `memory_get`.
+- Search with `memory_search`, then read exact lines with `memory_get`, and expand linked memory with `memory_related`.
 - There is no dedicated `memory_write` tool; write memories via normal file tools.
 
 ## Context vs Memory
@@ -23,6 +23,27 @@ Updated: 2026-02-03
     ├── 2026-02-01.md
     └── ...
 ```
+
+## Repo Documentation Memory (Networked)
+Project memory docs live under `docs/` and are intentionally networked via IDs, tags, and link edges.
+
+### Sources
+- `docs/error-experience/entries/`
+- `docs/error-experience/summary/entries/`
+- `docs/good-experience/entries/`
+- `docs/good-experience/summary/entries/`
+- `docs/memory/long-term.md`
+- Memory-related plans under `docs/plans/`
+
+### Networked Index Artifacts
+- `docs/memory/index.yaml` — node registry (IDs, paths, type, date, tags).
+- `docs/memory/edges.yaml` — normalized bidirectional link edges.
+- `docs/memory/tags.yaml` — controlled vocabulary for tags.
+
+### Entry Metadata (New Entries)
+Add a YAML metadata block under `## Metadata` in new error/good entries. Legacy entries without metadata remain valid; the indexer infers IDs/tags from filenames and content when possible.
+
+Reference: `docs/memory/networked/README.md`.
 
 ## Session Boot Sequence
 **Identity-critical (must not be skipped):**
@@ -89,7 +110,8 @@ Guidelines:
 ## Retrieval Workflow
 1. Run `memory_search` before answering questions about prior work, decisions, dates, people, or preferences.
 2. Use `memory_get` to read the exact lines from the top results.
-3. If nothing relevant is found, say so instead of guessing.
+3. Use `memory_related` to expand 1-hop linked memories when continuity matters.
+4. If nothing relevant is found, say so instead of guessing.
 
 Example:
 ```json

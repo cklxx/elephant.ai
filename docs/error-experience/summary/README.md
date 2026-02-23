@@ -1,6 +1,6 @@
 # Index: error-experience/summary
 
-Updated: 2026-01-31
+Updated: 2026-02-23
 
 ## Files
 
@@ -9,3 +9,7 @@ Updated: 2026-01-31
 ## Subdirectories
 
 - [entries/README.md](entries/README.md)
+
+## Networked Memory Notes
+- Summary entries should include a `## Metadata` block with `id`, `tags`, and `derived_from` links.
+- See `docs/memory/networked/README.md`.

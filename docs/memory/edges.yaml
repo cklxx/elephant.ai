@@ -1,0 +1,932 @@
+version: 1
+updated: "2026-02-23"
+edges:
+    - from: err-2026-01-27-dev-lint-test-cmd-alex-context
+      to: errsum-2026-01-27-dev-lint-test-cmd-alex-context
+      type: see_also
+      direction: directed
+    - from: err-2026-01-27-dev-test-orchestration-explore-failure
+      to: errsum-2026-01-27-dev-test-orchestration-explore-failure
+      type: see_also
+      direction: directed
+    - from: err-2026-01-27-dev-test-rag-invalid-openai-key
+      to: errsum-2026-01-27-dev-test-rag-invalid-openai-key
+      type: see_also
+      direction: directed
+    - from: err-2026-01-27-refresh-summary-subagent-title
+      to: errsum-2026-01-27-refresh-summary-subagent-title
+      type: see_also
+      direction: directed
+    - from: err-2026-01-28-dev-test-request-log-failures
+      to: errsum-2026-01-28-dev-test-request-log-failures
+      type: see_also
+      direction: directed
+    - from: err-2026-01-28-session-history-truncation
+      to: errsum-2026-01-28-session-history-truncation
+      type: see_also
+      direction: directed
+    - from: err-2026-01-30-dev-lint-errcheck-failures
+      to: errsum-2026-01-30-dev-lint-errcheck-failures
+      type: see_also
+      direction: directed
+    - from: err-2026-01-30-memory-import-cycle
+      to: errsum-2026-01-30-memory-import-cycle
+      type: see_also
+      direction: directed
+    - from: err-2026-01-31-dev-lint-unused-subsystem-test
+      to: errsum-2026-01-31-dev-lint-unused-subsystem-test
+      type: see_also
+      direction: directed
+    - from: err-2026-02-01-darwin-ld-dysymtab-warning
+      to: errsum-2026-02-01-darwin-ld-dysymtab-warning
+      type: see_also
+      direction: directed
+    - from: err-2026-02-02-dev-sh-sandbox-env-flags-unbound
+      to: errsum-2026-02-02-dev-sh-sandbox-env-flags-unbound
+      type: see_also
+      direction: directed
+    - from: err-2026-02-02-subagent-dangling-tool-output
+      to: errsum-2026-02-02-subagent-dangling-tool-output
+      type: see_also
+      direction: directed
+    - from: err-2026-02-03-codex-o3-chatgpt-subscription
+      to: errsum-2026-02-03-codex-o3-chatgpt-subscription
+      type: see_also
+      direction: directed
+    - from: err-2026-02-03-subagent-parallel-burst-upstream-rejection
+      to: errsum-2026-02-03-subagent-parallel-burst-upstream-rejection
+      type: see_also
+      direction: directed
+    - from: err-2026-02-06-lark-card-callback-token-missing-disabled
+      to: errsum-2026-02-06-lark-card-callback-token-missing-disabled
+      type: see_also
+      direction: directed
+    - from: err-2026-02-08-auth-google-login-503-config-fallback-gap
+      to: errsum-2026-02-08-auth-google-login-503-config-fallback-gap
+      type: see_also
+      direction: directed
+    - from: err-2026-02-08-auth-refresh-401-db-client-exhaustion-memory-fallback
+      to: errsum-2026-02-08-auth-refresh-401-db-client-exhaustion-memory-fallback
+      type: see_also
+      direction: directed
+    - from: err-2026-02-08-log-analyzer-index-404-stale-backend
+      to: errsum-2026-02-08-log-analyzer-index-404-stale-backend
+      type: see_also
+      direction: directed
+    - from: err-2026-02-09-devops-process-manager-pid-reuse-supervisor-threshold-drift
+      to: errsum-2026-02-09-devops-process-manager-pid-reuse-supervisor-threshold-drift
+      type: see_also
+      direction: directed
+    - from: err-2026-02-09-lark-group-chat-apikey-not-registered-chat-scope
+      to: errsum-2026-02-09-lark-group-chat-apikey-not-registered-chat-scope
+      type: see_also
+      direction: directed
+    - from: err-2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion
+      to: errsum-2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion
+      type: see_also
+      direction: directed
+    - from: err-2026-02-10-broadcaster-unbounded-session-metrics
+      to: errsum-2026-02-10-broadcaster-unbounded-session-metrics
+      type: see_also
+      direction: directed
+    - from: err-2026-02-10-tool-optimization-caused-eval-tool-availability-collapse
+      to: errsum-2026-02-10-tool-optimization-caused-eval-tool-availability-collapse
+      type: see_also
+      direction: directed
+    - from: err-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
+      to: errsum-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
+      type: see_also
+      direction: directed
+    - from: err-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
+      to: errsum-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
+      type: see_also
+      direction: directed
+    - from: errsum-2026-01-27-dev-lint-test-cmd-alex-context
+      to: err-2026-01-27-dev-lint-test-cmd-alex-context
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-01-27-dev-test-orchestration-explore-failure
+      to: err-2026-01-27-dev-test-orchestration-explore-failure
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-01-27-dev-test-rag-invalid-openai-key
+      to: err-2026-01-27-dev-test-rag-invalid-openai-key
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-01-27-refresh-summary-subagent-title
+      to: err-2026-01-27-refresh-summary-subagent-title
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-01-28-dev-test-request-log-failures
+      to: err-2026-01-28-dev-test-request-log-failures
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-01-28-session-history-truncation
+      to: err-2026-01-28-session-history-truncation
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-01-30-dev-lint-errcheck-failures
+      to: err-2026-01-30-dev-lint-errcheck-failures
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-01-30-memory-import-cycle
+      to: err-2026-01-30-memory-import-cycle
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-01-31-dev-lint-unused-subsystem-test
+      to: err-2026-01-31-dev-lint-unused-subsystem-test
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-01-darwin-ld-dysymtab-warning
+      to: err-2026-02-01-darwin-ld-dysymtab-warning
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-02-dev-sh-sandbox-env-flags-unbound
+      to: err-2026-02-02-dev-sh-sandbox-env-flags-unbound
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-02-subagent-dangling-tool-output
+      to: err-2026-02-02-subagent-dangling-tool-output
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-03-codex-o3-chatgpt-subscription
+      to: err-2026-02-03-codex-o3-chatgpt-subscription
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-03-subagent-parallel-burst-upstream-rejection
+      to: err-2026-02-03-subagent-parallel-burst-upstream-rejection
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-06-lark-card-callback-token-missing-disabled
+      to: err-2026-02-06-lark-card-callback-token-missing-disabled
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-08-auth-google-login-503-config-fallback-gap
+      to: err-2026-02-08-auth-google-login-503-config-fallback-gap
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-08-auth-refresh-401-db-client-exhaustion-memory-fallback
+      to: err-2026-02-08-auth-refresh-401-db-client-exhaustion-memory-fallback
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-08-log-analyzer-index-404-stale-backend
+      to: err-2026-02-08-log-analyzer-index-404-stale-backend
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-09-devops-process-manager-pid-reuse-supervisor-threshold-drift
+      to: err-2026-02-09-devops-process-manager-pid-reuse-supervisor-threshold-drift
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-09-lark-group-chat-apikey-not-registered-chat-scope
+      to: err-2026-02-09-lark-group-chat-apikey-not-registered-chat-scope
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion
+      to: err-2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-10-broadcaster-unbounded-session-metrics
+      to: err-2026-02-10-broadcaster-unbounded-session-metrics
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-10-tool-optimization-caused-eval-tool-availability-collapse
+      to: err-2026-02-10-tool-optimization-caused-eval-tool-availability-collapse
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
+      to: err-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
+      to: err-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
+      type: derived_from
+      direction: directed
+    - from: good-2026-01-30-continuous-practice-optimization
+      to: goodsum-2026-01-30-continuous-practice-optimization
+      type: see_also
+      direction: directed
+    - from: good-2026-01-30-proactive-hooks-skills
+      to: goodsum-2026-01-30-proactive-hooks-skills
+      type: see_also
+      direction: directed
+    - from: good-2026-02-07-fullchain-trace-baseline-perf
+      to: goodsum-2026-02-07-fullchain-trace-baseline-perf
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-auth-db-pool-cap-for-session-persistence
+      to: goodsum-2026-02-08-auth-db-pool-cap-for-session-persistence
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-context-hard-benchmark-mapped-suite
+      to: goodsum-2026-02-08-context-hard-benchmark-mapped-suite
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-devtools-workbench-log-virtualization
+      to: goodsum-2026-02-08-devtools-workbench-log-virtualization
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-foundation-eval-availability-hardening
+      to: goodsum-2026-02-08-foundation-eval-availability-hardening
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-foundation-layered-suite-regression-closure
+      to: goodsum-2026-02-08-foundation-layered-suite-regression-closure
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-foundation-suite-scaleout-v2
+      to: goodsum-2026-02-08-foundation-suite-scaleout-v2
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-foundation-verified-readiness-plus-research
+      to: goodsum-2026-02-08-foundation-verified-readiness-plus-research
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-logs-ui-readiness-self-heal
+      to: goodsum-2026-02-08-logs-ui-readiness-self-heal
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-memory-capability-suite-expansion
+      to: goodsum-2026-02-08-memory-capability-suite-expansion
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-server-e2e-auth-devlogs-guardrails
+      to: goodsum-2026-02-08-server-e2e-auth-devlogs-guardrails
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-systematic-agent-capability-matrix-expansion
+      to: goodsum-2026-02-08-systematic-agent-capability-matrix-expansion
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-task-completion-speed-suite-expansion
+      to: goodsum-2026-02-08-task-completion-speed-suite-expansion
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-tool-surface-convergence-layered-suite-scaleout
+      to: goodsum-2026-02-08-tool-surface-convergence-layered-suite-scaleout
+      type: see_also
+      direction: directed
+    - from: good-2026-02-08-user-habit-soul-memory-suite-expansion
+      to: goodsum-2026-02-08-user-habit-soul-memory-suite-expansion
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-auth-refresh-cookie-compat-and-transient-failure-tolerance
+      to: goodsum-2026-02-09-auth-refresh-cookie-compat-and-transient-failure-tolerance
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-baseline-lint-test-repair-and-eval-rerun
+      to: goodsum-2026-02-09-baseline-lint-test-repair-and-eval-rerun
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-complex-artifact-delivery-eval-layer
+      to: goodsum-2026-02-09-complex-artifact-delivery-eval-layer
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-devops-lark-go-supervisor-hardening-and-full-validation
+      to: goodsum-2026-02-09-devops-lark-go-supervisor-hardening-and-full-validation
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-eval-retire-expand-agent-opt-v4
+      to: goodsum-2026-02-09-eval-retire-expand-agent-opt-v4
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-foundation-eval-failure-closure-pass-at-metrics
+      to: goodsum-2026-02-09-foundation-eval-failure-closure-pass-at-metrics
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-foundation-hard-problem-expansion-r4
+      to: goodsum-2026-02-09-foundation-hard-problem-expansion-r4
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-foundation-retire-expand-optimize-r3
+      to: goodsum-2026-02-09-foundation-retire-expand-optimize-r3
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-foundation-suite-prune-more-r2
+      to: goodsum-2026-02-09-foundation-suite-prune-more-r2
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-foundation-suite-prune-under-500
+      to: goodsum-2026-02-09-foundation-suite-prune-under-500
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-foundation-suite-systematic-expansion-v3
+      to: goodsum-2026-02-09-foundation-suite-systematic-expansion-v3
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-harder-cases-easy-pass1-retirement
+      to: goodsum-2026-02-09-harder-cases-easy-pass1-retirement
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-lark-authdb-self-heal-automation
+      to: goodsum-2026-02-09-lark-authdb-self-heal-automation
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-motivation-aware-suite-optimization
+      to: goodsum-2026-02-09-motivation-aware-suite-optimization
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-pass1-optimization-round2
+      to: goodsum-2026-02-09-pass1-optimization-round2
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-pass1-optimization-round3
+      to: goodsum-2026-02-09-pass1-optimization-round3
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-pass1-systematic-optimization-and-eval-skill
+      to: goodsum-2026-02-09-pass1-systematic-optimization-and-eval-skill
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-product-capability-r6-real-upgrade
+      to: goodsum-2026-02-09-product-capability-r6-real-upgrade
+      type: see_also
+      direction: directed
+    - from: good-2026-02-09-product-capability-r7-semantic-convergence
+      to: goodsum-2026-02-09-product-capability-r7-semantic-convergence
+      type: see_also
+      direction: directed
+    - from: good-2026-02-10-basic-active-suite-zero-na-regression-baseline
+      to: goodsum-2026-02-10-basic-active-suite-zero-na-regression-baseline
+      type: see_also
+      direction: directed
+    - from: good-2026-02-10-context-autonomy-rules-and-safe-env-injection
+      to: goodsum-2026-02-10-context-autonomy-rules-and-safe-env-injection
+      type: see_also
+      direction: directed
+    - from: good-2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review
+      to: goodsum-2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review
+      type: see_also
+      direction: directed
+    - from: good-2026-02-11-lark-small-action-autonomy-guardrail-and-eval
+      to: goodsum-2026-02-11-lark-small-action-autonomy-guardrail-and-eval
+      type: see_also
+      direction: directed
+    - from: good-2026-02-12-kernel-e2e-state-summary-alignment
+      to: goodsum-2026-02-12-kernel-e2e-state-summary-alignment
+      type: see_also
+      direction: directed
+    - from: good-2026-02-12-kernel-once-real-e2e-and-goal-alignment
+      to: goodsum-2026-02-12-kernel-once-real-e2e-and-goal-alignment
+      type: see_also
+      direction: directed
+    - from: good-2026-02-12-llm-profile-client-provider-decoupling
+      to: goodsum-2026-02-12-llm-profile-client-provider-decoupling
+      type: see_also
+      direction: directed
+    - from: goodsum-2026-01-30-continuous-practice-optimization
+      to: good-2026-01-30-continuous-practice-optimization
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-01-30-proactive-hooks-skills
+      to: good-2026-01-30-proactive-hooks-skills
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-07-fullchain-trace-baseline-perf
+      to: good-2026-02-07-fullchain-trace-baseline-perf
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-auth-db-pool-cap-for-session-persistence
+      to: good-2026-02-08-auth-db-pool-cap-for-session-persistence
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-context-hard-benchmark-mapped-suite
+      to: good-2026-02-08-context-hard-benchmark-mapped-suite
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-devtools-workbench-log-virtualization
+      to: good-2026-02-08-devtools-workbench-log-virtualization
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-foundation-eval-availability-hardening
+      to: good-2026-02-08-foundation-eval-availability-hardening
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-foundation-layered-suite-regression-closure
+      to: good-2026-02-08-foundation-layered-suite-regression-closure
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-foundation-suite-scaleout-v2
+      to: good-2026-02-08-foundation-suite-scaleout-v2
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-foundation-verified-readiness-plus-research
+      to: good-2026-02-08-foundation-verified-readiness-plus-research
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-logs-ui-readiness-self-heal
+      to: good-2026-02-08-logs-ui-readiness-self-heal
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-memory-capability-suite-expansion
+      to: good-2026-02-08-memory-capability-suite-expansion
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-server-e2e-auth-devlogs-guardrails
+      to: good-2026-02-08-server-e2e-auth-devlogs-guardrails
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-systematic-agent-capability-matrix-expansion
+      to: good-2026-02-08-systematic-agent-capability-matrix-expansion
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-task-completion-speed-suite-expansion
+      to: good-2026-02-08-task-completion-speed-suite-expansion
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-tool-surface-convergence-layered-suite-scaleout
+      to: good-2026-02-08-tool-surface-convergence-layered-suite-scaleout
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-08-user-habit-soul-memory-suite-expansion
+      to: good-2026-02-08-user-habit-soul-memory-suite-expansion
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-auth-refresh-cookie-compat-and-transient-failure-tolerance
+      to: good-2026-02-09-auth-refresh-cookie-compat-and-transient-failure-tolerance
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-baseline-lint-test-repair-and-eval-rerun
+      to: good-2026-02-09-baseline-lint-test-repair-and-eval-rerun
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-complex-artifact-delivery-eval-layer
+      to: good-2026-02-09-complex-artifact-delivery-eval-layer
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-devops-lark-go-supervisor-hardening-and-full-validation
+      to: good-2026-02-09-devops-lark-go-supervisor-hardening-and-full-validation
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-eval-retire-expand-agent-opt-v4
+      to: good-2026-02-09-eval-retire-expand-agent-opt-v4
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-foundation-eval-failure-closure-pass-at-metrics
+      to: good-2026-02-09-foundation-eval-failure-closure-pass-at-metrics
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-foundation-hard-problem-expansion-r4
+      to: good-2026-02-09-foundation-hard-problem-expansion-r4
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-foundation-retire-expand-optimize-r3
+      to: good-2026-02-09-foundation-retire-expand-optimize-r3
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-foundation-suite-prune-more-r2
+      to: good-2026-02-09-foundation-suite-prune-more-r2
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-foundation-suite-prune-under-500
+      to: good-2026-02-09-foundation-suite-prune-under-500
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-foundation-suite-systematic-expansion-v3
+      to: good-2026-02-09-foundation-suite-systematic-expansion-v3
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-harder-cases-easy-pass1-retirement
+      to: good-2026-02-09-harder-cases-easy-pass1-retirement
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-lark-authdb-self-heal-automation
+      to: good-2026-02-09-lark-authdb-self-heal-automation
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-motivation-aware-suite-optimization
+      to: good-2026-02-09-motivation-aware-suite-optimization
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-pass1-optimization-round2
+      to: good-2026-02-09-pass1-optimization-round2
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-pass1-optimization-round3
+      to: good-2026-02-09-pass1-optimization-round3
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-pass1-systematic-optimization-and-eval-skill
+      to: good-2026-02-09-pass1-systematic-optimization-and-eval-skill
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-product-capability-r6-real-upgrade
+      to: good-2026-02-09-product-capability-r6-real-upgrade
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-09-product-capability-r7-semantic-convergence
+      to: good-2026-02-09-product-capability-r7-semantic-convergence
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-10-basic-active-suite-zero-na-regression-baseline
+      to: good-2026-02-10-basic-active-suite-zero-na-regression-baseline
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-10-context-autonomy-rules-and-safe-env-injection
+      to: good-2026-02-10-context-autonomy-rules-and-safe-env-injection
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review
+      to: good-2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-11-lark-small-action-autonomy-guardrail-and-eval
+      to: good-2026-02-11-lark-small-action-autonomy-guardrail-and-eval
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-12-kernel-e2e-state-summary-alignment
+      to: good-2026-02-12-kernel-e2e-state-summary-alignment
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-12-kernel-once-real-e2e-and-goal-alignment
+      to: good-2026-02-12-kernel-once-real-e2e-and-goal-alignment
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-12-llm-profile-client-provider-decoupling
+      to: good-2026-02-12-llm-profile-client-provider-decoupling
+      type: derived_from
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-1970-01-01-lark-attachment-fixes
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-1970-01-01-lark-devops-process-unification-2026-02-10
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-1970-01-01-lark-task-system
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-1970-01-01-lark-test-agent-model-sticky-2026-02-10
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-28-agent-memory-guidance
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-28-long-term-memory-doc
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-28-memory-automation-mechanism
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-29-lark-attachments
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-29-lark-duplicate-replies
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-29-lark-progress-memory
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-30-lark-okr-fresh-sessions-debug
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-30-memory-architecture-improvement
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-30-memory-implementation
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-30-memory-review-integration-plan
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-30-short-term-multi-turn-memory
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-31-architecture-validation-okr-proactive-memory-session-external-agents
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-31-disable-lark-session-history
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-31-lark-emoji-events
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-31-lark-web-agent-summary
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-31-lark-web-feature-summary
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-31-memory-policy-unification
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-01-31-remove-lark-session-mode
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-01-lark-reply-messages
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-01-lark-scenario-testing-framework
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-01-memory-d5-layered-filestore
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-02-lark-await-user-input-resume
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-02-lark-card-and-reply
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-02-lark-gateway-session-history
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-02-lark-local-tools-no-sandbox
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-02-lark-plan-clarify-messages
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-02-lark-request-mismatch
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-02-lark-rich-media-card-attachments
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-02-lark-session-per-message
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-02-memory-service-removal
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-02-openclaw-memory-md
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-dev-memory-snapshot
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-external-agents-lark-progress
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-lark-book-mentioned-calendar
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-lark-calendar-id-resolution
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-lark-code-summary-3min
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-lark-dual-agent-iteration-loop
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-lark-m0-readme-sync
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-lark-multi-message
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-lark-scenario-run-skip-manual
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-lark-sh-rebuild
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-lark-tenant-token-calendar-fallback
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-lark-user-oauth-calendar
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-memory-auto-capture
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-memory-vector-index-ollama
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-03-skills-memory-prompt-cleanup
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-04-config-watch-multi-and-lark-restart
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-04-fix-lark-worktree-ensure
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-04-lark-inject-ack-final-review-react
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-04-lark-mention-bridge
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-04-lark-proactive-fixes
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-04-lark-tenant-token-auto
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-04-lark-upload-file-tool
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-05-no-yaml-llm-selection-cli-lark
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-05-peekaboo-exec-lark-local
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-06-lark-card-callback-encrypted-missing-signature-compat
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-06-lark-card-callback-plaintext-encrypted-compat
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-06-lark-card-callback-signature-fallback-compat
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-06-lark-card-callback-verification-token-fix
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-06-lark-model-list-llama-server-and-card-toggle
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-06-lark-model-selection-interactive-card
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-06-lark-single-entry-supervisor
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-06-lark-supervisor-autofix
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-06-memory-user-layer-removal
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-07-lark-cli-await-option-selection
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-08-habit-soul-memory-suite-expansion
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-08-lark-card-callback-log-cleanup
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-08-memory-capability-suite-expansion
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-08-openai-key-bootstrap-and-lark-docker
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-09-dev-web-lark-separation
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-09-devops-lark-full-repair
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-09-lark-authdb-self-heal-automation
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-09-lark-loop-lock-release
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-09-lark-notice-autofix-alerts
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-09-lark-trigger-memory-monitor-fix
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-10-lark-model-pin-investigation
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-10-lark-session-im-reuse-and-chat-round-recall
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-10-lark-single-process-isolation
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-10-lark-supervisor-loop-command-rationalization
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-10-proactive-tmp-output-lark-delivery
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-10-startup-memory-oom-investigation
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-11-kernel-log-lark-only
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-11-lark-think-step-upstream-rejection-log-hardening
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-11-web-lark-architecture-concurrency-review
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-12-lark-no-db-init-config-cleanup
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-12-lark-test-early-exit-invalid-llm-profile
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-14-lark-bg-task-completion-notify
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-14-lark-coding-agent-completion-notify
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-17-pr1-domain-decouple-lark
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-23-networked-memory-doc-structure
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-23-networked-memory-implementation
+      type: see_also
+      direction: directed
+schema:
+    direction: directed|bidirectional
+    from: string
+    to: string
+    type: related|supersedes|see_also|derived_from

@@ -1,6 +1,6 @@
 # Memory Store Migration (Markdown-Only)
 
-Updated: 2026-02-02
+Updated: 2026-02-23
 
 ## Summary
 - The memory system is now Markdown-only: `~/.alex/memory/MEMORY.md` (long-term) and `~/.alex/memory/memory/YYYY-MM-DD.md` (daily logs).
@@ -19,3 +19,12 @@ Updated: 2026-02-02
 ## Notes
 - The Markdown files are the source of truth; they can be edited manually and version-controlled.
 - Daily logs are append-only; long-term memory should stay concise.
+
+## Networked Memory Migration (Repo Docs)
+- Existing error/good entries remain valid without metadata blocks.
+- New metadata blocks (see `docs/memory/networked/README.md`) are optional but recommended for new entries.
+- `docs/memory/index.yaml`, `docs/memory/edges.yaml`, and `docs/memory/tags.yaml` may start empty; they can be incrementally populated or auto-generated.
+- Backfill strategy for legacy entries:
+  1. Generate IDs from filenames and types.
+  2. Infer tags from titles and `Summary:`/`Remediation:` lines.
+  3. Add edges only when a relationship is explicit (avoid guessing).
