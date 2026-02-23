@@ -7,6 +7,8 @@ package router
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"sync"
@@ -45,12 +47,12 @@ func tierRank(t ModelTier) int {
 
 // ModelProfile describes a single model available for routing.
 type ModelProfile struct {
-	Provider         string   // provider name (openai, anthropic, etc.)
-	Model            string   // model identifier
+	Provider         string // provider name (openai, anthropic, etc.)
+	Model            string // model identifier
 	Tier             ModelTier
 	MaxContextTokens int      // max context window
-	CostPer1KInput  float64  // cost in USD per 1K input tokens
-	CostPer1KOutput float64  // cost in USD per 1K output tokens
+	CostPer1KInput   float64  // cost in USD per 1K input tokens
+	CostPer1KOutput  float64  // cost in USD per 1K output tokens
 	AvgLatencyMs     float64  // expected average latency in milliseconds
 	Capabilities     []string // "code", "reasoning", "vision", etc.
 }
@@ -105,6 +107,9 @@ type RoutingResult struct {
 	Reason    string         // why this model was chosen
 	Fallbacks []ModelProfile // alternative models if primary fails
 }
+
+// ErrNoCandidateModels indicates that no model satisfies hard routing constraints.
+var ErrNoCandidateModels = errors.New("no candidate models satisfy routing constraints")
 
 // ---------------------------------------------------------------------------
 // Router config
@@ -202,16 +207,28 @@ func (r *Router) isProviderHealthy(provider string) bool {
 }
 
 // Route selects the best model for the given request.
-func (r *Router) Route(_ context.Context, req RoutingRequest) RoutingResult {
+func (r *Router) Route(_ context.Context, req RoutingRequest) (RoutingResult, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
+	if len(r.models) == 0 {
+		return RoutingResult{Reason: "no_models_available"}, fmt.Errorf("%w: no registered models", ErrNoCandidateModels)
+	}
 
 	// --- Step 1: filter candidates ---
 	candidates := r.filterCandidates(req)
 
-	// --- Step 2: if nothing matched, fall back to default tier ---
+	// --- Step 2: if nothing matched, report explicit no-candidate error ---
 	if len(candidates) == 0 {
-		return r.defaultFallback()
+		return RoutingResult{Reason: "no_candidate_models"}, fmt.Errorf(
+			"%w: capabilities=%v estimated_tokens=%d max_cost=%.6f preferred_tier=%s complexity=%s",
+			ErrNoCandidateModels,
+			req.RequiredCapabilities,
+			req.EstimatedTokens,
+			req.MaxCostPerRequest,
+			req.PreferredTier,
+			req.TaskComplexity,
+		)
 	}
 
 	// --- Step 3: determine the target tier ---
@@ -240,7 +257,7 @@ func (r *Router) Route(_ context.Context, req RoutingRequest) RoutingResult {
 		Profile:   best,
 		Reason:    reason,
 		Fallbacks: fallbacks,
-	}
+	}, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -366,28 +383,6 @@ func (r *Router) score(m ModelProfile, capWeight, minCost, maxCost, minLat, maxL
 	}
 
 	return capWeight*capScore + r.costWeight*costScore + r.latencyWeight*latScore
-}
-
-// defaultFallback returns a RoutingResult using the first model of the
-// default tier, or the very first model if no default-tier model exists.
-func (r *Router) defaultFallback() RoutingResult {
-	for _, m := range r.models {
-		if m.Tier == r.defaultTier {
-			return RoutingResult{
-				Profile: m,
-				Reason:  "no_match_fallback_to_default",
-			}
-		}
-	}
-	if len(r.models) > 0 {
-		return RoutingResult{
-			Profile: r.models[0],
-			Reason:  "no_match_fallback_to_default",
-		}
-	}
-	return RoutingResult{
-		Reason: "no_models_available",
-	}
 }
 
 // buildFallbacks assembles a fallback list from the candidates, excluding the

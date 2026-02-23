@@ -250,6 +250,44 @@ func (*concurrencyCoordinator) GetParser() agent.FunctionCallParser             
 func (*concurrencyCoordinator) GetContextManager() agent.ContextManager            { return nil }
 func (*concurrencyCoordinator) GetSystemPrompt() string                            { return "" }
 
+type cancelAwareCoordinator struct {
+	mu      sync.Mutex
+	started int
+	ch      chan struct{}
+}
+
+func (c *cancelAwareCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+	c.mu.Lock()
+	c.started++
+	c.mu.Unlock()
+
+	select {
+	case c.ch <- struct{}{}:
+	default:
+	}
+
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (*cancelAwareCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
+	return nil, nil
+}
+
+func (*cancelAwareCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *storage.Session, _ *agent.TaskResult) error {
+	return nil
+}
+
+func (*cancelAwareCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
+	return nil, nil
+}
+func (*cancelAwareCoordinator) GetConfig() agent.AgentConfig                       { return agent.AgentConfig{} }
+func (*cancelAwareCoordinator) GetLLMClient() (llm.LLMClient, error)               { return nil, nil }
+func (*cancelAwareCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry { return nil }
+func (*cancelAwareCoordinator) GetParser() agent.FunctionCallParser                { return nil }
+func (*cancelAwareCoordinator) GetContextManager() agent.ContextManager            { return nil }
+func (*cancelAwareCoordinator) GetSystemPrompt() string                            { return "" }
+
 func TestSubagentUsesParentSessionID(t *testing.T) {
 	recorder := &sessionIDRecorder{}
 	tool := NewSubAgent(recorder, 1)
@@ -331,6 +369,70 @@ func TestSubagentDefaultsParallelismToMaxWorkers(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatalf("timed out waiting for subagent execute to complete")
+	}
+}
+
+func TestSubagentParallelRespectsContextCancellation(t *testing.T) {
+	coordinator := &cancelAwareCoordinator{ch: make(chan struct{}, 4)}
+	tool := NewSubAgent(coordinator, 1).(*subagent)
+	tool.startStagger = 0
+
+	ctx, cancel := context.WithCancel(context.Background())
+	call := ports.ToolCall{
+		ID:   "call-1",
+		Name: "subagent",
+		Arguments: map[string]any{
+			"mode":  "parallel",
+			"tasks": []any{"a", "b", "c"},
+		},
+	}
+
+	type execOutcome struct {
+		result *ports.ToolResult
+		err    error
+	}
+	done := make(chan execOutcome, 1)
+	go func() {
+		result, err := tool.Execute(ctx, call)
+		done <- execOutcome{result: result, err: err}
+	}()
+
+	select {
+	case <-coordinator.ch:
+		cancel()
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first task start")
+	}
+
+	select {
+	case out := <-done:
+		if out.err != nil {
+			t.Fatalf("subagent execute failed: %v", out.err)
+		}
+		if out.result == nil {
+			t.Fatal("expected tool result")
+		}
+		structured, ok := out.result.Metadata["results_struct"].([]subtaskMetadata)
+		if !ok {
+			t.Fatalf("expected structured metadata, got %T", out.result.Metadata["results_struct"])
+		}
+		if len(structured) != 3 {
+			t.Fatalf("expected 3 subtask results, got %d", len(structured))
+		}
+		for i, sub := range structured {
+			if sub.Error == "" {
+				t.Fatalf("expected cancellation error for subtask %d", i)
+			}
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for execute result")
+	}
+
+	coordinator.mu.Lock()
+	started := coordinator.started
+	coordinator.mu.Unlock()
+	if started != 1 {
+		t.Fatalf("expected only one task to start before cancellation, got %d", started)
 	}
 }
 

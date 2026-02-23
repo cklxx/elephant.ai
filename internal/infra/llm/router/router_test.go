@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 )
@@ -68,11 +69,20 @@ func allModels() []ModelProfile {
 
 func newTestRouter() *Router {
 	return NewRouter(RouterConfig{
-		Models:      allModels(),
-		DefaultTier: TierDefault,
-		CostWeight:  0.3,
+		Models:        allModels(),
+		DefaultTier:   TierDefault,
+		CostWeight:    0.3,
 		LatencyWeight: 0.2,
 	})
+}
+
+func mustRoute(t *testing.T, r *Router, req RoutingRequest) RoutingResult {
+	t.Helper()
+	result, err := r.Route(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Route failed: %v", err)
+	}
+	return result
 }
 
 // ---------------------------------------------------------------------------
@@ -81,7 +91,7 @@ func newTestRouter() *Router {
 
 func TestRoute_SimpleTaskPrefersSmallTier(t *testing.T) {
 	r := newTestRouter()
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		TaskComplexity: "simple",
 	})
 	if result.Profile.Tier != TierSmall {
@@ -94,7 +104,7 @@ func TestRoute_SimpleTaskPrefersSmallTier(t *testing.T) {
 
 func TestRoute_ComplexTaskPrefersStrongTier(t *testing.T) {
 	r := newTestRouter()
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		TaskComplexity: "complex",
 	})
 	if result.Profile.Tier != TierStrong {
@@ -104,7 +114,7 @@ func TestRoute_ComplexTaskPrefersStrongTier(t *testing.T) {
 
 func TestRoute_FiltersByRequiredCapabilities(t *testing.T) {
 	r := newTestRouter()
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		RequiredCapabilities: []string{"vision"},
 	})
 	// Only defaultModel and strongModel have "vision".
@@ -123,7 +133,7 @@ func TestRoute_FiltersByRequiredCapabilities(t *testing.T) {
 func TestRoute_FiltersByMaxContextTokens(t *testing.T) {
 	r := newTestRouter()
 	// Request with 150K tokens should exclude models with <= 128K context.
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		EstimatedTokens: 150_000,
 	})
 	// Only strongModel (200K) should qualify.
@@ -137,7 +147,7 @@ func TestRoute_FiltersUnhealthyProviders(t *testing.T) {
 	r := newTestRouter()
 	r.SetProviderHealth("openai", false)
 
-	result := r.Route(context.Background(), RoutingRequest{})
+	result := mustRoute(t, r, RoutingRequest{})
 	// openai models (gpt-4o-mini, gpt-4o) should be excluded.
 	if result.Profile.Provider == "openai" {
 		t.Errorf("expected non-openai provider, got %s:%s", result.Profile.Provider, result.Profile.Model)
@@ -154,7 +164,7 @@ func TestRoute_RespectsCostBudget(t *testing.T) {
 	// Set a very tight budget that only the small model can meet.
 	// smallModel: 0.00015/1K input + 0.0006/1K output.
 	// For 10K tokens: input cost = 10*0.00015 = 0.0015, output est (2.5K) = 2.5*0.0006 = 0.0015, total ~0.003
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		EstimatedTokens:   10_000,
 		MaxCostPerRequest: 0.005,
 	})
@@ -165,7 +175,7 @@ func TestRoute_RespectsCostBudget(t *testing.T) {
 
 func TestRoute_BuildsFallbackList(t *testing.T) {
 	r := newTestRouter()
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		TaskComplexity: "simple",
 	})
 	if len(result.Fallbacks) == 0 {
@@ -183,24 +193,24 @@ func TestRoute_BuildsFallbackList(t *testing.T) {
 	}
 }
 
-func TestRoute_NoMatchingModelsFallsBackToDefault(t *testing.T) {
+func TestRoute_NoMatchingModelsReturnsNoCandidateError(t *testing.T) {
 	r := newTestRouter()
 	// Require a capability nobody has.
-	result := r.Route(context.Background(), RoutingRequest{
+	result, err := r.Route(context.Background(), RoutingRequest{
 		RequiredCapabilities: []string{"quantum_computing"},
 	})
-	if result.Reason != "no_match_fallback_to_default" {
-		t.Errorf("expected reason no_match_fallback_to_default, got %s", result.Reason)
+	if !errors.Is(err, ErrNoCandidateModels) {
+		t.Fatalf("expected ErrNoCandidateModels, got %v", err)
 	}
-	if result.Profile.Tier != TierDefault {
-		t.Errorf("expected default tier in fallback, got %s", result.Profile.Tier)
+	if result.Reason != "no_candidate_models" {
+		t.Errorf("expected reason no_candidate_models, got %s", result.Reason)
 	}
 }
 
 func TestRoute_PreferredTierOverridesComplexity(t *testing.T) {
 	r := newTestRouter()
 	// Task says "complex" but preferred tier says "small".
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		TaskComplexity: "complex",
 		PreferredTier:  TierSmall,
 	})
@@ -211,7 +221,7 @@ func TestRoute_PreferredTierOverridesComplexity(t *testing.T) {
 
 func TestRoute_DefaultTierWhenNoSignal(t *testing.T) {
 	r := newTestRouter()
-	result := r.Route(context.Background(), RoutingRequest{})
+	result := mustRoute(t, r, RoutingRequest{})
 	if result.Profile.Tier != TierDefault {
 		t.Errorf("expected TierDefault when no signal, got %s", result.Profile.Tier)
 	}
@@ -287,7 +297,7 @@ func TestSetProviderHealth_ExcludesUnhealthy(t *testing.T) {
 	// Mark anthropic unhealthy.
 	r.SetProviderHealth("anthropic", false)
 
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		TaskComplexity: "complex",
 	})
 	if result.Profile.Provider == "anthropic" {
@@ -296,7 +306,7 @@ func TestSetProviderHealth_ExcludesUnhealthy(t *testing.T) {
 
 	// Re-enable anthropic.
 	r.SetProviderHealth("anthropic", true)
-	result = r.Route(context.Background(), RoutingRequest{
+	result = mustRoute(t, r, RoutingRequest{
 		TaskComplexity: "complex",
 	})
 	if result.Profile.Provider != "anthropic" {
@@ -315,7 +325,7 @@ func TestScoring_CostHeavyPrefersCheaper(t *testing.T) {
 		CostWeight:    0.8,
 		LatencyWeight: 0.1,
 	})
-	result := r.Route(context.Background(), RoutingRequest{})
+	result := mustRoute(t, r, RoutingRequest{})
 	// With cost weight 0.8, the cheapest default model (deepseek-chat) should win.
 	if result.Profile.Model != "deepseek-chat" {
 		t.Errorf("cost-heavy config should prefer deepseek-chat, got %s", result.Profile.Model)
@@ -330,7 +340,7 @@ func TestScoring_LatencyHeavyPrefersFaster(t *testing.T) {
 		CostWeight:    0.05,
 		LatencyWeight: 0.9,
 	})
-	result := r.Route(context.Background(), RoutingRequest{})
+	result := mustRoute(t, r, RoutingRequest{})
 	// With latency weight 0.9, the fastest default model should win.
 	if result.Profile.Model != "deepseek-chat" {
 		t.Errorf("latency-heavy config should prefer deepseek-chat (600ms), got %s (%.0fms)",
@@ -342,12 +352,12 @@ func TestScoring_CapabilityHeavyPrefersStronger(t *testing.T) {
 	// Among default-tier models: gpt-4o has more capabilities (vision) and higher tier proxy.
 	// With near-zero cost and latency weight, capability (tier rank) dominates.
 	r := NewRouter(RouterConfig{
-		Models: []ModelProfile{defaultModel(), cheapDefault()},
+		Models:        []ModelProfile{defaultModel(), cheapDefault()},
 		DefaultTier:   TierDefault,
 		CostWeight:    0.0,
 		LatencyWeight: 0.0,
 	})
-	result := r.Route(context.Background(), RoutingRequest{})
+	result := mustRoute(t, r, RoutingRequest{})
 	// Both are TierDefault, same tier rank. With all weights at 0, cap weight = 1.0,
 	// but same tier → same cap score. Tie-break goes to first candidate.
 	// This just verifies the scoring path doesn't panic with extreme weights.
@@ -362,7 +372,10 @@ func TestScoring_CapabilityHeavyPrefersStronger(t *testing.T) {
 
 func TestRoute_EmptyRouter(t *testing.T) {
 	r := NewRouter(RouterConfig{})
-	result := r.Route(context.Background(), RoutingRequest{})
+	result, err := r.Route(context.Background(), RoutingRequest{})
+	if !errors.Is(err, ErrNoCandidateModels) {
+		t.Fatalf("expected ErrNoCandidateModels, got %v", err)
+	}
 	if result.Reason != "no_models_available" {
 		t.Errorf("expected reason no_models_available, got %s", result.Reason)
 	}
@@ -372,7 +385,7 @@ func TestRoute_SingleModel(t *testing.T) {
 	r := NewRouter(RouterConfig{
 		Models: []ModelProfile{defaultModel()},
 	})
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		TaskComplexity: "complex",
 	})
 	// Only one model available — it should be selected regardless of tier mismatch.
@@ -387,16 +400,18 @@ func TestRoute_AllProvidersUnhealthy(t *testing.T) {
 	r.SetProviderHealth("anthropic", false)
 	r.SetProviderHealth("deepseek", false)
 
-	result := r.Route(context.Background(), RoutingRequest{})
-	// All filtered out → fallback to default.
-	if result.Reason != "no_match_fallback_to_default" {
-		t.Errorf("expected no_match_fallback_to_default, got %s", result.Reason)
+	result, err := r.Route(context.Background(), RoutingRequest{})
+	if !errors.Is(err, ErrNoCandidateModels) {
+		t.Fatalf("expected ErrNoCandidateModels, got %v", err)
+	}
+	if result.Reason != "no_candidate_models" {
+		t.Errorf("expected no_candidate_models, got %s", result.Reason)
 	}
 }
 
 func TestRoute_ZeroEstimatedTokensSkipsContextFilter(t *testing.T) {
 	r := newTestRouter()
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		EstimatedTokens: 0,
 	})
 	// Zero tokens should not filter anything.
@@ -407,7 +422,7 @@ func TestRoute_ZeroEstimatedTokensSkipsContextFilter(t *testing.T) {
 
 func TestRoute_CostBudgetZeroMeansNoLimit(t *testing.T) {
 	r := newTestRouter()
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		TaskComplexity:    "complex",
 		EstimatedTokens:   50_000,
 		MaxCostPerRequest: 0, // no limit
@@ -435,9 +450,9 @@ func TestRoute_ConcurrentCallsAreSafe(t *testing.T) {
 			// Mix different operations concurrently.
 			switch idx % 5 {
 			case 0:
-				r.Route(ctx, RoutingRequest{TaskComplexity: "simple"})
+				_, _ = r.Route(ctx, RoutingRequest{TaskComplexity: "simple"})
 			case 1:
-				r.Route(ctx, RoutingRequest{TaskComplexity: "complex"})
+				_, _ = r.Route(ctx, RoutingRequest{TaskComplexity: "complex"})
 			case 2:
 				r.SetProviderHealth("openai", idx%2 == 0)
 			case 3:
@@ -461,7 +476,7 @@ func TestRoute_ConcurrentCallsAreSafe(t *testing.T) {
 
 func TestRoute_FallbackOrderingFromSmall(t *testing.T) {
 	r := newTestRouter()
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		TaskComplexity: "simple",
 	})
 	if len(result.Fallbacks) < 2 {
@@ -481,7 +496,7 @@ func TestRoute_FallbackOrderingFromSmall(t *testing.T) {
 
 func TestRoute_FallbackOrderingFromStrong(t *testing.T) {
 	r := newTestRouter()
-	result := r.Route(context.Background(), RoutingRequest{
+	result := mustRoute(t, r, RoutingRequest{
 		TaskComplexity: "complex",
 	})
 	if len(result.Fallbacks) < 2 {

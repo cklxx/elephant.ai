@@ -157,30 +157,79 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	parallelism := resolveParallelism(mode, len(tasks), effectiveMaxParallel)
 	if parallelism <= 1 {
 		for i, task := range tasks {
+			if err := ctx.Err(); err != nil {
+				for pending := i; pending < len(tasks); pending++ {
+					results[pending] = SubtaskResult{
+						Index: pending,
+						Task:  tasks[pending],
+						Error: err,
+					}
+				}
+				break
+			}
 			results[i] = t.executeSubtask(ctx, task, i, len(tasks), parentListener, parallelism, sharedAttachments, sharedIterations, collector)
 		}
 	} else {
 		jobs := make(chan int)
+		processed := make([]bool, len(tasks))
 		var wg sync.WaitGroup
-		wg.Add(len(tasks))
+		wg.Add(parallelism)
 
 		for i := 0; i < parallelism; i++ {
 			async.Go(nil, "subagent.parallel", func() {
-				for idx := range jobs {
-					results[idx] = t.executeSubtask(ctx, tasks[idx], idx, len(tasks), parentListener, parallelism, sharedAttachments, sharedIterations, collector)
-					wg.Done()
+				defer wg.Done()
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case idx, ok := <-jobs:
+						if !ok {
+							return
+						}
+						results[idx] = t.executeSubtask(ctx, tasks[idx], idx, len(tasks), parentListener, parallelism, sharedAttachments, sharedIterations, collector)
+						processed[idx] = true
+					}
 				}
 			})
 		}
 
+		stopQueue := false
 		for i := range tasks {
-			jobs <- i
+			select {
+			case <-ctx.Done():
+				stopQueue = true
+			case jobs <- i:
+			}
+			if stopQueue {
+				break
+			}
 			if t.startStagger > 0 && i < len(tasks)-1 {
-				time.Sleep(t.startStagger)
+				timer := time.NewTimer(t.startStagger)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					stopQueue = true
+				case <-timer.C:
+				}
+				if stopQueue {
+					break
+				}
 			}
 		}
 		close(jobs)
 		wg.Wait()
+		if err := ctx.Err(); err != nil {
+			for i := range tasks {
+				if processed[i] {
+					continue
+				}
+				results[i] = SubtaskResult{
+					Index: i,
+					Task:  tasks[i],
+					Error: err,
+				}
+			}
+		}
 	}
 
 	if len(tasks) == 1 && results[0].Error != nil {

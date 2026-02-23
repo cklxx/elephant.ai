@@ -45,11 +45,15 @@ func ccHooksSettingsPath(workspaceDir string) string {
 
 // buildHookCommand builds the shell command for the hook entry.
 func buildHookCommand(serverURL, token string) string {
-	env := fmt.Sprintf("ELEPHANT_HOOKS_URL=%s", serverURL)
+	env := fmt.Sprintf("ELEPHANT_HOOKS_URL=%s", shellQuote(serverURL))
 	if token != "" {
-		env += fmt.Sprintf(" ELEPHANT_HOOKS_TOKEN=%s", token)
+		env += fmt.Sprintf(" ELEPHANT_HOOKS_TOKEN=%s", shellQuote(token))
 	}
 	return fmt.Sprintf(`%s "$CLAUDE_PROJECT_DIR"/scripts/cc_hooks/notify_lark.sh`, env)
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }
 
 // writeCCHooks writes or merges hooks into the settings file.

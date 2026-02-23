@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ type retryClient struct {
 	healthRegistry *HealthRegistry
 	provider       string
 	model          string
+	sleepFn        func(context.Context, time.Duration) error
 }
 
 var _ portsllm.StreamingLLMClient = (*retryClient)(nil)
@@ -55,18 +57,7 @@ func newRetryClientWithHealth(client portsllm.LLMClient, retryConfig alexerrors.
 func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	startTime := time.Now()
 
-	// Execute with circuit breaker and retry
-	resp, err := alexerrors.RetryWithResultAndLog(ctx, c.retryConfig, func(ctx context.Context) (*ports.CompletionResponse, error) {
-		// Use circuit breaker to protect against cascading failures
-		return alexerrors.ExecuteFunc(c.circuitBreaker, ctx, func(ctx context.Context) (*ports.CompletionResponse, error) {
-			response, err := c.underlying.Complete(ctx, req)
-			if err != nil {
-				// Classify and wrap error for better retry decisions
-				return nil, c.classifyLLMError(err)
-			}
-			return response, nil
-		})
-	}, c.logger)
+	resp, err := c.completeWithRetry(ctx, req)
 
 	duration := time.Since(startTime)
 
@@ -94,6 +85,61 @@ func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest)
 	}
 
 	return resp, nil
+}
+
+func (c *retryClient) completeWithRetry(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	maxAttempts := c.retryConfig.MaxAttempts + 1
+	var lastErr error
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		select {
+		case <-ctx.Done():
+			c.logger.Debug("Context cancelled, stopping retries")
+			return nil, fmt.Errorf("context cancelled: %w", ctx.Err())
+		default:
+		}
+
+		if attempt == 0 {
+			c.logger.Debug("Executing (attempt 1/%d)", maxAttempts)
+		} else {
+			c.logger.Debug("Retrying (attempt %d/%d)", attempt+1, maxAttempts)
+		}
+
+		resp, err := alexerrors.ExecuteFunc(c.circuitBreaker, ctx, func(ctx context.Context) (*ports.CompletionResponse, error) {
+			response, callErr := c.underlying.Complete(ctx, req)
+			if callErr != nil {
+				return nil, c.classifyLLMError(callErr)
+			}
+			return response, nil
+		})
+		if err == nil {
+			if attempt > 0 {
+				c.logger.Info("Retry succeeded after %d attempts", attempt+1)
+			}
+			return resp, nil
+		}
+
+		lastErr = err
+		c.logger.Debug("Attempt %d failed: %v", attempt+1, err)
+
+		if !alexerrors.IsTransient(err) {
+			c.logger.Debug("Error is not transient, stopping retries")
+			return nil, err
+		}
+
+		if attempt == maxAttempts-1 {
+			c.logger.Warn("Max retries (%d) exhausted", maxAttempts)
+			break
+		}
+
+		delay := c.retryDelay(attempt, err)
+		c.logger.Debug("Waiting %v before next retry", delay)
+		if err := c.waitForRetry(ctx, delay); err != nil {
+			return nil, err
+		}
+	}
+
+	return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
 }
 
 // Model returns the underlying model name
@@ -162,12 +208,10 @@ func (c *retryClient) StreamComplete(
 		}
 
 		if attempt < maxAttempts-1 {
-			delay := c.calculateBackoff(attempt)
+			delay := c.retryDelay(attempt, err)
 			c.logger.Debug("Rate limited, retrying in %v (attempt %d/%d)", delay, attempt+1, maxAttempts)
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(delay):
+			if err := c.waitForRetry(ctx, delay); err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -231,6 +275,47 @@ func (c *retryClient) calculateBackoff(attempt int) time.Duration {
 	return time.Duration(delay)
 }
 
+func (c *retryClient) retryDelay(attempt int, err error) time.Duration {
+	if retryAfter := retryAfterDuration(err); retryAfter > 0 {
+		maxDelay := c.retryConfig.MaxDelay
+		if maxDelay > 0 && retryAfter > maxDelay {
+			return maxDelay
+		}
+		return retryAfter
+	}
+	return c.calculateBackoff(attempt)
+}
+
+func (c *retryClient) waitForRetry(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	if c.sleepFn != nil {
+		if err := c.sleepFn(ctx, delay); err != nil {
+			return err
+		}
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		c.logger.Debug("Context cancelled during backoff")
+		return fmt.Errorf("context cancelled during retry: %w", ctx.Err())
+	}
+}
+
+func retryAfterDuration(err error) time.Duration {
+	var transientErr *alexerrors.TransientError
+	if errors.As(err, &transientErr) && transientErr.RetryAfter > 0 {
+		return time.Duration(transientErr.RetryAfter) * time.Second
+	}
+	return 0
+}
+
 func (c *retryClient) streamingClient() portsllm.StreamingLLMClient {
 	if streaming, ok := c.underlying.(portsllm.StreamingLLMClient); ok {
 		return streaming
@@ -245,6 +330,21 @@ func (c *retryClient) streamingClient() portsllm.StreamingLLMClient {
 func (c *retryClient) classifyLLMError(err error) error {
 	if err == nil {
 		return nil
+	}
+
+	var transientErr *alexerrors.TransientError
+	if errors.As(err, &transientErr) {
+		return err
+	}
+
+	var permanentErr *alexerrors.PermanentError
+	if errors.As(err, &permanentErr) {
+		return err
+	}
+
+	var degradedErr *alexerrors.DegradedError
+	if errors.As(err, &degradedErr) {
+		return err
 	}
 
 	errStr := err.Error()

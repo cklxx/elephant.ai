@@ -84,9 +84,11 @@ func (s *InMemoryStore) ListSnapshots(_ context.Context, sessionID string, curso
 	startIdx := 0
 	if cursor != "" {
 		if cursorID, err := strconv.Atoi(cursor); err == nil {
+			startIdx = len(turns)
 			for idx, turn := range turns {
 				if turn > cursorID {
-					startIdx = idx + 1
+					startIdx = idx
+					break
 				}
 			}
 		}
@@ -114,7 +116,7 @@ func (s *InMemoryStore) ListSnapshots(_ context.Context, sessionID string, curso
 	}
 	var nextCursor string
 	if end < len(turns) {
-		nextCursor = strconv.Itoa(turns[end])
+		nextCursor = strconv.Itoa(turns[end-1])
 	}
 	return metas, nextCursor, nil
 }

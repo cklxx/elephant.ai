@@ -26,10 +26,10 @@ func TestWriteCCHooks(t *testing.T) {
 	}
 
 	content := string(data)
-	if !strings.Contains(content, "ELEPHANT_HOOKS_URL=http://localhost:8080") {
+	if !strings.Contains(content, "ELEPHANT_HOOKS_URL='http://localhost:8080'") {
 		t.Errorf("expected server_url in command, got: %s", content)
 	}
-	if !strings.Contains(content, "ELEPHANT_HOOKS_TOKEN=tok123") {
+	if !strings.Contains(content, "ELEPHANT_HOOKS_TOKEN='tok123'") {
 		t.Errorf("expected token in command, got: %s", content)
 	}
 	if !strings.Contains(content, "PostToolUse") {
@@ -55,7 +55,7 @@ func TestWriteCCHooksNoToken(t *testing.T) {
 	}
 
 	content := string(data)
-	if !strings.Contains(content, "ELEPHANT_HOOKS_URL=http://localhost:9090") {
+	if !strings.Contains(content, "ELEPHANT_HOOKS_URL='http://localhost:9090'") {
 		t.Errorf("expected server_url, got: %s", content)
 	}
 	if strings.Contains(content, "ELEPHANT_HOOKS_TOKEN") {
@@ -243,13 +243,19 @@ func TestBuildHookCommand(t *testing.T) {
 		{
 			serverURL:    "http://localhost:8080",
 			token:        "tok",
-			wantContains: []string{"ELEPHANT_HOOKS_URL=http://localhost:8080", "ELEPHANT_HOOKS_TOKEN=tok", "notify_lark.sh"},
+			wantContains: []string{"ELEPHANT_HOOKS_URL='http://localhost:8080'", "ELEPHANT_HOOKS_TOKEN='tok'", "notify_lark.sh"},
 		},
 		{
 			serverURL:       "http://example.com",
 			token:           "",
-			wantContains:    []string{"ELEPHANT_HOOKS_URL=http://example.com", "notify_lark.sh"},
+			wantContains:    []string{"ELEPHANT_HOOKS_URL='http://example.com'", "notify_lark.sh"},
 			wantNotContains: []string{"ELEPHANT_HOOKS_TOKEN"},
+		},
+		{
+			serverURL:       "http://example.com/?q=hello;rm -rf /",
+			token:           `tok'$(echo hacked)'`,
+			wantContains:    []string{"ELEPHANT_HOOKS_URL='http://example.com/?q=hello;rm -rf /'", "ELEPHANT_HOOKS_TOKEN='tok'\"'\"'$(echo hacked)'\"'\"''"},
+			wantNotContains: []string{";rm -rf / ELEPHANT_HOOKS_TOKEN=tok"},
 		},
 	}
 
