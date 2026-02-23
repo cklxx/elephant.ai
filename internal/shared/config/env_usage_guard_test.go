@@ -25,15 +25,16 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 	)
 
 	skipDirs := map[string]struct{}{
-		".cache":       {},
-		".elephant":    {},
-		".git":         {},
-		".toolchains":  {},
-		".worktrees":   {},
-		"elephant.ai.worktrees": {},  // Additional worktrees directory
-		"logs":         {},
-		"node_modules": {},
-		"vendor":       {},
+		".cache":                {},
+		".elephant":             {},
+		".git":                  {},
+		".toolchains":           {},
+		".wt":                   {},
+		".worktrees":            {},
+		"elephant.ai.worktrees": {}, // Additional worktrees directory
+		"logs":                  {},
+		"node_modules":          {},
+		"vendor":                {},
 	}
 
 	var violations []string
