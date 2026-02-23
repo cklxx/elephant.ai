@@ -146,15 +146,8 @@ func persistAttachmentIfNeeded(ctx context.Context, att ports.Attachment, persis
 	if persister == nil {
 		return att
 	}
-	if att.Data == "" && !strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.URI)), "data:") {
-		if att.Fingerprint != "" {
-			return att
-		}
-		persisted, err := persister.Persist(ctx, att)
-		if err != nil {
-			return att
-		}
-		return persisted
+	if shouldSkipPersist(att) {
+		return att
 	}
 	persisted, err := persister.Persist(ctx, att)
 	if err != nil {
@@ -179,29 +172,19 @@ func mergeAttachmentMutations(
 
 	switch {
 	case mutations != nil && mutations.replace != nil:
-		for key, att := range mutations.replace {
-			merged[key] = att
-		}
+		mergeAttachmentMap(merged, mutations.replace)
 	case len(base) > 0:
-		for key, att := range base {
-			merged[key] = att
-		}
+		mergeAttachmentMap(merged, base)
 	case len(existing) > 0:
-		for key, att := range existing {
-			merged[key] = att
-		}
+		mergeAttachmentMap(merged, existing)
 	}
 
 	if mutations != nil {
 		if mutations.add != nil {
-			for key, att := range mutations.add {
-				merged[key] = att
-			}
+			mergeAttachmentMap(merged, mutations.add)
 		}
 		if mutations.update != nil {
-			for key, att := range mutations.update {
-				merged[key] = att
-			}
+			mergeAttachmentMap(merged, mutations.update)
 		}
 		for _, key := range mutations.remove {
 			trimmed := strings.TrimSpace(key)
@@ -215,6 +198,22 @@ func mergeAttachmentMutations(
 		return nil
 	}
 	return merged
+}
+
+func shouldSkipPersist(att ports.Attachment) bool {
+	if att.Fingerprint == "" {
+		return false
+	}
+	if att.Data != "" {
+		return false
+	}
+	return !strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.URI)), "data:")
+}
+
+func mergeAttachmentMap(dst, src map[string]ports.Attachment) {
+	for key, att := range src {
+		dst[key] = att
+	}
 }
 
 // normalizeAttachmentMutations extracts add/update/remove operations from tool

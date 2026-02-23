@@ -190,6 +190,53 @@ func TestIsValidToolPreset(t *testing.T) {
 	}
 }
 
+func TestNormalizeToolMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want ToolMode
+	}{
+		{name: "empty defaults to cli", raw: "", want: ToolModeCLI},
+		{name: "trimmed web", raw: "  web  ", want: ToolModeWeb},
+		{name: "preserves explicit mode", raw: "CLI", want: ToolMode("CLI")},
+		{name: "preserves unknown mode", raw: "desktop", want: ToolMode("desktop")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NormalizeToolMode(tt.raw); got != tt.want {
+				t.Fatalf("NormalizeToolMode(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDefaultToolPresetForMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mode   ToolMode
+		preset string
+		want   string
+	}{
+		{name: "cli empty defaults to full", mode: ToolModeCLI, preset: "", want: "full"},
+		{name: "cli keeps non-empty", mode: ToolModeCLI, preset: "safe", want: "safe"},
+		{name: "web keeps empty", mode: ToolModeWeb, preset: "", want: ""},
+		{name: "trim preset", mode: ToolModeWeb, preset: "  architect  ", want: "architect"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := DefaultToolPresetForMode(tt.mode, tt.preset); got != tt.want {
+				t.Fatalf("DefaultToolPresetForMode(%q, %q) = %q, want %q", tt.mode, tt.preset, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDefaultPromptIncludesRoutingGuardrails(t *testing.T) {
 	t.Parallel()
 

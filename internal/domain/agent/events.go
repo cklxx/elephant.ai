@@ -171,25 +171,25 @@ func (e *Event) GetAttachments() map[string]ports.Attachment {
 // simpler and more type-safe than interface{}/map[string]any for core fields.
 type EventData struct {
 	// --- Shared / multi-kind ------------------------------------------------
-	Iteration   int            `json:"iteration,omitempty"`
-	Content     string         `json:"content,omitempty"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+	Iteration   int                         `json:"iteration,omitempty"`
+	Content     string                      `json:"content,omitempty"`
+	Metadata    map[string]any              `json:"metadata,omitempty"`
 	Attachments map[string]ports.Attachment `json:"attachments,omitempty"`
 
 	// --- Input --------------------------------------------------------------
 	Task string `json:"task,omitempty"` // EventInputReceived
 
 	// --- Node lifecycle -----------------------------------------------------
-	TotalIters      int                       `json:"total_iters,omitempty"`
-	StepIndex       int                       `json:"step_index,omitempty"`
-	StepDescription string                    `json:"step_description,omitempty"`
-	Input           any                       `json:"input,omitempty"`
+	TotalIters      int                        `json:"total_iters,omitempty"`
+	StepIndex       int                        `json:"step_index,omitempty"`
+	StepDescription string                     `json:"step_description,omitempty"`
+	Input           any                        `json:"input,omitempty"`
 	Workflow        *workflow.WorkflowSnapshot `json:"workflow,omitempty"`
-	StepResult      any                       `json:"step_result,omitempty"`
-	Status          string                    `json:"status,omitempty"`
-	TokensUsed      int                       `json:"tokens_used,omitempty"`
-	ToolsRun        int                       `json:"tools_run,omitempty"`
-	Duration        time.Duration             `json:"duration,omitempty"`
+	StepResult      any                        `json:"step_result,omitempty"`
+	Status          string                     `json:"status,omitempty"`
+	TokensUsed      int                        `json:"tokens_used,omitempty"`
+	ToolsRun        int                        `json:"tools_run,omitempty"`
+	Duration        time.Duration              `json:"duration,omitempty"`
 
 	// --- Node output delta --------------------------------------------------
 	MessageCount int       `json:"message_count,omitempty"`
@@ -202,17 +202,17 @@ type EventData struct {
 	ToolCallCount int `json:"tool_call_count,omitempty"`
 
 	// --- Lifecycle updated --------------------------------------------------
-	WorkflowID        string                  `json:"workflow_id,omitempty"`
-	WorkflowEventType workflow.EventType      `json:"workflow_event_type,omitempty"`
-	Phase             workflow.WorkflowPhase  `json:"phase,omitempty"`
-	Node              *workflow.NodeSnapshot  `json:"node,omitempty"`
+	WorkflowID        string                 `json:"workflow_id,omitempty"`
+	WorkflowEventType workflow.EventType     `json:"workflow_event_type,omitempty"`
+	Phase             workflow.WorkflowPhase `json:"phase,omitempty"`
+	Node              *workflow.NodeSnapshot `json:"node,omitempty"`
 
 	// --- Tool lifecycle -----------------------------------------------------
 	CallID    string                 `json:"call_id,omitempty"`
 	ToolName  string                 `json:"tool_name,omitempty"`
 	Arguments map[string]interface{} `json:"arguments,omitempty"`
 	Result    string                 `json:"result,omitempty"`
-	Error     error                  `json:"-"` // not JSON-serialized
+	Error     error                  `json:"-"`               // not JSON-serialized
 	ErrorStr  string                 `json:"error,omitempty"` // string representation for serialization
 
 	// --- Tool progress ------------------------------------------------------
@@ -280,12 +280,12 @@ type EventData struct {
 	Iterations  int    `json:"iterations,omitempty"`
 
 	// --- External agent progress --------------------------------------------
-	MaxIter      int       `json:"max_iter,omitempty"`
-	CostUSD      float64   `json:"cost_usd,omitempty"`
-	CurrentTool  string    `json:"current_tool,omitempty"`
-	CurrentArgs  string    `json:"current_args,omitempty"`
-	FilesTouched []string  `json:"files_touched,omitempty"`
-	LastActivity time.Time `json:"last_activity,omitempty"`
+	MaxIter      int           `json:"max_iter,omitempty"`
+	CostUSD      float64       `json:"cost_usd,omitempty"`
+	CurrentTool  string        `json:"current_tool,omitempty"`
+	CurrentArgs  string        `json:"current_args,omitempty"`
+	FilesTouched []string      `json:"files_touched,omitempty"`
+	LastActivity time.Time     `json:"last_activity,omitempty"`
 	Elapsed      time.Duration `json:"elapsed,omitempty"`
 
 	// --- External input request / response ----------------------------------
@@ -542,17 +542,13 @@ func NewPreAnalysisEmojiEvent(
 
 // NewDiagnosticContextCompressionEvent creates a new context compression event.
 func NewDiagnosticContextCompressionEvent(level agent.AgentLevel, sessionID, runID, parentRunID string, originalCount, compressedCount int, ts time.Time) *Event {
-	compressionRate := 0.0
-	if originalCount > 0 {
-		compressionRate = float64(compressedCount) / float64(originalCount) * 100.0
-	}
 	return &Event{
 		BaseEvent: newBaseEventWithIDs(level, sessionID, runID, parentRunID, ts),
 		Kind:      types.EventDiagnosticContextCompression,
 		Data: EventData{
 			OriginalCount:   originalCount,
 			CompressedCount: compressedCount,
-			CompressionRate: compressionRate,
+			CompressionRate: percentageOf(compressedCount, originalCount),
 		},
 	}
 }
@@ -582,10 +578,6 @@ func NewDiagnosticContextSnapshotEvent(
 
 // NewDiagnosticToolFilteringEvent creates a new tool filtering event.
 func NewDiagnosticToolFilteringEvent(level agent.AgentLevel, sessionID, runID, parentRunID, presetName string, originalCount, filteredCount int, filteredTools []string, ts time.Time) *Event {
-	filterRatio := 0.0
-	if originalCount > 0 {
-		filterRatio = float64(filteredCount) / float64(originalCount) * 100.0
-	}
 	return &Event{
 		BaseEvent: newBaseEventWithIDs(level, sessionID, runID, parentRunID, ts),
 		Kind:      types.EventDiagnosticToolFiltering,
@@ -594,7 +586,7 @@ func NewDiagnosticToolFilteringEvent(level agent.AgentLevel, sessionID, runID, p
 			OriginalCount:   originalCount,
 			FilteredCount:   filteredCount,
 			FilteredTools:   filteredTools,
-			ToolFilterRatio: filterRatio,
+			ToolFilterRatio: percentageOf(filteredCount, originalCount),
 		},
 	}
 }
@@ -759,11 +751,7 @@ func cloneMessage(msg ports.Message) ports.Message {
 		}
 	}
 	if len(msg.Metadata) > 0 {
-		metadata := make(map[string]any, len(msg.Metadata))
-		for key, value := range msg.Metadata {
-			metadata[key] = value
-		}
-		cloned.Metadata = metadata
+		cloned.Metadata = cloneMapAny(msg.Metadata)
 	}
 	if len(msg.Attachments) > 0 {
 		cloned.Attachments = ports.CloneAttachmentMap(msg.Attachments)
@@ -774,16 +762,30 @@ func cloneMessage(msg ports.Message) ports.Message {
 func cloneToolResult(result ports.ToolResult) ports.ToolResult {
 	cloned := result
 	if len(result.Metadata) > 0 {
-		metadata := make(map[string]any, len(result.Metadata))
-		for key, value := range result.Metadata {
-			metadata[key] = value
-		}
-		cloned.Metadata = metadata
+		cloned.Metadata = cloneMapAny(result.Metadata)
 	}
 	if len(result.Attachments) > 0 {
 		cloned.Attachments = ports.CloneAttachmentMap(result.Attachments)
 	}
 	return cloned
+}
+
+func cloneMapAny(values map[string]any) map[string]any {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]any, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func percentageOf(value, total int) float64 {
+	if total <= 0 {
+		return 0
+	}
+	return float64(value) / float64(total) * 100.0
 }
 
 // EventListenerFunc is a function adapter for EventListener

@@ -2,6 +2,7 @@ package presets
 
 import (
 	"fmt"
+	"strings"
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
@@ -40,6 +41,24 @@ func unrestrictedToolConfig(name, description string) *ToolConfig {
 		AllowedTools: nil,
 		DeniedTools:  map[string]bool{},
 	}
+}
+
+// NormalizeToolMode trims and normalizes tool mode values, defaulting to CLI.
+func NormalizeToolMode(raw string) ToolMode {
+	mode := ToolMode(strings.TrimSpace(raw))
+	if mode == "" {
+		return ToolModeCLI
+	}
+	return mode
+}
+
+// DefaultToolPresetForMode trims preset names and applies per-mode defaults.
+func DefaultToolPresetForMode(mode ToolMode, preset string) string {
+	trimmed := strings.TrimSpace(preset)
+	if NormalizeToolMode(string(mode)) == ToolModeCLI && trimmed == "" {
+		return string(ToolPresetFull)
+	}
+	return trimmed
 }
 
 // GetToolConfig returns the tool configuration for a mode and preset.
