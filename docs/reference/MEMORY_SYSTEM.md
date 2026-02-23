@@ -37,8 +37,10 @@ Project memory docs live under `docs/` and are intentionally networked via IDs, 
 
 ### Networked Index Artifacts
 - `docs/memory/index.yaml` — node registry (IDs, paths, type, date, tags).
-- `docs/memory/edges.yaml` — normalized bidirectional link edges.
+- `docs/memory/edges.yaml` — normalized edges.
 - `docs/memory/tags.yaml` — controlled vocabulary for tags.
+
+Cross-reference semantics: `related` is bidirectional; `see_also`/`supersedes`/`derived_from` are directed. `memory_related` expands only `related` edges. See `docs/memory/networked/README.md`.
 
 ### Entry Metadata (New Entries)
 Add a YAML metadata block under `## Metadata` in new error/good entries. Legacy entries without metadata remain valid; the indexer infers IDs/tags from filenames and content when possible.

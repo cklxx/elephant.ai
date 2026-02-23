@@ -136,7 +136,7 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 ## Memory loading guidance (first run + progressive disclosure)
 
 ### Memory sources
-Use: error entries + summaries, good entries + summaries, and `docs/memory/long-term.md`.
+Use: error entries + summaries, good entries + summaries, memory-related plans under `docs/plans/`, and `docs/memory/long-term.md`.
 Treat these as graph nodes backed by:
 - `docs/memory/index.yaml`
 - `docs/memory/edges.yaml`
@@ -158,12 +158,14 @@ Only expand memory beyond the active set when:
 - The task touches a known failure/success pattern but lacks specifics.
 - Tests fail with a known error signature.
 - The user explicitly requests historical context or a postmortem.
+- When authoring new entries, include `## Metadata` with `links` to enable graph edges (see `docs/memory/networked/README.md`).
 
 ### Retrieval rules
 - Use summaries first; only open full entries if summaries are insufficient.
 - Prefer the most recent item when multiple entries discuss the same topic.
 - If two items are equally relevant, pick the one with higher recurrence across entries.
 - For Lark tasks, retrieval order is: `memory_search -> memory_get -> memory_related -> lark_chat_history`.
+- `memory_related` traverses only `related` edges (bidirectional). `see_also`/`supersedes`/`derived_from` remain directed cross-references.
 
 ### Long-term memory doc rules
 - `docs/memory/long-term.md` stores only durable, long-lived lessons.

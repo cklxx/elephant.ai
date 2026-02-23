@@ -7,6 +7,11 @@ This document captures **implementation details** for the Markdown memory index 
 ## Repo Documentation Index (Networked Memory)
 Repo memory docs (`docs/error-experience/*`, `docs/good-experience/*`, `docs/memory/long-term.md`) are indexed into a graph so entries can cross-reference each other.
 
+Repo memory graph also includes:
+- Memory-related plans under `docs/plans/` (type `plan`)
+- `docs/memory/long-term.md` sections as anchor nodes (type `long_term`)
+Reference: `docs/memory/networked/README.md`.
+
 ### Graph Artifacts
 - `docs/memory/index.yaml` — node registry (IDs, paths, type, date, tags).
 - `docs/memory/edges.yaml` — normalized link edges (bidirectional `related` plus directed `supersedes`/`derived_from`).
@@ -24,6 +29,7 @@ If an entry lacks a metadata block, derive:
 - For `related` links, the indexer emits **bidirectional** edges.
 - For `supersedes`/`derived_from`, edges remain **directed**.
 - `see_also` edges are **directed** unless explicitly marked reciprocal.
+- New entries should include a `## Metadata` YAML block with `links` to drive edge creation. See `docs/memory/networked/README.md`.
 
 ### Backward Compatibility
 Legacy entries remain valid without metadata and are still searchable. The indexer avoids inventing links; it only materializes edges when explicitly declared.
@@ -35,6 +41,7 @@ Legacy entries remain valid without metadata and are still searchable. The index
 - Edge storage: SQLite `memory_edges` table keyed by `(src_path, src_start_line, src_end_line, dst_path, dst_anchor, edge_type)`.
 - `memory_search` returns hit-level `related` counts from indexed edges.
 - `memory_related` traverses 1-hop related entries from a source path/range.
+- `memory_related` traverses only `related` edges (bidirectional); `see_also`/`supersedes`/`derived_from` remain directed and are not auto-expanded.
 - If index lookup is unavailable, engine falls back to lightweight Markdown link parsing.
 
 ## Index storage

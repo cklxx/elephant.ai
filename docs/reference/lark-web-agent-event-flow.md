@@ -41,6 +41,7 @@ Key files:
   3. `memory_related` (expand graph-linked entries)
   4. `lark_chat_history` (recent thread recall)
 - Chat/session fallback identity remains `memoryIDForChat(chat_id)` for deterministic Lark chat memory IDs.
+- Graph edges are defined in `docs/memory/edges.yaml`; Lark recall uses `memory_related` which traverses `related` edges only (bidirectional). `see_also`/`supersedes`/`derived_from` stay directed references.
 
 ---
 
