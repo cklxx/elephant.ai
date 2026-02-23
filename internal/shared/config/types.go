@@ -250,44 +250,6 @@ type ProactiveConfig struct {
 	Timer             TimerConfig             `json:"timer" yaml:"timer"`
 	FinalAnswerReview FinalAnswerReviewConfig `json:"final_answer_review" yaml:"final_answer_review"`
 	Attention         AttentionConfig         `json:"attention" yaml:"attention"`
-	Kernel            KernelProactiveConfig   `json:"kernel" yaml:"kernel"`
-}
-
-// KernelProactiveConfig configures the kernel agent loop.
-type KernelProactiveConfig struct {
-	Enabled         bool                         `json:"enabled" yaml:"enabled"`
-	KernelID        string                       `json:"kernel_id" yaml:"kernel_id"`
-	Schedule        string                       `json:"schedule" yaml:"schedule"`
-	TimeoutSeconds  int                          `json:"timeout_seconds" yaml:"timeout_seconds"`
-	LeaseSeconds    int                          `json:"lease_seconds" yaml:"lease_seconds"`
-	MaxConcurrent   int                          `json:"max_concurrent" yaml:"max_concurrent"`
-	MaxCycleHistory int                          `json:"max_cycle_history" yaml:"max_cycle_history"` // 0 = default (5)
-	Channel         string                       `json:"channel" yaml:"channel"`
-	UserID          string                       `json:"user_id" yaml:"user_id"`
-	ChatID          string                       `json:"chat_id" yaml:"chat_id"`
-	LLMPlanner      KernelLLMPlannerConfig       `json:"llm_planner" yaml:"llm_planner"`
-	Agents          []KernelAgentProactiveConfig `json:"agents" yaml:"agents"`
-}
-
-// KernelLLMPlannerConfig configures the LLM-driven dynamic planner.
-type KernelLLMPlannerConfig struct {
-	Enabled        bool   `json:"enabled" yaml:"enabled"`
-	Provider       string `json:"provider" yaml:"provider"`               // empty = fallback to llm_small_provider
-	Model          string `json:"model" yaml:"model"`                     // empty = fallback to llm_small_model
-	APIKey         string `json:"api_key" yaml:"api_key"`                 // empty = fallback to global api_key
-	BaseURL        string `json:"base_url" yaml:"base_url"`               // empty = fallback to global base_url
-	MaxDispatches  int    `json:"max_dispatches" yaml:"max_dispatches"`   // default 5
-	GoalFile       string `json:"goal_file" yaml:"goal_file"`             // empty = ~/.alex/kernel/{id}/GOAL.md
-	TimeoutSeconds int    `json:"timeout_seconds" yaml:"timeout_seconds"` // default 30
-}
-
-// KernelAgentProactiveConfig defines a single agent within the kernel loop.
-type KernelAgentProactiveConfig struct {
-	AgentID  string            `json:"agent_id" yaml:"agent_id"`
-	Prompt   string            `json:"prompt" yaml:"prompt"`
-	Priority int               `json:"priority" yaml:"priority"`
-	Enabled  bool              `json:"enabled" yaml:"enabled"`
-	Metadata map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
 
 // PromptConfig controls system-prompt assembly behavior.
@@ -515,14 +477,6 @@ func DefaultProactiveConfig() ProactiveConfig {
 			QuietHours:            [2]int{22, 8},
 			PriorityThreshold:     0.6,
 		},
-		Kernel: KernelProactiveConfig{
-			Enabled:        false,
-			KernelID:       "default",
-			Schedule:       "*/10 * * * *",
-			TimeoutSeconds: 900,
-			LeaseSeconds:   1800,
-			MaxConcurrent:  3,
-		},
 	}
 }
 
@@ -631,7 +585,7 @@ type HTTPLimitsOverrides struct {
 	WebFetchMaxResponseBytes    *int `json:"web_fetch_max_response_bytes,omitempty" yaml:"web_fetch_max_response_bytes,omitempty"`
 	WebSearchMaxResponseBytes   *int `json:"web_search_max_response_bytes,omitempty" yaml:"web_search_max_response_bytes,omitempty"`
 	MusicSearchMaxResponseBytes *int `json:"music_search_max_response_bytes,omitempty" yaml:"music_search_max_response_bytes,omitempty"`
-	ModelListMaxResponseBytes *int `json:"model_list_max_response_bytes,omitempty" yaml:"model_list_max_response_bytes,omitempty"`
+	ModelListMaxResponseBytes   *int `json:"model_list_max_response_bytes,omitempty" yaml:"model_list_max_response_bytes,omitempty"`
 }
 
 // EnvLookup resolves the value for an environment variable.

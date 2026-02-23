@@ -44,9 +44,6 @@ func mergeProactiveConfig(target *ProactiveConfig, file *ProactiveFileConfig) {
 	if file.Attention != nil {
 		mergeAttentionConfig(&target.Attention, file.Attention)
 	}
-	if file.Kernel != nil {
-		mergeKernelConfig(&target.Kernel, file.Kernel)
-	}
 }
 
 func mergePromptConfig(target *PromptConfig, file *PromptFileConfig) {
@@ -362,86 +359,6 @@ func mergeOKRConfig(target *OKRProactiveConfig, file *OKRFileConfig) {
 	}
 }
 
-func mergeKernelConfig(target *KernelProactiveConfig, file *KernelFileConfig) {
-	if target == nil || file == nil {
-		return
-	}
-	if file.Enabled != nil {
-		target.Enabled = *file.Enabled
-	}
-	if strings.TrimSpace(file.KernelID) != "" {
-		target.KernelID = strings.TrimSpace(file.KernelID)
-	}
-	if strings.TrimSpace(file.Schedule) != "" {
-		target.Schedule = strings.TrimSpace(file.Schedule)
-	}
-	if file.TimeoutSeconds != nil {
-		target.TimeoutSeconds = *file.TimeoutSeconds
-	}
-	if file.LeaseSeconds != nil {
-		target.LeaseSeconds = *file.LeaseSeconds
-	}
-	if file.MaxConcurrent != nil {
-		target.MaxConcurrent = *file.MaxConcurrent
-	}
-	if strings.TrimSpace(file.Channel) != "" {
-		target.Channel = strings.TrimSpace(file.Channel)
-	}
-	if strings.TrimSpace(file.UserID) != "" {
-		target.UserID = strings.TrimSpace(file.UserID)
-	}
-	if strings.TrimSpace(file.ChatID) != "" {
-		target.ChatID = strings.TrimSpace(file.ChatID)
-	}
-	if file.LLMPlanner != nil {
-		if file.LLMPlanner.Enabled != nil {
-			target.LLMPlanner.Enabled = *file.LLMPlanner.Enabled
-		}
-		if strings.TrimSpace(file.LLMPlanner.Provider) != "" {
-			target.LLMPlanner.Provider = strings.TrimSpace(file.LLMPlanner.Provider)
-		}
-		if strings.TrimSpace(file.LLMPlanner.Model) != "" {
-			target.LLMPlanner.Model = strings.TrimSpace(file.LLMPlanner.Model)
-		}
-		if strings.TrimSpace(file.LLMPlanner.APIKey) != "" {
-			target.LLMPlanner.APIKey = strings.TrimSpace(file.LLMPlanner.APIKey)
-		}
-		if strings.TrimSpace(file.LLMPlanner.BaseURL) != "" {
-			target.LLMPlanner.BaseURL = strings.TrimSpace(file.LLMPlanner.BaseURL)
-		}
-		if file.LLMPlanner.MaxDispatches != nil {
-			target.LLMPlanner.MaxDispatches = *file.LLMPlanner.MaxDispatches
-		}
-		if strings.TrimSpace(file.LLMPlanner.GoalFile) != "" {
-			target.LLMPlanner.GoalFile = strings.TrimSpace(file.LLMPlanner.GoalFile)
-		}
-		if file.LLMPlanner.TimeoutSeconds != nil {
-			target.LLMPlanner.TimeoutSeconds = *file.LLMPlanner.TimeoutSeconds
-		}
-	}
-	if len(file.Agents) > 0 {
-		agents := make([]KernelAgentProactiveConfig, 0, len(file.Agents))
-		for _, a := range file.Agents {
-			enabled := true
-			if a.Enabled != nil {
-				enabled = *a.Enabled
-			}
-			priority := 5
-			if a.Priority != nil {
-				priority = *a.Priority
-			}
-			agents = append(agents, KernelAgentProactiveConfig{
-				AgentID:  strings.TrimSpace(a.AgentID),
-				Prompt:   a.Prompt,
-				Priority: priority,
-				Enabled:  enabled,
-				Metadata: a.Metadata,
-			})
-		}
-		target.Agents = agents
-	}
-}
-
 func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 	if file == nil {
 		return
@@ -492,20 +409,5 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 	}
 	if file.Timer != nil {
 		file.Timer.StorePath = expandEnvValue(lookup, file.Timer.StorePath)
-	}
-	if file.Kernel != nil {
-		file.Kernel.Channel = expandEnvValue(lookup, file.Kernel.Channel)
-		file.Kernel.UserID = expandEnvValue(lookup, file.Kernel.UserID)
-		file.Kernel.ChatID = expandEnvValue(lookup, file.Kernel.ChatID)
-		for i := range file.Kernel.Agents {
-			file.Kernel.Agents[i].Prompt = expandEnvValue(lookup, file.Kernel.Agents[i].Prompt)
-		}
-		if file.Kernel.LLMPlanner != nil {
-			file.Kernel.LLMPlanner.Provider = expandEnvValue(lookup, file.Kernel.LLMPlanner.Provider)
-			file.Kernel.LLMPlanner.Model = expandEnvValue(lookup, file.Kernel.LLMPlanner.Model)
-			file.Kernel.LLMPlanner.APIKey = expandEnvValue(lookup, file.Kernel.LLMPlanner.APIKey)
-			file.Kernel.LLMPlanner.BaseURL = expandEnvValue(lookup, file.Kernel.LLMPlanner.BaseURL)
-			file.Kernel.LLMPlanner.GoalFile = expandEnvValue(lookup, file.Kernel.LLMPlanner.GoalFile)
-		}
 	}
 }

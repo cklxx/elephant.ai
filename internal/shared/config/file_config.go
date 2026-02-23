@@ -164,43 +164,6 @@ type ProactiveFileConfig struct {
 	Timer             *TimerFileConfig             `yaml:"timer"`
 	FinalAnswerReview *FinalAnswerReviewFileConfig `yaml:"final_answer_review"`
 	Attention         *AttentionFileConfig         `yaml:"attention"`
-	Kernel            *KernelFileConfig            `yaml:"kernel"`
-}
-
-// KernelFileConfig mirrors KernelProactiveConfig for YAML decoding.
-type KernelFileConfig struct {
-	Enabled        *bool                        `yaml:"enabled"`
-	KernelID       string                       `yaml:"kernel_id"`
-	Schedule       string                       `yaml:"schedule"`
-	TimeoutSeconds *int                         `yaml:"timeout_seconds"`
-	LeaseSeconds   *int                         `yaml:"lease_seconds"`
-	MaxConcurrent  *int                         `yaml:"max_concurrent"`
-	Channel        string                       `yaml:"channel"`
-	UserID         string                       `yaml:"user_id"`
-	ChatID         string                       `yaml:"chat_id"`
-	LLMPlanner     *KernelLLMPlannerFileConfig  `yaml:"llm_planner"`
-	Agents         []KernelAgentFileConfig      `yaml:"agents"`
-}
-
-// KernelLLMPlannerFileConfig mirrors KernelLLMPlannerConfig for YAML decoding.
-type KernelLLMPlannerFileConfig struct {
-	Enabled        *bool  `yaml:"enabled"`
-	Provider       string `yaml:"provider"`
-	Model          string `yaml:"model"`
-	APIKey         string `yaml:"api_key"`
-	BaseURL        string `yaml:"base_url"`
-	MaxDispatches  *int   `yaml:"max_dispatches"`
-	GoalFile       string `yaml:"goal_file"`
-	TimeoutSeconds *int   `yaml:"timeout_seconds"`
-}
-
-// KernelAgentFileConfig mirrors KernelAgentProactiveConfig for YAML decoding.
-type KernelAgentFileConfig struct {
-	AgentID  string            `yaml:"agent_id"`
-	Prompt   string            `yaml:"prompt"`
-	Priority *int              `yaml:"priority"`
-	Enabled  *bool             `yaml:"enabled"`
-	Metadata map[string]string `yaml:"metadata,omitempty"`
 }
 
 type PromptFileConfig struct {
@@ -406,26 +369,26 @@ type LarkBrowserConfig struct {
 
 // ServerConfig captures server-specific YAML configuration.
 type ServerConfig struct {
-	Port                                         string   `yaml:"port"`
-	DebugPort                                    string   `yaml:"debug_port"`
-	EnableMCP                                    *bool    `yaml:"enable_mcp"`
-	MaxTaskBodyBytes                             *int64   `yaml:"max_task_body_bytes"`
-	AllowedOrigins                               []string `yaml:"allowed_origins"`
-	StreamMaxDurationSeconds                     *int     `yaml:"stream_max_duration_seconds"`
-	StreamMaxBytes                               *int64   `yaml:"stream_max_bytes"`
-	StreamMaxConcurrent                          *int     `yaml:"stream_max_concurrent"`
-	RateLimitRequestsPerMinute                   *int     `yaml:"rate_limit_requests_per_minute"`
-	RateLimitBurst                               *int     `yaml:"rate_limit_burst"`
-	NonStreamTimeoutSeconds                      *int     `yaml:"non_stream_timeout_seconds"`
-	TaskExecutionOwnerID                         string   `yaml:"task_execution_owner_id"`
-	TaskExecutionLeaseTTLSeconds                 *int     `yaml:"task_execution_lease_ttl_seconds"`
-	TaskExecutionLeaseRenewIntervalSeconds       *int     `yaml:"task_execution_lease_renew_interval_seconds"`
-	TaskExecutionMaxInFlight                     *int     `yaml:"task_execution_max_in_flight"`
-	TaskExecutionResumeClaimBatchSize            *int     `yaml:"task_execution_resume_claim_batch_size"`
-	EventHistoryRetentionDays                    *int     `yaml:"event_history_retention_days"`
-	EventHistoryMaxSessions                      *int     `yaml:"event_history_max_sessions"`
-	EventHistorySessionTTL                       *int     `yaml:"event_history_session_ttl_seconds"`
-	EventHistoryMaxEvents *int `yaml:"event_history_max_events"`
+	Port                                   string   `yaml:"port"`
+	DebugPort                              string   `yaml:"debug_port"`
+	EnableMCP                              *bool    `yaml:"enable_mcp"`
+	MaxTaskBodyBytes                       *int64   `yaml:"max_task_body_bytes"`
+	AllowedOrigins                         []string `yaml:"allowed_origins"`
+	StreamMaxDurationSeconds               *int     `yaml:"stream_max_duration_seconds"`
+	StreamMaxBytes                         *int64   `yaml:"stream_max_bytes"`
+	StreamMaxConcurrent                    *int     `yaml:"stream_max_concurrent"`
+	RateLimitRequestsPerMinute             *int     `yaml:"rate_limit_requests_per_minute"`
+	RateLimitBurst                         *int     `yaml:"rate_limit_burst"`
+	NonStreamTimeoutSeconds                *int     `yaml:"non_stream_timeout_seconds"`
+	TaskExecutionOwnerID                   string   `yaml:"task_execution_owner_id"`
+	TaskExecutionLeaseTTLSeconds           *int     `yaml:"task_execution_lease_ttl_seconds"`
+	TaskExecutionLeaseRenewIntervalSeconds *int     `yaml:"task_execution_lease_renew_interval_seconds"`
+	TaskExecutionMaxInFlight               *int     `yaml:"task_execution_max_in_flight"`
+	TaskExecutionResumeClaimBatchSize      *int     `yaml:"task_execution_resume_claim_batch_size"`
+	EventHistoryRetentionDays              *int     `yaml:"event_history_retention_days"`
+	EventHistoryMaxSessions                *int     `yaml:"event_history_max_sessions"`
+	EventHistorySessionTTL                 *int     `yaml:"event_history_session_ttl_seconds"`
+	EventHistoryMaxEvents                  *int     `yaml:"event_history_max_events"`
 }
 
 // AgentConfig captures agent-level behavioral settings.

@@ -78,12 +78,6 @@ runtime:
       min_interval_seconds: 1800
       quiet_hours: [22, 8]
       priority_threshold: 0.6
-    kernel:
-      enabled: true
-      kernel_id: "default"
-      schedule: "*/30 * * * *"
-      channel: "lark"
-      user_id: "cklxx"
   tool_policy:
     enforcement_mode: "warn_allow"
   external_agents:
