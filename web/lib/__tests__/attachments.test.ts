@@ -164,6 +164,16 @@ describe("buildAttachmentUri", () => {
     ).toBe(uri);
   });
 
+  it("rejects unsafe javascript: URIs", () => {
+    expect(
+      buildAttachmentUri({
+        name: "bad-link.txt",
+        media_type: "text/plain",
+        uri: "javascript:alert(1)",
+      }),
+    ).toBeNull();
+  });
+
   it("preserves data URIs without double prefixing", () => {
     const dataUri = "data:image/png;base64,aGVsbG8=";
     const uri = buildAttachmentUri({
@@ -263,5 +273,24 @@ describe("resolveAttachmentDownloadUris", () => {
     expect(result.preferredKind).toBe("pdf");
     expect(result.preferredUri).toBe(buildApiUrl("/api/data/slides.pdf"));
     expect(result.fallbackUri).toBe(buildApiUrl("/api/data/slides.pptx"));
+  });
+
+  it("ignores unsafe preferred download URIs", () => {
+    const result = resolveAttachmentDownloadUris({
+      name: "slides.pptx",
+      media_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      format: "pptx",
+      uri: "/api/data/slides.pptx",
+      preview_assets: [
+        {
+          cdn_url: "javascript:alert(1)",
+          mime_type: "application/pdf",
+        },
+      ],
+    });
+
+    expect(result.preferredKind).toBeNull();
+    expect(result.preferredUri).toBe(buildApiUrl("/api/data/slides.pptx"));
+    expect(result.fallbackUri).toBeNull();
   });
 });

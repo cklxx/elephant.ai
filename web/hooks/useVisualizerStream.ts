@@ -22,6 +22,7 @@ export function useVisualizerStream(): UseVisualizerStreamResult {
   const [currentEvent, setCurrentEvent] = useState<VisualizerEvent | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const clearEventTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const eventSource = new EventSource('/api/visualizer/stream');
@@ -48,8 +49,12 @@ export function useVisualizerStream(): UseVisualizerStreamResult {
         setCurrentEvent(data);
 
         // Clear current event after 3 seconds
-        setTimeout(() => {
+        if (clearEventTimeoutRef.current !== null) {
+          clearTimeout(clearEventTimeoutRef.current);
+        }
+        clearEventTimeoutRef.current = setTimeout(() => {
           setCurrentEvent((current) => (current === data ? null : current));
+          clearEventTimeoutRef.current = null;
         }, 3000);
       } catch (err) {
         console.error('[VisualizerStream] Parse error:', err);
@@ -62,7 +67,12 @@ export function useVisualizerStream(): UseVisualizerStreamResult {
     };
 
     return () => {
+      if (clearEventTimeoutRef.current !== null) {
+        clearTimeout(clearEventTimeoutRef.current);
+        clearEventTimeoutRef.current = null;
+      }
       eventSource.close();
+      eventSourceRef.current = null;
       setIsConnected(false);
     };
   }, []);

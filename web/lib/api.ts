@@ -48,6 +48,66 @@ export class APIError extends Error {
 }
 
 const log = createLogger("API");
+const CSRF_HEADER_NAME = "X-CSRF-Token";
+const CSRF_COOKIE_NAMES = [
+  "csrf_token",
+  "csrf-token",
+  "csrftoken",
+  "xsrf-token",
+  "XSRF-TOKEN",
+];
+const CSRF_META_SELECTORS = [
+  'meta[name="csrf-token"]',
+  'meta[name="csrf_token"]',
+  'meta[name="xsrf-token"]',
+  'meta[name="x-csrf-token"]',
+];
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+  const cookieParts = document.cookie ? document.cookie.split(";") : [];
+  for (const entry of cookieParts) {
+    const [rawName, ...rest] = entry.trim().split("=");
+    if (rawName !== name) {
+      continue;
+    }
+    const value = rest.join("=").trim();
+    if (!value) {
+      return null;
+    }
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+  return null;
+}
+
+function getCsrfToken(): string | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  for (const cookieName of CSRF_COOKIE_NAMES) {
+    const value = readCookie(cookieName);
+    if (value) {
+      return value;
+    }
+  }
+
+  for (const selector of CSRF_META_SELECTORS) {
+    const meta = document.querySelector<HTMLMetaElement>(selector);
+    const content = meta?.content?.trim();
+    if (content) {
+      return content;
+    }
+  }
+
+  return null;
+}
 
 async function fetchAPI<T>(
   endpoint: string,
@@ -60,6 +120,13 @@ async function fetchAPI<T>(
 
   if (rest.body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
+  }
+  const method = (rest.method ?? "GET").toUpperCase();
+  if (method !== "GET" && !headers.has(CSRF_HEADER_NAME)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      headers.set(CSRF_HEADER_NAME, csrfToken);
+    }
   }
 
   try {

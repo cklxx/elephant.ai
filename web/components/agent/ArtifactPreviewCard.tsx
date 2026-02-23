@@ -35,6 +35,8 @@ const AUTO_PREFETCH_MARKDOWN_MAX_BYTES = 512 * 1024;
 const AUTO_PREFETCH_HTML_MAX_BYTES = 512 * 1024;
 const MARKDOWN_SNIPPET_MAX_CHARS = 1400;
 const HTML_EDITOR_MIN_HEIGHT = "min-h-[360px]";
+export const UNTRUSTED_HTML_PREVIEW_SANDBOX =
+  "allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-scripts";
 
 interface ArtifactPreviewCardProps {
   attachment: AttachmentPayload;
@@ -517,6 +519,7 @@ export const ArtifactPreviewCard = memo(function ArtifactPreviewCard({
                     className="h-full w-full border-0 pointer-events-none"
                     title="HTML preview"
                     loading="lazy"
+                    sandbox={UNTRUSTED_HTML_PREVIEW_SANDBOX}
                   />
                   <div
                     className={cn(
@@ -714,6 +717,7 @@ export const ArtifactPreviewCard = memo(function ArtifactPreviewCard({
                               src={htmlPreviewUrl}
                               className="h-[80vh] w-full rounded-xl border border-border/60 bg-white"
                               title="Preview"
+                              sandbox={UNTRUSTED_HTML_PREVIEW_SANDBOX}
                             />
                           </div>
                         </div>

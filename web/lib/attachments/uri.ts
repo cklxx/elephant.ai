@@ -14,6 +14,8 @@ const BLOB_URL_CACHE_LIMIT = (() => {
 const BLOB_URL_CACHE = new Map<string, string>();
 const PRESIGNED_REFRESH_WINDOW_MS = 5 * 60 * 1000;
 const PRESIGNED_FILENAME_PATTERN = /^[a-f0-9]{64}(\.[a-z0-9]{1,10})?$/i;
+const URI_SCHEME_PATTERN = /^([a-z][a-z0-9+.-]*):/i;
+const SAFE_ATTACHMENT_URI_SCHEMES = new Set(["http", "https", "data", "blob"]);
 
 function hashValue(value: string): string {
   let hash = 2166136261;
@@ -171,8 +173,33 @@ function buildBlobUrlFromDataUri(dataUri: string): string | null {
   }
 }
 
-function normalizeAttachmentUri(uri: string): string {
+function getUriScheme(uri: string): string | null {
+  const match = URI_SCHEME_PATTERN.exec(uri);
+  if (!match) {
+    return null;
+  }
+  return match[1]?.toLowerCase() ?? null;
+}
+
+function isAllowedAttachmentUri(uri: string): boolean {
+  if (uri.startsWith("//") || uri.startsWith("\\\\")) {
+    return false;
+  }
+  const scheme = getUriScheme(uri);
+  if (!scheme) {
+    return true;
+  }
+  return SAFE_ATTACHMENT_URI_SCHEMES.has(scheme);
+}
+
+function normalizeAttachmentUri(uri: string): string | null {
   const trimmed = uri.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (!isAllowedAttachmentUri(trimmed)) {
+    return null;
+  }
   if (trimmed.startsWith("data:")) {
     return trimmed;
   }
@@ -290,7 +317,10 @@ function buildAttachmentUriInternal(
       ? undefined
       : findPreferredDownloadAsset(attachment);
   if (preferredAsset?.cdn_url) {
-    return normalizeAttachmentUri(preferredAsset.cdn_url);
+    const preferredUri = normalizeAttachmentUri(preferredAsset.cdn_url);
+    if (preferredUri) {
+      return preferredUri;
+    }
   }
 
   const direct = toTrimmedString(attachment.uri);
@@ -301,7 +331,10 @@ function buildAttachmentUriInternal(
         return blobUrl;
       }
     }
-    return normalizeAttachmentUri(direct);
+    const normalizedDirect = normalizeAttachmentUri(direct);
+    if (normalizedDirect) {
+      return normalizedDirect;
+    }
   }
   const data = toTrimmedString(attachment.data);
   if (!data) {
@@ -358,9 +391,11 @@ export function resolveAttachmentDownloadUris(
 
   if (preferredAsset?.cdn_url) {
     const preferredUri = normalizeAttachmentUri(preferredAsset.cdn_url);
-    const fallbackDistinct =
-      fallbackUri && fallbackUri !== preferredUri ? fallbackUri : null;
-    return { preferredUri, fallbackUri: fallbackDistinct, preferredKind: "pdf" };
+    if (preferredUri) {
+      const fallbackDistinct =
+        fallbackUri && fallbackUri !== preferredUri ? fallbackUri : null;
+      return { preferredUri, fallbackUri: fallbackDistinct, preferredKind: "pdf" };
+    }
   }
 
   return { preferredUri: fallbackUri, fallbackUri: null, preferredKind: null };
