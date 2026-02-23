@@ -373,6 +373,10 @@ edges:
       to: goodsum-2026-02-12-llm-profile-client-provider-decoupling
       type: see_also
       direction: directed
+    - from: good-2026-02-23-branch-delete-policy-fallback
+      to: goodsum-2026-02-23-branch-delete-policy-fallback
+      type: see_also
+      direction: directed
     - from: goodsum-2026-01-30-continuous-practice-optimization
       to: good-2026-01-30-continuous-practice-optimization
       type: derived_from
@@ -543,6 +547,10 @@ edges:
       direction: directed
     - from: goodsum-2026-02-12-llm-profile-client-provider-decoupling
       to: good-2026-02-12-llm-profile-client-provider-decoupling
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-23-branch-delete-policy-fallback
+      to: good-2026-02-23-branch-delete-policy-fallback
       type: derived_from
       direction: directed
     - from: ltm-long-term-memory
