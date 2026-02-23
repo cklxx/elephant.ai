@@ -188,8 +188,51 @@ func (i *Indexer) Search(ctx context.Context, _ string, query string, maxResults
 	if err != nil {
 		return nil, err
 	}
+	results := mergeMatches(vecMatches, textMatches, maxResults, minScore, i.cfg.FusionWeightVector, i.cfg.FusionWeightBM25)
+	for idx := range results {
+		results[idx].NodeID = buildNodeID(results[idx].Path, results[idx].StartLine, results[idx].EndLine)
+		relatedCount, err := store.CountRelated(ctx, results[idx].Path, results[idx].StartLine, results[idx].EndLine)
+		if err != nil {
+			continue
+		}
+		results[idx].RelatedCount = relatedCount
+	}
+	return results, nil
+}
 
-	return mergeMatches(vecMatches, textMatches, maxResults, minScore, i.cfg.FusionWeightVector, i.cfg.FusionWeightBM25), nil
+// Related returns graph-adjacent memory entries for a source path or range.
+func (i *Indexer) Related(ctx context.Context, _ string, path string, fromLine, toLine, maxResults int) ([]RelatedHit, error) {
+	if i == nil {
+		return nil, fmt.Errorf("indexer not initialized")
+	}
+	if maxResults <= 0 {
+		maxResults = defaultSearchMax
+	}
+	store, err := i.storeForUser()
+	if err != nil {
+		return nil, err
+	}
+	normalizedPath, err := i.normalizePath(path)
+	if err != nil {
+		return nil, err
+	}
+	results, err := store.SearchRelated(ctx, normalizedPath, fromLine, toLine, maxResults)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RelatedHit, 0, len(results))
+	for _, match := range results {
+		out = append(out, RelatedHit{
+			Path:         match.Path,
+			StartLine:    match.StartLine,
+			EndLine:      match.EndLine,
+			Score:        match.Score,
+			Snippet:      buildSnippet(match.Text),
+			RelationType: match.EdgeType,
+			NodeID:       buildNodeID(match.Path, match.StartLine, match.EndLine),
+		})
+	}
+	return out, nil
 }
 
 func (i *Indexer) watchLoop() {
@@ -344,6 +387,7 @@ func (i *Indexer) indexPath(ctx context.Context, path string) error {
 			Text:      chunk.Text,
 			Hash:      hash,
 			Embedding: embedding,
+			Edges:     extractMemoryEdges(chunk.Text),
 		})
 	}
 	return store.ReplaceChunks(ctx, relPath, indexed)
@@ -425,6 +469,21 @@ func (i *Indexer) storeForUser() (*IndexStore, error) {
 	}
 	i.stores[key] = store
 	return store, nil
+}
+
+func (i *Indexer) normalizePath(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", fmt.Errorf("path is required")
+	}
+	if filepath.IsAbs(path) {
+		relPath, ok := resolveUserPath(i.rootDir, path)
+		if !ok {
+			return "", fmt.Errorf("path outside memory root")
+		}
+		return filepath.ToSlash(filepath.Clean(relPath)), nil
+	}
+	return filepath.ToSlash(filepath.Clean(path)), nil
 }
 
 type chunkWindow struct {
@@ -650,6 +709,7 @@ func mergeMatches(vec []VectorMatch, text []TextMatch, limit int, minScore float
 			Score:     entry.finalScore,
 			Snippet:   buildSnippet(entry.chunk.Text),
 			Source:    source,
+			NodeID:    buildNodeID(entry.chunk.Path, entry.chunk.StartLine, entry.chunk.EndLine),
 		})
 	}
 	if len(results) > 1 {

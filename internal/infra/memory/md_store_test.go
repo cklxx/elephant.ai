@@ -84,3 +84,33 @@ func TestMarkdownEngineSearchAndGetLines(t *testing.T) {
 		t.Fatalf("expected snippet to contain TypeScript, got: %s", text)
 	}
 }
+
+func TestMarkdownEngineRelatedFallback(t *testing.T) {
+	dir := t.TempDir()
+	eng := NewMarkdownEngine(dir)
+	if err := eng.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "MEMORY.md"), []byte("# Long-Term Memory\n\nSee [[memory:memory/2026-02-02.md#Deploy]].\n"), 0o644); err != nil {
+		t.Fatalf("write memory: %v", err)
+	}
+	dailyPath := filepath.Join(dir, "memory", "2026-02-02.md")
+	if err := os.MkdirAll(filepath.Dir(dailyPath), 0o755); err != nil {
+		t.Fatalf("mkdir daily: %v", err)
+	}
+	if err := os.WriteFile(dailyPath, []byte("# 2026-02-02\n\n## Deploy\nDone.\n"), 0o644); err != nil {
+		t.Fatalf("write daily: %v", err)
+	}
+
+	related, err := eng.Related(context.Background(), "user-1", "MEMORY.md", 0, 0, 5)
+	if err != nil {
+		t.Fatalf("Related: %v", err)
+	}
+	if len(related) == 0 {
+		t.Fatalf("expected related entries")
+	}
+	if related[0].Path != "memory/2026-02-02.md" {
+		t.Fatalf("unexpected related path: %+v", related[0])
+	}
+}

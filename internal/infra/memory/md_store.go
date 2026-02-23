@@ -209,6 +209,84 @@ func (e *MarkdownEngine) Search(ctx context.Context, _ string, query string, max
 	return selectTopHits(hits, maxResults), nil
 }
 
+// Related returns graph-adjacent memory entries for a path/range.
+func (e *MarkdownEngine) Related(ctx context.Context, _ string, path string, fromLine, toLine, maxResults int) ([]RelatedHit, error) {
+	if e == nil {
+		return nil, fmt.Errorf("memory engine not initialized")
+	}
+	if strings.TrimSpace(path) == "" {
+		return nil, fmt.Errorf("path is required")
+	}
+	if maxResults <= 0 {
+		maxResults = defaultSearchMax
+	}
+
+	if e.indexer != nil {
+		results, err := e.indexer.Related(ctx, "", path, fromLine, toLine, maxResults)
+		if err == nil {
+			return results, nil
+		}
+	}
+
+	absPath, err := e.resolvePath(path)
+	if err != nil {
+		return nil, err
+	}
+	lines, err := readLines(absPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(lines) == 0 {
+		return nil, nil
+	}
+	if fromLine <= 0 {
+		fromLine = 1
+	}
+	if toLine <= 0 || toLine < fromLine {
+		toLine = len(lines)
+	}
+	if fromLine > len(lines) {
+		return nil, nil
+	}
+	if toLine > len(lines) {
+		toLine = len(lines)
+	}
+	text := strings.Join(lines[fromLine-1:toLine], "\n")
+	edges := extractMemoryEdges(text)
+	if len(edges) == 0 {
+		return nil, nil
+	}
+
+	results := make([]RelatedHit, 0, len(edges))
+	for _, edge := range edges {
+		cleanPath := normalizeLinkedPath(edge.DstPath)
+		if cleanPath == "" {
+			continue
+		}
+		related := RelatedHit{
+			Path:         cleanPath,
+			StartLine:    1,
+			EndLine:      1,
+			Score:        1.0,
+			Snippet:      "",
+			RelationType: edge.EdgeType,
+			NodeID:       buildNodeID(cleanPath, 1, 1),
+		}
+		if relatedAbs, relErr := e.resolvePath(cleanPath); relErr == nil {
+			if relLines, readErr := readLines(relatedAbs); readErr == nil && len(relLines) > 0 {
+				related.EndLine = minInt(20, len(relLines))
+				related.Snippet = buildSnippet(strings.Join(relLines[:related.EndLine], "\n"))
+				related.NodeID = buildNodeID(cleanPath, related.StartLine, related.EndLine)
+			}
+		}
+		results = append(results, related)
+		if len(results) >= maxResults {
+			break
+		}
+	}
+	return results, nil
+}
+
 // GetLines returns a slice of lines from the given memory path.
 func (e *MarkdownEngine) GetLines(_ context.Context, _ string, path string, fromLine, lineCount int) (string, error) {
 	if e == nil {
@@ -428,6 +506,7 @@ func searchFile(path, root string, queryTerms map[string]struct{}, queryLower st
 				Score:     score,
 				Snippet:   snippet,
 				Source:    source,
+				NodeID:    buildNodeID(relPath, start+1, end),
 			})
 		}
 		start = nextChunkStart(start, end, lineCounts, chunkOverlap)
@@ -597,4 +676,11 @@ func buildSnippet(text string) string {
 		return trimmed
 	}
 	return strings.TrimSpace(trimmed[:maxSnippetChars]) + "..."
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

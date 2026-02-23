@@ -28,7 +28,7 @@ func NewMemorySearch(engine memory.Engine) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "memory_search",
-				Description: "Search user memory notes to discover or recall prior preferences, habits, commitments, and historical context when exact memory path is unknown. Use this to locate relevant note paths before opening a specific note with memory_get.",
+				Description: "Search user memory notes to discover or recall prior preferences, habits, commitments, and historical context when exact memory path is unknown. Use this to locate relevant note paths before opening a specific note with memory_get or expanding links with memory_related.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -132,7 +132,7 @@ func (t *memorySearch) Execute(ctx context.Context, call ports.ToolCall) (*ports
 func formatSearchResults(results []memory.SearchHit) string {
 	var sb strings.Builder
 	for _, hit := range results {
-		sb.WriteString(fmt.Sprintf("%s:%d-%d (score=%.2f)\n", hit.Path, hit.StartLine, hit.EndLine, hit.Score))
+		sb.WriteString(fmt.Sprintf("%s:%d-%d (score=%.2f, related=%d)\n", hit.Path, hit.StartLine, hit.EndLine, hit.Score, hit.RelatedCount))
 		if hit.Snippet != "" {
 			sb.WriteString(hit.Snippet)
 			sb.WriteString("\n")

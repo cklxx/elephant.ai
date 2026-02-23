@@ -272,7 +272,7 @@ func buildToolRoutingSection() string {
 	sb.WriteString("ELIF task_is_read_only_inspection(view, check, list, inspect):\n")
 	sb.WriteString("  execute with read_file/list_dir/shell_exec; report findings\n")
 	sb.WriteString("ELIF intent_is_unclear:\n")
-	sb.WriteString("  search memory_search/memory_get → lark_chat_history → thread context\n")
+	sb.WriteString("  search memory_search → memory_get/memory_related → lark_chat_history → thread context\n")
 	sb.WriteString("  IF still_unclear AND critical_input_missing:\n")
 	sb.WriteString("    clarify(needs_user_input=true) with ONE minimal question\n")
 	sb.WriteString("ELIF user_delegates(\"you decide\", \"anything works\"):\n")
@@ -283,7 +283,7 @@ func buildToolRoutingSection() string {
 	// ALWAYS rules — binary, no ambiguity
 	sb.WriteString("## ALWAYS\n")
 	sb.WriteString("- ALWAYS exhaust deterministic tools (read_file, memory_search, execute_code, bash) before asking the user.\n")
-	sb.WriteString("- ALWAYS use read_file for workspace/repo files; memory_get for memory entries from memory_search.\n")
+	sb.WriteString("- ALWAYS use read_file for workspace/repo files; memory_get for exact memory lines and memory_related for linked memory expansion.\n")
 	sb.WriteString("- ALWAYS use shell_exec for CLI commands; execute_code for code snippets/scripts/computation.\n")
 	sb.WriteString("- ALWAYS use write_file to create; replace_in_file to edit in place; artifacts_write for durable outputs.\n")
 	sb.WriteString("- ALWAYS use mcp__playwright__browser_* for browser automation; browser_snapshot for page inspection.\n")

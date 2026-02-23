@@ -79,3 +79,72 @@ func TestIndexStoreReplaceSearchAndDelete(t *testing.T) {
 		}
 	}
 }
+
+func TestIndexStoreRelatedGraphQueries(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	store, err := OpenIndexStore(filepath.Join(dir, "index.sqlite"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer store.Close()
+
+	embedding := []float32{0.1, 0.2, 0.3}
+	if err := store.EnsureSchema(ctx, len(embedding)); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	sourcePath := filepath.Join("memory", "2026-02-02.md")
+	targetPath := filepath.Join("memory", "2026-02-03.md")
+	if err := store.ReplaceChunks(ctx, sourcePath, []IndexedChunk{
+		{
+			Path:      sourcePath,
+			StartLine: 1,
+			EndLine:   4,
+			Text:      "See [[memory:memory/2026-02-03.md#follow-up]].",
+			Hash:      hashText("source"),
+			Embedding: embedding,
+			Edges: []MemoryEdge{
+				{
+					DstPath:   targetPath,
+					DstAnchor: "follow-up",
+					EdgeType:  "related",
+					Direction: "directed",
+				},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("replace source chunks: %v", err)
+	}
+	if err := store.ReplaceChunks(ctx, targetPath, []IndexedChunk{
+		{
+			Path:      targetPath,
+			StartLine: 1,
+			EndLine:   3,
+			Text:      "Follow-up execution notes.",
+			Hash:      hashText("target"),
+			Embedding: embedding,
+		},
+	}); err != nil {
+		t.Fatalf("replace target chunks: %v", err)
+	}
+
+	related, err := store.SearchRelated(ctx, sourcePath, 1, 4, 5)
+	if err != nil {
+		t.Fatalf("search related: %v", err)
+	}
+	if len(related) == 0 {
+		t.Fatalf("expected related matches")
+	}
+	if related[0].Path != targetPath {
+		t.Fatalf("expected target path %q, got %+v", targetPath, related[0])
+	}
+
+	count, err := store.CountRelated(ctx, sourcePath, 1, 4)
+	if err != nil {
+		t.Fatalf("count related: %v", err)
+	}
+	if count == 0 {
+		t.Fatalf("expected non-zero related count")
+	}
+}

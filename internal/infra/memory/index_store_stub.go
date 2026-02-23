@@ -37,6 +37,26 @@ type IndexedChunk struct {
 	Text      string
 	Hash      string
 	Embedding []float32
+	Edges     []MemoryEdge
+}
+
+// MemoryEdge represents a graph edge between memory chunks/files.
+type MemoryEdge struct {
+	DstPath   string
+	DstAnchor string
+	EdgeType  string
+	Direction string
+}
+
+// RelatedMatch captures a linked memory entry returned by graph traversal.
+type RelatedMatch struct {
+	Path      string
+	Anchor    string
+	EdgeType  string
+	StartLine int
+	EndLine   int
+	Text      string
+	Score     float64
 }
 
 // IndexStore is unavailable when CGO is disabled.
@@ -82,5 +102,15 @@ func (s *IndexStore) SearchVector(_ context.Context, _ []float32, _ int) ([]Vect
 
 // SearchBM25 returns an error when CGO is disabled.
 func (s *IndexStore) SearchBM25(_ context.Context, _ string, _ int) ([]TextMatch, error) {
+	return nil, fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
+}
+
+// CountRelated returns an error when CGO is disabled.
+func (s *IndexStore) CountRelated(_ context.Context, _ string, _, _ int) (int, error) {
+	return 0, fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
+}
+
+// SearchRelated returns an error when CGO is disabled.
+func (s *IndexStore) SearchRelated(_ context.Context, _ string, _, _, _ int) ([]RelatedMatch, error) {
 	return nil, fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
 }

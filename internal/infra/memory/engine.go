@@ -20,6 +20,20 @@ type SearchHit struct {
 	Score     float64
 	Snippet   string
 	Source    string
+	NodeID    string
+	// RelatedCount is the number of linked memory entries connected to this hit.
+	RelatedCount int
+}
+
+// RelatedHit is a graph-adjacent memory result for a given memory node/span.
+type RelatedHit struct {
+	Path         string
+	StartLine    int
+	EndLine      int
+	Score        float64
+	Snippet      string
+	RelationType string
+	NodeID       string
 }
 
 // Engine provides Markdown-based memory operations.
@@ -27,6 +41,7 @@ type Engine interface {
 	EnsureSchema(ctx context.Context) error
 	AppendDaily(ctx context.Context, userID string, entry DailyEntry) (string, error)
 	Search(ctx context.Context, userID, query string, maxResults int, minScore float64) ([]SearchHit, error)
+	Related(ctx context.Context, userID, path string, fromLine, toLine, maxResults int) ([]RelatedHit, error)
 	GetLines(ctx context.Context, userID, path string, fromLine, lineCount int) (string, error)
 	LoadDaily(ctx context.Context, userID string, day time.Time) (string, error)
 	LoadLongTerm(ctx context.Context, userID string) (string, error)

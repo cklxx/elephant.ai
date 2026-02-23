@@ -71,7 +71,7 @@ var phraseGroups = []phraseGroup{
 	{
 		phrases: []string{"在回忆…", "在追溯…", "在检索…"},
 		matchFn: func(n string) bool {
-			return hasAnyPrefix(n, "memory_search", "memory_get", "memory_save",
+			return hasAnyPrefix(n, "memory_search", "memory_get", "memory_related", "memory_save",
 				"recall", "remember")
 		},
 	},

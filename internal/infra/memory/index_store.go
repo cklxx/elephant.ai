@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -43,6 +44,26 @@ type IndexedChunk struct {
 	Text      string
 	Hash      string
 	Embedding []float32
+	Edges     []MemoryEdge
+}
+
+// MemoryEdge represents a graph edge between memory chunks/files.
+type MemoryEdge struct {
+	DstPath   string
+	DstAnchor string
+	EdgeType  string
+	Direction string
+}
+
+// RelatedMatch captures a linked memory entry returned by graph traversal.
+type RelatedMatch struct {
+	Path      string
+	Anchor    string
+	EdgeType  string
+	StartLine int
+	EndLine   int
+	Text      string
+	Score     float64
 }
 
 // IndexStore persists memory chunks and vectors in SQLite.
@@ -110,6 +131,26 @@ CREATE TABLE IF NOT EXISTS embedding_cache (
 );`); err != nil {
 		return err
 	}
+	if _, err := s.db.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS memory_edges (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	src_path TEXT NOT NULL,
+	src_start_line INTEGER NOT NULL,
+	src_end_line INTEGER NOT NULL,
+	dst_path TEXT NOT NULL,
+	dst_anchor TEXT NOT NULL DEFAULT '',
+	edge_type TEXT NOT NULL DEFAULT 'related',
+	direction TEXT NOT NULL DEFAULT 'directed',
+	UNIQUE(src_path, src_start_line, src_end_line, dst_path, dst_anchor, edge_type, direction)
+);`); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_memory_edges_src ON memory_edges(src_path, src_start_line, src_end_line);`); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_memory_edges_dst ON memory_edges(dst_path);`); err != nil {
+		return err
+	}
 	if dim > 0 {
 		stmt := fmt.Sprintf(
 			`CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(embedding float[%d]);`,
@@ -175,7 +216,7 @@ func (s *IndexStore) ReplaceChunks(ctx context.Context, path string, chunks []In
 	if err != nil {
 		return err
 	}
-	if err := deleteByPathTx(ctx, tx, path); err != nil {
+	if err := deleteBySourcePathTx(ctx, tx, path); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
@@ -184,6 +225,7 @@ func (s *IndexStore) ReplaceChunks(ctx context.Context, path string, chunks []In
 	insertVec := `INSERT INTO chunks_vec(rowid, embedding) VALUES (?, vec_f32(?));`
 	insertFTS := `INSERT INTO chunks_fts(rowid, text) VALUES (?, ?);`
 	insertCache := `INSERT OR IGNORE INTO embedding_cache(hash, embedding) VALUES (?, ?);`
+	insertEdge := `INSERT OR IGNORE INTO memory_edges(src_path, src_start_line, src_end_line, dst_path, dst_anchor, edge_type, direction) VALUES (?, ?, ?, ?, ?, ?, ?);`
 
 	for _, chunk := range chunks {
 		res, err := tx.ExecContext(ctx, insertChunk, path, chunk.StartLine, chunk.EndLine, chunk.Text, chunk.Hash)
@@ -213,6 +255,34 @@ func (s *IndexStore) ReplaceChunks(ctx context.Context, path string, chunks []In
 				return err
 			}
 		}
+		for _, edge := range chunk.Edges {
+			dstPath := strings.TrimSpace(edge.DstPath)
+			if dstPath == "" {
+				continue
+			}
+			edgeType := strings.TrimSpace(edge.EdgeType)
+			if edgeType == "" {
+				edgeType = "related"
+			}
+			direction := strings.TrimSpace(edge.Direction)
+			if direction == "" {
+				direction = "directed"
+			}
+			if _, err := tx.ExecContext(
+				ctx,
+				insertEdge,
+				path,
+				chunk.StartLine,
+				chunk.EndLine,
+				dstPath,
+				strings.TrimSpace(edge.DstAnchor),
+				edgeType,
+				direction,
+			); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+		}
 	}
 
 	return tx.Commit()
@@ -223,18 +293,15 @@ func (s *IndexStore) DeleteByPath(ctx context.Context, path string) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("index store not initialized")
 	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM chunks_vec WHERE rowid IN (SELECT id FROM chunks WHERE path = ?);`, path); err != nil && !isMissingTable(err) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
 		return err
 	}
-	if s.ftsEnabled {
-		if _, err := s.db.ExecContext(ctx, `DELETE FROM chunks_fts WHERE rowid IN (SELECT id FROM chunks WHERE path = ?);`, path); err != nil && !isMissingTable(err) {
-			return err
-		}
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM chunks WHERE path = ?;`, path); err != nil && !isMissingTable(err) {
+	if err := deleteByPathTx(ctx, tx, path); err != nil {
+		_ = tx.Rollback()
 		return err
 	}
-	return nil
+	return tx.Commit()
 }
 
 // SearchVector performs vector similarity search.
@@ -317,7 +384,159 @@ LIMIT ?;`
 	return matches, nil
 }
 
+// CountRelated returns how many graph edges are connected to the source chunk.
+func (s *IndexStore) CountRelated(ctx context.Context, path string, startLine, endLine int) (int, error) {
+	if s == nil || s.db == nil {
+		return 0, fmt.Errorf("index store not initialized")
+	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return 0, nil
+	}
+	if startLine <= 0 || endLine <= 0 {
+		var count int
+		if err := s.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM memory_edges WHERE src_path = ? OR dst_path = ?;`,
+			path,
+			path,
+		).Scan(&count); err != nil {
+			return 0, err
+		}
+		return count, nil
+	}
+	var count int
+	if err := s.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM memory_edges
+WHERE (src_path = ? AND src_start_line = ? AND src_end_line = ?)
+   OR (dst_path = ?);`,
+		path, startLine, endLine, path,
+	).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// SearchRelated returns graph-adjacent memory entries for a source path/range.
+func (s *IndexStore) SearchRelated(ctx context.Context, path string, fromLine, toLine, limit int) ([]RelatedMatch, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("index store not initialized")
+	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, fmt.Errorf("path is required")
+	}
+	if limit <= 0 {
+		limit = defaultSearchMax
+	}
+
+	outgoing, err := s.fetchRelatedRows(ctx, `
+SELECT
+	e.dst_path,
+	e.dst_anchor,
+	e.edge_type,
+	COALESCE(MIN(c.start_line), 1) AS start_line,
+	COALESCE(MIN(c.end_line), 1) AS end_line,
+	COALESCE(MIN(c.text), '') AS text,
+	1.0 AS score
+FROM memory_edges e
+LEFT JOIN chunks c ON c.path = e.dst_path
+WHERE e.src_path = ?
+  AND (
+	(? <= 0 OR ? <= 0)
+	OR (e.src_end_line >= ? AND e.src_start_line <= ?)
+  )
+GROUP BY e.dst_path, e.dst_anchor, e.edge_type
+LIMIT ?;`, path, fromLine, toLine, fromLine, toLine, limit)
+	if err != nil {
+		return nil, err
+	}
+	incoming, err := s.fetchRelatedRows(ctx, `
+SELECT
+	e.src_path AS dst_path,
+	'' AS dst_anchor,
+	e.edge_type,
+	COALESCE(MIN(c.start_line), 1) AS start_line,
+	COALESCE(MIN(c.end_line), 1) AS end_line,
+	COALESCE(MIN(c.text), '') AS text,
+	0.8 AS score
+FROM memory_edges e
+LEFT JOIN chunks c ON c.path = e.src_path
+WHERE e.dst_path = ?
+GROUP BY e.src_path, e.edge_type
+LIMIT ?;`, path, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	merged := make(map[string]RelatedMatch, len(outgoing)+len(incoming))
+	merge := func(items []RelatedMatch) {
+		for _, item := range items {
+			if strings.TrimSpace(item.Path) == "" || item.Path == path {
+				continue
+			}
+			key := item.Path + "|" + item.Anchor + "|" + item.EdgeType
+			existing, ok := merged[key]
+			if !ok || item.Score > existing.Score {
+				merged[key] = item
+			}
+		}
+	}
+	merge(outgoing)
+	merge(incoming)
+
+	if len(merged) == 0 {
+		return nil, nil
+	}
+	results := make([]RelatedMatch, 0, len(merged))
+	for _, item := range merged {
+		results = append(results, item)
+	}
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].Score == results[j].Score {
+			return results[i].Path < results[j].Path
+		}
+		return results[i].Score > results[j].Score
+	})
+	if len(results) > limit {
+		results = results[:limit]
+	}
+	return results, nil
+}
+
+func (s *IndexStore) fetchRelatedRows(ctx context.Context, query string, args ...any) ([]RelatedMatch, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var matches []RelatedMatch
+	for rows.Next() {
+		var m RelatedMatch
+		if err := rows.Scan(&m.Path, &m.Anchor, &m.EdgeType, &m.StartLine, &m.EndLine, &m.Text, &m.Score); err != nil {
+			return nil, err
+		}
+		matches = append(matches, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return matches, nil
+}
+
 func deleteByPathTx(ctx context.Context, tx *sql.Tx, path string) error {
+	if err := deleteBySourcePathTx(ctx, tx, path); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM memory_edges WHERE dst_path = ?;`, path); err != nil && !isMissingTable(err) {
+		return err
+	}
+	return nil
+}
+
+func deleteBySourcePathTx(ctx context.Context, tx *sql.Tx, path string) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM chunks_vec WHERE rowid IN (SELECT id FROM chunks WHERE path = ?);`, path); err != nil && !isMissingTable(err) {
 		return err
 	}
@@ -325,6 +544,9 @@ func deleteByPathTx(ctx context.Context, tx *sql.Tx, path string) error {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM chunks WHERE path = ?;`, path); err != nil && !isMissingTable(err) {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM memory_edges WHERE src_path = ?;`, path); err != nil && !isMissingTable(err) {
 		return err
 	}
 	return nil

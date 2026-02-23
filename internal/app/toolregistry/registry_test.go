@@ -62,12 +62,12 @@ func TestNewRegistryRegistersExpectedToolCount(t *testing.T) {
 	for _, def := range defs {
 		names = append(names, def.Name)
 	}
-	// 14 core tools: read_file, write_file, replace_in_file, shell_exec,
+	// 15 core tools: read_file, write_file, replace_in_file, shell_exec,
 	// execute_code, channel, web_search, skills,
-	// plan, clarify, request_user, memory_search, memory_get, context_checkpoint
+	// plan, clarify, request_user, memory_search, memory_get, memory_related, context_checkpoint
 	// (browser tools now provided by Playwright MCP, registered dynamically)
-	if len(defs) != 14 {
-		t.Fatalf("expected 14 tools, got %d: %v", len(defs), names)
+	if len(defs) != 15 {
+		t.Fatalf("expected 15 tools, got %d: %v", len(defs), names)
 	}
 }
 
@@ -321,7 +321,7 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 		"read_file", "write_file", "replace_in_file", "shell_exec",
 		"execute_code",
 		"plan", "clarify", "request_user",
-		"memory_search", "memory_get",
+		"memory_search", "memory_get", "memory_related",
 		"web_search", "skills", "channel",
 	} {
 		if !names[want] {

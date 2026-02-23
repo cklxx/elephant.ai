@@ -15,6 +15,7 @@ func (r *Registry) registerUITools(config Config) {
 	r.static["clarify"] = ui.NewClarify()
 	r.static["memory_search"] = memorytools.NewMemorySearch(config.MemoryEngine)
 	r.static["memory_get"] = memorytools.NewMemoryGet(config.MemoryEngine)
+	r.static["memory_related"] = memorytools.NewMemoryRelated(config.MemoryEngine)
 	r.static["request_user"] = ui.NewRequestUser()
 	r.static["context_checkpoint"] = ui.NewContextCheckpoint()
 }
