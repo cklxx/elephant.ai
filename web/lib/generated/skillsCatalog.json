@@ -29,6 +29,13 @@
       "sourcePath": "../../.alex/skills/auto-skill-creation/SKILL.md"
     },
     {
+      "name": "autonomous-scheduler",
+      "title": "autonomous-scheduler",
+      "description": "自主调度技能 — 管理周期任务、去重、触发窗口与执行状态。",
+      "markdown": "# autonomous-scheduler\n\n维护自主任务计划：任务 upsert/list/delete、触发窗口查询、运行状态推进。\n\n## 调用\n\n```bash\npython3 skills/autonomous-scheduler/run.py '{\"action\":\"upsert\",\"name\":\"weekly-retro\",\"schedule\":\"0 18 * * 5\",\"task\":\"发送复盘提醒\"}'\npython3 skills/autonomous-scheduler/run.py '{\"action\":\"due\",\"now\":\"2026-02-13T10:00:00Z\"}'\n```",
+      "sourcePath": "../../.alex/skills/autonomous-scheduler/SKILL.md"
+    },
+    {
       "name": "background-tasks",
       "title": "background-tasks",
       "description": "后台任务管理 — 创建/查询/收集后台长时间运行的任务。",
@@ -43,10 +50,17 @@
       "sourcePath": "../../.alex/skills/best-practice-search/SKILL.md"
     },
     {
+      "name": "bitable-data",
+      "title": "bitable-data",
+      "description": "飞书多维表格的表、记录、字段管理，支持数据查询和写入。",
+      "markdown": "# bitable-data\n\n飞书多维表格管理：表 CRUD、记录查询与写入、字段查看。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `list_bitable_tables` | 列出应用下的所有数据表 |\n| `list_bitable_records` | 查询表中的记录 |\n| `create_bitable_record` | 创建新记录 |\n| `update_bitable_record` | 更新已有记录 |\n| `delete_bitable_record` | 删除记录 |\n| `list_bitable_fields` | 列出表的字段定义 |\n\n## 参数\n\n### list_bitable_tables\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 多维表格应用 token |\n| page_size | integer | 否 | 每页数量 |\n| page_token | string | 否 | 分页 token |\n\n### list_bitable_records\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 应用 token |\n| table_id | string | 是 | 表 ID |\n| page_size | integer | 否 | 每页数量 |\n| page_token | string | 否 | 分页 token |\n\n### create_bitable_record\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 应用 token |\n| table_id | string | 是 | 表 ID |\n| fields | object | 是 | 字段 key-value 映射 |\n\n### update_bitable_record\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 应用 token |\n| table_id | string | 是 | 表 ID |\n| record_id | string | 是 | 记录 ID |\n| fields | object | 是 | 要更新的字段 |\n\n### delete_bitable_record\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 应用 token |\n| table_id | string | 是 | 表 ID |\n| record_id | string | 是 | 记录 ID |\n\n### list_bitable_fields\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 应用 token |\n| table_id | string | 是 | 表 ID |\n\n## 示例\n\n```\n查看表的字段定义\n→ channel(action=\"list_bitable_fields\", app_token=\"appXXX\", table_id=\"tblXXX\")\n\n查询所有记录\n→ channel(action=\"list_bitable_records\", app_token=\"appXXX\", table_id=\"tblXXX\")\n\n创建一条记录\n→ channel(action=\"create_bitable_record\", app_token=\"appXXX\", table_id=\"tblXXX\", fields={\"Name\":\"Alice\",\"Score\":\"95\"})\n```\n\n## 自动执行原则\n\n- **链式自动发现**：用户提供 app_token 后，自动调用 `list_bitable_tables` 获取所有表，再自动 `list_bitable_fields` 获取字段定义，不要中间问用户。\n- **禁止交互式菜单**：不要给出 table_id 列表让用户选择，如果只有一个表则直接使用，多个表时按名称匹配用户意图。\n- **字段智能映射**：写入记录时根据字段定义自动转换类型，不要问用户字段名怎么写。\n- **分页自动处理**：数据量大时自动翻页获取全部数据，不要问用户\"要继续获取下一页吗\"。\n\n## 安全等级\n\n- `list_bitable_tables` / `list_bitable_records` / `list_bitable_fields`: L1 只读\n- `create_bitable_record` / `update_bitable_record`: L3 高影响\n- `delete_bitable_record`: L4 不可逆\n\n## 链式组合\n\n- 与 `deep-research` skill 组合：研究数据写入多维表格进行可视化\n- 与 `okr-management` skill 组合：OKR 进度数据同步到多维表格看板",
+      "sourcePath": "../../.alex/skills/bitable-data/SKILL.md"
+    },
+    {
       "name": "calendar-management",
       "title": "calendar-management",
       "description": "日历事件的创建、查询、修改、删除管理。",
-      "markdown": "# calendar-management\n\n日历事件管理：创建、查询、修改、删除。\n\n## 调用\n\n```bash\npython3 skills/calendar-management/run.py '{\"action\":\"create\", \"title\":\"周会\", \"start\":\"2026-02-10 14:00\", \"duration\":\"60m\", \"attendees\":[\"user@example.com\"]}'\npython3 skills/calendar-management/run.py '{\"action\":\"query\", \"start\":\"2026-02-10\", \"end\":\"2026-02-14\"}'\npython3 skills/calendar-management/run.py '{\"action\":\"delete\", \"event_id\":\"evt_xxx\"}'\n```\n\n## 参数\n\n### create\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| title | string | 是 | 事件标题 |\n| start | string | 是 | 开始时间 (YYYY-MM-DD HH:MM) |\n| duration | string | 否 | 时长（30m/1h/2h），默认 60m |\n| attendees | string[] | 否 | 参会者邮箱列表 |\n| description | string | 否 | 事件描述 |\n\n### query\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| start | string | 是 | 查询开始日期 |\n| end | string | 否 | 查询结束日期 |\n\n### delete / update\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| event_id | string | 是 | 事件 ID |",
+      "markdown": "# calendar-management\n\n日历事件管理：创建、查询、修改、删除。\n\n## 调用\n\n```bash\npython3 skills/calendar-management/run.py '{\"action\":\"create\", \"title\":\"周会\", \"start\":\"2026-02-10 14:00\", \"duration\":\"60m\", \"attendees\":[\"user@example.com\"]}'\npython3 skills/calendar-management/run.py '{\"action\":\"query\", \"start\":\"2026-02-10\", \"end\":\"2026-02-14\"}'\npython3 skills/calendar-management/run.py '{\"action\":\"delete\", \"event_id\":\"evt_xxx\"}'\n```\n\n## 参数\n\n### create\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| title | string | 是 | 事件标题 |\n| start | string | 是 | 开始时间 (YYYY-MM-DD HH:MM) |\n| duration | string | 否 | 时长（30m/1h/2h），默认 60m |\n| attendees | string[] | 否 | 参会者邮箱列表 |\n| description | string | 否 | 事件描述 |\n\n### query\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| start | string | 是 | 查询开始日期 |\n| end | string | 否 | 查询结束日期 |\n\n### delete / update\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| event_id | string | 是 | 事件 ID |\n\n## 自动执行原则\n\n- **时间自动计算**：用户说\"帮我明天下午 3 点开个会\"时，自动计算 start 时间为明天 15:00，不要问用户提供精确格式。\n- **duration 有默认值**：不提供则默认 60m，不要问用户时长。\n- **attendees 可选**：不提供则仅创建给自己的日程，不要问用户参会者列表。\n- **自然语言查询**：用户说\"这周的日程\"时，自动计算本周的 start/end，不要问用户提供日期。\n- **禁止交互式菜单**：不要给出 [1] [2] [3] 选项，直接执行最合理的操作。",
       "sourcePath": "../../.alex/skills/calendar-management/SKILL.md"
     },
     {
@@ -71,6 +85,13 @@
       "sourcePath": "../../.alex/skills/config-management/SKILL.md"
     },
     {
+      "name": "contact-lookup",
+      "title": "contact-lookup",
+      "description": "飞书通讯录的用户和部门查询。",
+      "markdown": "# contact-lookup\n\n飞书通讯录查询：查找用户、列出部门成员、查询组织架构。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `get_user` | 查询用户信息 |\n| `list_users` | 列出部门下的用户 |\n| `get_department` | 查询部门信息 |\n| `list_departments` | 列出子部门 |\n\n## 参数\n\n### get_user\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| user_id | string | 否 | 用户 open_id。**省略时自动使用当前发送者的 open_id**，查询\"我是谁\"时无需提供。仅在查询其他人时才需指定。 |\n| user_id_type | string | 否 | ID 类型 (open_id/union_id/user_id，默认 open_id) |\n\n### list_users\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| department_id | string | 是 | 部门 ID |\n| user_id_type | string | 否 | 返回的用户 ID 类型 |\n| page_size | integer | 否 | 每页数量（默认 50） |\n| page_token | string | 否 | 分页 token |\n\n### get_department\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| department_id | string | 是 | 部门 ID |\n\n### list_departments\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| parent_department_id | string | 否 | 父部门 ID（默认根部门） |\n| page_size | integer | 否 | 每页数量（默认 50） |\n| page_token | string | 否 | 分页 token |\n\n## 示例\n\n```\n查看我的信息（自动使用当前用户）\n-> channel(action=\"get_user\")\n\n查找其他用户信息（需指定 user_id）\n-> channel(action=\"get_user\", user_id=\"ou_xxx\")\n\n列出工程部成员\n-> channel(action=\"list_users\", department_id=\"dept_xxx\")\n\n查看部门信息\n-> channel(action=\"get_department\", department_id=\"dept_xxx\")\n\n列出所有顶级部门\n-> channel(action=\"list_departments\")\n```\n\n## 自动执行原则\n\n- **user_id 自动解析**：省略时从当前发送者的 open_id 自动获取，不要向用户询问。\n- **user_id_type 自动默认**：默认使用 `open_id`，不要问用户选哪种 ID 类型。\n- **零参数调用**：用户说\"我是谁\"/\"查看我的信息\"时，直接调用 `channel(action=\"get_user\")`，不需要任何参数。\n- **部门浏览自动执行**：用户说\"看看部门\"时，直接调用 `channel(action=\"list_departments\")` 列出根部门，不要问父部门 ID。\n- **禁止交互式菜单**：不要给出 [1] [2] [3] 选项让用户选择身份类型，直接使用最合理的默认值。\n- **链式自动执行**：查到用户信息后，如果包含部门 ID，可以自动查询部门详情丰富结果。\n\n## 安全等级\n\n- 所有操作: L1 只读，无需审批",
+      "sourcePath": "../../.alex/skills/contact-lookup/SKILL.md"
+    },
+    {
       "name": "deep-research",
       "title": "deep-research",
       "description": "深度调研技能，多源检索 + 证据汇编 + 结构化报告。",
@@ -92,11 +113,32 @@
       "sourcePath": "../../.alex/skills/diagram-to-image/SKILL.md"
     },
     {
+      "name": "doc-management",
+      "title": "doc-management",
+      "description": "飞书云文档的创建、读取和内容获取。",
+      "markdown": "# doc-management\n\n飞书云文档管理：创建文档、查看文档元信息、获取文档内容。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `create_doc` | 创建新的飞书云文档 |\n| `read_doc` | 获取文档元信息（标题、修订版本等） |\n| `read_doc_content` | 获取文档的原始文本内容 |\n\n## 参数\n\n### create_doc\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| title | string | 否 | 文档标题 |\n| folder_token | string | 否 | 目标文件夹 token |\n\n### read_doc / read_doc_content\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| document_id | string | 是 | 文档 ID |\n\n## 示例\n\n```\n创建一个名为\"周报\"的文档\n→ channel(action=\"create_doc\", title=\"周报\")\n\n读取文档内容\n→ channel(action=\"read_doc_content\", document_id=\"doxcnXXX\")\n```\n\n## 自动执行原则\n\n- **folder_token 可选**：创建文档时省略 folder_token 则创建在用户根目录，不要问用户放哪个文件夹。\n- **title 智能推断**：用户说\"创建一个文档\"时，根据上下文自动生成标题，不要问用户取什么名。\n- **链式自动执行**：读取文档元信息后，如果用户需要内容，自动调用 `read_doc_content`，不要二次确认。\n- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。\n\n## 安全等级\n\n- `read_doc` / `read_doc_content`: L1 只读，无需审批\n- `create_doc`: L3 高影响，需要审批",
+      "sourcePath": "../../.alex/skills/doc-management/SKILL.md"
+    },
+    {
+      "name": "drive-file",
+      "title": "drive-file",
+      "description": "飞书云盘文件和文件夹管理，支持浏览、创建、复制和删除。",
+      "markdown": "# drive-file\n\n飞书云盘管理：浏览文件、创建文件夹、复制和删除文件。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `list_drive_files` | 列出文件夹中的文件 |\n| `create_drive_folder` | 创建新文件夹 |\n| `copy_drive_file` | 复制文件到指定文件夹 |\n| `delete_drive_file` | 删除文件 |\n\n## 参数\n\n### list_drive_files\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| folder_token | string | 否 | 文件夹 token（默认根目录） |\n| page_size | integer | 否 | 每页数量 |\n| page_token | string | 否 | 分页 token |\n\n### create_drive_folder\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| folder_token | string | 否 | 父文件夹 token（默认根目录） |\n| name | string | 是 | 文件夹名称 |\n\n### copy_drive_file\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| file_token | string | 是 | 源文件 token |\n| folder_token | string | 是 | 目标文件夹 token |\n| name | string | 是 | 新文件名 |\n| file_type | string | 否 | 文件类型（默认 file） |\n\n### delete_drive_file\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| file_token | string | 是 | 文件 token |\n| file_type | string | 否 | 文件类型（默认 file） |\n\n## 示例\n\n```\n浏览根目录文件\n→ channel(action=\"list_drive_files\")\n\n创建新文件夹\n→ channel(action=\"create_drive_folder\", name=\"项目资料\")\n\n复制文件到另一个文件夹\n→ channel(action=\"copy_drive_file\", file_token=\"fileXXX\", folder_token=\"folderYYY\", name=\"副本.pdf\")\n```\n\n## 自动执行原则\n\n- **根目录默认**：用户说\"看看我的文件\"时，直接调用 `channel(action=\"list_drive_files\")`，默认列出根目录，不要问 folder_token。\n- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。\n- **链式浏览**：列出文件后如果用户想进入某个文件夹，自动用该文件夹的 token 再次查询。\n- **名称智能推断**：创建文件夹时如果用户没给名称，根据上下文自动命名。\n\n## 安全等级\n\n- `list_drive_files`: L1 只读\n- `create_drive_folder` / `copy_drive_file`: L3 高影响\n- `delete_drive_file`: L4 不可逆",
+      "sourcePath": "../../.alex/skills/drive-file/SKILL.md"
+    },
+    {
       "name": "email-drafting",
       "title": "email-drafting",
       "description": "快速拉齐受众、目的、语气和 CTA 的邮件写作 SOP，覆盖新建邮件与回复线程两种常见场景。",
       "markdown": "# email-drafting\n\nDraft or reply to work emails with structured SOP: audience alignment, purpose, tone, CTA, and subject line best practices. Supports both new emails and thread replies in Chinese/English. All drafting workflows and templates are handled by run.py.\n\n## 调用\n\n```bash\npython3 skills/email-drafting/run.py '{\"action\":\"draft\",\"purpose\":\"request decision\",\"audience\":\"team lead\",\"tone\":\"formal\"}'\n```",
       "sourcePath": "../../.alex/skills/email-drafting/SKILL.md"
+    },
+    {
+      "name": "email-lark",
+      "title": "email-lark",
+      "description": "飞书邮件组的查询和管理。",
+      "markdown": "# email-lark\n\n飞书邮件组管理：查询邮件组列表、查看邮件组详情、创建邮件组。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `list_mailgroups` | 列出邮件组 |\n| `get_mailgroup` | 获取邮件组详情 |\n| `create_mailgroup` | 创建新的邮件组 |\n\n## 参数\n\n### list_mailgroups\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| page_size | integer | 否 | 每页数量（默认 20） |\n| page_token | string | 否 | 分页 token |\n\n### get_mailgroup\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| mailgroup_id | string | 是 | 邮件组 ID |\n\n### create_mailgroup\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| email | string | 否 | 邮件组地址 |\n| name | string | 否 | 邮件组名称 |\n| description | string | 否 | 邮件组描述 |\n\n## 示例\n\n```\n列出所有邮件组\n-> channel(action=\"list_mailgroups\")\n\n查看邮件组详情\n-> channel(action=\"get_mailgroup\", mailgroup_id=\"mg_xxx\")\n\n创建邮件组\n-> channel(action=\"create_mailgroup\", email=\"team@company.com\", name=\"Team Group\")\n```\n\n## 自动执行原则\n\n- **零参数查询**：用户说\"看看邮件组\"时，直接调用 `channel(action=\"list_mailgroups\")`，不需要任何参数。\n- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。\n- **链式自动执行**：列出邮件组后，如果用户想看详情，自动提取 mailgroup_id 调用 `get_mailgroup`。\n\n## 安全等级\n\n- `list_mailgroups` / `get_mailgroup`: L1 只读，无需审批\n- `create_mailgroup`: L3 高影响，需要审批",
+      "sourcePath": "../../.alex/skills/email-lark/SKILL.md"
     },
     {
       "name": "eval-systematic-optimization",
@@ -120,11 +162,25 @@
       "sourcePath": "../../.alex/skills/json-render-templates/SKILL.md"
     },
     {
+      "name": "lark-conversation-governor",
+      "title": "lark-conversation-governor",
+      "description": "Lark 对话治理技能 — 主动消息节奏控制、静默窗、停用信号检测。",
+      "markdown": "# lark-conversation-governor\n\n管理 Lark 主动沟通策略：停用词优先、静默时段约束、中频推进节奏。\n\n## 调用\n\n```bash\npython3 skills/lark-conversation-governor/run.py '{\"action\":\"evaluate\",\"text\":\"今天提醒我复盘\"}'\npython3 skills/lark-conversation-governor/run.py '{\"action\":\"compose\",\"objective\":\"周报\",\"status\":\"已完成70%\",\"next_step\":\"补齐风险项\"}'\n```",
+      "sourcePath": "../../.alex/skills/lark-conversation-governor/SKILL.md"
+    },
+    {
       "name": "lark-messaging",
       "title": "lark-messaging",
       "description": "Lark 消息发送 — 通过 Lark Open API 发送消息到群组或个人。",
       "markdown": "# lark-messaging\n\nLark 消息发送：通过 Open API 发送文本/富文本消息。\n\n## 调用\n\n```bash\npython3 skills/lark-messaging/run.py '{\"action\":\"send\",\"chat_id\":\"oc_xxx\",\"content\":\"Hello!\"}'\n```",
       "sourcePath": "../../.alex/skills/lark-messaging/SKILL.md"
+    },
+    {
+      "name": "meeting-automation",
+      "title": "meeting-automation",
+      "description": "飞书视频会议的查询和会议室管理。",
+      "markdown": "# meeting-automation\n\n飞书视频会议管理：查询会议列表、获取会议详情、查询会议室。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `list_meetings` | 列出指定时间范围的会议 |\n| `get_meeting` | 获取会议详情 |\n| `list_rooms` | 列出会议室 |\n\n## 参数\n\n### list_meetings\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| start_time | string | 是 | 开始时间（Unix 时间戳） |\n| end_time | string | 是 | 结束时间（Unix 时间戳） |\n| page_size | integer | 否 | 每页数量（默认 20） |\n| page_token | string | 否 | 分页 token |\n\n### get_meeting\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| meeting_id | string | 是 | 会议 ID |\n\n### list_rooms\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| room_level_id | string | 否 | 会议室层级 ID |\n| page_size | integer | 否 | 每页数量（默认 20） |\n| page_token | string | 否 | 分页 token |\n\n## 示例\n\n```\n查看今天的会议\n-> channel(action=\"list_meetings\", start_time=\"1700000000\", end_time=\"1700086400\")\n\n查看会议详情\n-> channel(action=\"get_meeting\", meeting_id=\"m_xxx\")\n\n列出会议室\n-> channel(action=\"list_rooms\")\n```\n\n## 自动执行原则\n\n- **时间自动推断**：用户说\"今天的会议\"时，自动计算今天的 start_time 和 end_time（Unix 时间戳），不要问用户提供时间戳。\n- **时间表达式支持**：用户说\"这周的会议\"/\"明天的会议\"时，自动计算对应时间范围。\n- **零参数会议室**：用户说\"看看会议室\"时，直接调用 `channel(action=\"list_rooms\")`，不需要 room_level_id。\n- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。\n- **链式自动执行**：列出会议后，如果用户想看某个会议详情，自动提取 meeting_id 调用 `get_meeting`。\n\n## 安全等级\n\n- 所有操作: L1 只读，无需审批",
+      "sourcePath": "../../.alex/skills/meeting-automation/SKILL.md"
     },
     {
       "name": "meeting-notes",
@@ -139,6 +195,13 @@
       "description": "记忆检索 — 搜索和读取对话记忆（存储为 Markdown 文件）。",
       "markdown": "# memory-search\n\n搜索和读取对话记忆。\n\n## 调用\n\n```bash\npython3 skills/memory-search/run.py '{\"action\":\"search\",\"query\":\"项目进度\"}'\npython3 skills/memory-search/run.py '{\"action\":\"get\",\"file\":\"2026-02-09-meeting.md\"}'\n```",
       "sourcePath": "../../.alex/skills/memory-search/SKILL.md"
+    },
+    {
+      "name": "meta-orchestrator",
+      "title": "meta-orchestrator",
+      "description": "元技能编排器 — 统一管理技能激活、联动、冲突仲裁、策略与审计摘要。",
+      "markdown": "# meta-orchestrator\n\n统一技能控制平面：根据策略执行技能筛选、依赖排序、联动关系输出、风险摘要。\n\n## 调用\n\n```bash\npython3 skills/meta-orchestrator/run.py '{\"action\":\"plan\",\"skills\":[{\"name\":\"autonomous-scheduler\",\"score\":0.8}],\"proactive_level\":\"medium\"}'\npython3 skills/meta-orchestrator/run.py '{\"action\":\"summarize\",\"plan\":{\"selected_skills\":[\"meta-orchestrator\"]}}'\n```",
+      "sourcePath": "../../.alex/skills/meta-orchestrator/SKILL.md"
     },
     {
       "name": "moltbook",
@@ -162,11 +225,25 @@
       "sourcePath": "../../.alex/skills/okr-management/SKILL.md"
     },
     {
+      "name": "okr-native",
+      "title": "okr-native",
+      "description": "飞书原生 OKR 的查询和管理。",
+      "markdown": "# okr-native\n\n飞书原生 OKR 管理：查询 OKR 周期、用户 OKR、批量获取 OKR。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `list_okr_periods` | 列出 OKR 周期 |\n| `list_user_okrs` | 查询用户的 OKR |\n| `batch_get_okrs` | 批量获取 OKR 详情 |\n\n## 参数\n\n### list_okr_periods\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| page_size | integer | 否 | 每页数量（默认 20） |\n| page_token | string | 否 | 分页 token |\n\n### list_user_okrs\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| user_id | string | 否 | 用户 open_id。**省略时自动使用当前发送者的 open_id**，查询\"我的 OKR\"时无需提供。仅在查询其他人的 OKR 时才需指定。 |\n| period_id | string | 否 | OKR 周期 ID |\n\n### batch_get_okrs\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| okr_ids | array | 是 | OKR ID 列表 |\n\n## 示例\n\n```\n查看我的 OKR（自动使用当前用户）\n-> channel(action=\"list_user_okrs\")\n\n查看当前 OKR 周期\n-> channel(action=\"list_okr_periods\")\n\n查看某人的 OKR（需指定 user_id）\n-> channel(action=\"list_user_okrs\", user_id=\"ou_xxx\")\n\n批量获取 OKR\n-> channel(action=\"batch_get_okrs\", okr_ids=[\"okr_1\", \"okr_2\"])\n```\n\n## 自动执行原则\n\n- **user_id 自动解析**：省略时从当前发送者的 open_id 自动获取，不要向用户询问。\n- **period_id 自动推断**：省略时查询当前进行中的周期。先调用 `list_okr_periods` 获取最新周期 ID，再自动传入 `list_user_okrs`。\n- **零参数调用**：用户说\"查看我的 OKR\"时，直接调用 `channel(action=\"list_user_okrs\")`，不需要任何参数。\n- **禁止交互式菜单**：不要给出 [1] [2] [3] 选项让用户选择，直接执行最合理的操作。\n- **链式自动执行**：获取 OKR 列表后，如果用户想看详情，自动提取 okr_ids 调用 `batch_get_okrs`，不要二次确认。\n\n## 安全等级\n\n- 所有操作: L1 只读，无需审批",
+      "sourcePath": "../../.alex/skills/okr-native/SKILL.md"
+    },
+    {
       "name": "ppt-deck",
       "title": "ppt-deck",
       "description": "PPT 产出 playbook（目标/受众 -> 故事线 -> 版式设计 -> 可访问性 -> 交付），含 10/20/30 与 Accessibility 最佳实践。",
       "markdown": "# ppt-deck\n\nGenerate presentation decks from topic to deliverable PPTX/PDF, following storyline templates (SCQA, Pyramid, Before/After/Bridge), accessibility best practices, and 10/20/30 guidelines. All slide generation, layout, and export logic are handled by run.py.\n\n## 调用\n\n```bash\npython3 skills/ppt-deck/run.py '{\"action\":\"create\",\"topic\":\"Q1 Review\",\"audience\":\"leadership\",\"format\":\"pptx\"}'\n```",
       "sourcePath": "../../.alex/skills/ppt-deck/SKILL.md"
+    },
+    {
+      "name": "reddit-tech-digest",
+      "title": "reddit-tech-digest",
+      "description": "Reddit 科技精选 — 汇总 r/technology + r/Futurology + r/science 的最新/有趣内容并生成简报。",
+      "markdown": "# reddit-tech-digest\n\n抓取 Reddit 子版块的最新/高分科技内容并输出简报。\n\n## 调用\n\n```bash\npython3 skills/reddit-tech-digest/run.py '{\"subreddits\":[\"technology\",\"Futurology\",\"science\"],\"limit\":10,\"time\":\"day\"}'\n```\n\n## 参数\n\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| subreddits | array[string] | 否 | 子版块列表，默认 technology/Futurology/science |\n| limit | int | 否 | 每个版块取前 N 条，默认 6 |\n| time | string | 否 | hot/new/top 过滤，默认 hot |\n| include_summary | bool | 否 | 是否生成 1-2 句摘要，默认 true |\n| language | string | 否 | 输出语言（默认 zh） |",
+      "sourcePath": "../../.alex/skills/reddit-tech-digest/SKILL.md"
     },
     {
       "name": "research-briefing",
@@ -190,11 +267,25 @@
       "sourcePath": "../../.alex/skills/self-test/SKILL.md"
     },
     {
+      "name": "sheets-report",
+      "title": "sheets-report",
+      "description": "飞书电子表格的创建、查询和工作表管理。",
+      "markdown": "# sheets-report\n\n飞书电子表格管理：创建电子表格、查询表格元信息、列出工作表。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `create_spreadsheet` | 创建新的飞书电子表格 |\n| `get_spreadsheet` | 获取电子表格元信息 |\n| `list_sheets` | 列出电子表格中的所有工作表 |\n\n## 参数\n\n### create_spreadsheet\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| title | string | 否 | 表格标题 |\n| folder_token | string | 否 | 目标文件夹 token |\n\n### get_spreadsheet / list_sheets\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| spreadsheet_token | string | 是 | 电子表格 token |\n\n## 示例\n\n```\n创建数据报表\n-> channel(action=\"create_spreadsheet\", title=\"月度数据报表\")\n\n查看表格信息\n-> channel(action=\"get_spreadsheet\", spreadsheet_token=\"shtcnXXX\")\n\n列出所有工作表\n-> channel(action=\"list_sheets\", spreadsheet_token=\"shtcnXXX\")\n```\n\n## 自动执行原则\n\n- **folder_token 可选**：创建表格时省略 folder_token 则创建在用户根目录，不要问用户放哪个文件夹。\n- **title 智能推断**：用户说\"创建一个表格\"时，根据上下文自动生成标题（如\"数据报表 2026-02-21\"），不要问用户取什么名。\n- **零交互查询**：用户提供 spreadsheet_token 后，直接查询，不要二次确认。\n- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。\n- **链式自动执行**：获取表格信息后自动列出所有工作表，方便用户一次看到完整结构。\n\n## 安全等级\n\n- `get_spreadsheet` / `list_sheets`: L1 只读，无需审批\n- `create_spreadsheet`: L3 高影响，需要审批",
+      "sourcePath": "../../.alex/skills/sheets-report/SKILL.md"
+    },
+    {
       "name": "social-trends",
       "title": "social-trends",
       "description": "社交媒体热点趋势分析（抖音、微博、小红书等）。",
       "markdown": "# social-trends\n\n社交媒体热点趋势分析。\n\n## 调用\n\n```bash\npython3 skills/social-trends/run.py '{\"platform\":\"douyin\", \"limit\":20}'\n```\n\n## 参数\n\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| platform | string | 否 | 平台（douyin/weibo/all），默认 all |\n| limit | int | 否 | 返回条数，默认 20 |\n| query | string | 否 | 关键词过滤 |",
       "sourcePath": "../../.alex/skills/social-trends/SKILL.md"
+    },
+    {
+      "name": "soul-self-evolution",
+      "title": "soul-self-evolution",
+      "description": "SOUL 自演进技能 — 在不可变段保护下更新可演进人格/协作策略并支持回滚。",
+      "markdown": "# soul-self-evolution\n\n对 `SOUL.md` 或 `docs/reference/SOUL.md` 进行受控更新：\n- 只允许改动可演进段\n- 记录 checkpoint\n- 支持一键回滚\n\n## 调用\n\n```bash\npython3 skills/soul-self-evolution/run.py '{\"action\":\"apply\",\"path\":\"docs/reference/SOUL.md\",\"changes\":[{\"section\":\"## Collaboration Preferences\",\"content\":\"- Keep updates concise.\"}]}'\npython3 skills/soul-self-evolution/run.py '{\"action\":\"list_checkpoints\"}'\n```",
+      "sourcePath": "../../.alex/skills/soul-self-evolution/SKILL.md"
     },
     {
       "name": "task-delegation",
@@ -223,6 +314,13 @@
       "description": "HTML 内容编辑 — 解析/修改/生成 HTML 页面内容。",
       "markdown": "# web-page-editing\n\nHTML 内容编辑：解析、修改、生成 HTML 片段。\n\n## 调用\n\n```bash\npython3 skills/web-page-editing/run.py '{\"action\":\"extract\",\"html\":\"<div><p>Hello</p></div>\",\"selector\":\"p\"}'\npython3 skills/web-page-editing/run.py '{\"action\":\"generate\",\"template\":\"landing\",\"title\":\"My Page\"}'\n```",
       "sourcePath": "../../.alex/skills/web-page-editing/SKILL.md"
+    },
+    {
+      "name": "wiki-knowledge",
+      "title": "wiki-knowledge",
+      "description": "飞书知识库的空间和节点管理，支持知识沉淀与归档。",
+      "markdown": "# wiki-knowledge\n\n飞书知识库管理：浏览空间、管理节点、创建知识文档。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `list_wiki_spaces` | 列出所有知识空间 |\n| `list_wiki_nodes` | 列出空间下的节点 |\n| `create_wiki_node` | 在空间中创建新节点 |\n| `get_wiki_node` | 获取节点详情 |\n\n## 参数\n\n### list_wiki_spaces\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| page_size | integer | 否 | 每页数量 |\n| page_token | string | 否 | 分页 token |\n\n### list_wiki_nodes\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| space_id | string | 是 | 知识空间 ID |\n| parent_node_token | string | 否 | 父节点 token（为空则列出根节点） |\n| page_size | integer | 否 | 每页数量 |\n| page_token | string | 否 | 分页 token |\n\n### create_wiki_node\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| space_id | string | 是 | 知识空间 ID |\n| obj_type | string | 否 | 对象类型（doc/docx/sheet/bitable），默认 docx |\n| parent_node_token | string | 否 | 父节点 token |\n| title | string | 否 | 节点标题 |\n\n### get_wiki_node\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| node_token | string | 是 | 节点 token |\n\n## 示例\n\n```\n列出所有知识空间\n→ channel(action=\"list_wiki_spaces\")\n\n在空间中创建文档节点\n→ channel(action=\"create_wiki_node\", space_id=\"xxx\", title=\"会议纪要归档\", obj_type=\"docx\")\n\n查看节点详情\n→ channel(action=\"get_wiki_node\", node_token=\"wikcnXXX\")\n```\n\n## 自动执行原则\n\n- **零参数查询**：用户说\"看看知识库\"时，直接调用 `channel(action=\"list_wiki_spaces\")`，不需要任何参数。\n- **禁止交互式菜单**：不要给出选项让用户选择知识空间，如果只有一个空间则直接使用。\n- **链式自动执行**：列出空间后自动列出根节点，方便用户一次看到完整结构。\n- **title 智能推断**：创建节点时如果用户没给标题，根据上下文自动生成。\n\n## 安全等级\n\n- `list_wiki_spaces` / `list_wiki_nodes` / `get_wiki_node`: L1 只读\n- `create_wiki_node`: L3 高影响，需要审批\n\n## 链式组合\n\n- 与 `meeting-notes` skill 组合：会议纪要自动归档到知识库\n- 与 `deep-research` skill 组合：研究结果沉淀到知识库",
+      "sourcePath": "../../.alex/skills/wiki-knowledge/SKILL.md"
     }
   ]
 }
