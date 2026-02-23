@@ -124,6 +124,7 @@ type ExternalAgentsFileConfig struct {
 	MaxParallelAgents *int                  `yaml:"max_parallel_agents"`
 	ClaudeCode        *ClaudeCodeFileConfig `yaml:"claude_code"`
 	Codex             *CodexFileConfig      `yaml:"codex"`
+	Teams             []TeamFileConfig      `yaml:"teams"`
 }
 
 type ClaudeCodeFileConfig struct {
@@ -151,6 +152,32 @@ type CodexFileConfig struct {
 	Timeout            string            `yaml:"timeout"`
 	ResumeEnabled      *bool             `yaml:"resume_enabled"`
 	Env                map[string]string `yaml:"env"`
+}
+
+// TeamFileConfig mirrors TeamConfig for YAML decoding.
+type TeamFileConfig struct {
+	Name        string                `yaml:"name"`
+	Description string                `yaml:"description"`
+	Roles       []TeamRoleFileConfig  `yaml:"roles"`
+	Stages      []TeamStageFileConfig `yaml:"stages"`
+}
+
+// TeamRoleFileConfig mirrors TeamRoleConfig for YAML decoding.
+type TeamRoleFileConfig struct {
+	Name           string            `yaml:"name"`
+	AgentType      string            `yaml:"agent_type"`
+	PromptTemplate string            `yaml:"prompt_template"`
+	ExecutionMode  string            `yaml:"execution_mode"`
+	AutonomyLevel  string            `yaml:"autonomy_level"`
+	WorkspaceMode  string            `yaml:"workspace_mode"`
+	Config         map[string]string `yaml:"config"`
+	InheritContext *bool             `yaml:"inherit_context"`
+}
+
+// TeamStageFileConfig mirrors TeamStageConfig for YAML decoding.
+type TeamStageFileConfig struct {
+	Name  string   `yaml:"name"`
+	Roles []string `yaml:"roles"`
 }
 
 // ProactiveFileConfig mirrors ProactiveConfig for YAML decoding.

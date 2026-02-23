@@ -284,6 +284,48 @@ func normalizeExternalAgentsConfig(cfg *ExternalAgentsConfig) {
 	cfg.Codex.DefaultModel = strings.TrimSpace(cfg.Codex.DefaultModel)
 	cfg.Codex.ApprovalPolicy = strings.TrimSpace(cfg.Codex.ApprovalPolicy)
 	cfg.Codex.Sandbox = strings.TrimSpace(cfg.Codex.Sandbox)
+	cfg.Codex.PlanApprovalPolicy = strings.TrimSpace(cfg.Codex.PlanApprovalPolicy)
+	cfg.Codex.PlanSandbox = strings.TrimSpace(cfg.Codex.PlanSandbox)
+	if len(cfg.Teams) > 0 {
+		for i := range cfg.Teams {
+			cfg.Teams[i].Name = strings.TrimSpace(cfg.Teams[i].Name)
+			cfg.Teams[i].Description = strings.TrimSpace(cfg.Teams[i].Description)
+			for j := range cfg.Teams[i].Roles {
+				role := &cfg.Teams[i].Roles[j]
+				role.Name = strings.TrimSpace(role.Name)
+				role.AgentType = strings.TrimSpace(role.AgentType)
+				role.PromptTemplate = strings.TrimSpace(role.PromptTemplate)
+				role.ExecutionMode = strings.TrimSpace(role.ExecutionMode)
+				role.AutonomyLevel = strings.TrimSpace(role.AutonomyLevel)
+				role.WorkspaceMode = strings.TrimSpace(role.WorkspaceMode)
+				if len(role.Config) > 0 {
+					normalized := make(map[string]string, len(role.Config))
+					for key, value := range role.Config {
+						trimmedKey := strings.TrimSpace(key)
+						if trimmedKey == "" {
+							continue
+						}
+						normalized[trimmedKey] = strings.TrimSpace(value)
+					}
+					role.Config = normalized
+				}
+			}
+			for j := range cfg.Teams[i].Stages {
+				stage := &cfg.Teams[i].Stages[j]
+				stage.Name = strings.TrimSpace(stage.Name)
+				if len(stage.Roles) == 0 {
+					continue
+				}
+				trimmedRoles := make([]string, 0, len(stage.Roles))
+				for _, roleName := range stage.Roles {
+					if trimmed := strings.TrimSpace(roleName); trimmed != "" {
+						trimmedRoles = append(trimmedRoles, trimmed)
+					}
+				}
+				stage.Roles = trimmedRoles
+			}
+		}
+	}
 }
 
 func normalizeHTTPLimits(cfg *HTTPLimitsConfig) {

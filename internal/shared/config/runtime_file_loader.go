@@ -506,6 +506,10 @@ func applyExternalAgentsFileConfig(cfg *RuntimeConfig, meta *Metadata, external 
 			meta.sources["external_agents.codex.env"] = SourceFile
 		}
 	}
+	if len(external.Teams) > 0 {
+		cfg.ExternalAgents.Teams = convertTeamFileConfigs(external.Teams)
+		meta.sources["external_agents.teams"] = SourceFile
+	}
 	return nil
 }
 
@@ -600,6 +604,84 @@ func expandExternalAgentsFileConfigEnv(lookup EnvLookup, external *ExternalAgent
 			cx.Env = expanded
 		}
 	}
+	if len(external.Teams) > 0 {
+		for i := range external.Teams {
+			team := &external.Teams[i]
+			team.Name = expandEnvValue(lookup, team.Name)
+			team.Description = expandEnvValue(lookup, team.Description)
+			if len(team.Roles) > 0 {
+				for j := range team.Roles {
+					role := &team.Roles[j]
+					role.Name = expandEnvValue(lookup, role.Name)
+					role.AgentType = expandEnvValue(lookup, role.AgentType)
+					role.PromptTemplate = expandEnvValue(lookup, role.PromptTemplate)
+					role.ExecutionMode = expandEnvValue(lookup, role.ExecutionMode)
+					role.AutonomyLevel = expandEnvValue(lookup, role.AutonomyLevel)
+					role.WorkspaceMode = expandEnvValue(lookup, role.WorkspaceMode)
+					if len(role.Config) > 0 {
+						expanded := make(map[string]string, len(role.Config))
+						for key, value := range role.Config {
+							expanded[expandEnvValue(lookup, key)] = expandEnvValue(lookup, value)
+						}
+						role.Config = expanded
+					}
+				}
+			}
+			if len(team.Stages) > 0 {
+				for j := range team.Stages {
+					stage := &team.Stages[j]
+					stage.Name = expandEnvValue(lookup, stage.Name)
+					if len(stage.Roles) > 0 {
+						roles := make([]string, 0, len(stage.Roles))
+						for _, roleName := range stage.Roles {
+							roles = append(roles, expandEnvValue(lookup, roleName))
+						}
+						stage.Roles = roles
+					}
+				}
+			}
+		}
+	}
+}
+
+func convertTeamFileConfigs(raw []TeamFileConfig) []TeamConfig {
+	if len(raw) == 0 {
+		return nil
+	}
+	teams := make([]TeamConfig, 0, len(raw))
+	for _, team := range raw {
+		roles := make([]TeamRoleConfig, 0, len(team.Roles))
+		for _, role := range team.Roles {
+			inheritContext := false
+			if role.InheritContext != nil {
+				inheritContext = *role.InheritContext
+			}
+			roles = append(roles, TeamRoleConfig{
+				Name:           role.Name,
+				AgentType:      role.AgentType,
+				PromptTemplate: role.PromptTemplate,
+				ExecutionMode:  role.ExecutionMode,
+				AutonomyLevel:  role.AutonomyLevel,
+				WorkspaceMode:  role.WorkspaceMode,
+				Config:         cloneStringMap(role.Config),
+				InheritContext: inheritContext,
+			})
+		}
+		stages := make([]TeamStageConfig, 0, len(team.Stages))
+		for _, stage := range team.Stages {
+			stages = append(stages, TeamStageConfig{
+				Name:  stage.Name,
+				Roles: append([]string(nil), stage.Roles...),
+			})
+		}
+		teams = append(teams, TeamConfig{
+			Name:        team.Name,
+			Description: team.Description,
+			Roles:       roles,
+			Stages:      stages,
+		})
+	}
+	return teams
 }
 
 func cloneStringMap(in map[string]string) map[string]string {
