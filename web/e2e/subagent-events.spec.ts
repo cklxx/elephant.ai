@@ -5,14 +5,12 @@ import {
   shouldCaptureScreenshots,
 } from './utils/screenshots';
 
-const STORAGE_KEY = 'alex-session-storage';
-
 const clearStorage = () => {
   window.localStorage.clear();
 };
 
 test.describe('Subagent event rendering', () => {
-  test('renders mock subagent tool output and headers', async ({ page }) => {
+  test('renders mock subagent thread cards and nested outputs', async ({ page }) => {
     await page.addInitScript(clearStorage);
     await primeAuthSession(page);
     await page.goto('/conversation?mockSSE=1');
@@ -30,42 +28,22 @@ test.describe('Subagent event rendering', () => {
     await textarea.fill('Review nested tool call output for subagents.');
     await textarea.press('Enter');
 
-    const firstSubagentTimeline = page
-      .getByTestId('event-subagent-workflow.node.started')
-      .first();
-    await expect(firstSubagentTimeline).toBeVisible({ timeout: 30000 });
-    await expect(
-      firstSubagentTimeline.getByText('Research comparable console UX patterns')
-    ).toBeVisible();
-    await expect(firstSubagentTimeline.getByText('Parallel ×2')).toBeVisible();
+    const threads = page.getByTestId('subagent-thread');
+    await expect(threads).toHaveCount(2, { timeout: 60000 });
 
-    const secondSubagentTimeline = page
-      .getByTestId('event-subagent-workflow.node.started')
-      .nth(1);
-    await expect(secondSubagentTimeline).toBeVisible();
-    await expect(
-      secondSubagentTimeline.getByText(
-        'Inspect tool output rendering implementation'
-      )
-    ).toBeVisible();
+    const firstThread = threads.first();
+    await expect(firstThread).toContainText('Subagent: gather docs');
+    await expect(firstThread).toContainText('Parallel ×2');
+    await firstThread.getByRole('button', { name: /Toggle .* details/i }).click();
+    await expect(firstThread).toContainText('Found docs and examples.');
+    await expect(firstThread).toContainText('Subagent summary: gathered protocol constraints and UI levels.');
 
-    const subagentToolStreams = page.getByTestId('event-subagent-workflow.tool.progress');
-    await expect(subagentToolStreams.nth(0)).toContainText(
-      'Summarizing multi-panel timelines'
-    );
-    await expect(subagentToolStreams.nth(2)).toContainText(
-      'Traced ToolOutputCard props'
-    );
-
-    const subagentToolCompletions = page.getByTestId(
-      'event-subagent-workflow.tool.completed'
-    );
-    await expect(subagentToolCompletions.first()).toContainText('web_search');
-    await expect(subagentToolCompletions.nth(1)).toContainText('code_search');
-
-    const subagentCompletions = page.getByTestId('event-subagent-workflow.result.final');
-    await expect(subagentCompletions.first()).toContainText('Validated layout guidance');
-    await expect(subagentCompletions.nth(1)).toContainText('Confirmed ToolOutputCard handles metadata');
+    const secondThread = threads.nth(1);
+    await expect(secondThread).toContainText('Subagent: verify UI');
+    await expect(secondThread).toContainText('Parallel ×2');
+    await secondThread.getByRole('button', { name: /Toggle .* details/i }).click();
+    await expect(secondThread).toContainText('Reviewed EventLine implementation.');
+    await expect(secondThread).toContainText('Subagent summary: UI renders Goal/Task/Log correctly; fonts consistent.');
 
     if (shouldCaptureScreenshots) {
       await capturePageScreenshot(page, 'subagent-events');

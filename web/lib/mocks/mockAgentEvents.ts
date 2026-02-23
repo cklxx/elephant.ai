@@ -232,6 +232,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
   const callIdTwo = 'mock-call-2';
   const subagentCallIdOne = 'mock-subagent-call-1';
   const subagentCallIdTwo = 'mock-subagent-call-2';
+  const callIdSubagentCoordinator = 'mock-call-subagent-coordinator';
 
   return [
     {
@@ -381,11 +382,27 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
       event: {
         event_type: 'workflow.result.final',
         agent_level: 'core',
+        run_id: runId,
         final_answer: '已完成 Planner/ReAct 架构展示与工具详情联动。',
         total_iterations: 2,
         total_tokens: 800,
         stop_reason: 'final_answer',
         duration: 4200,
+      },
+    },
+    {
+      delay: 3450,
+      event: {
+        event_type: 'workflow.tool.started',
+        agent_level: 'core',
+        run_id: parentRunId,
+        call_id: callIdSubagentCoordinator,
+        tool_name: 'subagent',
+        arguments: {
+          max_parallel: 2,
+          subtasks: ['Subagent: gather docs', 'Subagent: verify UI'],
+        },
+        iteration: 3,
       },
     },
     // Subagent thread 1/2
@@ -399,6 +416,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
+        max_parallel: 2,
         subtask_preview: 'Subagent: gather docs',
         iteration: 1,
       },
@@ -413,6 +431,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
+        max_parallel: 2,
         delta: 'Thinking...',
         iteration: 1,
       },
@@ -427,6 +446,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
+        max_parallel: 2,
         call_id: subagentCallIdOne,
         tool_name: 'web_search',
         arguments: { query: 'plan/clarify protocol' },
@@ -443,6 +463,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
+        max_parallel: 2,
         call_id: subagentCallIdOne,
         chunk: 'Searching...',
       },
@@ -457,6 +478,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
+        max_parallel: 2,
         call_id: subagentCallIdOne,
         tool_name: 'web_search',
         result: 'Found docs and examples.',
@@ -473,6 +495,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
+        max_parallel: 2,
         final_answer: 'Subagent summary: gathered protocol constraints and UI levels.',
         total_iterations: 1,
         total_tokens: 220,
@@ -491,6 +514,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         parent_run_id: parentRunId,
         subtask_index: 1,
         total_subtasks: 2,
+        max_parallel: 2,
         subtask_preview: 'Subagent: verify UI',
         iteration: 1,
       },
@@ -505,6 +529,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         parent_run_id: parentRunId,
         subtask_index: 1,
         total_subtasks: 2,
+        max_parallel: 2,
         delta: 'Reviewing UI...',
         iteration: 1,
       },
@@ -519,6 +544,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         parent_run_id: parentRunId,
         subtask_index: 1,
         total_subtasks: 2,
+        max_parallel: 2,
         call_id: subagentCallIdTwo,
         tool_name: 'file_read',
         arguments: { path: 'web/components/agent/EventLine/index.tsx' },
@@ -535,6 +561,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         parent_run_id: parentRunId,
         subtask_index: 1,
         total_subtasks: 2,
+        max_parallel: 2,
         call_id: subagentCallIdTwo,
         tool_name: 'file_read',
         result: 'Reviewed EventLine implementation.',
@@ -551,11 +578,24 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         parent_run_id: parentRunId,
         subtask_index: 1,
         total_subtasks: 2,
+        max_parallel: 2,
         final_answer: 'Subagent summary: UI renders Goal/Task/Log correctly; fonts consistent.',
         total_iterations: 1,
         total_tokens: 180,
         stop_reason: 'final_answer',
         duration: 850,
+      },
+    },
+    {
+      delay: 4950,
+      event: {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'core',
+        run_id: parentRunId,
+        call_id: callIdSubagentCoordinator,
+        tool_name: 'subagent',
+        result: 'Spawned and completed 2 subagents.',
+        duration: 1500,
       },
     },
   ];

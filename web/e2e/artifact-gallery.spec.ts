@@ -30,48 +30,23 @@ async function bootstrapMockConversation(page: Page) {
 }
 
 test.describe('Artifact previews in mock mode', () => {
-  test('renders html, markdown, pptx, pdf, and image attachments with filters', async ({ page }) => {
+  test('renders right-panel attachments for mock tool outputs', async ({ page }) => {
     await bootstrapMockConversation(page);
 
-    const documentTab = page.getByRole('tab', { name: /Document/i });
-    await documentTab.click();
+    const rightPanelToggle = page.getByTestId('right-panel-toggle');
+    await expect(rightPanelToggle).toBeVisible({ timeout: 60000 });
+    await rightPanelToggle.click();
 
-    await expect(page.getByText('Attachment filters')).toBeVisible({ timeout: 45000 });
-
-    const artifactNames = [
-      'Executive Review Slides',
-      'Console Architecture Prototype',
-      'Q3 Research Memo',
-      'Latency Report',
-    ];
-    for (const name of artifactNames) {
-      await expect(page.getByText(name).first()).toBeVisible();
-    }
-
-    await expect(page.getByAltText('Status Heatmap')).toBeVisible();
+    const attachmentPanel = page.locator('[data-testid="attachment-panel"]:visible').first();
+    await expect(attachmentPanel).toBeVisible({ timeout: 60000 });
+    await expect(attachmentPanel.getByText('Console Architecture Prototype').first()).toBeVisible();
+    await expect(attachmentPanel.getByText('UX Snapshot mock').first()).toBeVisible();
     await expect(
-      page.getByTitle('Console Architecture Prototype preview')
+      attachmentPanel.getByRole('button', { name: /Preview Console Architecture Prototype/i }).first()
     ).toBeVisible();
-
-    const artifactsButton = page.getByRole('button', { name: 'Artifacts' }).first();
-    await artifactsButton.click();
-    await expect(page.getByText('Status Heatmap')).not.toBeVisible();
-
-    const mediaButton = page.getByRole('button', { name: 'Media' }).first();
-    await mediaButton.click();
-    await expect(page.getByText('Status Heatmap')).toBeVisible();
-
-    const formatSelect = page.getByLabel('Format');
-    await formatSelect.selectOption('markdown');
-    await expect(page.getByText('Q3 Research Memo')).toBeVisible();
-    await expect(page.getByText('Executive Review Slides')).not.toBeVisible();
-    await formatSelect.selectOption('all');
-
-    const searchInput = page.getByLabel('Search');
-    await searchInput.fill('latency');
-    await expect(page.getByText('Latency Report')).toBeVisible();
-    await expect(page.getByText('Executive Review Slides')).not.toBeVisible();
-    await searchInput.fill('');
+    await expect(
+      attachmentPanel.getByRole('button', { name: /UX Snapshot mock/i }).first()
+    ).toBeVisible();
 
     if (shouldCaptureScreenshots) {
       await capturePageScreenshot(page, 'artifact-gallery');

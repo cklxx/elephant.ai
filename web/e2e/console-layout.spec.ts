@@ -107,16 +107,22 @@ test.describe('ALEX console layout', () => {
     }
   });
 
-  test('home route redirects to conversation view', async ({ page }) => {
+  test('home route renders GL homepage and links to conversation', async ({ page }) => {
     await page.addInitScript(() => window.localStorage.clear());
     await primeAuthSession(page);
     await page.goto('/');
 
-    await expect(page).toHaveURL(/\/conversation$/);
+    await expect(page.locator('h1')).toHaveText('elephant.ai');
+
+    const cta = page.locator('a[href="/conversation"]');
+    await expect(cta).toBeVisible({ timeout: 10000 });
+    await cta.click();
+
+    await expect(page).toHaveURL(/\/conversation/);
     await expect(page.getByTestId('console-header-title')).toBeVisible({ timeout: 60000 });
 
     if (shouldCaptureScreenshots) {
-      await capturePageScreenshot(page, 'console-redirect');
+      await capturePageScreenshot(page, 'console-home-to-conversation');
     }
   });
 });

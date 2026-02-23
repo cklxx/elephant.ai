@@ -624,7 +624,10 @@ function resolveMaxParallel(event: AnyAgentEvent): number | undefined {
 export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   const preview = resolveSubtaskPreview(event);
   const maxParallel = resolveMaxParallel(event);
-  const concurrency: string | undefined = undefined;
+  const concurrency =
+    typeof maxParallel === "number" && maxParallel > 1
+      ? `Parallel ×${maxParallel}`
+      : undefined;
 
   const progressParts: string[] = [];
   if ("completed" in event && typeof event.completed === "number") {

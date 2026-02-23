@@ -31,8 +31,15 @@ test.describe('Attachment deduplication', () => {
 
     await expect(attachmentToolEvent).toBeVisible({ timeout: 60000 });
     await attachmentToolEvent.getByTestId('tool-output-header').click();
-    await expect(attachmentToolEvent.getByText('UX Snapshot')).toBeVisible();
-    await expect(attachmentToolEvent.getByText('Console Architecture Prototype')).toBeVisible();
+
+    await expect(
+      attachmentToolEvent.getByRole('img', { name: 'UX Snapshot mock' })
+    ).toBeVisible();
+    await expect(
+      attachmentToolEvent.getByRole('button', {
+        name: /Preview Console Architecture Prototype/i,
+      })
+    ).toBeVisible();
 
     const finalSummary = page
       .getByTestId('event-workflow.result.final')
@@ -40,10 +47,10 @@ test.describe('Attachment deduplication', () => {
       .first();
 
     await expect(finalSummary).toBeVisible({ timeout: 60000 });
-    await expect(finalSummary.getByText('UX Snapshot')).toHaveCount(0);
+    await expect(finalSummary.getByText('UX Snapshot mock')).toHaveCount(0);
     await expect(finalSummary.getByText('Console Architecture Prototype')).toHaveCount(0);
     await expect(
-      finalSummary.locator('img[alt*="UX Snapshot"], img[alt*="Console Architecture Prototype"]'),
+      finalSummary.getByRole('img', { name: /UX Snapshot/i })
     ).toHaveCount(0);
   });
 });

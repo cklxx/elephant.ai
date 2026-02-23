@@ -25,7 +25,7 @@ test.describe('Task input image attachments', () => {
     const textarea = page.getByTestId('task-input');
     await expect(textarea).toBeVisible();
 
-    const fileInput = page.locator('input[type="file"][accept="image/*"]');
+    const fileInput = page.getByTestId('task-attachment-input');
     await fileInput.setInputFiles(imageFixture);
 
     const attachmentGallery = page.getByTestId('task-attachments');
@@ -40,9 +40,15 @@ test.describe('Task input image attachments', () => {
     await textarea.type(' Please review this image.');
     await textarea.press('Enter');
 
+    const submittedInputEvent = page
+      .getByTestId('event-workflow.input.received')
+      .filter({ hasText: 'Please review this image.' })
+      .first();
+    await expect(submittedInputEvent).toBeVisible({ timeout: 15000 });
+    await expect(submittedInputEvent.getByTestId('event-input-media')).toBeVisible();
     await expect(
-      page.getByTestId('event-workflow.input.received')
-    ).toContainText('image.png', { timeout: 15000 });
+      submittedInputEvent.getByRole('button', { name: /User upload|test-image/i }).first()
+    ).toBeVisible();
 
     if (shouldCaptureScreenshots) {
       await capturePageScreenshot(page, 'image-attachment');

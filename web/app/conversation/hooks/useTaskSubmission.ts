@@ -103,7 +103,7 @@ export function useTaskSubmission({
           sessionId ||
           currentSessionId ||
           `mock-${submissionTimestamp.getTime().toString(36)}`;
-        const mockTaskId = `mock-task-${submissionTimestamp.getTime().toString(36)}`;
+        const mockTaskId = "mock-run-1";
 
         const attachmentMap = buildAttachmentMap(attachments);
 

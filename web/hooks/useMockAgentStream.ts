@@ -32,6 +32,7 @@ export function useMockAgentStream(
   const timeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const onEventRef = useRef(options.onEvent);
   const lastUserTaskRef = useRef<string>('Analyze the project repository');
+  const previousSessionIdRef = useRef<string | null>(sessionId);
 
   useEffect(() => {
     onEventRef.current = options.onEvent;
@@ -113,6 +114,9 @@ export function useMockAgentStream(
   }, [clearTimers]);
 
   useEffect(() => {
+    const previousSessionId = previousSessionIdRef.current;
+    previousSessionIdRef.current = sessionId;
+
     if (!enabled) {
       clearTimers();
       setIsConnected(false);
@@ -122,17 +126,18 @@ export function useMockAgentStream(
 
     if (!sessionId) {
       clearTimers();
-      setEvents([]);
-      resetAttachmentRegistry();
+      if (previousSessionId) {
+        setEvents([]);
+        resetAttachmentRegistry();
+      }
       setIsConnected(false);
       setIsReconnecting(false);
       setReconnectAttempts(0);
+      setError(null);
       return;
     }
 
     const sequence = createMockEventSequence(lastUserTaskRef.current);
-    setEvents([]);
-    resetAttachmentRegistry();
     setError(null);
     setIsConnected(true);
     setIsReconnecting(false);
