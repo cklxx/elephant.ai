@@ -346,6 +346,83 @@ runtime:
     bridge_listen_addr: "127.0.0.1:17333"
 ```
 
+### External Agents 与 Agent Teams（runtime.external_agents）
+
+- `external_agents.max_parallel_agents`：外部 agent 最大并发任务数。
+- `external_agents.claude_code.*`：Claude Code bridge 默认参数（binary/model/mode/budget/timeout/env）。
+- `external_agents.codex.*`：Codex bridge 默认参数（binary/model/approval/sandbox/timeout/env）。
+- `external_agents.teams[]`：可复用团队编排定义，供 `team_dispatch` 使用。
+
+`external_agents.teams` 字段：
+
+- `name`：团队名（`team_dispatch(team=...)` 使用）。
+- `description`：团队描述。
+- `roles[]`：
+  - `name`：角色名（stage 中引用）。
+  - `agent_type`：`codex` / `claude_code` / 其他已启用 external agent 类型。
+  - `prompt_template`：角色提示模板；支持 `{GOAL}` / `{ROLE}` / `{TEAM}` 占位符。
+  - `execution_mode`：`execute` 或 `plan`。
+  - `autonomy_level`：`controlled` / `semi` / `full`。
+  - `workspace_mode`：`shared` / `branch` / `worktree`。
+  - `config`：透传给对应 bridge 的 per-task 覆盖配置（例如 codex 的 `approval_policy` / `sandbox`）。
+  - `inherit_context`：是否继承依赖任务上下文（默认 `false`）。
+- `stages[]`：
+  - `name`：阶段名。
+  - `roles`：该阶段并行执行的角色列表；阶段间串行。
+
+`file-based + CLI full access` 推荐示例：
+
+```yaml
+runtime:
+  external_agents:
+    codex:
+      enabled: true
+      binary: "codex"
+      default_model: "gpt-5.2-codex"
+      approval_policy: "never"
+      sandbox: "danger-full-access"
+      plan_approval_policy: "never"
+      plan_sandbox: "danger-full-access"
+      timeout: "30m"
+      env:
+        OPENAI_API_KEY: "${OPENAI_API_KEY}"
+    claude_code:
+      enabled: true
+      binary: "claude"
+      default_mode: "autonomous"
+      timeout: "30m"
+      env:
+        ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+    teams:
+      - name: "execute_and_report"
+        description: "Codex executes in isolated worktree; Claude summarizes outcomes."
+        roles:
+          - name: "executor"
+            agent_type: "codex"
+            prompt_template: |
+              [Executor] Complete the goal directly: {GOAL}
+              Return changed files, commands, and test results.
+            execution_mode: "execute"
+            autonomy_level: "full"
+            workspace_mode: "worktree"
+            config:
+              approval_policy: "never"
+              sandbox: "danger-full-access"
+          - name: "reporter"
+            agent_type: "claude_code"
+            prompt_template: |
+              [Reporter] Summarize deliverables and risks for: {GOAL}
+            execution_mode: "execute"
+            autonomy_level: "full"
+            workspace_mode: "shared"
+            inherit_context: true
+        stages:
+          - name: "execution"
+            roles: ["executor"]
+          - name: "reporting"
+            roles: ["reporter"]
+```
+
 ### Proactive 记忆（proactive.memory）
 
 - `proactive.enabled`：总开关（默认 true）。

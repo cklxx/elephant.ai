@@ -26,6 +26,7 @@ Once coordinator is available, registry additionally exposes:
 - `bg_collect`
 - `ext_reply`
 - `ext_merge`
+- `team_dispatch` (dispatches a configured multi-role team DAG; see `runtime.external_agents.teams`)
 
 ## 3) Dynamic MCP tools
 

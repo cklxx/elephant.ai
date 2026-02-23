@@ -17,7 +17,7 @@ Current external-agent path is bridge-based:
   - Codex: `scripts/codex_bridge/codex_bridge.py`
 
 Delegation entry tools:
-- `bg_dispatch`, `bg_status`, `bg_collect`, `ext_reply`, `ext_merge`
+- `bg_dispatch`, `bg_status`, `bg_collect`, `ext_reply`, `ext_merge`, `team_dispatch`
 - Implemented in `internal/infra/tools/builtin/orchestration/*`
 
 Domain background runtime:
@@ -46,6 +46,31 @@ runtime:
       timeout: "30m"
       env:
         OPENAI_API_KEY: "${OPENAI_API_KEY}"
+    teams:
+      - name: "execute_and_report"
+        description: "Codex executes and Claude Code summarizes"
+        roles:
+          - name: "executor"
+            agent_type: "codex"
+            prompt_template: "Implement goal: {GOAL}"
+            execution_mode: "execute"
+            autonomy_level: "full"
+            workspace_mode: "worktree"
+            config:
+              approval_policy: "never"
+              sandbox: "danger-full-access"
+          - name: "reporter"
+            agent_type: "claude_code"
+            prompt_template: "Summarize completion status for: {GOAL}"
+            execution_mode: "execute"
+            autonomy_level: "full"
+            workspace_mode: "shared"
+            inherit_context: true
+        stages:
+          - name: "execute"
+            roles: ["executor"]
+          - name: "report"
+            roles: ["reporter"]
 ```
 
 ## 3) Dispatch + collect flow
