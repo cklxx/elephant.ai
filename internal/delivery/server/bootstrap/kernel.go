@@ -2,10 +2,11 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 
 	kernel "alex/internal/app/agent/kernel"
-	kerneldomain "alex/internal/domain/kernel"
 	"alex/internal/app/lifecycle"
+	kerneldomain "alex/internal/domain/kernel"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 )
@@ -17,13 +18,16 @@ func (f *Foundation) KernelStage(sm *SubsystemManager) BootstrapStage {
 	return BootstrapStage{
 		Name: "kernel", Required: false,
 		Init: func() error {
-			if !f.Config.Runtime.Proactive.Kernel.Enabled || f.Container.KernelEngine == nil {
-				return nil
+			if f.Container.KernelEngine == nil {
+				return fmt.Errorf("kernel engine unavailable")
 			}
 
 			// Wire cycle notifier via LarkGateway /notice binding.
 			if gw := f.Container.LarkGateway; gw != nil {
-				kernelID := f.Config.Runtime.Proactive.Kernel.KernelID
+				kernelID := kernel.DefaultRuntimeSettings().KernelID
+				if kernelID == "" {
+					kernelID = kernel.DefaultKernelID
+				}
 				loader := gw.NoticeLoader()
 				f.Container.KernelEngine.SetNotifier(func(ctx context.Context, result *kerneldomain.CycleResult, err error) {
 					chatID, ok, loadErr := loader()

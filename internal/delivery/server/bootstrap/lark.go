@@ -68,6 +68,7 @@ func RunLark(observabilityConfigPath string) error {
 	})
 
 	// ── Phase 3: Subsystems (Lark gateway required, scheduler/timer optional) ──
+	// NOTE: kernel now runs in a dedicated `alex-server kernel-daemon` process.
 
 	subsystems := NewSubsystemManager(logger)
 	defer subsystems.StopAll()
@@ -86,7 +87,6 @@ func RunLark(observabilityConfigPath string) error {
 		},
 		f.SchedulerStage(subsystems),
 		f.TimerManagerStage(subsystems),
-		f.KernelStage(subsystems),
 	}
 
 	if err := RunStages(gatewayStages, f.Degraded, logger); err != nil {
@@ -137,4 +137,3 @@ func RunLark(observabilityConfigPath string) error {
 	logger.Info("Lark standalone mode stopped")
 	return nil
 }
-

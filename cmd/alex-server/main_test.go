@@ -28,6 +28,10 @@ func TestRun_DefaultModeUsesLark(t *testing.T) {
 				}
 				return nil
 			},
+			runKernelDaemon: func(string) error {
+				t.Fatal("kernel-daemon should not be called")
+				return nil
+			},
 			runKernelOnce: func(string) error {
 				t.Fatal("kernel-once should not be called")
 				return nil
@@ -53,6 +57,10 @@ func TestRun_LegacyLarkSubcommandUsesLarkAndLogsDeprecation(t *testing.T) {
 		logger,
 		runners{
 			runLark: func(string) error { return nil },
+			runKernelDaemon: func(string) error {
+				t.Fatal("kernel-daemon should not be called")
+				return nil
+			},
 			runKernelOnce: func(string) error {
 				t.Fatal("kernel-once should not be called")
 				return nil
@@ -80,6 +88,10 @@ func TestRun_KernelOnceSubcommandUsesKernelRunner(t *testing.T) {
 				t.Fatal("lark should not be called")
 				return nil
 			},
+			runKernelDaemon: func(string) error {
+				t.Fatal("kernel-daemon should not be called")
+				return nil
+			},
 			runKernelOnce: func(string) error {
 				kernelCalls++
 				return nil
@@ -103,12 +115,74 @@ func TestRun_KernelOnceErrorPropagates(t *testing.T) {
 		"",
 		log.New(&bytes.Buffer{}, "", 0),
 		runners{
-			runLark:       func(string) error { return nil },
-			runKernelOnce: func(string) error { return boom },
+			runLark:         func(string) error { return nil },
+			runKernelDaemon: func(string) error { return nil },
+			runKernelOnce:   func(string) error { return boom },
 		},
 	)
 	if !errors.Is(err, boom) {
 		t.Fatalf("expected %v, got %v", boom, err)
+	}
+}
+
+func TestRun_KernelDaemonSubcommandUsesKernelDaemonRunner(t *testing.T) {
+	t.Parallel()
+
+	var daemonCalls int
+	err := run(
+		[]string{"alex-server", "kernel-daemon"},
+		"",
+		log.New(&bytes.Buffer{}, "", 0),
+		runners{
+			runLark: func(string) error {
+				t.Fatal("lark should not be called")
+				return nil
+			},
+			runKernelDaemon: func(string) error {
+				daemonCalls++
+				return nil
+			},
+			runKernelOnce: func(string) error {
+				t.Fatal("kernel-once should not be called")
+				return nil
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	if daemonCalls != 1 {
+		t.Fatalf("expected kernel-daemon to be called once, got %d", daemonCalls)
+	}
+}
+
+func TestRun_UnknownSubcommandReturnsError(t *testing.T) {
+	t.Parallel()
+
+	err := run(
+		[]string{"alex-server", "unexpected-mode"},
+		"",
+		log.New(&bytes.Buffer{}, "", 0),
+		runners{
+			runLark: func(string) error {
+				t.Fatal("lark should not be called")
+				return nil
+			},
+			runKernelDaemon: func(string) error {
+				t.Fatal("kernel-daemon should not be called")
+				return nil
+			},
+			runKernelOnce: func(string) error {
+				t.Fatal("kernel-once should not be called")
+				return nil
+			},
+		},
+	)
+	if err == nil {
+		t.Fatal("expected unknown subcommand error")
+	}
+	if !strings.Contains(err.Error(), "unknown subcommand") {
+		t.Fatalf("expected unknown subcommand error, got %v", err)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	kernel "alex/internal/app/agent/kernel"
 	kerneldomain "alex/internal/domain/kernel"
 	"alex/internal/shared/logging"
 )
@@ -24,12 +25,8 @@ func RunKernelOnce(observabilityConfigPath string) error {
 	}
 	defer f.Cleanup()
 
-	cfg := f.Config.Runtime.Proactive.Kernel
-	if !cfg.Enabled {
-		return fmt.Errorf("kernel single-cycle requires runtime.proactive.kernel.enabled=true")
-	}
 	if f.Container.KernelEngine == nil {
-		return fmt.Errorf("kernel single-cycle requires initialized kernel engine (session database and kernel config)")
+		return fmt.Errorf("kernel single-cycle requires initialized kernel engine")
 	}
 
 	runner, ok := f.Container.KernelEngine.(kernelCycleRunner)
@@ -37,7 +34,11 @@ func RunKernelOnce(observabilityConfigPath string) error {
 		return fmt.Errorf("kernel engine does not support single-cycle execution")
 	}
 
-	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
+	timeoutSeconds := kernel.DefaultRuntimeSettings().TimeoutSeconds
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = kernel.DefaultKernelTimeoutSeconds
+	}
+	timeout := time.Duration(timeoutSeconds) * time.Second
 	if timeout <= 0 {
 		timeout = 15 * time.Minute
 	}

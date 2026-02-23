@@ -100,12 +100,9 @@ func (b *containerBuilder) buildOKRContextProvider() preparation.OKRContextProvi
 }
 
 func (b *containerBuilder) buildKernelAlignmentContextProvider() preparation.KernelAlignmentContextProvider {
-	if !b.config.Proactive.Enabled || !b.config.Proactive.Kernel.Enabled {
-		return nil
-	}
-	kernelID := strings.TrimSpace(b.config.Proactive.Kernel.KernelID)
+	kernelID := strings.TrimSpace(kernelagent.DefaultRuntimeSettings().KernelID)
 	if kernelID == "" {
-		kernelID = "default"
+		kernelID = kernelagent.DefaultKernelID
 	}
 	provider := preparation.NewKernelAlignmentContextProvider(preparation.KernelAlignmentContextConfig{
 		KernelID: kernelID,
@@ -219,16 +216,54 @@ func memoryGateFunc(enabled bool) func(context.Context) bool {
 	}
 }
 
-// buildKernelEngine creates the kernel agent loop engine from config.
+// buildKernelEngine creates the kernel agent loop engine from code-owned defaults.
 func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.AgentCoordinator, llmFactory portsllm.LLMClientFactory) (*kernelagent.Engine, error) {
-	cfg := b.config.Proactive.Kernel
+	settings := kernelagent.DefaultRuntimeSettings()
+	kernelID := strings.TrimSpace(settings.KernelID)
+	if kernelID == "" {
+		kernelID = kernelagent.DefaultKernelID
+	}
+	schedule := strings.TrimSpace(settings.Schedule)
+	if schedule == "" {
+		schedule = kernelagent.DefaultKernelSchedule
+	}
+	timeoutSeconds := settings.TimeoutSeconds
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = kernelagent.DefaultKernelTimeoutSeconds
+	}
+	leaseSeconds := settings.LeaseSeconds
+	if leaseSeconds <= 0 {
+		leaseSeconds = kernelagent.DefaultKernelLeaseSeconds
+	}
+	maxConcurrent := settings.MaxConcurrent
+	if maxConcurrent <= 0 {
+		maxConcurrent = kernelagent.DefaultKernelMaxConcurrent
+	}
+	maxCycleHistory := settings.MaxCycleHistory
+	if maxCycleHistory <= 0 {
+		maxCycleHistory = kernelagent.DefaultKernelMaxCycleHistory
+	}
+	seedState := settings.SeedState
+	if strings.TrimSpace(seedState) == "" {
+		seedState = kernelagent.DefaultSeedStateContent
+	}
+	channel := strings.TrimSpace(settings.Channel)
+	if channel == "" {
+		channel = kernelagent.DefaultKernelChannel
+	}
+	userID := strings.TrimSpace(settings.UserID)
+	if userID == "" {
+		userID = kernelagent.DefaultKernelUserID
+	}
+	chatID := strings.TrimSpace(settings.ChatID)
+	agents := kernelagent.CloneAgentConfigs(settings.Agents)
 
 	// Validate cron schedule at build time (fail fast).
-	if err := kernelagent.ValidateSchedule(cfg.Schedule); err != nil {
+	if err := kernelagent.ValidateSchedule(schedule); err != nil {
 		return nil, fmt.Errorf("kernel schedule: %w", err)
 	}
 
-	leaseDuration := time.Duration(cfg.LeaseSeconds) * time.Second
+	leaseDuration := time.Duration(leaseSeconds) * time.Second
 	kernelStoreDir := resolveStorageDir("", "~/.alex/kernel")
 	kernelStore := kernelinfra.NewFileStore(kernelStoreDir, leaseDuration)
 	if err := kernelStore.EnsureSchema(context.Background()); err != nil {
@@ -236,8 +271,7 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 	}
 
 	stateRoot := resolveStorageDir("", kernelagent.DefaultStateRootDir)
-	stateDir := filepath.Join(stateRoot, cfg.KernelID)
-	seedState := kernelagent.DefaultSeedStateContent
+	stateDir := filepath.Join(stateRoot, kernelID)
 
 	versionedStore := markdown.NewVersionedStore(markdown.StoreConfig{
 		Dir:        stateDir,
@@ -252,32 +286,21 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 		stateFile = kernelagent.NewVersionedStateFile(stateDir, versionedStore)
 	}
 
-	agents := make([]kernelagent.AgentConfig, 0, len(cfg.Agents))
-	for _, a := range cfg.Agents {
-		agents = append(agents, kernelagent.AgentConfig{
-			AgentID:  a.AgentID,
-			Prompt:   a.Prompt,
-			Priority: a.Priority,
-			Enabled:  a.Enabled,
-			Metadata: a.Metadata,
-		})
-	}
-
 	seededAt := time.Now()
 	initDoc := kernelagent.RenderInitMarkdown(kernelagent.InitDocSnapshot{
 		GeneratedAt:      seededAt,
-		KernelID:         cfg.KernelID,
-		Schedule:         cfg.Schedule,
+		KernelID:         kernelID,
+		Schedule:         schedule,
 		StateDir:         stateRoot,
 		StatePath:        stateFile.Path(),
 		InitPath:         stateFile.InitPath(),
 		SystemPromptPath: stateFile.SystemPromptPath(),
-		TimeoutSeconds:   cfg.TimeoutSeconds,
-		LeaseSeconds:     cfg.LeaseSeconds,
-		MaxConcurrent:    cfg.MaxConcurrent,
-		Channel:          cfg.Channel,
-		UserID:           cfg.UserID,
-		ChatID:           cfg.ChatID,
+		TimeoutSeconds:   timeoutSeconds,
+		LeaseSeconds:     leaseSeconds,
+		MaxConcurrent:    maxConcurrent,
+		Channel:          channel,
+		UserID:           userID,
+		ChatID:           chatID,
 		SeedState:        seedState,
 		Agents:           agents,
 	})
@@ -305,14 +328,15 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 	}
 
 	// Build planner: HybridPlanner (LLM + static fallback) when llm_planner enabled.
-	staticPlanner := kernelagent.NewStaticPlanner(cfg.KernelID, agents)
+	staticPlanner := kernelagent.NewStaticPlanner(kernelID, agents)
 	var planner kernelagent.Planner = staticPlanner
 
-	if cfg.LLMPlanner.Enabled && llmFactory != nil {
-		provider := strings.TrimSpace(cfg.LLMPlanner.Provider)
-		model := strings.TrimSpace(cfg.LLMPlanner.Model)
-		apiKey := strings.TrimSpace(cfg.LLMPlanner.APIKey)
-		baseURL := strings.TrimSpace(cfg.LLMPlanner.BaseURL)
+	plannerSettings := settings.Planner
+	if plannerSettings.Enabled && llmFactory != nil {
+		provider := strings.TrimSpace(plannerSettings.Provider)
+		model := strings.TrimSpace(plannerSettings.Model)
+		apiKey := strings.TrimSpace(plannerSettings.APIKey)
+		baseURL := strings.TrimSpace(plannerSettings.BaseURL)
 		if provider == "" {
 			provider = strings.TrimSpace(b.config.LLMSmallProvider)
 		}
@@ -332,21 +356,21 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 			baseURL = b.config.BaseURL
 		}
 
-		plannerTimeout := time.Duration(cfg.LLMPlanner.TimeoutSeconds) * time.Second
+		plannerTimeout := time.Duration(plannerSettings.TimeoutSeconds) * time.Second
 		if plannerTimeout <= 0 {
 			plannerTimeout = 30 * time.Second
 		}
-		maxDispatches := cfg.LLMPlanner.MaxDispatches
+		maxDispatches := plannerSettings.MaxDispatches
 		if maxDispatches <= 0 {
 			maxDispatches = 5
 		}
-		goalFilePath := cfg.LLMPlanner.GoalFile
+		goalFilePath := plannerSettings.GoalFile
 		if goalFilePath == "" {
 			goalFilePath = filepath.Join(stateDir, "GOAL.md")
 		}
 
 		llmPlanner := kernelagent.NewLLMPlanner(
-			cfg.KernelID,
+			kernelID,
 			llmFactory,
 			kernelagent.LLMPlannerConfig{
 				Provider:      provider,
@@ -366,26 +390,26 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 			provider, model, baseURL, goalFilePath, maxDispatches, plannerTimeout)
 	}
 
-	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
+	timeout := time.Duration(timeoutSeconds) * time.Second
 	executor := kernelagent.NewCoordinatorExecutor(coordinator, timeout)
 	executor.SetSelectionResolver(b.buildKernelSelectionResolver())
 
 	engine := kernelagent.NewEngine(
 		kernelagent.KernelConfig{
-			KernelID:        cfg.KernelID,
-			Schedule:        cfg.Schedule,
+			KernelID:        kernelID,
+			Schedule:        schedule,
 			SeedState:       seedState,
-			MaxConcurrent:   cfg.MaxConcurrent,
-			MaxCycleHistory: cfg.MaxCycleHistory,
-			Channel:         cfg.Channel,
-			ChatID:          cfg.ChatID,
-			UserID:          cfg.UserID,
+			MaxConcurrent:   maxConcurrent,
+			MaxCycleHistory: maxCycleHistory,
+			Channel:         channel,
+			ChatID:          chatID,
+			UserID:          userID,
 		},
 		stateFile, kernelStore, planner, executor, logging.NewKernelLogger("KernelEngine"),
 	)
 	engine.SetSystemPromptProvider(func() string { return coordinator.GetSystemPrompt() })
 
-	b.logger.Info("Kernel engine built (kernel_id=%s, schedule=%s, agents=%d)", cfg.KernelID, cfg.Schedule, len(agents))
+	b.logger.Info("Kernel engine built (kernel_id=%s, schedule=%s, agents=%d)", kernelID, schedule, len(agents))
 	return engine, nil
 }
 

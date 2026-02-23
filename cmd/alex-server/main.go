@@ -7,6 +7,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -15,8 +16,9 @@ import (
 )
 
 type runners struct {
-	runLark       func(string) error
-	runKernelOnce func(string) error
+	runLark         func(string) error
+	runKernelDaemon func(string) error
+	runKernelOnce   func(string) error
 }
 
 func run(args []string, obsConfig string, logger *log.Logger, rs runners) error {
@@ -25,6 +27,9 @@ func run(args []string, obsConfig string, logger *log.Logger, rs runners) error 
 	}
 	if rs.runLark == nil {
 		rs.runLark = serverBootstrap.RunLark
+	}
+	if rs.runKernelDaemon == nil {
+		rs.runKernelDaemon = serverBootstrap.RunKernelDaemon
 	}
 	if rs.runKernelOnce == nil {
 		rs.runKernelOnce = serverBootstrap.RunKernelOnce
@@ -37,8 +42,12 @@ func run(args []string, obsConfig string, logger *log.Logger, rs runners) error 
 			logger.Printf("DEPRECATED: 'alex-server lark' is no longer needed — alex-server always runs in Lark mode. " +
 				"Please update your scripts to just run 'alex-server'.")
 			return rs.runLark(obsConfig)
+		case "kernel-daemon":
+			return rs.runKernelDaemon(obsConfig)
 		case "kernel-once":
 			return rs.runKernelOnce(obsConfig)
+		default:
+			return fmt.Errorf("unknown subcommand: %s", args[1])
 		}
 	}
 	return rs.runLark(obsConfig)

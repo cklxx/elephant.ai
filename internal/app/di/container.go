@@ -14,8 +14,8 @@ import (
 	react "alex/internal/domain/agent/react"
 	kerneldomain "alex/internal/domain/kernel"
 	taskdomain "alex/internal/domain/task"
-	larkoauth "alex/internal/infra/lark/oauth"
 	"alex/internal/infra/filestore"
+	larkoauth "alex/internal/infra/lark/oauth"
 	"alex/internal/infra/llm"
 	"alex/internal/infra/mcp"
 	"alex/internal/infra/memory"
@@ -57,8 +57,8 @@ type Container struct {
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
 	mcpInitCancel    context.CancelFunc
-	TaskStore    taskdomain.Store // Unified durable task store (nil when unavailable)
-	KernelEngine KernelEngine    // nil if kernel disabled
+	TaskStore        taskdomain.Store // Unified durable task store (nil when unavailable)
+	KernelEngine     KernelEngine     // nil only if kernel initialization failed
 	LarkGateway      LarkGateway
 	LarkOAuth        *larkoauth.Service
 
@@ -72,7 +72,6 @@ type Container struct {
 	mcpStarted   bool
 	mcpMu        sync.Mutex
 }
-
 
 // Config holds the dependency injection configuration
 type Config struct {

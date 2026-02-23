@@ -11,13 +11,13 @@ import (
 	"alex/internal/app/lifecycle"
 	agent "alex/internal/domain/agent/ports/agent"
 	agentstorage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/domain/agent/presets"
 	react "alex/internal/domain/agent/react"
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
 	"alex/internal/infra/mcp"
 	sessionstate "alex/internal/infra/session/state_store"
 	toolspolicy "alex/internal/infra/tools"
-	"alex/internal/domain/agent/presets"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/parser"
@@ -201,14 +201,12 @@ func (b *containerBuilder) Build() (*Container, error) {
 		container.Drainables = append(container.Drainables, drainable)
 	}
 
-	// Build kernel engine if enabled.
-	if b.config.Proactive.Kernel.Enabled {
-		kernelEngine, err := b.buildKernelEngine(coordinator, llmFactory)
-		if err != nil {
-			b.logger.Warn("Kernel engine init failed: %v (kernel disabled)", err)
-		} else {
-			container.KernelEngine = kernelEngine
-		}
+	// Build kernel engine from code-owned defaults.
+	kernelEngine, err := b.buildKernelEngine(coordinator, llmFactory)
+	if err != nil {
+		b.logger.Warn("Kernel engine init failed: %v", err)
+	} else {
+		container.KernelEngine = kernelEngine
 	}
 
 	return container, nil
