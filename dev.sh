@@ -3,7 +3,7 @@
 # elephant.ai - Local Development Helper
 #
 # Usage:
-#   ./dev.sh                    # Start lark (default)
+#   ./dev.sh                    # Start all (backend + web + lark)
 #   ./dev.sh lark [cmd]         # Lark stack (default cmd=up)
 #   ./dev.sh up|start           # Start backend + web only
 #   ./dev.sh up --lark          # Start backend + web + lark
@@ -735,10 +735,11 @@ usage() {
 elephant.ai dev helper
 
 Usage:
-  ./dev.sh                 # Start lark (default)
+  ./dev.sh                 # Start backend + web + lark (default)
   ./dev.sh [command]
 
 Commands:
+  all-up         Start backend + web + lark (same as no args)
   lark [cmd]     Manage lark stack (default: up)
                  cmd: up|down|restart|status|logs|doctor|cycle
   up|start       Start backend + web only (background)
@@ -753,11 +754,11 @@ Commands:
   setup-cgo      Install CGO sqlite dependencies
 
 Legacy aliases still accepted:
-  all-up | all-down | all-status | lark-up | lark-down | lark-status | lark-logs
+  all-down | all-status | lark-up | lark-down | lark-status | lark-logs
 EOF
 }
 
-cmd="${1:-lark}"
+cmd="${1:-all-up}"
 shift || true
 
 case "$cmd" in
