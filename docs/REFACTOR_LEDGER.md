@@ -100,6 +100,32 @@ This document tracks architectural and design issues discovered during the ongoi
 - **Fix**: Render previews/labels explicitly and restore missing file input wiring.
 - **Status**: done
 
+## Feb 2026 Progress
+
+### 9) Unified bridge protocol for external coding agents
+- **Symptoms**: Separate `claudecode/` and `codex/` packages with duplicated executor, event parsing, and permission relay logic.
+- **Impact**: Bug fixes had to be applied twice; protocol drift between agents.
+- **Fix**: Consolidated into single `internal/infra/external/bridge/` package with `BridgeConfig.AgentType` parameterization. Deleted old `claudecode/`, `codex/`, `coding/adapters/` packages.
+- **Status**: done (2026-02-09)
+
+### 10) Kernel decoupled from Lark process lifecycle
+- **Symptoms**: Kernel ran embedded within Lark server process; restarts/crashes coupled.
+- **Impact**: Kernel crash could take down Lark gateway; no independent scaling.
+- **Fix**: Kernel now runs as separate managed component under shell supervisor (`internal/devops/supervisor/`). Config key `proactive.kernel` removed; kernel managed via process supervisor.
+- **Status**: done (2026-02-23)
+
+### 11) Unified filestore package
+- **Symptoms**: 8 independent store abstractions with Session/History overlap.
+- **Impact**: Inconsistent persistence semantics; hard to reason about data lifecycle.
+- **Fix**: `internal/infra/filestore/` provides unified file-based storage with consistent API.
+- **Status**: done (2026-02-15)
+
+### 12) Domain layer Lark concept leakage (PR1)
+- **Symptoms**: `presets/tools.go` and `prompts.go` in domain layer reference Lark-specific concepts.
+- **Impact**: Domain layer not channel-agnostic; violates architecture boundaries.
+- **Fix**: Extract Lark-specific presets to delivery layer; domain uses channel-neutral abstractions.
+- **Status**: in progress (see `docs/plans/2026-02-17-pr1-domain-decouple-lark.md`)
+
 ## Proposed Execution Order (next batches)
 
 1. Untrack/cleanup env files (`web/.env.*`) to stop git pollution. ✅
@@ -107,3 +133,6 @@ This document tracks architectural and design issues discovered during the ongoi
 3. Tighten docs to match current frontend/backend behavior. ✅
 4. (Optional) Split server bootstrap into testable packages.
 5. (Optional) Rework SSE auth away from query tokens.
+6. Complete domain-layer Lark decoupling (PR1). 🔄
+7. Split god structs (AgentCoordinator, ReactEngine, Gateway). 📋
+8. Unify event system decorator chain. 📋

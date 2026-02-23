@@ -1,3 +1,5 @@
+> Historical snapshot as of 2026-01-25. Frontend architecture has evolved significantly since; see recent plans for current state.
+
 # AI Agent 应用前端最佳实践调研报告
 
 **项目**: elephant.ai
