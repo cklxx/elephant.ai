@@ -169,8 +169,15 @@ func (t *shellExec) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	}
 
 	uploadCfg := shared.GetAutoUploadConfig(ctx)
-	uploadCfg.Enabled = true
-	attachments, attachmentErrs := buildAttachmentsFromSpecs(ctx, specs, uploadCfg)
+	var attachments map[string]ports.Attachment
+	var attachmentErrs []string
+	if len(specs) > 0 {
+		if !uploadCfg.Enabled {
+			attachmentErrs = append(attachmentErrs, "attachments requested but auto upload is disabled")
+		} else {
+			attachments, attachmentErrs = buildAttachmentsFromSpecs(ctx, specs, uploadCfg)
+		}
+	}
 	if len(attachments) > 0 {
 		content = fmt.Sprintf("%s\n\nAttachments: %s", content, formatAttachmentList(attachments))
 	}

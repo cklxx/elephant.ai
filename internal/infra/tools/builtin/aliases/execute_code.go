@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -153,7 +154,7 @@ func (t *executeCode) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		}
 	}
 
-	command, err := buildCodeCommand(language, execPath)
+	commandName, commandArgs, err := buildCodeCommand(language, execPath)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
@@ -165,7 +166,7 @@ func (t *executeCode) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		defer cancel()
 	}
 
-	cmd := exec.CommandContext(runCtx, "bash", "-c", command)
+	cmd := exec.CommandContext(runCtx, commandName, commandArgs...)
 	if execDir != "" {
 		cmd.Dir = execDir
 	}
@@ -206,7 +207,7 @@ func (t *executeCode) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 
 	metadata := map[string]any{
 		"language":        language,
-		"command":         command,
+		"command":         formatCommandForMetadata(commandName, commandArgs),
 		"session_id":      call.SessionID,
 		"status":          status,
 		"exit_code":       exitCode,
@@ -221,8 +222,15 @@ func (t *executeCode) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	}
 
 	uploadCfg := shared.GetAutoUploadConfig(ctx)
-	uploadCfg.Enabled = true
-	attachments, attachmentErrs := buildAttachmentsFromSpecs(ctx, specs, uploadCfg)
+	var attachments map[string]ports.Attachment
+	var attachmentErrs []string
+	if len(specs) > 0 {
+		if !uploadCfg.Enabled {
+			attachmentErrs = append(attachmentErrs, "attachments requested but auto upload is disabled")
+		} else {
+			attachments, attachmentErrs = buildAttachmentsFromSpecs(ctx, specs, uploadCfg)
+		}
+	}
 	if len(attachments) > 0 {
 		content = fmt.Sprintf("%s\n\nAttachments: %s", content, formatAttachmentList(attachments))
 	}
@@ -239,19 +247,28 @@ func (t *executeCode) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	}, nil
 }
 
-func buildCodeCommand(language, path string) (string, error) {
+func buildCodeCommand(language, path string) (string, []string, error) {
 	switch language {
 	case "python":
-		return fmt.Sprintf("python3 %s", path), nil
+		return "python3", []string{path}, nil
 	case "go":
-		return fmt.Sprintf("go run %s", path), nil
+		return "go", []string{"run", path}, nil
 	case "javascript":
-		return fmt.Sprintf("node %s", path), nil
+		return "node", []string{path}, nil
 	case "bash":
-		return fmt.Sprintf("bash %s", path), nil
+		return "bash", []string{path}, nil
 	default:
-		return "", fmt.Errorf("unsupported language: %s", language)
+		return "", nil, fmt.Errorf("unsupported language: %s", language)
 	}
+}
+
+func formatCommandForMetadata(name string, args []string) string {
+	parts := make([]string, 0, len(args)+1)
+	parts = append(parts, strconv.Quote(name))
+	for _, arg := range args {
+		parts = append(parts, strconv.Quote(arg))
+	}
+	return strings.Join(parts, " ")
 }
 
 func codeFileExtension(language string) string {

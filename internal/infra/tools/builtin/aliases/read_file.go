@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -85,6 +86,12 @@ func (t *readFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}
 	fileSize := info.Size()
 
+	// Large file with explicit range: stream line-by-line.
+	if fileSize > readFileLargeFileThreshold && hasRange {
+		endLine, _ := intArgOptional(call.Arguments, "end_line")
+		return t.readLargeFileRange(call.ID, resolved, fileSize, startLine, endLine)
+	}
+
 	// Large file without explicit range: streaming preview.
 	if fileSize > readFileLargeFileThreshold && !hasRange {
 		return t.readLargeFilePreview(call.ID, resolved, fileSize)
@@ -130,6 +137,70 @@ func (t *readFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 	return &ports.ToolResult{
 		CallID:   call.ID,
+		Content:  output,
+		Metadata: metadata,
+	}, nil
+}
+
+// readLargeFileRange scans line-by-line for explicit ranges on large files,
+// so we avoid loading full file content into memory.
+func (t *readFile) readLargeFileRange(callID, resolved string, fileSize int64, startLine, endLine int) (*ports.ToolResult, error) {
+	if startLine < 0 {
+		startLine = 0
+	}
+	if endLine > 0 && endLine < startLine {
+		err := fmt.Errorf("end_line must be >= start_line")
+		return &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}, nil
+	}
+
+	f, err := os.Open(resolved)
+	if err != nil {
+		return &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}, nil
+	}
+	defer f.Close()
+
+	reader := bufio.NewReader(f)
+
+	var lines []string
+	totalLines := 0
+	for {
+		line, readErr := reader.ReadString('\n')
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return &ports.ToolResult{CallID: callID, Content: fmt.Sprintf("error scanning file: %v", readErr), Error: readErr}, nil
+		}
+		if line == "" && errors.Is(readErr, io.EOF) {
+			break
+		}
+		line = strings.TrimSuffix(line, "\n")
+		line = strings.TrimSuffix(line, "\r")
+		if totalLines >= startLine && (endLine <= 0 || totalLines < endLine) {
+			lines = append(lines, line)
+		}
+		totalLines++
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+	}
+
+	metadata := map[string]any{
+		"path":            resolved,
+		"tool_name":       "read_file",
+		"total_lines":     totalLines,
+		"file_size_bytes": int(fileSize),
+	}
+
+	output := ""
+	if startLine < totalLines {
+		effectiveEnd := endLine
+		if effectiveEnd <= 0 || effectiveEnd > totalLines {
+			effectiveEnd = totalLines
+		}
+		output = strings.Join(lines, "\n")
+		metadata["shown_range"] = [2]int{startLine, effectiveEnd}
+	}
+
+	return &ports.ToolResult{
+		CallID:   callID,
 		Content:  output,
 		Metadata: metadata,
 	}, nil

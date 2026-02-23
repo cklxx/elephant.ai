@@ -257,6 +257,35 @@ func TestReadFileLargeFileWithRange(t *testing.T) {
 	}
 }
 
+func TestReadFileLargeFileWithInvalidRange(t *testing.T) {
+	tool, ctx, dir := newTestReadFile(t)
+
+	var b strings.Builder
+	for i := 0; i < 5000; i++ {
+		fmt.Fprintf(&b, "line %04d: %s\n", i, strings.Repeat("x", 40))
+	}
+	fp := writeTestFile(t, dir, "large_invalid_range.txt", b.String())
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID:   "call-5b",
+		Name: "read_file",
+		Arguments: map[string]any{
+			"path":       fp,
+			"start_line": 120,
+			"end_line":   110,
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatalf("expected invalid range error")
+	}
+	if !strings.Contains(result.Content, "end_line must be >= start_line") {
+		t.Fatalf("unexpected error content: %q", result.Content)
+	}
+}
+
 // --- File not found ---
 
 func TestReadFileNotFound(t *testing.T) {
