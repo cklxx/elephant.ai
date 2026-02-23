@@ -13,6 +13,7 @@ run_supervisor() {
     MAIN_SH="${main_root}/scripts/lark/main.sh" \
     TEST_SH="${main_root}/scripts/lark/test.sh" \
     LOOP_AGENT_SH="${main_root}/scripts/lark/loop-agent.sh" \
+    KERNEL_SH="${main_root}/scripts/lark/kernel.sh" \
     AUTOFIX_SH="${main_root}/scripts/lark/autofix.sh" \
     LARK_SUPERVISOR_NOTIFY_SH="${main_root}/scripts/lark/notify.sh" \
     LARK_NOTICE_STATE_FILE="${main_root}/.worktrees/test/tmp/lark-notice.state.json" \
@@ -34,6 +35,7 @@ run_supervisor_same_config() {
     MAIN_SH="${main_root}/scripts/lark/main.sh" \
     TEST_SH="${main_root}/scripts/lark/test.sh" \
     LOOP_AGENT_SH="${main_root}/scripts/lark/loop-agent.sh" \
+    KERNEL_SH="${main_root}/scripts/lark/kernel.sh" \
     AUTOFIX_SH="${main_root}/scripts/lark/autofix.sh" \
     LARK_SUPERVISOR_NOTIFY_SH="${main_root}/scripts/lark/notify.sh" \
     LARK_NOTICE_STATE_FILE="${main_root}/.worktrees/test/tmp/lark-notice.state.json" \
@@ -55,6 +57,7 @@ run_supervisor_same_identity() {
     MAIN_SH="${main_root}/scripts/lark/main.sh" \
     TEST_SH="${main_root}/scripts/lark/test.sh" \
     LOOP_AGENT_SH="${main_root}/scripts/lark/loop-agent.sh" \
+    KERNEL_SH="${main_root}/scripts/lark/kernel.sh" \
     AUTOFIX_SH="${main_root}/scripts/lark/autofix.sh" \
     LARK_SUPERVISOR_NOTIFY_SH="${main_root}/scripts/lark/notify.sh" \
     LARK_NOTICE_STATE_FILE="${main_root}/.worktrees/test/tmp/lark-notice.state.json" \
@@ -161,6 +164,7 @@ EOF
 make_stub "${main_root}/scripts/lark/main.sh" "pids/lark-main.pid"
 make_stub "${main_root}/scripts/lark/test.sh" "pids/lark-test.pid"
 make_stub "${main_root}/scripts/lark/loop-agent.sh" "pids/lark-loop.pid"
+make_stub "${main_root}/scripts/lark/kernel.sh" "pids/lark-kernel.pid"
 cat > "${main_root}/scripts/lark/autofix.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -241,7 +245,7 @@ run_supervisor run-once >/dev/null
 
 status_file="${main_root}/.worktrees/test/tmp/lark-supervisor.status.json"
 [[ -f "${status_file}" ]] || { echo "missing status file: ${status_file}" >&2; exit 1; }
-for key in ts_utc mode main_pid test_pid loop_pid main_health test_health loop_alive main_sha last_processed_sha last_validated_sha cycle_phase cycle_result loop_autofix_enabled last_error restart_count_window autofix_state autofix_incident_id autofix_last_reason autofix_last_started_at autofix_last_finished_at autofix_last_commit autofix_runs_window; do
+for key in ts_utc mode main_pid test_pid kernel_pid loop_pid main_health test_health kernel_health loop_alive main_sha last_processed_sha last_validated_sha cycle_phase cycle_result loop_autofix_enabled last_error restart_count_window autofix_state autofix_incident_id autofix_last_reason autofix_last_started_at autofix_last_finished_at autofix_last_commit autofix_runs_window kernel_deployed_sha; do
   grep -q "\"${key}\"" "${status_file}" || { echo "missing key in status: ${key}" >&2; exit 1; }
 done
 for key in validation_suppressed_since validation_suppress_timeout_seconds stale_state_recovered stale_state_recovered_at codex_loop_pid codex_autofix_pid; do
@@ -251,8 +255,9 @@ grep -q '"mode": "healthy"' "${status_file}" || { echo "expected healthy mode af
 
 main_pid="$(cat "${main_root}/pids/lark-main.pid")"
 test_pid="$(cat "${main_root}/pids/lark-test.pid")"
+kernel_pid="$(cat "${main_root}/pids/lark-kernel.pid")"
 loop_pid="$(cat "${main_root}/pids/lark-loop.pid")"
-for pid in "${main_pid}" "${test_pid}" "${loop_pid}"; do
+for pid in "${main_pid}" "${test_pid}" "${kernel_pid}" "${loop_pid}"; do
   kill -0 "${pid}" 2>/dev/null || { echo "expected managed pid alive: ${pid}" >&2; exit 1; }
 done
 
@@ -296,6 +301,7 @@ fi
 for pid_file in \
   "${main_root}/pids/lark-main.pid" \
   "${main_root}/pids/lark-test.pid" \
+  "${main_root}/pids/lark-kernel.pid" \
   "${main_root}/pids/lark-loop.pid"; do
   if [[ -f "${pid_file}" ]]; then
     echo "expected component pid file removed after stop: ${pid_file}" >&2

@@ -18,7 +18,7 @@ Usage:
   scripts/lark/supervisor.sh run
 
 Behavior:
-  - Supervises main/test/loop processes for local autonomous iteration
+  - Supervises main/test/kernel/loop processes for local autonomous iteration
   - Maintains structured status at .worktrees/test/tmp/lark-supervisor.status.json
 
 Env:
@@ -66,6 +66,7 @@ fi
 MAIN_SH="${MAIN_SH:-${MAIN_ROOT}/scripts/lark/main.sh}"
 TEST_SH="${TEST_SH:-${MAIN_ROOT}/scripts/lark/test.sh}"
 LOOP_AGENT_SH="${LOOP_AGENT_SH:-${MAIN_ROOT}/scripts/lark/loop-agent.sh}"
+KERNEL_SH="${KERNEL_SH:-${MAIN_ROOT}/scripts/lark/kernel.sh}"
 AUTOFIX_SH="${AUTOFIX_SH:-${MAIN_ROOT}/scripts/lark/autofix.sh}"
 NOTIFY_SH="${LARK_SUPERVISOR_NOTIFY_SH:-${MAIN_ROOT}/scripts/lark/notify.sh}"
 
@@ -94,10 +95,12 @@ CLEANUP_ORPHANS_SH="${MAIN_ROOT}/scripts/lark/cleanup_orphan_agents.sh"
 MAIN_PID_FILE="${PID_DIR}/lark-main.pid"
 TEST_PID_FILE="${PID_DIR}/lark-test.pid"
 LOOP_PID_FILE="${PID_DIR}/lark-loop.pid"
+KERNEL_PID_FILE="${PID_DIR}/lark-kernel.pid"
 CODEX_LOOP_PID_FILE="${PID_DIR}/lark-codex-loop.pid"
 CODEX_AUTOFIX_PID_FILE="${PID_DIR}/lark-codex-autofix.pid"
 MAIN_SHA_FILE="${PID_DIR}/lark-main.sha"
 TEST_SHA_FILE="${PID_DIR}/lark-test.sha"
+KERNEL_SHA_FILE="${PID_DIR}/lark-kernel.sha"
 
 TICK_SECONDS="${LARK_SUPERVISOR_TICK_SECONDS:-5}"
 RESTART_MAX_IN_WINDOW="${LARK_RESTART_MAX_IN_WINDOW:-5}"
@@ -121,23 +124,28 @@ LAST_ERROR=""
 MAIN_FAIL_COUNT=0
 TEST_FAIL_COUNT=0
 LOOP_FAIL_COUNT=0
+KERNEL_FAIL_COUNT=0
 
 MAIN_RESTART_HISTORY=""
 TEST_RESTART_HISTORY=""
 LOOP_RESTART_HISTORY=""
+KERNEL_RESTART_HISTORY=""
 
 OBS_MAIN_PID=""
 OBS_TEST_PID=""
 OBS_LOOP_PID=""
+OBS_KERNEL_PID=""
 OBS_CODEX_LOOP_PID=""
 OBS_CODEX_AUTOFIX_PID=""
 OBS_MAIN_HEALTH="down"
 OBS_TEST_HEALTH="down"
 OBS_LOOP_HEALTH="down"
+OBS_KERNEL_HEALTH="down"
 OBS_MAIN_SHA="unknown"
 OBS_TEST_SHA="unknown"
 OBS_MAIN_DEPLOYED_SHA="unknown"
 OBS_TEST_DEPLOYED_SHA="unknown"
+OBS_KERNEL_DEPLOYED_SHA="unknown"
 OBS_LAST_PROCESSED_SHA=""
 OBS_CYCLE_PHASE="idle"
 OBS_CYCLE_RESULT="unknown"
@@ -252,6 +260,16 @@ main_health_state() {
 test_health_state() {
   local pid
   pid="$(read_pid_if_running "${TEST_PID_FILE}")"
+  if [[ -n "${pid}" ]]; then
+    echo "healthy"
+  else
+    echo "down"
+  fi
+}
+
+kernel_health_state() {
+  local pid
+  pid="$(read_pid_if_running "${KERNEL_PID_FILE}")"
   if [[ -n "${pid}" ]]; then
     echo "healthy"
   else
@@ -460,7 +478,7 @@ build_transition_notice_text() {
   fi
 
   local status_line
-  status_line="main=${OBS_MAIN_HEALTH} test=${OBS_TEST_HEALTH} loop=${OBS_LOOP_HEALTH}"
+  status_line="main=${OBS_MAIN_HEALTH} test=${OBS_TEST_HEALTH} kernel=${OBS_KERNEL_HEALTH} loop=${OBS_LOOP_HEALTH}"
   local autofix_line
   autofix_line="state=${OBS_AUTOFIX_STATE} incident=${OBS_AUTOFIX_INCIDENT_ID:-none}"
 
@@ -581,6 +599,7 @@ handle_autofix_success_restart() {
   fi
 
   append_log "[autofix] applying post-success restart for incident=${OBS_AUTOFIX_INCIDENT_ID}"
+  restart_component "kernel" || true
   restart_component "test" || true
   observe_states
   if [[ "${OBS_TEST_HEALTH}" == "healthy" ]]; then
@@ -598,6 +617,7 @@ restart_history_for_component() {
     main) echo "${MAIN_RESTART_HISTORY}" ;;
     test) echo "${TEST_RESTART_HISTORY}" ;;
     loop) echo "${LOOP_RESTART_HISTORY}" ;;
+    kernel) echo "${KERNEL_RESTART_HISTORY}" ;;
     *) echo "" ;;
   esac
 }
@@ -609,6 +629,7 @@ set_restart_history_for_component() {
     main) MAIN_RESTART_HISTORY="${history}" ;;
     test) TEST_RESTART_HISTORY="${history}" ;;
     loop) LOOP_RESTART_HISTORY="${history}" ;;
+    kernel) KERNEL_RESTART_HISTORY="${history}" ;;
   esac
 }
 
@@ -618,6 +639,7 @@ fail_count_for_component() {
     main) echo "${MAIN_FAIL_COUNT}" ;;
     test) echo "${TEST_FAIL_COUNT}" ;;
     loop) echo "${LOOP_FAIL_COUNT}" ;;
+    kernel) echo "${KERNEL_FAIL_COUNT}" ;;
     *) echo "0" ;;
   esac
 }
@@ -629,6 +651,7 @@ set_fail_count_for_component() {
     main) MAIN_FAIL_COUNT="${value}" ;;
     test) TEST_FAIL_COUNT="${value}" ;;
     loop) LOOP_FAIL_COUNT="${value}" ;;
+    kernel) KERNEL_FAIL_COUNT="${value}" ;;
   esac
 }
 
@@ -646,14 +669,16 @@ record_restart_attempt() {
 
 total_restart_count_window() {
   local now_epoch="$1"
-  local main_count test_count loop_count
+  local main_count test_count loop_count kernel_count
   MAIN_RESTART_HISTORY="$(history_prune "${MAIN_RESTART_HISTORY}" "${now_epoch}")"
   TEST_RESTART_HISTORY="$(history_prune "${TEST_RESTART_HISTORY}" "${now_epoch}")"
   LOOP_RESTART_HISTORY="$(history_prune "${LOOP_RESTART_HISTORY}" "${now_epoch}")"
+  KERNEL_RESTART_HISTORY="$(history_prune "${KERNEL_RESTART_HISTORY}" "${now_epoch}")"
   main_count="$(history_count "${MAIN_RESTART_HISTORY}")"
   test_count="$(history_count "${TEST_RESTART_HISTORY}")"
   loop_count="$(history_count "${LOOP_RESTART_HISTORY}")"
-  echo $((main_count + test_count + loop_count))
+  kernel_count="$(history_count "${KERNEL_RESTART_HISTORY}")"
+  echo $((main_count + test_count + loop_count + kernel_count))
 }
 
 restart_component() {
@@ -668,6 +693,9 @@ restart_component() {
     loop)
       "${LOOP_AGENT_SH}" restart >> "${LOG_FILE}" 2>&1
       ;;
+    kernel)
+      "${KERNEL_SH}" restart >> "${LOG_FILE}" 2>&1
+      ;;
     *)
       return 1
       ;;
@@ -678,7 +706,7 @@ component_needs_restart() {
   local component="$1"
   local state="$2"
   case "${component}" in
-    main|test)
+    main|test|kernel)
       [[ "${state}" != "healthy" ]]
       ;;
     loop)
@@ -697,17 +725,20 @@ observe_states() {
   OBS_MAIN_PID="$(read_pid_if_running "${MAIN_PID_FILE}" || true)"
   OBS_TEST_PID="$(read_pid_if_running "${TEST_PID_FILE}" || true)"
   OBS_LOOP_PID="$(read_pid_if_running "${LOOP_PID_FILE}" || true)"
+  OBS_KERNEL_PID="$(read_pid_if_running "${KERNEL_PID_FILE}" || true)"
   OBS_CODEX_LOOP_PID="$(read_pid_if_running "${CODEX_LOOP_PID_FILE}" || true)"
   OBS_CODEX_AUTOFIX_PID="$(read_pid_if_running "${CODEX_AUTOFIX_PID_FILE}" || true)"
 
   OBS_MAIN_HEALTH="$(main_health_state)"
   OBS_TEST_HEALTH="$(test_health_state)"
+  OBS_KERNEL_HEALTH="$(kernel_health_state)"
   OBS_LOOP_HEALTH="$(loop_health_state)"
 
   OBS_MAIN_SHA="$(git -C "${MAIN_ROOT}" rev-parse main 2>/dev/null || echo "unknown")"
   OBS_TEST_SHA="$(git -C "${TEST_ROOT}" rev-parse HEAD 2>/dev/null || echo "unknown")"
   OBS_MAIN_DEPLOYED_SHA="$(cat "${MAIN_SHA_FILE}" 2>/dev/null || echo "unknown")"
   OBS_TEST_DEPLOYED_SHA="$(cat "${TEST_SHA_FILE}" 2>/dev/null || echo "unknown")"
+  OBS_KERNEL_DEPLOYED_SHA="$(cat "${KERNEL_SHA_FILE}" 2>/dev/null || echo "unknown")"
   OBS_LAST_PROCESSED_SHA="$(cat "${LAST_PROCESSED_FILE}" 2>/dev/null || true)"
 
   OBS_CYCLE_PHASE="$(extract_json_string "${LOOP_STATE_FILE}" "cycle_phase" || echo "idle")"
@@ -731,11 +762,11 @@ current_mode() {
     echo "cooldown"
     return
   fi
-  if is_validation_active && [[ "${OBS_MAIN_HEALTH}" == "healthy" && "${OBS_LOOP_HEALTH}" == "alive" ]]; then
+  if is_validation_active && [[ "${OBS_MAIN_HEALTH}" == "healthy" && "${OBS_KERNEL_HEALTH}" == "healthy" && "${OBS_LOOP_HEALTH}" == "alive" ]]; then
     echo "validating"
     return
   fi
-  if [[ "${OBS_MAIN_HEALTH}" == "healthy" && "${OBS_TEST_HEALTH}" == "healthy" && "${OBS_LOOP_HEALTH}" == "alive" ]]; then
+  if [[ "${OBS_MAIN_HEALTH}" == "healthy" && "${OBS_TEST_HEALTH}" == "healthy" && "${OBS_KERNEL_HEALTH}" == "healthy" && "${OBS_LOOP_HEALTH}" == "alive" ]]; then
     echo "healthy"
   else
     echo "degraded"
@@ -770,16 +801,19 @@ write_status_file() {
   "mode": "${MODE}",
   "main_pid": "${OBS_MAIN_PID}",
   "test_pid": "${OBS_TEST_PID}",
+  "kernel_pid": "${OBS_KERNEL_PID}",
   "loop_pid": "${OBS_LOOP_PID}",
   "codex_loop_pid": "${OBS_CODEX_LOOP_PID}",
   "codex_autofix_pid": "${OBS_CODEX_AUTOFIX_PID}",
   "main_health": "${OBS_MAIN_HEALTH}",
   "test_health": "${OBS_TEST_HEALTH}",
+  "kernel_health": "${OBS_KERNEL_HEALTH}",
   "loop_alive": ${loop_alive},
   "main_sha": "${OBS_MAIN_SHA}",
   "main_deployed_sha": "${OBS_MAIN_DEPLOYED_SHA}",
   "test_sha": "${OBS_TEST_SHA}",
   "test_deployed_sha": "${OBS_TEST_DEPLOYED_SHA}",
+  "kernel_deployed_sha": "${OBS_KERNEL_DEPLOYED_SHA}",
   "last_processed_sha": "${OBS_LAST_PROCESSED_SHA}",
   "last_validated_sha": "${OBS_LAST_VALIDATED_SHA}",
   "cycle_phase": "${OBS_CYCLE_PHASE}",
@@ -961,6 +995,9 @@ run_tick() {
   reconcile_stale_loop_state
   observe_states
 
+  restart_with_backoff "kernel" "${OBS_KERNEL_HEALTH}" || true
+  observe_states
+
   restart_with_backoff "test" "${OBS_TEST_HEALTH}" || true
   observe_states
   if [[ "${OBS_TEST_HEALTH}" != "healthy" ]]; then
@@ -1061,6 +1098,12 @@ report_children_health() {
   else
     log_success "  test: healthy (pid=${OBS_TEST_PID})"
   fi
+  if [[ "${OBS_KERNEL_HEALTH}" != "healthy" ]]; then
+    log_warn "  kernel: ${OBS_KERNEL_HEALTH} (pid=${OBS_KERNEL_PID:-none})"
+    degraded=1
+  else
+    log_success "  kernel: healthy (pid=${OBS_KERNEL_PID})"
+  fi
   if [[ "${OBS_LOOP_HEALTH}" != "alive" ]]; then
     log_warn "  loop: ${OBS_LOOP_HEALTH} (pid=${OBS_LOOP_PID:-none})"
     degraded=1
@@ -1103,7 +1146,13 @@ report_children_health() {
 
 reconcile_children_once() {
   observe_states
-  append_log "[start] reconcile-on-demand begin main=${OBS_MAIN_HEALTH} test=${OBS_TEST_HEALTH} loop=${OBS_LOOP_HEALTH}"
+  append_log "[start] reconcile-on-demand begin main=${OBS_MAIN_HEALTH} test=${OBS_TEST_HEALTH} kernel=${OBS_KERNEL_HEALTH} loop=${OBS_LOOP_HEALTH}"
+
+  if component_needs_restart "kernel" "${OBS_KERNEL_HEALTH}"; then
+    append_log "[start] kernel=${OBS_KERNEL_HEALTH}; restarting"
+    restart_component "kernel" || append_log "[start] kernel restart failed"
+    observe_states
+  fi
 
   if component_needs_restart "test" "${OBS_TEST_HEALTH}"; then
     restart_with_backoff "test" "${OBS_TEST_HEALTH}" || true
@@ -1127,7 +1176,7 @@ reconcile_children_once() {
   maybe_upgrade_for_sha_drift
   observe_states
   write_status_file
-  append_log "[start] reconcile-on-demand end main=${OBS_MAIN_HEALTH} test=${OBS_TEST_HEALTH} loop=${OBS_LOOP_HEALTH}"
+  append_log "[start] reconcile-on-demand end main=${OBS_MAIN_HEALTH} test=${OBS_TEST_HEALTH} kernel=${OBS_KERNEL_HEALTH} loop=${OBS_LOOP_HEALTH}"
 }
 
 start() {
@@ -1178,6 +1227,7 @@ stop_components() {
   "${LOOP_AGENT_SH}" stop >> "${LOG_FILE}" 2>&1 || true
   "${TEST_SH}" stop >> "${LOG_FILE}" 2>&1 || true
   "${MAIN_SH}" stop >> "${LOG_FILE}" 2>&1 || true
+  "${KERNEL_SH}" stop >> "${LOG_FILE}" 2>&1 || true
 }
 
 stop_codex_processes() {
@@ -1225,6 +1275,7 @@ status() {
   echo "test_config: $(lark_canonical_path "${TEST_CONFIG_PATH}")"
   echo "main: ${OBS_MAIN_HEALTH} pid=${OBS_MAIN_PID}"
   echo "test: ${OBS_TEST_HEALTH} pid=${OBS_TEST_PID}"
+  echo "kernel: ${OBS_KERNEL_HEALTH} pid=${OBS_KERNEL_PID}"
   echo "loop: ${OBS_LOOP_HEALTH} pid=${OBS_LOOP_PID}"
   echo "codex_loop_pid: ${OBS_CODEX_LOOP_PID}"
   echo "codex_autofix_pid: ${OBS_CODEX_AUTOFIX_PID}"
@@ -1256,12 +1307,14 @@ logs() {
   touch \
     "${LOG_FILE}" \
     "${MAIN_ROOT}/logs/lark-main.log" \
+    "${MAIN_ROOT}/logs/lark-kernel.log" \
     "${TEST_ROOT}/logs/lark-test.log" \
     "${TEST_ROOT}/logs/lark-loop.log" \
     "${TEST_ROOT}/logs/lark-loop-agent.log"
   tail -n 200 -f \
     "${LOG_FILE}" \
     "${MAIN_ROOT}/logs/lark-main.log" \
+    "${MAIN_ROOT}/logs/lark-kernel.log" \
     "${TEST_ROOT}/logs/lark-test.log" \
     "${TEST_ROOT}/logs/lark-loop.log" \
     "${TEST_ROOT}/logs/lark-loop-agent.log"
@@ -1286,7 +1339,7 @@ doctor() {
     fi
   done
 
-  for script in "${MAIN_SH}" "${TEST_SH}" "${LOOP_AGENT_SH}" "${AUTOFIX_SH}"; do
+  for script in "${MAIN_SH}" "${TEST_SH}" "${LOOP_AGENT_SH}" "${KERNEL_SH}" "${AUTOFIX_SH}"; do
     if [[ -x "${script}" ]]; then
       echo "[ok] script: ${script}"
     else
@@ -1334,7 +1387,7 @@ doctor() {
     fi
   fi
 
-  for pid_file in "${PID_FILE}" "${MAIN_PID_FILE}" "${TEST_PID_FILE}" "${LOOP_PID_FILE}" "${CODEX_LOOP_PID_FILE}" "${CODEX_AUTOFIX_PID_FILE}"; do
+  for pid_file in "${PID_FILE}" "${MAIN_PID_FILE}" "${TEST_PID_FILE}" "${KERNEL_PID_FILE}" "${LOOP_PID_FILE}" "${CODEX_LOOP_PID_FILE}" "${CODEX_AUTOFIX_PID_FILE}"; do
     pid="$(read_pid "${pid_file}" || true)"
     if [[ -z "${pid}" ]]; then
       echo "[warn] missing pid file value: ${pid_file}"
