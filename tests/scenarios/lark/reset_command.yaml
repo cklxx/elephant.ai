@@ -17,6 +17,6 @@ turns:
     assertions:
       messenger:
         - method: ReplyMessage
-          content_contains: ["清空对话历史"]
+          content_contains: ["/new"]
       executor:
         called: false
