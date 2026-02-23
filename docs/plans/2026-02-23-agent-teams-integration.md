@@ -30,7 +30,7 @@ Goal: enable production-ready `agent teams` using existing architecture, with ex
 - [x] Add web-research-backed comparison report under `docs/research/`.
 - [x] Run lint/tests and resolve failures.
 - [x] Run mandatory code review workflow before commit.
-- [ ] Commit in incremental steps and merge back to `main`.
+- [x] Commit in incremental steps and merge back to `main`.
 
 ## Progress Log
 
@@ -39,3 +39,4 @@ Goal: enable production-ready `agent teams` using existing architecture, with ex
 - 2026-02-23 22:58: Updated config/tool docs and added web research comparison note with primary-source references.
 - 2026-02-23 23:08: Rebased work branch to latest `main`, reran full lint + full `go test ./...` and `make check-arch` successfully.
 - 2026-02-23 23:12: Completed mandatory code review checklist (SOLID/security/quality/removal); no blocking findings.
+- 2026-02-23 23:18: Split into incremental commits, fast-forward merged into `main`, pruned worktree metadata, and removed temporary branch.
