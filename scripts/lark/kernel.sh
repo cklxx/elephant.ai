@@ -88,6 +88,7 @@ start() {
   [[ -f "${MAIN_CONFIG}" ]] || die "Missing MAIN_CONFIG: ${MAIN_CONFIG}"
 
   local current_fingerprint needs_build pid
+  local alex_kernel_log main_log_lines_start alex_log_lines_start
   current_fingerprint="$(build_fingerprint "${ROOT}")"
   needs_build=0
   if [[ "${FORCE_REBUILD}" == "1" ]] || [[ ! -x "${BIN}" ]] || is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
@@ -113,6 +114,11 @@ start() {
   fi
 
   log_info "Starting kernel daemon..."
+  alex_kernel_log="${ALEX_LOG_DIR}/alex-kernel.log"
+  touch "${LOG_FILE}" "${alex_kernel_log}"
+  main_log_lines_start="$(wc -l < "${LOG_FILE}" | tr -d '[:space:]')"
+  alex_log_lines_start="$(wc -l < "${alex_kernel_log}" | tr -d '[:space:]')"
+
   ALEX_CONFIG_PATH="${MAIN_CONFIG}" ALEX_LOG_DIR="${ALEX_LOG_DIR}" nohup "${BIN}" kernel-daemon >> "${LOG_FILE}" 2>&1 &
   echo "$!" > "${PID_FILE}"
 
@@ -122,14 +128,15 @@ start() {
       log_error "Kernel daemon exited early (see ${LOG_FILE})"
       return 1
     fi
-    if grep -q "${READY_LOG_PATTERN}" "${LOG_FILE}" 2>/dev/null; then
+    if tail -n "+$((main_log_lines_start + 1))" "${LOG_FILE}" 2>/dev/null | grep -q "${READY_LOG_PATTERN}" \
+      || tail -n "+$((alex_log_lines_start + 1))" "${alex_kernel_log}" 2>/dev/null | grep -q "${READY_LOG_PATTERN}"; then
       log_success "Kernel daemon ready (PID: ${pid})"
       return 0
     fi
     sleep 1
   done
 
-  log_warn "Kernel daemon running (PID: ${pid}) but readiness not confirmed within 30s (see ${LOG_FILE})"
+  log_info "Kernel daemon running (PID: ${pid}); readiness log not observed within 30s (logs: ${LOG_FILE}, ${alex_kernel_log})"
   return 0
 }
 

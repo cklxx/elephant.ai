@@ -718,6 +718,44 @@ component_needs_restart() {
   esac
 }
 
+component_pid_file() {
+  local component="$1"
+  case "${component}" in
+    main) echo "${MAIN_PID_FILE}" ;;
+    test) echo "${TEST_PID_FILE}" ;;
+    kernel) echo "${KERNEL_PID_FILE}" ;;
+    loop) echo "${LOOP_PID_FILE}" ;;
+    *) return 1 ;;
+  esac
+}
+
+append_restart_diagnostics() {
+  local component="$1"
+  local state="$2"
+  local pid_file pid cmd
+
+  pid_file="$(component_pid_file "${component}" 2>/dev/null || true)"
+  [[ -n "${pid_file}" ]] || return 0
+
+  pid="$(read_pid_value "${pid_file}")"
+  if [[ -z "${pid}" ]]; then
+    append_log "[health] ${component}=${state} reason=pid_missing pid_file=${pid_file}"
+    return 0
+  fi
+
+  if is_process_running "${pid}"; then
+    cmd="$(ps -p "${pid}" -o args= 2>/dev/null || true)"
+    if [[ -n "${cmd}" ]]; then
+      append_log "[health] ${component}=${state} reason=state_mismatch pid=${pid} cmd=${cmd}"
+    else
+      append_log "[health] ${component}=${state} reason=state_mismatch pid=${pid}"
+    fi
+    return 0
+  fi
+
+  append_log "[health] ${component}=${state} reason=stale_pid pid=${pid} pid_file=${pid_file}"
+}
+
 observe_states() {
   clear_pid_file_if_stale "${CODEX_LOOP_PID_FILE}"
   clear_pid_file_if_stale "${CODEX_AUTOFIX_PID_FILE}"
@@ -908,6 +946,7 @@ restart_with_backoff() {
     return 1
   fi
 
+  append_restart_diagnostics "${component}" "${state}"
   append_log "[supervisor] ${component}=${state}; restart in ${delay}s (attempt=${fail_count} window=${count})"
   sleep "${delay}"
   if restart_component "${component}"; then

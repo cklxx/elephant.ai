@@ -18,7 +18,11 @@ USAGE
 }
 
 json_escape() {
-  printf '%s' "${1:-}" | sed ':a;N;$!ba;s/\\/\\\\/g;s/"/\\"/g;s/\n/\\n/g'
+  local s="${1:-}"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  printf '%s' "${s}"
 }
 
 parse_lark_config_value() {
