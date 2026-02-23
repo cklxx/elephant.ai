@@ -25,7 +25,8 @@ fi
 BINARY_NAME="alex"
 GITHUB_REPO="cklxx/Alex-Code"
 INSTALL_DIR="$HOME/.local/bin"
-TMP_DIR="/tmp/alex-install"
+TMP_DIR=""
+CHECKSUM_ASSET_NAME="${ALEX_CHECKSUM_ASSET_NAME:-checksums.txt}"
 
 # 颜色输出
 RED='\033[0;31m'
@@ -76,6 +77,24 @@ log_error() {
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
+
+cleanup_tmp_dir() {
+    if [ -n "${TMP_DIR:-}" ] && [ -d "$TMP_DIR" ]; then
+        rm -rf "$TMP_DIR"
+    fi
+}
+
+create_tmp_dir() {
+    if ! command_exists mktemp; then
+        log_error "mktemp is required to create a secure temporary directory"
+        exit 1
+    fi
+
+    TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/alex-install.XXXXXX")
+    chmod 700 "$TMP_DIR"
+}
+
+trap cleanup_tmp_dir EXIT
 
 # 检测操作系统和架构
 detect_platform() {
@@ -210,6 +229,112 @@ download_file() {
     fi
     
     return 0
+}
+
+download_file_optional() {
+    local url="$1"
+    local output="$2"
+
+    if command_exists curl; then
+        curl -sSfL --connect-timeout 10 --max-time 120 "$url" -o "$output" >/dev/null 2>&1
+        return $?
+    elif command_exists wget; then
+        wget -q --timeout=120 --tries=2 "$url" -O "$output" >/dev/null 2>&1
+        return $?
+    fi
+
+    return 1
+}
+
+compute_sha256() {
+    local file_path="$1"
+
+    if command_exists sha256sum; then
+        sha256sum "$file_path" | awk '{print $1}'
+        return 0
+    fi
+
+    if command_exists shasum; then
+        shasum -a 256 "$file_path" | awk '{print $1}'
+        return 0
+    fi
+
+    return 1
+}
+
+verify_sha256_checksum() {
+    local file_path="$1"
+    local expected_checksum="$2"
+    local artifact_name="$3"
+    local require_verification="${4:-0}"
+    local actual_checksum
+    local expected_normalized
+    local actual_normalized
+
+    if ! actual_checksum=$(compute_sha256 "$file_path"); then
+        if [ "$require_verification" = "1" ]; then
+            log_error "sha256 tool not found; cannot verify checksum for $artifact_name"
+            return 1
+        fi
+        log_warning "sha256 tool not found; skipping checksum verification for $artifact_name"
+        return 0
+    fi
+
+    expected_normalized=$(printf '%s' "$expected_checksum" | tr '[:upper:]' '[:lower:]')
+    actual_normalized=$(printf '%s' "$actual_checksum" | tr '[:upper:]' '[:lower:]')
+
+    if [ "$actual_normalized" != "$expected_normalized" ]; then
+        log_error "Checksum mismatch for $artifact_name"
+        return 1
+    fi
+
+    log_success "Checksum verified for $artifact_name"
+    return 0
+}
+
+verify_release_checksum() {
+    local binary_path="$1"
+    local version="$2"
+    local binary_name="$3"
+    local expected_checksum="${ALEX_INSTALL_CHECKSUM:-}"
+    local checksum_url
+    local checksum_file
+
+    if [ "${ALEX_INSTALL_SKIP_CHECKSUM:-0}" = "1" ]; then
+        log_warning "Skipping checksum verification (ALEX_INSTALL_SKIP_CHECKSUM=1)"
+        return 0
+    fi
+
+    if [ -n "$expected_checksum" ]; then
+        verify_sha256_checksum "$binary_path" "$expected_checksum" "$binary_name" 1
+        return $?
+    fi
+
+    checksum_url="${ALEX_INSTALL_CHECKSUM_URL:-https://github.com/${GITHUB_REPO}/releases/download/${version}/${CHECKSUM_ASSET_NAME}}"
+    checksum_file="$TMP_DIR/${CHECKSUM_ASSET_NAME##*/}"
+
+    if ! download_file_optional "$checksum_url" "$checksum_file"; then
+        log_warning "Checksum file unavailable at $checksum_url; continuing without checksum verification"
+        return 0
+    fi
+
+    expected_checksum=$(awk -v target="$binary_name" '
+        $1 ~ /^[[:xdigit:]]+$/ {
+            file=$2
+            gsub(/^\*/, "", file)
+            if (file == target) {
+                print $1
+                exit
+            }
+        }
+    ' "$checksum_file")
+
+    if [ -z "$expected_checksum" ]; then
+        log_warning "No checksum entry for $binary_name in $checksum_url; continuing without checksum verification"
+        return 0
+    fi
+
+    verify_sha256_checksum "$binary_path" "$expected_checksum" "$binary_name" 0
 }
 
 # 验证下载的文件
@@ -384,8 +509,7 @@ main() {
     download_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/${binary_name}"
     
     # 创建临时目录
-    rm -rf "$TMP_DIR"
-    mkdir -p "$TMP_DIR"
+    create_tmp_dir
     
     # 下载二进制文件
     binary_path="$TMP_DIR/$binary_name"
@@ -395,6 +519,11 @@ main() {
         log_info "1. Your internet connection"
         log_info "2. The release exists at: https://github.com/${GITHUB_REPO}/releases"
         log_info "3. Try specifying a different version with --version flag"
+        exit 1
+    fi
+
+    if ! verify_release_checksum "$binary_path" "$version" "$binary_name"; then
+        log_error "Binary checksum verification failed"
         exit 1
     fi
     
@@ -409,9 +538,6 @@ main() {
     
     # 安装到系统
     install_binary "$binary_path" "$platform"
-    
-    # 清理临时文件
-    rm -rf "$TMP_DIR"
     
     log_success "Alex CLI has been successfully installed!"
     log_info "Run 'alex --help' to get started"

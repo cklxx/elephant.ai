@@ -32,12 +32,12 @@ passed_tests=0
 # Test function
 run_test() {
     local test_name="$1"
-    local test_command="$2"
+    shift
 
     total_tests=$((total_tests + 1))
     echo -n "Test $total_tests: $test_name... "
 
-    if eval "$test_command" > /dev/null 2>&1; then
+    if "$@" > /dev/null 2>&1; then
         echo -e "${GREEN}✓ PASSED${NC}"
         passed_tests=$((passed_tests + 1))
         return 0
@@ -50,7 +50,7 @@ run_test() {
 # Detailed test with output
 run_detailed_test() {
     local test_name="$1"
-    local test_command="$2"
+    shift
 
     total_tests=$((total_tests + 1))
     echo ""
@@ -58,7 +58,7 @@ run_detailed_test() {
     echo "Test $total_tests: $test_name"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-    if eval "$test_command"; then
+    if "$@"; then
         echo -e "${GREEN}✓ PASSED${NC}"
         passed_tests=$((passed_tests + 1))
         return 0
@@ -68,6 +68,18 @@ run_detailed_test() {
     fi
 }
 
+check_cors_headers() {
+    curl -s -I "$API_URL/api/sessions" | grep -qi 'access-control-allow-origin'
+}
+
+check_sessions_list() {
+    curl -f -s "$API_URL/api/sessions" | jq -e '.sessions' >/dev/null
+}
+
+check_session_details() {
+    curl -f -s "$API_URL/api/sessions/$TEST_SESSION_ID" | jq -e '.session_id' >/dev/null
+}
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Phase 1: Service Health Checks"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -75,15 +87,15 @@ echo ""
 
 # Test 1: Server health
 run_test "Server health check" \
-    "curl -f -s $API_URL/health"
+    curl -f -s "$API_URL/health"
 
 # Test 2: Web accessibility
 run_test "Web frontend accessibility" \
-    "curl -f -s -o /dev/null $WEB_URL"
+    curl -f -s -o /dev/null "$WEB_URL"
 
 # Test 3: CORS headers
 run_test "CORS headers present" \
-    "curl -s -I $API_URL/api/sessions | grep -i 'access-control-allow-origin'"
+    check_cors_headers
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -93,12 +105,12 @@ echo ""
 
 # Test 4: List sessions
 run_test "List sessions" \
-    "curl -f -s $API_URL/api/sessions | jq -e '.sessions'"
+    check_sessions_list
 
 # Test 5: Create task
 echo ""
 echo "Test 5: Create and execute task"
-TASK_RESPONSE=$(curl -s -X POST $API_URL/api/tasks \
+TASK_RESPONSE=$(curl -s -X POST "$API_URL/api/tasks" \
     -H "Content-Type: application/json" \
     -d "{\"task\": \"What is 2+2?\", \"session_id\": \"$TEST_SESSION_ID\"}")
 
@@ -113,7 +125,7 @@ total_tests=$((total_tests + 1))
 
 # Test 6: Get session details
 run_test "Get session details" \
-    "curl -f -s $API_URL/api/sessions/$TEST_SESSION_ID | jq -e '.session_id'"
+    check_session_details
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -157,7 +169,7 @@ sleep 2
 
 # Submit task
 echo "Submitting task..."
-TASK_RESP=$(curl -s -X POST $API_URL/api/tasks \
+TASK_RESP=$(curl -s -X POST "$API_URL/api/tasks" \
     -H "Content-Type: application/json" \
     -d '{"task": "Calculate 10+20", "session_id": "workflow-test"}')
 
@@ -199,7 +211,7 @@ echo ""
 
 # Test 9: Delete test session
 run_test "Delete test session" \
-    "curl -f -s -X DELETE $API_URL/api/sessions/$TEST_SESSION_ID"
+    curl -f -s -X DELETE "$API_URL/api/sessions/$TEST_SESSION_ID"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

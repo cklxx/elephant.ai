@@ -99,11 +99,68 @@ PY
     head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'
 }
 
+trim_whitespace() {
+    local value="$1"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
+
+ensure_private_file_mode() {
+    local file_path="$1"
+    if [[ -f "$file_path" ]]; then
+        chmod 600 "$file_path" 2>/dev/null || log_warn "Unable to set 600 permissions on ${file_path}"
+    fi
+}
+
+load_dotenv_file() {
+    local dotenv_file="$1"
+    local raw_line line key value
+    local line_number=0
+
+    [[ -f "$dotenv_file" ]] || return 0
+
+    while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+        line_number=$((line_number + 1))
+        line="${raw_line%$'\r'}"
+        line="$(trim_whitespace "$line")"
+
+        [[ -z "$line" ]] && continue
+        [[ "${line:0:1}" == "#" ]] && continue
+
+        if [[ "$line" =~ ^export[[:space:]]+ ]]; then
+            line="${line#export}"
+            line="$(trim_whitespace "$line")"
+        fi
+
+        if [[ ! "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            log_warn "Skipping unsupported .env entry at ${dotenv_file}:${line_number}"
+            continue
+        fi
+
+        key="${BASH_REMATCH[1]}"
+        value="${BASH_REMATCH[2]}"
+        value="$(trim_whitespace "$value")"
+
+        if [[ "$value" =~ ^\"(.*)\"$ ]]; then
+            value="${BASH_REMATCH[1]}"
+        elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
+            value="${BASH_REMATCH[1]}"
+        else
+            value="${value%%[[:space:]]#*}"
+            value="${value%"${value##*[![:space:]]}"}"
+        fi
+
+        export "$key=$value"
+    done < "$dotenv_file"
+}
+
 append_env_var_if_missing() {
     local key=$1
     local value=$2
     if ! grep -q "^${key}=" .env 2>/dev/null; then
         printf "\n%s=%s\n" "$key" "$value" >> .env
+        ensure_private_file_mode ".env"
         log_warn "Appended default ${key} to .env"
     fi
 }
@@ -181,11 +238,99 @@ compose_reset_var_tracking() {
 
 source_root_env_if_present() {
     if [[ -f .env ]]; then
-        set -a
-        # shellcheck disable=SC1091
-        source .env
-        set +a
+        load_dotenv_file ".env"
     fi
+}
+
+compute_sha256() {
+    local file_path="$1"
+    if command_exists sha256sum; then
+        sha256sum "$file_path" | awk '{print $1}'
+        return 0
+    fi
+    if command_exists shasum; then
+        shasum -a 256 "$file_path" | awk '{print $1}'
+        return 0
+    fi
+    return 1
+}
+
+download_optional_file() {
+    local url="$1"
+    local output_path="$2"
+
+    if command_exists curl; then
+        curl -fsSL "$url" -o "$output_path" >/dev/null 2>&1
+        return $?
+    fi
+
+    if command_exists wget; then
+        wget -q "$url" -O "$output_path" >/dev/null 2>&1
+        return $?
+    fi
+
+    return 1
+}
+
+verify_checksum() {
+    local file_path="$1"
+    local expected="$2"
+    local artifact_name="$3"
+    local actual expected_normalized actual_normalized
+
+    if ! actual=$(compute_sha256 "$file_path"); then
+        log_warn "No sha256 tool available; skipped checksum verification for ${artifact_name}"
+        return 0
+    fi
+
+    expected_normalized=$(printf '%s' "$expected" | tr '[:upper:]' '[:lower:]')
+    actual_normalized=$(printf '%s' "$actual" | tr '[:upper:]' '[:lower:]')
+
+    if [[ "$actual_normalized" != "$expected_normalized" ]]; then
+        log_error "Checksum mismatch for ${artifact_name}"
+        return 1
+    fi
+
+    log_success "Checksum verified for ${artifact_name}"
+}
+
+verify_docker_compose_checksum() {
+    local os="$1"
+    local arch="$2"
+    local artifact_name="docker-compose-${os}-${arch}"
+    local expected_checksum="${DOCKER_COMPOSE_SHA256:-}"
+    local checksum_url checksum_file
+
+    if [[ -n "$expected_checksum" ]]; then
+        verify_checksum "$DOCKER_COMPOSE_BIN" "$expected_checksum" "$artifact_name"
+        return $?
+    fi
+
+    checksum_url="${DOCKER_COMPOSE_CHECKSUM_URL:-https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/checksums.txt}"
+    checksum_file="${BIN_DIR}/checksums-${DOCKER_COMPOSE_VERSION}.txt"
+
+    if ! download_optional_file "$checksum_url" "$checksum_file"; then
+        log_warn "Checksum file not found at ${checksum_url}; continuing without checksum verification"
+        return 0
+    fi
+
+    expected_checksum=$(awk -v artifact="$artifact_name" '
+        $1 ~ /^[[:xdigit:]]+$/ {
+            file=$2
+            gsub(/^\*/, "", file)
+            if (file == artifact) {
+                print $1
+                exit
+            }
+        }
+    ' "$checksum_file")
+
+    if [[ -z "$expected_checksum" ]]; then
+        log_warn "No checksum entry for ${artifact_name} in ${checksum_url}; continuing without checksum verification"
+        return 0
+    fi
+
+    verify_checksum "$DOCKER_COMPOSE_BIN" "$expected_checksum" "$artifact_name"
 }
 
 compose_record_core_var() {
@@ -334,14 +479,13 @@ ALEX_SESSION_DATABASE_URL=postgres://alex:alex@localhost:5432/alex_auth?sslmode=
 # NPM_REGISTRY=https://registry.npmmirror.com/
 # PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 EOF
+        ensure_private_file_mode ".env"
     fi
 
     ensure_auth_env_defaults
 
-    # Source environment
-    set -a
-    source .env
-    set +a
+    # Load dotenv variables from KEY=VALUE entries only
+    load_dotenv_file ".env"
 
     hydrate_env_from_config
     ensure_api_url_default "http://localhost:${SERVER_PORT}" "local"
@@ -350,7 +494,7 @@ EOF
     if [[ -z "${OPENAI_API_KEY:-}" ]]; then
         log_warn "OPENAI_API_KEY not set in .env"
     else
-        log_success "API key configured: ${OPENAI_API_KEY:0:12}..."
+        log_success "OPENAI_API_KEY is configured"
     fi
 }
 
@@ -455,6 +599,11 @@ download_docker_compose() {
         fi
     else
         die "Neither curl nor wget is available to download docker-compose"
+    fi
+
+    if ! verify_docker_compose_checksum "$os" "$arch"; then
+        rm -f "$DOCKER_COMPOSE_BIN"
+        die "docker-compose checksum verification failed"
     fi
 
     chmod +x "$DOCKER_COMPOSE_BIN"

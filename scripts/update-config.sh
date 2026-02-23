@@ -5,6 +5,13 @@
 
 set -e
 
+ensure_private_file_mode() {
+    local file_path="$1"
+    if [ -f "$file_path" ]; then
+        chmod 600 "$file_path"
+    fi
+}
+
 # Help function
 show_help() {
     echo "Alex Configuration Update Script"
@@ -103,7 +110,9 @@ mkdir -p "$(dirname "$CONFIG_FILE")"
 # Backup existing configuration
 echo "📦 Backing up existing configuration..."
 if [ -f "$CONFIG_FILE" ]; then
-    cp "$CONFIG_FILE" "$CONFIG_FILE.backup-$(date +%Y%m%d-%H%M%S)"
+    BACKUP_FILE="$CONFIG_FILE.backup-$(date +%Y%m%d-%H%M%S)"
+    cp "$CONFIG_FILE" "$BACKUP_FILE"
+    ensure_private_file_mode "$BACKUP_FILE"
 fi
 
 # Update configuration using yq (YAML processor)
@@ -172,6 +181,8 @@ runtime:
   max_iterations: 25
 EOF
 fi
+
+ensure_private_file_mode "$CONFIG_FILE"
 
 echo "✅ Configuration updated successfully!"
 echo ""

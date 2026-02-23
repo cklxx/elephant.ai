@@ -38,12 +38,12 @@ FAILED_TESTS=0
 # Run test
 run_test() {
     local test_name="$1"
-    local test_command="$2"
+    shift
 
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     echo -n "[$TOTAL_TESTS] $test_name... "
 
-    if eval "$test_command" > /dev/null 2>&1; then
+    if "$@" > /dev/null 2>&1; then
         echo -e "${GREEN}✓ PASS${NC}"
         PASSED_TESTS=$((PASSED_TESTS + 1))
         return 0
@@ -57,14 +57,14 @@ run_test() {
 # Detailed test with output
 run_detailed_test() {
     local test_name="$1"
-    local test_command="$2"
+    shift
 
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     echo ""
     echo -e "${BLUE}[$TOTAL_TESTS] $test_name${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-    if eval "$test_command"; then
+    if "$@"; then
         echo -e "${GREEN}✓ PASS${NC}"
         PASSED_TESTS=$((PASSED_TESTS + 1))
         return 0
@@ -75,33 +75,41 @@ run_detailed_test() {
     fi
 }
 
+check_docker_optional() {
+    command -v docker >/dev/null 2>&1 || true
+}
+
+check_alex_version_optional() {
+    ./alex --version >/dev/null 2>&1 || true
+}
+
 echo -e "${YELLOW}Phase 1: 环境检查${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-run_test "Go 编译器" "command -v go"
-run_test "Node.js" "command -v node"
-run_test "npm" "command -v npm"
-run_test "Docker (可选)" "command -v docker || true"
-run_test "Make" "command -v make"
+run_test "Go 编译器" command -v go
+run_test "Node.js" command -v node
+run_test "npm" command -v npm
+run_test "Docker (可选)" check_docker_optional
+run_test "Make" command -v make
 
 echo ""
 echo -e "${YELLOW}Phase 2: 后端编译${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-run_detailed_test "编译 CLI (alex)" "go build -o alex ./cmd/alex"
-run_detailed_test "编译 Lark Server (alex-server)" "go build -o alex-server ./cmd/alex-server"
-run_detailed_test "编译 Web Server (alex-web)" "go build -o alex-web ./cmd/alex-web"
+run_detailed_test "编译 CLI (alex)" go build -o alex ./cmd/alex
+run_detailed_test "编译 Lark Server (alex-server)" go build -o alex-server ./cmd/alex-server
+run_detailed_test "编译 Web Server (alex-web)" go build -o alex-web ./cmd/alex-web
 
 echo ""
 echo -e "${YELLOW}Phase 3: 后端测试${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-run_detailed_test "Domain 层单元测试" "go test ./internal/domain/ -v"
-run_detailed_test "Server App 层单元测试" "go test ./internal/delivery/server/app/ -v"
-run_detailed_test "Server HTTP 层单元测试" "go test ./internal/delivery/server/http/ -v"
+run_detailed_test "Domain 层单元测试" go test ./internal/domain/ -v
+run_detailed_test "Server App 层单元测试" go test ./internal/delivery/server/app/ -v
+run_detailed_test "Server HTTP 层单元测试" go test ./internal/delivery/server/http/ -v
 
 echo ""
 echo -e "${YELLOW}Phase 4: 前端构建${NC}"
@@ -110,9 +118,9 @@ echo ""
 
 cd web
 
-run_test "检查 package.json" "test -f package.json"
-run_detailed_test "安装依赖" "npm install --silent"
-run_detailed_test "TypeScript 编译" "npm run build"
+run_test "检查 package.json" test -f package.json
+run_detailed_test "安装依赖" npm install --silent
+run_detailed_test "TypeScript 编译" npm run build
 
 cd ..
 
@@ -121,61 +129,61 @@ echo -e "${YELLOW}Phase 5: 配置文件验证${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-run_test "检查 docker-compose.yml" "test -f deploy/docker/docker-compose.yml"
-run_test "检查 docker-compose.dev.yml" "test -f deploy/docker/docker-compose.dev.yml"
-run_test "检查 Dockerfile.server" "test -f deploy/docker/Dockerfile.server"
-run_test "检查 web/Dockerfile" "test -f web/Dockerfile"
-run_test "检查 nginx.conf" "test -f deploy/docker/nginx.conf"
+run_test "检查 docker-compose.yml" test -f deploy/docker/docker-compose.yml
+run_test "检查 docker-compose.dev.yml" test -f deploy/docker/docker-compose.dev.yml
+run_test "检查 Dockerfile.server" test -f deploy/docker/Dockerfile.server
+run_test "检查 web/Dockerfile" test -f web/Dockerfile
+run_test "检查 nginx.conf" test -f deploy/docker/nginx.conf
 
 echo ""
 echo -e "${YELLOW}Phase 6: 脚本验证${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-run_test "deploy.sh 可执行" "test -x deploy.sh"
-run_test "integration-test.sh 可执行" "test -x scripts/integration-test.sh"
-run_test "test-sse-server.sh 可执行" "test -x scripts/test-sse-server.sh"
+run_test "deploy.sh 可执行" test -x deploy.sh
+run_test "integration-test.sh 可执行" test -x scripts/integration-test.sh
+run_test "test-sse-server.sh 可执行" test -x scripts/test-sse-server.sh
 
 echo ""
 echo -e "${YELLOW}Phase 7: 文档检查${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-run_test "README.md" "test -f README.md"
-run_test "QUICKSTART_SSE.md" "test -f QUICKSTART_SSE.md"
-run_test "DEPLOYMENT.md" "test -f DEPLOYMENT.md"
-run_test "SSE_IMPLEMENTATION_SUMMARY.md" "test -f SSE_IMPLEMENTATION_SUMMARY.md"
-run_test "Architecture Design" "test -f docs/design/SSE_WEB_ARCHITECTURE.md"
-run_test "Server README" "test -f internal/delivery/server/README.md"
-run_test "Web README" "test -f web/README.md"
+run_test "README.md" test -f README.md
+run_test "QUICKSTART_SSE.md" test -f QUICKSTART_SSE.md
+run_test "DEPLOYMENT.md" test -f DEPLOYMENT.md
+run_test "SSE_IMPLEMENTATION_SUMMARY.md" test -f SSE_IMPLEMENTATION_SUMMARY.md
+run_test "Architecture Design" test -f docs/design/SSE_WEB_ARCHITECTURE.md
+run_test "Server README" test -f internal/delivery/server/README.md
+run_test "Web README" test -f web/README.md
 
 echo ""
 echo -e "${YELLOW}Phase 8: 依赖完整性${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-run_test "Go modules 完整" "go mod verify"
-run_test "Web package-lock.json" "test -f web/package-lock.json"
+run_test "Go modules 完整" go mod verify
+run_test "Web package-lock.json" test -f web/package-lock.json
 
 echo ""
 echo -e "${YELLOW}Phase 9: 架构完整性${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-run_test "Server Ports 层" "test -f internal/delivery/server/ports/broadcaster.go"
-run_test "Server App 层" "test -f internal/delivery/server/app/event_broadcaster.go"
-run_test "Server HTTP 层" "test -f internal/delivery/server/http/sse_handler.go"
-run_test "Server 入口" "test -f cmd/alex-server/main.go"
+run_test "Server Ports 层" test -f internal/delivery/server/ports/broadcaster.go
+run_test "Server App 层" test -f internal/delivery/server/app/event_broadcaster.go
+run_test "Server HTTP 层" test -f internal/delivery/server/http/sse_handler.go
+run_test "Server 入口" test -f cmd/alex-server/main.go
 
 echo ""
 echo -e "${YELLOW}Phase 10: 二进制验证${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-run_test "alex 可执行" "test -x alex"
-run_test "alex-server 可执行" "test -x alex-server"
-run_test "alex-web 可执行" "test -x alex-web"
-run_test "alex --version" "./alex --version || true"
+run_test "alex 可执行" test -x alex
+run_test "alex-server 可执行" test -x alex-server
+run_test "alex-web 可执行" test -x alex-web
+run_test "alex --version" check_alex_version_optional
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
