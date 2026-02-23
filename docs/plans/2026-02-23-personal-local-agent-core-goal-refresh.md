@@ -1,7 +1,7 @@
 # 2026-02-23 Personal Local Agent Core Goal Refresh Plan
 
 **Created**: 2026-02-23
-**Status**: In Progress
+**Status**: Completed
 **Branch**: feat/local-agent-core-goal-20260223
 **Owner**: Codex + cklxx
 
@@ -80,10 +80,10 @@
 - [x] 修复评审问题并回归。
 
 ### Phase 4 — Delivery Hygiene
-- [ ] 增量提交（按主题拆分多个 commits）。
-- [ ] merge 回 `main`（优先 fast-forward）。
-- [ ] 删除临时 worktree，清理分支。
-- [ ] 更新本计划状态与执行日志。
+- [x] 增量提交（按主题拆分多个 commits）。
+- [x] merge 回 `main`（优先 fast-forward）。
+- [x] 删除临时 worktree，清理分支。
+- [x] 更新本计划状态与执行日志。
 
 ## Acceptance Criteria
 
@@ -117,3 +117,8 @@
 ### 2026-02-23 23:44 — Validation + code review completed
 - 已通过全量质量闸门：`./scripts/pre-push.sh`（含 go test -race / lint / arch / web lint+build）。
 - 已执行强制代码评审并输出报告：`docs/reviews/2026-02-23-core-goal-refresh-code-review.md`（P0/P1=0）。
+
+### 2026-02-23 23:58 — Merge & cleanup completed
+- 已将分支 `feat/local-agent-core-goal-20260223` rebase 到最新 `main` 后 fast-forward 合并。
+- 已删除临时 worktree：`/Users/bytedance/code/elephant.ai.worktrees/local-agent-core-goal-20260223`。
+- 已删除临时分支：`feat/local-agent-core-goal-20260223`。
