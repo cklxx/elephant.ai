@@ -46,9 +46,9 @@ Key packages:
 - `internal/llm/` — Multi-provider (OpenAI, Claude, ARK, DeepSeek, Ollama)
 - `internal/memory/` — Persistent store (Postgres, file, in-memory)
 - `internal/context/`, `internal/rag/` — Layered retrieval and summarization
-- `internal/tools/builtin/` — File ops, shell, code exec, browser, media, search
-- `internal/channels/` — Lark, WeChat integrations
-- `internal/observability/` — Traces, metrics, cost accounting
+- `internal/infra/tools/builtin/` — File ops, shell, code exec, browser, media, search
+- `internal/delivery/channels/` — Lark, WeChat integrations
+- `internal/infra/observability/` — Traces, metrics, cost accounting
 - `web/` — Next.js dashboard with SSE streaming
 
 ### Design preferences
