@@ -71,6 +71,7 @@ Updated: 2026-02-16 18:00
 - Kernel 周期通知应附带主动性指标（actionable 比例、auto-recovered 次数、blocked 分类），让 Lark notice 侧可直接判断是否需要介入。
 - 7C 输出优化应采用低风险整形：允许空白规范化与重复压缩，但必须保留结构化 Markdown（列表/表格/代码块）语义。
 - 需要实时做 kernel 端到端验证时可直接执行 `go run ./cmd/alex-server kernel-once`，无需等待 cron。
+- Kernel founder mindset: `kernelFounderDirective` is prepended to every dispatch prompt via `wrapKernelPrompt`. The directive enforces 永不询问/永不等待/only-four-actions (think→dispatch→record→summarize). Combined with `kernelDefaultSummaryInstruction` (appended) and retry loop, ensures fully autonomous unattended cycles.
 
 ## Items
 
