@@ -14,12 +14,8 @@ observability:
 
   tracing:
     enabled: true
-    # Exporter can be "otlp" or "zipkin"
     exporter: otlp
-    # Only used when exporter is set to otlp
     otlp_endpoint: "otel-collector:4318"
-    # Only used when exporter is set to zipkin
-    zipkin_endpoint: "http://zipkin:9411/api/v2/spans"
     # Fraction between 0.0 and 1.0 determining how many spans are sampled
     sample_rate: 0.2
     service_name: "alex-server"

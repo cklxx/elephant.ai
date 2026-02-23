@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	"go.opentelemetry.io/otel/exporters/zipkin"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
@@ -20,9 +19,8 @@ import (
 // TracingConfig configures distributed tracing
 type TracingConfig struct {
 	Enabled        bool    `yaml:"enabled"`
-	Exporter       string  `yaml:"exporter"` // otlp, zipkin
+	Exporter       string  `yaml:"exporter"` // otlp
 	OTLPEndpoint   string  `yaml:"otlp_endpoint"`
-	ZipkinEndpoint string  `yaml:"zipkin_endpoint"`
 	SampleRate     float64 `yaml:"sample_rate"` // 0.0 to 1.0
 	ServiceName    string  `yaml:"service_name"`
 	ServiceVersion string  `yaml:"service_version"`
@@ -68,12 +66,6 @@ func NewTracerProvider(config TracingConfig) (*TracerProvider, error) {
 			otlptracehttp.WithEndpoint(endpoint),
 			otlptracehttp.WithInsecure(),
 		)
-	case "zipkin":
-		endpoint := config.ZipkinEndpoint
-		if endpoint == "" {
-			endpoint = "http://localhost:9411/api/v2/spans"
-		}
-		exporter, err = zipkin.New(endpoint)
 	default:
 		return nil, fmt.Errorf("unsupported exporter: %s", config.Exporter)
 	}

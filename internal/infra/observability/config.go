@@ -102,9 +102,6 @@ func LoadConfig(configPath string) (Config, error) {
 	if fileConfig.Observability.Tracing.OTLPEndpoint != "" {
 		config.Tracing.OTLPEndpoint = fileConfig.Observability.Tracing.OTLPEndpoint
 	}
-	if fileConfig.Observability.Tracing.ZipkinEndpoint != "" {
-		config.Tracing.ZipkinEndpoint = fileConfig.Observability.Tracing.ZipkinEndpoint
-	}
 	// Sample rate: only override if explicitly set (> 0)
 	// Note: This means you can't set sample_rate to exactly 0.0 via config file
 	// If you need 0.0, set tracing.enabled to false instead
