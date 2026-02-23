@@ -218,30 +218,66 @@ func sanitizeToolArguments(args map[string]any) map[string]any {
 		return nil
 	}
 
-	sanitized := make(map[string]any)
+	sanitized := make(map[string]any, len(args))
 	for key, value := range args {
-		// Sanitize known sensitive fields
-		switch key {
-		case "api_key", "apiKey", "password", "token", "secret", "credentials":
+		if isSensitiveArgumentKey(key) {
 			sanitized[key] = "***REDACTED***"
-		default:
-			// For string values, check if they look like keys/tokens
-			if str, ok := value.(string); ok {
-				if len(str) > 20 && (containsSensitiveKeyword(key) || looksLikeAPIKey(str)) {
-					sanitized[key] = SanitizeAPIKey(str)
-				} else {
-					sanitized[key] = value
-				}
-			} else {
-				sanitized[key] = value
-			}
+			continue
 		}
+		sanitized[key] = sanitizeToolArgumentValue(key, value)
 	}
 	return sanitized
 }
 
+func sanitizeToolArgumentValue(key string, value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return sanitizeToolArguments(typed)
+	case map[string]string:
+		converted := make(map[string]any, len(typed))
+		for nestedKey, nestedValue := range typed {
+			converted[nestedKey] = nestedValue
+		}
+		return sanitizeToolArguments(converted)
+	case []any:
+		sanitized := make([]any, len(typed))
+		for i, item := range typed {
+			sanitized[i] = sanitizeToolArgumentValue(key, item)
+		}
+		return sanitized
+	case []string:
+		sanitized := make([]any, len(typed))
+		for i, item := range typed {
+			sanitized[i] = sanitizeToolArgumentValue(key, item)
+		}
+		return sanitized
+	case string:
+		if isSensitiveArgumentKey(key) {
+			return "***REDACTED***"
+		}
+		if len(typed) > 20 && (containsSensitiveKeyword(key) || looksLikeAPIKey(typed)) {
+			return SanitizeAPIKey(typed)
+		}
+		return typed
+	default:
+		return value
+	}
+}
+
+func isSensitiveArgumentKey(key string) bool {
+	lower := strings.ToLower(strings.TrimSpace(key))
+	switch lower {
+	case "api_key", "apikey", "password", "token", "secret", "credentials", "credential",
+		"authorization", "x-api-key", "access_token", "refresh_token", "id_token",
+		"client_secret", "cookie", "set-cookie":
+		return true
+	default:
+		return containsSensitiveKeyword(lower)
+	}
+}
+
 func containsSensitiveKeyword(s string) bool {
-	keywords := []string{"key", "token", "secret", "password", "credential", "auth"}
+	keywords := []string{"token", "secret", "password", "credential", "auth", "api_key", "apikey", "x-api-key", "cookie"}
 	lower := strings.ToLower(s)
 	for _, kw := range keywords {
 		if strings.Contains(lower, kw) {
