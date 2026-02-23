@@ -1,7 +1,7 @@
 # 2026-02-23 Kernel Startup State & Logging Fix Plan
 
 Created: 2026-02-23
-Status: In Progress
+Status: Completed
 Owner: Codex
 
 ## Background
@@ -37,3 +37,6 @@ Owner: Codex
   - make `notify.sh` JSON escaping portable to remove sed noise logs;
   - improve kernel readiness detection by checking both `lark-kernel.log` and `alex-kernel.log` from new log offsets.
 - 2026-02-23 22:45: Targeted validation passed: orphan cleanup no longer includes kernel daemon; kernel survives cleanup; kernel restart reports ready.
+- 2026-02-23 23:03: Mandatory code review completed (P0/P1 none; accepted P2 note for generated skills catalog inclusion).
+- 2026-02-23 23:12: Full `make ci-local` on rebased head reported one flaky unrelated failure (`TestTickRestartBackoffIsAsync`); targeted rerun with `-race` passed.
+- 2026-02-23 23:14: Re-ran `make ci-local` (web path on current diff) passed; branch rebased/merged back to `main`.
