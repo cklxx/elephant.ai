@@ -6,6 +6,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChunkedTextBlock } from "@/components/debug/DebugSurface";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
@@ -253,9 +254,11 @@ function ContextWindowPreview({ preview }: { preview: ContextWindowPreviewRespon
             <CardDescription>Captured from the assembled context window.</CardDescription>
           </CardHeader>
           <CardContent>
-            <pre className="whitespace-pre-wrap rounded-lg bg-muted/40 p-4 text-sm text-foreground">
-              {preview.window.system_prompt}
-            </pre>
+            <ChunkedTextBlock
+              value={preview.window.system_prompt}
+              maxCharsPerChunk={1800}
+              maxLinesPerChunk={28}
+            />
           </CardContent>
         </Card>
       )}
@@ -318,11 +321,11 @@ function ContextWindowPreview({ preview }: { preview: ContextWindowPreviewRespon
           <CardDescription>Full serialized payload for quick inspection.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[360px]">
-            <pre className="whitespace-pre rounded-lg bg-muted/40 p-4 text-xs text-foreground">
-              {JSON.stringify(preview.window, null, 2)}
-            </pre>
-          </ScrollArea>
+          <ChunkedTextBlock
+            value={JSON.stringify(preview.window, null, 2)}
+            maxCharsPerChunk={1800}
+            maxLinesPerChunk={28}
+          />
         </CardContent>
       </Card>
     </div>

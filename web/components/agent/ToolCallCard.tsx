@@ -89,6 +89,8 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
 
   const showVideoWaitHint =
     status === 'running' && toolName.toLowerCase() === 'video_generate';
+  const statusLabel =
+    status === 'running' ? 'Running' : status === 'error' ? 'Needs attention' : 'Completed';
 
   const summaryMaxLen = 96;
   const summaryText = useMemo(() => {
@@ -150,23 +152,25 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
       data-testid={`tool-call-card-${toolName.toLowerCase().replace(/[^a-z0-9_-]+/g, '-')}`}
     >
       {/* Header Row */}
-      <div
-        role="button"
+      <button
+        type="button"
         onClick={() => setIsExpanded(!isExpanded)}
+        aria-expanded={isExpanded}
         data-testid="tool-call-header"
         className={cn(
-          "grid grid-cols-[16px,auto,1fr,auto] items-center gap-x-2 px-3 py-1.5 cursor-pointer select-none rounded-md",
+          "grid w-full grid-cols-[16px,auto,1fr,auto] items-center gap-x-2 rounded-md px-3 py-1.5 text-left",
+          "cursor-pointer select-none",
           "text-[13px] leading-snug",
           "bg-muted/50 hover:bg-muted/70 transition-colors border border-border/60",
           status === 'running' && "bg-blue-50/50 border-blue-100/50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100 dark:border-blue-800/30",
-          status === 'error' && "bg-red-50/50 border-red-100/50 text-red-900 dark:bg-red-900/20 dark:text-red-100 dark:border-red-800/30"
+          status === 'error' && "bg-amber-50/60 border-amber-200/70 text-amber-900 dark:bg-amber-900/20 dark:text-amber-100 dark:border-amber-800/40"
         )}
       >
         <div
           className={cn(
             "flex h-4 w-4 items-center justify-center transition-all",
             status === 'running' ? "text-blue-600 dark:text-blue-400" :
-              status === 'error' ? "text-red-600 dark:text-red-400" :
+              status === 'error' ? "text-amber-600 dark:text-amber-400" :
                 "text-muted-foreground/70"
           )}
           data-testid={`tool-call-status-${status}`}
@@ -201,6 +205,16 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
         </div>
 
         <div className="flex items-center gap-2 text-[11px] tabular-nums text-muted-foreground/60 transition-opacity">
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+              status === "running" && "border-blue-200 text-blue-700 dark:border-blue-700 dark:text-blue-300",
+              status === "error" && "border-amber-200 text-amber-700 dark:border-amber-700 dark:text-amber-300",
+              status === "done" && "border-emerald-200 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300",
+            )}
+          >
+            {statusLabel}
+          </span>
           {status === 'running' ? (
             runningDurationLabel ? (
               <span data-testid="tool-call-duration">{runningDurationLabel}</span>
@@ -209,7 +223,7 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
             <span data-testid="tool-call-duration">{duration}</span>
           ) : null}
         </div>
-      </div>
+      </button>
 
       {/* Expanded Details — CSS grid-row animation */}
       <div

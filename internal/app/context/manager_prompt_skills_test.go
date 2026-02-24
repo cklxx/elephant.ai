@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"alex/internal/domain/agent/ports"
 	"alex/internal/domain/agent/ports/agent"
 	"alex/internal/infra/skills"
 	"alex/internal/shared/logging"
@@ -140,6 +141,45 @@ activation_mode: auto
 	}
 	if strings.Contains(out, "## Skill: soul-self-evolution") {
 		t.Fatalf("did not expect soul skill body when soul auto evolution disabled, got %q", out)
+	}
+}
+
+func TestBuildSkillsSection_SuppressesDiscoveryAfterRecentSkillsUse(t *testing.T) {
+	dir := t.TempDir()
+	writeSkillFile(t, dir, "sample-skill", "Sample workflow.", "", "# Sample Skill\n\nBody.\n")
+
+	t.Setenv("ALEX_SKILLS_DIR", dir)
+	skills.InvalidateCache()
+
+	cfg := agent.SkillsConfig{
+		AutoActivation: agent.SkillAutoActivationConfig{
+			Enabled:             true,
+			MaxActivated:        3,
+			TokenBudget:         10_000,
+			ConfidenceThreshold: 0.5,
+			CacheTTLSeconds:     0,
+			FallbackToIndex:     true,
+		},
+	}
+
+	messages := []ports.Message{
+		{
+			Role: "assistant",
+			ToolCalls: []ports.ToolCall{
+				{
+					ID:   "call-1",
+					Name: "skills",
+				},
+			},
+		},
+	}
+
+	out := buildSkillsSection(logging.Nop(), "no match here", messages, "session-1", cfg)
+	if strings.Contains(out, "# Skill Discovery") {
+		t.Fatalf("did not expect skill discovery hint after recent skills usage, got %q", out)
+	}
+	if strings.Contains(out, "# Available Skills") {
+		t.Fatalf("did not expect available skills catalog after recent skills usage, got %q", out)
 	}
 }
 

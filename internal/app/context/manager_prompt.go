@@ -402,7 +402,8 @@ func buildSkillsSection(logger logging.Logger, taskInput string, messages []port
 	}
 
 	metadata := strings.TrimSpace(skills.AvailableSkillsXML(library))
-	if metadata != "" {
+	recentlyUsedSkills := hasRecentToolUsage(messages, "skills", 12)
+	if metadata != "" && !recentlyUsedSkills {
 		if sb.Len() > 0 {
 			sb.WriteString("\n\n")
 		}
@@ -410,7 +411,7 @@ func buildSkillsSection(logger logging.Logger, taskInput string, messages []port
 		sb.WriteString(metadata)
 	}
 
-	if autoCfg.FallbackToIndex || len(matches) == 0 {
+	if !recentlyUsedSkills && (autoCfg.FallbackToIndex || len(matches) == 0) {
 		if sb.Len() > 0 {
 			sb.WriteString("\n\n")
 		}
@@ -457,6 +458,20 @@ func extractRecentTools(messages []ports.Message, limit int) []string {
 		}
 	}
 	return tools
+}
+
+func hasRecentToolUsage(messages []ports.Message, toolName string, limit int) bool {
+	target := strings.TrimSpace(toolName)
+	if target == "" {
+		return false
+	}
+	recent := extractRecentTools(messages, limit)
+	for _, name := range recent {
+		if strings.EqualFold(strings.TrimSpace(name), target) {
+			return true
+		}
+	}
+	return false
 }
 
 func extractToolNameFromMetadata(metadata map[string]any) string {

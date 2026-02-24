@@ -177,6 +177,41 @@ function pickMetadataUrl(metadata: Record<string, any> | null | undefined): stri
   return formatHintValue(urlValue);
 }
 
+function summarizeCommandHint(command: string | undefined): string | undefined {
+  const normalized = normalizeOneLine(command);
+  if (!normalized) return undefined;
+
+  const skillMatch = normalized.match(/(?:^|\s)skills\/([a-z0-9._-]+)\/run\.py\b/i);
+  if (skillMatch?.[1]) {
+    return `Run skill ${skillMatch[1]}`;
+  }
+
+  const npmScriptMatch = normalized.match(/(?:^|\s)(?:npm|pnpm|yarn)\s+run\s+([a-z0-9:_-]+)/i);
+  if (npmScriptMatch?.[1]) {
+    return `Run script ${npmScriptMatch[1]}`;
+  }
+
+  return truncateHint(normalized);
+}
+
+function normalizeToolErrorSummary(error: string): string {
+  const trimmed = error.trim();
+  if (!trimmed) return "";
+
+  const lowered = trimmed.toLowerCase();
+  if (lowered.includes("signal: killed") || lowered.includes("process killed")) {
+    return "Execution was interrupted before completion.";
+  }
+  if (lowered.includes("context deadline exceeded") || lowered.includes("timed out")) {
+    return "Execution timed out.";
+  }
+  if (lowered.includes("permission denied")) {
+    return "Execution failed due to permission restrictions.";
+  }
+
+  return trimmed;
+}
+
 function formatSandboxAction(action: Record<string, any>): string | undefined {
   const rawType =
     typeof action.action_type === "string" ? action.action_type : "";
@@ -355,7 +390,8 @@ export function userFacingToolTitle(input: {
 
   if (tool === "bash" || tool === "run_command") {
     const command = pickFirstHint(input.arguments, ["command"]);
-    return formatTitle(command);
+    const commandHint = summarizeCommandHint(command);
+    return formatTitle(commandHint ?? command);
   }
 
   if (tool === "code_execute" || tool === "python_execute") {
@@ -483,9 +519,8 @@ export function userFacingToolSummary(input: {
   const tool = input.toolName.toLowerCase().trim();
 
   if (input.error && input.error.trim()) {
-    return input.error.trim().length > 100
-      ? `${input.error.trim().slice(0, 100)}…`
-      : input.error.trim();
+    const normalized = normalizeToolErrorSummary(input.error);
+    return normalized.length > 100 ? `${normalized.slice(0, 100)}…` : normalized;
   }
 
   if (tool === "todo_update") {

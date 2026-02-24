@@ -5,7 +5,7 @@ import {
   WorkflowToolStartedEvent,
   WorkflowToolCompletedEvent,
 } from '@/lib/types';
-import { ToolArgumentsPanel, ToolResultPanel, ToolStreamPanel, SimplePanel, PanelHeader } from './ToolPanels';
+import { ToolArgumentsPanel, ToolResultPanel, ToolStreamPanel } from './ToolPanels';
 import { MusicPlayerPanel } from './MusicPlayerPanel';
 
 export interface RendererContext {
@@ -84,14 +84,12 @@ const browserRenderer: ToolRenderer = (ctx) => {
   const panels: ReactNode[] = [];
   if (ctx.completeEvent?.metadata?.url) {
     panels.push(
-      <SimplePanel key="browser-metadata">
-        <PanelHeader title={ctx.labels.metadataTitle} />
-        <div className="max-w-[600px]">
-          <p className="text-[12px] leading-relaxed text-foreground/80 truncate" title={ctx.completeEvent.metadata.url}>
-            {ctx.completeEvent.metadata.url}
-          </p>
-        </div>
-      </SimplePanel>,
+      <ToolStreamPanel
+        key="browser-metadata"
+        title={ctx.labels.metadataTitle}
+        content={String(ctx.completeEvent.metadata.url)}
+        trim={false}
+      />,
     );
   }
   panels.push(...defaultRenderer(ctx).panels);
@@ -102,14 +100,12 @@ const shellRenderer: ToolRenderer = (ctx) => {
   const panels: ReactNode[] = [];
   if (ctx.startEvent?.arguments?.command) {
     panels.push(
-      <SimplePanel key="shell-command">
-        <PanelHeader title="Command" />
-        <div className="max-w-[600px]">
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-muted/20 px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/90 shadow-sm">
-            {ctx.startEvent.arguments.command}
-          </pre>
-        </div>
-      </SimplePanel>,
+      <ToolStreamPanel
+        key="shell-command"
+        title="Command"
+        content={String(ctx.startEvent.arguments.command)}
+        trim={false}
+      />,
     );
   }
   panels.push(...defaultRenderer(ctx).panels);
@@ -123,15 +119,13 @@ const codeExecuteRenderer: ToolRenderer = (ctx) => {
       ? ctx.startEvent.arguments.code
       : undefined;
   if (code) {
-      panels.push(
-      <SimplePanel key="code-execute-source">
-        <PanelHeader title="Code" />
-        <div className="max-w-[600px]">
-          <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-muted/20 px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/90 shadow-sm">
-            {code}
-          </pre>
-        </div>
-      </SimplePanel>,
+    panels.push(
+      <ToolStreamPanel
+        key="code-execute-source"
+        title="Code"
+        content={code}
+        trim={false}
+      />,
     );
   }
   panels.push(...defaultRenderer(ctx).panels);
@@ -142,14 +136,12 @@ const fileRenderer: ToolRenderer = (ctx) => {
   const panels: ReactNode[] = [];
   if (ctx.startEvent?.arguments?.path) {
     panels.push(
-      <SimplePanel key="file-target">
-        <PanelHeader title="File" />
-        <div className="max-w-[600px]">
-          <p className="rounded-md border border-border/40 bg-muted/10 px-3 py-2 font-mono text-[12px] text-foreground/80 truncate" title={ctx.startEvent.arguments.path}>
-            {ctx.startEvent.arguments.path}
-          </p>
-        </div>
-      </SimplePanel>,
+      <ToolStreamPanel
+        key="file-target"
+        title="File"
+        content={String(ctx.startEvent.arguments.path)}
+        trim={false}
+      />,
     );
   }
   panels.push(...defaultRenderer(ctx).panels);

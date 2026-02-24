@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChunkedTextBlock, DebugSurface } from "@/components/debug/DebugSurface";
 import { apiClient, type SSEReplayMode, type SessionSnapshotsResponse, type MemorySnapshot } from "@/lib/api";
 import { createRequestGate } from "@/lib/requestGate";
 import { type LogTraceBundle, type WorkflowEventType } from "@/lib/types";
@@ -204,21 +205,19 @@ function LogSnippetView({ snippet }: { snippet?: LogTraceBundle["service"] | nul
   if (entries.length === 0) {
     return <p className="text-xs text-muted-foreground">No matching log entries.</p>;
   }
+  const merged = entries.join("\n");
   return (
     <div className="space-y-2">
-      {entries.map((entry, idx) => (
-        <div
-          key={`${snippet.path ?? "log"}-${idx}`}
-          className="rounded-lg border border-border/60 bg-muted/20 p-2"
-        >
-          <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
-            {entry}
-          </pre>
-        </div>
-      ))}
+      <DebugSurface
+        title="Log output"
+        description={snippet.path || "Matched lines for current log source."}
+        meta={[{ label: "Entries", value: entries.length }]}
+      >
+        <ChunkedTextBlock value={merged} maxCharsPerChunk={1800} maxLinesPerChunk={30} />
+      </DebugSurface>
       {snippet.truncated && (
         <Badge variant="warning" className="text-[10px]">
-          Truncated
+          Truncated at source. Narrow the log_id or filter for more detail.
         </Badge>
       )}
     </div>
@@ -725,9 +724,7 @@ function TurnMessagesViewer({
                   </span>
                 </summary>
                 <div className="border-t border-border/40 px-3 py-2">
-                  <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
-                    {content || "(empty)"}
-                  </pre>
+                  <ChunkedTextBlock value={content || "(empty)"} maxCharsPerChunk={1400} maxLinesPerChunk={24} />
                   {Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0 && (
                     <div className="mt-2">
                       <JsonNode label="tool_calls" value={msg.tool_calls as unknown[]} depth={0} />
@@ -1713,9 +1710,7 @@ export default function ConversationDebugPage() {
                         </TabsContent>
                         <TabsContent value="raw">
                           <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                            <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
-                              {selectedEvent.raw || "—"}
-                            </pre>
+                            <ChunkedTextBlock value={selectedEvent.raw || "—"} maxCharsPerChunk={1700} maxLinesPerChunk={28} />
                           </div>
                         </TabsContent>
                       </Tabs>
@@ -1787,9 +1782,11 @@ export default function ConversationDebugPage() {
                       </TabsContent>
                       <TabsContent value="raw">
                         <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                          <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
-                            {JSON.stringify(sessionSnapshot, null, 2)}
-                          </pre>
+                          <ChunkedTextBlock
+                            value={JSON.stringify(sessionSnapshot, null, 2)}
+                            maxCharsPerChunk={1800}
+                            maxLinesPerChunk={28}
+                          />
                         </div>
                       </TabsContent>
                     </Tabs>
@@ -1866,9 +1863,11 @@ export default function ConversationDebugPage() {
                       </TabsContent>
                       <TabsContent value="raw">
                         <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                          <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
-                            {JSON.stringify(turnSnapshot, null, 2)}
-                          </pre>
+                          <ChunkedTextBlock
+                            value={JSON.stringify(turnSnapshot, null, 2)}
+                            maxCharsPerChunk={1800}
+                            maxLinesPerChunk={28}
+                          />
                         </div>
                       </TabsContent>
                     </Tabs>
@@ -1912,9 +1911,7 @@ export default function ConversationDebugPage() {
                                 </span>
                               </summary>
                               <div className="border-t border-border/40 px-3 py-2">
-                                <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
-                                  {content}
-                                </pre>
+                                <ChunkedTextBlock value={content} maxCharsPerChunk={1600} maxLinesPerChunk={26} />
                               </div>
                             </details>
                           );
@@ -1991,9 +1988,13 @@ export default function ConversationDebugPage() {
                           </div>
                           {memorySnapshot.long_term ? (
                             <ScrollArea className="h-[200px]">
-                              <pre className="whitespace-pre-wrap break-words px-3 py-2 text-xs text-foreground/80">
-                                {memorySnapshot.long_term}
-                              </pre>
+                              <div className="px-3 py-2">
+                                <ChunkedTextBlock
+                                  value={memorySnapshot.long_term}
+                                  maxCharsPerChunk={1700}
+                                  maxLinesPerChunk={28}
+                                />
+                              </div>
                             </ScrollArea>
                           ) : (
                             <p className="px-3 py-2 text-xs text-muted-foreground">
@@ -2019,9 +2020,7 @@ export default function ConversationDebugPage() {
                                       <span className="text-muted-foreground">{entry.path}</span>
                                     </summary>
                                     <div className="border-t border-border/40 px-3 py-2">
-                                      <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
-                                        {entry.content}
-                                      </pre>
+                                      <ChunkedTextBlock value={entry.content} maxCharsPerChunk={1700} maxLinesPerChunk={28} />
                                     </div>
                                   </details>
                                 ))}

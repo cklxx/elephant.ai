@@ -8,6 +8,7 @@ import { ImagePreview } from '@/components/ui/image-preview';
 import { VideoPreview } from '@/components/ui/video-preview';
 import { ArtifactPreviewCard } from '../ArtifactPreviewCard';
 import { userFacingToolResultText } from '@/lib/toolPresentation';
+import { ChunkedTextBlock } from '@/components/debug/DebugSurface';
 
 function fallbackCopy(text: string) {
   try {
@@ -69,7 +70,7 @@ export function CopyButton({
 
 export function SimplePanel({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2.5 py-1 text-[12px] text-foreground/80">
+    <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-background/70 p-3 text-[12px] text-foreground/85 shadow-sm">
       {children}
     </div>
   );
@@ -78,7 +79,7 @@ export function SimplePanel({ children }: { children: ReactNode }) {
 export function PanelHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <p className="text-xs font-medium text-muted-foreground border-l-2 border-primary/20 pl-2">{title}</p>
+      <p className="text-xs font-semibold text-foreground/85">{title}</p>
       {action}
     </div>
   );
@@ -98,11 +99,7 @@ export function ToolArgumentsPanel({
   return (
     <SimplePanel>
       <PanelHeader title={label} action={<CopyButton label={copyLabel} successLabel={copiedLabel} value={args} />} />
-      <div className="max-w-[600px]">
-        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-background px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/85 shadow-sm">
-          {args}
-        </pre>
-      </div>
+      <ChunkedTextBlock value={args} maxCharsPerChunk={1600} maxLinesPerChunk={32} />
     </SimplePanel>
   );
 }
@@ -136,7 +133,9 @@ export function ToolResultPanel({
     return (
       <SimplePanel>
         <PanelHeader title={errorTitle} action={<CopyButton label={copyErrorLabel} successLabel={copiedLabel} value={error} />} />
-        <p className="text-sm font-semibold text-destructive">{error}</p>
+        <div className="rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs leading-relaxed text-amber-900">
+          {error}
+        </div>
       </SimplePanel>
     );
   }
@@ -162,6 +161,9 @@ export function ToolResultPanel({
   const textSegments = segments
     ? segments.filter((segment) => segment.type === 'text' && segment.text && segment.text.length > 0)
     : [];
+  const joinedText = textSegments.length > 0
+    ? textSegments.map((segment) => segment.text ?? '').join('')
+    : formatted;
   const mediaSegments = segments
     ? segments.filter(
         (segment) =>
@@ -186,15 +188,9 @@ export function ToolResultPanel({
     <SimplePanel>
       <PanelHeader title={resultTitle} action={<CopyButton label={copyLabel} successLabel={copiedLabel} value={formatted} />} />
       {attachmentsAvailable ? (
-        <div className="max-w-[600px] rounded-lg border border-border/60 bg-background p-4">
-          {(textSegments.length > 0 || formatted.trim().length > 0) && (
-            <div className="max-h-80 overflow-auto whitespace-pre-wrap text-[12px] leading-relaxed text-foreground/85">
-              {textSegments.length > 0
-                ? textSegments.map((segment, index) => (
-                    <span key={`tool-result-text-${index}`}>{segment.text}</span>
-                  ))
-                : formatted}
-            </div>
+        <div className="rounded-lg border border-border/50 bg-background/80 p-3">
+          {joinedText.trim().length > 0 && (
+            <ChunkedTextBlock value={joinedText} maxCharsPerChunk={1800} maxLinesPerChunk={36} />
           )}
           {mediaSegments.length > 0 && (
             <div
@@ -259,25 +255,26 @@ export function ToolResultPanel({
           )}
         </div>
       ) : (
-        <div className="max-w-[600px]">
-          <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-background px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/85 shadow-sm">
-            {formatted}
-          </pre>
-        </div>
+        <ChunkedTextBlock value={formatted} maxCharsPerChunk={1800} maxLinesPerChunk={36} />
       )}
     </SimplePanel>
   );
 }
 
-export function ToolStreamPanel({ title, content }: { title: string; content: string }) {
+export function ToolStreamPanel({
+  title,
+  content,
+  trim = true,
+}: {
+  title: string;
+  content: string;
+  trim?: boolean;
+}) {
+  const normalized = trim ? content.trim() : content;
   return (
     <SimplePanel>
       <PanelHeader title={title} />
-      <div className="max-w-[600px]">
-        <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border border-border/40 bg-muted/20 px-4 py-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90">
-          {content.trim()}
-        </pre>
-      </div>
+      <ChunkedTextBlock value={normalized} maxCharsPerChunk={1400} maxLinesPerChunk={30} />
     </SimplePanel>
   );
 }
