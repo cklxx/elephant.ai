@@ -184,3 +184,40 @@ func TestMetricsCollector_DisabledMetrics(t *testing.T) {
 	collector.IncrementActiveSessions(ctx)
 	collector.DecrementActiveSessions(ctx)
 }
+
+func TestMetricsCollector_RecordLarkNotificationMetrics(t *testing.T) {
+	collector, err := NewMetricsCollector(MetricsConfig{
+		Enabled:        true,
+		PrometheusPort: 0,
+	})
+	require.NoError(t, err)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = collector.Shutdown(ctx)
+	}()
+
+	var notifications int
+	var blocking int
+	var statusProxy int
+	collector.SetTestHooks(MetricsTestHooks{
+		LarkNotification: func(surface, action, mode, status string, latency time.Duration) {
+			notifications++
+		},
+		LarkBlocking: func(source string, optionsCount int) {
+			blocking++
+		},
+		LarkStatusProxy: func(source string) {
+			statusProxy++
+		},
+	})
+
+	ctx := context.Background()
+	collector.RecordLarkNotification(ctx, "task_result", "reply", "milestone", "ok", 120*time.Millisecond)
+	collector.RecordLarkBlockingPrompt(ctx, "await_user_input", 2)
+	collector.RecordLarkStatusProxyQuery(ctx, "natural_language")
+
+	assert.Equal(t, 1, notifications)
+	assert.Equal(t, 1, blocking)
+	assert.Equal(t, 1, statusProxy)
+}
