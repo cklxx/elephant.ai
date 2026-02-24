@@ -26,6 +26,7 @@ import urllib.request
 
 
 _ARK_BASE = "https://ark.cn-beijing.volces.com/api/v3"
+_DEFAULT_SEEDANCE_ENDPOINT_ID = "doubao-seedance-1-0-pro-fast-251015"
 
 
 def generate(args: dict) -> dict:
@@ -34,11 +35,9 @@ def generate(args: dict) -> dict:
         return {"success": False, "error": "prompt is required"}
 
     api_key = os.environ.get("ARK_API_KEY", "")
-    endpoint = os.environ.get("SEEDANCE_ENDPOINT_ID", "")
+    endpoint = os.environ.get("SEEDANCE_ENDPOINT_ID", "").strip() or _DEFAULT_SEEDANCE_ENDPOINT_ID
     if not api_key:
         return {"success": False, "error": "ARK_API_KEY not set"}
-    if not endpoint:
-        return {"success": False, "error": "SEEDANCE_ENDPOINT_ID not set"}
 
     body = json.dumps({
         "model": endpoint,

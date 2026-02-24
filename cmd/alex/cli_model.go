@@ -177,7 +177,7 @@ func useModelWith(out io.Writer, spec string, creds runtimeconfig.CLICredentials
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
 		return fmt.Errorf("format: <provider>/<model>, e.g. codex/gpt-5.2-codex")
 	}
-	provider := normalizeCLIProvider(strings.ToLower(strings.TrimSpace(parts[0])))
+	provider := normalizeProviderID(parts[0])
 	model := strings.TrimSpace(parts[1])
 
 	cred, ok := matchCredential(creds, provider)
@@ -231,20 +231,23 @@ func clearModelWith(out io.Writer, envLookup runtimeconfig.EnvLookup) error {
 }
 
 func matchCredential(creds runtimeconfig.CLICredentials, provider string) (runtimeconfig.CLICredential, bool) {
-	provider = normalizeCLIProvider(provider)
-	codexProvider := normalizeCLIProvider(creds.Codex.Provider)
-	claudeProvider := normalizeCLIProvider(creds.Claude.Provider)
+	provider = normalizeProviderID(provider)
 
-	switch provider {
-	case codexProvider:
-		if creds.Codex.APIKey != "" {
-			return creds.Codex, true
+	candidates := []runtimeconfig.CLICredential{
+		creds.Codex,
+		creds.Claude,
+	}
+	for _, candidate := range candidates {
+		if normalizeProviderID(candidate.Provider) != provider {
+			continue
 		}
-	case claudeProvider:
-		if creds.Claude.APIKey != "" {
-			return creds.Claude, true
+		if candidate.APIKey != "" {
+			return candidate, true
 		}
-	case "llama_server":
+		return runtimeconfig.CLICredential{}, false
+	}
+
+	if provider == "llama_server" {
 		return runtimeconfig.CLICredential{
 			Provider: "llama_server",
 			Source:   "llama_server",
@@ -253,7 +256,7 @@ func matchCredential(creds runtimeconfig.CLICredentials, provider string) (runti
 	return runtimeconfig.CLICredential{}, false
 }
 
-func normalizeCLIProvider(provider string) string {
+func normalizeProviderID(provider string) string {
 	key := strings.ToLower(strings.TrimSpace(provider))
 	switch key {
 	case "claude":

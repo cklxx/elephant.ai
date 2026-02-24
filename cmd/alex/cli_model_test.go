@@ -266,6 +266,7 @@ func TestMatchCredentialFindsProviders(t *testing.T) {
 	}{
 		{"codex", true, "codex"},
 		{"anthropic", true, "anthropic"},
+		{"claude", true, "anthropic"},
 		{"llama.cpp", false, ""},
 		{"llama_server", true, "llama_server"},
 		{"unknown", false, ""},
@@ -279,6 +280,24 @@ func TestMatchCredentialFindsProviders(t *testing.T) {
 		if ok && cred.Provider != tt.wantProvider {
 			t.Errorf("matchCredential(%q): got provider=%q want=%q", tt.provider, cred.Provider, tt.wantProvider)
 		}
+	}
+}
+
+func TestMatchCredentialProviderPrecedence(t *testing.T) {
+	t.Parallel()
+	creds := runtimeconfig.CLICredentials{
+		Codex: runtimeconfig.CLICredential{
+			Provider: "anthropic",
+			APIKey:   "",
+		},
+		Claude: runtimeconfig.CLICredential{
+			Provider: "anthropic",
+			APIKey:   "sk-abc",
+		},
+	}
+
+	if _, ok := matchCredential(creds, "anthropic"); ok {
+		t.Fatalf("expected first matching provider without api key to preserve mismatch behavior")
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"alex/internal/app/subscription"
 	runtimeconfig "alex/internal/shared/config"
 	"gopkg.in/yaml.v3"
 )
@@ -262,5 +263,22 @@ func TestExecuteSetupCommandProviderWithoutAPIKeyFailsInNonInteractive(t *testin
 	}
 	if !strings.Contains(err.Error(), "--api-key is required") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestChooseSetupProviderNormalizesAlias(t *testing.T) {
+	t.Parallel()
+
+	provider, err := chooseSetupProvider(
+		strings.NewReader(""),
+		&bytes.Buffer{},
+		[]subscription.CatalogProvider{{Provider: "anthropic"}},
+		"claude",
+	)
+	if err != nil {
+		t.Fatalf("chooseSetupProvider error: %v", err)
+	}
+	if provider.Provider != "anthropic" {
+		t.Fatalf("expected anthropic provider, got %q", provider.Provider)
 	}
 }

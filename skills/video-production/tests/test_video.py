@@ -46,12 +46,22 @@ class TestGenerate:
         assert result["success"] is False
         assert "ARK_API_KEY" in result["error"]
 
-    def test_no_endpoint(self, monkeypatch):
+    def test_no_endpoint_uses_default_model(self, monkeypatch):
         monkeypatch.setenv("ARK_API_KEY", "key-123")
         monkeypatch.setenv("SEEDANCE_ENDPOINT_ID", "")
-        result = generate({"prompt": "test"})
+
+        captured = {"body": None}
+
+        def _mock_urlopen(req, timeout=0):
+            if isinstance(req, _mod.urllib.request.Request):
+                captured["body"] = json.loads(req.data.decode())
+            raise _mod.urllib.error.URLError("stop after capture")
+
+        with patch("urllib.request.urlopen", side_effect=_mock_urlopen):
+            result = generate({"prompt": "test"})
+
         assert result["success"] is False
-        assert "SEEDANCE_ENDPOINT_ID" in result["error"]
+        assert captured["body"]["model"] == "doubao-seedance-1-0-pro-fast-251015"
 
     def test_api_returns_no_videos(self, monkeypatch):
         monkeypatch.setenv("ARK_API_KEY", "key-123")

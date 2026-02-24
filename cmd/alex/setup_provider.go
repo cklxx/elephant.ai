@@ -62,7 +62,7 @@ func resolveSetupProviderSelection(
 		return setupProviderSelection{}, err
 	}
 
-	providerID := normalizeSetupProviderID(selectedProvider.Provider)
+	providerID := normalizeProviderID(selectedProvider.Provider)
 	cred, credOK := matchCredential(creds, providerID)
 	apiKey := strings.TrimSpace(input.APIKey)
 	if apiKey == "" && credOK && strings.TrimSpace(cred.APIKey) != "" {
@@ -105,7 +105,7 @@ func chooseSetupProvider(
 	providers []subscription.CatalogProvider,
 	rawProvider string,
 ) (subscription.CatalogProvider, error) {
-	provider := normalizeSetupProviderID(rawProvider)
+	provider := normalizeProviderID(rawProvider)
 	if provider == "" {
 		if !isInteractiveTerminal(in, out) {
 			return subscription.CatalogProvider{}, fmt.Errorf("--provider is required in non-interactive mode")
@@ -114,7 +114,7 @@ func chooseSetupProvider(
 	}
 
 	for _, item := range providers {
-		if normalizeSetupProviderID(item.Provider) == provider {
+		if normalizeProviderID(item.Provider) == provider {
 			return item, nil
 		}
 	}
@@ -151,16 +151,6 @@ func pickSetupDefaultModel(provider subscription.CatalogProvider, models []strin
 		}
 	}
 	return models[0]
-}
-
-func normalizeSetupProviderID(provider string) string {
-	key := strings.ToLower(strings.TrimSpace(provider))
-	switch key {
-	case "claude":
-		return "anthropic"
-	default:
-		return key
-	}
 }
 
 func promptForProviderAPIKey(
