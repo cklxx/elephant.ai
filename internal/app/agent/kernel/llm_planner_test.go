@@ -9,8 +9,9 @@ import (
 	"time"
 
 	core "alex/internal/domain/agent/ports"
-	kerneldomain "alex/internal/domain/kernel"
 	portsllm "alex/internal/domain/agent/ports/llm"
+	kerneldomain "alex/internal/domain/kernel"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -250,8 +251,7 @@ func TestLLMPlanner_Plan_Success(t *testing.T) {
 	}
 	factory := &mockPlannerFactory{client: client}
 	p := NewLLMPlanner("test-kernel", factory, LLMPlannerConfig{
-		Provider:      "openai",
-		Model:         "gpt-4o-mini",
+		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		MaxDispatches: 3,
 		Timeout:       10 * time.Second,
 	}, nil, nil)
@@ -274,8 +274,7 @@ func TestLLMPlanner_Plan_Success(t *testing.T) {
 func TestLLMPlanner_Plan_LLMError(t *testing.T) {
 	factory := &mockPlannerFactory{client: nil, err: errors.New("provider down")}
 	p := NewLLMPlanner("test-kernel", factory, LLMPlannerConfig{
-		Provider: "openai",
-		Model:    "gpt-4o-mini",
+		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		Timeout:  5 * time.Second,
 	}, nil, nil)
 
@@ -292,8 +291,7 @@ func TestLLMPlanner_Plan_ParseError_ReturnsError(t *testing.T) {
 	}
 	factory := &mockPlannerFactory{client: client}
 	p := NewLLMPlanner("test-kernel", factory, LLMPlannerConfig{
-		Provider: "openai",
-		Model:    "gpt-4o-mini",
+		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		Timeout:  5 * time.Second,
 	}, nil, nil)
 
@@ -313,8 +311,7 @@ func TestLLMPlanner_Plan_EmptyArrayResponse(t *testing.T) {
 	}
 	factory := &mockPlannerFactory{client: client}
 	p := NewLLMPlanner("test-kernel", factory, LLMPlannerConfig{
-		Provider:      "openai",
-		Model:         "gpt-4o-mini",
+		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		MaxDispatches: 3,
 		Timeout:       5 * time.Second,
 	}, nil, nil)
@@ -345,8 +342,7 @@ func TestHybridPlanner_UsesLLMWhenAvailable(t *testing.T) {
 		{AgentID: "static-agent", Prompt: "static {STATE}", Enabled: true, Priority: 5},
 	})
 	llmPlanner := NewLLMPlanner("k", factory, LLMPlannerConfig{
-		Provider:      "openai",
-		Model:         "gpt-4o-mini",
+		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		MaxDispatches: 3,
 		Timeout:       5 * time.Second,
 	}, nil, nil)
@@ -371,8 +367,7 @@ func TestHybridPlanner_FallsBackOnLLMError(t *testing.T) {
 		{AgentID: "static-agent", Prompt: "static {STATE}", Enabled: true, Priority: 5},
 	})
 	llmPlanner := NewLLMPlanner("k", factory, LLMPlannerConfig{
-		Provider: "openai",
-		Model:    "gpt-4o-mini",
+		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		Timeout:  5 * time.Second,
 	}, nil, nil)
 
@@ -400,8 +395,7 @@ func TestHybridPlanner_FallsBackOnEmptyLLMPlan(t *testing.T) {
 		{AgentID: "static-agent", Prompt: "static {STATE}", Enabled: true, Priority: 5},
 	})
 	llmPlanner := NewLLMPlanner("k", factory, LLMPlannerConfig{
-		Provider:      "openai",
-		Model:         "gpt-4o-mini",
+		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		MaxDispatches: 3,
 		Timeout:       5 * time.Second,
 	}, nil, nil)
@@ -496,7 +490,7 @@ func TestLLMPlanner_BuildPlanningPrompt_ContainsState(t *testing.T) {
 	prompt := p.buildPlanningPrompt("# My State\nactive", "# My Goal\nbuild site", map[string]kerneldomain.Dispatch{
 		"research": {AgentID: "research", Status: kerneldomain.DispatchDone, UpdatedAt: time.Now().Add(-10 * time.Minute)},
 	})
-	if !containsAll(prompt, "My State", "My Goal", "research", "done", "最多派发: 3") {
+	if !containsAll(prompt, "My State", "My Goal", "research", "done", "Max dispatches this cycle: 3") {
 		t.Errorf("prompt missing expected sections: %q", prompt)
 	}
 }
@@ -504,7 +498,7 @@ func TestLLMPlanner_BuildPlanningPrompt_ContainsState(t *testing.T) {
 func TestLLMPlanner_BuildPlanningPrompt_EmptyHistory(t *testing.T) {
 	p := testLLMPlanner(LLMPlannerConfig{MaxDispatches: 5}, nil)
 	prompt := p.buildPlanningPrompt("state", "", nil)
-	if !containsAll(prompt, "无历史记录", "state") {
+	if !containsAll(prompt, "no history", "state") {
 		t.Errorf("prompt missing expected content: %q", prompt)
 	}
 }

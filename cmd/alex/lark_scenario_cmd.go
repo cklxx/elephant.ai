@@ -256,10 +256,7 @@ func runHTTPScenarios(ctx context.Context, scenarios []*larktesting.Scenario, fa
 func runHTTPScenario(ctx context.Context, scenario *larktesting.Scenario, opts larkScenarioHTTPRunOptions) *larktesting.ScenarioResult {
 	start := time.Now()
 	result := &larktesting.ScenarioResult{
-		Name:        scenario.Name,
-		Description: scenario.Description,
-		Tags:        append([]string(nil), scenario.Tags...),
-		Eval:        scenario.Eval,
+		Name: scenario.Name,
 	}
 
 	if opts.httpClient == nil {
@@ -280,7 +277,6 @@ func runHTTPScenario(ctx context.Context, scenario *larktesting.Scenario, opts l
 		turnStart := time.Now()
 		tr := larktesting.TurnResult{
 			TurnIndex: i,
-			Input:     turn.Content,
 		}
 
 		if turn.MockResponse != nil {
@@ -294,11 +290,13 @@ func runHTTPScenario(ctx context.Context, scenario *larktesting.Scenario, opts l
 
 		if len(tr.Errors) == 0 {
 			injectReq := larkInjectRequest{
-				Text:           turn.Content,
-				ChatID:         strings.TrimSpace(turn.ChatID),
-				ChatType:       defaultString(strings.TrimSpace(turn.ChatType), "p2p"),
-				SenderID:       defaultString(strings.TrimSpace(turn.SenderID), defaultLarkInjectSenderID),
-				TimeoutSeconds: opts.timeoutSeconds,
+				Text:               turn.Content,
+				ChatID:             strings.TrimSpace(turn.ChatID),
+				ChatType:           defaultString(strings.TrimSpace(turn.ChatType), "p2p"),
+				SenderID:           defaultString(strings.TrimSpace(turn.SenderID), defaultLarkInjectSenderID),
+				TimeoutSeconds:     opts.timeoutSeconds,
+				AutoReply:          turn.AutoReply,
+				MaxAutoReplyRounds: turn.MaxAutoReplyRounds,
 			}
 
 			injectResp, err := postLarkInject(ctx, opts.httpClient, opts.endpoint, injectReq)
