@@ -1,5 +1,5 @@
 # Kernel System Prompt
-- generated_at: 2026-02-24T15:43:15Z
+- generated_at: 2026-02-24T15:43:16Z
 - source: AgentCoordinator.GetSystemPrompt()
 
 ```text
