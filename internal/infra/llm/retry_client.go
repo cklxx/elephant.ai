@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/infra/backoff"
 	alexerrors "alex/internal/shared/errors"
 	"alex/internal/shared/logging"
 )
@@ -262,17 +263,8 @@ func (c *retryClient) calculateBackoff(attempt int) time.Duration {
 		jitter = 0.25
 	}
 
-	// Exponential backoff: baseDelay * 2^attempt
-	delay := float64(baseDelay) * float64(int(1)<<attempt)
-	if delay > float64(maxDelay) {
-		delay = float64(maxDelay)
-	}
-
-	// Add jitter: ±jitter%
-	jitterRange := delay * jitter
-	delay = delay - jitterRange + (2 * jitterRange * float64(time.Now().UnixNano()%1000) / 1000)
-
-	return time.Duration(delay)
+	delay := backoff.ExponentialClamp(baseDelay, maxDelay, attempt)
+	return backoff.ScaleJitter(delay, jitter, float64(time.Now().UnixNano()%1000)/1000)
 }
 
 func (c *retryClient) retryDelay(attempt int, err error) time.Duration {

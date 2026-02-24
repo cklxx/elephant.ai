@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/infra/backoff"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 )
@@ -32,6 +33,7 @@ type ProcessManager struct {
 	restartChan  chan struct{}
 	stopChan     chan struct{}
 	waitDone     chan error
+	waitFn       func(context.Context, time.Duration) error
 }
 
 // ProcessConfig configures the MCP server process
@@ -231,25 +233,18 @@ func (pm *ProcessManager) Restart(ctx context.Context, maxAttempts int) error {
 		pm.logger.Error("Failed to stop process before restart: %v", err)
 	}
 
-	// Exponential backoff: 1s, 2s, 4s, 8s, 16s
-	backoff := time.Second
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		pm.logger.Info("Restart attempt %d/%d (backoff: %v)", attempt, maxAttempts, backoff)
+		delay := backoff.ExponentialClamp(time.Second, 16*time.Second, attempt-1)
+		pm.logger.Info("Restart attempt %d/%d (backoff: %v)", attempt, maxAttempts, delay)
 
 		// Wait for backoff period
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("restart cancelled: %w", ctx.Err())
-		case <-time.After(backoff):
+		if err := pm.waitForBackoff(ctx, delay); err != nil {
+			return err
 		}
 
 		// Try to start
 		if err := pm.Start(ctx); err != nil {
 			pm.logger.Error("Restart attempt %d failed: %v", attempt, err)
-			backoff *= 2
-			if backoff > 16*time.Second {
-				backoff = 16 * time.Second
-			}
 			continue
 		}
 
@@ -258,6 +253,24 @@ func (pm *ProcessManager) Restart(ctx context.Context, maxAttempts int) error {
 	}
 
 	return fmt.Errorf("failed to restart after %d attempts", maxAttempts)
+}
+
+func (pm *ProcessManager) waitForBackoff(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	if pm.waitFn != nil {
+		return pm.waitFn(ctx, delay)
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("restart cancelled: %w", ctx.Err())
+	case <-timer.C:
+		return nil
+	}
 }
 
 // IsRunning checks if the process is currently running

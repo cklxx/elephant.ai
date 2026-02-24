@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -83,5 +84,33 @@ func TestProcessManager_InheritsEnvironmentWhenOverridesProvided(t *testing.T) {
 	case <-ctx.Done():
 		_ = pm.Stop(500 * time.Millisecond)
 		t.Fatalf("timed out waiting for process exit: %v", ctx.Err())
+	}
+}
+
+func TestProcessManagerRestartBackoffProgression(t *testing.T) {
+	pm := NewProcessManager(ProcessConfig{
+		Command: "__definitely_missing_command_for_backoff_test__",
+	})
+
+	var waits []time.Duration
+	pm.waitFn = func(ctx context.Context, delay time.Duration) error {
+		waits = append(waits, delay)
+		return nil
+	}
+
+	err := pm.Restart(context.Background(), 5)
+	if err == nil {
+		t.Fatalf("expected restart to fail when command is missing")
+	}
+
+	want := []time.Duration{
+		1 * time.Second,
+		2 * time.Second,
+		4 * time.Second,
+		8 * time.Second,
+		16 * time.Second,
+	}
+	if !reflect.DeepEqual(waits, want) {
+		t.Fatalf("waits = %v, want %v", waits, want)
 	}
 }

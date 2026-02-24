@@ -195,3 +195,29 @@ func TestRetryClientRetryAfterRespectsMaxDelay(t *testing.T) {
 	delay := rc.retryDelay(0, &alexerrors.TransientError{Err: errors.New("429"), RetryAfter: 9})
 	require.Equal(t, 2*time.Second, delay)
 }
+
+func TestRetryClientCalculateBackoffClampsExponentialDelay(t *testing.T) {
+	rc := &retryClient{
+		retryConfig: alexerrors.RetryConfig{
+			BaseDelay: 100 * time.Millisecond,
+			MaxDelay:  250 * time.Millisecond,
+		},
+	}
+
+	delay0 := rc.calculateBackoff(0)
+	require.GreaterOrEqual(t, delay0, 75*time.Millisecond)
+	require.LessOrEqual(t, delay0, 125*time.Millisecond)
+
+	delay1 := rc.calculateBackoff(1)
+	require.GreaterOrEqual(t, delay1, 150*time.Millisecond)
+	require.LessOrEqual(t, delay1, 250*time.Millisecond)
+
+	// Attempts 2+ are clamped to MaxDelay before jitter is applied.
+	delay2 := rc.calculateBackoff(2)
+	require.GreaterOrEqual(t, delay2, 187500*time.Microsecond)
+	require.LessOrEqual(t, delay2, 312500*time.Microsecond)
+
+	delay3 := rc.calculateBackoff(3)
+	require.GreaterOrEqual(t, delay3, 187500*time.Microsecond)
+	require.LessOrEqual(t, delay3, 312500*time.Microsecond)
+}
