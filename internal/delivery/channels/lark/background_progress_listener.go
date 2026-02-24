@@ -80,6 +80,8 @@ type backgroundProgressListener struct {
 	now       func() time.Time
 	interval  time.Duration
 	window    time.Duration
+	policy    notificationPolicy
+	composer  *notificationComposer
 
 	mu             sync.Mutex
 	tasks          map[string]*bgTaskTracker
@@ -110,6 +112,7 @@ func newBackgroundProgressListener(ctx context.Context, inner agent.EventListene
 		tasks:          make(map[string]*bgTaskTracker),
 		pollerInterval: 30 * time.Second,
 		doneCh:         make(chan struct{}),
+		policy:         notificationPolicy{},
 	}
 }
 
@@ -246,7 +249,18 @@ func (l *backgroundProgressListener) onBackgroundDispatched(env *domain.Workflow
 
 	// Send initial message (reply to original message when replyToID is provided).
 	text := l.buildHumanHeader(tracker, "正在后台处理中…")
-	msgID, err := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(text))
+	if l.composer != nil {
+		text = l.composer.Background("running", text)
+	}
+	msgID, err := l.g.dispatchNotification(
+		l.ctx,
+		l.chatID,
+		l.replyToID,
+		"text",
+		textContent(text),
+		"background_progress",
+		notificationModeMilestone.String(),
+	)
 	if err != nil {
 		l.logger.Warn("Lark background progress initial send failed: %v", err)
 		return
@@ -282,6 +296,10 @@ func (l *backgroundProgressListener) runTicker(t *bgTaskTracker) {
 }
 
 func (l *backgroundProgressListener) onExternalProgress(env *domain.WorkflowEventEnvelope) {
+	if !l.policy.allowBackgroundProgress(env) {
+		return
+	}
+
 	taskID := asString(env.Payload["task_id"])
 	if taskID == "" {
 		taskID = strings.TrimSpace(env.NodeID)
@@ -374,6 +392,7 @@ func (l *backgroundProgressListener) onExternalInputRequested(env *domain.Workfl
 	t.mu.Unlock()
 
 	l.flush(t, true)
+	l.g.recordBlockingPrompt(l.ctx, "background_external_input", countInputOptions(env.Payload["options"]))
 }
 
 func (l *backgroundProgressListener) onBackgroundCompleted(env *domain.WorkflowEventEnvelope) {
@@ -536,10 +555,22 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 	}
 
 	text := strings.TrimRight(b.String(), "\n")
+	if l.composer != nil {
+		text = l.composer.Background(status, text)
+	}
+	mode := notificationModeForBackgroundStatus(status).String()
 
-	if err := l.g.updateMessage(l.ctx, messageID, text); err != nil {
+	if err := l.g.updateNotification(l.ctx, messageID, text, "background_progress", mode); err != nil {
 		// If updating fails (some chats restrict updates for replies), fall back to sending a new reply.
-		newID, sendErr := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(text))
+		newID, sendErr := l.g.dispatchNotification(
+			l.ctx,
+			l.chatID,
+			l.replyToID,
+			"text",
+			textContent(text),
+			"background_progress",
+			mode,
+		)
 		if sendErr != nil {
 			l.logger.Warn("Lark background progress update failed: %v", err)
 			return
@@ -694,6 +725,17 @@ func asStringSlice(v any) []string {
 	}
 }
 
+func countInputOptions(v any) int {
+	switch x := v.(type) {
+	case []any:
+		return len(x)
+	case []map[string]any:
+		return len(x)
+	default:
+		return 0
+	}
+}
+
 func normalizeMergeStatus(status string) string {
 	status = strings.TrimSpace(status)
 	switch strings.ToLower(status) {
@@ -738,6 +780,17 @@ func isCodeAgentType(agentType string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func notificationModeForBackgroundStatus(status string) notificationMode {
+	switch strings.TrimSpace(status) {
+	case "waiting_input":
+		return notificationModeBlocking
+	case "running":
+		return notificationModeSilentUpdate
+	default:
+		return notificationModeMilestone
 	}
 }
 

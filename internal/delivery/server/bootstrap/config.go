@@ -90,6 +90,9 @@ type LarkGatewayConfig struct {
 	FinalAnswerReviewReactEmoji   string
 	ShowToolProgress              bool
 	ShowPlanClarifyMessages       bool
+	NotificationPolicyV2          bool
+	NotificationComposeV2         bool
+	NotificationMetricsV2         bool
 	AutoChatContextSize           int
 	PlanReviewEnabled             bool
 	PlanReviewRequireConfirmation bool
@@ -237,6 +240,7 @@ func LoadConfig() (ConfigResult, error) {
 				},
 				ReactEmoji:                  "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
 				AutoChatContextSize:         20,
+				NotificationMetricsV2:       true,
 				ActiveSlotTTL:               6 * time.Hour,
 				ActiveSlotMaxEntries:        2048,
 				PendingInputRelayTTL:        30 * time.Minute,
@@ -405,6 +409,15 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if larkCfg.ShowPlanClarifyMessages != nil {
 		cfg.Channels.Lark.ShowPlanClarifyMessages = *larkCfg.ShowPlanClarifyMessages
+	}
+	if larkCfg.NotificationPolicyV2 != nil {
+		cfg.Channels.Lark.NotificationPolicyV2 = *larkCfg.NotificationPolicyV2
+	}
+	if larkCfg.NotificationComposeV2 != nil {
+		cfg.Channels.Lark.NotificationComposeV2 = *larkCfg.NotificationComposeV2
+	}
+	if larkCfg.NotificationMetricsV2 != nil {
+		cfg.Channels.Lark.NotificationMetricsV2 = *larkCfg.NotificationMetricsV2
 	}
 	if larkCfg.AutoChatContextSize != nil && *larkCfg.AutoChatContextSize > 0 {
 		cfg.Channels.Lark.AutoChatContextSize = *larkCfg.AutoChatContextSize

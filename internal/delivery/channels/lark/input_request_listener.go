@@ -17,12 +17,13 @@ import (
 // When a background task (CC/Codex) requests permission or input, it formats a numbered
 // options list and waits for the user's reply.
 type inputRequestListener struct {
-	inner   agentports.EventListener
-	ctx     context.Context
-	g       *Gateway
-	chatID  string
-	replyTo string
-	logger  logging.Logger
+	inner    agentports.EventListener
+	ctx      context.Context
+	g        *Gateway
+	chatID   string
+	replyTo  string
+	logger   logging.Logger
+	composer *notificationComposer
 
 	mu     sync.Mutex
 	closed bool
@@ -252,9 +253,22 @@ func (l *inputRequestListener) onInputRequested(env *domain.WorkflowEventEnvelop
 
 	// Format and send the request to Lark
 	text := l.formatInputRequest(taskID, agentType, summary, reqType, options)
-	if _, err := l.g.dispatchMessage(l.ctx, l.chatID, l.replyTo, "text", textContent(text)); err != nil {
-		l.logger.Warn("Input request dispatch failed: %v", err)
+	if l.composer != nil {
+		text = l.composer.InputRequest(text)
 	}
+	if _, err := l.g.dispatchNotification(
+		l.ctx,
+		l.chatID,
+		l.replyTo,
+		"text",
+		textContent(text),
+		"input_request",
+		notificationModeBlocking.String(),
+	); err != nil {
+		l.logger.Warn("Input request dispatch failed: %v", err)
+		return
+	}
+	l.g.recordBlockingPrompt(l.ctx, "external_input_request", len(options))
 }
 
 // formatInputRequest formats an input request as a numbered options text message.

@@ -359,6 +359,9 @@ type LarkChannelConfig struct {
 	MemoryEnabled                 *bool                  `json:"memory_enabled" yaml:"memory_enabled"`
 	ShowToolProgress              *bool                  `json:"show_tool_progress" yaml:"show_tool_progress"`
 	ShowPlanClarifyMessages       *bool                  `json:"show_plan_clarify_messages" yaml:"show_plan_clarify_messages"`
+	NotificationPolicyV2          *bool                  `json:"notification_policy_v2" yaml:"notification_policy_v2"`
+	NotificationComposeV2         *bool                  `json:"notification_compose_v2" yaml:"notification_compose_v2"`
+	NotificationMetricsV2         *bool                  `json:"notification_metrics_v2" yaml:"notification_metrics_v2"`
 	AutoChatContextSize           *int                   `json:"auto_chat_context_size" yaml:"auto_chat_context_size"`
 	PlanReviewEnabled             *bool                  `json:"plan_review_enabled" yaml:"plan_review_enabled"`
 	PlanReviewRequireConfirmation *bool                  `json:"plan_review_require_confirmation" yaml:"plan_review_require_confirmation"`

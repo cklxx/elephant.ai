@@ -191,6 +191,39 @@ channels:
 	}
 }
 
+func TestLoadConfig_LarkNotificationV2Flags(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+channels:
+  lark:
+    notification_policy_v2: true
+    notification_compose_v2: true
+    notification_metrics_v2: false
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+
+	cr, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	lark := cr.Config.Channels.Lark
+	if !lark.NotificationPolicyV2 {
+		t.Fatalf("expected notification policy v2 enabled")
+	}
+	if !lark.NotificationComposeV2 {
+		t.Fatalf("expected notification composer v2 enabled")
+	}
+	if lark.NotificationMetricsV2 {
+		t.Fatalf("expected notification metrics v2 disabled")
+	}
+}
+
 func TestLoadConfig_ServerTaskExecutionOverrides(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	configContent := []byte(`

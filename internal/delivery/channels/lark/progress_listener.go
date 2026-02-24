@@ -43,22 +43,36 @@ type progressListener struct {
 	logger logging.Logger
 	ctx    context.Context
 	now    func() time.Time
+	policy notificationPolicy
 
-	mu        sync.Mutex
-	tools     []*toolStatus          // ordered by arrival
-	toolIndex map[string]*toolStatus // callID → status
-	messageID string                 // set after first send
-	dirty     bool                   // pending changes since last flush
-	timer     *time.Timer            // rate-limit timer
-	lastFlush time.Time
-	closed    bool
-	iteration int  // current ReAct iteration count
+	composer *notificationComposer
+
+	mu         sync.Mutex
+	tools      []*toolStatus          // ordered by arrival
+	toolIndex  map[string]*toolStatus // callID → status
+	messageID  string                 // set after first send
+	dirty      bool                   // pending changes since last flush
+	timer      *time.Timer            // rate-limit timer
+	lastFlush  time.Time
+	closed     bool
+	iteration  int  // current ReAct iteration count
 	nodeActive bool // true when in thinking phase (no active tools)
 }
 
 // newProgressListener creates a progress listener that delegates all events
 // to inner while intercepting tool lifecycle events to display progress.
 func newProgressListener(ctx context.Context, inner agent.EventListener, sender progressSender, logger logging.Logger) *progressListener {
+	return newProgressListenerWithPolicy(ctx, inner, sender, logger, notificationPolicy{}, nil)
+}
+
+func newProgressListenerWithPolicy(
+	ctx context.Context,
+	inner agent.EventListener,
+	sender progressSender,
+	logger logging.Logger,
+	policy notificationPolicy,
+	composer *notificationComposer,
+) *progressListener {
 	return &progressListener{
 		inner:     inner,
 		sender:    sender,
@@ -66,6 +80,8 @@ func newProgressListener(ctx context.Context, inner agent.EventListener, sender 
 		ctx:       ctx,
 		now:       time.Now,
 		toolIndex: make(map[string]*toolStatus),
+		policy:    policy,
+		composer:  composer,
 	}
 }
 
@@ -107,6 +123,10 @@ func (p *progressListener) onUnifiedEvent(e *domain.Event) {
 }
 
 func (p *progressListener) onEventNodeStarted(e *domain.Event) {
+	if !p.policy.allowProgressEvent(types.EventNodeStarted) {
+		return
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -179,6 +199,10 @@ func (p *progressListener) onEnvelope(e *domain.WorkflowEventEnvelope) {
 }
 
 func (p *progressListener) onEnvelopeNodeStarted(e *domain.WorkflowEventEnvelope) {
+	if !p.policy.allowProgressEvent(types.EventNodeStarted) {
+		return
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -426,16 +450,28 @@ func (p *progressListener) buildText() string {
 
 	// If there's an active tool, show its phrase.
 	if activeTool != nil {
-		return toolPhrase(activeTool.toolName, len(p.tools))
+		text := toolPhrase(activeTool.toolName, len(p.tools))
+		if p.composer != nil {
+			return p.composer.Progress(text)
+		}
+		return text
 	}
 
 	// All tools done — if we have tools, show summarizing phrase.
 	if len(p.tools) > 0 {
-		return pickPhrase(summarizingPhrases, len(p.tools))
+		text := pickPhrase(summarizingPhrases, len(p.tools))
+		if p.composer != nil {
+			return p.composer.Progress(text)
+		}
+		return text
 	}
 
 	// No tools at all — pure thinking phase.
-	return pickPhrase(thinkingPhrases, p.iteration)
+	text := pickPhrase(thinkingPhrases, p.iteration)
+	if p.composer != nil {
+		return p.composer.Progress(text)
+	}
+	return text
 }
 
 func (p *progressListener) clock() time.Time {
@@ -454,9 +490,23 @@ type larkProgressSender struct {
 }
 
 func (s *larkProgressSender) SendProgress(ctx context.Context, text string) (string, error) {
-	return s.gateway.dispatchMessage(ctx, s.chatID, replyTarget(s.messageID, false), "text", textContent(text))
+	return s.gateway.dispatchNotification(
+		ctx,
+		s.chatID,
+		replyTarget(s.messageID, false),
+		"text",
+		textContent(text),
+		"foreground_progress",
+		notificationModeMilestone.String(),
+	)
 }
 
 func (s *larkProgressSender) UpdateProgress(ctx context.Context, messageID, text string) error {
-	return s.gateway.updateMessage(ctx, messageID, text)
+	return s.gateway.updateNotification(
+		ctx,
+		messageID,
+		text,
+		"foreground_progress",
+		notificationModeMilestone.String(),
+	)
 }
