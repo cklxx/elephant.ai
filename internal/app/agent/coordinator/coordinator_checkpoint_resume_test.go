@@ -37,6 +37,10 @@ func TestCoordinatorResumeFromCheckpoint(t *testing.T) {
 	}
 
 	llm := &mocks.MockLLMClient{CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+		// Allow async pre-analysis calls (they run in a background goroutine).
+		if intent, _ := req.Metadata["intent"].(string); intent == "task_preanalysis" {
+			return &ports.CompletionResponse{Content: "{}"}, nil
+		}
 		t.Fatalf("LLM should not be called when resuming a completed checkpoint")
 		return nil, errors.New("unexpected LLM call")
 	}}

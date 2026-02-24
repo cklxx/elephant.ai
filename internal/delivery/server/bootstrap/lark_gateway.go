@@ -169,7 +169,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 
 	if container.HasLLMFactory() {
-		gateway.SetLLMFactory(container.LLMFactory(), container.SmallLLMProfile())
+		gateway.SetLLMFactory(container.LLMFactory(), container.DefaultLLMProfile())
 	}
 
 	taskStore, err := buildLarkTaskStore(ctx, gatewayCfg)

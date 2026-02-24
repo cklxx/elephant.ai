@@ -66,6 +66,10 @@ func (c *capturingListener) envelopes(eventName string) []*domain.WorkflowEventE
 func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 	callCount := 0
 	llm := &mocks.MockLLMClient{CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+		// Allow async pre-analysis calls (they run in a background goroutine).
+		if intent, _ := req.Metadata["intent"].(string); intent == "task_preanalysis" {
+			return &ports.CompletionResponse{Content: "{}"}, nil
+		}
 		callCount++
 		switch callCount {
 		case 1:
@@ -201,6 +205,10 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 func TestExecuteTaskInjectsSchedulerIntoToolContext(t *testing.T) {
 	callCount := 0
 	llmClient := &mocks.MockLLMClient{CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+		// Allow async pre-analysis calls (they run in a background goroutine).
+		if intent, _ := req.Metadata["intent"].(string); intent == "task_preanalysis" {
+			return &ports.CompletionResponse{Content: "{}"}, nil
+		}
 		callCount++
 		if callCount == 1 {
 			return &ports.CompletionResponse{

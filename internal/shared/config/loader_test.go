@@ -30,9 +30,6 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.LLMProvider != "mock" {
 		t.Fatalf("expected provider to fall back to mock without api key, got %q", cfg.LLMProvider)
 	}
-	if cfg.LLMSmallProvider != "mock" {
-		t.Fatalf("expected small model provider to fall back to mock without api key, got %q", cfg.LLMSmallProvider)
-	}
 	if cfg.TemperatureProvided {
 		t.Fatalf("expected temperature to be marked as not provided")
 	}
@@ -114,8 +111,6 @@ func TestLoadFromFile(t *testing.T) {
 runtime:
   llm_provider: "openai"
   llm_model: "gpt-4o"
-  llm_small_provider: "openai"
-  llm_small_model: "gpt-4o-mini"
   llm_vision_model: "gpt-4o-mini"
   api_key: "sk-test"
   acp_executor_addr: "127.0.0.1:18088"
@@ -179,9 +174,6 @@ runtime:
 	}
 	if cfg.LLMProvider != "openai" || cfg.LLMModel != "gpt-4o" {
 		t.Fatalf("unexpected model/provider from file: %#v", cfg)
-	}
-	if cfg.LLMSmallProvider != "openai" || cfg.LLMSmallModel != "gpt-4o-mini" {
-		t.Fatalf("unexpected small model from file: provider=%s model=%s", cfg.LLMSmallProvider, cfg.LLMSmallModel)
 	}
 	if cfg.LLMVisionModel != "gpt-4o-mini" {
 		t.Fatalf("expected llm_vision_model from file, got %q", cfg.LLMVisionModel)
@@ -287,9 +279,6 @@ runtime:
 	}
 	if meta.Source("llm_vision_model") != SourceFile {
 		t.Fatalf("expected vision model source from file, got %s", meta.Source("llm_vision_model"))
-	}
-	if meta.Source("llm_small_provider") != SourceFile || meta.Source("llm_small_model") != SourceFile {
-		t.Fatalf("expected small model source from file")
 	}
 	if meta.Source("seedream_text_endpoint_id") != SourceFile || meta.Source("seedream_image_endpoint_id") != SourceFile {
 		t.Fatalf("expected seedream endpoints source from file")

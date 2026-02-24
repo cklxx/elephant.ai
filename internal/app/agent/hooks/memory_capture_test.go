@@ -198,7 +198,7 @@ func TestMemoryCaptureHook_FallbackIncludesHabitSignals(t *testing.T) {
 	}
 }
 
-func TestMemoryCaptureHook_PrefersSmallModel(t *testing.T) {
+func TestMemoryCaptureHook_UsesConfiguredModel(t *testing.T) {
 	root := t.TempDir()
 	engine := memory.NewMarkdownEngine(root)
 	if err := engine.EnsureSchema(context.Background()); err != nil {
@@ -208,7 +208,7 @@ func TestMemoryCaptureHook_PrefersSmallModel(t *testing.T) {
 	factory := &stubLLMFactory{client: llm}
 	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
 		Enabled: true,
-		Profile: runtimeconfig.LLMProfile{Provider: "main-provider", Model: "small-model"},
+		Profile: runtimeconfig.LLMProfile{Provider: "main-provider", Model: "default-model"},
 	})
 	ctx := appcontext.WithMemoryPolicy(context.Background(), appcontext.MemoryPolicy{
 		Enabled:     true,
@@ -221,8 +221,8 @@ func TestMemoryCaptureHook_PrefersSmallModel(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("OnTaskCompleted: %v", err)
 	}
-	if factory.lastModel != "small-model" {
-		t.Fatalf("expected small model, got %q", factory.lastModel)
+	if factory.lastModel != "default-model" {
+		t.Fatalf("expected default model, got %q", factory.lastModel)
 	}
 	if factory.lastProvider != "main-provider" {
 		t.Fatalf("expected provider main-provider, got %q", factory.lastProvider)
@@ -271,7 +271,7 @@ func TestMemoryCaptureHook_PrefersPinnedSelectionFromContext(t *testing.T) {
 	factory := &stubLLMFactory{client: llm}
 	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
 		Enabled: true,
-		Profile: runtimeconfig.LLMProfile{Provider: "small-provider", Model: "small-model", APIKey: "main-key"},
+		Profile: runtimeconfig.LLMProfile{Provider: "default-provider", Model: "default-model", APIKey: "main-key"},
 	})
 	ctx := appcontext.WithMemoryPolicy(context.Background(), appcontext.MemoryPolicy{
 		Enabled:     true,

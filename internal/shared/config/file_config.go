@@ -24,8 +24,6 @@ type FileConfig struct {
 type RuntimeFileConfig struct {
 	LLMProvider                string                    `yaml:"llm_provider"`
 	LLMModel                   string                    `yaml:"llm_model"`
-	LLMSmallProvider           string                    `yaml:"llm_small_provider"`
-	LLMSmallModel              string                    `yaml:"llm_small_model"`
 	LLMVisionModel             string                    `yaml:"llm_vision_model"`
 	APIKey                     string                    `yaml:"api_key"`
 	ArkAPIKey                  string                    `yaml:"ark_api_key"`

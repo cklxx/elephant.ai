@@ -15,8 +15,6 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	setEnvString(lookup, meta, "ARK_API_KEY", "ark_api_key", func(value string) { cfg.ArkAPIKey = value })
 	setEnvString(lookup, meta, "LLM_PROVIDER", "llm_provider", func(value string) { cfg.LLMProvider = value })
 	setEnvString(lookup, meta, "LLM_MODEL", "llm_model", func(value string) { cfg.LLMModel = value })
-	setEnvString(lookup, meta, "LLM_SMALL_PROVIDER", "llm_small_provider", func(value string) { cfg.LLMSmallProvider = value })
-	setEnvString(lookup, meta, "LLM_SMALL_MODEL", "llm_small_model", func(value string) { cfg.LLMSmallModel = value })
 	setEnvString(lookup, meta, "LLM_VISION_MODEL", "llm_vision_model", func(value string) { cfg.LLMVisionModel = value })
 	setEnvString(lookup, meta, "LLM_BASE_URL", "base_url", func(value string) { cfg.BaseURL = value })
 	setEnvString(lookup, meta, "ACP_EXECUTOR_ADDR", "acp_executor_addr", func(value string) { cfg.ACPExecutorAddr = value })

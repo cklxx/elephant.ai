@@ -55,7 +55,7 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 	if b.config.Proactive.Enabled && b.config.Proactive.Memory.Enabled && memoryEngine != nil && llmFactory != nil {
 		memHook := hooks.NewMemoryCaptureHook(memoryEngine, llmFactory, b.logger, hooks.MemoryCaptureConfig{
 			Enabled: b.config.Proactive.Memory.Enabled,
-			Profile: b.resolveSmallLLMProfile(),
+			Profile: b.resolveDefaultLLMProfile(),
 		})
 		registry.Register(memHook)
 	}
@@ -155,9 +155,7 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 		appconfig.Config{
 			LLMProvider:      b.config.LLMProvider,
 			LLMModel:         b.config.LLMModel,
-			LLMSmallProvider: b.config.LLMSmallProvider,
-			LLMSmallModel:    b.config.LLMSmallModel,
-			LLMVisionModel:   b.config.LLMVisionModel,
+			LLMVisionModel: b.config.LLMVisionModel,
 			APIKey:           b.config.APIKey,
 			BaseURL:          b.config.BaseURL,
 			LLMProfile: runtimeconfig.LLMProfile{
@@ -330,8 +328,7 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 
 	plannerSettings := settings.Planner
 	if plannerSettings.Enabled && llmFactory != nil {
-		// Reuse the shared runtime LLM profile (small model preferred, default fallback).
-		plannerProfile := b.resolveSmallLLMProfile()
+		plannerProfile := b.resolveDefaultLLMProfile()
 
 		plannerTimeout := time.Duration(plannerSettings.TimeoutSeconds) * time.Second
 		if plannerTimeout <= 0 {
@@ -430,21 +427,11 @@ func (b *containerBuilder) buildKernelSelectionResolver() kernelagent.SelectionR
 	}
 }
 
-// resolveSmallLLMProfile returns the shared runtime LLM profile for lightweight
-// auxiliary calls (kernel planner, memory capture, auto-reply, etc.).
-// It prefers the small model (LLMSmallProvider/Model) and falls back to the default.
-func (b *containerBuilder) resolveSmallLLMProfile() runtimeconfig.LLMProfile {
-	provider := strings.TrimSpace(b.config.LLMSmallProvider)
-	if provider == "" {
-		provider = strings.TrimSpace(b.config.LLMProvider)
-	}
-	model := strings.TrimSpace(b.config.LLMSmallModel)
-	if model == "" {
-		model = strings.TrimSpace(b.config.LLMModel)
-	}
+// resolveDefaultLLMProfile returns the shared runtime LLM profile.
+func (b *containerBuilder) resolveDefaultLLMProfile() runtimeconfig.LLMProfile {
 	return runtimeconfig.LLMProfile{
-		Provider: provider,
-		Model:    model,
+		Provider: strings.TrimSpace(b.config.LLMProvider),
+		Model:    strings.TrimSpace(b.config.LLMModel),
 		APIKey:   strings.TrimSpace(b.config.APIKey),
 		BaseURL:  strings.TrimSpace(b.config.BaseURL),
 	}

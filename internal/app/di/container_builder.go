@@ -140,9 +140,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		appconfig.Config{
 			LLMProvider:      b.config.LLMProvider,
 			LLMModel:         b.config.LLMModel,
-			LLMSmallProvider: b.config.LLMSmallProvider,
-			LLMSmallModel:    b.config.LLMSmallModel,
-			LLMVisionModel:   b.config.LLMVisionModel,
+			LLMVisionModel: b.config.LLMVisionModel,
 			APIKey:           b.config.APIKey,
 			BaseURL:          b.config.BaseURL,
 			LLMProfile: runtimeconfig.LLMProfile{

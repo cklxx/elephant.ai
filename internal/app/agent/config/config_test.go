@@ -40,7 +40,7 @@ func TestDefaultLLMProfileFallsBackToLegacyFields(t *testing.T) {
 	}
 }
 
-func TestSmallAndVisionProfiles(t *testing.T) {
+func TestVisionProfile(t *testing.T) {
 	cfg := Config{
 		LLMProfile: runtimeconfig.LLMProfile{
 			Provider: "openai",
@@ -48,17 +48,7 @@ func TestSmallAndVisionProfiles(t *testing.T) {
 			APIKey:   "key",
 			BaseURL:  "https://api.openai.com/v1",
 		},
-		LLMSmallProvider: "openai",
-		LLMSmallModel:    "gpt-4o-mini",
-		LLMVisionModel:   "gpt-4o-vision",
-	}
-
-	small, ok := cfg.SmallLLMProfile()
-	if !ok {
-		t.Fatal("expected small profile")
-	}
-	if small.Model != "gpt-4o-mini" || small.Provider != "openai" {
-		t.Fatalf("unexpected small profile: %+v", small)
+		LLMVisionModel: "gpt-4o-vision",
 	}
 
 	vision, ok := cfg.VisionLLMProfile()

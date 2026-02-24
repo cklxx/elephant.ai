@@ -33,8 +33,6 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 
 	logger.Info("LLM Provider: %s (source=%s)", runtimeCfg.LLMProvider, config.RuntimeMeta.Source("llm_provider"))
 	logger.Info("LLM Model: %s (source=%s)", runtimeCfg.LLMModel, config.RuntimeMeta.Source("llm_model"))
-	logger.Debug("LLM Small Provider: %s (source=%s)", runtimeCfg.LLMSmallProvider, config.RuntimeMeta.Source("llm_small_provider"))
-	logger.Debug("LLM Small Model: %s (source=%s)", runtimeCfg.LLMSmallModel, config.RuntimeMeta.Source("llm_small_model"))
 	logger.Debug("Base URL: %s (source=%s)", runtimeCfg.BaseURL, config.RuntimeMeta.Source("base_url"))
 	if strings.TrimSpace(runtimeCfg.APIKey) != "" {
 		logger.Debug("API Key: (set; source=%s)", config.RuntimeMeta.Source("api_key"))

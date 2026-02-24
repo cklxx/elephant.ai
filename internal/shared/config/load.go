@@ -23,8 +23,6 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	cfg := RuntimeConfig{
 		LLMProvider:                DefaultLLMProvider,
 		LLMModel:                   DefaultLLMModel,
-		LLMSmallProvider:           DefaultLLMProvider,
-		LLMSmallModel:              DefaultLLMModel,
 		BaseURL:                    DefaultLLMBaseURL,
 		ACPExecutorAddr:            defaultACPExecutorAddr(options.envLookup),
 		ACPExecutorCWD:             defaultACPExecutorCWD(),
@@ -101,14 +99,6 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	providerLower := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
 	if cfg.APIKey == "" && ProviderRequiresAPIKey(providerLower) && cfg.Profile != RuntimeProfileProduction {
 		cfg.LLMProvider = "mock"
-		if cfg.LLMSmallProvider != "mock" {
-			cfg.LLMSmallProvider = "mock"
-			setSource("llm_small_provider", SourceDefault)
-		}
-		if cfg.LLMSmallModel != "mock" {
-			cfg.LLMSmallModel = "mock"
-			setSource("llm_small_model", SourceDefault)
-		}
 		setSource("llm_provider", SourceDefault)
 	}
 
@@ -181,8 +171,6 @@ func attemptRepairManagedBaseURLOverrideMismatch(
 func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.LLMProvider = strings.TrimSpace(cfg.LLMProvider)
 	cfg.LLMModel = strings.TrimSpace(cfg.LLMModel)
-	cfg.LLMSmallProvider = strings.TrimSpace(cfg.LLMSmallProvider)
-	cfg.LLMSmallModel = strings.TrimSpace(cfg.LLMSmallModel)
 	cfg.LLMVisionModel = strings.TrimSpace(cfg.LLMVisionModel)
 	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
 	cfg.ArkAPIKey = strings.TrimSpace(cfg.ArkAPIKey)

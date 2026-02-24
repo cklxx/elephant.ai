@@ -41,7 +41,6 @@ var habitSignalKeywords = []string{
 }
 
 // MemoryCaptureConfig controls LLM-driven memory capture behavior.
-// Profile is the shared runtime LLM profile (small model preferred).
 type MemoryCaptureConfig struct {
 	Enabled   bool
 	Profile   runtimeconfig.LLMProfile

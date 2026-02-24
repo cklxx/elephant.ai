@@ -61,14 +61,6 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.LLMModel = parsed.LLMModel
 		meta.sources["llm_model"] = SourceFile
 	}
-	if parsed.LLMSmallProvider != "" {
-		cfg.LLMSmallProvider = parsed.LLMSmallProvider
-		meta.sources["llm_small_provider"] = SourceFile
-	}
-	if parsed.LLMSmallModel != "" {
-		cfg.LLMSmallModel = parsed.LLMSmallModel
-		meta.sources["llm_small_model"] = SourceFile
-	}
 	if parsed.LLMVisionModel != "" {
 		cfg.LLMVisionModel = parsed.LLMVisionModel
 		meta.sources["llm_vision_model"] = SourceFile
@@ -326,8 +318,6 @@ func parseRuntimeConfigYAML(data []byte) (RuntimeFileConfig, error) {
 func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) RuntimeFileConfig {
 	parsed.LLMProvider = expandEnvValue(lookup, parsed.LLMProvider)
 	parsed.LLMModel = expandEnvValue(lookup, parsed.LLMModel)
-	parsed.LLMSmallProvider = expandEnvValue(lookup, parsed.LLMSmallProvider)
-	parsed.LLMSmallModel = expandEnvValue(lookup, parsed.LLMSmallModel)
 	parsed.LLMVisionModel = expandEnvValue(lookup, parsed.LLMVisionModel)
 	parsed.APIKey = expandEnvValue(lookup, parsed.APIKey)
 	parsed.ArkAPIKey = expandEnvValue(lookup, parsed.ArkAPIKey)

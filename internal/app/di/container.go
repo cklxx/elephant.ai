@@ -82,8 +82,6 @@ type Config struct {
 	// LLM Configuration
 	LLMProvider                string
 	LLMModel                   string
-	LLMSmallProvider           string
-	LLMSmallModel              string
 	LLMVisionModel             string
 	APIKey                     string
 	ArkAPIKey                  string
@@ -393,24 +391,14 @@ func (c *Container) LLMFactory() portsllm.LLMClientFactory {
 	return c.llmFactory
 }
 
-// SmallLLMProfile returns the shared runtime LLM profile for lightweight
-// auxiliary calls (auto-reply, memory capture, kernel planner, etc.).
-// It prefers the small model config and falls back to the default.
-func (c *Container) SmallLLMProfile() runtimeconfig.LLMProfile {
+// DefaultLLMProfile returns the shared runtime LLM profile.
+func (c *Container) DefaultLLMProfile() runtimeconfig.LLMProfile {
 	if c == nil {
 		return runtimeconfig.LLMProfile{}
 	}
-	provider := strings.TrimSpace(c.config.LLMSmallProvider)
-	if provider == "" {
-		provider = strings.TrimSpace(c.config.LLMProvider)
-	}
-	model := strings.TrimSpace(c.config.LLMSmallModel)
-	if model == "" {
-		model = strings.TrimSpace(c.config.LLMModel)
-	}
 	return runtimeconfig.LLMProfile{
-		Provider: provider,
-		Model:    model,
+		Provider: strings.TrimSpace(c.config.LLMProvider),
+		Model:    strings.TrimSpace(c.config.LLMModel),
 		APIKey:   strings.TrimSpace(c.config.APIKey),
 		BaseURL:  strings.TrimSpace(c.config.BaseURL),
 	}

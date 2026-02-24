@@ -48,8 +48,6 @@ const (
 type RuntimeConfig struct {
 	LLMProvider                string                       `json:"llm_provider" yaml:"llm_provider"`
 	LLMModel                   string                       `json:"llm_model" yaml:"llm_model"`
-	LLMSmallProvider           string                       `json:"llm_small_provider" yaml:"llm_small_provider"`
-	LLMSmallModel              string                       `json:"llm_small_model" yaml:"llm_small_model"`
 	LLMVisionModel             string                       `json:"llm_vision_model" yaml:"llm_vision_model"`
 	APIKey                     string                       `json:"api_key" yaml:"api_key"`
 	ArkAPIKey                  string                       `json:"ark_api_key" yaml:"ark_api_key"`
@@ -518,8 +516,6 @@ func (m Metadata) LoadedAt() time.Time {
 type Overrides struct {
 	LLMProvider                *string              `json:"llm_provider,omitempty" yaml:"llm_provider,omitempty"`
 	LLMModel                   *string              `json:"llm_model,omitempty" yaml:"llm_model,omitempty"`
-	LLMSmallProvider           *string              `json:"llm_small_provider,omitempty" yaml:"llm_small_provider,omitempty"`
-	LLMSmallModel              *string              `json:"llm_small_model,omitempty" yaml:"llm_small_model,omitempty"`
 	LLMVisionModel             *string              `json:"llm_vision_model,omitempty" yaml:"llm_vision_model,omitempty"`
 	APIKey                     *string              `json:"api_key,omitempty" yaml:"api_key,omitempty"`
 	ArkAPIKey                  *string              `json:"ark_api_key,omitempty" yaml:"ark_api_key,omitempty"`

@@ -14,8 +14,6 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 	return Config{
 		LLMProvider:                runtime.LLMProvider,
 		LLMModel:                   runtime.LLMModel,
-		LLMSmallProvider:           runtime.LLMSmallProvider,
-		LLMSmallModel:              runtime.LLMSmallModel,
 		LLMVisionModel:             runtime.LLMVisionModel,
 		APIKey:                     runtime.APIKey,
 		ArkAPIKey:                  runtime.ArkAPIKey,

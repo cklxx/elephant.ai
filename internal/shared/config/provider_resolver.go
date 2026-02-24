@@ -24,10 +24,6 @@ func applyAutoProviderCandidate(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 		meta.sources["api_key"] = cand.Source
 	}
 
-	if cfg.LLMSmallProvider == "" || strings.EqualFold(cfg.LLMSmallProvider, "auto") || strings.EqualFold(cfg.LLMSmallProvider, "cli") {
-		cfg.LLMSmallProvider = cand.Provider
-		meta.sources["llm_small_provider"] = cand.Source
-	}
 
 	if base, ok := lookup(cand.BaseURLEnv); ok && strings.TrimSpace(base) != "" {
 		cfg.BaseURL = strings.TrimSpace(base)
@@ -50,10 +46,6 @@ func applyCLICandidates(cfg *RuntimeConfig, meta *Metadata, candidates ...CLICre
 		if cfg.APIKey == "" {
 			cfg.APIKey = cand.APIKey
 			meta.sources["api_key"] = cand.Source
-		}
-		if cfg.LLMSmallProvider == "" || strings.EqualFold(cfg.LLMSmallProvider, "auto") || strings.EqualFold(cfg.LLMSmallProvider, "cli") {
-			cfg.LLMSmallProvider = cand.Provider
-			meta.sources["llm_small_provider"] = cand.Source
 		}
 		if cand.BaseURL != "" && meta.Source("base_url") == SourceDefault {
 			cfg.BaseURL = cand.BaseURL
@@ -136,10 +128,6 @@ func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, c
 			if cfg.APIKey == "" {
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
-			}
-			if cfg.LLMSmallProvider == "" || strings.EqualFold(cfg.LLMSmallProvider, "auto") || strings.EqualFold(cfg.LLMSmallProvider, "cli") {
-				cfg.LLMSmallProvider = "openai"
-				meta.sources["llm_small_provider"] = SourceEnv
 			}
 			if base, ok := lookup("OPENAI_BASE_URL"); ok && strings.TrimSpace(base) != "" {
 				cfg.BaseURL = strings.TrimSpace(base)

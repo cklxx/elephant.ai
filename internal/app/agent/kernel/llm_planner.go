@@ -17,7 +17,6 @@ import (
 )
 
 // LLMPlannerConfig controls the LLM-driven planner behavior.
-// Profile comes from the shared runtime LLM config (small-model preferred).
 type LLMPlannerConfig struct {
 	Profile       runtimeconfig.LLMProfile
 	Refresher     llmclient.CredentialRefresher // optional; refreshes credentials for long-running processes
@@ -368,7 +367,7 @@ const llmPlannerSystemPrompt = `You are the task scheduler for the elephant.ai k
 Each agent's prompt must include:
 1. **Clear task objective** (what to do, why)
 2. **Available tools hint** (browser / shell_exec / write_file / web_search / send_message, etc.)
-3. **Output path** (write to the appropriate subdirectory under ~/.alex/kernel/default/)
+3. **Output path** (write under the current working directory using relative paths, e.g. ./artifacts/...)
 4. **Completion criteria** (what counts as successful completion)
 5. **Action directive**: "Do not ask questions, do not explain — start executing immediately."
 

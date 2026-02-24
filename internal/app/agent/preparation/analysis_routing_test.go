@@ -51,7 +51,6 @@ func (c *triageClient) Complete(ctx context.Context, req ports.CompletionRequest
 		strings.Contains(req.Messages[0].Content, "fast task triage assistant") {
 		return &ports.CompletionResponse{Content: `{
   "complexity":"simple",
-  "recommended_model":"small",
   "task_name":"Fix typo in README",
   "goal":"Fix a typo",
   "approach":"Edit the file",
@@ -78,9 +77,7 @@ func TestPrepareRunsPreanalysisAsyncAndPersistsTitleInBackground(t *testing.T) {
 		Config: appconfig.Config{
 			LLMProvider:      "mock-default",
 			LLMModel:         "default-model",
-			LLMSmallProvider: "mock-small",
-			LLMSmallModel:    "small-model",
-			MaxIterations:    3,
+						MaxIterations:    3,
 		},
 		Logger:       agent.NoopLogger{},
 		EventEmitter: agent.NoopEventListener{},
@@ -133,18 +130,15 @@ func TestPrepareRunsPreanalysisAsyncAndPersistsTitleInBackground(t *testing.T) {
 	}
 }
 
-func TestParseTaskAnalysisExtractsRecommendedModel(t *testing.T) {
-	analysis, recommended := parseTaskAnalysis(`noise prefix
-{"complexity":"complex","recommended_model":"default","task_name":"Ship feature","goal":"g","approach":"a","success_criteria":["s"],"steps":[],"retrieval":{"should_retrieve":false}}
+func TestParseTaskAnalysisExtractsComplexity(t *testing.T) {
+	analysis := parseTaskAnalysis(`noise prefix
+{"complexity":"complex","task_name":"Ship feature","goal":"g","approach":"a","success_criteria":["s"],"steps":[],"retrieval":{"should_retrieve":false}}
 noise suffix`)
 	if analysis == nil {
 		t.Fatal("expected analysis")
 	}
 	if analysis.Complexity != "complex" {
 		t.Fatalf("complexity: expected complex, got %q", analysis.Complexity)
-	}
-	if recommended != "default" {
-		t.Fatalf("recommended: expected default, got %q", recommended)
 	}
 }
 
@@ -162,9 +156,7 @@ func TestPrepareSkipsLLMPreanalysisForGreeting(t *testing.T) {
 		Config: appconfig.Config{
 			LLMProvider:      "mock-default",
 			LLMModel:         "default-model",
-			LLMSmallProvider: "mock-small",
-			LLMSmallModel:    "small-model",
-			MaxIterations:    3,
+						MaxIterations:    3,
 		},
 		Logger:       agent.NoopLogger{},
 		EventEmitter: agent.NoopEventListener{},
@@ -184,12 +176,12 @@ func TestPrepareSkipsLLMPreanalysisForGreeting(t *testing.T) {
 	if len(modelCalls) != 1 {
 		t.Fatalf("expected 1 LLM factory call (execution client only), got %v", modelCalls)
 	}
-	if modelCalls[0] != "mock-small|small-model" {
-		t.Fatalf("expected greeting to use small model directly, got %q", modelCalls[0])
+	if modelCalls[0] != "mock-default|default-model" {
+		t.Fatalf("expected greeting to use default model, got %q", modelCalls[0])
 	}
 }
 
-func TestPrepareUsesPinnedSelectionAndSkipsSmallModel(t *testing.T) {
+func TestPrepareUsesPinnedSelection(t *testing.T) {
 	session := &storage.Session{ID: "session-pinned", Messages: nil, Metadata: map[string]string{}}
 	store := &stubSessionStore{session: session}
 	factory := &recordingLLMFactory{}
@@ -203,9 +195,7 @@ func TestPrepareUsesPinnedSelectionAndSkipsSmallModel(t *testing.T) {
 		Config: appconfig.Config{
 			LLMProvider:      "mock-default",
 			LLMModel:         "default-model",
-			LLMSmallProvider: "mock-small",
-			LLMSmallModel:    "small-model",
-			MaxIterations:    3,
+						MaxIterations:    3,
 		},
 		Logger:       agent.NoopLogger{},
 		EventEmitter: agent.NoopEventListener{},
@@ -232,9 +222,8 @@ func TestPrepareUsesPinnedSelectionAndSkipsSmallModel(t *testing.T) {
 }
 
 func TestParseTaskAnalysisExtractsReactEmoji(t *testing.T) {
-	analysis, _ := parseTaskAnalysis(`{
+	analysis := parseTaskAnalysis(`{
 		"complexity":"simple",
-		"recommended_model":"small",
 		"task_name":"Greeting",
 		"goal":"greet",
 		"approach":"respond",
@@ -252,9 +241,8 @@ func TestParseTaskAnalysisExtractsReactEmoji(t *testing.T) {
 }
 
 func TestParseTaskAnalysisEmptyReactEmoji(t *testing.T) {
-	analysis, _ := parseTaskAnalysis(`{
+	analysis := parseTaskAnalysis(`{
 		"complexity":"complex",
-		"recommended_model":"default",
 		"task_name":"Build feature",
 		"goal":"build",
 		"approach":"code",
@@ -284,7 +272,7 @@ func TestQuickTriageTaskEmoji(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			analysis, _, ok := quickTriageTask(tt.input)
+			analysis, ok := quickTriageTask(tt.input)
 			if !ok {
 				t.Fatalf("expected quickTriageTask to match %q", tt.input)
 			}
@@ -327,9 +315,7 @@ func TestPrepareEmitsEmojiEventForGreeting(t *testing.T) {
 		Config: appconfig.Config{
 			LLMProvider:      "mock-default",
 			LLMModel:         "default-model",
-			LLMSmallProvider: "mock-small",
-			LLMSmallModel:    "small-model",
-			MaxIterations:    3,
+						MaxIterations:    3,
 		},
 		Logger:       agent.NoopLogger{},
 		EventEmitter: listener,

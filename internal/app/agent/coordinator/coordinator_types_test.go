@@ -219,7 +219,6 @@ func TestPrepareExecutionUsesRuntimeConfigResolver(t *testing.T) {
 		appconfig.Config{
 			LLMProvider:       "mock",
 			LLMModel:          "old-model",
-			LLMSmallModel:     "",
 			MaxIterations:     5,
 			SessionStaleAfter: 0,
 		},
@@ -229,7 +228,6 @@ func TestPrepareExecutionUsesRuntimeConfigResolver(t *testing.T) {
 		return runtimeconfig.RuntimeConfig{
 			LLMProvider:   "mock",
 			LLMModel:      "new-model",
-			LLMSmallModel: "",
 			MaxIterations: 5,
 			MaxTokens:     2048,
 		}, runtimeconfig.Metadata{}, nil

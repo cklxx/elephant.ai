@@ -54,11 +54,6 @@ func (c *AgentCoordinator) effectiveConfig(ctx context.Context) appconfig.Config
 	cfg.LLMModel = profile.Model
 	cfg.APIKey = profile.APIKey
 	cfg.BaseURL = profile.BaseURL
-	cfg.LLMSmallProvider = runtimeCfg.LLMSmallProvider
-	if strings.TrimSpace(cfg.LLMSmallProvider) == "" {
-		cfg.LLMSmallProvider = profile.Provider
-	}
-	cfg.LLMSmallModel = runtimeCfg.LLMSmallModel
 	cfg.LLMVisionModel = runtimeCfg.LLMVisionModel
 	cfg.MaxTokens = runtimeCfg.MaxTokens
 	cfg.MaxIterations = runtimeCfg.MaxIterations

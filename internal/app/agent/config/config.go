@@ -12,8 +12,6 @@ import (
 type Config struct {
 	LLMProvider         string
 	LLMModel            string
-	LLMSmallProvider    string
-	LLMSmallModel       string
 	LLMVisionModel      string
 	APIKey              string
 	BaseURL             string
@@ -52,24 +50,6 @@ func (c Config) DefaultLLMProfile() runtimeconfig.LLMProfile {
 		profile.BaseURL = strings.TrimSpace(c.BaseURL)
 	}
 	return profile
-}
-
-// SmallLLMProfile returns the profile for small-model pre-analysis if configured.
-func (c Config) SmallLLMProfile() (runtimeconfig.LLMProfile, bool) {
-	model := strings.TrimSpace(c.LLMSmallModel)
-	if model == "" {
-		return runtimeconfig.LLMProfile{}, false
-	}
-	profile := c.DefaultLLMProfile()
-	provider := strings.TrimSpace(c.LLMSmallProvider)
-	if provider != "" {
-		profile.Provider = provider
-	}
-	profile.Model = model
-	if strings.TrimSpace(profile.Provider) == "" {
-		return runtimeconfig.LLMProfile{}, false
-	}
-	return profile, true
 }
 
 // VisionLLMProfile returns the profile for vision tasks when a dedicated

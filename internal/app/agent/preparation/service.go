@@ -327,19 +327,17 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		strings.TrimSpace(selection.Model) != ""
 
 	var taskAnalysis *agent.TaskAnalysis
-	var preferSmallModel bool
 	if selectionPinned {
-		if analysis, _, ok := quickTriageTask(task); ok {
+		if analysis, ok := quickTriageTask(task); ok {
 			taskAnalysis = analysis
 		}
 	} else {
 		// quickTriageTask is instant (no LLM call); use it for synchronous routing.
-		if analysis, preferSmall, ok := quickTriageTask(task); ok {
+		if analysis, ok := quickTriageTask(task); ok {
 			taskAnalysis = analysis
-			preferSmallModel = preferSmall
 		} else {
 			// Fire LLM-based pre-analysis asynchronously to avoid blocking the
-			// prepare phase with a small-model round-trip (up to 4 s).
+			// prepare phase with a round-trip (up to 4 s).
 			// The title will be persisted in the background when the call completes.
 			s.preAnalyzeTaskAsync(ctx, session, task)
 		}
@@ -372,11 +370,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		effectiveProfile.APIKey = selection.APIKey
 		effectiveProfile.BaseURL = selection.BaseURL
 		effectiveProfile.Headers = cloneHeaders(selection.Headers)
-	} else if preferSmallModel {
-		if smallProfile, ok := s.config.SmallLLMProfile(); ok {
-			effectiveProfile.Provider = smallProfile.Provider
-			effectiveProfile.Model = smallProfile.Model
-		}
 	}
 	if !selectionPinned && taskNeedsVision(task, preloadedAttachments, appcontext.GetUserAttachments(ctx)) {
 		if visionProfile, ok := s.config.VisionLLMProfile(); ok {
@@ -505,7 +498,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 // preAnalyzeTaskAsync fires preAnalyzeTask in a background goroutine and
 // persists the resulting title to the session store when done. This removes
-// the small-model round-trip from the critical path of Prepare().
+// the LLM round-trip from the critical path of Prepare().
 func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, session *storage.Session, task string) {
 	if session == nil || strings.TrimSpace(session.ID) == "" {
 		return
@@ -530,7 +523,7 @@ func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, s
 	}
 
 	async.Go(s.logger, "preanalysis-title", func() {
-		analysis, _ := s.preAnalyzeTask(bgCtx, sessionSnapshot, task)
+		analysis := s.preAnalyzeTask(bgCtx, sessionSnapshot, task)
 		if analysis == nil {
 			return
 		}

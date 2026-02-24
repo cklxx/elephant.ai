@@ -94,23 +94,6 @@ func TestEffectiveConfig_MergesRuntimeValues(t *testing.T) {
 	}
 }
 
-func TestEffectiveConfig_SmallProviderFallback(t *testing.T) {
-	cfg := appconfig.Config{LLMProvider: "openai", LLMModel: "gpt-4"}
-	coordinator := NewAgentCoordinator(nil, nil, nil, nil, nil, nil, nil, cfg)
-	coordinator.SetRuntimeConfigResolver(func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
-		return runtimeconfig.RuntimeConfig{
-			LLMProvider:      "anthropic",
-			LLMModel:         "claude-3",
-			LLMSmallProvider: "", // empty → should fall back to LLMProvider
-		}, runtimeconfig.Metadata{}, nil
-	})
-
-	got := coordinator.effectiveConfig(context.Background())
-	if got.LLMSmallProvider != "anthropic" {
-		t.Fatalf("expected small provider to fall back to main provider, got %q", got.LLMSmallProvider)
-	}
-}
-
 func TestEffectiveConfig_EmptyPresetsNotOverridden(t *testing.T) {
 	cfg := appconfig.Config{
 		LLMProvider: "openai",

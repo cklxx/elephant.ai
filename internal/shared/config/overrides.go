@@ -9,14 +9,6 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.LLMModel = *overrides.LLMModel
 		meta.sources["llm_model"] = SourceOverride
 	}
-	if overrides.LLMSmallProvider != nil {
-		cfg.LLMSmallProvider = *overrides.LLMSmallProvider
-		meta.sources["llm_small_provider"] = SourceOverride
-	}
-	if overrides.LLMSmallModel != nil {
-		cfg.LLMSmallModel = *overrides.LLMSmallModel
-		meta.sources["llm_small_model"] = SourceOverride
-	}
 	if overrides.LLMVisionModel != nil {
 		cfg.LLMVisionModel = *overrides.LLMVisionModel
 		meta.sources["llm_vision_model"] = SourceOverride

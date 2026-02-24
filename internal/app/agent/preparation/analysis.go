@@ -11,40 +11,34 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	llm "alex/internal/domain/agent/ports/llm"
 	storage "alex/internal/domain/agent/ports/storage"
-	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/utils/clilatency"
 	id "alex/internal/shared/utils/id"
 )
 
-func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, session *storage.Session, task string) (*agent.TaskAnalysis, bool) {
+func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, session *storage.Session, task string) *agent.TaskAnalysis {
 	if strings.TrimSpace(task) == "" {
-		return nil, false
+		return nil
 	}
-	provider, model, ok := s.resolveSmallModelConfig()
-	if !ok || session == nil {
-		return nil, false
+	if session == nil {
+		return nil
 	}
-	if analysis, preferSmall, ok := quickTriageTask(task); ok {
+	if analysis, ok := quickTriageTask(task); ok {
 		clilatency.PrintfWithContext(ctx, "[latency] preanalysis=skipped reason=%s\n", analysis.Approach)
-		return analysis, preferSmall
+		return analysis
 	}
-	defaultProfile := s.config.DefaultLLMProfile()
-	smallProfile := runtimeconfig.LLMProfile{
-		Provider: provider,
-		Model:    model,
-		APIKey:   defaultProfile.APIKey,
-		BaseURL:  defaultProfile.BaseURL,
-		Headers:  llmclient.CloneHeaders(defaultProfile.Headers),
+	profile := s.config.DefaultLLMProfile()
+	if strings.TrimSpace(profile.Provider) == "" || strings.TrimSpace(profile.Model) == "" {
+		return nil
 	}
 	client, _, err := llmclient.GetIsolatedClientFromProfile(
 		s.llmFactory,
-		smallProfile,
+		profile,
 		llmclient.CredentialRefresher(s.credentialRefresher),
 		true,
 	)
 	if err != nil {
 		s.logger.Warn("Task pre-analysis skipped: %v", err)
-		return nil, false
+		return nil
 	}
 	client = s.costDecorator.Wrap(ctx, session.ID, client)
 
@@ -58,18 +52,16 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		Messages: []ports.Message{
 			{
 				Role: "system",
-				Content: "You are a fast task triage assistant. Analyze the user's task and decide which model tier is sufficient.\n\n" +
+				Content: "You are a fast task triage assistant. Analyze the user's task.\n\n" +
 					"Definitions:\n" +
 					`- complexity="simple": can be completed quickly with straightforward steps; no deep design/architecture; no large refactors; no ambiguous requirements; no heavy external research.\n` +
-					`- complexity="complex": otherwise.\n` +
-					`- recommended_model="small": a smaller/cheaper model should handle the entire task reliably.\n` +
-					`- recommended_model="default": use the default (stronger) model.\n\n` +
+					`- complexity="complex": otherwise.\n\n` +
 					"Output requirements:\n" +
 					`- Respond ONLY with JSON.\n` +
 					taskNameRule +
 					`- react_emoji: a single Lark emoji type that best matches the user's message sentiment/topic. ` +
 					`Choose from: THUMBSUP, SMILE, WAVE, THINKING, MUSCLE, HEART, APPLAUSE, DONE, Coffee, Fire, LGTM, OK, THANKS, Get, JIAYI.` + "\n\n" +
-					`Schema: {"complexity":"simple|complex","recommended_model":"small|default","task_name":"...","goal":"...","approach":"...","success_criteria":["..."],` +
+					`Schema: {"complexity":"simple|complex","task_name":"...","goal":"...","approach":"...","success_criteria":["..."],` +
 					`"steps":[{"description":"...","rationale":"...","needs_external_context":false}],` +
 					`"retrieval":{"should_retrieve":false,"local_queries":[],"search_queries":[],"crawl_urls":[],"knowledge_gaps":[],"notes":""},` +
 					`"react_emoji":"..."}`,
@@ -93,26 +85,18 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		clilatency.PrintfWithContext(ctx,
 			"[latency] preanalysis_ms=%.2f model=%s\n",
 			float64(time.Since(preanalysisStarted))/float64(time.Millisecond),
-			strings.TrimSpace(model),
+			strings.TrimSpace(profile.Model),
 		)
 		if err != nil || resp == nil {
 			s.logger.Warn("Task pre-analysis failed: %v", err)
-			return nil, false
+			return nil
 		}
-		analysis, recommendedModel := parseTaskAnalysis(resp.Content)
+		analysis := parseTaskAnalysis(resp.Content)
 		if analysis == nil {
 			s.logger.Warn("Task pre-analysis returned unparsable output")
-			return nil, false
+			return nil
 		}
-		preferSmallModel := false
-		if strings.EqualFold(recommendedModel, "small") {
-			preferSmallModel = true
-		} else if strings.EqualFold(recommendedModel, "default") {
-			preferSmallModel = false
-		} else {
-			preferSmallModel = strings.EqualFold(analysis.Complexity, "simple")
-		}
-		return analysis, preferSmallModel
+		return analysis
 	}
 	resp, err := streaming.StreamComplete(analysisCtx, req, ports.CompletionStreamCallbacks{
 		OnContentDelta: func(ports.ContentDelta) {},
@@ -120,39 +104,31 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	clilatency.PrintfWithContext(ctx,
 		"[latency] preanalysis_ms=%.2f model=%s\n",
 		float64(time.Since(preanalysisStarted))/float64(time.Millisecond),
-		strings.TrimSpace(model),
+		strings.TrimSpace(profile.Model),
 	)
 	if err != nil || resp == nil {
 		s.logger.Warn("Task pre-analysis failed: %v", err)
-		return nil, false
+		return nil
 	}
-	analysis, recommendedModel := parseTaskAnalysis(resp.Content)
+	analysis := parseTaskAnalysis(resp.Content)
 	if analysis == nil {
 		s.logger.Warn("Task pre-analysis returned unparsable output")
-		return nil, false
+		return nil
 	}
-	preferSmallModel := false
-	if strings.EqualFold(recommendedModel, "small") {
-		preferSmallModel = true
-	} else if strings.EqualFold(recommendedModel, "default") {
-		preferSmallModel = false
-	} else {
-		preferSmallModel = strings.EqualFold(analysis.Complexity, "simple")
-	}
-	return analysis, preferSmallModel
+	return analysis
 }
 
-func quickTriageTask(task string) (*agent.TaskAnalysis, bool, bool) {
+func quickTriageTask(task string) (*agent.TaskAnalysis, bool) {
 	trimmed := strings.TrimSpace(task)
 	if trimmed == "" {
-		return nil, false, false
+		return nil, false
 	}
 	if strings.Contains(trimmed, "\n") || strings.Contains(trimmed, "\r") {
-		return nil, false, false
+		return nil, false
 	}
 	runes := []rune(trimmed)
 	if len(runes) > 24 {
-		return nil, false, false
+		return nil, false
 	}
 
 	switch strings.ToLower(trimmed) {
@@ -163,7 +139,7 @@ func quickTriageTask(task string) (*agent.TaskAnalysis, bool, bool) {
 			Goal:       "",
 			Approach:   "greeting",
 			ReactEmoji: "WAVE",
-		}, true, true
+		}, true
 	case "thanks", "thank you", "thx", "谢谢", "多谢", "感谢", "ok", "okay", "好的", "收到":
 		return &agent.TaskAnalysis{
 			Complexity: "simple",
@@ -171,9 +147,9 @@ func quickTriageTask(task string) (*agent.TaskAnalysis, bool, bool) {
 			Goal:       "",
 			Approach:   "ack",
 			ReactEmoji: "THUMBSUP",
-		}, true, true
+		}, true
 	default:
-		return nil, false, false
+		return nil, false
 	}
 }
 
@@ -184,7 +160,7 @@ func shouldSkipContextWindow(task string, session *storage.Session) (bool, strin
 	if len(session.Messages) > 0 {
 		return false, ""
 	}
-	analysis, _, ok := quickTriageTask(task)
+	analysis, ok := quickTriageTask(task)
 	if !ok || analysis == nil {
 		return false, ""
 	}
@@ -198,18 +174,9 @@ func shouldSkipContextWindow(task string, session *storage.Session) (bool, strin
 	}
 }
 
-func (s *ExecutionPreparationService) resolveSmallModelConfig() (string, string, bool) {
-	profile, ok := s.config.SmallLLMProfile()
-	if !ok {
-		return "", "", false
-	}
-	return profile.Provider, profile.Model, true
-}
-
 type taskAnalysisPayload struct {
-	Complexity       string                     `json:"complexity"`
-	RecommendedModel string                     `json:"recommended_model"`
-	TaskName         string                     `json:"task_name"`
+	Complexity string `json:"complexity"`
+	TaskName   string `json:"task_name"`
 	ActionName       string                     `json:"action_name"`
 	Goal             string                     `json:"goal"`
 	Approach         string                     `json:"approach"`
@@ -234,18 +201,18 @@ type taskAnalysisRetrievalHints struct {
 	Notes          string   `json:"notes"`
 }
 
-func parseTaskAnalysis(raw string) (*agent.TaskAnalysis, string) {
+func parseTaskAnalysis(raw string) *agent.TaskAnalysis {
 	body := strings.TrimSpace(raw)
 	start := strings.Index(body, "{")
 	end := strings.LastIndex(body, "}")
 	if start < 0 || end <= start {
-		return nil, ""
+		return nil
 	}
 	body = body[start : end+1]
 
 	var payload taskAnalysisPayload
 	if err := json.Unmarshal([]byte(body), &payload); err != nil {
-		return nil, ""
+		return nil
 	}
 
 	analysis := &agent.TaskAnalysis{
@@ -298,7 +265,7 @@ func parseTaskAnalysis(raw string) (*agent.TaskAnalysis, string) {
 		}
 	}
 
-	return analysis, normalizeRecommendedModel(payload.RecommendedModel)
+	return analysis
 }
 
 func normalizeComplexity(value string) string {
@@ -307,17 +274,6 @@ func normalizeComplexity(value string) string {
 		return "simple"
 	case "complex", "hard":
 		return "complex"
-	default:
-		return ""
-	}
-}
-
-func normalizeRecommendedModel(value string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "small", "mini":
-		return "small"
-	case "default", "large":
-		return "default"
 	default:
 		return ""
 	}
