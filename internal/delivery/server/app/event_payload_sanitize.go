@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 
+	"alex/internal/delivery/server/inlinepayload"
 	"alex/internal/domain/agent/ports"
 )
 
@@ -74,7 +75,7 @@ func sanitizeAttachmentForHistory(att ports.Attachment) ports.Attachment {
 	inline := strings.TrimSpace(ports.AttachmentInlineBase64(att))
 	if inline != "" {
 		size := base64.StdEncoding.DecodedLen(len(inline))
-		if shouldRetainInlinePayload(mediaType, size) {
+		if inlinepayload.ShouldRetain(mediaType, size, historyInlineAttachmentRetentionLimit) {
 			att.Data = inline
 			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.URI)), "data:") {
 				att.URI = ""
@@ -85,21 +86,4 @@ func sanitizeAttachmentForHistory(att ports.Attachment) ports.Attachment {
 
 	att.Data = ""
 	return att
-}
-
-func shouldRetainInlinePayload(mediaType string, size int) bool {
-	if size <= 0 || size > historyInlineAttachmentRetentionLimit {
-		return false
-	}
-
-	media := strings.ToLower(strings.TrimSpace(mediaType))
-	if media == "" {
-		return false
-	}
-
-	if strings.HasPrefix(media, "text/") {
-		return true
-	}
-
-	return strings.Contains(media, "markdown") || strings.Contains(media, "json")
 }

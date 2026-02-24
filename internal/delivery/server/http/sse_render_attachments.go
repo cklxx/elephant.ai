@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"alex/internal/delivery/server/inlinepayload"
 	"alex/internal/domain/agent/ports"
 )
 
@@ -96,23 +97,6 @@ func ensureHTMLPreview(att ports.Attachment) ports.Attachment {
 	return att
 }
 
-func shouldRetainInlinePayload(mediaType string, size int) bool {
-	if size <= 0 || size > inlineAttachmentRetentionLimit {
-		return false
-	}
-
-	media := strings.ToLower(strings.TrimSpace(mediaType))
-	if media == "" {
-		return false
-	}
-
-	if strings.HasPrefix(media, "text/") {
-		return true
-	}
-
-	return strings.Contains(media, "markdown") || strings.Contains(media, "json")
-}
-
 // normalizeAttachmentPayload converts inline payloads (Data or data URIs) into cache-backed URLs
 // or persistent attachment store entries so SSE streams do not push large base64 blobs to the client.
 func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.Attachment {
@@ -139,7 +123,7 @@ func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.At
 				if att.MediaType == "" {
 					att.MediaType = mediaType
 				}
-				if shouldRetainInlinePayload(att.MediaType, len(decoded)) {
+				if inlinepayload.ShouldRetain(att.MediaType, len(decoded), inlineAttachmentRetentionLimit) {
 					att.Data = base64.StdEncoding.EncodeToString(decoded)
 				}
 				return ensureHTMLPreview(att)
@@ -159,7 +143,7 @@ func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.At
 			} else if att.MediaType == "" {
 				att.MediaType = mediaType
 			}
-			if ct, payload, ok := decodeDataURI(rawURI); ok && shouldRetainInlinePayload(ct, len(payload)) {
+			if ct, payload, ok := decodeDataURI(rawURI); ok && inlinepayload.ShouldRetain(ct, len(payload), inlineAttachmentRetentionLimit) {
 				att.Data = base64.StdEncoding.EncodeToString(payload)
 				if att.MediaType == "" {
 					att.MediaType = ct
