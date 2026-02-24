@@ -105,7 +105,7 @@ func (s *store) Get(ctx context.Context, id string) (*storage.Session, error) {
 	if attachments, err := s.loadAttachments(id); err != nil {
 		return nil, err
 	} else if len(attachments) > 0 {
-		session.Attachments = mergeAttachmentMaps(session.Attachments, attachments, true)
+		session.Attachments = ports.MergeAttachmentMaps(session.Attachments, attachments, true)
 	}
 	return &session, nil
 }
@@ -292,26 +292,4 @@ func sanitizeAttachmentMap(values map[string]ports.Attachment) map[string]ports.
 		return nil
 	}
 	return sanitized
-}
-
-func mergeAttachmentMaps(base, overrides map[string]ports.Attachment, override bool) map[string]ports.Attachment {
-	if len(overrides) == 0 {
-		return base
-	}
-	if base == nil {
-		base = make(map[string]ports.Attachment, len(overrides))
-	}
-	for key, att := range overrides {
-		if key == "" {
-			continue
-		}
-		if att.Name == "" {
-			att.Name = key
-		}
-		if _, exists := base[key]; exists && !override {
-			continue
-		}
-		base[key] = att
-	}
-	return base
 }

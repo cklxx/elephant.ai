@@ -134,25 +134,7 @@ func collectAttachmentsFromResult(result *agent.TaskResult) map[string]ports.Att
 }
 
 func mergeAttachments(out map[string]ports.Attachment, incoming map[string]ports.Attachment) {
-	if len(incoming) == 0 {
-		return
-	}
-	for key, att := range incoming {
-		name := strings.TrimSpace(key)
-		if name == "" {
-			name = strings.TrimSpace(att.Name)
-		}
-		if name == "" {
-			continue
-		}
-		if _, exists := out[name]; exists {
-			continue
-		}
-		if att.Name == "" {
-			att.Name = name
-		}
-		out[name] = att
-	}
+	ports.MergeAttachmentMaps(out, incoming, false)
 }
 
 // buildAttachmentSummary creates a text summary of non-A2UI attachments
@@ -209,11 +191,22 @@ func isImageAttachment(att ports.Attachment, mediaType, name string) bool {
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.MediaType)), "image/") {
 		return true
 	}
-	switch strings.ToLower(filepath.Ext(name)) {
-	case ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp":
-		return true
-	default:
+
+	if !ports.IsImageAttachment(att, name) {
 		return false
+	}
+
+	resolvedName := strings.TrimSpace(name)
+	if resolvedName == "" {
+		resolvedName = strings.TrimSpace(att.Name)
+	}
+	switch strings.ToLower(filepath.Ext(resolvedName)) {
+	case ".tif", ".tiff":
+		// Keep Lark behavior unchanged: extension-only TIFF values are not
+		// considered image uploads unless media type already identified them.
+		return false
+	default:
+		return true
 	}
 }
 

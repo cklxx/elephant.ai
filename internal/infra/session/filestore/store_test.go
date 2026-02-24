@@ -191,6 +191,58 @@ func TestStore_AttachmentsStoredSeparatelyAndSanitized(t *testing.T) {
 	}
 }
 
+func TestStore_GetCompanionAttachmentsOverrideLegacyMainFile(t *testing.T) {
+	t.Parallel()
+
+	baseDir := t.TempDir()
+	store := New(baseDir)
+
+	session, err := store.Create(context.Background())
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	mainPath := filepath.Join(baseDir, session.ID+".json")
+	legacyMain := *session
+	legacyMain.Attachments = map[string]ports.Attachment{
+		"photo.png": {
+			Name: "photo.png",
+			URI:  "https://legacy.example.com/photo.png",
+		},
+	}
+	mainBytes, err := json.MarshalIndent(legacyMain, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal legacy main file: %v", err)
+	}
+	if err := os.WriteFile(mainPath, mainBytes, 0o644); err != nil {
+		t.Fatalf("write legacy main file: %v", err)
+	}
+
+	companionPath := filepath.Join(baseDir, session.ID+"_attachments.json")
+	companion := map[string]ports.Attachment{
+		"photo.png": {
+			Name: "photo.png",
+			URI:  "https://cdn.example.com/photo.png",
+		},
+	}
+	companionBytes, err := json.MarshalIndent(companion, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal companion attachments: %v", err)
+	}
+	if err := os.WriteFile(companionPath, companionBytes, 0o644); err != nil {
+		t.Fatalf("write companion attachments: %v", err)
+	}
+
+	reloaded, err := store.Get(context.Background(), session.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	if got := reloaded.Attachments["photo.png"].URI; got != "https://cdn.example.com/photo.png" {
+		t.Fatalf("expected companion attachment to override legacy value, got %q", got)
+	}
+}
+
 func TestStore_RejectsUnsafeIDs(t *testing.T) {
 	t.Parallel()
 

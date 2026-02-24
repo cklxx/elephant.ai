@@ -2,7 +2,6 @@ package preparation
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -26,22 +25,7 @@ func collectSessionAttachments(session *storage.Session) map[string]ports.Attach
 }
 
 func mergeAttachmentMaps(target map[string]ports.Attachment, source map[string]ports.Attachment) {
-	if len(source) == 0 {
-		return
-	}
-	for key, att := range source {
-		name := strings.TrimSpace(key)
-		if name == "" {
-			name = strings.TrimSpace(att.Name)
-		}
-		if name == "" {
-			continue
-		}
-		if att.Name == "" {
-			att.Name = name
-		}
-		target[name] = att
-	}
+	ports.MergeAttachmentMaps(target, source, true)
 }
 
 func collectSessionImportant(session *storage.Session) map[string]ports.ImportantNote {
@@ -182,18 +166,5 @@ func lookupAttachmentByName(attachments map[string]ports.Attachment, name string
 }
 
 func isImageAttachment(att ports.Attachment) bool {
-	mediaType := strings.ToLower(strings.TrimSpace(att.MediaType))
-	if strings.HasPrefix(mediaType, "image/") {
-		return true
-	}
-	name := strings.TrimSpace(att.Name)
-	if name == "" {
-		return false
-	}
-	switch strings.ToLower(filepath.Ext(name)) {
-	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff":
-		return true
-	default:
-		return false
-	}
+	return ports.IsImageAttachment(att, "")
 }

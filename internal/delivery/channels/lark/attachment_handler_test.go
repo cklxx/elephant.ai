@@ -218,6 +218,13 @@ func TestIsImageAttachment_NonImage(t *testing.T) {
 	}
 }
 
+func TestIsImageAttachment_TIFFByExtensionOnlyIsNotImage(t *testing.T) {
+	att := ports.Attachment{}
+	if isImageAttachment(att, "", "scan.tiff") {
+		t.Fatal("expected false for tiff extension without image media type")
+	}
+}
+
 // --- fileNameForAttachment ---
 
 func TestFileNameForAttachment_UsesAttName(t *testing.T) {

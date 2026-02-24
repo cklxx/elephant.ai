@@ -1,7 +1,6 @@
 package llm
 
 import (
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -41,7 +40,7 @@ func orderedImageAttachments(content string, attachments map[string]ports.Attach
 		if used[canonical] {
 			continue
 		}
-		if !isImageAttachment(att, canonical) {
+		if !ports.IsImageAttachment(att, canonical) {
 			continue
 		}
 
@@ -58,7 +57,7 @@ func orderedImageAttachments(content string, attachments map[string]ports.Attach
 			continue
 		}
 		att := attachments[key]
-		if !isImageAttachment(att, key) {
+		if !ports.IsImageAttachment(att, key) {
 			continue
 		}
 		ordered = append(ordered, attachmentDescriptor{
@@ -185,7 +184,7 @@ func embedAttachmentImages(
 			cursor = match[1]
 			continue
 		}
-		if att, key, ok := index.resolve(name); ok && isImageAttachment(att, key) && !used[key] {
+		if att, key, ok := index.resolve(name); ok && ports.IsImageAttachment(att, key) && !used[key] {
 			if onInlineImage(att, key) {
 				used[key] = true
 			}
@@ -204,28 +203,5 @@ func embedAttachmentImages(
 		if onTrailingImage(desc.Attachment, key) {
 			used[key] = true
 		}
-	}
-}
-
-func isImageAttachment(att ports.Attachment, placeholder string) bool {
-	mediaType := strings.ToLower(strings.TrimSpace(att.MediaType))
-	if strings.HasPrefix(mediaType, "image/") {
-		return true
-	}
-
-	name := strings.TrimSpace(att.Name)
-	if name == "" {
-		name = strings.TrimSpace(placeholder)
-	}
-	if name == "" {
-		return false
-	}
-
-	ext := strings.ToLower(filepath.Ext(name))
-	switch ext {
-	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff":
-		return true
-	default:
-		return false
 	}
 }
