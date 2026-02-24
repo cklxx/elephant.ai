@@ -1,9 +1,53 @@
 package attachments
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestNewStoreLocal_ExpandsHomePath(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	store, err := NewStore(StoreConfig{
+		Provider: ProviderLocal,
+		Dir:      "~/.alex/attachments",
+	})
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+
+	want := filepath.Join(tempHome, ".alex", "attachments")
+	if got := store.LocalDir(); got != want {
+		t.Fatalf("LocalDir() = %q, want %q", got, want)
+	}
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("expected local dir to be created: %v", err)
+	}
+}
+
+func TestNewStoreLocal_ExpandsEnvPath(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ALEX_ATTACH_ROOT", filepath.Join(root, "attachments-root"))
+
+	store, err := NewStore(StoreConfig{
+		Provider: ProviderLocal,
+		Dir:      "$ALEX_ATTACH_ROOT/store",
+	})
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+
+	want := filepath.Join(root, "attachments-root", "store")
+	if got := store.LocalDir(); got != want {
+		t.Fatalf("LocalDir() = %q, want %q", got, want)
+	}
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("expected env-resolved local dir to be created: %v", err)
+	}
+}
 
 func TestBuildCloudURIUsesR2PublicEndpoint(t *testing.T) {
 	store, err := NewStore(StoreConfig{

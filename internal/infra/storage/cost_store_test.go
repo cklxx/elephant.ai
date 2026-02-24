@@ -294,7 +294,28 @@ func TestFileCostStore_HomeDirectory(t *testing.T) {
 	}
 
 	testDir := filepath.Join(tempHome, ".alex", "test-costs")
+	if store.baseDir != testDir {
+		t.Fatalf("store.baseDir = %q, want %q", store.baseDir, testDir)
+	}
 	if _, err := os.Stat(testDir); err != nil {
 		t.Fatalf("expected test directory to be created: %v", err)
+	}
+}
+
+func TestFileCostStore_EnvExpansion(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ALEX_COST_DIR", filepath.Join(root, "cost"))
+
+	store, err := NewFileCostStore("$ALEX_COST_DIR/store")
+	if err != nil {
+		t.Fatalf("NewFileCostStore with env path failed: %v", err)
+	}
+
+	want := filepath.Join(root, "cost", "store")
+	if store.baseDir != want {
+		t.Fatalf("store.baseDir = %q, want %q", store.baseDir, want)
+	}
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("expected env-resolved directory to be created: %v", err)
 	}
 }

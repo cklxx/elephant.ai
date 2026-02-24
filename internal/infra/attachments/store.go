@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	fstore "alex/internal/infra/filestore"
+
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -82,13 +84,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 		if strings.TrimSpace(cfg.Dir) == "" {
 			return nil, fmt.Errorf("attachment store dir is required")
 		}
-		dir := cfg.Dir
-		if strings.HasPrefix(dir, "~/") {
-			if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
-				dir = filepath.Join(home, strings.TrimPrefix(dir, "~/"))
-			}
-		}
-		dir = filepath.Clean(dir)
+		dir := filepath.Clean(fstore.ResolvePath(cfg.Dir, ""))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, fmt.Errorf("create attachment dir: %w", err)
 		}

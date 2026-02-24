@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	fstore "alex/internal/infra/filestore"
 )
 
 // Manager handles file backups and rollback operations
@@ -40,6 +42,7 @@ func NewManager(backupDir string, sessionID string, retentionDays, maxSizeMB int
 		}
 		backupDir = filepath.Join(homeDir, ".alex", "backups")
 	}
+	backupDir = fstore.ResolvePath(backupDir, "")
 
 	// Create backup directory if it doesn't exist
 	if err := os.MkdirAll(backupDir, 0755); err != nil {

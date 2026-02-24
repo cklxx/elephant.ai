@@ -13,6 +13,54 @@ import (
 	storage "alex/internal/domain/agent/ports/storage"
 )
 
+func TestNew_ExpandsHomePath(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	s, ok := New("~/.alex/sessions").(*store)
+	if !ok {
+		t.Fatalf("New() did not return *store")
+	}
+
+	want := filepath.Join(tempHome, ".alex", "sessions")
+	if s.baseDir != want {
+		t.Fatalf("baseDir = %q, want %q", s.baseDir, want)
+	}
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("expected session dir to be created: %v", err)
+	}
+}
+
+func TestNew_ExpandsEnvPath(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ALEX_SESSION_ROOT", filepath.Join(root, "session-root"))
+
+	s, ok := New("$ALEX_SESSION_ROOT/store").(*store)
+	if !ok {
+		t.Fatalf("New() did not return *store")
+	}
+
+	want := filepath.Join(root, "session-root", "store")
+	if s.baseDir != want {
+		t.Fatalf("baseDir = %q, want %q", s.baseDir, want)
+	}
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("expected session dir to be created: %v", err)
+	}
+}
+
+func TestNew_EmptyPathDefaultsToCurrentDirectory(t *testing.T) {
+	t.Parallel()
+
+	s, ok := New("").(*store)
+	if !ok {
+		t.Fatalf("New() did not return *store")
+	}
+	if s.baseDir != "." {
+		t.Fatalf("baseDir = %q, want %q", s.baseDir, ".")
+	}
+}
+
 func TestStore_SavePersistsParentTaskMetadata(t *testing.T) {
 	t.Parallel()
 

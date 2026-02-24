@@ -12,6 +12,7 @@ import (
 	"time"
 
 	agentstorage "alex/internal/domain/agent/ports/storage"
+	fstore "alex/internal/infra/filestore"
 )
 
 // fileCostStore implements CostStore using file-based storage
@@ -22,13 +23,13 @@ type fileCostStore struct {
 
 // NewFileCostStore creates a new file-based cost store.
 func NewFileCostStore(baseDir string) (*fileCostStore, error) {
-	// Expand home directory
-	if strings.HasPrefix(baseDir, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
+	originalPath := baseDir
+	baseDir = fstore.ResolvePath(baseDir, "")
+	if strings.HasPrefix(originalPath, "~/") && strings.HasPrefix(baseDir, "~/") {
+		// Preserve prior behavior when home directory lookup fails.
+		if _, err := os.UserHomeDir(); err != nil {
 			return nil, fmt.Errorf("get home dir: %w", err)
 		}
-		baseDir = filepath.Join(home, baseDir[2:])
 	}
 
 	// Create directory if it doesn't exist

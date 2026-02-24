@@ -28,12 +28,7 @@ var sessionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // New creates a file-backed session store rooted at baseDir.
 func New(baseDir string) storage.SessionStore {
-	if strings.HasPrefix(baseDir, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
-			baseDir = filepath.Join(home, baseDir[2:])
-		}
-	}
-	baseDir = filepath.Clean(baseDir)
+	baseDir = filepath.Clean(fstore.ResolvePath(baseDir, ""))
 	_ = os.MkdirAll(baseDir, 0o755) // ignore error – directory may already exist
 
 	return &store{

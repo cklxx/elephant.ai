@@ -28,6 +28,47 @@ func TestNewManager(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestNewManager_DefaultBackupDirUsesHome(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	manager, err := NewManager("", "test-session", 7, 100)
+	require.NoError(t, err)
+
+	want := filepath.Join(tempHome, ".alex", "backups")
+	assert.Equal(t, want, manager.backupDir)
+	_, err = os.Stat(want)
+	assert.NoError(t, err)
+}
+
+func TestNewManager_ExpandsConfiguredBackupDir(t *testing.T) {
+	t.Run("tilde", func(t *testing.T) {
+		tempHome := t.TempDir()
+		t.Setenv("HOME", tempHome)
+
+		manager, err := NewManager("~/.alex/custom-backups", "test-session", 7, 100)
+		require.NoError(t, err)
+
+		want := filepath.Join(tempHome, ".alex", "custom-backups")
+		assert.Equal(t, want, manager.backupDir)
+		_, err = os.Stat(want)
+		assert.NoError(t, err)
+	})
+
+	t.Run("env", func(t *testing.T) {
+		root := t.TempDir()
+		t.Setenv("ALEX_BACKUP_ROOT", filepath.Join(root, "backup-root"))
+
+		manager, err := NewManager("$ALEX_BACKUP_ROOT/store", "test-session", 7, 100)
+		require.NoError(t, err)
+
+		want := filepath.Join(root, "backup-root", "store")
+		assert.Equal(t, want, manager.backupDir)
+		_, err = os.Stat(want)
+		assert.NoError(t, err)
+	})
+}
+
 func TestManager_CreateBackup(t *testing.T) {
 	tmpDir := t.TempDir()
 	backupDir := filepath.Join(tmpDir, "backups")
