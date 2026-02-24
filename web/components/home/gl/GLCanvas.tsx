@@ -103,9 +103,9 @@ function Scene({ caps, lang }: { caps: GLCapabilities; lang: HomeLang }) {
       {caps.bloom && (
         <EffectComposer>
           <Bloom
-            luminanceThreshold={0.2}
-            luminanceSmoothing={0.9}
-            intensity={0.6}
+            luminanceThreshold={0.15}
+            luminanceSmoothing={0.8}
+            intensity={1.0}
             mipmapBlur
           />
         </EffectComposer>

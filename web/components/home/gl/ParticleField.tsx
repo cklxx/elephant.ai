@@ -146,7 +146,7 @@ function createParticleData(count: number): ParticleData {
     baseOffsets[i * 3 + 1] = y;
     baseOffsets[i * 3 + 2] = z;
 
-    scales[i] = 1.5 + r4 * 2.5;
+    scales[i] = 2.0 + r4 * 3.0;
 
     tmpColor.copy(COLOR_A).lerp(COLOR_B, r5);
     colors[i * 3] = tmpColor.r;

@@ -18,6 +18,7 @@
 #   SERVER_PORT=8080            # Backend port override (default 8080)
 #   WEB_PORT=3000               # Web port override (default 3000)
 #   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop our backend/web conflicts (default 1)
+#   AUTO_HEAL_WEB_NEXT=1        # Auto-heal Next.js .next/dev ENOENT corruption (default 1)
 #   AUTH_JWT_SECRET=...         # Auth secret (default: dev-secret-change-me)
 #   ALEX_CGO_MODE=auto|on|off    # Auto-select CGO for builds (default auto)
 ###############################################################################
@@ -35,6 +36,7 @@ readonly DEFAULT_WEB_PORT=3000
 SERVER_PORT="${SERVER_PORT:-${DEFAULT_SERVER_PORT}}"
 WEB_PORT="${WEB_PORT:-${DEFAULT_WEB_PORT}}"
 AUTO_STOP_CONFLICTING_PORTS="${AUTO_STOP_CONFLICTING_PORTS:-1}"
+AUTO_HEAL_WEB_NEXT="${AUTO_HEAL_WEB_NEXT:-1}"
 
 source "${SCRIPT_DIR}/scripts/lib/common/logging.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/process.sh"
@@ -285,6 +287,31 @@ cleanup_next_dev_lock() {
   fi
 }
 
+web_log_contains_next_dev_enoent() {
+  [[ -f "${WEB_LOG}" ]] || return 1
+  local recent
+  recent="$(tail -n 200 "${WEB_LOG}" 2>/dev/null || true)"
+  [[ "${recent}" == *"ENOENT: no such file or directory"* ]] || return 1
+  [[ "${recent}" == *"/web/.next/dev/"* ]] || return 1
+  return 0
+}
+
+clear_next_dev_artifacts() {
+  local next_dev_dir="${SCRIPT_DIR}/web/.next/dev"
+  if [[ -d "${next_dev_dir}" ]]; then
+    log_warn "Clearing corrupted Next.js dev artifacts: ${next_dev_dir}"
+    rm -rf "${next_dev_dir}"
+  fi
+}
+
+stop_web_runtime() {
+  stop_service "Web" "${WEB_PID_FILE}"
+  cleanup_next_dev_lock
+  if [[ "${AUTO_STOP_CONFLICTING_PORTS}" == "1" ]] && ! is_port_available "$WEB_PORT"; then
+    stop_port_listeners "$WEB_PORT" "web"
+  fi
+}
+
 collect_web_process_candidates() {
   ps -axo pid= -o pgid= -o command= | awk -v root="${SCRIPT_DIR}/web" '
     {
@@ -388,11 +415,23 @@ start_web() {
   ensure_dirs
   cleanup_orphan_web_processes
 
-  local pid
+  local pid status
   pid="$(read_pid "$WEB_PID_FILE" || true)"
   if is_process_running "$pid"; then
-    log_info "Web already running (PID: ${pid})"
-    return 0
+    if [[ "${AUTO_HEAL_WEB_NEXT}" == "1" ]]; then
+      status="$(probe_http_status "http://localhost:${WEB_PORT}")"
+      if [[ "${status}" == "500" ]] && web_log_contains_next_dev_enoent; then
+        log_warn "Web is unhealthy (500) due to Next.js .next/dev ENOENT; auto-healing..."
+        stop_web_runtime
+        clear_next_dev_artifacts
+      else
+        log_info "Web already running (PID: ${pid})"
+        return 0
+      fi
+    else
+      log_info "Web already running (PID: ${pid})"
+      return 0
+    fi
   fi
 
   cleanup_next_dev_lock
@@ -415,6 +454,26 @@ start_web() {
   echo $! >"${WEB_PID_FILE}"
   wait_for_health "http://localhost:${WEB_PORT}" "web" || true
   log_success "Web started (PID: $(cat "${WEB_PID_FILE}"))"
+
+  if [[ "${AUTO_HEAL_WEB_NEXT}" == "1" ]]; then
+    status="$(probe_http_status "http://localhost:${WEB_PORT}")"
+    if [[ "${status}" == "500" ]] && web_log_contains_next_dev_enoent; then
+      log_warn "Detected corrupted Next.js dev artifacts after startup; retrying with clean .next/dev..."
+      stop_web_runtime
+      clear_next_dev_artifacts
+      assert_port_available "$WEB_PORT" "web"
+
+      log_info "Starting web on :${WEB_PORT}..."
+      PORT="${WEB_PORT}" \
+        NEXT_PUBLIC_API_URL="http://localhost:${SERVER_PORT}" \
+        npm --prefix "${SCRIPT_DIR}/web" run dev \
+        >"${WEB_LOG}" 2>&1 &
+
+      echo $! >"${WEB_PID_FILE}"
+      wait_for_health "http://localhost:${WEB_PORT}" "web" || true
+      log_success "Web started after auto-heal (PID: $(cat "${WEB_PID_FILE}"))"
+    fi
+  fi
 }
 
 cmd_up() {
@@ -454,11 +513,7 @@ cmd_up() {
 }
 
 cmd_down() {
-  stop_service "Web" "${WEB_PID_FILE}"
-  cleanup_next_dev_lock
-  if [[ "${AUTO_STOP_CONFLICTING_PORTS}" == "1" ]] && ! is_port_available "$WEB_PORT"; then
-    stop_port_listeners "$WEB_PORT" "web"
-  fi
+  stop_web_runtime
   stop_service "Backend" "${SERVER_PID_FILE}"
   stop_alex_server_listeners "$SERVER_PORT"
 }
@@ -671,11 +726,7 @@ cmd_logs_ui() {
 
     if ! dev_logs_ui_ready; then
       log_warn "Diagnostics workbench page unavailable; restarting web..."
-      stop_service "Web" "${WEB_PID_FILE}"
-      cleanup_next_dev_lock
-      if [[ "${AUTO_STOP_CONFLICTING_PORTS}" == "1" ]] && ! is_port_available "$WEB_PORT"; then
-        stop_port_listeners "$WEB_PORT" "web"
-      fi
+      stop_web_runtime
       start_web
     fi
   else

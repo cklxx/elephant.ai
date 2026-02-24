@@ -44,7 +44,7 @@ export const particleFragmentShader = /* glsl */ `
 
     if (strength < 0.01) discard;
 
-    gl_FragColor = vec4(vColor, strength * vAlpha * 0.7);
+    gl_FragColor = vec4(vColor, strength * vAlpha * 0.9);
   }
 `;
 
@@ -63,6 +63,6 @@ export const lineFragmentShader = /* glsl */ `
   varying vec3 vColor;
 
   void main() {
-    gl_FragColor = vec4(vColor, 0.15);
+    gl_FragColor = vec4(vColor, 0.25);
   }
 `;

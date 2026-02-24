@@ -120,6 +120,11 @@ class TestRun:
             result = run({})
             assert result["success"] is False  # no changes
 
+    def test_review_action_aliases_collect(self):
+        with patch.object(_mod, "_sh", return_value=""):
+            result = run({"action": "review"})
+            assert result["success"] is False  # no changes
+
     def test_unknown_action(self):
         result = run({"action": "invalid"})
         assert result["success"] is False

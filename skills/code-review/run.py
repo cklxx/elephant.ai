@@ -86,7 +86,7 @@ def collect(args: dict) -> dict:
 
 def run(args: dict) -> dict:
     action = args.pop("action", "collect")
-    if action == "collect":
+    if action in {"collect", "review"}:
         return collect(args)
     return {"success": False, "error": f"unknown action: {action}"}
 

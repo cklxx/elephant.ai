@@ -2,11 +2,10 @@
 
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useScroll, Float, MeshDistortMaterial, Environment } from "@react-three/drei";
+import { useScroll, Float, MeshDistortMaterial } from "@react-three/drei";
 import { MathUtils, Mesh } from "three";
 
 // ── Scroll-range keyframes ──────────────────────────────────
-// [scrollOffset]: { scale, distort, rotSpeed, tiltX }
 
 const KEYFRAMES = [
   { at: 0.0, scale: 1.0, distort: 0.15, rotSpeed: 0.15, tiltX: 0 },
@@ -33,24 +32,20 @@ function lerpKeyframes(offset: number, key: "scale" | "distort" | "rotSpeed" | "
 export function HeroObject() {
   const meshRef = useRef<Mesh>(null);
   const scroll = useScroll();
-
-  // Smooth values — pre-allocated, zero GC in animation loop
   const smooth = useRef({ scale: 1, distort: 0.15, rotSpeed: 0.15, tiltX: 0 });
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
 
-    const offset = scroll.offset; // 0..1 continuous
+    const offset = scroll.offset;
     const s = smooth.current;
-    const lambda = 4; // damping factor
+    const lambda = 4;
 
-    // Damp each property toward its keyframed target
     s.scale = MathUtils.damp(s.scale, lerpKeyframes(offset, "scale"), lambda, delta);
     s.distort = MathUtils.damp(s.distort, lerpKeyframes(offset, "distort"), lambda, delta);
     s.rotSpeed = MathUtils.damp(s.rotSpeed, lerpKeyframes(offset, "rotSpeed"), lambda, delta);
     s.tiltX = MathUtils.damp(s.tiltX, lerpKeyframes(offset, "tiltX"), lambda, delta);
 
-    // Apply
     meshRef.current.scale.setScalar(s.scale);
     meshRef.current.rotation.y += s.rotSpeed * delta;
     meshRef.current.rotation.x = s.tiltX;
@@ -58,32 +53,21 @@ export function HeroObject() {
 
   return (
     <>
-      <Environment preset="night" />
-      <spotLight
-        position={[5, 5, 5]}
-        angle={0.5}
-        penumbra={1}
-        intensity={2}
-        color="#818cf8"
-        castShadow={false}
-      />
-      <spotLight
-        position={[-4, -2, 4]}
-        angle={0.6}
-        penumbra={1}
-        intensity={1.2}
-        color="#c084fc"
-        castShadow={false}
-      />
-      <ambientLight intensity={0.25} />
+      {/* Key lighting: rim light from above-right, fill from left-below */}
+      <pointLight position={[4, 4, 6]} intensity={80} color="#818cf8" />
+      <pointLight position={[-3, -2, 4]} intensity={40} color="#c084fc" />
+      <pointLight position={[0, 0, 8]} intensity={20} color="#e0e7ff" />
+      <ambientLight intensity={0.15} />
 
       <Float speed={1.5} rotationIntensity={0.3} floatIntensity={0.5}>
         <mesh ref={meshRef}>
           <icosahedronGeometry args={[2.5, 12]} />
           <MeshDistortMaterial
-            color="#6366f1"
-            metalness={0.85}
-            roughness={0.15}
+            color="#4f46e5"
+            emissive="#6366f1"
+            emissiveIntensity={0.6}
+            metalness={0.3}
+            roughness={0.4}
             distort={0.15}
             speed={2}
           />
