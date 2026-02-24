@@ -34,3 +34,25 @@ func TestBuildPlanOnlyPromptAppendsInstruction(t *testing.T) {
 		t.Fatalf("expected prompt enrichment, got %q", out)
 	}
 }
+
+func TestApplyExecutionControls_NormalizesModeAndAutonomy(t *testing.T) {
+	t.Run("normalizes known values", func(t *testing.T) {
+		cfg := applyExecutionControls("codex", "  PlAn ", " SeMi ", map[string]string{})
+		if cfg["execution_mode"] != "plan" {
+			t.Fatalf("expected execution_mode=plan, got %q", cfg["execution_mode"])
+		}
+		if cfg["autonomy_level"] != "semi" {
+			t.Fatalf("expected autonomy_level=semi, got %q", cfg["autonomy_level"])
+		}
+	})
+
+	t.Run("defaults unknown values", func(t *testing.T) {
+		cfg := applyExecutionControls("codex", "dry-run", "auto", map[string]string{})
+		if cfg["execution_mode"] != "execute" {
+			t.Fatalf("expected execution_mode=execute, got %q", cfg["execution_mode"])
+		}
+		if cfg["autonomy_level"] != "controlled" {
+			t.Fatalf("expected autonomy_level=controlled, got %q", cfg["autonomy_level"])
+		}
+	})
+}

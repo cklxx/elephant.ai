@@ -4,15 +4,14 @@ import (
 	"strings"
 
 	core "alex/internal/domain/agent/ports"
+	"alex/internal/infra/executioncontrol"
 )
 
 const (
-	executionModeExecute = "execute"
-	executionModePlan    = "plan"
+	executionModePlan = "plan"
 
-	autonomyControlled = "controlled"
-	autonomySemi       = "semi"
-	autonomyFull       = "full"
+	autonomySemi = "semi"
+	autonomyFull = "full"
 )
 
 const (
@@ -21,23 +20,11 @@ const (
 )
 
 func normalizeExecutionMode(raw string) string {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case executionModePlan:
-		return executionModePlan
-	default:
-		return executionModeExecute
-	}
+	return executioncontrol.NormalizeExecutionMode(raw)
 }
 
 func normalizeAutonomyLevel(raw string) string {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case autonomyFull:
-		return autonomyFull
-	case autonomySemi:
-		return autonomySemi
-	default:
-		return autonomyControlled
-	}
+	return executioncontrol.NormalizeAutonomyLevel(raw)
 }
 
 // applyExecutionControls normalizes cross-agent controls into agent-specific config keys.

@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/executioncontrol"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/utils/id"
 )
@@ -385,21 +386,11 @@ func applyPlanCodingDefaults(task *bgPlanTask, workspaceMode string) {
 }
 
 func normalizeModeString(raw string) string {
-	if strings.EqualFold(strings.TrimSpace(raw), "plan") {
-		return "plan"
-	}
-	return "execute"
+	return executioncontrol.NormalizeExecutionMode(raw)
 }
 
 func normalizeAutonomyString(raw string) string {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "full":
-		return "full"
-	case "semi":
-		return "semi"
-	default:
-		return "controlled"
-	}
+	return executioncontrol.NormalizeAutonomyLevel(raw)
 }
 
 func topologicalOrder(tasks []bgPlanTask) ([]string, error) {

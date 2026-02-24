@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/executioncontrol"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/utils/id"
 )
@@ -20,7 +21,7 @@ func NewTeamDispatch() *teamDispatch {
 	return &teamDispatch{
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
-				Name: "team_dispatch",
+				Name:        "team_dispatch",
 				Description: `Dispatch an agent team to collaboratively execute a goal. Teams are pre-configured workflows where different agents handle different roles (e.g., Codex executes code, Claude Code summarizes results). The team follows a staged DAG: each stage completes before the next starts. Use bg_status to monitor progress and bg_collect to retrieve results. Pass team="list" to see available teams.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
@@ -339,21 +340,11 @@ func buildTeamTaskConfig(role *agent.TeamRoleDefinition, globalOverrides map[str
 }
 
 func normalizeExecutionMode(raw string) string {
-	if strings.EqualFold(strings.TrimSpace(raw), "plan") {
-		return "plan"
-	}
-	return "execute"
+	return executioncontrol.NormalizeExecutionMode(raw)
 }
 
 func normalizeAutonomy(raw string) string {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "full":
-		return "full"
-	case "semi":
-		return "semi"
-	default:
-		return "controlled"
-	}
+	return executioncontrol.NormalizeAutonomyLevel(raw)
 }
 
 func truncateGoal(goal string, maxRunes int) string {

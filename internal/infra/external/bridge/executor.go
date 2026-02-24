@@ -17,6 +17,7 @@ import (
 
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/executioncontrol"
 	"alex/internal/infra/external/subprocess"
 	"alex/internal/shared/logging"
 )
@@ -610,27 +611,19 @@ func splitList(raw string) []string {
 }
 
 func normalizeExecutionMode(raw string, cfg map[string]string) string {
-	mode := strings.ToLower(strings.TrimSpace(raw))
+	mode := strings.TrimSpace(raw)
 	if mode == "" && cfg != nil {
-		mode = strings.ToLower(strings.TrimSpace(cfg["execution_mode"]))
+		mode = cfg["execution_mode"]
 	}
-	if mode == "plan" {
-		return "plan"
-	}
-	return "execute"
+	return executioncontrol.NormalizeExecutionMode(mode)
 }
 
 func normalizeAutonomyLevel(raw string, cfg map[string]string) string {
-	level := strings.ToLower(strings.TrimSpace(raw))
+	level := strings.TrimSpace(raw)
 	if level == "" && cfg != nil {
-		level = strings.ToLower(strings.TrimSpace(cfg["autonomy_level"]))
+		level = cfg["autonomy_level"]
 	}
-	switch level {
-	case "full", "semi":
-		return level
-	default:
-		return "controlled"
-	}
+	return executioncontrol.NormalizeAutonomyLevel(level)
 }
 
 func enrichPlanMetadata(result *agent.ExternalAgentResult, executionMode string) {
