@@ -71,9 +71,9 @@ func TestIsImageAttachment(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := isImageAttachment(tc.att, tc.placeholder)
+			got := ports.IsImageAttachment(tc.att, tc.placeholder)
 			if got != tc.want {
-				t.Fatalf("isImageAttachment(%+v, %q) = %v, want %v", tc.att, tc.placeholder, got, tc.want)
+				t.Fatalf("IsImageAttachment(%+v, %q) = %v, want %v", tc.att, tc.placeholder, got, tc.want)
 			}
 		})
 	}
