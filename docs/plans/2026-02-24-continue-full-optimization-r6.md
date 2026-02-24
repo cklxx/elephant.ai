@@ -22,7 +22,7 @@ Perform another behavior-preserving simplification pass focused on repeated atta
 - [completed] Batch 1: simplify server attachment coercion + lark mention ID extraction.
 - [completed] Batch 2: simplify subscription provider preset mapping.
 - [completed] Batch 3: targeted tests + full quality gates.
-- [in_progress] Batch 4: mandatory code review, incremental commits, rebase/merge, cleanup.
+- [completed] Batch 4: mandatory code review, incremental commits, rebase/merge, cleanup.
 
 ## Progress Log
 
@@ -37,3 +37,4 @@ Perform another behavior-preserving simplification pass focused on repeated atta
 - 2026-02-24: Fixed pre-existing infra test compile issue by switching `internal/infra/llm/attachments_test.go` to `ports.IsImageAttachment`.
 - 2026-02-24: Full gate passed via `./scripts/pre-push.sh`.
 - 2026-02-24: Completed mandatory code review report (`docs/reviews/2026-02-24-continue-full-optimization-r6-review.md`), no P0-P3 findings.
+- 2026-02-24: Rebasing onto latest `main` succeeded; fast-forward merged Round 6 branch into `main` and removed temporary worktree/branch.
