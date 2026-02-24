@@ -47,7 +47,7 @@ export function HomeGLPage({ lang }: { lang: HomeLang }) {
   return (
     <div
       className="relative h-screen w-screen"
-      style={{ background: "#080810" }}
+      style={{ background: "#09090B" }}
     >
       {/* GL + scroll-driven scene */}
       <GLCanvas lang={lang} />

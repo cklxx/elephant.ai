@@ -19,16 +19,16 @@ function CSSFallback() {
     <div
       className="fixed inset-0"
       style={{
-        background: "#080810",
+        background: "#09090B",
       }}
     >
       <div
         className="absolute inset-0 animate-[gradient_12s_ease-in-out_infinite]"
         style={{
           background: [
-            "radial-gradient(600px circle at 20% 30%, rgba(52,211,153,0.15), transparent 60%)",
-            "radial-gradient(800px circle at 80% 20%, rgba(45,212,191,0.10), transparent 65%)",
-            "radial-gradient(500px circle at 50% 70%, rgba(52,211,153,0.08), transparent 55%)",
+            "radial-gradient(600px circle at 20% 30%, rgba(99,102,241,0.15), transparent 60%)",
+            "radial-gradient(800px circle at 80% 20%, rgba(192,132,252,0.10), transparent 65%)",
+            "radial-gradient(500px circle at 50% 70%, rgba(129,140,248,0.08), transparent 55%)",
           ].join(", "),
         }}
       />
@@ -83,8 +83,8 @@ function Scene({ caps, lang }: { caps: GLCapabilities; lang: HomeLang }) {
             scale={30}
             size={2}
             speed={0.3}
-            color="#34d399"
-            opacity={0.4}
+            color="#818cf8"
+            opacity={0.35}
           />
         </ParallaxGroup>
       </Scroll>
@@ -105,7 +105,7 @@ function Scene({ caps, lang }: { caps: GLCapabilities; lang: HomeLang }) {
           <Bloom
             luminanceThreshold={0.2}
             luminanceSmoothing={0.9}
-            intensity={0.8}
+            intensity={0.6}
             mipmapBlur
           />
         </EffectComposer>
@@ -137,17 +137,18 @@ export function GLCanvas({ lang }: { lang: HomeLang }) {
   }
 
   return (
-    <div className="absolute inset-0" style={{ background: "#080810" }}>
+    <div className="absolute inset-0" style={{ background: "#09090B" }}>
       <Canvas
         dpr={[1, caps.dpr]}
         camera={{ position: [0, 0, 30], fov: 60, near: 0.1, far: 100 }}
         gl={{
           alpha: false,
           antialias: false,
-          powerPreference: "default",
+          stencil: false,
+          powerPreference: "high-performance",
         }}
         frameloop={visible ? "always" : "never"}
-        style={{ background: "#080810" }}
+        style={{ background: "#09090B" }}
       >
         <Suspense fallback={null}>
           <Scene caps={caps} lang={lang} />

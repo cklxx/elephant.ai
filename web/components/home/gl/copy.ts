@@ -18,8 +18,8 @@ export interface GLSectionCopy {
 export const glCopy: Record<HomeLang, GLHomeCopy> = {
   en: {
     title: "elephant.ai",
-    tagline: "Proactive AI that lives inside your workflow",
-    cta: "Enter Console →",
+    tagline: "Your AI teammate, always on.",
+    cta: "Get Started →",
     ctaHref: "/conversation",
     keywords: [
       "Persistent Memory",
@@ -31,8 +31,8 @@ export const glCopy: Record<HomeLang, GLHomeCopy> = {
   },
   zh: {
     title: "elephant.ai",
-    tagline: "住在工作流里的主动型 AI",
-    cta: "进入控制台 →",
+    tagline: "你的 AI 队友，永远在线。",
+    cta: "开始使用 →",
     ctaHref: "/conversation",
     keywords: [
       "持续记忆",
@@ -47,64 +47,64 @@ export const glCopy: Record<HomeLang, GLHomeCopy> = {
 export const glSections: Record<HomeLang, GLSectionCopy[]> = {
   en: [
     {
-      title: "Lives in Lark",
-      description: "Always online in your groups and DMs — responds like a team member.",
+      title: "Lives where you work",
+      description: "No new app. No context switch. Talk to it in your existing Lark groups and DMs.",
       points: [
-        { title: "Zero switching cost", description: "No new app to open — talk in your existing groups and DMs." },
-        { title: "Proactive context", description: "Auto-fetches recent chat history and cross-session memory." },
-        { title: "Autonomous execution", description: "Search, code, generate documents — from a message to deliverable output." },
+        { title: "Zero friction", description: "Works inside your existing groups and DMs — nothing to install." },
+        { title: "Remembers context", description: "Picks up where you left off, across conversations and sessions." },
+        { title: "Acts on your behalf", description: "Search, code, draft documents — from message to deliverable." },
       ],
       scrollRange: { from: 0.2, distance: 0.2 },
     },
     {
-      title: "Not just chat — an agent that gets things done",
-      description: "Built-in skills and a rich toolset to handle real work.",
+      title: "An agent that ships real work",
+      description: "Beyond chat — built-in skills and a rich toolset for real output.",
       points: [
-        { title: "Deep research", description: "Multi-step web search and synthesis, auto-generates research reports." },
-        { title: "Skill-driven", description: "Meeting notes, email drafting, slide decks — triggered by natural language." },
-        { title: "Rich toolset", description: "Code execution, file ops, browser automation, MCP extensions." },
+        { title: "Deep research", description: "Multi-step web search and synthesis, auto-generates reports." },
+        { title: "Skill-driven", description: "Meeting notes, email drafts, slide decks — triggered by a message." },
+        { title: "Extensible tools", description: "Code execution, file ops, browser automation, MCP plugins." },
       ],
       scrollRange: { from: 0.4, distance: 0.2 },
     },
     {
-      title: "AI inside your workflow, not outside it",
-      description: "Don't let AI live in another app, another tab, another context switch.",
+      title: "Autonomous, with guardrails",
+      description: "Full autonomy when safe. Human approval when it matters.",
       points: [
-        { title: "Persistent memory", description: "Remembers conversations, decisions, and context across sessions." },
-        { title: "Fully observable", description: "Real-time progress, transparent cost and token tracking." },
-        { title: "Approval gates", description: "Risky actions require explicit human approval." },
+        { title: "Persistent memory", description: "Remembers decisions and context across weeks and months." },
+        { title: "Transparent execution", description: "Real-time progress, cost tracking, full audit trail." },
+        { title: "Approval gates", description: "Risky actions require explicit human sign-off." },
       ],
       scrollRange: { from: 0.6, distance: 0.2 },
     },
   ],
   zh: [
     {
-      title: "住在飞书里",
-      description: "通过 WebSocket 常驻群聊和私信，像团队成员一样随时在线。",
+      title: "住在你的工作流里",
+      description: "不用切应用、不用换标签页。在飞书群聊和私信里直接对话。",
       points: [
-        { title: "零切换成本", description: "不需要打开新应用——在已有的群聊和私信里直接对话。" },
-        { title: "主动理解上下文", description: "自动获取近期聊天记录、跨会话记忆，不用复述背景。" },
-        { title: "自主执行工作", description: "搜索、写代码、生成文档——从一条消息到可交付产出。" },
+        { title: "零摩擦", description: "在已有的群聊和私信里直接使用——无需安装。" },
+        { title: "记得上下文", description: "跨对话、跨会话延续记忆，不用重复说明。" },
+        { title: "替你行动", description: "搜索、写代码、生成文档——从消息到交付物。" },
       ],
       scrollRange: { from: 0.2, distance: 0.2 },
     },
     {
-      title: "不只是聊天——是能做事的 Agent",
-      description: "内置技能和丰富工具，处理真实工作。",
+      title: "不只聊天，是能交付的 Agent",
+      description: "超越对话——内置技能和丰富工具，产出真实成果。",
       points: [
-        { title: "深度研究", description: "多步骤网络搜索与信息综合，自动生成研究报告。" },
-        { title: "技能驱动", description: "会议纪要、邮件撰写、PPT 生成——用自然语言触发。" },
-        { title: "工具丰富", description: "代码执行、文件操作、浏览器自动化、MCP 扩展。" },
+        { title: "深度研究", description: "多步骤搜索与信息综合，自动生成研究报告。" },
+        { title: "技能驱动", description: "会议纪要、邮件撰写、PPT 生成——一句话触发。" },
+        { title: "可扩展工具", description: "代码执行、文件操作、浏览器自动化、MCP 插件。" },
       ],
       scrollRange: { from: 0.4, distance: 0.2 },
     },
     {
-      title: "工作流里的 AI，而不是工作流外的",
-      description: "别让 AI 在另一个应用、另一个标签页、另一次上下文切换里。",
+      title: "自主运行，安全可控",
+      description: "安全时全自动，关键时刻需要你的确认。",
       points: [
-        { title: "持续记忆", description: "跨会话记住对话、决策和上下文，再也不用重复说明。" },
-        { title: "全程可观测", description: "执行进度实时反馈、成本与 token 透明可查。" },
-        { title: "审批门控", description: "高风险操作需要明确的人工审批。" },
+        { title: "持续记忆", description: "跨越数周数月，记住决策和上下文。" },
+        { title: "执行透明", description: "进度实时可见、成本可查、全程审计。" },
+        { title: "审批门控", description: "高风险操作需要明确的人工批准。" },
       ],
       scrollRange: { from: 0.6, distance: 0.2 },
     },

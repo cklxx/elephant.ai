@@ -22,9 +22,9 @@ const NOISE_AMPLITUDE = 0.02;
 const CELL_SIZE = CONNECTION_DIST; // spatial hash cell size
 const LINE_UPDATE_INTERVAL = 3; // only rebuild lines every N frames
 
-// Emerald (#34d399) → Teal (#2dd4bf) color range
-const COLOR_A = new THREE.Color("#34d399");
-const COLOR_B = new THREE.Color("#2dd4bf");
+// Indigo (#818cf8) → Purple (#c084fc) color range
+const COLOR_A = new THREE.Color("#818cf8");
+const COLOR_B = new THREE.Color("#c084fc");
 
 // ── Simple 3D noise (value noise via hash) ───────────────────
 

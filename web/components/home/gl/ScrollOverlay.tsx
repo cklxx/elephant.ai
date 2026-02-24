@@ -36,49 +36,33 @@ function HeroOverlay({ lang }: { lang: HomeLang }) {
       ref={ref}
       className="absolute left-0 top-0 flex h-screen w-screen flex-col items-center justify-center px-6"
     >
-      <div className="max-w-2xl space-y-8 text-center">
+      <div className="max-w-2xl space-y-6 text-center">
         <h1
-          className="font-mono text-6xl font-bold tracking-tight sm:text-7xl lg:text-8xl"
+          className="font-sans text-6xl font-extrabold tracking-tight sm:text-7xl lg:text-8xl"
           style={{
-            color: "#fff",
-            textShadow: "0 0 40px rgba(52,211,153,0.3), 0 0 80px rgba(52,211,153,0.15)",
+            color: "#FAFAFA",
+            textShadow: "0 0 60px rgba(129,140,248,0.25), 0 0 120px rgba(192,132,252,0.12)",
           }}
         >
           {t.title}
         </h1>
 
         <p
-          className="font-sans text-lg sm:text-xl"
-          style={{ color: "rgba(255,255,255,0.5)" }}
+          className="font-sans text-xl sm:text-2xl"
+          style={{ color: "rgba(255,255,255,0.55)" }}
         >
           {t.tagline}
         </p>
 
-        <div className="flex flex-wrap justify-center gap-3">
-          {t.keywords.map((kw) => (
-            <span
-              key={kw}
-              className="rounded-full px-4 py-1.5 font-mono text-sm"
-              style={{
-                color: "#34d399",
-                border: "1px solid rgba(52,211,153,0.3)",
-                background: "rgba(52,211,153,0.06)",
-              }}
-            >
-              {kw}
-            </span>
-          ))}
-        </div>
-
-        <div className="pt-4">
+        <div className="pt-6">
           <a
             href={t.ctaHref}
-            className="inline-block rounded-full px-8 py-3 font-sans text-sm font-semibold tracking-wide transition-all hover:scale-105"
+            className="inline-block rounded-full px-10 py-3.5 font-sans text-sm font-semibold tracking-wide transition-all hover:scale-105"
             style={{
               color: "#fff",
-              border: "1px solid rgba(52,211,153,0.4)",
-              boxShadow: "0 0 20px rgba(52,211,153,0.15), inset 0 0 20px rgba(52,211,153,0.05)",
-              background: "rgba(52,211,153,0.08)",
+              background: "linear-gradient(135deg, rgba(99,102,241,0.5), rgba(192,132,252,0.4))",
+              border: "1px solid rgba(129,140,248,0.3)",
+              boxShadow: "0 0 24px rgba(129,140,248,0.2), 0 0 48px rgba(192,132,252,0.08)",
             }}
           >
             {t.cta}
@@ -163,10 +147,10 @@ function ContentSectionOverlay({
       <div className="max-w-3xl space-y-10 text-center">
         <div className="space-y-4">
           <h2
-            className="font-mono text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl"
+            className="font-sans text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl"
             style={{
-              color: "#fff",
-              textShadow: "0 0 30px rgba(52,211,153,0.2)",
+              color: "#FAFAFA",
+              textShadow: "0 0 40px rgba(129,140,248,0.2)",
             }}
           >
             {section.title}
@@ -179,26 +163,26 @@ function ContentSectionOverlay({
           </p>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-3">
           {section.points.map((point, i) => (
             <div
               key={point.title}
               ref={(el) => { cardRefs.current[i] = el; }}
-              className="rounded-2xl p-6 text-left"
+              className="rounded-2xl p-6 text-left backdrop-blur-sm"
               style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(52,211,153,0.15)",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
               }}
             >
               <h3
-                className="mb-2 font-mono text-sm font-semibold tracking-wide"
-                style={{ color: "#34d399" }}
+                className="mb-2 font-sans text-sm font-semibold uppercase tracking-wider"
+                style={{ color: "#a5b4fc" }}
               >
                 {point.title}
               </h3>
               <p
                 className="font-sans text-sm leading-relaxed"
-                style={{ color: "rgba(255,255,255,0.6)" }}
+                style={{ color: "rgba(255,255,255,0.55)" }}
               >
                 {point.description}
               </p>
@@ -241,10 +225,10 @@ function OutroOverlay({ lang }: { lang: HomeLang }) {
     >
       <div className="max-w-lg space-y-8 text-center">
         <h2
-          className="font-mono text-4xl font-bold tracking-tight sm:text-5xl"
+          className="font-sans text-4xl font-bold tracking-tight sm:text-5xl"
           style={{
-            color: "#fff",
-            textShadow: "0 0 40px rgba(52,211,153,0.3)",
+            color: "#FAFAFA",
+            textShadow: "0 0 60px rgba(129,140,248,0.25), 0 0 120px rgba(192,132,252,0.12)",
           }}
         >
           {t.title}
@@ -257,12 +241,12 @@ function OutroOverlay({ lang }: { lang: HomeLang }) {
         </p>
         <a
           href={t.ctaHref}
-          className="inline-block rounded-full px-10 py-4 font-sans text-base font-semibold tracking-wide transition-all hover:scale-105"
+          className="inline-block rounded-full px-12 py-4 font-sans text-base font-semibold tracking-wide transition-all hover:scale-105"
           style={{
             color: "#fff",
-            border: "1px solid rgba(52,211,153,0.5)",
-            boxShadow: "0 0 30px rgba(52,211,153,0.2), inset 0 0 30px rgba(52,211,153,0.08)",
-            background: "rgba(52,211,153,0.12)",
+            background: "linear-gradient(135deg, rgba(99,102,241,0.5), rgba(192,132,252,0.4))",
+            border: "1px solid rgba(129,140,248,0.35)",
+            boxShadow: "0 0 30px rgba(129,140,248,0.2), 0 0 60px rgba(192,132,252,0.1)",
           }}
         >
           {t.cta}

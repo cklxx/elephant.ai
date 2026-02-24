@@ -30,7 +30,7 @@ export function ScrollProgressIndicator() {
       style={{
         width: 2,
         height: "30vh",
-        background: "rgba(255,255,255,0.08)",
+        background: "rgba(255,255,255,0.06)",
         borderRadius: 1,
       }}
     >
@@ -41,8 +41,8 @@ export function ScrollProgressIndicator() {
           width: 8,
           height: 8,
           borderRadius: "50%",
-          background: "#34d399",
-          boxShadow: "0 0 12px rgba(52,211,153,0.5)",
+          background: "#818cf8",
+          boxShadow: "0 0 12px rgba(129,140,248,0.5)",
           marginTop: -4,
         }}
       />

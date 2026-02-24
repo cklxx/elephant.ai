@@ -64,18 +64,26 @@ export function HeroObject() {
         angle={0.5}
         penumbra={1}
         intensity={2}
-        color="#34d399"
+        color="#818cf8"
         castShadow={false}
       />
-      <ambientLight intensity={0.3} />
+      <spotLight
+        position={[-4, -2, 4]}
+        angle={0.6}
+        penumbra={1}
+        intensity={1.2}
+        color="#c084fc"
+        castShadow={false}
+      />
+      <ambientLight intensity={0.25} />
 
       <Float speed={1.5} rotationIntensity={0.3} floatIntensity={0.5}>
         <mesh ref={meshRef}>
           <icosahedronGeometry args={[2.5, 12]} />
           <MeshDistortMaterial
-            color="#34d399"
-            metalness={0.8}
-            roughness={0.2}
+            color="#6366f1"
+            metalness={0.85}
+            roughness={0.15}
             distort={0.15}
             speed={2}
           />
