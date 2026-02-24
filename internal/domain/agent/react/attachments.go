@@ -42,16 +42,9 @@ func normalizeToolAttachments(attachments map[string]ports.Attachment) map[strin
 	}
 	normalized := make(map[string]ports.Attachment, len(attachments))
 	for _, key := range sortedAttachmentKeys(attachments) {
-		att := attachments[key]
-		placeholder := strings.TrimSpace(key)
-		if placeholder == "" {
-			placeholder = strings.TrimSpace(att.Name)
-		}
-		if placeholder == "" {
+		placeholder, att, ok := normalizeAttachmentEntry(key, attachments[key], false)
+		if !ok {
 			continue
-		}
-		if att.Name == "" {
-			att.Name = placeholder
 		}
 		normalized[placeholder] = att
 	}
@@ -331,15 +324,9 @@ func normalizeAttachmentMap(input map[string]ports.Attachment) map[string]ports.
 
 	normalized := make(map[string]ports.Attachment, len(input))
 	for key, att := range input {
-		placeholder := strings.TrimSpace(key)
-		if placeholder == "" {
-			placeholder = strings.TrimSpace(att.Name)
-		}
-		if placeholder == "" {
+		placeholder, att, ok := normalizeAttachmentEntry(key, att, true)
+		if !ok {
 			continue
-		}
-		if strings.TrimSpace(att.Name) == "" {
-			att.Name = placeholder
 		}
 		normalized[placeholder] = att
 	}
@@ -348,6 +335,28 @@ func normalizeAttachmentMap(input map[string]ports.Attachment) map[string]ports.
 		return nil
 	}
 	return normalized
+}
+
+func normalizeAttachmentEntry(key string, att ports.Attachment, fillNameWhenTrimmedEmpty bool) (string, ports.Attachment, bool) {
+	placeholder := strings.TrimSpace(key)
+	if placeholder == "" {
+		placeholder = strings.TrimSpace(att.Name)
+	}
+	if placeholder == "" {
+		return "", att, false
+	}
+
+	if fillNameWhenTrimmedEmpty {
+		if strings.TrimSpace(att.Name) == "" {
+			att.Name = placeholder
+		}
+		return placeholder, att, true
+	}
+
+	if att.Name == "" {
+		att.Name = placeholder
+	}
+	return placeholder, att, true
 }
 
 // ensureAttachmentStore initializes the attachment map on the task state.
