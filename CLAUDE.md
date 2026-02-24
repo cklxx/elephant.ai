@@ -2,35 +2,7 @@
 
 ## Project identity
 
-elephant.ai is a **proactive AI assistant** that embeds into daily workflows — Lark, WeChat, CLI, and web — remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. One runtime, every surface, always ready.
-
-### What "proactive" means for this codebase
-
-| Principle | Implementation |
-|---|---|
-| **Anticipate, don't wait** | Auto-save Lark/WeChat messages to memory; inject recent chat history as context before the user asks. |
-| **Channel-native** | The assistant is a first-class participant in Lark groups and WeChat chats, not a separate app the user must switch to. |
-| **Persistent memory** | `internal/memory/` stores conversations, decisions, and context across sessions. The LLM retrieves relevant history automatically. |
-| **Autonomous execution** | The ReAct loop (`internal/agent/domain/react/`) runs Think → Act → Observe to completion — web search, code execution, file ops, browser automation — without hand-holding. |
-| **Built-in skills** | `skills/` contains markdown-driven workflows (deep research, meeting notes, email drafting, slide decks, video production, code review) that the assistant executes on demand. |
-| **Approval gates** | Proactivity requires safety. Risky tool calls require explicit human approval via CLI, web, or chat. |
-| **Tools feel local** | In web mode, sandbox-backed tools (file read/write, shell exec, code execution, browser) present as local operations. The LLM should never perceive sandbox boundaries. |
-| **Observable** | Every action produces structured traces, metrics, and cost accounting (`internal/observability/`). |
-
-## Heuristic Prompting for Motivation-Aware Proactivity
-
-Use these heuristics when writing prompts or policy instructions for proactive behavior:
-- Start with motivation signal detection before action: low energy, overload, ambiguity, or clear readiness.
-- Apply the smallest useful intervention first: `clarify` -> `plan` -> reminder/schedule/task execution.
-- Preserve user autonomy at every step: always leave room for opt-out, defer, or scope reduction.
-- Prefer progress visibility over pressure: convert work into clear artifacts/checkpoints instead of aggressive nudging.
-- Use memory for personalization only when it improves relevance and respects user boundaries.
-
-Safety heuristics:
-- No manipulative language (fear, guilt, urgency inflation, hidden pressure).
-- Ask for explicit consent before sensitive actions, external outreach, or irreversible operations.
-- If user signals stop/no reminders, immediately switch to non-proactive mode.
-- Be explicit about uncertainty and limits; do not fabricate confidence.
+Proactive AI assistant across Lark, WeChat, CLI, and web. Persistent memory, autonomous ReAct execution, built-in skills, approval gates.
 
 ### Architecture
 
@@ -53,83 +25,102 @@ Key packages:
 
 ### Design preferences
 
-When making decisions, prefer:
-- Context engineering over prompt hacking.
-- Typed events over unstructured logs.
-- Clean port/adapter boundaries over convenience shortcuts.
-- Multi-provider LLM support over vendor lock-in.
-- Skills and memory over one-shot answers.
-- Proactive context injection over user-driven retrieval.
-- **Global best practices over local conventions** — reference industry standards, academic research, and established open-source patterns when available.
+- **Context engineering over prompt hacking** → When improving LLM output quality, modify context assembly logic (`internal/context/`) first. Only add prompt templates if context changes are verified insufficient.
+- **Typed events over unstructured logs** → New observability must use typed event structs (`internal/agent/domain/events/`). Never add free-form log strings for state transitions.
+- **Clean port/adapter boundaries over convenience shortcuts** → Cross-layer imports must go through port interfaces. Direct infra-to-domain imports are forbidden.
+- **Multi-provider LLM support over vendor lock-in** → New LLM features must work across all providers in `internal/llm/`. Never use provider-specific APIs without a provider-agnostic adapter.
+- **Skills and memory over one-shot answers** → When the assistant can learn from an interaction, persist it to memory. When a workflow is reusable, encode it as a skill.
+- **Proactive context injection over user-driven retrieval** → Auto-inject relevant context before the user asks. Manual retrieval is a fallback, not the default.
+- **Global best practices over local conventions** → Reference industry standards, academic research, and established open-source patterns when available.
+
+### Proactive behavior constraints
+
+When modifying code that governs proactive behavior (`internal/agent/`, skill triggers, context injection):
+- Detect motivation state before executing proactive actions: low energy, overload, ambiguity, or clear readiness.
+- Apply minimum-effective intervention: `clarify` → `plan` → reminder/schedule/task execution.
+- Every proactive suggestion must remain user-overridable; never remove opt-out paths.
+- Prefer progress visibility (artifacts/checkpoints) over high-frequency nudges.
+- Use memory-guided personalization only when it materially improves relevance.
+
+Safety constraints for proactive code paths:
+- No manipulative framing (fear, guilt, urgency inflation). Applies to all LLM prompt construction.
+- Any tool call that sends external messages or performs irreversible operations must pass through approval gates (`internal/agent/domain/`). No exceptions.
+- Honor explicit stop signals immediately: disable reminders and proactive pushes.
+- State uncertainty clearly; never fabricate confidence in LLM responses.
 
 ---
 
 ## Repo agent workflow & safety rules
 
-### 0 · About the user and your role
+### Conflict resolution (meta-rule)
 
-* You are assisting **cklxx**.
-* Address me as cklxx first.
-* Assume cklxx is a seasoned backend/database engineer familiar with Rust, Go, Python, and their ecosystems.
-* cklxx values "Slow is Fast" and focuses on reasoning quality, abstraction/architecture, and long-term maintainability rather than short-term speed.
-* **Most important:** Keep error experience entries in `docs/error-experience/entries/` and summary items in `docs/error-experience/summary/entries/`; `docs/error-experience.md` and `docs/error-experience/summary.md` are index-only.
+When rules conflict, priority is: **safety > correctness > maintainability > speed**.
+- If removing code would cause a runtime panic → keep it (safety).
+- If two approaches are equally safe → pick the more correct one.
+- If equally correct → pick the more maintainable one.
+- "Avoid unnecessary defensive code" vs "cover edge cases" → if the invariant is guaranteed by the type system or caller contract, skip the guard; if it depends on external input or runtime state, add the check.
+
+### 0 · About the user
+
+* You are assisting **cklxx**. Address as cklxx first.
+* Seasoned backend/database engineer; fluent in Rust, Go, Python.
+* Values "Slow is Fast": reasoning quality, abstraction/architecture, long-term maintainability over short-term speed.
 * Config files are YAML-only; avoid JSON config examples and assume `.yaml` paths.
-* Your core goals:
-  * Act as a **strong reasoning and planning coding assistant**, giving high-quality solutions and implementations with minimal back-and-forth.
-  * Aim to get it right the first time; avoid shallow answers and needless clarification.
-  * Provide periodic summaries, and abstract/refactor when appropriate to improve long-term maintainability.
-  * Start with the most systematic view of the current project, then propose a reasonable plan.
-  * Absolute core: practice compounding engineering — record successful paths and failed experiences.
-  * Record execution plans, progress, and notable issues in planning docs; log important incidents in error-experience entries.
-  * Every plan must be written to a file under `docs/plans/`, with detailed updates as work progresses.
-  * Before executing each task, review best engineering practices under `docs/`; if missing, search and add them.
-  * Run full lint and test validation after changes.
-  * After lint/test pass, execute code review (`skills/code-review/SKILL.md`) on the diff before committing. Fix P0/P1 findings before commit; create follow-up for P2.
-  * Start each task from a clean slate: create a new worktree on a new branch based on `main`, copy `.env` into the worktree, implement changes there, then merge back into `main` (prefer fast-forward).
-  * After finishing and merging back, delete the temporary worktree (and optionally delete the branch) to keep the repo clean.
-  * After completing code changes, restart only the changed service: `alex dev restart backend` or `alex dev restart web`. Avoid `./dev.sh down && ./dev.sh` which unnecessarily restarts infra.
-  * Any change must be fully tested before delivery; use TDD and cover edge cases as much as possible.
-  * Avoid unnecessary defensive code; if context guarantees invariants, use direct access instead of `getattr` or guard clauses.
-  * If intelligent automation can reliably take over a solution, do not introduce a complex workflow orchestration scheme.
 
----
-
-### 1 · Overall reasoning and planning framework (global rules)
-
-Keep this concise and action-oriented. Prefer correctness and maintainability over speed.
+### 1 · Planning & execution
 
 #### 1.1 Decision priorities
 1. Hard constraints and explicit rules.
-2. Reversibility/order of operations.
+2. Reversibility / order of operations.
 3. Missing info only if it changes correctness.
 4. User preferences within constraints.
 
-#### 1.2 Planning & execution
-* Plan for complex tasks (options + trade-offs), otherwise implement directly.
-* Every plan must be a file under `docs/plans/` and updated as work progresses.
-* Before each task, review engineering practices under `docs/`; if missing, search and add them.
-* Record notable incidents in error-experience entries; keep index files index-only.
-* Use TDD when touching logic; run full lint + tests before delivery.
-* After lint/test pass, execute code review (`skills/code-review/SKILL.md`) on the diff before committing. Fix P0/P1 findings before commit; create follow-up for P2.
-* After completing changes, always commit. Split one solution into incremental batches and commit each batch separately — one solution, multiple commits.
-* Avoid unnecessary defensive code; trust invariants when guaranteed.
-* From scratch, cut a new worktree branch off main and copy .env, then write code. After finishing, merge back to main.
+#### 1.2 Process rules
+
+**Planning**
+* Plan for complex tasks (options + trade-offs); otherwise implement directly.
+* Every plan → file under `docs/plans/`, updated as work progresses.
+* Before each task, review engineering practices under `docs/guides/`; if missing, search and add them.
+* Start with the most systematic view of the project, then propose a reasonable plan.
+
+**Worktree workflow** (single source — all other references point here)
+1. `git worktree add -b <branch> ../<dir> main`
+2. `cp .env ../<dir>/`
+3. Develop in the worktree.
+4. `git checkout main && git merge --ff-only <branch>`
+5. `git worktree remove ../<dir>` (optionally delete the branch).
+
+**Testing & quality**
+* Use TDD when touching logic; cover edge cases.
+* Run full lint + tests before delivery.
+* After lint/test pass, execute code review (`skills/code-review/SKILL.md`) on the diff. Fix P0/P1 before commit; create follow-up for P2.
+
+**Commits**
+* Always commit after completing changes. Split one solution into incremental batches — one solution, multiple commits.
+
+**Service restart**
+* After code changes, restart only the changed service: `alex dev restart backend` or `alex dev restart web`. Avoid `./dev.sh down && ./dev.sh`.
+
+**Coding standards**
+* Avoid unnecessary defensive code; trust invariants when guaranteed by types or caller contracts.
+* Never write compatibility logic; refactor from first principles, redesign cleanly.
+* If intelligent automation can reliably take over a solution, do not introduce a complex workflow orchestration scheme.
+* Act as a strong reasoning and planning assistant — aim to get it right the first time, avoid shallow answers and needless clarification.
+* Provide periodic summaries; abstract/refactor when appropriate for long-term maintainability.
+
+**Compounding engineering**
+* Record successful paths and failed experiences — this is the absolute core.
+* Error/win entries: `docs/error-experience/entries/` and `docs/good-experience/entries/`.
+* Summaries: `.../summary/entries/`.
+* Index files (`docs/error-experience.md`, `docs/error-experience/summary.md`) are index-only — never put content there.
+* Log important incidents in error-experience entries; record execution plans and progress in planning docs.
 
 #### 1.3 Safety & tooling
 * Warn before destructive actions; avoid history rewrites unless explicitly requested.
 * Prefer local registry sources for Rust deps.
 * Keep responses focused on actionable outputs (changes + validation + limitations).
-* I may ask other agent assistants to make changes; you should only commit your own code, fix conflicts, and never roll back code.
-* Never write compatibility logic; always refactor from first principles, redesign the architecture, and implement cleanly.
-
----
-
-## Error experience index
-
-- Index: `docs/error-experience.md`
-- Summary index: `docs/error-experience/summary.md`
-- Summary entries: `docs/error-experience/summary/entries/`
-- Entries: `docs/error-experience/entries/`
+* Other agent assistants may make changes; only commit your own code, fix conflicts, never roll back others' code.
+* Keep `agent/ports` free of memory/RAG deps to avoid import cycles.
 
 ---
 

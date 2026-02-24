@@ -1,97 +1,14 @@
-# elephant.ai — Proactive AI Assistant (Repo Rules)
+# elephant.ai — Agent Overrides
 
-## Project snapshot
-- Proactive assistant across Lark/CLI/Web with persistent memory + skills.
-- Architecture: Delivery → App layer → Domain (ReAct loop, approvals, context) → Infra (LLM/tools/memory/observability).
-- Key packages: `internal/agent/`, `internal/llm/`, `internal/memory/`, `internal/tools/builtin/`, `internal/channels/`, `internal/observability/`, `web/`.
+> **Base rules: see `CLAUDE.md`.** This file contains additions and overrides only.
 
-## Heuristic Prompting for Motivation-Aware Proactivity
-- Detect motivation state before execution: low energy, overwhelm, ambiguity, readiness, or boundary constraints.
-- Prioritize minimum-effective intervention: `clarify` -> `plan` -> schedule/reminder/task actions.
-- Maintain autonomy-first behavior: every proactive suggestion must remain user-overridable.
-- Favor visible progress loops (artifacts/checkpoints) instead of high-frequency pressure nudges.
-- Use memory-guided personalization only when it materially improves relevance.
+## Code review — mandatory before every commit
 
-Safety guardrails for prompts:
-- Never use manipulative framing (fear, guilt, coercion, urgency inflation).
-- Require consent for sensitive-context usage, external messaging, or irreversible actions.
-- Honor explicit stop signals immediately (disable reminders/proactive pushes).
-- State uncertainty and risk clearly; do not over-claim confidence.
+- **Trigger**: After lint + tests pass, before any commit or merge.
+- **Entry point**: `python3 skills/code-review/run.py '{"action":"review"}'` (full workflow in `skills/code-review/SKILL.md`).
+- **Blocking rule**: P0/P1 findings must be fixed before commit. P2 creates a follow-up task. P3 is optional.
 
-## Non‑negotiables (must follow)
-- Assist **cklxx**; address as “cklxx” first; assume senior backend/db engineer.
-- Prefer correctness/maintainability; start with a systematic view and a reasonable plan.
-- Start fresh from `main`: create a new worktree on a new branch and copy `.env` into the worktree before coding; when done, merge back into `main` (prefer fast-forward) and then remove the temporary worktree (and optionally delete the branch).
-- From scratch, cut a new worktree branch off main and copy .env, then write code. After finishing, merge back to main.
-- Config examples: YAML only, use `.yaml` paths.
-- Plans: non‑trivial work requires a plan file under `docs/plans/` and updates as work progresses.
-- Practices: review `docs/guides/engineering-practices.md` before tasks; add missing practices if needed. **Widely reference global best practices** (industry standards, academic research, open-source conventions) when designing solutions.
-- Records: error/win entries live in `docs/error-experience/entries/` and `docs/good-experience/entries/`; summaries in `.../summary/entries/`; index files are index-only.
-- Testing: use TDD when touching logic; run full lint + tests before delivery.
-- Commits: always commit; split one solution into multiple incremental commits.
-- Safety: avoid destructive operations/history rewrites unless explicitly requested.
-- Architecture guardrails: keep `agent/ports` free of memory/RAG deps to avoid import cycles.
-- Coding: avoid unnecessary defensive code; trust guaranteed invariants; no compatibility shims—refactor cleanly.
-- If intelligent automation can reliably take over a solution, do not introduce a complex workflow orchestration scheme.
+## Additional agent rules
+
 - Prefer using subagents for parallelizable tasks to improve execution speed.
-
-## Memory loading (minimal, repeatable)
-- First run in repo: read latest 3–5 items from error/good entries + summaries + `docs/memory/long-term.md`, rank by recency/frequency/relevance, keep top 8–12 as active memory.
-- Use summaries first; open full entries only if summaries are insufficient.
-- Treat repo memory as a graph: maintain nodes/edges/tags in `docs/memory/index.yaml`, `docs/memory/edges.yaml`, `docs/memory/tags.yaml`.
-- Graph nodes include memory-related plans under `docs/plans/` and `docs/memory/long-term.md` section anchors (see `docs/memory/networked/README.md`).
-- After selecting active memory, expand only 1-hop linked nodes from `edges.yaml` (cap 6) by relevance; keep remaining as cold memory.
-- `memory_related` expands only `related` edges; `see_also`/`supersedes`/`derived_from` are directed cross-references and are not auto-expanded.
-- For Lark-agent tasks, include nodes tagged `lark`/`memory` and follow retrieval order `memory_search -> memory_get -> memory_related -> lark_chat_history`.
-- After changing memory docs, run `go run ./scripts/memory/backfill_networked.go` to refresh graph artifacts.
-- Expand beyond active memory only when a known pattern is relevant or tests fail with known signatures.
-- Update `docs/memory/long-term.md` `Updated:` to hour precision; refresh active set on first load each day.
-
-## Code Review — mandatory step after coding
-
-### When to trigger
-Code review is **mandatory** before every commit or merge. The following scenarios trigger a review:
-- Feature development complete, ready to commit
-- Bug fix complete, ready to merge
-- Refactoring complete, ready to submit PR
-- User explicitly requests a review
-
-### Review process
-
-1. **Determine scope**: Run `git diff --stat` to identify the scope of changes; record the number of files and lines changed.
-2. **Load skill**: Execute the 7-step workflow defined in `skills/code-review/SKILL.md`.
-3. **Review by dimension**: Check SOLID/architecture, security/reliability, code quality/edge cases, and cleanup plan in order.
-4. **Generate report**: Output a structured review report organized by severity level (P0–P3).
-5. **Confirm fixes**: Present the report and wait for the user to confirm the resolution approach; re-verify after fixes are applied.
-
-### Review reference checklists
-
-Load the following reference files during review for specific check items:
-- `skills/code-review/references/solid-checklist.md` — SOLID principles and code smells
-- `skills/code-review/references/security-checklist.md` — Security and reliability (including race condition checks)
-- `skills/code-review/references/code-quality-checklist.md` — Error handling, performance, edge cases, observability
-- `skills/code-review/references/removal-plan.md` — Dead code identification and cleanup plan template
-
-### Review principles
-
-- **Understand before judging**: Read the full context of changes before reviewing; understand the design intent.
-- **Prioritize by severity**: P0/P1 must be fixed, P2 creates a follow-up, P3 is optional.
-- **Provide fix suggestions**: For every issue, not only identify the problem but also provide a concrete fix recommendation.
-- **Respect architectural decisions**: Do not push personal preferences; focus on correctness and security.
-- **Go/Rust specifics**: Perform targeted checks for language-specific issues in the project's primary languages.
-
-### Integration with existing workflow
-
-Code review is part of the coding → testing → review → commit pipeline:
-
-```
-Coding complete
-  → lint + test pass
-  → Code review (this skill)
-  → Fix issues found during review
-  → Re-run lint + test
-  → Commit (incremental commits)
-  → Merge to main
-```
-
-Code review does not replace lint and tests; it supplements them by catching architecture, security, and logic issues that automated tools cannot detect.
+- Understand the full context of changes before reviewing; respect architectural decisions over personal preferences.
