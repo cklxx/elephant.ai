@@ -6,7 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"alex/internal/devops"
@@ -22,6 +25,7 @@ type WebConfig struct {
 	WebDir     string
 	ServerPort int // backend port for NEXT_PUBLIC_API_URL
 	AutoStop   bool
+	AutoHeal   bool // auto-heal Next.js .next/dev ENOENT corruption
 }
 
 // WebService manages the Next.js development server.
@@ -59,6 +63,9 @@ func (s *WebService) Health(ctx context.Context) health.Result {
 
 func (s *WebService) Start(ctx context.Context) error {
 	s.state.Store(devops.StateStarting)
+
+	// Clean up orphan npm/next processes before starting
+	s.cleanupOrphanWebProcesses()
 
 	// Check if already running
 	if running, pid := s.pm.IsRunning("web"); running {
@@ -148,7 +155,60 @@ func (s *WebService) Stop(ctx context.Context) error {
 	lockFile := filepath.Join(s.config.WebDir, ".next", "dev", "lock")
 	os.Remove(lockFile)
 
+	// Clean up orphan npm/next processes
+	s.cleanupOrphanWebProcesses()
+
 	s.ports.Release("web")
 	s.state.Store(devops.StateStopped)
 	return nil
+}
+
+// cleanupOrphanWebProcesses kills npm/next dev processes that are not tracked
+// by the process manager. This prevents orphan child processes after restarts.
+func (s *WebService) cleanupOrphanWebProcesses() {
+	_, trackedPID := s.pm.IsRunning("web")
+
+	out, err := exec.Command("ps", "-axo", "pid=,command=").Output()
+	if err != nil {
+		return
+	}
+
+	webDir := s.config.WebDir
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Match npm --prefix <webDir> run dev OR <webDir>...next dev
+		isNpmDev := strings.Contains(line, "npm --prefix "+webDir+" run dev")
+		isNextDev := strings.Contains(line, webDir) && strings.Contains(line, "next dev")
+		if !isNpmDev && !isNextDev {
+			continue
+		}
+
+		fields := strings.SplitN(line, " ", 2)
+		if len(fields) < 1 {
+			continue
+		}
+		pid, parseErr := strconv.Atoi(strings.TrimSpace(fields[0]))
+		if parseErr != nil || pid <= 0 {
+			continue
+		}
+		if pid == trackedPID {
+			continue
+		}
+
+		s.section.Warn("Stopping orphan web process PID %d", pid)
+		_ = syscall.Kill(pid, syscall.SIGTERM)
+	}
+}
+
+// clearNextDevArtifacts removes the .next/dev directory to recover from
+// corrupted Next.js dev state (ENOENT errors).
+func (s *WebService) clearNextDevArtifacts() {
+	nextDevDir := filepath.Join(s.config.WebDir, ".next", "dev")
+	if info, err := os.Stat(nextDevDir); err == nil && info.IsDir() {
+		s.section.Warn("Clearing corrupted Next.js dev artifacts: %s", nextDevDir)
+		os.RemoveAll(nextDevDir)
+	}
 }

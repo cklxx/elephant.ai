@@ -144,11 +144,22 @@ func (s *BackendService) stagingPath() string {
 	return s.config.OutputBin + ".staging"
 }
 
+// buildTarget returns the Go build target based on the output binary name.
+// If the binary name contains "alex-web", build cmd/alex-web; otherwise cmd/alex-server.
+func (s *BackendService) buildTarget() string {
+	base := filepath.Base(s.config.OutputBin)
+	if strings.Contains(base, "alex-web") {
+		return "./cmd/alex-web"
+	}
+	return "./cmd/alex-server"
+}
+
 // Build compiles the backend to a staging path without touching the running binary.
 // Implements devops.Buildable.
 func (s *BackendService) Build(ctx context.Context) (string, error) {
 	staging := s.stagingPath()
-	s.section.Info("Building backend (./cmd/alex-server) → %s ...", staging)
+	target := s.buildTarget()
+	s.section.Info("Building backend (%s) → %s ...", target, staging)
 
 	cgoEnabled := s.detectCGO()
 	if cgoEnabled {
@@ -158,7 +169,7 @@ func (s *BackendService) Build(ctx context.Context) (string, error) {
 	}
 
 	goToolchain := filepath.Join(s.config.ProjectDir, "scripts", "go-with-toolchain.sh")
-	cmd := exec.CommandContext(ctx, goToolchain, "build", "-o", staging, "./cmd/alex-server")
+	cmd := exec.CommandContext(ctx, goToolchain, "build", "-o", staging, target)
 	cmd.Dir = s.config.ProjectDir
 
 	env := os.Environ()

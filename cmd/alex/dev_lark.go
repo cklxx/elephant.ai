@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -71,6 +72,7 @@ func larkStart() error {
 	pidFile := filepath.Join(cfg.PIDDir, "lark-supervisor.pid")
 	if pid, _, alive := readLivePIDFile(pidFile, true); alive {
 		fmt.Printf("Supervisor already running (PID: %d)\n", pid)
+		startCaffeinateGuard(cfg.PIDDir)
 		return nil
 	}
 
@@ -113,6 +115,7 @@ func larkStart() error {
 		}
 		if pid, _, alive := readLivePIDFile(pidFile, false); alive {
 			fmt.Printf("Supervisor started (PID: %d)\n", pid)
+			startCaffeinateGuard(cfg.PIDDir)
 			return nil
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -120,11 +123,56 @@ func larkStart() error {
 
 	if pid, _, alive := readLivePIDFile(pidFile, false); alive {
 		fmt.Printf("Supervisor started (PID: %d)\n", pid)
+		startCaffeinateGuard(cfg.PIDDir)
 		return nil
 	}
 
 	_ = cmd.Process.Kill()
 	return fmt.Errorf("supervisor start timed out: pid file was not published (%s)", pidFile)
+}
+
+// startCaffeinateGuard keeps macOS awake while the Lark supervisor runs.
+func startCaffeinateGuard(pidDir string) {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	caffPath, err := exec.LookPath("caffeinate")
+	if err != nil {
+		return
+	}
+
+	supPIDFile := filepath.Join(pidDir, "lark-supervisor.pid")
+	supPID, _, alive := readLivePIDFile(supPIDFile, false)
+	if !alive {
+		return
+	}
+
+	caffPIDFile := filepath.Join(pidDir, "lark-caffeinate.pid")
+	if caffPID, _, caffAlive := readLivePIDFile(caffPIDFile, true); caffAlive {
+		_ = caffPID // already running
+		return
+	}
+
+	cmd := exec.Command(caffPath, "-s", "-w", strconv.Itoa(supPID))
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		return
+	}
+	os.WriteFile(caffPIDFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0o644)
+	fmt.Printf("Caffeinate guard enabled (PID: %d, supervisor: %d)\n", cmd.Process.Pid, supPID)
+}
+
+// stopCaffeinateGuard stops the caffeinate guard process.
+func stopCaffeinateGuard(pidDir string) {
+	caffPIDFile := filepath.Join(pidDir, "lark-caffeinate.pid")
+	pid, exists, alive := readLivePIDFile(caffPIDFile, true)
+	if !exists {
+		return
+	}
+	if alive {
+		_ = syscall.Kill(pid, syscall.SIGTERM)
+	}
+	os.Remove(caffPIDFile)
 }
 
 func larkStop() error {
@@ -166,6 +214,7 @@ func larkStop() error {
 	}
 
 	os.Remove(pidFile)
+	stopCaffeinateGuard(cfg.PIDDir)
 	fmt.Println("Supervisor stopped")
 	return nil
 }

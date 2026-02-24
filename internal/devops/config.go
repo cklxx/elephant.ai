@@ -16,7 +16,7 @@ import (
 type DevConfig struct {
 	// Backend
 	ServerPort int    `env:"SERVER_PORT" yaml:"server_port" default:"8080"`
-	ServerBin  string `yaml:"server_bin" default:"./alex-server"`
+	ServerBin  string `yaml:"server_bin" default:"./alex-web"`
 
 	// Web
 	WebPort int    `env:"WEB_PORT" yaml:"web_port" default:"3000"`
@@ -24,6 +24,7 @@ type DevConfig struct {
 
 	// Auto-management
 	AutoStopConflictingPorts bool   `env:"AUTO_STOP_CONFLICTING_PORTS" yaml:"auto_stop_conflicting_ports" default:"true"`
+	AutoHealWebNext          bool   `env:"AUTO_HEAL_WEB_NEXT" yaml:"auto_heal_web_next" default:"true"`
 	CGOMode                  string `env:"ALEX_CGO_MODE" yaml:"cgo_mode" default:"auto"`
 	LarkMode                 bool   `env:"ALEX_DEV_LARK" yaml:"lark_mode"`
 

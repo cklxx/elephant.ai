@@ -326,6 +326,7 @@ func buildWebService(orch *devops.Orchestrator) *services.WebService {
 			WebDir:     cfg.WebDir,
 			ServerPort: cfg.ServerPort,
 			AutoStop:   cfg.AutoStopConflictingPorts,
+			AutoHeal:   cfg.AutoHealWebNext,
 		},
 	)
 }
