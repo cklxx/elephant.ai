@@ -13,13 +13,10 @@ const nextConfig = {
     turbopackUseSystemTlsCerts: true,
   },
   /**
-   * Generate a fully static output so GitHub Pages has an `index.html` in `web/out`.
-   * This keeps `npm run build` aligned with the CI expectation that checks the
-   * static export directory.
-   *
-   * NOTE: Commented out for visualizer development (requires API routes)
+   * Static export for GitHub Pages. Enabled via STATIC_EXPORT=1 in CI.
+   * Disabled locally because the visualizer dev pages use API routes.
    */
-  // output: 'export',
+  ...(process.env.STATIC_EXPORT === '1' ? { output: 'export' } : {}),
   images: {
     unoptimized: true,
   },
