@@ -20,6 +20,11 @@ func TestCloneStringMap(t *testing.T) {
 	if cloned["mode"] != "plan" {
 		t.Fatalf("expected clone to remain unchanged after source mutation, got %+v", cloned)
 	}
+
+	cloned["mode"] = "adjusted"
+	if src["mode"] != "execute" {
+		t.Fatalf("expected source to remain unchanged after clone mutation, got %+v", src)
+	}
 }
 
 func TestCloneAnyMap(t *testing.T) {
@@ -39,5 +44,10 @@ func TestCloneAnyMap(t *testing.T) {
 	src["name"] = "changed"
 	if cloned["name"] != "demo" {
 		t.Fatalf("expected clone to remain unchanged after source mutation, got %+v", cloned)
+	}
+
+	cloned["name"] = "patched"
+	if src["name"] != "changed" {
+		t.Fatalf("expected source to remain unchanged after clone mutation, got %+v", src)
 	}
 }

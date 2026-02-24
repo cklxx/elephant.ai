@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -454,8 +455,8 @@ func applyExternalAgentsFileConfig(cfg *RuntimeConfig, meta *Metadata, external 
 			cfg.ExternalAgents.ClaudeCode.ResumeEnabled = *cc.ResumeEnabled
 			meta.sources["external_agents.claude_code.resume_enabled"] = SourceFile
 		}
-		if len(cc.Env) > 0 {
-			cfg.ExternalAgents.ClaudeCode.Env = cloneStringMap(cc.Env)
+		if env := cloneStringMap(cc.Env); env != nil {
+			cfg.ExternalAgents.ClaudeCode.Env = env
 			meta.sources["external_agents.claude_code.env"] = SourceFile
 		}
 	}
@@ -501,8 +502,8 @@ func applyExternalAgentsFileConfig(cfg *RuntimeConfig, meta *Metadata, external 
 			cfg.ExternalAgents.Codex.ResumeEnabled = *cx.ResumeEnabled
 			meta.sources["external_agents.codex.resume_enabled"] = SourceFile
 		}
-		if len(cx.Env) > 0 {
-			cfg.ExternalAgents.Codex.Env = cloneStringMap(cx.Env)
+		if env := cloneStringMap(cx.Env); env != nil {
+			cfg.ExternalAgents.Codex.Env = env
 			meta.sources["external_agents.codex.env"] = SourceFile
 		}
 	}
@@ -688,20 +689,12 @@ func cloneStringMap(in map[string]string) map[string]string {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make(map[string]string, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
-	return out
+	return maps.Clone(in)
 }
 
 func cloneDurationMap(in map[string]time.Duration) map[string]time.Duration {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make(map[string]time.Duration, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
-	return out
+	return maps.Clone(in)
 }
