@@ -18,26 +18,60 @@ from skill_runner.env import load_repo_dotenv
 load_repo_dotenv(__file__)
 
 import json
-import os
-import urllib.error
-import urllib.request
+
+from skill_runner.lark_auth import lark_api_json
 
 
-def _lark_api(method: str, path: str) -> dict:
-    base = "https://open.feishu.cn/open-apis"
-    token = os.environ.get("LARK_TENANT_TOKEN", "")
-    if not token:
-        return {"error": "LARK_TENANT_TOKEN not set"}
+def _lark_api(method: str, path: str, *, query: dict | str | None = None) -> dict:
+    return lark_api_json(method, path, query=query)
 
-    url = f"{base}{path}"
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    req = urllib.request.Request(url, headers=headers, method=method)
 
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.URLError as exc:
-        return {"error": str(exc)}
+def _api_failure(result: dict) -> dict | None:
+    if "error" in result:
+        return {"success": False, **result}
+    code = result.get("code", 0)
+    if isinstance(code, int) and code != 0:
+        return {"success": False, "code": code, "error": result.get("msg") or f"Lark API error {code}"}
+    return None
+
+
+def _is_permission_failure(failure: dict) -> bool:
+    code = failure.get("code")
+    if isinstance(code, int) and code in {40003, 40004, 40013, 41050, 99991400, 99991401}:
+        return True
+    text = str(failure.get("error", "")).lower()
+    return any(
+        token in text
+        for token in (
+            "permission",
+            "authority",
+            "forbidden",
+            "no dept authority",
+            "insufficient scope",
+            "access denied",
+        )
+    )
+
+
+def list_scopes(_: dict) -> dict:
+    result = _lark_api("GET", "/contact/v3/scopes")
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    return {"success": True, "scopes": result.get("data", {})}
+
+
+def _scope_fallback(action: str, failure: dict) -> dict:
+    scopes = list_scopes({})
+    if not scopes.get("success"):
+        return failure
+    return {
+        "success": True,
+        "source": "scope_fallback",
+        "fallback_for": action,
+        "warning": failure.get("error", "permission limited"),
+        "scopes": scopes.get("scopes", {}),
+    }
 
 
 def get_user(args: dict) -> dict:
@@ -45,9 +79,12 @@ def get_user(args: dict) -> dict:
     if not user_id:
         return {"success": False, "error": "user_id is required"}
     user_id_type = args.get("user_id_type", "open_id")
-    result = _lark_api("GET", f"/contact/v3/users/{user_id}?user_id_type={user_id_type}")
-    if "error" in result:
-        return {"success": False, **result}
+    result = _lark_api("GET", f"/contact/v3/users/{user_id}", query={"user_id_type": user_id_type})
+    failure = _api_failure(result)
+    if failure:
+        if _is_permission_failure(failure):
+            return _scope_fallback("get_user", failure)
+        return failure
     return {"success": True, "user": result.get("data", {}).get("user", {})}
 
 
@@ -57,12 +94,15 @@ def list_users(args: dict) -> dict:
         return {"success": False, "error": "department_id is required"}
     page_size = args.get("page_size", 50)
     page_token = args.get("page_token", "")
-    params = f"?department_id={dept_id}&page_size={page_size}"
+    query: dict[str, str | int] = {"department_id": dept_id, "page_size": page_size}
     if page_token:
-        params += f"&page_token={page_token}"
-    result = _lark_api("GET", f"/contact/v3/users{params}")
-    if "error" in result:
-        return {"success": False, **result}
+        query["page_token"] = page_token
+    result = _lark_api("GET", "/contact/v3/users", query=query)
+    failure = _api_failure(result)
+    if failure:
+        if _is_permission_failure(failure):
+            return _scope_fallback("list_users", failure)
+        return failure
     data = result.get("data", {})
     return {"success": True, "users": data.get("items", []),
             "has_more": data.get("has_more", False)}
@@ -73,8 +113,11 @@ def get_department(args: dict) -> dict:
     if not dept_id:
         return {"success": False, "error": "department_id is required"}
     result = _lark_api("GET", f"/contact/v3/departments/{dept_id}")
-    if "error" in result:
-        return {"success": False, **result}
+    failure = _api_failure(result)
+    if failure:
+        if _is_permission_failure(failure):
+            return _scope_fallback("get_department", failure)
+        return failure
     return {"success": True, "department": result.get("data", {}).get("department", {})}
 
 
@@ -82,12 +125,15 @@ def list_departments(args: dict) -> dict:
     parent_id = args.get("parent_department_id", "0")
     page_size = args.get("page_size", 50)
     page_token = args.get("page_token", "")
-    params = f"?parent_department_id={parent_id}&page_size={page_size}"
+    query: dict[str, str | int] = {"parent_department_id": parent_id, "page_size": page_size}
     if page_token:
-        params += f"&page_token={page_token}"
-    result = _lark_api("GET", f"/contact/v3/departments{params}")
-    if "error" in result:
-        return {"success": False, **result}
+        query["page_token"] = page_token
+    result = _lark_api("GET", "/contact/v3/departments", query=query)
+    failure = _api_failure(result)
+    if failure:
+        if _is_permission_failure(failure):
+            return _scope_fallback("list_departments", failure)
+        return failure
     data = result.get("data", {})
     return {"success": True, "departments": data.get("items", []),
             "has_more": data.get("has_more", False)}
@@ -100,6 +146,7 @@ def run(args: dict) -> dict:
         "list_users": list_users,
         "get_department": get_department,
         "list_departments": list_departments,
+        "list_scopes": list_scopes,
     }
     handler = handlers.get(action)
     if not handler:

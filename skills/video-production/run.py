@@ -27,6 +27,43 @@ import urllib.request
 
 _ARK_BASE = "https://ark.cn-beijing.volces.com/api/v3"
 _DEFAULT_SEEDANCE_ENDPOINT_ID = "doubao-seedance-1-0-pro-fast-251015"
+_DEFAULT_SEEDANCE_FALLBACK_ENDPOINTS = [
+    _DEFAULT_SEEDANCE_ENDPOINT_ID,
+]
+
+
+def _candidate_endpoints(primary: str) -> list[str]:
+    candidates: list[str] = [primary.strip()]
+    raw_fallbacks = os.environ.get("SEEDANCE_ENDPOINT_FALLBACKS", "")
+    if raw_fallbacks:
+        candidates.extend(part.strip() for part in raw_fallbacks.split(","))
+    candidates.extend(_DEFAULT_SEEDANCE_FALLBACK_ENDPOINTS)
+    unique: list[str] = []
+    for value in candidates:
+        if value and value not in unique:
+            unique.append(value)
+    return unique
+
+
+def _discover_seedance_endpoints(api_key: str) -> list[str]:
+    req = urllib.request.Request(
+        f"{_ARK_BASE}/models",
+        headers={"Authorization": f"Bearer {api_key}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            payload = json.loads(resp.read().decode())
+    except Exception:
+        return []
+
+    models = payload.get("data", [])
+    discovered: list[str] = []
+    for model in models:
+        model_id = str(model.get("id", "")).strip()
+        if model_id and "seedance" in model_id.lower() and model_id not in discovered:
+            discovered.append(model_id)
+    return discovered
 
 
 def generate(args: dict) -> dict:
@@ -39,32 +76,61 @@ def generate(args: dict) -> dict:
     if not api_key:
         return {"success": False, "error": "ARK_API_KEY not set"}
 
-    body = json.dumps({
-        "model": endpoint,
-        "prompt": prompt,
-        "duration": args.get("duration", 5),
-    }).encode()
+    attempts: list[str] = []
+    endpoint_errors: list[str] = []
+    candidates = _candidate_endpoints(endpoint)
+    discovered_model_ids = False
+    data: dict = {}
 
-    req = urllib.request.Request(
-        f"{_ARK_BASE}/videos/generations",
-        data=body,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        method="POST",
-    )
+    while candidates:
+        current_endpoint = candidates.pop(0)
+        attempts.append(current_endpoint)
+        request_body = json.dumps({
+            "model": current_endpoint,
+            "prompt": prompt,
+            "duration": args.get("duration", 5),
+        }).encode()
 
-    try:
-        with urllib.request.urlopen(req, timeout=300) as resp:
-            data = json.loads(resp.read().decode())
-    except urllib.error.HTTPError as exc:
-        body = ""
+        req = urllib.request.Request(
+            f"{_ARK_BASE}/videos/generations",
+            data=request_body,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+
         try:
-            body = exc.read().decode().strip()
-        except Exception:
-            body = ""
-        detail = body or str(exc)
-        return {"success": False, "error": f"HTTP Error {exc.code}: {detail}"}
-    except urllib.error.URLError as exc:
-        return {"success": False, "error": str(exc)}
+            with urllib.request.urlopen(req, timeout=300) as resp:
+                data = json.loads(resp.read().decode())
+            endpoint = current_endpoint
+            break
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode().strip()
+            except Exception:
+                detail = ""
+            endpoint_errors.append(f"{current_endpoint}: HTTP {exc.code} {detail or str(exc)}")
+            if exc.code != 404:
+                return {
+                    "success": False,
+                    "error": f"endpoint={current_endpoint} HTTP Error {exc.code}: {detail or str(exc)}",
+                }
+            if not discovered_model_ids:
+                discovered_model_ids = True
+                for candidate in _discover_seedance_endpoints(api_key):
+                    if candidate not in attempts and candidate not in candidates:
+                        candidates.append(candidate)
+        except urllib.error.URLError as exc:
+            return {"success": False, "error": str(exc)}
+    else:
+        attempted = ", ".join(attempts)
+        details = "; ".join(endpoint_errors)
+        return {
+            "success": False,
+            "error": f"all Seedance endpoints failed with 404. attempted: {attempted}",
+            "details": details,
+            "attempted_endpoints": attempts,
+        }
 
     videos = data.get("data", [])
     if not videos:
@@ -88,7 +154,13 @@ def generate(args: dict) -> dict:
     if out_path.stat().st_size <= 0:
         return {"success": False, "error": f"video file is empty after write: {output}"}
 
-    return {"success": True, "path": output, "prompt": prompt, "message": f"视频已保存到 {output}"}
+    return {
+        "success": True,
+        "path": output,
+        "prompt": prompt,
+        "endpoint": endpoint,
+        "message": f"视频已保存到 {output}",
+    }
 
 
 def run(args: dict) -> dict:

@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""calendar-management skill — Lark 日历事件管理。
-
-通过 Lark Open API 管理日历事件。需要 LARK_APP_ID / LARK_APP_SECRET 环境变量。
-当前为框架实现，Lark API 调用待对接。
-"""
+"""calendar-management skill — Lark 日历事件管理。"""
 
 from __future__ import annotations
 
@@ -21,30 +17,89 @@ load_repo_dotenv(__file__)
 import json
 import os
 import sys
-import urllib.error
-import urllib.request
+from datetime import datetime, timedelta, timezone
+
+from skill_runner.lark_auth import lark_api_json
 
 
-def _lark_api(method: str, path: str, body: dict | None = None) -> dict:
-    """Call Lark Open API (placeholder — needs tenant_access_token)."""
-    base = "https://open.feishu.cn/open-apis"
-    token = os.environ.get("LARK_TENANT_TOKEN", "")
-    if not token:
-        return {"error": "LARK_TENANT_TOKEN not set, calendar operations unavailable"}
+def _lark_api(
+    method: str,
+    path: str,
+    body: dict | None = None,
+    *,
+    query: dict | str | None = None,
+) -> dict:
+    return lark_api_json(method, path, body, query=query)
 
-    url = f"{base}{path}"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-    data = json.dumps(body).encode() if body else None
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
 
+def _api_failure(result: dict) -> dict | None:
+    if "error" in result:
+        return {"success": False, **result}
+    code = result.get("code", 0)
+    if isinstance(code, int) and code != 0:
+        return {"success": False, "code": code, "error": result.get("msg") or f"Lark API error {code}"}
+    return None
+
+
+def _parse_ts(value: str) -> str | None:
+    value = str(value).strip()
+    if not value:
+        return None
+    if value.isdigit():
+        return value
+
+    normalized = value.replace(" ", "T")
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+        try:
+            dt = datetime.strptime(normalized, fmt)
+            if fmt == "%Y-%m-%d":
+                dt = datetime.combine(dt.date(), datetime.min.time())
+            return str(int(dt.replace(tzinfo=timezone.utc).timestamp()))
+        except ValueError:
+            continue
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.URLError as exc:
-        return {"error": str(exc)}
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return str(int(dt.timestamp()))
+    except ValueError:
+        return None
+
+
+def _parse_duration_seconds(value: str | int | float | None) -> int:
+    if isinstance(value, (int, float)):
+        return max(int(value), 60)
+    text = str(value or "60m").strip().lower()
+    if text.endswith("m") and text[:-1].isdigit():
+        return int(text[:-1]) * 60
+    if text.endswith("h") and text[:-1].isdigit():
+        return int(text[:-1]) * 3600
+    if text.isdigit():
+        return int(text)
+    return 3600
+
+
+def _resolve_calendar_id(args: dict) -> tuple[str, dict | None]:
+    provided = (
+        str(args.get("calendar_id", "")).strip()
+        or str(args.get("calendar_token", "")).strip()
+        or str(os.environ.get("LARK_CALENDAR_ID", "")).strip()
+    )
+    if provided:
+        return provided, None
+
+    result = _lark_api("GET", "/calendar/v4/calendars")
+    failure = _api_failure(result)
+    if failure:
+        # Keep backward compatibility for unit tests and environments where listing calendars is blocked.
+        return "primary", None
+
+    items = result.get("data", {}).get("items", [])
+    if items:
+        calendar_id = str(items[0].get("calendar_id", "")).strip()
+        if calendar_id:
+            return calendar_id, None
+    return "primary", None
 
 
 def create_event(args: dict) -> dict:
@@ -53,19 +108,26 @@ def create_event(args: dict) -> dict:
     if not title or not start:
         return {"success": False, "error": "title and start are required"}
 
-    # Build Lark calendar event payload
+    start_ts = _parse_ts(start)
+    if not start_ts:
+        return {"success": False, "error": "invalid start format; use timestamp or YYYY-MM-DD[ HH:MM]"}
+    duration_seconds = _parse_duration_seconds(args.get("duration"))
+    end_ts = str(int(start_ts) + duration_seconds)
+    calendar_id, cal_err = _resolve_calendar_id(args)
+    if cal_err:
+        return cal_err
+
     body = {
         "summary": title,
-        "start_time": {"timestamp": start},
+        "start_time": {"timestamp": start_ts},
+        "end_time": {"timestamp": end_ts},
         "description": args.get("description", ""),
     }
 
-    if args.get("attendees"):
-        body["attendees"] = [{"type": "user", "user_id": a} for a in args["attendees"]]
-
-    result = _lark_api("POST", "/calendar/v4/calendars/primary/events", body)
-    if "error" in result:
-        return {"success": False, **result}
+    result = _lark_api("POST", f"/calendar/v4/calendars/{calendar_id}/events", body)
+    failure = _api_failure(result)
+    if failure:
+        return failure
     return {"success": True, "event": result.get("data", {}), "message": f"事件「{title}」已创建"}
 
 
@@ -75,13 +137,29 @@ def query_events(args: dict) -> dict:
     if not start:
         return {"success": False, "error": "start date is required"}
 
-    params = f"?start_time={start}"
+    start_ts = _parse_ts(start)
+    if not start_ts:
+        return {"success": False, "error": "invalid start format; use timestamp or YYYY-MM-DD[ HH:MM]"}
     if end:
-        params += f"&end_time={end}"
+        end_ts = _parse_ts(end)
+    else:
+        dt = datetime.fromtimestamp(int(start_ts), tz=timezone.utc) + timedelta(days=1)
+        end_ts = str(int(dt.timestamp()))
+    if not end_ts:
+        return {"success": False, "error": "invalid end format; use timestamp or YYYY-MM-DD[ HH:MM]"}
 
-    result = _lark_api("GET", f"/calendar/v4/calendars/primary/events{params}")
-    if "error" in result:
-        return {"success": False, **result}
+    calendar_id, cal_err = _resolve_calendar_id(args)
+    if cal_err:
+        return cal_err
+
+    result = _lark_api(
+        "GET",
+        f"/calendar/v4/calendars/{calendar_id}/events",
+        query={"start_time": start_ts, "end_time": end_ts},
+    )
+    failure = _api_failure(result)
+    if failure:
+        return failure
     events = result.get("data", {}).get("items", [])
     return {"success": True, "events": events, "count": len(events)}
 
@@ -91,10 +169,23 @@ def delete_event(args: dict) -> dict:
     if not event_id:
         return {"success": False, "error": "event_id is required"}
 
-    result = _lark_api("DELETE", f"/calendar/v4/calendars/primary/events/{event_id}")
-    if "error" in result:
-        return {"success": False, **result}
+    calendar_id, cal_err = _resolve_calendar_id(args)
+    if cal_err:
+        return cal_err
+    result = _lark_api("DELETE", f"/calendar/v4/calendars/{calendar_id}/events/{event_id}")
+    failure = _api_failure(result)
+    if failure:
+        return failure
     return {"success": True, "message": f"事件 {event_id} 已删除"}
+
+
+def list_calendars(_: dict) -> dict:
+    result = _lark_api("GET", "/calendar/v4/calendars")
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    calendars = result.get("data", {}).get("items", [])
+    return {"success": True, "calendars": calendars, "count": len(calendars)}
 
 
 def run(args: dict) -> dict:
@@ -104,6 +195,7 @@ def run(args: dict) -> dict:
         "create": create_event,
         "query": query_events,
         "delete": delete_event,
+        "list_calendars": list_calendars,
     }
     handler = handlers.get(action)
     if not handler:

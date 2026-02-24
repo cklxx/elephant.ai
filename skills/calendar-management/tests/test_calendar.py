@@ -33,7 +33,7 @@ class TestCreateEvent:
         assert "start" in result["error"]
 
     def test_no_token(self):
-        with patch.dict("os.environ", {}, clear=True):
+        with patch.object(_mod, "_lark_api", return_value={"error": "LARK_TENANT_TOKEN not set"}):
             result = create_event({"title": "周会", "start": "2026-02-10 14:00"})
             assert result["success"] is False
             assert "LARK_TENANT_TOKEN" in result.get("error", "")

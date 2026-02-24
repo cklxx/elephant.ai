@@ -6,6 +6,7 @@ import importlib.util
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+import urllib.error
 
 _RUN_PATH = Path(__file__).resolve().parent.parent / "run.py"
 _spec = importlib.util.spec_from_file_location("moltbook_posting_run", _RUN_PATH)
@@ -83,3 +84,36 @@ class TestRun:
     def test_unknown_action(self):
         result = run({"action": "invalid"})
         assert result["success"] is False
+
+
+def test_search_fallback_to_alternate_domain(monkeypatch):
+    monkeypatch.setattr(_mod, "_API_KEY", "test-key")
+    monkeypatch.setattr(_mod, "_BASE", "https://www.moltbook.com/api/v1")
+    monkeypatch.setattr(_mod, "_LAST_GOOD_BASE", "")
+
+    resp = _mock_api_response({"data": [{"title": "Result 1"}]})
+
+    def _mock_urlopen(req, timeout=0):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "www.moltbook.com" in url:
+            raise urllib.error.URLError("timed out")
+        return resp
+
+    with patch("urllib.request.urlopen", side_effect=_mock_urlopen):
+        result = search({"query": "test"})
+
+    assert result["success"] is True
+    assert len(result["results"]) == 1
+
+
+def test_search_reports_all_domain_failures(monkeypatch):
+    monkeypatch.setattr(_mod, "_API_KEY", "test-key")
+    monkeypatch.setattr(_mod, "_BASE", "https://www.moltbook.com/api/v1")
+    monkeypatch.setattr(_mod, "_LAST_GOOD_BASE", "")
+
+    with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timed out")):
+        result = search({"query": "test"})
+
+    assert result["success"] is False
+    assert "all Moltbook endpoints failed" in result["error"]
+    assert isinstance(result.get("details"), list)

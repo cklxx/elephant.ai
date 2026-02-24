@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""drive-file skill — 飞书云盘文件管理。
-
-通过 channel tool 的 drive actions 管理飞书云盘文件和文件夹。
-当前为框架实现，实际调用通过 channel tool 的 list_drive_*/create_drive_*/copy_drive_*/delete_drive_* actions。
-"""
+"""drive-file skill — 飞书云盘文件管理。"""
 
 from __future__ import annotations
 
@@ -20,46 +16,78 @@ load_repo_dotenv(__file__)
 
 import json
 import os
-import urllib.error
-import urllib.request
+
+from skill_runner.lark_auth import lark_api_json
 
 
-def _lark_api(method: str, path: str, body: dict | None = None) -> dict:
-    """Call Lark Open API (placeholder — needs tenant_access_token)."""
-    base = "https://open.feishu.cn/open-apis"
-    token = os.environ.get("LARK_TENANT_TOKEN", "")
-    if not token:
-        return {"error": "LARK_TENANT_TOKEN not set, drive operations unavailable"}
+def _lark_api(
+    method: str,
+    path: str,
+    body: dict | None = None,
+    *,
+    query: dict | str | None = None,
+) -> dict:
+    return lark_api_json(method, path, body, query=query)
 
-    url = f"{base}{path}"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-    data = json.dumps(body).encode() if body else None
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
 
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.URLError as exc:
-        return {"error": str(exc)}
+def _api_failure(result: dict) -> dict | None:
+    if "error" in result:
+        return {"success": False, **result}
+    code = result.get("code", 0)
+    if isinstance(code, int) and code != 0:
+        return {"success": False, "code": code, "error": result.get("msg") or f"Lark API error {code}"}
+    return None
+
+
+def _resolve_default_folder_token() -> str:
+    for key in ("LARK_DRIVE_FOLDER_TOKEN", "LARK_DRIVE_DEFAULT_FOLDER_TOKEN", "LARK_DRIVE_FOLDER_ID"):
+        value = os.environ.get(key, "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _resolve_root_folder_token() -> str:
+    result = _lark_api("GET", "/drive/explorer/v2/root_folder/meta")
+    if _api_failure(result):
+        return ""
+    data = result.get("data", {})
+    return str(
+        data.get("token")
+        or data.get("root_folder_token")
+        or data.get("folder_token")
+        or ""
+    ).strip()
+
+
+def _resolve_folder_token(args: dict, *, allow_empty: bool = False, resolve_root: bool = False) -> str:
+    provided = str(args.get("folder_token", "")).strip()
+    if provided:
+        return provided
+    env_default = _resolve_default_folder_token()
+    if env_default:
+        return env_default
+    if resolve_root:
+        root_token = _resolve_root_folder_token()
+        if root_token:
+            return root_token
+    return "" if allow_empty else ""
 
 
 def list_files(args: dict) -> dict:
-    folder_token = args.get("folder_token", "root")
-
-    params = f"?folder_token={folder_token}"
+    folder_token = _resolve_folder_token(args, allow_empty=True)
+    query: dict[str, str | int] = {"folder_token": folder_token}
     if args.get("page_size"):
-        params += f"&page_size={args['page_size']}"
+        query["page_size"] = args["page_size"]
     if args.get("page_token"):
-        params += f"&page_token={args['page_token']}"
+        query["page_token"] = args["page_token"]
 
-    result = _lark_api("GET", f"/drive/v1/files{params}")
-    if "error" in result:
-        return {"success": False, **result}
+    result = _lark_api("GET", "/drive/v1/files", query=query)
+    failure = _api_failure(result)
+    if failure:
+        return failure
     files = result.get("data", {}).get("files", [])
-    return {"success": True, "files": files, "count": len(files)}
+    return {"success": True, "files": files, "count": len(files), "folder_token_used": folder_token}
 
 
 def create_folder(args: dict) -> dict:
@@ -67,21 +95,26 @@ def create_folder(args: dict) -> dict:
     if not name:
         return {"success": False, "error": "name is required"}
 
-    folder_token = args.get("folder_token", "root")
-    body = {"name": name, "folder_token": folder_token}
+    folder_token = _resolve_folder_token(args, resolve_root=True)
+    body = {"name": name}
+    if folder_token:
+        body["folder_token"] = folder_token
 
     result = _lark_api("POST", "/drive/v1/files/create_folder", body)
-    if "error" in result:
-        return {"success": False, **result}
+    failure = _api_failure(result)
+    if failure:
+        return failure
     return {"success": True, "folder": result.get("data", {}), "message": f"文件夹「{name}」已创建"}
 
 
 def copy_file(args: dict) -> dict:
     file_token = args.get("file_token", "")
-    folder_token = args.get("folder_token", "")
     name = args.get("name", "")
-    if not all([file_token, folder_token, name]):
-        return {"success": False, "error": "file_token, folder_token, and name are required"}
+    if not file_token or not name:
+        return {"success": False, "error": "file_token and name are required"}
+    folder_token = _resolve_folder_token(args, resolve_root=True)
+    if not folder_token:
+        return {"success": False, "error": "folder_token is required"}
 
     body = {
         "name": name,
@@ -90,8 +123,9 @@ def copy_file(args: dict) -> dict:
     }
 
     result = _lark_api("POST", f"/drive/v1/files/{file_token}/copy", body)
-    if "error" in result:
-        return {"success": False, **result}
+    failure = _api_failure(result)
+    if failure:
+        return failure
     return {"success": True, "file": result.get("data", {}).get("file", {}), "message": "文件已复制"}
 
 
@@ -102,9 +136,10 @@ def delete_file(args: dict) -> dict:
 
     file_type = args.get("file_type", "file")
 
-    result = _lark_api("DELETE", f"/drive/v1/files/{file_token}?type={file_type}")
-    if "error" in result:
-        return {"success": False, **result}
+    result = _lark_api("DELETE", f"/drive/v1/files/{file_token}", query={"type": file_type})
+    failure = _api_failure(result)
+    if failure:
+        return failure
     return {"success": True, "message": f"文件 {file_token} 已删除"}
 
 

@@ -24,6 +24,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 
 
 def _normalize_base(base: str) -> str:
@@ -85,12 +86,51 @@ def _resolve_base() -> str:
 
 
 _BASE = _resolve_base()
+_DEFAULT_CANDIDATE_BASES = [
+    "https://moltbook.ai/api/v1",
+    "https://www.moltbook.com/api/v1",
+]
+_LAST_GOOD_BASE = ""
+_REQUEST_TIMEOUT = int(os.environ.get("MOLTBOOK_TIMEOUT", "10"))
 
 
-def _api(method: str, path: str, body: dict | None = None) -> dict:
-    if not _API_KEY:
-        return {"error": "MOLTBOOK_API_KEY not set"}
-    url = f"{_BASE}{path}"
+def _candidate_bases() -> list[str]:
+    configured = _canonicalize_base(_BASE)
+    values: list[str] = []
+    if _LAST_GOOD_BASE:
+        values.append(_canonicalize_base(_LAST_GOOD_BASE))
+    values.append(configured)
+    values.extend(_DEFAULT_CANDIDATE_BASES)
+    for raw in os.environ.get("MOLTBOOK_API_FALLBACK_URLS", "").split(","):
+        cleaned = raw.strip()
+        if cleaned:
+            values.append(_canonicalize_base(cleaned))
+
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        unique.append(value)
+    return unique
+
+
+def _read_http_error(exc: urllib.error.HTTPError) -> dict:
+    payload_text = ""
+    try:
+        payload_text = exc.read().decode()
+        payload = json.loads(payload_text)
+    except Exception:
+        payload = {"message": payload_text or str(exc)}
+    if "error" not in payload:
+        payload["error"] = payload.get("message") or f"HTTP {exc.code}"
+    payload["http_status"] = exc.code
+    return payload
+
+
+def _api_once(base: str, method: str, path: str, body: dict | None = None) -> dict:
+    url = f"{base}{path}"
     headers = {
         "Authorization": f"Bearer {_API_KEY}",
         "Content-Type": "application/json",
@@ -101,20 +141,83 @@ def _api(method: str, path: str, body: dict | None = None) -> dict:
     data = json.dumps(body).encode() if body else None
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        return _read_response(req, timeout=15)
+        return _read_response(req, timeout=_REQUEST_TIMEOUT)
     except urllib.error.HTTPError as exc:
-        payload_text = ""
-        try:
-            payload_text = exc.read().decode()
-            payload = json.loads(payload_text)
-        except Exception:
-            payload = {"message": payload_text or str(exc)}
-        if "error" not in payload:
-            payload["error"] = payload.get("message") or f"HTTP {exc.code}"
-        payload["http_status"] = exc.code
-        return payload
+        return _read_http_error(exc)
     except urllib.error.URLError as exc:
-        return {"error": str(exc)}
+        return {"error": str(exc), "transport_error": True}
+
+
+def _is_retryable(result: dict) -> bool:
+    if result.get("transport_error"):
+        return True
+    status = int(result.get("http_status", 0) or 0)
+    if status in {404, 408, 429, 500, 502, 503, 504}:
+        return True
+    error_text = str(result.get("error", "")).lower()
+    return "timed out" in error_text or "remote end closed connection" in error_text
+
+
+def _api(method: str, path: str, body: dict | None = None) -> dict:
+    global _LAST_GOOD_BASE
+    if not _API_KEY:
+        return {"error": "MOLTBOOK_API_KEY not set"}
+
+    failures: list[str] = []
+    candidates = _candidate_bases()
+    for base in candidates:
+        result = _api_once(base, method, path, body)
+        if "error" not in result:
+            _LAST_GOOD_BASE = base
+            return result
+
+        status = int(result.get("http_status", 0) or 0)
+        error_text = str(result.get("error", "")).strip() or "unknown error"
+        failures.append(f"{base}: {error_text}")
+        if status in {400, 401, 403}:
+            return result
+        if not _is_retryable(result):
+            return result
+
+    return {
+        "error": "all Moltbook endpoints failed",
+        "details": failures,
+        "attempted_bases": candidates,
+    }
+
+
+def _bing_rss_search(query: str, *, limit: int = 20) -> list[dict]:
+    req = urllib.request.Request(
+        f"https://www.bing.com/search?format=rss&q={urllib.parse.quote(query)}",
+        headers={"User-Agent": "moltbook-skill/1.0", "Accept": "application/rss+xml"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = resp.read()
+    except Exception:
+        return []
+
+    try:
+        root = ET.fromstring(raw)
+    except ET.ParseError:
+        return []
+
+    items: list[dict] = []
+    for node in root.findall("./channel/item"):
+        url = (node.findtext("link") or "").strip()
+        if not url:
+            continue
+        items.append(
+            {
+                "title": (node.findtext("title") or "").strip(),
+                "url": url,
+                "snippet": (node.findtext("description") or "").strip(),
+            }
+        )
+        if len(items) >= max(int(limit), 1):
+            break
+    return items
 
 
 def _read_response(req: urllib.request.Request, timeout: int) -> dict:
@@ -188,6 +291,15 @@ def feed(args: dict) -> dict:
     sort = args.get("sort", "hot")
     result = _api("GET", f"/posts?limit={limit}&sort={urllib.parse.quote(str(sort))}")
     if "error" in result:
+        fallback = _bing_rss_search("moltbook ai agents", limit=limit)
+        if fallback:
+            return {
+                "success": True,
+                "posts": fallback,
+                "count": len(fallback),
+                "source": "bing_rss_fallback",
+                "warning": result.get("error", "Moltbook API unavailable"),
+            }
         return {"success": False, **result}
     posts = result.get("data", result.get("posts", []))
     return {"success": True, "posts": posts, "count": len(posts)}
@@ -199,6 +311,15 @@ def search(args: dict) -> dict:
         return {"success": False, "error": "query is required"}
     result = _api("GET", f"/search?q={urllib.parse.quote(query)}")
     if "error" in result:
+        fallback = _bing_rss_search(f"moltbook {query}", limit=int(args.get("limit", 20)))
+        if fallback:
+            return {
+                "success": True,
+                "results": fallback,
+                "count": len(fallback),
+                "source": "bing_rss_fallback",
+                "warning": result.get("error", "Moltbook API unavailable"),
+            }
         return {"success": False, **result}
     return {"success": True, "results": result.get("data", [])}
 

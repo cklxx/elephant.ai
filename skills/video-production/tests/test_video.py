@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+import urllib.error
 
 _RUN_PATH = Path(__file__).resolve().parent.parent / "run.py"
 _spec = importlib.util.spec_from_file_location("video_production_run", _RUN_PATH)
@@ -86,12 +88,64 @@ class TestGenerate:
             assert mock_open.call_count == 2
 
     def test_api_error(self, monkeypatch):
-        import urllib.error
         monkeypatch.setenv("ARK_API_KEY", "key-123")
         monkeypatch.setenv("SEEDANCE_ENDPOINT_ID", "ep-123")
         with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")):
             result = generate({"prompt": "test"})
             assert result["success"] is False
+
+    def test_404_retries_with_fallback_endpoint(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("ARK_API_KEY", "key-123")
+        monkeypatch.setenv("SEEDANCE_ENDPOINT_ID", "bad-endpoint")
+        monkeypatch.setenv("SEEDANCE_ENDPOINT_FALLBACKS", "good-endpoint")
+        monkeypatch.setattr(_mod, "_discover_seedance_endpoints", lambda _k: [])
+
+        output = str(tmp_path / "retry.mp4")
+
+        def _mock_urlopen(req, timeout=0):
+            if isinstance(req, _mod.urllib.request.Request):
+                body = json.loads(req.data.decode()) if req.data else {}
+                model = body.get("model")
+                if model == "bad-endpoint":
+                    raise urllib.error.HTTPError(
+                        req.full_url,
+                        404,
+                        "Not Found",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":"model not found"}'),
+                    )
+                return _mock_api_response({"data": [{"url": "https://example.com/v.mp4"}]})
+            return _mock_binary_response(b"fake-mp4-data")
+
+        with patch("urllib.request.urlopen", side_effect=_mock_urlopen):
+            result = generate({"prompt": "test fallback", "output": output})
+
+        assert result["success"] is True
+        assert result["endpoint"] == "good-endpoint"
+
+    def test_all_404_returns_clear_error(self, monkeypatch):
+        monkeypatch.setenv("ARK_API_KEY", "key-123")
+        monkeypatch.setenv("SEEDANCE_ENDPOINT_ID", "bad-endpoint")
+        monkeypatch.setenv("SEEDANCE_ENDPOINT_FALLBACKS", "bad-endpoint-2")
+        monkeypatch.setattr(_mod, "_discover_seedance_endpoints", lambda _k: [])
+
+        def _mock_404(req, timeout=0):
+            if isinstance(req, _mod.urllib.request.Request):
+                raise urllib.error.HTTPError(
+                    req.full_url,
+                    404,
+                    "Not Found",
+                    hdrs=None,
+                    fp=io.BytesIO(b'{"error":"model not found"}'),
+                )
+            return _mock_binary_response(b"")
+
+        with patch("urllib.request.urlopen", side_effect=_mock_404):
+            result = generate({"prompt": "test 404"})
+
+        assert result["success"] is False
+        assert "all Seedance endpoints failed with 404" in result["error"]
+        assert "attempted_endpoints" in result
 
 
 class TestRun:

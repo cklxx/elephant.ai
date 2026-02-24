@@ -302,6 +302,13 @@
       "sourcePath": "../../.alex/skills/timer-management/SKILL.md"
     },
     {
+      "name": "tmp-skill-1771926726",
+      "title": "tmp-skill-1771926726",
+      "description": "temp real test",
+      "markdown": "# tmp-skill-1771926726\n\ntemp real test\n\n## 调用\n\n```bash\npython3 skills/tmp-skill-1771926726/run.py '{\"action\":\"default\", ...}'\n```",
+      "sourcePath": "../../.alex/skills/tmp-skill-1771926726/SKILL.md"
+    },
+    {
       "name": "video-production",
       "title": "video-production",
       "description": "Generate short videos with Seedance and save validated output files.",
