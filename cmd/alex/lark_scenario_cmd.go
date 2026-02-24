@@ -31,11 +31,13 @@ const (
 )
 
 type larkInjectRequest struct {
-	Text           string `json:"text"`
-	ChatID         string `json:"chat_id,omitempty"`
-	ChatType       string `json:"chat_type,omitempty"`
-	SenderID       string `json:"sender_id,omitempty"`
-	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+	Text               string `json:"text"`
+	ChatID             string `json:"chat_id,omitempty"`
+	ChatType           string `json:"chat_type,omitempty"`
+	SenderID           string `json:"sender_id,omitempty"`
+	TimeoutSeconds     int    `json:"timeout_seconds,omitempty"`
+	AutoReply          bool   `json:"auto_reply,omitempty"`
+	MaxAutoReplyRounds int    `json:"max_auto_reply_rounds,omitempty"`
 }
 
 type larkInjectReply struct {
@@ -46,9 +48,10 @@ type larkInjectReply struct {
 }
 
 type larkInjectResponse struct {
-	Replies    []larkInjectReply `json:"replies"`
-	DurationMs int64             `json:"duration_ms"`
-	Error      string            `json:"error,omitempty"`
+	Replies     []larkInjectReply `json:"replies"`
+	DurationMs  int64             `json:"duration_ms"`
+	Error       string            `json:"error,omitempty"`
+	AutoReplies int               `json:"auto_replies,omitempty"`
 }
 
 type larkInjectHTTPResponse struct {
@@ -252,7 +255,12 @@ func runHTTPScenarios(ctx context.Context, scenarios []*larktesting.Scenario, fa
 
 func runHTTPScenario(ctx context.Context, scenario *larktesting.Scenario, opts larkScenarioHTTPRunOptions) *larktesting.ScenarioResult {
 	start := time.Now()
-	result := &larktesting.ScenarioResult{Name: scenario.Name}
+	result := &larktesting.ScenarioResult{
+		Name:        scenario.Name,
+		Description: scenario.Description,
+		Tags:        append([]string(nil), scenario.Tags...),
+		Eval:        scenario.Eval,
+	}
 
 	if opts.httpClient == nil {
 		opts.httpClient = &http.Client{Timeout: time.Duration(maxInt(opts.timeoutSeconds, defaultLarkInjectTimeoutSeconds)+30) * time.Second}
@@ -270,7 +278,10 @@ func runHTTPScenario(ctx context.Context, scenario *larktesting.Scenario, opts l
 		}
 
 		turnStart := time.Now()
-		tr := larktesting.TurnResult{TurnIndex: i}
+		tr := larktesting.TurnResult{
+			TurnIndex: i,
+			Input:     turn.Content,
+		}
 
 		if turn.MockResponse != nil {
 			tr.Errors = append(tr.Errors, "mock_response is not supported in --mode http; run with --mode mock")
@@ -489,6 +500,8 @@ func runLarkInjectCommand(args []string) error {
 	chatType := fs.String("chat-type", "p2p", "Chat type: p2p, group")
 	senderID := fs.String("sender-id", defaultLarkInjectSenderID, "Sender open ID")
 	timeout := fs.Int("timeout", defaultLarkInjectTimeoutSeconds, "Timeout in seconds")
+	autoReply := fs.Bool("auto-reply", false, "Auto-reply when agent asks for clarification")
+	maxAutoReplyRounds := fs.Int("max-auto-reply-rounds", 3, "Max auto-reply rounds")
 
 	if err := fs.Parse(args); err != nil {
 		return &ExitCodeError{Code: 2, Err: fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))}
@@ -504,11 +517,13 @@ func runLarkInjectCommand(args []string) error {
 
 	endpoint := larkInjectEndpoint(*baseURL, *port)
 	reqBody := larkInjectRequest{
-		Text:           text,
-		ChatID:         strings.TrimSpace(*chatID),
-		ChatType:       defaultString(strings.TrimSpace(*chatType), "p2p"),
-		SenderID:       defaultString(strings.TrimSpace(*senderID), defaultLarkInjectSenderID),
-		TimeoutSeconds: maxInt(*timeout, defaultLarkInjectTimeoutSeconds),
+		Text:               text,
+		ChatID:             strings.TrimSpace(*chatID),
+		ChatType:           defaultString(strings.TrimSpace(*chatType), "p2p"),
+		SenderID:           defaultString(strings.TrimSpace(*senderID), defaultLarkInjectSenderID),
+		TimeoutSeconds:     maxInt(*timeout, defaultLarkInjectTimeoutSeconds),
+		AutoReply:          *autoReply,
+		MaxAutoReplyRounds: *maxAutoReplyRounds,
 	}
 
 	displayChatID := reqBody.ChatID
@@ -557,6 +572,9 @@ func runLarkInjectCommand(args []string) error {
 		if r.Emoji != "" {
 			fmt.Printf("emoji: %s\n", r.Emoji)
 		}
+	}
+	if resp.Body.AutoReplies > 0 {
+		fmt.Printf("\nAuto-replies: %d\n", resp.Body.AutoReplies)
 	}
 	fmt.Printf("\nDuration: %s\n", duration.Round(time.Millisecond))
 

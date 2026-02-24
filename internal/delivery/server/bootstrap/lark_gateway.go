@@ -168,6 +168,10 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		gateway.SetChatSessionBindingStore(chatSessionStore)
 	}
 
+	if container.HasLLMFactory() {
+		gateway.SetLLMFactory(container.LLMFactory())
+	}
+
 	taskStore, err := buildLarkTaskStore(ctx, gatewayCfg)
 	if err != nil {
 		logger.Warn("Lark task store init failed: %v", err)

@@ -10,6 +10,7 @@ import (
 	"alex/internal/app/lifecycle"
 	"alex/internal/app/toolregistry"
 	lark "alex/internal/delivery/channels/lark"
+	portsllm "alex/internal/domain/agent/ports/llm"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	react "alex/internal/domain/agent/react"
@@ -380,6 +381,15 @@ func resolveStorageDir(configured, defaultPath string) string {
 // HasLLMFactory reports whether the container holds an initialised LLM factory.
 func (c *Container) HasLLMFactory() bool {
 	return c != nil && c.llmFactory != nil
+}
+
+// LLMFactory returns the LLM client factory as a port interface.
+// Returns nil when the factory has not been initialised.
+func (c *Container) LLMFactory() portsllm.LLMClientFactory {
+	if c == nil || c.llmFactory == nil {
+		return nil
+	}
+	return c.llmFactory
 }
 
 // SessionDir returns the resolved session directory backing file-based stores.

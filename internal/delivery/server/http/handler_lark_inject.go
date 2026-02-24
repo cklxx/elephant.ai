@@ -25,11 +25,13 @@ func NewLarkInjectHandler(gateway LarkInjectGateway) *LarkInjectHandler {
 }
 
 type injectRequest struct {
-	Text           string `json:"text"`
-	ChatID         string `json:"chat_id"`
-	ChatType       string `json:"chat_type"`
-	SenderID       string `json:"sender_id"`
-	TimeoutSeconds int    `json:"timeout_seconds"`
+	Text               string `json:"text"`
+	ChatID             string `json:"chat_id"`
+	ChatType           string `json:"chat_type"`
+	SenderID           string `json:"sender_id"`
+	TimeoutSeconds     int    `json:"timeout_seconds"`
+	AutoReply          bool   `json:"auto_reply"`
+	MaxAutoReplyRounds int    `json:"max_auto_reply_rounds"`
 }
 
 type injectReplyItem struct {
@@ -40,9 +42,10 @@ type injectReplyItem struct {
 }
 
 type injectResponseBody struct {
-	Replies    []injectReplyItem `json:"replies"`
-	DurationMs int64            `json:"duration_ms"`
-	Error      string           `json:"error,omitempty"`
+	Replies     []injectReplyItem `json:"replies"`
+	DurationMs  int64             `json:"duration_ms"`
+	Error       string            `json:"error,omitempty"`
+	AutoReplies int               `json:"auto_replies,omitempty"`
 }
 
 // Handle processes a POST /api/dev/inject request.
@@ -68,11 +71,13 @@ func (h *LarkInjectHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	syncReq := lark.InjectSyncRequest{
-		ChatID:   req.ChatID,
-		ChatType: req.ChatType,
-		SenderID: req.SenderID,
-		Text:     req.Text,
-		Timeout:  timeout,
+		ChatID:             req.ChatID,
+		ChatType:           req.ChatType,
+		SenderID:           req.SenderID,
+		Text:               req.Text,
+		Timeout:            timeout,
+		AutoReply:          req.AutoReply,
+		MaxAutoReplyRounds: req.MaxAutoReplyRounds,
 	}
 
 	resp := h.gateway.InjectMessageSync(r.Context(), syncReq)
@@ -89,9 +94,10 @@ func (h *LarkInjectHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body := injectResponseBody{
-		Replies:    replies,
-		DurationMs: resp.Duration.Milliseconds(),
-		Error:      resp.Error,
+		Replies:     replies,
+		DurationMs:  resp.Duration.Milliseconds(),
+		Error:       resp.Error,
+		AutoReplies: resp.AutoReplies,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

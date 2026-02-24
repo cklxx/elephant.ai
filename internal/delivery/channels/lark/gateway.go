@@ -13,6 +13,7 @@ import (
 	toolcontext "alex/internal/app/toolcontext"
 	"alex/internal/delivery/channels"
 	agent "alex/internal/domain/agent/ports/agent"
+	portsllm "alex/internal/domain/agent/ports/llm"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
@@ -84,6 +85,7 @@ type Gateway struct {
 	llmResolver        *subscription.SelectionResolver
 	cliCredsLoader     func() runtimeconfig.CLICredentials
 	llamaResolver      func(context.Context) (subscription.LlamaServerTarget, bool)
+	llmFactory         portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
 	taskStore          TaskStore
 	chatSessionStore   ChatSessionBindingStore
 	noticeState        *noticeStateStore
@@ -234,6 +236,15 @@ func (g *Gateway) SetTaskStore(store TaskStore) {
 		return
 	}
 	g.taskStore = store
+}
+
+// SetLLMFactory configures an optional LLM client factory for lightweight
+// calls such as auto-reply generation during InjectMessageSync.
+func (g *Gateway) SetLLMFactory(factory portsllm.LLMClientFactory) {
+	if g == nil {
+		return
+	}
+	g.llmFactory = factory
 }
 
 // SetChatSessionBindingStore configures persistent chat->session bindings.
