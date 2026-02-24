@@ -1,0 +1,21 @@
+{
+  "args": {}, 
+  "data": "{\"channel\":\"lead_outreach\",\"target\":\"\u518d\u60e0\uff08\u4e0a\u6d77\uff09\u7f51\u7edc\u79d1\u6280\u6709\u9650\u516c\u53f8\",\"message\":\"\u63d0\u4f9b\u4f01\u4e1a\u5fae\u4fe1 AI \u81ea\u52a8\u8ddf\u8fdb\u670d\u52a1\uff0c7 \u5929\u514d\u8d39\u9a8c\u8bc1\uff0c\u52a0\u6211\u5fae\u4fe1 tcckl1 \u4e86\u89e3\u8be6\u60c5\"}", 
+  "files": {}, 
+  "form": {}, 
+  "headers": {
+    "Accept": "*/*", 
+    "Content-Length": "189", 
+    "Content-Type": "application/json", 
+    "Host": "httpbin.org", 
+    "User-Agent": "curl/8.7.1", 
+    "X-Amzn-Trace-Id": "Root=1-699a241c-30d8d34c5da6122a7d1d18ba"
+  }, 
+  "json": {
+    "channel": "lead_outreach", 
+    "message": "\u63d0\u4f9b\u4f01\u4e1a\u5fae\u4fe1 AI \u81ea\u52a8\u8ddf\u8fdb\u670d\u52a1\uff0c7 \u5929\u514d\u8d39\u9a8c\u8bc1\uff0c\u52a0\u6211\u5fae\u4fe1 tcckl1 \u4e86\u89e3\u8be6\u60c5", 
+    "target": "\u518d\u60e0\uff08\u4e0a\u6d77\uff09\u7f51\u7edc\u79d1\u6280\u6709\u9650\u516c\u53f8"
+  }, 
+  "origin": "111.197.239.170", 
+  "url": "https://httpbin.org/post"
+}
