@@ -16,8 +16,7 @@ const (
 	DefaultKernelUserID          = "cklxx"
 
 	DefaultKernelPlannerMaxDispatches = 5
-	DefaultKernelPlannerTimeoutSec   = 30
-	DefaultKernelNotifyWindow = 30 // minutes; aggregation window for cycle notifications
+	DefaultKernelPlannerTimeoutSec    = 30
 )
 
 const defaultKernelOperatorPrompt = `你是 elephant.ai kernel 的执行代理。请直接行动，不提问、不等待。
@@ -40,11 +39,11 @@ type RuntimeSettings struct {
 	LeaseSeconds    int
 	MaxConcurrent   int
 	MaxCycleHistory int
-	Channel string
-	ChatID  string
-	UserID  string
-	Planner PlannerSettings
-	Agents  []AgentConfig
+	Channel         string
+	ChatID          string
+	UserID          string
+	Planner         PlannerSettings
+	Agents          []AgentConfig
 }
 
 // PlannerSettings controls built-in LLM planner defaults.

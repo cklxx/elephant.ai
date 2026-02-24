@@ -3,10 +3,10 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"time"
 
 	kernel "alex/internal/app/agent/kernel"
 	"alex/internal/app/lifecycle"
+	kerneldomain "alex/internal/domain/kernel"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 )
@@ -29,33 +29,20 @@ func (f *Foundation) KernelStage(sm *SubsystemManager) BootstrapStage {
 					kernelID = kernel.DefaultKernelID
 				}
 				loader := gw.NoticeLoader()
-
-				sender := func(ctx context.Context, text string) {
+				f.Container.KernelEngine.SetNotifier(func(ctx context.Context, result *kerneldomain.CycleResult, err error) {
 					chatID, ok, loadErr := loader()
 					if loadErr != nil {
 						logger.Warn("Kernel notifier: load notice target: %v", loadErr)
 						return
 					}
 					if !ok {
-						return
+						return // notice not bound, skip
 					}
+					text := kernel.FormatCycleNotification(kernelID, result, err)
 					if sendErr := gw.SendNotification(ctx, chatID, text); sendErr != nil {
 						logger.Warn("Kernel notifier: send failed: %v", sendErr)
 					}
-				}
-
-				aggregator := kernel.NewCycleAggregator(
-					kernelID,
-					time.Duration(kernel.DefaultKernelNotifyWindow)*time.Minute,
-					sender,
-				)
-				f.Container.KernelEngine.SetNotifier(aggregator.HandleCycle)
-				f.Container.Drainables = append(f.Container.Drainables,
-					lifecycle.DrainFunc{
-						DrainName: "kernel-cycle-aggregator",
-						Fn:        func(ctx context.Context) { aggregator.Close(ctx) },
-					},
-				)
+				})
 			}
 
 			logger.Info("Starting kernel engine subsystem")
@@ -66,6 +53,7 @@ func (f *Foundation) KernelStage(sm *SubsystemManager) BootstrapStage {
 					async.Go(f.Logger, "kernel-engine", func() {
 						engine.Run(ctx)
 					})
+					// Register as drainable so graceful shutdown waits for in-flight cycles.
 					if drainable, ok := engine.(lifecycle.Drainable); ok {
 						f.Container.Drainables = append(f.Container.Drainables, drainable)
 					}
