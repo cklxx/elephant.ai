@@ -12,6 +12,7 @@ export interface GLSectionCopy {
   title: string;
   description: string;
   points: { title: string; description: string }[];
+  scrollRange: { from: number; distance: number };
 }
 
 export const glCopy: Record<HomeLang, GLHomeCopy> = {
@@ -53,6 +54,7 @@ export const glSections: Record<HomeLang, GLSectionCopy[]> = {
         { title: "Proactive context", description: "Auto-fetches recent chat history and cross-session memory." },
         { title: "Autonomous execution", description: "Search, code, generate documents — from a message to deliverable output." },
       ],
+      scrollRange: { from: 0.2, distance: 0.2 },
     },
     {
       title: "Not just chat — an agent that gets things done",
@@ -62,6 +64,7 @@ export const glSections: Record<HomeLang, GLSectionCopy[]> = {
         { title: "Skill-driven", description: "Meeting notes, email drafting, slide decks — triggered by natural language." },
         { title: "Rich toolset", description: "Code execution, file ops, browser automation, MCP extensions." },
       ],
+      scrollRange: { from: 0.4, distance: 0.2 },
     },
     {
       title: "AI inside your workflow, not outside it",
@@ -71,6 +74,7 @@ export const glSections: Record<HomeLang, GLSectionCopy[]> = {
         { title: "Fully observable", description: "Real-time progress, transparent cost and token tracking." },
         { title: "Approval gates", description: "Risky actions require explicit human approval." },
       ],
+      scrollRange: { from: 0.6, distance: 0.2 },
     },
   ],
   zh: [
@@ -82,6 +86,7 @@ export const glSections: Record<HomeLang, GLSectionCopy[]> = {
         { title: "主动理解上下文", description: "自动获取近期聊天记录、跨会话记忆，不用复述背景。" },
         { title: "自主执行工作", description: "搜索、写代码、生成文档——从一条消息到可交付产出。" },
       ],
+      scrollRange: { from: 0.2, distance: 0.2 },
     },
     {
       title: "不只是聊天——是能做事的 Agent",
@@ -91,6 +96,7 @@ export const glSections: Record<HomeLang, GLSectionCopy[]> = {
         { title: "技能驱动", description: "会议纪要、邮件撰写、PPT 生成——用自然语言触发。" },
         { title: "工具丰富", description: "代码执行、文件操作、浏览器自动化、MCP 扩展。" },
       ],
+      scrollRange: { from: 0.4, distance: 0.2 },
     },
     {
       title: "工作流里的 AI，而不是工作流外的",
@@ -100,6 +106,7 @@ export const glSections: Record<HomeLang, GLSectionCopy[]> = {
         { title: "全程可观测", description: "执行进度实时反馈、成本与 token 透明可查。" },
         { title: "审批门控", description: "高风险操作需要明确的人工审批。" },
       ],
+      scrollRange: { from: 0.6, distance: 0.2 },
     },
   ],
 };

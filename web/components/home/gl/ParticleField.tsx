@@ -160,9 +160,11 @@ function createParticleData(count: number): ParticleData {
 
 interface ParticleFieldProps {
   count: number;
+  scrollOffset?: number;
 }
 
-export function ParticleField({ count }: ParticleFieldProps) {
+export function ParticleField({ count, scrollOffset = 0 }: ParticleFieldProps) {
+  const groupRef = useRef<THREE.Group>(null);
   const pointsRef = useRef<THREE.Points>(null);
   const linesRef = useRef<THREE.LineSegments>(null);
   const mouseRef = useRef(new THREE.Vector2(9999, 9999));
@@ -254,6 +256,11 @@ export function ParticleField({ count }: ParticleFieldProps) {
 
   // Animation loop
   useFrame(({ clock }) => {
+    // Apply scroll-driven parallax Y displacement to group
+    if (groupRef.current) {
+      groupRef.current.position.y = scrollOffset;
+    }
+
     const time = clock.getElapsedTime();
     const frame = frameCount.current++;
     const offsetAttr = pointsGeometry.getAttribute("instanceOffset") as THREE.BufferAttribute;
@@ -363,7 +370,7 @@ export function ParticleField({ count }: ParticleFieldProps) {
   });
 
   return (
-    <group>
+    <group ref={groupRef}>
       <points ref={pointsRef} geometry={pointsGeometry} material={shaderMaterial} />
       <lineSegments ref={linesRef} geometry={lineGeometry} material={lineMaterial} />
     </group>

@@ -1,10 +1,16 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import { ScrollControls, Scroll, Sparkles, useScroll } from "@react-three/drei";
+import { MathUtils, Group } from "three";
 import { getGLCapabilities, type GLCapabilities } from "@/lib/webgl";
 import { ParticleField } from "./ParticleField";
+import { HeroObject } from "./HeroObject";
+import { ScrollOverlay } from "./ScrollOverlay";
+import { ScrollProgressIndicator } from "./ScrollProgressIndicator";
+import type { HomeLang } from "../types";
 
 // ── CSS fallback for no-WebGL environments ──────────────────
 
@@ -16,7 +22,6 @@ function CSSFallback() {
         background: "#080810",
       }}
     >
-      {/* Animated gradient orbs as CSS-only alternative */}
       <div
         className="absolute inset-0 animate-[gradient_12s_ease-in-out_infinite]"
         style={{
@@ -31,12 +36,70 @@ function CSSFallback() {
   );
 }
 
-// ── Scene content ───────────────────────────────────────────
+// ── Parallax wrapper: offsets a group's Y based on scroll ────
 
-function Scene({ caps }: { caps: GLCapabilities }) {
+function ParallaxGroup({
+  children,
+  factor,
+}: {
+  children: React.ReactNode;
+  factor: number;
+}) {
+  const ref = useRef<Group>(null);
+  const scroll = useScroll();
+  const smoothY = useRef(0);
+
+  useFrame((_, delta) => {
+    if (!ref.current) return;
+    const targetY = -scroll.offset * factor * 20;
+    smoothY.current = MathUtils.damp(smoothY.current, targetY, 4, delta);
+    ref.current.position.y = smoothY.current;
+  });
+
+  return <group ref={ref}>{children}</group>;
+}
+
+// ── Scene content inside ScrollControls ─────────────────────
+
+function Scene({ caps, lang }: { caps: GLCapabilities; lang: HomeLang }) {
+  const bgCount = caps.tier === "high" ? 200 : 80;
+
   return (
-    <>
-      <ParticleField count={caps.particleCount} />
+    <ScrollControls pages={5} damping={4}>
+      {/* 3D scroll-synced layer */}
+      <Scroll>
+        {/* Background particles — slow parallax */}
+        <ParallaxGroup factor={0.3}>
+          <ParticleField count={bgCount} />
+        </ParallaxGroup>
+
+        {/* Hero 3D object — 1:1 with scroll */}
+        <HeroObject />
+
+        {/* Foreground sparkles — fast parallax */}
+        <ParallaxGroup factor={1.5}>
+          <Sparkles
+            count={caps.tier === "high" ? 60 : 20}
+            scale={30}
+            size={2}
+            speed={0.3}
+            color="#34d399"
+            opacity={0.4}
+          />
+        </ParallaxGroup>
+      </Scroll>
+
+      {/* DOM overlay layer — scroll-synced */}
+      <Scroll html>
+        <ScrollOverlay lang={lang} />
+      </Scroll>
+
+      {/* Scroll progress indicator (DOM, inside ScrollControls for useScroll access) */}
+      <Scroll html>
+        <ScrollProgressIndicator />
+      </Scroll>
+
+      {/* Post-processing — inside ScrollControls but outside Scroll groups */}
       {caps.bloom && (
         <EffectComposer>
           <Bloom
@@ -47,7 +110,7 @@ function Scene({ caps }: { caps: GLCapabilities }) {
           />
         </EffectComposer>
       )}
-    </>
+    </ScrollControls>
   );
 }
 
@@ -65,7 +128,7 @@ function usePageVisible() {
 
 // ── Main GLCanvas component ─────────────────────────────────
 
-export function GLCanvas() {
+export function GLCanvas({ lang }: { lang: HomeLang }) {
   const caps = getGLCapabilities();
   const visible = usePageVisible();
 
@@ -74,7 +137,7 @@ export function GLCanvas() {
   }
 
   return (
-    <div className="fixed inset-0" style={{ background: "#080810" }}>
+    <div className="absolute inset-0" style={{ background: "#080810" }}>
       <Canvas
         dpr={[1, caps.dpr]}
         camera={{ position: [0, 0, 30], fov: 60, near: 0.1, far: 100 }}
@@ -87,7 +150,7 @@ export function GLCanvas() {
         style={{ background: "#080810" }}
       >
         <Suspense fallback={null}>
-          <Scene caps={caps} />
+          <Scene caps={caps} lang={lang} />
         </Suspense>
       </Canvas>
     </div>
