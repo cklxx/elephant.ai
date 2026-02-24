@@ -22,7 +22,7 @@ Continue aggressive but safe project-wide simplification via low-risk, behavior-
 - [completed] Batch 1: parallel subagent scanning and candidate ranking.
 - [completed] Batch 2: implement selected infra + app/domain simplifications with focused tests.
 - [completed] Batch 3: run full quality gates (targeted + full pre-push checks).
-- [in_progress] Batch 4: mandatory code review report, incremental commits, merge to `main`, cleanup worktree.
+- [completed] Batch 4: mandatory code review report, incremental commits, merge to `main`, cleanup worktree.
 
 ## Progress Log
 
@@ -32,3 +32,4 @@ Continue aggressive but safe project-wide simplification via low-risk, behavior-
 - 2026-02-24: Completed infra path-resolution consolidation (`cost_store`, `attachments`, `session/filestore`, `backup`) using shared resolver; added env/home/default coverage tests.
 - 2026-02-24: Passed targeted package tests for all touched modules.
 - 2026-02-24: Passed full `./scripts/pre-push.sh` quality gate (go mod tidy/vet/build/test -race/lint/arch).
+- 2026-02-24: Rebased branch on `main`, fast-forward merged into `main`, and began local cleanup.
