@@ -68,7 +68,7 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 		Addr:         ":" + port,
 		Handler:      router,
 		ReadTimeout:  5 * time.Minute,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 10 * time.Minute, // Long timeout for inject endpoint (blocks until task completes)
 		IdleTimeout:  120 * time.Second,
 	}
 
