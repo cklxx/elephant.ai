@@ -152,9 +152,9 @@ func TestInjectMessageSyncDefaults(t *testing.T) {
 
 func TestInjectMessageSyncTimeout(t *testing.T) {
 	rec := NewRecordingMessenger()
-	// Executor that blocks for a while.
+	// Executor that blocks longer than the inject timeout.
 	executor := &slowExecutor{
-		delay:  2 * time.Second,
+		delay:  1 * time.Second,
 		result: &agent.TaskResult{Answer: "slow"},
 	}
 	gw := newTestGatewayWithMessenger(executor, rec, channels.BaseConfig{
@@ -165,24 +165,23 @@ func TestInjectMessageSyncTimeout(t *testing.T) {
 	resp := gw.InjectMessageSync(context.Background(), InjectSyncRequest{
 		ChatID:  "inject-timeout",
 		Text:    "slow task",
-		Timeout: 500 * time.Millisecond,
+		Timeout: 300 * time.Millisecond,
 	})
 
+	// InjectMessageSync waits for the goroutine to finish before returning,
+	// so this will take ~1s even though the timeout fires at 300ms.
 	if resp.Error == "" {
 		t.Fatal("expected timeout error")
 	}
 	if !strings.Contains(resp.Error, "timeout") {
 		t.Fatalf("expected timeout error, got: %s", resp.Error)
 	}
-
-	// Clean up: wait for the slow executor to finish.
-	gw.WaitForTasks()
 }
 
 func TestInjectMessageSyncContextCancelled(t *testing.T) {
 	rec := NewRecordingMessenger()
 	executor := &slowExecutor{
-		delay:  5 * time.Second,
+		delay:  1 * time.Second,
 		result: &agent.TaskResult{Answer: "slow"},
 	}
 	gw := newTestGatewayWithMessenger(executor, rec, channels.BaseConfig{
@@ -192,7 +191,7 @@ func TestInjectMessageSyncContextCancelled(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 		cancel()
 	}()
 
@@ -205,12 +204,9 @@ func TestInjectMessageSyncContextCancelled(t *testing.T) {
 	if resp.Error == "" {
 		t.Fatal("expected context cancelled error")
 	}
-
-	// Clean up.
-	gw.WaitForTasks()
 }
 
-func TestInjectMessageSyncRestoresMessenger(t *testing.T) {
+func TestInjectMessageSyncTeeDisabledAfterReturn(t *testing.T) {
 	rec := NewRecordingMessenger()
 	executor := &capturingExecutor{
 		result: &agent.TaskResult{Answer: "ok"},
@@ -220,16 +216,29 @@ func TestInjectMessageSyncRestoresMessenger(t *testing.T) {
 		AllowDirect:   true,
 	})
 
-	originalMessenger := gw.messenger
-
 	_ = gw.InjectMessageSync(context.Background(), InjectSyncRequest{
-		ChatID:  "inject-restore",
-		Text:    "restore test",
+		ChatID:  "inject-tee",
+		Text:    "tee test",
 		Timeout: 10 * time.Second,
 	})
 
-	if gw.messenger != originalMessenger {
-		t.Fatal("expected messenger to be restored after InjectMessageSync")
+	// After InjectMessageSync, the messenger is a disabled tee that still
+	// forwards to the original. Verify forwarding still works.
+	ctx := context.Background()
+	if _, err := gw.messenger.SendMessage(ctx, "some-chat", "text", `{"text":"after"}`); err != nil {
+		t.Fatalf("messenger should still forward after inject: %v", err)
+	}
+
+	// The tee should be disabled — no new captures.
+	tee, ok := gw.messenger.(*teeMessenger)
+	if !ok {
+		t.Fatal("expected messenger to be a teeMessenger")
+	}
+	// The captures should only contain messages from the inject, not the one above.
+	for _, c := range tee.captured() {
+		if c.Content == `{"text":"after"}` {
+			t.Fatal("tee should not capture after being disabled")
+		}
 	}
 }
 

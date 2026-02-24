@@ -47,16 +47,19 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 	}
 
 	// Install a tee messenger that captures outbound calls for this chatID.
+	// The tee forwards all calls to the real messenger and records matching ones.
+	// We never swap g.messenger back — instead we disable recording when done.
+	// This avoids a data race with detached goroutines (e.g. addReaction) that
+	// read g.messenger after the task goroutine tracked by taskWG has finished.
 	tee := newTeeMessenger(g.messenger, req.ChatID)
-	original := g.messenger
 	g.messenger = tee
-	defer func() { g.messenger = original }()
 
 	// Generate a unique message ID for dedup.
 	messageID := fmt.Sprintf("inject_%s_%d", req.ChatID, start.UnixNano())
 
 	// Inject the message through the normal pipeline.
 	if err := g.InjectMessage(ctx, req.ChatID, req.ChatType, req.SenderID, messageID, req.Text); err != nil {
+		tee.disable()
 		return &InjectSyncResponse{
 			Duration: g.currentTime().Sub(start),
 			Error:    fmt.Sprintf("inject failed: %v", err),
@@ -65,11 +68,17 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 
 	// Wait for the task to complete: poll slot phase until it returns to idle/awaiting.
 	deadline := start.Add(req.Timeout)
-	if err := g.waitForSlotIdle(ctx, req.ChatID, deadline); err != nil {
+	waitErr := g.waitForSlotIdle(ctx, req.ChatID, deadline)
+
+	// Wait for tracked goroutines and disable recording.
+	g.WaitForTasks()
+	tee.disable()
+
+	if waitErr != nil {
 		return &InjectSyncResponse{
 			Replies:  tee.captured(),
 			Duration: g.currentTime().Sub(start),
-			Error:    fmt.Sprintf("wait failed: %v", err),
+			Error:    fmt.Sprintf("wait failed: %v", waitErr),
 		}
 	}
 
@@ -113,15 +122,24 @@ func (g *Gateway) waitForSlotIdle(ctx context.Context, chatID string, deadline t
 
 // teeMessenger wraps a real LarkMessenger, forwarding all calls to the inner
 // messenger while capturing calls that target a specific chatID.
+// Once disabled, it continues forwarding but stops recording.
 type teeMessenger struct {
-	inner  LarkMessenger
-	chatID string
-	mu     sync.Mutex
-	calls  []MessengerCall
+	inner    LarkMessenger
+	chatID   string
+	mu       sync.Mutex
+	calls    []MessengerCall
+	stopped  bool
 }
 
 func newTeeMessenger(inner LarkMessenger, chatID string) *teeMessenger {
 	return &teeMessenger{inner: inner, chatID: chatID}
+}
+
+// disable stops recording new calls. The tee continues to forward to inner.
+func (t *teeMessenger) disable() {
+	t.mu.Lock()
+	t.stopped = true
+	t.mu.Unlock()
 }
 
 func (t *teeMessenger) captured() []MessengerCall {
@@ -134,7 +152,9 @@ func (t *teeMessenger) captured() []MessengerCall {
 
 func (t *teeMessenger) record(call MessengerCall) {
 	t.mu.Lock()
-	t.calls = append(t.calls, call)
+	if !t.stopped {
+		t.calls = append(t.calls, call)
+	}
 	t.mu.Unlock()
 }
 
