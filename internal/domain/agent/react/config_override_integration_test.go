@@ -2,7 +2,6 @@ package react
 
 import (
 	"context"
-	"sync/atomic"
 	"testing"
 
 	"alex/internal/domain/agent/ports"
@@ -18,14 +17,16 @@ import (
 // call in iteration 1 causes iteration 2's CompletionRequest to use the new
 // temperature and maxTokens values.
 func TestConfigOverride_IntegrationReactLoop(t *testing.T) {
-	var iteration atomic.Int32
+	var iteration int
 	var capturedRequests []ports.CompletionRequest
 
 	// Iteration 1: LLM returns an update_config tool call.
 	// Iteration 2: LLM returns a final answer; we capture the request to verify overrides applied.
+	// Note: CompleteFunc is called sequentially from the single-threaded ReAct loop.
 	mockLLM := &mocks.MockLLMClient{
 		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
-			i := iteration.Add(1)
+			iteration++
+			i := iteration
 			capturedRequests = append(capturedRequests, req)
 
 			if i == 1 {
@@ -100,7 +101,7 @@ func TestConfigOverride_IntegrationReactLoop(t *testing.T) {
 	// Assertions.
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, int32(2), iteration.Load(), "should have taken exactly 2 LLM calls")
+	assert.Equal(t, 2, iteration, "should have taken exactly 2 LLM calls")
 	require.Len(t, capturedRequests, 2)
 
 	// Iteration 1 should use original defaults.

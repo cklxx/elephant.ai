@@ -77,40 +77,65 @@ func cloneOverride(src *agent.ConfigOverride) *agent.ConfigOverride {
 	return cp
 }
 
+func (s *configOverrideStore) PopPending() *agent.ConfigOverride {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pending == nil {
+		return nil
+	}
+	p := s.pending
+	s.pending = nil
+	return p
+}
+
 func (s *configOverrideStore) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pending = nil
 }
 
-// mergeOverride overwrites non-nil fields in dst with values from src.
+// mergeOverride overwrites non-nil fields in dst with deep-copied values from src.
 func mergeOverride(dst *agent.ConfigOverride, src agent.ConfigOverride) {
 	if src.Provider != nil {
-		dst.Provider = src.Provider
+		v := *src.Provider
+		dst.Provider = &v
 	}
 	if src.Model != nil {
-		dst.Model = src.Model
+		v := *src.Model
+		dst.Model = &v
 	}
 	if src.Temperature != nil {
-		dst.Temperature = src.Temperature
+		v := *src.Temperature
+		dst.Temperature = &v
 	}
 	if src.TopP != nil {
-		dst.TopP = src.TopP
+		v := *src.TopP
+		dst.TopP = &v
 	}
 	if src.MaxTokens != nil {
-		dst.MaxTokens = src.MaxTokens
+		v := *src.MaxTokens
+		dst.MaxTokens = &v
 	}
 	if src.MaxIterations != nil {
-		dst.MaxIterations = src.MaxIterations
+		v := *src.MaxIterations
+		dst.MaxIterations = &v
 	}
 	if src.StopSequences != nil {
 		dst.StopSequences = append([]string(nil), src.StopSequences...)
 	}
 }
 
+// maxTokensUpperBound is the upper limit for max_tokens validation.
+// Increase when models support larger output windows.
+const maxTokensUpperBound = 128000
+
 // validateConfigOverride checks that every non-nil field falls within
 // acceptable bounds.
 func validateConfigOverride(o agent.ConfigOverride) error {
+	// Provider and model must be specified together.
+	if (o.Provider != nil) != (o.Model != nil) {
+		return fmt.Errorf("provider and model must be specified together")
+	}
 	if o.Temperature != nil {
 		if *o.Temperature < 0 || *o.Temperature > 2 {
 			return fmt.Errorf("temperature must be in [0, 2], got %v", *o.Temperature)
@@ -122,8 +147,8 @@ func validateConfigOverride(o agent.ConfigOverride) error {
 		}
 	}
 	if o.MaxTokens != nil {
-		if *o.MaxTokens < 1 || *o.MaxTokens > 128000 {
-			return fmt.Errorf("max_tokens must be in [1, 128000], got %d", *o.MaxTokens)
+		if *o.MaxTokens < 1 || *o.MaxTokens > maxTokensUpperBound {
+			return fmt.Errorf("max_tokens must be in [1, %d], got %d", maxTokensUpperBound, *o.MaxTokens)
 		}
 	}
 	if o.MaxIterations != nil {
@@ -137,15 +162,19 @@ func validateConfigOverride(o agent.ConfigOverride) error {
 // applyPendingConfigOverrides reads and clears the pending override, then
 // mutates the engine's completion config and maxIterations. If provider/model
 // changed, it calls the llmRebuilder to swap the LLM client.
+//
+// SAFETY: This mutates engine fields directly. This is safe because the
+// coordinator creates a fresh ReactEngine per ExecuteTask call (it is never
+// shared across concurrent tasks). If engine reuse is ever introduced, these
+// fields must be moved to reactRuntime-local copies.
 func (r *reactRuntime) applyPendingConfigOverrides() {
 	if r.configOverrides == nil {
 		return
 	}
-	pending := r.configOverrides.Pending()
+	pending := r.configOverrides.PopPending()
 	if pending == nil {
 		return
 	}
-	r.configOverrides.Clear()
 
 	eng := r.engine
 

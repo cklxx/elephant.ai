@@ -129,6 +129,36 @@ func TestConfigOverrideStore_StageRejectsInvalid(t *testing.T) {
 	assert.Nil(t, store.Pending())
 }
 
+func TestValidateConfigOverride_ProviderModelPairing(t *testing.T) {
+	// Both set = OK.
+	assert.NoError(t, validateConfigOverride(agent.ConfigOverride{
+		Provider: ptr("openai"), Model: ptr("gpt-4o"),
+	}))
+	// Neither set = OK.
+	assert.NoError(t, validateConfigOverride(agent.ConfigOverride{}))
+	// Provider only = error.
+	err := validateConfigOverride(agent.ConfigOverride{Provider: ptr("openai")})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider and model must be specified together")
+	// Model only = error.
+	err = validateConfigOverride(agent.ConfigOverride{Model: ptr("gpt-4o")})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider and model must be specified together")
+}
+
+func TestConfigOverrideStore_PopPending(t *testing.T) {
+	store := newConfigOverrideStore()
+	_ = store.Stage(agent.ConfigOverride{Temperature: ptr(0.5)})
+
+	p := store.PopPending()
+	require.NotNil(t, p)
+	assert.Equal(t, 0.5, *p.Temperature)
+
+	// After pop, should be nil.
+	assert.Nil(t, store.PopPending())
+	assert.Nil(t, store.Pending())
+}
+
 // --- Concurrency test ---
 
 func TestConfigOverrideStore_ConcurrentAccess(t *testing.T) {
@@ -292,8 +322,9 @@ func TestApplyPendingConfigOverrides_ModelSwitchRequiresBothFields(t *testing.T)
 	}
 
 	store := newConfigOverrideStore()
-	// Only provider, no model — rebuilder should NOT be called.
-	_ = store.Stage(agent.ConfigOverride{Provider: ptr("openai")})
+	// Only provider, no model — rejected by validation at stage time.
+	err := store.Stage(agent.ConfigOverride{Provider: ptr("openai")})
+	require.Error(t, err, "staging provider without model should fail validation")
 
 	r := &reactRuntime{
 		engine:          engine,

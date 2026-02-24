@@ -42,6 +42,10 @@ type ConfigOverrideStore interface {
 	// pending.
 	Pending() *ConfigOverride
 
+	// PopPending atomically returns and clears the pending override.
+	// Returns nil if nothing is pending.
+	PopPending() *ConfigOverride
+
 	// Clear discards any staged override.
 	Clear()
 }

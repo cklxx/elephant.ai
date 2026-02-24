@@ -27,7 +27,12 @@ func (s *stubConfigOverrideStore) Stage(o agent.ConfigOverride) error {
 }
 
 func (s *stubConfigOverrideStore) Pending() *agent.ConfigOverride { return s.staged }
-func (s *stubConfigOverrideStore) Clear()                         { s.staged = nil }
+func (s *stubConfigOverrideStore) PopPending() *agent.ConfigOverride {
+	p := s.staged
+	s.staged = nil
+	return p
+}
+func (s *stubConfigOverrideStore) Clear() { s.staged = nil }
 
 func ctxWithStore(store agent.ConfigOverrideStore) context.Context {
 	return shared.WithConfigOverrideStore(context.Background(), store)
