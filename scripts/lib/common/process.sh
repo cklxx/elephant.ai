@@ -22,6 +22,33 @@ is_process_running() {
   [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
 }
 
+# _resolve_pgid PID — prints the PGID for a process, or empty if unavailable.
+# Used by stop_pid/stop_service to kill the entire process group, preventing
+# orphan child processes (matches Go layer's Setpgid + kill(-pgid) behavior).
+_resolve_pgid() {
+  local pid="$1"
+  local pgid
+  pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d '[:space:]' || true)"
+  # Don't use PGID 0 (kernel) or 1 (init) — those are not real process groups
+  if [[ -n "$pgid" && "$pgid" != "0" && "$pgid" != "1" ]]; then
+    printf '%s' "$pgid"
+  fi
+}
+
+# _signal_process PID SIGNAL — sends SIGNAL to the process group if available,
+# otherwise falls back to the individual PID.
+_signal_process() {
+  local pid="$1"
+  local sig="$2"
+  local pgid
+  pgid="$(_resolve_pgid "$pid")"
+  if [[ -n "$pgid" ]]; then
+    kill "-${sig}" -- "-${pgid}" 2>/dev/null || kill "-${sig}" "$pid" 2>/dev/null || true
+  else
+    kill "-${sig}" "$pid" 2>/dev/null || true
+  fi
+}
+
 stop_pid() {
   local pid="${1:-}"
   local label="${2:-process}"
@@ -33,7 +60,7 @@ stop_pid() {
   fi
 
   log_info "Stopping ${label} (PID: ${pid})"
-  kill "$pid" 2>/dev/null || true
+  _signal_process "$pid" "TERM"
 
   local i
   for i in $(seq 1 "$attempts"); do
@@ -44,7 +71,7 @@ stop_pid() {
   done
 
   log_warn "${label} did not stop gracefully; force killing (PID: ${pid})"
-  kill -9 "$pid" 2>/dev/null || true
+  _signal_process "$pid" "KILL"
   return 0
 }
 
@@ -59,7 +86,7 @@ stop_service() {
 
   if is_process_running "$pid"; then
     log_info "Stopping ${name} (PID: ${pid})"
-    kill "$pid" 2>/dev/null || true
+    _signal_process "$pid" "TERM"
 
     local i
     for i in $(seq 1 "$attempts"); do
@@ -72,7 +99,7 @@ stop_service() {
     done
 
     log_warn "${name} did not stop gracefully; force killing"
-    kill -9 "$pid" 2>/dev/null || true
+    _signal_process "$pid" "KILL"
     rm -f "$pid_file"
     log_success "${name} stopped"
     return 0
