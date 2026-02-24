@@ -1384,3 +1384,27 @@ func TestCoerceAttachmentMapFallsBackToKey(t *testing.T) {
 		t.Fatalf("expected name from key, got %q", result["chart.svg"].Name)
 	}
 }
+
+func TestCoerceUntypedAttachmentMapSkipsNonAttachmentEntries(t *testing.T) {
+	untyped := map[string]any{
+		"valid": map[string]any{
+			"media_type": "text/plain",
+			"uri":        "https://cdn/valid.txt",
+		},
+		"invalid-shape": "not-an-object",
+		"invalid-fields": map[string]any{
+			"something_else": "value",
+		},
+	}
+
+	result := coerceUntypedAttachmentMap(untyped)
+	if len(result) != 1 {
+		t.Fatalf("expected exactly one parsed attachment, got %d", len(result))
+	}
+	if _, ok := result["valid"]; !ok {
+		t.Fatalf("expected valid attachment key to be present")
+	}
+	if result["valid"].Name != "valid" {
+		t.Fatalf("expected fallback name from key, got %q", result["valid"].Name)
+	}
+}

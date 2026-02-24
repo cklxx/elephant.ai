@@ -78,6 +78,20 @@ type mentionInfo struct {
 	ID   string
 }
 
+func trimDeref(value *string) string {
+	return strings.TrimSpace(deref(value))
+}
+
+func pickPreferredUserID(openID, userID, unionID *string) string {
+	if id := trimDeref(openID); id != "" {
+		return id
+	}
+	if id := trimDeref(userID); id != "" {
+		return id
+	}
+	return trimDeref(unionID)
+}
+
 func mentionKeyMap(mentions []*larkim.MentionEvent) map[string]mentionInfo {
 	if len(mentions) == 0 {
 		return nil
@@ -87,20 +101,14 @@ func mentionKeyMap(mentions []*larkim.MentionEvent) map[string]mentionInfo {
 		if mention == nil {
 			continue
 		}
-		key := strings.TrimSpace(deref(mention.Key))
+		key := trimDeref(mention.Key)
 		if key == "" {
 			continue
 		}
-		name := strings.TrimSpace(deref(mention.Name))
+		name := trimDeref(mention.Name)
 		id := ""
 		if mention.Id != nil {
-			id = strings.TrimSpace(deref(mention.Id.OpenId))
-			if id == "" {
-				id = strings.TrimSpace(deref(mention.Id.UserId))
-			}
-			if id == "" {
-				id = strings.TrimSpace(deref(mention.Id.UnionId))
-			}
+			id = pickPreferredUserID(mention.Id.OpenId, mention.Id.UserId, mention.Id.UnionId)
 		}
 		out[key] = mentionInfo{Name: name, ID: id}
 	}
@@ -351,15 +359,11 @@ func extractSenderID(event *larkim.P2MessageReceiveV1) string {
 	if event == nil || event.Event == nil || event.Event.Sender == nil || event.Event.Sender.SenderId == nil {
 		return ""
 	}
-	id := strings.TrimSpace(deref(event.Event.Sender.SenderId.OpenId))
-	if id != "" {
-		return id
-	}
-	id = strings.TrimSpace(deref(event.Event.Sender.SenderId.UserId))
-	if id != "" {
-		return id
-	}
-	return strings.TrimSpace(deref(event.Event.Sender.SenderId.UnionId))
+	return pickPreferredUserID(
+		event.Event.Sender.SenderId.OpenId,
+		event.Event.Sender.SenderId.UserId,
+		event.Event.Sender.SenderId.UnionId,
+	)
 }
 
 // extractMentions extracts mentioned user IDs from a Lark message event.
@@ -376,13 +380,7 @@ func extractMentions(event *larkim.P2MessageReceiveV1) []string {
 		if m == nil || m.Id == nil {
 			continue
 		}
-		id := deref(m.Id.OpenId)
-		if id == "" {
-			id = deref(m.Id.UserId)
-		}
-		if id == "" {
-			id = deref(m.Id.UnionId)
-		}
+		id := pickPreferredUserID(m.Id.OpenId, m.Id.UserId, m.Id.UnionId)
 		if id != "" {
 			ids = append(ids, id)
 		}

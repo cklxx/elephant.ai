@@ -164,19 +164,7 @@ func sanitizeUntypedAttachments(value any, sent *stringLRU, cache *DataCache) an
 		return sanitizeEnvelopeValue(value, sent, cache)
 	}
 
-	attachments := make(map[string]ports.Attachment)
-	for name, entry := range raw {
-		entryMap, ok := entry.(map[string]any)
-		if !ok || !isAttachmentRecord(entryMap) {
-			continue
-		}
-		att := attachmentFromMap(entryMap)
-		if att.Name == "" {
-			att.Name = name
-		}
-		attachments[name] = att
-	}
-
+	attachments := coerceUntypedAttachmentMap(raw)
 	if len(attachments) == 0 {
 		return sanitizeEnvelopePayload(raw, sent, cache)
 	}
@@ -290,7 +278,14 @@ func coerceAttachmentMap(raw any) map[string]ports.Attachment {
 		return typed
 	}
 	untyped, ok := raw.(map[string]any)
-	if !ok || len(untyped) == 0 {
+	if !ok {
+		return nil
+	}
+	return coerceUntypedAttachmentMap(untyped)
+}
+
+func coerceUntypedAttachmentMap(untyped map[string]any) map[string]ports.Attachment {
+	if len(untyped) == 0 {
 		return nil
 	}
 	result := make(map[string]ports.Attachment, len(untyped))
