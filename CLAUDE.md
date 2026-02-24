@@ -124,6 +124,59 @@ When rules conflict, priority is: **safety > correctness > maintainability > spe
 
 ---
 
+## Codex worker protocol (Brain + Hands)
+
+Claude Code (Opus) is the **planning brain**; Codex CLI is the **execution hands**. Use this protocol autonomously for implementation tasks — no user trigger required.
+
+### When to use Codex
+
+- Multi-file implementation tasks (3+ files)
+- Repetitive mechanical changes (rename, migrate, add boilerplate)
+- Tasks where you already have a clear plan and need fast parallel execution
+- Running test suites or build verification across the codebase
+
+Do NOT delegate to Codex: architectural decisions, code review judgment, ambiguous requirements. Those stay with you.
+
+### Codex invocation patterns
+
+**Explore (read-only):**
+```
+codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral -o /tmp/codex-explore-{n}.md -C <dir> "[READ-ONLY] <precise question>"
+```
+
+**Execute (write):**
+```
+codex exec --dangerously-bypass-approvals-and-sandbox -o /tmp/codex-exec-{id}.md -C <dir> "<self-contained prompt with all context>"
+```
+
+### Four-phase workflow
+
+1. **EXPLORE** — Codex read-only probes + your own Read/Grep/Glob. Max 5 Codex explore calls. Parallel when independent.
+2. **PLAN** — You design the architecture. Decompose into atomic tasks (T1, T2...) with deps, files, verification commands. Present to user.
+3. **EXECUTE** — Dispatch tasks to Codex. Every prompt self-contained (zero cross-call memory). End each with verification command. Parallel when no deps.
+4. **REVIEW** — Codex runs tests. You review `git diff`. Fix issues via targeted re-dispatch. Summarize when clean.
+
+### Prompt rules for Codex calls
+
+- Every prompt contains ALL needed context (paths, signatures, constraints, code snippets)
+- Never reference "previous tasks" or pass conversation history
+- End every execution prompt with: "After changes, run: `<verify command>`"
+- Always use `-o` flag; always read the output file afterward
+
+### Error handling
+
+- Max 2 retries per task. Retry must include: original task + error output + your diagnosis.
+- After 2 failures → escalate to user with attempts, errors, root cause, suggested fix.
+
+### Constraints
+
+- Architecture decisions are yours — Codex only executes your designs
+- Default working directory: project root. Use `-C` for subtree scope.
+- No interactive flags — Codex runs headless
+- Instruct Codex to follow project's existing code style and patterns
+
+---
+
 ## Memory loading guidance (first run + progressive disclosure)
 
 ### Memory sources
