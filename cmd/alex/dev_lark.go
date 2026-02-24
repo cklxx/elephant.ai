@@ -241,10 +241,9 @@ func larkStatus() error {
 	}
 
 	sec.Info("%-14s %s", "Mode", status.Mode)
-	mainConfig, testConfig := resolveLarkConfigPaths()
+	mainConfig, _ := resolveLarkConfigPaths()
 	sec.Info("%-14s %s", "PID Dir", cfg.PIDDir)
 	sec.Info("%-14s %s", "Main Config", mainConfig)
-	sec.Info("%-14s %s", "Test Config", testConfig)
 
 	// Get current HEAD SHA for alignment check
 	headSHA := gitHeadShort(cfg.MainRoot)
@@ -356,7 +355,6 @@ func larkLogs() error {
 		filepath.Join(cfg.LogDir, "lark-supervisor.log"),
 		filepath.Join(cfg.MainRoot, "logs", "lark-main.log"),
 		filepath.Join(cfg.MainRoot, "logs", "lark-kernel.log"),
-		filepath.Join(cfg.TestRoot, "logs", "lark-test.log"),
 		filepath.Join(cfg.TestRoot, "logs", "lark-loop.log"),
 	}
 
@@ -448,7 +446,6 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 
 func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 	mainSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "main.sh")
-	testSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "test.sh")
 	kernelSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "kernel.sh")
 	loopSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "loop-agent.sh")
 
@@ -467,23 +464,6 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 		},
 		PIDFile: filepath.Join(cfg.PIDDir, "lark-main.pid"),
 		SHAFile: filepath.Join(cfg.PIDDir, "lark-main.sha"),
-	})
-
-	sup.RegisterComponent(&supervisor.Component{
-		Name: "test",
-		StartFn: func(ctx context.Context) error {
-			cmd := exec.CommandContext(ctx, testSH, "restart")
-			return cmd.Run()
-		},
-		StopFn: func(ctx context.Context) error {
-			cmd := exec.CommandContext(ctx, testSH, "stop")
-			return cmd.Run()
-		},
-		HealthFn: func() string {
-			return checkPIDHealth(filepath.Join(cfg.PIDDir, "lark-test.pid"))
-		},
-		PIDFile: filepath.Join(cfg.PIDDir, "lark-test.pid"),
-		SHAFile: filepath.Join(cfg.PIDDir, "lark-test.sha"),
 	})
 
 	sup.RegisterComponent(&supervisor.Component{

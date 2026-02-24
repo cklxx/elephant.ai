@@ -95,7 +95,7 @@ component_ensure_bootstrap() {
 
 component_cleanup_orphans() {
   if [[ -n "${CLEANUP_ORPHANS_SH:-}" && -x "${CLEANUP_ORPHANS_SH}" ]]; then
-    "${CLEANUP_ORPHANS_SH}" cleanup --scope all --quiet || true
+    "${CLEANUP_ORPHANS_SH}" cleanup --scope main --quiet || true
   fi
 }
 

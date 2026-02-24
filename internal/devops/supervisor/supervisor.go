@@ -175,7 +175,7 @@ func (s *Supervisor) Run(ctx context.Context) error {
 
 // tick runs a single supervision cycle matching supervisor.sh run_tick():
 //  1. Observe loop state
-//  2. Health-check restarts (with validation guard for test)
+//  2. Health-check restarts
 //  3. SHA drift auto-upgrade
 //  4. Autofix success restart
 //  5. Re-observe + write status
@@ -190,13 +190,6 @@ func (s *Supervisor) tick(ctx context.Context) {
 
 		if !s.needsRestart(comp.Name, healthState) {
 			s.failCounts[comp.Name] = 0
-			continue
-		}
-
-		// Skip test restart during validation — the loop controls it
-		if comp.Name == "test" && s.isValidationActive() {
-			s.logger.Info("skip test restart during validation",
-				"phase", s.loopState.CyclePhase)
 			continue
 		}
 
@@ -254,23 +247,6 @@ func (s *Supervisor) tick(ctx context.Context) {
 	s.writeStatus()
 }
 
-// validationPhases are the cycle phases during which the loop controls
-// the test bot. The supervisor must not restart test during these phases.
-// Corresponds to supervisor.sh VALIDATION_PHASES.
-var validationPhases = map[string]bool{
-	"validating": true,
-	"fast_gate":  true,
-	"slow_gate":  true,
-	"promoting":  true,
-	"restoring":  true,
-}
-
-// isValidationActive returns true when the devops loop is in a
-// validation phase where the test component should not be restarted.
-func (s *Supervisor) isValidationActive() bool {
-	return validationPhases[s.loopState.CyclePhase]
-}
-
 // maybeUpgradeForSHADrift auto-restarts healthy components whose deployed
 // SHA differs from the latest main SHA. Corresponds to supervisor.sh
 // maybe_upgrade_for_sha_drift (lines 633-686).
@@ -288,18 +264,13 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 	}
 
 	for _, comp := range s.components {
-		// Only main and test have SHA tracking
-		if comp.Name != "main" && comp.Name != "test" {
+		// Only main has SHA tracking in the runtime supervisor.
+		if comp.Name != "main" {
 			continue
 		}
 
 		health := comp.HealthFn()
 		if health != "healthy" {
-			continue
-		}
-
-		// Skip test during validation — the loop controls it
-		if comp.Name == "test" && s.isValidationActive() {
 			continue
 		}
 
@@ -409,7 +380,7 @@ func (s *Supervisor) handleAutofixSuccessRestart(ctx context.Context) {
 
 func (s *Supervisor) needsRestart(name, healthState string) bool {
 	switch name {
-	case "main", "test":
+	case "main":
 		return healthState != "healthy"
 	case "loop":
 		return healthState != "alive"

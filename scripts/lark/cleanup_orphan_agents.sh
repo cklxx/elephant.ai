@@ -12,13 +12,13 @@ source "${SCRIPT_DIR}/identity_lock.sh"
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/lark/cleanup_orphan_agents.sh list [--scope main|test|all]
-  scripts/lark/cleanup_orphan_agents.sh cleanup [--scope main|test|all] [--quiet]
+  scripts/lark/cleanup_orphan_agents.sh list [--scope main|all]
+  scripts/lark/cleanup_orphan_agents.sh cleanup [--scope main|all] [--quiet]
 
 Behavior:
-  - Finds running local Lark agent processes (`.../alex-server lark`)
-  - Keeps managed PIDs from `<shared_pid_dir>/lark-main.pid` and `<shared_pid_dir>/lark-test.pid`
-  - Stops orphan processes that are no longer tracked by PID files
+  - Finds running local main Lark agent processes (`<main_root>/alex-server [lark]`)
+  - Keeps managed PID from `<shared_pid_dir>/lark-main.pid`
+  - Stops orphan main processes that are no longer tracked by PID files
 EOF
 }
 
@@ -36,11 +36,9 @@ if [[ -z "${ROOT}" ]]; then
 fi
 [[ -n "${ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
-TEST_ROOT="${ROOT}/.worktrees/test"
 MAIN_CONFIG_PATH="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
 PID_DIR="$(lark_shared_pid_dir "${MAIN_CONFIG_PATH}")"
 MAIN_PID_FILE="${PID_DIR}/lark-main.pid"
-TEST_PID_FILE="${PID_DIR}/lark-test.pid"
 
 SCOPE="all"
 QUIET=0
@@ -61,8 +59,6 @@ collect_candidates() {
   ps -axo pid= -o command= | awk \
     -v main_cmd="${ROOT}/alex-server" \
     -v main_cmd_legacy="${ROOT}/alex-server lark" \
-    -v test_cmd="${TEST_ROOT}/alex-server" \
-    -v test_cmd_legacy="${TEST_ROOT}/alex-server lark" \
     -v scope="${scope}" '
     {
       pid = $1
@@ -73,9 +69,6 @@ collect_candidates() {
       if ((scope == "all" || scope == "main") && (cmd == main_cmd_legacy || cmd == main_cmd)) {
         print pid "\tmain\t" cmd
       }
-      if ((scope == "all" || scope == "test") && (cmd == test_cmd_legacy || cmd == test_cmd)) {
-        print pid "\ttest\t" cmd
-      }
     }
   '
 }
@@ -84,13 +77,9 @@ is_tracked_pid() {
   local pid="$1"
   local kind="$2"
   local tracked_main="$3"
-  local tracked_test="$4"
   case "${kind}" in
     main)
       [[ -n "${tracked_main}" && "${pid}" == "${tracked_main}" ]]
-      ;;
-    test)
-      [[ -n "${tracked_test}" && "${pid}" == "${tracked_test}" ]]
       ;;
     *)
       return 1
@@ -103,10 +92,9 @@ list_candidates() {
 }
 
 cleanup_orphans() {
-  local tracked_main tracked_test
+  local tracked_main
   local total kept killed
   tracked_main="$(read_pid_if_running "${MAIN_PID_FILE}" || true)"
-  tracked_test="$(read_pid_if_running "${TEST_PID_FILE}" || true)"
 
   total=0
   kept=0
@@ -116,7 +104,7 @@ cleanup_orphans() {
     [[ -n "${pid}" ]] || continue
     total=$((total + 1))
 
-    if is_tracked_pid "${pid}" "${kind}" "${tracked_main}" "${tracked_test}"; then
+    if is_tracked_pid "${pid}" "${kind}" "${tracked_main}"; then
       kept=$((kept + 1))
       if [[ "${QUIET}" != "1" ]]; then
         log_info "Keeping managed ${kind} agent PID ${pid}"
@@ -161,7 +149,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "${SCOPE}" in
-  main|test|all)
+  main|all)
     ;;
   *)
     usage
