@@ -164,18 +164,31 @@ func devStatus() error {
 		return err
 	}
 
+	cfg := orch.Config()
 	sec := orch.Section()
 	ctx := context.Background()
 	statuses := orch.Status(ctx)
+
+	// Core services
+	serviceURLs := map[string]string{
+		"backend": fmt.Sprintf("http://localhost:%d", cfg.ServerPort),
+		"web":     fmt.Sprintf("http://localhost:%d", cfg.WebPort),
+	}
+	sec.Section("Core Services")
 	for _, s := range statuses {
+		url := serviceURLs[s.Name]
 		if s.Healthy {
-			sec.Success("%s: %s (PID: %d) %s", s.Name, s.State, s.PID, s.Message)
+			detail := fmt.Sprintf("PID: %d", s.PID)
+			if url != "" {
+				detail += "  " + url
+			}
+			sec.Success("%-10s %s", s.Name, detail)
 		} else {
-			sec.Warn("%s: %s %s", s.Name, s.State, s.Message)
+			sec.Warn("%-10s %s %s", s.Name, s.State, s.Message)
 		}
 	}
 
-	// Show lark supervisor status if running
+	// Lark stack
 	printLarkSummary(sec)
 	return nil
 }
