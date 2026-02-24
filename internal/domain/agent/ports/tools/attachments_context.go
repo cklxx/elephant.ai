@@ -25,7 +25,7 @@ func WithAttachmentContext(ctx context.Context, attachments map[string]core.Atta
 
 	payload := attachmentContext{
 		attachments: core.CloneAttachmentMap(attachments),
-		iterations:  cloneIterationMap(iterations),
+		iterations:  core.CloneStringIntMap(iterations),
 	}
 
 	return context.WithValue(ctx, attachmentsCtxKey{}, payload)
@@ -43,17 +43,6 @@ func GetAttachmentContext(ctx context.Context) (map[string]core.Attachment, map[
 	}
 
 	attachments := core.CloneAttachmentMap(value.attachments)
-	iterations := cloneIterationMap(value.iterations)
+	iterations := core.CloneStringIntMap(value.iterations)
 	return attachments, iterations
-}
-
-func cloneIterationMap(src map[string]int) map[string]int {
-	if len(src) == 0 {
-		return nil
-	}
-	cloned := make(map[string]int, len(src))
-	for key, iter := range src {
-		cloned[key] = iter
-	}
-	return cloned
 }

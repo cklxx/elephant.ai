@@ -73,7 +73,7 @@ func CloneTaskState(state *TaskState) *TaskState {
 		cloned.Attachments = core.CloneAttachmentMap(state.Attachments)
 	}
 	if len(state.AttachmentIterations) > 0 {
-		cloned.AttachmentIterations = cloneIterationMap(state.AttachmentIterations)
+		cloned.AttachmentIterations = core.CloneStringIntMap(state.AttachmentIterations)
 	}
 	if len(state.Important) > 0 {
 		cloned.Important = core.CloneImportantNotes(state.Important)
@@ -254,15 +254,4 @@ func cloneWorldValue(value any) any {
 	default:
 		return v
 	}
-}
-
-func cloneIterationMap(src map[string]int) map[string]int {
-	if len(src) == 0 {
-		return nil
-	}
-	cloned := make(map[string]int, len(src))
-	for key, iter := range src {
-		cloned[key] = iter
-	}
-	return cloned
 }

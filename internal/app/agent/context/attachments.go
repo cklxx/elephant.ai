@@ -46,7 +46,7 @@ func WithInheritedAttachments(ctx context.Context, attachments map[string]ports.
 	}
 	payload := inheritedAttachmentPayload{
 		attachments: ports.CloneAttachmentMap(attachments),
-		iterations:  cloneIterationMap(iterations),
+		iterations:  ports.CloneStringIntMap(iterations),
 	}
 	return context.WithValue(ctx, inheritedAttachmentsKey{}, payload)
 }
@@ -61,16 +61,5 @@ func GetInheritedAttachments(ctx context.Context) (map[string]ports.Attachment, 
 	if !ok {
 		return nil, nil
 	}
-	return ports.CloneAttachmentMap(value.attachments), cloneIterationMap(value.iterations)
-}
-
-func cloneIterationMap(src map[string]int) map[string]int {
-	if len(src) == 0 {
-		return nil
-	}
-	cloned := make(map[string]int, len(src))
-	for key, iter := range src {
-		cloned[key] = iter
-	}
-	return cloned
+	return ports.CloneAttachmentMap(value.attachments), ports.CloneStringIntMap(value.iterations)
 }
