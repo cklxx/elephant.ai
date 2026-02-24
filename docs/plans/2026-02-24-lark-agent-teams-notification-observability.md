@@ -1,7 +1,7 @@
 # Plan: Optimize Agent Teams Lark Notification UX + Monitoring
 
 Date: 2026-02-24
-Status: Draft (ready for implementation)
+Status: in_progress
 Owner: Codex + cklxx
 
 ## 1. Goal
@@ -185,3 +185,22 @@ Start with Phase 0 + Phase 1 in one PR:
 - establish policy mapper
 - route current listeners through unified composer
 - keep existing behavior as fallback behind flag
+
+## 10. Execution Checklist (2026-02-24)
+
+- [x] Repo constraints + memory load + listener/observability architecture scan.
+- [x] Add `notification_policy_v2` + `notification_compose_v2` + `notification_metrics_v2` config flags.
+- [x] Implement policy mapper (`silent_update|milestone|blocking`) and listener-chain gate.
+- [x] Add shared Lark notification composer and apply it to progress/background/plan-clarify outputs.
+- [x] Add Lark notification metrics in `internal/infra/observability/metrics.go` and wire callsites.
+- [x] Add/adjust tests for policy mapping, composer behavior, and metric recording.
+- [x] Run lint/tests/pre-push + code-review; commit in incremental batches.
+
+## 11. Progress Log
+
+- 2026-02-24 23:22: Created implementation worktree `feat/lark-notification-full-20260224`.
+- 2026-02-24 23:31: Completed architecture reconnaissance with explorer agents (event chain, listener boundaries, observability extension points, config hooks).
+- 2026-02-24 23:58: Added notification v2 flags across YAML/bootstrap/gateway config and mapped into Lark gateway startup.
+- 2026-02-25 00:19: Implemented notification policy mapper + unified composer, wired progress/background/plan-clarify/input listeners and task result rendering.
+- 2026-02-25 00:33: Added Lark-specific observability metrics and gateway notification instrumentation wrappers (`dispatchNotification`, `updateNotification`), including natural status-query proxy count.
+- 2026-02-25 00:45: Added/updated tests (`notification_policy`, `notification_composer`, `notification_metrics`, bootstrap flag parsing, observability hooks) and passed `go test ./...` + `golangci-lint run` + code-review skill.
