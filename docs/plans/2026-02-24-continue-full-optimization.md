@@ -22,7 +22,7 @@ Continue repository-wide simplification with low-risk, behavior-preserving refac
 - [completed] Batch 1 (infra): helper extraction + call-site simplification in targeted files.
 - [completed] Batch 2 (delivery/http): response/validation simplification in targeted files.
 - [completed] Batch 3 (quality gates): gofmt, targeted tests, full lint+tests.
-- [in_progress] Batch 4 (mandatory review + commits + merge): run code review checklist, incremental commits, merge back to `main`, remove worktree.
+- [completed] Batch 4 (mandatory review + commits + merge): run code review checklist, incremental commits, merge back to `main`, remove worktree.
 
 ## Progress Log
 
@@ -31,3 +31,4 @@ Continue repository-wide simplification with low-risk, behavior-preserving refac
 - 2026-02-24: Implemented infra simplifications (`shared/context`, `filestore/atomic`, `infra/acp`) with focused tests.
 - 2026-02-24: Implemented delivery simplifications (`api_handler_{response,sessions,misc,tasks}`) with focused tests.
 - 2026-02-24: Ran full `./scripts/pre-push.sh` gate successfully (go vet/build/test -race/lint/arch + web lint/build).
+- 2026-02-24: Completed mandatory code review report (P0-P3), created incremental commits, fast-forward merged to `main`, and removed temporary worktree/branch.
