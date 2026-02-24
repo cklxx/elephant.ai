@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { Play, RefreshCw, Square, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Play, RefreshCw } from "lucide-react";
+import { SessionStreamControls } from "@/components/dev/SessionStreamControls";
 
+import { type DevSSEDebugEvent, useDevSSEDebugger } from "@/hooks/useDevSSEDebugger";
 import { useSessionStore, useSessions } from "@/hooks/useSessionStore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,20 +13,12 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChunkedTextBlock, DebugSurface } from "@/components/debug/DebugSurface";
-import { apiClient, type SSEReplayMode, type SessionSnapshotsResponse, type MemorySnapshot } from "@/lib/api";
+import { apiClient, type SessionSnapshotsResponse, type MemorySnapshot } from "@/lib/api";
 import { createRequestGate } from "@/lib/requestGate";
 import { type LogTraceBundle, type WorkflowEventType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type SSEDebugEvent = {
-  id: string;
-  eventType: string;
-  receivedAt: string;
-  raw: string;
-  parsed: unknown | null;
-  parseError?: string;
-  lastEventId?: string;
-};
+type SSEDebugEvent = DevSSEDebugEvent;
 
 type SessionDebugSnapshot = {
   session: Record<string, unknown>;
@@ -64,21 +58,6 @@ function formatTimestamp(value: string) {
     return value;
   }
   return date.toLocaleTimeString();
-}
-
-function parsePayload(raw: string) {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return { parsed: null as unknown, error: undefined as string | undefined };
-  }
-  try {
-    return { parsed: JSON.parse(trimmed) as unknown, error: undefined as string | undefined };
-  } catch (error) {
-    return {
-      parsed: null as unknown,
-      error: error instanceof Error ? error.message : "Invalid JSON",
-    };
-  }
 }
 
 function extractLogId(parsed: unknown): string | null {
@@ -746,17 +725,7 @@ function TurnMessagesViewer({
 }
 
 export default function ConversationDebugPage() {
-  const [sessionIdInput, setSessionIdInput] = useState("");
-  const [replayMode, setReplayMode] = useState<SSEReplayMode>("session");
-  const [events, setEvents] = useState<SSEDebugEvent[]>([]);
-  const [maxEvents, setMaxEvents] = useState(DEFAULT_MAX_EVENTS);
-  const [maxEventsInput, setMaxEventsInput] = useState(String(DEFAULT_MAX_EVENTS));
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
-  const [autoScroll, setAutoScroll] = useState(true);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [sessionSnapshot, setSessionSnapshot] = useState<SessionDebugSnapshot | null>(null);
   const [sessionSnapshotError, setSessionSnapshotError] = useState<string | null>(null);
   const [sessionSnapshotLoading, setSessionSnapshotLoading] = useState(false);
@@ -792,114 +761,37 @@ export default function ConversationDebugPage() {
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
   }, [sessionsData]);
 
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const {
+    sessionIdInput,
+    setSessionIdInput,
+    sessionId,
+    replayMode,
+    setReplayMode,
+    events,
+    selectedId,
+    setSelectedId,
+    maxEvents,
+    maxEventsInput,
+    handleMaxEventsChange,
+    autoScroll,
+    setAutoScroll,
+    isConnected,
+    isConnecting,
+    error,
+    connect,
+    disconnect,
+    clearEvents,
+  } = useDevSSEDebugger({
+    eventTypes: EVENT_TYPES,
+    defaultMaxEvents: DEFAULT_MAX_EVENTS,
+  });
+
   const listEndRef = useRef<HTMLDivElement | null>(null);
-  const idRef = useRef(0);
   const autoSeededRef = useRef(false);
-  const lastConnectionRef = useRef<{ sessionId: string; replayMode: SSEReplayMode } | null>(
-    null,
-  );
   const sessionSnapshotGateRef = useRef(createRequestGate());
   const turnSnapshotGateRef = useRef(createRequestGate());
 
-  const sessionId = sessionIdInput.trim();
   const logId = logIdInput.trim();
-
-  const handleMaxEventsChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const value = event.target.value;
-      setMaxEventsInput(value);
-      const parsed = Number(value);
-      if (Number.isFinite(parsed) && parsed >= 0) {
-        setMaxEvents(Math.floor(parsed));
-      }
-    },
-    [],
-  );
-
-  const disconnect = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-    setIsConnecting(false);
-    setIsConnected(false);
-  }, []);
-
-  const clearEvents = useCallback(() => {
-    setEvents([]);
-    setSelectedId(null);
-  }, []);
-
-  const handleIncomingEvent = useCallback(
-    (eventType: string, rawEvent: MessageEvent) => {
-      const rawData =
-        typeof rawEvent.data === "string" ? rawEvent.data : JSON.stringify(rawEvent.data);
-      const { parsed, error: parseError } = parsePayload(rawData);
-      const nextId = `sse-${Date.now()}-${idRef.current += 1}`;
-      const entry: SSEDebugEvent = {
-        id: nextId,
-        eventType,
-        receivedAt: new Date().toISOString(),
-        raw: rawData,
-        parsed: parseError ? null : parsed,
-        parseError,
-        lastEventId: rawEvent.lastEventId || undefined,
-      };
-
-      setEvents((prev) => {
-        const next = [...prev, entry];
-        if (maxEvents > 0 && next.length > maxEvents) {
-          next.splice(0, next.length - maxEvents);
-        }
-        return next;
-      });
-
-      setSelectedId((current) => current ?? nextId);
-    },
-    [maxEvents],
-  );
-
-  const connect = useCallback(() => {
-    if (!sessionId) {
-      setError("Session ID is required.");
-      return;
-    }
-
-    const previous = lastConnectionRef.current;
-    if (!previous || previous.sessionId !== sessionId || previous.replayMode !== replayMode) {
-      clearEvents();
-    }
-    lastConnectionRef.current = { sessionId, replayMode };
-
-    disconnect();
-    setError(null);
-    setIsConnected(false);
-    setIsConnecting(true);
-
-    const source = apiClient.createSSEConnection(sessionId, undefined, {
-      replay: replayMode,
-      debug: true,
-    });
-
-    source.onopen = () => {
-      setIsConnecting(false);
-      setIsConnected(true);
-    };
-
-    source.onerror = () => {
-      setIsConnecting(false);
-      setIsConnected(false);
-      setError("SSE connection error.");
-    };
-
-    EVENT_TYPES.forEach((type) => {
-      source.addEventListener(type, (event) => handleIncomingEvent(type, event as MessageEvent));
-    });
-
-    source.onmessage = (event) => handleIncomingEvent("message", event);
-    eventSourceRef.current = source;
-  }, [clearEvents, disconnect, handleIncomingEvent, replayMode, sessionId]);
 
   const loadSessionSnapshot = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -1052,12 +944,6 @@ export default function ConversationDebugPage() {
   );
 
   useEffect(() => {
-    return () => {
-      disconnect();
-    };
-  }, [disconnect]);
-
-  useEffect(() => {
     if (autoSeededRef.current) {
       return;
     }
@@ -1071,7 +957,7 @@ export default function ConversationDebugPage() {
     }
     setSessionIdInput(candidate);
     autoSeededRef.current = true;
-  }, [currentSessionId, sessionHistory, sessionIdInput]);
+  }, [currentSessionId, sessionHistory, sessionIdInput, setSessionIdInput]);
 
   useEffect(() => {
     if (!autoScroll || events.length === 0) {
@@ -1079,19 +965,6 @@ export default function ConversationDebugPage() {
     }
     listEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [autoScroll, events]);
-
-  useEffect(() => {
-    if (maxEvents <= 0) {
-      return;
-    }
-    setEvents((prev) => (prev.length > maxEvents ? prev.slice(-maxEvents) : prev));
-  }, [maxEvents]);
-
-  useEffect(() => {
-    if (selectedId && !events.some((entry) => entry.id === selectedId)) {
-      setSelectedId(events.length > 0 ? events[events.length - 1].id : null);
-    }
-  }, [events, selectedId]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -1491,106 +1364,26 @@ export default function ConversationDebugPage() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_140px_auto] md:items-end">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-muted-foreground">Session ID</p>
-                <Input
-                  value={sessionIdInput}
-                  onChange={(event) => setSessionIdInput(event.target.value)}
-                  placeholder="session-xxxxxxxx"
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      connect();
-                    }
-                  }}
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-muted-foreground">Replay</p>
-                <select
-                  value={replayMode}
-                  onChange={(event) => setReplayMode(event.target.value as SSEReplayMode)}
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm"
-                >
-                  <option value="full">full</option>
-                  <option value="session">session</option>
-                  <option value="none">none</option>
-                </select>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  onClick={connect}
-                  disabled={!sessionId || isConnecting}
-                >
-                  <Play className="mr-2 h-4 w-4" />
-                  Connect
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={disconnect}
-                  disabled={!isConnected && !isConnecting}
-                >
-                  <Square className="mr-2 h-4 w-4" />
-                  Disconnect
-                </Button>
-                <Button size="sm" variant="outline" onClick={clearEvents}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Clear
-                </Button>
-                <Button
-                  size="sm"
-                  variant={autoScroll ? "default" : "outline"}
-                  onClick={() => setAutoScroll((value) => !value)}
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Auto-scroll {autoScroll ? "on" : "off"}
-                </Button>
-              </div>
-            </div>
-
-            {larkSessions.length > 0 && (
-              <div className="mt-3 flex items-center gap-2">
-                <p className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Lark Sessions</p>
-                <select
-                  value={larkSessions.some((s) => s.id === sessionIdInput) ? sessionIdInput : ""}
-                  onChange={(event) => {
-                    if (event.target.value) {
-                      setSessionIdInput(event.target.value);
-                    }
-                  }}
-                  className="h-8 min-w-[260px] max-w-md rounded-md border border-input bg-background px-2 text-xs shadow-sm"
-                >
-                  <option value="">-- Pick a Lark session --</option>
-                  {larkSessions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.id}{s.title ? ` — ${s.title}` : ""} ({new Date(s.updated_at).toLocaleString()})
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    void refetchSessions();
-                  }}
-                  disabled={isSessionsFetching}
-                >
-                  <RefreshCw className={`mr-2 h-4 w-4${isSessionsFetching ? " animate-spin" : ""}`} />
-                  Refresh
-                </Button>
-                <Badge variant="outline" className="text-[10px]">
-                  {larkSessions.length} Lark
-                </Badge>
-              </div>
-            )}
-
-            {error && (
-              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                {error}
-              </div>
-            )}
+            <SessionStreamControls
+              sessionIdInput={sessionIdInput}
+              onSessionIdInputChange={setSessionIdInput}
+              sessionId={sessionId}
+              replayMode={replayMode}
+              onReplayModeChange={setReplayMode}
+              onConnect={connect}
+              onDisconnect={disconnect}
+              onClear={clearEvents}
+              isConnected={isConnected}
+              isConnecting={isConnecting}
+              autoScroll={autoScroll}
+              onToggleAutoScroll={() => setAutoScroll((value) => !value)}
+              larkSessions={larkSessions}
+              isSessionsFetching={isSessionsFetching}
+              onRefreshLarkSessions={() => {
+                void refetchSessions();
+              }}
+              error={error}
+            />
           </header>
 
           <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import { apiClient } from "@/lib/api";
+import { useRequiredSearchParam } from "@/hooks/useRequiredSearchParam";
 import { useI18n } from "@/lib/i18n";
 import type { AnyAgentEvent } from "@/lib/types";
 import { Header, ContentArea } from "@/components/layout";
@@ -18,21 +18,20 @@ import { normalizeAgentEvents } from "@/lib/events/normalize";
 
 export function SharePageContent() {
   const { t } = useI18n();
-  const searchParams = useSearchParams();
-  const sessionId = searchParams.get("session_id") ?? "";
-  const token = searchParams.get("token") ?? "";
+  const { value: sessionId, missing: missingSessionId } = useRequiredSearchParam("session_id");
+  const { value: token, missing: missingToken } = useRequiredSearchParam("token");
 
   const [events, setEvents] = useState<AnyAgentEvent[]>([]);
   const [title, setTitle] = useState<string | null>(null);
   const missingError = useMemo(() => {
-    if (!sessionId) {
+    if (missingSessionId) {
       return t("share.page.error.missingSession");
     }
-    if (!token) {
+    if (missingToken) {
       return t("share.page.error.missingToken");
     }
     return null;
-  }, [sessionId, t, token]);
+  }, [missingSessionId, missingToken, t]);
 
   const [loading, setLoading] = useState(() => !missingError);
   const [error, setError] = useState<string | null>(null);

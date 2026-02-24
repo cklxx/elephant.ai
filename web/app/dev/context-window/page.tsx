@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChunkedTextBlock } from "@/components/debug/DebugSurface";
+import { useRequiredSearchParam } from "@/hooks/useRequiredSearchParam";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
@@ -333,6 +334,8 @@ function ContextWindowPreview({ preview }: { preview: ContextWindowPreviewRespon
 }
 
 function DevContextWindowPage() {
+  const { value: requestedSessionId, missing: missingRequestedSessionId } =
+    useRequiredSearchParam("session_id");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSession, setSelectedSession] = useState("");
   const [preview, setPreview] = useState<ContextWindowPreviewResponse | null>(null);
@@ -348,14 +351,22 @@ function DevContextWindowPage() {
       const ordered = data.sessions ?? [];
       setSessions(ordered);
       if (ordered.length > 0) {
-        setSelectedSession((current) => current || ordered[0].id);
+        setSelectedSession((current) => {
+          if (current) {
+            return current;
+          }
+          if (!missingRequestedSessionId) {
+            return requestedSessionId;
+          }
+          return ordered[0].id;
+        });
       }
     } catch (err) {
       setError("无法加载会话列表，请检查后端是否处于开发模式。");
     } finally {
       setLoadingSessions(false);
     }
-  }, []);
+  }, [missingRequestedSessionId, requestedSessionId]);
 
   const loadPreview = async () => {
     const sessionId = selectedSession.trim();
@@ -459,8 +470,20 @@ function DevContextWindowPage() {
   );
 }
 
+function ContextWindowPageFallback() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Loading context window explorer…</CardTitle>
+      </CardHeader>
+    </Card>
+  );
+}
+
 export default function Page() {
   return (
+    <Suspense fallback={<ContextWindowPageFallback />}>
       <DevContextWindowPage />
+    </Suspense>
   );
 }
