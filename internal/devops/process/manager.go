@@ -386,6 +386,87 @@ func normalizeCommandLine(command string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(command)), " ")
 }
 
+// OrphanProcess represents a process found in PID files that is either dead
+// or has a mismatched identity (PID recycled to a different process).
+type OrphanProcess struct {
+	Name    string
+	PIDFile string
+	PID     int
+	Reason  string // "dead", "identity_mismatch", "untracked"
+}
+
+// ScanOrphans scans the PID directory for orphan PID files — processes that
+// are either dead or have recycled PIDs. Returns the list of orphans found.
+func (m *Manager) ScanOrphans() []OrphanProcess {
+	entries, err := os.ReadDir(m.pidDir)
+	if err != nil {
+		return nil
+	}
+
+	m.mu.Lock()
+	trackedNames := make(map[string]bool, len(m.processes))
+	for name := range m.processes {
+		trackedNames[name] = true
+	}
+	m.mu.Unlock()
+
+	var orphans []OrphanProcess
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".pid") {
+			continue
+		}
+
+		name := strings.TrimSuffix(entry.Name(), ".pid")
+		pidFile := filepath.Join(m.pidDir, entry.Name())
+		metaFile := pidMetaFile(pidFile)
+
+		pid, err := readPIDFile(pidFile)
+		if err != nil {
+			orphans = append(orphans, OrphanProcess{
+				Name:    name,
+				PIDFile: pidFile,
+				PID:     0,
+				Reason:  "unreadable",
+			})
+			continue
+		}
+
+		if !isProcessAlive(pid) {
+			orphans = append(orphans, OrphanProcess{
+				Name:    name,
+				PIDFile: pidFile,
+				PID:     pid,
+				Reason:  "dead",
+			})
+			continue
+		}
+
+		if !trackedNames[name] && !identityMatches(metaFile, pid) {
+			orphans = append(orphans, OrphanProcess{
+				Name:    name,
+				PIDFile: pidFile,
+				PID:     pid,
+				Reason:  "identity_mismatch",
+			})
+		}
+	}
+
+	return orphans
+}
+
+// CleanupOrphans removes PID files for dead/mismatched processes.
+// Returns the number of cleaned up entries.
+func (m *Manager) CleanupOrphans() int {
+	orphans := m.ScanOrphans()
+	count := 0
+	for _, o := range orphans {
+		metaFile := pidMetaFile(o.PIDFile)
+		cleanupPIDState(o.PIDFile, metaFile)
+		count++
+	}
+	return count
+}
+
 func atomicWriteFile(path string, data []byte) error {
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {

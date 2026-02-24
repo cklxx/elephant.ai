@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"alex/internal/devops"
+	"alex/internal/devops/buildinfo"
 	"alex/internal/devops/health"
 	devlog "alex/internal/devops/log"
 	"alex/internal/devops/port"
@@ -154,11 +155,28 @@ func (s *BackendService) buildTarget() string {
 	return "./cmd/alex-server"
 }
 
+// stampPath returns the build fingerprint stamp file path.
+func (s *BackendService) stampPath() string {
+	return s.config.OutputBin + ".stamp"
+}
+
 // Build compiles the backend to a staging path without touching the running binary.
-// Implements devops.Buildable.
+// Implements devops.Buildable. Uses build fingerprinting to skip unnecessary rebuilds.
 func (s *BackendService) Build(ctx context.Context) (string, error) {
 	staging := s.stagingPath()
 	target := s.buildTarget()
+
+	// Fingerprint check: skip build if source hasn't changed
+	fp := buildinfo.Compute(s.config.ProjectDir)
+	stampFile := s.stampPath()
+	if !buildinfo.IsStale(stampFile, fp) {
+		if _, err := os.Stat(staging); err == nil {
+			s.section.Info("Backend build skipped (fingerprint match)")
+			return staging, nil
+		}
+		// Staging file missing despite matching fingerprint — rebuild
+	}
+
 	s.section.Info("Building backend (%s) → %s ...", target, staging)
 
 	cgoEnabled := s.detectCGO()
@@ -194,6 +212,9 @@ func (s *BackendService) Build(ctx context.Context) (string, error) {
 		os.Remove(staging)
 		return "", fmt.Errorf("backend staging binary %s is not executable", staging)
 	}
+
+	// Write fingerprint stamp after successful build
+	_ = buildinfo.WriteStamp(stampFile, fp.String())
 
 	s.section.Success("Backend staged: %s", staging)
 	return staging, nil

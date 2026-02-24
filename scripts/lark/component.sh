@@ -166,7 +166,7 @@ component_start() {
 
   # shellcheck disable=SC2086
   eval "${env_prefix}" nohup "${BIN}" ${COMPONENT_BIN_ARGS} >> "${LOG_FILE}" 2>&1 &
-  echo "$!" > "${PID_FILE}"
+  write_pid_meta "${PID_FILE}" "$!"
 
   pid="$(read_pid "${PID_FILE}" || true)"
   if [[ "${USE_IDENTITY_LOCK}" == "1" ]]; then

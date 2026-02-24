@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -42,6 +43,10 @@ func runDevCommand(args []string) error {
 		return devTest()
 	case "lint":
 		return devLint()
+	case "cleanup":
+		return devCleanup()
+	case "config":
+		return devConfig(args)
 	case "lark":
 		return runDevLarkCommand(args)
 	case "logs-ui", "log-ui", "analyze-logs":
@@ -296,6 +301,78 @@ func devLogsUI() error {
 	return nil
 }
 
+func devConfig(args []string) error {
+	subcmd := "dump"
+	if len(args) > 0 {
+		subcmd = args[0]
+		args = args[1:]
+	}
+
+	cfg, err := loadDevConfig()
+	if err != nil {
+		return err
+	}
+
+	configMap := map[string]string{
+		"server_port":  strconv.Itoa(cfg.ServerPort),
+		"server_bin":   cfg.ServerBin,
+		"web_port":     strconv.Itoa(cfg.WebPort),
+		"web_dir":      cfg.WebDir,
+		"pid_dir":      cfg.PIDDir,
+		"log_dir":      cfg.LogDir,
+		"project_dir":  cfg.ProjectDir,
+		"cgo_mode":     cfg.CGOMode,
+		"lark_mode":    strconv.FormatBool(cfg.LarkMode),
+		"auto_stop":    strconv.FormatBool(cfg.AutoStopConflictingPorts),
+		"auto_heal":    strconv.FormatBool(cfg.AutoHealWebNext),
+	}
+
+	switch subcmd {
+	case "dump":
+		for k, v := range configMap {
+			fmt.Printf("%s=%s\n", k, v)
+		}
+		return nil
+	case "get":
+		if len(args) == 0 {
+			return fmt.Errorf("usage: alex dev config get <key>")
+		}
+		key := args[0]
+		val, ok := configMap[key]
+		if !ok {
+			return fmt.Errorf("unknown config key: %s", key)
+		}
+		fmt.Println(val)
+		return nil
+	default:
+		return fmt.Errorf("unknown config command: %s (dump|get)", subcmd)
+	}
+}
+
+func devCleanup() error {
+	orch, err := buildOrchestrator()
+	if err != nil {
+		return err
+	}
+
+	sec := orch.Section()
+	sec.Section("Orphan Cleanup")
+
+	orphans := orch.ProcessManager().ScanOrphans()
+	if len(orphans) == 0 {
+		sec.Success("No orphan PID files found")
+		return nil
+	}
+
+	for _, o := range orphans {
+		sec.Warn("%-20s PID: %-8d %s (%s)", o.Name, o.PID, o.Reason, o.PIDFile)
+	}
+
+	cleaned := orch.ProcessManager().CleanupOrphans()
+	sec.Success("Cleaned up %d orphan PID file(s)", cleaned)
+	return nil
+}
+
 func buildOrchestrator() (*devops.Orchestrator, error) {
 	cfg, err := loadDevConfig()
 	if err != nil {
@@ -456,9 +533,11 @@ Commands:
   status             Show status of all services
   logs [service]     Tail logs (server|web|all)
   restart [service]  Restart specified service(s) or all
+  cleanup            Scan and remove orphan PID files
   test               Run Go tests (CI parity)
   lint               Run Go + web lint
   logs-ui            Start services and open log analyzer
+  lark [cmd]         Manage Lark supervisor
   help               Show this help
 `)
 }

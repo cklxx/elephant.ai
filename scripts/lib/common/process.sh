@@ -113,3 +113,31 @@ stop_service() {
 
   log_info "${name} is not running"
 }
+
+# ---------------------------------------------------------------------------
+# PID metadata (compatible with Go process.Manager .meta JSON format)
+# ---------------------------------------------------------------------------
+
+# write_pid_meta PID_FILE PID — writes PID file and a companion .meta JSON
+# file with the process command line. Matches the Go layer's writePIDState.
+write_pid_meta() {
+  local pid_file="$1"
+  local pid="$2"
+  local meta_file="${pid_file}.meta"
+
+  printf '%s' "${pid}" > "${pid_file}"
+
+  local cmd_line
+  cmd_line="$(ps -ww -o command= -p "${pid}" 2>/dev/null || true)"
+  if [[ -n "${cmd_line}" ]]; then
+    # Normalize whitespace to match Go normalizeCommandLine
+    cmd_line="$(echo "${cmd_line}" | xargs)"
+    printf '{"command":"%s"}' "${cmd_line}" > "${meta_file}"
+  fi
+}
+
+# cleanup_pid_meta PID_FILE — removes PID file and companion .meta file.
+cleanup_pid_meta() {
+  local pid_file="$1"
+  rm -f "${pid_file}" "${pid_file}.meta"
+}
