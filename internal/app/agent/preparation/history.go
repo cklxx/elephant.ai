@@ -254,11 +254,7 @@ func cloneHistoryMessage(msg ports.Message) ports.Message {
 		}
 	}
 	if len(msg.Metadata) > 0 {
-		metadata := make(map[string]any, len(msg.Metadata))
-		for key, value := range msg.Metadata {
-			metadata[key] = value
-		}
-		cloned.Metadata = metadata
+		cloned.Metadata = ports.CloneAnyMap(msg.Metadata)
 	}
 	if len(msg.Attachments) > 0 {
 		cloned.Attachments = cloneHistoryAttachments(msg.Attachments)
@@ -269,11 +265,7 @@ func cloneHistoryMessage(msg ports.Message) ports.Message {
 func cloneHistoryToolResult(result ports.ToolResult) ports.ToolResult {
 	cloned := result
 	if len(result.Metadata) > 0 {
-		metadata := make(map[string]any, len(result.Metadata))
-		for key, value := range result.Metadata {
-			metadata[key] = value
-		}
-		cloned.Metadata = metadata
+		cloned.Metadata = ports.CloneAnyMap(result.Metadata)
 	}
 	if len(result.Attachments) > 0 {
 		cloned.Attachments = cloneHistoryAttachments(result.Attachments)

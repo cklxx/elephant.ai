@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"alex/internal/domain/agent"
+	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 )
 
@@ -308,7 +309,7 @@ func (m *BackgroundTaskManager) Dispatch(
 		dependsOn:      append([]string(nil), req.DependsOn...),
 		inheritContext: req.InheritContext,
 		fileScope:      append([]string(nil), req.FileScope...),
-		config:         cloneStringMap(req.Config),
+		config:         core.CloneStringMap(req.Config),
 	}
 	if len(req.DependsOn) > 0 {
 		bt.status = agent.BackgroundTaskStatusBlocked
@@ -451,7 +452,7 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 				Prompt:        prompt,
 				AgentType:     agentType,
 				WorkingDir:    workingDir,
-				Config:        cloneStringMap(bt.config),
+				Config:        core.CloneStringMap(bt.config),
 				SessionID:     m.sessionID,
 				CausationID:   bt.causationID,
 				ExecutionMode: bt.executionMode,
@@ -531,7 +532,7 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 
 func (m *BackgroundTaskManager) tryAutoMerge(ctx context.Context, bt *backgroundTask, result *agent.TaskResult) error {
 	bt.mu.Lock()
-	cfg := cloneStringMap(bt.config)
+	cfg := core.CloneStringMap(bt.config)
 	alloc := bt.workspace
 	if bt.mergeStatus == "" {
 		bt.mergeStatus = agent.MergeStatusNotMerged
@@ -1124,17 +1125,6 @@ func resolveBackgroundEventSink(ctx context.Context, fallback backgroundEventSin
 		sink.notifyParent = fallback.notifyParent
 	}
 	return sink
-}
-
-func cloneStringMap(in map[string]string) map[string]string {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
-	return out
 }
 
 func parseConfigBoolDefault(raw string, fallback bool) bool {

@@ -597,7 +597,7 @@ func NewDiagnosticEnvironmentSnapshotEvent(host map[string]string, captured time
 		BaseEvent: newBaseEventWithIDs(agent.LevelCore, "", "", "", captured),
 		Kind:      types.EventDiagnosticEnvironmentSnapshot,
 		Data: EventData{
-			Host:     cloneStringMap(host),
+			Host:     ports.CloneStringMap(host),
 			Captured: captured,
 		},
 	}
@@ -717,17 +717,6 @@ func NewExternalInputResponseEvent(base BaseEvent, taskID, requestID string, app
 // Helper utilities
 // ---------------------------------------------------------------------------
 
-func cloneStringMap(values map[string]string) map[string]string {
-	if values == nil {
-		return nil
-	}
-	clone := make(map[string]string, len(values))
-	for k, v := range values {
-		clone[k] = v
-	}
-	return clone
-}
-
 func cloneMessageSlice(values []ports.Message) []ports.Message {
 	if len(values) == 0 {
 		return nil
@@ -751,7 +740,7 @@ func cloneMessage(msg ports.Message) ports.Message {
 		}
 	}
 	if len(msg.Metadata) > 0 {
-		cloned.Metadata = cloneMapAny(msg.Metadata)
+		cloned.Metadata = ports.CloneAnyMap(msg.Metadata)
 	}
 	if len(msg.Attachments) > 0 {
 		cloned.Attachments = ports.CloneAttachmentMap(msg.Attachments)
@@ -762,21 +751,10 @@ func cloneMessage(msg ports.Message) ports.Message {
 func cloneToolResult(result ports.ToolResult) ports.ToolResult {
 	cloned := result
 	if len(result.Metadata) > 0 {
-		cloned.Metadata = cloneMapAny(result.Metadata)
+		cloned.Metadata = ports.CloneAnyMap(result.Metadata)
 	}
 	if len(result.Attachments) > 0 {
 		cloned.Attachments = ports.CloneAttachmentMap(result.Attachments)
-	}
-	return cloned
-}
-
-func cloneMapAny(values map[string]any) map[string]any {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make(map[string]any, len(values))
-	for key, value := range values {
-		cloned[key] = value
 	}
 	return cloned
 }

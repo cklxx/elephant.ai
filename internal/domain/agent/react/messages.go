@@ -37,7 +37,7 @@ func cloneMessageForLLM(msg Message) Message {
 		cloned.Thinking = cloneThinkingForLLM(msg.Thinking)
 	}
 	if len(msg.Metadata) > 0 {
-		cloned.Metadata = cloneMapAny(msg.Metadata)
+		cloned.Metadata = ports.CloneAnyMap(msg.Metadata)
 	}
 	if len(msg.Attachments) > 0 {
 		cloned.Attachments = ports.CloneAttachmentMap(msg.Attachments)
@@ -48,7 +48,7 @@ func cloneMessageForLLM(msg Message) Message {
 func cloneToolResultForLLM(result ToolResult) ToolResult {
 	cloned := result
 	if len(result.Metadata) > 0 {
-		cloned.Metadata = cloneMapAny(result.Metadata)
+		cloned.Metadata = ports.CloneAnyMap(result.Metadata)
 	}
 	if len(result.Attachments) > 0 {
 		cloned.Attachments = ports.CloneAttachmentMap(result.Attachments)
@@ -63,15 +63,4 @@ func cloneThinkingForLLM(thinking ports.Thinking) ports.Thinking {
 	parts := make([]ports.ThinkingPart, len(thinking.Parts))
 	copy(parts, thinking.Parts)
 	return ports.Thinking{Parts: parts}
-}
-
-func cloneMapAny(values map[string]any) map[string]any {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make(map[string]any, len(values))
-	for key, value := range values {
-		cloned[key] = value
-	}
-	return cloned
 }

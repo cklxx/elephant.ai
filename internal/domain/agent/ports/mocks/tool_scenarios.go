@@ -177,7 +177,7 @@ func cloneCompletionResponse(template ports.CompletionResponse) *ports.Completio
 	}
 
 	if template.Metadata != nil {
-		clone.Metadata = cloneAnyMap(template.Metadata)
+		clone.Metadata = ports.CloneAnyMap(template.Metadata)
 	}
 
 	return &clone
@@ -186,15 +186,7 @@ func cloneCompletionResponse(template ports.CompletionResponse) *ports.Completio
 func cloneToolCall(template ports.ToolCall) ports.ToolCall {
 	clone := template
 	if template.Arguments != nil {
-		clone.Arguments = cloneAnyMap(template.Arguments)
-	}
-	return clone
-}
-
-func cloneAnyMap(template map[string]any) map[string]any {
-	clone := make(map[string]any, len(template))
-	for key, value := range template {
-		clone[key] = value
+		clone.Arguments = ports.CloneAnyMap(template.Arguments)
 	}
 	return clone
 }
