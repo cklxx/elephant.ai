@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>企业微信 AI 跟进助理 Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .chat-scroll::-webkit-scrollbar { width: 6px; }
+    .chat-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <div class="max-w-7xl mx-auto p-4 md:p-8">
+    <header class="mb-6">
+      <h1 class="text-2xl md:text-3xl font-bold text-blue-700">企业微信 AI 跟进助理 · 交互演示</h1>
+      <p class="text-slate-500 mt-1">输入客户消息，实时查看自动回复逻辑、标签分层与 SOP 触发。</p>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[78vh]">
+        <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <h2 class="font-semibold text-slate-700">客户微信对话框</h2>
+            <p class="text-xs text-slate-500">模拟客户侧消息输入</p>
+          </div>
+          <span class="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">实时演示</span>
+        </div>
+
+        <div id="chatBox" class="chat-scroll flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+          <div class="flex justify-start">
+            <div class="max-w-[80%] bg-white border border-slate-200 rounded-2xl rounded-bl-md px-3 py-2 text-sm">你好，这里是客服小助手，有什么可以帮您？</div>
+          </div>
+        </div>
+
+        <div class="p-4 border-t border-slate-200 bg-white">
+          <div class="flex gap-2">
+            <input id="userInput" type="text" placeholder="例如：我想退费 / 快到期了 / 最近没空" class="flex-1 border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            <button id="sendBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl">发送</button>
+          </div>
+          <div class="mt-2 flex gap-2 flex-wrap text-xs">
+            <button class="quick px-2 py-1 rounded bg-blue-50 text-blue-700 border border-blue-100" data-text="我想退费">我想退费</button>
+            <button class="quick px-2 py-1 rounded bg-blue-50 text-blue-700 border border-blue-100" data-text="会员快到期了">会员快到期了</button>
+            <button class="quick px-2 py-1 rounded bg-blue-50 text-blue-700 border border-blue-100" data-text="最近太忙，先不看了">最近太忙，先不看了</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 h-[78vh] overflow-y-auto">
+        <div class="px-4 py-3 border-b border-slate-200">
+          <h2 class="font-semibold text-slate-700">AI 助理后台面板</h2>
+          <p class="text-xs text-slate-500">自动回复逻辑 · 标签分层 · SOP 触发</p>
+        </div>
+
+        <div class="p-4 space-y-4 text-sm">
+          <div class="rounded-xl border border-slate-200 p-3 bg-slate-50">
+            <div class="text-xs text-slate-500">当前识别场景</div>
+            <div id="scene" class="mt-1 text-lg font-semibold text-blue-700">待识别</div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="rounded-xl border border-slate-200 p-3">
+              <div class="text-xs text-slate-500">客户标签分层</div>
+              <div id="segment" class="mt-1 font-medium">未分层</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 p-3">
+              <div class="text-xs text-slate-500">SOP 触发状态</div>
+              <div id="sopStatus" class="mt-1 font-medium text-amber-600">未触发</div>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 p-3">
+            <div class="text-xs text-slate-500 mb-2">自动回复逻辑</div>
+            <pre id="logic" class="text-xs bg-slate-900 text-slate-100 rounded-lg p-3 whitespace-pre-wrap">等待客户输入...</pre>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 p-3">
+            <div class="text-xs text-slate-500 mb-2">预设场景剧本（3）</div>
+            <ul class="space-y-2 text-xs">
+              <li class="p-2 rounded bg-blue-50 border border-blue-100"><b>售后回访</b>：退款/投诉/不满意 -> 安抚 + 核实问题 + 提供补偿/转人工</li>
+              <li class="p-2 rounded bg-blue-50 border border-blue-100"><b>续费提醒</b>：到期/续费/会员 -> 到期提醒 + 权益说明 + 限时优惠</li>
+              <li class="p-2 rounded bg-blue-50 border border-blue-100"><b>沉默激活</b>：忙/没时间/先不看 -> 低打扰触达 + 内容价值点 + 二次跟进预约</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const chatBox = document.getElementById('chatBox');
+    const input = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    const sceneEl = document.getElementById('scene');
+    const segmentEl = document.getElementById('segment');
+    const sopStatusEl = document.getElementById('sopStatus');
+    const logicEl = document.getElementById('logic');
+
+    function appendMessage(text, role = 'user') {
+      const wrap = document.createElement('div');
+      wrap.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
+      const bubble = document.createElement('div');
+      bubble.className = role === 'user'
+        ? 'max-w-[80%] bg-blue-600 text-white rounded-2xl rounded-br-md px-3 py-2 text-sm'
+        : 'max-w-[80%] bg-white border border-slate-200 rounded-2xl rounded-bl-md px-3 py-2 text-sm';
+      bubble.textContent = text;
+      wrap.appendChild(bubble);
+      chatBox.appendChild(wrap);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function detectScenario(message) {
+      const m = message.toLowerCase();
+      if (/退费|退款|投诉|不满意/.test(m)) {
+        return {
+          scene: '售后回访',
+          segment: '高风险流失客户',
+          sop: '已触发（SOP-A1）',
+          logic: `规则命中: [退费/投诉关键词]\n动作: 1) 同理安抚 2) 核实订单 3) 提供补偿方案 4) 必要时转人工\n优先级: P0（高）\n下一步: 2小时内人工复核`,
+          reply: '理解您的感受，给您添麻烦了🙏 我先帮您核实订单与问题原因。若符合条件可优先处理退款或补偿方案，稍后为您同步进度。'
+        };
+      }
+      if (/到期|续费|会员|套餐/.test(m)) {
+        return {
+          scene: '续费提醒',
+          segment: '高意向续费客户',
+          sop: '已触发（SOP-R2）',
+          logic: `规则命中: [到期/续费关键词]\n动作: 1) 提醒到期时间 2) 说明权益差异 3) 发送限时优惠\n优先级: P1（中高）\n下一步: 24小时内二次提醒`,
+          reply: '您这边会员即将到期～为避免权益中断，我先给您同步续费方案：当前续费可享专属优惠，并保留历史权益，是否现在帮您开通？'
+        };
+      }
+      if (/没空|先不看|太忙|以后再说|沉默/.test(m)) {
+        return {
+          scene: '沉默激活',
+          segment: '低活跃待唤醒客户',
+          sop: '已触发（SOP-S3）',
+          logic: `规则命中: [沉默/低活跃关键词]\n动作: 1) 低打扰沟通 2) 提供1条高价值信息 3) 预约下次触达\n优先级: P2（中）\n下一步: 48小时后自动二次触达`,
+          reply: '收到～我先不打扰您。先发您一份1分钟可看完的重点清单，等您方便时我再跟进；也可以告诉我更合适的联系时间。'
+        };
+      }
+      return {
+        scene: '通用咨询',
+        segment: '待进一步识别',
+        sop: '已触发（SOP-G0）',
+        logic: `规则命中: [未命中特定场景]\n动作: 1) 澄清需求 2) 引导分类 3) 进入对应SOP\n优先级: P3（常规）`,
+        reply: '收到，我先帮您快速判断需求类型（售后/续费/使用问题），再给您对应的处理方案。'
+      };
+    }
+
+    function handleSend(text) {
+      if (!text || !text.trim()) return;
+      appendMessage(text, 'user');
+      const result = detectScenario(text);
+      sceneEl.textContent = result.scene;
+      segmentEl.textContent = result.segment;
+      sopStatusEl.textContent = result.sop;
+      sopStatusEl.className = 'mt-1 font-medium text-emerald-600';
+      logicEl.textContent = result.logic;
+      setTimeout(() => appendMessage(result.reply, 'bot'), 350);
+    }
+
+    sendBtn.addEventListener('click', () => {
+      handleSend(input.value);
+      input.value = '';
+      input.focus();
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        handleSend(input.value);
+        input.value = '';
+      }
+    });
+
+    document.querySelectorAll('.quick').forEach(btn => {
+      btn.addEventListener('click', () => handleSend(btn.dataset.text));
+    });
+  </script>
+</body>
+</html>
+
