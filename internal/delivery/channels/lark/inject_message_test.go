@@ -216,7 +216,7 @@ func newTestGatewayWithMessenger(exec AgentExecutor, messenger LarkMessenger, ba
 		cfg:         Config{BaseConfig: baseCfg, AppID: "test", AppSecret: "secret"},
 		agent:       exec,
 		logger:      logging.OrNop(nil),
-		messenger:   messenger,
+		messenger:   wrapInjectCaptureHub(messenger),
 		emojiPicker: newEmojiPicker(0, resolveEmojiPool("")),
 		dedupCache:  cache,
 		now:         func() time.Time { return time.Now() },

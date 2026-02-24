@@ -111,9 +111,7 @@ func (s *stringListFlag) Set(v string) error {
 }
 
 func runLarkScenarioRun(args []string) error {
-	fs := flag.NewFlagSet("alex lark scenario run", flag.ContinueOnError)
-	var flagBuf bytes.Buffer
-	fs.SetOutput(&flagBuf)
+	fs, flagBuf := newBufferedFlagSet("alex lark scenario run")
 
 	mode := fs.String("mode", larkScenarioModeHTTP, "Scenario execution mode: http (real /api/dev/inject), mock (in-process)")
 	dir := fs.String("dir", "", "Directory containing Lark scenario .yaml files (default depends on --mode)")
@@ -129,7 +127,7 @@ func runLarkScenarioRun(args []string) error {
 	fs.Var(&tags, "tag", "Run only scenarios that contain these tag(s). Can be repeated or comma-separated.")
 
 	if err := fs.Parse(args); err != nil {
-		return &ExitCodeError{Code: 2, Err: fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))}
+		return &ExitCodeError{Code: 2, Err: formatBufferedFlagParseError(err, flagBuf)}
 	}
 
 	normalizedMode, err := normalizeLarkScenarioMode(*mode)
@@ -364,7 +362,7 @@ func larkInjectEndpoint(baseURL, port string) string {
 	if trimmedPort == "" {
 		trimmedPort = defaultLarkInjectPort
 	}
-	return fmt.Sprintf("http://localhost:%s/api/dev/inject", trimmedPort)
+	return fmt.Sprintf("http://127.0.0.1:%s/api/dev/inject", trimmedPort)
 }
 
 func postLarkInject(ctx context.Context, httpClient *http.Client, endpoint string, reqBody larkInjectRequest) (*larkInjectHTTPResponse, error) {
@@ -377,15 +375,23 @@ func postLarkInject(ctx context.Context, httpClient *http.Client, endpoint strin
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
-	if err != nil {
-		return nil, fmt.Errorf("build request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+	const maxAttempts = 3
+	var resp *http.Response
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+		if err != nil {
+			return nil, fmt.Errorf("build request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
+		resp, err = httpClient.Do(req)
+		if err == nil {
+			break
+		}
+		if attempt == maxAttempts || ctx.Err() != nil || !isTransientInjectTransportError(err) {
+			return nil, fmt.Errorf("HTTP request failed: %w", err)
+		}
+		time.Sleep(time.Duration(attempt) * 200 * time.Millisecond)
 	}
 	defer resp.Body.Close()
 
@@ -406,6 +412,18 @@ func postLarkInject(ctx context.Context, httpClient *http.Client, endpoint strin
 		Body:       parsed,
 		RawBody:    rawBody,
 	}, nil
+}
+
+func isTransientInjectTransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	return strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.HasSuffix(msg, ": eof") ||
+		msg == "eof" ||
+		strings.Contains(msg, "broken pipe")
 }
 
 func defaultString(value, fallback string) string {
@@ -488,9 +506,7 @@ func writeFile(path string, contents []byte) error {
 }
 
 func runLarkInjectCommand(args []string) error {
-	fs := flag.NewFlagSet("alex lark inject", flag.ContinueOnError)
-	var flagBuf bytes.Buffer
-	fs.SetOutput(&flagBuf)
+	fs, flagBuf := newBufferedFlagSet("alex lark inject")
 
 	port := fs.String("port", defaultLarkInjectPort, "Debug server port")
 	baseURL := fs.String("base-url", "", "Debug server base URL (overrides --port), e.g. http://127.0.0.1:9090")
@@ -502,7 +518,7 @@ func runLarkInjectCommand(args []string) error {
 	maxAutoReplyRounds := fs.Int("max-auto-reply-rounds", 3, "Max auto-reply rounds")
 
 	if err := fs.Parse(args); err != nil {
-		return &ExitCodeError{Code: 2, Err: fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))}
+		return &ExitCodeError{Code: 2, Err: formatBufferedFlagParseError(err, flagBuf)}
 	}
 
 	text := strings.Join(fs.Args(), " ")

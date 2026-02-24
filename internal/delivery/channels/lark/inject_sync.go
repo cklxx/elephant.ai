@@ -64,20 +64,24 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 		maxRounds = defaultMaxAutoReplyRounds
 	}
 
-	// Install a tee messenger that captures outbound calls for this chatID.
-	// The tee forwards all calls to the real messenger and records matching ones.
-	// We never swap g.messenger back — instead we disable recording when done.
-	// This avoids a data race with detached goroutines (e.g. addReaction) that
-	// read g.messenger after the task goroutine tracked by taskWG has finished.
-	tee := newTeeMessenger(g.messenger, req.ChatID)
-	g.messenger = tee
+	// Reuse a single hub messenger and open a per-request capture session.
+	// This avoids stacking one tee layer per inject call under load.
+	captureHub, err := g.ensureInjectCaptureHub()
+	if err != nil {
+		return &InjectSyncResponse{
+			Duration: g.currentTime().Sub(start),
+			Error:    fmt.Sprintf("inject failed: %v", err),
+		}
+	}
+	capture := captureHub.startCapture(req.ChatID)
+	defer capture.close()
 
 	// Generate a unique message ID for dedup.
 	messageID := fmt.Sprintf("inject_%s_%d", req.ChatID, start.UnixNano())
 
 	// Inject the message through the normal pipeline.
 	if err := g.InjectMessage(ctx, req.ChatID, req.ChatType, req.SenderID, messageID, req.Text); err != nil {
-		tee.disable()
+		capture.disable()
 		return &InjectSyncResponse{
 			Duration: g.currentTime().Sub(start),
 			Error:    fmt.Sprintf("inject failed: %v", err),
@@ -97,9 +101,9 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 				_ = g.waitForSlotIdle(context.Background(), req.ChatID, g.currentTime().Add(3*time.Second))
 			}
 			time.Sleep(200 * time.Millisecond)
-			tee.disable()
+			capture.disable()
 			return &InjectSyncResponse{
-				Replies:     tee.captured(),
+				Replies:     capture.captured(),
 				Duration:    g.currentTime().Sub(start),
 				Error:       fmt.Sprintf("wait failed: %v", waitErr),
 				AutoReplies: autoReplies,
@@ -117,7 +121,7 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 		}
 
 		// Extract the agent's clarification question from captured calls.
-		question := extractLastReplyText(tee.captured())
+		question := extractLastReplyText(capture.captured())
 		replyText := g.generateAutoReply(ctx, req.Text, question, options)
 		autoReplies++
 
@@ -131,13 +135,26 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 	// Allow a short grace period for detached goroutines (e.g. addReaction)
 	// to complete their messenger calls before we stop recording.
 	time.Sleep(500 * time.Millisecond)
-	tee.disable()
+	capture.disable()
 
 	return &InjectSyncResponse{
-		Replies:     tee.captured(),
+		Replies:     capture.captured(),
 		Duration:    g.currentTime().Sub(start),
 		AutoReplies: autoReplies,
 	}
+}
+
+func (g *Gateway) ensureInjectCaptureHub() (*injectCaptureHub, error) {
+	if g == nil || g.messenger == nil {
+		return nil, fmt.Errorf("lark messenger not initialized")
+	}
+	if hub, ok := g.messenger.(*injectCaptureHub); ok {
+		return hub, nil
+	}
+	// Fallback for tests that construct Gateway literals without Start()/SetMessenger().
+	hub := newInjectCaptureHub(g.messenger)
+	g.messenger = hub
+	return hub, nil
 }
 
 // cancelRunningTask cancels the currently running task for chatID when present.
@@ -295,6 +312,182 @@ func extractTextFromContent(content string) string {
 	return strings.TrimSpace(content)
 }
 
+type injectCaptureSession struct {
+	chatID  string
+	mu      sync.Mutex
+	calls   []MessengerCall
+	stopped bool
+}
+
+func (s *injectCaptureSession) disable() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.stopped = true
+	s.mu.Unlock()
+}
+
+func (s *injectCaptureSession) captured() []MessengerCall {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]MessengerCall, len(s.calls))
+	copy(out, s.calls)
+	return out
+}
+
+func (s *injectCaptureSession) record(call MessengerCall) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if !s.stopped {
+		s.calls = append(s.calls, call)
+	}
+	s.mu.Unlock()
+}
+
+type injectCaptureHandle struct {
+	hub *injectCaptureHub
+	id  uint64
+}
+
+func (h *injectCaptureHandle) disable() {
+	if h == nil || h.hub == nil || h.id == 0 {
+		return
+	}
+	h.hub.disable(h.id)
+}
+
+func (h *injectCaptureHandle) captured() []MessengerCall {
+	if h == nil || h.hub == nil || h.id == 0 {
+		return nil
+	}
+	return h.hub.captured(h.id)
+}
+
+func (h *injectCaptureHandle) close() {
+	if h == nil || h.hub == nil || h.id == 0 {
+		return
+	}
+	h.hub.close(h.id)
+}
+
+// injectCaptureHub is a single long-lived messenger wrapper. Each inject call
+// opens one capture session and closes it on return, avoiding wrapper stacking.
+type injectCaptureHub struct {
+	inner    LarkMessenger
+	mu       sync.RWMutex
+	nextID   uint64
+	sessions map[uint64]*injectCaptureSession
+}
+
+func newInjectCaptureHub(inner LarkMessenger) *injectCaptureHub {
+	return &injectCaptureHub{
+		inner:    inner,
+		sessions: map[uint64]*injectCaptureSession{},
+	}
+}
+
+func (h *injectCaptureHub) startCapture(chatID string) *injectCaptureHandle {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.nextID++
+	id := h.nextID
+	h.sessions[id] = &injectCaptureSession{chatID: chatID}
+	return &injectCaptureHandle{hub: h, id: id}
+}
+
+func (h *injectCaptureHub) disable(id uint64) {
+	h.mu.RLock()
+	session := h.sessions[id]
+	h.mu.RUnlock()
+	if session != nil {
+		session.disable()
+	}
+}
+
+func (h *injectCaptureHub) captured(id uint64) []MessengerCall {
+	h.mu.RLock()
+	session := h.sessions[id]
+	h.mu.RUnlock()
+	if session == nil {
+		return nil
+	}
+	return session.captured()
+}
+
+func (h *injectCaptureHub) close(id uint64) {
+	h.mu.Lock()
+	delete(h.sessions, id)
+	h.mu.Unlock()
+}
+
+func (h *injectCaptureHub) recordByChat(chatID string, call MessengerCall) {
+	h.mu.RLock()
+	targets := make([]*injectCaptureSession, 0, len(h.sessions))
+	for _, session := range h.sessions {
+		if session.chatID == chatID {
+			targets = append(targets, session)
+		}
+	}
+	h.mu.RUnlock()
+	for _, session := range targets {
+		session.record(call)
+	}
+}
+
+func (h *injectCaptureHub) recordAll(call MessengerCall) {
+	h.mu.RLock()
+	targets := make([]*injectCaptureSession, 0, len(h.sessions))
+	for _, session := range h.sessions {
+		targets = append(targets, session)
+	}
+	h.mu.RUnlock()
+	for _, session := range targets {
+		session.record(call)
+	}
+}
+
+func (h *injectCaptureHub) SendMessage(ctx context.Context, chatID, msgType, content string) (string, error) {
+	id, err := h.inner.SendMessage(ctx, chatID, msgType, content)
+	h.recordByChat(chatID, MessengerCall{Method: "SendMessage", ChatID: chatID, MsgType: msgType, Content: content})
+	return id, err
+}
+
+func (h *injectCaptureHub) ReplyMessage(ctx context.Context, replyToID, msgType, content string) (string, error) {
+	id, err := h.inner.ReplyMessage(ctx, replyToID, msgType, content)
+	h.recordAll(MessengerCall{Method: "ReplyMessage", ReplyTo: replyToID, MsgType: msgType, Content: content})
+	return id, err
+}
+
+func (h *injectCaptureHub) UpdateMessage(ctx context.Context, messageID, msgType, content string) error {
+	err := h.inner.UpdateMessage(ctx, messageID, msgType, content)
+	h.recordAll(MessengerCall{Method: "UpdateMessage", MsgID: messageID, MsgType: msgType, Content: content})
+	return err
+}
+
+func (h *injectCaptureHub) AddReaction(ctx context.Context, messageID, emojiType string) error {
+	err := h.inner.AddReaction(ctx, messageID, emojiType)
+	h.recordAll(MessengerCall{Method: "AddReaction", MsgID: messageID, Emoji: emojiType})
+	return err
+}
+
+func (h *injectCaptureHub) UploadImage(ctx context.Context, payload []byte) (string, error) {
+	return h.inner.UploadImage(ctx, payload)
+}
+
+func (h *injectCaptureHub) UploadFile(ctx context.Context, payload []byte, fileName, fileType string) (string, error) {
+	return h.inner.UploadFile(ctx, payload, fileName, fileType)
+}
+
+func (h *injectCaptureHub) ListMessages(ctx context.Context, chatID string, pageSize int) ([]*larkim.Message, error) {
+	return h.inner.ListMessages(ctx, chatID, pageSize)
+}
+
 // teeMessenger wraps a real LarkMessenger, forwarding all calls to the inner
 // messenger while capturing calls that target a specific chatID.
 // Once disabled, it continues forwarding but stops recording.
@@ -308,13 +501,6 @@ type teeMessenger struct {
 
 func newTeeMessenger(inner LarkMessenger, chatID string) *teeMessenger {
 	return &teeMessenger{inner: inner, chatID: chatID}
-}
-
-// disable stops recording new calls. The tee continues to forward to inner.
-func (t *teeMessenger) disable() {
-	t.mu.Lock()
-	t.stopped = true
-	t.mu.Unlock()
 }
 
 func (t *teeMessenger) captured() []MessengerCall {

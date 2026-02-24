@@ -207,8 +207,9 @@ func (g *Gateway) persistChatSessionBinding(ctx context.Context, chatID, session
 // listener wiring, content preparation, execution, and reply dispatch.
 // isResume indicates this task resumes from a prior await_user_input stop.
 // Returns true if the result indicates await_user_input.
-func (g *Gateway) runTask(msg *incomingMessage, sessionID string, inputCh chan agent.UserInput, isResume bool) bool {
-	execCtx := g.buildExecContext(msg, sessionID, inputCh)
+func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, sessionID string, inputCh chan agent.UserInput, isResume bool) bool {
+	execCtx, cancelExec := g.buildExecContext(taskCtx, msg, sessionID, inputCh)
+	defer cancelExec()
 
 	// Inject CompletionNotifier so BackgroundTaskManager writes TaskStore directly.
 	execCtx = agent.WithCompletionNotifier(execCtx, g)
@@ -296,7 +297,8 @@ func (g *Gateway) runTask(msg *incomingMessage, sessionID string, inputCh chan a
 }
 
 // buildExecContext constructs the fully-configured execution context for a task.
-func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, inputCh chan agent.UserInput) context.Context {
+// taskCtx is an optional cancellation source used to abort long-running tasks.
+func (g *Gateway) buildExecContext(taskCtx context.Context, msg *incomingMessage, sessionID string, inputCh chan agent.UserInput) (context.Context, context.CancelFunc) {
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = toolcontext.WithLarkClient(execCtx, g.client)
 	execCtx = toolcontext.WithLarkChatID(execCtx, msg.chatID)
@@ -331,7 +333,27 @@ func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, input
 
 	execCtx = g.applyPinnedLarkLLMSelection(execCtx, msg)
 
-	return execCtx
+	execCtx, cancel := withCancellationForward(execCtx, taskCtx)
+	return execCtx, cancel
+}
+
+func withCancellationForward(baseCtx, upstream context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(baseCtx)
+	if upstream == nil {
+		return ctx, cancel
+	}
+	done := upstream.Done()
+	if done == nil {
+		return ctx, cancel
+	}
+	go func() {
+		select {
+		case <-done:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, cancel
 }
 
 // sessionHasAwaitFlag checks whether a session's metadata indicates a pending

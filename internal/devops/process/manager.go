@@ -14,6 +14,15 @@ import (
 	"time"
 )
 
+// Shutdown timeout hierarchy (keep in sync with scripts/lib/common/process.sh):
+//   - Process-level SIGTERM grace period: 5s
+//   - Service-level shutdown: 10s
+//   - Orchestrator total: 30s
+const (
+	gracePeriod       = 5 * time.Second
+	gracePollInterval = 250 * time.Millisecond
+)
+
 // ManagedProcess represents a process tracked by the manager.
 type ManagedProcess struct {
 	Name      string
@@ -260,13 +269,13 @@ func (m *Manager) killProcess(pgid, pid int, pidFile string) error {
 
 	_ = syscall.Kill(target, syscall.SIGTERM)
 
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(gracePeriod)
 	for time.Now().Before(deadline) {
 		if !isProcessAlive(pid) {
 			cleanupPIDState(pidFile, metaFile)
 			return nil
 		}
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(gracePollInterval)
 	}
 
 	_ = syscall.Kill(target, syscall.SIGKILL)

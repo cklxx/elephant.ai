@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -157,7 +158,7 @@ func TestInjectMessageSyncTimeout(t *testing.T) {
 	rec := NewRecordingMessenger()
 	// Executor that blocks longer than the inject timeout.
 	executor := &slowExecutor{
-		delay:  1 * time.Second,
+		delay:  5 * time.Second,
 		result: &agent.TaskResult{Answer: "slow"},
 	}
 	gw := newTestGatewayWithMessenger(executor, rec, channels.BaseConfig{
@@ -165,20 +166,26 @@ func TestInjectMessageSyncTimeout(t *testing.T) {
 		AllowDirect:   true,
 	})
 
+	start := time.Now()
 	resp := gw.InjectMessageSync(context.Background(), InjectSyncRequest{
 		ChatID:  "inject-timeout",
 		Text:    "slow task",
-		Timeout: 300 * time.Millisecond,
+		Timeout: 200 * time.Millisecond,
 	})
+	elapsed := time.Since(start)
 
-	// InjectMessageSync waits for the goroutine to finish before returning,
-	// so this will take ~1s even though the timeout fires at 300ms.
 	if resp.Error == "" {
 		t.Fatal("expected timeout error")
 	}
 	if !strings.Contains(resp.Error, "timeout") {
 		t.Fatalf("expected timeout error, got: %s", resp.Error)
 	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("expected timeout path to cancel quickly, elapsed=%s", elapsed)
+	}
+
+	// Ensure the timed-out task does not linger in background.
+	gw.WaitForTasks()
 }
 
 func TestInjectMessageSyncContextCancelled(t *testing.T) {
@@ -209,7 +216,7 @@ func TestInjectMessageSyncContextCancelled(t *testing.T) {
 	}
 }
 
-func TestInjectMessageSyncTeeDisabledAfterReturn(t *testing.T) {
+func TestInjectMessageSyncCaptureClosedAfterReturn(t *testing.T) {
 	rec := NewRecordingMessenger()
 	executor := &capturingExecutor{
 		result: &agent.TaskResult{Answer: "ok"},
@@ -225,23 +232,55 @@ func TestInjectMessageSyncTeeDisabledAfterReturn(t *testing.T) {
 		Timeout: 10 * time.Second,
 	})
 
-	// After InjectMessageSync, the messenger is a disabled tee that still
-	// forwards to the original. Verify forwarding still works.
+	// After InjectMessageSync, messenger should still forward to the original.
 	ctx := context.Background()
 	if _, err := gw.messenger.SendMessage(ctx, "some-chat", "text", `{"text":"after"}`); err != nil {
 		t.Fatalf("messenger should still forward after inject: %v", err)
 	}
 
-	// The tee should be disabled — no new captures.
-	tee, ok := gw.messenger.(*teeMessenger)
+	hub, ok := gw.messenger.(*injectCaptureHub)
 	if !ok {
-		t.Fatal("expected messenger to be a teeMessenger")
+		t.Fatal("expected messenger to be an injectCaptureHub")
 	}
-	// The captures should only contain messages from the inject, not the one above.
-	for _, c := range tee.captured() {
-		if c.Content == `{"text":"after"}` {
-			t.Fatal("tee should not capture after being disabled")
+	hub.mu.RLock()
+	defer hub.mu.RUnlock()
+	if len(hub.sessions) != 0 {
+		t.Fatalf("expected no active inject capture sessions, got %d", len(hub.sessions))
+	}
+}
+
+func TestInjectMessageSyncDoesNotStackWrappers(t *testing.T) {
+	rec := NewRecordingMessenger()
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{Answer: "ok"},
+	}
+	gw := newTestGatewayWithMessenger(executor, rec, channels.BaseConfig{
+		SessionPrefix: "test",
+		AllowDirect:   true,
+	})
+
+	for i := 0; i < 50; i++ {
+		resp := gw.InjectMessageSync(context.Background(), InjectSyncRequest{
+			ChatID:  fmt.Sprintf("inject-wrap-%d", i),
+			Text:    "/new",
+			Timeout: 10 * time.Second,
+		})
+		if resp.Error != "" {
+			t.Fatalf("inject %d failed: %s", i, resp.Error)
 		}
+	}
+
+	hub, ok := gw.messenger.(*injectCaptureHub)
+	if !ok {
+		t.Fatal("expected messenger to be injectCaptureHub")
+	}
+	if _, nested := hub.inner.(*injectCaptureHub); nested {
+		t.Fatal("inject capture hub should not be nested")
+	}
+	hub.mu.RLock()
+	defer hub.mu.RUnlock()
+	if len(hub.sessions) != 0 {
+		t.Fatalf("expected no active sessions after repeated injects, got %d", len(hub.sessions))
 	}
 }
 
@@ -444,7 +483,7 @@ func TestHeuristicAutoReply(t *testing.T) {
 	if got := heuristicAutoReply([]string{"opt1", "opt2"}); got != "1" {
 		t.Errorf("expected '1' with options, got %q", got)
 	}
-	if got := heuristicAutoReply(nil); got != "请直接执行，不需要进一步确认" {
+	if got := heuristicAutoReply(nil); got != "Proceed directly, no further confirmation needed." {
 		t.Errorf("expected fixed text without options, got %q", got)
 	}
 }

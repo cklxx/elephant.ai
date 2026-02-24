@@ -2,6 +2,16 @@
 # shellcheck shell=bash
 # Common process helpers.
 
+# ---------------------------------------------------------------------------
+# Shutdown timeout hierarchy (keep in sync with internal/devops/process/)
+# ---------------------------------------------------------------------------
+# Process-level SIGTERM grace period: 5 seconds
+# Service-level shutdown (process + cleanup): 10 seconds
+# Orchestrator total (all services): 30 seconds
+readonly SIGTERM_GRACE_SECONDS="${SIGTERM_GRACE_SECONDS:-5}"
+readonly SIGTERM_GRACE_ATTEMPTS=$(( SIGTERM_GRACE_SECONDS * 4 ))  # at 0.25s sleep
+readonly SIGTERM_GRACE_SLEEP=0.25
+
 read_pid() {
   local pid_file="$1"
   [[ -f "$pid_file" ]] && cat "$pid_file"
@@ -15,8 +25,8 @@ is_process_running() {
 stop_pid() {
   local pid="${1:-}"
   local label="${2:-process}"
-  local attempts="${3:-20}"
-  local sleep_seconds="${4:-0.25}"
+  local attempts="${3:-${SIGTERM_GRACE_ATTEMPTS}}"
+  local sleep_seconds="${4:-${SIGTERM_GRACE_SLEEP}}"
 
   if ! is_process_running "$pid"; then
     return 0
@@ -41,8 +51,8 @@ stop_pid() {
 stop_service() {
   local name="$1"
   local pid_file="$2"
-  local attempts="${3:-20}"
-  local sleep_seconds="${4:-0.25}"
+  local attempts="${3:-${SIGTERM_GRACE_ATTEMPTS}}"
+  local sleep_seconds="${4:-${SIGTERM_GRACE_SLEEP}}"
   local pid
 
   pid="$(read_pid "$pid_file" || true)"

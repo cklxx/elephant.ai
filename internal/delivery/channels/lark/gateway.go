@@ -59,6 +59,7 @@ type sessionSlot struct {
 	mu             sync.Mutex
 	phase          slotPhase
 	inputCh        chan agent.UserInput // non-nil only when phase == slotRunning
+	taskCancel     context.CancelFunc   // cancels the currently running task (phase == slotRunning)
 	sessionID      string
 	lastSessionID  string
 	pendingOptions []string // options awaiting numeric reply
@@ -85,8 +86,8 @@ type Gateway struct {
 	llmResolver        *subscription.SelectionResolver
 	cliCredsLoader     func() runtimeconfig.CLICredentials
 	llamaResolver      func(context.Context) (subscription.LlamaServerTarget, bool)
-	llmFactory         portsllm.LLMClientFactory    // optional; for lightweight LLM calls (auto-reply)
-	llmProfile         runtimeconfig.LLMProfile     // shared runtime LLM profile for auto-reply
+	llmFactory         portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
+	llmProfile         runtimeconfig.LLMProfile  // shared runtime LLM profile for auto-reply
 	taskStore          TaskStore
 	chatSessionStore   ChatSessionBindingStore
 	noticeState        *noticeStateStore
@@ -228,7 +229,7 @@ func (g *Gateway) SetMessenger(m LarkMessenger) {
 	if g == nil {
 		return
 	}
-	g.messenger = m
+	g.messenger = wrapInjectCaptureHub(m)
 }
 
 // SetTaskStore configures the task persistence store.
@@ -359,6 +360,7 @@ func (g *Gateway) Start(ctx context.Context) error {
 	if g.messenger == nil {
 		g.messenger = newSDKMessenger(g.client)
 	}
+	g.messenger = wrapInjectCaptureHub(g.messenger)
 
 	// Build the event dispatcher and register event handlers.
 	eventDispatcher := dispatcher.NewEventDispatcher("", "")
@@ -398,6 +400,16 @@ func (g *Gateway) Stop() {
 // Intended for test synchronization only.
 func (g *Gateway) WaitForTasks() {
 	g.taskWG.Wait()
+}
+
+func wrapInjectCaptureHub(m LarkMessenger) LarkMessenger {
+	if m == nil {
+		return nil
+	}
+	if _, ok := m.(*injectCaptureHub); ok {
+		return m
+	}
+	return newInjectCaptureHub(m)
 }
 
 func (g *Gateway) setCleanupCancel(cancel context.CancelFunc) {
@@ -714,8 +726,10 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	// Resolve session ID: reuse the awaiting session or create a new one.
 	sessionID, isResume := g.resolveSessionForNewTask(ctx, msg.chatID, slot)
 	inputCh := make(chan agent.UserInput, 16)
+	taskCtx, taskCancel := context.WithCancel(context.Background())
 	slot.phase = slotRunning
 	slot.inputCh = inputCh
+	slot.taskCancel = taskCancel
 	slot.sessionID = sessionID
 	slot.lastSessionID = sessionID
 	slot.lastTouched = g.currentTime()
@@ -726,12 +740,15 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	// tasks delay the ACK, causing the Lark server to re-deliver the
 	// event and produce duplicate responses.
 	g.taskWG.Add(1)
-	go func() {
+	go func(taskCtx context.Context, taskCancel context.CancelFunc) {
 		defer g.taskWG.Done()
-		awaitingInput := g.runTask(msg, sessionID, inputCh, isResume)
+		defer taskCancel()
+
+		awaitingInput := g.runTask(taskCtx, msg, sessionID, inputCh, isResume)
 
 		slot.mu.Lock()
 		slot.inputCh = nil
+		slot.taskCancel = nil
 		if awaitingInput {
 			slot.phase = slotAwaitingInput
 			slot.lastSessionID = slot.sessionID
@@ -746,7 +763,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		} else {
 			g.discardPendingInputs(inputCh, msg.chatID)
 		}
-	}()
+	}(taskCtx, taskCancel)
 
 	return nil
 }

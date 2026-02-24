@@ -173,7 +173,8 @@ func (g *Gateway) dispatchViaForegroundTask(msg *incomingMessage, agentType, des
 		g.discardPendingInputs(inputCh, msg.chatID)
 	}()
 
-	execCtx := g.buildExecContext(msg, sessionID, inputCh)
+	execCtx, cancelExec := g.buildExecContext(context.Background(), msg, sessionID, inputCh)
+	defer cancelExec()
 	execCtx = channels.ApplyPresets(execCtx, g.cfg.BaseConfig)
 	execCtx, cancelTimeout := channels.ApplyTimeout(execCtx, g.cfg.BaseConfig)
 	defer cancelTimeout()

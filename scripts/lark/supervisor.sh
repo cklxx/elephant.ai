@@ -243,7 +243,7 @@ stop_tracked_process() {
     return 0
   fi
 
-  stop_pid "${pid}" "${label}" 12 0.25 >/dev/null 2>&1 || true
+  stop_pid "${pid}" "${label}" "${SIGTERM_GRACE_ATTEMPTS}" "${SIGTERM_GRACE_SLEEP}" >/dev/null 2>&1 || true
   rm -f "${pid_file}" 2>/dev/null || true
 }
 

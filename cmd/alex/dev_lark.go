@@ -149,7 +149,8 @@ func larkStop() error {
 		return fmt.Errorf("send SIGTERM to supervisor %d: %w", pid, err)
 	}
 
-	// Wait for exit
+	// Service-level shutdown timeout (supervisor + children cleanup).
+	// Hierarchy: 5s process grace → 10s service → 30s orchestrator.
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if syscall.Kill(pid, 0) != nil {

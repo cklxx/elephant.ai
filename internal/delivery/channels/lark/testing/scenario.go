@@ -41,12 +41,14 @@ type GatewayConfig struct {
 
 // Turn represents a single user message and its expected outcomes.
 type Turn struct {
-	SenderID  string `yaml:"sender_id"`
-	ChatID    string `yaml:"chat_id"`
-	ChatType  string `yaml:"chat_type"` // "p2p" (default) or "group"
-	MessageID string `yaml:"message_id"`
-	Content   string `yaml:"content"`
-	DelayMS   int    `yaml:"delay_ms"`
+	SenderID           string `yaml:"sender_id"`
+	ChatID             string `yaml:"chat_id"`
+	ChatType           string `yaml:"chat_type"` // "p2p" (default) or "group"
+	MessageID          string `yaml:"message_id"`
+	Content            string `yaml:"content"`
+	DelayMS            int    `yaml:"delay_ms"`
+	AutoReply          bool   `yaml:"auto_reply"`
+	MaxAutoReplyRounds int    `yaml:"max_auto_reply_rounds"`
 
 	// MockResponse defines the agent's canned response for this turn (mock mode).
 	MockResponse *MockResponse `yaml:"mock_response"`
