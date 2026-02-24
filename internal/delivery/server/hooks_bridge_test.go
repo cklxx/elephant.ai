@@ -12,12 +12,14 @@ import (
 type mockLarkNotifier struct {
 	lastChatID  string
 	lastMessage string
+	messages    []string
 	err         error
 }
 
 func (m *mockLarkNotifier) SendNotification(_ context.Context, chatID, text string) error {
 	m.lastChatID = chatID
 	m.lastMessage = text
+	m.messages = append(m.messages, text)
 	return m.err
 }
 
@@ -31,6 +33,21 @@ func (m *mockNoticeLoader) Load() (string, bool, error) {
 	return m.chatID, m.ok, m.err
 }
 
+// postHook is a test helper that sends a hook event and returns the recorder.
+func postHook(bridge *HooksBridge, body string, token string, queryParams string) *httptest.ResponseRecorder {
+	url := "/api/hooks/claude-code"
+	if queryParams != "" {
+		url += "?" + queryParams
+	}
+	req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	w := httptest.NewRecorder()
+	bridge.ServeHTTP(w, req)
+	return w
+}
+
 func TestHooksBridge_PostToolUse(t *testing.T) {
 	notifier := &mockLarkNotifier{}
 	bridge := NewHooksBridge(notifier, nil, "test-token", "chat-123", nil)
@@ -41,24 +58,22 @@ func TestHooksBridge_PostToolUse(t *testing.T) {
 		ToolInput: json.RawMessage(`{"command":"npm test"}`),
 	}
 	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
-	req.Header.Set("Authorization", "Bearer test-token")
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, string(body), "test-token", "")
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
+
+	// Flush aggregated buffer.
+	bridge.Close(context.Background())
+
 	if notifier.lastChatID != "chat-123" {
 		t.Errorf("expected chatID=chat-123, got %q", notifier.lastChatID)
 	}
-	// Should show a friendly phrase instead of raw tool name
+	// Single tool use is sent as-is (no aggregation wrapper).
 	if !containsAny(notifier.lastMessage, "运算", "执行", "实验") {
 		t.Errorf("message should contain shell phrase, got: %s", notifier.lastMessage)
 	}
-	// Should show command detail
 	if !strings.Contains(notifier.lastMessage, "npm test") {
 		t.Errorf("message should contain command detail, got: %s", notifier.lastMessage)
 	}
@@ -69,14 +84,14 @@ func TestHooksBridge_HookEventNameToolUse(t *testing.T) {
 	bridge := NewHooksBridge(notifier, nil, "", "chat-123", nil)
 
 	body := `{"hook_event_name":"tool-use","tool_name":"Bash","tool_input":{"command":"echo hello"}}`
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(body))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, body, "", "")
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
+
+	bridge.Close(context.Background())
+
 	if !containsAny(notifier.lastMessage, "运算", "执行", "实验") {
 		t.Errorf("message should contain shell phrase, got: %s", notifier.lastMessage)
 	}
@@ -95,20 +110,17 @@ func TestHooksBridge_PostToolUseFileDetail(t *testing.T) {
 		ToolInput: json.RawMessage(`{"path":"/home/user/project/main.go"}`),
 	}
 	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, string(body), "", "")
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
-	// Should show file read phrase
+
+	bridge.Close(context.Background())
+
 	if !containsAny(notifier.lastMessage, "翻阅", "研读", "查阅") {
 		t.Errorf("message should contain file read phrase, got: %s", notifier.lastMessage)
 	}
-	// Should show filename
 	if !strings.Contains(notifier.lastMessage, "main.go") {
 		t.Errorf("message should contain filename, got: %s", notifier.lastMessage)
 	}
@@ -124,15 +136,14 @@ func TestHooksBridge_PostToolUseSearchDetail(t *testing.T) {
 		ToolInput: json.RawMessage(`{"query":"Go error handling best practices"}`),
 	}
 	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, string(body), "", "")
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
+
+	bridge.Close(context.Background())
+
 	if !containsAny(notifier.lastMessage, "搜索", "探索", "挖掘") {
 		t.Errorf("message should contain search phrase, got: %s", notifier.lastMessage)
 	}
@@ -151,11 +162,7 @@ func TestHooksBridge_Stop(t *testing.T) {
 		Answer:     "Task completed successfully.",
 	}
 	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, string(body), "", "")
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
@@ -178,11 +185,7 @@ func TestHooksBridge_StopFallsBackToOutput(t *testing.T) {
 		Output:     "Final output text.",
 	}
 	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, string(body), "", "")
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
@@ -200,10 +203,7 @@ func TestHooksBridge_StopFromNestedEventAndFinalAnswer(t *testing.T) {
 	bridge := NewHooksBridge(notifier, nil, "", "chat-456", nil)
 
 	body := `{"event":{"name":"Stop"},"stop_reason":"end_turn","final_answer":"Done from final_answer"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(body))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, body, "", "")
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
@@ -221,10 +221,7 @@ func TestHooksBridge_NullFieldsNoLongerReturnInvalidJSON(t *testing.T) {
 	bridge := NewHooksBridge(notifier, nil, "", "chat-456", nil)
 
 	body := `{"event":null,"tool_name":null,"answer":null}`
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(body))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, body, "", "")
 
 	if w.Code != http.StatusNoContent {
 		t.Errorf("expected 204 for empty/unknown event, got %d", w.Code)
@@ -240,11 +237,7 @@ func TestHooksBridge_StopWithError(t *testing.T) {
 		Error: "something went wrong",
 	}
 	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, string(body), "", "")
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
@@ -260,12 +253,7 @@ func TestHooksBridge_Unauthorized(t *testing.T) {
 
 	payload := hookPayload{Event: "Stop"}
 	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
-	req.Header.Set("Authorization", "Bearer wrong-token")
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, string(body), "wrong-token", "")
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", w.Code)
@@ -278,7 +266,6 @@ func TestHooksBridge_MethodNotAllowed(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/hooks/claude-code", nil)
 	w := httptest.NewRecorder()
-
 	bridge.ServeHTTP(w, req)
 
 	if w.Code != http.StatusMethodNotAllowed {
@@ -292,12 +279,11 @@ func TestHooksBridge_ChatIDOverride(t *testing.T) {
 
 	payload := hookPayload{Event: "Stop", Answer: "done"}
 	body, _ := json.Marshal(payload)
+	w := postHook(bridge, string(body), "", "chat_id=override-chat")
 
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code?chat_id=override-chat", strings.NewReader(string(body)))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
-
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
 	if notifier.lastChatID != "override-chat" {
 		t.Errorf("expected chatID=override-chat, got %q", notifier.lastChatID)
 	}
@@ -310,13 +296,11 @@ func TestHooksBridge_NoticeBindingFallback(t *testing.T) {
 
 	payload := hookPayload{Event: "Stop", Answer: "done"}
 	body, _ := json.Marshal(payload)
+	w := postHook(bridge, string(body), "", "")
 
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
-
-	// Should use notice binding over default
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
 	if notifier.lastChatID != "notice-chat" {
 		t.Errorf("expected chatID=notice-chat (from notice binding), got %q", notifier.lastChatID)
 	}
@@ -329,13 +313,11 @@ func TestHooksBridge_QueryParamOverridesNoticeBinding(t *testing.T) {
 
 	payload := hookPayload{Event: "Stop", Answer: "done"}
 	body, _ := json.Marshal(payload)
+	w := postHook(bridge, string(body), "", "chat_id=query-chat")
 
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code?chat_id=query-chat", strings.NewReader(string(body)))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
-
-	// Query param takes highest priority
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
 	if notifier.lastChatID != "query-chat" {
 		t.Errorf("expected chatID=query-chat (from query param), got %q", notifier.lastChatID)
 	}
@@ -348,13 +330,11 @@ func TestHooksBridge_NoticeLoaderError(t *testing.T) {
 
 	payload := hookPayload{Event: "Stop", Answer: "done"}
 	body, _ := json.Marshal(payload)
+	w := postHook(bridge, string(body), "", "")
 
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
-
-	// Should fall back to default when notice loader errors
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
 	if notifier.lastChatID != "default-chat" {
 		t.Errorf("expected chatID=default-chat (fallback on error), got %q", notifier.lastChatID)
 	}
@@ -366,11 +346,7 @@ func TestHooksBridge_UnknownEvent(t *testing.T) {
 
 	payload := hookPayload{Event: "UnknownEvent"}
 	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, string(body), "", "")
 
 	if w.Code != http.StatusNoContent {
 		t.Errorf("expected 204 for unknown event, got %d", w.Code)
@@ -387,20 +363,79 @@ func TestHooksBridge_PreToolUse(t *testing.T) {
 		ToolInput: json.RawMessage(`{"path":"/tmp/output.txt"}`),
 	}
 	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
-	w := httptest.NewRecorder()
-
-	bridge.ServeHTTP(w, req)
+	w := postHook(bridge, string(body), "", "")
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
+
+	bridge.Close(context.Background())
+
 	if !containsAny(notifier.lastMessage, "撰写", "书写", "落笔") {
 		t.Errorf("message should contain write phrase, got: %s", notifier.lastMessage)
 	}
 	if !strings.Contains(notifier.lastMessage, "output.txt") {
 		t.Errorf("message should contain filename, got: %s", notifier.lastMessage)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Aggregation-specific tests
+// ---------------------------------------------------------------------------
+
+func TestHooksBridge_AggregatesMultipleToolUses(t *testing.T) {
+	notifier := &mockLarkNotifier{}
+	bridge := NewHooksBridge(notifier, nil, "", "chat-123", nil)
+
+	// Send 3 tool events — all buffered, none sent yet.
+	tools := []hookPayload{
+		{Event: "PostToolUse", ToolName: "read_file", ToolInput: json.RawMessage(`{"path":"a.go"}`)},
+		{Event: "PostToolUse", ToolName: "Bash", ToolInput: json.RawMessage(`{"command":"go test"}`)},
+		{Event: "PostToolUse", ToolName: "write_file", ToolInput: json.RawMessage(`{"path":"b.go"}`)},
+	}
+	for _, p := range tools {
+		body, _ := json.Marshal(p)
+		postHook(bridge, string(body), "", "")
+	}
+
+	if len(notifier.messages) != 0 {
+		t.Fatalf("expected 0 sends while buffering, got %d", len(notifier.messages))
+	}
+
+	bridge.Close(context.Background())
+
+	if len(notifier.messages) != 1 {
+		t.Fatalf("expected 1 aggregated send after Close, got %d", len(notifier.messages))
+	}
+	msg := notifier.lastMessage
+	if !strings.Contains(msg, "3 tool calls") {
+		t.Errorf("expected '3 tool calls' in aggregated message, got: %s", msg)
+	}
+}
+
+func TestHooksBridge_StopFlushesBuffer(t *testing.T) {
+	notifier := &mockLarkNotifier{}
+	bridge := NewHooksBridge(notifier, nil, "", "chat-123", nil)
+
+	// Buffer a tool event.
+	p := hookPayload{Event: "PostToolUse", ToolName: "Bash", ToolInput: json.RawMessage(`{"command":"ls"}`)}
+	body, _ := json.Marshal(p)
+	postHook(bridge, string(body), "", "")
+
+	if len(notifier.messages) != 0 {
+		t.Fatalf("expected 0 sends while buffering, got %d", len(notifier.messages))
+	}
+
+	// Stop should flush the buffered tool event first, then send Stop.
+	stop := hookPayload{Event: "Stop", Answer: "all done"}
+	body, _ = json.Marshal(stop)
+	postHook(bridge, string(body), "", "")
+
+	if len(notifier.messages) != 2 {
+		t.Fatalf("expected 2 sends (flushed tool + stop), got %d: %v", len(notifier.messages), notifier.messages)
+	}
+	if !strings.Contains(notifier.messages[1], "任务完成") {
+		t.Errorf("second message should be stop, got: %s", notifier.messages[1])
 	}
 }
 

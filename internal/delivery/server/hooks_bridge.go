@@ -9,10 +9,14 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"alex/internal/shared/logging"
 	"alex/internal/shared/uxphrases"
 )
+
+const defaultHooksAggregateWindow = 30 * time.Second
 
 // NoticeLoader loads the notice binding to determine which chat receives
 // hook notifications. It mirrors the read-only subset of noticeStateStore.
@@ -26,18 +30,33 @@ type NoticeLoaderFunc func() (string, bool, error)
 func (f NoticeLoaderFunc) Load() (string, bool, error) { return f() }
 
 // HooksBridge receives Claude Code hook events and forwards them to Lark.
+// PostToolUse events are aggregated into periodic summaries; Stop events
+// are forwarded immediately.
 type HooksBridge struct {
 	gateway       LarkNotifier
 	token         string
 	logger        logging.Logger
 	defaultChatID string
 	noticeLoader  NoticeLoader
+
+	// Aggregation state for PostToolUse events.
+	mu          sync.Mutex
+	toolBuffer  []toolEvent
+	flushTimer  *time.Timer
+	aggWindow   time.Duration
+	now         func() time.Time // injectable clock for testing
 }
 
 // NewHooksBridge constructs a hooks bridge.
 // LarkNotifier is the subset of lark.Gateway used by the hooks bridge.
 type LarkNotifier interface {
 	SendNotification(ctx context.Context, chatID, text string) error
+}
+
+// toolEvent captures one PostToolUse for aggregation.
+type toolEvent struct {
+	chatID  string
+	message string
 }
 
 func NewHooksBridge(gateway LarkNotifier, noticeLoader NoticeLoader, token, defaultChatID string, logger logging.Logger) *HooksBridge {
@@ -47,6 +66,8 @@ func NewHooksBridge(gateway LarkNotifier, noticeLoader NoticeLoader, token, defa
 		logger:        logging.OrNop(logger),
 		defaultChatID: defaultChatID,
 		noticeLoader:  noticeLoader,
+		aggWindow:     defaultHooksAggregateWindow,
+		now:           time.Now,
 	}
 }
 
@@ -200,7 +221,16 @@ func (h *HooksBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.sendToLark(r.Context(), chatID, message)
+	switch payload.Event {
+	case "PostToolUse", "PreToolUse":
+		h.bufferToolEvent(r.Context(), chatID, message)
+	case "Stop":
+		// Flush any buffered tool events before the stop message.
+		h.flushToolBuffer(r.Context())
+		h.sendToLark(r.Context(), chatID, message)
+	default:
+		h.sendToLark(r.Context(), chatID, message)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -374,6 +404,73 @@ func (h *HooksBridge) sendToLark(ctx context.Context, chatID, message string) {
 	if err := h.gateway.SendNotification(ctx, chatID, message); err != nil {
 		h.logger.Warn("Hooks bridge send failed: %v", err)
 	}
+}
+
+// bufferToolEvent adds a tool event to the buffer and schedules a flush.
+func (h *HooksBridge) bufferToolEvent(ctx context.Context, chatID, message string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.toolBuffer = append(h.toolBuffer, toolEvent{chatID: chatID, message: message})
+
+	// Start flush timer on first buffered event.
+	if h.flushTimer == nil {
+		h.flushTimer = time.AfterFunc(h.aggWindow, func() {
+			h.flushToolBuffer(ctx)
+		})
+	}
+}
+
+// flushToolBuffer sends all buffered tool events as a single aggregated message.
+func (h *HooksBridge) flushToolBuffer(ctx context.Context) {
+	h.mu.Lock()
+	if len(h.toolBuffer) == 0 {
+		h.mu.Unlock()
+		return
+	}
+	events := h.toolBuffer
+	h.toolBuffer = nil
+	if h.flushTimer != nil {
+		h.flushTimer.Stop()
+		h.flushTimer = nil
+	}
+	h.mu.Unlock()
+
+	// Group by chatID (normally all same, but be safe).
+	grouped := make(map[string][]string)
+	for _, e := range events {
+		grouped[e.chatID] = append(grouped[e.chatID], e.message)
+	}
+
+	for chatID, messages := range grouped {
+		text := formatToolSummary(messages)
+		h.sendToLark(ctx, chatID, text)
+	}
+}
+
+// Close flushes remaining buffered events. Call on shutdown.
+func (h *HooksBridge) Close(ctx context.Context) {
+	h.flushToolBuffer(ctx)
+}
+
+// formatToolSummary compresses multiple tool messages into a single notification.
+func formatToolSummary(messages []string) string {
+	if len(messages) == 1 {
+		return messages[0]
+	}
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("🔧 %d tool calls:\n", len(messages)))
+	for _, m := range messages {
+		// Take first line of each message as a compact summary.
+		line := m
+		if idx := strings.IndexByte(m, '\n'); idx > 0 {
+			line = m[:idx]
+		}
+		sb.WriteString("  • ")
+		sb.WriteString(truncateHookText(line, 80))
+		sb.WriteByte('\n')
+	}
+	return strings.TrimRight(sb.String(), "\n")
 }
 
 func truncateHookText(s string, max int) string {

@@ -15,6 +15,15 @@ type Drainable interface {
 	Name() string
 }
 
+// DrainFunc adapts a simple function into a Drainable.
+type DrainFunc struct {
+	DrainName string
+	Fn        func(ctx context.Context)
+}
+
+func (d DrainFunc) Drain(ctx context.Context) error { d.Fn(ctx); return nil }
+func (d DrainFunc) Name() string                    { return d.DrainName }
+
 // DrainAll drains multiple subsystems in order with a per-subsystem timeout.
 func DrainAll(ctx context.Context, timeout time.Duration, subsystems ...Drainable) []error {
 	var errs []error

@@ -1,10 +1,12 @@
 package bootstrap
 
 import (
+	"context"
 	"net/http"
 	"time"
 
 	"alex/internal/app/di"
+	"alex/internal/app/lifecycle"
 	"alex/internal/app/subscription"
 	serverApp "alex/internal/delivery/server/app"
 	serverHTTP "alex/internal/delivery/server/http"
@@ -42,7 +44,12 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 	var larkInjectGateway serverHTTP.LarkInjectGateway
 	if container != nil {
 		if container.LarkGateway != nil {
-			hooksBridge = buildHooksBridge(cfg, container, logger)
+			if hb := buildHooksBridge(cfg, container, logger); hb != nil {
+				hooksBridge = hb
+				container.Drainables = append(container.Drainables,
+					lifecycle.DrainFunc{DrainName: "hooks-bridge", Fn: func(ctx context.Context) { hb.Close(ctx) }},
+				)
+			}
 			larkInjectGateway = container.LarkGateway
 		}
 		memoryEngine = container.MemoryEngine

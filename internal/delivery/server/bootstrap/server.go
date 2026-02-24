@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"alex/internal/app/lifecycle"
 	"alex/internal/app/subscription"
 	serverApp "alex/internal/delivery/server/app"
 	serverHTTP "alex/internal/delivery/server/http"
@@ -219,7 +220,12 @@ func RunServer(observabilityConfigPath string) error {
 	// Hooks bridge: forward Claude Code hook events to Lark.
 	var hooksBridge http.Handler
 	if container.LarkGateway != nil {
-		hooksBridge = buildHooksBridge(config, container, logger)
+		if hb := buildHooksBridge(config, container, logger); hb != nil {
+			hooksBridge = hb
+			container.Drainables = append(container.Drainables,
+				lifecycle.DrainFunc{DrainName: "hooks-bridge", Fn: func(ctx context.Context) { hb.Close(ctx) }},
+			)
+		}
 	}
 
 	router := serverHTTP.NewRouter(

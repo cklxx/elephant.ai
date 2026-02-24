@@ -1,8 +1,6 @@
 package bootstrap
 
 import (
-	"net/http"
-
 	"alex/internal/app/di"
 	"alex/internal/delivery/server"
 	"alex/internal/shared/logging"
@@ -10,7 +8,7 @@ import (
 
 // buildHooksBridge creates a HooksBridge handler that forwards Claude Code
 // hook events to the Lark gateway. Always wired when Lark is enabled.
-func buildHooksBridge(cfg Config, container *di.Container, logger logging.Logger) http.Handler {
+func buildHooksBridge(cfg Config, container *di.Container, logger logging.Logger) *server.HooksBridge {
 	if container == nil || container.LarkGateway == nil {
 		return nil
 	}
