@@ -153,6 +153,46 @@ func (stubCoordinator) GetSystemPrompt() string {
 	return ""
 }
 
+func TestRegisterSubAgentIncludesTeamDispatch(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	// Before RegisterSubAgent, team_dispatch should not exist.
+	if _, err := registry.Get("team_dispatch"); err == nil {
+		t.Fatal("team_dispatch should not exist before RegisterSubAgent")
+	}
+
+	registry.RegisterSubAgent(stubCoordinator{})
+
+	// After RegisterSubAgent, team_dispatch should be available.
+	tool, err := registry.Get("team_dispatch")
+	if err != nil {
+		t.Fatalf("team_dispatch should be registered after RegisterSubAgent: %v", err)
+	}
+	if tool.Definition().Name != "team_dispatch" {
+		t.Fatalf("expected tool name team_dispatch, got %s", tool.Definition().Name)
+	}
+
+	// Also verify it appears in List().
+	defs := registry.List()
+	found := false
+	for _, def := range defs {
+		if def.Name == "team_dispatch" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		names := make([]string, len(defs))
+		for i, d := range defs {
+			names[i] = d.Name
+		}
+		t.Fatalf("team_dispatch not found in List(); available: %v", names)
+	}
+}
+
 func TestGetReturnsPreWrappedTools(t *testing.T) {
 	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
