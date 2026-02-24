@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -64,7 +65,7 @@ type larkScenarioHTTPRunOptions struct {
 
 func runLarkCommand(args []string) error {
 	if len(args) == 0 {
-		return &ExitCodeError{Code: 2, Err: fmt.Errorf(scenarioRunUsage)}
+		return &ExitCodeError{Code: 2, Err: errors.New(scenarioRunUsage)}
 	}
 
 	switch args[0] {
@@ -79,7 +80,7 @@ func runLarkCommand(args []string) error {
 
 func runLarkScenarioCommand(args []string) error {
 	if len(args) == 0 {
-		return &ExitCodeError{Code: 2, Err: fmt.Errorf(scenarioRunUsage)}
+		return &ExitCodeError{Code: 2, Err: errors.New(scenarioRunUsage)}
 	}
 	switch args[0] {
 	case "run":
