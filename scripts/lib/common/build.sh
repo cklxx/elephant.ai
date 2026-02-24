@@ -60,3 +60,17 @@ is_build_stale() {
   fi
   [[ "${current}" != "${previous}" ]]
 }
+
+build_alex_server_binary() {
+  local root="$1"
+  local bin="$2"
+  local stamp_file="$3"
+  local sha_file="$4"
+  local label="${5:-main}"
+
+  log_info "Building alex-server (${label})..."
+  (cd "${root}" && CGO_ENABLED=0 go build -o "${bin}" ./cmd/alex-server)
+  write_build_stamp "${stamp_file}" "$(build_fingerprint "${root}")"
+  git -C "${root}" rev-parse HEAD > "${sha_file}" 2>/dev/null || true
+  log_success "Built ${bin}"
+}

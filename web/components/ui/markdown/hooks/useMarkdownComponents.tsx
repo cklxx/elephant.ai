@@ -1,8 +1,6 @@
 import {
-  Children,
   ComponentType,
   ReactNode,
-  isValidElement,
   useMemo,
   type HTMLAttributes,
   type AnchorHTMLAttributes,
@@ -12,6 +10,7 @@ import {
 
 import { VideoPreview } from "@/components/ui/video-preview";
 import { cn } from "@/lib/utils";
+import { isTaskListClass, splitTaskListChildren } from "../utils/taskList";
 
 import { MarkdownImage } from "../components/MarkdownImage";
 import {
@@ -41,22 +40,6 @@ interface UseMarkdownComponentsOptions {
 
 type HtmlDivProps = HTMLAttributes<HTMLElement>;
 type HtmlAnchorProps = AnchorHTMLAttributes<HTMLAnchorElement> & { children?: ReactNode };
-
-function splitTaskListChildren(children: ReactNode) {
-  const nodes = Children.toArray(children);
-  const checkboxIndex = nodes.findIndex(
-    (child) =>
-      isValidElement(child) &&
-      child.type === "input" &&
-      (child.props as { type?: string }).type === "checkbox",
-  );
-  if (checkboxIndex === -1) {
-    return null;
-  }
-  const checkbox = nodes[checkboxIndex];
-  const rest = nodes.filter((_, index) => index !== checkboxIndex);
-  return { checkbox, rest };
-}
 
 export function useMarkdownComponents({
   showLineNumbers,
@@ -167,8 +150,7 @@ export function useMarkdownComponents({
       th: MarkdownTableHeaderCell,
       td: MarkdownTableCell,
       ul: ({ className: ulClass, ...props }: HtmlDivProps) => {
-        const isTaskList =
-          typeof ulClass === "string" && ulClass.includes("contains-task-list");
+        const isTaskList = isTaskListClass(ulClass);
         return (
           <ul
             className={cn(
@@ -181,8 +163,7 @@ export function useMarkdownComponents({
         );
       },
       ol: ({ className: olClass, ...props }: HtmlDivProps) => {
-        const isTaskList =
-          typeof olClass === "string" && olClass.includes("contains-task-list");
+        const isTaskList = isTaskListClass(olClass);
         return (
           <ol
             className={cn(

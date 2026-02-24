@@ -2,7 +2,7 @@
 
 import { ReactNode, forwardRef } from 'react';
 
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { FULL_WIDTH_VIEWPORT_CLASS, ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
 interface ContentAreaProps {
@@ -36,7 +36,7 @@ export const ContentArea = forwardRef<HTMLDivElement, ContentAreaProps>(
       <ScrollArea
         ref={ref}
         className={cn('flex-1', className)}
-        viewportClassName="h-full [&>div]:!block [&>div]:!min-w-0 [&>div]:!w-full"
+        viewportClassName={cn("h-full", FULL_WIDTH_VIEWPORT_CLASS)}
       >
         {isEmpty ? (
           <div className="flex h-full items-center justify-center px-6 py-10">

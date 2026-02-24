@@ -63,6 +63,101 @@ type hookPayload struct {
 	Answer     string `json:"answer"`
 }
 
+// decodeHookPayload parses hook payloads leniently so we can accept
+// null/variant field types from different hook emitters.
+func decodeHookPayload(body []byte) (hookPayload, error) {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return hookPayload{}, err
+	}
+
+	payload := hookPayload{
+		Event:      normalizeHookEvent(firstString(raw, "event", "hook_event_name", "event_name")),
+		SessionID:  firstString(raw, "session_id", "session", "sessionId"),
+		ToolName:   firstString(raw, "tool_name", "tool", "name"),
+		Output:     firstString(raw, "output", "tool_response", "result"),
+		Error:      firstString(raw, "error", "err"),
+		StopReason: firstString(raw, "stop_reason", "reason", "stop"),
+		Answer:     firstString(raw, "answer", "final_answer", "finalAnswer", "response"),
+	}
+	if payload.Answer == "" {
+		// Some emitters put terminal text in `output`.
+		payload.Answer = payload.Output
+	}
+	if toolInput, ok := firstValue(raw, "tool_input", "tool_args", "input", "arguments", "args"); ok {
+		if data, err := json.Marshal(toolInput); err == nil && string(data) != "null" {
+			payload.ToolInput = json.RawMessage(data)
+		}
+	}
+	return payload, nil
+}
+
+func normalizeHookEvent(raw string) string {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	s = strings.ReplaceAll(s, "-", "")
+	s = strings.ReplaceAll(s, "_", "")
+
+	switch s {
+	case "posttooluse", "tooluse", "tool":
+		return "PostToolUse"
+	case "pretooluse", "pretool":
+		return "PreToolUse"
+	case "stop", "complete", "completed", "taskcomplete", "taskcompleted":
+		return "Stop"
+	default:
+		return strings.TrimSpace(raw)
+	}
+}
+
+func firstValue(m map[string]interface{}, keys ...string) (interface{}, bool) {
+	for _, key := range keys {
+		if v, ok := m[key]; ok {
+			return v, true
+		}
+	}
+	return nil, false
+}
+
+func firstString(m map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if v, ok := m[key]; ok {
+			if s := coerceString(v); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func coerceString(v interface{}) string {
+	switch value := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(value)
+	case json.Number:
+		return value.String()
+	case float64, float32, int, int32, int64, uint, uint32, uint64, bool:
+		return strings.TrimSpace(fmt.Sprint(value))
+	case map[string]interface{}:
+		// Support nested event objects like {"event":{"name":"Stop"}}.
+		if nested := firstString(value, "name", "type", "event", "value"); nested != "" {
+			return nested
+		}
+		data, err := json.Marshal(value)
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(data))
+	default:
+		data, err := json.Marshal(value)
+		if err == nil && string(data) != "null" {
+			return strings.TrimSpace(string(data))
+		}
+		return strings.TrimSpace(fmt.Sprint(value))
+	}
+}
+
 // ServeHTTP handles POST /api/hooks/claude-code.
 func (h *HooksBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -86,8 +181,9 @@ func (h *HooksBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var payload hookPayload
-	if err := json.Unmarshal(body, &payload); err != nil {
+	payload, err := decodeHookPayload(body)
+	if err != nil {
+		h.logger.Warn("Hooks bridge: invalid json payload (%v): %s", err, truncateHookText(string(body), 180))
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
@@ -168,9 +264,14 @@ func formatStop(p hookPayload) string {
 	if p.StopReason != "" {
 		sb.WriteString(fmt.Sprintf(" (%s)", p.StopReason))
 	}
-	if p.Answer != "" {
+	answer := p.Answer
+	if strings.TrimSpace(answer) == "" {
+		// Some hook emitters place the final text in `output` for Stop events.
+		answer = p.Output
+	}
+	if strings.TrimSpace(answer) != "" {
 		sb.WriteString("\n")
-		sb.WriteString(truncateHookText(p.Answer, 800))
+		sb.WriteString(truncateHookText(answer, 800))
 	}
 	if p.Error != "" {
 		sb.WriteString("\n出错了: ")

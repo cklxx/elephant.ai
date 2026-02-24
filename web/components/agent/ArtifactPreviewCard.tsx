@@ -6,7 +6,7 @@ import Image from "next/image";
 import { AttachmentPayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { resolveAttachmentDownloadUris } from "@/lib/attachments";
-import { LazyMarkdownRenderer } from "@/components/agent/LazyMarkdownRenderer";
+import { LazyMarkdownRenderer } from "@/components/ui/markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";

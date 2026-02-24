@@ -3,7 +3,7 @@
 import { Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { FULL_WIDTH_VIEWPORT_CLASS, ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 
@@ -82,7 +82,7 @@ export function Sidebar({
       <div className="flex h-full flex-col rounded-2xl border border-border/60 bg-card p-4">
         <ScrollArea
           className="flex-1"
-          viewportClassName="[&>div]:!block [&>div]:!min-w-0 [&>div]:!w-full"
+          viewportClassName={FULL_WIDTH_VIEWPORT_CLASS}
         >
           <div className="space-y-2 p-1 pr-2" data-testid="session-list">
             {sessionHistory.length > 0 ? (

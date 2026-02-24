@@ -29,22 +29,35 @@ INPUT=$(cat)
 HOOKS_URL="${ELEPHANT_HOOKS_URL:-http://localhost:8080}"
 HOOKS_TOKEN="${ELEPHANT_HOOKS_TOKEN:-}"
 
-# Map Claude Code hook event fields to hooks bridge payload format.
-EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // .event // empty')
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
-
-# Build the payload for our hooks bridge.
-PAYLOAD=$(echo "$INPUT" | jq -c '{
-  event: (.hook_event_name // .event),
-  session_id: (.session_id // ""),
-  tool_name: (.tool_name // ""),
-  tool_input: (.tool_input // {}),
-  output: (.tool_response // .output // ""),
-  error: (.error // ""),
-  stop_reason: (.stop_reason // ""),
-  answer: (.answer // "")
-}')
+# Build a normalized payload for hooks bridge (always valid JSON object).
+if ! PAYLOAD=$(echo "$INPUT" | jq -c '
+  def text_or_empty:
+    if . == null then ""
+    elif type == "string" then .
+    else (try tostring catch "")
+    end;
+  {
+    event: ((.hook_event_name // .event // .event_name // "") | text_or_empty),
+    session_id: ((.session_id // .session // .sessionId // "") | text_or_empty),
+    tool_name: ((.tool_name // .tool // .name // "") | text_or_empty),
+    tool_input: (.tool_input // .tool_args // .input // .arguments // {}),
+    output: ((.tool_response // .output // .result // "") | text_or_empty),
+    error: ((.error // .err // "") | text_or_empty),
+    stop_reason: ((.stop_reason // .reason // .stop // "") | text_or_empty),
+    answer: ((.answer // .final_answer // .finalAnswer // .output // "") | text_or_empty)
+  }' 2>/dev/null); then
+  # As a last resort, forward a minimal payload instead of posting malformed JSON.
+  PAYLOAD=$(jq -cn --arg raw "$INPUT" '{
+    event: "",
+    session_id: "",
+    tool_name: "",
+    tool_input: {},
+    output: $raw,
+    error: "",
+    stop_reason: "",
+    answer: ""
+  }')
+fi
 
 # Build URL with optional chat_id override.
 URL="${HOOKS_URL}/api/hooks/claude-code"

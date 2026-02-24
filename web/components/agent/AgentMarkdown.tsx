@@ -1,11 +1,16 @@
 "use client";
 
-import { Children, isValidElement, useMemo } from "react";
-import type { ComponentType, ReactNode } from "react";
+import { useMemo } from "react";
+import type { ComponentType } from "react";
 
 import type { AttachmentPayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { StreamingMarkdownRenderer } from "./StreamingMarkdownRenderer";
+import { StreamingMarkdownRenderer } from "@/components/ui/markdown";
+import {
+  isTaskListClass,
+  renderLineBreaks,
+  splitTaskListChildren,
+} from "@/components/ui/markdown/utils/taskList";
 
 export type AgentMarkdownProps = {
   content: string;
@@ -17,43 +22,6 @@ export type AgentMarkdownProps = {
   components?: Record<string, ComponentType<any>>;
   showLineNumbers?: boolean;
 };
-
-function renderLineBreaks(children: ReactNode) {
-  const nodes = Children.toArray(children);
-  const output: ReactNode[] = [];
-  nodes.forEach((child, childIndex) => {
-    if (typeof child !== "string") {
-      output.push(child);
-      return;
-    }
-    const parts = child.split("\n");
-    parts.forEach((part, partIndex) => {
-      if (partIndex > 0) {
-        output.push(<br key={`br-${childIndex}-${partIndex}`} />);
-      }
-      if (part !== "") {
-        output.push(part);
-      }
-    });
-  });
-  return output;
-}
-
-function splitTaskListChildren(children: ReactNode) {
-  const nodes = Children.toArray(children);
-  const checkboxIndex = nodes.findIndex(
-    (child) =>
-      isValidElement(child) &&
-      child.type === "input" &&
-      (child.props as { type?: string }).type === "checkbox",
-  );
-  if (checkboxIndex === -1) {
-    return null;
-  }
-  const checkbox = nodes[checkboxIndex];
-  const rest = nodes.filter((_, index) => index !== checkboxIndex);
-  return { checkbox, rest };
-}
 
 const baseComponents: Record<string, ComponentType<any>> = {
   pre: ({ children }: any) => (
@@ -67,8 +35,7 @@ const baseComponents: Record<string, ComponentType<any>> = {
     </div>
   ),
   ul: ({ className, ...props }: any) => {
-    const isTaskList =
-      typeof className === "string" && className.includes("contains-task-list");
+    const isTaskList = isTaskListClass(className);
     return (
       <ul
         className={cn(
@@ -81,8 +48,7 @@ const baseComponents: Record<string, ComponentType<any>> = {
     );
   },
   ol: ({ className, ...props }: any) => {
-    const isTaskList =
-      typeof className === "string" && className.includes("contains-task-list");
+    const isTaskList = isTaskListClass(className);
     return (
       <ol
         className={cn(

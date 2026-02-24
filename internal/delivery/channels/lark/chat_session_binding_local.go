@@ -19,6 +19,18 @@ type ChatSessionBindingLocalStore struct {
 	coll *filestore.Collection[string, ChatSessionBinding]
 }
 
+func (s *ChatSessionBindingLocalStore) ensureReady(ctx context.Context) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	if s == nil {
+		return fmt.Errorf("chat session binding store not initialized")
+	}
+	return nil
+}
+
 // NewChatSessionBindingMemoryStore creates an in-memory chat/session store.
 func NewChatSessionBindingMemoryStore() *ChatSessionBindingLocalStore {
 	return &ChatSessionBindingLocalStore{
@@ -79,22 +91,16 @@ func chatSessionBindingKey(channel, chatID string) string {
 
 // EnsureSchema validates file store readiness. Memory mode is no-op.
 func (s *ChatSessionBindingLocalStore) EnsureSchema(ctx context.Context) error {
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
-	}
-	if s == nil {
-		return fmt.Errorf("chat session binding store not initialized")
+	if err := s.ensureReady(ctx); err != nil {
+		return err
 	}
 	return s.coll.EnsureDir()
 }
 
 // SaveBinding stores the chat/session mapping.
 func (s *ChatSessionBindingLocalStore) SaveBinding(ctx context.Context, binding ChatSessionBinding) error {
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
-	}
-	if s == nil {
-		return fmt.Errorf("chat session binding store not initialized")
+	if err := s.ensureReady(ctx); err != nil {
+		return err
 	}
 	binding.Channel = strings.TrimSpace(binding.Channel)
 	binding.ChatID = strings.TrimSpace(binding.ChatID)
@@ -111,11 +117,8 @@ func (s *ChatSessionBindingLocalStore) SaveBinding(ctx context.Context, binding 
 
 // GetBinding returns the chat/session mapping when present.
 func (s *ChatSessionBindingLocalStore) GetBinding(ctx context.Context, channel, chatID string) (ChatSessionBinding, bool, error) {
-	if ctx != nil && ctx.Err() != nil {
-		return ChatSessionBinding{}, false, ctx.Err()
-	}
-	if s == nil {
-		return ChatSessionBinding{}, false, fmt.Errorf("chat session binding store not initialized")
+	if err := s.ensureReady(ctx); err != nil {
+		return ChatSessionBinding{}, false, err
 	}
 	key := chatSessionBindingKey(channel, chatID)
 	if key == "::" {
@@ -127,11 +130,8 @@ func (s *ChatSessionBindingLocalStore) GetBinding(ctx context.Context, channel, 
 
 // DeleteBinding removes a chat/session mapping.
 func (s *ChatSessionBindingLocalStore) DeleteBinding(ctx context.Context, channel, chatID string) error {
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
-	}
-	if s == nil {
-		return fmt.Errorf("chat session binding store not initialized")
+	if err := s.ensureReady(ctx); err != nil {
+		return err
 	}
 	key := chatSessionBindingKey(channel, chatID)
 	if key == "::" {

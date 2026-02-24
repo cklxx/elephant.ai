@@ -70,13 +70,22 @@ func newTaskLocalStore(filePath string, retention time.Duration, maxTasksPerChat
 	}
 }
 
-// EnsureSchema validates file store readiness. Memory mode is no-op.
-func (s *TaskLocalStore) EnsureSchema(ctx context.Context) error {
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
+func (s *TaskLocalStore) ensureReady(ctx context.Context) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 	}
 	if s == nil {
 		return fmt.Errorf("task store not initialized")
+	}
+	return nil
+}
+
+// EnsureSchema validates file store readiness. Memory mode is no-op.
+func (s *TaskLocalStore) EnsureSchema(ctx context.Context) error {
+	if err := s.ensureReady(ctx); err != nil {
+		return err
 	}
 	if s.filePath == "" {
 		return nil
@@ -89,11 +98,8 @@ func (s *TaskLocalStore) EnsureSchema(ctx context.Context) error {
 
 // SaveTask inserts or updates a task record.
 func (s *TaskLocalStore) SaveTask(ctx context.Context, task TaskRecord) error {
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
-	}
-	if s == nil {
-		return fmt.Errorf("task store not initialized")
+	if err := s.ensureReady(ctx); err != nil {
+		return err
 	}
 	if strings.TrimSpace(task.TaskID) == "" || strings.TrimSpace(task.ChatID) == "" {
 		return fmt.Errorf("task_id and chat_id required")
@@ -118,11 +124,8 @@ func (s *TaskLocalStore) SaveTask(ctx context.Context, task TaskRecord) error {
 
 // UpdateStatus updates the task lifecycle status and optional fields.
 func (s *TaskLocalStore) UpdateStatus(ctx context.Context, taskID, status string, opts ...TaskUpdateOption) error {
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
-	}
-	if s == nil {
-		return fmt.Errorf("task store not initialized")
+	if err := s.ensureReady(ctx); err != nil {
+		return err
 	}
 	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
@@ -162,11 +165,8 @@ func (s *TaskLocalStore) UpdateStatus(ctx context.Context, taskID, status string
 
 // GetTask loads a task by id.
 func (s *TaskLocalStore) GetTask(ctx context.Context, taskID string) (TaskRecord, bool, error) {
-	if ctx != nil && ctx.Err() != nil {
-		return TaskRecord{}, false, ctx.Err()
-	}
-	if s == nil {
-		return TaskRecord{}, false, fmt.Errorf("task store not initialized")
+	if err := s.ensureReady(ctx); err != nil {
+		return TaskRecord{}, false, err
 	}
 	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
@@ -180,11 +180,8 @@ func (s *TaskLocalStore) GetTask(ctx context.Context, taskID string) (TaskRecord
 
 // ListByChat returns tasks for a chat, newest first.
 func (s *TaskLocalStore) ListByChat(ctx context.Context, chatID string, activeOnly bool, limit int) ([]TaskRecord, error) {
-	if ctx != nil && ctx.Err() != nil {
-		return nil, ctx.Err()
-	}
-	if s == nil {
-		return nil, fmt.Errorf("task store not initialized")
+	if err := s.ensureReady(ctx); err != nil {
+		return nil, err
 	}
 	chatID = strings.TrimSpace(chatID)
 	if chatID == "" {
@@ -216,11 +213,8 @@ func (s *TaskLocalStore) ListByChat(ctx context.Context, chatID string, activeOn
 
 // DeleteExpired removes tasks created before the cutoff.
 func (s *TaskLocalStore) DeleteExpired(ctx context.Context, before time.Time) error {
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
-	}
-	if s == nil {
-		return fmt.Errorf("task store not initialized")
+	if err := s.ensureReady(ctx); err != nil {
+		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -234,11 +228,8 @@ func (s *TaskLocalStore) DeleteExpired(ctx context.Context, before time.Time) er
 
 // MarkStaleRunning marks non-terminal tasks as failed.
 func (s *TaskLocalStore) MarkStaleRunning(ctx context.Context, reason string) error {
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
-	}
-	if s == nil {
-		return fmt.Errorf("task store not initialized")
+	if err := s.ensureReady(ctx); err != nil {
+		return err
 	}
 	now := s.now()
 	s.mu.Lock()

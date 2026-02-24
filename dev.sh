@@ -43,20 +43,9 @@ source "${SCRIPT_DIR}/scripts/lib/common/process.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/ports.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/http.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/cgo.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/dotenv.sh"
 
-load_dotenv() {
-  local env_file="${SCRIPT_DIR}/.env"
-  if [[ ! -f "$env_file" ]]; then
-    return 0
-  fi
-
-  set -a
-  # shellcheck source=/dev/null
-  source "$env_file"
-  set +a
-}
-
-load_dotenv
+load_dotenv_file "${SCRIPT_DIR}/.env"
 
 export AUTH_JWT_SECRET="${AUTH_JWT_SECRET:-dev-secret-change-me}"
 

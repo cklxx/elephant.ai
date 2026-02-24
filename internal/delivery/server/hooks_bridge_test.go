@@ -64,6 +64,27 @@ func TestHooksBridge_PostToolUse(t *testing.T) {
 	}
 }
 
+func TestHooksBridge_HookEventNameToolUse(t *testing.T) {
+	notifier := &mockLarkNotifier{}
+	bridge := NewHooksBridge(notifier, nil, "", "chat-123", nil)
+
+	body := `{"hook_event_name":"tool-use","tool_name":"Bash","tool_input":{"command":"echo hello"}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	bridge.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if !containsAny(notifier.lastMessage, "运算", "执行", "实验") {
+		t.Errorf("message should contain shell phrase, got: %s", notifier.lastMessage)
+	}
+	if !strings.Contains(notifier.lastMessage, "echo hello") {
+		t.Errorf("message should contain command detail, got: %s", notifier.lastMessage)
+	}
+}
+
 func TestHooksBridge_PostToolUseFileDetail(t *testing.T) {
 	notifier := &mockLarkNotifier{}
 	bridge := NewHooksBridge(notifier, nil, "", "chat-123", nil)
@@ -144,6 +165,69 @@ func TestHooksBridge_Stop(t *testing.T) {
 	}
 	if !strings.Contains(notifier.lastMessage, "Task completed successfully.") {
 		t.Errorf("message should contain answer, got: %s", notifier.lastMessage)
+	}
+}
+
+func TestHooksBridge_StopFallsBackToOutput(t *testing.T) {
+	notifier := &mockLarkNotifier{}
+	bridge := NewHooksBridge(notifier, nil, "", "chat-456", nil)
+
+	payload := hookPayload{
+		Event:      "Stop",
+		StopReason: "end_turn",
+		Output:     "Final output text.",
+	}
+	body, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(string(body)))
+	w := httptest.NewRecorder()
+
+	bridge.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(notifier.lastMessage, "任务完成") {
+		t.Errorf("message should contain completion text, got: %s", notifier.lastMessage)
+	}
+	if !strings.Contains(notifier.lastMessage, "Final output text.") {
+		t.Errorf("message should contain output fallback, got: %s", notifier.lastMessage)
+	}
+}
+
+func TestHooksBridge_StopFromNestedEventAndFinalAnswer(t *testing.T) {
+	notifier := &mockLarkNotifier{}
+	bridge := NewHooksBridge(notifier, nil, "", "chat-456", nil)
+
+	body := `{"event":{"name":"Stop"},"stop_reason":"end_turn","final_answer":"Done from final_answer"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	bridge.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(notifier.lastMessage, "任务完成") {
+		t.Errorf("message should contain completion text, got: %s", notifier.lastMessage)
+	}
+	if !strings.Contains(notifier.lastMessage, "Done from final_answer") {
+		t.Errorf("message should contain final answer fallback, got: %s", notifier.lastMessage)
+	}
+}
+
+func TestHooksBridge_NullFieldsNoLongerReturnInvalidJSON(t *testing.T) {
+	notifier := &mockLarkNotifier{}
+	bridge := NewHooksBridge(notifier, nil, "", "chat-456", nil)
+
+	body := `{"event":null,"tool_name":null,"answer":null}`
+	req := httptest.NewRequest(http.MethodPost, "/api/hooks/claude-code", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	bridge.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Errorf("expected 204 for empty/unknown event, got %d", w.Code)
 	}
 }
 

@@ -126,17 +126,14 @@ func (g *Gateway) defaultPlanMode() PlanMode {
 // applyPlanModeToContext injects plan review settings based on the resolved plan mode.
 func (g *Gateway) applyPlanModeToContext(ctx context.Context, msg *incomingMessage) context.Context {
 	mode := g.resolvePlanMode(ctx, msg)
-	switch mode {
-	case PlanModeOn:
+	if mode == PlanModeOn {
 		return appcontext.WithPlanReviewEnabled(ctx, true)
-	case PlanModeOff:
-		return appcontext.WithPlanReviewEnabled(ctx, false)
-	case PlanModeAuto:
-		// Use the config default (already set in buildExecContext)
-		return ctx
-	default:
-		return ctx
 	}
+	if mode == PlanModeOff {
+		return appcontext.WithPlanReviewEnabled(ctx, false)
+	}
+	// PlanModeAuto and any invalid value fall back to the config default already in ctx.
+	return ctx
 }
 
 // buildPlanModeStatus returns the current plan mode status.
@@ -154,10 +151,7 @@ func (g *Gateway) buildPlanModeStatus(ctx context.Context, msg *incomingMessage)
 		return fmt.Sprintf("当前 plan mode: %s (配置默认值)\n\n%s", g.defaultPlanMode(), planModeUsage())
 	}
 
-	scopeLabel := "[全局]"
-	if matchedScope.ChatID != "" {
-		scopeLabel = "[当前会话]"
-	}
+	scopeLabel := planModeScopeLabel(matchedScope)
 	return fmt.Sprintf("当前 plan mode: %s %s\n\n%s", selection.Model, scopeLabel, planModeUsage())
 }
 
@@ -181,20 +175,33 @@ func planModeChannelScope() subscription.SelectionScope {
 	return subscription.SelectionScope{Channel: planModeSelectionKey}
 }
 
-func planModeChatScope(msg *incomingMessage) subscription.SelectionScope {
+func planModeChatID(msg *incomingMessage) string {
 	if msg == nil {
-		return subscription.SelectionScope{Channel: planModeSelectionKey}
+		return ""
 	}
-	return subscription.SelectionScope{Channel: planModeSelectionKey, ChatID: strings.TrimSpace(msg.chatID)}
+	return strings.TrimSpace(msg.chatID)
+}
+
+func planModeChatScope(msg *incomingMessage) subscription.SelectionScope {
+	chatID := planModeChatID(msg)
+	if chatID == "" {
+		return planModeChannelScope()
+	}
+	return subscription.SelectionScope{Channel: planModeSelectionKey, ChatID: chatID}
 }
 
 func planModeScopes(msg *incomingMessage) []subscription.SelectionScope {
 	scopes := make([]subscription.SelectionScope, 0, 2)
-	if msg != nil {
-		if chatID := strings.TrimSpace(msg.chatID); chatID != "" {
-			scopes = append(scopes, subscription.SelectionScope{Channel: planModeSelectionKey, ChatID: chatID})
-		}
+	if chatID := planModeChatID(msg); chatID != "" {
+		scopes = append(scopes, subscription.SelectionScope{Channel: planModeSelectionKey, ChatID: chatID})
 	}
 	scopes = append(scopes, planModeChannelScope())
 	return scopes
+}
+
+func planModeScopeLabel(scope subscription.SelectionScope) string {
+	if strings.TrimSpace(scope.ChatID) != "" {
+		return "[当前会话]"
+	}
+	return "[全局]"
 }

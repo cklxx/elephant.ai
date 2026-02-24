@@ -8,6 +8,10 @@ source "${SCRIPT_DIR}/../lib/common/logging.sh"
 source "${SCRIPT_DIR}/../lib/common/process.sh"
 # shellcheck source=../lib/common/build.sh
 source "${SCRIPT_DIR}/../lib/common/build.sh"
+# shellcheck source=../lib/common/dotenv.sh
+source "${SCRIPT_DIR}/../lib/common/dotenv.sh"
+# shellcheck source=../lib/common/git_worktree.sh
+source "${SCRIPT_DIR}/../lib/common/git_worktree.sh"
 # shellcheck source=./identity_lock.sh
 source "${SCRIPT_DIR}/identity_lock.sh"
 
@@ -25,14 +29,6 @@ Env:
   FORCE_REBUILD=1    Force rebuild on start (default: 0)
   SKIP_LOCAL_AUTH_DB=1  Skip local auth DB auto-setup (default: 0)
 USAGE
-}
-
-git_worktree_path_for_branch() {
-  local want_branch_ref="$1" # e.g. refs/heads/main
-  git worktree list --porcelain | awk -v want="${want_branch_ref}" '
-    $1=="worktree"{p=$2}
-    $1=="branch" && $2==want {print p; exit}
-  '
 }
 
 ROOT="$(git_worktree_path_for_branch "refs/heads/main" || true)"
@@ -55,18 +51,6 @@ READY_LOG_PATTERN="Kernel daemon running"
 
 mkdir -p "${PID_DIR}" "${ROOT}/logs" "${ALEX_LOG_DIR}"
 
-load_dotenv() {
-  local env_file="${ROOT}/.env"
-  if [[ ! -f "${env_file}" ]]; then
-    return 0
-  fi
-
-  set -a
-  # shellcheck source=/dev/null
-  source "${env_file}"
-  set +a
-}
-
 ensure_local_bootstrap() {
   [[ -x "${BOOTSTRAP_SH}" ]] || die "Missing ${BOOTSTRAP_SH}"
   MAIN_CONFIG="${MAIN_CONFIG}" \
@@ -75,15 +59,11 @@ ensure_local_bootstrap() {
 }
 
 build() {
-  log_info "Building alex-server (main)..."
-  (cd "${ROOT}" && CGO_ENABLED=0 go build -o "${BIN}" ./cmd/alex-server)
-  write_build_stamp "${BUILD_STAMP}" "$(build_fingerprint "${ROOT}")"
-  git -C "${ROOT}" rev-parse HEAD > "${SHA_FILE}" 2>/dev/null || true
-  log_success "Built ${BIN}"
+  build_alex_server_binary "${ROOT}" "${BIN}" "${BUILD_STAMP}" "${SHA_FILE}" "main"
 }
 
 start() {
-  load_dotenv
+  load_dotenv_file "${ROOT}/.env"
   ensure_local_bootstrap
   [[ -f "${MAIN_CONFIG}" ]] || die "Missing MAIN_CONFIG: ${MAIN_CONFIG}"
 
@@ -145,7 +125,7 @@ stop() {
 }
 
 restart() {
-  load_dotenv
+  load_dotenv_file "${ROOT}/.env"
   ensure_local_bootstrap
   [[ -f "${MAIN_CONFIG}" ]] || die "Missing MAIN_CONFIG: ${MAIN_CONFIG}"
 

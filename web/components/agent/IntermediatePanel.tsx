@@ -18,8 +18,8 @@ import {
 } from "@/lib/types";
 import { isEventType } from "@/lib/events/matching";
 import { Loader2, X } from "lucide-react";
+import { LazyMarkdownRenderer } from "@/components/ui/markdown";
 import { ToolOutputCard } from "./ToolOutputCard";
-import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
 import { formatDuration } from "@/lib/utils";
 import { isDebugModeEnabled } from "@/lib/debugMode";
 import { userFacingToolSummary, userFacingToolTitle } from "@/lib/toolPresentation";

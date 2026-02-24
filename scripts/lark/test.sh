@@ -8,6 +8,10 @@ source "${SCRIPT_DIR}/../lib/common/logging.sh"
 source "${SCRIPT_DIR}/../lib/common/process.sh"
 # shellcheck source=../lib/common/build.sh
 source "${SCRIPT_DIR}/../lib/common/build.sh"
+# shellcheck source=../lib/common/dotenv.sh
+source "${SCRIPT_DIR}/../lib/common/dotenv.sh"
+# shellcheck source=../lib/common/git_worktree.sh
+source "${SCRIPT_DIR}/../lib/common/git_worktree.sh"
 # shellcheck source=../lib/common/lark_test_worktree.sh
 source "${SCRIPT_DIR}/../lib/common/lark_test_worktree.sh"
 # shellcheck source=./identity_lock.sh
@@ -32,14 +36,6 @@ Env:
   FORCE_REBUILD=1      Force rebuild on start (default: 1)
   SKIP_LOCAL_AUTH_DB=1 Skip local auth DB auto-setup (default: 0)
 EOF
-}
-
-git_worktree_path_for_branch() {
-  local want_branch_ref="$1" # e.g. refs/heads/main
-  git worktree list --porcelain | awk -v want="${want_branch_ref}" '
-    $1=="worktree"{p=$2}
-    $1=="branch" && $2==want {print p; exit}
-  '
 }
 
 ROOT="$(git_worktree_path_for_branch "refs/heads/main" || true)"
@@ -67,18 +63,6 @@ CLEANUP_ORPHANS_SH="${ROOT}/scripts/lark/cleanup_orphan_agents.sh"
 
 # Readiness: grep for this log line to confirm the gateway has started.
 READY_LOG_PATTERN="Lark gateway connecting"
-
-load_dotenv() {
-  local env_file="${ROOT}/.env"
-  if [[ ! -f "${env_file}" ]]; then
-    return 0
-  fi
-
-  set -a
-  # shellcheck source=/dev/null
-  source "${env_file}"
-  set +a
-}
 
 ensure_local_bootstrap() {
   [[ -x "${BOOTSTRAP_SH}" ]] || die "Missing ${BOOTSTRAP_SH}"
@@ -140,15 +124,11 @@ sync_test_runtime_to_main() {
 build() {
   ensure_worktree
   sync_test_runtime_to_main
-  log_info "Building alex-server (test worktree)..."
-  (cd "${TEST_ROOT}" && CGO_ENABLED=0 go build -o "${BIN}" ./cmd/alex-server)
-  write_build_stamp "${BUILD_STAMP}" "$(build_fingerprint "${TEST_ROOT}")"
-  git -C "${TEST_ROOT}" rev-parse HEAD > "${SHA_FILE}" 2>/dev/null || true
-  log_success "Built ${BIN}"
+  build_alex_server_binary "${TEST_ROOT}" "${BIN}" "${BUILD_STAMP}" "${SHA_FILE}" "test worktree"
 }
 
 start() {
-  load_dotenv
+  load_dotenv_file "${ROOT}/.env"
   ensure_local_bootstrap
   [[ -f "${TEST_CONFIG}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG}"
   print_runtime_binding
@@ -228,7 +208,7 @@ stop() {
 }
 
 restart() {
-  load_dotenv
+  load_dotenv_file "${ROOT}/.env"
   ensure_local_bootstrap
   [[ -f "${TEST_CONFIG}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG}"
   cleanup_orphan_lark_agents

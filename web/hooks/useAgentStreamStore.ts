@@ -2,7 +2,6 @@
 // New store focuses on incremental aggregation with normalized data structures.
 
 import { create } from "zustand";
-import { useShallow } from "zustand/react/shallow";
 import { produce } from "immer";
 import {
   AnyAgentEvent,
@@ -42,26 +41,35 @@ const createInitialState = (): AgentStreamData => ({
   errorMessage: undefined,
 });
 
+const isWorkflowResultFinalEvent = (
+  event: AnyAgentEvent,
+): event is WorkflowResultFinalEvent =>
+  isEventType(event, "workflow.result.final");
+
+const ingestEvent = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
+  if (isWorkflowResultFinalEvent(event)) {
+    const matcher = (existing: AnyAgentEvent) =>
+      isWorkflowResultFinalEvent(existing) &&
+      existing.session_id === event.session_id &&
+      existing.run_id === event.run_id;
+    const replaced = draft.eventCache.replaceLastIf(matcher, event);
+    if (!replaced) {
+      draft.eventCache.add(event);
+    }
+  } else if (event.event_type !== "connected") {
+    draft.eventCache.add(event);
+  }
+
+  applyEventToDraft(draft, event);
+};
+
 export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
   ...createInitialState(),
 
   addEvent: (event: AnyAgentEvent) => {
     set((state) =>
       produce(state, (draft: AgentStreamDraft) => {
-        if (isEventType(event, "workflow.result.final", "workflow.result.final")) {
-          const complete = event as WorkflowResultFinalEvent;
-          const matcher = (existing: AnyAgentEvent) =>
-            isEventType(existing, "workflow.result.final", "workflow.result.final") &&
-            existing.session_id === complete.session_id &&
-            existing.run_id === complete.run_id;
-          const replaced = draft.eventCache.replaceLastIf(matcher, event);
-          if (!replaced) {
-            draft.eventCache.add(event);
-          }
-        } else if (event.event_type !== "connected") {
-          draft.eventCache.add(event);
-        }
-        applyEventToDraft(draft, event);
+        ingestEvent(draft, event);
       }),
     );
   },
@@ -70,20 +78,7 @@ export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
     set((state) =>
       produce(state, (draft: AgentStreamDraft) => {
         events.forEach((event) => {
-          if (isEventType(event, "workflow.result.final", "workflow.result.final")) {
-            const complete = event as WorkflowResultFinalEvent;
-            const matcher = (existing: AnyAgentEvent) =>
-              isEventType(existing, "workflow.result.final", "workflow.result.final") &&
-              existing.session_id === complete.session_id &&
-              existing.run_id === complete.run_id;
-            const replaced = draft.eventCache.replaceLastIf(matcher, event);
-            if (!replaced) {
-              draft.eventCache.add(event);
-            }
-          } else if (event.event_type !== "connected") {
-            draft.eventCache.add(event);
-          }
-          applyEventToDraft(draft, event);
+          ingestEvent(draft, event);
         });
       }),
     );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { sliceStreamingContent } from "@/components/agent/StreamingMarkdownRenderer";
+import { sliceStreamingContent } from "@/components/ui/markdown";
 
 describe("sliceStreamingContent", () => {
   it("clamps visible length to bounds", () => {

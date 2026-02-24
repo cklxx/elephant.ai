@@ -7,8 +7,8 @@ import { skillsCatalog } from "@/lib/skillsCatalog";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { LazyMarkdownRenderer } from "@/components/ui/markdown";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { LazyMarkdownRenderer } from "@/components/agent/LazyMarkdownRenderer";
 
 export function SkillsPanel() {
   const skills = useMemo(() => skillsCatalog.skills ?? [], []);
