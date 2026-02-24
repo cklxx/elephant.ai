@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 )
 
 type apiErrorResponse struct {
@@ -80,4 +82,35 @@ func (h *APIHandler) writeJSON(w http.ResponseWriter, status int, payload any) {
 	if err := json.NewEncoder(w).Encode(payload); err != nil {
 		h.logger.Error("Failed to encode JSON response: %v", err)
 	}
+}
+
+func (h *APIHandler) parseOptionalQueryInt(
+	w http.ResponseWriter,
+	r *http.Request,
+	param string,
+	defaultValue int,
+	minValue int,
+	maxValue int,
+	validationMessage string,
+	rangeErr error,
+) (int, bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get(param))
+	if raw == "" {
+		return defaultValue, true
+	}
+
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < minValue {
+		if err == nil {
+			err = rangeErr
+		}
+		h.writeJSONError(w, http.StatusBadRequest, validationMessage, err)
+		return 0, false
+	}
+
+	if maxValue > 0 && value > maxValue {
+		value = maxValue
+	}
+
+	return value, true
 }

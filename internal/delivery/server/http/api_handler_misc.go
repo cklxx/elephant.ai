@@ -1,10 +1,8 @@
 package http
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"alex/internal/shared/logging"
@@ -67,30 +65,32 @@ func (h *APIHandler) HandleDevLogIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := 80
-	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed <= 0 {
-			if err == nil {
-				err = fmt.Errorf("limit must be > 0")
-			}
-			h.writeJSONError(w, http.StatusBadRequest, "limit must be a positive integer", err)
-			return
-		}
-		limit = parsed
+	limit, ok := h.parseOptionalQueryInt(
+		w,
+		r,
+		"limit",
+		80,
+		1,
+		0,
+		"limit must be a positive integer",
+		fmt.Errorf("limit must be > 0"),
+	)
+	if !ok {
+		return
 	}
 
-	offset := 0
-	if raw := strings.TrimSpace(r.URL.Query().Get("offset")); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 0 {
-			if err == nil {
-				err = fmt.Errorf("offset must be >= 0")
-			}
-			h.writeJSONError(w, http.StatusBadRequest, "offset must be a non-negative integer", err)
-			return
-		}
-		offset = parsed
+	offset, ok := h.parseOptionalQueryInt(
+		w,
+		r,
+		"offset",
+		0,
+		0,
+		0,
+		"offset must be a non-negative integer",
+		fmt.Errorf("offset must be >= 0"),
+	)
+	if !ok {
+		return
 	}
 
 	// Fetch one extra entry to determine if there are more results.
@@ -166,9 +166,5 @@ func (h *APIHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 		httpStatus = http.StatusServiceUnavailable
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(httpStatus)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.logger.Error("Failed to encode health check response: %v", err)
-	}
+	h.writeJSON(w, httpStatus, response)
 }

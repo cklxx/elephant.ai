@@ -203,27 +203,32 @@ func (h *APIHandler) HandleCreateSessionShare(w http.ResponseWriter, r *http.Req
 
 // HandleListSessions handles GET /api/sessions
 func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) {
-	limit := 50
-	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed <= 0 {
-			h.writeJSONError(w, http.StatusBadRequest, "limit must be a positive integer", err)
-			return
-		}
-		limit = parsed
-	}
-	if limit > maxSessionListLimit {
-		limit = maxSessionListLimit
+	limit, ok := h.parseOptionalQueryInt(
+		w,
+		r,
+		"limit",
+		50,
+		1,
+		maxSessionListLimit,
+		"limit must be a positive integer",
+		nil,
+	)
+	if !ok {
+		return
 	}
 
-	offset := 0
-	if raw := strings.TrimSpace(r.URL.Query().Get("offset")); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 0 {
-			h.writeJSONError(w, http.StatusBadRequest, "offset must be a non-negative integer", err)
-			return
-		}
-		offset = parsed
+	offset, ok := h.parseOptionalQueryInt(
+		w,
+		r,
+		"offset",
+		0,
+		0,
+		0,
+		"offset must be a non-negative integer",
+		nil,
+	)
+	if !ok {
+		return
 	}
 
 	sessionIDs, err := h.sessions.ListSessions(r.Context(), limit, offset)
@@ -293,18 +298,20 @@ func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	limit := 20
-	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			limit = parsed
-		} else {
-			h.writeJSONError(w, http.StatusBadRequest, "limit must be a positive integer", err)
-			return
-		}
+	limit, ok := h.parseOptionalQueryInt(
+		w,
+		r,
+		"limit",
+		20,
+		1,
+		maxSnapshotListLimit,
+		"limit must be a positive integer",
+		nil,
+	)
+	if !ok {
+		return
 	}
-	if limit > maxSnapshotListLimit {
-		limit = maxSnapshotListLimit
-	}
+
 	cursor := strings.TrimSpace(r.URL.Query().Get("cursor"))
 	items, nextCursor, err := h.snapshots.ListSnapshots(r.Context(), sessionID, cursor, limit)
 	if err != nil {
@@ -377,9 +384,7 @@ func (h *APIHandler) HandleReplaySession(w http.ResponseWriter, r *http.Request)
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to schedule replay")
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	_ = json.NewEncoder(w).Encode(map[string]string{
+	h.writeJSON(w, http.StatusAccepted, map[string]string{
 		"status":     "scheduled",
 		"session_id": sessionID,
 	})

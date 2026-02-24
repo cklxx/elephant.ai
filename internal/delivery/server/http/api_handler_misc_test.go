@@ -32,6 +32,16 @@ func TestHandleDevLogIndexRejectsInvalidLimit(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", rec.Code)
 	}
+	var payload apiErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Error != "limit must be a positive integer" {
+		t.Fatalf("unexpected error message: %q", payload.Error)
+	}
+	if payload.Details != "limit must be > 0" {
+		t.Fatalf("unexpected error details: %q", payload.Details)
+	}
 }
 
 func TestHandleDevLogIndexReturnsEntries(t *testing.T) {

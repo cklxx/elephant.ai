@@ -55,6 +55,30 @@ type AttachmentPayload struct {
 // TaskStatusResponse matches TypeScript TaskStatusResponse interface
 type TaskStatusResponse = types.AgentTask
 
+func toTaskStatusResponse(task *serverPorts.Task) TaskStatusResponse {
+	response := TaskStatusResponse{
+		RunID:       task.ID,
+		SessionID:   task.SessionID,
+		ParentRunID: task.ParentTaskID,
+		Status:      string(task.Status),
+		CreatedAt:   task.CreatedAt.Format(time.RFC3339),
+		Error:       task.Error,
+	}
+	if task.CompletedAt != nil {
+		completedAt := task.CompletedAt.Format(time.RFC3339)
+		response.CompletedAt = &completedAt
+	}
+	return response
+}
+
+func toTaskStatusResponses(tasks []*serverPorts.Task) []TaskStatusResponse {
+	responses := make([]TaskStatusResponse, len(tasks))
+	for i, task := range tasks {
+		responses[i] = toTaskStatusResponse(task)
+	}
+	return responses
+}
+
 // HandleCreateTask handles POST /api/tasks - creates and executes a new task
 func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	var req CreateTaskRequest
@@ -225,19 +249,7 @@ func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert to TaskStatusResponse
-	response := TaskStatusResponse{
-		RunID:       task.ID,
-		SessionID:   task.SessionID,
-		ParentRunID: task.ParentTaskID,
-		Status:      string(task.Status),
-		CreatedAt:   task.CreatedAt.Format(time.RFC3339),
-		Error:       task.Error,
-	}
-
-	if task.CompletedAt != nil {
-		completedStr := task.CompletedAt.Format(time.RFC3339)
-		response.CompletedAt = &completedStr
-	}
+	response := toTaskStatusResponse(task)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -304,22 +316,7 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 		total = totalCount
 	}
 
-	// Convert to TaskStatusResponse array
-	taskResponses := make([]TaskStatusResponse, len(tasks))
-	for i, task := range tasks {
-		taskResponses[i] = TaskStatusResponse{
-			RunID:       task.ID,
-			SessionID:   task.SessionID,
-			ParentRunID: task.ParentTaskID,
-			Status:      string(task.Status),
-			CreatedAt:   task.CreatedAt.Format(time.RFC3339),
-			Error:       task.Error,
-		}
-		if task.CompletedAt != nil {
-			completedStr := task.CompletedAt.Format(time.RFC3339)
-			taskResponses[i].CompletedAt = &completedStr
-		}
-	}
+	taskResponses := toTaskStatusResponses(tasks)
 
 	response := map[string]interface{}{
 		"tasks":  taskResponses,
@@ -347,14 +344,10 @@ func (h *APIHandler) HandleCancelTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+	h.writeJSON(w, http.StatusOK, map[string]any{
 		"status":  "cancelled",
 		"task_id": taskID,
-	}); err != nil {
-		h.logger.Error("Failed to encode cancel response: %v", err)
-	}
+	})
 }
 
 // HandleListActiveTasks handles GET /api/tasks/active — returns all currently running/pending tasks.
@@ -365,21 +358,7 @@ func (h *APIHandler) HandleListActiveTasks(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	taskResponses := make([]TaskStatusResponse, len(tasks))
-	for i, task := range tasks {
-		taskResponses[i] = TaskStatusResponse{
-			RunID:       task.ID,
-			SessionID:   task.SessionID,
-			ParentRunID: task.ParentTaskID,
-			Status:      string(task.Status),
-			CreatedAt:   task.CreatedAt.Format(time.RFC3339),
-			Error:       task.Error,
-		}
-		if task.CompletedAt != nil {
-			completedStr := task.CompletedAt.Format(time.RFC3339)
-			taskResponses[i].CompletedAt = &completedStr
-		}
-	}
+	taskResponses := toTaskStatusResponses(tasks)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
