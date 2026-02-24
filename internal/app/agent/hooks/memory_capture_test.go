@@ -14,6 +14,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	"alex/internal/infra/memory"
+	runtimeconfig "alex/internal/shared/config"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -66,9 +67,8 @@ func TestMemoryCaptureHook_WritesDailyLog(t *testing.T) {
 	llm := &stubLLMClient{response: "- Decision: Use SQLite\n- Prefers YAML configs"}
 	factory := &stubLLMFactory{client: llm}
 	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
-		Enabled:  true,
-		Provider: "mock",
-		Model:    "small",
+		Enabled: true,
+		Profile: runtimeconfig.LLMProfile{Provider: "mock", Model: "small"},
 	})
 	fixed := time.Date(2026, 2, 3, 11, 0, 0, 0, time.UTC)
 	hook.clock = func() time.Time { return fixed }
@@ -104,9 +104,8 @@ func TestMemoryCaptureHook_RespectsPolicy(t *testing.T) {
 	llm := &stubLLMClient{response: "- Should not write"}
 	factory := &stubLLMFactory{client: llm}
 	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
-		Enabled:  true,
-		Provider: "mock",
-		Model:    "small",
+		Enabled: true,
+		Profile: runtimeconfig.LLMProfile{Provider: "mock", Model: "small"},
 	})
 	ctx := appcontext.WithMemoryPolicy(context.Background(), appcontext.MemoryPolicy{
 		Enabled:     true,
@@ -138,9 +137,8 @@ func TestMemoryCaptureHook_FallbackOnLLMError(t *testing.T) {
 	llm := &stubLLMClient{err: errors.New("boom")}
 	factory := &stubLLMFactory{client: llm}
 	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
-		Enabled:  true,
-		Provider: "mock",
-		Model:    "small",
+		Enabled: true,
+		Profile: runtimeconfig.LLMProfile{Provider: "mock", Model: "small"},
 	})
 	fixed := time.Date(2026, 2, 3, 12, 0, 0, 0, time.UTC)
 	hook.clock = func() time.Time { return fixed }
@@ -174,9 +172,8 @@ func TestMemoryCaptureHook_FallbackIncludesHabitSignals(t *testing.T) {
 	llm := &stubLLMClient{err: errors.New("boom")}
 	factory := &stubLLMFactory{client: llm}
 	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
-		Enabled:  true,
-		Provider: "mock",
-		Model:    "small",
+		Enabled: true,
+		Profile: runtimeconfig.LLMProfile{Provider: "mock", Model: "small"},
 	})
 	fixed := time.Date(2026, 2, 3, 12, 30, 0, 0, time.UTC)
 	hook.clock = func() time.Time { return fixed }
@@ -210,10 +207,8 @@ func TestMemoryCaptureHook_PrefersSmallModel(t *testing.T) {
 	llm := &stubLLMClient{response: "- ok"}
 	factory := &stubLLMFactory{client: llm}
 	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
-		Enabled:    true,
-		Provider:   "main-provider",
-		Model:      "main-model",
-		SmallModel: "small-model",
+		Enabled: true,
+		Profile: runtimeconfig.LLMProfile{Provider: "main-provider", Model: "small-model"},
 	})
 	ctx := appcontext.WithMemoryPolicy(context.Background(), appcontext.MemoryPolicy{
 		Enabled:     true,
@@ -230,7 +225,7 @@ func TestMemoryCaptureHook_PrefersSmallModel(t *testing.T) {
 		t.Fatalf("expected small model, got %q", factory.lastModel)
 	}
 	if factory.lastProvider != "main-provider" {
-		t.Fatalf("expected provider to fall back to main-provider, got %q", factory.lastProvider)
+		t.Fatalf("expected provider main-provider, got %q", factory.lastProvider)
 	}
 }
 
@@ -243,9 +238,8 @@ func TestMemoryCaptureHook_PromptPrioritizesUserHabits(t *testing.T) {
 	llm := &stubLLMClient{response: "- Prefers concise status updates"}
 	factory := &stubLLMFactory{client: llm}
 	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
-		Enabled:  true,
-		Provider: "mock",
-		Model:    "small",
+		Enabled: true,
+		Profile: runtimeconfig.LLMProfile{Provider: "mock", Model: "small"},
 	})
 	ctx := appcontext.WithMemoryPolicy(context.Background(), appcontext.MemoryPolicy{
 		Enabled:     true,
@@ -276,12 +270,8 @@ func TestMemoryCaptureHook_PrefersPinnedSelectionFromContext(t *testing.T) {
 	llm := &stubLLMClient{response: "- done"}
 	factory := &stubLLMFactory{client: llm}
 	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
-		Enabled:       true,
-		Provider:      "main-provider",
-		Model:         "main-model",
-		SmallProvider: "small-provider",
-		SmallModel:    "small-model",
-		APIKey:        "main-key",
+		Enabled: true,
+		Profile: runtimeconfig.LLMProfile{Provider: "small-provider", Model: "small-model", APIKey: "main-key"},
 	})
 	ctx := appcontext.WithMemoryPolicy(context.Background(), appcontext.MemoryPolicy{
 		Enabled:     true,

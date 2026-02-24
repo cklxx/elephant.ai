@@ -41,16 +41,12 @@ var habitSignalKeywords = []string{
 }
 
 // MemoryCaptureConfig controls LLM-driven memory capture behavior.
+// Profile is the shared runtime LLM profile (small model preferred).
 type MemoryCaptureConfig struct {
-	Enabled       bool
-	Provider      string
-	Model         string
-	SmallProvider string
-	SmallModel    string
-	APIKey        string
-	BaseURL       string
-	MaxTokens     int
-	Timeout       time.Duration
+	Enabled   bool
+	Profile   runtimeconfig.LLMProfile
+	MaxTokens int
+	Timeout   time.Duration
 }
 
 // MemoryCaptureHook appends compact memories after successful tasks.
@@ -165,43 +161,27 @@ func (h *MemoryCaptureHook) captureWithLLM(ctx context.Context, result TaskResul
 }
 
 func (h *MemoryCaptureHook) resolveProfile(ctx context.Context) (runtimeconfig.LLMProfile, bool) {
+	// Prefer per-request LLM selection from context (e.g. model override).
 	if selection, ok := appcontext.GetLLMSelection(ctx); ok {
 		provider := strings.TrimSpace(selection.Provider)
 		model := strings.TrimSpace(selection.Model)
 		if provider != "" && model != "" {
 			return runtimeconfig.LLMProfile{
-					Provider: provider,
-					Model:    model,
-					APIKey:   strings.TrimSpace(selection.APIKey),
-					BaseURL:  strings.TrimSpace(selection.BaseURL),
-					Headers:  llmclient.CloneHeaders(selection.Headers),
-				}, true
-			}
+				Provider: provider,
+				Model:    model,
+				APIKey:   strings.TrimSpace(selection.APIKey),
+				BaseURL:  strings.TrimSpace(selection.BaseURL),
+				Headers:  llmclient.CloneHeaders(selection.Headers),
+			}, true
 		}
+	}
 
-	provider, model := h.selectModel()
-	if provider == "" || model == "" {
+	// Fall back to the shared runtime profile.
+	p := h.config.Profile
+	if strings.TrimSpace(p.Provider) == "" || strings.TrimSpace(p.Model) == "" {
 		return runtimeconfig.LLMProfile{}, false
 	}
-	return runtimeconfig.LLMProfile{
-		Provider: provider,
-		Model:    model,
-		APIKey:   h.config.APIKey,
-		BaseURL:  h.config.BaseURL,
-	}, true
-}
-
-func (h *MemoryCaptureHook) selectModel() (string, string) {
-	model := strings.TrimSpace(h.config.SmallModel)
-	provider := strings.TrimSpace(h.config.SmallProvider)
-	if model == "" {
-		model = strings.TrimSpace(h.config.Model)
-		provider = strings.TrimSpace(h.config.Provider)
-	}
-	if provider == "" {
-		provider = strings.TrimSpace(h.config.Provider)
-	}
-	return provider, model
+	return p, true
 }
 
 func buildMemoryCapturePrompt(result TaskResultInfo) string {

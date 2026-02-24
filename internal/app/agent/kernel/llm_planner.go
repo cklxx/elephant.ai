@@ -8,18 +8,19 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/app/agent/llmclient"
 	core "alex/internal/domain/agent/ports"
-	kerneldomain "alex/internal/domain/kernel"
 	portsllm "alex/internal/domain/agent/ports/llm"
+	kerneldomain "alex/internal/domain/kernel"
+	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
 
 // LLMPlannerConfig controls the LLM-driven planner behavior.
+// Profile comes from the shared runtime LLM config (small-model preferred).
 type LLMPlannerConfig struct {
-	Provider      string
-	Model         string
-	APIKey        string
-	BaseURL       string
+	Profile       runtimeconfig.LLMProfile
+	Refresher     llmclient.CredentialRefresher // optional; refreshes credentials for long-running processes
 	MaxDispatches int
 	GoalFilePath  string
 	Timeout       time.Duration
@@ -70,15 +71,20 @@ func NewLLMPlanner(
 
 // Plan calls the LLM to decide which agents to dispatch and with what prompts.
 func (p *LLMPlanner) Plan(ctx context.Context, stateContent string, recentByAgent map[string]kerneldomain.Dispatch) ([]kerneldomain.DispatchSpec, error) {
-	p.logger.Info("LLMPlanner: starting plan (provider=%s model=%s timeout=%s)", p.config.Provider, p.config.Model, p.config.Timeout)
+	profile := runtimeconfig.LLMProfile{
+		Provider:       strings.TrimSpace(p.config.Profile.Provider),
+		Model:          strings.TrimSpace(p.config.Profile.Model),
+		APIKey:         strings.TrimSpace(p.config.Profile.APIKey),
+		BaseURL:        strings.TrimSpace(p.config.Profile.BaseURL),
+		Headers:        llmclient.CloneHeaders(p.config.Profile.Headers),
+		TimeoutSeconds: p.config.Profile.TimeoutSeconds,
+	}
+	p.logger.Info("LLMPlanner: starting plan (provider=%s model=%s timeout=%s)", profile.Provider, profile.Model, p.config.Timeout)
 
 	goalContent := p.readGoalFile()
 	planningPrompt := p.buildPlanningPrompt(stateContent, goalContent, recentByAgent)
 
-	client, err := p.factory.GetClient(p.config.Provider, p.config.Model, portsllm.LLMConfig{
-		APIKey:  p.config.APIKey,
-		BaseURL: p.config.BaseURL,
-	})
+	client, _, err := llmclient.GetClientFromProfile(p.factory, profile, p.config.Refresher, p.config.Refresher != nil)
 	if err != nil {
 		return nil, fmt.Errorf("llm planner: get client: %w", err)
 	}

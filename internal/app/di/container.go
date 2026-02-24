@@ -3,6 +3,7 @@ package di
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -390,6 +391,29 @@ func (c *Container) LLMFactory() portsllm.LLMClientFactory {
 		return nil
 	}
 	return c.llmFactory
+}
+
+// SmallLLMProfile returns the shared runtime LLM profile for lightweight
+// auxiliary calls (auto-reply, memory capture, kernel planner, etc.).
+// It prefers the small model config and falls back to the default.
+func (c *Container) SmallLLMProfile() runtimeconfig.LLMProfile {
+	if c == nil {
+		return runtimeconfig.LLMProfile{}
+	}
+	provider := strings.TrimSpace(c.config.LLMSmallProvider)
+	if provider == "" {
+		provider = strings.TrimSpace(c.config.LLMProvider)
+	}
+	model := strings.TrimSpace(c.config.LLMSmallModel)
+	if model == "" {
+		model = strings.TrimSpace(c.config.LLMModel)
+	}
+	return runtimeconfig.LLMProfile{
+		Provider: provider,
+		Model:    model,
+		APIKey:   strings.TrimSpace(c.config.APIKey),
+		BaseURL:  strings.TrimSpace(c.config.BaseURL),
+	}
 }
 
 // SessionDir returns the resolved session directory backing file-based stores.

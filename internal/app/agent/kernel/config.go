@@ -49,12 +49,10 @@ type RuntimeSettings struct {
 }
 
 // PlannerSettings controls built-in LLM planner defaults.
+// LLM provider/model/credentials come from the shared runtime config;
+// this struct holds only planner-specific knobs.
 type PlannerSettings struct {
 	Enabled        bool
-	Provider       string
-	Model          string
-	APIKey         string
-	BaseURL        string
 	MaxDispatches  int
 	GoalFile       string
 	TimeoutSeconds int

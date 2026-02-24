@@ -10,7 +10,6 @@ import (
 
 	"alex/internal/app/agent/llmclient"
 	ports "alex/internal/domain/agent/ports"
-	runtimeconfig "alex/internal/shared/config"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
@@ -203,26 +202,15 @@ func heuristicAutoReply(options []string) string {
 	return "请直接执行，不需要进一步确认"
 }
 
-// llmAutoReply calls a lightweight LLM to generate a context-aware reply.
+// llmAutoReply calls a lightweight LLM to generate a context-aware reply,
+// using the shared runtime LLM profile.
 func (g *Gateway) llmAutoReply(ctx context.Context, originalText, question string, options []string) (string, error) {
-	creds := g.cliCredsLoader()
-	// Use the Codex credential for auto-reply (cheapest available).
-	cred := creds.Codex
-	if cred.Provider == "" {
-		cred = creds.Claude
-	}
-	if cred.Provider == "" || cred.APIKey == "" {
-		return "", fmt.Errorf("no LLM credentials available")
+	profile := g.llmProfile
+	if strings.TrimSpace(profile.Provider) == "" || strings.TrimSpace(profile.Model) == "" {
+		return "", fmt.Errorf("no LLM profile configured")
 	}
 
-	profile := runtimeconfig.LLMProfile{
-		Provider: cred.Provider,
-		Model:    cred.Model,
-		APIKey:   cred.APIKey,
-		BaseURL:  cred.BaseURL,
-	}
-
-	client, _, err := llmclient.GetIsolatedClientFromProfile(g.llmFactory, profile, nil, false)
+	client, _, err := llmclient.GetClientFromProfile(g.llmFactory, profile, nil, false)
 	if err != nil {
 		return "", err
 	}

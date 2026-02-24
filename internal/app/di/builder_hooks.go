@@ -12,6 +12,7 @@ import (
 	agentcoordinator "alex/internal/app/agent/coordinator"
 	"alex/internal/app/agent/hooks"
 	kernelagent "alex/internal/app/agent/kernel"
+	"alex/internal/app/agent/llmclient"
 	"alex/internal/app/agent/preparation"
 	ctxmgr "alex/internal/app/context"
 	"alex/internal/app/subscription"
@@ -53,13 +54,8 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 
 	if b.config.Proactive.Enabled && b.config.Proactive.Memory.Enabled && memoryEngine != nil && llmFactory != nil {
 		memHook := hooks.NewMemoryCaptureHook(memoryEngine, llmFactory, b.logger, hooks.MemoryCaptureConfig{
-			Enabled:       b.config.Proactive.Memory.Enabled,
-			Provider:      b.config.LLMProvider,
-			Model:         b.config.LLMModel,
-			SmallProvider: b.config.LLMSmallProvider,
-			SmallModel:    b.config.LLMSmallModel,
-			APIKey:        b.config.APIKey,
-			BaseURL:       b.config.BaseURL,
+			Enabled: b.config.Proactive.Memory.Enabled,
+			Profile: b.resolveSmallLLMProfile(),
 		})
 		registry.Register(memHook)
 	}
@@ -334,28 +330,8 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 
 	plannerSettings := settings.Planner
 	if plannerSettings.Enabled && llmFactory != nil {
-		provider := strings.TrimSpace(plannerSettings.Provider)
-		model := strings.TrimSpace(plannerSettings.Model)
-		apiKey := strings.TrimSpace(plannerSettings.APIKey)
-		baseURL := strings.TrimSpace(plannerSettings.BaseURL)
-		if provider == "" {
-			provider = strings.TrimSpace(b.config.LLMSmallProvider)
-		}
-		if provider == "" {
-			provider = strings.TrimSpace(b.config.LLMProvider)
-		}
-		if model == "" {
-			model = strings.TrimSpace(b.config.LLMSmallModel)
-		}
-		if model == "" {
-			model = strings.TrimSpace(b.config.LLMModel)
-		}
-		if apiKey == "" {
-			apiKey = b.config.APIKey
-		}
-		if baseURL == "" {
-			baseURL = b.config.BaseURL
-		}
+		// Reuse the shared runtime LLM profile (small model preferred, default fallback).
+		plannerProfile := b.resolveSmallLLMProfile()
 
 		plannerTimeout := time.Duration(plannerSettings.TimeoutSeconds) * time.Second
 		if plannerTimeout <= 0 {
@@ -374,10 +350,8 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 			kernelID,
 			llmFactory,
 			kernelagent.LLMPlannerConfig{
-				Provider:      provider,
-				Model:         model,
-				APIKey:        apiKey,
-				BaseURL:       baseURL,
+				Profile:       plannerProfile,
+				Refresher:     llmclient.CredentialRefresher(buildCredentialRefresher()),
 				MaxDispatches: maxDispatches,
 				GoalFilePath:  goalFilePath,
 				Timeout:       plannerTimeout,
@@ -386,9 +360,9 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 			logging.NewKernelLogger("LLMPlanner"),
 		)
 		planner = kernelagent.NewHybridPlanner(staticPlanner, llmPlanner, logging.NewKernelLogger("HybridPlanner"))
-		b.logger.Info("Kernel LLM planner enabled (provider=%s model=%s goal=%s)", provider, model, goalFilePath)
+		b.logger.Info("Kernel LLM planner enabled (provider=%s model=%s goal=%s)", plannerProfile.Provider, plannerProfile.Model, goalFilePath)
 		logging.NewKernelLogger("HybridPlanner").Info("HybridPlanner created (provider=%s model=%s baseURL=%s goal=%s maxDispatches=%d timeout=%s)",
-			provider, model, baseURL, goalFilePath, maxDispatches, plannerTimeout)
+			plannerProfile.Provider, plannerProfile.Model, plannerProfile.BaseURL, goalFilePath, maxDispatches, plannerTimeout)
 	}
 
 	timeout := time.Duration(timeoutSeconds) * time.Second
@@ -453,5 +427,25 @@ func (b *containerBuilder) buildKernelSelectionResolver() kernelagent.SelectionR
 			return subscription.ResolvedSelection{}, false
 		}
 		return resolved, true
+	}
+}
+
+// resolveSmallLLMProfile returns the shared runtime LLM profile for lightweight
+// auxiliary calls (kernel planner, memory capture, auto-reply, etc.).
+// It prefers the small model (LLMSmallProvider/Model) and falls back to the default.
+func (b *containerBuilder) resolveSmallLLMProfile() runtimeconfig.LLMProfile {
+	provider := strings.TrimSpace(b.config.LLMSmallProvider)
+	if provider == "" {
+		provider = strings.TrimSpace(b.config.LLMProvider)
+	}
+	model := strings.TrimSpace(b.config.LLMSmallModel)
+	if model == "" {
+		model = strings.TrimSpace(b.config.LLMModel)
+	}
+	return runtimeconfig.LLMProfile{
+		Provider: provider,
+		Model:    model,
+		APIKey:   strings.TrimSpace(b.config.APIKey),
+		BaseURL:  strings.TrimSpace(b.config.BaseURL),
 	}
 }

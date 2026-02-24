@@ -85,7 +85,8 @@ type Gateway struct {
 	llmResolver        *subscription.SelectionResolver
 	cliCredsLoader     func() runtimeconfig.CLICredentials
 	llamaResolver      func(context.Context) (subscription.LlamaServerTarget, bool)
-	llmFactory         portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
+	llmFactory         portsllm.LLMClientFactory    // optional; for lightweight LLM calls (auto-reply)
+	llmProfile         runtimeconfig.LLMProfile     // shared runtime LLM profile for auto-reply
 	taskStore          TaskStore
 	chatSessionStore   ChatSessionBindingStore
 	noticeState        *noticeStateStore
@@ -238,13 +239,14 @@ func (g *Gateway) SetTaskStore(store TaskStore) {
 	g.taskStore = store
 }
 
-// SetLLMFactory configures an optional LLM client factory for lightweight
-// calls such as auto-reply generation during InjectMessageSync.
-func (g *Gateway) SetLLMFactory(factory portsllm.LLMClientFactory) {
+// SetLLMFactory configures an optional LLM client factory and shared profile
+// for lightweight calls such as auto-reply generation during InjectMessageSync.
+func (g *Gateway) SetLLMFactory(factory portsllm.LLMClientFactory, profile runtimeconfig.LLMProfile) {
 	if g == nil {
 		return
 	}
 	g.llmFactory = factory
+	g.llmProfile = profile
 }
 
 // SetChatSessionBindingStore configures persistent chat->session bindings.
