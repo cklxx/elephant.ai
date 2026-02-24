@@ -25,11 +25,13 @@ collections:
   - id: "tool-coverage"
     name: "Tool Coverage"
     dimension: "tool_coverage"
+    tags: ["attention_saving", "recovery"]
     cases_path: "` + filepath.ToSlash(casesA) + `"
     mode: "web"
     preset: "full"
     toolset: "default"
     top_k: 3
+    attention_weight: 1.5
   - id: "prompt-effectiveness"
     name: "Prompt Effectiveness"
     dimension: "prompt_effectiveness"
@@ -51,6 +53,15 @@ collections:
 	}
 	if set.Collections[0].ID != "tool-coverage" {
 		t.Fatalf("unexpected first collection id: %s", set.Collections[0].ID)
+	}
+	if set.Collections[0].AttentionWeight != 1.5 {
+		t.Fatalf("expected attention_weight=1.5, got %.2f", set.Collections[0].AttentionWeight)
+	}
+	if len(set.Collections[0].Tags) != 2 {
+		t.Fatalf("expected normalized tags, got %v", set.Collections[0].Tags)
+	}
+	if set.Collections[1].AttentionWeight != 1.0 {
+		t.Fatalf("expected default attention_weight=1.0, got %.2f", set.Collections[1].AttentionWeight)
 	}
 }
 
@@ -99,10 +110,12 @@ collections:
   - id: "tool-coverage"
     name: "Tool Coverage"
     dimension: "tool_coverage"
+    tags: ["attention_saving"]
     mode: "web"
     preset: "full"
     toolset: "default"
     top_k: 3
+    attention_weight: 1.8
     cases_path: "` + filepath.ToSlash(casesA) + `"
   - id: "proactivity"
     name: "Proactivity"
@@ -141,6 +154,12 @@ collections:
 	if len(result.CollectionResults) != 2 {
 		t.Fatalf("expected 2 collection results, got %d", len(result.CollectionResults))
 	}
+	if result.CollectionResults[0].AttentionWeight != 1.8 {
+		t.Fatalf("expected first collection attention weight 1.8, got %.2f", result.CollectionResults[0].AttentionWeight)
+	}
+	if result.CollectionResults[1].AttentionWeight != 1.0 {
+		t.Fatalf("expected default attention weight 1.0, got %.2f", result.CollectionResults[1].AttentionWeight)
+	}
 	for _, row := range result.CollectionResults {
 		if row.CasePassRatio == "" {
 			t.Fatalf("expected non-empty case ratio for collection %s", row.ID)
@@ -170,7 +189,7 @@ func TestBuildFoundationSuiteMarkdownReportIncludesPassRatios(t *testing.T) {
 	report := buildFoundationSuiteMarkdownReport(&FoundationSuiteResult{
 		RunID:                "suite-1",
 		SuiteName:            "suite",
-		SuitePath:            "evaluation/agent_eval/datasets/foundation_eval_suite.yaml",
+		SuitePath:            "evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml",
 		TotalCollections:     4,
 		PassedCollections:    3,
 		CollectionPassRatio:  "3/4",

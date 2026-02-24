@@ -30,6 +30,7 @@ const (
 	CategoryEfficiency  RuleCategory = "efficiency"
 	CategoryCost        RuleCategory = "cost"
 	CategoryReliability RuleCategory = "reliability"
+	CategoryAttention   RuleCategory = "attention"
 )
 
 // NewSimpleRuleEngine 创建简单规则引擎
@@ -313,6 +314,72 @@ func (sre *SimpleRuleEngine) loadDefaultRules() {
 				Expected: "Reduce memory usage to <75MB",
 			},
 			Priority: PriorityLow,
+			Enabled:  true,
+		},
+		{
+			ID:       "ATTN_001",
+			Name:     "Low Attention Saving",
+			Category: CategoryAttention,
+			Condition: func(m *EvaluationMetrics) bool {
+				return m.Attention.AttentionSaving < 0.25
+			},
+			Recommendation: &Recommendation{
+				Title:       "Increase Attention Savings",
+				Description: "Attention-saving ratio is below target. Reduce review burden through tighter status compression and decision-only interrupts.",
+				Priority:    PriorityHigh,
+				ActionItems: []string{
+					"Gate progress updates to milestone boundaries",
+					"Reduce low-value intermediate messages",
+					"Prefer batch execution for independent subtasks",
+					"Promote decision-ready summaries over verbose traces",
+				},
+				Expected: "Raise attention-saving ratio above 25%",
+			},
+			Priority: PriorityHigh,
+			Enabled:  true,
+		},
+		{
+			ID:       "ATTN_002",
+			Name:     "High Interruption Frequency",
+			Category: CategoryAttention,
+			Condition: func(m *EvaluationMetrics) bool {
+				return m.Attention.InterruptionsPerTask > 2.0
+			},
+			Recommendation: &Recommendation{
+				Title:       "Reduce Interruptions Per Task",
+				Description: "Frequent interruptions increase context switching and inflate human attention cost.",
+				Priority:    PriorityMedium,
+				ActionItems: []string{
+					"Consolidate clarifications into a single targeted question",
+					"Add preflight checks before risky tool invocations",
+					"Use deferred approval bundles where policy allows",
+					"Track and cap interruption budget per task",
+				},
+				Expected: "Reduce interruptions to <=2 per task",
+			},
+			Priority: PriorityMedium,
+			Enabled:  true,
+		},
+		{
+			ID:       "ATTN_003",
+			Name:     "High Recovery Cost",
+			Category: CategoryAttention,
+			Condition: func(m *EvaluationMetrics) bool {
+				return m.Attention.P95RecoveryCostMinutes > 15 || m.Attention.SevereFailureRate > 0.01
+			},
+			Recommendation: &Recommendation{
+				Title:       "Contain Recovery Cost and Tail Risk",
+				Description: "Tail recovery cost or severe failure rate is above target, risking negative attention ROI.",
+				Priority:    PriorityHigh,
+				ActionItems: []string{
+					"Add pre-execution guardrails for external side-effect actions",
+					"Introduce explicit rollback and retry policies by failure type",
+					"Require stronger evidence before finalizing high-impact outputs",
+					"Run failure-recovery regression cases in every evaluation cycle",
+				},
+				Expected: "Keep p95 recovery cost <=15 minutes and severe failure rate <=1%",
+			},
+			Priority: PriorityHigh,
 			Enabled:  true,
 		},
 	}

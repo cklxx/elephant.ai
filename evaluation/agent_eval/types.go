@@ -12,6 +12,8 @@ type EvaluationResults struct {
 	AgentID         string                   `json:"agent_id,omitempty"`
 	Config          *EvaluationConfig        `json:"config,omitempty"`
 	Results         []swe_bench.WorkerResult `json:"results"`
+	HumanEvents     []HumanInteractionEvent  `json:"human_events,omitempty"`
+	RiskEvents      []RiskEvent              `json:"risk_events,omitempty"`
 	AutoScores      []AutoScore              `json:"auto_scores,omitempty"`
 	Judgements      *JudgementSummary        `json:"judgements,omitempty"`
 	JudgeRuns       []JudgementResult        `json:"judgement_results,omitempty"`
@@ -225,6 +227,55 @@ const (
 	DifficultyHard   Difficulty = "hard"
 	DifficultyExpert Difficulty = "expert"
 )
+
+// HumanInteractionEventType describes interaction events that consume reviewer attention.
+type HumanInteractionEventType string
+
+const (
+	HumanEventReviewStart HumanInteractionEventType = "review_start"
+	HumanEventReviewEnd   HumanInteractionEventType = "review_end"
+	HumanEventInterrupt   HumanInteractionEventType = "interrupt"
+	HumanEventTakeover    HumanInteractionEventType = "takeover"
+	HumanEventRollback    HumanInteractionEventType = "rollback"
+	HumanEventApprove     HumanInteractionEventType = "approve"
+	HumanEventReject      HumanInteractionEventType = "reject"
+)
+
+// HumanInteractionEvent records one attention-relevant human interaction.
+type HumanInteractionEvent struct {
+	TaskID       string                    `json:"task_id"`
+	InstanceID   string                    `json:"instance_id,omitempty"`
+	EventType    HumanInteractionEventType `json:"event_type"`
+	Actor        string                    `json:"actor,omitempty"`
+	Timestamp    time.Time                 `json:"timestamp"`
+	DurationMs   int64                     `json:"duration_ms,omitempty"`
+	Interruption bool                      `json:"interruption,omitempty"`
+	Metadata     map[string]any            `json:"metadata,omitempty"`
+}
+
+// RiskSeverity is the severity level for risk events.
+type RiskSeverity string
+
+const (
+	RiskSeverityLow      RiskSeverity = "low"
+	RiskSeverityModerate RiskSeverity = "moderate"
+	RiskSeverityHigh     RiskSeverity = "high"
+	RiskSeverityCritical RiskSeverity = "critical"
+)
+
+// RiskEvent records side-effect and policy-risk related events.
+type RiskEvent struct {
+	TaskID      string         `json:"task_id"`
+	InstanceID  string         `json:"instance_id,omitempty"`
+	Severity    RiskSeverity   `json:"severity"`
+	Category    string         `json:"category"`
+	Description string         `json:"description,omitempty"`
+	Blocked     bool           `json:"blocked"`
+	SideEffect  bool           `json:"side_effect"`
+	Recoverable bool           `json:"recoverable"`
+	Timestamp   time.Time      `json:"timestamp"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+}
 
 // EvaluationReport 评估报告
 type EvaluationReport struct {

@@ -36,7 +36,7 @@ func NewCLIManager(outputDir string) (*CLIManager, error) {
 		AgentID:        "default-agent",
 		TimeoutPerTask: 300 * time.Second, // 5分钟超时
 		EnableMetrics:  true,
-		MetricsTypes:   []string{"performance", "quality", "resource", "behavior"},
+		MetricsTypes:   []string{"performance", "quality", "resource", "behavior", "attention"},
 		OutputDir:      cleanedOutputDir,
 		ReportFormat:   "markdown",
 	}

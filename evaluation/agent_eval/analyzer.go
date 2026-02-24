@@ -137,9 +137,10 @@ func (ba *BasicAnalyzer) calculateSummary(metrics *EvaluationMetrics) AnalysisSu
 	performanceScore := ba.calculatePerformanceScore(metrics.Performance)
 	qualityScore := ba.calculateQualityScore(metrics.Quality)
 	efficiencyScore := ba.calculateEfficiencyScore(metrics.Resources)
+	attentionScore := ba.calculateAttentionScore(metrics.Attention)
 
 	// 加权平均
-	overallScore := (performanceScore*0.4 + qualityScore*0.3 + efficiencyScore*0.3)
+	overallScore := (performanceScore*0.35 + qualityScore*0.25 + efficiencyScore*0.2 + attentionScore*0.2)
 
 	// 性能等级
 	grade := ba.scoreToGrade(overallScore)
@@ -157,6 +158,26 @@ func (ba *BasicAnalyzer) calculateSummary(metrics *EvaluationMetrics) AnalysisSu
 		KeyWeaknesses:    weaknesses,
 		RiskLevel:        riskLevel,
 	}
+}
+
+// calculateAttentionScore 计算注意力节省分数
+func (ba *BasicAnalyzer) calculateAttentionScore(attention AttentionMetrics) float64 {
+	// 兼容旧数据：未采集 attention 字段时返回中性分。
+	if attention.HAMAgentMinutes == 0 &&
+		attention.HAMBaselineMinutes == 0 &&
+		attention.InterruptionsPerTask == 0 &&
+		attention.TrustCalibrationErr == 0 &&
+		attention.SevereFailureRate == 0 &&
+		attention.DeliverableReadiness == 0 {
+		return 0.5
+	}
+
+	score := 0.0
+	score += clamp01(attention.AttentionSaving) * 0.35
+	score += clamp01(1-attention.SevereFailureRate) * 0.25
+	score += clamp01(attention.DeliverableReadiness) * 0.2
+	score += clamp01(1-attention.TrustCalibrationErr) * 0.2
+	return clamp01(score)
 }
 
 // calculatePerformanceScore 计算性能分数
@@ -252,6 +273,34 @@ func (ba *BasicAnalyzer) generateInsights(metrics *EvaluationMetrics) []Insight 
 		})
 	}
 
+	if metrics.Attention.AttentionSaving >= 0.25 {
+		insights = append(insights, Insight{
+			Type:        InsightEfficiency,
+			Title:       "Strong Attention Savings",
+			Description: fmt.Sprintf("Estimated attention saving ratio reached %.1f%%, indicating lower review burden", metrics.Attention.AttentionSaving*100),
+			Impact:      ImpactHigh,
+			Confidence:  0.75,
+		})
+	}
+	if metrics.Attention.InterruptionsPerTask > 2.0 {
+		insights = append(insights, Insight{
+			Type:        InsightBehavior,
+			Title:       "Frequent Human Interruptions",
+			Description: fmt.Sprintf("Average interruptions per task is %.2f, suggesting proactive status gating should be tightened", metrics.Attention.InterruptionsPerTask),
+			Impact:      ImpactMedium,
+			Confidence:  0.7,
+		})
+	}
+	if metrics.Attention.SevereFailureRate > 0.05 {
+		insights = append(insights, Insight{
+			Type:        InsightQuality,
+			Title:       "Severe Failure Risk",
+			Description: fmt.Sprintf("Severe failure rate is %.1f%%; recovery and guardrail policies need prioritization", metrics.Attention.SevereFailureRate*100),
+			Impact:      ImpactHigh,
+			Confidence:  0.8,
+		})
+	}
+
 	return insights
 }
 
@@ -310,6 +359,12 @@ func (ba *BasicAnalyzer) identifyStrengthsAndWeaknesses(metrics *EvaluationMetri
 	if metrics.Performance.RetryRate <= 0.1 {
 		strengths = append(strengths, "Consistent first-attempt success")
 	}
+	if metrics.Attention.AttentionSaving >= 0.25 {
+		strengths = append(strengths, "Strong human-attention savings")
+	}
+	if metrics.Attention.DeliverableReadiness >= 0.7 {
+		strengths = append(strengths, "High first-pass deliverable readiness")
+	}
 
 	// 劣势识别
 	if metrics.Performance.TimeoutRate > 0.2 {
@@ -320,6 +375,12 @@ func (ba *BasicAnalyzer) identifyStrengthsAndWeaknesses(metrics *EvaluationMetri
 	}
 	if metrics.Behavior.AvgToolCalls > 15 {
 		weaknesses = append(weaknesses, "Inefficient tool usage patterns")
+	}
+	if metrics.Attention.InterruptionsPerTask > 2.0 {
+		weaknesses = append(weaknesses, "High interruption overhead")
+	}
+	if metrics.Attention.TrustCalibrationErr > 0.35 {
+		weaknesses = append(weaknesses, "Trust calibration is unstable")
 	}
 
 	return strengths, weaknesses
@@ -339,6 +400,15 @@ func (ba *BasicAnalyzer) assessRiskLevel(metrics *EvaluationMetrics) string {
 		riskScore += 2
 	}
 	if metrics.Resources.TotalCost > 200 {
+		riskScore += 1
+	}
+	if metrics.Attention.SevereFailureRate > 0.05 {
+		riskScore += 2
+	}
+	if metrics.Attention.P95RecoveryCostMinutes > 15 {
+		riskScore += 1
+	}
+	if metrics.Attention.InterruptionsPerTask > 2.5 {
 		riskScore += 1
 	}
 

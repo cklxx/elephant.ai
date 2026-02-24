@@ -28,6 +28,9 @@ type EvaluationMetrics struct {
 	// Behavioral Metrics
 	Behavior BehaviorMetrics `json:"behavior"`
 
+	// Attention-saving metrics (human attention cost, interruption, recovery)
+	Attention AttentionMetrics `json:"attention"`
+
 	// Metadata
 	Timestamp    time.Time `json:"timestamp"`
 	TotalTasks   int       `json:"total_tasks"`
@@ -69,6 +72,27 @@ type BehaviorMetrics struct {
 	ErrorPatterns    []string       `json:"error_patterns"`
 }
 
+// AttentionMetrics 注意力节省相关指标
+type AttentionMetrics struct {
+	HAMAgentMinutes    float64 `json:"ham_agent_minutes"`
+	HAMBaselineMinutes float64 `json:"ham_baseline_minutes"`
+	AttentionSaving    float64 `json:"attention_saving_ratio"`
+
+	AvgVerificationMinutes    float64 `json:"avg_verification_minutes"`
+	MedianVerificationMinutes float64 `json:"median_verification_minutes"`
+	P95VerificationMinutes    float64 `json:"p95_verification_minutes"`
+
+	InterruptionsPerTask float64 `json:"interruptions_per_task"`
+	TotalInterruptions   int     `json:"total_interruptions"`
+
+	AvgRecoveryCostMinutes float64 `json:"avg_recovery_cost_minutes"`
+	P95RecoveryCostMinutes float64 `json:"p95_recovery_cost_minutes"`
+
+	SevereFailureRate    float64 `json:"severe_failure_rate"`
+	DeliverableReadiness float64 `json:"deliverable_readiness"`
+	TrustCalibrationErr  float64 `json:"trust_calibration_error"`
+}
+
 // MetricsCollector 指标收集器
 type MetricsCollector struct {
 	collectors []MetricCollector
@@ -88,6 +112,7 @@ func NewMetricsCollector() *MetricsCollector {
 			&QualityCollector{},
 			&ResourceCollector{},
 			&BehaviorCollector{},
+			&AttentionCollector{},
 		},
 	}
 }
@@ -134,6 +159,14 @@ func (mc *MetricsCollector) Collect(results []swe_bench.WorkerResult) (*Evaluati
 		return nil, fmt.Errorf("failed to collect behavior metrics: %w", err)
 	}
 	metrics.Behavior = behaviorData.(BehaviorMetrics)
+
+	// 注意力指标
+	attentionCollector := &AttentionCollector{}
+	attentionData, err := attentionCollector.Collect(results)
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect attention metrics: %w", err)
+	}
+	metrics.Attention = attentionData.(AttentionMetrics)
 
 	return metrics, nil
 }
@@ -414,6 +447,220 @@ func (bc *BehaviorCollector) Collect(results []swe_bench.WorkerResult) (interfac
 	}
 
 	return metrics, nil
+}
+
+// AttentionCollector 注意力指标收集器
+type AttentionCollector struct{}
+
+func (ac *AttentionCollector) Name() string { return "attention" }
+
+func (ac *AttentionCollector) Collect(results []swe_bench.WorkerResult) (interface{}, error) {
+	var (
+		totalInterruptions int
+		totalSevereFailure int
+		deliverableReady   int
+		hamAgentTotal      float64
+		hamBaselineTotal   float64
+	)
+
+	verificationMinutes := make([]float64, 0, len(results))
+	recoveryMinutes := make([]float64, 0, len(results))
+	trustErrors := make([]float64, 0, len(results))
+
+	for _, result := range results {
+		verify := estimateVerificationMinutes(result)
+		recoverCost := estimateRecoveryCostMinutes(result)
+		interruptions := estimateInterruptions(result)
+
+		taskHAM := verify + recoverCost + float64(interruptions)*0.5
+		if taskHAM < 0.1 {
+			taskHAM = 0.1
+		}
+		taskBaselineHAM := estimateBaselineAttentionMinutes(result, taskHAM)
+
+		verificationMinutes = append(verificationMinutes, verify)
+		recoveryMinutes = append(recoveryMinutes, recoverCost)
+		trustErrors = append(trustErrors, estimateTrustCalibrationError(result))
+
+		totalInterruptions += interruptions
+		hamAgentTotal += taskHAM
+		hamBaselineTotal += taskBaselineHAM
+		if isSevereFailure(result) {
+			totalSevereFailure++
+		}
+		if isDeliverableReady(result) {
+			deliverableReady++
+		}
+	}
+
+	attentionSavingRatio := 0.0
+	if hamBaselineTotal > 0 {
+		attentionSavingRatio = (hamBaselineTotal - hamAgentTotal) / hamBaselineTotal
+	}
+
+	metrics := AttentionMetrics{
+		HAMAgentMinutes:           round3(hamAgentTotal),
+		HAMBaselineMinutes:        round3(hamBaselineTotal),
+		AttentionSaving:           round3(attentionSavingRatio),
+		AvgVerificationMinutes:    round3(average(verificationMinutes)),
+		MedianVerificationMinutes: round3(percentileFloat(verificationMinutes, 50)),
+		P95VerificationMinutes:    round3(percentileFloat(verificationMinutes, 95)),
+		TotalInterruptions:        totalInterruptions,
+		AvgRecoveryCostMinutes:    round3(average(recoveryMinutes)),
+		P95RecoveryCostMinutes:    round3(percentileFloat(recoveryMinutes, 95)),
+		TrustCalibrationErr:       round3(average(trustErrors)),
+	}
+	if len(results) > 0 {
+		metrics.InterruptionsPerTask = round3(float64(totalInterruptions) / float64(len(results)))
+		metrics.SevereFailureRate = round3(float64(totalSevereFailure) / float64(len(results)))
+		metrics.DeliverableReadiness = round3(float64(deliverableReady) / float64(len(results)))
+	}
+
+	return metrics, nil
+}
+
+func estimateVerificationMinutes(result swe_bench.WorkerResult) float64 {
+	base := math.Max(result.Duration.Minutes()*0.18, 0.25)
+	if result.Status != swe_bench.StatusCompleted {
+		base *= 1.4
+	}
+	if result.RetryCount > 0 {
+		base += float64(result.RetryCount) * 0.35
+	}
+	if workflowFailureSignal(result) {
+		base += 0.75
+	}
+	if len(result.FilesChanged) > 0 {
+		base += math.Min(float64(len(result.FilesChanged))*0.12, 1.2)
+	}
+	if strings.TrimSpace(result.Error) != "" {
+		base += 0.5
+	}
+	return round3(base)
+}
+
+func estimateInterruptions(result swe_bench.WorkerResult) int {
+	interruptions := 0
+
+	for _, cmd := range result.Commands {
+		normalized := strings.ToLower(strings.TrimSpace(cmd))
+		if normalized == "" {
+			continue
+		}
+		if strings.Contains(normalized, "request_user") || strings.Contains(normalized, "clarify") || strings.Contains(normalized, "approval") {
+			interruptions++
+		}
+	}
+
+	for _, step := range result.Trace {
+		if step.ToolCall == nil {
+			continue
+		}
+		name := strings.ToLower(strings.TrimSpace(step.ToolCall.Name))
+		if name == "request_user" || name == "clarify" || strings.Contains(name, "approval") {
+			interruptions++
+		}
+	}
+
+	return interruptions
+}
+
+func estimateRecoveryCostMinutes(result swe_bench.WorkerResult) float64 {
+	recovery := 0.0
+	if result.RetryCount > 0 {
+		recovery += float64(result.RetryCount) * 0.75
+	}
+	switch result.Status {
+	case swe_bench.StatusFailed, swe_bench.StatusTimeout, swe_bench.StatusCanceled:
+		recovery += math.Max(result.Duration.Minutes()*0.4, 1.5)
+	}
+	if workflowFailureSignal(result) {
+		recovery += 1.0
+	}
+	if strings.TrimSpace(result.Error) != "" {
+		recovery += 0.5
+	}
+	return round3(recovery)
+}
+
+func estimateTrustCalibrationError(result swe_bench.WorkerResult) float64 {
+	confidence := inferConfidenceScore(result)
+	actual := 0.0
+	if result.Status == swe_bench.StatusCompleted && !workflowFailureSignal(result) && strings.TrimSpace(result.Error) == "" {
+		actual = 1.0
+	}
+	return round3(math.Abs(confidence - actual))
+}
+
+func inferConfidenceScore(result swe_bench.WorkerResult) float64 {
+	score := 0.45
+	if result.Status == swe_bench.StatusCompleted {
+		score += 0.2
+	}
+	if len(strings.TrimSpace(result.Explanation)) > 120 {
+		score += 0.1
+	}
+	if len(result.FilesChanged) > 0 {
+		score += 0.1
+	}
+	if len(result.FilesChanged) > 8 {
+		score -= 0.05
+	}
+	if result.RetryCount > 0 {
+		score -= math.Min(float64(result.RetryCount)*0.08, 0.25)
+	}
+	if strings.TrimSpace(result.Error) != "" {
+		score -= 0.25
+	}
+	if workflowFailureSignal(result) {
+		score -= 0.2
+	}
+	return clamp01(score)
+}
+
+func isSevereFailure(result swe_bench.WorkerResult) bool {
+	switch result.Status {
+	case swe_bench.StatusFailed, swe_bench.StatusTimeout, swe_bench.StatusCanceled:
+		return true
+	}
+	return workflowFailureSignal(result)
+}
+
+func isDeliverableReady(result swe_bench.WorkerResult) bool {
+	if result.Status != swe_bench.StatusCompleted {
+		return false
+	}
+	if workflowFailureSignal(result) || strings.TrimSpace(result.Error) != "" {
+		return false
+	}
+	if len(result.FilesChanged) > 0 {
+		return true
+	}
+	return len(strings.TrimSpace(result.Solution)) >= 80
+}
+
+func estimateBaselineAttentionMinutes(result swe_bench.WorkerResult, taskHAM float64) float64 {
+	multiplier := 1.35
+	if len(result.Commands) > 12 {
+		multiplier += 0.1
+	}
+	if len(result.FilesChanged) > 3 {
+		multiplier += 0.1
+	}
+	if result.RetryCount > 0 {
+		multiplier += 0.05
+	}
+	if result.Status != swe_bench.StatusCompleted {
+		multiplier += 0.2
+	}
+	if workflowFailureSignal(result) {
+		multiplier += 0.05
+	}
+	baseline := taskHAM * multiplier
+	if baseline < taskHAM+1.5 {
+		baseline = taskHAM + 1.5
+	}
+	return round3(baseline)
 }
 
 // SimpleMetricsStore 简单的指标存储

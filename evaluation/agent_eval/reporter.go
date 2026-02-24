@@ -69,6 +69,10 @@ func (mr *MarkdownReporter) buildReportContent(results *EvaluationResults) strin
 	report.WriteString(mr.buildBehaviorSection(results))
 	report.WriteString("\n")
 
+	// Attention Analysis
+	report.WriteString(mr.buildAttentionSection(results))
+	report.WriteString("\n")
+
 	// Insights and Recommendations
 	report.WriteString(mr.buildInsightsSection(results))
 	report.WriteString("\n")
@@ -280,6 +284,43 @@ func (mr *MarkdownReporter) buildBehaviorSection(results *EvaluationResults) str
 	}
 
 	return report.String()
+}
+
+// buildAttentionSection 构建注意力节省分析部分
+func (mr *MarkdownReporter) buildAttentionSection(results *EvaluationResults) string {
+	attention := results.Metrics.Attention
+
+	return fmt.Sprintf(`## Attention-Saving Analysis
+
+| Metric | Value | Assessment |
+|--------|-------|------------|
+| **Attention Saving Ratio** | %.1f%% | %s |
+| **HAM (Agent/Baseline)** | %.1f / %.1f min | %s |
+| **Avg Verification Time** | %.2f min | %s |
+| **P95 Verification Time** | %.2f min | %s |
+| **Interruptions per Task** | %.2f | %s |
+| **Avg Recovery Cost** | %.2f min | %s |
+| **P95 Recovery Cost** | %.2f min | %s |
+| **Severe Failure Rate** | %.1f%% | %s |
+| **Deliverable Readiness** | %.1f%% | %s |
+| **Trust Calibration Error** | %.2f | %s |
+
+### Attention Insights
+
+%s
+
+`,
+		attention.AttentionSaving*100, mr.assessAttentionSaving(attention.AttentionSaving),
+		attention.HAMAgentMinutes, attention.HAMBaselineMinutes, mr.assessHAM(attention.HAMAgentMinutes, attention.HAMBaselineMinutes),
+		attention.AvgVerificationMinutes, mr.assessVerificationMinutes(attention.AvgVerificationMinutes),
+		attention.P95VerificationMinutes, mr.assessVerificationMinutes(attention.P95VerificationMinutes),
+		attention.InterruptionsPerTask, mr.assessInterruptions(attention.InterruptionsPerTask),
+		attention.AvgRecoveryCostMinutes, mr.assessRecoveryCost(attention.AvgRecoveryCostMinutes),
+		attention.P95RecoveryCostMinutes, mr.assessRecoveryCost(attention.P95RecoveryCostMinutes),
+		attention.SevereFailureRate*100, mr.assessSevereFailure(attention.SevereFailureRate),
+		attention.DeliverableReadiness*100, mr.assessDeliverableReadiness(attention.DeliverableReadiness),
+		attention.TrustCalibrationErr, mr.assessTrustCalibration(attention.TrustCalibrationErr),
+		mr.generateAttentionInsights(attention))
 }
 
 // buildInsightsSection 构建洞察部分
@@ -609,6 +650,103 @@ func (mr *MarkdownReporter) assessFailureImpact(count int) string {
 	}
 }
 
+func (mr *MarkdownReporter) assessAttentionSaving(ratio float64) string {
+	switch {
+	case ratio >= 0.4:
+		return "Excellent"
+	case ratio >= 0.25:
+		return "Good"
+	case ratio >= 0.15:
+		return "Acceptable"
+	case ratio >= 0:
+		return "Needs Improvement"
+	default:
+		return "Regression"
+	}
+}
+
+func (mr *MarkdownReporter) assessHAM(agent, baseline float64) string {
+	if baseline <= 0 {
+		return "Unavailable"
+	}
+	if agent <= baseline*0.75 {
+		return "Efficient"
+	}
+	if agent <= baseline {
+		return "Normal"
+	}
+	return "Inefficient"
+}
+
+func (mr *MarkdownReporter) assessVerificationMinutes(minutes float64) string {
+	switch {
+	case minutes <= 1.0:
+		return "Fast"
+	case minutes <= 2.5:
+		return "Normal"
+	case minutes <= 4.0:
+		return "Slow"
+	default:
+		return "Very Slow"
+	}
+}
+
+func (mr *MarkdownReporter) assessInterruptions(rate float64) string {
+	switch {
+	case rate <= 1:
+		return "Excellent"
+	case rate <= 2:
+		return "Good"
+	case rate <= 3:
+		return "Concerning"
+	default:
+		return "Critical"
+	}
+}
+
+func (mr *MarkdownReporter) assessRecoveryCost(minutes float64) string {
+	switch {
+	case minutes <= 5:
+		return "Low"
+	case minutes <= 10:
+		return "Medium"
+	case minutes <= 15:
+		return "High"
+	default:
+		return "Critical"
+	}
+}
+
+func (mr *MarkdownReporter) assessSevereFailure(rate float64) string {
+	switch {
+	case rate == 0:
+		return "Excellent"
+	case rate <= 0.01:
+		return "Good"
+	case rate <= 0.03:
+		return "Concerning"
+	default:
+		return "Critical"
+	}
+}
+
+func (mr *MarkdownReporter) assessDeliverableReadiness(rate float64) string {
+	return mr.assessQualityScore(rate)
+}
+
+func (mr *MarkdownReporter) assessTrustCalibration(err float64) string {
+	switch {
+	case err <= 0.15:
+		return "Good"
+	case err <= 0.25:
+		return "Acceptable"
+	case err <= 0.35:
+		return "Concerning"
+	default:
+		return "Critical"
+	}
+}
+
 func (mr *MarkdownReporter) getInsightIcon(insightType InsightType) string {
 	switch insightType {
 	case InsightPerformance:
@@ -724,6 +862,38 @@ func (mr *MarkdownReporter) generateResourceInsights(resources ResourceMetrics) 
 
 	if len(insights) == 0 {
 		insights = append(insights, "Resource usage is within expected ranges.")
+	}
+
+	return strings.Join(insights, "\n\n")
+}
+
+func (mr *MarkdownReporter) generateAttentionInsights(attention AttentionMetrics) string {
+	insights := []string{}
+
+	if attention.AttentionSaving >= 0.25 {
+		insights = append(insights, "✅ Attention-saving ratio meets the primary target")
+	} else if attention.AttentionSaving < 0.15 {
+		insights = append(insights, "❌ Attention-saving ratio is below target and needs immediate tuning")
+	}
+
+	if attention.InterruptionsPerTask > 2 {
+		insights = append(insights, "🔔 Frequent interruptions indicate context-switch overhead")
+	}
+
+	if attention.P95RecoveryCostMinutes > 15 {
+		insights = append(insights, "🧯 Tail recovery cost is high; recovery policies should be strengthened")
+	}
+
+	if attention.SevereFailureRate > 0.01 {
+		insights = append(insights, "🚨 Severe failure rate exceeds guardrail threshold")
+	}
+
+	if attention.TrustCalibrationErr > 0.3 {
+		insights = append(insights, "📉 Trust calibration is unstable; confidence signals need tighter grounding")
+	}
+
+	if len(insights) == 0 {
+		insights = append(insights, "Attention metrics are within expected ranges.")
 	}
 
 	return strings.Join(insights, "\n\n")

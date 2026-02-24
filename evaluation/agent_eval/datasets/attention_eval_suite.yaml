@@ -1,0 +1,39 @@
+version: "1"
+name: "attention-saving-suite"
+description: "Attention-first suite for interruption control, recovery-cost containment, and trust calibration."
+collections:
+  - id: "attention-interruption-control"
+    name: "Attention Interruption Control"
+    dimension: "attention_saving"
+    tags: ["attention_saving", "interruptions"]
+    description: "Measure whether the agent minimizes unnecessary interruptions."
+    cases_path: "evaluation/agent_eval/datasets/attention_eval_cases_interruption_control.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+    attention_weight: 1.8
+
+  - id: "attention-recovery-cost"
+    name: "Attention Recovery Cost"
+    dimension: "recovery"
+    tags: ["attention_saving", "recovery"]
+    description: "Measure recovery and rollback behavior under failed branches."
+    cases_path: "evaluation/agent_eval/datasets/attention_eval_cases_recovery_cost.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+    attention_weight: 1.5
+
+  - id: "attention-trust-calibration"
+    name: "Attention Trust Calibration"
+    dimension: "trust_calibration"
+    tags: ["attention_saving", "trust_calibration"]
+    description: "Measure confidence calibration and evidence-driven escalation."
+    cases_path: "evaluation/agent_eval/datasets/attention_eval_cases_trust_calibration.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+    attention_weight: 1.2
