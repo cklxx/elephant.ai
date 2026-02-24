@@ -124,7 +124,16 @@ func (n *Node) transition(target NodeStatus, output any, err error) (NodeSnapsho
 	snapshot := n.snapshotLocked()
 
 	if n.logger != nil {
-		n.logger.Info("node transition", slog.String("node", n.id), slog.String("status", string(target)), slog.String("error", snapshot.Error))
+		attrs := []any{
+			slog.String("node", n.id),
+			slog.String("status", string(target)),
+			slog.String("error", snapshot.Error),
+		}
+		if target == NodeStatusFailed {
+			n.logger.Warn("node transition", attrs...)
+		} else {
+			n.logger.Debug("node transition", attrs...)
+		}
 	}
 
 	return snapshot, nil

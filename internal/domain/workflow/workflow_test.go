@@ -1,6 +1,9 @@
 package workflow
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"sync"
@@ -36,6 +39,50 @@ func TestNodeLifecycle(t *testing.T) {
 
 	_, err = node.CompleteFailure(errors.New("should fail"))
 	require.Error(t, err)
+}
+
+func TestNodeTransitionLogsAreDebugByDefaultAndWarnOnFailure(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	node := NewNode("ok-node", nil, logger)
+	_, err := node.Start()
+	require.NoError(t, err)
+	_, err = node.CompleteSuccess("ok")
+	require.NoError(t, err)
+
+	failNode := NewNode("fail-node", nil, logger)
+	_, err = failNode.Start()
+	require.NoError(t, err)
+	_, err = failNode.CompleteFailure(errors.New("boom"))
+	require.NoError(t, err)
+
+	scanner := bufio.NewScanner(bytes.NewReader(buf.Bytes()))
+	statusLevelCounts := map[string]map[string]int{
+		string(NodeStatusRunning):   {},
+		string(NodeStatusSucceeded): {},
+		string(NodeStatusFailed):    {},
+	}
+
+	for scanner.Scan() {
+		var entry map[string]any
+		require.NoError(t, json.Unmarshal(scanner.Bytes(), &entry))
+		if entry["msg"] != "node transition" {
+			continue
+		}
+		status, _ := entry["status"].(string)
+		level, _ := entry["level"].(string)
+		if _, ok := statusLevelCounts[status]; ok {
+			statusLevelCounts[status][level]++
+		}
+	}
+	require.NoError(t, scanner.Err())
+
+	require.Greater(t, statusLevelCounts[string(NodeStatusRunning)]["DEBUG"], 0)
+	require.Greater(t, statusLevelCounts[string(NodeStatusSucceeded)]["DEBUG"], 0)
+	require.Greater(t, statusLevelCounts[string(NodeStatusFailed)]["WARN"], 0)
+	require.Zero(t, statusLevelCounts[string(NodeStatusRunning)]["INFO"])
+	require.Zero(t, statusLevelCounts[string(NodeStatusSucceeded)]["INFO"])
 }
 
 func TestWorkflowSnapshot(t *testing.T) {
