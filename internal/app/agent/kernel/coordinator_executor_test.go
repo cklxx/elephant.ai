@@ -43,7 +43,7 @@ func (s *stubTaskRunner) ExecuteTask(ctx context.Context, task string, _ string,
 func TestCoordinatorExecutor_AppendsSummaryInstructionAndExtractsSummary(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
-			Answer:   "前置说明\n## 执行总结\n- 已完成 A\n- 已验证 B",
+			Answer:   "前置说明\n## Execution Summary\n- 已完成 A\n- 已验证 B",
 			Messages: []core.Message{assistantMessageWithToolCalls("read_file")},
 		},
 	}
@@ -53,13 +53,13 @@ func TestCoordinatorExecutor_AppendsSummaryInstructionAndExtractsSummary(t *test
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if !strings.Contains(runner.lastPrompt, "## 执行总结") {
+	if !strings.Contains(runner.lastPrompt, "## Execution Summary") {
 		t.Fatalf("expected summary instruction appended, got prompt: %q", runner.lastPrompt)
 	}
 	if !strings.Contains(runner.lastPrompt, "~/.alex/kernel/default/") {
 		t.Fatalf("expected kernel write path guidance in prompt, got prompt: %q", runner.lastPrompt)
 	}
-	if !strings.Contains(res.Summary, "## 执行总结") {
+	if !strings.Contains(res.Summary, "## Execution Summary") {
 		t.Fatalf("expected summary extracted from answer, got: %q", res.Summary)
 	}
 	if strings.TrimSpace(res.TaskID) == "" {
@@ -89,11 +89,11 @@ func TestCoordinatorExecutor_DoesNotDuplicateSummaryInstruction(t *testing.T) {
 	}
 	exec := NewCoordinatorExecutor(runner, 0)
 
-	prompt := "请完成任务。\n\n## 执行总结\n- 模板"
+	prompt := "请完成任务。\n\n## Execution Summary\n- 模板"
 	if _, err := exec.Execute(context.Background(), "agent-a", prompt, map[string]string{}); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if strings.Count(runner.lastPrompt, "## 执行总结") != 1 {
+	if strings.Count(runner.lastPrompt, "## Execution Summary") != 1 {
 		t.Fatalf("expected one summary instruction block, got prompt: %q", runner.lastPrompt)
 	}
 }
@@ -146,7 +146,7 @@ func TestCoordinatorExecutor_PropagatesChannelContextAndPinnedSelection(t *testi
 func TestCoordinatorExecutor_FailsWithoutRealToolAction(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
-			Answer:   "## 执行总结\n- 仅规划",
+			Answer:   "## Execution Summary\n- 仅规划",
 			Messages: []core.Message{assistantMessageWithToolCalls("plan")},
 		},
 	}
@@ -164,7 +164,7 @@ func TestCoordinatorExecutor_FailsWithoutRealToolAction(t *testing.T) {
 func TestCoordinatorExecutor_FailsWhenRealToolResultIsError(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
-			Answer: "## 执行总结\n- shell 执行失败",
+			Answer: "## Execution Summary\n- shell 执行失败",
 			Messages: []core.Message{
 				{
 					Role: "assistant",
@@ -195,7 +195,7 @@ func TestCoordinatorExecutor_FailsWhenRealToolResultIsError(t *testing.T) {
 func TestCoordinatorExecutor_FailsWhenResultAwaitsUserConfirmation(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
-			Answer: "## 执行总结\n- 我这边先不继续硬写 `~/.alex/kernel/default/...` 了。\n- 我的理解是你要我下一轮改成 `./kernel_sync/...`，然后由 kernel 同步——对吗？\n- 可选：A) 按 `./kernel_sync/knowledge|goal|drafts` 执行 B) 你指定路径",
+			Answer: "## Execution Summary\n- 我这边先不继续硬写 `~/.alex/kernel/default/...` 了。\n- 我的理解是你要我下一轮改成 `./kernel_sync/...`，然后由 kernel 同步——对吗？\n- 可选：A) 按 `./kernel_sync/knowledge|goal|drafts` 执行 B) 你指定路径",
 			Messages: []core.Message{
 				{
 					Role: "assistant",
@@ -226,7 +226,7 @@ func TestCoordinatorExecutor_FailsWhenResultAwaitsUserConfirmation(t *testing.T)
 func TestCoordinatorExecutor_FailsWhenStopReasonAwaitUserInput(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
-			Answer:     "## 执行总结\n- 等待用户确认",
+			Answer:     "## Execution Summary\n- 等待用户确认",
 			StopReason: "await_user_input",
 			Messages: []core.Message{
 				{
@@ -259,7 +259,7 @@ func TestCoordinatorExecutor_RetriesAutonomouslyAfterConfirmationLoop(t *testing
 	runner := &stubTaskRunner{
 		results: []*agent.TaskResult{
 			{
-				Answer: "## 执行总结\n- 我的理解是你要我改成 `./kernel_sync/...`——对吗？",
+				Answer: "## Execution Summary\n- 我的理解是你要我改成 `./kernel_sync/...`——对吗？",
 				Messages: []core.Message{
 					{
 						Role: "assistant",
@@ -276,7 +276,7 @@ func TestCoordinatorExecutor_RetriesAutonomouslyAfterConfirmationLoop(t *testing
 				},
 			},
 			{
-				Answer: "## 执行总结\n- 已写入 ./kernel_sync/knowledge/topic.md\n- 已更新 ./kernel_sync/goal/GOAL.md",
+				Answer: "## Execution Summary\n- 已写入 ./kernel_sync/knowledge/topic.md\n- 已更新 ./kernel_sync/goal/GOAL.md",
 				Messages: []core.Message{
 					{
 						Role: "assistant",
@@ -324,7 +324,7 @@ func TestCoordinatorExecutor_RetriesWhenFirstAttemptHasNoRealToolAction(t *testi
 	runner := &stubTaskRunner{
 		results: []*agent.TaskResult{
 			{
-				Answer: "## 执行总结\n- 已规划下一步",
+				Answer: "## Execution Summary\n- 已规划下一步",
 				Messages: []core.Message{
 					{
 						Role: "assistant",
@@ -335,7 +335,7 @@ func TestCoordinatorExecutor_RetriesWhenFirstAttemptHasNoRealToolAction(t *testi
 				},
 			},
 			{
-				Answer: "## 执行总结\n- 已执行 read_file 并更新草稿",
+				Answer: "## Execution Summary\n- 已执行 read_file 并更新草稿",
 				Messages: []core.Message{
 					{
 						Role: "assistant",
@@ -376,7 +376,7 @@ func TestCoordinatorExecutor_RetriesWhenFirstAttemptHasNoRealToolAction(t *testi
 func TestCoordinatorExecutor_DoesNotRetryWhenFirstAttemptIsValid(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
-			Answer: "## 执行总结\n- 已执行 read_file 并完成分析",
+			Answer: "## Execution Summary\n- 已执行 read_file 并完成分析",
 			Messages: []core.Message{
 				{
 					Role: "assistant",
@@ -413,7 +413,7 @@ func TestCoordinatorExecutor_DoesNotRetryWhenFirstAttemptIsValid(t *testing.T) {
 func TestCoordinatorExecutor_AllowsSuccessfulRealToolResult(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
-			Answer: "## 执行总结\n- shell 成功",
+			Answer: "## Execution Summary\n- shell 成功",
 			Messages: []core.Message{
 				{
 					Role: "assistant",
@@ -454,7 +454,7 @@ func TestCompactSummary_TruncatesByRunes(t *testing.T) {
 func TestCoordinatorExecutor_InjectsFounderDirective(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
-			Answer:   "## 执行总结\n- done",
+			Answer:   "## Execution Summary\n- done",
 			Messages: []core.Message{assistantMessageWithToolCalls("read_file")},
 		},
 	}
@@ -464,11 +464,11 @@ func TestCoordinatorExecutor_InjectsFounderDirective(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if !strings.Contains(runner.lastPrompt, "创始人心态") {
+	if !strings.Contains(runner.lastPrompt, "founder mindset") {
 		t.Fatalf("expected founder directive in prompt, got: %q", runner.lastPrompt)
 	}
-	if !strings.Contains(runner.lastPrompt, "永不询问") {
-		t.Fatalf("expected 永不询问 in founder directive, got: %q", runner.lastPrompt)
+	if !strings.Contains(runner.lastPrompt, "Never ask") {
+		t.Fatalf("expected Never ask in founder directive, got: %q", runner.lastPrompt)
 	}
 	if !strings.HasPrefix(runner.lastPrompt, kernelFounderDirective) {
 		t.Fatal("expected founder directive to be prepended to prompt")
@@ -478,7 +478,7 @@ func TestCoordinatorExecutor_InjectsFounderDirective(t *testing.T) {
 func TestCoordinatorExecutor_SetsAutoApproveInContext(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
-			Answer:   "## 执行总结\n- done",
+			Answer:   "## Execution Summary\n- done",
 			Messages: []core.Message{assistantMessageWithToolCalls("shell_exec")},
 		},
 	}

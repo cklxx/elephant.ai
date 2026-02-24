@@ -4,7 +4,7 @@ const (
 	// DefaultStateRootDir is the fixed storage root for kernel markdown artifacts.
 	DefaultStateRootDir = "~/.alex/kernel"
 	// DefaultSeedStateContent initializes STATE.md on first boot.
-	DefaultSeedStateContent = "# Kernel State\n## identity\nelephant.ai autonomous kernel — founder mindset.\n永不询问、永不等待、只派发任务、记录状态、做总结、思考规划。\n## recent_actions\n(none yet)\n"
+	DefaultSeedStateContent = "# Kernel State\n## identity\nelephant.ai autonomous kernel — founder mindset.\nNever ask, never wait — only dispatch tasks, record state, summarize, and plan.\n## recent_actions\n(none yet)\n"
 
 	DefaultKernelID              = "default"
 	DefaultKernelSchedule        = "0,30 * * * *"
@@ -16,18 +16,18 @@ const (
 	DefaultKernelUserID          = "cklxx"
 
 	DefaultKernelPlannerMaxDispatches = 5
-	DefaultKernelPlannerTimeoutSec    = 30
+	DefaultKernelPlannerTimeoutSec = 60
 )
 
-const defaultKernelOperatorPrompt = `你是 elephant.ai kernel 的执行代理。请直接行动，不提问、不等待。
+const defaultKernelOperatorPrompt = `You are an execution agent for the elephant.ai kernel. Act immediately — never ask, never wait.
 
-基于以下状态推进：
+Proceed based on the following state:
 {STATE}
 
-要求：
-1. 必须完成至少一个真实工具动作并产出可验证证据（文件路径/命令输出/检索结果）。
-2. 遇到阻塞立即改走备选路径，并记录决策理由。
-3. 输出“## 执行总结”，包含：完成事项、证据、风险与下一步。`
+Requirements:
+1. Complete at least one real tool action and produce verifiable evidence (file path / command output / search result).
+2. If blocked, immediately switch to an alternative path and record the decision rationale.
+3. Output an “## Execution Summary” section containing: completed items, evidence, risks, and next steps.`
 
 // RuntimeSettings defines code-owned kernel runtime behavior.
 // It intentionally does not come from user YAML config.

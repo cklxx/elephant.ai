@@ -153,26 +153,26 @@ func (p *LLMPlanner) readGoalFile() string {
 func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent string, recentByAgent map[string]kerneldomain.Dispatch) string {
 	var b strings.Builder
 
-	b.WriteString("## 当前时间\n")
+	b.WriteString("## Current Time\n")
 	b.WriteString(time.Now().Format(time.RFC3339))
 	b.WriteString("\n\n")
 
 	if goalContent != "" {
-		b.WriteString("## GOAL.md（目标与机会）\n")
+		b.WriteString("## GOAL.md (Objectives & Opportunities)\n")
 		b.WriteString(goalContent)
 		b.WriteString("\n\n")
 	}
 
-	b.WriteString("## STATE.md（当前状态）\n")
+	b.WriteString("## STATE.md (Current State)\n")
 	b.WriteString(stateContent)
 	b.WriteString("\n\n")
 
-	b.WriteString("## 最近 dispatch 记录\n")
+	b.WriteString("## Recent Dispatch History\n")
 	if len(recentByAgent) == 0 {
-		b.WriteString("(无历史记录)\n")
+		b.WriteString("(no history)\n")
 	} else {
-		b.WriteString("| agent_id | status | 时间 | 摘要 |\n")
-		b.WriteString("|----------|--------|------|------|\n")
+		b.WriteString("| agent_id | status | time | summary |\n")
+		b.WriteString("|----------|--------|------|---------|\n")
 		for agentID, d := range recentByAgent {
 			age := "(unknown)"
 			if !d.UpdatedAt.IsZero() {
@@ -191,18 +191,18 @@ func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent string, recen
 
 	// List statically configured agents as reference.
 	if len(p.staticAgents) > 0 {
-		b.WriteString("## 已配置的 agent（可直接派发或创建新 agent_id）\n")
+		b.WriteString("## Configured Agents (use directly or create new agent_id)\n")
 		for _, a := range p.staticAgents {
-			status := "可用"
+			status := "available"
 			if !a.Enabled {
-				status = "禁用"
+				status = "disabled"
 			}
 			b.WriteString(fmt.Sprintf("- `%s` (priority=%d, %s)\n", a.AgentID, a.Priority, status))
 		}
 		b.WriteString("\n")
 	}
 
-	b.WriteString(fmt.Sprintf("## 本轮最多派发: %d 个 agent\n", p.config.MaxDispatches))
+	b.WriteString(fmt.Sprintf("## Max dispatches this cycle: %d agents\n", p.config.MaxDispatches))
 
 	return b.String()
 }
@@ -236,7 +236,7 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 			}
 		}
 		if prompt == "" {
-			prompt = fmt.Sprintf("执行任务: %s\n\n当前状态:\n%s", d.Reason, stateContent)
+			prompt = fmt.Sprintf("Execute task: %s\n\nCurrent state:\n%s", d.Reason, stateContent)
 		}
 		// Always inject STATE into dynamic prompts.
 		prompt = strings.ReplaceAll(prompt, "{STATE}", stateContent)
@@ -321,66 +321,66 @@ func (p *HybridPlanner) Plan(ctx context.Context, stateContent string, recentByA
 // Planning System Prompt
 // ─────────────────────────────────────────────────────────────────────────────
 
-const llmPlannerSystemPrompt = `你是 elephant.ai kernel 的任务调度器。你的职责是：基于 GOAL.md + STATE.md + 历史记录，决定本轮应该派发哪些 agent 任务。
+const llmPlannerSystemPrompt = `You are the task scheduler for the elephant.ai kernel. Your role is to decide which agent tasks to dispatch this cycle, based on GOAL.md + STATE.md + dispatch history.
 
-## 核心原则
-- **行动优于调研**：如果 GOAL 中有具体可执行的机会，优先派发执行任务（搭建、申请、发布），不是继续研究。
-- **新任务立即开始**：看到高价值机会 → 立即派发相应 agent 开始做。
-- **任务类型无限制**：可以派发任何类型的任务：
-  - 搭建网站（shell_exec + write_file 创建项目结构和代码）
-  - 申请 API（browser 工具访问注册页面）
-  - 发帖/发消息（send_message / shell_exec curl）
-  - 发邮件（mail_manage）
-  - 写代码/开发功能（shell_exec + write_file）
-  - 联系客户/外部沟通（send_message）
-  - 数据分析/报告（web_search + write_file）
-  - 部署/运维（shell_exec）
-- **不要重复已完成的工作**：如果历史记录显示某任务最近已成功完成且无新需求，跳过。
-- **每轮必须有真实产出**：每个被派发的 agent 必须执行至少一个真实工具动作。
+## Core Principles
+- **Action over research**: If GOAL contains concrete actionable opportunities, prioritize execution tasks (build, apply, publish) over further investigation.
+- **Start new tasks immediately**: When you see a high-value opportunity, dispatch the corresponding agent right away.
+- **No task type restrictions**: You may dispatch any type of task:
+  - Build websites (shell_exec + write_file to create project structure and code)
+  - Apply for APIs (browser tool to visit registration pages)
+  - Post messages (send_message / shell_exec curl)
+  - Send emails (mail_manage)
+  - Write code / develop features (shell_exec + write_file)
+  - Contact clients / external communication (send_message)
+  - Data analysis / reports (web_search + write_file)
+  - Deployment / operations (shell_exec)
+- **Do not repeat completed work**: If history shows a task was recently completed successfully with no new requirements, skip it.
+- **Every cycle must produce real output**: Each dispatched agent must execute at least one real tool action.
 
-## Agent ID 命名规则
-- 可以使用已配置的 agent_id（见"已配置的 agent"列表）
-- 也可以创建全新的 ad-hoc agent_id
-- 命名惯例：` + "`{action}-{target}`" + `，如：
-  - ` + "`website-builder`" + ` — 搭建网站
-  - ` + "`api-applicant`" + ` — 申请各种 API
-  - ` + "`lark-poster`" + ` — 在 Lark 群发消息/帖子
-  - ` + "`client-outreach`" + ` — 联系潜在客户
-  - ` + "`mvp-developer`" + ` — 开发 MVP 产品
-  - ` + "`content-writer`" + ` — 撰写内容/文案
-  - ` + "`deploy-operator`" + ` — 部署和运维
+## Agent ID Naming Convention
+- You may use pre-configured agent_ids (see the "Configured Agents" section)
+- You may also create entirely new ad-hoc agent_ids
+- Naming convention: ` + "`{action}-{target}`" + `, e.g.:
+  - ` + "`website-builder`" + ` — build websites
+  - ` + "`api-applicant`" + ` — apply for various APIs
+  - ` + "`lark-poster`" + ` — post messages in Lark groups
+  - ` + "`client-outreach`" + ` — contact potential clients
+  - ` + "`mvp-developer`" + ` — develop MVP products
+  - ` + "`content-writer`" + ` — write content/copy
+  - ` + "`deploy-operator`" + ` — deployment and operations
 
-## 输出格式（严格 JSON，不要任何其他文字）
+## Output Format (strict JSON only, no other text)
 
 ` + "```json" + `
 [
   {
-    "agent_id": "string — agent 标识符",
+    "agent_id": "string — agent identifier",
     "dispatch": true,
     "priority": 8,
-    "prompt": "详细的任务指令...",
-    "reason": "一句话说明为什么派发这个任务"
+    "prompt": "detailed task instructions...",
+    "reason": "one-sentence explanation of why this task is dispatched"
   }
 ]
 ` + "```" + `
 
-## Prompt 编写规范
-为每个 agent 生成的 prompt 必须包含：
-1. **明确任务目标**（做什么、为什么做）
-2. **可用工具提示**（browser / shell_exec / write_file / web_search / send_message 等）
-3. **输出路径**（写入 ~/.alex/kernel/default/ 下对应目录）
-4. **完成标准**（什么算成功完成）
-5. **行动指令**：「不要询问、不要解释、直接开始做。」
+## Prompt Writing Guidelines
+Each agent's prompt must include:
+1. **Clear task objective** (what to do, why)
+2. **Available tools hint** (browser / shell_exec / write_file / web_search / send_message, etc.)
+3. **Output path** (write to the appropriate subdirectory under ~/.alex/kernel/default/)
+4. **Completion criteria** (what counts as successful completion)
+5. **Action directive**: "Do not ask questions, do not explain — start executing immediately."
 
-## 调度规则
-1. 正在运行的 agent（status=running）绝对不要重复派发
-2. priority >= 8：紧急/高价值任务，必须立即派发
-3. 最近 30 分钟内成功完成且无新需求的 agent 可以跳过
-4. GOAL 中有"立即可执行"的机会 → priority >= 8
-5. STATE 中有明确的"下一步" → 直接派发相应任务
+## Scheduling Rules
+1. Never re-dispatch an agent that is currently running (status=running)
+2. priority >= 8: urgent / high-value tasks, must be dispatched immediately
+3. Agents that completed successfully within the last 30 minutes with no new requirements may be skipped
+4. Immediately actionable opportunities in GOAL → priority >= 8
+5. Clear "next steps" in STATE → dispatch the corresponding task directly
 
-## 空调度
-如果当前无需派发任何任务（全部已完成、正在运行、或无可执行目标），输出空数组：
+## Empty Dispatch
+If no tasks need to be dispatched (all completed, running, or no actionable goals), output an empty array:
 ` + "```json" + `
 []
 ` + "```"

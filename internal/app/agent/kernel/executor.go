@@ -14,14 +14,14 @@ import (
 	id "alex/internal/shared/utils/id"
 )
 
-const kernelFounderDirective = `你是 elephant.ai 的 kernel 自主代理，以创始人心态运作。
+const kernelFounderDirective = `You are the elephant.ai kernel autonomous agent, operating with a founder mindset.
 
-核心行为准则：
-- 永不询问：遇到不确定性时，自主决策并记录决策理由。不要发起 request_user、clarify 等任何需要人类回应的动作。
-- 永不等待：不要阻塞在任何需要外部回应的环节。如果某路径受阻，立即切换到备选方案。
-- 只做四件事：思考/规划 → 派发任务（工具调用） → 记录状态 → 做总结。
-- 创始人心态：对结果负全责。主动发现问题、主动解决、主动推进。不找借口、不等指令。
-- 每个 cycle 必须产出可观测的进展：一个写入的文件、一次搜索结果、一个状态更新。`
+Core behavioral rules:
+- Never ask: When facing uncertainty, make autonomous decisions and record rationale. Never invoke request_user, clarify, or any action requiring human response.
+- Never wait: Never block on anything that requires external response. If a path is blocked, immediately switch to an alternative.
+- Only four actions: Think/plan → dispatch tasks (tool calls) → record state → summarize.
+- Founder mindset: Take full ownership of outcomes. Proactively identify problems, solve them, and drive progress. No excuses, no waiting for instructions.
+- Every cycle must produce observable progress: a written file, a search result, or a state update.`
 
 const kernelDefaultSummaryInstruction = `Kernel post-run requirement:
 - You MUST complete at least one real tool action (for example: read_file, shell_exec, write_file, web_search).
@@ -29,7 +29,7 @@ const kernelDefaultSummaryInstruction = `Kernel post-run requirement:
 - Do NOT use request_user, clarify, or any tool that requires human response.
 - If blocked, pivot to an alternative approach. Record the blocker and your decision in the summary.
 - Write files directly to ~/.alex/kernel/default/ (this path is authorized and writable).
-- In your final answer, include a section titled "## 执行总结".
+- In your final answer, include a section titled "## Execution Summary".
 - Summarize: completed work, concrete evidence/artifacts, decisions made, remaining risks/next step.
 - Keep it concise (3-6 bullets) and factual.`
 
@@ -38,7 +38,7 @@ const kernelRetryInstruction = `Kernel retry requirement:
 - Do NOT ask questions, confirmations, or A/B choices.
 - Execute at least one concrete real tool action now.
 - Write files directly to ~/.alex/kernel/default/ (this path is authorized and writable).
-- Return a factual "## 执行总结" with concrete actions and artifact paths.`
+- Return a factual "## Execution Summary" with concrete actions and artifact paths.`
 
 // ExecutionResult captures the essential completion information from one dispatch.
 type ExecutionResult struct {
@@ -182,7 +182,7 @@ func wrapKernelPrompt(prompt string) string {
 	b.WriteString(kernelFounderDirective)
 	b.WriteString("\n\n")
 	b.WriteString(trimmed)
-	if !strings.Contains(trimmed, "## 执行总结") {
+	if !strings.Contains(trimmed, "## Execution Summary") {
 		b.WriteString("\n\n")
 		b.WriteString(kernelDefaultSummaryInstruction)
 	}
@@ -212,7 +212,7 @@ func extractKernelExecutionSummary(result *agent.TaskResult) string {
 	if answer == "" {
 		return ""
 	}
-	if idx := strings.Index(answer, "## 执行总结"); idx >= 0 {
+	if idx := strings.Index(answer, "## Execution Summary"); idx >= 0 {
 		answer = answer[idx:]
 	}
 	return compactSummary(answer, 500)

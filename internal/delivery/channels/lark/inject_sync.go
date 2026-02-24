@@ -17,8 +17,8 @@ import (
 // InjectSyncRequest is the input for InjectMessageSync.
 type InjectSyncRequest struct {
 	ChatID             string        `json:"chat_id"`
-	ChatType           string        `json:"chat_type"`             // default "p2p"
-	SenderID           string        `json:"sender_id"`             // default "ou_inject_user"
+	ChatType           string        `json:"chat_type"` // default "p2p"
+	SenderID           string        `json:"sender_id"` // default "ou_inject_user"
 	Text               string        `json:"text"`
 	Timeout            time.Duration `json:"timeout"`               // default 5min
 	AutoReply          bool          `json:"auto_reply"`            // enable auto-reply on await_user_input
@@ -34,9 +34,9 @@ type InjectSyncResponse struct {
 }
 
 const (
-	defaultInjectTimeout       = 5 * time.Minute
-	defaultMaxAutoReplyRounds  = 3
-	llmAutoReplyTimeout        = 10 * time.Second
+	defaultInjectTimeout      = 5 * time.Minute
+	defaultMaxAutoReplyRounds = 3
+	llmAutoReplyTimeout       = 10 * time.Second
 )
 
 // InjectMessageSync injects a message and blocks until the task completes,
@@ -91,7 +91,12 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 		waitErr := g.waitForSlotIdle(ctx, req.ChatID, deadline)
 
 		if waitErr != nil {
-			time.Sleep(500 * time.Millisecond)
+			// Prevent timed-out inject runs from leaving a runaway task
+			// goroutine consuming resources in the background.
+			if g.cancelRunningTask(req.ChatID) {
+				_ = g.waitForSlotIdle(context.Background(), req.ChatID, g.currentTime().Add(3*time.Second))
+			}
+			time.Sleep(200 * time.Millisecond)
 			tee.disable()
 			return &InjectSyncResponse{
 				Replies:     tee.captured(),
@@ -133,6 +138,26 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 		Duration:    g.currentTime().Sub(start),
 		AutoReplies: autoReplies,
 	}
+}
+
+// cancelRunningTask cancels the currently running task for chatID when present.
+func (g *Gateway) cancelRunningTask(chatID string) bool {
+	raw, ok := g.activeSlots.Load(chatID)
+	if !ok {
+		return false
+	}
+	slot := raw.(*sessionSlot)
+
+	slot.mu.Lock()
+	phase := slot.phase
+	cancel := slot.taskCancel
+	slot.mu.Unlock()
+
+	if phase != slotRunning || cancel == nil {
+		return false
+	}
+	cancel()
+	return true
 }
 
 // waitForSlotIdle polls the active slot for chatID until the phase is no longer
@@ -199,7 +224,7 @@ func heuristicAutoReply(options []string) string {
 	if len(options) > 0 {
 		return "1"
 	}
-	return "请直接执行，不需要进一步确认"
+	return "Proceed directly, no further confirmation needed."
 }
 
 // llmAutoReply calls a lightweight LLM to generate a context-aware reply,
@@ -215,13 +240,13 @@ func (g *Gateway) llmAutoReply(ctx context.Context, originalText, question strin
 		return "", err
 	}
 
-	systemPrompt := `你是一个自动回复助手。用户给 AI 下了一个指令，AI 提出了澄清问题。
-请根据原始指令生成一个简短的回复让 AI 继续执行，而不是继续追问。
-只输出回复内容，不加任何解释。如果 AI 给出了编号选项，只回复最合适的选项编号。`
+	systemPrompt := `You are an auto-reply assistant. The user gave the AI an instruction, and the AI asked a clarification question.
+Generate a short reply based on the original instruction that lets the AI continue executing, rather than asking more questions.
+Output only the reply content with no explanation. If the AI presented numbered options, reply with the most appropriate option number only.`
 
-	userPrompt := fmt.Sprintf("原始指令: %s\n\nAI 的澄清问题: %s", originalText, question)
+	userPrompt := fmt.Sprintf("Original instruction: %s\n\nAI's clarification question: %s", originalText, question)
 	if len(options) > 0 {
-		userPrompt += "\n\n选项:\n"
+		userPrompt += "\n\nOptions:\n"
 		for i, opt := range options {
 			userPrompt += fmt.Sprintf("[%d] %s\n", i+1, opt)
 		}

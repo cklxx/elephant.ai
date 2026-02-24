@@ -23,7 +23,7 @@ func TestFormatCycleNotification_Success(t *testing.T) {
 		Duration: 3200 * time.Millisecond,
 	}
 	got := FormatCycleNotification("default", result, nil)
-	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-1\n- 状态: success\n- 任务总数: 2\n- 已完成: 2\n- 失败: 0\n- 完成率: 100.0%\n- 失败任务: (none)\n- 主动性: actionable=2/2, auto_recovered=0, blocked_awaiting_input=0, blocked_no_action=0\n- 执行总结:\n  - [agent-a|done] 已完成 A\n  - [agent-b|done] 已完成 B\n- 耗时: 3.2s"
+	want := "Kernel[default] Cycle Summary\n- cycle_id: cycle-1\n- Status: success\n- Total tasks: 2\n- Succeeded: 2\n- Failed: 0\n- Success rate: 100.0%\n- Failed tasks: (none)\n- Autonomy: actionable=2/2, auto_recovered=0, blocked_awaiting_input=0, blocked_no_action=0\n- Execution summary:\n  - [agent-a|done] 已完成 A\n  - [agent-b|done] 已完成 B\n- Duration: 3.2s"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -45,7 +45,7 @@ func TestFormatCycleNotification_PartialFailure(t *testing.T) {
 		Duration: 5100 * time.Millisecond,
 	}
 	got := FormatCycleNotification("default", result, nil)
-	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-2\n- 状态: partial_success\n- 任务总数: 3\n- 已完成: 2\n- 失败: 1\n- 完成率: 66.7%\n- 失败任务: agent-b\n- 主动性: actionable=1/2, auto_recovered=0, blocked_awaiting_input=0, blocked_no_action=0\n- 执行总结:\n  - [agent-a|done] 修复配置\n  - [agent-b|failed] rate limit\n- 耗时: 5.1s"
+	want := "Kernel[default] Cycle Summary\n- cycle_id: cycle-2\n- Status: partial_success\n- Total tasks: 3\n- Succeeded: 2\n- Failed: 1\n- Success rate: 66.7%\n- Failed tasks: agent-b\n- Autonomy: actionable=1/2, auto_recovered=0, blocked_awaiting_input=0, blocked_no_action=0\n- Execution summary:\n  - [agent-a|done] 修复配置\n  - [agent-b|failed] rate limit\n- Duration: 5.1s"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -66,7 +66,7 @@ func TestFormatCycleNotification_AllFailed(t *testing.T) {
 		Duration: 1500 * time.Millisecond,
 	}
 	got := FormatCycleNotification("default", result, nil)
-	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-3\n- 状态: failed\n- 任务总数: 2\n- 已完成: 0\n- 失败: 2\n- 完成率: 0.0%\n- 失败任务: agent-a,agent-b\n- 主动性: actionable=0/2, auto_recovered=0, blocked_awaiting_input=0, blocked_no_action=0\n- 执行总结:\n  - [agent-a|failed] a failed\n  - [agent-b|failed] b failed\n- 耗时: 1.5s"
+	want := "Kernel[default] Cycle Summary\n- cycle_id: cycle-3\n- Status: failed\n- Total tasks: 2\n- Succeeded: 0\n- Failed: 2\n- Success rate: 0.0%\n- Failed tasks: agent-a,agent-b\n- Autonomy: actionable=0/2, auto_recovered=0, blocked_awaiting_input=0, blocked_no_action=0\n- Execution summary:\n  - [agent-a|failed] a failed\n  - [agent-b|failed] b failed\n- Duration: 1.5s"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -74,7 +74,7 @@ func TestFormatCycleNotification_AllFailed(t *testing.T) {
 
 func TestFormatCycleNotification_CycleError(t *testing.T) {
 	got := FormatCycleNotification("default", nil, fmt.Errorf("read state: file not found"))
-	want := "Kernel[default] 周期异常\n- 错误: read state: file not found"
+	want := "Kernel[default] Cycle Error\n- Error: read state: file not found"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -109,7 +109,7 @@ func TestFormatCycleNotification_AutonomySignals(t *testing.T) {
 	}
 
 	got := FormatCycleNotification("default", result, nil)
-	wantLine := "- 主动性: actionable=1/3, auto_recovered=1, blocked_awaiting_input=1, blocked_no_action=1"
+	wantLine := "- Autonomy: actionable=1/3, auto_recovered=1, blocked_awaiting_input=1, blocked_no_action=1"
 	if !strings.Contains(got, wantLine) {
 		t.Fatalf("expected autonomy signals line %q in notification:\n%s", wantLine, got)
 	}
