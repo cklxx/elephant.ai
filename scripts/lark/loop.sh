@@ -210,7 +210,7 @@ restore_test_to_validated() {
 
 run_scenario_suite() {
   # Use go run so the scenario runner always matches the current worktree code.
-  (cd "${TEST_ROOT}" && go run ./cmd/alex lark scenario run --dir tests/scenarios/lark --json-out "${SCENARIO_JSON}" --md-out "${SCENARIO_MD}")
+  (cd "${TEST_ROOT}" && go run ./cmd/alex lark scenario run --mode mock --dir tests/scenarios/lark --json-out "${SCENARIO_JSON}" --md-out "${SCENARIO_MD}")
 }
 
 run_fast_gate() {
