@@ -36,7 +36,7 @@ var providerPresets = map[string]providerPreset{
 			{ID: "gpt-5.1-codex-max", Tier: "quality"},
 		},
 		KeyCreateURL: "https://chatgpt.com/#settings/Codex",
-		SetupHint: "Sign in with Codex CLI (`codex login`) or set CODEX_API_KEY.",
+		SetupHint:    "Sign in with Codex CLI (`codex login`) or set CODEX_API_KEY.",
 	},
 	"openai": {
 		DisplayName:    "OpenAI",
@@ -74,7 +74,7 @@ var providerPresets = map[string]providerPreset{
 			{ID: "claude-3-7-sonnet-20250219", Tier: "quality"},
 		},
 		KeyCreateURL: "https://console.anthropic.com/settings/keys",
-		SetupHint: "Sign in with Claude CLI or set CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY.",
+		SetupHint:    "Sign in with Claude CLI or set CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY.",
 	},
 	"claude": {
 		DisplayName:    "Anthropic",
@@ -86,7 +86,7 @@ var providerPresets = map[string]providerPreset{
 			{ID: "claude-3-7-sonnet-20250219", Tier: "quality"},
 		},
 		KeyCreateURL: "https://console.anthropic.com/settings/keys",
-		SetupHint: "Sign in with Claude CLI or set CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY.",
+		SetupHint:    "Sign in with Claude CLI or set CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY.",
 	},
 	"kimi": {
 		DisplayName:    "Kimi (Moonshot)",
@@ -142,6 +142,19 @@ type ProviderPreset struct {
 	SetupHint         string
 }
 
+func buildProviderPreset(provider string, preset providerPreset) ProviderPreset {
+	return ProviderPreset{
+		Provider:          provider,
+		DisplayName:       preset.DisplayName,
+		AuthMode:          preset.AuthMode,
+		DefaultBaseURL:    preset.DefaultBaseURL,
+		DefaultModel:      preset.DefaultModel,
+		RecommendedModels: append([]ModelRecommendation(nil), preset.RecommendedModels...),
+		KeyCreateURL:      preset.KeyCreateURL,
+		SetupHint:         preset.SetupHint,
+	}
+}
+
 // ListProviderPresets returns all known provider presets sorted by provider id.
 func ListProviderPresets() []ProviderPreset {
 	keys := make([]string, 0, len(providerPresets))
@@ -153,16 +166,7 @@ func ListProviderPresets() []ProviderPreset {
 	out := make([]ProviderPreset, 0, len(keys))
 	for _, key := range keys {
 		preset := providerPresets[key]
-		out = append(out, ProviderPreset{
-			Provider:          key,
-			DisplayName:       preset.DisplayName,
-			AuthMode:          preset.AuthMode,
-			DefaultBaseURL:    preset.DefaultBaseURL,
-			DefaultModel:      preset.DefaultModel,
-			RecommendedModels: append([]ModelRecommendation(nil), preset.RecommendedModels...),
-			KeyCreateURL:      preset.KeyCreateURL,
-			SetupHint:         preset.SetupHint,
-		})
+		out = append(out, buildProviderPreset(key, preset))
 	}
 	return out
 }
@@ -174,16 +178,7 @@ func LookupProviderPreset(provider string) (ProviderPreset, bool) {
 	if !ok {
 		return ProviderPreset{}, false
 	}
-	return ProviderPreset{
-		Provider:          key,
-		DisplayName:       preset.DisplayName,
-		AuthMode:          preset.AuthMode,
-		DefaultBaseURL:    preset.DefaultBaseURL,
-		DefaultModel:      preset.DefaultModel,
-		RecommendedModels: append([]ModelRecommendation(nil), preset.RecommendedModels...),
-		KeyCreateURL:      preset.KeyCreateURL,
-		SetupHint:         preset.SetupHint,
-	}, true
+	return buildProviderPreset(key, preset), true
 }
 
 func applyCatalogProviderPreset(provider *CatalogProvider) {
