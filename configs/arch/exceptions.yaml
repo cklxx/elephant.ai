@@ -587,6 +587,10 @@ file_loc:
     reason: "Comprehensive Lark gateway test suite"
     expires_at: "2026-03-31"
 package_size:
+  - package: "alex/internal/delivery/channels/lark"
+    owner: "cklxx"
+    reason: "Lark gateway has many features (inject, AI chat, tasks, commands)"
+    expires_at: "2026-03-31"
   - package: "alex/internal/delivery/server/http"
     owner: "cklxx"
     reason: "HTTP handler layer has many endpoints"

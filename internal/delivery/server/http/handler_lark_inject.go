@@ -98,5 +98,5 @@ func (h *LarkInjectHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	if resp.Error != "" {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
-	json.NewEncoder(w).Encode(body)
+	_ = json.NewEncoder(w).Encode(body)
 }
