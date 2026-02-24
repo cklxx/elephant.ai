@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import type { HomeLang } from "./types";
+type HomeLang = "en" | "zh";
 
 /* ================================================================
    Copy – bilingual content
