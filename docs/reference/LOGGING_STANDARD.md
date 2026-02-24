@@ -8,6 +8,7 @@ This document defines the logging conventions for all runtime components
 - Consistent key naming: use `log_id`, `session_id`, `task_id`, `parent_task_id`,
   and `request_id`.
 - Logs remain human-readable while enabling grep-based correlation.
+- Keep signal-to-noise high on hot paths (no per-iteration/per-event INFO spam).
 
 ## Required fields
 - **log_id**: primary correlation key for a single run.
@@ -27,6 +28,26 @@ This document defines the logging conventions for all runtime components
 - CLI commands use `cliBaseContext()` to ensure a `log_id` per invocation.
 - CLI latency output should use `clilatency.PrintfWithContext(...)` to keep
   `log_id` visible in stderr timing lines.
+
+## Level policy (noise control)
+- `ERROR`: execution failed and user-impacting behavior cannot proceed.
+- `WARN`: degraded behavior with fallback/retry/drop occurred.
+- `INFO`: lifecycle milestones only (start/stop, task completed, one-shot summaries).
+- `DEBUG`: high-frequency internals (iteration loop, tool-call details, stream counters).
+
+## Redundancy rules
+- Do not duplicate component names in message text when component logger already scopes logs.
+- Avoid logging the same state transition in both caller and callee unless they add different dimensions.
+- In loops/hot paths, avoid `INFO` logs for every iteration/event; use `DEBUG` or sampling.
+- Prefer one summary log over many step-by-step logs when steps are deterministic and already observable via events/metrics.
+- Do not include large dynamic payloads in routine logs (task body, long args, full session list).
+
+## Review checklist
+- Is this log needed for incident triage within 2 minutes?
+- Is the chosen level aligned with impact, not developer curiosity?
+- Will this line fire in a loop or high-frequency code path?
+- Does an existing log already express the same event?
+- Can IDs (`log_id/session_id/task_id`) replace verbose textual repetition?
 
 ## Example (YAML)
 ```yaml
