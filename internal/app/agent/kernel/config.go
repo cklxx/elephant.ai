@@ -15,8 +15,9 @@ const (
 	DefaultKernelChannel         = "lark"
 	DefaultKernelUserID          = "cklxx"
 
-	DefaultKernelPlannerMaxDispatches = 5
+	DefaultKernelPlannerMaxDispatches  = 5
 	DefaultKernelPlannerTimeoutSec    = 30
+	DefaultKernelNotifyWindowMinutes  = 180 // 3-hour aggregation window
 )
 
 const defaultKernelOperatorPrompt = `你是 elephant.ai kernel 的执行代理。请直接行动，不提问、不等待。
@@ -39,11 +40,12 @@ type RuntimeSettings struct {
 	LeaseSeconds    int
 	MaxConcurrent   int
 	MaxCycleHistory int
-	Channel         string
-	ChatID          string
-	UserID          string
-	Planner         PlannerSettings
-	Agents          []AgentConfig
+	Channel             string
+	ChatID              string
+	UserID              string
+	NotifyWindowMinutes int
+	Planner             PlannerSettings
+	Agents              []AgentConfig
 }
 
 // PlannerSettings controls built-in LLM planner defaults.
@@ -70,15 +72,16 @@ func DefaultRuntimeSettings() RuntimeSettings {
 		},
 	}
 	return RuntimeSettings{
-		KernelID:        DefaultKernelID,
-		Schedule:        DefaultKernelSchedule,
-		SeedState:       DefaultSeedStateContent,
-		TimeoutSeconds:  DefaultKernelTimeoutSeconds,
-		LeaseSeconds:    DefaultKernelLeaseSeconds,
-		MaxConcurrent:   DefaultKernelMaxConcurrent,
-		MaxCycleHistory: DefaultKernelMaxCycleHistory,
-		Channel:         DefaultKernelChannel,
-		UserID:          DefaultKernelUserID,
+		KernelID:            DefaultKernelID,
+		Schedule:            DefaultKernelSchedule,
+		SeedState:           DefaultSeedStateContent,
+		TimeoutSeconds:      DefaultKernelTimeoutSeconds,
+		LeaseSeconds:        DefaultKernelLeaseSeconds,
+		MaxConcurrent:       DefaultKernelMaxConcurrent,
+		MaxCycleHistory:     DefaultKernelMaxCycleHistory,
+		Channel:             DefaultKernelChannel,
+		UserID:              DefaultKernelUserID,
+		NotifyWindowMinutes: DefaultKernelNotifyWindowMinutes,
 		Planner: PlannerSettings{
 			Enabled:        true,
 			MaxDispatches:  DefaultKernelPlannerMaxDispatches,
@@ -94,10 +97,11 @@ type KernelConfig struct {
 	Schedule        string
 	SeedState       string
 	MaxConcurrent   int
-	MaxCycleHistory int // rolling history rows; default 5
-	Channel         string
-	ChatID          string
-	UserID          string
+	MaxCycleHistory     int // rolling history rows; default 5
+	Channel             string
+	ChatID              string
+	UserID              string
+	NotifyWindowMinutes int // 0 = per-cycle notification (legacy); >0 = aggregation window
 }
 
 // AgentConfig defines a single agent that the kernel dispatches.

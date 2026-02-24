@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"time"
 
 	kernel "alex/internal/app/agent/kernel"
 	"alex/internal/app/lifecycle"
@@ -24,12 +25,15 @@ func (f *Foundation) KernelStage(sm *SubsystemManager) BootstrapStage {
 
 			// Wire cycle notifier via LarkGateway /notice binding.
 			if gw := f.Container.LarkGateway; gw != nil {
-				kernelID := kernel.DefaultRuntimeSettings().KernelID
+				defaults := kernel.DefaultRuntimeSettings()
+				kernelID := defaults.KernelID
 				if kernelID == "" {
 					kernelID = kernel.DefaultKernelID
 				}
 				loader := gw.NoticeLoader()
-				f.Container.KernelEngine.SetNotifier(func(ctx context.Context, result *kerneldomain.CycleResult, err error) {
+
+				// Raw sender: resolves /notice target and delivers text.
+				rawSender := func(ctx context.Context, text string) {
 					chatID, ok, loadErr := loader()
 					if loadErr != nil {
 						logger.Warn("Kernel notifier: load notice target: %v", loadErr)
@@ -38,11 +42,35 @@ func (f *Foundation) KernelStage(sm *SubsystemManager) BootstrapStage {
 					if !ok {
 						return // notice not bound, skip
 					}
-					text := kernel.FormatCycleNotification(kernelID, result, err)
 					if sendErr := gw.SendNotification(ctx, chatID, text); sendErr != nil {
 						logger.Warn("Kernel notifier: send failed: %v", sendErr)
 					}
-				})
+				}
+
+				windowMins := defaults.NotifyWindowMinutes
+				if windowMins > 0 {
+					// Aggregated mode: buffer routine successes, flush periodically.
+					aggregator := kernel.NewCycleAggregator(
+						kernelID,
+						time.Duration(windowMins)*time.Minute,
+						rawSender,
+					)
+					f.Container.KernelEngine.SetNotifier(aggregator.HandleCycle)
+
+					// Ensure aggregator flushes on shutdown.
+					f.Container.Drainables = append(f.Container.Drainables,
+						lifecycle.DrainFunc{
+							DrainName: "kernel-cycle-aggregator",
+							Fn:        func(ctx context.Context) { aggregator.Close(ctx) },
+						},
+					)
+				} else {
+					// Legacy per-cycle notification.
+					f.Container.KernelEngine.SetNotifier(func(ctx context.Context, result *kerneldomain.CycleResult, err error) {
+						text := kernel.FormatCycleNotification(kernelID, result, err)
+						rawSender(ctx, text)
+					})
+				}
 			}
 
 			logger.Info("Starting kernel engine subsystem")
