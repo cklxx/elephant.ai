@@ -1,0 +1,1 @@
+Summary: Reducing hot-path logs by deleting duplicate event traces, downgrading loop-level INFO to DEBUG, and enforcing prefix/noise governance keeps diagnostics useful while cutting runtime log spam.

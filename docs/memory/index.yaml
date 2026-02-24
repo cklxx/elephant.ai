@@ -1,6 +1,43 @@
 version: 1
-updated: "2026-02-23"
+updated: "2026-02-24"
 nodes:
+    - id: good-2026-02-24-lark-inject-sync-e2e-testing
+      path: docs/good-experience/entries/2026-02-24-lark-inject-sync-e2e-testing.md
+      type: good_entry
+      date: "2026-02-24"
+      tags:
+        - config
+        - good
+        - lark
+        - observability
+        - session
+      summary: 'Impact: 填补了 Lark 管线在本地验证的空白 — 之前只能 mock executor 或手动在 Lark UI 发消息，现在一条 CLI 命令走完整管线并看到 bot 回复。'
+    - id: good-2026-02-24-systematic-log-noise-reduction
+      path: docs/good-experience/entries/2026-02-24-systematic-log-noise-reduction.md
+      type: good_entry
+      date: "2026-02-24"
+      tags:
+        - good
+        - session
+      summary: 'Impact: Reduced runtime log noise in ReAct/task execution hot paths while preserving key failure diagnostics and lifecycle visibility.'
+    - id: goodsum-2026-02-24-systematic-log-noise-reduction
+      path: docs/good-experience/summary/entries/2026-02-24-systematic-log-noise-reduction.md
+      type: good_summary
+      date: "2026-02-24"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Reducing hot-path logs by deleting duplicate event traces, downgrading loop-level INFO to DEBUG, and enforcing prefix/noise governance keeps diagnostics useful while cutti...'
+    - id: plan-2026-02-24-lark-agent-teams-notification-observability
+      path: docs/plans/2026-02-24-lark-agent-teams-notification-observability.md
+      type: plan
+      date: "2026-02-24"
+      tags:
+        - lark
+        - observability
+        - plan
+        - session
+      summary: 'Date: 2026-02-24'
     - id: good-2026-02-23-branch-delete-policy-fallback
       path: docs/good-experience/entries/2026-02-23-branch-delete-policy-fallback.md
       type: good_entry
@@ -41,6 +78,17 @@ nodes:
         - memory
         - plan
       summary: Implement graph-style memory usage so memories can reference each other and be traversed as a network, while organizing all repository memory docs (including Lark-related docs) und...
+    - id: plan-2026-02-23-networked-memory-lark-e2e
+      path: docs/plans/2026-02-23-networked-memory-lark-e2e.md
+      type: plan
+      date: "2026-02-23"
+      tags:
+        - lark
+        - memory
+        - observability
+        - plan
+        - session
+      summary: Deliver a network-style memory organization update (including AGENTS/CLAUDE guidance and memory reference docs), and make Lark + Web end-to-end validation green on the current bran...
     - id: plan-2026-02-17-pr1-domain-decouple-lark
       path: docs/plans/2026-02-17-pr1-domain-decouple-lark.md
       type: plan

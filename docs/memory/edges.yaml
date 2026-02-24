@@ -1,5 +1,5 @@
 version: 1
-updated: "2026-02-23"
+updated: "2026-02-24"
 edges:
     - from: err-2026-01-27-dev-lint-test-cmd-alex-context
       to: errsum-2026-01-27-dev-lint-test-cmd-alex-context
@@ -377,6 +377,10 @@ edges:
       to: goodsum-2026-02-23-branch-delete-policy-fallback
       type: see_also
       direction: directed
+    - from: good-2026-02-24-systematic-log-noise-reduction
+      to: goodsum-2026-02-24-systematic-log-noise-reduction
+      type: see_also
+      direction: directed
     - from: goodsum-2026-01-30-continuous-practice-optimization
       to: good-2026-01-30-continuous-practice-optimization
       type: derived_from
@@ -551,6 +555,10 @@ edges:
       direction: directed
     - from: goodsum-2026-02-23-branch-delete-policy-fallback
       to: good-2026-02-23-branch-delete-policy-fallback
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-24-systematic-log-noise-reduction
+      to: good-2026-02-24-systematic-log-noise-reduction
       type: derived_from
       direction: directed
     - from: ltm-long-term-memory
@@ -931,6 +939,14 @@ edges:
       direction: directed
     - from: ltm-long-term-memory
       to: plan-2026-02-23-networked-memory-implementation
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-23-networked-memory-lark-e2e
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-24-lark-agent-teams-notification-observability
       type: see_also
       direction: directed
 schema:
