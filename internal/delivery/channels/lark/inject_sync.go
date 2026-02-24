@@ -70,8 +70,11 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 	deadline := start.Add(req.Timeout)
 	waitErr := g.waitForSlotIdle(ctx, req.ChatID, deadline)
 
-	// Wait for tracked goroutines and disable recording.
-	g.WaitForTasks()
+	// Allow a short grace period for detached goroutines (e.g. addReaction)
+	// to complete their messenger calls before we stop recording.
+	// We cannot use WaitForTasks() here because the task goroutine may be
+	// parked in drainAndReprocess (awaiting user input) and would block forever.
+	time.Sleep(500 * time.Millisecond)
 	tee.disable()
 
 	if waitErr != nil {
