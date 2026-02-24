@@ -28,12 +28,8 @@ func NewShareHandler(sessions *app.SessionService, sseHandler *SSEHandler) *Shar
 
 // HandleSharedSession handles GET /api/share/sessions/{session_id}
 func (h *ShareHandler) HandleSharedSession(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("session_id")
-	if sessionID == "" {
-		http.Error(w, "Invalid session path", http.StatusBadRequest)
-		return
-	}
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

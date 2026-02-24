@@ -85,8 +85,8 @@ type ShareSessionResponse struct {
 
 // HandleGetSession handles GET /api/sessions/{session_id}
 func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("session_id")
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
@@ -105,8 +105,8 @@ func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 
 // HandleGetSessionPersona handles GET /api/sessions/{session_id}/persona
 func (h *APIHandler) HandleGetSessionPersona(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("session_id")
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, "Invalid session ID", err)
 		return
 	}
@@ -128,8 +128,8 @@ func (h *APIHandler) HandleGetSessionPersona(w http.ResponseWriter, r *http.Requ
 
 // HandleUpdateSessionPersona handles PUT /api/sessions/{session_id}/persona
 func (h *APIHandler) HandleUpdateSessionPersona(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("session_id")
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, "Invalid session ID", err)
 		return
 	}
@@ -179,8 +179,8 @@ func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request)
 
 // HandleCreateSessionShare handles POST /api/sessions/{session_id}/share
 func (h *APIHandler) HandleCreateSessionShare(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("session_id")
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
@@ -276,8 +276,8 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 
 // HandleDeleteSession handles DELETE /api/sessions/{session_id}
 func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("session_id")
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
@@ -292,8 +292,8 @@ func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request)
 
 // HandleListSnapshots handles GET /api/sessions/{session_id}/snapshots
 func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("session_id")
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
@@ -339,8 +339,8 @@ func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request)
 
 // HandleGetTurnSnapshot handles GET /api/sessions/{session_id}/turns/{turn_id}
 func (h *APIHandler) HandleGetTurnSnapshot(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("session_id")
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
@@ -375,8 +375,8 @@ func (h *APIHandler) HandleGetTurnSnapshot(w http.ResponseWriter, r *http.Reques
 
 // HandleReplaySession handles POST /api/sessions/{session_id}/replay
 func (h *APIHandler) HandleReplaySession(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("session_id")
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
@@ -392,8 +392,8 @@ func (h *APIHandler) HandleReplaySession(w http.ResponseWriter, r *http.Request)
 
 // HandleForkSession handles POST /api/sessions/{session_id}/fork
 func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("session_id")
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}

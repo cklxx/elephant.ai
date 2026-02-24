@@ -44,8 +44,8 @@ func (h *APIHandler) HandleGetContextWindowPreview(w http.ResponseWriter, r *htt
 		return
 	}
 
-	sessionID := r.PathValue("session_id")
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
@@ -85,8 +85,8 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	sessionID := r.PathValue("session_id")
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromPath(r)
+	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}

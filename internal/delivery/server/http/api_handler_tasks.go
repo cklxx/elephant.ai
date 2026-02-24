@@ -261,10 +261,12 @@ func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
 	if sessionID != "" {
-		if err := validateSessionID(sessionID); err != nil {
+		validatedSessionID, err := extractRequiredSessionID(sessionID)
+		if err != nil {
 			h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 			return
 		}
+		sessionID = validatedSessionID
 	}
 
 	// Parse pagination parameters

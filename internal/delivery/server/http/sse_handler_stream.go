@@ -35,8 +35,8 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get session ID from query parameter
-	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromQuery(r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -417,8 +417,8 @@ func (h *SSEHandler) HandleTaskSSEStream(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "task_id is required", http.StatusBadRequest)
 		return
 	}
-	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
-	if err := validateSessionID(sessionID); err != nil {
+	sessionID, err := extractRequiredSessionIDFromQuery(r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
