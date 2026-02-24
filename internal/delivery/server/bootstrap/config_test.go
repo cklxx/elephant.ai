@@ -25,6 +25,11 @@ func TestNormalizeAllowedOrigins(t *testing.T) {
 		want  []string
 	}{
 		{
+			name:  "nil input",
+			input: nil,
+			want:  nil,
+		},
+		{
 			name:  "empty",
 			input: []string{},
 			want:  []string{},

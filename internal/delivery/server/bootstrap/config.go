@@ -11,6 +11,7 @@ import (
 	"alex/internal/infra/attachments"
 	runtimeconfig "alex/internal/shared/config"
 	configadmin "alex/internal/shared/config/admin"
+	sharedutils "alex/internal/shared/utils"
 )
 
 // Config holds server configuration.
@@ -633,21 +634,5 @@ func applyAttachmentConfig(cfg *Config, file runtimeconfig.FileConfig) {
 }
 
 func normalizeAllowedOrigins(values []string) []string {
-	if values == nil {
-		return nil
-	}
-	origins := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		origin := strings.TrimSpace(value)
-		if origin == "" {
-			continue
-		}
-		if _, ok := seen[origin]; ok {
-			continue
-		}
-		seen[origin] = struct{}{}
-		origins = append(origins, origin)
-	}
-	return origins
+	return sharedutils.TrimDedupeStrings(values)
 }
