@@ -7,7 +7,7 @@ import (
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
-	toolcontext "alex/internal/app/toolcontext"
+	builtinshared "alex/internal/infra/tools/builtin/shared"
 	"alex/internal/app/workdir"
 	"alex/internal/delivery/channels"
 	ports "alex/internal/domain/agent/ports"
@@ -119,9 +119,9 @@ func (g *Gateway) handleNewSessionCommand(slot *sessionSlot, msg *incomingMessag
 	slot.mu.Unlock()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", newSessionID, msg.senderID, msg.chatID, msg.isGroup)
-	execCtx = toolcontext.WithLarkClient(execCtx, g.client)
-	execCtx = toolcontext.WithLarkChatID(execCtx, msg.chatID)
-	execCtx = toolcontext.WithLarkMessageID(execCtx, msg.messageID)
+	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
+	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
+	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
 	g.persistChatSessionBinding(execCtx, msg.chatID, newSessionID)
 	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("已开启新会话，后续消息将使用新的上下文。"))
 }
@@ -141,9 +141,9 @@ func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
 	slot.mu.Unlock()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
-	execCtx = toolcontext.WithLarkClient(execCtx, g.client)
-	execCtx = toolcontext.WithLarkChatID(execCtx, msg.chatID)
-	execCtx = toolcontext.WithLarkMessageID(execCtx, msg.messageID)
+	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
+	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
+	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
 	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("`/reset` 已弃用，请使用 `/new` 开启新的会话。"))
 }
 
@@ -245,7 +245,7 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 	awaitTracker := &awaitQuestionTracker{}
 	listener, cleanupListeners, progressLn := g.setupListeners(execCtx, msg, awaitTracker)
 	defer cleanupListeners()
-	execCtx = toolcontext.WithParentListener(execCtx, listener)
+	execCtx = builtinshared.WithParentListener(execCtx, listener)
 
 	// Resolve task content from three distinct concerns:
 	// 1. Plan review feedback (if any pending plan review exists)
@@ -300,14 +300,14 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 // taskCtx is an optional cancellation source used to abort long-running tasks.
 func (g *Gateway) buildExecContext(taskCtx context.Context, msg *incomingMessage, sessionID string, inputCh chan agent.UserInput) (context.Context, context.CancelFunc) {
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
-	execCtx = toolcontext.WithLarkClient(execCtx, g.client)
-	execCtx = toolcontext.WithLarkChatID(execCtx, msg.chatID)
-	execCtx = toolcontext.WithLarkMessageID(execCtx, msg.messageID)
+	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
+	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
+	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
 	if calendarID := strings.TrimSpace(g.cfg.TenantCalendarID); calendarID != "" {
-		execCtx = toolcontext.WithLarkTenantCalendarID(execCtx, calendarID)
+		execCtx = builtinshared.WithLarkTenantCalendarID(execCtx, calendarID)
 	}
 	if g.oauth != nil {
-		execCtx = toolcontext.WithLarkOAuth(execCtx, g.oauth)
+		execCtx = builtinshared.WithLarkOAuth(execCtx, g.oauth)
 	}
 	execCtx = appcontext.WithPlanReviewEnabled(execCtx, g.cfg.PlanReviewEnabled)
 	execCtx = g.applyPlanModeToContext(execCtx, msg)
@@ -325,7 +325,7 @@ func (g *Gateway) buildExecContext(taskCtx context.Context, msg *incomingMessage
 	if autoUploadMaxBytes <= 0 {
 		autoUploadMaxBytes = 2 * 1024 * 1024
 	}
-	execCtx = toolcontext.WithAutoUploadConfig(execCtx, toolcontext.AutoUploadConfig{
+	execCtx = builtinshared.WithAutoUploadConfig(execCtx, builtinshared.AutoUploadConfig{
 		Enabled:   g.cfg.AutoUploadFiles,
 		MaxBytes:  autoUploadMaxBytes,
 		AllowExts: normalizeExtensions(g.cfg.AutoUploadAllowExt),

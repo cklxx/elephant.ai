@@ -10,7 +10,7 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/cost"
 	"alex/internal/app/agent/llmclient"
-	sessiontitle "alex/internal/app/agent/sessiontitle"
+	utils "alex/internal/shared/utils"
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
@@ -357,7 +357,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			session.Metadata = make(map[string]string)
 		}
 		if strings.TrimSpace(session.Metadata["title"]) == "" {
-			if title := sessiontitle.NormalizeSessionTitle(taskAnalysis.ActionName); title != "" {
+			if title := utils.NormalizeSessionTitle(taskAnalysis.ActionName); title != "" {
 				session.Metadata["title"] = title
 			}
 		}
@@ -537,7 +537,7 @@ func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, s
 				s.clock.Now(),
 			))
 		}
-		title := sessiontitle.NormalizeSessionTitle(analysis.ActionName)
+		title := utils.NormalizeSessionTitle(analysis.ActionName)
 		if title == "" {
 			return
 		}

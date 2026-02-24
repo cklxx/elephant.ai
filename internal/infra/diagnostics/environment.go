@@ -3,6 +3,8 @@ package diagnostics
 import (
 	"sync"
 	"time"
+
+	"alex/internal/shared/utils"
 )
 
 type EnvironmentPayload struct {
@@ -71,25 +73,14 @@ func LatestEnvironments() (EnvironmentPayload, bool) {
 
 func clonePayload(payload EnvironmentPayload) EnvironmentPayload {
 	return EnvironmentPayload{
-		Host:     cloneMap(payload.Host),
+		Host:     utils.CloneMap(payload.Host),
 		Captured: payload.Captured,
 	}
 }
 
 func sanitizeEnvironmentPayload(payload EnvironmentPayload) EnvironmentPayload {
 	return EnvironmentPayload{
-		Host:     cloneMap(payload.Host),
+		Host:     utils.CloneMap(payload.Host),
 		Captured: payload.Captured,
 	}
-}
-
-func cloneMap(values map[string]string) map[string]string {
-	if values == nil {
-		return nil
-	}
-	clone := make(map[string]string, len(values))
-	for k, v := range values {
-		clone[k] = v
-	}
-	return clone
 }

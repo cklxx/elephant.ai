@@ -8,7 +8,7 @@ import (
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
-	sessiontitle "alex/internal/app/agent/sessiontitle"
+	utils "alex/internal/shared/utils"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
@@ -21,7 +21,7 @@ func (c *AgentCoordinator) persistSessionTitle(ctx context.Context, sessionID st
 	if c == nil || c.sessionStore == nil {
 		return
 	}
-	title = sessiontitle.NormalizeSessionTitle(title)
+	title = utils.NormalizeSessionTitle(title)
 	if strings.TrimSpace(sessionID) == "" || title == "" {
 		return
 	}

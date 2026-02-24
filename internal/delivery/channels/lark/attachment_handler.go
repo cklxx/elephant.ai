@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	artifactruntime "alex/internal/app/artifactruntime"
-	toolcontext "alex/internal/app/toolcontext"
+	builtinshared "alex/internal/infra/tools/builtin/shared"
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	toolports "alex/internal/domain/agent/ports/tools"
@@ -25,7 +25,7 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 		return
 	}
 
-	ctx = toolcontext.WithAllowLocalFetch(ctx)
+	ctx = builtinshared.WithAllowLocalFetch(ctx)
 	ctx = toolports.WithAttachmentContext(ctx, attachments, nil)
 	client := artifactruntime.NewAttachmentHTTPClient(artifactruntime.AttachmentFetchTimeout, "LarkAttachment")
 	maxBytes, allowExts := autoUploadLimits(ctx)
@@ -72,7 +72,7 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 }
 
 func autoUploadLimits(ctx context.Context) (int, []string) {
-	cfg := toolcontext.GetAutoUploadConfig(ctx)
+	cfg := builtinshared.GetAutoUploadConfig(ctx)
 	maxBytes := cfg.MaxBytes
 	if maxBytes <= 0 {
 		maxBytes = 2 * 1024 * 1024

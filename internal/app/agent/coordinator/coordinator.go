@@ -14,7 +14,7 @@ import (
 	"alex/internal/app/agent/hooks"
 	"alex/internal/app/agent/llmclient"
 	"alex/internal/app/agent/preparation"
-	sessiontitle "alex/internal/app/agent/sessiontitle"
+	utils "alex/internal/shared/utils"
 	domain "alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
@@ -189,13 +189,13 @@ func extractPlanSessionTitle(metadata map[string]any) string {
 	}
 
 	if raw, ok := metadata["session_title"].(string); ok {
-		if title := sessiontitle.NormalizeSessionTitle(raw); title != "" {
+		if title := utils.NormalizeSessionTitle(raw); title != "" {
 			return title
 		}
 	}
 
 	if raw, ok := metadata["overall_goal_ui"].(string); ok {
-		return sessiontitle.NormalizeSessionTitle(raw)
+		return utils.NormalizeSessionTitle(raw)
 	}
 
 	return ""

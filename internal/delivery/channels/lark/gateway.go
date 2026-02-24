@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"alex/internal/app/subscription"
-	toolcontext "alex/internal/app/toolcontext"
+	builtinshared "alex/internal/infra/tools/builtin/shared"
 	"alex/internal/delivery/channels"
 	agent "alex/internal/domain/agent/ports/agent"
 	portsllm "alex/internal/domain/agent/ports/llm"
@@ -69,35 +69,36 @@ type sessionSlot struct {
 // Gateway bridges Lark bot messages into the agent runtime.
 type Gateway struct {
 	channels.BaseGateway
-	cfg                Config
-	agent              AgentExecutor
-	logger             logging.Logger
-	client             *lark.Client
-	wsClient           *larkws.Client
-	messenger          LarkMessenger
-	eventListener      agent.EventListener
-	emojiPicker        *emojiPicker
-	dedupMu            sync.Mutex
-	dedupCache         *lru.Cache[string, time.Time]
-	now                func() time.Time
-	planReviewStore    PlanReviewStore
-	oauth              toolcontext.LarkOAuthService
-	llmSelections      *subscription.SelectionStore
-	llmResolver        *subscription.SelectionResolver
-	cliCredsLoader     func() runtimeconfig.CLICredentials
-	llamaResolver      func(context.Context) (subscription.LlamaServerTarget, bool)
-	llmFactory         portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
-	llmProfile         runtimeconfig.LLMProfile  // shared runtime LLM profile for auto-reply
-	taskStore          TaskStore
-	chatSessionStore   ChatSessionBindingStore
-	noticeState        *noticeStateStore
-	activeSlots        sync.Map           // chatID → *sessionSlot
-	pendingInputRelays sync.Map           // chatID → *pendingRelayQueue
-	aiCoordinator      *AIChatCoordinator // coordinates multi-bot chat sessions
-	taskWG             sync.WaitGroup     // tracks running task goroutines (for tests)
-	cleanupMu          sync.Mutex
-	cleanupCancel      context.CancelFunc
-	cleanupWG          sync.WaitGroup
+	cfg                 Config
+	agent               AgentExecutor
+	logger              logging.Logger
+	client              *lark.Client
+	wsClient            *larkws.Client
+	messenger           LarkMessenger
+	eventListener       agent.EventListener
+	emojiPicker         *emojiPicker
+	dedupMu             sync.Mutex
+	dedupCache          *lru.Cache[string, time.Time]
+	now                 func() time.Time
+	planReviewStore     PlanReviewStore
+	oauth               builtinshared.LarkOAuthService
+	llmSelections       *subscription.SelectionStore
+	llmResolver         *subscription.SelectionResolver
+	cliCredsLoader      func() runtimeconfig.CLICredentials
+	llamaResolver       func(context.Context) (subscription.LlamaServerTarget, bool)
+	llmFactory          portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
+	llmProfile          runtimeconfig.LLMProfile  // shared runtime LLM profile for auto-reply
+	taskStore           TaskStore
+	chatSessionStore    ChatSessionBindingStore
+	noticeState         *noticeStateStore
+	notificationMetrics larkNotificationMetrics
+	activeSlots         sync.Map           // chatID → *sessionSlot
+	pendingInputRelays  sync.Map           // chatID → *pendingRelayQueue
+	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
+	taskWG              sync.WaitGroup     // tracks running task goroutines (for tests)
+	cleanupMu           sync.Mutex
+	cleanupCancel       context.CancelFunc
+	cleanupWG           sync.WaitGroup
 }
 
 type awaitQuestionTracker struct {
@@ -216,7 +217,7 @@ func (g *Gateway) SetPlanReviewStore(store PlanReviewStore) {
 }
 
 // SetOAuthService configures the Lark user OAuth service used for user-scoped API calls.
-func (g *Gateway) SetOAuthService(svc toolcontext.LarkOAuthService) {
+func (g *Gateway) SetOAuthService(svc builtinshared.LarkOAuthService) {
 	if g == nil {
 		return
 	}
