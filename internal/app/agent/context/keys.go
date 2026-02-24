@@ -15,6 +15,19 @@ func IsSubagentContext(ctx context.Context) bool {
 	return ctx.Value(subagentCtxKey{}) != nil
 }
 
+type unattendedCtxKey struct{}
+
+// MarkUnattendedContext marks the context to indicate unattended (kernel) execution.
+// Agents running in unattended mode must never ask for user confirmation.
+func MarkUnattendedContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, unattendedCtxKey{}, true)
+}
+
+// IsUnattendedContext checks if the context is marked as unattended execution.
+func IsUnattendedContext(ctx context.Context) bool {
+	return ctx.Value(unattendedCtxKey{}) != nil
+}
+
 // PresetContextKey is the context key used to override presets at runtime.
 type PresetContextKey struct{}
 

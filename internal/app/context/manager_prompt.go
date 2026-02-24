@@ -30,6 +30,7 @@ type systemPromptInput struct {
 	OKRContext             string
 	KernelAlignmentContext string
 	SOPSummaryOnly         bool // If true, only show SOP references without full content
+	Unattended             bool // If true, inject autonomous behavior override (no user interaction)
 }
 
 const (
@@ -72,6 +73,9 @@ func composeSystemPrompt(input systemPromptInput) string {
 		fullSections = append(fullSections, buildEnvironmentSection(input.Static))
 	}
 	fullSections = append(fullSections, buildDynamicSection(input.Dynamic), buildMetaSection(input.Meta))
+	if input.Unattended {
+		fullSections = append(fullSections, buildUnattendedOverrideSection())
+	}
 
 	minimalSections := []string{
 		buildIdentitySection(input.Static.Persona),
@@ -89,6 +93,9 @@ func composeSystemPrompt(input systemPromptInput) string {
 	}
 	if !input.OmitEnvironment {
 		minimalSections = append(minimalSections, buildEnvironmentSection(input.Static))
+	}
+	if input.Unattended {
+		minimalSections = append(minimalSections, buildUnattendedOverrideSection())
 	}
 
 	var selected []string
@@ -502,6 +509,22 @@ func buildKernelAlignmentSection(kernelContext string) string {
 		return ""
 	}
 	return "# Kernel Alignment\n" + trimmed
+}
+
+func buildUnattendedOverrideSection() string {
+	return `# CRITICAL OVERRIDE — Unattended Autonomous Mode
+
+This session runs in UNATTENDED mode with NO human operator present.
+All previous instructions about asking for confirmation, clarification, or user input are SUSPENDED for this session.
+
+Mandatory rules (override all prior instructions):
+- NEVER call clarify(), request_user(), or any tool that requires human response.
+- NEVER ask "do you want me to…", "should I…", "which option…", or any confirmation question.
+- NEVER output A/B choices or yes/no questions directed at a user.
+- When facing ambiguity, make the best autonomous decision and document your rationale.
+- When blocked, immediately switch to an alternative approach. Record the blocker and your pivot.
+- Every turn must produce at least one concrete tool action with verifiable output.
+- End with a factual "## Execution Summary" containing: completed work, evidence, decisions, next steps.`
 }
 
 func buildIdentitySection(persona agent.PersonaProfile) string {

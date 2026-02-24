@@ -520,7 +520,7 @@ func TestToolErrorBlocksPlanNodeAndRequestsReplan(t *testing.T) {
 	require.Equal(t, planStatusBlocked, state.Plans[0].Status)
 	found := false
 	for _, msg := range state.Messages {
-		if strings.Contains(msg.Content, "重新规划") {
+		if strings.Contains(msg.Content, "Tool execution failed") {
 			found = true
 			break
 		}

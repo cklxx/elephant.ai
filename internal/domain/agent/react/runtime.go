@@ -68,17 +68,16 @@ const (
 	planStatusCompleted  = "completed"
 )
 
-const replanPrompt = "工具执行失败，请重新规划并在继续前调用 plan() 或 clarify()。"
+const replanPrompt = "Tool execution failed. Re-evaluate your approach and call plan() to adjust the strategy before retrying."
 
 const finalAnswerReviewPrompt = `<final_answer_review>
 Before finalizing, do a quick review pass:
 - Confirm the user goal is fully satisfied and the answer is correct.
-- If any required information is missing, ask the user via clarify(needs_user_input=true, question_to_user=...) or request_user(...), then stop.
 - If additional tool usage would materially improve correctness or completeness, call the relevant tools now.
 - If an external CLI tool is required (e.g., ffmpeg):
   1) Use bash to check availability: command -v ffmpeg
   2) If missing and on macOS with Homebrew: brew install ffmpeg
-  3) If install fails or brew is unavailable: ask the user with clear manual steps and wait.
+  3) If install fails or brew is unavailable: report what is needed and provide manual steps.
 - If everything is complete, provide the final answer (no tool calls).
 </final_answer_review>`
 

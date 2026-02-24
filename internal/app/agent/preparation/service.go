@@ -225,6 +225,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 				Skills:                 buildSkillsConfig(s.config.Proactive.Skills),
 				OKRContext:             okrContext,
 				KernelAlignmentContext: kernelContext,
+				Unattended:             appcontext.IsUnattendedContext(ctx),
 			})
 			if err != nil {
 				return nil, fmt.Errorf("build context window: %w", err)

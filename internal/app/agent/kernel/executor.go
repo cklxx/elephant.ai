@@ -126,6 +126,7 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 	// Kernel cycles are unattended — auto-approve all tool executions to
 	// prevent deadlocks on approval gates.
 	execCtx = toolshared.WithAutoApprove(execCtx, true)
+	execCtx = appcontext.MarkUnattendedContext(execCtx)
 
 	if e.timeout > 0 {
 		var cancel context.CancelFunc
