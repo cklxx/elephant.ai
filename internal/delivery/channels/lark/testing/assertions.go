@@ -7,8 +7,8 @@ import (
 	larkgw "alex/internal/delivery/channels/lark"
 )
 
-// evaluateAssertions checks all assertions for a turn and returns error messages.
-func evaluateAssertions(assertions TurnAssertions, tr TurnResult) []string {
+// EvaluateAssertions checks all assertions for a turn and returns error messages.
+func EvaluateAssertions(assertions TurnAssertions, tr TurnResult) []string {
 	var errs []string
 
 	errs = append(errs, assertMessenger(assertions.Messenger, tr.Calls)...)

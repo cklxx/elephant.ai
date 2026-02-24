@@ -134,7 +134,7 @@ func (r *Runner) Run(ctx context.Context, scenario *Scenario) *ScenarioResult {
 			tr.Errors = append(tr.Errors, fmt.Sprintf("InjectMessage error: %v", err))
 		}
 
-		assertionErrors := evaluateAssertions(turn.Assertions, tr)
+		assertionErrors := EvaluateAssertions(turn.Assertions, tr)
 		tr.Errors = append(tr.Errors, assertionErrors...)
 
 		result.Turns = append(result.Turns, tr)
