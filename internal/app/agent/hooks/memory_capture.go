@@ -170,14 +170,14 @@ func (h *MemoryCaptureHook) resolveProfile(ctx context.Context) (runtimeconfig.L
 		model := strings.TrimSpace(selection.Model)
 		if provider != "" && model != "" {
 			return runtimeconfig.LLMProfile{
-				Provider: provider,
-				Model:    model,
-				APIKey:   strings.TrimSpace(selection.APIKey),
-				BaseURL:  strings.TrimSpace(selection.BaseURL),
-				Headers:  cloneHeaders(selection.Headers),
-			}, true
+					Provider: provider,
+					Model:    model,
+					APIKey:   strings.TrimSpace(selection.APIKey),
+					BaseURL:  strings.TrimSpace(selection.BaseURL),
+					Headers:  llmclient.CloneHeaders(selection.Headers),
+				}, true
+			}
 		}
-	}
 
 	provider, model := h.selectModel()
 	if provider == "" || model == "" {
@@ -202,24 +202,6 @@ func (h *MemoryCaptureHook) selectModel() (string, string) {
 		provider = strings.TrimSpace(h.config.Provider)
 	}
 	return provider, model
-}
-
-func cloneHeaders(headers map[string]string) map[string]string {
-	if len(headers) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(headers))
-	for k, v := range headers {
-		key := strings.TrimSpace(k)
-		if key == "" {
-			continue
-		}
-		out[key] = v
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
 }
 
 func buildMemoryCapturePrompt(result TaskResultInfo) string {
