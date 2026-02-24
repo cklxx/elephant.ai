@@ -79,19 +79,12 @@ func main() {
 	// With arguments: execute command
 	cli := NewCLI(container)
 	if err := cli.Run(args); err != nil {
-		if errors.Is(err, ErrForceExit) {
-			cleanup()
-			os.Exit(130)
-		}
-		var exitErr *ExitCodeError
-		if errors.As(err, &exitErr) && exitErr.Code != 0 {
+		exitCode, printError := cliExitBehaviorFromError(err)
+		if printError {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			cleanup()
-			os.Exit(exitErr.Code)
 		}
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		cleanup()
-		os.Exit(1)
+		os.Exit(exitCode)
 	}
 }
 
@@ -140,4 +133,15 @@ func exitCodeFromError(err error) int {
 		return exitErr.Code
 	}
 	return 1
+}
+
+func cliExitBehaviorFromError(err error) (exitCode int, printError bool) {
+	if errors.Is(err, ErrForceExit) {
+		return 130, false
+	}
+	var exitErr *ExitCodeError
+	if errors.As(err, &exitErr) && exitErr.Code != 0 {
+		return exitErr.Code, true
+	}
+	return 1, true
 }

@@ -1,26 +1,20 @@
 package main
 
 import (
-	"bytes"
-	"flag"
-	"fmt"
 	"log"
-	"strings"
 
 	agent_eval "alex/evaluation/agent_eval"
 )
 
 func (c *CLI) runFoundationSuiteEvaluation(args []string) error {
-	fs := flag.NewFlagSet("eval foundation-suite", flag.ContinueOnError)
-	var flagBuf bytes.Buffer
-	fs.SetOutput(&flagBuf)
+	fs, flagBuf := newBufferedFlagSet("eval foundation-suite")
 
 	outputDir := fs.String("output", "./evaluation_results/foundation-suite", "Directory to write foundation suite outputs")
 	suitePath := fs.String("suite", "evaluation/agent_eval/datasets/foundation_eval_suite.yaml", "Path to foundation suite set (YAML)")
 	reportFormat := fs.String("format", "markdown", "Report format: markdown|json")
 
-	if err := fs.Parse(args); err != nil {
-		return fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))
+	if err := parseBufferedFlagSet(fs, flagBuf, args); err != nil {
+		return err
 	}
 
 	result, err := agent_eval.RunFoundationEvaluationSuite(cliBaseContext(), &agent_eval.FoundationSuiteOptions{
