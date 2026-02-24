@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/infra/external/subprocess"
 	"alex/internal/shared/logging"
@@ -227,7 +228,7 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		}
 	}
 
-	env := cloneStringMap(e.cfg.Env)
+	env := core.CloneStringMap(e.cfg.Env)
 	if e.cfg.APIKey != "" {
 		switch e.cfg.AgentType {
 		case "claude_code":
@@ -604,17 +605,6 @@ func splitList(raw string) []string {
 		if trimmed := strings.TrimSpace(part); trimmed != "" {
 			out = append(out, trimmed)
 		}
-	}
-	return out
-}
-
-func cloneStringMap(in map[string]string) map[string]string {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(in))
-	for k, v := range in {
-		out[k] = v
 	}
 	return out
 }

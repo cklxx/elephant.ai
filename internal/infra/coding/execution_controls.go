@@ -1,6 +1,10 @@
 package coding
 
-import "strings"
+import (
+	"strings"
+
+	core "alex/internal/domain/agent/ports"
+)
 
 const (
 	executionModeExecute = "execute"
@@ -38,7 +42,7 @@ func normalizeAutonomyLevel(raw string) string {
 
 // applyExecutionControls normalizes cross-agent controls into agent-specific config keys.
 func applyExecutionControls(agentType, mode, level string, config map[string]string) map[string]string {
-	cfg := cloneStringMap(config)
+	cfg := core.CloneStringMap(config)
 	if cfg == nil {
 		cfg = make(map[string]string)
 	}

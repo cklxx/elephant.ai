@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/shared/logging"
 )
@@ -108,7 +109,7 @@ func (m *ManagedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 	for attempt := 1; attempt <= retries; attempt++ {
 		runReq := req
 		runReq.Prompt = prompt
-		runReq.Config = cloneStringMap(cfg)
+		runReq.Config = core.CloneStringMap(cfg)
 
 		result, execErr := m.base.Execute(ctx, runReq)
 		lastResult = result
@@ -175,7 +176,7 @@ func isCodingTask(config map[string]string) bool {
 }
 
 func applyCodingDefaults(agentType string, config map[string]string) map[string]string {
-	cfg := cloneStringMap(config)
+	cfg := core.CloneStringMap(config)
 	if cfg == nil {
 		cfg = make(map[string]string)
 	}
@@ -239,17 +240,6 @@ func buildRetryPrompt(base string, lastErr error, attempt int) string {
 		attempt,
 		strings.TrimSpace(lastErr.Error()),
 	)
-}
-
-func cloneStringMap(input map[string]string) map[string]string {
-	if len(input) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(input))
-	for k, v := range input {
-		out[k] = v
-	}
-	return out
 }
 
 func errorString(err error) string {
