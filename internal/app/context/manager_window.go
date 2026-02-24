@@ -195,10 +195,8 @@ func markBootstrapInjected(session *storage.Session, injected bool) {
 	if session == nil || !injected {
 		return
 	}
-	if session.Metadata == nil {
-		session.Metadata = make(map[string]string)
-	}
-	session.Metadata["prompt_bootstrap_injected"] = "true"
+	metadata := storage.EnsureMetadata(session)
+	metadata["prompt_bootstrap_injected"] = "true"
 }
 
 func convertSnapshotToDynamic(snapshot sessionstate.Snapshot) agent.DynamicContext {

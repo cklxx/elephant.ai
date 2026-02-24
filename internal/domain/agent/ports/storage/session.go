@@ -42,6 +42,29 @@ type Session struct {
 	UpdatedAt   time.Time                     `json:"updated_at"`
 }
 
+// EnsureMetadata returns session metadata, initializing it when needed.
+func EnsureMetadata(session *Session) map[string]string {
+	if session == nil {
+		return nil
+	}
+	if session.Metadata == nil {
+		session.Metadata = make(map[string]string)
+	}
+	return session.Metadata
+}
+
+// CloneMetadata returns a shallow copy of metadata, or nil when empty.
+func CloneMetadata(metadata map[string]string) map[string]string {
+	if len(metadata) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(metadata))
+	for key, value := range metadata {
+		cloned[key] = value
+	}
+	return cloned
+}
+
 // Todo represents a task item
 type Todo struct {
 	ID          string    `json:"id"`

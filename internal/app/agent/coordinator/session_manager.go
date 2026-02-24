@@ -9,8 +9,8 @@ import (
 
 	appcontext "alex/internal/app/agent/context"
 	sessiontitle "alex/internal/app/agent/sessiontitle"
-	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	materialports "alex/internal/domain/materials/ports"
 	"alex/internal/shared/async"
@@ -40,13 +40,11 @@ func (c *AgentCoordinator) persistSessionTitle(ctx context.Context, sessionID st
 			logger.Warn("Failed to load session for title update: %v", err)
 			return
 		}
-		if session.Metadata == nil {
-			session.Metadata = make(map[string]string)
-		}
-		if strings.TrimSpace(session.Metadata["title"]) != "" {
+		metadata := storage.EnsureMetadata(session)
+		if strings.TrimSpace(metadata["title"]) != "" {
 			return
 		}
-		session.Metadata["title"] = title
+		metadata["title"] = title
 		if err := c.sessionStore.Save(updateCtx, session); err != nil {
 			logger.Warn("Failed to persist session title: %v", err)
 		}
@@ -100,20 +98,18 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	}
 	session.UpdatedAt = c.clock.Now()
 
-	if session.Metadata == nil {
-		session.Metadata = make(map[string]string)
-	}
+	metadata := storage.EnsureMetadata(session)
 	updateAwaitUserInputMetadata(session, result)
 	if result.SessionID != "" {
-		session.Metadata["session_id"] = result.SessionID
+		metadata["session_id"] = result.SessionID
 	}
 	if result.RunID != "" {
-		session.Metadata["last_task_id"] = result.RunID
+		metadata["last_task_id"] = result.RunID
 	}
 	if result.ParentRunID != "" {
-		session.Metadata["last_parent_task_id"] = result.ParentRunID
+		metadata["last_parent_task_id"] = result.ParentRunID
 	} else {
-		delete(session.Metadata, "last_parent_task_id")
+		delete(metadata, "last_parent_task_id")
 	}
 
 	logger.Debug("Saving session...")
@@ -159,14 +155,7 @@ func cloneSessionForSave(session *storage.Session) *storage.Session {
 	} else {
 		cloned.Todos = nil
 	}
-	if len(session.Metadata) > 0 {
-		cloned.Metadata = make(map[string]string, len(session.Metadata))
-		for key, value := range session.Metadata {
-			cloned.Metadata[key] = value
-		}
-	} else {
-		cloned.Metadata = nil
-	}
+	cloned.Metadata = storage.CloneMetadata(session.Metadata)
 	cloned.Attachments = ports.CloneAttachmentMap(session.Attachments)
 	cloned.Important = ports.CloneImportantNotes(session.Important)
 	cloned.UserPersona = ports.CloneUserPersonaProfile(session.UserPersona)
@@ -271,10 +260,10 @@ func (c *AgentCoordinator) EnsureSession(ctx context.Context, id string) (*stora
 		ID:        id,
 		Messages:  []ports.Message{},
 		Todos:     []storage.Todo{},
-		Metadata:  map[string]string{},
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
+	storage.EnsureMetadata(session)
 	if err := c.sessionStore.Save(ctx, session); err != nil {
 		return nil, err
 	}
@@ -364,9 +353,7 @@ func updateAwaitUserInputMetadata(session *storage.Session, result *agent.TaskRe
 	if session == nil {
 		return
 	}
-	if session.Metadata == nil {
-		session.Metadata = make(map[string]string)
-	}
+	metadata := storage.EnsureMetadata(session)
 
 	stopReason := ""
 	if result != nil {
@@ -374,12 +361,12 @@ func updateAwaitUserInputMetadata(session *storage.Session, result *agent.TaskRe
 	}
 	if strings.EqualFold(stopReason, "await_user_input") {
 		if question, ok := agent.ExtractAwaitUserInputQuestion(result.Messages); ok && strings.TrimSpace(question) != "" {
-			session.Metadata["await_user_input"] = "true"
-			session.Metadata["await_user_input_question"] = question
+			metadata["await_user_input"] = "true"
+			metadata["await_user_input_question"] = question
 			return
 		}
 	}
 
-	delete(session.Metadata, "await_user_input")
-	delete(session.Metadata, "await_user_input_question")
+	delete(metadata, "await_user_input")
+	delete(metadata, "await_user_input_question")
 }

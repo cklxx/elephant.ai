@@ -143,11 +143,9 @@ func (svc *SessionService) ForkSession(ctx context.Context, sessionID string) (*
 	newSession.Messages = make([]ports.Message, len(originalSession.Messages))
 	copy(newSession.Messages, originalSession.Messages)
 
-	newSession.Metadata = make(map[string]string)
-	for k, v := range originalSession.Metadata {
-		newSession.Metadata[k] = v
-	}
-	newSession.Metadata["forked_from"] = sessionID
+	newSession.Metadata = storage.CloneMetadata(originalSession.Metadata)
+	metadata := storage.EnsureMetadata(newSession)
+	metadata["forked_from"] = sessionID
 
 	if err := svc.sessionStore.Save(ctx, newSession); err != nil {
 		return nil, fmt.Errorf("failed to save forked session: %w", err)
@@ -168,11 +166,7 @@ func (svc *SessionService) EnsureSessionShareToken(ctx context.Context, sessionI
 		return "", fmt.Errorf("get session: %w", err)
 	}
 
-	metadata := session.Metadata
-	if metadata == nil {
-		metadata = make(map[string]string)
-		session.Metadata = metadata
-	}
+	metadata := storage.EnsureMetadata(session)
 
 	if !reset {
 		if existing := strings.TrimSpace(metadata[shareTokenMetadataKey]); existing != "" {
