@@ -275,7 +275,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 	outCtx.TaskID = ensuredRunID
 	ctx = agent.WithOutputContext(ctx, outCtx)
-	logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
+	logger.Info("ExecuteTask started: session=%s task_chars=%d", obfuscateSessionID(sessionID), len(strings.TrimSpace(task)))
 
 	wf := newAgentWorkflow(ensuredRunID, slog.Default(), eventListener, outCtx)
 	wf.start(stagePrepare)
@@ -371,7 +371,6 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	// Create ReactEngine and configure listener
-	logger.Info("Delegating to ReactEngine...")
 	completionDefaults := buildCompletionDefaultsFromConfig(effectiveCfg)
 	idAdapter := infraruntime.IDsAdapter{}
 	latencyReporter := infraruntime.LatencyReporter
@@ -437,12 +436,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	})
 
 	if eventListener != nil {
-		// DO NOT log listener objects to avoid leaking sensitive information.
-		logger.Debug("Listener provided")
 		reactEngine.SetEventListener(eventListener)
-		logger.Info("Event listener successfully set on ReactEngine")
-	} else {
-		logger.Warn("No listener provided to ExecuteTask")
 	}
 
 	wf.start(stageExecute)
@@ -461,7 +455,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	if ctx.Err() != nil {
-		logger.Info("Task execution cancelled: %v", ctx.Err())
+		logger.Debug("Task execution cancelled: %v", ctx.Err())
 		c.persistSessionSnapshot(ctx, env, ensuredRunID, parentRunID, "cancelled")
 		return attachWorkflow(result, env), ctx.Err()
 	}

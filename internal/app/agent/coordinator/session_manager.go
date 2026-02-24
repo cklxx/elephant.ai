@@ -112,12 +112,10 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 		delete(metadata, "last_parent_task_id")
 	}
 
-	logger.Debug("Saving session...")
 	if err := c.sessionStore.Save(ctx, session); err != nil {
 		logger.Error("Failed to save session: %v", err)
 		return fmt.Errorf("failed to save session: %w", err)
 	}
-	logger.Debug("Session saved successfully")
 
 	return nil
 }
@@ -138,8 +136,6 @@ func (c *AgentCoordinator) asyncSaveSession(ctx context.Context, session *storag
 		logger := c.loggerFor(ctx)
 		if err := c.sessionStore.Save(ctx, saved); err != nil {
 			logger.Warn("Async session save failed (non-fatal): %v", err)
-		} else {
-			logger.Debug("Async session save completed (session_id=%s, messages=%d)", saved.ID, len(saved.Messages))
 		}
 	}(snapshot)
 }

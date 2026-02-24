@@ -201,7 +201,7 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 		}
 
 		r.state.Iterations++
-		r.engine.logger.Info("=== Iteration %d/%d ===", r.state.Iterations, r.engine.maxIterations)
+		r.engine.logger.Debug("Iteration %d/%d", r.state.Iterations, r.engine.maxIterations)
 
 		result, done, err := r.runIteration()
 
@@ -236,7 +236,7 @@ func (r *reactRuntime) handleCancellation() (*TaskResult, bool, error) {
 		return nil, false, nil
 	}
 
-	r.engine.logger.Info("Context cancelled, stopping execution: %v", r.ctx.Err())
+	r.engine.logger.Debug("Context cancelled, stopping execution: %v", r.ctx.Err())
 	finalResult := r.finalizeResult("cancelled", nil, true, nil)
 	return finalResult, true, r.ctx.Err()
 }
@@ -331,7 +331,7 @@ func (r *reactRuntime) handleMaxIterations() (*TaskResult, error) {
 				r.engine.updateAttachmentCatalogMessage(r.state)
 			}
 			finalResult.Answer = finalThought.Content
-			r.engine.logger.Info("Got final answer from retry: %d chars", len(finalResult.Answer))
+			r.engine.logger.Debug("Final answer retry produced %d chars", len(finalResult.Answer))
 		}
 	}
 
@@ -811,7 +811,7 @@ func (it *reactIteration) think() error {
 	}
 
 	parsedCalls := it.runtime.engine.parseToolCalls(thought, services.Parser)
-	it.runtime.engine.logger.Info("Parsed %d tool calls", len(parsedCalls))
+	it.runtime.engine.logger.Debug("Parsed %d tool calls", len(parsedCalls))
 
 	validCalls := it.runtime.filterValidToolCalls(parsedCalls)
 	if retry, prompt := it.runtime.enforceOrchestratorGates(validCalls); retry {
@@ -931,7 +931,7 @@ func (it *reactIteration) observeTools() {
 		it.runtime.ctx, state, it.runtime.services,
 		it.toolResult, it.plan.calls,
 	) {
-		it.runtime.engine.logger.Info("Context checkpoint applied — pruned intermediate messages")
+		it.runtime.engine.logger.Debug("Context checkpoint applied — pruned intermediate messages")
 	}
 
 	it.runtime.updateOrchestratorState(it.plan.calls, it.toolResult)
@@ -951,23 +951,23 @@ func (it *reactIteration) finish() {
 		0, "", nil, "", it.index, state.TokenCount, len(it.toolResult), 0, nil,
 	))
 
-	it.runtime.engine.logger.Debug("Iteration %d complete, continuing to next iteration", it.index)
+	it.runtime.engine.logger.Debug("Iteration %d complete", it.index)
 }
 
 func (it *reactIteration) handleNoTools() (*TaskResult, bool, error) {
 	trimmed := strings.TrimSpace(it.thought.Content)
 	if trimmed == "" {
-		it.runtime.engine.logger.Warn("No tool calls and empty content - continuing loop")
+		it.runtime.engine.logger.Debug("No tool calls and empty content, continuing loop")
 		return nil, false, nil
 	}
 
 	if it.runtime.shouldTriggerFinalAnswerReview() {
-		it.runtime.engine.logger.Info("Triggering final answer review iteration (attempt=%d)", it.runtime.finalReviewAttempts+1)
+		it.runtime.engine.logger.Debug("Triggering final answer review iteration (attempt=%d)", it.runtime.finalReviewAttempts+1)
 		it.runtime.injectFinalAnswerReviewPrompt()
 		return nil, false, nil
 	}
 
-	it.runtime.engine.logger.Info("No tool calls with content - treating response as final answer")
+	it.runtime.engine.logger.Debug("No tool calls with content, treating response as final answer")
 	finalResult := it.runtime.finalizeResult("final_answer", nil, true, nil)
 	return finalResult, true, nil
 }

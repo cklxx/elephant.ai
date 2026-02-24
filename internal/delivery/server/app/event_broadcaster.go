@@ -302,7 +302,7 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 	if sessionID == "" {
 		count := b.metrics.incrementNoClientEvents(missingSessionIDKey)
 		if shouldSampleCounter(count) {
-			b.logger.Warn("[OnEvent] No sessionID in event, dropping event %s (count=%d)", event.EventType(), count)
+			b.logger.Warn("No sessionID in event, dropping event %s (count=%d)", event.EventType(), count)
 		}
 		return
 	}
@@ -318,7 +318,7 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 	if len(clients) == 0 {
 		count := b.metrics.incrementNoClientEvents(sessionID)
 		if shouldSampleCounter(count) {
-			b.logger.Warn("[OnEvent] No clients found for sessionID='%s' (event=%s count=%d). Available sessions: %v", sessionID, event.EventType(), count, b.getSessionIDs())
+			b.logger.Warn("No clients found for session %s (event=%s count=%d)", sessionID, event.EventType(), count)
 		}
 		return
 	}
@@ -328,16 +328,6 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 
 func isGlobalSessionID(sessionID string) bool {
 	return sessionID == globalHighVolumeSessionID
-}
-
-// getSessionIDs returns list of session IDs for debugging
-func (b *EventBroadcaster) getSessionIDs() []string {
-	clients := b.loadClients()
-	ids := make([]string, 0, len(clients))
-	for id := range clients {
-		ids = append(ids, id)
-	}
-	return ids
 }
 
 // broadcastToClients sends event to all clients in the list
@@ -442,7 +432,7 @@ func (b *EventBroadcaster) RegisterClient(sessionID string, ch chan agent.AgentE
 	updated[sessionID] = append(updated[sessionID], ch)
 	b.clients.Store(updated)
 	b.metrics.incrementConnections()
-	b.logger.Info("Client registered for session %s (total: %d)", sessionID, len(updated[sessionID]))
+	b.logger.Debug("Client registered for session %s (total: %d)", sessionID, len(updated[sessionID]))
 }
 
 // UnregisterClient removes a client from the session
@@ -460,7 +450,7 @@ func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agent.Agen
 			clonedClients := updated[sessionID]
 			updated[sessionID] = append(clonedClients[:i], clonedClients[i+1:]...)
 			b.metrics.decrementConnections()
-			b.logger.Info("Client unregistered from session %s (remaining: %d)", sessionID, len(updated[sessionID]))
+			b.logger.Debug("Client unregistered from session %s (remaining: %d)", sessionID, len(updated[sessionID]))
 
 			// Clean up empty session entries
 			if len(updated[sessionID]) == 0 {
@@ -689,7 +679,7 @@ func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
 	b.clearHighVolumeCounter(sessionID)
 	b.metrics.clearSessionDrops(sessionID)
 	b.metrics.clearSessionNoClient(sessionID)
-	b.logger.Info("Cleared event history for session: %s", sessionID)
+	b.logger.Debug("Cleared event history for session: %s", sessionID)
 }
 
 func intFromPayload(payload map[string]any, key string) int {
@@ -785,7 +775,7 @@ func (b *EventBroadcaster) trackHighVolumeEvent(base agent.AgentEvent) {
 	b.highVolumeMu.Unlock()
 
 	if count%assistantMessageLogBatch == 0 {
-		b.logger.Debug("[HighVolumeLogs] Processed %d '%s' events for session=%s", count, base.EventType(), sessionID)
+		b.logger.Debug("Processed %d high-volume events of type %s for session=%s", count, base.EventType(), sessionID)
 	}
 }
 

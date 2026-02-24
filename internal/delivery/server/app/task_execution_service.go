@@ -209,20 +209,19 @@ func WithResumeClaimBatchSize(batchSize int) TaskExecutionServiceOption {
 func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task string, sessionID string, agentPreset string, toolPreset string) (*serverPorts.Task, error) {
 	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
 	logger := logging.FromContext(ctx, svc.logger)
-	logger.Info("[TaskExecutionService] ExecuteTaskAsync called: task='%s', sessionID='%s', agentPreset='%s', toolPreset='%s'", task, sessionID, agentPreset, toolPreset)
+	logger.Debug("ExecuteTaskAsync called: session_id=%s agent_preset=%s tool_preset=%s", sessionID, agentPreset, toolPreset)
 
 	session, err := svc.agentCoordinator.GetSession(ctx, sessionID)
 	if err != nil {
-		logger.Error("[TaskExecutionService] Failed to get/create session: %v", err)
+		logger.Error("Failed to get/create session: %v", err)
 		return nil, fmt.Errorf("failed to get/create session: %w", err)
 	}
 	if svc.stateStore != nil {
 		if err := svc.stateStore.Init(ctx, session.ID); err != nil {
-			logger.Warn("[TaskExecutionService] Failed to initialize state store: %v", err)
+			logger.Warn("Failed to initialize state store: %v", err)
 		}
 	}
 	confirmedSessionID := session.ID
-	logger.Info("[TaskExecutionService] Session confirmed: %s (original: '%s')", confirmedSessionID, sessionID)
 
 	taskID := id.NewRunID()
 	ctx = id.WithRunID(ctx, taskID)
@@ -231,7 +230,7 @@ func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task stri
 
 	taskRecord, err := svc.taskStore.Create(ctx, confirmedSessionID, task, agentPreset, toolPreset)
 	if err != nil {
-		logger.Error("[TaskExecutionService] Failed to create task: %v", err)
+		logger.Error("Failed to create task: %v", err)
 		return nil, fmt.Errorf("failed to create task: %w", err)
 	}
 
@@ -245,7 +244,7 @@ func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task stri
 	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, RunID: taskID, ParentRunID: parentRunID})
 
 	if svc.broadcaster == nil {
-		logger.Error("[TaskExecutionService] Broadcaster is nil!")
+		logger.Error("Broadcaster is nil")
 		_ = svc.taskStore.SetError(context.Background(), taskID, UnavailableError("broadcaster not initialized"))
 		return taskRecord, UnavailableError("broadcaster not initialized")
 	}
@@ -253,7 +252,7 @@ func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task stri
 	releaseAdmission, err := svc.acquireAdmission(ctx)
 	if err != nil {
 		admissionErr := UnavailableError("task admission timed out")
-		logger.Warn("[TaskExecutionService] Admission wait failed for task %s: %v", taskID, err)
+		logger.Warn("Admission wait failed for task %s: %v", taskID, err)
 		_ = svc.taskStore.SetError(context.Background(), taskID, admissionErr)
 		return taskRecord, admissionErr
 	}
@@ -262,13 +261,13 @@ func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task stri
 	claimed, err := svc.taskStore.TryClaimTask(ctx, taskID, svc.ownerID, leaseUntil)
 	if err != nil {
 		releaseAdmission()
-		logger.Error("[TaskExecutionService] Failed to claim task %s: %v", taskID, err)
+		logger.Error("Failed to claim task %s: %v", taskID, err)
 		_ = svc.taskStore.SetError(context.Background(), taskID, fmt.Errorf("failed to claim task: %w", err))
 		return taskRecord, fmt.Errorf("claim task ownership: %w", err)
 	}
 	if !claimed {
 		claimErr := ConflictError("task already claimed by another worker")
-		logger.Warn("[TaskExecutionService] Claim rejected for task %s", taskID)
+		logger.Warn("Claim rejected for task %s", taskID)
 		releaseAdmission()
 		return taskRecord, claimErr
 	}
@@ -284,7 +283,7 @@ func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task stri
 		svc.executeTaskInBackground(taskCtx, taskID, task, confirmedSessionID, agentPreset, toolPreset, releaseAdmission)
 	})
 
-	logger.Info("[TaskExecutionService] Task created: taskID=%s, sessionID=%s, returning immediately", taskID, taskSessionID)
+	logger.Debug("Task created: task_id=%s session_id=%s", taskID, taskSessionID)
 	return &taskCopy, nil
 }
 
@@ -307,7 +306,7 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 			releaseAdmission()
 		}
 		if err := svc.taskStore.ReleaseTaskLease(context.Background(), taskID, svc.ownerID); err != nil {
-			logger.Warn("[Background] Failed to release lease for task %s: %v", taskID, err)
+			logger.Warn("Failed to release lease for task %s: %v", taskID, err)
 		}
 
 		svc.cancelMu.Lock()
@@ -315,7 +314,7 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 		svc.cancelMu.Unlock()
 
 		if r := recover(); r != nil {
-			errMsg := fmt.Sprintf("[Background] PANIC in task execution (taskID=%s, sessionID=%s): %v", taskID, sessionID, r)
+			errMsg := fmt.Sprintf("panic in task execution (task_id=%s, session_id=%s): %v", taskID, sessionID, r)
 			logger.Error("%s", errMsg)
 			fmt.Fprintf(os.Stderr, "ERROR: %s\n", errMsg)
 			_ = svc.taskStore.SetError(ctx, taskID, fmt.Errorf("panic: %v", r))
@@ -336,7 +335,7 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 		releaseAdmission = acquiredRelease
 	}
 
-	logger.Info("[Background] Starting task execution: taskID=%s, sessionID=%s", taskID, sessionID)
+	logger.Debug("Starting task execution: task_id=%s session_id=%s", taskID, sessionID)
 
 	parentRunID := id.ParentRunIDFromContext(ctx)
 	startTime := time.Now()
@@ -363,7 +362,7 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 	}
 
 	if svc.agentCoordinator == nil {
-		errMsg := fmt.Sprintf("[Background] CRITICAL: agentCoordinator is nil (taskID=%s)", taskID)
+		errMsg := fmt.Sprintf("agent coordinator is nil (task_id=%s)", taskID)
 		logger.Error("%s", errMsg)
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", errMsg)
 		err := UnavailableError("agent coordinator not initialized")
@@ -387,10 +386,8 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 			AgentPreset: agentPreset,
 			ToolPreset:  toolPreset,
 		})
-		logger.Info("[Background] Using presets: agent=%s, tool=%s", agentPreset, toolPreset)
+		logger.Debug("Using presets: agent=%s tool=%s", agentPreset, toolPreset)
 	}
-
-	logger.Info("[Background] Calling AgentCoordinator.ExecuteTask...")
 
 	var listener agent.EventListener = svc.broadcaster
 	if svc.progressTracker != nil {
@@ -401,7 +398,7 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 	result, err := svc.agentCoordinator.ExecuteTask(ctx, task, sessionID, listener)
 
 	if ctx.Err() != nil {
-		logger.Info("[Background] Task cancelled: taskID=%s, sessionID=%s, reason=%v", taskID, sessionID, context.Cause(ctx))
+		logger.Info("Task cancelled: task_id=%s session_id=%s reason=%v", taskID, sessionID, context.Cause(ctx))
 		status = "cancelled"
 		if cause := context.Cause(ctx); cause != nil {
 			spanErr = cause
@@ -444,7 +441,7 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 	}
 
 	if err != nil {
-		errMsg := fmt.Sprintf("[Background] Task execution failed (taskID=%s, sessionID=%s): %v", taskID, sessionID, err)
+		errMsg := fmt.Sprintf("task execution failed (task_id=%s, session_id=%s): %v", taskID, sessionID, err)
 		status = "error"
 		spanErr = err
 		logger.Error("%s", errMsg)
@@ -471,7 +468,7 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 
 	_ = svc.taskStore.SetResult(ctx, taskID, result)
 
-	logger.Info("[Background] Task execution completed: taskID=%s", taskID)
+	logger.Info("Task execution completed: task_id=%s", taskID)
 
 	props := map[string]any{
 		"run_id":      taskID,
@@ -512,7 +509,7 @@ func (svc *TaskExecutionService) captureAnalytics(ctx context.Context, distinctI
 	}
 
 	if err := svc.analytics.Capture(ctx, distinctID, event, payload); err != nil {
-		logger.Debug("[Analytics] failed to capture event %s: %v", event, err)
+		logger.Debug("Analytics capture failed for event %s: %v", event, err)
 	}
 }
 
@@ -520,7 +517,6 @@ func (svc *TaskExecutionService) emitWorkflowInputReceivedEvent(ctx context.Cont
 	if svc.broadcaster == nil {
 		return
 	}
-	logger := logging.FromContext(ctx, svc.logger)
 
 	parentRunID := id.ParentRunIDFromContext(ctx)
 	level := agent.GetOutputContext(ctx).Level
@@ -551,7 +547,6 @@ func (svc *TaskExecutionService) emitWorkflowInputReceivedEvent(ctx context.Cont
 	if logID := id.LogIDFromContext(ctx); logID != "" {
 		event.SetLogID(logID)
 	}
-	logger.Debug("[Background] Emitting workflow.input.received event for session=%s run=%s", sessionID, taskID)
 	svc.broadcaster.OnEvent(event)
 
 	attachmentCount := len(attachmentMap)
@@ -574,7 +569,6 @@ func (svc *TaskExecutionService) emitWorkflowResultCancelledEvent(ctx context.Co
 	if svc.broadcaster == nil || task == nil {
 		return
 	}
-	logger := logging.FromContext(ctx, svc.logger)
 
 	outCtx := agent.GetOutputContext(ctx)
 	level := outCtx.Level
@@ -598,11 +592,8 @@ func (svc *TaskExecutionService) emitWorkflowResultCancelledEvent(ctx context.Co
 			"reason":       reason,
 			"requested_by": requestedBy,
 		}
-		logger.Info("[CancelTask] Emitting workflow.result.cancelled envelope: sessionID=%s taskID=%s", task.SessionID, task.ID)
 		svc.broadcaster.OnEvent(envelope)
 	}
-
-	logger.Info("[CancelTask] Emitting workflow.result.cancelled event: sessionID=%s taskID=%s", task.SessionID, task.ID)
 	svc.broadcaster.OnEvent(event)
 }
 
@@ -688,7 +679,7 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 		return 0, fmt.Errorf("claim resumable tasks: %w", err)
 	}
 	if len(tasks) == 0 {
-		logger.Info("[Resume] no pending/running tasks to resume")
+		logger.Debug("No pending/running tasks to resume")
 		return 0, nil
 	}
 
@@ -700,13 +691,13 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 			continue
 		}
 		if task.Description == "" {
-			logger.Warn("[Resume] skipping task %s: empty description", task.ID)
+			logger.Warn("Skipping task %s during resume: empty description", task.ID)
 			svc.releaseTaskLease(task.ID, logger)
 			skipped++
 			continue
 		}
 		if task.SessionID == "" {
-			logger.Warn("[Resume] skipping task %s: empty session_id", task.ID)
+			logger.Warn("Skipping task %s during resume: empty session_id", task.ID)
 			svc.releaseTaskLease(task.ID, logger)
 			skipped++
 			continue
@@ -714,14 +705,14 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 
 		session, err := svc.agentCoordinator.GetSession(ctx, task.SessionID)
 		if err != nil {
-			logger.Warn("[Resume] skipping task %s: failed to load session %s: %v", task.ID, task.SessionID, err)
+			logger.Warn("Skipping task %s during resume: failed to load session %s: %v", task.ID, task.SessionID, err)
 			svc.releaseTaskLease(task.ID, logger)
 			skipped++
 			continue
 		}
 		if svc.stateStore != nil {
 			if err := svc.stateStore.Init(ctx, session.ID); err != nil {
-				logger.Warn("[Resume] state store init failed for session %s: %v", session.ID, err)
+				logger.Warn("Resume state store init failed for session %s: %v", session.ID, err)
 			}
 		}
 
@@ -729,7 +720,7 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 		_, alreadyRunning := svc.cancelFuncs[task.ID]
 		svc.cancelMu.RUnlock()
 		if alreadyRunning {
-			logger.Warn("[Resume] skipping task %s: already has active cancel function", task.ID)
+			logger.Warn("Skipping task %s during resume: already has active cancel function", task.ID)
 			skipped++
 			continue
 		}
@@ -756,11 +747,11 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 			svc.executeTaskInBackground(cancelCtx, taskID, description, resumeSessionID, agentPreset, toolPreset, nil)
 		})
 
-		logger.Info("[Resume] resumed task taskID=%s sessionID=%s", taskID, resumeSessionID)
+		logger.Debug("Resumed task: task_id=%s session_id=%s", taskID, resumeSessionID)
 		resumed++
 	}
 
-	logger.Info("[Resume] complete: claimed=%d resumed=%d skipped=%d", len(tasks), resumed, skipped)
+	logger.Info("Resume complete: claimed=%d resumed=%d skipped=%d", len(tasks), resumed, skipped)
 	return resumed, nil
 }
 
@@ -822,11 +813,11 @@ func (svc *TaskExecutionService) startTaskLeaseRenewer(ctx context.Context, task
 				renewUntil := svc.nextLeaseDeadline(time.Now())
 				ok, err := svc.taskStore.RenewTaskLease(context.Background(), taskID, svc.ownerID, renewUntil)
 				if err != nil {
-					logger.Warn("[Lease] renew failed for task %s: %v", taskID, err)
+					logger.Warn("Lease renew failed for task %s: %v", taskID, err)
 					continue
 				}
 				if !ok {
-					logger.Warn("[Lease] ownership lost for task %s, cancelling local execution", taskID)
+					logger.Warn("Lease ownership lost for task %s, cancelling local execution", taskID)
 					svc.cancelTaskExecution(taskID, fmt.Errorf("task lease lost"))
 					return
 				}
@@ -858,7 +849,7 @@ func (svc *TaskExecutionService) releaseTaskLease(taskID string, logger logging.
 		return
 	}
 	if err := svc.taskStore.ReleaseTaskLease(context.Background(), taskID, svc.ownerID); err != nil {
-		logger.Warn("[Lease] release failed for task %s: %v", taskID, err)
+		logger.Warn("Lease release failed for task %s: %v", taskID, err)
 	}
 }
 
@@ -927,17 +918,17 @@ func (svc *TaskExecutionService) CancelTask(ctx context.Context, taskID string) 
 
 	status := "no_active_execution"
 	if exists && cancelFunc != nil {
-		logger.Info("[CancelTask] Cancelling task execution: taskID=%s", taskID)
+		logger.Info("Cancelling task execution: task_id=%s", taskID)
 		cancelFunc(fmt.Errorf("task cancelled by user"))
 		svc.emitWorkflowResultCancelledEvent(ctx, task, "cancelled", "user")
 		status = "dispatched"
 	} else {
-		logger.Warn("[CancelTask] No cancel function found for taskID=%s, updating status only", taskID)
+		logger.Warn("No cancel function found for task %s; updating status only", taskID)
 		if err := svc.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusCancelled); err != nil {
 			return err
 		}
 		if err := svc.taskStore.SetTerminationReason(ctx, taskID, serverPorts.TerminationReasonCancelled); err != nil {
-			logger.Warn("[CancelTask] Failed to set termination reason for taskID=%s: %v", taskID, err)
+			logger.Warn("Failed to set termination reason for task %s: %v", taskID, err)
 		}
 		svc.emitWorkflowResultCancelledEvent(ctx, task, "cancelled", "user")
 	}
@@ -979,9 +970,9 @@ func (svc *TaskExecutionService) resumeOrphanedBridges(ctx context.Context, logg
 			failed++
 		}
 		if r.Error != nil {
-			logger.Warn("[Resume] orphan %s (%s): %v", r.TaskID, r.Action, r.Error)
+			logger.Warn("Resume orphan task %s (%s): %v", r.TaskID, r.Action, r.Error)
 		}
 	}
 
-	logger.Info("[Resume] orphan bridge scan: adopted=%d harvested=%d failed=%d", adopted, harvested, failed)
+	logger.Info("Resume orphan bridge scan: adopted=%d harvested=%d failed=%d", adopted, harvested, failed)
 }
