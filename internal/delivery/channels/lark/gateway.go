@@ -43,6 +43,12 @@ const (
 // AgentExecutor is an alias for the shared channel executor interface.
 type AgentExecutor = channels.AgentExecutor
 
+type larkNotificationMetrics interface {
+	RecordLarkNotification(ctx context.Context, surface, action, mode, status string, latency time.Duration)
+	RecordLarkBlockingPrompt(ctx context.Context, source string, optionsCount int)
+	RecordLarkStatusProxyQuery(ctx context.Context, source string)
+}
+
 // slotPhase describes the lifecycle phase of a sessionSlot.
 type slotPhase int
 
@@ -69,35 +75,36 @@ type sessionSlot struct {
 // Gateway bridges Lark bot messages into the agent runtime.
 type Gateway struct {
 	channels.BaseGateway
-	cfg                Config
-	agent              AgentExecutor
-	logger             logging.Logger
-	client             *lark.Client
-	wsClient           *larkws.Client
-	messenger          LarkMessenger
-	eventListener      agent.EventListener
-	emojiPicker        *emojiPicker
-	dedupMu            sync.Mutex
-	dedupCache         *lru.Cache[string, time.Time]
-	now                func() time.Time
-	planReviewStore    PlanReviewStore
-	oauth              toolcontext.LarkOAuthService
-	llmSelections      *subscription.SelectionStore
-	llmResolver        *subscription.SelectionResolver
-	cliCredsLoader     func() runtimeconfig.CLICredentials
-	llamaResolver      func(context.Context) (subscription.LlamaServerTarget, bool)
-	llmFactory         portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
-	llmProfile         runtimeconfig.LLMProfile  // shared runtime LLM profile for auto-reply
-	taskStore          TaskStore
-	chatSessionStore   ChatSessionBindingStore
-	noticeState        *noticeStateStore
-	activeSlots        sync.Map           // chatID → *sessionSlot
-	pendingInputRelays sync.Map           // chatID → *pendingRelayQueue
-	aiCoordinator      *AIChatCoordinator // coordinates multi-bot chat sessions
-	taskWG             sync.WaitGroup     // tracks running task goroutines (for tests)
-	cleanupMu          sync.Mutex
-	cleanupCancel      context.CancelFunc
-	cleanupWG          sync.WaitGroup
+	cfg                 Config
+	agent               AgentExecutor
+	logger              logging.Logger
+	client              *lark.Client
+	wsClient            *larkws.Client
+	messenger           LarkMessenger
+	eventListener       agent.EventListener
+	emojiPicker         *emojiPicker
+	dedupMu             sync.Mutex
+	dedupCache          *lru.Cache[string, time.Time]
+	now                 func() time.Time
+	planReviewStore     PlanReviewStore
+	oauth               toolcontext.LarkOAuthService
+	llmSelections       *subscription.SelectionStore
+	llmResolver         *subscription.SelectionResolver
+	cliCredsLoader      func() runtimeconfig.CLICredentials
+	llamaResolver       func(context.Context) (subscription.LlamaServerTarget, bool)
+	llmFactory          portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
+	llmProfile          runtimeconfig.LLMProfile  // shared runtime LLM profile for auto-reply
+	taskStore           TaskStore
+	chatSessionStore    ChatSessionBindingStore
+	noticeState         *noticeStateStore
+	notificationMetrics larkNotificationMetrics
+	activeSlots         sync.Map           // chatID → *sessionSlot
+	pendingInputRelays  sync.Map           // chatID → *pendingRelayQueue
+	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
+	taskWG              sync.WaitGroup     // tracks running task goroutines (for tests)
+	cleanupMu           sync.Mutex
+	cleanupCancel       context.CancelFunc
+	cleanupWG           sync.WaitGroup
 }
 
 type awaitQuestionTracker struct {
@@ -238,6 +245,14 @@ func (g *Gateway) SetTaskStore(store TaskStore) {
 		return
 	}
 	g.taskStore = store
+}
+
+// SetNotificationMetrics configures optional Lark notification metrics recorder.
+func (g *Gateway) SetNotificationMetrics(metrics larkNotificationMetrics) {
+	if g == nil {
+		return
+	}
+	g.notificationMetrics = metrics
 }
 
 // SetLLMFactory configures an optional LLM client factory and shared profile
@@ -835,6 +850,13 @@ func (g *Gateway) dispatchMessage(ctx context.Context, chatID, replyToID, msgTyp
 	return g.messenger.SendMessage(ctx, chatID, msgType, content)
 }
 
+func (g *Gateway) dispatchNotification(ctx context.Context, chatID, replyToID, msgType, content, surface, mode string) (string, error) {
+	started := time.Now()
+	messageID, err := g.dispatchMessage(ctx, chatID, replyToID, msgType, content)
+	g.recordNotificationMetric(ctx, surface, notificationAction(replyToID), mode, err, time.Since(started))
+	return messageID, err
+}
+
 // dispatch is a fire-and-forget wrapper around dispatchMessage that logs errors.
 func (g *Gateway) dispatch(ctx context.Context, chatID, replyToID, msgType, content string) {
 	if _, err := g.dispatchMessage(ctx, chatID, replyToID, msgType, content); err != nil {
@@ -857,6 +879,13 @@ func (g *Gateway) updateMessage(ctx context.Context, messageID, text string) err
 		return fmt.Errorf("lark messenger not initialized")
 	}
 	return g.messenger.UpdateMessage(ctx, messageID, "text", textContent(text))
+}
+
+func (g *Gateway) updateNotification(ctx context.Context, messageID, text, surface, mode string) error {
+	started := time.Now()
+	err := g.updateMessage(ctx, messageID, text)
+	g.recordNotificationMetric(ctx, surface, "update", mode, err, time.Since(started))
+	return err
 }
 
 // addReaction adds an emoji reaction to the specified message.
@@ -892,6 +921,38 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func notificationAction(replyToID string) string {
+	if strings.TrimSpace(replyToID) != "" {
+		return "reply"
+	}
+	return "send"
+}
+
+func (g *Gateway) recordNotificationMetric(ctx context.Context, surface, action, mode string, err error, latency time.Duration) {
+	if g == nil || !g.cfg.NotificationMetricsV2 || g.notificationMetrics == nil {
+		return
+	}
+	status := "ok"
+	if err != nil {
+		status = "error"
+	}
+	g.notificationMetrics.RecordLarkNotification(ctx, strings.TrimSpace(surface), strings.TrimSpace(action), strings.TrimSpace(mode), status, latency)
+}
+
+func (g *Gateway) recordBlockingPrompt(ctx context.Context, source string, optionsCount int) {
+	if g == nil || !g.cfg.NotificationMetricsV2 || g.notificationMetrics == nil {
+		return
+	}
+	g.notificationMetrics.RecordLarkBlockingPrompt(ctx, strings.TrimSpace(source), optionsCount)
+}
+
+func (g *Gateway) recordStatusProxyQuery(ctx context.Context, source string) {
+	if g == nil || !g.cfg.NotificationMetricsV2 || g.notificationMetrics == nil {
+		return
+	}
+	g.notificationMetrics.RecordLarkStatusProxyQuery(ctx, strings.TrimSpace(source))
 }
 
 func normalizeExtensions(exts []string) []string {

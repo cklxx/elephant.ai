@@ -24,6 +24,9 @@ type Config struct {
 	FinalAnswerReviewReactEmoji   string // Emoji reaction when final_answer_review triggers. Default GLANCE.
 	ShowToolProgress              bool   // Show real-time tool progress in chat. Default false.
 	ShowPlanClarifyMessages       bool   // Send plan/clarify tool outputs as chat messages. Default false.
+	NotificationPolicyV2          bool   // Enable notification policy v2 (silent_update/milestone/blocking).
+	NotificationComposeV2         bool   // Enable unified notification message composer v2.
+	NotificationMetricsV2         bool   // Enable Lark notification metrics instrumentation.
 	AutoChatContextSize           int    // Number of recent messages to fetch for auto chat context. Default 20.
 	BackgroundProgressEnabled     *bool  // Push background task progress updates. Default true.
 	BackgroundProgressInterval    time.Duration

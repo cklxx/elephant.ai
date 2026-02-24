@@ -103,7 +103,18 @@ func (g *Gateway) handleNaturalTaskStatusQuery(msg *incomingMessage) {
 	}
 	execCtx := g.buildTaskCommandContext(msg)
 	reply := g.handleTaskList(execCtx, msg)
-	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
+	g.recordStatusProxyQuery(execCtx, "natural_language")
+	if _, err := g.dispatchNotification(
+		execCtx,
+		msg.chatID,
+		replyTarget(msg.messageID, true),
+		"text",
+		textContent(reply),
+		"task_status_proxy",
+		notificationModeMilestone.String(),
+	); err != nil {
+		g.logger.Warn("Lark natural status reply failed: %v", err)
+	}
 }
 
 // buildTaskCommandContext creates a lightweight context for task commands
@@ -196,6 +207,8 @@ func (g *Gateway) dispatchViaForegroundTask(msg *incomingMessage, agentType, des
 	if backgroundEnabled {
 		replyTo := replyTarget(msg.messageID, msg.isGroup)
 		bgLn := newBackgroundProgressListener(execCtx, listener, g, msg.chatID, replyTo, g.logger, g.cfg.BackgroundProgressInterval, g.cfg.BackgroundProgressWindow)
+		bgLn.policy = newNotificationPolicy(g.cfg.NotificationPolicyV2)
+		bgLn.composer = newNotificationComposer(g.cfg.NotificationComposeV2)
 		cleanups = append(cleanups, bgLn.Release)
 		listener = bgLn
 	}

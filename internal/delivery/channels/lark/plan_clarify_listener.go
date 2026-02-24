@@ -20,6 +20,9 @@ type planClarifyListener struct {
 	chatID  string
 	replyTo string
 	logger  logging.Logger
+	policy  notificationPolicy
+
+	composer *notificationComposer
 
 	mu        sync.Mutex
 	seenCalls map[string]struct{}
@@ -44,6 +47,7 @@ func newPlanClarifyListener(
 		logger:    logging.OrNop(nil),
 		seenCalls: make(map[string]struct{}),
 		tracker:   tracker,
+		policy:    notificationPolicy{},
 	}
 }
 
@@ -57,6 +61,10 @@ func (p *planClarifyListener) OnEvent(event agent.AgentEvent) {
 	if payload.message == "" || callID == "" {
 		return
 	}
+	if !p.policy.allowPlanClarify(payload) {
+		return
+	}
+	mode := p.policy.modeForPlanClarify(payload)
 
 	p.mu.Lock()
 	if _, exists := p.seenCalls[callID]; exists {
@@ -70,17 +78,28 @@ func (p *planClarifyListener) OnEvent(event agent.AgentEvent) {
 		return
 	}
 
-	content := textContent(payload.message)
+	message := payload.message
 	if payload.needsInput && len(payload.options) > 0 {
-		content = textContent(formatNumberedOptions(payload.message, payload.options))
+		message = formatNumberedOptions(payload.message, payload.options)
 		// Store pending options so numeric replies can be resolved.
 		slot := p.gateway.getOrCreateSlot(p.chatID)
 		slot.mu.Lock()
 		slot.pendingOptions = payload.options
 		slot.mu.Unlock()
 	}
+	if p.composer != nil {
+		message = p.composer.PlanClarify(message, payload.needsInput)
+	}
 
-	if _, err := p.gateway.dispatchMessage(p.ctx, p.chatID, p.replyTo, "text", content); err != nil {
+	if _, err := p.gateway.dispatchNotification(
+		p.ctx,
+		p.chatID,
+		p.replyTo,
+		"text",
+		textContent(message),
+		"plan_clarify",
+		mode.String(),
+	); err != nil {
 		if p.logger != nil {
 			p.logger.Warn("Lark plan/clarify dispatch failed: %v", err)
 		}
@@ -88,6 +107,7 @@ func (p *planClarifyListener) OnEvent(event agent.AgentEvent) {
 	}
 	if payload.needsInput && p.tracker != nil {
 		p.tracker.MarkSent()
+		p.gateway.recordBlockingPrompt(p.ctx, "plan_clarify", len(payload.options))
 	}
 }
 

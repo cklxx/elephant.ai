@@ -376,13 +376,15 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 	if listener == nil {
 		listener = agent.NoopEventListener{}
 	}
+	policy := newNotificationPolicy(g.cfg.NotificationPolicyV2)
+	composer := newNotificationComposer(g.cfg.NotificationComposeV2)
 
 	var cleanups []func()
 	var progressLn *progressListener
 
 	if g.cfg.ShowToolProgress {
 		sender := &larkProgressSender{gateway: g, chatID: msg.chatID, messageID: msg.messageID, isGroup: msg.isGroup}
-		progressLn = newProgressListener(execCtx, listener, sender, g.logger)
+		progressLn = newProgressListenerWithPolicy(execCtx, listener, sender, g.logger, policy, composer)
 		cleanups = append(cleanups, progressLn.Close)
 		listener = progressLn
 	}
@@ -393,6 +395,8 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 	if backgroundEnabled {
 		replyTo := replyTarget(msg.messageID, msg.isGroup)
 		bgLn := newBackgroundProgressListener(execCtx, listener, g, msg.chatID, replyTo, g.logger, g.cfg.BackgroundProgressInterval, g.cfg.BackgroundProgressWindow)
+		bgLn.policy = policy
+		bgLn.composer = composer
 		// Release keeps the listener alive for tracked background tasks so
 		// completion notifications can still be delivered after foreground return.
 		cleanups = append(cleanups, bgLn.Release)
@@ -401,11 +405,15 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 	// Input request listener bridges external agent permission/input requests to Lark.
 	{
 		irLn := newInputRequestListener(execCtx, listener, g, msg.chatID, replyTarget(msg.messageID, true), g.logger)
+		irLn.composer = composer
 		cleanups = append(cleanups, irLn.Close)
 		listener = irLn
 	}
 	if g.cfg.ShowPlanClarifyMessages {
-		listener = newPlanClarifyListener(execCtx, listener, g, msg.chatID, replyTarget(msg.messageID, true), awaitTracker)
+		pcLn := newPlanClarifyListener(execCtx, listener, g, msg.chatID, replyTarget(msg.messageID, true), awaitTracker)
+		pcLn.policy = policy
+		pcLn.composer = composer
+		listener = pcLn
 	}
 
 	listener = newFinalAnswerReviewReactionListener(
@@ -498,6 +506,11 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	if isAwait && result != nil {
 		awaitPrompt, hasAwaitPrompt = agent.ExtractAwaitUserInputPrompt(result.Messages)
 	}
+	mode := notificationModeMilestone
+	if isAwait {
+		mode = notificationModeBlocking
+	}
+	composer := newNotificationComposer(g.cfg.NotificationComposeV2)
 
 	reply := ""
 	replyContent := ""
@@ -532,23 +545,41 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		if summary := buildAttachmentSummary(result); summary != "" {
 			reply += "\n\n" + summary
 		}
+		reply = composer.FinalReply(reply, mode)
 		replyContent = textContent(reply)
 	}
 
 	if !skipReply {
+		if mode == notificationModeBlocking {
+			optionCount := 0
+			if hasAwaitPrompt {
+				optionCount = len(awaitPrompt.Options)
+			}
+			g.recordBlockingPrompt(execCtx, "await_user_input", optionCount)
+		}
 		// When a progress message exists, edit it into the final reply
 		// so the user sees a single message that transitions from
 		// "在思考…" → final answer, rather than two separate messages.
 		edited := false
 		if progressMsgID != "" {
-			if err := g.updateMessage(execCtx, progressMsgID, reply); err != nil {
+			if err := g.updateNotification(execCtx, progressMsgID, reply, "task_result", mode.String()); err != nil {
 				g.logger.Warn("Lark progress→reply edit failed, falling back to new message: %v", err)
 			} else {
 				edited = true
 			}
 		}
 		if !edited {
-			g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", replyContent)
+			if _, err := g.dispatchNotification(
+				execCtx,
+				msg.chatID,
+				replyTarget(msg.messageID, true),
+				"text",
+				replyContent,
+				"task_result",
+				mode.String(),
+			); err != nil {
+				g.logger.Warn("Lark result dispatch failed: %v", err)
+			}
 		}
 		g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
 	}
