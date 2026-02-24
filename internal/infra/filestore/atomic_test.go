@@ -89,6 +89,49 @@ func TestResolvePath_DefaultFallback(t *testing.T) {
 	}
 }
 
+func TestResolvePath_EnvExpansion(t *testing.T) {
+	t.Setenv("ALEX_TEST_PATH", "resolved")
+	got := ResolvePath("$ALEX_TEST_PATH/file.json", "")
+	if got != "resolved/file.json" {
+		t.Fatalf("expected env expansion, got %q", got)
+	}
+}
+
+func TestResolveConfiguredPath(t *testing.T) {
+	if got := resolveConfiguredPath("/configured", "/default"); got != "/configured" {
+		t.Fatalf("expected configured path, got %q", got)
+	}
+	if got := resolveConfiguredPath("", "/default"); got != "/default" {
+		t.Fatalf("expected default path, got %q", got)
+	}
+}
+
+func TestExpandHomePath_PrefixVariants(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("no home dir")
+	}
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "tilde only", in: "~", want: home},
+		{name: "tilde slash", in: "~/dir", want: filepath.Join(home, "dir")},
+		{name: "tilde user-like suffix", in: "~abc", want: filepath.Join(home, "abc")},
+		{name: "non tilde", in: "/tmp/path", want: "/tmp/path"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := expandHomePath(tt.in); got != tt.want {
+				t.Fatalf("expandHomePath(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestEnsureDir_CreatesNestedDirs(t *testing.T) {
 	dir := t.TempDir()
 	nested := filepath.Join(dir, "a", "b", "c")

@@ -121,25 +121,17 @@ func (c *Client) Call(ctx context.Context, method string, params map[string]any)
 
 	id := c.nextID()
 	key := strconv.FormatInt(id, 10)
-	respCh := make(chan *jsonrpc.Response, 1)
-
-	c.pendingMu.Lock()
-	c.pending[key] = respCh
-	c.pendingMu.Unlock()
+	respCh := registerPendingResponse(&c.pendingMu, c.pending, key)
 
 	req := jsonrpc.NewRequest(id, method, params)
 	payload, err := json.Marshal(req)
 	if err != nil {
-		c.pendingMu.Lock()
-		delete(c.pending, key)
-		c.pendingMu.Unlock()
+		deletePendingResponse(&c.pendingMu, c.pending, key)
 		return nil, err
 	}
 
 	if err := c.post(ctx, payload); err != nil {
-		c.pendingMu.Lock()
-		delete(c.pending, key)
-		c.pendingMu.Unlock()
+		deletePendingResponse(&c.pendingMu, c.pending, key)
 		return nil, err
 	}
 
@@ -147,9 +139,7 @@ func (c *Client) Call(ctx context.Context, method string, params map[string]any)
 	case resp := <-respCh:
 		return resp, nil
 	case <-ctx.Done():
-		c.pendingMu.Lock()
-		delete(c.pending, key)
-		c.pendingMu.Unlock()
+		deletePendingResponse(&c.pendingMu, c.pending, key)
 		return nil, ctx.Err()
 	}
 }
@@ -314,12 +304,7 @@ func (c *Client) deliverResponse(resp *jsonrpc.Response) bool {
 		return false
 	}
 	key := fmt.Sprintf("%v", resp.ID)
-	c.pendingMu.Lock()
-	ch, ok := c.pending[key]
-	if ok {
-		delete(c.pending, key)
-	}
-	c.pendingMu.Unlock()
+	ch, ok := popPendingResponse(&c.pendingMu, c.pending, key)
 	if !ok {
 		return false
 	}

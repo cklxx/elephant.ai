@@ -41,6 +41,30 @@ func (c *RPCConn) nextID() int64 {
 	return c.idGen.Add(1)
 }
 
+func registerPendingResponse(pendingMu *sync.Mutex, pending map[string]chan *jsonrpc.Response, key string) chan *jsonrpc.Response {
+	respCh := make(chan *jsonrpc.Response, 1)
+	pendingMu.Lock()
+	pending[key] = respCh
+	pendingMu.Unlock()
+	return respCh
+}
+
+func deletePendingResponse(pendingMu *sync.Mutex, pending map[string]chan *jsonrpc.Response, key string) {
+	pendingMu.Lock()
+	delete(pending, key)
+	pendingMu.Unlock()
+}
+
+func popPendingResponse(pendingMu *sync.Mutex, pending map[string]chan *jsonrpc.Response, key string) (chan *jsonrpc.Response, bool) {
+	pendingMu.Lock()
+	ch, ok := pending[key]
+	if ok {
+		delete(pending, key)
+	}
+	pendingMu.Unlock()
+	return ch, ok
+}
+
 // Call sends a request and waits for the response.
 func (c *RPCConn) Call(ctx context.Context, method string, params map[string]any) (*jsonrpc.Response, error) {
 	if ctx == nil {
@@ -48,17 +72,11 @@ func (c *RPCConn) Call(ctx context.Context, method string, params map[string]any
 	}
 	id := c.nextID()
 	key := strconv.FormatInt(id, 10)
-	respCh := make(chan *jsonrpc.Response, 1)
-
-	c.pendingMu.Lock()
-	c.pending[key] = respCh
-	c.pendingMu.Unlock()
+	respCh := registerPendingResponse(&c.pendingMu, c.pending, key)
 
 	req := jsonrpc.NewRequest(id, method, params)
 	if err := c.send(req); err != nil {
-		c.pendingMu.Lock()
-		delete(c.pending, key)
-		c.pendingMu.Unlock()
+		deletePendingResponse(&c.pendingMu, c.pending, key)
 		return nil, err
 	}
 
@@ -66,9 +84,7 @@ func (c *RPCConn) Call(ctx context.Context, method string, params map[string]any
 	case resp := <-respCh:
 		return resp, nil
 	case <-ctx.Done():
-		c.pendingMu.Lock()
-		delete(c.pending, key)
-		c.pendingMu.Unlock()
+		deletePendingResponse(&c.pendingMu, c.pending, key)
 		return nil, ctx.Err()
 	}
 }
@@ -92,12 +108,7 @@ func (c *RPCConn) DeliverResponse(resp *jsonrpc.Response) bool {
 		return false
 	}
 	key := fmt.Sprintf("%v", resp.ID)
-	c.pendingMu.Lock()
-	ch, ok := c.pending[key]
-	if ok {
-		delete(c.pending, key)
-	}
-	c.pendingMu.Unlock()
+	ch, ok := popPendingResponse(&c.pendingMu, c.pending, key)
 	if !ok {
 		return false
 	}

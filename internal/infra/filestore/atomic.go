@@ -46,29 +46,40 @@ func ReadFileOrEmpty(path string) ([]byte, error) {
 // ResolvePath resolves a storage path, handling ~ expansion and env variables.
 // If configured is empty, defaultPath is used.
 func ResolvePath(configured, defaultPath string) string {
-	path := configured
-	if path == "" {
-		path = defaultPath
+	return expandPath(resolveConfiguredPath(configured, defaultPath))
+}
+
+func resolveConfiguredPath(configured, defaultPath string) string {
+	if configured != "" {
+		return configured
 	}
+	return defaultPath
+}
+
+func expandPath(path string) string {
 	if path == "" {
 		return path
 	}
+	return os.ExpandEnv(expandHomePath(path))
+}
 
-	if len(path) > 0 && path[0] == '~' {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			if len(path) > 1 && path[1] == '/' {
-				path = filepath.Join(home, path[2:])
-			} else if len(path) == 1 {
-				path = home
-			} else {
-				path = filepath.Join(home, path[1:])
-			}
-		}
+func expandHomePath(path string) string {
+	if path == "" || path[0] != '~' {
+		return path
 	}
 
-	path = os.ExpandEnv(path)
-	return path
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+
+	if len(path) > 1 && path[1] == '/' {
+		return filepath.Join(home, path[2:])
+	}
+	if len(path) == 1 {
+		return home
+	}
+	return filepath.Join(home, path[1:])
 }
 
 // MarshalJSONIndent marshals v as indented JSON with a trailing newline.

@@ -29,17 +29,37 @@ const (
 
 type parentListenerKey struct{}
 
-// GetApproverFromContext retrieves the approver from context
-func GetApproverFromContext(ctx context.Context) tools.Approver {
+func contextValue[T any](ctx context.Context, key any) (T, bool) {
+	var zero T
+	if ctx == nil {
+		return zero, false
+	}
+
+	value, ok := ctx.Value(key).(T)
+	if !ok {
+		return zero, false
+	}
+
+	return value, true
+}
+
+func contextValueOr[T any](ctx context.Context, key any, fallback T) T {
+	if value, ok := contextValue[T](ctx, key); ok {
+		return value
+	}
+	return fallback
+}
+
+func contextRawValue(ctx context.Context, key any) any {
 	if ctx == nil {
 		return nil
 	}
+	return ctx.Value(key)
+}
 
-	if approver, ok := ctx.Value(ApproverKey).(tools.Approver); ok {
-		return approver
-	}
-
-	return nil
+// GetApproverFromContext retrieves the approver from context
+func GetApproverFromContext(ctx context.Context) tools.Approver {
+	return contextValueOr[tools.Approver](ctx, ApproverKey, nil)
 }
 
 // WithApprover sets the approver in context
@@ -49,15 +69,7 @@ func WithApprover(ctx context.Context, approver tools.Approver) context.Context 
 
 // GetBackupManagerFromContext retrieves the backup manager from context
 func GetBackupManagerFromContext(ctx context.Context) *backup.Manager {
-	if ctx == nil {
-		return nil
-	}
-
-	if manager, ok := ctx.Value(BackupManagerKey).(*backup.Manager); ok {
-		return manager
-	}
-
-	return nil
+	return contextValueOr[*backup.Manager](ctx, BackupManagerKey, nil)
 }
 
 // WithBackupManager sets the backup manager in context
@@ -67,15 +79,7 @@ func WithBackupManager(ctx context.Context, manager *backup.Manager) context.Con
 
 // GetToolSessionIDFromContext retrieves the session ID from context
 func GetToolSessionIDFromContext(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-
-	if sessionID, ok := ctx.Value(ToolSessionIDKey).(string); ok {
-		return sessionID
-	}
-
-	return ""
+	return contextValueOr[string](ctx, ToolSessionIDKey, "")
 }
 
 // WithToolSessionID sets the session ID in context
@@ -85,15 +89,7 @@ func WithToolSessionID(ctx context.Context, sessionID string) context.Context {
 
 // GetAutoApproveFromContext retrieves the auto-approve flag from context
 func GetAutoApproveFromContext(ctx context.Context) bool {
-	if ctx == nil {
-		return false
-	}
-
-	if autoApprove, ok := ctx.Value(AutoApproveKey).(bool); ok {
-		return autoApprove
-	}
-
-	return false
+	return contextValueOr[bool](ctx, AutoApproveKey, false)
 }
 
 // WithAutoApprove sets the auto-approve flag in context
@@ -103,17 +99,7 @@ func WithAutoApprove(ctx context.Context, autoApprove bool) context.Context {
 
 // GetParentListenerFromContext retrieves the parent listener (if any) for subtask event forwarding.
 func GetParentListenerFromContext(ctx context.Context) agent.EventListener {
-	if ctx == nil {
-		return nil
-	}
-
-	if listener := ctx.Value(parentListenerKey{}); listener != nil {
-		if typed, ok := listener.(agent.EventListener); ok {
-			return typed
-		}
-	}
-
-	return nil
+	return contextValueOr[agent.EventListener](ctx, parentListenerKey{}, nil)
 }
 
 // WithParentListener adds a parent listener to context for subagent event forwarding.
@@ -129,10 +115,7 @@ func WithLarkClient(ctx context.Context, client interface{}) context.Context {
 
 // LarkClientFromContext retrieves the Lark client from context.
 func LarkClientFromContext(ctx context.Context) interface{} {
-	if ctx == nil {
-		return nil
-	}
-	return ctx.Value(larkClientKey)
+	return contextRawValue(ctx, larkClientKey)
 }
 
 // WithLarkChatID sets the Lark chat ID in context.
@@ -142,13 +125,7 @@ func WithLarkChatID(ctx context.Context, chatID string) context.Context {
 
 // LarkChatIDFromContext retrieves the Lark chat ID from context.
 func LarkChatIDFromContext(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	if chatID, ok := ctx.Value(larkChatIDKey).(string); ok {
-		return chatID
-	}
-	return ""
+	return contextValueOr[string](ctx, larkChatIDKey, "")
 }
 
 // WithLarkMessageID sets the Lark message ID in context.
@@ -158,13 +135,7 @@ func WithLarkMessageID(ctx context.Context, messageID string) context.Context {
 
 // LarkMessageIDFromContext retrieves the Lark message ID from context.
 func LarkMessageIDFromContext(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	if messageID, ok := ctx.Value(larkMessageIDKey).(string); ok {
-		return messageID
-	}
-	return ""
+	return contextValueOr[string](ctx, larkMessageIDKey, "")
 }
 
 // LarkOAuthService is the interface for Lark OAuth operations needed by tools.
@@ -180,11 +151,7 @@ func WithLarkOAuth(ctx context.Context, svc LarkOAuthService) context.Context {
 
 // LarkOAuthFromContext retrieves the Lark OAuth service from context.
 func LarkOAuthFromContext(ctx context.Context) LarkOAuthService {
-	if ctx == nil {
-		return nil
-	}
-	svc, _ := ctx.Value(larkOAuthKey).(LarkOAuthService)
-	return svc
+	return contextValueOr[LarkOAuthService](ctx, larkOAuthKey, nil)
 }
 
 // WithLarkTenantCalendarID stores the Lark tenant calendar ID in context.
@@ -194,13 +161,7 @@ func WithLarkTenantCalendarID(ctx context.Context, calendarID string) context.Co
 
 // LarkTenantCalendarIDFromContext retrieves the Lark tenant calendar ID from context.
 func LarkTenantCalendarIDFromContext(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	if calendarID, ok := ctx.Value(larkTenantCalKey).(string); ok {
-		return calendarID
-	}
-	return ""
+	return contextValueOr[string](ctx, larkTenantCalKey, "")
 }
 
 // TimerManagerService is the interface for timer management needed by tools.
@@ -218,11 +179,7 @@ func WithTimerManager(ctx context.Context, mgr TimerManagerService) context.Cont
 
 // TimerManagerFromContext retrieves the timer manager from context.
 func TimerManagerFromContext(ctx context.Context) TimerManagerService {
-	if ctx == nil {
-		return nil
-	}
-	svc, _ := ctx.Value(timerManagerKey).(TimerManagerService)
-	return svc
+	return contextValueOr[TimerManagerService](ctx, timerManagerKey, nil)
 }
 
 // WithScheduler sets the scheduler in context. Typed as interface{} to avoid
@@ -233,10 +190,7 @@ func WithScheduler(ctx context.Context, sched interface{}) context.Context {
 
 // SchedulerFromContext retrieves the scheduler from context.
 func SchedulerFromContext(ctx context.Context) interface{} {
-	if ctx == nil {
-		return nil
-	}
-	return ctx.Value(schedulerKey)
+	return contextRawValue(ctx, schedulerKey)
 }
 
 // AutoUploadConfig controls automatic attachment uploads for local tools.
@@ -253,11 +207,5 @@ func WithAutoUploadConfig(ctx context.Context, cfg AutoUploadConfig) context.Con
 
 // GetAutoUploadConfig retrieves auto upload configuration from context.
 func GetAutoUploadConfig(ctx context.Context) AutoUploadConfig {
-	if ctx == nil {
-		return AutoUploadConfig{}
-	}
-	if cfg, ok := ctx.Value(autoUploadKey).(AutoUploadConfig); ok {
-		return cfg
-	}
-	return AutoUploadConfig{}
+	return contextValueOr[AutoUploadConfig](ctx, autoUploadKey, AutoUploadConfig{})
 }
