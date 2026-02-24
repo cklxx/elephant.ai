@@ -35,7 +35,7 @@ Notes:
 - [completed] Batch 1: parallel explorer discovery + candidate ranking.
 - [completed] Batch 2: parallel worker implementation + tests.
 - [completed] Batch 3: full quality gate (`./scripts/pre-push.sh`).
-- [in_progress] Batch 4: mandatory code review, incremental commits, rebase/merge, cleanup.
+- [completed] Batch 4: mandatory code review, incremental commits, rebase/merge, cleanup.
 
 ## Progress Log
 
@@ -51,3 +51,5 @@ Notes:
 - 2026-02-24: Full quality gate passed:
   - `./scripts/pre-push.sh` (`go mod tidy`, `go vet`, `go build`, `go test -race`, `golangci-lint`, architecture checks, web lint/build).
 - 2026-02-24: Completed mandatory code review and added Round 4 report under `docs/reviews/`.
+- 2026-02-24: Split Round 4 changes into incremental commits and rebased onto latest `main`.
+- 2026-02-24: Fast-forward merged `cklxx/continue-opt-20260224-r4` into `main` and removed temporary worktree/branch.
