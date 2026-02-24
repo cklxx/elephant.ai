@@ -39,9 +39,11 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 	// Hooks bridge — forward Claude Code hook events to Lark gateway.
 	var hooksBridge http.Handler
 	var memoryEngine serverHTTP.MemoryEngine
+	var larkInjectGateway serverHTTP.LarkInjectGateway
 	if container != nil {
 		if container.LarkGateway != nil {
 			hooksBridge = buildHooksBridge(cfg, container, logger)
+			larkInjectGateway = container.LarkGateway
 		}
 		memoryEngine = container.MemoryEngine
 	}
@@ -54,6 +56,7 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 		Obs:                    f.Obs,
 		MemoryEngine:           memoryEngine,
 		HooksBridge:            hooksBridge,
+		LarkInjectGateway:      larkInjectGateway,
 	})
 
 	port := cfg.DebugPort

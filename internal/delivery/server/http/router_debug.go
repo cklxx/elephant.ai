@@ -18,8 +18,9 @@ type DebugRouterDeps struct {
 	ConfigHandler          *ConfigHandler
 	OnboardingStateHandler *OnboardingStateHandler
 	Obs                    *observability.Observability
-	MemoryEngine           MemoryEngine     // may be nil
-	HooksBridge            http.Handler     // may be nil
+	MemoryEngine           MemoryEngine         // may be nil
+	HooksBridge            http.Handler         // may be nil
+	LarkInjectGateway      LarkInjectGateway    // may be nil; set when Lark gateway is available
 }
 
 // NewDebugRouter creates an HTTP handler exposing only debug / diagnostic
@@ -100,6 +101,12 @@ func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 	// ── Claude Code hooks bridge ──
 	if deps.HooksBridge != nil {
 		mux.Handle("POST /api/hooks/claude-code", routeHandler("/api/hooks/claude-code", deps.HooksBridge))
+	}
+
+	// ── Lark inject (local e2e testing) ──
+	if deps.LarkInjectGateway != nil {
+		injectHandler := NewLarkInjectHandler(deps.LarkInjectGateway)
+		mux.Handle("POST /api/dev/inject", routeHandler("/api/dev/inject", http.HandlerFunc(injectHandler.Handle)))
 	}
 
 	// ── Minimal middleware stack (no CORS / rate-limit / auth) ──

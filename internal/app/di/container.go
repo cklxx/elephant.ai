@@ -9,6 +9,7 @@ import (
 	agentcoordinator "alex/internal/app/agent/coordinator"
 	"alex/internal/app/lifecycle"
 	"alex/internal/app/toolregistry"
+	lark "alex/internal/delivery/channels/lark"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	react "alex/internal/domain/agent/react"
@@ -30,6 +31,7 @@ import (
 type LarkGateway interface {
 	NoticeLoader() func() (string, bool, error)
 	SendNotification(ctx context.Context, chatID, text string) error
+	InjectMessageSync(ctx context.Context, req lark.InjectSyncRequest) *lark.InjectSyncResponse
 }
 
 // KernelEngine is the minimal interface exposed by the kernel agent loop engine.

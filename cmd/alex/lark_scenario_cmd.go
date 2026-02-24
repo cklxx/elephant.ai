@@ -3,11 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	larktesting "alex/internal/delivery/channels/lark/testing"
 )
@@ -20,8 +24,10 @@ func runLarkCommand(args []string) error {
 	switch args[0] {
 	case "scenario", "scenarios":
 		return runLarkScenarioCommand(args[1:])
+	case "inject":
+		return runLarkInjectCommand(args[1:])
 	default:
-		return &ExitCodeError{Code: 2, Err: fmt.Errorf("unknown lark subcommand %q (expected: scenario)", args[0])}
+		return &ExitCodeError{Code: 2, Err: fmt.Errorf("unknown lark subcommand %q (expected: scenario, inject)", args[0])}
 	}
 }
 
@@ -183,6 +189,120 @@ func writeFile(path string, contents []byte) error {
 	}
 	if err := os.WriteFile(path, contents, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
+}
+
+func runLarkInjectCommand(args []string) error {
+	fs := flag.NewFlagSet("alex lark inject", flag.ContinueOnError)
+	var flagBuf bytes.Buffer
+	fs.SetOutput(&flagBuf)
+
+	port := fs.String("port", "9090", "Debug server port")
+	chatID := fs.String("chat-id", "", "Chat ID (default: auto-generated)")
+	chatType := fs.String("chat-type", "p2p", "Chat type: p2p, group")
+	senderID := fs.String("sender-id", "ou_inject_user", "Sender open ID")
+	timeout := fs.Int("timeout", 300, "Timeout in seconds")
+
+	if err := fs.Parse(args); err != nil {
+		return &ExitCodeError{Code: 2, Err: fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))}
+	}
+
+	text := strings.Join(fs.Args(), " ")
+	if text == "" {
+		return &ExitCodeError{Code: 2, Err: fmt.Errorf("usage: alex lark inject [flags] <message>")}
+	}
+
+	// Build request body.
+	reqBody := map[string]any{
+		"text":            text,
+		"chat_type":       *chatType,
+		"sender_id":       *senderID,
+		"timeout_seconds": *timeout,
+	}
+	if *chatID != "" {
+		reqBody["chat_id"] = *chatID
+	}
+
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
+
+	displayChatID := *chatID
+	if displayChatID == "" {
+		displayChatID = "(auto)"
+	}
+	fmt.Printf("Injecting message to Lark gateway (chat=%s, type=%s)...\n\n", displayChatID, *chatType)
+
+	url := fmt.Sprintf("http://localhost:%s/api/dev/inject", *port)
+	httpClient := &http.Client{Timeout: time.Duration(*timeout+30) * time.Second}
+	resp, err := httpClient.Post(url, "application/json", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return &ExitCodeError{Code: 1, Err: fmt.Errorf("HTTP request failed: %w", err)}
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return &ExitCodeError{Code: 1, Err: fmt.Errorf("read response: %w", err)}
+	}
+
+	var result struct {
+		Replies    []struct {
+			Method  string `json:"method"`
+			Content string `json:"content"`
+			MsgType string `json:"msg_type"`
+			Emoji   string `json:"emoji"`
+		} `json:"replies"`
+		DurationMs int64  `json:"duration_ms"`
+		Error      string `json:"error"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return &ExitCodeError{Code: 1, Err: fmt.Errorf("parse response: %w (body: %s)", err, string(respBody))}
+	}
+
+	if result.Error != "" {
+		fmt.Printf("Error: %s\n", result.Error)
+	}
+
+	duration := time.Duration(result.DurationMs) * time.Millisecond
+	if len(result.Replies) == 0 {
+		fmt.Printf("No bot replies captured.\n\nDuration: %s\n", duration.Round(time.Millisecond))
+		if result.Error != "" {
+			return &ExitCodeError{Code: 1, Err: fmt.Errorf("inject failed: %s", result.Error)}
+		}
+		return nil
+	}
+
+	fmt.Printf("Bot replies (%d):\n", len(result.Replies))
+	for i, r := range result.Replies {
+		fmt.Println("──────────────────────────────")
+		label := r.Method
+		if r.MsgType != "" {
+			label += " (" + r.MsgType + ")"
+		}
+		fmt.Printf("[%d] %s\n", i+1, label)
+
+		if r.Content != "" {
+			// Try to extract text from JSON content.
+			var textObj struct {
+				Text string `json:"text"`
+			}
+			if json.Unmarshal([]byte(r.Content), &textObj) == nil && textObj.Text != "" {
+				fmt.Println(textObj.Text)
+			} else {
+				fmt.Println(r.Content)
+			}
+		}
+		if r.Emoji != "" {
+			fmt.Printf("emoji: %s\n", r.Emoji)
+		}
+	}
+	fmt.Printf("\nDuration: %s\n", duration.Round(time.Millisecond))
+
+	if result.Error != "" {
+		return &ExitCodeError{Code: 1, Err: fmt.Errorf("inject completed with error: %s", result.Error)}
 	}
 	return nil
 }
