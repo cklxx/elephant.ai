@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -222,7 +224,9 @@ func (c *CLI) pullSessionSnapshotsWithWriter(ctx context.Context, args []string,
 		return fmt.Errorf("session state store not configured")
 	}
 
-	fs, flagBuf := newBufferedFlagSet("sessions pull")
+	fs := flag.NewFlagSet("sessions pull", flag.ContinueOnError)
+	var flagBuf bytes.Buffer
+	fs.SetOutput(&flagBuf)
 	turnFlag := fs.Int("turn", -1, "Fetch a specific turn_id snapshot")
 	llmTurnFlag := fs.Int("llm-turn", -1, "Fetch the snapshot matching llm_turn_seq")
 	limitFlag := fs.Int("limit", defaultSnapshotListLimit, "Number of snapshots to list when no turn specified")
@@ -235,8 +239,8 @@ func (c *CLI) pullSessionSnapshotsWithWriter(ctx context.Context, args []string,
 		positionalID = strings.TrimSpace(args[0])
 		args = args[1:]
 	}
-	if err := parseBufferedFlagSet(fs, flagBuf, args); err != nil {
-		return err
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))
 	}
 	sessionID := positionalID
 	positional := fs.Args()

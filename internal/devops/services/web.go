@@ -74,11 +74,16 @@ func (s *WebService) Start(ctx context.Context) error {
 		return nil
 	}
 
-	// Clean up stale Next.js dev lock
-	lockFile := filepath.Join(s.config.WebDir, ".next", "dev", "lock")
-	if _, err := os.Stat(lockFile); err == nil {
-		s.section.Warn("Removing stale Next.js dev lock: %s", lockFile)
-		os.Remove(lockFile)
+	// Auto-heal corrupted Next.js dev state before starting
+	if s.config.AutoHeal {
+		s.clearNextDevArtifacts()
+	} else {
+		// At minimum, remove stale lock file
+		lockFile := filepath.Join(s.config.WebDir, ".next", "dev", "lock")
+		if _, err := os.Stat(lockFile); err == nil {
+			s.section.Warn("Removing stale Next.js dev lock: %s", lockFile)
+			os.Remove(lockFile)
+		}
 	}
 
 	// Port allocation

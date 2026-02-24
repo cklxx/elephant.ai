@@ -126,8 +126,8 @@ func runLarkScenarioRun(args []string) error {
 	var tags stringListFlag
 	fs.Var(&tags, "tag", "Run only scenarios that contain these tag(s). Can be repeated or comma-separated.")
 
-	if err := parseBufferedFlagSet(fs, flagBuf, args); err != nil {
-		return &ExitCodeError{Code: 2, Err: err}
+	if err := fs.Parse(args); err != nil {
+		return &ExitCodeError{Code: 2, Err: formatBufferedFlagParseError(err, flagBuf)}
 	}
 
 	normalizedMode, err := normalizeLarkScenarioMode(*mode)
@@ -517,8 +517,8 @@ func runLarkInjectCommand(args []string) error {
 	autoReply := fs.Bool("auto-reply", false, "Auto-reply when agent asks for clarification")
 	maxAutoReplyRounds := fs.Int("max-auto-reply-rounds", 3, "Max auto-reply rounds")
 
-	if err := parseBufferedFlagSet(fs, flagBuf, args); err != nil {
-		return &ExitCodeError{Code: 2, Err: err}
+	if err := fs.Parse(args); err != nil {
+		return &ExitCodeError{Code: 2, Err: formatBufferedFlagParseError(err, flagBuf)}
 	}
 
 	text := strings.Join(fs.Args(), " ")

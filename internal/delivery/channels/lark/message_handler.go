@@ -191,10 +191,13 @@ func extractTextContent(raw string, mentions []*larkim.MentionEvent) string {
 	if raw == "" {
 		return ""
 	}
-	text, ok := parseLarkTextPayload(raw)
-	if !ok {
+	var parsed struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return strings.TrimSpace(raw)
 	}
+	text := strings.TrimSpace(parsed.Text)
 	if text == "" {
 		return ""
 	}
@@ -249,34 +252,62 @@ func extractPostContent(raw string, mentions []*larkim.MentionEvent) string {
 	if raw == "" {
 		return ""
 	}
-	parsed, ok := parseLarkPostPayload(raw)
-	if !ok {
+
+	type postElement struct {
+		Tag      string `json:"tag"`
+		Text     string `json:"text"`
+		UserID   string `json:"user_id"`
+		UserName string `json:"user_name"`
+	}
+	type postPayload struct {
+		Title   string          `json:"title"`
+		Content [][]postElement `json:"content"`
+	}
+
+	var parsed postPayload
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return strings.TrimSpace(raw)
 	}
 
 	mentionMap := mentionKeyMap(mentions)
-	return flattenLarkPostPayload(
-		parsed,
-		func(text string) string {
-			return renderIncomingMentionPlaceholders(text, mentionMap)
-		},
-		func(el larkPostElement) string {
-			rawUserID := strings.TrimSpace(el.UserID)
-			userID := rawUserID
-			name := strings.TrimSpace(el.UserName)
-			if mentionMap != nil {
-				if info, exists := mentionMap[rawUserID]; exists {
-					if name == "" {
-						name = info.Name
-					}
-					if strings.TrimSpace(info.ID) != "" {
-						userID = info.ID
+	var sb strings.Builder
+	if title := strings.TrimSpace(parsed.Title); title != "" {
+		sb.WriteString(title)
+	}
+	for _, line := range parsed.Content {
+		if sb.Len() > 0 {
+			sb.WriteByte('\n')
+		}
+		for _, el := range line {
+			switch el.Tag {
+			case "text":
+				sb.WriteString(renderIncomingMentionPlaceholders(el.Text, mentionMap))
+			case "at":
+				rawUserID := strings.TrimSpace(el.UserID)
+				userID := rawUserID
+				name := strings.TrimSpace(el.UserName)
+				if mentionMap != nil {
+					if info, ok := mentionMap[rawUserID]; ok {
+						if name == "" {
+							name = info.Name
+						}
+						if strings.TrimSpace(info.ID) != "" {
+							userID = info.ID
+						}
 					}
 				}
+				if mention := formatReadableMention(name, userID, rawUserID); mention != "" {
+					sb.WriteString(mention)
+				}
+			default:
+				if el.Text != "" {
+					sb.WriteString(el.Text)
+				}
 			}
-			return formatReadableMention(name, userID, rawUserID)
-		},
-	)
+		}
+	}
+
+	return strings.TrimSpace(sb.String())
 }
 
 // textContent builds the JSON content payload for a Lark text message.

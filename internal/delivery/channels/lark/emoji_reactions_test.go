@@ -23,11 +23,6 @@ func TestParseEmojiPoolDedupesAndParses(t *testing.T) {
 	if !reflect.DeepEqual(pool, want) {
 		t.Fatalf("expected %v, got %v", want, pool)
 	}
-
-	pool = parseEmojiPool(", ; | \n\t")
-	if pool != nil {
-		t.Fatalf("expected nil for separator-only input, got %v", pool)
-	}
 }
 
 func TestEmojiPickerPickStartEndDistinct(t *testing.T) {

@@ -158,7 +158,7 @@ func startCaffeinateGuard(pidDir string) {
 	if err := cmd.Start(); err != nil {
 		return
 	}
-	os.WriteFile(caffPIDFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0o644)
+	_ = os.WriteFile(caffPIDFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0o644)
 	fmt.Printf("Caffeinate guard enabled (PID: %d, supervisor: %d)\n", cmd.Process.Pid, supPID)
 }
 

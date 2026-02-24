@@ -106,7 +106,11 @@ func cloneMessage(msg core.Message) core.Message {
 		cloned.ToolResults = CloneToolResults(msg.ToolResults)
 	}
 	if len(msg.Metadata) > 0 {
-		cloned.Metadata = core.CloneAnyMap(msg.Metadata)
+		metadata := make(map[string]any, len(msg.Metadata))
+		for key, value := range msg.Metadata {
+			metadata[key] = value
+		}
+		cloned.Metadata = metadata
 	}
 	if len(msg.Attachments) > 0 {
 		cloned.Attachments = core.CloneAttachmentMap(msg.Attachments)
@@ -122,7 +126,11 @@ func cloneToolCalls(calls []core.ToolCall) []core.ToolCall {
 	for i := range calls {
 		cloned[i] = calls[i]
 		if len(calls[i].Arguments) > 0 {
-			cloned[i].Arguments = core.CloneAnyMap(calls[i].Arguments)
+			args := make(map[string]any, len(calls[i].Arguments))
+			for key, value := range calls[i].Arguments {
+				args[key] = value
+			}
+			cloned[i].Arguments = args
 		}
 	}
 	return cloned
@@ -137,7 +145,11 @@ func CloneToolResults(results []core.ToolResult) []core.ToolResult {
 	for i := range results {
 		cloned[i] = results[i]
 		if len(results[i].Metadata) > 0 {
-			cloned[i].Metadata = core.CloneAnyMap(results[i].Metadata)
+			metadata := make(map[string]any, len(results[i].Metadata))
+			for key, value := range results[i].Metadata {
+				metadata[key] = value
+			}
+			cloned[i].Metadata = metadata
 		}
 		if len(results[i].Attachments) > 0 {
 			cloned[i].Attachments = core.CloneAttachmentMap(results[i].Attachments)

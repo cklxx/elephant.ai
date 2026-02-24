@@ -1,13 +1,19 @@
 package main
 
 import (
+	"bytes"
+	"flag"
+	"fmt"
 	"log"
+	"strings"
 
 	agent_eval "alex/evaluation/agent_eval"
 )
 
 func (c *CLI) runFoundationEvaluation(args []string) error {
-	fs, flagBuf := newBufferedFlagSet("eval foundation")
+	fs := flag.NewFlagSet("eval foundation", flag.ContinueOnError)
+	var flagBuf bytes.Buffer
+	fs.SetOutput(&flagBuf)
 
 	outputDir := fs.String("output", "./evaluation_results/foundation", "Directory to write foundation evaluation outputs")
 	mode := fs.String("mode", "web", "Tool mode: web|cli")
@@ -17,8 +23,8 @@ func (c *CLI) runFoundationEvaluation(args []string) error {
 	topK := fs.Int("top-k", 3, "Top-K cutoff for implicit discoverability pass/fail")
 	reportFormat := fs.String("format", "markdown", "Report format: markdown|json")
 
-	if err := parseBufferedFlagSet(fs, flagBuf, args); err != nil {
-		return err
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))
 	}
 
 	options := agent_eval.DefaultFoundationEvaluationOptions()

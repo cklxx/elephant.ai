@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -15,7 +17,9 @@ import (
 
 // handleEval runs the lightweight agent evaluation locally.
 func (c *CLI) handleEval(args []string) error {
-	fs, flagBuf := newBufferedFlagSet("eval")
+	fs := flag.NewFlagSet("eval", flag.ContinueOnError)
+	var flagBuf bytes.Buffer
+	fs.SetOutput(&flagBuf)
 
 	if len(args) > 0 {
 		switch args[0] {
@@ -47,8 +51,8 @@ func (c *CLI) handleEval(args []string) error {
 	disableMetrics := fs.Bool("no-metrics", false, "Disable metrics collection")
 	verbose := fs.Bool("v", false, "Enable verbose logging")
 
-	if err := parseBufferedFlagSet(fs, flagBuf, args); err != nil {
-		return err
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))
 	}
 
 	preparedDatasetPath, err := prepareEvalRuntimeEnvironment(*datasetPath)
@@ -268,13 +272,15 @@ func evalDirExists(path string) bool {
 }
 
 func (c *CLI) listAgentProfiles(args []string) error {
-	fs, flagBuf := newBufferedFlagSet("eval agents")
+	fs := flag.NewFlagSet("eval agents", flag.ContinueOnError)
+	var flagBuf bytes.Buffer
+	fs.SetOutput(&flagBuf)
 
 	outputDir := fs.String("output", "./evaluation_results", "Directory containing evaluation artifacts")
 	limit := fs.Int("limit", 20, "Maximum number of agents to display (0 for all)")
 
-	if err := parseBufferedFlagSet(fs, flagBuf, args); err != nil {
-		return err
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))
 	}
 
 	manager := agent_eval.NewEvaluationManager(&agent_eval.EvaluationConfig{OutputDir: *outputDir})
@@ -310,7 +316,9 @@ func (c *CLI) listAgentProfiles(args []string) error {
 }
 
 func (c *CLI) listAgentHistory(args []string) error {
-	fs, flagBuf := newBufferedFlagSet("eval history")
+	fs := flag.NewFlagSet("eval history", flag.ContinueOnError)
+	var flagBuf bytes.Buffer
+	fs.SetOutput(&flagBuf)
 
 	outputDir := fs.String("output", "./evaluation_results", "Directory containing evaluation artifacts")
 	limit := fs.Int("limit", 10, "Maximum number of evaluations to display (0 for all)")
@@ -327,8 +335,8 @@ func (c *CLI) listAgentHistory(args []string) error {
 		args = args[1:]
 	}
 
-	if err := parseBufferedFlagSet(fs, flagBuf, args); err != nil {
-		return err
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))
 	}
 
 	if agentID == "" {
@@ -418,7 +426,9 @@ func (c *CLI) listAgentHistory(args []string) error {
 }
 
 func (c *CLI) listEvaluations(args []string) error {
-	fs, flagBuf := newBufferedFlagSet("eval list")
+	fs := flag.NewFlagSet("eval list", flag.ContinueOnError)
+	var flagBuf bytes.Buffer
+	fs.SetOutput(&flagBuf)
 
 	outputDir := fs.String("output", "./evaluation_results", "Directory containing evaluation artifacts")
 	limit := fs.Int("limit", 20, "Maximum number of evaluations to display (0 for all)")
@@ -430,8 +440,8 @@ func (c *CLI) listEvaluations(args []string) error {
 	datasetType := fs.String("dataset-type", "", "Dataset type to filter evaluations")
 	tags := fs.String("tags", "", "Comma-separated agent tags to filter evaluations")
 
-	if err := parseBufferedFlagSet(fs, flagBuf, args); err != nil {
-		return err
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))
 	}
 
 	manager := agent_eval.NewEvaluationManager(&agent_eval.EvaluationConfig{OutputDir: *outputDir})
@@ -516,14 +526,16 @@ func (c *CLI) listEvaluations(args []string) error {
 }
 
 func (c *CLI) showEvaluation(args []string) error {
-	fs, flagBuf := newBufferedFlagSet("eval show")
+	fs := flag.NewFlagSet("eval show", flag.ContinueOnError)
+	var flagBuf bytes.Buffer
+	fs.SetOutput(&flagBuf)
 
 	jobID := fs.String("job", "", "Evaluation job id to inspect")
 	outputDir := fs.String("output", "./evaluation_results", "Directory containing evaluation artifacts")
 	maxTasks := fs.Int("tasks", 10, "Maximum number of task results to display (0 for all)")
 
-	if err := parseBufferedFlagSet(fs, flagBuf, args); err != nil {
-		return err
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))
 	}
 	if *jobID == "" {
 		return fmt.Errorf("job id is required")
@@ -585,13 +597,15 @@ func (c *CLI) showEvaluation(args []string) error {
 }
 
 func (c *CLI) deleteEvaluation(args []string) error {
-	fs, flagBuf := newBufferedFlagSet("eval delete")
+	fs := flag.NewFlagSet("eval delete", flag.ContinueOnError)
+	var flagBuf bytes.Buffer
+	fs.SetOutput(&flagBuf)
 
 	jobID := fs.String("job", "", "Evaluation job id to delete")
 	outputDir := fs.String("output", "./evaluation_results", "Directory containing evaluation artifacts")
 
-	if err := parseBufferedFlagSet(fs, flagBuf, args); err != nil {
-		return err
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))
 	}
 	if *jobID == "" {
 		return fmt.Errorf("job id is required")
