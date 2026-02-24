@@ -62,11 +62,6 @@ scenarios:
   intent: Proactively verify latest authoritative references on the web before finalizing.
   expected_tools:
   - web_search
-- id: proactive-browser-canvas-action
-  category: browser
-  intent: Proactively perform the required canvas interaction by coordinate action.
-  expected_tools:
-  - browser_action
 - id: proactive-skill-discovery-before-coding
   category: skills
   intent: Proactively check whether a reusable skill/workflow exists before doing

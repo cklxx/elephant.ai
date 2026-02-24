@@ -4,11 +4,11 @@
 执行真实端到端评测（非 dry-run），产出可追溯结果与对照指标，识别失败簇并给出后续优化入口。
 
 ## Scope
-- Run `foundation_eval_suite_e2e_systematic.yaml`
-- Run `foundation_eval_suite.yaml` for baseline comparison
+- Run `foundation_eval_suite_basic_active.yaml`
+- Run `foundation_eval_suite_basic_active.yaml` for baseline comparison
 - Run `foundation_eval_suite_basic_active.yaml` for active-tool/skills health
 - Run `foundation_eval_suite_motivation_aware.yaml` for motivation-aware proactivity health
-- Run `foundation_eval_suite_active_tools_systematic_hard.yaml` for hard active-tool intent mapping
+- Run `foundation_eval_suite_basic_active.yaml` for hard active-tool intent mapping
 - Output summary and failure focus report under `docs/analysis/`
 
 ## Steps

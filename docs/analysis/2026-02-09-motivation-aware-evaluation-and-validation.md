@@ -10,7 +10,7 @@
 - `evaluation/agent_eval/datasets/foundation_eval_cases_motivation_aware_proactivity.yaml`
 - `evaluation/agent_eval/datasets/foundation_eval_suite_motivation_aware.yaml`
 
-说明：本次采用独立 suite，避免直接扰动默认 `foundation_eval_suite.yaml` 的历史基线。
+说明：本次采用独立 suite，避免直接扰动默认 `foundation_eval_suite_basic_active.yaml` 的历史基线。
 
 ## 3. 评测集合设计
 
@@ -283,7 +283,7 @@ R5 批量收敛的代表簇：
 - FrontierMath: https://epoch.ai/frontiermath/the-benchmark
 
 ### 12.3 套件规模与结果（x/x）
-- Suite: `foundation_eval_suite.yaml`
+- Suite: `foundation_eval_suite_basic_active.yaml`
 - Collections: `25/25`
 - Cases: `387/387`
 - pass@1: `330/387`

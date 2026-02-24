@@ -37,7 +37,7 @@ This round targets **real product capability uplift** by improving production ro
   - aliases/sandbox/lark/scheduler/preset routing tests.
 
 ## 3. Evaluation Results
-Suite: `evaluation/agent_eval/datasets/foundation_eval_suite.yaml`
+Suite: `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 
 ### Before (baseline)
 - pass@1: **207/257**

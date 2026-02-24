@@ -2,7 +2,7 @@
 
 ## 1. Run Metadata
 - Run ID: `...`
-- Suite Path: `evaluation/agent_eval/datasets/foundation_eval_suite.yaml`
+- Suite Path: `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 - Generated At (UTC): `...`
 - Commit: `...`
 

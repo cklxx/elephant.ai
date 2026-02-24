@@ -8,7 +8,7 @@
 ## Updated Datasets
 - Updated: `evaluation/agent_eval/datasets/foundation_eval_cases_motivation_aware_proactivity.yaml`
 - Added: `evaluation/agent_eval/datasets/foundation_eval_cases_intent_decomposition_constraint_matrix.yaml`
-- Updated suite: `evaluation/agent_eval/datasets/foundation_eval_suite.yaml`
+- Updated suite: `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 
 ## Baseline vs After (full suite)
 Baseline run:

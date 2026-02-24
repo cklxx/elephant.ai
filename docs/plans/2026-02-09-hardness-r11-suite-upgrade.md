@@ -17,8 +17,8 @@ Increase benchmark difficulty so pass@5 is no longer saturated, using harder imp
 
 ## Progress Log
 - 2026-02-09 23:03: Created fresh worktree from main and copied .env.
-- 2026-02-09 23:17: Added hard low-overlap implicit-intent transfer collection and integrated it into `foundation_eval_suite.yaml`.
-- 2026-02-09 23:22: Added hard compound long-horizon autonomy/value-delivery collection and integrated it into `foundation_eval_suite.yaml`.
+- 2026-02-09 23:17: Added hard low-overlap implicit-intent transfer collection and integrated it into `foundation_eval_suite_basic_active.yaml`.
+- 2026-02-09 23:22: Added hard compound long-horizon autonomy/value-delivery collection and integrated it into `foundation_eval_suite_basic_active.yaml`.
 - 2026-02-09 23:28: Ran full hard suite and confirmed challenge increase: `pass@1 264/315`, `pass@5 302/315`, with new failure clusters concentrated in low-overlap implicit scheduling/approval intents.
 - 2026-02-09 23:34: Implemented failure-cluster-driven router boost updates in `foundation_eval.go` and reran suite; improved to `pass@1 271/315`, `pass@5 311/315`.
 - 2026-02-09 23:41: Second optimization iteration focused on scheduler boundary conflicts; improved to `pass@1 273/315`, `pass@5 313/315`, remaining failed cases `2`.

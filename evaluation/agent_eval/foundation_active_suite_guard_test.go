@@ -21,7 +21,6 @@ func TestActiveSuitesOnlyReferenceActiveTools(t *testing.T) {
 	}
 
 	activeTools := map[string]struct{}{
-		"browser_action": {},
 		"channel":        {},
 		"clarify":        {},
 		"execute_code":   {},
@@ -39,7 +38,7 @@ func TestActiveSuitesOnlyReferenceActiveTools(t *testing.T) {
 
 	suitePaths := []string{
 		"evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml",
-		"evaluation/agent_eval/datasets/foundation_eval_suite_active_tools_systematic_hard.yaml",
+		"evaluation/agent_eval/datasets/foundation_eval_suite_motivation_aware.yaml",
 	}
 
 	for _, suitePath := range suitePaths {

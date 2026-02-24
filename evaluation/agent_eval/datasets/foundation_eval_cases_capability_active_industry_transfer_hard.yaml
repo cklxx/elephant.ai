@@ -18,10 +18,6 @@ scenarios:
     category: "industry_transfer"
     intent: "Run deterministic computation to validate edge-case math used in the patch proof."
     expected_tools: ["execute_code"]
-  - id: "transfer-webarena-manual-web-flow"
-    category: "industry_transfer"
-    intent: "Navigate a fragile web flow where selectors are unreliable and manual interactions are required."
-    expected_tools: ["browser_action"]
   - id: "transfer-webarena-policy-change-search"
     category: "industry_transfer"
     intent: "Search latest official product policy and release docs before concluding behavior is a bug."
@@ -67,10 +63,6 @@ scenarios:
     category: "industry_transfer"
     intent: "Use sparse clues to locate authoritative references rather than secondary commentary."
     expected_tools: ["web_search"]
-  - id: "transfer-osworld-manual-browser-verify"
-    category: "industry_transfer"
-    intent: "Validate state transitions in a flaky web UI using manual browser interactions."
-    expected_tools: ["browser_action"]
   - id: "transfer-enterprise-thread-update"
     category: "industry_transfer"
     intent: "Post a precise progress update in-thread after completing a milestone."

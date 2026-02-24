@@ -10,7 +10,7 @@ Increase evaluation difficulty using real industry benchmark transfer cases, wir
 
 ## Scope
 - Add harder transfer datasets with explicit benchmark provenance and concrete capability dimensions.
-- Integrate new collections into `foundation_eval_suite.yaml`.
+- Integrate new collections into `foundation_eval_suite_basic_active.yaml`.
 - Run full suite scoring, plus full lint/tests, then document results.
 
 ## Active Memory (Top)

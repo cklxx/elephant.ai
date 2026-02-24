@@ -14,12 +14,6 @@ scenarios:
   intent: User feels overwhelmed and asks for the smallest viable execution plan.
   expected_tools:
   - plan
-- id: motivation-burnout-recovery-block
-  category: motivation_signal
-  intent: User reports burnout and asks to create a protected recovery focus block
-    on calendar.
-  expected_tools:
-  - lark_calendar_create
 - id: motivation-autonomy-consent-before-outreach
   category: motivation_boundary
   intent: User states no external outreach without approval; request explicit consent
@@ -38,12 +32,6 @@ scenarios:
     explicit consent before any outreach.
   expected_tools:
   - request_user
-- id: motivation-message-vs-upload-no-file
-  category: motivation_proactivity
-  intent: Send an encouraging progress nudge in current Lark thread without uploading
-    or attaching any file.
-  expected_tools:
-  - lark_send_message
 - id: motivation-delegated-low-risk-action-no-reconfirm
   category: motivation_boundary
   intent: User already delegated choice ("you decide", "anything works") for a low-risk
@@ -51,26 +39,6 @@ scenarios:
     and report the choice without asking again.
   expected_tools:
   - channel
-- id: motivation-stop-noise-reminders
-  category: motivation_boundary
-  intent: User asks to stop motivation nudges now; cancel the active reminder timer.
-  expected_tools:
-  - cancel_timer
-- id: motivation-daily-accountability-job
-  category: motivation_proactivity
-  intent: Create a recurring weekday accountability check-in scheduler job.
-  expected_tools:
-  - scheduler_create_job
-- id: motivation-followup-if-no-reply
-  category: motivation_proactivity
-  intent: Schedule an automatic follow-up only when no status reply arrives.
-  expected_tools:
-  - scheduler_create_job
-- id: motivation-prune-obsolete-checkin-job
-  category: motivation_proactivity
-  intent: Delete an obsolete motivation check-in scheduler job after workflow change.
-  expected_tools:
-  - scheduler_delete_job
 - id: motivation-memory-recall-cadence
   category: motivation_memory
   intent: Recall the user's preferred reminder cadence from prior notes before planning
@@ -82,18 +50,6 @@ scenarios:
   intent: Open exact memory lines that justify the selected motivation strategy.
   expected_tools:
   - memory_get
-- id: motivation-memory-style-then-message
-  category: motivation_memory
-  intent: Recall motivational tone preferences from memory before sending a Lark progress
-    nudge.
-  expected_tools:
-  - memory_search
-  - lark_send_message
-- id: motivation-context-before-proactive-nudge
-  category: motivation_context
-  intent: Fetch recent Lark chat history before issuing a proactive motivation reminder.
-  expected_tools:
-  - lark_chat_history
 - id: motivation-memory-policy-before-action
   category: motivation_memory
   intent: Before choosing a motivation intervention, recall prior accepted and rejected

@@ -82,10 +82,6 @@ scenarios:
     category: "intent_boundary"
     intent: "Search for up-to-date authoritative references and compare version-specific changes."
     expected_tools: ["web_search"]
-  - id: "boundary-browser-action-manual-flow"
-    category: "intent_boundary"
-    intent: "Use browser actions to click through the page manually where selectors are unreliable."
-    expected_tools: ["browser_action"]
   - id: "boundary-channel-notify-status"
     category: "intent_boundary"
     intent: "Send a concise status update to the current chat thread."

@@ -27,7 +27,7 @@
 - `evaluation/agent_eval/datasets/foundation_eval_cases_capability_active_memory_habit_long_horizon_hard.yaml`（20）
 - `evaluation/agent_eval/datasets/foundation_eval_cases_capability_active_delivery_and_artifact_write_hard.yaml`（20）
 - `evaluation/agent_eval/datasets/foundation_eval_cases_capability_active_industry_transfer_hard.yaml`（24）
-- 新 suite：`evaluation/agent_eval/datasets/foundation_eval_suite_active_tools_systematic_hard.yaml`
+- 新 suite：`evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 - 扩展基础 suite：`evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`（同样 7 collections）
 
 总规模：`119` case（全部仅依赖当前 14 工具）。

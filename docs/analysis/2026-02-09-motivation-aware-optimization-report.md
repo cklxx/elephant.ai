@@ -6,7 +6,7 @@ This run optimizes and scores the newly added motivation-aware collection togeth
 Included assets:
 - `evaluation/agent_eval/datasets/foundation_eval_cases_motivation_aware_proactivity.yaml`
 - `evaluation/agent_eval/datasets/foundation_eval_suite_motivation_aware.yaml`
-- `evaluation/agent_eval/datasets/foundation_eval_suite.yaml` (integrated with motivation-aware collection)
+- `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml` (integrated with motivation-aware collection)
 
 ## 2) Execution Commands
 Standalone motivation suite:
@@ -29,7 +29,7 @@ Integrated full suite:
 
 ```bash
 go run ./cmd/alex eval foundation-suite \
-  --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml \
+  --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml \
   --output tmp/foundation-suite-with-motivation-integrated \
   --format markdown
 ```

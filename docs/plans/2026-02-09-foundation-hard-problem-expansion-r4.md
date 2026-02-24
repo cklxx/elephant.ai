@@ -7,7 +7,7 @@
 
 ## Scope
 - Add new foundation eval datasets under `evaluation/agent_eval/datasets/`.
-- Add them to `foundation_eval_suite.yaml` with clear `id/name/dimension` semantics.
+- Add them to `foundation_eval_suite_basic_active.yaml` with clear `id/name/dimension` semantics.
 - Tune offline routing heuristics in `evaluation/agent_eval/foundation_eval.go` plus regression tests.
 - Publish analysis report with x/x scoreboard, top failure pairs, good/bad sampling, and optimization actions.
 

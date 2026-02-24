@@ -18,12 +18,6 @@ scenarios:
   intent: Continue only after the user completes manual account verification.
   expected_tools:
   - request_user
-- id: tool-browser-action-canvas-click
-  category: browser
-  intent: This canvas has no stable selectors; use coordinate-based click and drag
-    actions.
-  expected_tools:
-  - browser_action
 - id: tool-read-source-file
   category: workspace
   intent: Open a source file and inspect its content around a suspicious function.

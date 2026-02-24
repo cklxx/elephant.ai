@@ -31,5 +31,5 @@ steps:
     status: "in_progress"
 artifacts:
   research_report: "docs/research/2026-02-10-e2e-systematic-benchmark-research.md"
-  suite_path: "evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml"
+  suite_path: "evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml"
   eval_output_dir: "tmp/foundation-suite-r19-e2e-systematic-20260210-104937"

@@ -22,7 +22,7 @@
 - `Stateful Commitment Boundary Stress` (`16/16`)
 - `Reproducibility Trace Evidence Stress` (`16/16`)
 
-suite 入口：`evaluation/agent_eval/datasets/foundation_eval_suite.yaml`
+suite 入口：`evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 
 ## 4) Failure Decomposition (Post-expand)
 

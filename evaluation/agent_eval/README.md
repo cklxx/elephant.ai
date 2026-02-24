@@ -29,6 +29,7 @@
 - **质量指标**: 解决方案质量、错误恢复率、一致性评分
 - **资源指标**: Token使用、成本分析、内存占用
 - **行为指标**: 工具使用模式、错误模式分析
+- **注意力指标**: HAM（人类注意力分钟）基线/实际、Attention Saving Ratio、打断频率、审查时长、恢复成本、严重失败率、交付就绪率、信任校准误差
 
 ### 🧠 **智能分析**
 - 基于规则的建议引擎（12个内置规则）
@@ -91,7 +92,7 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
   - pass@5: `31/31`
 
 新增（2026-02-10）：系统化端到端 suite（按能力维度分层）
-- `evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml`
+- `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 - 覆盖 `28` 个集合、`344` 个 case（Foundation Core + Stateful/Memory + Delivery + Frontier Benchmark Transfer）。
 - 新增 benchmark 映射集合：
   - `industry_benchmark_webarena_verified_webops_hard`
@@ -114,16 +115,24 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 
 说明：评测分数会随工具可用性、数据集演进和路由策略变化而变化，不应将历史 100% 结果作为稳定基线。
 
+新增（2026-02-24）：注意力节省专项 suite
+- `evaluation/agent_eval/datasets/attention_eval_suite.yaml`
+- 包含三类专项用例：
+  - `attention_eval_cases_interruption_control.yaml`
+  - `attention_eval_cases_recovery_cost.yaml`
+  - `attention_eval_cases_trust_calibration.yaml`
+- 支持在 suite collection 上设置 `tags` 与 `attention_weight`，用于注意力导向的加权汇总。
+
 运行命令：
 
 ```bash
 go run ./cmd/alex eval foundation-suite \
-  --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml \
+  --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml \
   --output tmp/foundation-suite-speed-v1 \
   --format markdown
 
 go run ./cmd/alex eval foundation-suite \
-  --suite evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml \
+  --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml \
   --output tmp/foundation-suite-e2e-systematic \
   --format markdown
 

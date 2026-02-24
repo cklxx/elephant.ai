@@ -14,12 +14,12 @@
 ## Commands
 ```bash
 go run ./cmd/alex eval foundation-suite \
-  --suite evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml \
+  --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml \
   --output tmp/foundation-suite-e2e-systematic-real-20260213-012415 \
   --format markdown
 
 go run ./cmd/alex eval foundation-suite \
-  --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml \
+  --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml \
   --output tmp/foundation-suite-current-real-20260213-012512 \
   --format markdown
 
@@ -34,7 +34,7 @@ go run ./cmd/alex eval foundation-suite \
   --format markdown
 
 go run ./cmd/alex eval foundation-suite \
-  --suite evaluation/agent_eval/datasets/foundation_eval_suite_active_tools_systematic_hard.yaml \
+  --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml \
   --output tmp/foundation-suite-active-tools-hard-real-20260213-012818 \
   --format markdown
 ```
@@ -42,7 +42,7 @@ go run ./cmd/alex eval foundation-suite \
 ## Headline Metrics
 
 ### 1) E2E Systematic Suite
-- Suite: `foundation_eval_suite_e2e_systematic.yaml`
+- Suite: `foundation_eval_suite_basic_active.yaml`
 - Collections: `27/28`
 - Cases: `199/202` (applicable), total `344`
 - pass@1: `179/202` (`85.5%`)
@@ -55,7 +55,7 @@ go run ./cmd/alex eval foundation-suite \
   - `tmp/foundation-suite-e2e-systematic-real-20260213-012415/foundation_suite_report_foundation-suite-20260212-172425.md`
 
 ### 2) Current Main Suite
-- Suite: `foundation_eval_suite.yaml`
+- Suite: `foundation_eval_suite_basic_active.yaml`
 - Collections: `27/28`
 - Cases: `130/131` (applicable), total `269`
 - pass@1: `112/131` (`82.7%`)
@@ -94,7 +94,7 @@ go run ./cmd/alex eval foundation-suite \
   - `tmp/foundation-suite-motivation-aware-real-20260213-012813/foundation_suite_report_foundation-suite-20260212-172813.md`
 
 ### 5) Active Tools Systematic Hard Suite
-- Suite: `foundation_eval_suite_active_tools_systematic_hard.yaml`
+- Suite: `foundation_eval_suite_basic_active.yaml`
 - Collections: `4/7`
 - Cases: `116/120` (applicable), total `120`
 - pass@1: `97/120` (`83.3%`)

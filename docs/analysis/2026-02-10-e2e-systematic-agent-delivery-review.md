@@ -5,15 +5,15 @@
   - 基于业界高难 benchmark 家族重建系统化端到端评测。
   - 对当前 agent 交付能力做一次横向 review（老 suite vs 新 e2e suite）。
 - 运行命令：
-  - `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml --output tmp/foundation-suite-r19-current-20260210-104937 --format markdown`
-  - `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml --output tmp/foundation-suite-r19-e2e-systematic-20260210-104937 --format markdown`
+  - `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml --output tmp/foundation-suite-r19-current-20260210-104937 --format markdown`
+  - `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml --output tmp/foundation-suite-r19-e2e-systematic-20260210-104937 --format markdown`
 
 ## 2. 总体分数（x/x）
 
 | Suite | Collections (passed/total) | Cases (passed/total) | pass@1 (x/x) | pass@5 (x/x) | Failed | Deliverable Good/All |
 |---|---:|---:|---:|---:|---:|---:|
-| 当前主 suite (`foundation_eval_suite.yaml`) | `28/28` | `269/269` | `224/269` | `269/269` | `0` | `24/30` |
-| 新 E2E 系统化 suite (`foundation_eval_suite_e2e_systematic.yaml`) | `25/28` | `360/363` | `312/363` | `361/363` | `3` | `14/20` |
+| 当前主 suite (`foundation_eval_suite_basic_active.yaml`) | `28/28` | `269/269` | `224/269` | `269/269` | `0` | `24/30` |
+| 新 E2E 系统化 suite (`foundation_eval_suite_basic_active.yaml`) | `25/28` | `360/363` | `312/363` | `361/363` | `3` | `14/20` |
 
 结论：
 - 新 suite 难度显著上升并成功暴露真实失败（`failed=3`），不再是“高分但低挑战”。

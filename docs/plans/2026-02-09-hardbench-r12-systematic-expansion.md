@@ -12,7 +12,7 @@ Systematically expand the hard-only foundation suite using industry hardest benc
 - [x] Load engineering practices and active memory.
 - [x] Research hardest benchmark families and map them to routing-evaluable dimensions.
 - [x] Add new benchmark-transfer case collections with specific and stable naming.
-- [x] Integrate new collections into `foundation_eval_suite.yaml`.
+- [x] Integrate new collections into `foundation_eval_suite_basic_active.yaml`.
 - [x] Run full suite and produce x/x scoreboard + failure cluster summary.
 - [ ] Update research/analysis docs with systematic classification and latest results.
 - [ ] Run full lint + full tests.
@@ -30,5 +30,5 @@ Systematically expand the hard-only foundation suite using industry hardest benc
 - 2026-02-09 23:37: Created fresh worktree from main, copied `.env`.
 - 2026-02-09 23:40: Loaded practices + long-term memory + latest summaries.
 - 2026-02-09 23:43: Completed benchmark research shortlist and dimension mapping.
-- 2026-02-09 23:50: Added 6 hard benchmark-transfer collections and integrated into `foundation_eval_suite.yaml`.
+- 2026-02-09 23:50: Added 6 hard benchmark-transfer collections and integrated into `foundation_eval_suite_basic_active.yaml`.
 - 2026-02-09 23:52: Ran full suite (`25` collections / `387` cases): pass@1 `330/387`, pass@5 `380/387`; new collections introduce `5` failed cases by design.

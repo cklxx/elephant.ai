@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const defaultFoundationSuitePath = "evaluation/agent_eval/datasets/foundation_eval_suite.yaml"
+const defaultFoundationSuitePath = "evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml"
 
 // FoundationSuiteOptions controls suite-level execution for offline foundation eval.
 type FoundationSuiteOptions struct {
@@ -43,15 +43,17 @@ type FoundationSuiteSet struct {
 
 // FoundationSuiteCollection defines one collection run in a suite.
 type FoundationSuiteCollection struct {
-	ID          string `yaml:"id"`
-	Name        string `yaml:"name"`
-	Dimension   string `yaml:"dimension,omitempty"`
-	Description string `yaml:"description,omitempty"`
-	CasesPath   string `yaml:"cases_path"`
-	Mode        string `yaml:"mode,omitempty"`
-	Preset      string `yaml:"preset,omitempty"`
-	Toolset     string `yaml:"toolset,omitempty"`
-	TopK        int    `yaml:"top_k,omitempty"`
+	ID              string   `yaml:"id"`
+	Name            string   `yaml:"name"`
+	Dimension       string   `yaml:"dimension,omitempty"`
+	Tags            []string `yaml:"tags,omitempty"`
+	Description     string   `yaml:"description,omitempty"`
+	CasesPath       string   `yaml:"cases_path"`
+	Mode            string   `yaml:"mode,omitempty"`
+	Preset          string   `yaml:"preset,omitempty"`
+	Toolset         string   `yaml:"toolset,omitempty"`
+	TopK            int      `yaml:"top_k,omitempty"`
+	AttentionWeight float64  `yaml:"attention_weight,omitempty"`
 }
 
 // FoundationSuiteResult is the aggregate output for a suite run.
@@ -104,6 +106,8 @@ type FoundationSuiteCollectionResult struct {
 	ID                    string                      `json:"id"`
 	Name                  string                      `json:"name"`
 	Dimension             string                      `json:"dimension,omitempty"`
+	Tags                  []string                    `json:"tags,omitempty"`
+	AttentionWeight       float64                     `json:"attention_weight"`
 	CasesPath             string                      `json:"cases_path"`
 	Mode                  string                      `json:"mode"`
 	Preset                string                      `json:"preset"`
@@ -173,6 +177,8 @@ func LoadFoundationSuiteSet(path string) (*FoundationSuiteSet, error) {
 		collection.Preset = strings.TrimSpace(collection.Preset)
 		collection.Toolset = strings.TrimSpace(collection.Toolset)
 		collection.Dimension = strings.TrimSpace(collection.Dimension)
+		collection.Tags = normalizeFoundationTags(collection.Tags)
+		collection.AttentionWeight = normalizeAttentionWeight(collection.AttentionWeight)
 		if collection.ID == "" {
 			return nil, fmt.Errorf("collection[%d] id is required", idx)
 		}
@@ -249,6 +255,7 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 	}
 	collectionLatencies := make([]float64, 0, len(suiteSet.Collections))
 	caseLatencies := make([]float64, 0, 512)
+	totalAttentionWeight := 0.0
 
 	for index, collection := range suiteSet.Collections {
 		collectionStart := time.Now()
@@ -306,6 +313,8 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 			ID:                    collection.ID,
 			Name:                  collection.Name,
 			Dimension:             collection.Dimension,
+			Tags:                  append([]string(nil), collection.Tags...),
+			AttentionWeight:       collection.AttentionWeight,
 			CasesPath:             collection.CasesPath,
 			Mode:                  evalResult.Mode,
 			Preset:                evalResult.Preset,
@@ -344,11 +353,13 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 			caseLatencies = append(caseLatencies, caseResult.RoutingLatencyMs)
 		}
 
-		result.AverageOverallScore += evalResult.OverallScore
-		result.AveragePassAt1Rate += evalResult.Implicit.PassAt1Rate
-		result.AveragePassAt5Rate += evalResult.Implicit.PassAt5Rate
-		result.AverageTop1HitRate += evalResult.Implicit.Top1HitRate
-		result.AverageTopKHitRate += evalResult.Implicit.TopKHitRate
+		weight := normalizeAttentionWeight(collection.AttentionWeight)
+		totalAttentionWeight += weight
+		result.AverageOverallScore += evalResult.OverallScore * weight
+		result.AveragePassAt1Rate += evalResult.Implicit.PassAt1Rate * weight
+		result.AveragePassAt5Rate += evalResult.Implicit.PassAt5Rate * weight
+		result.AverageTop1HitRate += evalResult.Implicit.Top1HitRate * weight
+		result.AverageTopKHitRate += evalResult.Implicit.TopKHitRate * weight
 		result.TotalCases += evalResult.Implicit.TotalCases
 		result.ApplicableCases += evalResult.Implicit.ApplicableCases
 		result.NotApplicableCases += evalResult.Implicit.NotApplicableCases
@@ -366,7 +377,10 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 	}
 
 	if result.TotalCollections > 0 {
-		total := float64(result.TotalCollections)
+		total := totalAttentionWeight
+		if total <= 0 {
+			total = float64(result.TotalCollections)
+		}
 		result.AverageOverallScore = round1(result.AverageOverallScore / total)
 		result.AveragePassAt1Rate = round3(result.AveragePassAt1Rate / total)
 		result.AveragePassAt5Rate = round3(result.AveragePassAt5Rate / total)
@@ -501,17 +515,23 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 			return rows[i].PassAt5Rate < rows[j].PassAt5Rate
 		})
 		b.WriteString("## Collection Breakdown\n\n")
-		b.WriteString("| Collection | Dimension | Mode/Preset/Toolset | Top-K | Cases (pass/applicable) | Deliverable (x/x) | Deliverable Good | Deliverable Bad | N/A | pass@1 (x/x) | pass@5 (x/x) | Failed | Availability | Duration(ms) | Cases/s | Case p95(ms) |\n")
-		b.WriteString("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
+		b.WriteString("| Collection | Dimension | Tags | Attention W | Mode/Preset/Toolset | Top-K | Cases (pass/applicable) | Deliverable (x/x) | Deliverable Good | Deliverable Bad | N/A | pass@1 (x/x) | pass@5 (x/x) | Failed | Availability | Duration(ms) | Cases/s | Case p95(ms) |\n")
+		b.WriteString("|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
 		for _, row := range rows {
 			dimension := row.Dimension
 			if strings.TrimSpace(dimension) == "" {
 				dimension = "-"
 			}
-				b.WriteString(fmt.Sprintf(
-					"| `%s` | `%s` | `%s / %s / %s` | %d | %s | %s | %s | %s | %d | %d/%d (%.1f%%) | %d/%d (%.1f%%) | %d | %d | %d | %.2f | %.3f |\n",
+			tagText := "-"
+			if len(row.Tags) > 0 {
+				tagText = strings.Join(row.Tags, ",")
+			}
+			b.WriteString(fmt.Sprintf(
+				"| `%s` | `%s` | `%s` | %.2f | `%s / %s / %s` | %d | %s | %s | %s | %s | %d | %d/%d (%.1f%%) | %d/%d (%.1f%%) | %d | %d | %d | %.2f | %.3f |\n",
 				row.ID,
 				dimension,
+				escapeTable(tagText),
+				row.AttentionWeight,
 				row.Mode,
 				row.Preset,
 				row.Toolset,
@@ -782,10 +802,10 @@ func totalCaseCountFromRows(rows []FoundationSuiteCollectionResult) int {
 }
 
 type top1ConflictCluster struct {
-	Expected   string
-	Top1       string
-	Count      int
-	SampleCase string
+	Expected    string
+	Top1        string
+	Count       int
+	SampleCase  string
 	Collections map[string]struct{}
 }
 
@@ -903,4 +923,32 @@ func sanitizeCollectionID(value string) string {
 		return "collection"
 	}
 	return out
+}
+
+func normalizeAttentionWeight(raw float64) float64 {
+	if raw <= 0 {
+		return 1.0
+	}
+	if raw > 3.0 {
+		return 3.0
+	}
+	return round3(raw)
+}
+
+func normalizeFoundationTags(tags []string) []string {
+	normalized := make([]string, 0, len(tags))
+	seen := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
+		clean := strings.ToLower(strings.TrimSpace(tag))
+		if clean == "" {
+			continue
+		}
+		if _, ok := seen[clean]; ok {
+			continue
+		}
+		seen[clean] = struct{}{}
+		normalized = append(normalized, clean)
+	}
+	sort.Strings(normalized)
+	return normalized
 }

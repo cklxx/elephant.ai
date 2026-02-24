@@ -34,7 +34,7 @@
 
 - 新集合：`evaluation/agent_eval/datasets/foundation_eval_cases_context_learning_hard.yaml`
 - 新增规模：20 cases
-- 已纳入 suite：`evaluation/agent_eval/datasets/foundation_eval_suite.yaml`
+- 已纳入 suite：`evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 - 运行结果：`context-learning-hard` `20/20`
 
 示例映射：

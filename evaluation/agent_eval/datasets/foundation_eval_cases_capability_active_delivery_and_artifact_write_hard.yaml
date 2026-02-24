@@ -79,10 +79,6 @@ scenarios:
     category: "delivery"
     intent: "Find latest primary-source references to cite in the final report."
     expected_tools: ["web_search"]
-  - id: "delivery-browser-action-verify-ui-state"
-    category: "delivery"
-    intent: "Use browser actions to verify the live UI state before finalizing notes."
-    expected_tools: ["browser_action"]
   - id: "delivery-memory-search-prior-commitment"
     category: "delivery"
     intent: "Find my prior commitment on response SLA and include it in the summary."

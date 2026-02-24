@@ -30,11 +30,6 @@ scenarios:
   intent: Execute a tiny Python snippet to verify this checksum formula.
   expected_tools:
   - execute_code
-- id: prompt-browser-coordinate-click
-  category: browser
-  intent: This is a canvas-only interaction; click at coordinates and drag to target.
-  expected_tools:
-  - browser_action
 - id: prompt-web-search-rfc-authority-first
   category: web
   intent: Locate authoritative standards references for HTTP conditional requests;

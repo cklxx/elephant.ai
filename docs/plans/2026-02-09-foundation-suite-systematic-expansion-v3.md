@@ -12,7 +12,7 @@
 - 产出可执行评测并在报告中体现新的总规模与 `x/x` 通过计数。
 
 ## Scope
-- `evaluation/agent_eval/datasets/foundation_eval_suite.yaml`
+- `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 - `evaluation/agent_eval/datasets/foundation_eval_cases_long_horizon_multi_round.yaml`
 - `evaluation/agent_eval/datasets/foundation_eval_cases_architecture_coding_hard.yaml`
 - `evaluation/agent_eval/datasets/foundation_eval_cases_deep_research.yaml`

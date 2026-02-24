@@ -9,7 +9,7 @@
 - 报告中明确展示 `x/x`，并在文档标注每个集合规模与总规模。
 
 ## Scope
-- `evaluation/agent_eval/datasets/foundation_eval_suite.yaml`
+- `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 - `evaluation/agent_eval/datasets/foundation_eval_cases_*.yaml`
 - `evaluation/agent_eval/README.md`
 - `docs/plans/*`（计划与进度记录）

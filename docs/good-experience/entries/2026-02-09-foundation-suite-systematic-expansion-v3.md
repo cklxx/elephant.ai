@@ -3,7 +3,7 @@
 Impact: Foundation offline suite now covers higher-difficulty long-horizon, architecture coding, deep research, and autonomy initiative capabilities while preserving full Top-K pass.
 
 ## What changed
-- Added 4 new collections to `foundation_eval_suite.yaml`:
+- Added 4 new collections to `foundation_eval_suite_basic_active.yaml`:
   - `long-horizon-multi-round`
   - `architecture-coding-hard`
   - `deep-research`
@@ -32,4 +32,4 @@ Impact: Foundation offline suite now covers higher-difficulty long-horizon, arch
 ## Validation
 - `go test ./evaluation/agent_eval/...`
 - `go test ./cmd/alex/...`
-- `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml --output tmp/foundation-suite-systematic-20260209-r3 --format markdown`
+- `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml --output tmp/foundation-suite-systematic-20260209-r3 --format markdown`

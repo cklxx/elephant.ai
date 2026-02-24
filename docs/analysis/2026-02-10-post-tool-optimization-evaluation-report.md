@@ -4,8 +4,8 @@
 - 评测日期：2026-02-10
 - 目标：验证“工具大规模优化”后的实际能力变化
 - 套件：
-  - `evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml`
-  - `evaluation/agent_eval/datasets/foundation_eval_suite.yaml`
+  - `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
+  - `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 - 产物：
   - `tmp/foundation-suite-r20-e2e-20260210-114913`
   - `tmp/foundation-suite-r20-current-20260210-114913`

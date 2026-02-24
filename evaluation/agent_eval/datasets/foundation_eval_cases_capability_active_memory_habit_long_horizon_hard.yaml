@@ -62,10 +62,6 @@ scenarios:
     category: "continuity"
     intent: "Search latest official guidance updates that might invalidate our prior decision."
     expected_tools: ["web_search"]
-  - id: "continuity-browser-action-portal-check"
-    category: "continuity"
-    intent: "Use browser actions to verify the portal state after login redirect quirks."
-    expected_tools: ["browser_action"]
   - id: "continuity-channel-post-prog-update"
     category: "continuity"
     intent: "Post a short progress delta update to this thread."

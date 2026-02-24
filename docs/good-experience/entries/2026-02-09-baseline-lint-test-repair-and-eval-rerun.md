@@ -10,7 +10,7 @@ Impact: Repository quality baseline recovered (`golangci-lint` + `go test ./...`
 ## Validation
 - `./scripts/run-golangci-lint.sh run ./...` ✅
 - `scripts/go-with-toolchain.sh test ./...` ✅
-- `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml --output tmp/foundation-suite-new-cases-20260209 --format markdown` ✅
+- `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml --output tmp/foundation-suite-new-cases-20260209 --format markdown` ✅
   - Collections: `17/17`
   - Cases: `408/408`
   - Availability errors: `0`

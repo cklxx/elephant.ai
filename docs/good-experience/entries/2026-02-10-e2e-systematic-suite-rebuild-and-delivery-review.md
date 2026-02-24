@@ -9,7 +9,7 @@ Impact: Rebuilt a capability-layered end-to-end suite with harder industry bench
   - `foundation_eval_cases_industry_benchmark_browsecomp_sparse_research_hard.yaml`
   - `foundation_eval_cases_industry_benchmark_agentlongbench_long_context_memory_hard.yaml`
 - Added a new systematic E2E suite:
-  - `foundation_eval_suite_e2e_systematic.yaml`
+  - `foundation_eval_suite_basic_active.yaml`
 - Added research and analysis docs:
   - `docs/research/2026-02-10-e2e-systematic-benchmark-research.md`
   - `docs/analysis/2026-02-10-e2e-systematic-agent-delivery-review.md`
@@ -30,5 +30,5 @@ Impact: Rebuilt a capability-layered end-to-end suite with harder industry bench
 ## Validation
 - `make fmt`
 - `make test`
-- `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml --output tmp/foundation-suite-r19-current-20260210-104937 --format markdown`
-- `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml --output tmp/foundation-suite-r19-e2e-systematic-20260210-104937 --format markdown`
+- `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml --output tmp/foundation-suite-r19-current-20260210-104937 --format markdown`
+- `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml --output tmp/foundation-suite-r19-e2e-systematic-20260210-104937 --format markdown`

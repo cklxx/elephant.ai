@@ -31,7 +31,7 @@ steps:
     title: "Write report, run fmt/tests, split incremental commits, and merge-ready handoff"
     status: "completed"
 artifacts:
-  suite_path: "evaluation/agent_eval/datasets/foundation_eval_suite_active_tools_systematic_hard.yaml"
+  suite_path: "evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml"
   report_path: "docs/analysis/2026-02-10-active-tools-systematic-evaluation-and-product-optimization-report.md"
   baseline_output_dir: "tmp/foundation-suite-r23-active-hard-20260210-131154"
   optimized_output_dir: "tmp/foundation-suite-r23-active-hard-optimized-20260210-131523"

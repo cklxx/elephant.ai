@@ -26,7 +26,7 @@ from pathlib import Path
 
 def run_baseline(args: dict) -> dict:
     """运行 foundation suite 基线评测。"""
-    suite = args.get("suite", "evaluation/agent_eval/datasets/foundation_eval_suite.yaml")
+    suite = args.get("suite", "evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml")
     tag = args.get("tag", time.strftime("%Y%m%d-%H%M"))
     output_dir = args.get("output", f"/tmp/foundation-suite-{tag}-baseline")
     cwd = args.get("cwd", ".")

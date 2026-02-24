@@ -17,7 +17,7 @@ Push evaluation hardness to SOTA-difficult level with layered taxonomy and bench
 - [x] Research SOTA-hard benchmark families and map to routing-evaluable dimensions.
 - [x] Add RE-Bench / EXP-Bench / ARC-AGI-2 collections.
 - [x] Add PaperBench / MLRC-Bench / ALE-Bench collections.
-- [x] Integrate into `foundation_eval_suite.yaml` with layered description.
+- [x] Integrate into `foundation_eval_suite_basic_active.yaml` with layered description.
 - [x] Run full suite and capture x/x scoreboard and failure clusters.
 - [x] Update analysis/research docs with layer taxonomy and benchmark sources.
 - [x] Run full lint + tests.

@@ -58,7 +58,7 @@
 ## Validation Status
 - 已通过：
   - `go test ./evaluation/agent_eval ./cmd/alex`
-  - `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml --output tmp/eval-foundation-suite-20260208-r3 --format markdown`
+  - `go run ./cmd/alex eval foundation-suite --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml --output tmp/eval-foundation-suite-20260208-r3 --format markdown`
 - 存量失败（非本次改动引入）：
   - `./dev.sh lint`：`internal/devops/*` 与 `cmd/alex/dev*.go` 的 errcheck/staticcheck 问题
   - `./dev.sh test`：`internal/delivery/server/bootstrap` 的 race 测试失败、`internal/shared/config` 的 env guard 失败

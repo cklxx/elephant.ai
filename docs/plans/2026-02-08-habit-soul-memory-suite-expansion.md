@@ -8,7 +8,7 @@
 
 ## Scope
 - `evaluation/agent_eval/datasets/foundation_eval_cases_user_habit_soul_memory.yaml`
-- `evaluation/agent_eval/datasets/foundation_eval_suite.yaml`
+- `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 - `evaluation/agent_eval/README.md`
 - `docs/plans/*`, `docs/good-experience/*`, `docs/memory/long-term.md`
 

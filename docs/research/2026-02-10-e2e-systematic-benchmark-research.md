@@ -42,7 +42,7 @@
 
 ## 5. 系统化维度重建（E2E）
 新端到端 suite：
-- `evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml`
+- `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 
 结构采用四层：
 1. Foundation Core：工具覆盖、提示词有效性、主动性、安全与可用性恢复。  

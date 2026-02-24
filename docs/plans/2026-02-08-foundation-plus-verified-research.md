@@ -8,7 +8,7 @@
 - 新增 `SWE-bench Verified` 调研文档，沉淀榜单提交流程、限制条件、与本仓库落地方案。
 
 ## Scope
-- `evaluation/agent_eval/datasets/foundation_eval_suite.yaml`
+- `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
 - `evaluation/agent_eval/datasets/foundation_eval_cases_*.yaml`
 - `evaluation/agent_eval/README.md`
 - `docs/research/*`
