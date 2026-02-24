@@ -2,7 +2,6 @@ package lark
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -220,46 +219,23 @@ func extractChatMessageContent(msgType string, body *larkim.MessageBody) string 
 // text elements into a readable string. The content field has the structure:
 // {"title":"...","content":[[{"tag":"text","text":"..."},{"tag":"at","user_name":"..."}]]}
 func extractChatPostContent(raw string) string {
-	type postElement struct {
-		Tag      string `json:"tag"`
-		Text     string `json:"text"`
-		UserName string `json:"user_name"`
-	}
-	type postPayload struct {
-		Title   string          `json:"title"`
-		Content [][]postElement `json:"content"`
-	}
-
-	var parsed postPayload
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+	parsed, ok := parseLarkPostPayload(raw)
+	if !ok {
 		return "[rich text message]"
 	}
 
-	var sb strings.Builder
-	if title := strings.TrimSpace(parsed.Title); title != "" {
-		sb.WriteString(title)
-	}
-	for _, line := range parsed.Content {
-		if sb.Len() > 0 {
-			sb.WriteByte('\n')
-		}
-		for _, el := range line {
-			switch el.Tag {
-			case "text":
-				sb.WriteString(el.Text)
-			case "at":
-				if name := strings.TrimSpace(el.UserName); name != "" {
-					sb.WriteString("@" + name)
-				}
-			default:
-				if el.Text != "" {
-					sb.WriteString(el.Text)
-				}
+	result := flattenLarkPostPayload(
+		parsed,
+		func(el larkPostElement) string {
+			return el.Text
+		},
+		func(el larkPostElement) string {
+			if name := strings.TrimSpace(el.UserName); name != "" {
+				return "@" + name
 			}
-		}
-	}
-
-	result := strings.TrimSpace(sb.String())
+			return ""
+		},
+	)
 	if result == "" {
 		return "[rich text message]"
 	}
@@ -268,13 +244,10 @@ func extractChatPostContent(raw string) string {
 
 // extractChatTextContent parses a Lark text message content JSON: {"text":"..."}.
 func extractChatTextContent(raw string) string {
-	var parsed struct {
-		Text string `json:"text"`
-	}
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+	text, ok := parseLarkTextPayload(raw)
+	if !ok {
 		return strings.TrimSpace(raw)
 	}
-	text := strings.TrimSpace(parsed.Text)
 	if text == "" {
 		return "[empty]"
 	}

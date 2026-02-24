@@ -155,6 +155,7 @@ func TestExtractChatTextContent(t *testing.T) {
 		{"empty text", `{"text":""}`, "[empty]"},
 		{"invalid json", "not json", "not json"},
 		{"whitespace only", `{"text":"  "}`, "[empty]"},
+		{"lark mention tag preserved", `{"text":"Hi <at user_id=\"ou_123\">Bob</at>"}`, `Hi <at user_id="ou_123">Bob</at>`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -185,6 +186,11 @@ func TestExtractChatPostContent(t *testing.T) {
 		{
 			"text with at mention",
 			`{"title":"","content":[[{"tag":"text","text":"hello "},{"tag":"at","user_name":"Alice"}]]}`,
+			"hello @Alice",
+		},
+		{
+			"text with at mention ignores user id",
+			`{"title":"","content":[[{"tag":"text","text":"hello "},{"tag":"at","user_id":"ou_123","user_name":"Alice"}]]}`,
 			"hello @Alice",
 		},
 		{

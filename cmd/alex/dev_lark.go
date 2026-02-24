@@ -59,7 +59,7 @@ func larkSupervise() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	return sup.Run(ctx)
+	return sup.Start(ctx)
 }
 
 func larkStart() error {
@@ -107,28 +107,19 @@ func larkStart() error {
 		return fmt.Errorf("close supervisor log file: %w", err)
 	}
 
-	// The supervise subprocess owns PID-file publication.
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if syscall.Kill(cmd.Process.Pid, 0) != nil {
-			return fmt.Errorf("supervisor failed to start (see %s)", logFile)
-		}
-		if pid, _, alive := readLivePIDFile(pidFile, false); alive {
-			fmt.Printf("Supervisor started (PID: %d)\n", pid)
-			startCaffeinateGuard(cfg.PIDDir)
-			return nil
-		}
-		time.Sleep(200 * time.Millisecond)
+	waitDone := make(chan error, 1)
+	go func() {
+		waitDone <- cmd.Wait()
+	}()
+
+	pid, err := waitForSupervisorPIDPublication(pidFile, logFile, 5*time.Second, waitDone, cmd.Process.Kill)
+	if err != nil {
+		return err
 	}
 
-	if pid, _, alive := readLivePIDFile(pidFile, false); alive {
-		fmt.Printf("Supervisor started (PID: %d)\n", pid)
-		startCaffeinateGuard(cfg.PIDDir)
-		return nil
-	}
-
-	_ = cmd.Process.Kill()
-	return fmt.Errorf("supervisor start timed out: pid file was not published (%s)", pidFile)
+	fmt.Printf("Supervisor started (PID: %d)\n", pid)
+	startCaffeinateGuard(cfg.PIDDir)
+	return nil
 }
 
 // startCaffeinateGuard keeps macOS awake while the Lark supervisor runs.
@@ -758,6 +749,52 @@ Commands:
   logs             Tail all Lark logs
   help             Show this help
 `)
+}
+
+func waitForSupervisorPIDPublication(
+	pidFile string,
+	logFile string,
+	timeout time.Duration,
+	waitDone <-chan error,
+	killFn func() error,
+) (int, error) {
+	deadline := time.NewTimer(timeout)
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer deadline.Stop()
+	defer ticker.Stop()
+
+	for {
+		if pid, _, alive := readLivePIDFile(pidFile, false); alive {
+			return pid, nil
+		}
+
+		select {
+		case err := <-waitDone:
+			// The process exited. Check PID file one last time to avoid races.
+			if pid, _, alive := readLivePIDFile(pidFile, false); alive {
+				return pid, nil
+			}
+			if err != nil {
+				return 0, fmt.Errorf("supervisor failed to start (see %s): %w", logFile, err)
+			}
+			return 0, fmt.Errorf("supervisor exited before publishing pid file (see %s)", logFile)
+		case <-ticker.C:
+			continue
+		case <-deadline.C:
+			// Timeout. Try to stop and reap the child process, then report timeout.
+			if killFn != nil {
+				_ = killFn()
+			}
+			select {
+			case <-waitDone:
+			case <-time.After(500 * time.Millisecond):
+			}
+			if pid, _, alive := readLivePIDFile(pidFile, false); alive {
+				return pid, nil
+			}
+			return 0, fmt.Errorf("supervisor start timed out: pid file was not published (%s)", pidFile)
+		}
+	}
 }
 
 func readLivePIDFile(path string, cleanupStale bool) (pid int, exists bool, alive bool) {

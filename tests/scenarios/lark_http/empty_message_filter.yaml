@@ -1,0 +1,24 @@
+name: http_empty_message_filter
+description: "HTTP inject should skip whitespace-only text"
+tags: [http, filter, safety]
+
+eval:
+  objective: "验证输入过滤：空白消息不应触发任务执行和回复"
+  difficulty: "L2"
+  category: "input-safety"
+  capabilities: ["消息预处理", "空输入过滤", "无副作用执行"]
+  completion_criteria:
+    - "ReplyMessage 调用数为 0"
+    - "SendMessage 调用数为 0"
+  design_rationale: "这是所有真实任务入口的前置门禁，若失败会导致噪声任务与资源浪费。"
+
+turns:
+  - sender_id: "ou_http_user"
+    chat_id: "oc_http_empty"
+    message_id: "om_http_empty_001"
+    content: "   "
+
+    assertions:
+      no_call:
+        - ReplyMessage
+        - SendMessage

@@ -1,0 +1,33 @@
+name: http_llm_json_information_extraction
+description: "Real LLM structured information extraction to JSON"
+tags: [http, manual, llm, extraction]
+
+eval:
+  objective: "验证 LLM 从自然语言抽取结构化字段并按约束输出 JSON"
+  difficulty: "L4"
+  category: "reasoning"
+  capabilities: ["信息抽取", "结构化输出", "格式约束遵循"]
+  completion_criteria:
+    - "ReplyMessage 包含 name/city/role/years 四个键"
+    - "ReplyMessage 包含 王小明、杭州、测试工程师、6"
+  design_rationale: "结构化抽取是真实业务最常见能力之一，且比命令路由更能体现模型语义理解能力。"
+
+turns:
+  - sender_id: "ou_http_llm_extract_user"
+    chat_id: "oc_http_llm_extract"
+    message_id: "om_http_llm_extract_001"
+    content: "/new"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["已开启新会话"]
+
+  - sender_id: "ou_http_llm_extract_user"
+    chat_id: "oc_http_llm_extract"
+    message_id: "om_http_llm_extract_002"
+    content: "独立测试题。请从这句话抽取字段并只输出单行 JSON（不要 markdown）：姓名=王小明，城市=杭州，角色=测试工程师，经验年限=6。JSON 键名必须严格是 name, city, role, years。不要提问。"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["\"name\"", "\"city\"", "\"role\"", "\"years\"", "王小明", "杭州", "测试工程师", "6"]

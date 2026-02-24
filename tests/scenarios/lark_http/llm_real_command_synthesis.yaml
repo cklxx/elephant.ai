@@ -1,0 +1,37 @@
+name: http_llm_real_command_synthesis
+description: "Real repo task: synthesize executable rerun commands"
+tags: [http, llm, realwork]
+
+eval:
+  objective: "验证 LLM 输出可直接执行的真实评测命令"
+  difficulty: "L4"
+  category: "reasoning"
+  capabilities: ["命令生成", "工程上下文理解", "可执行性表达"]
+  completion_criteria:
+    - "回复包含 go run ./cmd/alex lark scenario run"
+    - "回复包含 --tag manual --tag llm 与 json/md 输出路径"
+  design_rationale: "把分析结果变成可执行命令是落地能力的关键。"
+
+turns:
+  - sender_id: "ou_http_llm_real_cmd"
+    chat_id: "oc_http_llm_real_cmd"
+    message_id: "om_http_llm_real_cmd_001"
+    content: "/new"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["已开启新会话"]
+
+  - sender_id: "ou_http_llm_real_cmd"
+    chat_id: "oc_http_llm_real_cmd"
+    message_id: "om_http_llm_real_cmd_002"
+    content: "真实任务：给出一条可直接执行的命令，重跑 Lark 的 llm manual 场景评测，并把结果写入 tmp/eval/lark_http_llm_manual.json 和 tmp/eval/lark_http_llm_manual.md。只输出命令行，不要解释，不要提问。"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains:
+            - "go run ./cmd/alex lark scenario run"
+            - "--tag manual"
+            - "--tag llm"
+            - "tmp/eval/lark_http_llm_manual.json"
+            - "tmp/eval/lark_http_llm_manual.md"

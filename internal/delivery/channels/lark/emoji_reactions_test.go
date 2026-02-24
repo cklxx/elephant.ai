@@ -18,10 +18,37 @@ func TestResolveEmojiPoolUsesDefaultWhenTooSmall(t *testing.T) {
 }
 
 func TestParseEmojiPoolDedupesAndParses(t *testing.T) {
-	pool := parseEmojiPool(" SMILE, WAVE ,SMILE\tTHINKING ")
-	want := []string{"SMILE", "WAVE", "THINKING"}
-	if !reflect.DeepEqual(pool, want) {
-		t.Fatalf("expected %v, got %v", want, pool)
+	tests := []struct {
+		name  string
+		raw   string
+		want  []string
+		isNil bool
+	}{
+		{
+			name: "mixed separators and duplicates",
+			raw:  " SMILE, WAVE ;SMILE\tTHINKING|WAVE ",
+			want: []string{"SMILE", "WAVE", "THINKING"},
+		},
+		{
+			name:  "separator only",
+			raw:   " , ; |\t\n ",
+			isNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := parseEmojiPool(tt.raw)
+			if tt.isNil {
+				if pool != nil {
+					t.Fatalf("expected nil pool, got %v", pool)
+				}
+				return
+			}
+			if !reflect.DeepEqual(pool, tt.want) {
+				t.Fatalf("expected %v, got %v", tt.want, pool)
+			}
+		})
 	}
 }
 

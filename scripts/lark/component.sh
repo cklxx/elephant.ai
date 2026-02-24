@@ -34,8 +34,8 @@
 #   PRE_BUILD_HOOK        — function name to call before build (default: unset)
 ###############################################################################
 
-COMPONENT_BUILD_ROOT="${COMPONENT_BUILD_ROOT:-${ROOT}}"
-COMPONENT_BUILD_LABEL="${COMPONENT_BUILD_LABEL:-${COMPONENT_TAG}}"
+COMPONENT_BUILD_ROOT="${COMPONENT_BUILD_ROOT:-}"
+COMPONENT_BUILD_LABEL="${COMPONENT_BUILD_LABEL:-}"
 COMPONENT_BIN_ARGS="${COMPONENT_BIN_ARGS:-}"
 COMPONENT_EXTRA_ENV="${COMPONENT_EXTRA_ENV:-}"
 USE_IDENTITY_LOCK="${USE_IDENTITY_LOCK:-1}"
@@ -47,6 +47,43 @@ SKIP_LOCAL_AUTH_DB="${SKIP_LOCAL_AUTH_DB:-0}"
 
 component_ensure_dirs() {
   mkdir -p "${PID_DIR}" "${ALEX_LOG_DIR}" "$(dirname "${LOG_FILE}")"
+}
+
+component_resolve_defaults() {
+  COMPONENT_BUILD_ROOT="${COMPONENT_BUILD_ROOT:-${ROOT:-}}"
+  COMPONENT_BUILD_LABEL="${COMPONENT_BUILD_LABEL:-${COMPONENT_TAG:-}}"
+}
+
+component_require_config() {
+  local missing=()
+  local required_vars=(
+    COMPONENT_NAME
+    COMPONENT_TAG
+    ROOT
+    BIN
+    CONFIG_PATH
+    PID_DIR
+    PID_FILE
+    BUILD_STAMP
+    SHA_FILE
+    LOG_FILE
+    ALEX_LOG_DIR
+    READY_LOG_PATTERN
+    FORCE_REBUILD
+    BOOTSTRAP_SH
+  )
+
+  for key in "${required_vars[@]}"; do
+    if [[ -z "${!key:-}" ]]; then
+      missing+=("${key}")
+    fi
+  done
+
+  if (( ${#missing[@]} > 0 )); then
+    die "Missing component config: ${missing[*]}"
+  fi
+
+  component_resolve_defaults
 }
 
 component_ensure_bootstrap() {
@@ -92,6 +129,7 @@ component_maybe_setup_auth_db() {
 # ---------------------------------------------------------------------------
 
 component_build() {
+  component_require_config
   if [[ -n "${PRE_BUILD_HOOK:-}" ]]; then
     "${PRE_BUILD_HOOK}"
   fi
@@ -103,6 +141,7 @@ component_build() {
 # ---------------------------------------------------------------------------
 
 component_start() {
+  component_require_config
   load_dotenv_file "${ROOT}/.env"
   component_ensure_bootstrap
   [[ -f "${CONFIG_PATH}" ]] || die "Missing config: ${CONFIG_PATH}"
@@ -211,6 +250,7 @@ _component_wait_ready() {
 # ---------------------------------------------------------------------------
 
 component_stop() {
+  component_require_config
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
   stop_service "${COMPONENT_NAME}" "${PID_FILE}"
@@ -224,6 +264,7 @@ component_stop() {
 # ---------------------------------------------------------------------------
 
 component_restart() {
+  component_require_config
   load_dotenv_file "${ROOT}/.env"
   component_ensure_bootstrap
   [[ -f "${CONFIG_PATH}" ]] || die "Missing config: ${CONFIG_PATH}"
@@ -244,6 +285,7 @@ component_restart() {
 # ---------------------------------------------------------------------------
 
 component_status() {
+  component_require_config
   component_print_binding
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
@@ -267,6 +309,7 @@ component_status() {
 # ---------------------------------------------------------------------------
 
 component_logs() {
+  component_require_config
   local log_files=("${LOG_FILE}")
   if [[ -n "${COMPONENT_LOG_EXTRAS:-}" ]]; then
     # shellcheck disable=SC2206

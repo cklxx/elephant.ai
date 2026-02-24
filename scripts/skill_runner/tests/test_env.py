@@ -27,6 +27,23 @@ def _fake_load_dotenv(*, dotenv_path, override=False):
     return True
 
 
+def test_simple_load_dotenv_supports_export_and_quoted_values(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "export A=1\nB='two words'\nC=\"three words\"\n# comment\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("A", raising=False)
+    monkeypatch.delenv("B", raising=False)
+    monkeypatch.delenv("C", raising=False)
+
+    loaded = _mod._simple_load_dotenv(dotenv_path=env_file, override=False)
+    assert loaded is True
+    assert os.environ["A"] == "1"
+    assert os.environ["B"] == "two words"
+    assert os.environ["C"] == "three words"
+
+
 def test_find_dotenv_searches_parent_directories(tmp_path):
     root = tmp_path / "repo"
     nested = root / "skills" / "image-creation"

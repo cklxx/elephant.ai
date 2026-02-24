@@ -1,0 +1,42 @@
+name: http_session_lifecycle_multi_turn
+description: "Real multi-turn session workflow: /new -> /reset -> /tasks"
+tags: [http, workflow, session, task-management]
+
+eval:
+  objective: "验证多轮真实会话工作流在同一 chat_id 的稳定性与一致性"
+  difficulty: "L3"
+  category: "workflow"
+  capabilities: ["多轮状态连续性", "命令路由稳定性", "结果一致性"]
+  completion_criteria:
+    - "Turn1 返回 已开启新会话"
+    - "Turn2 返回 /reset 已弃用并提示 /new"
+    - "Turn3 返回 当前没有活跃任务"
+  design_rationale: "单轮命令通过不代表真实使用可用；必须验证连续交互下状态与回复一致。"
+
+turns:
+  - sender_id: "ou_http_user"
+    chat_id: "oc_http_session_lifecycle"
+    message_id: "om_http_session_lifecycle_001"
+    content: "/new"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["已开启新会话"]
+
+  - sender_id: "ou_http_user"
+    chat_id: "oc_http_session_lifecycle"
+    message_id: "om_http_session_lifecycle_002"
+    content: "/reset"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["/new"]
+
+  - sender_id: "ou_http_user"
+    chat_id: "oc_http_session_lifecycle"
+    message_id: "om_http_session_lifecycle_003"
+    content: "/tasks"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["当前没有活跃任务"]

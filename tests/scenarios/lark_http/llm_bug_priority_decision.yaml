@@ -1,0 +1,33 @@
+name: http_llm_bug_priority_decision
+description: "Real LLM triages incident priority with explicit rationale"
+tags: [http, manual, llm, triage]
+
+eval:
+  objective: "验证 LLM 能基于事故描述给出优先级与处置建议"
+  difficulty: "L4"
+  category: "reasoning"
+  capabilities: ["风险判断", "优先级决策", "行动建议"]
+  completion_criteria:
+    - "ReplyMessage 包含 PRIORITY/REASON/ACTION 标签"
+    - "ReplyMessage 将该事故判定为 P0"
+  design_rationale: "优先级决策是线上值班的关键能力，要求明确结论和可执行动作。"
+
+turns:
+  - sender_id: "ou_http_llm_triage_user"
+    chat_id: "oc_http_llm_triage"
+    message_id: "om_http_llm_triage_001"
+    content: "/new"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["已开启新会话"]
+
+  - sender_id: "ou_http_llm_triage_user"
+    chat_id: "oc_http_llm_triage"
+    message_id: "om_http_llm_triage_002"
+    content: "独立测试题。事故：支付服务在全量生产环境 100% 不可用，持续 12 分钟，已确认影响所有下单用户。请按固定格式输出三行：PRIORITY:<P0/P1/P2>、REASON:<一句话>、ACTION:<一句话立即措施>。不要提问。"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["PRIORITY:", "P0", "REASON:", "ACTION:"]

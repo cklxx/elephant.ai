@@ -1,0 +1,32 @@
+name: http_llm_real_repo_inventory
+description: "Real repo task: inspect scenario directory inventory"
+tags: [http, llm, realwork]
+
+eval:
+  objective: "验证 LLM 能读取真实仓库目录并输出结构化清单"
+  difficulty: "L4"
+  category: "reasoning"
+  capabilities: ["仓库读取", "结构化汇总", "格式约束遵循"]
+  completion_criteria:
+    - "回复包含 COUNT=18"
+    - "回复包含目录中首尾关键文件名"
+  design_rationale: "这是典型的工程现场任务：先盘点资产，再做后续动作。"
+
+turns:
+  - sender_id: "ou_http_llm_real_repo_inv"
+    chat_id: "oc_http_llm_real_repo_inv"
+    message_id: "om_http_llm_real_repo_inv_001"
+    content: "/new"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["已开启新会话"]
+
+  - sender_id: "ou_http_llm_real_repo_inv"
+    chat_id: "oc_http_llm_real_repo_inv"
+    message_id: "om_http_llm_real_repo_inv_002"
+    content: "真实任务：读取 tests/scenarios/lark_http 目录下的 yaml 文件，按文件名升序统计并汇总。只输出三行：COUNT=<数字>、FIRST3=<逗号分隔文件名>、LAST3=<逗号分隔文件名>。不要提问。"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["COUNT=18", "empty_message_filter.yaml", "llm_bug_priority_decision.yaml", "tasks_empty_list.yaml"]

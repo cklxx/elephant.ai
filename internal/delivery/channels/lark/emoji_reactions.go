@@ -5,6 +5,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"alex/internal/shared/utils"
 )
 
 var defaultEmojiPool = []string{
@@ -39,20 +41,7 @@ func parseEmojiPool(raw string) []string {
 	if len(parts) == 0 {
 		return nil
 	}
-	seen := make(map[string]struct{}, len(parts))
-	pool := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed == "" {
-			continue
-		}
-		if _, exists := seen[trimmed]; exists {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		pool = append(pool, trimmed)
-	}
-	return pool
+	return utils.TrimDedupeStrings(parts)
 }
 
 func resolveEmojiPool(raw string) []string {

@@ -84,6 +84,18 @@ run_cli_smoke() {
     print_success "CLI smoke test completed"
 }
 
+run_skills_smoke() {
+    print_status "Running Python skills smoke checks..."
+    python3 scripts/skill_runner/smoke_all_skills.py
+    print_success "Python skills smoke checks passed"
+}
+
+run_skills_real() {
+    print_status "Running Python skills real tests..."
+    python3 -m pytest -q skills
+    print_success "Python skills real tests passed"
+}
+
 usage() {
     cat <<EOF
 Alex Test Script
@@ -95,6 +107,8 @@ Targets:
   integration    Run evaluation test suites
   lint           Run golangci-lint (auto-installs pinned version)
   cli-smoke      Build alex CLI and run non-network smoke tests
+  skills-smoke   Run all Python skills contract smoke checks
+  skills-real    Run full Python skills real tests (pytest -q skills)
   all            Run lint, unit tests, integration tests, and CLI smoke tests
   help           Show this message
 
@@ -120,11 +134,19 @@ case "$target" in
     cli-smoke)
         run_cli_smoke
         ;;
+    skills-smoke)
+        run_skills_smoke
+        ;;
+    skills-real)
+        run_skills_real
+        ;;
     all)
         run_lint
         run_unit_tests
         run_integration_tests
         run_cli_smoke
+        run_skills_smoke
+        run_skills_real
         ;;
     help|--help|-h)
         usage

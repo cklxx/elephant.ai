@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
 from pathlib import Path
 from typing import Callable
 
 LoadDotenvFn = Callable[..., bool]
 
 _LOADED_PATHS: set[Path] = set()
-_INSTALL_ATTEMPTED = False
 _LOAD_DOTENV_FN: LoadDotenvFn | None = None
 
 
@@ -65,8 +62,38 @@ def find_dotenv(start_path: str | os.PathLike[str] | None = None) -> Path | None
     return None
 
 
+def _simple_load_dotenv(*, dotenv_path: str | os.PathLike[str], override: bool = False) -> bool:
+    """Minimal dotenv loader that avoids runtime package installation."""
+    path = Path(dotenv_path)
+    if not path.is_file():
+        return False
+
+    loaded = False
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
+        if "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+
+        if not key:
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        if override or key not in os.environ:
+            os.environ[key] = value
+            loaded = True
+    return loaded
+
+
 def _resolve_load_dotenv() -> LoadDotenvFn | None:
-    global _INSTALL_ATTEMPTED, _LOAD_DOTENV_FN
+    global _LOAD_DOTENV_FN
     if _LOAD_DOTENV_FN is not None:
         return _LOAD_DOTENV_FN
 
@@ -76,30 +103,8 @@ def _resolve_load_dotenv() -> LoadDotenvFn | None:
         _LOAD_DOTENV_FN = load_dotenv
         return _LOAD_DOTENV_FN
     except Exception:
-        pass
-
-    if _INSTALL_ATTEMPTED:
-        return None
-    _INSTALL_ATTEMPTED = True
-
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "python-dotenv"],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=30,
-        )
-    except Exception:
-        return None
-
-    try:
-        from dotenv import load_dotenv
-
-        _LOAD_DOTENV_FN = load_dotenv
+        _LOAD_DOTENV_FN = _simple_load_dotenv
         return _LOAD_DOTENV_FN
-    except Exception:
-        return None
 
 
 def load_repo_dotenv(
