@@ -11,13 +11,14 @@ import (
 	"alex/internal/app/toolregistry"
 	"alex/internal/delivery/channels/lark"
 	serverApp "alex/internal/delivery/server/app"
-	larkoauth "alex/internal/infra/lark/oauth"
 	"alex/internal/domain/agent/presets"
+	larkoauth "alex/internal/infra/lark/oauth"
+	"alex/internal/infra/observability"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 )
 
-func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) (func(), error) {
+func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster, obs *observability.Observability) (func(), error) {
 	logger = logging.OrNop(logger)
 	larkCfg := cfg.Channels.Lark
 	if !larkCfg.Enabled {
@@ -79,6 +80,9 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		InjectionAckReactEmoji:        larkCfg.InjectionAckReactEmoji,
 		FinalAnswerReviewReactEmoji:   larkCfg.FinalAnswerReviewReactEmoji,
 		ShowToolProgress:              larkCfg.ShowToolProgress,
+		NotificationPolicyV2:          larkCfg.NotificationPolicyV2,
+		NotificationComposeV2:         larkCfg.NotificationComposeV2,
+		NotificationMetricsV2:         larkCfg.NotificationMetricsV2,
 		AutoChatContextSize:           larkCfg.AutoChatContextSize,
 		PlanReviewEnabled:             larkCfg.PlanReviewEnabled,
 		PlanReviewRequireConfirmation: larkCfg.PlanReviewRequireConfirmation,
@@ -166,6 +170,9 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 	if chatSessionStore != nil {
 		gateway.SetChatSessionBindingStore(chatSessionStore)
+	}
+	if obs != nil && obs.Metrics != nil {
+		gateway.SetNotificationMetrics(obs.Metrics)
 	}
 
 	if container.HasLLMFactory() {

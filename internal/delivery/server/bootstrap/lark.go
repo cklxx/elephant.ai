@@ -80,7 +80,7 @@ func RunLark(observabilityConfigPath string) error {
 				return subsystems.Start(context.Background(), &gatewaySubsystem{
 					name: "lark",
 					startFn: func(ctx context.Context) (func(), error) {
-						return startLarkGateway(ctx, config, container, logger, broadcaster)
+						return startLarkGateway(ctx, config, container, logger, broadcaster, f.Obs)
 					},
 				})
 			},

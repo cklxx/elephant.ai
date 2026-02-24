@@ -51,6 +51,12 @@ type MetricsCollector struct {
 	taskExecutions metric.Int64Counter
 	taskDuration   metric.Float64Histogram
 
+	// Lark notification metrics
+	larkNotifications       metric.Int64Counter
+	larkNotificationLatency metric.Float64Histogram
+	larkBlockingPrompts     metric.Int64Counter
+	larkStatusProxyQueries  metric.Int64Counter
+
 	// Frontend performance metrics
 	webVital metric.Float64Histogram
 
@@ -72,6 +78,9 @@ type MetricsTestHooks struct {
 	HTTPServerRequest func(method, route string, status int, duration time.Duration, responseBytes int64)
 	SSEMessage        func(eventType, status string, sizeBytes int64)
 	TaskExecution     func(status string, duration time.Duration)
+	LarkNotification  func(surface, action, mode, status string, latency time.Duration)
+	LarkBlocking      func(source string, optionsCount int)
+	LarkStatusProxy   func(source string)
 }
 
 // SetTestHooks registers callbacks that are invoked whenever the matching
@@ -264,6 +273,42 @@ func NewMetricsCollector(config MetricsConfig) (*MetricsCollector, error) {
 		return nil, fmt.Errorf("failed to create task_duration histogram: %w", err)
 	}
 
+	larkNotifications, err := meter.Int64Counter(
+		"alex.lark.notifications.total",
+		metric.WithDescription("Total Lark notification dispatch/update attempts"),
+		metric.WithUnit("{notification}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create lark_notifications counter: %w", err)
+	}
+
+	larkNotificationLatency, err := meter.Float64Histogram(
+		"alex.lark.notification.latency",
+		metric.WithDescription("Lark notification latency in seconds"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create lark_notification_latency histogram: %w", err)
+	}
+
+	larkBlockingPrompts, err := meter.Int64Counter(
+		"alex.lark.blocking_prompts.total",
+		metric.WithDescription("Total blocking prompts sent to Lark users"),
+		metric.WithUnit("{prompt}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create lark_blocking_prompts counter: %w", err)
+	}
+
+	larkStatusProxyQueries, err := meter.Int64Counter(
+		"alex.lark.status_proxy_queries.total",
+		metric.WithDescription("Total natural-language status proxy queries in Lark"),
+		metric.WithUnit("{query}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create lark_status_proxy_queries counter: %w", err)
+	}
+
 	webVital, err := meter.Float64Histogram(
 		"alex.frontend.web_vital",
 		metric.WithDescription("Reported frontend web vital values"),
@@ -301,28 +346,32 @@ func NewMetricsCollector(config MetricsConfig) (*MetricsCollector, error) {
 	}
 
 	collector := &MetricsCollector{
-		meter:                 meter,
-		llmRequests:           llmRequests,
-		llmTokensInput:        llmTokensInput,
-		llmTokensOutput:       llmTokensOutput,
-		llmLatency:            llmLatency,
-		llmCost:               llmCost,
-		toolExecutions:        toolExecutions,
-		toolDuration:          toolDuration,
-		sessionsActive:        sessionsActive,
-		httpRequests:          httpRequests,
-		httpLatency:           httpLatency,
-		httpResponseSize:      httpResponseSize,
-		sseConnections:        sseConnections,
-		sseConnectionDuration: sseConnectionDuration,
-		sseMessages:           sseMessages,
-		sseMessageBytes:       sseMessageBytes,
-		taskExecutions:        taskExecutions,
-		taskDuration:          taskDuration,
-		webVital:              webVital,
-		nsmWTCR:               nsmWTCR,
-		nsmTimeSaved:          nsmTimeSaved,
-		nsmAccuracy:           nsmAccuracy,
+		meter:                   meter,
+		llmRequests:             llmRequests,
+		llmTokensInput:          llmTokensInput,
+		llmTokensOutput:         llmTokensOutput,
+		llmLatency:              llmLatency,
+		llmCost:                 llmCost,
+		toolExecutions:          toolExecutions,
+		toolDuration:            toolDuration,
+		sessionsActive:          sessionsActive,
+		httpRequests:            httpRequests,
+		httpLatency:             httpLatency,
+		httpResponseSize:        httpResponseSize,
+		sseConnections:          sseConnections,
+		sseConnectionDuration:   sseConnectionDuration,
+		sseMessages:             sseMessages,
+		sseMessageBytes:         sseMessageBytes,
+		taskExecutions:          taskExecutions,
+		taskDuration:            taskDuration,
+		larkNotifications:       larkNotifications,
+		larkNotificationLatency: larkNotificationLatency,
+		larkBlockingPrompts:     larkBlockingPrompts,
+		larkStatusProxyQueries:  larkStatusProxyQueries,
+		webVital:                webVital,
+		nsmWTCR:                 nsmWTCR,
+		nsmTimeSaved:            nsmTimeSaved,
+		nsmAccuracy:             nsmAccuracy,
 	}
 
 	// Start Prometheus HTTP server
@@ -506,6 +555,65 @@ func (m *MetricsCollector) RecordTaskExecution(ctx context.Context, status strin
 	}
 	m.taskExecutions.Add(ctx, 1, metric.WithAttributes(attrs...))
 	m.taskDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
+}
+
+// RecordLarkNotification records a Lark notification send/reply/update attempt.
+func (m *MetricsCollector) RecordLarkNotification(ctx context.Context, surface, action, mode, status string, latency time.Duration) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.LarkNotification; hook != nil {
+		hook(surface, action, mode, status, latency)
+	}
+	if m.larkNotifications == nil {
+		return
+	}
+	attrs := []attribute.KeyValue{
+		attribute.String("surface", surface),
+		attribute.String("action", action),
+		attribute.String("mode", mode),
+		attribute.String("status", status),
+	}
+	m.larkNotifications.Add(ctx, 1, metric.WithAttributes(attrs...))
+	if m.larkNotificationLatency != nil {
+		m.larkNotificationLatency.Record(ctx, latency.Seconds(), metric.WithAttributes(
+			attribute.String("surface", surface),
+			attribute.String("action", action),
+			attribute.String("mode", mode),
+		))
+	}
+}
+
+// RecordLarkBlockingPrompt records a blocking prompt sent to user in Lark.
+func (m *MetricsCollector) RecordLarkBlockingPrompt(ctx context.Context, source string, optionsCount int) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.LarkBlocking; hook != nil {
+		hook(source, optionsCount)
+	}
+	if m.larkBlockingPrompts == nil {
+		return
+	}
+	attrs := []attribute.KeyValue{
+		attribute.String("source", source),
+		attribute.Bool("has_options", optionsCount > 0),
+	}
+	m.larkBlockingPrompts.Add(ctx, 1, metric.WithAttributes(attrs...))
+}
+
+// RecordLarkStatusProxyQuery records natural-language Lark task status proxy requests.
+func (m *MetricsCollector) RecordLarkStatusProxyQuery(ctx context.Context, source string) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.LarkStatusProxy; hook != nil {
+		hook(source)
+	}
+	if m.larkStatusProxyQueries == nil {
+		return
+	}
+	m.larkStatusProxyQueries.Add(ctx, 1, metric.WithAttributes(attribute.String("source", source)))
 }
 
 // RecordWebVital stores reported frontend performance metrics
