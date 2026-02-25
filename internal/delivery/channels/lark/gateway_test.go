@@ -1731,6 +1731,152 @@ func TestHandleMessageResetCommand(t *testing.T) {
 	}
 }
 
+func TestHandleMessageStopCommandCancelsInFlightTask(t *testing.T) {
+	openID := "ou_sender_stop"
+	chatID := "oc_chat_stop"
+	msgID := "om_msg_stop"
+	stopMsgID := "om_msg_stop_cmd"
+	content := `{"text":"start task"}`
+	stopContent := `{"text":"/stop"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &cancelOnContextExecutor{
+		started: make(chan struct{}),
+	}
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg:       Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		now:       func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	startEvent := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), startEvent); err != nil {
+		t.Fatalf("handleMessage(start) failed: %v", err)
+	}
+
+	select {
+	case <-executor.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected task to enter running state")
+	}
+
+	stopEvent := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &stopMsgID,
+				Content:     &stopContent,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+	if err := gw.handleMessage(context.Background(), stopEvent); err != nil {
+		t.Fatalf("handleMessage(/stop) failed: %v", err)
+	}
+
+	gw.WaitForTasks()
+
+	replies := recorder.CallsByMethod("ReplyMessage")
+	if len(replies) == 0 {
+		t.Fatal("expected /stop confirmation reply")
+	}
+
+	foundStopped := false
+	for _, call := range replies {
+		if strings.Contains(call.Content, "已停止当前调用") {
+			foundStopped = true
+		}
+		if strings.Contains(call.Content, "执行失败") {
+			t.Fatalf("did not expect failure reply after /stop, got %q", call.Content)
+		}
+	}
+	if !foundStopped {
+		t.Fatalf("expected stop confirmation in replies, got %#v", replies)
+	}
+}
+
+func TestHandleMessageStopCommandWhenIdle(t *testing.T) {
+	openID := "ou_sender_stop_idle"
+	chatID := "oc_chat_stop_idle"
+	msgID := "om_msg_stop_idle"
+	content := `{"text":"/stop"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &resetExecutor{}
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg:       Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		now:       func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage(/stop) failed: %v", err)
+	}
+	gw.WaitForTasks()
+
+	if executor.executeCalled {
+		t.Fatal("expected ExecuteTask to be skipped on idle /stop")
+	}
+	replies := recorder.CallsByMethod("ReplyMessage")
+	if len(replies) == 0 {
+		t.Fatal("expected idle /stop reply")
+	}
+	if !strings.Contains(replies[0].Content, "当前没有正在执行的调用") {
+		t.Fatalf("expected idle stop message, got %q", replies[0].Content)
+	}
+}
+
 func TestHandleMessageNewCommandSwitchesSessionBinding(t *testing.T) {
 	openID := "ou_sender_new"
 	chatID := "oc_chat_new"
@@ -2366,6 +2512,31 @@ func (b *blockingExecutor) ExecuteTask(ctx context.Context, _ string, sessionID 
 	})
 	<-b.finish
 	return &agent.TaskResult{Answer: "done"}, nil
+}
+
+type cancelOnContextExecutor struct {
+	mu          sync.Mutex
+	started     chan struct{}
+	startedOnce sync.Once
+	callCount   int
+}
+
+func (b *cancelOnContextExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
+	if sessionID == "" {
+		sessionID = "lark-session"
+	}
+	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil
+}
+
+func (b *cancelOnContextExecutor) ExecuteTask(ctx context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+	b.mu.Lock()
+	b.callCount++
+	b.mu.Unlock()
+	b.startedOnce.Do(func() {
+		close(b.started)
+	})
+	<-ctx.Done()
+	return nil, ctx.Err()
 }
 
 type blockingAwaitExecutor struct {

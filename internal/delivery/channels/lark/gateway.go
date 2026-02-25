@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"alex/internal/app/subscription"
-	builtinshared "alex/internal/infra/tools/builtin/shared"
 	"alex/internal/delivery/channels"
 	agent "alex/internal/domain/agent/ports/agent"
 	portsllm "alex/internal/domain/agent/ports/llm"
+	builtinshared "alex/internal/infra/tools/builtin/shared"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
-	id "alex/internal/shared/utils/id"
 	"alex/internal/shared/utils"
+	id "alex/internal/shared/utils/id"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	lark "github.com/larksuite/oapi-sdk-go/v3"
@@ -70,35 +70,35 @@ type sessionSlot struct {
 // Gateway bridges Lark bot messages into the agent runtime.
 type Gateway struct {
 	channels.BaseGateway
-	cfg                 Config
-	agent               AgentExecutor
-	logger              logging.Logger
-	client              *lark.Client
-	wsClient            *larkws.Client
-	messenger           LarkMessenger
-	eventListener       agent.EventListener
-	emojiPicker         *emojiPicker
-	dedupMu             sync.Mutex
-	dedupCache          *lru.Cache[string, time.Time]
-	now                 func() time.Time
-	planReviewStore     PlanReviewStore
-	oauth               builtinshared.LarkOAuthService
-	llmSelections       *subscription.SelectionStore
-	llmResolver         *subscription.SelectionResolver
-	cliCredsLoader      func() runtimeconfig.CLICredentials
-	llamaResolver       func(context.Context) (subscription.LlamaServerTarget, bool)
-	llmFactory          portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
-	llmProfile          runtimeconfig.LLMProfile  // shared runtime LLM profile for auto-reply
-	taskStore           TaskStore
-	chatSessionStore    ChatSessionBindingStore
-	noticeState         *noticeStateStore
+	cfg                Config
+	agent              AgentExecutor
+	logger             logging.Logger
+	client             *lark.Client
+	wsClient           *larkws.Client
+	messenger          LarkMessenger
+	eventListener      agent.EventListener
+	emojiPicker        *emojiPicker
+	dedupMu            sync.Mutex
+	dedupCache         *lru.Cache[string, time.Time]
+	now                func() time.Time
+	planReviewStore    PlanReviewStore
+	oauth              builtinshared.LarkOAuthService
+	llmSelections      *subscription.SelectionStore
+	llmResolver        *subscription.SelectionResolver
+	cliCredsLoader     func() runtimeconfig.CLICredentials
+	llamaResolver      func(context.Context) (subscription.LlamaServerTarget, bool)
+	llmFactory         portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
+	llmProfile         runtimeconfig.LLMProfile  // shared runtime LLM profile for auto-reply
+	taskStore          TaskStore
+	chatSessionStore   ChatSessionBindingStore
+	noticeState        *noticeStateStore
 	activeSlots        sync.Map           // chatID → *sessionSlot
-	pendingInputRelays  sync.Map           // chatID → *pendingRelayQueue
-	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
-	taskWG              sync.WaitGroup     // tracks running task goroutines (for tests)
-	cleanupMu           sync.Mutex
-	cleanupCancel       context.CancelFunc
-	cleanupWG           sync.WaitGroup
+	pendingInputRelays sync.Map           // chatID → *pendingRelayQueue
+	aiCoordinator      *AIChatCoordinator // coordinates multi-bot chat sessions
+	taskWG             sync.WaitGroup     // tracks running task goroutines (for tests)
+	cleanupMu          sync.Mutex
+	cleanupCancel      context.CancelFunc
+	cleanupWG          sync.WaitGroup
 }
 
 type awaitQuestionTracker struct {
@@ -681,6 +681,10 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	if g.isNoticeCommand(trimmedContent) {
 		slot.mu.Unlock()
 		g.handleNoticeCommand(msg)
+		return nil
+	}
+	if g.isStopCommand(trimmedContent) {
+		g.handleStopCommand(slot, msg) // releases slot.mu
 		return nil
 	}
 

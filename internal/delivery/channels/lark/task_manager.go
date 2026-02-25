@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -147,6 +148,40 @@ func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
 	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
 	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
 	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("`/reset` 已弃用，请使用 `/new` 开启新的会话。"))
+}
+
+func (g *Gateway) isStopCommand(trimmed string) bool {
+	return strings.EqualFold(strings.TrimSpace(trimmed), "/stop")
+}
+
+// handleStopCommand processes /stop message. It cancels an in-flight foreground
+// task for this chat when one exists.
+// The caller must hold slot.mu; this method releases it.
+func (g *Gateway) handleStopCommand(slot *sessionSlot, msg *incomingMessage) {
+	sessionID := slot.sessionID
+	if sessionID == "" {
+		sessionID = slot.lastSessionID
+	}
+	if sessionID == "" {
+		sessionID = g.memoryIDForChat(msg.chatID)
+	}
+	cancel := slot.taskCancel
+	running := slot.phase == slotRunning && cancel != nil
+	slot.lastTouched = g.currentTime()
+	slot.mu.Unlock()
+
+	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
+	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
+	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
+	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
+
+	if !running {
+		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("当前没有正在执行的调用。"))
+		return
+	}
+
+	cancel()
+	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("已停止当前调用。"))
 }
 
 // resolveSessionForNewTask decides whether to reuse the awaiting session or
@@ -501,6 +536,11 @@ func (g *Gateway) enrichWithChatContext(execCtx context.Context, taskContent str
 // the progress message is edited in-place to become the final reply, avoiding
 // message fragmentation.
 func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, awaitTracker *awaitQuestionTracker, progressMsgID string) {
+	if errors.Is(execErr, context.Canceled) {
+		g.logger.Info("Lark task cancelled by stop command: chat=%s msg=%s", msg.chatID, msg.messageID)
+		return
+	}
+
 	isAwait := execErr == nil && isResultAwaitingInput(result)
 	awaitPrompt, hasAwaitPrompt := agent.AwaitUserInputPrompt{}, false
 	if isAwait && result != nil {
