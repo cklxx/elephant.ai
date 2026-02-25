@@ -87,6 +87,10 @@
 * Error/win entries: `docs/error-experience/entries/` and `docs/good-experience/entries/`.
 * Summaries: `.../summary/entries/`.
 * Index files (`docs/error-experience.md`, `docs/error-experience/summary.md`) are index-only — never put content there.
+* Incident postmortems live under `docs/postmortems/` (`incidents/`, `templates/`, `checklists/`).
+* For any high-impact regression, cross-channel leakage, or prompt/context safety incident: create an incident file in `docs/postmortems/incidents/` within one working day using `templates/incident-postmortem-template.md`.
+* Every postmortem must include exact-date timeline, technical+process root cause, and prevention actions with owner/due-date/validation evidence.
+* Closing an incident requires completing `docs/postmortems/checklists/incident-prevention-checklist.md` and linking matching error/good experience entries.
 
 ### 1.3 Safety & tooling
 * Warn before destructive actions; avoid history rewrites unless explicitly requested.
@@ -202,7 +206,7 @@ codex exec --dangerously-bypass-approvals-and-sandbox -o /tmp/codex-exec-{id}.md
 ## Memory loading guidance
 
 ### Memory sources
-Use: error entries + summaries, good entries + summaries, plans under `docs/plans/`, and `docs/memory/long-term.md`.
+Use: error entries + summaries, good entries + summaries, postmortems under `docs/postmortems/incidents/`, plans under `docs/plans/`, and `docs/memory/long-term.md`.
 Graph artifacts: `docs/memory/index.yaml`, `edges.yaml`, `tags.yaml`.
 
 ### First-run memory load (mandatory)
