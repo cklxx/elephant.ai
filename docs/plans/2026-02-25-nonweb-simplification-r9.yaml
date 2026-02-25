@@ -18,7 +18,7 @@ steps:
     detail: Explorer subagents identified low-risk dedupe hotspots in cmd/internal/scripts.
   - id: implement
     status: completed
-    detail: Apply selected simplifications (dev config path/url helpers, onboarding empty-state helper reuse, setup-docker-mirrors logging helper reuse).
+    detail: Apply selected simplifications (dev config path/url helpers, onboarding empty-state helper reuse, setup-docker-mirrors logging helper reuse, standalone command dispatch helper, shared runtime dir creation helper, install.sh release-message dedupe).
   - id: verify
     status: completed
     detail: Ran SKIP_WEB=1 ./scripts/pre-push.sh with all non-web checks green (mod tidy, vet, build, race tests, lint, arch, arch-policy).
@@ -27,4 +27,4 @@ steps:
     detail: Ran python3 skills/code-review/run.py '{"action":"review"}'; no new P0/P1 issues identified in this round's touched files.
   - id: integrate
     status: in_progress
-    detail: Split into incremental commits (baseline restore, cmd dedupe, subscription dedupe, script dedupe) and prepare merge-safe handoff.
+    detail: Split into incremental commits (baseline restore, cmd dedupe, subscription dedupe, script dedupe, command dispatch dedupe, runtime-dir helper reuse, install script dedupe) and prepare merge-safe handoff.
