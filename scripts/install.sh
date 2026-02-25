@@ -154,6 +154,21 @@ detect_platform() {
     echo "${os}-${arch}"
 }
 
+show_build_from_source_instructions() {
+    log_info "This repository doesn't have pre-built releases available."
+    log_info "To install Alex, please build from source:"
+    log_info "1. git clone https://github.com/${GITHUB_REPO}.git"
+    log_info "2. cd Alex-Code"
+    log_info "3. make build"
+    log_info "4. sudo cp alex /usr/local/bin/"
+}
+
+exit_no_releases_found() {
+    log_error "No releases found for repository ${GITHUB_REPO}"
+    show_build_from_source_instructions
+    exit 1
+}
+
 # 获取最新版本
 get_latest_version() {
     log_info "Fetching latest version..."
@@ -173,14 +188,7 @@ get_latest_version() {
         fi
         # Check if response indicates no releases found
         if echo "$response" | grep -q '"message".*"Not Found"' 2>/dev/null; then
-            log_error "No releases found for repository ${GITHUB_REPO}"
-            log_info "This repository doesn't have pre-built releases available."
-            log_info "To install Alex, please build from source:"
-            log_info "1. git clone https://github.com/${GITHUB_REPO}.git"
-            log_info "2. cd Alex-Code"
-            log_info "3. make build"
-            log_info "4. sudo cp alex /usr/local/bin/"
-            exit 1
+            exit_no_releases_found
         fi
     elif command_exists wget; then
         response=$(wget -qO- --timeout=30 --tries=2 "$api_url" 2>/dev/null)
@@ -192,14 +200,7 @@ get_latest_version() {
         fi
         # Check if response indicates no releases found
         if echo "$response" | grep -q '"message".*"Not Found"' 2>/dev/null; then
-            log_error "No releases found for repository ${GITHUB_REPO}"
-            log_info "This repository doesn't have pre-built releases available."
-            log_info "To install Alex, please build from source:"
-            log_info "1. git clone https://github.com/${GITHUB_REPO}.git"
-            log_info "2. cd Alex-Code"
-            log_info "3. make build"
-            log_info "4. sudo cp alex /usr/local/bin/"
-            exit 1
+            exit_no_releases_found
         fi
     else
         log_error "Neither curl nor wget is available. Please install one of them and try again."
