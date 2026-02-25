@@ -15,6 +15,7 @@ import (
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	react "alex/internal/domain/agent/react"
+	kernelagent "alex/internal/app/agent/kernel"
 	kerneldomain "alex/internal/domain/kernel"
 	taskdomain "alex/internal/domain/task"
 	"alex/internal/infra/filestore"
@@ -46,6 +47,8 @@ type KernelEngine interface {
 	// TriggerNow signals the engine to run a cycle immediately without waiting
 	// for the next cron tick. Non-blocking and idempotent.
 	TriggerNow() bool
+	// HealthStatus reports the kernel engine's liveness status.
+	HealthStatus() kernelagent.EngineHealth
 }
 
 // Container holds all application dependencies

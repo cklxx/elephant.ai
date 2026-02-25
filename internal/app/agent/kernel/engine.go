@@ -4,6 +4,7 @@ import (
 	"alex/internal/shared/utils"
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -53,6 +54,12 @@ type Engine struct {
 	triggerCh chan struct{}   // buffered(1); signals an immediate out-of-schedule cycle
 
 	stateWriteRestricted atomic.Bool
+
+	// Keepalive tracking
+	lastCycleAt        atomic.Int64 // unix nanos of most recent cycle completion
+	lastSuccessAt      atomic.Int64 // unix nanos of most recent successful cycle
+	loopRestarts       atomic.Int64 // count of loop restarts after panic/unexpected exit
+	consecutiveFailures atomic.Int64 // consecutive cycle failures (reset on success)
 }
 
 type staleDispatchRecoverer interface {
@@ -633,15 +640,62 @@ func (e *Engine) TriggerNow() bool {
 	}
 }
 
-// Run starts the main loop, scheduling RunCycle according to the cron expression.
-// It also listens on the trigger channel for immediate out-of-schedule cycles.
+// Run starts the main loop with automatic panic recovery and restart.
 // It blocks until the context is cancelled or Stop is called.
 func (e *Engine) Run(ctx context.Context) {
+	const (
+		minBackoff = 5 * time.Second
+		maxBackoff = 5 * time.Minute
+	)
+	backoff := minBackoff
+
+	for {
+		loopErr := e.runLoop(ctx)
+
+		// Clean exit: context cancelled or explicit Stop.
+		if ctx.Err() != nil {
+			return
+		}
+		select {
+		case <-e.stopped:
+			return
+		default:
+		}
+
+		// Unexpected exit — log, backoff, restart.
+		e.loopRestarts.Add(1)
+		e.logger.Warn("Kernel[%s] loop exited unexpectedly (restarts=%d): %v — restarting in %s",
+			e.config.KernelID, e.loopRestarts.Load(), loopErr, backoff)
+
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return
+		case <-e.stopped:
+			return
+		}
+
+		// Exponential backoff capped at maxBackoff.
+		backoff = backoff * 2
+		if backoff > maxBackoff {
+			backoff = maxBackoff
+		}
+	}
+}
+
+// runLoop runs the cron-driven cycle loop. It returns on context cancellation,
+// explicit stop, or if an unexpected panic/error occurs (caught by defer/recover).
+func (e *Engine) runLoop(ctx context.Context) (loopErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			loopErr = fmt.Errorf("kernel panic: %v\n%s", r, debug.Stack())
+			e.logger.Warn("Kernel[%s] panic recovered: %v", e.config.KernelID, r)
+		}
+	}()
+
 	sched, err := cronParser.Parse(e.config.Schedule)
 	if err != nil {
-		// Schedule was already validated at build time; this is defensive.
-		e.logger.Warn("Kernel: invalid schedule %q: %v", e.config.Schedule, err)
-		return
+		return fmt.Errorf("invalid schedule %q: %w", e.config.Schedule, err)
 	}
 
 	e.logger.Info("Kernel[%s] starting (schedule=%s)", e.config.KernelID, e.config.Schedule)
@@ -654,11 +708,11 @@ func (e *Engine) Run(ctx context.Context) {
 		case <-ctx.Done():
 			timer.Stop()
 			e.logger.Info("Kernel[%s] stopped (context cancelled)", e.config.KernelID)
-			return
+			return nil
 		case <-e.stopped:
 			timer.Stop()
 			e.logger.Info("Kernel[%s] stopped", e.config.KernelID)
-			return
+			return nil
 		case <-e.triggerCh:
 			timer.Stop()
 			e.runCycleWithLogging(ctx)
@@ -673,24 +727,80 @@ func (e *Engine) Run(ctx context.Context) {
 	}
 }
 
-// runCycleWithLogging executes one cycle with logging and notification.
+// runCycleWithLogging executes one cycle with logging, health tracking, and notification.
 func (e *Engine) runCycleWithLogging(ctx context.Context) {
 	e.wg.Add(1)
 	defer e.wg.Done()
+
 	result, cycleErr := e.RunCycle(ctx)
+
+	// Track cycle completion time regardless of outcome.
+	now := time.Now().UnixNano()
+	e.lastCycleAt.Store(now)
+
 	if cycleErr != nil {
-		e.logger.Warn("Kernel[%s] RunCycle error: %v", e.config.KernelID, cycleErr)
+		e.consecutiveFailures.Add(1)
+		e.logger.Warn("Kernel[%s] RunCycle error (consecutive_failures=%d): %v",
+			e.config.KernelID, e.consecutiveFailures.Load(), cycleErr)
 	} else {
+		wasConsecFail := e.consecutiveFailures.Load()
+		e.consecutiveFailures.Store(0)
+		e.lastSuccessAt.Store(now)
 		e.logger.Info("Kernel[%s] cycle %s: %s (dispatched=%d ok=%d fail=%d %s)",
 			e.config.KernelID, result.CycleID, result.Status,
 			result.Dispatched, result.Succeeded, result.Failed, result.Duration)
+		if wasConsecFail > 0 {
+			e.logger.Info("Kernel[%s] recovered after %d consecutive failure(s)", e.config.KernelID, wasConsecFail)
+		}
 	}
+
 	// Notify on non-empty cycles or errors.
 	if e.notifier != nil {
 		if cycleErr != nil || (result != nil && result.Dispatched > 0) {
 			e.notifier(ctx, result, cycleErr)
 		}
 	}
+
+	// Absence alert: warn if no successful cycle for too long.
+	e.checkAbsenceAlert(ctx)
+}
+
+// absenceAlertThreshold is the duration without a successful cycle that triggers
+// an absence alert via the notifier.
+const absenceAlertThreshold = 2 * time.Hour
+
+// checkAbsenceAlert fires a notification if no successful cycle has completed
+// within the absence threshold. Only fires once per threshold crossing.
+func (e *Engine) checkAbsenceAlert(ctx context.Context) {
+	if e.notifier == nil {
+		return
+	}
+	lastSuccess := e.lastSuccessAt.Load()
+	if lastSuccess == 0 {
+		// No successful cycle yet — use engine start as baseline.
+		// Skip alert during initial startup window.
+		return
+	}
+	since := time.Since(time.Unix(0, lastSuccess))
+	if since < absenceAlertThreshold {
+		return
+	}
+	// Only fire once per crossing: check that consecutive failures is a
+	// multiple of the expected cycles in the threshold window to avoid
+	// spamming on every cycle.
+	consec := e.consecutiveFailures.Load()
+	if consec == 0 {
+		return
+	}
+	// Fire alert on first crossing (consec==1 would be caught by the
+	// threshold check), then every ~10 consecutive failures.
+	if consec > 1 && consec%10 != 0 {
+		return
+	}
+	e.logger.Warn("Kernel[%s] absence alert: no successful cycle for %s (consecutive_failures=%d)",
+		e.config.KernelID, since.Truncate(time.Minute), consec)
+	e.notifier(ctx, nil, fmt.Errorf("kernel absence: no successful cycle for %s (consecutive_failures=%d)",
+		since.Truncate(time.Minute), consec))
 }
 
 // Stop signals the engine to exit the Run loop.
@@ -706,4 +816,57 @@ func (e *Engine) Drain(_ context.Context) error {
 	e.Stop()
 	e.wg.Wait()
 	return nil
+}
+
+// EngineHealth reports the kernel engine's liveness status.
+type EngineHealth struct {
+	Ready               bool
+	Reason              string
+	LastCycleAt         time.Time
+	LastSuccessAt       time.Time
+	LoopRestarts        int64
+	ConsecutiveFailures int64
+}
+
+// HealthStatus returns the current health of the kernel engine.
+// The engine is considered not-ready if no cycle has completed within
+// twice the schedule interval, or if the loop has restarted recently.
+func (e *Engine) HealthStatus() EngineHealth {
+	h := EngineHealth{
+		LoopRestarts:        e.loopRestarts.Load(),
+		ConsecutiveFailures: e.consecutiveFailures.Load(),
+	}
+	if v := e.lastCycleAt.Load(); v > 0 {
+		h.LastCycleAt = time.Unix(0, v)
+	}
+	if v := e.lastSuccessAt.Load(); v > 0 {
+		h.LastSuccessAt = time.Unix(0, v)
+	}
+
+	// Parse schedule to derive expected interval.
+	threshold := 70 * time.Minute // conservative fallback (>2x default 30min)
+	if sched, err := cronParser.Parse(e.config.Schedule); err == nil {
+		now := time.Now()
+		next1 := sched.Next(now)
+		next2 := sched.Next(next1)
+		interval := next2.Sub(next1)
+		if interval > 0 {
+			threshold = 2*interval + time.Minute // 2x interval + 1min grace
+		}
+	}
+
+	if h.LastCycleAt.IsZero() {
+		h.Ready = true // No cycle yet — still in startup grace period.
+		h.Reason = "starting"
+		return h
+	}
+	since := time.Since(h.LastCycleAt)
+	if since > threshold {
+		h.Ready = false
+		h.Reason = fmt.Sprintf("no cycle for %s (threshold %s)", since.Truncate(time.Second), threshold.Truncate(time.Second))
+		return h
+	}
+	h.Ready = true
+	h.Reason = "ok"
+	return h
 }

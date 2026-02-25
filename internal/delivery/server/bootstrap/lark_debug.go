@@ -26,6 +26,9 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 	healthChecker := serverApp.NewHealthChecker()
 	if container != nil {
 		healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
+		if container.KernelEngine != nil {
+			healthChecker.RegisterProbe(serverApp.NewKernelHealthProbe(container))
+		}
 	}
 	healthChecker.RegisterProbe(serverApp.NewDegradedProbe(f.Degraded))
 
