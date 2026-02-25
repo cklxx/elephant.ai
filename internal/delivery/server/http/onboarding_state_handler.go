@@ -81,7 +81,7 @@ func (h *OnboardingStateHandler) HandleUpdateOnboardingState(w http.ResponseWrit
 		return
 	}
 
-	if stateIsEmpty(state) {
+	if subscription.IsOnboardingStateEmpty(state) {
 		if err := h.store.Clear(r.Context()); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -138,17 +138,6 @@ func validateOnboardingState(state subscription.OnboardingState) error {
 		}
 	}
 	return nil
-}
-
-func stateIsEmpty(state subscription.OnboardingState) bool {
-	return utils.IsBlank(state.CompletedAt) &&
-		utils.IsBlank(state.SelectedProvider) &&
-		utils.IsBlank(state.SelectedModel) &&
-		utils.IsBlank(state.SelectedRuntimeMode) &&
-		utils.IsBlank(state.PersistenceMode) &&
-		!state.LarkConfigured &&
-		utils.IsBlank(state.UsedSource) &&
-		!state.AdvancedOverridesUsed
 }
 
 type validationErr struct {

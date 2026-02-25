@@ -71,6 +71,18 @@ func TestNormalizeOnboardingState(t *testing.T) {
 	}
 }
 
+func TestIsOnboardingStateEmpty(t *testing.T) {
+	t.Parallel()
+
+	if !IsOnboardingStateEmpty(OnboardingState{}) {
+		t.Fatal("expected zero-value state to be empty")
+	}
+
+	if IsOnboardingStateEmpty(OnboardingState{SelectedProvider: "codex"}) {
+		t.Fatal("expected provider-only state to be non-empty")
+	}
+}
+
 func TestOnboardingStateStoreSetGetClear(t *testing.T) {
 	t.Parallel()
 

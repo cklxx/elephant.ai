@@ -45,6 +45,11 @@ func NormalizeOnboardingState(state OnboardingState) OnboardingState {
 	return state
 }
 
+// IsOnboardingStateEmpty reports whether state has no meaningful onboarding values.
+func IsOnboardingStateEmpty(state OnboardingState) bool {
+	return state.isZero()
+}
+
 func (s OnboardingState) isZero() bool {
 	return utils.IsBlank(s.CompletedAt) &&
 		utils.IsBlank(s.SelectedProvider) &&
