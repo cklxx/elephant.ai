@@ -217,6 +217,7 @@ func TestAutoCompact_CallsFlushHook(t *testing.T) {
 		{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "base system"},
 		{Role: "user", Content: strings.Repeat("x", 400)},
 		{Role: "assistant", Content: "reply to user"},
+		{Role: "user", Content: "latest request"},
 	}
 
 	compacted, compactedFlag := mgr.AutoCompact(messages, limit)
@@ -227,12 +228,15 @@ func TestAutoCompact_CallsFlushHook(t *testing.T) {
 
 	flushedMessages = recorder.messages
 	if len(flushedMessages) != 2 {
-		t.Fatalf("expected 2 compressible messages (user + assistant), got %d", len(flushedMessages))
+		t.Fatalf("expected 2 compacted history messages, got %d", len(flushedMessages))
 	}
 	// System prompt should NOT be in the flushed messages.
 	for _, msg := range flushedMessages {
 		if msg.Source == ports.MessageSourceSystemPrompt {
 			t.Fatalf("system prompt should not be flushed, got %+v", msg)
+		}
+		if msg.Content == "latest request" {
+			t.Fatalf("latest user request must not be flushed as compacted history")
 		}
 	}
 
@@ -254,14 +258,19 @@ func TestAutoCompact_FlushHookErrorDoesNotBlockCompression(t *testing.T) {
 	messages := []ports.Message{
 		{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "base system"},
 		{Role: "user", Content: strings.Repeat("x", 400)},
+		{Role: "assistant", Content: "assistant history"},
+		{Role: "user", Content: "latest request"},
 	}
 
 	compacted, compactedFlag := mgr.AutoCompact(messages, limit)
 	if !compactedFlag {
 		t.Fatalf("expected auto compaction to proceed despite hook error")
 	}
-	if len(compacted) != 2 {
-		t.Fatalf("expected system prompt + summary, got %d entries", len(compacted))
+	if len(compacted) != 3 {
+		t.Fatalf("expected system prompt + summary + latest input, got %d entries", len(compacted))
+	}
+	if compacted[2].Content != "latest request" {
+		t.Fatalf("latest user input should be preserved, got %+v", compacted[2])
 	}
 }
 
@@ -271,14 +280,19 @@ func TestAutoCompact_NilFlushHookIsSkipped(t *testing.T) {
 	messages := []ports.Message{
 		{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "base system"},
 		{Role: "user", Content: strings.Repeat("x", 400)},
+		{Role: "assistant", Content: "assistant history"},
+		{Role: "user", Content: "latest request"},
 	}
 
 	compacted, compactedFlag := mgr.AutoCompact(messages, limit)
 	if !compactedFlag {
 		t.Fatalf("expected auto compaction to run")
 	}
-	if len(compacted) != 2 {
-		t.Fatalf("expected system prompt + summary, got %d entries", len(compacted))
+	if len(compacted) != 3 {
+		t.Fatalf("expected system prompt + summary + latest input, got %d entries", len(compacted))
+	}
+	if compacted[2].Content != "latest request" {
+		t.Fatalf("latest user input should be preserved, got %+v", compacted[2])
 	}
 }
 

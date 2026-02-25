@@ -2,6 +2,7 @@ package context
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -235,6 +236,7 @@ func convertRecordToJournal(record agent.ContextTurnRecord) journal.TurnJournalE
 }
 
 const historyTimelineLimit = 8
+const historyTimelineSummaryChars = 50
 
 const (
 	historyCompressionSummaryPrefix = "[Earlier context compressed]"
@@ -258,15 +260,15 @@ func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) age
 		role := strings.ToLower(strings.TrimSpace(msg.Role))
 		switch role {
 		case "user":
-			if snippet := buildCompressionSnippet(msg.Content, 200); snippet != "" {
+			if snippet := buildCompressionSnippet(msg.Content, historyTimelineSummaryChars); snippet != "" {
 				lastUserSnippet = snippet
 			}
 		case "assistant":
-			if snippet := buildCompressionSnippet(msg.Content, 200); snippet != "" {
+			if snippet := buildCompressionSnippet(msg.Content, historyTimelineSummaryChars); snippet != "" {
 				lastAssistantSnippet = snippet
 			}
 		case "tool":
-			if snippet := buildCompressionSnippet(msg.Content, 200); snippet != "" {
+			if snippet := buildCompressionSnippet(msg.Content, historyTimelineSummaryChars); snippet != "" {
 				lastToolSnippet = snippet
 			}
 		}
@@ -308,15 +310,28 @@ func buildHistoryTimeline(messages []ports.Message, limit int) []string {
 		if shouldSkipHistoryTimelineMessage(msg) {
 			continue
 		}
-		snippet := buildCompressionSnippet(msg.Content, 160)
+		snippet := buildCompressionSnippet(msg.Content, historyTimelineSummaryChars)
 		if snippet == "" {
 			snippet = "(no visible content)"
 		}
-		label := normalizeHistoryLabel(msg)
-		timeline = append(timeline, fmt.Sprintf("%02d. %s: %s", lineNo, label, snippet))
+		encoded, err := json.Marshal(historyTimelineEntry{
+			Index:   lineNo,
+			Role:    normalizeHistoryLabel(msg),
+			Summary: snippet,
+		})
+		if err != nil {
+			continue
+		}
+		timeline = append(timeline, string(encoded))
 		lineNo++
 	}
 	return timeline
+}
+
+type historyTimelineEntry struct {
+	Index   int    `json:"idx"`
+	Role    string `json:"role"`
+	Summary string `json:"summary"`
 }
 
 func isContextCompressionSummary(msg ports.Message) bool {

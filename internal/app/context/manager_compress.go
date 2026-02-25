@@ -94,20 +94,16 @@ func (m *manager) AutoCompact(messages []ports.Message, limit int) ([]ports.Mess
 		return messages, false
 	}
 
+	plan := buildCompressionPlan(messages)
+	if len(plan.summarySource) == 0 {
+		return messages, false
+	}
+
 	// Collect compressible messages (same logic as Compress) so the flush hook
 	// receives exactly the messages that will be summarized away.
 	if m.flushHook != nil {
-		var compressible []ports.Message
-		for _, msg := range messages {
-			if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant || msg.Source == ports.MessageSourceCheckpoint {
-				continue
-			}
-			compressible = append(compressible, msg)
-		}
-		if len(compressible) > 0 {
-			if err := m.flushHook.OnBeforeCompaction(context.Background(), compressible); err != nil {
-				logging.OrNop(m.logger).Warn("Flush-before-compaction hook failed: %v", err)
-			}
+		if err := m.flushHook.OnBeforeCompaction(context.Background(), plan.summarySource); err != nil {
+			logging.OrNop(m.logger).Warn("Flush-before-compaction hook failed: %v", err)
 		}
 	}
 
@@ -122,11 +118,9 @@ func (m *manager) AutoCompact(messages []ports.Message, limit int) ([]ports.Mess
 	return compressed, true
 }
 
-// Compress preserves all system prompts and summarizes everything else when the
-// token budget is exceeded. The summary is inserted where non-system content
-// was first removed so that later system prompts stay in their original order.
-// This keeps governance instructions intact while still giving the model
-// awareness of the trimmed conversation.
+// Compress preserves system/important/checkpoint messages and the most recent
+// conversation turn, then summarizes older conversation history when the token
+// budget is exceeded. Existing compression summaries are never re-summarized.
 func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.Message, error) {
 	if targetTokens <= 0 {
 		return messages, nil
@@ -136,40 +130,36 @@ func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.
 		return messages, nil
 	}
 
-	var (
-		compressed            []ports.Message
-		compressible          []ports.Message
-		summaryInsertionIndex = -1
-	)
-
-	for _, msg := range messages {
-		if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant || msg.Source == ports.MessageSourceCheckpoint {
-			compressed = append(compressed, msg)
-			continue
-		}
-		if summaryInsertionIndex == -1 {
-			summaryInsertionIndex = len(compressed)
-		}
-		compressible = append(compressible, msg)
-	}
-
-	if len(compressible) == 0 {
+	plan := buildCompressionPlan(messages)
+	if len(plan.compressibleOriginalIndexes) == 0 || len(plan.summarySource) == 0 {
 		return messages, nil
 	}
 
-	if summary := buildCompressionSummary(compressible); summary != "" {
-		compressed = append(compressed, ports.Message{
-			Role:    "assistant",
-			Content: summary,
-			Source:  ports.MessageSourceUserHistory,
-		})
-		if summaryInsertionIndex >= 0 && summaryInsertionIndex < len(compressed)-1 {
-			insert := compressed[len(compressed)-1]
-			copy(compressed[summaryInsertionIndex+1:], compressed[summaryInsertionIndex:])
-			compressed[summaryInsertionIndex] = insert
+	summary := buildCompressionSummary(plan.summarySource)
+	if summary == "" {
+		return messages, nil
+	}
+
+	summaryMessage := ports.Message{
+		Role:    "assistant",
+		Content: summary,
+		Source:  ports.MessageSourceUserHistory,
+	}
+
+	compressed := make([]ports.Message, 0, len(messages)-len(plan.compressibleOriginalIndexes)+1)
+	summaryInserted := false
+	for idx, msg := range messages {
+		if _, shouldCompress := plan.compressibleOriginalIndexes[idx]; shouldCompress {
+			if !summaryInserted {
+				compressed = append(compressed, summaryMessage)
+				summaryInserted = true
+			}
+			continue
 		}
-	} else {
-		compressed = append(compressed, compressible...)
+		compressed = append(compressed, msg)
+	}
+	if !summaryInserted {
+		compressed = append(compressed, summaryMessage)
 	}
 
 	return compressed, nil
@@ -180,10 +170,14 @@ func buildCompressionSummary(messages []ports.Message) string {
 		return ""
 	}
 
-	var userCount, assistantCount, toolMentions int
+	var userCount, assistantCount, toolMentions, summarizedCount int
 	var firstUser, lastUser, firstAssistant, lastAssistant string
 
 	for _, msg := range messages {
+		if isContextCompressionSummary(msg) {
+			continue
+		}
+		summarizedCount++
 		role := strings.ToLower(strings.TrimSpace(msg.Role))
 		snippet := buildCompressionSnippet(msg.Content, 140)
 		switch role {
@@ -204,6 +198,9 @@ func buildCompressionSummary(messages []ports.Message) string {
 			toolMentions++
 		}
 		toolMentions += len(msg.ToolResults)
+	}
+	if summarizedCount == 0 {
+		return ""
 	}
 
 	parts := []string{fmt.Sprintf("Earlier conversation had %d user message(s) and %d assistant response(s)", userCount, assistantCount)}
@@ -229,6 +226,51 @@ func buildCompressionSummary(messages []ports.Message) string {
 	}
 
 	return fmt.Sprintf("[Earlier context compressed] %s.", strings.Join(parts, "; "))
+}
+
+type compressionPlan struct {
+	compressibleOriginalIndexes map[int]struct{}
+	summarySource               []ports.Message
+}
+
+func buildCompressionPlan(messages []ports.Message) compressionPlan {
+	plan := compressionPlan{
+		compressibleOriginalIndexes: map[int]struct{}{},
+	}
+	if len(messages) == 0 {
+		return plan
+	}
+
+	conversation := make([]ports.Message, 0, len(messages))
+	conversationIndexes := make([]int, 0, len(messages))
+	for idx, msg := range messages {
+		if isCompressionPreservedSource(msg.Source) {
+			continue
+		}
+		conversation = append(conversation, msg)
+		conversationIndexes = append(conversationIndexes, idx)
+	}
+	if len(conversation) == 0 {
+		return plan
+	}
+
+	keptConversation := keepRecentTurns(conversation, 1)
+	compressibleCount := len(conversation) - len(keptConversation)
+	if compressibleCount <= 0 {
+		return plan
+	}
+
+	plan.compressibleOriginalIndexes = make(map[int]struct{}, compressibleCount)
+	plan.summarySource = make([]ports.Message, 0, compressibleCount)
+	for idx := 0; idx < compressibleCount; idx++ {
+		plan.compressibleOriginalIndexes[conversationIndexes[idx]] = struct{}{}
+		msg := conversation[idx]
+		if isContextCompressionSummary(msg) {
+			continue
+		}
+		plan.summarySource = append(plan.summarySource, msg)
+	}
+	return plan
 }
 
 func buildCompressionSnippet(content string, limit int) string {
@@ -283,12 +325,11 @@ func AggressiveTrim(messages []ports.Message, maxTurns int) []ports.Message {
 	// Separate preserved messages from conversation turns.
 	var preserved, conversation []ports.Message
 	for _, msg := range messages {
-		switch msg.Source {
-		case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceCheckpoint:
+		if isCompressionPreservedSource(msg.Source) {
 			preserved = append(preserved, msg)
-		default:
-			conversation = append(conversation, msg)
+			continue
 		}
+		conversation = append(conversation, msg)
 	}
 
 	// Count turns from the end (a "turn" = one user message + following assistant/tool messages).
@@ -308,6 +349,15 @@ func AggressiveTrim(messages []ports.Message, maxTurns int) []ports.Message {
 		result = append(result, kept...)
 	}
 	return result
+}
+
+func isCompressionPreservedSource(source ports.MessageSource) bool {
+	switch source {
+	case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceCheckpoint:
+		return true
+	default:
+		return false
+	}
 }
 
 // keepRecentTurns returns the last N user-initiated turns from a conversation

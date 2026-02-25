@@ -252,12 +252,17 @@ func TestDeriveHistoryAwareMetaBuildsTimelineFromSessionHistory(t *testing.T) {
 	if timeline == nil {
 		t.Fatalf("expected recent session timeline memory to be recorded, got %+v", meta.Memories)
 	}
-	for _, expected := range []string{"01. user", "02. tool[logs-1]", "04. user", "06. assistant"} {
+	for _, expected := range []string{
+		`"idx":1,"role":"user"`,
+		`"idx":2,"role":"tool[logs-1]"`,
+		`"idx":4,"role":"user"`,
+		`"idx":6,"role":"assistant"`,
+	} {
 		if !strings.Contains(timeline.Content, expected) {
 			t.Fatalf("expected timeline to include %q, got %q", expected, timeline.Content)
 		}
 	}
-	if strings.Contains(timeline.Content, "system:") {
+	if strings.Contains(timeline.Content, `"role":"system"`) {
 		t.Fatalf("expected timeline to skip system-role records, got %q", timeline.Content)
 	}
 
@@ -322,11 +327,23 @@ func TestBuildHistoryTimelineSkipsCompressionSummariesWithoutIndexGaps(t *testin
 	if len(timeline) != 2 {
 		t.Fatalf("expected 2 visible timeline lines after filtering summaries, got %d (%v)", len(timeline), timeline)
 	}
-	if !strings.HasPrefix(timeline[0], "01. user: ") {
-		t.Fatalf("expected first line to be 01 user, got %q", timeline[0])
+	if timeline[0] != `{"idx":1,"role":"user","summary":"first visible"}` {
+		t.Fatalf("expected first line to be idx=1 user JSON entry, got %q", timeline[0])
 	}
-	if !strings.HasPrefix(timeline[1], "02. assistant: ") {
-		t.Fatalf("expected second line to be 02 assistant, got %q", timeline[1])
+	if timeline[1] != `{"idx":2,"role":"assistant","summary":"second visible"}` {
+		t.Fatalf("expected second line to be idx=2 assistant JSON entry, got %q", timeline[1])
+	}
+}
+
+func TestBuildHistoryTimelineUses50CharSummaries(t *testing.T) {
+	timeline := buildHistoryTimeline([]ports.Message{
+		{Role: "user", Content: strings.Repeat("a", 60), Source: ports.MessageSourceUserInput},
+	}, 8)
+	if len(timeline) != 1 {
+		t.Fatalf("expected one timeline entry, got %d", len(timeline))
+	}
+	if !strings.Contains(timeline[0], `"summary":"`+strings.Repeat("a", 50)+`…"`) {
+		t.Fatalf("expected summary to be capped at 50 chars, got %q", timeline[0])
 	}
 }
 
@@ -539,8 +556,8 @@ func TestCompressInjectsStructuredSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("compress returned error: %v", err)
 	}
-	if len(compressed) != 2 {
-		t.Fatalf("expected 2 messages (system prompt + summary), got %d", len(compressed))
+	if len(compressed) != 4 {
+		t.Fatalf("expected system prompt + summary + latest turn, got %d", len(compressed))
 	}
 	summary := compressed[1]
 	if summary.Source != ports.MessageSourceUserHistory {
@@ -555,22 +572,30 @@ func TestCompressInjectsStructuredSummary(t *testing.T) {
 	if strings.Contains(summary.Content, "Previous conversation compressed") {
 		t.Fatalf("legacy placeholder should be removed, got %q", summary.Content)
 	}
+	if compressed[2].Role != "user" || !strings.Contains(compressed[2].Content, "feature 11") {
+		t.Fatalf("expected latest user input to be preserved, got %+v", compressed[2])
+	}
+	if compressed[3].Role != "assistant" || !strings.Contains(compressed[3].Content, "feature 11") {
+		t.Fatalf("expected latest assistant reply to be preserved, got %+v", compressed[3])
+	}
 }
 
 func TestAutoCompactTriggersCompression(t *testing.T) {
 	mgr := &manager{}
-	limit := 50
+	limit := 80
 	messages := []ports.Message{
 		{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "base system"},
 		{Role: "user", Content: strings.Repeat("x", 400)},
+		{Role: "assistant", Content: strings.Repeat("y", 180)},
+		{Role: "user", Content: "latest request"},
 	}
 
 	compacted, compactedFlag := mgr.AutoCompact(messages, limit)
 	if !compactedFlag {
 		t.Fatalf("expected auto compaction to run")
 	}
-	if len(compacted) != 2 {
-		t.Fatalf("expected system prompt and summary, got %d entries", len(compacted))
+	if len(compacted) != 3 {
+		t.Fatalf("expected system prompt + summary + latest input, got %d entries", len(compacted))
 	}
 	if compacted[0].Content != messages[0].Content {
 		t.Fatalf("system prompt should be preserved")
@@ -581,6 +606,9 @@ func TestAutoCompactTriggersCompression(t *testing.T) {
 	}
 	if !strings.Contains(summary.Content, "Earlier conversation had 1 user message(s)") {
 		t.Fatalf("unexpected summary content: %q", summary.Content)
+	}
+	if compacted[2].Role != "user" || compacted[2].Content != "latest request" {
+		t.Fatalf("expected latest user input to remain visible, got %+v", compacted[2])
 	}
 }
 
@@ -612,7 +640,9 @@ func TestCompressPreservesAllSystemPrompts(t *testing.T) {
 	messages := []ports.Message{
 		{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "primary system"},
 		{Role: "user", Content: "first"},
+		{Role: "assistant", Content: "first reply"},
 		{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "second system"},
+		{Role: "user", Content: "second"},
 		{Role: "assistant", Content: "second reply"},
 	}
 
@@ -622,8 +652,8 @@ func TestCompressPreservesAllSystemPrompts(t *testing.T) {
 		t.Fatalf("compress returned error: %v", err)
 	}
 
-	if len(compressed) != 3 {
-		t.Fatalf("expected 3 messages (two system prompts + summary), got %d", len(compressed))
+	if len(compressed) != 5 {
+		t.Fatalf("expected two system prompts + summary + latest turn, got %d", len(compressed))
 	}
 
 	if compressed[0].Content != "primary system" || compressed[2].Content != "second system" {
@@ -636,6 +666,39 @@ func TestCompressPreservesAllSystemPrompts(t *testing.T) {
 	}
 	if !strings.Contains(summary.Content, "Earlier conversation had 1 user message(s) and 1 assistant response(s)") {
 		t.Fatalf("unexpected summary content: %q", summary.Content)
+	}
+	if compressed[3].Role != "user" || compressed[3].Content != "second" {
+		t.Fatalf("expected latest user message preserved, got %+v", compressed[3])
+	}
+	if compressed[4].Role != "assistant" || compressed[4].Content != "second reply" {
+		t.Fatalf("expected latest assistant message preserved, got %+v", compressed[4])
+	}
+}
+
+func TestCompressSkipsExistingCompressionSummaryContent(t *testing.T) {
+	mgr := &manager{}
+	messages := []ports.Message{
+		{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "primary system"},
+		{Role: "assistant", Source: ports.MessageSourceUserHistory, Content: "[Earlier context compressed] prior summary."},
+		{Role: "user", Content: "old request"},
+		{Role: "assistant", Content: "old reply"},
+		{Role: "user", Content: "latest request"},
+	}
+
+	target := mgr.EstimateTokens(messages) - 1
+	compressed, err := mgr.Compress(messages, target)
+	if err != nil {
+		t.Fatalf("compress returned error: %v", err)
+	}
+	if len(compressed) != 3 {
+		t.Fatalf("expected system + summary + latest user, got %d", len(compressed))
+	}
+	if compressed[2].Role != "user" || compressed[2].Content != "latest request" {
+		t.Fatalf("latest user input must be preserved, got %+v", compressed[2])
+	}
+	summary := compressed[1].Content
+	if strings.Contains(summary, "assistant first replied: [Earlier context compressed]") {
+		t.Fatalf("existing compression summary should not be recursively summarized: %q", summary)
 	}
 }
 
