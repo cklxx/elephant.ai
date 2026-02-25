@@ -1,9 +1,10 @@
 # Index: good-experience/entries
 
-Updated: 2026-02-24
+Updated: 2026-02-25
 
 ## Files
 
+- [2026-02-25-unattended-boundary-guard-for-kernel-context.md](2026-02-25-unattended-boundary-guard-for-kernel-context.md)
 - [2026-02-24-lark-inject-sync-e2e-testing.md](2026-02-24-lark-inject-sync-e2e-testing.md)
 - [2026-02-23-branch-delete-policy-fallback.md](2026-02-23-branch-delete-policy-fallback.md)
 - [2026-02-12-llm-profile-client-provider-decoupling.md](2026-02-12-llm-profile-client-provider-decoupling.md)

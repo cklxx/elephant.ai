@@ -1,5 +1,5 @@
 # elephant.ai Documentation Portal
-> Last updated: 2026-02-10
+> Last updated: 2026-02-25
 
 Start here for current architecture, config, and operations docs.
 
@@ -14,7 +14,7 @@ Start here for current architecture, config, and operations docs.
 ## Doc Types
 
 - **Non-record (living) docs**: `docs/reference/`, `docs/guides/`, `docs/operations/`, top-level indexes and README docs.
-- **Record docs**: `docs/plans/`, `docs/research/`, `docs/analysis/`, `docs/reviews/`, `docs/error-experience/`, `docs/good-experience/`.
+- **Record docs**: `docs/plans/`, `docs/research/`, `docs/analysis/`, `docs/reviews/`, `docs/error-experience/`, `docs/good-experience/`, `docs/postmortems/`.
 
 When behavior/config/architecture changes, prioritize updating non-record docs first.
 
@@ -28,3 +28,4 @@ When behavior/config/architecture changes, prioritize updating non-record docs f
 - [`memory/README.md`](memory/README.md)
 - [`error-experience.md`](error-experience.md)
 - [`good-experience.md`](good-experience.md)
+- [`postmortems/README.md`](postmortems/README.md)

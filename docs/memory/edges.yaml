@@ -1,5 +1,5 @@
 version: 1
-updated: "2026-02-24"
+updated: "2026-02-25"
 edges:
     - from: err-2026-01-27-dev-lint-test-cmd-alex-context
       to: errsum-2026-01-27-dev-lint-test-cmd-alex-context
@@ -101,6 +101,10 @@ edges:
       to: errsum-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
       type: see_also
       direction: directed
+    - from: err-2026-02-25-kernel-alignment-context-leak-into-lark-session
+      to: errsum-2026-02-25-kernel-alignment-context-leak-into-lark-session
+      type: see_also
+      direction: directed
     - from: errsum-2026-01-27-dev-lint-test-cmd-alex-context
       to: err-2026-01-27-dev-lint-test-cmd-alex-context
       type: derived_from
@@ -199,6 +203,10 @@ edges:
       direction: directed
     - from: errsum-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
       to: err-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-02-25-kernel-alignment-context-leak-into-lark-session
+      to: err-2026-02-25-kernel-alignment-context-leak-into-lark-session
       type: derived_from
       direction: directed
     - from: good-2026-01-30-continuous-practice-optimization
@@ -381,6 +389,10 @@ edges:
       to: goodsum-2026-02-24-systematic-log-noise-reduction
       type: see_also
       direction: directed
+    - from: good-2026-02-25-unattended-boundary-guard-for-kernel-context
+      to: goodsum-2026-02-25-unattended-boundary-guard-for-kernel-context
+      type: see_also
+      direction: directed
     - from: goodsum-2026-01-30-continuous-practice-optimization
       to: good-2026-01-30-continuous-practice-optimization
       type: derived_from
@@ -559,6 +571,10 @@ edges:
       direction: directed
     - from: goodsum-2026-02-24-systematic-log-noise-reduction
       to: good-2026-02-24-systematic-log-noise-reduction
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-25-unattended-boundary-guard-for-kernel-context
+      to: good-2026-02-25-unattended-boundary-guard-for-kernel-context
       type: derived_from
       direction: directed
     - from: ltm-long-term-memory
@@ -947,6 +963,14 @@ edges:
       direction: directed
     - from: ltm-long-term-memory
       to: plan-2026-02-24-lark-agent-teams-notification-observability
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-25-lark-agents-teams-notification-research-report
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-25-lark-compression-chain-and-user-input-fix
       type: see_also
       direction: directed
 schema:

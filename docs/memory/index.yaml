@@ -1,6 +1,65 @@
 version: 1
-updated: "2026-02-24"
+updated: "2026-02-25"
 nodes:
+    - id: err-2026-02-25-kernel-alignment-context-leak-into-lark-session
+      path: docs/error-experience/entries/2026-02-25-kernel-alignment-context-leak-into-lark-session.md
+      type: error_entry
+      date: "2026-02-25"
+      tags:
+        - error
+        - kernel
+        - lark
+        - session
+      summary: '**Date:** 2026-02-25'
+    - id: errsum-2026-02-25-kernel-alignment-context-leak-into-lark-session
+      path: docs/error-experience/summary/entries/2026-02-25-kernel-alignment-context-leak-into-lark-session.md
+      type: error_summary
+      date: "2026-02-25"
+      tags:
+        - error
+        - kernel
+        - lark
+        - session
+        - summary
+      summary: 'Summary: Kernel-only alignment context leaked into normal Lark prompt assembly, causing oversized system messages and context pollution.'
+    - id: good-2026-02-25-unattended-boundary-guard-for-kernel-context
+      path: docs/good-experience/entries/2026-02-25-unattended-boundary-guard-for-kernel-context.md
+      type: good_entry
+      date: "2026-02-25"
+      tags:
+        - good
+        - kernel
+        - lark
+        - session
+      summary: 'Feature: kernel alignment context in shared prompt assembly path.'
+    - id: goodsum-2026-02-25-unattended-boundary-guard-for-kernel-context
+      path: docs/good-experience/summary/entries/2026-02-25-unattended-boundary-guard-for-kernel-context.md
+      type: good_summary
+      date: "2026-02-25"
+      tags:
+        - good
+        - kernel
+        - summary
+      summary: 'Summary: Runtime-only kernel context injection stayed stable after adding an unattended-only boundary guard plus dual-path regression tests.'
+    - id: plan-2026-02-25-lark-agents-teams-notification-research-report
+      path: docs/plans/2026-02-25-lark-agents-teams-notification-research-report.md
+      type: plan
+      date: "2026-02-25"
+      tags:
+        - lark
+        - plan
+      summary: 基于公开一手资料形成一份可落地的通知展示与监控优化调研报告。
+    - id: plan-2026-02-25-lark-compression-chain-and-user-input-fix
+      path: docs/plans/2026-02-25-lark-compression-chain-and-user-input-fix.md
+      type: plan
+      date: "2026-02-25"
+      tags:
+        - kernel
+        - lark
+        - observability
+        - plan
+        - session
+      summary: 'Session: `lark-3A8wbzb54gXZEBw0wW9D1SLU1K5`'
     - id: good-2026-02-24-lark-inject-sync-e2e-testing
       path: docs/good-experience/entries/2026-02-24-lark-inject-sync-e2e-testing.md
       type: good_entry

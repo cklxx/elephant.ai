@@ -1,9 +1,10 @@
 # Index: error-experience/summary/entries
 
-Updated: 2026-02-23
+Updated: 2026-02-25
 
 ## Files
 
+- [2026-02-25-kernel-alignment-context-leak-into-lark-session.md](2026-02-25-kernel-alignment-context-leak-into-lark-session.md)
 - [2026-02-12-lark-test-config-provider-key-mismatch-blocks-start.md](2026-02-12-lark-test-config-provider-key-mismatch-blocks-start.md)
 - [2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription.md](2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription.md)
 - [2026-02-10-tool-optimization-caused-eval-tool-availability-collapse.md](2026-02-10-tool-optimization-caused-eval-tool-availability-collapse.md)
