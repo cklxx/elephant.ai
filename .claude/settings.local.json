@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "ELEPHANT_HOOKS_URL='http://localhost:9090' \"$CLAUDE_PROJECT_DIR\"/scripts/cc_hooks/notify_lark.sh",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "ELEPHANT_HOOKS_URL='http://localhost:9090' \"$CLAUDE_PROJECT_DIR\"/scripts/cc_hooks/notify_lark.sh",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}
