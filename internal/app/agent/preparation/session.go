@@ -62,8 +62,8 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, to
 		configPreset = strings.TrimSpace(s.config.ToolPreset)
 	}
 	if appcontext.IsSubagentContext(ctx) {
-		registry = s.getRegistryWithoutSubagent()
-		s.logger.Debug("Using filtered registry (subagent excluded) for nested call")
+		registry = s.getRegistryWithoutOrchestration()
+		s.logger.Debug("Using filtered registry (orchestration excluded) for nested call")
 	}
 	registry = s.applyToolPolicy(ctx, registry)
 
@@ -71,13 +71,13 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, to
 	return s.presetResolver.ResolveToolRegistry(ctx, registry, toolMode, configPreset)
 }
 
-func (s *ExecutionPreparationService) getRegistryWithoutSubagent() tools.ToolRegistry {
+func (s *ExecutionPreparationService) getRegistryWithoutOrchestration() tools.ToolRegistry {
 	type registryWithFilter interface {
-		WithoutSubagent() tools.ToolRegistry
+		WithoutOrchestration() tools.ToolRegistry
 	}
 
 	if filtered, ok := s.toolRegistry.(registryWithFilter); ok {
-		return filtered.WithoutSubagent()
+		return filtered.WithoutOrchestration()
 	}
 
 	return s.toolRegistry

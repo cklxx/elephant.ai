@@ -197,8 +197,8 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 		agentcoordinator.WithTeamRunRecorder(teamRunRecorder),
 	)
 
-	// Register subagent tool after coordinator is created.
-	toolRegistry.RegisterSubAgent(coordinator)
+	// Register orchestration tools (run_tasks, reply_agent).
+	toolRegistry.RegisterOrchestration()
 
 	b.logger.Info("Alternate coordinator built (tool_mode=%s, toolset=%s)", b.config.ToolMode, b.config.Toolset)
 

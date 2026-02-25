@@ -94,9 +94,9 @@ func NewKernelAlignmentContextProvider(cfg KernelAlignmentContextConfig) KernelA
 			b.WriteString("\n")
 		}
 		b.WriteString("\n## Self-Heal Channel\n")
-		b.WriteString("- On blocking engineering issues, dispatch coding repair tasks via `bg_dispatch`.\n")
+		b.WriteString("- On blocking engineering issues, write a task file and dispatch via `run_tasks`.\n")
 		b.WriteString("- Prefer agent_type=`codex`; fallback to `claude_code` if unavailable.\n")
-		b.WriteString("- Track via `bg_status`, collect via `bg_collect`, then merge via `ext_merge`.\n")
+		b.WriteString("- Monitor status via `read_file` on the .status sidecar.\n")
 		return strings.TrimSpace(b.String())
 	}
 }

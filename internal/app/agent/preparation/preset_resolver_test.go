@@ -274,10 +274,10 @@ func (r *mockToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 }
 func (r *mockToolRegistry) List() []ports.ToolDefinition { return r.tools }
 func (r *mockToolRegistry) Unregister(name string) error { return nil }
-func (r *mockToolRegistry) WithoutSubagent() tools.ToolRegistry {
+func (r *mockToolRegistry) WithoutOrchestration() tools.ToolRegistry {
 	filtered := make([]ports.ToolDefinition, 0, len(r.tools))
 	for _, t := range r.tools {
-		if t.Name != "subagent" && t.Name != "acp_executor" && t.Name != "explore" {
+		if t.Name != "run_tasks" && t.Name != "reply_agent" {
 			filtered = append(filtered, t)
 		}
 	}

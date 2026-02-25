@@ -32,19 +32,17 @@ func (c *AgentCoordinator) GetToolRegistry() tools.ToolRegistry {
 	return c.toolRegistry
 }
 
-// GetToolRegistryWithoutSubagent returns a filtered registry that excludes subagent
-// This is used by subagent tool to prevent nested subagent calls
-func (c *AgentCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry {
-	// Check if the registry implements WithoutSubagent method
+// GetToolRegistryWithoutOrchestration returns a filtered registry that excludes
+// orchestration tools to prevent recursive delegation chains inside background tasks.
+func (c *AgentCoordinator) GetToolRegistryWithoutOrchestration() tools.ToolRegistry {
 	type registryWithFilter interface {
-		WithoutSubagent() tools.ToolRegistry
+		WithoutOrchestration() tools.ToolRegistry
 	}
 
 	if filtered, ok := c.toolRegistry.(registryWithFilter); ok {
-		return filtered.WithoutSubagent()
+		return filtered.WithoutOrchestration()
 	}
 
-	// Fallback: return original registry if filtering not supported
 	return c.toolRegistry
 }
 

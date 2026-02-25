@@ -182,8 +182,8 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithTeamRunRecorder(teamRunRecorder),
 	)
 
-	// Register subagent tool after coordinator is created.
-	toolRegistry.RegisterSubAgent(coordinator)
+	// Register orchestration tools (run_tasks, reply_agent).
+	toolRegistry.RegisterOrchestration()
 
 	b.logger.Info("Container built successfully (heavy initialization deferred to Start())")
 

@@ -229,22 +229,12 @@ func (w *idAwareExecutor) Metadata() ports.ToolMetadata {
 	return w.delegate.Metadata()
 }
 
-// WithoutSubagent returns a filtered registry that excludes the subagent tool
-// This prevents nested subagent calls at registration level
-func (r *Registry) WithoutSubagent() tools.ToolRegistry {
+// WithoutOrchestration returns a filtered registry that excludes orchestration
+// tools. This prevents recursive delegation chains inside background tasks.
+func (r *Registry) WithoutOrchestration() tools.ToolRegistry {
 	return &filteredRegistry{
 		parent: r,
-		// Exclude delegation tools to prevent recursive delegation chains inside subagents.
 		exclude: map[string]bool{
-			"subagent":    true,
-			"explore":     true,
-			"bg_dispatch": true,
-			"bg_plan":     true,
-			"bg_graph":    true,
-			"bg_status":   true,
-			"bg_collect":  true,
-			"ext_reply":   true,
-			"ext_merge":   true,
 			"run_tasks":   true,
 			"reply_agent": true,
 		},
@@ -396,40 +386,16 @@ func (r *Registry) pruneDisabledTools(disabled map[string]string) {
 	}
 }
 
-// RegisterSubAgent registers the subagent tool that requires a task executor.
-func (r *Registry) RegisterSubAgent(coordinator orchestration.TaskExecutor) {
+// RegisterOrchestration registers file-based orchestration tools.
+// Dispatcher is injected via context at runtime.
+func (r *Registry) RegisterOrchestration() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if coordinator == nil {
+
+	if _, exists := r.static["run_tasks"]; exists {
 		return
 	}
 
-	if _, exists := r.static["subagent"]; exists {
-		if _, ok := r.static["explore"]; !ok {
-			wrapped := wrapTool(orchestration.NewExplore(r.static["subagent"]), r.policy, r.breakers, r.SLACollector)
-			r.static["explore"] = r.wrapDegradation("explore", wrapped)
-			r.defsDirty = true
-		}
-		return
-	}
-
-	subTool := orchestration.NewSubAgent(coordinator, 3)
-	subWrapped := wrapTool(subTool, r.policy, r.breakers, r.SLACollector)
-	r.static["subagent"] = r.wrapDegradation("subagent", subWrapped)
-	exploreWrapped := wrapTool(orchestration.NewExplore(subTool), r.policy, r.breakers, r.SLACollector)
-	r.static["explore"] = r.wrapDegradation("explore", exploreWrapped)
-
-	// Register background task tools (dispatcher injected via context at runtime).
-	r.static["bg_dispatch"] = r.wrapDegradation("bg_dispatch", wrapTool(orchestration.NewBGDispatch(), r.policy, r.breakers, r.SLACollector))
-	r.static["bg_plan"] = r.wrapDegradation("bg_plan", wrapTool(orchestration.NewBGPlan(), r.policy, r.breakers, r.SLACollector))
-	r.static["bg_graph"] = r.wrapDegradation("bg_graph", wrapTool(orchestration.NewBGGraph(), r.policy, r.breakers, r.SLACollector))
-	r.static["bg_status"] = r.wrapDegradation("bg_status", wrapTool(orchestration.NewBGStatus(), r.policy, r.breakers, r.SLACollector))
-	r.static["bg_collect"] = r.wrapDegradation("bg_collect", wrapTool(orchestration.NewBGCollect(), r.policy, r.breakers, r.SLACollector))
-	r.static["ext_reply"] = r.wrapDegradation("ext_reply", wrapTool(orchestration.NewExtReply(), r.policy, r.breakers, r.SLACollector))
-	r.static["ext_merge"] = r.wrapDegradation("ext_merge", wrapTool(orchestration.NewExtMerge(), r.policy, r.breakers, r.SLACollector))
-	r.static["team_dispatch"] = r.wrapDegradation("team_dispatch", wrapTool(orchestration.NewTeamDispatch(), r.policy, r.breakers, r.SLACollector))
-
-	// File-based orchestration tools (Phase 1 — dual-track with legacy tools).
 	r.static["run_tasks"] = r.wrapDegradation("run_tasks", wrapTool(orchestration.NewRunTasks(), r.policy, r.breakers, r.SLACollector))
 	r.static["reply_agent"] = r.wrapDegradation("reply_agent", wrapTool(orchestration.NewReplyAgent(), r.policy, r.breakers, r.SLACollector))
 	r.defsDirty = true

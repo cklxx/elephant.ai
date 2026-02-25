@@ -436,10 +436,10 @@ func (r *registryWithList) List() []ports.ToolDefinition {
 
 func (r *registryWithList) Unregister(name string) error { return nil }
 
-func (r *registryWithList) WithoutSubagent() tools.ToolRegistry {
+func (r *registryWithList) WithoutOrchestration() tools.ToolRegistry {
 	filtered := make([]ports.ToolDefinition, 0, len(r.defs))
 	for _, def := range r.defs {
-		if def.Name == "subagent" || def.Name == "explore" || def.Name == "acp_executor" {
+		if def.Name == "run_tasks" || def.Name == "reply_agent" {
 			continue
 		}
 		filtered = append(filtered, def)

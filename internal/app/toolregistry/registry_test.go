@@ -6,9 +6,6 @@ import (
 	"testing"
 
 	ports "alex/internal/domain/agent/ports"
-	agent "alex/internal/domain/agent/ports/agent"
-	llm "alex/internal/domain/agent/ports/llm"
-	storage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/memory"
 	toolspolicy "alex/internal/infra/tools"
@@ -91,13 +88,13 @@ func TestToolDefinitionsArrayItems(t *testing.T) {
 	}
 }
 
-func TestToolDefinitionsArrayItemsIncludesSubagentTools(t *testing.T) {
+func TestToolDefinitionsArrayItemsIncludesOrchestrationTools(t *testing.T) {
 	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	registry.RegisterSubAgent(stubCoordinator{})
+	registry.RegisterOrchestration()
 
 	defs := registry.List()
 	for _, def := range defs {
@@ -112,85 +109,47 @@ func TestToolDefinitionsArrayItemsIncludesSubagentTools(t *testing.T) {
 	}
 }
 
-type stubCoordinator struct{}
-
-func (stubCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
-	return nil, nil
-}
-
-func (stubCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
-	return nil, nil
-}
-
-func (stubCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *storage.Session, _ *agent.TaskResult) error {
-	return nil
-}
-
-func (stubCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
-	return nil, nil
-}
-
-func (stubCoordinator) GetConfig() agent.AgentConfig {
-	return agent.AgentConfig{}
-}
-
-func (stubCoordinator) GetLLMClient() (llm.LLMClient, error) {
-	return nil, nil
-}
-
-func (stubCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry {
-	return nil
-}
-
-func (stubCoordinator) GetParser() agent.FunctionCallParser {
-	return nil
-}
-
-func (stubCoordinator) GetContextManager() agent.ContextManager {
-	return nil
-}
-
-func (stubCoordinator) GetSystemPrompt() string {
-	return ""
-}
-
-func TestRegisterSubAgentIncludesTeamDispatch(t *testing.T) {
+func TestRegisterOrchestrationIncludesRunTasks(t *testing.T) {
 	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	// Before RegisterSubAgent, team_dispatch should not exist.
-	if _, err := registry.Get("team_dispatch"); err == nil {
-		t.Fatal("team_dispatch should not exist before RegisterSubAgent")
+	// Before RegisterOrchestration, run_tasks should not exist.
+	if _, err := registry.Get("run_tasks"); err == nil {
+		t.Fatal("run_tasks should not exist before RegisterOrchestration")
 	}
 
-	registry.RegisterSubAgent(stubCoordinator{})
+	registry.RegisterOrchestration()
 
-	// After RegisterSubAgent, team_dispatch should be available.
-	tool, err := registry.Get("team_dispatch")
+	// After RegisterOrchestration, run_tasks should be available.
+	tool, err := registry.Get("run_tasks")
 	if err != nil {
-		t.Fatalf("team_dispatch should be registered after RegisterSubAgent: %v", err)
+		t.Fatalf("run_tasks should be registered after RegisterOrchestration: %v", err)
 	}
-	if tool.Definition().Name != "team_dispatch" {
-		t.Fatalf("expected tool name team_dispatch, got %s", tool.Definition().Name)
+	if tool.Definition().Name != "run_tasks" {
+		t.Fatalf("expected tool name run_tasks, got %s", tool.Definition().Name)
 	}
 
-	// Also verify it appears in List().
+	// reply_agent should also be available.
+	tool2, err := registry.Get("reply_agent")
+	if err != nil {
+		t.Fatalf("reply_agent should be registered: %v", err)
+	}
+	if tool2.Definition().Name != "reply_agent" {
+		t.Fatalf("expected tool name reply_agent, got %s", tool2.Definition().Name)
+	}
+
+	// Verify both appear in List().
 	defs := registry.List()
-	found := false
+	found := map[string]bool{}
 	for _, def := range defs {
-		if def.Name == "team_dispatch" {
-			found = true
-			break
+		if def.Name == "run_tasks" || def.Name == "reply_agent" {
+			found[def.Name] = true
 		}
 	}
-	if !found {
-		names := make([]string, len(defs))
-		for i, d := range defs {
-			names[i] = d.Name
-		}
-		t.Fatalf("team_dispatch not found in List(); available: %v", names)
+	if !found["run_tasks"] || !found["reply_agent"] {
+		t.Fatalf("expected run_tasks and reply_agent in List()")
 	}
 }
 

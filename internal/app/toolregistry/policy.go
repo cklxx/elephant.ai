@@ -39,13 +39,13 @@ func (p *policyAwareRegistry) WithPolicy(policy toolspolicy.ToolPolicy, channel 
 	return &policyAwareRegistry{parent: p.parent, policy: policy, channel: channel}
 }
 
-// WithoutSubagent returns a policy-aware registry that excludes the subagent tool.
-func (p *policyAwareRegistry) WithoutSubagent() tools.ToolRegistry {
+// WithoutOrchestration returns a policy-aware registry that excludes orchestration tools.
+func (p *policyAwareRegistry) WithoutOrchestration() tools.ToolRegistry {
 	type registryWithFilter interface {
-		WithoutSubagent() tools.ToolRegistry
+		WithoutOrchestration() tools.ToolRegistry
 	}
 	if filtered, ok := p.parent.(registryWithFilter); ok {
-		return &policyAwareRegistry{parent: filtered.WithoutSubagent(), policy: p.policy, channel: p.channel}
+		return &policyAwareRegistry{parent: filtered.WithoutOrchestration(), policy: p.policy, channel: p.channel}
 	}
 	return p
 }

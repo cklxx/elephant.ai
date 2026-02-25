@@ -36,7 +36,7 @@ func TestKernelAlignmentContextProvider_LoadsSoulUserGoal(t *testing.T) {
 		"finish real objective",
 		"soul-values",
 		"serve-user",
-		"bg_dispatch",
+		"run_tasks",
 		"codex",
 		"claude_code",
 	} {
