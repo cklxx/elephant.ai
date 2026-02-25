@@ -55,8 +55,9 @@ func TestPathInjectionE2E_ReadsOutsideWorkspace(t *testing.T) {
 	}
 	costTracker := agentcost.NewCostTracker(costStore)
 
+	injectionClient := &injectionLLMClient{targetPath: secretPath}
 	coordinator := agentcoordinator.NewAgentCoordinator(
-		&injectionLLMFactory{client: &injectionLLMClient{targetPath: secretPath}},
+		&injectionLLMFactory{client: injectionClient},
 		toolRegistry,
 		sessionStore,
 		newTestContextManager(),
@@ -86,7 +87,7 @@ func TestPathInjectionE2E_ReadsOutsideWorkspace(t *testing.T) {
 
 	toolCalls, toolContent, toolErr := listener.snapshot()
 	if toolCalls == 0 {
-		t.Fatalf("expected read_file to be executed at least once")
+		t.Fatalf("expected read_file to be executed at least once (llm_requests=%+v)", injectionClient.snapshot())
 	}
 	if toolErr != "" {
 		t.Fatalf("expected read_file success, got error: %s", toolErr)
@@ -163,8 +164,9 @@ func (f *injectionLLMFactory) DisableRetry() {}
 
 type injectionLLMClient struct {
 	mu         sync.Mutex
-	callCount  int
+	injected   bool
 	targetPath string
+	requests   []injectionRequestMeta
 }
 
 func (c *injectionLLMClient) Model() string {
@@ -173,12 +175,20 @@ func (c *injectionLLMClient) Model() string {
 
 func (c *injectionLLMClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	c.mu.Lock()
-	c.callCount++
-	callNum := c.callCount
+	c.requests = append(c.requests, injectionRequestMeta{
+		ToolCount: len(req.Tools),
+		ToolNames: extractToolNames(req.Tools),
+		LastUser:  extractLastUserMessage(req),
+		Intent:    extractRequestIntent(req.Metadata),
+	})
+	shouldInject := !c.injected && len(req.Tools) > 0 && !strings.EqualFold(extractRequestIntent(req.Metadata), "task_preanalysis")
+	if shouldInject {
+		c.injected = true
+	}
 	c.mu.Unlock()
 
 	content := "injection flow completed"
-	if callNum == 1 {
+	if shouldInject {
 		payload, err := json.Marshal(map[string]any{
 			"name": "read_file",
 			"args": map[string]any{
@@ -200,6 +210,53 @@ func (c *injectionLLMClient) Complete(ctx context.Context, req ports.CompletionR
 			TotalTokens:      64,
 		},
 	}, nil
+}
+
+func (c *injectionLLMClient) snapshot() []injectionRequestMeta {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]injectionRequestMeta, len(c.requests))
+	copy(out, c.requests)
+	return out
+}
+
+type injectionRequestMeta struct {
+	ToolCount int
+	ToolNames []string
+	LastUser  string
+	Intent    string
+}
+
+func extractLastUserMessage(req ports.CompletionRequest) string {
+	for i := len(req.Messages) - 1; i >= 0; i-- {
+		if strings.EqualFold(strings.TrimSpace(req.Messages[i].Role), "user") {
+			return strings.TrimSpace(req.Messages[i].Content)
+		}
+	}
+	return ""
+}
+
+func extractToolNames(defs []ports.ToolDefinition) []string {
+	if len(defs) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(defs))
+	for _, def := range defs {
+		name := strings.TrimSpace(def.Name)
+		if name == "" {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
+func extractRequestIntent(metadata map[string]any) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	raw, _ := metadata["intent"].(string)
+	return strings.TrimSpace(raw)
 }
 
 func (c *injectionLLMClient) StreamComplete(
