@@ -631,13 +631,20 @@ record_restart_attempt() {
 total_restart_count_window() {
   local now_epoch="$1"
   local main_count loop_count kernel_count
-  MAIN_RESTART_HISTORY="$(history_prune "${MAIN_RESTART_HISTORY}" "${now_epoch}")"
-  LOOP_RESTART_HISTORY="$(history_prune "${LOOP_RESTART_HISTORY}" "${now_epoch}")"
-  KERNEL_RESTART_HISTORY="$(history_prune "${KERNEL_RESTART_HISTORY}" "${now_epoch}")"
-  main_count="$(history_count "${MAIN_RESTART_HISTORY}")"
-  loop_count="$(history_count "${LOOP_RESTART_HISTORY}")"
-  kernel_count="$(history_count "${KERNEL_RESTART_HISTORY}")"
+  main_count="$(restart_count_window_for_component "main" "${now_epoch}")"
+  loop_count="$(restart_count_window_for_component "loop" "${now_epoch}")"
+  kernel_count="$(restart_count_window_for_component "kernel" "${now_epoch}")"
   echo $((main_count + loop_count + kernel_count))
+}
+
+restart_count_window_for_component() {
+  local component="$1"
+  local now_epoch="$2"
+  local history
+  history="$(restart_history_for_component "${component}")"
+  history="$(history_prune "${history}" "${now_epoch}")"
+  set_restart_history_for_component "${component}" "${history}"
+  history_count "${history}"
 }
 
 restart_component() {
@@ -756,9 +763,13 @@ current_mode() {
 
 write_status_file() {
   local now_epoch now_utc mode last_error restart_count loop_alive
+  local main_runs_window kernel_runs_window loop_runs_window
   now_epoch="$(date +%s)"
   now_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   restart_count="$(total_restart_count_window "${now_epoch}")"
+  main_runs_window="$(restart_count_window_for_component "main" "${now_epoch}")"
+  kernel_runs_window="$(restart_count_window_for_component "kernel" "${now_epoch}")"
+  loop_runs_window="$(restart_count_window_for_component "loop" "${now_epoch}")"
   OBS_RESTART_COUNT_WINDOW="${restart_count}"
   mode="$(current_mode "${now_epoch}")"
   MODE="${mode}"
@@ -790,7 +801,10 @@ write_status_file() {
   "loop_alive": ${loop_alive},
   "main_sha": "${OBS_MAIN_SHA}",
   "main_deployed_sha": "${OBS_MAIN_DEPLOYED_SHA}",
+  "main_runs_window": ${main_runs_window},
   "kernel_deployed_sha": "${OBS_KERNEL_DEPLOYED_SHA}",
+  "kernel_runs_window": ${kernel_runs_window},
+  "loop_runs_window": ${loop_runs_window},
   "last_processed_sha": "${OBS_LAST_PROCESSED_SHA}",
   "last_validated_sha": "${OBS_LAST_VALIDATED_SHA}",
   "cycle_phase": "${OBS_CYCLE_PHASE}",

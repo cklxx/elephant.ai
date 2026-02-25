@@ -88,7 +88,7 @@ Commands:
   setup-cgo      Install CGO sqlite dependencies
 
 Legacy aliases still accepted:
-  all-down | all-status | lark-up | lark-down | lark-status | lark-logs
+  all-down | all-status | lark-up | lark-down | lark-restart | lark-status | lark-logs
 EOF
 }
 
@@ -140,6 +140,10 @@ case "$cmd" in
   lark-down)
     log_warn "Deprecated: './dev.sh lark-down'. Use './dev.sh lark down' instead."
     exec "${ALEX_BIN}" dev lark stop "$@"
+    ;;
+  lark-restart)
+    log_warn "Deprecated: './dev.sh lark-restart'. Use './dev.sh lark restart' instead."
+    exec "${ALEX_BIN}" dev lark restart "$@"
     ;;
   lark-status)
     log_warn "Deprecated: './dev.sh lark-status'. Use './dev.sh lark status' instead."

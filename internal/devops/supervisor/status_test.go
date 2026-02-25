@@ -15,8 +15,8 @@ func TestStatusFileWriteRead(t *testing.T) {
 		Timestamp: "2026-02-08T12:00:00Z",
 		Mode:      "healthy",
 		Components: map[string]ComponentStatus{
-			"main": {PID: 1234, Health: "healthy", DeployedSHA: "abc123"},
-			"test": {PID: 5678, Health: "healthy", DeployedSHA: "def456"},
+			"main": {PID: 1234, Health: "healthy", DeployedSHA: "abc123", RunsWindow: 2},
+			"test": {PID: 5678, Health: "healthy", DeployedSHA: "def456", RunsWindow: 1},
 		},
 		RestartCountWindow: 2,
 		Autofix: AutofixStatus{
@@ -55,6 +55,9 @@ func TestStatusFileWriteRead(t *testing.T) {
 		if comp.Health != "healthy" {
 			t.Errorf("main health = %q, want healthy", comp.Health)
 		}
+		if comp.RunsWindow != 2 {
+			t.Errorf("main runs_window = %d, want 2", comp.RunsWindow)
+		}
 	}
 }
 
@@ -74,8 +77,15 @@ func TestStatusFileReadFlatFormat(t *testing.T) {
   "loop_alive": true,
   "main_sha": "abc123",
   "main_deployed_sha": "4f978d87",
+  "main_runs_window": 2,
+  "kernel_pid": "73499",
+  "kernel_health": "healthy",
+  "kernel_deployed_sha": "0113334f",
+  "kernel_runs_window": 3,
   "test_sha": "def456",
   "test_deployed_sha": "1f1531ab",
+  "test_runs_window": 1,
+  "loop_runs_window": 0,
   "restart_count_window": 0,
   "autofix_state": "idle",
   "autofix_runs_window": 1
@@ -95,8 +105,8 @@ func TestStatusFileReadFlatFormat(t *testing.T) {
 	}
 
 	// Verify components were parsed from flat fields
-	if len(got.Components) != 3 {
-		t.Fatalf("Components count = %d, want 3", len(got.Components))
+	if len(got.Components) != 4 {
+		t.Fatalf("Components count = %d, want 4", len(got.Components))
 	}
 
 	main := got.Components["main"]
@@ -109,6 +119,23 @@ func TestStatusFileReadFlatFormat(t *testing.T) {
 	if main.DeployedSHA != "4f978d87" {
 		t.Errorf("main deployed_sha = %q, want 4f978d87", main.DeployedSHA)
 	}
+	if main.RunsWindow != 2 {
+		t.Errorf("main runs_window = %d, want 2", main.RunsWindow)
+	}
+
+	kernel := got.Components["kernel"]
+	if kernel.PID != 73499 {
+		t.Errorf("kernel PID = %d, want 73499", kernel.PID)
+	}
+	if kernel.Health != "healthy" {
+		t.Errorf("kernel health = %q, want healthy", kernel.Health)
+	}
+	if kernel.DeployedSHA != "0113334f" {
+		t.Errorf("kernel deployed_sha = %q, want 0113334f", kernel.DeployedSHA)
+	}
+	if kernel.RunsWindow != 3 {
+		t.Errorf("kernel runs_window = %d, want 3", kernel.RunsWindow)
+	}
 
 	test := got.Components["test"]
 	if test.PID != 76157 {
@@ -116,6 +143,9 @@ func TestStatusFileReadFlatFormat(t *testing.T) {
 	}
 	if test.DeployedSHA != "1f1531ab" {
 		t.Errorf("test deployed_sha = %q, want 1f1531ab", test.DeployedSHA)
+	}
+	if test.RunsWindow != 1 {
+		t.Errorf("test runs_window = %d, want 1", test.RunsWindow)
 	}
 
 	loop := got.Components["loop"]

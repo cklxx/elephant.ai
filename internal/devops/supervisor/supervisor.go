@@ -531,6 +531,7 @@ func (s *Supervisor) writeStatus() {
 			PID:         pid,
 			Health:      comp.HealthFn(),
 			DeployedSHA: sha,
+			RunsWindow:  s.policy.RestartCount(comp.Name, now),
 		}
 	}
 

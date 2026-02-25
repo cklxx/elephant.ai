@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"alex/internal/shared/utils"
 	devlog "alex/internal/devops/log"
 	"alex/internal/devops/supervisor"
+	"alex/internal/shared/utils"
 )
 
 func runDevLarkCommand(args []string) error {
@@ -251,19 +251,7 @@ func larkStatus() error {
 
 	sec.Section("Components")
 	for name, comp := range status.Components {
-		parts := fmt.Sprintf("%s  pid=%d", comp.Health, comp.PID)
-		if comp.DeployedSHA != "" {
-			sha := shortSHA(comp.DeployedSHA)
-			aligned := ""
-			if headSHA != "" {
-				if shaMatch(headSHA, comp.DeployedSHA) {
-					aligned = " (aligned)"
-				} else {
-					aligned = fmt.Sprintf(" (HEAD: %s)", headSHA)
-				}
-			}
-			parts += fmt.Sprintf("  sha=%s%s", sha, aligned)
-		}
+		parts := formatLarkComponentStatus(name, comp, headSHA)
 
 		if comp.Health == "healthy" || comp.Health == "alive" {
 			sec.Success("%-14s %s", name, parts)
@@ -316,6 +304,26 @@ func larkStatus() error {
 	}
 
 	return nil
+}
+
+func formatLarkComponentStatus(name string, comp supervisor.ComponentStatus, headSHA string) string {
+	parts := fmt.Sprintf("%s  pid=%d", comp.Health, comp.PID)
+	if comp.DeployedSHA != "" {
+		sha := shortSHA(comp.DeployedSHA)
+		aligned := ""
+		if headSHA != "" {
+			if shaMatch(headSHA, comp.DeployedSHA) {
+				aligned = " (aligned)"
+			} else {
+				aligned = fmt.Sprintf(" (HEAD: %s)", headSHA)
+			}
+		}
+		parts += fmt.Sprintf("  sha=%s%s", sha, aligned)
+	}
+	if name == "kernel" {
+		parts += fmt.Sprintf("  runs=%d", comp.RunsWindow)
+	}
+	return parts
 }
 
 // gitHeadShort returns the short SHA of HEAD in the given directory.

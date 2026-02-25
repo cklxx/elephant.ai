@@ -11,8 +11,8 @@ import (
 
 // Status holds the full supervisor status snapshot.
 type Status struct {
-	Timestamp          string                    `json:"ts_utc"`
-	Mode               string                    `json:"mode"`
+	Timestamp          string                     `json:"ts_utc"`
+	Mode               string                     `json:"mode"`
 	Components         map[string]ComponentStatus `json:"components"`
 	RestartCountWindow int                        `json:"restart_count_window"`
 	Autofix            AutofixStatus              `json:"autofix"`
@@ -29,6 +29,7 @@ type ComponentStatus struct {
 	PID         int    `json:"pid"`
 	Health      string `json:"health"`
 	DeployedSHA string `json:"deployed_sha,omitempty"`
+	RunsWindow  int    `json:"runs_window,omitempty"`
 }
 
 // AutofixStatus holds autofix-related status.
@@ -116,11 +117,13 @@ func parseFlatStatus(data []byte, status *Status) {
 		healthKey string
 		shaKey    string
 		aliveKey  string // for components using bool alive instead of health string
+		runsKey   string
 	}
 	defs := []compDef{
-		{"main", "main_pid", "main_health", "main_deployed_sha", ""},
-		{"test", "test_pid", "test_health", "test_deployed_sha", ""},
-		{"loop", "loop_pid", "", "", "loop_alive"},
+		{"main", "main_pid", "main_health", "main_deployed_sha", "", "main_runs_window"},
+		{"kernel", "kernel_pid", "kernel_health", "kernel_deployed_sha", "", "kernel_runs_window"},
+		{"test", "test_pid", "test_health", "test_deployed_sha", "", "test_runs_window"},
+		{"loop", "loop_pid", "", "", "loop_alive", "loop_runs_window"},
 	}
 
 	for _, d := range defs {
@@ -134,9 +137,10 @@ func parseFlatStatus(data []byte, status *Status) {
 			}
 		}
 		sha := jsonString(raw, d.shaKey)
+		runs := jsonInt(raw, d.runsKey)
 
 		// Skip only if component has no data at all
-		if pid == 0 && health == "" && sha == "" {
+		if pid == 0 && health == "" && sha == "" && runs == 0 {
 			continue
 		}
 
@@ -144,6 +148,7 @@ func parseFlatStatus(data []byte, status *Status) {
 			PID:         pid,
 			Health:      health,
 			DeployedSHA: sha,
+			RunsWindow:  runs,
 		}
 	}
 

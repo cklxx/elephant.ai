@@ -171,6 +171,46 @@ func TestReadLoopStateMissingFiles(t *testing.T) {
 	}
 }
 
+func TestWriteStatusIncludesComponentRunsWindow(t *testing.T) {
+	s, dir := newTestSupervisor(t)
+
+	kernelPIDFile := filepath.Join(dir, "lark-kernel.pid")
+	if err := os.WriteFile(kernelPIDFile, []byte("73499"), 0o644); err != nil {
+		t.Fatalf("write kernel pid file: %v", err)
+	}
+	kernelSHAFile := filepath.Join(dir, "lark-kernel.sha")
+	if err := os.WriteFile(kernelSHAFile, []byte("0113334f"), 0o644); err != nil {
+		t.Fatalf("write kernel sha file: %v", err)
+	}
+
+	s.RegisterComponent(&Component{
+		Name:    "kernel",
+		PIDFile: kernelPIDFile,
+		SHAFile: kernelSHAFile,
+		HealthFn: func() string {
+			return "healthy"
+		},
+	})
+
+	s.policy.RecordRestart("kernel")
+	s.policy.RecordRestart("kernel")
+
+	s.writeStatus()
+
+	status, err := s.statusFile.Read()
+	if err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+
+	kernel, ok := status.Components["kernel"]
+	if !ok {
+		t.Fatal("missing kernel component in status")
+	}
+	if kernel.RunsWindow != 2 {
+		t.Fatalf("kernel runs_window = %d, want 2", kernel.RunsWindow)
+	}
+}
+
 // newTestSupervisor creates a minimal Supervisor for testing with mock components.
 func newTestSupervisor(t *testing.T) (*Supervisor, string) {
 	t.Helper()
