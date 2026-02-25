@@ -10,33 +10,9 @@
 
 set -euo pipefail
 
-# Colors
-readonly C_RED='\033[0;31m'
-readonly C_GREEN='\033[0;32m'
-readonly C_YELLOW='\033[1;33m'
-readonly C_BLUE='\033[0;34m'
-readonly C_RESET='\033[0m'
-
-log_info() {
-    echo -e "${C_BLUE}▸${C_RESET} $*"
-}
-
-log_success() {
-    echo -e "${C_GREEN}✓${C_RESET} $*"
-}
-
-log_error() {
-    echo -e "${C_RED}✗${C_RESET} $*" >&2
-}
-
-log_warn() {
-    echo -e "${C_YELLOW}⚠${C_RESET} $*"
-}
-
-die() {
-    log_error "$*"
-    exit 1
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common/logging.sh
+source "${SCRIPT_DIR}/lib/common/logging.sh"
 
 # Check if running on Linux
 if [[ "$(uname -s)" != "Linux" ]]; then
