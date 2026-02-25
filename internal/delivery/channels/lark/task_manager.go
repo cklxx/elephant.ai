@@ -261,7 +261,7 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 		g.logger.Warn("Lark ensure session failed: %v", err)
 		reply := g.buildReply(nil, fmt.Errorf("ensure session: %w", err))
 		if reply == "" {
-			reply = "（无可用回复）"
+			reply = "会话初始化失败，请稍后重试，或回复“诊断”让我输出可定位信息。"
 		}
 		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
 		return false
@@ -557,6 +557,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	skipReply := isAwait && awaitTracker.Sent()
 
 	if replyContent == "" && !skipReply {
+		summary := buildAttachmentSummary(result)
 		if reply == "" && isAwait {
 			if hasAwaitPrompt && len(awaitPrompt.Options) > 0 {
 				reply = formatNumberedOptions(awaitPrompt.Question, awaitPrompt.Options)
@@ -575,9 +576,19 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 			reply = g.buildReply(result, execErr)
 		}
 		if reply == "" {
-			reply = "（无可用回复）"
+			switch {
+			case summary != "":
+				reply = summary
+				summary = ""
+			case execErr != nil:
+				reply = fmt.Sprintf("执行失败：%v", execErr)
+			case isAwait:
+				reply = "还需要你补充信息后继续。请直接回复你的补充内容。"
+			default:
+				reply = "这次没有生成可展示的文本结果。请告诉我你希望我输出：总结、下一步计划，或重试后的关键过程。"
+			}
 		}
-		if summary := buildAttachmentSummary(result); summary != "" {
+		if summary != "" {
 			reply += "\n\n" + summary
 		}
 		replyContent = textContent(reply)

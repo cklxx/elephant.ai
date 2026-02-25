@@ -19,10 +19,10 @@ turns:
       # When answer is empty, the gateway falls back to thinking content.
       # However in mock mode, we can't easily inject thinking parts through
       # the mock executor. This scenario tests that an empty answer still
-      # produces a reply (the fallback "无可用回复" message).
+      # produces a reply (a useful fallback hint message).
 
     assertions:
       messenger:
         - method: ReplyMessage
-          # Empty answer with no thinking content should produce the fallback.
-          content_contains: ["无可用回复"]
+          # Empty answer with no thinking content should produce a useful fallback.
+          content_contains: ["没有生成可展示的文本结果"]
