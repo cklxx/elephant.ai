@@ -304,8 +304,21 @@ func TestConvertMessagesKeepsToolAttachmentsAsText(t *testing.T) {
 	client := &openaiClient{}
 	msgs := []ports.Message{
 		{
-			Role:    "tool",
-			Content: "Generated 1 image: [cat.png]",
+			Role: "assistant",
+			ToolCalls: []ports.ToolCall{
+				{
+					ID:   "call-1",
+					Name: "plan",
+					Arguments: map[string]any{
+						"goal": "x",
+					},
+				},
+			},
+		},
+		{
+			Role:       "tool",
+			ToolCallID: "call-1",
+			Content:    "Generated 1 image: [cat.png]",
 			Attachments: map[string]ports.Attachment{
 				"cat.png": {
 					Name:      "cat.png",
@@ -318,16 +331,77 @@ func TestConvertMessagesKeepsToolAttachmentsAsText(t *testing.T) {
 	}
 
 	converted := client.convertMessages(msgs)
-	if len(converted) != 1 {
-		t.Fatalf("expected 1 message, got %d", len(converted))
+	if len(converted) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(converted))
 	}
 
-	content, ok := converted[0]["content"].(string)
+	content, ok := converted[1]["content"].(string)
 	if !ok {
-		t.Fatalf("expected string content, got %T", converted[0]["content"])
+		t.Fatalf("expected string content, got %T", converted[1]["content"])
 	}
-	if content != msgs[0].Content {
-		t.Fatalf("expected content %q, got %q", msgs[0].Content, content)
+	if content != msgs[1].Content {
+		t.Fatalf("expected content %q, got %q", msgs[1].Content, content)
+	}
+}
+
+func TestConvertMessagesDropsToolMessagesWithoutCallID(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{}
+	msgs := []ports.Message{
+		{Role: "user", Content: "hi"},
+		{Role: "tool", Content: "stale-output-without-id"},
+		{Role: "assistant", Content: "ack"},
+	}
+
+	converted := client.convertMessages(msgs)
+	if len(converted) != 2 {
+		t.Fatalf("expected 2 messages after dropping invalid tool message, got %d", len(converted))
+	}
+	for _, msg := range converted {
+		if role, _ := msg["role"].(string); role == "tool" {
+			t.Fatalf("expected tool message without tool_call_id to be dropped: %+v", msg)
+		}
+	}
+}
+
+func TestConvertMessagesDropsOrphanToolMessageBeforeToolCall(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{}
+	msgs := []ports.Message{
+		{Role: "user", Content: "hi"},
+		{Role: "tool", Content: "stale-output", ToolCallID: "call-1"},
+		{
+			Role: "assistant",
+			ToolCalls: []ports.ToolCall{
+				{
+					ID:   "call-1",
+					Name: "plan",
+					Arguments: map[string]any{
+						"goal": "x",
+					},
+				},
+			},
+		},
+		{Role: "tool", Content: "fresh-output", ToolCallID: "call-1"},
+	}
+
+	converted := client.convertMessages(msgs)
+	var toolOutputs []map[string]any
+	for _, msg := range converted {
+		if role, _ := msg["role"].(string); role == "tool" {
+			toolOutputs = append(toolOutputs, msg)
+		}
+	}
+	if len(toolOutputs) != 1 {
+		t.Fatalf("expected exactly one tool output after pruning orphan, got %d", len(toolOutputs))
+	}
+	if got, _ := toolOutputs[0]["content"].(string); got != "fresh-output" {
+		t.Fatalf("expected preserved tool output content to be fresh-output, got %q", got)
+	}
+	if got, _ := toolOutputs[0]["tool_call_id"].(string); got != "call-1" {
+		t.Fatalf("expected preserved tool_call_id call-1, got %q", got)
 	}
 }
 

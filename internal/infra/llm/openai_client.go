@@ -494,9 +494,35 @@ func (c *openaiClient) detectProvider() string {
 func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 	result := make([]map[string]any, 0, len(msgs))
 	isKimi := strings.Contains(c.baseURL, "kimi.com")
+	seenToolCalls := make(map[string]struct{}, 8)
+	droppedToolOutputs := make(map[string]struct{}, 4)
+	droppedCallIDs := make([]string, 0, 4)
+	recordDroppedToolOutput := func(callID string) {
+		callID = strings.TrimSpace(callID)
+		if callID == "" {
+			callID = "<empty_call_id>"
+		}
+		if _, exists := droppedToolOutputs[callID]; exists {
+			return
+		}
+		droppedToolOutputs[callID] = struct{}{}
+		droppedCallIDs = append(droppedCallIDs, callID)
+	}
 	for _, msg := range msgs {
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
 			continue
+		}
+		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		if role == "tool" {
+			callID := strings.TrimSpace(msg.ToolCallID)
+			if callID == "" {
+				recordDroppedToolOutput(callID)
+				continue
+			}
+			if _, ok := seenToolCalls[callID]; !ok {
+				recordDroppedToolOutput(callID)
+				continue
+			}
 		}
 		entry := map[string]any{"role": msg.Role}
 		content := buildMessageContent(msg, shouldEmbedAttachmentsInContent(msg))
@@ -509,7 +535,18 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 			entry["tool_call_id"] = msg.ToolCallID
 		}
 		if len(msg.ToolCalls) > 0 {
-			entry["tool_calls"] = buildToolCallHistory(msg.ToolCalls)
+			historyCalls := buildToolCallHistory(msg.ToolCalls)
+			if len(historyCalls) > 0 {
+				entry["tool_calls"] = historyCalls
+				for _, call := range historyCalls {
+					callID, _ := call["id"].(string)
+					callID = strings.TrimSpace(callID)
+					if callID == "" {
+						continue
+					}
+					seenToolCalls[callID] = struct{}{}
+				}
+			}
 		}
 		// Kimi requires reasoning_content in assistant messages with tool_calls when thinking is enabled.
 		if isKimi && msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
@@ -518,6 +555,9 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 			}
 		}
 		result = append(result, entry)
+	}
+	if len(droppedCallIDs) > 0 && c.logger != nil {
+		c.logger.Warn("Dropped %d orphan/invalid tool message(s) from chat history: %s", len(droppedCallIDs), strings.Join(droppedCallIDs, ", "))
 	}
 	return result
 }
