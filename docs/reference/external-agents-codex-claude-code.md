@@ -17,12 +17,12 @@ Current external-agent path is bridge-based:
   - Claude Code: `scripts/cc_bridge/cc_bridge.py`
   - Codex/Kimi: `scripts/codex_bridge/codex_bridge.py`
 
-Delegation entry tools:
-- `bg_dispatch`, `bg_status`, `bg_collect`, `ext_reply`, `ext_merge`, `team_dispatch`
+Orchestration tools:
+- `run_tasks`, `reply_agent`
 - Implemented in `internal/infra/tools/builtin/orchestration/*`
 
 Team run file-based audit:
-- `team_dispatch` writes one JSON record per team run.
+- `run_tasks(template=...)` writes one JSON record per team run.
 - Default location: `${session_dir}/_team_runs/*.json`.
 
 ## 2) Config (YAML)
@@ -97,11 +97,10 @@ runtime:
 
 ## 3) Dispatch + collect flow
 
-1. Call `bg_dispatch` with `agent_type: codex` / `claude_code` / `kimi`.
-2. Poll with `bg_status`.
-3. Collect output with `bg_collect`.
-4. For interactive input requests, respond via `ext_reply`.
-5. For team workflows, call `team_dispatch`; read run metadata (`team_run_id`, `team_run_record_path`).
+1. Write a YAML task file via `write_file`, then call `run_tasks(file=...)`.
+2. Monitor progress by reading the `.status.yaml` sidecar file via `read_file`.
+3. For interactive input requests, respond via `reply_agent`.
+4. For team workflows, call `run_tasks(template=..., goal=...)`.
 
 ## 4) Per-task override keys
 

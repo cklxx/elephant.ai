@@ -48,7 +48,7 @@ type reactRuntime struct {
 	finalReviewInFlight   bool
 	finalReviewAttempt    int
 
-	// Background task manager for async subagent execution.
+	// Background task manager for async agent execution.
 	bgManager      *BackgroundTaskManager
 	bgManagerOwned bool
 	// Track emitted completion events to avoid duplicates.
@@ -188,7 +188,7 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 		r.ctx = agent.WithBackgroundDispatcher(r.ctx, newBackgroundDispatcherWithEvents(r, r.bgManager))
 	}
 
-	// Inject team definitions for team_dispatch tool.
+	// Inject team definitions for run_tasks tool.
 	if len(r.engine.teamDefinitions) > 0 {
 		r.ctx = agent.WithTeamDefinitions(r.ctx, r.engine.teamDefinitions)
 	}

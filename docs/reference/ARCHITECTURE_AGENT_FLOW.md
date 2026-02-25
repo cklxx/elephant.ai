@@ -95,9 +95,9 @@ flowchart TD
 - `browser_action`, `read_file`, `write_file`, `replace_in_file`, `shell_exec`, `execute_code`
 - `channel`
 
-**Conditionally added:**
-- `subagent`, `explore`, `bg_dispatch`, `bg_status`, `bg_collect`, `ext_reply`, `ext_merge`
-  - registered after coordinator is constructed.
+**Orchestration tools:**
+- `run_tasks`, `reply_agent`
+  - registered via `RegisterOrchestration()`.
 
 **MCP tools:**
 - Dynamically registered with `mcp__` prefix at runtime.

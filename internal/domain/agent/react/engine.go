@@ -36,14 +36,14 @@ type ReactEngine struct {
 	iterationHook       agent.IterationHook
 	sessionPersister    agent.SessionPersister // Optional: async save session after each iteration
 
-	// Background task support: executor closure for internal subagent delegation.
+	// Background task support: executor closure for internal agent delegation.
 	backgroundExecutor func(ctx context.Context, prompt, sessionID string,
 		listener agent.EventListener) (*agent.TaskResult, error)
 	// Optional shared background manager (e.g., per-session pool).
 	backgroundManager *BackgroundTaskManager
 	// Optional external agent executor for non-internal agent types.
 	externalExecutor agent.ExternalAgentExecutor
-	// Pre-configured team definitions for team_dispatch tool.
+	// Pre-configured team definitions for run_tasks template dispatch.
 	teamDefinitions []agent.TeamDefinition
 	// Optional file-backed recorder for team dispatch run audit.
 	teamRunRecorder agent.TeamRunRecorder
@@ -131,7 +131,7 @@ type ReactEngineConfig struct {
 	SessionPersister    agent.SessionPersister // Optional: async save session after each iteration.
 
 	// BackgroundExecutor is a closure that delegates to coordinator.ExecuteTask
-	// for background subagent tasks. When nil, bg_dispatch is unavailable.
+	// for background agent tasks. When nil, run_tasks is unavailable.
 	BackgroundExecutor func(ctx context.Context, prompt, sessionID string,
 		listener agent.EventListener) (*agent.TaskResult, error)
 	// BackgroundManager optionally supplies a shared background task manager.
@@ -139,9 +139,9 @@ type ReactEngineConfig struct {
 	// ExternalExecutor handles external code agents (e.g., Claude Code CLI).
 	// Optional; when nil only "internal" agent type is supported.
 	ExternalExecutor agent.ExternalAgentExecutor
-	// TeamDefinitions are pre-configured agent teams available to the team_dispatch tool.
+	// TeamDefinitions are pre-configured agent teams available to the run_tasks tool.
 	TeamDefinitions []agent.TeamDefinition
-	// TeamRunRecorder persists team_dispatch run records (typically file-based).
+	// TeamRunRecorder persists run_tasks team run records (typically file-based).
 	TeamRunRecorder agent.TeamRunRecorder
 	// LLMClientRebuilder creates a new streaming LLM client for a given
 	// provider/model pair. Used by the update_config tool to switch models

@@ -146,7 +146,7 @@ func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 		"Primary Principle: Intent Over Instruction",
 		"Conclusion First, Details On Demand",
 		"Never execute destructive shell commands",
-		"bg_dispatch(agent_type=codex)",
+		"run_tasks",
 	}
 	for _, snippet := range expectations {
 		if !strings.Contains(prompt, snippet) {

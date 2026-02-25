@@ -47,7 +47,7 @@ func mergeDefaults(t TaskSpec, d TaskDefaults) TaskSpec {
 }
 
 // applyCodingDefaults sets sensible defaults for external coding agents,
-// mirroring the logic from bg_dispatch and bg_plan's applyPlanCodingDefaults.
+// mirroring the legacy coding defaults logic.
 func applyCodingDefaults(t *TaskSpec) {
 	if t.Config == nil {
 		t.Config = make(map[string]string)

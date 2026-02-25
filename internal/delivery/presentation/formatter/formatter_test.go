@@ -151,18 +151,18 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 			wants:    []string{"todo_read(path=TODO.md)"},
 		},
 		{
-			name:     "subagent with tasks",
-			toolName: "subagent",
+			name:     "run_tasks with file",
+			toolName: "run_tasks",
 			args: map[string]any{
-				"prompt": "investigate auth module",
+				"file": "tasks.yaml",
 			},
-			wants: []string{"subagent(prompt=investigate auth module"},
+			wants: []string{"run_tasks(file=tasks.yaml"},
 		},
 		{
-			name:     "subagent without tasks",
-			toolName: "subagent",
+			name:     "run_tasks without args",
+			toolName: "run_tasks",
 			args:     map[string]any{},
-			wants:    []string{"subagent"},
+			wants:    []string{"run_tasks"},
 		},
 		{
 			name:     "final summary",
@@ -374,11 +374,11 @@ func TestToolFormatterFormatToolResult(t *testing.T) {
 			wants:    []string{"Todo List"},
 		},
 		{
-			name:     "subagent",
-			toolName: "subagent",
+			name:     "run_tasks",
+			toolName: "run_tasks",
 			success:  true,
-			content:  "Summary\nSuccess: 2 tasks\nFailed: 1 tasks",
-			wants:    []string{"Success: 2 tasks"},
+			content:  "Dispatched 3 tasks\nSuccess: 2 tasks\nFailed: 1 tasks",
+			wants:    []string{"Dispatched 3 tasks"},
 		},
 		{
 			name:     "final",

@@ -10,7 +10,7 @@ import (
 )
 
 // injectExternalInputRequests drains external agent input requests and injects
-// system messages so the core agent can respond via ext_reply.
+// system messages so the core agent can respond via reply_agent.
 func (r *reactRuntime) injectExternalInputRequests() {
 	if r.externalInputCh == nil {
 		return
@@ -84,6 +84,6 @@ func formatExternalInputRequestMessage(req agent.InputRequest) string {
 		}
 		sb.WriteString("\n")
 	}
-	sb.WriteString(fmt.Sprintf("Use ext_reply(task_id=%q, request_id=%q, approved=true|false) to respond.", req.TaskID, req.RequestID))
+	sb.WriteString(fmt.Sprintf("Use reply_agent(task_id=%q, request_id=%q, approved=true|false) to respond.", req.TaskID, req.RequestID))
 	return sb.String()
 }

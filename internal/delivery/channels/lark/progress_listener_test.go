@@ -531,7 +531,7 @@ func TestProgressListenerToolPhraseMapping(t *testing.T) {
 		{"seedream", []string{"创作", "绘制", "构图"}},
 		{"lark_send_message", []string{"联络", "查询", "协调"}},
 		{"plan", []string{"规划", "梳理", "分析"}},
-		{"subagent", []string{"深入", "调研", "拆解"}},
+		{"run_tasks", []string{"深入", "调研", "拆解"}},
 		{"unknown_tool_xyz", []string{"处理", "分析", "洞察"}},
 	}
 

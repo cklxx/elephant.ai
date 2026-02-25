@@ -358,7 +358,7 @@ func resolveHTTPFlusher(w http.ResponseWriter) (http.Flusher, bool) {
 	return nil, false
 }
 
-// isDelegationToolEvent identifies subagent delegation tool calls so streaming
+// isDelegationToolEvent identifies run_tasks delegation tool calls so streaming
 // filters can suppress noisy delegation traffic while preserving anchor events.
 func isDelegationToolEvent(event agent.AgentEvent) bool {
 	env, ok := app.BaseAgentEvent(event).(*domain.WorkflowEventEnvelope)

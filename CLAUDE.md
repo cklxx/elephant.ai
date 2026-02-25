@@ -246,5 +246,5 @@ Expand beyond active set only when:
 
 ## Additional agent rules
 
-- Prefer subagents for parallelizable tasks.
+- Prefer run_tasks for parallelizable tasks.
 - Understand full context of changes before reviewing; respect architectural decisions over personal preferences.

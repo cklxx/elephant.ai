@@ -321,7 +321,7 @@ func TestReactEngine_SubagentDelegationScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 5 iterations: plan, clarify, subagent call, review, final answer
+	// 5 iterations: plan, clarify, run_tasks call, review, final answer
 	if result.Iterations != 5 {
 		t.Errorf("Expected 5 iterations, got %d", result.Iterations)
 	}
@@ -330,7 +330,7 @@ func TestReactEngine_SubagentDelegationScenario(t *testing.T) {
 		t.Errorf("Expected 3 tool results, got %d", len(state.ToolResults))
 	}
 
-	// Verify subagent result contains analysis
+	// Verify run_tasks result contains analysis
 	foundDetail := false
 	for _, res := range state.ToolResults {
 		if len(res.Content) >= 100 {
@@ -339,7 +339,7 @@ func TestReactEngine_SubagentDelegationScenario(t *testing.T) {
 		}
 	}
 	if !foundDetail {
-		t.Error("Expected detailed tool result (subagent analysis)")
+		t.Error("Expected detailed tool result (run_tasks analysis)")
 	}
 }
 

@@ -90,7 +90,7 @@ func GetTeamDefinitions(ctx context.Context) []TeamDefinition {
 	return teams
 }
 
-// WithTeamRunRecorder stores a TeamRunRecorder in context for team_dispatch.
+// WithTeamRunRecorder stores a TeamRunRecorder in context for run_tasks.
 func WithTeamRunRecorder(ctx context.Context, recorder TeamRunRecorder) context.Context {
 	return context.WithValue(ctx, teamRunRecorderKey{}, recorder)
 }

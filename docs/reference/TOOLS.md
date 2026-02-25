@@ -16,17 +16,11 @@ The registry currently keeps a **small core surface**. Deprecated standalone too
 | Platform execution | `browser_action`, `read_file`, `write_file`, `replace_in_file`, `shell_exec`, `execute_code` | implementation depends on `toolset` |
 | Lark channel | `channel` | unified Lark messaging/calendar/task operations |
 
-## 2) Delegation tools (registered after coordinator wiring)
+## 2) Orchestration tools
 
-Once coordinator is available, registry additionally exposes:
-- `subagent`
-- `explore`
-- `bg_dispatch`
-- `bg_status`
-- `bg_collect`
-- `ext_reply`
-- `ext_merge`
-- `team_dispatch` (dispatches a configured multi-role team DAG; see `runtime.external_agents.teams`)
+Registry exposes two orchestration tools:
+- `run_tasks` — dispatches tasks from a YAML task file (supports async/sync, team templates, dependency DAGs)
+- `reply_agent` — responds to external agent input requests
 
 ## 3) Dynamic MCP tools
 

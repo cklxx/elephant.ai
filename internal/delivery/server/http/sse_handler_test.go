@@ -225,21 +225,21 @@ func TestIsDelegationToolEvent(t *testing.T) {
 		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "session-1", "task-1", "", now),
 		Event:     "workflow.tool.completed",
 		NodeKind:  "tool",
-		NodeID:    "subagent:0",
+		NodeID:    "run_tasks:0",
 		Payload: map[string]any{
-			"tool_name": "subagent",
+			"tool_name": "run_tasks",
 			"result":    "delegation summary",
 		},
 	}
 
 	if !isDelegationToolEvent(env) {
-		t.Fatalf("expected subagent tool envelope to be treated as delegation")
+		t.Fatalf("expected run_tasks tool envelope to be treated as delegation")
 	}
 
 	env.Payload["tool_name"] = "bash"
 	env.NodeID = "bash:1"
 	if isDelegationToolEvent(env) {
-		t.Fatalf("expected non-subagent tool envelope to pass through")
+		t.Fatalf("expected non-run_tasks tool envelope to pass through")
 	}
 }
 
@@ -830,18 +830,18 @@ func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
 	}
 }
 
-func TestSSEHandlerStreamsSubagentToolStartAndComplete(t *testing.T) {
+func TestSSEHandlerStreamsRunTasksToolStartAndComplete(t *testing.T) {
 	broadcaster := serverapp.NewEventBroadcaster()
 	handler := NewSSEHandler(broadcaster)
 
-	sessionID := "session-subagent-tool"
+	sessionID := "session-run-tasks-tool"
 	taskID := "task-main"
 	parentTaskID := "task-parent"
 	now := time.Now()
 	base := domain.NewBaseEvent(agent.LevelCore, sessionID, taskID, parentTaskID, now)
 
 	startEvent := domain.NewToolStartedEvent(
-		base, 1, "call-subagent-1", "subagent", map[string]interface{}{"prompt": "inspect the backend pipeline"},
+		base, 1, "call-run-tasks-1", "run_tasks", map[string]interface{}{"file": "tasks.yaml"},
 	)
 	startEnvelope := domain.NewWorkflowEnvelopeFromEvent(startEvent, "workflow.tool.started")
 	if startEnvelope == nil {
@@ -857,7 +857,7 @@ func TestSSEHandlerStreamsSubagentToolStartAndComplete(t *testing.T) {
 	}
 
 	completeEvent := domain.NewToolCompletedEvent(
-		base, startEvent.Data.CallID, "subagent", "delegation complete", nil, 175*time.Millisecond, nil, nil,
+		base, startEvent.Data.CallID, "run_tasks", "delegation complete", nil, 175*time.Millisecond, nil, nil,
 	)
 	completeEnvelope := domain.NewWorkflowEnvelopeFromEvent(completeEvent, "workflow.tool.completed")
 	if completeEnvelope == nil {
@@ -931,8 +931,8 @@ func TestSSEHandlerStreamsSubagentToolStartAndComplete(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected payload map in event data, got %T", payload["payload"])
 		}
-		if toolPayload["tool_name"] != "subagent" {
-			t.Fatalf("expected tool_name subagent, got %v", toolPayload["tool_name"])
+		if toolPayload["tool_name"] != "run_tasks" {
+			t.Fatalf("expected tool_name run_tasks, got %v", toolPayload["tool_name"])
 		}
 	}
 }

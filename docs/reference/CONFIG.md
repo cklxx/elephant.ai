@@ -352,12 +352,12 @@ runtime:
 - `external_agents.claude_code.*`：Claude Code bridge 默认参数（binary/model/mode/budget/timeout/env）。
 - `external_agents.codex.*`：Codex bridge 默认参数（binary/model/approval/sandbox/timeout/env）。
 - `external_agents.kimi.*`：Kimi bridge 默认参数（binary/model/approval/sandbox/timeout/env）。
-- `external_agents.teams[]`：可复用团队编排定义，供 `team_dispatch` 使用。
-- `team_dispatch` 会把每次团队编排写入 file-based 记录（默认 `${session_dir}/_team_runs/*.json`）。
+- `external_agents.teams[]`：可复用团队编排定义，供 `run_tasks(template=...)` 使用。
+- `run_tasks` 会把每次团队编排写入 file-based 记录（默认 `${session_dir}/_team_runs/*.json`）。
 
 `external_agents.teams` 字段：
 
-- `name`：团队名（`team_dispatch(team=...)` 使用）。
+- `name`：团队名（`run_tasks(template=...)` 使用）。
 - `description`：团队描述。
 - `roles[]`：
   - `name`：角色名（stage 中引用）。
