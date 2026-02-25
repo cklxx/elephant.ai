@@ -10,7 +10,7 @@ import (
 	"alex/internal/domain/agent"
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/infra/executioncontrol"
+	"alex/internal/shared/executioncontrol"
 )
 
 // backgroundTask tracks an individual background task.

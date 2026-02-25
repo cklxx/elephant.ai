@@ -564,6 +564,8 @@ func (s *Supervisor) currentMode(now time.Time) string {
 
 func (s *Supervisor) getMainSHA() string {
 	cmd := exec.Command("git", "-C", s.mainRoot, "rev-parse", "main")
+	// Prevent git from traversing above mainRoot to a parent repository.
+	cmd.Env = append(os.Environ(), "GIT_CEILING_DIRECTORIES="+filepath.Dir(s.mainRoot))
 	out, err := cmd.Output()
 	if err != nil {
 		return "unknown"

@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	core "alex/internal/domain/agent/ports"
-	"alex/internal/infra/executioncontrol"
+	"alex/internal/shared/executioncontrol"
 	"alex/internal/shared/utils"
 )
 

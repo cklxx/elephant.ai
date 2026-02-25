@@ -320,10 +320,25 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 
 	larkClient := lark.NewClient("app_id", "app_secret", lark.WithOpenBaseUrl(server.URL), lark.WithHttpClient(server.Client()))
 
-	callCount := 0
-	llmClient := &mocks.MockLLMClient{CompleteFunc: func(_ context.Context, _ ports.CompletionRequest) (*ports.CompletionResponse, error) {
-		callCount++
-		switch callCount {
+	var reactCallCount int32
+	var mu sync.Mutex
+	llmClient := &mocks.MockLLMClient{CompleteFunc: func(_ context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+		// Pre-analysis calls carry "intent" = "task_preanalysis" in metadata.
+		// Return a harmless response for those without advancing the ReAct sequence.
+		if intent, _ := req.Metadata["intent"].(string); intent == "task_preanalysis" {
+			return &ports.CompletionResponse{
+				Content:    `{"action_name":"create_event","complexity":"low"}`,
+				StopReason: "stop",
+				Usage:      ports.TokenUsage{TotalTokens: 5},
+			}, nil
+		}
+
+		mu.Lock()
+		reactCallCount++
+		n := reactCallCount
+		mu.Unlock()
+
+		switch n {
 		case 1:
 			return &ports.CompletionResponse{
 				Content: "Creating calendar event",

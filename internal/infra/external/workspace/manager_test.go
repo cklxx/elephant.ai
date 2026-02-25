@@ -93,12 +93,23 @@ func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
+	// Build a clean env to avoid inheriting GIT_DIR/GIT_WORK_TREE from the
+	// parent process (e.g. CI runners), which would cause git to target the
+	// project repo instead of the test temp directory.
+	env := make([]string, 0, len(os.Environ())+4)
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "GIT_DIR=") || strings.HasPrefix(e, "GIT_WORK_TREE=") {
+			continue
+		}
+		env = append(env, e)
+	}
+	env = append(env,
 		"GIT_AUTHOR_NAME=Test",
 		"GIT_AUTHOR_EMAIL=test@example.com",
 		"GIT_COMMITTER_NAME=Test",
 		"GIT_COMMITTER_EMAIL=test@example.com",
 	)
+	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %s failed: %v (%s)", strings.Join(args, " "), err, string(out))

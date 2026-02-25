@@ -17,7 +17,7 @@ import (
 
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/infra/executioncontrol"
+	"alex/internal/shared/executioncontrol"
 	"alex/internal/infra/external/subprocess"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"

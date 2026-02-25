@@ -122,6 +122,9 @@ func (g *gitOperations) run(ctx context.Context, args ...string) (string, error)
 	fullArgs = append(fullArgs, args...)
 
 	cmd := exec.CommandContext(ctx, "git", fullArgs...)
+	// Strip GIT_DIR / GIT_WORK_TREE so -C targets the intended directory
+	// regardless of parent process environment (e.g. CI runners).
+	cmd.Env = cleanGitEnv()
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -132,4 +135,17 @@ func (g *gitOperations) run(ctx context.Context, args ...string) (string, error)
 		return "", fmt.Errorf("git %s: %s", args[0], stderrStr)
 	}
 	return stdout.String(), nil
+}
+
+// cleanGitEnv returns os.Environ() with GIT_DIR and GIT_WORK_TREE removed.
+func cleanGitEnv() []string {
+	env := os.Environ()
+	out := make([]string, 0, len(env))
+	for _, e := range env {
+		if strings.HasPrefix(e, "GIT_DIR=") || strings.HasPrefix(e, "GIT_WORK_TREE=") {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }

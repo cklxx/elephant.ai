@@ -7,7 +7,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/infra/executioncontrol"
+	"alex/internal/shared/executioncontrol"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/utils/id"
 	"alex/internal/shared/utils"
