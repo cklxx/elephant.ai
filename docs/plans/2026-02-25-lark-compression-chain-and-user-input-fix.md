@@ -25,3 +25,22 @@
 
 ## Notes
 - Prioritize safety/correctness first: no data-loss of current user turn.
+
+---
+
+## Follow-up (2026-02-25, afternoon)
+- [completed] Move runtime history injection out of static `SystemPrompt` into a dedicated runtime chunk message.
+- [completed] Replace JSON timeline format with non-JSON structured text (`index + role + 50-char summary`) for session history.
+- [completed] Apply same structured summary format to Lark auto chat history injection.
+- [completed] Restrict Daily Log prompt injection to unattended/kernel path; avoid Chinese raw Daily Log content in regular sessions.
+- [completed] Run targeted tests for context/lark/preparation and verify logs.
+
+### Follow-up Verification
+- `go test ./internal/app/context/...` ✅
+- `go test ./internal/delivery/channels/lark/...` ✅
+- `go test ./internal/app/agent/preparation/...` ✅
+- `go test ./internal/domain/agent/react/...` ✅
+- `go test ./internal/delivery/channels/lark -run 'Inject|inject' -count=1 -v` ✅
+- `go test ./cmd/alex -run 'TestRunLarkScenarioRun_HTTPPassWritesReports|TestRunLarkScenarioRun_PassWritesReports|TestRunLarkInjectCommandFlagParseErrorUsesExitCode2' -v` ✅
+- `./dev.sh lint` ❌ (pre-existing: `web/components/debug/DebugSurface.tsx` conditional `useMemo`)
+- `./dev.sh test` ❌ (pre-existing profile/env validation failures under `cmd/alex` and `internal/delivery/server/bootstrap`)

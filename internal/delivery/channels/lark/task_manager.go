@@ -7,16 +7,18 @@ import (
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
-	builtinshared "alex/internal/infra/tools/builtin/shared"
 	"alex/internal/app/workdir"
 	"alex/internal/delivery/channels"
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
+	builtinshared "alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
+
+const larkHistoryChunkHeader = "[Lark History Chunk]\nIndexed summaries (latest first-pass context, max 50 chars per entry):"
 
 // getOrCreateSlot returns the session slot for the given chat, creating one if needed.
 func (g *Gateway) getOrCreateSlot(chatID string) *sessionSlot {
@@ -482,10 +484,11 @@ func (g *Gateway) enrichWithChatContext(execCtx context.Context, taskContent str
 	if chatHistory == "" {
 		return taskContent
 	}
+	historyChunk := larkHistoryChunkHeader + "\n" + chatHistory
 	if hasPlanReview {
-		return taskContent + "\n\n[近期对话]\n" + chatHistory
+		return taskContent + "\n\n" + historyChunk
 	}
-	return "[近期对话]\n" + chatHistory + "\n\n" + taskContent
+	return historyChunk + "\n\n" + taskContent
 }
 
 // dispatchResult builds the reply from the execution result and sends it to

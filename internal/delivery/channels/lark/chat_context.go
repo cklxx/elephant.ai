@@ -16,6 +16,8 @@ type chatMessageLine struct {
 	SenderType string
 }
 
+const larkHistorySummaryChars = 50
+
 // fetchRecentChatMessages retrieves recent messages from a Lark chat via the
 // gateway's messenger and returns them formatted as chronological
 // "[timestamp] sender: content" lines.
@@ -140,9 +142,48 @@ func formatChatMessageLines(lines []chatMessageLine) string {
 		if i > 0 {
 			sb.WriteByte('\n')
 		}
-		fmt.Fprintf(&sb, "[%s] %s: %s", line.Timestamp, line.Sender, line.Content)
+		fmt.Fprintf(
+			&sb,
+			"%d | role=%s | sender=%s | time=%s | summary=%s",
+			i+1,
+			normalizeChatRole(line.SenderType),
+			line.Sender,
+			line.Timestamp,
+			summarizeChatContent(line.Content, larkHistorySummaryChars),
+		)
 	}
 	return sb.String()
+}
+
+func normalizeChatRole(senderType string) string {
+	switch strings.ToLower(strings.TrimSpace(senderType)) {
+	case "user":
+		return "user"
+	case "app":
+		return "assistant"
+	default:
+		trimmed := strings.ToLower(strings.TrimSpace(senderType))
+		if trimmed == "" {
+			return "message"
+		}
+		return trimmed
+	}
+}
+
+func summarizeChatContent(content string, limit int) string {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return "[empty]"
+	}
+	normalized := strings.Join(strings.Fields(trimmed), " ")
+	if limit <= 0 {
+		return normalized
+	}
+	runes := []rune(normalized)
+	if len(runes) <= limit {
+		return normalized
+	}
+	return string(runes[:limit]) + "…"
 }
 
 // formatChatTimestamp converts a millisecond Unix timestamp string to a readable format.

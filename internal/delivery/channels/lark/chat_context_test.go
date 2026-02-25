@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
@@ -281,6 +282,24 @@ func TestFetchRecentChatRounds_ExcludeCurrentMessage(t *testing.T) {
 	}
 	if containsSubstring(history, "a3") {
 		t.Fatalf("expected excluded current message to be removed, got %q", history)
+	}
+}
+
+func TestFormatChatMessageLines_UsesIndexed50CharSummary(t *testing.T) {
+	lines := []chatMessageLine{
+		{
+			Timestamp:  "2026-02-25 10:10:10",
+			Sender:     "user(ou_1)",
+			SenderType: "user",
+			Content:    strings.Repeat("a", 60),
+		},
+	}
+	formatted := formatChatMessageLines(lines)
+	if !containsSubstring(formatted, "1 | role=user | sender=user(ou_1) | time=2026-02-25 10:10:10 | summary=") {
+		t.Fatalf("expected indexed structured line, got %q", formatted)
+	}
+	if !containsSubstring(formatted, strings.Repeat("a", 50)+"…") {
+		t.Fatalf("expected summary to be capped at 50 chars, got %q", formatted)
 	}
 }
 
