@@ -15,6 +15,10 @@ import (
 
 func clearConfigValidationKeyEnv(t *testing.T) {
 	t.Helper()
+	t.Setenv("ALEX_PROFILE", "")
+	t.Setenv("LLM_PROVIDER", "")
+	t.Setenv("LLM_MODEL", "")
+	t.Setenv("LLM_BASE_URL", "")
 	t.Setenv("OPENAI_API_KEY", "")
 	t.Setenv("LLM_API_KEY", "")
 	t.Setenv("TAVILY_API_KEY", "")
@@ -38,6 +42,7 @@ func TestLoadConfigDefaultTemperatureUsesPresetButNotMarkedSet(t *testing.T) {
 }
 
 func TestLoadConfigHonorsZeroTemperatureFromFile(t *testing.T) {
+	clearConfigValidationKeyEnv(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	t.Setenv("ALEX_CONFIG_PATH", path)
@@ -64,6 +69,7 @@ runtime:
 }
 
 func TestLoadConfigVerboseAndEnvironmentFromFile(t *testing.T) {
+	clearConfigValidationKeyEnv(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	t.Setenv("ALEX_CONFIG_PATH", path)
@@ -152,6 +158,7 @@ func assertExecuteConfigCommandSetAndClearStringField(
 	get func(runtimeconfig.Overrides) *string,
 ) {
 	t.Helper()
+	clearConfigValidationKeyEnv(t)
 
 	t.Setenv("HOME", t.TempDir())
 

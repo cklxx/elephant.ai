@@ -14,6 +14,7 @@ func clearLoadConfigValidationEnv(t *testing.T) {
 	t.Setenv("ALEX_PROFILE", "")
 	t.Setenv("LLM_PROVIDER", "")
 	t.Setenv("LLM_MODEL", "")
+	t.Setenv("LLM_BASE_URL", "")
 	t.Setenv("OPENAI_API_KEY", "")
 	t.Setenv("LLM_API_KEY", "")
 }
@@ -280,6 +281,7 @@ runtime:
 }
 
 func TestLoadConfig_QuickstartProfileAllowsMissingAPIKey(t *testing.T) {
+	clearLoadConfigValidationEnv(t)
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	configContent := []byte(`
 runtime:
