@@ -257,14 +257,20 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 	return e.executeAttached(ctx, req, bcfg, pythonBin, bridgeScript, env)
 }
 
+const defaultAttachedTimeout = 4 * time.Hour
+
 // executeAttached runs the bridge with stdout piped back to this process.
 func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentRequest, bcfg bridgeConfig, pythonBin, bridgeScript string, env map[string]string) (*agent.ExternalAgentResult, error) {
+	timeout := e.cfg.Timeout
+	if timeout <= 0 {
+		timeout = defaultAttachedTimeout
+	}
 	proc := e.subprocessFactory(subprocess.Config{
 		Command:    pythonBin,
 		Args:       []string{bridgeScript},
 		Env:        env,
 		WorkingDir: req.WorkingDir,
-		Timeout:    e.cfg.Timeout,
+		Timeout:    timeout,
 	})
 	if err := proc.Start(ctx); err != nil {
 		return nil, fmt.Errorf("start bridge: %w", err)

@@ -771,3 +771,68 @@ func TestParseSDKEvent(t *testing.T) {
 		})
 	}
 }
+
+func TestAttachedBridgeDefaultTimeout(t *testing.T) {
+	t.Parallel()
+
+	exec := New(BridgeConfig{
+		AgentType:    "claude_code",
+		DefaultMode:  "autonomous",
+		Timeout:      0, // No timeout configured.
+		PythonBinary: "/usr/bin/python3",
+		BridgeScript: "/fake/cc_bridge.py",
+	})
+
+	out := `{"type":"result","answer":"ok","tokens":100,"cost":0,"iters":1,"is_error":false}` + "\n"
+	var capturedTimeout time.Duration
+	exec.subprocessFactory = func(cfg subprocess.Config) bridgeRunner {
+		capturedTimeout = cfg.Timeout
+		return &fakeBridgeRunner{stdout: strings.NewReader(out)}
+	}
+
+	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
+		TaskID:    "t-timeout",
+		AgentType: "claude_code",
+		Prompt:    "hello",
+	})
+	if err != nil {
+		t.Fatalf("execute failed: %v", err)
+	}
+	if capturedTimeout <= 0 {
+		t.Fatalf("expected positive default timeout, got %v", capturedTimeout)
+	}
+	if capturedTimeout != 4*time.Hour {
+		t.Fatalf("expected 4h default timeout, got %v", capturedTimeout)
+	}
+}
+
+func TestAttachedBridgeExplicitTimeout(t *testing.T) {
+	t.Parallel()
+
+	exec := New(BridgeConfig{
+		AgentType:    "claude_code",
+		DefaultMode:  "autonomous",
+		Timeout:      30 * time.Minute,
+		PythonBinary: "/usr/bin/python3",
+		BridgeScript: "/fake/cc_bridge.py",
+	})
+
+	out := `{"type":"result","answer":"ok","tokens":100,"cost":0,"iters":1,"is_error":false}` + "\n"
+	var capturedTimeout time.Duration
+	exec.subprocessFactory = func(cfg subprocess.Config) bridgeRunner {
+		capturedTimeout = cfg.Timeout
+		return &fakeBridgeRunner{stdout: strings.NewReader(out)}
+	}
+
+	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
+		TaskID:    "t-explicit-timeout",
+		AgentType: "claude_code",
+		Prompt:    "hello",
+	})
+	if err != nil {
+		t.Fatalf("execute failed: %v", err)
+	}
+	if capturedTimeout != 30*time.Minute {
+		t.Fatalf("expected explicit 30m timeout, got %v", capturedTimeout)
+	}
+}
