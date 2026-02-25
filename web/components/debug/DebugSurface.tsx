@@ -181,7 +181,7 @@ export function ChunkedTextBlock({
     );
   }
 
-  const combined = useMemo(() => chunks.map((c) => c.text).join(""), [chunks]);
+  const combined = chunks.map((c) => c.text).join("");
 
   return (
     <div className={cn("space-y-2", className)}>

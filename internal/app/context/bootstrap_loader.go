@@ -111,11 +111,6 @@ func bootstrapCandidates(name, globalRoot, repoRoot string) []bootstrapCandidate
 	return candidates
 }
 
-func truncateWithMarker(raw string, limit int) (string, bool) {
-	content, truncated, _ := truncateWithMarkerAndCount(raw, limit)
-	return content, truncated
-}
-
 func truncateWithMarkerAndCount(raw string, limit int) (string, bool, int) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
