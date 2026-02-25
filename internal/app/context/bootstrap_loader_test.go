@@ -84,3 +84,57 @@ func TestLoadBootstrapRecords_TruncatesContent(t *testing.T) {
 	}
 }
 
+func TestLoadBootstrapRecords_IncludesGlobalIdentityFiles(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("user home: %v", err)
+	}
+	globalRoot := filepath.Join(home, ".alex", "memory")
+	if err := os.MkdirAll(globalRoot, 0o755); err != nil {
+		t.Fatalf("mkdir global: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(globalRoot, "SOUL.md"), []byte("very long soul content"), 0o644); err != nil {
+		t.Fatalf("write soul: %v", err)
+	}
+
+	records := loadBootstrapRecords(t.TempDir(), []string{"SOUL.md"}, 20000)
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
+	}
+	if records[0].Source != "global" {
+		t.Fatalf("expected global source, got %s", records[0].Source)
+	}
+	if !strings.Contains(records[0].Content, "very long soul content") {
+		t.Fatalf("expected SOUL content to be injected, got %q", records[0].Content)
+	}
+}
+
+func TestLoadBootstrapRecords_AppliesTotalBudgetAcrossFiles(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("user home: %v", err)
+	}
+	globalRoot := filepath.Join(home, ".alex", "memory")
+	if err := os.MkdirAll(globalRoot, 0o755); err != nil {
+		t.Fatalf("mkdir global: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(globalRoot, "AGENTS.md"), []byte(strings.Repeat("a", 64)), 0o644); err != nil {
+		t.Fatalf("write agents: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(globalRoot, "TOOLS.md"), []byte(strings.Repeat("b", 64)), 0o644); err != nil {
+		t.Fatalf("write tools: %v", err)
+	}
+
+	records := loadBootstrapRecords(t.TempDir(), []string{"AGENTS.md", "TOOLS.md"}, 16)
+	if len(records) != 2 {
+		t.Fatalf("expected 2 records, got %d", len(records))
+	}
+	if !records[0].Truncated {
+		t.Fatalf("expected first record truncated under total budget")
+	}
+	if !strings.Contains(records[1].Content, "bootstrap character budget exhausted") {
+		t.Fatalf("expected second record budget exhaustion marker, got %q", records[1].Content)
+	}
+}

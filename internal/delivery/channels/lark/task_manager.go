@@ -153,16 +153,21 @@ func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
 // create a fresh one. Must be called while slot.mu is held.
 func (g *Gateway) resolveSessionForNewTask(ctx context.Context, chatID string, slot *sessionSlot) (sessionID string, isResume bool) {
 	if slot.phase == slotAwaitingInput && slot.sessionID != "" {
+		g.logger.Info("Lark session routing: chat=%s source=awaiting_input session=%s", chatID, slot.sessionID)
 		return slot.sessionID, true
 	}
 	// Reuse the last session to preserve conversation history across turns.
 	if slot.lastSessionID != "" {
+		g.logger.Info("Lark session routing: chat=%s source=last_session session=%s", chatID, slot.lastSessionID)
 		return slot.lastSessionID, false
 	}
 	if persisted := g.loadPersistedChatSessionBinding(ctx, chatID); persisted != "" {
+		g.logger.Info("Lark session routing: chat=%s source=persisted_binding session=%s", chatID, persisted)
 		return persisted, false
 	}
-	return g.newSessionID(), false
+	fresh := g.newSessionID()
+	g.logger.Info("Lark session routing: chat=%s source=new_session session=%s", chatID, fresh)
+	return fresh, false
 }
 
 func (g *Gateway) loadPersistedChatSessionBinding(ctx context.Context, chatID string) string {

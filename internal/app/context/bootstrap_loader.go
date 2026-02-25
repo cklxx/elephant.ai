@@ -8,6 +8,7 @@ import (
 )
 
 const defaultBootstrapMaxChars = 20000
+const defaultBootstrapPerFileChars = 2000
 
 type bootstrapRecord struct {
 	Name      string
@@ -26,6 +27,7 @@ func loadBootstrapRecords(repoRoot string, files []string, maxChars int) []boots
 	if maxChars <= 0 {
 		maxChars = defaultBootstrapMaxChars
 	}
+	remainingChars := maxChars
 
 	globalRoot := ""
 	if home, err := os.UserHomeDir(); err == nil {
@@ -47,7 +49,15 @@ func loadBootstrapRecords(repoRoot string, files []string, maxChars int) []boots
 			}
 			record.Path = candidate.path
 			record.Source = candidate.source
-			record.Content, record.Truncated = truncateWithMarker(string(content), maxChars)
+			limit := bootstrapRecordLimit(remainingChars, maxChars)
+			if limit <= 0 {
+				record.Content = "(omitted: bootstrap character budget exhausted)"
+				record.Truncated = true
+				break
+			}
+			var consumed int
+			record.Content, record.Truncated, consumed = truncateWithMarkerAndCount(string(content), limit)
+			remainingChars -= consumed
 			break
 		}
 		if utils.IsBlank(record.Content) && record.Path == "" {
@@ -60,6 +70,20 @@ func loadBootstrapRecords(repoRoot string, files []string, maxChars int) []boots
 		records = append(records, record)
 	}
 	return records
+}
+
+func bootstrapRecordLimit(remainingChars, maxChars int) int {
+	if remainingChars <= 0 || maxChars <= 0 {
+		return 0
+	}
+	limit := defaultBootstrapPerFileChars
+	if limit > maxChars {
+		limit = maxChars
+	}
+	if limit > remainingChars {
+		limit = remainingChars
+	}
+	return limit
 }
 
 type bootstrapCandidate struct {
@@ -88,14 +112,21 @@ func bootstrapCandidates(name, globalRoot, repoRoot string) []bootstrapCandidate
 }
 
 func truncateWithMarker(raw string, limit int) (string, bool) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return "", false
-	}
-	runes := []rune(trimmed)
-	if len(runes) <= limit {
-		return trimmed, false
-	}
-	return strings.TrimSpace(string(runes[:limit])) + "\n...[TRUNCATED]", true
+	content, truncated, _ := truncateWithMarkerAndCount(raw, limit)
+	return content, truncated
 }
 
+func truncateWithMarkerAndCount(raw string, limit int) (string, bool, int) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", false, 0
+	}
+	runes := []rune(trimmed)
+	if limit <= 0 {
+		return "", true, 0
+	}
+	if len(runes) <= limit {
+		return trimmed, false, len(runes)
+	}
+	return strings.TrimSpace(string(runes[:limit])) + "\n...[TRUNCATED]", true, limit
+}

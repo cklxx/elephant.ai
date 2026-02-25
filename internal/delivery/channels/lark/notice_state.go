@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
 )
@@ -47,6 +48,11 @@ func resolveNoticeStatePath(getenv func(string) string, getwd func() (string, er
 		}
 	}
 
+	configPath, _ := runtimeconfig.ResolveConfigPath(envLookupFromGetenv(getenv), nil)
+	if trimmed := strings.TrimSpace(configPath); trimmed != "" {
+		return filepath.Join(filepath.Dir(trimmed), noticeStateFileName)
+	}
+
 	workingDir := "."
 	if getwd != nil {
 		if wd, err := getwd(); err == nil && utils.HasContent(wd) {
@@ -54,26 +60,20 @@ func resolveNoticeStatePath(getenv func(string) string, getwd func() (string, er
 		}
 	}
 
-	mainRoot := inferMainRootFromWorkingDir(workingDir)
-	return filepath.Join(mainRoot, ".worktrees", "test", "tmp", noticeStateFileName)
+	return filepath.Join(workingDir, noticeStateFileName)
 }
 
-func inferMainRootFromWorkingDir(workingDir string) string {
-	cleaned := filepath.Clean(strings.TrimSpace(workingDir))
-	if cleaned == "" {
-		return "."
+func envLookupFromGetenv(getenv func(string) string) runtimeconfig.EnvLookup {
+	if getenv == nil {
+		return nil
 	}
-
-	suffix := string(filepath.Separator) + filepath.Join(".worktrees", "test")
-	if idx := strings.LastIndex(cleaned, suffix); idx > 0 {
-		return cleaned[:idx]
-	}
-	if strings.HasSuffix(cleaned, filepath.Join(".worktrees", "test")) {
-		if parent := filepath.Dir(filepath.Dir(cleaned)); utils.HasContent(parent) {
-			return parent
+	return func(key string) (string, bool) {
+		value := strings.TrimSpace(getenv(key))
+		if value == "" {
+			return "", false
 		}
+		return value, true
 	}
-	return cleaned
 }
 
 func (s *noticeStateStore) Path() string {

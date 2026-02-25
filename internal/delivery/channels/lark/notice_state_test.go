@@ -10,8 +10,11 @@ import (
 
 func TestResolveNoticeStatePathUsesExplicitEnv(t *testing.T) {
 	expected := "/tmp/custom-notice-state.json"
-	path := resolveNoticeStatePath(func(string) string {
-		return expected
+	path := resolveNoticeStatePath(func(key string) string {
+		if key == noticeStatePathEnv {
+			return expected
+		}
+		return ""
 	}, func() (string, error) {
 		return "/repo", nil
 	})
@@ -20,21 +23,26 @@ func TestResolveNoticeStatePathUsesExplicitEnv(t *testing.T) {
 	}
 }
 
-func TestResolveNoticeStatePathFromMainRoot(t *testing.T) {
-	path := resolveNoticeStatePath(func(string) string { return "" }, func() (string, error) {
+func TestResolveNoticeStatePathFromConfigPath(t *testing.T) {
+	path := resolveNoticeStatePath(func(key string) string {
+		if key == "ALEX_CONFIG_PATH" {
+			return "/repo/custom-config.yaml"
+		}
+		return ""
+	}, func() (string, error) {
 		return "/repo", nil
 	})
-	expected := filepath.Join("/repo", ".worktrees", "test", "tmp", noticeStateFileName)
+	expected := filepath.Join("/repo", noticeStateFileName)
 	if path != expected {
 		t.Fatalf("resolveNoticeStatePath() = %q, want %q", path, expected)
 	}
 }
 
-func TestResolveNoticeStatePathFromTestWorktree(t *testing.T) {
-	path := resolveNoticeStatePath(func(string) string { return "" }, func() (string, error) {
-		return filepath.Join("/repo", ".worktrees", "test"), nil
-	})
-	expected := filepath.Join("/repo", ".worktrees", "test", "tmp", noticeStateFileName)
+func TestResolveNoticeStatePathFromDefaultHomeConfigPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := resolveNoticeStatePath(func(string) string { return "" }, nil)
+	expected := filepath.Join(home, ".alex", noticeStateFileName)
 	if path != expected {
 		t.Fatalf("resolveNoticeStatePath() = %q, want %q", path, expected)
 	}
