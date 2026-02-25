@@ -64,18 +64,18 @@ func (r *reactRuntime) injectBackgroundNotifications() {
 		switch s.Status {
 		case agent.BackgroundTaskStatusCompleted:
 			msg = fmt.Sprintf(
-				"[Background Task Completed] task_id=%q description=%q\nUse bg_collect(task_ids=[%q]) to retrieve the full result.",
-				s.ID, s.Description, s.ID,
+				"[Background Task Completed] task_id=%q description=%q\nUse read_file to check .elephant/tasks/*.status.yaml for the full result.",
+				s.ID, s.Description,
 			)
 		case agent.BackgroundTaskStatusFailed:
 			msg = fmt.Sprintf(
-				"[Background Task Failed] task_id=%q description=%q error=%q\nUse bg_collect(task_ids=[%q]) to see details.",
-				s.ID, s.Description, s.Error, s.ID,
+				"[Background Task Failed] task_id=%q description=%q error=%q\nUse read_file to check .elephant/tasks/*.status.yaml for details.",
+				s.ID, s.Description, s.Error,
 			)
 		case agent.BackgroundTaskStatusCancelled:
 			msg = fmt.Sprintf(
-				"[Background Task Cancelled] task_id=%q description=%q\nUse bg_collect(task_ids=[%q]) to see details.",
-				s.ID, s.Description, s.ID,
+				"[Background Task Cancelled] task_id=%q description=%q\nUse read_file to check .elephant/tasks/*.status.yaml for details.",
+				s.ID, s.Description,
 			)
 		default:
 			continue
