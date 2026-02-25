@@ -52,6 +52,9 @@ func CloneTaskState(state *TaskState) *TaskState {
 	cloned := &TaskState{
 		SystemPrompt:           state.SystemPrompt,
 		Iterations:             state.Iterations,
+		NextCompactionAllowed:  state.NextCompactionAllowed,
+		LastCompactionArtifact: state.LastCompactionArtifact,
+		ContextCompactionSeq:   state.ContextCompactionSeq,
 		TokenCount:             state.TokenCount,
 		Complete:               state.Complete,
 		FinalAnswer:            state.FinalAnswer,

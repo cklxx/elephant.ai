@@ -814,11 +814,29 @@ func (it *reactIteration) think() error {
 	))
 
 	thought, err := it.runtime.engine.think(it.runtime.ctx, state, services)
-	if err != nil && isContextLengthExceeded(err) {
-		// Context length exceeded — apply emergency trim and retry once.
-		it.runtime.engine.logger.Warn("Context length exceeded, applying emergency trim and retrying think step")
-		emergencyTrimState(state, services)
-		thought, err = it.runtime.engine.think(it.runtime.ctx, state, services)
+	if err != nil {
+		classification := classifyContextOverflow(err, "")
+		if classification.Matched {
+			it.runtime.engine.logger.Warn(
+				"Context overflow detected (rule=%s confidence=%s), applying compaction plan and retrying think step",
+				classification.Rule,
+				classification.Confidence,
+			)
+			if compacted, ok := it.runtime.engine.tryArtifactCompaction(
+				it.runtime.ctx,
+				state,
+				services,
+				state.Messages,
+				compactionReasonOverflow,
+				true,
+			); ok {
+				state.Messages = compacted
+			} else {
+				// Fallback when artifact compaction cannot run (e.g. missing state/session).
+				emergencyTrimState(state, services)
+			}
+			thought, err = it.runtime.engine.think(it.runtime.ctx, state, services)
+		}
 	}
 	if err != nil {
 		it.runtime.engine.logger.Error("Think step failed: %v", err)
@@ -1215,16 +1233,9 @@ func (r *reactRuntime) persistSessionAfterIteration() {
 
 // isContextLengthExceeded checks whether the error indicates the LLM provider
 // rejected the request because the input exceeded the model's context window.
+// Maintained as a compatibility wrapper for existing tests.
 func isContextLengthExceeded(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "context_length_exceeded") ||
-		strings.Contains(msg, "context window") ||
-		strings.Contains(msg, "maximum context length") ||
-		strings.Contains(msg, "token limit exceeded") ||
-		strings.Contains(msg, "exceeds the model's maximum context")
+	return classifyContextOverflow(err, "").Matched
 }
 
 // emergencyTrimState applies aggressive trimming to state.Messages when the

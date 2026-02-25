@@ -23,8 +23,11 @@ func TestTaskStateSnapshotRoundTrip(t *testing.T) {
 		Attachments: map[string]core.Attachment{
 			"notes.md": {Name: "notes.md", Data: "YmFzZTY0"},
 		},
-		AttachmentIterations: map[string]int{"notes.md": 2},
-		Plans: []PlanNode{{ID: "plan-1", Title: "Investigate"}},
+		AttachmentIterations:   map[string]int{"notes.md": 2},
+		Plans:                  []PlanNode{{ID: "plan-1", Title: "Investigate"}},
+		NextCompactionAllowed:  5,
+		LastCompactionArtifact: "/tmp/ctx/compaction-0001.md",
+		ContextCompactionSeq:   1,
 		Cognitive: &CognitiveExtension{
 			Beliefs:         []Belief{{Statement: "delegation helps"}},
 			KnowledgeRefs:   []KnowledgeReference{{ID: "rag-1", Description: "Docs"}},
@@ -56,6 +59,15 @@ func TestTaskStateSnapshotRoundTrip(t *testing.T) {
 	}
 	if original.AttachmentIterations["notes.md"] == 10 {
 		t.Fatalf("expected original attachment iteration to remain unchanged")
+	}
+	if original.NextCompactionAllowed != 5 {
+		t.Fatalf("expected NextCompactionAllowed cloned, got %d", original.NextCompactionAllowed)
+	}
+	if original.LastCompactionArtifact != "/tmp/ctx/compaction-0001.md" {
+		t.Fatalf("expected LastCompactionArtifact preserved, got %q", original.LastCompactionArtifact)
+	}
+	if original.ContextCompactionSeq != 1 {
+		t.Fatalf("expected ContextCompactionSeq preserved, got %d", original.ContextCompactionSeq)
 	}
 }
 

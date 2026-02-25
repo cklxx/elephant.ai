@@ -242,8 +242,9 @@ const historyTimelineLimit = 8
 const historyTimelineSummaryChars = 50
 
 const (
-	historyCompressionSummaryPrefix = "[Earlier context compressed]"
-	historyTrimNoticeSummaryPrefix  = "[Context trimmed to fit model window."
+	historyCompressionSummaryPrefix  = "[Earlier context compressed]"
+	historyTrimNoticeSummaryPrefix   = "[Context trimmed to fit model window."
+	historyArtifactPlaceholderPrefix = "[CTX_PLACEHOLDER"
 )
 
 func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) agent.MetaContext {
@@ -375,7 +376,8 @@ func buildRuntimeHistoryChunk(meta agent.MetaContext) *ports.Message {
 func isContextCompressionSummary(msg ports.Message) bool {
 	content := strings.TrimSpace(msg.Content)
 	return strings.HasPrefix(content, historyCompressionSummaryPrefix) ||
-		strings.HasPrefix(content, historyTrimNoticeSummaryPrefix)
+		strings.HasPrefix(content, historyTrimNoticeSummaryPrefix) ||
+		strings.HasPrefix(content, historyArtifactPlaceholderPrefix)
 }
 
 func shouldSkipHistoryTimelineMessage(msg ports.Message) bool {

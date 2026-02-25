@@ -53,3 +53,28 @@ func TestNormalizeContextMessagesConvertsUserHistorySystemRole(t *testing.T) {
 		t.Fatalf("expected user_history role rewritten to assistant, got %q", got)
 	}
 }
+
+func TestNormalizeContextMessagesCollapsesArtifactPlaceholders(t *testing.T) {
+	state := &TaskState{
+		Messages: []Message{
+			{Role: "assistant", Content: `[CTX_PLACEHOLDER path="/tmp/a" sha256="1"]`, Source: ports.MessageSourceCheckpoint},
+			{Role: "assistant", Content: `[CTX_PLACEHOLDER path="/tmp/b" sha256="2"]`, Source: ports.MessageSourceCheckpoint},
+			{Role: "assistant", Content: "latest answer", Source: ports.MessageSourceAssistantReply},
+		},
+	}
+
+	normalizeContextMessages(state)
+
+	var placeholders []Message
+	for _, msg := range state.Messages {
+		if isCompressionSummaryContent(msg.Content) {
+			placeholders = append(placeholders, msg)
+		}
+	}
+	if len(placeholders) != 1 {
+		t.Fatalf("expected only latest placeholder kept, got %d", len(placeholders))
+	}
+	if placeholders[0].Content != `[CTX_PLACEHOLDER path="/tmp/b" sha256="2"]` {
+		t.Fatalf("expected latest placeholder preserved, got %q", placeholders[0].Content)
+	}
+}

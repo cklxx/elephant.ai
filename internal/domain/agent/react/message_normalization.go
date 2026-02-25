@@ -9,6 +9,7 @@ import (
 const (
 	compressionSummaryPrefix      = "[Earlier context compressed]"
 	legacyTrimNoticeSummaryPrefix = "[Context trimmed to fit model window."
+	artifactPlaceholderPrefix     = "[CTX_PLACEHOLDER"
 )
 
 // normalizeContextMessages rewrites legacy synthetic messages so they don't
@@ -65,5 +66,6 @@ func keepLastCompressionSummaryOnly(state *TaskState) {
 func isCompressionSummaryContent(content string) bool {
 	trimmed := strings.TrimSpace(content)
 	return strings.HasPrefix(trimmed, compressionSummaryPrefix) ||
-		strings.HasPrefix(trimmed, legacyTrimNoticeSummaryPrefix)
+		strings.HasPrefix(trimmed, legacyTrimNoticeSummaryPrefix) ||
+		strings.HasPrefix(trimmed, artifactPlaceholderPrefix)
 }

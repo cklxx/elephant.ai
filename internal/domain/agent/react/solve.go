@@ -49,7 +49,7 @@ func (e *ReactEngine) think(
 	// Pre-flight context budget enforcement: estimate full token count and
 	// trim messages before sending to prevent context_length_exceeded errors.
 	if services.Context != nil {
-		filteredMessages = e.enforceContextBudget(filteredMessages, state, services)
+		filteredMessages = e.enforceContextBudget(ctx, filteredMessages, state, services)
 	}
 
 	e.logger.Debug(
@@ -244,6 +244,7 @@ func (e *ReactEngine) think(
 // budget. It first tries AutoCompact (summarize older messages), then falls
 // back to aggressive trimming (keep only recent turns).
 func (e *ReactEngine) enforceContextBudget(
+	ctx context.Context,
 	messages []ports.Message,
 	state *TaskState,
 	services Services,
@@ -260,18 +261,44 @@ func (e *ReactEngine) enforceContextBudget(
 	e.logger.Warn("Context budget exceeded: estimated=%d limit=%d messages=%d — applying auto-compact",
 		estimated, limit, len(messages))
 
-	// Layer 1: Try AutoCompact (summarize older messages).
-	compacted, ok := services.Context.AutoCompact(messages, limit)
-	if ok {
-		afterCompact := services.Context.EstimateTokens(compacted)
-		e.logger.Info("Auto-compact reduced tokens: %d → %d (limit=%d)", estimated, afterCompact, limit)
-		if afterCompact <= limit {
-			// Also update state.Messages so subsequent iterations benefit.
-			state.Messages = rebuildStateMessages(state.Messages, compacted)
-			return compacted
+	// Layer 1a: Try artifact compaction (Manus-style placeholder + file).
+	inCooldown := isCompactionInCooldown(state)
+	if inCooldown {
+		if state != nil {
+			e.logger.Debug(
+				"Context artifact compaction cooling down: iteration=%d next_allowed=%d",
+				state.Iterations,
+				state.NextCompactionAllowed,
+			)
 		}
-		messages = compacted
-		estimated = afterCompact
+	} else {
+		compacted, ok := e.tryArtifactCompaction(ctx, state, services, messages, compactionReasonThreshold, false)
+		if ok {
+			afterCompact := services.Context.EstimateTokens(compacted)
+			e.logger.Info("Artifact compaction reduced tokens: %d → %d (limit=%d)", estimated, afterCompact, limit)
+			if afterCompact <= limit {
+				state.Messages = rebuildStateMessages(state.Messages, compacted)
+				return compacted
+			}
+			messages = compacted
+			estimated = afterCompact
+		}
+	}
+
+	// Layer 1b: Legacy AutoCompact (skip during cooldown).
+	if !inCooldown {
+		compacted, ok := services.Context.AutoCompact(messages, limit)
+		if ok {
+			afterCompact := services.Context.EstimateTokens(compacted)
+			e.logger.Info("Auto-compact reduced tokens: %d → %d (limit=%d)", estimated, afterCompact, limit)
+			if afterCompact <= limit {
+				// Also update state.Messages so subsequent iterations benefit.
+				state.Messages = rebuildStateMessages(state.Messages, compacted)
+				return compacted
+			}
+			messages = compacted
+			estimated = afterCompact
+		}
 	}
 
 	// Layer 2: Aggressive trim — keep system/important + last N turns.

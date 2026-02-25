@@ -1599,8 +1599,23 @@ func TestIsContextLengthExceeded(t *testing.T) {
 			expect: true,
 		},
 		{
+			name:   "anthropic request exceeds maximum allowed",
+			err:    fmt.Errorf(`llm error: {"type":"error","error":{"type":"invalid_request_error","message":"request exceeds maximum allowed tokens for this model"}}`),
+			expect: true,
+		},
+		{
+			name:   "prompt is too long phrase",
+			err:    fmt.Errorf("prompt is too long for this model"),
+			expect: true,
+		},
+		{
 			name:   "rate limit error (should not match)",
 			err:    fmt.Errorf("rate limit exceeded, please retry"),
+			expect: false,
+		},
+		{
+			name:   "quota exceeded (should not match)",
+			err:    fmt.Errorf("quota exceeded"),
 			expect: false,
 		},
 	}
@@ -1672,7 +1687,7 @@ func TestEnforceContextBudgetNoopUnderLimit(t *testing.T) {
 	messages := []ports.Message{
 		{Role: "user", Content: "Hello"},
 	}
-	result := engine.enforceContextBudget(messages, state, services)
+	result := engine.enforceContextBudget(context.Background(), messages, state, services)
 	if len(result) != len(messages) {
 		t.Errorf("expected messages unchanged when under budget, got %d vs %d", len(result), len(messages))
 	}
@@ -1709,7 +1724,7 @@ func TestEnforceContextBudgetTrimsWhenOverLimit(t *testing.T) {
 		{Role: "user", Content: "Turn 2"},
 		{Role: "assistant", Content: "Reply 2"},
 	}
-	result := engine.enforceContextBudget(messages, state, services)
+	result := engine.enforceContextBudget(context.Background(), messages, state, services)
 	if len(result) >= len(messages) {
 		t.Errorf("expected fewer messages after budget enforcement, got %d vs %d", len(result), len(messages))
 	}

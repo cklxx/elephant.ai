@@ -85,6 +85,9 @@ type TaskState struct {
 	SystemPrompt           string
 	Messages               []core.Message
 	Iterations             int
+	NextCompactionAllowed  int
+	LastCompactionArtifact string
+	ContextCompactionSeq   int
 	TokenCount             int
 	ToolResults            []core.ToolResult
 	Complete               bool
