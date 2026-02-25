@@ -39,6 +39,12 @@ var larkAudioExtensions = map[string]bool{
 	"m4a": true, "mp3": true, "opus": true, "wav": true, "aac": true,
 }
 
+var larkImageExtensions = map[string]bool{
+	"jpg": true, "jpeg": true, "png": true,
+	"gif": true, "webp": true, "bmp": true,
+	"ico": true, "tif": true, "tiff": true,
+}
+
 type uploadCandidate struct {
 	reader   io.Reader
 	cleanup  func()
@@ -126,69 +132,84 @@ func (t *larkUploadFile) Execute(ctx context.Context, call ports.ToolCall) (*por
 		defer candidate.cleanup()
 	}
 
-	uploadReq := larkim.NewCreateFileReqBuilder().
-		Body(larkim.NewCreateFileReqBodyBuilder().
-			FileType(candidate.fileType).
-			FileName(candidate.fileName).
-			File(candidate.reader).
-			Build()).
-		Build()
-
-	uploadResp, err := client.Im.V1.File.Create(ctx, uploadReq)
-	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_upload_file: upload API call failed: %v", err),
-			Error:   fmt.Errorf("lark upload API call failed: %w", err),
-		}, nil
-	}
-	if !uploadResp.Success() {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_upload_file: upload API error code=%d msg=%s", uploadResp.Code, uploadResp.Msg),
-			Error:   fmt.Errorf("lark upload API error: code=%d msg=%s", uploadResp.Code, uploadResp.Msg),
-		}, nil
-	}
-	fileKey := ""
-	if uploadResp.Data != nil && uploadResp.Data.FileKey != nil {
-		fileKey = strings.TrimSpace(*uploadResp.Data.FileKey)
-	}
-	if fileKey == "" {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "lark_upload_file: upload missing file_key",
-			Error:   fmt.Errorf("lark upload missing file_key"),
-		}, nil
-	}
-
 	replyToID := strings.TrimSpace(shared.LarkMessageIDFromContext(ctx))
+
 	msgType := "file"
-	if isAudioFile(candidate.fileName, candidate.mimeType) {
-		msgType = "audio"
+	msgContent := ""
+	metadata := map[string]any{
+		"chat_id":   chatID,
+		"file_name": candidate.fileName,
+		"file_type": candidate.fileType,
+		"mime_type": candidate.mimeType,
+		"bytes":     candidate.size,
+		"max_bytes": maxBytes,
 	}
-	msgContent := fileContent(fileKey)
+	if replyToID != "" {
+		metadata["reply_to_message_id"] = replyToID
+	}
+
+	isImage := isImageFile(candidate.fileName, candidate.mimeType)
+	if isImage {
+		imageKey, errResult := uploadImage(ctx, call.ID, client, candidate.reader)
+		if errResult != nil {
+			return errResult, nil
+		}
+		msgType = "image"
+		msgContent = imageContent(imageKey)
+		metadata["image_key"] = imageKey
+	} else {
+		uploadReq := larkim.NewCreateFileReqBuilder().
+			Body(larkim.NewCreateFileReqBodyBuilder().
+				FileType(candidate.fileType).
+				FileName(candidate.fileName).
+				File(candidate.reader).
+				Build()).
+			Build()
+
+		uploadResp, err := client.Im.V1.File.Create(ctx, uploadReq)
+		if err != nil {
+			return &ports.ToolResult{
+				CallID:  call.ID,
+				Content: fmt.Sprintf("lark_upload_file: upload API call failed: %v", err),
+				Error:   fmt.Errorf("lark upload API call failed: %w", err),
+			}, nil
+		}
+		if !uploadResp.Success() {
+			return &ports.ToolResult{
+				CallID:  call.ID,
+				Content: fmt.Sprintf("lark_upload_file: upload API error code=%d msg=%s", uploadResp.Code, uploadResp.Msg),
+				Error:   fmt.Errorf("lark upload API error: code=%d msg=%s", uploadResp.Code, uploadResp.Msg),
+			}, nil
+		}
+		fileKey := ""
+		if uploadResp.Data != nil && uploadResp.Data.FileKey != nil {
+			fileKey = strings.TrimSpace(*uploadResp.Data.FileKey)
+		}
+		if fileKey == "" {
+			return &ports.ToolResult{
+				CallID:  call.ID,
+				Content: "lark_upload_file: upload missing file_key",
+				Error:   fmt.Errorf("lark upload missing file_key"),
+			}, nil
+		}
+
+		msgType = "file"
+		if isAudioFile(candidate.fileName, candidate.mimeType) {
+			msgType = "audio"
+		}
+		msgContent = fileContent(fileKey)
+		metadata["file_key"] = fileKey
+	}
 
 	messageID, errResult := sendUploadedMessage(ctx, client, call.ID, chatID, replyToID, msgType, msgContent)
 	if errResult != nil {
 		return errResult, nil
 	}
+	metadata["message_id"] = messageID
+	metadata["msg_type"] = msgType
 
-	metadata := map[string]any{
-		"chat_id":    chatID,
-		"message_id": messageID,
-		"file_key":   fileKey,
-		"file_name":  candidate.fileName,
-		"file_type":  candidate.fileType,
-		"mime_type":  candidate.mimeType,
-		"msg_type":   msgType,
-		"bytes":      candidate.size,
-		"max_bytes":  maxBytes,
-	}
 	for k, v := range candidate.meta {
 		metadata[k] = v
-	}
-	if replyToID != "" {
-		metadata["reply_to_message_id"] = replyToID
 	}
 
 	return &ports.ToolResult{
@@ -196,6 +217,34 @@ func (t *larkUploadFile) Execute(ctx context.Context, call ports.ToolCall) (*por
 		Content:  "File sent successfully.",
 		Metadata: metadata,
 	}, nil
+}
+
+func uploadImage(ctx context.Context, callID string, client *lark.Client, reader io.Reader) (string, *ports.ToolResult) {
+	uploadReq := larkim.NewCreateImageReqBuilder().
+		Body(larkim.NewCreateImageReqBodyBuilder().
+			ImageType(larkim.ImageTypeMessage).
+			Image(reader).
+			Build()).
+		Build()
+
+	uploadResp, err := client.Im.V1.Image.Create(ctx, uploadReq)
+	if err != nil {
+		err := fmt.Errorf("lark upload image API call failed: %w", err)
+		return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+	}
+	if !uploadResp.Success() {
+		err := fmt.Errorf("lark upload image API error: code=%d msg=%s", uploadResp.Code, uploadResp.Msg)
+		return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+	}
+	imageKey := ""
+	if uploadResp.Data != nil && uploadResp.Data.ImageKey != nil {
+		imageKey = strings.TrimSpace(*uploadResp.Data.ImageKey)
+	}
+	if imageKey == "" {
+		err := fmt.Errorf("lark upload image missing image_key")
+		return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+	}
+	return imageKey, nil
 }
 
 func sendUploadedMessage(ctx context.Context, client *lark.Client, callID, chatID, replyToID, msgType, content string) (string, *ports.ToolResult) {
@@ -467,6 +516,14 @@ func isAudioFile(fileName, mimeType string) bool {
 	return isAudioMimeType(mimeType)
 }
 
+func isImageFile(fileName, mimeType string) bool {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(fileName), "."))
+	if larkImageExtensions[ext] {
+		return true
+	}
+	return strings.HasPrefix(normalizeMimeType(mimeType), "image/")
+}
+
 func detectMimeTypeFromFile(file *os.File) string {
 	buf := make([]byte, 512)
 	n, err := file.ReadAt(buf, 0)
@@ -481,5 +538,10 @@ func detectMimeTypeFromFile(file *os.File) string {
 
 func fileContent(fileKey string) string {
 	payload, _ := json.Marshal(map[string]string{"file_key": fileKey})
+	return string(payload)
+}
+
+func imageContent(imageKey string) string {
+	payload, _ := json.Marshal(map[string]string{"image_key": imageKey})
 	return string(payload)
 }

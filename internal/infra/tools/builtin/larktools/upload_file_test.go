@@ -3,9 +3,13 @@ package larktools
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"alex/internal/domain/agent/ports"
@@ -322,9 +326,206 @@ func TestPrepareUploadCandidate_AttachmentMode_AudioMimeType(t *testing.T) {
 	}
 }
 
+func TestUploadFile_Execute_ImageAttachment_UsesImageAPI(t *testing.T) {
+	var mu sync.Mutex
+	var imageUploadCalls int
+	var fileUploadCalls int
+	var sentMsgType string
+	var sentContent string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/auth/v3/tenant_access_token/internal"):
+			_, _ = w.Write(tokenResponse("tenant-token", 7200))
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/im/v1/images"):
+			mu.Lock()
+			imageUploadCalls++
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
+				"image_key": "img_123",
+			}))
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/im/v1/files"):
+			mu.Lock()
+			fileUploadCalls++
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
+				"file_key": "file_123",
+			}))
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/im/v1/messages"):
+			var payload struct {
+				MsgType string `json:"msg_type"`
+				Content string `json:"content"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode message payload: %v", err)
+			}
+			mu.Lock()
+			sentMsgType = payload.MsgType
+			sentContent = payload.Content
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
+				"message_id": "om_123",
+			}))
+			return
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	tool := NewLarkUploadFile()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
+	ctx := shared.WithLarkClient(context.Background(), larkClient)
+	ctx = shared.WithLarkChatID(ctx, "oc_chat123")
+
+	payload := []byte{0x89, 0x50, 0x4e, 0x47}
+	encoded := base64.StdEncoding.EncodeToString(payload)
+	att := ports.Attachment{Name: "photo.png", MediaType: "image/png", Data: encoded}
+	ctx = toolports.WithAttachmentContext(ctx, map[string]ports.Attachment{"photo.png": att}, nil)
+
+	call := ports.ToolCall{
+		ID:        "call-image",
+		Name:      "lark_upload_file",
+		Arguments: map[string]any{"attachment_name": "photo.png"},
+	}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("expected success, got error: %v", result.Error)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if imageUploadCalls != 1 {
+		t.Fatalf("expected 1 image upload call, got %d", imageUploadCalls)
+	}
+	if fileUploadCalls != 0 {
+		t.Fatalf("expected 0 file upload calls for image, got %d", fileUploadCalls)
+	}
+	if sentMsgType != "image" {
+		t.Fatalf("expected sent msg_type=image, got %q", sentMsgType)
+	}
+	if sentContent != `{"image_key":"img_123"}` {
+		t.Fatalf("unexpected message content: %s", sentContent)
+	}
+	if got := result.Metadata["msg_type"]; got != "image" {
+		t.Fatalf("expected metadata msg_type=image, got %v", got)
+	}
+	if got := result.Metadata["image_key"]; got != "img_123" {
+		t.Fatalf("expected metadata image_key=img_123, got %v", got)
+	}
+}
+
+func TestUploadFile_Execute_Attachment_UsesFileAPIForNonImage(t *testing.T) {
+	var mu sync.Mutex
+	var imageUploadCalls int
+	var fileUploadCalls int
+	var sentMsgType string
+	var sentContent string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/auth/v3/tenant_access_token/internal"):
+			_, _ = w.Write(tokenResponse("tenant-token", 7200))
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/im/v1/images"):
+			mu.Lock()
+			imageUploadCalls++
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
+				"image_key": "img_123",
+			}))
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/im/v1/files"):
+			mu.Lock()
+			fileUploadCalls++
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
+				"file_key": "file_123",
+			}))
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/im/v1/messages"):
+			var payload struct {
+				MsgType string `json:"msg_type"`
+				Content string `json:"content"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode message payload: %v", err)
+			}
+			mu.Lock()
+			sentMsgType = payload.MsgType
+			sentContent = payload.Content
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
+				"message_id": "om_456",
+			}))
+			return
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	tool := NewLarkUploadFile()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
+	ctx := shared.WithLarkClient(context.Background(), larkClient)
+	ctx = shared.WithLarkChatID(ctx, "oc_chat123")
+
+	payload := []byte("hello")
+	encoded := base64.StdEncoding.EncodeToString(payload)
+	att := ports.Attachment{Name: "report.txt", MediaType: "text/plain", Data: encoded}
+	ctx = toolports.WithAttachmentContext(ctx, map[string]ports.Attachment{"report.txt": att}, nil)
+
+	call := ports.ToolCall{
+		ID:        "call-file",
+		Name:      "lark_upload_file",
+		Arguments: map[string]any{"attachment_name": "report.txt"},
+	}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("expected success, got error: %v", result.Error)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if imageUploadCalls != 0 {
+		t.Fatalf("expected 0 image upload calls for non-image, got %d", imageUploadCalls)
+	}
+	if fileUploadCalls != 1 {
+		t.Fatalf("expected 1 file upload call, got %d", fileUploadCalls)
+	}
+	if sentMsgType != "file" {
+		t.Fatalf("expected sent msg_type=file, got %q", sentMsgType)
+	}
+	if sentContent != `{"file_key":"file_123"}` {
+		t.Fatalf("unexpected message content: %s", sentContent)
+	}
+	if got := result.Metadata["msg_type"]; got != "file" {
+		t.Fatalf("expected metadata msg_type=file, got %v", got)
+	}
+	if got := result.Metadata["file_key"]; got != "file_123" {
+		t.Fatalf("expected metadata file_key=file_123, got %v", got)
+	}
+}
+
 func TestFileHelpers(t *testing.T) {
 	if got := fileContent("file_123"); got != `{"file_key":"file_123"}` {
 		t.Fatalf("unexpected fileContent: %s", got)
+	}
+	if got := imageContent("img_123"); got != `{"image_key":"img_123"}` {
+		t.Fatalf("unexpected imageContent: %s", got)
 	}
 
 	if got := fileTypeForName("a.PDF"); got != "pdf" {
@@ -345,6 +546,24 @@ func TestFileHelpers(t *testing.T) {
 	}
 	if got := larkFileType(""); got != "stream" {
 		t.Fatalf("unexpected larkFileType(empty): %s", got)
+	}
+}
+
+func TestIsImageFile(t *testing.T) {
+	if !isImageFile("photo.jpg", "") {
+		t.Fatal("expected jpg extension to be image")
+	}
+	if !isImageFile("photo.JPEG", "") {
+		t.Fatal("expected jpeg extension to be image")
+	}
+	if !isImageFile("photo.png", "") {
+		t.Fatal("expected png extension to be image")
+	}
+	if !isImageFile("photo.bin", "image/png") {
+		t.Fatal("expected image/png mime to be image")
+	}
+	if isImageFile("report.txt", "text/plain") {
+		t.Fatal("did not expect txt to be image")
 	}
 }
 
