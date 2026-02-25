@@ -1016,6 +1016,32 @@ func TestEnsureSystemPromptMessageCompactsStaleSystemPrompts(t *testing.T) {
 	}
 }
 
+func TestEnsureSystemPromptMessageClampsOversizedPrompt(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	oversized := strings.Repeat("x", runtimeSystemPromptMaxChars+5000)
+	state := &TaskState{
+		SystemPrompt: oversized,
+		Messages: []Message{
+			{Role: "user", Content: "hello", Source: ports.MessageSourceUserInput},
+		},
+	}
+
+	engine.ensureSystemPromptMessage(state)
+
+	if len(state.Messages) == 0 {
+		t.Fatal("expected system prompt message to be inserted")
+	}
+	if !strings.Contains(state.Messages[0].Content, "[System prompt truncated at runtime to stay within context limits.]") {
+		t.Fatalf("expected runtime truncation marker, got %q", state.Messages[0].Content)
+	}
+	if len([]rune(state.Messages[0].Content)) > runtimeSystemPromptMaxChars+120 {
+		t.Fatalf("expected clamped system prompt size, got len=%d", len([]rune(state.Messages[0].Content)))
+	}
+	if state.SystemPrompt != state.Messages[0].Content {
+		t.Fatal("expected state.SystemPrompt to follow clamped runtime prompt")
+	}
+}
+
 func TestAttachmentReferenceValuePrefersURI(t *testing.T) {
 	att := ports.Attachment{
 		Name:      "diagram.png",
