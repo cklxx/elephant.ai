@@ -67,7 +67,11 @@ func ResolveLocalPathOrTemp(ctx context.Context, raw string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("path must stay within the working directory or a temp directory")
+	return "", fmt.Errorf(
+		"path must stay within the working directory or a temp directory (base=%q, requested=%q)",
+		baseAbs,
+		candidateAbs,
+	)
 }
 
 // SanitizePathWithinBase validates that a path stays within the working directory
@@ -108,7 +112,11 @@ func SanitizePathWithinBase(ctx context.Context, raw string) (string, error) {
 		return candidateAbs, nil
 	}
 
-	return "", fmt.Errorf("path must stay within the working directory")
+	return "", fmt.Errorf(
+		"path must stay within the working directory (base=%q, requested=%q)",
+		baseAbs,
+		candidateAbs,
+	)
 }
 
 func sanitizeWithinBase(baseAbs, candidateAbs string) (string, bool, error) {

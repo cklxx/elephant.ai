@@ -539,3 +539,59 @@ func TestToolErrorBlocksPlanNodeAndRequestsReplan(t *testing.T) {
 	}
 	require.Equal(t, 1, replanEvents, "expected one replan requested event")
 }
+
+func TestRepeatedNonRetryableToolFailureStopsRuntime(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{
+		Logger: agent.NoopLogger{},
+		Clock:  agent.ClockFunc(time.Now),
+	})
+	state := &TaskState{
+		SessionID: "s1",
+		RunID:     "run-1",
+	}
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+
+	toolErr := errors.New(`path must stay within the working directory (base="/repo", requested="/tmp/x")`)
+	for i := 0; i < repeatedNonRetryableToolFailureThreshold-1; i++ {
+		result, done := runtime.maybeStopAfterRepeatedToolFailures([]ToolResult{{Error: toolErr}})
+		require.False(t, done)
+		require.Nil(t, result)
+	}
+
+	result, done := runtime.maybeStopAfterRepeatedToolFailures([]ToolResult{{Error: toolErr}})
+	require.True(t, done)
+	require.NotNil(t, result)
+	require.Equal(t, "repeated_tool_failure", result.StopReason)
+	require.Contains(t, result.Answer, "retry loops")
+	require.Contains(t, result.Answer, "working directory")
+}
+
+func TestRepeatedNonRetryableToolFailureResetsAfterSuccess(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{
+		Logger: agent.NoopLogger{},
+		Clock:  agent.ClockFunc(time.Now),
+	})
+	state := &TaskState{
+		SessionID: "s1",
+		RunID:     "run-1",
+	}
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+
+	toolErr := errors.New(`path must stay within the working directory`)
+	for i := 0; i < repeatedNonRetryableToolFailureThreshold-1; i++ {
+		result, done := runtime.maybeStopAfterRepeatedToolFailures([]ToolResult{{Error: toolErr}})
+		require.False(t, done)
+		require.Nil(t, result)
+	}
+
+	// A successful tool result means the loop made progress; retry counter resets.
+	result, done := runtime.maybeStopAfterRepeatedToolFailures([]ToolResult{{Content: "ok"}})
+	require.False(t, done)
+	require.Nil(t, result)
+
+	for i := 0; i < repeatedNonRetryableToolFailureThreshold-1; i++ {
+		result, done := runtime.maybeStopAfterRepeatedToolFailures([]ToolResult{{Error: toolErr}})
+		require.False(t, done)
+		require.Nil(t, result)
+	}
+}

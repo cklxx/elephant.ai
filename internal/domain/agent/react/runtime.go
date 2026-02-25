@@ -62,6 +62,9 @@ type reactRuntime struct {
 
 	// Config override store for mid-execution config changes via update_config tool.
 	configOverrides *configOverrideStore
+	// Consecutive non-recoverable tool failures used to prevent retry loops.
+	lastNonRetryableToolFailure  string
+	consecutiveNonRetryableFails int
 }
 
 const (
@@ -72,6 +75,7 @@ const (
 )
 
 const replanPrompt = "Tool execution failed. Re-evaluate your approach and call plan() to adjust the strategy before retrying."
+const repeatedNonRetryableToolFailureThreshold = 3
 
 const finalAnswerReviewPrompt = `<final_answer_review>
 Before finalizing, do a quick review pass:
@@ -296,6 +300,9 @@ func (r *reactRuntime) runIteration() (_ *TaskResult, _ bool, err error) {
 
 	iteration.executeTools()
 	iteration.observeTools()
+	if stopResult, stop := r.maybeStopAfterRepeatedToolFailures(iteration.toolResult); stop {
+		return stopResult, true, nil
+	}
 	r.engine.saveCheckpoint(r.ctx, r.state, nil)
 	iteration.finish()
 	if r.pauseRequested {
@@ -951,6 +958,109 @@ func (it *reactIteration) observeTools() {
 
 	it.runtime.updateOrchestratorState(it.plan.calls, it.toolResult)
 	it.runtime.tracker.completeTools(it.plan.iteration, it.plan.nodeID, it.toolResult, nil)
+}
+
+func (r *reactRuntime) maybeStopAfterRepeatedToolFailures(results []ToolResult) (*TaskResult, bool) {
+	if r == nil || len(results) == 0 {
+		return nil, false
+	}
+
+	hasSuccess := false
+	matchedNonRetryable := false
+
+	for i := range results {
+		res := results[i]
+		if res.Error == nil {
+			hasSuccess = true
+			continue
+		}
+
+		failure, ok := classifyNonRetryableToolFailure(res.Error)
+		if !ok {
+			continue
+		}
+		matchedNonRetryable = true
+
+		if failure.signature == r.lastNonRetryableToolFailure {
+			r.consecutiveNonRetryableFails++
+		} else {
+			r.lastNonRetryableToolFailure = failure.signature
+			r.consecutiveNonRetryableFails = 1
+		}
+
+		if r.consecutiveNonRetryableFails >= repeatedNonRetryableToolFailureThreshold {
+			r.engine.logger.Warn(
+				"Stopping after repeated non-recoverable tool failure: signature=%s count=%d",
+				failure.signature,
+				r.consecutiveNonRetryableFails,
+			)
+			return r.finalizeRepeatedToolFailure(failure.hint, res.Error), true
+		}
+	}
+
+	if hasSuccess || !matchedNonRetryable {
+		r.resetNonRetryableToolFailures()
+	}
+
+	return nil, false
+}
+
+func (r *reactRuntime) finalizeRepeatedToolFailure(hint string, lastErr error) *TaskResult {
+	result := r.engine.finalize(r.state, "repeated_tool_failure", r.engine.clock.Now().Sub(r.startTime))
+
+	var summary strings.Builder
+	summary.WriteString("Stopped after repeated non-recoverable tool errors to avoid retry loops.")
+	if trimmed := strings.TrimSpace(hint); trimmed != "" {
+		summary.WriteString("\n")
+		summary.WriteString(trimmed)
+	}
+	if lastErr != nil {
+		summary.WriteString("\nLast error: ")
+		summary.WriteString(strings.TrimSpace(lastErr.Error()))
+	}
+	result.Answer = strings.TrimSpace(summary.String())
+
+	r.resetNonRetryableToolFailures()
+	return r.finalizeResult("repeated_tool_failure", result, true, nil)
+}
+
+func (r *reactRuntime) resetNonRetryableToolFailures() {
+	if r == nil {
+		return
+	}
+	r.lastNonRetryableToolFailure = ""
+	r.consecutiveNonRetryableFails = 0
+}
+
+type nonRetryableToolFailure struct {
+	signature string
+	hint      string
+}
+
+func classifyNonRetryableToolFailure(err error) (nonRetryableToolFailure, bool) {
+	if err == nil {
+		return nonRetryableToolFailure{}, false
+	}
+
+	text := strings.ToLower(strings.TrimSpace(err.Error()))
+	if text == "" {
+		return nonRetryableToolFailure{}, false
+	}
+
+	switch {
+	case strings.Contains(text, "path must stay within the working directory"):
+		return nonRetryableToolFailure{
+			signature: "path_guard",
+			hint:      "Use relative paths or set exec_dir under the current working directory.",
+		}, true
+	case strings.Contains(text, "template \"") && strings.Contains(text, "not found"):
+		return nonRetryableToolFailure{
+			signature: "template_not_found",
+			hint:      "Call run_tasks(template=\"list\") first, then choose one of the listed templates.",
+		}, true
+	default:
+		return nonRetryableToolFailure{}, false
+	}
 }
 
 func (it *reactIteration) finish() {
