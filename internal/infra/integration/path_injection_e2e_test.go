@@ -163,10 +163,11 @@ func (f *injectionLLMFactory) GetIsolatedClient(provider, model string, config p
 func (f *injectionLLMFactory) DisableRetry() {}
 
 type injectionLLMClient struct {
-	mu         sync.Mutex
-	injected   bool
-	targetPath string
-	requests   []injectionRequestMeta
+	mu             sync.Mutex
+	injected       bool
+	sawPreanalysis bool
+	targetPath     string
+	requests       []injectionRequestMeta
 }
 
 func (c *injectionLLMClient) Model() string {
@@ -181,7 +182,10 @@ func (c *injectionLLMClient) Complete(ctx context.Context, req ports.CompletionR
 		LastUser:  extractLastUserMessage(req),
 		Intent:    extractRequestIntent(req.Metadata),
 	})
-	shouldInject := !c.injected && len(req.Tools) > 0 && !strings.EqualFold(extractRequestIntent(req.Metadata), "task_preanalysis")
+	if strings.EqualFold(extractRequestIntent(req.Metadata), "task_preanalysis") {
+		c.sawPreanalysis = true
+	}
+	shouldInject := !c.injected && c.sawPreanalysis && len(req.Tools) > 0
 	if shouldInject {
 		c.injected = true
 	}
@@ -282,6 +286,26 @@ type toolCaptureListener struct {
 }
 
 func (l *toolCaptureListener) OnEvent(event agent.AgentEvent) {
+	if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
+		if env.Event != types.EventToolCompleted {
+			return
+		}
+		toolName, _ := env.Payload["tool_name"].(string)
+		if !strings.EqualFold(strings.TrimSpace(toolName), "read_file") {
+			return
+		}
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		l.readFileCalls++
+		if result, ok := env.Payload["result"].(string); ok && strings.TrimSpace(result) != "" {
+			l.readFileContent = result
+		}
+		if errText, ok := env.Payload["error"].(string); ok && strings.TrimSpace(errText) != "" {
+			l.readFileError = errText
+		}
+		return
+	}
+
 	e, ok := event.(*domain.Event)
 	if !ok {
 		return
