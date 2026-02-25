@@ -107,9 +107,9 @@ func buildCompletionDefaults(cfg CompletionDefaults) completionConfig {
 		maxTokens = *cfg.MaxTokens
 	}
 
-	// Default context token limit: 8x the output budget.
-	// For maxTokens=12000, this is 96000 — safe for 128K+ models.
-	contextTokenLimit := maxTokens * 8
+	// Default context token limit is auto-derived from model context window.
+	// Keep 0 here to signal automatic budgeting in solve.go.
+	contextTokenLimit := 0
 	if cfg.ContextTokenLimit != nil && *cfg.ContextTokenLimit > 0 {
 		contextTokenLimit = *cfg.ContextTokenLimit
 	}

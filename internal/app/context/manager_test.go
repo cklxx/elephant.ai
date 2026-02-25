@@ -252,10 +252,13 @@ func TestDeriveHistoryAwareMetaBuildsTimelineFromSessionHistory(t *testing.T) {
 	if timeline == nil {
 		t.Fatalf("expected recent session timeline memory to be recorded, got %+v", meta.Memories)
 	}
-	for _, expected := range []string{"01. system", "02. user", "03. tool[logs-1]", "05. user", "07. assistant"} {
+	for _, expected := range []string{"01. user", "02. tool[logs-1]", "04. user", "06. assistant"} {
 		if !strings.Contains(timeline.Content, expected) {
 			t.Fatalf("expected timeline to include %q, got %q", expected, timeline.Content)
 		}
+	}
+	if strings.Contains(timeline.Content, "system:") {
+		t.Fatalf("expected timeline to skip system-role records, got %q", timeline.Content)
 	}
 
 	var hasUser, hasAssistant, hasTool bool
@@ -272,6 +275,58 @@ func TestDeriveHistoryAwareMetaBuildsTimelineFromSessionHistory(t *testing.T) {
 	}
 	if !hasUser || !hasAssistant || !hasTool {
 		t.Fatalf("expected meta recommendations to include user/assistant/tool snippets, got %#v", meta.Recommendations)
+	}
+}
+
+func TestDeriveHistoryAwareMetaSkipsCompressionSummaries(t *testing.T) {
+	messages := []ports.Message{
+		{Role: "system", Content: "Static context", Source: ports.MessageSourceSystemPrompt},
+		{Role: "assistant", Content: "真实回复：已确认根因并修复。", Source: ports.MessageSourceAssistantReply},
+		{Role: "assistant", Content: "[Earlier context compressed] one.", Source: ports.MessageSourceUserHistory},
+		{Role: "assistant", Content: "[Context trimmed to fit model window. Earlier conversation was removed.]", Source: ports.MessageSourceUserHistory},
+		{Role: "user", Content: "请继续执行", Source: ports.MessageSourceUserInput},
+	}
+
+	meta := deriveHistoryAwareMeta(messages, "persona-v1")
+
+	var timeline string
+	for _, memory := range meta.Memories {
+		if memory.Key == "recent_session_timeline" {
+			timeline = memory.Content
+			break
+		}
+	}
+	if timeline == "" {
+		t.Fatalf("expected timeline memory to be recorded, got %+v", meta.Memories)
+	}
+	if strings.Contains(timeline, "[Earlier context compressed]") || strings.Contains(timeline, "[Context trimmed to fit model window.") {
+		t.Fatalf("expected timeline to skip compression summaries, got %q", timeline)
+	}
+
+	hints := strings.Join(meta.Recommendations, "\n")
+	if strings.Contains(hints, "[Earlier context compressed]") || strings.Contains(hints, "[Context trimmed to fit model window.") {
+		t.Fatalf("expected recommendations to skip compression summaries, got %q", hints)
+	}
+	if !strings.Contains(hints, "Previous assistant response: 真实回复") {
+		t.Fatalf("expected assistant recommendation to keep real reply, got %q", hints)
+	}
+}
+
+func TestBuildHistoryTimelineSkipsCompressionSummariesWithoutIndexGaps(t *testing.T) {
+	timeline := buildHistoryTimeline([]ports.Message{
+		{Role: "assistant", Content: "[Earlier context compressed] one.", Source: ports.MessageSourceUserHistory},
+		{Role: "user", Content: "first visible", Source: ports.MessageSourceUserInput},
+		{Role: "assistant", Content: "second visible", Source: ports.MessageSourceAssistantReply},
+	}, 8)
+
+	if len(timeline) != 2 {
+		t.Fatalf("expected 2 visible timeline lines after filtering summaries, got %d (%v)", len(timeline), timeline)
+	}
+	if !strings.HasPrefix(timeline[0], "01. user: ") {
+		t.Fatalf("expected first line to be 01 user, got %q", timeline[0])
+	}
+	if !strings.HasPrefix(timeline[1], "02. assistant: ") {
+		t.Fatalf("expected second line to be 02 assistant, got %q", timeline[1])
 	}
 }
 
@@ -488,11 +543,11 @@ func TestCompressInjectsStructuredSummary(t *testing.T) {
 		t.Fatalf("expected 2 messages (system prompt + summary), got %d", len(compressed))
 	}
 	summary := compressed[1]
-	if summary.Source != ports.MessageSourceSystemPrompt {
-		t.Fatalf("expected summary to be marked as system prompt, got %v", summary.Source)
+	if summary.Source != ports.MessageSourceUserHistory {
+		t.Fatalf("expected summary to be marked as user history, got %v", summary.Source)
 	}
-	if summary.Role != "system" {
-		t.Fatalf("expected summary role system, got %s", summary.Role)
+	if summary.Role != "assistant" {
+		t.Fatalf("expected summary role assistant, got %s", summary.Role)
 	}
 	if !strings.Contains(summary.Content, "Earlier conversation had") {
 		t.Fatalf("expected structured summary content, got %q", summary.Content)
@@ -521,8 +576,8 @@ func TestAutoCompactTriggersCompression(t *testing.T) {
 		t.Fatalf("system prompt should be preserved")
 	}
 	summary := compacted[1]
-	if summary.Source != ports.MessageSourceSystemPrompt || summary.Role != "system" {
-		t.Fatalf("summary should be injected as a system prompt, got %+v", summary)
+	if summary.Source != ports.MessageSourceUserHistory || summary.Role != "assistant" {
+		t.Fatalf("summary should be injected as a user history assistant message, got %+v", summary)
 	}
 	if !strings.Contains(summary.Content, "Earlier conversation had 1 user message(s)") {
 		t.Fatalf("unexpected summary content: %q", summary.Content)
@@ -576,8 +631,8 @@ func TestCompressPreservesAllSystemPrompts(t *testing.T) {
 	}
 
 	summary := compressed[1]
-	if summary.Source != ports.MessageSourceSystemPrompt || summary.Role != "system" {
-		t.Fatalf("summary should be a system prompt, got %+v", summary)
+	if summary.Source != ports.MessageSourceUserHistory || summary.Role != "assistant" {
+		t.Fatalf("summary should be a user history assistant message, got %+v", summary)
 	}
 	if !strings.Contains(summary.Content, "Earlier conversation had 1 user message(s) and 1 assistant response(s)") {
 		t.Fatalf("unexpected summary content: %q", summary.Content)

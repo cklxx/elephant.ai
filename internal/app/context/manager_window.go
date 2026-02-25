@@ -236,22 +236,26 @@ func convertRecordToJournal(record agent.ContextTurnRecord) journal.TurnJournalE
 
 const historyTimelineLimit = 8
 
+const (
+	historyCompressionSummaryPrefix = "[Earlier context compressed]"
+	historyTrimNoticeSummaryPrefix  = "[Context trimmed to fit model window."
+)
+
 func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) agent.MetaContext {
 	meta := agent.MetaContext{PersonaVersion: personaVersion}
 	if len(messages) == 0 {
 		return meta
 	}
 
-	var firstSystemSnippet string
 	var lastUserSnippet string
 	var lastAssistantSnippet string
 	var lastToolSnippet string
 
 	for _, msg := range messages {
-		role := strings.ToLower(strings.TrimSpace(msg.Role))
-		if firstSystemSnippet == "" && (msg.Source == ports.MessageSourceSystemPrompt || role == "system") {
-			firstSystemSnippet = buildCompressionSnippet(msg.Content, 320)
+		if isContextCompressionSummary(msg) {
+			continue
 		}
+		role := strings.ToLower(strings.TrimSpace(msg.Role))
 		switch role {
 		case "user":
 			if snippet := buildCompressionSnippet(msg.Content, 200); snippet != "" {
@@ -298,16 +302,39 @@ func buildHistoryTimeline(messages []ports.Message, limit int) []string {
 		start = 0
 	}
 	timeline := make([]string, 0, len(messages)-start)
+	lineNo := 1
 	for idx := start; idx < len(messages); idx++ {
 		msg := messages[idx]
+		if shouldSkipHistoryTimelineMessage(msg) {
+			continue
+		}
 		snippet := buildCompressionSnippet(msg.Content, 160)
 		if snippet == "" {
 			snippet = "(no visible content)"
 		}
 		label := normalizeHistoryLabel(msg)
-		timeline = append(timeline, fmt.Sprintf("%02d. %s: %s", idx-start+1, label, snippet))
+		timeline = append(timeline, fmt.Sprintf("%02d. %s: %s", lineNo, label, snippet))
+		lineNo++
 	}
 	return timeline
+}
+
+func isContextCompressionSummary(msg ports.Message) bool {
+	content := strings.TrimSpace(msg.Content)
+	return strings.HasPrefix(content, historyCompressionSummaryPrefix) ||
+		strings.HasPrefix(content, historyTrimNoticeSummaryPrefix)
+}
+
+func shouldSkipHistoryTimelineMessage(msg ports.Message) bool {
+	if isContextCompressionSummary(msg) {
+		return true
+	}
+	switch msg.Source {
+	case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceCheckpoint:
+		return true
+	}
+	role := strings.ToLower(strings.TrimSpace(msg.Role))
+	return role == "system" || role == "developer"
 }
 
 func normalizeHistoryLabel(msg ports.Message) string {

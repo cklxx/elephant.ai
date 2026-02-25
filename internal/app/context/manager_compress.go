@@ -159,9 +159,9 @@ func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.
 
 	if summary := buildCompressionSummary(compressible); summary != "" {
 		compressed = append(compressed, ports.Message{
-			Role:    "system",
+			Role:    "assistant",
 			Content: summary,
-			Source:  ports.MessageSourceSystemPrompt,
+			Source:  ports.MessageSourceUserHistory,
 		})
 		if summaryInsertionIndex >= 0 && summaryInsertionIndex < len(compressed)-1 {
 			insert := compressed[len(compressed)-1]
@@ -300,9 +300,9 @@ func AggressiveTrim(messages []ports.Message, maxTurns int) []ports.Message {
 		summary := buildCompressionSummary(conversation[:len(conversation)-len(kept)])
 		if summary != "" {
 			result = append(result, ports.Message{
-				Role:    "system",
+				Role:    "assistant",
 				Content: summary,
-				Source:  ports.MessageSourceSystemPrompt,
+				Source:  ports.MessageSourceUserHistory,
 			})
 		}
 		result = append(result, kept...)
@@ -327,7 +327,12 @@ func keepRecentTurns(messages []ports.Message, maxTurns int) []ports.Message {
 	}
 
 	if len(turnStarts) == 0 {
-		return messages // no user messages — keep everything
+		// No user messages: degrade to keeping only the most recent maxTurns
+		// entries so fallback paths still reduce context size.
+		if len(messages) <= maxTurns {
+			return messages
+		}
+		return messages[len(messages)-maxTurns:]
 	}
 
 	// Keep the last maxTurns.

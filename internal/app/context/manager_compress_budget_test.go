@@ -165,9 +165,12 @@ func TestKeepRecentTurns_NoUserMessages(t *testing.T) {
 		{Role: "tool", Content: "R1"},
 	}
 	result := keepRecentTurns(messages, 1)
-	// No user messages → keep everything.
-	if len(result) != 2 {
-		t.Errorf("expected all 2 messages when no user messages, got %d", len(result))
+	// No user messages → keep only the most recent entry.
+	if len(result) != 1 {
+		t.Errorf("expected 1 message when no user messages, got %d", len(result))
+	}
+	if len(result) == 1 && result[0].Content != "R1" {
+		t.Errorf("expected to keep latest message R1, got %q", result[0].Content)
 	}
 }
 

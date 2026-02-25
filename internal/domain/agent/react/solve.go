@@ -42,11 +42,12 @@ func (e *ReactEngine) think(
 
 	tools := services.ToolExecutor.List()
 	requestID := e.idGenerator.NewRequestIDWithLogID(e.idContextReader.LogIDFromContext(ctx))
+	normalizeContextMessages(state)
 	filteredMessages, excluded := splitMessagesForLLM(state.Messages)
 
 	// Pre-flight context budget enforcement: estimate full token count and
 	// trim messages before sending to prevent context_length_exceeded errors.
-	if services.Context != nil && e.completion.contextTokenLimit > 0 {
+	if services.Context != nil {
 		filteredMessages = e.enforceContextBudget(filteredMessages, state, services)
 	}
 
@@ -246,7 +247,10 @@ func (e *ReactEngine) enforceContextBudget(
 	state *TaskState,
 	services Services,
 ) []ports.Message {
-	limit := e.completion.contextTokenLimit
+	limit := e.resolveContextTokenLimit(services)
+	if limit <= 0 {
+		return messages
+	}
 	estimated := services.Context.EstimateTokens(messages)
 	if estimated <= limit {
 		return messages
@@ -314,9 +318,9 @@ func aggressiveTrimMessages(messages []ports.Message, maxTurns int) []ports.Mess
 	result = append(result, preserved...)
 	if len(kept) > 0 && len(conversation) > len(kept) {
 		result = append(result, ports.Message{
-			Role:    "system",
+			Role:    "assistant",
 			Content: "[Context trimmed to fit model window. Earlier conversation was removed.]",
-			Source:  ports.MessageSourceSystemPrompt,
+			Source:  ports.MessageSourceUserHistory,
 		})
 	}
 	result = append(result, kept...)
@@ -335,7 +339,10 @@ func keepRecentTurnsLocal(messages []ports.Message, maxTurns int) []ports.Messag
 		}
 	}
 	if len(turnStarts) == 0 {
-		return messages
+		if len(messages) <= maxTurns {
+			return messages
+		}
+		return messages[len(messages)-maxTurns:]
 	}
 	start := 0
 	if len(turnStarts) > maxTurns {

@@ -12,6 +12,7 @@ import (
 func (e *ReactEngine) prepareUserTaskContext(ctx context.Context, task string, state *TaskState) {
 	ensureAttachmentStore(state)
 	offloadMessageThinking(state)
+	normalizeContextMessages(state)
 
 	attachmentsChanged := false
 	for idx := range state.Messages {
