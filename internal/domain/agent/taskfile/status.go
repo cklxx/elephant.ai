@@ -26,6 +26,7 @@ type TaskStatus struct {
 	AgentType   string `yaml:"agent_type,omitempty"`
 	Error       string `yaml:"error,omitempty"`
 	Elapsed     string `yaml:"elapsed,omitempty"`
+	Stale       bool   `yaml:"stale,omitempty"`
 }
 
 // StatusWriter manages atomic writes of task status to a YAML sidecar file
@@ -137,9 +138,10 @@ func (sw *StatusWriter) syncFromDispatcher(dispatcher agent.BackgroundTaskDispat
 			continue
 		}
 		newStatus := string(s.Status)
-		if ts.Status != newStatus || ts.Error != s.Error {
+		if ts.Status != newStatus || ts.Error != s.Error || ts.Stale != s.Stale {
 			ts.Status = newStatus
 			ts.Error = s.Error
+			ts.Stale = s.Stale
 			if s.Elapsed > 0 {
 				ts.Elapsed = s.Elapsed.Round(time.Second).String()
 			}

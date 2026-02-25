@@ -1157,3 +1157,98 @@ func TestRunTaskPanicRecoveryWithCompletionNotifier(t *testing.T) {
 		t.Errorf("expected panic in error text, got %q", n.errText)
 	}
 }
+
+// controllableClock allows tests to control time.
+type controllableClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func newControllableClock(start time.Time) *controllableClock {
+	return &controllableClock{now: start}
+}
+
+func (c *controllableClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *controllableClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
+func TestProgressStalenessDetection(t *testing.T) {
+	hold := make(chan struct{})
+	executor := func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+		select {
+		case <-hold:
+			return &agent.TaskResult{Answer: "ok"}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
+	clock := newControllableClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	mgr := NewBackgroundTaskManager(BackgroundManagerConfig{
+		RunContext:     context.Background(),
+		Logger:         agent.NoopLogger{},
+		Clock:          clock,
+		ExecuteTask:    executor,
+		SessionID:      "test-session",
+		StaleThreshold: 10 * time.Minute,
+	})
+	defer mgr.Shutdown()
+
+	if err := dispatchTask(mgr, "stale-1", "stale test", "prompt", "internal", ""); err != nil {
+		t.Fatalf("dispatch failed: %v", err)
+	}
+	// Let goroutine start.
+	time.Sleep(50 * time.Millisecond)
+
+	// Initially not stale.
+	summaries := mgr.Status([]string{"stale-1"})
+	if len(summaries) != 1 {
+		t.Fatalf("expected 1 summary, got %d", len(summaries))
+	}
+	if summaries[0].Stale {
+		t.Fatal("task should not be stale immediately")
+	}
+	if summaries[0].LastActivityAt.IsZero() {
+		t.Fatal("expected LastActivityAt to be set")
+	}
+
+	// Advance past stale threshold.
+	clock.Advance(11 * time.Minute)
+
+	summaries = mgr.Status([]string{"stale-1"})
+	if !summaries[0].Stale {
+		t.Fatal("task should be stale after 11 minutes without activity")
+	}
+
+	// Simulate progress to refresh activity.
+	mgr.mu.RLock()
+	bt := mgr.tasks["stale-1"]
+	mgr.mu.RUnlock()
+	mgr.captureProgress(context.Background(), bt, agent.ExternalAgentProgress{
+		CurrentTool: "Bash",
+	})
+
+	summaries = mgr.Status([]string{"stale-1"})
+	if summaries[0].Stale {
+		t.Fatal("task should not be stale after progress update")
+	}
+
+	// Let task complete.
+	close(hold)
+	mgr.AwaitAll(2 * time.Second)
+
+	// Completed task should never be stale.
+	summaries = mgr.Status([]string{"stale-1"})
+	if summaries[0].Stale {
+		t.Fatal("completed task should not be stale")
+	}
+}

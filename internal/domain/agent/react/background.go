@@ -41,6 +41,7 @@ type backgroundTask struct {
 	progress         *agent.ExternalAgentProgress
 	pendingInput     *agent.InputRequestSummary
 	lastProgressEmit time.Time
+	lastActivityAt   time.Time
 	dependsOn        []string
 	inheritContext   bool
 	workspace        *agent.WorkspaceAllocation
@@ -81,7 +82,10 @@ type BackgroundTaskManager struct {
 	sessionID          string
 	parentListener     agent.EventListener
 	maxConcurrentTasks int
+	staleThreshold     time.Duration
 }
+
+const defaultStaleThreshold = 15 * time.Minute
 
 // BackgroundManagerConfig configures a shared background task manager.
 type BackgroundManagerConfig struct {
@@ -97,6 +101,7 @@ type BackgroundManagerConfig struct {
 	ExternalExecutor    agent.ExternalAgentExecutor
 	SessionID           string
 	MaxConcurrentTasks  int
+	StaleThreshold      time.Duration
 }
 
 // newBackgroundTaskManager creates a new manager bound to the current run context.
@@ -208,6 +213,7 @@ func newBackgroundTaskManagerWithDeps(
 		sessionID:          sessionID,
 		parentListener:     parentListener,
 		maxConcurrentTasks: maxConcurrentTasks,
+		staleThreshold:     defaultStaleThreshold,
 	}
 
 	if inputExecutor != nil && externalInputCh != nil {
@@ -221,7 +227,7 @@ func newBackgroundTaskManagerWithDeps(
 
 // NewBackgroundTaskManager creates a background task manager intended for reuse (e.g., per session).
 func NewBackgroundTaskManager(cfg BackgroundManagerConfig) *BackgroundTaskManager {
-	return newBackgroundTaskManagerWithDeps(
+	mgr := newBackgroundTaskManagerWithDeps(
 		cfg.RunContext,
 		cfg.Logger,
 		cfg.Clock,
@@ -238,6 +244,10 @@ func NewBackgroundTaskManager(cfg BackgroundManagerConfig) *BackgroundTaskManage
 		nil,
 		cfg.MaxConcurrentTasks,
 	)
+	if cfg.StaleThreshold > 0 {
+		mgr.staleThreshold = cfg.StaleThreshold
+	}
+	return mgr
 }
 
 // Dispatch starts a background task. Returns an error if the task ID is already in use.
@@ -418,6 +428,7 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 	if bt.status != agent.BackgroundTaskStatusBlocked {
 		bt.status = agent.BackgroundTaskStatusRunning
 	}
+	bt.lastActivityAt = m.clock.Now()
 	bt.mu.Unlock()
 
 	if len(bt.dependsOn) > 0 {
@@ -432,6 +443,7 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 		}
 		bt.mu.Lock()
 		bt.status = agent.BackgroundTaskStatusRunning
+		bt.lastActivityAt = m.clock.Now()
 		bt.mu.Unlock()
 	}
 
@@ -628,15 +640,19 @@ func (m *BackgroundTaskManager) Status(ids []string) []agent.BackgroundTaskSumma
 			}
 		}
 		s := agent.BackgroundTaskSummary{
-			ID:            bt.id,
-			Description:   bt.description,
-			Status:        bt.status,
-			AgentType:     bt.agentType,
-			ExecutionMode: bt.executionMode,
-			AutonomyLevel: bt.autonomyLevel,
-			StartedAt:     bt.startedAt,
-			CompletedAt:   bt.completedAt,
-			Elapsed:       elapsed,
+			ID:             bt.id,
+			Description:    bt.description,
+			Status:         bt.status,
+			AgentType:      bt.agentType,
+			ExecutionMode:  bt.executionMode,
+			AutonomyLevel:  bt.autonomyLevel,
+			StartedAt:      bt.startedAt,
+			CompletedAt:    bt.completedAt,
+			Elapsed:        elapsed,
+			LastActivityAt: bt.lastActivityAt,
+		}
+		if bt.status == agent.BackgroundTaskStatusRunning && isStale(now, bt.lastActivityAt, m.staleThreshold) {
+			s.Stale = true
 		}
 		if bt.err != nil {
 			s.Error = bt.err.Error()
@@ -864,6 +880,7 @@ func (m *BackgroundTaskManager) captureProgress(ctx context.Context, bt *backgro
 	shouldEmit := false
 	bt.mu.Lock()
 	bt.progress = &p
+	bt.lastActivityAt = now
 	if bt.emitEvent != nil && bt.baseEvent != nil {
 		if bt.lastProgressEmit.IsZero() || now.Sub(bt.lastProgressEmit) >= 2*time.Second {
 			bt.lastProgressEmit = now
@@ -907,6 +924,9 @@ func (m *BackgroundTaskManager) runHeartbeat(ctx context.Context, bt *background
 		select {
 		case <-ticker.C:
 			now := m.clock.Now()
+			bt.mu.Lock()
+			bt.lastActivityAt = now
+			bt.mu.Unlock()
 			elapsed := time.Duration(0)
 			if !startedAt.IsZero() {
 				elapsed = now.Sub(startedAt)
@@ -1174,6 +1194,14 @@ func parseMergeStrategy(raw string) agent.MergeStrategy {
 	default:
 		return agent.MergeStrategyAuto
 	}
+}
+
+// isStale reports whether a running task has not shown activity within the threshold.
+func isStale(now, lastActivity time.Time, threshold time.Duration) bool {
+	if lastActivity.IsZero() || threshold <= 0 {
+		return false
+	}
+	return now.Sub(lastActivity) > threshold
 }
 
 // resolveTargets returns the tasks matching ids, or all tasks when ids is empty.
