@@ -12,6 +12,12 @@ import (
 	"alex/internal/shared/utils"
 )
 
+const (
+	maxActivatedSkillBodyChars = 2200
+	maxAvailableSkillsEntries  = 24
+	maxSkillDescriptionChars   = 120
+)
+
 func buildToolingSection(hints []string) string {
 	lines := []string{
 		"Tools are policy-governed; available set varies by channel/session.",
@@ -149,6 +155,7 @@ func buildSkillsSection(logger logging.Logger, taskInput string, messages []port
 					body = resolved
 				}
 			}
+			body = truncateSkillPromptText(body, maxActivatedSkillBodyChars)
 			if utils.IsBlank(body) {
 				continue
 			}
@@ -158,7 +165,7 @@ func buildSkillsSection(logger logging.Logger, taskInput string, messages []port
 		}
 	}
 
-	metadata := strings.TrimSpace(skills.AvailableSkillsXML(library))
+	metadata := strings.TrimSpace(renderCompactAvailableSkillsXML(library, maxAvailableSkillsEntries))
 	recentlyUsedSkills := hasRecentToolUsage(messages, "skills", 12)
 	if metadata != "" && !recentlyUsedSkills {
 		if sb.Len() > 0 {
@@ -243,4 +250,82 @@ func extractToolNameFromMetadata(metadata map[string]any) string {
 		}
 	}
 	return ""
+}
+
+func truncateSkillPromptText(content string, maxChars int) string {
+	trimmed := truncateSkillInlineText(content, maxChars)
+	if trimmed == "" {
+		return ""
+	}
+	if trimmed == strings.TrimSpace(content) {
+		return trimmed
+	}
+	return trimmed + "\n\n[Skill instructions truncated for prompt budget. Use skills(action=show,name=...) for full workflow.]"
+}
+
+func renderCompactAvailableSkillsXML(library skills.Library, maxEntries int) string {
+	skillList := library.List()
+	if len(skillList) == 0 {
+		return ""
+	}
+	if maxEntries <= 0 || maxEntries > len(skillList) {
+		maxEntries = len(skillList)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<available_skills>\n")
+	for _, skill := range skillList[:maxEntries] {
+		desc := truncateSkillInlineText(skill.Description, maxSkillDescriptionChars)
+		if desc == "" {
+			desc = "(no description)"
+		}
+		sb.WriteString("  <skill>\n")
+		sb.WriteString(fmt.Sprintf("    <name>%s</name>\n", escapeSkillXML(skill.Name)))
+		sb.WriteString(fmt.Sprintf("    <description>%s</description>\n", escapeSkillXML(desc)))
+		if level := strings.TrimSpace(skill.GovernanceLevel); level != "" {
+			sb.WriteString(fmt.Sprintf("    <governance_level>%s</governance_level>\n", escapeSkillXML(level)))
+		}
+		if mode := strings.TrimSpace(skill.ActivationMode); mode != "" {
+			sb.WriteString(fmt.Sprintf("    <activation_mode>%s</activation_mode>\n", escapeSkillXML(mode)))
+		}
+		sb.WriteString("  </skill>\n")
+	}
+	if len(skillList) > maxEntries {
+		sb.WriteString(fmt.Sprintf("  <truncated>Showing first %d of %d skills. Use skills(action=list|search|show) for full catalog.</truncated>\n", maxEntries, len(skillList)))
+	}
+	sb.WriteString("</available_skills>")
+	return strings.TrimSpace(sb.String())
+}
+
+func truncateSkillInlineText(content string, maxChars int) string {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" || maxChars <= 0 {
+		return trimmed
+	}
+	runes := []rune(trimmed)
+	if len(runes) <= maxChars {
+		return trimmed
+	}
+	return strings.TrimSpace(string(runes[:maxChars])) + "…"
+}
+
+func escapeSkillXML(value string) string {
+	var builder strings.Builder
+	for _, r := range value {
+		switch r {
+		case '&':
+			builder.WriteString("&amp;")
+		case '<':
+			builder.WriteString("&lt;")
+		case '>':
+			builder.WriteString("&gt;")
+		case '"':
+			builder.WriteString("&quot;")
+		case '\'':
+			builder.WriteString("&apos;")
+		default:
+			builder.WriteRune(r)
+		}
+	}
+	return builder.String()
 }

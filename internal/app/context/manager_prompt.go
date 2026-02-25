@@ -33,15 +33,16 @@ type systemPromptInput struct {
 }
 
 const (
-	promptModeFull    = "full"
-	promptModeMinimal = "minimal"
-	promptModeNone    = "none"
+	promptModeFull               = "full"
+	promptModeMinimal            = "minimal"
+	promptModeNone               = "none"
+	maxComposedSystemPromptChars = 32000
 )
 
 func composeSystemPrompt(input systemPromptInput) string {
 	mode := normalizePromptMode(input.PromptMode)
 	if mode == promptModeNone {
-		return buildIdentityLine(input.Static.Persona)
+		return clampSystemPromptSize(buildIdentityLine(input.Static.Persona))
 	}
 
 	fullSections := []string{
@@ -110,7 +111,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 			compact = append(compact, trimmed)
 		}
 	}
-	return strings.Join(compact, "\n\n")
+	return clampSystemPromptSize(strings.Join(compact, "\n\n"))
 }
 
 func normalizePromptMode(mode string) string {
@@ -197,6 +198,19 @@ func fallbackString(value string, fallback string) string {
 		return fallback
 	}
 	return trimmed
+}
+
+func clampSystemPromptSize(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	if trimmed == "" || maxComposedSystemPromptChars <= 0 {
+		return trimmed
+	}
+	runes := []rune(trimmed)
+	if len(runes) <= maxComposedSystemPromptChars {
+		return trimmed
+	}
+	clipped := strings.TrimSpace(string(runes[:maxComposedSystemPromptChars]))
+	return clipped + "\n\n[System prompt truncated for model context safety. Use tools (skills/memory/read_file) for detailed lookup.]"
 }
 
 func formatPlanTree(nodes []agent.PlanNode, depth int) []string {

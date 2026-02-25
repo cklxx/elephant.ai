@@ -550,6 +550,27 @@ func TestComposeSystemPromptIncludesMetaLayer(t *testing.T) {
 	}
 }
 
+func TestComposeSystemPromptClampsOversizedPrompt(t *testing.T) {
+	longVoice := strings.Repeat("voice ", maxComposedSystemPromptChars)
+	prompt := composeSystemPrompt(systemPromptInput{
+		Static: agent.StaticContext{
+			Persona: agent.PersonaProfile{
+				ID:    "default",
+				Voice: longVoice,
+			},
+			Tools: []string{"mode=cli"},
+		},
+		PromptMode: "full",
+	})
+
+	if !strings.Contains(prompt, "[System prompt truncated for model context safety.") {
+		t.Fatalf("expected oversized prompt to include truncation marker, got len=%d", len([]rune(prompt)))
+	}
+	if len([]rune(prompt)) > maxComposedSystemPromptChars+200 {
+		t.Fatalf("expected truncated prompt length to stay bounded, got len=%d", len([]rune(prompt)))
+	}
+}
+
 func TestCompressInjectsStructuredSummary(t *testing.T) {
 	mgr := &manager{}
 	messages := []ports.Message{{

@@ -1,6 +1,7 @@
 package context
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -180,6 +181,39 @@ func TestBuildSkillsSection_SuppressesDiscoveryAfterRecentSkillsUse(t *testing.T
 	}
 	if strings.Contains(out, "# Available Skills") {
 		t.Fatalf("did not expect available skills catalog after recent skills usage, got %q", out)
+	}
+}
+
+func TestBuildSkillsSection_UsesCompactAvailableSkillsXML(t *testing.T) {
+	dir := t.TempDir()
+	for i := 0; i < 30; i++ {
+		name := fmt.Sprintf("skill-%02d", i)
+		writeSkillFile(t, dir, name, strings.Repeat("description ", 20), "", "# Skill\n\nBody.\n")
+	}
+
+	t.Setenv("ALEX_SKILLS_DIR", dir)
+	skills.InvalidateCache()
+
+	cfg := agent.SkillsConfig{
+		AutoActivation: agent.SkillAutoActivationConfig{
+			Enabled:             true,
+			MaxActivated:        3,
+			TokenBudget:         10_000,
+			ConfidenceThreshold: 0.5,
+			CacheTTLSeconds:     0,
+			FallbackToIndex:     true,
+		},
+	}
+
+	out := buildSkillsSection(logging.Nop(), "no match here", nil, "session-compact", cfg)
+	if !strings.Contains(out, "<available_skills>") {
+		t.Fatalf("expected compact available skills metadata, got %q", out)
+	}
+	if !strings.Contains(out, "<truncated>Showing first") {
+		t.Fatalf("expected compact metadata truncation marker, got %q", out)
+	}
+	if strings.Contains(out, "<location>") || strings.Contains(out, "<exec>") {
+		t.Fatalf("did not expect heavy skill metadata fields in compact catalog, got %q", out)
 	}
 }
 

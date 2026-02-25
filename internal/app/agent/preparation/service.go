@@ -201,12 +201,13 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		} else {
 			originalCount := len(session.Messages)
 			windowStarted := time.Now()
+			unattended := appcontext.IsUnattendedContext(ctx)
 			var okrContext string
 			if s.okrContextProvider != nil {
 				okrContext = s.okrContextProvider()
 			}
 			var kernelContext string
-			if s.kernelContextProvider != nil {
+			if unattended && s.kernelContextProvider != nil {
 				kernelContext = s.kernelContextProvider()
 			}
 			var err error
@@ -225,7 +226,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 				Skills:                 buildSkillsConfig(s.config.Proactive.Skills),
 				OKRContext:             okrContext,
 				KernelAlignmentContext: kernelContext,
-				Unattended:             appcontext.IsUnattendedContext(ctx),
+				Unattended:             unattended,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("build context window: %w", err)

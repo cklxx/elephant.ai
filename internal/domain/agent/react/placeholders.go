@@ -48,6 +48,11 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 		} else {
 			state.Messages[0] = existing
 		}
+		before := len(state.Messages)
+		state.Messages = compactSystemPromptMessages(state.Messages)
+		if removed := before - len(state.Messages); removed > 0 {
+			e.logger.Debug("Removed %d stale system prompt messages from history", removed)
+		}
 		return
 	}
 
@@ -60,6 +65,54 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 	// Use slices.Insert for efficient prepend
 	state.Messages = slices.Insert(state.Messages, 0, systemMessage)
 	e.logger.Debug("Inserted system prompt into message history")
+
+	before := len(state.Messages)
+	state.Messages = compactSystemPromptMessages(state.Messages)
+	if removed := before - len(state.Messages); removed > 0 {
+		e.logger.Debug("Removed %d stale system prompt messages from history", removed)
+	}
+}
+
+func compactSystemPromptMessages(messages []Message) []Message {
+	if len(messages) == 0 {
+		return messages
+	}
+
+	compacted := make([]Message, 0, len(messages))
+	primaryKept := false
+	for _, msg := range messages {
+		if !primaryKept && isPrimarySystemPromptMessage(msg) {
+			compacted = append(compacted, msg)
+			primaryKept = true
+			continue
+		}
+		if shouldDropStaleSystemPromptMessage(msg) {
+			continue
+		}
+		compacted = append(compacted, msg)
+	}
+	return compacted
+}
+
+func isPrimarySystemPromptMessage(msg Message) bool {
+	role := strings.ToLower(strings.TrimSpace(msg.Role))
+	if role != "system" {
+		return false
+	}
+	if msg.Source != ports.MessageSourceSystemPrompt {
+		return false
+	}
+	return strings.TrimSpace(msg.Content) != ""
+}
+
+func shouldDropStaleSystemPromptMessage(msg Message) bool {
+	if msg.Source == ports.MessageSourceSystemPrompt {
+		return true
+	}
+	if strings.ToLower(strings.TrimSpace(msg.Role)) != "system" {
+		return false
+	}
+	return strings.TrimSpace(string(msg.Source)) == ""
 }
 
 func (e *ReactEngine) applyToolAttachmentMutations(

@@ -303,10 +303,18 @@ func aggressiveTrimMessages(messages []ports.Message, maxTurns int) []ports.Mess
 	}
 
 	var preserved, conversation []ports.Message
+	systemPromptKept := false
 	for _, msg := range messages {
-		switch msg.Source {
-		case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceCheckpoint:
+		switch {
+		case msg.Source == ports.MessageSourceImportant, msg.Source == ports.MessageSourceCheckpoint:
 			preserved = append(preserved, msg)
+		case msg.Source == ports.MessageSourceSystemPrompt:
+			if !systemPromptKept && isPrimarySystemPromptForTrim(msg) {
+				preserved = append(preserved, msg)
+				systemPromptKept = true
+				continue
+			}
+			conversation = append(conversation, msg)
 		default:
 			conversation = append(conversation, msg)
 		}
@@ -325,6 +333,11 @@ func aggressiveTrimMessages(messages []ports.Message, maxTurns int) []ports.Mess
 	}
 	result = append(result, kept...)
 	return result
+}
+
+func isPrimarySystemPromptForTrim(msg ports.Message) bool {
+	role := strings.ToLower(strings.TrimSpace(msg.Role))
+	return role == "system" && strings.TrimSpace(msg.Content) != ""
 }
 
 // keepRecentTurnsLocal mirrors context.keepRecentTurns for use within react.

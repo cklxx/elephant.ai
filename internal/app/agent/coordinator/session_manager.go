@@ -8,12 +8,12 @@ import (
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
-	utils "alex/internal/shared/utils"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	materialports "alex/internal/domain/materials/ports"
 	"alex/internal/shared/async"
+	utils "alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -317,6 +317,7 @@ func sanitizeMessagesForPersistence(messages []ports.Message) ([]ports.Message, 
 		}
 		sanitized = append(sanitized, cloned)
 	}
+	sanitized = compactPersistedSystemPrompts(sanitized)
 
 	if len(sanitized) == 0 {
 		return nil, nil
@@ -326,6 +327,46 @@ func sanitizeMessagesForPersistence(messages []ports.Message) ([]ports.Message, 
 		return sanitized, nil
 	}
 	return sanitized, attachments
+}
+
+func compactPersistedSystemPrompts(messages []ports.Message) []ports.Message {
+	if len(messages) == 0 {
+		return nil
+	}
+	compacted := make([]ports.Message, 0, len(messages))
+	primaryKept := false
+	for _, msg := range messages {
+		if !primaryKept && isPersistedPrimarySystemPrompt(msg) {
+			compacted = append(compacted, msg)
+			primaryKept = true
+			continue
+		}
+		if shouldDropPersistedSystemPrompt(msg) {
+			continue
+		}
+		compacted = append(compacted, msg)
+	}
+	return compacted
+}
+
+func isPersistedPrimarySystemPrompt(msg ports.Message) bool {
+	if msg.Source != ports.MessageSourceSystemPrompt {
+		return false
+	}
+	if strings.ToLower(strings.TrimSpace(msg.Role)) != "system" {
+		return false
+	}
+	return strings.TrimSpace(msg.Content) != ""
+}
+
+func shouldDropPersistedSystemPrompt(msg ports.Message) bool {
+	if msg.Source == ports.MessageSourceSystemPrompt {
+		return true
+	}
+	if strings.ToLower(strings.TrimSpace(msg.Role)) != "system" {
+		return false
+	}
+	return strings.TrimSpace(string(msg.Source)) == ""
 }
 
 func stripUserHistoryMessages(messages []ports.Message) []ports.Message {

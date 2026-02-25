@@ -970,6 +970,52 @@ func TestEnsureSystemPromptMessageLeavesHistorySummariesIntact(t *testing.T) {
 	}
 }
 
+func TestEnsureSystemPromptMessageCompactsStaleSystemPrompts(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	historySummary := Message{Role: "system", Content: "history chunk", Source: ports.MessageSourceUserHistory}
+	state := &TaskState{
+		SystemPrompt: "Follow the structured context.",
+		Messages: []Message{
+			{Role: "system", Content: "legacy kernel prompt", Source: ports.MessageSourceSystemPrompt},
+			{Role: "system", Content: "legacy system without source"},
+			{Role: "user", Content: "first user task", Source: ports.MessageSourceUserInput},
+			{Role: "assistant", Content: "first assistant reply", Source: ports.MessageSourceAssistantReply},
+			{Role: "system", Content: "runtime correction", Source: ports.MessageSourceSystemPrompt},
+			historySummary,
+			{Role: "user", Content: "latest user task", Source: ports.MessageSourceUserInput},
+		},
+	}
+
+	engine.ensureSystemPromptMessage(state)
+
+	if len(state.Messages) != 5 {
+		t.Fatalf("expected stale system prompts removed, got %d messages", len(state.Messages))
+	}
+	if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
+		t.Fatalf("expected first message to be canonical system prompt, got %q", state.Messages[0].Source)
+	}
+	if state.Messages[0].Content != state.SystemPrompt {
+		t.Fatalf("expected canonical prompt content updated, got %q", state.Messages[0].Content)
+	}
+
+	systemPromptCount := 0
+	historyFound := false
+	for _, msg := range state.Messages {
+		if msg.Source == ports.MessageSourceSystemPrompt {
+			systemPromptCount++
+		}
+		if msg.Source == ports.MessageSourceUserHistory && msg.Content == historySummary.Content {
+			historyFound = true
+		}
+	}
+	if systemPromptCount != 1 {
+		t.Fatalf("expected exactly one canonical system prompt, got %d", systemPromptCount)
+	}
+	if !historyFound {
+		t.Fatal("expected history chunk to remain after compaction")
+	}
+}
+
 func TestAttachmentReferenceValuePrefersURI(t *testing.T) {
 	att := ports.Attachment{
 		Name:      "diagram.png",

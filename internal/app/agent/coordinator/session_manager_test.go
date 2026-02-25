@@ -201,6 +201,34 @@ func TestSanitizeMessagesForPersistence_AllHistoryReturnsNil(t *testing.T) {
 	}
 }
 
+func TestSanitizeMessagesForPersistence_CompactsSystemPrompts(t *testing.T) {
+	messages := []ports.Message{
+		{Role: "system", Content: "canonical prompt", Source: ports.MessageSourceSystemPrompt},
+		{Role: "system", Content: "runtime correction", Source: ports.MessageSourceSystemPrompt},
+		{Role: "system", Content: "legacy empty source"},
+		{Role: "user", Content: "keep user input", Source: ports.MessageSourceUserInput},
+		{Role: "assistant", Content: "keep reply", Source: ports.MessageSourceAssistantReply},
+	}
+
+	sanitized, _ := sanitizeMessagesForPersistence(messages)
+	if len(sanitized) != 3 {
+		t.Fatalf("expected compacted messages length 3, got %d", len(sanitized))
+	}
+	if sanitized[0].Content != "canonical prompt" || sanitized[0].Source != ports.MessageSourceSystemPrompt {
+		t.Fatalf("expected canonical system prompt to be first, got %+v", sanitized[0])
+	}
+
+	systemPromptCount := 0
+	for _, msg := range sanitized {
+		if msg.Source == ports.MessageSourceSystemPrompt {
+			systemPromptCount++
+		}
+	}
+	if systemPromptCount != 1 {
+		t.Fatalf("expected only one persisted system prompt, got %d", systemPromptCount)
+	}
+}
+
 // --- stripUserHistoryMessages ---
 
 func TestStripUserHistoryMessages_Empty(t *testing.T) {
