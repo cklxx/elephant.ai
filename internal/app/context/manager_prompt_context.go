@@ -353,19 +353,6 @@ func buildMetaSection(meta agent.MetaContext) string {
 	if meta.PersonaVersion != "" {
 		lines = append(lines, fmt.Sprintf("Persona version: %s", meta.PersonaVersion))
 	}
-	if len(meta.Memories) > 0 {
-		lines = append(lines, "Memories:")
-		var memoLines []string
-		for _, memory := range meta.Memories {
-			stamp := memory.CreatedAt.Format("2006-01-02")
-			memoLines = append(memoLines, fmt.Sprintf("%s — %s (%s)", memory.Content, memory.Key, stamp))
-		}
-		lines = append(lines, prependBullet(memoLines, 1)...)
-	}
-	if len(meta.Recommendations) > 0 {
-		lines = append(lines, "Recommendations:")
-		lines = append(lines, prependBullet(meta.Recommendations, 1)...)
-	}
 	if len(lines) == 0 {
 		return ""
 	}

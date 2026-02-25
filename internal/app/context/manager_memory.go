@@ -1,6 +1,7 @@
 package context
 
 import (
+	appcontext "alex/internal/app/agent/context"
 	"alex/internal/shared/utils"
 	"context"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
@@ -60,11 +62,13 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 	if user != "" {
 		sections = append(sections, fmt.Sprintf("## Identity (USER.md: %s)\n%s", userPath, user))
 	}
-	if today != "" {
-		sections = append(sections, fmt.Sprintf("## Daily Log (%s)\n%s", now.Format("2006-01-02"), today))
-	}
-	if yesterday != "" {
-		sections = append(sections, fmt.Sprintf("## Daily Log (%s)\n%s", now.AddDate(0, 0, -1).Format("2006-01-02"), yesterday))
+	// Daily logs are high-churn runtime notes intended for kernel/autonomous
+	// loops. Keep them out of normal sessions to avoid leaking kernel-only
+	// directives into regular assistant runs.
+	if appcontext.IsUnattendedContext(ctx) {
+		if daily := buildKernelDailyLogPromptChunk(now, today, yesterday); daily != "" {
+			sections = append(sections, daily)
+		}
 	}
 	if longTerm != "" {
 		sections = append(sections, fmt.Sprintf("## Long-term Memory (MEMORY.md)\n%s", longTerm))
@@ -198,6 +202,57 @@ func renderUserTemplate(userID string) string {
 		"- Add stable preferences, constraints, priorities, and collaboration style here.",
 	}
 	return strings.Join(lines, "\n") + "\n"
+}
+
+func buildKernelDailyLogPromptChunk(now time.Time, today, yesterday string) string {
+	type dailyItem struct {
+		date    string
+		content string
+	}
+	items := []dailyItem{
+		{date: now.Format("2006-01-02"), content: today},
+		{date: now.AddDate(0, 0, -1).Format("2006-01-02"), content: yesterday},
+	}
+
+	lines := make([]string, 0, len(items)+1)
+	index := 1
+	for _, item := range items {
+		raw := strings.TrimSpace(item.content)
+		if raw == "" {
+			continue
+		}
+		summary := summarizeKernelDailyLog(raw)
+		lines = append(lines, fmt.Sprintf("%d | date=%s | summary=%s", index, item.date, summary))
+		index++
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	lines = append(lines, "Use memory_search/memory_get for full details.")
+	return fmt.Sprintf("## Daily Log Digest (Kernel only)\n%s", strings.Join(lines, "\n"))
+}
+
+func summarizeKernelDailyLog(content string) string {
+	snippet := buildCompressionSnippet(content, historyTimelineSummaryChars)
+	if snippet == "" {
+		return "daily memory entry available"
+	}
+	if containsNonASCII(snippet) {
+		return "non-English daily memory available (open via memory_search)."
+	}
+	return snippet
+}
+
+func containsNonASCII(value string) bool {
+	for _, r := range value {
+		if r == '\n' || r == '\r' || r == '\t' {
+			continue
+		}
+		if unicode.IsPrint(r) && r > unicode.MaxASCII {
+			return true
+		}
+	}
+	return false
 }
 
 func ensureMarkdownFileIfMissing(path string, contentBuilder func() string) error {

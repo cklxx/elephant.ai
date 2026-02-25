@@ -253,16 +253,16 @@ func TestDeriveHistoryAwareMetaBuildsTimelineFromSessionHistory(t *testing.T) {
 		t.Fatalf("expected recent session timeline memory to be recorded, got %+v", meta.Memories)
 	}
 	for _, expected := range []string{
-		`"idx":1,"role":"user"`,
-		`"idx":2,"role":"tool[logs-1]"`,
-		`"idx":4,"role":"user"`,
-		`"idx":6,"role":"assistant"`,
+		`1 | role=user | summary=第一轮：分析日志`,
+		`2 | role=tool[logs-1] | summary=shell[logs-1]: grep found 2 errors`,
+		`4 | role=user | summary=第二轮：生成修复计划`,
+		`6 | role=assistant | summary=已完成计划`,
 	} {
 		if !strings.Contains(timeline.Content, expected) {
 			t.Fatalf("expected timeline to include %q, got %q", expected, timeline.Content)
 		}
 	}
-	if strings.Contains(timeline.Content, `"role":"system"`) {
+	if strings.Contains(timeline.Content, "role=system") {
 		t.Fatalf("expected timeline to skip system-role records, got %q", timeline.Content)
 	}
 
@@ -327,11 +327,11 @@ func TestBuildHistoryTimelineSkipsCompressionSummariesWithoutIndexGaps(t *testin
 	if len(timeline) != 2 {
 		t.Fatalf("expected 2 visible timeline lines after filtering summaries, got %d (%v)", len(timeline), timeline)
 	}
-	if timeline[0] != `{"idx":1,"role":"user","summary":"first visible"}` {
-		t.Fatalf("expected first line to be idx=1 user JSON entry, got %q", timeline[0])
+	if timeline[0] != `1 | role=user | summary=first visible` {
+		t.Fatalf("expected first line to be idx=1 user structured entry, got %q", timeline[0])
 	}
-	if timeline[1] != `{"idx":2,"role":"assistant","summary":"second visible"}` {
-		t.Fatalf("expected second line to be idx=2 assistant JSON entry, got %q", timeline[1])
+	if timeline[1] != `2 | role=assistant | summary=second visible` {
+		t.Fatalf("expected second line to be idx=2 assistant structured entry, got %q", timeline[1])
 	}
 }
 
@@ -342,7 +342,7 @@ func TestBuildHistoryTimelineUses50CharSummaries(t *testing.T) {
 	if len(timeline) != 1 {
 		t.Fatalf("expected one timeline entry, got %d", len(timeline))
 	}
-	if !strings.Contains(timeline[0], `"summary":"`+strings.Repeat("a", 50)+`…"`) {
+	if !strings.Contains(timeline[0], "summary="+strings.Repeat("a", 50)+"…") {
 		t.Fatalf("expected summary to be capped at 50 chars, got %q", timeline[0])
 	}
 }
@@ -447,6 +447,22 @@ func TestBuildWindowMetaContextReflectsHistory(t *testing.T) {
 	if !strings.Contains(historyHints, "Previous assistant response") {
 		t.Fatalf("expected assistant response hint in recommendations, got %q", historyHints)
 	}
+	var runtimeChunk *ports.Message
+	for i := range window.Messages {
+		if window.Messages[i].Source == ports.MessageSourceUserHistory && strings.Contains(window.Messages[i].Content, "Runtime history chunk") {
+			runtimeChunk = &window.Messages[i]
+			break
+		}
+	}
+	if runtimeChunk == nil {
+		t.Fatalf("expected a dedicated runtime history chunk message, got %#v", window.Messages)
+	}
+	if !strings.Contains(runtimeChunk.Content, "1 | role=user | summary=请继续昨天的代码重构") {
+		t.Fatalf("expected runtime history chunk to include indexed user summary, got %q", runtimeChunk.Content)
+	}
+	if strings.Contains(window.SystemPrompt, "Recent session messages:") || strings.Contains(window.SystemPrompt, "Latest user request:") {
+		t.Fatalf("expected runtime history to stay out of static system prompt, got %q", window.SystemPrompt)
+	}
 }
 
 func TestBuildWindowMetaContextIncludesHistoryTimeline(t *testing.T) {
@@ -529,14 +545,8 @@ func TestComposeSystemPromptIncludesMetaLayer(t *testing.T) {
 	if !strings.Contains(prompt, "Persona version: persona-v2") {
 		t.Fatalf("expected persona version in prompt, got %q", prompt)
 	}
-	if !strings.Contains(prompt, "Prefers Go — user-pref") {
-		t.Fatalf("expected memory snippet in prompt, got %q", prompt)
-	}
-	if !strings.Contains(prompt, "Prioritize secure defaults") {
-		t.Fatalf("expected recommendation in prompt, got %q", prompt)
-	}
-	if !strings.Contains(prompt, memoTime.Format("2006-01-02")) {
-		t.Fatalf("expected formatted memory date, got %q", prompt)
+	if strings.Contains(prompt, "Prefers Go") || strings.Contains(prompt, "Prioritize secure defaults") || strings.Contains(prompt, memoTime.Format("2006-01-02")) {
+		t.Fatalf("expected runtime memories/recommendations to stay out of static prompt, got %q", prompt)
 	}
 }
 

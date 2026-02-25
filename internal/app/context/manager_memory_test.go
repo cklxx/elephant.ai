@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	appcontext "alex/internal/app/agent/context"
 	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/infra/memory"
 )
 
-func TestLoadMemorySnapshotIncludesLongTermAndDaily(t *testing.T) {
+func TestLoadMemorySnapshotSkipsDailyInRegularSessions(t *testing.T) {
 	root := t.TempDir()
 	engine := memory.NewMarkdownEngine(root)
 	if err := engine.EnsureSchema(context.Background()); err != nil {
@@ -52,11 +53,8 @@ func TestLoadMemorySnapshotIncludesLongTermAndDaily(t *testing.T) {
 	if !strings.Contains(snapshot, "Prefers Go") {
 		t.Fatalf("expected long-term content, got: %s", snapshot)
 	}
-	if !strings.Contains(snapshot, "Discussed API approach") {
-		t.Fatalf("expected daily content, got: %s", snapshot)
-	}
-	if !strings.Contains(snapshot, "Reviewed architecture notes") {
-		t.Fatalf("expected yesterday content, got: %s", snapshot)
+	if strings.Contains(snapshot, "Daily Log") {
+		t.Fatalf("expected regular sessions to skip daily logs, got: %s", snapshot)
 	}
 }
 
@@ -82,7 +80,7 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 	}
 
 	mgr := &manager{memoryEngine: engine}
-	snapshot := mgr.loadMemorySnapshot(context.Background(), &storage.Session{
+	snapshot := mgr.loadMemorySnapshot(appcontext.MarkUnattendedContext(context.Background()), &storage.Session{
 		ID:       "sess-identity",
 		Metadata: map[string]string{"user_id": userID},
 	})
@@ -113,13 +111,24 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 
 	soulIdx := strings.Index(snapshot, "Identity (SOUL.md")
 	userIdx := strings.Index(snapshot, "Identity (USER.md")
-	todayIdx := strings.Index(snapshot, "Daily Log ("+now.Format("2006-01-02")+")")
+	todayIdx := strings.Index(snapshot, "Daily Log Digest (Kernel only)")
 	memoryIdx := strings.Index(snapshot, "Long-term Memory (MEMORY.md)")
 	if soulIdx == -1 || userIdx == -1 || todayIdx == -1 || memoryIdx == -1 {
 		t.Fatalf("expected identity/daily/memory sections in snapshot, got: %s", snapshot)
 	}
 	if !(soulIdx < userIdx && userIdx < todayIdx && todayIdx < memoryIdx) {
 		t.Fatalf("expected SOUL -> USER -> daily -> long-term order, got: %s", snapshot)
+	}
+	if !strings.Contains(snapshot, "1 | date="+now.Format("2006-01-02")) {
+		t.Fatalf("expected indexed daily digest entry for today, got: %s", snapshot)
+	}
+}
+
+func TestKernelDailyDigestMasksNonEnglishRawContent(t *testing.T) {
+	now := time.Date(2026, time.February, 24, 9, 0, 0, 0, time.UTC)
+	digest := buildKernelDailyLogPromptChunk(now, "你是 elephant.ai 的 kernel 自主代理", "yesterday note")
+	if !strings.Contains(digest, "non-English daily memory available (open via memory_search).") {
+		t.Fatalf("expected non-English daily content to be masked into English summary, got: %s", digest)
 	}
 }
 

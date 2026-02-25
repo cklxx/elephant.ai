@@ -2,7 +2,6 @@ package context
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -64,6 +63,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 	}
 
 	meta := deriveHistoryAwareMeta(messages, persona.ID)
+	runtimeHistoryChunk := buildRuntimeHistoryChunk(meta)
 	memorySnapshot := m.loadMemorySnapshot(ctx, session)
 	promptMode := strings.TrimSpace(cfg.PromptMode)
 	includeBootstrap := shouldInjectBootstrap(session, promptMode)
@@ -115,6 +115,9 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		SOPSummaryOnly:         true, // Default to summary-only mode for token optimization
 		Unattended:             cfg.Unattended,
 	})
+	if runtimeHistoryChunk != nil {
+		window.Messages = append(window.Messages, *runtimeHistoryChunk)
+	}
 	markBootstrapInjected(session, includeBootstrap)
 	return window, nil
 }
@@ -314,24 +317,59 @@ func buildHistoryTimeline(messages []ports.Message, limit int) []string {
 		if snippet == "" {
 			snippet = "(no visible content)"
 		}
-		encoded, err := json.Marshal(historyTimelineEntry{
-			Index:   lineNo,
-			Role:    normalizeHistoryLabel(msg),
-			Summary: snippet,
-		})
-		if err != nil {
-			continue
-		}
-		timeline = append(timeline, string(encoded))
+		timeline = append(timeline, fmt.Sprintf("%d | role=%s | summary=%s", lineNo, normalizeHistoryLabel(msg), snippet))
 		lineNo++
 	}
 	return timeline
 }
 
-type historyTimelineEntry struct {
-	Index   int    `json:"idx"`
-	Role    string `json:"role"`
-	Summary string `json:"summary"`
+func buildRuntimeHistoryChunk(meta agent.MetaContext) *ports.Message {
+	timeline := ""
+	for _, memory := range meta.Memories {
+		if strings.TrimSpace(memory.Key) != "recent_session_timeline" {
+			continue
+		}
+		timeline = strings.TrimSpace(memory.Content)
+		break
+	}
+
+	recommendations := make([]string, 0, len(meta.Recommendations))
+	for _, rec := range meta.Recommendations {
+		trimmed := strings.TrimSpace(rec)
+		if trimmed == "" {
+			continue
+		}
+		recommendations = append(recommendations, trimmed)
+	}
+	if timeline == "" && len(recommendations) == 0 {
+		return nil
+	}
+
+	lines := []string{
+		"Runtime history chunk (separate from static system prompt).",
+		"Use indexed lines to locate prior turns quickly.",
+	}
+	if timeline != "" {
+		lines = append(lines, "Recent session messages:")
+		for _, line := range strings.Split(timeline, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" {
+				continue
+			}
+			lines = append(lines, "- "+trimmed)
+		}
+	}
+	if len(recommendations) > 0 {
+		lines = append(lines, "Recent pointers:")
+		for _, rec := range recommendations {
+			lines = append(lines, "- "+rec)
+		}
+	}
+	return &ports.Message{
+		Role:    "system",
+		Content: strings.Join(lines, "\n"),
+		Source:  ports.MessageSourceUserHistory,
+	}
 }
 
 func isContextCompressionSummary(msg ports.Message) bool {
