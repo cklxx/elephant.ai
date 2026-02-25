@@ -11,7 +11,7 @@ import (
 )
 
 func TestBuildDebugBroadcaster(t *testing.T) {
-	broadcaster := buildDebugBroadcaster(nil)
+	broadcaster := buildDebugBroadcaster(nil, t.TempDir(), nil)
 	if broadcaster == nil {
 		t.Fatal("buildDebugBroadcaster returned nil")
 	}
@@ -24,7 +24,7 @@ func TestBuildDebugBroadcaster(t *testing.T) {
 }
 
 func TestBuildDebugBroadcaster_Options(t *testing.T) {
-	broadcaster := buildDebugBroadcaster(nil)
+	broadcaster := buildDebugBroadcaster(nil, t.TempDir(), nil)
 
 	// Register and unregister a client to validate the broadcaster is functional.
 	ch := make(chan interface{ EventType() string }, 128)

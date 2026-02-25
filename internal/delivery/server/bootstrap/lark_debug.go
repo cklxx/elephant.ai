@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"alex/internal/app/di"
@@ -17,7 +18,7 @@ import (
 
 // BuildDebugHTTPServer creates a lightweight HTTP server for the Lark standalone
 // binary. It exposes health, SSE, dev/debug, config, and hooks-bridge endpoints
-// on cfg.DebugPort (default "9090") — no auth, no CORS, no rate limiting.
+// on cfg.DebugPort (default "9090") — no auth, no rate limiting.
 func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster, container *di.Container, cfg Config) (*http.Server, error) {
 	logger := logging.OrNop(f.Logger)
 
@@ -61,6 +62,8 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 		ConfigHandler:          configHandler,
 		OnboardingStateHandler: onboardingStateHandler,
 		Obs:                    f.Obs,
+		Environment:            cfg.Runtime.Environment,
+		AllowedOrigins:         append([]string(nil), cfg.AllowedOrigins...),
 		MemoryEngine:           memoryEngine,
 		HooksBridge:            hooksBridge,
 		LarkInjectGateway:      larkInjectGateway,
@@ -83,14 +86,24 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 	return server, nil
 }
 
-// buildDebugBroadcaster creates an in-memory-only EventBroadcaster for Lark
-// standalone mode. No Postgres history store — debug mode doesn't need
-// persistent event history.
-func buildDebugBroadcaster(obs *observability.Observability) *serverApp.EventBroadcaster {
+// buildDebugBroadcaster creates the EventBroadcaster for Lark standalone mode.
+// It keeps an in-memory window and also persists event history to local files
+// (when sessionDir is provided) so diagnostics can replay timing for recent runs.
+func buildDebugBroadcaster(obs *observability.Observability, sessionDir string, logger logging.Logger) *serverApp.EventBroadcaster {
 	_ = obs // reserved for future metrics wiring
-	return serverApp.NewEventBroadcaster(
+	opts := []serverApp.EventBroadcasterOption{
 		serverApp.WithMaxHistory(500),
 		serverApp.WithMaxSessions(50),
-		serverApp.WithSessionTTL(1*time.Hour),
-	)
+		serverApp.WithSessionTTL(1 * time.Hour),
+	}
+	if sessionDir != "" {
+		eventsDir := filepath.Join(sessionDir, "_server")
+		fileHistory := serverApp.NewFileEventHistoryStore(eventsDir)
+		if err := fileHistory.EnsureSchema(context.Background()); err != nil {
+			logging.OrNop(logger).Warn("Lark debug event history disabled: %v", err)
+		} else {
+			opts = append(opts, serverApp.WithEventHistoryStore(fileHistory))
+		}
+	}
+	return serverApp.NewEventBroadcaster(opts...)
 }

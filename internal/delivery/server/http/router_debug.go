@@ -18,9 +18,11 @@ type DebugRouterDeps struct {
 	ConfigHandler          *ConfigHandler
 	OnboardingStateHandler *OnboardingStateHandler
 	Obs                    *observability.Observability
-	MemoryEngine           MemoryEngine         // may be nil
-	HooksBridge            http.Handler         // may be nil
-	LarkInjectGateway      LarkInjectGateway    // may be nil; set when Lark gateway is available
+	Environment            string
+	AllowedOrigins         []string
+	MemoryEngine           MemoryEngine      // may be nil
+	HooksBridge            http.Handler      // may be nil
+	LarkInjectGateway      LarkInjectGateway // may be nil; set when Lark gateway is available
 }
 
 // NewDebugRouter creates an HTTP handler exposing only debug / diagnostic
@@ -34,7 +36,7 @@ type DebugRouterDeps struct {
 //   - Sessions (CRUD, replay, share, fork)
 //   - Agents catalog
 //   - Attachments / data cache / sandbox browser
-//   - CORS / Rate-limit / Stream-guard / Request-timeout middleware
+//   - Rate-limit / Stream-guard / Request-timeout middleware
 //   - Lark OAuth
 func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 	logger := logging.NewComponentLogger("DebugRouter")
@@ -109,8 +111,9 @@ func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 		mux.Handle("POST /api/dev/inject", routeHandler("/api/dev/inject", http.HandlerFunc(injectHandler.Handle)))
 	}
 
-	// ── Minimal middleware stack (no CORS / rate-limit / auth) ──
+	// ── Minimal middleware stack (CORS only, no rate-limit / auth) ──
 	var handler http.Handler = mux
+	handler = CORSMiddleware(deps.Environment, deps.AllowedOrigins)(handler)
 	handler = ObservabilityMiddleware(deps.Obs, latencyLogger)(handler)
 	handler = LoggingMiddleware(logger)(handler)
 	handler = CompressionMiddleware()(handler)

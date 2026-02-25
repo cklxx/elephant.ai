@@ -221,3 +221,23 @@ func TestNewDebugRouter_HealthReturns200(t *testing.T) {
 		t.Errorf("GET /health returned %d; expected 200", w.Code)
 	}
 }
+
+func TestNewDebugRouter_AllowsCORSForDevDiagnostics(t *testing.T) {
+	broadcaster := app.NewEventBroadcaster()
+	healthChecker := app.NewHealthChecker()
+
+	router := NewDebugRouter(DebugRouterDeps{
+		Broadcaster:   broadcaster,
+		HealthChecker: healthChecker,
+		Environment:   "development",
+	})
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("expected Access-Control-Allow-Origin=* for debug router, got %q", got)
+	}
+}

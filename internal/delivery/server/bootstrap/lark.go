@@ -18,7 +18,7 @@ import (
 // RunLark starts the standalone Lark WebSocket gateway with an embedded debug
 // HTTP server and blocks until a shutdown signal is received.  The debug server
 // exposes health, SSE event streaming, and runtime config endpoints on
-// cfg.DebugPort (default :9090) — no auth, no CORS, no rate limiting.
+// cfg.DebugPort (default :9090) — no auth, no rate limiting.
 func RunLark(observabilityConfigPath string) error {
 	logger := logging.NewComponentLogger("Main")
 	logger.Info("Starting elephant.ai Lark standalone mode...")
@@ -58,7 +58,11 @@ func RunLark(observabilityConfigPath string) error {
 
 	// ── Phase 2b: In-memory EventBroadcaster (for SSE debug stream) ──
 
-	broadcaster := buildDebugBroadcaster(f.Obs)
+	sessionDir := ""
+	if container != nil {
+		sessionDir = container.SessionDir()
+	}
+	broadcaster := buildDebugBroadcaster(f.Obs, sessionDir, logger)
 	cleanupDiagnostics := subscribeDiagnostics(broadcaster)
 	defer cleanupDiagnostics()
 
