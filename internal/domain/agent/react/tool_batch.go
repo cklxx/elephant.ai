@@ -26,15 +26,10 @@ func newToolCallBatch(
 	tracker *reactWorkflow,
 ) *toolCallBatch {
 	expanded := make([]ToolCall, len(calls))
-	subagentSnapshots := make([]*agent.TaskState, len(calls))
 	for i, call := range calls {
 		tc := call
 		tc.Arguments = engine.expandToolCallArguments(tc.Name, tc.Arguments, state)
 		expanded[i] = tc
-
-		if tc.Name == "subagent" {
-			subagentSnapshots[i] = buildSubagentStateSnapshot(state, tc)
-		}
 	}
 
 	var nodes []string
@@ -57,7 +52,6 @@ func newToolCallBatch(
 		tracker:              tracker,
 		attachments:          attachmentsSnapshot,
 		attachmentIterations: iterationSnapshot,
-		subagentSnapshots:    subagentSnapshots,
 		calls:                expanded,
 		callNodes:            nodes,
 	}
@@ -148,11 +142,6 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 			tc.ID, chunk, isComplete,
 		))
 	})
-	if tc.Name == "subagent" {
-		if snapshot := b.subagentSnapshots[idx]; snapshot != nil {
-			toolCtx = agent.WithClonedTaskStateSnapshot(toolCtx, snapshot)
-		}
-	}
 	if tc.Name == "acp_executor" {
 		if snapshot := buildExecutorStateSnapshot(b.state, tc); snapshot != nil {
 			toolCtx = agent.WithClonedTaskStateSnapshot(toolCtx, snapshot)

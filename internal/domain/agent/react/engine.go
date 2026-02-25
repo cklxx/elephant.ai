@@ -72,7 +72,6 @@ type toolCallBatch struct {
 	tracker              *reactWorkflow
 	attachments          map[string]ports.Attachment
 	attachmentIterations map[string]int
-	subagentSnapshots    []*agent.TaskState
 	calls                []ToolCall
 	callNodes            []string
 	results              []ToolResult

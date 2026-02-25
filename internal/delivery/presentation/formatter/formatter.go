@@ -88,8 +88,8 @@ func (tf *ToolFormatter) visibleArgs(name string, args map[string]any) (map[stri
 		return map[string]string{}, 0
 	case "todo_read", "list_files", "list_dir":
 		return tf.simplePathArgs(args), 80
-	case "subagent":
-		return tf.subagentArgs(args), 120
+	case "run_tasks":
+		return tf.runTasksArgs(args), 120
 	case "final":
 		return tf.finalArgs(args), 160
 	default:
@@ -269,13 +269,18 @@ func (tf *ToolFormatter) simplePathArgs(args map[string]any) map[string]string {
 	return map[string]string{}
 }
 
-func (tf *ToolFormatter) subagentArgs(args map[string]any) map[string]string {
-	if prompt := tf.getStringArg(args, "prompt", ""); prompt != "" {
-		return map[string]string{
-			"prompt": tf.summarizeString(prompt, 120),
-		}
+func (tf *ToolFormatter) runTasksArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	if file := tf.getStringArg(args, "file", ""); file != "" {
+		result["file"] = file
 	}
-	return map[string]string{}
+	if tmpl := tf.getStringArg(args, "template", ""); tmpl != "" {
+		result["template"] = tmpl
+	}
+	if goal := tf.getStringArg(args, "goal", ""); goal != "" {
+		result["goal"] = tf.summarizeString(goal, 80)
+	}
+	return result
 }
 
 func (tf *ToolFormatter) finalArgs(args map[string]any) map[string]string {
@@ -421,8 +426,8 @@ func (tf *ToolFormatter) FormatToolResult(name string, content string, success b
 		return tf.formatWebFetchResult(content)
 	case "todo_update", "todo_read":
 		return tf.formatTodoResult(content)
-	case "subagent":
-		return tf.formatSubagentResult(content)
+	case "run_tasks":
+		return tf.formatRunTasksResult(content)
 	case "final":
 		return tf.formatFinalResult(content)
 	default:
@@ -633,19 +638,14 @@ func (tf *ToolFormatter) formatWebFetchResult(content string) string {
 }
 
 // formatSubagentResult shows task completion summary
-func (tf *ToolFormatter) formatSubagentResult(content string) string {
-	// Parse summary line
-	if strings.Contains(content, "Success:") && strings.Contains(content, "Failed:") {
-		// Extract numbers
-		successIdx := strings.Index(content, "Success: ")
-		failedIdx := strings.Index(content, "Failed: ")
-
-		if successIdx > 0 && failedIdx > successIdx {
-			return "  → " + content[successIdx:failedIdx+10]
+func (tf *ToolFormatter) formatRunTasksResult(content string) string {
+	if strings.Contains(content, "Dispatched") {
+		lines := strings.SplitN(content, "\n", 3)
+		if len(lines) > 0 {
+			return "  → " + strings.TrimSpace(lines[0])
 		}
 	}
-
-	return "  → Subtasks completed"
+	return "  → Tasks dispatched"
 }
 
 func (tf *ToolFormatter) formatFinalResult(content string) string {

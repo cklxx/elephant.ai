@@ -373,10 +373,10 @@ func isDelegationToolEvent(event agent.AgentEvent) bool {
 	}
 
 	if toolName := normalizedToolName(env.Payload); toolName != "" {
-		return toolName == "subagent"
+		return toolName == "run_tasks"
 	}
 
-	return strings.HasPrefix(strings.ToLower(env.NodeID), "subagent:")
+	return strings.HasPrefix(strings.ToLower(env.NodeID), "run_tasks:")
 }
 
 func normalizedToolName(payload map[string]any) string {

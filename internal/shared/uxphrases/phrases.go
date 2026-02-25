@@ -101,8 +101,8 @@ var phraseGroups = []phraseGroup{
 		phrases: []string{"在深入…", "在调研…", "在拆解…"},
 		matchFn: func(n string) bool {
 			return matchAny(n,
-				exactMatch("task", "explore"),
-				prefixMatch("subagent", "sub_agent", "task_", "delegate"),
+				exactMatch("task", "run_tasks"),
+				prefixMatch("task_", "delegate"),
 			)
 		},
 	},
