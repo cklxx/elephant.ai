@@ -3,11 +3,11 @@ package bootstrap
 import (
 	"errors"
 	"os"
-	"strings"
 	"time"
 
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 // LogServerConfiguration prints a safe, redacted snapshot of the server runtime configuration.
@@ -34,7 +34,7 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	logger.Info("LLM Provider: %s (source=%s)", runtimeCfg.LLMProvider, config.RuntimeMeta.Source("llm_provider"))
 	logger.Info("LLM Model: %s (source=%s)", runtimeCfg.LLMModel, config.RuntimeMeta.Source("llm_model"))
 	logger.Debug("Base URL: %s (source=%s)", runtimeCfg.BaseURL, config.RuntimeMeta.Source("base_url"))
-	if strings.TrimSpace(runtimeCfg.APIKey) != "" {
+	if utils.HasContent(runtimeCfg.APIKey) {
 		logger.Debug("API Key: (set; source=%s)", config.RuntimeMeta.Source("api_key"))
 	} else {
 		logger.Debug("API Key: (not set; source=%s)", config.RuntimeMeta.Source("api_key"))
@@ -61,7 +61,7 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 		)
 		logger.Debug("Lark Base Domain: %s", larkCfg.BaseDomain)
 		logger.Debug("Lark Tenant Token: auto (app_id/app_secret)")
-		if strings.TrimSpace(larkCfg.TenantCalendarID) != "" {
+		if utils.HasContent(larkCfg.TenantCalendarID) {
 			logger.Debug("Lark Tenant Calendar ID: (set)")
 		} else {
 			logger.Debug("Lark Tenant Calendar ID: (not set)")

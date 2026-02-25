@@ -15,6 +15,7 @@ import (
 	"alex/internal/domain/agent/presets"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) (func(), error) {
@@ -118,10 +119,10 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		}
 	}
 
-	if strings.TrimSpace(gatewayCfg.PersistenceMode) == "" {
+	if utils.IsBlank(gatewayCfg.PersistenceMode) {
 		gatewayCfg.PersistenceMode = larkPersistenceModeFile
 	}
-	if strings.TrimSpace(gatewayCfg.PersistenceDir) == "" {
+	if utils.IsBlank(gatewayCfg.PersistenceDir) {
 		gatewayCfg.PersistenceDir = filepath.Join(container.SessionDir(), "lark")
 	}
 
@@ -280,7 +281,7 @@ func buildLarkOAuthService(ctx context.Context, cfg Config, container *di.Contai
 	if !larkCfg.Enabled {
 		return nil
 	}
-	if strings.TrimSpace(larkCfg.AppID) == "" || strings.TrimSpace(larkCfg.AppSecret) == "" {
+	if utils.IsBlank(larkCfg.AppID) || utils.IsBlank(larkCfg.AppSecret) {
 		return nil
 	}
 

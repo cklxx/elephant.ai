@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	"alex/internal/app/subscription"
 	runtimeconfig "alex/internal/shared/config"
 )
@@ -68,7 +69,7 @@ func markOnboardingSetupSelections(ctx context.Context, envLookup runtimeconfig.
 		state.PersistenceMode = persistenceMode
 	}
 	state.LarkConfigured = selection.LarkConfigured
-	if strings.TrimSpace(state.CompletedAt) == "" {
+	if utils.IsBlank(state.CompletedAt) {
 		state.CompletedAt = time.Now().UTC().Format(time.RFC3339)
 	}
 	return store.Set(ctx, state)

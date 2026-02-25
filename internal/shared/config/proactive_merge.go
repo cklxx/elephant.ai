@@ -1,6 +1,10 @@
 package config
 
-import "strings"
+import (
+	"strings"
+
+	"alex/internal/shared/utils"
+)
 
 func applyProactiveFileConfig(cfg *RuntimeConfig, meta *Metadata, file *ProactiveFileConfig) {
 	if cfg == nil || file == nil {
@@ -50,10 +54,10 @@ func mergePromptConfig(target *PromptConfig, file *PromptFileConfig) {
 	if target == nil || file == nil {
 		return
 	}
-	if strings.TrimSpace(file.Mode) != "" {
+	if utils.HasContent(file.Mode) {
 		target.Mode = strings.TrimSpace(file.Mode)
 	}
-	if strings.TrimSpace(file.Timezone) != "" {
+	if utils.HasContent(file.Timezone) {
 		target.Timezone = strings.TrimSpace(file.Timezone)
 	}
 	if file.BootstrapMaxChars != nil {
@@ -92,7 +96,7 @@ func mergeMemoryIndexConfig(target *MemoryIndexConfig, file *MemoryIndexFileConf
 	if file.Enabled != nil {
 		target.Enabled = *file.Enabled
 	}
-	if strings.TrimSpace(file.DBPath) != "" {
+	if utils.HasContent(file.DBPath) {
 		target.DBPath = strings.TrimSpace(file.DBPath)
 	}
 	if file.ChunkTokens != nil {
@@ -110,7 +114,7 @@ func mergeMemoryIndexConfig(target *MemoryIndexConfig, file *MemoryIndexFileConf
 	if file.FusionWeightBM25 != nil {
 		target.FusionWeightBM25 = *file.FusionWeightBM25
 	}
-	if strings.TrimSpace(file.EmbedderModel) != "" {
+	if utils.HasContent(file.EmbedderModel) {
 		target.EmbedderModel = strings.TrimSpace(file.EmbedderModel)
 	}
 }
@@ -128,10 +132,10 @@ func mergeSkillsConfig(target *SkillsConfig, file *SkillsFileConfig) {
 	if file.SoulAutoEvolutionEnabled != nil {
 		target.SoulAutoEvolutionEnabled = *file.SoulAutoEvolutionEnabled
 	}
-	if strings.TrimSpace(file.ProactiveLevel) != "" {
+	if utils.HasContent(file.ProactiveLevel) {
 		target.ProactiveLevel = strings.TrimSpace(file.ProactiveLevel)
 	}
-	if strings.TrimSpace(file.PolicyPath) != "" {
+	if utils.HasContent(file.PolicyPath) {
 		target.PolicyPath = strings.TrimSpace(file.PolicyPath)
 	}
 	if file.AutoActivation != nil {
@@ -167,7 +171,7 @@ func mergeSkillsFeedbackConfig(target *SkillsFeedbackConfig, file *SkillsFeedbac
 	if file.Enabled != nil {
 		target.Enabled = *file.Enabled
 	}
-	if strings.TrimSpace(file.StorePath) != "" {
+	if utils.HasContent(file.StorePath) {
 		target.StorePath = strings.TrimSpace(file.StorePath)
 	}
 }
@@ -194,19 +198,19 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 	if file.TriggerTimeoutSeconds != nil {
 		target.TriggerTimeoutSeconds = *file.TriggerTimeoutSeconds
 	}
-	if strings.TrimSpace(file.ConcurrencyPolicy) != "" {
+	if utils.HasContent(file.ConcurrencyPolicy) {
 		target.ConcurrencyPolicy = strings.TrimSpace(file.ConcurrencyPolicy)
 	}
 	if file.LeaderLockEnabled != nil {
 		target.LeaderLockEnabled = *file.LeaderLockEnabled
 	}
-	if strings.TrimSpace(file.LeaderLockName) != "" {
+	if utils.HasContent(file.LeaderLockName) {
 		target.LeaderLockName = strings.TrimSpace(file.LeaderLockName)
 	}
 	if file.LeaderLockAcquireIntervalSeconds != nil {
 		target.LeaderLockAcquireIntervalSeconds = *file.LeaderLockAcquireIntervalSeconds
 	}
-	if strings.TrimSpace(file.JobStorePath) != "" {
+	if utils.HasContent(file.JobStorePath) {
 		target.JobStorePath = strings.TrimSpace(file.JobStorePath)
 	}
 	if file.CooldownSeconds != nil {
@@ -255,19 +259,19 @@ func mergeHeartbeatConfig(target *HeartbeatConfig, file *HeartbeatFileConfig) {
 	if file.Enabled != nil {
 		target.Enabled = *file.Enabled
 	}
-	if strings.TrimSpace(file.Schedule) != "" {
+	if utils.HasContent(file.Schedule) {
 		target.Schedule = strings.TrimSpace(file.Schedule)
 	}
-	if strings.TrimSpace(file.Task) != "" {
+	if utils.HasContent(file.Task) {
 		target.Task = strings.TrimSpace(file.Task)
 	}
-	if strings.TrimSpace(file.Channel) != "" {
+	if utils.HasContent(file.Channel) {
 		target.Channel = strings.TrimSpace(file.Channel)
 	}
-	if strings.TrimSpace(file.UserID) != "" {
+	if utils.HasContent(file.UserID) {
 		target.UserID = strings.TrimSpace(file.UserID)
 	}
-	if strings.TrimSpace(file.ChatID) != "" {
+	if utils.HasContent(file.ChatID) {
 		target.ChatID = strings.TrimSpace(file.ChatID)
 	}
 	if len(file.QuietHours) == 2 {
@@ -285,7 +289,7 @@ func mergeTimerConfig(target *TimerConfig, file *TimerFileConfig) {
 	if file.Enabled != nil {
 		target.Enabled = *file.Enabled
 	}
-	if strings.TrimSpace(file.StorePath) != "" {
+	if utils.HasContent(file.StorePath) {
 		target.StorePath = strings.TrimSpace(file.StorePath)
 	}
 	if file.MaxTimers != nil {
@@ -309,19 +313,19 @@ func mergeCalendarReminderConfig(target *CalendarReminderConfig, file *CalendarR
 	if file.Enabled != nil {
 		target.Enabled = *file.Enabled
 	}
-	if strings.TrimSpace(file.Schedule) != "" {
+	if utils.HasContent(file.Schedule) {
 		target.Schedule = strings.TrimSpace(file.Schedule)
 	}
 	if file.LookAheadMinutes != nil {
 		target.LookAheadMinutes = *file.LookAheadMinutes
 	}
-	if strings.TrimSpace(file.Channel) != "" {
+	if utils.HasContent(file.Channel) {
 		target.Channel = strings.TrimSpace(file.Channel)
 	}
-	if strings.TrimSpace(file.UserID) != "" {
+	if utils.HasContent(file.UserID) {
 		target.UserID = strings.TrimSpace(file.UserID)
 	}
-	if strings.TrimSpace(file.ChatID) != "" {
+	if utils.HasContent(file.ChatID) {
 		target.ChatID = strings.TrimSpace(file.ChatID)
 	}
 }
@@ -351,7 +355,7 @@ func mergeOKRConfig(target *OKRProactiveConfig, file *OKRFileConfig) {
 	if file.Enabled != nil {
 		target.Enabled = *file.Enabled
 	}
-	if strings.TrimSpace(file.GoalsRoot) != "" {
+	if utils.HasContent(file.GoalsRoot) {
 		target.GoalsRoot = strings.TrimSpace(file.GoalsRoot)
 	}
 	if file.AutoInject != nil {

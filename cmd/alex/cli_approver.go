@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"alex/internal/shared/utils"
 	tools "alex/internal/domain/agent/ports/tools"
 
 	"golang.org/x/term"
@@ -130,7 +131,7 @@ func newCLIApproverStore() *cliApproverStore {
 }
 
 func (s *cliApproverStore) forSession(sessionID string) *cliApprover {
-	if strings.TrimSpace(sessionID) == "" {
+	if utils.IsBlank(sessionID) {
 		return newCLIApprover("")
 	}
 	s.mu.Lock()

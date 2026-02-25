@@ -3,13 +3,13 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 // Registry manages MCP servers and their tools
@@ -121,7 +121,7 @@ func (r *Registry) Initialize() error {
 // StartServerWithConfig starts a single MCP server using an explicit config.
 // It returns the tool adapters loaded for the server (if any).
 func (r *Registry) StartServerWithConfig(name string, config ServerConfig) ([]*ToolAdapter, error) {
-	if strings.TrimSpace(name) == "" {
+	if utils.IsBlank(name) {
 		return nil, fmt.Errorf("server name is required")
 	}
 

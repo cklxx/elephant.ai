@@ -12,6 +12,7 @@ import (
 	builtinshared "alex/internal/infra/tools/builtin/shared"
 	"alex/internal/delivery/channels"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/utils"
 )
 
 func (g *Gateway) applyPinnedLarkLLMSelection(ctx context.Context, msg *incomingMessage) context.Context {
@@ -210,7 +211,7 @@ func (g *Gateway) buildModelStatus(ctx context.Context, msg *incomingMessage) st
 			return fmt.Sprintf("当前订阅模型选择 %s：%s/%s", scopeLabel, resolved.Provider, resolved.Model)
 		}
 	}
-	if strings.TrimSpace(selection.Provider) == "" || strings.TrimSpace(selection.Model) == "" {
+	if utils.IsBlank(selection.Provider) || utils.IsBlank(selection.Model) {
 		return "当前订阅模型选择无效；请重新设置或清除。"
 	}
 	return fmt.Sprintf("当前订阅模型选择 %s：%s/%s", scopeLabel, selection.Provider, selection.Model)
@@ -237,11 +238,11 @@ func formatModelListText(status string, catalog subscription.Catalog) string {
 	}
 
 	for _, p := range catalog.Providers {
-		if strings.TrimSpace(p.Provider) == "" {
+		if utils.IsBlank(p.Provider) {
 			continue
 		}
 		header := fmt.Sprintf("- %s (%s)", p.Provider, p.Source)
-		if strings.TrimSpace(p.Error) != "" {
+		if utils.HasContent(p.Error) {
 			header = header + fmt.Sprintf(" — %s", strings.TrimSpace(p.Error))
 		}
 		lines = append(lines, header)
@@ -327,7 +328,7 @@ func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, s
 		return fmt.Errorf("selection store not available")
 	}
 	parts := strings.SplitN(strings.TrimSpace(spec), "/", 2)
-	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+	if len(parts) != 2 || utils.IsBlank(parts[0]) || utils.IsBlank(parts[1]) {
 		return fmt.Errorf("format: <provider>/<model>")
 	}
 	provider := strings.ToLower(strings.TrimSpace(parts[0]))

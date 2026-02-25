@@ -8,6 +8,7 @@ import (
 	ports "alex/internal/domain/agent/ports"
 	storage "alex/internal/domain/agent/ports/storage"
 	jsonx "alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -98,7 +99,7 @@ func parsePlanReviewMarker(content string) (planReviewMarker, bool) {
 			}
 		}
 	}
-	if strings.TrimSpace(marker.OverallGoalUI) == "" {
+	if utils.IsBlank(marker.OverallGoalUI) {
 		return planReviewMarker{}, false
 	}
 	return marker, true

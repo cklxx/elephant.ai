@@ -1,6 +1,7 @@
 package toolregistry
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"fmt"
 	"math"
@@ -54,7 +55,7 @@ func newCircuitBreakerStore(cfg CircuitBreakerConfig) *circuitBreakerStore {
 }
 
 func (s *circuitBreakerStore) Get(name string) *alexerrors.CircuitBreaker {
-	if s == nil || strings.TrimSpace(name) == "" {
+	if s == nil || utils.IsBlank(name) {
 		return nil
 	}
 	if s.manager == nil {

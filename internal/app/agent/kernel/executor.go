@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"errors"
 	"fmt"
@@ -256,7 +257,7 @@ func containsSuccessfulRealToolExecution(result *agent.TaskResult) bool {
 		}
 		for _, tr := range msg.ToolResults {
 			name := callNames[tr.CallID]
-			if strings.TrimSpace(name) == "" {
+			if utils.IsBlank(name) {
 				if tr.Error == nil {
 					sawSuccessfulUnknown = true
 				}

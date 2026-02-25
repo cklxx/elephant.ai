@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 // Reader exposes methods for consuming structured turn journal entries.
@@ -25,7 +27,7 @@ type FileReader struct {
 
 // NewFileReader instantiates a reader rooted at dir.
 func NewFileReader(dir string) (*FileReader, error) {
-	if strings.TrimSpace(dir) == "" {
+	if utils.IsBlank(dir) {
 		return nil, fmt.Errorf("journal directory required")
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {

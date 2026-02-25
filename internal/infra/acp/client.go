@@ -21,6 +21,7 @@ import (
 	alexerrors "alex/internal/shared/errors"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils/id"
+	"alex/internal/shared/utils"
 )
 
 // NotificationHandler handles ACP notifications and requests.
@@ -52,7 +53,7 @@ func Dial(addr string, timeout time.Duration, logger logging.Logger) (*Client, e
 	if logger == nil {
 		logger = logging.NewComponentLogger("ACPClient")
 	}
-	if strings.TrimSpace(addr) == "" {
+	if utils.IsBlank(addr) {
 		return nil, fmt.Errorf("acp addr is required")
 	}
 	baseURL, err := normalizeACPAddr(addr)
@@ -234,7 +235,7 @@ func (c *Client) consumeSSE(ctx context.Context, handler NotificationHandler) er
 			}
 			payload := strings.Join(dataLines, "\n")
 			dataLines = nil
-			if strings.TrimSpace(payload) == "" {
+			if utils.IsBlank(payload) {
 				continue
 			}
 			c.handlePayload(ctx, handler, []byte(payload))

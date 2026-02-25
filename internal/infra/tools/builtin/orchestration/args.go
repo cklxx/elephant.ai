@@ -5,6 +5,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 func parseStringList(args map[string]any, key string) ([]string, error) {
@@ -17,7 +19,7 @@ func parseStringList(args map[string]any, key string) ([]string, error) {
 	case []string:
 		result := make([]string, 0, len(v))
 		for _, item := range v {
-			if strings.TrimSpace(item) != "" {
+			if utils.HasContent(item) {
 				result = append(result, strings.TrimSpace(item))
 			}
 		}
@@ -49,7 +51,7 @@ func parseStringMap(args map[string]any, key string) (map[string]string, error) 
 	case map[string]string:
 		out := make(map[string]string, len(v))
 		for k, val := range v {
-			if strings.TrimSpace(k) == "" {
+			if utils.IsBlank(k) {
 				return nil, fmt.Errorf("%s keys must not be empty", key)
 			}
 			out[strings.TrimSpace(k)] = strings.TrimSpace(val)
@@ -58,7 +60,7 @@ func parseStringMap(args map[string]any, key string) (map[string]string, error) 
 	case map[string]any:
 		out := make(map[string]string, len(v))
 		for k, val := range v {
-			if strings.TrimSpace(k) == "" {
+			if utils.IsBlank(k) {
 				return nil, fmt.Errorf("%s keys must not be empty", key)
 			}
 			str, ok := val.(string)

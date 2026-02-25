@@ -10,6 +10,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
@@ -189,7 +190,7 @@ func textPayload(text string) string {
 var outgoingMentionPattern = regexp.MustCompile(`@([^@()<>\n\r\t]+)\((ou_[A-Za-z0-9]+|all)\)`)
 
 func renderOutgoingMentions(text string) string {
-	if strings.TrimSpace(text) == "" {
+	if utils.IsBlank(text) {
 		return text
 	}
 	return outgoingMentionPattern.ReplaceAllStringFunc(text, func(raw string) string {

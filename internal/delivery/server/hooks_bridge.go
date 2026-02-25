@@ -14,6 +14,7 @@ import (
 
 	"alex/internal/shared/logging"
 	"alex/internal/shared/uxphrases"
+	"alex/internal/shared/utils"
 )
 
 const defaultHooksAggregateWindow = 30 * time.Second
@@ -295,11 +296,11 @@ func formatStop(p hookPayload) string {
 		sb.WriteString(fmt.Sprintf(" (%s)", p.StopReason))
 	}
 	answer := p.Answer
-	if strings.TrimSpace(answer) == "" {
+	if utils.IsBlank(answer) {
 		// Some hook emitters place the final text in `output` for Stop events.
 		answer = p.Output
 	}
-	if strings.TrimSpace(answer) != "" {
+	if utils.HasContent(answer) {
 		sb.WriteString("\n")
 		sb.WriteString(truncateHookText(answer, 800))
 	}

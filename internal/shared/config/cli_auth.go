@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -114,7 +116,7 @@ func loadCodexCLIAuth(readFile func(string) ([]byte, error), home string) CLICre
 	// Check if the access token needs refresh.
 	now := time.Now()
 	if needsRefresh, _ := codexOAuthNeedsRefresh(token, now); needsRefresh {
-		if strings.TrimSpace(payload.Tokens.RefreshToken) != "" {
+		if utils.HasContent(payload.Tokens.RefreshToken) {
 			refreshed, err := refreshCodexOAuth(payload)
 			if err == nil {
 				payload = refreshed
@@ -284,16 +286,16 @@ func refreshCodexOAuth(payload codexAuthFile) (codexAuthFile, error) {
 	if err := json.Unmarshal(body, &refreshed); err != nil {
 		return codexAuthFile{}, err
 	}
-	if strings.TrimSpace(refreshed.AccessToken) == "" {
+	if utils.IsBlank(refreshed.AccessToken) {
 		return codexAuthFile{}, io.ErrUnexpectedEOF
 	}
 
 	updated := payload
 	updated.Tokens.AccessToken = strings.TrimSpace(refreshed.AccessToken)
-	if strings.TrimSpace(refreshed.RefreshToken) != "" {
+	if utils.HasContent(refreshed.RefreshToken) {
 		updated.Tokens.RefreshToken = strings.TrimSpace(refreshed.RefreshToken)
 	}
-	if strings.TrimSpace(refreshed.IDToken) != "" {
+	if utils.HasContent(refreshed.IDToken) {
 		updated.Tokens.IDToken = strings.TrimSpace(refreshed.IDToken)
 	}
 	updated.LastRefresh = time.Now().UTC().Format(time.RFC3339Nano)

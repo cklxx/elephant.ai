@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	sessionstate "alex/internal/infra/session/state_store"
 	runtimeconfig "alex/internal/shared/config"
 	configadmin "alex/internal/shared/config/admin"
@@ -145,7 +146,7 @@ func (c *CLI) handleResume(args []string) error {
 	if c == nil || c.container == nil {
 		return fmt.Errorf("container not initialized")
 	}
-	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+	if len(args) == 0 || utils.IsBlank(args[0]) {
 		return fmt.Errorf("usage: alex resume <session-id>")
 	}
 	sessionID := strings.TrimSpace(args[0])
@@ -173,7 +174,7 @@ func configUsageLine() string {
 
 func configUsageLineWith(envLookup runtimeconfig.EnvLookup, homeDir func() (string, error)) string {
 	path, source := runtimeconfig.ResolveConfigPath(envLookup, homeDir)
-	if strings.TrimSpace(path) == "" {
+	if utils.IsBlank(path) {
 		return "  Config file: (unresolved)"
 	}
 	suffix := ""
@@ -356,7 +357,7 @@ func (c *CLI) outputSnapshot(out io.Writer, snapshot sessionstate.Snapshot, raw 
 	if err := writeLine(out, "Turn %d (LLM turn %d) captured %s\n", snapshot.TurnID, snapshot.LLMTurnSeq, created); err != nil {
 		return err
 	}
-	if strings.TrimSpace(snapshot.Summary) != "" {
+	if utils.HasContent(snapshot.Summary) {
 		if err := writeLine(out, "  Summary: %s\n", strings.TrimSpace(snapshot.Summary)); err != nil {
 			return err
 		}

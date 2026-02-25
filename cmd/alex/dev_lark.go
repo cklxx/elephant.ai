@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"alex/internal/shared/utils"
 	devlog "alex/internal/devops/log"
 	"alex/internal/devops/supervisor"
 )
@@ -629,7 +630,7 @@ func canonicalPath(path string) string {
 		}
 	}
 
-	if resolved, err := filepath.EvalSymlinks(p); err == nil && strings.TrimSpace(resolved) != "" {
+	if resolved, err := filepath.EvalSymlinks(p); err == nil && utils.HasContent(resolved) {
 		return resolved
 	}
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	toolspolicy "alex/internal/infra/tools"
 )
 
@@ -431,7 +432,7 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	if cfg.Attention.QuietHours[0] == 0 && cfg.Attention.QuietHours[1] == 0 {
 		cfg.Attention.QuietHours = [2]int{22, 8}
 	}
-	if strings.TrimSpace(cfg.Scheduler.ConcurrencyPolicy) == "" {
+	if utils.IsBlank(cfg.Scheduler.ConcurrencyPolicy) {
 		cfg.Scheduler.ConcurrencyPolicy = "skip"
 	}
 	if cfg.Scheduler.TriggerTimeoutSeconds <= 0 {
@@ -480,7 +481,7 @@ func shouldLoadCLICredentials(cfg RuntimeConfig) bool {
 		return true
 	}
 
-	if strings.TrimSpace(cfg.APIKey) != "" {
+	if utils.HasContent(cfg.APIKey) {
 		return false
 	}
 

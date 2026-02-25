@@ -6,6 +6,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	"alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 var validToolNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
@@ -16,7 +17,7 @@ func isValidToolName(name string) bool {
 
 func normalizeToolSchema(schema ports.ParameterSchema) ports.ParameterSchema {
 	normalized := schema
-	if strings.TrimSpace(normalized.Type) == "" {
+	if utils.IsBlank(normalized.Type) {
 		normalized.Type = "object"
 	}
 	if normalized.Properties == nil {

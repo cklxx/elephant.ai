@@ -16,6 +16,7 @@ import (
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 )
 
 type executeCode struct {
@@ -98,7 +99,7 @@ func (t *executeCode) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 
 	codePath := strings.TrimSpace(shared.StringArg(call.Arguments, "code_path"))
 	code := shared.StringArg(call.Arguments, "code")
-	if codePath == "" && strings.TrimSpace(code) == "" {
+	if codePath == "" && utils.IsBlank(code) {
 		err := errors.New("code or code_path is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
@@ -190,7 +191,7 @@ func (t *executeCode) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	output := strings.TrimSpace(stdout)
 	if output == "" {
 		output = strings.TrimSpace(stderr)
-	} else if strings.TrimSpace(stderr) != "" {
+	} else if utils.HasContent(stderr) {
 		output = output + "\n" + strings.TrimSpace(stderr)
 	}
 

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	"alex/internal/shared/utils"
 )
 
 type cachedPayload struct {
@@ -68,7 +70,7 @@ func (c *DataCache) StoreBytes(mediaType string, data []byte) string {
 	if len(data) == 0 || c == nil {
 		return ""
 	}
-	if strings.TrimSpace(mediaType) == "" {
+	if utils.IsBlank(mediaType) {
 		mediaType = "application/octet-stream"
 	}
 

@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"fmt"
 	"sort"
@@ -193,7 +194,7 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 			return
 		}
 	}
-	if strings.TrimSpace(stateContent) == "" {
+	if utils.IsBlank(stateContent) {
 		stateContent = e.config.SeedState
 	}
 
@@ -343,7 +344,7 @@ func renderKernelRuntimeLines(result *kerneldomain.CycleResult, cycleErr error, 
 	} else {
 		lines = append(lines, "- latest_error: (none)")
 	}
-	if strings.TrimSpace(fallbackPath) != "" {
+	if utils.HasContent(fallbackPath) {
 		lines = append(lines, fmt.Sprintf("- state_write_fallback: %s", fallbackPath))
 	}
 	return lines

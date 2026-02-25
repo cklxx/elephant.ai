@@ -50,7 +50,7 @@ func logStreamingPayload(requestID string, payload []byte, entryType string) {
 	}
 
 	dir := resolveRequestLogDir()
-	if strings.TrimSpace(dir) == "" {
+	if IsBlank(dir) {
 		log.Printf("request log: resolved log directory empty")
 		return
 	}

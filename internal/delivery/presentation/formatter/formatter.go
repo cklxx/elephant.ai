@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"alex/internal/domain/agent"
+	"alex/internal/shared/utils"
 )
 
 // ToolFormatter formats tool calls for display output
@@ -440,7 +441,7 @@ func (tf *ToolFormatter) formatCodeExecuteResult(content string) string {
 	for _, line := range lines {
 		if strings.Contains(line, "Execution time:") || strings.Contains(line, "ms") {
 			timeInfo = strings.TrimSpace(line)
-		} else if strings.TrimSpace(line) != "" && !strings.HasPrefix(line, "Code executed") {
+		} else if utils.HasContent(line) && !strings.HasPrefix(line, "Code executed") {
 			outputLines = append(outputLines, strings.TrimSpace(line))
 		}
 	}
@@ -563,7 +564,7 @@ func (tf *ToolFormatter) formatGrepResult(content string) string {
 	matchCount := 0
 
 	for _, line := range lines {
-		if strings.TrimSpace(line) != "" && !strings.HasPrefix(line, "Search") {
+		if utils.HasContent(line) && !strings.HasPrefix(line, "Search") {
 			matchCount++
 		}
 	}
@@ -585,7 +586,7 @@ func (tf *ToolFormatter) formatFindResult(content string) string {
 	fileCount := 0
 
 	for _, line := range lines {
-		if strings.TrimSpace(line) != "" && !strings.HasPrefix(line, "Found") {
+		if utils.HasContent(line) && !strings.HasPrefix(line, "Found") {
 			fileCount++
 		}
 	}
@@ -769,7 +770,7 @@ func (tf *ToolFormatter) formatListFilesResult(content string) string {
 		dirs := make([]string, 0, len(payload.Files))
 		files := make([]string, 0, len(payload.Files))
 		for _, entry := range payload.Files {
-			if strings.TrimSpace(entry.Name) == "" {
+			if utils.IsBlank(entry.Name) {
 				continue
 			}
 			if entry.IsDirectory {

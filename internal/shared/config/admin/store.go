@@ -6,8 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
-
+	"alex/internal/shared/utils"
 	"alex/internal/infra/filestore"
 	runtimeconfig "alex/internal/shared/config"
 	"gopkg.in/yaml.v3"
@@ -31,7 +30,7 @@ func NewFileStore(path string) *FileStore {
 
 // LoadOverrides reads overrides from disk, returning an empty struct when missing.
 func (s *FileStore) LoadOverrides(ctx context.Context) (runtimeconfig.Overrides, error) {
-	if s == nil || strings.TrimSpace(s.path) == "" {
+	if s == nil || utils.IsBlank(s.path) {
 		return runtimeconfig.Overrides{}, nil
 	}
 	data, err := os.ReadFile(s.path)
@@ -55,7 +54,7 @@ func (s *FileStore) LoadOverrides(ctx context.Context) (runtimeconfig.Overrides,
 
 // SaveOverrides writes overrides to disk, creating parent directories as required.
 func (s *FileStore) SaveOverrides(ctx context.Context, overrides runtimeconfig.Overrides) error {
-	if s == nil || strings.TrimSpace(s.path) == "" {
+	if s == nil || utils.IsBlank(s.path) {
 		return fmt.Errorf("store path not configured")
 	}
 	doc := map[string]any{}

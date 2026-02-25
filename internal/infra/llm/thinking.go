@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 const thinkingPromptHeader = "Thinking (previous):"
@@ -39,7 +40,7 @@ func appendThinkingToText(content string, thinking ports.Thinking) string {
 	if extra == "" {
 		return content
 	}
-	if strings.TrimSpace(content) == "" {
+	if utils.IsBlank(content) {
 		return extra
 	}
 	return content + "\n\n" + extra
@@ -66,14 +67,14 @@ func appendThinkingPart(thinking *ports.Thinking, part ports.ThinkingPart) {
 	if thinking == nil {
 		return
 	}
-	if strings.TrimSpace(part.Text) == "" && strings.TrimSpace(part.Encrypted) == "" && strings.TrimSpace(part.Signature) == "" {
+	if utils.IsBlank(part.Text) && utils.IsBlank(part.Encrypted) && utils.IsBlank(part.Signature) {
 		return
 	}
 	thinking.Parts = append(thinking.Parts, part)
 }
 
 func appendThinkingText(thinking *ports.Thinking, kind, text string) {
-	if strings.TrimSpace(text) == "" {
+	if utils.IsBlank(text) {
 		return
 	}
 	appendThinkingPart(thinking, ports.ThinkingPart{Kind: kind, Text: text})

@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -141,7 +143,7 @@ func scanRequestLogIndex(path string, opts LogIndexOptions, aggregates map[strin
 		if err != nil {
 			return
 		}
-		if strings.TrimSpace(line) == "" {
+		if utils.IsBlank(line) {
 			continue
 		}
 		logID, ts := parseRequestLogLine(line)

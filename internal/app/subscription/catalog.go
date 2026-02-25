@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -174,10 +175,10 @@ func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, clie
 		}
 		if existing, ok := targetByProvider[key]; ok {
 			// Prefer runtime-discovered provider source over manual metadata source.
-			if existing.Source == "manual" && strings.TrimSpace(source) != "" && source != "manual" {
+			if existing.Source == "manual" && utils.HasContent(source) && source != "manual" {
 				existing.Source = source
 			}
-			if strings.TrimSpace(existing.BaseURL) == "" && strings.TrimSpace(baseURL) != "" {
+			if utils.IsBlank(existing.BaseURL) && utils.HasContent(baseURL) {
 				existing.BaseURL = strings.TrimSpace(baseURL)
 			}
 			applyCatalogProviderPreset(&existing)
@@ -194,7 +195,7 @@ func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, clie
 			applyCatalogProviderPreset(&target)
 			targetByProvider[key] = target
 		}
-		if strings.TrimSpace(apiKey) != "" {
+		if utils.HasContent(apiKey) {
 			authByProvider[key] = providerAuth{
 				apiKey:    strings.TrimSpace(apiKey),
 				accountID: strings.TrimSpace(accountID),
@@ -238,7 +239,7 @@ func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, clie
 			targets = append(targets, target)
 			continue
 		}
-		if auth.apiKey != "" && strings.TrimSpace(target.BaseURL) != "" {
+		if auth.apiKey != "" && utils.HasContent(target.BaseURL) {
 			models, err := fetchProviderModels(ctx, client, fetchTarget{
 				provider:  target.Provider,
 				baseURL:   target.BaseURL,

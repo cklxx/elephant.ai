@@ -526,7 +526,7 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 func isEmptyContent(content any) bool {
 	switch v := content.(type) {
 	case string:
-		return strings.TrimSpace(v) == ""
+		return utils.IsBlank(v)
 	case []map[string]any:
 		return len(v) == 0
 	case nil:

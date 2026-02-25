@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 const dotEnvPathEnvVar = "ALEX_DOTENV_PATH"
@@ -15,7 +17,7 @@ const dotEnvPathEnvVar = "ALEX_DOTENV_PATH"
 // existing process environment values.
 func LoadDotEnv(paths ...string) error {
 	if len(paths) == 0 {
-		if value, ok := os.LookupEnv(dotEnvPathEnvVar); ok && strings.TrimSpace(value) != "" {
+		if value, ok := os.LookupEnv(dotEnvPathEnvVar); ok && utils.HasContent(value) {
 			paths = append(paths, strings.TrimSpace(value))
 		} else {
 			paths = append(paths, ".env")
@@ -23,7 +25,7 @@ func LoadDotEnv(paths ...string) error {
 	}
 
 	for _, path := range paths {
-		if strings.TrimSpace(path) == "" {
+		if utils.IsBlank(path) {
 			continue
 		}
 		expandedPath := expandDotEnvPath(path)
@@ -44,7 +46,7 @@ func expandDotEnvPath(path string) string {
 	}
 	if strings.HasPrefix(trimmed, "~") {
 		home, err := os.UserHomeDir()
-		if err == nil && strings.TrimSpace(home) != "" {
+		if err == nil && utils.HasContent(home) {
 			suffix := strings.TrimPrefix(trimmed, "~")
 			suffix = strings.TrimPrefix(suffix, string(filepath.Separator))
 			return filepath.Join(home, suffix)

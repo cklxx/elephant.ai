@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"alex/internal/shared/utils"
 	"alex/internal/infra/mcp"
 	"alex/internal/shared/logging"
 )
@@ -27,7 +28,7 @@ func runMCPPermissionServer(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if strings.TrimSpace(*socketPath) == "" {
+	if utils.IsBlank(*socketPath) {
 		return fmt.Errorf("--sock is required")
 	}
 	server := &permissionServer{
@@ -178,7 +179,7 @@ func parseStringSlice(raw any) []string {
 	}
 	out := make([]string, 0, len(values))
 	for _, item := range values {
-		if str, ok := item.(string); ok && strings.TrimSpace(str) != "" {
+		if str, ok := item.(string); ok && utils.HasContent(str) {
 			out = append(out, strings.TrimSpace(str))
 		}
 	}

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 // Summary captures high-level details about an execution environment.
@@ -19,10 +21,10 @@ type Summary struct {
 
 // IsEmpty reports whether the summary has any populated fields.
 func (s Summary) IsEmpty() bool {
-	return strings.TrimSpace(s.WorkingDirectory) == "" &&
+	return utils.IsBlank(s.WorkingDirectory) &&
 		len(s.FileEntries) == 0 &&
-		strings.TrimSpace(s.OperatingSystem) == "" &&
-		strings.TrimSpace(s.Kernel) == "" &&
+		utils.IsBlank(s.OperatingSystem) &&
+		utils.IsBlank(s.Kernel) &&
 		len(s.Capabilities) == 0 &&
 		len(s.EnvironmentHints) == 0
 }

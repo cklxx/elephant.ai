@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"strings"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+
+	"alex/internal/shared/utils"
 )
 
 // sdkMessenger implements LarkMessenger using the real Lark SDK client.
@@ -114,7 +115,7 @@ func (m *sdkMessenger) UploadImage(ctx context.Context, payload []byte) (string,
 	if !resp.Success() {
 		return "", fmt.Errorf("lark image upload failed: code=%d msg=%s", resp.Code, resp.Msg)
 	}
-	if resp.Data == nil || resp.Data.ImageKey == nil || strings.TrimSpace(*resp.Data.ImageKey) == "" {
+	if resp.Data == nil || resp.Data.ImageKey == nil || utils.IsBlank(*resp.Data.ImageKey) {
 		return "", fmt.Errorf("lark image upload missing image_key")
 	}
 	return *resp.Data.ImageKey, nil
@@ -135,7 +136,7 @@ func (m *sdkMessenger) UploadFile(ctx context.Context, payload []byte, fileName,
 	if !resp.Success() {
 		return "", fmt.Errorf("lark file upload failed: code=%d msg=%s", resp.Code, resp.Msg)
 	}
-	if resp.Data == nil || resp.Data.FileKey == nil || strings.TrimSpace(*resp.Data.FileKey) == "" {
+	if resp.Data == nil || resp.Data.FileKey == nil || utils.IsBlank(*resp.Data.FileKey) {
 		return "", fmt.Errorf("lark file upload missing file_key")
 	}
 	return *resp.Data.FileKey, nil

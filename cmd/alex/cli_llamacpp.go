@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	"alex/internal/infra/llamacpp"
 	runtimeconfig "alex/internal/shared/config"
 )
@@ -57,7 +58,7 @@ func pullLlamaCppWeights(out io.Writer, args []string, envLookup runtimeconfig.E
 	}
 
 	pos := fs.Args()
-	if len(pos) < 2 || strings.TrimSpace(pos[0]) == "" || strings.TrimSpace(pos[1]) == "" {
+	if len(pos) < 2 || utils.IsBlank(pos[0]) || utils.IsBlank(pos[1]) {
 		return fmt.Errorf("usage: alex llama-cpp pull <hf_repo> <gguf_file> [--revision main] [--dir ~/.alex/models/llama.cpp]")
 	}
 

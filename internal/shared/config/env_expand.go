@@ -2,11 +2,12 @@ package config
 
 import (
 	"os"
-	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 func expandEnvValue(lookup EnvLookup, value string) string {
-	if strings.TrimSpace(value) == "" {
+	if utils.IsBlank(value) {
 		return value
 	}
 	if lookup == nil {

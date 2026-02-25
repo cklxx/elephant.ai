@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"alex/internal/shared/utils"
 	jsonrpc "alex/internal/infra/mcp"
 )
 
@@ -152,7 +153,7 @@ func readRPCMessage(r *bufio.Reader) ([]byte, bool, error) {
 		}
 
 		line = strings.TrimRight(line, "\r\n")
-		if strings.TrimSpace(line) == "" {
+		if utils.IsBlank(line) {
 			continue
 		}
 
@@ -163,7 +164,7 @@ func readRPCMessage(r *bufio.Reader) ([]byte, bool, error) {
 					return nil, true, err
 				}
 				header = strings.TrimRight(header, "\r\n")
-				if strings.TrimSpace(header) == "" {
+				if utils.IsBlank(header) {
 					break
 				}
 			}

@@ -1,6 +1,10 @@
 package channels
 
-import "strings"
+import (
+	"strings"
+
+	"alex/internal/shared/utils"
+)
 
 // ShapeReply7C applies low-risk structural cleanup for direct user replies.
 // It keeps factual content intact while improving readability/coherence:
@@ -55,7 +59,7 @@ func ShapeReply7C(raw string) string {
 		prevNormalized = trimmed
 	}
 
-	for len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+	for len(out) > 0 && utils.IsBlank(out[len(out)-1]) {
 		out = out[:len(out)-1]
 	}
 

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 const maxSessionIDLength = 128
@@ -12,7 +14,7 @@ const maxSessionIDLength = 128
 var sessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 func validateSessionID(id string) error {
-	if strings.TrimSpace(id) == "" {
+	if utils.IsBlank(id) {
 		return errors.New("session_id is required")
 	}
 	if len(id) > maxSessionIDLength {

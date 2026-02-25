@@ -323,8 +323,8 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	selection, hasSelection := appcontext.GetLLMSelection(ctx)
 	selectionPinned := hasSelection &&
 		selection.Pinned &&
-		strings.TrimSpace(selection.Provider) != "" &&
-		strings.TrimSpace(selection.Model) != ""
+		utils.HasContent(selection.Provider) &&
+		utils.HasContent(selection.Model)
 
 	var taskAnalysis *agent.TaskAnalysis
 	if selectionPinned {
@@ -356,7 +356,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		if session.Metadata == nil {
 			session.Metadata = make(map[string]string)
 		}
-		if strings.TrimSpace(session.Metadata["title"]) == "" {
+		if utils.IsBlank(session.Metadata["title"]) {
 			if title := utils.NormalizeSessionTitle(taskAnalysis.ActionName); title != "" {
 				session.Metadata["title"] = title
 			}
@@ -387,7 +387,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	} else if s.credentialRefresher != nil {
 		apiKeySource = "credential_refresher"
 	}
-	refreshCreds := !selectionPinned || (selectionPinned && strings.TrimSpace(effectiveProfile.APIKey) == "")
+	refreshCreds := !selectionPinned || (selectionPinned && utils.IsBlank(effectiveProfile.APIKey))
 	s.logger.Debug("LLM config resolved: provider=%s model=%s pinned=%t api_key_source=%s",
 		effectiveProfile.Provider, effectiveProfile.Model, selectionPinned, apiKeySource)
 	llmClient, _, err := llmclient.GetIsolatedClientFromProfile(
@@ -500,10 +500,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 // persists the resulting title to the session store when done. This removes
 // the LLM round-trip from the critical path of Prepare().
 func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, session *storage.Session, task string) {
-	if session == nil || strings.TrimSpace(session.ID) == "" {
+	if session == nil || utils.IsBlank(session.ID) {
 		return
 	}
-	if session.Metadata != nil && strings.TrimSpace(session.Metadata["title"]) != "" {
+	if session.Metadata != nil && utils.HasContent(session.Metadata["title"]) {
 		return
 	}
 
@@ -553,7 +553,7 @@ func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, s
 		if sess.Metadata == nil {
 			sess.Metadata = make(map[string]string)
 		}
-		if strings.TrimSpace(sess.Metadata["title"]) != "" {
+		if utils.HasContent(sess.Metadata["title"]) {
 			return // Title already set by plan tool or elsewhere.
 		}
 		sess.Metadata["title"] = title

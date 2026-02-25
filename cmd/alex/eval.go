@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	agent_eval "alex/evaluation/agent_eval"
 	runtimeconfig "alex/internal/shared/config"
 )
@@ -182,7 +183,7 @@ func maybeResolveEvalDatasetPath(datasetPath, projectRoot string) string {
 }
 
 func maybeLoadEvalDotEnv(projectRoot string) error {
-	if value, ok := os.LookupEnv("ALEX_DOTENV_PATH"); ok && strings.TrimSpace(value) != "" {
+	if value, ok := os.LookupEnv("ALEX_DOTENV_PATH"); ok && utils.HasContent(value) {
 		return nil
 	}
 
@@ -197,7 +198,7 @@ func maybeLoadEvalDotEnv(projectRoot string) error {
 }
 
 func maybeSetEvalContextConfig(projectRoot string) error {
-	if value, ok := os.LookupEnv("ALEX_CONTEXT_CONFIG_DIR"); ok && strings.TrimSpace(value) != "" {
+	if value, ok := os.LookupEnv("ALEX_CONTEXT_CONFIG_DIR"); ok && utils.HasContent(value) {
 		return nil
 	}
 

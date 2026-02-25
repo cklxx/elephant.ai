@@ -1,6 +1,7 @@
 package preparation
 
 import (
+	"alex/internal/shared/utils"
 	"fmt"
 	"regexp"
 	"sort"
@@ -125,7 +126,7 @@ func taskNeedsVision(task string, attachments map[string]ports.Attachment, userA
 		}
 	}
 
-	if strings.TrimSpace(task) == "" || len(attachments) == 0 {
+	if utils.IsBlank(task) || len(attachments) == 0 {
 		return false
 	}
 

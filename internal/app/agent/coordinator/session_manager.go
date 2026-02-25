@@ -22,7 +22,7 @@ func (c *AgentCoordinator) persistSessionTitle(ctx context.Context, sessionID st
 		return
 	}
 	title = utils.NormalizeSessionTitle(title)
-	if strings.TrimSpace(sessionID) == "" || title == "" {
+	if utils.IsBlank(sessionID) || title == "" {
 		return
 	}
 
@@ -41,7 +41,7 @@ func (c *AgentCoordinator) persistSessionTitle(ctx context.Context, sessionID st
 			return
 		}
 		metadata := storage.EnsureMetadata(session)
-		if strings.TrimSpace(metadata["title"]) != "" {
+		if utils.HasContent(metadata["title"]) {
 			return
 		}
 		metadata["title"] = title
@@ -356,7 +356,7 @@ func updateAwaitUserInputMetadata(session *storage.Session, result *agent.TaskRe
 		stopReason = strings.TrimSpace(result.StopReason)
 	}
 	if strings.EqualFold(stopReason, "await_user_input") {
-		if question, ok := agent.ExtractAwaitUserInputQuestion(result.Messages); ok && strings.TrimSpace(question) != "" {
+		if question, ok := agent.ExtractAwaitUserInputQuestion(result.Messages); ok && utils.HasContent(question) {
 			metadata["await_user_input"] = "true"
 			metadata["await_user_input_question"] = question
 			return

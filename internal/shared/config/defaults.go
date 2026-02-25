@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 func defaultACPExecutorAddr(lookup EnvLookup) string {
@@ -67,7 +69,7 @@ func readACPPortFile() (int, bool) {
 			configPath = abs
 		}
 	}
-	if resolved, err := filepath.EvalSymlinks(configPath); err == nil && strings.TrimSpace(resolved) != "" {
+	if resolved, err := filepath.EvalSymlinks(configPath); err == nil && utils.HasContent(resolved) {
 		configPath = resolved
 	}
 	path := filepath.Join(filepath.Dir(configPath), DefaultACPPortFile)

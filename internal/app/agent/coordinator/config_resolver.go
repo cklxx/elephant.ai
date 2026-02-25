@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"fmt"
 	"strings"
@@ -63,10 +64,10 @@ func (c *AgentCoordinator) effectiveConfig(ctx context.Context) appconfig.Config
 	cfg.TemperatureProvided = runtimeCfg.TemperatureProvided
 	cfg.TopP = runtimeCfg.TopP
 	cfg.StopSequences = append([]string(nil), runtimeCfg.StopSequences...)
-	if strings.TrimSpace(runtimeCfg.AgentPreset) != "" {
+	if utils.HasContent(runtimeCfg.AgentPreset) {
 		cfg.AgentPreset = runtimeCfg.AgentPreset
 	}
-	if strings.TrimSpace(runtimeCfg.ToolPreset) != "" {
+	if utils.HasContent(runtimeCfg.ToolPreset) {
 		cfg.ToolPreset = runtimeCfg.ToolPreset
 	}
 	cfg.SessionStaleAfter = time.Duration(runtimeCfg.SessionStaleAfterSeconds) * time.Second

@@ -13,6 +13,7 @@ import (
 
 	"alex/internal/infra/httpclient"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/utils"
 )
 
 func parseModelList(raw []byte) ([]string, error) {
@@ -81,7 +82,7 @@ type modelFetchTarget struct {
 
 func fetchProviderModels(ctx context.Context, client *http.Client, target modelFetchTarget, maxResponseBytes int) ([]string, error) {
 	endpoint := strings.TrimRight(target.BaseURL, "/") + "/models"
-	if target.Provider == "codex" && strings.TrimSpace(target.ClientVersion) != "" {
+	if target.Provider == "codex" && utils.HasContent(target.ClientVersion) {
 		separator := "?"
 		if strings.Contains(endpoint, "?") {
 			separator = "&"
@@ -149,7 +150,7 @@ func listRuntimeModels(ctx context.Context, creds runtimeconfig.CLICredentials, 
 	}
 	if creds.Claude.APIKey != "" {
 		baseURL := creds.Claude.BaseURL
-		if strings.TrimSpace(baseURL) == "" {
+		if utils.IsBlank(baseURL) {
 			baseURL = "https://api.anthropic.com/v1"
 		}
 		targets = append(targets, runtimeModelProvider{

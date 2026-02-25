@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"alex/internal/shared/utils"
 	"alex/internal/delivery/output"
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
@@ -358,7 +359,7 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.Event) {
 			if chunk.content == "" {
 				continue
 			}
-			if !h.firstTokenLogged && strings.TrimSpace(chunk.content) != "" {
+			if !h.firstTokenLogged && utils.HasContent(chunk.content) {
 				if _, ok := os.LookupEnv("ALEX_CLI_LATENCY"); ok {
 					elapsed := time.Since(h.startedAt)
 					_, _ = fmt.Fprintf(os.Stderr, "[latency] first_token_ms=%.2f\n", float64(elapsed.Microseconds())/1000.0)

@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -142,7 +144,7 @@ func DownloadGGUF(ctx context.Context, ref GGUFRef, opts DownloadOptions) (strin
 		return "", fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Accept", "application/octet-stream")
-	if strings.TrimSpace(opts.HFToken) != "" {
+	if utils.HasContent(opts.HFToken) {
 		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(opts.HFToken))
 	}
 

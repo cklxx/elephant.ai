@@ -149,7 +149,7 @@ func LoadConfig() (ConfigResult, error) {
 
 	storePath := configadmin.ResolveStorePath(envLookup)
 	cacheTTL := 30 * time.Second
-	if ttlValue, ok := envLookup("CONFIG_ADMIN_CACHE_TTL"); ok && strings.TrimSpace(ttlValue) != "" {
+	if ttlValue, ok := envLookup("CONFIG_ADMIN_CACHE_TTL"); ok && utils.HasContent(ttlValue) {
 		if parsed, err := time.ParseDuration(strings.TrimSpace(ttlValue)); err == nil && parsed > 0 {
 			cacheTTL = parsed
 		}

@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 // ErrReadOnly is returned when a write operation is attempted in read-only mode.
@@ -28,7 +30,7 @@ type Config struct {
 
 // NewManager creates a Manager with the provided configuration.
 func NewManager(cfg Config) (*Manager, error) {
-	if strings.TrimSpace(cfg.Root) == "" {
+	if utils.IsBlank(cfg.Root) {
 		return nil, errors.New("storage root is required")
 	}
 	root := filepath.Clean(cfg.Root)

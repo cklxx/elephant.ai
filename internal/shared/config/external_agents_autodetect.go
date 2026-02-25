@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 var lookPath = exec.LookPath
@@ -137,7 +139,7 @@ func fallbackBinaryDirs() []string {
 		"/opt/homebrew/bin",
 	}
 	home, err := userHomeDir()
-	if err == nil && strings.TrimSpace(home) != "" {
+	if err == nil && utils.HasContent(home) {
 		dirs = append([]string{
 			filepath.Join(home, ".local", "bin"),
 			filepath.Join(home, ".bun", "bin"),

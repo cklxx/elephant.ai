@@ -1,6 +1,7 @@
 package context
 
 import (
+	"alex/internal/shared/utils"
 	"fmt"
 	"sort"
 	"strings"
@@ -178,7 +179,7 @@ func truncate(s string, totalEvents int) string {
 
 func lastNonEmptyIndex(lines []string) int {
 	for i := len(lines) - 1; i >= 0; i-- {
-		if strings.TrimSpace(lines[i]) != "" {
+		if utils.HasContent(lines[i]) {
 			return i
 		}
 	}

@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"alex/internal/shared/utils"
 	"alex/internal/devops"
 	"alex/internal/devops/services"
 )
@@ -505,7 +506,7 @@ func resolveSharedDevPIDDir(projectDir string) (string, error) {
 		}
 		configPath = abs
 	}
-	if resolved, err := filepath.EvalSymlinks(configPath); err == nil && strings.TrimSpace(resolved) != "" {
+	if resolved, err := filepath.EvalSymlinks(configPath); err == nil && utils.HasContent(resolved) {
 		configPath = resolved
 	}
 

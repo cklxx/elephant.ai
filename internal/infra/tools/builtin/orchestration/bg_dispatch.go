@@ -9,6 +9,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/utils/id"
+	"alex/internal/shared/utils"
 )
 
 type bgDispatch struct {
@@ -141,7 +142,7 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 
 	agentType := "internal"
 	if raw, ok := call.Arguments["agent_type"]; ok {
-		if str, ok := raw.(string); ok && strings.TrimSpace(str) != "" {
+		if str, ok := raw.(string); ok && utils.HasContent(str) {
 			agentType = canonicalAgentType(str)
 		}
 	}
@@ -233,7 +234,7 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	}
 
 	if taskKind == "coding" {
-		if strings.TrimSpace(agentType) == "" || strings.EqualFold(agentType, "internal") {
+		if utils.IsBlank(agentType) || strings.EqualFold(agentType, "internal") {
 			return &ports.ToolResult{
 				CallID:  call.ID,
 				Content: "task_kind=coding requires agent_type to be codex, claude_code, or kimi",
@@ -294,13 +295,13 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		}
 		configOverrides["task_kind"] = taskKind
 	}
-	if strings.TrimSpace(executionMode) != "" {
+	if utils.HasContent(executionMode) {
 		if configOverrides == nil {
 			configOverrides = make(map[string]string)
 		}
 		configOverrides["execution_mode"] = executionMode
 	}
-	if strings.TrimSpace(autonomyLevel) != "" {
+	if utils.HasContent(autonomyLevel) {
 		if configOverrides == nil {
 			configOverrides = make(map[string]string)
 		}

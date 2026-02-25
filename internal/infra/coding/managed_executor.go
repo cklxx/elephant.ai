@@ -9,6 +9,7 @@ import (
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -115,7 +116,7 @@ func (m *ManagedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 		lastResult = result
 		if execErr != nil {
 			lastErr = fmt.Errorf("attempt %d/%d execution failed: %w", attempt, retries, execErr)
-		} else if result != nil && strings.TrimSpace(result.Error) != "" {
+		} else if result != nil && utils.HasContent(result.Error) {
 			lastErr = fmt.Errorf("attempt %d/%d execution failed: %s", attempt, retries, strings.TrimSpace(result.Error))
 		} else {
 			workingDir := strings.TrimSpace(req.WorkingDir)
@@ -180,32 +181,32 @@ func applyCodingDefaults(agentType string, config map[string]string) map[string]
 	if cfg == nil {
 		cfg = make(map[string]string)
 	}
-	if strings.TrimSpace(cfg[configCodingProfile]) == "" {
+	if utils.IsBlank(cfg[configCodingProfile]) {
 		cfg[configCodingProfile] = "full_access"
 	}
-	if strings.TrimSpace(cfg[verifyKeyEnabled]) == "" {
+	if utils.IsBlank(cfg[verifyKeyEnabled]) {
 		cfg[verifyKeyEnabled] = "true"
 	}
-	if strings.TrimSpace(cfg[configRetryMaxAttempt]) == "" {
+	if utils.IsBlank(cfg[configRetryMaxAttempt]) {
 		cfg[configRetryMaxAttempt] = strconv.Itoa(defaultRetryAttempts)
 	}
-	if strings.TrimSpace(cfg[configMergeOnSuccess]) == "" {
+	if utils.IsBlank(cfg[configMergeOnSuccess]) {
 		cfg[configMergeOnSuccess] = "true"
 	}
 
 	switch strings.ToLower(strings.TrimSpace(agentType)) {
 	case "codex", "kimi":
-		if strings.TrimSpace(cfg["approval_policy"]) == "" {
+		if utils.IsBlank(cfg["approval_policy"]) {
 			cfg["approval_policy"] = "never"
 		}
-		if strings.TrimSpace(cfg["sandbox"]) == "" {
+		if utils.IsBlank(cfg["sandbox"]) {
 			cfg["sandbox"] = "danger-full-access"
 		}
 	case "claude_code":
-		if strings.TrimSpace(cfg["mode"]) == "" {
+		if utils.IsBlank(cfg["mode"]) {
 			cfg["mode"] = "autonomous"
 		}
-		if strings.TrimSpace(cfg["allowed_tools"]) == "" {
+		if utils.IsBlank(cfg["allowed_tools"]) {
 			cfg["allowed_tools"] = "*"
 		}
 	}

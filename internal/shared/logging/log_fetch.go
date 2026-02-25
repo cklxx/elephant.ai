@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -88,7 +90,7 @@ func resolveLogDirectory() string {
 		}
 	}
 	home, err := os.UserHomeDir()
-	if err != nil || strings.TrimSpace(home) == "" {
+	if err != nil || utils.IsBlank(home) {
 		return "."
 	}
 	return home
@@ -101,7 +103,7 @@ func resolveRequestLogDirectory() string {
 		}
 	}
 	base, err := os.Getwd()
-	if err != nil || strings.TrimSpace(base) == "" {
+	if err != nil || utils.IsBlank(base) {
 		base = "."
 	}
 	return filepath.Join(base, requestLogSubfolder)

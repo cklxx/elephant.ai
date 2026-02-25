@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"fmt"
 	"strings"
@@ -153,7 +154,7 @@ func (h *MemoryCaptureHook) captureWithLLM(ctx context.Context, result TaskResul
 		h.logger.Warn("Memory capture LLM request failed: %v", err)
 		return nil
 	}
-	if resp == nil || strings.TrimSpace(resp.Content) == "" {
+	if resp == nil || utils.IsBlank(resp.Content) {
 		return nil
 	}
 	return normalizeMemoryLines(resp.Content)
@@ -177,14 +178,14 @@ func (h *MemoryCaptureHook) resolveProfile(ctx context.Context) (runtimeconfig.L
 
 	// Fall back to the shared runtime profile.
 	p := h.config.Profile
-	if strings.TrimSpace(p.Provider) == "" || strings.TrimSpace(p.Model) == "" {
+	if utils.IsBlank(p.Provider) || utils.IsBlank(p.Model) {
 		return runtimeconfig.LLMProfile{}, false
 	}
 	return p, true
 }
 
 func buildMemoryCapturePrompt(result TaskResultInfo) string {
-	if strings.TrimSpace(result.TaskInput) == "" && strings.TrimSpace(result.Answer) == "" && len(result.ToolCalls) == 0 {
+	if utils.IsBlank(result.TaskInput) && utils.IsBlank(result.Answer) && len(result.ToolCalls) == 0 {
 		return ""
 	}
 	var b strings.Builder

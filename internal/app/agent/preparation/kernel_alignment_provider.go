@@ -1,6 +1,7 @@
 package preparation
 
 import (
+	"alex/internal/shared/utils"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -101,7 +102,7 @@ func NewKernelAlignmentContextProvider(cfg KernelAlignmentContextConfig) KernelA
 }
 
 func readTextFile(path string) string {
-	if strings.TrimSpace(path) == "" {
+	if utils.IsBlank(path) {
 		return ""
 	}
 	data, err := os.ReadFile(path)
@@ -118,7 +119,7 @@ func resolveHomePath(path string) string {
 	}
 	if strings.HasPrefix(trimmed, "~/") {
 		home, err := os.UserHomeDir()
-		if err == nil && strings.TrimSpace(home) != "" {
+		if err == nil && utils.HasContent(home) {
 			return filepath.Join(home, strings.TrimPrefix(trimmed, "~/"))
 		}
 	}

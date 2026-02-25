@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -214,7 +216,7 @@ func (e *MarkdownEngine) Related(ctx context.Context, _ string, path string, fro
 	if e == nil {
 		return nil, fmt.Errorf("memory engine not initialized")
 	}
-	if strings.TrimSpace(path) == "" {
+	if utils.IsBlank(path) {
 		return nil, fmt.Errorf("path is required")
 	}
 	if maxResults <= 0 {
@@ -292,7 +294,7 @@ func (e *MarkdownEngine) GetLines(_ context.Context, _ string, path string, from
 	if e == nil {
 		return "", fmt.Errorf("memory engine not initialized")
 	}
-	if strings.TrimSpace(e.rootDir) == "" {
+	if utils.IsBlank(e.rootDir) {
 		return "", fmt.Errorf("memory root directory is required")
 	}
 	absPath, err := e.resolvePath(path)
@@ -329,7 +331,7 @@ func (e *MarkdownEngine) LoadDaily(_ context.Context, _ string, day time.Time) (
 	if e == nil {
 		return "", fmt.Errorf("memory engine not initialized")
 	}
-	if strings.TrimSpace(e.rootDir) == "" {
+	if utils.IsBlank(e.rootDir) {
 		return "", fmt.Errorf("memory root directory is required")
 	}
 	if day.IsZero() {
@@ -352,7 +354,7 @@ func (e *MarkdownEngine) LoadLongTerm(_ context.Context, _ string) (string, erro
 	if e == nil {
 		return "", fmt.Errorf("memory engine not initialized")
 	}
-	if strings.TrimSpace(e.rootDir) == "" {
+	if utils.IsBlank(e.rootDir) {
 		return "", fmt.Errorf("memory root directory is required")
 	}
 	path := filepath.Join(e.userRoot(), memoryFileName)

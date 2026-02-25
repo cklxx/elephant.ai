@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 // StoredChunk represents a chunk stored in the index.
@@ -473,7 +475,7 @@ LIMIT ?;`, path, limit)
 	merged := make(map[string]RelatedMatch, len(outgoing)+len(incoming))
 	merge := func(items []RelatedMatch) {
 		for _, item := range items {
-			if strings.TrimSpace(item.Path) == "" || item.Path == path {
+			if utils.IsBlank(item.Path) || item.Path == path {
 				continue
 			}
 			key := item.Path + "|" + item.Anchor + "|" + item.EdgeType

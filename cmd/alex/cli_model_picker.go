@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	"alex/internal/app/subscription"
 	runtimeconfig "alex/internal/shared/config"
 
@@ -66,7 +67,7 @@ func selectableCatalogProviders(providers []subscription.CatalogProvider) []subs
 	}
 	out := make([]subscription.CatalogProvider, 0, len(providers))
 	for _, provider := range providers {
-		if strings.TrimSpace(provider.Provider) == "" {
+		if utils.IsBlank(provider.Provider) {
 			continue
 		}
 		if !provider.Selectable {
@@ -132,7 +133,7 @@ prompt:
 	}
 	for i, provider := range providers {
 		label := provider.DisplayName
-		if strings.TrimSpace(label) == "" {
+		if utils.IsBlank(label) {
 			label = provider.Provider
 		}
 		if _, err := fmt.Fprintf(out, "  %d) %s (%s)\n", i+1, label, provider.Provider); err != nil {

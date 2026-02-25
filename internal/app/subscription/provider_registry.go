@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"alex/internal/shared/utils"
 	"sort"
 	"strings"
 )
@@ -194,7 +195,7 @@ func applyCatalogProviderPreset(provider *CatalogProvider) {
 	}
 	provider.DisplayName = preset.DisplayName
 	provider.AuthMode = preset.AuthMode
-	if strings.TrimSpace(provider.BaseURL) == "" && preset.DefaultBaseURL != "" {
+	if utils.IsBlank(provider.BaseURL) && preset.DefaultBaseURL != "" {
 		provider.BaseURL = preset.DefaultBaseURL
 	}
 	provider.DefaultModel = preset.DefaultModel

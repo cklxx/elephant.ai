@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"alex/internal/shared/utils"
 )
 
 func migrateLegacyUsers(root string) error {
@@ -88,7 +90,7 @@ func mergeLegacyMarkdownFile(root, sourceRoot, fileName string) error {
 		return err
 	}
 	trimmed := stripLeadingHeader(string(legacyContent))
-	if strings.TrimSpace(trimmed) == "" {
+	if utils.IsBlank(trimmed) {
 		return os.Remove(legacyPath)
 	}
 	if err := appendLegacySection(newPath, "Legacy Import", trimmed); err != nil {
@@ -127,7 +129,7 @@ func mergeLegacyDailyLogs(newRoot, legacyRoot string) error {
 			return err
 		}
 		trimmed := stripLeadingHeader(string(legacyContent))
-		if strings.TrimSpace(trimmed) == "" {
+		if utils.IsBlank(trimmed) {
 			if err := os.Remove(legacyPath); err != nil {
 				return err
 			}
@@ -146,14 +148,14 @@ func mergeLegacyDailyLogs(newRoot, legacyRoot string) error {
 func stripLeadingHeader(content string) string {
 	lines := strings.Split(content, "\n")
 	start := 0
-	for start < len(lines) && strings.TrimSpace(lines[start]) == "" {
+	for start < len(lines) && utils.IsBlank(lines[start]) {
 		start++
 	}
 	if start < len(lines) {
 		line := strings.TrimSpace(lines[start])
 		if strings.HasPrefix(line, "#") {
 			start++
-			for start < len(lines) && strings.TrimSpace(lines[start]) == "" {
+			for start < len(lines) && utils.IsBlank(lines[start]) {
 				start++
 			}
 		}
@@ -162,7 +164,7 @@ func stripLeadingHeader(content string) string {
 }
 
 func appendLegacySection(path, title, content string) error {
-	if strings.TrimSpace(content) == "" {
+	if utils.IsBlank(content) {
 		return nil
 	}
 	var b strings.Builder

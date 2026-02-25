@@ -1,6 +1,7 @@
 package context
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"fmt"
 	"os"
@@ -137,7 +138,7 @@ func (m *manager) readDefaultPersonaProfile() agent.PersonaProfile {
 		if err := yaml.Unmarshal(data, &profile); err != nil {
 			continue
 		}
-		if strings.TrimSpace(profile.ID) == "" {
+		if utils.IsBlank(profile.ID) {
 			profile.ID = "default"
 		}
 
@@ -216,7 +217,7 @@ func ensureMarkdownFileIfMissing(path string, contentBuilder func() string) erro
 		return fmt.Errorf("content builder is required for %s", path)
 	}
 	content := contentBuilder()
-	if strings.TrimSpace(content) == "" {
+	if utils.IsBlank(content) {
 		return fmt.Errorf("file content is required for %s", path)
 	}
 	return os.WriteFile(path, []byte(strings.TrimSpace(content)+"\n"), 0o644)

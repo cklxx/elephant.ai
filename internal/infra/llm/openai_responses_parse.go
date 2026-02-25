@@ -5,6 +5,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	"alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall, ports.Thinking) {
@@ -49,7 +50,7 @@ func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall, por
 	}
 
 	content := contentBuilder.String()
-	if strings.TrimSpace(content) == "" {
+	if utils.IsBlank(content) {
 		if text := flattenOutputText(resp.OutputText); text != "" {
 			content = text
 		}

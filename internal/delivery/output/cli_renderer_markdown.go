@@ -9,6 +9,8 @@ import (
 	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
+
+	"alex/internal/shared/utils"
 )
 
 // CLIRenderer renders output for CLI display with hierarchical context awareness
@@ -26,7 +28,7 @@ func buildDefaultMarkdownRenderer(profile termenv.Profile) MarkdownRenderer {
 }
 
 func (r *CLIRenderer) renderMarkdown(content string) string {
-	if strings.TrimSpace(content) == "" {
+	if utils.IsBlank(content) {
 		return ""
 	}
 
@@ -56,7 +58,7 @@ func (r *CLIRenderer) ResetMarkdownStreamState() {
 // streamed response. The caller can request a trailing newline to preserve
 // terminal formatting when a full line has been received.
 func (r *CLIRenderer) RenderMarkdownStreamChunk(content string, ensureTrailingNewline bool) string {
-	if strings.TrimSpace(content) == "" {
+	if utils.IsBlank(content) {
 		if ensureTrailingNewline && content != "" && !strings.HasSuffix(content, "\n") {
 			return content + "\n"
 		}
@@ -120,7 +122,7 @@ func trimWhitespaceLineEdges(rendered string) string {
 }
 
 func isWhitespaceLine(line string) bool {
-	return strings.TrimSpace(stripANSI(line)) == ""
+	return utils.IsBlank(stripANSI(line))
 }
 
 func stripANSI(input string) string {
@@ -186,7 +188,7 @@ func newMarkdownHighlighter(profile termenv.Profile) *markdownHighlighter {
 }
 
 func (h *markdownHighlighter) Render(content string) (string, error) {
-	if strings.TrimSpace(content) == "" {
+	if utils.IsBlank(content) {
 		return "", nil
 	}
 	return h.renderMarkdown(content), nil
@@ -324,7 +326,7 @@ func (h *markdownHighlighter) renderTextLine(line string) string {
 }
 
 func (h *markdownHighlighter) highlightCode(code string, language string) string {
-	if strings.TrimSpace(code) == "" {
+	if utils.IsBlank(code) {
 		return ""
 	}
 

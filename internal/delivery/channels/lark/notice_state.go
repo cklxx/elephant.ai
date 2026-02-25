@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -48,7 +49,7 @@ func resolveNoticeStatePath(getenv func(string) string, getwd func() (string, er
 
 	workingDir := "."
 	if getwd != nil {
-		if wd, err := getwd(); err == nil && strings.TrimSpace(wd) != "" {
+		if wd, err := getwd(); err == nil && utils.HasContent(wd) {
 			workingDir = wd
 		}
 	}
@@ -68,7 +69,7 @@ func inferMainRootFromWorkingDir(workingDir string) string {
 		return cleaned[:idx]
 	}
 	if strings.HasSuffix(cleaned, filepath.Join(".worktrees", "test")) {
-		if parent := filepath.Dir(filepath.Dir(cleaned)); strings.TrimSpace(parent) != "" {
+		if parent := filepath.Dir(filepath.Dir(cleaned)); utils.HasContent(parent) {
 			return parent
 		}
 	}
@@ -104,7 +105,7 @@ func (s *noticeStateStore) Save(chatID, setByUserID, setByName string) (NoticeBi
 		UpdatedAt:   nowUTC,
 	}
 	if previous, ok, err := s.Load(); err == nil && ok {
-		if previous.ChatID == chatID && strings.TrimSpace(previous.SetAt) != "" {
+		if previous.ChatID == chatID && utils.HasContent(previous.SetAt) {
 			binding.SetAt = previous.SetAt
 		}
 	}

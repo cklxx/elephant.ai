@@ -8,6 +8,7 @@ import (
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/coding"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 // Agent coordinates shadow agent execution with mandatory approvals.
@@ -83,7 +84,7 @@ func (a *Agent) Run(ctx context.Context, task Task) (*Result, error) {
 	}
 
 	if err := coding.VerifyError(result.Verify); err != nil {
-		if strings.TrimSpace(finalResult.Error) == "" {
+		if utils.IsBlank(finalResult.Error) {
 			finalResult.Error = err.Error()
 		}
 		return finalResult, err

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"alex/internal/app/subscription"
+	"alex/internal/shared/utils"
 )
 
 type onboardingStateStore interface {
@@ -60,7 +61,7 @@ func (h *OnboardingStateHandler) HandleGetOnboardingState(w http.ResponseWriter,
 	}
 	writeJSON(w, http.StatusOK, onboardingStateResponse{
 		State:     state,
-		Completed: strings.TrimSpace(state.CompletedAt) != "",
+		Completed: utils.HasContent(state.CompletedAt),
 	})
 }
 
@@ -91,7 +92,7 @@ func (h *OnboardingStateHandler) HandleUpdateOnboardingState(w http.ResponseWrit
 		})
 		return
 	}
-	if strings.TrimSpace(state.CompletedAt) == "" && state.SelectedProvider != "" && state.SelectedModel != "" {
+	if utils.IsBlank(state.CompletedAt) && state.SelectedProvider != "" && state.SelectedModel != "" {
 		now := h.now
 		if now == nil {
 			now = time.Now
@@ -104,7 +105,7 @@ func (h *OnboardingStateHandler) HandleUpdateOnboardingState(w http.ResponseWrit
 	}
 	writeJSON(w, http.StatusOK, onboardingStateResponse{
 		State:     state,
-		Completed: strings.TrimSpace(state.CompletedAt) != "",
+		Completed: utils.HasContent(state.CompletedAt),
 	})
 }
 
@@ -117,7 +118,7 @@ func validateOnboardingState(state subscription.OnboardingState) error {
 	case provider != "" && model == "":
 		return httpError("state.selected_model is required when selected_provider is set")
 	}
-	if strings.TrimSpace(state.CompletedAt) != "" {
+	if utils.HasContent(state.CompletedAt) {
 		if _, err := time.Parse(time.RFC3339, state.CompletedAt); err != nil {
 			return httpError("state.completed_at must be RFC3339 timestamp")
 		}
@@ -140,13 +141,13 @@ func validateOnboardingState(state subscription.OnboardingState) error {
 }
 
 func stateIsEmpty(state subscription.OnboardingState) bool {
-	return strings.TrimSpace(state.CompletedAt) == "" &&
-		strings.TrimSpace(state.SelectedProvider) == "" &&
-		strings.TrimSpace(state.SelectedModel) == "" &&
-		strings.TrimSpace(state.SelectedRuntimeMode) == "" &&
-		strings.TrimSpace(state.PersistenceMode) == "" &&
+	return utils.IsBlank(state.CompletedAt) &&
+		utils.IsBlank(state.SelectedProvider) &&
+		utils.IsBlank(state.SelectedModel) &&
+		utils.IsBlank(state.SelectedRuntimeMode) &&
+		utils.IsBlank(state.PersistenceMode) &&
 		!state.LarkConfigured &&
-		strings.TrimSpace(state.UsedSource) == "" &&
+		utils.IsBlank(state.UsedSource) &&
 		!state.AdvancedOverridesUsed
 }
 

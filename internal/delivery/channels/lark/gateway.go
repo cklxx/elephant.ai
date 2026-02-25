@@ -17,6 +17,7 @@ import (
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
+	"alex/internal/shared/utils"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	lark "github.com/larksuite/oapi-sdk-go/v3"
@@ -129,7 +130,7 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if agent == nil {
 		return nil, fmt.Errorf("lark gateway requires agent executor")
 	}
-	if strings.TrimSpace(cfg.AppID) == "" || strings.TrimSpace(cfg.AppSecret) == "" {
+	if utils.IsBlank(cfg.AppID) || utils.IsBlank(cfg.AppSecret) {
 		return nil, fmt.Errorf("lark gateway requires app_id and app_secret")
 	}
 	cfg.SessionPrefix = strings.TrimSpace(cfg.SessionPrefix)

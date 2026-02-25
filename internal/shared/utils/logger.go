@@ -233,7 +233,7 @@ func (l *Logger) WithLogID(logID string) *Logger {
 	if l == nil {
 		return nil
 	}
-	if strings.TrimSpace(logID) == "" {
+	if IsBlank(logID) {
 		return l
 	}
 	return &Logger{

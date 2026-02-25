@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"alex/internal/domain/agent/types"
+	"alex/internal/shared/utils"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -177,7 +178,7 @@ func (r *CLIRenderer) formatWebSearchOutput(content, indent string, style lipglo
 	if summary.ResultCount > 0 {
 		parts = append(parts, fmt.Sprintf("%d results", summary.ResultCount))
 	}
-	if strings.TrimSpace(summary.Summary) != "" {
+	if utils.HasContent(summary.Summary) {
 		parts = append(parts, "summary available")
 	}
 

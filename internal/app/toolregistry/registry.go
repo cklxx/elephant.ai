@@ -1,10 +1,10 @@
 package toolregistry
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 
 	"alex/internal/domain/agent/ports"
@@ -368,10 +368,10 @@ func resolveDisabledTools(config Config) map[string]string {
 	}
 
 	disabled := map[string]string{}
-	if strings.TrimSpace(config.TavilyAPIKey) == "" {
+	if utils.IsBlank(config.TavilyAPIKey) {
 		disabled["web_search"] = "missing TAVILY_API_KEY in quickstart profile"
 	}
-	if strings.TrimSpace(config.ArkAPIKey) == "" {
+	if utils.IsBlank(config.ArkAPIKey) {
 		disabled["text_to_image"] = "missing ARK_API_KEY in quickstart profile"
 		disabled["image_to_image"] = "missing ARK_API_KEY in quickstart profile"
 		disabled["vision_analyze"] = "missing ARK_API_KEY in quickstart profile"

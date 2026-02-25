@@ -1,6 +1,7 @@
 package context
 
 import (
+	"alex/internal/shared/utils"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,7 @@ func loadBootstrapRecords(repoRoot string, files []string, maxChars int) []boots
 			record.Content, record.Truncated = truncateWithMarker(string(content), maxChars)
 			break
 		}
-		if strings.TrimSpace(record.Content) == "" && record.Path == "" {
+		if utils.IsBlank(record.Content) && record.Path == "" {
 			record.Missing = true
 			record.Source = "missing"
 			if len(candidates) > 0 {
@@ -71,13 +72,13 @@ func bootstrapCandidates(name, globalRoot, repoRoot string) []bootstrapCandidate
 		return []bootstrapCandidate{{path: filepath.Clean(name), source: "direct"}}
 	}
 	var candidates []bootstrapCandidate
-	if strings.TrimSpace(globalRoot) != "" {
+	if utils.HasContent(globalRoot) {
 		candidates = append(candidates, bootstrapCandidate{
 			path:   filepath.Join(globalRoot, name),
 			source: "global",
 		})
 	}
-	if strings.TrimSpace(repoRoot) != "" {
+	if utils.HasContent(repoRoot) {
 		candidates = append(candidates, bootstrapCandidate{
 			path:   filepath.Join(repoRoot, name),
 			source: "workspace",

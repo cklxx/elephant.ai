@@ -1,6 +1,7 @@
 package di
 
 import (
+	"alex/internal/shared/utils"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -48,7 +49,7 @@ func newContainerBuilder(config Config) *containerBuilder {
 	logger := logging.NewComponentLogger("DI")
 	sessionDir := resolveStorageDir(config.SessionDir, "~/.alex/sessions")
 	costDir := resolveStorageDir(config.CostDir, "~/.alex/costs")
-	if strings.TrimSpace(config.ToolMode) == "" {
+	if utils.IsBlank(config.ToolMode) {
 		config.ToolMode = string(presets.ToolModeCLI)
 	}
 	config.SessionDir = sessionDir

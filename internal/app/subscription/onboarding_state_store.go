@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"alex/internal/shared/utils"
 	"bytes"
 	"context"
 	"errors"
@@ -45,13 +46,13 @@ func NormalizeOnboardingState(state OnboardingState) OnboardingState {
 }
 
 func (s OnboardingState) isZero() bool {
-	return strings.TrimSpace(s.CompletedAt) == "" &&
-		strings.TrimSpace(s.SelectedProvider) == "" &&
-		strings.TrimSpace(s.SelectedModel) == "" &&
-		strings.TrimSpace(s.SelectedRuntimeMode) == "" &&
-		strings.TrimSpace(s.PersistenceMode) == "" &&
+	return utils.IsBlank(s.CompletedAt) &&
+		utils.IsBlank(s.SelectedProvider) &&
+		utils.IsBlank(s.SelectedModel) &&
+		utils.IsBlank(s.SelectedRuntimeMode) &&
+		utils.IsBlank(s.PersistenceMode) &&
 		!s.LarkConfigured &&
-		strings.TrimSpace(s.UsedSource) == "" &&
+		utils.IsBlank(s.UsedSource) &&
 		!s.AdvancedOverridesUsed
 }
 

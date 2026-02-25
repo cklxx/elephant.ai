@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/delivery/server/inlinepayload"
 	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent *stringLRU, cache *DataCache, forceInclude bool) map[string]ports.Attachment {
@@ -84,7 +85,7 @@ func ensureHTMLPreview(att ports.Attachment) ports.Attachment {
 		}
 	}
 
-	if !hasHTMLPreview && strings.TrimSpace(att.URI) != "" {
+	if !hasHTMLPreview && utils.HasContent(att.URI) {
 		att.PreviewAssets = append(att.PreviewAssets, ports.AttachmentPreviewAsset{
 			AssetID:     fmt.Sprintf("%s-html", strings.TrimSpace(att.Name)),
 			Label:       "HTML preview",

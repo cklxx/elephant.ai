@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 // ResolveLocalPath resolves a local path and ensures it stays within the working directory
@@ -251,7 +253,7 @@ func allowedExtraRoots() []string {
 		roots = append(roots, clean)
 	}
 
-	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+	if home, err := os.UserHomeDir(); err == nil && utils.HasContent(home) {
 		add(filepath.Join(home, ".alex", "memory"))
 		add(filepath.Join(home, ".alex", "kernel"))
 	}

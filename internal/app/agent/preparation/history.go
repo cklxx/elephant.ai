@@ -1,6 +1,7 @@
 package preparation
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"fmt"
 	"strings"
@@ -134,7 +135,7 @@ func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context,
 			s.logger.Warn("History summary composition failed (request_id=%s): %v", requestID, err)
 			return nil
 		}
-		if resp == nil || strings.TrimSpace(resp.Content) == "" {
+		if resp == nil || utils.IsBlank(resp.Content) {
 			s.logger.Warn("History summary composition returned empty response (request_id=%s)", requestID)
 			return nil
 		}
@@ -152,7 +153,7 @@ func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context,
 		s.logger.Warn("History summary composition failed (request_id=%s): %v", requestID, err)
 		return nil
 	}
-	if resp == nil || strings.TrimSpace(resp.Content) == "" {
+	if resp == nil || utils.IsBlank(resp.Content) {
 		s.logger.Warn("History summary composition returned empty response (request_id=%s)", requestID)
 		return nil
 	}
@@ -230,7 +231,7 @@ func shouldRecallHistoryMessage(msg ports.Message) bool {
 	if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceUserHistory {
 		return false
 	}
-	if strings.TrimSpace(msg.Content) == "" && len(msg.Attachments) == 0 && len(msg.ToolCalls) == 0 && len(msg.ToolResults) == 0 {
+	if utils.IsBlank(msg.Content) && len(msg.Attachments) == 0 && len(msg.ToolCalls) == 0 && len(msg.ToolResults) == 0 {
 		return false
 	}
 	return true

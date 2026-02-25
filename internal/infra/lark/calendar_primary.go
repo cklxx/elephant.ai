@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	larkcalendar "github.com/larksuite/oapi-sdk-go/v3/service/calendar/v4"
+
+	"alex/internal/shared/utils"
 )
 
 // PrimaryCalendarIDs returns a mapping of user ID -> primary calendar_id for the
@@ -55,11 +57,11 @@ func (s *CalendarService) PrimaryCalendarIDs(ctx context.Context, userIDType str
 
 	out := make(map[string]string, len(ids))
 	for _, uc := range resp.Data.Calendars {
-		if uc == nil || uc.UserId == nil || strings.TrimSpace(*uc.UserId) == "" {
+		if uc == nil || uc.UserId == nil || utils.IsBlank(*uc.UserId) {
 			continue
 		}
 		userID := strings.TrimSpace(*uc.UserId)
-		if uc.Calendar == nil || uc.Calendar.CalendarId == nil || strings.TrimSpace(*uc.Calendar.CalendarId) == "" {
+		if uc.Calendar == nil || uc.Calendar.CalendarId == nil || utils.IsBlank(*uc.Calendar.CalendarId) {
 			continue
 		}
 		if _, exists := out[userID]; exists {

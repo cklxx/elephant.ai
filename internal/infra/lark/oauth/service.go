@@ -12,6 +12,8 @@ import (
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkauthen "github.com/larksuite/oapi-sdk-go/v3/service/authen/v1"
+
+	"alex/internal/shared/utils"
 )
 
 type ServiceConfig struct {
@@ -172,7 +174,7 @@ func (s *Service) HandleCallback(ctx context.Context, code, state string) (Token
 	if !resp.Success() {
 		return Token{}, fmt.Errorf("lark authen access_token create failed: code=%d msg=%s", resp.Code, resp.Msg)
 	}
-	if resp.Data == nil || resp.Data.OpenId == nil || strings.TrimSpace(*resp.Data.OpenId) == "" {
+	if resp.Data == nil || resp.Data.OpenId == nil || utils.IsBlank(*resp.Data.OpenId) {
 		return Token{}, fmt.Errorf("lark authen access_token response missing open_id")
 	}
 	openID := strings.TrimSpace(*resp.Data.OpenId)
@@ -259,7 +261,7 @@ func (s *Service) refresh(ctx context.Context, refreshToken string) (Token, erro
 	if !resp.Success() {
 		return Token{}, fmt.Errorf("lark authen refresh_access_token create failed: code=%d msg=%s", resp.Code, resp.Msg)
 	}
-	if resp.Data == nil || resp.Data.OpenId == nil || strings.TrimSpace(*resp.Data.OpenId) == "" {
+	if resp.Data == nil || resp.Data.OpenId == nil || utils.IsBlank(*resp.Data.OpenId) {
 		return Token{}, fmt.Errorf("lark authen refresh response missing open_id")
 	}
 

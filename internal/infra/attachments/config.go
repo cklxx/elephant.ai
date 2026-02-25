@@ -1,13 +1,15 @@
 package attachments
 
-import "strings"
+import (
+	"alex/internal/shared/utils"
+)
 
 // NormalizeConfig fills attachment store defaults when unset.
 func NormalizeConfig(cfg StoreConfig) StoreConfig {
-	if strings.TrimSpace(cfg.Dir) == "" {
+	if utils.IsBlank(cfg.Dir) {
 		cfg.Dir = "~/.alex/attachments"
 	}
-	if strings.TrimSpace(cfg.Provider) == "" {
+	if utils.IsBlank(cfg.Provider) {
 		cfg.Provider = ProviderLocal
 	}
 	return cfg

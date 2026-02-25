@@ -1,6 +1,7 @@
 package preparation
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"encoding/json"
 	"strings"
@@ -16,7 +17,7 @@ import (
 )
 
 func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, session *storage.Session, task string) *agent.TaskAnalysis {
-	if strings.TrimSpace(task) == "" {
+	if utils.IsBlank(task) {
 		return nil
 	}
 	if session == nil {
@@ -27,7 +28,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		return analysis
 	}
 	profile := s.config.DefaultLLMProfile()
-	if strings.TrimSpace(profile.Provider) == "" || strings.TrimSpace(profile.Model) == "" {
+	if utils.IsBlank(profile.Provider) || utils.IsBlank(profile.Model) {
 		return nil
 	}
 	client, _, err := llmclient.GetIsolatedClientFromProfile(
@@ -43,7 +44,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	client = s.costDecorator.Wrap(ctx, session.ID, client)
 
 	taskNameRule := `- task_name must be a short single-line title (<= 32 chars), suitable for a session title.` + "\n\n"
-	if strings.TrimSpace(session.Metadata["title"]) != "" {
+	if utils.HasContent(session.Metadata["title"]) {
 		taskNameRule = `- task_name must be an empty string because the session already has a title.` + "\n\n"
 	}
 
@@ -227,7 +228,7 @@ func parseTaskAnalysis(raw string) *agent.TaskAnalysis {
 	if len(payload.Steps) > 0 {
 		analysis.TaskBreakdown = make([]agent.TaskAnalysisStep, 0, len(payload.Steps))
 		for _, step := range payload.Steps {
-			if strings.TrimSpace(step.Description) == "" {
+			if utils.IsBlank(step.Description) {
 				continue
 			}
 			analysis.TaskBreakdown = append(analysis.TaskBreakdown, agent.TaskAnalysisStep{

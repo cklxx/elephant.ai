@@ -9,6 +9,7 @@ import (
 	"alex/internal/app/subscription"
 	builtinshared "alex/internal/infra/tools/builtin/shared"
 	"alex/internal/delivery/channels"
+	"alex/internal/shared/utils"
 )
 
 // PlanMode controls whether tasks require plan review before execution.
@@ -200,7 +201,7 @@ func planModeScopes(msg *incomingMessage) []subscription.SelectionScope {
 }
 
 func planModeScopeLabel(scope subscription.SelectionScope) string {
-	if strings.TrimSpace(scope.ChatID) != "" {
+	if utils.HasContent(scope.ChatID) {
 		return "[当前会话]"
 	}
 	return "[全局]"

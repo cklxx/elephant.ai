@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/app/agent/llmclient"
 	ports "alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
@@ -248,7 +249,7 @@ func heuristicAutoReply(options []string) string {
 // using the shared runtime LLM profile.
 func (g *Gateway) llmAutoReply(ctx context.Context, originalText, question string, options []string) (string, error) {
 	profile := g.llmProfile
-	if strings.TrimSpace(profile.Provider) == "" || strings.TrimSpace(profile.Model) == "" {
+	if utils.IsBlank(profile.Provider) || utils.IsBlank(profile.Model) {
 		return "", fmt.Errorf("no LLM profile configured")
 	}
 

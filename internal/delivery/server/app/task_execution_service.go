@@ -19,6 +19,7 @@ import (
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
+	"alex/internal/shared/utils"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -757,7 +758,7 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 
 func defaultTaskOwnerID() string {
 	host, err := os.Hostname()
-	if err != nil || strings.TrimSpace(host) == "" {
+	if err != nil || utils.IsBlank(host) {
 		host = "unknown-host"
 	}
 	return fmt.Sprintf("%s:%d", host, os.Getpid())

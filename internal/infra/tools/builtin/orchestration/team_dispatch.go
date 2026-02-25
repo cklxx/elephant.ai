@@ -11,6 +11,7 @@ import (
 	"alex/internal/infra/executioncontrol"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/utils/id"
+	"alex/internal/shared/utils"
 )
 
 type teamDispatchRolePlan struct {
@@ -373,11 +374,11 @@ func buildStageDeps(stages []agent.TeamStageDefinition, roleTaskIDs map[string]s
 
 func renderTeamPrompt(template string, overrides map[string]string, roleName, teamName, goal string) string {
 	// If caller provided a full prompt override for this role, use it.
-	if override, ok := overrides[roleName]; ok && strings.TrimSpace(override) != "" {
+	if override, ok := overrides[roleName]; ok && utils.HasContent(override) {
 		return override
 	}
 
-	if strings.TrimSpace(template) == "" {
+	if utils.IsBlank(template) {
 		return goal
 	}
 

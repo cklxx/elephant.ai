@@ -16,6 +16,7 @@ import (
 	"time"
 
 	fstore "alex/internal/infra/filestore"
+	"alex/internal/shared/utils"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -81,7 +82,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 
 	switch provider {
 	case ProviderLocal:
-		if strings.TrimSpace(cfg.Dir) == "" {
+		if utils.IsBlank(cfg.Dir) {
 			return nil, fmt.Errorf("attachment store dir is required")
 		}
 		dir := filepath.Clean(fstore.ResolvePath(cfg.Dir, ""))

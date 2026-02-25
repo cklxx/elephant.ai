@@ -5,6 +5,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	"alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -27,7 +28,7 @@ func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.
 		role := strings.ToLower(strings.TrimSpace(msg.Role))
 		switch role {
 		case "system", "developer":
-			if strings.TrimSpace(msg.Content) == "" {
+			if utils.IsBlank(msg.Content) {
 				continue
 			}
 			if collectInstructions {
@@ -97,7 +98,7 @@ func synthesizeFallbackResponsesInput(msgs []ports.Message, instructions string)
 	if fallback := lastNonEmptyMessageContent(msgs, "assistant"); fallback != "" {
 		return buildFallbackResponsesInputItem(fallback), true
 	}
-	if strings.TrimSpace(instructions) != "" {
+	if utils.HasContent(instructions) {
 		return buildFallbackResponsesInputItem(responsesFallbackInputText), true
 	}
 	return nil, false
@@ -192,7 +193,7 @@ func itemString(v any) string {
 
 func buildResponsesAssistantContent(msg ports.Message) []map[string]any {
 	parts := make([]map[string]any, 0, 2)
-	if strings.TrimSpace(msg.Content) != "" {
+	if utils.HasContent(msg.Content) {
 		parts = append(parts, map[string]any{
 			"type": "output_text",
 			"text": msg.Content,

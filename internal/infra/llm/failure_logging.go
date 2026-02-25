@@ -9,6 +9,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	alexerrors "alex/internal/shared/errors"
 	"alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -17,7 +18,7 @@ const (
 )
 
 func extractMetadataString(metadata map[string]any, key string) string {
-	if metadata == nil || strings.TrimSpace(key) == "" {
+	if metadata == nil || utils.IsBlank(key) {
 		return ""
 	}
 	value, ok := metadata[key]

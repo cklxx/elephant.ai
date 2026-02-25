@@ -10,6 +10,7 @@ import (
 	"alex/internal/infra/memory"
 	"alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
+	"alex/internal/shared/utils"
 )
 
 type memoryGet struct {
@@ -62,7 +63,7 @@ func (t *memoryGet) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	}
 
 	userID := id.UserIDFromContext(ctx)
-	if strings.TrimSpace(userID) == "" {
+	if utils.IsBlank(userID) {
 		err := fmt.Errorf("user_id required for memory_get")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
@@ -107,7 +108,7 @@ func (t *memoryGet) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
-	if strings.TrimSpace(text) == "" {
+	if utils.IsBlank(text) {
 		text = "(no content)"
 	}
 

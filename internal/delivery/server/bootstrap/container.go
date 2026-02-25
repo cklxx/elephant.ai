@@ -5,6 +5,7 @@ import (
 
 	"alex/internal/app/di"
 	"alex/internal/domain/agent/presets"
+	"alex/internal/shared/utils"
 )
 
 // BuildContainer wires the shared DI container using the server runtime configuration.
@@ -13,10 +14,10 @@ func BuildContainer(config Config) (*di.Container, error) {
 	diConfig.EnableMCP = config.EnableMCP
 	diConfig.EnvironmentSummary = config.EnvironmentSummary
 	diConfig.SessionDir = strings.TrimSpace(config.Session.Dir)
-	if strings.TrimSpace(diConfig.AgentPreset) == "" {
+	if utils.IsBlank(diConfig.AgentPreset) {
 		diConfig.AgentPreset = string(presets.PresetArchitect)
 	}
-	if strings.TrimSpace(diConfig.ToolPreset) == "" {
+	if utils.IsBlank(diConfig.ToolPreset) {
 		diConfig.ToolPreset = string(presets.ToolPresetArchitect)
 	}
 	diConfig.ToolMode = string(presets.ToolModeWeb)

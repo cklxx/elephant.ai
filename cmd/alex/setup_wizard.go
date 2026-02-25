@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"alex/internal/shared/utils"
 	runtimeconfig "alex/internal/shared/config"
 
 	"gopkg.in/yaml.v3"
@@ -198,7 +199,7 @@ func applyLarkSetupConfig(envLookup runtimeconfig.EnvLookup, selection setupSele
 		envLookup = runtimeconfig.DefaultEnvLookup
 	}
 	configPath, _ := runtimeconfig.ResolveConfigPath(envLookup, os.UserHomeDir)
-	if strings.TrimSpace(configPath) == "" {
+	if utils.IsBlank(configPath) {
 		return "", fmt.Errorf("resolve config path failed")
 	}
 

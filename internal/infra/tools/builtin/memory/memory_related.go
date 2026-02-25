@@ -10,6 +10,7 @@ import (
 	"alex/internal/infra/memory"
 	"alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
+	"alex/internal/shared/utils"
 )
 
 type memoryRelated struct {
@@ -68,7 +69,7 @@ func (t *memoryRelated) Execute(ctx context.Context, call ports.ToolCall) (*port
 	}
 
 	userID := id.UserIDFromContext(ctx)
-	if strings.TrimSpace(userID) == "" {
+	if utils.IsBlank(userID) {
 		err := fmt.Errorf("user_id required for memory_related")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}

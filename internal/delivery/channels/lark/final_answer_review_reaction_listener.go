@@ -9,6 +9,7 @@ import (
 	"alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
+	"alex/internal/shared/utils"
 )
 
 // finalAnswerReviewReactionListener reacts to the original inbound Lark message
@@ -52,7 +53,7 @@ func (l *finalAnswerReviewReactionListener) OnEvent(event agent.AgentEvent) {
 }
 
 func (l *finalAnswerReviewReactionListener) maybeReact(event agent.AgentEvent) {
-	if l == nil || l.gateway == nil || strings.TrimSpace(l.messageID) == "" {
+	if l == nil || l.gateway == nil || utils.IsBlank(l.messageID) {
 		return
 	}
 

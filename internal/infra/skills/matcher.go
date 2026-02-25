@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"alex/internal/shared/utils"
 )
 
 // AutoActivationConfig controls automatic skill activation behavior.
@@ -137,7 +139,7 @@ func ApplyActivationLimits(matches []MatchResult, cfg AutoActivationConfig) []Ma
 		if len(match.Skill.Chain) > 0 {
 			body = ""
 		}
-		if strings.TrimSpace(body) == "" && len(match.Skill.Chain) == 0 {
+		if utils.IsBlank(body) && len(match.Skill.Chain) == 0 {
 			continue
 		}
 		tokenCost := EstimateTokens(body)
@@ -303,7 +305,7 @@ func (m *SkillMatcher) resolveConflicts(candidates []MatchResult, sessionID stri
 	groupWinners := make(map[string]MatchResult)
 	var noGroup []MatchResult
 	for _, c := range filtered {
-		if strings.TrimSpace(c.Skill.ExclusiveGroup) == "" {
+		if utils.IsBlank(c.Skill.ExclusiveGroup) {
 			noGroup = append(noGroup, c)
 			continue
 		}

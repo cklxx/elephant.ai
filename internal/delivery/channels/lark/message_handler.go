@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+
+	"alex/internal/shared/utils"
 )
 
 // parseIncomingMessage validates the event and extracts key fields.
@@ -151,13 +153,13 @@ func formatReadableMention(name, id, fallback string) string {
 }
 
 func renderIncomingMentionPlaceholders(text string, mentionMap map[string]mentionInfo) string {
-	if strings.TrimSpace(text) == "" || len(mentionMap) == 0 {
+	if utils.IsBlank(text) || len(mentionMap) == 0 {
 		return text
 	}
 
 	keys := make([]string, 0, len(mentionMap))
 	for key := range mentionMap {
-		if strings.TrimSpace(key) == "" {
+		if utils.IsBlank(key) {
 			continue
 		}
 		keys = append(keys, key)
@@ -207,7 +209,7 @@ func extractTextContent(raw string, mentions []*larkim.MentionEvent) string {
 var larkMentionTag = regexp.MustCompile(`<at\s+user_id="([^"]+)"\s*>([^<]*)</at>`)
 
 func renderTextMentions(text string, mentionMap map[string]mentionInfo) string {
-	if strings.TrimSpace(text) == "" {
+	if utils.IsBlank(text) {
 		return text
 	}
 	return larkMentionTag.ReplaceAllStringFunc(text, func(m string) string {
@@ -224,7 +226,7 @@ func renderTextMentions(text string, mentionMap map[string]mentionInfo) string {
 				if name == "" {
 					name = info.Name
 				}
-				if strings.TrimSpace(info.ID) != "" {
+				if utils.HasContent(info.ID) {
 					mentionID = info.ID
 				}
 			}
@@ -270,7 +272,7 @@ func extractPostContent(raw string, mentions []*larkim.MentionEvent) string {
 					if name == "" {
 						name = info.Name
 					}
-					if strings.TrimSpace(info.ID) != "" {
+					if utils.HasContent(info.ID) {
 						userID = info.ID
 					}
 				}
@@ -290,7 +292,7 @@ func textContent(text string) string {
 var outgoingMentionPattern = regexp.MustCompile(`@([^@()<>\n\r\t]+)\((ou_[A-Za-z0-9]+|all)\)`)
 
 func renderOutgoingMentions(text string) string {
-	if strings.TrimSpace(text) == "" {
+	if utils.IsBlank(text) {
 		return text
 	}
 	return outgoingMentionPattern.ReplaceAllStringFunc(text, func(raw string) string {

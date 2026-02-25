@@ -16,6 +16,7 @@ import (
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/shared/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -62,7 +63,7 @@ type ContextConfigUpdate struct {
 }
 
 func NewContextConfigHandler(root string) *ContextConfigHandler {
-	if strings.TrimSpace(root) == "" {
+	if utils.IsBlank(root) {
 		root = ctxconfig.ResolveConfigRoot()
 	}
 	root = filepath.Clean(root)
@@ -118,7 +119,7 @@ func (h *ContextConfigHandler) HandleContextPreview(w http.ResponseWriter, r *ht
 	}
 
 	estimateMessages := append([]core.Message(nil), window.Messages...)
-	if strings.TrimSpace(window.SystemPrompt) != "" {
+	if utils.HasContent(window.SystemPrompt) {
 		estimateMessages = append(estimateMessages, core.Message{
 			Role:    "system",
 			Content: window.SystemPrompt,
@@ -221,7 +222,7 @@ func (h *ContextConfigHandler) loadContextFiles() ([]ContextConfigFile, error) {
 	if h == nil {
 		return nil, errors.New("context config handler not configured")
 	}
-	if strings.TrimSpace(h.root) == "" {
+	if utils.IsBlank(h.root) {
 		return nil, errors.New("context config root missing")
 	}
 	info, err := os.Stat(h.root)

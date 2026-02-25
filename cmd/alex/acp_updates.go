@@ -4,6 +4,7 @@ import (
 	"strings"
 	"sync"
 
+	"alex/internal/shared/utils"
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
@@ -405,7 +406,7 @@ func sendUserPromptUpdates(server *acpServer, sessionID string, input acpPromptI
 	if server == nil || sessionID == "" {
 		return
 	}
-	if strings.TrimSpace(input.Text) != "" {
+	if utils.HasContent(input.Text) {
 		server.sendSessionUpdate(sessionID, map[string]any{
 			"sessionUpdate": "user_message_chunk",
 			"content": map[string]any{
@@ -556,7 +557,7 @@ func toolContentBlocks(result, errMsg string, metadata map[string]any, attachmen
 		})
 	}
 	if metadata != nil {
-		if diff, ok := metadata["diff"].(string); ok && strings.TrimSpace(diff) != "" {
+		if diff, ok := metadata["diff"].(string); ok && utils.HasContent(diff) {
 			blocks = append(blocks, map[string]any{
 				"type": "text",
 				"text": diff,

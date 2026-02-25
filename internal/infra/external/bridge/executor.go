@@ -20,6 +20,7 @@ import (
 	"alex/internal/infra/executioncontrol"
 	"alex/internal/infra/external/subprocess"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 // BridgeConfig configures a bridge executor for any supported agent type.
@@ -149,7 +150,7 @@ type bridgeConfig struct {
 }
 
 func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) (*agent.ExternalAgentResult, error) {
-	if strings.TrimSpace(req.Prompt) == "" {
+	if utils.IsBlank(req.Prompt) {
 		return nil, fmt.Errorf("prompt is required")
 	}
 
@@ -203,27 +204,27 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		bcfg.Sandbox = pickString(req.Config, "sandbox", e.cfg.Sandbox)
 		if bcfg.ExecutionMode == "plan" {
 			planApproval := pickString(req.Config, "plan_approval_policy", "")
-			if strings.TrimSpace(planApproval) == "" {
+			if utils.IsBlank(planApproval) {
 				planApproval = bcfg.ApprovalPolicy
 			}
-			if strings.TrimSpace(planApproval) == "" {
+			if utils.IsBlank(planApproval) {
 				planApproval = e.cfg.PlanApprovalPolicy
 			}
 			bcfg.ApprovalPolicy = planApproval
 
 			planSandbox := pickString(req.Config, "plan_sandbox", "")
-			if strings.TrimSpace(planSandbox) == "" {
+			if utils.IsBlank(planSandbox) {
 				planSandbox = bcfg.Sandbox
 			}
-			if strings.TrimSpace(planSandbox) == "" {
+			if utils.IsBlank(planSandbox) {
 				planSandbox = e.cfg.PlanSandbox
 			}
 			bcfg.Sandbox = planSandbox
 
-			if strings.TrimSpace(bcfg.ApprovalPolicy) == "" {
+			if utils.IsBlank(bcfg.ApprovalPolicy) {
 				bcfg.ApprovalPolicy = "never"
 			}
-			if strings.TrimSpace(bcfg.Sandbox) == "" {
+			if utils.IsBlank(bcfg.Sandbox) {
 				bcfg.Sandbox = "read-only"
 			}
 		}
@@ -640,7 +641,7 @@ func enrichPlanMetadata(result *agent.ExternalAgentResult, executionMode string)
 	if result.Metadata == nil {
 		result.Metadata = make(map[string]any)
 	}
-	if strings.TrimSpace(result.Answer) != "" {
+	if utils.HasContent(result.Answer) {
 		result.Metadata["plan"] = result.Answer
 	}
 }

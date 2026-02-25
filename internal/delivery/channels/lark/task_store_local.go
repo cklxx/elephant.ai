@@ -11,6 +11,7 @@ import (
 	"time"
 
 	jsonx "alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -101,7 +102,7 @@ func (s *TaskLocalStore) SaveTask(ctx context.Context, task TaskRecord) error {
 	if err := s.ensureReady(ctx); err != nil {
 		return err
 	}
-	if strings.TrimSpace(task.TaskID) == "" || strings.TrimSpace(task.ChatID) == "" {
+	if utils.IsBlank(task.TaskID) || utils.IsBlank(task.ChatID) {
 		return fmt.Errorf("task_id and chat_id required")
 	}
 	now := s.now()
@@ -111,7 +112,7 @@ func (s *TaskLocalStore) SaveTask(ctx context.Context, task TaskRecord) error {
 	if task.UpdatedAt.IsZero() {
 		task.UpdatedAt = now
 	}
-	if strings.TrimSpace(task.Status) == "" {
+	if utils.IsBlank(task.Status) {
 		task.Status = "pending"
 	}
 
@@ -333,7 +334,7 @@ func (s *TaskLocalStore) load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, rec := range doc.Tasks {
-		if strings.TrimSpace(rec.TaskID) == "" {
+		if utils.IsBlank(rec.TaskID) {
 			continue
 		}
 		s.tasks[rec.TaskID] = rec

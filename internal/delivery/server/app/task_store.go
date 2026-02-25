@@ -14,6 +14,7 @@ import (
 	"alex/internal/infra/filestore"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -641,7 +642,7 @@ func (s *InMemoryTaskStore) loadFromDisk() {
 
 	loaded := make(map[string]*ports.Task, len(persisted.Tasks))
 	for _, task := range persisted.Tasks {
-		if task == nil || strings.TrimSpace(task.ID) == "" {
+		if task == nil || utils.IsBlank(task.ID) {
 			continue
 		}
 		taskCopy := *task

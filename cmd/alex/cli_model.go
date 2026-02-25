@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	"alex/internal/app/subscription"
 	runtimeconfig "alex/internal/shared/config"
 )
@@ -27,7 +28,7 @@ func executeModelCommand(args []string, out io.Writer) error {
 	case "", "list", "ls":
 		return listModels(out)
 	case "use", "select", "set":
-		if len(args) < 2 || strings.TrimSpace(args[1]) == "" || strings.HasPrefix(strings.TrimSpace(args[1]), "-") {
+		if len(args) < 2 || utils.IsBlank(args[1]) || strings.HasPrefix(strings.TrimSpace(args[1]), "-") {
 			return useModelPicker(out, os.Stdin)
 		}
 		return useModel(out, strings.TrimSpace(args[1]))
@@ -174,7 +175,7 @@ func useModelPicker(out io.Writer, in io.Reader) error {
 
 func useModelWith(out io.Writer, spec string, creds runtimeconfig.CLICredentials, envLookup runtimeconfig.EnvLookup) error {
 	parts := strings.SplitN(spec, "/", 2)
-	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+	if len(parts) != 2 || utils.IsBlank(parts[0]) || utils.IsBlank(parts[1]) {
 		return fmt.Errorf("format: <provider>/<model>, e.g. codex/gpt-5.2-codex")
 	}
 	provider := normalizeProviderID(parts[0])

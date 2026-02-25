@@ -524,7 +524,7 @@ func (c *AgentCoordinator) ExecuteTask(
 				if env.Session.Metadata == nil {
 					env.Session.Metadata = make(map[string]string)
 				}
-				if strings.TrimSpace(env.Session.Metadata["title"]) == "" {
+				if utils.IsBlank(env.Session.Metadata["title"]) {
 					env.Session.Metadata["title"] = title
 				}
 			}

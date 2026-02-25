@@ -7,6 +7,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/shared/utils"
 )
 
 type toolCallParsingClient struct {
@@ -84,7 +85,7 @@ func (c *toolCallParsingClient) withParsedToolCalls(req ports.CompletionRequest,
 	if len(req.Tools) == 0 {
 		return resp
 	}
-	if strings.TrimSpace(resp.Content) == "" {
+	if utils.IsBlank(resp.Content) {
 		return resp
 	}
 

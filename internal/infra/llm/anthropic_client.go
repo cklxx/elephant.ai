@@ -95,8 +95,8 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		httpReq.Header.Set(k, v)
 	}
 
-	hasAuthorization := strings.TrimSpace(httpReq.Header.Get("Authorization")) != ""
-	hasAPIKeyHeader := strings.TrimSpace(httpReq.Header.Get(anthropicRequestHeaderKey)) != ""
+	hasAuthorization := utils.HasContent(httpReq.Header.Get("Authorization"))
+	hasAPIKeyHeader := utils.HasContent(httpReq.Header.Get(anthropicRequestHeaderKey))
 	usesOAuth := hasAuthorization
 	if !hasAuthorization && !hasAPIKeyHeader && c.apiKey != "" {
 		if isAnthropicOAuthToken(c.apiKey) {
@@ -224,12 +224,12 @@ func (c *anthropicClient) convertMessages(msgs []ports.Message) ([]anthropicMess
 
 		switch role {
 		case "system":
-			if strings.TrimSpace(msg.Content) != "" {
+			if utils.HasContent(msg.Content) {
 				systemParts = append(systemParts, msg.Content)
 			}
 			continue
 		case "tool":
-			if strings.TrimSpace(msg.ToolCallID) == "" {
+			if utils.IsBlank(msg.ToolCallID) {
 				continue
 			}
 			block := anthropicContentBlock{
@@ -256,7 +256,7 @@ func (c *anthropicClient) convertMessages(msgs []ports.Message) ([]anthropicMess
 			}
 		}
 
-		if len(contentBlocks) == 0 && strings.TrimSpace(msg.Content) == "" {
+		if len(contentBlocks) == 0 && utils.IsBlank(msg.Content) {
 			continue
 		}
 
@@ -272,11 +272,11 @@ func (c *anthropicClient) convertMessages(msgs []ports.Message) ([]anthropicMess
 func buildAnthropicMessageContent(msg ports.Message, embedAttachments bool) []anthropicContentBlock {
 	thinkingText := thinkingPromptText(msg.Thinking)
 	if len(msg.Attachments) == 0 || !embedAttachments {
-		if strings.TrimSpace(msg.Content) == "" && thinkingText == "" {
+		if utils.IsBlank(msg.Content) && thinkingText == "" {
 			return nil
 		}
 		blocks := make([]anthropicContentBlock, 0, 2)
-		if strings.TrimSpace(msg.Content) != "" {
+		if utils.HasContent(msg.Content) {
 			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: msg.Content})
 		}
 		if thinkingText != "" {
@@ -324,11 +324,11 @@ func buildAnthropicMessageContent(msg ports.Message, embedAttachments bool) []an
 	)
 
 	if !hasImage {
-		if strings.TrimSpace(msg.Content) == "" && thinkingText == "" {
+		if utils.IsBlank(msg.Content) && thinkingText == "" {
 			return nil
 		}
 		blocks := make([]anthropicContentBlock, 0, 2)
-		if strings.TrimSpace(msg.Content) != "" {
+		if utils.HasContent(msg.Content) {
 			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: msg.Content})
 		}
 		if thinkingText != "" {

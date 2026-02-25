@@ -10,6 +10,7 @@ import (
 	"alex/internal/infra/external/bridge"
 	"alex/internal/shared/config"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 // Registry routes external agent requests to the appropriate executor.
@@ -88,7 +89,7 @@ func (r *Registry) register(exec agent.ExternalAgentExecutor) {
 		return
 	}
 	for _, agentType := range exec.SupportedTypes() {
-		if strings.TrimSpace(agentType) == "" {
+		if utils.IsBlank(agentType) {
 			continue
 		}
 		r.executors[agentType] = exec

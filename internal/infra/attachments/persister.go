@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 // inlineRetentionLimit is the maximum decoded payload size (bytes) for which
@@ -43,7 +44,7 @@ func (p *StorePersister) Persist(ctx context.Context, att ports.Attachment) (por
 	}
 
 	// Already has an external URI and no inline data → nothing to do.
-	if att.Data == "" && !isDataURI(att.URI) && strings.TrimSpace(att.URI) != "" {
+	if att.Data == "" && !isDataURI(att.URI) && utils.HasContent(att.URI) {
 		if att.Fingerprint == "" {
 			att.Fingerprint = fingerprintFromURI(att.URI)
 		}

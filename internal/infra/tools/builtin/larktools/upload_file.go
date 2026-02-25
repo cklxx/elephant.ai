@@ -17,6 +17,7 @@ import (
 	"alex/internal/infra/tools/builtin/artifacts"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
@@ -400,7 +401,7 @@ func attachmentMediaType(ctx context.Context, name string) string {
 }
 
 func findAttachmentCaseInsensitive(attachments map[string]ports.Attachment, name string) (ports.Attachment, bool) {
-	if len(attachments) == 0 || strings.TrimSpace(name) == "" {
+	if len(attachments) == 0 || utils.IsBlank(name) {
 		return ports.Attachment{}, false
 	}
 	if att, ok := attachments[name]; ok {

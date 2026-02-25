@@ -14,6 +14,7 @@ import (
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 )
 
 type shellExec struct {
@@ -140,7 +141,7 @@ func (t *shellExec) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	output := strings.TrimSpace(stdout)
 	if output == "" {
 		output = strings.TrimSpace(stderr)
-	} else if strings.TrimSpace(stderr) != "" {
+	} else if utils.HasContent(stderr) {
 		output = output + "\n" + strings.TrimSpace(stderr)
 	}
 

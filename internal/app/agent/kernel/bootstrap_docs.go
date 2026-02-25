@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"alex/internal/shared/utils"
 	"fmt"
 	"sort"
 	"strings"
@@ -86,7 +87,7 @@ func RenderSystemPromptMarkdown(systemPrompt string, generatedAt time.Time) stri
 	b.WriteString(fmt.Sprintf("- generated_at: %s\n", formatTimestamp(generatedAt)))
 	b.WriteString("- source: AgentCoordinator.GetSystemPrompt()\n\n")
 	b.WriteString("```text\n")
-	if strings.TrimSpace(systemPrompt) == "" {
+	if utils.IsBlank(systemPrompt) {
 		b.WriteString("(empty)\n")
 	} else {
 		b.WriteString(ensureTrailingNewline(systemPrompt))

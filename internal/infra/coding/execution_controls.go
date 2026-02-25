@@ -5,6 +5,7 @@ import (
 
 	core "alex/internal/domain/agent/ports"
 	"alex/internal/infra/executioncontrol"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -70,24 +71,24 @@ func applyCodexExecutionControls(cfg map[string]string, mode, level string) {
 
 	switch level {
 	case autonomyFull:
-		if strings.TrimSpace(cfg["sandbox"]) == "" {
+		if utils.IsBlank(cfg["sandbox"]) {
 			cfg["sandbox"] = "danger-full-access"
 		}
-		if strings.TrimSpace(cfg["approval_policy"]) == "" {
+		if utils.IsBlank(cfg["approval_policy"]) {
 			cfg["approval_policy"] = "never"
 		}
 	case autonomySemi:
-		if strings.TrimSpace(cfg["sandbox"]) == "" {
+		if utils.IsBlank(cfg["sandbox"]) {
 			cfg["sandbox"] = "workspace-write"
 		}
-		if strings.TrimSpace(cfg["approval_policy"]) == "" {
+		if utils.IsBlank(cfg["approval_policy"]) {
 			cfg["approval_policy"] = "on-failure"
 		}
 	default:
-		if strings.TrimSpace(cfg["sandbox"]) == "" {
+		if utils.IsBlank(cfg["sandbox"]) {
 			cfg["sandbox"] = "workspace-write"
 		}
-		if strings.TrimSpace(cfg["approval_policy"]) == "" {
+		if utils.IsBlank(cfg["approval_policy"]) {
 			cfg["approval_policy"] = "on-request"
 		}
 	}
@@ -96,7 +97,7 @@ func applyCodexExecutionControls(cfg map[string]string, mode, level string) {
 func applyClaudeExecutionControls(cfg map[string]string, mode, level string) {
 	if mode == executionModePlan {
 		cfg["mode"] = "autonomous"
-		if strings.TrimSpace(cfg["allowed_tools"]) == "" {
+		if utils.IsBlank(cfg["allowed_tools"]) {
 			cfg["allowed_tools"] = claudePlanAllowedTools
 		}
 		return
@@ -104,21 +105,21 @@ func applyClaudeExecutionControls(cfg map[string]string, mode, level string) {
 
 	switch level {
 	case autonomyFull:
-		if strings.TrimSpace(cfg["mode"]) == "" {
+		if utils.IsBlank(cfg["mode"]) {
 			cfg["mode"] = "autonomous"
 		}
-		if strings.TrimSpace(cfg["allowed_tools"]) == "" {
+		if utils.IsBlank(cfg["allowed_tools"]) {
 			cfg["allowed_tools"] = "*"
 		}
 	case autonomySemi:
-		if strings.TrimSpace(cfg["mode"]) == "" {
+		if utils.IsBlank(cfg["mode"]) {
 			cfg["mode"] = "autonomous"
 		}
-		if strings.TrimSpace(cfg["allowed_tools"]) == "" {
+		if utils.IsBlank(cfg["allowed_tools"]) {
 			cfg["allowed_tools"] = claudeSemiAllowedTools
 		}
 	default:
-		if strings.TrimSpace(cfg["mode"]) == "" {
+		if utils.IsBlank(cfg["mode"]) {
 			cfg["mode"] = "interactive"
 		}
 	}

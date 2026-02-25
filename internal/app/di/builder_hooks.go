@@ -1,6 +1,7 @@
 package di
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"fmt"
 	"path/filepath"
@@ -245,7 +246,7 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 		maxCycleHistory = kernelagent.DefaultKernelMaxCycleHistory
 	}
 	seedState := settings.SeedState
-	if strings.TrimSpace(seedState) == "" {
+	if utils.IsBlank(seedState) {
 		seedState = kernelagent.DefaultSeedStateContent
 	}
 	channel := strings.TrimSpace(settings.Channel)

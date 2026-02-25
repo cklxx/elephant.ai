@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -105,7 +106,7 @@ func (p *LLMPlanner) Plan(ctx context.Context, stateContent string, recentByAgen
 
 	responseText := resp.Content
 	// Some models (e.g. kimi-for-coding) put output in thinking/reasoning; fallback.
-	if strings.TrimSpace(responseText) == "" && len(resp.Thinking.Parts) > 0 {
+	if utils.IsBlank(responseText) && len(resp.Thinking.Parts) > 0 {
 		for _, part := range resp.Thinking.Parts {
 			if strings.Contains(part.Text, "[") {
 				responseText = part.Text

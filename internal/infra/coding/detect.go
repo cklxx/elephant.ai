@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 var detectLookPath = exec.LookPath
@@ -56,7 +58,7 @@ func DetectLocalCLIs() []LocalCLIDetection {
 func DetectLocalAdapters() []string {
 	available := make([]string, 0, 2)
 	for _, item := range DetectLocalCLIs() {
-		if !item.AdapterSupport || strings.TrimSpace(item.AgentType) == "" {
+		if !item.AdapterSupport || utils.IsBlank(item.AgentType) {
 			continue
 		}
 		available = append(available, item.AgentType)
@@ -103,7 +105,7 @@ func fallbackCLIPaths() []string {
 		"/opt/homebrew/bin",
 	}
 	home, err := detectUserHomeDir()
-	if err == nil && strings.TrimSpace(home) != "" {
+	if err == nil && utils.HasContent(home) {
 		dirs = append([]string{
 			filepath.Join(home, ".local", "bin"),
 			filepath.Join(home, ".bun", "bin"),

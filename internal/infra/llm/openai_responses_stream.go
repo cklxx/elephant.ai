@@ -177,7 +177,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 			if evt.Item != nil && evt.Item.Type == "function_call" {
 				args := parseToolArguments([]byte(evt.Item.Arguments))
 				toolID := evt.Item.CallID
-				if strings.TrimSpace(toolID) == "" {
+				if utils.IsBlank(toolID) {
 					toolID = evt.Item.ID
 				}
 				toolCalls = append(toolCalls, ports.ToolCall{

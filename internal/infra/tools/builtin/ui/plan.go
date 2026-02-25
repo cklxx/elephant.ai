@@ -9,6 +9,7 @@ import (
 	"alex/internal/infra/memory"
 	"alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
+	"alex/internal/shared/utils"
 )
 
 type uiPlan struct {
@@ -139,7 +140,7 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 
 	if t.memory != nil && (len(memoryKeywords) > 0 || len(memorySlots) > 0) {
 		userID := id.UserIDFromContext(ctx)
-		if strings.TrimSpace(userID) != "" {
+		if utils.HasContent(userID) {
 			query := strings.Join(memoryKeywords, " ")
 			if len(memorySlots) > 0 {
 				var parts []string

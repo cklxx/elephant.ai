@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	"alex/internal/app/subscription"
 	runtimeconfig "alex/internal/shared/config"
 )
@@ -65,7 +66,7 @@ func resolveSetupProviderSelection(
 	providerID := normalizeProviderID(selectedProvider.Provider)
 	cred, credOK := matchCredential(creds, providerID)
 	apiKey := strings.TrimSpace(input.APIKey)
-	if apiKey == "" && credOK && strings.TrimSpace(cred.APIKey) != "" {
+	if apiKey == "" && credOK && utils.HasContent(cred.APIKey) {
 		return setupProviderSelection{
 			Provider:        providerID,
 			Model:           selectedModel,
@@ -198,7 +199,7 @@ func applySetupProviderOverrides(envLookup runtimeconfig.EnvLookup, selection se
 	overrides.LLMProvider = stringPtr(selection.Provider)
 	overrides.LLMModel = stringPtr(selection.Model)
 	overrides.APIKey = stringPtr(selection.APIKey)
-	if strings.TrimSpace(selection.BaseURL) != "" {
+	if utils.HasContent(selection.BaseURL) {
 		overrides.BaseURL = stringPtr(strings.TrimSpace(selection.BaseURL))
 	}
 
@@ -269,10 +270,10 @@ func openExternalURL(rawURL string) error {
 		return fmt.Errorf("empty URL")
 	}
 
-	if openCmd, err := exec.LookPath("open"); err == nil && strings.TrimSpace(openCmd) != "" {
+	if openCmd, err := exec.LookPath("open"); err == nil && utils.HasContent(openCmd) {
 		return exec.Command(openCmd, url).Start()
 	}
-	if openCmd, err := exec.LookPath("xdg-open"); err == nil && strings.TrimSpace(openCmd) != "" {
+	if openCmd, err := exec.LookPath("xdg-open"); err == nil && utils.HasContent(openCmd) {
 		return exec.Command(openCmd, url).Start()
 	}
 	return fmt.Errorf("no opener command found (`open`/`xdg-open`)")

@@ -27,7 +27,7 @@ var defaultEmojiPool = []string{
 }
 
 func parseEmojiPool(raw string) []string {
-	if strings.TrimSpace(raw) == "" {
+	if utils.IsBlank(raw) {
 		return nil
 	}
 	parts := strings.FieldsFunc(raw, func(r rune) bool {

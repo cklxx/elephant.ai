@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 // LLMProfile is the resolved runtime profile consumed by executors and app services.
@@ -28,7 +30,7 @@ func (e *LLMProfileMismatchError) Error() string {
 	if e == nil {
 		return "invalid llm profile"
 	}
-	if strings.TrimSpace(e.Detail) == "" {
+	if utils.IsBlank(e.Detail) {
 		return fmt.Sprintf("invalid llm profile for provider %q", strings.TrimSpace(e.Provider))
 	}
 	return fmt.Sprintf("invalid llm profile for provider %q: %s", strings.TrimSpace(e.Provider), strings.TrimSpace(e.Detail))

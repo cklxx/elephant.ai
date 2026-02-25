@@ -11,6 +11,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -503,7 +504,7 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 		l.writeCompletionMeta(&b, taskID, status, mergeStatus)
 		l.writeDescription(&b, description)
 		b.WriteString(fmt.Sprintf("⏱ 共耗时 %s\n", formatElapsed(elapsed)))
-		if strings.TrimSpace(pending) != "" {
+		if utils.HasContent(pending) {
 			b.WriteString("\n")
 			b.WriteString(pending)
 		}
@@ -512,7 +513,7 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 		l.writeCompletionMeta(&b, taskID, status, mergeStatus)
 		l.writeDescription(&b, description)
 		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
-		if strings.TrimSpace(pending) != "" {
+		if utils.HasContent(pending) {
 			b.WriteString("\n")
 			b.WriteString(pending)
 		}

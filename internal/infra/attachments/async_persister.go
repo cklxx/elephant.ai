@@ -11,6 +11,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -112,7 +113,7 @@ func (p *AsyncStorePersister) Persist(ctx context.Context, att ports.Attachment)
 	}
 
 	// Already has an external URI and no inline data → nothing to do.
-	if att.Data == "" && !isDataURI(att.URI) && strings.TrimSpace(att.URI) != "" {
+	if att.Data == "" && !isDataURI(att.URI) && utils.HasContent(att.URI) {
 		if att.Fingerprint == "" {
 			att.Fingerprint = fingerprintFromURI(att.URI)
 		}
@@ -207,7 +208,7 @@ func buildAttachmentURI(store *Store, name, mediaType, fingerprint string) strin
 	switch store.provider {
 	case ProviderCloudflare:
 		key := objectKey(store.cloudKeyPrefix, filename)
-		if uri := store.buildCloudURI(key); strings.TrimSpace(uri) != "" {
+		if uri := store.buildCloudURI(key); utils.HasContent(uri) {
 			return uri
 		}
 		return store.buildURI(filename)

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	toolspolicy "alex/internal/infra/tools"
 	"gopkg.in/yaml.v3"
 )
@@ -282,7 +283,7 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	var fileCfg FileConfig
 	if err := yaml.Unmarshal(data, &fileCfg); err == nil {
 		fileCfg = expandFileConfigEnv(lookup, fileCfg)
-		if fileCfg.Agent != nil && strings.TrimSpace(fileCfg.Agent.SessionStaleAfter) != "" {
+		if fileCfg.Agent != nil && utils.HasContent(fileCfg.Agent.SessionStaleAfter) {
 			seconds, err := parseDurationSeconds(fileCfg.Agent.SessionStaleAfter)
 			if err != nil {
 				return fmt.Errorf("parse agent.session_stale_after: %w", err)
@@ -405,15 +406,15 @@ func applyExternalAgentsFileConfig(cfg *RuntimeConfig, meta *Metadata, external 
 			cfg.ExternalAgents.ClaudeCode.Enabled = *cc.Enabled
 			meta.sources["external_agents.claude_code.enabled"] = SourceFile
 		}
-		if strings.TrimSpace(cc.Binary) != "" {
+		if utils.HasContent(cc.Binary) {
 			cfg.ExternalAgents.ClaudeCode.Binary = cc.Binary
 			meta.sources["external_agents.claude_code.binary"] = SourceFile
 		}
-		if strings.TrimSpace(cc.DefaultModel) != "" {
+		if utils.HasContent(cc.DefaultModel) {
 			cfg.ExternalAgents.ClaudeCode.DefaultModel = cc.DefaultModel
 			meta.sources["external_agents.claude_code.default_model"] = SourceFile
 		}
-		if strings.TrimSpace(cc.DefaultMode) != "" {
+		if utils.HasContent(cc.DefaultMode) {
 			cfg.ExternalAgents.ClaudeCode.DefaultMode = cc.DefaultMode
 			meta.sources["external_agents.claude_code.default_mode"] = SourceFile
 		}
@@ -433,7 +434,7 @@ func applyExternalAgentsFileConfig(cfg *RuntimeConfig, meta *Metadata, external 
 			cfg.ExternalAgents.ClaudeCode.MaxTurns = *cc.MaxTurns
 			meta.sources["external_agents.claude_code.max_turns"] = SourceFile
 		}
-		if strings.TrimSpace(cc.Timeout) != "" {
+		if utils.HasContent(cc.Timeout) {
 			timeout, err := parseDuration(cc.Timeout)
 			if err != nil {
 				return fmt.Errorf("parse external_agents.claude_code.timeout: %w", err)
@@ -456,31 +457,31 @@ func applyExternalAgentsFileConfig(cfg *RuntimeConfig, meta *Metadata, external 
 			cfg.ExternalAgents.Codex.Enabled = *cx.Enabled
 			meta.sources["external_agents.codex.enabled"] = SourceFile
 		}
-		if strings.TrimSpace(cx.Binary) != "" {
+		if utils.HasContent(cx.Binary) {
 			cfg.ExternalAgents.Codex.Binary = cx.Binary
 			meta.sources["external_agents.codex.binary"] = SourceFile
 		}
-		if strings.TrimSpace(cx.DefaultModel) != "" {
+		if utils.HasContent(cx.DefaultModel) {
 			cfg.ExternalAgents.Codex.DefaultModel = cx.DefaultModel
 			meta.sources["external_agents.codex.default_model"] = SourceFile
 		}
-		if strings.TrimSpace(cx.ApprovalPolicy) != "" {
+		if utils.HasContent(cx.ApprovalPolicy) {
 			cfg.ExternalAgents.Codex.ApprovalPolicy = cx.ApprovalPolicy
 			meta.sources["external_agents.codex.approval_policy"] = SourceFile
 		}
-		if strings.TrimSpace(cx.Sandbox) != "" {
+		if utils.HasContent(cx.Sandbox) {
 			cfg.ExternalAgents.Codex.Sandbox = cx.Sandbox
 			meta.sources["external_agents.codex.sandbox"] = SourceFile
 		}
-		if strings.TrimSpace(cx.PlanApprovalPolicy) != "" {
+		if utils.HasContent(cx.PlanApprovalPolicy) {
 			cfg.ExternalAgents.Codex.PlanApprovalPolicy = cx.PlanApprovalPolicy
 			meta.sources["external_agents.codex.plan_approval_policy"] = SourceFile
 		}
-		if strings.TrimSpace(cx.PlanSandbox) != "" {
+		if utils.HasContent(cx.PlanSandbox) {
 			cfg.ExternalAgents.Codex.PlanSandbox = cx.PlanSandbox
 			meta.sources["external_agents.codex.plan_sandbox"] = SourceFile
 		}
-		if strings.TrimSpace(cx.Timeout) != "" {
+		if utils.HasContent(cx.Timeout) {
 			timeout, err := parseDuration(cx.Timeout)
 			if err != nil {
 				return fmt.Errorf("parse external_agents.codex.timeout: %w", err)
@@ -555,7 +556,7 @@ func applyToolPolicyFileConfig(cfg *RuntimeConfig, meta *Metadata, policy *ToolP
 	if policy == nil {
 		return
 	}
-	if strings.TrimSpace(policy.EnforcementMode) != "" {
+	if utils.HasContent(policy.EnforcementMode) {
 		cfg.ToolPolicy.EnforcementMode = strings.TrimSpace(policy.EnforcementMode)
 		meta.sources["tool_policy.enforcement_mode"] = SourceFile
 	}

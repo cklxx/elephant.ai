@@ -1,6 +1,7 @@
 package config
 
 import (
+	"alex/internal/shared/utils"
 	"strings"
 	"time"
 
@@ -37,16 +38,16 @@ type Config struct {
 // It prefers the explicit LLMProfile field and falls back to legacy fields.
 func (c Config) DefaultLLMProfile() runtimeconfig.LLMProfile {
 	profile := c.LLMProfile
-	if strings.TrimSpace(profile.Provider) == "" {
+	if utils.IsBlank(profile.Provider) {
 		profile.Provider = strings.TrimSpace(c.LLMProvider)
 	}
-	if strings.TrimSpace(profile.Model) == "" {
+	if utils.IsBlank(profile.Model) {
 		profile.Model = strings.TrimSpace(c.LLMModel)
 	}
-	if strings.TrimSpace(profile.APIKey) == "" {
+	if utils.IsBlank(profile.APIKey) {
 		profile.APIKey = strings.TrimSpace(c.APIKey)
 	}
-	if strings.TrimSpace(profile.BaseURL) == "" {
+	if utils.IsBlank(profile.BaseURL) {
 		profile.BaseURL = strings.TrimSpace(c.BaseURL)
 	}
 	return profile
@@ -61,7 +62,7 @@ func (c Config) VisionLLMProfile() (runtimeconfig.LLMProfile, bool) {
 	}
 	profile := c.DefaultLLMProfile()
 	profile.Model = model
-	if strings.TrimSpace(profile.Provider) == "" {
+	if utils.IsBlank(profile.Provider) {
 		return runtimeconfig.LLMProfile{}, false
 	}
 	return profile, true

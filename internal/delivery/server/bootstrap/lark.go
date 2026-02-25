@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"alex/internal/infra/diagnostics"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 // RunLark starts the standalone Lark WebSocket gateway with an embedded debug
@@ -39,7 +39,7 @@ func RunLark(observabilityConfigPath string) error {
 	if !larkCfg.Enabled {
 		return fmt.Errorf("lark standalone mode requires channels.lark.enabled = true")
 	}
-	if strings.TrimSpace(larkCfg.AppID) == "" || strings.TrimSpace(larkCfg.AppSecret) == "" {
+	if utils.IsBlank(larkCfg.AppID) || utils.IsBlank(larkCfg.AppSecret) {
 		return fmt.Errorf("lark standalone mode requires channels.lark.app_id and app_secret")
 	}
 

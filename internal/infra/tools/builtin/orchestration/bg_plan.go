@@ -10,6 +10,7 @@ import (
 	"alex/internal/infra/executioncontrol"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/utils/id"
+	"alex/internal/shared/utils"
 )
 
 type bgPlan struct {
@@ -213,7 +214,7 @@ func parseBGPlanDefaults(raw any) (bgPlanDefaults, error) {
 		if !ok {
 			return defaults, fmt.Errorf("defaults.agent_type must be a string")
 		}
-		if strings.TrimSpace(str) != "" {
+		if utils.HasContent(str) {
 			defaults.AgentType = canonicalAgentType(str)
 		}
 	}
@@ -261,13 +262,13 @@ func parseBGPlanTask(taskObj map[string]any, defaults bgPlanDefaults) (bgPlanTas
 	}
 
 	description, ok := taskObj["description"].(string)
-	if !ok || strings.TrimSpace(description) == "" {
+	if !ok || utils.IsBlank(description) {
 		return task, fmt.Errorf("description is required and must be a string")
 	}
 	task.Description = strings.TrimSpace(description)
 
 	prompt, ok := taskObj["prompt"].(string)
-	if !ok || strings.TrimSpace(prompt) == "" {
+	if !ok || utils.IsBlank(prompt) {
 		return task, fmt.Errorf("prompt is required and must be a string")
 	}
 	task.Prompt = strings.TrimSpace(prompt)
@@ -278,7 +279,7 @@ func parseBGPlanTask(taskObj map[string]any, defaults bgPlanDefaults) (bgPlanTas
 		if !ok {
 			return task, fmt.Errorf("agent_type must be a string")
 		}
-		if strings.TrimSpace(str) != "" {
+		if utils.HasContent(str) {
 			task.AgentType = canonicalAgentType(str)
 		}
 	}
@@ -351,21 +352,21 @@ func applyPlanCodingDefaults(task *bgPlanTask, workspaceMode string) {
 	task.Config["autonomy_level"] = task.AutonomyLevel
 
 	if isCodingExternalAgent(task.AgentType) {
-		if strings.TrimSpace(task.Config["task_kind"]) == "" {
+		if utils.IsBlank(task.Config["task_kind"]) {
 			task.Config["task_kind"] = "coding"
 		}
 		if task.AutonomyLevel == "controlled" {
 			task.AutonomyLevel = "full"
 			task.Config["autonomy_level"] = "full"
 		}
-		if strings.TrimSpace(task.Config["verify"]) == "" {
+		if utils.IsBlank(task.Config["verify"]) {
 			if task.ExecutionMode == "plan" {
 				task.Config["verify"] = "false"
 			} else {
 				task.Config["verify"] = "true"
 			}
 		}
-		if strings.TrimSpace(task.Config["merge_on_success"]) == "" {
+		if utils.IsBlank(task.Config["merge_on_success"]) {
 			if task.ExecutionMode == "plan" {
 				task.Config["merge_on_success"] = "false"
 			} else {

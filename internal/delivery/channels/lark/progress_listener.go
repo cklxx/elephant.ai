@@ -10,6 +10,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -293,7 +294,7 @@ func envelopeHasError(e *domain.WorkflowEventEnvelope) bool {
 	}
 	switch value := raw.(type) {
 	case string:
-		return strings.TrimSpace(value) != ""
+		return utils.HasContent(value)
 	default:
 		return true
 	}

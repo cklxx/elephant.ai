@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	larkgw "alex/internal/delivery/channels/lark"
 	larktesting "alex/internal/delivery/channels/lark/testing"
 	runtimeconfig "alex/internal/shared/config"
@@ -157,7 +158,7 @@ func runLarkScenarioRun(args []string) error {
 	case larkScenarioModeMock:
 		results = runMockScenarios(ctx, filtered, *failFast)
 	case larkScenarioModeHTTP:
-		if strings.TrimSpace(*baseURL) == "" && !flagProvided(fs, "port") {
+		if utils.IsBlank(*baseURL) && !flagProvided(fs, "port") {
 			*port = detectLarkDebugPort(defaultLarkInjectPort)
 		}
 		endpoint := larkInjectEndpoint(*baseURL, *port)
@@ -260,7 +261,7 @@ func runHTTPScenario(ctx context.Context, scenario *larktesting.Scenario, opts l
 	if opts.httpClient == nil {
 		opts.httpClient = &http.Client{Timeout: time.Duration(maxInt(opts.timeoutSeconds, defaultLarkInjectTimeoutSeconds)+30) * time.Second}
 	}
-	if strings.TrimSpace(opts.endpoint) == "" {
+	if utils.IsBlank(opts.endpoint) {
 		opts.endpoint = larkInjectEndpoint("", defaultLarkInjectPort)
 	}
 	if opts.timeoutSeconds <= 0 {
@@ -427,7 +428,7 @@ func isTransientInjectTransportError(err error) bool {
 }
 
 func defaultString(value, fallback string) string {
-	if strings.TrimSpace(value) == "" {
+	if utils.IsBlank(value) {
 		return fallback
 	}
 	return value
@@ -493,7 +494,7 @@ func mustJSON(report *larktesting.TestReport) []byte {
 }
 
 func writeFile(path string, contents []byte) error {
-	if strings.TrimSpace(path) == "" {
+	if utils.IsBlank(path) {
 		return fmt.Errorf("empty output path")
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -525,7 +526,7 @@ func runLarkInjectCommand(args []string) error {
 	if text == "" {
 		return &ExitCodeError{Code: 2, Err: fmt.Errorf("usage: alex lark inject [flags] <message>")}
 	}
-	if strings.TrimSpace(*baseURL) == "" && !flagProvided(fs, "port") {
+	if utils.IsBlank(*baseURL) && !flagProvided(fs, "port") {
 		*port = detectLarkDebugPort(defaultLarkInjectPort)
 	}
 
@@ -645,7 +646,7 @@ func detectLarkDebugPort(fallback string) string {
 		}
 	}
 
-	if strings.TrimSpace(fallback) != "" {
+	if utils.HasContent(fallback) {
 		return strings.TrimSpace(fallback)
 	}
 	return defaultLarkInjectPort

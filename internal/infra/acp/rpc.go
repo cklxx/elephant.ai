@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 
 	jsonrpc "alex/internal/infra/mcp"
+	"alex/internal/shared/utils"
 )
 
 // RPCConn manages JSON-RPC request/response framing for ACP.
@@ -167,7 +168,7 @@ func readRPCMessage(r *bufio.Reader) ([]byte, bool, error) {
 		}
 
 		line = strings.TrimRight(line, "\r\n")
-		if strings.TrimSpace(line) == "" {
+		if utils.IsBlank(line) {
 			continue
 		}
 
@@ -178,7 +179,7 @@ func readRPCMessage(r *bufio.Reader) ([]byte, bool, error) {
 					return nil, true, err
 				}
 				header = strings.TrimRight(header, "\r\n")
-				if strings.TrimSpace(header) == "" {
+				if utils.IsBlank(header) {
 					break
 				}
 			}

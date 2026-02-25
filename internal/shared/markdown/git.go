@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	"alex/internal/shared/logging"
 )
 
@@ -65,7 +66,7 @@ func (g *gitOperations) hasChanges(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return strings.TrimSpace(out) != "", nil
+	return utils.HasContent(out), nil
 }
 
 // log returns the N most recent commits for the given file.

@@ -8,6 +8,7 @@ import (
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
+	"alex/internal/shared/utils"
 )
 
 type uiClarify struct {
@@ -80,7 +81,7 @@ func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 
 	// task_id is optional; auto-generate from call.ID if not provided.
 	taskID := shared.StringArg(call.Arguments, "task_id")
-	if strings.TrimSpace(taskID) == "" {
+	if utils.IsBlank(taskID) {
 		taskID = "task-" + call.ID
 	}
 

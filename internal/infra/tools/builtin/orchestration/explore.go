@@ -8,6 +8,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 )
 
 type explore struct {
@@ -193,7 +194,7 @@ func buildExplorePrompt(objective string, subtasks []string) string {
 }
 
 func appendNotes(base, notes string) string {
-	if strings.TrimSpace(notes) == "" {
+	if utils.IsBlank(notes) {
 		return strings.TrimSpace(base)
 	}
 

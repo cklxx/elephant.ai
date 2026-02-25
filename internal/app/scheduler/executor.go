@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"fmt"
 	"strings"
@@ -23,7 +24,7 @@ type Notifier interface {
 // executeTrigger runs a trigger's task via the agent coordinator and routes the result.
 func (s *Scheduler) executeTrigger(trigger Trigger) error {
 	if strings.EqualFold(trigger.Channel, "lark") {
-		if strings.TrimSpace(trigger.UserID) == "" {
+		if utils.IsBlank(trigger.UserID) {
 			err := fmt.Errorf("lark trigger requires user_id as open_id")
 			s.logger.Warn("Scheduler: %v (trigger=%q)", err, trigger.Name)
 			return err

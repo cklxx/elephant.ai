@@ -3,6 +3,8 @@ package skills
 import (
 	"fmt"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 // ResolveChain expands a declared skill chain into a single instruction block.
@@ -34,7 +36,7 @@ func (l *Library) ResolveChain(chain SkillChain) (string, error) {
 		if len(step.Params) > 0 {
 			sb.WriteString("**Parameters:**\n")
 			for key, value := range step.Params {
-				if strings.TrimSpace(key) == "" {
+				if utils.IsBlank(key) {
 					continue
 				}
 				sb.WriteString(fmt.Sprintf("- %s: %s\n", key, value))
@@ -42,7 +44,7 @@ func (l *Library) ResolveChain(chain SkillChain) (string, error) {
 			sb.WriteString("\n")
 		}
 
-		if strings.TrimSpace(skill.Body) != "" {
+		if utils.HasContent(skill.Body) {
 			sb.WriteString(skill.Body)
 			sb.WriteString("\n\n")
 		}

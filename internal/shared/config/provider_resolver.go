@@ -1,6 +1,10 @@
 package config
 
-import "strings"
+import (
+	"strings"
+
+	"alex/internal/shared/utils"
+)
 
 type autoProviderCandidate struct {
 	Provider    string
@@ -25,7 +29,7 @@ func applyAutoProviderCandidate(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 	}
 
 
-	if base, ok := lookup(cand.BaseURLEnv); ok && strings.TrimSpace(base) != "" {
+	if base, ok := lookup(cand.BaseURLEnv); ok && utils.HasContent(base) {
 		cfg.BaseURL = strings.TrimSpace(base)
 		meta.sources["base_url"] = SourceEnv
 	} else if cand.DefaultBase != "" && meta.Source("base_url") == SourceDefault {
@@ -38,7 +42,7 @@ func applyAutoProviderCandidate(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 
 func applyCLICandidates(cfg *RuntimeConfig, meta *Metadata, candidates ...CLICredential) bool {
 	for _, cand := range candidates {
-		if strings.TrimSpace(cand.APIKey) == "" {
+		if utils.IsBlank(cand.APIKey) {
 			continue
 		}
 		cfg.LLMProvider = cand.Provider
@@ -122,14 +126,14 @@ func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, c
 		return applyCLICandidates(cfg, meta, cli.Codex, cli.Claude)
 	}
 	applyUnified := func() bool {
-		if key, ok := lookup("LLM_API_KEY"); ok && strings.TrimSpace(key) != "" {
+		if key, ok := lookup("LLM_API_KEY"); ok && utils.HasContent(key) {
 			cfg.LLMProvider = "openai"
 			meta.sources["llm_provider"] = SourceEnv
 			if cfg.APIKey == "" {
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 			}
-			if base, ok := lookup("OPENAI_BASE_URL"); ok && strings.TrimSpace(base) != "" {
+			if base, ok := lookup("OPENAI_BASE_URL"); ok && utils.HasContent(base) {
 				cfg.BaseURL = strings.TrimSpace(base)
 				meta.sources["base_url"] = SourceEnv
 			}
@@ -179,7 +183,7 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				meta.sources["api_key"] = cli.Claude.Source
 				break
 			}
-			if key, ok := lookup("ANTHROPIC_API_KEY"); ok && strings.TrimSpace(key) != "" {
+			if key, ok := lookup("ANTHROPIC_API_KEY"); ok && utils.HasContent(key) {
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 			}
@@ -189,23 +193,23 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				meta.sources["api_key"] = cli.Codex.Source
 				break
 			}
-			if key, ok := lookup("CODEX_API_KEY"); ok && strings.TrimSpace(key) != "" {
+			if key, ok := lookup("CODEX_API_KEY"); ok && utils.HasContent(key) {
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 				break
 			}
-			if key, ok := lookup("OPENAI_API_KEY"); ok && strings.TrimSpace(key) != "" {
+			if key, ok := lookup("OPENAI_API_KEY"); ok && utils.HasContent(key) {
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 			}
 		case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
-			if key, ok := lookup("OPENAI_API_KEY"); ok && strings.TrimSpace(key) != "" {
+			if key, ok := lookup("OPENAI_API_KEY"); ok && utils.HasContent(key) {
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 			}
 		}
 		if cfg.APIKey == "" {
-			if key, ok := lookup("LLM_API_KEY"); ok && strings.TrimSpace(key) != "" {
+			if key, ok := lookup("LLM_API_KEY"); ok && utils.HasContent(key) {
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 			}
@@ -225,7 +229,7 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 	if meta.Source("base_url") == SourceDefault {
 		switch provider {
 		case "anthropic", "claude":
-			if base, ok := lookup("ANTHROPIC_BASE_URL"); ok && strings.TrimSpace(base) != "" {
+			if base, ok := lookup("ANTHROPIC_BASE_URL"); ok && utils.HasContent(base) {
 				cfg.BaseURL = strings.TrimSpace(base)
 				meta.sources["base_url"] = SourceEnv
 			} else {
@@ -238,7 +242,7 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				meta.sources["base_url"] = cli.Codex.Source
 				break
 			}
-			if base, ok := lookup("CODEX_BASE_URL"); ok && strings.TrimSpace(base) != "" {
+			if base, ok := lookup("CODEX_BASE_URL"); ok && utils.HasContent(base) {
 				cfg.BaseURL = strings.TrimSpace(base)
 				meta.sources["base_url"] = SourceEnv
 				break
@@ -248,7 +252,7 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				meta.sources["base_url"] = SourceEnv
 			}
 		case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
-			if base, ok := lookup("OPENAI_BASE_URL"); ok && strings.TrimSpace(base) != "" {
+			if base, ok := lookup("OPENAI_BASE_URL"); ok && utils.HasContent(base) {
 				cfg.BaseURL = strings.TrimSpace(base)
 				meta.sources["base_url"] = SourceEnv
 			}
