@@ -11,14 +11,19 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 )
 
+const runtimeSystemPromptMaxChars = 32000
+
 func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 	if state == nil {
 		return
 	}
 
-	prompt := strings.TrimSpace(state.SystemPrompt)
+	prompt := clampRuntimeSystemPrompt(state.SystemPrompt)
 	if prompt == "" {
 		return
+	}
+	if prompt != state.SystemPrompt {
+		state.SystemPrompt = prompt
 	}
 
 	for idx := range state.Messages {
@@ -33,7 +38,7 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 		}
 
 		if strings.TrimSpace(state.Messages[idx].Content) != prompt {
-			state.Messages[idx].Content = state.SystemPrompt
+			state.Messages[idx].Content = prompt
 			state.Messages[idx].Source = ports.MessageSourceSystemPrompt
 			e.logger.Debug("Updated existing system prompt in message history")
 		} else if source == "" {
@@ -58,7 +63,7 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 
 	systemMessage := Message{
 		Role:    "system",
-		Content: state.SystemPrompt,
+		Content: prompt,
 		Source:  ports.MessageSourceSystemPrompt,
 	}
 
@@ -113,6 +118,19 @@ func shouldDropStaleSystemPromptMessage(msg Message) bool {
 		return false
 	}
 	return strings.TrimSpace(string(msg.Source)) == ""
+}
+
+func clampRuntimeSystemPrompt(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	if trimmed == "" || runtimeSystemPromptMaxChars <= 0 {
+		return trimmed
+	}
+	runes := []rune(trimmed)
+	if len(runes) <= runtimeSystemPromptMaxChars {
+		return trimmed
+	}
+	clipped := strings.TrimSpace(string(runes[:runtimeSystemPromptMaxChars]))
+	return clipped + "\n\n[System prompt truncated at runtime to stay within context limits.]"
 }
 
 func (e *ReactEngine) applyToolAttachmentMutations(
