@@ -217,7 +217,7 @@ Enhancements after the core loop is stable.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Dynamic model selection | Auto-select model based on task type/complexity/context length | **Done** | Claude C44 | `internal/infra/llm/router/` |
+| Dynamic model selection | Auto-select model based on task type/complexity/context length | **Removed (de-scoped)** | Claude C44 | Removed: standalone `internal/infra/llm/router/` was never wired into runtime |
 | Provider health detection | Real-time probe provider availability, auto-switch on failure | **Done** | Claude C30 | `internal/infra/llm/health.go` |
 | Token budget management | Per-task/session token budget; auto-downgrade model on overspend | **Done** | Claude C34 | `internal/app/context/budget/` |
 

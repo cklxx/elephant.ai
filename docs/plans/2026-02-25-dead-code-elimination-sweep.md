@@ -10,6 +10,8 @@ From a purpose-first perspective, remove code that has no effective execution va
 - `internal/domain/agent`
 - `internal/delivery/channels/lark`
 - `internal/infra/observability`
+- `internal/delivery/server/app`
+- `internal/infra/llm/router`
 
 ## Method
 1. Subagent parallel scan per subsystem with local evidence only.
@@ -25,3 +27,8 @@ From a purpose-first perspective, remove code that has no effective execution va
 - 2026-02-25: Removed `alex-server lark` legacy compatibility subcommand and related tests.
 - 2026-02-25: Validation done with targeted tests and full `./scripts/pre-push.sh` run; Go/lint/arch checks passed, web lint remains blocked by pre-existing issue in `web/components/debug/DebugSurface.tsx` (`react-hooks/rules-of-hooks`).
 - 2026-02-25: Ran mandatory code-review script on current diff (`python3 skills/code-review/run.py '{"action":"review","base":"HEAD",...}'`).
+- 2026-02-25: Round 2 parallel scan completed via subagents (`app/domain`, `delivery`, `infra`, `cmd/web`) and accepted only two high-confidence removals.
+- 2026-02-25: Removed standalone `internal/infra/llm/router/` package (not wired into runtime, test-only island).
+- 2026-02-25: Removed redundant compatibility guard in `InMemoryTaskStore.SetResult` by enforcing direct `task.SessionID = result.SessionID`.
+- 2026-02-25: Synced roadmap entry to reflect de-scoping of standalone router package.
+- 2026-02-25: Round 2 validation passed: targeted package tests + full `./scripts/pre-push.sh` all green.

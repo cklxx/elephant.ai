@@ -13,8 +13,8 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/infra/filestore"
 	"alex/internal/shared/logging"
-	id "alex/internal/shared/utils/id"
 	"alex/internal/shared/utils"
+	id "alex/internal/shared/utils/id"
 )
 
 const (
@@ -469,12 +469,7 @@ func (s *InMemoryTaskStore) SetResult(ctx context.Context, taskID string, result
 	task.TokensUsed = result.TokensUsed
 	task.TotalTokens = result.TokensUsed // Total tokens = final tokens used
 
-	// Update session ID from result (in case task was created without one)
-	// NOTE: With the fix in ExecuteTaskAsync, this should no longer be needed
-	// but kept for backward compatibility
-	if result.SessionID != "" {
-		task.SessionID = result.SessionID
-	}
+	task.SessionID = result.SessionID
 
 	if result.ParentRunID != "" {
 		task.ParentTaskID = result.ParentRunID
