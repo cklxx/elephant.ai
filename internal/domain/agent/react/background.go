@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"alex/internal/domain/agent"
@@ -55,7 +56,11 @@ type backgroundTask struct {
 type BackgroundTaskManager struct {
 	mu           sync.RWMutex
 	tasks        map[string]*backgroundTask
-	completions  chan string // task IDs signaled on completion
+	completedMu  sync.Mutex
+	completedIDs []string
+	activeTasks  atomic.Int64
+	depNotify    chan struct{}
+	depMu        sync.Mutex
 	logger       agent.Logger
 	clock        agent.Clock
 	taskCtx      context.Context
@@ -193,7 +198,7 @@ func newBackgroundTaskManagerWithDeps(
 
 	manager := &BackgroundTaskManager{
 		tasks:              make(map[string]*backgroundTask),
-		completions:        make(chan string, 64),
+		depNotify:          make(chan struct{}),
 		logger:             logger,
 		clock:              clock,
 		taskCtx:            taskCtx,
@@ -343,6 +348,7 @@ func (m *BackgroundTaskManager) Dispatch(
 		bt.workspace = alloc
 	}
 	m.tasks[taskID] = bt
+	m.activeTasks.Add(1)
 	m.mu.Unlock()
 
 	// Build detached context preserving causal chain values from the run context.
@@ -389,17 +395,7 @@ func (m *BackgroundTaskManager) Dispatch(
 }
 
 func (m *BackgroundTaskManager) activeTaskCountLocked() int {
-	active := 0
-	for _, bt := range m.tasks {
-		bt.mu.Lock()
-		status := bt.status
-		bt.mu.Unlock()
-		switch status {
-		case agent.BackgroundTaskStatusPending, agent.BackgroundTaskStatusBlocked, agent.BackgroundTaskStatusRunning:
-			active++
-		}
-	}
-	return active
+	return int(m.activeTasks.Load())
 }
 
 // runTask executes a background task, routing to internal or external executor.
@@ -726,15 +722,11 @@ func (m *BackgroundTaskManager) Collect(ids []string, wait bool, timeout time.Du
 
 // DrainCompletions returns all newly completed task IDs without blocking.
 func (m *BackgroundTaskManager) DrainCompletions() []string {
-	var ids []string
-	for {
-		select {
-		case tid := <-m.completions:
-			ids = append(ids, tid)
-		default:
-			return ids
-		}
-	}
+	m.completedMu.Lock()
+	ids := m.completedIDs
+	m.completedIDs = nil
+	m.completedMu.Unlock()
+	return ids
 }
 
 // AwaitAll blocks until every dispatched task has finished or the timeout elapses.
@@ -1040,7 +1032,6 @@ func (m *BackgroundTaskManager) buildContextEnrichedPrompt(bt *backgroundTask) s
 }
 
 func (m *BackgroundTaskManager) awaitDependencies(ctx context.Context, bt *backgroundTask) error {
-	pollInterval := 200 * time.Millisecond
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -1080,7 +1071,12 @@ func (m *BackgroundTaskManager) awaitDependencies(ctx context.Context, bt *backg
 		if allDone {
 			return nil
 		}
-		time.Sleep(pollInterval)
+		select {
+		case <-m.depWaitChan():
+		case <-time.After(2 * time.Second):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 }
 
@@ -1142,11 +1138,12 @@ func (m *BackgroundTaskManager) signalCompletion(taskID string) {
 		bt.mu.Unlock()
 	}
 
-	select {
-	case m.completions <- taskID:
-	default:
-		m.logger.Warn("background completions channel full, dropping signal for task %q", taskID)
-	}
+	m.completedMu.Lock()
+	m.completedIDs = append(m.completedIDs, taskID)
+	m.completedMu.Unlock()
+
+	m.activeTasks.Add(-1)
+	m.notifyDependencyWaiters()
 }
 
 func resolveBackgroundEventSink(ctx context.Context, fallback backgroundEventSink) backgroundEventSink {
@@ -1224,12 +1221,28 @@ func (m *BackgroundTaskManager) resolveTargets(ids []string) []*backgroundTask {
 	return targets
 }
 
+// notifyDependencyWaiters wakes all goroutines blocked in awaitDependencies or awaitTasks.
+func (m *BackgroundTaskManager) notifyDependencyWaiters() {
+	m.depMu.Lock()
+	ch := m.depNotify
+	m.depNotify = make(chan struct{})
+	m.depMu.Unlock()
+	close(ch)
+}
+
+// depWaitChan returns the current dependency notification channel.
+func (m *BackgroundTaskManager) depWaitChan() <-chan struct{} {
+	m.depMu.Lock()
+	ch := m.depNotify
+	m.depMu.Unlock()
+	return ch
+}
+
 // awaitTasks blocks until the specified tasks (or all tasks when ids is empty)
 // are no longer pending/running, or timeout elapses. Returns true if all
 // tasks completed, false if the timeout was reached first.
 func (m *BackgroundTaskManager) awaitTasks(ids []string, timeout time.Duration) bool {
 	deadline := m.clock.Now().Add(timeout)
-	pollInterval := 50 * time.Millisecond
 
 	for {
 		if m.clock.Now().After(deadline) {
@@ -1263,7 +1276,17 @@ func (m *BackgroundTaskManager) awaitTasks(ids []string, timeout time.Duration) 
 			return true
 		}
 
-		time.Sleep(pollInterval)
+		remaining := deadline.Sub(m.clock.Now())
+		if remaining <= 0 {
+			return false
+		}
+		if remaining > 2*time.Second {
+			remaining = 2 * time.Second
+		}
+		select {
+		case <-m.depWaitChan():
+		case <-time.After(remaining):
+		}
 	}
 }
 
