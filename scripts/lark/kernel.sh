@@ -28,6 +28,7 @@ Env:
   MAIN_CONFIG        Config path (default: $ALEX_CONFIG_PATH or ~/.alex/config.yaml)
   LARK_PID_DIR       Shared pid dir override (default: <dirname(MAIN_CONFIG)>/pids)
   ALEX_LOG_DIR       Internal log dir override (default: <repo>/logs)
+  LARK_NOTICE_STATE_FILE Notice binding state path (default: <repo>/.worktrees/test/tmp/lark-notice.state.json)
   FORCE_REBUILD=1    Force rebuild on start (default: 0)
   SKIP_LOCAL_AUTH_DB=1  Skip local auth DB auto-setup (default: 0)
 USAGE
@@ -44,6 +45,7 @@ fi
 [[ -n "${ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
 MAIN_CONFIG="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
+NOTICE_STATE_FILE="${LARK_NOTICE_STATE_FILE:-${ROOT}/.worktrees/test/tmp/lark-notice.state.json}"
 
 # ---------------------------------------------------------------------------
 # Component configuration

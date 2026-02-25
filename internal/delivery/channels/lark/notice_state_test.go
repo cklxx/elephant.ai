@@ -1,6 +1,7 @@
 package lark
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -92,5 +93,29 @@ func TestNoticeStateStoreSaveLoadClear(t *testing.T) {
 	}
 	if ok {
 		t.Fatal("Load() after clear ok = true, want false")
+	}
+}
+
+func TestNewNoticeStateLoaderReadsBoundChatID(t *testing.T) {
+	tmp := t.TempDir()
+	statePath := filepath.Join(tmp, "custom-notice-state.json")
+	t.Setenv(noticeStatePathEnv, statePath)
+	t.Setenv("ALEX_CONFIG_PATH", filepath.Join(tmp, "config.yaml"))
+
+	payload := `{"chat_id":"oc_test_notice","set_at":"2026-02-25T10:02:11Z","updated_at":"2026-02-25T10:02:11Z"}`
+	if err := os.WriteFile(statePath, []byte(payload), 0o644); err != nil {
+		t.Fatalf("write notice state: %v", err)
+	}
+
+	loader := NewNoticeStateLoader(logging.OrNop(nil))
+	chatID, ok, err := loader()
+	if err != nil {
+		t.Fatalf("loader() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("loader() ok = false, want true")
+	}
+	if chatID != "oc_test_notice" {
+		t.Fatalf("loader() chat_id = %q, want %q", chatID, "oc_test_notice")
 	}
 }

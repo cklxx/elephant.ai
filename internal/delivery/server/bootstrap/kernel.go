@@ -3,13 +3,61 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	kernel "alex/internal/app/agent/kernel"
 	"alex/internal/app/lifecycle"
+	"alex/internal/app/scheduler"
+	larkgw "alex/internal/delivery/channels/lark"
 	kerneldomain "alex/internal/domain/kernel"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
+
+	larksdk "github.com/larksuite/oapi-sdk-go/v3"
 )
+
+type kernelNoticeLoader func() (string, bool, error)
+type kernelNoticeSender func(ctx context.Context, chatID, text string) error
+
+func resolveKernelNoticePipeline(f *Foundation, logger logging.Logger) (kernelNoticeLoader, kernelNoticeSender) {
+	if f == nil || f.Container == nil {
+		return nil, nil
+	}
+
+	// Prefer the live Lark gateway when available.
+	if gw := f.Container.LarkGateway; gw != nil {
+		if loader := gw.NoticeLoader(); loader != nil {
+			return loader, gw.SendNotification
+		}
+	}
+
+	// kernel-daemon mode has no Lark gateway; fall back to local notice-state
+	// file loading plus direct Lark message sending.
+	sender := newKernelDirectLarkSender(f.Config.Channels.Lark, logger)
+	if sender == nil {
+		return nil, nil
+	}
+	return larkgw.NewNoticeStateLoader(logger), sender
+}
+
+func newKernelDirectLarkSender(cfg LarkGatewayConfig, logger logging.Logger) kernelNoticeSender {
+	if !cfg.Enabled {
+		return nil
+	}
+	appID := strings.TrimSpace(cfg.AppID)
+	appSecret := strings.TrimSpace(cfg.AppSecret)
+	if appID == "" || appSecret == "" {
+		return nil
+	}
+
+	var clientOpts []larksdk.ClientOptionFunc
+	if domain := strings.TrimSpace(cfg.BaseDomain); domain != "" {
+		clientOpts = append(clientOpts, larksdk.WithOpenBaseUrl(domain))
+	}
+	client := larksdk.NewClient(appID, appSecret, clientOpts...)
+	notifier := scheduler.NewLarkNotifierWithClient(client, logger)
+	return notifier.SendLark
+}
 
 // KernelStage returns a BootstrapStage that starts the kernel agent loop engine
 // if enabled.
@@ -22,13 +70,12 @@ func (f *Foundation) KernelStage(sm *SubsystemManager) BootstrapStage {
 				return fmt.Errorf("kernel engine unavailable")
 			}
 
-			// Wire cycle notifier via LarkGateway /notice binding.
-			if gw := f.Container.LarkGateway; gw != nil {
+			// Wire cycle notifier via /notice binding.
+			if loader, sender := resolveKernelNoticePipeline(f, logger); loader != nil && sender != nil {
 				kernelID := kernel.DefaultRuntimeSettings().KernelID
 				if kernelID == "" {
 					kernelID = kernel.DefaultKernelID
 				}
-				loader := gw.NoticeLoader()
 				f.Container.KernelEngine.SetNotifier(func(ctx context.Context, result *kerneldomain.CycleResult, err error) {
 					chatID, ok, loadErr := loader()
 					if loadErr != nil {
@@ -39,7 +86,7 @@ func (f *Foundation) KernelStage(sm *SubsystemManager) BootstrapStage {
 						return // notice not bound, skip
 					}
 					text := kernel.FormatCycleNotification(kernelID, result, err)
-					if sendErr := gw.SendNotification(ctx, chatID, text); sendErr != nil {
+					if sendErr := sender(ctx, chatID, text); sendErr != nil {
 						logger.Warn("Kernel notifier: send failed: %v", sendErr)
 					}
 				})

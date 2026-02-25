@@ -83,6 +83,19 @@ func (s *noticeStateStore) Path() string {
 	return s.path
 }
 
+// NewNoticeStateLoader creates a loader function that resolves the current
+// notice binding and returns the bound chat_id (if any).
+func NewNoticeStateLoader(logger logging.Logger) func() (string, bool, error) {
+	store := newNoticeStateStore(logger)
+	return func() (string, bool, error) {
+		binding, ok, err := store.Load()
+		if err != nil || !ok {
+			return "", ok, err
+		}
+		return binding.ChatID, true, nil
+	}
+}
+
 func (s *noticeStateStore) Save(chatID, setByUserID, setByName string) (NoticeBinding, error) {
 	if s == nil {
 		return NoticeBinding{}, fmt.Errorf("notice state store is nil")
