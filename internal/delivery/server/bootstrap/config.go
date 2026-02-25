@@ -89,6 +89,8 @@ type LarkGatewayConfig struct {
 	InjectionAckReactEmoji        string
 	FinalAnswerReviewReactEmoji   string
 	ShowToolProgress              bool
+	SlowProgressSummaryEnabled    bool
+	SlowProgressSummaryDelay      time.Duration
 	ShowPlanClarifyMessages       bool
 	AutoChatContextSize           int
 	PlanReviewEnabled             bool
@@ -236,6 +238,8 @@ func LoadConfig() (ConfigResult, error) {
 					Timeout:  60 * time.Second,
 				},
 				ReactEmoji:                  "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
+				SlowProgressSummaryEnabled:  true,
+				SlowProgressSummaryDelay:    30 * time.Second,
 				AutoChatContextSize:         20,
 				ActiveSlotTTL:               6 * time.Hour,
 				ActiveSlotMaxEntries:        2048,
@@ -402,6 +406,12 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if larkCfg.ShowToolProgress != nil {
 		cfg.Channels.Lark.ShowToolProgress = *larkCfg.ShowToolProgress
+	}
+	if larkCfg.SlowProgressSummaryEnabled != nil {
+		cfg.Channels.Lark.SlowProgressSummaryEnabled = *larkCfg.SlowProgressSummaryEnabled
+	}
+	if larkCfg.SlowProgressSummaryDelaySecs != nil && *larkCfg.SlowProgressSummaryDelaySecs > 0 {
+		cfg.Channels.Lark.SlowProgressSummaryDelay = time.Duration(*larkCfg.SlowProgressSummaryDelaySecs) * time.Second
 	}
 	if larkCfg.ShowPlanClarifyMessages != nil {
 		cfg.Channels.Lark.ShowPlanClarifyMessages = *larkCfg.ShowPlanClarifyMessages

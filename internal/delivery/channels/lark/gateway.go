@@ -144,6 +144,13 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		enabled := true
 		cfg.BackgroundProgressEnabled = &enabled
 	}
+	if cfg.SlowProgressSummaryEnabled == nil {
+		enabled := true
+		cfg.SlowProgressSummaryEnabled = &enabled
+	}
+	if cfg.SlowProgressSummaryDelay <= 0 {
+		cfg.SlowProgressSummaryDelay = defaultSlowProgressSummaryDelay
+	}
 	if cfg.ActiveSlotTTL <= 0 {
 		cfg.ActiveSlotTTL = defaultActiveSlotTTL
 	}

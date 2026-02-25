@@ -11,8 +11,8 @@ import (
 	"alex/internal/app/toolregistry"
 	"alex/internal/delivery/channels/lark"
 	serverApp "alex/internal/delivery/server/app"
-	larkoauth "alex/internal/infra/lark/oauth"
 	"alex/internal/domain/agent/presets"
+	larkoauth "alex/internal/infra/lark/oauth"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
@@ -80,6 +80,8 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		InjectionAckReactEmoji:        larkCfg.InjectionAckReactEmoji,
 		FinalAnswerReviewReactEmoji:   larkCfg.FinalAnswerReviewReactEmoji,
 		ShowToolProgress:              larkCfg.ShowToolProgress,
+		SlowProgressSummaryEnabled:    &larkCfg.SlowProgressSummaryEnabled,
+		SlowProgressSummaryDelay:      larkCfg.SlowProgressSummaryDelay,
 		AutoChatContextSize:           larkCfg.AutoChatContextSize,
 		PlanReviewEnabled:             larkCfg.PlanReviewEnabled,
 		PlanReviewRequireConfirmation: larkCfg.PlanReviewRequireConfirmation,

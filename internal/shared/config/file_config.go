@@ -374,6 +374,8 @@ type LarkChannelConfig struct {
 	FinalAnswerReviewReactEmoji   string                 `json:"final_answer_review_react_emoji" yaml:"final_answer_review_react_emoji"`
 	MemoryEnabled                 *bool                  `json:"memory_enabled" yaml:"memory_enabled"`
 	ShowToolProgress              *bool                  `json:"show_tool_progress" yaml:"show_tool_progress"`
+	SlowProgressSummaryEnabled    *bool                  `json:"slow_progress_summary_enabled" yaml:"slow_progress_summary_enabled"`
+	SlowProgressSummaryDelaySecs  *int                   `json:"slow_progress_summary_delay_seconds" yaml:"slow_progress_summary_delay_seconds"`
 	ShowPlanClarifyMessages       *bool                  `json:"show_plan_clarify_messages" yaml:"show_plan_clarify_messages"`
 	AutoChatContextSize           *int                   `json:"auto_chat_context_size" yaml:"auto_chat_context_size"`
 	PlanReviewEnabled             *bool                  `json:"plan_review_enabled" yaml:"plan_review_enabled"`
