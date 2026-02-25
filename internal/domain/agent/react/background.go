@@ -420,11 +420,12 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 		}
 	}()
 
+	now := m.clock.Now()
 	bt.mu.Lock()
 	if bt.status != agent.BackgroundTaskStatusBlocked {
 		bt.status = agent.BackgroundTaskStatusRunning
+		bt.lastActivityAt = now
 	}
-	bt.lastActivityAt = m.clock.Now()
 	bt.mu.Unlock()
 
 	if len(bt.dependsOn) > 0 {

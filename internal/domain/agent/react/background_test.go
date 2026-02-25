@@ -18,6 +18,28 @@ type testClock struct{}
 
 func (testClock) Now() time.Time { return time.Now() }
 
+// controllableClock allows tests to advance time manually.
+type controllableClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func newControllableClock(t time.Time) *controllableClock {
+	return &controllableClock{now: t}
+}
+
+func (c *controllableClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *controllableClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
 // blockingExecutor returns a task result after the given delay.
 func blockingExecutor(delay time.Duration, answer string) func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 	return func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
@@ -1285,5 +1307,98 @@ func TestAwaitAllReturnsTimeout(t *testing.T) {
 	done = mgr.AwaitAll(5 * time.Second)
 	if !done {
 		t.Fatal("expected true (all done), got false")
+	}
+}
+
+func TestProgressStalenessDetection(t *testing.T) {
+	clock := newControllableClock(time.Date(2026, 2, 25, 10, 0, 0, 0, time.UTC))
+	hold := make(chan struct{})
+
+	ext := &holdingExternalExecutor{hold: hold, result: &agent.ExternalAgentResult{Answer: "ok"}}
+
+	mgr := NewBackgroundTaskManager(BackgroundManagerConfig{
+		RunContext:     context.Background(),
+		Logger:         agent.NoopLogger{},
+		Clock:          clock,
+		ExecuteTask:    blockingExecutor(10*time.Millisecond, "internal"),
+		ExternalExecutor: ext,
+		SessionID:      "test-session",
+		StaleThreshold: 15 * time.Minute,
+	})
+	defer mgr.Shutdown()
+
+	if err := dispatchTask(mgr, "stale-1", "stale test", "prompt", "codex", ""); err != nil {
+		t.Fatalf("dispatch failed: %v", err)
+	}
+	// Let the goroutine start and set lastActivityAt.
+	time.Sleep(50 * time.Millisecond)
+
+	// Initially not stale.
+	summaries := mgr.Status([]string{"stale-1"})
+	if len(summaries) != 1 {
+		t.Fatalf("expected 1 summary, got %d", len(summaries))
+	}
+	if summaries[0].Stale {
+		t.Fatal("expected not stale initially")
+	}
+	if summaries[0].LastActivityAt.IsZero() {
+		t.Fatal("expected LastActivityAt to be set")
+	}
+
+	// Advance clock past threshold.
+	clock.Advance(16 * time.Minute)
+
+	summaries = mgr.Status([]string{"stale-1"})
+	if !summaries[0].Stale {
+		t.Fatal("expected stale after 16 minutes without activity")
+	}
+
+	// Simulate progress arrival — should clear staleness.
+	ext.fireProgress(agent.ExternalAgentProgress{CurrentTool: "Bash"})
+	time.Sleep(20 * time.Millisecond)
+
+	// Advance clock only 1 minute past the new activity timestamp.
+	clock.Advance(1 * time.Minute)
+
+	summaries = mgr.Status([]string{"stale-1"})
+	if summaries[0].Stale {
+		t.Fatal("expected not stale after fresh progress")
+	}
+
+	// Let task complete.
+	close(hold)
+	mgr.AwaitAll(2 * time.Second)
+}
+
+// holdingExternalExecutor blocks until hold channel is closed, optionally firing progress.
+type holdingExternalExecutor struct {
+	hold       chan struct{}
+	result     *agent.ExternalAgentResult
+	onProgress func(agent.ExternalAgentProgress)
+	mu         sync.Mutex
+}
+
+func (h *holdingExternalExecutor) Execute(ctx context.Context, req agent.ExternalAgentRequest) (*agent.ExternalAgentResult, error) {
+	h.mu.Lock()
+	h.onProgress = req.OnProgress
+	h.mu.Unlock()
+	select {
+	case <-h.hold:
+		return h.result, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (h *holdingExternalExecutor) SupportedTypes() []string {
+	return []string{"codex", "claude_code"}
+}
+
+func (h *holdingExternalExecutor) fireProgress(p agent.ExternalAgentProgress) {
+	h.mu.Lock()
+	fn := h.onProgress
+	h.mu.Unlock()
+	if fn != nil {
+		fn(p)
 	}
 }
