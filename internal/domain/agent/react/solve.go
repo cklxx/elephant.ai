@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
+	tokenutil "alex/internal/shared/token"
 
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -289,6 +290,13 @@ func (e *ReactEngine) enforceContextBudget(
 	// Last resort: keep only system/important messages + the very last message.
 	e.logger.Warn("All trimming strategies insufficient — keeping only preserved messages + last message")
 	trimmed := aggressiveTrimMessages(messages, 1)
+	afterTrim := services.Context.EstimateTokens(trimmed)
+	if afterTrim > limit {
+		forceFitted := forceFitMessagesToLimit(trimmed, limit, services.Context.EstimateTokens)
+		afterForceFit := services.Context.EstimateTokens(forceFitted)
+		e.logger.Warn("Hard context clamp applied: %d → %d tokens (limit=%d)", afterTrim, afterForceFit, limit)
+		trimmed = forceFitted
+	}
 	state.Messages = rebuildStateMessages(state.Messages, trimmed)
 	return trimmed
 }
@@ -338,6 +346,108 @@ func aggressiveTrimMessages(messages []ports.Message, maxTurns int) []ports.Mess
 func isPrimarySystemPromptForTrim(msg ports.Message) bool {
 	role := strings.ToLower(strings.TrimSpace(msg.Role))
 	return role == "system" && strings.TrimSpace(msg.Content) != ""
+}
+
+func forceFitMessagesToLimit(messages []ports.Message, limit int, estimate func([]ports.Message) int) []ports.Message {
+	if len(messages) == 0 || limit <= 0 || estimate == nil {
+		return messages
+	}
+
+	fitted := append([]ports.Message(nil), messages...)
+	if estimate(fitted) <= limit {
+		return fitted
+	}
+
+	// Phase 1: iteratively halve the largest message until we fit or run out.
+	for attempt := 0; attempt < 24 && estimate(fitted) > limit; attempt++ {
+		idx := indexOfLargestMessageContent(fitted)
+		if idx < 0 {
+			break
+		}
+		content := strings.TrimSpace(fitted[idx].Content)
+		if content == "" {
+			fitted[idx].Content = "[context truncated]"
+			continue
+		}
+		currentTokens := tokenutil.CountTokens(content)
+		if currentTokens <= 64 {
+			fitted[idx].Content = "[context truncated]"
+			continue
+		}
+		fitted[idx].Content = tokenutil.TruncateToTokens(content, currentTokens/2)
+	}
+	if estimate(fitted) <= limit {
+		return fitted
+	}
+
+	// Phase 2: deterministic minimal payload (canonical system + latest message).
+	systemIdx := -1
+	for i, msg := range messages {
+		if msg.Source == ports.MessageSourceSystemPrompt {
+			systemIdx = i
+			break
+		}
+	}
+	if systemIdx < 0 {
+		systemIdx = 0
+	}
+	lastIdx := len(messages) - 1
+
+	minimal := make([]ports.Message, 0, 3)
+	sys := messages[systemIdx]
+	sysContent := strings.TrimSpace(sys.Content)
+	if sysContent != "" {
+		sys.Content = tokenutil.TruncateToTokens(sysContent, 512)
+	}
+	minimal = append(minimal, sys)
+
+	if lastIdx != systemIdx {
+		last := messages[lastIdx]
+		lastContent := strings.TrimSpace(last.Content)
+		if lastContent != "" {
+			last.Content = tokenutil.TruncateToTokens(lastContent, 256)
+		}
+		minimal = append(minimal, ports.Message{
+			Role:    "assistant",
+			Content: "[Additional context truncated to satisfy model window.]",
+			Source:  ports.MessageSourceUserHistory,
+		})
+		minimal = append(minimal, last)
+	}
+
+	// Final nudge if still above limit: repeatedly halve largest content.
+	for attempt := 0; attempt < 12 && estimate(minimal) > limit; attempt++ {
+		idx := indexOfLargestMessageContent(minimal)
+		if idx < 0 {
+			break
+		}
+		content := strings.TrimSpace(minimal[idx].Content)
+		if content == "" {
+			minimal[idx].Content = "[context truncated]"
+			continue
+		}
+		tokens := tokenutil.CountTokens(content)
+		if tokens <= 32 {
+			minimal[idx].Content = "[context truncated]"
+			continue
+		}
+		minimal[idx].Content = tokenutil.TruncateToTokens(content, tokens/2)
+	}
+
+	return minimal
+}
+
+func indexOfLargestMessageContent(messages []ports.Message) int {
+	longestIdx := -1
+	longest := 0
+	for i, msg := range messages {
+		length := len([]rune(strings.TrimSpace(msg.Content)))
+		if length > longest {
+			longest = length
+			longestIdx = i
+		}
+	}
+	return longestIdx
 }
 
 // keepRecentTurnsLocal mirrors context.keepRecentTurns for use within react.

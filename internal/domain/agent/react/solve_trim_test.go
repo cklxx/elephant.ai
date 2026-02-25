@@ -1,9 +1,11 @@
 package react
 
 import (
+	"strings"
 	"testing"
 
 	"alex/internal/domain/agent/ports"
+	tokenutil "alex/internal/shared/token"
 )
 
 func TestAggressiveTrimMessagesKeepsOnlyCanonicalSystemPrompt(t *testing.T) {
@@ -45,5 +47,41 @@ func TestAggressiveTrimMessagesKeepsOnlyCanonicalSystemPrompt(t *testing.T) {
 	}
 	if !containsLatestUser || !containsLatestReply {
 		t.Fatalf("expected latest turn to remain, got %+v", trimmed)
+	}
+}
+
+func TestForceFitMessagesToLimitAlwaysFitsBudget(t *testing.T) {
+	messages := []ports.Message{
+		{
+			Role:    "system",
+			Source:  ports.MessageSourceSystemPrompt,
+			Content: strings.Repeat("primary system prompt ", 6000),
+		},
+		{
+			Role:    "assistant",
+			Source:  ports.MessageSourceUserHistory,
+			Content: strings.Repeat("historic context ", 4000),
+		},
+		{
+			Role:    "user",
+			Source:  ports.MessageSourceUserInput,
+			Content: strings.Repeat("latest user request ", 1200),
+		},
+	}
+	estimate := func(values []ports.Message) int {
+		total := 0
+		for _, msg := range values {
+			total += tokenutil.CountTokens(msg.Content) + 4
+		}
+		return total
+	}
+	limit := 1500
+
+	fitted := forceFitMessagesToLimit(messages, limit, estimate)
+	if estimate(fitted) > limit {
+		t.Fatalf("expected fitted messages to respect limit=%d, got=%d", limit, estimate(fitted))
+	}
+	if len(fitted) == 0 {
+		t.Fatal("expected fitted messages to remain non-empty")
 	}
 }
