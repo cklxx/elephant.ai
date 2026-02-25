@@ -181,32 +181,20 @@ export function ChunkedTextBlock({
     );
   }
 
+  const combined = useMemo(() => chunks.map((c) => c.text).join(""), [chunks]);
+
   return (
     <div className={cn("space-y-2", className)}>
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
         <Badge variant="outline" className="text-[10px]">
-          Chunked: {chunks.length}
+          {chunks.length} chunks · {value.length} chars · lines 1-{chunks[chunks.length - 1].endLine}
         </Badge>
-        <span>Large output split into blocks for easier reading.</span>
       </div>
-      <div className="space-y-2">
-        {chunks.map((chunk, index) => (
-          <details key={`chunk-${chunk.index}`} open={index === 0} className="rounded-md border border-border/50 bg-background/70">
-            <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[11px] text-muted-foreground">
-              <span className="font-medium text-foreground/80">
-                Chunk {index + 1}/{chunks.length}
-              </span>
-              <span>
-                lines {chunk.startLine}-{chunk.endLine}
-              </span>
-              <span>{chunk.chars} chars</span>
-            </summary>
-            <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words border-t border-border/40 px-3 py-2 font-mono text-[12px] leading-relaxed text-foreground/90">
-              {chunk.text || emptyLabel}
-            </pre>
-          </details>
-        ))}
-      </div>
+      <pre
+        className="max-h-[480px] overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/50 bg-background/80 px-3 py-2 font-mono text-[12px] leading-relaxed text-foreground/90"
+      >
+        {combined || emptyLabel}
+      </pre>
     </div>
   );
 }

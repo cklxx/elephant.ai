@@ -1452,6 +1452,27 @@ export default function DiagnosticsPage() {
             <div className="space-y-4">
               <Card className="shadow-sm">
                 <CardHeader>
+                  <CardTitle className="text-base">Turn messages</CardTitle>
+                  <CardDescription>
+                    Messages from the latest turn snapshot with source badges.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {turnSnapshot ? (
+                    <TurnMessagesViewer
+                      turnSnapshot={turnSnapshot}
+                      sessionChannel={sessionChannel}
+                    />
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
+                      No turn snapshot available.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
                   <CardTitle className="text-base">Payload inspector</CardTitle>
                   <CardDescription>
                     Parsed JSON and raw payload for the selected SSE event.
@@ -1811,27 +1832,6 @@ export default function DiagnosticsPage() {
                       <p className="text-xs text-muted-foreground">No memory snapshot loaded.</p>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Turn messages</CardTitle>
-                  <CardDescription>
-                    Messages from the latest turn snapshot with source badges.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {turnSnapshot ? (
-                    <TurnMessagesViewer
-                      turnSnapshot={turnSnapshot}
-                      sessionChannel={sessionChannel}
-                    />
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
-                      No turn snapshot available.
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
