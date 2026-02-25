@@ -27,7 +27,7 @@ result
 
 # cli tools
 CLAUDE.md
-.claude/
+.claude/settings.local.json
 
 # caches
 .cache/
