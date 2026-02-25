@@ -75,9 +75,9 @@ func TestPrepareRunsPreanalysisAsyncAndPersistsTitleInBackground(t *testing.T) {
 		ContextMgr:   stubContextManager{},
 		Parser:       stubParser{},
 		Config: appconfig.Config{
-			LLMProvider:      "mock-default",
-			LLMModel:         "default-model",
-						MaxIterations:    3,
+			LLMProvider:   "mock-default",
+			LLMModel:      "default-model",
+			MaxIterations: 3,
 		},
 		Logger:       agent.NoopLogger{},
 		EventEmitter: agent.NoopEventListener{},
@@ -154,9 +154,9 @@ func TestPrepareSkipsLLMPreanalysisForGreeting(t *testing.T) {
 		ContextMgr:   stubContextManager{},
 		Parser:       stubParser{},
 		Config: appconfig.Config{
-			LLMProvider:      "mock-default",
-			LLMModel:         "default-model",
-						MaxIterations:    3,
+			LLMProvider:   "mock-default",
+			LLMModel:      "default-model",
+			MaxIterations: 3,
 		},
 		Logger:       agent.NoopLogger{},
 		EventEmitter: agent.NoopEventListener{},
@@ -193,9 +193,9 @@ func TestPrepareUsesPinnedSelection(t *testing.T) {
 		ContextMgr:   stubContextManager{},
 		Parser:       stubParser{},
 		Config: appconfig.Config{
-			LLMProvider:      "mock-default",
-			LLMModel:         "default-model",
-						MaxIterations:    3,
+			LLMProvider:   "mock-default",
+			LLMModel:      "default-model",
+			MaxIterations: 3,
 		},
 		Logger:       agent.NoopLogger{},
 		EventEmitter: agent.NoopEventListener{},
@@ -216,8 +216,14 @@ func TestPrepareUsesPinnedSelection(t *testing.T) {
 	}
 
 	modelCalls := factory.CallModels()
-	if len(modelCalls) != 1 || modelCalls[0] != "codex|gpt-5.2-codex" {
-		t.Fatalf("expected pinned model only, got %v", modelCalls)
+	if len(modelCalls) != 2 {
+		t.Fatalf("expected pinned model plus armed fallback model, got %v", modelCalls)
+	}
+	if modelCalls[0] != "codex|gpt-5.2-codex" {
+		t.Fatalf("expected pinned model to be primary, got %v", modelCalls)
+	}
+	if modelCalls[1] != "mock-default|default-model" {
+		t.Fatalf("expected default model to be armed as fallback, got %v", modelCalls)
 	}
 }
 
@@ -313,9 +319,9 @@ func TestPrepareEmitsEmojiEventForGreeting(t *testing.T) {
 		ContextMgr:   stubContextManager{},
 		Parser:       stubParser{},
 		Config: appconfig.Config{
-			LLMProvider:      "mock-default",
-			LLMModel:         "default-model",
-						MaxIterations:    3,
+			LLMProvider:   "mock-default",
+			LLMModel:      "default-model",
+			MaxIterations: 3,
 		},
 		Logger:       agent.NoopLogger{},
 		EventEmitter: listener,

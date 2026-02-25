@@ -120,44 +120,33 @@ func (h *MemoryCaptureHook) captureWithLLM(ctx context.Context, result TaskResul
 	if !ok {
 		return nil
 	}
-	client, _, err := llmclient.GetIsolatedClientFromProfile(h.factory, profile, nil, false)
-	if err != nil {
-		h.logger.Warn("Memory capture LLM client init failed: %v", err)
-		return nil
-	}
 	prompt := buildMemoryCapturePrompt(result)
 	if prompt == "" {
 		return nil
 	}
-	ctxTimeout, cancel := context.WithTimeout(ctx, h.config.Timeout)
-	defer cancel()
-	resp, err := client.Complete(ctxTimeout, ports.CompletionRequest{
-		Messages: []ports.Message{
-			{
-				Role: "system",
-				Content: "You extract durable memory facts. Output 1-3 bullet points only, no preamble. " +
-					"Prioritize user habits, preferences, and recurring workflows when present. " +
-					"Each bullet should be a short, reusable fact, decision, preference, habit, or constraint that matters later.",
-			},
-			{
-				Role:    "user",
-				Content: prompt,
-			},
-		},
-		Temperature: 0.2,
-		MaxTokens:   h.config.MaxTokens,
-		Metadata: map[string]any{
-			"intent": "memory_capture",
-		},
-	})
+
+	lines, err := h.captureLinesWithProfile(ctx, profile, prompt)
+	if err == nil {
+		return lines
+	}
+	h.logger.Warn("Memory capture LLM request failed: %v", err)
+	if !h.shouldFallbackToDefault(ctx, err, profile) {
+		return nil
+	}
+	fallbackProfile, ok := h.defaultProfile()
+	if !ok {
+		return nil
+	}
+	h.logger.Warn("Memory capture pinned model rate-limited; retrying with default profile %s/%s",
+		strings.TrimSpace(fallbackProfile.Provider),
+		strings.TrimSpace(fallbackProfile.Model),
+	)
+	lines, err = h.captureLinesWithProfile(ctx, fallbackProfile, prompt)
 	if err != nil {
-		h.logger.Warn("Memory capture LLM request failed: %v", err)
+		h.logger.Warn("Memory capture default fallback request failed: %v", err)
 		return nil
 	}
-	if resp == nil || utils.IsBlank(resp.Content) {
-		return nil
-	}
-	return normalizeMemoryLines(resp.Content)
+	return lines
 }
 
 func (h *MemoryCaptureHook) resolveProfile(ctx context.Context) (runtimeconfig.LLMProfile, bool) {
@@ -182,6 +171,74 @@ func (h *MemoryCaptureHook) resolveProfile(ctx context.Context) (runtimeconfig.L
 		return runtimeconfig.LLMProfile{}, false
 	}
 	return p, true
+}
+
+func (h *MemoryCaptureHook) defaultProfile() (runtimeconfig.LLMProfile, bool) {
+	p := h.config.Profile
+	if utils.IsBlank(p.Provider) || utils.IsBlank(p.Model) {
+		return runtimeconfig.LLMProfile{}, false
+	}
+	return p, true
+}
+
+func (h *MemoryCaptureHook) shouldFallbackToDefault(ctx context.Context, err error, current runtimeconfig.LLMProfile) bool {
+	if err == nil || !llmclient.IsRateLimitError(err) {
+		return false
+	}
+	selection, ok := appcontext.GetLLMSelection(ctx)
+	if !ok || !selection.Pinned {
+		return false
+	}
+	fallback, ok := h.defaultProfile()
+	if !ok {
+		return false
+	}
+	return !sameProfileEndpoint(current, fallback)
+}
+
+func (h *MemoryCaptureHook) captureLinesWithProfile(
+	ctx context.Context,
+	profile runtimeconfig.LLMProfile,
+	prompt string,
+) ([]string, error) {
+	client, _, err := llmclient.GetIsolatedClientFromProfile(h.factory, profile, nil, false)
+	if err != nil {
+		return nil, err
+	}
+	ctxTimeout, cancel := context.WithTimeout(ctx, h.config.Timeout)
+	defer cancel()
+	resp, err := client.Complete(ctxTimeout, ports.CompletionRequest{
+		Messages: []ports.Message{
+			{
+				Role: "system",
+				Content: "You extract durable memory facts. Output 1-3 bullet points only, no preamble. " +
+					"Prioritize user habits, preferences, and recurring workflows when present. " +
+					"Each bullet should be a short, reusable fact, decision, preference, habit, or constraint that matters later.",
+			},
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		Temperature: 0.2,
+		MaxTokens:   h.config.MaxTokens,
+		Metadata: map[string]any{
+			"intent": "memory_capture",
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil || utils.IsBlank(resp.Content) {
+		return nil, nil
+	}
+	return normalizeMemoryLines(resp.Content), nil
+}
+
+func sameProfileEndpoint(a, b runtimeconfig.LLMProfile) bool {
+	return strings.EqualFold(strings.TrimSpace(a.Provider), strings.TrimSpace(b.Provider)) &&
+		strings.EqualFold(strings.TrimSpace(a.Model), strings.TrimSpace(b.Model)) &&
+		strings.EqualFold(strings.TrimSpace(a.BaseURL), strings.TrimSpace(b.BaseURL))
 }
 
 func buildMemoryCapturePrompt(result TaskResultInfo) string {

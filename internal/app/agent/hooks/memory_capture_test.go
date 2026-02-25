@@ -18,14 +18,29 @@ import (
 	id "alex/internal/shared/utils/id"
 )
 
-type stubLLMClient struct {
+type stubCompletionResult struct {
 	response string
 	err      error
-	lastReq  ports.CompletionRequest
+}
+
+type stubLLMClient struct {
+	response       string
+	err            error
+	lastReq        ports.CompletionRequest
+	callCount      int
+	completionPlan []stubCompletionResult
 }
 
 func (s *stubLLMClient) Complete(_ context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	s.lastReq = req
+	s.callCount++
+	if idx := s.callCount - 1; idx < len(s.completionPlan) {
+		step := s.completionPlan[idx]
+		if step.err != nil {
+			return nil, step.err
+		}
+		return &ports.CompletionResponse{Content: step.response}, nil
+	}
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -36,10 +51,12 @@ func (s *stubLLMClient) Model() string { return "stub" }
 
 type stubLLMFactory struct {
 	client       portsllm.LLMClient
+	clients      map[string]portsllm.LLMClient
 	err          error
 	lastProvider string
 	lastModel    string
 	lastCfg      portsllm.LLMConfig
+	callModels   []string
 }
 
 func (s *stubLLMFactory) GetClient(provider, model string, _ portsllm.LLMConfig) (portsllm.LLMClient, error) {
@@ -50,8 +67,15 @@ func (s *stubLLMFactory) GetIsolatedClient(provider, model string, cfg portsllm.
 	s.lastProvider = provider
 	s.lastModel = model
 	s.lastCfg = cfg
+	s.callModels = append(s.callModels, provider+"|"+model)
 	if s.err != nil {
 		return nil, s.err
+	}
+	if len(s.clients) > 0 {
+		if client, ok := s.clients[provider+"|"+model]; ok {
+			return client, nil
+		}
+		return nil, errors.New("missing stub client for " + provider + "|" + model)
 	}
 	return s.client, nil
 }
@@ -308,5 +332,77 @@ func TestMemoryCaptureHook_PrefersPinnedSelectionFromContext(t *testing.T) {
 	}
 	if factory.lastCfg.Headers["ChatGPT-Account-Id"] != "acct-1" {
 		t.Fatalf("expected selection header, got %#v", factory.lastCfg.Headers)
+	}
+}
+
+func TestMemoryCaptureHook_PinnedRateLimitFallsBackToDefaultProfile(t *testing.T) {
+	root := t.TempDir()
+	engine := memory.NewMarkdownEngine(root)
+	if err := engine.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+
+	primary := &stubLLMClient{
+		completionPlan: []stubCompletionResult{
+			{err: errors.New("usage_limit_reached")},
+		},
+	}
+	fallback := &stubLLMClient{response: "- Keep updates concise"}
+	factory := &stubLLMFactory{
+		clients: map[string]portsllm.LLMClient{
+			"codex|gpt-5.3-codex-spark":  primary,
+			"openrouter|kimi-for-coding": fallback,
+		},
+	}
+	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
+		Enabled: true,
+		Profile: runtimeconfig.LLMProfile{
+			Provider: "openrouter",
+			Model:    "kimi-for-coding",
+			APIKey:   "default-key",
+		},
+	})
+	fixed := time.Date(2026, 2, 24, 10, 0, 0, 0, time.UTC)
+	hook.clock = func() time.Time { return fixed }
+
+	ctx := appcontext.WithMemoryPolicy(context.Background(), appcontext.MemoryPolicy{
+		Enabled:     true,
+		AutoCapture: true,
+	})
+	ctx = appcontext.WithLLMSelection(ctx, subscription.ResolvedSelection{
+		Provider: "codex",
+		Model:    "gpt-5.3-codex-spark",
+		APIKey:   "selection-key",
+		BaseURL:  "https://chatgpt.com/backend-api/codex",
+		Pinned:   true,
+	})
+	ctx = id.WithUserID(ctx, "user-rate-limit")
+
+	if err := hook.OnTaskCompleted(ctx, TaskResultInfo{
+		TaskInput: "summarize updates",
+		Answer:    "all done",
+		UserID:    "user-rate-limit",
+	}); err != nil {
+		t.Fatalf("OnTaskCompleted: %v", err)
+	}
+
+	if primary.callCount != 1 {
+		t.Fatalf("expected pinned profile to be attempted once, got %d", primary.callCount)
+	}
+	if fallback.callCount != 1 {
+		t.Fatalf("expected default profile fallback to run once, got %d", fallback.callCount)
+	}
+	if len(factory.callModels) != 2 ||
+		factory.callModels[0] != "codex|gpt-5.3-codex-spark" ||
+		factory.callModels[1] != "openrouter|kimi-for-coding" {
+		t.Fatalf("unexpected profile call order: %#v", factory.callModels)
+	}
+
+	content, err := engine.LoadDaily(ctx, "user-rate-limit", fixed)
+	if err != nil {
+		t.Fatalf("LoadDaily: %v", err)
+	}
+	if !strings.Contains(content, "Keep updates concise") {
+		t.Fatalf("expected fallback summary in daily log, got: %s", content)
 	}
 }

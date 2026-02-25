@@ -1,6 +1,7 @@
 package llmclient
 
 import (
+	"errors"
 	"testing"
 
 	portsllm "alex/internal/domain/agent/ports/llm"
@@ -79,5 +80,26 @@ func TestGetClientFromProfileRequiresProviderAndModel(t *testing.T) {
 	_, _, err := GetClientFromProfile(factory, runtimeconfig.LLMProfile{}, nil, false)
 	if err == nil {
 		t.Fatal("expected missing profile fields to fail")
+	}
+}
+
+func TestIsRateLimitError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil", err: nil, want: false},
+		{name: "usage limit reached", err: errors.New("usage_limit_reached"), want: true},
+		{name: "too many requests", err: errors.New("HTTP 429 Too Many Requests"), want: true},
+		{name: "rate limit text", err: errors.New("rate limit exceeded"), want: true},
+		{name: "non rate limit", err: errors.New("connection reset by peer"), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsRateLimitError(tt.err); got != tt.want {
+				t.Fatalf("IsRateLimitError(%v)=%v, want %v", tt.err, got, tt.want)
+			}
+		})
 	}
 }

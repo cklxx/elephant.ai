@@ -10,7 +10,6 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/cost"
 	"alex/internal/app/agent/llmclient"
-	utils "alex/internal/shared/utils"
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
@@ -21,6 +20,7 @@ import (
 	toolspolicy "alex/internal/infra/tools"
 	"alex/internal/shared/async"
 	runtimeconfig "alex/internal/shared/config"
+	utils "alex/internal/shared/utils"
 	"alex/internal/shared/utils/clilatency"
 	id "alex/internal/shared/utils/id"
 )
@@ -326,6 +326,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		selection.Pinned &&
 		utils.HasContent(selection.Provider) &&
 		utils.HasContent(selection.Model)
+	userAttachments := appcontext.GetUserAttachments(ctx)
 
 	var taskAnalysis *agent.TaskAnalysis
 	if selectionPinned {
@@ -372,7 +373,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		effectiveProfile.BaseURL = selection.BaseURL
 		effectiveProfile.Headers = cloneHeaders(selection.Headers)
 	}
-	if !selectionPinned && taskNeedsVision(task, preloadedAttachments, appcontext.GetUserAttachments(ctx)) {
+	if !selectionPinned && taskNeedsVision(task, preloadedAttachments, userAttachments) {
 		if visionProfile, ok := s.config.VisionLLMProfile(); ok {
 			effectiveProfile.Provider = visionProfile.Provider
 			effectiveProfile.Model = visionProfile.Model
@@ -406,6 +407,15 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM client: %w", err)
 	}
+	llmClient = s.wrapPinnedRateLimitFallback(
+		ctx,
+		selectionPinned,
+		task,
+		preloadedAttachments,
+		userAttachments,
+		effectiveProfile,
+		llmClient,
+	)
 	s.logger.Debug("Isolated LLM client obtained successfully")
 
 	// Use Wrap instead of Attach to avoid modifying shared client state
@@ -455,7 +465,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		s.applyInheritedStateSnapshot(state, inheritedState)
 	}
 
-	if userAttachments := appcontext.GetUserAttachments(ctx); len(userAttachments) > 0 {
+	if len(userAttachments) > 0 {
 		if state.Attachments == nil {
 			state.Attachments = make(map[string]ports.Attachment)
 		}
