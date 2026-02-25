@@ -245,6 +245,8 @@ func (r *Registry) WithoutSubagent() tools.ToolRegistry {
 			"bg_collect":  true,
 			"ext_reply":   true,
 			"ext_merge":   true,
+			"run_tasks":   true,
+			"reply_agent": true,
 		},
 	}
 }
@@ -426,5 +428,9 @@ func (r *Registry) RegisterSubAgent(coordinator orchestration.TaskExecutor) {
 	r.static["ext_reply"] = r.wrapDegradation("ext_reply", wrapTool(orchestration.NewExtReply(), r.policy, r.breakers, r.SLACollector))
 	r.static["ext_merge"] = r.wrapDegradation("ext_merge", wrapTool(orchestration.NewExtMerge(), r.policy, r.breakers, r.SLACollector))
 	r.static["team_dispatch"] = r.wrapDegradation("team_dispatch", wrapTool(orchestration.NewTeamDispatch(), r.policy, r.breakers, r.SLACollector))
+
+	// File-based orchestration tools (Phase 1 — dual-track with legacy tools).
+	r.static["run_tasks"] = r.wrapDegradation("run_tasks", wrapTool(orchestration.NewRunTasks(), r.policy, r.breakers, r.SLACollector))
+	r.static["reply_agent"] = r.wrapDegradation("reply_agent", wrapTool(orchestration.NewReplyAgent(), r.policy, r.breakers, r.SLACollector))
 	r.defsDirty = true
 }
