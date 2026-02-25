@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"alex/internal/shared/logging"
-	"alex/internal/shared/uxphrases"
 	"alex/internal/shared/utils"
+	"alex/internal/shared/uxphrases"
 )
 
 const defaultHooksAggregateWindow = 30 * time.Second
@@ -41,11 +41,11 @@ type HooksBridge struct {
 	noticeLoader  NoticeLoader
 
 	// Aggregation state for PostToolUse events.
-	mu          sync.Mutex
-	toolBuffer  []toolEvent
-	flushTimer  *time.Timer
-	aggWindow   time.Duration
-	now         func() time.Time // injectable clock for testing
+	mu         sync.Mutex
+	toolBuffer []toolEvent
+	flushTimer *time.Timer
+	aggWindow  time.Duration
+	now        func() time.Time // injectable clock for testing
 }
 
 // NewHooksBridge constructs a hooks bridge.
@@ -74,10 +74,11 @@ func NewHooksBridge(gateway LarkNotifier, noticeLoader NoticeLoader, token, defa
 
 // hookPayload represents the JSON payload from a Claude Code hook event.
 type hookPayload struct {
-	Event     string          `json:"event"`      // e.g. "PostToolUse", "Stop", "PreToolUse"
+	Event     string          `json:"event"` // e.g. "PostToolUse", "Stop", "PreToolUse"
 	SessionID string          `json:"session_id"`
 	ToolName  string          `json:"tool_name"`
 	ToolInput json.RawMessage `json:"tool_input"`
+	Thinking  string          `json:"thinking,omitempty"`
 	Output    string          `json:"output"`
 	Error     string          `json:"error"`
 	// Stop event fields
@@ -111,6 +112,7 @@ func decodeHookPayload(body []byte) (hookPayload, error) {
 			payload.ToolInput = json.RawMessage(data)
 		}
 	}
+	payload.Thinking = extractHookThinking(raw)
 	return payload, nil
 }
 
@@ -177,6 +179,58 @@ func coerceString(v interface{}) string {
 			return strings.TrimSpace(string(data))
 		}
 		return strings.TrimSpace(fmt.Sprint(value))
+	}
+}
+
+func extractHookThinking(raw map[string]interface{}) string {
+	if raw == nil {
+		return ""
+	}
+	for _, key := range []string{"thinking", "reasoning", "thought", "pre_tool_thinking"} {
+		if value, ok := raw[key]; ok {
+			if text := extractThinkingText(value); text != "" {
+				return text
+			}
+		}
+	}
+	if toolInput, ok := firstValue(raw, "tool_input", "tool_args", "input", "arguments", "args"); ok {
+		return extractThinkingText(toolInput)
+	}
+	return ""
+}
+
+func extractThinkingText(v interface{}) string {
+	switch value := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return compactHookText(value)
+	case []interface{}:
+		parts := make([]string, 0, len(value))
+		for _, item := range value {
+			if text := extractThinkingText(item); text != "" {
+				parts = append(parts, text)
+			}
+		}
+		return compactHookText(strings.Join(parts, " "))
+	case map[string]interface{}:
+		for _, key := range []string{"thinking", "reasoning", "thought", "summary", "text", "content"} {
+			if nested, ok := value[key]; ok {
+				if text := extractThinkingText(nested); text != "" {
+					return text
+				}
+			}
+		}
+		for _, key := range []string{"parts", "segments", "items", "messages"} {
+			if nested, ok := value[key]; ok {
+				if text := extractThinkingText(nested); text != "" {
+					return text
+				}
+			}
+		}
+		return ""
+	default:
+		return ""
 	}
 }
 
@@ -281,11 +335,16 @@ func formatPostToolUse(p hookPayload) string {
 // formatPreToolUse creates a friendly message for a tool about to be used.
 func formatPreToolUse(p hookPayload) string {
 	phrase := uxphrases.ToolPhrase(p.ToolName, 1)
+	thinking := extractPreToolThinkingLine(p.Thinking)
 	detail := toolDetail(p.ToolName, p.ToolInput)
-	if detail != "" {
-		return fmt.Sprintf("%s\n%s", phrase, detail)
+	lines := []string{phrase}
+	if thinking != "" {
+		lines = append(lines, "💭 "+thinking)
 	}
-	return phrase
+	if detail != "" {
+		lines = append(lines, detail)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // formatStop creates a completion message.
@@ -481,4 +540,16 @@ func truncateHookText(s string, max int) string {
 		return s
 	}
 	return string(runes[:max]) + "..."
+}
+
+func compactHookText(s string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
+}
+
+func extractPreToolThinkingLine(thinking string) string {
+	thinking = compactHookText(thinking)
+	if thinking == "" {
+		return ""
+	}
+	return truncateHookText(thinking, 240)
 }

@@ -379,6 +379,55 @@ func TestHooksBridge_PreToolUse(t *testing.T) {
 	}
 }
 
+func TestHooksBridge_PreToolUseIncludesThinking(t *testing.T) {
+	notifier := &mockLarkNotifier{}
+	bridge := NewHooksBridge(notifier, nil, "", "chat-123", nil)
+
+	payload := hookPayload{
+		Event:     "PreToolUse",
+		ToolName:  "Bash",
+		Thinking:  "先确认当前目录结构，再执行命令。",
+		ToolInput: json.RawMessage(`{"command":"ls -la"}`),
+	}
+	body, _ := json.Marshal(payload)
+	w := postHook(bridge, string(body), "", "")
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	bridge.Close(context.Background())
+
+	if !strings.Contains(notifier.lastMessage, "💭 先确认当前目录结构，再执行命令。") {
+		t.Errorf("message should contain thinking line, got: %s", notifier.lastMessage)
+	}
+	if !strings.Contains(notifier.lastMessage, "ls -la") {
+		t.Errorf("message should contain command detail, got: %s", notifier.lastMessage)
+	}
+}
+
+func TestDecodeHookPayload_ExtractsThinking(t *testing.T) {
+	body := `{"event":"PreToolUse","tool_name":"Bash","thinking":{"parts":[{"text":"先定位入口"},{"text":"再调用工具"}]}}`
+	p, err := decodeHookPayload([]byte(body))
+	if err != nil {
+		t.Fatalf("decodeHookPayload returned error: %v", err)
+	}
+	if p.Thinking != "先定位入口 再调用工具" {
+		t.Fatalf("expected extracted thinking, got %q", p.Thinking)
+	}
+}
+
+func TestDecodeHookPayload_ExtractsReasoningAlias(t *testing.T) {
+	body := `{"event":"PreToolUse","tool_name":"Bash","reasoning":"  先搜文档\n再跑命令  "}`
+	p, err := decodeHookPayload([]byte(body))
+	if err != nil {
+		t.Fatalf("decodeHookPayload returned error: %v", err)
+	}
+	if p.Thinking != "先搜文档 再跑命令" {
+		t.Fatalf("expected compacted reasoning text, got %q", p.Thinking)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Aggregation-specific tests
 // ---------------------------------------------------------------------------
