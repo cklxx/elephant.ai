@@ -60,11 +60,8 @@ func (m *Manager) Start(ctx context.Context, name string, cmd *exec.Cmd) (*Manag
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if err := os.MkdirAll(m.pidDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create pid dir: %w", err)
-	}
-	if err := os.MkdirAll(m.logDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create log dir: %w", err)
+	if err := EnsureRuntimeDirs(m.pidDir, m.logDir); err != nil {
+		return nil, err
 	}
 
 	if cmd.SysProcAttr == nil {
