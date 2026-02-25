@@ -154,6 +154,14 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		return nil, fmt.Errorf("prompt is required")
 	}
 
+	// Block write dispatches on main (non-worktree) unless plan/read-only mode.
+	execMode := normalizeExecutionMode(req.ExecutionMode, req.Config)
+	if execMode != "plan" {
+		if err := validateWorktreePolicy(req.WorkingDir); err != nil {
+			return nil, err
+		}
+	}
+
 	mode := pickString(req.Config, "mode", e.cfg.DefaultMode)
 	model := pickString(req.Config, "model", e.cfg.DefaultModel)
 	maxTurns := pickInt(req.Config, "max_turns", e.cfg.MaxTurns)
@@ -565,6 +573,60 @@ func extractCostFromMeta(meta map[string]any) float64 {
 		return v
 	}
 	return 0
+}
+
+// validateWorktreePolicy returns an error if the working directory is on the
+// main branch and not inside a git worktree. This enforces the worktree-based
+// development workflow: agents must not write to files directly on main.
+func validateWorktreePolicy(workDir string) error {
+	if workDir == "" {
+		workDir = "."
+	}
+
+	// Determine current branch.
+	branchCmd := exec.Command("git", "-C", workDir, "branch", "--show-current")
+	branchOut, err := branchCmd.Output()
+	if err != nil {
+		// Not a git repo or git not available — skip enforcement.
+		return nil
+	}
+	branch := strings.TrimSpace(string(branchOut))
+	if branch != "main" {
+		return nil
+	}
+
+	// Check if we're in a worktree (git-dir differs from git-common-dir).
+	gitDirCmd := exec.Command("git", "-C", workDir, "rev-parse", "--git-dir")
+	gitDirOut, err := gitDirCmd.Output()
+	if err != nil {
+		return nil
+	}
+	gitCommonCmd := exec.Command("git", "-C", workDir, "rev-parse", "--git-common-dir")
+	gitCommonOut, err := gitCommonCmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	gitDir := strings.TrimSpace(string(gitDirOut))
+	gitCommon := strings.TrimSpace(string(gitCommonOut))
+
+	// Resolve to absolute for reliable comparison.
+	if !filepath.IsAbs(gitDir) {
+		gitDir = filepath.Join(workDir, gitDir)
+	}
+	if !filepath.IsAbs(gitCommon) {
+		gitCommon = filepath.Join(workDir, gitCommon)
+	}
+	gitDir = filepath.Clean(gitDir)
+	gitCommon = filepath.Clean(gitCommon)
+
+	if gitDir != gitCommon {
+		// Inside a worktree — allow.
+		return nil
+	}
+
+	return fmt.Errorf("worktree policy: refusing to execute on main branch (not a worktree). " +
+		"Create a worktree first: git worktree add -b <branch> ../<dir> main")
 }
 
 // --- Helpers ---

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -581,6 +582,113 @@ func TestEnsureVenv_NoSetupScript(t *testing.T) {
 	result := exec.ensureVenv(dir)
 	if result != "" {
 		t.Fatalf("expected empty string, got %q", result)
+	}
+}
+
+func TestValidateWorktreePolicy_NonGitDir(t *testing.T) {
+	t.Parallel()
+	// A directory without git should pass (no enforcement).
+	dir := t.TempDir()
+	if err := validateWorktreePolicy(dir); err != nil {
+		t.Fatalf("expected nil error for non-git dir, got: %v", err)
+	}
+}
+
+func TestValidateWorktreePolicy_NonMainBranch(t *testing.T) {
+	t.Parallel()
+	// Create a git repo on a non-main branch.
+	dir := t.TempDir()
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("command %v failed: %v\n%s", args, err, out)
+		}
+	}
+	run("git", "init", "-b", "main")
+	run("git", "commit", "--allow-empty", "-m", "init")
+	run("git", "checkout", "-b", "feature-x")
+
+	if err := validateWorktreePolicy(dir); err != nil {
+		t.Fatalf("expected nil error for non-main branch, got: %v", err)
+	}
+}
+
+func TestValidateWorktreePolicy_MainNonWorktree(t *testing.T) {
+	t.Parallel()
+	// Create a git repo on main (not a worktree) — should be blocked.
+	dir := t.TempDir()
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("command %v failed: %v\n%s", args, err, out)
+		}
+	}
+	run("git", "init", "-b", "main")
+	run("git", "commit", "--allow-empty", "-m", "init")
+
+	err := validateWorktreePolicy(dir)
+	if err == nil {
+		t.Fatal("expected error for main non-worktree, got nil")
+	}
+	if !strings.Contains(err.Error(), "worktree policy") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateWorktreePolicy_MainInWorktree(t *testing.T) {
+	t.Parallel()
+	// Create a git repo, add a worktree on main — should be allowed.
+	dir := t.TempDir()
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("command %v failed: %v\n%s", args, err, out)
+		}
+	}
+	run("git", "init", "-b", "main")
+	run("git", "commit", "--allow-empty", "-m", "init")
+	// Create a branch for the worktree, then add the worktree.
+	run("git", "branch", "wt-branch")
+	wtDir := filepath.Join(t.TempDir(), "wt")
+	run("git", "worktree", "add", wtDir, "wt-branch")
+
+	// Inside the worktree directory, even if we checkout main, the git-dir
+	// differs from git-common-dir, so it should be allowed.
+	if err := validateWorktreePolicy(wtDir); err != nil {
+		t.Fatalf("expected nil error inside worktree, got: %v", err)
+	}
+}
+
+func TestExecutor_WorktreePolicySkippedForPlanMode(t *testing.T) {
+	// Plan mode should skip worktree validation even on main.
+	exec := New(BridgeConfig{
+		AgentType:    "codex",
+		Timeout:      2 * time.Second,
+		PythonBinary: "/usr/bin/python3",
+		BridgeScript: "/fake/codex_bridge.py",
+	})
+
+	out := `{"type":"result","answer":"plan","tokens":100,"cost":0,"iters":1,"is_error":false}` + "\n"
+	fake := &fakeBridgeRunner{stdout: strings.NewReader(out)}
+	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+
+	// Execute with plan mode — should NOT fail even if we're on main.
+	// (WorkingDir left empty means "." which is our actual repo on main,
+	// but plan mode skips the check entirely.)
+	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
+		TaskID:        "t-plan",
+		AgentType:     "codex",
+		Prompt:        "plan something",
+		ExecutionMode: "plan",
+	})
+	if err != nil {
+		t.Fatalf("plan mode should skip worktree policy, got: %v", err)
 	}
 }
 
