@@ -83,6 +83,8 @@ type RuntimeConfig struct {
 	LLMRequestTimeoutSeconds   int                          `json:"llm_request_timeout_seconds" yaml:"llm_request_timeout_seconds"`
 	UserRateLimitRPS           float64                      `json:"user_rate_limit_rps" yaml:"user_rate_limit_rps"`
 	UserRateLimitBurst         int                          `json:"user_rate_limit_burst" yaml:"user_rate_limit_burst"`
+	KimiRateLimitRPS           float64                      `json:"kimi_rate_limit_rps" yaml:"kimi_rate_limit_rps"`
+	KimiRateLimitBurst         int                          `json:"kimi_rate_limit_burst" yaml:"kimi_rate_limit_burst"`
 	Temperature                float64                      `json:"temperature" yaml:"temperature"`
 	TemperatureProvided        bool                         `json:"temperature_provided" yaml:"temperature_provided"`
 	TopP                       float64                      `json:"top_p" yaml:"top_p"`
@@ -575,6 +577,8 @@ type Overrides struct {
 	LLMCacheTTLSeconds         *int                 `json:"llm_cache_ttl_seconds,omitempty" yaml:"llm_cache_ttl_seconds,omitempty"`
 	UserRateLimitRPS           *float64             `json:"user_rate_limit_rps,omitempty" yaml:"user_rate_limit_rps,omitempty"`
 	UserRateLimitBurst         *int                 `json:"user_rate_limit_burst,omitempty" yaml:"user_rate_limit_burst,omitempty"`
+	KimiRateLimitRPS           *float64             `json:"kimi_rate_limit_rps,omitempty" yaml:"kimi_rate_limit_rps,omitempty"`
+	KimiRateLimitBurst         *int                 `json:"kimi_rate_limit_burst,omitempty" yaml:"kimi_rate_limit_burst,omitempty"`
 	Temperature                *float64             `json:"temperature,omitempty" yaml:"temperature,omitempty"`
 	TopP                       *float64             `json:"top_p,omitempty" yaml:"top_p,omitempty"`
 	StopSequences              *[]string            `json:"stop_sequences,omitempty" yaml:"stop_sequences,omitempty"`

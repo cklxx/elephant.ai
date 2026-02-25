@@ -15,6 +15,9 @@ func (b *containerBuilder) buildLLMFactory() *llm.Factory {
 	if b.config.UserRateLimitRPS > 0 {
 		llmFactory.EnableUserRateLimit(rate.Limit(b.config.UserRateLimitRPS), b.config.UserRateLimitBurst)
 	}
+	if b.config.KimiRateLimitRPS > 0 {
+		llmFactory.EnableKimiRateLimit(rate.Limit(b.config.KimiRateLimitRPS), b.config.KimiRateLimitBurst)
+	}
 	return llmFactory
 }
 

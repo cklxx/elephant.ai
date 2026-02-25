@@ -8,6 +8,7 @@ import (
 	"time"
 
 	agentcoordinator "alex/internal/app/agent/coordinator"
+	kernelagent "alex/internal/app/agent/kernel"
 	"alex/internal/app/lifecycle"
 	"alex/internal/app/toolregistry"
 	lark "alex/internal/delivery/channels/lark"
@@ -15,7 +16,6 @@ import (
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	react "alex/internal/domain/agent/react"
-	kernelagent "alex/internal/app/agent/kernel"
 	kerneldomain "alex/internal/domain/kernel"
 	taskdomain "alex/internal/domain/task"
 	"alex/internal/infra/filestore"
@@ -112,6 +112,8 @@ type Config struct {
 	LLMCacheTTL                time.Duration
 	UserRateLimitRPS           float64
 	UserRateLimitBurst         int
+	KimiRateLimitRPS           float64
+	KimiRateLimitBurst         int
 	Temperature                float64
 	TemperatureProvided        bool
 	TopP                       float64

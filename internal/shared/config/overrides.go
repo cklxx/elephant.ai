@@ -141,6 +141,14 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.UserRateLimitBurst = *overrides.UserRateLimitBurst
 		meta.sources["user_rate_limit_burst"] = SourceOverride
 	}
+	if overrides.KimiRateLimitRPS != nil {
+		cfg.KimiRateLimitRPS = *overrides.KimiRateLimitRPS
+		meta.sources["kimi_rate_limit_rps"] = SourceOverride
+	}
+	if overrides.KimiRateLimitBurst != nil {
+		cfg.KimiRateLimitBurst = *overrides.KimiRateLimitBurst
+		meta.sources["kimi_rate_limit_burst"] = SourceOverride
+	}
 	if overrides.Temperature != nil {
 		cfg.Temperature = *overrides.Temperature
 		cfg.TemperatureProvided = true

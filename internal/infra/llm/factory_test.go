@@ -1,9 +1,11 @@
 package llm
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	alexerrors "alex/internal/shared/errors"
 )
@@ -149,6 +151,66 @@ func TestFactory_EnableUserRateLimit_MinBurst(t *testing.T) {
 	factory.mu.RUnlock()
 	if burst != 1 {
 		t.Fatalf("expected burst clamped to 1, got %d", burst)
+	}
+}
+
+func TestFactory_EnableKimiRateLimit_MinBurst(t *testing.T) {
+	factory := NewFactory()
+	factory.EnableKimiRateLimit(1.0, 0) // burst < 1 should be clamped to 1
+	factory.mu.RLock()
+	burst := factory.kimiRateBurst
+	factory.mu.RUnlock()
+	if burst != 1 {
+		t.Fatalf("expected kimi burst clamped to 1, got %d", burst)
+	}
+}
+
+func TestFactory_KimiRateLimitSharedAcrossIsolatedClients(t *testing.T) {
+	factory := NewFactory()
+	factory.DisableRetry()
+	factory.EnableKimiRateLimit(1.0, 1)
+
+	client1, err := factory.GetIsolatedClient("mock", "kimi-for-coding", portsllm.LLMConfig{})
+	if err != nil {
+		t.Fatalf("GetIsolatedClient(client1): %v", err)
+	}
+	client2, err := factory.GetIsolatedClient("mock", "kimi-for-coding", portsllm.LLMConfig{})
+	if err != nil {
+		t.Fatalf("GetIsolatedClient(client2): %v", err)
+	}
+
+	if _, err := client1.Complete(context.Background(), ports.CompletionRequest{}); err != nil {
+		t.Fatalf("first complete should pass: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if _, err := client2.Complete(ctx, ports.CompletionRequest{}); err == nil {
+		t.Fatal("expected second complete to be throttled by shared kimi limiter")
+	}
+}
+
+func TestIsKimiTarget(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		model    string
+		baseURL  string
+		want     bool
+	}{
+		{name: "provider kimi", provider: "kimi", model: "x", baseURL: "", want: true},
+		{name: "model contains kimi", provider: "openai", model: "kimi-for-coding", baseURL: "", want: true},
+		{name: "base url kimi", provider: "openai", model: "gpt-4", baseURL: "https://api.kimi.com/coding/v1", want: true},
+		{name: "base url moonshot", provider: "openai", model: "gpt-4", baseURL: "https://api.moonshot.cn/v1", want: true},
+		{name: "non kimi target", provider: "openai", model: "gpt-5", baseURL: "https://api.openai.com/v1", want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isKimiTarget(tc.provider, tc.model, tc.baseURL); got != tc.want {
+				t.Fatalf("isKimiTarget(%q,%q,%q)=%v, want %v", tc.provider, tc.model, tc.baseURL, got, tc.want)
+			}
+		})
 	}
 }
 

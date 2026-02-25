@@ -2,6 +2,7 @@ package llm
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,9 @@ type Factory struct {
 	circuitBreakerConfig alexerrors.CircuitBreakerConfig
 	userRateLimit        rate.Limit
 	userRateBurst        int
+	kimiRateLimit        rate.Limit
+	kimiRateBurst        int
+	kimiLimiter          *rate.Limiter
 	toolCallParser       agent.FunctionCallParser
 	HealthRegistry       *HealthRegistry
 }
@@ -47,6 +51,7 @@ func NewFactory() *Factory {
 		retryConfig:          alexerrors.DefaultRetryConfig(),
 		circuitBreakerConfig: alexerrors.DefaultCircuitBreakerConfig(),
 		userRateBurst:        1,
+		kimiRateBurst:        1,
 	}
 }
 
@@ -59,6 +64,7 @@ func NewFactoryWithRetryConfig(retryConfig alexerrors.RetryConfig, circuitBreake
 		retryConfig:          retryConfig,
 		circuitBreakerConfig: circuitBreakerConfig,
 		userRateBurst:        1,
+		kimiRateBurst:        1,
 	}
 }
 
@@ -92,6 +98,24 @@ func (f *Factory) EnableUserRateLimit(limit rate.Limit, burst int) {
 		burst = 1
 	}
 	f.userRateBurst = burst
+}
+
+// EnableKimiRateLimit enforces a global limiter for Kimi/Moonshot traffic.
+// The limiter is shared across all clients created by this factory.
+func (f *Factory) EnableKimiRateLimit(limit rate.Limit, burst int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.kimiRateLimit = limit
+	if burst < 1 {
+		burst = 1
+	}
+	f.kimiRateBurst = burst
+	if limit > 0 {
+		f.kimiLimiter = rate.NewLimiter(limit, burst)
+	} else {
+		f.kimiLimiter = nil
+	}
 }
 
 // DisableRetry disables retry logic for all clients created by this factory
@@ -146,6 +170,7 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	cacheTTL := f.cacheTTL
 	userRateLimit := f.userRateLimit
 	userRateBurst := f.userRateBurst
+	kimiLimiter := f.kimiLimiter
 	healthRegistry := f.HealthRegistry
 	f.mu.RUnlock()
 
@@ -185,6 +210,10 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 
 	client = EnsureStreamingClient(client)
 
+	if kimiLimiter != nil && isKimiTarget(provider, model, config.BaseURL) {
+		client = WrapWithSharedRateLimit(client, kimiLimiter)
+	}
+
 	// Wrap with retry logic if enabled
 	if enableRetry {
 		if healthRegistry != nil {
@@ -214,6 +243,20 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	}
 
 	return client, nil
+}
+
+func isKimiTarget(provider, model, baseURL string) bool {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	model = strings.ToLower(strings.TrimSpace(model))
+	baseURL = strings.ToLower(strings.TrimSpace(baseURL))
+
+	if provider == "kimi" {
+		return true
+	}
+	if strings.Contains(model, "kimi") {
+		return true
+	}
+	return strings.Contains(baseURL, "kimi.com") || strings.Contains(baseURL, "moonshot")
 }
 
 // GetProviderHealth returns health snapshots for all registered providers.

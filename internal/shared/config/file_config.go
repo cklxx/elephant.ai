@@ -58,6 +58,8 @@ type RuntimeFileConfig struct {
 	LLMRequestTimeoutSeconds   *int                      `yaml:"llm_request_timeout_seconds"`
 	UserRateLimitRPS           *float64                  `yaml:"user_rate_limit_rps"`
 	UserRateLimitBurst         *int                      `yaml:"user_rate_limit_burst"`
+	KimiRateLimitRPS           *float64                  `yaml:"kimi_rate_limit_rps"`
+	KimiRateLimitBurst         *int                      `yaml:"kimi_rate_limit_burst"`
 	Temperature                *float64                  `yaml:"temperature"`
 	TopP                       *float64                  `yaml:"top_p"`
 	StopSequences              []string                  `yaml:"stop_sequences"`

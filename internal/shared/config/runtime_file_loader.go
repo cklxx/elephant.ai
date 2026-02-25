@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	toolspolicy "alex/internal/infra/tools"
+	"alex/internal/shared/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -189,6 +189,14 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.UserRateLimitBurst != nil {
 		cfg.UserRateLimitBurst = *parsed.UserRateLimitBurst
 		meta.sources["user_rate_limit_burst"] = SourceFile
+	}
+	if parsed.KimiRateLimitRPS != nil {
+		cfg.KimiRateLimitRPS = *parsed.KimiRateLimitRPS
+		meta.sources["kimi_rate_limit_rps"] = SourceFile
+	}
+	if parsed.KimiRateLimitBurst != nil {
+		cfg.KimiRateLimitBurst = *parsed.KimiRateLimitBurst
+		meta.sources["kimi_rate_limit_burst"] = SourceFile
 	}
 	if parsed.Temperature != nil {
 		cfg.Temperature = *parsed.Temperature

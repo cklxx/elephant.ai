@@ -91,6 +91,12 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if err := setEnvInt(lookup, meta, "USER_LLM_BURST", "user_rate_limit_burst", func(value int) { cfg.UserRateLimitBurst = value }); err != nil {
 		return err
 	}
+	if err := setEnvFloat(lookup, meta, "KIMI_LLM_RPS", "kimi_rate_limit_rps", func(value float64) { cfg.KimiRateLimitRPS = value }); err != nil {
+		return err
+	}
+	if err := setEnvInt(lookup, meta, "KIMI_LLM_BURST", "kimi_rate_limit_burst", func(value int) { cfg.KimiRateLimitBurst = value }); err != nil {
+		return err
+	}
 	if err := setEnvFloat(lookup, meta, "LLM_TEMPERATURE", "temperature", func(value float64) {
 		cfg.Temperature = value
 		cfg.TemperatureProvided = true

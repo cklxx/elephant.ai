@@ -48,6 +48,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.ToolMaxConcurrent != DefaultToolMaxConcurrent {
 		t.Fatalf("expected default tool_max_concurrent=%d, got %d", DefaultToolMaxConcurrent, cfg.ToolMaxConcurrent)
 	}
+	if cfg.KimiRateLimitRPS != 1.0 || cfg.KimiRateLimitBurst != 1 {
+		t.Fatalf("expected kimi rate limit defaults 1.0/1, got %v/%d", cfg.KimiRateLimitRPS, cfg.KimiRateLimitBurst)
+	}
 	if cfg.ACPExecutorAddr == "" {
 		t.Fatalf("expected default ACP executor addr to be set")
 	}
@@ -138,6 +141,8 @@ runtime:
   tool_max_concurrent: 6
   llm_cache_size: 12
   llm_cache_ttl_seconds: 90
+  kimi_rate_limit_rps: 2.5
+  kimi_rate_limit_burst: 4
   stop_sequences:
     - "DONE"
   session_dir: "~/sessions"
@@ -192,6 +197,9 @@ runtime:
 	}
 	if cfg.LLMCacheTTLSeconds != 90 {
 		t.Fatalf("expected llm_cache_ttl_seconds=90, got %d", cfg.LLMCacheTTLSeconds)
+	}
+	if cfg.KimiRateLimitRPS != 2.5 || cfg.KimiRateLimitBurst != 4 {
+		t.Fatalf("expected kimi rate limit from file 2.5/4, got %v/%d", cfg.KimiRateLimitRPS, cfg.KimiRateLimitBurst)
 	}
 	if len(cfg.StopSequences) != 1 || cfg.StopSequences[0] != "DONE" {
 		t.Fatalf("unexpected stop sequences: %#v", cfg.StopSequences)
@@ -322,6 +330,9 @@ runtime:
 	}
 	if meta.Source("llm_cache_ttl_seconds") != SourceFile {
 		t.Fatalf("expected llm_cache_ttl_seconds source to be file, got %s", meta.Source("llm_cache_ttl_seconds"))
+	}
+	if meta.Source("kimi_rate_limit_rps") != SourceFile || meta.Source("kimi_rate_limit_burst") != SourceFile {
+		t.Fatalf("expected kimi rate limit sources from file")
 	}
 	if meta.Source("follow_transcript") != SourceFile {
 		t.Fatalf("expected follow_transcript source to be file, got %s", meta.Source("follow_transcript"))
@@ -807,6 +818,8 @@ runtime:
 			"ACP_EXECUTOR_MAX_CLI_CALLS":        "5",
 			"ACP_EXECUTOR_MAX_DURATION_SECONDS": "600",
 			"ACP_EXECUTOR_REQUIRE_MANIFEST":     "false",
+			"KIMI_LLM_RPS":                      "3.5",
+			"KIMI_LLM_BURST":                    "6",
 			"SEEDREAM_TEXT_ENDPOINT_ID":         "env-text",
 			"SEEDREAM_IMAGE_ENDPOINT_ID":        "env-image",
 			"SEEDREAM_TEXT_MODEL":               "env-text-model",
@@ -855,6 +868,9 @@ runtime:
 	}
 	if cfg.ACPExecutorAddr != "10.0.0.2:19000" || cfg.ACPExecutorCWD != "/srv/workspace" || cfg.ACPExecutorMode != "read-only" {
 		t.Fatalf("expected acp executor config from env, got %q/%q/%q", cfg.ACPExecutorAddr, cfg.ACPExecutorCWD, cfg.ACPExecutorMode)
+	}
+	if cfg.KimiRateLimitRPS != 3.5 || cfg.KimiRateLimitBurst != 6 {
+		t.Fatalf("expected kimi rate limit from env 3.5/6, got %v/%d", cfg.KimiRateLimitRPS, cfg.KimiRateLimitBurst)
 	}
 	if !cfg.ACPExecutorAutoApprove || cfg.ACPExecutorMaxCLICalls != 5 || cfg.ACPExecutorMaxDuration != 600 || cfg.ACPExecutorRequireManifest {
 		t.Fatalf("unexpected acp executor config from env: %+v", cfg)
@@ -921,6 +937,9 @@ runtime:
 	}
 	if meta.Source("acp_executor_addr") != SourceEnv || meta.Source("acp_executor_cwd") != SourceEnv || meta.Source("acp_executor_mode") != SourceEnv || meta.Source("acp_executor_auto_approve") != SourceEnv || meta.Source("acp_executor_max_cli_calls") != SourceEnv || meta.Source("acp_executor_max_duration_seconds") != SourceEnv || meta.Source("acp_executor_require_manifest") != SourceEnv {
 		t.Fatalf("expected env source for acp executor config")
+	}
+	if meta.Source("kimi_rate_limit_rps") != SourceEnv || meta.Source("kimi_rate_limit_burst") != SourceEnv {
+		t.Fatalf("expected env source for kimi rate limit")
 	}
 	if meta.Source("temperature") != SourceEnv {
 		t.Fatalf("expected env source for temperature, got %s", meta.Source("temperature"))
@@ -1048,6 +1067,8 @@ func TestOverridesTakePriority(t *testing.T) {
 	overrideBrowserConnector := "chrome_extension"
 	overrideBrowserBridgeListen := "127.0.0.1:19999"
 	overrideBrowserBridgeToken := "override-token"
+	overrideKimiRateLimitRPS := 4.5
+	overrideKimiRateLimitBurst := 7
 	cfg, meta, err := Load(
 		WithEnv(envMap{"LLM_MODEL": "env-model"}.Lookup),
 		WithOverrides(Overrides{
@@ -1066,6 +1087,8 @@ func TestOverridesTakePriority(t *testing.T) {
 			Verbose:                 &overrideVerbose,
 			FollowTranscript:        &overrideFollowTranscript,
 			FollowStream:            &overrideFollowStream,
+			KimiRateLimitRPS:        &overrideKimiRateLimitRPS,
+			KimiRateLimitBurst:      &overrideKimiRateLimitBurst,
 			AgentPreset:             &overrideAgentPreset,
 			ToolPreset:              &overrideToolPreset,
 			Toolset:                 &overrideToolset,
@@ -1104,6 +1127,9 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if cfg.Environment != "qa" {
 		t.Fatalf("expected override environment, got %q", cfg.Environment)
+	}
+	if cfg.KimiRateLimitRPS != 4.5 || cfg.KimiRateLimitBurst != 7 {
+		t.Fatalf("expected override kimi rate limit 4.5/7, got %v/%d", cfg.KimiRateLimitRPS, cfg.KimiRateLimitBurst)
 	}
 	if !cfg.Verbose {
 		t.Fatal("expected override verbose true")
@@ -1152,6 +1178,9 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if meta.Source("follow_stream") != SourceOverride {
 		t.Fatalf("expected override source for follow_stream, got %s", meta.Source("follow_stream"))
+	}
+	if meta.Source("kimi_rate_limit_rps") != SourceOverride || meta.Source("kimi_rate_limit_burst") != SourceOverride {
+		t.Fatalf("expected override source for kimi rate limit")
 	}
 	if meta.Source("toolset") != SourceOverride {
 		t.Fatalf("expected override source for toolset, got %s", meta.Source("toolset"))

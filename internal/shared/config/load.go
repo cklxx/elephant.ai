@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	toolspolicy "alex/internal/infra/tools"
+	"alex/internal/shared/utils"
 )
 
 func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
@@ -47,6 +47,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		LLMCacheTTLSeconds:         int(DefaultLLMCacheTTL.Seconds()),
 		UserRateLimitRPS:           1.0,
 		UserRateLimitBurst:         3,
+		KimiRateLimitRPS:           1.0,
+		KimiRateLimitBurst:         1,
 		Temperature:                0.7,
 		TopP:                       1.0,
 		SessionDir:                 "~/.alex/sessions",

@@ -41,6 +41,8 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		LLMCacheTTL:                time.Duration(runtime.LLMCacheTTLSeconds) * time.Second,
 		UserRateLimitRPS:           runtime.UserRateLimitRPS,
 		UserRateLimitBurst:         runtime.UserRateLimitBurst,
+		KimiRateLimitRPS:           runtime.KimiRateLimitRPS,
+		KimiRateLimitBurst:         runtime.KimiRateLimitBurst,
 		Temperature:                runtime.Temperature,
 		TemperatureProvided:        runtime.TemperatureProvided,
 		TopP:                       runtime.TopP,
