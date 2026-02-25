@@ -1066,3 +1066,94 @@ func TestCancelTask_AlreadyCompleted(t *testing.T) {
 		t.Errorf("expected already-completed error, got: %v", err)
 	}
 }
+
+func TestRunTaskPanicRecovery(t *testing.T) {
+	panicExecutor := func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+		panic("executor exploded")
+	}
+
+	mgr := newTestManager(panicExecutor)
+	defer mgr.Shutdown()
+
+	err := dispatchTask(mgr, "panic-1", "panic test", "trigger panic", "internal", "")
+	if err != nil {
+		t.Fatalf("dispatch failed: %v", err)
+	}
+
+	mgr.AwaitAll(2 * time.Second)
+
+	results := mgr.Collect([]string{"panic-1"}, false, 0)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Status != agent.BackgroundTaskStatusFailed {
+		t.Fatalf("expected failed, got %s", results[0].Status)
+	}
+	if !strings.Contains(results[0].Error, "panicked") {
+		t.Fatalf("expected panic error message, got %q", results[0].Error)
+	}
+	if !strings.Contains(results[0].Error, "executor exploded") {
+		t.Fatalf("expected panic value in error, got %q", results[0].Error)
+	}
+}
+
+func TestRunTaskPanicRecoveryWithCompletionNotifier(t *testing.T) {
+	panicExecutor := func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+		panic("boom")
+	}
+
+	var mu sync.Mutex
+	var notifications []completionNotification
+
+	notifier := &mockCompletionNotifier{
+		onNotify: func(ctx context.Context, taskID, status, answer, errText, mergeStatus string, tokensUsed int) {
+			mu.Lock()
+			defer mu.Unlock()
+			notifications = append(notifications, completionNotification{
+				taskID: taskID, status: status, answer: answer, errText: errText, mergeStatus: mergeStatus, tokensUsed: tokensUsed,
+			})
+		},
+	}
+
+	ctx := agent.WithCompletionNotifier(context.Background(), notifier)
+
+	mgr := newBackgroundTaskManager(
+		ctx,
+		agent.NoopLogger{},
+		testClock{},
+		panicExecutor,
+		nil,
+		nil,
+		nil,
+		"test-session",
+		nil,
+	)
+	defer mgr.Shutdown()
+
+	if err := mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
+		TaskID:      "panic-notify",
+		Description: "panic with notifier",
+		Prompt:      "trigger panic",
+		AgentType:   "internal",
+	}); err != nil {
+		t.Fatalf("dispatch failed: %v", err)
+	}
+
+	mgr.AwaitAll(2 * time.Second)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(notifications) != 1 {
+		t.Fatalf("expected 1 notification, got %d", len(notifications))
+	}
+	n := notifications[0]
+	if n.taskID != "panic-notify" {
+		t.Errorf("unexpected taskID: %q", n.taskID)
+	}
+	if n.status != "failed" {
+		t.Errorf("unexpected status: %q", n.status)
+	}
+	if !strings.Contains(n.errText, "panicked") {
+		t.Errorf("expected panic in error text, got %q", n.errText)
+	}
+}

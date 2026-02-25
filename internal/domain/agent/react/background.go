@@ -394,6 +394,26 @@ func (m *BackgroundTaskManager) activeTaskCountLocked() int {
 
 // runTask executes a background task, routing to internal or external executor.
 func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask, agentType string) {
+	defer func() {
+		if r := recover(); r != nil {
+			bt.mu.Lock()
+			alreadyDone := !bt.completedAt.IsZero()
+			if !alreadyDone {
+				bt.completedAt = m.clock.Now()
+				bt.err = fmt.Errorf("task panicked: %v", r)
+				bt.status = agent.BackgroundTaskStatusFailed
+			}
+			bt.mu.Unlock()
+			if !alreadyDone {
+				m.emitCompletionEvent(ctx, bt)
+				if notifier := agent.GetCompletionNotifier(ctx); notifier != nil {
+					notifier.NotifyCompletion(ctx, bt.id, string(agent.BackgroundTaskStatusFailed), "", bt.err.Error(), agent.MergeStatusNotMerged, 0)
+				}
+				m.signalCompletion(bt.id)
+			}
+		}
+	}()
+
 	bt.mu.Lock()
 	if bt.status != agent.BackgroundTaskStatusBlocked {
 		bt.status = agent.BackgroundTaskStatusRunning
