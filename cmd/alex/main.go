@@ -105,26 +105,22 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 		fmt.Println(appVersion())
 		return true, 0
 	case "config":
-		if err := runConfigCommand(args[1:]); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			return true, 1
-		}
-		return true, 0
+		return runStandaloneCommand(args[1:], runConfigCommand, func(error) int { return 1 })
 	case "dev":
-		if err := runDevCommand(args[1:]); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			return true, exitCodeFromError(err)
-		}
-		return true, 0
+		return runStandaloneCommand(args[1:], runDevCommand, exitCodeFromError)
 	case "lark":
-		if err := runLarkCommand(args[1:]); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			return true, exitCodeFromError(err)
-		}
-		return true, 0
+		return runStandaloneCommand(args[1:], runLarkCommand, exitCodeFromError)
 	}
 
 	return false, 0
+}
+
+func runStandaloneCommand(args []string, runner func([]string) error, resolveExitCode func(error) int) (handled bool, exitCode int) {
+	if err := runner(args); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return true, resolveExitCode(err)
+	}
+	return true, 0
 }
 
 func exitCodeFromError(err error) int {
