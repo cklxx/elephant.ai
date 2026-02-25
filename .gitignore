@@ -62,6 +62,8 @@ apply_patch/
 # coverage
 coverage/
 artifacts/
+!internal/infra/tools/builtin/artifacts/
+!internal/infra/tools/builtin/artifacts/**
 
 # os
 .DS_Store
