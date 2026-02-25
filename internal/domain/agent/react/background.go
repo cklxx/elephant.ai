@@ -738,8 +738,9 @@ func (m *BackgroundTaskManager) DrainCompletions() []string {
 }
 
 // AwaitAll blocks until every dispatched task has finished or the timeout elapses.
-func (m *BackgroundTaskManager) AwaitAll(timeout time.Duration) {
-	m.awaitTasks(nil, timeout)
+// Returns true if all tasks completed, false if the timeout was reached.
+func (m *BackgroundTaskManager) AwaitAll(timeout time.Duration) bool {
+	return m.awaitTasks(nil, timeout)
 }
 
 // CancelTask cancels an individual background task by its ID.
@@ -1224,14 +1225,15 @@ func (m *BackgroundTaskManager) resolveTargets(ids []string) []*backgroundTask {
 }
 
 // awaitTasks blocks until the specified tasks (or all tasks when ids is empty)
-// are no longer pending/running, or timeout elapses.
-func (m *BackgroundTaskManager) awaitTasks(ids []string, timeout time.Duration) {
+// are no longer pending/running, or timeout elapses. Returns true if all
+// tasks completed, false if the timeout was reached first.
+func (m *BackgroundTaskManager) awaitTasks(ids []string, timeout time.Duration) bool {
 	deadline := m.clock.Now().Add(timeout)
 	pollInterval := 50 * time.Millisecond
 
 	for {
 		if m.clock.Now().After(deadline) {
-			return
+			return false
 		}
 
 		allDone := true
@@ -1258,7 +1260,7 @@ func (m *BackgroundTaskManager) awaitTasks(ids []string, timeout time.Duration) 
 		m.mu.RUnlock()
 
 		if allDone {
-			return
+			return true
 		}
 
 		time.Sleep(pollInterval)

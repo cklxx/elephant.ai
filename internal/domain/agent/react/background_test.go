@@ -1252,3 +1252,38 @@ func TestProgressStalenessDetection(t *testing.T) {
 		t.Fatal("completed task should not be stale")
 	}
 }
+
+func TestAwaitAllReturnsTimeout(t *testing.T) {
+	hold := make(chan struct{})
+	executor := func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+		select {
+		case <-hold:
+			return &agent.TaskResult{Answer: "ok"}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
+	mgr := newTestManager(executor)
+	defer mgr.Shutdown()
+
+	if err := dispatchTask(mgr, "timeout-1", "timeout test", "prompt", "internal", ""); err != nil {
+		t.Fatalf("dispatch failed: %v", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+
+	// Short timeout — task is still running.
+	done := mgr.AwaitAll(50 * time.Millisecond)
+	if done {
+		t.Fatal("expected false (timeout), got true")
+	}
+
+	// Let task finish.
+	close(hold)
+
+	// Longer timeout — task should complete.
+	done = mgr.AwaitAll(5 * time.Second)
+	if !done {
+		t.Fatal("expected true (all done), got false")
+	}
+}
