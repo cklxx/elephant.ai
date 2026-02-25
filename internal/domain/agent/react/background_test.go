@@ -1402,3 +1402,37 @@ func (h *holdingExternalExecutor) fireProgress(p agent.ExternalAgentProgress) {
 		fn(p)
 	}
 }
+
+func TestAwaitAllReturnsTimeout(t *testing.T) {
+	hold := make(chan struct{})
+	executor := func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+		select {
+		case <-hold:
+			return &agent.TaskResult{Answer: "done"}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	mgr := newTestManager(executor)
+	defer mgr.Shutdown()
+
+	if err := dispatchTask(mgr, "slow-1", "slow task", "prompt", "internal", ""); err != nil {
+		t.Fatalf("dispatch failed: %v", err)
+	}
+	time.Sleep(20 * time.Millisecond) // let goroutine start
+
+	// Short timeout — should return false.
+	done := mgr.AwaitAll(50 * time.Millisecond)
+	if done {
+		t.Fatal("expected AwaitAll to return false (timeout)")
+	}
+
+	// Release the task.
+	close(hold)
+
+	// Longer timeout — should return true.
+	done = mgr.AwaitAll(5 * time.Second)
+	if !done {
+		t.Fatal("expected AwaitAll to return true (all done)")
+	}
+}
