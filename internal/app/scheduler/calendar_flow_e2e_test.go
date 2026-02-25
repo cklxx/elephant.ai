@@ -223,12 +223,21 @@ func (s *inMemorySessionStore) Create(_ context.Context) (*agentstorage.Session,
 func (s *inMemorySessionStore) Get(_ context.Context, sessionID string) (*agentstorage.Session, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if session, ok := s.sessions[sessionID]; ok {
-		return session, nil
+	session, ok := s.sessions[sessionID]
+	if !ok {
+		session = &agentstorage.Session{ID: sessionID, CreatedAt: time.Now(), UpdatedAt: time.Now()}
+		s.sessions[sessionID] = session
 	}
-	session := &agentstorage.Session{ID: sessionID, CreatedAt: time.Now(), UpdatedAt: time.Now()}
-	s.sessions[sessionID] = session
-	return session, nil
+	// Return a shallow copy with cloned maps so concurrent callers
+	// (e.g. preAnalyzeTaskAsync) don't race on the same Metadata map.
+	cp := *session
+	if session.Metadata != nil {
+		cp.Metadata = make(map[string]string, len(session.Metadata))
+		for k, v := range session.Metadata {
+			cp.Metadata[k] = v
+		}
+	}
+	return &cp, nil
 }
 
 func (s *inMemorySessionStore) Save(_ context.Context, session *agentstorage.Session) error {
