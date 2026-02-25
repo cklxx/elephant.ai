@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"alex/internal/shared/utils"
 	"alex/internal/devops"
 	"alex/internal/devops/services"
+	"alex/internal/shared/utils"
 )
 
 func runDevCommand(args []string) error {
@@ -98,10 +98,7 @@ func printDevSummary(orch *devops.Orchestrator, larkMode bool) {
 
 	// Services section
 	sec.Section("Services")
-	serviceURLs := map[string]string{
-		"backend": fmt.Sprintf("http://localhost:%d", cfg.ServerPort),
-		"web":     fmt.Sprintf("http://localhost:%d", cfg.WebPort),
-	}
+	serviceURLs := coreServiceURLs(cfg)
 	for _, s := range orch.Status(ctx) {
 		url := serviceURLs[s.Name]
 		if s.Healthy {
@@ -176,10 +173,7 @@ func devStatus() error {
 	statuses := orch.Status(ctx)
 
 	// Core services
-	serviceURLs := map[string]string{
-		"backend": fmt.Sprintf("http://localhost:%d", cfg.ServerPort),
-		"web":     fmt.Sprintf("http://localhost:%d", cfg.WebPort),
-	}
+	serviceURLs := coreServiceURLs(cfg)
 	sec.Section("Core Services")
 	for _, s := range statuses {
 		url := serviceURLs[s.Name]
@@ -315,17 +309,17 @@ func devConfig(args []string) error {
 	}
 
 	configMap := map[string]string{
-		"server_port":  strconv.Itoa(cfg.ServerPort),
-		"server_bin":   cfg.ServerBin,
-		"web_port":     strconv.Itoa(cfg.WebPort),
-		"web_dir":      cfg.WebDir,
-		"pid_dir":      cfg.PIDDir,
-		"log_dir":      cfg.LogDir,
-		"project_dir":  cfg.ProjectDir,
-		"cgo_mode":     cfg.CGOMode,
-		"lark_mode":    strconv.FormatBool(cfg.LarkMode),
-		"auto_stop":    strconv.FormatBool(cfg.AutoStopConflictingPorts),
-		"auto_heal":    strconv.FormatBool(cfg.AutoHealWebNext),
+		"server_port": strconv.Itoa(cfg.ServerPort),
+		"server_bin":  cfg.ServerBin,
+		"web_port":    strconv.Itoa(cfg.WebPort),
+		"web_dir":     cfg.WebDir,
+		"pid_dir":     cfg.PIDDir,
+		"log_dir":     cfg.LogDir,
+		"project_dir": cfg.ProjectDir,
+		"cgo_mode":    cfg.CGOMode,
+		"lark_mode":   strconv.FormatBool(cfg.LarkMode),
+		"auto_stop":   strconv.FormatBool(cfg.AutoStopConflictingPorts),
+		"auto_heal":   strconv.FormatBool(cfg.AutoHealWebNext),
 	}
 
 	switch subcmd {
@@ -424,10 +418,7 @@ func buildWebService(orch *devops.Orchestrator) *services.WebService {
 
 func loadDevConfig() (*devops.DevConfig, error) {
 	home, _ := os.UserHomeDir()
-	configPath := ""
-	if raw, ok := os.LookupEnv("ALEX_CONFIG_PATH"); ok {
-		configPath = strings.TrimSpace(raw)
-	}
+	configPath := readConfiguredAlexConfigPath(os.LookupEnv)
 	if configPath == "" {
 		configPath = filepath.Join(home, ".alex", "config.yaml")
 	}
@@ -487,10 +478,7 @@ func resolveSharedDevPIDDir(projectDir string) (string, error) {
 	}
 
 	home, _ := os.UserHomeDir()
-	configPath := ""
-	if raw, ok := os.LookupEnv("ALEX_CONFIG_PATH"); ok {
-		configPath = strings.TrimSpace(raw)
-	}
+	configPath := readConfiguredAlexConfigPath(os.LookupEnv)
 	if configPath == "" {
 		if home != "" {
 			configPath = filepath.Join(home, ".alex", "config.yaml")
@@ -511,6 +499,24 @@ func resolveSharedDevPIDDir(projectDir string) (string, error) {
 	}
 
 	return filepath.Join(filepath.Dir(filepath.Clean(configPath)), "pids"), nil
+}
+
+func readConfiguredAlexConfigPath(lookup func(string) (string, bool)) string {
+	if lookup == nil {
+		return ""
+	}
+	raw, ok := lookup("ALEX_CONFIG_PATH")
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(raw)
+}
+
+func coreServiceURLs(cfg *devops.DevConfig) map[string]string {
+	return map[string]string{
+		"backend": fmt.Sprintf("http://localhost:%d", cfg.ServerPort),
+		"web":     fmt.Sprintf("http://localhost:%d", cfg.WebPort),
+	}
 }
 
 func hasFlag(args []string, flag string) bool {
