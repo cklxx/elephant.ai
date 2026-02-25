@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"errors"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,7 +17,6 @@ func TestRun_DefaultModeUsesLark(t *testing.T) {
 	err := run(
 		[]string{"alex-server"},
 		"obs.yaml",
-		log.New(&bytes.Buffer{}, "", 0),
 		runners{
 			runLark: func(obs string) error {
 				larkCalls++
@@ -46,35 +43,6 @@ func TestRun_DefaultModeUsesLark(t *testing.T) {
 	}
 }
 
-func TestRun_LegacyLarkSubcommandUsesLarkAndLogsDeprecation(t *testing.T) {
-	t.Parallel()
-
-	var buf bytes.Buffer
-	logger := log.New(&buf, "", 0)
-	err := run(
-		[]string{"alex-server", "lark"},
-		"",
-		logger,
-		runners{
-			runLark: func(string) error { return nil },
-			runKernelDaemon: func(string) error {
-				t.Fatal("kernel-daemon should not be called")
-				return nil
-			},
-			runKernelOnce: func(string) error {
-				t.Fatal("kernel-once should not be called")
-				return nil
-			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("run returned error: %v", err)
-	}
-	if !strings.Contains(buf.String(), "DEPRECATED: 'alex-server lark'") {
-		t.Fatalf("expected deprecation log, got: %q", buf.String())
-	}
-}
-
 func TestRun_KernelOnceSubcommandUsesKernelRunner(t *testing.T) {
 	t.Parallel()
 
@@ -82,7 +50,6 @@ func TestRun_KernelOnceSubcommandUsesKernelRunner(t *testing.T) {
 	err := run(
 		[]string{"alex-server", "kernel-once"},
 		"",
-		log.New(&bytes.Buffer{}, "", 0),
 		runners{
 			runLark: func(string) error {
 				t.Fatal("lark should not be called")
@@ -113,7 +80,6 @@ func TestRun_KernelOnceErrorPropagates(t *testing.T) {
 	err := run(
 		[]string{"alex-server", "kernel-once"},
 		"",
-		log.New(&bytes.Buffer{}, "", 0),
 		runners{
 			runLark:         func(string) error { return nil },
 			runKernelDaemon: func(string) error { return nil },
@@ -132,7 +98,6 @@ func TestRun_KernelDaemonSubcommandUsesKernelDaemonRunner(t *testing.T) {
 	err := run(
 		[]string{"alex-server", "kernel-daemon"},
 		"",
-		log.New(&bytes.Buffer{}, "", 0),
 		runners{
 			runLark: func(string) error {
 				t.Fatal("lark should not be called")
@@ -162,7 +127,6 @@ func TestRun_UnknownSubcommandReturnsError(t *testing.T) {
 	err := run(
 		[]string{"alex-server", "unexpected-mode"},
 		"",
-		log.New(&bytes.Buffer{}, "", 0),
 		runners{
 			runLark: func(string) error {
 				t.Fatal("lark should not be called")

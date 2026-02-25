@@ -21,10 +21,7 @@ type runners struct {
 	runKernelOnce   func(string) error
 }
 
-func run(args []string, obsConfig string, logger *log.Logger, rs runners) error {
-	if logger == nil {
-		logger = log.Default()
-	}
+func run(args []string, obsConfig string, rs runners) error {
 	if rs.runLark == nil {
 		rs.runLark = serverBootstrap.RunLark
 	}
@@ -37,11 +34,6 @@ func run(args []string, obsConfig string, logger *log.Logger, rs runners) error 
 
 	if len(args) > 1 {
 		switch args[1] {
-		case "lark":
-			// Backward compatibility for legacy scripts (`alex-server lark`).
-			logger.Printf("DEPRECATED: 'alex-server lark' is no longer needed — alex-server always runs in Lark mode. " +
-				"Please update your scripts to just run 'alex-server'.")
-			return rs.runLark(obsConfig)
 		case "kernel-daemon":
 			return rs.runKernelDaemon(obsConfig)
 		case "kernel-once":
@@ -59,7 +51,7 @@ func main() {
 	}
 
 	obsConfig := os.Getenv("ALEX_OBSERVABILITY_CONFIG")
-	if err := run(os.Args, obsConfig, log.Default(), runners{}); err != nil {
+	if err := run(os.Args, obsConfig, runners{}); err != nil {
 		log.Fatalf("server exited: %v", err)
 	}
 }

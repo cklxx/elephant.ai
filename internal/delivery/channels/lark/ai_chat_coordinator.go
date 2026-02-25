@@ -233,8 +233,3 @@ func (c *AIChatCoordinator) orderParticipants(bots []string, thisBotID string) [
 	sort.Strings(ordered)
 	return ordered
 }
-
-// IsBotID checks if the given ID is a registered bot.
-func (c *AIChatCoordinator) IsBotID(id string) bool {
-	return c.botIDs[id]
-}

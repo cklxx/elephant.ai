@@ -26,11 +26,6 @@ func NewContextMetrics() *ContextMetrics {
 	return defaultContextMetrics
 }
 
-// NewContextMetricsWithRegisterer allows tests to provide a dedicated registry.
-func NewContextMetricsWithRegisterer(reg prometheus.Registerer) *ContextMetrics {
-	return newContextMetrics(reg)
-}
-
 func newContextMetrics(reg prometheus.Registerer) *ContextMetrics {
 	if reg == nil {
 		reg = prometheus.DefaultRegisterer

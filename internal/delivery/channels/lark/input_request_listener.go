@@ -296,13 +296,6 @@ func (l *inputRequestListener) formatInputRequest(taskID, agentType, summary, re
 	return sb.String()
 }
 
-// TryResolveInputReply checks if a user message is a reply to a pending input request.
-// Returns true if the reply was handled.
-// Deprecated: relay storage has moved to Gateway.pendingInputRelays; prefer Gateway.tryResolveInputReply.
-func (l *inputRequestListener) TryResolveInputReply(ctx context.Context, chatID, content string) bool {
-	return l.g.tryResolveInputReply(ctx, chatID, content)
-}
-
 // buildInputResponse converts user text input into an InputResponse.
 func buildInputResponse(relay *pendingInputRelay, content string) agentports.InputResponse {
 	trimmed := strings.TrimSpace(content)
@@ -349,25 +342,6 @@ func buildInputResponse(relay *pendingInputRelay, content string) agentports.Inp
 	}
 
 	return resp
-}
-
-// parseMultiNumberedReply resolves comma-separated numeric replies against option list.
-// E.g., "1,3" with ["a","b","c"] → ["a","c"]
-func parseMultiNumberedReply(input string, options []string) []string {
-	trimmed := strings.TrimSpace(input)
-	if trimmed == "" || len(options) == 0 {
-		return nil
-	}
-
-	parts := strings.Split(trimmed, ",")
-	var result []string
-	for _, part := range parts {
-		resolved := parseNumberedReply(strings.TrimSpace(part), options)
-		if resolved != strings.TrimSpace(part) { // was numeric
-			result = append(result, resolved)
-		}
-	}
-	return result
 }
 
 // isSkipReply checks if the input is a skip/pass command.

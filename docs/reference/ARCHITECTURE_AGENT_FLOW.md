@@ -110,7 +110,7 @@ flowchart TD
 
 ## 6) Event Flow and Delivery
 
-- Domain emits typed events from `internal/domain/agent/events.go` and `events_external.go`.
+- Domain emits typed events from `internal/domain/agent/events.go`.
 - Application translates to workflow envelopes in `internal/app/agent/coordinator/workflow_event_translator.go`.
 - Delivery adapters fan out:
   - CLI/TUI: `internal/delivery/output`

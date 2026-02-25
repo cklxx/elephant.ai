@@ -15,13 +15,8 @@ func TestNewAIChatCoordinator(t *testing.T) {
 	if coord == nil {
 		t.Fatal("NewAIChatCoordinator returned nil")
 	}
-
-	// Test IsBotID
-	if !coord.IsBotID("bot1") {
-		t.Error("IsBotID should return true for registered bot")
-	}
-	if coord.IsBotID("bot4") {
-		t.Error("IsBotID should return false for unregistered bot")
+	if len(coord.botIDs) != len(botIDs) {
+		t.Fatalf("expected %d bot IDs, got %d", len(botIDs), len(coord.botIDs))
 	}
 }
 

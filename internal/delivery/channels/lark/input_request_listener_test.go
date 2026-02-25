@@ -31,26 +31,6 @@ func TestIsSkipReply(t *testing.T) {
 	}
 }
 
-func TestParseMultiNumberedReply(t *testing.T) {
-	options := []string{"approve", "deny", "remember"}
-	tests := []struct {
-		input string
-		want  int // expected length
-	}{
-		{"1,3", 2},
-		{"1", 1},
-		{"1,2,3", 3},
-		{"hello", 0},
-		{"", 0},
-	}
-	for _, tt := range tests {
-		got := parseMultiNumberedReply(tt.input, options)
-		if len(got) != tt.want {
-			t.Errorf("parseMultiNumberedReply(%q) len = %d, want %d (got: %v)", tt.input, len(got), tt.want, got)
-		}
-	}
-}
-
 func TestBuildResponse_NumberedReply(t *testing.T) {
 	relay := &pendingInputRelay{
 		taskID:    "t1",

@@ -65,14 +65,10 @@ func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1, opts me
 // extractMessageContent parses the JSON content from a Lark message.
 // Supports "text" and "post" message types, returning a trimmed string.
 func (g *Gateway) extractMessageContent(msgType, raw string, mentions []*larkim.MentionEvent) string {
-	switch msgType {
-	case "text":
+	if msgType == "text" {
 		return extractTextContent(raw, mentions)
-	case "post":
-		return extractPostContent(raw, mentions)
-	default:
-		return ""
 	}
+	return extractPostContent(raw, mentions)
 }
 
 type mentionInfo struct {

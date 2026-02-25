@@ -19,14 +19,6 @@ type InstrumentedLLMClient struct {
 	obs   *Observability
 }
 
-// NewInstrumentedLLMClient creates an instrumented LLM client
-func NewInstrumentedLLMClient(client llm.LLMClient, obs *Observability) llm.LLMClient {
-	return &InstrumentedLLMClient{
-		inner: client,
-		obs:   obs,
-	}
-}
-
 func (c *InstrumentedLLMClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	// Start span
 	ctx, span := c.obs.Tracer.StartSpan(ctx, SpanLLMGenerate,
@@ -179,14 +171,6 @@ func (t *InstrumentedToolExecutor) Metadata() ports.ToolMetadata {
 type InstrumentedToolRegistry struct {
 	inner tools.ToolRegistry
 	obs   *Observability
-}
-
-// NewInstrumentedToolRegistry creates an instrumented tool registry
-func NewInstrumentedToolRegistry(registry tools.ToolRegistry, obs *Observability) tools.ToolRegistry {
-	return &InstrumentedToolRegistry{
-		inner: registry,
-		obs:   obs,
-	}
 }
 
 func (r *InstrumentedToolRegistry) Get(name string) (tools.ToolExecutor, error) {
