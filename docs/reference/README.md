@@ -1,6 +1,6 @@
 # Index: reference
 
-Updated: 2026-02-10
+Updated: 2026-02-25
 
 ## Canonical references
 
@@ -8,6 +8,7 @@ Updated: 2026-02-10
 - [ARCHITECTURE_AGENT_FLOW.md](ARCHITECTURE_AGENT_FLOW.md)
 - [CURRENT_ARCHITECTURE_OVERVIEW.md](CURRENT_ARCHITECTURE_OVERVIEW.md)
 - [CONFIG.md](CONFIG.md)
+- [config-field-governance-analysis.md](config-field-governance-analysis.md)
 - [DOMAIN_LAYERS_AND_IDS.md](DOMAIN_LAYERS_AND_IDS.md)
 - [LOGGING_STANDARD.md](LOGGING_STANDARD.md)
 - [LOG_FILES.md](LOG_FILES.md)

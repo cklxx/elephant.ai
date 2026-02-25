@@ -1,9 +1,11 @@
 # Index: plans
 
-Updated: 2026-02-23
+Updated: 2026-02-25
 
 ## Files
 
+- [2026-02-25-context-artifact-overflow-compaction.md](2026-02-25-context-artifact-overflow-compaction.md)
+- [2026-02-25-config-field-governance-analysis-doc.md](2026-02-25-config-field-governance-analysis-doc.md)
 - [validate-before-deploy.md](validate-before-deploy.md)
 - [tool-display-ui-optimization.md](tool-display-ui-optimization.md)
 - [subagent-upstream-rejection.md](subagent-upstream-rejection.md)

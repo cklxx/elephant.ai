@@ -96,6 +96,8 @@ build/
 /alex
 /alex-server
 /eval-server
+/alex-web
+/alex-web.stamp
 
 # Go workspace files
 go.work
@@ -157,3 +159,4 @@ EOF
 .tmp/
 __pycache__/
 elephant.ai.worktrees/
+.claude/worktrees/
