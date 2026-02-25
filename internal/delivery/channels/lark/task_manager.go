@@ -114,19 +114,34 @@ func (g *Gateway) injectUserInput(ch chan agent.UserInput, activeSessionID strin
 // releases it.
 func (g *Gateway) handleNewSessionCommand(slot *sessionSlot, msg *incomingMessage) {
 	newSessionID := g.newSessionID()
+	oldSessionID := slot.sessionID
+	cancel := slot.taskCancel
+	wasRunning := slot.phase == slotRunning && cancel != nil
+	slot.taskToken++
 	slot.sessionID = newSessionID
 	slot.lastSessionID = newSessionID
 	slot.phase = slotIdle
+	slot.inputCh = nil
+	slot.taskCancel = nil
 	slot.pendingOptions = nil
 	slot.lastTouched = g.currentTime()
 	slot.mu.Unlock()
+
+	if wasRunning {
+		cancel()
+		g.logger.Info("Lark /new: cancelled running session %s and switched to %s", oldSessionID, newSessionID)
+	}
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", newSessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
 	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
 	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
 	g.persistChatSessionBinding(execCtx, msg.chatID, newSessionID)
-	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("已开启新会话，后续消息将使用新的上下文。"))
+	confirmation := "已开启新会话，后续消息将使用新的上下文。"
+	if wasRunning {
+		confirmation = "已停止当前调用并开启新会话，后续消息将使用新的上下文。"
+	}
+	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(confirmation))
 }
 
 // handleResetCommand processes a /reset message. The command is deprecated; it

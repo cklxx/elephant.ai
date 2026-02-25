@@ -1947,6 +1947,128 @@ func TestHandleMessageNewCommandSwitchesSessionBinding(t *testing.T) {
 	}
 }
 
+func TestHandleMessageNewCommandBypassesInFlightInjection(t *testing.T) {
+	openID := "ou_sender_new_running"
+	chatID := "oc_chat_new_running"
+	msgType := "text"
+	chatType := "p2p"
+	msgID1 := "om_msg_new_running_1"
+	msgID2 := "om_msg_new_running_2"
+	content1 := `{"text":"run something"}`
+	content2 := `{"text":"/new"}`
+	now := time.Now()
+
+	executor := &blockingExecutor{
+		started: make(chan struct{}),
+		finish:  make(chan struct{}),
+	}
+	recorder := NewRecordingMessenger()
+	store := &stubChatSessionBindingStore{}
+	gw := &Gateway{
+		cfg: Config{
+			BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
+			AppID:      "test",
+			AppSecret:  "secret",
+		},
+		agent:            executor,
+		logger:           logging.OrNop(nil),
+		messenger:        recorder,
+		chatSessionStore: store,
+		now:              func() time.Time { return now },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event1 := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID1,
+				Content:     &content1,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{OpenId: &openID},
+			},
+		},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := gw.handleMessage(context.Background(), event1); err != nil {
+			t.Errorf("handleMessage(first) failed: %v", err)
+		}
+	}()
+	<-executor.started
+
+	event2 := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID2,
+				Content:     &content2,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{OpenId: &openID},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event2); err != nil {
+		t.Fatalf("handleMessage(/new) failed: %v", err)
+	}
+
+	executor.mu.Lock()
+	callCount := executor.callCount
+	inputCh := executor.inputCh
+	executor.mu.Unlock()
+	if callCount != 1 {
+		t.Fatalf("expected /new not to start another ExecuteTask, got %d calls", callCount)
+	}
+	select {
+	case input := <-inputCh:
+		t.Fatalf("expected /new not to be injected into active task, got %q", input.Content)
+	default:
+	}
+
+	savedSession := store.GetSavedSession(chatSessionBindingChannel, chatID)
+	if savedSession == "" {
+		t.Fatal("expected /new to persist a new session binding during in-flight run")
+	}
+
+	replies := recorder.CallsByMethod("ReplyMessage")
+	if len(replies) == 0 {
+		t.Fatal("expected /new confirmation reply")
+	}
+	foundConfirmation := false
+	for _, call := range replies {
+		if strings.Contains(call.Content, "新会话") {
+			foundConfirmation = true
+			break
+		}
+	}
+	if !foundConfirmation {
+		t.Fatalf("expected /new confirmation reply, got %#v", replies)
+	}
+
+	close(executor.finish)
+	wg.Wait()
+	gw.WaitForTasks()
+
+	slot := gw.getOrCreateSlot(chatID)
+	slot.mu.Lock()
+	lastSession := slot.lastSessionID
+	slot.mu.Unlock()
+	if lastSession != savedSession {
+		t.Fatalf("expected lastSessionID %q after running task cleanup, got %q", savedSession, lastSession)
+	}
+}
+
 func TestHandleMessageModelCommandPinsSelection(t *testing.T) {
 	openID := "ou_sender_model"
 	chatID := "oc_chat_model"

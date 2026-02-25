@@ -61,6 +61,7 @@ type sessionSlot struct {
 	phase          slotPhase
 	inputCh        chan agent.UserInput // non-nil only when phase == slotRunning
 	taskCancel     context.CancelFunc   // cancels the currently running task (phase == slotRunning)
+	taskToken      uint64
 	sessionID      string
 	lastSessionID  string
 	pendingOptions []string // options awaiting numeric reply
@@ -695,6 +696,18 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		return nil
 	}
 
+	// Handle /new and /reset before in-flight input injection so command
+	// intent is not swallowed by the running task input channel.
+	if trimmedContent == "/new" {
+		g.handleNewSessionCommand(slot, msg) // releases slot.mu
+		return nil
+	}
+
+	if trimmedContent == "/reset" {
+		g.handleResetCommand(slot, msg) // releases slot.mu
+		return nil
+	}
+
 	// If a task is already running for this chat, inject the new message
 	// into the running ReAct loop instead of starting a new task.
 	if slot.phase == slotRunning {
@@ -708,17 +721,6 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		return nil
 	}
 
-	// Handle /new outside of a running task.
-	if trimmedContent == "/new" {
-		g.handleNewSessionCommand(slot, msg) // releases slot.mu
-		return nil
-	}
-
-	// Handle /reset outside of a running task.
-	if trimmedContent == "/reset" {
-		g.handleResetCommand(slot, msg) // releases slot.mu
-		return nil
-	}
 	if strings.HasPrefix(trimmedContent, "/model") || strings.HasPrefix(trimmedContent, "/models") {
 		slot.mu.Unlock()
 		g.handleModelCommand(msg)
@@ -742,6 +744,8 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	slot.phase = slotRunning
 	slot.inputCh = inputCh
 	slot.taskCancel = taskCancel
+	slot.taskToken++
+	taskToken := slot.taskToken
 	slot.sessionID = sessionID
 	slot.lastSessionID = sessionID
 	slot.lastTouched = g.currentTime()
@@ -752,30 +756,32 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	// tasks delay the ACK, causing the Lark server to re-deliver the
 	// event and produce duplicate responses.
 	g.taskWG.Add(1)
-	go func(taskCtx context.Context, taskCancel context.CancelFunc) {
+	go func(taskCtx context.Context, taskCancel context.CancelFunc, taskToken uint64) {
 		defer g.taskWG.Done()
 		defer taskCancel()
 
 		awaitingInput := g.runTask(taskCtx, msg, sessionID, inputCh, isResume)
 
 		slot.mu.Lock()
-		slot.inputCh = nil
-		slot.taskCancel = nil
-		if awaitingInput {
-			slot.phase = slotAwaitingInput
-			slot.lastSessionID = slot.sessionID
-		} else {
-			slot.phase = slotIdle
-			slot.sessionID = ""
+		if slot.taskToken == taskToken {
+			slot.inputCh = nil
+			slot.taskCancel = nil
+			if awaitingInput {
+				slot.phase = slotAwaitingInput
+				slot.lastSessionID = slot.sessionID
+			} else {
+				slot.phase = slotIdle
+				slot.sessionID = ""
+			}
+			slot.lastTouched = g.currentTime()
 		}
-		slot.lastTouched = g.currentTime()
 		slot.mu.Unlock()
 		if awaitingInput {
 			g.drainAndReprocess(inputCh, msg.chatID, msg.chatType)
 		} else {
 			g.discardPendingInputs(inputCh, msg.chatID)
 		}
-	}(taskCtx, taskCancel)
+	}(taskCtx, taskCancel, taskToken)
 
 	return nil
 }
