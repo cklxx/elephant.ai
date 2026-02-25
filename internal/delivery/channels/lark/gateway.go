@@ -92,8 +92,7 @@ type Gateway struct {
 	taskStore           TaskStore
 	chatSessionStore    ChatSessionBindingStore
 	noticeState         *noticeStateStore
-	notificationMetrics larkNotificationMetrics
-	activeSlots         sync.Map           // chatID → *sessionSlot
+	activeSlots        sync.Map           // chatID → *sessionSlot
 	pendingInputRelays  sync.Map           // chatID → *pendingRelayQueue
 	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
 	taskWG              sync.WaitGroup     // tracks running task goroutines (for tests)

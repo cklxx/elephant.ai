@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/peterh/liner"
+
+	"alex/internal/shared/utils"
 )
 
 var errPromptAborted = errors.New("prompt aborted")
@@ -103,7 +105,7 @@ func (p *linerPrompter) AppendHistory(entry string) {
 	if p == nil || p.state == nil {
 		return
 	}
-	if strings.TrimSpace(entry) == "" {
+	if utils.IsBlank(entry) {
 		return
 	}
 	p.state.AppendHistory(entry)
@@ -141,7 +143,7 @@ func historyFilePath(container *Container) string {
 		}
 	}
 	if baseDir == "" || baseDir == "." {
-		if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+		if home, err := os.UserHomeDir(); err == nil && utils.HasContent(home) {
 			baseDir = filepath.Join(home, ".alex")
 		}
 	}
