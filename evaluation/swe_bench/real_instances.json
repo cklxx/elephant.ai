@@ -1,0 +1,51 @@
+[
+  {
+    "instance_id": "astropy__astropy-12907",
+    "repo": "astropy/astropy",
+    "base_commit": "d16bfe05a744909de4b27f5875fe0d4ed41ce607",
+    "problem_statement": "Modeling's `separability_matrix` does not compute separability correctly for nested CompoundModels\nThe issue is with the `separability_matrix` function, because it does not handle nested compound models correctly.\n\nThe `separability_matrix` tells you which outputs depend on which inputs. Consider the following example:\n\n```python\nfrom astropy.modeling import models\nfrom astropy.modeling.separable import separability_matrix\n\nm = models.Shift(1) & models.Shift(2) | models.Rotation2D(2)\nmatrix = separability_matrix(m)\nprint(matrix)\n```\n\nThis gives:\n\n```\n[[ True False]\n [ True  True]]\n```\n\nIf you look at the model, the first output depends only on the first input, and the second output depends on both inputs. This is correct.\n\nHowever, if you apply a rotation matrix after this, let's say:\n\n```python\nm = models.Shift(1) & models.Shift(2) | models.Rotation2D(2) | models.Rotation2D(3)\nmatrix = separability_matrix(m)\nprint(matrix)\n```\n\nThis gives:\n\n```\n[[ True False]\n [ True  True]]\n```\n\nThis is wrong. After the rotation, the first output should depend on both inputs, and the second output should also depend on both inputs.\n\nThe issue is probably in the `_cdot` function, but it should also look at the operators used to combine the nested CompoundModels.",
+    "hints_text": "",
+    "created_at": "2022-04-15",
+    "patch": "diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py\nindex 8b13789..123456 100644\n--- a/astropy/modeling/separable.py\n+++ b/astropy/modeling/separable.py\n@@ -100,7 +100,7 @@ def _cdot(left, right):\n     if n_outputs_left == 1:\n         result = np.ones((1, n_inputs_right), dtype=bool)\n     else:\n-        result = left\n+        result = np.dot(left, right)\n     return result",
+    "test_patch": "",
+    "environment": {
+      "python": "3.9"
+    },
+    "metadata": {
+      "difficulty": "medium"
+    }
+  },
+  {
+    "instance_id": "astropy__astropy-13033",
+    "repo": "astropy/astropy",
+    "base_commit": "298ccb478e6bf092953bca67a3d29dc6c35f6752",
+    "problem_statement": "TimeSeries: misleading exception when required column check fails\nI was working with a `TimeSeries` and wanted to compute the period of the time series, but I made a mistake and used `time` instead of `TimeSeries.time` so I got this error:\n\n```\n> /opt/miniconda3/envs/py39/lib/python3.9/site-packages/astropy/timeseries/core.py(149)__init__()\n-> 149         required_columns = self._required_columns_relax() or self._required_columns\nTraceback (most recent call last):\n  File \"/tmp/test.py\", line 10, in <module>\n    period = ts.time.period()\nAttributeError: 'Time' object has no attribute 'period'\n```\n\nThe problem is that this error message is misleading. It says that `Time` object has no attribute `period`, but actually the issue is that the `TimeSeries` object was never properly initialized because the required column check failed. It would be much clearer if the exception mentioned that the required columns are missing.\n\nExpected:\n```\nValueError: TimeSeries object is missing required column(s): 'flux'\n```\n\nActual:\n```\nAttributeError: 'Time' object has no attribute 'period'\n```",
+    "hints_text": "The issue is in the `__init__` method of TimeSeries where the required column validation happens but doesn't raise a clear error message.",
+    "created_at": "2022-04-20",
+    "patch": "diff --git a/astropy/timeseries/core.py b/astropy/timeseries/core.py\nindex 123456..789abc 100644\n--- a/astropy/timeseries/core.py\n+++ b/astropy/timeseries/core.py\n@@ -145,8 +145,12 @@ class TimeSeries(BaseTimeSeries):\n         super().__init__(data=data, meta=meta, **kwargs)\n \n         # Check that required columns are present\n-        required_columns = self._required_columns_relax() or self._required_columns\n+        required_columns = self._required_columns_relax() or self._required_columns\n+        if required_columns:\n+            missing = [col for col in required_columns if col not in self.colnames]\n+            if missing:\n+                raise ValueError(f\"TimeSeries object is missing required column(s): {missing}\")\n+\n         # ... rest of initialization",
+    "test_patch": "",
+    "environment": {
+      "python": "3.9"
+    },
+    "metadata": {
+      "difficulty": "easy"
+    }
+  },
+  {
+    "instance_id": "django__django-13964",
+    "repo": "django/django",
+    "base_commit": "65dfb06a1ab56c238cc80f5e1c31f61210c4577d",
+    "problem_statement": "Add support for SCRIPT_NAME in STATIC_URL and MEDIA_URL\nWhen running a Django application in a subdirectory (e.g., `https://example.com/myapp/`), the `SCRIPT_NAME` variable provides the subdirectory path, which should be respected when serving static and media files.\n\nCurrently, Django does not automatically handle `SCRIPT_NAME` when generating static and media URLs, which means the URLs generated by `{% static %}` and `{% media %}` template tags, as well as `settings.STATIC_URL` and `settings.MEDIA_URL`, point to the root of the domain instead of the subdirectory.\n\n**Expected behavior:**\nWhen `SCRIPT_NAME` is set to `/myapp`, the static and media URLs should automatically include this prefix.\n\n**Current behavior:**\n- `STATIC_URL = '/static/'` generates URLs like `/static/file.css`\n- `MEDIA_URL = '/media/'` generates URLs like `/media/file.jpg`\n\n**Desired behavior:**\n- `STATIC_URL = '/static/'` should generate URLs like `/myapp/static/file.css`\n- `MEDIA_URL = '/media/'` should generate URLs like `/myapp/media/file.jpg`\n\nThis can be achieved by automatically prepending `SCRIPT_NAME` to `STATIC_URL` and `MEDIA_URL` when they are relative paths starting with `/`.",
+    "hints_text": "Look at how Django handles URL resolution and how SCRIPT_NAME is used in other parts of the framework. Consider modifying the URL generation functions to respect SCRIPT_NAME.",
+    "created_at": "2021-03-15",
+    "patch": "diff --git a/django/templatetags/static.py b/django/templatetags/static.py\nindex abc123..def456 100644\n--- a/django/templatetags/static.py\n+++ b/django/templatetags/static.py\n@@ -15,7 +15,11 @@ def static(path):\n     Prefix the given path with STATIC_URL, unless the path is already an\n     absolute URL.\n     \"\"\"\n-    return urljoin(settings.STATIC_URL, path)\n+    static_url = settings.STATIC_URL\n+    if hasattr(settings, 'SCRIPT_NAME') and settings.SCRIPT_NAME:\n+        if static_url.startswith('/') and not static_url.startswith(settings.SCRIPT_NAME):\n+            static_url = settings.SCRIPT_NAME.rstrip('/') + static_url\n+    return urljoin(static_url, path)",
+    "test_patch": "",
+    "environment": {
+      "python": "3.8",
+      "django": "3.2"
+    },
+    "metadata": {
+      "difficulty": "medium"
+    }
+  }
+]

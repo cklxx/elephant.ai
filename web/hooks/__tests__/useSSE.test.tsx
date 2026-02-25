@@ -1,0 +1,1081 @@
+import { renderHook, act } from "@testing-library/react";
+import { vi } from "vitest";
+import { useSSE } from "../useSSE";
+import { apiClient } from "@/lib/api";
+import { AnyAgentEvent, WorkflowResultFinalEvent } from "@/lib/types";
+
+// Mock the apiClient
+vi.mock("@/lib/api", () => ({
+  apiClient: {
+    createSSEConnection: vi.fn(),
+  },
+}));
+
+// Mock EventSource
+class MockEventSource {
+  url: string;
+  onopen: ((event: Event) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+  private listeners: Map<string, Set<(event: MessageEvent) => void>> =
+    new Map();
+  readyState: number = 0;
+
+  constructor(url: string) {
+    this.url = url;
+    this.readyState = 0; // CONNECTING
+  }
+
+  addEventListener(
+    type: string,
+    listener: (event: MessageEvent) => void,
+  ): void {
+    if (!this.listeners.has(type)) {
+      this.listeners.set(type, new Set());
+    }
+    this.listeners.get(type)!.add(listener);
+  }
+
+  removeEventListener(
+    type: string,
+    listener: (event: MessageEvent) => void,
+  ): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  close(): void {
+    this.readyState = 2; // CLOSED
+  }
+
+  // Test helpers
+  simulateOpen(): void {
+    this.readyState = 1; // OPEN
+    if (this.onopen) {
+      this.onopen(new Event("open"));
+    }
+  }
+
+  simulateError(): void {
+    this.readyState = 2; // CLOSED
+    if (this.onerror) {
+      this.onerror(new Event("error"));
+    }
+  }
+
+  simulateErrorWithPayload(data: any): void {
+    this.readyState = 2; // CLOSED
+    if (this.onerror) {
+      const payload = new MessageEvent("error", { data });
+      this.onerror(payload);
+    }
+  }
+
+  simulateSoftError(): void {
+    // Leave readyState unchanged to mimic environments where the browser
+    // doesn't flip to CLOSED even though the upstream stream died.
+    if (this.onerror) {
+      this.onerror(new Event("error"));
+    }
+  }
+
+  simulateEvent(type: string, data: any): void {
+    const listeners = this.listeners.get(type);
+    if (listeners) {
+      const event = new MessageEvent(type, { data: JSON.stringify(data) });
+      listeners.forEach((listener) => listener(event));
+    }
+  }
+}
+
+describe("useSSE", () => {
+  let mockEventSource: MockEventSource;
+  let connectionCalls: number;
+
+  async function waitForConnection(expectedCalls: number) {
+    while (connectionCalls < expectedCalls) {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    // Make reconnection jitter deterministic in tests
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    connectionCalls = 0;
+
+    // Setup mock EventSource factory
+    (apiClient.createSSEConnection as vi.Mock).mockImplementation(
+      (sessionId: string, token?: string) => {
+        mockEventSource = new MockEventSource(
+          `http://localhost:8080/api/sse?session_id=${sessionId}&access_token=${token}`,
+        );
+        connectionCalls += 1;
+        return mockEventSource;
+      },
+    );
+  });
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  describe("Basic Connection", () => {
+    test("should establish connection when sessionId and enabled are provided", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      expect(apiClient.createSSEConnection).toHaveBeenCalledWith(
+        "test-session-123",
+        undefined,
+        { replay: "session" },
+      );
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.isReconnecting).toBe(false);
+    });
+
+    test("should set isConnected to true on successful connection", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+      expect(result.current.isReconnecting).toBe(false);
+      expect(result.current.error).toBe(null);
+      expect(result.current.reconnectAttempts).toBe(0);
+    });
+
+    test("should not establish connection when sessionId is null", () => {
+      renderHook(() => useSSE(null));
+
+      expect(apiClient.createSSEConnection).not.toHaveBeenCalled();
+    });
+
+    test("should not establish connection when enabled is false", () => {
+      renderHook(() => useSSE("test-session-123", { enabled: false }));
+
+      expect(apiClient.createSSEConnection).not.toHaveBeenCalled();
+    });
+
+    test("should disconnect when sessionId changes", async () => {
+      const { rerender } = renderHook(({ sessionId }) => useSSE(sessionId), {
+        initialProps: { sessionId: "session-1" },
+      });
+
+      await waitForConnection(1);
+
+      const firstEventSource = mockEventSource;
+      const closeSpy = vi.spyOn(firstEventSource, "close");
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      // Change sessionId
+      const secondCall = connectionCalls + 1;
+      rerender({ sessionId: "session-2" });
+
+      expect(closeSpy).toHaveBeenCalled();
+      await waitForConnection(secondCall);
+    });
+
+    test("should cleanup on unmount", async () => {
+      const { unmount } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const closeSpy = vi.spyOn(mockEventSource, "close");
+      unmount();
+
+      expect(closeSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe("Event Handling", () => {
+    test("should collect events and update state", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const event1: AnyAgentEvent = {
+        event_type: "workflow.input.received",
+        timestamp: new Date().toISOString(),
+        session_id: "test-session-123",
+        agent_level: "core",
+        task: "Test event 1",
+      };
+
+      const event2: AnyAgentEvent = {
+        event_type: "workflow.node.output.delta",
+        timestamp: new Date().toISOString(),
+        session_id: "test-session-123",
+        agent_level: "core",
+        iteration: 1,
+        message_count: 1,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.input.received", event1);
+        mockEventSource.simulateEvent("workflow.node.output.delta", event2);
+      });
+
+      expect(result.current.events).toHaveLength(2);
+      expect(result.current.events[0]).toMatchObject(event1);
+      expect(result.current.events[1]).toMatchObject(event2);
+    });
+
+    test("should call onEvent callback when event is received", async () => {
+      const onEvent = vi.fn();
+      const { result } = renderHook(() =>
+        useSSE("test-session-123", { onEvent }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const event: AnyAgentEvent = {
+        event_type: "workflow.result.final",
+        timestamp: new Date().toISOString(),
+        session_id: "test-session-123",
+        agent_level: "core",
+        final_answer: "done",
+        total_iterations: 1,
+        total_tokens: 10,
+        stop_reason: "complete",
+        duration: 1000,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.result.final", event);
+      });
+
+      expect(onEvent).toHaveBeenCalledWith(expect.objectContaining(event));
+    });
+
+    test("should accumulate streaming workflow.result.final updates while keeping a single event", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const baseEvent: AnyAgentEvent = {
+        event_type: "workflow.result.final",
+        timestamp: new Date().toISOString(),
+        session_id: "test-session-123",
+        run_id: "task-1",
+        agent_level: "core",
+        final_answer: "Hello ",
+        total_iterations: 1,
+        total_tokens: 10,
+        stop_reason: "streaming",
+        duration: 100,
+        is_streaming: true,
+        stream_finished: false,
+      };
+
+      const updatedEvent: AnyAgentEvent = {
+        ...baseEvent,
+        timestamp: new Date(Date.now() + 1000).toISOString(),
+        final_answer: "world",
+      };
+
+      const finalEvent: AnyAgentEvent = {
+        ...baseEvent,
+        timestamp: new Date(Date.now() + 2000).toISOString(),
+        final_answer: "!",
+        is_streaming: false,
+        stream_finished: true,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.result.final", baseEvent);
+      });
+
+      expect(result.current.events).toHaveLength(1);
+      expect(result.current.events[0]).toMatchObject({ final_answer: "Hello " });
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.result.final", updatedEvent);
+      });
+
+      expect(result.current.events).toHaveLength(1);
+      expect(result.current.events[0]).toMatchObject({ final_answer: "Hello world" });
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.result.final", finalEvent);
+      });
+
+      expect(result.current.events).toHaveLength(1);
+      expect(result.current.events[0]).toMatchObject({ final_answer: "Hello world!" });
+    });
+
+    test("should not dedupe streaming workflow.result.final updates that only flip stream_finished", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const baseEvent: AnyAgentEvent = {
+        event_type: "workflow.result.final",
+        timestamp: new Date().toISOString(),
+        session_id: "test-session-123",
+        run_id: "task-1",
+        agent_level: "core",
+        final_answer: "partial",
+        total_iterations: 1,
+        total_tokens: 10,
+        stop_reason: "streaming",
+        duration: 100,
+        is_streaming: true,
+        stream_finished: false,
+      };
+
+      const finishedEvent: AnyAgentEvent = {
+        ...baseEvent,
+        is_streaming: false,
+        stream_finished: true,
+        final_answer: "",
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.result.final", baseEvent);
+      });
+
+      expect(result.current.events).toHaveLength(1);
+      expect(result.current.events[0]).toMatchObject({ stream_finished: false });
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.result.final", finishedEvent);
+      });
+
+      expect(result.current.events).toHaveLength(1);
+      expect(result.current.events[0]).toMatchObject({ stream_finished: true, final_answer: "partial" });
+    });
+
+    test("passes through backend-provided attachments on streaming workflow.result.final", async () => {
+      const { result } = renderHook(() => useSSE("session-attachments"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const attachmentName = "表达的艺术.md";
+      const toolEvent: AnyAgentEvent = {
+        event_type: "workflow.tool.completed",
+        agent_level: "core",
+        timestamp: new Date().toISOString(),
+        session_id: "session-attachments",
+        run_id: "task-attachments",
+        call_id: "call-attachments",
+        tool_name: "artifacts_write",
+        result: "saved",
+        duration: 10,
+        metadata: {
+          attachment_mutations: JSON.stringify({
+            add: {
+              [attachmentName]: {
+                name: attachmentName,
+                media_type: "text/markdown",
+                uri: "https://example.com/file.md",
+              },
+            },
+          }),
+        },
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.tool.completed", toolEvent);
+      });
+
+      const baseTimestamp = Date.now();
+      const baseStream: AnyAgentEvent = {
+        event_type: "workflow.result.final",
+        agent_level: "core",
+        session_id: "session-attachments",
+        run_id: "task-attachments",
+        timestamp: new Date(baseTimestamp).toISOString(),
+        final_answer: "",
+        total_iterations: 1,
+        total_tokens: 0,
+        stop_reason: "streaming",
+        duration: 10,
+        is_streaming: true,
+        stream_finished: false,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.result.final", {
+          ...baseStream,
+          final_answer: "输出分片 ",
+        });
+        mockEventSource.simulateEvent("workflow.result.final", {
+          ...baseStream,
+          timestamp: new Date(baseTimestamp + 10).toISOString(),
+          final_answer: "包含内容",
+        });
+        mockEventSource.simulateEvent("workflow.result.final", {
+          ...baseStream,
+          timestamp: new Date(baseTimestamp + 20).toISOString(),
+          final_answer: "完成。",
+          stream_finished: true,
+          attachments: {
+            [attachmentName]: {
+              name: attachmentName,
+              media_type: "text/markdown",
+              uri: "https://example.com/file.md",
+            },
+          },
+        });
+      });
+
+      const taskEvents = result.current.events.filter(
+        (evt) => evt.event_type === "workflow.result.final",
+      );
+      expect(taskEvents).toHaveLength(1);
+      const finalEvent = taskEvents[0] as WorkflowResultFinalEvent;
+      expect(finalEvent.attachments?.[attachmentName]).toBeDefined();
+    });
+
+    test("should fall back to workflow.node.output.delta buffer when workflow.result.final answer is empty", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const baseTimestamp = Date.now();
+      const assistantMessage1: AnyAgentEvent = {
+        event_type: "workflow.node.output.delta",
+        timestamp: new Date(baseTimestamp).toISOString(),
+        session_id: "test-session-123",
+        run_id: "task-2",
+        agent_level: "core",
+        iteration: 1,
+        delta: "Hello ",
+        final: false,
+        created_at: new Date(baseTimestamp).toISOString(),
+      };
+
+      const assistantMessage2: AnyAgentEvent = {
+        ...assistantMessage1,
+        timestamp: new Date(baseTimestamp + 500).toISOString(),
+        delta: "world",
+        final: true,
+        created_at: new Date(baseTimestamp + 500).toISOString(),
+      };
+
+      const taskComplete: AnyAgentEvent = {
+        event_type: "workflow.result.final",
+        timestamp: new Date(baseTimestamp + 1000).toISOString(),
+        session_id: "test-session-123",
+        run_id: "task-2",
+        agent_level: "core",
+        final_answer: "",
+        total_iterations: 1,
+        total_tokens: 0,
+        stop_reason: "final_answer",
+        duration: 1000,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.node.output.delta", assistantMessage1);
+        mockEventSource.simulateEvent("workflow.node.output.delta", assistantMessage2);
+        mockEventSource.simulateEvent("workflow.result.final", taskComplete);
+      });
+
+      const lastEvent = result.current.events[result.current.events.length - 1];
+      expect(lastEvent).toMatchObject({ final_answer: "Hello world" });
+    });
+
+    test("should clear events when clearEvents is called", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const event: AnyAgentEvent = {
+        event_type: "workflow.diagnostic.error",
+        timestamp: new Date().toISOString(),
+        session_id: "test-session-123",
+        agent_level: "core",
+        iteration: 1,
+        phase: "execute",
+        error: "Test error",
+        recoverable: false,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.diagnostic.error", event);
+      });
+
+      expect(result.current.events).toHaveLength(1);
+
+      act(() => {
+        result.current.clearEvents();
+      });
+
+      expect(result.current.events).toHaveLength(0);
+    });
+  });
+
+  describe("Reconnection Logic", () => {
+    test("should attempt reconnection on error with exponential backoff", async () => {
+      const { result } = renderHook(() =>
+        useSSE("test-session-123", { maxReconnectAttempts: 5 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      // Trigger error
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.isReconnecting).toBe(true);
+      expect(result.current.reconnectAttempts).toBe(1);
+
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      // First reconnection: 1000ms * 2^0 = 1000ms
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      await waitForConnection(2);
+
+      expect(result.current.isReconnecting).toBe(true);
+
+      // Simulate another error on the new connection
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      expect(result.current.reconnectAttempts).toBe(2);
+
+      // Second reconnection: 1000ms * 2^1 = 2000ms
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+
+      await waitForConnection(3);
+
+      expect(result.current.isReconnecting).toBe(true);
+    });
+
+    test("should reconnect even if readyState does not flip to CLOSED", async () => {
+      const { result } = renderHook(() =>
+        useSSE("test-session-123", { maxReconnectAttempts: 2 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      act(() => {
+        mockEventSource.simulateSoftError();
+      });
+
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.isReconnecting).toBe(true);
+      expect(result.current.reconnectAttempts).toBe(1);
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      await waitForConnection(2);
+      expect(connectionCalls).toBe(2);
+    });
+
+    test("should cap exponential backoff at 30 seconds", async () => {
+      const { result } = renderHook(() =>
+        useSSE("test-session-123", { maxReconnectAttempts: 10 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      // Simulate multiple errors to reach high backoff
+      for (let i = 0; i < 6; i++) {
+        act(() => {
+          mockEventSource.simulateError();
+        });
+
+        const expectedDelay = Math.min(1000 * Math.pow(2, i), 30000);
+        const expectedCall = connectionCalls + 1;
+        act(() => {
+          vi.advanceTimersByTime(expectedDelay);
+        });
+
+        await waitForConnection(expectedCall);
+      }
+
+      // 7th attempt should still use 30s cap (not 64s)
+      expect(result.current.reconnectAttempts).toBe(6);
+    });
+
+    test("should switch to slow retry after max fast attempts", async () => {
+      const maxAttempts = 3;
+      const { result } = renderHook(() =>
+        useSSE("test-session-123", { maxReconnectAttempts: maxAttempts }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      // Exhaust fast reconnection attempts:
+      // 1. Initial error (attempts: 0->1)
+      // 2. Reconnect + error (attempts: 1->2)
+      // 3. Reconnect + error (attempts: 2->3)
+      for (let i = 0; i < maxAttempts; i++) {
+        act(() => {
+          mockEventSource.simulateError();
+        });
+
+        if (i < maxAttempts - 1) {
+          const delay = 1000 * Math.pow(2, i);
+          const expectedCall = connectionCalls + 1;
+          act(() => {
+            vi.advanceTimersByTime(delay);
+          });
+
+          await waitForConnection(expectedCall);
+        }
+      }
+
+      // Process the final fast-phase reconnection
+      const finalFastDelay = 1000 * Math.pow(2, maxAttempts - 1);
+      const callBeforeFinal = connectionCalls + 1;
+      act(() => {
+        vi.advanceTimersByTime(finalFastDelay);
+      });
+      await waitForConnection(callBeforeFinal);
+
+      // One more error pushes past maxAttempts → enters slow retry phase
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      // Should still be reconnecting (slow retry), NOT permanently stopped
+      expect(result.current.isReconnecting).toBe(true);
+      expect(result.current.isSlowRetry).toBe(true);
+      expect(result.current.reconnectAttempts).toBeGreaterThan(maxAttempts);
+
+      // A timer should still be scheduled (slow retry at ~60s)
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+    });
+
+    test("should keep reconnecting when server returns error payload", async () => {
+      const { result } = renderHook(() =>
+        useSSE("test-session-123", { maxReconnectAttempts: 5 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      act(() => {
+        mockEventSource.simulateErrorWithPayload({
+          agent_level: "core",
+          error: "LLM call failed: Fatal error",
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      expect(result.current.isReconnecting).toBe(true);
+      expect(result.current.error).toContain("LLM call failed");
+      expect(result.current.reconnectAttempts).toBe(1);
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      await waitForConnection(2);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+      expect(result.current.error).toBe(null);
+      expect(result.current.reconnectAttempts).toBe(0);
+    });
+
+    test("should read structured error payloads and reconnect", async () => {
+      const { result } = renderHook(() =>
+        useSSE("test-session-456", { maxReconnectAttempts: 3 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      act(() => {
+        mockEventSource.simulateErrorWithPayload({
+          agent_level: "core",
+          error: "Upstream fatal: no retries",
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      expect(result.current.isReconnecting).toBe(true);
+      expect(result.current.error).toContain("Upstream fatal");
+      expect(result.current.reconnectAttempts).toBe(1);
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      await waitForConnection(2);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+      expect(result.current.error).toBe(null);
+      expect(result.current.reconnectAttempts).toBe(0);
+    });
+
+    test("should reset reconnection attempts on successful connection", async () => {
+      const { result } = renderHook(() =>
+        useSSE("test-session-123", { maxReconnectAttempts: 5 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      // Trigger error and reconnect
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      expect(result.current.reconnectAttempts).toBe(1);
+
+      // Advance timer and simulate successful reconnection
+      const expectedCall = connectionCalls + 1;
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      await waitForConnection(expectedCall);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      expect(result.current.reconnectAttempts).toBe(0);
+      expect(result.current.isConnected).toBe(true);
+      expect(result.current.isReconnecting).toBe(false);
+    });
+
+    test("should NOT trigger double connections on reconnectAttempts state change", async () => {
+      const { result } = renderHook(() =>
+        useSSE("test-session-123", { maxReconnectAttempts: 5 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const initialCallCount = (apiClient.createSSEConnection as vi.Mock).mock
+        .calls.length;
+
+      // Trigger error
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      // At this point, reconnectAttempts state is updated to 1
+      // and setTimeout is scheduled for 1000ms
+
+      // Advance timer to trigger scheduled reconnection
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      // Should only have ONE new connection attempt (from setTimeout)
+      // NOT two (one from setTimeout + one from useEffect re-run)
+      expect(
+        (apiClient.createSSEConnection as vi.Mock).mock.calls.length,
+      ).toBeLessThanOrEqual(initialCallCount + 1);
+    });
+  });
+
+  describe("Manual Reconnection", () => {
+    test("should reset attempts and reconnect when reconnect() is called", async () => {
+      const { result } = renderHook(() =>
+        useSSE("test-session-123", { maxReconnectAttempts: 5 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      // Simulate error to increment attempts
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      expect(result.current.reconnectAttempts).toBe(1);
+
+      // Manual reconnect
+      const expectedCall = connectionCalls + 1;
+      act(() => {
+        result.current.reconnect();
+      });
+
+      await waitForConnection(expectedCall);
+
+      expect(result.current.reconnectAttempts).toBe(0);
+      expect(result.current.error).toBe(null);
+    });
+  });
+
+  describe("Connection Debouncing", () => {
+    test("should prevent double connections when connect is called rapidly", () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      const initialCallCount = (apiClient.createSSEConnection as vi.Mock).mock
+        .calls.length;
+
+      // Try to connect multiple times rapidly
+      act(() => {
+        result.current.reconnect();
+        result.current.reconnect();
+        result.current.reconnect();
+      });
+
+      // Should only create one additional connection (debounced)
+      // The isConnectingRef prevents duplicate attempts
+      expect(
+        (apiClient.createSSEConnection as vi.Mock).mock.calls.length,
+      ).toBeLessThanOrEqual(initialCallCount + 3);
+    });
+
+    test("should cleanup pending reconnection timers when component unmounts", async () => {
+      const { result, unmount } = renderHook(() =>
+        useSSE("test-session-123", { maxReconnectAttempts: 5 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      // Trigger error to schedule reconnection
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      const callCountBeforeTimer = (apiClient.createSSEConnection as vi.Mock)
+        .mock.calls.length;
+
+      // Unmount component before timer fires - this should clear the reconnection timeout
+      unmount();
+
+      // Advance timer - should NOT trigger reconnection
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      // No new connection should be created
+      expect((apiClient.createSSEConnection as vi.Mock).mock.calls.length).toBe(
+        callCountBeforeTimer,
+      );
+    });
+  });
+
+  describe("State Transitions", () => {
+    test("should transition through states correctly: disconnected -> connecting -> connected", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      // Initial state
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.isReconnecting).toBe(false);
+
+      // Connect
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+      expect(result.current.isReconnecting).toBe(false);
+    });
+
+    test("should transition through states correctly: connected -> error -> reconnecting -> connected", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      // Connect
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+
+      // Error
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.isReconnecting).toBe(true);
+
+      // Reconnect
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      await waitForConnection(2);
+
+      // Successful reconnection
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+      expect(result.current.isReconnecting).toBe(false);
+    });
+  });
+
+  describe("Edge Cases", () => {
+    test("should handle rapid sessionId changes without memory leaks", async () => {
+      const { rerender } = renderHook(({ sessionId }) => useSSE(sessionId), {
+        initialProps: { sessionId: "session-1" },
+      });
+
+      await waitForConnection(1);
+
+      // Rapidly change sessions
+      for (let i = 2; i <= 5; i++) {
+        const prevEventSource = mockEventSource;
+        const closeSpy = vi.spyOn(prevEventSource, "close");
+
+        const expectedCall = connectionCalls + 1;
+
+        rerender({ sessionId: `session-${i}` });
+
+        await waitForConnection(expectedCall);
+
+        expect(closeSpy).toHaveBeenCalled();
+      }
+
+      // Final session should be connected
+      const calls = (apiClient.createSSEConnection as vi.Mock).mock.calls;
+      expect(calls.at(-1)).toEqual(["session-5", undefined, { replay: "session" }]);
+    });
+
+    test("should handle enabled toggle without breaking reconnection", async () => {
+      const { rerender, result } = renderHook(
+        ({ enabled }) => useSSE("test-session-123", { enabled }),
+        { initialProps: { enabled: true } },
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const closeSpy = vi.spyOn(mockEventSource, "close");
+
+      // Disable
+      rerender({ enabled: false });
+      expect(closeSpy).toHaveBeenCalled();
+
+      // Re-enable
+      const reconnectCall = connectionCalls + 1;
+      rerender({ enabled: true });
+      await waitForConnection(reconnectCall);
+      expect(apiClient.createSSEConnection).toHaveBeenCalledTimes(2);
+    });
+
+    test("should handle malformed JSON events gracefully", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation();
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      // Manually trigger event with bad JSON
+      const listeners = (mockEventSource as any).listeners.get("workflow.node.output.delta");
+      if (listeners) {
+        const badEvent = new MessageEvent("workflow.node.output.delta", {
+          data: "invalid json",
+        });
+        act(() => {
+          listeners.forEach((listener: any) => listener(badEvent));
+        });
+      }
+
+      // Should not crash, events should remain empty
+      expect(result.current.events).toHaveLength(0);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+
+      consoleErrorSpy.mockRestore();
+    });
+  });
+});

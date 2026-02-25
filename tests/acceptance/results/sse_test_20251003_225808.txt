@@ -1,0 +1,7 @@
+ALEX SSE Streaming Acceptance Tests
+Timestamp: Fri Oct  3 22:58:08 CST 2025
+Base URL: http://localhost:8080
+========================================
+
+[TEST] SSE Connection Establishment
+[FAIL] Failed to create task for SSE test

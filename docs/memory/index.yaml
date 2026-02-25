@@ -1,0 +1,2380 @@
+version: 1
+updated: "2026-02-24"
+nodes:
+    - id: good-2026-02-24-lark-inject-sync-e2e-testing
+      path: docs/good-experience/entries/2026-02-24-lark-inject-sync-e2e-testing.md
+      type: good_entry
+      date: "2026-02-24"
+      tags:
+        - config
+        - good
+        - lark
+        - observability
+        - session
+      summary: 'Impact: 填补了 Lark 管线在本地验证的空白 — 之前只能 mock executor 或手动在 Lark UI 发消息，现在一条 CLI 命令走完整管线并看到 bot 回复。'
+    - id: good-2026-02-24-systematic-log-noise-reduction
+      path: docs/good-experience/entries/2026-02-24-systematic-log-noise-reduction.md
+      type: good_entry
+      date: "2026-02-24"
+      tags:
+        - good
+        - session
+      summary: 'Impact: Reduced runtime log noise in ReAct/task execution hot paths while preserving key failure diagnostics and lifecycle visibility.'
+    - id: goodsum-2026-02-24-systematic-log-noise-reduction
+      path: docs/good-experience/summary/entries/2026-02-24-systematic-log-noise-reduction.md
+      type: good_summary
+      date: "2026-02-24"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Reducing hot-path logs by deleting duplicate event traces, downgrading loop-level INFO to DEBUG, and enforcing prefix/noise governance keeps diagnostics useful while cutti...'
+    - id: plan-2026-02-24-lark-agent-teams-notification-observability
+      path: docs/plans/2026-02-24-lark-agent-teams-notification-observability.md
+      type: plan
+      date: "2026-02-24"
+      tags:
+        - lark
+        - observability
+        - plan
+        - session
+      summary: 'Date: 2026-02-24'
+    - id: good-2026-02-23-branch-delete-policy-fallback
+      path: docs/good-experience/entries/2026-02-23-branch-delete-policy-fallback.md
+      type: good_entry
+      date: "2026-02-23"
+      tags:
+        - good
+      summary: 'Impact: Closed an operational gap where local branch cleanup could fail under command policy interception, while still preserving safety and determinism.'
+    - id: goodsum-2026-02-23-branch-delete-policy-fallback
+      path: docs/good-experience/summary/entries/2026-02-23-branch-delete-policy-fallback.md
+      type: good_summary
+      date: "2026-02-23"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: When command policy blocks `git branch -d/-D`, delete local branch refs with `git update-ref -d refs/heads/<branch>`, then run `git worktree prune` and verify with `git br...'
+    - id: ltm-long-term-memory
+      path: docs/memory/long-term.md
+      type: long_term
+      date: "2026-02-23"
+      tags:
+        - memory
+        - long_term
+      summary: Long-term durable memory rules plus currently active memory set.
+    - id: plan-2026-02-23-networked-memory-doc-structure
+      path: docs/plans/2026-02-23-networked-memory-doc-structure.md
+      type: plan
+      date: "2026-02-23"
+      tags:
+        - memory
+        - plan
+      summary: Create a networked documentation structure for memory-related records (error/good entries + summaries + long-term memory) with explicit IDs, tags, and bi-directional links. Provide...
+    - id: plan-2026-02-23-networked-memory-implementation
+      path: docs/plans/2026-02-23-networked-memory-implementation.md
+      type: plan
+      date: "2026-02-23"
+      tags:
+        - lark
+        - memory
+        - plan
+      summary: Implement graph-style memory usage so memories can reference each other and be traversed as a network, while organizing all repository memory docs (including Lark-related docs) und...
+    - id: plan-2026-02-23-networked-memory-lark-e2e
+      path: docs/plans/2026-02-23-networked-memory-lark-e2e.md
+      type: plan
+      date: "2026-02-23"
+      tags:
+        - lark
+        - memory
+        - observability
+        - plan
+        - session
+      summary: Deliver a network-style memory organization update (including AGENTS/CLAUDE guidance and memory reference docs), and make Lark + Web end-to-end validation green on the current bran...
+    - id: plan-2026-02-17-pr1-domain-decouple-lark
+      path: docs/plans/2026-02-17-pr1-domain-decouple-lark.md
+      type: plan
+      date: "2026-02-17"
+      tags:
+        - lark
+        - plan
+      summary: 'Created: 2026-02-17'
+    - id: plan-2026-02-14-lark-bg-task-completion-notify
+      path: docs/plans/2026-02-14-lark-bg-task-completion-notify.md
+      type: plan
+      date: "2026-02-14"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: Ensure Lark background task completion notifications explicitly include `task_id`, `status`, and merge outcome (merged/success, merge failed, or not merged), and that a completion...
+    - id: plan-2026-02-14-lark-coding-agent-completion-notify
+      path: docs/plans/2026-02-14-lark-coding-agent-completion-notify.md
+      type: plan
+      date: "2026-02-14"
+      tags:
+        - lark
+        - plan
+      summary: Ensure coding-agent background task completion is always notified in the same Lark conversation that triggered the task, even after the foreground turn has already returned.
+    - id: err-2026-02-12-go-sum-stale-ci-failure-no-prepush-gate
+      path: docs/error-experience/entries/2026-02-12-go-sum-stale-ci-failure-no-prepush-gate.md
+      type: error_entry
+      date: "2026-02-12"
+      tags:
+        - error
+        - memory
+      summary: '**Date:** 2026-02-12'
+    - id: err-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
+      path: docs/error-experience/entries/2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription.md
+      type: error_entry
+      date: "2026-02-12"
+      tags:
+        - error
+        - kernel
+        - observability
+      summary: '**Date:** 2026-02-12'
+    - id: err-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
+      path: docs/error-experience/entries/2026-02-12-lark-test-config-provider-key-mismatch-blocks-start.md
+      type: error_entry
+      date: "2026-02-12"
+      tags:
+        - config
+        - error
+        - kernel
+        - lark
+      summary: 'Date: 2026-02-12'
+    - id: errsum-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
+      path: docs/error-experience/summary/entries/2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription.md
+      type: error_summary
+      date: "2026-02-12"
+      tags:
+        - error
+        - kernel
+        - summary
+      summary: 'Summary: Kernel minute-level repeated cycles on a shared subscription profile caused bursty LLM traffic and intermittent API rate-limit failures.'
+    - id: errsum-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
+      path: docs/error-experience/summary/entries/2026-02-12-lark-test-config-provider-key-mismatch-blocks-start.md
+      type: error_summary
+      date: "2026-02-12"
+      tags:
+        - config
+        - error
+        - lark
+        - summary
+      summary: 'Summary: `scripts/lark/test.sh start` failed repeatedly because `~/.alex/test.yaml` had provider/base_url/api_key mismatches (`codex`/`anthropic` with `sk-kimi-*`), preventing dual...'
+    - id: good-2026-02-12-kernel-e2e-state-summary-alignment
+      path: docs/good-experience/entries/2026-02-12-kernel-e2e-state-summary-alignment.md
+      type: good_entry
+      date: "2026-02-12"
+      tags:
+        - config
+        - good
+        - kernel
+        - memory
+        - observability
+      summary: 'Impact: Kernel loop now persists actionable cycle summaries into state, refreshes system prompt snapshots each cycle, and keeps component boundaries clean (execution components con...'
+    - id: good-2026-02-12-kernel-once-real-e2e-and-goal-alignment
+      path: docs/good-experience/entries/2026-02-12-kernel-once-real-e2e-and-goal-alignment.md
+      type: good_entry
+      date: "2026-02-12"
+      tags:
+        - config
+        - good
+        - kernel
+        - observability
+      summary: 'Impact: Added a deterministic real E2E trigger (`alex-server kernel-once`) so kernel validation no longer depends on cron timing, and verified runtime goal alignment injection end-...'
+    - id: good-2026-02-12-llm-profile-client-provider-decoupling
+      path: docs/good-experience/entries/2026-02-12-llm-profile-client-provider-decoupling.md
+      type: good_entry
+      date: "2026-02-12"
+      tags:
+        - config
+        - good
+        - kernel
+        - memory
+      summary: 'Impact: Removed provider/key/base_url assembly from execution components and centralized it into an atomic runtime profile plus client-provider helper, reducing cross-module coupli...'
+    - id: goodsum-2026-02-12-kernel-e2e-state-summary-alignment
+      path: docs/good-experience/summary/entries/2026-02-12-kernel-e2e-state-summary-alignment.md
+      type: good_summary
+      date: "2026-02-12"
+      tags:
+        - good
+        - kernel
+        - observability
+        - summary
+      summary: 'Summary: Kernel now writes per-agent execution summaries to STATE runtime block, refreshes SYSTEM_PROMPT each cycle, and keeps INIT as seed-only while using injected client/profile...'
+    - id: goodsum-2026-02-12-kernel-once-real-e2e-and-goal-alignment
+      path: docs/good-experience/summary/entries/2026-02-12-kernel-once-real-e2e-and-goal-alignment.md
+      type: good_summary
+      date: "2026-02-12"
+      tags:
+        - good
+        - kernel
+        - observability
+        - summary
+      summary: 'Summary: Added `alex-server kernel-once` for deterministic real kernel E2E runs (no cron wait), validated two successful real cycles, and confirmed updated `GOAL.md` is injected in...'
+    - id: goodsum-2026-02-12-llm-profile-client-provider-decoupling
+      path: docs/good-experience/summary/entries/2026-02-12-llm-profile-client-provider-decoupling.md
+      type: good_summary
+      date: "2026-02-12"
+      tags:
+        - config
+        - good
+        - summary
+      summary: Unified runtime LLM config into `LLMProfile` and validated provider/key/base_url consistency at config boundary.
+    - id: plan-2026-02-12-lark-no-db-init-config-cleanup
+      path: docs/plans/2026-02-12-lark-no-db-init-config-cleanup.md
+      type: plan
+      date: "2026-02-12"
+      tags:
+        - config
+        - lark
+        - memory
+        - plan
+        - session
+      summary: 'Date: 2026-02-12'
+    - id: plan-2026-02-12-lark-test-early-exit-invalid-llm-profile
+      path: docs/plans/2026-02-12-lark-test-early-exit-invalid-llm-profile.md
+      type: plan
+      date: "2026-02-12"
+      tags:
+        - config
+        - lark
+        - memory
+        - plan
+      summary: 'Symptom: `scripts/lark/supervisor.sh` repeatedly reports `test restart failed` and keeps `test=down`.'
+    - id: good-2026-02-11-lark-small-action-autonomy-guardrail-and-eval
+      path: docs/good-experience/entries/2026-02-11-lark-small-action-autonomy-guardrail-and-eval.md
+      type: good_entry
+      date: "2026-02-11"
+      tags:
+        - good
+        - lark
+        - observability
+      summary: 'Impact: Closed a real autonomy regression where delegated low-risk Lark actions still triggered repeated confirmation loops ("我的理解是...对吗？"), while keeping high-risk...'
+    - id: goodsum-2026-02-11-lark-small-action-autonomy-guardrail-and-eval
+      path: docs/good-experience/summary/entries/2026-02-11-lark-small-action-autonomy-guardrail-and-eval.md
+      type: good_summary
+      date: "2026-02-11"
+      tags:
+        - good
+        - lark
+        - observability
+        - summary
+      summary: 'Summary: Solved Lark over-confirmation for delegated low-risk actions by adding explicit no-reconfirm autonomy guardrails across persona/prompt layers and locking behavior with a m...'
+    - id: plan-2026-02-11-kernel-log-lark-only
+      path: docs/plans/2026-02-11-kernel-log-lark-only.md
+      type: plan
+      date: "2026-02-11"
+      tags:
+        - config
+        - kernel
+        - lark
+        - observability
+        - plan
+      summary: 'Created: 2026-02-11'
+    - id: plan-2026-02-11-lark-think-step-upstream-rejection-log-hardening
+      path: docs/plans/2026-02-11-lark-think-step-upstream-rejection-log-hardening.md
+      type: plan
+      date: "2026-02-11"
+      tags:
+        - lark
+        - plan
+      summary: 'Lark chats intermittently fail with:'
+    - id: plan-2026-02-11-web-lark-architecture-concurrency-review
+      path: docs/plans/2026-02-11-web-lark-architecture-concurrency-review.md
+      type: plan
+      date: "2026-02-11"
+      tags:
+        - concurrency
+        - lark
+        - memory
+        - plan
+      summary: '**Created**: 2026-02-11'
+    - id: err-2026-02-10-bridge-venv-relative-path-worktree
+      path: docs/error-experience/entries/2026-02-10-bridge-venv-relative-path-worktree.md
+      type: error_entry
+      date: "2026-02-10"
+      tags:
+        - error
+      summary: '**Date:** 2026-02-10'
+    - id: err-2026-02-10-broadcaster-unbounded-session-metrics
+      path: docs/error-experience/entries/2026-02-10-broadcaster-unbounded-session-metrics.md
+      type: error_entry
+      date: "2026-02-10"
+      tags:
+        - error
+        - memory
+        - session
+      summary: '**Date:** 2026-02-10'
+    - id: err-2026-02-10-tool-optimization-caused-eval-tool-availability-collapse
+      path: docs/error-experience/entries/2026-02-10-tool-optimization-caused-eval-tool-availability-collapse.md
+      type: error_entry
+      date: "2026-02-10"
+      tags:
+        - error
+        - lark
+        - observability
+      summary: '**Date:** 2026-02-10'
+    - id: errsum-2026-02-10-broadcaster-unbounded-session-metrics
+      path: docs/error-experience/summary/entries/2026-02-10-broadcaster-unbounded-session-metrics.md
+      type: error_summary
+      date: "2026-02-10"
+      tags:
+        - error
+        - session
+        - summary
+      summary: 'Summary: `EventBroadcaster` 的按 session 聚合指标使用无界 `sync.Map`，在长跑场景持续累积 orphan session，导致内存持续增长并触发 OOM 风险。'
+    - id: errsum-2026-02-10-tool-optimization-caused-eval-tool-availability-collapse
+      path: docs/error-experience/summary/entries/2026-02-10-tool-optimization-caused-eval-tool-availability-collapse.md
+      type: error_summary
+      date: "2026-02-10"
+      tags:
+        - error
+        - observability
+        - summary
+      summary: !!binary |
+        U3VtbWFyeTog5aSn6KeE5qih5bel5YW35LyY5YyW5ZCO77yMYHdlYi9mdWxsL2RlZmF1bH
+        RgIOS4i+WPr+eUqOW3peWFt+mbhuaYvuiRl+aUtue8qe+8jOWvvOiHtCBmb3VuZGF0aW9u
+        IOivhOa1i+WHuueOsCBgTi9BYCDmv4Dlop7vvIhFMkUgYDE3N2DvvIxDdXJyZW50IGAxMz
+        hg77yJ5LiOIGRlbGl2ZXJhYmxlIOi0Li4u
+    - id: good-2026-02-10-basic-active-suite-zero-na-regression-baseline
+      path: docs/good-experience/entries/2026-02-10-basic-active-suite-zero-na-regression-baseline.md
+      type: good_entry
+      date: "2026-02-10"
+      tags:
+        - good
+        - observability
+      summary: 'Impact: Rebuilt the basic evaluation suite to align with currently available tools/skills and eliminated invalid tool-call cases, restoring a stable `N/A=0` baseline for daily regr...'
+    - id: good-2026-02-10-context-autonomy-rules-and-safe-env-injection
+      path: docs/good-experience/entries/2026-02-10-context-autonomy-rules-and-safe-env-injection.md
+      type: good_entry
+      date: "2026-02-10"
+      tags:
+        - good
+      summary: 'Impact: Upgraded default context with stronger autonomous-exploration rules and runtime environment injection, while enforcing secret-safe redaction so prompt context stays actiona...'
+    - id: good-2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review
+      path: docs/good-experience/entries/2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review.md
+      type: good_entry
+      date: "2026-02-10"
+      tags:
+        - good
+        - memory
+        - observability
+      summary: 'Impact: Rebuilt a capability-layered end-to-end suite with harder industry benchmark transfer sets and produced a delivery-focused review that exposes real failure clusters instead...'
+    - id: goodsum-2026-02-10-basic-active-suite-zero-na-regression-baseline
+      path: docs/good-experience/summary/entries/2026-02-10-basic-active-suite-zero-na-regression-baseline.md
+      type: good_summary
+      date: "2026-02-10"
+      tags:
+        - good
+        - summary
+      summary: 'Impact: Pruned invalid tool-call cases and rebuilt a basic active-tools+skills suite (`31` cases) with `N/A=0`, providing a stable regression baseline after tool-surface changes.'
+    - id: goodsum-2026-02-10-context-autonomy-rules-and-safe-env-injection
+      path: docs/good-experience/summary/entries/2026-02-10-context-autonomy-rules-and-safe-env-injection.md
+      type: good_summary
+      date: "2026-02-10"
+      tags:
+        - good
+        - summary
+      summary: 'Impact: Strengthened default context with high-agency execution rules and safe runtime-environment hints (including PATH summary + secret-key redaction), improving autonomous behav...'
+    - id: goodsum-2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review
+      path: docs/good-experience/summary/entries/2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review.md
+      type: good_summary
+      date: "2026-02-10"
+      tags:
+        - good
+        - observability
+        - summary
+      summary: 'Impact: Built a harder capability-layered E2E suite (`363` cases) with new WebArena/AgentBench/BrowseComp/AgentLongBench transfers and produced a delivery-quality review that surfa...'
+    - id: plan-2026-02-10-lark-model-pin-investigation
+      path: docs/plans/2026-02-10-lark-model-pin-investigation.md
+      type: plan
+      date: "2026-02-10"
+      tags:
+        - lark
+        - plan
+        - session
+      summary: Identify why `/model use codex/gpt-5.3-codex` does not take effect in the same Lark chat, map command parsing + model pin persistence/resolution, and propose fixes with exact file+...
+    - id: plan-2026-02-10-lark-session-im-reuse-and-chat-round-recall
+      path: docs/plans/2026-02-10-lark-session-im-reuse-and-chat-round-recall.md
+      type: plan
+      date: "2026-02-10"
+      tags:
+        - lark
+        - plan
+        - session
+      summary: '> Created: 2026-02-10'
+    - id: plan-2026-02-10-lark-single-process-isolation
+      path: docs/plans/2026-02-10-lark-single-process-isolation.md
+      type: plan
+      date: "2026-02-10"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: '> Created: 2026-02-10'
+    - id: plan-2026-02-10-lark-supervisor-loop-command-rationalization
+      path: docs/plans/2026-02-10-lark-supervisor-loop-command-rationalization.md
+      type: plan
+      date: "2026-02-10"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: '> Created: 2026-02-10'
+    - id: plan-2026-02-10-proactive-tmp-output-lark-delivery
+      path: docs/plans/2026-02-10-proactive-tmp-output-lark-delivery.md
+      type: plan
+      date: "2026-02-10"
+      tags:
+        - lark
+        - observability
+        - plan
+      summary: 'User reports three gaps:'
+    - id: plan-2026-02-10-startup-memory-oom-investigation
+      path: docs/plans/2026-02-10-startup-memory-oom-investigation.md
+      type: plan
+      date: "2026-02-10"
+      tags:
+        - memory
+        - performance
+        - plan
+        - session
+      summary: Reproduce the startup-time continuous memory growth issue.
+    - id: err-2026-02-09-devops-process-manager-pid-reuse-supervisor-threshold-drift
+      path: docs/error-experience/entries/2026-02-09-devops-process-manager-pid-reuse-supervisor-threshold-drift.md
+      type: error_entry
+      date: "2026-02-09"
+      tags:
+        - error
+      summary: '`ProcessManager` 在同名进程快速替换时，旧进程 `Wait` goroutine 可能误删新进程追踪。'
+    - id: err-2026-02-09-lark-group-chat-apikey-not-registered-chat-scope
+      path: docs/error-experience/entries/2026-02-09-lark-group-chat-apikey-not-registered-chat-scope.md
+      type: error_entry
+      date: "2026-02-09"
+      tags:
+        - error
+        - lark
+      summary: Lark 群聊链路仍会出现上游认证错误（例如 `apikey not registered`），单聊链路正常。
+    - id: err-2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion
+      path: docs/error-experience/entries/2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion.md
+      type: error_entry
+      date: "2026-02-09"
+      tags:
+        - config
+        - error
+        - lark
+      summary: '`alex dev lark` 长期 `degraded`，`test restart failed` 持续出现。'
+    - id: errsum-2026-02-09-devops-process-manager-pid-reuse-supervisor-threshold-drift
+      path: docs/error-experience/summary/entries/2026-02-09-devops-process-manager-pid-reuse-supervisor-threshold-drift.md
+      type: error_summary
+      date: "2026-02-09"
+      tags:
+        - error
+        - summary
+      summary: !!binary |
+        U3VtbWFyeTogR28gRGV2T3BzIOi/m+eoi+mTvui3r+WtmOWcqCBQSUQg5aSN55So6K+v5Y
+        ik44CB5ZCM5ZCN6L+b56iLIHdhaXQg5riF55CG56ue5oCB44CBc3VwZXJ2aXNvciDpmIjl
+        gLzovrnnlYzkuI3kuIDoh7TlkozlkIzmraUgYmFja29mZiDpmLvloZ7vvIzlr7zoh7Tnir
+        bmgIHkuI7mgaLlpI3ooYzkuLrkuI3nLi4u
+    - id: errsum-2026-02-09-lark-group-chat-apikey-not-registered-chat-scope
+      path: docs/error-experience/summary/entries/2026-02-09-lark-group-chat-apikey-not-registered-chat-scope.md
+      type: error_summary
+      date: "2026-02-09"
+      tags:
+        - error
+        - lark
+        - summary
+      summary: 'Summary: Group-chat `apikey not registered` stemmed from per-user chat scope (`chat_id + user_id`) mismatching the intended chat-level semantics and from sender ID extraction relyi...'
+    - id: errsum-2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion
+      path: docs/error-experience/summary/entries/2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion.md
+      type: error_summary
+      date: "2026-02-09"
+      tags:
+        - config
+        - error
+        - lark
+        - summary
+      summary: 'Summary: `scripts/lark/test.sh` 将 PID 记录到包装 shell 而非真实 `alex-server`，导致孤儿 Lark 进程累积并耗尽 auth Postgres 连接（`too many clients already`...'
+    - id: good-2026-02-09-auth-refresh-cookie-compat-and-transient-failure-tolerance
+      path: docs/good-experience/entries/2026-02-09-auth-refresh-cookie-compat-and-transient-failure-tolerance.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - session
+      summary: 'Practice: Keep refresh login persistence stable by combining backend cookie encoding compatibility with frontend refresh error classification.'
+    - id: good-2026-02-09-baseline-lint-test-repair-and-eval-rerun
+      path: docs/good-experience/entries/2026-02-09-baseline-lint-test-repair-and-eval-rerun.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - config
+        - good
+        - observability
+      summary: 'Impact: Repository quality baseline recovered (`golangci-lint` + `go test ./...` both green), and expanded foundation suite remained fully stable.'
+    - id: good-2026-02-09-complex-artifact-delivery-eval-layer
+      path: docs/good-experience/entries/2026-02-09-complex-artifact-delivery-eval-layer.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - observability
+      summary: Existing foundation suite had broad routing coverage, but lacked explicit contract checks for file/artifact deliverables in complex tasks.
+    - id: good-2026-02-09-devops-lark-go-supervisor-hardening-and-full-validation
+      path: docs/good-experience/entries/2026-02-09-devops-lark-go-supervisor-hardening-and-full-validation.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - config
+        - good
+        - lark
+      summary: 以“并发安全 + PID 身份语义 + 阈值一致性 + 全量验证”方式完成 DevOps/Lark Go 代码整治。
+    - id: good-2026-02-09-eval-retire-expand-agent-opt-v4
+      path: docs/good-experience/entries/2026-02-09-eval-retire-expand-agent-opt-v4.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - memory
+        - observability
+      summary: Need to continue retiring easy evaluation prompts, add harder conflict-driven cases, and improve agent intent decomposition with implicit prompts.
+    - id: good-2026-02-09-foundation-eval-failure-closure-pass-at-metrics
+      path: docs/good-experience/entries/2026-02-09-foundation-eval-failure-closure-pass-at-metrics.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - memory
+        - observability
+      summary: Foundation suite regression-hardened run had `7` failing cases (`454/461`) after introducing hard challenge sets and pass@ reporting.
+    - id: good-2026-02-09-foundation-hard-problem-expansion-r4
+      path: docs/good-experience/entries/2026-02-09-foundation-hard-problem-expansion-r4.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - observability
+      summary: The suite had strong pass@5 saturation. We needed harder benchmark-like problems to preserve challenge pressure while keeping diagnostics actionable.
+    - id: good-2026-02-09-foundation-retire-expand-optimize-r3
+      path: docs/good-experience/entries/2026-02-09-foundation-retire-expand-optimize-r3.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - observability
+      summary: Foundation suite had become relatively saturated in several dimensions. We needed to increase challenge pressure with implicit/conflict-heavy tasks, then systematically recover rou...
+    - id: good-2026-02-09-foundation-suite-prune-more-r2
+      path: docs/good-experience/entries/2026-02-09-foundation-suite-prune-more-r2.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+      summary: After reducing to 499, the suite still looked oversized. We needed another review-driven reduction while preserving diagnostic utility.
+    - id: good-2026-02-09-foundation-suite-prune-under-500
+      path: docs/good-experience/entries/2026-02-09-foundation-suite-prune-under-500.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+      summary: Suite scale had grown to 656 cases, and user explicitly required shrinkage under 500 with retirement (not only expansion).
+    - id: good-2026-02-09-foundation-suite-systematic-expansion-v3
+      path: docs/good-experience/entries/2026-02-09-foundation-suite-systematic-expansion-v3.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - observability
+      summary: 'Impact: Foundation offline suite now covers higher-difficulty long-horizon, architecture coding, deep research, and autonomy initiative capabilities while preserving full Top-K pas...'
+    - id: good-2026-02-09-harder-cases-easy-pass1-retirement
+      path: docs/good-experience/entries/2026-02-09-harder-cases-easy-pass1-retirement.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+      summary: Foundation suite had many scenarios that repeatedly hit `pass@1` across historical reruns, reducing challenge and masking routing weaknesses.
+    - id: good-2026-02-09-lark-authdb-self-heal-automation
+      path: docs/good-experience/entries/2026-02-09-lark-authdb-self-heal-automation.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - config
+        - good
+        - lark
+      summary: 在 Lark 进程管理与 auth DB 初始化链路引入“自动清理孤儿进程 + 可重试恢复”。
+    - id: good-2026-02-09-motivation-aware-suite-optimization
+      path: docs/good-experience/entries/2026-02-09-motivation-aware-suite-optimization.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - memory
+      summary: Added motivation-aware proactivity evaluation set required systematic scoring and optimization together with existing foundation suite.
+    - id: good-2026-02-09-pass1-optimization-round2
+      path: docs/good-experience/entries/2026-02-09-pass1-optimization-round2.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - memory
+      summary: After easy-case retirement and hard-case expansion, foundation suite dropped to `pass@1=383/505` with four targeted hard failures.
+    - id: good-2026-02-09-pass1-optimization-round3
+      path: docs/good-experience/entries/2026-02-09-pass1-optimization-round3.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - lark
+        - memory
+      summary: Round2 reached `390/505`; remaining top1 misses clustered into a few conflict pairs.
+    - id: good-2026-02-09-pass1-systematic-optimization-and-eval-skill
+      path: docs/good-experience/entries/2026-02-09-pass1-systematic-optimization-and-eval-skill.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - lark
+        - memory
+        - observability
+      summary: Foundation suite baseline was `398/505` on pass@1, with failures concentrated in repeated tool-conflict families rather than broad quality regressions.
+    - id: good-2026-02-09-product-capability-r6-real-upgrade
+      path: docs/good-experience/entries/2026-02-09-product-capability-r6-real-upgrade.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - lark
+        - observability
+      summary: 'User requirement was explicit: prioritize real product capability uplift, continue adding harder cases, and close failed cases systemically (not only eval-file edits).'
+    - id: good-2026-02-09-product-capability-r7-semantic-convergence
+      path: docs/good-experience/entries/2026-02-09-product-capability-r7-semantic-convergence.md
+      type: good_entry
+      date: "2026-02-09"
+      tags:
+        - good
+        - observability
+      summary: R7 focused on real product capability uplift under implicit prompts and tool-conflict scenarios, while preserving full-suite reliability.
+    - id: goodsum-2026-02-09-auth-refresh-cookie-compat-and-transient-failure-tolerance
+      path: docs/good-experience/summary/entries/2026-02-09-auth-refresh-cookie-compat-and-transient-failure-tolerance.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - session
+        - summary
+      summary: 'Summary: Stabilized post-login refresh persistence with URL-safe cookie handling + legacy decode compatibility on backend, and auth-only session clearing on frontend refresh failur...'
+    - id: goodsum-2026-02-09-baseline-lint-test-repair-and-eval-rerun
+      path: docs/good-experience/summary/entries/2026-02-09-baseline-lint-test-repair-and-eval-rerun.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - observability
+        - summary
+      summary: 'Impact: Fixed repository baseline quality regressions so full lint/test are green again, and verified expanded foundation suite remains stable at `17/17` and `408/408`.'
+    - id: goodsum-2026-02-09-complex-artifact-delivery-eval-layer
+      path: docs/good-experience/summary/entries/2026-02-09-complex-artifact-delivery-eval-layer.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - observability
+        - summary
+      summary: 'Summary: Added a dedicated complex artifact-delivery evaluation layer with deliverable contracts, per-case contract checks, and good/bad sampled report diagnostics.'
+    - id: goodsum-2026-02-09-devops-lark-go-supervisor-hardening-and-full-validation
+      path: docs/good-experience/summary/entries/2026-02-09-devops-lark-go-supervisor-hardening-and-full-validation.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - lark
+        - summary
+      summary: !!binary |
+        U3VtbWFyeTog5a6M5oiQIEdvIERldk9wcy9MYXJrIOi/m+eoi+mTvui3r+ehrOWMlu+8jO
+        S/ruWkjSB3YXRjaGVyIHJhY2XjgIFQSUQg6Lqr5Lu96K+v5Yik44CBc3VwZXJ2aXNvciDp
+        mIjlgLzkuI4gYmFja29mZiDosIPluqbpl67popjvvIzlubbpgJrov4flhajph48gbGludC
+        90ZXN0ICsgbGFyayBzbW9rZSDpqozmLi4u
+    - id: goodsum-2026-02-09-eval-retire-expand-agent-opt-v4
+      path: docs/good-experience/summary/entries/2026-02-09-eval-retire-expand-agent-opt-v4.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - observability
+        - summary
+      summary: 'Summary: Retired easy prompts, expanded harder implicit conflict sets, and optimized decomposition-oriented routing heuristics.'
+    - id: goodsum-2026-02-09-foundation-eval-failure-closure-pass-at-metrics
+      path: docs/good-experience/summary/entries/2026-02-09-foundation-eval-failure-closure-pass-at-metrics.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - memory
+        - observability
+        - summary
+      summary: 'Summary: Closed all foundation hardset failures by targeted routing-disambiguation boosts (`request_user`, `memory_get`, `ripgrep`) and regression tests.'
+    - id: goodsum-2026-02-09-foundation-hard-problem-expansion-r4
+      path: docs/good-experience/summary/entries/2026-02-09-foundation-hard-problem-expansion-r4.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Expanded foundation suite with three benchmark-inspired hard collections and closed the new failure clusters via targeted routing convergence.'
+    - id: goodsum-2026-02-09-foundation-retire-expand-optimize-r3
+      path: docs/good-experience/summary/entries/2026-02-09-foundation-retire-expand-optimize-r3.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Increased challenge pressure by retiring easy explicit intents and expanding conflict-heavy implicit hard sets, then recovered routing via targeted heuristic convergence.'
+    - id: goodsum-2026-02-09-foundation-suite-prune-more-r2
+      path: docs/good-experience/summary/entries/2026-02-09-foundation-suite-prune-more-r2.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Performed a second review-driven suite reduction after the first under-500 pass.'
+    - id: goodsum-2026-02-09-foundation-suite-prune-under-500
+      path: docs/good-experience/summary/entries/2026-02-09-foundation-suite-prune-under-500.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Enforced per-collection caps and retired low-signal cases to control suite growth.'
+    - id: goodsum-2026-02-09-foundation-suite-systematic-expansion-v3
+      path: docs/good-experience/summary/entries/2026-02-09-foundation-suite-systematic-expansion-v3.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - summary
+      summary: 'Impact: Expanded foundation suite to `17/17` collections and `408/408` cases by adding long-horizon, architecture-coding, deep-research, and autonomy-initiative coverage with itera...'
+    - id: goodsum-2026-02-09-harder-cases-easy-pass1-retirement
+      path: docs/good-experience/summary/entries/2026-02-09-harder-cases-easy-pass1-retirement.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Retired repeated pass@1-easy scenarios and injected harder conflict-driven cases to reintroduce challenge pressure.'
+    - id: goodsum-2026-02-09-lark-authdb-self-heal-automation
+      path: docs/good-experience/summary/entries/2026-02-09-lark-authdb-self-heal-automation.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - config
+        - good
+        - lark
+        - summary
+      summary: 'Summary: Introduced self-healing for local Lark/AuthDB flow by cleaning orphan `alex-server lark` processes and retrying auth DB setup on `too many clients already`.'
+    - id: goodsum-2026-02-09-motivation-aware-suite-optimization
+      path: docs/good-experience/summary/entries/2026-02-09-motivation-aware-suite-optimization.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - performance
+        - summary
+      summary: 'Summary: Optimized motivation-aware routing with conflict-targeted heuristics and validated both standalone and integrated suite performance.'
+    - id: goodsum-2026-02-09-pass1-optimization-round2
+      path: docs/good-experience/summary/entries/2026-02-09-pass1-optimization-round2.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Closed all four hard-suite failures by targeted pairwise routing disambiguation and stage-aware penalties.'
+    - id: goodsum-2026-02-09-pass1-optimization-round3
+      path: docs/good-experience/summary/entries/2026-02-09-pass1-optimization-round3.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - lark
+        - memory
+        - summary
+      summary: 'Summary: Improved top1 routing by targeted conflict-pair disambiguation (approval gate, lark upload, memory recall, timer cleanup).'
+    - id: goodsum-2026-02-09-pass1-systematic-optimization-and-eval-skill
+      path: docs/good-experience/summary/entries/2026-02-09-pass1-systematic-optimization-and-eval-skill.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - observability
+        - summary
+      summary: 'Summary: Switched from case-by-case tuning to conflict-cluster-driven pass@1 optimization and formalized the evaluation workflow as a reusable skill/template.'
+    - id: goodsum-2026-02-09-product-capability-r6-real-upgrade
+      path: docs/good-experience/summary/entries/2026-02-09-product-capability-r6-real-upgrade.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Combined product-layer tool-semantic convergence with harder suite expansion and failure-cluster closure, instead of doing dataset-only tuning.'
+    - id: goodsum-2026-02-09-product-capability-r7-semantic-convergence
+      path: docs/good-experience/summary/entries/2026-02-09-product-capability-r7-semantic-convergence.md
+      type: good_summary
+      date: "2026-02-09"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Product-side semantic convergence on prompts and tool boundaries improved implicit routing precision without reducing pass@5 reliability.'
+    - id: plan-2026-02-09-dev-web-lark-separation
+      path: docs/plans/2026-02-09-dev-web-lark-separation.md
+      type: plan
+      date: "2026-02-09"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: '> Created: 2026-02-09'
+    - id: plan-2026-02-09-devops-lark-full-repair
+      path: docs/plans/2026-02-09-devops-lark-full-repair.md
+      type: plan
+      date: "2026-02-09"
+      tags:
+        - config
+        - lark
+        - memory
+        - plan
+      summary: 一次性修复 Lark/AuthDB 与 Go devops 进程链路中的稳定性问题，恢复本地启动与测试稳定性。
+    - id: plan-2026-02-09-lark-authdb-self-heal-automation
+      path: docs/plans/2026-02-09-lark-authdb-self-heal-automation.md
+      type: plan
+      date: "2026-02-09"
+      tags:
+        - config
+        - lark
+        - memory
+        - plan
+      summary: 现象：`./dev.sh` 提示 local auth DB setup failed；`alex dev lark` 长期 `degraded`，`test restart failed`。
+    - id: plan-2026-02-09-lark-loop-lock-release
+      path: docs/plans/2026-02-09-lark-loop-lock-release.md
+      type: plan
+      date: "2026-02-09"
+      tags:
+        - lark
+        - plan
+      summary: '> Created: 2026-02-09'
+    - id: plan-2026-02-09-lark-notice-autofix-alerts
+      path: docs/plans/2026-02-09-lark-notice-autofix-alerts.md
+      type: plan
+      date: "2026-02-09"
+      tags:
+        - lark
+        - plan
+      summary: 'Status: Completed'
+    - id: plan-2026-02-09-lark-trigger-memory-monitor-fix
+      path: docs/plans/2026-02-09-lark-trigger-memory-monitor-fix.md
+      type: plan
+      date: "2026-02-09"
+      tags:
+        - lark
+        - memory
+        - plan
+      summary: 'Owner: Codex CLI agent'
+    - id: err-2026-02-08-auth-google-login-503-config-fallback-gap
+      path: docs/error-experience/entries/2026-02-08-auth-google-login-503-config-fallback-gap.md
+      type: error_entry
+      date: "2026-02-08"
+      tags:
+        - config
+        - error
+        - memory
+        - observability
+      summary: 访问 `GET /api/auth/google/login` 返回 `503 Service Unavailable`，响应为 `Authentication module not configured`。
+    - id: err-2026-02-08-auth-refresh-401-db-client-exhaustion-memory-fallback
+      path: docs/error-experience/entries/2026-02-08-auth-refresh-401-db-client-exhaustion-memory-fallback.md
+      type: error_entry
+      date: "2026-02-08"
+      tags:
+        - config
+        - error
+        - memory
+        - session
+      summary: 本地环境 `POST /api/auth/refresh` 间歇性返回 `401 Unauthorized`。
+    - id: err-2026-02-08-log-analyzer-index-404-stale-backend
+      path: docs/error-experience/entries/2026-02-08-log-analyzer-index-404-stale-backend.md
+      type: error_entry
+      date: "2026-02-08"
+      tags:
+        - error
+      summary: 访问 `http://localhost:3000/dev/log-analyzer` 时，前端请求 `GET /api/dev/logs/index?limit=120` 返回 `404 Not Found`。
+    - id: err-2026-02-08-sandbox-acp-port-recreate
+      path: docs/error-experience/entries/2026-02-08-sandbox-acp-port-recreate.md
+      type: error_entry
+      date: "2026-02-08"
+      tags:
+        - config
+        - error
+        - memory
+        - performance
+      summary: '**Date**: 2026-02-08'
+    - id: errsum-2026-02-08-auth-google-login-503-config-fallback-gap
+      path: docs/error-experience/summary/entries/2026-02-08-auth-google-login-503-config-fallback-gap.md
+      type: error_summary
+      date: "2026-02-08"
+      tags:
+        - config
+        - error
+        - memory
+        - observability
+        - summary
+      summary: 'Summary: OAuth login endpoint returned 503 because auth config lacked env fallback and auth DB failures disabled the entire module.'
+    - id: errsum-2026-02-08-auth-refresh-401-db-client-exhaustion-memory-fallback
+      path: docs/error-experience/summary/entries/2026-02-08-auth-refresh-401-db-client-exhaustion-memory-fallback.md
+      type: error_summary
+      date: "2026-02-08"
+      tags:
+        - config
+        - error
+        - memory
+        - summary
+      summary: 'Summary: Refresh 401 was caused by auth Postgres client exhaustion, which triggered development-mode fallback to memory stores and lost refresh sessions after restart.'
+    - id: errsum-2026-02-08-log-analyzer-index-404-stale-backend
+      path: docs/error-experience/summary/entries/2026-02-08-log-analyzer-index-404-stale-backend.md
+      type: error_summary
+      date: "2026-02-08"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: Log analyzer index endpoint returned 404 when a stale backend binary was still serving old routes and logs-ui reused the running process.'
+    - id: good-2026-02-08-auth-db-pool-cap-for-session-persistence
+      path: docs/good-experience/entries/2026-02-08-auth-db-pool-cap-for-session-persistence.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - config
+        - good
+        - memory
+        - session
+      summary: 'Practice: For auth/session critical stores in development, set conservative DB pool defaults and expose explicit pool-cap config to avoid hidden fallback behaviors under multi-proc...'
+    - id: good-2026-02-08-context-hard-benchmark-mapped-suite
+      path: docs/good-experience/entries/2026-02-08-context-hard-benchmark-mapped-suite.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+      summary: 'Practice: Map hard patterns from latest context-learning benchmarks into a dedicated offline suite collection rather than only scaling generic cases.'
+    - id: good-2026-02-08-devtools-workbench-log-virtualization
+      path: docs/good-experience/entries/2026-02-08-devtools-workbench-log-virtualization.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - config
+        - good
+      summary: Dev debugging surfaces were fragmented (`conversation-debug`, `log-analyzer`, multiple config pages), and large log datasets degraded frontend responsiveness.
+    - id: good-2026-02-08-foundation-eval-availability-hardening
+      path: docs/good-experience/entries/2026-02-08-foundation-eval-availability-hardening.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+        - lark
+        - observability
+      summary: 'Practice: For foundation eval, treat tool unavailability as explicit `availability_error` and fix registration/preset visibility first; then optimize implicit ranking with action+o...'
+    - id: good-2026-02-08-foundation-layered-suite-regression-closure
+      path: docs/good-experience/entries/2026-02-08-foundation-layered-suite-regression-closure.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+      summary: 'Practice: Expand foundation evaluation into layered suites (tool coverage, prompt effectiveness, proactivity, complex tasks), run a first pass to surface concrete misses, then clos...'
+    - id: good-2026-02-08-foundation-suite-scaleout-v2
+      path: docs/good-experience/entries/2026-02-08-foundation-suite-scaleout-v2.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+      summary: 'Practice: Expand foundation evaluation with new thematic collections instead of only enlarging existing files, then close all new bad cases by tightening intent wording where lexic...'
+    - id: good-2026-02-08-foundation-verified-readiness-plus-research
+      path: docs/good-experience/entries/2026-02-08-foundation-verified-readiness-plus-research.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+        - observability
+      summary: 'Practice: Add a dedicated SWE-bench Verified readiness collection to low-cost offline routing eval, then pair it with an explicit submission-policy research note to avoid engineeri...'
+    - id: good-2026-02-08-logs-ui-readiness-self-heal
+      path: docs/good-experience/entries/2026-02-08-logs-ui-readiness-self-heal.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+      summary: 'Practice: For one-click developer flows, verify key endpoint/page readiness after startup and self-heal by targeted service restarts before opening the UI.'
+    - id: good-2026-02-08-memory-capability-suite-expansion
+      path: docs/good-experience/entries/2026-02-08-memory-capability-suite-expansion.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+        - memory
+      summary: 'Practice: Introduce a dedicated memory-capabilities collection (memory_search/memory_get + memory-informed execution chains) rather than embedding memory checks sparsely in mixed c...'
+    - id: good-2026-02-08-server-e2e-auth-devlogs-guardrails
+      path: docs/good-experience/entries/2026-02-08-server-e2e-auth-devlogs-guardrails.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+        - observability
+      summary: 'Practice: Add server-side e2e tests (`httptest.NewServer`) for critical route availability, especially auth entrypoints and dev observability APIs.'
+    - id: good-2026-02-08-systematic-agent-capability-matrix-expansion
+      path: docs/good-experience/entries/2026-02-08-systematic-agent-capability-matrix-expansion.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+        - observability
+      summary: 'Practice: Expand offline foundation eval as a capability matrix (tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, verifie...'
+    - id: good-2026-02-08-task-completion-speed-suite-expansion
+      path: docs/good-experience/entries/2026-02-08-task-completion-speed-suite-expansion.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+      summary: 'Practice: Add a dedicated task-completion-speed collection to evaluate whether routing prefers the shortest viable completion path under time-sensitive intents.'
+    - id: good-2026-02-08-tool-surface-convergence-layered-suite-scaleout
+      path: docs/good-experience/entries/2026-02-08-tool-surface-convergence-layered-suite-scaleout.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+      summary: 'Practice: Converge model-visible tool names to one canonical surface and keep legacy names as hidden compatibility aliases that route to canonical executors (with argument/path nor...'
+    - id: good-2026-02-08-user-habit-soul-memory-suite-expansion
+      path: docs/good-experience/entries/2026-02-08-user-habit-soul-memory-suite-expansion.md
+      type: good_entry
+      date: "2026-02-08"
+      tags:
+        - good
+        - memory
+      summary: 'Practice: Add a dedicated user-habit + soul + memory continuity collection instead of assuming generic memory cases are sufficient.'
+    - id: goodsum-2026-02-08-auth-db-pool-cap-for-session-persistence
+      path: docs/good-experience/summary/entries/2026-02-08-auth-db-pool-cap-for-session-persistence.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - config
+        - good
+        - session
+        - summary
+      summary: 'Summary: Added configurable auth DB pool cap with default `4` connections to prevent connection exhaustion from multi-instance dev processes.'
+    - id: goodsum-2026-02-08-context-hard-benchmark-mapped-suite
+      path: docs/good-experience/summary/entries/2026-02-08-context-hard-benchmark-mapped-suite.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Added a benchmark-mapped hard context-learning collection into foundation offline evaluation.'
+    - id: goodsum-2026-02-08-devtools-workbench-log-virtualization
+      path: docs/good-experience/summary/entries/2026-02-08-devtools-workbench-log-virtualization.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Consolidating Dev Tools into diagnostics/configuration/operations workbenches plus virtualized log/event rendering significantly improved usability and large-log responsiv...'
+    - id: goodsum-2026-02-08-foundation-eval-availability-hardening
+      path: docs/good-experience/summary/entries/2026-02-08-foundation-eval-availability-hardening.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - observability
+        - summary
+      summary: 'Summary: Availability-first hardening plus dual-condition ranking heuristics removed all foundation bad cases in three target modes.'
+    - id: goodsum-2026-02-08-foundation-layered-suite-regression-closure
+      path: docs/good-experience/summary/entries/2026-02-08-foundation-layered-suite-regression-closure.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - observability
+        - summary
+      summary: 'Summary: Layered foundation suite + failure-driven heuristic tuning closed all new routing failures across 68 cases.'
+    - id: goodsum-2026-02-08-foundation-suite-scaleout-v2
+      path: docs/good-experience/summary/entries/2026-02-08-foundation-suite-scaleout-v2.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Foundation suite expanded from 4 to 6 collections with explicit availability-recovery and valuable-workflow coverage.'
+    - id: goodsum-2026-02-08-foundation-verified-readiness-plus-research
+      path: docs/good-experience/summary/entries/2026-02-08-foundation-verified-readiness-plus-research.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - observability
+        - summary
+      summary: 'Summary: Added a SWE-bench Verified readiness layer into foundation offline eval and paired it with a focused submission-policy research brief.'
+    - id: goodsum-2026-02-08-logs-ui-readiness-self-heal
+      path: docs/good-experience/summary/entries/2026-02-08-logs-ui-readiness-self-heal.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: One-click logs-ui became reliable after adding endpoint/page readiness checks with automatic backend/web restart.'
+    - id: goodsum-2026-02-08-memory-capability-suite-expansion
+      path: docs/good-experience/summary/entries/2026-02-08-memory-capability-suite-expansion.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - memory
+        - observability
+        - summary
+      summary: 'Summary: Added a dedicated memory-capabilities collection to foundation offline eval with memory retrieval and memory-informed chain coverage.'
+    - id: goodsum-2026-02-08-server-e2e-auth-devlogs-guardrails
+      path: docs/good-experience/summary/entries/2026-02-08-server-e2e-auth-devlogs-guardrails.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - observability
+        - summary
+      summary: 'Summary: Server e2e tests now validate auth login route and dev log index availability through real HTTP requests.'
+    - id: goodsum-2026-02-08-systematic-agent-capability-matrix-expansion
+      path: docs/good-experience/summary/entries/2026-02-08-systematic-agent-capability-matrix-expansion.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - observability
+        - summary
+      summary: 'Summary: Foundation offline eval was expanded into a 9-dimension capability matrix with orchestration and safety-policy layers.'
+    - id: goodsum-2026-02-08-task-completion-speed-suite-expansion
+      path: docs/good-experience/summary/entries/2026-02-08-task-completion-speed-suite-expansion.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Added a dedicated task-completion-speed collection into foundation offline evaluation.'
+    - id: goodsum-2026-02-08-tool-surface-convergence-layered-suite-scaleout
+      path: docs/good-experience/summary/entries/2026-02-08-tool-surface-convergence-layered-suite-scaleout.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Canonical tool-surface convergence plus scaled layered suites produced stable routing diagnostics and full Top-K pass at larger coverage.'
+    - id: goodsum-2026-02-08-user-habit-soul-memory-suite-expansion
+      path: docs/good-experience/summary/entries/2026-02-08-user-habit-soul-memory-suite-expansion.md
+      type: good_summary
+      date: "2026-02-08"
+      tags:
+        - good
+        - memory
+        - summary
+      summary: 'Summary: Added a dedicated user-habit/soul/memory continuity evaluation collection to foundation offline suite.'
+    - id: plan-2026-02-08-habit-soul-memory-suite-expansion
+      path: docs/plans/2026-02-08-habit-soul-memory-suite-expansion.md
+      type: plan
+      date: "2026-02-08"
+      tags:
+        - memory
+        - observability
+        - plan
+      summary: done
+    - id: plan-2026-02-08-lark-card-callback-log-cleanup
+      path: docs/plans/2026-02-08-lark-card-callback-log-cleanup.md
+      type: plan
+      date: "2026-02-08"
+      tags:
+        - config
+        - lark
+        - observability
+        - plan
+      summary: '**Status:** COMPLETED'
+    - id: plan-2026-02-08-memory-capability-suite-expansion
+      path: docs/plans/2026-02-08-memory-capability-suite-expansion.md
+      type: plan
+      date: "2026-02-08"
+      tags:
+        - memory
+        - observability
+        - plan
+      summary: done
+    - id: plan-2026-02-08-openai-key-bootstrap-and-lark-docker
+      path: docs/plans/2026-02-08-openai-key-bootstrap-and-lark-docker.md
+      type: plan
+      date: "2026-02-08"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: Initialize with only `OPENAI_API_KEY` to get the system running locally.
+    - id: good-2026-02-07-fullchain-trace-baseline-perf
+      path: docs/good-experience/entries/2026-02-07-fullchain-trace-baseline-perf.md
+      type: good_entry
+      date: "2026-02-07"
+      tags:
+        - good
+        - performance
+        - session
+      summary: 'Practice: Add trace spans directly on ReAct iteration, LLM streaming, and tool execution hot paths with shared run/session attributes, then pair with low-risk hot-path optimization...'
+    - id: goodsum-2026-02-07-fullchain-trace-baseline-perf
+      path: docs/good-experience/summary/entries/2026-02-07-fullchain-trace-baseline-perf.md
+      type: good_summary
+      date: "2026-02-07"
+      tags:
+        - good
+        - performance
+        - session
+        - summary
+      summary: 'Summary: Full-chain trace instrumentation is most reliable when anchored in ReAct runtime boundaries and correlated via run/session attributes across HTTP, task, and SSE paths.'
+    - id: plan-2026-02-07-lark-cli-await-option-selection
+      path: docs/plans/2026-02-07-lark-cli-await-option-selection.md
+      type: plan
+      date: "2026-02-07"
+      tags:
+        - lark
+        - plan
+      summary: 'Date: 2026-02-07'
+    - id: err-2026-02-06-lark-card-callback-token-missing-disabled
+      path: docs/error-experience/entries/2026-02-06-lark-card-callback-token-missing-disabled.md
+      type: error_entry
+      date: "2026-02-06"
+      tags:
+        - error
+        - lark
+      summary: '线上日志出现 `Lark card callback disabled: verification token missing`，导致 `/api/lark/card/callback` 路由未注册，卡片点击直接报错。'
+    - id: errsum-2026-02-06-lark-card-callback-token-missing-disabled
+      path: docs/error-experience/summary/entries/2026-02-06-lark-card-callback-token-missing-disabled.md
+      type: error_summary
+      date: "2026-02-06"
+      tags:
+        - config
+        - error
+        - lark
+        - summary
+      summary: 'Summary: Lark card callbacks were fully disabled when verification token was unset, and channels.lark `${ENV}` interpolation gaps made token config easy to miss.'
+    - id: plan-2026-02-06-lark-card-callback-encrypted-missing-signature-compat
+      path: docs/plans/2026-02-06-lark-card-callback-encrypted-missing-signature-compat.md
+      type: plan
+      date: "2026-02-06"
+      tags:
+        - lark
+        - plan
+      summary: '**Date:** 2026-02-06'
+    - id: plan-2026-02-06-lark-card-callback-plaintext-encrypted-compat
+      path: docs/plans/2026-02-06-lark-card-callback-plaintext-encrypted-compat.md
+      type: plan
+      date: "2026-02-06"
+      tags:
+        - lark
+        - plan
+      summary: '**Date:** 2026-02-06'
+    - id: plan-2026-02-06-lark-card-callback-signature-fallback-compat
+      path: docs/plans/2026-02-06-lark-card-callback-signature-fallback-compat.md
+      type: plan
+      date: "2026-02-06"
+      tags:
+        - lark
+        - plan
+      summary: User-reported Lark card click still failing after card callback token/encrypt key configuration.
+    - id: plan-2026-02-06-lark-card-callback-verification-token-fix
+      path: docs/plans/2026-02-06-lark-card-callback-verification-token-fix.md
+      type: plan
+      date: "2026-02-06"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: '**Date:** 2026-02-06'
+    - id: plan-2026-02-06-lark-model-list-llama-server-and-card-toggle
+      path: docs/plans/2026-02-06-lark-model-list-llama-server-and-card-toggle.md
+      type: plan
+      date: "2026-02-06"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: '**Date:** 2026-02-06'
+    - id: plan-2026-02-06-lark-model-selection-interactive-card
+      path: docs/plans/2026-02-06-lark-model-selection-interactive-card.md
+      type: plan
+      date: "2026-02-06"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: '**Date:** 2026-02-06'
+    - id: plan-2026-02-06-lark-single-entry-supervisor
+      path: docs/plans/2026-02-06-lark-single-entry-supervisor.md
+      type: plan
+      date: "2026-02-06"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: 'Date: 2026-02-06'
+    - id: plan-2026-02-06-lark-supervisor-autofix
+      path: docs/plans/2026-02-06-lark-supervisor-autofix.md
+      type: plan
+      date: "2026-02-06"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: 'Date: 2026-02-06'
+    - id: plan-2026-02-06-memory-user-layer-removal
+      path: docs/plans/2026-02-06-memory-user-layer-removal.md
+      type: plan
+      date: "2026-02-06"
+      tags:
+        - memory
+        - plan
+      summary: Remove the `/memory/<user-id>/` directory layer from runtime memory storage and prompt guidance.
+    - id: plan-2026-02-05-no-yaml-llm-selection-cli-lark
+      path: docs/plans/2026-02-05-no-yaml-llm-selection-cli-lark.md
+      type: plan
+      date: "2026-02-05"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: 'Date: 2026-02-05'
+    - id: plan-2026-02-05-peekaboo-exec-lark-local
+      path: docs/plans/2026-02-05-peekaboo-exec-lark-local.md
+      type: plan
+      date: "2026-02-05"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: 'Date: 2026-02-05'
+    - id: plan-2026-02-04-config-watch-multi-and-lark-restart
+      path: docs/plans/2026-02-04-config-watch-multi-and-lark-restart.md
+      type: plan
+      date: "2026-02-04"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: !!binary |
+        6L+Q6KGM5Lit55qEIGFsZXgtc2VydmVyIOmcgOimgeWQjOaXtuebkeaOp+S4pOS4qiBjb2
+        5maWcg5paH5Lu277yaYH4vLmFsZXgvY29uZmlnLnlhbWxgIOS4jiBgfi8uYWxleC90ZXN0
+        LnlhbWxg77yI5Lul5Y+KIGBBTEVYX0NPTkZJR19QQVRIYCDmjIflkJHnmoTnlJ/mlYjphY
+        3nva7vvInvvIzku7vkuIDlj5jmm7ToLi4u
+    - id: plan-2026-02-04-fix-lark-worktree-ensure
+      path: docs/plans/2026-02-04-fix-lark-worktree-ensure.md
+      type: plan
+      date: "2026-02-04"
+      tags:
+        - lark
+        - plan
+      summary: '**Date**: 2026-02-04'
+    - id: plan-2026-02-04-lark-inject-ack-final-review-react
+      path: docs/plans/2026-02-04-lark-inject-ack-final-review-react.md
+      type: plan
+      date: "2026-02-04"
+      tags:
+        - config
+        - lark
+        - plan
+        - session
+      summary: 'Improve Lark IM UX for long-running tasks:'
+    - id: plan-2026-02-04-lark-mention-bridge
+      path: docs/plans/2026-02-04-lark-mention-bridge.md
+      type: plan
+      date: "2026-02-04"
+      tags:
+        - lark
+        - plan
+      summary: 'Make Lark @mentions reliable for both incoming and outgoing text:'
+    - id: plan-2026-02-04-lark-proactive-fixes
+      path: docs/plans/2026-02-04-lark-proactive-fixes.md
+      type: plan
+      date: "2026-02-04"
+      tags:
+        - lark
+        - plan
+      summary: 'Owner: cklxx (requested), implemented by Codex'
+    - id: plan-2026-02-04-lark-tenant-token-auto
+      path: docs/plans/2026-02-04-lark-tenant-token-auto.md
+      type: plan
+      date: "2026-02-04"
+      tags:
+        - config
+        - lark
+        - memory
+        - plan
+      summary: 'Date: 2026-02-04'
+    - id: plan-2026-02-04-lark-upload-file-tool
+      path: docs/plans/2026-02-04-lark-upload-file-tool.md
+      type: plan
+      date: "2026-02-04"
+      tags:
+        - lark
+        - plan
+      summary: '**Goal:** Add a builtin tool to upload a file (from local path or task attachment) and send it to the current Lark chat as a `file` message.'
+    - id: err-2026-02-03-codex-o3-chatgpt-subscription
+      path: docs/error-experience/entries/2026-02-03-codex-o3-chatgpt-subscription.md
+      type: error_entry
+      date: "2026-02-03"
+      tags:
+        - config
+        - error
+      summary: Background tasks dispatched to the Codex external agent failed immediately when using `model="o3"`.
+    - id: err-2026-02-03-subagent-parallel-burst-upstream-rejection
+      path: docs/error-experience/entries/2026-02-03-subagent-parallel-burst-upstream-rejection.md
+      type: error_entry
+      date: "2026-02-03"
+      tags:
+        - error
+      summary: 'Subagent runs intermittently failed with `LLM call failed: Request was rejected by the upstream service. Streaming request failed...`.'
+    - id: errsum-2026-02-03-codex-o3-chatgpt-subscription
+      path: docs/error-experience/summary/entries/2026-02-03-codex-o3-chatgpt-subscription.md
+      type: error_summary
+      date: "2026-02-03"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: Codex external-agent defaults used `model="o3"`, which Codex CLI rejects when authenticated via ChatGPT subscription, causing bg_dispatch failures.'
+    - id: errsum-2026-02-03-subagent-parallel-burst-upstream-rejection
+      path: docs/error-experience/summary/entries/2026-02-03-subagent-parallel-burst-upstream-rejection.md
+      type: error_summary
+      date: "2026-02-03"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: Subagent parallel delegation intermittently failed with upstream rejections when many subtasks started simultaneously.'
+    - id: plan-2026-02-03-dev-memory-snapshot
+      path: docs/plans/2026-02-03-dev-memory-snapshot.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - lark
+        - memory
+        - plan
+      summary: 'Owner: cklxx'
+    - id: plan-2026-02-03-external-agents-lark-progress
+      path: docs/plans/2026-02-03-external-agents-lark-progress.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: 'Owner: Codex CLI agent'
+    - id: plan-2026-02-03-lark-book-mentioned-calendar
+      path: docs/plans/2026-02-03-lark-book-mentioned-calendar.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - lark
+        - plan
+      summary: 'Date: 2026-02-03'
+    - id: plan-2026-02-03-lark-calendar-id-resolution
+      path: docs/plans/2026-02-03-lark-calendar-id-resolution.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - lark
+        - plan
+      summary: 'Date: 2026-02-03'
+    - id: plan-2026-02-03-lark-code-summary-3min
+      path: docs/plans/2026-02-03-lark-code-summary-3min.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - lark
+        - plan
+      summary: Update Lark background summaries for code tasks every 3 minutes.
+    - id: plan-2026-02-03-lark-dual-agent-iteration-loop
+      path: docs/plans/2026-02-03-lark-dual-agent-iteration-loop.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: 'Date: 2026-02-03'
+    - id: plan-2026-02-03-lark-m0-readme-sync
+      path: docs/plans/2026-02-03-lark-m0-readme-sync.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: 'Date: 2026-02-03'
+    - id: plan-2026-02-03-lark-multi-message
+      path: docs/plans/2026-02-03-lark-multi-message.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - lark
+        - plan
+      summary: Ensure Lark responds to every user message, including messages sent while a task is running.
+    - id: plan-2026-02-03-lark-scenario-run-skip-manual
+      path: docs/plans/2026-02-03-lark-scenario-run-skip-manual.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - lark
+        - plan
+      summary: '**Date**: 2026-02-03'
+    - id: plan-2026-02-03-lark-sh-rebuild
+      path: docs/plans/2026-02-03-lark-sh-rebuild.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - lark
+        - plan
+      summary: 'Date: 2026-02-03'
+    - id: plan-2026-02-03-lark-tenant-token-calendar-fallback
+      path: docs/plans/2026-02-03-lark-tenant-token-calendar-fallback.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: 'Date: 2026-02-03'
+    - id: plan-2026-02-03-lark-user-oauth-calendar
+      path: docs/plans/2026-02-03-lark-user-oauth-calendar.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - lark
+        - plan
+      summary: 'Date: 2026-02-03'
+    - id: plan-2026-02-03-memory-auto-capture
+      path: docs/plans/2026-02-03-memory-auto-capture.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - memory
+        - plan
+      summary: 'Owner: cklxx'
+    - id: plan-2026-02-03-memory-vector-index-ollama
+      path: docs/plans/2026-02-03-memory-vector-index-ollama.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - config
+        - memory
+        - plan
+      summary: 'Owner: cklxx'
+    - id: plan-2026-02-03-skills-memory-prompt-cleanup
+      path: docs/plans/2026-02-03-skills-memory-prompt-cleanup.md
+      type: plan
+      date: "2026-02-03"
+      tags:
+        - memory
+        - plan
+      summary: 'Date: 2026-02-03'
+    - id: err-2026-02-02-dev-sh-sandbox-env-flags-unbound
+      path: docs/error-experience/entries/2026-02-02-dev-sh-sandbox-env-flags-unbound.md
+      type: error_entry
+      date: "2026-02-02"
+      tags:
+        - error
+      summary: '`./dev.sh down && ./dev.sh` failed: `scripts/lib/common/sandbox.sh: line 63: env_flags[@]: unbound variable`.'
+    - id: err-2026-02-02-subagent-dangling-tool-output
+      path: docs/error-experience/entries/2026-02-02-subagent-dangling-tool-output.md
+      type: error_entry
+      date: "2026-02-02"
+      tags:
+        - error
+      summary: Subagent LLM streaming failed with `Request was rejected by the upstream service` (HTTP 400).
+    - id: errsum-2026-02-02-dev-sh-sandbox-env-flags-unbound
+      path: docs/error-experience/summary/entries/2026-02-02-dev-sh-sandbox-env-flags-unbound.md
+      type: error_summary
+      date: "2026-02-02"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `./dev.sh down && ./dev.sh` failed during sandbox startup with `env_flags[@]: unbound variable` in `scripts/lib/common/sandbox.sh`.'
+    - id: errsum-2026-02-02-subagent-dangling-tool-output
+      path: docs/error-experience/summary/entries/2026-02-02-subagent-dangling-tool-output.md
+      type: error_summary
+      date: "2026-02-02"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: Subagent snapshots pruned the subagent tool call but left its tool output, yielding Responses inputs with a function_call_output lacking a matching call and triggering HTT...'
+    - id: plan-2026-02-02-lark-await-user-input-resume
+      path: docs/plans/2026-02-02-lark-await-user-input-resume.md
+      type: plan
+      date: "2026-02-02"
+      tags:
+        - lark
+        - plan
+        - session
+      summary: 'Ensure Lark handles `question_to_user` (clarify/request_user) correctly:'
+    - id: plan-2026-02-02-lark-card-and-reply
+      path: docs/plans/2026-02-02-lark-card-and-reply.md
+      type: plan
+      date: "2026-02-02"
+      tags:
+        - lark
+        - plan
+      summary: Add Feishu/Lark card-related roadmap items (feature + design requirements).
+    - id: plan-2026-02-02-lark-gateway-session-history
+      path: docs/plans/2026-02-02-lark-gateway-session-history.md
+      type: plan
+      date: "2026-02-02"
+      tags:
+        - lark
+        - memory
+        - plan
+        - session
+      summary: Restore Lark gateway session history usage so prior chat context and memory are available during task execution.
+    - id: plan-2026-02-02-lark-local-tools-no-sandbox
+      path: docs/plans/2026-02-02-lark-local-tools-no-sandbox.md
+      type: plan
+      date: "2026-02-02"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: '**Date:** 2026-02-02'
+    - id: plan-2026-02-02-lark-plan-clarify-messages
+      path: docs/plans/2026-02-02-lark-plan-clarify-messages.md
+      type: plan
+      date: "2026-02-02"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: Send plan/clarify tool outputs as Lark messages (without [Plan]/[Clarify] prefixes), with config gating and no duplicate await-user-input replies.
+    - id: plan-2026-02-02-lark-request-mismatch
+      path: docs/plans/2026-02-02-lark-request-mismatch.md
+      type: plan
+      date: "2026-02-02"
+      tags:
+        - lark
+        - memory
+        - plan
+      summary: 'Owner: cklxx-assistant'
+    - id: plan-2026-02-02-lark-rich-media-card-attachments
+      path: docs/plans/2026-02-02-lark-rich-media-card-attachments.md
+      type: plan
+      date: "2026-02-02"
+      tags:
+        - config
+        - lark
+        - plan
+        - session
+      summary: After a conversation completes, upload images/files and send a single rich media card to Lark that previews the result and exposes the uploaded assets.
+    - id: plan-2026-02-02-lark-session-per-message
+      path: docs/plans/2026-02-02-lark-session-per-message.md
+      type: plan
+      date: "2026-02-02"
+      tags:
+        - config
+        - lark
+        - plan
+        - session
+      summary: '**Date**: 2026-02-02'
+    - id: plan-2026-02-02-memory-service-removal
+      path: docs/plans/2026-02-02-memory-service-removal.md
+      type: plan
+      date: "2026-02-02"
+      tags:
+        - config
+        - memory
+        - plan
+      summary: Finish the markdown-memory refactor by removing legacy memory service hooks and wiring, updating DI/coordinator/dev endpoints/config types, and cleaning remaining references.
+    - id: plan-2026-02-02-openclaw-memory-md
+      path: docs/plans/2026-02-02-openclaw-memory-md.md
+      type: plan
+      date: "2026-02-02"
+      tags:
+        - config
+        - memory
+        - plan
+        - session
+      summary: 'Replace the legacy memory system (DB/hybrid/entries/daily summaries) with a pure Markdown memory layout:'
+    - id: err-2026-02-01-darwin-ld-dysymtab-warning
+      path: docs/error-experience/entries/2026-02-01-darwin-ld-dysymtab-warning.md
+      type: error_entry
+      date: "2026-02-01"
+      tags:
+        - error
+      summary: '`go test -race` emitted warnings like: `ld: warning: ... malformed LC_DYSYMTAB` on macOS (CLT-only toolchain).'
+    - id: errsum-2026-02-01-darwin-ld-dysymtab-warning
+      path: docs/error-experience/summary/entries/2026-02-01-darwin-ld-dysymtab-warning.md
+      type: error_summary
+      date: "2026-02-01"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: macOS `go test -race` emitted `malformed LC_DYSYMTAB` linker warnings with CLT-only toolchain.'
+    - id: plan-2026-02-01-lark-reply-messages
+      path: docs/plans/2026-02-01-lark-reply-messages.md
+      type: plan
+      date: "2026-02-01"
+      tags:
+        - lark
+        - plan
+      summary: 'Owner: cklxx'
+    - id: plan-2026-02-01-lark-scenario-testing-framework
+      path: docs/plans/2026-02-01-lark-scenario-testing-framework.md
+      type: plan
+      date: "2026-02-01"
+      tags:
+        - lark
+        - plan
+      summary: '> Status: **P1-P5 All Done**'
+    - id: plan-2026-02-01-memory-d5-layered-filestore
+      path: docs/plans/2026-02-01-memory-d5-layered-filestore.md
+      type: plan
+      date: "2026-02-01"
+      tags:
+        - memory
+        - plan
+      summary: '**Date:** 2026-02-01'
+    - id: err-2026-01-31-dev-lint-unused-subsystem-test
+      path: docs/error-experience/entries/2026-01-31-dev-lint-unused-subsystem-test.md
+      type: error_entry
+      date: "2026-01-31"
+      tags:
+        - error
+      summary: '`./dev.sh lint` failed: `internal/server/bootstrap/subsystem_test.go:41:25` unused method `(*fakeSubsystem).isStarted`.'
+    - id: errsum-2026-01-31-dev-lint-unused-subsystem-test
+      path: docs/error-experience/summary/entries/2026-01-31-dev-lint-unused-subsystem-test.md
+      type: error_summary
+      date: "2026-01-31"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `./dev.sh lint` fails due to an unused `(*fakeSubsystem).isStarted` in `internal/server/bootstrap/subsystem_test.go`.'
+    - id: plan-2026-01-31-architecture-validation-okr-proactive-memory-session-external-agents
+      path: docs/plans/2026-01-31-architecture-validation-okr-proactive-memory-session-external-agents.md
+      type: plan
+      date: "2026-01-31"
+      tags:
+        - config
+        - memory
+        - observability
+        - plan
+        - session
+      summary: '> Started: 2026-01-31'
+    - id: plan-2026-01-31-disable-lark-session-history
+      path: docs/plans/2026-01-31-disable-lark-session-history.md
+      type: plan
+      date: "2026-01-31"
+      tags:
+        - config
+        - lark
+        - plan
+        - session
+      summary: '**Date**: 2026-01-31'
+    - id: plan-2026-01-31-lark-emoji-events
+      path: docs/plans/2026-01-31-lark-emoji-events.md
+      type: plan
+      date: "2026-01-31"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: Need random emoji reactions for Lark events; different event start/end should use different emoji.
+    - id: plan-2026-01-31-lark-web-agent-summary
+      path: docs/plans/2026-01-31-lark-web-agent-summary.md
+      type: plan
+      date: "2026-01-31"
+      tags:
+        - lark
+        - plan
+      summary: 梳理 Lark 渠道下 agent 的功能与事件流，并补充 Web（后端 SSE + 前端 UI）对应功能与事件流。
+    - id: plan-2026-01-31-lark-web-feature-summary
+      path: docs/plans/2026-01-31-lark-web-feature-summary.md
+      type: plan
+      date: "2026-01-31"
+      tags:
+        - config
+        - lark
+        - memory
+        - observability
+        - plan
+        - session
+      summary: '**Created:** 2026-01-31'
+    - id: plan-2026-01-31-memory-policy-unification
+      path: docs/plans/2026-01-31-memory-policy-unification.md
+      type: plan
+      date: "2026-01-31"
+      tags:
+        - config
+        - memory
+        - plan
+      summary: 'Date: 2026-01-31'
+    - id: plan-2026-01-31-remove-lark-session-mode
+      path: docs/plans/2026-01-31-remove-lark-session-mode.md
+      type: plan
+      date: "2026-01-31"
+      tags:
+        - config
+        - lark
+        - plan
+        - session
+      summary: '**Date**: 2026-01-31'
+    - id: err-2026-01-30-dev-lint-errcheck-failures
+      path: docs/error-experience/entries/2026-01-30-dev-lint-errcheck-failures.md
+      type: error_entry
+      date: "2026-01-30"
+      tags:
+        - error
+        - memory
+      summary: '`./dev.sh lint` fails with errcheck findings:'
+    - id: err-2026-01-30-memory-import-cycle
+      path: docs/error-experience/entries/2026-01-30-memory-import-cycle.md
+      type: error_entry
+      date: "2026-01-30"
+      tags:
+        - config
+        - error
+        - memory
+      summary: 'Error: Adding memory.Service to agent.ServiceBundle introduced an import cycle (agent -> memory -> rag -> httpclient -> errors -> logging -> utils/id -> agent), causing go list/tes...'
+    - id: errsum-2026-01-30-dev-lint-errcheck-failures
+      path: docs/error-experience/summary/entries/2026-01-30-dev-lint-errcheck-failures.md
+      type: error_summary
+      date: "2026-01-30"
+      tags:
+        - error
+        - memory
+        - summary
+      summary: 'Summary: `./dev.sh lint` fails because errcheck flags missing error checks in `internal/agent/app/hooks/memory_capture_test.go` and `internal/agent/app/hooks/integration_test.go`.'
+    - id: errsum-2026-01-30-memory-import-cycle
+      path: docs/error-experience/summary/entries/2026-01-30-memory-import-cycle.md
+      type: error_summary
+      date: "2026-01-30"
+      tags:
+        - error
+        - memory
+        - summary
+      summary: 'Summary: Adding memory.Service to agent.ServiceBundle created a Go import cycle through memory/rag/utils/id back into agent.'
+    - id: good-2026-01-30-continuous-practice-optimization
+      path: docs/good-experience/entries/2026-01-30-continuous-practice-optimization.md
+      type: good_entry
+      date: "2026-01-30"
+      tags:
+        - good
+      summary: 'Practice: Consciously and continuously review best practices and execution flow, recording improvements as they are discovered and updating guides/plans accordingly.'
+    - id: good-2026-01-30-proactive-hooks-skills
+      path: docs/good-experience/entries/2026-01-30-proactive-hooks-skills.md
+      type: good_entry
+      date: "2026-01-30"
+      tags:
+        - good
+        - memory
+      summary: 'Practice: Use a hook registry + per-request MemoryPolicy and skill cache/regex precompile to enable proactive memory/skills without channel-specific logic or hot-path regex churn.'
+    - id: goodsum-2026-01-30-continuous-practice-optimization
+      path: docs/good-experience/summary/entries/2026-01-30-continuous-practice-optimization.md
+      type: good_summary
+      date: "2026-01-30"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Continuously review best practices and execution flow, recording improvements and updating guides/plans as part of normal work.'
+    - id: goodsum-2026-01-30-proactive-hooks-skills
+      path: docs/good-experience/summary/entries/2026-01-30-proactive-hooks-skills.md
+      type: good_summary
+      date: "2026-01-30"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Hook registry + MemoryPolicy and skill cache/regex precompile keeps proactive recall/activation channel-agnostic and fast.'
+    - id: plan-2026-01-30-lark-okr-fresh-sessions-debug
+      path: docs/plans/2026-01-30-lark-okr-fresh-sessions-debug.md
+      type: plan
+      date: "2026-01-30"
+      tags:
+        - config
+        - lark
+        - memory
+        - plan
+        - session
+      summary: Fix Lark OKR tool availability, default to fresh sessions, and make the conversation debug page surface new Lark sessions.
+    - id: plan-2026-01-30-memory-architecture-improvement
+      path: docs/plans/2026-01-30-memory-architecture-improvement.md
+      type: plan
+      date: "2026-01-30"
+      tags:
+        - config
+        - lark
+        - memory
+        - plan
+        - session
+      summary: '> **Status:** Draft'
+    - id: plan-2026-01-30-memory-implementation
+      path: docs/plans/2026-01-30-memory-implementation.md
+      type: plan
+      date: "2026-01-30"
+      tags:
+        - config
+        - lark
+        - memory
+        - plan
+        - session
+      summary: '> **Status:** In Progress'
+    - id: plan-2026-01-30-memory-review-integration-plan
+      path: docs/plans/2026-01-30-memory-review-integration-plan.md
+      type: plan
+      date: "2026-01-30"
+      tags:
+        - config
+        - lark
+        - memory
+        - observability
+        - plan
+        - session
+      summary: '> **Status:** Draft'
+    - id: plan-2026-01-30-short-term-multi-turn-memory
+      path: docs/plans/2026-01-30-short-term-multi-turn-memory.md
+      type: plan
+      date: "2026-01-30"
+      tags:
+        - config
+        - lark
+        - memory
+        - plan
+        - session
+      summary: '> **Status:** Draft'
+    - id: plan-2026-01-29-lark-attachments
+      path: docs/plans/2026-01-29-lark-attachments.md
+      type: plan
+      date: "2026-01-29"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: Enable Lark gateway to upload image/file attachments in replies (no new config).
+    - id: plan-2026-01-29-lark-duplicate-replies
+      path: docs/plans/2026-01-29-lark-duplicate-replies.md
+      type: plan
+      date: "2026-01-29"
+      tags:
+        - lark
+        - memory
+        - plan
+      summary: Reviewed `docs/guides/engineering-practices.md`.
+    - id: plan-2026-01-29-lark-progress-memory
+      path: docs/plans/2026-01-29-lark-progress-memory.md
+      type: plan
+      date: "2026-01-29"
+      tags:
+        - config
+        - lark
+        - memory
+        - plan
+      summary: '**Status**: Completed'
+    - id: err-2026-01-28-dev-test-request-log-failures
+      path: docs/error-experience/entries/2026-01-28-dev-test-request-log-failures.md
+      type: error_entry
+      date: "2026-01-28"
+      tags:
+        - error
+      summary: '`./dev.sh test` failed in `internal/tools/builtin/web` with `web_fetch_test.go:68: failed to read request log: .../llm.jsonl: no such file or directory`.'
+    - id: err-2026-01-28-session-history-truncation
+      path: docs/error-experience/entries/2026-01-28-session-history-truncation.md
+      type: error_entry
+      date: "2026-01-28"
+      tags:
+        - error
+        - session
+      summary: 'Error: Session refresh dropped final summaries and subagent titles because high-volume streaming events were persisted and replay missed the terminal completion.'
+    - id: err-2026-01-28-subagent-display-anchor-injection
+      path: docs/error-experience/entries/2026-01-28-subagent-display-anchor-injection.md
+      type: error_entry
+      date: "2026-01-28"
+      tags:
+        - error
+      summary: 当有 subagent 执行结果时，subagent 卡片被放在最底部
+    - id: errsum-2026-01-28-dev-test-request-log-failures
+      path: docs/error-experience/summary/entries/2026-01-28-dev-test-request-log-failures.md
+      type: error_summary
+      date: "2026-01-28"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `./dev.sh test` failed because request log files were not found in `web_fetch_test` and `seedream_test`.'
+    - id: errsum-2026-01-28-session-history-truncation
+      path: docs/error-experience/summary/entries/2026-01-28-session-history-truncation.md
+      type: error_summary
+      date: "2026-01-28"
+      tags:
+        - error
+        - session
+        - summary
+      summary: 'Summary: Session refresh dropped final summaries and subagent titles because persisted streaming events crowded out terminal events during replay.'
+    - id: plan-2026-01-28-agent-memory-guidance
+      path: docs/plans/2026-01-28-agent-memory-guidance.md
+      type: plan
+      date: "2026-01-28"
+      tags:
+        - memory
+        - plan
+      summary: Need explicit guidance for agents to load memory on first run.
+    - id: plan-2026-01-28-long-term-memory-doc
+      path: docs/plans/2026-01-28-long-term-memory-doc.md
+      type: plan
+      date: "2026-01-28"
+      tags:
+        - memory
+        - plan
+      summary: Need a dedicated memory document for long-lived knowledge.
+    - id: plan-2026-01-28-memory-automation-mechanism
+      path: docs/plans/2026-01-28-memory-automation-mechanism.md
+      type: plan
+      date: "2026-01-28"
+      tags:
+        - memory
+        - plan
+      summary: Need an automatic mechanism to ingest, rank, and serve repo memory.
+    - id: err-2026-01-27-dev-lint-test-cmd-alex-context
+      path: docs/error-experience/entries/2026-01-27-dev-lint-test-cmd-alex-context.md
+      type: error_entry
+      date: "2026-01-27"
+      tags:
+        - error
+      summary: '`./dev.sh lint` failed with typecheck errors in `cmd/alex/cost.go` (missing `context` import) and `cmd/alex/acp.go` (unused `context` import).'
+    - id: err-2026-01-27-dev-test-orchestration-explore-failure
+      path: docs/error-experience/entries/2026-01-27-dev-test-orchestration-explore-failure.md
+      type: error_entry
+      date: "2026-01-27"
+      tags:
+        - error
+      summary: '`./dev.sh test` failed in `internal/tools/builtin/orchestration` with `TestExploreDelegationFlow` and `TestExploreDefaultSubtaskWhenNoScopes` (expected prompt string, got empty/nil...'
+    - id: err-2026-01-27-dev-test-rag-invalid-openai-key
+      path: docs/error-experience/entries/2026-01-27-dev-test-rag-invalid-openai-key.md
+      type: error_entry
+      date: "2026-01-27"
+      tags:
+        - error
+      summary: '`./dev.sh test` failed in `internal/rag` (`TestEmbedder_Integration`) with `API error 401` because `OPENAI_API_KEY` points to a non-OpenAI key (`sk-kimi-...`).'
+    - id: err-2026-01-27-json-render-a2ui-compat
+      path: docs/error-experience/entries/2026-01-27-json-render-a2ui-compat.md
+      type: error_entry
+      date: "2026-01-27"
+      tags:
+        - error
+      summary: 'Error: Json-render payload stored via a2ui_emit rendered as "No A2UI surfaces to render" because the frontend only understood A2UI messages.'
+    - id: err-2026-01-27-log-fetch-env-usage-guard
+      path: docs/error-experience/entries/2026-01-27-log-fetch-env-usage-guard.md
+      type: error_entry
+      date: "2026-01-27"
+      tags:
+        - config
+        - error
+      summary: '`./dev.sh test` failed in `internal/config` with: `os.Getenv usage is restricted ... internal/logging/log_fetch.go`.'
+    - id: err-2026-01-27-refresh-summary-subagent-title
+      path: docs/error-experience/entries/2026-01-27-refresh-summary-subagent-title.md
+      type: error_entry
+      date: "2026-01-27"
+      tags:
+        - error
+      summary: 'Error: Refreshing the conversation view dropped the core workflow.node.output.summary event and subagent cards lost their preview titles because summary dedupe treated core summari...'
+    - id: errsum-2026-01-27-dev-lint-test-cmd-alex-context
+      path: docs/error-experience/summary/entries/2026-01-27-dev-lint-test-cmd-alex-context.md
+      type: error_summary
+      date: "2026-01-27"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `./dev.sh lint` and `./dev.sh test` failed because `cmd/alex/cost.go` referenced `context` without import and `cmd/alex/acp.go` imported `context` unused.'
+    - id: errsum-2026-01-27-dev-test-orchestration-explore-failure
+      path: docs/error-experience/summary/entries/2026-01-27-dev-test-orchestration-explore-failure.md
+      type: error_summary
+      date: "2026-01-27"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `./dev.sh test` failed in `internal/tools/builtin/orchestration` (`TestExploreDelegationFlow`, `TestExploreDefaultSubtaskWhenNoScopes`) with missing prompt strings.'
+    - id: errsum-2026-01-27-dev-test-rag-invalid-openai-key
+      path: docs/error-experience/summary/entries/2026-01-27-dev-test-rag-invalid-openai-key.md
+      type: error_summary
+      date: "2026-01-27"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `./dev.sh test` failed in `internal/rag` integration tests because `OPENAI_API_KEY` was a non-OpenAI `sk-kimi-...` key, causing 401 errors.'
+    - id: errsum-2026-01-27-refresh-summary-subagent-title
+      path: docs/error-experience/summary/entries/2026-01-27-refresh-summary-subagent-title.md
+      type: error_summary
+      date: "2026-01-27"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: Refresh replays collapsed core workflow.node.output.summary events and subagent cards lost preview titles when preview only read top-level subtask metadata.'
+    - id: err-2026-01-26-dev-lint-test-tui-typecheck
+      path: docs/error-experience/entries/2026-01-26-dev-lint-test-tui-typecheck.md
+      type: error_entry
+      date: "2026-01-26"
+      tags:
+        - error
+      summary: '`./dev.sh lint` failed during `golangci-lint` with typecheck errors in `cmd/alex`: duplicated symbols between `tui_tview.go` and `tui_bubbletea.go` (e.g., `tuiAgentName`, `normaliz...'
+    - id: err-2026-01-26-dev-test-mcp-race
+      path: docs/error-experience/entries/2026-01-26-dev-test-mcp-race.md
+      type: error_entry
+      date: "2026-01-26"
+      tags:
+        - error
+      summary: '`./dev.sh test` failed with Go race detector output in `internal/mcp`: `TestProcessManagerReinitializesStopChan` reports data races between `ProcessManager.Start()` and `monitorExi...'
+    - id: err-2026-01-26-make-fmt-test-builtin-typecheck
+      path: docs/error-experience/entries/2026-01-26-make-fmt-test-builtin-typecheck.md
+      type: error_entry
+      date: "2026-01-26"
+      tags:
+        - error
+      summary: '`make fmt` failed during `golangci-lint run --fix ./...` with typecheck errors in `internal/tools/builtin` (`unwrapArtifactPlaceholderName`, `buildAttachmentStoreMigrator`), `inter...'
+    - id: err-2026-01-26-make-fmt-test-sse-render-redeclared
+      path: docs/error-experience/entries/2026-01-26-make-fmt-test-sse-render-redeclared.md
+      type: error_entry
+      date: "2026-01-26"
+      tags:
+        - error
+      summary: '`make fmt` failed during `golangci-lint run --fix ./...` with typecheck errors in `internal/server/http` due to redeclared symbols (`sseJSONBufferPool`, `marshalSSEPayload`, and mu...'
+    - id: errsum-2026-01-26-tui-macos-input-failure
+      path: docs/error-experience/summary/entries/2026-01-26-tui-macos-input-failure.md
+      type: error_summary
+      date: "2026-01-26"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: tview-based TUI failed to accept input on macOS during interactive mode.'
+    - id: errsum-2026-01-25-golangci-lint-import-cycle
+      path: docs/error-experience/summary/entries/2026-01-25-golangci-lint-import-cycle.md
+      type: error_summary
+      date: "2026-01-25"
+      tags:
+        - error
+        - observability
+        - summary
+      summary: 'Summary: `make fmt`, `make vet`, and `make test` failed because golangci-lint/go vet/go test hit an `internal/logging` ↔ `internal/observability` import cycle plus typecheck erro...'
+    - id: errsum-2026-01-24-playwright-e2e-missing-ui
+      path: docs/error-experience/summary/entries/2026-01-24-playwright-e2e-missing-ui.md
+      type: error_summary
+      date: "2026-01-24"
+      tags:
+        - error
+        - observability
+        - session
+        - summary
+      summary: 'Summary: `npm --prefix web run e2e` failed across all browsers because the console UI never loaded (missing `console-header-title` and `session-list-toggle`) and `/` did not redire...'
+    - id: good-2026-01-24-backend-resource-guardrails
+      path: docs/good-experience/entries/2026-01-24-backend-resource-guardrails.md
+      type: good_entry
+      date: "2026-01-24"
+      tags:
+        - good
+      summary: 'Practice: Precompile hot-path regex, cap response reads with size limits, and apply retention/backpressure for event history storage.'
+    - id: good-2026-01-24-streaming-ui-performance-guardrails
+      path: docs/good-experience/entries/2026-01-24-streaming-ui-performance-guardrails.md
+      type: good_entry
+      date: "2026-01-24"
+      tags:
+        - good
+        - performance
+      summary: 'Practice: Use event deduplication, LRU caps, RAF buffering, and defer markdown parsing until streaming settles for SSE UI rendering.'
+    - id: errsum-2026-01-23-web-next-build-hang
+      path: docs/error-experience/summary/entries/2026-01-23-web-next-build-hang.md
+      type: error_summary
+      date: "2026-01-23"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `npm --prefix web test` stalled in `next build` (Turbopack) for >8 minutes; retry with `NEXT_TELEMETRY_DISABLED=1 TURBOPACK=0` also stalled and was killed.'
+    - id: errsum-2026-01-22-attachment-uri-pptx-timeout
+      path: docs/error-experience/summary/entries/2026-01-22-attachment-uri-pptx-timeout.md
+      type: error_summary
+      date: "2026-01-22"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: Attachment references were normalized to remote URIs, but `sandbox_write_attachment` expected inline payloads and `pptx_from_images` used default TLS settings, causing att...'
+    - id: errsum-2026-01-22-attachments-mime-persist
+      path: docs/error-experience/summary/entries/2026-01-22-attachments-mime-persist.md
+      type: error_summary
+      date: "2026-01-22"
+      tags:
+        - error
+        - session
+        - summary
+      summary: 'Summary: Inline attachments were dropped during session persistence and fallback MIME guesses overrode HTTP headers, leading to missing attachments after restart and invalid PNG er...'
+    - id: errsum-2026-01-22-cli-sandbox-shell-connection-refused
+      path: docs/error-experience/summary/entries/2026-01-22-cli-sandbox-shell-connection-refused.md
+      type: error_summary
+      date: "2026-01-22"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: CLI exposed sandbox_* tools and hit `sandbox request failed: connection refused` after Docker injection without a sandbox service.'
+    - id: errsum-2026-01-22-workflow-events-missing-session
+      path: docs/error-experience/summary/entries/2026-01-22-workflow-events-missing-session.md
+      type: error_summary
+      date: "2026-01-22"
+      tags:
+        - error
+        - session
+        - summary
+      summary: 'Summary: Early workflow envelopes emitted without session/task IDs were broadcast globally and replayed into all sessions, showing up as duplicated/unclear events.'
+    - id: errsum-2026-01-21-acp-executor-cwd-switch-failed
+      path: docs/error-experience/summary/entries/2026-01-21-acp-executor-cwd-switch-failed.md
+      type: error_summary
+      date: "2026-01-21"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: ACP executor prompt failed to switch to `/workspace` when the directory was missing or inaccessible on the host.'
+    - id: errsum-2026-01-21-acp-executor-host-path-operation-rejected
+      path: docs/error-experience/summary/entries/2026-01-21-acp-executor-host-path-operation-rejected.md
+      type: error_summary
+      date: "2026-01-21"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: executor rejected file writes under host paths (e.g., `/Users/...`) instead of sandbox workspace.'
+    - id: errsum-2026-01-21-acp-executor-missing-events
+      path: docs/error-experience/summary/entries/2026-01-21-acp-executor-missing-events.md
+      type: error_summary
+      date: "2026-01-21"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: ACP executor completed but only the summary event was emitted; tool/output events were missing.'
+    - id: errsum-2026-01-09-auth-db-migration-file-not-in-container
+      path: docs/error-experience/summary/entries/2026-01-09-auth-db-migration-file-not-in-container.md
+      type: error_summary
+      date: "2026-01-09"
+      tags:
+        - config
+        - error
+        - summary
+      summary: 'Summary: migrations failed when `psql` ran inside Docker with `-f /host/path`, because the file wasn''t in the container.'
+    - id: errsum-2026-01-09-auth-module-not-configured-local-postgres
+      path: docs/error-experience/summary/entries/2026-01-09-auth-module-not-configured-local-postgres.md
+      type: error_summary
+      date: "2026-01-09"
+      tags:
+        - config
+        - error
+        - memory
+        - summary
+      summary: 'Summary: `Authentication module not configured` when `auth.database_url` pointed to localhost without a running Postgres.'
+    - id: errsum-2026-01-09-dev-sh-auth-db-psql-gate
+      path: docs/error-experience/summary/entries/2026-01-09-dev-sh-auth-db-psql-gate.md
+      type: error_summary
+      date: "2026-01-09"
+      tags:
+        - config
+        - error
+        - summary
+      summary: 'Summary: `./dev.sh` skipped auth DB setup when `psql` was missing even though Docker could run migrations.'
+    - id: errsum-2026-01-09-git-fetch-timeout
+      path: docs/error-experience/summary/entries/2026-01-09-git-fetch-timeout.md
+      type: error_summary
+      date: "2026-01-09"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `git fetch origin` timed out during a full fetch on this repo.'
+    - id: errsum-2026-01-09-git-merge-unrelated-histories
+      path: docs/error-experience/summary/entries/2026-01-09-git-merge-unrelated-histories.md
+      type: error_summary
+      date: "2026-01-09"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `git merge origin/main` failed with "refusing to merge unrelated histories" after `origin/main` was force-updated.'
+    - id: errsum-2026-01-09-github-api-rate-limit-package-version-server
+      path: docs/error-experience/summary/entries/2026-01-09-github-api-rate-limit-package-version-server.md
+      type: error_summary
+      date: "2026-01-09"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: package-version-server hit GitHub API rate limits (403) for unauthenticated requests.'
+    - id: errsum-2026-01-09-gopls-install-missing-go-path
+      path: docs/error-experience/summary/entries/2026-01-09-gopls-install-missing-go-path.md
+      type: error_summary
+      date: "2026-01-09"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `gopls` install failed because GUI tools could not find `go`.'
+    - id: errsum-2026-01-09-mock-llm-fallback-missing-api-key-or-overrides
+      path: docs/error-experience/summary/entries/2026-01-09-mock-llm-fallback-missing-api-key-or-overrides.md
+      type: error_summary
+      date: "2026-01-09"
+      tags:
+        - config
+        - error
+        - summary
+      summary: 'Summary: LLM responses unexpectedly came from the mock provider due to missing API keys or override settings.'
+    - id: errsum-2026-01-09-zsh-ic-oh-my-zsh-hang
+      path: docs/error-experience/summary/entries/2026-01-09-zsh-ic-oh-my-zsh-hang.md
+      type: error_summary
+      date: "2026-01-09"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `zsh -ic` commands hung under Oh My Zsh auto-update.'
+    - id: errsum-2026-01-08-git-index-lock-stale
+      path: docs/error-experience/summary/entries/2026-01-08-git-index-lock-stale.md
+      type: error_summary
+      date: "2026-01-08"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: Git operations failed due to a stale `.git/index.lock`.'
+    - id: errsum-2026-01-08-sum-golang-502
+      path: docs/error-experience/summary/entries/2026-01-08-sum-golang-502.md
+      type: error_summary
+      date: "2026-01-08"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: Go linting failed when `sum.golang.org` returned 502 or golangci-lint timed out.'
+    - id: plan-1970-01-01-lark-attachment-fixes
+      path: docs/plans/lark-attachment-fixes.md
+      type: plan
+      date: "1970-01-01"
+      tags:
+        - lark
+        - plan
+      summary: '**Date:** 2026-01-29'
+    - id: plan-1970-01-01-lark-devops-process-unification-2026-02-10
+      path: docs/plans/lark-devops-process-unification-2026-02-10.md
+      type: plan
+      date: "1970-01-01"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: Remove unexpected auto-fix triggers during local `./dev.sh lark` usage.
+    - id: plan-1970-01-01-lark-task-system
+      path: docs/plans/lark-task-system.md
+      type: plan
+      date: "1970-01-01"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: '[x] task_store.go - TaskStore interface + TaskRecord'
+    - id: plan-1970-01-01-lark-test-agent-model-sticky-2026-02-10
+      path: docs/plans/lark-test-agent-model-sticky-2026-02-10.md
+      type: plan
+      date: "1970-01-01"
+      tags:
+        - lark
+        - observability
+        - plan
+      summary: Eliminate long-lived `test` suppression caused by stale validation phases.
+schema:
+    date: YYYY-MM-DD
+    id: string
+    path: string
+    summary: string
+    tags:
+        - string
+    type: string

@@ -1,0 +1,2 @@
+Practice: For foundation eval, treat tool unavailability as explicit `availability_error` and fix registration/preset visibility first; then optimize implicit ranking with action+object dual-condition heuristics instead of single-token boosts.
+Impact: Eliminated availability blind spots and raised implicit Top-3 hit rate to 100% across web/full, cli/full, and web/lark-local without N/A exclusions.

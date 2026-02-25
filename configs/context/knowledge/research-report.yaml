@@ -1,0 +1,7 @@
+id: research-report
+description: |
+  Structured template for deep research requests: clarify intent, run multi-round retrieval, and deliver an evidence-backed report with trade-offs and recommendations.
+sop_refs:
+  - docs/guides/research-report-template.md#research-report-template
+memory_keys:
+  - prompt.research_report

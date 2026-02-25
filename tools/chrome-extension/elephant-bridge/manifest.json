@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Elephant Bridge",
+  "version": "0.1.0",
+  "description": "Local bridge for elephant.ai to reuse your Chrome session (tabs/cookies/storage).",
+  "action": {
+    "default_title": "Elephant Bridge"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "permissions": ["tabs", "storage", "cookies", "debugger", "scripting"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://*.xiaohongshu.com/*",
+    "https://www.xiaohongshu.com/*"
+  ]
+}
+

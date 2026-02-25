@@ -1,0 +1,26 @@
+name: emoji_reactions
+description: "Start and end emoji reactions are sent when ReactEmoji is configured"
+tags: [emoji, reactions]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_direct: true
+    react_emoji: "SMILE,HEART,THUMBSUP,FISTBUMP"
+  llm_mode: mock
+
+turns:
+  - sender_id: "ou_user_emoji"
+    chat_id: "oc_chat_emoji"
+    message_id: "om_msg_emoji_001"
+    content: "测试 emoji 反应"
+
+    mock_response:
+      answer: "收到"
+
+    assertions:
+      messenger:
+        - method: AddReaction
+          min_count: 1
+        - method: ReplyMessage
+          content_contains: ["收到"]

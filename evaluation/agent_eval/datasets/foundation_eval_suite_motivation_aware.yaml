@@ -1,0 +1,13 @@
+version: "1"
+name: "foundation-motivation-aware-suite"
+description: "Standalone offline suite for motivation-aware proactive routing"
+collections:
+  - id: "motivation-aware-proactivity"
+    name: "Motivation-Aware Proactivity"
+    dimension: "motivation_aware_proactivity"
+    description: "Motivation signals, autonomy boundaries, personalized cadence, and evidence-driven follow-through"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_motivation_aware_proactivity.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3

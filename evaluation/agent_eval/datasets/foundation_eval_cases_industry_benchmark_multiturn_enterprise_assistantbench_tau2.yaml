@@ -1,0 +1,28 @@
+version: '1'
+name: foundation-industry-benchmark-multiturn-enterprise-assistantbench-tau2
+description: "Industry transfer set for stateful enterprise multi-turn agents mapped\
+  \ from AssistantBench and \u03C42-style commitment workflows"
+scenarios:
+- id: industry-assistantbench-state-recall-before-action
+  category: assistantbench_transfer
+  intent: Before taking new action, recover prior commitments and open loops from
+    memory.
+  expected_tools:
+  - memory_search
+- id: industry-assistantbench-open-exact-prior-commitment
+  category: assistantbench_transfer
+  intent: Given a recalled commitment reference, open exact memory item for verbatim
+    scope check.
+  expected_tools:
+  - memory_get
+- id: industry-assistantbench-conflicting-constraints-clarify
+  category: assistantbench_transfer
+  intent: Current request conflicts with prior committed boundary; ask one sharp clarification.
+  expected_tools:
+  - clarify
+- id: industry-assistantbench-sensitive-commitment-change-consent
+  category: assistantbench_transfer
+  intent: Changing scope would affect external stakeholders; require explicit user
+    approval.
+  expected_tools:
+  - request_user

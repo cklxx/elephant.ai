@@ -1,0 +1,68 @@
+version: "1"
+name: "foundation-industry-benchmark-browsecomp-sparse-research-hard"
+description: "Hard transfer set mapped from BrowseComp-style sparse-clue web research tasks: high-noise search, weak lexical overlap, and verifiable citation packaging"
+scenarios:
+  - id: "browsecomp-hard-open-search-space"
+    category: "browsecomp_sparse_research_hard"
+    intent: "Start from sparse hints and discover candidate sources across the open web."
+    expected_tools: ["web_search"]
+
+  - id: "browsecomp-hard-pin-specific-source-url"
+    category: "browsecomp_sparse_research_hard"
+    intent: "Given a specific approved source URL, ingest directly without additional discovery."
+    expected_tools: ["web_fetch"]
+
+  - id: "browsecomp-hard-find-local-reference-cache"
+    category: "browsecomp_sparse_research_hard"
+    intent: "Locate local notes or cached references in workspace before external browsing."
+    expected_tools: ["find"]
+
+  - id: "browsecomp-hard-semantic-snippet-locate"
+    category: "browsecomp_sparse_research_hard"
+    intent: "Search local corpus by semantic phrasing to match weakly stated clue fragments."
+    expected_tools: ["search_file"]
+
+  - id: "browsecomp-hard-open-narrow-context-window"
+    category: "browsecomp_sparse_research_hard"
+    intent: "Open a narrow context window around the suspected evidence statement for verification."
+    expected_tools: ["read_file"]
+
+  - id: "browsecomp-hard-recall-related-prior-memory"
+    category: "browsecomp_sparse_research_hard"
+    intent: "Search memory for prior investigations related to this clue family."
+    expected_tools: ["memory_search"]
+
+  - id: "browsecomp-hard-extract-memory-detail"
+    category: "browsecomp_sparse_research_hard"
+    intent: "Retrieve a specific memory note with exact details for cross-checking."
+    expected_tools: ["memory_get"]
+
+  - id: "browsecomp-hard-ask-clarification-on-entity-ambiguity"
+    category: "browsecomp_sparse_research_hard"
+    intent: "The target entity is ambiguous and may refer to different domains; ask clarification."
+    expected_tools: ["clarify"]
+
+  - id: "browsecomp-hard-plan-verification-steps"
+    category: "browsecomp_sparse_research_hard"
+    intent: "Create a verification-first plan with source quality checks and contradiction handling."
+    expected_tools: ["plan"]
+
+  - id: "browsecomp-hard-human-gate-for-sensitive-publication"
+    category: "browsecomp_sparse_research_hard"
+    intent: "Before publishing potentially sensitive findings, require explicit human approval."
+    expected_tools: ["request_user"]
+
+  - id: "browsecomp-hard-package-citation-backed-brief"
+    category: "browsecomp_sparse_research_hard"
+    intent: "Produce a citation-backed research brief with evidence links and confidence notes."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "browsecomp sparse research brief"
+      artifact_required: true
+      required_file_types: ["markdown", "json"]
+      required_evidence: ["report", "trace"]
+
+  - id: "browsecomp-hard-attach-client-facing-summary"
+    category: "browsecomp_sparse_research_hard"
+    intent: "Generate a client-facing condensed summary attachment from the final brief."
+    expected_tools: ["write_attachment"]

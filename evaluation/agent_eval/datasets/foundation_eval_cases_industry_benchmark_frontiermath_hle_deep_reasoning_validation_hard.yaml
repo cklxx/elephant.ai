@@ -1,0 +1,73 @@
+version: "1"
+name: "foundation-industry-benchmark-frontiermath-hle-deep-reasoning-validation-hard"
+description: "Hard transfer set mapped from FrontierMath and Humanity's Last Exam style deep reasoning tasks requiring evidence grounding and deterministic validation"
+scenarios:
+  - id: "frontier-hle-authority-discovery-before-derivation"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "No trusted source baseline exists yet; discover authoritative references before derivation."
+    expected_tools: ["web_search"]
+
+  - id: "frontier-hle-single-canonical-source-ingest"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "Canonical source link is pre-approved; ingest that exact page only."
+    expected_tools: ["web_fetch"]
+
+  - id: "frontier-hle-recover-prior-proof-pattern"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "Recover previously successful proof pattern from long-term memory before solving."
+    expected_tools: ["memory_search"]
+
+  - id: "frontier-hle-open-exact-memory-evidence"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "A specific prior proof-memory entry is selected; open exact supporting lines."
+    expected_tools: ["memory_get"]
+
+  - id: "frontier-hle-find-local-theorem-notes"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "Locate theorem note candidates by directory topology before reading details."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "frontier-hle-semantic-lemma-evidence-scan"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "Search for lemma evidence from semantic content inside files, not naming cues."
+    expected_tools: ["search_file"]
+
+  - id: "frontier-hle-open-proof-context-window"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "Open exact proof context window around disputed logical transition."
+    expected_tools: ["read_file"]
+
+  - id: "frontier-hle-quick-regex-symbol-pass"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "Run fast symbol-level regex pass across corpus before deep reasoning."
+    expected_tools: ["ripgrep"]
+
+  - id: "frontier-hle-deterministic-computation-verify"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "Use deterministic computation to validate intermediate numeric invariants."
+    expected_tools: ["execute_code"]
+
+  - id: "frontier-hle-human-gate-for-high-stakes-release"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "High-stakes result release is frozen until explicit human approval is given."
+    expected_tools: ["request_user"]
+
+  - id: "frontier-hle-proof-bundle-artifact"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "Persist full proof bundle with references and validation notes as durable artifact."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "proof bundle"
+      artifact_required: true
+      manifest_required: true
+      required_file_types: ["markdown"]
+      required_evidence: ["report"]
+
+  - id: "frontier-hle-downloadable-evidence-package"
+    category: "frontiermath_hle_deep_reasoning_validation_hard"
+    intent: "Evaluator requires immediate downloadable evidence package for offline judging."
+    expected_tools: ["write_attachment"]
+    deliverable:
+      output_description: "offline evidence package"
+      attachment_required: true
+      required_file_types: ["markdown"]

@@ -1,0 +1,377 @@
+package lark
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"alex/internal/domain/agent"
+	agentports "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
+	"alex/internal/shared/logging"
+)
+
+// inputRequestListener bridges external agent input requests to Lark text-based interaction.
+// When a background task (CC/Codex) requests permission or input, it formats a numbered
+// options list and waits for the user's reply.
+type inputRequestListener struct {
+	inner   agentports.EventListener
+	ctx     context.Context
+	g       *Gateway
+	chatID  string
+	replyTo string
+	logger  logging.Logger
+
+	mu     sync.Mutex
+	closed bool
+}
+
+// pendingInputRelay tracks a pending input request awaiting user response.
+type pendingInputRelay struct {
+	taskID    string
+	requestID string
+	agentType string
+	options   []agentports.InputOption
+	reqType   agentports.InputRequestType
+	createdAt int64 // unix nano, for FIFO ordering
+	expiresAt int64 // unix nano; <=0 means no expiry
+}
+
+// pendingRelayQueue is a thread-safe FIFO queue of pending relays for a single chat.
+type pendingRelayQueue struct {
+	mu     sync.Mutex
+	relays []*pendingInputRelay
+}
+
+// Push appends a relay, replacing any existing relay with the same taskID.
+func (q *pendingRelayQueue) Push(relay *pendingInputRelay) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	// Replace existing relay for the same task (new request supersedes old).
+	for i, r := range q.relays {
+		if r.taskID == relay.taskID {
+			q.relays[i] = relay
+			return
+		}
+	}
+	q.relays = append(q.relays, relay)
+}
+
+// PopOldest removes and returns the oldest relay (FIFO). Returns nil if empty.
+func (q *pendingRelayQueue) PopOldest() *pendingInputRelay {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.relays) == 0 {
+		return nil
+	}
+	relay := q.relays[0]
+	q.relays = q.relays[1:]
+	return relay
+}
+
+// PopOldestUnexpired removes and returns the oldest non-expired relay.
+func (q *pendingRelayQueue) PopOldestUnexpired(now time.Time) *pendingInputRelay {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if len(q.relays) == 0 {
+		return nil
+	}
+
+	nowUnix := now.UnixNano()
+	idx := 0
+	for idx < len(q.relays) {
+		relay := q.relays[idx]
+		if relay == nil {
+			idx++
+			continue
+		}
+		if relay.expiresAt > 0 && nowUnix > relay.expiresAt {
+			idx++
+			continue
+		}
+		break
+	}
+	if idx >= len(q.relays) {
+		q.relays = q.relays[:0]
+		return nil
+	}
+	relay := q.relays[idx]
+	q.relays = q.relays[idx+1:]
+	return relay
+}
+
+// PruneExpired removes expired relays and returns removed count.
+func (q *pendingRelayQueue) PruneExpired(now time.Time) int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.relays) == 0 {
+		return 0
+	}
+	nowUnix := now.UnixNano()
+	dst := q.relays[:0]
+	removed := 0
+	for _, relay := range q.relays {
+		if relay == nil {
+			removed++
+			continue
+		}
+		if relay.expiresAt > 0 && nowUnix > relay.expiresAt {
+			removed++
+			continue
+		}
+		dst = append(dst, relay)
+	}
+	q.relays = dst
+	return removed
+}
+
+// TrimToMax evicts oldest relays until the queue size is at most max.
+func (q *pendingRelayQueue) TrimToMax(max int) int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if max <= 0 || len(q.relays) <= max {
+		return 0
+	}
+	removed := len(q.relays) - max
+	q.relays = q.relays[removed:]
+	return removed
+}
+
+// OldestCreatedAtUnixNano returns the oldest relay timestamp in queue.
+func (q *pendingRelayQueue) OldestCreatedAtUnixNano() int64 {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.relays) == 0 || q.relays[0] == nil {
+		return 0
+	}
+	return q.relays[0].createdAt
+}
+
+// Len returns the number of pending relays.
+func (q *pendingRelayQueue) Len() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return len(q.relays)
+}
+
+func newInputRequestListener(
+	ctx context.Context,
+	inner agentports.EventListener,
+	g *Gateway,
+	chatID string,
+	replyTo string,
+	logger logging.Logger,
+) *inputRequestListener {
+	return &inputRequestListener{
+		inner:   inner,
+		ctx:     ctx,
+		g:       g,
+		chatID:  chatID,
+		replyTo: replyTo,
+		logger:  logging.OrNop(logger),
+	}
+}
+
+func (l *inputRequestListener) Close() {
+	l.mu.Lock()
+	l.closed = true
+	l.mu.Unlock()
+}
+
+func (l *inputRequestListener) OnEvent(event agentports.AgentEvent) {
+	if l.inner != nil {
+		l.inner.OnEvent(event)
+	}
+
+	switch e := event.(type) {
+	case *domain.WorkflowEventEnvelope:
+		l.onEnvelope(e)
+	}
+}
+
+func (l *inputRequestListener) onEnvelope(env *domain.WorkflowEventEnvelope) {
+	if env == nil {
+		return
+	}
+
+	if strings.TrimSpace(env.Event) != types.EventExternalInputRequested {
+		return
+	}
+
+	l.onInputRequested(env)
+}
+
+func (l *inputRequestListener) onInputRequested(env *domain.WorkflowEventEnvelope) {
+	taskID := asString(env.Payload["task_id"])
+	requestID := asString(env.Payload["request_id"])
+	agentType := asString(env.Payload["agent_type"])
+	summary := asString(env.Payload["summary"])
+	reqType := asString(env.Payload["type"])
+
+	if taskID == "" || requestID == "" {
+		return
+	}
+
+	l.mu.Lock()
+	if l.closed {
+		l.mu.Unlock()
+		return
+	}
+
+	// Parse options from payload
+	var options []agentports.InputOption
+	if rawOpts, ok := env.Payload["options"].([]any); ok {
+		for _, raw := range rawOpts {
+			if m, ok := raw.(map[string]any); ok {
+				opt := agentports.InputOption{
+					ID:          asString(m["id"]),
+					Label:       asString(m["label"]),
+					Description: asString(m["description"]),
+				}
+				if opt.ID != "" && opt.Label != "" {
+					options = append(options, opt)
+				}
+			}
+		}
+	}
+
+	// Store pending relay on Gateway for response routing (survives listener lifecycle).
+	relay := &pendingInputRelay{
+		taskID:    taskID,
+		requestID: requestID,
+		agentType: agentType,
+		options:   options,
+		reqType:   agentports.InputRequestType(reqType),
+		createdAt: time.Now().UnixNano(),
+	}
+	l.g.storePendingRelay(l.chatID, relay)
+	l.mu.Unlock()
+
+	// Format and send the request to Lark
+	text := l.formatInputRequest(taskID, agentType, summary, reqType, options)
+	if _, err := l.g.dispatchMessage(l.ctx, l.chatID, l.replyTo, "text", textContent(text)); err != nil {
+		l.logger.Warn("Input request dispatch failed: %v", err)
+	}
+}
+
+// formatInputRequest formats an input request as a numbered options text message.
+func (l *inputRequestListener) formatInputRequest(taskID, agentType, summary, reqType string, options []agentports.InputOption) string {
+	var sb strings.Builder
+
+	typeLabel := "输入请求"
+	if reqType == string(agentports.InputRequestPermission) {
+		typeLabel = "权限请求"
+	}
+
+	sb.WriteString(fmt.Sprintf("[任务 %s] %s\n", shortID(taskID), typeLabel))
+	if agentType != "" {
+		sb.WriteString(fmt.Sprintf("%s 请求确认:\n", agentType))
+	}
+	if summary != "" {
+		sb.WriteString(truncateForLark(summary, 400))
+		sb.WriteString("\n")
+	}
+
+	if len(options) > 0 {
+		optLabels := make([]string, 0, len(options))
+		for _, opt := range options {
+			label := opt.Label
+			if opt.Description != "" {
+				label += " - " + opt.Description
+			}
+			optLabels = append(optLabels, label)
+		}
+		sb.WriteString("\n")
+		sb.WriteString(formatNumberedOptions("选择操作:", optLabels))
+	} else {
+		// Default permission options
+		sb.WriteString("\n")
+		defaultOpts := []string{"同意", "拒绝", "同意并记住"}
+		sb.WriteString(formatNumberedOptions("选择操作:", defaultOpts))
+	}
+
+	return sb.String()
+}
+
+// TryResolveInputReply checks if a user message is a reply to a pending input request.
+// Returns true if the reply was handled.
+// Deprecated: relay storage has moved to Gateway.pendingInputRelays; prefer Gateway.tryResolveInputReply.
+func (l *inputRequestListener) TryResolveInputReply(ctx context.Context, chatID, content string) bool {
+	return l.g.tryResolveInputReply(ctx, chatID, content)
+}
+
+// buildInputResponse converts user text input into an InputResponse.
+func buildInputResponse(relay *pendingInputRelay, content string) agentports.InputResponse {
+	trimmed := strings.TrimSpace(content)
+	resp := agentports.InputResponse{
+		TaskID:    relay.taskID,
+		RequestID: relay.requestID,
+	}
+
+	if isSkipReply(trimmed) {
+		resp.Approved = false
+		resp.Text = "skipped"
+		return resp
+	}
+
+	if len(relay.options) > 0 {
+		// Try numbered reply against options
+		optLabels := make([]string, 0, len(relay.options))
+		for _, opt := range relay.options {
+			optLabels = append(optLabels, opt.Label)
+		}
+		selected := parseNumberedReply(trimmed, optLabels)
+		for _, opt := range relay.options {
+			if selected == opt.Label {
+				resp.OptionID = opt.ID
+				resp.Approved = true
+				return resp
+			}
+		}
+	}
+
+	// Default permission handling
+	switch {
+	case trimmed == "1" || strings.EqualFold(trimmed, "同意"):
+		resp.Approved = true
+	case trimmed == "2" || strings.EqualFold(trimmed, "拒绝"):
+		resp.Approved = false
+	case trimmed == "3" || strings.EqualFold(trimmed, "同意并记住"):
+		resp.Approved = true
+		resp.Text = "remember"
+	default:
+		// Free text response
+		resp.Text = trimmed
+		resp.Approved = true
+	}
+
+	return resp
+}
+
+// parseMultiNumberedReply resolves comma-separated numeric replies against option list.
+// E.g., "1,3" with ["a","b","c"] → ["a","c"]
+func parseMultiNumberedReply(input string, options []string) []string {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" || len(options) == 0 {
+		return nil
+	}
+
+	parts := strings.Split(trimmed, ",")
+	var result []string
+	for _, part := range parts {
+		resolved := parseNumberedReply(strings.TrimSpace(part), options)
+		if resolved != strings.TrimSpace(part) { // was numeric
+			result = append(result, resolved)
+		}
+	}
+	return result
+}
+
+// isSkipReply checks if the input is a skip/pass command.
+func isSkipReply(input string) bool {
+	trimmed := strings.ToLower(strings.TrimSpace(input))
+	return trimmed == "skip" || trimmed == "跳过" || trimmed == "pass"
+}

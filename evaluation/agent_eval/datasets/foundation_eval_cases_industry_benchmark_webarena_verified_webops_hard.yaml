@@ -1,0 +1,68 @@
+version: "1"
+name: "foundation-industry-benchmark-webarena-verified-webops-hard"
+description: "Hard transfer set mapped from WebArena-style realistic web operation tasks: multi-step UI state handling, bounded action sequencing, and evidence-backed completion"
+scenarios:
+  - id: "webarena-hard-inspect-live-ui-before-action"
+    category: "webarena_verified_webops_hard"
+    intent: "Before any mutation, inspect current live page state and controls on the browser UI."
+    expected_tools: ["browser_info"]
+
+  - id: "webarena-hard-dom-grounded-control-selection"
+    category: "webarena_verified_webops_hard"
+    intent: "Select controls by DOM semantics and attribute grounding, not visual guesswork."
+    expected_tools: ["browser_dom"]
+
+  - id: "webarena-hard-multistep-ui-workflow-execution"
+    category: "webarena_verified_webops_hard"
+    intent: "Execute a multi-step web task with strict ordering across form fill, navigation, and submission."
+    expected_tools: ["browser_action"]
+
+  - id: "webarena-hard-ui-proof-capture"
+    category: "webarena_verified_webops_hard"
+    intent: "Capture final UI proof image after completion for handoff evidence."
+    expected_tools: ["browser_screenshot"]
+
+  - id: "webarena-hard-offsite-policy-lookup"
+    category: "webarena_verified_webops_hard"
+    intent: "Find policy constraints from external trusted sources before continuing the workflow."
+    expected_tools: ["web_search"]
+
+  - id: "webarena-hard-exact-url-ingest"
+    category: "webarena_verified_webops_hard"
+    intent: "Ingest a single approved reference URL directly instead of doing broad web discovery."
+    expected_tools: ["web_fetch"]
+
+  - id: "webarena-hard-plan-checkpoint-before-high-impact-submit"
+    category: "webarena_verified_webops_hard"
+    intent: "Create a checkpointed execution plan before high-impact irreversible submission."
+    expected_tools: ["plan"]
+
+  - id: "webarena-hard-human-confirmation-on-external-side-effect"
+    category: "webarena_verified_webops_hard"
+    intent: "The action has external side effects; obtain explicit human confirmation before execution."
+    expected_tools: ["request_user"]
+
+  - id: "webarena-hard-write-operator-note-attachment"
+    category: "webarena_verified_webops_hard"
+    intent: "Produce operator-facing completion notes as a shareable attachment."
+    expected_tools: ["write_attachment"]
+
+  - id: "webarena-hard-artifactize-run-evidence"
+    category: "webarena_verified_webops_hard"
+    intent: "Persist run logs, UI evidence, and completion summary as a durable artifact package."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "webarena run evidence package"
+      artifact_required: true
+      required_file_types: ["markdown", "png", "json"]
+      required_evidence: ["report", "screenshot"]
+
+  - id: "webarena-hard-verify-existing-artifacts-before-publish"
+    category: "webarena_verified_webops_hard"
+    intent: "List existing artifacts first and select the intended output before publishing."
+    expected_tools: ["artifacts_list"]
+
+  - id: "webarena-hard-apply-manifest-gate"
+    category: "webarena_verified_webops_hard"
+    intent: "Apply artifact manifest gate to verify required files exist before release."
+    expected_tools: ["artifact_manifest"]

@@ -1,0 +1,7 @@
+port: "8081"
+environment: "evaluation"
+allowed_origins:
+  - "http://localhost:3001"
+eval_output_dir: "./evaluation_results"
+rl_output_dir: "./rl_data"
+session_dir: "./.sessions"

@@ -1,0 +1,16 @@
+events:
+  - event: task_submitted
+  - event: task_submission_failed
+  - event: task_retried_without_session
+  - event: task_cancel_requested
+  - event: task_cancel_failed
+  - event: task_execution_started
+  - event: task_execution_completed
+  - event: task_execution_failed
+  - event: task_execution_cancelled
+  - event: first_token_rendered
+  - event: session_selected
+  - event: session_created
+  - event: session_deleted
+  - event: sidebar_toggled
+  - event: timeline_viewed

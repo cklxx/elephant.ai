@@ -1,0 +1,69 @@
+version: "1"
+name: "foundation-industry-benchmark-cybench-security-ops-hard"
+description: "Hard transfer set mapped from CyBench-style security operations: triage, bounded remediation, explicit approval gates, and evidentiary delivery"
+scenarios:
+  - id: "cybench-hard-ingest-advisory-from-fixed-url"
+    category: "cybench_security_ops_hard"
+    intent: "Security advisory URL is policy-fixed; ingest only that exact source with no discovery step."
+    expected_tools: ["web_fetch"]
+
+  - id: "cybench-hard-discover-authoritative-cve-source-first"
+    category: "cybench_security_ops_hard"
+    intent: "No trusted CVE source is chosen yet; discover authoritative sources before opening any single page."
+    expected_tools: ["web_search"]
+
+  - id: "cybench-hard-repo-topology-owner-prune"
+    category: "cybench_security_ops_hard"
+    intent: "Narrow vulnerable ownership boundary by repository topology before deep content inspection."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "cybench-hard-semantic-ioc-body-search"
+    category: "cybench_security_ops_hard"
+    intent: "Find indicator-of-compromise evidence from file body text, not filename heuristics."
+    expected_tools: ["search_file"]
+
+  - id: "cybench-hard-fast-signature-and-log-sweep"
+    category: "cybench_security_ops_hard"
+    intent: "Execute fastest regex sweep across repo and logs for exploit signature variants."
+    expected_tools: ["ripgrep"]
+
+  - id: "cybench-hard-open-critical-auth-window"
+    category: "cybench_security_ops_hard"
+    intent: "Open exact auth/session logic window where exploit transition is suspected."
+    expected_tools: ["read_file"]
+
+  - id: "cybench-hard-surgical-inplace-remediation"
+    category: "cybench_security_ops_hard"
+    intent: "Apply a surgical in-place remediation patch while preserving architecture and public API."
+    expected_tools: ["replace_in_file"]
+
+  - id: "cybench-hard-deterministic-risk-score-recalc"
+    category: "cybench_security_ops_hard"
+    intent: "Run deterministic risk-score recalculation to validate mitigation impact."
+    expected_tools: ["execute_code"]
+
+  - id: "cybench-hard-cli-runtime-snapshot-before-cut"
+    category: "cybench_security_ops_hard"
+    intent: "Capture runtime/process baseline snapshot from terminal before mitigation rollout."
+    expected_tools: ["shell_exec"]
+
+  - id: "cybench-hard-sensitive-mitigation-needs-approval"
+    category: "cybench_security_ops_hard"
+    intent: "High-impact mitigation touches customer traffic and needs explicit human approval before execution."
+    expected_tools: ["request_user"]
+
+  - id: "cybench-hard-lineage-manifest-compliance-gate"
+    category: "cybench_security_ops_hard"
+    intent: "Compliance gate requires lineage/provenance manifest validation before external sharing."
+    expected_tools: ["artifact_manifest"]
+
+  - id: "cybench-hard-persist-incident-review-pack"
+    category: "cybench_security_ops_hard"
+    intent: "Persist full incident-review package (timeline, patch, validation, controls) as durable artifact."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "security incident review package"
+      artifact_required: true
+      required_file_types: ["markdown", "json"]
+      required_evidence: ["report", "log"]
+

@@ -1,0 +1,72 @@
+version: "1"
+name: "foundation-industry-benchmark-terminal-bench-ops-hard"
+description: "Hard transfer set mapped from Terminal-Bench style terminal-first operations, diagnosis, and bounded mutation workflows"
+scenarios:
+  - id: "terminal-bench-capture-runtime-snapshot-before-touch"
+    category: "terminal_bench_ops_hard"
+    intent: "Before any edit, capture live runtime process and port snapshot from CLI surfaces."
+    expected_tools: ["shell_exec"]
+
+  - id: "terminal-bench-fast-fault-signature-sweep"
+    category: "terminal_bench_ops_hard"
+    intent: "Run the quickest regex sweep across repository and logs for repeated fault signature evidence."
+    expected_tools: ["ripgrep"]
+
+  - id: "terminal-bench-open-hotspot-file-window"
+    category: "terminal_bench_ops_hard"
+    intent: "Open the exact suspect file window around failure locus before applying any patch."
+    expected_tools: ["read_file"]
+
+  - id: "terminal-bench-inplace-surgical-rewrite"
+    category: "terminal_bench_ops_hard"
+    intent: "Apply one surgical in-place rewrite in existing file; avoid creating new module structure."
+    expected_tools: ["replace_in_file"]
+
+  - id: "terminal-bench-det-check-over-metrics"
+    category: "terminal_bench_ops_hard"
+    intent: "Run deterministic numeric validation over extracted slices to confirm boundary behavior."
+    expected_tools: ["execute_code"]
+
+  - id: "terminal-bench-handoff-as-reusable-artefact"
+    category: "terminal_bench_ops_hard"
+    intent: "Keep chat terse and persist full remediation evidence as a reusable durable package."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "durable remediation package"
+      artifact_required: true
+      required_file_types: ["markdown"]
+      required_evidence: ["report", "log"]
+
+  - id: "terminal-bench-inventory-old-packages-first"
+    category: "terminal_bench_ops_hard"
+    intent: "Enumerate existing generated packages before selecting which one to ship to reviewer."
+    expected_tools: ["artifacts_list"]
+
+  - id: "terminal-bench-lineage-check-gate"
+    category: "terminal_bench_ops_hard"
+    intent: "Verify output lineage and creation metadata card before approving release."
+    expected_tools: ["artifact_manifest"]
+
+  - id: "terminal-bench-retire-stale-maintenance-cadence"
+    category: "terminal_bench_ops_hard"
+    intent: "A legacy recurring maintenance job now violates policy and must be retired from scheduler automation."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "terminal-bench-materialize-approved-existing-pack"
+    category: "terminal_bench_ops_hard"
+    intent: "Approved package already exists as attachment; materialize it to local path for offline reviewer handoff."
+    expected_tools: ["write_attachment"]
+    deliverable:
+      output_description: "materialized reviewer handoff package"
+      attachment_required: true
+      required_file_types: ["markdown", "json"]
+
+  - id: "terminal-bench-fixed-url-runbook-ingest"
+    category: "terminal_bench_ops_hard"
+    intent: "Runbook URL is fixed by incident policy; ingest exactly that source without discovery."
+    expected_tools: ["web_fetch"]
+
+  - id: "terminal-bench-discover-source-before-ingest"
+    category: "terminal_bench_ops_hard"
+    intent: "No trusted source URL is chosen yet; discover authoritative incident source before fetching a page."
+    expected_tools: ["web_search"]

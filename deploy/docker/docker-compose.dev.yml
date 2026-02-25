@@ -1,0 +1,72 @@
+# Development Docker Compose - with hot reload
+version: '3.8'
+
+services:
+  # ALEX Server - Development mode with volume mount
+  alex-server:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.server
+    container_name: alex-server-dev
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      - ARK_API_KEY=${ARK_API_KEY:-}
+      - ALEX_WEB_SESSION_DIR=/data/sessions
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-}
+      - CLOUDFLARE_ACCESS_KEY_ID=${CLOUDFLARE_ACCESS_KEY_ID:-}
+      - CLOUDFLARE_SECRET_ACCESS_KEY=${CLOUDFLARE_SECRET_ACCESS_KEY:-}
+      - CLOUDFLARE_BUCKET=${CLOUDFLARE_BUCKET:-}
+      - CLOUDFLARE_PUBLIC_BASE_URL=${CLOUDFLARE_PUBLIC_BASE_URL:-}
+      - CLOUDFLARE_ATTACHMENT_KEY_PREFIX=${CLOUDFLARE_ATTACHMENT_KEY_PREFIX:-}
+    volumes:
+      - ../../:/app:cached
+      - alex-sessions-dev:/data/sessions
+      - ~/.alex/config.yaml:/root/.alex/config.yaml:ro
+    working_dir: /app
+    command: go run ./cmd/alex-web
+    restart: unless-stopped
+    networks:
+      - alex-dev-network
+
+  # Next.js - Development mode with hot reload
+  web:
+    build:
+      context: ../../web
+      dockerfile: Dockerfile.dev
+      target: dev
+    container_name: alex-web-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NODE_ENV=development
+    volumes:
+      - ../../web:/app:cached
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    restart: unless-stopped
+    networks:
+      - alex-dev-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: alex-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data-dev:/data
+    networks:
+      - alex-dev-network
+
+volumes:
+  alex-sessions-dev:
+  redis-data-dev:
+
+networks:
+  alex-dev-network:
+    driver: bridge

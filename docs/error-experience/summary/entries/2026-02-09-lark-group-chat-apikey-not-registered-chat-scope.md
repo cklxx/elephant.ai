@@ -1,0 +1,2 @@
+Summary: Group-chat `apikey not registered` stemmed from per-user chat scope (`chat_id + user_id`) mismatching the intended chat-level semantics and from sender ID extraction relying only on `open_id`.
+Remediation: Added chat-level selection scope with legacy fallback order (`chat -> chat+user -> channel`), switched `--chat` writes to chat scope, and added sender ID fallback (`user_id`/`union_id`) plus regression tests.

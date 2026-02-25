@@ -1,0 +1,27 @@
+name: group_not_allowed
+description: "Group messages are silently skipped when allow_groups is false"
+tags: [filter, group, permission]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_direct: true
+    allow_groups: false
+  llm_mode: mock
+
+turns:
+  - sender_id: "ou_user_blocked"
+    chat_id: "oc_group_blocked"
+    chat_type: "group"
+    message_id: "om_msg_blocked_001"
+    content: "这条消息应该被忽略"
+
+    mock_response:
+      answer: "不应该出现"
+
+    assertions:
+      no_call:
+        - ReplyMessage
+        - SendMessage
+      executor:
+        called: false

@@ -1,0 +1,69 @@
+version: "1"
+name: "foundation-industry-benchmark-general-assistant-gaia"
+description: "Industry transfer set inspired by GAIA-style general assistant tasks requiring multi-step tool-use, disambiguation, and verification"
+scenarios:
+  - id: "industry-gaia-constraint-conflict-first-question"
+    category: "gaia_transfer"
+    intent: "Two constraints conflict and both cannot hold; ask one precise question before any action."
+    expected_tools: ["clarify"]
+
+  - id: "industry-gaia-human-gate-before-sensitive-action"
+    category: "gaia_transfer"
+    intent: "The requested action has explicit manual approval dependency and must pause for human go-ahead."
+    expected_tools: ["request_user"]
+
+  - id: "industry-gaia-discover-source-then-ground"
+    category: "gaia_transfer"
+    intent: "No source is preselected; discover authoritative references first, then pick one for grounding."
+    expected_tools: ["web_search"]
+
+  - id: "industry-gaia-single-approved-page-ingestion"
+    category: "gaia_transfer"
+    intent: "A single canonical URL was already approved; fetch only that exact page."
+    expected_tools: ["web_fetch"]
+
+  - id: "industry-gaia-thread-context-before-answer"
+    category: "gaia_transfer"
+    intent: "Need prior in-thread decisions and wording history before drafting response."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "industry-gaia-progress-update-text-only"
+    category: "gaia_transfer"
+    intent: "Send a short checkpoint update in thread with explicit no-file requirement."
+    expected_tools: ["lark_send_message"]
+
+  - id: "industry-gaia-file-delivery-required"
+    category: "gaia_transfer"
+    intent: "Consumer requires the full generated package delivered as an actual file in thread."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "industry-gaia-durable-artifact-required"
+    category: "gaia_transfer"
+    intent: "Keep chat concise but persist complete evidence and reasoning for downstream review."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "durable evidence and reasoning package"
+      artifact_required: true
+      required_file_types: ["md"]
+      required_evidence: ["evidence", "summary"]
+
+  - id: "industry-gaia-artifact-inventory-before-release"
+    category: "gaia_transfer"
+    intent: "Before releasing anything, enumerate existing generated outputs and choose the valid one."
+    expected_tools: ["artifacts_list"]
+
+  - id: "industry-gaia-locate-by-path-before-content"
+    category: "gaia_transfer"
+    intent: "In a large repository, narrow to candidate modules by path structure before file content checks."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "industry-gaia-content-search-within-known-file"
+    category: "gaia_transfer"
+    intent: "Given known target file, find semantic matches in file content rather than path names."
+    expected_tools: ["search_file"]
+
+  - id: "industry-gaia-fast-regex-sweep"
+    category: "gaia_transfer"
+    intent: "Run quick repo-wide regex sweep before deeper reading."
+    expected_tools: ["ripgrep"]
+

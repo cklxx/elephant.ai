@@ -1,0 +1,90 @@
+version: '1'
+name: foundation-valuable-workflows
+description: High-value delivery workflow routing coverage from first action to orchestration
+scenarios:
+- id: workflow-release-checklist-plan
+  category: valuable_workflow
+  intent: Create a phased release checklist with milestones and rollback checkpoints.
+  expected_tools:
+  - plan
+- id: workflow-incident-triage-start
+  category: valuable_workflow
+  intent: Start incident triage by running shell commands and grep on service logs
+    for repeated failures.
+  expected_tools:
+  - shell_exec
+  - grep
+- id: workflow-repo-impact-audit
+  category: valuable_workflow
+  intent: Before refactor, map all impacted symbols across the repository.
+  expected_tools:
+  - search_file
+  - ripgrep
+- id: workflow-config-audit-start
+  category: valuable_workflow
+  intent: Start config audit by listing directory tree and using find to locate candidate
+    config files.
+  expected_tools:
+  - list_dir
+  - find
+- id: workflow-safe-read-before-edit
+  category: valuable_workflow
+  intent: Read the target config file before replacing deprecated keys.
+  expected_tools:
+  - read_file
+- id: workflow-apply-targeted-rewrite
+  category: valuable_workflow
+  intent: Apply a targeted rewrite to one exact block in the target file.
+  expected_tools:
+  - replace_in_file
+- id: workflow-create-migration-note
+  category: valuable_workflow
+  intent: Write a migration note file in YAML with rollout instructions.
+  expected_tools:
+  - write_file
+- id: workflow-browser-bug-repro
+  category: valuable_workflow
+  intent: Reproduce the web bug by filling fields using selectors.
+  expected_tools:
+  - browser_dom
+- id: workflow-browser-canvas-repro
+  category: valuable_workflow
+  intent: Perform canvas-only interaction with coordinate drag steps.
+  expected_tools:
+  - browser_action
+- id: workflow-browser-proof-capture
+  category: valuable_workflow
+  intent: Capture screenshot evidence for bug filing and triage.
+  expected_tools:
+  - browser_screenshot
+- id: workflow-browser-context-check
+  category: valuable_workflow
+  intent: Inspect browser tab metadata before running replay steps.
+  expected_tools:
+  - browser_info
+- id: workflow-external-doc-research
+  category: valuable_workflow
+  intent: Search and collect authoritative docs about deployment freeze policy.
+  expected_tools:
+  - web_search
+  - web_fetch
+- id: workflow-runbook-html-fix
+  category: valuable_workflow
+  intent: Transform and fix runbook HTML markup for accessibility.
+  expected_tools:
+  - html_edit
+- id: workflow-architecture-visualization
+  category: valuable_workflow
+  intent: Render a Mermaid architecture diagram for change review.
+  expected_tools:
+  - diagram_render
+- id: workflow-report-persist
+  category: valuable_workflow
+  intent: Persist a long-form technical report as artifact output.
+  expected_tools:
+  - artifacts_write
+- id: workflow-report-attachment
+  category: valuable_workflow
+  intent: Produce a downloadable attachment from generated content.
+  expected_tools:
+  - write_attachment

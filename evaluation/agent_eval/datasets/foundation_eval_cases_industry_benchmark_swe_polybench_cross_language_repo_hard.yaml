@@ -1,0 +1,68 @@
+version: "1"
+name: "foundation-industry-benchmark-swe-polybench-cross-language-repo-hard"
+description: "Hard transfer set mapped from SWE-PolyBench style cross-language, multi-repo engineering and integration constraints"
+scenarios:
+  - id: "swe-polybench-multi-repo-tree-narrowing"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "In a polyrepo setup, narrow candidate modules by tree topology before opening source bodies."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "swe-polybench-cross-lang-symbol-evidence"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "Collect cross-language symbol evidence from file content, not path naming conventions."
+    expected_tools: ["search_file"]
+
+  - id: "swe-polybench-fast-regex-across-monorepo"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "Execute the fastest regex-wide sweep across all service roots before deep inspection."
+    expected_tools: ["ripgrep"]
+
+  - id: "swe-polybench-open-interface-compat-window"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "Open exact compatibility contract window around failing interface bridge."
+    expected_tools: ["read_file"]
+
+  - id: "swe-polybench-exact-inplace-contract-fix"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "Patch the contract mismatch in-place at one logic site; avoid broad refactor."
+    expected_tools: ["replace_in_file"]
+
+  - id: "swe-polybench-runtime-linkage-check-cli"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "Check linkage/runtime state through command-line execution and logs before publishing."
+    expected_tools: ["shell_exec"]
+
+  - id: "swe-polybench-deterministic-delta-evaluation"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "Run deterministic delta calculations to validate post-fix behavioral threshold."
+    expected_tools: ["execute_code"]
+
+  - id: "swe-polybench-phased-rollout-plan-first"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "Provide staged rollout plan with rollback checkpoints before any cross-repo mutation."
+    expected_tools: ["plan"]
+
+  - id: "swe-polybench-consent-before-external-migration"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "External migration message must wait until explicit user consent is granted."
+    expected_tools: ["request_user"]
+
+  - id: "swe-polybench-output-inventory-before-release"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "Enumerate generated integration outputs before picking one for release handoff."
+    expected_tools: ["artifacts_list"]
+
+  - id: "swe-polybench-traceability-manifest-gate"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "Validate release traceability from metadata manifest before sharing package."
+    expected_tools: ["artifact_manifest"]
+
+  - id: "swe-polybench-durable-cross-repo-handoff"
+    category: "swe_polybench_cross_language_repo_hard"
+    intent: "Persist complete cross-repo integration handoff report as durable reusable artifact."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "cross-repo integration handoff report"
+      artifact_required: true
+      required_file_types: ["markdown"]
+      required_evidence: ["report", "diff"]

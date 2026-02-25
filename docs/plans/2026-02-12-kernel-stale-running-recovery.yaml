@@ -1,0 +1,26 @@
+title: Kernel stale running dispatch recovery
+date: 2026-02-12
+status: completed
+owner: codex
+
+summary:
+  problem: >
+    Kernel cycle could stop dispatching forever when the most recent dispatch for an
+    agent stayed in running state after crash/interruption.
+  goal: >
+    Recover stale running dispatches automatically so the proactive loop can self-heal
+    and continue dispatching.
+
+steps:
+  - id: P1
+    name: Add stale-running recovery before planning
+    status: completed
+  - id: P2
+    name: Maintain lease fields consistently on running/done/failed transitions
+    status: completed
+  - id: P3
+    name: Add regression tests for stale recovery
+    status: completed
+  - id: P4
+    name: Validate with targeted tests and real kernel cycle run
+    status: completed

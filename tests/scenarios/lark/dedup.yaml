@@ -1,0 +1,41 @@
+name: dedup
+description: "Duplicate message ID is silently skipped"
+tags: [dedup, safety]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_direct: true
+  llm_mode: mock
+
+turns:
+  # First message should be processed normally.
+  - sender_id: "ou_user_003"
+    chat_id: "oc_chat_003"
+    message_id: "om_dedup_001"
+    content: "第一条消息"
+
+    mock_response:
+      answer: "收到第一条。"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["收到第一条"]
+          min_count: 1
+
+  # Second message with the same ID should be deduped — no reply.
+  - sender_id: "ou_user_003"
+    chat_id: "oc_chat_003"
+    message_id: "om_dedup_001"
+    content: "重复消息"
+
+    mock_response:
+      answer: "不应该出现"
+
+    assertions:
+      no_call:
+        - ReplyMessage
+        - SendMessage
+      executor:
+        called: false

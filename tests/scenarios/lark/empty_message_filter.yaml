@@ -1,0 +1,36 @@
+name: empty_message_filter
+description: "Empty text messages and whitespace-only messages are silently skipped"
+tags: [filter, empty]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_direct: true
+  llm_mode: mock
+
+turns:
+  # Empty text should be skipped entirely — no reply, no execute.
+  - sender_id: "ou_user_empty"
+    chat_id: "oc_chat_empty"
+    message_id: "om_msg_empty_001"
+    content: ""
+
+    assertions:
+      no_call:
+        - ReplyMessage
+        - SendMessage
+      executor:
+        called: false
+
+  # Whitespace-only should also be skipped.
+  - sender_id: "ou_user_empty"
+    chat_id: "oc_chat_empty"
+    message_id: "om_msg_empty_002"
+    content: "   "
+
+    assertions:
+      no_call:
+        - ReplyMessage
+        - SendMessage
+      executor:
+        called: false

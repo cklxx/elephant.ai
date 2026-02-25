@@ -1,0 +1,45 @@
+id: 2026-02-14-kernel-lark-proactivity-7c-integration
+title: Systematic optimization of kernel proactivity, Lark integration, and 7C response quality
+status: completed
+owner: codex
+created: 2026-02-14
+updated: 2026-02-15T00:45:00+08:00
+summary: >
+  Build a unified proactive execution policy across unattended kernel cycles and
+  Lark conversational tasks, while adding a 7C-aligned response shaping layer
+  for direct user output quality.
+scope:
+  in:
+    - Extend kernel dispatch validation to classify non-final outcomes with actionable labels
+    - Surface kernel autonomy signals in cycle notification summaries sent to Lark notice chat
+    - Add a shared 7C response shaper and integrate it into Lark final reply path
+    - Add regression tests for autonomy classification and output shaping behavior
+    - Run full lint and test gate before delivery
+  out:
+    - Kernel schedule/cadence changes
+    - Non-Lark channel rendering redesign
+    - Prompt corpus rewrite for all personas
+steps:
+  - id: define-shared-autonomy-contract
+    description: Define kernel result classifications to support unattended completion and Lark handoff
+    status: completed
+  - id: implement-kernel-lark-signal-plumbing
+    description: Thread autonomy metadata into cycle summaries and Lark notice notifications
+    status: completed
+  - id: implement-7c-output-shaper
+    description: Add 7C shaping utility and wire into Lark final text reply generation
+    status: completed
+  - id: add-tests-and-run-gates
+    description: Add tests for new behavior and run full repository checks
+    status: completed
+acceptance_criteria:
+  - Kernel cycle summaries explicitly indicate when dispatches were auto-retried and whether final output is actionable
+  - Lark notice receives structured cycle summary that helps continued action without extra clarification loops
+  - Lark final text replies are normalized to 7C constraints without losing factual content
+  - Full `./scripts/pre-push.sh` passes
+notes:
+  - "2026-02-15: kernel executor now emits autonomy metadata (attempts/recovered_from/actionable) and engine decorates agent summaries with machine-readable autonomy tags."
+  - "2026-02-15: kernel cycle notification now includes autonomy metrics (actionable ratio, auto-recovered count, blocked categories)."
+  - "2026-02-15: added shared reply shaper (ShapeReply7C) and integrated into channels base reply path + lark fallback path."
+  - "2026-02-15: added/updated regression tests for kernel autonomy metadata, notifier metrics, and 7C reply shaping behavior."
+  - "2026-02-15: passed full gate via ./scripts/pre-push.sh (go mod tidy, vet, build, go test -race, golangci-lint, arch checks, web lint/build)."

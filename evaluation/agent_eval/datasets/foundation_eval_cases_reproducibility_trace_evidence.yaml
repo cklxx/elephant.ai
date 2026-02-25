@@ -1,0 +1,40 @@
+version: '1'
+name: foundation-reproducibility-trace-evidence
+description: Reproducibility and evidence-trace stress set inspired by WebArena-Verified
+  and SWE-bench Verified evaluation expectations
+scenarios:
+- id: trace-evidence-manifest-audit-before-publish
+  category: trace_evidence
+  intent: Before publishing any result, validate lineage and metadata completeness
+    from the generated artifact manifest.
+  expected_tools:
+  - artifact_manifest
+  deliverable:
+    output_description: manifest lineage audit
+    manifest_required: true
+    required_evidence:
+    - report
+- id: trace-evidence-list-artifacts-before-send
+  category: trace_evidence
+  intent: Enumerate outputs produced in this run so reviewer can choose exact files
+    for release.
+  expected_tools:
+  - artifacts_list
+- id: trace-evidence-clean-stale-bundles
+  category: trace_evidence
+  intent: Discard stale failed-run bundles to avoid polluted verification evidence.
+  expected_tools:
+  - artifacts_delete
+- id: trace-evidence-durable-report-before-chat
+  category: trace_evidence
+  intent: Keep answer concise but persist full reproducibility notes as durable audit
+    artifact.
+  expected_tools:
+  - artifacts_write
+  deliverable:
+    output_description: reproducibility audit report
+    artifact_required: true
+    required_file_types:
+    - md
+    required_evidence:
+    - report

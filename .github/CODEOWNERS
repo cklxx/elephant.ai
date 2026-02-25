@@ -1,0 +1,10 @@
+* @cklxx
+
+/internal/domain/ @cklxx
+/internal/app/ @cklxx
+/internal/delivery/ @cklxx
+/internal/infra/ @cklxx
+/internal/shared/ @cklxx
+
+/configs/arch/ @cklxx
+/scripts/arch/ @cklxx

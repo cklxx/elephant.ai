@@ -1,0 +1,2 @@
+Practice: Expand foundation evaluation into layered suites (tool coverage, prompt effectiveness, proactivity, complex tasks), run a first pass to surface concrete misses, then close failures with targeted per-tool boosts plus conflict-tool penalties and lock them with ranking regression tests.
+Impact: New 68-case suite reached Top-K 100% and 0 availability errors after one optimize cycle, with failure localization and remediation path becoming deterministic.

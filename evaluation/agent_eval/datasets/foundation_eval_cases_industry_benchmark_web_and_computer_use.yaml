@@ -1,0 +1,25 @@
+version: '1'
+name: foundation-industry-benchmark-web-and-computer-use
+description: Industry benchmark transfer set for web/computer-use agents (WebArena,
+  BrowseComp, OSWorld, WebChoreArena)
+scenarios:
+- id: industry-webarena-selector-driven-form-task
+  category: webarena_transfer
+  intent: Complete web task through stable DOM selectors (fill fields and submit).
+  expected_tools:
+  - browser_dom
+- id: industry-webarena-readonly-state-check
+  category: webarena_transfer
+  intent: Only inspect active tab URL/title/session metadata before deciding interactions.
+  expected_tools:
+  - browser_info
+- id: industry-webarena-canvas-interaction-no-selector
+  category: webarena_transfer
+  intent: Target UI element has no reliable selector and requires coordinate interaction.
+  expected_tools:
+  - browser_action
+- id: industry-webarena-visual-proof-capture
+  category: webarena_transfer
+  intent: Capture page evidence image for reproducible verification.
+  expected_tools:
+  - browser_screenshot

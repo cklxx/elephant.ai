@@ -1,0 +1,34 @@
+version: 1
+updated: "2026-02-24"
+tags:
+    - name: concurrency
+      description: Concurrency, race, or synchronization behavior.
+    - name: config
+      description: Configuration, env, profile, or key management concerns.
+    - name: error
+      description: Error experience and failure analysis.
+    - name: good
+      description: Good experience and successful implementation patterns.
+    - name: kernel
+      description: Kernel scheduler/runtime behavior and cadence.
+    - name: lark
+      description: Lark channel, gateway, callback, or chat integration behavior.
+    - name: long_term
+      description: Durable memory rules and long-lived guidance.
+    - name: memory
+      description: Memory retrieval, storage, or continuity concerns.
+    - name: observability
+      description: Metrics, logs, tracing, and runtime diagnosis.
+    - name: performance
+      description: Performance, memory growth, latency, or throughput.
+    - name: plan
+      description: Implementation planning or execution tracking.
+    - name: session
+      description: Session identity, reuse, or state recovery concerns.
+    - name: summary
+      description: Condensed summary node derived from a full entry.
+schema:
+    aliases:
+        - string
+    description: string
+    name: string

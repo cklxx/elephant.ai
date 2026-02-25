@@ -45,6 +45,8 @@ type ReactEngine struct {
 	externalExecutor agent.ExternalAgentExecutor
 	// Pre-configured team definitions for team_dispatch tool.
 	teamDefinitions []agent.TeamDefinition
+	// Optional file-backed recorder for team dispatch run audit.
+	teamRunRecorder agent.TeamRunRecorder
 
 	// llmRebuilder creates a new streaming LLM client when the agent switches
 	// provider/model at runtime via the update_config tool. Nil when dynamic
@@ -140,6 +142,8 @@ type ReactEngineConfig struct {
 	ExternalExecutor agent.ExternalAgentExecutor
 	// TeamDefinitions are pre-configured agent teams available to the team_dispatch tool.
 	TeamDefinitions []agent.TeamDefinition
+	// TeamRunRecorder persists team_dispatch run records (typically file-based).
+	TeamRunRecorder agent.TeamRunRecorder
 	// LLMClientRebuilder creates a new streaming LLM client for a given
 	// provider/model pair. Used by the update_config tool to switch models
 	// at runtime. Optional; when nil, model switching is not supported.

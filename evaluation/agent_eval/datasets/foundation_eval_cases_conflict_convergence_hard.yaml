@@ -1,0 +1,27 @@
+version: '1'
+name: foundation-conflict-convergence-hard
+description: Conflict-heavy hard cases for systematic convergence of overlapping tools,
+  including sandbox-intent normalization onto executable tools
+scenarios:
+- id: conflict-lark-history-not-upload
+  category: conflict_convergence
+  intent: Before replying, read recent Lark thread history and context only; do not
+    upload any file.
+  expected_tools:
+  - lark_chat_history
+- id: conflict-lark-status-message-not-upload
+  category: conflict_convergence
+  intent: Send a short status message to Lark thread without any attachment.
+  expected_tools:
+  - lark_send_message
+- id: conflict-lark-upload-explicit
+  category: conflict_convergence
+  intent: Upload the generated markdown report file to the Lark thread for download.
+  expected_tools:
+  - lark_upload_file
+- id: conflict-request-user-approval-gate
+  category: conflict_convergence
+  intent: This action is blocked until user approval; request explicit consent before
+    continuing.
+  expected_tools:
+  - request_user

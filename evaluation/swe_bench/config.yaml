@@ -1,0 +1,62 @@
+# SWE-bench 统一配置
+# 支持 lite(300)、full(2294)、verified(500) 数据集
+
+# Agent 配置 - 针对 Verified 数据集优化
+agent:
+  model:
+    name: "deepseek/deepseek-chat-v3-0324:free"  # 可改为更强模型如 "openai/gpt-4o"
+    temperature: 0.1                             # 低温度确保一致性
+    max_tokens: 8000                             # Verified 实例通常更复杂，需要更多token
+  
+  max_turns: 30          # Verified 实例可能需要更多对话轮数
+  cost_limit: 20.0       # 更高的成本限制，适应复杂任务
+  timeout: 600           # 10分钟超时，适应复杂任务
+
+# 数据集配置 - 现在默认使用真实实例
+instances:
+  # 使用真实 SWE-bench Verified 实例进行测试（推荐用于开发）
+  type: "file"
+  file_path: "test_results/real_swe_bench_sample.json"
+  instance_limit: 3      # 使用所有 3 个真实实例
+  
+  # 生产环境：使用完整 Verified 数据集（需要网络下载）
+  # type: "swe_bench"      # 数据集类型
+  # subset: "verified"     # 使用 Verified 子集
+  # split: "dev"           # 开发集，包含所有 500 个实例
+  
+  # 分阶段评估选项（大规模评估时推荐）
+  # instance_limit: 50               # 先评估 50 个实例测试
+  # instance_slice: [0, 100]         # 或分批处理，如先处理前100个
+  # shuffle: true                    # 随机化可能有助于发现偏见
+  
+  # 特定实例评估（如果需要）
+  # instance_ids: ["django__django-12345", "sympy__sympy-67890"]
+
+# 执行配置 - 针对 Verified 优化
+num_workers: 4                    # 适中的并行数，避免资源争夺
+output_path: "./verified_results" # 专用输出目录
+enable_logging: true              # 启用详细日志，便于分析
+fail_fast: false                  # 不要因单个失败停止整个评估
+max_retries: 3                    # 更多重试，Verified 实例更宝贵
+max_delay: 10s                    # 适当延迟，避免API限流
+
+# 高质量评估配置示例
+# 以下配置适用于追求最高质量结果的场景：
+
+# 高性能模型配置（需要更强API）:
+# agent:
+#   model:
+#     name: "openai/gpt-4o"        # 或 "anthropic/claude-3-5-sonnet"
+#     temperature: 0.0             # 最低温度确保确定性
+#     max_tokens: 16000            # 更多token处理复杂实例
+#   max_turns: 50                  # 更多对话轮数
+#   timeout: 1200                  # 20分钟超时
+#   cost_limit: 50.0               # 更高成本限制
+
+# 保守评估配置（资源有限时）:
+# instances:
+#   instance_limit: 20             # 仅评估20个实例
+# num_workers: 2                   # 较少worker
+# agent:
+#   timeout: 300                   # 较短超时
+#   cost_limit: 5.0               # 较低成本限制

@@ -1,0 +1,24 @@
+name: http_reset_command
+description: "HTTP inject /reset command should return deprecation guidance"
+tags: [http, command, session]
+
+eval:
+  objective: "验证废弃命令兼容：/reset 被安全降级为 /new 提示"
+  difficulty: "L2"
+  category: "session-command"
+  capabilities: ["命令识别", "兼容性处理", "用户引导"]
+  completion_criteria:
+    - "ReplyMessage 包含 /new"
+    - "请求在单轮内完成"
+  design_rationale: "线上用户仍可能输入 /reset，必须保证行为可预期并给出迁移路径。"
+
+turns:
+  - sender_id: "ou_http_user"
+    chat_id: "oc_http_reset"
+    message_id: "om_http_reset_001"
+    content: "/reset"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["/new"]

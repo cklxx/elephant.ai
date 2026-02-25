@@ -1,0 +1,23 @@
+name: http_task_status_usage
+description: "HTTP inject /task status without id should return usage"
+tags: [http, command, task-management]
+
+eval:
+  objective: "验证参数校验：缺少 task_id 时返回明确用法提示"
+  difficulty: "L2"
+  category: "task-command"
+  capabilities: ["参数校验", "错误提示"]
+  completion_criteria:
+    - "ReplyMessage 包含 用法: /task status <task_id>"
+  design_rationale: "参数缺失是最常见输入错误之一，提示必须清晰且可直接复制。"
+
+turns:
+  - sender_id: "ou_http_user"
+    chat_id: "oc_http_task_status_usage"
+    message_id: "om_http_task_status_usage_001"
+    content: "/task status"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["用法: /task status <task_id>"]

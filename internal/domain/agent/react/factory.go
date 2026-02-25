@@ -91,6 +91,7 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		backgroundManager:   cfg.BackgroundManager,
 		externalExecutor:    cfg.ExternalExecutor,
 		teamDefinitions:     cfg.TeamDefinitions,
+		teamRunRecorder:     cfg.TeamRunRecorder,
 		llmRebuilder:        cfg.LLMClientRebuilder,
 	}
 }

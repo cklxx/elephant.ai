@@ -1,0 +1,50 @@
+name: sample-job
+working_dir: workshop/sample
+allow_overwrite: true
+video:
+  segments:
+    - path: assets/video/intro.mp4
+    - path: assets/video/main.mp4
+  output: working/video-only.mp4
+  final_output: outputs/sample_final.mp4
+  preset: default_1080p
+  filters:
+    - scale=1920:1080
+    - format=yuv420p
+audio:
+  mixdown_output: working/audio/mix.wav
+  loudness_target: -16
+  tracks:
+    - name: narration
+      source: tts:narration
+      gain: 0
+      offset: 0s
+      effects: [anlmdn]
+    - name: bgm
+      source: assets/audio/bgm.mp3
+      gain: -8
+      offset: 0s
+      effects: [ducking]
+      envelope:
+        fade_in: 2s
+        fade_out:
+          start: 55s
+          duration: 5s
+        segments:
+          - start: 0s
+            end: 12s
+            gain: -10
+          - start: 12s
+            gain: -4
+tts:
+  - alias: narration
+    voice: en-US-JennyNeural
+    text: "欢迎体验本地优先的音视频管线。"
+    style: default
+    format: wav
+retry_policy:
+  max_attempts: 2
+  backoff: 5s
+stage_timeouts:
+  audio_mix: 2m
+  video_concat: 5m

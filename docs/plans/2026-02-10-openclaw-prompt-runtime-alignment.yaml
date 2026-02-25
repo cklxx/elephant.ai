@@ -1,0 +1,35 @@
+meta:
+  title: "OpenClaw Prompt + Runtime Alignment"
+  owner: "codex"
+  created_at: "2026-02-10T23:05:00-08:00"
+  status: "completed"
+  branch: "feat/openclaw-prompt-runtime-alignment-20260210"
+  scope:
+    - "Prompt modes (full|minimal|none)"
+    - "Bootstrap file injection (Global-first)"
+    - "Heartbeat dual-track"
+    - "Tool policy warn_allow"
+    - "Docs + tests"
+
+steps:
+  - id: "P1"
+    name: "Extend runtime/domain config for prompt modes and policy enforcement"
+    status: "completed"
+  - id: "P2"
+    name: "Implement system prompt mode rendering and bootstrap loader"
+    status: "completed"
+  - id: "P3"
+    name: "Add scheduler+timer heartbeat dual-track support"
+    status: "completed"
+  - id: "P4"
+    name: "Implement tool policy warn_allow behavior + audit markers"
+    status: "completed"
+  - id: "P5"
+    name: "Update tests/docs; run lint+test; mandatory code review"
+    status: "completed"
+
+notes:
+  - "Direct switch to new prompt structure (no legacy default)."
+  - "Bootstrap source priority: ~/.alex/memory first, workspace second."
+  - "Policy enforcement for this phase: warn then allow."
+  - "Code review finding fixed: prompt.mode=none no longer appends file/artifact guidance in Prepare."

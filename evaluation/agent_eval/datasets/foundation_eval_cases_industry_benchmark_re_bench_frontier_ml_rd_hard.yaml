@@ -1,0 +1,72 @@
+version: "1"
+name: "foundation-industry-benchmark-re-bench-frontier-ml-rd-hard"
+description: "Frontier-hard transfer set mapped from METR RE-Bench style ML R&D engineering environments"
+scenarios:
+  - id: "rebench-rd-baseline-cli-snapshot"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "Take a baseline runtime/resource snapshot from terminal before any intervention."
+    expected_tools: ["shell_exec"]
+
+  - id: "rebench-rd-search-kernel-hotspots-fast"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "Run fastest repository-wide pattern sweep to isolate kernel and throughput hotspots."
+    expected_tools: ["ripgrep"]
+
+  - id: "rebench-rd-open-critical-loop-window"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "Open exact training/inference critical-loop window around bottleneck behavior."
+    expected_tools: ["read_file"]
+
+  - id: "rebench-rd-surgical-loop-patch-inplace"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "Apply one surgical in-place patch to core loop while preserving architecture."
+    expected_tools: ["replace_in_file"]
+
+  - id: "rebench-rd-deterministic-score-eval"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "Run deterministic score computation to verify improvement against baseline objective."
+    expected_tools: ["execute_code"]
+
+  - id: "rebench-rd-memory-recover-prior-winning-strategy"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "Recover prior successful optimization strategy from memory before choosing next trial."
+    expected_tools: ["memory_search"]
+
+  - id: "rebench-rd-open-selected-memory-evidence"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "A memory item has been selected; open exact evidence lines for grounded continuation."
+    expected_tools: ["memory_get"]
+
+  - id: "rebench-rd-phased-plan-with-stop-gates"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "Issue phased experiment plan with stop conditions and rollback gates before mutation."
+    expected_tools: ["plan"]
+
+  - id: "rebench-rd-human-approval-before-high-risk-run"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "High-risk long run must wait for explicit human approval before launching."
+    expected_tools: ["request_user"]
+
+  - id: "rebench-rd-output-manifest-gate"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "Check lineage metadata for generated outputs before release handoff."
+    expected_tools: ["artifact_manifest"]
+
+  - id: "rebench-rd-persist-experiment-card"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "Persist full experiment card and rationale as durable artifact for future comparison."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "experiment card"
+      artifact_required: true
+      required_file_types: ["markdown", "json"]
+      required_evidence: ["report", "log"]
+
+  - id: "rebench-rd-downloadable-review-pack"
+    category: "re_bench_frontier_ml_rd_hard"
+    intent: "Reviewer needs immediate downloadable experiment package for offline audit."
+    expected_tools: ["write_attachment"]
+    deliverable:
+      output_description: "offline experiment package"
+      attachment_required: true
+      required_file_types: ["markdown", "json"]

@@ -1,0 +1,29 @@
+ALEX Acceptance Test Suite - Comprehensive Report
+==================================================
+Timestamp: Fri Oct  3 22:58:08 CST 2025
+Base URL: http://localhost:8080
+Test Run ID: 20251003_225808
+
+Backend API Tests: FAILED (0s)
+SSE Streaming Tests: FAILED (0s)
+Integration & E2E Tests: FAILED (1s)
+
+========================================
+Suite Summary
+========================================
+
+
+Total Suites: 3
+Passed: 0
+Failed: 3
+Success Rate: 0.00%
+
+========================================
+Detailed Results
+========================================
+
+Individual test results are available in:
+  - api_test_20251003_225808.txt
+  - integration_test_20251003_225808.txt
+  - sse_test_20251003_225808.txt
+  - test_summary_20251003_225808.txt

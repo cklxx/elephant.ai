@@ -1,0 +1,23 @@
+name: http_task_status_unknown
+description: "HTTP inject /task status with unknown id should return not-found"
+tags: [http, command, task-management]
+
+eval:
+  objective: "验证不存在任务查询的错误反馈一致性"
+  difficulty: "L2"
+  category: "task-command"
+  capabilities: ["任务查询", "不存在资源处理"]
+  completion_criteria:
+    - "ReplyMessage 包含 未找到任务: bg-not-exist"
+  design_rationale: "查询错误反馈是用户判断任务 ID 是否有效的唯一信号。"
+
+turns:
+  - sender_id: "ou_http_user"
+    chat_id: "oc_http_task_status_unknown"
+    message_id: "om_http_task_status_unknown_001"
+    content: "/task status bg-not-exist"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["未找到任务: bg-not-exist"]

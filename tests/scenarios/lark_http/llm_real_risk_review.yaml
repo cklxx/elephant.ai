@@ -1,0 +1,32 @@
+name: http_llm_real_risk_review
+description: "Real repo task: risk review on current modified files"
+tags: [http, llm, realwork]
+
+eval:
+  objective: "验证 LLM 能基于当前改动给出工程风险评审"
+  difficulty: "L5"
+  category: "reasoning"
+  capabilities: ["变更审查", "风险评估", "测试建议"]
+  completion_criteria:
+    - "回复包含 RISK1/RISK2/RISK3"
+    - "每条风险含文件路径与验证命令"
+  design_rationale: "这比玩具题更接近真实研发协作：读变更、判风险、给验证。"
+
+turns:
+  - sender_id: "ou_http_llm_real_risk"
+    chat_id: "oc_http_llm_real_risk"
+    message_id: "om_http_llm_real_risk_001"
+    content: "/new"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["已开启新会话"]
+
+  - sender_id: "ou_http_llm_real_risk"
+    chat_id: "oc_http_llm_real_risk"
+    message_id: "om_http_llm_real_risk_002"
+    content: "真实任务：基于当前 git 工作区改动，给出 3 条最高风险点评审。固定格式：RISK1:, RISK2:, RISK3:。每条都必须包含一个文件路径和一个可执行验证命令（例如 go test ...）。不要提问。"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["RISK1:", "RISK2:", "RISK3:", "go test", ".go"]

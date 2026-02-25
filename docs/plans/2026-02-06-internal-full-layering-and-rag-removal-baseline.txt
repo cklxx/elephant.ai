@@ -1,0 +1,25 @@
+[baseline] tracked files: 1965
+[baseline] internal go files: 922
+[baseline] top internal package fan-out
+ 180 tools
+ 167 agent
+ 111 server
+  48 channels
+  47 llm
+  41 config
+  37 lark
+  27 context
+  15 memory
+  15 auth
+[baseline] largest go files
+  198416 total
+    2028 internal/channels/lark/gateway_test.go
+    1887 internal/channels/lark/gateway.go
+    1413 internal/server/http/sse_handler_test.go
+    1387 internal/agent/domain/react/engine_internal_test.go
+    1257 internal/agent/app/coordinator/coordinator.go
+    1212 internal/config/loader_test.go
+    1048 internal/agent/domain/react/runtime.go
+     983 internal/agent/domain/react/background.go
+     977 internal/agent/app/cost/decorator_test.go
+[baseline] domain imports requiring inversion

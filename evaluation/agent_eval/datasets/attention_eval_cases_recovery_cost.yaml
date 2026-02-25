@@ -1,0 +1,27 @@
+version: "1"
+name: "attention-recovery-cost"
+description: "Evaluate failure recovery quality and human rework burden containment."
+scenarios:
+  - id: "recovery-rollback-evidence"
+    category: "recovery"
+    intent: "After a failed attempt, produce a rollback summary and concrete recovery evidence for fast human verification."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "rollback evidence package"
+      artifact_required: true
+      required_evidence: ["failure_cause", "rollback_steps", "next_safe_action"]
+
+  - id: "recovery-permission-block"
+    category: "recovery"
+    intent: "Execution failed due to missing privilege. Request approval with exact scope and fallback."
+    expected_tools: ["request_user"]
+
+  - id: "recovery-constraint-conflict"
+    category: "recovery"
+    intent: "Two constraints conflict after failure; ask a focused clarification before continuing."
+    expected_tools: ["clarify"]
+
+  - id: "recovery-replan-minimal"
+    category: "recovery"
+    intent: "Given partial progress and one failed branch, generate a minimal replan to finish with fewer human checks."
+    expected_tools: ["plan"]

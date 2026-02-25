@@ -1,0 +1,2 @@
+Practice: Converge model-visible tool names to one canonical surface and keep legacy names as hidden compatibility aliases that route to canonical executors (with argument/path normalization), then scale layered foundation suites and close remaining rank failures with targeted heuristic boosts.
+Impact: Tool discoverability conflicts dropped, availability errors stayed at 0, and expanded layered suite reached full Top-K pass (`138/138`) with explicit `x/x` report counters for tracking.

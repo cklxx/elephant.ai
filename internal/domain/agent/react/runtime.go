@@ -192,6 +192,9 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 	if len(r.engine.teamDefinitions) > 0 {
 		r.ctx = agent.WithTeamDefinitions(r.ctx, r.engine.teamDefinitions)
 	}
+	if r.engine.teamRunRecorder != nil {
+		r.ctx = agent.WithTeamRunRecorder(r.ctx, r.engine.teamRunRecorder)
+	}
 
 	// Inject config override store so the update_config tool can stage changes.
 	if r.configOverrides != nil {

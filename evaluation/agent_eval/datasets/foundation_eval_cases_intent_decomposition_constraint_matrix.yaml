@@ -1,0 +1,29 @@
+version: '1'
+name: foundation-intent-decomposition-constraint-matrix
+description: Systematic examination matrix for intent decomposition across consent
+  gating, planning boundaries, memory retrieval, channel-action selection, source
+  selection, execution mode, scheduling semantics, and deliverable routing
+scenarios:
+- id: opt-hard-consent-before-external-task-sync
+  category: consent_gate_disambiguation
+  intent: Policy says no external coordination until user confirms; ask for approval
+    before creating or assigning any task.
+  expected_tools:
+  - request_user
+- id: opt-hard-sensitive-context-confirm-gate
+  category: consent_gate_disambiguation
+  intent: Action depends on sensitive personal context and cannot proceed safely without
+    explicit user confirmation.
+  expected_tools:
+  - request_user
+- id: opt-hard-plan-phase-vs-task-update
+  category: planning_vs_mutation_boundary
+  intent: Define phased rollout plan with milestones, rollback gates, and risk checkpoints
+    before any task updates.
+  expected_tools:
+  - plan
+- id: opt-hard-plan-minimal-sequence
+  category: planning_vs_mutation_boundary
+  intent: Provide the smallest viable staged execution sequence with explicit checkpoints.
+  expected_tools:
+  - plan

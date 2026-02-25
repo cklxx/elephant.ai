@@ -53,6 +53,7 @@ type AgentCoordinator struct {
 	bgRegistry       *backgroundTaskRegistry
 	iterationHook    agent.IterationHook
 	teamDefinitions  []agent.TeamDefinition
+	teamRunRecorder  agent.TeamRunRecorder
 	checkpointStore  react.CheckpointStore
 
 	prepService           preparationService
@@ -434,6 +435,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		BackgroundManager:  bgManager,
 		ExternalExecutor:   c.externalExecutor,
 		TeamDefinitions:    c.teamDefinitions,
+		TeamRunRecorder:    c.teamRunRecorder,
 		LLMClientRebuilder: c.buildLLMClientRebuilder(ctx, env.Session.ID),
 	})
 

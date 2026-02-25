@@ -1,0 +1,1 @@
+Summary: Solved Lark over-confirmation for delegated low-risk actions by adding explicit no-reconfirm autonomy guardrails across persona/prompt layers and locking behavior with a motivation-aware regression case; new case routes top1 to `channel` and motivation suite pass@1 improved from `88.9%` to `90.0%`.

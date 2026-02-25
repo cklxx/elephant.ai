@@ -1,0 +1,33 @@
+name: http_llm_constraint_rewrite
+description: "Real LLM constrained rewriting into two bullets"
+tags: [http, manual, llm, rewriting]
+
+eval:
+  objective: "验证 LLM 在长度和格式约束下重写复杂文本"
+  difficulty: "L3"
+  category: "reasoning"
+  capabilities: ["文本重写", "约束遵循", "信息压缩"]
+  completion_criteria:
+    - "ReplyMessage 包含 - A: 与 - B:"
+    - "输出保留 评测、新增 两个核心语义"
+  design_rationale: "重写任务比命令执行更接近知识工作，适合评估约束下的表达能力。"
+
+turns:
+  - sender_id: "ou_http_llm_rewrite_user"
+    chat_id: "oc_http_llm_rewrite"
+    message_id: "om_http_llm_rewrite_001"
+    content: "/new"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["已开启新会话"]
+
+  - sender_id: "ou_http_llm_rewrite_user"
+    chat_id: "oc_http_llm_rewrite"
+    message_id: "om_http_llm_rewrite_002"
+    content: "独立测试题。把这段话压缩成两行 bullet，每行不超过20个字：‘本次发布完善了真实端到端评测能力，新增了多维打分、通过样例和失败可复现追踪。’。固定格式必须是“- A:”和“- B:”。不要提问。"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["- A:", "- B:", "评测", "新增"]

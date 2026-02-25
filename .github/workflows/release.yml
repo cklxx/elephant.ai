@@ -1,0 +1,158 @@
+name: 🎉 Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 0.0.5)'
+        required: true
+      create_github_release:
+        description: 'Create GitHub release'
+        required: false
+        default: true
+        type: boolean
+      publish_npm:
+        description: 'Publish to NPM'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  GO_VERSION: '1.24.13'
+  NODE_VERSION: '20'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: 🎯 Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      
+      - name: 📋 Get version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+          echo "Publishing version: ${VERSION}"
+      
+      - name: 🏗️ Build binaries
+        run: |
+          echo "🔨 Building Alex v${{ steps.version.outputs.version }}"
+          make build-all
+          ls -la build/
+      
+      - name: 📦 Create release archives
+        run: |
+          mkdir -p releases
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Create archives for each platform
+          for platform in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
+            echo "📦 Creating archive for $platform"
+            tar -czf "releases/alex-${platform}-v${VERSION}.tar.gz" -C build "alex-${platform}"
+          done
+          
+          # Create Windows archive
+          if [[ -f "build/alex-windows-amd64.exe" ]]; then
+            zip -j "releases/alex-windows-amd64-v${VERSION}.zip" "build/alex-windows-amd64.exe"
+          fi
+          
+          ls -la releases/
+      
+      - name: 📋 Generate checksums
+        run: |
+          cd releases
+          sha256sum * > checksums.txt
+          cat checksums.txt
+      
+      - name: 🎉 Create GitHub Release
+        if: github.event.inputs.create_github_release != 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Alex v${{ steps.version.outputs.version }}
+          body: |
+            ## 🎉 Alex v${{ steps.version.outputs.version }}
+            
+            ### 📦 Installation
+            
+            **NPM (Recommended):**
+            ```bash
+            npm install -g alex-code@${{ steps.version.outputs.version }}
+            ```
+            
+            **Direct Download:**
+            Download the appropriate binary for your platform from the assets below.
+            
+            ### ✨ What's New
+            - Automated release with GitHub Actions
+            - NPM package distribution  
+            - Multi-platform binary support
+            
+            ### 🛠️ Supported Platforms
+            - Linux (AMD64, ARM64)
+            - macOS (Intel, Apple Silicon)  
+            - Windows (AMD64)
+            
+            ### 📊 Checksums
+            See `checksums.txt` for file integrity verification.
+          files: |
+            releases/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Trigger NPM publishing if requested
+  publish-npm:
+    name: 📦 Publish to NPM
+    needs: release
+    if: github.event.inputs.publish_npm != 'false'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: 🚀 Build and Publish NPM
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "📦 Publishing NPM packages for v${{ needs.release.outputs.version }}"
+          make release-npm VERSION=${{ needs.release.outputs.version }}

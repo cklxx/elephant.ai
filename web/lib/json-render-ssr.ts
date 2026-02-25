@@ -1,0 +1,947 @@
+import { buildChartLayout } from "@/lib/json-render-chart";
+import type { ChartLayout, ChartSpec } from "@/lib/json-render-chart";
+import { JsonRenderElement, JsonRenderTree } from "@/lib/json-render-model";
+
+export function renderJsonRenderHtml(tree: JsonRenderTree): string {
+  const root = tree.root;
+  const parts: string[] = [];
+  parts.push("<!doctype html><html><head>");
+  parts.push('<meta charset="utf-8" />');
+  parts.push('<meta name="viewport" content="width=device-width, initial-scale=1" />');
+  parts.push("<style>");
+  parts.push(JR_STYLES);
+  parts.push("</style></head><body>");
+  parts.push('<div class="jr-root">');
+  if (root) {
+    parts.push(renderElement(root, tree));
+  } else {
+    parts.push(renderFallback("No json-render content."));
+  }
+  parts.push("</div></body></html>");
+  return parts.join("");
+}
+
+function renderElement(element: JsonRenderElement, tree: JsonRenderTree): string {
+  const type = element.type.toLowerCase();
+  const props = element.props ?? {};
+
+  switch (type) {
+    case "column": {
+      const alignment = flexAlign(props.align, "flex-start");
+      const distribution = flexJustify(props.justify, "flex-start");
+      return `<div class="jr-column" style="${alignment}${distribution}">${renderChildren(
+        element,
+        tree,
+      )}</div>`;
+    }
+    case "row": {
+      const alignment = flexAlign(props.align, "flex-start");
+      const distribution = flexJustify(props.justify, "flex-start");
+      return `<div class="jr-row" style="${alignment}${distribution}">${renderChildren(
+        element,
+        tree,
+      )}</div>`;
+    }
+    case "list": {
+      return `<div class="jr-list">${renderChildren(element, tree)}</div>`;
+    }
+    case "card": {
+      const style = buildStyle({
+        padding: props.padding,
+        borderRadius: props.radius,
+        border: props.border === false ? "none" : undefined,
+      });
+      return `<div class="jr-card"${styleAttribute(style)}>${renderChildren(
+        element,
+        tree,
+      )}</div>`;
+    }
+    case "heading": {
+      const text = escapeHtml(String(props.text ?? props.title ?? ""));
+      const level = clampHeadingLevel(props.level);
+      const tag = `h${level}`;
+      return `<${tag} class="jr-heading jr-heading-${level}">${text}</${tag}>`;
+    }
+    case "text":
+    case "paragraph": {
+      const text = escapeHtml(String(props.text ?? props.value ?? ""));
+      const style = buildTextStyle(props);
+      return `<p class="jr-text"${styleAttribute(style)}>${text}</p>`;
+    }
+    case "badge": {
+      const text = escapeHtml(String(props.text ?? props.value ?? ""));
+      const style = buildBadgeStyle(props);
+      return `<span class="jr-badge"${styleAttribute(style)}>${text}</span>`;
+    }
+    case "tag": {
+      const text = escapeHtml(String(props.value ?? props.text ?? ""));
+      const style = buildBadgeStyle(props);
+      return `<span class="jr-tag"${styleAttribute(style)}>${text}</span>`;
+    }
+    case "divider": {
+      return '<hr class="jr-divider" />';
+    }
+    case "image": {
+      const url = escapeAttribute(String(props.url ?? props.src ?? ""));
+      if (!url) {
+        return renderFallback("Image missing url.");
+      }
+      const style = buildImageStyle(props);
+      return `<img class="jr-image"${styleAttribute(style)} src="${url}" alt="" />`;
+    }
+    case "container": {
+      const style = buildLayoutStyle(props);
+      return `<div class="jr-container"${styleAttribute(style)}>${renderChildren(
+        element,
+        tree,
+      )}</div>`;
+    }
+    case "grid": {
+      const style = buildGridStyle(props);
+      return `<div class="jr-grid"${styleAttribute(style)}>${renderChildren(
+        element,
+        tree,
+      )}</div>`;
+    }
+    case "flow": {
+      const nodes = Array.isArray(props.nodes) ? props.nodes : [];
+      const edges = Array.isArray(props.edges) ? props.edges : [];
+      const direction = props.direction === "vertical" ? "vertical" : "horizontal";
+      return renderFlow(nodes, edges, direction);
+    }
+    case "form": {
+      const title = props.title ? escapeHtml(String(props.title)) : "";
+      const description = props.description ? escapeHtml(String(props.description)) : "";
+      const fields = Array.isArray(props.fields) ? props.fields : [];
+      const output: string[] = [];
+      output.push('<div class="jr-form">');
+      if (title) {
+        output.push(`<div class="jr-section-title">${title}</div>`);
+      }
+      if (description) {
+        output.push(`<div class="jr-section-desc">${description}</div>`);
+      }
+      fields.forEach((field) => {
+        const label = field?.label ? escapeHtml(String(field.label)) : "";
+        const value = escapeAttribute(String(field?.value ?? ""));
+        const placeholder = escapeAttribute(String(field?.placeholder ?? ""));
+        if (label) {
+          output.push(`<div class="jr-field-label">${label}</div>`);
+        }
+        if (field?.type === "textarea") {
+          const rows = Number.isFinite(field?.rows) ? ` rows="${field.rows}"` : "";
+          output.push(
+            `<textarea class="jr-textarea" readonly${rows} placeholder="${placeholder}">${escapeHtml(
+              String(field?.value ?? ""),
+            )}</textarea>`,
+          );
+        } else {
+          const inputType = field?.type ? escapeAttribute(String(field.type)) : "text";
+          output.push(
+            `<input class="jr-input" type="${inputType}" value="${value}" placeholder="${placeholder}" readonly />`,
+          );
+        }
+      });
+      output.push("</div>");
+      return output.join("");
+    }
+    case "dashboard": {
+      const title = props.title ? escapeHtml(String(props.title)) : "";
+      const metrics = Array.isArray(props.metrics) ? props.metrics : [];
+      const items = Array.isArray(props.items) ? props.items : [];
+      const output: string[] = [];
+      output.push('<div class="jr-dashboard">');
+      if (title) {
+        output.push(`<div class="jr-section-title">${title}</div>`);
+      }
+      output.push('<div class="jr-metrics">');
+      metrics.forEach((metric) => {
+        output.push('<div class="jr-metric">');
+        output.push(`<div class="jr-metric-label">${escapeHtml(String(metric?.label ?? ""))}</div>`);
+        output.push(`<div class="jr-metric-value">${escapeHtml(String(metric?.value ?? ""))}</div>`);
+        if (metric?.trend) {
+          output.push(`<div class="jr-metric-trend">${escapeHtml(String(metric.trend))}</div>`);
+        }
+        output.push("</div>");
+      });
+      output.push("</div>");
+      if (items.length > 0) {
+        output.push('<div class="jr-list">');
+        items.forEach((item) => {
+          output.push('<div class="jr-list-item">');
+          output.push(`<div class="jr-list-title">${escapeHtml(String(item?.title ?? item?.label ?? ""))}</div>`);
+          output.push(`<div class="jr-list-meta">${escapeHtml(String(item?.meta ?? item?.caption ?? ""))}</div>`);
+          output.push("</div>");
+        });
+        output.push("</div>");
+      }
+      output.push("</div>");
+      return output.join("");
+    }
+    case "info_cards":
+    case "cards": {
+      const items = Array.isArray(props.items) ? props.items : [];
+      const output: string[] = [];
+      output.push('<div class="jr-card-grid">');
+      items.forEach((item) => {
+        output.push('<div class="jr-card">');
+        output.push(`<div class="jr-card-title">${escapeHtml(String(item?.title ?? ""))}</div>`);
+        if (item?.subtitle) {
+          output.push(`<div class="jr-card-subtitle">${escapeHtml(String(item.subtitle))}</div>`);
+        }
+        if (item?.body) {
+          output.push(`<div class="jr-card-body">${escapeHtml(String(item.body))}</div>`);
+        }
+        output.push("</div>");
+      });
+      output.push("</div>");
+      return output.join("");
+    }
+    case "gallery": {
+      const items = Array.isArray(props.items) ? props.items : [];
+      const output: string[] = [];
+      output.push('<div class="jr-gallery">');
+      items.forEach((item) => {
+        output.push('<div class="jr-gallery-item">');
+        const url = escapeAttribute(String(item?.url ?? ""));
+        output.push(`<img class="jr-gallery-image" src="${url}" alt="" />`);
+        output.push(`<div class="jr-gallery-caption">${escapeHtml(String(item?.caption ?? ""))}</div>`);
+        output.push("</div>");
+      });
+      output.push("</div>");
+      return output.join("");
+    }
+    case "table": {
+      const rows = Array.isArray(props.rows) ? props.rows : [];
+      const headers = normalizeTableHeaders(props.headers, rows);
+      const tableRows = normalizeTableRows(rows, headers);
+      if (tableRows.length === 0) {
+        return renderFallback("Table is empty.");
+      }
+      const output: string[] = [];
+      output.push('<div class="jr-table-wrap"><table class="jr-table">');
+      output.push("<thead><tr>");
+      headers.forEach((header) => {
+        output.push(`<th>${escapeHtml(header)}</th>`);
+      });
+      output.push("</tr></thead><tbody>");
+      tableRows.forEach((row) => {
+        output.push("<tr>");
+        row.forEach((cell) => {
+          output.push(`<td>${escapeHtml(cell)}</td>`);
+        });
+        output.push("</tr>");
+      });
+      output.push("</tbody></table></div>");
+      return output.join("");
+    }
+    case "kanban": {
+      const columns = Array.isArray(props.columns) ? props.columns : [];
+      if (columns.length === 0) {
+        return renderFallback("Kanban has no columns.");
+      }
+      const output: string[] = [];
+      output.push('<div class="jr-kanban">');
+      columns.forEach((column, index) => {
+        const title = escapeHtml(String(column?.title ?? `Column ${index + 1}`));
+        output.push('<div class="jr-kanban-column">');
+        output.push(`<div class="jr-kanban-title">${title}</div>`);
+        const items = normalizeKanbanItems(column?.items);
+        output.push('<div class="jr-kanban-items">');
+        items.forEach((item) => {
+          output.push('<div class="jr-kanban-card">');
+          output.push(`<div class="jr-kanban-card-title">${escapeHtml(item.title)}</div>`);
+          if (item.subtitle) {
+            output.push(`<div class="jr-kanban-card-subtitle">${escapeHtml(item.subtitle)}</div>`);
+          }
+          if (item.meta) {
+            output.push(`<div class="jr-kanban-card-meta">${escapeHtml(item.meta)}</div>`);
+          }
+          output.push("</div>");
+        });
+        output.push("</div></div>");
+      });
+      output.push("</div>");
+      return output.join("");
+    }
+    case "diagram": {
+      const nodes = Array.isArray(props.nodes) ? props.nodes : [];
+      const edges = Array.isArray(props.edges) ? props.edges : [];
+      if (nodes.length === 0 && edges.length === 0) {
+        return renderFallback("Diagram has no nodes or edges.");
+      }
+      const output: string[] = [];
+      output.push('<div class="jr-diagram">');
+      if (nodes.length > 0) {
+        output.push('<div class="jr-diagram-nodes">');
+        nodes.forEach((node, index) => {
+          const label = escapeHtml(String(node?.label ?? node?.id ?? `Node ${index + 1}`));
+          output.push(`<div class="jr-diagram-node">${label}</div>`);
+        });
+        output.push("</div>");
+      }
+      if (edges.length > 0) {
+        output.push('<div class="jr-diagram-edges">');
+        edges.forEach((edge) => {
+          const from = escapeHtml(String(edge?.from ?? "?"));
+          const to = escapeHtml(String(edge?.to ?? "?"));
+          const label = edge?.label ? ` (${escapeHtml(String(edge.label))})` : "";
+          output.push(`<div class="jr-diagram-edge">${from} -> ${to}${label}</div>`);
+        });
+        output.push("</div>");
+      }
+      output.push("</div>");
+      return output.join("");
+    }
+    case "accordion": {
+      const title = escapeHtml(String(props.title ?? props.label ?? ""));
+      const content = renderChildren(element, tree);
+      return `<details class="jr-accordion" open><summary class="jr-accordion-title">${title}</summary><div class="jr-accordion-body">${content}</div></details>`;
+    }
+    case "progress": {
+      const value = typeof props.value === "number" ? props.value : 0;
+      const max = typeof props.max === "number" && props.max > 0 ? props.max : 100;
+      const pct = Math.min(100, Math.max(0, (value / max) * 100));
+      const label = props.label ? escapeHtml(String(props.label)) : "";
+      const color = cssColor(props.color);
+      const barStyle = color ? `width:${pct}%;background-color:${color};` : `width:${pct}%;`;
+      const output: string[] = [];
+      output.push('<div class="jr-progress">');
+      if (label) {
+        output.push(`<div class="jr-progress-header"><span>${label}</span><span>${Math.round(pct)}%</span></div>`);
+      }
+      output.push(`<div class="jr-progress-track"><div class="jr-progress-bar" style="${barStyle}"></div></div>`);
+      output.push("</div>");
+      return output.join("");
+    }
+    case "link": {
+      const href = escapeAttribute(String(props.href ?? props.url ?? ""));
+      const text = escapeHtml(String(props.text ?? props.label ?? href));
+      const target = escapeAttribute(String(props.target ?? "_blank"));
+      const rel = target === "_blank" ? ' rel="noopener noreferrer"' : "";
+      return `<a class="jr-link" href="${href}" target="${target}"${rel}>${text}</a>`;
+    }
+    case "alert": {
+      const variant = alertVariantSsr(props.variant);
+      const title = props.title ? escapeHtml(String(props.title)) : "";
+      const message = escapeHtml(String(props.message ?? props.text ?? props.description ?? ""));
+      const output: string[] = [];
+      output.push(`<div class="jr-alert jr-alert-${variant}">`);
+      if (title) {
+        output.push(`<div class="jr-alert-title">${title}</div>`);
+      }
+      if (message) {
+        output.push(`<div class="jr-alert-message">${message}</div>`);
+      }
+      output.push("</div>");
+      return output.join("");
+    }
+    case "timeline": {
+      const items = Array.isArray(props.items) ? props.items : [];
+      if (items.length === 0) {
+        return renderFallback("Timeline has no items.");
+      }
+      const output: string[] = [];
+      output.push('<div class="jr-timeline">');
+      items.forEach((item, index) => {
+        const status = typeof item?.status === "string" ? item.status.toLowerCase() : "";
+        const dotClass = timelineDotClassSsr(status);
+        const isLast = index === items.length - 1;
+        output.push(`<div class="jr-timeline-item${isLast ? " jr-timeline-last" : ""}">`);
+        output.push(`<span class="jr-timeline-dot ${dotClass}"></span>`);
+        output.push(`<div class="jr-timeline-content">`);
+        output.push(`<div class="jr-timeline-title">${escapeHtml(String(item?.title ?? item?.label ?? ""))}</div>`);
+        if (item?.description) {
+          output.push(`<div class="jr-timeline-desc">${escapeHtml(String(item.description))}</div>`);
+        }
+        output.push("</div></div>");
+      });
+      output.push("</div>");
+      return output.join("");
+    }
+    case "stat": {
+      const label = props.label ? escapeHtml(String(props.label)) : "";
+      const value = escapeHtml(String(props.value ?? ""));
+      const unit = props.unit ? escapeHtml(String(props.unit)) : "";
+      const change = props.change ? escapeHtml(String(props.change)) : "";
+      const description = props.description ? escapeHtml(String(props.description)) : "";
+      const output: string[] = [];
+      output.push('<div class="jr-stat">');
+      if (label) {
+        output.push(`<div class="jr-stat-label">${label}</div>`);
+      }
+      output.push(`<div class="jr-stat-value">${value}${unit ? `<span class="jr-stat-unit">${unit}</span>` : ""}</div>`);
+      if (change) {
+        output.push(`<div class="jr-stat-change">${change}</div>`);
+      }
+      if (description) {
+        output.push(`<div class="jr-stat-desc">${description}</div>`);
+      }
+      output.push("</div>");
+      return output.join("");
+    }
+    case "chart": {
+      const layout = buildChartLayout(props as ChartSpec);
+      if (!layout) {
+        return renderFallback("Chart has no data.");
+      }
+      return renderChart(layout);
+    }
+    default:
+      return renderFallback(`Unsupported element: ${element.type}`);
+  }
+}
+
+function renderChildren(element: JsonRenderElement, tree: JsonRenderTree): string {
+  const children = Array.isArray(element.children) ? element.children : [];
+  return children
+    .map((child) => {
+      if (typeof child === "string") {
+        const resolved = tree.elements[child];
+        return resolved
+          ? renderElement(resolved, tree)
+          : renderFallback(`Missing element: ${child}`);
+      }
+      return renderElement(child, tree);
+    })
+    .join("");
+}
+
+function renderFlow(nodes: any[], edges: any[], direction: string): string {
+  const order = nodes.length > 0 ? nodes : deriveNodesFromEdges(edges);
+  const arrow = direction === "vertical" ? "v" : "->";
+  const output: string[] = [];
+  output.push(`<div class="jr-flow jr-flow-${direction}">`);
+  order.forEach((node, idx) => {
+    output.push(`<div class="jr-flow-node">${escapeHtml(String(node.label ?? node.id ?? ""))}</div>`);
+    if (idx < order.length - 1) {
+      const edge = findEdge(edges, node.id, order[idx + 1]?.id);
+      const label = edge?.label ? ` ${edge.label}` : "";
+      output.push(`<div class="jr-flow-arrow">${arrow}${escapeHtml(label)}</div>`);
+    }
+  });
+  output.push("</div>");
+  return output.join("");
+}
+
+function deriveNodesFromEdges(edges: any[]) {
+  const ids: string[] = [];
+  edges.forEach((edge) => {
+    if (edge?.from && !ids.includes(edge.from)) {
+      ids.push(edge.from);
+    }
+    if (edge?.to && !ids.includes(edge.to)) {
+      ids.push(edge.to);
+    }
+  });
+  return ids.map((id) => ({ id, label: id }));
+}
+
+function findEdge(edges: any[], from: any, to: any) {
+  return edges.find((edge) => edge?.from === from && edge?.to === to);
+}
+
+function normalizeTableHeaders(headers: any, rows: any[]): string[] {
+  if (Array.isArray(headers) && headers.length > 0) {
+    return headers.map((header) => String(header));
+  }
+  if (rows.length > 0 && isPlainObject(rows[0])) {
+    return Object.keys(rows[0]);
+  }
+  return ["Value"];
+}
+
+function normalizeTableRows(rows: any[], headers: string[]): string[][] {
+  return rows.map((row) => {
+    if (Array.isArray(row)) {
+      const normalized = row.map((cell) => String(cell ?? ""));
+      return normalized.length > 0 ? normalized : [""];
+    }
+    if (isPlainObject(row)) {
+      return headers.map((header) => String(row[header] ?? ""));
+    }
+    return [String(row ?? "")];
+  });
+}
+
+function normalizeKanbanItems(items: any): Array<{ title: string; subtitle: string; meta: string }> {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items.map((item) => {
+    if (isPlainObject(item)) {
+      return {
+        title: String(item.title ?? item.label ?? item.name ?? "Untitled"),
+        subtitle: item.subtitle ? String(item.subtitle) : "",
+        meta: item.meta ? String(item.meta) : "",
+      };
+    }
+    return { title: String(item ?? ""), subtitle: "", meta: "" };
+  });
+}
+
+function renderChart(layout: ChartLayout): string {
+  const output: string[] = [];
+  const chartTitle = layout.title ? escapeHtml(layout.title) : "";
+  const chartSubtitle = layout.subtitle ? escapeHtml(layout.subtitle) : "";
+  const xAxisLabel = layout.xAxis.label ? escapeHtml(layout.xAxis.label) : "";
+  const yAxisLabel = layout.yAxis.label ? escapeHtml(layout.yAxis.label) : "";
+  const xAxisY = layout.padding.top + layout.plotHeight;
+  const yAxisX = layout.padding.left;
+  const viewBox = `0 0 ${layout.width} ${layout.height}`;
+
+  output.push('<div class="jr-chart">');
+  if (chartTitle) {
+    output.push(`<div class="jr-chart-title">${chartTitle}</div>`);
+  }
+  if (chartSubtitle) {
+    output.push(`<div class="jr-chart-subtitle">${chartSubtitle}</div>`);
+  }
+  output.push('<div class="jr-chart-card">');
+  output.push(
+    `<svg class="jr-chart-svg" viewBox="${viewBox}" role="img" aria-label="${escapeAttribute(
+      chartTitle || "Chart",
+    )}" xmlns="http://www.w3.org/2000/svg">`,
+  );
+  layout.yAxis.ticks.forEach((tick) => {
+    output.push(
+      `<line class="jr-chart-grid" x1="${layout.padding.left}" y1="${tick.pos}" x2="${layout.padding.left + layout.plotWidth}" y2="${tick.pos}" />`,
+    );
+  });
+  output.push(
+    `<line class="jr-chart-axis" x1="${layout.padding.left}" y1="${xAxisY}" x2="${layout.padding.left + layout.plotWidth}" y2="${xAxisY}" />`,
+  );
+  output.push(
+    `<line class="jr-chart-axis" x1="${yAxisX}" y1="${layout.padding.top}" x2="${yAxisX}" y2="${layout.padding.top + layout.plotHeight}" />`,
+  );
+  layout.xAxis.ticks.forEach((tick) => {
+    output.push(
+      `<line class="jr-chart-axis" x1="${tick.pos}" y1="${xAxisY}" x2="${tick.pos}" y2="${xAxisY + 4}" />`,
+    );
+    output.push(
+      `<text class="jr-chart-tick" x="${tick.pos}" y="${xAxisY + 16}" text-anchor="middle">${escapeHtml(
+        tick.label,
+      )}</text>`,
+    );
+  });
+  layout.yAxis.ticks.forEach((tick) => {
+    output.push(
+      `<text class="jr-chart-tick" x="${layout.padding.left - 6}" y="${tick.pos + 3}" text-anchor="end">${escapeHtml(
+        tick.label,
+      )}</text>`,
+    );
+  });
+  if (xAxisLabel) {
+    output.push(
+      `<text class="jr-chart-axis-label" x="${layout.padding.left + layout.plotWidth / 2}" y="${layout.height - 8}" text-anchor="middle">${xAxisLabel}</text>`,
+    );
+  }
+  if (yAxisLabel) {
+    const centerY = layout.padding.top + layout.plotHeight / 2;
+    output.push(
+      `<text class="jr-chart-axis-label" x="12" y="${centerY}" text-anchor="middle" transform="rotate(-90 12 ${centerY})">${yAxisLabel}</text>`,
+    );
+  }
+  if (layout.showLine) {
+    layout.series.forEach((series) => {
+      if (!series.path) {
+        return;
+      }
+      output.push(
+        `<path class="jr-chart-line" d="${series.path}" stroke="${escapeAttribute(series.color)}" />`,
+      );
+    });
+  }
+  if (layout.showPoints) {
+    layout.series.forEach((series) => {
+      series.points.forEach((point) => {
+        output.push(
+          `<circle class="jr-chart-point" cx="${point.x}" cy="${point.y}" r="${layout.pointRadius}" fill="${escapeAttribute(
+            series.color,
+          )}" />`,
+        );
+      });
+    });
+  }
+  output.push("</svg></div>");
+  if (layout.series.length > 1) {
+    output.push('<div class="jr-chart-legend">');
+    layout.series.forEach((series) => {
+      output.push(
+        `<span class="jr-chart-legend-item"><span class="jr-chart-legend-swatch" style="background:${escapeAttribute(
+          series.color,
+        )}"></span>${escapeHtml(series.key)}</span>`,
+      );
+    });
+    output.push("</div>");
+  }
+  output.push("</div>");
+  return output.join("");
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function clampHeadingLevel(value: any): number {
+  const level = typeof value === "number" ? value : parseInt(String(value ?? ""), 10);
+  if (Number.isNaN(level)) {
+    return 2;
+  }
+  return Math.min(4, Math.max(1, level));
+}
+
+function flexAlign(value: any, fallback: string): string {
+  const align = typeof value === "string" ? value : fallback;
+  switch (align) {
+    case "center":
+      return "align-items:center;";
+    case "end":
+      return "align-items:flex-end;";
+    case "stretch":
+      return "align-items:stretch;";
+    default:
+      return `align-items:${align};`;
+  }
+}
+
+function flexJustify(value: any, fallback: string): string {
+  const justify = typeof value === "string" ? value : fallback;
+  switch (justify) {
+    case "center":
+      return "justify-content:center;";
+    case "end":
+      return "justify-content:flex-end;";
+    case "between":
+      return "justify-content:space-between;";
+    default:
+      return `justify-content:${justify};`;
+  }
+}
+
+function cssSize(value: any): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `${value}px`;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    return value;
+  }
+  return undefined;
+}
+
+function cssColor(value: any): string | undefined {
+  if (typeof value === "string" && value.trim() !== "") {
+    return value;
+  }
+  return undefined;
+}
+
+function styleAttribute(style: string): string {
+  return style ? ` style="${style}"` : "";
+}
+
+function joinStyles(...styles: Array<string | undefined>): string {
+  return styles.filter(Boolean).join("");
+}
+
+function buildStyle({
+  padding,
+  borderRadius,
+  border,
+}: {
+  padding?: any;
+  borderRadius?: any;
+  border?: string;
+}): string {
+  return joinStyles(
+    padding ? `padding:${cssSize(padding)};` : "",
+    borderRadius ? `border-radius:${cssSize(borderRadius)};` : "",
+    border ? `border:${border};` : "",
+  );
+}
+
+function buildLayoutStyle(props: Record<string, any>): string {
+  const gap = cssSize(props.gap);
+  const padding = cssSize(props.padding);
+  return joinStyles(gap ? `gap:${gap};` : "", padding ? `padding:${padding};` : "");
+}
+
+function buildGridStyle(props: Record<string, any>): string {
+  const base = buildLayoutStyle(props);
+  const columns =
+    typeof props.columns === "number" && Number.isFinite(props.columns)
+      ? props.columns
+      : typeof props.columns === "string"
+        ? parseInt(props.columns, 10)
+        : 0;
+  const columnStyle =
+    columns > 0 ? `grid-template-columns: repeat(${columns}, minmax(0, 1fr));` : "";
+  return joinStyles(base, columnStyle);
+}
+
+function buildTextStyle(props: Record<string, any>): string {
+  const size = textSizeCss(props.size);
+  const weight = textWeightCss(props.weight);
+  const color = cssColor(props.color);
+  const marginTop = cssSize(props.marginTop);
+  const align = textAlignCss(props.align);
+  return joinStyles(
+    size ? `font-size:${size};` : "",
+    weight ? `font-weight:${weight};` : "",
+    color ? `color:${color};` : "",
+    marginTop ? `margin-top:${marginTop};` : "",
+    align ? `text-align:${align};` : "",
+  );
+}
+
+function buildBadgeStyle(props: Record<string, any>): string {
+  const color = cssColor(props.color);
+  const marginTop = cssSize(props.marginTop);
+  return joinStyles(
+    color ? `color:${color};` : "",
+    color ? `border-color:${color};` : "",
+    marginTop ? `margin-top:${marginTop};` : "",
+  );
+}
+
+function buildImageStyle(props: Record<string, any>): string {
+  const radius = cssSize(props.radius);
+  const ratio = aspectRatioCss(props.ratio);
+  const border = props.border ? "1px solid #e2e8f0" : undefined;
+  return joinStyles(
+    radius ? `border-radius:${radius};` : "",
+    ratio ? `aspect-ratio:${ratio};` : "",
+    ratio ? "object-fit:cover;" : "",
+    border ? `border:${border};` : "",
+  );
+}
+
+function textSizeCss(value: any): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `${value}px`;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  switch (value.toLowerCase()) {
+    case "xs":
+      return "12px";
+    case "sm":
+      return "14px";
+    case "md":
+      return "16px";
+    case "lg":
+      return "18px";
+    case "xl":
+      return "20px";
+    case "2xl":
+      return "24px";
+    default:
+      return undefined;
+  }
+}
+
+function textWeightCss(value: any): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  switch (value.toLowerCase()) {
+    case "bold":
+    case "semibold":
+      return "600";
+    case "medium":
+      return "500";
+    case "normal":
+      return "400";
+    default:
+      return undefined;
+  }
+}
+
+function textAlignCss(value: any): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  switch (value.toLowerCase()) {
+    case "center":
+      return "center";
+    case "right":
+      return "right";
+    case "left":
+      return "left";
+    default:
+      return undefined;
+  }
+}
+
+function aspectRatioCss(value: any): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const parts = value.split(":");
+  if (parts.length !== 2) {
+    return undefined;
+  }
+  const width = Number(parts[0]);
+  const height = Number(parts[1]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return undefined;
+  }
+  return `${width} / ${height}`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeAttribute(value: string): string {
+  return escapeHtml(value);
+}
+
+function alertVariantSsr(value: any): string {
+  if (typeof value !== "string") return "info";
+  switch (value.toLowerCase()) {
+    case "warning":
+      return "warning";
+    case "error":
+    case "destructive":
+      return "error";
+    case "success":
+      return "success";
+    default:
+      return "info";
+  }
+}
+
+function timelineDotClassSsr(status: string): string {
+  switch (status) {
+    case "completed":
+    case "done":
+      return "jr-dot-done";
+    case "active":
+    case "current":
+      return "jr-dot-active";
+    case "error":
+    case "failed":
+      return "jr-dot-error";
+    default:
+      return "jr-dot-pending";
+  }
+}
+
+function renderFallback(message: string): string {
+  return `<div class="jr-fallback">${escapeHtml(message)}</div>`;
+}
+
+const JR_STYLES = `
+.jr-root { padding: 16px; display: flex; flex-direction: column; gap: 16px; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; color: #0f172a; }
+.jr-column, .jr-row, .jr-list, .jr-container { display: flex; gap: 12px; }
+.jr-column, .jr-list { flex-direction: column; }
+.jr-row { flex-wrap: wrap; }
+.jr-container { flex-direction: column; }
+.jr-grid { display: grid; gap: 12px; }
+.jr-card { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; background: #ffffff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05); }
+.jr-heading { margin: 0; }
+.jr-heading-1 { font-size: 24px; font-weight: 600; }
+.jr-heading-2 { font-size: 20px; font-weight: 600; }
+.jr-heading-3 { font-size: 18px; font-weight: 600; }
+.jr-heading-4 { font-size: 16px; font-weight: 600; }
+.jr-text { margin: 0; font-size: 14px; }
+.jr-badge { display: inline-flex; align-items: center; border: 1px solid #e2e8f0; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: #334155; background: #f8fafc; }
+.jr-tag { display: inline-flex; align-items: center; border: 1px solid #e2e8f0; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: #334155; background: #f8fafc; }
+.jr-divider { border: none; border-top: 1px solid #e2e8f0; margin: 8px 0; }
+.jr-image { max-width: 100%; border-radius: 12px; }
+.jr-flow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.jr-flow-vertical { flex-direction: column; align-items: flex-start; }
+.jr-flow-node { border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px 10px; background: #f8fafc; font-size: 13px; font-weight: 600; }
+.jr-flow-arrow { font-size: 11px; color: #64748b; }
+.jr-form { display: flex; flex-direction: column; gap: 10px; }
+.jr-field-label { font-size: 12px; font-weight: 600; color: #0f172a; }
+.jr-input, .jr-textarea { width: 100%; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+.jr-textarea { min-height: 90px; }
+.jr-section-title { font-size: 15px; font-weight: 600; }
+.jr-section-desc { font-size: 12px; color: #64748b; }
+.jr-dashboard { display: flex; flex-direction: column; gap: 12px; }
+.jr-metrics { display: flex; flex-wrap: wrap; gap: 12px; }
+.jr-metric { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; background: #f8fafc; min-width: 140px; }
+.jr-metric-label { font-size: 11px; color: #64748b; }
+.jr-metric-value { font-size: 18px; font-weight: 600; }
+.jr-metric-trend { font-size: 11px; color: #64748b; }
+.jr-list-item { border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; background: #f8fafc; }
+.jr-list-title { font-size: 13px; font-weight: 600; }
+.jr-list-meta { font-size: 11px; color: #64748b; }
+.jr-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.jr-card-title { font-size: 13px; font-weight: 600; }
+.jr-card-subtitle { font-size: 11px; color: #64748b; }
+.jr-card-body { margin-top: 6px; font-size: 13px; }
+.jr-gallery { display: flex; flex-wrap: wrap; gap: 12px; }
+.jr-gallery-item { width: 200px; display: flex; flex-direction: column; gap: 6px; }
+.jr-gallery-image { width: 100%; height: 120px; object-fit: cover; border-radius: 10px; border: 1px solid #e2e8f0; }
+.jr-gallery-caption { font-size: 11px; color: #64748b; }
+.jr-table-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
+.jr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.jr-table th { text-align: left; padding: 8px 10px; background: #f1f5f9; font-size: 11px; text-transform: uppercase; color: #64748b; }
+.jr-table td { padding: 8px 10px; border-top: 1px solid #e2e8f0; }
+.jr-kanban { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+.jr-kanban-column { min-width: 200px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; padding: 10px; }
+.jr-kanban-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.jr-kanban-items { display: flex; flex-direction: column; gap: 8px; }
+.jr-kanban-card { border: 1px solid #e2e8f0; border-radius: 10px; background: #ffffff; padding: 8px 10px; }
+.jr-kanban-card-title { font-size: 12px; font-weight: 600; }
+.jr-kanban-card-subtitle, .jr-kanban-card-meta { font-size: 11px; color: #64748b; }
+.jr-diagram { display: flex; flex-direction: column; gap: 8px; }
+.jr-diagram-nodes { display: flex; flex-wrap: wrap; gap: 8px; }
+.jr-diagram-node { border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px 10px; background: #f8fafc; font-size: 12px; font-weight: 600; }
+.jr-diagram-edges { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #64748b; }
+.jr-fallback { border: 1px dashed #cbd5f5; border-radius: 10px; padding: 8px; font-size: 12px; color: #64748b; background: #f1f5f9; }
+.jr-accordion { border: 1px solid #e2e8f0; border-radius: 10px; }
+.jr-accordion-title { padding: 10px 14px; font-size: 13px; font-weight: 600; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+.jr-accordion-title::after { content: "▼"; font-size: 10px; color: #64748b; }
+.jr-accordion-body { border-top: 1px solid #e2e8f0; padding: 12px 14px; }
+.jr-progress { display: flex; flex-direction: column; gap: 4px; }
+.jr-progress-header { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; }
+.jr-progress-track { height: 8px; width: 100%; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.jr-progress-bar { height: 100%; border-radius: 999px; background: #334155; transition: width 0.3s; }
+.jr-link { font-size: 13px; color: #2563eb; text-decoration: underline; text-underline-offset: 2px; }
+.jr-alert { border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+.jr-alert-info { border: 1px solid #93c5fd; background: #eff6ff; color: #1e40af; }
+.jr-alert-warning { border: 1px solid #fcd34d; background: #fefce8; color: #92400e; }
+.jr-alert-error { border: 1px solid #fca5a5; background: #fef2f2; color: #991b1b; }
+.jr-alert-success { border: 1px solid #86efac; background: #f0fdf4; color: #166534; }
+.jr-alert-title { font-weight: 600; }
+.jr-alert-message { margin-top: 2px; }
+.jr-timeline { display: flex; flex-direction: column; padding-left: 20px; }
+.jr-timeline-item { position: relative; padding-bottom: 14px; }
+.jr-timeline-item:not(.jr-timeline-last)::before { content: ""; position: absolute; left: -14px; top: 12px; width: 1px; height: 100%; background: #e2e8f0; }
+.jr-timeline-dot { position: absolute; left: -17px; top: 5px; width: 8px; height: 8px; border-radius: 50%; border: 2px solid; }
+.jr-dot-done { border-color: #22c55e; background: #22c55e; }
+.jr-dot-active { border-color: #3b82f6; background: #3b82f6; }
+.jr-dot-error { border-color: #ef4444; background: #ef4444; }
+.jr-dot-pending { border-color: #e2e8f0; background: #ffffff; }
+.jr-timeline-title { font-size: 13px; font-weight: 600; }
+.jr-timeline-desc { font-size: 11px; color: #64748b; margin-top: 2px; }
+.jr-stat { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px 14px; background: #ffffff; }
+.jr-stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+.jr-stat-value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+.jr-stat-unit { font-size: 13px; font-weight: 400; color: #64748b; margin-left: 4px; }
+.jr-stat-change, .jr-stat-desc { font-size: 11px; color: #64748b; margin-top: 2px; }
+.jr-chart { display: flex; flex-direction: column; gap: 8px; }
+.jr-chart-title { font-size: 15px; font-weight: 600; }
+.jr-chart-subtitle { font-size: 12px; color: #64748b; }
+.jr-chart-card { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; background: #ffffff; }
+.jr-chart-svg { width: 100%; height: auto; display: block; }
+.jr-chart-axis { stroke: #94a3b8; stroke-width: 1; }
+.jr-chart-grid { stroke: #e2e8f0; stroke-width: 1; }
+.jr-chart-tick { font-size: 10px; fill: #64748b; }
+.jr-chart-axis-label { font-size: 11px; fill: #64748b; }
+.jr-chart-line { fill: none; stroke-width: 2; }
+.jr-chart-point { stroke: #ffffff; stroke-width: 1; }
+.jr-chart-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: #64748b; }
+.jr-chart-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.jr-chart-legend-swatch { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
+`;

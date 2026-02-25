@@ -1,1 +1,161 @@
-*.tmp
+.wt/*
+# deps
+# Node.js dependencies
+node_modules
+.pnpm-store
+.pnpm-debug.log
+
+# Keep pnpm-lock.yaml
+!pnpm-lock.yaml
+
+# build
+dist/
+build/
+out/
+storybook-static/
+
+# ignore Nix derivation results
+result
+
+# editor
+.vscode/
+.idea/
+.history/
+.zed/
+*.swp
+*~
+
+# cli tools
+CLAUDE.md
+.claude/
+
+# caches
+.cache/
+.turbo/
+.parcel-cache/
+.eslintcache
+.nyc_output/
+.jest/
+*.tsbuildinfo
+.gocache/
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/server.log.old
+logs/lark-scenarios.json
+logs/lark-scenarios.md
+logs/lark-loop.fail.txt
+
+# env
+.env*
+!.env.example
+
+# package
+*.tgz
+
+# ci
+.vercel/
+.netlify/
+
+# patches
+apply_patch/
+
+# coverage
+coverage/
+artifacts/
+
+# os
+.DS_Store
+Thumbs.db
+Icon?
+.Spotlight-V100/
+
+# Unwanted package managers
+.yarn/
+yarn.lock
+
+# release
+package.json-e
+session.ts-e
+CHANGELOG.ignore.md
+
+# nix related
+.direnv
+.envrc
+
+# Go binaries and build outputs
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+build/
+/alex
+/alex-server
+/eval-server
+
+# Go workspace files
+go.work
+
+# Project local binaries
+npm/*/bin/alex
+npm/*/bin/alex.exe
+
+# Local configuration and runtime artifacts
+.deep-coding-config.json
+.worktrees/
+.worktrees-*/
+.elephant/
+.env.local
+.env*.local
+*.pid
+.bin/
+tmp/
+temp/
+/memory/
+test_results/
+verified_test_results/
+debug-logs
+*.backup
+.toolchains/
+
+# Legacy files
+legacy-sample.js
+old_cmd/
+old_internal/
+
+# Backup and tooling remnants
+.git-backup-*
+ast_viewr
+*.old
+pet_podcast_basic.png
+
+# Python venvs
+.venv/
+scripts/cc_bridge/.venv/
+
+# Local tooling
+.bin/
+logs/*.png
+logs/*.gz
+.pids/acp.port
+web/playwright-report/*
+web/test-results/*
+.pids/*
+cmd/alex/alex
+internal/llm/logs/requests/llm.jsonl
+internal/infra/llm/logs/requests/llm.jsonl
+logs/requests/llm.jsonl
+logs/requests/t.json
+alex-exec-*/*
+alex-bash-*.sh
+EOF
+.next/
+.tmp/
+__pycache__/
+elephant.ai.worktrees/

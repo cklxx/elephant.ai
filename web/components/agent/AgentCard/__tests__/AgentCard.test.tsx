@@ -1,0 +1,171 @@
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { AgentCard } from "../index";
+import { AgentCardData } from "../types";
+
+describe("AgentCard", () => {
+  const mockCardData: AgentCardData = {
+    id: "test-agent-1",
+    state: "running",
+    preview: "Test Agent Preview",
+    type: "Explore",
+    progress: {
+      current: 5,
+      total: 10,
+      percentage: 50,
+    },
+    stats: {
+      toolCalls: 12,
+      tokens: 3200,
+    },
+    events: [
+      {
+        event_type: "workflow.tool.completed",
+        timestamp: "2024-01-01T00:00:00Z",
+        agent_level: "subagent",
+        session_id: "session-test",
+        call_id: "call-1",
+        tool_name: "bash",
+        result: "success",
+        duration: 100,
+      },
+      {
+        event_type: "workflow.tool.completed",
+        timestamp: "2024-01-01T00:00:01Z",
+        agent_level: "subagent",
+        session_id: "session-test",
+        call_id: "call-2",
+        tool_name: "code_execute",
+        result: "success",
+        duration: 200,
+      },
+    ],
+  };
+
+  it("renders agent card with basic information", () => {
+    render(<AgentCard data={mockCardData} />);
+
+    expect(screen.getByTestId("subagent-thread")).toBeInTheDocument();
+    expect(screen.getByText("Test Agent Preview")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
+  });
+
+  it("displays progress information", () => {
+    render(<AgentCard data={mockCardData} />);
+
+    expect(screen.getByText(/5\/10/)).toBeInTheDocument();
+  });
+
+  it("displays stats information", () => {
+    render(<AgentCard data={mockCardData} />);
+
+    expect(screen.getByText(/12 tool calls/)).toBeInTheDocument();
+    expect(screen.getByText(/3.2K tokens/)).toBeInTheDocument();
+  });
+
+  it("toggles event display on footer button click", () => {
+    render(<AgentCard data={mockCardData} />);
+
+    const toggleButton = screen.getByText(/2 events/);
+    expect(toggleButton).toBeInTheDocument();
+
+    fireEvent.click(toggleButton);
+
+    expect(screen.getByText(/Collapse/)).toBeInTheDocument();
+  });
+
+  it("renders with controlled expanded state", () => {
+    const onToggle = vi.fn();
+    const { rerender } = render(
+      <AgentCard data={mockCardData} expanded={false} onToggleExpand={onToggle} />,
+    );
+
+    expect(screen.getByText(/2 events/)).toBeInTheDocument();
+
+    rerender(
+      <AgentCard data={mockCardData} expanded={true} onToggleExpand={onToggle} />,
+    );
+
+    expect(screen.getByText(/Collapse/)).toBeInTheDocument();
+  });
+
+  it("displays concurrency badge when applicable", () => {
+    const dataWithConcurrency: AgentCardData = {
+      ...mockCardData,
+      concurrency: {
+        index: 2,
+        total: 3,
+      },
+    };
+
+    render(<AgentCard data={dataWithConcurrency} />);
+
+    expect(screen.getByText("2/3")).toBeInTheDocument();
+  });
+
+  it("renders completed state correctly", () => {
+    const completedData: AgentCardData = {
+      ...mockCardData,
+      state: "completed",
+    };
+
+    render(<AgentCard data={completedData} />);
+
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    const inlineTokens = screen.getByTestId("subagent-inline-tokens");
+    expect(inlineTokens).toHaveTextContent("3.2K tokens");
+    expect(screen.getAllByText(/3\.2K tokens/)).toHaveLength(1);
+    const card = screen.getByTestId("subagent-thread");
+    expect(card).toHaveAttribute("data-agent-state", "completed");
+  });
+
+  it("renders failed state correctly", () => {
+    const failedData: AgentCardData = {
+      ...mockCardData,
+      state: "failed",
+    };
+
+    render(<AgentCard data={failedData} />);
+
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+  });
+
+  it("does not show footer when no events", () => {
+    const noEventsData: AgentCardData = {
+      ...mockCardData,
+      events: [],
+    };
+
+    render(<AgentCard data={noEventsData} />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("shows footer when only one event", () => {
+    const oneEventData: AgentCardData = {
+      ...mockCardData,
+      events: [
+        {
+          event_type: "workflow.tool.completed",
+          timestamp: "2024-01-01T00:00:00Z",
+          agent_level: "subagent",
+          session_id: "session-test",
+          call_id: "call-3",
+          tool_name: "bash",
+          result: "success",
+          duration: 100,
+        },
+      ],
+    };
+
+    render(<AgentCard data={oneEventData} />);
+
+    expect(screen.getByRole("button", { name: /Expand/ })).toBeInTheDocument();
+  });
+
+  it("displays state label", () => {
+    render(<AgentCard data={mockCardData} />);
+
+    expect(screen.getByText("Running")).toBeInTheDocument();
+  });
+});

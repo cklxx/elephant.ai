@@ -1,0 +1,44 @@
+version: "1.0"
+name: "baseline"
+description: "Baseline rubric for gate-ready general agent tasks."
+pass_threshold: 0.75
+fail_on_zero:
+  - completion
+  - format
+  - constraints
+dimensions:
+  - id: completion
+    name: Completion
+    weight: 0.15
+    auto: true
+    guidance: "Completed => 2, timeout/failed => 0."
+  - id: format
+    name: Format adherence
+    weight: 0.20
+    auto: true
+    guidance: "Matches expected output format (table/list/spec)."
+  - id: constraints
+    name: Constraint coverage
+    weight: 0.25
+    auto: true
+    guidance: ">=80% constraints covered => 2; >=50% => 1."
+  - id: correctness
+    name: Technical correctness
+    weight: 0.15
+    auto: false
+    guidance: "No major factual/logic errors."
+  - id: actionability
+    name: Actionability
+    weight: 0.10
+    auto: false
+    guidance: "Clear next steps and measurable signals."
+  - id: prioritization
+    name: Prioritization
+    weight: 0.10
+    auto: false
+    guidance: "Top risks/hypotheses ranked with justification."
+  - id: clarity
+    name: Clarity
+    weight: 0.05
+    auto: false
+    guidance: "Concise and readable."

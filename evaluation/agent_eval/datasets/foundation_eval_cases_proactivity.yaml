@@ -1,0 +1,75 @@
+version: '1'
+name: foundation-proactivity
+description: Proactive behavior routing coverage for currently available tools and
+  skills
+scenarios:
+- id: proactive-plan-checkpoint-first
+  category: planning
+  intent: Before touching code, proactively draft a phased execution plan with checkpoints.
+  expected_tools:
+  - plan
+- id: proactive-clarify-ambiguous-owner
+  category: clarification
+  intent: Requirement owner is ambiguous across two teams; proactively ask a focused
+    clarification.
+  expected_tools:
+  - clarify
+- id: proactive-request-risky-confirmation
+  category: approval
+  intent: This operation may impact production behavior; proactively request explicit
+    user confirmation first.
+  expected_tools:
+  - request_user
+- id: proactive-memory-recall-before-solution
+  category: memory
+  intent: Proactively recall prior preferences from memory before drafting the solution.
+  expected_tools:
+  - memory_search
+- id: proactive-open-precise-memory-note
+  category: memory
+  intent: A specific previous note is referenced; proactively open that exact memory
+    entry.
+  expected_tools:
+  - memory_get
+- id: proactive-runtime-state-check
+  category: execution
+  intent: Proactively verify runtime state with command output before proposing a
+    fix.
+  expected_tools:
+  - shell_exec
+- id: proactive-quick-compute-validation
+  category: execution
+  intent: Proactively run a short deterministic compute check to validate assumptions.
+  expected_tools:
+  - execute_code
+- id: proactive-read-contract-window
+  category: workspace
+  intent: Proactively read the exact API contract window before changing implementation.
+  expected_tools:
+  - read_file
+- id: proactive-apply-small-safe-patch
+  category: workspace
+  intent: Proactively apply a minimal in-place patch for the identified defect.
+  expected_tools:
+  - replace_in_file
+- id: proactive-write-decision-record
+  category: workspace
+  intent: Proactively write a decision record file with rationale and risks.
+  expected_tools:
+  - write_file
+- id: proactive-web-authority-check
+  category: web
+  intent: Proactively verify latest authoritative references on the web before finalizing.
+  expected_tools:
+  - web_search
+- id: proactive-skill-discovery-before-coding
+  category: skills
+  intent: Proactively check whether a reusable skill/workflow exists before doing
+    custom implementation.
+  expected_tools:
+  - skills
+- id: proactive-channel-targeted-handoff
+  category: communication
+  intent: Proactively route a concise status handoff to the correct channel context.
+  expected_tools:
+  - channel

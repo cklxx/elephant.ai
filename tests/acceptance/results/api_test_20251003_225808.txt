@@ -1,0 +1,14 @@
+ALEX Backend API Acceptance Tests
+Timestamp: Fri Oct  3 22:58:08 CST 2025
+Base URL: http://localhost:8080
+========================================
+
+[TEST] Health Check Endpoint
+Response Code: 200
+Response Body: {"status":"ok"}
+[PASS] Health check returned 200 OK with correct status
+[TEST] Create Task - Basic
+Request: {"task":"List files in current directory"}
+Response Code: 201
+Response Body: {"task_id":"","session_id":"","status":"pending"}
+[FAIL] Task created but response missing required fields

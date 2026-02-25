@@ -1,0 +1,22 @@
+orchestrator:
+  default_activation_mode: auto
+  max_linked_skills: 4
+  proactive_level: medium
+
+governance:
+  blocked_governance_levels: []
+  require_approval_levels: [critical]
+  immutable_soul_sections:
+    - "## Safety Guardrails"
+    - "## Non-Negotiable Rules"
+
+links:
+  - from: "meta-orchestrator"
+    to: "autonomous-scheduler"
+    on_event: "workflow.skill.meta.route_selected"
+  - from: "autonomous-scheduler"
+    to: "lark-conversation-governor"
+    on_event: "schedule.created"
+  - from: "soul-self-evolution"
+    to: "lark-conversation-governor"
+    on_event: "workflow.skill.meta.soul_updated"

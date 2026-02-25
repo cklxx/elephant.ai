@@ -1,0 +1,72 @@
+version: "1"
+name: "foundation-industry-benchmark-mlrc-bench-open-research-hard"
+description: "Research-frontier transfer set mapped from MLRC-Bench style open-ended ML research competition tasks"
+scenarios:
+  - id: "mlrc-open-problem-source-discovery"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Open problem context lacks trusted references; discover authoritative sources first."
+    expected_tools: ["web_search"]
+
+  - id: "mlrc-ingest-fixed-competition-brief"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Competition brief URL is fixed by policy; ingest only that one source."
+    expected_tools: ["web_fetch"]
+
+  - id: "mlrc-recover-historical-winning-pattern"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Recover historically winning strategy pattern from memory before designing next run."
+    expected_tools: ["memory_search"]
+
+  - id: "mlrc-open-selected-memory-lines"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Selected memory trace should be opened at exact evidence lines for grounding."
+    expected_tools: ["memory_get"]
+
+  - id: "mlrc-repo-space-prune-first"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Prune candidate modules by repository topology before reading details."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "mlrc-semantic-hypothesis-evidence"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Find hypothesis evidence by semantic content, not by filename patterns."
+    expected_tools: ["search_file"]
+
+  - id: "mlrc-open-failure-context-window"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Open exact failure context window around unstable objective behavior."
+    expected_tools: ["read_file"]
+
+  - id: "mlrc-fast-pattern-pass-before-deep"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Run fast regex pattern pass across corpus before deep diagnostics."
+    expected_tools: ["ripgrep"]
+
+  - id: "mlrc-deterministic-score-consistency"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Use deterministic computation to verify score consistency across candidate runs."
+    expected_tools: ["execute_code"]
+
+  - id: "mlrc-human-gate-before-public-claim"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Public claim remains frozen until explicit human approval is provided."
+    expected_tools: ["request_user"]
+
+  - id: "mlrc-persist-research-ledger-artifact"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Persist research ledger with assumptions, evidence and risks as durable artifact."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "research ledger"
+      artifact_required: true
+      required_file_types: ["markdown"]
+      required_evidence: ["report"]
+
+  - id: "mlrc-downloadable-judge-handoff"
+    category: "mlrc_bench_open_research_hard"
+    intent: "Judge requests immediate downloadable handoff package for offline review."
+    expected_tools: ["write_attachment"]
+    deliverable:
+      output_description: "judge handoff package"
+      attachment_required: true
+      required_file_types: ["markdown"]

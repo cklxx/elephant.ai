@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Elephant Bridge Options</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+        margin: 16px;
+        max-width: 820px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 160px 1fr;
+        gap: 12px;
+        align-items: center;
+        margin: 10px 0;
+      }
+      input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      button {
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: #fff;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #2563eb;
+        color: white;
+        border-color: #2563eb;
+      }
+      .status {
+        margin-top: 16px;
+        padding: 10px 12px;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+      .hint {
+        color: #6b7280;
+        font-size: 13px;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Elephant Bridge</h1>
+    <p class="hint">
+      This extension connects to a localhost WebSocket bridge started by <code>alex</code> and exposes cookies/tabs/storage
+      to the agent.
+    </p>
+
+    <div class="row">
+      <label for="bridgeUrl">Bridge URL</label>
+      <input id="bridgeUrl" type="text" placeholder="ws://127.0.0.1:17333/ws" />
+    </div>
+
+    <div class="row">
+      <label for="token">Token (optional)</label>
+      <input id="token" type="password" placeholder="(empty = no auth)" />
+    </div>
+
+    <div class="actions">
+      <button id="save" class="primary">Save</button>
+      <button id="reconnect">Reconnect</button>
+    </div>
+
+    <div id="status" class="status">Loading...</div>
+
+    <script src="options.js"></script>
+  </body>
+</html>
+
