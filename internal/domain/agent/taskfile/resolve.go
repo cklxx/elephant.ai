@@ -1,7 +1,6 @@
 package taskfile
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -176,9 +175,4 @@ func isCodingExternalAgent(agentType string) bool {
 	default:
 		return false
 	}
-}
-
-// FormatBool returns "true" or "false".
-func formatBool(v bool) string {
-	return fmt.Sprintf("%t", v)
 }
