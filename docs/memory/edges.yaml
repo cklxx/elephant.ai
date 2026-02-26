@@ -393,6 +393,10 @@ edges:
       to: goodsum-2026-02-25-unattended-boundary-guard-for-kernel-context
       type: see_also
       direction: directed
+    - from: good-2026-02-26-error-first-llm-log-observability
+      to: goodsum-2026-02-26-error-first-llm-log-observability
+      type: see_also
+      direction: directed
     - from: good-2026-02-26-history-attachment-single-embed-mask
       to: goodsum-2026-02-26-history-attachment-single-embed-mask
       type: see_also
@@ -587,6 +591,10 @@ edges:
       direction: directed
     - from: goodsum-2026-02-25-unattended-boundary-guard-for-kernel-context
       to: good-2026-02-25-unattended-boundary-guard-for-kernel-context
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-26-error-first-llm-log-observability
+      to: good-2026-02-26-error-first-llm-log-observability
       type: derived_from
       direction: directed
     - from: goodsum-2026-02-26-history-attachment-single-embed-mask

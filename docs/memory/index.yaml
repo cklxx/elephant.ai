@@ -1,6 +1,14 @@
 version: 1
 updated: "2026-02-26"
 nodes:
+    - id: good-2026-02-26-error-first-llm-log-observability
+      path: docs/good-experience/entries/2026-02-26-error-first-llm-log-observability.md
+      type: good_entry
+      date: "2026-02-26"
+      tags:
+        - good
+        - observability
+      summary: 'Impact: LLM failure chains are now directly traceable from index -> structured bundle -> request/error payload, reducing mean-time-to-diagnosis for retry/timeout/provider failures.'
     - id: good-2026-02-26-history-attachment-single-embed-mask
       path: docs/good-experience/entries/2026-02-26-history-attachment-single-embed-mask.md
       type: good_entry
@@ -27,6 +35,15 @@ nodes:
         - good
         - lark
       summary: 'Impact: Improved readability/maintainability by removing low-value defensive wrappers and dead helper APIs that increased cognitive load without adding safety.'
+    - id: goodsum-2026-02-26-error-first-llm-log-observability
+      path: docs/good-experience/summary/entries/2026-02-26-error-first-llm-log-observability.md
+      type: good_summary
+      date: "2026-02-26"
+      tags:
+        - good
+        - observability
+        - summary
+      summary: 'Summary: Treating LLM failures as first-class request-log entries and surfacing them in a dedicated diagnostics tab dramatically improves failure triage speed without breaking exis...'
     - id: goodsum-2026-02-26-history-attachment-single-embed-mask
       path: docs/good-experience/summary/entries/2026-02-26-history-attachment-single-embed-mask.md
       type: good_summary
