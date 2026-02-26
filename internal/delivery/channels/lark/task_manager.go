@@ -755,15 +755,29 @@ func (g *Gateway) reprocessMessage(chatID, chatType string, input agent.UserInpu
 // buildReply constructs the reply string from the agent result.
 func (g *Gateway) buildReply(result *agent.TaskResult, execErr error) string {
 	reply := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
-	if reply == "" && result != nil {
-		// Lark-specific fallback: check thinking content for models that reason but produce no text.
-		if fallback := extractThinkingFallback(result.Messages); fallback != "" {
-			reply = fallback
-			if g.cfg.ReplyPrefix != "" {
-				reply = g.cfg.ReplyPrefix + reply
-			}
-		}
+	if result == nil {
+		return channels.ShapeReply7C(reply)
 	}
+
+	thinking := extractThinkingFallback(result.Messages)
+	if thinking == "" {
+		return channels.ShapeReply7C(reply)
+	}
+
+	// Lark-specific fallback: if answer is empty, show thinking directly.
+	if reply == "" {
+		reply = thinking
+		if g.cfg.ReplyPrefix != "" {
+			reply = g.cfg.ReplyPrefix + reply
+		}
+		return channels.ShapeReply7C(reply)
+	}
+
+	// When answer exists, append thinking for step-by-step visibility.
+	if execErr == nil && !strings.Contains(reply, thinking) {
+		reply = reply + "\n\n思考：\n" + thinking
+	}
+
 	return channels.ShapeReply7C(reply)
 }
 

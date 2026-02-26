@@ -2814,7 +2814,7 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 		}
 	})
 
-	t.Run("no fallback when answer present", func(t *testing.T) {
+	t.Run("append thinking when answer present", func(t *testing.T) {
 		result := &agent.TaskResult{
 			Answer: "Hello!",
 			Messages: []ports.Message{
@@ -2829,7 +2829,7 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 			},
 		}
 		reply := gw.buildReply(result, nil)
-		if reply != "Hello!" {
+		if reply != "Hello!\n\n思考：\nthinking content" {
 			t.Fatalf("expected answer, got %q", reply)
 		}
 	})
