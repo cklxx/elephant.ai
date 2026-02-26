@@ -115,12 +115,17 @@ func (f *Foundation) startConfigWatchers(cr ConfigResult) {
 	if cr.RuntimeCache == nil {
 		return
 	}
-	for _, configPath := range runtimeconfig.DefaultRuntimeConfigWatchPaths(runtimeconfig.DefaultEnvLookup, nil) {
+	paths := runtimeconfig.DefaultRuntimeConfigWatchPaths(runtimeconfig.DefaultEnvLookup, nil)
+	paths = append(paths, runtimeconfig.DefaultDotEnvWatchPaths(runtimeconfig.DefaultEnvLookup, nil)...)
+	for _, configPath := range paths {
 		watcher, err := runtimeconfig.NewRuntimeConfigWatcher(
 			configPath,
 			cr.RuntimeCache,
 			runtimeconfig.WithConfigWatchLogger(f.Logger),
 			runtimeconfig.WithConfigWatchBeforeReload(func(ctx context.Context) error {
+				if err := runtimeconfig.ReloadManagedDotEnv(); err != nil {
+					return err
+				}
 				_, err := cr.ConfigManager.RefreshOverrides(ctx)
 				return err
 			}),

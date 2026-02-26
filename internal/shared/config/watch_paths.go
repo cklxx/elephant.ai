@@ -60,3 +60,45 @@ func DefaultRuntimeConfigWatchPaths(envLookup EnvLookup, homeDir func() (string,
 	add(defaultTestPath)
 	return paths
 }
+
+// DefaultDotEnvWatchPaths returns a stable, de-duplicated list of dotenv paths
+// that should be watched for runtime reload triggers.
+//
+// Order:
+//  1. ALEX_DOTENV_PATH (if set), otherwise .env in current working directory.
+func DefaultDotEnvWatchPaths(envLookup EnvLookup, cwd func() (string, error)) []string {
+	dotenvPaths := DefaultDotEnvPaths(envLookup)
+	workingDir := ""
+	if cwd != nil {
+		if resolvedCwd, err := cwd(); err == nil {
+			workingDir = strings.TrimSpace(resolvedCwd)
+		}
+	}
+	if workingDir == "" {
+		if resolvedCwd, err := os.Getwd(); err == nil {
+			workingDir = strings.TrimSpace(resolvedCwd)
+		}
+	}
+
+	seen := make(map[string]struct{}, len(dotenvPaths))
+	paths := make([]string, 0, len(dotenvPaths))
+	for _, path := range dotenvPaths {
+		trimmed := strings.TrimSpace(path)
+		if trimmed == "" {
+			continue
+		}
+		if !filepath.IsAbs(trimmed) && workingDir != "" {
+			trimmed = filepath.Join(workingDir, trimmed)
+		}
+		if abs, err := filepath.Abs(trimmed); err == nil {
+			trimmed = abs
+		}
+		trimmed = filepath.Clean(trimmed)
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		paths = append(paths, trimmed)
+	}
+	return paths
+}

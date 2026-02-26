@@ -79,3 +79,61 @@ func TestDefaultRuntimeConfigWatchPaths(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultDotEnvWatchPaths(t *testing.T) {
+	t.Parallel()
+
+	cwd := "/repo/project"
+	cwdResolver := func() (string, error) { return cwd, nil }
+
+	tests := []struct {
+		name      string
+		envLookup EnvLookup
+		want      []string
+	}{
+		{
+			name: "default .env under cwd",
+			envLookup: func(string) (string, bool) {
+				return "", false
+			},
+			want: []string{
+				"/repo/project/.env",
+			},
+		},
+		{
+			name: "custom relative dotenv path",
+			envLookup: func(key string) (string, bool) {
+				if key == "ALEX_DOTENV_PATH" {
+					return "configs/local.env", true
+				}
+				return "", false
+			},
+			want: []string{
+				"/repo/project/configs/local.env",
+			},
+		},
+		{
+			name: "custom absolute dotenv path",
+			envLookup: func(key string) (string, bool) {
+				if key == "ALEX_DOTENV_PATH" {
+					return "/etc/alex/runtime.env", true
+				}
+				return "", false
+			},
+			want: []string{
+				"/etc/alex/runtime.env",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := DefaultDotEnvWatchPaths(tt.envLookup, cwdResolver)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("DefaultDotEnvWatchPaths() = %#v; want %#v", got, tt.want)
+			}
+		})
+	}
+}

@@ -7,36 +7,86 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"alex/internal/shared/utils"
 )
 
 const dotEnvPathEnvVar = "ALEX_DOTENV_PATH"
 
+var managedDotEnvState = struct {
+	mu   sync.Mutex
+	keys map[string]struct{}
+}{
+	keys: map[string]struct{}{},
+}
+
 // LoadDotEnv loads environment variables from a .env file without overriding
 // existing process environment values.
 func LoadDotEnv(paths ...string) error {
-	if len(paths) == 0 {
-		if value, ok := os.LookupEnv(dotEnvPathEnvVar); ok && utils.HasContent(value) {
-			paths = append(paths, strings.TrimSpace(value))
-		} else {
-			paths = append(paths, ".env")
-		}
-	}
-
-	for _, path := range paths {
-		if utils.IsBlank(path) {
-			continue
-		}
-		expandedPath := expandDotEnvPath(path)
-		if err := loadDotEnvFile(expandedPath); err != nil {
+	resolved := defaultDotEnvPaths(paths, os.LookupEnv)
+	for _, path := range resolved {
+		values, err := readDotEnvFile(path)
+		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
 			return err
 		}
+		applyDotEnvValues(values, false)
 	}
 	return nil
+}
+
+// ReloadManagedDotEnv reloads environment variables from .env and updates only
+// keys previously managed by LoadDotEnv, while preserving externally injected
+// environment variables.
+func ReloadManagedDotEnv(paths ...string) error {
+	resolved := defaultDotEnvPaths(paths, os.LookupEnv)
+	merged := make(map[string]string)
+	for _, path := range resolved {
+		values, err := readDotEnvFile(path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return err
+		}
+		for key, value := range values {
+			if _, exists := merged[key]; exists {
+				continue
+			}
+			merged[key] = value
+		}
+	}
+	applyDotEnvValues(merged, true)
+	return nil
+}
+
+// DefaultDotEnvPaths returns the dotenv paths that should be loaded/watched.
+func DefaultDotEnvPaths(envLookup EnvLookup) []string {
+	return defaultDotEnvPaths(nil, envLookup)
+}
+
+func defaultDotEnvPaths(paths []string, envLookup EnvLookup) []string {
+	if len(paths) == 0 {
+		if envLookup == nil {
+			envLookup = os.LookupEnv
+		}
+		if value, ok := envLookup(dotEnvPathEnvVar); ok && utils.HasContent(value) {
+			paths = append(paths, strings.TrimSpace(value))
+		} else {
+			paths = append(paths, ".env")
+		}
+	}
+	resolved := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if utils.IsBlank(path) {
+			continue
+		}
+		resolved = append(resolved, expandDotEnvPath(path))
+	}
+	return resolved
 }
 
 func expandDotEnvPath(path string) string {
@@ -55,23 +105,47 @@ func expandDotEnvPath(path string) string {
 	return trimmed
 }
 
-func loadDotEnvFile(path string) error {
+func readDotEnvFile(path string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	return parseDotEnv(data), nil
+}
+
+func applyDotEnvValues(values map[string]string, reloadManaged bool) {
+	if len(values) == 0 && !reloadManaged {
+		return
+	}
+	managedDotEnvState.mu.Lock()
+	defer managedDotEnvState.mu.Unlock()
+
+	if reloadManaged {
+		for key := range managedDotEnvState.keys {
+			if _, ok := values[key]; ok {
+				continue
+			}
+			_ = os.Unsetenv(key)
+			delete(managedDotEnvState.keys, key)
+		}
 	}
 
-	parsed := parseDotEnv(data)
-	for key, value := range parsed {
+	for key, value := range values {
 		if key == "" {
 			continue
+		}
+		if reloadManaged {
+			if _, managed := managedDotEnvState.keys[key]; managed {
+				_ = os.Setenv(key, value)
+				continue
+			}
 		}
 		if _, exists := os.LookupEnv(key); exists {
 			continue
 		}
 		_ = os.Setenv(key, value)
+		managedDotEnvState.keys[key] = struct{}{}
 	}
-	return nil
 }
 
 func parseDotEnv(data []byte) map[string]string {
