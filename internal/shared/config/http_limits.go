@@ -4,72 +4,53 @@ func applyHTTPLimitsFileConfig(cfg *RuntimeConfig, meta *Metadata, file *HTTPLim
 	if cfg == nil || file == nil {
 		return
 	}
-	limits := &cfg.HTTPLimits
-	if file.DefaultMaxResponseBytes != nil {
-		limits.DefaultMaxResponseBytes = *file.DefaultMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.default_max_response_bytes"] = SourceFile
-		}
-	}
-	if file.WebFetchMaxResponseBytes != nil {
-		limits.WebFetchMaxResponseBytes = *file.WebFetchMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.web_fetch_max_response_bytes"] = SourceFile
-		}
-	}
-	if file.WebSearchMaxResponseBytes != nil {
-		limits.WebSearchMaxResponseBytes = *file.WebSearchMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.web_search_max_response_bytes"] = SourceFile
-		}
-	}
-	if file.MusicSearchMaxResponseBytes != nil {
-		limits.MusicSearchMaxResponseBytes = *file.MusicSearchMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.music_search_max_response_bytes"] = SourceFile
-		}
-	}
-	if file.ModelListMaxResponseBytes != nil {
-		limits.ModelListMaxResponseBytes = *file.ModelListMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.model_list_max_response_bytes"] = SourceFile
-		}
-	}
+	applyHTTPLimitsValues(&cfg.HTTPLimits, meta, SourceFile, httpLimitValues{
+		defaultMaxResponseBytes:     file.DefaultMaxResponseBytes,
+		webFetchMaxResponseBytes:    file.WebFetchMaxResponseBytes,
+		webSearchMaxResponseBytes:   file.WebSearchMaxResponseBytes,
+		musicSearchMaxResponseBytes: file.MusicSearchMaxResponseBytes,
+		modelListMaxResponseBytes:   file.ModelListMaxResponseBytes,
+	})
 }
 
 func applyHTTPLimitsOverrides(cfg *RuntimeConfig, meta *Metadata, overrides *HTTPLimitsOverrides) {
 	if cfg == nil || overrides == nil {
 		return
 	}
-	limits := &cfg.HTTPLimits
-	if overrides.DefaultMaxResponseBytes != nil {
-		limits.DefaultMaxResponseBytes = *overrides.DefaultMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.default_max_response_bytes"] = SourceOverride
-		}
+	applyHTTPLimitsValues(&cfg.HTTPLimits, meta, SourceOverride, httpLimitValues{
+		defaultMaxResponseBytes:     overrides.DefaultMaxResponseBytes,
+		webFetchMaxResponseBytes:    overrides.WebFetchMaxResponseBytes,
+		webSearchMaxResponseBytes:   overrides.WebSearchMaxResponseBytes,
+		musicSearchMaxResponseBytes: overrides.MusicSearchMaxResponseBytes,
+		modelListMaxResponseBytes:   overrides.ModelListMaxResponseBytes,
+	})
+}
+
+type httpLimitValues struct {
+	defaultMaxResponseBytes     *int
+	webFetchMaxResponseBytes    *int
+	webSearchMaxResponseBytes   *int
+	musicSearchMaxResponseBytes *int
+	modelListMaxResponseBytes   *int
+}
+
+func applyHTTPLimitsValues(limits *HTTPLimitsConfig, meta *Metadata, source ValueSource, values httpLimitValues) {
+	if limits == nil {
+		return
 	}
-	if overrides.WebFetchMaxResponseBytes != nil {
-		limits.WebFetchMaxResponseBytes = *overrides.WebFetchMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.web_fetch_max_response_bytes"] = SourceOverride
-		}
+	applyHTTPLimitValue(&limits.DefaultMaxResponseBytes, values.defaultMaxResponseBytes, meta, "http_limits.default_max_response_bytes", source)
+	applyHTTPLimitValue(&limits.WebFetchMaxResponseBytes, values.webFetchMaxResponseBytes, meta, "http_limits.web_fetch_max_response_bytes", source)
+	applyHTTPLimitValue(&limits.WebSearchMaxResponseBytes, values.webSearchMaxResponseBytes, meta, "http_limits.web_search_max_response_bytes", source)
+	applyHTTPLimitValue(&limits.MusicSearchMaxResponseBytes, values.musicSearchMaxResponseBytes, meta, "http_limits.music_search_max_response_bytes", source)
+	applyHTTPLimitValue(&limits.ModelListMaxResponseBytes, values.modelListMaxResponseBytes, meta, "http_limits.model_list_max_response_bytes", source)
+}
+
+func applyHTTPLimitValue(dst *int, src *int, meta *Metadata, key string, source ValueSource) {
+	if src == nil {
+		return
 	}
-	if overrides.WebSearchMaxResponseBytes != nil {
-		limits.WebSearchMaxResponseBytes = *overrides.WebSearchMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.web_search_max_response_bytes"] = SourceOverride
-		}
-	}
-	if overrides.MusicSearchMaxResponseBytes != nil {
-		limits.MusicSearchMaxResponseBytes = *overrides.MusicSearchMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.music_search_max_response_bytes"] = SourceOverride
-		}
-	}
-	if overrides.ModelListMaxResponseBytes != nil {
-		limits.ModelListMaxResponseBytes = *overrides.ModelListMaxResponseBytes
-		if meta != nil {
-			meta.sources["http_limits.model_list_max_response_bytes"] = SourceOverride
-		}
+	*dst = *src
+	if meta != nil {
+		meta.sources[key] = source
 	}
 }

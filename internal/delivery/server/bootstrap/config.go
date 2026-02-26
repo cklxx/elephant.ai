@@ -324,150 +324,120 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		return
 	}
 	larkCfg := file.Channels.Lark
-	if larkCfg.Enabled != nil {
-		cfg.Channels.Lark.Enabled = *larkCfg.Enabled
-	}
-	if appID := strings.TrimSpace(larkCfg.AppID); appID != "" {
-		cfg.Channels.Lark.AppID = appID
-	}
-	if appSecret := strings.TrimSpace(larkCfg.AppSecret); appSecret != "" {
-		cfg.Channels.Lark.AppSecret = appSecret
-	}
-	if calendarID := strings.TrimSpace(larkCfg.TenantCalendarID); calendarID != "" {
-		cfg.Channels.Lark.TenantCalendarID = calendarID
-	}
-	if baseDomain := strings.TrimSpace(larkCfg.BaseDomain); baseDomain != "" {
-		cfg.Channels.Lark.BaseDomain = baseDomain
-	}
-	if workspaceDir := strings.TrimSpace(larkCfg.WorkspaceDir); workspaceDir != "" {
-		cfg.Channels.Lark.WorkspaceDir = workspaceDir
-	}
-	if larkCfg.AutoUploadFiles != nil {
-		cfg.Channels.Lark.AutoUploadFiles = *larkCfg.AutoUploadFiles
-	}
-	if larkCfg.AutoUploadMaxBytes != nil && *larkCfg.AutoUploadMaxBytes > 0 {
-		cfg.Channels.Lark.AutoUploadMaxBytes = *larkCfg.AutoUploadMaxBytes
-	}
+	target := &cfg.Channels.Lark
+	applyOptionalBool(&target.Enabled, larkCfg.Enabled)
+	applyTrimmedString(&target.AppID, larkCfg.AppID)
+	applyTrimmedString(&target.AppSecret, larkCfg.AppSecret)
+	applyTrimmedString(&target.TenantCalendarID, larkCfg.TenantCalendarID)
+	applyTrimmedString(&target.BaseDomain, larkCfg.BaseDomain)
+	applyTrimmedString(&target.WorkspaceDir, larkCfg.WorkspaceDir)
+	applyOptionalBool(&target.AutoUploadFiles, larkCfg.AutoUploadFiles)
+	applyPositiveInt(&target.AutoUploadMaxBytes, larkCfg.AutoUploadMaxBytes)
 	if len(larkCfg.AutoUploadAllowExt) > 0 {
-		cfg.Channels.Lark.AutoUploadAllowExt = append([]string(nil), larkCfg.AutoUploadAllowExt...)
+		target.AutoUploadAllowExt = append([]string(nil), larkCfg.AutoUploadAllowExt...)
 	}
-	if larkCfg.Browser != nil {
-		if cdpURL := strings.TrimSpace(larkCfg.Browser.CDPURL); cdpURL != "" {
-			cfg.Channels.Lark.Browser.CDPURL = cdpURL
-		}
-		if chromePath := strings.TrimSpace(larkCfg.Browser.ChromePath); chromePath != "" {
-			cfg.Channels.Lark.Browser.ChromePath = chromePath
-		}
-		if larkCfg.Browser.Headless != nil {
-			cfg.Channels.Lark.Browser.Headless = *larkCfg.Browser.Headless
-		}
-		if userDataDir := strings.TrimSpace(larkCfg.Browser.UserDataDir); userDataDir != "" {
-			cfg.Channels.Lark.Browser.UserDataDir = userDataDir
-		}
-		if larkCfg.Browser.TimeoutSeconds != nil && *larkCfg.Browser.TimeoutSeconds > 0 {
-			cfg.Channels.Lark.Browser.Timeout = time.Duration(*larkCfg.Browser.TimeoutSeconds) * time.Second
-		}
+	applyLarkBrowserConfig(&target.Browser, larkCfg.Browser)
+	applyTrimmedString(&target.SessionPrefix, larkCfg.SessionPrefix)
+	applyTrimmedString(&target.ReplyPrefix, larkCfg.ReplyPrefix)
+	applyOptionalBool(&target.AllowGroups, larkCfg.AllowGroups)
+	applyOptionalBool(&target.AllowDirect, larkCfg.AllowDirect)
+	applyTrimmedString(&target.AgentPreset, larkCfg.AgentPreset)
+	applyTrimmedString(&target.ToolPreset, larkCfg.ToolPreset)
+	applyTrimmedString(&target.ToolMode, larkCfg.ToolMode)
+	applyPositiveDurationSeconds(&target.ReplyTimeout, larkCfg.ReplyTimeoutSeconds)
+	applyTrimmedString(&target.ReactEmoji, larkCfg.ReactEmoji)
+	applyTrimmedString(&target.InjectionAckReactEmoji, larkCfg.InjectionAckReactEmoji)
+	applyTrimmedString(&target.FinalAnswerReviewReactEmoji, larkCfg.FinalAnswerReviewReactEmoji)
+	applyOptionalBool(&target.MemoryEnabled, larkCfg.MemoryEnabled)
+	applyOptionalBool(&target.ShowToolProgress, larkCfg.ShowToolProgress)
+	applyOptionalBool(&target.SlowProgressSummaryEnabled, larkCfg.SlowProgressSummaryEnabled)
+	applyPositiveDurationSeconds(&target.SlowProgressSummaryDelay, larkCfg.SlowProgressSummaryDelaySecs)
+	applyOptionalBool(&target.ShowPlanClarifyMessages, larkCfg.ShowPlanClarifyMessages)
+	applyPositiveInt(&target.AutoChatContextSize, larkCfg.AutoChatContextSize)
+	applyOptionalBool(&target.PlanReviewEnabled, larkCfg.PlanReviewEnabled)
+	applyOptionalBool(&target.PlanReviewRequireConfirmation, larkCfg.PlanReviewRequireConfirmation)
+	applyPositiveDurationMinutes(&target.PlanReviewPendingTTL, larkCfg.PlanReviewPendingTTLMinutes)
+	applyPositiveDurationMinutes(&target.ActiveSlotTTL, larkCfg.ActiveSlotTTLMinutes)
+	applyPositiveInt(&target.ActiveSlotMaxEntries, larkCfg.ActiveSlotMaxEntries)
+	applyPositiveDurationMinutes(&target.PendingInputRelayTTL, larkCfg.PendingInputRelayTTLMinutes)
+	applyPositiveInt(&target.PendingInputRelayMaxChats, larkCfg.PendingInputRelayMaxChats)
+	applyPositiveInt(&target.PendingInputRelayMaxPerChat, larkCfg.PendingInputRelayMaxPerChat)
+	applyPositiveDurationMinutes(&target.AIChatSessionTTL, larkCfg.AIChatSessionTTLMinutes)
+	applyPositiveDurationSeconds(&target.StateCleanupInterval, larkCfg.StateCleanupIntervalSeconds)
+	applyLarkPersistenceConfig(target, larkCfg.Persistence)
+	applyPositiveInt(&target.MaxConcurrentTasks, larkCfg.MaxConcurrentTasks)
+	applyOptionalTrimmedString(&target.DefaultPlanMode, larkCfg.DefaultPlanMode)
+}
+
+func applyLarkBrowserConfig(dst *LarkBrowserConfig, browser *runtimeconfig.LarkBrowserConfig) {
+	if dst == nil || browser == nil {
+		return
 	}
-	if prefix := strings.TrimSpace(larkCfg.SessionPrefix); prefix != "" {
-		cfg.Channels.Lark.SessionPrefix = prefix
+	applyTrimmedString(&dst.CDPURL, browser.CDPURL)
+	applyTrimmedString(&dst.ChromePath, browser.ChromePath)
+	applyOptionalBool(&dst.Headless, browser.Headless)
+	applyTrimmedString(&dst.UserDataDir, browser.UserDataDir)
+	applyPositiveDurationSeconds(&dst.Timeout, browser.TimeoutSeconds)
+}
+
+func applyLarkPersistenceConfig(dst *LarkGatewayConfig, persistence *runtimeconfig.LarkPersistenceConfig) {
+	if dst == nil || persistence == nil {
+		return
 	}
-	if replyPrefix := strings.TrimSpace(larkCfg.ReplyPrefix); replyPrefix != "" {
-		cfg.Channels.Lark.ReplyPrefix = replyPrefix
+	applyTrimmedLowerString(&dst.PersistenceMode, persistence.Mode)
+	applyTrimmedString(&dst.PersistenceDir, persistence.Dir)
+	applyPositiveDurationHours(&dst.PersistenceRetention, persistence.RetentionHours)
+	applyPositiveInt(&dst.PersistenceMaxTasksPerChat, persistence.MaxTasksPerChat)
+}
+
+func applyTrimmedString(dst *string, value string) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed != "" {
+		*dst = trimmed
 	}
-	if larkCfg.AllowGroups != nil {
-		cfg.Channels.Lark.AllowGroups = *larkCfg.AllowGroups
+}
+
+func applyOptionalTrimmedString(dst *string, value *string) {
+	if value == nil {
+		return
 	}
-	if larkCfg.AllowDirect != nil {
-		cfg.Channels.Lark.AllowDirect = *larkCfg.AllowDirect
+	*dst = strings.TrimSpace(*value)
+}
+
+func applyTrimmedLowerString(dst *string, value string) {
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	if trimmed != "" {
+		*dst = trimmed
 	}
-	if agentPreset := strings.TrimSpace(larkCfg.AgentPreset); agentPreset != "" {
-		cfg.Channels.Lark.AgentPreset = agentPreset
+}
+
+func applyOptionalBool(dst *bool, value *bool) {
+	if value != nil {
+		*dst = *value
 	}
-	if toolPreset := strings.TrimSpace(larkCfg.ToolPreset); toolPreset != "" {
-		cfg.Channels.Lark.ToolPreset = toolPreset
+}
+
+func applyPositiveInt(dst *int, value *int) {
+	if value != nil && *value > 0 {
+		*dst = *value
 	}
-	if toolMode := strings.TrimSpace(larkCfg.ToolMode); toolMode != "" {
-		cfg.Channels.Lark.ToolMode = toolMode
+}
+
+func applyPositiveDurationSeconds(dst *time.Duration, seconds *int) {
+	if seconds != nil && *seconds > 0 {
+		*dst = time.Duration(*seconds) * time.Second
 	}
-	if larkCfg.ReplyTimeoutSeconds != nil && *larkCfg.ReplyTimeoutSeconds > 0 {
-		cfg.Channels.Lark.ReplyTimeout = time.Duration(*larkCfg.ReplyTimeoutSeconds) * time.Second
+}
+
+func applyPositiveDurationMinutes(dst *time.Duration, minutes *int) {
+	if minutes != nil && *minutes > 0 {
+		*dst = time.Duration(*minutes) * time.Minute
 	}
-	if reactEmoji := strings.TrimSpace(larkCfg.ReactEmoji); reactEmoji != "" {
-		cfg.Channels.Lark.ReactEmoji = reactEmoji
-	}
-	if emoji := strings.TrimSpace(larkCfg.InjectionAckReactEmoji); emoji != "" {
-		cfg.Channels.Lark.InjectionAckReactEmoji = emoji
-	}
-	if emoji := strings.TrimSpace(larkCfg.FinalAnswerReviewReactEmoji); emoji != "" {
-		cfg.Channels.Lark.FinalAnswerReviewReactEmoji = emoji
-	}
-	if larkCfg.MemoryEnabled != nil {
-		cfg.Channels.Lark.MemoryEnabled = *larkCfg.MemoryEnabled
-	}
-	if larkCfg.ShowToolProgress != nil {
-		cfg.Channels.Lark.ShowToolProgress = *larkCfg.ShowToolProgress
-	}
-	if larkCfg.SlowProgressSummaryEnabled != nil {
-		cfg.Channels.Lark.SlowProgressSummaryEnabled = *larkCfg.SlowProgressSummaryEnabled
-	}
-	if larkCfg.SlowProgressSummaryDelaySecs != nil && *larkCfg.SlowProgressSummaryDelaySecs > 0 {
-		cfg.Channels.Lark.SlowProgressSummaryDelay = time.Duration(*larkCfg.SlowProgressSummaryDelaySecs) * time.Second
-	}
-	if larkCfg.ShowPlanClarifyMessages != nil {
-		cfg.Channels.Lark.ShowPlanClarifyMessages = *larkCfg.ShowPlanClarifyMessages
-	}
-	if larkCfg.AutoChatContextSize != nil && *larkCfg.AutoChatContextSize > 0 {
-		cfg.Channels.Lark.AutoChatContextSize = *larkCfg.AutoChatContextSize
-	}
-	if larkCfg.PlanReviewEnabled != nil {
-		cfg.Channels.Lark.PlanReviewEnabled = *larkCfg.PlanReviewEnabled
-	}
-	if larkCfg.PlanReviewRequireConfirmation != nil {
-		cfg.Channels.Lark.PlanReviewRequireConfirmation = *larkCfg.PlanReviewRequireConfirmation
-	}
-	if larkCfg.PlanReviewPendingTTLMinutes != nil && *larkCfg.PlanReviewPendingTTLMinutes > 0 {
-		cfg.Channels.Lark.PlanReviewPendingTTL = time.Duration(*larkCfg.PlanReviewPendingTTLMinutes) * time.Minute
-	}
-	if larkCfg.ActiveSlotTTLMinutes != nil && *larkCfg.ActiveSlotTTLMinutes > 0 {
-		cfg.Channels.Lark.ActiveSlotTTL = time.Duration(*larkCfg.ActiveSlotTTLMinutes) * time.Minute
-	}
-	if larkCfg.ActiveSlotMaxEntries != nil && *larkCfg.ActiveSlotMaxEntries > 0 {
-		cfg.Channels.Lark.ActiveSlotMaxEntries = *larkCfg.ActiveSlotMaxEntries
-	}
-	if larkCfg.PendingInputRelayTTLMinutes != nil && *larkCfg.PendingInputRelayTTLMinutes > 0 {
-		cfg.Channels.Lark.PendingInputRelayTTL = time.Duration(*larkCfg.PendingInputRelayTTLMinutes) * time.Minute
-	}
-	if larkCfg.PendingInputRelayMaxChats != nil && *larkCfg.PendingInputRelayMaxChats > 0 {
-		cfg.Channels.Lark.PendingInputRelayMaxChats = *larkCfg.PendingInputRelayMaxChats
-	}
-	if larkCfg.PendingInputRelayMaxPerChat != nil && *larkCfg.PendingInputRelayMaxPerChat > 0 {
-		cfg.Channels.Lark.PendingInputRelayMaxPerChat = *larkCfg.PendingInputRelayMaxPerChat
-	}
-	if larkCfg.AIChatSessionTTLMinutes != nil && *larkCfg.AIChatSessionTTLMinutes > 0 {
-		cfg.Channels.Lark.AIChatSessionTTL = time.Duration(*larkCfg.AIChatSessionTTLMinutes) * time.Minute
-	}
-	if larkCfg.StateCleanupIntervalSeconds != nil && *larkCfg.StateCleanupIntervalSeconds > 0 {
-		cfg.Channels.Lark.StateCleanupInterval = time.Duration(*larkCfg.StateCleanupIntervalSeconds) * time.Second
-	}
-	if larkCfg.Persistence != nil {
-		if mode := strings.TrimSpace(strings.ToLower(larkCfg.Persistence.Mode)); mode != "" {
-			cfg.Channels.Lark.PersistenceMode = mode
-		}
-		if dir := strings.TrimSpace(larkCfg.Persistence.Dir); dir != "" {
-			cfg.Channels.Lark.PersistenceDir = dir
-		}
-		if larkCfg.Persistence.RetentionHours != nil && *larkCfg.Persistence.RetentionHours > 0 {
-			cfg.Channels.Lark.PersistenceRetention = time.Duration(*larkCfg.Persistence.RetentionHours) * time.Hour
-		}
-		if larkCfg.Persistence.MaxTasksPerChat != nil && *larkCfg.Persistence.MaxTasksPerChat > 0 {
-			cfg.Channels.Lark.PersistenceMaxTasksPerChat = *larkCfg.Persistence.MaxTasksPerChat
-		}
-	}
-	if larkCfg.MaxConcurrentTasks != nil && *larkCfg.MaxConcurrentTasks > 0 {
-		cfg.Channels.Lark.MaxConcurrentTasks = *larkCfg.MaxConcurrentTasks
-	}
-	if larkCfg.DefaultPlanMode != nil {
-		cfg.Channels.Lark.DefaultPlanMode = strings.TrimSpace(*larkCfg.DefaultPlanMode)
+}
+
+func applyPositiveDurationHours(dst *time.Duration, hours *int) {
+	if hours != nil && *hours > 0 {
+		*dst = time.Duration(*hours) * time.Hour
 	}
 }
 
