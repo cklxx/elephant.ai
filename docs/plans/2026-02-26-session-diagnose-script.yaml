@@ -1,0 +1,35 @@
+id: 2026-02-26-session-diagnose-script
+title: Add reusable session diagnosis script for per-message explanation and anomaly classification
+status: completed
+owner: codex
+created: 2026-02-26
+updated: 2026-02-26T17:05:00+08:00
+summary: >
+  Implement a reusable analysis script that accepts a session id and outputs
+  role/kind distribution, compaction evidence, anomaly buckets, and per-message
+  diagnosis rows to explain empty assistant messages and tool failures.
+scope:
+  in:
+    - Add `scripts/analysis/session_diagnose.py` with text and JSON output modes
+    - Recover compacted placeholder tool names from snapshots when possible
+    - Detect core anomalies including metadata stripping and tool argument failures
+  out:
+    - Runtime behavior changes in agent/session pipeline
+    - Any message persistence schema migration
+steps:
+  - id: design-diagnosis-schema
+    description: Define per-message kind/anomaly model for stable postmortem usage
+    status: completed
+  - id: implement-script
+    description: Implement CLI script with session/snapshot/events correlation
+    status: completed
+  - id: run-real-session-verification
+    description: Run script against the target Lark session and verify meaningful output
+    status: completed
+acceptance_criteria:
+  - Script accepts `--session-id` and emits full per-message diagnosis
+  - Empty assistant messages are split into placeholder vs compacted-placeholder classes
+  - Compression events and terminal duplicate assistant messages are surfaced
+  - Output supports both human text and JSON for downstream automation
+notes:
+  - 2026-02-26: Verified against `lark-3ACMs086dfRzmj9JonXlxEGv6mP`.
