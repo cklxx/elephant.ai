@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"os"
 	"strings"
 
 	"alex/internal/domain/agent/ports"
@@ -131,6 +132,28 @@ func buildOpenAIReasoningConfig(cfg ports.ThinkingConfig) map[string]any {
 		return nil
 	}
 	return reasoning
+}
+
+func applyCodexReasoningDefaults(reasoning map[string]any) map[string]any {
+	if len(reasoning) == 0 {
+		return reasoning
+	}
+	if summary := strings.TrimSpace(stringValue(reasoning["summary"])); summary == "" {
+		defaultSummary := ""
+		if value, ok := os.LookupEnv("ALEX_CODEX_REASONING_SUMMARY"); ok {
+			defaultSummary = strings.TrimSpace(value)
+		}
+		if defaultSummary == "" {
+			defaultSummary = "auto"
+		}
+		reasoning["summary"] = defaultSummary
+	}
+	return reasoning
+}
+
+func stringValue(value any) string {
+	text, _ := value.(string)
+	return text
 }
 
 func buildAnthropicThinkingConfig(cfg ports.ThinkingConfig) map[string]any {

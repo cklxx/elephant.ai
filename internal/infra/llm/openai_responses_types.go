@@ -30,6 +30,7 @@ type responseOutputItem struct {
 	Name      string              `json:"name"`
 	Arguments jsonx.RawMessage    `json:"arguments"`
 	Content   []responseContent   `json:"content"`
+	Summary   []responseContent   `json:"summary"`
 	ToolCalls []responseToolCall  `json:"tool_calls"`
 	Metadata  map[string]any      `json:"metadata"`
 	Delta     map[string]any      `json:"delta"`
@@ -39,8 +40,10 @@ type responseOutputItem struct {
 }
 
 type responseContent struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type    string            `json:"type"`
+	Text    string            `json:"text"`
+	Content string            `json:"content"`
+	Summary []responseContent `json:"summary"`
 }
 
 type responseToolCall struct {

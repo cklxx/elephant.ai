@@ -248,6 +248,32 @@ func TestParseResponsesOutput_ReasoningItem(t *testing.T) {
 	}
 }
 
+func TestParseResponsesOutput_ReasoningItemWithSummary(t *testing.T) {
+	resp := responsesResponse{
+		Output: []responseOutputItem{
+			{
+				Type: "reasoning",
+				Summary: []responseContent{
+					{Type: "summary_text", Text: "summary thought"},
+				},
+			},
+			{
+				Type: "message",
+				Content: []responseContent{
+					{Type: "output_text", Text: "done"},
+				},
+			},
+		},
+	}
+	content, _, thinking := parseResponsesOutput(resp)
+	if content != "done" {
+		t.Fatalf("expected content, got %q", content)
+	}
+	if len(thinking.Parts) != 1 || thinking.Parts[0].Text != "summary thought" {
+		t.Fatalf("expected summary thinking parsed, got %+v", thinking)
+	}
+}
+
 func TestParseResponsesOutput_ThinkingItem(t *testing.T) {
 	resp := responsesResponse{
 		Output: []responseOutputItem{
@@ -283,6 +309,32 @@ func TestParseResponsesOutput_MessageWithReasoningContent(t *testing.T) {
 	}
 	if len(thinking.Parts) != 1 || thinking.Parts[0].Text != "Let me reason" {
 		t.Fatalf("expected thinking from message content, got %+v", thinking)
+	}
+}
+
+func TestParseResponsesOutput_MessageReasoningSummaryContent(t *testing.T) {
+	resp := responsesResponse{
+		Output: []responseOutputItem{
+			{
+				Type: "message",
+				Content: []responseContent{
+					{
+						Type: "reasoning",
+						Summary: []responseContent{
+							{Type: "summary_text", Text: "summary in message"},
+						},
+					},
+					{Type: "output_text", Text: "ok"},
+				},
+			},
+		},
+	}
+	content, _, thinking := parseResponsesOutput(resp)
+	if content != "ok" {
+		t.Fatalf("expected content, got %q", content)
+	}
+	if len(thinking.Parts) != 1 || thinking.Parts[0].Text != "summary in message" {
+		t.Fatalf("expected summary thinking from message content, got %+v", thinking)
 	}
 }
 

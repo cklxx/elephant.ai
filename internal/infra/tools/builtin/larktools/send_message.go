@@ -58,6 +58,71 @@ func (t *larkSendMessage) Execute(ctx context.Context, call ports.ToolCall) (*po
 		}
 	}
 
+	chatID := shared.LarkChatIDFromContext(ctx)
+	if chatID == "" {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: "lark_send_message: no chat_id available in context.",
+			Error:   fmt.Errorf("chat_id not available in context"),
+		}, nil
+	}
+
+	content, errResult := shared.RequireStringArg(call.Arguments, call.ID, "content")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	rawReplyToID := strings.TrimSpace(shared.LarkMessageIDFromContext(ctx))
+	replyToID := rawReplyToID
+	syntheticInject := isSyntheticInjectMessageID(rawReplyToID)
+	if syntheticInject {
+		replyToID = ""
+	}
+	payload := textPayload(content)
+
+	if messenger := shared.LarkMessengerFromContext(ctx); messenger != nil {
+		if replyToID != "" {
+			messageID, err := messenger.ReplyMessage(ctx, replyToID, "text", payload)
+			if err != nil {
+				return &ports.ToolResult{
+					CallID:  call.ID,
+					Content: fmt.Sprintf("lark_send_message: messenger reply failed: %v", err),
+					Error:   fmt.Errorf("lark messenger reply failed: %w", err),
+				}, nil
+			}
+			return &ports.ToolResult{
+				CallID:  call.ID,
+				Content: "Message sent successfully.",
+				Metadata: map[string]any{
+					"message_id":          messageID,
+					"chat_id":             chatID,
+					"reply_to_message_id": replyToID,
+				},
+			}, nil
+		}
+
+		messageID, err := messenger.SendMessage(ctx, chatID, "text", payload)
+		if err != nil {
+			return &ports.ToolResult{
+				CallID:  call.ID,
+				Content: fmt.Sprintf("lark_send_message: messenger send failed: %v", err),
+				Error:   fmt.Errorf("lark messenger send failed: %w", err),
+			}, nil
+		}
+		metadata := map[string]any{
+			"message_id": messageID,
+			"chat_id":    chatID,
+		}
+		if syntheticInject {
+			metadata["synthetic_inject"] = true
+		}
+		return &ports.ToolResult{
+			CallID:   call.ID,
+			Content:  "Message sent successfully.",
+			Metadata: metadata,
+		}, nil
+	}
+
 	rawClient := shared.LarkClientFromContext(ctx)
 	if rawClient == nil {
 		return &ports.ToolResult{
@@ -74,23 +139,6 @@ func (t *larkSendMessage) Execute(ctx context.Context, call ports.ToolCall) (*po
 			Error:   fmt.Errorf("invalid lark client type: %T", rawClient),
 		}, nil
 	}
-
-	chatID := shared.LarkChatIDFromContext(ctx)
-	if chatID == "" {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "lark_send_message: no chat_id available in context.",
-			Error:   fmt.Errorf("chat_id not available in context"),
-		}, nil
-	}
-
-	content, errResult := shared.RequireStringArg(call.Arguments, call.ID, "content")
-	if errResult != nil {
-		return errResult, nil
-	}
-
-	replyToID := strings.TrimSpace(shared.LarkMessageIDFromContext(ctx))
-	payload := textPayload(content)
 
 	if replyToID != "" {
 		return t.replyMessage(ctx, client, call.ID, chatID, replyToID, payload)
@@ -188,6 +236,10 @@ func textPayload(text string) string {
 }
 
 var outgoingMentionPattern = regexp.MustCompile(`@([^@()<>\n\r\t]+)\((ou_[A-Za-z0-9]+|all)\)`)
+
+func isSyntheticInjectMessageID(messageID string) bool {
+	return strings.HasPrefix(strings.TrimSpace(messageID), "inject_")
+}
 
 func renderOutgoingMentions(text string) string {
 	if utils.IsBlank(text) {

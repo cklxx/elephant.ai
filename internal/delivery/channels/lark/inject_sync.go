@@ -25,9 +25,10 @@ type InjectSyncRequest struct {
 	ChatType           string        `json:"chat_type"` // default "p2p"
 	SenderID           string        `json:"sender_id"` // default "ou_inject_user"
 	Text               string        `json:"text"`
-	Timeout            time.Duration `json:"timeout"`               // default 5min
-	AutoReply          bool          `json:"auto_reply"`            // enable auto-reply on await_user_input
-	MaxAutoReplyRounds int           `json:"max_auto_reply_rounds"` // default 3
+	ToolMessageRounds  int           `json:"tool_message_rounds,omitempty"` // heuristic: force N tool-driven progress messages before final answer
+	Timeout            time.Duration `json:"timeout"`                       // default 5min
+	AutoReply          bool          `json:"auto_reply"`                    // enable auto-reply on await_user_input
+	MaxAutoReplyRounds int           `json:"max_auto_reply_rounds"`         // default 3
 }
 
 // InjectSyncResponse captures the bot's replies after processing completes.
@@ -52,6 +53,7 @@ const (
 // agent clarification questions, resuming the slot up to MaxAutoReplyRounds.
 func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) *InjectSyncResponse {
 	start := g.currentTime()
+	originalText := req.Text
 
 	// Apply defaults.
 	if req.ChatType == "" {
@@ -85,9 +87,10 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 
 	// Generate a unique message ID for dedup.
 	messageID := fmt.Sprintf("inject_%s_%d", req.ChatID, start.UnixNano())
+	taskText := buildInjectToolMessageTask(originalText, req.ToolMessageRounds)
 
 	// Inject the message through the normal pipeline.
-	if err := g.InjectMessage(ctx, req.ChatID, req.ChatType, req.SenderID, messageID, req.Text); err != nil {
+	if err := g.InjectMessage(ctx, req.ChatID, req.ChatType, req.SenderID, messageID, taskText); err != nil {
 		capture.disable()
 		return &InjectSyncResponse{
 			Duration: g.currentTime().Sub(start),
@@ -129,7 +132,7 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 
 		// Extract the agent's clarification question from captured calls.
 		question := extractLastReplyText(capture.captured())
-		replyText := g.generateAutoReply(ctx, req.Text, question, options)
+		replyText := g.generateAutoReply(ctx, originalText, question, options)
 		autoReplies++
 
 		// Inject the auto-reply through the normal message pipeline.
@@ -149,6 +152,31 @@ func (g *Gateway) InjectMessageSync(ctx context.Context, req InjectSyncRequest) 
 		Duration:    g.currentTime().Sub(start),
 		AutoReplies: autoReplies,
 	}
+}
+
+func buildInjectToolMessageTask(task string, rounds int) string {
+	task = strings.TrimSpace(task)
+	if task == "" {
+		return ""
+	}
+	if rounds <= 0 {
+		return task
+	}
+	var builder strings.Builder
+	builder.WriteString("[Inject Tool Heuristic]\n")
+	builder.WriteString("This is an inject-chain verification run.\n")
+	builder.WriteString(fmt.Sprintf("Before the final answer, send exactly %d progress updates to the current Lark chat via tools.\n", rounds))
+	builder.WriteString(fmt.Sprintf("Each progress update must start with \"[过程 i/%d]\" where i is 1..%d.\n", rounds, rounds))
+	builder.WriteString("Preferred tool call: channel with action=\"send_message\" and a short message.\n")
+	builder.WriteString("Fallback tool call: lark_send_message with short text.\n")
+	builder.WriteString("Only use these messaging tools for progress updates.\n")
+	builder.WriteString("Do not call update_config.\n")
+	builder.WriteString("Avoid request_user, plan, clarify, run_tasks, or any unrelated tools.\n")
+	builder.WriteString("If a send tool call fails, continue to the next i without retry loops.\n")
+	builder.WriteString("Do not ask for confirmation during these progress updates.\n\n")
+	builder.WriteString("User task:\n")
+	builder.WriteString(task)
+	return builder.String()
 }
 
 func (g *Gateway) ensureInjectCaptureHub() (*injectCaptureHub, error) {
@@ -415,6 +443,7 @@ type injectCaptureHub struct {
 	sessions      map[uint64]*injectCaptureSession
 	chatHistory   map[string]*injectChatHistory // chat_id -> synthetic transcript (chronological)
 	messageToChat map[string]string             // message_id -> chat_id
+	syntheticChat map[string]bool               // chat_id -> synthetic inject source
 }
 
 func newInjectCaptureHub(inner LarkMessenger) *injectCaptureHub {
@@ -423,6 +452,7 @@ func newInjectCaptureHub(inner LarkMessenger) *injectCaptureHub {
 		sessions:      map[uint64]*injectCaptureSession{},
 		chatHistory:   map[string]*injectChatHistory{},
 		messageToChat: map[string]string{},
+		syntheticChat: map[string]bool{},
 	}
 }
 
@@ -533,6 +563,9 @@ func (h *injectCaptureHub) recordInjectedIncoming(chatID, messageID, senderID, m
 
 	h.mu.Lock()
 	h.appendSyntheticMessageLocked(chatID, msg)
+	if isInjectSyntheticMessageID(messageID) {
+		h.syntheticChat[chatID] = true
+	}
 	h.mu.Unlock()
 }
 
@@ -681,6 +714,19 @@ func (h *injectCaptureHub) recordAll(call MessengerCall) {
 }
 
 func (h *injectCaptureHub) SendMessage(ctx context.Context, chatID, msgType, content string) (string, error) {
+	chatID = strings.TrimSpace(chatID)
+	h.mu.RLock()
+	synthetic := h.syntheticChat[chatID]
+	h.mu.RUnlock()
+	if synthetic {
+		h.mu.Lock()
+		id := h.nextSyntheticMessageIDLocked(chatID)
+		h.mu.Unlock()
+		h.recordByChat(chatID, MessengerCall{Method: "SendMessage", ChatID: chatID, MsgType: msgType, Content: content})
+		h.recordSyntheticSend(chatID, id, msgType, content, time.Now())
+		return id, nil
+	}
+
 	id, err := h.inner.SendMessage(ctx, chatID, msgType, content)
 	h.recordByChat(chatID, MessengerCall{Method: "SendMessage", ChatID: chatID, MsgType: msgType, Content: content})
 	h.recordSyntheticSend(chatID, id, msgType, content, time.Now())
@@ -688,6 +734,20 @@ func (h *injectCaptureHub) SendMessage(ctx context.Context, chatID, msgType, con
 }
 
 func (h *injectCaptureHub) ReplyMessage(ctx context.Context, replyToID, msgType, content string) (string, error) {
+	replyToID = strings.TrimSpace(replyToID)
+	h.mu.RLock()
+	chatID := h.messageToChat[replyToID]
+	synthetic := h.syntheticChat[chatID]
+	h.mu.RUnlock()
+	if synthetic {
+		h.mu.Lock()
+		id := h.nextSyntheticMessageIDLocked(chatID)
+		h.mu.Unlock()
+		h.recordAll(MessengerCall{Method: "ReplyMessage", ReplyTo: replyToID, MsgType: msgType, Content: content})
+		h.recordSyntheticReply(replyToID, id, msgType, content, time.Now())
+		return id, nil
+	}
+
 	id, err := h.inner.ReplyMessage(ctx, replyToID, msgType, content)
 	h.recordAll(MessengerCall{Method: "ReplyMessage", ReplyTo: replyToID, MsgType: msgType, Content: content})
 	h.recordSyntheticReply(replyToID, id, msgType, content, time.Now())
@@ -695,6 +755,17 @@ func (h *injectCaptureHub) ReplyMessage(ctx context.Context, replyToID, msgType,
 }
 
 func (h *injectCaptureHub) UpdateMessage(ctx context.Context, messageID, msgType, content string) error {
+	messageID = strings.TrimSpace(messageID)
+	h.mu.RLock()
+	chatID := h.messageToChat[messageID]
+	synthetic := h.syntheticChat[chatID]
+	h.mu.RUnlock()
+	if synthetic {
+		h.recordAll(MessengerCall{Method: "UpdateMessage", MsgID: messageID, MsgType: msgType, Content: content})
+		h.recordSyntheticUpdate(messageID, msgType, content, time.Now())
+		return nil
+	}
+
 	err := h.inner.UpdateMessage(ctx, messageID, msgType, content)
 	h.recordAll(MessengerCall{Method: "UpdateMessage", MsgID: messageID, MsgType: msgType, Content: content})
 	h.recordSyntheticUpdate(messageID, msgType, content, time.Now())
@@ -702,6 +773,16 @@ func (h *injectCaptureHub) UpdateMessage(ctx context.Context, messageID, msgType
 }
 
 func (h *injectCaptureHub) AddReaction(ctx context.Context, messageID, emojiType string) error {
+	messageID = strings.TrimSpace(messageID)
+	h.mu.RLock()
+	chatID := h.messageToChat[messageID]
+	synthetic := h.syntheticChat[chatID]
+	h.mu.RUnlock()
+	if synthetic {
+		h.recordAll(MessengerCall{Method: "AddReaction", MsgID: messageID, Emoji: emojiType})
+		return nil
+	}
+
 	err := h.inner.AddReaction(ctx, messageID, emojiType)
 	h.recordAll(MessengerCall{Method: "AddReaction", MsgID: messageID, Emoji: emojiType})
 	return err

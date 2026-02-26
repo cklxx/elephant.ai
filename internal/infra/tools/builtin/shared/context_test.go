@@ -49,6 +49,16 @@ type testEventListener struct{}
 
 func (testEventListener) OnEvent(event agent.AgentEvent) {}
 
+type testLarkMessenger struct{}
+
+func (testLarkMessenger) SendMessage(ctx context.Context, chatID, msgType, content string) (string, error) {
+	return "msg-id", nil
+}
+
+func (testLarkMessenger) ReplyMessage(ctx context.Context, replyToID, msgType, content string) (string, error) {
+	return "reply-id", nil
+}
+
 func TestContextGetters_NilContextReturnsZeroValues(t *testing.T) {
 	if got := GetApproverFromContext(nil); got != nil {
 		t.Fatalf("expected nil approver, got %T", got)
@@ -67,6 +77,9 @@ func TestContextGetters_NilContextReturnsZeroValues(t *testing.T) {
 	}
 	if got := LarkClientFromContext(nil); got != nil {
 		t.Fatalf("expected nil lark client, got %T", got)
+	}
+	if got := LarkMessengerFromContext(nil); got != nil {
+		t.Fatalf("expected nil lark messenger, got %T", got)
 	}
 	if got := LarkChatIDFromContext(nil); got != "" {
 		t.Fatalf("expected empty lark chat id, got %q", got)
@@ -109,6 +122,9 @@ func TestContextGetters_WrongTypesReturnZeroValues(t *testing.T) {
 	if got := GetParentListenerFromContext(context.WithValue(ctx, parentListenerKey{}, "wrong")); got != nil {
 		t.Fatalf("expected nil parent listener, got %T", got)
 	}
+	if got := LarkMessengerFromContext(context.WithValue(ctx, larkMessengerKey, "wrong")); got != nil {
+		t.Fatalf("expected nil lark messenger, got %T", got)
+	}
 	if got := LarkChatIDFromContext(context.WithValue(ctx, larkChatIDKey, 123)); got != "" {
 		t.Fatalf("expected empty lark chat id, got %q", got)
 	}
@@ -134,6 +150,7 @@ func TestContextGetters_RoundTrip(t *testing.T) {
 	backupManager := &backup.Manager{}
 	listener := &testEventListener{}
 	larkClient := &struct{ Name string }{Name: "client"}
+	larkMessenger := &testLarkMessenger{}
 	oauth := &testLarkOAuthService{}
 	timerManager := &testTimerManager{}
 	scheduler := &struct{ Name string }{Name: "scheduler"}
@@ -150,6 +167,7 @@ func TestContextGetters_RoundTrip(t *testing.T) {
 	ctx = WithAutoApprove(ctx, true)
 	ctx = WithParentListener(ctx, listener)
 	ctx = WithLarkClient(ctx, larkClient)
+	ctx = WithLarkMessenger(ctx, larkMessenger)
 	ctx = WithLarkChatID(ctx, "chat-1")
 	ctx = WithLarkMessageID(ctx, "msg-1")
 	ctx = WithLarkOAuth(ctx, oauth)
@@ -175,6 +193,9 @@ func TestContextGetters_RoundTrip(t *testing.T) {
 	}
 	if got := LarkClientFromContext(ctx); got != larkClient {
 		t.Fatalf("unexpected lark client: %#v", got)
+	}
+	if got := LarkMessengerFromContext(ctx); got != larkMessenger {
+		t.Fatalf("unexpected lark messenger: %#v", got)
 	}
 	if got := LarkChatIDFromContext(ctx); got != "chat-1" {
 		t.Fatalf("unexpected lark chat id: %q", got)

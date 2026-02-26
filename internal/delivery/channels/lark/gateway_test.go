@@ -2935,6 +2935,67 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 	})
 }
 
+func TestSplitThinkingAndAnswer(t *testing.T) {
+	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
+
+	t.Run("split when both answer and thinking exist", func(t *testing.T) {
+		result := &agent.TaskResult{
+			Answer: "final",
+			Messages: []ports.Message{
+				{
+					Role: "assistant",
+					Thinking: ports.Thinking{
+						Parts: []ports.ThinkingPart{{Kind: "reasoning", Text: "thinking content"}},
+					},
+				},
+			},
+		}
+		thinking, answer := gw.splitThinkingAndAnswer(result, nil, "attachment summary")
+		if thinking != "thinking content" {
+			t.Fatalf("expected thinking content, got %q", thinking)
+		}
+		if answer != "final\n\nattachment summary" {
+			t.Fatalf("expected answer with summary, got %q", answer)
+		}
+	})
+
+	t.Run("no split when answer missing", func(t *testing.T) {
+		result := &agent.TaskResult{
+			Answer: "",
+			Messages: []ports.Message{
+				{
+					Role: "assistant",
+					Thinking: ports.Thinking{
+						Parts: []ports.ThinkingPart{{Kind: "reasoning", Text: "only thinking"}},
+					},
+				},
+			},
+		}
+		thinking, answer := gw.splitThinkingAndAnswer(result, nil, "")
+		if thinking != "" || answer != "" {
+			t.Fatalf("expected no split output, got thinking=%q answer=%q", thinking, answer)
+		}
+	})
+
+	t.Run("no split on execution error", func(t *testing.T) {
+		result := &agent.TaskResult{
+			Answer: "final",
+			Messages: []ports.Message{
+				{
+					Role: "assistant",
+					Thinking: ports.Thinking{
+						Parts: []ports.ThinkingPart{{Kind: "reasoning", Text: "thinking content"}},
+					},
+				},
+			},
+		}
+		thinking, answer := gw.splitThinkingAndAnswer(result, fmt.Errorf("boom"), "")
+		if thinking != "" || answer != "" {
+			t.Fatalf("expected no split output on error, got thinking=%q answer=%q", thinking, answer)
+		}
+	})
+}
+
 func TestExtractThinkingFallback(t *testing.T) {
 	t.Run("nil messages", func(t *testing.T) {
 		if got := extractThinkingFallback(nil); got != "" {

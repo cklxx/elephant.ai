@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/delivery/channels"
+	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 )
@@ -130,6 +131,99 @@ func TestInjectMessageSyncBasic(t *testing.T) {
 	// Verify executor received the task.
 	if executor.capturedTask != "hello from inject" {
 		t.Fatalf("expected task 'hello from inject', got %q", executor.capturedTask)
+	}
+}
+
+func TestInjectMessageSyncAppliesToolMessageHeuristic(t *testing.T) {
+	rec := NewRecordingMessenger()
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{Answer: "done"},
+	}
+	gw := newTestGatewayWithMessenger(executor, rec, channels.BaseConfig{
+		SessionPrefix: "test",
+		AllowDirect:   true,
+	})
+
+	resp := gw.InjectMessageSync(context.Background(), InjectSyncRequest{
+		ChatID:            "inject-tool-heuristic",
+		Text:              "原始任务内容",
+		ToolMessageRounds: 5,
+		Timeout:           10 * time.Second,
+	})
+
+	if resp.Error != "" {
+		t.Fatalf("unexpected error: %s", resp.Error)
+	}
+	if !strings.Contains(executor.capturedTask, "[Inject Tool Heuristic]") {
+		t.Fatalf("expected heuristic header in task, got %q", executor.capturedTask)
+	}
+	if !strings.Contains(executor.capturedTask, "exactly 5 progress updates") {
+		t.Fatalf("expected rounds constraint in task, got %q", executor.capturedTask)
+	}
+	if !strings.Contains(executor.capturedTask, "Do not call update_config.") {
+		t.Fatalf("expected update_config guard in task, got %q", executor.capturedTask)
+	}
+	if !strings.Contains(executor.capturedTask, "User task:\n原始任务内容") {
+		t.Fatalf("expected original task to be preserved, got %q", executor.capturedTask)
+	}
+}
+
+func TestInjectMessageSyncIncludesThinkingFallback(t *testing.T) {
+	rec := NewRecordingMessenger()
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{
+			Answer: "final answer",
+			Messages: []core.Message{
+				{
+					Role:    "assistant",
+					Content: "final answer",
+					Thinking: core.Thinking{
+						Parts: []core.ThinkingPart{
+							{Kind: "reasoning", Text: "thinking details"},
+						},
+					},
+				},
+			},
+		},
+	}
+	gw := newTestGatewayWithMessenger(executor, rec, channels.BaseConfig{
+		SessionPrefix: "test",
+		AllowDirect:   true,
+	})
+
+	resp := gw.InjectMessageSync(context.Background(), InjectSyncRequest{
+		ChatID:  "inject-thinking-fallback",
+		Text:    "hello",
+		Timeout: 10 * time.Second,
+	})
+
+	if resp.Error != "" {
+		t.Fatalf("unexpected error: %s", resp.Error)
+	}
+
+	var thinkingFound bool
+	var answerFound bool
+	textReplies := 0
+	for _, r := range resp.Replies {
+		if r.MsgType != "text" {
+			continue
+		}
+		textReplies++
+		if strings.Contains(r.Content, "thinking details") {
+			thinkingFound = true
+		}
+		if strings.Contains(r.Content, "final answer") {
+			answerFound = true
+		}
+	}
+	if !thinkingFound {
+		t.Fatalf("expected thinking details in replies, got %#v", resp.Replies)
+	}
+	if !answerFound {
+		t.Fatalf("expected final answer in replies, got %#v", resp.Replies)
+	}
+	if textReplies < 2 {
+		t.Fatalf("expected at least 2 text replies (thinking + answer), got %d (%#v)", textReplies, resp.Replies)
 	}
 }
 
@@ -340,6 +434,34 @@ func TestInjectCaptureHubListMessages_FallbackToSyntheticWhenInnerFails(t *testi
 	}
 	if strings.TrimSpace(deref(items[0].MessageId)) != "inject_oc_inject_fallback_1" {
 		t.Fatalf("unexpected synthetic message id: %q", deref(items[0].MessageId))
+	}
+}
+
+func TestInjectCaptureHubSendMessage_BypassesInnerForSyntheticChat(t *testing.T) {
+	rec := NewRecordingMessenger()
+	hub := newInjectCaptureHub(rec)
+
+	chatID := "oc_inject_send"
+	hub.recordInjectedIncoming(chatID, "inject_oc_inject_send_1", "ou_user", "text", textContent("hello"), time.UnixMilli(1706500150000))
+	rec.NextError = errors.New("inner send failed")
+
+	msgID, err := hub.SendMessage(context.Background(), chatID, "text", textContent("progress"))
+	if err != nil {
+		t.Fatalf("expected synthetic send to bypass inner messenger, got err=%v", err)
+	}
+	if !strings.HasPrefix(msgID, "inject_local_") {
+		t.Fatalf("expected synthetic message id, got %q", msgID)
+	}
+	if calls := rec.CallsByMethod("SendMessage"); len(calls) != 0 {
+		t.Fatalf("expected inner messenger SendMessage not called, got %d calls", len(calls))
+	}
+
+	items, listErr := hub.ListMessages(context.Background(), chatID, 10)
+	if listErr != nil {
+		t.Fatalf("ListMessages returned error: %v", listErr)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 synthetic messages, got %d", len(items))
 	}
 }
 
@@ -589,6 +711,31 @@ func TestHeuristicAutoReply(t *testing.T) {
 	if got := heuristicAutoReply(nil); got != "Proceed directly, no further confirmation needed." {
 		t.Errorf("expected fixed text without options, got %q", got)
 	}
+}
+
+func TestBuildInjectToolMessageTask(t *testing.T) {
+	t.Run("disabled when rounds <= 0", func(t *testing.T) {
+		got := buildInjectToolMessageTask("hello", 0)
+		if got != "hello" {
+			t.Fatalf("expected original task, got %q", got)
+		}
+	})
+
+	t.Run("enabled for positive rounds", func(t *testing.T) {
+		got := buildInjectToolMessageTask("hello", 5)
+		if !strings.Contains(got, "[Inject Tool Heuristic]") {
+			t.Fatalf("expected heuristic prefix, got %q", got)
+		}
+		if !strings.Contains(got, "exactly 5 progress updates") {
+			t.Fatalf("expected rounds marker, got %q", got)
+		}
+		if !strings.Contains(got, "Do not call update_config.") {
+			t.Fatalf("expected update_config guard, got %q", got)
+		}
+		if !strings.Contains(got, "User task:\nhello") {
+			t.Fatalf("expected original task block, got %q", got)
+		}
+	})
 }
 
 // --- test helpers ---

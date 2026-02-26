@@ -118,3 +118,33 @@ func TestShouldSendOpenAIReasoning(t *testing.T) {
 		})
 	}
 }
+
+func TestApplyCodexReasoningDefaults(t *testing.T) {
+	t.Run("adds summary auto when missing", func(t *testing.T) {
+		reasoning := map[string]any{"effort": "medium"}
+		got := applyCodexReasoningDefaults(reasoning)
+		if got["summary"] != "auto" {
+			t.Fatalf("expected summary auto, got %#v", got["summary"])
+		}
+	})
+
+	t.Run("preserves explicit summary", func(t *testing.T) {
+		reasoning := map[string]any{
+			"effort":  "high",
+			"summary": "detailed",
+		}
+		got := applyCodexReasoningDefaults(reasoning)
+		if got["summary"] != "detailed" {
+			t.Fatalf("expected summary detailed, got %#v", got["summary"])
+		}
+	})
+
+	t.Run("supports env override", func(t *testing.T) {
+		t.Setenv("ALEX_CODEX_REASONING_SUMMARY", "detailed")
+		reasoning := map[string]any{"effort": "medium"}
+		got := applyCodexReasoningDefaults(reasoning)
+		if got["summary"] != "detailed" {
+			t.Fatalf("expected summary detailed from env, got %#v", got["summary"])
+		}
+	})
+}

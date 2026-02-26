@@ -18,13 +18,14 @@ const (
 	ToolSessionIDKey toolContextKey = "tool_session_id"
 	AutoApproveKey   toolContextKey = "auto_approve"
 	larkClientKey    toolContextKey = "lark_client"
+	larkMessengerKey toolContextKey = "lark_messenger"
 	larkChatIDKey    toolContextKey = "lark_chat_id"
 	larkMessageIDKey toolContextKey = "lark_message_id"
 	larkOAuthKey     toolContextKey = "lark_oauth"
 	larkTenantCalKey toolContextKey = "lark_tenant_calendar_id"
 	timerManagerKey  toolContextKey = "timer_manager"
 	schedulerKey     toolContextKey = "scheduler"
-	autoUploadKey toolContextKey = "auto_upload_config"
+	autoUploadKey    toolContextKey = "auto_upload_config"
 )
 
 type parentListenerKey struct{}
@@ -116,6 +117,22 @@ func WithLarkClient(ctx context.Context, client interface{}) context.Context {
 // LarkClientFromContext retrieves the Lark client from context.
 func LarkClientFromContext(ctx context.Context) interface{} {
 	return contextRawValue(ctx, larkClientKey)
+}
+
+// LarkMessenger is a minimal messenger contract for sending chat text replies.
+type LarkMessenger interface {
+	SendMessage(ctx context.Context, chatID, msgType, content string) (string, error)
+	ReplyMessage(ctx context.Context, replyToID, msgType, content string) (string, error)
+}
+
+// WithLarkMessenger sets the Lark messenger in context.
+func WithLarkMessenger(ctx context.Context, messenger LarkMessenger) context.Context {
+	return context.WithValue(ctx, larkMessengerKey, messenger)
+}
+
+// LarkMessengerFromContext retrieves the Lark messenger from context.
+func LarkMessengerFromContext(ctx context.Context) LarkMessenger {
+	return contextValueOr[LarkMessenger](ctx, larkMessengerKey, nil)
 }
 
 // WithLarkChatID sets the Lark chat ID in context.

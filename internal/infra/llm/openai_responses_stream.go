@@ -42,6 +42,9 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	}
 	if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
 		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
+			if c.isCodexEndpoint() {
+				reasoning = applyCodexReasoningDefaults(reasoning)
+			}
 			payload["reasoning"] = reasoning
 		}
 	}
@@ -101,28 +104,20 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	}
 
 	type responsesStreamEvent struct {
-		Type     string `json:"type"`
-		Delta    string `json:"delta"`
-		Message  string `json:"message"`
-		Code     string `json:"code"`
-		Response *struct {
-			ID    string `json:"id"`
-			Usage *struct {
-				InputTokens  int `json:"input_tokens"`
-				OutputTokens int `json:"output_tokens"`
-				TotalTokens  int `json:"total_tokens"`
-			} `json:"usage"`
-			IncompleteDetails *struct {
-				Reason string `json:"reason"`
-			} `json:"incomplete_details"`
-		} `json:"response"`
-		Item *struct {
+		Type     string             `json:"type"`
+		Delta    string             `json:"delta"`
+		Message  string             `json:"message"`
+		Code     string             `json:"code"`
+		Response *responsesResponse `json:"response"`
+		Item     *struct {
 			Type      string `json:"type"`
 			ID        string `json:"id"`
 			CallID    string `json:"call_id"`
 			Name      string `json:"name"`
 			Arguments string `json:"arguments"`
-			Content   string `json:"content"`
+			Content   any    `json:"content"`
+			Text      any    `json:"text"`
+			Summary   any    `json:"summary"`
 		} `json:"item"`
 	}
 
@@ -157,6 +152,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 			continue
 		}
 
+		thinkingDelta := ""
 		switch evt.Type {
 		case "response.created":
 			if evt.Response != nil && evt.Response.ID != "" {
@@ -169,10 +165,8 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 					callbacks.OnContentDelta(ports.ContentDelta{Delta: evt.Delta})
 				}
 			}
-		case "response.reasoning.delta", "response.thinking.delta":
-			if evt.Delta != "" {
-				thinkingBuilder.WriteString(evt.Delta)
-			}
+		case "response.reasoning.delta", "response.thinking.delta", "response.reasoning_summary.delta", "response.reasoning_summary_text.delta":
+			thinkingDelta = evt.Delta
 		case "response.output_item.done":
 			if evt.Item != nil && evt.Item.Type == "function_call" {
 				args := parseToolArguments([]byte(evt.Item.Arguments))
@@ -186,17 +180,33 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 					Arguments: args,
 				})
 			} else if evt.Item != nil && (evt.Item.Type == "reasoning" || evt.Item.Type == "thinking") {
-				if evt.Item.Content != "" {
-					thinkingBuilder.WriteString(evt.Item.Content)
-				}
+				thinkingDelta = firstNonBlankString(
+					textFromAny(evt.Item.Content),
+					textFromAny(evt.Item.Text),
+					textFromAny(evt.Item.Summary),
+				)
 			}
 		case "response.completed", "response.incomplete":
 			stopReason = evt.Type
-			if evt.Response != nil && evt.Response.Usage != nil {
+			if evt.Response != nil {
 				usage = ports.TokenUsage{
 					PromptTokens:     evt.Response.Usage.InputTokens,
 					CompletionTokens: evt.Response.Usage.OutputTokens,
 					TotalTokens:      evt.Response.Usage.TotalTokens,
+				}
+				// Some providers include final output/thinking only inside the
+				// response.completed payload rather than delta events.
+				completedContent, completedToolCalls, completedThinking := parseResponsesOutput(*evt.Response)
+				if contentBuilder.Len() == 0 && completedContent != "" {
+					contentBuilder.WriteString(completedContent)
+				}
+				if len(toolCalls) == 0 && len(completedToolCalls) > 0 {
+					toolCalls = completedToolCalls
+				}
+				if thinkingText := strings.TrimSpace(extractThinkingText(completedThinking)); thinkingText != "" {
+					if !strings.Contains(thinkingBuilder.String(), thinkingText) {
+						thinkingBuilder.WriteString(thinkingText)
+					}
 				}
 			}
 		case "error":
@@ -208,6 +218,13 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 			streamErr := fmt.Errorf("llm error: %s", string(data))
 			c.logProcessingFailure(prefix, requestID, "stream", provider, endpoint, "stream_error_event", req, streamErr)
 			return nil, streamErr
+		}
+
+		if utils.IsBlank(thinkingDelta) {
+			thinkingDelta = extractResponsesReasoningDelta(evt.Type, data)
+		}
+		if thinkingDelta != "" {
+			thinkingBuilder.WriteString(thinkingDelta)
 		}
 	}
 
@@ -244,12 +261,16 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 
 	c.fireUsageCallback(result.Usage, "openai")
 
-	if respPayload, err := jsonx.Marshal(map[string]any{
+	respPayloadData := map[string]any{
 		"content":     result.Content,
 		"stop_reason": result.StopReason,
 		"tool_calls":  result.ToolCalls,
 		"usage":       result.Usage,
-	}); err != nil {
+	}
+	if len(result.Thinking.Parts) > 0 {
+		respPayloadData["thinking"] = result.Thinking
+	}
+	if respPayload, err := jsonx.Marshal(respPayloadData); err != nil {
 		c.logger.Debug("%sFailed to marshal streaming response payload: %v", prefix, err)
 	} else {
 		utils.LogStreamingResponsePayload(requestID, respPayload)
@@ -257,4 +278,83 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 
 	c.logResponseSummary(prefix, result)
 	return result, nil
+}
+
+func extractResponsesReasoningDelta(eventType, rawEvent string) string {
+	kind := strings.ToLower(strings.TrimSpace(eventType))
+	if kind == "" || (!strings.Contains(kind, "reasoning") && !strings.Contains(kind, "thinking")) {
+		return ""
+	}
+
+	var payload map[string]any
+	if err := jsonx.Unmarshal([]byte(rawEvent), &payload); err != nil {
+		return ""
+	}
+
+	if delta := textFromAny(payload["delta"]); delta != "" {
+		return delta
+	}
+
+	if item, ok := payload["item"].(map[string]any); ok {
+		if text := firstNonBlankString(
+			textFromAny(item["content"]),
+			textFromAny(item["text"]),
+			textFromAny(item["summary"]),
+		); text != "" {
+			return text
+		}
+	}
+
+	if part, ok := payload["part"].(map[string]any); ok {
+		if text := firstNonBlankString(
+			textFromAny(part["content"]),
+			textFromAny(part["text"]),
+			textFromAny(part["summary"]),
+		); text != "" {
+			return text
+		}
+	}
+
+	if summary := textFromAny(payload["summary"]); summary != "" {
+		return summary
+	}
+
+	return ""
+}
+
+func firstNonBlankString(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func textFromAny(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(v)
+	case []any:
+		var builder strings.Builder
+		for _, item := range v {
+			if text := textFromAny(item); text != "" {
+				builder.WriteString(text)
+			}
+		}
+		return strings.TrimSpace(builder.String())
+	case map[string]any:
+		return firstNonBlankString(
+			textFromAny(v["content"]),
+			textFromAny(v["text"]),
+			textFromAny(v["summary"]),
+			textFromAny(v["value"]),
+			textFromAny(v["delta"]),
+			textFromAny(v["output_text"]),
+		)
+	default:
+		return ""
+	}
 }

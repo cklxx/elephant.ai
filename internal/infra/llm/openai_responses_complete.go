@@ -32,6 +32,9 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	}
 	if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
 		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
+			if c.isCodexEndpoint() {
+				reasoning = applyCodexReasoningDefaults(reasoning)
+			}
 			payload["reasoning"] = reasoning
 		}
 	}

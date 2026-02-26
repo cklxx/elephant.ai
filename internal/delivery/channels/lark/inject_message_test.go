@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/delivery/channels"
 	agent "alex/internal/domain/agent/ports/agent"
+	builtinshared "alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/logging"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -205,6 +206,27 @@ func TestInjectMessageResetCommand(t *testing.T) {
 	}
 	if !strings.Contains(replies[0].Content, "/new") {
 		t.Fatalf("expected deprecation hint for /new, got %q", replies[0].Content)
+	}
+}
+
+func TestBuildExecContextInjectsLarkMessenger(t *testing.T) {
+	rec := NewRecordingMessenger()
+	gw := newTestGatewayWithMessenger(&capturingExecutor{}, rec, channels.BaseConfig{
+		SessionPrefix: "test",
+		AllowDirect:   true,
+	})
+
+	msg := &incomingMessage{
+		senderID:  "ou_user_1",
+		chatID:    "inject-chat-1",
+		messageID: "inject_msg_1",
+	}
+	execCtx, cancel := gw.buildExecContext(context.Background(), msg, "session-1", make(chan agent.UserInput, 1))
+	defer cancel()
+
+	messenger := builtinshared.LarkMessengerFromContext(execCtx)
+	if messenger == nil {
+		t.Fatal("expected lark messenger in execution context")
 	}
 }
 

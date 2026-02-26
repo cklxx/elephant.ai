@@ -29,6 +29,7 @@ type injectRequest struct {
 	ChatID             string `json:"chat_id"`
 	ChatType           string `json:"chat_type"`
 	SenderID           string `json:"sender_id"`
+	ToolMessageRounds  int    `json:"tool_message_rounds"`
 	TimeoutSeconds     int    `json:"timeout_seconds"`
 	AutoReply          bool   `json:"auto_reply"`
 	MaxAutoReplyRounds int    `json:"max_auto_reply_rounds"`
@@ -75,6 +76,7 @@ func (h *LarkInjectHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		ChatType:           req.ChatType,
 		SenderID:           req.SenderID,
 		Text:               req.Text,
+		ToolMessageRounds:  req.ToolMessageRounds,
 		Timeout:            timeout,
 		AutoReply:          req.AutoReply,
 		MaxAutoReplyRounds: req.MaxAutoReplyRounds,

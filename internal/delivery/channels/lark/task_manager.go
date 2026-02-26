@@ -163,6 +163,7 @@ func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
+	execCtx = builtinshared.WithLarkMessenger(execCtx, g.messenger)
 	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
 	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
 	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("`/reset` 已弃用，请使用 `/new` 开启新的会话。"))
@@ -193,6 +194,7 @@ func (g *Gateway) handleStopCommand(slot *sessionSlot, msg *incomingMessage) {
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
+	execCtx = builtinshared.WithLarkMessenger(execCtx, g.messenger)
 	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
 	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
 
@@ -364,6 +366,7 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 func (g *Gateway) buildExecContext(taskCtx context.Context, msg *incomingMessage, sessionID string, inputCh chan agent.UserInput) (context.Context, context.CancelFunc) {
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
+	execCtx = builtinshared.WithLarkMessenger(execCtx, g.messenger)
 	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
 	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
 	if calendarID := strings.TrimSpace(g.cfg.TenantCalendarID); calendarID != "" {
@@ -586,6 +589,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 
 	reply := ""
 	replyContent := ""
+	attachmentSummary := ""
 
 	if isAwait && g.cfg.PlanReviewEnabled {
 		reply, _, replyContent = g.buildPlanReviewReplyContent(execCtx, msg, result)
@@ -594,7 +598,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	skipReply := isAwait && awaitTracker.Sent()
 
 	if replyContent == "" && !skipReply {
-		summary := buildAttachmentSummary(result)
+		attachmentSummary = buildAttachmentSummary(result)
 		if reply == "" && isAwait {
 			if hasAwaitPrompt && len(awaitPrompt.Options) > 0 {
 				reply = formatNumberedOptions(awaitPrompt.Question, awaitPrompt.Options)
@@ -614,9 +618,9 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		}
 		if reply == "" {
 			switch {
-			case summary != "":
-				reply = summary
-				summary = ""
+			case attachmentSummary != "":
+				reply = attachmentSummary
+				attachmentSummary = ""
 			case execErr != nil:
 				reply = fmt.Sprintf("执行失败：%v", execErr)
 			case isAwait:
@@ -625,13 +629,31 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 				reply = "这次没有生成可展示的文本结果。请告诉我你希望我输出：总结、下一步计划，或重试后的关键过程。"
 			}
 		}
-		if summary != "" {
-			reply += "\n\n" + summary
+		if attachmentSummary != "" {
+			reply += "\n\n" + attachmentSummary
 		}
 		replyContent = textContent(reply)
 	}
 
 	if !skipReply {
+		thinkingReply, answerReply := g.splitThinkingAndAnswer(result, execErr, attachmentSummary)
+		if !isAwait && thinkingReply != "" && answerReply != "" {
+			edited := false
+			if progressMsgID != "" {
+				if err := g.updateMessage(execCtx, progressMsgID, thinkingReply); err != nil {
+					g.logger.Warn("Lark progress→thinking edit failed, falling back to new message: %v", err)
+				} else {
+					edited = true
+				}
+			}
+			if !edited {
+				g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(thinkingReply))
+			}
+			g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(answerReply))
+			g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
+			return
+		}
+
 		// When a progress message exists, edit it into the final reply
 		// so the user sees a single message that transitions from
 		// "在思考…" → final answer, rather than two separate messages.
@@ -802,6 +824,21 @@ func (g *Gateway) buildReply(result *agent.TaskResult, execErr error) string {
 	}
 
 	return channels.ShapeReply7C(reply)
+}
+
+func (g *Gateway) splitThinkingAndAnswer(result *agent.TaskResult, execErr error, attachmentSummary string) (thinkingReply string, answerReply string) {
+	if result == nil || execErr != nil {
+		return "", ""
+	}
+	thinking := channels.ShapeReply7C(extractThinkingFallback(result.Messages))
+	answer := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
+	if thinking == "" || answer == "" {
+		return "", ""
+	}
+	if attachmentSummary != "" {
+		answer += "\n\n" + attachmentSummary
+	}
+	return thinking, answer
 }
 
 // extractThinkingFallback scans messages in reverse for the last assistant

@@ -20,9 +20,11 @@ func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall, por
 				kind := strings.ToLower(strings.TrimSpace(part.Type))
 				switch kind {
 				case "output_text", "text":
-					contentBuilder.WriteString(part.Text)
+					if text := responseContentText(part); text != "" {
+						contentBuilder.WriteString(text)
+					}
 				case "reasoning", "thinking":
-					appendThinkingText(&thinking, kind, part.Text)
+					appendThinkingText(&thinking, kind, responseContentTextTrimmed(part))
 				}
 			}
 			for _, tc := range item.ToolCalls {
@@ -34,11 +36,9 @@ func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall, por
 				})
 			}
 		case "reasoning", "thinking":
-			for _, part := range item.Content {
-				if text := strings.TrimSpace(part.Text); text != "" {
-					appendThinkingText(&thinking, strings.ToLower(strings.TrimSpace(item.Type)), text)
-				}
-			}
+			kind := strings.ToLower(strings.TrimSpace(item.Type))
+			appendThinkingFromResponseContents(&thinking, kind, item.Content)
+			appendThinkingFromResponseContents(&thinking, kind, item.Summary)
 		case "tool_call", "function_call":
 			args := parseToolArguments(item.Arguments)
 			toolCalls = append(toolCalls, ports.ToolCall{
@@ -95,4 +95,33 @@ func parseToolArguments(raw jsonx.RawMessage) map[string]any {
 		return nil
 	}
 	return args
+}
+
+func appendThinkingFromResponseContents(thinking *ports.Thinking, kind string, parts []responseContent) {
+	for _, part := range parts {
+		appendThinkingText(thinking, kind, responseContentTextTrimmed(part))
+	}
+}
+
+func responseContentText(part responseContent) string {
+	if strings.TrimSpace(part.Text) != "" {
+		return part.Text
+	}
+	if strings.TrimSpace(part.Content) != "" {
+		return part.Content
+	}
+	if len(part.Summary) == 0 {
+		return ""
+	}
+	var builder strings.Builder
+	for _, summaryPart := range part.Summary {
+		if text := responseContentText(summaryPart); text != "" {
+			builder.WriteString(text)
+		}
+	}
+	return builder.String()
+}
+
+func responseContentTextTrimmed(part responseContent) string {
+	return strings.TrimSpace(responseContentText(part))
 }
