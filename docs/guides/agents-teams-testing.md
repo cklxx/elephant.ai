@@ -165,4 +165,52 @@ Record results here after each execution run.
 
 | Date | Categories | Pass | Partial | Fail | Empty Asst | Notes |
 |------|-----------|------|---------|------|------------|-------|
-| _yyyy-mm-dd_ | _A-E_ | _n_ | _n_ | _n_ | _n_ | _notes_ |
+| 2026-02-27 | A,B,C,D,E | 7 | 5 | 0 | 0 | First full run. See details below. |
+
+### 2026-02-27 — First Systematic Run
+
+**Category C (Error handling): 4/4 PASS**
+
+| Case | Result | Detail |
+|------|--------|--------|
+| C1 | PASS | Non-existent template → graceful error, offered template listing |
+| C2 | PASS | Missing goal → LLM inferred intent, dispatched anyway (acceptable) |
+| C3 | PASS | Listed all 3 templates: kimi_research, technical_analysis, competitive_review |
+| C4 | PASS | Same chat_id twice → both handled, no crash (6 replies each) |
+
+**Category B (Input boundaries): 2/2 tested, PASS**
+
+| Case | Result | Detail |
+|------|--------|--------|
+| B1 | PASS | Single word "Kubernetes" — 5 replies, no crash |
+| B3 | PASS | Special chars `select {}` — researcher+analyst completed, synthesizer rate-limited |
+
+**Category A (Core): 1 PASS, 2 PARTIAL**
+
+| Case | Result | Detail |
+|------|--------|--------|
+| A1 | PARTIAL | kimi_research: researcher ✅ analyst ✅ synthesizer ❌ (rate limit). 49s, 10 replies |
+| A2 | PASS | technical_analysis 3-stage serial: researcher ✅(25s) → analyzer ✅(54s) → deliverable ✅(2min). Full context chain verified. 194s total |
+| A3 | PARTIAL | competitive_review: 3 reviewers ✅ parallel (~8-30s), judge ❌ rate-limited. Agent self-recovered with manual synthesis. 536s, 22 replies |
+
+**Category D (Prompt override): PARTIAL**
+
+| Case | Result | Detail |
+|------|--------|--------|
+| D1 | PARTIAL | researcher ✅(8s) analyst ✅(26s) with override accepted, synthesizer ❌ rate-limited |
+
+**Category E (Complex scenarios): 2/2 PARTIAL**
+
+| Case | Result | Detail |
+|------|--------|--------|
+| E1 | PARTIAL | competitive_review: 3 reviewers ✅ parallel (all ~8s), judge ❌ rate-limited. Agent offered retry |
+| E2 | PARTIAL | technical_analysis: researcher ✅(8s) → analyzer ✅(17s) → deliverable ❌ rate-limited. Agent produced manual synthesis with 3-tier decision framework |
+
+**Key findings:**
+1. All kimi roles complete reliably (0 failures across all tests)
+2. Internal synthesizer/judge consistently rate-limited on kimi-for-coding LLM — not a code bug
+3. 3-stage serial context chain fully verified (A2): stage3 correctly inherits stage1+2 output
+4. 3-way parallel fan-out verified (A3, E1): all 3 reviewers complete in parallel
+5. Agent self-recovery behavior works well: offers retry or produces manual synthesis on failure
+6. Empty assistant errors: **0** across all 13 test responses — fix holds
+7. No crashes or panics — all edge cases handled gracefully
