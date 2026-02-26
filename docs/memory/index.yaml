@@ -1,6 +1,48 @@
 version: 1
-updated: "2026-02-25"
+updated: "2026-02-26"
 nodes:
+    - id: good-2026-02-26-history-attachment-single-embed-mask
+      path: docs/good-experience/entries/2026-02-26-history-attachment-single-embed-mask.md
+      type: good_entry
+      date: "2026-02-26"
+      tags:
+        - good
+        - lark
+      summary: 'Impact: Eliminated repeated historical file payload embedding in multi-turn requests while preserving latest-turn attachment availability.'
+    - id: goodsum-2026-02-26-history-attachment-single-embed-mask
+      path: docs/good-experience/summary/entries/2026-02-26-history-attachment-single-embed-mask.md
+      type: good_summary
+      date: "2026-02-26"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: Use a unified per-request "single-embed" attachment mask so only the latest eligible user message embeds files/images; keep historical attachments as text references to av...'
+    - id: plan-2026-02-26-lark-command-routing-and-status-hardening
+      path: docs/plans/2026-02-26-lark-command-routing-and-status-hardening.md
+      type: plan
+      date: "2026-02-26"
+      tags:
+        - kernel
+        - lark
+        - plan
+        - session
+      summary: User reports Lark replies are incorrect and `/new` has no practical effect.
+    - id: plan-2026-02-26-lark-message-flow-history-attachment-thinking
+      path: docs/plans/2026-02-26-lark-message-flow-history-attachment-thinking.md
+      type: plan
+      date: "2026-02-26"
+      tags:
+        - lark
+        - plan
+      summary: 系统性优化消息交互流程，解决两类问题：
+    - id: plan-2026-02-26-lark-thinking-output-fix
+      path: docs/plans/2026-02-26-lark-thinking-output-fix.md
+      type: plan
+      date: "2026-02-26"
+      tags:
+        - lark
+        - plan
+      summary: 恢复 Lark 通道中的 thinking 可见性：
     - id: err-2026-02-25-kernel-alignment-context-leak-into-lark-session
       path: docs/error-experience/entries/2026-02-25-kernel-alignment-context-leak-into-lark-session.md
       type: error_entry
@@ -41,6 +83,28 @@ nodes:
         - kernel
         - summary
       summary: 'Summary: Runtime-only kernel context injection stayed stable after adding an unattended-only boundary guard plus dual-path regression tests.'
+    - id: plan-2026-02-25-kernel-lark-prompt-notice-reliability
+      path: docs/plans/2026-02-25-kernel-lark-prompt-notice-reliability.md
+      type: plan
+      date: "2026-02-25"
+      tags:
+        - config
+        - kernel
+        - lark
+        - memory
+        - observability
+        - plan
+        - session
+      summary: User observed oversized first system prompt in Lark (`~83.5k` cumulative) and suspected kernel context leakage.
+    - id: plan-2026-02-25-lark-30s-progress-summary
+      path: docs/plans/2026-02-25-lark-30s-progress-summary.md
+      type: plan
+      date: "2026-02-25"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: 当 Lark 前台任务超过 30 秒仍未返回、且 agent loop 仍在运行时，自动发送一条“最近进展摘要”。
     - id: plan-2026-02-25-lark-agents-teams-notification-research-report
       path: docs/plans/2026-02-25-lark-agents-teams-notification-research-report.md
       type: plan
@@ -60,6 +124,24 @@ nodes:
         - plan
         - session
       summary: 'Session: `lark-3A8wbzb54gXZEBw0wW9D1SLU1K5`'
+    - id: plan-2026-02-25-lark-log-progressive-explorer
+      path: docs/plans/2026-02-25-lark-log-progressive-explorer.md
+      type: plan
+      date: "2026-02-25"
+      tags:
+        - lark
+        - plan
+      summary: 查明最近一次 Lark agent 长时间无返回的根因。
+    - id: plan-2026-02-25-lark-loop-config-test-hermeticity
+      path: docs/plans/2026-02-25-lark-loop-config-test-hermeticity.md
+      type: plan
+      date: "2026-02-25"
+      tags:
+        - config
+        - kernel
+        - lark
+        - plan
+      summary: 'Incident: `afx-20260225T062054Z-kernel-d001186b`'
     - id: good-2026-02-24-lark-inject-sync-e2e-testing
       path: docs/good-experience/entries/2026-02-24-lark-inject-sync-e2e-testing.md
       type: good_entry

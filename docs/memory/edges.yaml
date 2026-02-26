@@ -1,5 +1,5 @@
 version: 1
-updated: "2026-02-25"
+updated: "2026-02-26"
 edges:
     - from: err-2026-01-27-dev-lint-test-cmd-alex-context
       to: errsum-2026-01-27-dev-lint-test-cmd-alex-context
@@ -393,6 +393,10 @@ edges:
       to: goodsum-2026-02-25-unattended-boundary-guard-for-kernel-context
       type: see_also
       direction: directed
+    - from: good-2026-02-26-history-attachment-single-embed-mask
+      to: goodsum-2026-02-26-history-attachment-single-embed-mask
+      type: see_also
+      direction: directed
     - from: goodsum-2026-01-30-continuous-practice-optimization
       to: good-2026-01-30-continuous-practice-optimization
       type: derived_from
@@ -575,6 +579,10 @@ edges:
       direction: directed
     - from: goodsum-2026-02-25-unattended-boundary-guard-for-kernel-context
       to: good-2026-02-25-unattended-boundary-guard-for-kernel-context
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-26-history-attachment-single-embed-mask
+      to: good-2026-02-26-history-attachment-single-embed-mask
       type: derived_from
       direction: directed
     - from: ltm-long-term-memory
@@ -966,11 +974,39 @@ edges:
       type: see_also
       direction: directed
     - from: ltm-long-term-memory
+      to: plan-2026-02-25-kernel-lark-prompt-notice-reliability
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-25-lark-30s-progress-summary
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
       to: plan-2026-02-25-lark-agents-teams-notification-research-report
       type: see_also
       direction: directed
     - from: ltm-long-term-memory
       to: plan-2026-02-25-lark-compression-chain-and-user-input-fix
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-25-lark-log-progressive-explorer
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-25-lark-loop-config-test-hermeticity
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-26-lark-command-routing-and-status-hardening
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-26-lark-message-flow-history-attachment-thinking
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-26-lark-thinking-output-fix
       type: see_also
       direction: directed
 schema:
