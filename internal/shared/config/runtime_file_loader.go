@@ -46,178 +46,127 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	}
 	parsed = expandRuntimeFileConfigEnv(lookup, parsed)
 
-	if parsed.APIKey != "" {
-		cfg.APIKey = parsed.APIKey
-		meta.sources["api_key"] = SourceFile
+	applyString := func(value string, target *string, key string) {
+		if value == "" {
+			return
+		}
+		*target = value
+		meta.sources[key] = SourceFile
 	}
-	if parsed.ArkAPIKey != "" {
-		cfg.ArkAPIKey = parsed.ArkAPIKey
-		meta.sources["ark_api_key"] = SourceFile
+	applyBool := func(value *bool, target *bool, key string) {
+		if value == nil {
+			return
+		}
+		*target = *value
+		meta.sources[key] = SourceFile
 	}
-	if parsed.LLMProvider != "" {
-		cfg.LLMProvider = parsed.LLMProvider
-		meta.sources["llm_provider"] = SourceFile
+	applyInt := func(value *int, target *int, key string) {
+		if value == nil {
+			return
+		}
+		*target = *value
+		meta.sources[key] = SourceFile
 	}
-	if parsed.LLMModel != "" {
-		cfg.LLMModel = parsed.LLMModel
-		meta.sources["llm_model"] = SourceFile
+	applyFloat := func(value *float64, target *float64, key string) {
+		if value == nil {
+			return
+		}
+		*target = *value
+		meta.sources[key] = SourceFile
 	}
-	if parsed.LLMVisionModel != "" {
-		cfg.LLMVisionModel = parsed.LLMVisionModel
-		meta.sources["llm_vision_model"] = SourceFile
+
+	for _, field := range []struct {
+		value  string
+		target *string
+		key    string
+	}{
+		{parsed.APIKey, &cfg.APIKey, "api_key"},
+		{parsed.ArkAPIKey, &cfg.ArkAPIKey, "ark_api_key"},
+		{parsed.LLMProvider, &cfg.LLMProvider, "llm_provider"},
+		{parsed.LLMModel, &cfg.LLMModel, "llm_model"},
+		{parsed.LLMVisionModel, &cfg.LLMVisionModel, "llm_vision_model"},
+		{parsed.BaseURL, &cfg.BaseURL, "base_url"},
+		{parsed.ACPExecutorAddr, &cfg.ACPExecutorAddr, "acp_executor_addr"},
+		{parsed.ACPExecutorCWD, &cfg.ACPExecutorCWD, "acp_executor_cwd"},
+		{parsed.ACPExecutorMode, &cfg.ACPExecutorMode, "acp_executor_mode"},
+		{parsed.TavilyAPIKey, &cfg.TavilyAPIKey, "tavily_api_key"},
+		{parsed.MoltbookAPIKey, &cfg.MoltbookAPIKey, "moltbook_api_key"},
+		{parsed.MoltbookBaseURL, &cfg.MoltbookBaseURL, "moltbook_base_url"},
+		{parsed.SeedreamTextEndpointID, &cfg.SeedreamTextEndpointID, "seedream_text_endpoint_id"},
+		{parsed.SeedreamImageEndpointID, &cfg.SeedreamImageEndpointID, "seedream_image_endpoint_id"},
+		{parsed.SeedreamTextModel, &cfg.SeedreamTextModel, "seedream_text_model"},
+		{parsed.SeedreamImageModel, &cfg.SeedreamImageModel, "seedream_image_model"},
+		{parsed.SeedreamVisionModel, &cfg.SeedreamVisionModel, "seedream_vision_model"},
+		{parsed.SeedreamVideoModel, &cfg.SeedreamVideoModel, "seedream_video_model"},
+		{parsed.Profile, &cfg.Profile, "profile"},
+		{parsed.Environment, &cfg.Environment, "environment"},
+		{parsed.SessionDir, &cfg.SessionDir, "session_dir"},
+		{parsed.CostDir, &cfg.CostDir, "cost_dir"},
+		{parsed.AgentPreset, &cfg.AgentPreset, "agent_preset"},
+		{parsed.ToolPreset, &cfg.ToolPreset, "tool_preset"},
+		{parsed.Toolset, &cfg.Toolset, "toolset"},
+	} {
+		applyString(field.value, field.target, field.key)
 	}
-	if parsed.BaseURL != "" {
-		cfg.BaseURL = parsed.BaseURL
-		meta.sources["base_url"] = SourceFile
+
+	for _, field := range []struct {
+		value  *bool
+		target *bool
+		key    string
+	}{
+		{parsed.ACPExecutorAutoApprove, &cfg.ACPExecutorAutoApprove, "acp_executor_auto_approve"},
+		{parsed.ACPExecutorRequireManifest, &cfg.ACPExecutorRequireManifest, "acp_executor_require_manifest"},
+		{parsed.Verbose, &cfg.Verbose, "verbose"},
+		{parsed.DisableTUI, &cfg.DisableTUI, "disable_tui"},
+		{parsed.FollowTranscript, &cfg.FollowTranscript, "follow_transcript"},
+		{parsed.FollowStream, &cfg.FollowStream, "follow_stream"},
+	} {
+		applyBool(field.value, field.target, field.key)
 	}
-	if parsed.ACPExecutorAddr != "" {
-		cfg.ACPExecutorAddr = parsed.ACPExecutorAddr
-		meta.sources["acp_executor_addr"] = SourceFile
+
+	for _, field := range []struct {
+		value  *int
+		target *int
+		key    string
+	}{
+		{parsed.ACPExecutorMaxCLICalls, &cfg.ACPExecutorMaxCLICalls, "acp_executor_max_cli_calls"},
+		{parsed.ACPExecutorMaxDuration, &cfg.ACPExecutorMaxDuration, "acp_executor_max_duration_seconds"},
+		{parsed.MaxIterations, &cfg.MaxIterations, "max_iterations"},
+		{parsed.MaxTokens, &cfg.MaxTokens, "max_tokens"},
+		{parsed.ToolMaxConcurrent, &cfg.ToolMaxConcurrent, "tool_max_concurrent"},
+		{parsed.LLMCacheSize, &cfg.LLMCacheSize, "llm_cache_size"},
+		{parsed.LLMCacheTTLSeconds, &cfg.LLMCacheTTLSeconds, "llm_cache_ttl_seconds"},
+		{parsed.UserRateLimitBurst, &cfg.UserRateLimitBurst, "user_rate_limit_burst"},
+		{parsed.KimiRateLimitBurst, &cfg.KimiRateLimitBurst, "kimi_rate_limit_burst"},
+	} {
+		applyInt(field.value, field.target, field.key)
 	}
-	if parsed.ACPExecutorCWD != "" {
-		cfg.ACPExecutorCWD = parsed.ACPExecutorCWD
-		meta.sources["acp_executor_cwd"] = SourceFile
-	}
-	if parsed.ACPExecutorMode != "" {
-		cfg.ACPExecutorMode = parsed.ACPExecutorMode
-		meta.sources["acp_executor_mode"] = SourceFile
-	}
-	if parsed.ACPExecutorAutoApprove != nil {
-		cfg.ACPExecutorAutoApprove = *parsed.ACPExecutorAutoApprove
-		meta.sources["acp_executor_auto_approve"] = SourceFile
-	}
-	if parsed.ACPExecutorMaxCLICalls != nil {
-		cfg.ACPExecutorMaxCLICalls = *parsed.ACPExecutorMaxCLICalls
-		meta.sources["acp_executor_max_cli_calls"] = SourceFile
-	}
-	if parsed.ACPExecutorMaxDuration != nil {
-		cfg.ACPExecutorMaxDuration = *parsed.ACPExecutorMaxDuration
-		meta.sources["acp_executor_max_duration_seconds"] = SourceFile
-	}
-	if parsed.ACPExecutorRequireManifest != nil {
-		cfg.ACPExecutorRequireManifest = *parsed.ACPExecutorRequireManifest
-		meta.sources["acp_executor_require_manifest"] = SourceFile
-	}
-	if parsed.TavilyAPIKey != "" {
-		cfg.TavilyAPIKey = parsed.TavilyAPIKey
-		meta.sources["tavily_api_key"] = SourceFile
-	}
-	if parsed.MoltbookAPIKey != "" {
-		cfg.MoltbookAPIKey = parsed.MoltbookAPIKey
-		meta.sources["moltbook_api_key"] = SourceFile
-	}
-	if parsed.MoltbookBaseURL != "" {
-		cfg.MoltbookBaseURL = parsed.MoltbookBaseURL
-		meta.sources["moltbook_base_url"] = SourceFile
-	}
-	if parsed.SeedreamTextEndpointID != "" {
-		cfg.SeedreamTextEndpointID = parsed.SeedreamTextEndpointID
-		meta.sources["seedream_text_endpoint_id"] = SourceFile
-	}
-	if parsed.SeedreamImageEndpointID != "" {
-		cfg.SeedreamImageEndpointID = parsed.SeedreamImageEndpointID
-		meta.sources["seedream_image_endpoint_id"] = SourceFile
-	}
-	if parsed.SeedreamTextModel != "" {
-		cfg.SeedreamTextModel = parsed.SeedreamTextModel
-		meta.sources["seedream_text_model"] = SourceFile
-	}
-	if parsed.SeedreamImageModel != "" {
-		cfg.SeedreamImageModel = parsed.SeedreamImageModel
-		meta.sources["seedream_image_model"] = SourceFile
-	}
-	if parsed.SeedreamVisionModel != "" {
-		cfg.SeedreamVisionModel = parsed.SeedreamVisionModel
-		meta.sources["seedream_vision_model"] = SourceFile
-	}
-	if parsed.SeedreamVideoModel != "" {
-		cfg.SeedreamVideoModel = parsed.SeedreamVideoModel
-		meta.sources["seedream_video_model"] = SourceFile
-	}
-	if parsed.Profile != "" {
-		cfg.Profile = parsed.Profile
-		meta.sources["profile"] = SourceFile
-	}
-	if parsed.Environment != "" {
-		cfg.Environment = parsed.Environment
-		meta.sources["environment"] = SourceFile
-	}
-	if parsed.Verbose != nil {
-		cfg.Verbose = *parsed.Verbose
-		meta.sources["verbose"] = SourceFile
-	}
-	if parsed.DisableTUI != nil {
-		cfg.DisableTUI = *parsed.DisableTUI
-		meta.sources["disable_tui"] = SourceFile
-	}
-	if parsed.FollowTranscript != nil {
-		cfg.FollowTranscript = *parsed.FollowTranscript
-		meta.sources["follow_transcript"] = SourceFile
-	}
-	if parsed.FollowStream != nil {
-		cfg.FollowStream = *parsed.FollowStream
-		meta.sources["follow_stream"] = SourceFile
-	}
-	if parsed.MaxIterations != nil {
-		cfg.MaxIterations = *parsed.MaxIterations
-		meta.sources["max_iterations"] = SourceFile
-	}
-	if parsed.MaxTokens != nil {
-		cfg.MaxTokens = *parsed.MaxTokens
-		meta.sources["max_tokens"] = SourceFile
-	}
-	if parsed.ToolMaxConcurrent != nil {
-		cfg.ToolMaxConcurrent = *parsed.ToolMaxConcurrent
-		meta.sources["tool_max_concurrent"] = SourceFile
-	}
-	if parsed.LLMCacheSize != nil {
-		cfg.LLMCacheSize = *parsed.LLMCacheSize
-		meta.sources["llm_cache_size"] = SourceFile
-	}
-	if parsed.LLMCacheTTLSeconds != nil {
-		cfg.LLMCacheTTLSeconds = *parsed.LLMCacheTTLSeconds
-		meta.sources["llm_cache_ttl_seconds"] = SourceFile
-	}
+
 	if parsed.LLMRequestTimeoutSeconds != nil && *parsed.LLMRequestTimeoutSeconds > 0 {
 		cfg.LLMRequestTimeoutSeconds = *parsed.LLMRequestTimeoutSeconds
 		meta.sources["llm_request_timeout_seconds"] = SourceFile
 	}
-	if parsed.UserRateLimitRPS != nil {
-		cfg.UserRateLimitRPS = *parsed.UserRateLimitRPS
-		meta.sources["user_rate_limit_rps"] = SourceFile
+
+	for _, field := range []struct {
+		value  *float64
+		target *float64
+		key    string
+	}{
+		{parsed.UserRateLimitRPS, &cfg.UserRateLimitRPS, "user_rate_limit_rps"},
+		{parsed.KimiRateLimitRPS, &cfg.KimiRateLimitRPS, "kimi_rate_limit_rps"},
+		{parsed.TopP, &cfg.TopP, "top_p"},
+	} {
+		applyFloat(field.value, field.target, field.key)
 	}
-	if parsed.UserRateLimitBurst != nil {
-		cfg.UserRateLimitBurst = *parsed.UserRateLimitBurst
-		meta.sources["user_rate_limit_burst"] = SourceFile
-	}
-	if parsed.KimiRateLimitRPS != nil {
-		cfg.KimiRateLimitRPS = *parsed.KimiRateLimitRPS
-		meta.sources["kimi_rate_limit_rps"] = SourceFile
-	}
-	if parsed.KimiRateLimitBurst != nil {
-		cfg.KimiRateLimitBurst = *parsed.KimiRateLimitBurst
-		meta.sources["kimi_rate_limit_burst"] = SourceFile
-	}
+
 	if parsed.Temperature != nil {
 		cfg.Temperature = *parsed.Temperature
 		cfg.TemperatureProvided = true
 		meta.sources["temperature"] = SourceFile
 	}
-	if parsed.TopP != nil {
-		cfg.TopP = *parsed.TopP
-		meta.sources["top_p"] = SourceFile
-	}
 	if len(parsed.StopSequences) > 0 {
 		cfg.StopSequences = append([]string(nil), parsed.StopSequences...)
 		meta.sources["stop_sequences"] = SourceFile
-	}
-	if parsed.SessionDir != "" {
-		cfg.SessionDir = parsed.SessionDir
-		meta.sources["session_dir"] = SourceFile
-	}
-	if parsed.CostDir != "" {
-		cfg.CostDir = parsed.CostDir
-		meta.sources["cost_dir"] = SourceFile
 	}
 	if parsed.SessionStaleAfter != "" {
 		seconds, err := parseDurationSeconds(parsed.SessionStaleAfter)
@@ -227,50 +176,28 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.SessionStaleAfterSeconds = seconds
 		meta.sources["session_stale_after_seconds"] = SourceFile
 	}
-	if parsed.AgentPreset != "" {
-		cfg.AgentPreset = parsed.AgentPreset
-		meta.sources["agent_preset"] = SourceFile
-	}
-	if parsed.ToolPreset != "" {
-		cfg.ToolPreset = parsed.ToolPreset
-		meta.sources["tool_preset"] = SourceFile
-	}
-	if parsed.Toolset != "" {
-		cfg.Toolset = parsed.Toolset
-		meta.sources["toolset"] = SourceFile
-	}
 	if parsed.Browser != nil {
-		if connector := strings.TrimSpace(parsed.Browser.Connector); connector != "" {
-			cfg.Browser.Connector = connector
-			meta.sources["browser.connector"] = SourceFile
-		}
-		if cdpURL := strings.TrimSpace(parsed.Browser.CDPURL); cdpURL != "" {
-			cfg.Browser.CDPURL = cdpURL
-			meta.sources["browser.cdp_url"] = SourceFile
-		}
-		if chromePath := strings.TrimSpace(parsed.Browser.ChromePath); chromePath != "" {
-			cfg.Browser.ChromePath = chromePath
-			meta.sources["browser.chrome_path"] = SourceFile
+		for _, field := range []struct {
+			value  string
+			target *string
+			key    string
+		}{
+			{strings.TrimSpace(parsed.Browser.Connector), &cfg.Browser.Connector, "browser.connector"},
+			{strings.TrimSpace(parsed.Browser.CDPURL), &cfg.Browser.CDPURL, "browser.cdp_url"},
+			{strings.TrimSpace(parsed.Browser.ChromePath), &cfg.Browser.ChromePath, "browser.chrome_path"},
+			{strings.TrimSpace(parsed.Browser.UserDataDir), &cfg.Browser.UserDataDir, "browser.user_data_dir"},
+			{strings.TrimSpace(parsed.Browser.BridgeListen), &cfg.Browser.BridgeListen, "browser.bridge_listen_addr"},
+			{strings.TrimSpace(parsed.Browser.BridgeToken), &cfg.Browser.BridgeToken, "browser.bridge_token"},
+		} {
+			applyString(field.value, field.target, field.key)
 		}
 		if parsed.Browser.Headless != nil {
 			cfg.Browser.Headless = *parsed.Browser.Headless
 			meta.sources["browser.headless"] = SourceFile
 		}
-		if userDataDir := strings.TrimSpace(parsed.Browser.UserDataDir); userDataDir != "" {
-			cfg.Browser.UserDataDir = userDataDir
-			meta.sources["browser.user_data_dir"] = SourceFile
-		}
 		if parsed.Browser.TimeoutSeconds != nil && *parsed.Browser.TimeoutSeconds > 0 {
 			cfg.Browser.TimeoutSeconds = *parsed.Browser.TimeoutSeconds
 			meta.sources["browser.timeout_seconds"] = SourceFile
-		}
-		if bridgeListen := strings.TrimSpace(parsed.Browser.BridgeListen); bridgeListen != "" {
-			cfg.Browser.BridgeListen = bridgeListen
-			meta.sources["browser.bridge_listen_addr"] = SourceFile
-		}
-		if bridgeToken := strings.TrimSpace(parsed.Browser.BridgeToken); bridgeToken != "" {
-			cfg.Browser.BridgeToken = bridgeToken
-			meta.sources["browser.bridge_token"] = SourceFile
 		}
 	}
 	if parsed.ToolPolicy != nil {

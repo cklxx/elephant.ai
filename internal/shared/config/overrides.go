@@ -1,224 +1,142 @@
 package config
 
 func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
-	if overrides.LLMProvider != nil {
-		cfg.LLMProvider = *overrides.LLMProvider
-		meta.sources["llm_provider"] = SourceOverride
+	applyString := func(source *string, target *string, key string) {
+		if source == nil {
+			return
+		}
+		*target = *source
+		meta.sources[key] = SourceOverride
 	}
-	if overrides.LLMModel != nil {
-		cfg.LLMModel = *overrides.LLMModel
-		meta.sources["llm_model"] = SourceOverride
+	applyBool := func(source *bool, target *bool, key string) {
+		if source == nil {
+			return
+		}
+		*target = *source
+		meta.sources[key] = SourceOverride
 	}
-	if overrides.LLMVisionModel != nil {
-		cfg.LLMVisionModel = *overrides.LLMVisionModel
-		meta.sources["llm_vision_model"] = SourceOverride
+	applyInt := func(source *int, target *int, key string) {
+		if source == nil {
+			return
+		}
+		*target = *source
+		meta.sources[key] = SourceOverride
 	}
-	if overrides.APIKey != nil {
-		cfg.APIKey = *overrides.APIKey
-		meta.sources["api_key"] = SourceOverride
+	applyFloat := func(source *float64, target *float64, key string) {
+		if source == nil {
+			return
+		}
+		*target = *source
+		meta.sources[key] = SourceOverride
 	}
-	if overrides.ArkAPIKey != nil {
-		cfg.ArkAPIKey = *overrides.ArkAPIKey
-		meta.sources["ark_api_key"] = SourceOverride
+
+	for _, field := range []struct {
+		source *string
+		target *string
+		key    string
+	}{
+		{overrides.LLMProvider, &cfg.LLMProvider, "llm_provider"},
+		{overrides.LLMModel, &cfg.LLMModel, "llm_model"},
+		{overrides.LLMVisionModel, &cfg.LLMVisionModel, "llm_vision_model"},
+		{overrides.APIKey, &cfg.APIKey, "api_key"},
+		{overrides.ArkAPIKey, &cfg.ArkAPIKey, "ark_api_key"},
+		{overrides.BaseURL, &cfg.BaseURL, "base_url"},
+		{overrides.ACPExecutorAddr, &cfg.ACPExecutorAddr, "acp_executor_addr"},
+		{overrides.ACPExecutorCWD, &cfg.ACPExecutorCWD, "acp_executor_cwd"},
+		{overrides.ACPExecutorMode, &cfg.ACPExecutorMode, "acp_executor_mode"},
+		{overrides.TavilyAPIKey, &cfg.TavilyAPIKey, "tavily_api_key"},
+		{overrides.MoltbookAPIKey, &cfg.MoltbookAPIKey, "moltbook_api_key"},
+		{overrides.MoltbookBaseURL, &cfg.MoltbookBaseURL, "moltbook_base_url"},
+		{overrides.SeedreamTextEndpointID, &cfg.SeedreamTextEndpointID, "seedream_text_endpoint_id"},
+		{overrides.SeedreamImageEndpointID, &cfg.SeedreamImageEndpointID, "seedream_image_endpoint_id"},
+		{overrides.SeedreamTextModel, &cfg.SeedreamTextModel, "seedream_text_model"},
+		{overrides.SeedreamImageModel, &cfg.SeedreamImageModel, "seedream_image_model"},
+		{overrides.SeedreamVisionModel, &cfg.SeedreamVisionModel, "seedream_vision_model"},
+		{overrides.SeedreamVideoModel, &cfg.SeedreamVideoModel, "seedream_video_model"},
+		{overrides.Profile, &cfg.Profile, "profile"},
+		{overrides.Environment, &cfg.Environment, "environment"},
+		{overrides.SessionDir, &cfg.SessionDir, "session_dir"},
+		{overrides.CostDir, &cfg.CostDir, "cost_dir"},
+		{overrides.AgentPreset, &cfg.AgentPreset, "agent_preset"},
+		{overrides.ToolPreset, &cfg.ToolPreset, "tool_preset"},
+		{overrides.Toolset, &cfg.Toolset, "toolset"},
+	} {
+		applyString(field.source, field.target, field.key)
 	}
-	if overrides.BaseURL != nil {
-		cfg.BaseURL = *overrides.BaseURL
-		meta.sources["base_url"] = SourceOverride
+
+	for _, field := range []struct {
+		source *bool
+		target *bool
+		key    string
+	}{
+		{overrides.ACPExecutorAutoApprove, &cfg.ACPExecutorAutoApprove, "acp_executor_auto_approve"},
+		{overrides.ACPExecutorRequireManifest, &cfg.ACPExecutorRequireManifest, "acp_executor_require_manifest"},
+		{overrides.Verbose, &cfg.Verbose, "verbose"},
+		{overrides.DisableTUI, &cfg.DisableTUI, "disable_tui"},
+		{overrides.FollowTranscript, &cfg.FollowTranscript, "follow_transcript"},
+		{overrides.FollowStream, &cfg.FollowStream, "follow_stream"},
+	} {
+		applyBool(field.source, field.target, field.key)
 	}
-	if overrides.ACPExecutorAddr != nil {
-		cfg.ACPExecutorAddr = *overrides.ACPExecutorAddr
-		meta.sources["acp_executor_addr"] = SourceOverride
+
+	for _, field := range []struct {
+		source *int
+		target *int
+		key    string
+	}{
+		{overrides.ACPExecutorMaxCLICalls, &cfg.ACPExecutorMaxCLICalls, "acp_executor_max_cli_calls"},
+		{overrides.ACPExecutorMaxDuration, &cfg.ACPExecutorMaxDuration, "acp_executor_max_duration_seconds"},
+		{overrides.MaxIterations, &cfg.MaxIterations, "max_iterations"},
+		{overrides.MaxTokens, &cfg.MaxTokens, "max_tokens"},
+		{overrides.ToolMaxConcurrent, &cfg.ToolMaxConcurrent, "tool_max_concurrent"},
+		{overrides.LLMCacheSize, &cfg.LLMCacheSize, "llm_cache_size"},
+		{overrides.LLMCacheTTLSeconds, &cfg.LLMCacheTTLSeconds, "llm_cache_ttl_seconds"},
+		{overrides.UserRateLimitBurst, &cfg.UserRateLimitBurst, "user_rate_limit_burst"},
+		{overrides.KimiRateLimitBurst, &cfg.KimiRateLimitBurst, "kimi_rate_limit_burst"},
+		{overrides.SessionStaleAfterSeconds, &cfg.SessionStaleAfterSeconds, "session_stale_after_seconds"},
+	} {
+		applyInt(field.source, field.target, field.key)
 	}
-	if overrides.ACPExecutorCWD != nil {
-		cfg.ACPExecutorCWD = *overrides.ACPExecutorCWD
-		meta.sources["acp_executor_cwd"] = SourceOverride
+
+	for _, field := range []struct {
+		source *float64
+		target *float64
+		key    string
+	}{
+		{overrides.UserRateLimitRPS, &cfg.UserRateLimitRPS, "user_rate_limit_rps"},
+		{overrides.KimiRateLimitRPS, &cfg.KimiRateLimitRPS, "kimi_rate_limit_rps"},
+		{overrides.TopP, &cfg.TopP, "top_p"},
+	} {
+		applyFloat(field.source, field.target, field.key)
 	}
-	if overrides.ACPExecutorMode != nil {
-		cfg.ACPExecutorMode = *overrides.ACPExecutorMode
-		meta.sources["acp_executor_mode"] = SourceOverride
-	}
-	if overrides.ACPExecutorAutoApprove != nil {
-		cfg.ACPExecutorAutoApprove = *overrides.ACPExecutorAutoApprove
-		meta.sources["acp_executor_auto_approve"] = SourceOverride
-	}
-	if overrides.ACPExecutorMaxCLICalls != nil {
-		cfg.ACPExecutorMaxCLICalls = *overrides.ACPExecutorMaxCLICalls
-		meta.sources["acp_executor_max_cli_calls"] = SourceOverride
-	}
-	if overrides.ACPExecutorMaxDuration != nil {
-		cfg.ACPExecutorMaxDuration = *overrides.ACPExecutorMaxDuration
-		meta.sources["acp_executor_max_duration_seconds"] = SourceOverride
-	}
-	if overrides.ACPExecutorRequireManifest != nil {
-		cfg.ACPExecutorRequireManifest = *overrides.ACPExecutorRequireManifest
-		meta.sources["acp_executor_require_manifest"] = SourceOverride
-	}
-	if overrides.TavilyAPIKey != nil {
-		cfg.TavilyAPIKey = *overrides.TavilyAPIKey
-		meta.sources["tavily_api_key"] = SourceOverride
-	}
-	if overrides.MoltbookAPIKey != nil {
-		cfg.MoltbookAPIKey = *overrides.MoltbookAPIKey
-		meta.sources["moltbook_api_key"] = SourceOverride
-	}
-	if overrides.MoltbookBaseURL != nil {
-		cfg.MoltbookBaseURL = *overrides.MoltbookBaseURL
-		meta.sources["moltbook_base_url"] = SourceOverride
-	}
-	if overrides.SeedreamTextEndpointID != nil {
-		cfg.SeedreamTextEndpointID = *overrides.SeedreamTextEndpointID
-		meta.sources["seedream_text_endpoint_id"] = SourceOverride
-	}
-	if overrides.SeedreamImageEndpointID != nil {
-		cfg.SeedreamImageEndpointID = *overrides.SeedreamImageEndpointID
-		meta.sources["seedream_image_endpoint_id"] = SourceOverride
-	}
-	if overrides.SeedreamTextModel != nil {
-		cfg.SeedreamTextModel = *overrides.SeedreamTextModel
-		meta.sources["seedream_text_model"] = SourceOverride
-	}
-	if overrides.SeedreamImageModel != nil {
-		cfg.SeedreamImageModel = *overrides.SeedreamImageModel
-		meta.sources["seedream_image_model"] = SourceOverride
-	}
-	if overrides.SeedreamVisionModel != nil {
-		cfg.SeedreamVisionModel = *overrides.SeedreamVisionModel
-		meta.sources["seedream_vision_model"] = SourceOverride
-	}
-	if overrides.SeedreamVideoModel != nil {
-		cfg.SeedreamVideoModel = *overrides.SeedreamVideoModel
-		meta.sources["seedream_video_model"] = SourceOverride
-	}
-	if overrides.Profile != nil {
-		cfg.Profile = *overrides.Profile
-		meta.sources["profile"] = SourceOverride
-	}
-	if overrides.Environment != nil {
-		cfg.Environment = *overrides.Environment
-		meta.sources["environment"] = SourceOverride
-	}
-	if overrides.Verbose != nil {
-		cfg.Verbose = *overrides.Verbose
-		meta.sources["verbose"] = SourceOverride
-	}
-	if overrides.DisableTUI != nil {
-		cfg.DisableTUI = *overrides.DisableTUI
-		meta.sources["disable_tui"] = SourceOverride
-	}
-	if overrides.FollowTranscript != nil {
-		cfg.FollowTranscript = *overrides.FollowTranscript
-		meta.sources["follow_transcript"] = SourceOverride
-	}
-	if overrides.FollowStream != nil {
-		cfg.FollowStream = *overrides.FollowStream
-		meta.sources["follow_stream"] = SourceOverride
-	}
-	if overrides.MaxIterations != nil {
-		cfg.MaxIterations = *overrides.MaxIterations
-		meta.sources["max_iterations"] = SourceOverride
-	}
-	if overrides.MaxTokens != nil {
-		cfg.MaxTokens = *overrides.MaxTokens
-		meta.sources["max_tokens"] = SourceOverride
-	}
-	if overrides.ToolMaxConcurrent != nil {
-		cfg.ToolMaxConcurrent = *overrides.ToolMaxConcurrent
-		meta.sources["tool_max_concurrent"] = SourceOverride
-	}
-	if overrides.LLMCacheSize != nil {
-		cfg.LLMCacheSize = *overrides.LLMCacheSize
-		meta.sources["llm_cache_size"] = SourceOverride
-	}
-	if overrides.LLMCacheTTLSeconds != nil {
-		cfg.LLMCacheTTLSeconds = *overrides.LLMCacheTTLSeconds
-		meta.sources["llm_cache_ttl_seconds"] = SourceOverride
-	}
-	if overrides.UserRateLimitRPS != nil {
-		cfg.UserRateLimitRPS = *overrides.UserRateLimitRPS
-		meta.sources["user_rate_limit_rps"] = SourceOverride
-	}
-	if overrides.UserRateLimitBurst != nil {
-		cfg.UserRateLimitBurst = *overrides.UserRateLimitBurst
-		meta.sources["user_rate_limit_burst"] = SourceOverride
-	}
-	if overrides.KimiRateLimitRPS != nil {
-		cfg.KimiRateLimitRPS = *overrides.KimiRateLimitRPS
-		meta.sources["kimi_rate_limit_rps"] = SourceOverride
-	}
-	if overrides.KimiRateLimitBurst != nil {
-		cfg.KimiRateLimitBurst = *overrides.KimiRateLimitBurst
-		meta.sources["kimi_rate_limit_burst"] = SourceOverride
-	}
+
 	if overrides.Temperature != nil {
 		cfg.Temperature = *overrides.Temperature
 		cfg.TemperatureProvided = true
 		meta.sources["temperature"] = SourceOverride
 	}
-	if overrides.TopP != nil {
-		cfg.TopP = *overrides.TopP
-		meta.sources["top_p"] = SourceOverride
-	}
 	if overrides.StopSequences != nil {
 		cfg.StopSequences = append([]string(nil), *overrides.StopSequences...)
 		meta.sources["stop_sequences"] = SourceOverride
 	}
-	if overrides.SessionDir != nil {
-		cfg.SessionDir = *overrides.SessionDir
-		meta.sources["session_dir"] = SourceOverride
-	}
-	if overrides.CostDir != nil {
-		cfg.CostDir = *overrides.CostDir
-		meta.sources["cost_dir"] = SourceOverride
-	}
-	if overrides.SessionStaleAfterSeconds != nil {
-		cfg.SessionStaleAfterSeconds = *overrides.SessionStaleAfterSeconds
-		meta.sources["session_stale_after_seconds"] = SourceOverride
-	}
-	if overrides.AgentPreset != nil {
-		cfg.AgentPreset = *overrides.AgentPreset
-		meta.sources["agent_preset"] = SourceOverride
-	}
-	if overrides.ToolPreset != nil {
-		cfg.ToolPreset = *overrides.ToolPreset
-		meta.sources["tool_preset"] = SourceOverride
-	}
-	if overrides.Toolset != nil {
-		cfg.Toolset = *overrides.Toolset
-		meta.sources["toolset"] = SourceOverride
-	}
+
 	if overrides.Browser != nil {
-		if overrides.Browser.Connector != nil {
-			cfg.Browser.Connector = *overrides.Browser.Connector
-			meta.sources["browser.connector"] = SourceOverride
+		for _, field := range []struct {
+			source *string
+			target *string
+			key    string
+		}{
+			{overrides.Browser.Connector, &cfg.Browser.Connector, "browser.connector"},
+			{overrides.Browser.CDPURL, &cfg.Browser.CDPURL, "browser.cdp_url"},
+			{overrides.Browser.ChromePath, &cfg.Browser.ChromePath, "browser.chrome_path"},
+			{overrides.Browser.UserDataDir, &cfg.Browser.UserDataDir, "browser.user_data_dir"},
+			{overrides.Browser.BridgeListen, &cfg.Browser.BridgeListen, "browser.bridge_listen_addr"},
+			{overrides.Browser.BridgeToken, &cfg.Browser.BridgeToken, "browser.bridge_token"},
+		} {
+			applyString(field.source, field.target, field.key)
 		}
-		if overrides.Browser.CDPURL != nil {
-			cfg.Browser.CDPURL = *overrides.Browser.CDPURL
-			meta.sources["browser.cdp_url"] = SourceOverride
-		}
-		if overrides.Browser.ChromePath != nil {
-			cfg.Browser.ChromePath = *overrides.Browser.ChromePath
-			meta.sources["browser.chrome_path"] = SourceOverride
-		}
-		if overrides.Browser.Headless != nil {
-			cfg.Browser.Headless = *overrides.Browser.Headless
-			meta.sources["browser.headless"] = SourceOverride
-		}
-		if overrides.Browser.UserDataDir != nil {
-			cfg.Browser.UserDataDir = *overrides.Browser.UserDataDir
-			meta.sources["browser.user_data_dir"] = SourceOverride
-		}
-		if overrides.Browser.TimeoutSeconds != nil {
-			cfg.Browser.TimeoutSeconds = *overrides.Browser.TimeoutSeconds
-			meta.sources["browser.timeout_seconds"] = SourceOverride
-		}
-		if overrides.Browser.BridgeListen != nil {
-			cfg.Browser.BridgeListen = *overrides.Browser.BridgeListen
-			meta.sources["browser.bridge_listen_addr"] = SourceOverride
-		}
-		if overrides.Browser.BridgeToken != nil {
-			cfg.Browser.BridgeToken = *overrides.Browser.BridgeToken
-			meta.sources["browser.bridge_token"] = SourceOverride
-		}
+		applyBool(overrides.Browser.Headless, &cfg.Browser.Headless, "browser.headless")
+		applyInt(overrides.Browser.TimeoutSeconds, &cfg.Browser.TimeoutSeconds, "browser.timeout_seconds")
 	}
 	if overrides.HTTPLimits != nil {
 		applyHTTPLimitsOverrides(cfg, meta, overrides.HTTPLimits)

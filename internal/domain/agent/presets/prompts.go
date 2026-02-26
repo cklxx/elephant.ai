@@ -312,10 +312,6 @@ func GetAllPresets() []AgentPreset {
 
 // IsValidPreset checks if a preset is valid
 func IsValidPreset(preset string) bool {
-	switch AgentPreset(preset) {
-	case PresetDefault, PresetCodeExpert, PresetResearcher, PresetDevOps, PresetSecurityAnalyst, PresetDesigner, PresetArchitect:
-		return true
-	default:
-		return false
-	}
+	_, err := GetPromptConfig(AgentPreset(preset))
+	return err == nil
 }
