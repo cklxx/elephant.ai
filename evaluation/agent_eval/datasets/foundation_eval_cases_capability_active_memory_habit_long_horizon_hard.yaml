@@ -5,19 +5,19 @@ scenarios:
   - id: "memory-habit-recall-ship-window"
     category: "memory_habit"
     intent: "Find what release window I usually prefer for risky migrations."
-    expected_tools: ["memory_search"]
+    expected_tools: ["read_file"]
   - id: "memory-habit-recall-communication-style"
     category: "memory_habit"
     intent: "Locate my historical preference on incident communication tone and granularity."
-    expected_tools: ["memory_search"]
+    expected_tools: ["read_file"]
   - id: "memory-habit-open-known-policy-note"
     category: "memory_habit"
-    intent: "Open this exact memory policy note path and read the rollback section."
-    expected_tools: ["memory_get"]
+    intent: "Open this exact policy note path and read the rollback section."
+    expected_tools: ["read_file"]
   - id: "memory-habit-open-known-retro-note"
     category: "memory_habit"
-    intent: "Read the specified memory note excerpt about retrospective format."
-    expected_tools: ["memory_get"]
+    intent: "Read the specified note excerpt about retrospective format."
+    expected_tools: ["read_file"]
   - id: "longhorizon-plan-weekly-milestones"
     category: "long_horizon"
     intent: "Draft a multi-week execution plan with milestone gates and progress checkpoints."
@@ -26,22 +26,22 @@ scenarios:
     category: "long_horizon"
     intent: "Plan the rollout around an upcoming freeze window with explicit sequencing."
     expected_tools: ["plan"]
-  - id: "longhorizon-clarify-missing-slo"
+  - id: "longhorizon-ask-user-missing-slo"
     category: "long_horizon"
     intent: "The target SLO is missing for this quarter-long initiative, ask for it first."
-    expected_tools: ["clarify"]
-  - id: "longhorizon-clarify-budget-ambiguity"
+    expected_tools: ["ask_user"]
+  - id: "longhorizon-ask-user-budget-ambiguity"
     category: "long_horizon"
     intent: "Scope says optimize cost but budget cap is ambiguous; ask a focused clarifying question."
-    expected_tools: ["clarify"]
-  - id: "longhorizon-request-approval-cutover"
+    expected_tools: ["ask_user"]
+  - id: "longhorizon-ask-user-approval-cutover"
     category: "long_horizon"
     intent: "Before cutover, stop and request explicit approval from me."
-    expected_tools: ["request_user"]
-  - id: "longhorizon-request-manual-external-check"
+    expected_tools: ["ask_user"]
+  - id: "longhorizon-ask-user-manual-external-check"
     category: "long_horizon"
     intent: "Pause and ask me to complete manual vendor-side verification before continuing."
-    expected_tools: ["request_user"]
+    expected_tools: ["ask_user"]
   - id: "continuity-read-prev-session-file"
     category: "continuity"
     intent: "Open the session handoff file and inspect the unresolved blockers section."
@@ -54,10 +54,10 @@ scenarios:
     category: "continuity"
     intent: "Run terminal checks to verify current runtime state still matches yesterday's baseline."
     expected_tools: ["shell_exec"]
-  - id: "continuity-execode-verify-threshold"
+  - id: "continuity-shell-exec-verify-threshold"
     category: "continuity"
     intent: "Execute a small deterministic check to validate threshold math from prior run."
-    expected_tools: ["execute_code"]
+    expected_tools: ["shell_exec"]
   - id: "continuity-websearch-new-guideline"
     category: "continuity"
     intent: "Search latest official guidance updates that might invalidate our prior decision."

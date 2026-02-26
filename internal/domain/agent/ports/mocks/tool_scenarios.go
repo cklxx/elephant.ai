@@ -23,8 +23,8 @@ func scenarioToolRegistry(inner func(name string) (tools.ToolExecutor, error)) *
 			switch name {
 			case "plan":
 				return newUIPlanExecutor(), nil
-			case "clarify":
-				return newUIClarifyExecutor(), nil
+			case "ask_user":
+				return newUIAskUserExecutor(), nil
 			default:
 				if inner == nil {
 					return nil, fmt.Errorf("tool not found: %s", name)
@@ -73,7 +73,7 @@ func newUIPlanExecutor() tools.ToolExecutor {
 	}
 }
 
-func newUIClarifyExecutor() tools.ToolExecutor {
+func newUIAskUserExecutor() tools.ToolExecutor {
 	return &MockToolExecutor{
 		ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 			runID, _ := call.Arguments["run_id"].(string)
@@ -228,7 +228,7 @@ func newPlanCompletion(
 	}, usage)
 }
 
-func newClarifyCompletion(
+func newAskUserCompletion(
 	content string,
 	taskGoalUI string,
 	usage ports.TokenUsage,
@@ -244,8 +244,8 @@ func newClarifyCompletion(
 	}
 
 	return newToolCallCompletion(content, ports.ToolCall{
-		ID:        "call_clarify",
-		Name:      "clarify",
+		ID:        "call_ask_user",
+		Name:      "ask_user",
 		Arguments: args,
 	}, usage)
 }
@@ -346,7 +346,7 @@ func NewMultipleToolCallsScenario() ToolScenario {
 				StopReason: "tool_calls",
 				Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 40, TotalTokens: 140},
 			},
-			newClarifyCompletion(
+			newAskUserCompletion(
 				"读取 main.go、搜索 init，并运行测试。",
 				"读取 main.go、搜索 init，并运行测试。",
 				ports.TokenUsage{PromptTokens: 150, CompletionTokens: 45, TotalTokens: 195},
@@ -580,8 +580,8 @@ func NewCodeEditScenario() ToolScenario {
 				Content: "读取 utils.go、修改并运行 go test。",
 				ToolCalls: []ports.ToolCall{
 					{
-						ID:   "call_clarify",
-						Name: "clarify",
+						ID:   "call_ask_user",
+						Name: "ask_user",
 						Arguments: map[string]any{
 							"run_id":       "test-run",
 							"task_id":      "task-1",
@@ -864,8 +864,8 @@ func NewSubagentDelegationScenario() ToolScenario {
 				Content: "让子代理分析代码库并提出性能优化建议。",
 				ToolCalls: []ports.ToolCall{
 					{
-						ID:   "call_clarify",
-						Name: "clarify",
+						ID:   "call_ask_user",
+						Name: "ask_user",
 						Arguments: map[string]any{
 							"run_id":       "test-run",
 							"task_id":      "task-1",

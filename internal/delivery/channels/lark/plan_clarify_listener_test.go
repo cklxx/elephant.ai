@@ -41,7 +41,7 @@ func TestPlanClarifyListenerClarifyQuestionMarksSent(t *testing.T) {
 
 	event := domain.NewToolCompletedEvent(
 		domain.NewBaseEvent(agent.LevelCore, "", "", "", time.Now()),
-		"call-2", "clarify", "task\nWhich env?", nil, 0,
+		"call-2", "ask_user", "task\nWhich env?", nil, 0,
 		map[string]any{"needs_user_input": true, "question_to_user": "Which env?"},
 		nil,
 	)
@@ -69,7 +69,7 @@ func TestPlanClarifyListenerClarifyOptionsSendsNumberedText(t *testing.T) {
 
 	event := domain.NewToolCompletedEvent(
 		domain.NewBaseEvent(agent.LevelCore, "", "", "", time.Now()),
-		"call-2b", "clarify", "", nil, 0,
+		"call-2b", "ask_user", "", nil, 0,
 		map[string]any{"needs_user_input": true, "question_to_user": "Which env?", "options": []string{"dev", "staging"}},
 		nil,
 	)

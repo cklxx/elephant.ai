@@ -309,10 +309,10 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "safe allows code_execute",
+			name:      "safe allows shell_exec",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetSafe,
-			toolName:  "code_execute",
+			toolName:  "shell_exec",
 			wantAllow: true,
 		},
 		{
@@ -337,10 +337,10 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "full allows execute_code in cli mode",
+			name:      "full allows shell_exec in cli mode",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetFull,
-			toolName:  "execute_code",
+			toolName:  "shell_exec",
 			wantAllow: true,
 		},
 		{
@@ -365,10 +365,10 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "read-only allows clarify",
+			name:      "read-only allows ask_user",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetReadOnly,
-			toolName:  "clarify",
+			toolName:  "ask_user",
 			wantAllow: true,
 		},
 		{
@@ -379,10 +379,10 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "safe allows clarify",
+			name:      "safe allows ask_user",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetSafe,
-			toolName:  "clarify",
+			toolName:  "ask_user",
 			wantAllow: true,
 		},
 		{

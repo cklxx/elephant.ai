@@ -42,7 +42,7 @@ func TestNewRegistryRegistersLarkLocalTools(t *testing.T) {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	for _, want := range []string{"read_file", "write_file", "replace_in_file", "shell_exec", "execute_code", "channel"} {
+	for _, want := range []string{"read_file", "write_file", "replace_in_file", "shell_exec", "channel"} {
 		if _, err := registry.Get(want); err != nil {
 			t.Fatalf("expected %s to be registered for lark-local toolset: %v", want, err)
 		}
@@ -59,13 +59,11 @@ func TestNewRegistryRegistersExpectedToolCount(t *testing.T) {
 	for _, def := range defs {
 		names = append(names, def.Name)
 	}
-	// 15 core tools: read_file, write_file, replace_in_file, shell_exec,
-	// execute_code, channel, web_search, skills,
-	// plan, clarify, request_user, memory_search, memory_get, memory_related,
-	// context_checkpoint
-	// (browser tools now provided by Playwright MCP, registered dynamically)
-	if len(defs) != 15 {
-		t.Fatalf("expected 15 tools, got %d: %v", len(defs), names)
+	// 11 core tools: read_file, write_file, replace_in_file, shell_exec,
+	// channel, web_search, skills,
+	// plan, ask_user, context_checkpoint, update_config
+	if len(defs) != 11 {
+		t.Fatalf("expected 11 tools, got %d: %v", len(defs), names)
 	}
 }
 
@@ -319,9 +317,7 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 	// Core tools MUST be present (browser tools now via Playwright MCP, not static)
 	for _, want := range []string{
 		"read_file", "write_file", "replace_in_file", "shell_exec",
-		"execute_code",
-		"plan", "clarify", "request_user",
-		"memory_search", "memory_get", "memory_related",
+		"plan", "ask_user",
 		"web_search", "skills", "channel",
 	} {
 		if !names[want] {
@@ -332,6 +328,8 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 	// Deprecated tools MUST NOT be present
 	for _, dropped := range []string{
 		"grep", "ripgrep", "find", "kernel_goal",
+		"execute_code", "clarify", "request_user",
+		"memory_search", "memory_get", "memory_related",
 		"todo_read", "todo_update", "apps", "music_play",
 		"artifacts_write", "artifacts_list", "artifacts_delete",
 		"a2ui_emit", "artifact_manifest", "pptx_from_images",

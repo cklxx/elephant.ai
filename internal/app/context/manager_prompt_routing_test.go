@@ -13,16 +13,14 @@ func TestBuildToolRoutingSectionIncludesDeterministicAndMemoryBoundaries(t *test
 	for _, snippet := range []string{
 		"task_has_explicit_operation",
 		"read_only_inspection",
-		"memory_get/memory_related",
 		"user_delegates",
 		"needs_human_gate",
 		"ALWAYS exhaust deterministic tools",
 		"ALWAYS use read_file for workspace",
-		"execute_code",
 		"ALWAYS inject runtime facts",
 		"ALWAYS probe capabilities",
 		"NEVER expose secrets",
-		"NEVER use clarify for explicit",
+		"NEVER use ask_user for explicit",
 	} {
 		if !strings.Contains(section, snippet) {
 			t.Fatalf("expected tool routing section to contain %q", snippet)

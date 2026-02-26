@@ -11,7 +11,6 @@ const nonVerbosePreviewLimit = 80
 
 var toolDisplayNames = map[string]string{
 	"channel":         "channel",
-	"execute_code":    "code.exec",
 	"read_file":       "file.read",
 	"replace_in_file": "file.replace",
 	"write_file":      "file.write",
@@ -48,7 +47,7 @@ func nextSpinnerFrame() string {
 
 func isConversationalTool(toolName string) bool {
 	switch strings.ToLower(strings.TrimSpace(toolName)) {
-	case "plan", "clarify", "request_user":
+	case "plan", "ask_user":
 		return true
 	default:
 		return false

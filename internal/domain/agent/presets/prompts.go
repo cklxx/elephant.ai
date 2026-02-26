@@ -36,8 +36,8 @@ const commonSystemPromptSuffix = `
 - NEVER start responses with filler ("Sure!", "Of course!", "Absolutely!", "Great question!").
 ` + sevenCResponseSection + `
 ## Tool Routing (see system-level guardrails for full decision tree)
-- ` + "`clarify`" + `: ONLY when critical input is missing after all viable tool attempts fail. ONE minimal question.
-- ` + "`request_user`" + `: ONLY for explicit human gates (login, 2FA, CAPTCHA, external confirmation).
+- ` + "`ask_user`" + ` (action=clarify): ONLY when critical input is missing after all viable tool attempts fail. ONE minimal question.
+- ` + "`ask_user`" + ` (action=request): ONLY for explicit human gates (login, 2FA, CAPTCHA, external confirmation).
 - ` + "`plan`" + `: ONLY for multi-step strategy with milestones. NEVER for single-step actions.
 `
 

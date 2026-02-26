@@ -406,8 +406,8 @@ func (r *slowToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 	switch name {
 	case "plan":
 		return &fastPlanTool{}, nil
-	case "clarify":
-		return &fastClarifyTool{}, nil
+	case "ask_user":
+		return &fastAskUserTool{}, nil
 	default:
 		return &slowTool{}, nil
 	}
@@ -425,7 +425,7 @@ func (r *slowToolRegistry) List() []ports.ToolDefinition {
 			},
 		},
 		{
-			Name:        "clarify",
+			Name:        "ask_user",
 			Description: "Declare the current task before tool calls",
 			Parameters: ports.ParameterSchema{
 				Type:       "object",
@@ -534,9 +534,9 @@ func (t *fastPlanTool) Metadata() ports.ToolMetadata {
 	}
 }
 
-type fastClarifyTool struct{}
+type fastAskUserTool struct{}
 
-func (t *fastClarifyTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+func (t *fastAskUserTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	taskID, _ := call.Arguments["task_id"].(string)
 	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
@@ -549,14 +549,14 @@ func (t *fastClarifyTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 
 	return &ports.ToolResult{
 		CallID:   call.ID,
-		Content:  "clarify ok",
+		Content:  "ask_user ok",
 		Metadata: metadata,
 	}, nil
 }
 
-func (t *fastClarifyTool) Definition() ports.ToolDefinition {
+func (t *fastAskUserTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "clarify",
+		Name:        "ask_user",
 		Description: "Declare the current task before tool calls",
 		Parameters: ports.ParameterSchema{
 			Type:       "object",
@@ -566,9 +566,9 @@ func (t *fastClarifyTool) Definition() ports.ToolDefinition {
 	}
 }
 
-func (t *fastClarifyTool) Metadata() ports.ToolMetadata {
+func (t *fastAskUserTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "clarify",
+		Name:     "ask_user",
 		Version:  "1.0.0",
 		Category: "test",
 	}
@@ -654,8 +654,8 @@ func (p *slowParser) Parse(content string) ([]ports.ToolCall, error) {
 	case 2:
 		return []ports.ToolCall{
 			{
-				ID:   fmt.Sprintf("call-clarify-%d", step),
-				Name: "clarify",
+				ID:   fmt.Sprintf("call-ask-user-%d", step),
+				Name: "ask_user",
 				Arguments: map[string]any{
 					"run_id":       "test-run",
 					"task_id":      "task-1",

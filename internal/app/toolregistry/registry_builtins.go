@@ -3,7 +3,6 @@ package toolregistry
 import (
 	"alex/internal/infra/tools/builtin/aliases"
 	"alex/internal/infra/tools/builtin/larktools"
-	memorytools "alex/internal/infra/tools/builtin/memory"
 	sessiontools "alex/internal/infra/tools/builtin/session"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/infra/tools/builtin/ui"
@@ -12,11 +11,7 @@ import (
 
 func (r *Registry) registerUITools(config Config) {
 	r.static["plan"] = ui.NewPlan(config.MemoryEngine)
-	r.static["clarify"] = ui.NewClarify()
-	r.static["memory_search"] = memorytools.NewMemorySearch(config.MemoryEngine)
-	r.static["memory_get"] = memorytools.NewMemoryGet(config.MemoryEngine)
-	r.static["memory_related"] = memorytools.NewMemoryRelated(config.MemoryEngine)
-	r.static["request_user"] = ui.NewRequestUser()
+	r.static["ask_user"] = ui.NewAskUser()
 	r.static["context_checkpoint"] = ui.NewContextCheckpoint()
 }
 
@@ -41,7 +36,6 @@ func (r *Registry) registerPlatformTools(config Config) error {
 	r.static["write_file"] = aliases.NewWriteFile(fileConfig)
 	r.static["replace_in_file"] = aliases.NewReplaceInFile(fileConfig)
 	r.static["shell_exec"] = aliases.NewShellExec(shellConfig)
-	r.static["execute_code"] = aliases.NewExecuteCode(shellConfig)
 	return nil
 }
 

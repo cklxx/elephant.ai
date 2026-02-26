@@ -7,17 +7,17 @@ scenarios:
   intent: Split this migration into phases with explicit checkpoints and risks.
   expected_tools:
   - plan
-- id: tool-clarify-blocking-requirement
+- id: tool-ask-user-blocking-requirement
   category: clarification
   intent: A key requirement is missing and blocks implementation; ask a precise clarifying
     question first.
   expected_tools:
-  - clarify
-- id: tool-request-user-verification
+  - ask_user
+- id: tool-ask-user-verification
   category: handoff
   intent: Continue only after the user completes manual account verification.
   expected_tools:
-  - request_user
+  - ask_user
 - id: tool-read-source-file
   category: workspace
   intent: Open a source file and inspect its content around a suspicious function.
@@ -44,11 +44,11 @@ scenarios:
     and top-level structure) and report findings directly without asking for confirmation.
   expected_tools:
   - shell_exec
-- id: tool-execute-code-snippet
+- id: tool-shell-exec-code-snippet
   category: execution
   intent: Execute a short code snippet to validate the formula quickly.
   expected_tools:
-  - execute_code
+  - shell_exec
 - id: tool-web-search-authoritative-prioritization
   category: web
   intent: Need newest primary references first (RFC/vendor docs), not blog summaries;

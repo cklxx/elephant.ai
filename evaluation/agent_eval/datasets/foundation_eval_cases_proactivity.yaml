@@ -8,40 +8,40 @@ scenarios:
   intent: Before touching code, proactively draft a phased execution plan with checkpoints.
   expected_tools:
   - plan
-- id: proactive-clarify-ambiguous-owner
+- id: proactive-ask-user-ambiguous-owner
   category: clarification
   intent: Requirement owner is ambiguous across two teams; proactively ask a focused
     clarification.
   expected_tools:
-  - clarify
-- id: proactive-request-risky-confirmation
+  - ask_user
+- id: proactive-ask-user-risky-confirmation
   category: approval
   intent: This operation may impact production behavior; proactively request explicit
     user confirmation first.
   expected_tools:
-  - request_user
-- id: proactive-memory-recall-before-solution
+  - ask_user
+- id: proactive-read-file-recall-before-solution
   category: memory
-  intent: Proactively recall prior preferences from memory before drafting the solution.
+  intent: Proactively recall prior preferences from local notes before drafting the solution.
   expected_tools:
-  - memory_search
-- id: proactive-open-precise-memory-note
+  - read_file
+- id: proactive-read-file-precise-note
   category: memory
-  intent: A specific previous note is referenced; proactively open that exact memory
+  intent: A specific previous note is referenced; proactively open that exact file
     entry.
   expected_tools:
-  - memory_get
+  - read_file
 - id: proactive-runtime-state-check
   category: execution
   intent: Proactively verify runtime state with command output before proposing a
     fix.
   expected_tools:
   - shell_exec
-- id: proactive-quick-compute-validation
+- id: proactive-shell-exec-compute-validation
   category: execution
   intent: Proactively run a short deterministic compute check to validate assumptions.
   expected_tools:
-  - execute_code
+  - shell_exec
 - id: proactive-read-contract-window
   category: workspace
   intent: Proactively read the exact API contract window before changing implementation.

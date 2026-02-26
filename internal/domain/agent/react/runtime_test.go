@@ -399,19 +399,19 @@ func TestReactRuntimeBlocksParallelPlanCalls(t *testing.T) {
 	require.Contains(t, msg, "plan()")
 }
 
-func TestReactRuntimeBlocksParallelClarifyCalls(t *testing.T) {
+func TestReactRuntimeBlocksParallelAskUserCalls(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{RunID: "run-parallel"}
 	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
 
 	calls := []ToolCall{
-		{Name: "clarify", Arguments: map[string]any{"task_goal_ui": "sub"}},
+		{Name: "ask_user", Arguments: map[string]any{"task_goal_ui": "sub"}},
 		{Name: "web_search", Arguments: map[string]any{"query": "test"}},
 	}
 
 	blocked, msg := runtime.enforceOrchestratorGates(calls)
-	require.True(t, blocked, "clarify() in parallel with other tools should be blocked")
-	require.Contains(t, msg, "clarify()")
+	require.True(t, blocked, "ask_user() in parallel with other tools should be blocked")
+	require.Contains(t, msg, "ask_user()")
 }
 
 func TestPlanReviewTriggersPauseAndMarker(t *testing.T) {
@@ -451,12 +451,12 @@ func TestPlanReviewTriggersPauseAndMarker(t *testing.T) {
 	require.True(t, found, "expected plan review marker in messages")
 }
 
-func TestClarifyCreatesPlanNode(t *testing.T) {
+func TestAskUserCreatesPlanNode(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{RunID: "run-plan"}
 	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
 
-	calls := []ToolCall{{Name: "clarify"}}
+	calls := []ToolCall{{Name: "ask_user"}}
 	results := []ToolResult{{
 		Metadata: map[string]any{
 			"task_id":          "task-1",
@@ -474,19 +474,19 @@ func TestClarifyCreatesPlanNode(t *testing.T) {
 	require.Contains(t, state.Plans[0].Description, "tests pass")
 }
 
-func TestClarifyCompletesPreviousPlanNode(t *testing.T) {
+func TestAskUserCompletesPreviousPlanNode(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{RunID: "run-plan"}
 	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
 
-	runtime.updateOrchestratorState([]ToolCall{{Name: "clarify"}}, []ToolResult{{
+	runtime.updateOrchestratorState([]ToolCall{{Name: "ask_user"}}, []ToolResult{{
 		Metadata: map[string]any{
 			"task_id":      "task-1",
 			"task_goal_ui": "First task",
 		},
 	}})
 
-	runtime.updateOrchestratorState([]ToolCall{{Name: "clarify"}}, []ToolResult{{
+	runtime.updateOrchestratorState([]ToolCall{{Name: "ask_user"}}, []ToolResult{{
 		Metadata: map[string]any{
 			"task_id":      "task-2",
 			"task_goal_ui": "Second task",

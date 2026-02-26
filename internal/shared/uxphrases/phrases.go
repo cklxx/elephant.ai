@@ -32,9 +32,7 @@ var phraseGroups = []phraseGroup{
 		phrases: []string{"在翻阅…", "在研读…", "在查阅…"},
 		matchFn: func(n string) bool {
 			return matchAny(n,
-				// Exact single-word tool names (Claude Code)
 				exactMatch("read", "glob", "grep"),
-				// Prefixed multi-word tool names
 				prefixMatch("read_file", "read_", "list_dir", "list_files",
 					"search_file", "find_file", "search_code", "list_directory",
 					"view_file", "view_source"),
@@ -56,7 +54,7 @@ var phraseGroups = []phraseGroup{
 		matchFn: func(n string) bool {
 			return matchAny(n,
 				exactMatch("bash"),
-				prefixMatch("shell_exec", "execute_code", "run_command",
+				prefixMatch("shell_exec", "run_command",
 					"terminal", "exec_"),
 			)
 		},
@@ -71,8 +69,7 @@ var phraseGroups = []phraseGroup{
 	{
 		phrases: []string{"在回忆…", "在追溯…", "在检索…"},
 		matchFn: func(n string) bool {
-			return hasAnyPrefix(n, "memory_search", "memory_get", "memory_related", "memory_save",
-				"recall", "remember")
+			return hasAnyPrefix(n, "memory_save", "recall", "remember")
 		},
 	},
 	{
@@ -92,8 +89,8 @@ var phraseGroups = []phraseGroup{
 		phrases: []string{"在规划…", "在梳理…", "在分析…"},
 		matchFn: func(n string) bool {
 			return matchAny(n,
-				exactMatch("plan", "clarify"),
-				prefixMatch("plan_", "clarify_"),
+				exactMatch("plan", "ask_user"),
+				prefixMatch("plan_", "ask_user_"),
 			)
 		},
 	},

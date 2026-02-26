@@ -8,7 +8,7 @@ scenarios:
   intent: User sounds depleted and unsure where to start; ask one targeted clarification
     before acting.
   expected_tools:
-  - clarify
+  - ask_user
 - id: motivation-overwhelmed-minimal-plan
   category: motivation_signal
   intent: User feels overwhelmed and asks for the smallest viable execution plan.
@@ -19,19 +19,19 @@ scenarios:
   intent: User states no external outreach without approval; request explicit consent
     first.
   expected_tools:
-  - request_user
+  - ask_user
 - id: motivation-conflict-reminders-vs-no-interruptions
   category: motivation_conflict
   intent: Requirements conflict between wanting reminders and avoiding interruptions;
     clarify the boundary.
   expected_tools:
-  - clarify
+  - ask_user
 - id: motivation-consent-vs-task-ownership-gate
   category: motivation_boundary
   intent: Team asks to auto-assign accountability tasks externally, but user required
     explicit consent before any outreach.
   expected_tools:
-  - request_user
+  - ask_user
 - id: motivation-delegated-low-risk-action-no-reconfirm
   category: motivation_boundary
   intent: User already delegated choice ("you decide", "anything works") for a low-risk
@@ -44,15 +44,15 @@ scenarios:
   intent: Recall the user's preferred reminder cadence from prior notes before planning
     nudges.
   expected_tools:
-  - memory_search
+  - read_file
 - id: motivation-memory-open-evidence
   category: motivation_memory
   intent: Open exact memory lines that justify the selected motivation strategy.
   expected_tools:
-  - memory_get
+  - read_file
 - id: motivation-memory-policy-before-action
   category: motivation_memory
   intent: Before choosing a motivation intervention, recall prior accepted and rejected
     nudging patterns from memory.
   expected_tools:
-  - memory_search
+  - read_file

@@ -998,7 +998,7 @@ func collectDeliverableSignals(contract *FoundationDeliverableContract) map[stri
 		case "diff", "patch":
 			signals["evidence_diff"] = []string{"search_file", "read_file", "replace_in_file"}
 		case "test", "tests", "report":
-			signals["evidence_test_report"] = []string{"shell_exec", "execute_code", "artifacts_write"}
+			signals["evidence_test_report"] = []string{"shell_exec", "artifacts_write"}
 		case "screenshot", "visual":
 			signals["evidence_visual"] = []string{"browser_screenshot"}
 		case "diagram":
@@ -1119,13 +1119,87 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("logic", "window", "suspected", "behavior", "before", "patch", "regression") >= 3 {
 			boost += 24
 		}
-	case "clarify":
+		// Absorbed from former memory_search tool.
+		if countMatches("memory", "prior", "history", "decision", "note", "context", "summary", "recall") >= 2 {
+			boost += 20
+		}
+		if hasAll("before", "offset") && has("known", "exact", "line", "lines") {
+			boost += 20
+		}
+		if countMatches("preference", "habit", "style", "tone", "persona", "format", "choice") >= 2 {
+			boost += 16
+		}
+		if has("recall", "recover", "retrieve") &&
+			countMatches("preference", "preferred", "habit", "style", "tone", "persona", "format", "choice", "interaction", "interactions", "behavior", "pattern") >= 1 {
+			boost += 14
+		}
+		if countMatches("motivation", "successful", "pattern", "previous", "cadence", "nudge") >= 2 {
+			boost += 12
+		}
+		if countMatches("previous", "prior", "successful", "pattern", "decision", "policy", "history") >= 3 {
+			boost += 10
+		}
+		if countMatches("communication", "tone", "style", "voice", "habit", "preference", "persona", "soul") >= 3 {
+			boost += 20
+		}
+		if countMatches("memory", "preference", "retrieval", "retrieve", "habit", "persona", "policy", "history") >= 3 {
+			boost += 18
+		}
+		if countMatches("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch") >= 3 {
+			boost += 22
+		}
+		if countMatches("sparse", "hidden", "long", "tail", "fact", "facts", "corpus", "notes", "retrieve") >= 3 {
+			boost += 24
+		}
+		if countMatches("historical", "remediation", "playbook", "worked", "similar", "incident", "incidents") >= 3 {
+			boost += 24
+		}
+		// Absorbed from former memory_get tool.
+		if countMatches("open", "exact", "line", "lines", "offset", "fragment", "citation", "verbatim", "proof", "evidence", "selected", "note") >= 2 {
+			boost += 24
+		}
+		if countMatches("selected", "memory", "note", "open", "detail", "detailed", "guidance", "context", "root", "cause") >= 3 {
+			boost += 20
+		}
+	case "ask_user":
 		if has("ambiguity", "clarify", "blocking", "requirement", "missing", "unclear", "constraint", "conflict") {
 			boost += 14
 		}
 		if countMatches("you", "decide", "anything", "work", "delegate", "default", "low", "reversible", "status", "message", "thread", "again") >= 6 &&
 			countMatches("approval", "consent", "confirm", "manual", "external", "irreversible", "critical") == 0 {
 			boost -= 24
+		}
+		if countMatches("human", "manual", "approval", "approve", "confirm", "consent", "operator", "go-signal", "gate", "out-of-band", "acknowledgement", "wait") >= 2 {
+			boost += 26
+		}
+		if hasAll("before", "continue") && has("manual", "approval", "confirm", "human") {
+			boost += 10
+		}
+		if countMatches("sensitive", "personal", "private", "consent", "confirmation") >= 2 {
+			boost += 12
+		}
+		if countMatches("external", "outreach", "third", "party", "before", "approval", "consent") >= 2 {
+			boost += 14
+		}
+		if countMatches("secret", "token", "user", "provided", "before", "execution", "request") >= 3 {
+			boost += 18
+		}
+		if countMatches("critical", "irreversible", "human", "go", "ahead", "before", "step") >= 3 {
+			boost += 28
+		}
+		if countMatches("freeze", "wait", "greenlight", "silence", "no", "continue") >= 3 {
+			boost += 34
+		}
+		if countMatches("user", "requir", "explicit", "consent", "before", "outreach") >= 4 {
+			boost += 34
+		}
+		if countMatches("you", "decide", "anything", "work", "delegate", "default", "low", "reversible", "status", "message", "thread", "again") >= 6 &&
+			countMatches("approval", "consent", "confirm", "manual", "external", "irreversible", "critical") == 0 {
+			boost -= 28
+		}
+		if countMatches("view", "check", "list", "inspect", "status", "repo", "branch", "directory", "structure", "workspace", "read", "only") >= 4 &&
+			countMatches("approval", "consent", "manual", "external", "irreversible", "critical", "captcha", "2fa", "login", "publish", "go-signal", "greenlight") == 0 {
+			boost -= 32
 		}
 	case "web_search":
 		if countMatches("search", "lookup", "find", "query", "compare") >= 1 &&
@@ -1378,87 +1452,6 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("stale", "failed", "run", "bundles", "polluted", "evidence", "cleanup") >= 3 {
 			boost += 20
 		}
-	case "memory_search":
-		if countMatches("memory", "prior", "history", "decision", "note", "context", "summary", "recall") >= 2 {
-			boost += 20
-		}
-		if hasAll("before", "offset") && has("known", "exact", "line", "lines") {
-			boost += 20
-		}
-		if countMatches("preference", "habit", "style", "tone", "persona", "format", "choice") >= 2 {
-			boost += 16
-		}
-		if has("recall", "recover", "retrieve") &&
-			countMatches("preference", "preferred", "habit", "style", "tone", "persona", "format", "choice", "interaction", "interactions", "behavior", "pattern") >= 1 {
-			boost += 14
-		}
-		if countMatches("motivation", "successful", "pattern", "previous", "cadence", "nudge") >= 2 {
-			boost += 12
-		}
-		if countMatches("previous", "prior", "successful", "pattern", "decision", "policy", "history") >= 3 {
-			boost += 10
-		}
-		if countMatches("communication", "tone", "style", "voice", "habit", "preference", "persona", "soul") >= 3 {
-			boost += 20
-		}
-		if countMatches("memory", "preference", "retrieval", "retrieve", "habit", "persona", "policy", "history") >= 3 {
-			boost += 18
-		}
-		if countMatches("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch") >= 3 {
-			boost += 22
-		}
-		if countMatches("sparse", "hidden", "long", "tail", "fact", "facts", "corpus", "notes", "retrieve") >= 3 {
-			boost += 24
-		}
-		if countMatches("historical", "remediation", "playbook", "worked", "similar", "incident", "incidents") >= 3 {
-			boost += 24
-		}
-		if has("memory_get") && has("selected", "exact", "open", "detail", "detailed", "guidance", "context") {
-			boost -= 16
-		}
-	case "memory_get":
-		if countMatches("open", "exact", "line", "lines", "offset", "fragment", "citation", "verbatim", "proof", "evidence", "selected", "note") >= 2 {
-			boost += 24
-		}
-		if has("memory_get") {
-			boost += 18
-		}
-		if countMatches("selected", "memory", "note", "open", "detail", "detailed", "guidance", "context", "root", "cause") >= 3 {
-			boost += 20
-		}
-	case "request_user":
-		if countMatches("human", "manual", "approval", "approve", "confirm", "consent", "operator", "go-signal", "gate", "out-of-band", "acknowledgement", "wait") >= 2 {
-			boost += 26
-		}
-		if hasAll("before", "continue") && has("manual", "approval", "confirm", "human") {
-			boost += 10
-		}
-		if countMatches("sensitive", "personal", "private", "consent", "confirmation") >= 2 {
-			boost += 12
-		}
-		if countMatches("external", "outreach", "third", "party", "before", "approval", "consent") >= 2 {
-			boost += 14
-		}
-		if countMatches("secret", "token", "user", "provided", "before", "execution", "request") >= 3 {
-			boost += 18
-		}
-		if countMatches("critical", "irreversible", "human", "go", "ahead", "before", "step") >= 3 {
-			boost += 28
-		}
-		if countMatches("freeze", "wait", "greenlight", "silence", "no", "continue") >= 3 {
-			boost += 34
-		}
-		if countMatches("user", "requir", "explicit", "consent", "before", "outreach") >= 4 {
-			boost += 34
-		}
-		if countMatches("you", "decide", "anything", "work", "delegate", "default", "low", "reversible", "status", "message", "thread", "again") >= 6 &&
-			countMatches("approval", "consent", "confirm", "manual", "external", "irreversible", "critical") == 0 {
-			boost -= 28
-		}
-		if countMatches("view", "check", "list", "inspect", "status", "repo", "branch", "directory", "structure", "workspace", "read", "only") >= 4 &&
-			countMatches("approval", "consent", "manual", "external", "irreversible", "critical", "captcha", "2fa", "login", "publish", "go-signal", "greenlight") == 0 {
-			boost -= 32
-		}
 	case "cancel_timer":
 		if countMatches("cancel", "remove", "delete", "drop", "prune", "obsolete", "stale", "duplicate", "timer", "reminder") >= 2 {
 			boost += 22
@@ -1477,19 +1470,16 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("regex", "pattern", "needle", "sweep", "scan", "repo", "repository", "across", "fast", "quick", "hotspot") >= 2 {
 			boost += 26
 		}
-	case "execute_code":
+	case "shell_exec":
+		if countMatches("shell", "command", "cli", "terminal", "process", "port", "inspect", "check", "grep", "log") >= 2 {
+			boost += 18
+		}
+		// Absorbed from former execute_code tool.
 		if countMatches("script", "snippet", "compute", "calculate", "deterministic", "metric", "validate", "score") >= 2 {
 			boost += 16
 		}
 		if countMatches("consistency", "numeric", "fragments", "slices", "deterministic", "check") >= 3 {
 			boost += 16
-		}
-		if countMatches("shell", "command", "cli", "terminal", "process") >= 2 {
-			boost -= 14
-		}
-	case "shell_exec":
-		if countMatches("shell", "command", "cli", "terminal", "process", "port", "inspect", "check", "grep", "log") >= 2 {
-			boost += 18
 		}
 		if has("shell_exec") {
 			boost += 20
@@ -1607,7 +1597,7 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	// Exact tool-name mentions in intent should bias ranking for that tool.
 	if has(toolName) {
 		switch toolName {
-		case "plan", "clarify", "find", "search_file", "read_file", "write_file":
+		case "plan", "ask_user", "find", "search_file", "read_file", "write_file":
 			boost += 6
 		default:
 			boost += 24
@@ -1652,10 +1642,7 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			boost -= 12
 		}
 	}
-	if toolName == "clarify" {
-		if countMatches("manual", "approval", "approve", "confirm", "consent", "operator", "gate", "user") >= 2 {
-			boost -= 24
-		}
+	if toolName == "ask_user" {
 		if countMatches("delegate", "executor", "parallel", "subagent", "handoff", "heavy") >= 2 {
 			boost -= 12
 		}
@@ -1670,9 +1657,6 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("unclear", "ambiguity", "clarify", "conflict") {
 			boost -= 10
 		}
-		if countMatches("request", "user", "approval", "confirm", "before", "proceed", "execution", "secret", "token") >= 4 {
-			boost -= 24
-		}
 		if countMatches("replace", "patch", "rewrite", "update", "shift", "run", "show", "apply", "exact", "existing", "inplace", "event") >= 3 &&
 			!has("unclear", "ambiguity", "clarify", "conflict", "missing", "question") {
 			boost -= 30
@@ -1680,10 +1664,6 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("tracked", "task", "item", "operationalize", "commitment", "calendar", "block", "reserve", "window") >= 3 &&
 			!has("unclear", "ambiguity", "clarify", "conflict", "missing", "question") {
 			boost -= 30
-		}
-		if countMatches("critical", "irreversible", "human", "go", "ahead", "approval", "before") >= 3 &&
-			!has("unclear", "ambiguity", "clarify", "conflict", "missing", "question") {
-			boost -= 28
 		}
 	}
 	if toolName == "lark_calendar_delete" || toolName == "lark_calendar_create" || toolName == "lark_calendar_update" {
@@ -1800,11 +1780,6 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("entrypoint", "entrypoints", "layer", "module", "package", "path", "folder", "directory") >= 3 &&
 			!has("inside", "content", "snippet", "line", "lines", "semantic") {
 			boost -= 12
-		}
-	}
-	if toolName == "memory_get" {
-		if hasAll("before", "offset") && has("known", "exact", "line", "lines") {
-			boost -= 18
 		}
 	}
 	if toolName == "browser_screenshot" {
@@ -2051,23 +2026,18 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			boost -= 32
 		}
 	}
-	if toolName == "clarify" {
-		if countMatches("memory_get", "selected", "memory", "note", "open", "detail", "detailed", "guidance", "context") >= 3 &&
+	if toolName == "ask_user" {
+		if countMatches("read_file", "selected", "memory", "note", "open", "detail", "detailed", "guidance", "context") >= 3 &&
 			!has("unclear", "ambiguity", "clarify", "conflict", "missing") {
 			boost -= 24
 		}
-		if countMatches("memory_search", "memory_get", "before", "action", "retrieve", "recall", "history") >= 3 &&
+		if countMatches("read_file", "before", "action", "retrieve", "recall", "history") >= 3 &&
 			!has("unclear", "ambiguity", "clarify", "conflict", "missing") {
-			boost -= 18
-		}
-	}
-	if toolName == "memory_search" {
-		if has("clarify") && has("conflict", "unclear", "ambiguity", "latest", "preference") {
 			boost -= 18
 		}
 	}
 	if toolName == "search_file" {
-		if countMatches("find", "read_file", "ripgrep", "replace_in_file", "memory_search", "memory_get", "list_dir", "a2ui_emit", "artifacts_write") >= 2 &&
+		if countMatches("find", "read_file", "ripgrep", "replace_in_file", "list_dir", "a2ui_emit", "artifacts_write") >= 2 &&
 			!has("content", "inside", "semantic", "snippet", "line", "lines") {
 			boost -= 16
 		}
@@ -2128,12 +2098,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 	}
 	if toolName == "lark_task_manage" {
-		if has("request_user") || countMatches("approval", "confirm", "consent", "manual", "before") >= 3 {
+		if has("ask_user") || countMatches("approval", "confirm", "consent", "manual", "before") >= 3 {
 			boost -= 18
 		}
 	}
-	if toolName == "request_user" {
-		if has("request_user") {
+	if toolName == "ask_user" {
+		if has("ask_user") {
 			boost += 24
 		}
 	}
@@ -2143,17 +2113,6 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("run", "shell", "verification", "check", "checks", "after", "code", "change", "changes") >= 4 {
 			boost += 18
-		}
-	}
-	if toolName == "execute_code" {
-		if has("grep") && !has("python", "script", "snippet", "compute", "calculate") {
-			boost -= 14
-		}
-		if countMatches("run", "shell", "verification", "check", "checks", "after", "code", "change", "changes") >= 4 {
-			boost -= 18
-		}
-		if countMatches("reproduce", "failure", "failing", "test", "command", "before", "fix") >= 3 {
-			boost -= 18
 		}
 	}
 	if toolName == "plan" {
@@ -2200,7 +2159,7 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			boost -= 22
 		}
 	}
-	if toolName == "request_user" {
+	if toolName == "ask_user" {
 		if countMatches("manual", "user", "confirmation", "before", "continuing", "continue", "cutover", "production") >= 4 {
 			boost += 18
 		}
@@ -2245,14 +2204,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			boost -= 20
 		}
 	}
-	if toolName == "request_user" {
+	if toolName == "ask_user" {
 		if countMatches("requires", "require", "user", "approval", "confirm", "before", "publish", "continue") >= 4 {
 			boost += 16
-		}
-	}
-	if toolName == "clarify" {
-		if countMatches("requires", "require", "user", "approval", "confirm", "before", "publish", "continue") >= 4 {
-			boost -= 20
 		}
 	}
 	if hasAll("task", "delegate") && toolName == "acp_executor" {
@@ -2369,7 +2323,7 @@ var verbTokens = map[string]struct{}{
 	"read": {}, "write": {}, "edit": {}, "update": {}, "delete": {}, "remove": {},
 	"list": {}, "find": {}, "search": {}, "fetch": {}, "query": {}, "create": {},
 	"render": {}, "send": {}, "upload": {}, "execute": {}, "plan": {}, "clarify": {},
-	"cancel": {}, "manage": {}, "set": {}, "play": {},
+	"cancel": {}, "manage": {}, "set": {}, "play": {}, "ask": {},
 }
 
 func containsVerb(value string) bool {

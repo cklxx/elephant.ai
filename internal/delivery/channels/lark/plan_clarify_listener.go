@@ -121,7 +121,7 @@ func planClarifyMessageFromEvent(e *domain.Event) planClarifyPayload {
 			return planClarifyPayload{message: msg}
 		}
 		return planClarifyPayload{message: strings.TrimSpace(e.Data.Result)}
-	case "clarify":
+	case "ask_user":
 		needsInput := boolMeta(e.Data.Metadata, "needs_user_input")
 		if needsInput {
 			if prompt, ok := awaitPromptFromResult(e.Data.Result, e.Data.Metadata); ok {
@@ -157,7 +157,7 @@ func planClarifyMessageFromEnvelope(e *domain.WorkflowEventEnvelope) planClarify
 			return planClarifyPayload{message: msg}
 		}
 		return planClarifyPayload{message: strings.TrimSpace(result)}
-	case "clarify":
+	case "ask_user":
 		needsInput := boolMeta(metadata, "needs_user_input")
 		if needsInput {
 			if prompt, ok := awaitPromptFromResult(result, metadata); ok {

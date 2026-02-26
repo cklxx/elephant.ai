@@ -16,30 +16,6 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 		wants    []string
 	}{
 		{
-			name:     "code execute with code",
-			toolName: "code_execute",
-			args: map[string]any{
-				"language": "python",
-				"code":     "print('hello')\nprint('world')",
-			},
-			wants: []string{"language=python", "lines=2", "chars="},
-		},
-		{
-			name:     "execute_code with code",
-			toolName: "execute_code",
-			args: map[string]any{
-				"language": "python",
-				"code":     "print('hello')\nprint('world')",
-			},
-			wants: []string{"language=python", "lines=2", "chars="},
-		},
-		{
-			name:     "code execute without code",
-			toolName: "code_execute",
-			args:     map[string]any{"language": "go"},
-			wants:    []string{"code_execute(language=go"},
-		},
-		{
 			name:     "bash",
 			toolName: "bash",
 			args:     map[string]any{"command": "go test ./..."},
@@ -221,28 +197,6 @@ func TestToolFormatterFormatToolResult(t *testing.T) {
 			toolName: "bash",
 			success:  false,
 			wants:    []string{"✗ failed"},
-		},
-		{
-			name:     "code_execute",
-			toolName: "code_execute",
-			success:  true,
-			content: strings.Join([]string{
-				"Execution time: 10ms",
-				"stdout:",
-				"result line",
-			}, "\n"),
-			wants: []string{"Success in 10ms", "result line"},
-		},
-		{
-			name:     "execute_code canonical",
-			toolName: "execute_code",
-			success:  true,
-			content: strings.Join([]string{
-				"Execution time: 10ms",
-				"stdout:",
-				"result line",
-			}, "\n"),
-			wants: []string{"Success in 10ms", "result line"},
 		},
 		{
 			name:     "bash single line",

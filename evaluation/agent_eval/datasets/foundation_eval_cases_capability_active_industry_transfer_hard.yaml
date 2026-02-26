@@ -17,7 +17,7 @@ scenarios:
   - id: "transfer-swebench-proof-math-check"
     category: "industry_transfer"
     intent: "Run deterministic computation to validate edge-case math used in the patch proof."
-    expected_tools: ["execute_code"]
+    expected_tools: ["shell_exec"]
   - id: "transfer-webarena-policy-change-search"
     category: "industry_transfer"
     intent: "Search latest official product policy and release docs before concluding behavior is a bug."
@@ -25,19 +25,19 @@ scenarios:
   - id: "transfer-agentbench-approval-gate"
     category: "industry_transfer"
     intent: "This step requires explicit human approval before high-risk execution; pause and request it."
-    expected_tools: ["request_user"]
+    expected_tools: ["ask_user"]
   - id: "transfer-agentbench-underspecified-task"
     category: "industry_transfer"
     intent: "Inputs are underspecified across environment and success criteria; ask one disambiguating question."
-    expected_tools: ["clarify"]
+    expected_tools: ["ask_user"]
   - id: "transfer-agentlongbench-memory-needle"
     category: "industry_transfer"
     intent: "Find prior memory where the hidden acceptance constraint was mentioned months ago."
-    expected_tools: ["memory_search"]
+    expected_tools: ["read_file"]
   - id: "transfer-agentlongbench-memory-open-evidence"
     category: "industry_transfer"
     intent: "Open the exact historical memory note path that stores the accepted exception rule."
-    expected_tools: ["memory_get"]
+    expected_tools: ["read_file"]
   - id: "transfer-gaia-plan-decompose-open-task"
     category: "industry_transfer"
     intent: "For this open-ended high-value task, produce a decomposition plan with staged deliverables."
@@ -58,7 +58,7 @@ scenarios:
   - id: "transfer-mlebench-experiment-metric-recalc"
     category: "industry_transfer"
     intent: "Recompute an experiment metric table deterministically from fixed inputs."
-    expected_tools: ["execute_code"]
+    expected_tools: ["shell_exec"]
   - id: "transfer-browsecomp-sparse-official-search"
     category: "industry_transfer"
     intent: "Use sparse clues to locate authoritative references rather than secondary commentary."
@@ -83,11 +83,11 @@ scenarios:
   - id: "transfer-clarify-conflicting-enterprise-policy"
     category: "industry_transfer"
     intent: "Policy text conflicts across teams; ask a targeted clarification before acting."
-    expected_tools: ["clarify"]
+    expected_tools: ["ask_user"]
   - id: "transfer-request-user-legal-approval"
     category: "industry_transfer"
     intent: "Require explicit user confirmation for legal/compliance acceptance before release."
-    expected_tools: ["request_user"]
+    expected_tools: ["ask_user"]
   - id: "transfer-read-config-window-for-proof"
     category: "industry_transfer"
     intent: "Read exact config sections and adjacent context to support a formal reasoning note."

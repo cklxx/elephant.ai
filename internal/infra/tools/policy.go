@@ -179,7 +179,7 @@ func DefaultPolicyRules() []PolicyRule {
 		},
 		{
 			Name:    "execution-long",
-			Match:   PolicySelector{Tools: []string{"code_execute", "shell_exec", "execute_code", "bash"}},
+			Match:   PolicySelector{Tools: []string{"shell_exec", "bash"}},
 			Timeout: &t300,
 		},
 		{

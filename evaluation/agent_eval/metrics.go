@@ -547,7 +547,7 @@ func estimateInterruptions(result swe_bench.WorkerResult) int {
 		if normalized == "" {
 			continue
 		}
-		if strings.Contains(normalized, "request_user") || strings.Contains(normalized, "clarify") || strings.Contains(normalized, "approval") {
+		if strings.Contains(normalized, "ask_user") || strings.Contains(normalized, "approval") {
 			interruptions++
 		}
 	}
@@ -557,7 +557,7 @@ func estimateInterruptions(result swe_bench.WorkerResult) int {
 			continue
 		}
 		name := strings.ToLower(strings.TrimSpace(step.ToolCall.Name))
-		if name == "request_user" || name == "clarify" || strings.Contains(name, "approval") {
+		if name == "ask_user" || strings.Contains(name, "approval") {
 			interruptions++
 		}
 	}

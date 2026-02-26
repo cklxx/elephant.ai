@@ -25,11 +25,11 @@ scenarios:
     do not patch files or scripts yet.
   expected_tools:
   - shell_exec
-- id: prompt-execute-python-check
+- id: prompt-shell-exec-python-check
   category: execution
   intent: Execute a tiny Python snippet to verify this checksum formula.
   expected_tools:
-  - execute_code
+  - shell_exec
 - id: prompt-web-search-rfc-authority-first
   category: web
   intent: Locate authoritative standards references for HTTP conditional requests;

@@ -138,7 +138,7 @@ func TestSelectToolRegistryRetainsExecutionToolsForSubagentsWhenPresetUnset(t *t
 func TestSelectToolRegistryUsesArchitectPresetInWebMode(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "plan"}, {Name: "clarify"}, {Name: "web_search"}, {Name: "web_fetch"}, {Name: "request_user"}, {Name: "acp_executor"}, {Name: "file_read"}, {Name: "bash"}}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "plan"}, {Name: "ask_user"}, {Name: "web_search"}, {Name: "web_fetch"}, {Name: "acp_executor"}, {Name: "file_read"}, {Name: "bash"}}},
 		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "core", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
@@ -153,7 +153,7 @@ func TestSelectToolRegistryUsesArchitectPresetInWebMode(t *testing.T) {
 	filtered := service.selectToolRegistry(context.Background(), presets.ToolModeWeb, string(presets.ToolPresetArchitect))
 	names := sortedToolNames(filtered.List())
 
-	for _, allowed := range []string{"plan", "clarify", "web_search", "web_fetch", "request_user", "acp_executor", "file_read", "bash"} {
+	for _, allowed := range []string{"plan", "ask_user", "web_search", "web_fetch", "acp_executor", "file_read", "bash"} {
 		if !containsString(names, allowed) {
 			t.Fatalf("expected tool %s in web architect preset, got: %v", allowed, names)
 		}

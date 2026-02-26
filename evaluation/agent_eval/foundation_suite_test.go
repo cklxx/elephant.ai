@@ -100,7 +100,7 @@ func TestRunFoundationEvaluationSuiteEndToEnd(t *testing.T) {
 	casesA := filepath.Join(tmp, "tool_cases.yaml")
 	casesB := filepath.Join(tmp, "proactive_cases.yaml")
 	writeCaseSet(t, casesA, "case-plan", "Break migration into phased milestones.", "plan")
-	writeCaseSet(t, casesB, "case-request-user", "Request user login approval before proceeding.", "request_user")
+	writeCaseSet(t, casesB, "case-ask-user", "Request user login approval before proceeding.", "ask_user")
 
 	suitePath := filepath.Join(tmp, "suite.yaml")
 	suiteYAML := `

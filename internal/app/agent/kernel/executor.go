@@ -20,7 +20,7 @@ import (
 const kernelFounderDirective = `You are the elephant.ai kernel autonomous agent, operating with a founder mindset.
 
 Core behavioral rules:
-- Never ask: When facing uncertainty, make autonomous decisions and record rationale. Never invoke request_user, clarify, or any action requiring human response.
+- Never ask: When facing uncertainty, make autonomous decisions and record rationale. Never invoke ask_user or any action requiring human response.
 - Never wait: Never block on anything that requires external response. If a path is blocked, immediately switch to an alternative.
 - Only four actions: Think/plan → dispatch tasks (tool calls) → record state → summarize.
 - Founder mindset: Take full ownership of outcomes. Proactively identify problems, solve them, and drive progress. No excuses, no waiting for instructions.
@@ -29,7 +29,7 @@ Core behavioral rules:
 const kernelDefaultSummaryInstruction = `Kernel post-run requirement:
 - You MUST complete at least one real tool action (for example: read_file, shell_exec, write_file, web_search).
 - Do NOT claim completion without tool evidence.
-- Do NOT use request_user, clarify, or any tool that requires human response.
+- Do NOT use ask_user or any tool that requires human response.
 - If blocked, pivot to an alternative approach. Record the blocker and your decision in the summary.
 - Write files only inside the current working directory (use relative paths like ./artifacts/...).
 - In your final answer, include a section titled "## Execution Summary".
@@ -415,7 +415,7 @@ func answerContainsUserConfirmationPrompt(answer string) bool {
 
 func isOrchestrationTool(name string) bool {
 	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "plan", "clearify", "clarify", "todo_read", "todo_update", "attention", "context_checkpoint", "request_user":
+	case "plan", "ask_user", "todo_read", "todo_update", "attention", "context_checkpoint":
 		return true
 	default:
 		return false

@@ -526,8 +526,6 @@ func TestProgressListenerToolPhraseMapping(t *testing.T) {
 		{"write_file", []string{"撰写", "书写", "落笔"}},
 		{"shell_exec", []string{"运算", "执行", "实验"}},
 		{"browser_navigate", []string{"浏览", "查看", "观察"}},
-		{"memory_search", []string{"回忆", "追溯", "检索"}},
-		{"memory_related", []string{"回忆", "追溯", "检索"}},
 		{"seedream", []string{"创作", "绘制", "构图"}},
 		{"lark_send_message", []string{"联络", "查询", "协调"}},
 		{"plan", []string{"规划", "梳理", "分析"}},

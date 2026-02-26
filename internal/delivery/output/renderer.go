@@ -79,9 +79,8 @@ func CategorizeToolName(toolName string) types.ToolCategory {
 		"write_file":      types.CategoryFile,
 		"replace_in_file": types.CategoryFile,
 		"shell_exec":      types.CategoryShell,
-		"execute_code":    types.CategoryExecution,
 		"web_search":      types.CategoryWeb,
-		"request_user":    types.CategoryTask,
+		"ask_user":        types.CategoryTask,
 	}
 	if cat, ok := categories[toolName]; ok {
 		return cat

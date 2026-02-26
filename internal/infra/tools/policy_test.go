@@ -178,7 +178,7 @@ func TestResolve_MatchByTags(t *testing.T) {
 	}
 	p := NewToolPolicy(cfg)
 
-	result := p.Resolve(ToolCallContext{ToolName: "memory_search", Tags: []string{"memory", "fast"}})
+	result := p.Resolve(ToolCallContext{ToolName: "context_checkpoint", Tags: []string{"context", "fast"}})
 	if result.Timeout != 10*time.Second {
 		t.Errorf("Timeout = %v, want 10s", result.Timeout)
 	}
@@ -334,7 +334,7 @@ func TestDefaultPolicyRules_WebTools(t *testing.T) {
 func TestDefaultPolicyRules_ExecutionLong(t *testing.T) {
 	p := NewToolPolicy(DefaultToolPolicyConfigWithRules())
 
-	for _, tool := range []string{"code_execute", "shell_exec", "execute_code", "bash"} {
+	for _, tool := range []string{"shell_exec", "bash"} {
 		result := p.Resolve(ToolCallContext{ToolName: tool, Category: "execution", Dangerous: true})
 		if result.Timeout != 300*time.Second {
 			t.Errorf("%s timeout = %v, want 300s", tool, result.Timeout)
@@ -365,8 +365,8 @@ func TestDefaultPolicyRules_SafeToolFallsThrough(t *testing.T) {
 
 	// A safe tool in an unmatched category uses global defaults
 	result := p.Resolve(ToolCallContext{
-		ToolName: "memory_search",
-		Category: "memory",
+		ToolName: "context_checkpoint",
+		Category: "context",
 	})
 	if result.Timeout != 120*time.Second {
 		t.Errorf("safe fallthrough timeout = %v, want 120s", result.Timeout)

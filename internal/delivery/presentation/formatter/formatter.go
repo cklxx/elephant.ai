@@ -66,8 +66,6 @@ func (tf *ToolFormatter) visibleArgs(name string, args map[string]any) (map[stri
 	}
 
 	switch name {
-	case "code_execute", "execute_code":
-		return tf.codeExecuteArgs(args), 80
 	case "bash", "shell_exec":
 		return tf.bashArgs(args), 160
 	case "file_read", "read_file":
@@ -130,21 +128,6 @@ func (tf *ToolFormatter) joinArgs(args map[string]string, maxLen int) string {
 	}
 
 	return builder.String()
-}
-
-func (tf *ToolFormatter) codeExecuteArgs(args map[string]any) map[string]string {
-	result := make(map[string]string)
-	if lang := tf.getStringArg(args, "language", ""); lang != "" {
-		result["language"] = lang
-	}
-	if path := tf.getStringArg(args, "code_path", ""); path != "" {
-		result["code_path"] = path
-	}
-	if code := tf.getStringArg(args, "code", ""); code != "" {
-		result["lines"] = strconv.Itoa(countLines(code))
-		result["chars"] = strconv.Itoa(utf8.RuneCountInString(code))
-	}
-	return result
 }
 
 func (tf *ToolFormatter) bashArgs(args map[string]any) map[string]string {
@@ -404,8 +387,6 @@ func (tf *ToolFormatter) FormatToolResult(name string, content string, success b
 
 	// Smart formatting based on tool type
 	switch name {
-	case "code_execute", "execute_code":
-		return tf.formatCodeExecuteResult(content)
 	case "bash", "shell_exec":
 		return tf.formatBashResult(content)
 	case "file_read", "read_file":
@@ -433,42 +414,6 @@ func (tf *ToolFormatter) FormatToolResult(name string, content string, success b
 	default:
 		return tf.formatDefaultResult(content)
 	}
-}
-
-// formatCodeExecuteResult shows execution time and output preview
-func (tf *ToolFormatter) formatCodeExecuteResult(content string) string {
-	lines := strings.Split(content, "\n")
-
-	// Try to find execution time info
-	var timeInfo string
-	var outputLines []string
-
-	for _, line := range lines {
-		if strings.Contains(line, "Execution time:") || strings.Contains(line, "ms") {
-			timeInfo = strings.TrimSpace(line)
-		} else if utils.HasContent(line) && !strings.HasPrefix(line, "Code executed") {
-			outputLines = append(outputLines, strings.TrimSpace(line))
-		}
-	}
-
-	// Build result
-	var result string
-	if timeInfo != "" {
-		result = fmt.Sprintf("  → Success in %s", strings.TrimPrefix(timeInfo, "Execution time: "))
-	} else {
-		result = "  → Success"
-	}
-
-	// Add output preview (first 80 chars)
-	if len(outputLines) > 0 {
-		output := strings.Join(outputLines, " ")
-		if len(output) > 80 {
-			output = output[:80] + "..."
-		}
-		result += ": " + output
-	}
-
-	return result
 }
 
 // formatBashResult shows command output summary

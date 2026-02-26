@@ -47,14 +47,14 @@ scenarios:
     category: "delivery"
     intent: "Run terminal checks for failing tests and summarize key regressions."
     expected_tools: ["shell_exec"]
-  - id: "delivery-execode-metric-table"
+  - id: "delivery-shell-exec-metric-table"
     category: "delivery"
     intent: "Execute a deterministic snippet to compute KPI table used in the report."
-    expected_tools: ["execute_code"]
-  - id: "delivery-execode-threshold-validation"
+    expected_tools: ["shell_exec"]
+  - id: "delivery-shell-exec-threshold-validation"
     category: "delivery"
     intent: "Run a short script to validate acceptance thresholds for the final handoff."
-    expected_tools: ["execute_code"]
+    expected_tools: ["shell_exec"]
   - id: "delivery-read-source-before-summary"
     category: "delivery"
     intent: "Read source/config files first to extract exact implementation facts for the write-up."
@@ -67,26 +67,26 @@ scenarios:
     category: "delivery"
     intent: "Plan a multi-section final report structure with milestones and acceptance criteria."
     expected_tools: ["plan"]
-  - id: "delivery-clarify-audience-gap"
+  - id: "delivery-ask-user-audience-gap"
     category: "delivery"
     intent: "Audience and level of technical depth are unclear; ask before drafting."
-    expected_tools: ["clarify"]
-  - id: "delivery-request-user-final-signoff"
+    expected_tools: ["ask_user"]
+  - id: "delivery-ask-user-final-signoff"
     category: "delivery"
     intent: "Ask for explicit final signoff before publishing the output."
-    expected_tools: ["request_user"]
+    expected_tools: ["ask_user"]
   - id: "delivery-websearch-official-citation"
     category: "delivery"
     intent: "Find latest primary-source references to cite in the final report."
     expected_tools: ["web_search"]
-  - id: "delivery-memory-search-prior-commitment"
+  - id: "delivery-read-file-prior-commitment"
     category: "delivery"
     intent: "Find my prior commitment on response SLA and include it in the summary."
-    expected_tools: ["memory_search"]
-  - id: "delivery-memory-get-specific-note"
+    expected_tools: ["read_file"]
+  - id: "delivery-read-file-specific-note"
     category: "delivery"
-    intent: "Open the exact memory note path containing acceptance checklist wording."
-    expected_tools: ["memory_get"]
+    intent: "Open the exact note path containing acceptance checklist wording."
+    expected_tools: ["read_file"]
   - id: "delivery-channel-send-summary"
     category: "delivery"
     intent: "Send a concise completion summary to this conversation."

@@ -21,19 +21,15 @@ func TestActiveSuitesOnlyReferenceActiveTools(t *testing.T) {
 	}
 
 	activeTools := map[string]struct{}{
-		"channel":        {},
-		"clarify":        {},
-		"execute_code":   {},
-		"memory_get":     {},
-		"memory_search":  {},
-		"plan":           {},
-		"read_file":      {},
+		"ask_user":        {},
+		"channel":         {},
+		"plan":            {},
+		"read_file":       {},
 		"replace_in_file": {},
-		"request_user":   {},
-		"shell_exec":     {},
-		"skills":         {},
-		"web_search":     {},
-		"write_file":     {},
+		"shell_exec":      {},
+		"skills":          {},
+		"web_search":      {},
+		"write_file":      {},
 	}
 
 	suitePaths := []string{

@@ -59,7 +59,7 @@ scenarios:
   - id: "same"
     category: "b"
     intent: "y"
-    expected_tools: ["clarify"]
+    expected_tools: ["ask_user"]
 `
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("write cases: %v", err)
@@ -340,8 +340,7 @@ func TestRankToolsForIntentCriticalFoundationCases(t *testing.T) {
 			expected: "artifacts_write",
 			profiles: []foundationToolProfile{
 				makeProfile("browser_action", map[string]float64{"browser": 7, "action": 8, "click": 6, "canvas": 5}),
-				makeProfile("request_user", map[string]float64{"user": 7, "confirm": 6, "approval": 6, "gate": 5}),
-				makeProfile("clarify", map[string]float64{"clarify": 8, "question": 7, "unclear": 6}),
+				makeProfile("ask_user", map[string]float64{"user": 7, "confirm": 6, "approval": 6, "gate": 5, "clarify": 8, "question": 7, "unclear": 6}),
 				makeProfile("artifacts_write", map[string]float64{"artifact": 8, "report": 7, "write": 6, "durable": 6, "summary": 5}),
 			},
 		},
@@ -471,20 +470,20 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 		return out
 	}
 
-	if boost := heuristicIntentBoost("request_user", makeSet("manual", "approval", "continue")); boost <= 0 {
-		t.Fatalf("expected request_user boost > 0, got %.2f", boost)
+	if boost := heuristicIntentBoost("ask_user", makeSet("manual", "approval", "continue")); boost <= 0 {
+		t.Fatalf("expected ask_user boost > 0, got %.2f", boost)
 	}
-	if boost := heuristicIntentBoost("memory_get", makeSet("open", "exact", "fragment", "offset", "citation")); boost <= 0 {
-		t.Fatalf("expected memory_get boost > 0, got %.2f", boost)
+	if boost := heuristicIntentBoost("read_file", makeSet("open", "exact", "fragment", "offset", "citation")); boost <= 0 {
+		t.Fatalf("expected read_file boost > 0, got %.2f", boost)
 	}
-	if boost := heuristicIntentBoost("memory_search", makeSet("preference", "habit", "format", "choice")); boost <= 0 {
-		t.Fatalf("expected memory_search boost > 0, got %.2f", boost)
+	if boost := heuristicIntentBoost("read_file", makeSet("preference", "habit", "format", "choice")); boost <= 0 {
+		t.Fatalf("expected read_file boost > 0, got %.2f", boost)
 	}
-	if boost := heuristicIntentBoost("memory_search", makeSet("recover", "interaction", "habit")); boost <= 0 {
-		t.Fatalf("expected memory_search recovery boost > 0, got %.2f", boost)
+	if boost := heuristicIntentBoost("read_file", makeSet("recover", "interaction", "habit")); boost <= 0 {
+		t.Fatalf("expected read_file recovery boost > 0, got %.2f", boost)
 	}
-	if boost := heuristicIntentBoost("memory_search", makeSet("before", "offset", "exact")); boost <= 0 {
-		t.Fatalf("expected memory_search before-offset boost > 0, got %.2f", boost)
+	if boost := heuristicIntentBoost("read_file", makeSet("before", "offset", "exact")); boost <= 0 {
+		t.Fatalf("expected read_file before-offset boost > 0, got %.2f", boost)
 	}
 	if boost := heuristicIntentBoost("ripgrep", makeSet("regex", "needle", "sweep", "repo", "fast")); boost <= 0 {
 		t.Fatalf("expected ripgrep boost > 0, got %.2f", boost)
@@ -501,8 +500,8 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if boost := heuristicIntentBoost("artifacts_write", makeSet("concise", "chat", "durable", "artifact", "report")); boost <= 0 {
 		t.Fatalf("expected artifacts_write delivery boost > 0, got %.2f", boost)
 	}
-	if boost := heuristicIntentBoost("clarify", makeSet("manual", "approval", "user", "confirm")); boost >= 10 {
-		t.Fatalf("expected clarify to be penalized under manual-approval gate intents, got %.2f", boost)
+	if boost := heuristicIntentBoost("ask_user", makeSet("manual", "approval", "user", "confirm")); boost <= 0 {
+		t.Fatalf("expected ask_user boost > 0 under manual-approval gate intents, got %.2f", boost)
 	}
 	if boost := heuristicIntentBoost("write_attachment", makeSet("concise", "chat", "durable", "artifact", "report")); boost >= 20 {
 		t.Fatalf("expected write_attachment to be penalized for durable artifact intent, got %.2f", boost)
@@ -522,8 +521,8 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if boost := heuristicIntentBoost("acp_executor", makeSet("delegate", "heavy", "parallel", "executor")); boost <= 0 {
 		t.Fatalf("expected acp_executor delegation boost > 0, got %.2f", boost)
 	}
-	if boost := heuristicIntentBoost("clarify", makeSet("delegate", "executor", "parallel", "heavy")); boost >= 0 {
-		t.Fatalf("expected clarify penalty for delegation intents, got %.2f", boost)
+	if boost := heuristicIntentBoost("ask_user", makeSet("delegate", "executor", "parallel", "heavy")); boost >= 0 {
+		t.Fatalf("expected ask_user penalty for delegation intents, got %.2f", boost)
 	}
 	if boost := heuristicIntentBoost("search_file", makeSet("official", "rfc", "web", "source")); boost >= 0 {
 		t.Fatalf("expected search_file penalty for official web research intents, got %.2f", boost)
@@ -537,8 +536,8 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if boost := heuristicIntentBoost("cancel_timer", makeSet("list", "active", "remaining", "timer")); boost >= 0 {
 		t.Fatalf("expected cancel_timer penalty for list-active intents, got %.2f", boost)
 	}
-	if boost := heuristicIntentBoost("request_user", makeSet("sensitive", "personal", "confirmation")); boost <= 0 {
-		t.Fatalf("expected request_user boost for sensitive confirmation intents, got %.2f", boost)
+	if boost := heuristicIntentBoost("ask_user", makeSet("sensitive", "personal", "confirmation")); boost <= 0 {
+		t.Fatalf("expected ask_user boost for sensitive confirmation intents, got %.2f", boost)
 	}
 	if boost := heuristicIntentBoost("scheduler_create_job", makeSet("recurring", "weekday", "followup", "checkin", "job")); boost <= 0 {
 		t.Fatalf("expected scheduler_create_job boost for recurring check-in intents, got %.2f", boost)
@@ -555,20 +554,20 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if boost := heuristicIntentBoost("scheduler_create_job", makeSet("violates", "policy", "remove", "not", "recreate", "cadence", "recurring")); boost >= 0 {
 		t.Fatalf("expected scheduler_create_job penalty for remove-not-recreate cadence intents, got %.2f", boost)
 	}
-	if boost := heuristicIntentBoost("request_user", makeSet("external", "outreach", "approval", "consent")); boost <= 0 {
-		t.Fatalf("expected request_user boost for external outreach consent gate, got %.2f", boost)
+	if boost := heuristicIntentBoost("ask_user", makeSet("external", "outreach", "approval", "consent")); boost <= 0 {
+		t.Fatalf("expected ask_user boost for external outreach consent gate, got %.2f", boost)
 	}
 	if boost := heuristicIntentBoost("artifacts_write", makeSet("progress", "momentum", "completed", "artifact", "summary")); boost <= 0 {
 		t.Fatalf("expected artifacts_write motivation-progress boost > 0, got %.2f", boost)
 	}
-	if boost := heuristicIntentBoost("memory_search", makeSet("motivation", "previous", "successful", "pattern", "recall")); boost <= 0 {
-		t.Fatalf("expected memory_search boost for motivation pattern recall intents, got %.2f", boost)
+	if boost := heuristicIntentBoost("read_file", makeSet("motivation", "previous", "successful", "pattern", "recall")); boost <= 0 {
+		t.Fatalf("expected read_file boost for motivation pattern recall intents, got %.2f", boost)
 	}
 	if boost := heuristicIntentBoost("search_file", makeSet("motivation", "previous", "successful", "pattern", "memory", "recall")); boost >= 0 {
 		t.Fatalf("expected search_file penalty for motivation-memory recall intents, got %.2f", boost)
 	}
-	if boost := heuristicIntentBoost("clarify", makeSet("create", "calendar", "event", "focus", "recovery", "block")); boost >= 0 {
-		t.Fatalf("expected clarify penalty for actionable create-calendar intents, got %.2f", boost)
+	if boost := heuristicIntentBoost("ask_user", makeSet("create", "calendar", "event", "focus", "recovery", "block")); boost >= 0 {
+		t.Fatalf("expected ask_user penalty for actionable create-calendar intents, got %.2f", boost)
 	}
 	if boost := heuristicIntentBoost("lark_calendar_create", makeSet("create", "calendar", "focus", "recovery", "block")); boost <= 0 {
 		t.Fatalf("expected lark_calendar_create boost for focus/recovery block intents, got %.2f", boost)
@@ -645,16 +644,16 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 		t.Fatalf("expected web_fetch boost (%.2f) to exceed web_search boost (%.2f) under explicit no-search single-url intents", noSearchFetchBoost, noSearchSearchBoost)
 	}
 
-	approvalRequestBoost := heuristicIntentBoost("request_user", makeSet("requires", "user", "approval", "before", "publish", "continue"))
-	approvalClarifyBoost := heuristicIntentBoost("clarify", makeSet("requires", "user", "approval", "before", "publish", "continue"))
-	if approvalRequestBoost <= approvalClarifyBoost {
-		t.Fatalf("expected request_user boost (%.2f) to exceed clarify boost (%.2f) under explicit approval gate intents", approvalRequestBoost, approvalClarifyBoost)
+	approvalAskUserBoost := heuristicIntentBoost("ask_user", makeSet("requires", "user", "approval", "before", "publish", "continue"))
+	approvalPlanBoost := heuristicIntentBoost("plan", makeSet("requires", "user", "approval", "before", "publish", "continue"))
+	if approvalAskUserBoost <= approvalPlanBoost {
+		t.Fatalf("expected ask_user boost (%.2f) to exceed plan boost (%.2f) under explicit approval gate intents", approvalAskUserBoost, approvalPlanBoost)
 	}
 
-	habitMemoryBoost := heuristicIntentBoost("memory_search", makeSet("recall", "communication", "tone", "style", "habit", "preference"))
+	habitReadFileBoost := heuristicIntentBoost("read_file", makeSet("recall", "communication", "tone", "style", "habit", "preference"))
 	habitSearchBoost := heuristicIntentBoost("search_file", makeSet("recall", "communication", "tone", "style", "habit", "preference"))
-	if habitMemoryBoost <= habitSearchBoost {
-		t.Fatalf("expected memory_search boost (%.2f) to exceed search_file boost (%.2f) for habit/tone recall intents", habitMemoryBoost, habitSearchBoost)
+	if habitReadFileBoost <= habitSearchBoost {
+		t.Fatalf("expected read_file boost (%.2f) to exceed search_file boost (%.2f) for habit/tone recall intents", habitReadFileBoost, habitSearchBoost)
 	}
 
 	sendMessageBoost := heuristicIntentBoost("lark_send_message", makeSet("short", "checkpoint", "status", "message", "thread", "chat", "no", "file"))
@@ -675,16 +674,16 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 		t.Fatalf("expected web_fetch boost (%.2f) to exceed web_search boost (%.2f) for already-chosen-only-source intents", onlySourceFetchBoost, onlySourceSearchBoost)
 	}
 
-	secretRequestBoost := heuristicIntentBoost("request_user", makeSet("request", "user", "provided", "secret", "token", "before", "execution"))
-	secretClarifyBoost := heuristicIntentBoost("clarify", makeSet("request", "user", "provided", "secret", "token", "before", "execution"))
-	if secretRequestBoost <= secretClarifyBoost {
-		t.Fatalf("expected request_user boost (%.2f) to exceed clarify boost (%.2f) for secret-token gate intents", secretRequestBoost, secretClarifyBoost)
+	secretAskUserBoost := heuristicIntentBoost("ask_user", makeSet("request", "user", "provided", "secret", "token", "before", "execution"))
+	secretChannelBoost := heuristicIntentBoost("channel", makeSet("request", "user", "provided", "secret", "token", "before", "execution"))
+	if secretAskUserBoost <= secretChannelBoost {
+		t.Fatalf("expected ask_user boost (%.2f) to exceed channel boost (%.2f) for secret-token gate intents", secretAskUserBoost, secretChannelBoost)
 	}
 
-	memoryRegressionBoost := heuristicIntentBoost("memory_search", makeSet("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch"))
+	memoryRegressionBoost := heuristicIntentBoost("read_file", makeSet("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch"))
 	memoryRegressionFileSearch := heuristicIntentBoost("search_file", makeSet("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch"))
 	if memoryRegressionBoost <= memoryRegressionFileSearch {
-		t.Fatalf("expected memory_search boost (%.2f) to exceed search_file boost (%.2f) for historical-incident regression intents", memoryRegressionBoost, memoryRegressionFileSearch)
+		t.Fatalf("expected read_file boost (%.2f) to exceed search_file boost (%.2f) for historical-incident regression intents", memoryRegressionBoost, memoryRegressionFileSearch)
 	}
 
 	planTaskUpdateBoost := heuristicIntentBoost("plan", makeSet("define", "phased", "rollout", "milestones", "risk", "checkpoints", "before", "task", "updates"))
@@ -693,11 +692,10 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 		t.Fatalf("expected plan boost (%.2f) to exceed lark_task_manage boost (%.2f) for phased-plan-before-task-update intents", planTaskUpdateBoost, taskManagePlanBoost)
 	}
 
-	memoryGetBoost := heuristicIntentBoost("memory_get", makeSet("memory_get", "selected", "memory", "note", "open", "detailed", "root", "cause", "context"))
-	memorySearchForGetBoost := heuristicIntentBoost("memory_search", makeSet("memory_get", "selected", "memory", "note", "open", "detailed", "root", "cause", "context"))
-	clarifyForGetBoost := heuristicIntentBoost("clarify", makeSet("memory_get", "selected", "memory", "note", "open", "detailed", "root", "cause", "context"))
-	if memoryGetBoost <= memorySearchForGetBoost || memoryGetBoost <= clarifyForGetBoost {
-		t.Fatalf("expected memory_get boost (%.2f) to exceed memory_search (%.2f) and clarify (%.2f) for explicit memory_get-open-detail intents", memoryGetBoost, memorySearchForGetBoost, clarifyForGetBoost)
+	readFileForGetBoost := heuristicIntentBoost("read_file", makeSet("read_file", "selected", "memory", "note", "open", "detailed", "root", "cause", "context"))
+	askUserForGetBoost := heuristicIntentBoost("ask_user", makeSet("read_file", "selected", "memory", "note", "open", "detailed", "root", "cause", "context"))
+	if readFileForGetBoost <= askUserForGetBoost {
+		t.Fatalf("expected read_file boost (%.2f) to exceed ask_user (%.2f) for explicit read_file-open-detail intents", readFileForGetBoost, askUserForGetBoost)
 	}
 
 	artifactWriteBoost := heuristicIntentBoost("artifacts_write", makeSet("concise", "in", "chat", "full", "technical", "deep", "dive", "reusable", "artifact", "downstream", "review"))
@@ -760,10 +758,10 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 		t.Fatalf("expected read_file boost (%.2f) to exceed okr_read boost (%.2f) for failing-code-context intents", readFailingCodeBoost, okrOnFailingCodeBoost)
 	}
 
-	sparseMemoryBoost := heuristicIntentBoost("memory_search", makeSet("sparse", "hidden", "fact", "corpus", "notes", "retrieve"))
+	sparseReadFileBoost := heuristicIntentBoost("read_file", makeSet("sparse", "hidden", "fact", "corpus", "notes", "retrieve"))
 	sparseBrowserActionBoost := heuristicIntentBoost("browser_action", makeSet("sparse", "hidden", "fact", "corpus", "notes", "retrieve"))
-	if sparseMemoryBoost <= sparseBrowserActionBoost {
-		t.Fatalf("expected memory_search boost (%.2f) to exceed browser_action boost (%.2f) for sparse-fact-corpus intents", sparseMemoryBoost, sparseBrowserActionBoost)
+	if sparseReadFileBoost <= sparseBrowserActionBoost {
+		t.Fatalf("expected read_file boost (%.2f) to exceed browser_action boost (%.2f) for sparse-fact-corpus intents", sparseReadFileBoost, sparseBrowserActionBoost)
 	}
 
 	schedulerRegisterBoost := heuristicIntentBoost("scheduler_create_job", makeSet("register", "new", "cadence", "stable", "identifier", "recurring", "job"))
@@ -773,27 +771,27 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	}
 
 	shellReproBoost := heuristicIntentBoost("shell_exec", makeSet("reproduce", "failure", "test", "command", "before", "fix"))
-	codeReproBoost := heuristicIntentBoost("execute_code", makeSet("reproduce", "failure", "test", "command", "before", "fix"))
-	if shellReproBoost <= codeReproBoost {
-		t.Fatalf("expected shell_exec boost (%.2f) to exceed execute_code boost (%.2f) for reproduce-failure-test-command intents", shellReproBoost, codeReproBoost)
+	planReproBoost := heuristicIntentBoost("plan", makeSet("reproduce", "failure", "test", "command", "before", "fix"))
+	if shellReproBoost <= planReproBoost {
+		t.Fatalf("expected shell_exec boost (%.2f) to exceed plan boost (%.2f) for reproduce-failure-test-command intents", shellReproBoost, planReproBoost)
 	}
 
-	executeConsistencyBoost := heuristicIntentBoost("execute_code", makeSet("consistency", "numeric", "fragments", "slices", "deterministic", "check"))
+	shellConsistencyBoost := heuristicIntentBoost("shell_exec", makeSet("consistency", "numeric", "fragments", "slices", "deterministic", "check"))
 	calendarConsistencyBoost := heuristicIntentBoost("lark_calendar_query", makeSet("consistency", "numeric", "fragments", "slices", "deterministic", "check"))
-	if executeConsistencyBoost <= calendarConsistencyBoost {
-		t.Fatalf("expected execute_code boost (%.2f) to exceed lark_calendar_query boost (%.2f) for deterministic consistency-check intents", executeConsistencyBoost, calendarConsistencyBoost)
+	if shellConsistencyBoost <= calendarConsistencyBoost {
+		t.Fatalf("expected shell_exec boost (%.2f) to exceed lark_calendar_query boost (%.2f) for deterministic consistency-check intents", shellConsistencyBoost, calendarConsistencyBoost)
 	}
 
-	clarifyConflictBoost := heuristicIntentBoost("clarify", makeSet("conflict", "clarify", "latest", "preference", "memory"))
-	memoryConflictBoost := heuristicIntentBoost("memory_search", makeSet("conflict", "clarify", "latest", "preference", "memory"))
-	if clarifyConflictBoost <= memoryConflictBoost {
-		t.Fatalf("expected clarify boost (%.2f) to exceed memory_search boost (%.2f) for explicit conflict-clarify intents", clarifyConflictBoost, memoryConflictBoost)
+	askUserConflictBoost := heuristicIntentBoost("ask_user", makeSet("conflict", "clarify", "ambiguity", "blocking", "requirement"))
+	channelConflictBoost := heuristicIntentBoost("channel", makeSet("conflict", "clarify", "ambiguity", "blocking", "requirement"))
+	if askUserConflictBoost <= channelConflictBoost {
+		t.Fatalf("expected ask_user boost (%.2f) to exceed channel boost (%.2f) for explicit conflict-clarify intents", askUserConflictBoost, channelConflictBoost)
 	}
 
-	requestUserTokenBoost := heuristicIntentBoost("request_user", makeSet("request_user", "approval", "before", "continue"))
-	taskManageApprovalBoost := heuristicIntentBoost("lark_task_manage", makeSet("request_user", "approval", "before", "continue"))
-	if requestUserTokenBoost <= taskManageApprovalBoost {
-		t.Fatalf("expected request_user boost (%.2f) to exceed lark_task_manage boost (%.2f) when request_user is explicitly requested", requestUserTokenBoost, taskManageApprovalBoost)
+	askUserTokenBoost := heuristicIntentBoost("ask_user", makeSet("ask_user", "approval", "before", "continue"))
+	taskManageApprovalBoost := heuristicIntentBoost("lark_task_manage", makeSet("ask_user", "approval", "before", "continue"))
+	if askUserTokenBoost <= taskManageApprovalBoost {
+		t.Fatalf("expected ask_user boost (%.2f) to exceed lark_task_manage boost (%.2f) when ask_user is explicitly requested", askUserTokenBoost, taskManageApprovalBoost)
 	}
 
 	searchWithExplicitOps := heuristicIntentBoost("search_file", makeSet("ripgrep", "read_file", "replace_in_file", "map"))
@@ -802,10 +800,10 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 		t.Fatalf("expected ripgrep boost (%.2f) to exceed search_file boost (%.2f) under explicit operation-chain intents", ripgrepWithExplicitOps, searchWithExplicitOps)
 	}
 
-	patchClarifyBoost := heuristicIntentBoost("clarify", makeSet("patch", "exact", "existing", "file", "replace", "inplace"))
+	patchAskUserBoost := heuristicIntentBoost("ask_user", makeSet("patch", "exact", "existing", "file", "replace", "inplace"))
 	patchReplaceBoost := heuristicIntentBoost("replace_in_file", makeSet("patch", "exact", "existing", "file", "replace", "inplace"))
-	if patchClarifyBoost >= patchReplaceBoost {
-		t.Fatalf("expected clarify boost (%.2f) to stay below replace_in_file boost (%.2f) for exact patch intents", patchClarifyBoost, patchReplaceBoost)
+	if patchAskUserBoost >= patchReplaceBoost {
+		t.Fatalf("expected ask_user boost (%.2f) to stay below replace_in_file boost (%.2f) for exact patch intents", patchAskUserBoost, patchReplaceBoost)
 	}
 
 	checkpointPlanBoost := heuristicIntentBoost("plan", makeSet("short", "textual", "thread", "checkpoint", "status", "reviewer", "stage"))
@@ -827,9 +825,9 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	}
 
 	shellVerifyBoost := heuristicIntentBoost("shell_exec", makeSet("run", "shell", "verification", "checks", "after", "code", "changes"))
-	execCodeVerifyBoost := heuristicIntentBoost("execute_code", makeSet("run", "shell", "verification", "checks", "after", "code", "changes"))
-	if shellVerifyBoost <= execCodeVerifyBoost {
-		t.Fatalf("expected shell_exec boost (%.2f) to exceed execute_code boost (%.2f) for shell verification intents", shellVerifyBoost, execCodeVerifyBoost)
+	askUserVerifyBoost := heuristicIntentBoost("ask_user", makeSet("run", "shell", "verification", "checks", "after", "code", "changes"))
+	if shellVerifyBoost <= askUserVerifyBoost {
+		t.Fatalf("expected shell_exec boost (%.2f) to exceed ask_user boost (%.2f) for shell verification intents", shellVerifyBoost, askUserVerifyBoost)
 	}
 
 	artifactInventoryBoost := heuristicIntentBoost("artifacts_list", makeSet("before", "sharing", "execution", "output", "list", "existing", "artifacts", "latest", "valid"))
@@ -844,17 +842,15 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 		t.Fatalf("expected lark_send_message boost (%.2f) to exceed lark_upload_file boost (%.2f) for compact no-file transfer updates", compactNoFileMessageBoost, compactNoFileUploadBoost)
 	}
 	delegatedLowRiskChannelBoost := heuristicIntentBoost("channel", makeSet("user", "already", "delegate", "you", "decide", "anything", "works", "low", "reversible", "status", "message", "thread", "without", "ask", "again"))
-	delegatedLowRiskRequestBoost := heuristicIntentBoost("request_user", makeSet("user", "already", "delegate", "you", "decide", "anything", "works", "low", "reversible", "status", "message", "thread", "without", "ask", "again"))
-	delegatedLowRiskClarifyBoost := heuristicIntentBoost("clarify", makeSet("user", "already", "delegate", "you", "decide", "anything", "works", "low", "reversible", "status", "message", "thread", "without", "ask", "again"))
-	if delegatedLowRiskChannelBoost <= delegatedLowRiskRequestBoost || delegatedLowRiskChannelBoost <= delegatedLowRiskClarifyBoost {
-		t.Fatalf("expected channel boost (%.2f) to exceed request_user (%.2f) and clarify (%.2f) for delegated low-risk no-reconfirm intents", delegatedLowRiskChannelBoost, delegatedLowRiskRequestBoost, delegatedLowRiskClarifyBoost)
+	delegatedLowRiskAskUserBoost := heuristicIntentBoost("ask_user", makeSet("user", "already", "delegate", "you", "decide", "anything", "works", "low", "reversible", "status", "message", "thread", "without", "ask", "again"))
+	if delegatedLowRiskChannelBoost <= delegatedLowRiskAskUserBoost {
+		t.Fatalf("expected channel boost (%.2f) to exceed ask_user (%.2f) for delegated low-risk no-reconfirm intents", delegatedLowRiskChannelBoost, delegatedLowRiskAskUserBoost)
 	}
 
 	readOnlyInspectShellBoost := heuristicIntentBoost("shell_exec", makeSet("view", "check", "list", "inspect", "project", "repo", "branch", "status", "workspace", "read", "only"))
-	readOnlyInspectRequestBoost := heuristicIntentBoost("request_user", makeSet("view", "check", "list", "inspect", "project", "repo", "branch", "status", "workspace", "read", "only"))
-	readOnlyInspectClarifyBoost := heuristicIntentBoost("clarify", makeSet("view", "check", "list", "inspect", "project", "repo", "branch", "status", "workspace", "read", "only"))
-	if readOnlyInspectShellBoost <= readOnlyInspectRequestBoost || readOnlyInspectShellBoost <= readOnlyInspectClarifyBoost {
-		t.Fatalf("expected shell_exec boost (%.2f) to exceed request_user (%.2f) and clarify (%.2f) for read-only inspect/list/check intents", readOnlyInspectShellBoost, readOnlyInspectRequestBoost, readOnlyInspectClarifyBoost)
+	readOnlyInspectAskUserBoost := heuristicIntentBoost("ask_user", makeSet("view", "check", "list", "inspect", "project", "repo", "branch", "status", "workspace", "read", "only"))
+	if readOnlyInspectShellBoost <= readOnlyInspectAskUserBoost {
+		t.Fatalf("expected shell_exec boost (%.2f) to exceed ask_user (%.2f) for read-only inspect/list/check intents", readOnlyInspectShellBoost, readOnlyInspectAskUserBoost)
 	}
 
 	contextFirstHistoryBoost := heuristicIntentBoost("lark_chat_history", makeSet("prior", "chat", "context", "thread", "history", "before", "replying", "no", "file", "transfer"))
@@ -863,17 +859,16 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 		t.Fatalf("expected lark_chat_history boost (%.2f) to exceed lark_send_message boost (%.2f) for context-first no-upload intents", contextFirstHistoryBoost, contextFirstSendBoost)
 	}
 
-	irreversibleConsentBoost := heuristicIntentBoost("request_user", makeSet("critical", "irreversible", "step", "requires", "explicit", "human", "go", "ahead"))
-	irreversibleClarifyBoost := heuristicIntentBoost("clarify", makeSet("critical", "irreversible", "step", "requires", "explicit", "human", "go", "ahead"))
-	if irreversibleConsentBoost <= irreversibleClarifyBoost {
-		t.Fatalf("expected request_user boost (%.2f) to exceed clarify boost (%.2f) for irreversible human go-ahead intents", irreversibleConsentBoost, irreversibleClarifyBoost)
+	irreversibleConsentBoost := heuristicIntentBoost("ask_user", makeSet("critical", "irreversible", "step", "requires", "explicit", "human", "go", "ahead"))
+	irreversiblePlanBoost := heuristicIntentBoost("plan", makeSet("critical", "irreversible", "step", "requires", "explicit", "human", "go", "ahead"))
+	if irreversibleConsentBoost <= irreversiblePlanBoost {
+		t.Fatalf("expected ask_user boost (%.2f) to exceed plan boost (%.2f) for irreversible human go-ahead intents", irreversibleConsentBoost, irreversiblePlanBoost)
 	}
 
-	consentGateRequestBoost := heuristicIntentBoost("request_user", makeSet("team", "ask", "auto", "assign", "accountability", "task", "externally", "user", "requir", "explicit", "consent", "before", "outreach"))
+	consentGateAskUserBoost := heuristicIntentBoost("ask_user", makeSet("team", "ask", "auto", "assign", "accountability", "task", "externally", "user", "requir", "explicit", "consent", "before", "outreach"))
 	consentGateChannelBoost := heuristicIntentBoost("channel", makeSet("team", "ask", "auto", "assign", "accountability", "task", "externally", "user", "requir", "explicit", "consent", "before", "outreach"))
-	consentGateClarifyBoost := heuristicIntentBoost("clarify", makeSet("team", "ask", "auto", "assign", "accountability", "task", "externally", "user", "requir", "explicit", "consent", "before", "outreach"))
-	if consentGateRequestBoost <= consentGateChannelBoost || consentGateRequestBoost <= consentGateClarifyBoost {
-		t.Fatalf("expected request_user boost (%.2f) to exceed channel (%.2f) and clarify (%.2f) for external-outreach consent-gate intents", consentGateRequestBoost, consentGateChannelBoost, consentGateClarifyBoost)
+	if consentGateAskUserBoost <= consentGateChannelBoost {
+		t.Fatalf("expected ask_user boost (%.2f) to exceed channel (%.2f) for external-outreach consent-gate intents", consentGateAskUserBoost, consentGateChannelBoost)
 	}
 
 	oldCadenceDeleteBoost := heuristicIntentBoost("scheduler_delete_job", makeSet("old", "recurring", "cadence", "violate", "new", "policy", "must", "be", "removed"))

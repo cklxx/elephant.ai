@@ -348,27 +348,23 @@ func (r *reactRuntime) handleMaxIterations() (*TaskResult, error) {
 	return r.finalizeResult("max_iterations", finalResult, true, nil), nil
 }
 
-// enforceOrchestratorGates prevents plan/clarify/request_user from being
+// enforceOrchestratorGates prevents plan/ask_user from being
 // called in parallel with other tools (they must be sole calls in a batch).
-// No longer enforces mandatory plan→clarify ordering.
 func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string) {
 	if len(calls) == 0 {
 		return false, ""
 	}
 
 	hasPlan := false
-	hasClarify := false
-	hasRequestUser := false
+	hasAskUser := false
 	hasContextCheckpoint := false
 	for _, call := range calls {
 		name := strings.ToLower(strings.TrimSpace(call.Name))
 		switch name {
 		case "plan":
 			hasPlan = true
-		case "clarify":
-			hasClarify = true
-		case "request_user":
-			hasRequestUser = true
+		case "ask_user":
+			hasAskUser = true
 		case "context_checkpoint":
 			hasContextCheckpoint = true
 		}
@@ -377,11 +373,8 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 	if hasPlan && len(calls) > 1 {
 		return true, "plan() 必须单独调用。请移除同轮其它工具调用并重试。"
 	}
-	if hasClarify && len(calls) > 1 {
-		return true, "clarify() 必须单独调用。请移除同轮其它工具调用并重试。"
-	}
-	if hasRequestUser && len(calls) > 1 {
-		return true, "request_user() 必须单独调用。请移除同轮其它工具调用并重试。"
+	if hasAskUser && len(calls) > 1 {
+		return true, "ask_user() 必须单独调用。请移除同轮其它工具调用并重试。"
 	}
 	if hasContextCheckpoint && len(calls) > 1 {
 		return true, "context_checkpoint() 必须单独调用。请移除同轮其它工具调用并重试。"
@@ -532,15 +525,13 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 				}
 			}
 			r.maybeTriggerPlanReview(call, result)
-		case "clarify":
+		case "ask_user":
 			r.handleClarifyResult(result)
 			if result.Metadata != nil {
 				if needs, ok := result.Metadata["needs_user_input"].(bool); ok && needs {
 					r.pauseRequested = true
 				}
 			}
-		case "request_user":
-			r.pauseRequested = true
 		}
 	}
 }

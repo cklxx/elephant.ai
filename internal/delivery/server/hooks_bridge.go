@@ -426,7 +426,7 @@ func hasShellPrefix(name string) bool {
 	case "bash":
 		return true
 	}
-	for _, p := range []string{"shell_exec", "execute_code", "run_command", "terminal", "exec_"} {
+	for _, p := range []string{"shell_exec", "run_command", "terminal", "exec_"} {
 		if strings.HasPrefix(name, p) {
 			return true
 		}

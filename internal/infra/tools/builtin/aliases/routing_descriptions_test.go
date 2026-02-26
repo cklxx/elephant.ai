@@ -23,23 +23,18 @@ func TestFileToolDescriptionsExpressRoutingBoundaries(t *testing.T) {
 	}
 
 	readDesc := NewReadFile(cfg).Definition().Description
-	if !strings.Contains(readDesc, "read-only inspection/extraction") || !strings.Contains(readDesc, "memory_search/memory_get") {
-		t.Fatalf("expected read_file description to mention repo-vs-memory boundary, got %q", readDesc)
+	if !strings.Contains(readDesc, "read-only inspection/extraction") {
+		t.Fatalf("expected read_file description to mention read-only scope, got %q", readDesc)
 	}
 }
 
-func TestExecutionToolDescriptionsExpressShellVsCodeBoundary(t *testing.T) {
+func TestShellExecDescriptionExpressesBoundary(t *testing.T) {
 	t.Parallel()
 
 	cfg := shared.ShellToolConfig{}
 
 	shellDesc := NewShellExec(cfg).Definition().Description
-	if !strings.Contains(shellDesc, "terminal evidence collection") || !strings.Contains(shellDesc, "deterministic code snippets/calculations/recalculations") {
-		t.Fatalf("expected shell_exec description to mention terminal-vs-deterministic boundary, got %q", shellDesc)
-	}
-
-	codeDesc := NewExecuteCode(cfg).Definition().Description
-	if !strings.Contains(codeDesc, "deterministic computation/recalculation/invariant checks") || !strings.Contains(codeDesc, "shell/process/log commands prefer shell_exec") {
-		t.Fatalf("expected execute_code description to mention deterministic boundary, got %q", codeDesc)
+	if !strings.Contains(shellDesc, "terminal evidence collection") {
+		t.Fatalf("expected shell_exec description to mention terminal boundary, got %q", shellDesc)
 	}
 }
