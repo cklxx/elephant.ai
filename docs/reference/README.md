@@ -15,6 +15,7 @@ Updated: 2026-02-26
 - [MEMORY_INDEXING.md](MEMORY_INDEXING.md)
 - [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 - [TOOLS.md](TOOLS.md)
+- [feature-inventory-code-sourced.md](feature-inventory-code-sourced.md)
 - [SOUL.md](SOUL.md)
 - [LARK_CARDS.md](LARK_CARDS.md)
 - [LARK_MENTIONS.md](LARK_MENTIONS.md)
