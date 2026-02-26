@@ -75,12 +75,12 @@ type CreateSessionResponse struct {
 }
 
 type ShareSessionResponse struct {
-	SessionID  string                   `json:"session_id"`
-	ShareToken string                   `json:"share_token"`
-	Events     []map[string]interface{} `json:"events,omitempty"`
-	Title      string                   `json:"title,omitempty"`
-	CreatedAt  string                   `json:"created_at,omitempty"`
-	UpdatedAt  string                   `json:"updated_at,omitempty"`
+	SessionID  string           `json:"session_id"`
+	ShareToken string           `json:"share_token"`
+	Events     []map[string]any `json:"events,omitempty"`
+	Title      string           `json:"title,omitempty"`
+	CreatedAt  string           `json:"created_at,omitempty"`
+	UpdatedAt  string           `json:"updated_at,omitempty"`
 }
 
 // HandleGetSession handles GET /api/sessions/{session_id}
@@ -96,11 +96,7 @@ func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 		h.writeMappedError(w, err, http.StatusNotFound, "Session not found")
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(session); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
+	h.writeJSON(w, http.StatusOK, session)
 }
 
 // HandleGetSessionPersona handles GET /api/sessions/{session_id}/persona
@@ -116,14 +112,10 @@ func (h *APIHandler) HandleGetSessionPersona(w http.ResponseWriter, r *http.Requ
 		h.writeMappedError(w, err, http.StatusNotFound, "Session not found")
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(SessionPersonaResponse{
+	h.writeJSON(w, http.StatusOK, SessionPersonaResponse{
 		SessionID:   session.ID,
 		UserPersona: session.UserPersona,
-	}); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
+	})
 }
 
 // HandleUpdateSessionPersona handles PUT /api/sessions/{session_id}/persona
@@ -152,14 +144,10 @@ func (h *APIHandler) HandleUpdateSessionPersona(w http.ResponseWriter, r *http.R
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to update persona")
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(SessionPersonaResponse{
+	h.writeJSON(w, http.StatusOK, SessionPersonaResponse{
 		SessionID:   session.ID,
 		UserPersona: session.UserPersona,
-	}); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
+	})
 }
 
 // HandleCreateSession handles POST /api/sessions
@@ -169,12 +157,7 @@ func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request)
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to create session")
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(CreateSessionResponse{SessionID: session.ID}); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
+	h.writeJSON(w, http.StatusCreated, CreateSessionResponse{SessionID: session.ID})
 }
 
 // HandleCreateSessionShare handles POST /api/sessions/{session_id}/share
@@ -190,15 +173,10 @@ func (h *APIHandler) HandleCreateSessionShare(w http.ResponseWriter, r *http.Req
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to create share token")
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(ShareSessionResponse{
+	h.writeJSON(w, http.StatusCreated, ShareSessionResponse{
 		SessionID:  sessionID,
 		ShareToken: shareToken,
-	}); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
+	})
 }
 
 // HandleListSessions handles GET /api/sessions
@@ -267,11 +245,7 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 		Sessions: sessions,
 		Total:    len(sessions),
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
+	h.writeJSON(w, http.StatusOK, response)
 }
 
 // HandleDeleteSession handles DELETE /api/sessions/{session_id}
@@ -331,10 +305,7 @@ func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request)
 	if nextCursor != "" {
 		resp.NextCursor = nextCursor
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
+	h.writeJSON(w, http.StatusOK, resp)
 }
 
 // HandleGetTurnSnapshot handles GET /api/sessions/{session_id}/turns/{turn_id}
@@ -367,10 +338,7 @@ func (h *APIHandler) HandleGetTurnSnapshot(w http.ResponseWriter, r *http.Reques
 		Messages:   snapshot.Messages,
 		Feedback:   snapshot.Feedback,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
+	h.writeJSON(w, http.StatusOK, resp)
 }
 
 // HandleReplaySession handles POST /api/sessions/{session_id}/replay
@@ -403,10 +371,5 @@ func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to fork session")
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(newSession); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
+	h.writeJSON(w, http.StatusCreated, newSession)
 }
