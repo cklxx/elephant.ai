@@ -297,6 +297,9 @@ func sanitizeMessagesForPersistence(messages []ports.Message) ([]ports.Message, 
 		if msg.Source == ports.MessageSourceUserHistory {
 			continue
 		}
+		if shouldDropPersistedMessage(msg) {
+			continue
+		}
 
 		cloned := msg
 		if len(msg.Attachments) > 0 {
@@ -347,6 +350,29 @@ func compactPersistedSystemPrompts(messages []ports.Message) []ports.Message {
 		compacted = append(compacted, msg)
 	}
 	return compacted
+}
+
+func shouldDropPersistedMessage(msg ports.Message) bool {
+	role := strings.ToLower(strings.TrimSpace(msg.Role))
+	if role != "assistant" {
+		return false
+	}
+	if strings.TrimSpace(msg.Content) != "" {
+		return false
+	}
+	if len(msg.ToolCalls) > 0 || len(msg.ToolResults) > 0 {
+		return false
+	}
+	if strings.TrimSpace(msg.ToolCallID) != "" {
+		return false
+	}
+	if len(msg.Attachments) > 0 {
+		return false
+	}
+	if len(msg.Metadata) > 0 {
+		return false
+	}
+	return true
 }
 
 func isPersistedPrimarySystemPrompt(msg ports.Message) bool {

@@ -135,8 +135,9 @@ func TestChannel_UploadFile_NoChatID(t *testing.T) {
 	larkClient := lark.NewClient("id", "secret")
 	ctx := shared.WithLarkClient(context.Background(), larkClient)
 	call := ports.ToolCall{ID: "t7", Name: "channel", Arguments: map[string]any{
-		"action": "upload_file",
-		"path":   "/tmp/test.txt",
+		"action":      "upload_file",
+		"source_kind": "path",
+		"source":      "/tmp/test.txt",
 	}}
 	result, err := tool.Execute(ctx, call)
 	if err != nil {

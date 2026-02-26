@@ -41,11 +41,6 @@ func NewShellExec(cfg shared.ShellToolConfig) tools.ToolExecutor {
 							Description: "Optional list of file paths or attachment specs to fetch after execution.",
 							Items:       &ports.Property{Type: "object"},
 						},
-						"output_files": {
-							Type:        "array",
-							Description: "Deprecated alias for attachments (array of absolute file paths).",
-							Items:       &ports.Property{Type: "string"},
-						},
 					},
 					Required: []string{"command"},
 				},

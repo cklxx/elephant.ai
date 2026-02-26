@@ -62,17 +62,18 @@ func NewLarkUploadFile() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_upload_file",
-				Description: "Upload an actual file attachment to the current Lark chat (from local path or attachment). Use only when explicit file delivery/attachment transfer is required. Do not use for text-only updates or context retrieval; use lark_send_message or lark_chat_history instead.",
+				Description: "Upload an actual file attachment to the current Lark chat. Use only when explicit file delivery/attachment transfer is required. Do not use for text-only updates or context retrieval; use lark_send_message or lark_chat_history instead.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
-						"path": {
+						"source": {
 							Type:        "string",
-							Description: "Local file path (must stay within the working directory or a temp directory, e.g. /tmp, $TMPDIR). Provide exactly one of path or attachment_name.",
+							Description: "Upload source identifier. If source_kind=path, pass a local file path (must stay within the working directory or a temp directory). If source_kind=attachment, pass an attachment name from current task context.",
 						},
-						"attachment_name": {
+						"source_kind": {
 							Type:        "string",
-							Description: "Attachment name from the current task context. Provide exactly one of path or attachment_name.",
+							Description: "Source type for source.",
+							Enum:        []any{"path", "attachment"},
 						},
 						"file_name": {
 							Type:        "string",
@@ -83,6 +84,7 @@ func NewLarkUploadFile() tools.ToolExecutor {
 							Description: "Maximum upload size in bytes (default 20MiB).",
 						},
 					},
+					Required: []string{"source", "source_kind"},
 				},
 			},
 			ports.ToolMetadata{
@@ -295,15 +297,14 @@ func sendUploadedMessage(ctx context.Context, client *lark.Client, callID, chatI
 }
 
 func prepareUploadCandidate(ctx context.Context, callID string, args map[string]any, maxBytes int) (uploadCandidate, *ports.ToolResult) {
-	path := strings.TrimSpace(shared.StringArg(args, "path"))
-	attachmentName := strings.TrimSpace(shared.StringArg(args, "attachment_name"))
-
-	if path == "" && attachmentName == "" {
-		err := fmt.Errorf("either 'path' or 'attachment_name' is required")
+	source := strings.TrimSpace(shared.StringArg(args, "source"))
+	sourceKind := strings.ToLower(strings.TrimSpace(shared.StringArg(args, "source_kind")))
+	if source == "" {
+		err := fmt.Errorf("source is required")
 		return uploadCandidate{}, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
 	}
-	if path != "" && attachmentName != "" {
-		err := fmt.Errorf("provide exactly one of 'path' or 'attachment_name'")
+	if sourceKind != "path" && sourceKind != "attachment" {
+		err := fmt.Errorf("source_kind must be one of: path, attachment")
 		return uploadCandidate{}, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
 	}
 
@@ -317,10 +318,10 @@ func prepareUploadCandidate(ctx context.Context, callID string, args map[string]
 		maxBytes = defaultMaxBytes
 	}
 
-	if path != "" {
-		return preparePathCandidate(ctx, callID, path, fileNameOverride, maxBytes)
+	if sourceKind == "path" {
+		return preparePathCandidate(ctx, callID, source, fileNameOverride, maxBytes)
 	}
-	return prepareAttachmentCandidate(ctx, callID, attachmentName, fileNameOverride, maxBytes)
+	return prepareAttachmentCandidate(ctx, callID, source, fileNameOverride, maxBytes)
 }
 
 func preparePathCandidate(ctx context.Context, callID, rawPath, fileNameOverride string, maxBytes int) (uploadCandidate, *ports.ToolResult) {

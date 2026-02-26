@@ -37,11 +37,11 @@ Use wait=true for synchronous execution (blocks until all tasks complete).`,
 					Properties: map[string]ports.Property{
 						"file": {
 							Type:        "string",
-							Description: "Path to TaskFile YAML. Required unless template is provided.",
+							Description: "Path to TaskFile YAML. Mutually exclusive with template.",
 						},
 						"template": {
 							Type:        "string",
-							Description: `Team template name. Pass "list" to see available templates.`,
+							Description: `Team template name. Mutually exclusive with file. Pass "list" to see available templates.`,
 						},
 						"goal": {
 							Type:        "string",
@@ -89,7 +89,10 @@ func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	templateName = strings.TrimSpace(templateName)
 
 	if filePath == "" && templateName == "" {
-		return shared.ToolError(call.ID, "either file or template is required")
+		return shared.ToolError(call.ID, "exactly one of file or template is required")
+	}
+	if filePath != "" && templateName != "" {
+		return shared.ToolError(call.ID, "file and template are mutually exclusive")
 	}
 
 	// Handle template listing.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -111,6 +112,32 @@ func TestRunTasks_MissingFileAndTemplate(t *testing.T) {
 	}
 	if result.Error == nil {
 		t.Error("expected error for missing file/template")
+	}
+	if !strings.Contains(result.Content, "exactly one of file or template is required") {
+		t.Fatalf("unexpected error content: %s", result.Content)
+	}
+}
+
+func TestRunTasks_FileAndTemplateMutuallyExclusive(t *testing.T) {
+	mock := &mockBGDispatcher{}
+	ctx := agent.WithBackgroundDispatcher(context.Background(), mock)
+
+	tool := NewRunTasks()
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-1",
+		Arguments: map[string]any{
+			"file":     "tasks.yaml",
+			"template": "growth-team",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error when both file and template are provided")
+	}
+	if !strings.Contains(result.Content, "mutually exclusive") {
+		t.Fatalf("unexpected error content: %s", result.Content)
 	}
 }
 

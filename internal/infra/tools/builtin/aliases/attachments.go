@@ -30,17 +30,12 @@ func parseAttachmentSpecs(args map[string]any) ([]attachmentSpec, error) {
 	if args == nil {
 		return nil, nil
 	}
+	if _, ok := args["output_files"]; ok {
+		return nil, fmt.Errorf("output_files is no longer supported; use attachments")
+	}
 	raw, ok := args["attachments"]
 	if !ok {
-		paths := shared.StringSliceArg(args, "output_files")
-		if len(paths) == 0 {
-			return nil, nil
-		}
-		specs := make([]attachmentSpec, 0, len(paths))
-		for _, path := range paths {
-			specs = append(specs, attachmentSpec{Path: strings.TrimSpace(path)})
-		}
-		return specs, nil
+		return nil, nil
 	}
 
 	list, ok := raw.([]any)
@@ -71,9 +66,6 @@ func parseAttachmentSpecs(args map[string]any) ([]attachmentSpec, error) {
 
 func parseAttachmentSpec(raw map[string]any) (attachmentSpec, error) {
 	path := strings.TrimSpace(shared.StringArg(raw, "path"))
-	if path == "" {
-		path = strings.TrimSpace(shared.StringArg(raw, "file"))
-	}
 	if path == "" {
 		return attachmentSpec{}, fmt.Errorf("attachment path is required")
 	}

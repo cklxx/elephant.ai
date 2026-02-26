@@ -229,6 +229,25 @@ func TestSanitizeMessagesForPersistence_CompactsSystemPrompts(t *testing.T) {
 	}
 }
 
+func TestSanitizeMessagesForPersistence_DropsEmptyAssistantShell(t *testing.T) {
+	messages := []ports.Message{
+		{Role: "assistant", Content: "", Source: ports.MessageSourceAssistantReply},
+		{Role: "assistant", Content: "", ToolCalls: []ports.ToolCall{{ID: "call-1", Name: "shell_exec"}}},
+		{Role: "assistant", Content: "visible"},
+	}
+
+	sanitized, _ := sanitizeMessagesForPersistence(messages)
+	if len(sanitized) != 2 {
+		t.Fatalf("expected 2 persisted messages, got %d", len(sanitized))
+	}
+	if len(sanitized[0].ToolCalls) == 0 {
+		t.Fatalf("expected tool-call placeholder to be kept, got %+v", sanitized[0])
+	}
+	if sanitized[1].Content != "visible" {
+		t.Fatalf("expected visible message to be kept, got %+v", sanitized[1])
+	}
+}
+
 // --- stripUserHistoryMessages ---
 
 func TestStripUserHistoryMessages_Empty(t *testing.T) {

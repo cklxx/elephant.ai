@@ -58,15 +58,15 @@ type larkChannel struct {
 	calUpdate *larkCalendarUpdate
 	calDelete *larkCalendarDelete
 	task      *larkTaskManage
-	docx    *larkDocxManage
-	wiki    *larkWikiManage
-	bitable *larkBitableManage
-	drive   *larkDriveManage
-	sheets  *larkSheetsManage
-	okr     *larkOKRManage
-	contact *larkContactManage
-	mail    *larkMailManage
-	vc      *larkVCManage
+	docx      *larkDocxManage
+	wiki      *larkWikiManage
+	bitable   *larkBitableManage
+	drive     *larkDriveManage
+	sheets    *larkSheetsManage
+	okr       *larkOKRManage
+	contact   *larkContactManage
+	mail      *larkMailManage
+	vc        *larkVCManage
 }
 
 // NewLarkChannel constructs a unified Lark channel tool that dispatches to
@@ -119,13 +119,14 @@ func NewLarkChannel() tools.ToolExecutor {
 							Description: "Message text for send_message.",
 						},
 						// upload_file params
-						"path": {
+						"source": {
 							Type:        "string",
-							Description: "Local file path for upload_file.",
+							Description: "Upload source identifier for upload_file.",
 						},
-						"attachment_name": {
+						"source_kind": {
 							Type:        "string",
-							Description: "Attachment name for upload_file.",
+							Description: "Upload source type for upload_file: path or attachment.",
+							Enum:        []any{"path", "attachment"},
 						},
 						"file_name": {
 							Type:        "string",
@@ -358,15 +359,15 @@ func NewLarkChannel() tools.ToolExecutor {
 		calUpdate: &larkCalendarUpdate{},
 		calDelete: &larkCalendarDelete{},
 		task:      &larkTaskManage{},
-		docx:    &larkDocxManage{},
-		wiki:    &larkWikiManage{},
-		bitable: &larkBitableManage{},
-		drive:   &larkDriveManage{},
-		sheets:  &larkSheetsManage{},
-		okr:     &larkOKRManage{},
-		contact: &larkContactManage{},
-		mail:    &larkMailManage{},
-		vc:      &larkVCManage{},
+		docx:      &larkDocxManage{},
+		wiki:      &larkWikiManage{},
+		bitable:   &larkBitableManage{},
+		drive:     &larkDriveManage{},
+		sheets:    &larkSheetsManage{},
+		okr:       &larkOKRManage{},
+		contact:   &larkContactManage{},
+		mail:      &larkMailManage{},
+		vc:        &larkVCManage{},
 	}
 }
 

@@ -92,3 +92,10 @@ func TestShellExecAttachmentsRequireEnabledAutoUpload(t *testing.T) {
 		t.Fatalf("expected result.txt attachment, got %#v", enabledRes.Attachments)
 	}
 }
+
+func TestShellExecDefinitionHasNoLegacyOutputFiles(t *testing.T) {
+	def := NewShellExec(shared.ShellToolConfig{}).Definition()
+	if _, ok := def.Parameters.Properties["output_files"]; ok {
+		t.Fatal("output_files should not be exposed in shell_exec schema")
+	}
+}

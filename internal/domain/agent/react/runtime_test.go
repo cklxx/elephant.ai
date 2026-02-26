@@ -352,7 +352,7 @@ func TestSharedBackgroundManagerDoesNotCancelOnCleanup(t *testing.T) {
 	require.NotEqual(t, agent.BackgroundTaskStatusCancelled, summaries[0].Status)
 }
 
-func TestRecordThoughtAppendsThinkingOnlyMessage(t *testing.T) {
+func TestRecordThoughtSkipsThinkingOnlyMessage(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{}
 	runtime := &reactRuntime{engine: engine, state: state}
@@ -363,8 +363,7 @@ func TestRecordThoughtAppendsThinkingOnlyMessage(t *testing.T) {
 		Thinking: ports.Thinking{Parts: []ports.ThinkingPart{{Kind: "reasoning", Text: "plan"}}},
 	})
 
-	require.Len(t, state.Messages, 1)
-	require.Len(t, state.Messages[0].Thinking.Parts, 1)
+	require.Empty(t, state.Messages)
 }
 
 func TestReactRuntimeAllowsActionWithoutPlan(t *testing.T) {

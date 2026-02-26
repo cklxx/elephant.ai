@@ -11,6 +11,32 @@ import (
 	"alex/internal/infra/tools/builtin/shared"
 )
 
+func TestParseAttachmentSpecsRejectsLegacyOutputFiles(t *testing.T) {
+	_, err := parseAttachmentSpecs(map[string]any{
+		"output_files": []any{"/tmp/a.txt"},
+	})
+	if err == nil {
+		t.Fatal("expected error for legacy output_files")
+	}
+	if !strings.Contains(err.Error(), "output_files is no longer supported") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParseAttachmentSpecsRequiresPathField(t *testing.T) {
+	_, err := parseAttachmentSpecs(map[string]any{
+		"attachments": []any{
+			map[string]any{"file": "/tmp/a.txt"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error when path is missing")
+	}
+	if !strings.Contains(err.Error(), "attachment path is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestBuildAttachmentsFromSpecs_AllowsTempDir(t *testing.T) {
 	tmpDir := os.TempDir()
 	if strings.TrimSpace(tmpDir) == "" {

@@ -44,11 +44,11 @@ Optionally fetch output files as attachments. Use this for deterministic computa
 						},
 						"code": {
 							Type:        "string",
-							Description: "Inline code to execute (ignored if code_path is provided).",
+							Description: "Inline code to execute. Mutually exclusive with code_path.",
 						},
 						"code_path": {
 							Type:        "string",
-							Description: "Absolute path to an existing code file.",
+							Description: "Absolute path to an existing code file. Mutually exclusive with code.",
 						},
 						"exec_dir": {
 							Type:        "string",
@@ -62,11 +62,6 @@ Optionally fetch output files as attachments. Use this for deterministic computa
 							Type:        "array",
 							Description: "Optional list of file paths or attachment specs to fetch after execution.",
 							Items:       &ports.Property{Type: "object"},
-						},
-						"output_files": {
-							Type:        "array",
-							Description: "Deprecated alias for attachments (array of absolute file paths).",
-							Items:       &ports.Property{Type: "string"},
 						},
 					},
 					Required: []string{"language"},
@@ -99,8 +94,14 @@ func (t *executeCode) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 
 	codePath := strings.TrimSpace(shared.StringArg(call.Arguments, "code_path"))
 	code := shared.StringArg(call.Arguments, "code")
-	if codePath == "" && utils.IsBlank(code) {
+	hasCodePath := codePath != ""
+	hasInlineCode := !utils.IsBlank(code)
+	if !hasCodePath && !hasInlineCode {
 		err := errors.New("code or code_path is required")
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+	if hasCodePath && hasInlineCode {
+		err := errors.New("code and code_path are mutually exclusive")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 

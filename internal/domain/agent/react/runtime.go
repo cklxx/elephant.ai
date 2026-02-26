@@ -850,6 +850,12 @@ func (it *reactIteration) think() error {
 		return nil
 	}
 
+	if len(validCalls) > 0 {
+		thought.ToolCalls = append([]ToolCall(nil), validCalls...)
+	} else {
+		thought.ToolCalls = nil
+	}
+
 	it.recordThought(&thought)
 	it.toolCalls = validCalls
 
@@ -1114,7 +1120,7 @@ func (it *reactIteration) recordThought(thought *Message) {
 		thought.Attachments = att
 	}
 	trimmed := strings.TrimSpace(thought.Content)
-	if trimmed != "" || len(thought.ToolCalls) > 0 || len(thought.Thinking.Parts) > 0 {
+	if trimmed != "" || len(thought.ToolCalls) > 0 {
 		state.Messages = append(state.Messages, *thought)
 	}
 	it.runtime.engine.logger.Debug("LLM response: content_length=%d, tool_calls=%d", len(thought.Content), len(thought.ToolCalls))

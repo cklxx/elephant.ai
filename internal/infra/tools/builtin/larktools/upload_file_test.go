@@ -26,7 +26,7 @@ func TestUploadFile_NoLarkClient(t *testing.T) {
 	call := ports.ToolCall{
 		ID:        "call-1",
 		Name:      "lark_upload_file",
-		Arguments: map[string]any{"path": "out/report.txt"},
+		Arguments: map[string]any{"source_kind": "path", "source": "out/report.txt"},
 	}
 
 	result, err := tool.Execute(ctx, call)
@@ -47,7 +47,7 @@ func TestUploadFile_InvalidClientType(t *testing.T) {
 	call := ports.ToolCall{
 		ID:        "call-2",
 		Name:      "lark_upload_file",
-		Arguments: map[string]any{"path": "out/report.txt"},
+		Arguments: map[string]any{"source_kind": "path", "source": "out/report.txt"},
 	}
 
 	result, err := tool.Execute(ctx, call)
@@ -66,7 +66,7 @@ func TestUploadFile_NoChatID(t *testing.T) {
 	call := ports.ToolCall{
 		ID:        "call-3",
 		Name:      "lark_upload_file",
-		Arguments: map[string]any{"path": "out/report.txt"},
+		Arguments: map[string]any{"source_kind": "path", "source": "out/report.txt"},
 	}
 
 	result, err := tool.Execute(ctx, call)
@@ -98,11 +98,11 @@ func TestUploadFile_Definition(t *testing.T) {
 	if def.Name != "lark_upload_file" {
 		t.Fatalf("unexpected name: %s", def.Name)
 	}
-	if _, ok := def.Parameters.Properties["path"]; !ok {
-		t.Fatalf("missing path parameter")
+	if _, ok := def.Parameters.Properties["source"]; !ok {
+		t.Fatalf("missing source parameter")
 	}
-	if _, ok := def.Parameters.Properties["attachment_name"]; !ok {
-		t.Fatalf("missing attachment_name parameter")
+	if _, ok := def.Parameters.Properties["source_kind"]; !ok {
+		t.Fatalf("missing source_kind parameter")
 	}
 	if _, ok := def.Parameters.Properties["file_name"]; !ok {
 		t.Fatalf("missing file_name parameter")
@@ -118,20 +118,20 @@ func TestUploadFile_Definition(t *testing.T) {
 func TestPrepareUploadCandidate_SourceValidation(t *testing.T) {
 	_, errResult := prepareUploadCandidate(context.Background(), "call-1", map[string]any{}, defaultMaxBytes)
 	if errResult == nil || errResult.Error == nil {
-		t.Fatal("expected error when neither path nor attachment_name is provided")
+		t.Fatal("expected error when source/source_kind are missing")
 	}
-	if !strings.Contains(errResult.Content, "either 'path' or 'attachment_name'") {
+	if !strings.Contains(errResult.Content, "source is required") {
 		t.Fatalf("unexpected error content: %s", errResult.Content)
 	}
 
 	_, errResult = prepareUploadCandidate(context.Background(), "call-2", map[string]any{
-		"path":            "a.txt",
-		"attachment_name": "b.txt",
+		"source":      "a.txt",
+		"source_kind": "invalid",
 	}, defaultMaxBytes)
 	if errResult == nil || errResult.Error == nil {
-		t.Fatal("expected error when both path and attachment_name are provided")
+		t.Fatal("expected error for invalid source_kind")
 	}
-	if !strings.Contains(errResult.Content, "provide exactly one") {
+	if !strings.Contains(errResult.Content, "source_kind must be one of") {
 		t.Fatalf("unexpected error content: %s", errResult.Content)
 	}
 }
@@ -155,7 +155,7 @@ func TestPrepareUploadCandidate_PathMode(t *testing.T) {
 		t.Fatalf("write temp file: %v", err)
 	}
 
-	cand, errResult := prepareUploadCandidate(ctx, "call-1", map[string]any{"path": "a.txt"}, defaultMaxBytes)
+	cand, errResult := prepareUploadCandidate(ctx, "call-1", map[string]any{"source_kind": "path", "source": "a.txt"}, defaultMaxBytes)
 	if errResult != nil {
 		t.Fatalf("unexpected error: %v", errResult.Error)
 	}
@@ -178,8 +178,9 @@ func TestPrepareUploadCandidate_PathMode(t *testing.T) {
 	}
 
 	cand, errResult = prepareUploadCandidate(ctx, "call-2", map[string]any{
-		"path":      "a.txt",
-		"file_name": "b.pdf",
+		"source_kind": "path",
+		"source":      "a.txt",
+		"file_name":   "b.pdf",
 	}, defaultMaxBytes)
 	if errResult != nil {
 		t.Fatalf("unexpected error: %v", errResult.Error)
@@ -192,7 +193,7 @@ func TestPrepareUploadCandidate_PathMode(t *testing.T) {
 		t.Fatalf("unexpected fileType override: %s", cand.fileType)
 	}
 
-	_, errResult = prepareUploadCandidate(ctx, "call-3", map[string]any{"path": "a.txt"}, 4)
+	_, errResult = prepareUploadCandidate(ctx, "call-3", map[string]any{"source_kind": "path", "source": "a.txt"}, 4)
 	if errResult == nil || errResult.Error == nil {
 		t.Fatal("expected error when maxBytes is too small")
 	}
@@ -200,7 +201,7 @@ func TestPrepareUploadCandidate_PathMode(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(tempDir, "dir"), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	_, errResult = prepareUploadCandidate(ctx, "call-4", map[string]any{"path": "dir"}, defaultMaxBytes)
+	_, errResult = prepareUploadCandidate(ctx, "call-4", map[string]any{"source_kind": "path", "source": "dir"}, defaultMaxBytes)
 	if errResult == nil || errResult.Error == nil {
 		t.Fatal("expected error when path is a directory")
 	}
@@ -226,7 +227,7 @@ func TestPrepareUploadCandidate_PathMode_AllowsTempDir(t *testing.T) {
 		_ = os.Remove(path)
 	})
 
-	cand, errResult := prepareUploadCandidate(context.Background(), "call-1", map[string]any{"path": path}, defaultMaxBytes)
+	cand, errResult := prepareUploadCandidate(context.Background(), "call-1", map[string]any{"source_kind": "path", "source": path}, defaultMaxBytes)
 	if errResult != nil {
 		t.Fatalf("unexpected error: %v", errResult.Error)
 	}
@@ -260,7 +261,7 @@ func TestPrepareUploadCandidate_AttachmentMode(t *testing.T) {
 
 	ctx := toolports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{"a.txt": att}, nil)
 
-	cand, errResult := prepareUploadCandidate(ctx, "call-1", map[string]any{"attachment_name": "a.txt"}, defaultMaxBytes)
+	cand, errResult := prepareUploadCandidate(ctx, "call-1", map[string]any{"source_kind": "attachment", "source": "a.txt"}, defaultMaxBytes)
 	if errResult != nil {
 		t.Fatalf("unexpected error: %v", errResult.Error)
 	}
@@ -281,7 +282,8 @@ func TestPrepareUploadCandidate_AttachmentMode(t *testing.T) {
 	}
 
 	cand, errResult = prepareUploadCandidate(ctx, "call-2", map[string]any{
-		"attachment_name": "A.TXT",
+		"source_kind": "attachment",
+		"source":      "A.TXT",
 	}, defaultMaxBytes)
 	if errResult != nil {
 		t.Fatalf("unexpected error: %v", errResult.Error)
@@ -291,8 +293,9 @@ func TestPrepareUploadCandidate_AttachmentMode(t *testing.T) {
 	}
 
 	cand, errResult = prepareUploadCandidate(ctx, "call-3", map[string]any{
-		"attachment_name": "a.txt",
-		"file_name":       "b.pdf",
+		"source_kind": "attachment",
+		"source":      "a.txt",
+		"file_name":   "b.pdf",
 	}, defaultMaxBytes)
 	if errResult != nil {
 		t.Fatalf("unexpected error: %v", errResult.Error)
@@ -304,7 +307,7 @@ func TestPrepareUploadCandidate_AttachmentMode(t *testing.T) {
 		t.Fatalf("unexpected fileType override: %s", cand.fileType)
 	}
 
-	_, errResult = prepareUploadCandidate(ctx, "call-4", map[string]any{"attachment_name": "a.txt"}, 4)
+	_, errResult = prepareUploadCandidate(ctx, "call-4", map[string]any{"source_kind": "attachment", "source": "a.txt"}, 4)
 	if errResult == nil || errResult.Error == nil {
 		t.Fatal("expected error when maxBytes is too small")
 	}
@@ -317,7 +320,7 @@ func TestPrepareUploadCandidate_AttachmentMode_AudioMimeType(t *testing.T) {
 
 	ctx := toolports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{"voice.bin": att}, nil)
 
-	cand, errResult := prepareUploadCandidate(ctx, "call-1", map[string]any{"attachment_name": "voice.bin"}, defaultMaxBytes)
+	cand, errResult := prepareUploadCandidate(ctx, "call-1", map[string]any{"source_kind": "attachment", "source": "voice.bin"}, defaultMaxBytes)
 	if errResult != nil {
 		t.Fatalf("unexpected error: %v", errResult.Error)
 	}
@@ -390,7 +393,7 @@ func TestUploadFile_Execute_ImageAttachment_UsesImageAPI(t *testing.T) {
 	call := ports.ToolCall{
 		ID:        "call-image",
 		Name:      "lark_upload_file",
-		Arguments: map[string]any{"attachment_name": "photo.png"},
+		Arguments: map[string]any{"source_kind": "attachment", "source": "photo.png"},
 	}
 
 	result, err := tool.Execute(ctx, call)
@@ -487,7 +490,7 @@ func TestUploadFile_Execute_Attachment_UsesFileAPIForNonImage(t *testing.T) {
 	call := ports.ToolCall{
 		ID:        "call-file",
 		Name:      "lark_upload_file",
-		Arguments: map[string]any{"attachment_name": "report.txt"},
+		Arguments: map[string]any{"source_kind": "attachment", "source": "report.txt"},
 	}
 
 	result, err := tool.Execute(ctx, call)

@@ -178,3 +178,42 @@ func TestExecuteCodeAttachmentsRequireEnabledAutoUpload(t *testing.T) {
 		t.Fatalf("expected result.txt attachment, got %#v", enabledRes.Attachments)
 	}
 }
+
+func TestExecuteCodeRejectsConflictingCodeSources(t *testing.T) {
+	if !localExecEnabled {
+		t.Skip("local code execution disabled")
+	}
+
+	ctx, execDirAbs := newExecuteCodeTestContext(t)
+	codePath := filepath.Join(execDirAbs, "script.sh")
+	if err := os.WriteFile(codePath, []byte("echo ok\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	tool := NewExecuteCode(shared.ShellToolConfig{})
+	res, err := tool.Execute(ctx, ports.ToolCall{
+		ID:   "conflict-1",
+		Name: "execute_code",
+		Arguments: map[string]any{
+			"language":  "bash",
+			"code":      "echo inline",
+			"code_path": codePath,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if res == nil || res.Error == nil {
+		t.Fatal("expected tool error when both code and code_path are provided")
+	}
+	if !strings.Contains(res.Content, "mutually exclusive") {
+		t.Fatalf("unexpected content: %q", res.Content)
+	}
+}
+
+func TestExecuteCodeDefinitionHasNoLegacyOutputFiles(t *testing.T) {
+	def := NewExecuteCode(shared.ShellToolConfig{}).Definition()
+	if _, ok := def.Parameters.Properties["output_files"]; ok {
+		t.Fatal("output_files should not be exposed in execute_code schema")
+	}
+}
