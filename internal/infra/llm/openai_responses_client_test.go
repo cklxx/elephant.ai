@@ -1309,6 +1309,62 @@ func TestOpenAIResponsesClientCompleteCollectsReasoningSummaryDeltas(t *testing.
 	}
 }
 
+func TestOpenAIResponsesClientCompleteDeduplicatesRepeatedReasoningBlocks(t *testing.T) {
+	t.Parallel()
+
+	const repeated = "**Responding with concise Chinese options**"
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatalf("expected http.Flusher")
+		}
+
+		events := []string{
+			`{"type":"response.created","response":{"id":"resp-1","created_at":1,"model":"gpt-5.2-codex"}}`,
+			`{"type":"response.reasoning.delta","delta":"` + repeated + `"}`,
+			`{"type":"response.reasoning_summary.delta","delta":"` + repeated + `"}`,
+			`{"type":"response.reasoning_summary_text.delta","delta":"` + repeated + `"}`,
+			`{"type":"response.output_text.delta","item_id":"item-1","delta":"done"}`,
+			`{"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}`,
+			`[DONE]`,
+		}
+		for _, evt := range events {
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", evt); err != nil {
+				t.Fatalf("write event: %v", err)
+			}
+			flusher.Flush()
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/backend-api/codex",
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	resp, err := client.Complete(context.Background(), ports.CompletionRequest{
+		Messages:  []ports.Message{{Role: "user", Content: "hi"}},
+		MaxTokens: 64,
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if resp.Content != "done" {
+		t.Fatalf("unexpected content: %q", resp.Content)
+	}
+	if len(resp.Thinking.Parts) != 1 {
+		t.Fatalf("expected one thinking part, got %d", len(resp.Thinking.Parts))
+	}
+	if resp.Thinking.Parts[0].Text != repeated {
+		t.Fatalf("expected deduplicated thinking text %q, got %q", repeated, resp.Thinking.Parts[0].Text)
+	}
+}
+
 func TestOpenAIResponsesClientCompleteParsesThinkingFromCompletedOutput(t *testing.T) {
 	t.Parallel()
 

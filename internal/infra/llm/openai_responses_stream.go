@@ -204,9 +204,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 					toolCalls = completedToolCalls
 				}
 				if thinkingText := strings.TrimSpace(extractThinkingText(completedThinking)); thinkingText != "" {
-					if !strings.Contains(thinkingBuilder.String(), thinkingText) {
-						thinkingBuilder.WriteString(thinkingText)
-					}
+					appendReasoningDelta(&thinkingBuilder, thinkingText)
 				}
 			}
 		case "error":
@@ -224,7 +222,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 			thinkingDelta = extractResponsesReasoningDelta(evt.Type, data)
 		}
 		if thinkingDelta != "" {
-			thinkingBuilder.WriteString(thinkingDelta)
+			appendReasoningDelta(&thinkingBuilder, thinkingDelta)
 		}
 	}
 
@@ -329,6 +327,28 @@ func firstNonBlankString(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// appendReasoningDelta appends streaming reasoning text while skipping obvious
+// duplicate blocks emitted by multiple reasoning event variants.
+func appendReasoningDelta(builder *strings.Builder, delta string) {
+	if builder == nil {
+		return
+	}
+	normalized := strings.TrimSpace(delta)
+	if normalized == "" {
+		return
+	}
+	current := builder.String()
+	if current != "" {
+		if strings.HasSuffix(current, delta) {
+			return
+		}
+		if len([]rune(normalized)) >= 24 && strings.Contains(current, normalized) {
+			return
+		}
+	}
+	builder.WriteString(delta)
 }
 
 func textFromAny(value any) string {
