@@ -1,6 +1,6 @@
 # Index: reference
 
-Updated: 2026-02-25
+Updated: 2026-02-26
 
 ## Canonical references
 
@@ -15,10 +15,23 @@ Updated: 2026-02-25
 - [MEMORY_INDEXING.md](MEMORY_INDEXING.md)
 - [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 - [TOOLS.md](TOOLS.md)
+- [SOUL.md](SOUL.md)
 - [LARK_CARDS.md](LARK_CARDS.md)
 - [LARK_MENTIONS.md](LARK_MENTIONS.md)
 - [external-agents-codex-claude-code.md](external-agents-codex-claude-code.md)
 - [lark-web-agent-event-flow.md](lark-web-agent-event-flow.md)
+- [lark-voice-message.md](lark-voice-message.md)
+
+## Kernel subsystem
+
+- [kernel-deep-dive.md](kernel-deep-dive.md)
+- [kernel-prompt-state-flow.md](kernel-prompt-state-flow.md)
+- [kernel-trigger-flow-and-design.md](kernel-trigger-flow-and-design.md)
+
+## Design & refactor records
+
+- [ai-group-chat.md](ai-group-chat.md)
+- [REFACTOR_LEDGER.md](REFACTOR_LEDGER.md)
 
 ## Historical snapshots (for context)
 
