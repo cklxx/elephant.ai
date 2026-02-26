@@ -16,7 +16,8 @@ type MockContextManager struct {
 	ShouldCompressFunc func(messages []ports.Message, limit int) bool
 	PreloadFunc        func(ctx context.Context) error
 	BuildWindowFunc    func(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error)
-	RecordTurnFunc     func(ctx context.Context, record agent.ContextTurnRecord) error
+	RecordTurnFunc       func(ctx context.Context, record agent.ContextTurnRecord) error
+	BuildSummaryOnlyFunc func(messages []ports.Message) (string, int)
 }
 
 func (m *MockContextManager) EstimateTokens(messages []ports.Message) int {
@@ -69,4 +70,11 @@ func (m *MockContextManager) RecordTurn(ctx context.Context, record agent.Contex
 		return m.RecordTurnFunc(ctx, record)
 	}
 	return nil
+}
+
+func (m *MockContextManager) BuildSummaryOnly(messages []ports.Message) (string, int) {
+	if m.BuildSummaryOnlyFunc != nil {
+		return m.BuildSummaryOnlyFunc(messages)
+	}
+	return "", 0
 }

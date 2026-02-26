@@ -606,6 +606,7 @@ func (m *testContextManager) BuildWindow(ctx context.Context, session *agentstor
 }
 
 func (m *testContextManager) RecordTurn(context.Context, agent.ContextTurnRecord) error { return nil }
+func (m *testContextManager) BuildSummaryOnly(msgs []ports.Message) (string, int) { return "", 0 }
 
 type testParser struct{}
 

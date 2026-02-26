@@ -104,6 +104,9 @@ type TaskState struct {
 	LatestGoalPrompt       string
 	LatestPlanPrompt       string
 	PlanReviewEnabled      bool
+	PendingSummary         string // Deferred compression summary (generated but not yet applied)
+	PendingSummaryAtIter   int    // Iteration when pending summary was generated
+	PendingSummaryMsgCount int    // Number of messages when pending summary was generated
 }
 
 // AgentConfig exposes the subset of coordinator configuration required by tools.

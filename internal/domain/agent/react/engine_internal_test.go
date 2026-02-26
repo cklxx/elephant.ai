@@ -1732,8 +1732,10 @@ func TestEnforceContextBudgetTrimsWhenOverLimit(t *testing.T) {
 
 // mockContextManager for enforceContextBudget tests.
 type mockContextManager struct {
-	estimateFunc    func([]ports.Message) int
-	autoCompactFunc func([]ports.Message, int) ([]ports.Message, bool)
+	estimateFunc          func([]ports.Message) int
+	autoCompactFunc      func([]ports.Message, int) ([]ports.Message, bool)
+	shouldCompressFunc   func([]ports.Message, int) bool
+	buildSummaryOnlyFunc func([]ports.Message) (string, int)
 }
 
 func (m *mockContextManager) EstimateTokens(msgs []ports.Message) int {
@@ -1751,13 +1753,178 @@ func (m *mockContextManager) AutoCompact(msgs []ports.Message, limit int) ([]por
 	}
 	return msgs, false
 }
-func (m *mockContextManager) ShouldCompress(msgs []ports.Message, limit int) bool { return false }
+func (m *mockContextManager) ShouldCompress(msgs []ports.Message, limit int) bool {
+	if m.shouldCompressFunc != nil {
+		return m.shouldCompressFunc(msgs, limit)
+	}
+	return false
+}
 func (m *mockContextManager) Preload(ctx context.Context) error                   { return nil }
 func (m *mockContextManager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	return agent.ContextWindow{}, nil
 }
 func (m *mockContextManager) RecordTurn(ctx context.Context, record agent.ContextTurnRecord) error {
 	return nil
+}
+func (m *mockContextManager) BuildSummaryOnly(msgs []ports.Message) (string, int) {
+	if m.buildSummaryOnlyFunc != nil {
+		return m.buildSummaryOnlyFunc(msgs)
+	}
+	return "", 0
+}
+
+func TestEnforceContextBudget_DeferredSummaryGeneration(t *testing.T) {
+	// At 70% threshold, a summary should be generated but NOT applied.
+	engine := NewReactEngine(ReactEngineConfig{
+		CompletionDefaults: CompletionDefaults{
+			ContextTokenLimit: intPtr(1000),
+		},
+	})
+	mockCtx := &mockContextManager{
+		estimateFunc: func(msgs []ports.Message) int {
+			// 750/1000 = 75%, above 70% threshold but under limit
+			return 750
+		},
+		shouldCompressFunc: func(msgs []ports.Message, limit int) bool {
+			return true // over compression threshold
+		},
+		buildSummaryOnlyFunc: func(msgs []ports.Message) (string, int) {
+			return "[Earlier context compressed] summary", 3
+		},
+	}
+	state := &TaskState{Iterations: 5}
+	services := Services{Context: mockCtx}
+	messages := []ports.Message{
+		{Role: "system", Content: "System", Source: ports.MessageSourceSystemPrompt},
+		{Role: "user", Content: "Turn 1"},
+		{Role: "assistant", Content: "Reply 1"},
+		{Role: "user", Content: "Turn 2"},
+		{Role: "assistant", Content: "Reply 2"},
+	}
+
+	result := engine.enforceContextBudget(context.Background(), messages, state, services)
+
+	// Messages should be unchanged (summary deferred, not applied).
+	if len(result) != len(messages) {
+		t.Errorf("expected messages unchanged (deferred), got %d vs %d", len(result), len(messages))
+	}
+	// PendingSummary should be set.
+	if state.PendingSummary == "" {
+		t.Fatal("expected PendingSummary to be set")
+	}
+	if state.PendingSummaryAtIter != 5 {
+		t.Errorf("expected PendingSummaryAtIter=5, got %d", state.PendingSummaryAtIter)
+	}
+	if state.PendingSummaryMsgCount != 5 {
+		t.Errorf("expected PendingSummaryMsgCount=5, got %d", state.PendingSummaryMsgCount)
+	}
+}
+
+func TestEnforceContextBudget_DeferredSummaryAppliedAfterTwoTurns(t *testing.T) {
+	// After 2 more iterations, the pending summary should be applied.
+	engine := NewReactEngine(ReactEngineConfig{
+		CompletionDefaults: CompletionDefaults{
+			ContextTokenLimit: intPtr(1000),
+		},
+	})
+	mockCtx := &mockContextManager{
+		estimateFunc: func(msgs []ports.Message) int {
+			return 750
+		},
+	}
+	state := &TaskState{
+		Iterations:          7, // was generated at iter 5, now at 7 (5+2)
+		PendingSummary:      "[Earlier context compressed] summary of old messages",
+		PendingSummaryAtIter: 5,
+		PendingSummaryMsgCount: 5,
+	}
+	services := Services{Context: mockCtx}
+	messages := []ports.Message{
+		{Role: "system", Content: "System", Source: ports.MessageSourceSystemPrompt},
+		{Role: "user", Content: "Turn 1"},
+		{Role: "assistant", Content: "Reply 1"},
+		{Role: "user", Content: "Turn 2"},
+		{Role: "assistant", Content: "Reply 2"},
+		{Role: "user", Content: "Turn 3 (new)"},
+		{Role: "assistant", Content: "Reply 3 (new)"},
+	}
+
+	result := engine.enforceContextBudget(context.Background(), messages, state, services)
+
+	// The deferred summary should have been applied — fewer messages.
+	if len(result) >= len(messages) {
+		t.Errorf("expected fewer messages after applying deferred summary, got %d vs %d", len(result), len(messages))
+	}
+	// PendingSummary should be cleared.
+	if state.PendingSummary != "" {
+		t.Error("expected PendingSummary to be cleared after application")
+	}
+	// System prompt should still be present.
+	hasSystem := false
+	for _, m := range result {
+		if m.Source == ports.MessageSourceSystemPrompt {
+			hasSystem = true
+		}
+	}
+	if !hasSystem {
+		t.Error("expected system prompt to be preserved")
+	}
+	// Should contain the summary message.
+	hasSummary := false
+	for _, m := range result {
+		if strings.Contains(m.Content, "Earlier context compressed") {
+			hasSummary = true
+		}
+	}
+	if !hasSummary {
+		t.Error("expected summary message to be present in result")
+	}
+}
+
+func TestEnforceContextBudget_PendingSummaryAppliedImmediatelyOnOverflow(t *testing.T) {
+	// When budget exceeded, pending summary is applied immediately as first resort.
+	engine := NewReactEngine(ReactEngineConfig{
+		CompletionDefaults: CompletionDefaults{
+			ContextTokenLimit: intPtr(100),
+		},
+	})
+	callCount := 0
+	mockCtx := &mockContextManager{
+		estimateFunc: func(msgs []ports.Message) int {
+			callCount++
+			// First call: over budget; after applying summary: under budget.
+			if callCount <= 1 {
+				return 200
+			}
+			return 50
+		},
+	}
+	state := &TaskState{
+		Iterations:          6, // only 1 turn after generation (not 2 yet)
+		PendingSummary:      "[Earlier context compressed] summary",
+		PendingSummaryAtIter: 5,
+		PendingSummaryMsgCount: 4, // 1 system + 3 conv at generation time
+	}
+	services := Services{Context: mockCtx}
+	messages := []ports.Message{
+		{Role: "system", Content: "System", Source: ports.MessageSourceSystemPrompt},
+		{Role: "user", Content: "Old turn 1"},
+		{Role: "assistant", Content: "Old reply 1"},
+		{Role: "user", Content: "Old turn 2"},
+		{Role: "assistant", Content: "Old reply 2"},
+		{Role: "user", Content: "New turn"},
+		{Role: "assistant", Content: "New reply"},
+	}
+
+	result := engine.enforceContextBudget(context.Background(), messages, state, services)
+
+	// Summary should have been applied early due to overflow.
+	if state.PendingSummary != "" {
+		t.Error("expected PendingSummary to be cleared after emergency application")
+	}
+	if len(result) >= len(messages) {
+		t.Errorf("expected fewer messages after emergency summary application, got %d vs %d", len(result), len(messages))
+	}
 }
 
 func intPtr(v int) *int { return &v }

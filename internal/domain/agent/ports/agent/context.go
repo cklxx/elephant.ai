@@ -25,6 +25,10 @@ type ContextManager interface {
 	// ShouldCompress checks if compression needed.
 	ShouldCompress(messages []core.Message, limit int) bool
 
+	// BuildSummaryOnly generates a compression summary for older messages
+	// without replacing them. Used for delayed summary replacement.
+	BuildSummaryOnly(messages []core.Message) (string, int)
+
 	// Preload ensures the manager has cached static context/configuration before
 	// first use.
 	Preload(ctx context.Context) error

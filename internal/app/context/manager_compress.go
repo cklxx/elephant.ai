@@ -117,6 +117,19 @@ func (m *manager) AutoCompact(messages []ports.Message, limit int) ([]ports.Mess
 
 	return compressed, true
 }
+// BuildSummaryOnly generates a compression summary for older messages without
+// replacing them. Returns the summary text and the count of messages that would
+// be replaced. This is the first half of the delayed summary replacement:
+// generate now, apply after N more turns.
+func (m *manager) BuildSummaryOnly(messages []ports.Message) (string, int) {
+	plan := buildCompressionPlan(messages)
+	if len(plan.summarySource) == 0 {
+		return "", 0
+	}
+	summary := buildCompressionSummary(plan.summarySource)
+	return summary, len(plan.compressibleOriginalIndexes)
+}
+
 
 // Compress preserves system/important/checkpoint messages and the most recent
 // conversation turn, then summarizes older conversation history when the token
