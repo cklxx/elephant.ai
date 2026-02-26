@@ -228,6 +228,9 @@ func (c *retryClient) StreamComplete(
 			return nil, fmt.Errorf("%s", alexerrors.FormatForLLM(err))
 		}
 		formattedErr := c.formatStreamingError(err, duration)
+		if alexerrors.IsTransient(err) {
+			return nil, alexerrors.NewTransientError(err, formattedErr)
+		}
 		return nil, fmt.Errorf("%s", formattedErr)
 	}
 

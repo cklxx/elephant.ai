@@ -12,6 +12,7 @@ import (
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/shared/executioncontrol"
+	alexerrors "alex/internal/shared/errors"
 )
 
 // backgroundTask tracks an individual background task.
@@ -458,7 +459,14 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 		if listener == nil {
 			listener = m.parentListener
 		}
-		result, err = m.executeTask(ctx, prompt, m.sessionID, listener)
+		result, err = alexerrors.RetryWithResultAndLog(ctx, alexerrors.RetryConfig{
+			MaxAttempts:  2,
+			BaseDelay:    10 * time.Second,
+			MaxDelay:     30 * time.Second,
+			JitterFactor: 0.25,
+		}, func(ctx context.Context) (*agent.TaskResult, error) {
+			return m.executeTask(ctx, prompt, m.sessionID, listener)
+		}, m.logger)
 	default:
 		if m.externalExecutor == nil {
 			err = fmt.Errorf("external agent executor not configured for type %q", agentType)
