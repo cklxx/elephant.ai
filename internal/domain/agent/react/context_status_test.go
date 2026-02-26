@@ -39,48 +39,33 @@ func TestDeriveContextPhase(t *testing.T) {
 	}
 }
 
-func TestBuildContextStatusMessage_OK(t *testing.T) {
-	status := ContextBudgetStatus{
-		TokensUsed:    45000,
-		TokenLimit:    125000,
-		UsagePercent:  36,
-		Phase:         contextPhaseOK,
-		Iteration:     3,
-		MaxIterations: 25,
-		MessageCount:  12,
+func TestShouldInjectContextStatus(t *testing.T) {
+	cases := []struct {
+		phase string
+		want  bool
+	}{
+		{contextPhaseOK, false},
+		{contextPhaseWarning, true},
+		{contextPhaseCompressed, true},
+		{contextPhaseTrimmed, true},
 	}
-
-	msg := buildContextStatusMessage(status)
-
-	if msg.Role != "system" {
-		t.Fatalf("expected role=system, got %q", msg.Role)
-	}
-	if !strings.Contains(msg.Content, `p="ok"`) {
-		t.Fatalf("expected p=ok in content, got: %s", msg.Content)
-	}
-	if !strings.Contains(msg.Content, `t="3/25"`) {
-		t.Fatalf("expected t=3/25 in content, got: %s", msg.Content)
-	}
-	if !strings.Contains(msg.Content, `tk="45000/125000"`) {
-		t.Fatalf("expected tk in content, got: %s", msg.Content)
-	}
-	// No directive for "ok" phase.
-	if strings.Contains(msg.Content, warningDirective) ||
-		strings.Contains(msg.Content, compressedDirective) ||
-		strings.Contains(msg.Content, trimmedDirective) {
-		t.Fatalf("expected no directive for ok phase, got: %s", msg.Content)
+	for _, tc := range cases {
+		got := shouldInjectContextStatus(ContextBudgetStatus{Phase: tc.phase})
+		if got != tc.want {
+			t.Fatalf("shouldInjectContextStatus(phase=%q) = %v, want %v", tc.phase, got, tc.want)
+		}
 	}
 }
 
 func TestBuildContextStatusMessage_Warning(t *testing.T) {
-	status := ContextBudgetStatus{
-		Phase: contextPhaseWarning,
-	}
-
+	status := ContextBudgetStatus{Phase: contextPhaseWarning, UsagePercent: 75}
 	msg := buildContextStatusMessage(status)
 
-	if !strings.Contains(msg.Content, `p="warning"`) {
-		t.Fatalf("expected p=warning, got: %s", msg.Content)
+	if !strings.Contains(msg.Content, `phase="warning"`) {
+		t.Fatalf("expected phase=warning, got: %s", msg.Content)
+	}
+	if !strings.Contains(msg.Content, `usage="75%"`) {
+		t.Fatalf("expected usage=75%%, got: %s", msg.Content)
 	}
 	if !strings.Contains(msg.Content, warningDirective) {
 		t.Fatalf("expected warning directive, got: %s", msg.Content)
@@ -88,15 +73,11 @@ func TestBuildContextStatusMessage_Warning(t *testing.T) {
 }
 
 func TestBuildContextStatusMessage_Compressed(t *testing.T) {
-	status := ContextBudgetStatus{
-		Phase:               contextPhaseCompressed,
-		CompressionOccurred: true,
-	}
-
+	status := ContextBudgetStatus{Phase: contextPhaseCompressed, UsagePercent: 88}
 	msg := buildContextStatusMessage(status)
 
-	if !strings.Contains(msg.Content, `p="compressed"`) {
-		t.Fatalf("expected p=compressed, got: %s", msg.Content)
+	if !strings.Contains(msg.Content, `phase="compressed"`) {
+		t.Fatalf("expected phase=compressed, got: %s", msg.Content)
 	}
 	if !strings.Contains(msg.Content, compressedDirective) {
 		t.Fatalf("expected compressed directive, got: %s", msg.Content)
@@ -104,14 +85,11 @@ func TestBuildContextStatusMessage_Compressed(t *testing.T) {
 }
 
 func TestBuildContextStatusMessage_Trimmed(t *testing.T) {
-	status := ContextBudgetStatus{
-		Phase: contextPhaseTrimmed,
-	}
-
+	status := ContextBudgetStatus{Phase: contextPhaseTrimmed, UsagePercent: 94}
 	msg := buildContextStatusMessage(status)
 
-	if !strings.Contains(msg.Content, `p="trimmed"`) {
-		t.Fatalf("expected p=trimmed, got: %s", msg.Content)
+	if !strings.Contains(msg.Content, `phase="trimmed"`) {
+		t.Fatalf("expected phase=trimmed, got: %s", msg.Content)
 	}
 	if !strings.Contains(msg.Content, trimmedDirective) {
 		t.Fatalf("expected trimmed directive, got: %s", msg.Content)
@@ -119,76 +97,29 @@ func TestBuildContextStatusMessage_Trimmed(t *testing.T) {
 }
 
 func TestContextStatusMessageTokenCost(t *testing.T) {
-	// Worst case: trimmed phase with directive (longest content).
-	status := ContextBudgetStatus{
-		TokensUsed:          120000,
-		TokenLimit:          128000,
-		UsagePercent:        93.75,
-		Phase:               contextPhaseTrimmed,
-		Iteration:           25,
-		MaxIterations:       25,
-		CompressionOccurred: true,
-		PendingSummary:      true,
-		MessageCount:        48,
-	}
-
+	// Worst case: trimmed phase with directive.
+	status := ContextBudgetStatus{UsagePercent: 94, Phase: contextPhaseTrimmed}
 	msg := buildContextStatusMessage(status)
 	tokens := tokenutil.CountTokens(msg.Content)
-	t.Logf("worst-case token cost: %d, content: %s", tokens, msg.Content)
+	t.Logf("worst-case: %d tokens, content: %s", tokens, msg.Content)
 
-	if tokens > 60 {
-		t.Fatalf("context status message costs %d tokens (>60), content: %s", tokens, msg.Content)
-	}
-}
-
-func TestContextStatusMessageTokenCost_OK(t *testing.T) {
-	// Best case: ok phase, no directive.
-	status := ContextBudgetStatus{
-		TokensUsed:    45000,
-		TokenLimit:    125000,
-		UsagePercent:  36,
-		Phase:         contextPhaseOK,
-		Iteration:     3,
-		MaxIterations: 25,
-		MessageCount:  12,
-	}
-
-	msg := buildContextStatusMessage(status)
-	tokens := tokenutil.CountTokens(msg.Content)
-	t.Logf("ok-phase token cost: %d, content: %s", tokens, msg.Content)
-
-	if tokens > 30 {
-		t.Fatalf("ok-phase context status costs %d tokens (>30), content: %s", tokens, msg.Content)
+	if tokens > 35 {
+		t.Fatalf("context status costs %d tokens (>35), content: %s", tokens, msg.Content)
 	}
 }
 
 func TestBuildContextBudgetStatus_NilState(t *testing.T) {
-	status := buildContextBudgetStatus(50000, 125000, nil, 25, false, 10)
+	status := buildContextBudgetStatus(50000, 125000, nil, false)
 
-	if status.Iteration != 0 {
-		t.Fatalf("expected iteration=0 for nil state, got %d", status.Iteration)
-	}
 	if status.Phase != contextPhaseOK {
 		t.Fatalf("expected phase=ok for 40%% usage, got %q", status.Phase)
 	}
 }
 
-func TestBuildContextBudgetStatus_WithState(t *testing.T) {
-	state := &agent.TaskState{
-		Iterations:           5,
-		ContextCompactionSeq: 2,
-		PendingSummary:       "some summary",
-	}
+func TestBuildContextBudgetStatus_CompactionSeqTrimmed(t *testing.T) {
+	state := &agent.TaskState{ContextCompactionSeq: 2}
+	status := buildContextBudgetStatus(100000, 125000, state, false)
 
-	status := buildContextBudgetStatus(100000, 125000, state, 25, false, 20)
-
-	if status.Iteration != 5 {
-		t.Fatalf("expected iteration=5, got %d", status.Iteration)
-	}
-	if !status.PendingSummary {
-		t.Fatal("expected PendingSummary=true")
-	}
-	// CompactionSeq > 1 → trimmed, regardless of ratio.
 	if status.Phase != contextPhaseTrimmed {
 		t.Fatalf("expected phase=trimmed for compactionSeq=2, got %q", status.Phase)
 	}

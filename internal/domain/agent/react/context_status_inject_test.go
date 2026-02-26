@@ -11,9 +11,9 @@ import (
 	"alex/internal/domain/agent/ports/mocks"
 )
 
-// TestThinkInjectsContextStatus verifies that the think() method injects a
-// <context_status/> system message into the messages sent to the LLM.
-func TestThinkInjectsContextStatus(t *testing.T) {
+// TestThinkSkipsContextStatusWhenOK verifies that no context status message
+// is injected when the phase is "ok" (low usage, no compression).
+func TestThinkSkipsContextStatusWhenOK(t *testing.T) {
 	var captured ports.CompletionRequest
 	var mu sync.Mutex
 
@@ -35,7 +35,7 @@ func TestThinkInjectsContextStatus(t *testing.T) {
 
 	mockCtx := &mocks.MockContextManager{
 		EstimateTokensFunc: func(msgs []ports.Message) int {
-			return len(msgs) * 500 // ~500 tokens per message
+			return len(msgs) * 500 // Low usage → phase=ok
 		},
 	}
 
@@ -63,32 +63,16 @@ func TestThinkInjectsContextStatus(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	// Find the context status message in the captured request.
-	found := false
 	for _, msg := range captured.Messages {
 		if strings.Contains(msg.Content, "<ctx") {
-			found = true
-			if msg.Role != "system" {
-				t.Errorf("context status message role = %q, want system", msg.Role)
-			}
-			if msg.Source != ports.MessageSourceProactive {
-				t.Errorf("context status message source = %q, want %q", msg.Source, ports.MessageSourceProactive)
-			}
-			if !strings.Contains(msg.Content, `p="ok"`) && !strings.Contains(msg.Content, `p="warning"`) {
-				t.Errorf("context status missing phase, content: %s", msg.Content)
-			}
-			t.Logf("injected context status: %s", msg.Content)
-			break
+			t.Fatalf("context status should NOT be injected when phase=ok, got: %s", msg.Content)
 		}
-	}
-	if !found {
-		t.Fatal("context status message not found in messages sent to LLM")
 	}
 }
 
-// TestThinkContextStatusReflectsCompression verifies that the context status
-// reports compression when enforceContextBudget reduces message count.
-func TestThinkContextStatusReflectsCompression(t *testing.T) {
+// TestThinkInjectsContextStatusOnCompression verifies that the context status
+// message IS injected when enforceContextBudget compresses messages.
+func TestThinkInjectsContextStatusOnCompression(t *testing.T) {
 	var captured ports.CompletionRequest
 	var mu sync.Mutex
 
@@ -108,14 +92,9 @@ func TestThinkContextStatusReflectsCompression(t *testing.T) {
 		},
 	}
 
-	// Return a high token count to trigger budget enforcement, then lower after trim.
-	callCount := 0
 	mockCtx := &mocks.MockContextManager{
 		EstimateTokensFunc: func(msgs []ports.Message) int {
-			callCount++
-			// First call: during enforceContextBudget, over limit to trigger trim.
-			// After trim: fewer messages → re-estimate is lower.
-			return len(msgs) * 40000
+			return len(msgs) * 40000 // High usage → triggers trim
 		},
 		ShouldCompressFunc: func(_ []ports.Message, _ int) bool {
 			return true
@@ -164,11 +143,15 @@ func TestThinkContextStatusReflectsCompression(t *testing.T) {
 
 	for _, msg := range captured.Messages {
 		if strings.Contains(msg.Content, "<ctx") {
-			t.Logf("status after compression: %s", msg.Content)
-			// With high token estimates, compression/trimming will occur.
-			// The status should reflect a non-ok phase.
-			if strings.Contains(msg.Content, `p="ok"`) {
-				t.Log("note: phase=ok — tokens may have fit after aggressive trim")
+			t.Logf("injected: %s", msg.Content)
+			if msg.Role != "system" {
+				t.Errorf("role = %q, want system", msg.Role)
+			}
+			if msg.Source != ports.MessageSourceProactive {
+				t.Errorf("source = %q, want %q", msg.Source, ports.MessageSourceProactive)
+			}
+			if !strings.Contains(msg.Content, `phase="compressed"`) && !strings.Contains(msg.Content, `phase="trimmed"`) {
+				t.Errorf("expected non-ok phase, got: %s", msg.Content)
 			}
 			return
 		}
@@ -202,7 +185,7 @@ func TestThinkNoContextStatusWithoutContextManager(t *testing.T) {
 		LLM:          mockLLM,
 		ToolExecutor: &mocks.MockToolRegistry{},
 		Parser:       &mocks.MockParser{},
-		Context:      nil, // No context manager.
+		Context:      nil,
 	}
 
 	engine := newReactEngineForTest(10)

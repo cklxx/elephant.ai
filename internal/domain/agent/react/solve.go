@@ -54,12 +54,14 @@ func (e *ReactEngine) think(
 	}
 	compressionApplied := len(filteredMessages) < messageCountBefore
 
-	// Inject context status for LLM self-awareness.
+	// Inject context status only when phase != ok (saves tokens on normal turns).
 	limit := e.resolveContextTokenLimit(services)
 	if limit > 0 && services.Context != nil {
 		estimated := services.Context.EstimateTokens(filteredMessages)
-		status := buildContextBudgetStatus(estimated, limit, state, e.maxIterations, compressionApplied, len(filteredMessages))
-		filteredMessages = append(filteredMessages, buildContextStatusMessage(status))
+		status := buildContextBudgetStatus(estimated, limit, state, compressionApplied)
+		if shouldInjectContextStatus(status) {
+			filteredMessages = append(filteredMessages, buildContextStatusMessage(status))
+		}
 	}
 
 	e.logger.Debug(

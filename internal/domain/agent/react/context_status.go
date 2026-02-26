@@ -12,11 +12,7 @@ type ContextBudgetStatus struct {
 	TokenLimit          int
 	UsagePercent        float64
 	Phase               string // "ok", "warning", "compressed", "trimmed"
-	Iteration           int
-	MaxIterations       int
 	CompressionOccurred bool
-	PendingSummary      bool
-	MessageCount        int
 }
 
 // Context budget phase thresholds.
@@ -53,22 +49,16 @@ func deriveContextPhase(ratio float64, compressionOccurred bool, compactionSeq i
 func buildContextBudgetStatus(
 	tokensUsed, tokenLimit int,
 	state *TaskState,
-	maxIterations int,
 	compressionOccurred bool,
-	messageCount int,
 ) ContextBudgetStatus {
 	ratio := 0.0
 	if tokenLimit > 0 {
 		ratio = float64(tokensUsed) / float64(tokenLimit)
 	}
 
-	iteration := 0
 	compactionSeq := 0
-	pendingSummary := false
 	if state != nil {
-		iteration = state.Iterations
 		compactionSeq = state.ContextCompactionSeq
-		pendingSummary = state.PendingSummary != ""
 	}
 
 	return ContextBudgetStatus{
@@ -76,38 +66,24 @@ func buildContextBudgetStatus(
 		TokenLimit:          tokenLimit,
 		UsagePercent:        ratio * 100,
 		Phase:               deriveContextPhase(ratio, compressionOccurred, compactionSeq),
-		Iteration:           iteration,
-		MaxIterations:       maxIterations,
 		CompressionOccurred: compressionOccurred,
-		PendingSummary:      pendingSummary,
-		MessageCount:        messageCount,
 	}
 }
 
-// buildContextStatusMessage produces a compact XML tag (~15-20 tokens when phase=ok,
-// ~30-35 tokens with a phase directive). Attribute names are abbreviated:
-//
-//	t = turn (iteration/max), tk = tokens (used/limit), u = usage%,
-//	p = phase, m = message count
-//
-// Only non-ok phases append a behavioral directive.
-func buildContextStatusMessage(status ContextBudgetStatus) ports.Message {
-	tag := fmt.Sprintf(
-		`<ctx t="%d/%d" tk="%d/%d" u="%.0f%%" p="%s" m="%d"/>`,
-		status.Iteration,
-		status.MaxIterations,
-		status.TokensUsed,
-		status.TokenLimit,
-		status.UsagePercent,
-		status.Phase,
-		status.MessageCount,
-	)
+// shouldInjectContextStatus returns true when the phase carries actionable
+// information for the model. Phase "ok" is the default — injecting it every
+// turn wastes tokens for zero behavioral change.
+func shouldInjectContextStatus(status ContextBudgetStatus) bool {
+	return status.Phase != contextPhaseOK
+}
 
-	directive := phaseDirective(status.Phase)
-	content := tag
-	if directive != "" {
-		content = tag + "\n" + directive
-	}
+// buildContextStatusMessage produces a minimal system message only for non-ok
+// phases. Format: `<ctx usage="75%" phase="warning"/>` + directive.
+// Token cost: ~20–30 tokens (only when injected).
+func buildContextStatusMessage(status ContextBudgetStatus) ports.Message {
+	tag := fmt.Sprintf(`<ctx usage="%.0f%%" phase="%s"/>`, status.UsagePercent, status.Phase)
+
+	content := tag + "\n" + phaseDirective(status.Phase)
 
 	return ports.Message{
 		Role:    "system",
