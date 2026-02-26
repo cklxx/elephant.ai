@@ -539,7 +539,9 @@ func (e *Executor) resolveBridgeScript() string {
 // defaultScriptDir returns the bridge script directory name for the agent type.
 func (e *Executor) defaultScriptDir() string {
 	switch e.cfg.AgentType {
-	case "codex", "kimi":
+	case "kimi":
+		return "kimi_bridge"
+	case "codex":
 		return "codex_bridge"
 	default:
 		return "cc_bridge"
