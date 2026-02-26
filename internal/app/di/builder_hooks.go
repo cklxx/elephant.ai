@@ -56,7 +56,7 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 	if b.config.Proactive.Enabled && b.config.Proactive.Memory.Enabled && memoryEngine != nil && llmFactory != nil {
 		memHook := hooks.NewMemoryCaptureHook(memoryEngine, llmFactory, b.logger, hooks.MemoryCaptureConfig{
 			Enabled: b.config.Proactive.Memory.Enabled,
-			Profile: b.resolveDefaultLLMProfile(),
+			Profile: b.resolveSubscriptionOrDefaultProfile(),
 		})
 		registry.Register(memHook)
 	}
@@ -307,7 +307,7 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 
 	plannerSettings := settings.Planner
 	if plannerSettings.Enabled && llmFactory != nil {
-		plannerProfile := b.resolveDefaultLLMProfile()
+		plannerProfile := b.resolveSubscriptionOrDefaultProfile()
 
 		plannerTimeout := time.Duration(plannerSettings.TimeoutSeconds) * time.Second
 		if plannerTimeout <= 0 {
@@ -404,6 +404,31 @@ func (b *containerBuilder) buildKernelSelectionResolver() kernelagent.SelectionR
 		}
 		return resolved, true
 	}
+}
+
+// resolveSubscriptionOrDefaultProfile checks the channel-level subscription store
+// first (so that /model use overrides apply to ALL LLM paths), then falls back to
+// the config file's default profile.
+func (b *containerBuilder) resolveSubscriptionOrDefaultProfile() runtimeconfig.LLMProfile {
+	storePath := subscription.ResolveSelectionStorePath(runtimeconfig.DefaultEnvLookup, nil)
+	store := subscription.NewSelectionStore(storePath)
+	resolver := subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.LoadCLICredentials()
+	})
+	channelScope := subscription.SelectionScope{Channel: "lark"}
+	if sel, _, ok, _ := store.GetWithFallback(context.Background(), channelScope); ok {
+		if resolved, ok := resolver.Resolve(sel); ok {
+			b.logger.Debug("Using subscription profile for auxiliary LLM: provider=%s model=%s", resolved.Provider, resolved.Model)
+			return runtimeconfig.LLMProfile{
+				Provider: resolved.Provider,
+				Model:    resolved.Model,
+				APIKey:   resolved.APIKey,
+				BaseURL:  resolved.BaseURL,
+				Headers:  resolved.Headers,
+			}
+		}
+	}
+	return b.resolveDefaultLLMProfile()
 }
 
 // resolveDefaultLLMProfile returns the shared runtime LLM profile.

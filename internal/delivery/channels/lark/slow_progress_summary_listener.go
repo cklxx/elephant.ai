@@ -7,11 +7,13 @@ import (
 	"sync"
 	"time"
 
+	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/llmclient"
 	domain "alex/internal/domain/agent"
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
+	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/utils"
 )
 
@@ -224,7 +226,8 @@ func (l *slowProgressSummaryListener) buildSummary(signals []slowProgressSignal,
 	if l.gateway == nil || l.gateway.llmFactory == nil {
 		return fallback
 	}
-	if utils.IsBlank(l.gateway.llmProfile.Provider) || utils.IsBlank(l.gateway.llmProfile.Model) {
+	profile := l.resolveProfile()
+	if utils.IsBlank(profile.Provider) || utils.IsBlank(profile.Model) {
 		return fallback
 	}
 
@@ -250,12 +253,31 @@ func (l *slowProgressSummaryListener) buildSummary(signals []slowProgressSignal,
 	return truncateForLark(text, slowProgressSummaryMaxReplyChars)
 }
 
+// resolveProfile returns the pinned subscription profile from the task context
+// if available, otherwise falls back to the gateway's shared runtime profile.
+func (l *slowProgressSummaryListener) resolveProfile() runtimeconfig.LLMProfile {
+	if l.ctx != nil {
+		if selection, ok := appcontext.GetLLMSelection(l.ctx); ok {
+			if utils.HasContent(selection.Provider) && utils.HasContent(selection.Model) {
+				return runtimeconfig.LLMProfile{
+					Provider: selection.Provider,
+					Model:    selection.Model,
+					APIKey:   selection.APIKey,
+					BaseURL:  selection.BaseURL,
+					Headers:  selection.Headers,
+				}
+			}
+		}
+	}
+	return l.gateway.llmProfile
+}
+
 func (l *slowProgressSummaryListener) generateLLMSummary(
 	ctx context.Context,
 	signals []slowProgressSignal,
 	elapsed time.Duration,
 ) (string, error) {
-	client, _, err := llmclient.GetClientFromProfile(l.gateway.llmFactory, l.gateway.llmProfile, nil, false)
+	client, _, err := llmclient.GetClientFromProfile(l.gateway.llmFactory, l.resolveProfile(), nil, false)
 	if err != nil {
 		return "", err
 	}

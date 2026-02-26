@@ -10,8 +10,10 @@ import (
 	"sync"
 	"time"
 
+	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/llmclient"
 	ports "alex/internal/domain/agent/ports"
+	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/utils"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
@@ -242,6 +244,25 @@ func (g *Gateway) generateAutoReply(ctx context.Context, originalText, question 
 
 // heuristicAutoReply returns a simple rule-based reply:
 // pick the first option if any, otherwise a fixed "just do it" instruction.
+// resolveAutoReplyProfile returns the pinned subscription profile from context
+// if available, otherwise falls back to the gateway's shared runtime profile.
+func (g *Gateway) resolveAutoReplyProfile(ctx context.Context) runtimeconfig.LLMProfile {
+	if ctx != nil {
+		if selection, ok := appcontext.GetLLMSelection(ctx); ok {
+			if utils.HasContent(selection.Provider) && utils.HasContent(selection.Model) {
+				return runtimeconfig.LLMProfile{
+					Provider: selection.Provider,
+					Model:    selection.Model,
+					APIKey:   selection.APIKey,
+					BaseURL:  selection.BaseURL,
+					Headers:  selection.Headers,
+				}
+			}
+		}
+	}
+	return g.llmProfile
+}
+
 func heuristicAutoReply(options []string) string {
 	if len(options) > 0 {
 		return "1"
@@ -249,10 +270,10 @@ func heuristicAutoReply(options []string) string {
 	return "Proceed directly, no further confirmation needed."
 }
 
-// llmAutoReply calls a lightweight LLM to generate a context-aware reply,
-// using the shared runtime LLM profile.
+// llmAutoReply calls a lightweight LLM to generate a context-aware reply.
+// It prefers the pinned subscription from context, falling back to the gateway profile.
 func (g *Gateway) llmAutoReply(ctx context.Context, originalText, question string, options []string) (string, error) {
-	profile := g.llmProfile
+	profile := g.resolveAutoReplyProfile(ctx)
 	if utils.IsBlank(profile.Provider) || utils.IsBlank(profile.Model) {
 		return "", fmt.Errorf("no LLM profile configured")
 	}
