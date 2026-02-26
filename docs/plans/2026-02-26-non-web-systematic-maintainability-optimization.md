@@ -8,6 +8,11 @@ Systematically improve maintainability, readability, and logic simplicity across
 
 - Local engineering guide: `docs/guides/engineering-practices.md`
 - Skill SOP: `skills/best-practice-search/SKILL.md`
+- Web references (this round):
+  - Go Code Review Comments: https://go.dev/wiki/CodeReviewComments
+  - Effective Go: https://go.dev/doc/effective_go
+  - Refactoring catalog: https://refactoring.com/catalog/
+  - Refactoring smell `Speculative Generality`: https://refactoring.guru/smells/speculative-generality
 - Prior optimization rounds:
   - `docs/plans/2026-02-24-continue-full-optimization.md`
   - `docs/plans/2026-02-24-continue-full-optimization-r2.md`
@@ -29,7 +34,7 @@ Systematically improve maintainability, readability, and logic simplicity across
 - [completed] Candidate ranking: picked high-leverage, low-risk refactors across DI/config/lark/CLI layers.
 - [completed] Implementation: applied simplifications with focused tests.
 - [completed] Validation: ran lint/tests/arch checks.
-- [in_progress] Mandatory code review + incremental commits.
+- [completed] Mandatory code review + incremental commits.
 
 ## Progress Log
 
@@ -44,3 +49,7 @@ Systematically improve maintainability, readability, and logic simplicity across
 - 2026-02-26: Consolidated Lark pagination boilerplate with shared helpers (`normalizePageSize`, `extractPageTokenAndHasMore`) and applied across multiple services.
 - 2026-02-26: Ran targeted tests for changed packages and full quality gate (`./scripts/pre-push.sh`) successfully.
 - 2026-02-26: Ran mandatory code-review skill collection and performed manual blocking review; no P0/P1 found in this change set.
+- 2026-02-26: Subagent-driven second pass focused on anti-bloat cleanup: removed redundant defensive `len(...)` guards before safe `range` loops in multiple core paths.
+- 2026-02-26: Removed unused abstractions/components with zero production call-sites (`StringArgStrict`, `BoolArgWithDefault`, `ContentSnippet`, `ToolAdapter.ValidateArguments`, `BuildAttachmentStoreMigrator` file).
+- 2026-02-26: Inlined single-use helpers (`initEncoding`, `formatDurationShort`, `envelopeStreamFinished`) to reduce helper surface and indirection.
+- 2026-02-26: Re-ran package-targeted tests and full `./scripts/pre-push.sh`; all checks passed.
