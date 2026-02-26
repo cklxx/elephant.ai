@@ -71,3 +71,50 @@ func TestShouldSendArkReasoning(t *testing.T) {
 		})
 	}
 }
+
+func TestShouldSendOpenAIReasoning(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		model   string
+		cfg     ports.ThinkingConfig
+		want    bool
+	}{
+		{
+			name:    "codex endpoint with thinking enabled",
+			baseURL: "https://chatgpt.com/backend-api/codex",
+			model:   "gpt-5.3-codex-spark",
+			cfg:     ports.ThinkingConfig{Enabled: true},
+			want:    true,
+		},
+		{
+			name:    "codex endpoint with thinking disabled",
+			baseURL: "https://chatgpt.com/backend-api/codex",
+			model:   "gpt-5.3-codex-spark",
+			cfg:     ports.ThinkingConfig{Enabled: false},
+			want:    false,
+		},
+		{
+			name:    "openai reasoning model enabled",
+			baseURL: "https://api.openai.com/v1",
+			model:   "o3",
+			cfg:     ports.ThinkingConfig{Enabled: true},
+			want:    true,
+		},
+		{
+			name:    "openai non-reasoning model enabled",
+			baseURL: "https://api.openai.com/v1",
+			model:   "gpt-4o",
+			cfg:     ports.ThinkingConfig{Enabled: true},
+			want:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := shouldSendOpenAIReasoning(tt.baseURL, tt.model, tt.cfg)
+			if got != tt.want {
+				t.Fatalf("shouldSendOpenAIReasoning(%q, %q, %+v) = %v, want %v", tt.baseURL, tt.model, tt.cfg, got, tt.want)
+			}
+		})
+	}
+}

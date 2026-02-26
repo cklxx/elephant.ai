@@ -101,6 +101,9 @@ func shouldSendOpenAIReasoning(baseURL, model string, cfg ports.ThinkingConfig) 
 	if lowerBase == "" {
 		return false
 	}
+	if strings.Contains(lowerBase, "/backend-api/codex") {
+		return true
+	}
 	if !(strings.Contains(lowerBase, "openai") || strings.Contains(lowerBase, "openrouter.ai") || strings.Contains(lowerBase, "api.deepseek.com")) {
 		return false
 	}
