@@ -249,7 +249,7 @@ func (s *Supervisor) tick(ctx context.Context) {
 
 // maybeUpgradeForSHADrift auto-restarts healthy components whose deployed
 // SHA differs from the latest main SHA. Corresponds to supervisor.sh
-// maybe_upgrade_for_sha_drift (lines 633-686).
+// maybe_upgrade_for_sha_drift.
 func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 	now := time.Now()
 
@@ -264,8 +264,8 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 	}
 
 	for _, comp := range s.components {
-		// Only main has SHA tracking in the runtime supervisor.
-		if comp.Name != "main" {
+		// Keep runtime components that should track main SHA aligned.
+		if comp.Name != "main" && comp.Name != "kernel" {
 			continue
 		}
 

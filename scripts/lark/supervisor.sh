@@ -895,7 +895,7 @@ maybe_upgrade_for_sha_drift() {
     return 0
   fi
 
-  # Main upgrade is independent from test process lifecycle.
+  # Keep runtime components that should track main SHA aligned.
   if [[ "${OBS_MAIN_HEALTH}" == "healthy" \
      && "${OBS_MAIN_DEPLOYED_SHA}" != "unknown" \
      && "${OBS_MAIN_SHA}" != "unknown" \
@@ -911,6 +911,25 @@ maybe_upgrade_for_sha_drift() {
       append_log "[upgrade] main restart success"
     else
       append_log "[upgrade] main restart failed"
+    fi
+    observe_states
+  fi
+
+  if [[ "${OBS_KERNEL_HEALTH}" == "healthy" \
+     && "${OBS_KERNEL_DEPLOYED_SHA}" != "unknown" \
+     && "${OBS_MAIN_SHA}" != "unknown" \
+     && "${OBS_KERNEL_DEPLOYED_SHA}" != "${OBS_MAIN_SHA}" ]]; then
+    local count
+    count="$(record_restart_attempt "kernel" "${now_epoch}")"
+    if (( count > RESTART_MAX_IN_WINDOW )); then
+      set_cooldown "kernel" "${count}"
+      return 0
+    fi
+    append_log "[upgrade] kernel deployed=${OBS_KERNEL_DEPLOYED_SHA:0:8} latest=${OBS_MAIN_SHA:0:8}; restarting"
+    if restart_component "kernel"; then
+      append_log "[upgrade] kernel restart success"
+    else
+      append_log "[upgrade] kernel restart failed"
     fi
     observe_states
   fi

@@ -62,6 +62,41 @@ lark_sync_test_worktree_env() {
   log_success "Synced .env -> ${dst}"
 }
 
+lark_sync_test_worktree_web_node_modules() {
+  local main_root="$1"
+  local test_root
+  local main_node_modules
+  local test_node_modules
+  local link_target
+
+  test_root="$(lark_test_root_path "${main_root}")"
+  main_node_modules="${main_root}/web/node_modules"
+  test_node_modules="${test_root}/web/node_modules"
+
+  # Repos without web workspace can skip this sync.
+  if [[ ! -d "${main_root}/web" || ! -d "${test_root}/web" ]]; then
+    return 0
+  fi
+
+  if [[ ! -d "${main_node_modules}" ]]; then
+    log_warn "Missing ${main_node_modules}; run 'npm --prefix web install' to enable slow gate lint"
+    return 0
+  fi
+
+  if [[ -L "${test_node_modules}" ]]; then
+    link_target="$(readlink "${test_node_modules}" || true)"
+    if [[ "${link_target}" == "${main_node_modules}" ]]; then
+      return 0
+    fi
+  fi
+
+  if [[ -e "${test_node_modules}" || -L "${test_node_modules}" ]]; then
+    rm -rf "${test_node_modules}"
+  fi
+  ln -s "${main_node_modules}" "${test_node_modules}"
+  log_info "Linked test web/node_modules -> ${main_node_modules}"
+}
+
 lark_is_git_worktree_dir() {
   local path="$1"
   git -C "${path}" rev-parse --is-inside-work-tree >/dev/null 2>&1
@@ -148,4 +183,5 @@ lark_ensure_test_worktree() {
   fi
 
   lark_sync_test_worktree_env "${main_root}"
+  lark_sync_test_worktree_web_node_modules "${main_root}"
 }

@@ -261,6 +261,33 @@ func TestMaybeUpgradeForSHADrift(t *testing.T) {
 	}
 }
 
+func TestMaybeUpgradeForSHADriftKernel(t *testing.T) {
+	s, dir := newTestSupervisor(t)
+
+	var startCalled bool
+	shaFile := filepath.Join(dir, "kernel.sha")
+	if err := os.WriteFile(shaFile, []byte("oldsha123"), 0o644); err != nil {
+		t.Fatalf("write kernel sha file: %v", err)
+	}
+
+	s.RegisterComponent(&Component{
+		Name:     "kernel",
+		SHAFile:  shaFile,
+		HealthFn: func() string { return "healthy" },
+		StartFn: func(ctx context.Context) error {
+			startCalled = true
+			return nil
+		},
+	})
+
+	s.loopState.MainSHA = "newsha456"
+	s.maybeUpgradeForSHADrift(context.Background())
+
+	if !startCalled {
+		t.Error("StartFn should be called for kernel when deployed SHA differs from main SHA")
+	}
+}
+
 func TestMaybeUpgradeForSHADriftSameSHA(t *testing.T) {
 	s, dir := newTestSupervisor(t)
 
