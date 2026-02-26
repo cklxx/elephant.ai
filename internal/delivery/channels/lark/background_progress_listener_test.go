@@ -193,6 +193,117 @@ func TestBackgroundProgressListener_CompletionUpdatesImmediatelyAndStops(t *test
 	}
 }
 
+func TestBackgroundProgressListener_CompletionUppercaseStatusIsNormalized(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	g := &Gateway{messenger: recorder}
+
+	ln := newBackgroundProgressListener(
+		context.Background(),
+		agent.NoopEventListener{},
+		g,
+		"chat-1",
+		"om_parent",
+		logging.NewComponentLogger("test"),
+		1*time.Hour,
+		10*time.Minute,
+	)
+	defer ln.Close()
+
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskDispatched,
+		NodeKind:  "background",
+		NodeID:    "bg-upper-1",
+		Payload: map[string]any{
+			"task_id":     "bg-upper-1",
+			"description": "desc",
+			"agent_type":  "codex",
+		},
+	})
+
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskCompleted,
+		NodeKind:  "background",
+		NodeID:    "bg-upper-1",
+		Payload: map[string]any{
+			"task_id": "bg-upper-1",
+			"status":  "COMPLETED",
+			"answer":  "done",
+		},
+	})
+
+	updates := recorder.CallsByMethod("UpdateMessage")
+	if len(updates) != 1 {
+		t.Fatalf("expected 1 update message, got %d", len(updates))
+	}
+	if !strings.Contains(updates[0].Content, "任务已完成") {
+		t.Fatalf("expected completion header, got %q", updates[0].Content)
+	}
+	if !strings.Contains(updates[0].Content, "status: completed") {
+		t.Fatalf("expected normalized status in completion content, got %q", updates[0].Content)
+	}
+}
+
+func TestBackgroundProgressListener_CompletionNonTerminalStatusWithErrorBecomesFailed(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	g := &Gateway{messenger: recorder}
+
+	ln := newBackgroundProgressListener(
+		context.Background(),
+		agent.NoopEventListener{},
+		g,
+		"chat-1",
+		"om_parent",
+		logging.NewComponentLogger("test"),
+		1*time.Hour,
+		10*time.Minute,
+	)
+	defer ln.Close()
+
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskDispatched,
+		NodeKind:  "background",
+		NodeID:    "bg-fail-1",
+		Payload: map[string]any{
+			"task_id":     "bg-fail-1",
+			"description": "desc",
+			"agent_type":  "codex",
+		},
+	})
+
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskCompleted,
+		NodeKind:  "background",
+		NodeID:    "bg-fail-1",
+		Payload: map[string]any{
+			"task_id": "bg-fail-1",
+			"status":  "running",
+			"error":   "boom",
+		},
+	})
+
+	updates := recorder.CallsByMethod("UpdateMessage")
+	if len(updates) != 1 {
+		t.Fatalf("expected 1 update message, got %d", len(updates))
+	}
+	if !strings.Contains(updates[0].Content, "任务出错了") {
+		t.Fatalf("expected failed header, got %q", updates[0].Content)
+	}
+	if !strings.Contains(updates[0].Content, "status: failed") {
+		t.Fatalf("expected normalized failed status in completion content, got %q", updates[0].Content)
+	}
+	if !strings.Contains(updates[0].Content, "boom") {
+		t.Fatalf("expected error content, got %q", updates[0].Content)
+	}
+}
+
 func TestBgProgressListener_ReleaseNoTasksClosesImmediately(t *testing.T) {
 	recorder := NewRecordingMessenger()
 	g := &Gateway{messenger: recorder}

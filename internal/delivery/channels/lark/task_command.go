@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	builtinshared "alex/internal/infra/tools/builtin/shared"
 	agent "alex/internal/domain/agent/ports/agent"
+	builtinshared "alex/internal/infra/tools/builtin/shared"
 
 	"alex/internal/delivery/channels"
 )
@@ -315,11 +315,11 @@ func (g *Gateway) handleTaskCancel(ctx context.Context, taskID string) string {
 	if !ok {
 		return fmt.Sprintf("未找到任务: %s", taskID)
 	}
-	if task.Status == "completed" || task.Status == "failed" || task.Status == "cancelled" {
-		return fmt.Sprintf("任务 %s 已经是 %s 状态，无需取消。", taskID, task.Status)
+	if isTerminalTaskStatus(task.Status) {
+		return fmt.Sprintf("任务 %s 已经是 %s 状态，无需取消。", taskID, normalizeTaskStatus(task.Status))
 	}
 
-	if err := g.taskStore.UpdateStatus(ctx, taskID, "cancelled", WithErrorText("user cancelled")); err != nil {
+	if err := g.taskStore.UpdateStatus(ctx, taskID, taskStatusCancelled, WithErrorText("user cancelled")); err != nil {
 		return fmt.Sprintf("取消任务失败: %v", err)
 	}
 
@@ -357,7 +357,7 @@ func (g *Gateway) formatActiveTaskList(tasks []TaskRecord) string {
 
 	activeCount := 0
 	for _, t := range tasks {
-		if t.Status == "pending" || t.Status == "running" || t.Status == "waiting_input" {
+		if isActiveTaskStatus(t.Status) {
 			activeCount++
 		}
 	}
@@ -452,21 +452,21 @@ Examples:
 }
 
 func taskStatusLabel(status string) string {
-	switch status {
-	case "pending":
+	switch normalizeTaskStatus(status) {
+	case taskStatusPending:
 		return "pending"
-	case "running":
+	case taskStatusRunning:
 		return "running"
-	case "waiting_input":
+	case taskStatusWaitingInput:
 		return "waiting"
-	case "completed":
+	case taskStatusCompleted:
 		return "done"
-	case "failed":
+	case taskStatusFailed:
 		return "failed"
-	case "cancelled":
+	case taskStatusCancelled:
 		return "cancelled"
 	default:
-		return status
+		return normalizeTaskStatus(status)
 	}
 }
 

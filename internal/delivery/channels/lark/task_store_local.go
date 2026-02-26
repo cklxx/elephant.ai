@@ -112,8 +112,9 @@ func (s *TaskLocalStore) SaveTask(ctx context.Context, task TaskRecord) error {
 	if task.UpdatedAt.IsZero() {
 		task.UpdatedAt = now
 	}
-	if utils.IsBlank(task.Status) {
-		task.Status = "pending"
+	task.Status = normalizeTaskStatus(task.Status)
+	if task.Status == "" {
+		task.Status = taskStatusPending
 	}
 
 	s.mu.Lock()
@@ -142,7 +143,14 @@ func (s *TaskLocalStore) UpdateStatus(ctx context.Context, taskID, status string
 	if !ok {
 		return nil
 	}
-	task.Status = strings.TrimSpace(status)
+	normalizedStatus := normalizeTaskStatus(status)
+	if normalizedStatus == "" {
+		normalizedStatus = task.Status
+		if normalizedStatus == "" {
+			normalizedStatus = taskStatusPending
+		}
+	}
+	task.Status = normalizedStatus
 	task.UpdatedAt = now
 	if isTerminalTaskStatus(task.Status) {
 		task.CompletedAt = now
@@ -236,8 +244,8 @@ func (s *TaskLocalStore) MarkStaleRunning(ctx context.Context, reason string) er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for id, rec := range s.tasks {
-		if rec.Status == "pending" || rec.Status == "running" || rec.Status == "waiting_input" {
-			rec.Status = "failed"
+		if isActiveTaskStatus(rec.Status) {
+			rec.Status = taskStatusFailed
 			rec.Error = reason
 			rec.UpdatedAt = now
 			rec.CompletedAt = now
@@ -370,15 +378,6 @@ func (s *TaskLocalStore) persistLocked() error {
 		return fmt.Errorf("commit task store: %w", err)
 	}
 	return nil
-}
-
-func isTerminalTaskStatus(status string) bool {
-	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "completed", "failed", "cancelled":
-		return true
-	default:
-		return false
-	}
 }
 
 var _ TaskStore = (*TaskLocalStore)(nil)

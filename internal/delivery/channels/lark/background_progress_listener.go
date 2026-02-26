@@ -236,7 +236,7 @@ func (l *backgroundProgressListener) onBackgroundDispatched(env *domain.Workflow
 		description: description,
 		agentType:   agentType,
 		startedAt:   startedAt,
-		status:      "running",
+		status:      taskStatusRunning,
 		interval:    l.taskInterval(agentType),
 		window:      l.taskWindow(agentType),
 		stopCh:      make(chan struct{}),
@@ -320,7 +320,7 @@ func (l *backgroundProgressListener) onExternalProgress(env *domain.WorkflowEven
 	}
 
 	t.mu.Lock()
-	if t.status == "completed" || t.status == "failed" || t.status == "cancelled" {
+	if isTerminalTaskStatus(t.status) {
 		t.mu.Unlock()
 		return
 	}
@@ -345,7 +345,7 @@ func (l *backgroundProgressListener) onExternalProgress(env *domain.WorkflowEven
 	t.mu.Unlock()
 
 	// Sync running status to TaskStore.
-	l.syncTaskStatus(taskID, "running", WithTokensUsed(tokensUsed))
+	l.syncTaskStatus(taskID, taskStatusRunning, WithTokensUsed(tokensUsed))
 }
 
 func (l *backgroundProgressListener) onExternalInputRequested(env *domain.WorkflowEventEnvelope) {
@@ -368,8 +368,8 @@ func (l *backgroundProgressListener) onExternalInputRequested(env *domain.Workfl
 	}
 
 	t.mu.Lock()
-	if t.status != "completed" && t.status != "failed" && t.status != "cancelled" {
-		t.status = "waiting_input"
+	if !isTerminalTaskStatus(t.status) {
+		t.status = taskStatusWaitingInput
 		t.pendingSummary = truncateForLark(summary, 400)
 	}
 	t.mu.Unlock()
@@ -382,7 +382,7 @@ func (l *backgroundProgressListener) onBackgroundCompleted(env *domain.WorkflowE
 	if taskID == "" {
 		taskID = strings.TrimSpace(env.NodeID)
 	}
-	status := strings.TrimSpace(asString(env.Payload["status"]))
+	status := asString(env.Payload["status"])
 	answer := asString(env.Payload["answer"])
 	errText := asString(env.Payload["error"])
 	mergeStatus := asString(env.Payload["merge_status"])
@@ -412,15 +412,14 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 		return
 	}
 
-	status = strings.TrimSpace(status)
+	normalizedStatus := normalizeCompletionTaskStatus(status, errText)
+	if raw := strings.TrimSpace(status); raw != "" && normalizeTaskStatus(raw) != normalizedStatus {
+		l.logger.Warn("Lark background completion normalized non-terminal status: task_id=%s raw_status=%s normalized=%s", taskID, raw, normalizedStatus)
+	}
 	mergeStatus = normalizeMergeStatus(mergeStatus)
 
 	t.mu.Lock()
-	if status != "" {
-		t.status = status
-	} else {
-		t.status = "completed"
-	}
+	t.status = normalizedStatus
 	t.mergeStatus = mergeStatus
 	// Stash result in pendingSummary so flush can format without racing payload.
 	if errText != "" {
@@ -433,10 +432,7 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 	l.flush(t, true)
 
 	// Sync final status to TaskStore.
-	finalStatus := status
-	if finalStatus == "" {
-		finalStatus = "completed"
-	}
+	finalStatus := normalizedStatus
 	var updateOpts []TaskUpdateOption
 	if errText != "" {
 		updateOpts = append(updateOpts, WithErrorText(truncateForLark(errText, 1500)))
@@ -493,13 +489,13 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 	var b strings.Builder
 
 	switch status {
-	case "waiting_input":
+	case taskStatusWaitingInput:
 		b.WriteString("后台任务等待中\n")
 		l.writeDescription(&b, description)
 		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
 		b.WriteString("\n")
 		b.WriteString(pending)
-	case "completed":
+	case taskStatusCompleted:
 		b.WriteString("任务已完成\n")
 		l.writeCompletionMeta(&b, taskID, status, mergeStatus)
 		l.writeDescription(&b, description)
@@ -508,7 +504,7 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 			b.WriteString("\n")
 			b.WriteString(pending)
 		}
-	case "failed":
+	case taskStatusFailed:
 		b.WriteString("任务出错了\n")
 		l.writeCompletionMeta(&b, taskID, status, mergeStatus)
 		l.writeDescription(&b, description)
@@ -517,7 +513,7 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 			b.WriteString("\n")
 			b.WriteString(pending)
 		}
-	case "cancelled":
+	case taskStatusCancelled:
 		b.WriteString("任务已取消\n")
 		l.writeCompletionMeta(&b, taskID, status, mergeStatus)
 		l.writeDescription(&b, description)
@@ -564,7 +560,7 @@ func (l *backgroundProgressListener) writeDescription(b *strings.Builder, descri
 
 func (l *backgroundProgressListener) writeCompletionMeta(b *strings.Builder, taskID, status, mergeStatus string) {
 	taskID = strings.TrimSpace(taskID)
-	status = strings.TrimSpace(status)
+	status = normalizeTaskStatus(status)
 	mergeStatus = normalizeMergeStatus(mergeStatus)
 	if taskID != "" {
 		b.WriteString(fmt.Sprintf("task_id: %s\n", taskID))
@@ -752,7 +748,7 @@ func (l *backgroundProgressListener) syncTaskSave(taskID, description, agentType
 		TaskID:      taskID,
 		AgentType:   agentType,
 		Description: description,
-		Status:      "running",
+		Status:      taskStatusRunning,
 		CreatedAt:   startedAt,
 	}
 	if err := l.g.taskStore.SaveTask(l.ctx, rec); err != nil {
@@ -810,7 +806,7 @@ func (l *backgroundProgressListener) checkTaskStoreCompletions() {
 		if err != nil || !ok {
 			continue
 		}
-		if rec.Status == "completed" || rec.Status == "failed" || rec.Status == "cancelled" {
+		if isTerminalTaskStatus(rec.Status) {
 			l.logger.Info("Poller detected completed task %s (status=%s), delivering notification", taskID, rec.Status)
 			l.handleCompletion(taskID, rec.Status, rec.AnswerPreview, rec.Error, rec.MergeStatus, rec.TokensUsed)
 		}
