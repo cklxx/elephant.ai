@@ -41,8 +41,8 @@
 - [x] Implement 2-4 high-impact simplifications with tests.
 - [x] Run full lint + tests (or document blockers).
 - [x] Run mandatory code review workflow and fix P0/P1.
-- [ ] Commit incremental changes.
-- [ ] Update plan with final validation notes.
+- [x] Commit incremental changes.
+- [x] Update plan with final validation notes.
 
 ## Progress log
 - 2026-02-26 00:00: Created plan, loaded active memory, and locked scope to non-web paths.
@@ -50,3 +50,4 @@
 - 2026-02-26 00:25: Refactored `applyFile` and `applyOverrides` into grouped field-application patterns to reduce repetitive branching while preserving source-tracking behavior.
 - 2026-02-26 00:30: Simplified preset validation (`IsValidPreset`) to reuse `GetPromptConfig`, removing duplicate preset lists.
 - 2026-02-26 00:35: Validation passed via targeted tests and full `./scripts/pre-push.sh` chain.
+- 2026-02-26 00:40: Completed two incremental commits for code + plan updates.
