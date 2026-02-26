@@ -194,17 +194,34 @@ component_start() {
 
   log_info "Starting ${COMPONENT_NAME}..."
 
-  # Build env array
-  local env_prefix="ALEX_CONFIG_PATH=${CONFIG_PATH} ALEX_LOG_DIR=${ALEX_LOG_DIR}"
+  local -a launch_env
+  local -a launch_args
+  launch_env=("ALEX_CONFIG_PATH=${CONFIG_PATH}" "ALEX_LOG_DIR=${ALEX_LOG_DIR}")
+  launch_args=("${BIN}")
+
   if [[ -n "${NOTICE_STATE_FILE:-}" ]]; then
-    env_prefix="${env_prefix} LARK_NOTICE_STATE_FILE=${NOTICE_STATE_FILE}"
+    launch_env+=("LARK_NOTICE_STATE_FILE=${NOTICE_STATE_FILE}")
   fi
   if [[ -n "${COMPONENT_EXTRA_ENV}" ]]; then
-    env_prefix="${env_prefix} ${COMPONENT_EXTRA_ENV}"
+    local -a extra_env
+    # shellcheck disable=SC2206
+    extra_env=(${COMPONENT_EXTRA_ENV})
+    launch_env+=("${extra_env[@]}")
+  fi
+  if [[ -n "${COMPONENT_BIN_ARGS}" ]]; then
+    local -a extra_args
+    # shellcheck disable=SC2206
+    extra_args=(${COMPONENT_BIN_ARGS})
+    launch_args+=("${extra_args[@]}")
   fi
 
-  # shellcheck disable=SC2086
-  eval "${env_prefix}" nohup "${BIN}" ${COMPONENT_BIN_ARGS} >> "${LOG_FILE}" 2>&1 &
+  # Isolate component processes from caller PGID so stop/restart can signal the
+  # component group without terminating the caller (e.g. supervisor).
+  if command -v python3 >/dev/null 2>&1; then
+    nohup env "${launch_env[@]}" python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "${launch_args[@]}" >> "${LOG_FILE}" 2>&1 &
+  else
+    nohup env "${launch_env[@]}" "${launch_args[@]}" >> "${LOG_FILE}" 2>&1 &
+  fi
   write_pid_meta "${PID_FILE}" "$!"
 
   pid="$(read_pid "${PID_FILE}" || true)"

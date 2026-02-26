@@ -18,12 +18,24 @@ import (
 	"alex/internal/shared/utils"
 )
 
+const larkSupervisorTarget = "supervisor"
+
+type larkCommand struct {
+	target string
+	action string
+}
+
 func runDevLarkCommand(args []string) error {
-	cmd := "start"
-	if len(args) > 0 {
-		cmd = args[0]
+	parsed, err := parseLarkCommand(args)
+	if err != nil {
+		return err
 	}
 
+	if parsed.target != larkSupervisorTarget {
+		return runLarkComponentCommand(parsed.target, parsed.action)
+	}
+
+	cmd := parsed.action
 	switch cmd {
 	case "supervise", "run":
 		return larkSupervise()
@@ -46,6 +58,103 @@ func runDevLarkCommand(args []string) error {
 	default:
 		return fmt.Errorf("unknown lark command: %s", cmd)
 	}
+}
+
+func parseLarkCommand(args []string) (larkCommand, error) {
+	if len(args) == 0 {
+		return larkCommand{
+			target: larkSupervisorTarget,
+			action: "start",
+		}, nil
+	}
+
+	if isLarkComponent(args[0]) {
+		if len(args) == 1 {
+			return larkCommand{}, fmt.Errorf(
+				"missing lark %s command (expected: start|stop|restart|status|logs)",
+				args[0],
+			)
+		}
+		action, ok := normalizeLarkComponentAction(args[1])
+		if !ok {
+			return larkCommand{}, fmt.Errorf(
+				"unknown lark %s command: %s (expected: start|stop|restart|status|logs)",
+				args[0],
+				args[1],
+			)
+		}
+		if len(args) > 2 {
+			return larkCommand{}, fmt.Errorf("too many arguments for lark %s command", args[0])
+		}
+		return larkCommand{
+			target: args[0],
+			action: action,
+		}, nil
+	}
+
+	if len(args) > 1 && isLarkComponent(args[1]) {
+		action, ok := normalizeLarkComponentAction(args[0])
+		if ok {
+			if len(args) > 2 {
+				return larkCommand{}, fmt.Errorf("too many arguments for lark %s command", args[1])
+			}
+			return larkCommand{
+				target: args[1],
+				action: action,
+			}, nil
+		}
+	}
+
+	return larkCommand{
+		target: larkSupervisorTarget,
+		action: args[0],
+	}, nil
+}
+
+func normalizeLarkComponentAction(action string) (string, bool) {
+	switch action {
+	case "start", "up":
+		return "start", true
+	case "stop", "down":
+		return "stop", true
+	case "restart", "status", "logs":
+		return action, true
+	default:
+		return "", false
+	}
+}
+
+func isLarkComponent(name string) bool {
+	switch name {
+	case "main", "kernel", "loop":
+		return true
+	default:
+		return false
+	}
+}
+
+func runLarkComponentCommand(component, action string) error {
+	cfg, err := buildSupervisorConfig()
+	if err != nil {
+		return err
+	}
+
+	var scriptPath string
+	switch component {
+	case "main":
+		scriptPath = filepath.Join(cfg.MainRoot, "scripts", "lark", "main.sh")
+	case "kernel":
+		scriptPath = filepath.Join(cfg.MainRoot, "scripts", "lark", "kernel.sh")
+	case "loop":
+		scriptPath = filepath.Join(cfg.MainRoot, "scripts", "lark", "loop-agent.sh")
+	default:
+		return fmt.Errorf("unknown lark component: %s", component)
+	}
+
+	cmd := exec.Command(scriptPath, action)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func larkSupervise() error {
@@ -733,6 +842,11 @@ Commands:
   restart          Restart supervisor
   status           Show supervisor status
   logs             Tail all Lark logs
+  main <cmd>       Manage main component (cmd: start|stop|restart|status|logs)
+  kernel <cmd>     Manage kernel component (cmd: start|stop|restart|status|logs)
+  loop <cmd>       Manage loop component (cmd: start|stop|restart|status|logs)
+  <cmd> main|kernel|loop
+                   Component command compatibility form
   help             Show this help
 `)
 }

@@ -41,12 +41,16 @@ _signal_process() {
   local pid="$1"
   local sig="$2"
   local pgid
+  local self_pgid
   pgid="$(_resolve_pgid "$pid")"
-  if [[ -n "$pgid" ]]; then
+  self_pgid="$(_resolve_pgid "$$")"
+  # Guard against collateral self-termination: when target shares caller PGID,
+  # signal only the specific PID.
+  if [[ -n "$pgid" && "$pgid" != "$self_pgid" ]]; then
     kill "-${sig}" -- "-${pgid}" 2>/dev/null || kill "-${sig}" "$pid" 2>/dev/null || true
-  else
-    kill "-${sig}" "$pid" 2>/dev/null || true
+    return
   fi
+  kill "-${sig}" "$pid" 2>/dev/null || true
 }
 
 stop_pid() {
