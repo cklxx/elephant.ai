@@ -2830,7 +2830,7 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 			},
 		}
 		reply := gw.buildReply(result, nil)
-		if reply != "Hello!\n\n思考：\nthinking content" {
+		if reply != "Hello!\n\nthinking content" {
 			t.Fatalf("expected answer, got %q", reply)
 		}
 	})

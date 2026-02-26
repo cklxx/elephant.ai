@@ -775,7 +775,7 @@ func (g *Gateway) buildReply(result *agent.TaskResult, execErr error) string {
 
 	// When answer exists, append thinking for step-by-step visibility.
 	if execErr == nil && !strings.Contains(reply, thinking) {
-		reply = reply + "\n\n思考：\n" + thinking
+		reply = reply + "\n\n" + thinking
 	}
 
 	return channels.ShapeReply7C(reply)
