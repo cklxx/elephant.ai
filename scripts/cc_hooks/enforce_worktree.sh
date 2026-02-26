@@ -29,6 +29,12 @@ INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd // "."')
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.filePath // ""')
 
+# Only enforce for files within this project. Cross-repo edits are not our concern.
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$CWD}"
+if [ -n "$FILE_PATH" ] && [[ "$FILE_PATH" != "$PROJECT_DIR/"* ]]; then
+  exit 0
+fi
+
 # Allowlist: never block these paths.
 if [ -n "$FILE_PATH" ]; then
   # Normalize: if file_path is absolute, make it relative to CWD for pattern matching.
@@ -50,19 +56,26 @@ if [ -n "$FILE_PATH" ]; then
   fi
 fi
 
+# Determine which repo to check — prefer the file's repo over CWD.
+if [ -n "$FILE_PATH" ] && [ -d "$(dirname "$FILE_PATH")" ]; then
+  CHECK_DIR=$(dirname "$FILE_PATH")
+else
+  CHECK_DIR="$CWD"
+fi
+
 # Detect branch and worktree status.
-BRANCH=$(git -C "$CWD" branch --show-current 2>/dev/null || echo "")
+BRANCH=$(git -C "$CHECK_DIR" branch --show-current 2>/dev/null || echo "")
 if [ "$BRANCH" != "main" ]; then
   # Not on main — allow.
   exit 0
 fi
 
-GIT_DIR=$(git -C "$CWD" rev-parse --git-dir 2>/dev/null || echo "")
-GIT_COMMON=$(git -C "$CWD" rev-parse --git-common-dir 2>/dev/null || echo "")
+GIT_DIR=$(git -C "$CHECK_DIR" rev-parse --git-dir 2>/dev/null || echo "")
+GIT_COMMON=$(git -C "$CHECK_DIR" rev-parse --git-common-dir 2>/dev/null || echo "")
 
 # Normalize paths for comparison.
-GIT_DIR_REAL=$(cd "$CWD" && realpath "$GIT_DIR" 2>/dev/null || echo "$GIT_DIR")
-GIT_COMMON_REAL=$(cd "$CWD" && realpath "$GIT_COMMON" 2>/dev/null || echo "$GIT_COMMON")
+GIT_DIR_REAL=$(cd "$CHECK_DIR" && realpath "$GIT_DIR" 2>/dev/null || echo "$GIT_DIR")
+GIT_COMMON_REAL=$(cd "$CHECK_DIR" && realpath "$GIT_COMMON" 2>/dev/null || echo "$GIT_COMMON")
 
 if [ "$GIT_DIR_REAL" != "$GIT_COMMON_REAL" ]; then
   # In a worktree — allow.
