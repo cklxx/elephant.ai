@@ -23,7 +23,7 @@ import { VirtualizedList } from "@/components/dev-tools/shared/virtualized-list"
 
 const INDEX_PAGE_SIZE = 80;
 
-type SidebarFilter = "all" | "llm" | "service" | "latency";
+type SidebarFilter = "all" | "llm" | "errors" | "service" | "latency";
 
 function formatLastSeen(value: string): string {
   if (!value) return "-";
@@ -66,6 +66,8 @@ function matchesSidebarFilter(entry: LogIndexEntry, filter: SidebarFilter): bool
       return true;
     case "llm":
       return entry.llm_count > 0 || entry.request_count > 0;
+    case "errors":
+      return entry.error_count > 0;
     case "service":
       return entry.service_count > 0;
     case "latency":
@@ -240,10 +242,10 @@ function TextLogTable({
   );
 }
 
-function RequestPayloadPreview({ payload }: { payload: unknown }) {
+function RequestPayloadPreview({ payload, payloadText }: { payload: unknown; payloadText?: string }) {
   const [expanded, setExpanded] = useState(false);
 
-  if (payload === undefined || payload === null) {
+  if ((payload === undefined || payload === null) && !payloadText) {
     return <span className="text-xs italic text-slate-400">no payload</span>;
   }
 
@@ -275,7 +277,11 @@ function RequestPayloadPreview({ payload }: { payload: unknown }) {
         Collapse payload
       </Button>
       <div className="max-h-96 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
-        <JsonTreeViewer data={payload} rootLabel="payload" initiallyExpandedDepth={1} />
+        {payloadText && (payload === undefined || payload === null) ? (
+          <pre className="whitespace-pre-wrap text-[11px] text-slate-700">{payloadText}</pre>
+        ) : (
+          <JsonTreeViewer data={payload} rootLabel="payload" initiallyExpandedDepth={1} />
+        )}
       </div>
     </div>
   );
@@ -292,7 +298,13 @@ const RequestLogItem = React.memo(function RequestLogItem({
     <div className="space-y-1 rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex items-center gap-2 text-xs">
         <Badge
-          variant={entry.entry_type === "request" ? "info" : "success"}
+          variant={
+            entry.entry_type === "request"
+              ? "info"
+              : entry.entry_type === "response"
+              ? "success"
+              : "destructive"
+          }
           className="px-1.5 py-0 font-mono text-[10px]"
         >
           {entry.entry_type}
@@ -303,7 +315,36 @@ const RequestLogItem = React.memo(function RequestLogItem({
         <span className="text-slate-400">{formatTimestamp(entry.timestamp)}</span>
         <span className="text-slate-400">{formatBytes(entry.body_bytes)}</span>
       </div>
-      <RequestPayloadPreview payload={entry.payload} />
+      {entry.entry_type === "error" ? (
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+          {entry.error_class ? (
+            <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px]">
+              class:{entry.error_class}
+            </Badge>
+          ) : null}
+          {entry.stage ? (
+            <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px]">
+              stage:{entry.stage}
+            </Badge>
+          ) : null}
+          {entry.provider ? (
+            <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px]">
+              provider:{entry.provider}
+            </Badge>
+          ) : null}
+          {entry.model ? (
+            <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px]">
+              model:{entry.model}
+            </Badge>
+          ) : null}
+          {typeof entry.latency_ms === "number" ? (
+            <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px]">
+              latency:{entry.latency_ms}ms
+            </Badge>
+          ) : null}
+        </div>
+      ) : null}
+      <RequestPayloadPreview payload={entry.payload} payloadText={entry.payload_text} />
     </div>
   );
 });
@@ -339,6 +380,7 @@ function RequestLogList({
 const FILTER_OPTIONS: { value: SidebarFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "llm", label: "LLM" },
+  { value: "errors", label: "Errors" },
   { value: "service", label: "Service" },
   { value: "latency", label: "Latency" },
 ];
@@ -551,6 +593,11 @@ export function StructuredLogWorkbench() {
   const llmEntries = useMemo(() => bundle?.llm?.entries ?? [], [bundle]);
   const latencyEntries = useMemo(() => bundle?.latency?.entries ?? [], [bundle]);
   const requestEntries = useMemo(() => bundle?.requests?.entries ?? [], [bundle]);
+  const requestResponseEntries = useMemo(
+    () => requestEntries.filter((entry) => entry.entry_type === "request" || entry.entry_type === "response"),
+    [requestEntries],
+  );
+  const errorEntries = useMemo(() => bundle?.errors?.entries ?? [], [bundle]);
 
   return (
     <div className="flex h-[calc(100vh-220px)] min-h-[640px] min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -587,7 +634,7 @@ export function StructuredLogWorkbench() {
               <span className="font-mono text-xs text-slate-400">{selectedLogID}</span>
               {bundle ? (
                 <span className="ml-auto text-[10px] text-slate-400">
-                  S:{snippetEntryCount(bundle.service)} L:{snippetEntryCount(bundle.llm)} T:{snippetEntryCount(bundle.latency)} R:{snippetEntryCount(bundle.requests)}
+                  S:{snippetEntryCount(bundle.service)} L:{snippetEntryCount(bundle.llm)} T:{snippetEntryCount(bundle.latency)} R:{snippetEntryCount(bundle.requests)} E:{snippetEntryCount(bundle.errors)}
                 </span>
               ) : null}
             </div>
@@ -616,6 +663,14 @@ export function StructuredLogWorkbench() {
                       {llmEntries.length > 0 || requestEntries.length > 0 ? (
                         <Badge variant="secondary" className="ml-1.5 px-1 py-0 text-[10px]">
                           {llmEntries.length + requestEntries.length}
+                        </Badge>
+                      ) : null}
+                    </TabsTrigger>
+                    <TabsTrigger value="errors">
+                      Errors
+                      {errorEntries.length > 0 ? (
+                        <Badge variant="secondary" className="ml-1.5 px-1 py-0 text-[10px]">
+                          {errorEntries.length}
                         </Badge>
                       ) : null}
                     </TabsTrigger>
@@ -667,12 +722,28 @@ export function StructuredLogWorkbench() {
                           {bundle.requests?.error ? (
                             <SnippetError error={bundle.requests.error} />
                           ) : (
-                            <RequestLogList entries={requestEntries} search={debouncedSearch} />
+                            <RequestLogList entries={requestResponseEntries} search={debouncedSearch} />
                           )}
                           <TruncationWarning truncated={bundle.requests?.truncated} />
                         </CardContent>
                       </Card>
                     </div>
+                  </TabsContent>
+
+                  <TabsContent value="errors">
+                    <Card>
+                      <CardHeader className="px-3 py-2">
+                        <CardTitle className="text-sm">LLM Failure Entries</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pb-3">
+                        {bundle.errors?.error ? (
+                          <SnippetError error={bundle.errors.error} />
+                        ) : (
+                          <RequestLogList entries={errorEntries} search={debouncedSearch} />
+                        )}
+                        <TruncationWarning truncated={bundle.errors?.truncated} />
+                      </CardContent>
+                    </Card>
                   </TabsContent>
 
                   <TabsContent value="latency">

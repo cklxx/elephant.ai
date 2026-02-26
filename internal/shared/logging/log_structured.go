@@ -22,13 +22,22 @@ type ParsedTextEntry struct {
 
 // ParsedRequestEntry represents a single parsed LLM request/response log.
 type ParsedRequestEntry struct {
-	Raw       string          `json:"raw"`
-	Timestamp string          `json:"timestamp"`
-	RequestID string          `json:"request_id"`
-	LogID     string          `json:"log_id,omitempty"`
-	EntryType string          `json:"entry_type"`
-	BodyBytes int             `json:"body_bytes"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
+	Raw         string          `json:"raw"`
+	Timestamp   string          `json:"timestamp"`
+	RequestID   string          `json:"request_id"`
+	LogID       string          `json:"log_id,omitempty"`
+	EntryType   string          `json:"entry_type"`
+	BodyBytes   int             `json:"body_bytes"`
+	Mode        string          `json:"mode,omitempty"`
+	Provider    string          `json:"provider,omitempty"`
+	Model       string          `json:"model,omitempty"`
+	Intent      string          `json:"intent,omitempty"`
+	Stage       string          `json:"stage,omitempty"`
+	ErrorClass  string          `json:"error_class,omitempty"`
+	Error       string          `json:"error,omitempty"`
+	LatencyMS   int64           `json:"latency_ms,omitempty"`
+	Payload     json.RawMessage `json:"payload,omitempty"`
+	PayloadText string          `json:"payload_text,omitempty"`
 }
 
 // StructuredLogSnippet holds parsed text log entries.
@@ -54,6 +63,7 @@ type StructuredLogBundle struct {
 	LLM      StructuredLogSnippet     `json:"llm"`
 	Latency  StructuredLogSnippet     `json:"latency"`
 	Requests StructuredRequestSnippet `json:"requests"`
+	Errors   StructuredRequestSnippet `json:"errors"`
 }
 
 // textLogLineRegexp matches the log format produced by logger.go log() method.
@@ -113,12 +123,21 @@ func parseRequestLogJSON(line string) (ParsedRequestEntry, bool) {
 	}
 
 	var raw struct {
-		Timestamp string          `json:"timestamp"`
-		RequestID string          `json:"request_id"`
-		LogID     string          `json:"log_id"`
-		EntryType string          `json:"entry_type"`
-		BodyBytes int             `json:"body_bytes"`
-		Payload   json.RawMessage `json:"payload"`
+		Timestamp   string          `json:"timestamp"`
+		RequestID   string          `json:"request_id"`
+		LogID       string          `json:"log_id"`
+		EntryType   string          `json:"entry_type"`
+		BodyBytes   int             `json:"body_bytes"`
+		Mode        string          `json:"mode"`
+		Provider    string          `json:"provider"`
+		Model       string          `json:"model"`
+		Intent      string          `json:"intent"`
+		Stage       string          `json:"stage"`
+		ErrorClass  string          `json:"error_class"`
+		Error       string          `json:"error"`
+		LatencyMS   int64           `json:"latency_ms"`
+		Payload     json.RawMessage `json:"payload"`
+		PayloadText string          `json:"payload_text"`
 	}
 
 	if err := json.Unmarshal([]byte(line), &raw); err != nil {
@@ -131,12 +150,21 @@ func parseRequestLogJSON(line string) (ParsedRequestEntry, bool) {
 	}
 
 	entry := ParsedRequestEntry{
-		Raw:       line,
-		Timestamp: raw.Timestamp,
-		RequestID: raw.RequestID,
-		LogID:     logID,
-		EntryType: raw.EntryType,
-		BodyBytes: raw.BodyBytes,
+		Raw:         line,
+		Timestamp:   raw.Timestamp,
+		RequestID:   raw.RequestID,
+		LogID:       logID,
+		EntryType:   raw.EntryType,
+		BodyBytes:   raw.BodyBytes,
+		Mode:        strings.TrimSpace(raw.Mode),
+		Provider:    strings.TrimSpace(raw.Provider),
+		Model:       strings.TrimSpace(raw.Model),
+		Intent:      strings.TrimSpace(raw.Intent),
+		Stage:       strings.TrimSpace(raw.Stage),
+		ErrorClass:  strings.TrimSpace(raw.ErrorClass),
+		Error:       strings.TrimSpace(raw.Error),
+		LatencyMS:   raw.LatencyMS,
+		PayloadText: strings.TrimSpace(raw.PayloadText),
 	}
 
 	if len(raw.Payload) > 0 && string(raw.Payload) != "null" {

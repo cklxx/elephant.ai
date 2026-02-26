@@ -20,6 +20,9 @@ export type LogIndexEntry = {
   llm_count: number;
   latency_count: number;
   request_count: number;
+  error_count: number;
+  last_error_class?: string;
+  last_error_at?: string;
   total_count: number;
   sources?: string[];
 };
@@ -50,7 +53,16 @@ export type ParsedRequestLogEntry = {
   log_id?: string;
   entry_type: string;
   body_bytes: number;
+  mode?: string;
+  provider?: string;
+  model?: string;
+  intent?: string;
+  stage?: string;
+  error_class?: string;
+  error?: string;
+  latency_ms?: number;
   payload?: unknown;
+  payload_text?: string;
 };
 
 export type StructuredLogSnippet = {
@@ -73,4 +85,5 @@ export type StructuredLogBundle = {
   llm: StructuredLogSnippet;
   latency: StructuredLogSnippet;
   requests: StructuredRequestSnippet;
+  errors: StructuredRequestSnippet;
 };

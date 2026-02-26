@@ -28,6 +28,7 @@ func TestFetchRecentLogIndexAggregatesAndSorts(t *testing.T) {
 	writeLogFile(t, filepath.Join(logDir, latencyLogFileName), tsBLatency.Format("2006-01-02 15:04:05")+" [INFO] [LATENCY] [HTTP] [log_id=log-b] route=/api/tasks latency_ms=20\n")
 	writeLogFile(t, filepath.Join(requestDir, requestLogFileName), strings.Join([]string{
 		`{"timestamp":"` + tsARequest.Format(time.RFC3339Nano) + `","request_id":"log-a:llm-1","log_id":"log-a","entry_type":"request","body_bytes":10}`,
+		`{"timestamp":"` + tsARequest.Add(30*time.Second).Format(time.RFC3339Nano) + `","request_id":"log-a:llm-1","log_id":"log-a","entry_type":"error","error_class":"transient","body_bytes":11}`,
 		`{"timestamp":"` + tsARequest.Add(time.Minute).Format(time.RFC3339Nano) + `","request_id":"log-c:llm-2","entry_type":"response","body_bytes":20}`,
 	}, "\n")+"\n")
 
@@ -50,8 +51,14 @@ func TestFetchRecentLogIndexAggregatesAndSorts(t *testing.T) {
 	}
 
 	a := entries[1]
-	if a.ServiceCount != 1 || a.RequestCount != 1 || a.TotalCount != 2 {
+	if a.ServiceCount != 1 || a.RequestCount != 2 || a.TotalCount != 3 {
 		t.Fatalf("unexpected counts for log-a: %+v", a)
+	}
+	if a.ErrorCount != 1 {
+		t.Fatalf("expected error_count=1 for log-a, got %+v", a)
+	}
+	if a.LastErrorClass != "transient" {
+		t.Fatalf("expected last_error_class=transient, got %q", a.LastErrorClass)
 	}
 	if len(a.Sources) != 2 || a.Sources[0] != "requests" || a.Sources[1] != "service" {
 		t.Fatalf("unexpected sources for log-a: %+v", a.Sources)

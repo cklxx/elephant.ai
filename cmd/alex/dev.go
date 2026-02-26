@@ -127,7 +127,7 @@ func printDevSummary(orch *devops.Orchestrator, larkMode bool) {
 		{"Evaluation", "/evaluation"},
 		{"Sessions", "/sessions"},
 		{"Conversation Debug", "/dev/conversation-debug"},
-		{"Log Analyzer", "/dev/log-analyzer"},
+		{"Log Analyzer", "/dev/diagnostics#structured-log-analyzer"},
 		{"Context Window", "/dev/context-window"},
 		{"Context Config", "/dev/context-config"},
 		{"Config Inspector", "/dev/config"},

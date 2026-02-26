@@ -166,6 +166,33 @@ func TestParseRequestLogJSONDeriveLogID(t *testing.T) {
 	}
 }
 
+func TestParseRequestLogJSONErrorEntry(t *testing.T) {
+	raw := `{"timestamp":"2026-02-08T01:11:57Z","request_id":"log-err-001:llm-2","entry_type":"error","body_bytes":128,"mode":"complete","provider":"openai","model":"kimi-for-coding","intent":"unknown","stage":"retry_client","error_class":"transient","error":"context deadline exceeded","latency_ms":60000,"payload":{"error":"context deadline exceeded"}}`
+
+	entry, ok := parseRequestLogJSON(raw)
+	if !ok {
+		t.Fatal("expected successful parse")
+	}
+	if entry.EntryType != "error" {
+		t.Fatalf("expected entry_type=error, got %q", entry.EntryType)
+	}
+	if entry.ErrorClass != "transient" {
+		t.Fatalf("expected error_class=transient, got %q", entry.ErrorClass)
+	}
+	if entry.Error == "" {
+		t.Fatalf("expected non-empty error")
+	}
+	if entry.Stage != "retry_client" {
+		t.Fatalf("expected stage=retry_client, got %q", entry.Stage)
+	}
+	if entry.LatencyMS != 60000 {
+		t.Fatalf("expected latency_ms=60000, got %d", entry.LatencyMS)
+	}
+	if entry.Payload == nil {
+		t.Fatal("expected payload to be present")
+	}
+}
+
 func TestParseRequestLogJSONInvalid(t *testing.T) {
 	_, ok := parseRequestLogJSON("not valid json")
 	if ok {

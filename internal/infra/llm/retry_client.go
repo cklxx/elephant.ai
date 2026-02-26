@@ -12,6 +12,8 @@ import (
 	"alex/internal/infra/backoff"
 	alexerrors "alex/internal/shared/errors"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
+	id "alex/internal/shared/utils/id"
 )
 
 // retryClient wraps an LLM client with retry logic and circuit breaker
@@ -65,7 +67,7 @@ func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest)
 	if err != nil {
 		c.recordHealthError(err)
 		c.logger.Warn("LLM request failed after retries (took %v): %v", duration, err)
-		c.logLLMCallSummary("complete", req, duration, nil, err)
+		c.logLLMCallSummary(ctx, "complete", req, duration, nil, err)
 
 		// Check if it's a degraded error (circuit breaker open)
 		if alexerrors.IsDegraded(err) {
@@ -79,7 +81,7 @@ func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest)
 	}
 
 	c.recordHealthLatency(duration)
-	c.logLLMCallSummary("complete", req, duration, resp, nil)
+	c.logLLMCallSummary(ctx, "complete", req, duration, resp, nil)
 
 	if duration > 5*time.Second {
 		c.logger.Debug("LLM request succeeded after %v", duration)
@@ -221,7 +223,7 @@ func (c *retryClient) StreamComplete(
 
 	if err != nil {
 		c.recordHealthError(err)
-		c.logLLMCallSummary("stream", req, duration, nil, err)
+		c.logLLMCallSummary(ctx, "stream", req, duration, nil, err)
 		if alexerrors.IsDegraded(err) {
 			return nil, fmt.Errorf("%s", alexerrors.FormatForLLM(err))
 		}
@@ -230,7 +232,7 @@ func (c *retryClient) StreamComplete(
 	}
 
 	c.recordHealthLatency(duration)
-	c.logLLMCallSummary("stream", req, duration, resp, nil)
+	c.logLLMCallSummary(ctx, "stream", req, duration, resp, nil)
 
 	if duration > 5*time.Second {
 		c.logger.Debug("LLM streaming request succeeded after %v", duration)
@@ -435,13 +437,10 @@ func (c *retryClient) formatStreamingError(err error, duration time.Duration) st
 // logLLMCallSummary writes a structured summary to the LLM log (alex-llm.log) for both
 // successful and failed calls. This ensures failures are always visible in the LLM log
 // alongside the debug-level request/response details logged by the base client.
-func (c *retryClient) logLLMCallSummary(mode string, req ports.CompletionRequest, latency time.Duration, resp *ports.CompletionResponse, err error) {
+func (c *retryClient) logLLMCallSummary(ctx context.Context, mode string, req ports.CompletionRequest, latency time.Duration, resp *ports.CompletionResponse, err error) {
 	model := normalizeLogField(c.underlying.Model())
 	provider := normalizeLogField(c.provider)
-	requestID := extractRequestID(req.Metadata)
-	if requestID == "" && resp != nil {
-		requestID = extractMetadataString(resp.Metadata, "request_id")
-	}
+	requestID := c.resolveRequestID(ctx, req, resp)
 	intent := extractRequestIntent(req.Metadata)
 
 	if err != nil {
@@ -455,6 +454,7 @@ func (c *retryClient) logLLMCallSummary(mode string, req ports.CompletionRequest
 			classifyFailureError(err),
 			err,
 		)
+		c.logFailureRequestEntry(requestID, mode, provider, model, intent, latency, err)
 		return
 	}
 	if resp == nil {
@@ -469,6 +469,41 @@ func (c *retryClient) logLLMCallSummary(mode string, req ports.CompletionRequest
 		latency.Round(time.Millisecond),
 		resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens,
 		resp.StopReason)
+}
+
+func (c *retryClient) resolveRequestID(ctx context.Context, req ports.CompletionRequest, resp *ports.CompletionResponse) string {
+	requestID := strings.TrimSpace(extractRequestID(req.Metadata))
+	if requestID == "" && resp != nil {
+		requestID = strings.TrimSpace(extractMetadataString(resp.Metadata, "request_id"))
+	}
+	if requestID != "" {
+		return requestID
+	}
+	return id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
+}
+
+func (c *retryClient) logFailureRequestEntry(
+	requestID string,
+	mode string,
+	provider string,
+	model string,
+	intent string,
+	latency time.Duration,
+	err error,
+) {
+	if strings.TrimSpace(requestID) == "" {
+		return
+	}
+	utils.LogStreamingErrorPayload(requestID, utils.LLMErrorLogDetails{
+		Mode:       strings.ToLower(strings.TrimSpace(mode)),
+		Provider:   provider,
+		Model:      model,
+		Intent:     sanitizeLogValue(intent, 128),
+		Stage:      "retry_client",
+		ErrorClass: classifyFailureError(err),
+		Error:      sanitizeLogValue(err.Error(), llmFailurePreviewLimit),
+		LatencyMS:  latency.Milliseconds(),
+	})
 }
 
 // recordHealthLatency records a successful call latency if a HealthRegistry is attached.

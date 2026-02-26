@@ -211,6 +211,7 @@ func FetchStructuredLogBundle(logID string, opts LogFetchOptions) StructuredLogB
 	bundle.LLM = readStructuredTextMatches(filepath.Join(logDir, llmLogFileName), logID, searchLower, opts)
 	bundle.Latency = readStructuredTextMatches(filepath.Join(logDir, latencyLogFileName), logID, searchLower, opts)
 	bundle.Requests = readStructuredRequestMatches(filepath.Join(requestDir, requestLogFileName), logID, searchLower, opts)
+	bundle.Errors = filterStructuredErrors(bundle.Requests)
 
 	return bundle
 }
@@ -312,4 +313,22 @@ func readStructuredRequestMatches(path, logID, searchLower string, opts LogFetch
 	}
 
 	return snippet
+}
+
+func filterStructuredErrors(requests StructuredRequestSnippet) StructuredRequestSnippet {
+	errorsSnippet := StructuredRequestSnippet{
+		Path:      requests.Path,
+		Truncated: requests.Truncated,
+		Error:     requests.Error,
+	}
+	if len(requests.Entries) == 0 {
+		return errorsSnippet
+	}
+	errorsSnippet.Entries = make([]ParsedRequestEntry, 0, len(requests.Entries))
+	for _, entry := range requests.Entries {
+		if strings.EqualFold(strings.TrimSpace(entry.EntryType), "error") {
+			errorsSnippet.Entries = append(errorsSnippet.Entries, entry)
+		}
+	}
+	return errorsSnippet
 }

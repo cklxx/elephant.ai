@@ -29,19 +29,29 @@ type LogIndexOptions struct {
 
 // LogIndexEntry summarizes one log chain keyed by log_id.
 type LogIndexEntry struct {
-	LogID        string    `json:"log_id"`
-	LastSeen     time.Time `json:"last_seen"`
-	ServiceCount int       `json:"service_count"`
-	LLMCount     int       `json:"llm_count"`
-	LatencyCount int       `json:"latency_count"`
-	RequestCount int       `json:"request_count"`
-	TotalCount   int       `json:"total_count"`
-	Sources      []string  `json:"sources,omitempty"`
+	LogID          string    `json:"log_id"`
+	LastSeen       time.Time `json:"last_seen"`
+	ServiceCount   int       `json:"service_count"`
+	LLMCount       int       `json:"llm_count"`
+	LatencyCount   int       `json:"latency_count"`
+	RequestCount   int       `json:"request_count"`
+	ErrorCount     int       `json:"error_count"`
+	LastErrorClass string    `json:"last_error_class,omitempty"`
+	LastErrorAt    time.Time `json:"last_error_at,omitempty"`
+	TotalCount     int       `json:"total_count"`
+	Sources        []string  `json:"sources,omitempty"`
 }
 
 type logIndexAggregate struct {
 	LogIndexEntry
 	sourceSet map[string]struct{}
+}
+
+type requestLogIndexEntry struct {
+	LogID      string
+	Timestamp  time.Time
+	EntryType  string
+	ErrorClass string
 }
 
 // FetchRecentLogIndex scans known log files and returns recent log_id summaries.
@@ -126,7 +136,7 @@ func scanTextLogIndex(path, source string, opts LogIndexOptions, aggregates map[
 		if logID == "" {
 			continue
 		}
-		updateLogIndexAggregate(aggregates, logID, source, parseTimestampFromTextLog(line))
+		updateLogIndexAggregate(aggregates, logID, source, parseTimestampFromTextLog(line), nil)
 	}
 }
 
@@ -146,22 +156,24 @@ func scanRequestLogIndex(path string, opts LogIndexOptions, aggregates map[strin
 		if utils.IsBlank(line) {
 			continue
 		}
-		logID, ts := parseRequestLogLine(line)
-		if logID == "" {
+		requestEntry := parseRequestLogLine(line)
+		if requestEntry.LogID == "" {
 			continue
 		}
-		updateLogIndexAggregate(aggregates, logID, "requests", ts)
+		updateLogIndexAggregate(aggregates, requestEntry.LogID, "requests", requestEntry.Timestamp, &requestEntry)
 	}
 }
 
-func parseRequestLogLine(line string) (string, time.Time) {
+func parseRequestLogLine(line string) requestLogIndexEntry {
 	var entry struct {
-		LogID     string `json:"log_id"`
-		RequestID string `json:"request_id"`
-		Timestamp string `json:"timestamp"`
+		LogID      string `json:"log_id"`
+		RequestID  string `json:"request_id"`
+		Timestamp  string `json:"timestamp"`
+		EntryType  string `json:"entry_type"`
+		ErrorClass string `json:"error_class"`
 	}
 	if err := json.Unmarshal([]byte(line), &entry); err != nil {
-		return "", time.Time{}
+		return requestLogIndexEntry{}
 	}
 
 	logID := strings.TrimSpace(entry.LogID)
@@ -169,14 +181,19 @@ func parseRequestLogLine(line string) (string, time.Time) {
 		logID = deriveLogIDFromRequestID(entry.RequestID)
 	}
 	if logID == "" {
-		return "", time.Time{}
+		return requestLogIndexEntry{}
 	}
 
 	ts, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(entry.Timestamp))
 	if err != nil {
-		return logID, time.Time{}
+		ts = time.Time{}
 	}
-	return logID, ts
+	return requestLogIndexEntry{
+		LogID:      logID,
+		Timestamp:  ts,
+		EntryType:  strings.ToLower(strings.TrimSpace(entry.EntryType)),
+		ErrorClass: strings.TrimSpace(entry.ErrorClass),
+	}
 }
 
 func deriveLogIDFromRequestID(requestID string) string {
@@ -213,7 +230,7 @@ func parseTimestampFromTextLog(line string) time.Time {
 	return ts
 }
 
-func updateLogIndexAggregate(aggregates map[string]*logIndexAggregate, logID, source string, ts time.Time) {
+func updateLogIndexAggregate(aggregates map[string]*logIndexAggregate, logID, source string, ts time.Time, requestEntry *requestLogIndexEntry) {
 	logID = strings.TrimSpace(logID)
 	if logID == "" {
 		return
@@ -238,6 +255,17 @@ func updateLogIndexAggregate(aggregates map[string]*logIndexAggregate, logID, so
 		agg.LatencyCount++
 	case "requests":
 		agg.RequestCount++
+		if requestEntry != nil && requestEntry.EntryType == "error" {
+			agg.ErrorCount++
+			if requestEntry.Timestamp.IsZero() {
+				if agg.LastErrorAt.IsZero() {
+					agg.LastErrorClass = requestEntry.ErrorClass
+				}
+			} else if agg.LastErrorAt.IsZero() || requestEntry.Timestamp.After(agg.LastErrorAt) {
+				agg.LastErrorAt = requestEntry.Timestamp
+				agg.LastErrorClass = requestEntry.ErrorClass
+			}
+		}
 	}
 	agg.sourceSet[source] = struct{}{}
 

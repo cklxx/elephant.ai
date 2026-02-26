@@ -1450,7 +1450,7 @@ export default function DiagnosticsPage() {
             </Card>
 
             <div className="space-y-4">
-              <Card className="shadow-sm">
+              <Card id="structured-log-analyzer" className="shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base">Turn messages</CardTitle>
                   <CardDescription>

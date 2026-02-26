@@ -66,6 +66,52 @@ func TestLogStreamingPayload_DeduplicatesByEntryType(t *testing.T) {
 	}
 }
 
+func TestLogStreamingErrorPayload_WritesErrorEntry(t *testing.T) {
+	logDir := t.TempDir()
+	t.Setenv(requestLogEnvVar, logDir)
+	resetStreamingLogDeduperForTest()
+
+	LogStreamingErrorPayload("log-err-001:llm-1", LLMErrorLogDetails{
+		Mode:       "complete",
+		Provider:   "openai",
+		Model:      "kimi-for-coding",
+		Intent:     "unknown",
+		Stage:      "retry_client",
+		ErrorClass: "transient",
+		Error:      "context deadline exceeded",
+		LatencyMS:  60000,
+	})
+
+	logPath := filepath.Join(logDir, requestLogFileName)
+	entries := readRequestLogEntries(t, logPath)
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 error entry, got %d", len(entries))
+	}
+
+	entry := entries[0]
+	if entry.EntryType != "error" {
+		t.Fatalf("expected entry_type=error, got %q", entry.EntryType)
+	}
+	if entry.LogID != "log-err-001" {
+		t.Fatalf("expected derived log_id=log-err-001, got %q", entry.LogID)
+	}
+	if entry.ErrorClass != "transient" {
+		t.Fatalf("expected error_class=transient, got %q", entry.ErrorClass)
+	}
+	if entry.Error == "" {
+		t.Fatalf("expected non-empty error field")
+	}
+	if entry.Stage != "retry_client" {
+		t.Fatalf("expected stage=retry_client, got %q", entry.Stage)
+	}
+	if entry.LatencyMS != 60000 {
+		t.Fatalf("expected latency_ms=60000, got %d", entry.LatencyMS)
+	}
+	if len(entry.Payload) == 0 {
+		t.Fatalf("expected non-empty payload")
+	}
+}
+
 func readRequestLogEntries(t *testing.T, path string) []requestLogEntry {
 	t.Helper()
 	if !WaitForRequestLogQueueDrain(2 * time.Second) {

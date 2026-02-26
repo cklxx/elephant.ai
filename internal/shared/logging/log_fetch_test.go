@@ -153,6 +153,35 @@ func TestFetchStructuredLogBundleCollectsMatches(t *testing.T) {
 	if bundle.Requests.Entries[0].Payload == nil {
 		t.Fatal("expected non-nil payload")
 	}
+	if len(bundle.Errors.Entries) != 0 {
+		t.Fatalf("expected no error entries, got %d", len(bundle.Errors.Entries))
+	}
+}
+
+func TestFetchStructuredLogBundleExtractsErrorEntries(t *testing.T) {
+	logDir := t.TempDir()
+	t.Setenv("ALEX_LOG_DIR", logDir)
+	t.Setenv("ALEX_REQUEST_LOG_DIR", logDir)
+
+	logID := "log-struct-err-001"
+
+	writeTestLog(t, filepath.Join(logDir, "alex-service.log"), "")
+	writeTestLog(t, filepath.Join(logDir, "alex-llm.log"), "")
+	writeTestLog(t, filepath.Join(logDir, "alex-latency.log"), "")
+	writeTestLog(t, filepath.Join(logDir, "llm.jsonl"),
+		`{"timestamp":"2026-02-08T01:00:00Z","request_id":"log-struct-err-001:llm-1","log_id":"log-struct-err-001","entry_type":"request","body_bytes":120,"payload":{"prompt":"x"}}`+"\n"+
+			`{"timestamp":"2026-02-08T01:00:05Z","request_id":"log-struct-err-001:llm-1","log_id":"log-struct-err-001","entry_type":"error","body_bytes":90,"error_class":"transient","error":"context deadline exceeded","stage":"retry_client","payload":{"error":"context deadline exceeded"}}`+"\n")
+
+	bundle := FetchStructuredLogBundle(logID, LogFetchOptions{MaxBytes: 1 << 20, MaxEntries: 50})
+	if len(bundle.Requests.Entries) != 2 {
+		t.Fatalf("expected 2 request entries, got %d", len(bundle.Requests.Entries))
+	}
+	if len(bundle.Errors.Entries) != 1 {
+		t.Fatalf("expected 1 error entry, got %d", len(bundle.Errors.Entries))
+	}
+	if bundle.Errors.Entries[0].ErrorClass != "transient" {
+		t.Fatalf("expected error_class=transient, got %q", bundle.Errors.Entries[0].ErrorClass)
+	}
 }
 
 func TestFetchStructuredLogBundleSearchFilter(t *testing.T) {

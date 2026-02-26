@@ -30,6 +30,18 @@ const (
 	requestLogQueueSize    = 256
 )
 
+// LLMErrorLogDetails captures normalized failure metadata for request log error entries.
+type LLMErrorLogDetails struct {
+	Mode       string `json:"mode,omitempty"`
+	Provider   string `json:"provider,omitempty"`
+	Model      string `json:"model,omitempty"`
+	Intent     string `json:"intent,omitempty"`
+	Stage      string `json:"stage,omitempty"`
+	ErrorClass string `json:"error_class,omitempty"`
+	Error      string `json:"error,omitempty"`
+	LatencyMS  int64  `json:"latency_ms,omitempty"`
+}
+
 // LogStreamingRequestPayload persists the serialized request payload as a JSONL log entry.
 // The payload is written to logs/requests/llm.jsonl (or the directory specified via
 // ALEX_REQUEST_LOG_DIR) so it doesn't mix with the general server logs.
@@ -44,52 +56,44 @@ func LogStreamingResponsePayload(requestID string, payload []byte) {
 	logStreamingPayload(requestID, payload, "response")
 }
 
+// LogStreamingErrorPayload persists normalized LLM failure metadata as an error entry.
+// The entry is written to logs/requests/llm.jsonl with entry_type=error.
+func LogStreamingErrorPayload(requestID string, details LLMErrorLogDetails) {
+	detailsJSON, err := json.Marshal(details)
+	if err != nil {
+		log.Printf("request log: failed to encode error details: %v", err)
+		return
+	}
+
+	entry := buildRequestLogEntry(requestID, "error")
+	entry.BodyBytes = len(detailsJSON)
+	entry.Payload = json.RawMessage(detailsJSON)
+	entry.Mode = strings.TrimSpace(details.Mode)
+	entry.Provider = strings.TrimSpace(details.Provider)
+	entry.Model = strings.TrimSpace(details.Model)
+	entry.Intent = strings.TrimSpace(details.Intent)
+	entry.Stage = strings.TrimSpace(details.Stage)
+	entry.ErrorClass = strings.TrimSpace(details.ErrorClass)
+	entry.Error = strings.TrimSpace(details.Error)
+	if details.LatencyMS > 0 {
+		entry.LatencyMS = details.LatencyMS
+	}
+
+	writeRequestLogEntry(entry)
+}
+
 func logStreamingPayload(requestID string, payload []byte, entryType string) {
 	if len(payload) == 0 {
 		return
 	}
-
-	dir := resolveRequestLogDir()
-	if IsBlank(dir) {
-		log.Printf("request log: resolved log directory empty")
-		return
-	}
-
-	trimmedID := strings.TrimSpace(requestID)
-	if trimmedID == "" {
-		trimmedID = "unknown"
-	}
-	entryKey := fmt.Sprintf("%s:%s", trimmedID, entryType)
-	if trimmedID != "unknown" && !shouldLogStreamingEntry(entryKey, defaultStreamingLogTTL) {
-		return
-	}
-
-	entryLabel := strings.ToLower(strings.TrimSpace(entryType))
-	if entryLabel == "" {
-		entryLabel = "payload"
-	}
-	entry := requestLogEntry{
-		Timestamp: time.Now().Format(time.RFC3339Nano),
-		RequestID: trimmedID,
-		LogID:     logIDFromRequestID(trimmedID),
-		EntryType: entryLabel,
-		BodyBytes: len(payload),
-	}
+	entry := buildRequestLogEntry(requestID, entryType)
+	entry.BodyBytes = len(payload)
 	if json.Valid(payload) {
 		entry.Payload = json.RawMessage(payload)
 	} else {
 		entry.PayloadText = string(payload)
 	}
-
-	entryBytes, err := json.Marshal(entry)
-	if err != nil {
-		log.Printf("request log: failed to encode entry: %v", err)
-		return
-	}
-	entryBytes = append(entryBytes, '\n')
-
-	path := filepath.Join(dir, requestLogFileName)
-	enqueueRequestLogWrite(path, entryBytes)
+	writeRequestLogEntry(entry)
 }
 
 func resolveRequestLogDir() string {
@@ -141,8 +145,54 @@ type requestLogEntry struct {
 	LogID       string          `json:"log_id,omitempty"`
 	EntryType   string          `json:"entry_type"`
 	BodyBytes   int             `json:"body_bytes"`
+	Mode        string          `json:"mode,omitempty"`
+	Provider    string          `json:"provider,omitempty"`
+	Model       string          `json:"model,omitempty"`
+	Intent      string          `json:"intent,omitempty"`
+	Stage       string          `json:"stage,omitempty"`
+	ErrorClass  string          `json:"error_class,omitempty"`
+	Error       string          `json:"error,omitempty"`
+	LatencyMS   int64           `json:"latency_ms,omitempty"`
 	Payload     json.RawMessage `json:"payload,omitempty"`
 	PayloadText string          `json:"payload_text,omitempty"`
+}
+
+func buildRequestLogEntry(requestID string, entryType string) requestLogEntry {
+	trimmedID := strings.TrimSpace(requestID)
+	if trimmedID == "" {
+		trimmedID = "unknown"
+	}
+	entryLabel := strings.ToLower(strings.TrimSpace(entryType))
+	if entryLabel == "" {
+		entryLabel = "payload"
+	}
+	return requestLogEntry{
+		Timestamp: time.Now().Format(time.RFC3339Nano),
+		RequestID: trimmedID,
+		LogID:     logIDFromRequestID(trimmedID),
+		EntryType: entryLabel,
+	}
+}
+
+func writeRequestLogEntry(entry requestLogEntry) {
+	dir := resolveRequestLogDir()
+	if IsBlank(dir) {
+		log.Printf("request log: resolved log directory empty")
+		return
+	}
+
+	entryKey := fmt.Sprintf("%s:%s", entry.RequestID, entry.EntryType)
+	if entry.RequestID != "unknown" && !shouldLogStreamingEntry(entryKey, defaultStreamingLogTTL) {
+		return
+	}
+
+	entryBytes, err := json.Marshal(entry)
+	if err != nil {
+		log.Printf("request log: failed to encode entry: %v", err)
+		return
+	}
+	entryBytes = append(entryBytes, '\n')
+	enqueueRequestLogWrite(filepath.Join(dir, requestLogFileName), entryBytes)
 }
 
 func logIDFromRequestID(requestID string) string {
