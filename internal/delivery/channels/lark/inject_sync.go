@@ -175,6 +175,9 @@ func (g *Gateway) cancelRunningTask(chatID string) bool {
 	slot.mu.Lock()
 	phase := slot.phase
 	cancel := slot.taskCancel
+	if phase == slotRunning && cancel != nil {
+		slot.intentionalCancelToken = slot.taskToken
+	}
 	slot.mu.Unlock()
 
 	if phase != slotRunning || cancel == nil {

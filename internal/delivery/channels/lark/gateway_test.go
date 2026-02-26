@@ -1824,6 +1824,64 @@ func TestHandleMessageStopCommandCancelsInFlightTask(t *testing.T) {
 	}
 }
 
+func TestHandleMessageContextCanceledSendsFailureReplyWhenNotIntentional(t *testing.T) {
+	openID := "ou_sender_cancel_fail"
+	chatID := "oc_chat_cancel_fail"
+	msgID := "om_msg_cancel_fail"
+	content := `{"text":"run task"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{err: context.Canceled}
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg:       Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		now:       func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+	gw.WaitForTasks()
+
+	replies := recorder.CallsByMethod("ReplyMessage")
+	if len(replies) == 0 {
+		t.Fatal("expected failure reply for non-intentional context cancellation")
+	}
+	foundFailure := false
+	for _, call := range replies {
+		if strings.Contains(call.Content, "执行失败") || strings.Contains(call.Content, "失败") {
+			foundFailure = true
+			break
+		}
+	}
+	if !foundFailure {
+		t.Fatalf("expected failure text in replies, got %#v", replies)
+	}
+}
+
 func TestHandleMessageStopCommandWhenIdle(t *testing.T) {
 	openID := "ou_sender_stop_idle"
 	chatID := "oc_chat_stop_idle"
@@ -2495,6 +2553,7 @@ type capturingExecutor struct {
 	capturedSessionID string
 	capturedTask      string
 	result            *agent.TaskResult
+	err               error
 }
 
 func (c *capturingExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
@@ -2508,7 +2567,7 @@ func (c *capturingExecutor) ExecuteTask(ctx context.Context, task string, sessio
 	c.capturedCtx = ctx
 	c.capturedTask = task
 	c.capturedSessionID = sessionID
-	return c.result, nil
+	return c.result, c.err
 }
 
 type awaitInputExecutor struct {

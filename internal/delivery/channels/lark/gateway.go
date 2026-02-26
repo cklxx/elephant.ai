@@ -57,15 +57,19 @@ const (
 // the user input channel used to inject follow-up messages into a running
 // ReAct loop, plus the pending session state for await-user-input handoffs.
 type sessionSlot struct {
-	mu             sync.Mutex
-	phase          slotPhase
-	inputCh        chan agent.UserInput // non-nil only when phase == slotRunning
-	taskCancel     context.CancelFunc   // cancels the currently running task (phase == slotRunning)
-	taskToken      uint64
-	sessionID      string
-	lastSessionID  string
-	pendingOptions []string // options awaiting numeric reply
-	lastTouched    time.Time
+	mu         sync.Mutex
+	phase      slotPhase
+	inputCh    chan agent.UserInput // non-nil only when phase == slotRunning
+	taskCancel context.CancelFunc   // cancels the currently running task (phase == slotRunning)
+	taskToken  uint64
+	// intentionalCancelToken marks the task token cancelled by an explicit
+	// control action (/stop, /new, inject timeout cleanup). These cancellations
+	// should not emit a failure reply to Lark.
+	intentionalCancelToken uint64
+	sessionID              string
+	lastSessionID          string
+	pendingOptions         []string // options awaiting numeric reply
+	lastTouched            time.Time
 }
 
 // Gateway bridges Lark bot messages into the agent runtime.
@@ -760,9 +764,12 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		defer g.taskWG.Done()
 		defer taskCancel()
 
-		awaitingInput := g.runTask(taskCtx, msg, sessionID, inputCh, isResume)
+		awaitingInput := g.runTask(taskCtx, msg, sessionID, inputCh, isResume, taskToken)
 
 		slot.mu.Lock()
+		if slot.intentionalCancelToken == taskToken {
+			slot.intentionalCancelToken = 0
+		}
 		if slot.taskToken == taskToken {
 			slot.inputCh = nil
 			slot.taskCancel = nil

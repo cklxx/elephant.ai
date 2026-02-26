@@ -117,6 +117,9 @@ func (g *Gateway) handleNewSessionCommand(slot *sessionSlot, msg *incomingMessag
 	oldSessionID := slot.sessionID
 	cancel := slot.taskCancel
 	wasRunning := slot.phase == slotRunning && cancel != nil
+	if wasRunning {
+		slot.intentionalCancelToken = slot.taskToken
+	}
 	slot.taskToken++
 	slot.sessionID = newSessionID
 	slot.lastSessionID = newSessionID
@@ -182,6 +185,9 @@ func (g *Gateway) handleStopCommand(slot *sessionSlot, msg *incomingMessage) {
 	}
 	cancel := slot.taskCancel
 	running := slot.phase == slotRunning && cancel != nil
+	if running {
+		slot.intentionalCancelToken = slot.taskToken
+	}
 	slot.lastTouched = g.currentTime()
 	slot.mu.Unlock()
 
@@ -264,7 +270,7 @@ func (g *Gateway) persistChatSessionBinding(ctx context.Context, chatID, session
 // listener wiring, content preparation, execution, and reply dispatch.
 // isResume indicates this task resumes from a prior await_user_input stop.
 // Returns true if the result indicates await_user_input.
-func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, sessionID string, inputCh chan agent.UserInput, isResume bool) bool {
+func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, sessionID string, inputCh chan agent.UserInput, isResume bool, taskToken uint64) bool {
 	execCtx, cancelExec := g.buildExecContext(taskCtx, msg, sessionID, inputCh)
 	defer cancelExec()
 
@@ -338,7 +344,7 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 		progressMsgID = progressLn.MessageID()
 	}
 
-	g.dispatchResult(execCtx, msg, result, execErr, awaitTracker, progressMsgID)
+	g.dispatchResult(execCtx, msg, result, execErr, awaitTracker, progressMsgID, taskToken)
 
 	// Notify AI chat coordinator that this bot's turn is complete
 	if g.aiCoordinator != nil && msg.aiChatSessionActive {
@@ -566,9 +572,9 @@ func (g *Gateway) enrichWithChatContext(execCtx context.Context, taskContent str
 // the Lark chat, including any attachments. When progressMsgID is non-empty,
 // the progress message is edited in-place to become the final reply, avoiding
 // message fragmentation.
-func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, awaitTracker *awaitQuestionTracker, progressMsgID string) {
-	if errors.Is(execErr, context.Canceled) {
-		g.logger.Info("Lark task cancelled by stop command: chat=%s msg=%s", msg.chatID, msg.messageID)
+func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, awaitTracker *awaitQuestionTracker, progressMsgID string, taskToken uint64) {
+	if errors.Is(execErr, context.Canceled) && g.isIntentionalTaskCancellation(msg.chatID, taskToken) {
+		g.logger.Info("Lark task cancelled intentionally: chat=%s msg=%s token=%d", msg.chatID, msg.messageID, taskToken)
 		return
 	}
 
@@ -642,6 +648,23 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		}
 		g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
 	}
+}
+
+func (g *Gateway) isIntentionalTaskCancellation(chatID string, taskToken uint64) bool {
+	if g == nil || taskToken == 0 {
+		return false
+	}
+	raw, ok := g.activeSlots.Load(strings.TrimSpace(chatID))
+	if !ok {
+		return false
+	}
+	slot, ok := raw.(*sessionSlot)
+	if !ok || slot == nil {
+		return false
+	}
+	slot.mu.Lock()
+	defer slot.mu.Unlock()
+	return slot.intentionalCancelToken == taskToken
 }
 
 // buildPlanReviewReplyContent handles plan review marker extraction,
