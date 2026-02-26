@@ -1,6 +1,6 @@
 # Plan: Lark Slow Progress Summary LLM Style
 
-**Status:** in_progress
+**Status:** completed
 **Branch:** main
 **Created:** 2026-02-26
 
@@ -21,4 +21,4 @@ Lark 30s slow-progress reply can expose internal workflow IDs (for example `reac
 - [x] Add tests in `slow_progress_summary_listener_test.go`.
 - [x] Run focused Lark tests for slow progress summary behavior.
 - [x] Run full quality gate + mandatory code review.
-- [ ] Commit and push.
+- [x] Commit and push.
