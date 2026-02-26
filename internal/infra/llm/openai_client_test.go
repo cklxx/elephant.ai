@@ -405,6 +405,65 @@ func TestConvertMessagesDropsOrphanToolMessageBeforeToolCall(t *testing.T) {
 	}
 }
 
+func TestConvertMessagesKimiDropsEmptyAssistantMessages(t *testing.T) {
+	t.Parallel()
+
+	// Kimi API rejects assistant messages with empty content and no tool_calls.
+	// This happens after checkpoint recovery where MessageState drops ToolCalls.
+	client := &openaiClient{baseClient: baseClient{baseURL: "https://api.kimi.com/coding/v1"}}
+	msgs := []ports.Message{
+		{Role: "system", Content: "system prompt"},
+		{Role: "user", Content: "hello"},
+		{Role: "assistant", Content: "thinking..."},
+		{Role: "user", Content: "next question"},
+		{Role: "assistant", Content: ""},   // empty — should be dropped
+		{Role: "assistant", Content: "  "}, // whitespace only — should be dropped
+		{Role: "assistant", Content: "", ToolCalls: []ports.ToolCall{ // has tool_calls — should be kept
+			{ID: "call-1", Name: "plan", Arguments: map[string]any{"goal": "x"}},
+		}},
+		{Role: "tool", Content: "done", ToolCallID: "call-1"},
+		{Role: "assistant", Content: "final answer"},
+	}
+
+	converted := client.convertMessages(msgs)
+
+	var assistantContents []string
+	for _, msg := range converted {
+		if role, _ := msg["role"].(string); role == "assistant" {
+			content, _ := msg["content"].(string)
+			assistantContents = append(assistantContents, content)
+		}
+	}
+
+	// Expect: "thinking...", "" (with tool_calls), "final answer" — the two empty ones dropped
+	if len(assistantContents) != 3 {
+		t.Fatalf("expected 3 assistant messages (dropped 2 empty), got %d: %v", len(assistantContents), assistantContents)
+	}
+	if assistantContents[0] != "thinking..." {
+		t.Errorf("expected first assistant content to be 'thinking...', got %q", assistantContents[0])
+	}
+	if assistantContents[2] != "final answer" {
+		t.Errorf("expected last assistant content to be 'final answer', got %q", assistantContents[2])
+	}
+}
+
+func TestConvertMessagesNonKimiKeepsEmptyAssistantMessages(t *testing.T) {
+	t.Parallel()
+
+	// Non-kimi providers should keep empty assistant messages (they may tolerate them).
+	client := &openaiClient{baseClient: baseClient{baseURL: "https://api.openai.com/v1"}}
+	msgs := []ports.Message{
+		{Role: "user", Content: "hello"},
+		{Role: "assistant", Content: ""},
+		{Role: "user", Content: "again"},
+	}
+
+	converted := client.convertMessages(msgs)
+	if len(converted) != 3 {
+		t.Fatalf("expected 3 messages for non-kimi client, got %d", len(converted))
+	}
+}
+
 func TestConvertMessagesEmbedsUserImageAttachmentsWithPlaceholders(t *testing.T) {
 	t.Parallel()
 

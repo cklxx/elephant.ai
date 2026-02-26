@@ -528,9 +528,16 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 		entry := map[string]any{"role": msg.Role}
 		content := buildMessageContent(msg, embedMask[idx])
 		entry["content"] = content
-		// Kimi rejects empty user messages.
-		if isKimi && msg.Role == "user" && isEmptyContent(content) {
-			continue
+		// Kimi rejects empty user messages and empty assistant messages
+		// (no content AND no tool_calls). Empty assistants arise from
+		// checkpoint recovery where MessageState drops ToolCalls.
+		if isKimi && isEmptyContent(content) {
+			if msg.Role == "user" {
+				continue
+			}
+			if msg.Role == "assistant" && len(msg.ToolCalls) == 0 {
+				continue
+			}
 		}
 		if msg.ToolCallID != "" {
 			entry["tool_call_id"] = msg.ToolCallID

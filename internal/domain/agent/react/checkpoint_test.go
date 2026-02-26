@@ -401,3 +401,44 @@ func TestCheckpointSaveIncludesPendingTools(t *testing.T) {
 		t.Fatalf("unexpected pending tool data: %+v", cp.PendingTools[0])
 	}
 }
+
+func TestStateFromCheckpointDropsEmptyAssistantMessages(t *testing.T) {
+	cp := &Checkpoint{
+		SessionID: "session-empty-assistant",
+		Iteration: 3,
+		Messages: []MessageState{
+			{Role: "system", Content: "system prompt"},
+			{Role: "user", Content: "hello"},
+			{Role: "assistant", Content: "real answer"},
+			{Role: "assistant", Content: ""},   // lost tool_calls → empty
+			{Role: "assistant", Content: "  "},  // whitespace only → empty
+			{Role: "user", Content: "follow-up"},
+			{Role: "assistant", Content: "final"},
+		},
+	}
+
+	state := stateFromCheckpoint(cp)
+
+	if len(state.Messages) != 5 {
+		var roles []string
+		for _, m := range state.Messages {
+			roles = append(roles, m.Role+":"+m.Content)
+		}
+		t.Fatalf("expected 5 messages (dropped 2 empty assistants), got %d: %v", len(state.Messages), roles)
+	}
+
+	// Verify the right messages survived.
+	expected := []struct{ role, content string }{
+		{"system", "system prompt"},
+		{"user", "hello"},
+		{"assistant", "real answer"},
+		{"user", "follow-up"},
+		{"assistant", "final"},
+	}
+	for i, e := range expected {
+		if state.Messages[i].Role != e.role || state.Messages[i].Content != e.content {
+			t.Errorf("message[%d]: expected role=%s content=%q, got role=%s content=%q",
+				i, e.role, e.content, state.Messages[i].Role, state.Messages[i].Content)
+		}
+	}
+}

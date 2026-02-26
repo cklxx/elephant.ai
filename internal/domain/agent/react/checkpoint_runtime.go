@@ -43,6 +43,12 @@ func stateFromCheckpoint(cp *Checkpoint) *TaskState {
 	}
 	messages := make([]Message, 0, len(cp.Messages))
 	for _, msg := range cp.Messages {
+		// Skip empty assistant messages — checkpoint only saves Role+Content,
+		// so assistant messages that originally had tool_calls (but no text)
+		// restore as empty. These cause provider rejections (e.g. kimi 400).
+		if msg.Role == "assistant" && strings.TrimSpace(msg.Content) == "" {
+			continue
+		}
 		messages = append(messages, Message{
 			Role:    msg.Role,
 			Content: msg.Content,
