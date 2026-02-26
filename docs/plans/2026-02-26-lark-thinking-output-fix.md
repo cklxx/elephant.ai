@@ -17,7 +17,7 @@
 - [x] 修复 Lark 回复拼接 thinking 逻辑
 - [x] 补充/更新单元测试
 - [x] 运行相关测试并校验
-- [ ] 提交并 push
+- [x] 提交并 push
 
 ## Validation
 - `go test ./internal/infra/llm -run "Thinking|Codex|Responses"`
