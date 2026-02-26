@@ -279,12 +279,10 @@ func (l *slowProgressSummaryListener) buildSummary(signals []slowProgressSignal,
 		return appendHumanToolSection(fallback, toolLines)
 	}
 	summary = strings.TrimSpace(summary)
-	if summary == "" {
+	if !isValidSlowProgressLLMSummary(summary) {
 		return appendHumanToolSection(fallback, toolLines)
 	}
-	text := fmt.Sprintf("任务已运行 %s，最近进展：\n%s\n\n我会在完成后继续给你最终结果。", formatDuration(elapsed), summary)
-	text = appendHumanToolSection(text, toolLines)
-	return truncateForLark(text, slowProgressSummaryMaxReplyChars)
+	return truncateForLark(summary, slowProgressSummaryMaxReplyChars)
 }
 
 // resolveProfile returns the pinned subscription profile from the task context
@@ -315,7 +313,7 @@ func (l *slowProgressSummaryListener) generateLLMSummary(
 	if err != nil {
 		return "", err
 	}
-	systemPrompt := "你是运行进展播报助手。根据已发生事件写中文进展播报，不猜测未发生事项，不给最终结论。输出 2-4 行，每行以“- ”开头。"
+	systemPrompt := "你是运行进展播报助手。把事件整理成自然中文进展同步，输出 1 段 2-3 句，不使用列表。不要出现内部节点ID或键名（如 react:iter:...、call_xxx、step_description、payload），只描述已发生进展与当前状态，不给最终结论。"
 	userPrompt := l.buildLLMPrompt(signals, elapsed)
 
 	resp, err := client.Complete(ctx, ports.CompletionRequest{
@@ -356,6 +354,7 @@ func (l *slowProgressSummaryListener) buildLLMPrompt(signals []slowProgressSigna
 			b.WriteString(fmt.Sprintf("%d. %s\n", i+1, line))
 		}
 	}
+	b.WriteString("请输出一段对用户的中文同步，语气自然口语化。")
 	prompt := b.String()
 	if len(prompt) > slowProgressSummaryMaxPromptChars {
 		return prompt[:slowProgressSummaryMaxPromptChars]
@@ -414,23 +413,17 @@ func signalFromEnvelope(e *domain.WorkflowEventEnvelope) (slowProgressSignal, bo
 	toolName := strings.TrimSpace(envelopeToolName(e))
 	switch strings.TrimSpace(e.Event) {
 	case types.EventNodeStarted:
-		step := strings.TrimSpace(asString(e.Payload["step_description"]))
-		if step == "" {
-			step = strings.TrimSpace(e.NodeID)
-		}
+		step := resolveSlowProgressStepLabel(asString(e.Payload["step_description"]), e.NodeID)
 		if step == "" {
 			return slowProgressSignal{}, false
 		}
-		return slowProgressSignal{at: e.Timestamp(), text: "开始步骤：" + truncateForLark(step, 120)}, true
+		return slowProgressSignal{at: e.Timestamp(), text: "开始步骤：" + step}, true
 	case types.EventNodeCompleted:
-		step := strings.TrimSpace(asString(e.Payload["step_description"]))
-		if step == "" {
-			step = strings.TrimSpace(e.NodeID)
-		}
+		step := resolveSlowProgressStepLabel(asString(e.Payload["step_description"]), e.NodeID)
 		if step == "" {
 			return slowProgressSignal{}, false
 		}
-		return slowProgressSignal{at: e.Timestamp(), text: "完成步骤：" + truncateForLark(step, 120)}, true
+		return slowProgressSignal{at: e.Timestamp(), text: "完成步骤：" + step}, true
 	case types.EventToolStarted:
 		if toolName == "" {
 			return slowProgressSignal{}, false
@@ -449,11 +442,11 @@ func signalFromEnvelope(e *domain.WorkflowEventEnvelope) (slowProgressSignal, bo
 		}
 		return slowProgressSignal{at: e.Timestamp(), text: "完成工具：" + toolName}, true
 	case types.EventNodeOutputSummary:
-		content := strings.TrimSpace(asString(e.Payload["content"]))
+		content := sanitizeSlowProgressContent(asString(e.Payload["content"]))
 		if content == "" {
 			return slowProgressSignal{}, false
 		}
-		return slowProgressSignal{at: e.Timestamp(), text: "阶段输出：" + truncateForLark(content, 120)}, true
+		return slowProgressSignal{at: e.Timestamp(), text: "阶段输出：" + content}, true
 	default:
 		return slowProgressSignal{}, false
 	}
@@ -495,14 +488,122 @@ func signalFromUnified(e *domain.Event) (slowProgressSignal, bool) {
 		}
 		return slowProgressSignal{at: e.Timestamp(), text: "完成工具：" + toolName}, true
 	case types.EventNodeOutputSummary:
-		content := strings.TrimSpace(e.Data.Content)
+		content := sanitizeSlowProgressContent(e.Data.Content)
 		if content == "" {
 			return slowProgressSignal{}, false
 		}
-		return slowProgressSignal{at: e.Timestamp(), text: "阶段输出：" + truncateForLark(content, 120)}, true
+		return slowProgressSignal{at: e.Timestamp(), text: "阶段输出：" + content}, true
 	default:
 		return slowProgressSignal{}, false
 	}
+}
+
+func isValidSlowProgressLLMSummary(summary string) bool {
+	trimmed := strings.TrimSpace(summary)
+	if trimmed == "" {
+		return false
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "empty response:") || strings.HasPrefix(lower, "empty completion:") {
+		return false
+	}
+	return !containsInternalProgressIdentifier(trimmed)
+}
+
+func resolveSlowProgressStepLabel(stepDescription string, nodeID string) string {
+	step := strings.TrimSpace(stepDescription)
+	if step != "" {
+		return truncateForLark(step, 120)
+	}
+	humanized := humanizeSlowProgressNodeID(nodeID)
+	if humanized == "" {
+		return ""
+	}
+	return truncateForLark(humanized, 120)
+}
+
+func humanizeSlowProgressNodeID(nodeID string) string {
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return ""
+	}
+	if strings.HasPrefix(nodeID, "react:iter:") {
+		parts := strings.Split(nodeID, ":")
+		if len(parts) >= 4 {
+			iter := strings.TrimSpace(parts[2])
+			if iter == "" {
+				iter = "?"
+			}
+			switch strings.TrimSpace(parts[3]) {
+			case "think":
+				return fmt.Sprintf("第 %s 轮思考", iter)
+			case "plan":
+				return fmt.Sprintf("第 %s 轮规划", iter)
+			case "tools":
+				return fmt.Sprintf("第 %s 轮工具执行", iter)
+			case "tool":
+				if len(parts) >= 5 {
+					toolNode := strings.TrimSpace(parts[4])
+					if toolNode != "" && !isOpaqueToolCallID(toolNode) {
+						return fmt.Sprintf("第 %s 轮工具调用（%s）", iter, toolNode)
+					}
+				}
+				return fmt.Sprintf("第 %s 轮工具调用", iter)
+			default:
+				return fmt.Sprintf("第 %s 轮执行", iter)
+			}
+		}
+	}
+	if containsInternalProgressIdentifier(nodeID) {
+		return ""
+	}
+	return nodeID
+}
+
+func sanitizeSlowProgressContent(content string) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return ""
+	}
+	if containsInternalProgressIdentifier(content) {
+		return ""
+	}
+	return truncateForLark(content, 120)
+}
+
+func containsInternalProgressIdentifier(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	if strings.Contains(lower, "react:iter:") ||
+		strings.Contains(lower, "step_description") ||
+		strings.Contains(lower, "payload") ||
+		strings.Contains(lower, "nodeid") {
+		return true
+	}
+	for _, token := range strings.FieldsFunc(lower, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_' || r == '-' || r == ':')
+	}) {
+		if isOpaqueToolCallID(token) {
+			return true
+		}
+	}
+	return false
+}
+
+func isOpaqueToolCallID(token string) bool {
+	token = strings.TrimSpace(strings.ToLower(token))
+	if token == "" {
+		return false
+	}
+	if strings.HasPrefix(token, "call_") && len(token) >= len("call_")+6 {
+		return true
+	}
+	if strings.HasPrefix(token, "call-") && len(token) >= len("call-")+6 {
+		return true
+	}
+	return false
 }
 
 func tailSignals(signals []slowProgressSignal, n int) []slowProgressSignal {

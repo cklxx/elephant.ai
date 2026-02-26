@@ -144,7 +144,7 @@ func TestSlowProgressSummaryListener_NoSummaryWhenTerminalBeforeDelay(t *testing
 
 func TestSlowProgressSummaryListener_UsesLLMSummaryWhenAvailable(t *testing.T) {
 	recorder := NewRecordingMessenger()
-	client := &slowSummaryStubLLMClient{resp: "- 已完成上下文准备\n- 正在执行工具 read_file"}
+	client := &slowSummaryStubLLMClient{resp: "这边 30s 进展：前两轮已经跑完了，现在在第 3 轮思考中，整体推进正常，我会在出最终结果后第一时间同步你。"}
 	gw := &Gateway{
 		messenger:  recorder,
 		logger:     logging.NewComponentLogger("test"),
@@ -178,8 +178,11 @@ func TestSlowProgressSummaryListener_UsesLLMSummaryWhenAvailable(t *testing.T) {
 		replies := recorder.CallsByMethod("ReplyMessage")
 		if len(replies) > 0 {
 			text := extractTextContent(replies[len(replies)-1].Content, nil)
-			if !containsAll(text, "任务已运行", "最近进展", "已完成上下文准备") {
+			if !containsAll(text, "这边 30s 进展", "前两轮已经跑完了") {
 				t.Fatalf("expected LLM summary text, got %q", text)
+			}
+			if strings.Contains(text, "最近工具调用（人话）") {
+				t.Fatalf("expected pure LLM summary without tool appendix, got %q", text)
 			}
 			if client.RequestCount() == 0 {
 				t.Fatalf("expected LLM request to be issued")
@@ -265,6 +268,36 @@ func TestSlowProgressSummaryListener_FallbackIncludesHumanToolSummary(t *testing
 
 	if !containsAll(text, "最近工具调用（人话）", "read_file", "web_search") {
 		t.Fatalf("expected humanized tool summary in fallback text, got %q", text)
+	}
+}
+
+func TestSignalFromEnvelope_HumanizesReactNodeID(t *testing.T) {
+	signal, ok := signalFromEnvelope(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Event:     types.EventNodeStarted,
+		NodeKind:  "step",
+		NodeID:    "react:iter:3:think",
+	})
+	if !ok {
+		t.Fatal("expected react node id to produce signal")
+	}
+	if signal.text != "开始步骤：第 3 轮思考" {
+		t.Fatalf("unexpected signal text: %q", signal.text)
+	}
+}
+
+func TestSignalFromEnvelope_DropsInternalSummaryContent(t *testing.T) {
+	_, ok := signalFromEnvelope(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Event:     types.EventNodeOutputSummary,
+		NodeKind:  "step",
+		NodeID:    "react:iter:2:plan",
+		Payload: map[string]any{
+			"content": "已完成 react:iter:2:tool:call_qPikHBe7pX5L3EtTMskrisMj",
+		},
+	})
+	if ok {
+		t.Fatal("expected internal summary content to be filtered out")
 	}
 }
 
