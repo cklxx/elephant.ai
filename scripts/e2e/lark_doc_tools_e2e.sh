@@ -239,16 +239,20 @@ if should_run "drive"; then
     "列出我飞书云空间根目录下的文件列表" \
     "文件" "file" "找到" "目录" || true
 
+  inject_and_check "drive/create_doc" "$DRIVE_CHAT" \
+    "在我的飞书云空间根目录创建一个标题为'E2E驱动测试文档-${TIMESTAMP}'的文档" \
+    "创建" "成功" "文档" "document" || true
+
   inject_and_check "drive/create_folder" "$DRIVE_CHAT" \
-    "在根目录创建一个名为'E2E测试文件夹-${TIMESTAMP}'的文件夹" \
+    "在飞书云空间根目录创建一个名为'E2E测试文件夹-${TIMESTAMP}'的文件夹" \
     "创建" "成功" "文件夹" "folder" || true
 
   inject_and_check "drive/copy_file" "$DRIVE_CHAT" \
-    "把之前创建的E2E测试文档复制到刚创建的文件夹里，命名为'副本'" \
+    "把你刚才在本次对话中创建的那个'E2E驱动测试文档-${TIMESTAMP}'复制到'E2E测试文件夹-${TIMESTAMP}'文件夹里，新名称为'副本'" \
     "复制" "成功" "copy" "副本" || true
 
   inject_and_check "drive/delete_file" "$DRIVE_CHAT" \
-    "删除刚才复制的那个副本文件" \
+    "删除刚才复制的那个名为'副本'的文件" \
     "删除" "成功" "delete" "已删" || true
 
   echo ""
@@ -299,15 +303,15 @@ if should_run "sheets"; then
   echo -e "${BOLD}--- Sheets ---${NC}"
 
   inject_and_check "sheets/create_spreadsheet" "$SHEETS_CHAT" \
-    "创建一个标题为'E2E测试表格-${TIMESTAMP}'的电子表格" \
+    "请在我的飞书云空间中创建一个标题为'E2E测试表格-${TIMESTAMP}'的电子表格（spreadsheet），使用飞书的创建电子表格功能" \
     "创建" "成功" "spreadsheet" "表格" || true
 
   inject_and_check "sheets/get_spreadsheet" "$SHEETS_CHAT" \
-    "获取你刚才创建的电子表格的元信息" \
+    "获取你刚才在飞书中创建的那个'E2E测试表格-${TIMESTAMP}'电子表格的元信息" \
     "标题" "E2E测试表格" "title" "spreadsheet" || true
 
   inject_and_check "sheets/list_sheets" "$SHEETS_CHAT" \
-    "列出刚才电子表格里的所有工作表" \
+    "列出刚才那个飞书电子表格里的所有工作表（sheet）" \
     "工作表" "sheet" "找到" "Sheet" || true
 
   echo ""
@@ -327,7 +331,7 @@ fi
 if should_run "drive"; then
   DRIVE_CHAT="${DRIVE_CHAT:-${CHAT_ID_PREFIX}-drive-${TIMESTAMP}}"
   inject_and_check "cleanup/drive" "$DRIVE_CHAT" \
-    "删除你之前创建的所有包含'E2E测试'的文件夹，帮我清理掉" \
+    "删除你之前创建的所有包含'E2E'的文档和文件夹，帮我清理掉" \
     "删除" "成功" "清理" "已删" "完成" || true
 fi
 
