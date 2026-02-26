@@ -43,6 +43,8 @@ func (t *larkDocxManage) Execute(ctx context.Context, call ports.ToolCall) (*por
 		return t.readDoc(ctx, client, call)
 	case "read_content":
 		return t.readContent(ctx, client, call)
+	case "list_blocks":
+		return t.listBlocks(ctx, client, call)
 	default:
 		err := fmt.Errorf("unsupported docx action: %s", action)
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -128,5 +130,47 @@ func (t *larkDocxManage) readContent(ctx context.Context, client *larkapi.Client
 			"document_id":    documentID,
 			"content_length": len(content),
 		},
+	}, nil
+}
+
+func (t *larkDocxManage) listBlocks(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	documentID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "document_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	pageSize, _ := shared.IntArg(call.Arguments, "page_size")
+	pageToken := shared.StringArg(call.Arguments, "page_token")
+
+	blocks, nextToken, hasMore, err := client.Docx().ListDocumentBlocks(ctx, documentID, pageSize, pageToken)
+	if err != nil {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: fmt.Sprintf("Failed to list document blocks: %v", err),
+			Error:   err,
+		}, nil
+	}
+
+	if len(blocks) == 0 {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: "No blocks found in document.",
+		}, nil
+	}
+
+	payload, _ := json.MarshalIndent(blocks, "", "  ")
+	metadata := map[string]any{
+		"document_id": documentID,
+		"block_count": len(blocks),
+	}
+	if hasMore {
+		metadata["has_more"] = true
+		metadata["page_token"] = nextToken
+	}
+
+	return &ports.ToolResult{
+		CallID:   call.ID,
+		Content:  fmt.Sprintf("Found %d blocks:\n%s", len(blocks), string(payload)),
+		Metadata: metadata,
 	}, nil
 }

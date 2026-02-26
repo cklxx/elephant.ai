@@ -19,7 +19,7 @@ func actionSafetyLevel(action string) (dangerous bool, level int) {
 	switch action {
 	// Read-only actions — no approval needed.
 	case "history", "query_events", "list_tasks",
-		"read_doc", "read_doc_content",
+		"read_doc", "read_doc_content", "list_doc_blocks",
 		"list_wiki_spaces", "list_wiki_nodes", "get_wiki_node",
 		"list_bitable_tables", "list_bitable_records", "list_bitable_fields",
 		"list_drive_files",
@@ -80,7 +80,7 @@ func NewLarkChannel() tools.ToolExecutor {
 					"Actions: send_message/upload_file/history (messaging), " +
 					"create_event/query_events/update_event/delete_event (calendar), " +
 					"list_tasks/create_task/update_task/delete_task (tasks), " +
-					"create_doc/read_doc/read_doc_content (documents), " +
+					"create_doc/read_doc/read_doc_content/list_doc_blocks (documents), " +
 					"list_wiki_spaces/list_wiki_nodes/create_wiki_node/get_wiki_node (wiki), " +
 					"list_bitable_tables/list_bitable_records/create_bitable_record/update_bitable_record/delete_bitable_record/list_bitable_fields (bitable), " +
 					"list_drive_files/create_drive_folder/copy_drive_file/delete_drive_file (drive), " +
@@ -102,7 +102,7 @@ func NewLarkChannel() tools.ToolExecutor {
 								"send_message", "upload_file", "history",
 								"create_event", "query_events", "update_event", "delete_event",
 								"list_tasks", "create_task", "update_task", "delete_task",
-								"create_doc", "read_doc", "read_doc_content",
+								"create_doc", "read_doc", "read_doc_content", "list_doc_blocks",
 								"list_wiki_spaces", "list_wiki_nodes", "create_wiki_node", "get_wiki_node",
 								"list_bitable_tables", "list_bitable_records", "create_bitable_record", "update_bitable_record", "delete_bitable_record", "list_bitable_fields",
 								"list_drive_files", "create_drive_folder", "copy_drive_file", "delete_drive_file",
@@ -438,6 +438,8 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		return c.docx.Execute(ctx, c.subActionCall(call, "read"))
 	case "read_doc_content":
 		return c.docx.Execute(ctx, c.subActionCall(call, "read_content"))
+	case "list_doc_blocks":
+		return c.docx.Execute(ctx, c.subActionCall(call, "list_blocks"))
 	// --- wiki ---
 	case "list_wiki_spaces":
 		return c.wiki.Execute(ctx, c.subActionCall(call, "list_spaces"))
