@@ -69,6 +69,7 @@ type CoordinatorExecutor struct {
 
 var errKernelNoRealToolAction = errors.New("kernel dispatch completed without successful real tool action")
 var errKernelAwaitingUserConfirmation = errors.New("kernel dispatch completed while still awaiting user confirmation")
+var errKernelInvalidExecutionSummary = errors.New("kernel dispatch completed with invalid execution summary")
 
 const (
 	kernelAutonomyActionable  = "actionable"
@@ -170,6 +171,8 @@ func classifyKernelValidationError(err error) string {
 		return kernelAutonomyAwaiting
 	case errors.Is(err, errKernelNoRealToolAction):
 		return kernelAutonomyNoTool
+	case errors.Is(err, errKernelInvalidExecutionSummary):
+		return kernelAutonomyInvalid
 	default:
 		return kernelAutonomyInvalid
 	}
@@ -292,7 +295,28 @@ func validateKernelDispatchResult(result *agent.TaskResult) error {
 	if !containsSuccessfulRealToolExecution(result) {
 		return errKernelNoRealToolAction
 	}
+	if !isKernelExecutionSummaryValid(extractKernelExecutionSummary(result)) {
+		return errKernelInvalidExecutionSummary
+	}
 	return nil
+}
+
+func isKernelExecutionSummaryValid(summary string) bool {
+	trimmed := strings.TrimSpace(summary)
+	if trimmed == "" {
+		return false
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "empty response:") || strings.HasPrefix(lower, "empty completion:") {
+		return false
+	}
+	if strings.Contains(lower, "'content':") && strings.Contains(lower, "'stop_reason':") {
+		return false
+	}
+	if strings.HasPrefix(lower, "{") && strings.Contains(lower, "\"content\"") && strings.Contains(lower, "\"stop_reason\"") {
+		return false
+	}
+	return true
 }
 
 func dispatchStillAwaitsUserConfirmation(result *agent.TaskResult) bool {

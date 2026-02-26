@@ -373,6 +373,118 @@ func TestCoordinatorExecutor_RetriesWhenFirstAttemptHasNoRealToolAction(t *testi
 	}
 }
 
+func TestCoordinatorExecutor_RetriesWhenFirstAttemptHasInvalidExecutionSummary(t *testing.T) {
+	runner := &stubTaskRunner{
+		results: []*agent.TaskResult{
+			{
+				Answer: "Empty response: {'content': , 'stop_reason': 'end_turn', 'model': 'claude-opus-4-5', 'usage': {'input_tokens': 13860, 'output_tokens': 67}}",
+				Messages: []core.Message{
+					{
+						Role: "assistant",
+						ToolCalls: []core.ToolCall{
+							{ID: "call-1", Name: "read_file"},
+						},
+					},
+					{
+						Role: "tool",
+						ToolResults: []core.ToolResult{
+							{CallID: "call-1", Content: "ok"},
+						},
+					},
+				},
+			},
+			{
+				Answer: "## Execution Summary\n- 已完成 docs/plans/kernel-empty-response-summary-validation-2026-02-26.md 更新",
+				Messages: []core.Message{
+					{
+						Role: "assistant",
+						ToolCalls: []core.ToolCall{
+							{ID: "call-2", Name: "write_file"},
+						},
+					},
+					{
+						Role: "tool",
+						ToolResults: []core.ToolResult{
+							{CallID: "call-2", Content: "ok"},
+						},
+					},
+				},
+			},
+		},
+	}
+	exec := NewCoordinatorExecutor(runner, 0)
+
+	res, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
+	if err != nil {
+		t.Fatalf("expected retry success after invalid summary, got: %v", err)
+	}
+	if len(runner.prompts) != 2 {
+		t.Fatalf("expected 2 attempts, got %d", len(runner.prompts))
+	}
+	if res.Attempts != 2 {
+		t.Fatalf("expected attempts=2 after retry, got %d", res.Attempts)
+	}
+	if res.RecoveredFrom != kernelAutonomyInvalid {
+		t.Fatalf("expected recovered_from=%s, got %q", kernelAutonomyInvalid, res.RecoveredFrom)
+	}
+	if !strings.Contains(runner.prompts[1], "Kernel retry requirement") {
+		t.Fatalf("expected retry prompt guidance, got: %q", runner.prompts[1])
+	}
+}
+
+func TestCoordinatorExecutor_FailsWhenExecutionSummaryStaysInvalidAfterRetry(t *testing.T) {
+	runner := &stubTaskRunner{
+		results: []*agent.TaskResult{
+			{
+				Answer: "Empty response: {'content': , 'stop_reason': 'end_turn'}",
+				Messages: []core.Message{
+					{
+						Role: "assistant",
+						ToolCalls: []core.ToolCall{
+							{ID: "call-1", Name: "read_file"},
+						},
+					},
+					{
+						Role: "tool",
+						ToolResults: []core.ToolResult{
+							{CallID: "call-1", Content: "ok"},
+						},
+					},
+				},
+			},
+			{
+				Answer: "Empty response: {'content': , 'stop_reason': 'end_turn'}",
+				Messages: []core.Message{
+					{
+						Role: "assistant",
+						ToolCalls: []core.ToolCall{
+							{ID: "call-2", Name: "shell_exec"},
+						},
+					},
+					{
+						Role: "tool",
+						ToolResults: []core.ToolResult{
+							{CallID: "call-2", Content: "ok"},
+						},
+					},
+				},
+			},
+		},
+	}
+	exec := NewCoordinatorExecutor(runner, 0)
+
+	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
+	if err == nil {
+		t.Fatal("expected failure when invalid summary persists after retry")
+	}
+	if !strings.Contains(err.Error(), "invalid execution summary") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(runner.prompts) != 2 {
+		t.Fatalf("expected 2 attempts before failure, got %d", len(runner.prompts))
+	}
+}
+
 func TestCoordinatorExecutor_DoesNotRetryWhenFirstAttemptIsValid(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
