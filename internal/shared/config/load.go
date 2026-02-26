@@ -405,11 +405,9 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	}
 	cfg.Skills.ProactiveLevel = strings.ToLower(strings.TrimSpace(cfg.Skills.ProactiveLevel))
 	switch cfg.Skills.ProactiveLevel {
-	case "", "low", "medium", "high":
+	case "low", "medium", "high":
+		// Keep user-provided supported value.
 	default:
-		cfg.Skills.ProactiveLevel = "medium"
-	}
-	if cfg.Skills.ProactiveLevel == "" {
 		cfg.Skills.ProactiveLevel = "medium"
 	}
 	cfg.Skills.PolicyPath = strings.TrimSpace(cfg.Skills.PolicyPath)

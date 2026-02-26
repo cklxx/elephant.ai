@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	"alex/internal/app/subscription"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/utils"
 )
 
 func (c *CLI) handleModel(args []string) error {
@@ -26,14 +26,19 @@ func executeModelCommand(args []string, out io.Writer) error {
 
 	switch subcommand {
 	case "", "list", "ls":
-		return listModels(out)
+		client := &http.Client{Timeout: 20 * time.Second}
+		return listModelsFromWith(out, runtimeconfig.LoadCLICredentials(), client,
+			func(context.Context) (subscription.LlamaServerTarget, bool) {
+				return resolveLlamaServerTarget()
+			},
+		)
 	case "use", "select", "set":
 		if len(args) < 2 || utils.IsBlank(args[1]) || strings.HasPrefix(strings.TrimSpace(args[1]), "-") {
-			return useModelPicker(out, os.Stdin)
+			return useModelPickerWith(out, os.Stdin, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
 		}
-		return useModel(out, strings.TrimSpace(args[1]))
+		return useModelWith(out, strings.TrimSpace(args[1]), runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
 	case "clear", "reset":
-		return clearModel(out)
+		return clearModelWith(out, runtimeEnvLookup())
 	case "help", "-h", "--help":
 		printModelUsage(out)
 		return nil
@@ -41,19 +46,6 @@ func executeModelCommand(args []string, out io.Writer) error {
 		printModelUsage(out)
 		return fmt.Errorf("unknown model subcommand: %s", subcommand)
 	}
-}
-
-func listModels(out io.Writer) error {
-	return listModelsFrom(out, runtimeconfig.LoadCLICredentials())
-}
-
-func listModelsFrom(out io.Writer, creds runtimeconfig.CLICredentials) error {
-	client := &http.Client{Timeout: 20 * time.Second}
-	return listModelsFromWith(out, creds, client,
-		func(context.Context) (subscription.LlamaServerTarget, bool) {
-			return resolveLlamaServerTarget()
-		},
-	)
 }
 
 func listModelsFromWith(
@@ -165,14 +157,6 @@ func modelCommandProviders(providers []subscription.CatalogProvider) []subscript
 	return out
 }
 
-func useModel(out io.Writer, spec string) error {
-	return useModelWith(out, spec, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
-}
-
-func useModelPicker(out io.Writer, in io.Reader) error {
-	return useModelPickerWith(out, in, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
-}
-
 func useModelWith(out io.Writer, spec string, creds runtimeconfig.CLICredentials, envLookup runtimeconfig.EnvLookup) error {
 	parts := strings.SplitN(spec, "/", 2)
 	if len(parts) != 2 || utils.IsBlank(parts[0]) || utils.IsBlank(parts[1]) {
@@ -212,10 +196,6 @@ func useModelWith(out io.Writer, spec string, creds runtimeconfig.CLICredentials
 		return err
 	}
 	return nil
-}
-
-func clearModel(out io.Writer) error {
-	return clearModelWith(out, runtimeEnvLookup())
 }
 
 func clearModelWith(out io.Writer, envLookup runtimeconfig.EnvLookup) error {

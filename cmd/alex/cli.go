@@ -520,10 +520,6 @@ func (c *CLI) listAllSessions(ctx context.Context) ([]string, error) {
 }
 
 func (c *CLI) handleConfig(args []string) error {
-	return runConfigCommand(args)
-}
-
-func runConfigCommand(args []string) error {
 	return executeConfigCommand(args, os.Stdout)
 }
 

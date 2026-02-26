@@ -53,3 +53,7 @@ Systematically improve maintainability, readability, and logic simplicity across
 - 2026-02-26: Removed unused abstractions/components with zero production call-sites (`StringArgStrict`, `BoolArgWithDefault`, `ContentSnippet`, `ToolAdapter.ValidateArguments`, `BuildAttachmentStoreMigrator` file).
 - 2026-02-26: Inlined single-use helpers (`initEncoding`, `formatDurationShort`, `envelopeStreamFinished`) to reduce helper surface and indirection.
 - 2026-02-26: Re-ran package-targeted tests and full `./scripts/pre-push.sh`; all checks passed.
+- 2026-02-26: Ran a new subagent/web-guided maintainability pass (Go official best-practice sources + two code-scan explorers) and ranked low-risk non-web simplification candidates.
+- 2026-02-26: Applied systematic simplifications across CLI/config/subscription/context/session layers: removed single-use wrappers, consolidated repeated option/context checks, centralized MCP config save flow, and pruned duplicate defaulting branches.
+- 2026-02-26: Validation for touched packages passed (`cmd/alex`, `internal/app/subscription`, `internal/app/context`, `internal/infra/session/filestore`, targeted `internal/shared/config` tests).
+- 2026-02-26: Full `./scripts/pre-push.sh` currently blocked by pre-existing unrelated failures in dirty workspace (`BuildSummaryOnly` missing on multiple test stubs and env-usage guard hit in `internal/infra/llm/thinking.go`).

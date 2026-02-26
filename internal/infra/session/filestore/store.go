@@ -267,9 +267,6 @@ func (s *store) loadAttachments(sessionID string) (map[string]ports.Attachment, 
 }
 
 func sanitizeAttachmentMap(values map[string]ports.Attachment) map[string]ports.Attachment {
-	if len(values) == 0 {
-		return nil
-	}
 	sanitized := make(map[string]ports.Attachment, len(values))
 	for key, att := range values {
 		name := strings.TrimSpace(key)

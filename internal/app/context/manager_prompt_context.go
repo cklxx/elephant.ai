@@ -8,22 +8,23 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 )
 
-func buildIdentityLine(persona agent.PersonaProfile) string {
-	voice := strings.TrimSpace(persona.Voice)
-	if voice == "" {
-		voice = "You are ALEX, an enterprise-grade assistant focused on secure, testable software delivery."
+const defaultPersonaVoice = "You are ALEX, an enterprise-grade assistant focused on secure, testable software delivery."
+
+func personaVoice(persona agent.PersonaProfile) string {
+	if voice := strings.TrimSpace(persona.Voice); voice != "" {
+		return voice
 	}
-	return voice
+	return defaultPersonaVoice
+}
+
+func buildIdentityLine(persona agent.PersonaProfile) string {
+	return personaVoice(persona)
 }
 
 func buildIdentitySection(persona agent.PersonaProfile) string {
 	var builder strings.Builder
-	voice := strings.TrimSpace(persona.Voice)
-	if voice == "" {
-		voice = "You are ALEX, an enterprise-grade assistant focused on secure, testable software delivery."
-	}
 	builder.WriteString("# Identity & Persona\n\n")
-	builder.WriteString(voice)
+	builder.WriteString(personaVoice(persona))
 	meta := formatBulletList(filterNonEmpty([]string{
 		formatKeyValue("Tone", persona.Tone),
 		formatKeyValue("Decision Style", persona.DecisionStyle),

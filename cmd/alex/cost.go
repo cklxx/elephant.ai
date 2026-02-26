@@ -166,68 +166,68 @@ func (c *CLI) handleCostExport(ctx context.Context, args []string) error {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--format":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--format requires a value")
+			value, err := requireOptionValue(args, &i, "--format")
+			if err != nil {
+				return err
 			}
-			i++
-			switch args[i] {
+			switch value {
 			case "csv":
 				format = agentstorage.ExportFormatCSV
 			case "json":
 				format = agentstorage.ExportFormatJSON
 			default:
-				return fmt.Errorf("invalid format: %s (must be csv or json)", args[i])
+				return fmt.Errorf("invalid format: %s (must be csv or json)", value)
 			}
 
 		case "--session":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--session requires a value")
+			value, err := requireOptionValue(args, &i, "--session")
+			if err != nil {
+				return err
 			}
-			i++
-			filter.SessionID = args[i]
+			filter.SessionID = value
 
 		case "--model":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--model requires a value")
+			value, err := requireOptionValue(args, &i, "--model")
+			if err != nil {
+				return err
 			}
-			i++
-			filter.Model = args[i]
+			filter.Model = value
 
 		case "--provider":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--provider requires a value")
+			value, err := requireOptionValue(args, &i, "--provider")
+			if err != nil {
+				return err
 			}
-			i++
-			filter.Provider = args[i]
+			filter.Provider = value
 
 		case "--start":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--start requires a value")
+			value, err := requireOptionValue(args, &i, "--start")
+			if err != nil {
+				return err
 			}
-			i++
-			t, err := time.Parse("2006-01-02", args[i])
+			t, err := time.Parse("2006-01-02", value)
 			if err != nil {
 				return fmt.Errorf("invalid start date: %w", err)
 			}
 			filter.StartDate = t
 
 		case "--end":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--end requires a value")
+			value, err := requireOptionValue(args, &i, "--end")
+			if err != nil {
+				return err
 			}
-			i++
-			t, err := time.Parse("2006-01-02", args[i])
+			t, err := time.Parse("2006-01-02", value)
 			if err != nil {
 				return fmt.Errorf("invalid end date: %w", err)
 			}
 			filter.EndDate = t
 
 		case "--output", "-o":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--output requires a value")
+			value, err := requireOptionValue(args, &i, "--output")
+			if err != nil {
+				return err
 			}
-			i++
-			outputFile = args[i]
+			outputFile = value
 
 		default:
 			return fmt.Errorf("unknown option: %s", args[i])
@@ -251,6 +251,14 @@ func (c *CLI) handleCostExport(ctx context.Context, args []string) error {
 	}
 
 	return nil
+}
+
+func requireOptionValue(args []string, index *int, flag string) (string, error) {
+	if *index+1 >= len(args) {
+		return "", fmt.Errorf("%s requires a value", flag)
+	}
+	*index += 1
+	return args[*index], nil
 }
 
 func (c *CLI) printCostSummary(summary *agentstorage.CostSummary, title string) {

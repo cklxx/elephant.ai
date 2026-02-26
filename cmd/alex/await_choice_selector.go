@@ -111,9 +111,6 @@ func (s *awaitChoiceSelector) selectWithArrowKeys(inFile *os.File, options []str
 }
 
 func normalizeChoiceOptions(options []string) []string {
-	if len(options) == 0 {
-		return nil
-	}
 	out := make([]string, 0, len(options))
 	seen := make(map[string]struct{})
 	for _, raw := range options {

@@ -188,12 +188,6 @@ func (s *SelectionStore) Clear(ctx context.Context, scope SelectionScope) error 
 		return nil
 	}
 	delete(doc.Selections, key)
-	if len(doc.Selections) == 0 {
-		if err := os.Remove(s.path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("remove selection store: %w", err)
-		}
-		return nil
-	}
 	return s.saveDocLocked(ctx, doc)
 }
 

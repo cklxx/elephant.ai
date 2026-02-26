@@ -105,7 +105,9 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 		fmt.Println(appVersion())
 		return true, 0
 	case "config":
-		return runStandaloneCommand(args[1:], runConfigCommand, func(error) int { return 1 })
+		return runStandaloneCommand(args[1:], func(subArgs []string) error {
+			return executeConfigCommand(subArgs, os.Stdout)
+		}, func(error) int { return 1 })
 	case "dev":
 		return runStandaloneCommand(args[1:], runDevCommand, exitCodeFromError)
 	case "lark":

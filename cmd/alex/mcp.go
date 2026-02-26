@@ -101,14 +101,9 @@ func (c *CLI) handleMCPAdd(args []string) error {
 	command := args[1]
 	serverArgs := args[2:]
 
-	// Load current configuration
-	loader := mcp.NewConfigLoader()
-	config, err := loader.Load()
+	config, loader, err := loadMCPConfig(true)
 	if err != nil {
-		// Create new config if none exists
-		config = &mcp.Config{
-			MCPServers: make(map[string]mcp.ServerConfig),
-		}
+		return err
 	}
 
 	// Check if server already exists
@@ -122,15 +117,9 @@ func (c *CLI) handleMCPAdd(args []string) error {
 		Args:    serverArgs,
 	})
 
-	// Save to local config (.mcp.json in current directory)
-	cwd, err := os.Getwd()
+	configPath, err := saveMCPConfig(loader, config)
 	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
-
-	configPath := filepath.Join(cwd, ".mcp.json")
-	if err := loader.SaveToPath(configPath, config); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
+		return err
 	}
 
 	fmt.Printf("Added MCP server '%s' to %s\n", name, configPath)
@@ -148,11 +137,9 @@ func (c *CLI) handleMCPRemove(args []string) error {
 
 	name := args[0]
 
-	// Load current configuration
-	loader := mcp.NewConfigLoader()
-	config, err := loader.Load()
+	config, loader, err := loadMCPConfig(false)
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return err
 	}
 
 	// Check if server exists
@@ -163,21 +150,39 @@ func (c *CLI) handleMCPRemove(args []string) error {
 	// Remove server from configuration
 	config.RemoveServer(name)
 
-	// Save to local config
-	cwd, err := os.Getwd()
+	configPath, err := saveMCPConfig(loader, config)
 	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
-
-	configPath := filepath.Join(cwd, ".mcp.json")
-	if err := loader.SaveToPath(configPath, config); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
+		return err
 	}
 
 	fmt.Printf("Removed MCP server '%s' from %s\n", name, configPath)
 	fmt.Println("\nRestart elephant.ai for changes to take effect.")
 
 	return nil
+}
+
+func loadMCPConfig(allowEmptyOnLoadError bool) (*mcp.Config, *mcp.ConfigLoader, error) {
+	loader := mcp.NewConfigLoader()
+	config, err := loader.Load()
+	if err != nil {
+		if allowEmptyOnLoadError {
+			return &mcp.Config{MCPServers: map[string]mcp.ServerConfig{}}, loader, nil
+		}
+		return nil, nil, fmt.Errorf("failed to load config: %w", err)
+	}
+	return config, loader, nil
+}
+
+func saveMCPConfig(loader *mcp.ConfigLoader, config *mcp.Config) (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current directory: %w", err)
+	}
+	configPath := filepath.Join(cwd, ".mcp.json")
+	if err := loader.SaveToPath(configPath, config); err != nil {
+		return "", fmt.Errorf("failed to save config: %w", err)
+	}
+	return configPath, nil
 }
 
 // handleMCPTools lists all tools from a specific MCP server

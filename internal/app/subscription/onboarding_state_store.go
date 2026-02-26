@@ -97,8 +97,8 @@ func (s *OnboardingStateStore) Get(ctx context.Context) (OnboardingState, bool, 
 	if s == nil {
 		return OnboardingState{}, false, nil
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return OnboardingState{}, false, ctx.Err()
+	if err := contextErr(ctx); err != nil {
+		return OnboardingState{}, false, err
 	}
 
 	s.mu.Lock()
@@ -118,8 +118,8 @@ func (s *OnboardingStateStore) Set(ctx context.Context, state OnboardingState) e
 	if s == nil || s.path == "" {
 		return fmt.Errorf("onboarding store not configured")
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
+	if err := contextErr(ctx); err != nil {
+		return err
 	}
 	state = NormalizeOnboardingState(state)
 	if state.CompletedAt == "" && state.SelectedProvider != "" && state.SelectedModel != "" {
@@ -141,8 +141,8 @@ func (s *OnboardingStateStore) Clear(ctx context.Context) error {
 	if s == nil || s.path == "" {
 		return nil
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
+	if err := contextErr(ctx); err != nil {
+		return err
 	}
 
 	s.mu.Lock()
@@ -158,8 +158,8 @@ func (s *OnboardingStateStore) loadDocLocked(ctx context.Context) (onboardingSta
 	if s.path == "" {
 		return onboardingStateDoc{}, false, fmt.Errorf("onboarding state path not configured")
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return onboardingStateDoc{}, false, ctx.Err()
+	if err := contextErr(ctx); err != nil {
+		return onboardingStateDoc{}, false, err
 	}
 
 	data, err := os.ReadFile(s.path)
@@ -198,8 +198,8 @@ func (s *OnboardingStateStore) saveDocLocked(ctx context.Context, doc onboarding
 	if s.path == "" {
 		return fmt.Errorf("onboarding state path not configured")
 	}
-	if ctx != nil && ctx.Err() != nil {
-		return ctx.Err()
+	if err := contextErr(ctx); err != nil {
+		return err
 	}
 
 	doc.Version = onboardingStateVersion

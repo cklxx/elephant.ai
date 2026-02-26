@@ -11,11 +11,7 @@ import (
 )
 
 func (c *CLI) handleSetup(args []string) error {
-	return executeSetupCommand(args, os.Stdin, os.Stdout)
-}
-
-func executeSetupCommand(args []string, in io.Reader, out io.Writer) error {
-	return executeSetupCommandWith(args, in, out, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
+	return executeSetupCommandWith(args, os.Stdin, os.Stdout, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
 }
 
 func executeSetupCommandWith(
