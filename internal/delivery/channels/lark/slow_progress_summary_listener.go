@@ -30,8 +30,8 @@ type slowProgressSignal struct {
 	text string
 }
 
-// slowProgressSummaryListener emits one proactive progress summary when a
-// foreground task runs longer than the configured delay.
+// slowProgressSummaryListener emits periodic proactive progress summaries when
+// a foreground task runs longer than the configured delay.
 type slowProgressSummaryListener struct {
 	inner   agent.EventListener
 	gateway *Gateway
@@ -46,7 +46,8 @@ type slowProgressSummaryListener struct {
 	timer       *time.Timer
 	closed      bool
 	terminal    bool
-	summarySent bool
+	summarySent int
+	intervals   []time.Duration
 	startedAt   time.Time
 	signals     []slowProgressSignal
 }
@@ -62,6 +63,11 @@ func newSlowProgressSummaryListener(
 	if delay <= 0 {
 		delay = defaultSlowProgressSummaryDelay
 	}
+	intervals := buildSlowSummaryIntervals(delay)
+	firstDelay := delay
+	if len(intervals) > 0 {
+		firstDelay = intervals[0]
+	}
 	l := &slowProgressSummaryListener{
 		inner:     inner,
 		gateway:   gateway,
@@ -69,10 +75,11 @@ func newSlowProgressSummaryListener(
 		chatID:    strings.TrimSpace(chatID),
 		replyToID: strings.TrimSpace(replyToID),
 		delay:     delay,
+		intervals: intervals,
 		now:       time.Now,
 		startedAt: time.Now(),
 	}
-	l.timer = time.AfterFunc(delay, l.onDelayReached)
+	l.timer = time.AfterFunc(firstDelay, l.onDelayReached)
 	return l
 }
 
@@ -165,42 +172,67 @@ func (l *slowProgressSummaryListener) appendSignal(signal slowProgressSignal) {
 
 func (l *slowProgressSummaryListener) onDelayReached() {
 	signals, elapsed, shouldSend := l.prepareSummary()
-	if !shouldSend {
-		return
-	}
-	if l.gateway == nil {
-		return
-	}
-	text := l.buildSummary(signals, elapsed)
-	if text == "" {
-		return
-	}
-
-	sendCtx, cancel := context.WithTimeout(l.dispatchContextBase(), 5*time.Second)
-	defer cancel()
-	if _, err := l.gateway.dispatchMessage(sendCtx, l.chatID, l.replyToID, "text", textContent(text)); err != nil {
-		if l.gateway.logger != nil {
-			l.gateway.logger.Warn("Lark slow progress summary send failed: %v", err)
+	if shouldSend {
+		if l.gateway != nil {
+			text := l.buildSummary(signals, elapsed)
+			if text != "" {
+				sendCtx, cancel := context.WithTimeout(l.dispatchContextBase(), 5*time.Second)
+				defer cancel()
+				if _, err := l.gateway.dispatchMessage(sendCtx, l.chatID, l.replyToID, "text", textContent(text)); err != nil {
+					if l.gateway.logger != nil {
+						l.gateway.logger.Warn("Lark slow progress summary send failed: %v", err)
+					}
+				}
+			}
 		}
 	}
+	l.scheduleNext()
 }
 
 func (l *slowProgressSummaryListener) prepareSummary() ([]slowProgressSignal, time.Duration, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.closed || l.summarySent || l.terminal {
+	if l.closed || l.terminal {
 		return nil, 0, false
 	}
 	if !l.isRunningLocked() {
 		return nil, 0, false
 	}
 
-	l.summarySent = true
+	l.summarySent++
 	elapsed := l.clock().Sub(l.startedAt)
 	signals := make([]slowProgressSignal, len(l.signals))
 	copy(signals, l.signals)
 	return signals, elapsed, true
+}
+
+func (l *slowProgressSummaryListener) scheduleNext() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.closed || l.terminal || l.timer == nil {
+		return
+	}
+	l.timer.Reset(l.nextIntervalLocked())
+}
+
+func (l *slowProgressSummaryListener) nextIntervalLocked() time.Duration {
+	if len(l.intervals) == 0 {
+		if l.delay > 0 {
+			return l.delay
+		}
+		return defaultSlowProgressSummaryDelay
+	}
+	idx := l.summarySent
+	if idx >= len(l.intervals) {
+		idx = len(l.intervals) - 1
+	}
+	next := l.intervals[idx]
+	if next <= 0 {
+		return defaultSlowProgressSummaryDelay
+	}
+	return next
 }
 
 func (l *slowProgressSummaryListener) isRunningLocked() bool {
@@ -223,12 +255,13 @@ func (l *slowProgressSummaryListener) isRunningLocked() bool {
 
 func (l *slowProgressSummaryListener) buildSummary(signals []slowProgressSignal, elapsed time.Duration) string {
 	fallback := l.buildFallbackSummary(signals, elapsed)
+	toolLines := buildHumanToolSignalLines(signals, 3)
 	if l.gateway == nil || l.gateway.llmFactory == nil {
-		return fallback
+		return appendHumanToolSection(fallback, toolLines)
 	}
 	profile := l.resolveProfile()
 	if utils.IsBlank(profile.Provider) || utils.IsBlank(profile.Model) {
-		return fallback
+		return appendHumanToolSection(fallback, toolLines)
 	}
 
 	baseCtx := context.Background()
@@ -243,13 +276,14 @@ func (l *slowProgressSummaryListener) buildSummary(signals []slowProgressSignal,
 		if l.gateway.logger != nil {
 			l.gateway.logger.Warn("Lark slow progress summary LLM fallback: %v", err)
 		}
-		return fallback
+		return appendHumanToolSection(fallback, toolLines)
 	}
 	summary = strings.TrimSpace(summary)
 	if summary == "" {
-		return fallback
+		return appendHumanToolSection(fallback, toolLines)
 	}
 	text := fmt.Sprintf("任务已运行 %s，最近进展：\n%s\n\n我会在完成后继续给你最终结果。", formatDuration(elapsed), summary)
+	text = appendHumanToolSection(text, toolLines)
 	return truncateForLark(text, slowProgressSummaryMaxReplyChars)
 }
 
@@ -315,6 +349,13 @@ func (l *slowProgressSummaryListener) buildLLMPrompt(signals []slowProgressSigna
 			b.WriteString(fmt.Sprintf("%d. [t+%s] %s\n", i+1, formatDuration(offset), signal.text))
 		}
 	}
+	toolLines := buildHumanToolSignalLines(signals, 3)
+	if len(toolLines) > 0 {
+		b.WriteString("最近工具调用（人话）：\n")
+		for i, line := range toolLines {
+			b.WriteString(fmt.Sprintf("%d. %s\n", i+1, line))
+		}
+	}
 	prompt := b.String()
 	if len(prompt) > slowProgressSummaryMaxPromptChars {
 		return prompt[:slowProgressSummaryMaxPromptChars]
@@ -339,7 +380,7 @@ func (l *slowProgressSummaryListener) buildFallbackSummary(signals []slowProgres
 		b.WriteString("\n")
 	}
 	b.WriteString("我会在完成后继续给你最终结果。")
-	return truncateForLark(b.String(), slowProgressSummaryMaxReplyChars)
+	return truncateForLark(appendHumanToolSection(b.String(), buildHumanToolSignalLines(signals, 3)), slowProgressSummaryMaxReplyChars)
 }
 
 func (l *slowProgressSummaryListener) dispatchContextBase() context.Context {
@@ -473,4 +514,91 @@ func tailSignals(signals []slowProgressSignal, n int) []slowProgressSignal {
 	out := make([]slowProgressSignal, n)
 	copy(out, signals[len(signals)-n:])
 	return out
+}
+
+func buildSlowSummaryIntervals(first time.Duration) []time.Duration {
+	if first <= 0 {
+		first = defaultSlowProgressSummaryDelay
+	}
+	second := first * 2
+	third := first * 6
+	if second <= 0 {
+		second = first
+	}
+	if third < second {
+		third = second
+	}
+	return []time.Duration{first, second, third}
+}
+
+func appendHumanToolSection(base string, lines []string) string {
+	base = strings.TrimSpace(base)
+	if len(lines) == 0 {
+		return base
+	}
+	var b strings.Builder
+	b.WriteString(base)
+	b.WriteString("\n\n最近工具调用（人话）：\n")
+	for _, line := range lines {
+		b.WriteString("- ")
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func buildHumanToolSignalLines(signals []slowProgressSignal, max int) []string {
+	if max <= 0 || len(signals) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, max)
+	tail := tailSignals(signals, 16)
+	for i := len(tail) - 1; i >= 0 && len(lines) < max; i-- {
+		name, state, errText, ok := parseToolSignalLine(tail[i].text)
+		if !ok {
+			continue
+		}
+		selector := len(lines) + int(tail[i].at.Unix()%7)
+		phrase := toolPhraseForBackground(name, selector)
+		name = strings.TrimSpace(name)
+		switch state {
+		case "started":
+			lines = append(lines, fmt.Sprintf("%s（%s）", phrase, name))
+		case "completed":
+			lines = append(lines, fmt.Sprintf("已完成 %s（%s）", phrase, name))
+		case "failed":
+			if errText != "" {
+				lines = append(lines, fmt.Sprintf("%s（%s）失败：%s", phrase, name, truncateForLark(errText, 80)))
+			} else {
+				lines = append(lines, fmt.Sprintf("%s（%s）执行失败", phrase, name))
+			}
+		}
+	}
+	return lines
+}
+
+func parseToolSignalLine(text string) (name string, state string, errText string, ok bool) {
+	text = strings.TrimSpace(text)
+	switch {
+	case strings.HasPrefix(text, "开始工具："):
+		return strings.TrimSpace(strings.TrimPrefix(text, "开始工具：")), "started", "", true
+	case strings.HasPrefix(text, "完成工具："):
+		return strings.TrimSpace(strings.TrimPrefix(text, "完成工具：")), "completed", "", true
+	case strings.HasPrefix(text, "工具失败："):
+		body := strings.TrimSpace(strings.TrimPrefix(text, "工具失败："))
+		if body == "" {
+			return "", "", "", false
+		}
+		name = body
+		if idx := strings.Index(body, "（"); idx >= 0 {
+			name = strings.TrimSpace(body[:idx])
+			rest := strings.TrimSpace(body[idx+len("（"):])
+			rest = strings.TrimSuffix(rest, ")")
+			rest = strings.TrimSuffix(rest, "）")
+			errText = strings.TrimSpace(rest)
+		}
+		return name, "failed", errText, true
+	default:
+		return "", "", "", false
+	}
 }

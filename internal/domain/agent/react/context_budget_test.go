@@ -1,6 +1,11 @@
 package react
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"alex/internal/domain/agent/ports"
+)
 
 func TestModelContextWindowTokens(t *testing.T) {
 	cases := []struct {
@@ -37,5 +42,56 @@ func TestDeriveContextTokenLimitByModel(t *testing.T) {
 	}
 	if gotDefault <= 100000 {
 		t.Fatalf("expected default budget to stay above 100k for 128k models, got %d", gotDefault)
+	}
+}
+
+func TestSplitContextBudgetSubtractsToolTokens(t *testing.T) {
+	tools := []ports.ToolDefinition{
+		{
+			Name:        "search_web",
+			Description: strings.Repeat("search the web for current info. ", 80),
+			Parameters: ports.ParameterSchema{
+				Type: "object",
+				Properties: map[string]ports.Property{
+					"q": {Type: "string", Description: strings.Repeat("query ", 60)},
+				},
+			},
+		},
+	}
+
+	split := splitContextBudget(120000, tools)
+	if split.ToolTokens <= 0 {
+		t.Fatalf("expected positive tool token estimate, got %d", split.ToolTokens)
+	}
+	if split.MessageLimit >= split.TotalLimit {
+		t.Fatalf("expected message limit to be reduced by tool budget, got message_limit=%d total_limit=%d", split.MessageLimit, split.TotalLimit)
+	}
+	want := split.TotalLimit - split.ToolTokens - contextBudgetRequestSafetyTokens
+	if want < minMessageBudgetTokens {
+		want = minMessageBudgetTokens
+	}
+	if split.MessageLimit != want {
+		t.Fatalf("splitContextBudget message limit = %d, want %d", split.MessageLimit, want)
+	}
+}
+
+func TestSplitContextBudgetKeepsAtLeastOneMessageToken(t *testing.T) {
+	huge := strings.Repeat("x", 80000)
+	tools := []ports.ToolDefinition{
+		{
+			Name:        "massive_tool",
+			Description: huge,
+			Parameters: ports.ParameterSchema{
+				Type: "object",
+				Properties: map[string]ports.Property{
+					"payload": {Type: "string", Description: huge},
+				},
+			},
+		},
+	}
+
+	split := splitContextBudget(1000, tools)
+	if split.MessageLimit != minMessageBudgetTokens {
+		t.Fatalf("expected floor message limit %d, got %d", minMessageBudgetTokens, split.MessageLimit)
 	}
 }

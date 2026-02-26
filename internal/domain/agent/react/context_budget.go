@@ -1,13 +1,29 @@
 package react
 
-import "strings"
+import (
+	"strings"
+
+	"alex/internal/domain/agent/ports"
+	jsonx "alex/internal/shared/json"
+	tokenutil "alex/internal/shared/token"
+)
 
 const (
 	defaultModelContextWindowTokens = 128000
 	gpt5ContextWindowTokens         = 256000
 	claudeContextWindowTokens       = 200000
 	minContextBudgetTokens          = 4096
+	// Reserve a fixed margin for request framing and provider-side formatting.
+	contextBudgetRequestSafetyTokens = 1024
+	// Keep at least one token for message budget so trim logic can still run.
+	minMessageBudgetTokens = 1
 )
+
+type contextBudgetSplit struct {
+	TotalLimit   int
+	MessageLimit int
+	ToolTokens   int
+}
 
 func (e *ReactEngine) resolveContextTokenLimit(services Services) int {
 	if e.completion.contextTokenLimit > 0 {
@@ -67,4 +83,43 @@ func modelContextWindowTokens(model string) int {
 	default:
 		return defaultModelContextWindowTokens
 	}
+}
+
+func splitContextBudget(totalLimit int, tools []ports.ToolDefinition) contextBudgetSplit {
+	split := contextBudgetSplit{TotalLimit: totalLimit, MessageLimit: totalLimit}
+	if totalLimit <= 0 {
+		return split
+	}
+
+	toolTokens := estimateToolDefinitionTokens(tools)
+	messageLimit := totalLimit - toolTokens - contextBudgetRequestSafetyTokens
+	if messageLimit < minMessageBudgetTokens {
+		messageLimit = minMessageBudgetTokens
+	}
+	if messageLimit > totalLimit {
+		messageLimit = totalLimit
+	}
+
+	split.ToolTokens = toolTokens
+	split.MessageLimit = messageLimit
+	return split
+}
+
+func estimateToolDefinitionTokens(tools []ports.ToolDefinition) int {
+	if len(tools) == 0 {
+		return 0
+	}
+
+	total := 16 // list wrapper overhead
+	for _, tool := range tools {
+		total += 24 // per-tool wrapper overhead
+		total += tokenutil.CountTokens(strings.TrimSpace(tool.Name))
+		total += tokenutil.CountTokens(strings.TrimSpace(tool.Description))
+		payload, err := jsonx.Marshal(tool.Parameters)
+		if err != nil {
+			continue
+		}
+		total += tokenutil.CountTokens(string(payload))
+	}
+	return total
 }

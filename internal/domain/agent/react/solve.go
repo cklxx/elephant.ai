@@ -45,23 +45,32 @@ func (e *ReactEngine) think(
 	requestID := e.idGenerator.NewRequestIDWithLogID(e.idContextReader.LogIDFromContext(ctx))
 	normalizeContextMessages(state)
 	filteredMessages, excluded := splitMessagesForLLM(state.Messages)
+	limit := e.resolveContextTokenLimit(services)
+	budget := splitContextBudget(limit, tools)
 
 	// Pre-flight context budget enforcement: estimate full token count and
 	// trim messages before sending to prevent context_length_exceeded errors.
 	messageCountBefore := len(filteredMessages)
 	if services.Context != nil {
-		filteredMessages = e.enforceContextBudget(ctx, filteredMessages, state, services)
+		filteredMessages = e.enforceContextBudgetWithLimit(ctx, filteredMessages, state, services, budget.MessageLimit)
 	}
 	compressionApplied := len(filteredMessages) < messageCountBefore
 
 	// Inject context status only when phase != ok (saves tokens on normal turns).
-	limit := e.resolveContextTokenLimit(services)
 	if limit > 0 && services.Context != nil {
-		estimated := services.Context.EstimateTokens(filteredMessages)
+		estimated := services.Context.EstimateTokens(filteredMessages) + budget.ToolTokens
 		status := buildContextBudgetStatus(estimated, limit, state, compressionApplied)
 		if shouldInjectContextStatus(status) {
 			filteredMessages = append(filteredMessages, buildContextStatusMessage(status))
 		}
+		e.logger.Debug(
+			"Context budget split (request_id=%s): total_limit=%d message_limit=%d tool_tokens=%d estimated_request_tokens=%d",
+			requestID,
+			limit,
+			budget.MessageLimit,
+			budget.ToolTokens,
+			estimated,
+		)
 	}
 
 	e.logger.Debug(
@@ -273,7 +282,22 @@ func (e *ReactEngine) enforceContextBudget(
 	state *TaskState,
 	services Services,
 ) []ports.Message {
-	limit := e.resolveContextTokenLimit(services)
+	return e.enforceContextBudgetWithLimit(
+		ctx,
+		messages,
+		state,
+		services,
+		e.resolveContextTokenLimit(services),
+	)
+}
+
+func (e *ReactEngine) enforceContextBudgetWithLimit(
+	ctx context.Context,
+	messages []ports.Message,
+	state *TaskState,
+	services Services,
+	limit int,
+) []ports.Message {
 	if limit <= 0 {
 		return messages
 	}

@@ -23,7 +23,7 @@ type Config struct {
 	InjectionAckReactEmoji        string // Emoji reaction for injected user messages while a task is running. Default THINKING.
 	FinalAnswerReviewReactEmoji   string // Emoji reaction when final_answer_review triggers. Default GLANCE.
 	ShowToolProgress              bool   // Show real-time tool progress in chat. Default false.
-	SlowProgressSummaryEnabled    *bool  // Emit one progress summary when foreground task exceeds delay. Default true.
+	SlowProgressSummaryEnabled    *bool  // Emit periodic progress summaries when foreground task exceeds delay. Default true.
 	SlowProgressSummaryDelay      time.Duration
 	ShowPlanClarifyMessages       bool  // Send plan/clarify tool outputs as chat messages. Default false.
 	AutoChatContextSize           int   // Number of recent messages to fetch for auto chat context. Default 20.

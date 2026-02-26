@@ -193,6 +193,81 @@ func TestSlowProgressSummaryListener_UsesLLMSummaryWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestBuildSlowSummaryIntervals_DefaultCadence(t *testing.T) {
+	got := buildSlowSummaryIntervals(30 * time.Second)
+	if len(got) != 3 {
+		t.Fatalf("expected 3 cadence intervals, got %d", len(got))
+	}
+	want := []time.Duration{30 * time.Second, 60 * time.Second, 180 * time.Second}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("cadence[%d] = %s, want %s", i, got[i], want[i])
+		}
+	}
+}
+
+func TestSlowProgressSummaryListener_RepeatsSummaryByCadence(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		messenger: recorder,
+		logger:    logging.NewComponentLogger("test"),
+	}
+	gw.activeSlots.Store("oc_chat", &sessionSlot{phase: slotRunning})
+
+	ln := newSlowProgressSummaryListener(
+		context.Background(),
+		agent.NoopEventListener{},
+		gw,
+		"oc_chat",
+		"om_parent",
+		20*time.Millisecond, // cadence: 20ms, 40ms, 120ms...
+	)
+	defer ln.Close()
+
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Event:     types.EventToolStarted,
+		NodeKind:  "tool",
+		NodeID:    "call-1",
+		Payload: map[string]any{
+			"tool_name": "read_file",
+		},
+	})
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for {
+		replies := recorder.CallsByMethod("ReplyMessage")
+		if len(replies) >= 2 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("expected repeated slow summaries, got %d reply/replies", len(replies))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestSlowProgressSummaryListener_FallbackIncludesHumanToolSummary(t *testing.T) {
+	ln := newSlowProgressSummaryListener(
+		context.Background(),
+		agent.NoopEventListener{},
+		nil,
+		"oc_chat",
+		"om_parent",
+		20*time.Millisecond,
+	)
+	defer ln.Close()
+
+	text := ln.buildFallbackSummary([]slowProgressSignal{
+		{at: time.Now(), text: "开始工具：read_file"},
+		{at: time.Now(), text: "完成工具：web_search"},
+	}, 35*time.Second)
+
+	if !containsAll(text, "最近工具调用（人话）", "read_file", "web_search") {
+		t.Fatalf("expected humanized tool summary in fallback text, got %q", text)
+	}
+}
+
 func containsAll(text string, subs ...string) bool {
 	for _, sub := range subs {
 		if !strings.Contains(text, sub) {
