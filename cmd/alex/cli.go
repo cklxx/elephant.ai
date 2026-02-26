@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	sessionstate "alex/internal/infra/session/state_store"
 	runtimeconfig "alex/internal/shared/config"
 	configadmin "alex/internal/shared/config/admin"
+	"alex/internal/shared/utils"
 )
 
 type CLI struct {
@@ -721,186 +721,190 @@ func parseSetArgs(args []string) (string, string, error) {
 	return key, value, nil
 }
 
+type overrideFieldHandler struct {
+	set   func(*runtimeconfig.Overrides, string) error
+	clear func(*runtimeconfig.Overrides)
+}
+
+var overrideFieldHandlers = map[string]overrideFieldHandler{
+	"llm_provider":              stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.LLMProvider = v }),
+	"llm_model":                 stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.LLMModel = v }),
+	"llm_vision_model":          stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.LLMVisionModel = v }),
+	"api_key":                   stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.APIKey = v }),
+	"ark_api_key":               stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.ArkAPIKey = v }),
+	"base_url":                  stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.BaseURL = v }),
+	"tavily_api_key":            stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.TavilyAPIKey = v }),
+	"seedream_text_endpoint_id": stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.SeedreamTextEndpointID = v }),
+	"seedream_image_endpoint_id": stringOverrideField(func(o *runtimeconfig.Overrides, v *string) {
+		o.SeedreamImageEndpointID = v
+	}),
+	"seedream_text_model":   stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.SeedreamTextModel = v }),
+	"seedream_image_model":  stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.SeedreamImageModel = v }),
+	"seedream_vision_model": stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.SeedreamVisionModel = v }),
+	"seedream_video_model":  stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.SeedreamVideoModel = v }),
+	"profile": normalizedStringOverrideField(
+		runtimeconfig.NormalizeRuntimeProfile,
+		func(o *runtimeconfig.Overrides, v *string) { o.Profile = v },
+	),
+	"environment":  stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.Environment = v }),
+	"session_dir":  stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.SessionDir = v }),
+	"cost_dir":     stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.CostDir = v }),
+	"agent_preset": stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.AgentPreset = v }),
+	"tool_preset":  stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.ToolPreset = v }),
+	"max_tokens":   positiveIntOverrideField("max_tokens", func(o *runtimeconfig.Overrides, v *int) { o.MaxTokens = v }),
+	"max_iterations": positiveIntOverrideField(
+		"max_iterations",
+		func(o *runtimeconfig.Overrides, v *int) { o.MaxIterations = v },
+	),
+	"temperature": floatOverrideField("temperature", func(o *runtimeconfig.Overrides, v *float64) { o.Temperature = v }),
+	"top_p":       floatOverrideField("top_p", func(o *runtimeconfig.Overrides, v *float64) { o.TopP = v }),
+	"verbose":     boolOverrideField("verbose", func(o *runtimeconfig.Overrides, v *bool) { o.Verbose = v }),
+	"disable_tui": boolOverrideField("disable_tui", func(o *runtimeconfig.Overrides, v *bool) { o.DisableTUI = v }),
+	"follow_transcript": boolOverrideField(
+		"follow_transcript",
+		func(o *runtimeconfig.Overrides, v *bool) { o.FollowTranscript = v },
+	),
+	"follow_stream":  boolOverrideField("follow_stream", func(o *runtimeconfig.Overrides, v *bool) { o.FollowStream = v }),
+	"stop_sequences": stopSequencesOverrideField(),
+}
+
 func setOverrideField(overrides *runtimeconfig.Overrides, key, value string) error {
 	if overrides == nil {
 		return fmt.Errorf("overrides not initialized")
 	}
-	key = normalizeOverrideKey(key)
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return fmt.Errorf("value for %s cannot be empty", key)
+	normalizedKey := normalizeOverrideKey(key)
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		return fmt.Errorf("value for %s cannot be empty", normalizedKey)
 	}
-	switch key {
-	case "llm_provider":
-		overrides.LLMProvider = stringPtr(value)
-	case "llm_model":
-		overrides.LLMModel = stringPtr(value)
-	case "llm_vision_model":
-		overrides.LLMVisionModel = stringPtr(value)
-	case "api_key":
-		overrides.APIKey = stringPtr(value)
-	case "ark_api_key":
-		overrides.ArkAPIKey = stringPtr(value)
-	case "base_url":
-		overrides.BaseURL = stringPtr(value)
-	case "tavily_api_key":
-		overrides.TavilyAPIKey = stringPtr(value)
-	case "seedream_text_endpoint_id":
-		overrides.SeedreamTextEndpointID = stringPtr(value)
-	case "seedream_image_endpoint_id":
-		overrides.SeedreamImageEndpointID = stringPtr(value)
-	case "seedream_text_model":
-		overrides.SeedreamTextModel = stringPtr(value)
-	case "seedream_image_model":
-		overrides.SeedreamImageModel = stringPtr(value)
-	case "seedream_vision_model":
-		overrides.SeedreamVisionModel = stringPtr(value)
-	case "seedream_video_model":
-		overrides.SeedreamVideoModel = stringPtr(value)
-	case "profile":
-		normalized := runtimeconfig.NormalizeRuntimeProfile(value)
-		overrides.Profile = stringPtr(normalized)
-	case "environment":
-		overrides.Environment = stringPtr(value)
-	case "session_dir":
-		overrides.SessionDir = stringPtr(value)
-	case "cost_dir":
-		overrides.CostDir = stringPtr(value)
-	case "agent_preset":
-		overrides.AgentPreset = stringPtr(value)
-	case "tool_preset":
-		overrides.ToolPreset = stringPtr(value)
-	case "max_tokens":
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("max_tokens must be an integer: %w", err)
-		}
-		if parsed <= 0 {
-			return fmt.Errorf("max_tokens must be greater than zero")
-		}
-		overrides.MaxTokens = intPtr(parsed)
-	case "max_iterations":
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("max_iterations must be an integer: %w", err)
-		}
-		if parsed <= 0 {
-			return fmt.Errorf("max_iterations must be greater than zero")
-		}
-		overrides.MaxIterations = intPtr(parsed)
-	case "temperature":
-		parsed, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return fmt.Errorf("temperature must be a float: %w", err)
-		}
-		overrides.Temperature = floatPtr(parsed)
-	case "top_p":
-		parsed, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return fmt.Errorf("top_p must be a float: %w", err)
-		}
-		overrides.TopP = floatPtr(parsed)
-	case "verbose":
-		parsed, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("verbose must be a boolean: %w", err)
-		}
-		overrides.Verbose = boolPtr(parsed)
-	case "disable_tui":
-		parsed, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("disable_tui must be a boolean: %w", err)
-		}
-		overrides.DisableTUI = boolPtr(parsed)
-	case "follow_transcript":
-		parsed, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("follow_transcript must be a boolean: %w", err)
-		}
-		overrides.FollowTranscript = boolPtr(parsed)
-	case "follow_stream":
-		parsed, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("follow_stream must be a boolean: %w", err)
-		}
-		overrides.FollowStream = boolPtr(parsed)
-	case "stop_sequences":
-		seqs := splitListValue(value)
-		if len(seqs) == 0 {
-			return fmt.Errorf("stop_sequences requires at least one entry")
-		}
-		overrides.StopSequences = &seqs
-	default:
-		return fmt.Errorf("unsupported override field %q", key)
+	handler, ok := overrideFieldHandlers[normalizedKey]
+	if !ok {
+		return fmt.Errorf("unsupported override field %q", normalizedKey)
 	}
-	return nil
+	return handler.set(overrides, trimmedValue)
 }
 
 func clearOverrideField(overrides *runtimeconfig.Overrides, key, _ string) error {
 	if overrides == nil {
 		return fmt.Errorf("overrides not initialized")
 	}
-	switch normalizeOverrideKey(key) {
-	case "llm_provider":
-		overrides.LLMProvider = nil
-	case "llm_model":
-		overrides.LLMModel = nil
-	case "llm_vision_model":
-		overrides.LLMVisionModel = nil
-	case "api_key":
-		overrides.APIKey = nil
-	case "ark_api_key":
-		overrides.ArkAPIKey = nil
-	case "base_url":
-		overrides.BaseURL = nil
-	case "tavily_api_key":
-		overrides.TavilyAPIKey = nil
-	case "seedream_text_endpoint_id":
-		overrides.SeedreamTextEndpointID = nil
-	case "seedream_image_endpoint_id":
-		overrides.SeedreamImageEndpointID = nil
-	case "seedream_text_model":
-		overrides.SeedreamTextModel = nil
-	case "seedream_image_model":
-		overrides.SeedreamImageModel = nil
-	case "seedream_vision_model":
-		overrides.SeedreamVisionModel = nil
-	case "seedream_video_model":
-		overrides.SeedreamVideoModel = nil
-	case "profile":
-		overrides.Profile = nil
-	case "environment":
-		overrides.Environment = nil
-	case "session_dir":
-		overrides.SessionDir = nil
-	case "cost_dir":
-		overrides.CostDir = nil
-	case "agent_preset":
-		overrides.AgentPreset = nil
-	case "tool_preset":
-		overrides.ToolPreset = nil
-	case "max_tokens":
-		overrides.MaxTokens = nil
-	case "max_iterations":
-		overrides.MaxIterations = nil
-	case "temperature":
-		overrides.Temperature = nil
-	case "top_p":
-		overrides.TopP = nil
-	case "verbose":
-		overrides.Verbose = nil
-	case "disable_tui":
-		overrides.DisableTUI = nil
-	case "follow_transcript":
-		overrides.FollowTranscript = nil
-	case "follow_stream":
-		overrides.FollowStream = nil
-	case "stop_sequences":
-		overrides.StopSequences = nil
-	default:
-		return fmt.Errorf("unsupported override field %q", key)
+	normalizedKey := normalizeOverrideKey(key)
+	handler, ok := overrideFieldHandlers[normalizedKey]
+	if !ok {
+		return fmt.Errorf("unsupported override field %q", normalizedKey)
 	}
+	handler.clear(overrides)
 	return nil
+}
+
+func stringOverrideField(assign func(*runtimeconfig.Overrides, *string)) overrideFieldHandler {
+	return normalizedStringOverrideField(func(value string) string { return value }, assign)
+}
+
+func normalizedStringOverrideField(
+	normalize func(string) string,
+	assign func(*runtimeconfig.Overrides, *string),
+) overrideFieldHandler {
+	return overrideFieldHandler{
+		set: func(overrides *runtimeconfig.Overrides, value string) error {
+			assign(overrides, stringPtr(normalize(value)))
+			return nil
+		},
+		clear: func(overrides *runtimeconfig.Overrides) {
+			assign(overrides, nil)
+		},
+	}
+}
+
+func positiveIntOverrideField(name string, assign func(*runtimeconfig.Overrides, *int)) overrideFieldHandler {
+	return overrideFieldHandler{
+		set: func(overrides *runtimeconfig.Overrides, value string) error {
+			parsed, err := parsePositiveInt(value, name)
+			if err != nil {
+				return err
+			}
+			assign(overrides, intPtr(parsed))
+			return nil
+		},
+		clear: func(overrides *runtimeconfig.Overrides) {
+			assign(overrides, nil)
+		},
+	}
+}
+
+func floatOverrideField(name string, assign func(*runtimeconfig.Overrides, *float64)) overrideFieldHandler {
+	return overrideFieldHandler{
+		set: func(overrides *runtimeconfig.Overrides, value string) error {
+			parsed, err := parseFloat(value, name)
+			if err != nil {
+				return err
+			}
+			assign(overrides, floatPtr(parsed))
+			return nil
+		},
+		clear: func(overrides *runtimeconfig.Overrides) {
+			assign(overrides, nil)
+		},
+	}
+}
+
+func boolOverrideField(name string, assign func(*runtimeconfig.Overrides, *bool)) overrideFieldHandler {
+	return overrideFieldHandler{
+		set: func(overrides *runtimeconfig.Overrides, value string) error {
+			parsed, err := parseBool(value, name)
+			if err != nil {
+				return err
+			}
+			assign(overrides, boolPtr(parsed))
+			return nil
+		},
+		clear: func(overrides *runtimeconfig.Overrides) {
+			assign(overrides, nil)
+		},
+	}
+}
+
+func stopSequencesOverrideField() overrideFieldHandler {
+	return overrideFieldHandler{
+		set: func(overrides *runtimeconfig.Overrides, value string) error {
+			seqs := splitListValue(value)
+			if len(seqs) == 0 {
+				return fmt.Errorf("stop_sequences requires at least one entry")
+			}
+			overrides.StopSequences = &seqs
+			return nil
+		},
+		clear: func(overrides *runtimeconfig.Overrides) {
+			overrides.StopSequences = nil
+		},
+	}
+}
+
+func parsePositiveInt(value string, name string) (int, error) {
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be an integer: %w", name, err)
+	}
+	if parsed <= 0 {
+		return 0, fmt.Errorf("%s must be greater than zero", name)
+	}
+	return parsed, nil
+}
+
+func parseFloat(value string, name string) (float64, error) {
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a float: %w", name, err)
+	}
+	return parsed, nil
+}
+
+func parseBool(value string, name string) (bool, error) {
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean: %w", name, err)
+	}
+	return parsed, nil
 }
 
 func normalizeOverrideKey(key string) string {
