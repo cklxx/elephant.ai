@@ -240,6 +240,297 @@ Evidence: `internal/infra/tools/builtin/larktools/channel.go`.
 - Coding gateway abstracts adapter routing and status/cancel.
 - Evidence: `internal/infra/external/registry.go`, `internal/infra/external/bridge/executor.go`, `internal/infra/coding/gateway.go`.
 
+## Exhaustive Appendices (Code Enumeration)
+
+### Appendix A: Command Surface (Complete from Code)
+
+#### A.1 `alex` standalone entry path (`cmd/alex/main.go`)
+
+- `help`, `-h`, `--help`
+- `version`, `-v`, `--version`
+- `config ...` (standalone path)
+- `dev ...`
+- `lark ...`
+
+#### A.2 `alex` regular CLI dispatch (`cmd/alex/cli.go`)
+
+- `<task>` (default: stream task execution)
+- `resume <session-id>`
+- `sessions` / `session`
+- `config`
+- `cost` / `costs`
+- `model` / `models`
+- `setup`
+- `llama-cpp` / `llamacpp`
+- `mcp`
+- `eval` / `evaluation`
+- `acp`
+- `mcp-permission-server`
+- `help`, `-h`, `--help`
+- `version`, `-v`, `--version`
+
+#### A.3 Sessions subcommands (`cmd/alex/cli.go`)
+
+- `alex sessions` / `alex sessions list`
+- `alex sessions cleanup|clean|prune`
+- `alex sessions pull <session-id>`
+
+#### A.4 Cost subcommands (`cmd/alex/cost.go`)
+
+- `alex cost show|summary`
+- `alex cost session <session-id>`
+- `alex cost day|daily [YYYY-MM-DD]`
+- `alex cost month|monthly [YYYY-MM]`
+- `alex cost export [--format csv|json] [--session ...] [--model ...] [--provider ...] [--start ...] [--end ...] [--output ...]`
+
+#### A.5 Model subcommands (`cmd/alex/cli_model.go`)
+
+- `alex model` / `alex model list|ls`
+- `alex model use|select|set <provider/model>` (or interactive picker when no explicit model)
+- `alex model clear|reset`
+- `alex model help`
+
+#### A.6 MCP subcommands (`cmd/alex/mcp.go`)
+
+- `alex mcp list|ls`
+- `alex mcp add <name> <command> [args...]`
+- `alex mcp remove|rm <name>`
+- `alex mcp tools [server]`
+- `alex mcp restart <name>`
+- `alex mcp help`
+
+#### A.7 ACP subcommands (`cmd/alex/acp.go`)
+
+- `alex acp [--initial-message ...]` (stdio)
+- `alex acp serve [--host HOST] [--port PORT] [--initial-message ...]`
+
+#### A.8 Lark scenario/inject commands (`cmd/alex/lark_scenario_cmd.go`)
+
+- `alex lark scenario run [--mode http|mock] [--dir path] [--json-out file] [--md-out file] [--name ...] [--fail-fast] [--port ...] [--base-url ...] [--timeout ...] [--tag ...]`
+- `alex lark inject ...`
+
+#### A.9 Other binaries
+
+- `alex-server` default: run Lark standalone gateway (`cmd/alex-server/main.go`)
+- `alex-server kernel-daemon`
+- `alex-server kernel-once`
+- `eval-server --config <path>` (`cmd/eval-server/main.go`)
+
+### Appendix B: HTTP Route Inventory (Complete from Code)
+
+#### B.1 Main server routes (`internal/delivery/server/http/router.go`)
+
+- stream/share
+  - `GET /api/sse`
+  - `GET /api/share/sessions/{session_id}`
+- tasks
+  - `POST /api/tasks`
+  - `GET /api/tasks`
+  - `GET /api/tasks/active`
+  - `GET /api/tasks/stats`
+  - `GET /api/tasks/{task_id}`
+  - `GET /api/tasks/{task_id}/events`
+  - `POST /api/tasks/{task_id}/cancel`
+- evaluations
+  - `GET /api/evaluations`
+  - `POST /api/evaluations`
+  - `GET /api/evaluations/{evaluation_id}`
+  - `DELETE /api/evaluations/{evaluation_id}`
+- agents
+  - `GET /api/agents`
+  - `GET /api/agents/{agent_id}`
+  - `GET /api/agents/{agent_id}/evaluations`
+- sessions
+  - `GET /api/sessions`
+  - `POST /api/sessions`
+  - `GET /api/sessions/{session_id}`
+  - `DELETE /api/sessions/{session_id}`
+  - `GET /api/sessions/{session_id}/persona`
+  - `PUT /api/sessions/{session_id}/persona`
+  - `GET /api/sessions/{session_id}/snapshots`
+  - `GET /api/sessions/{session_id}/turns/{turn_id}`
+  - `POST /api/sessions/{session_id}/replay`
+  - `POST /api/sessions/{session_id}/share`
+  - `POST /api/sessions/{session_id}/fork`
+- dev
+  - `GET /api/dev/sessions/{session_id}/context-window`
+  - `GET /api/dev/logs`
+  - `GET /api/dev/logs/structured`
+  - `GET /api/dev/logs/index`
+  - `GET /api/dev/memory`
+  - `GET /api/dev/context-config`
+  - `PUT /api/dev/context-config`
+  - `GET /api/dev/context-config/preview`
+- internal
+  - `GET /api/internal/sessions/{session_id}/context`
+  - `GET /api/internal/config/runtime`
+  - `PUT /api/internal/config/runtime`
+  - `GET /api/internal/config/runtime/stream`
+  - `GET /api/internal/config/runtime/models`
+  - `GET /api/internal/subscription/catalog`
+  - `GET /api/internal/onboarding/state`
+  - `PUT /api/internal/onboarding/state`
+  - `GET /api/internal/config/apps`
+  - `PUT /api/internal/config/apps`
+- oauth/hooks/health/metrics
+  - `GET /api/lark/oauth/start`
+  - `GET /api/lark/oauth/callback`
+  - `POST /api/hooks/claude-code`
+  - `POST /api/metrics/web-vitals`
+  - `GET /health`
+
+#### B.2 Eval server routes (`internal/delivery/eval/http/router.go`)
+
+- eval/agents
+  - `GET /api/evaluations`
+  - `POST /api/evaluations`
+  - `GET /api/evaluations/{evaluation_id}`
+  - `DELETE /api/evaluations/{evaluation_id}`
+  - `GET /api/agents`
+  - `GET /api/agents/{agent_id}`
+  - `GET /api/agents/{agent_id}/evaluations`
+- RL
+  - `GET /api/rl/stats`
+  - `GET /api/rl/trajectories`
+  - `GET /api/rl/trajectories/{trajectory_id}`
+  - `GET /api/rl/config`
+  - `PUT /api/rl/config`
+  - `GET /api/rl/export`
+- eval task management
+  - `GET /api/eval-tasks`
+  - `POST /api/eval-tasks`
+  - `GET /api/eval-tasks/{task_id}`
+  - `PUT /api/eval-tasks/{task_id}`
+  - `DELETE /api/eval-tasks/{task_id}`
+  - `POST /api/eval-tasks/{task_id}/run`
+- health
+  - `GET /health`
+
+### Appendix C: Tool Inventory (Complete from Code)
+
+#### C.1 Static built-in tools (`internal/app/toolregistry/registry_builtins.go`)
+
+- `plan`
+- `clarify`
+- `memory_search`
+- `memory_get`
+- `memory_related`
+- `request_user`
+- `context_checkpoint`
+- `web_search`
+- `skills`
+- `read_file`
+- `write_file`
+- `replace_in_file`
+- `shell_exec`
+- `execute_code`
+- `channel`
+
+#### C.2 Orchestration tools (`internal/app/toolregistry/registry.go`, `RegisterOrchestration`)
+
+- `run_tasks`
+- `reply_agent`
+
+#### C.3 `channel.action` enum (`internal/infra/tools/builtin/larktools/channel.go`)
+
+- `send_message`
+- `upload_file`
+- `history`
+- `create_event`
+- `query_events`
+- `update_event`
+- `delete_event`
+- `list_tasks`
+- `create_task`
+- `update_task`
+- `delete_task`
+- `create_doc`
+- `read_doc`
+- `read_doc_content`
+- `list_doc_blocks`
+- `list_wiki_spaces`
+- `list_wiki_nodes`
+- `create_wiki_node`
+- `get_wiki_node`
+- `list_bitable_tables`
+- `list_bitable_records`
+- `create_bitable_record`
+- `update_bitable_record`
+- `delete_bitable_record`
+- `list_bitable_fields`
+- `list_drive_files`
+- `create_drive_folder`
+- `copy_drive_file`
+- `delete_drive_file`
+- `create_spreadsheet`
+- `get_spreadsheet`
+- `list_sheets`
+- `list_okr_periods`
+- `list_user_okrs`
+- `batch_get_okrs`
+- `get_user`
+- `list_users`
+- `get_department`
+- `list_departments`
+- `list_mailgroups`
+- `get_mailgroup`
+- `create_mailgroup`
+- `list_meetings`
+- `get_meeting`
+- `list_rooms`
+
+#### C.4 `actionSafetyLevel` mapping (`internal/infra/tools/builtin/larktools/channel.go`)
+
+- ReadOnly
+  - `history`
+  - `query_events`
+  - `list_tasks`
+  - `read_doc`
+  - `read_doc_content`
+  - `list_doc_blocks`
+  - `list_wiki_spaces`
+  - `list_wiki_nodes`
+  - `get_wiki_node`
+  - `list_bitable_tables`
+  - `list_bitable_records`
+  - `list_bitable_fields`
+  - `list_drive_files`
+  - `get_spreadsheet`
+  - `list_sheets`
+  - `list_okr_periods`
+  - `list_user_okrs`
+  - `batch_get_okrs`
+  - `get_user`
+  - `list_users`
+  - `get_department`
+  - `list_departments`
+  - `list_mailgroups`
+  - `get_mailgroup`
+  - `list_meetings`
+  - `get_meeting`
+  - `list_rooms`
+- Reversible
+  - `send_message`
+  - `upload_file`
+- HighImpact
+  - `create_event`
+  - `update_event`
+  - `create_task`
+  - `update_task`
+  - `create_doc`
+  - `create_wiki_node`
+  - `create_bitable_record`
+  - `update_bitable_record`
+  - `create_drive_folder`
+  - `copy_drive_file`
+  - `create_spreadsheet`
+  - `create_mailgroup`
+- Irreversible
+  - `delete_event`
+  - `delete_task`
+  - `delete_bitable_record`
+  - `delete_drive_file`
+
 ## Completeness Notes
 
 1. This inventory is complete for statically declared surfaces in code paths above.
