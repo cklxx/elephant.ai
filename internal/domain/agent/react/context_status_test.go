@@ -55,14 +55,14 @@ func TestBuildContextStatusMessage_OK(t *testing.T) {
 	if msg.Role != "system" {
 		t.Fatalf("expected role=system, got %q", msg.Role)
 	}
-	if !strings.Contains(msg.Content, `phase="ok"`) {
-		t.Fatalf("expected phase=ok in content, got: %s", msg.Content)
+	if !strings.Contains(msg.Content, `p="ok"`) {
+		t.Fatalf("expected p=ok in content, got: %s", msg.Content)
 	}
-	if !strings.Contains(msg.Content, `turn="3/25"`) {
-		t.Fatalf("expected turn=3/25 in content, got: %s", msg.Content)
+	if !strings.Contains(msg.Content, `t="3/25"`) {
+		t.Fatalf("expected t=3/25 in content, got: %s", msg.Content)
 	}
-	if !strings.Contains(msg.Content, `tokens="45000/125000"`) {
-		t.Fatalf("expected tokens in content, got: %s", msg.Content)
+	if !strings.Contains(msg.Content, `tk="45000/125000"`) {
+		t.Fatalf("expected tk in content, got: %s", msg.Content)
 	}
 	// No directive for "ok" phase.
 	if strings.Contains(msg.Content, warningDirective) ||
@@ -79,8 +79,8 @@ func TestBuildContextStatusMessage_Warning(t *testing.T) {
 
 	msg := buildContextStatusMessage(status)
 
-	if !strings.Contains(msg.Content, `phase="warning"`) {
-		t.Fatalf("expected phase=warning, got: %s", msg.Content)
+	if !strings.Contains(msg.Content, `p="warning"`) {
+		t.Fatalf("expected p=warning, got: %s", msg.Content)
 	}
 	if !strings.Contains(msg.Content, warningDirective) {
 		t.Fatalf("expected warning directive, got: %s", msg.Content)
@@ -95,8 +95,8 @@ func TestBuildContextStatusMessage_Compressed(t *testing.T) {
 
 	msg := buildContextStatusMessage(status)
 
-	if !strings.Contains(msg.Content, `phase="compressed"`) {
-		t.Fatalf("expected phase=compressed, got: %s", msg.Content)
+	if !strings.Contains(msg.Content, `p="compressed"`) {
+		t.Fatalf("expected p=compressed, got: %s", msg.Content)
 	}
 	if !strings.Contains(msg.Content, compressedDirective) {
 		t.Fatalf("expected compressed directive, got: %s", msg.Content)
@@ -110,8 +110,8 @@ func TestBuildContextStatusMessage_Trimmed(t *testing.T) {
 
 	msg := buildContextStatusMessage(status)
 
-	if !strings.Contains(msg.Content, `phase="trimmed"`) {
-		t.Fatalf("expected phase=trimmed, got: %s", msg.Content)
+	if !strings.Contains(msg.Content, `p="trimmed"`) {
+		t.Fatalf("expected p=trimmed, got: %s", msg.Content)
 	}
 	if !strings.Contains(msg.Content, trimmedDirective) {
 		t.Fatalf("expected trimmed directive, got: %s", msg.Content)
@@ -134,9 +134,31 @@ func TestContextStatusMessageTokenCost(t *testing.T) {
 
 	msg := buildContextStatusMessage(status)
 	tokens := tokenutil.CountTokens(msg.Content)
+	t.Logf("worst-case token cost: %d, content: %s", tokens, msg.Content)
 
-	if tokens > 100 {
-		t.Fatalf("context status message costs %d tokens (>100), content: %s", tokens, msg.Content)
+	if tokens > 60 {
+		t.Fatalf("context status message costs %d tokens (>60), content: %s", tokens, msg.Content)
+	}
+}
+
+func TestContextStatusMessageTokenCost_OK(t *testing.T) {
+	// Best case: ok phase, no directive.
+	status := ContextBudgetStatus{
+		TokensUsed:    45000,
+		TokenLimit:    125000,
+		UsagePercent:  36,
+		Phase:         contextPhaseOK,
+		Iteration:     3,
+		MaxIterations: 25,
+		MessageCount:  12,
+	}
+
+	msg := buildContextStatusMessage(status)
+	tokens := tokenutil.CountTokens(msg.Content)
+	t.Logf("ok-phase token cost: %d, content: %s", tokens, msg.Content)
+
+	if tokens > 30 {
+		t.Fatalf("ok-phase context status costs %d tokens (>30), content: %s", tokens, msg.Content)
 	}
 }
 

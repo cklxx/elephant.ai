@@ -30,11 +30,11 @@ const (
 	compressedThreshold = 0.85
 )
 
-// Phase-graduated behavioral directives.
+// Phase-graduated behavioral directives — kept short to minimize token cost.
 const (
-	warningDirective    = "Context approaching capacity. Prefer concise responses; summarize rather than repeat known context."
-	compressedDirective = "Earlier conversation was compressed. Working context may be incomplete. Verify assumptions before acting on historical details."
-	trimmedDirective    = "Context was aggressively trimmed. Significant history lost. State critical context explicitly; avoid referencing earlier conversation without verification."
+	warningDirective    = "Prefer concise responses; summarize rather than repeat known context."
+	compressedDirective = "Context was compressed; verify assumptions before acting on historical details."
+	trimmedDirective    = "Significant history lost; state critical context explicitly, do not reference earlier conversation."
 )
 
 func deriveContextPhase(ratio float64, compressionOccurred bool, compactionSeq int) string {
@@ -84,17 +84,22 @@ func buildContextBudgetStatus(
 	}
 }
 
+// buildContextStatusMessage produces a compact XML tag (~15-20 tokens when phase=ok,
+// ~30-35 tokens with a phase directive). Attribute names are abbreviated:
+//
+//	t = turn (iteration/max), tk = tokens (used/limit), u = usage%,
+//	p = phase, m = message count
+//
+// Only non-ok phases append a behavioral directive.
 func buildContextStatusMessage(status ContextBudgetStatus) ports.Message {
 	tag := fmt.Sprintf(
-		`<context_status turn="%d/%d" tokens="%d/%d" usage="%.0f%%" phase="%s" compressed="%t" pending_summary="%t" messages="%d"/>`,
+		`<ctx t="%d/%d" tk="%d/%d" u="%.0f%%" p="%s" m="%d"/>`,
 		status.Iteration,
 		status.MaxIterations,
 		status.TokensUsed,
 		status.TokenLimit,
 		status.UsagePercent,
 		status.Phase,
-		status.CompressionOccurred,
-		status.PendingSummary,
 		status.MessageCount,
 	)
 
