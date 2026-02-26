@@ -508,7 +508,8 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 		droppedToolOutputs[callID] = struct{}{}
 		droppedCallIDs = append(droppedCallIDs, callID)
 	}
-	for _, msg := range msgs {
+	embedMask := attachmentEmbeddingMask(msgs)
+	for idx, msg := range msgs {
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
 			continue
 		}
@@ -525,7 +526,7 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 			}
 		}
 		entry := map[string]any{"role": msg.Role}
-		content := buildMessageContent(msg, shouldEmbedAttachmentsInContent(msg))
+		content := buildMessageContent(msg, embedMask[idx])
 		entry["content"] = content
 		// Kimi rejects empty user messages.
 		if isKimi && msg.Role == "user" && isEmptyContent(content) {

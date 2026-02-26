@@ -520,6 +520,122 @@ func TestOpenAIResponsesClientUsesFlatToolsForCodex(t *testing.T) {
 	}
 }
 
+func TestOpenAIResponsesClientEmbedsOnlyLatestUserAttachmentMessage(t *testing.T) {
+	t.Parallel()
+
+	var gotInput []any
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		input, ok := payload["input"].([]any)
+		if !ok {
+			t.Fatalf("expected input list, got %#v", payload["input"])
+		}
+		gotInput = input
+
+		w.Header().Set("Content-Type", "application/json")
+		resp := map[string]any{
+			"id":     "resp-1",
+			"status": "completed",
+			"output": []any{
+				map[string]any{
+					"type": "message",
+					"role": "assistant",
+					"content": []any{
+						map[string]any{"type": "output_text", "text": "ok"},
+					},
+				},
+			},
+			"usage": map[string]any{
+				"input_tokens":  1,
+				"output_tokens": 1,
+				"total_tokens":  2,
+			},
+		}
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{
+			{
+				Role:    "user",
+				Source:  ports.MessageSourceUserInput,
+				Content: "first [old.png]",
+				Attachments: map[string]ports.Attachment{
+					"old.png": {Name: "old.png", MediaType: "image/png", URI: "https://example.com/old.png"},
+				},
+			},
+			{
+				Role:    "assistant",
+				Content: "ack",
+			},
+			{
+				Role:    "user",
+				Source:  ports.MessageSourceUserInput,
+				Content: "latest [new.png]",
+				Attachments: map[string]ports.Attachment{
+					"new.png": {Name: "new.png", MediaType: "image/png", URI: "https://example.com/new.png"},
+				},
+			},
+		},
+		MaxTokens: 32,
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if len(gotInput) != 3 {
+		t.Fatalf("expected 3 input items, got %d", len(gotInput))
+	}
+
+	first, ok := gotInput[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected first input map, got %#v", gotInput[0])
+	}
+	firstContent, ok := first["content"].([]any)
+	if !ok {
+		t.Fatalf("expected first content array, got %#v", first["content"])
+	}
+	for _, part := range firstContent {
+		block, _ := part.(map[string]any)
+		if block["type"] == "input_image" {
+			t.Fatalf("expected first user message to stay text-only")
+		}
+	}
+
+	latest, ok := gotInput[2].(map[string]any)
+	if !ok {
+		t.Fatalf("expected latest input map, got %#v", gotInput[2])
+	}
+	latestContent, ok := latest["content"].([]any)
+	if !ok {
+		t.Fatalf("expected latest content array, got %#v", latest["content"])
+	}
+	foundImage := false
+	for _, part := range latestContent {
+		block, _ := part.(map[string]any)
+		if block["type"] == "input_image" {
+			foundImage = true
+			break
+		}
+	}
+	if !foundImage {
+		t.Fatalf("expected latest user message to include input_image block")
+	}
+}
+
 func TestOpenAIResponsesClientUsesFlatToolsForResponses(t *testing.T) {
 	t.Parallel()
 

@@ -21,7 +21,8 @@ func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.
 	items := make([]map[string]any, 0, len(msgs))
 	var instructionsParts []string
 	collectInstructions := c.isCodexEndpoint()
-	for _, msg := range msgs {
+	embedMask := attachmentEmbeddingMask(msgs)
+	for idx, msg := range msgs {
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
 			continue
 		}
@@ -40,7 +41,7 @@ func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.
 				"content": msg.Content,
 			})
 		case "user":
-			parts := buildResponsesUserContent(msg, shouldEmbedAttachmentsInContent(msg))
+			parts := buildResponsesUserContent(msg, embedMask[idx])
 			if len(parts) == 0 {
 				continue
 			}

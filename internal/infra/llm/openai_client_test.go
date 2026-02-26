@@ -535,6 +535,67 @@ func TestConvertMessagesKeepsNonImageAttachmentsAsText(t *testing.T) {
 	}
 }
 
+func TestConvertMessagesEmbedsOnlyLatestUserAttachmentMessage(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{}
+	msgs := []ports.Message{
+		{
+			Role:    "user",
+			Source:  ports.MessageSourceUserInput,
+			Content: "First turn [old.png]",
+			Attachments: map[string]ports.Attachment{
+				"old.png": {
+					Name:      "old.png",
+					MediaType: "image/png",
+					URI:       "https://example.com/old.png",
+				},
+			},
+		},
+		{Role: "assistant", Content: "noted"},
+		{
+			Role:    "user",
+			Source:  ports.MessageSourceUserInput,
+			Content: "Latest turn [new.png]",
+			Attachments: map[string]ports.Attachment{
+				"new.png": {
+					Name:      "new.png",
+					MediaType: "image/png",
+					URI:       "https://example.com/new.png",
+				},
+			},
+		},
+	}
+
+	converted := client.convertMessages(msgs)
+	if len(converted) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(converted))
+	}
+
+	firstContent, ok := converted[0]["content"].(string)
+	if !ok {
+		t.Fatalf("expected first user message content to stay text-only, got %T", converted[0]["content"])
+	}
+	if firstContent != msgs[0].Content {
+		t.Fatalf("unexpected first content: %q", firstContent)
+	}
+
+	latestParts, ok := converted[2]["content"].([]map[string]any)
+	if !ok {
+		t.Fatalf("expected latest user message multipart content, got %T", converted[2]["content"])
+	}
+	foundImage := false
+	for _, part := range latestParts {
+		if part["type"] != "image_url" {
+			continue
+		}
+		foundImage = true
+	}
+	if !foundImage {
+		t.Fatalf("expected latest user message to include image_url block")
+	}
+}
+
 func TestShouldEmbedAttachmentsSkipsToolResultSources(t *testing.T) {
 	msg := ports.Message{
 		Role:   "system",

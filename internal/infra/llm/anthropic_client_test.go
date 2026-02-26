@@ -267,3 +267,50 @@ func TestAnthropicClientCapturesThinking(t *testing.T) {
 		t.Fatalf("unexpected thinking part: %+v", resp.Thinking.Parts[0])
 	}
 }
+
+func TestAnthropicConvertMessagesEmbedsOnlyLatestUserAttachmentMessage(t *testing.T) {
+	t.Parallel()
+
+	client := &anthropicClient{}
+	msgs := []ports.Message{
+		{
+			Role:    "user",
+			Source:  ports.MessageSourceUserInput,
+			Content: "first [old.png]",
+			Attachments: map[string]ports.Attachment{
+				"old.png": {Name: "old.png", MediaType: "image/png", Data: "ZmFrZQ=="},
+			},
+		},
+		{Role: "assistant", Content: "ack"},
+		{
+			Role:    "user",
+			Source:  ports.MessageSourceUserInput,
+			Content: "latest [new.png]",
+			Attachments: map[string]ports.Attachment{
+				"new.png": {Name: "new.png", MediaType: "image/png", Data: "bmV3"},
+			},
+		},
+	}
+
+	converted, _ := client.convertMessages(msgs)
+	if len(converted) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(converted))
+	}
+
+	for _, block := range converted[0].Content {
+		if block.Type == "image" {
+			t.Fatalf("expected first user message to stay text-only")
+		}
+	}
+
+	foundImage := false
+	for _, block := range converted[2].Content {
+		if block.Type == "image" {
+			foundImage = true
+			break
+		}
+	}
+	if !foundImage {
+		t.Fatalf("expected latest user message to include image block")
+	}
+}

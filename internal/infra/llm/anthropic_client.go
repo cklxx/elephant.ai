@@ -212,7 +212,8 @@ func (c *anthropicClient) convertMessages(msgs []ports.Message) ([]anthropicMess
 	messages := make([]anthropicMessage, 0, len(msgs))
 	var systemParts []string
 
-	for _, msg := range msgs {
+	embedMask := attachmentEmbeddingMask(msgs)
+	for idx, msg := range msgs {
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
 			continue
 		}
@@ -244,7 +245,7 @@ func (c *anthropicClient) convertMessages(msgs []ports.Message) ([]anthropicMess
 			continue
 		}
 
-		contentBlocks := buildAnthropicMessageContent(msg, shouldEmbedAttachmentsInContent(msg))
+		contentBlocks := buildAnthropicMessageContent(msg, embedMask[idx])
 		if len(msg.ToolCalls) > 0 {
 			for _, call := range msg.ToolCalls {
 				contentBlocks = append(contentBlocks, anthropicContentBlock{
