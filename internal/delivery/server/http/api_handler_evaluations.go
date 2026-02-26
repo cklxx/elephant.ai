@@ -324,20 +324,16 @@ func parseEvaluationQuery(r *http.Request) (agent_eval.EvaluationQuery, bool, er
 		hasFilters = true
 	}
 
-	if afterStr := values.Get("after"); afterStr != "" {
-		after, err := time.Parse(time.RFC3339, afterStr)
-		if err != nil {
-			return query, false, fmt.Errorf("invalid after timestamp: %w", err)
-		}
+	if after, ok, err := agent_eval.ParseOptionalRFC3339(values.Get("after")); err != nil {
+		return query, false, fmt.Errorf("invalid after timestamp: %w", err)
+	} else if ok {
 		query.After = after
 		hasFilters = true
 	}
 
-	if beforeStr := values.Get("before"); beforeStr != "" {
-		before, err := time.Parse(time.RFC3339, beforeStr)
-		if err != nil {
-			return query, false, fmt.Errorf("invalid before timestamp: %w", err)
-		}
+	if before, ok, err := agent_eval.ParseOptionalRFC3339(values.Get("before")); err != nil {
+		return query, false, fmt.Errorf("invalid before timestamp: %w", err)
+	} else if ok {
 		query.Before = before
 		hasFilters = true
 	}

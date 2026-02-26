@@ -18,7 +18,6 @@ func (r *Registry) registerUITools(config Config) {
 	r.static["memory_related"] = memorytools.NewMemoryRelated(config.MemoryEngine)
 	r.static["request_user"] = ui.NewRequestUser()
 	r.static["context_checkpoint"] = ui.NewContextCheckpoint()
-	r.static["update_config"] = ui.NewUpdateConfig()
 }
 
 func (r *Registry) registerWebTools(config Config) {

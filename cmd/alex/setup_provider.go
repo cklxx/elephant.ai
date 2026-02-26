@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	"alex/internal/app/subscription"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/utils"
 )
 
 type setupProviderInput struct {
@@ -58,7 +58,7 @@ func resolveSetupProviderSelection(
 	if len(models) == 0 {
 		return setupProviderSelection{}, fmt.Errorf("provider %q has no selectable models", selectedProvider.Provider)
 	}
-	selectedModel, err := chooseSetupModel(in, out, selectedProvider, input.Model)
+	selectedModel, err := chooseSetupModel(in, out, selectedProvider, models, input.Model)
 	if err != nil {
 		return setupProviderSelection{}, err
 	}
@@ -126,15 +126,12 @@ func chooseSetupModel(
 	in io.Reader,
 	out io.Writer,
 	provider subscription.CatalogProvider,
+	models []string,
 	rawModel string,
 ) (string, error) {
 	model := strings.TrimSpace(rawModel)
 	if model != "" {
 		return model, nil
-	}
-	models := orderedCatalogModels(provider)
-	if len(models) == 0 {
-		return "", fmt.Errorf("provider %q has no selectable models", provider.Provider)
 	}
 	if !isInteractiveTerminal(in, out) {
 		return pickSetupDefaultModel(provider, models), nil

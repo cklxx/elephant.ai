@@ -564,19 +564,15 @@ func (c *CLI) deleteEvaluation(args []string) error {
 func buildEvaluationQuery(agentID string, limit int, after, before string, minScore float64, datasetPath, datasetType, tags string) (agent_eval.EvaluationQuery, error) {
 	query := agent_eval.EvaluationQuery{AgentID: agentID, Limit: limit}
 
-	if after != "" {
-		parsed, err := time.Parse(time.RFC3339, after)
-		if err != nil {
-			return agent_eval.EvaluationQuery{}, fmt.Errorf("invalid --after timestamp: %w", err)
-		}
+	if parsed, ok, err := agent_eval.ParseOptionalRFC3339(after); err != nil {
+		return agent_eval.EvaluationQuery{}, fmt.Errorf("invalid --after timestamp: %w", err)
+	} else if ok {
 		query.After = parsed
 	}
 
-	if before != "" {
-		parsed, err := time.Parse(time.RFC3339, before)
-		if err != nil {
-			return agent_eval.EvaluationQuery{}, fmt.Errorf("invalid --before timestamp: %w", err)
-		}
+	if parsed, ok, err := agent_eval.ParseOptionalRFC3339(before); err != nil {
+		return agent_eval.EvaluationQuery{}, fmt.Errorf("invalid --before timestamp: %w", err)
+	} else if ok {
 		query.Before = parsed
 	}
 
