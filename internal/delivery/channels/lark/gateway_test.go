@@ -203,6 +203,7 @@ func TestReplyTarget(t *testing.T) {
 		want      string
 	}{
 		{"allowed with message", "om_group", true, "om_group"},
+		{"inject synthetic message", "inject_oc_chat_1_123", true, ""},
 		{"allowed empty message", "", true, ""},
 		{"disallowed with message", "om_group", false, ""},
 	}

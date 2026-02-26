@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -281,6 +282,108 @@ func TestInjectMessageSyncDoesNotStackWrappers(t *testing.T) {
 	defer hub.mu.RUnlock()
 	if len(hub.sessions) != 0 {
 		t.Fatalf("expected no active sessions after repeated injects, got %d", len(hub.sessions))
+	}
+}
+
+func TestInjectCaptureHubListMessages_MergesSyntheticAndInner(t *testing.T) {
+	rec := NewRecordingMessenger()
+	hub := newInjectCaptureHub(rec)
+
+	chatID := "oc_inject_merge"
+	base := time.UnixMilli(1706500000000)
+
+	// Synthetic history from inject session.
+	hub.recordInjectedIncoming(chatID, "inject_oc_inject_merge_1", "ou_user", "text", textContent("first question"), base)
+	hub.recordSyntheticSend(chatID, "om_dup", "text", textContent("synthetic answer"), base.Add(2*time.Second))
+
+	// Real API history (includes a duplicate message ID that should be deduplicated).
+	rec.ListMessagesResult = append(rec.ListMessagesResult,
+		buildInjectHistoryMessage("om_inner_newest", "text", textContent("inner newest"), "app", "bot_inner", base.Add(3*time.Second)),
+		buildInjectHistoryMessage("om_dup", "text", textContent("inner duplicate"), "app", "bot_inner", base.Add(2500*time.Millisecond)),
+	)
+
+	items, err := hub.ListMessages(context.Background(), chatID, 10)
+	if err != nil {
+		t.Fatalf("ListMessages returned error: %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("expected 3 merged unique messages, got %d", len(items))
+	}
+
+	gotIDs := []string{
+		strings.TrimSpace(deref(items[0].MessageId)),
+		strings.TrimSpace(deref(items[1].MessageId)),
+		strings.TrimSpace(deref(items[2].MessageId)),
+	}
+	wantIDs := []string{"om_inner_newest", "om_dup", "inject_oc_inject_merge_1"}
+	for i := range wantIDs {
+		if gotIDs[i] != wantIDs[i] {
+			t.Fatalf("merged order mismatch at %d: got %v want %v", i, gotIDs, wantIDs)
+		}
+	}
+}
+
+func TestInjectCaptureHubListMessages_FallbackToSyntheticWhenInnerFails(t *testing.T) {
+	rec := NewRecordingMessenger()
+	hub := newInjectCaptureHub(rec)
+
+	chatID := "oc_inject_fallback"
+	hub.recordInjectedIncoming(chatID, "inject_oc_inject_fallback_1", "ou_user", "text", textContent("hello"), time.UnixMilli(1706500100000))
+	rec.NextError = errors.New("upstream list failed")
+
+	items, err := hub.ListMessages(context.Background(), chatID, 10)
+	if err != nil {
+		t.Fatalf("expected synthetic fallback without error, got %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 synthetic message, got %d", len(items))
+	}
+	if strings.TrimSpace(deref(items[0].MessageId)) != "inject_oc_inject_fallback_1" {
+		t.Fatalf("unexpected synthetic message id: %q", deref(items[0].MessageId))
+	}
+}
+
+func TestInjectCaptureHubListMessages_ReturnsInnerErrorWithoutSynthetic(t *testing.T) {
+	rec := NewRecordingMessenger()
+	hub := newInjectCaptureHub(rec)
+
+	rec.NextError = errors.New("inner list failed")
+	items, err := hub.ListMessages(context.Background(), "oc_empty", 10)
+	if err == nil {
+		t.Fatal("expected error when inner list fails and no synthetic history exists")
+	}
+	if items != nil {
+		t.Fatalf("expected nil items on hard failure, got %d", len(items))
+	}
+}
+
+func TestInjectCaptureHubListMessages_IncludesMultipleSyntheticReplies(t *testing.T) {
+	rec := NewRecordingMessenger()
+	hub := newInjectCaptureHub(rec)
+
+	chatID := "oc_inject_thinking"
+	injectMsgID := "inject_oc_inject_thinking_1"
+	base := time.UnixMilli(1706500200000)
+
+	hub.recordInjectedIncoming(chatID, injectMsgID, "ou_user", "text", textContent("start task"), base)
+	hub.recordSyntheticReply(injectMsgID, "", "text", textContent("thinking one"), base.Add(1*time.Second))
+	hub.recordSyntheticReply(injectMsgID, "", "text", textContent("thinking two"), base.Add(2*time.Second))
+
+	items, err := hub.ListMessages(context.Background(), chatID, 10)
+	if err != nil {
+		t.Fatalf("ListMessages returned error: %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("expected 3 messages (1 user + 2 app), got %d", len(items))
+	}
+	if got := strings.ToLower(strings.TrimSpace(deref(items[0].Sender.SenderType))); got != "app" {
+		t.Fatalf("expected newest synthetic reply sender=app, got %q", got)
+	}
+	if got := strings.ToLower(strings.TrimSpace(deref(items[1].Sender.SenderType))); got != "app" {
+		t.Fatalf("expected second synthetic reply sender=app, got %q", got)
+	}
+	if got := strings.ToLower(strings.TrimSpace(deref(items[2].Sender.SenderType))); got != "user" {
+		t.Fatalf("expected injected origin sender=user, got %q", got)
 	}
 }
 

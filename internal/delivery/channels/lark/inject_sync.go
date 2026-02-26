@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +40,8 @@ const (
 	defaultInjectTimeout      = 5 * time.Minute
 	defaultMaxAutoReplyRounds = 3
 	llmAutoReplyTimeout       = 10 * time.Second
+	maxInjectHistoryPerChat   = 400
+	injectBotSenderID         = "cli_inject_bot"
 )
 
 // InjectMessageSync injects a message and blocks until the task completes,
@@ -380,17 +384,216 @@ func (h *injectCaptureHandle) close() {
 // injectCaptureHub is a single long-lived messenger wrapper. Each inject call
 // opens one capture session and closes it on return, avoiding wrapper stacking.
 type injectCaptureHub struct {
-	inner    LarkMessenger
-	mu       sync.RWMutex
-	nextID   uint64
-	sessions map[uint64]*injectCaptureSession
+	inner         LarkMessenger
+	mu            sync.RWMutex
+	nextID        uint64
+	nextSynthetic uint64
+	sessions      map[uint64]*injectCaptureSession
+	chatHistory   map[string]*injectChatHistory // chat_id -> synthetic transcript (chronological)
+	messageToChat map[string]string             // message_id -> chat_id
 }
 
 func newInjectCaptureHub(inner LarkMessenger) *injectCaptureHub {
 	return &injectCaptureHub{
-		inner:    inner,
-		sessions: map[uint64]*injectCaptureSession{},
+		inner:         inner,
+		sessions:      map[uint64]*injectCaptureSession{},
+		chatHistory:   map[string]*injectChatHistory{},
+		messageToChat: map[string]string{},
 	}
+}
+
+type injectChatHistory struct {
+	messages []*larkim.Message // chronological (oldest -> newest)
+	index    map[string]int
+}
+
+func (h *injectChatHistory) upsertLocked(msg *larkim.Message) {
+	if h == nil || msg == nil {
+		return
+	}
+	msgID := strings.TrimSpace(deref(msg.MessageId))
+	if msgID != "" {
+		if idx, ok := h.index[msgID]; ok && idx >= 0 && idx < len(h.messages) {
+			h.messages[idx] = msg
+			return
+		}
+	}
+	h.messages = append(h.messages, msg)
+	if len(h.messages) > maxInjectHistoryPerChat {
+		h.messages = h.messages[len(h.messages)-maxInjectHistoryPerChat:]
+	}
+	h.rebuildIndexLocked()
+}
+
+func (h *injectChatHistory) updateLocked(messageID, msgType, content string, ts time.Time) bool {
+	if h == nil {
+		return false
+	}
+	idx, ok := h.index[strings.TrimSpace(messageID)]
+	if !ok || idx < 0 || idx >= len(h.messages) {
+		return false
+	}
+	msg := h.messages[idx]
+	if msg == nil {
+		return false
+	}
+	if msgType != "" {
+		msgTypeCopy := msgType
+		msg.MsgType = &msgTypeCopy
+	}
+	contentCopy := content
+	msg.Body = &larkim.MessageBody{Content: &contentCopy}
+	createTime := formatMillis(ts.UnixMilli())
+	msg.CreateTime = &createTime
+	h.messages[idx] = msg
+	return true
+}
+
+func (h *injectChatHistory) rebuildIndexLocked() {
+	if h == nil {
+		return
+	}
+	idx := make(map[string]int, len(h.messages))
+	for i, msg := range h.messages {
+		if msg == nil {
+			continue
+		}
+		msgID := strings.TrimSpace(deref(msg.MessageId))
+		if msgID == "" {
+			continue
+		}
+		idx[msgID] = i
+	}
+	h.index = idx
+}
+
+func (h *injectCaptureHub) ensureChatHistoryLocked(chatID string) *injectChatHistory {
+	history, ok := h.chatHistory[chatID]
+	if ok && history != nil {
+		return history
+	}
+	history = &injectChatHistory{
+		index: map[string]int{},
+	}
+	h.chatHistory[chatID] = history
+	return history
+}
+
+func (h *injectCaptureHub) nextSyntheticMessageIDLocked(chatID string) string {
+	h.nextSynthetic++
+	return fmt.Sprintf("inject_local_%s_%d", chatID, h.nextSynthetic)
+}
+
+func (h *injectCaptureHub) appendSyntheticMessageLocked(chatID string, msg *larkim.Message) {
+	if strings.TrimSpace(chatID) == "" || msg == nil {
+		return
+	}
+	history := h.ensureChatHistoryLocked(chatID)
+	history.upsertLocked(msg)
+	msgID := strings.TrimSpace(deref(msg.MessageId))
+	if msgID != "" {
+		h.messageToChat[msgID] = chatID
+	}
+}
+
+func (h *injectCaptureHub) recordInjectedIncoming(chatID, messageID, senderID, msgType, content string, ts time.Time) {
+	chatID = strings.TrimSpace(chatID)
+	messageID = strings.TrimSpace(messageID)
+	if chatID == "" || messageID == "" {
+		return
+	}
+	if strings.TrimSpace(senderID) == "" {
+		senderID = "ou_inject_user"
+	}
+	msg := buildInjectHistoryMessage(messageID, msgType, content, "user", senderID, ts)
+
+	h.mu.Lock()
+	h.appendSyntheticMessageLocked(chatID, msg)
+	h.mu.Unlock()
+}
+
+func (h *injectCaptureHub) recordSyntheticSend(chatID, messageID, msgType, content string, ts time.Time) {
+	chatID = strings.TrimSpace(chatID)
+	if chatID == "" {
+		return
+	}
+	h.mu.Lock()
+	if _, tracked := h.chatHistory[chatID]; !tracked {
+		h.mu.Unlock()
+		return
+	}
+	if strings.TrimSpace(messageID) == "" {
+		messageID = h.nextSyntheticMessageIDLocked(chatID)
+	}
+	msg := buildInjectHistoryMessage(messageID, msgType, content, "app", injectBotSenderID, ts)
+	h.appendSyntheticMessageLocked(chatID, msg)
+	h.mu.Unlock()
+}
+
+func (h *injectCaptureHub) recordSyntheticReply(replyToID, messageID, msgType, content string, ts time.Time) {
+	replyToID = strings.TrimSpace(replyToID)
+	if replyToID == "" {
+		return
+	}
+	h.mu.Lock()
+	chatID, ok := h.messageToChat[replyToID]
+	if !ok || chatID == "" {
+		h.mu.Unlock()
+		return
+	}
+	if strings.TrimSpace(messageID) == "" {
+		messageID = h.nextSyntheticMessageIDLocked(chatID)
+	}
+	msg := buildInjectHistoryMessage(messageID, msgType, content, "app", injectBotSenderID, ts)
+	h.appendSyntheticMessageLocked(chatID, msg)
+	h.mu.Unlock()
+}
+
+func (h *injectCaptureHub) recordSyntheticUpdate(messageID, msgType, content string, ts time.Time) {
+	messageID = strings.TrimSpace(messageID)
+	if messageID == "" {
+		return
+	}
+	h.mu.Lock()
+	chatID, ok := h.messageToChat[messageID]
+	if !ok || chatID == "" {
+		h.mu.Unlock()
+		return
+	}
+	history := h.chatHistory[chatID]
+	if history == nil {
+		h.mu.Unlock()
+		return
+	}
+	if !history.updateLocked(messageID, msgType, content, ts) {
+		msg := buildInjectHistoryMessage(messageID, msgType, content, "app", injectBotSenderID, ts)
+		h.appendSyntheticMessageLocked(chatID, msg)
+	}
+	h.mu.Unlock()
+}
+
+func (h *injectCaptureHub) syntheticMessages(chatID string, pageSize int) []*larkim.Message {
+	chatID = strings.TrimSpace(chatID)
+	if chatID == "" {
+		return nil
+	}
+	h.mu.RLock()
+	history := h.chatHistory[chatID]
+	if history == nil || len(history.messages) == 0 {
+		h.mu.RUnlock()
+		return nil
+	}
+	asc := history.messages
+	limit := len(asc)
+	if pageSize > 0 && limit > pageSize {
+		limit = pageSize
+	}
+	out := make([]*larkim.Message, 0, limit)
+	for i := len(asc) - 1; i >= 0 && len(out) < limit; i-- {
+		out = append(out, cloneInjectHistoryMessage(asc[i]))
+	}
+	h.mu.RUnlock()
+	return out
 }
 
 func (h *injectCaptureHub) startCapture(chatID string) *injectCaptureHandle {
@@ -456,18 +659,21 @@ func (h *injectCaptureHub) recordAll(call MessengerCall) {
 func (h *injectCaptureHub) SendMessage(ctx context.Context, chatID, msgType, content string) (string, error) {
 	id, err := h.inner.SendMessage(ctx, chatID, msgType, content)
 	h.recordByChat(chatID, MessengerCall{Method: "SendMessage", ChatID: chatID, MsgType: msgType, Content: content})
+	h.recordSyntheticSend(chatID, id, msgType, content, time.Now())
 	return id, err
 }
 
 func (h *injectCaptureHub) ReplyMessage(ctx context.Context, replyToID, msgType, content string) (string, error) {
 	id, err := h.inner.ReplyMessage(ctx, replyToID, msgType, content)
 	h.recordAll(MessengerCall{Method: "ReplyMessage", ReplyTo: replyToID, MsgType: msgType, Content: content})
+	h.recordSyntheticReply(replyToID, id, msgType, content, time.Now())
 	return id, err
 }
 
 func (h *injectCaptureHub) UpdateMessage(ctx context.Context, messageID, msgType, content string) error {
 	err := h.inner.UpdateMessage(ctx, messageID, msgType, content)
 	h.recordAll(MessengerCall{Method: "UpdateMessage", MsgID: messageID, MsgType: msgType, Content: content})
+	h.recordSyntheticUpdate(messageID, msgType, content, time.Now())
 	return err
 }
 
@@ -486,7 +692,144 @@ func (h *injectCaptureHub) UploadFile(ctx context.Context, payload []byte, fileN
 }
 
 func (h *injectCaptureHub) ListMessages(ctx context.Context, chatID string, pageSize int) ([]*larkim.Message, error) {
-	return h.inner.ListMessages(ctx, chatID, pageSize)
+	synthetic := h.syntheticMessages(chatID, pageSize)
+	items, err := h.inner.ListMessages(ctx, chatID, pageSize)
+	if err != nil {
+		if len(synthetic) > 0 {
+			return synthetic, nil
+		}
+		return nil, err
+	}
+	if len(synthetic) == 0 {
+		return items, nil
+	}
+	return mergeMessageHistoryDesc(items, synthetic, pageSize), nil
+}
+
+func mergeMessageHistoryDesc(primary, extra []*larkim.Message, limit int) []*larkim.Message {
+	if len(primary) == 0 && len(extra) == 0 {
+		return nil
+	}
+	combined := make([]*larkim.Message, 0, len(primary)+len(extra))
+	combined = append(combined, primary...)
+	combined = append(combined, extra...)
+
+	sort.SliceStable(combined, func(i, j int) bool {
+		ti := messageCreateMillis(combined[i])
+		tj := messageCreateMillis(combined[j])
+		if ti == tj {
+			return strings.TrimSpace(deref(combined[i].MessageId)) > strings.TrimSpace(deref(combined[j].MessageId))
+		}
+		return ti > tj
+	})
+
+	out := make([]*larkim.Message, 0, len(combined))
+	seen := make(map[string]struct{}, len(combined))
+	for _, item := range combined {
+		if item == nil {
+			continue
+		}
+		msgID := strings.TrimSpace(deref(item.MessageId))
+		if msgID != "" {
+			if _, ok := seen[msgID]; ok {
+				continue
+			}
+			seen[msgID] = struct{}{}
+		}
+		out = append(out, item)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out
+}
+
+func messageCreateMillis(msg *larkim.Message) int64 {
+	if msg == nil {
+		return 0
+	}
+	raw := strings.TrimSpace(deref(msg.CreateTime))
+	if raw == "" {
+		return 0
+	}
+	v, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+func buildInjectHistoryMessage(messageID, msgType, content, senderType, senderID string, ts time.Time) *larkim.Message {
+	messageID = strings.TrimSpace(messageID)
+	msgType = strings.TrimSpace(msgType)
+	if msgType == "" {
+		msgType = "text"
+	}
+	senderType = strings.TrimSpace(senderType)
+	if senderType == "" {
+		senderType = "user"
+	}
+	senderID = strings.TrimSpace(senderID)
+	if senderID == "" {
+		senderID = "ou_inject_user"
+	}
+
+	contentCopy := content
+	msgTypeCopy := msgType
+	messageIDCopy := messageID
+	createTime := formatMillis(ts.UnixMilli())
+	senderTypeCopy := senderType
+	senderIDCopy := senderID
+
+	return &larkim.Message{
+		MessageId:  &messageIDCopy,
+		MsgType:    &msgTypeCopy,
+		CreateTime: &createTime,
+		Body:       &larkim.MessageBody{Content: &contentCopy},
+		Sender: &larkim.Sender{
+			SenderType: &senderTypeCopy,
+			Id:         &senderIDCopy,
+		},
+	}
+}
+
+func cloneInjectHistoryMessage(msg *larkim.Message) *larkim.Message {
+	if msg == nil {
+		return nil
+	}
+	messageID := strings.TrimSpace(deref(msg.MessageId))
+	msgType := strings.TrimSpace(deref(msg.MsgType))
+	createTime := strings.TrimSpace(deref(msg.CreateTime))
+	content := ""
+	if msg.Body != nil {
+		content = deref(msg.Body.Content)
+	}
+	senderType := ""
+	senderID := ""
+	if msg.Sender != nil {
+		senderType = strings.TrimSpace(deref(msg.Sender.SenderType))
+		senderID = strings.TrimSpace(deref(msg.Sender.Id))
+	}
+	msgTypeCopy := msgType
+	messageIDCopy := messageID
+	createTimeCopy := createTime
+	contentCopy := content
+	senderTypeCopy := senderType
+	senderIDCopy := senderID
+	return &larkim.Message{
+		MessageId:  &messageIDCopy,
+		MsgType:    &msgTypeCopy,
+		CreateTime: &createTimeCopy,
+		Body:       &larkim.MessageBody{Content: &contentCopy},
+		Sender: &larkim.Sender{
+			SenderType: &senderTypeCopy,
+			Id:         &senderIDCopy,
+		},
+	}
+}
+
+func formatMillis(v int64) string {
+	return strconv.FormatInt(v, 10)
 }
 
 // teeMessenger wraps a real LarkMessenger, forwarding all calls to the inner

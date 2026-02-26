@@ -796,6 +796,9 @@ func (g *Gateway) InjectMessage(ctx context.Context, chatID, chatType, senderID,
 	if chatType == "" {
 		chatType = "p2p"
 	}
+	if hub, ok := g.messenger.(*injectCaptureHub); ok && isInjectSyntheticMessageID(messageID) {
+		hub.recordInjectedIncoming(chatID, messageID, senderID, msgType, contentJSON, g.currentTime())
+	}
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -866,6 +869,11 @@ func replyTarget(messageID string, allowReply bool) string {
 	if !allowReply || messageID == "" {
 		return ""
 	}
+	if isInjectSyntheticMessageID(messageID) {
+		// Synthetic inject message IDs are not valid Lark open_message_id values.
+		// Falling back to SendMessage keeps inject runs observable in real chats.
+		return ""
+	}
 	return messageID
 }
 
@@ -883,9 +891,20 @@ func (g *Gateway) addReaction(ctx context.Context, messageID, emojiType string) 
 		g.logger.Warn("Lark add reaction skipped: messenger=%v messageID=%q emojiType=%q", g.messenger != nil, messageID, emojiType)
 		return
 	}
+	if isInjectSyntheticMessageID(messageID) {
+		return
+	}
 	if err := g.messenger.AddReaction(ctx, messageID, emojiType); err != nil {
 		g.logger.Warn("Lark add reaction failed: %v", err)
 	}
+}
+
+func isInjectSyntheticMessageID(messageID string) bool {
+	id := strings.TrimSpace(messageID)
+	if id == "" {
+		return false
+	}
+	return strings.HasPrefix(id, "inject_")
 }
 
 // newSessionID generates a fresh session identifier for a new Lark task.
