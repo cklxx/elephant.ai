@@ -48,8 +48,18 @@ func (e *ReactEngine) think(
 
 	// Pre-flight context budget enforcement: estimate full token count and
 	// trim messages before sending to prevent context_length_exceeded errors.
+	messageCountBefore := len(filteredMessages)
 	if services.Context != nil {
 		filteredMessages = e.enforceContextBudget(ctx, filteredMessages, state, services)
+	}
+	compressionApplied := len(filteredMessages) < messageCountBefore
+
+	// Inject context status for LLM self-awareness.
+	limit := e.resolveContextTokenLimit(services)
+	if limit > 0 && services.Context != nil {
+		estimated := services.Context.EstimateTokens(filteredMessages)
+		status := buildContextBudgetStatus(estimated, limit, state, e.maxIterations, compressionApplied, len(filteredMessages))
+		filteredMessages = append(filteredMessages, buildContextStatusMessage(status))
 	}
 
 	e.logger.Debug(

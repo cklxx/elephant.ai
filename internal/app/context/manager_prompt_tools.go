@@ -85,6 +85,7 @@ func buildRuntimeSection(toolHints []string, mode string) string {
 	if len(toolHints) > 0 {
 		lines = append(lines, "Tool hints: "+strings.Join(toolHints, ", "))
 	}
+	lines = append(lines, "A <context_status/> tag is injected each turn with token budget and phase. Adapt verbosity and detail level according to the reported phase.")
 	lines = append(lines, "Runtime profile should be inferred from channel + config, not guessed.")
 	return formatSection("# Runtime", lines)
 }
