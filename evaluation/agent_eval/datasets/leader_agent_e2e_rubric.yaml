@@ -1,0 +1,92 @@
+version: "1.0"
+name: leader_agent_e2e
+description: >
+  Rubric for evaluating leader agent coordination capability across
+  multi-agent teams with mixed agent types and dependency chains.
+pass_threshold: 0.7
+fail_on_zero:
+  - dispatch_correctness
+  - dependency_ordering
+dimensions:
+  - id: dispatch_correctness
+    name: Dispatch Correctness
+    description: >
+      Each dispatched request uses the correct agent_type, execution_mode,
+      and config values matching the team role definition.
+    weight: 0.25
+    auto: true
+    guidance: >
+      Score 2 if all requests match role spec exactly.
+      Score 1 if most match but one field is wrong.
+      Score 0 if agent_type routing is broken.
+
+  - id: parallelism_achievement
+    name: Parallelism Achievement
+    description: >
+      Same-stage tasks execute concurrently. Peak active count must meet
+      the expected parallelism for the stage.
+    weight: 0.15
+    auto: true
+    guidance: >
+      Score 2 if maxActive >= expected parallel count.
+      Score 1 if maxActive >= 2 but below expected.
+      Score 0 if purely sequential execution.
+
+  - id: dependency_ordering
+    name: Dependency Ordering
+    description: >
+      Stage N tasks only begin after all stage N-1 tasks complete.
+      No premature execution of dependent stages.
+    weight: 0.20
+    auto: true
+    guidance: >
+      Score 2 if strict ordering verified.
+      Score 1 if ordering mostly correct with minor overlap.
+      Score 0 if dependent tasks start before dependencies complete.
+
+  - id: context_inheritance
+    name: Context Inheritance
+    description: >
+      Tasks with inherit_context=true receive [Collaboration Context]
+      containing upstream task results.
+    weight: 0.15
+    auto: true
+    guidance: >
+      Score 2 if all upstream markers present in inherited context.
+      Score 1 if some markers present.
+      Score 0 if no context inheritance observed.
+
+  - id: autonomy_compliance
+    name: Autonomy Compliance
+    description: >
+      All tasks execute without requiring user confirmation.
+      No interactive approval prompts during execution.
+    weight: 0.10
+    auto: true
+    guidance: >
+      Score 2 if fully autonomous execution.
+      Score 1 if one confirmation required.
+      Score 0 if execution blocked on approval.
+
+  - id: result_completeness
+    name: Result Completeness
+    description: >
+      All dispatched tasks reach completed status with non-empty answers.
+    weight: 0.10
+    auto: true
+    guidance: >
+      Score 2 if all tasks completed with answers.
+      Score 1 if all completed but some answers empty.
+      Score 0 if any task not completed.
+
+  - id: error_handling
+    name: Error Handling
+    description: >
+      Failed dependencies propagate correctly to dependent tasks.
+      No deadlocks or hanging tasks.
+    weight: 0.05
+    auto: true
+    guidance: >
+      Score 2 if failure propagation correct and timely.
+      Score 1 if propagation works but with delay.
+      Score 0 if deadlock or silent failure.
