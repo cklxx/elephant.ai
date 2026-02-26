@@ -18,10 +18,6 @@ var (
 
 func init() {
 	// Eager initialization so the first call doesn't pay the latency.
-	initEncoding()
-}
-
-func initEncoding() {
 	once.Do(func() {
 		enc, err := tiktoken.GetEncoding("cl100k_base")
 		if err == nil {

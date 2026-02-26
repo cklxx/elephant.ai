@@ -595,41 +595,35 @@ func expandExternalAgentsFileConfigEnv(lookup EnvLookup, external *ExternalAgent
 			km.Env = expanded
 		}
 	}
-	if len(external.Teams) > 0 {
-		for i := range external.Teams {
-			team := &external.Teams[i]
-			team.Name = expandEnvValue(lookup, team.Name)
-			team.Description = expandEnvValue(lookup, team.Description)
-			if len(team.Roles) > 0 {
-				for j := range team.Roles {
-					role := &team.Roles[j]
-					role.Name = expandEnvValue(lookup, role.Name)
-					role.AgentType = expandEnvValue(lookup, role.AgentType)
-					role.PromptTemplate = expandEnvValue(lookup, role.PromptTemplate)
-					role.ExecutionMode = expandEnvValue(lookup, role.ExecutionMode)
-					role.AutonomyLevel = expandEnvValue(lookup, role.AutonomyLevel)
-					role.WorkspaceMode = expandEnvValue(lookup, role.WorkspaceMode)
-					if len(role.Config) > 0 {
-						expanded := make(map[string]string, len(role.Config))
-						for key, value := range role.Config {
-							expanded[expandEnvValue(lookup, key)] = expandEnvValue(lookup, value)
-						}
-						role.Config = expanded
-					}
+	for i := range external.Teams {
+		team := &external.Teams[i]
+		team.Name = expandEnvValue(lookup, team.Name)
+		team.Description = expandEnvValue(lookup, team.Description)
+		for j := range team.Roles {
+			role := &team.Roles[j]
+			role.Name = expandEnvValue(lookup, role.Name)
+			role.AgentType = expandEnvValue(lookup, role.AgentType)
+			role.PromptTemplate = expandEnvValue(lookup, role.PromptTemplate)
+			role.ExecutionMode = expandEnvValue(lookup, role.ExecutionMode)
+			role.AutonomyLevel = expandEnvValue(lookup, role.AutonomyLevel)
+			role.WorkspaceMode = expandEnvValue(lookup, role.WorkspaceMode)
+			if len(role.Config) > 0 {
+				expanded := make(map[string]string, len(role.Config))
+				for key, value := range role.Config {
+					expanded[expandEnvValue(lookup, key)] = expandEnvValue(lookup, value)
 				}
+				role.Config = expanded
 			}
-			if len(team.Stages) > 0 {
-				for j := range team.Stages {
-					stage := &team.Stages[j]
-					stage.Name = expandEnvValue(lookup, stage.Name)
-					if len(stage.Roles) > 0 {
-						roles := make([]string, 0, len(stage.Roles))
-						for _, roleName := range stage.Roles {
-							roles = append(roles, expandEnvValue(lookup, roleName))
-						}
-						stage.Roles = roles
-					}
+		}
+		for j := range team.Stages {
+			stage := &team.Stages[j]
+			stage.Name = expandEnvValue(lookup, stage.Name)
+			if len(stage.Roles) > 0 {
+				roles := make([]string, 0, len(stage.Roles))
+				for _, roleName := range stage.Roles {
+					roles = append(roles, expandEnvValue(lookup, roleName))
 				}
+				stage.Roles = roles
 			}
 		}
 	}

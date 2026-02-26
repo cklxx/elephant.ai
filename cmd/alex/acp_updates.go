@@ -4,11 +4,11 @@ import (
 	"strings"
 	"sync"
 
-	"alex/internal/shared/utils"
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
+	"alex/internal/shared/utils"
 )
 
 type acpEventListener struct {
@@ -208,13 +208,11 @@ func (l *acpEventListener) handleResultFinal(env *domain.WorkflowEventEnvelope) 
 	}
 
 	attachments := attachmentsFromPayload(env.Payload["attachments"])
-	if len(attachments) > 0 {
-		for _, block := range contentBlocksForAttachments(attachments) {
-			l.server.sendSessionUpdate(l.session.id, map[string]any{
-				"sessionUpdate": "agent_message_chunk",
-				"content":       block,
-			})
-		}
+	for _, block := range contentBlocksForAttachments(attachments) {
+		l.server.sendSessionUpdate(l.session.id, map[string]any{
+			"sessionUpdate": "agent_message_chunk",
+			"content":       block,
+		})
 	}
 }
 

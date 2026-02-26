@@ -74,7 +74,27 @@ func appendDurationSuffix(rendered string, duration time.Duration) string {
 	if rendered == "" || duration <= 0 {
 		return rendered
 	}
-	formatted := formatDurationShort(duration)
+	formatted := ""
+	if duration < time.Second {
+		formatted = fmt.Sprintf("%dms", duration.Milliseconds())
+	} else if duration < time.Minute {
+		seconds := duration.Seconds()
+		if seconds < 10 {
+			formatted = fmt.Sprintf("%.2fs", seconds)
+		} else if seconds < 100 {
+			formatted = fmt.Sprintf("%.1fs", seconds)
+		} else {
+			formatted = fmt.Sprintf("%.0fs", seconds)
+		}
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		seconds := int(duration.Seconds()) % 60
+		formatted = fmt.Sprintf("%dm%02ds", minutes, seconds)
+	} else {
+		hours := int(duration.Hours())
+		minutes := int(duration.Minutes()) % 60
+		formatted = fmt.Sprintf("%dh%02dm", hours, minutes)
+	}
 	if formatted == "" {
 		return rendered
 	}
@@ -84,33 +104,6 @@ func appendDurationSuffix(rendered string, duration time.Duration) string {
 		return rendered + suffix
 	}
 	return rendered[:newline] + suffix + rendered[newline:]
-}
-
-func formatDurationShort(duration time.Duration) string {
-	if duration <= 0 {
-		return ""
-	}
-	if duration < time.Second {
-		return fmt.Sprintf("%dms", duration.Milliseconds())
-	}
-	if duration < time.Minute {
-		seconds := duration.Seconds()
-		if seconds < 10 {
-			return fmt.Sprintf("%.2fs", seconds)
-		}
-		if seconds < 100 {
-			return fmt.Sprintf("%.1fs", seconds)
-		}
-		return fmt.Sprintf("%.0fs", seconds)
-	}
-	if duration < time.Hour {
-		minutes := int(duration.Minutes())
-		seconds := int(duration.Seconds()) % 60
-		return fmt.Sprintf("%dm%02ds", minutes, seconds)
-	}
-	hours := int(duration.Hours())
-	minutes := int(duration.Minutes()) % 60
-	return fmt.Sprintf("%dh%02dm", hours, minutes)
 }
 
 func truncateWithEllipsis(preview string, limit int) string {

@@ -47,25 +47,6 @@ func StringSliceArg(args map[string]any, key string) []string {
 	return nil
 }
 
-// StringArgStrict returns a string-like argument, accepting only string,
-// jsonx.Number, or fmt.Stringer values.
-func StringArgStrict(args map[string]any, key string) string {
-	if args == nil {
-		return ""
-	}
-	if value, ok := args[key]; ok {
-		switch v := value.(type) {
-		case string:
-			return v
-		case jsonx.Number:
-			return v.String()
-		case fmt.Stringer:
-			return v.String()
-		}
-	}
-	return ""
-}
-
 // StringMapArg coalesces object-like arguments into a trimmed string map,
 // discarding empty keys/values.
 func StringMapArg(args map[string]any, key string) map[string]string {
@@ -148,42 +129,6 @@ func FloatArg(args map[string]any, key string) (float64, bool) {
 	return 0, false
 }
 
-// BoolArgWithDefault returns a boolean argument or the provided default.
-func BoolArgWithDefault(args map[string]any, key string, def bool) bool {
-	if args == nil {
-		return def
-	}
-	value, ok := args[key]
-	if !ok {
-		return def
-	}
-	switch v := value.(type) {
-	case bool:
-		return v
-	case string:
-		trimmed := strings.ToLower(strings.TrimSpace(v))
-		switch trimmed {
-		case "", "default":
-			return def
-		case "true", "1", "yes", "y", "on":
-			return true
-		case "false", "0", "no", "n", "off":
-			return false
-		}
-	case int:
-		return v != 0
-	case int64:
-		return v != 0
-	case float64:
-		return v != 0
-	case jsonx.Number:
-		if i, err := v.Int64(); err == nil {
-			return i != 0
-		}
-	}
-	return def
-}
-
 // Uint64Arg parses a positive integer-ish argument into a uint64, returning 0
 // on missing or invalid inputs.
 func Uint64Arg(args map[string]any, key string) uint64 {
@@ -218,19 +163,6 @@ func Uint64Arg(args map[string]any, key string) uint64 {
 // jsonNumber bridges between encoding/json's Number without importing it at call sites.
 type jsonNumber interface {
 	Int64() (int64, error)
-}
-
-// ContentSnippet returns a trimmed prefix of content to use as a lightweight
-// preview, avoiding empty strings and over-long slices.
-func ContentSnippet(content string, max int) string {
-	trimmed := strings.TrimSpace(content)
-	if trimmed == "" {
-		return ""
-	}
-	if len(trimmed) <= max {
-		return trimmed
-	}
-	return trimmed[:max]
 }
 
 // PreviewProfile normalizes the attachment preview profile based on MIME type

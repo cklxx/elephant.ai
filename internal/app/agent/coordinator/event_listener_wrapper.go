@@ -200,20 +200,16 @@ func isTerminalEvent(event agent.AgentEvent) bool {
 			return e.Data.StreamFinished
 		}
 		if envelope, ok := event.(*domain.WorkflowEventEnvelope); ok {
-			return envelopeStreamFinished(envelope)
+			if envelope == nil || len(envelope.Payload) == 0 {
+				return false
+			}
+			raw, ok := envelope.Payload["stream_finished"]
+			if !ok {
+				return false
+			}
+			finished, ok := raw.(bool)
+			return ok && finished
 		}
 	}
 	return false
-}
-
-func envelopeStreamFinished(envelope *domain.WorkflowEventEnvelope) bool {
-	if envelope == nil || len(envelope.Payload) == 0 {
-		return false
-	}
-	raw, ok := envelope.Payload["stream_finished"]
-	if !ok {
-		return false
-	}
-	finished, ok := raw.(bool)
-	return ok && finished
 }

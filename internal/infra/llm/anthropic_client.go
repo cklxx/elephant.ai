@@ -246,15 +246,13 @@ func (c *anthropicClient) convertMessages(msgs []ports.Message) ([]anthropicMess
 		}
 
 		contentBlocks := buildAnthropicMessageContent(msg, embedMask[idx])
-		if len(msg.ToolCalls) > 0 {
-			for _, call := range msg.ToolCalls {
-				contentBlocks = append(contentBlocks, anthropicContentBlock{
-					Type:  "tool_use",
-					ID:    call.ID,
-					Name:  call.Name,
-					Input: normalizeToolArguments(call.Arguments),
-				})
-			}
+		for _, call := range msg.ToolCalls {
+			contentBlocks = append(contentBlocks, anthropicContentBlock{
+				Type:  "tool_use",
+				ID:    call.ID,
+				Name:  call.Name,
+				Input: normalizeToolArguments(call.Arguments),
+			})
 		}
 
 		if len(contentBlocks) == 0 && utils.IsBlank(msg.Content) {

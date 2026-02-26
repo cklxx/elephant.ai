@@ -451,14 +451,12 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 		state.AttachmentIterations[key] = 0
 	}
-	if len(inheritedIterations) > 0 {
-		for key, iter := range inheritedIterations {
-			name := strings.TrimSpace(key)
-			if name == "" {
-				continue
-			}
-			state.AttachmentIterations[name] = iter
+	for key, iter := range inheritedIterations {
+		name := strings.TrimSpace(key)
+		if name == "" {
+			continue
 		}
+		state.AttachmentIterations[name] = iter
 	}
 
 	if inheritedState != nil {

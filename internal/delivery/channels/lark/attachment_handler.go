@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	artifactruntime "alex/internal/app/artifactruntime"
-	builtinshared "alex/internal/infra/tools/builtin/shared"
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	toolports "alex/internal/domain/agent/ports/tools"
+	builtinshared "alex/internal/infra/tools/builtin/shared"
 )
 
 func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string, result *agent.TaskResult) {
@@ -121,10 +121,8 @@ func collectAttachmentsFromResult(result *agent.TaskResult) map[string]ports.Att
 	attachments := make(map[string]ports.Attachment)
 	for _, msg := range result.Messages {
 		mergeAttachments(attachments, msg.Attachments)
-		if len(msg.ToolResults) > 0 {
-			for _, res := range msg.ToolResults {
-				mergeAttachments(attachments, res.Attachments)
-			}
+		for _, res := range msg.ToolResults {
+			mergeAttachments(attachments, res.Attachments)
 		}
 	}
 	if len(attachments) == 0 {

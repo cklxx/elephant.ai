@@ -204,25 +204,3 @@ func (t *ToolAdapter) formatContent(blocks []ContentBlock) string {
 
 	return strings.Join(parts, "\n\n")
 }
-
-// ValidateArguments validates tool arguments against the schema
-func (t *ToolAdapter) ValidateArguments(args map[string]interface{}) error {
-	// Extract required fields from schema
-	required := []string{}
-	if reqInterface, ok := t.toolSchema.InputSchema["required"].([]interface{}); ok {
-		for _, req := range reqInterface {
-			if reqStr, ok := req.(string); ok {
-				required = append(required, reqStr)
-			}
-		}
-	}
-
-	// Check all required fields are present
-	for _, field := range required {
-		if _, exists := args[field]; !exists {
-			return fmt.Errorf("missing required argument: %s", field)
-		}
-	}
-
-	return nil
-}
