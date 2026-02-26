@@ -397,6 +397,14 @@ edges:
       to: goodsum-2026-02-26-history-attachment-single-embed-mask
       type: see_also
       direction: directed
+    - from: good-2026-02-26-non-web-core-logic-simplification
+      to: goodsum-2026-02-26-non-web-core-logic-simplification
+      type: see_also
+      direction: directed
+    - from: good-2026-02-26-non-web-defensive-bloat-pruning
+      to: goodsum-2026-02-26-non-web-defensive-bloat-pruning
+      type: see_also
+      direction: directed
     - from: goodsum-2026-01-30-continuous-practice-optimization
       to: good-2026-01-30-continuous-practice-optimization
       type: derived_from
@@ -583,6 +591,14 @@ edges:
       direction: directed
     - from: goodsum-2026-02-26-history-attachment-single-embed-mask
       to: good-2026-02-26-history-attachment-single-embed-mask
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-26-non-web-core-logic-simplification
+      to: good-2026-02-26-non-web-core-logic-simplification
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-02-26-non-web-defensive-bloat-pruning
+      to: good-2026-02-26-non-web-defensive-bloat-pruning
       type: derived_from
       direction: directed
     - from: ltm-long-term-memory
@@ -999,6 +1015,10 @@ edges:
       direction: directed
     - from: ltm-long-term-memory
       to: plan-2026-02-26-lark-command-routing-and-status-hardening
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-02-26-lark-kernel-alignment-cycle-selfheal
       type: see_also
       direction: directed
     - from: ltm-long-term-memory
