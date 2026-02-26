@@ -14,10 +14,6 @@ import (
 	"alex/internal/shared/utils"
 )
 
-func (c *CLI) handleModel(args []string) error {
-	return executeModelCommand(args, os.Stdout)
-}
-
 func executeModelCommand(args []string, out io.Writer) error {
 	subcommand := ""
 	if len(args) > 0 {

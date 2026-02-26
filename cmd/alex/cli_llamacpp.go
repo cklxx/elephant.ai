@@ -5,18 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	"alex/internal/infra/llamacpp"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/utils"
 )
-
-func (c *CLI) handleLlamaCpp(args []string) error {
-	return executeLlamaCppCommand(args, os.Stdout, runtimeEnvLookup())
-}
 
 func executeLlamaCppCommand(args []string, out io.Writer, envLookup runtimeconfig.EnvLookup) error {
 	subcommand := ""

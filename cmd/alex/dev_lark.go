@@ -242,7 +242,7 @@ func larkStatus() error {
 	}
 
 	sec.Info("%-14s %s", "Mode", status.Mode)
-	mainConfig, _ := resolveLarkConfigPaths()
+	mainConfig := resolveLarkMainConfigPath()
 	sec.Info("%-14s %s", "PID Dir", cfg.PIDDir)
 	sec.Info("%-14s %s", "Main Config", mainConfig)
 
@@ -405,7 +405,7 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 	// Resolve main root via git worktree
 	mainRoot := resolveMainRoot(projectDir)
 	testRoot := filepath.Join(mainRoot, ".worktrees", "test")
-	mainConfig, _ := resolveLarkConfigPaths()
+	mainConfig := resolveLarkMainConfigPath()
 
 	pidDir, err := resolveSharedLarkPIDDir(mainConfig)
 	if err != nil {
@@ -608,21 +608,18 @@ func envBool(key string, def bool) bool {
 	return def
 }
 
-func resolveLarkConfigPaths() (string, string) {
+func resolveLarkMainConfigPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = ""
 	}
 	defaultMain := "config.yaml"
-	defaultTest := "test.yaml"
 	if home != "" {
 		defaultMain = filepath.Join(home, ".alex", "config.yaml")
-		defaultTest = filepath.Join(home, ".alex", "test.yaml")
 	}
 
 	mainConfig := envString("MAIN_CONFIG", envString("ALEX_CONFIG_PATH", defaultMain))
-	testConfig := envString("TEST_CONFIG", defaultTest)
-	return canonicalPath(mainConfig), canonicalPath(testConfig)
+	return canonicalPath(mainConfig)
 }
 
 func canonicalPath(path string) string {

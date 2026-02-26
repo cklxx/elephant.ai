@@ -76,30 +76,3 @@ func TestBuildEvaluationQuery(t *testing.T) {
 		}
 	})
 }
-
-func TestSplitTags(t *testing.T) {
-	t.Run("empty input returns nil", func(t *testing.T) {
-		got := splitTags("")
-		if got != nil {
-			t.Fatalf("splitTags(\"\") = %#v, want nil", got)
-		}
-	})
-
-	t.Run("trim and drop empty tags", func(t *testing.T) {
-		got := splitTags("alpha, beta , ,gamma")
-		want := []string{"alpha", "beta", "gamma"}
-		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("splitTags returned %#v, want %#v", got, want)
-		}
-	})
-
-	t.Run("delimiters only returns empty non-nil slice", func(t *testing.T) {
-		got := splitTags(" , , ")
-		if got == nil {
-			t.Fatal("splitTags returned nil, want empty slice")
-		}
-		if len(got) != 0 {
-			t.Fatalf("splitTags length = %d, want 0", len(got))
-		}
-	})
-}

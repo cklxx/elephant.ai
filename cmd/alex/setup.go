@@ -4,15 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	runtimeconfig "alex/internal/shared/config"
 )
-
-func (c *CLI) handleSetup(args []string) error {
-	return executeSetupCommandWith(args, os.Stdin, os.Stdout, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
-}
 
 func executeSetupCommandWith(
 	args []string,

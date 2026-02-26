@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	agent_eval "alex/evaluation/agent_eval"
@@ -363,7 +362,7 @@ func parseEvaluationQuery(r *http.Request) (agent_eval.EvaluationQuery, bool, er
 	}
 
 	if rawTags := values.Get("tags"); rawTags != "" {
-		parsed := parseTags(rawTags)
+		parsed := agent_eval.ParseCSVTags(rawTags)
 		if len(parsed) > 0 {
 			query.Tags = parsed
 			hasFilters = true
@@ -371,19 +370,6 @@ func parseEvaluationQuery(r *http.Request) (agent_eval.EvaluationQuery, bool, er
 	}
 
 	return query, hasFilters, nil
-}
-
-func parseTags(raw string) []string {
-	parts := strings.Split(raw, ",")
-	tags := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed == "" {
-			continue
-		}
-		tags = append(tags, trimmed)
-	}
-	return tags
 }
 
 func (h *APIHandler) buildEvaluationResponse(job *agent_eval.EvaluationJob, results *agent_eval.EvaluationResults) evaluationJobResponse {

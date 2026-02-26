@@ -13,10 +13,10 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/presets"
 	"alex/internal/infra/mcp"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
-	"alex/internal/domain/agent/presets"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 )
@@ -139,7 +139,7 @@ func (s *acpServer) handleNotification(_ context.Context, req *mcp.Request, _ st
 	}
 	switch req.Method {
 	case "session/cancel":
-		_ = s.handleSessionCancel(req.Params)
+		s.handleSessionCancel(req.Params)
 	}
 }
 
@@ -306,14 +306,14 @@ func (s *acpServer) handleSessionSetMode(req *mcp.Request) *mcp.Response {
 	return mcp.NewResponse(req.ID, map[string]any{})
 }
 
-func (s *acpServer) handleSessionCancel(params map[string]any) error {
+func (s *acpServer) handleSessionCancel(params map[string]any) {
 	sessionID := strings.TrimSpace(stringParam(params, "sessionId"))
 	if sessionID == "" {
-		return nil
+		return
 	}
 	session := s.getSession(sessionID)
 	if session == nil {
-		return nil
+		return
 	}
 	session.cancelMu.Lock()
 	cancel := session.cancel
@@ -321,7 +321,6 @@ func (s *acpServer) handleSessionCancel(params map[string]any) error {
 	if cancel != nil {
 		cancel()
 	}
-	return nil
 }
 
 func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *mcp.Response {

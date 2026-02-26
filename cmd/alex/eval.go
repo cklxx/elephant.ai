@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	agent_eval "alex/evaluation/agent_eval"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/utils"
 )
 
 // handleEval runs the lightweight agent evaluation locally.
@@ -590,24 +590,8 @@ func buildEvaluationQuery(agentID string, limit int, after, before string, minSc
 		query.DatasetType = datasetType
 	}
 	if tags != "" {
-		query.Tags = splitTags(tags)
+		query.Tags = agent_eval.ParseCSVTags(tags)
 	}
 
 	return query, nil
-}
-
-func splitTags(csv string) []string {
-	if csv == "" {
-		return nil
-	}
-	parts := strings.Split(csv, ",")
-	tags := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed == "" {
-			continue
-		}
-		tags = append(tags, trimmed)
-	}
-	return tags
 }

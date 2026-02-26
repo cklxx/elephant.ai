@@ -94,25 +94,25 @@ func parseSessionCleanupArgs(args []string) (sessionCleanupOptions, error) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--older-than":
-			if i+1 >= len(args) {
-				return opts, fmt.Errorf("--older-than requires a value (e.g. 30d, 720h)")
+			value, err := requireCleanupValue(args, &i, "--older-than")
+			if err != nil {
+				return opts, fmt.Errorf("%w (e.g. 30d, 720h)", err)
 			}
-			i++
-			d, err := parseRetentionDuration(args[i])
+			d, err := parseRetentionDuration(value)
 			if err != nil {
 				return opts, fmt.Errorf("parse --older-than: %w", err)
 			}
 			opts.olderThan = d
 		case "--keep-latest":
-			if i+1 >= len(args) {
-				return opts, fmt.Errorf("--keep-latest requires a value")
+			value, err := requireCleanupValue(args, &i, "--keep-latest")
+			if err != nil {
+				return opts, err
 			}
-			i++
-			value, err := strconv.Atoi(args[i])
-			if err != nil || value < 0 {
+			parsed, err := strconv.Atoi(value)
+			if err != nil || parsed < 0 {
 				return opts, fmt.Errorf("--keep-latest expects a non-negative integer")
 			}
-			opts.keepLatest = value
+			opts.keepLatest = parsed
 		case "--dry-run":
 			opts.dryRun = true
 		default:
@@ -120,6 +120,14 @@ func parseSessionCleanupArgs(args []string) (sessionCleanupOptions, error) {
 		}
 	}
 	return opts, nil
+}
+
+func requireCleanupValue(args []string, index *int, flag string) (string, error) {
+	if *index+1 >= len(args) {
+		return "", fmt.Errorf("%s requires a value", flag)
+	}
+	*index += 1
+	return args[*index], nil
 }
 
 func parseRetentionDuration(value string) (time.Duration, error) {
@@ -156,10 +164,6 @@ type sessionMetadata struct {
 }
 
 func selectSessionsForCleanup(all []sessionMetadata, opts sessionCleanupOptions, now time.Time) []sessionMetadata {
-	if len(all) == 0 {
-		return nil
-	}
-
 	metas := make([]sessionMetadata, len(all))
 	copy(metas, all)
 	sort.Slice(metas, func(i, j int) bool {

@@ -49,18 +49,18 @@ func (c *CLI) Run(args []string) error {
 		return c.handleSessions(cmdArgs)
 
 	case "config":
-		return c.handleConfig(cmdArgs)
+		return executeConfigCommand(cmdArgs, os.Stdout)
 
 	case "cost", "costs":
 		return c.handleCostCommand(cmdArgs)
 
 	case "model", "models":
-		return c.handleModel(cmdArgs)
+		return executeModelCommand(cmdArgs, os.Stdout)
 	case "setup":
-		return c.handleSetup(cmdArgs)
+		return executeSetupCommandWith(cmdArgs, os.Stdin, os.Stdout, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
 
 	case "llama-cpp", "llamacpp":
-		return c.handleLlamaCpp(cmdArgs)
+		return executeLlamaCppCommand(cmdArgs, os.Stdout, runtimeEnvLookup())
 
 	case "mcp":
 		return c.handleMCP(cmdArgs)
@@ -198,14 +198,10 @@ func (c *CLI) handleSessions(args []string) error {
 	case "cleanup", "clean", "prune":
 		return c.cleanupSessions(ctx, args[1:])
 	case "pull":
-		return c.pullSessionSnapshots(ctx, args[1:])
+		return c.pullSessionSnapshotsWithWriter(ctx, args[1:], os.Stdout)
 	default:
 		return fmt.Errorf("unknown sessions subcommand: %s", args[0])
 	}
-}
-
-func (c *CLI) pullSessionSnapshots(ctx context.Context, args []string) error {
-	return c.pullSessionSnapshotsWithWriter(ctx, args, os.Stdout)
 }
 
 const (
@@ -517,10 +513,6 @@ func (c *CLI) listAllSessions(ctx context.Context) ([]string, error) {
 		offset += len(ids)
 	}
 	return sessionIDs, nil
-}
-
-func (c *CLI) handleConfig(args []string) error {
-	return executeConfigCommand(args, os.Stdout)
 }
 
 func executeConfigCommand(args []string, out io.Writer) error {
