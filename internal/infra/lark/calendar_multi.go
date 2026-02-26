@@ -62,9 +62,7 @@ func (s *CalendarService) ListCalendars(ctx context.Context, opts ...CallOption)
 // ListCalendarsPage returns a single page of calendars. Use the returned
 // page token to fetch subsequent pages.
 func (s *CalendarService) ListCalendarsPage(ctx context.Context, pageToken string, pageSize int, opts ...CallOption) (*ListCalendarsResponse, error) {
-	if pageSize <= 0 {
-		pageSize = 50
-	}
+	pageSize = normalizePageSize(pageSize, 50)
 
 	builder := larkcalendar.NewListCalendarReqBuilder().
 		PageSize(pageSize)
@@ -85,14 +83,7 @@ func (s *CalendarService) ListCalendarsPage(ctx context.Context, pageToken strin
 		calendars = append(calendars, parseCalendarInfo(cal))
 	}
 
-	var pt string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pt = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pt, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListCalendarsResponse{
 		Calendars: calendars,

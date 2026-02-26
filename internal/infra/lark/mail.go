@@ -38,10 +38,7 @@ type ListMailgroupsResponse struct {
 
 // ListMailgroups lists mail groups.
 func (s *MailService) ListMailgroups(ctx context.Context, req ListMailgroupsRequest, opts ...CallOption) (*ListMailgroupsResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 20
-	}
+	pageSize := normalizePageSize(req.PageSize, 20)
 
 	builder := larkmail.NewListMailgroupReqBuilder().
 		PageSize(pageSize)
@@ -66,14 +63,7 @@ func (s *MailService) ListMailgroups(ctx context.Context, req ListMailgroupsRequ
 		groups = append(groups, parseMailgroup(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListMailgroupsResponse{
 		Mailgroups: groups,

@@ -15,9 +15,9 @@ type OKRService struct {
 
 // OKR is a simplified view of a Lark OKR.
 type OKR struct {
-	OKRID      string
-	Name       string
-	PeriodID   string
+	OKRID         string
+	Name          string
+	PeriodID      string
 	ObjectiveList []Objective
 }
 
@@ -58,10 +58,7 @@ type ListPeriodsResponse struct {
 
 // ListPeriods lists OKR periods.
 func (s *OKRService) ListPeriods(ctx context.Context, req ListPeriodsRequest, opts ...CallOption) (*ListPeriodsResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 20
-	}
+	pageSize := normalizePageSize(req.PageSize, 20)
 
 	builder := larkokr.NewListPeriodReqBuilder().
 		PageSize(pageSize)
@@ -86,14 +83,7 @@ func (s *OKRService) ListPeriods(ctx context.Context, req ListPeriodsRequest, op
 		periods = append(periods, parseOKRPeriod(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListPeriodsResponse{
 		Periods:   periods,

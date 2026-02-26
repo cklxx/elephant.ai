@@ -49,10 +49,7 @@ func (s *CalendarService) ListEvents(ctx context.Context, req ListEventsRequest,
 	if err != nil {
 		return nil, fmt.Errorf("resolve calendar id: %w", err)
 	}
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 50
-	}
+	pageSize := normalizePageSize(req.PageSize, 50)
 
 	builder := larkcalendar.NewListCalendarEventReqBuilder().
 		CalendarId(calID).
@@ -77,14 +74,7 @@ func (s *CalendarService) ListEvents(ctx context.Context, req ListEventsRequest,
 		events = append(events, parseCalendarEvent(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListEventsResponse{
 		Events:    events,

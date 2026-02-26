@@ -48,10 +48,7 @@ type ListSpacesResponse struct {
 
 // ListSpaces returns wiki spaces the user can access.
 func (s *WikiService) ListSpaces(ctx context.Context, req ListSpacesRequest, opts ...CallOption) (*ListSpacesResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 20
-	}
+	pageSize := normalizePageSize(req.PageSize, 20)
 
 	builder := larkwiki.NewListSpaceReqBuilder().
 		PageSize(pageSize)
@@ -76,14 +73,7 @@ func (s *WikiService) ListSpaces(ctx context.Context, req ListSpacesRequest, opt
 		spaces = append(spaces, parseWikiSpace(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListSpacesResponse{
 		Spaces:    spaces,
@@ -130,10 +120,7 @@ type ListNodesResponse struct {
 
 // ListNodes lists nodes in a wiki space.
 func (s *WikiService) ListNodes(ctx context.Context, req ListNodesRequest, opts ...CallOption) (*ListNodesResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 20
-	}
+	pageSize := normalizePageSize(req.PageSize, 20)
 
 	builder := larkwiki.NewListSpaceNodeReqBuilder().
 		SpaceId(req.SpaceID).
@@ -162,14 +149,7 @@ func (s *WikiService) ListNodes(ctx context.Context, req ListNodesRequest, opts 
 		nodes = append(nodes, parseWikiNode(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListNodesResponse{
 		Nodes:     nodes,

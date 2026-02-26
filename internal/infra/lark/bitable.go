@@ -80,10 +80,7 @@ type ListTablesResponse struct {
 
 // ListTables lists tables in a Bitable app.
 func (s *BitableService) ListTables(ctx context.Context, req ListTablesRequest, opts ...CallOption) (*ListTablesResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 20
-	}
+	pageSize := normalizePageSize(req.PageSize, 20)
 
 	builder := larkbitable.NewListAppTableReqBuilder().
 		AppToken(req.AppToken).
@@ -109,14 +106,7 @@ func (s *BitableService) ListTables(ctx context.Context, req ListTablesRequest, 
 		tables = append(tables, parseBitableTable(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListTablesResponse{
 		Tables:    tables,
@@ -177,10 +167,7 @@ type ListRecordsResponse struct {
 
 // ListRecords lists records in a Bitable table.
 func (s *BitableService) ListRecords(ctx context.Context, req ListRecordsRequest, opts ...CallOption) (*ListRecordsResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 20
-	}
+	pageSize := normalizePageSize(req.PageSize, 20)
 
 	builder := larkbitable.NewListAppTableRecordReqBuilder().
 		AppToken(req.AppToken).
@@ -208,17 +195,10 @@ func (s *BitableService) ListRecords(ctx context.Context, req ListRecordsRequest
 	}
 
 	var total int
-	var pageToken string
-	var hasMore bool
 	if resp.Data.Total != nil {
 		total = *resp.Data.Total
 	}
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListRecordsResponse{
 		Records:   records,

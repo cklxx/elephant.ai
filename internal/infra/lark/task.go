@@ -38,10 +38,7 @@ type ListTasksResponse struct {
 
 // ListTasks returns tasks for the authenticated user.
 func (s *TaskService) ListTasks(ctx context.Context, req ListTasksRequest, opts ...CallOption) (*ListTasksResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 50
-	}
+	pageSize := normalizePageSize(req.PageSize, 50)
 
 	builder := larktask.NewListTaskReqBuilder().
 		PageSize(pageSize)
@@ -63,14 +60,7 @@ func (s *TaskService) ListTasks(ctx context.Context, req ListTasksRequest, opts 
 		tasks = append(tasks, parseLarkTask(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListTasksResponse{
 		Tasks:     tasks,

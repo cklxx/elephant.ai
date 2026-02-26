@@ -49,10 +49,7 @@ type ListMeetingsResponse struct {
 
 // ListMeetings lists meetings in a time range.
 func (s *VCService) ListMeetings(ctx context.Context, req ListMeetingsRequest, opts ...CallOption) (*ListMeetingsResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 20
-	}
+	pageSize := normalizePageSize(req.PageSize, 20)
 
 	builder := larkvc.NewGetMeetingListReqBuilder().
 		StartTime(req.StartTime).
@@ -79,14 +76,7 @@ func (s *VCService) ListMeetings(ctx context.Context, req ListMeetingsRequest, o
 		meetings = append(meetings, parseMeeting(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListMeetingsResponse{
 		Meetings:  meetings,
@@ -132,10 +122,7 @@ type ListRoomsResponse struct {
 
 // ListRooms lists meeting rooms.
 func (s *VCService) ListRooms(ctx context.Context, req ListRoomsRequest, opts ...CallOption) (*ListRoomsResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 20
-	}
+	pageSize := normalizePageSize(req.PageSize, 20)
 
 	builder := larkvc.NewListRoomReqBuilder().
 		PageSize(pageSize)
@@ -163,14 +150,7 @@ func (s *VCService) ListRooms(ctx context.Context, req ListRoomsRequest, opts ..
 		rooms = append(rooms, parseMeetingRoom(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListRoomsResponse{
 		Rooms:     rooms,

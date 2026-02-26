@@ -15,15 +15,15 @@ type ContactService struct {
 
 // User is a simplified view of a Lark user.
 type User struct {
-	UserID       string
-	OpenID       string
-	Name         string
-	EnName       string
-	Email        string
-	Mobile       string
+	UserID        string
+	OpenID        string
+	Name          string
+	EnName        string
+	Email         string
+	Mobile        string
 	DepartmentIDs []string
-	Avatar       string
-	Status       int // 1=active, 2=resigned, etc.
+	Avatar        string
+	Status        int // 1=active, 2=resigned, etc.
 }
 
 // Department is a simplified view of a Lark department.
@@ -78,10 +78,7 @@ type ListUsersResponse struct {
 
 // ListUsers lists users in a department.
 func (s *ContactService) ListUsers(ctx context.Context, req ListUsersRequest, opts ...CallOption) (*ListUsersResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 50
-	}
+	pageSize := normalizePageSize(req.PageSize, 50)
 	userIDType := req.UserIDType
 	if userIDType == "" {
 		userIDType = "open_id"
@@ -112,14 +109,7 @@ func (s *ContactService) ListUsers(ctx context.Context, req ListUsersRequest, op
 		users = append(users, *parseUser(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListUsersResponse{
 		Users:     users,
@@ -164,10 +154,7 @@ type ListDepartmentsResponse struct {
 
 // ListDepartments lists sub-departments.
 func (s *ContactService) ListDepartments(ctx context.Context, req ListDepartmentsRequest, opts ...CallOption) (*ListDepartmentsResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 50
-	}
+	pageSize := normalizePageSize(req.PageSize, 50)
 
 	parentID := req.ParentDepartmentID
 	if parentID == "" {
@@ -198,14 +185,7 @@ func (s *ContactService) ListDepartments(ctx context.Context, req ListDepartment
 		depts = append(depts, *parseDepartment(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.PageToken != nil {
-		pageToken = *resp.Data.PageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.PageToken, resp.Data.HasMore)
 
 	return &ListDepartmentsResponse{
 		Departments: depts,

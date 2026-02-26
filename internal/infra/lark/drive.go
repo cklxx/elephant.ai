@@ -45,10 +45,7 @@ type ListFilesResponse struct {
 
 // ListFiles lists files and folders in a specified folder.
 func (s *DriveService) ListFiles(ctx context.Context, req ListFilesRequest, opts ...CallOption) (*ListFilesResponse, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 50
-	}
+	pageSize := normalizePageSize(req.PageSize, 50)
 
 	builder := larkdrive.NewListFileReqBuilder().
 		PageSize(pageSize)
@@ -79,14 +76,7 @@ func (s *DriveService) ListFiles(ctx context.Context, req ListFilesRequest, opts
 		files = append(files, parseDriveFile(item))
 	}
 
-	var pageToken string
-	var hasMore bool
-	if resp.Data.NextPageToken != nil {
-		pageToken = *resp.Data.NextPageToken
-	}
-	if resp.Data.HasMore != nil {
-		hasMore = *resp.Data.HasMore
-	}
+	pageToken, hasMore := extractPageTokenAndHasMore(resp.Data.NextPageToken, resp.Data.HasMore)
 
 	return &ListFilesResponse{
 		Files:     files,
