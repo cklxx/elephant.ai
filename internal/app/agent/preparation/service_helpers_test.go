@@ -117,6 +117,9 @@ func (stubContextManager) AutoCompact(messages []ports.Message, limit int) ([]po
 }
 func (stubContextManager) ShouldCompress(messages []ports.Message, limit int) bool { return false }
 func (stubContextManager) Preload(context.Context) error                           { return nil }
+func (stubContextManager) BuildSummaryOnly(messages []ports.Message) (string, int) {
+	return "", len(messages)
+}
 func (stubContextManager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	if session == nil {
 		return agent.ContextWindow{}, fmt.Errorf("session required")

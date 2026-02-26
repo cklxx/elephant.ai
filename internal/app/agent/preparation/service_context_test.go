@@ -232,6 +232,9 @@ func (worldAwareContextManager) ShouldCompress(messages []ports.Message, limit i
 	return false
 }
 func (worldAwareContextManager) Preload(context.Context) error { return nil }
+func (worldAwareContextManager) BuildSummaryOnly(messages []ports.Message) (string, int) {
+	return "", len(messages)
+}
 func (worldAwareContextManager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	if session == nil {
 		return agent.ContextWindow{}, fmt.Errorf("session required")
@@ -269,6 +272,9 @@ func (fixedPromptContextManager) ShouldCompress(messages []ports.Message, limit 
 	return false
 }
 func (fixedPromptContextManager) Preload(context.Context) error { return nil }
+func (fixedPromptContextManager) BuildSummaryOnly(messages []ports.Message) (string, int) {
+	return "", len(messages)
+}
 func (m fixedPromptContextManager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	if session == nil {
 		return agent.ContextWindow{}, fmt.Errorf("session required")
@@ -279,13 +285,17 @@ func (m fixedPromptContextManager) BuildWindow(ctx context.Context, session *sto
 		SystemPrompt: m.prompt,
 	}, nil
 }
-func (fixedPromptContextManager) RecordTurn(context.Context, agent.ContextTurnRecord) error { return nil }
+func (fixedPromptContextManager) RecordTurn(context.Context, agent.ContextTurnRecord) error {
+	return nil
+}
 
 type kernelAlignmentCaptureContextManager struct {
 	lastCfg agent.ContextWindowConfig
 }
 
-func (m *kernelAlignmentCaptureContextManager) EstimateTokens(messages []ports.Message) int { return len(messages) }
+func (m *kernelAlignmentCaptureContextManager) EstimateTokens(messages []ports.Message) int {
+	return len(messages)
+}
 func (m *kernelAlignmentCaptureContextManager) Compress(messages []ports.Message, targetTokens int) ([]ports.Message, error) {
 	return messages, nil
 }
@@ -296,6 +306,9 @@ func (m *kernelAlignmentCaptureContextManager) ShouldCompress(messages []ports.M
 	return false
 }
 func (m *kernelAlignmentCaptureContextManager) Preload(context.Context) error { return nil }
+func (m *kernelAlignmentCaptureContextManager) BuildSummaryOnly(messages []ports.Message) (string, int) {
+	return "", len(messages)
+}
 func (m *kernelAlignmentCaptureContextManager) BuildWindow(_ context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	if session == nil {
 		return agent.ContextWindow{}, fmt.Errorf("session required")
