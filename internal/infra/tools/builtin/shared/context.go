@@ -210,18 +210,6 @@ func SchedulerFromContext(ctx context.Context) interface{} {
 	return contextRawValue(ctx, schedulerKey)
 }
 
-// WithConfigOverrideStore stores the config override store in context.
-// Delegates to the domain-level context helper.
-func WithConfigOverrideStore(ctx context.Context, store agent.ConfigOverrideStore) context.Context {
-	return agent.WithConfigOverrideStore(ctx, store)
-}
-
-// ConfigOverrideStoreFromContext retrieves the config override store from context.
-// Delegates to the domain-level context helper.
-func ConfigOverrideStoreFromContext(ctx context.Context) agent.ConfigOverrideStore {
-	return agent.ConfigOverrideStoreFromContext(ctx)
-}
-
 // AutoUploadConfig controls automatic attachment uploads for local tools.
 type AutoUploadConfig struct {
 	Enabled   bool

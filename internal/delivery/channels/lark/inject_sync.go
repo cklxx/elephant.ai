@@ -170,7 +170,6 @@ func buildInjectToolMessageTask(task string, rounds int) string {
 	builder.WriteString("Preferred tool call: channel with action=\"send_message\" and a short message.\n")
 	builder.WriteString("Fallback tool call: lark_send_message with short text.\n")
 	builder.WriteString("Only use these messaging tools for progress updates.\n")
-	builder.WriteString("Do not call update_config.\n")
 	builder.WriteString("Avoid request_user, plan, clarify, run_tasks, or any unrelated tools.\n")
 	builder.WriteString("If a send tool call fails, continue to the next i without retry loops.\n")
 	builder.WriteString("Do not ask for confirmation during these progress updates.\n\n")

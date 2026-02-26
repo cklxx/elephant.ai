@@ -59,9 +59,6 @@ type reactRuntime struct {
 
 	// User input channel for live message injection from chat gateways.
 	userInputCh <-chan agent.UserInput
-
-	// Config override store for mid-execution config changes via update_config tool.
-	configOverrides *configOverrideStore
 	// Consecutive non-recoverable tool failures used to prevent retry loops.
 	lastNonRetryableToolFailure  string
 	consecutiveNonRetryableFails int
@@ -121,7 +118,6 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 	runtime.clarifyEmitted = make(map[string]bool)
 	runtime.nextTaskSeq = 1
 	runtime.userInputCh = agent.UserInputChFromContext(ctx)
-	runtime.configOverrides = newConfigOverrideStore()
 
 	// Initialize background task manager when executor is available.
 	if engine.backgroundExecutor != nil || engine.backgroundManager != nil {
@@ -200,15 +196,7 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 		r.ctx = agent.WithTeamRunRecorder(r.ctx, r.engine.teamRunRecorder)
 	}
 
-	// Inject config override store so the update_config tool can stage changes.
-	if r.configOverrides != nil {
-		r.ctx = agent.WithConfigOverrideStore(r.ctx, r.configOverrides)
-	}
-
 	for r.state.Iterations < r.engine.maxIterations {
-		// Apply any config overrides staged by the previous iteration's tool calls.
-		r.applyPendingConfigOverrides()
-
 		// Inject background completion notifications before each iteration.
 		r.injectBackgroundNotifications()
 		r.injectExternalInputRequests()

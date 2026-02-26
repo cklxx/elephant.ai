@@ -160,9 +160,6 @@ func TestInjectMessageSyncAppliesToolMessageHeuristic(t *testing.T) {
 	if !strings.Contains(executor.capturedTask, "exactly 5 progress updates") {
 		t.Fatalf("expected rounds constraint in task, got %q", executor.capturedTask)
 	}
-	if !strings.Contains(executor.capturedTask, "Do not call update_config.") {
-		t.Fatalf("expected update_config guard in task, got %q", executor.capturedTask)
-	}
 	if !strings.Contains(executor.capturedTask, "User task:\n原始任务内容") {
 		t.Fatalf("expected original task to be preserved, got %q", executor.capturedTask)
 	}
@@ -728,9 +725,6 @@ func TestBuildInjectToolMessageTask(t *testing.T) {
 		}
 		if !strings.Contains(got, "exactly 5 progress updates") {
 			t.Fatalf("expected rounds marker, got %q", got)
-		}
-		if !strings.Contains(got, "Do not call update_config.") {
-			t.Fatalf("expected update_config guard, got %q", got)
 		}
 		if !strings.Contains(got, "User task:\nhello") {
 			t.Fatalf("expected original task block, got %q", got)

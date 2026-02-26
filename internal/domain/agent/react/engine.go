@@ -7,7 +7,6 @@ import (
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
-	llm "alex/internal/domain/agent/ports/llm"
 	tools "alex/internal/domain/agent/ports/tools"
 	materialports "alex/internal/domain/materials/ports"
 )
@@ -47,11 +46,6 @@ type ReactEngine struct {
 	teamDefinitions []agent.TeamDefinition
 	// Optional file-backed recorder for team dispatch run audit.
 	teamRunRecorder agent.TeamRunRecorder
-
-	// llmRebuilder creates a new streaming LLM client when the agent switches
-	// provider/model at runtime via the update_config tool. Nil when dynamic
-	// model switching is not supported.
-	llmRebuilder func(provider, model string) (llm.StreamingLLMClient, error)
 }
 
 type workflowRecorder struct {
@@ -143,10 +137,6 @@ type ReactEngineConfig struct {
 	TeamDefinitions []agent.TeamDefinition
 	// TeamRunRecorder persists run_tasks team run records (typically file-based).
 	TeamRunRecorder agent.TeamRunRecorder
-	// LLMClientRebuilder creates a new streaming LLM client for a given
-	// provider/model pair. Used by the update_config tool to switch models
-	// at runtime. Optional; when nil, model switching is not supported.
-	LLMClientRebuilder func(provider, model string) (llm.StreamingLLMClient, error)
 }
 
 type FinalAnswerReviewConfig struct {

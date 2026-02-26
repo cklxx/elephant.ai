@@ -92,7 +92,6 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		externalExecutor:    cfg.ExternalExecutor,
 		teamDefinitions:     cfg.TeamDefinitions,
 		teamRunRecorder:     cfg.TeamRunRecorder,
-		llmRebuilder:        cfg.LLMClientRebuilder,
 	}
 }
 

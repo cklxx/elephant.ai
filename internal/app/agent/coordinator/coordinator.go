@@ -12,9 +12,7 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/cost"
 	"alex/internal/app/agent/hooks"
-	"alex/internal/app/agent/llmclient"
 	"alex/internal/app/agent/preparation"
-	utils "alex/internal/shared/utils"
 	domain "alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
@@ -30,6 +28,7 @@ import (
 	"alex/internal/infra/tools/builtin/shared"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
+	utils "alex/internal/shared/utils"
 	"alex/internal/shared/utils/clilatency"
 	id "alex/internal/shared/utils/id"
 )
@@ -436,7 +435,6 @@ func (c *AgentCoordinator) ExecuteTask(
 		ExternalExecutor:   c.externalExecutor,
 		TeamDefinitions:    c.teamDefinitions,
 		TeamRunRecorder:    c.teamRunRecorder,
-		LLMClientRebuilder: c.buildLLMClientRebuilder(ctx, env.Session.ID),
 	})
 
 	if eventListener != nil {
@@ -567,34 +565,6 @@ func buildCompletionDefaultsFromConfig(cfg appconfig.Config) react.CompletionDef
 	}
 
 	return defaults
-}
-
-// buildLLMClientRebuilder returns a closure that creates a new streaming LLM
-// client for the given provider/model. This powers the update_config tool's
-// ability to switch models at runtime.
-func (c *AgentCoordinator) buildLLMClientRebuilder(ctx context.Context, sessionID string) func(provider, model string) (llm.StreamingLLMClient, error) {
-	return func(provider, model string) (llm.StreamingLLMClient, error) {
-		profile := runtimeconfig.LLMProfile{
-			Provider: provider,
-			Model:    model,
-		}
-		var refresher llmclient.CredentialRefresher
-		if c.credentialRefresher != nil {
-			refresher = llmclient.CredentialRefresher(c.credentialRefresher)
-		}
-		rawClient, _, err := llmclient.GetIsolatedClientFromProfile(c.llmFactory, profile, refresher, true)
-		if err != nil {
-			return nil, fmt.Errorf("rebuild LLM client for %s/%s: %w", provider, model, err)
-		}
-		if c.costDecorator != nil {
-			rawClient = c.costDecorator.Wrap(ctx, sessionID, rawClient)
-		}
-		streamingClient, ok := llm.EnsureStreamingClient(rawClient).(llm.StreamingLLMClient)
-		if !ok {
-			return nil, fmt.Errorf("failed to ensure streaming support for %s/%s", provider, model)
-		}
-		return streamingClient, nil
-	}
 }
 
 func attachWorkflowSnapshot(result *agent.TaskResult, wf *agentWorkflow, sessionID, runID, parentRunID string) *agent.TaskResult {
