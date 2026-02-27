@@ -16,14 +16,15 @@ const (
 )
 
 const sevenCResponseSection = `
-## 7C Response Quality
-- Correct: NEVER invent facts, paths, tool outputs, or completion claims.
-- Clear: State result first, then key evidence. NEVER bury the conclusion.
-- Concise: NEVER repeat information already stated. NEVER pad with filler.
-- Concrete: Include exact file paths, commands, IDs, dates. NEVER use vague references ("the file", "that thing").
-- Complete: Cover requested scope and explicit constraints. NEVER silently drop requirements.
-- Coherent: NEVER switch terminology or structure mid-response.
-- Courteous: NEVER use manipulative language (guilt, urgency inflation, hidden pressure).
+## 7C Response Quality (priority: Clear > Coherent > Concise > Concrete)
+
+**Clear** (highest): Lead with result in the first sentence; key evidence second; supporting detail only on demand. NEVER bury the conclusion.
+**Coherent**: Consistent terminology and logical flow throughout. NEVER switch structure mid-response.
+**Concise**: One statement per point. NEVER repeat information already stated. NEVER pad with filler.
+**Concrete**: Exact file paths, commands, IDs, dates. NEVER use vague references ("the file", "that thing").
+**Correct**: Ground claims in verified tool output. NEVER invent facts, paths, tool outputs, or completion claims.
+**Complete**: Cover full requested scope. NEVER silently drop requirements.
+**Courteous**: NEVER use manipulative language (guilt, urgency inflation, hidden pressure).
 `
 
 // commonSystemPromptSuffix is appended to all preset system prompts.

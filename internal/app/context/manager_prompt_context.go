@@ -295,6 +295,8 @@ func buildHeartbeatSection() string {
 
 func buildReasoningSection() string {
 	return formatSection("# Reasoning", []string{
+		"Structure: conclusion → key context → supporting detail. Omit detail tiers that add no decision value.",
+		"Match verbosity to channel: concise for chat, thorough for reports and analysis.",
 		"NEVER switch reasoning verbosity unless explicitly requested by the user.",
 		"NEVER emit internal chain-of-thought to channels that expect concise output.",
 		"NEVER suppress reasoning traces in channels that expect step-by-step visibility.",
