@@ -7,19 +7,38 @@ import (
 	"sync"
 	"time"
 
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/app/agent/llmclient"
 	"alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
+	ports "alex/internal/domain/agent/ports"
 	"alex/internal/domain/agent/types"
+	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
 )
 
 const (
-	defaultBackgroundProgressInterval = 10 * time.Minute
-	defaultBackgroundProgressWindow   = 10 * time.Minute
-	codeBackgroundProgressInterval    = 3 * time.Minute
-	maxBackgroundListenerLifetime     = 4 * time.Hour
+	defaultBackgroundProgressInterval       = 10 * time.Minute
+	defaultBackgroundProgressWindow         = 10 * time.Minute
+	codeBackgroundProgressInterval          = 3 * time.Minute
+	maxBackgroundListenerLifetime           = 4 * time.Hour
+	defaultTeamCompletionSummaryLLMTimeout  = 10 * time.Second
+	teamCompletionSummaryMaxPromptChars     = 3000
+	teamCompletionSummaryMaxReplyChars      = 1200
+	teamCompletionSummaryMinTasks           = 2
 )
+
+// completedTaskRecord captures the final state of a completed background task
+// for team-level summary generation.
+type completedTaskRecord struct {
+	taskID      string
+	description string
+	status      string
+	answer      string
+	errText     string
+	duration    time.Duration
+}
 
 type progressRecord struct {
 	ts          time.Time
@@ -84,6 +103,7 @@ type backgroundProgressListener struct {
 
 	mu             sync.Mutex
 	tasks          map[string]*bgTaskTracker
+	completedTasks []completedTaskRecord
 	closed         bool
 	released       bool
 	pollerInterval time.Duration // configurable for testing; defaults to 30s
@@ -448,7 +468,20 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 	}
 	l.syncTaskStatus(taskID, finalStatus, updateOpts...)
 
+	elapsed := l.clock().Sub(t.startedAt)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+
 	l.mu.Lock()
+	l.completedTasks = append(l.completedTasks, completedTaskRecord{
+		taskID:      taskID,
+		description: t.description,
+		status:      normalizedStatus,
+		answer:      truncateForLark(answer, 500),
+		errText:     truncateForLark(errText, 500),
+		duration:    elapsed,
+	})
 	delete(l.tasks, taskID)
 	shouldClose := l.released && len(l.tasks) == 0
 	l.mu.Unlock()
@@ -456,6 +489,7 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 	t.stop()
 
 	if shouldClose {
+		l.sendTeamCompletionSummary()
 		l.Close()
 	}
 }
@@ -764,6 +798,228 @@ func (l *backgroundProgressListener) syncTaskStatus(taskID, status string, opts 
 	if err := l.g.taskStore.UpdateStatus(l.ctx, taskID, status, opts...); err != nil {
 		l.logger.Warn("Task store status update failed for %s: %v", taskID, err)
 	}
+}
+
+// sendTeamCompletionSummary fires a goroutine to generate and send a
+// team-level summary message when all tracked background tasks have finished.
+// Follows the slowProgressSummaryListener pattern: lightweight LLM call +
+// dispatchMessage, no session pollution.
+func (l *backgroundProgressListener) sendTeamCompletionSummary() {
+	if l.g == nil {
+		return
+	}
+	if !l.isTeamSummaryEnabled() {
+		return
+	}
+
+	l.mu.Lock()
+	tasks := make([]completedTaskRecord, len(l.completedTasks))
+	copy(tasks, l.completedTasks)
+	l.mu.Unlock()
+
+	if len(tasks) < teamCompletionSummaryMinTasks {
+		return
+	}
+
+	go l.doSendTeamCompletionSummary(tasks)
+}
+
+func (l *backgroundProgressListener) doSendTeamCompletionSummary(tasks []completedTaskRecord) {
+	summary := l.buildTeamSummary(tasks)
+	if summary == "" {
+		return
+	}
+	if _, err := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(summary)); err != nil {
+		l.logger.Warn("Team completion summary send failed: %v", err)
+	}
+}
+
+// buildTeamSummary tries LLM generation first, falls back to template.
+func (l *backgroundProgressListener) buildTeamSummary(tasks []completedTaskRecord) string {
+	if l.g.llmFactory != nil {
+		timeout := l.teamSummaryLLMTimeout()
+		ctx, cancel := context.WithTimeout(l.ctx, timeout)
+		defer cancel()
+
+		summary, err := l.generateTeamLLMSummary(ctx, tasks)
+		if err == nil && isValidTeamSummary(summary) {
+			return truncateForLark(summary, teamCompletionSummaryMaxReplyChars)
+		}
+		l.logger.Warn("Team completion LLM summary failed, using fallback: %v", err)
+	}
+	return l.buildTeamSummaryFallback(tasks)
+}
+
+func (l *backgroundProgressListener) generateTeamLLMSummary(ctx context.Context, tasks []completedTaskRecord) (string, error) {
+	client, _, err := llmclient.GetClientFromProfile(l.g.llmFactory, l.resolveTeamSummaryProfile(), nil, false)
+	if err != nil {
+		return "", err
+	}
+
+	systemPrompt := "你是后台任务汇总助手。把多个后台任务的完成结果整理成一段自然中文汇总，简洁友好。" +
+		"包含：总任务数、成功/失败数、总耗时、每个任务一句话结果。不使用 Markdown。"
+	userPrompt := l.buildTeamLLMPrompt(tasks)
+
+	resp, err := client.Complete(ctx, ports.CompletionRequest{
+		Messages: []ports.Message{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: userPrompt},
+		},
+		Temperature: 0.2,
+		MaxTokens:   300,
+	})
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(resp.Content), nil
+}
+
+func (l *backgroundProgressListener) buildTeamLLMPrompt(tasks []completedTaskRecord) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("共 %d 个后台任务已全部结束：\n", len(tasks)))
+
+	var totalDuration time.Duration
+	for i, t := range tasks {
+		totalDuration += t.duration
+		b.WriteString(fmt.Sprintf("%d. [%s] %s (耗时 %s)", i+1, t.status, t.description, formatElapsed(t.duration)))
+		if t.errText != "" {
+			b.WriteString(fmt.Sprintf("\n   错误：%s", truncateForLark(t.errText, 200)))
+		} else if t.answer != "" {
+			b.WriteString(fmt.Sprintf("\n   结果：%s", truncateForLark(t.answer, 200)))
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString(fmt.Sprintf("\n总耗时（并行）约 %s\n", formatElapsed(maxDuration(tasks))))
+	b.WriteString("请输出一段对用户的中文汇总，语气自然友好。")
+
+	prompt := b.String()
+	if len(prompt) > teamCompletionSummaryMaxPromptChars {
+		return prompt[:teamCompletionSummaryMaxPromptChars]
+	}
+	return prompt
+}
+
+func (l *backgroundProgressListener) buildTeamSummaryFallback(tasks []completedTaskRecord) string {
+	var succeeded, failed, cancelled int
+	for _, t := range tasks {
+		switch t.status {
+		case taskStatusCompleted:
+			succeeded++
+		case taskStatusFailed:
+			failed++
+		case taskStatusCancelled:
+			cancelled++
+		default:
+			succeeded++ // treat unknown terminal as success
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString("全部后台任务已完成\n\n")
+	b.WriteString(fmt.Sprintf("共 %d 个任务", len(tasks)))
+
+	parts := make([]string, 0, 3)
+	if succeeded > 0 {
+		parts = append(parts, fmt.Sprintf("成功 %d", succeeded))
+	}
+	if failed > 0 {
+		parts = append(parts, fmt.Sprintf("失败 %d", failed))
+	}
+	if cancelled > 0 {
+		parts = append(parts, fmt.Sprintf("取消 %d", cancelled))
+	}
+	if len(parts) > 0 {
+		b.WriteString("（")
+		b.WriteString(strings.Join(parts, "，"))
+		b.WriteString("）")
+	}
+	b.WriteString("\n")
+	b.WriteString(fmt.Sprintf("⏱ 总耗时 %s\n", formatElapsed(maxDuration(tasks))))
+
+	for _, t := range tasks {
+		b.WriteString("\n")
+		switch t.status {
+		case taskStatusCompleted:
+			b.WriteString("✅ ")
+		case taskStatusFailed:
+			b.WriteString("❌ ")
+		case taskStatusCancelled:
+			b.WriteString("⏹ ")
+		default:
+			b.WriteString("✅ ")
+		}
+		desc := strings.TrimSpace(t.description)
+		if desc == "" {
+			desc = t.taskID
+		}
+		b.WriteString(truncateForLark(desc, 80))
+		if t.errText != "" {
+			b.WriteString(fmt.Sprintf("\n   错误：%s", truncateForLark(t.errText, 200)))
+		} else if t.answer != "" {
+			b.WriteString(fmt.Sprintf("\n   结果：%s", truncateForLark(t.answer, 200)))
+		}
+	}
+
+	return truncateForLark(strings.TrimRight(b.String(), "\n"), teamCompletionSummaryMaxReplyChars)
+}
+
+func (l *backgroundProgressListener) isTeamSummaryEnabled() bool {
+	if l.g == nil {
+		return false
+	}
+	if l.g.cfg.TeamCompletionSummaryEnabled != nil {
+		return *l.g.cfg.TeamCompletionSummaryEnabled
+	}
+	return true // default enabled
+}
+
+func (l *backgroundProgressListener) teamSummaryLLMTimeout() time.Duration {
+	if l.g != nil && l.g.cfg.TeamCompletionSummaryLLMTimeout > 0 {
+		return l.g.cfg.TeamCompletionSummaryLLMTimeout
+	}
+	return defaultTeamCompletionSummaryLLMTimeout
+}
+
+func (l *backgroundProgressListener) resolveTeamSummaryProfile() runtimeconfig.LLMProfile {
+	if l.ctx != nil {
+		if selection, ok := appcontext.GetLLMSelection(l.ctx); ok {
+			if utils.HasContent(selection.Provider) && utils.HasContent(selection.Model) {
+				return runtimeconfig.LLMProfile{
+					Provider: selection.Provider,
+					Model:    selection.Model,
+					APIKey:   selection.APIKey,
+					BaseURL:  selection.BaseURL,
+					Headers:  selection.Headers,
+				}
+			}
+		}
+	}
+	return l.g.llmProfile
+}
+
+// isValidTeamSummary checks that an LLM-generated summary is usable.
+func isValidTeamSummary(summary string) bool {
+	trimmed := strings.TrimSpace(summary)
+	if trimmed == "" {
+		return false
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "empty response:") || strings.HasPrefix(lower, "empty completion:") {
+		return false
+	}
+	return true
+}
+
+// maxDuration returns the maximum duration across all completed tasks
+// (approximation of wall-clock time since tasks run in parallel).
+func maxDuration(tasks []completedTaskRecord) time.Duration {
+	var max time.Duration
+	for _, t := range tasks {
+		if t.duration > max {
+			max = t.duration
+		}
+	}
+	return max
 }
 
 // pollForCompletions periodically checks TaskStore for tasks that completed

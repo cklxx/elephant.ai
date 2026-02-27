@@ -965,3 +965,293 @@ func (s *inMemoryTaskStore) ListByChat(_ context.Context, _ string, _ bool, _ in
 func (s *inMemoryTaskStore) DeleteExpired(_ context.Context, _ time.Time) error { return nil }
 
 func (s *inMemoryTaskStore) MarkStaleRunning(_ context.Context, _ string) error { return nil }
+
+// --- Team Completion Summary Tests ---
+
+func TestTeamCompletionSummary_SentWhenMultipleTasksComplete(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	g := &Gateway{messenger: recorder}
+
+	ln := newBackgroundProgressListener(
+		context.Background(),
+		agent.NoopEventListener{},
+		g,
+		"chat-1",
+		"om_parent",
+		logging.NewComponentLogger("test"),
+		1*time.Hour,
+		10*time.Minute,
+	)
+
+	// Dispatch two tasks.
+	for _, id := range []string{"bg-t1", "bg-t2"} {
+		ln.OnEvent(&domain.WorkflowEventEnvelope{
+			BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+			Version:   1,
+			Event:     types.EventBackgroundTaskDispatched,
+			NodeKind:  "background",
+			NodeID:    id,
+			Payload: map[string]any{
+				"task_id":     id,
+				"description": "task " + id,
+				"agent_type":  "codex",
+			},
+		})
+	}
+
+	// Release foreground.
+	ln.Release()
+
+	// Complete both tasks.
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskCompleted,
+		NodeKind:  "background",
+		NodeID:    "bg-t1",
+		Payload: map[string]any{
+			"task_id": "bg-t1",
+			"status":  "completed",
+			"answer":  "result one",
+		},
+	})
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskCompleted,
+		NodeKind:  "background",
+		NodeID:    "bg-t2",
+		Payload: map[string]any{
+			"task_id": "bg-t2",
+			"status":  "failed",
+			"error":   "build failed",
+		},
+	})
+
+	// Wait for the async team summary goroutine.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		replies := recorder.CallsByMethod("ReplyMessage")
+		found := false
+		for _, r := range replies {
+			if strings.Contains(r.Content, "全部后台任务已完成") {
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for team completion summary message")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// Verify summary content.
+	replies := recorder.CallsByMethod("ReplyMessage")
+	var summaryContent string
+	for _, r := range replies {
+		if strings.Contains(r.Content, "全部后台任务已完成") {
+			summaryContent = r.Content
+			break
+		}
+	}
+	if summaryContent == "" {
+		t.Fatal("team summary message not found")
+	}
+	if !strings.Contains(summaryContent, "成功 1") {
+		t.Fatalf("expected '成功 1' in summary, got %q", summaryContent)
+	}
+	if !strings.Contains(summaryContent, "失败 1") {
+		t.Fatalf("expected '失败 1' in summary, got %q", summaryContent)
+	}
+	if !strings.Contains(summaryContent, "共 2 个任务") {
+		t.Fatalf("expected '共 2 个任务' in summary, got %q", summaryContent)
+	}
+}
+
+func TestTeamCompletionSummary_SkippedForSingleTask(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	g := &Gateway{messenger: recorder}
+
+	ln := newBackgroundProgressListener(
+		context.Background(),
+		agent.NoopEventListener{},
+		g,
+		"chat-1",
+		"om_parent",
+		logging.NewComponentLogger("test"),
+		1*time.Hour,
+		10*time.Minute,
+	)
+
+	// Dispatch only one task.
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskDispatched,
+		NodeKind:  "background",
+		NodeID:    "bg-solo",
+		Payload: map[string]any{
+			"task_id":     "bg-solo",
+			"description": "solo task",
+			"agent_type":  "codex",
+		},
+	})
+
+	ln.Release()
+
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskCompleted,
+		NodeKind:  "background",
+		NodeID:    "bg-solo",
+		Payload: map[string]any{
+			"task_id": "bg-solo",
+			"status":  "completed",
+			"answer":  "done",
+		},
+	})
+
+	// Wait briefly and verify no team summary was sent.
+	time.Sleep(100 * time.Millisecond)
+
+	replies := recorder.CallsByMethod("ReplyMessage")
+	for _, r := range replies {
+		if strings.Contains(r.Content, "全部后台任务已完成") {
+			t.Fatalf("team summary should not be sent for single task, got %q", r.Content)
+		}
+	}
+}
+
+func TestTeamCompletionSummary_SkippedWhenDisabled(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	disabled := false
+	g := &Gateway{
+		messenger: recorder,
+		cfg:       Config{TeamCompletionSummaryEnabled: &disabled},
+	}
+
+	ln := newBackgroundProgressListener(
+		context.Background(),
+		agent.NoopEventListener{},
+		g,
+		"chat-1",
+		"om_parent",
+		logging.NewComponentLogger("test"),
+		1*time.Hour,
+		10*time.Minute,
+	)
+
+	// Dispatch two tasks.
+	for _, id := range []string{"bg-d1", "bg-d2"} {
+		ln.OnEvent(&domain.WorkflowEventEnvelope{
+			BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+			Version:   1,
+			Event:     types.EventBackgroundTaskDispatched,
+			NodeKind:  "background",
+			NodeID:    id,
+			Payload: map[string]any{
+				"task_id":     id,
+				"description": "task " + id,
+				"agent_type":  "codex",
+			},
+		})
+	}
+
+	ln.Release()
+
+	for _, id := range []string{"bg-d1", "bg-d2"} {
+		ln.OnEvent(&domain.WorkflowEventEnvelope{
+			BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+			Version:   1,
+			Event:     types.EventBackgroundTaskCompleted,
+			NodeKind:  "background",
+			NodeID:    id,
+			Payload: map[string]any{
+				"task_id": id,
+				"status":  "completed",
+				"answer":  "done",
+			},
+		})
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	replies := recorder.CallsByMethod("ReplyMessage")
+	for _, r := range replies {
+		if strings.Contains(r.Content, "全部后台任务已完成") {
+			t.Fatal("team summary should not be sent when disabled")
+		}
+	}
+}
+
+func TestTeamCompletionSummary_FallbackFormat(t *testing.T) {
+	ln := &backgroundProgressListener{
+		g:      &Gateway{},
+		logger: logging.NewComponentLogger("test"),
+		now:    time.Now,
+	}
+
+	tasks := []completedTaskRecord{
+		{taskID: "t1", description: "Research task A", status: taskStatusCompleted, answer: "Found 3 papers", duration: 2 * time.Minute},
+		{taskID: "t2", description: "Coding task B", status: taskStatusFailed, errText: "Build failed", duration: 5 * time.Minute},
+		{taskID: "t3", description: "Analysis task C", status: taskStatusCompleted, answer: "Analysis complete", duration: 3 * time.Minute},
+	}
+
+	summary := ln.buildTeamSummaryFallback(tasks)
+
+	if !strings.Contains(summary, "全部后台任务已完成") {
+		t.Fatalf("expected header in fallback, got %q", summary)
+	}
+	if !strings.Contains(summary, "共 3 个任务") {
+		t.Fatalf("expected task count, got %q", summary)
+	}
+	if !strings.Contains(summary, "成功 2") {
+		t.Fatalf("expected success count, got %q", summary)
+	}
+	if !strings.Contains(summary, "失败 1") {
+		t.Fatalf("expected failure count, got %q", summary)
+	}
+	if !strings.Contains(summary, "5 分钟") {
+		t.Fatalf("expected max duration (5 min), got %q", summary)
+	}
+	if !strings.Contains(summary, "✅ Research task A") {
+		t.Fatalf("expected completed task marker, got %q", summary)
+	}
+	if !strings.Contains(summary, "❌ Coding task B") {
+		t.Fatalf("expected failed task marker, got %q", summary)
+	}
+	if !strings.Contains(summary, "Build failed") {
+		t.Fatalf("expected error text, got %q", summary)
+	}
+}
+
+func TestTeamCompletionSummary_MaxDuration(t *testing.T) {
+	tasks := []completedTaskRecord{
+		{duration: 1 * time.Minute},
+		{duration: 7 * time.Minute},
+		{duration: 3 * time.Minute},
+	}
+	d := maxDuration(tasks)
+	if d != 7*time.Minute {
+		t.Fatalf("expected 7m, got %v", d)
+	}
+}
+
+func TestTeamCompletionSummary_IsValidTeamSummary(t *testing.T) {
+	if isValidTeamSummary("") {
+		t.Fatal("empty should be invalid")
+	}
+	if isValidTeamSummary("  ") {
+		t.Fatal("whitespace should be invalid")
+	}
+	if isValidTeamSummary("Empty response: nothing") {
+		t.Fatal("empty response prefix should be invalid")
+	}
+	if !isValidTeamSummary("所有任务已完成") {
+		t.Fatal("normal text should be valid")
+	}
+}
