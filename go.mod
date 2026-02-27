@@ -17,6 +17,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/minio/minio-go/v7 v7.0.73
 	github.com/muesli/termenv v0.16.0
+	github.com/mymmrac/telego v1.0.2
 	github.com/peterh/liner v1.2.2
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/posthog/posthog-go v1.6.12
@@ -67,7 +68,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/mymmrac/telego v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
