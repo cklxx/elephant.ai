@@ -352,6 +352,9 @@ func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentR
 
 // executeDetached runs the bridge in detached mode: output goes to a file,
 // subprocess becomes a session leader that survives parent death.
+//
+// Note: bridges require stdin for config delivery, which tmux cannot provide.
+// Detached bridges always use the exec backend (Setsid session leader).
 func (e *Executor) executeDetached(ctx context.Context, req agent.ExternalAgentRequest, bcfg bridgeConfig, pythonBin, bridgeScript string, env map[string]string) (*agent.ExternalAgentResult, error) {
 	workDir := req.WorkingDir
 	if workDir == "" {

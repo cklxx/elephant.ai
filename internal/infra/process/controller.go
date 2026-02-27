@@ -16,9 +16,10 @@ type ProcessInfo struct {
 
 // Controller is the central registry for all managed processes.
 type Controller struct {
-	exec      ExecBackend
-	handles   map[string]ProcessHandle
-	mu        sync.Mutex
+	exec    ExecBackend
+	tmux    TmuxBackend
+	handles map[string]ProcessHandle
+	mu      sync.Mutex
 }
 
 // NewController creates a new process controller.
@@ -26,6 +27,32 @@ func NewController() *Controller {
 	return &Controller{
 		handles: make(map[string]ProcessHandle),
 	}
+}
+
+// StartTmux spawns a process inside a tmux session for human observability.
+// If tmux is not available, it falls back to StartExec transparently.
+// Note: tmux-managed processes do not provide stdio pipes — only ProcessHandle.
+func (c *Controller) StartTmux(ctx context.Context, cfg ProcessConfig) (ProcessHandle, error) {
+	if !c.tmux.Available() {
+		// Fallback: run via exec (caller loses tmux observability but process still works).
+		h, err := c.exec.Start(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+		c.register(cfg.Name, h)
+		return h, nil
+	}
+	h, err := c.tmux.Start(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	c.register(cfg.Name, h)
+	return h, nil
+}
+
+// TmuxAvailable reports whether the tmux backend is usable.
+func (c *Controller) TmuxAvailable() bool {
+	return c.tmux.Available()
 }
 
 // StartExec spawns a process via os/exec and registers it.

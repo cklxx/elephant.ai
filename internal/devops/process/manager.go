@@ -37,12 +37,14 @@ type ManagedProcess struct {
 	StartedAt time.Time
 
 	logHandle *os.File
+	handle    proclive.ProcessHandle // non-nil when started via Controller
 }
 
 // Manager tracks running processes with PID files and process groups.
 type Manager struct {
 	pidDir    string
 	logDir    string
+	ctrl      *proclive.Controller // optional; enables tmux-backed process management
 	processes map[string]*ManagedProcess
 	mu        sync.Mutex
 }
@@ -56,9 +58,16 @@ func NewManager(pidDir, logDir string) *Manager {
 	}
 }
 
-// Start launches a command and tracks it.
+// WithController sets the unified process controller, enabling tmux-backed
+// process management for human observability (tmux -L elephant attach).
+func (m *Manager) WithController(ctrl *proclive.Controller) {
+	m.ctrl = ctrl
+}
+
+// Start launches a command and tracks it. When a Controller is configured
+// and tmux is available, the process runs inside a tmux session for human
+// observability (tmux -L elephant attach -t elephant-dev-<name>).
 func (m *Manager) Start(ctx context.Context, name string, cmd *exec.Cmd) (*ManagedProcess, error) {
-	_ = ctx
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -66,12 +75,85 @@ func (m *Manager) Start(ctx context.Context, name string, cmd *exec.Cmd) (*Manag
 		return nil, err
 	}
 
+	logFile := filepath.Join(m.logDir, name+".log")
+
+	// Try tmux-backed start via Controller when available.
+	if m.ctrl != nil && m.ctrl.TmuxAvailable() {
+		return m.startViaTmux(ctx, name, cmd, logFile)
+	}
+
+	return m.startDirect(ctx, name, cmd, logFile)
+}
+
+// startViaTmux launches the process inside a tmux session via Controller.
+func (m *Manager) startViaTmux(ctx context.Context, name string, cmd *exec.Cmd, logFile string) (*ManagedProcess, error) {
+	env := make(map[string]string)
+	for _, entry := range cmd.Env {
+		if idx := strings.IndexByte(entry, '='); idx >= 0 {
+			env[entry[:idx]] = entry[idx+1:]
+		}
+	}
+
+	cfg := proclive.ProcessConfig{
+		Name:       "dev-" + name,
+		Command:    cmd.Path,
+		Args:       cmd.Args[1:], // cmd.Args[0] is the command itself
+		Env:        env,
+		WorkingDir: cmd.Dir,
+	}
+
+	h, err := m.ctrl.StartTmux(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("start %s via tmux: %w", name, err)
+	}
+
+	pid := h.PID()
+	identity, idErr := processCommandLine(pid)
+	if idErr != nil || identity == "" {
+		identity = commandIdentityFromCmd(cmd)
+	}
+
+	mp := &ManagedProcess{
+		Name:      name,
+		PIDFile:   filepath.Join(m.pidDir, name+".pid"),
+		MetaFile:  pidMetaFile(filepath.Join(m.pidDir, name+".pid")),
+		LogFile:   logFile,
+		Cmd:       cmd,
+		PID:       pid,
+		StartedAt: time.Now(),
+		handle:    h,
+	}
+
+	if err := writePIDState(mp.PIDFile, mp.MetaFile, pid, identity); err != nil {
+		_ = h.Stop()
+		return nil, fmt.Errorf("write pid state for %s: %w", name, err)
+	}
+	m.processes[name] = mp
+
+	go func() {
+		<-h.Done()
+		removePIDFiles := false
+		m.mu.Lock()
+		if current := m.processes[name]; current == mp {
+			delete(m.processes, name)
+			removePIDFiles = true
+		}
+		m.mu.Unlock()
+		if removePIDFiles {
+			cleanupPIDState(mp.PIDFile, mp.MetaFile)
+		}
+	}()
+
+	return mp, nil
+}
+
+// startDirect launches the process via os/exec directly (legacy path).
+func (m *Manager) startDirect(_ context.Context, name string, cmd *exec.Cmd, logFile string) (*ManagedProcess, error) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
 	cmd.SysProcAttr.Setpgid = true
 
-	logFile := filepath.Join(m.logDir, name+".log")
 	var logHandle *os.File
 	if cmd.Stdout == nil {
 		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
@@ -145,6 +227,13 @@ func (m *Manager) Stop(_ context.Context, name string) error {
 	mp, tracked := m.processes[name]
 	m.mu.Unlock()
 
+	// Tmux-backed processes: delegate to handle.Stop().
+	if tracked && mp.handle != nil {
+		err := mp.handle.Stop()
+		cleanupPIDState(mp.PIDFile, mp.MetaFile)
+		return err
+	}
+
 	if tracked && mp.Cmd != nil && mp.Cmd.Process != nil {
 		return m.killProcess(mp.PGID, mp.PID, mp.PIDFile)
 	}
@@ -196,6 +285,14 @@ func (m *Manager) IsRunning(name string) (bool, int) {
 	m.mu.Lock()
 	mp, tracked := m.processes[name]
 	m.mu.Unlock()
+
+	// Tmux-backed processes.
+	if tracked && mp.handle != nil {
+		if mp.handle.Alive() {
+			return true, mp.PID
+		}
+		return false, 0
+	}
 
 	if tracked && mp.Cmd != nil && mp.Cmd.Process != nil {
 		if proclive.IsAlive(mp.PID) {

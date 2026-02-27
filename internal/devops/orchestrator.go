@@ -10,6 +10,7 @@ import (
 	devlog "alex/internal/devops/log"
 	"alex/internal/devops/port"
 	"alex/internal/devops/process"
+	proclive "alex/internal/infra/process"
 )
 
 // ServiceStatus holds the status of a single service.
@@ -28,6 +29,7 @@ type Orchestrator struct {
 	logMgr   *devlog.Manager
 	ports    *port.Allocator
 	procMgr  *process.Manager
+	ctrl     *proclive.Controller
 	config   *DevConfig
 	section  *devlog.SectionWriter
 }
@@ -40,11 +42,16 @@ func NewOrchestrator(cfg *DevConfig) *Orchestrator {
 	pm := process.NewManager(cfg.PIDDir, cfg.LogDir)
 	lm := devlog.NewManager(cfg.LogDir)
 
+	// Wire up the unified process controller for tmux-backed management.
+	ctrl := proclive.NewController()
+	pm.WithController(ctrl)
+
 	return &Orchestrator{
 		health:  hc,
 		logMgr:  lm,
 		ports:   pa,
 		procMgr: pm,
+		ctrl:    ctrl,
 		config:  cfg,
 		section: section,
 	}
@@ -58,6 +65,9 @@ func (o *Orchestrator) Ports() *port.Allocator { return o.ports }
 
 // ProcessManager returns the process manager.
 func (o *Orchestrator) ProcessManager() *process.Manager { return o.procMgr }
+
+// Controller returns the unified process controller (used by CLI commands like `alex ps`).
+func (o *Orchestrator) Controller() *proclive.Controller { return o.ctrl }
 
 // Section returns the section writer.
 func (o *Orchestrator) Section() *devlog.SectionWriter { return o.section }
