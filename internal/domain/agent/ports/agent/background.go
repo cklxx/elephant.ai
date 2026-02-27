@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+// ContextPropagatorFunc copies context values from a source context to a target context.
+// Used by BackgroundTaskManager to propagate app-layer values (e.g. LLM selection)
+// into detached background task contexts.
+type ContextPropagatorFunc func(from, to context.Context) context.Context
+
 // BackgroundTaskStatus represents the lifecycle state of a background task.
 type BackgroundTaskStatus string
 

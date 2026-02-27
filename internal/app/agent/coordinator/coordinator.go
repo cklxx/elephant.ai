@@ -400,6 +400,9 @@ func (c *AgentCoordinator) ExecuteTask(
 				ExternalExecutor:    c.externalExecutor,
 				SessionID:           env.Session.ID,
 				MaxConcurrentTasks:  effectiveCfg.MaxBackgroundTasks,
+				ContextPropagators: []agent.ContextPropagatorFunc{
+					appcontext.PropagateLLMSelection,
+				},
 			})
 		})
 	}

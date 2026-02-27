@@ -89,6 +89,9 @@ type BackgroundTaskManager struct {
 	parentListener     agent.EventListener
 	maxConcurrentTasks int
 	staleThreshold     time.Duration
+
+	// contextPropagators copy app-layer context values into detached background task contexts.
+	contextPropagators []agent.ContextPropagatorFunc
 }
 
 const defaultStaleThreshold = 15 * time.Minute
@@ -108,6 +111,10 @@ type BackgroundManagerConfig struct {
 	SessionID           string
 	MaxConcurrentTasks  int
 	StaleThreshold      time.Duration
+
+	// ContextPropagators are called during Dispatch to copy app-layer context values
+	// (e.g. LLM selection) from the dispatch context into the detached task context.
+	ContextPropagators []agent.ContextPropagatorFunc
 }
 
 // newBackgroundTaskManager creates a new manager bound to the current run context.
@@ -253,6 +260,7 @@ func NewBackgroundTaskManager(cfg BackgroundManagerConfig) *BackgroundTaskManage
 	if cfg.StaleThreshold > 0 {
 		mgr.staleThreshold = cfg.StaleThreshold
 	}
+	mgr.contextPropagators = cfg.ContextPropagators
 	return mgr
 }
 
@@ -383,6 +391,11 @@ func (m *BackgroundTaskManager) Dispatch(
 		taskCtx = agent.WithCompletionNotifier(taskCtx, notifier)
 	} else if notifier := agent.GetCompletionNotifier(m.runCtx); notifier != nil {
 		taskCtx = agent.WithCompletionNotifier(taskCtx, notifier)
+	}
+
+	// Propagate app-layer context values (e.g. LLM selection) via registered propagators.
+	for _, propagate := range m.contextPropagators {
+		taskCtx = propagate(ctx, taskCtx)
 	}
 
 	taskCtx, taskCancel := context.WithCancel(taskCtx)

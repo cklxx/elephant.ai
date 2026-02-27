@@ -1288,3 +1288,51 @@ func TestAwaitAllReturnsTimeout(t *testing.T) {
 	}
 }
 
+func TestDispatchContextPropagators(t *testing.T) {
+	type ctxKey struct{}
+	var captured string
+
+	executor := func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+		if v, ok := ctx.Value(ctxKey{}).(string); ok {
+			captured = v
+		}
+		return &agent.TaskResult{Answer: "done"}, nil
+	}
+
+	mgr := NewBackgroundTaskManager(BackgroundManagerConfig{
+		RunContext:  context.Background(),
+		Logger:      agent.NoopLogger{},
+		Clock:       testClock{},
+		ExecuteTask: executor,
+		SessionID:   "test-session",
+		ContextPropagators: []agent.ContextPropagatorFunc{
+			func(from, to context.Context) context.Context {
+				if v, ok := from.Value(ctxKey{}).(string); ok {
+					return context.WithValue(to, ctxKey{}, v)
+				}
+				return to
+			},
+		},
+	})
+	defer mgr.Shutdown()
+
+	dispatchCtx := context.WithValue(context.Background(), ctxKey{}, "propagated-value")
+	err := mgr.Dispatch(dispatchCtx, agent.BackgroundDispatchRequest{
+		TaskID:      "prop-task",
+		Description: "test propagation",
+		Prompt:      "do something",
+	})
+	if err != nil {
+		t.Fatalf("Dispatch failed: %v", err)
+	}
+
+	done := mgr.AwaitAll(5 * time.Second)
+	if !done {
+		t.Fatal("expected all tasks to complete")
+	}
+
+	if captured != "propagated-value" {
+		t.Fatalf("expected propagated context value, got %q", captured)
+	}
+}
+

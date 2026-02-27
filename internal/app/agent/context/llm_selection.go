@@ -21,3 +21,12 @@ func GetLLMSelection(ctx context.Context) (subscription.ResolvedSelection, bool)
 	selection, ok := ctx.Value(llmSelectionKey{}).(subscription.ResolvedSelection)
 	return selection, ok
 }
+
+// PropagateLLMSelection copies the LLM selection from source to target context.
+// Intended for use as an agent.ContextPropagatorFunc in background task dispatch.
+func PropagateLLMSelection(from, to context.Context) context.Context {
+	if selection, ok := GetLLMSelection(from); ok {
+		return WithLLMSelection(to, selection)
+	}
+	return to
+}
