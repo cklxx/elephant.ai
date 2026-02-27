@@ -76,6 +76,8 @@ func (s *FileStore) EnqueueDispatches(ctx context.Context, kernelID, cycleID str
 			AgentID:    spec.AgentID,
 			Prompt:     spec.Prompt,
 			Priority:   spec.Priority,
+			Kind:       spec.Kind,
+			Team:       cloneTeamSpec(spec.Team),
 			Status:     kernel.DispatchPending,
 			Metadata:   spec.Metadata,
 			CreatedAt:  now,
@@ -97,6 +99,21 @@ func (s *FileStore) EnqueueDispatches(ctx context.Context, kernelID, cycleID str
 		return nil, err
 	}
 	return created, nil
+}
+
+func cloneTeamSpec(spec *kernel.TeamDispatchSpec) *kernel.TeamDispatchSpec {
+	if spec == nil {
+		return nil
+	}
+	cloned := *spec
+	if spec.Prompts != nil {
+		clonedPrompts := make(map[string]string, len(spec.Prompts))
+		for role, prompt := range spec.Prompts {
+			clonedPrompts[role] = prompt
+		}
+		cloned.Prompts = clonedPrompts
+	}
+	return &cloned
 }
 
 // ClaimDispatches atomically claims up to limit pending dispatches for workerID.

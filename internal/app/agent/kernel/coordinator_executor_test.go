@@ -12,6 +12,7 @@ import (
 	"alex/internal/app/subscription"
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	kerneldomain "alex/internal/domain/kernel"
 	toolshared "alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
 )
@@ -95,6 +96,56 @@ func TestCoordinatorExecutor_DoesNotDuplicateSummaryInstruction(t *testing.T) {
 	}
 	if strings.Count(runner.lastPrompt, "## Execution Summary") != 1 {
 		t.Fatalf("expected one summary instruction block, got prompt: %q", runner.lastPrompt)
+	}
+}
+
+func TestCoordinatorExecutor_ExecuteTeam_BuildsStructuredRunTasksPrompt(t *testing.T) {
+	runner := &stubTaskRunner{
+		result: &agent.TaskResult{
+			Answer:   "## Execution Summary\n- team run completed",
+			Messages: []core.Message{assistantMessageWithToolCalls("run_tasks")},
+		},
+	}
+	exec := NewCoordinatorExecutor(runner, 0)
+
+	spec := kerneldomain.TeamDispatchSpec{
+		Template:       "kimi_research",
+		Goal:           "compare redis vs memcached",
+		TimeoutSeconds: 240,
+		Wait:           true,
+	}
+	res, err := exec.ExecuteTeam(context.Background(), spec, map[string]string{})
+	if err != nil {
+		t.Fatalf("ExecuteTeam returned error: %v", err)
+	}
+	if strings.TrimSpace(res.TaskID) == "" {
+		t.Fatal("expected non-empty task id")
+	}
+	if !strings.Contains(runner.lastPrompt, "\"template\":\"kimi_research\"") {
+		t.Fatalf("expected template in team prompt, got: %q", runner.lastPrompt)
+	}
+	if !strings.Contains(runner.lastPrompt, "\"goal\":\"compare redis vs memcached\"") {
+		t.Fatalf("expected goal in team prompt, got: %q", runner.lastPrompt)
+	}
+	if !strings.Contains(runner.lastPrompt, "\"timeout_seconds\":240") {
+		t.Fatalf("expected timeout in team prompt, got: %q", runner.lastPrompt)
+	}
+	if !strings.Contains(runner.lastPrompt, "\"wait\":true") {
+		t.Fatalf("expected wait=true in team prompt, got: %q", runner.lastPrompt)
+	}
+}
+
+func TestCoordinatorExecutor_ExecuteTeam_ValidatesRequiredFields(t *testing.T) {
+	exec := NewCoordinatorExecutor(&stubTaskRunner{}, 0)
+	if _, err := exec.ExecuteTeam(context.Background(), kerneldomain.TeamDispatchSpec{
+		Goal: "goal only",
+	}, map[string]string{}); err == nil {
+		t.Fatal("expected error when template is empty")
+	}
+	if _, err := exec.ExecuteTeam(context.Background(), kerneldomain.TeamDispatchSpec{
+		Template: "kimi_research",
+	}, map[string]string{}); err == nil {
+		t.Fatal("expected error when goal is empty")
 	}
 }
 

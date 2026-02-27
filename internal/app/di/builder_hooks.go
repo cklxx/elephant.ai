@@ -317,6 +317,15 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 		if maxDispatches <= 0 {
 			maxDispatches = 5
 		}
+		maxTeamsPerCycle := plannerSettings.MaxTeamsPerCycle
+		if maxTeamsPerCycle <= 0 {
+			maxTeamsPerCycle = kernelagent.DefaultKernelMaxTeamsPerCycle
+		}
+		teamTimeoutSeconds := plannerSettings.TeamTimeoutSeconds
+		if teamTimeoutSeconds <= 0 {
+			teamTimeoutSeconds = kernelagent.DefaultKernelTeamTimeoutSeconds
+		}
+		allowedTeamTemplates := collectTeamTemplateNames(b.config.ExternalAgents.Teams)
 		goalFilePath := plannerSettings.GoalFile
 		if goalFilePath == "" {
 			goalFilePath = filepath.Join(stateDir, "GOAL.md")
@@ -326,19 +335,23 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 			kernelID,
 			llmFactory,
 			kernelagent.LLMPlannerConfig{
-				Profile:       plannerProfile,
-				Refresher:     llmclient.CredentialRefresher(buildCredentialRefresher()),
-				MaxDispatches: maxDispatches,
-				GoalFilePath:  goalFilePath,
-				Timeout:       plannerTimeout,
+				Profile:              plannerProfile,
+				Refresher:            llmclient.CredentialRefresher(buildCredentialRefresher()),
+				MaxDispatches:        maxDispatches,
+				GoalFilePath:         goalFilePath,
+				Timeout:              plannerTimeout,
+				TeamDispatchEnabled:  plannerSettings.TeamDispatchEnabled,
+				MaxTeamsPerCycle:     maxTeamsPerCycle,
+				TeamTimeoutSeconds:   teamTimeoutSeconds,
+				AllowedTeamTemplates: allowedTeamTemplates,
 			},
 			agents,
 			logging.NewKernelLogger("LLMPlanner"),
 		)
 		planner = kernelagent.NewHybridPlanner(staticPlanner, llmPlanner, logging.NewKernelLogger("HybridPlanner"))
 		b.logger.Info("Kernel LLM planner enabled (provider=%s model=%s goal=%s)", plannerProfile.Provider, plannerProfile.Model, goalFilePath)
-		logging.NewKernelLogger("HybridPlanner").Info("HybridPlanner created (provider=%s model=%s baseURL=%s goal=%s maxDispatches=%d timeout=%s)",
-			plannerProfile.Provider, plannerProfile.Model, plannerProfile.BaseURL, goalFilePath, maxDispatches, plannerTimeout)
+		logging.NewKernelLogger("HybridPlanner").Info("HybridPlanner created (provider=%s model=%s baseURL=%s goal=%s maxDispatches=%d maxTeams=%d timeout=%s)",
+			plannerProfile.Provider, plannerProfile.Model, plannerProfile.BaseURL, goalFilePath, maxDispatches, maxTeamsPerCycle, plannerTimeout)
 	}
 
 	timeout := time.Duration(timeoutSeconds) * time.Second
@@ -362,6 +375,21 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 
 	b.logger.Info("Kernel engine built (kernel_id=%s, schedule=%s, agents=%d)", kernelID, schedule, len(agents))
 	return engine, nil
+}
+
+func collectTeamTemplateNames(teams []runtimeconfig.TeamConfig) []string {
+	if len(teams) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(teams))
+	for _, team := range teams {
+		name := strings.TrimSpace(team.Name)
+		if name == "" {
+			continue
+		}
+		out = append(out, name)
+	}
+	return out
 }
 
 func (b *containerBuilder) buildKernelSelectionResolver() kernelagent.SelectionResolver {

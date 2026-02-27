@@ -16,7 +16,9 @@ const (
 	DefaultKernelUserID          = "cklxx"
 
 	DefaultKernelPlannerMaxDispatches = 5
-	DefaultKernelPlannerTimeoutSec = 60
+	DefaultKernelPlannerTimeoutSec    = 60
+	DefaultKernelTeamTimeoutSeconds   = 900
+	DefaultKernelMaxTeamsPerCycle     = 1
 )
 
 const defaultKernelOperatorPrompt = `You are an execution agent for the elephant.ai kernel. Act immediately — never ask, never wait.
@@ -50,10 +52,13 @@ type RuntimeSettings struct {
 // LLM provider/model/credentials come from the shared runtime config;
 // this struct holds only planner-specific knobs.
 type PlannerSettings struct {
-	Enabled        bool
-	MaxDispatches  int
-	GoalFile       string
-	TimeoutSeconds int
+	Enabled             bool
+	MaxDispatches       int
+	GoalFile            string
+	TimeoutSeconds      int
+	TeamDispatchEnabled bool
+	MaxTeamsPerCycle    int
+	TeamTimeoutSeconds  int
 }
 
 // DefaultRuntimeSettings returns the kernel runtime defaults owned by code.
@@ -78,9 +83,12 @@ func DefaultRuntimeSettings() RuntimeSettings {
 		Channel:         DefaultKernelChannel,
 		UserID:          DefaultKernelUserID,
 		Planner: PlannerSettings{
-			Enabled:        true,
-			MaxDispatches:  DefaultKernelPlannerMaxDispatches,
-			TimeoutSeconds: DefaultKernelPlannerTimeoutSec,
+			Enabled:             true,
+			MaxDispatches:       DefaultKernelPlannerMaxDispatches,
+			TimeoutSeconds:      DefaultKernelPlannerTimeoutSec,
+			TeamDispatchEnabled: true,
+			MaxTeamsPerCycle:    DefaultKernelMaxTeamsPerCycle,
+			TeamTimeoutSeconds:  DefaultKernelTeamTimeoutSeconds,
 		},
 		Agents: CloneAgentConfigs(agents),
 	}

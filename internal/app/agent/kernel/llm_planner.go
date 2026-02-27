@@ -19,31 +19,41 @@ import (
 
 // LLMPlannerConfig controls the LLM-driven planner behavior.
 type LLMPlannerConfig struct {
-	Profile       runtimeconfig.LLMProfile
-	Refresher     llmclient.CredentialRefresher // optional; refreshes credentials for long-running processes
-	MaxDispatches int
-	GoalFilePath  string
-	Timeout       time.Duration
+	Profile              runtimeconfig.LLMProfile
+	Refresher            llmclient.CredentialRefresher // optional; refreshes credentials for long-running processes
+	MaxDispatches        int
+	GoalFilePath         string
+	Timeout              time.Duration
+	TeamDispatchEnabled  bool
+	MaxTeamsPerCycle     int
+	TeamTimeoutSeconds   int
+	AllowedTeamTemplates []string
 }
 
 // planningDecision is the unit of LLM planning output.
 type planningDecision struct {
-	AgentID  string `json:"agent_id"`
-	Dispatch bool   `json:"dispatch"`
-	Priority int    `json:"priority"`
-	Prompt   string `json:"prompt"`
-	Reason   string `json:"reason"`
+	AgentID        string            `json:"agent_id"`
+	Dispatch       bool              `json:"dispatch"`
+	Priority       int               `json:"priority"`
+	Prompt         string            `json:"prompt"`
+	Reason         string            `json:"reason"`
+	Kind           string            `json:"kind"`
+	TeamTemplate   string            `json:"team_template"`
+	TeamGoal       string            `json:"team_goal"`
+	TeamPrompts    map[string]string `json:"team_prompts"`
+	TimeoutSeconds int               `json:"timeout_seconds"`
 }
 
 // LLMPlanner uses a small LLM to dynamically decide what to dispatch.
 // It reads STATE.md, optionally GOAL.md, and recent dispatch history,
 // then calls an LLM to produce a structured dispatch plan.
 type LLMPlanner struct {
-	kernelID     string
-	factory      portsllm.LLMClientFactory
-	config       LLMPlannerConfig
-	staticAgents []AgentConfig
-	logger       logging.Logger
+	kernelID           string
+	factory            portsllm.LLMClientFactory
+	config             LLMPlannerConfig
+	staticAgents       []AgentConfig
+	allowedTemplateSet map[string]struct{}
+	logger             logging.Logger
 }
 
 // NewLLMPlanner creates a new LLM-driven planner.
@@ -60,12 +70,25 @@ func NewLLMPlanner(
 	if config.MaxDispatches <= 0 {
 		config.MaxDispatches = 5
 	}
+	if config.MaxTeamsPerCycle <= 0 {
+		config.MaxTeamsPerCycle = DefaultKernelMaxTeamsPerCycle
+	}
+	if config.TeamTimeoutSeconds <= 0 {
+		config.TeamTimeoutSeconds = DefaultKernelTeamTimeoutSeconds
+	}
+	templates := uniqueTrimmed(config.AllowedTeamTemplates)
+	config.AllowedTeamTemplates = templates
+	allowedTemplateSet := make(map[string]struct{}, len(templates))
+	for _, template := range templates {
+		allowedTemplateSet[strings.ToLower(template)] = struct{}{}
+	}
 	return &LLMPlanner{
-		kernelID:     kernelID,
-		factory:      factory,
-		config:       config,
-		staticAgents: staticAgents,
-		logger:       logging.OrNop(logger),
+		kernelID:           kernelID,
+		factory:            factory,
+		config:             config,
+		staticAgents:       staticAgents,
+		allowedTemplateSet: allowedTemplateSet,
+		logger:             logging.OrNop(logger),
 	}
 }
 
@@ -202,6 +225,22 @@ func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent string, recen
 		b.WriteString("\n")
 	}
 
+	if p.config.TeamDispatchEnabled {
+		b.WriteString("## Team Dispatch Constraints\n")
+		b.WriteString(fmt.Sprintf("- Max team dispatches this cycle: %d\n", p.config.MaxTeamsPerCycle))
+		b.WriteString(fmt.Sprintf("- Team timeout seconds: %d\n", p.config.TeamTimeoutSeconds))
+		if len(p.config.AllowedTeamTemplates) == 0 {
+			b.WriteString("- Allowed team templates: (none)\n")
+			b.WriteString("- Do NOT emit kind=team decisions when no templates are available.\n\n")
+		} else {
+			b.WriteString("- Allowed team templates:\n")
+			for _, template := range p.config.AllowedTeamTemplates {
+				b.WriteString(fmt.Sprintf("  - %s\n", template))
+			}
+			b.WriteString("- Team decisions MUST use one of the allowed templates exactly.\n\n")
+		}
+	}
+
 	b.WriteString(fmt.Sprintf("## Max dispatches this cycle: %d agents\n", p.config.MaxDispatches))
 
 	return b.String()
@@ -209,12 +248,68 @@ func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent string, recen
 
 func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent string, recentByAgent map[string]kerneldomain.Dispatch) []kerneldomain.DispatchSpec {
 	var specs []kerneldomain.DispatchSpec
+	teamDispatches := 0
 	for _, d := range decisions {
 		if !d.Dispatch {
 			continue
 		}
 		if len(specs) >= p.config.MaxDispatches {
 			break
+		}
+		kind := normalizePlanningDecisionKind(d)
+		if kind == kerneldomain.DispatchKindTeam {
+			if !p.config.TeamDispatchEnabled {
+				continue
+			}
+			if teamDispatches >= p.config.MaxTeamsPerCycle {
+				continue
+			}
+			template := strings.TrimSpace(d.TeamTemplate)
+			if !p.isAllowedTeamTemplate(template) {
+				continue
+			}
+			teamGoal := strings.TrimSpace(d.TeamGoal)
+			if teamGoal == "" {
+				teamGoal = strings.TrimSpace(d.Reason)
+			}
+			if teamGoal == "" {
+				continue
+			}
+			agentID := "team:" + template
+			if recent, ok := recentByAgent[agentID]; ok && recent.Status == kerneldomain.DispatchRunning {
+				p.logger.Debug("LLMPlanner: skipping %s (still running)", agentID)
+				continue
+			}
+			priority := d.Priority
+			if priority <= 0 {
+				priority = 8
+			}
+			timeoutSeconds := d.TimeoutSeconds
+			if timeoutSeconds <= 0 {
+				timeoutSeconds = p.config.TeamTimeoutSeconds
+			}
+			teamSpec := kerneldomain.TeamDispatchSpec{
+				Template:       template,
+				Goal:           teamGoal,
+				Prompts:        copyStringMap(d.TeamPrompts),
+				TimeoutSeconds: timeoutSeconds,
+				Wait:           true,
+			}
+			specs = append(specs, kerneldomain.DispatchSpec{
+				AgentID:  agentID,
+				Prompt:   buildKernelTeamDispatchPrompt(teamSpec),
+				Priority: priority,
+				Kind:     kerneldomain.DispatchKindTeam,
+				Team:     &teamSpec,
+				Metadata: map[string]string{
+					"planner":       "llm",
+					"dispatch_kind": string(kerneldomain.DispatchKindTeam),
+					"team_template": template,
+					"reason":        compactSummary(d.Reason, 100),
+				},
+			})
+			teamDispatches++
+			continue
 		}
 		agentID := strings.TrimSpace(d.AgentID)
 		if agentID == "" {
@@ -249,13 +344,74 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 			AgentID:  agentID,
 			Prompt:   prompt,
 			Priority: priority,
+			Kind:     kerneldomain.DispatchKindAgent,
 			Metadata: map[string]string{
-				"planner": "llm",
-				"reason":  compactSummary(d.Reason, 100),
+				"planner":       "llm",
+				"dispatch_kind": string(kerneldomain.DispatchKindAgent),
+				"reason":        compactSummary(d.Reason, 100),
 			},
 		})
 	}
 	return specs
+}
+
+func (p *LLMPlanner) isAllowedTeamTemplate(template string) bool {
+	trimmed := strings.TrimSpace(template)
+	if trimmed == "" {
+		return false
+	}
+	if len(p.allowedTemplateSet) == 0 {
+		return false
+	}
+	_, ok := p.allowedTemplateSet[strings.ToLower(trimmed)]
+	return ok
+}
+
+func normalizePlanningDecisionKind(d planningDecision) kerneldomain.DispatchKind {
+	kind := strings.ToLower(strings.TrimSpace(d.Kind))
+	switch kind {
+	case string(kerneldomain.DispatchKindTeam):
+		return kerneldomain.DispatchKindTeam
+	case "", string(kerneldomain.DispatchKindAgent):
+		if strings.TrimSpace(d.TeamTemplate) != "" {
+			return kerneldomain.DispatchKindTeam
+		}
+		return kerneldomain.DispatchKindAgent
+	default:
+		return kerneldomain.DispatchKindAgent
+	}
+}
+
+func uniqueTrimmed(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, raw := range values {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
+}
+
+func copyStringMap(source map[string]string) map[string]string {
+	if len(source) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(source))
+	for key, value := range source {
+		out[key] = value
+	}
+	return out
 }
 
 // parsePlanningDecisions extracts a JSON array of planningDecision from raw LLM output.
@@ -355,14 +511,24 @@ const llmPlannerSystemPrompt = `You are the task scheduler for the elephant.ai k
 ` + "```json" + `
 [
   {
+    "kind": "agent or team",
     "agent_id": "string — agent identifier",
     "dispatch": true,
     "priority": 8,
     "prompt": "detailed task instructions...",
+    "team_template": "required when kind=team",
+    "team_goal": "required when kind=team",
+    "team_prompts": {"role_name": "prompt override"},
+    "timeout_seconds": 900,
     "reason": "one-sentence explanation of why this task is dispatched"
   }
 ]
 ` + "```" + `
+
+Rules:
+- Use ` + "`kind=team`" + ` only when a valid team template is available in the planning prompt.
+- For ` + "`kind=team`" + `, fill ` + "`team_template`" + ` and ` + "`team_goal`" + ` and keep ` + "`agent_id`" + ` as ` + "`team:<template>`" + `.
+- For ` + "`kind=agent`" + `, fill ` + "`agent_id`" + ` + ` + "`prompt`" + ` normally.
 
 ## Prompt Writing Guidelines
 Each agent's prompt must include:

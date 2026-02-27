@@ -22,6 +22,9 @@ func TestStaticPlanner_PlaceholderReplacement(t *testing.T) {
 	if !strings.Contains(specs[0].Prompt, "STATE=# my state") {
 		t.Errorf("placeholder not replaced: %q", specs[0].Prompt)
 	}
+	if specs[0].Kind != kerneldomain.DispatchKindAgent {
+		t.Errorf("expected kind=agent, got %q", specs[0].Kind)
+	}
 }
 
 func TestStaticPlanner_DisabledAgentSkipped(t *testing.T) {

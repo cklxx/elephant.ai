@@ -238,6 +238,91 @@ func TestLLMPlanner_ToDispatchSpecs_MetadataSet(t *testing.T) {
 	}
 }
 
+func TestLLMPlanner_ToDispatchSpecs_TeamDispatchAllowed(t *testing.T) {
+	p := testLLMPlanner(LLMPlannerConfig{
+		MaxDispatches:        5,
+		TeamDispatchEnabled:  true,
+		MaxTeamsPerCycle:     1,
+		TeamTimeoutSeconds:   180,
+		AllowedTeamTemplates: []string{"kimi_research"},
+	}, nil)
+	decisions := []planningDecision{
+		{
+			Kind:         "team",
+			AgentID:      "team:kimi_research",
+			Dispatch:     true,
+			Priority:     9,
+			Reason:       "need multi-role synthesis",
+			TeamTemplate: "kimi_research",
+			TeamGoal:     "analyze distributed lock options",
+		},
+	}
+
+	specs := p.toDispatchSpecs(decisions, "state", map[string]kerneldomain.Dispatch{})
+	if len(specs) != 1 {
+		t.Fatalf("expected 1 team spec, got %d", len(specs))
+	}
+	if specs[0].Kind != kerneldomain.DispatchKindTeam {
+		t.Fatalf("expected team kind, got %q", specs[0].Kind)
+	}
+	if specs[0].Team == nil {
+		t.Fatal("expected team payload")
+	}
+	if specs[0].Team.Template != "kimi_research" {
+		t.Fatalf("unexpected template: %q", specs[0].Team.Template)
+	}
+	if specs[0].Team.TimeoutSeconds != 180 {
+		t.Fatalf("unexpected timeout: %d", specs[0].Team.TimeoutSeconds)
+	}
+	if specs[0].Metadata["team_template"] != "kimi_research" {
+		t.Fatalf("expected team template metadata, got %q", specs[0].Metadata["team_template"])
+	}
+}
+
+func TestLLMPlanner_ToDispatchSpecs_TeamDispatchRejectedWhenTemplateNotAllowed(t *testing.T) {
+	p := testLLMPlanner(LLMPlannerConfig{
+		MaxDispatches:        5,
+		TeamDispatchEnabled:  true,
+		MaxTeamsPerCycle:     1,
+		AllowedTeamTemplates: []string{"competitive_review"},
+	}, nil)
+	decisions := []planningDecision{
+		{
+			Kind:         "team",
+			Dispatch:     true,
+			Priority:     9,
+			TeamTemplate: "kimi_research",
+			TeamGoal:     "research topic",
+		},
+	}
+
+	specs := p.toDispatchSpecs(decisions, "state", map[string]kerneldomain.Dispatch{})
+	if len(specs) != 0 {
+		t.Fatalf("expected 0 specs for non-allowed template, got %d", len(specs))
+	}
+}
+
+func TestLLMPlanner_ToDispatchSpecs_MaxOneTeamPerCycle(t *testing.T) {
+	p := testLLMPlanner(LLMPlannerConfig{
+		MaxDispatches:        5,
+		TeamDispatchEnabled:  true,
+		MaxTeamsPerCycle:     1,
+		AllowedTeamTemplates: []string{"team_a", "team_b"},
+	}, nil)
+	decisions := []planningDecision{
+		{Kind: "team", Dispatch: true, TeamTemplate: "team_a", TeamGoal: "goal a", Priority: 8},
+		{Kind: "team", Dispatch: true, TeamTemplate: "team_b", TeamGoal: "goal b", Priority: 8},
+	}
+
+	specs := p.toDispatchSpecs(decisions, "state", map[string]kerneldomain.Dispatch{})
+	if len(specs) != 1 {
+		t.Fatalf("expected exactly 1 team dispatch, got %d", len(specs))
+	}
+	if specs[0].Team == nil || specs[0].Team.Template != "team_a" {
+		t.Fatalf("expected first team to be kept, got %#v", specs[0].Team)
+	}
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LLMPlanner.Plan integration tests (with mock LLM)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -251,7 +336,7 @@ func TestLLMPlanner_Plan_Success(t *testing.T) {
 	}
 	factory := &mockPlannerFactory{client: client}
 	p := NewLLMPlanner("test-kernel", factory, LLMPlannerConfig{
-		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
+		Profile:       runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		MaxDispatches: 3,
 		Timeout:       10 * time.Second,
 	}, nil, nil)
@@ -275,7 +360,7 @@ func TestLLMPlanner_Plan_LLMError(t *testing.T) {
 	factory := &mockPlannerFactory{client: nil, err: errors.New("provider down")}
 	p := NewLLMPlanner("test-kernel", factory, LLMPlannerConfig{
 		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
-		Timeout:  5 * time.Second,
+		Timeout: 5 * time.Second,
 	}, nil, nil)
 
 	_, err := p.Plan(context.Background(), "state", nil)
@@ -292,7 +377,7 @@ func TestLLMPlanner_Plan_ParseError_ReturnsError(t *testing.T) {
 	factory := &mockPlannerFactory{client: client}
 	p := NewLLMPlanner("test-kernel", factory, LLMPlannerConfig{
 		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
-		Timeout:  5 * time.Second,
+		Timeout: 5 * time.Second,
 	}, nil, nil)
 
 	specs, err := p.Plan(context.Background(), "state", nil)
@@ -311,7 +396,7 @@ func TestLLMPlanner_Plan_EmptyArrayResponse(t *testing.T) {
 	}
 	factory := &mockPlannerFactory{client: client}
 	p := NewLLMPlanner("test-kernel", factory, LLMPlannerConfig{
-		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
+		Profile:       runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		MaxDispatches: 3,
 		Timeout:       5 * time.Second,
 	}, nil, nil)
@@ -342,7 +427,7 @@ func TestHybridPlanner_UsesLLMWhenAvailable(t *testing.T) {
 		{AgentID: "static-agent", Prompt: "static {STATE}", Enabled: true, Priority: 5},
 	})
 	llmPlanner := NewLLMPlanner("k", factory, LLMPlannerConfig{
-		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
+		Profile:       runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		MaxDispatches: 3,
 		Timeout:       5 * time.Second,
 	}, nil, nil)
@@ -368,7 +453,7 @@ func TestHybridPlanner_FallsBackOnLLMError(t *testing.T) {
 	})
 	llmPlanner := NewLLMPlanner("k", factory, LLMPlannerConfig{
 		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
-		Timeout:  5 * time.Second,
+		Timeout: 5 * time.Second,
 	}, nil, nil)
 
 	hybrid := NewHybridPlanner(staticPlanner, llmPlanner, nil)
@@ -395,7 +480,7 @@ func TestHybridPlanner_FallsBackOnEmptyLLMPlan(t *testing.T) {
 		{AgentID: "static-agent", Prompt: "static {STATE}", Enabled: true, Priority: 5},
 	})
 	llmPlanner := NewLLMPlanner("k", factory, LLMPlannerConfig{
-		Profile: runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
+		Profile:       runtimeconfig.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		MaxDispatches: 3,
 		Timeout:       5 * time.Second,
 	}, nil, nil)
@@ -500,6 +585,20 @@ func TestLLMPlanner_BuildPlanningPrompt_EmptyHistory(t *testing.T) {
 	prompt := p.buildPlanningPrompt("state", "", nil)
 	if !containsAll(prompt, "no history", "state") {
 		t.Errorf("prompt missing expected content: %q", prompt)
+	}
+}
+
+func TestLLMPlanner_BuildPlanningPrompt_IncludesTeamConstraints(t *testing.T) {
+	p := testLLMPlanner(LLMPlannerConfig{
+		MaxDispatches:        5,
+		TeamDispatchEnabled:  true,
+		MaxTeamsPerCycle:     1,
+		TeamTimeoutSeconds:   300,
+		AllowedTeamTemplates: []string{"kimi_research"},
+	}, nil)
+	prompt := p.buildPlanningPrompt("state", "", nil)
+	if !containsAll(prompt, "Team Dispatch Constraints", "Max team dispatches this cycle: 1", "kimi_research") {
+		t.Errorf("prompt missing team constraints: %q", prompt)
 	}
 }
 

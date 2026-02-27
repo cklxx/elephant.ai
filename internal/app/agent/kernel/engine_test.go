@@ -24,6 +24,12 @@ type memStore struct {
 	recoverErr  error
 }
 
+type plannerFunc func(ctx context.Context, stateContent string, recentByAgent map[string]kerneldomain.Dispatch) ([]kerneldomain.DispatchSpec, error)
+
+func (f plannerFunc) Plan(ctx context.Context, stateContent string, recentByAgent map[string]kerneldomain.Dispatch) ([]kerneldomain.DispatchSpec, error) {
+	return f(ctx, stateContent, recentByAgent)
+}
+
 func newMemStore() *memStore {
 	return &memStore{}
 }
@@ -47,6 +53,8 @@ func (s *memStore) EnqueueDispatches(_ context.Context, kernelID, cycleID string
 			AgentID:    sp.AgentID,
 			Prompt:     sp.Prompt,
 			Priority:   sp.Priority,
+			Kind:       sp.Kind,
+			Team:       sp.Team,
 			Status:     kerneldomain.DispatchPending,
 			Metadata:   sp.Metadata,
 		}
@@ -215,6 +223,56 @@ func TestEngine_RunCycle_AllSucceed(t *testing.T) {
 		}
 	}
 	store.mu.Unlock()
+}
+
+func TestEngine_RunCycle_TeamDispatchUsesTeamExecutor(t *testing.T) {
+	exec := &mockExecutor{summaries: []string{"team completed"}}
+	dir := t.TempDir()
+	store := newMemStore()
+	sf := NewStateFile(dir)
+	planner := plannerFunc(func(context.Context, string, map[string]kerneldomain.Dispatch) ([]kerneldomain.DispatchSpec, error) {
+		return []kerneldomain.DispatchSpec{
+			{
+				AgentID:  "team:kimi_parallel_plan",
+				Prompt:   "ignored for team dispatch path",
+				Priority: 9,
+				Kind:     kerneldomain.DispatchKindTeam,
+				Team: &kerneldomain.TeamDispatchSpec{
+					Template:       "kimi_parallel_plan",
+					Goal:           "validate team execution path",
+					TimeoutSeconds: 120,
+					Wait:           true,
+				},
+			},
+		}, nil
+	})
+	cfg := KernelConfig{
+		KernelID:      "team-kernel",
+		Schedule:      "*/10 * * * *",
+		SeedState:     "# STATE\n## identity\ntest\n",
+		MaxConcurrent: 1,
+	}
+	engine := NewEngine(cfg, sf, store, planner, exec, logging.NewComponentLogger("test"))
+
+	result, err := engine.RunCycle(context.Background())
+	if err != nil {
+		t.Fatalf("RunCycle: %v", err)
+	}
+	if result.Status != kerneldomain.CycleSuccess {
+		t.Fatalf("expected success, got %s", result.Status)
+	}
+	if exec.callCount() != 0 {
+		t.Fatalf("expected regular executor calls=0 for team dispatch, got %d", exec.callCount())
+	}
+	if exec.teamCallCount() != 1 {
+		t.Fatalf("expected team executor calls=1, got %d", exec.teamCallCount())
+	}
+	if len(result.AgentSummary) != 1 {
+		t.Fatalf("expected one agent summary, got %d", len(result.AgentSummary))
+	}
+	if !strings.Contains(result.AgentSummary[0].Summary, "autonomy=actionable") {
+		t.Fatalf("expected autonomy marker in summary: %q", result.AgentSummary[0].Summary)
+	}
 }
 
 func TestWriteKernelStateFallback(t *testing.T) {

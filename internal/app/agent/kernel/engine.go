@@ -44,6 +44,7 @@ type Engine struct {
 	store                kerneldomain.Store
 	planner              Planner
 	executor             Executor
+	teamExecutor         TeamExecutor
 	logger               logging.Logger
 	notifier             CycleNotifier // optional; called after non-empty cycles
 	systemPromptProvider func() string
@@ -51,14 +52,14 @@ type Engine struct {
 	stopped   chan struct{}
 	stopOnce  sync.Once
 	wg        sync.WaitGroup // tracks in-flight RunCycle goroutines
-	triggerCh chan struct{}   // buffered(1); signals an immediate out-of-schedule cycle
+	triggerCh chan struct{}  // buffered(1); signals an immediate out-of-schedule cycle
 
 	stateWriteRestricted atomic.Bool
 
 	// Keepalive tracking
-	lastCycleAt        atomic.Int64 // unix nanos of most recent cycle completion
-	lastSuccessAt      atomic.Int64 // unix nanos of most recent successful cycle
-	loopRestarts       atomic.Int64 // count of loop restarts after panic/unexpected exit
+	lastCycleAt         atomic.Int64 // unix nanos of most recent cycle completion
+	lastSuccessAt       atomic.Int64 // unix nanos of most recent successful cycle
+	loopRestarts        atomic.Int64 // count of loop restarts after panic/unexpected exit
 	consecutiveFailures atomic.Int64 // consecutive cycle failures (reset on success)
 }
 
@@ -86,15 +87,20 @@ func NewEngine(
 	executor Executor,
 	logger logging.Logger,
 ) *Engine {
+	var teamExecutor TeamExecutor
+	if impl, ok := executor.(TeamExecutor); ok {
+		teamExecutor = impl
+	}
 	return &Engine{
-		config:    config,
-		stateFile: stateFile,
-		store:     store,
-		planner:   planner,
-		executor:  executor,
-		logger:    logging.OrNop(logger),
-		stopped:   make(chan struct{}),
-		triggerCh: make(chan struct{}, 1),
+		config:       config,
+		stateFile:    stateFile,
+		store:        store,
+		planner:      planner,
+		executor:     executor,
+		teamExecutor: teamExecutor,
+		logger:       logging.OrNop(logger),
+		stopped:      make(chan struct{}),
+		triggerCh:    make(chan struct{}, 1),
 	}
 }
 
@@ -554,7 +560,13 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 				meta["chat_id"] = e.config.ChatID
 			}
 
-			execResult, execErr := e.executor.Execute(ctx, d.AgentID, d.Prompt, meta)
+			var execResult ExecutionResult
+			var execErr error
+			if d.Kind == kerneldomain.DispatchKindTeam && d.Team != nil && e.teamExecutor != nil {
+				execResult, execErr = e.teamExecutor.ExecuteTeam(ctx, *d.Team, meta)
+			} else {
+				execResult, execErr = e.executor.Execute(ctx, d.AgentID, d.Prompt, meta)
+			}
 
 			mu.Lock()
 			defer mu.Unlock()

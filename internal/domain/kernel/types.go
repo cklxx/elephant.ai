@@ -25,11 +25,30 @@ const (
 	CycleFailed         CycleResultStatus = "failed"
 )
 
+// DispatchKind classifies dispatch execution intent.
+type DispatchKind string
+
+const (
+	DispatchKindAgent DispatchKind = "agent"
+	DispatchKindTeam  DispatchKind = "team"
+)
+
+// TeamDispatchSpec captures structured team execution parameters.
+type TeamDispatchSpec struct {
+	Template       string            `json:"template"`
+	Goal           string            `json:"goal"`
+	Prompts        map[string]string `json:"prompts,omitempty"`
+	TimeoutSeconds int               `json:"timeout_seconds,omitempty"`
+	Wait           bool              `json:"wait,omitempty"`
+}
+
 // DispatchSpec is the planner's output: one unit of work to enqueue.
 type DispatchSpec struct {
 	AgentID  string            `json:"agent_id"`
 	Prompt   string            `json:"prompt"`
 	Priority int               `json:"priority"`
+	Kind     DispatchKind      `json:"kind,omitempty"`
+	Team     *TeamDispatchSpec `json:"team,omitempty"`
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
@@ -41,6 +60,8 @@ type Dispatch struct {
 	AgentID    string            `json:"agent_id"`
 	Prompt     string            `json:"prompt"`
 	Priority   int               `json:"priority"`
+	Kind       DispatchKind      `json:"kind,omitempty"`
+	Team       *TeamDispatchSpec `json:"team,omitempty"`
 	Status     DispatchStatus    `json:"status"`
 	LeaseOwner string            `json:"lease_owner,omitempty"`
 	LeaseUntil *time.Time        `json:"lease_until,omitempty"`

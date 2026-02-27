@@ -3,6 +3,7 @@ package kernel
 import (
 	"alex/internal/shared/utils"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/subscription"
 	agent "alex/internal/domain/agent/ports/agent"
+	kerneldomain "alex/internal/domain/kernel"
 	toolshared "alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
 )
@@ -58,6 +60,11 @@ type TaskRunner interface {
 // Executor dispatches a single agent task and returns structured execution results.
 type Executor interface {
 	Execute(ctx context.Context, agentID, prompt string, meta map[string]string) (ExecutionResult, error)
+}
+
+// TeamExecutor dispatches a structured team run through the kernel executor.
+type TeamExecutor interface {
+	ExecuteTeam(ctx context.Context, spec kerneldomain.TeamDispatchSpec, meta map[string]string) (ExecutionResult, error)
 }
 
 // CoordinatorExecutor adapts AgentCoordinator.ExecuteTask for kernel dispatch.
@@ -165,6 +172,20 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 	}, nil
 }
 
+// ExecuteTeam executes an explicit team template run through run_tasks.
+func (e *CoordinatorExecutor) ExecuteTeam(ctx context.Context, spec kerneldomain.TeamDispatchSpec, meta map[string]string) (ExecutionResult, error) {
+	template := strings.TrimSpace(spec.Template)
+	if template == "" {
+		return ExecutionResult{}, fmt.Errorf("team dispatch template is required")
+	}
+	goal := strings.TrimSpace(spec.Goal)
+	if goal == "" {
+		return ExecutionResult{}, fmt.Errorf("team dispatch goal is required")
+	}
+	prompt := buildKernelTeamDispatchPrompt(spec)
+	return e.Execute(ctx, "team:"+template, prompt, meta)
+}
+
 func classifyKernelValidationError(err error) string {
 	switch {
 	case errors.Is(err, errKernelAwaitingUserConfirmation):
@@ -176,6 +197,34 @@ func classifyKernelValidationError(err error) string {
 	default:
 		return kernelAutonomyInvalid
 	}
+}
+
+func buildKernelTeamDispatchPrompt(spec kerneldomain.TeamDispatchSpec) string {
+	timeoutSeconds := spec.TimeoutSeconds
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = DefaultKernelTeamTimeoutSeconds
+	}
+	args := map[string]any{
+		"template":        strings.TrimSpace(spec.Template),
+		"goal":            strings.TrimSpace(spec.Goal),
+		"wait":            true,
+		"timeout_seconds": timeoutSeconds,
+	}
+	if len(spec.Prompts) > 0 {
+		args["prompts"] = spec.Prompts
+	}
+	payload, err := json.Marshal(args)
+	if err != nil {
+		return fmt.Sprintf(
+			"Run the team template %q with goal %q via run_tasks. Wait for completion and include the status file path in Execution Summary.",
+			spec.Template,
+			spec.Goal,
+		)
+	}
+	return fmt.Sprintf(
+		"Execute a structured team run now. Call run_tasks exactly once with arguments: %s\nThen read the generated .status sidecar and summarize completed roles, failures (if any), and artifact paths.",
+		string(payload),
+	)
 }
 
 func wrapKernelPrompt(prompt string) string {

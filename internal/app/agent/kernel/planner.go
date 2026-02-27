@@ -44,6 +44,7 @@ func (p *StaticPlanner) Plan(_ context.Context, stateContent string, recentByAge
 			AgentID:  a.AgentID,
 			Prompt:   prompt,
 			Priority: a.Priority,
+			Kind:     kerneldomain.DispatchKindAgent,
 			Metadata: a.Metadata,
 		})
 	}
