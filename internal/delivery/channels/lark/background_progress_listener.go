@@ -429,10 +429,8 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 
 	t := l.getTask(taskID)
 	if t == nil {
-		l.logger.Info("handleCompletion: task %s not found (already processed or not tracked)", taskID)
 		return
 	}
-	l.logger.Info("handleCompletion: processing task %s status=%s", taskID, status)
 
 	normalizedStatus := normalizeCompletionTaskStatus(status, errText)
 	if raw := strings.TrimSpace(status); raw != "" && normalizeTaskStatus(raw) != normalizedStatus {
@@ -486,17 +484,13 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 	})
 	delete(l.tasks, taskID)
 	shouldClose := l.released && len(l.tasks) == 0
-	remaining := len(l.tasks)
-	completed := len(l.completedTasks)
-	released := l.released
+	completedCount := len(l.completedTasks)
 	l.mu.Unlock()
-
-	l.logger.Info("handleCompletion: task %s done, remaining=%d completed=%d released=%v shouldClose=%v", taskID, remaining, completed, released, shouldClose)
 
 	t.stop()
 
 	if shouldClose {
-		l.logger.Info("handleCompletion: all tasks done, sending team summary (completed=%d)", completed)
+		l.logger.Info("All %d background tasks completed, generating team summary", completedCount)
 		l.sendTeamCompletionSummary()
 		l.Close()
 	}
@@ -814,11 +808,9 @@ func (l *backgroundProgressListener) syncTaskStatus(taskID, status string, opts 
 // dispatchMessage, no session pollution.
 func (l *backgroundProgressListener) sendTeamCompletionSummary() {
 	if l.g == nil {
-		l.logger.Info("sendTeamCompletionSummary: skipped (gateway nil)")
 		return
 	}
 	if !l.isTeamSummaryEnabled() {
-		l.logger.Info("sendTeamCompletionSummary: skipped (disabled)")
 		return
 	}
 
@@ -828,26 +820,19 @@ func (l *backgroundProgressListener) sendTeamCompletionSummary() {
 	l.mu.Unlock()
 
 	if len(tasks) < teamCompletionSummaryMinTasks {
-		l.logger.Info("sendTeamCompletionSummary: skipped (only %d tasks, need %d)", len(tasks), teamCompletionSummaryMinTasks)
 		return
 	}
 
-	l.logger.Info("sendTeamCompletionSummary: dispatching summary for %d tasks", len(tasks))
 	go l.doSendTeamCompletionSummary(tasks)
 }
 
 func (l *backgroundProgressListener) doSendTeamCompletionSummary(tasks []completedTaskRecord) {
-	l.logger.Info("doSendTeamCompletionSummary: building summary for %d tasks", len(tasks))
 	summary := l.buildTeamSummary(tasks)
 	if summary == "" {
-		l.logger.Warn("doSendTeamCompletionSummary: empty summary, skipping send")
 		return
 	}
-	l.logger.Info("doSendTeamCompletionSummary: sending summary (len=%d) to chat=%s", len(summary), l.chatID)
 	if _, err := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(summary)); err != nil {
 		l.logger.Warn("Team completion summary send failed: %v", err)
-	} else {
-		l.logger.Info("doSendTeamCompletionSummary: sent successfully")
 	}
 }
 
@@ -855,18 +840,14 @@ func (l *backgroundProgressListener) doSendTeamCompletionSummary(tasks []complet
 func (l *backgroundProgressListener) buildTeamSummary(tasks []completedTaskRecord) string {
 	if l.g.llmFactory != nil {
 		timeout := l.teamSummaryLLMTimeout()
-		l.logger.Info("buildTeamSummary: trying LLM summary (timeout=%s)", timeout)
 		ctx, cancel := context.WithTimeout(l.ctx, timeout)
 		defer cancel()
 
 		summary, err := l.generateTeamLLMSummary(ctx, tasks)
 		if err == nil && isValidTeamSummary(summary) {
-			l.logger.Info("buildTeamSummary: LLM summary succeeded")
 			return truncateForLark(summary, teamCompletionSummaryMaxReplyChars)
 		}
 		l.logger.Warn("Team completion LLM summary failed, using fallback: %v", err)
-	} else {
-		l.logger.Info("buildTeamSummary: no LLM factory, using fallback")
 	}
 	return l.buildTeamSummaryFallback(tasks)
 }
