@@ -13,7 +13,7 @@ import (
 func scenariosDir() string {
 	// Walk up from this test file to the repo root.
 	_, thisFile, _, _ := runtime.Caller(0)
-	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
+	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..", "..")
 	dir := filepath.Join(repoRoot, "tests", "scenarios", "lark")
 	return dir
 }

@@ -1,0 +1,26 @@
+name: teams_group_dispatch
+description: "Team dispatch in group chat — verify team results are delivered to group"
+tags: [teams, group]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_groups: true
+  llm_mode: mock
+
+turns:
+  - sender_id: "ou_user_teams_006"
+    chat_id: "oc_group_teams_001"
+    chat_type: "group"
+    message_id: "om_msg_teams_gd_001"
+    content: "团队分析本周迭代进度"
+
+    mock_response:
+      answer: "团队分析完成。\n\n**迭代进度总结：**\n- 已完成：12 个 story\n- 进行中：5 个 story\n- 阻塞：2 个 story\n\n整体完成率 63%，预计可按时交付。"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["团队分析完成", "63%"]
+      executor:
+        task_contains: ["迭代进度"]

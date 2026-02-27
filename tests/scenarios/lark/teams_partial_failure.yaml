@@ -1,0 +1,25 @@
+name: teams_partial_failure
+description: "Team dispatch with partial role failure — reply includes failure details"
+tags: [teams, error, p2p]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_direct: true
+  llm_mode: mock
+
+turns:
+  - sender_id: "ou_user_teams_002"
+    chat_id: "oc_chat_teams_002"
+    message_id: "om_msg_teams_pf_001"
+    content: "启动团队分析竞品"
+
+    mock_response:
+      answer: "团队执行部分完成。researcher 角色成功，但 analyst 角色执行失败：连接超时。\n\n已完成的部分：竞品列表已收集。失败角色：analyst。"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["失败", "analyst"]
+      executor:
+        task_contains: ["竞品"]

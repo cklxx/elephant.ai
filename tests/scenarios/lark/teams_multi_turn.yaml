@@ -1,0 +1,42 @@
+name: teams_multi_turn
+description: "Multi-turn team interaction — dispatch team then query progress"
+tags: [teams, multi-turn, p2p]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_direct: true
+  llm_mode: mock
+
+turns:
+  # Turn 1: User triggers team dispatch
+  - sender_id: "ou_user_teams_004"
+    chat_id: "oc_chat_teams_004"
+    message_id: "om_msg_teams_mt_001"
+    content: "派发团队做市场调研"
+
+    mock_response:
+      answer: "已派发市场调研团队，包含 3 个角色：researcher、analyst、writer。预计 5 分钟完成。"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["派发", "调研"]
+      executor:
+        task_contains: ["市场调研"]
+
+  # Turn 2: User asks about progress
+  - sender_id: "ou_user_teams_004"
+    chat_id: "oc_chat_teams_004"
+    message_id: "om_msg_teams_mt_002"
+    content: "现在进度怎么样了"
+
+    mock_response:
+      answer: "团队进度更新：researcher 已完成，analyst 正在执行中，writer 等待中。整体进度 33%。"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["进度", "researcher"]
+      executor:
+        task_contains: ["进度"]

@@ -1,0 +1,25 @@
+name: teams_happy_path
+description: "Team dispatch happy path — user triggers deep research, agent returns team completion summary"
+tags: [teams, p2p]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_direct: true
+  llm_mode: mock
+
+turns:
+  - sender_id: "ou_user_teams_001"
+    chat_id: "oc_chat_teams_001"
+    message_id: "om_msg_teams_hp_001"
+    content: "帮我做深度调研，分析分布式事务的最佳实践"
+
+    mock_response:
+      answer: "深度调研已完成。团队共 3 个角色并行执行，所有任务已完成。\n\n**关键发现：**\n1. Saga 模式适合长事务\n2. TCC 适合强一致性场景\n3. 事件驱动架构可降低耦合"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["调研已完成", "Saga"]
+      executor:
+        task_contains: ["深度调研", "分布式事务"]
