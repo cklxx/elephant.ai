@@ -59,10 +59,7 @@ func TestRunTask_BackgroundCompletionNotifiedAfterForegroundReturn(t *testing.T)
 	for {
 		updates := rec.CallsByMethod("UpdateMessage")
 		for _, call := range updates {
-			if strings.Contains(call.Content, "task_id: bg-late-1") && strings.Contains(call.Content, "status: completed") {
-				if !strings.Contains(call.Content, "coding agent finished") {
-					t.Fatalf("expected completion answer in update, got %q", call.Content)
-				}
+			if strings.Contains(call.Content, "任务已完成") && strings.Contains(call.Content, "coding agent finished") {
 				return
 			}
 		}

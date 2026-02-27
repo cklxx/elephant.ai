@@ -28,6 +28,7 @@ type Config struct {
 	ShowPlanClarifyMessages       bool  // Send plan/clarify tool outputs as chat messages. Default false.
 	AutoChatContextSize           int   // Number of recent messages to fetch for auto chat context. Default 20.
 	BackgroundProgressEnabled     *bool // Push background task progress updates. Default true.
+	RephraseEnabled               *bool // LLM rephrase of background task results for readability. Default true.
 	BackgroundProgressInterval    time.Duration
 	BackgroundProgressWindow      time.Duration
 	PlanReviewEnabled             bool

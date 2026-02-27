@@ -149,6 +149,10 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		enabled := true
 		cfg.BackgroundProgressEnabled = &enabled
 	}
+	if cfg.RephraseEnabled == nil {
+		enabled := true
+		cfg.RephraseEnabled = &enabled
+	}
 	if cfg.SlowProgressSummaryEnabled == nil {
 		enabled := true
 		cfg.SlowProgressSummaryEnabled = &enabled

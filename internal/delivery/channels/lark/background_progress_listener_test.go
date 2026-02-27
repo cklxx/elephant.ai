@@ -175,14 +175,8 @@ func TestBackgroundProgressListener_CompletionUpdatesImmediatelyAndStops(t *test
 	if !strings.Contains(updates[0].Content, "done") {
 		t.Fatalf("expected completion content, got %q", updates[0].Content)
 	}
-	if !strings.Contains(updates[0].Content, "task_id: bg-1") {
-		t.Fatalf("expected task_id in completion content, got %q", updates[0].Content)
-	}
-	if !strings.Contains(updates[0].Content, "status: completed") {
-		t.Fatalf("expected status in completion content, got %q", updates[0].Content)
-	}
-	if !strings.Contains(updates[0].Content, "merge: not merged") {
-		t.Fatalf("expected merge status in completion content, got %q", updates[0].Content)
+	if !strings.Contains(updates[0].Content, "任务已完成") {
+		t.Fatalf("expected completion header, got %q", updates[0].Content)
 	}
 
 	// Ensure no periodic updates fire after completion.
@@ -584,14 +578,8 @@ func TestBgProgressListener_CancelledCtxDoesNotBreakAPICalls(t *testing.T) {
 	if !strings.Contains(lastUpdate.Content, "finished after cancel") {
 		t.Fatalf("expected completion content, got %q", lastUpdate.Content)
 	}
-	if !strings.Contains(lastUpdate.Content, "task_id: bg-1") {
-		t.Fatalf("expected task_id in completion content, got %q", lastUpdate.Content)
-	}
-	if !strings.Contains(lastUpdate.Content, "status: completed") {
-		t.Fatalf("expected status in completion content, got %q", lastUpdate.Content)
-	}
-	if !strings.Contains(lastUpdate.Content, "merge: not merged") {
-		t.Fatalf("expected merge status in completion content, got %q", lastUpdate.Content)
+	if !strings.Contains(lastUpdate.Content, "任务已完成") {
+		t.Fatalf("expected completion header, got %q", lastUpdate.Content)
 	}
 }
 
@@ -785,15 +773,12 @@ done:
 	updates := recorder.CallsByMethod("UpdateMessage")
 	found := false
 	for _, u := range updates {
-		if strings.Contains(u.Content, "task_id: bg-poll") {
+		if strings.Contains(u.Content, "任务已完成") {
 			found = true
-			if !strings.Contains(u.Content, "merge: merged/success") {
-				t.Fatalf("expected merge status in poller completion, got %q", u.Content)
-			}
 		}
 	}
 	if !found {
-		t.Fatal("expected poller completion update content to include task_id")
+		t.Fatal("expected poller completion update with '任务已完成' header")
 	}
 
 	// Listener should auto-close after poller delivers completion.

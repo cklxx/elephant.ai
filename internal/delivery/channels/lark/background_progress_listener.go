@@ -533,12 +533,12 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 		b.WriteString(pending)
 	case taskStatusCompleted:
 		b.WriteString("任务已完成\n")
-		l.writeCompletionMeta(&b, taskID, status, mergeStatus)
 		l.writeDescription(&b, description)
 		b.WriteString(fmt.Sprintf("⏱ 共耗时 %s\n", formatElapsed(elapsed)))
 		if utils.HasContent(pending) {
+			rephrased := l.g.rephraseForUser(l.ctx, pending, rephraseBackground)
 			b.WriteString("\n")
-			b.WriteString(pending)
+			b.WriteString(rephrased)
 		}
 	case taskStatusFailed:
 		b.WriteString("任务出错了\n")

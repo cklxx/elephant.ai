@@ -1,0 +1,82 @@
+package lark
+
+import (
+	"context"
+	"strings"
+	"time"
+
+	"alex/internal/app/agent/llmclient"
+	ports "alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
+)
+
+type rephraseKind int
+
+const (
+	rephraseBackground rephraseKind = iota
+	rephraseForeground
+
+	rephraseTimeout  = 6 * time.Second
+	rephraseMaxInput = 2000
+	rephraseMaxReply = 400
+)
+
+const rephraseBackgroundSystemPrompt = `把后台任务完成结果改写为简洁自然的中文消息。
+去掉 task_id、status、merge 等技术字段，保留关键结论、具体成果、耗时。
+2-5 句话，不要使用 markdown 格式。`
+
+const rephraseForegroundSystemPrompt = `把 AI 回答改写为更简洁易读的版本。
+保留所有关键信息、代码块、文件路径，去除冗余推理过程。`
+
+func (g *Gateway) rephraseForUser(ctx context.Context, rawText string, kind rephraseKind) string {
+	if g == nil || g.llmFactory == nil {
+		return rawText
+	}
+	if utils.IsBlank(g.llmProfile.Provider) || utils.IsBlank(g.llmProfile.Model) {
+		return rawText
+	}
+	if g.cfg.RephraseEnabled != nil && !*g.cfg.RephraseEnabled {
+		return rawText
+	}
+
+	input := truncateForLark(rawText, rephraseMaxInput)
+	if utils.IsBlank(input) {
+		return rawText
+	}
+
+	var systemPrompt string
+	switch kind {
+	case rephraseBackground:
+		systemPrompt = rephraseBackgroundSystemPrompt
+	case rephraseForeground:
+		systemPrompt = rephraseForegroundSystemPrompt
+	default:
+		return rawText
+	}
+
+	client, _, err := llmclient.GetClientFromProfile(g.llmFactory, g.llmProfile, nil, false)
+	if err != nil {
+		return rawText
+	}
+
+	llmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rephraseTimeout)
+	defer cancel()
+
+	resp, err := client.Complete(llmCtx, ports.CompletionRequest{
+		Messages: []ports.Message{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: input},
+		},
+		Temperature: 0.3,
+		MaxTokens:   rephraseMaxReply,
+	})
+	if err != nil {
+		return rawText
+	}
+
+	result := strings.TrimSpace(resp.Content)
+	if result == "" {
+		return rawText
+	}
+	return result
+}
