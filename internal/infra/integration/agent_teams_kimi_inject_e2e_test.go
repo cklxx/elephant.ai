@@ -15,6 +15,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/react"
 	"alex/internal/infra/external/bridge"
+	"alex/internal/infra/process"
 	"alex/internal/infra/tools/builtin/orchestration"
 )
 
@@ -48,7 +49,7 @@ func TestAgentTeamsKimiInjectE2E_ParallelTemplate(t *testing.T) {
 			"FAKE_KIMI_MARKER":        "FAKE_KIMI_OK",
 			"FAKE_KIMI_SLEEP_SECONDS": "0.35",
 		},
-	}))
+	}, process.NewController()))
 
 	mgr := react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
 		RunContext: context.Background(),

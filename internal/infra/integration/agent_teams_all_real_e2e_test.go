@@ -17,6 +17,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/react"
 	"alex/internal/infra/external/bridge"
+	"alex/internal/infra/process"
 	"alex/internal/infra/tools/builtin/orchestration"
 )
 
@@ -71,7 +72,7 @@ func newRealBridgeExecutor(t *testing.T, agentType, binary, pythonBin, bridgeScr
 	if agentType == "claude_code" {
 		cfg.DefaultMode = "autonomous"
 	}
-	return bridge.New(cfg)
+	return bridge.New(cfg, process.NewController())
 }
 
 // ---------------------------------------------------------------------------

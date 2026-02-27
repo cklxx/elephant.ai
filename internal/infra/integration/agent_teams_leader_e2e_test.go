@@ -16,6 +16,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/react"
 	"alex/internal/infra/external/bridge"
+	"alex/internal/infra/process"
 	"alex/internal/infra/tools/builtin/orchestration"
 )
 
@@ -536,7 +537,7 @@ func TestLeaderAgent_MultiAgentDeepResearch_E2E(t *testing.T) {
 			"FAKE_KIMI_MARKER":        "FAKE_KIMI_OK",
 			"FAKE_KIMI_SLEEP_SECONDS": "0.3",
 		},
-	})
+	}, process.NewController())
 	ccBridge := bridge.New(bridge.BridgeConfig{
 		AgentType:          "claude_code",
 		Binary:             fakeCC,
@@ -551,7 +552,7 @@ func TestLeaderAgent_MultiAgentDeepResearch_E2E(t *testing.T) {
 			"FAKE_CC_MARKER":        "FAKE_CC_OK",
 			"FAKE_CC_SLEEP_SECONDS": "0.3",
 		},
-	})
+	}, process.NewController())
 	codexBridge := bridge.New(bridge.BridgeConfig{
 		AgentType:          "codex",
 		Binary:             fakeCodex,
@@ -566,7 +567,7 @@ func TestLeaderAgent_MultiAgentDeepResearch_E2E(t *testing.T) {
 			"FAKE_CODEX_MARKER":        "FAKE_CODEX_OK",
 			"FAKE_CODEX_SLEEP_SECONDS": "0.3",
 		},
-	})
+	}, process.NewController())
 
 	mux := &multiplexExternalExecutor{
 		byType: map[string]agent.ExternalAgentExecutor{
@@ -739,7 +740,7 @@ func TestLeaderAgent_FailurePropagation_E2E(t *testing.T) {
 			"FAKE_KIMI_MARKER":        "FAKE_KIMI_OK",
 			"FAKE_KIMI_SLEEP_SECONDS": "0.2",
 		},
-	})
+	}, process.NewController())
 	failBridge := bridge.New(bridge.BridgeConfig{
 		AgentType:          "codex",
 		Binary:             failingCLI,
@@ -750,7 +751,7 @@ func TestLeaderAgent_FailurePropagation_E2E(t *testing.T) {
 		PlanApprovalPolicy: "never",
 		PlanSandbox:        "read-only",
 		Timeout:            15 * time.Second,
-	})
+	}, process.NewController())
 
 	mux := &multiplexExternalExecutor{
 		byType: map[string]agent.ExternalAgentExecutor{
@@ -886,7 +887,7 @@ func TestLeaderAgent_ScoredRubric_E2E(t *testing.T) {
 			"FAKE_KIMI_MARKER":        "FAKE_KIMI_OK",
 			"FAKE_KIMI_SLEEP_SECONDS": "0.3",
 		},
-	})
+	}, process.NewController())
 	ccBridge := bridge.New(bridge.BridgeConfig{
 		AgentType:          "claude_code",
 		Binary:             fakeCC,
@@ -901,7 +902,7 @@ func TestLeaderAgent_ScoredRubric_E2E(t *testing.T) {
 			"FAKE_CC_MARKER":        "FAKE_CC_OK",
 			"FAKE_CC_SLEEP_SECONDS": "0.3",
 		},
-	})
+	}, process.NewController())
 	codexBridge := bridge.New(bridge.BridgeConfig{
 		AgentType:          "codex",
 		Binary:             fakeCodex,
@@ -916,7 +917,7 @@ func TestLeaderAgent_ScoredRubric_E2E(t *testing.T) {
 			"FAKE_CODEX_MARKER":        "FAKE_CODEX_OK",
 			"FAKE_CODEX_SLEEP_SECONDS": "0.3",
 		},
-	})
+	}, process.NewController())
 
 	mux := &multiplexExternalExecutor{
 		byType: map[string]agent.ExternalAgentExecutor{

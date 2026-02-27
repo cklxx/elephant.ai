@@ -17,6 +17,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/react"
 	"alex/internal/infra/external/bridge"
+	"alex/internal/infra/process"
 	"alex/internal/infra/tools/builtin/orchestration"
 )
 
@@ -58,7 +59,7 @@ func newKimiBridgeExecutor(t *testing.T, workDir string) *bridge.Executor {
 		PythonBinary: pythonBin,
 		BridgeScript: script,
 		Timeout:      120 * time.Second,
-	})
+	}, process.NewController())
 }
 
 // progressRecorder captures OnProgress callbacks in a thread-safe manner.
@@ -270,7 +271,7 @@ func TestKimiReal_AgentsTeam_EndToEnd(t *testing.T) {
 		PythonBinary: pythonBin,
 		BridgeScript: kimiScript,
 		Timeout:      120 * time.Second,
-	})
+	}, process.NewController())
 	fakeCodexBridge := bridge.New(bridge.BridgeConfig{
 		AgentType:          "codex",
 		Binary:             fakeCodex,
@@ -285,7 +286,7 @@ func TestKimiReal_AgentsTeam_EndToEnd(t *testing.T) {
 			"FAKE_CODEX_MARKER":        "FAKE_CODEX_OK",
 			"FAKE_CODEX_SLEEP_SECONDS": "0.3",
 		},
-	})
+	}, process.NewController())
 	fakeCCBridge := bridge.New(bridge.BridgeConfig{
 		AgentType:          "claude_code",
 		Binary:             fakeCC,
@@ -300,7 +301,7 @@ func TestKimiReal_AgentsTeam_EndToEnd(t *testing.T) {
 			"FAKE_CC_MARKER":        "FAKE_CC_OK",
 			"FAKE_CC_SLEEP_SECONDS": "0.3",
 		},
-	})
+	}, process.NewController())
 
 	mux := &multiplexExternalExecutor{
 		byType: map[string]agent.ExternalAgentExecutor{
@@ -564,7 +565,7 @@ func TestKimiReal_DeepResearch_EndToEnd(t *testing.T) {
 		PythonBinary: pythonBin,
 		BridgeScript: kimiScript,
 		Timeout:      120 * time.Second,
-	})
+	}, process.NewController())
 	fakeCodexBridge := bridge.New(bridge.BridgeConfig{
 		AgentType:          "codex",
 		Binary:             fakeCodex,
@@ -579,7 +580,7 @@ func TestKimiReal_DeepResearch_EndToEnd(t *testing.T) {
 			"FAKE_CODEX_MARKER":        "FAKE_CODEX_OK",
 			"FAKE_CODEX_SLEEP_SECONDS": "0.3",
 		},
-	})
+	}, process.NewController())
 	fakeCCBridge := bridge.New(bridge.BridgeConfig{
 		AgentType:          "claude_code",
 		Binary:             fakeCC,
@@ -594,7 +595,7 @@ func TestKimiReal_DeepResearch_EndToEnd(t *testing.T) {
 			"FAKE_CC_MARKER":        "FAKE_CC_OK",
 			"FAKE_CC_SLEEP_SECONDS": "0.3",
 		},
-	})
+	}, process.NewController())
 
 	mux := &multiplexExternalExecutor{
 		byType: map[string]agent.ExternalAgentExecutor{
