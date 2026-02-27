@@ -452,22 +452,6 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 		cleanups = append(cleanups, progressLn.Close)
 		listener = progressLn
 	}
-	slowSummaryEnabled := true
-	if g.cfg.SlowProgressSummaryEnabled != nil {
-		slowSummaryEnabled = *g.cfg.SlowProgressSummaryEnabled
-	}
-	if slowSummaryEnabled {
-		slowLn := newSlowProgressSummaryListener(
-			execCtx,
-			listener,
-			g,
-			msg.chatID,
-			replyTarget(msg.messageID, true),
-			g.cfg.SlowProgressSummaryDelay,
-		)
-		cleanups = append(cleanups, slowLn.Close)
-		listener = slowLn
-	}
 	backgroundEnabled := true
 	if g.cfg.BackgroundProgressEnabled != nil {
 		backgroundEnabled = *g.cfg.BackgroundProgressEnabled
