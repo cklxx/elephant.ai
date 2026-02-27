@@ -592,12 +592,16 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 			} else {
 				result.Succeeded++
 				summary := decorateAutonomySummary(execResult)
-				result.AgentSummary = append(result.AgentSummary, kerneldomain.AgentCycleSummary{
+				summaryEntry := kerneldomain.AgentCycleSummary{
 					AgentID: d.AgentID,
 					TaskID:  execResult.TaskID,
 					Status:  kerneldomain.DispatchDone,
 					Summary: summary,
-				})
+				}
+				if len(execResult.TeamRoles) > 0 {
+					summaryEntry.TeamRoles = toTeamRoleSummaries(execResult.TeamRoles)
+				}
+				result.AgentSummary = append(result.AgentSummary, summaryEntry)
 				if markErr := e.store.MarkDispatchDone(ctx, d.DispatchID, execResult.TaskID); markErr != nil {
 					e.logger.Warn("Kernel: mark done %s: %v", d.DispatchID, markErr)
 				}
@@ -623,6 +627,18 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 	}
 
 	return result
+}
+
+func toTeamRoleSummaries(roles []TeamRoleResult) []kerneldomain.TeamRoleSummary {
+	out := make([]kerneldomain.TeamRoleSummary, len(roles))
+	for i, r := range roles {
+		out[i] = kerneldomain.TeamRoleSummary{
+			RoleID: r.RoleID,
+			Status: r.Status,
+			Error:  r.Error,
+		}
+	}
+	return out
 }
 
 // classifyDispatchError attempts to map an execution error to a known failure class.

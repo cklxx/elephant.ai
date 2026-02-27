@@ -12,6 +12,7 @@ import (
 	"alex/internal/app/agent/llmclient"
 	core "alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/domain/agent/taskfile"
 	kerneldomain "alex/internal/domain/kernel"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
@@ -206,7 +207,13 @@ func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent string, recen
 			if d.Error != "" {
 				summary = d.Error
 			}
-			summary = compactSummary(summary, 60)
+			// For team dispatches, annotate with role-level results.
+			if d.Kind == kerneldomain.DispatchKindTeam && d.Team != nil {
+				if roleAnnotation := summarizeTeamRoles(d.Team.Template); roleAnnotation != "" {
+					summary += " " + roleAnnotation
+				}
+			}
+			summary = compactSummary(summary, 100)
 			b.WriteString(fmt.Sprintf("| %s | %s | %s | %s |\n", agentID, d.Status, age, summary))
 		}
 	}
@@ -353,6 +360,40 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 		})
 	}
 	return specs
+}
+
+// summarizeTeamRoles reads the team status sidecar and returns a compact role summary.
+// Returns empty string if the status file cannot be read.
+func summarizeTeamRoles(template string) string {
+	statusPath := fmt.Sprintf(".elephant/tasks/team-%s.status.yaml", template)
+	sf, err := taskfile.ReadStatusFile(statusPath)
+	if err != nil {
+		return ""
+	}
+	total := len(sf.Tasks)
+	if total == 0 {
+		return ""
+	}
+	done, failed := 0, 0
+	var failedRoles []string
+	for _, ts := range sf.Tasks {
+		switch ts.Status {
+		case "completed":
+			done++
+		case "failed":
+			failed++
+			reason := ts.Error
+			if reason == "" {
+				reason = "error"
+			}
+			failedRoles = append(failedRoles, fmt.Sprintf("%s: %s", ts.ID, compactSummary(reason, 20)))
+		}
+	}
+	annotation := fmt.Sprintf("roles: %d/%d done", done, total)
+	if failed > 0 {
+		annotation += fmt.Sprintf(", %d failed (%s)", failed, strings.Join(failedRoles, "; "))
+	}
+	return annotation
 }
 
 func (p *LLMPlanner) isAllowedTeamTemplate(template string) bool {

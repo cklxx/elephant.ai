@@ -225,6 +225,59 @@ func TestEngine_RunCycle_AllSucceed(t *testing.T) {
 	store.mu.Unlock()
 }
 
+func TestEngine_RunCycle_TeamDispatchPropagatesTeamRoles(t *testing.T) {
+	exec := &mockExecutor{
+		summaries: []string{"team completed"},
+		teamRoles: []TeamRoleResult{
+			{RoleID: "team-scout", Status: "completed"},
+			{RoleID: "team-writer", Status: "failed", Error: "timeout"},
+		},
+	}
+	dir := t.TempDir()
+	store := newMemStore()
+	sf := NewStateFile(dir)
+	planner := plannerFunc(func(context.Context, string, map[string]kerneldomain.Dispatch) ([]kerneldomain.DispatchSpec, error) {
+		return []kerneldomain.DispatchSpec{
+			{
+				AgentID:  "team:test_team",
+				Prompt:   "run team",
+				Priority: 9,
+				Kind:     kerneldomain.DispatchKindTeam,
+				Team: &kerneldomain.TeamDispatchSpec{
+					Template: "test_team",
+					Goal:     "verify role propagation",
+					Wait:     true,
+				},
+			},
+		}, nil
+	})
+	cfg := KernelConfig{
+		KernelID:      "team-kernel",
+		Schedule:      "*/10 * * * *",
+		SeedState:     "# STATE\ntest\n",
+		MaxConcurrent: 1,
+	}
+	engine := NewEngine(cfg, sf, store, planner, exec, logging.NewComponentLogger("test"))
+
+	result, err := engine.RunCycle(context.Background())
+	if err != nil {
+		t.Fatalf("RunCycle: %v", err)
+	}
+	if len(result.AgentSummary) != 1 {
+		t.Fatalf("expected 1 summary, got %d", len(result.AgentSummary))
+	}
+	roles := result.AgentSummary[0].TeamRoles
+	if len(roles) != 2 {
+		t.Fatalf("expected 2 team roles, got %d", len(roles))
+	}
+	if roles[0].RoleID != "team-scout" || roles[0].Status != "completed" {
+		t.Errorf("role 0: %+v", roles[0])
+	}
+	if roles[1].RoleID != "team-writer" || roles[1].Status != "failed" || roles[1].Error != "timeout" {
+		t.Errorf("role 1: %+v", roles[1])
+	}
+}
+
 func TestEngine_RunCycle_TeamDispatchUsesTeamExecutor(t *testing.T) {
 	exec := &mockExecutor{summaries: []string{"team completed"}}
 	dir := t.TempDir()
