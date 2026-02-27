@@ -35,137 +35,84 @@ type SSEEvent struct {
 	Data      map[string]interface{} `json:"data"`
 }
 
-// RenderToolCallStart renders tool call start as SSE event with hierarchy
-func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName string, args map[string]interface{}) string {
-	presentation := r.formatter.PrepareArgs(toolName, args)
-
-	sseEvent := SSEEvent{
-		Type:      "workflow.tool.started",
-		Timestamp: time.Now(),
-		Data: map[string]interface{}{
-			"tool":          toolName,
-			"args":          args,
-			"category":      string(CategorizeToolName(toolName)),
-			"level":         string(ctx.Level),
-			"agent_id":      ctx.AgentID,
-			"session_id":    ctx.SessionID,
-			"run_id":        ctx.TaskID,
-			"parent_run_id": ctx.ParentTaskID,
-		},
-	}
-
-	if len(presentation.Args) > 0 {
-		sseEvent.Data["arguments"] = presentation.Args
-	}
-	if presentation.InlinePreview != "" {
-		sseEvent.Data["arguments_preview"] = presentation.InlinePreview
-	}
-
-	return r.toSSE(sseEvent)
-}
-
-// RenderToolCallComplete renders tool call completion as SSE event with hierarchy
-func (r *SSERenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName string, result string, err error, duration time.Duration) string {
-	data := map[string]interface{}{
-		"tool":          toolName,
-		"category":      string(CategorizeToolName(toolName)),
-		"duration":      duration.Milliseconds(),
+// contextData builds the common hierarchy fields shared by all SSE events.
+func contextData(ctx *types.OutputContext) map[string]interface{} {
+	return map[string]interface{}{
 		"level":         string(ctx.Level),
 		"agent_id":      ctx.AgentID,
 		"session_id":    ctx.SessionID,
 		"run_id":        ctx.TaskID,
 		"parent_run_id": ctx.ParentTaskID,
 	}
+}
 
+// RenderToolCallStart renders tool call start as SSE event with hierarchy
+func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName string, args map[string]interface{}) string {
+	presentation := r.formatter.PrepareArgs(toolName, args)
+	data := contextData(ctx)
+	data["tool"] = toolName
+	data["args"] = args
+	data["category"] = string(CategorizeToolName(toolName))
+	if len(presentation.Args) > 0 {
+		data["arguments"] = presentation.Args
+	}
+	if presentation.InlinePreview != "" {
+		data["arguments_preview"] = presentation.InlinePreview
+	}
+	return r.toSSE(SSEEvent{Type: "workflow.tool.started", Timestamp: time.Now(), Data: data})
+}
+
+// RenderToolCallComplete renders tool call completion as SSE event with hierarchy
+func (r *SSERenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName string, result string, err error, duration time.Duration) string {
+	data := contextData(ctx)
+	data["tool"] = toolName
+	data["category"] = string(CategorizeToolName(toolName))
+	data["duration"] = duration.Milliseconds()
 	if err != nil {
 		data["error"] = err.Error()
 	} else {
 		data["result"] = result
 	}
-
-	sseEvent := SSEEvent{
-		Type:      "workflow.tool.completed",
-		Timestamp: time.Now(),
-		Data:      data,
-	}
-	return r.toSSE(sseEvent)
+	return r.toSSE(SSEEvent{Type: "workflow.tool.completed", Timestamp: time.Now(), Data: data})
 }
 
 // RenderTaskComplete renders task completion as SSE event
 func (r *SSERenderer) RenderTaskComplete(ctx *types.OutputContext, result *domain.TaskResult) string {
-	sseEvent := SSEEvent{
-		Type:      "workflow.result.final",
-		Timestamp: time.Now(),
-		Data: map[string]interface{}{
-			"answer":        result.Answer,
-			"iterations":    result.Iterations,
-			"tokens":        result.TokensUsed,
-			"stop_reason":   result.StopReason,
-			"level":         string(ctx.Level),
-			"agent_id":      ctx.AgentID,
-			"session_id":    ctx.SessionID,
-			"run_id":        ctx.TaskID,
-			"parent_run_id": ctx.ParentTaskID,
-		},
-	}
-	return r.toSSE(sseEvent)
+	data := contextData(ctx)
+	data["answer"] = result.Answer
+	data["iterations"] = result.Iterations
+	data["tokens"] = result.TokensUsed
+	data["stop_reason"] = result.StopReason
+	return r.toSSE(SSEEvent{Type: "workflow.result.final", Timestamp: time.Now(), Data: data})
 }
 
 // RenderError renders error as SSE event with hierarchy
 func (r *SSERenderer) RenderError(ctx *types.OutputContext, phase string, err error) string {
-	sseEvent := SSEEvent{
-		Type:      "workflow.node.failed",
-		Timestamp: time.Now(),
-		Data: map[string]interface{}{
-			"phase":         phase,
-			"error":         err.Error(),
-			"level":         string(ctx.Level),
-			"agent_id":      ctx.AgentID,
-			"session_id":    ctx.SessionID,
-			"run_id":        ctx.TaskID,
-			"parent_run_id": ctx.ParentTaskID,
-		},
-	}
-	return r.toSSE(sseEvent)
+	data := contextData(ctx)
+	data["phase"] = phase
+	data["error"] = err.Error()
+	return r.toSSE(SSEEvent{Type: "workflow.node.failed", Timestamp: time.Now(), Data: data})
 }
 
 // RenderSubagentProgress renders subagent progress as SSE event
 func (r *SSERenderer) RenderSubagentProgress(ctx *types.OutputContext, completed, total int, tokens, toolCalls int) string {
-	sseEvent := SSEEvent{
-		Type:      "workflow.subflow.progress",
-		Timestamp: time.Now(),
-		Data: map[string]interface{}{
-			"completed":     completed,
-			"total":         total,
-			"tokens":        tokens,
-			"tool_calls":    toolCalls,
-			"agent_id":      ctx.AgentID,
-			"session_id":    ctx.SessionID,
-			"run_id":        ctx.TaskID,
-			"parent_run_id": ctx.ParentTaskID,
-		},
-	}
-	return r.toSSE(sseEvent)
+	data := contextData(ctx)
+	data["completed"] = completed
+	data["total"] = total
+	data["tokens"] = tokens
+	data["tool_calls"] = toolCalls
+	return r.toSSE(SSEEvent{Type: "workflow.subflow.progress", Timestamp: time.Now(), Data: data})
 }
 
 // RenderSubagentComplete renders subagent completion as SSE event
 func (r *SSERenderer) RenderSubagentComplete(ctx *types.OutputContext, total, success, failed int, tokens, toolCalls int) string {
-	sseEvent := SSEEvent{
-		Type:      "workflow.subflow.completed",
-		Timestamp: time.Now(),
-		Data: map[string]interface{}{
-			"total":         total,
-			"success":       success,
-			"failed":        failed,
-			"tokens":        tokens,
-			"tool_calls":    toolCalls,
-			"agent_id":      ctx.AgentID,
-			"session_id":    ctx.SessionID,
-			"run_id":        ctx.TaskID,
-			"parent_run_id": ctx.ParentTaskID,
-		},
-	}
-	return r.toSSE(sseEvent)
+	data := contextData(ctx)
+	data["total"] = total
+	data["success"] = success
+	data["failed"] = failed
+	data["tokens"] = tokens
+	data["tool_calls"] = toolCalls
+	return r.toSSE(SSEEvent{Type: "workflow.subflow.completed", Timestamp: time.Now(), Data: data})
 }
 
 // toSSE converts an SSEEvent to SSE format

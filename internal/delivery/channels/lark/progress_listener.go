@@ -252,6 +252,16 @@ func (p *progressListener) onEnvelopeToolCompleted(e *domain.WorkflowEventEnvelo
 	p.scheduleFlush()
 }
 
+func payloadString(e *domain.WorkflowEventEnvelope, key string) string {
+	if e == nil || e.Payload == nil {
+		return ""
+	}
+	if value, ok := e.Payload[key].(string); ok {
+		return strings.TrimSpace(value)
+	}
+	return ""
+}
+
 func envelopeCallID(e *domain.WorkflowEventEnvelope) string {
 	if e == nil {
 		return ""
@@ -259,29 +269,11 @@ func envelopeCallID(e *domain.WorkflowEventEnvelope) string {
 	if id := strings.TrimSpace(e.NodeID); id != "" {
 		return id
 	}
-	raw, ok := e.Payload["call_id"]
-	if !ok {
-		return ""
-	}
-	if value, ok := raw.(string); ok {
-		return strings.TrimSpace(value)
-	}
-	return ""
+	return payloadString(e, "call_id")
 }
 
 func envelopeToolName(e *domain.WorkflowEventEnvelope) string {
-	if e == nil || e.Payload == nil {
-		return ""
-	}
-	raw, ok := e.Payload["tool_name"]
-	if !ok {
-		return ""
-	}
-	value, ok := raw.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(value)
+	return payloadString(e, "tool_name")
 }
 
 func envelopeHasError(e *domain.WorkflowEventEnvelope) bool {
@@ -337,6 +329,25 @@ func (p *progressListener) scheduleFlush() {
 	}
 }
 
+// doSend sends a new message or updates the existing one.
+// Must be called WITHOUT p.mu held.
+func (p *progressListener) doSend(text, messageID, logPrefix string) {
+	if messageID == "" {
+		newID, err := p.sender.SendProgress(p.ctx, text)
+		if err != nil {
+			p.logger.Warn("Lark progress %ssend failed: %v", logPrefix, err)
+			return
+		}
+		p.mu.Lock()
+		p.messageID = newID
+		p.mu.Unlock()
+	} else {
+		if err := p.sender.UpdateProgress(p.ctx, messageID, text); err != nil {
+			p.logger.Warn("Lark progress %supdate failed: %v", logPrefix, err)
+		}
+	}
+}
+
 // flush sends or updates the progress message.
 func (p *progressListener) flush() {
 	p.mu.Lock()
@@ -353,22 +364,7 @@ func (p *progressListener) flush() {
 	p.timer = nil
 	p.mu.Unlock()
 
-	if messageID == "" {
-		// First send.
-		newID, err := p.sender.SendProgress(p.ctx, text)
-		if err != nil {
-			p.logger.Warn("Lark progress send failed: %v", err)
-			return
-		}
-		p.mu.Lock()
-		p.messageID = newID
-		p.mu.Unlock()
-	} else {
-		// Update existing message.
-		if err := p.sender.UpdateProgress(p.ctx, messageID, text); err != nil {
-			p.logger.Warn("Lark progress update failed: %v", err)
-		}
-	}
+	p.doSend(text, messageID, "")
 }
 
 // Close performs a final synchronous flush and cleans up timers.
@@ -396,21 +392,7 @@ func (p *progressListener) Close() {
 		return
 	}
 
-	// Final synchronous flush.
-	if messageID == "" {
-		newID, err := p.sender.SendProgress(p.ctx, text)
-		if err != nil {
-			p.logger.Warn("Lark progress final send failed: %v", err)
-			return
-		}
-		p.mu.Lock()
-		p.messageID = newID
-		p.mu.Unlock()
-	} else {
-		if err := p.sender.UpdateProgress(p.ctx, messageID, text); err != nil {
-			p.logger.Warn("Lark progress final update failed: %v", err)
-		}
-	}
+	p.doSend(text, messageID, "final ")
 }
 
 // buildText constructs the progress display string as a single friendly
