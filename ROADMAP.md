@@ -1,6 +1,8 @@
 # elephant.ai Roadmap
 
-Updated: 2026-02-11
+Updated: 2026-02-27
+
+Latest consolidated roadmap: `docs/roadmap/roadmap-2026-02-27.md` (authoritative)
 
 This roadmap is a **guided navigation + execution priority** for the current codebase.
 
