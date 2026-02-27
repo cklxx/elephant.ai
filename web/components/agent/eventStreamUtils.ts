@@ -48,24 +48,31 @@ export function sortEventsBySeq(events: AnyAgentEvent[]): AnyAgentEvent[] {
     seq: "seq" in event && typeof event.seq === "number" && event.seq > 0 ? event.seq : null,
     ts: parseEventTimestamp(event) ?? Number.MAX_SAFE_INTEGER,
   }));
+  const hasUnsequenced = normalized.some((item) => item.seq === null);
 
   normalized.sort((a, b) => {
-    // Both have valid seq → use seq as primary sort key
-    if (a.seq !== null && b.seq !== null) {
-      if (a.seq !== b.seq) {
+    // Any unsequenced events present means we must preserve chronological
+    // interleaving across turns (seq values can repeat between turns).
+    if (hasUnsequenced) {
+      if (a.ts !== b.ts) {
+        return a.ts - b.ts;
+      }
+      // Same timestamp: event without seq (e.g. input) precedes events with seq.
+      if (a.seq === null && b.seq !== null) return -1;
+      if (a.seq !== null && b.seq === null) return 1;
+      // Both sequenced at same timestamp: keep causal order by seq.
+      if (a.seq !== null && b.seq !== null && a.seq !== b.seq) {
         return a.seq - b.seq;
       }
       return a.index - b.index;
     }
-    // At least one has no seq → fall back to timestamp so that
-    // multi-turn input events are interleaved correctly
+
+    // All events have valid seq → use seq order as primary key.
+    if (a.seq !== b.seq) {
+      return (a.seq ?? Number.MAX_SAFE_INTEGER) - (b.seq ?? Number.MAX_SAFE_INTEGER);
+    }
     if (a.ts !== b.ts) {
       return a.ts - b.ts;
-    }
-    // Same timestamp: event without seq (e.g. input) precedes events
-    // with seq (the reactions it triggers)
-    if (a.seq !== null || b.seq !== null) {
-      return a.seq !== null ? 1 : -1;
     }
     return a.index - b.index;
   });
