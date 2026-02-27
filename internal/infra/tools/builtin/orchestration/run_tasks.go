@@ -157,7 +157,7 @@ func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	if templateName != "" {
 		if recorder := agent.GetTeamRunRecorder(ctx); recorder != nil {
 			goal, _ := call.Arguments["goal"].(string)
-			record := buildTeamRunRecord(tf, templateName, strings.TrimSpace(goal), result, statusPath, wait)
+			record := buildTeamRunRecord(ctx, tf, templateName, strings.TrimSpace(goal), result, statusPath, wait)
 			if _, recErr := recorder.RecordTeamRun(ctx, record); recErr != nil {
 				_ = recErr // best-effort
 			}
@@ -279,28 +279,40 @@ func filterTasks(tf *taskfile.TaskFile, ids []string) *taskfile.TaskFile {
 	return filtered
 }
 
-func buildTeamRunRecord(tf *taskfile.TaskFile, templateName, goal string, result *taskfile.ExecuteResult, statusPath string, waited bool) agent.TeamRunRecord {
+func buildTeamRunRecord(ctx context.Context, tf *taskfile.TaskFile, templateName, goal string, result *taskfile.ExecuteResult, statusPath string, waited bool) agent.TeamRunRecord {
 	state := "dispatched"
 	if waited {
 		state = dispatchStateFromStatus(statusPath)
 	}
 	var stages []agent.TeamRunStageRecord
 	var roles []agent.TeamRunRoleRecord
-	if tf.Metadata != nil {
-		// Stages/roles come from the TaskFile structure.
-		for _, t := range tf.Tasks {
-			roles = append(roles, agent.TeamRunRoleRecord{
-				Name:           t.ID,
-				AgentType:      t.AgentType,
-				TaskID:         t.ID,
-				DependsOn:      t.DependsOn,
-				ExecutionMode:  t.ExecutionMode,
-				AutonomyLevel:  t.AutonomyLevel,
-				WorkspaceMode:  t.WorkspaceMode,
-				InheritContext: t.InheritContext,
-				Config:         t.Config,
-			})
+
+	// Populate stages from the team definition in context.
+	for _, def := range agent.GetTeamDefinitions(ctx) {
+		if strings.EqualFold(def.Name, templateName) {
+			for _, s := range def.Stages {
+				stages = append(stages, agent.TeamRunStageRecord{
+					Name:  s.Name,
+					Roles: s.Roles,
+				})
+			}
+			break
 		}
+	}
+
+	// Populate roles from the rendered TaskFile tasks.
+	for _, t := range tf.Tasks {
+		roles = append(roles, agent.TeamRunRoleRecord{
+			Name:           t.ID,
+			AgentType:      t.AgentType,
+			TaskID:         t.ID,
+			DependsOn:      t.DependsOn,
+			ExecutionMode:  t.ExecutionMode,
+			AutonomyLevel:  t.AutonomyLevel,
+			WorkspaceMode:  t.WorkspaceMode,
+			InheritContext: t.InheritContext,
+			Config:         t.Config,
+		})
 	}
 	return agent.TeamRunRecord{
 		TeamName:      templateName,
@@ -314,13 +326,21 @@ func buildTeamRunRecord(tf *taskfile.TaskFile, templateName, goal string, result
 }
 
 func dispatchStateFromStatus(statusPath string) string {
-	data, err := os.ReadFile(statusPath)
+	sf, err := taskfile.ReadStatusFile(statusPath)
 	if err != nil {
 		return "completed" // best-effort: assume done if waited
 	}
-	content := string(data)
-	if strings.Contains(content, "status: failed") {
-		if strings.Contains(content, "status: completed") {
+	failed, completed := 0, 0
+	for _, ts := range sf.Tasks {
+		switch ts.Status {
+		case "failed":
+			failed++
+		case "completed":
+			completed++
+		}
+	}
+	if failed > 0 {
+		if completed > 0 {
 			return "partial_failure"
 		}
 		return "failed"

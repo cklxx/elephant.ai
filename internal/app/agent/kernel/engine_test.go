@@ -842,11 +842,11 @@ func TestEngine_RunCycle_FailureClassEmptyForGenericError(t *testing.T) {
 		t.Fatalf("expected 2 failed, got %d", result.Failed)
 	}
 	for _, s := range result.AgentSummary {
-		// Generic errors still get classified as "invalid_result" by the fallback
-		// in classifyKernelValidationError, but since this is a non-validation error,
-		// classifyDispatchError returns the fallback class.
-		if !strings.Contains(s.Error, "[") {
-			t.Fatalf("expected classification prefix in error, got %q", s.Error)
+		if s.FailureClass != "" {
+			t.Fatalf("expected empty failure class for generic error, got %q", s.FailureClass)
+		}
+		if s.Error != "network timeout" {
+			t.Fatalf("expected raw error without prefix, got %q", s.Error)
 		}
 	}
 }

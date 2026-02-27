@@ -300,6 +300,12 @@ func TestRunTasks_TemplateRecordsTeamRun(t *testing.T) {
 	if rec.DispatchState != "completed" {
 		t.Errorf("expected dispatch state 'completed', got %s", rec.DispatchState)
 	}
+	if len(rec.Stages) != 1 {
+		t.Fatalf("expected 1 stage, got %d", len(rec.Stages))
+	}
+	if rec.Stages[0].Name != "parallel" {
+		t.Errorf("expected stage name 'parallel', got %s", rec.Stages[0].Name)
+	}
 }
 
 func TestRunTasks_FileMode_NoRecorderCall(t *testing.T) {

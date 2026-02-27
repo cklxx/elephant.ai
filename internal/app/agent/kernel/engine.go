@@ -641,8 +641,8 @@ func toTeamRoleSummaries(roles []TeamRoleResult) []kerneldomain.TeamRoleSummary 
 	return out
 }
 
-// classifyDispatchError attempts to map an execution error to a known failure class.
-// Returns empty string if the error is not a recognized kernel validation error.
+// classifyDispatchError maps an execution error to a known failure class.
+// Returns empty string for nil errors or unrecognized (non-validation) errors.
 func classifyDispatchError(err error) string {
 	if err == nil {
 		return ""

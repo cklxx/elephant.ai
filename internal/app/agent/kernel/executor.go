@@ -230,7 +230,7 @@ func classifyKernelValidationError(err error) string {
 	case errors.Is(err, errKernelInvalidExecutionSummary):
 		return kernelAutonomyInvalid
 	default:
-		return kernelAutonomyInvalid
+		return ""
 	}
 }
 
