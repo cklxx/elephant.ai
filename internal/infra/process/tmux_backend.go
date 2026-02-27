@@ -64,11 +64,28 @@ func (b *TmuxBackend) Start(ctx context.Context, cfg ProcessConfig) (ProcessHand
 	}
 
 	// Get the PID of the process running inside the tmux pane.
-	pid, err := tmuxPanePID(ctx, sessionName)
-	if err != nil {
-		// Session started but can't get PID — kill it and fail.
+	// Retry briefly: tmux needs a moment to register the pane, and short-lived
+	// commands may cause the session to vanish before we can query it.
+	var pid int
+	var pidErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		pid, pidErr = tmuxPanePID(ctx, sessionName)
+		if pidErr == nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if pidErr != nil {
+		// Session may have already exited (very short-lived command).
+		// Clean up and return an already-done handle.
 		_ = exec.CommandContext(ctx, "tmux", "-L", tmuxSocket, "kill-session", "-t", sessionName).Run()
-		return nil, fmt.Errorf("get tmux pane pid: %w", err)
+		h := &tmuxHandle{
+			name:        cfg.Name,
+			sessionName: sessionName,
+			done:        make(chan struct{}),
+		}
+		close(h.done)
+		return h, nil
 	}
 
 	h := &tmuxHandle{

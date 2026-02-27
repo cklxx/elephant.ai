@@ -40,6 +40,18 @@ func runDevCommand(args []string) error {
 		return devLogs(target)
 	case "restart":
 		return devRestart(args...)
+	case "ps":
+		return devPS()
+	case "attach":
+		if len(args) == 0 {
+			return fmt.Errorf("usage: alex dev attach <name>")
+		}
+		return devAttach(args[0])
+	case "capture":
+		if len(args) == 0 {
+			return fmt.Errorf("usage: alex dev capture <name>")
+		}
+		return devCapture(args[0])
 	case "test":
 		return devTest()
 	case "lint":
@@ -368,6 +380,129 @@ func devCleanup() error {
 	return nil
 }
 
+func devPS() error {
+	orch, err := buildOrchestrator()
+	if err != nil {
+		return err
+	}
+
+	sec := orch.Section()
+	sec.Section("Managed Processes")
+
+	// Devops services (PID file-tracked).
+	ctx := context.Background()
+	for _, s := range orch.Status(ctx) {
+		state := s.State.String()
+		if s.Healthy {
+			state = "healthy"
+		}
+		backend := "exec"
+		if orch.Controller().TmuxAvailable() {
+			backend = "tmux"
+		}
+		if s.PID > 0 {
+			sec.Info("%-20s PID: %-8d %-10s [%s]", s.Name, s.PID, state, backend)
+		} else {
+			sec.Info("%-20s %-19s %s", s.Name, "", state)
+		}
+	}
+
+	// Controller-tracked processes (bridge agents, etc.).
+	for _, info := range orch.Controller().List() {
+		state := "dead"
+		if info.Alive {
+			state = "alive"
+		}
+		sec.Info("%-20s PID: %-8d %-10s [%s]", info.Name, info.PID, state, info.Backend)
+	}
+
+	return nil
+}
+
+func devAttach(name string) error {
+	orch, err := buildOrchestrator()
+	if err != nil {
+		return err
+	}
+
+	// Resolve tmux session name.
+	sessionName := "elephant-dev-" + name
+
+	// Check if a tmux session with this name exists.
+	if err := exec.Command("tmux", "-L", "elephant", "has-session", "-t", sessionName).Run(); err != nil {
+		// Try without the dev- prefix (for bridge processes).
+		sessionName = "elephant-" + name
+		if err := exec.Command("tmux", "-L", "elephant", "has-session", "-t", sessionName).Run(); err != nil {
+			// Fall back to log tailing.
+			cfg := orch.Config()
+			logFile := filepath.Join(cfg.LogDir, name+".log")
+			if _, statErr := os.Stat(logFile); statErr != nil {
+				return fmt.Errorf("no tmux session or log file found for %q", name)
+			}
+			fmt.Printf("No tmux session found; tailing log file: %s\n", logFile)
+			cmd := exec.Command("tail", "-f", logFile)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer cancel()
+			cmd.WaitDelay = time.Second
+			_ = cmd.Start()
+			go func() {
+				<-ctx.Done()
+				if cmd.Process != nil {
+					_ = cmd.Process.Signal(syscall.SIGTERM)
+				}
+			}()
+			return cmd.Wait()
+		}
+	}
+
+	// Attach to the tmux session.
+	tmuxCmd := exec.Command("tmux", "-L", "elephant", "attach", "-t", sessionName)
+	tmuxCmd.Stdin = os.Stdin
+	tmuxCmd.Stdout = os.Stdout
+	tmuxCmd.Stderr = os.Stderr
+	return tmuxCmd.Run()
+}
+
+func devCapture(name string) error {
+	// Try tmux capture first.
+	sessionName := "elephant-dev-" + name
+	if err := exec.Command("tmux", "-L", "elephant", "has-session", "-t", sessionName).Run(); err != nil {
+		sessionName = "elephant-" + name
+		if err := exec.Command("tmux", "-L", "elephant", "has-session", "-t", sessionName).Run(); err != nil {
+			// Fallback: tail the log file.
+			cfg, cfgErr := loadDevConfig()
+			if cfgErr != nil {
+				return cfgErr
+			}
+			logFile := filepath.Join(cfg.LogDir, name+".log")
+			data, readErr := os.ReadFile(logFile)
+			if readErr != nil {
+				return fmt.Errorf("no tmux session or log file found for %q", name)
+			}
+			// Print last 100 lines.
+			lines := strings.Split(string(data), "\n")
+			start := 0
+			if len(lines) > 100 {
+				start = len(lines) - 100
+			}
+			fmt.Println(strings.Join(lines[start:], "\n"))
+			return nil
+		}
+	}
+
+	// Capture tmux pane content.
+	out, err := exec.Command("tmux", "-L", "elephant",
+		"capture-pane", "-t", sessionName, "-p", "-S", "-100").Output()
+	if err != nil {
+		return fmt.Errorf("tmux capture-pane: %w", err)
+	}
+	fmt.Print(string(out))
+	return nil
+}
+
 func buildOrchestrator() (*devops.Orchestrator, error) {
 	cfg, err := loadDevConfig()
 	if err != nil {
@@ -540,6 +675,9 @@ Commands:
   status             Show status of all services
   logs [service]     Tail logs (server|web|all)
   restart [service]  Restart specified service(s) or all
+  ps                 List all managed processes
+  attach <name>      Attach to a process (tmux session or log tail)
+  capture <name>     Capture process output snapshot
   cleanup            Scan and remove orphan PID files
   test               Run Go tests (CI parity)
   lint               Run Go + web lint

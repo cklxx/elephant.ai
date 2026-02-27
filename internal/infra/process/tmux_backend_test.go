@@ -103,15 +103,17 @@ func TestTmuxBackend_ProcessExitsNaturally(t *testing.T) {
 	b := &TmuxBackend{}
 	ctx := context.Background()
 
+	// Use a command that lives long enough for tmux to register the pane PID.
 	h, err := b.Start(ctx, ProcessConfig{
-		Name:    "test-tmux-fast-exit",
-		Command: "true",
+		Name:    "test-tmux-short-exit",
+		Command: "sleep",
+		Args:    []string{"0.5"},
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	// Process should exit quickly.
+	// Process should exit within a few seconds.
 	select {
 	case <-h.Done():
 	case <-time.After(5 * time.Second):
@@ -120,6 +122,31 @@ func TestTmuxBackend_ProcessExitsNaturally(t *testing.T) {
 
 	if h.Alive() {
 		t.Error("expected Alive() = false after natural exit")
+	}
+}
+
+func TestTmuxBackend_InstantExit(t *testing.T) {
+	if !tmuxAvailable() {
+		t.Skip("tmux not available")
+	}
+	t.Parallel()
+
+	b := &TmuxBackend{}
+	ctx := context.Background()
+
+	// Instant-exit command: should return an already-done handle, not an error.
+	h, err := b.Start(ctx, ProcessConfig{
+		Name:    "test-tmux-instant-exit",
+		Command: "true",
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	select {
+	case <-h.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for Done()")
 	}
 }
 
