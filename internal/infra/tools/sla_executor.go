@@ -78,34 +78,28 @@ func extractCostUSD(result *ports.ToolResult) float64 {
 	if !ok || raw == nil {
 		return 0
 	}
-	switch typed := raw.(type) {
+	switch n := raw.(type) {
 	case float64:
-		return typed
+		return n
 	case float32:
-		return float64(typed)
+		return float64(n)
 	case int:
-		return float64(typed)
+		return float64(n)
 	case int64:
-		return float64(typed)
+		return float64(n)
 	case int32:
-		return float64(typed)
+		return float64(n)
 	case uint:
-		return float64(typed)
+		return float64(n)
 	case uint64:
-		return float64(typed)
+		return float64(n)
 	case uint32:
-		return float64(typed)
+		return float64(n)
 	case json.Number:
-		v, err := typed.Float64()
-		if err != nil {
-			return 0
-		}
+		v, _ := n.Float64()
 		return v
 	case string:
-		v, err := strconv.ParseFloat(typed, 64)
-		if err != nil {
-			return 0
-		}
+		v, _ := strconv.ParseFloat(n, 64)
 		return v
 	default:
 		return 0

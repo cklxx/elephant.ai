@@ -326,6 +326,33 @@ func (c *retryClient) streamingClient() portsllm.StreamingLLMClient {
 	return nil
 }
 
+type errorClassificationRule struct {
+	patterns  []string
+	permanent bool
+	message   string
+}
+
+var llmErrorClassificationRules = []errorClassificationRule{
+	// Rate limit
+	{patterns: []string{"429", "rate limit"}, message: "API rate limit reached. Retrying with exponential backoff."},
+	// Server errors
+	{patterns: []string{"500", "internal server error"}, message: "Server error (500). Retrying request."},
+	{patterns: []string{"502", "bad gateway"}, message: "Bad gateway (502). Retrying request."},
+	{patterns: []string{"503", "service unavailable"}, message: "Service unavailable (503). Retrying request."},
+	{patterns: []string{"504", "gateway timeout"}, message: "Gateway timeout (504). Retrying request."},
+	// Network / transport errors
+	{patterns: []string{"stream error", "received from peer", "internal_error", "read stream"}, message: "Streaming transport was interrupted. Retrying request."},
+	{patterns: []string{"connection refused"}, message: "Connection refused. Retrying request."},
+	{patterns: []string{"timeout", "deadline exceeded"}, message: "Request timed out. Retrying with backoff."},
+	{patterns: []string{"network", "dns"}, message: "Network connectivity issue. Retrying request."},
+	{patterns: []string{"connection reset", "broken pipe"}, message: "Connection reset. Retrying request."},
+	// Permanent errors
+	{patterns: []string{"401", "unauthorized"}, permanent: true, message: "Authentication failed. Please check your API key configuration."},
+	{patterns: []string{"403", "forbidden"}, permanent: true, message: "Permission denied. You don't have access to this model or resource."},
+	{patterns: []string{"404", "not found"}, permanent: true, message: "Model or endpoint not found. Please verify the model name."},
+	{patterns: []string{"400", "bad request"}, permanent: true, message: "Invalid request. Please check the parameters."},
+}
+
 // classifyLLMError detects transient errors from LLM API
 func (c *retryClient) classifyLLMError(err error) error {
 	if err == nil {
@@ -347,82 +374,17 @@ func (c *retryClient) classifyLLMError(err error) error {
 		return err
 	}
 
-	errStr := err.Error()
-	lowerErr := strings.ToLower(errStr)
+	lowerErr := strings.ToLower(err.Error())
 
-	// Rate limit errors (429)
-	if strings.Contains(lowerErr, "429") || strings.Contains(lowerErr, "rate limit") {
-		return alexerrors.NewTransientError(err,
-			"API rate limit reached. Retrying with exponential backoff.")
-	}
-
-	// Server errors (500, 502, 503, 504)
-	if strings.Contains(lowerErr, "500") || strings.Contains(lowerErr, "internal server error") {
-		return alexerrors.NewTransientError(err,
-			"Server error (500). Retrying request.")
-	}
-
-	if strings.Contains(lowerErr, "502") || strings.Contains(lowerErr, "bad gateway") {
-		return alexerrors.NewTransientError(err,
-			"Bad gateway (502). Retrying request.")
-	}
-
-	if strings.Contains(lowerErr, "503") || strings.Contains(lowerErr, "service unavailable") {
-		return alexerrors.NewTransientError(err,
-			"Service unavailable (503). Retrying request.")
-	}
-
-	if strings.Contains(lowerErr, "504") || strings.Contains(lowerErr, "gateway timeout") {
-		return alexerrors.NewTransientError(err,
-			"Gateway timeout (504). Retrying request.")
-	}
-
-	// Network errors
-	if strings.Contains(lowerErr, "stream error") || strings.Contains(lowerErr, "received from peer") || strings.Contains(lowerErr, "internal_error") || strings.Contains(lowerErr, "read stream") {
-		return alexerrors.NewTransientError(err,
-			"Streaming transport was interrupted. Retrying request.")
-	}
-
-	if strings.Contains(lowerErr, "connection refused") {
-		return alexerrors.NewTransientError(err,
-			alexerrors.FormatForLLM(err))
-	}
-
-	if strings.Contains(lowerErr, "timeout") || strings.Contains(lowerErr, "deadline exceeded") {
-		return alexerrors.NewTransientError(err,
-			"Request timed out. Retrying with backoff.")
-	}
-
-	if strings.Contains(lowerErr, "network") || strings.Contains(lowerErr, "dns") {
-		return alexerrors.NewTransientError(err,
-			"Network connectivity issue. Retrying request.")
-	}
-
-	// Connection reset, broken pipe
-	if strings.Contains(lowerErr, "connection reset") || strings.Contains(lowerErr, "broken pipe") {
-		return alexerrors.NewTransientError(err,
-			"Connection reset. Retrying request.")
-	}
-
-	// Permanent errors
-	if strings.Contains(lowerErr, "401") || strings.Contains(lowerErr, "unauthorized") {
-		return alexerrors.NewPermanentError(err,
-			"Authentication failed. Please check your API key configuration.")
-	}
-
-	if strings.Contains(lowerErr, "403") || strings.Contains(lowerErr, "forbidden") {
-		return alexerrors.NewPermanentError(err,
-			"Permission denied. You don't have access to this model or resource.")
-	}
-
-	if strings.Contains(lowerErr, "404") || strings.Contains(lowerErr, "not found") {
-		return alexerrors.NewPermanentError(err,
-			"Model or endpoint not found. Please verify the model name.")
-	}
-
-	if strings.Contains(lowerErr, "400") || strings.Contains(lowerErr, "bad request") {
-		return alexerrors.NewPermanentError(err,
-			"Invalid request. Please check the parameters.")
+	for _, rule := range llmErrorClassificationRules {
+		for _, pattern := range rule.patterns {
+			if strings.Contains(lowerErr, pattern) {
+				if rule.permanent {
+					return alexerrors.NewPermanentError(err, rule.message)
+				}
+				return alexerrors.NewTransientError(err, rule.message)
+			}
+		}
 	}
 
 	// Default: return as-is (will be classified by IsTransient)
