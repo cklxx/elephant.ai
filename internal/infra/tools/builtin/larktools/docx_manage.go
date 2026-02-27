@@ -67,6 +67,8 @@ func (t *larkDocxManage) createDoc(ctx context.Context, client *larkapi.Client, 
 		}, nil
 	}
 
+	grantSenderEditPermission(ctx, client, doc.DocumentID, "docx")
+
 	payload, _ := json.MarshalIndent(doc, "", "  ")
 	metadata := map[string]any{
 		"document_id": doc.DocumentID,

@@ -88,6 +88,11 @@ func (c *Client) VC() *VCService {
 	return &VCService{client: c.raw}
 }
 
+// Permission returns the permission sub-service.
+func (c *Client) Permission() *PermissionService {
+	return &PermissionService{client: c.raw}
+}
+
 // --- Shared helpers ---
 
 // CallOption configures a single API call (e.g. user or tenant access token).

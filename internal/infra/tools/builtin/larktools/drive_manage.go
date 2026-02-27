@@ -109,6 +109,8 @@ func (t *larkDriveManage) createFolder(ctx context.Context, client *larkapi.Clie
 		}, nil
 	}
 
+	grantSenderEditPermission(ctx, client, folder.Token, "folder")
+
 	return &ports.ToolResult{
 		CallID:  call.ID,
 		Content: "Folder created successfully.",
@@ -146,6 +148,8 @@ func (t *larkDriveManage) copyFile(ctx context.Context, client *larkapi.Client, 
 			Error:   err,
 		}, nil
 	}
+
+	grantSenderEditPermission(ctx, client, copied.Token, fileType)
 
 	return &ports.ToolResult{
 		CallID:  call.ID,

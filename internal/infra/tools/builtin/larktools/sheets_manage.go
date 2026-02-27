@@ -61,6 +61,8 @@ func (t *larkSheetsManage) createSpreadsheet(ctx context.Context, client *larkap
 		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to create spreadsheet: %v", err), Error: err}, nil
 	}
 
+	grantSenderEditPermission(ctx, client, ss.SpreadsheetToken, "sheet")
+
 	payload, _ := json.MarshalIndent(ss, "", "  ")
 	metadata := map[string]any{
 		"spreadsheet_token": ss.SpreadsheetToken,
