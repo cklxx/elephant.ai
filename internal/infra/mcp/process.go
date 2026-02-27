@@ -5,13 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
 	"alex/internal/infra/backoff"
+	"alex/internal/infra/process"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 )
@@ -25,7 +25,7 @@ type ProcessManager struct {
 	stdin        io.WriteCloser
 	stdout       io.ReadCloser
 	stderr       io.ReadCloser
-	stderrTail   *tailBuffer
+	stderrTail   *process.TailBuffer
 	stderrDone   chan struct{}
 	logger       logging.Logger
 	mu           sync.Mutex
@@ -51,7 +51,7 @@ func NewProcessManager(config ProcessConfig) *ProcessManager {
 		logger:      logging.NewComponentLogger(fmt.Sprintf("ProcessManager[%s]", config.Command)),
 		restartChan: make(chan struct{}, 1),
 		stopChan:    make(chan struct{}),
-		stderrTail:  newTailBuffer(defaultStderrTail),
+		stderrTail:  process.NewTailBuffer(process.DefaultStderrTail),
 	}
 
 	// Preserve a copy of the overrides. We'll merge with the parent environment at Start().
@@ -88,7 +88,7 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 	// Create command with context
 	pm.process = exec.CommandContext(ctx, resolved, pm.args...)
 	if pm.envOverrides != nil {
-		pm.process.Env = mergeEnviron(pm.envOverrides)
+		pm.process.Env = process.MergeEnv(pm.envOverrides)
 	}
 
 	// Setup pipes
@@ -115,7 +115,7 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 	pm.running = true
 	pm.logger.Info("MCP server started with PID: %d", pm.process.Process.Pid)
 
-	process := pm.process
+	proc := pm.process
 	stderr := pm.stderr
 	stderrTail := pm.stderrTail
 	stopChan := pm.stopChan
@@ -129,29 +129,10 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 
 	// Monitor process exit
 	async.Go(pm.logger, "mcp.monitorExit", func() {
-		pm.monitorExit(process, waitDone, stderrDone)
+		pm.monitorExit(proc, waitDone, stderrDone)
 	})
 
 	return nil
-}
-
-func mergeEnviron(overrides map[string]string) []string {
-	env := make(map[string]string)
-	for _, kv := range os.Environ() {
-		k, v, ok := strings.Cut(kv, "=")
-		if !ok {
-			continue
-		}
-		env[k] = v
-	}
-	for k, v := range overrides {
-		env[k] = v
-	}
-	out := make([]string, 0, len(env))
-	for k, v := range env {
-		out = append(out, fmt.Sprintf("%s=%s", k, v))
-	}
-	return out
 }
 
 func resolveExecutable(command string) (string, error) {
@@ -184,7 +165,7 @@ func (pm *ProcessManager) Stop(timeout time.Duration) error {
 
 	stopChan := pm.stopChan
 	waitDone := pm.waitDone
-	process := pm.process
+	proc := pm.process
 	stdin := pm.stdin
 	pm.mu.Unlock()
 
@@ -200,9 +181,9 @@ func (pm *ProcessManager) Stop(timeout time.Duration) error {
 
 	if waitDone == nil {
 		waitDone = make(chan error, 1)
-		if process != nil {
+		if proc != nil {
 			async.Go(pm.logger, "mcp.waitProcess", func() {
-				waitDone <- process.Wait()
+				waitDone <- proc.Wait()
 			})
 		}
 	}
@@ -215,8 +196,8 @@ func (pm *ProcessManager) Stop(timeout time.Duration) error {
 	case <-time.After(timeout):
 		// Timeout - force kill
 		pm.logger.Warn("Graceful shutdown timeout, killing process")
-		if process != nil && process.Process != nil {
-			if err := process.Process.Kill(); err != nil {
+		if proc != nil && proc.Process != nil {
+			if err := proc.Process.Kill(); err != nil {
 				return fmt.Errorf("failed to kill process: %w", err)
 			}
 		}
@@ -373,8 +354,8 @@ func (pm *ProcessManager) monitorStderr(stderr io.Reader, stderrTail io.Writer, 
 // We must drain stderr BEFORE calling Wait, because Wait closes the pipe
 // (see exec.Cmd.StderrPipe docs: "It is thus incorrect to call Wait before
 // all reads from the pipe have completed.").
-func (pm *ProcessManager) monitorExit(process *exec.Cmd, waitDone chan<- error, stderrDone <-chan struct{}) {
-	if process == nil {
+func (pm *ProcessManager) monitorExit(proc *exec.Cmd, waitDone chan<- error, stderrDone <-chan struct{}) {
+	if proc == nil {
 		return
 	}
 
@@ -384,7 +365,7 @@ func (pm *ProcessManager) monitorExit(process *exec.Cmd, waitDone chan<- error, 
 	}
 
 	// Now safe to call Wait — all pipe reads are done.
-	err := process.Wait()
+	err := proc.Wait()
 
 	if waitDone != nil {
 		select {
@@ -394,7 +375,7 @@ func (pm *ProcessManager) monitorExit(process *exec.Cmd, waitDone chan<- error, 
 	}
 
 	pm.mu.Lock()
-	if pm.process != process {
+	if pm.process != proc {
 		pm.mu.Unlock()
 		return
 	}
@@ -420,50 +401,4 @@ func (pm *ProcessManager) monitorExit(process *exec.Cmd, waitDone chan<- error, 
 // RestartChannel returns the restart notification channel
 func (pm *ProcessManager) RestartChannel() <-chan struct{} {
 	return pm.restartChan
-}
-
-const defaultStderrTail = 8 * 1024
-
-type tailBuffer struct {
-	mu  sync.Mutex
-	max int
-	buf []byte
-}
-
-func newTailBuffer(max int) *tailBuffer {
-	if max <= 0 {
-		max = defaultStderrTail
-	}
-	return &tailBuffer{max: max}
-}
-
-func (t *tailBuffer) Write(p []byte) (int, error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if len(p) >= t.max {
-		t.buf = append(t.buf[:0], p[len(p)-t.max:]...)
-		return len(p), nil
-	}
-
-	if len(t.buf)+len(p) > t.max {
-		excess := len(t.buf) + len(p) - t.max
-		t.buf = t.buf[excess:]
-	}
-	t.buf = append(t.buf, p...)
-	return len(p), nil
-}
-
-func (t *tailBuffer) String() string {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if len(t.buf) == 0 {
-		return ""
-	}
-	copyBuf := make([]byte, len(t.buf))
-	copy(copyBuf, t.buf)
-	return string(copyBuf)
 }

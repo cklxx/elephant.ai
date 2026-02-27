@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"syscall"
+
+	"alex/internal/infra/process"
 )
 
 // OrphanedBridge represents a bridge subprocess that was left behind by a
@@ -60,7 +61,7 @@ func DetectOrphanedBridges(workDir string) []OrphanedBridge {
 
 		// Check if process is still running.
 		if orphan.PID > 0 {
-			orphan.IsRunning = isProcessAlive(orphan.PID)
+			orphan.IsRunning = process.IsAlive(orphan.PID)
 		}
 
 		orphans = append(orphans, orphan)
@@ -88,16 +89,4 @@ func readPIDFromStatus(path string) int {
 		return 0
 	}
 	return status.PID
-}
-
-// isProcessAlive checks whether a process is still running by sending signal 0.
-func isProcessAlive(pid int) bool {
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	// Signal 0 doesn't actually send a signal — it just checks if the
-	// process exists and we have permission to signal it.
-	err = proc.Signal(syscall.Signal(0))
-	return err == nil
 }

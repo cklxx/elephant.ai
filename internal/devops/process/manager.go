@@ -12,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	proclive "alex/internal/infra/process"
 )
 
 // Shutdown timeout hierarchy (keep in sync with scripts/lib/common/process.sh):
@@ -154,7 +156,7 @@ func (m *Manager) Stop(_ context.Context, name string) error {
 		cleanupPIDState(pidFile, metaFile)
 		return nil
 	}
-	if !isProcessAlive(pid) {
+	if !proclive.IsAlive(pid) {
 		cleanupPIDState(pidFile, metaFile)
 		return nil
 	}
@@ -196,7 +198,7 @@ func (m *Manager) IsRunning(name string) (bool, int) {
 	m.mu.Unlock()
 
 	if tracked && mp.Cmd != nil && mp.Cmd.Process != nil {
-		if isProcessAlive(mp.PID) {
+		if proclive.IsAlive(mp.PID) {
 			return true, mp.PID
 		}
 		return false, 0
@@ -208,7 +210,7 @@ func (m *Manager) IsRunning(name string) (bool, int) {
 	if err != nil {
 		return false, 0
 	}
-	if !isProcessAlive(pid) {
+	if !proclive.IsAlive(pid) {
 		cleanupPIDState(pidFile, metaFile)
 		return false, 0
 	}
@@ -216,7 +218,7 @@ func (m *Manager) IsRunning(name string) (bool, int) {
 		cleanupPIDState(pidFile, metaFile)
 		return false, 0
 	}
-	if isProcessAlive(pid) {
+	if proclive.IsAlive(pid) {
 		return true, pid
 	}
 	cleanupPIDState(pidFile, metaFile)
@@ -231,7 +233,7 @@ func (m *Manager) Recover(name string) (*ManagedProcess, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read pid file for %s: %w", name, err)
 	}
-	if !isProcessAlive(pid) {
+	if !proclive.IsAlive(pid) {
 		cleanupPIDState(pidFile, metaFile)
 		return nil, fmt.Errorf("process %s (pid %d) not running", name, pid)
 	}
@@ -259,32 +261,24 @@ func (m *Manager) Recover(name string) (*ManagedProcess, error) {
 
 func (m *Manager) killProcess(pgid, pid int, pidFile string) error {
 	metaFile := pidMetaFile(pidFile)
-	target := -pgid
-	if pgid == 0 {
+
+	target := pgid
+	if target == 0 {
 		target = pid
 	}
 
-	_ = syscall.Kill(target, syscall.SIGTERM)
+	proclive.GracefulStop(target, nil, proclive.ShutdownPolicy{
+		Grace:           gracePeriod,
+		PollInterval:    gracePollInterval,
+		UseProcessGroup: pgid != 0,
+	})
 
-	deadline := time.Now().Add(gracePeriod)
-	for time.Now().Before(deadline) {
-		if !isProcessAlive(pid) {
-			cleanupPIDState(pidFile, metaFile)
-			return nil
-		}
-		time.Sleep(gracePollInterval)
-	}
-
-	_ = syscall.Kill(target, syscall.SIGKILL)
 	cleanupPIDState(pidFile, metaFile)
 	return nil
 }
 
 func isProcessAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	return syscall.Kill(pid, 0) == nil
+	return proclive.IsAlive(pid)
 }
 
 func readPIDFile(path string) (int, error) {
@@ -428,7 +422,7 @@ func (m *Manager) ScanOrphans() []OrphanProcess {
 			continue
 		}
 
-		if !isProcessAlive(pid) {
+		if !proclive.IsAlive(pid) {
 			orphans = append(orphans, OrphanProcess{
 				Name:    name,
 				PIDFile: pidFile,

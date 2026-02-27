@@ -9,6 +9,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"alex/internal/infra/process"
 )
 
 // Config defines how to spawn and manage an external agent subprocess.
@@ -35,7 +37,7 @@ type Subprocess struct {
 	stdin           io.WriteCloser
 	stdout          io.ReadCloser
 	stderr          io.ReadCloser
-	stderrTail      *tailBuffer
+	stderrTail      *process.TailBuffer
 	done            chan struct{}
 	err             error
 	pgid            int
@@ -74,7 +76,7 @@ func (s *Subprocess) startAttached(ctx context.Context) error {
 		cmd.Dir = s.cfg.WorkingDir
 	}
 	if len(s.cfg.Env) > 0 {
-		cmd.Env = buildEnv(s.cfg.Env)
+		cmd.Env = process.MergeEnv(s.cfg.Env)
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -97,7 +99,7 @@ func (s *Subprocess) startAttached(ctx context.Context) error {
 	s.stdin = stdin
 	s.stdout = stdout
 	s.stderr = stderr
-	s.stderrTail = newTailBuffer(defaultStderrTail)
+	s.stderrTail = process.NewTailBuffer(process.DefaultStderrTail)
 	s.done = make(chan struct{})
 
 	go func() {
@@ -149,7 +151,7 @@ func (s *Subprocess) startDetached(ctx context.Context) error {
 		cmd.Dir = s.cfg.WorkingDir
 	}
 	if len(s.cfg.Env) > 0 {
-		cmd.Env = buildEnv(s.cfg.Env)
+		cmd.Env = process.MergeEnv(s.cfg.Env)
 	}
 	// Setsid makes the process a session leader — survives parent death.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
@@ -183,7 +185,7 @@ func (s *Subprocess) startDetached(ctx context.Context) error {
 	s.stdin = stdin
 	s.stdout = nil // No stdout pipe — output goes to file.
 	s.stderr = stderrPipe
-	s.stderrTail = newTailBuffer(defaultStderrTail)
+	s.stderrTail = process.NewTailBuffer(process.DefaultStderrTail)
 	s.done = make(chan struct{})
 	s.detachedOutFile = outFile
 
@@ -296,25 +298,10 @@ func (s *Subprocess) Stop() error {
 		pgid = cmd.Process.Pid
 	}
 
-	// For detached (session leader) processes, send to the process directly.
-	// For attached processes, send to the process group.
-	if detached {
-		_ = syscall.Kill(pgid, syscall.SIGTERM)
-	} else {
-		_ = syscall.Kill(-pgid, syscall.SIGTERM)
-	}
-
-	select {
-	case <-done:
-		return nil
-	case <-time.After(5 * time.Second):
-		if detached {
-			_ = syscall.Kill(pgid, syscall.SIGKILL)
-		} else {
-			_ = syscall.Kill(-pgid, syscall.SIGKILL)
-		}
-		return nil
-	}
+	process.GracefulStop(pgid, done, process.ShutdownPolicy{
+		UseProcessGroup: !detached,
+	})
+	return nil
 }
 
 func (s *Subprocess) PID() int {
@@ -332,93 +319,4 @@ func (s *Subprocess) Done() <-chan struct{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.done
-}
-
-const defaultStderrTail = 8 * 1024
-
-type tailBuffer struct {
-	mu  sync.Mutex
-	max int
-	buf []byte
-}
-
-func newTailBuffer(max int) *tailBuffer {
-	if max <= 0 {
-		max = defaultStderrTail
-	}
-	return &tailBuffer{max: max}
-}
-
-func (t *tailBuffer) Write(p []byte) (int, error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if len(p) >= t.max {
-		t.buf = append(t.buf[:0], p[len(p)-t.max:]...)
-		return len(p), nil
-	}
-
-	if len(t.buf)+len(p) > t.max {
-		excess := len(t.buf) + len(p) - t.max
-		t.buf = t.buf[excess:]
-	}
-	t.buf = append(t.buf, p...)
-	return len(p), nil
-}
-
-func (t *tailBuffer) String() string {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if len(t.buf) == 0 {
-		return ""
-	}
-	copyBuf := make([]byte, len(t.buf))
-	copy(copyBuf, t.buf)
-	return string(copyBuf)
-}
-
-// buildEnv merges cfg env into os.Environ(). If a key maps to "", the
-// variable is removed from the inherited environment (unset semantics).
-func buildEnv(cfg map[string]string) []string {
-	// Collect keys to remove.
-	remove := make(map[string]struct{})
-	for k, v := range cfg {
-		if v == "" {
-			remove[k] = struct{}{}
-		}
-	}
-
-	// Filter inherited env.
-	inherited := os.Environ()
-	env := make([]string, 0, len(inherited)+len(cfg))
-	for _, entry := range inherited {
-		key := entry
-		if idx := indexOf(entry, '='); idx >= 0 {
-			key = entry[:idx]
-		}
-		if _, skip := remove[key]; skip {
-			continue
-		}
-		env = append(env, entry)
-	}
-
-	// Append non-empty overrides.
-	for k, v := range cfg {
-		if v != "" {
-			env = append(env, fmt.Sprintf("%s=%s", k, v))
-		}
-	}
-	return env
-}
-
-func indexOf(s string, c byte) int {
-	for i := range len(s) {
-		if s[i] == c {
-			return i
-		}
-	}
-	return -1
 }

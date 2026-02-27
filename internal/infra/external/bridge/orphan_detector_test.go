@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"alex/internal/infra/process"
 )
 
 func TestDetectOrphanedBridges_EmptyDir(t *testing.T) {
@@ -156,14 +158,14 @@ func TestCleanupBridgeDir(t *testing.T) {
 func TestIsProcessAlive_NonexistentPID(t *testing.T) {
 	t.Parallel()
 	// PID 99999 almost certainly doesn't exist.
-	if isProcessAlive(99999) {
+	if process.IsAlive(99999) {
 		t.Skip("PID 99999 unexpectedly exists, skipping")
 	}
 }
 
 func TestIsProcessAlive_CurrentProcess(t *testing.T) {
 	t.Parallel()
-	if !isProcessAlive(os.Getpid()) {
+	if !process.IsAlive(os.Getpid()) {
 		t.Error("expected current process to be alive")
 	}
 }
