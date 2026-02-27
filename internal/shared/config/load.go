@@ -56,8 +56,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		SessionStaleAfterSeconds:   int((48 * time.Hour).Seconds()),
 		Toolset:                    "default",
 		Browser: BrowserConfig{
-			Connector:    "cdp",
-			BridgeListen: "127.0.0.1:17333",
+			Connector: "extension",
 		},
 		HTTPLimits:     DefaultHTTPLimitsConfig(),
 		ToolPolicy:     toolspolicy.DefaultToolPolicyConfigWithRules(),
