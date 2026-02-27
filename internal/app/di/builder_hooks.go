@@ -191,45 +191,35 @@ func memoryGateFunc(enabled bool) func(context.Context) bool {
 	}
 }
 
+func stringOr(value, fallback string) string {
+	if v := strings.TrimSpace(value); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func intOr(value, fallback int) int {
+	if value > 0 {
+		return value
+	}
+	return fallback
+}
+
 // buildKernelEngine creates the kernel agent loop engine from code-owned defaults.
 func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.AgentCoordinator, llmFactory portsllm.LLMClientFactory) (*kernelagent.Engine, error) {
 	settings := kernelagent.DefaultRuntimeSettings()
-	kernelID := strings.TrimSpace(settings.KernelID)
-	if kernelID == "" {
-		kernelID = kernelagent.DefaultKernelID
-	}
-	schedule := strings.TrimSpace(settings.Schedule)
-	if schedule == "" {
-		schedule = kernelagent.DefaultKernelSchedule
-	}
-	timeoutSeconds := settings.TimeoutSeconds
-	if timeoutSeconds <= 0 {
-		timeoutSeconds = kernelagent.DefaultKernelTimeoutSeconds
-	}
-	leaseSeconds := settings.LeaseSeconds
-	if leaseSeconds <= 0 {
-		leaseSeconds = kernelagent.DefaultKernelLeaseSeconds
-	}
-	maxConcurrent := settings.MaxConcurrent
-	if maxConcurrent <= 0 {
-		maxConcurrent = kernelagent.DefaultKernelMaxConcurrent
-	}
-	maxCycleHistory := settings.MaxCycleHistory
-	if maxCycleHistory <= 0 {
-		maxCycleHistory = kernelagent.DefaultKernelMaxCycleHistory
-	}
+	kernelID := stringOr(settings.KernelID, kernelagent.DefaultKernelID)
+	schedule := stringOr(settings.Schedule, kernelagent.DefaultKernelSchedule)
+	timeoutSeconds := intOr(settings.TimeoutSeconds, kernelagent.DefaultKernelTimeoutSeconds)
+	leaseSeconds := intOr(settings.LeaseSeconds, kernelagent.DefaultKernelLeaseSeconds)
+	maxConcurrent := intOr(settings.MaxConcurrent, kernelagent.DefaultKernelMaxConcurrent)
+	maxCycleHistory := intOr(settings.MaxCycleHistory, kernelagent.DefaultKernelMaxCycleHistory)
 	seedState := settings.SeedState
 	if utils.IsBlank(seedState) {
 		seedState = kernelagent.DefaultSeedStateContent
 	}
-	channel := strings.TrimSpace(settings.Channel)
-	if channel == "" {
-		channel = kernelagent.DefaultKernelChannel
-	}
-	userID := strings.TrimSpace(settings.UserID)
-	if userID == "" {
-		userID = kernelagent.DefaultKernelUserID
-	}
+	channel := stringOr(settings.Channel, kernelagent.DefaultKernelChannel)
+	userID := stringOr(settings.UserID, kernelagent.DefaultKernelUserID)
 	chatID := strings.TrimSpace(settings.ChatID)
 	agents := kernelagent.CloneAgentConfigs(settings.Agents)
 

@@ -224,58 +224,32 @@ func (b *containerBuilder) applyDetectedExternalAgents(detected []codinginfra.Lo
 			continue
 		}
 		agentType := strings.ToLower(strings.TrimSpace(item.AgentType))
+		var enabled *bool
+		var binary *string
 		switch agentType {
 		case "codex":
-			wasEnabled := b.config.ExternalAgents.Codex.Enabled
-			changedBinary := false
-			if !wasEnabled {
-				b.config.ExternalAgents.Codex.Enabled = true
-			}
-			if shouldAdoptDetectedBinary(b.config.ExternalAgents.Codex.Binary, item.Binary) {
-				changedBinary = b.config.ExternalAgents.Codex.Binary != item.Path
-				b.config.ExternalAgents.Codex.Binary = item.Path
-			}
-			if log && (!wasEnabled || changedBinary) {
-				b.logger.Info(
-					"Coding CLI auto-enable: agent_type=%s enabled with binary=%s",
-					agentType,
-					b.config.ExternalAgents.Codex.Binary,
-				)
-			}
+			enabled = &b.config.ExternalAgents.Codex.Enabled
+			binary = &b.config.ExternalAgents.Codex.Binary
 		case "claude_code":
-			wasEnabled := b.config.ExternalAgents.ClaudeCode.Enabled
-			changedBinary := false
-			if !wasEnabled {
-				b.config.ExternalAgents.ClaudeCode.Enabled = true
-			}
-			if shouldAdoptDetectedBinary(b.config.ExternalAgents.ClaudeCode.Binary, item.Binary) {
-				changedBinary = b.config.ExternalAgents.ClaudeCode.Binary != item.Path
-				b.config.ExternalAgents.ClaudeCode.Binary = item.Path
-			}
-			if log && (!wasEnabled || changedBinary) {
-				b.logger.Info(
-					"Coding CLI auto-enable: agent_type=%s enabled with binary=%s",
-					agentType,
-					b.config.ExternalAgents.ClaudeCode.Binary,
-				)
-			}
+			enabled = &b.config.ExternalAgents.ClaudeCode.Enabled
+			binary = &b.config.ExternalAgents.ClaudeCode.Binary
 		case "kimi":
-			wasEnabled := b.config.ExternalAgents.Kimi.Enabled
-			changedBinary := false
-			if !wasEnabled {
-				b.config.ExternalAgents.Kimi.Enabled = true
-			}
-			if shouldAdoptDetectedBinary(b.config.ExternalAgents.Kimi.Binary, item.Binary) {
-				changedBinary = b.config.ExternalAgents.Kimi.Binary != item.Path
-				b.config.ExternalAgents.Kimi.Binary = item.Path
-			}
-			if log && (!wasEnabled || changedBinary) {
-				b.logger.Info(
-					"Coding CLI auto-enable: agent_type=%s enabled with binary=%s",
-					agentType,
-					b.config.ExternalAgents.Kimi.Binary,
-				)
-			}
+			enabled = &b.config.ExternalAgents.Kimi.Enabled
+			binary = &b.config.ExternalAgents.Kimi.Binary
+		default:
+			continue
+		}
+		wasEnabled := *enabled
+		if !wasEnabled {
+			*enabled = true
+		}
+		changedBinary := false
+		if shouldAdoptDetectedBinary(*binary, item.Binary) {
+			changedBinary = *binary != item.Path
+			*binary = item.Path
+		}
+		if log && (!wasEnabled || changedBinary) {
+			b.logger.Info("Coding CLI auto-enable: agent_type=%s enabled with binary=%s", agentType, *binary)
 		}
 	}
 }
