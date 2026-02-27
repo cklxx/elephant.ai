@@ -56,18 +56,11 @@ func summarizeWorldMetadata(metadata map[string]any) map[string]any {
 	if len(metadata) == 0 {
 		return nil
 	}
-	keys := make([]string, 0, len(metadata))
-	for key := range metadata {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	summarized := make(map[string]any, len(keys))
-	for _, key := range keys {
-		value := summarizeMetadataValue(metadata[key])
-		if value == nil {
-			continue
+	summarized := make(map[string]any, len(metadata))
+	for key, raw := range metadata {
+		if value := summarizeMetadataValue(raw); value != nil {
+			summarized[key] = value
 		}
-		summarized[key] = value
 	}
 	if len(summarized) == 0 {
 		return nil

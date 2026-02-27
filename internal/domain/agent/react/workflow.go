@@ -46,87 +46,50 @@ func newReactWorkflow(tracker WorkflowTracker) *reactWorkflow {
 }
 
 func (rw *reactWorkflow) startContext(task string) {
-	if rw == nil || rw.recorder == nil {
-		return
-	}
 	rw.recorder.start(workflowNodeContext, map[string]any{"task": task})
 }
 
 func (rw *reactWorkflow) completeContext(output map[string]any) {
-	if rw == nil || rw.recorder == nil {
-		return
-	}
 	rw.recorder.complete(workflowNodeContext, output, nil)
 }
 
 func (rw *reactWorkflow) startThink(iteration int) {
-	if rw == nil || rw.recorder == nil {
-		return
-	}
 	rw.recorder.start(iterationThinkNode(iteration), map[string]any{"iteration": iteration})
 }
 
 func (rw *reactWorkflow) startPlan(iteration, requested int) {
-	if rw == nil || rw.recorder == nil {
-		return
-	}
 	rw.recorder.start(iterationPlanNode(iteration), map[string]any{"iteration": iteration, "requested_calls": requested})
 }
 
 func (rw *reactWorkflow) completePlan(iteration int, planned []ToolCall, err error) {
-	if rw == nil || rw.recorder == nil {
-		return
-	}
 	rw.recorder.complete(iterationPlanNode(iteration), workflowPlanOutput(iteration, planned), err)
 }
 
 func (rw *reactWorkflow) completeThink(iteration int, thought Message, toolCalls []ToolCall, err error) {
-	if rw == nil || rw.recorder == nil {
-		return
-	}
 	rw.recorder.complete(iterationThinkNode(iteration), workflowThinkOutput(iteration, thought, toolCalls), err)
 }
 
 func (rw *reactWorkflow) startTools(iteration int, nodeID string, calls int) {
-	if rw == nil || rw.recorder == nil {
-		return
-	}
 	rw.recorder.start(nodeID, map[string]any{"iteration": iteration, "calls": calls})
 }
 
 func (rw *reactWorkflow) completeTools(iteration int, nodeID string, results []ToolResult, err error) {
-	if rw == nil || rw.recorder == nil {
-		return
-	}
 	rw.recorder.complete(nodeID, workflowToolOutput(iteration, results), err)
 }
 
 func (rw *reactWorkflow) ensureToolCall(iteration int, call ToolCall) string {
-	if rw == nil || rw.recorder == nil {
-		return ""
-	}
-	nodeID := iterationToolCallNode(iteration, call.ID)
-	return rw.recorder.ensure(nodeID, workflowToolCallInput(iteration, call))
+	return rw.recorder.ensure(iterationToolCallNode(iteration, call.ID), workflowToolCallInput(iteration, call))
 }
 
 func (rw *reactWorkflow) startToolCall(nodeID string) {
-	if rw == nil || rw.recorder == nil {
-		return
-	}
 	rw.recorder.start(nodeID, nil)
 }
 
 func (rw *reactWorkflow) completeToolCall(nodeID string, iteration int, call ToolCall, result ToolResult, err error) {
-	if rw == nil || rw.recorder == nil {
-		return
-	}
 	rw.recorder.complete(nodeID, workflowToolCallOutput(iteration, call, result), err)
 }
 
 func (rw *reactWorkflow) finalize(stopReason string, result *TaskResult, err error) {
-	if rw == nil || rw.recorder == nil {
-		return
-	}
 	rw.recorder.start(workflowNodeFinalize, map[string]any{"stop_reason": stopReason})
 	rw.recorder.complete(workflowNodeFinalize, workflowFinalizeOutput(result), err)
 }
@@ -189,23 +152,20 @@ func workflowThinkOutput(iteration int, thought Message, toolCalls []ToolCall) m
 }
 
 func workflowPlanOutput(iteration int, toolCalls []ToolCall) map[string]any {
-	output := map[string]any{
-		"iteration": iteration,
+	output := map[string]any{"iteration": iteration}
+	if len(toolCalls) == 0 {
+		return output
 	}
-
-	if len(toolCalls) > 0 {
-		names := make([]string, 0, len(toolCalls))
-		for _, call := range toolCalls {
-			if call.Name != "" {
-				names = append(names, call.Name)
-			}
-		}
-		output["tool_calls"] = len(toolCalls)
-		if len(names) > 0 {
-			output["tools"] = names
+	output["tool_calls"] = len(toolCalls)
+	names := make([]string, 0, len(toolCalls))
+	for _, call := range toolCalls {
+		if call.Name != "" {
+			names = append(names, call.Name)
 		}
 	}
-
+	if len(names) > 0 {
+		output["tools"] = names
+	}
 	return output
 }
 

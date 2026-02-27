@@ -38,8 +38,12 @@ func (e *ReactEngine) compactToolResultAttachments(ctx context.Context, state *T
 	}
 	e.persistToolResultAttachments(ctx, results)
 	e.persistToolResultAttachments(ctx, state.ToolResults)
-	offloadToolResultAttachmentData(results)
-	offloadToolResultAttachmentData(state.ToolResults)
+	for i := range results {
+		offloadAttachmentMap(results[i].Attachments)
+	}
+	for i := range state.ToolResults {
+		offloadAttachmentMap(state.ToolResults[i].Attachments)
+	}
 	for idx := range state.Messages {
 		msg := &state.Messages[idx]
 		for j := range msg.ToolResults {
@@ -62,14 +66,6 @@ func (e *ReactEngine) persistToolResultAttachments(ctx context.Context, results 
 	}
 }
 
-func offloadToolResultAttachmentData(results []ToolResult) {
-	if len(results) == 0 {
-		return
-	}
-	for i := range results {
-		offloadAttachmentMap(results[i].Attachments)
-	}
-}
 
 func (e *ReactEngine) appendFeedbackSignals(state *TaskState, results []ToolResult) {
 	if state == nil || len(results) == 0 {

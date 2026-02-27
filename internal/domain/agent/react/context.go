@@ -25,27 +25,22 @@ func snapshotSummaryFromMessages(messages []ports.Message) string {
 	return ""
 }
 
+var rolePrefixMap = map[string]string{
+	"assistant": "Assistant: ",
+	"user":      "User: ",
+	"tool":      "Tool: ",
+	"system":    "",
+}
+
 func roleSummaryPrefix(role string) string {
 	trimmed := strings.TrimSpace(role)
 	if trimmed == "" {
 		return ""
 	}
-	lower := strings.ToLower(trimmed)
-	switch lower {
-	case "assistant":
-		return "Assistant: "
-	case "user":
-		return "User: "
-	case "tool":
-		return "Tool: "
-	case "system":
-		return ""
-	default:
-		if len(trimmed) == 1 {
-			return strings.ToUpper(trimmed) + ": "
-		}
-		return strings.ToUpper(trimmed[:1]) + strings.ToLower(trimmed[1:]) + ": "
+	if prefix, ok := rolePrefixMap[strings.ToLower(trimmed)]; ok {
+		return prefix
 	}
+	return strings.ToUpper(trimmed[:1]) + strings.ToLower(trimmed[1:]) + ": "
 }
 
 func buildContextTurnRecord(state *agent.TaskState, messages []ports.Message, timestamp time.Time, summary string) agent.ContextTurnRecord {

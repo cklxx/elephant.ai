@@ -102,15 +102,9 @@ func TestOffloadAttachmentMap_MultipleAttachments(t *testing.T) {
 	}
 }
 
-// --- offloadToolResultAttachmentData ---
+// --- offloadAttachmentMap on tool results ---
 
-func TestOffloadToolResultAttachmentData_Empty(t *testing.T) {
-	// Should not panic
-	offloadToolResultAttachmentData(nil)
-	offloadToolResultAttachmentData([]ToolResult{})
-}
-
-func TestOffloadToolResultAttachmentData_ClearsData(t *testing.T) {
+func TestOffloadAttachmentMap_ToolResults_ClearsData(t *testing.T) {
 	results := []ToolResult{{
 		CallID: "c1",
 		Attachments: map[string]ports.Attachment{
@@ -121,7 +115,9 @@ func TestOffloadToolResultAttachmentData_ClearsData(t *testing.T) {
 			},
 		},
 	}}
-	offloadToolResultAttachmentData(results)
+	for i := range results {
+		offloadAttachmentMap(results[i].Attachments)
+	}
 	if results[0].Attachments["report.pdf"].Data != "" {
 		t.Fatal("expected data cleared from tool result attachment")
 	}

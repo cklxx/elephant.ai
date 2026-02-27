@@ -42,26 +42,38 @@ func extractRewardValue(metadata map[string]any) (float64, bool) {
 		if !ok {
 			continue
 		}
-		switch v := raw.(type) {
-		case float64:
+		if v, ok := toFloat64(raw); ok {
 			return v, true
-		case float32:
-			return float64(v), true
-		case int:
-			return float64(v), true
-		case int64:
-			return float64(v), true
-		case int32:
-			return float64(v), true
-		case uint64:
-			return float64(v), true
-		case uint32:
-			return float64(v), true
-		case string:
-			if parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
-				return parsed, true
-			}
 		}
 	}
 	return 0, false
+}
+
+// toFloat64 converts common numeric types and numeric strings to float64.
+func toFloat64(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	case uint:
+		return float64(n), true
+	case uint64:
+		return float64(n), true
+	case uint32:
+		return float64(n), true
+	case string:
+		if parsed, err := strconv.ParseFloat(strings.TrimSpace(n), 64); err == nil {
+			return parsed, true
+		}
+		return 0, false
+	default:
+		return 0, false
+	}
 }

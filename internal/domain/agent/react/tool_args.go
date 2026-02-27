@@ -96,27 +96,23 @@ func summarizeDataURIForLog(value string) string {
 	}
 	header := value[:comma]
 	payload := value[comma+1:]
-	preview := truncateStringForLog(payload, toolArgPreviewLength)
-	if len(payload) > len(preview) {
-		preview += "..."
-	}
-	return fmt.Sprintf("data_uri(header=%q,len=%d,payload_prefix=%q)", header, len(value), preview)
+	return fmt.Sprintf("data_uri(header=%q,len=%d,payload_prefix=%q)", header, len(value), truncateWithEllipsis(payload, toolArgPreviewLength))
 }
 
 func summarizeBinaryLikeString(value string) string {
-	preview := truncateStringForLog(value, toolArgPreviewLength)
-	if len(value) > len(preview) {
-		preview += "..."
-	}
-	return fmt.Sprintf("base64(len=%d,prefix=%q)", len(value), preview)
+	return fmt.Sprintf("base64(len=%d,prefix=%q)", len(value), truncateWithEllipsis(value, toolArgPreviewLength))
 }
 
 func summarizeLongPlainString(value string) string {
-	preview := truncateStringForLog(value, toolArgPreviewLength)
+	return fmt.Sprintf("%s (len=%d)", truncateWithEllipsis(value, toolArgPreviewLength), len(value))
+}
+
+func truncateWithEllipsis(value string, limit int) string {
+	preview := truncateStringForLog(value, limit)
 	if len(value) > len(preview) {
-		preview += "..."
+		return preview + "..."
 	}
-	return fmt.Sprintf("%s (len=%d)", preview, len(value))
+	return preview
 }
 
 func looksLikeBinaryString(value string) bool {
@@ -177,33 +173,13 @@ func compactToolArgumentValue(ref string, value any) (any, bool) {
 		if isContentReferenceMap(v) {
 			return value, false
 		}
-		compacted := make(map[string]any, len(v))
-		changed := false
-		for key, entry := range v {
-			next, replaced := compactToolArgumentValue(ref, entry)
-			if replaced {
-				changed = true
-			}
-			compacted[key] = next
-		}
-		if !changed {
-			return value, false
-		}
-		return compacted, true
+		return transformMapValues(v, func(entry any) (any, bool) {
+			return compactToolArgumentValue(ref, entry)
+		})
 	case []any:
-		compacted := make([]any, len(v))
-		changed := false
-		for i, entry := range v {
-			next, replaced := compactToolArgumentValue(ref, entry)
-			if replaced {
-				changed = true
-			}
-			compacted[i] = next
-		}
-		if !changed {
-			return value, false
-		}
-		return compacted, true
+		return transformSliceValues(v, func(entry any) (any, bool) {
+			return compactToolArgumentValue(ref, entry)
+		})
 	case string:
 		if !shouldCompactToolArgString(v) {
 			return value, false
@@ -263,6 +239,38 @@ func toolArgumentContentRef(call ToolCall, result ToolResult) string {
 	default:
 		return ""
 	}
+}
+
+func transformMapValues(m map[string]any, fn func(any) (any, bool)) (any, bool) {
+	compacted := make(map[string]any, len(m))
+	changed := false
+	for key, entry := range m {
+		next, replaced := fn(entry)
+		if replaced {
+			changed = true
+		}
+		compacted[key] = next
+	}
+	if !changed {
+		return m, false
+	}
+	return compacted, true
+}
+
+func transformSliceValues(s []any, fn func(any) (any, bool)) (any, bool) {
+	compacted := make([]any, len(s))
+	changed := false
+	for i, entry := range s {
+		next, replaced := fn(entry)
+		if replaced {
+			changed = true
+		}
+		compacted[i] = next
+	}
+	if !changed {
+		return s, false
+	}
+	return compacted, true
 }
 
 func stringFromMap(values map[string]any, keys ...string) string {

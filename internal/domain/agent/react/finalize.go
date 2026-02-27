@@ -42,27 +42,10 @@ func (e *ReactEngine) decorateFinalResult(state *TaskState, result *TaskResult) 
 	if state == nil || result == nil {
 		return nil
 	}
-
-	attachments := result.Attachments
 	result.Answer = stripAttachmentPlaceholders(result.Answer)
-
-	a2uiAttachments := collectA2UIAttachments(state)
-	if len(a2uiAttachments) > 0 {
-		if attachments == nil {
-			attachments = make(map[string]ports.Attachment, len(a2uiAttachments))
-		}
-		for key, att := range a2uiAttachments {
-			if _, ok := attachments[key]; ok {
-				continue
-			}
-			attachments[key] = att
-		}
-	}
-
-	result.Attachments = attachments
-
-	if len(attachments) == 0 {
+	result.Attachments = ports.MergeAttachmentMaps(result.Attachments, collectA2UIAttachments(state), false)
+	if len(result.Attachments) == 0 {
 		return nil
 	}
-	return attachments
+	return result.Attachments
 }
