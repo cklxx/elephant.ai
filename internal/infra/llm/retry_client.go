@@ -186,15 +186,27 @@ func (c *retryClient) StreamComplete(
 
 	startTime := time.Now()
 
-	// Retry loop for pre-stream errors (e.g., rate limits).
-	// These errors occur before any streaming data is sent, so they're safe to retry.
+	// Retry loop for transient stream failures before output is emitted.
+	// These errors are only safe to retry before any streamed content has been emitted.
 	maxAttempts := c.retryConfig.MaxAttempts + 1
 	var resp *ports.CompletionResponse
 	var err error
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
+		observedStreamOutput := false
+		attemptCallbacks := callbacks
+		if callbacks.OnContentDelta != nil {
+			original := callbacks.OnContentDelta
+			attemptCallbacks.OnContentDelta = func(delta ports.ContentDelta) {
+				if delta.Delta != "" || delta.Final {
+					observedStreamOutput = true
+				}
+				original(delta)
+			}
+		}
+
 		resp, err = alexerrors.ExecuteFunc(c.circuitBreaker, ctx, func(ctx context.Context) (*ports.CompletionResponse, error) {
-			response, streamErr := streamingClient.StreamComplete(ctx, req, callbacks)
+			response, streamErr := streamingClient.StreamComplete(ctx, req, attemptCallbacks)
 			if streamErr != nil {
 				return nil, c.classifyLLMError(streamErr)
 			}
@@ -205,14 +217,14 @@ func (c *retryClient) StreamComplete(
 			break
 		}
 
-		// Only retry on rate limit errors (pre-stream errors).
-		if !c.isRateLimitError(err) {
+		// Only retry transient transport issues that occur before output is sent.
+		if !alexerrors.IsTransient(err) || observedStreamOutput {
 			break
 		}
 
 		if attempt < maxAttempts-1 {
 			delay := c.retryDelay(attempt, err)
-			c.logger.Debug("Rate limited, retrying in %v (attempt %d/%d)", delay, attempt+1, maxAttempts)
+			c.logger.Debug("Streaming request failed, retrying in %v (attempt %d/%d): %v", delay, attempt+1, maxAttempts, err)
 			if err := c.waitForRetry(ctx, delay); err != nil {
 				return nil, err
 			}
@@ -242,15 +254,6 @@ func (c *retryClient) StreamComplete(
 	}
 
 	return resp, nil
-}
-
-// isRateLimitError checks if the error is a rate limit (429) error.
-func (c *retryClient) isRateLimitError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errStr := strings.ToLower(err.Error())
-	return strings.Contains(errStr, "429") || strings.Contains(errStr, "rate limit")
 }
 
 // calculateBackoff returns the delay for the given retry attempt using exponential backoff with jitter.
@@ -375,6 +378,11 @@ func (c *retryClient) classifyLLMError(err error) error {
 	}
 
 	// Network errors
+	if strings.Contains(lowerErr, "stream error") || strings.Contains(lowerErr, "received from peer") || strings.Contains(lowerErr, "internal_error") || strings.Contains(lowerErr, "read stream") {
+		return alexerrors.NewTransientError(err,
+			"Streaming transport was interrupted. Retrying request.")
+	}
+
 	if strings.Contains(lowerErr, "connection refused") {
 		return alexerrors.NewTransientError(err,
 			alexerrors.FormatForLLM(err))

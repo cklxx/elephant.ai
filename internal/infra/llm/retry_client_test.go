@@ -158,6 +158,46 @@ func (m *retryAfterStreamingMock) StreamComplete(ctx context.Context, req ports.
 
 func (m *retryAfterStreamingMock) Model() string { return "mock" }
 
+type streamingTransportRetryMock struct {
+	calls int
+}
+
+func (m *streamingTransportRetryMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	return &ports.CompletionResponse{Content: "ok"}, nil
+}
+
+func (m *streamingTransportRetryMock) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
+	m.calls++
+	if m.calls == 1 {
+		return nil, errors.New("read stream: stream error: stream ID 13; INTERNAL_ERROR; received from peer")
+	}
+	if callbacks.OnContentDelta != nil {
+		callbacks.OnContentDelta(ports.ContentDelta{Delta: "ok"})
+		callbacks.OnContentDelta(ports.ContentDelta{Final: true})
+	}
+	return &ports.CompletionResponse{Content: "ok"}, nil
+}
+
+func (m *streamingTransportRetryMock) Model() string { return "mock" }
+
+type streamingTransportOutputThenFailMock struct {
+	calls int
+}
+
+func (m *streamingTransportOutputThenFailMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	return &ports.CompletionResponse{Content: "ok"}, nil
+}
+
+func (m *streamingTransportOutputThenFailMock) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
+	m.calls++
+	if callbacks.OnContentDelta != nil {
+		callbacks.OnContentDelta(ports.ContentDelta{Delta: "partial"})
+	}
+	return nil, errors.New("read stream: stream error: stream ID 13; INTERNAL_ERROR; received from peer")
+}
+
+func (m *streamingTransportOutputThenFailMock) Model() string { return "mock" }
+
 func TestRetryClientStreamCompleteHonorsRetryAfter(t *testing.T) {
 	mock := &retryAfterStreamingMock{}
 	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
@@ -183,6 +223,45 @@ func TestRetryClientStreamCompleteHonorsRetryAfter(t *testing.T) {
 	require.Equal(t, "ok", resp.Content)
 	require.Equal(t, 2, mock.calls)
 	require.Equal(t, []time.Duration{3 * time.Second}, waits)
+}
+
+func TestRetryClientStreamCompleteRetriesTransportStreamError(t *testing.T) {
+	mock := &streamingTransportRetryMock{}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
+	client := NewRetryClient(mock, alexerrors.RetryConfig{
+		MaxAttempts: 1,
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    30 * time.Second,
+	}, breaker)
+
+	streaming, ok := client.(portsllm.StreamingLLMClient)
+	require.True(t, ok)
+
+	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{}, ports.CompletionStreamCallbacks{})
+	require.NoError(t, err)
+	require.Equal(t, "ok", resp.Content)
+	require.Equal(t, 2, mock.calls)
+}
+
+func TestRetryClientStreamCompleteStopsRetryAfterStreamOutput(t *testing.T) {
+	mock := &streamingTransportOutputThenFailMock{}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
+	client := NewRetryClient(mock, alexerrors.DefaultRetryConfig(), breaker)
+
+	streaming, ok := client.(portsllm.StreamingLLMClient)
+	require.True(t, ok)
+
+	var deltas []ports.ContentDelta
+	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{}, ports.CompletionStreamCallbacks{
+		OnContentDelta: func(delta ports.ContentDelta) {
+			deltas = append(deltas, delta)
+		},
+	})
+
+	require.Error(t, err)
+	require.Nil(t, resp)
+	require.Equal(t, 1, mock.calls)
+	require.Equal(t, []ports.ContentDelta{{Delta: "partial"}}, deltas)
 }
 
 func TestRetryClientRetryAfterRespectsMaxDelay(t *testing.T) {
