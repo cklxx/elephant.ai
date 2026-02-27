@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 #
-# E2E inject test: verify LLM can operate all Lark document tools
-# (docx, wiki, drive, bitable, sheets) through the channel tool.
+# E2E inject test: verify LLM can operate all Lark product features
+# through the channel tool — docx, wiki, drive, bitable, sheets,
+# messaging, calendar, tasks, OKR, contact, mail, VC.
 #
 # Usage:
 #   bash scripts/e2e/lark_doc_tools_e2e.sh                          # all domains
 #   bash scripts/e2e/lark_doc_tools_e2e.sh --domain docx            # single domain
+#   bash scripts/e2e/lark_doc_tools_e2e.sh --domain url             # URL verification only
 #   bash scripts/e2e/lark_doc_tools_e2e.sh --domain bitable         # needs E2E_BITABLE_APP_TOKEN
 #
 # Environment:
@@ -16,6 +18,8 @@
 #   E2E_BITABLE_APP_TOKEN — required for bitable domain tests
 #   E2E_AUTO_REPLY       — enable auto-reply for multi-turn (default: true)
 #   E2E_MAX_AUTO_REPLY   — max auto-reply rounds (default: 3)
+#   E2E_LARK_CHAT_ID     — real Lark chat_id for messaging tests (default: skip)
+#   E2E_OKR_USER_ID      — user_id for OKR tests (default: skip)
 
 set -euo pipefail
 
@@ -28,9 +32,11 @@ TIMEOUT="${E2E_TIMEOUT:-180}"
 BITABLE_APP_TOKEN="${E2E_BITABLE_APP_TOKEN:-}"
 AUTO_REPLY="${E2E_AUTO_REPLY:-true}"
 MAX_AUTO_REPLY="${E2E_MAX_AUTO_REPLY:-3}"
+LARK_CHAT_ID="${E2E_LARK_CHAT_ID:-}"
+OKR_USER_ID="${E2E_OKR_USER_ID:-}"
 TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 
-# Parse --domain flag
+# Parse flags
 DOMAIN_FILTER=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -44,6 +50,7 @@ done
 TOTAL=0
 PASSED=0
 FAILED=0
+SKIPPED=0
 RESULTS=()
 
 # ── Colors ────────────────────────────────────────────────────────
@@ -120,7 +127,7 @@ inject_and_check() {
   if [[ "$http_code" != "200" ]]; then
     local err_msg
     err_msg=$(echo "$body" | jq -r '.error // "unknown error"' 2>/dev/null || echo "$body")
-    printf "${RED}[FAIL]${NC} %-35s — HTTP %s: %s ${YELLOW}(%ss)${NC}\n" "$label" "$http_code" "$err_msg" "$elapsed_s"
+    printf "${RED}[FAIL]${NC} %-40s — HTTP %s: %s ${YELLOW}(%ss)${NC}\n" "$label" "$http_code" "$err_msg" "$elapsed_s"
     RESULTS+=("FAIL|$label|HTTP $http_code: $err_msg|${elapsed_s}s")
     FAILED=$((FAILED + 1))
     return 1
@@ -131,7 +138,7 @@ inject_and_check() {
   all_content=$(echo "$body" | jq -r '[.replies[]?.content // ""] | join(" ")' 2>/dev/null || echo "")
 
   if [[ -z "$all_content" ]]; then
-    printf "${RED}[FAIL]${NC} %-35s — empty reply ${YELLOW}(%ss)${NC}\n" "$label" "$elapsed_s"
+    printf "${RED}[FAIL]${NC} %-40s — empty reply ${YELLOW}(%ss)${NC}\n" "$label" "$elapsed_s"
     RESULTS+=("FAIL|$label|empty reply|${elapsed_s}s")
     FAILED=$((FAILED + 1))
     return 1
@@ -147,7 +154,7 @@ inject_and_check() {
   done
 
   if [[ -n "$found" ]]; then
-    printf "${GREEN}[PASS]${NC} %-35s — \"%s\" found in reply ${YELLOW}(%ss)${NC}\n" "$label" "$found" "$elapsed_s"
+    printf "${GREEN}[PASS]${NC} %-40s — \"%s\" found ${YELLOW}(%ss)${NC}\n" "$label" "$found" "$elapsed_s"
     RESULTS+=("PASS|$label|\"$found\" matched|${elapsed_s}s")
     PASSED=$((PASSED + 1))
     return 0
@@ -155,12 +162,127 @@ inject_and_check() {
     # Truncate reply for display
     local truncated
     truncated=$(echo "$all_content" | head -c 200)
-    printf "${RED}[FAIL]${NC} %-35s — none of [%s] found ${YELLOW}(%ss)${NC}\n" "$label" "${keywords[*]}" "$elapsed_s"
+    printf "${RED}[FAIL]${NC} %-40s — none of [%s] found ${YELLOW}(%ss)${NC}\n" "$label" "${keywords[*]}" "$elapsed_s"
     printf "       Reply: %.200s...\n" "$truncated"
     RESULTS+=("FAIL|$label|no keyword matched|${elapsed_s}s")
     FAILED=$((FAILED + 1))
     return 1
   fi
+}
+
+# inject_and_check_url <domain/action> <chat_id> <prompt> <url_pattern> [extra_keyword...]
+#
+# Like inject_and_check but specifically validates that the reply contains
+# a URL matching the given pattern (e.g. "feishu.cn/docx/"). This catches
+# the case where the LLM fabricates URLs or returns raw tokens.
+inject_and_check_url() {
+  local label="$1"; shift
+  local chat_id="$1"; shift
+  local prompt="$1"; shift
+  local url_pattern="$1"; shift
+  local extra_keywords=("$@")
+
+  TOTAL=$((TOTAL + 1))
+
+  local auto_reply_json="false"
+  local max_auto_reply_json=0
+  if [[ "$AUTO_REPLY" == "true" ]]; then
+    auto_reply_json="true"
+    max_auto_reply_json="$MAX_AUTO_REPLY"
+  fi
+
+  local payload
+  payload=$(jq -n \
+    --arg text "$prompt" \
+    --arg chat_id "$chat_id" \
+    --arg sender_id "$SENDER_ID" \
+    --argjson timeout "$TIMEOUT" \
+    --argjson auto_reply "$auto_reply_json" \
+    --argjson max_auto_reply "$max_auto_reply_json" \
+    '{
+      text: $text,
+      chat_id: $chat_id,
+      chat_type: "p2p",
+      sender_id: $sender_id,
+      timeout_seconds: $timeout,
+      auto_reply: $auto_reply,
+      max_auto_reply_rounds: $max_auto_reply
+    }')
+
+  local start_time
+  start_time=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
+
+  local response
+  response=$(curl -s -w '\n%{http_code}' \
+    --max-time "$((TIMEOUT + 30))" \
+    -X POST "$INJECT_URL" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>&1) || true
+
+  local end_time
+  end_time=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
+  local elapsed_ms=$(( (end_time - start_time) / 1000000 ))
+  local elapsed_s
+  elapsed_s=$(awk "BEGIN {printf \"%.1f\", $elapsed_ms / 1000}")
+
+  local http_code
+  http_code=$(echo "$response" | tail -1)
+  local body
+  body=$(echo "$response" | sed '$d')
+
+  if [[ "$http_code" != "200" ]]; then
+    local err_msg
+    err_msg=$(echo "$body" | jq -r '.error // "unknown error"' 2>/dev/null || echo "$body")
+    printf "${RED}[FAIL]${NC} %-40s — HTTP %s: %s ${YELLOW}(%ss)${NC}\n" "$label" "$http_code" "$err_msg" "$elapsed_s"
+    RESULTS+=("FAIL|$label|HTTP $http_code: $err_msg|${elapsed_s}s")
+    FAILED=$((FAILED + 1))
+    return 1
+  fi
+
+  local all_content
+  all_content=$(echo "$body" | jq -r '[.replies[]?.content // ""] | join(" ")' 2>/dev/null || echo "")
+
+  if [[ -z "$all_content" ]]; then
+    printf "${RED}[FAIL]${NC} %-40s — empty reply ${YELLOW}(%ss)${NC}\n" "$label" "$elapsed_s"
+    RESULTS+=("FAIL|$label|empty reply|${elapsed_s}s")
+    FAILED=$((FAILED + 1))
+    return 1
+  fi
+
+  # Primary check: URL pattern must appear in reply
+  if echo "$all_content" | grep -iq "$url_pattern"; then
+    printf "${GREEN}[PASS]${NC} %-40s — URL pattern \"%s\" found ${YELLOW}(%ss)${NC}\n" "$label" "$url_pattern" "$elapsed_s"
+    RESULTS+=("PASS|$label|URL \"$url_pattern\" matched|${elapsed_s}s")
+    PASSED=$((PASSED + 1))
+    return 0
+  fi
+
+  # Fallback: check extra keywords (still mark as FAIL for URL but note it)
+  local found=""
+  for kw in "${extra_keywords[@]+"${extra_keywords[@]}"}"; do
+    if echo "$all_content" | grep -iq "$kw"; then
+      found="$kw"
+      break
+    fi
+  done
+
+  if [[ -n "$found" ]]; then
+    printf "${RED}[FAIL]${NC} %-40s — URL missing, but \"%s\" present ${YELLOW}(%ss)${NC}\n" "$label" "$found" "$elapsed_s"
+    printf "       Reply (URL expected): %.200s...\n" "$(echo "$all_content" | head -c 200)"
+  else
+    printf "${RED}[FAIL]${NC} %-40s — URL \"%s\" not found ${YELLOW}(%ss)${NC}\n" "$label" "$url_pattern" "$elapsed_s"
+    printf "       Reply: %.200s...\n" "$(echo "$all_content" | head -c 200)"
+  fi
+  RESULTS+=("FAIL|$label|URL not found|${elapsed_s}s")
+  FAILED=$((FAILED + 1))
+  return 1
+}
+
+skip_domain() {
+  local domain="$1"
+  local reason="$2"
+  SKIPPED=$((SKIPPED + 1))
+  echo -e "${YELLOW}[SKIP]${NC} ${domain} — ${reason}"
 }
 
 should_run() {
@@ -171,13 +293,17 @@ should_run() {
 # ── Banner ────────────────────────────────────────────────────────
 
 echo ""
-echo -e "${BOLD}${CYAN}=== Lark Document Tools E2E Test ===${NC}"
+echo -e "${BOLD}${CYAN}=== Lark Product Features E2E Test ===${NC}"
 echo -e "Inject URL:  ${INJECT_URL}"
 echo -e "Timestamp:   ${TIMESTAMP}"
 echo -e "Timeout:     ${TIMEOUT}s per request"
 echo -e "Auto-reply:  ${AUTO_REPLY} (max ${MAX_AUTO_REPLY} rounds)"
 [[ -n "$DOMAIN_FILTER" ]] && echo -e "Domain:      ${DOMAIN_FILTER}"
 echo ""
+
+# ══════════════════════════════════════════════════════════════════
+# DOCUMENT TOOLS
+# ══════════════════════════════════════════════════════════════════
 
 # ── 1. Docx (文档) ───────────────────────────────────────────────
 
@@ -262,7 +388,7 @@ fi
 
 if should_run "bitable"; then
   if [[ -z "$BITABLE_APP_TOKEN" ]]; then
-    echo -e "${YELLOW}[SKIP] bitable — E2E_BITABLE_APP_TOKEN not set${NC}"
+    skip_domain "bitable" "E2E_BITABLE_APP_TOKEN not set"
     echo ""
   else
     BITABLE_CHAT="${CHAT_ID_PREFIX}-bitable-${TIMESTAMP}"
@@ -317,7 +443,187 @@ if should_run "sheets"; then
   echo ""
 fi
 
-# ── 6. Cleanup ────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════
+# URL VERIFICATION — ensures document creation returns clickable URLs
+# ══════════════════════════════════════════════════════════════════
+
+if should_run "url"; then
+  URL_CHAT="${CHAT_ID_PREFIX}-url-${TIMESTAMP}"
+  echo -e "${BOLD}--- URL Verification ---${NC}"
+
+  # Docx URL: create a doc and verify the reply contains a real URL
+  inject_and_check_url "url/docx_create_has_url" "$URL_CHAT" \
+    "帮我在飞书云空间创建一个标题为'URL验证文档-${TIMESTAMP}'的文档，创建后请把文档的链接发给我" \
+    "feishu.cn/docx/" \
+    "larksuite.com/docx/" "larkoffice.com/docx/" || true
+
+  # Wiki URL: create a wiki node and verify URL
+  URL_WIKI_CHAT="${CHAT_ID_PREFIX}-url-wiki-${TIMESTAMP}"
+  inject_and_check_url "url/wiki_create_has_url" "$URL_WIKI_CHAT" \
+    "列出我的知识库空间，然后在第一个空间创建一个标题为'URL验证节点-${TIMESTAMP}'的文档节点，创建后把链接发给我" \
+    "feishu.cn/wiki/" \
+    "larksuite.com/wiki/" "larkoffice.com/wiki/" || true
+
+  # Sheets URL: create a spreadsheet and verify URL
+  URL_SHEETS_CHAT="${CHAT_ID_PREFIX}-url-sheets-${TIMESTAMP}"
+  inject_and_check_url "url/sheets_create_has_url" "$URL_SHEETS_CHAT" \
+    "帮我在飞书创建一个标题为'URL验证表格-${TIMESTAMP}'的电子表格，创建好了把链接给我" \
+    "feishu.cn/sheets/" \
+    "larksuite.com/sheets/" "larkoffice.com/sheets/" || true
+
+  # Negative check: docx URL should not be a fabricated pattern
+  # (The LLM used to output things like "https://feishu.cn/docx/FAKE_TOKEN")
+  inject_and_check "url/docx_read_has_url" "$URL_CHAT" \
+    "读取你刚才创建的那个'URL验证文档'的元信息，把文档链接告诉我" \
+    "feishu.cn/docx/" "larksuite.com/docx/" "larkoffice.com/docx/" "URL" "url" || true
+
+  echo ""
+fi
+
+# ══════════════════════════════════════════════════════════════════
+# NON-DOCUMENT FEATURES
+# ══════════════════════════════════════════════════════════════════
+
+# ── 6. Messaging (消息) ──────────────────────────────────────────
+
+if should_run "messaging"; then
+  if [[ -z "$LARK_CHAT_ID" ]]; then
+    skip_domain "messaging" "E2E_LARK_CHAT_ID not set (needs a real Lark chat)"
+    echo ""
+  else
+    MSG_CHAT="${CHAT_ID_PREFIX}-msg-${TIMESTAMP}"
+    echo -e "${BOLD}--- Messaging ---${NC}"
+
+    inject_and_check "messaging/send_message" "$MSG_CHAT" \
+      "往这个飞书聊天发送一条消息'E2E消息测试-${TIMESTAMP}'，chat_id: ${LARK_CHAT_ID}" \
+      "发送" "成功" "sent" "消息" || true
+
+    inject_and_check "messaging/chat_history" "$MSG_CHAT" \
+      "获取聊天 ${LARK_CHAT_ID} 最近的5条消息记录" \
+      "消息" "message" "记录" "条" || true
+
+    echo ""
+  fi
+fi
+
+# ── 7. Calendar (日历) ───────────────────────────────────────────
+
+if should_run "calendar"; then
+  CAL_CHAT="${CHAT_ID_PREFIX}-cal-${TIMESTAMP}"
+  echo -e "${BOLD}--- Calendar ---${NC}"
+
+  inject_and_check "calendar/query_events" "$CAL_CHAT" \
+    "查询我飞书日历上今天的所有日程" \
+    "日程" "event" "找到" "没有" "无" "calendar" || true
+
+  inject_and_check "calendar/create_event" "$CAL_CHAT" \
+    "在我的飞书日历上创建一个今天的日程，标题为'E2E测试日程-${TIMESTAMP}'，时间设为今天下午3点到4点" \
+    "创建" "成功" "日程" "event" || true
+
+  inject_and_check "calendar/update_event" "$CAL_CHAT" \
+    "把你刚才创建的那个'E2E测试日程-${TIMESTAMP}'的标题改为'E2E已更新日程-${TIMESTAMP}'" \
+    "更新" "成功" "update" "已更新" "修改" || true
+
+  inject_and_check "calendar/delete_event" "$CAL_CHAT" \
+    "删除你刚才创建的那个E2E测试日程" \
+    "删除" "成功" "delete" "已删" || true
+
+  echo ""
+fi
+
+# ── 8. Tasks (任务) ──────────────────────────────────────────────
+
+if should_run "tasks"; then
+  TASK_CHAT="${CHAT_ID_PREFIX}-task-${TIMESTAMP}"
+  echo -e "${BOLD}--- Tasks ---${NC}"
+
+  inject_and_check "tasks/list_tasks" "$TASK_CHAT" \
+    "列出我飞书上的所有待办任务" \
+    "任务" "task" "找到" "没有" "无" "待办" || true
+
+  inject_and_check "tasks/create_task" "$TASK_CHAT" \
+    "在飞书任务中创建一个标题为'E2E测试任务-${TIMESTAMP}'的待办任务" \
+    "创建" "成功" "task" "任务" || true
+
+  inject_and_check "tasks/update_task" "$TASK_CHAT" \
+    "把你刚才创建的'E2E测试任务-${TIMESTAMP}'标题改为'E2E已更新任务-${TIMESTAMP}'" \
+    "更新" "成功" "update" "已更新" "修改" || true
+
+  inject_and_check "tasks/delete_task" "$TASK_CHAT" \
+    "删除你刚才创建的那个E2E测试任务" \
+    "删除" "成功" "delete" "已删" || true
+
+  echo ""
+fi
+
+# ── 9. Contact (通讯录) ──────────────────────────────────────────
+
+if should_run "contact"; then
+  CONTACT_CHAT="${CHAT_ID_PREFIX}-contact-${TIMESTAMP}"
+  echo -e "${BOLD}--- Contact ---${NC}"
+
+  inject_and_check "contact/list_departments" "$CONTACT_CHAT" \
+    "列出飞书组织架构中的顶级部门列表" \
+    "部门" "department" "找到" "组织" || true
+
+  inject_and_check "contact/get_user" "$CONTACT_CHAT" \
+    "查询我自己的飞书用户信息" \
+    "用户" "user" "姓名" "name" "邮箱" || true
+
+  echo ""
+fi
+
+# ── 10. OKR ──────────────────────────────────────────────────────
+
+if should_run "okr"; then
+  if [[ -z "$OKR_USER_ID" ]]; then
+    skip_domain "okr" "E2E_OKR_USER_ID not set"
+    echo ""
+  else
+    OKR_CHAT="${CHAT_ID_PREFIX}-okr-${TIMESTAMP}"
+    echo -e "${BOLD}--- OKR ---${NC}"
+
+    inject_and_check "okr/list_periods" "$OKR_CHAT" \
+      "列出飞书OKR的所有考核周期" \
+      "周期" "period" "找到" "OKR" || true
+
+    inject_and_check "okr/list_user_okrs" "$OKR_CHAT" \
+      "查看用户 ${OKR_USER_ID} 在最新周期的OKR" \
+      "OKR" "目标" "objective" "关键结果" "key result" || true
+
+    echo ""
+  fi
+fi
+
+# ── 11. Mail (邮箱) ──────────────────────────────────────────────
+
+if should_run "mail"; then
+  MAIL_CHAT="${CHAT_ID_PREFIX}-mail-${TIMESTAMP}"
+  echo -e "${BOLD}--- Mail ---${NC}"
+
+  inject_and_check "mail/list_mailgroups" "$MAIL_CHAT" \
+    "列出飞书邮箱中的所有邮件组" \
+    "邮件组" "mailgroup" "找到" "没有" "无" "mail" || true
+
+  echo ""
+fi
+
+# ── 12. VC (视频会议) ────────────────────────────────────────────
+
+if should_run "vc"; then
+  VC_CHAT="${CHAT_ID_PREFIX}-vc-${TIMESTAMP}"
+  echo -e "${BOLD}--- VC (Video Conference) ---${NC}"
+
+  inject_and_check "vc/list_rooms" "$VC_CHAT" \
+    "列出飞书视频会议的所有可用会议室" \
+    "会议室" "room" "找到" "没有" "无" || true
+
+  echo ""
+fi
+
+# ══════════════════════════════════════════════════════════════════
+# CLEANUP
+# ══════════════════════════════════════════════════════════════════
 
 echo -e "${BOLD}--- Cleanup ---${NC}"
 
@@ -342,26 +648,45 @@ if should_run "sheets"; then
     "删除" "成功" "清理" "已删" "完成" || true
 fi
 
+if should_run "url"; then
+  URL_CHAT="${URL_CHAT:-${CHAT_ID_PREFIX}-url-${TIMESTAMP}}"
+  inject_and_check "cleanup/url_docx" "$URL_CHAT" \
+    "删除你之前创建的所有包含'URL验证'的文档，帮我清理掉" \
+    "删除" "成功" "清理" "已删" "完成" || true
+
+  URL_WIKI_CHAT="${URL_WIKI_CHAT:-${CHAT_ID_PREFIX}-url-wiki-${TIMESTAMP}}"
+  inject_and_check "cleanup/url_wiki" "$URL_WIKI_CHAT" \
+    "删除你之前创建的'URL验证节点'，帮我清理掉" \
+    "删除" "成功" "清理" "已删" "完成" || true
+
+  URL_SHEETS_CHAT="${URL_SHEETS_CHAT:-${CHAT_ID_PREFIX}-url-sheets-${TIMESTAMP}}"
+  inject_and_check "cleanup/url_sheets" "$URL_SHEETS_CHAT" \
+    "删除你之前创建的'URL验证表格'，帮我清理掉" \
+    "删除" "成功" "清理" "已删" "完成" || true
+fi
+
 echo ""
 
-# ── Summary ───────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════
+# SUMMARY
+# ══════════════════════════════════════════════════════════════════
 
 echo -e "${BOLD}${CYAN}=== Summary ===${NC}"
 echo ""
 
-printf "%-8s %-35s %-35s %s\n" "Status" "Test" "Result" "Time"
-printf "%-8s %-35s %-35s %s\n" "------" "----" "------" "----"
+printf "%-8s %-40s %-35s %s\n" "Status" "Test" "Result" "Time"
+printf "%-8s %-40s %-35s %s\n" "------" "----" "------" "----"
 for r in "${RESULTS[@]+"${RESULTS[@]}"}"; do
   IFS='|' read -r status label detail elapsed <<< "$r"
   if [[ "$status" == "PASS" ]]; then
-    printf "${GREEN}%-8s${NC} %-35s %-35s %s\n" "$status" "$label" "$detail" "$elapsed"
+    printf "${GREEN}%-8s${NC} %-40s %-35s %s\n" "$status" "$label" "$detail" "$elapsed"
   else
-    printf "${RED}%-8s${NC} %-35s %-35s %s\n" "$status" "$label" "$detail" "$elapsed"
+    printf "${RED}%-8s${NC} %-40s %-35s %s\n" "$status" "$label" "$detail" "$elapsed"
   fi
 done
 
 echo ""
-echo -e "${BOLD}Total: ${TOTAL}  |  ${GREEN}Passed: ${PASSED}${NC}  |  ${RED}Failed: ${FAILED}${NC}"
+echo -e "${BOLD}Total: ${TOTAL}  |  ${GREEN}Passed: ${PASSED}${NC}  |  ${RED}Failed: ${FAILED}${NC}  |  ${YELLOW}Skipped: ${SKIPPED}${NC}"
 echo ""
 
 if [[ "$FAILED" -gt 0 ]]; then
