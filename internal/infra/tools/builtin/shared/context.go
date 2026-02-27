@@ -22,7 +22,8 @@ const (
 	larkChatIDKey    toolContextKey = "lark_chat_id"
 	larkMessageIDKey toolContextKey = "lark_message_id"
 	larkOAuthKey     toolContextKey = "lark_oauth"
-	larkTenantCalKey toolContextKey = "lark_tenant_calendar_id"
+	larkTenantCalKey  toolContextKey = "lark_tenant_calendar_id"
+	larkBaseDomainKey toolContextKey = "lark_base_domain"
 	timerManagerKey  toolContextKey = "timer_manager"
 	schedulerKey     toolContextKey = "scheduler"
 	autoUploadKey    toolContextKey = "auto_upload_config"
@@ -169,6 +170,16 @@ func WithLarkOAuth(ctx context.Context, svc LarkOAuthService) context.Context {
 // LarkOAuthFromContext retrieves the Lark OAuth service from context.
 func LarkOAuthFromContext(ctx context.Context) LarkOAuthService {
 	return contextValueOr[LarkOAuthService](ctx, larkOAuthKey, nil)
+}
+
+// WithLarkBaseDomain stores the Lark API base domain in context.
+func WithLarkBaseDomain(ctx context.Context, domain string) context.Context {
+	return context.WithValue(ctx, larkBaseDomainKey, domain)
+}
+
+// LarkBaseDomainFromContext retrieves the Lark API base domain from context.
+func LarkBaseDomainFromContext(ctx context.Context) string {
+	return contextValueOr[string](ctx, larkBaseDomainKey, "")
 }
 
 // WithLarkTenantCalendarID stores the Lark tenant calendar ID in context.

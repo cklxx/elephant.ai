@@ -62,13 +62,21 @@ func (t *larkSheetsManage) createSpreadsheet(ctx context.Context, client *larkap
 	}
 
 	payload, _ := json.MarshalIndent(ss, "", "  ")
+	metadata := map[string]any{
+		"spreadsheet_token": ss.SpreadsheetToken,
+		"title":             ss.Title,
+	}
+	content := fmt.Sprintf("Spreadsheet created.\n%s", string(payload))
+	if ssURL := ss.URL; ssURL != "" {
+		metadata["url"] = ssURL
+	} else if ssURL := larkapi.BuildSpreadsheetURL(shared.LarkBaseDomainFromContext(ctx), ss.SpreadsheetToken); ssURL != "" {
+		metadata["url"] = ssURL
+		content = fmt.Sprintf("Spreadsheet created.\nURL: %s\n%s", ssURL, string(payload))
+	}
 	return &ports.ToolResult{
-		CallID:  call.ID,
-		Content: fmt.Sprintf("Spreadsheet created.\n%s", string(payload)),
-		Metadata: map[string]any{
-			"spreadsheet_token": ss.SpreadsheetToken,
-			"title":             ss.Title,
-		},
+		CallID:   call.ID,
+		Content:  content,
+		Metadata: metadata,
 	}, nil
 }
 
@@ -84,13 +92,21 @@ func (t *larkSheetsManage) getSpreadsheet(ctx context.Context, client *larkapi.C
 	}
 
 	payload, _ := json.MarshalIndent(ss, "", "  ")
+	metadata := map[string]any{
+		"spreadsheet_token": ss.SpreadsheetToken,
+		"title":             ss.Title,
+	}
+	content := fmt.Sprintf("Spreadsheet metadata:\n%s", string(payload))
+	if ssURL := ss.URL; ssURL != "" {
+		metadata["url"] = ssURL
+	} else if ssURL := larkapi.BuildSpreadsheetURL(shared.LarkBaseDomainFromContext(ctx), ss.SpreadsheetToken); ssURL != "" {
+		metadata["url"] = ssURL
+		content = fmt.Sprintf("Spreadsheet metadata:\nURL: %s\n%s", ssURL, string(payload))
+	}
 	return &ports.ToolResult{
-		CallID:  call.ID,
-		Content: fmt.Sprintf("Spreadsheet metadata:\n%s", string(payload)),
-		Metadata: map[string]any{
-			"spreadsheet_token": ss.SpreadsheetToken,
-			"title":             ss.Title,
-		},
+		CallID:   call.ID,
+		Content:  content,
+		Metadata: metadata,
 	}, nil
 }
 

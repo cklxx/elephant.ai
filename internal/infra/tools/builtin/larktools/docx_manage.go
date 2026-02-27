@@ -68,13 +68,19 @@ func (t *larkDocxManage) createDoc(ctx context.Context, client *larkapi.Client, 
 	}
 
 	payload, _ := json.MarshalIndent(doc, "", "  ")
+	metadata := map[string]any{
+		"document_id": doc.DocumentID,
+		"title":       doc.Title,
+	}
+	content := fmt.Sprintf("Document created successfully.\n%s", string(payload))
+	if docURL := larkapi.BuildDocumentURL(shared.LarkBaseDomainFromContext(ctx), doc.DocumentID); docURL != "" {
+		metadata["url"] = docURL
+		content = fmt.Sprintf("Document created successfully.\nURL: %s\n%s", docURL, string(payload))
+	}
 	return &ports.ToolResult{
-		CallID:  call.ID,
-		Content: fmt.Sprintf("Document created successfully.\n%s", string(payload)),
-		Metadata: map[string]any{
-			"document_id": doc.DocumentID,
-			"title":       doc.Title,
-		},
+		CallID:   call.ID,
+		Content:  content,
+		Metadata: metadata,
 	}, nil
 }
 
@@ -94,13 +100,19 @@ func (t *larkDocxManage) readDoc(ctx context.Context, client *larkapi.Client, ca
 	}
 
 	payload, _ := json.MarshalIndent(doc, "", "  ")
+	metadata := map[string]any{
+		"document_id": doc.DocumentID,
+		"title":       doc.Title,
+	}
+	content := fmt.Sprintf("Document metadata:\n%s", string(payload))
+	if docURL := larkapi.BuildDocumentURL(shared.LarkBaseDomainFromContext(ctx), doc.DocumentID); docURL != "" {
+		metadata["url"] = docURL
+		content = fmt.Sprintf("Document metadata:\nURL: %s\n%s", docURL, string(payload))
+	}
 	return &ports.ToolResult{
-		CallID:  call.ID,
-		Content: fmt.Sprintf("Document metadata:\n%s", string(payload)),
-		Metadata: map[string]any{
-			"document_id": doc.DocumentID,
-			"title":       doc.Title,
-		},
+		CallID:   call.ID,
+		Content:  content,
+		Metadata: metadata,
 	}, nil
 }
 

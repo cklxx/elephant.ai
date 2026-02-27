@@ -7,7 +7,6 @@ import (
 
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/subscription"
-	builtinshared "alex/internal/infra/tools/builtin/shared"
 	"alex/internal/delivery/channels"
 	"alex/internal/shared/utils"
 )
@@ -37,9 +36,7 @@ func (g *Gateway) handlePlanModeCommand(msg *incomingMessage) {
 
 	sessionID := g.memoryIDForChat(msg.chatID)
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
-	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
-	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
-	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
+	execCtx = g.withLarkContext(execCtx, msg.chatID, msg.messageID)
 
 	trimmed := strings.TrimSpace(msg.content)
 	fields := strings.Fields(trimmed)

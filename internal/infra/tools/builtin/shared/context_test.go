@@ -90,6 +90,9 @@ func TestContextGetters_NilContextReturnsZeroValues(t *testing.T) {
 	if got := LarkOAuthFromContext(nil); got != nil {
 		t.Fatalf("expected nil lark oauth service, got %T", got)
 	}
+	if got := LarkBaseDomainFromContext(nil); got != "" {
+		t.Fatalf("expected empty lark base domain, got %q", got)
+	}
 	if got := LarkTenantCalendarIDFromContext(nil); got != "" {
 		t.Fatalf("expected empty lark tenant calendar id, got %q", got)
 	}
@@ -134,6 +137,9 @@ func TestContextGetters_WrongTypesReturnZeroValues(t *testing.T) {
 	if got := LarkOAuthFromContext(context.WithValue(ctx, larkOAuthKey, "wrong")); got != nil {
 		t.Fatalf("expected nil lark oauth service, got %T", got)
 	}
+	if got := LarkBaseDomainFromContext(context.WithValue(ctx, larkBaseDomainKey, 123)); got != "" {
+		t.Fatalf("expected empty lark base domain, got %q", got)
+	}
 	if got := LarkTenantCalendarIDFromContext(context.WithValue(ctx, larkTenantCalKey, 123)); got != "" {
 		t.Fatalf("expected empty lark tenant calendar id, got %q", got)
 	}
@@ -171,6 +177,7 @@ func TestContextGetters_RoundTrip(t *testing.T) {
 	ctx = WithLarkChatID(ctx, "chat-1")
 	ctx = WithLarkMessageID(ctx, "msg-1")
 	ctx = WithLarkOAuth(ctx, oauth)
+	ctx = WithLarkBaseDomain(ctx, "https://open.feishu.cn")
 	ctx = WithLarkTenantCalendarID(ctx, "calendar-1")
 	ctx = WithTimerManager(ctx, timerManager)
 	ctx = WithScheduler(ctx, scheduler)
@@ -205,6 +212,9 @@ func TestContextGetters_RoundTrip(t *testing.T) {
 	}
 	if got := LarkOAuthFromContext(ctx); got != oauth {
 		t.Fatalf("unexpected lark oauth service: %#v", got)
+	}
+	if got := LarkBaseDomainFromContext(ctx); got != "https://open.feishu.cn" {
+		t.Fatalf("unexpected lark base domain: %q", got)
 	}
 	if got := LarkTenantCalendarIDFromContext(ctx); got != "calendar-1" {
 		t.Fatalf("unexpected lark tenant calendar id: %q", got)

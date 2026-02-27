@@ -934,6 +934,21 @@ func (g *Gateway) memoryIDForChat(chatID string) string {
 	return fmt.Sprintf("%s-%x", g.cfg.SessionPrefix, hash[:12])
 }
 
+// withLarkContext injects the common Lark tool context values (client, chat ID,
+// message ID, and base domain) into the given context. All call sites that
+// previously called WithLarkClient + WithLarkChatID + WithLarkMessageID
+// individually should use this helper instead to ensure BaseDomain is always set.
+func (g *Gateway) withLarkContext(ctx context.Context, chatID, messageID string) context.Context {
+	ctx = builtinshared.WithLarkClient(ctx, g.client)
+	ctx = builtinshared.WithLarkMessenger(ctx, g.messenger)
+	ctx = builtinshared.WithLarkChatID(ctx, chatID)
+	ctx = builtinshared.WithLarkMessageID(ctx, messageID)
+	if domain := strings.TrimSpace(g.cfg.BaseDomain); domain != "" {
+		ctx = builtinshared.WithLarkBaseDomain(ctx, domain)
+	}
+	return ctx
+}
+
 // deref safely dereferences a string pointer.
 func deref(s *string) string {
 	if s == nil {

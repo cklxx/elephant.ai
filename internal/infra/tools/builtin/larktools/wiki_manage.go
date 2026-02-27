@@ -162,14 +162,20 @@ func (t *larkWikiManage) createNode(ctx context.Context, client *larkapi.Client,
 	}
 
 	payload, _ := json.MarshalIndent(node, "", "  ")
+	metadata := map[string]any{
+		"node_token": node.NodeToken,
+		"obj_token":  node.ObjToken,
+		"obj_type":   node.ObjType,
+	}
+	content := fmt.Sprintf("Wiki node created successfully.\n%s", string(payload))
+	if nodeURL := larkapi.BuildWikiNodeURL(shared.LarkBaseDomainFromContext(ctx), node.NodeToken); nodeURL != "" {
+		metadata["url"] = nodeURL
+		content = fmt.Sprintf("Wiki node created successfully.\nURL: %s\n%s", nodeURL, string(payload))
+	}
 	return &ports.ToolResult{
-		CallID:  call.ID,
-		Content: fmt.Sprintf("Wiki node created successfully.\n%s", string(payload)),
-		Metadata: map[string]any{
-			"node_token": node.NodeToken,
-			"obj_token":  node.ObjToken,
-			"obj_type":   node.ObjType,
-		},
+		CallID:   call.ID,
+		Content:  content,
+		Metadata: metadata,
 	}, nil
 }
 
@@ -189,13 +195,19 @@ func (t *larkWikiManage) getNode(ctx context.Context, client *larkapi.Client, ca
 	}
 
 	payload, _ := json.MarshalIndent(node, "", "  ")
+	metadata := map[string]any{
+		"node_token": node.NodeToken,
+		"title":      node.Title,
+		"obj_type":   node.ObjType,
+	}
+	content := fmt.Sprintf("Wiki node details:\n%s", string(payload))
+	if nodeURL := larkapi.BuildWikiNodeURL(shared.LarkBaseDomainFromContext(ctx), node.NodeToken); nodeURL != "" {
+		metadata["url"] = nodeURL
+		content = fmt.Sprintf("Wiki node details:\nURL: %s\n%s", nodeURL, string(payload))
+	}
 	return &ports.ToolResult{
-		CallID:  call.ID,
-		Content: fmt.Sprintf("Wiki node details:\n%s", string(payload)),
-		Metadata: map[string]any{
-			"node_token": node.NodeToken,
-			"title":      node.Title,
-			"obj_type":   node.ObjType,
-		},
+		CallID:   call.ID,
+		Content:  content,
+		Metadata: metadata,
 	}, nil
 }

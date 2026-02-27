@@ -40,6 +40,7 @@ func larkTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, c
 		lark.WithOpenBaseUrl(srv.URL),
 	)
 	ctx := shared.WithLarkClient(context.Background(), client)
+	ctx = shared.WithLarkBaseDomain(ctx, srv.URL)
 	return srv, ctx
 }
 
@@ -119,6 +120,16 @@ func TestDocxManage_CreateDoc(t *testing.T) {
 	}
 	if result.Metadata["document_id"] != "doc_create_001" {
 		t.Fatalf("expected metadata document_id=doc_create_001, got %v", result.Metadata["document_id"])
+	}
+	urlVal, ok := result.Metadata["url"].(string)
+	if !ok || urlVal == "" {
+		t.Fatal("expected non-empty url in metadata")
+	}
+	if !strings.Contains(urlVal, "/docx/doc_create_001") {
+		t.Fatalf("expected url to contain /docx/doc_create_001, got %s", urlVal)
+	}
+	if !strings.Contains(result.Content, "URL:") {
+		t.Fatal("expected URL in content")
 	}
 }
 
@@ -210,6 +221,13 @@ func TestDocxManage_ReadDoc(t *testing.T) {
 	}
 	if result.Metadata["document_id"] != "doc_read_001" {
 		t.Fatalf("expected metadata document_id, got %v", result.Metadata["document_id"])
+	}
+	urlVal, ok := result.Metadata["url"].(string)
+	if !ok || urlVal == "" {
+		t.Fatal("expected non-empty url in read metadata")
+	}
+	if !strings.Contains(urlVal, "/docx/doc_read_001") {
+		t.Fatalf("expected url to contain /docx/doc_read_001, got %s", urlVal)
 	}
 }
 
@@ -492,6 +510,9 @@ func TestChannel_CreateDoc_E2E(t *testing.T) {
 	}
 	if !strings.Contains(result.Content, "doc_e2e_001") {
 		t.Fatalf("expected doc_e2e_001 in content, got: %s", result.Content)
+	}
+	if urlVal, ok := result.Metadata["url"].(string); !ok || !strings.Contains(urlVal, "/docx/doc_e2e_001") {
+		t.Fatalf("expected url with /docx/doc_e2e_001, got %v", result.Metadata["url"])
 	}
 }
 

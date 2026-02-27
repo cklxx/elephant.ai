@@ -136,9 +136,7 @@ func (g *Gateway) handleNewSessionCommand(slot *sessionSlot, msg *incomingMessag
 	}
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", newSessionID, msg.senderID, msg.chatID, msg.isGroup)
-	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
-	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
-	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
+	execCtx = g.withLarkContext(execCtx, msg.chatID, msg.messageID)
 	g.persistChatSessionBinding(execCtx, msg.chatID, newSessionID)
 	confirmation := "已开启新会话，后续消息将使用新的上下文。"
 	if wasRunning {
@@ -162,10 +160,7 @@ func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
 	slot.mu.Unlock()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
-	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
-	execCtx = builtinshared.WithLarkMessenger(execCtx, g.messenger)
-	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
-	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
+	execCtx = g.withLarkContext(execCtx, msg.chatID, msg.messageID)
 	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("`/reset` 已弃用，请使用 `/new` 开启新的会话。"))
 }
 
@@ -193,10 +188,7 @@ func (g *Gateway) handleStopCommand(slot *sessionSlot, msg *incomingMessage) {
 	slot.mu.Unlock()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
-	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
-	execCtx = builtinshared.WithLarkMessenger(execCtx, g.messenger)
-	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
-	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
+	execCtx = g.withLarkContext(execCtx, msg.chatID, msg.messageID)
 
 	if !running {
 		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("当前没有正在执行的调用。"))
@@ -365,10 +357,7 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 // taskCtx is an optional cancellation source used to abort long-running tasks.
 func (g *Gateway) buildExecContext(taskCtx context.Context, msg *incomingMessage, sessionID string, inputCh chan agent.UserInput) (context.Context, context.CancelFunc) {
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
-	execCtx = builtinshared.WithLarkClient(execCtx, g.client)
-	execCtx = builtinshared.WithLarkMessenger(execCtx, g.messenger)
-	execCtx = builtinshared.WithLarkChatID(execCtx, msg.chatID)
-	execCtx = builtinshared.WithLarkMessageID(execCtx, msg.messageID)
+	execCtx = g.withLarkContext(execCtx, msg.chatID, msg.messageID)
 	if calendarID := strings.TrimSpace(g.cfg.TenantCalendarID); calendarID != "" {
 		execCtx = builtinshared.WithLarkTenantCalendarID(execCtx, calendarID)
 	}

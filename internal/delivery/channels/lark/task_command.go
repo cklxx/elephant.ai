@@ -111,9 +111,7 @@ func (g *Gateway) handleNaturalTaskStatusQuery(msg *incomingMessage) {
 func (g *Gateway) buildTaskCommandContext(msg *incomingMessage) context.Context {
 	sessionID := g.memoryIDForChat(msg.chatID)
 	ctx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
-	ctx = builtinshared.WithLarkClient(ctx, g.client)
-	ctx = builtinshared.WithLarkChatID(ctx, msg.chatID)
-	ctx = builtinshared.WithLarkMessageID(ctx, msg.messageID)
+	ctx = g.withLarkContext(ctx, msg.chatID, msg.messageID)
 	return ctx
 }
 
