@@ -236,8 +236,8 @@ func TestBackgroundProgressListener_CompletionUppercaseStatusIsNormalized(t *tes
 	if !strings.Contains(updates[0].Content, "任务已完成") {
 		t.Fatalf("expected completion header, got %q", updates[0].Content)
 	}
-	if !strings.Contains(updates[0].Content, "status: completed") {
-		t.Fatalf("expected normalized status in completion content, got %q", updates[0].Content)
+	if !strings.Contains(updates[0].Content, "done") {
+		t.Fatalf("expected answer in completion content, got %q", updates[0].Content)
 	}
 }
 

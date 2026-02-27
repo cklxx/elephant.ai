@@ -248,7 +248,7 @@ func TestTeamsLifecycle_ProcessCreationAndCleanup(t *testing.T) {
 	fakeKimi := writeFakeKimiCLI(t, workspace)
 
 	ctrl := process.NewController()
-	defer ctrl.Shutdown(5 * time.Second)
+	defer func() { _ = ctrl.Shutdown(5 * time.Second) }()
 
 	kimiBridge := bridge.New(bridge.BridgeConfig{
 		AgentType:          "kimi",
@@ -412,7 +412,7 @@ func TestTeamsLifecycle_ShutdownCancellation(t *testing.T) {
 	// Dispatch without waiting
 	tool := orchestration.NewRunTasks()
 	go func() {
-		tool.Execute(ctx, ports.ToolCall{
+		_, _ = tool.Execute(ctx, ports.ToolCall{
 			ID: "call-shutdown-test",
 			Arguments: map[string]any{
 				"template":        teamName,

@@ -315,6 +315,15 @@ func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentR
 	}
 	defer func() { _ = proc.Stop() }()
 
+	// Kill subprocess when caller cancels context, unblocking the scanner loop.
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = proc.Stop()
+		case <-proc.Done():
+		}
+	}()
+
 	configJSON, err := json.Marshal(bcfg)
 	if err != nil {
 		return nil, fmt.Errorf("marshal bridge config: %w", err)

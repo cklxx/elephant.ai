@@ -343,8 +343,14 @@ func TestMsgInject_CancelTask(t *testing.T) {
 		t.Fatalf("dispatch: %v", err)
 	}
 
-	// Wait for it to start running
-	time.Sleep(500 * time.Millisecond)
+	// Poll until task reaches running state
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if s := mgr.Status([]string{"cancel-me"}); len(s) == 1 && s[0].Status == agent.BackgroundTaskStatusRunning {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 
 	// Cancel it
 	if err := mgr.CancelTask(ctx, "cancel-me"); err != nil {
@@ -463,21 +469,27 @@ func TestMsgInject_DependencyFailure(t *testing.T) {
 
 	ctx := context.Background()
 
-	mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
+	if err := mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
 		TaskID: "msg-ok", Description: "ok worker", Prompt: "succeed",
 		AgentType: "kimi", ExecutionMode: "plan", AutonomyLevel: "full",
 		Config: map[string]string{"approval_policy": "never", "sandbox": "read-only"},
-	})
-	mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
+	}); err != nil {
+		t.Fatalf("dispatch msg-ok: %v", err)
+	}
+	if err := mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
 		TaskID: "msg-fail", Description: "fail worker", Prompt: "fail",
 		AgentType: "codex", ExecutionMode: "plan", AutonomyLevel: "full",
 		Config: map[string]string{"approval_policy": "never", "sandbox": "read-only"},
-	})
-	mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
+	}); err != nil {
+		t.Fatalf("dispatch msg-fail: %v", err)
+	}
+	if err := mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
 		TaskID: "msg-dep", Description: "dependent", Prompt: "process results",
 		AgentType: "internal", ExecutionMode: "execute", AutonomyLevel: "full",
 		DependsOn: []string{"msg-ok", "msg-fail"}, InheritContext: true,
-	})
+	}); err != nil {
+		t.Fatalf("dispatch msg-dep: %v", err)
+	}
 
 	results := mgr.Collect([]string{"msg-ok", "msg-fail", "msg-dep"}, true, 15*time.Second)
 	resultMap := make(map[string]agent.BackgroundTaskResult)
@@ -698,25 +710,31 @@ func TestMsgInject_ContextEnrichmentFormat(t *testing.T) {
 	ctx := context.Background()
 
 	// Dispatch 2 predecessors (no deps)
-	mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
+	if err := mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
 		TaskID: "pred-1", Description: "predecessor 1", Prompt: "generate data 1", AgentType: "internal",
-	})
-	mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
+	}); err != nil {
+		t.Fatalf("dispatch pred-1: %v", err)
+	}
+	if err := mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
 		TaskID: "pred-2", Description: "predecessor 2", Prompt: "generate data 2", AgentType: "internal",
-	})
+	}); err != nil {
+		t.Fatalf("dispatch pred-2: %v", err)
+	}
 
 	// Wait for predecessors
 	mgr.Collect([]string{"pred-1", "pred-2"}, true, 10*time.Second)
 
 	// Dispatch dependent with InheritContext
-	mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
+	if err := mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
 		TaskID:         "ctx-consumer",
 		Description:    "context consumer",
 		Prompt:         "Analyze the collected data and produce summary",
 		AgentType:      "internal",
 		DependsOn:      []string{"pred-1", "pred-2"},
 		InheritContext: true,
-	})
+	}); err != nil {
+		t.Fatalf("dispatch ctx-consumer: %v", err)
+	}
 
 	results := mgr.Collect([]string{"ctx-consumer"}, true, 10*time.Second)
 	if len(results) != 1 || results[0].Status != agent.BackgroundTaskStatusCompleted {

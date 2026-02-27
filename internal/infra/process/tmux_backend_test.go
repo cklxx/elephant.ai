@@ -170,7 +170,7 @@ func TestTmuxBackend_WithEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	defer h.Stop()
+	defer func() { _ = h.Stop() }()
 
 	if !h.Alive() {
 		t.Error("expected process to be alive")
@@ -196,7 +196,7 @@ func TestTmuxBackend_WorkingDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	defer h.Stop()
+	defer func() { _ = h.Stop() }()
 
 	if !h.Alive() {
 		t.Error("expected process to be alive")
@@ -220,7 +220,7 @@ func TestController_StartTmux(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTmux: %v", err)
 	}
-	defer h.Stop()
+	defer func() { _ = h.Stop() }()
 
 	if h.PID() <= 0 {
 		t.Errorf("PID = %d, want > 0", h.PID())
@@ -259,7 +259,7 @@ func TestController_StartTmux_Fallback(t *testing.T) {
 		if err != nil {
 			t.Fatalf("StartTmux fallback: %v", err)
 		}
-		defer h.Stop()
+		defer func() { _ = h.Stop() }()
 		if h.PID() <= 0 {
 			t.Errorf("PID = %d, want > 0", h.PID())
 		}

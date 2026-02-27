@@ -15,7 +15,7 @@ func TestTailBuffer_Empty(t *testing.T) {
 
 func TestTailBuffer_SmallWrite(t *testing.T) {
 	tb := NewTailBuffer(64)
-	tb.Write([]byte("hello"))
+	_, _ = tb.Write([]byte("hello"))
 	if s := tb.String(); s != "hello" {
 		t.Fatalf("got %q", s)
 	}
@@ -23,7 +23,7 @@ func TestTailBuffer_SmallWrite(t *testing.T) {
 
 func TestTailBuffer_ExactMax(t *testing.T) {
 	tb := NewTailBuffer(5)
-	tb.Write([]byte("abcde"))
+	_, _ = tb.Write([]byte("abcde"))
 	if s := tb.String(); s != "abcde" {
 		t.Fatalf("got %q", s)
 	}
@@ -31,7 +31,7 @@ func TestTailBuffer_ExactMax(t *testing.T) {
 
 func TestTailBuffer_OverflowSingleWrite(t *testing.T) {
 	tb := NewTailBuffer(5)
-	tb.Write([]byte("abcdefgh"))
+	_, _ = tb.Write([]byte("abcdefgh"))
 	if s := tb.String(); s != "defgh" {
 		t.Fatalf("got %q, want %q", s, "defgh")
 	}
@@ -39,9 +39,9 @@ func TestTailBuffer_OverflowSingleWrite(t *testing.T) {
 
 func TestTailBuffer_OverflowMultipleWrites(t *testing.T) {
 	tb := NewTailBuffer(8)
-	tb.Write([]byte("aaaa"))
-	tb.Write([]byte("bbbb"))
-	tb.Write([]byte("cc"))
+	_, _ = tb.Write([]byte("aaaa"))
+	_, _ = tb.Write([]byte("bbbb"))
+	_, _ = tb.Write([]byte("cc"))
 	// total 10 bytes, keep last 8: "aabbbbcc" → overflow → "bbbbcc" with max 8
 	s := tb.String()
 	if len(s) > 8 {
@@ -78,7 +78,7 @@ func TestTailBuffer_Concurrent(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for range 100 {
-				tb.Write([]byte("data"))
+				_, _ = tb.Write([]byte("data"))
 				_ = tb.String()
 			}
 		}(i)
