@@ -572,12 +572,18 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 			defer mu.Unlock()
 
 			if execErr != nil {
+				failureClass := classifyDispatchError(execErr)
+				errMsg := execErr.Error()
+				if failureClass != "" {
+					errMsg = "[" + failureClass + "] " + errMsg
+				}
 				result.Failed++
 				result.FailedAgents = append(result.FailedAgents, d.AgentID)
 				result.AgentSummary = append(result.AgentSummary, kerneldomain.AgentCycleSummary{
-					AgentID: d.AgentID,
-					Status:  kerneldomain.DispatchFailed,
-					Error:   execErr.Error(),
+					AgentID:      d.AgentID,
+					Status:       kerneldomain.DispatchFailed,
+					Error:        errMsg,
+					FailureClass: failureClass,
 				})
 				if markErr := e.store.MarkDispatchFailed(ctx, d.DispatchID, execErr.Error()); markErr != nil {
 					e.logger.Warn("Kernel: mark failed %s: %v", d.DispatchID, markErr)
@@ -617,6 +623,15 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 	}
 
 	return result
+}
+
+// classifyDispatchError attempts to map an execution error to a known failure class.
+// Returns empty string if the error is not a recognized kernel validation error.
+func classifyDispatchError(err error) string {
+	if err == nil {
+		return ""
+	}
+	return classifyKernelValidationError(err)
 }
 
 func decorateAutonomySummary(result ExecutionResult) string {

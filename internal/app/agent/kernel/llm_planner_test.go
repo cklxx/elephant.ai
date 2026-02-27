@@ -602,6 +602,21 @@ func TestLLMPlanner_BuildPlanningPrompt_IncludesTeamConstraints(t *testing.T) {
 	}
 }
 
+func TestLLMPlanner_BuildPlanningPrompt_ShowsAwaitingInputAnnotation(t *testing.T) {
+	p := testLLMPlanner(LLMPlannerConfig{MaxDispatches: 5}, nil)
+	prompt := p.buildPlanningPrompt("state", "", map[string]kerneldomain.Dispatch{
+		"lark-poster": {
+			AgentID:   "lark-poster",
+			Status:    kerneldomain.DispatchFailed,
+			Error:     "[awaiting_input] kernel dispatch completed while still awaiting user confirmation",
+			UpdatedAt: time.Now().Add(-5 * time.Minute),
+		},
+	})
+	if !containsAll(prompt, "lark-poster", "[awaiting_input]") {
+		t.Errorf("prompt should contain [awaiting_input] annotation for failed dispatch, got: %q", prompt)
+	}
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────

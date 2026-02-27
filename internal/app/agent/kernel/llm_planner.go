@@ -544,6 +544,7 @@ Each agent's prompt must include:
 3. Agents that completed successfully within the last 30 minutes with no new requirements may be skipped
 4. Immediately actionable opportunities in GOAL → priority >= 8
 5. Clear "next steps" in STATE → dispatch the corresponding task directly
+6. If an agent recently failed with [awaiting_input], do NOT re-dispatch with a similar prompt. Redesign the prompt to be fully autonomous or use a different approach.
 
 ## Empty Dispatch
 If no tasks need to be dispatched (all completed, running, or no actionable goals), output an empty array:

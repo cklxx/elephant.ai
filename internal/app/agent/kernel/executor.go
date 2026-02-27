@@ -222,7 +222,7 @@ func buildKernelTeamDispatchPrompt(spec kerneldomain.TeamDispatchSpec) string {
 		)
 	}
 	return fmt.Sprintf(
-		"Execute a structured team run now. Call run_tasks exactly once with arguments: %s\nThen read the generated .status sidecar and summarize completed roles, failures (if any), and artifact paths.",
+		"CRITICAL: Execute autonomously. Do NOT ask for confirmation or clarification. Make all decisions independently.\n\nExecute a structured team run now. Call run_tasks exactly once with arguments: %s\nThen read the generated .status sidecar and summarize completed roles, failures (if any), and artifact paths.",
 		string(payload),
 	)
 }

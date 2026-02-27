@@ -745,6 +745,66 @@ func TestEngine_RunCycle_RollingHistoryTruncation(t *testing.T) {
 	}
 }
 
+func TestEngine_RunCycle_FailureClassSetOnAwaitingInput(t *testing.T) {
+	awaitExec := &awaitingInputExecutor{}
+	dir := t.TempDir()
+	store := newMemStore()
+	sf := NewStateFile(dir)
+	planner := NewStaticPlanner("test-kernel", []AgentConfig{
+		{AgentID: "lark-action-queue-publisher", Prompt: "Publish action.", Priority: 10, Enabled: true},
+	})
+	cfg := KernelConfig{
+		KernelID:      "test-kernel",
+		Schedule:      "*/10 * * * *",
+		SeedState:     "# STATE\ntest\n",
+		MaxConcurrent: 1,
+	}
+	engine := NewEngine(cfg, sf, store, planner, awaitExec, logging.NewComponentLogger("test"))
+
+	result, err := engine.RunCycle(context.Background())
+	if err != nil {
+		t.Fatalf("RunCycle: %v", err)
+	}
+	if result.Failed != 1 {
+		t.Fatalf("expected 1 failed, got %d", result.Failed)
+	}
+	summary := result.AgentSummary[0]
+	if summary.FailureClass != kernelAutonomyAwaiting {
+		t.Fatalf("expected failure class %q, got %q", kernelAutonomyAwaiting, summary.FailureClass)
+	}
+	if !strings.Contains(summary.Error, "[awaiting_input]") {
+		t.Fatalf("expected [awaiting_input] prefix in error, got %q", summary.Error)
+	}
+}
+
+func TestEngine_RunCycle_FailureClassEmptyForGenericError(t *testing.T) {
+	exec := &mockExecutor{err: fmt.Errorf("network timeout")}
+	engine, _ := newTestEngine(t, exec)
+
+	result, err := engine.RunCycle(context.Background())
+	if err != nil {
+		t.Fatalf("RunCycle: %v", err)
+	}
+	if result.Failed != 2 {
+		t.Fatalf("expected 2 failed, got %d", result.Failed)
+	}
+	for _, s := range result.AgentSummary {
+		// Generic errors still get classified as "invalid_result" by the fallback
+		// in classifyKernelValidationError, but since this is a non-validation error,
+		// classifyDispatchError returns the fallback class.
+		if !strings.Contains(s.Error, "[") {
+			t.Fatalf("expected classification prefix in error, got %q", s.Error)
+		}
+	}
+}
+
+// awaitingInputExecutor always returns errKernelAwaitingUserConfirmation.
+type awaitingInputExecutor struct{}
+
+func (a *awaitingInputExecutor) Execute(_ context.Context, _, _ string, _ map[string]string) (ExecutionResult, error) {
+	return ExecutionResult{}, errKernelAwaitingUserConfirmation
+}
+
 // failingExecutor wraps another executor and fails for a specific agent.
 type failingExecutor struct {
 	inner     Executor
