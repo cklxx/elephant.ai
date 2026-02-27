@@ -8,6 +8,7 @@ import (
 
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/infra/external/bridge"
+	"alex/internal/infra/process"
 	"alex/internal/shared/config"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
@@ -19,13 +20,15 @@ type Registry struct {
 	inputCh   chan agent.InputRequest
 	pending   sync.Map
 	logger    logging.Logger
+	ctrl      *process.Controller
 }
 
 // NewRegistry constructs a registry from runtime external agent config.
-func NewRegistry(cfg config.ExternalAgentsConfig, logger logging.Logger) *Registry {
+func NewRegistry(cfg config.ExternalAgentsConfig, ctrl *process.Controller, logger logging.Logger) *Registry {
 	registry := &Registry{
 		executors: make(map[string]agent.ExternalAgentExecutor),
 		logger:    logging.OrNop(logger),
+		ctrl:      ctrl,
 	}
 
 	if cfg.ClaudeCode.Enabled {
@@ -43,7 +46,7 @@ func NewRegistry(cfg config.ExternalAgentsConfig, logger logging.Logger) *Regist
 			Timeout:                cfg.ClaudeCode.Timeout,
 			ResumeEnabled:          cfg.ClaudeCode.ResumeEnabled,
 			Env:                    cfg.ClaudeCode.Env,
-		})
+		}, ctrl)
 		registry.register(exec)
 	}
 	if cfg.Codex.Enabled {
@@ -60,7 +63,7 @@ func NewRegistry(cfg config.ExternalAgentsConfig, logger logging.Logger) *Regist
 			Timeout:            cfg.Codex.Timeout,
 			ResumeEnabled:      cfg.Codex.ResumeEnabled,
 			Env:                cfg.Codex.Env,
-		})
+		}, ctrl)
 		registry.register(exec)
 	}
 	if cfg.Kimi.Enabled {
@@ -77,7 +80,7 @@ func NewRegistry(cfg config.ExternalAgentsConfig, logger logging.Logger) *Regist
 			Timeout:            cfg.Kimi.Timeout,
 			ResumeEnabled:      cfg.Kimi.ResumeEnabled,
 			Env:                cfg.Kimi.Env,
-		})
+		}, ctrl)
 		registry.register(exec)
 	}
 

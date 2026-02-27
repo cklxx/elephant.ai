@@ -17,8 +17,8 @@ import (
 
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/process"
 	"alex/internal/shared/executioncontrol"
-	"alex/internal/infra/external/subprocess"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
 )
@@ -68,21 +68,39 @@ type bridgeRunner interface {
 	Done() <-chan struct{}
 }
 
-// subprocessAdapter adapts subprocess.Subprocess to bridgeRunner.
-type subprocessAdapter struct {
-	proc *subprocess.Subprocess
+// pipedHandleAdapter adapts process.PipedHandle to bridgeRunner.
+type pipedHandleAdapter struct {
+	h process.PipedHandle
 }
 
-func (a *subprocessAdapter) Start(ctx context.Context) error { return a.proc.Start(ctx) }
-func (a *subprocessAdapter) Write(data []byte) error         { return a.proc.Write(data) }
-func (a *subprocessAdapter) Stdout() interface{ Read([]byte) (int, error) } {
-	return a.proc.Stdout()
+func (a *pipedHandleAdapter) Start(_ context.Context) error { return nil /* already started */ }
+func (a *pipedHandleAdapter) Write(data []byte) error {
+	if a.h.Stdin() == nil {
+		return fmt.Errorf("stdin not available")
+	}
+	_, err := a.h.Stdin().Write(data)
+	return err
 }
-func (a *subprocessAdapter) StderrTail() string    { return a.proc.StderrTail() }
-func (a *subprocessAdapter) Wait() error           { return a.proc.Wait() }
-func (a *subprocessAdapter) Stop() error           { return a.proc.Stop() }
-func (a *subprocessAdapter) PID() int              { return a.proc.PID() }
-func (a *subprocessAdapter) Done() <-chan struct{} { return a.proc.Done() }
+func (a *pipedHandleAdapter) Stdout() interface{ Read([]byte) (int, error) } {
+	return a.h.Stdout()
+}
+func (a *pipedHandleAdapter) StderrTail() string    { return a.h.StderrTail() }
+func (a *pipedHandleAdapter) Wait() error           { return a.h.Wait() }
+func (a *pipedHandleAdapter) Stop() error           { return a.h.Stop() }
+func (a *pipedHandleAdapter) PID() int              { return a.h.PID() }
+func (a *pipedHandleAdapter) Done() <-chan struct{} { return a.h.Done() }
+
+// failRunner is returned when the controller fails to start a process.
+type failRunner struct{ err error }
+
+func (f *failRunner) Start(_ context.Context) error                      { return f.err }
+func (f *failRunner) Write(_ []byte) error                               { return f.err }
+func (f *failRunner) Stdout() interface{ Read([]byte) (int, error) }     { return nil }
+func (f *failRunner) StderrTail() string                                 { return "" }
+func (f *failRunner) Wait() error                                        { return f.err }
+func (f *failRunner) Stop() error                                        { return nil }
+func (f *failRunner) PID() int                                           { return 0 }
+func (f *failRunner) Done() <-chan struct{}                               { return nil }
 
 // Executor implements agent.InteractiveExternalExecutor by spawning a Python
 // bridge sidecar and reading pre-filtered JSONL events from its stdout.
@@ -90,22 +108,33 @@ func (a *subprocessAdapter) Done() <-chan struct{} { return a.proc.Done() }
 // parameterised implementation.
 type Executor struct {
 	cfg               BridgeConfig
+	ctrl              *process.Controller
 	inputCh           chan agent.InputRequest
 	pending           sync.Map
 	logger            logging.Logger
-	subprocessFactory func(subprocess.Config) bridgeRunner
+	subprocessFactory func(process.ProcessConfig) bridgeRunner
 }
 
 // New creates a new bridge executor for the configured agent type.
-func New(cfg BridgeConfig) *Executor {
-	return &Executor{
+// ctrl may be nil in tests where subprocessFactory is overridden.
+func New(cfg BridgeConfig, ctrl *process.Controller) *Executor {
+	e := &Executor{
 		cfg:     cfg,
+		ctrl:    ctrl,
 		inputCh: make(chan agent.InputRequest, 32),
 		logger:  logging.NewComponentLogger("BridgeExecutor/" + cfg.AgentType),
-		subprocessFactory: func(c subprocess.Config) bridgeRunner {
-			return &subprocessAdapter{proc: subprocess.New(c)}
-		},
 	}
+	e.subprocessFactory = func(c process.ProcessConfig) bridgeRunner {
+		if ctrl == nil {
+			return &failRunner{err: fmt.Errorf("no process controller")}
+		}
+		h, err := ctrl.StartExec(context.Background(), c)
+		if err != nil {
+			return &failRunner{err: err}
+		}
+		return &pipedHandleAdapter{h: h}
+	}
+	return e
 }
 
 func (e *Executor) SupportedTypes() []string {
@@ -255,7 +284,7 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 
 	// Prevent nested-session detection in Claude Code CLI.
 	if e.cfg.AgentType == "claude_code" {
-		env["CLAUDECODE"] = "" // empty = unset in subprocess.buildEnv
+		env["CLAUDECODE"] = "" // empty = unset in process.MergeEnv
 	}
 
 	// Detached mode: output goes to a file, subprocess survives parent death.
@@ -273,7 +302,8 @@ func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentR
 	if timeout <= 0 {
 		timeout = defaultAttachedTimeout
 	}
-	proc := e.subprocessFactory(subprocess.Config{
+	proc := e.subprocessFactory(process.ProcessConfig{
+		Name:       fmt.Sprintf("bridge-%s-%s", e.cfg.AgentType, req.TaskID),
 		Command:    pythonBin,
 		Args:       []string{bridgeScript},
 		Env:        env,
@@ -338,7 +368,8 @@ func (e *Executor) executeDetached(ctx context.Context, req agent.ExternalAgentR
 	statusFile := bridgeStatusFile(workDir, taskID)
 	doneFile := bridgeDoneFile(workDir, taskID)
 
-	proc := e.subprocessFactory(subprocess.Config{
+	proc := e.subprocessFactory(process.ProcessConfig{
+		Name:       fmt.Sprintf("bridge-%s-%s", e.cfg.AgentType, taskID),
 		Command:    pythonBin,
 		Args:       []string{bridgeScript, "--output-file", outputFile},
 		Env:        env,

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/infra/external/subprocess"
+	"alex/internal/infra/process"
 )
 
 // fakeDetachedRunner simulates a detached bridge subprocess that writes to a file.
@@ -39,11 +39,11 @@ func TestExecutor_DetachedMode_ParsesToolAndResult(t *testing.T) {
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/cc_bridge.py",
 		Detached:     true,
-	})
+	}, nil)
 
 	// The fake runner writes events to the output file and done sentinel.
 	fake := &fakeDetachedRunner{pid: 12345}
-	exec.subprocessFactory = func(cfg subprocess.Config) bridgeRunner {
+	exec.subprocessFactory = func(cfg process.ProcessConfig) bridgeRunner {
 		fake.outputFile = cfg.OutputFile
 		fake.doneFile = filepath.Join(filepath.Dir(cfg.OutputFile), ".done")
 
@@ -122,10 +122,10 @@ func TestExecutor_DetachedMode_HandlesErrorEvent(t *testing.T) {
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/cc_bridge.py",
 		Detached:     true,
-	})
+	}, nil)
 
 	fake := &fakeDetachedRunner{pid: 12346}
-	exec.subprocessFactory = func(cfg subprocess.Config) bridgeRunner {
+	exec.subprocessFactory = func(cfg process.ProcessConfig) bridgeRunner {
 		fake.outputFile = cfg.OutputFile
 		fake.doneFile = filepath.Join(filepath.Dir(cfg.OutputFile), ".done")
 

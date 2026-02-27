@@ -13,7 +13,7 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/infra/external/subprocess"
+	"alex/internal/infra/process"
 )
 
 // fakeBridgeRunner simulates a bridge subprocess.
@@ -59,7 +59,7 @@ func TestExecutor_ClaudeCode_ParsesToolAndResult(t *testing.T) {
 		Timeout:      2 * time.Second,
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/cc_bridge.py",
-	})
+	}, nil)
 
 	out := strings.Join([]string{
 		`{"type":"tool","tool_name":"Bash","summary":"command=ls -la","files":[],"iter":1}`,
@@ -69,7 +69,7 @@ func TestExecutor_ClaudeCode_ParsesToolAndResult(t *testing.T) {
 	}, "\n")
 
 	fake := &fakeBridgeRunner{stdout: strings.NewReader(out)}
-	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+	exec.subprocessFactory = func(_ process.ProcessConfig) bridgeRunner { return fake }
 
 	var progress []agent.ExternalAgentProgress
 	res, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
@@ -126,7 +126,7 @@ func TestExecutor_Codex_ParsesToolAndResult(t *testing.T) {
 		Timeout:        2 * time.Second,
 		PythonBinary:   "/usr/bin/python3",
 		BridgeScript:   "/fake/codex_bridge.py",
-	})
+	}, nil)
 
 	out := strings.Join([]string{
 		`{"type":"tool","tool_name":"Bash","summary":"command=npm test","files":[],"iter":1}`,
@@ -136,7 +136,7 @@ func TestExecutor_Codex_ParsesToolAndResult(t *testing.T) {
 	}, "\n")
 
 	fake := &fakeBridgeRunner{stdout: strings.NewReader(out)}
-	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+	exec.subprocessFactory = func(_ process.ProcessConfig) bridgeRunner { return fake }
 
 	var progress []agent.ExternalAgentProgress
 	res, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
@@ -187,7 +187,7 @@ func TestExecutor_CodexPlanModeUsesSandboxFallbackFromRequest(t *testing.T) {
 		Timeout:            2 * time.Second,
 		PythonBinary:       "/usr/bin/python3",
 		BridgeScript:       "/fake/codex_bridge.py",
-	})
+	}, nil)
 
 	out := strings.Join([]string{
 		`{"type":"result","answer":"plan output","tokens":1200,"cost":0,"iters":1,"is_error":false}`,
@@ -195,7 +195,7 @@ func TestExecutor_CodexPlanModeUsesSandboxFallbackFromRequest(t *testing.T) {
 	}, "\n")
 
 	fake := &fakeBridgeRunner{stdout: strings.NewReader(out)}
-	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+	exec.subprocessFactory = func(_ process.ProcessConfig) bridgeRunner { return fake }
 
 	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID:        "t-codex-plan",
@@ -230,11 +230,11 @@ func TestExecutor_HandlesErrorEvent(t *testing.T) {
 		Timeout:      2 * time.Second,
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/cc_bridge.py",
-	})
+	}, nil)
 
 	out := `{"type":"error","message":"API rate limit exceeded"}` + "\n"
 	fake := &fakeBridgeRunner{stdout: strings.NewReader(out)}
-	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+	exec.subprocessFactory = func(_ process.ProcessConfig) bridgeRunner { return fake }
 
 	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID:    "t2",
@@ -256,11 +256,11 @@ func TestExecutor_HandlesResultWithIsError(t *testing.T) {
 		Timeout:      2 * time.Second,
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/cc_bridge.py",
-	})
+	}, nil)
 
 	out := `{"type":"result","answer":"context window exceeded","tokens":8000,"cost":0.5,"iters":10,"is_error":true}` + "\n"
 	fake := &fakeBridgeRunner{stdout: strings.NewReader(out)}
-	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+	exec.subprocessFactory = func(_ process.ProcessConfig) bridgeRunner { return fake }
 
 	res, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID:    "t3",
@@ -279,7 +279,7 @@ func TestExecutor_HandlesResultWithIsError(t *testing.T) {
 }
 
 func TestExecutor_EmptyPromptReturnsError(t *testing.T) {
-	exec := New(BridgeConfig{})
+	exec := New(BridgeConfig{}, nil)
 	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID: "t4",
 		Prompt: "",
@@ -296,14 +296,14 @@ func TestExecutor_ProcessExitError_ClaudeCode(t *testing.T) {
 		Timeout:      2 * time.Second,
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/cc_bridge.py",
-	})
+	}, nil)
 
 	fake := &fakeBridgeRunner{
 		stdout:     strings.NewReader(""),
 		waitErr:    fakeExitError{code: 1},
 		stderrTail: "not logged in",
 	}
-	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+	exec.subprocessFactory = func(_ process.ProcessConfig) bridgeRunner { return fake }
 
 	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID:    "t5",
@@ -327,14 +327,14 @@ func TestExecutor_ProcessExitError_Codex(t *testing.T) {
 		Timeout:      2 * time.Second,
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/codex_bridge.py",
-	})
+	}, nil)
 
 	fake := &fakeBridgeRunner{
 		stdout:     strings.NewReader(""),
 		waitErr:    fakeExitError{code: 3},
 		stderrTail: "api key missing",
 	}
-	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+	exec.subprocessFactory = func(_ process.ProcessConfig) bridgeRunner { return fake }
 
 	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID:    "t-codex-err",
@@ -359,7 +359,7 @@ func TestExecutor_SkipsInvalidJSON(t *testing.T) {
 		Timeout:      2 * time.Second,
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/cc_bridge.py",
-	})
+	}, nil)
 
 	out := strings.Join([]string{
 		`not json at all`,
@@ -369,7 +369,7 @@ func TestExecutor_SkipsInvalidJSON(t *testing.T) {
 	}, "\n")
 
 	fake := &fakeBridgeRunner{stdout: strings.NewReader(out)}
-	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+	exec.subprocessFactory = func(_ process.ProcessConfig) bridgeRunner { return fake }
 
 	var progress []agent.ExternalAgentProgress
 	res, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
@@ -400,7 +400,7 @@ func TestExecutor_SupportedTypes(t *testing.T) {
 		{"kimi"},
 	}
 	for _, tt := range tests {
-		exec := New(BridgeConfig{AgentType: tt.agentType})
+		exec := New(BridgeConfig{AgentType: tt.agentType}, nil)
 		types := exec.SupportedTypes()
 		if len(types) != 1 || types[0] != tt.agentType {
 			t.Fatalf("expected [%s], got %v", tt.agentType, types)
@@ -418,7 +418,7 @@ func TestExecutor_KimiPlanModeUsesSandboxFallbackFromRequest(t *testing.T) {
 		Timeout:            2 * time.Second,
 		PythonBinary:       "/usr/bin/python3",
 		BridgeScript:       "/fake/codex_bridge.py",
-	})
+	}, nil)
 
 	out := strings.Join([]string{
 		`{"type":"result","answer":"plan output","tokens":1200,"cost":0,"iters":1,"is_error":false}`,
@@ -426,7 +426,7 @@ func TestExecutor_KimiPlanModeUsesSandboxFallbackFromRequest(t *testing.T) {
 	}, "\n")
 
 	fake := &fakeBridgeRunner{stdout: strings.NewReader(out)}
-	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+	exec.subprocessFactory = func(_ process.ProcessConfig) bridgeRunner { return fake }
 
 	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID:        "t-kimi-plan",
@@ -460,14 +460,14 @@ func TestExecutor_ProcessExitError_Kimi(t *testing.T) {
 		Timeout:      2 * time.Second,
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/codex_bridge.py",
-	})
+	}, nil)
 
 	fake := &fakeBridgeRunner{
 		stdout:     strings.NewReader(""),
 		waitErr:    fakeExitError{code: 2},
 		stderrTail: "token invalid",
 	}
-	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+	exec.subprocessFactory = func(_ process.ProcessConfig) bridgeRunner { return fake }
 
 	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID:    "t-kimi-err",
@@ -493,7 +493,7 @@ func TestResolveBridgeScript_ReturnsAbsolutePath(t *testing.T) {
 	exec := New(BridgeConfig{
 		AgentType:    "claude_code",
 		BridgeScript: "scripts/cc_bridge/cc_bridge.py",
-	})
+	}, nil)
 	resolved := exec.resolveBridgeScript()
 	if !filepath.IsAbs(resolved) {
 		t.Fatalf("expected absolute path, got %q", resolved)
@@ -524,7 +524,7 @@ func TestResolvePython_UsesVenvWhenPresent(t *testing.T) {
 	exec := New(BridgeConfig{
 		AgentType:    "claude_code",
 		BridgeScript: scriptFile,
-	})
+	}, nil)
 	resolved := exec.resolvePython()
 	if resolved != pythonPath {
 		t.Fatalf("expected %q, got %q", pythonPath, resolved)
@@ -543,7 +543,7 @@ func TestResolvePython_FallsBackToSystemPython(t *testing.T) {
 	exec := New(BridgeConfig{
 		AgentType:    "claude_code",
 		BridgeScript: scriptFile,
-	})
+	}, nil)
 	resolved := exec.resolvePython()
 	if resolved != "python3" {
 		t.Fatalf("expected fallback to python3, got %q", resolved)
@@ -566,7 +566,7 @@ chmod +x "%s/.venv/bin/python3"
 		t.Fatal(err)
 	}
 
-	exec := New(BridgeConfig{AgentType: "claude_code"})
+	exec := New(BridgeConfig{AgentType: "claude_code"}, nil)
 	result := exec.ensureVenv(dir)
 	expected := filepath.Join(dir, ".venv", "bin", "python3")
 	if result != expected {
@@ -578,7 +578,7 @@ func TestEnsureVenv_NoSetupScript(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	exec := New(BridgeConfig{AgentType: "claude_code"})
+	exec := New(BridgeConfig{AgentType: "claude_code"}, nil)
 	result := exec.ensureVenv(dir)
 	if result != "" {
 		t.Fatalf("expected empty string, got %q", result)
@@ -672,11 +672,11 @@ func TestExecutor_WorktreePolicySkippedForPlanMode(t *testing.T) {
 		Timeout:      2 * time.Second,
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/codex_bridge.py",
-	})
+	}, nil)
 
 	out := `{"type":"result","answer":"plan","tokens":100,"cost":0,"iters":1,"is_error":false}` + "\n"
 	fake := &fakeBridgeRunner{stdout: strings.NewReader(out)}
-	exec.subprocessFactory = func(_ subprocess.Config) bridgeRunner { return fake }
+	exec.subprocessFactory = func(_ process.ProcessConfig) bridgeRunner { return fake }
 
 	// Execute with plan mode — should NOT fail even if we're on main.
 	// (WorkingDir left empty means "." which is our actual repo on main,
@@ -781,11 +781,11 @@ func TestAttachedBridgeDefaultTimeout(t *testing.T) {
 		Timeout:      0, // No timeout configured.
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/cc_bridge.py",
-	})
+	}, nil)
 
 	out := `{"type":"result","answer":"ok","tokens":100,"cost":0,"iters":1,"is_error":false}` + "\n"
 	var capturedTimeout time.Duration
-	exec.subprocessFactory = func(cfg subprocess.Config) bridgeRunner {
+	exec.subprocessFactory = func(cfg process.ProcessConfig) bridgeRunner {
 		capturedTimeout = cfg.Timeout
 		return &fakeBridgeRunner{stdout: strings.NewReader(out)}
 	}
@@ -815,11 +815,11 @@ func TestAttachedBridgeExplicitTimeout(t *testing.T) {
 		Timeout:      30 * time.Minute,
 		PythonBinary: "/usr/bin/python3",
 		BridgeScript: "/fake/cc_bridge.py",
-	})
+	}, nil)
 
 	out := `{"type":"result","answer":"ok","tokens":100,"cost":0,"iters":1,"is_error":false}` + "\n"
 	var capturedTimeout time.Duration
-	exec.subprocessFactory = func(cfg subprocess.Config) bridgeRunner {
+	exec.subprocessFactory = func(cfg process.ProcessConfig) bridgeRunner {
 		capturedTimeout = cfg.Timeout
 		return &fakeBridgeRunner{stdout: strings.NewReader(out)}
 	}

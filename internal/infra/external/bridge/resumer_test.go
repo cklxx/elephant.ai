@@ -130,7 +130,7 @@ func TestResumer_HarvestOrphan(t *testing.T) {
 		},
 	}
 
-	resumer := NewResumer(store, New(BridgeConfig{}), nil)
+	resumer := NewResumer(store, New(BridgeConfig{}, nil), nil)
 	results := resumer.ResumeOrphans(context.Background(), dir)
 
 	if len(results) != 1 {
@@ -176,7 +176,7 @@ func TestResumer_MarkFailedOrphan(t *testing.T) {
 		},
 	}
 
-	resumer := NewResumer(store, New(BridgeConfig{}), nil)
+	resumer := NewResumer(store, New(BridgeConfig{}, nil), nil)
 	results := resumer.ResumeOrphans(context.Background(), dir)
 
 	if len(results) != 1 {
@@ -210,7 +210,7 @@ func TestResumer_SkipsTerminalTasks(t *testing.T) {
 		},
 	}
 
-	resumer := NewResumer(store, New(BridgeConfig{}), nil)
+	resumer := NewResumer(store, New(BridgeConfig{}, nil), nil)
 	results := resumer.ResumeOrphans(context.Background(), dir)
 
 	if len(results) != 1 {
@@ -230,7 +230,7 @@ func TestResumer_SkipsTerminalTasks(t *testing.T) {
 func TestResumer_NoOrphans(t *testing.T) {
 	dir := t.TempDir()
 	store := &mockTaskStore{tasks: make(map[string]*taskdomain.Task)}
-	resumer := NewResumer(store, New(BridgeConfig{}), nil)
+	resumer := NewResumer(store, New(BridgeConfig{}, nil), nil)
 	results := resumer.ResumeOrphans(context.Background(), dir)
 	if len(results) != 0 {
 		t.Errorf("expected 0 results, got %d", len(results))

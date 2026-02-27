@@ -22,6 +22,7 @@ import (
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
 	"alex/internal/infra/external/teamrun"
+	"alex/internal/infra/process"
 	kernelinfra "alex/internal/infra/kernel"
 	"alex/internal/infra/llm"
 	"alex/internal/infra/memory"
@@ -139,7 +140,7 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 	b.applyDetectedExternalAgents(detectedCLIs, false)
 
 	var externalExecutor agent.ExternalAgentExecutor
-	externalRegistry := external.NewRegistry(b.config.ExternalAgents, b.logger)
+	externalRegistry := external.NewRegistry(b.config.ExternalAgents, process.NewController(), b.logger)
 	if len(externalRegistry.SupportedTypes()) > 0 {
 		externalExecutor = codinginfra.NewManagedExternalExecutor(externalRegistry, b.logger)
 	}

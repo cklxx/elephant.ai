@@ -15,6 +15,7 @@ import (
 	react "alex/internal/domain/agent/react"
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
+	"alex/internal/infra/process"
 	"alex/internal/infra/external/teamrun"
 	"alex/internal/infra/mcp"
 	sessionstate "alex/internal/infra/session/state_store"
@@ -106,7 +107,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	}
 
 	var externalExecutor agent.ExternalAgentExecutor
-	externalRegistry := external.NewRegistry(b.config.ExternalAgents, b.logger)
+	externalRegistry := external.NewRegistry(b.config.ExternalAgents, process.NewController(), b.logger)
 	if len(externalRegistry.SupportedTypes()) > 0 {
 		externalExecutor = codinginfra.NewManagedExternalExecutor(externalRegistry, b.logger)
 	}
