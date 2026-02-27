@@ -1,8 +1,8 @@
 # Plan: Kernel Empty Response Summary Validation
 
-**Status:** in_progress
+**Status:** done
 **Branch:** main
-**Created:** 2026-02-26
+**Created:** 2026-02-27
 
 ## Problem
 
@@ -21,8 +21,8 @@ ran, which is misleading and hides invalid final response quality.
 
 ## Tasks
 
-- [ ] Tighten validation in `internal/app/agent/kernel/executor.go`
-- [ ] Add tests in `internal/app/agent/kernel/coordinator_executor_test.go`
-- [ ] Run formatting + kernel tests
-- [ ] Run mandatory code review before commit
-- [ ] Commit and push
+- [x] Tighten validation in `internal/app/agent/kernel/executor.go`
+- [x] Add tests in `internal/app/agent/kernel/coordinator_executor_test.go`
+- [x] Run formatting + kernel tests
+- [x] Run mandatory code review before commit
+- [x] Commit and push

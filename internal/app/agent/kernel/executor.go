@@ -359,10 +359,11 @@ func isKernelExecutionSummaryValid(summary string) bool {
 	if strings.HasPrefix(lower, "empty response:") || strings.HasPrefix(lower, "empty completion:") {
 		return false
 	}
-	if strings.Contains(lower, "'content':") && strings.Contains(lower, "'stop_reason':") {
-		return false
-	}
-	if strings.HasPrefix(lower, "{") && strings.Contains(lower, "\"content\"") && strings.Contains(lower, "\"stop_reason\"") {
+	if strings.HasPrefix(lower, "{") &&
+		strings.Contains(lower, "stop_reason") &&
+		strings.Contains(lower, "content") &&
+		strings.Contains(lower, "input_tokens") &&
+		strings.Contains(lower, "output_tokens") {
 		return false
 	}
 	return true
