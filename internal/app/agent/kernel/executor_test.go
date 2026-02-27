@@ -3,6 +3,7 @@ package kernel
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ type mockExecutor struct {
 	err       error
 	taskIDs   []string // returned in order
 	summaries []string // returned in order
+	teamRoles []TeamRoleResult // returned for team calls
 	idx       int
 }
 
@@ -62,7 +64,7 @@ func (m *mockExecutor) ExecuteTeam(_ context.Context, spec kerneldomain.TeamDisp
 		summary = m.summaries[m.idx]
 	}
 	m.idx++
-	return ExecutionResult{TaskID: taskID, Summary: summary}, nil
+	return ExecutionResult{TaskID: taskID, Summary: summary, TeamRoles: m.teamRoles}, nil
 }
 
 // callCount returns the number of recorded calls (thread-safe).
@@ -102,6 +104,43 @@ func TestMockExecutor_RecordsCalls(t *testing.T) {
 	}
 	if calls[0].AgentID != "agent-1" {
 		t.Errorf("wrong agent: %s", calls[0].AgentID)
+	}
+}
+
+func TestReadTeamRoleResults_HappyPath(t *testing.T) {
+	dir := t.TempDir()
+	statusPath := dir + "/team-test.status.yaml"
+	content := `plan_id: team-test
+updated_at: 2026-02-27T10:00:00Z
+tasks:
+  - id: team-worker-a
+    status: completed
+    elapsed: 12s
+  - id: team-worker-b
+    status: failed
+    error: timeout
+    elapsed: 120s
+`
+	if err := os.WriteFile(statusPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	roles := readTeamRoleResults(statusPath)
+	if len(roles) != 2 {
+		t.Fatalf("expected 2 roles, got %d", len(roles))
+	}
+	if roles[0].RoleID != "team-worker-a" || roles[0].Status != "completed" {
+		t.Errorf("role 0: %+v", roles[0])
+	}
+	if roles[1].RoleID != "team-worker-b" || roles[1].Status != "failed" || roles[1].Error != "timeout" {
+		t.Errorf("role 1: %+v", roles[1])
+	}
+}
+
+func TestReadTeamRoleResults_MissingFile(t *testing.T) {
+	roles := readTeamRoleResults("/nonexistent/status.yaml")
+	if len(roles) != 0 {
+		t.Fatalf("expected empty roles for missing file, got %d", len(roles))
 	}
 }
 

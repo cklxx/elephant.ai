@@ -29,6 +29,19 @@ type TaskStatus struct {
 	Stale       bool   `yaml:"stale,omitempty"`
 }
 
+// ReadStatusFile reads and deserializes a status sidecar YAML file.
+func ReadStatusFile(path string) (*StatusFile, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read status file: %w", err)
+	}
+	var sf StatusFile
+	if err := yaml.Unmarshal(data, &sf); err != nil {
+		return nil, fmt.Errorf("parse status file: %w", err)
+	}
+	return &sf, nil
+}
+
 // StatusWriter manages atomic writes of task status to a YAML sidecar file
 // and optionally polls the dispatcher for live updates.
 type StatusWriter struct {

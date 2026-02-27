@@ -12,6 +12,7 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/subscription"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/taskfile"
 	kerneldomain "alex/internal/domain/kernel"
 	toolshared "alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
@@ -50,6 +51,15 @@ type ExecutionResult struct {
 	Attempts      int
 	RecoveredFrom string
 	Autonomy      string
+	TeamRoles     []TeamRoleResult
+}
+
+// TeamRoleResult captures one role's outcome from a team dispatch.
+type TeamRoleResult struct {
+	RoleID  string
+	Status  string
+	Error   string
+	Elapsed string
 }
 
 // TaskRunner is the minimal task execution contract used by the kernel executor.
@@ -183,7 +193,32 @@ func (e *CoordinatorExecutor) ExecuteTeam(ctx context.Context, spec kerneldomain
 		return ExecutionResult{}, fmt.Errorf("team dispatch goal is required")
 	}
 	prompt := buildKernelTeamDispatchPrompt(spec)
-	return e.Execute(ctx, "team:"+template, prompt, meta)
+	result, err := e.Execute(ctx, "team:"+template, prompt, meta)
+	if err != nil {
+		return result, err
+	}
+	// Best-effort: read status sidecar for role-level results.
+	statusPath := fmt.Sprintf(".elephant/tasks/team-%s.status.yaml", template)
+	result.TeamRoles = readTeamRoleResults(statusPath)
+	return result, nil
+}
+
+// readTeamRoleResults reads a team status sidecar and converts task statuses to role results.
+func readTeamRoleResults(statusPath string) []TeamRoleResult {
+	sf, err := taskfile.ReadStatusFile(statusPath)
+	if err != nil {
+		return nil
+	}
+	roles := make([]TeamRoleResult, 0, len(sf.Tasks))
+	for _, ts := range sf.Tasks {
+		roles = append(roles, TeamRoleResult{
+			RoleID:  ts.ID,
+			Status:  ts.Status,
+			Error:   ts.Error,
+			Elapsed: ts.Elapsed,
+		})
+	}
+	return roles
 }
 
 func classifyKernelValidationError(err error) string {
