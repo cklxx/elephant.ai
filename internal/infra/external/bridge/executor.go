@@ -239,6 +239,9 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 	}
 
 	env := core.CloneStringMap(e.cfg.Env)
+	if env == nil {
+		env = make(map[string]string)
+	}
 	if e.cfg.APIKey != "" {
 		switch e.cfg.AgentType {
 		case "claude_code":
@@ -248,6 +251,11 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		case "kimi":
 			env["KIMI_API_KEY"] = e.cfg.APIKey
 		}
+	}
+
+	// Prevent nested-session detection in Claude Code CLI.
+	if e.cfg.AgentType == "claude_code" {
+		env["CLAUDECODE"] = "" // empty = unset in subprocess.buildEnv
 	}
 
 	// Detached mode: output goes to a file, subprocess survives parent death.

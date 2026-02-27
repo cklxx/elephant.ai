@@ -74,11 +74,7 @@ func (s *Subprocess) startAttached(ctx context.Context) error {
 		cmd.Dir = s.cfg.WorkingDir
 	}
 	if len(s.cfg.Env) > 0 {
-		env := append([]string{}, os.Environ()...)
-		for k, v := range s.cfg.Env {
-			env = append(env, fmt.Sprintf("%s=%s", k, v))
-		}
-		cmd.Env = env
+		cmd.Env = buildEnv(s.cfg.Env)
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -153,11 +149,7 @@ func (s *Subprocess) startDetached(ctx context.Context) error {
 		cmd.Dir = s.cfg.WorkingDir
 	}
 	if len(s.cfg.Env) > 0 {
-		env := append([]string{}, os.Environ()...)
-		for k, v := range s.cfg.Env {
-			env = append(env, fmt.Sprintf("%s=%s", k, v))
-		}
-		cmd.Env = env
+		cmd.Env = buildEnv(s.cfg.Env)
 	}
 	// Setsid makes the process a session leader — survives parent death.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
@@ -386,4 +378,47 @@ func (t *tailBuffer) String() string {
 	copyBuf := make([]byte, len(t.buf))
 	copy(copyBuf, t.buf)
 	return string(copyBuf)
+}
+
+// buildEnv merges cfg env into os.Environ(). If a key maps to "", the
+// variable is removed from the inherited environment (unset semantics).
+func buildEnv(cfg map[string]string) []string {
+	// Collect keys to remove.
+	remove := make(map[string]struct{})
+	for k, v := range cfg {
+		if v == "" {
+			remove[k] = struct{}{}
+		}
+	}
+
+	// Filter inherited env.
+	inherited := os.Environ()
+	env := make([]string, 0, len(inherited)+len(cfg))
+	for _, entry := range inherited {
+		key := entry
+		if idx := indexOf(entry, '='); idx >= 0 {
+			key = entry[:idx]
+		}
+		if _, skip := remove[key]; skip {
+			continue
+		}
+		env = append(env, entry)
+	}
+
+	// Append non-empty overrides.
+	for k, v := range cfg {
+		if v != "" {
+			env = append(env, fmt.Sprintf("%s=%s", k, v))
+		}
+	}
+	return env
+}
+
+func indexOf(s string, c byte) int {
+	for i := range len(s) {
+		if s[i] == c {
+			return i
+		}
+	}
+	return -1
 }
