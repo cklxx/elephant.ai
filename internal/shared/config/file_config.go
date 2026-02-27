@@ -344,9 +344,44 @@ type AppPluginConfig struct {
 	Sources         []string `json:"sources,omitempty" yaml:"sources"`
 }
 
-// ChannelsConfig captures channel integrations (e.g., Lark).
+// ChannelsConfig captures channel integrations (e.g., Lark, Telegram).
 type ChannelsConfig struct {
-	Lark *LarkChannelConfig `json:"lark,omitempty" yaml:"lark"`
+	Lark     *LarkChannelConfig     `json:"lark,omitempty" yaml:"lark"`
+	Telegram *TelegramChannelConfig `json:"telegram,omitempty" yaml:"telegram"`
+}
+
+// TelegramChannelConfig captures Telegram gateway settings in YAML.
+type TelegramChannelConfig struct {
+	Enabled                       *bool                      `yaml:"enabled"`
+	BotToken                      string                     `yaml:"bot_token"`
+	SessionPrefix                 string                     `yaml:"session_prefix"`
+	ReplyPrefix                   string                     `yaml:"reply_prefix"`
+	AllowGroups                   *bool                      `yaml:"allow_groups"`
+	AllowDirect                   *bool                      `yaml:"allow_direct"`
+	AgentPreset                   string                     `yaml:"agent_preset"`
+	ToolPreset                    string                     `yaml:"tool_preset"`
+	ReplyTimeoutSeconds           *int                       `yaml:"reply_timeout_seconds"`
+	MemoryEnabled                 *bool                      `yaml:"memory_enabled"`
+	AllowedGroups                 []int64                    `yaml:"allowed_groups"`
+	ShowToolProgress              *bool                      `yaml:"show_tool_progress"`
+	SlowProgressSummaryEnabled    *bool                      `yaml:"slow_progress_summary_enabled"`
+	SlowProgressSummaryDelaySecs  *int                       `yaml:"slow_progress_summary_delay_seconds"`
+	PlanReviewEnabled             *bool                      `yaml:"plan_review_enabled"`
+	PlanReviewRequireConfirmation *bool                      `yaml:"plan_review_require_confirmation"`
+	PlanReviewPendingTTLMinutes   *int                       `yaml:"plan_review_pending_ttl_minutes"`
+	ActiveSlotTTLMinutes          *int                       `yaml:"active_slot_ttl_minutes"`
+	ActiveSlotMaxEntries          *int                       `yaml:"active_slot_max_entries"`
+	StateCleanupIntervalSeconds   *int                       `yaml:"state_cleanup_interval_seconds"`
+	Persistence                   *TelegramPersistenceConfig `yaml:"persistence"`
+	MaxConcurrentTasks            *int                       `yaml:"max_concurrent_tasks"`
+}
+
+// TelegramPersistenceConfig captures Telegram local persistence settings.
+type TelegramPersistenceConfig struct {
+	Mode            string `yaml:"mode"`
+	Dir             string `yaml:"dir"`
+	RetentionHours  *int   `yaml:"retention_hours"`
+	MaxTasksPerChat *int   `yaml:"max_tasks_per_chat"`
 }
 
 // LarkChannelConfig captures Lark gateway settings in YAML.

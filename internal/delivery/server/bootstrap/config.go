@@ -68,7 +68,30 @@ type TaskExecutionConfig struct {
 
 // ChannelsConfig captures server-side channel gateways.
 type ChannelsConfig struct {
-	Lark LarkGatewayConfig
+	Lark     LarkGatewayConfig
+	Telegram TelegramGatewayConfig
+}
+
+// TelegramGatewayConfig captures the resolved Telegram gateway configuration.
+type TelegramGatewayConfig struct {
+	channels.BaseConfig
+	Enabled                       bool
+	BotToken                      string
+	AllowedGroups                 []int64
+	ShowToolProgress              bool
+	SlowProgressSummaryEnabled    bool
+	SlowProgressSummaryDelay      time.Duration
+	PlanReviewEnabled             bool
+	PlanReviewRequireConfirmation bool
+	PlanReviewPendingTTL          time.Duration
+	ActiveSlotTTL                 time.Duration
+	ActiveSlotMaxEntries          int
+	StateCleanupInterval          time.Duration
+	PersistenceMode               string
+	PersistenceDir                string
+	PersistenceRetention          time.Duration
+	PersistenceMaxTasksPerChat    int
+	MaxConcurrentTasks            int
 }
 
 // LarkGatewayConfig captures the resolved Lark gateway configuration.
@@ -144,6 +167,9 @@ var defaultAllowedOrigins = []string{
 const (
 	larkPersistenceModeFile   = "file"
 	larkPersistenceModeMemory = "memory"
+
+	telegramPersistenceModeFile   = "file"
+	telegramPersistenceModeMemory = "memory"
 )
 
 func LoadConfig() (ConfigResult, error) {
@@ -253,6 +279,26 @@ func LoadConfig() (ConfigResult, error) {
 				PersistenceRetention:        7 * 24 * time.Hour,
 				PersistenceMaxTasksPerChat:  200,
 			},
+			Telegram: TelegramGatewayConfig{
+				BaseConfig: channels.BaseConfig{
+					SessionPrefix: "tg",
+					AllowGroups:   true,
+					AllowDirect:   true,
+					AgentPreset:   string(presets.PresetDefault),
+					ToolPreset:    string(presets.ToolPresetFull),
+					ReplyTimeout:  3 * time.Minute,
+					MemoryEnabled: true,
+				},
+				SlowProgressSummaryEnabled: true,
+				SlowProgressSummaryDelay:   30 * time.Second,
+				ActiveSlotTTL:              6 * time.Hour,
+				ActiveSlotMaxEntries:       2048,
+				StateCleanupInterval:       5 * time.Minute,
+				PersistenceMode:            telegramPersistenceModeFile,
+				PersistenceDir:             "~/.alex/telegram",
+				PersistenceRetention:       7 * 24 * time.Hour,
+				PersistenceMaxTasksPerChat: 200,
+			},
 		},
 		Attachment: attachments.StoreConfig{
 			Provider: attachments.ProviderLocal,
@@ -266,7 +312,11 @@ func LoadConfig() (ConfigResult, error) {
 	}
 	applyServerFileConfig(&cfg, fileCfg)
 	applyLarkEnvFallback(&cfg, envLookup)
+	applyTelegramEnvFallback(&cfg, envLookup)
 	if err := validateLarkPersistenceConfig(&cfg); err != nil {
+		return ConfigResult{}, err
+	}
+	if err := validateTelegramPersistenceConfig(&cfg); err != nil {
 		return ConfigResult{}, err
 	}
 
@@ -292,6 +342,7 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		return
 	}
 	applyLarkConfig(cfg, file)
+	applyTelegramConfig(cfg, file)
 	applyServerHTTPConfig(cfg, file)
 	applySessionConfig(cfg, file)
 	applyAnalyticsConfig(cfg, file)
@@ -468,6 +519,87 @@ func validateLarkPersistenceConfig(cfg *Config) error {
 	}
 	if cfg.Channels.Lark.PersistenceMaxTasksPerChat <= 0 {
 		cfg.Channels.Lark.PersistenceMaxTasksPerChat = 200
+	}
+	return nil
+}
+
+func applyTelegramConfig(cfg *Config, file runtimeconfig.FileConfig) {
+	if file.Channels == nil || file.Channels.Telegram == nil {
+		return
+	}
+	tgCfg := file.Channels.Telegram
+	target := &cfg.Channels.Telegram
+	applyOptionalBool(&target.Enabled, tgCfg.Enabled)
+	applyTrimmedString(&target.BotToken, tgCfg.BotToken)
+	applyTrimmedString(&target.SessionPrefix, tgCfg.SessionPrefix)
+	applyTrimmedString(&target.ReplyPrefix, tgCfg.ReplyPrefix)
+	applyOptionalBool(&target.AllowGroups, tgCfg.AllowGroups)
+	applyOptionalBool(&target.AllowDirect, tgCfg.AllowDirect)
+	applyTrimmedString(&target.AgentPreset, tgCfg.AgentPreset)
+	applyTrimmedString(&target.ToolPreset, tgCfg.ToolPreset)
+	applyPositiveDurationSeconds(&target.ReplyTimeout, tgCfg.ReplyTimeoutSeconds)
+	applyOptionalBool(&target.MemoryEnabled, tgCfg.MemoryEnabled)
+	if len(tgCfg.AllowedGroups) > 0 {
+		target.AllowedGroups = append([]int64(nil), tgCfg.AllowedGroups...)
+	}
+	applyOptionalBool(&target.ShowToolProgress, tgCfg.ShowToolProgress)
+	applyOptionalBool(&target.SlowProgressSummaryEnabled, tgCfg.SlowProgressSummaryEnabled)
+	applyPositiveDurationSeconds(&target.SlowProgressSummaryDelay, tgCfg.SlowProgressSummaryDelaySecs)
+	applyOptionalBool(&target.PlanReviewEnabled, tgCfg.PlanReviewEnabled)
+	applyOptionalBool(&target.PlanReviewRequireConfirmation, tgCfg.PlanReviewRequireConfirmation)
+	applyPositiveDurationMinutes(&target.PlanReviewPendingTTL, tgCfg.PlanReviewPendingTTLMinutes)
+	applyPositiveDurationMinutes(&target.ActiveSlotTTL, tgCfg.ActiveSlotTTLMinutes)
+	applyPositiveInt(&target.ActiveSlotMaxEntries, tgCfg.ActiveSlotMaxEntries)
+	applyPositiveDurationSeconds(&target.StateCleanupInterval, tgCfg.StateCleanupIntervalSeconds)
+	applyTelegramPersistenceConfig(target, tgCfg.Persistence)
+	applyPositiveInt(&target.MaxConcurrentTasks, tgCfg.MaxConcurrentTasks)
+}
+
+func applyTelegramPersistenceConfig(dst *TelegramGatewayConfig, persistence *runtimeconfig.TelegramPersistenceConfig) {
+	if dst == nil || persistence == nil {
+		return
+	}
+	applyTrimmedLowerString(&dst.PersistenceMode, persistence.Mode)
+	applyTrimmedString(&dst.PersistenceDir, persistence.Dir)
+	applyPositiveDurationHours(&dst.PersistenceRetention, persistence.RetentionHours)
+	applyPositiveInt(&dst.PersistenceMaxTasksPerChat, persistence.MaxTasksPerChat)
+}
+
+func applyTelegramEnvFallback(cfg *Config, lookup runtimeconfig.EnvLookup) {
+	if token := lookupFirstNonEmptyEnv(lookup, "TELEGRAM_BOT_TOKEN"); token != "" {
+		if cfg.Channels.Telegram.BotToken == "" {
+			cfg.Channels.Telegram.BotToken = token
+		}
+	}
+}
+
+func validateTelegramPersistenceConfig(cfg *Config) error {
+	if cfg == nil || !cfg.Channels.Telegram.Enabled {
+		return nil
+	}
+	mode := strings.TrimSpace(strings.ToLower(cfg.Channels.Telegram.PersistenceMode))
+	if mode == "" {
+		mode = telegramPersistenceModeFile
+	}
+	switch mode {
+	case telegramPersistenceModeFile, telegramPersistenceModeMemory:
+	default:
+		return fmt.Errorf("channels.telegram.persistence.mode must be one of [file,memory], got %q", mode)
+	}
+	cfg.Channels.Telegram.PersistenceMode = mode
+
+	if mode == telegramPersistenceModeFile {
+		dir := strings.TrimSpace(cfg.Channels.Telegram.PersistenceDir)
+		if dir == "" {
+			return fmt.Errorf("channels.telegram.persistence.dir is required when persistence.mode=file")
+		}
+		cfg.Channels.Telegram.PersistenceDir = expandHome(dir)
+	}
+	if cfg.Channels.Telegram.PersistenceRetention <= 0 {
+		cfg.Channels.Telegram.PersistenceRetention = 7 * 24 * time.Hour
+	}
+	if cfg.Channels.Telegram.PersistenceMaxTasksPerChat <= 0 {
+		cfg.Channels.Telegram.PersistenceMaxTasksPerChat = 200
 	}
 	return nil
 }

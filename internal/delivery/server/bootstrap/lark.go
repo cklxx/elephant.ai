@@ -89,6 +89,17 @@ func RunLark(observabilityConfigPath string) error {
 				})
 			},
 		},
+		{
+			Name: "telegram-gateway", Required: false,
+			Init: func() error {
+				return subsystems.Start(context.Background(), &gatewaySubsystem{
+					name: "telegram",
+					startFn: func(ctx context.Context) (func(), error) {
+						return startTelegramGateway(ctx, config, container, logger, broadcaster)
+					},
+				})
+			},
+		},
 		f.SchedulerStage(subsystems),
 		f.TimerManagerStage(subsystems),
 	}

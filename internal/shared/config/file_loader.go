@@ -102,6 +102,10 @@ func expandFileConfigEnv(lookup EnvLookup, parsed FileConfig) FileConfig {
 }
 
 func expandChannelsConfigEnv(lookup EnvLookup, parsed ChannelsConfig) ChannelsConfig {
+	if parsed.Telegram != nil {
+		expanded := expandTelegramConfigEnv(lookup, *parsed.Telegram)
+		parsed.Telegram = &expanded
+	}
 	if parsed.Lark == nil {
 		return parsed
 	}
@@ -141,6 +145,21 @@ func expandChannelsConfigEnv(lookup EnvLookup, parsed ChannelsConfig) ChannelsCo
 	}
 	parsed.Lark = &expanded
 	return parsed
+}
+
+func expandTelegramConfigEnv(lookup EnvLookup, cfg TelegramChannelConfig) TelegramChannelConfig {
+	cfg.BotToken = expandEnvValue(lookup, cfg.BotToken)
+	cfg.SessionPrefix = expandEnvValue(lookup, cfg.SessionPrefix)
+	cfg.ReplyPrefix = expandEnvValue(lookup, cfg.ReplyPrefix)
+	cfg.AgentPreset = expandEnvValue(lookup, cfg.AgentPreset)
+	cfg.ToolPreset = expandEnvValue(lookup, cfg.ToolPreset)
+	if cfg.Persistence != nil {
+		p := *cfg.Persistence
+		p.Mode = expandEnvValue(lookup, p.Mode)
+		p.Dir = expandEnvValue(lookup, p.Dir)
+		cfg.Persistence = &p
+	}
+	return cfg
 }
 
 func expandAppsConfigEnv(lookup EnvLookup, parsed AppsConfig) AppsConfig {
