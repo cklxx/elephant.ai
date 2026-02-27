@@ -235,6 +235,113 @@ tasks:
 	}
 }
 
+type mockTeamRunRecorder struct {
+	mu      sync.Mutex
+	records []agent.TeamRunRecord
+}
+
+func (m *mockTeamRunRecorder) RecordTeamRun(_ context.Context, record agent.TeamRunRecord) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.records = append(m.records, record)
+	return "rec-1", nil
+}
+
+func TestRunTasks_TemplateRecordsTeamRun(t *testing.T) {
+	mock := &mockBGDispatcher{}
+	recorder := &mockTeamRunRecorder{}
+	ctx := agent.WithBackgroundDispatcher(context.Background(), mock)
+	ctx = agent.WithTeamRunRecorder(ctx, recorder)
+	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{
+		{
+			Name:        "test-team",
+			Description: "A test team",
+			Roles: []agent.TeamRoleDefinition{
+				{Name: "worker-a", AgentType: "kimi", PromptTemplate: "Do A: {GOAL}"},
+				{Name: "worker-b", AgentType: "codex", PromptTemplate: "Do B: {GOAL}"},
+			},
+			Stages: []agent.TeamStageDefinition{
+				{Name: "parallel", Roles: []string{"worker-a", "worker-b"}},
+			},
+		},
+	})
+
+	tool := NewRunTasks()
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-1",
+		Arguments: map[string]any{
+			"template": "test-team",
+			"goal":     "validate recorder",
+			"wait":     true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %s", result.Content)
+	}
+
+	recorder.mu.Lock()
+	defer recorder.mu.Unlock()
+	if len(recorder.records) != 1 {
+		t.Fatalf("expected 1 recorded team run, got %d", len(recorder.records))
+	}
+	rec := recorder.records[0]
+	if rec.TeamName != "test-team" {
+		t.Errorf("expected team name test-team, got %s", rec.TeamName)
+	}
+	if rec.Goal != "validate recorder" {
+		t.Errorf("expected goal 'validate recorder', got %s", rec.Goal)
+	}
+	if len(rec.Roles) != 2 {
+		t.Errorf("expected 2 roles, got %d", len(rec.Roles))
+	}
+	if rec.DispatchState != "completed" {
+		t.Errorf("expected dispatch state 'completed', got %s", rec.DispatchState)
+	}
+}
+
+func TestRunTasks_FileMode_NoRecorderCall(t *testing.T) {
+	dir := t.TempDir()
+	taskFilePath := filepath.Join(dir, "tasks.yaml")
+	content := `
+version: "1"
+plan_id: "test-plan"
+tasks:
+  - id: "task-1"
+    prompt: "do something"
+`
+	if err := os.WriteFile(taskFilePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	mock := &mockBGDispatcher{}
+	recorder := &mockTeamRunRecorder{}
+	ctx := agent.WithBackgroundDispatcher(context.Background(), mock)
+	ctx = agent.WithTeamRunRecorder(ctx, recorder)
+
+	tool := NewRunTasks()
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-1",
+		Arguments: map[string]any{
+			"file": taskFilePath,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %s", result.Content)
+	}
+
+	recorder.mu.Lock()
+	defer recorder.mu.Unlock()
+	if len(recorder.records) != 0 {
+		t.Fatalf("expected no recorded team runs for file mode, got %d", len(recorder.records))
+	}
+}
+
 func TestRunTasks_TemplateList(t *testing.T) {
 	mock := &mockBGDispatcher{}
 	ctx := agent.WithBackgroundDispatcher(context.Background(), mock)

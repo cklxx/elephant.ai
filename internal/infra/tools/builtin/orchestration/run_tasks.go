@@ -154,6 +154,16 @@ func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		return shared.ToolError(call.ID, "execution failed: %s", err)
 	}
 
+	if templateName != "" {
+		if recorder := agent.GetTeamRunRecorder(ctx); recorder != nil {
+			goal, _ := call.Arguments["goal"].(string)
+			record := buildTeamRunRecord(tf, templateName, strings.TrimSpace(goal), result, statusPath, wait)
+			if _, recErr := recorder.RecordTeamRun(ctx, record); recErr != nil {
+				_ = recErr // best-effort
+			}
+		}
+	}
+
 	return t.formatResult(call.ID, result, wait)
 }
 
@@ -267,6 +277,55 @@ func filterTasks(tf *taskfile.TaskFile, ids []string) *taskfile.TaskFile {
 		}
 	}
 	return filtered
+}
+
+func buildTeamRunRecord(tf *taskfile.TaskFile, templateName, goal string, result *taskfile.ExecuteResult, statusPath string, waited bool) agent.TeamRunRecord {
+	state := "dispatched"
+	if waited {
+		state = dispatchStateFromStatus(statusPath)
+	}
+	var stages []agent.TeamRunStageRecord
+	var roles []agent.TeamRunRoleRecord
+	if tf.Metadata != nil {
+		// Stages/roles come from the TaskFile structure.
+		for _, t := range tf.Tasks {
+			roles = append(roles, agent.TeamRunRoleRecord{
+				Name:           t.ID,
+				AgentType:      t.AgentType,
+				TaskID:         t.ID,
+				DependsOn:      t.DependsOn,
+				ExecutionMode:  t.ExecutionMode,
+				AutonomyLevel:  t.AutonomyLevel,
+				WorkspaceMode:  t.WorkspaceMode,
+				InheritContext: t.InheritContext,
+				Config:         t.Config,
+			})
+		}
+	}
+	return agent.TeamRunRecord{
+		TeamName:      templateName,
+		Goal:          goal,
+		CausationID:   result.PlanID,
+		DispatchedAt:  time.Now(),
+		DispatchState: state,
+		Stages:        stages,
+		Roles:         roles,
+	}
+}
+
+func dispatchStateFromStatus(statusPath string) string {
+	data, err := os.ReadFile(statusPath)
+	if err != nil {
+		return "completed" // best-effort: assume done if waited
+	}
+	content := string(data)
+	if strings.Contains(content, "status: failed") {
+		if strings.Contains(content, "status: completed") {
+			return "partial_failure"
+		}
+		return "failed"
+	}
+	return "completed"
 }
 
 func statusPathForFile(filePath, planID string) string {
