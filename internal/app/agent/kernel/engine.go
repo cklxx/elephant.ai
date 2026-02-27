@@ -585,7 +585,7 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 					Error:        errMsg,
 					FailureClass: failureClass,
 				})
-				if markErr := e.store.MarkDispatchFailed(ctx, d.DispatchID, execErr.Error()); markErr != nil {
+				if markErr := e.store.MarkDispatchFailed(ctx, d.DispatchID, errMsg); markErr != nil {
 					e.logger.Warn("Kernel: mark failed %s: %v", d.DispatchID, markErr)
 				}
 				e.logger.Warn("Kernel: dispatch %s (agent=%s) failed: %v", d.DispatchID, d.AgentID, execErr)
