@@ -4,7 +4,7 @@
 # fast locally instead of waiting for CI.
 #
 # Skip with: SKIP_PRE_PUSH=1 git push
-# Skip specific checks: SKIP_MOD_TIDY=1, SKIP_LINT=1, SKIP_WEB=1, SKIP_BUILD=1
+# Skip specific checks: SKIP_MOD_TIDY=1, SKIP_LINT=1, SKIP_WEB=1, SKIP_BUILD=1, SKIP_TEST=1
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,9 +20,6 @@ RESET='\033[0m'
 pass() { printf "${GREEN}✓${RESET} %s\n" "$1"; }
 fail() { printf "${RED}✗${RESET} %s\n" "$1"; }
 warn() { printf "${YELLOW}⚠${RESET} %s\n" "$1"; }
-step() { printf "${BOLD}▸${RESET} %s ... " "$1"; }
-
-errors=0
 
 # Determine which files changed vs remote
 changed_files() {
@@ -30,213 +27,182 @@ changed_files() {
   local remote_sha
   remote_sha=$(git ls-remote "$url" "refs/heads/$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null | cut -f1)
   if [[ -z "$remote_sha" ]]; then
-    # New branch — diff against main
     git diff --name-only "$(git merge-base HEAD origin/main)" HEAD 2>/dev/null || git diff --name-only HEAD~10 HEAD 2>/dev/null || echo ""
   else
     git diff --name-only "$remote_sha" HEAD 2>/dev/null || echo ""
   fi
 }
 
-has_go_changes() {
-  local files="$1"
-  echo "$files" | grep -qE '\.(go|mod|sum)$'
-}
+has_go_changes() { echo "$1" | grep -qE '\.(go|mod|sum)$'; }
+has_web_changes() { echo "$1" | grep -qE '^web/'; }
 
-has_web_changes() {
-  local files="$1"
-  echo "$files" | grep -qE '^web/'
-}
+# --- Parallel job runner ---
+# Each check writes its result to a temp file: "PASS <name>" or "FAIL <name>\n<output>"
+TMPDIR_JOBS="$(mktemp -d "${TMPDIR:-/tmp}/prepush.XXXXXX")"
+trap 'rm -rf "$TMPDIR_JOBS"' EXIT
+PIDS=()
+JOB_NAMES=()
 
-# --- Check: go mod tidy ---
-check_mod_tidy() {
-  if [[ "${SKIP_MOD_TIDY:-}" == "1" ]]; then
-    warn "Skipping go mod tidy check (SKIP_MOD_TIDY=1)"
-    return
-  fi
-  step "go mod tidy"
-  (cd "$REPO_ROOT" && "$GO" mod tidy 2>/dev/null)
-  if ! (cd "$REPO_ROOT" && git diff --quiet go.mod go.sum); then
-    echo ""
-    fail "go.mod or go.sum changed after 'go mod tidy'"
-    echo "  Run: go mod tidy && git add go.mod go.sum && git commit --amend"
-    (cd "$REPO_ROOT" && git diff --stat go.mod go.sum)
-    # Restore to avoid leaving dirty state
-    (cd "$REPO_ROOT" && git checkout -- go.mod go.sum)
-    errors=$((errors + 1))
-  else
-    pass "go mod tidy"
-  fi
-}
-
-# --- Check: go vet ---
-check_go_vet() {
-  step "go vet"
-  if (cd "$REPO_ROOT" && "$GO" vet ./cmd/... ./internal/... 2>&1); then
-    pass "go vet"
-  else
-    echo ""
-    fail "go vet found issues"
-    errors=$((errors + 1))
-  fi
-}
-
-# --- Check: go build ---
-check_go_build() {
-  if [[ "${SKIP_BUILD:-}" == "1" ]]; then
-    warn "Skipping build check (SKIP_BUILD=1)"
-    return
-  fi
-  step "go build"
-  local build_ok=true
-  for cmd in cmd/alex cmd/alex-server cmd/alex-web; do
-    if [[ -d "$REPO_ROOT/$cmd" ]]; then
-      if ! (cd "$REPO_ROOT" && "$GO" build -o /dev/null "./$cmd" 2>&1); then
-        build_ok=false
-      fi
-    fi
-  done
-  if $build_ok; then
-    pass "go build (all binaries)"
-  else
-    echo ""
-    fail "go build failed"
-    errors=$((errors + 1))
-  fi
-}
-
-# --- Check: golangci-lint ---
-check_lint() {
-  if [[ "${SKIP_LINT:-}" == "1" ]]; then
-    warn "Skipping lint (SKIP_LINT=1)"
-    return
-  fi
-  if [[ -x "$REPO_ROOT/scripts/run-golangci-lint.sh" ]]; then
-    step "golangci-lint"
-    if (cd "$REPO_ROOT" && ./scripts/run-golangci-lint.sh run --timeout=3m ./... 2>&1); then
-      pass "golangci-lint"
+run_job() {
+  local name="$1"; shift
+  local outfile="$TMPDIR_JOBS/$name"
+  (
+    if "$@" >"$outfile.log" 2>&1; then
+      echo "PASS" > "$outfile.status"
     else
-      echo ""
-      fail "golangci-lint found issues"
+      echo "FAIL" > "$outfile.status"
+    fi
+  ) &
+  PIDS+=($!)
+  JOB_NAMES+=("$name")
+}
+
+collect_results() {
+  local errors=0
+  for i in "${!PIDS[@]}"; do
+    local pid="${PIDS[$i]}"
+    local name="${JOB_NAMES[$i]}"
+    local outfile="$TMPDIR_JOBS/$name"
+    wait "$pid" 2>/dev/null || true
+    local status="FAIL"
+    [[ -f "$outfile.status" ]] && status="$(cat "$outfile.status")"
+    if [[ "$status" == "PASS" ]]; then
+      pass "$name"
+    else
+      fail "$name"
+      if [[ -f "$outfile.log" ]] && [[ -s "$outfile.log" ]]; then
+        sed 's/^/  /' "$outfile.log" | tail -30
+      fi
       errors=$((errors + 1))
     fi
-  else
-    warn "golangci-lint script not found, skipping"
-  fi
+  done
+  PIDS=()
+  JOB_NAMES=()
+  return $errors
 }
 
-# --- Check: architecture boundaries ---
-check_arch() {
-  step "architecture boundaries"
-  if (cd "$REPO_ROOT" && make check-arch 2>&1 >/dev/null); then
-    pass "architecture boundaries"
-  else
-    echo ""
-    fail "architecture boundary violations"
-    errors=$((errors + 1))
-  fi
+# --- Individual checks (designed to run in subshells) ---
+
+job_mod_tidy() {
+  cd "$REPO_ROOT"
+  "$GO" mod tidy 2>/dev/null
+  git diff --quiet go.mod go.sum || {
+    echo "go.mod or go.sum changed after 'go mod tidy'"
+    echo "Run: go mod tidy && git add go.mod go.sum && git commit --amend"
+    git diff --stat go.mod go.sum
+    git checkout -- go.mod go.sum
+    return 1
+  }
 }
 
-# --- Check: architecture policy ---
-check_arch_policy() {
-  step "architecture policy"
-  if (cd "$REPO_ROOT" && make check-arch-policy 2>&1 >/dev/null); then
-    pass "architecture policy"
-  else
-    echo ""
-    fail "architecture policy violations"
-    errors=$((errors + 1))
-  fi
+job_go_vet() {
+  cd "$REPO_ROOT" && "$GO" vet ./cmd/... ./internal/...
 }
 
-# --- Check: go test ---
-check_go_test() {
-  step "go test -race"
-  local coverage_tmp
-  coverage_tmp="$(mktemp "${TMPDIR:-/tmp}/prepush-coverage.XXXXXX")"
-  if (cd "$REPO_ROOT" && "$GO" test -race -covermode=atomic -coverprofile="$coverage_tmp" ./... 2>&1); then
-    pass "go test -race"
-  else
-    echo ""
-    fail "go test -race failed"
-    errors=$((errors + 1))
-  fi
-  rm -f "$coverage_tmp"
+job_go_build() {
+  cd "$REPO_ROOT"
+  local ok=true
+  for cmd in cmd/alex cmd/alex-server cmd/alex-web; do
+    [[ -d "$REPO_ROOT/$cmd" ]] && "$GO" build -o /dev/null "./$cmd" || ok=false
+  done
+  $ok
 }
 
-# --- Check: web lint + build ---
-check_web() {
-  if [[ "${SKIP_WEB:-}" == "1" ]]; then
-    warn "Skipping web checks (SKIP_WEB=1)"
-    return
-  fi
-  if [[ ! -d "$REPO_ROOT/web" ]]; then
-    return
-  fi
-  step "web lint"
-  if (cd "$REPO_ROOT" && npm --prefix web run lint 2>&1); then
-    pass "web lint"
-  else
-    echo ""
-    fail "web lint failed"
-    errors=$((errors + 1))
-  fi
+job_go_test() {
+  cd "$REPO_ROOT" && "$GO" test -race -count=1 ./...
+}
 
-  step "web build"
-  if (cd "$REPO_ROOT" && npm --prefix web run build 2>&1 >/dev/null); then
-    pass "web build"
-  else
-    echo ""
-    fail "web build failed"
-    errors=$((errors + 1))
-  fi
+job_lint() {
+  cd "$REPO_ROOT" && ./scripts/run-golangci-lint.sh run --timeout=3m ./...
+}
+
+job_arch() {
+  cd "$REPO_ROOT" && make check-arch 2>&1
+}
+
+job_arch_policy() {
+  cd "$REPO_ROOT" && make check-arch-policy 2>&1
+}
+
+job_web_lint() {
+  cd "$REPO_ROOT" && npm --prefix web run lint
+}
+
+job_web_build() {
+  cd "$REPO_ROOT" && npm --prefix web run build >/dev/null
 }
 
 # =============================================================================
 main() {
+  local start_time=$SECONDS
   echo ""
-  printf "${BOLD}🔍 Pre-push CI checks${RESET}\n"
+  printf "${BOLD}🔍 Pre-push CI checks (parallel)${RESET}\n"
   echo "─────────────────────────────────────"
 
-  # Collect changed files (best-effort, fall back to running all checks)
+  # Collect changed files
   local files=""
   files=$(changed_files "${1:-origin}" "${2:-}" 2>/dev/null || echo "")
-  local go_changed=true
-  local web_changed=true
+  local go_changed=true web_changed=true
 
   if [[ -n "$files" ]]; then
     has_go_changes "$files" && go_changed=true || go_changed=false
     has_web_changes "$files" && web_changed=true || web_changed=false
   fi
 
-  # Always run mod tidy — it's fast and catches the most common CI failure
-  check_mod_tidy
+  # Phase 1: mod tidy must run first (mutates go.mod/go.sum)
+  local phase1_errors=0
+  if [[ "${SKIP_MOD_TIDY:-}" == "1" ]]; then
+    warn "Skipping go mod tidy (SKIP_MOD_TIDY=1)"
+  else
+    run_job "go mod tidy" job_mod_tidy
+    collect_results || phase1_errors=$?
+  fi
 
+  if [[ $phase1_errors -gt 0 ]]; then
+    echo "─────────────────────────────────────"
+    fail "mod tidy failed — push aborted"
+    echo "  To skip: SKIP_PRE_PUSH=1 git push"
+    exit 1
+  fi
+
+  # Phase 2: all other checks in parallel
   if $go_changed; then
-    check_go_vet
-    check_go_build
-    check_go_test
-    check_lint
-    check_arch
-    check_arch_policy
+    run_job "go vet" job_go_vet
+    [[ "${SKIP_BUILD:-}" != "1" ]] && run_job "go build" job_go_build || warn "Skipping build (SKIP_BUILD=1)"
+    [[ "${SKIP_TEST:-}" != "1" ]] && run_job "go test -race" job_go_test || warn "Skipping test (SKIP_TEST=1)"
+    if [[ "${SKIP_LINT:-}" != "1" ]] && [[ -x "$REPO_ROOT/scripts/run-golangci-lint.sh" ]]; then
+      run_job "golangci-lint" job_lint
+    elif [[ "${SKIP_LINT:-}" == "1" ]]; then
+      warn "Skipping lint (SKIP_LINT=1)"
+    fi
+    run_job "arch boundaries" job_arch
+    run_job "arch policy" job_arch_policy
   else
-    warn "No Go changes detected — skipping Go checks"
+    warn "No Go changes — skipping Go checks"
   fi
 
-  if $web_changed; then
-    check_web
-  else
-    warn "No web/ changes detected — skipping web checks"
+  if $web_changed && [[ "${SKIP_WEB:-}" != "1" ]] && [[ -d "$REPO_ROOT/web" ]]; then
+    run_job "web lint" job_web_lint
+    run_job "web build" job_web_build
+  elif [[ "${SKIP_WEB:-}" == "1" ]]; then
+    warn "Skipping web (SKIP_WEB=1)"
+  elif ! $web_changed; then
+    warn "No web/ changes — skipping web checks"
   fi
 
+  local total_errors=0
+  collect_results || total_errors=$?
+
+  local elapsed=$(( SECONDS - start_time ))
   echo "─────────────────────────────────────"
-  if [[ $errors -gt 0 ]]; then
-    fail "${errors} check(s) failed — push aborted"
+  if [[ $total_errors -gt 0 ]]; then
+    fail "${total_errors} check(s) failed — push aborted (${elapsed}s)"
     echo ""
     echo "  To skip: SKIP_PRE_PUSH=1 git push"
-    echo "  To skip one: SKIP_MOD_TIDY=1 / SKIP_LINT=1 / SKIP_WEB=1 / SKIP_BUILD=1"
+    echo "  To skip one: SKIP_MOD_TIDY=1 / SKIP_LINT=1 / SKIP_WEB=1 / SKIP_BUILD=1 / SKIP_TEST=1"
     exit 1
   else
-    pass "All checks passed"
+    pass "All checks passed (${elapsed}s)"
     echo ""
   fi
 }
