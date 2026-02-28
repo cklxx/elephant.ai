@@ -233,6 +233,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 				OKRContext:             okrContext,
 				KernelAlignmentContext: kernelContext,
 				Unattended:             unattended,
+				Channel:                appcontext.ChannelFromContext(ctx),
 			})
 			if err != nil {
 				return nil, fmt.Errorf("build context window: %w", err)

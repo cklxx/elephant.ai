@@ -562,6 +562,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 
 	reply := ""
 	replyContent := ""
+	replyMsgType := "text"
 	attachmentSummary := ""
 
 	if isAwait && g.cfg.PlanReviewEnabled {
@@ -605,7 +606,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		if attachmentSummary != "" {
 			reply += "\n\n" + attachmentSummary
 		}
-		replyContent = textContent(reply)
+		replyMsgType, replyContent = smartContent(reply)
 	}
 
 	if !skipReply {
@@ -622,7 +623,8 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 			if !edited {
 				g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(thinkingReply))
 			}
-			g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(answerReply))
+			answerType, answerContent := smartContent(answerReply)
+			g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), answerType, answerContent)
 			g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
 			return
 		}
@@ -639,7 +641,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 			}
 		}
 		if !edited {
-			g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", replyContent)
+			g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), replyMsgType, replyContent)
 		}
 		g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
 	}

@@ -114,6 +114,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		KernelAlignmentContext: cfg.KernelAlignmentContext,
 		SOPSummaryOnly:         true, // Default to summary-only mode for token optimization
 		Unattended:             cfg.Unattended,
+		Channel:                cfg.Channel,
 	})
 	if runtimeHistoryChunk != nil {
 		window.Messages = append(window.Messages, *runtimeHistoryChunk)

@@ -28,8 +28,9 @@ type systemPromptInput struct {
 	SkillsConfig           agent.SkillsConfig
 	OKRContext             string
 	KernelAlignmentContext string
-	SOPSummaryOnly         bool // If true, only show SOP references without full content
-	Unattended             bool // If true, inject autonomous behavior override (no user interaction)
+	SOPSummaryOnly         bool   // If true, only show SOP references without full content
+	Unattended             bool   // If true, inject autonomous behavior override (no user interaction)
+	Channel                string // Delivery channel for format-aware sections (e.g. "lark")
 }
 
 const (
@@ -68,6 +69,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildHeartbeatSection(),
 		buildRuntimeSection(input.Static.Tools, input.ToolMode),
 		buildReasoningSection(),
+		buildChannelFormattingSection(input.Channel),
 	}
 	if !input.OmitEnvironment {
 		fullSections = append(fullSections, buildEnvironmentSection(input.Static))
@@ -90,6 +92,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildTimezoneSection(input.PromptTimezone),
 		buildRuntimeSection(input.Static.Tools, input.ToolMode),
 		buildReasoningSection(),
+		buildChannelFormattingSection(input.Channel),
 	}
 	if !input.OmitEnvironment {
 		minimalSections = append(minimalSections, buildEnvironmentSection(input.Static))

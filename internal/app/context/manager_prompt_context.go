@@ -303,6 +303,22 @@ func buildReasoningSection() string {
 	})
 }
 
+func buildChannelFormattingSection(channel string) string {
+	if strings.ToLower(strings.TrimSpace(channel)) != "lark" {
+		return ""
+	}
+	return formatSection("# Reply Formatting (Lark Channel)", []string{
+		"当前回复通道为飞书 (Lark)，飞书 text 消息不支持 Markdown 渲染。",
+		"必须遵守以下格式规则：",
+		"- 禁止使用 Markdown 语法：不要使用 **bold**、*italic*、## heading、- list、> quote、[link](url)、```code```",
+		"- 使用纯文本格式：用换行分段，用「」或『』做强调，用数字编号代替无序列表",
+		"- 代码内容：保持原样但不要用 ``` 围栏，如需展示短代码直接内联",
+		"- 链接：直接贴 URL，不要用 [text](url) 格式",
+		"- 结构层次：用中文序号（一、二、三）或数字编号（1. 2. 3.）",
+		"- 强调内容：用「关键词」或在前面加 → 箭头标注",
+	})
+}
+
 func buildEnvironmentSection(static agent.StaticContext) string {
 	var lines []string
 	if env := strings.TrimSpace(static.EnvironmentSummary); env != "" {
