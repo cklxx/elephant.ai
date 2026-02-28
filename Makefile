@@ -33,9 +33,18 @@ clean: ## Clean build artifacts
 	@rm -f alex
 	@echo "✓ Cleaned"
 
-fmt: ## Format and lint Go code with golangci-lint
-	@./scripts/run-golangci-lint.sh run --fix ./...
+fmt: ## Format and lint Go code (incremental, changed files only)
+	@base=$$(git merge-base HEAD origin/main 2>/dev/null); \
+	if [ -n "$$base" ]; then \
+		./scripts/run-golangci-lint.sh run --fix --new-from-rev="$$base" ./...; \
+	else \
+		./scripts/run-golangci-lint.sh run --fix ./...; \
+	fi
 	@echo "✓ Formatted and linted"
+
+fmt-all: ## Format and lint ALL Go code (full scan, high memory)
+	@./scripts/run-golangci-lint.sh run --fix ./...
+	@echo "✓ Formatted and linted (full)"
 
 vet: ## Run go vet
 	@$(GO) vet ./cmd/... ./internal/...

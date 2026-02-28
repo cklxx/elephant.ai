@@ -36,6 +36,19 @@ changed_files() {
 has_go_changes() { echo "$1" | grep -qE '\.(go|mod|sum)$'; }
 has_web_changes() { echo "$1" | grep -qE '^web/'; }
 
+# lint_base_rev returns the merge-base commit to use for incremental lint.
+# golangci-lint --new-from-rev only checks issues introduced after this commit,
+# which drops memory from ~30 GB (full ./...) to <2 GB.
+lint_base_rev() {
+  local remote_sha
+  remote_sha=$(git ls-remote origin "refs/heads/$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null | cut -f1)
+  if [[ -n "$remote_sha" ]]; then
+    echo "$remote_sha"
+    return
+  fi
+  git merge-base HEAD origin/main 2>/dev/null || true
+}
+
 # --- Parallel job runner ---
 # Each check writes its result to a temp file: "PASS <name>" or "FAIL <name>\n<output>"
 TMPDIR_JOBS="$(mktemp -d "${TMPDIR:-/tmp}/prepush.XXXXXX")"
@@ -113,7 +126,14 @@ job_go_test() {
 }
 
 job_lint() {
-  cd "$REPO_ROOT" && ./scripts/run-golangci-lint.sh run --timeout=3m ./...
+  cd "$REPO_ROOT"
+  local base_rev
+  base_rev=$(lint_base_rev)
+  if [[ -n "$base_rev" ]]; then
+    ./scripts/run-golangci-lint.sh run --timeout=3m --new-from-rev="$base_rev" ./...
+  else
+    ./scripts/run-golangci-lint.sh run --timeout=3m ./...
+  fi
 }
 
 job_arch() {

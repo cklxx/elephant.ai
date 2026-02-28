@@ -1,0 +1,16 @@
+run:
+  timeout: 5m
+  concurrency: 4
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - gosimple
+    - unused
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
