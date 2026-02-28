@@ -315,6 +315,105 @@ func TestAnthropicConvertMessagesEmbedsOnlyLatestUserAttachmentMessage(t *testin
 	}
 }
 
+func TestNormalizeAnthropicMessages_MergesConsecutiveSameRole(t *testing.T) {
+	t.Parallel()
+	msgs := []anthropicMessage{
+		{Role: "user", Content: []anthropicContentBlock{{Type: "text", Text: "a"}}},
+		{Role: "user", Content: []anthropicContentBlock{{Type: "text", Text: "b"}}},
+		{Role: "assistant", Content: []anthropicContentBlock{{Type: "text", Text: "c"}}},
+	}
+	result := normalizeAnthropicMessages(msgs)
+	if len(result) != 3 { // merged user + assistant + trailing user
+		t.Fatalf("expected 3 messages, got %d", len(result))
+	}
+	if result[0].Role != "user" || len(result[0].Content) != 2 {
+		t.Fatalf("expected merged user with 2 blocks, got role=%s blocks=%d", result[0].Role, len(result[0].Content))
+	}
+	if result[1].Role != "assistant" {
+		t.Fatalf("expected assistant, got %s", result[1].Role)
+	}
+	// Trailing user added because assistant was last.
+	if result[2].Role != "user" {
+		t.Fatalf("expected trailing user, got %s", result[2].Role)
+	}
+}
+
+func TestNormalizeAnthropicMessages_AddsLeadingUser(t *testing.T) {
+	t.Parallel()
+	msgs := []anthropicMessage{
+		{Role: "assistant", Content: []anthropicContentBlock{{Type: "text", Text: "summary"}}},
+		{Role: "user", Content: []anthropicContentBlock{{Type: "text", Text: "hi"}}},
+	}
+	result := normalizeAnthropicMessages(msgs)
+	if len(result) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(result))
+	}
+	if result[0].Role != "user" || result[0].Content[0].Text != "Continue." {
+		t.Fatalf("expected leading user placeholder, got %+v", result[0])
+	}
+	if result[1].Role != "assistant" {
+		t.Fatalf("expected assistant at index 1, got %s", result[1].Role)
+	}
+	if result[2].Role != "user" || result[2].Content[0].Text != "hi" {
+		t.Fatalf("expected original user at index 2, got %+v", result[2])
+	}
+}
+
+func TestNormalizeAnthropicMessages_AddsTrailingUser(t *testing.T) {
+	t.Parallel()
+	msgs := []anthropicMessage{
+		{Role: "user", Content: []anthropicContentBlock{{Type: "text", Text: "hi"}}},
+		{Role: "assistant", Content: []anthropicContentBlock{{Type: "text", Text: "done"}}},
+	}
+	result := normalizeAnthropicMessages(msgs)
+	if len(result) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(result))
+	}
+	if result[2].Role != "user" || result[2].Content[0].Text != "Continue." {
+		t.Fatalf("expected trailing user placeholder, got %+v", result[2])
+	}
+}
+
+func TestNormalizeAnthropicMessages_NoChangeWhenValid(t *testing.T) {
+	t.Parallel()
+	msgs := []anthropicMessage{
+		{Role: "user", Content: []anthropicContentBlock{{Type: "text", Text: "hi"}}},
+		{Role: "assistant", Content: []anthropicContentBlock{{Type: "text", Text: "ok"}}},
+		{Role: "user", Content: []anthropicContentBlock{{Type: "text", Text: "bye"}}},
+	}
+	result := normalizeAnthropicMessages(msgs)
+	if len(result) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(result))
+	}
+	if result[0].Content[0].Text != "hi" || result[2].Content[0].Text != "bye" {
+		t.Fatalf("expected original content preserved")
+	}
+}
+
+func TestNormalizeAnthropicMessages_Empty(t *testing.T) {
+	t.Parallel()
+	result := normalizeAnthropicMessages(nil)
+	if len(result) != 0 {
+		t.Fatalf("expected empty, got %d", len(result))
+	}
+}
+
+func TestAnthropicConvertMessages_TrailingAssistantGetsPaddedUser(t *testing.T) {
+	t.Parallel()
+	client := &anthropicClient{}
+	msgs := []ports.Message{
+		{Role: "user", Content: "hello"},
+		{Role: "assistant", Content: "summary of context"},
+	}
+	converted, _ := client.convertMessages(msgs)
+	if len(converted) != 3 {
+		t.Fatalf("expected 3 messages (user, assistant, trailing user), got %d", len(converted))
+	}
+	if converted[2].Role != "user" {
+		t.Fatalf("expected trailing user, got %s", converted[2].Role)
+	}
+}
+
 func TestAnthropicClientUsesClaudeSetupOAuthToken(t *testing.T) {
 	t.Parallel()
 

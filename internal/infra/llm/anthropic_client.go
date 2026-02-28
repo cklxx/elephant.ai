@@ -272,7 +272,50 @@ func (c *anthropicClient) convertMessages(msgs []ports.Message) ([]anthropicMess
 		})
 	}
 
+	messages = normalizeAnthropicMessages(messages)
+
 	return messages, strings.Join(systemParts, "\n\n")
+}
+
+// normalizeAnthropicMessages enforces the Anthropic Messages API constraints:
+//  1. Consecutive messages with the same role are merged.
+//  2. The first message must have role "user".
+//  3. The last message must have role "user" (no assistant prefill).
+func normalizeAnthropicMessages(messages []anthropicMessage) []anthropicMessage {
+	if len(messages) == 0 {
+		return messages
+	}
+
+	// Merge consecutive same-role messages.
+	merged := make([]anthropicMessage, 0, len(messages))
+	for _, msg := range messages {
+		if len(merged) > 0 && merged[len(merged)-1].Role == msg.Role {
+			merged[len(merged)-1].Content = append(merged[len(merged)-1].Content, msg.Content...)
+		} else {
+			merged = append(merged, anthropicMessage{
+				Role:    msg.Role,
+				Content: append([]anthropicContentBlock(nil), msg.Content...),
+			})
+		}
+	}
+
+	// Ensure first message is "user".
+	if len(merged) > 0 && merged[0].Role != "user" {
+		merged = append([]anthropicMessage{{
+			Role:    "user",
+			Content: []anthropicContentBlock{{Type: "text", Text: "Continue."}},
+		}}, merged...)
+	}
+
+	// Ensure last message is "user" (prevent assistant prefill rejection).
+	if len(merged) > 0 && merged[len(merged)-1].Role != "user" {
+		merged = append(merged, anthropicMessage{
+			Role:    "user",
+			Content: []anthropicContentBlock{{Type: "text", Text: "Continue."}},
+		})
+	}
+
+	return merged
 }
 
 func buildAnthropicMessageContent(msg ports.Message, embedAttachments bool) []anthropicContentBlock {
