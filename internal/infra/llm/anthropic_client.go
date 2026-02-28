@@ -51,15 +51,22 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		"max_tokens": req.MaxTokens,
 		"messages":   messages,
 	}
+	thinkingEnabled := false
 	if shouldSendAnthropicThinking(c.model, req.Thinking) {
 		if thinking := buildAnthropicThinkingConfig(req.Thinking); thinking != nil {
 			payload["thinking"] = thinking
+			thinkingEnabled = true
 		}
 	}
 	if system != "" {
 		payload["system"] = system
 	}
-	payload["temperature"] = req.Temperature
+	// Anthropic requires temperature=1 when extended thinking is enabled.
+	if thinkingEnabled {
+		payload["temperature"] = 1
+	} else {
+		payload["temperature"] = req.Temperature
+	}
 	if len(req.StopSequences) > 0 {
 		payload["stop_sequences"] = append([]string(nil), req.StopSequences...)
 	}
@@ -470,6 +477,10 @@ func isAnthropicOAuthToken(token string) bool {
 		return false
 	}
 	lower := strings.ToLower(token)
+	// sk-ant-oat = OAuth Access Token from Claude Code CLI setup.
+	if strings.HasPrefix(lower, "sk-ant-oat") {
+		return true
+	}
 	return !strings.HasPrefix(lower, "sk-")
 }
 

@@ -59,12 +59,17 @@ func mapHTTPError(status int, body []byte, headers http.Header) error {
 		terr.StatusCode = status
 		return terr
 	case status >= 400:
-		userMsg := "Request was rejected by the upstream service."
 		lowerBody := strings.ToLower(string(body))
-		if strings.Contains(lowerBody, "context_length_exceeded") ||
+		var userMsg string
+		switch {
+		case strings.Contains(lowerBody, "context_length_exceeded") ||
 			strings.Contains(lowerBody, "context window") ||
-			strings.Contains(lowerBody, "maximum context length") {
+			strings.Contains(lowerBody, "maximum context length"):
 			userMsg = "Input exceeds the model's context window. The system will trim and retry."
+		case strings.Contains(lowerBody, "not_found_error"):
+			userMsg = fmt.Sprintf("Model not found (HTTP %d): %s", status, truncateBody(message, 200))
+		default:
+			userMsg = fmt.Sprintf("Request rejected (HTTP %d): %s", status, truncateBody(message, 200))
 		}
 		perr := alexerrors.NewPermanentError(baseErr, userMsg)
 		perr.StatusCode = status
@@ -97,4 +102,12 @@ func parseRetryAfter(value string) int {
 	}
 
 	return 0
+}
+
+func truncateBody(s string, maxLen int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

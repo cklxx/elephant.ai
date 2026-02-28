@@ -398,13 +398,13 @@ func (c *retryClient) formatRetryError(err error, duration time.Duration) string
 
 	// Add retry context
 	attempts := c.retryConfig.MaxAttempts + 1
-	return fmt.Sprintf("%s Retried %d times over %v.",
-		llmMessage, attempts, duration.Round(time.Second))
+	return fmt.Sprintf("[%s/%s] %s Retried %d times over %v.",
+		c.provider, c.underlying.Model(), llmMessage, attempts, duration.Round(time.Second))
 }
 
 func (c *retryClient) formatStreamingError(err error, duration time.Duration) string {
 	llmMessage := alexerrors.FormatForLLM(err)
-	return fmt.Sprintf("%s Streaming request failed after %v.", llmMessage, duration.Round(time.Second))
+	return fmt.Sprintf("[%s/%s] %s Streaming request failed after %v.", c.provider, c.underlying.Model(), llmMessage, duration.Round(time.Second))
 }
 
 // logLLMCallSummary writes a structured summary to the LLM log (alex-llm.log) for both

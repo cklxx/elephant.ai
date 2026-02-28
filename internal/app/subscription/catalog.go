@@ -458,5 +458,10 @@ func isAnthropicOAuthToken(token string) bool {
 	if token == "" {
 		return false
 	}
-	return !strings.HasPrefix(strings.ToLower(token), "sk-")
+	lower := strings.ToLower(token)
+	// sk-ant-oat = OAuth Access Token from Claude Code CLI setup.
+	if strings.HasPrefix(lower, "sk-ant-oat") {
+		return true
+	}
+	return !strings.HasPrefix(lower, "sk-")
 }

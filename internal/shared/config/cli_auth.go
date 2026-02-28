@@ -383,5 +383,13 @@ func extractJSONToken(data []byte, keys []string) string {
 			}
 		}
 	}
+	// Claude Code stores OAuth credentials nested under claudeAiOauth.accessToken.
+	if oauth, ok := raw["claudeAiOauth"].(map[string]any); ok {
+		if token, ok := oauth["accessToken"].(string); ok {
+			if trimmed := strings.TrimSpace(token); trimmed != "" {
+				return trimmed
+			}
+		}
+	}
 	return ""
 }

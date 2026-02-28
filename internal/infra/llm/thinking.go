@@ -178,5 +178,5 @@ func shouldSendAnthropicThinking(model string, cfg ports.ThinkingConfig) bool {
 	if lower == "" {
 		return false
 	}
-	return strings.Contains(lower, "3-7") || strings.Contains(lower, "3.7") || strings.Contains(lower, "thinking")
+	return strings.Contains(lower, "3-7") || strings.Contains(lower, "3.7") || strings.Contains(lower, "thinking") || strings.Contains(lower, "sonnet-4")
 }

@@ -314,3 +314,49 @@ func TestAnthropicConvertMessagesEmbedsOnlyLatestUserAttachmentMessage(t *testin
 		t.Fatalf("expected latest user message to include image block")
 	}
 }
+
+func TestAnthropicClientUsesClaudeSetupOAuthToken(t *testing.T) {
+	t.Parallel()
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer sk-ant-oat01-fake-token" {
+			t.Fatalf("expected OAuth Bearer header for sk-ant-oat token, got %q", got)
+		}
+		if got := r.Header.Get(anthropicRequestHeaderKey); got != "" {
+			t.Fatalf("expected no x-api-key header for OAuth token, got %q", got)
+		}
+		beta := r.Header.Get(anthropicBetaHeaderKey)
+		if !strings.Contains(beta, anthropicOAuthBetaHeader) {
+			t.Fatalf("expected oauth beta header, got %q", beta)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		resp := map[string]any{
+			"id":          "msg-setup",
+			"role":        "assistant",
+			"stop_reason": "end_turn",
+			"content":     []any{map[string]any{"type": "text", "text": "ok"}},
+			"usage":       map[string]any{"input_tokens": 1, "output_tokens": 1},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+
+	client, err := NewAnthropicClient("claude-sonnet-4-6-20250514", Config{
+		APIKey:  "sk-ant-oat01-fake-token",
+		BaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("NewAnthropicClient: %v", err)
+	}
+
+	resp, err := client.Complete(context.Background(), ports.CompletionRequest{
+		Messages:  []ports.Message{{Role: "user", Content: "hi"}},
+		MaxTokens: 32,
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.Content != "ok" {
+		t.Fatalf("unexpected content: %q", resp.Content)
+	}
+}

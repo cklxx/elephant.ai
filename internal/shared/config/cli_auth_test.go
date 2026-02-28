@@ -292,3 +292,31 @@ func TestLoadCLICredentialsSkipsRefreshForValidCodexToken(t *testing.T) {
 		t.Fatal("refresh endpoint should not be called for valid token")
 	}
 }
+
+func TestLoadCLICredentialsReadsClaudeSetupToken(t *testing.T) {
+	t.Parallel()
+	tmp := t.TempDir()
+	claudeDir := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	creds := `{"claudeAiOauth":{"accessToken":"sk-ant-oat01-test-token","refreshToken":"sk-ant-ort01-test","expiresAt":9999999999999,"scopes":["user:inference"],"subscriptionType":"max"}}`
+	if err := os.WriteFile(filepath.Join(claudeDir, ".credentials.json"), []byte(creds), 0o600); err != nil {
+		t.Fatalf("write creds: %v", err)
+	}
+
+	result := LoadCLICredentials(
+		WithHomeDir(func() (string, error) { return tmp, nil }),
+		WithEnv(func(string) (string, bool) { return "", false }),
+	)
+
+	if result.Claude.APIKey != "sk-ant-oat01-test-token" {
+		t.Fatalf("expected Claude setup token, got %q", result.Claude.APIKey)
+	}
+	if result.Claude.Provider != "anthropic" {
+		t.Fatalf("expected anthropic provider, got %q", result.Claude.Provider)
+	}
+	if result.Claude.Source != SourceClaudeCLI {
+		t.Fatalf("expected SourceClaudeCLI, got %q", result.Claude.Source)
+	}
+}
