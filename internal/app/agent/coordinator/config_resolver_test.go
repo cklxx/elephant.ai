@@ -139,11 +139,45 @@ func TestEffectiveConfig_StopSequencesDeepCopied(t *testing.T) {
 	}
 }
 
-// --- SetRuntimeConfigResolver ---
+// --- SetRuntimeConfigResolver / GetRuntimeConfigResolver ---
 
 func TestSetRuntimeConfigResolver_NilCoordinator(t *testing.T) {
 	var c *AgentCoordinator
 	c.SetRuntimeConfigResolver(nil) // should not panic
+}
+
+func TestGetRuntimeConfigResolver_NilCoordinator(t *testing.T) {
+	var c *AgentCoordinator
+	if got := c.GetRuntimeConfigResolver(); got != nil {
+		t.Fatal("expected nil from nil coordinator")
+	}
+}
+
+func TestGetRuntimeConfigResolver_RoundTrip(t *testing.T) {
+	coordinator := NewAgentCoordinator(nil, nil, nil, nil, nil, nil, nil, appconfig.Config{})
+
+	// Initially nil.
+	if got := coordinator.GetRuntimeConfigResolver(); got != nil {
+		t.Fatal("expected nil before set")
+	}
+
+	// Set a resolver and get it back.
+	called := false
+	resolver := func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
+		called = true
+		return runtimeconfig.RuntimeConfig{}, runtimeconfig.Metadata{}, nil
+	}
+	coordinator.SetRuntimeConfigResolver(resolver)
+
+	got := coordinator.GetRuntimeConfigResolver()
+	if got == nil {
+		t.Fatal("expected non-nil after set")
+	}
+	// Verify it's the same function by calling it.
+	got(context.Background())
+	if !called {
+		t.Fatal("expected resolver to be invoked")
+	}
 }
 
 // --- GetConfig ---

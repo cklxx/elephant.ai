@@ -22,6 +22,14 @@ func (c *AgentCoordinator) SetRuntimeConfigResolver(resolver RuntimeConfigResolv
 	c.runtimeResolver = resolver
 }
 
+// GetRuntimeConfigResolver returns the current runtime config resolver, or nil.
+func (c *AgentCoordinator) GetRuntimeConfigResolver() RuntimeConfigResolver {
+	if c == nil {
+		return nil
+	}
+	return c.runtimeResolver
+}
+
 func (c *AgentCoordinator) effectiveConfig(ctx context.Context) appconfig.Config {
 	cfg := c.config
 	resolver := c.runtimeResolver

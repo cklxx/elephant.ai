@@ -170,6 +170,15 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 		agentcoordinator.WithTeamRunRecorder(teamRunRecorder),
 	)
 
+	// Inherit runtime config resolver from parent coordinator so that
+	// alternate coordinators (e.g. Lark) pick up runtime overrides
+	// (provider switches, credential re-resolution).
+	if parent.AgentCoordinator != nil {
+		if resolver := parent.AgentCoordinator.GetRuntimeConfigResolver(); resolver != nil {
+			coordinator.SetRuntimeConfigResolver(resolver)
+		}
+	}
+
 	// Register orchestration tools (run_tasks, reply_agent).
 	toolRegistry.RegisterOrchestration()
 
