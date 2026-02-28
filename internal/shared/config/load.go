@@ -470,16 +470,7 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 func shouldLoadCLICredentials(cfg RuntimeConfig) bool {
 	provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
 	switch provider {
-	case "auto", "cli":
-		return true
-	}
-
-	if utils.HasContent(cfg.APIKey) {
-		return false
-	}
-
-	switch provider {
-	case "codex", "openai-responses", "responses", "anthropic", "claude":
+	case "auto", "cli", "codex", "openai-responses", "responses", "anthropic", "claude":
 		return true
 	default:
 		return false

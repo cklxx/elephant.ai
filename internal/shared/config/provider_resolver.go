@@ -175,9 +175,16 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 		return
 	}
 
-	if cfg.APIKey == "" {
-		switch provider {
-		case "anthropic", "claude":
+	// Resolve provider-specific credentials. For providers with CLI auth
+	// (anthropic, codex), re-resolve when the current key source is generic
+	// (e.g. SourceFile from config.yaml) so that a runtime provider switch
+	// picks up the correct credentials instead of carrying over the previous
+	// provider's key. Keep the key when it was explicitly overridden or
+	// already sourced from the matching CLI.
+	keySource := meta.Source("api_key")
+	switch provider {
+	case "anthropic", "claude":
+		if keySource != SourceOverride && keySource != SourceClaudeCLI {
 			if cli.Claude.APIKey != "" {
 				cfg.APIKey = strings.TrimSpace(cli.Claude.APIKey)
 				meta.sources["api_key"] = cli.Claude.Source
@@ -187,7 +194,9 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 			}
-		case "openai-responses", "responses", "codex":
+		}
+	case "openai-responses", "responses", "codex":
+		if keySource != SourceOverride && keySource != SourceCodexCLI {
 			if cli.Codex.APIKey != "" {
 				cfg.APIKey = strings.TrimSpace(cli.Codex.APIKey)
 				meta.sources["api_key"] = cli.Codex.Source
@@ -202,17 +211,19 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 			}
-		case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
+		}
+	case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
+		if cfg.APIKey == "" {
 			if key, ok := lookup("OPENAI_API_KEY"); ok && utils.HasContent(key) {
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 			}
 		}
-		if cfg.APIKey == "" {
-			if key, ok := lookup("LLM_API_KEY"); ok && utils.HasContent(key) {
-				cfg.APIKey = strings.TrimSpace(key)
-				meta.sources["api_key"] = SourceEnv
-			}
+	}
+	if cfg.APIKey == "" {
+		if key, ok := lookup("LLM_API_KEY"); ok && utils.HasContent(key) {
+			cfg.APIKey = strings.TrimSpace(key)
+			meta.sources["api_key"] = SourceEnv
 		}
 	}
 
