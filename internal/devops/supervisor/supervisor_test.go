@@ -541,7 +541,8 @@ func TestTickRestartBackoffIsAsync(t *testing.T) {
 
 func TestTickEntersCooldownWhenRestartCountReachesMax(t *testing.T) {
 	s, _ := newTestSupervisor(t)
-	s.policy = NewRestartPolicy(1, 30*time.Second, 2*time.Second)
+	// Use a long cooldown (30s) so it doesn't expire during tick() under -race.
+	s.policy = NewRestartPolicy(1, 30*time.Second, 30*time.Second)
 
 	started := make(chan struct{}, 1)
 	s.RegisterComponent(&Component{
@@ -570,7 +571,8 @@ func TestTickEntersCooldownWhenRestartCountReachesMax(t *testing.T) {
 
 func TestMaybeUpgradeForSHADriftEntersCooldownAtThreshold(t *testing.T) {
 	s, dir := newTestSupervisor(t)
-	s.policy = NewRestartPolicy(1, 30*time.Second, 2*time.Second)
+	// Use a long cooldown so it doesn't expire during test execution under -race.
+	s.policy = NewRestartPolicy(1, 30*time.Second, 30*time.Second)
 
 	startCalled := false
 	shaFile := filepath.Join(dir, "main.sha")
