@@ -350,6 +350,7 @@ func buildRuntimeHistoryChunk(meta agent.MetaContext) *ports.Message {
 	lines := []string{
 		"Runtime history chunk (separate from static system prompt).",
 		"Use indexed lines to locate prior turns quickly.",
+		fmt.Sprintf("Current date: %s", time.Now().Format("2006-01-02")),
 	}
 	if timeline != "" {
 		lines = append(lines, "Recent session messages:")
