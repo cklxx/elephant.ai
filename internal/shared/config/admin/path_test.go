@@ -11,6 +11,7 @@ import (
 func TestResolveStorePathDefaultsToHomeWhenUnset(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("ALEX_CONFIG_PATH", "") // ensure env override doesn't shadow HOME resolution
 	expected := filepath.Join(home, ".alex", "config.yaml")
 	if got := ResolveStorePath(runtimeconfig.DefaultEnvLookup); got != expected {
 		t.Fatalf("expected default path %q, got %q", expected, got)
