@@ -229,7 +229,7 @@ func TestAnthropicClientCapturesThinking(t *testing.T) {
 			"role":        "assistant",
 			"stop_reason": "end_turn",
 			"content": []any{
-				map[string]any{"type": "thinking", "text": "brainstorm", "signature": "sig"},
+				map[string]any{"type": "thinking", "thinking": "brainstorm", "signature": "sig"},
 				map[string]any{"type": "text", "text": "done"},
 			},
 			"usage": map[string]any{
@@ -411,6 +411,53 @@ func TestAnthropicConvertMessages_TrailingAssistantGetsPaddedUser(t *testing.T) 
 	}
 	if converted[2].Role != "user" {
 		t.Fatalf("expected trailing user, got %s", converted[2].Role)
+	}
+}
+
+func TestParseAnthropicContentThinkingField(t *testing.T) {
+	t.Parallel()
+
+	// Anthropic API returns thinking content in the "thinking" JSON field,
+	// not "text". Verify parseAnthropicContent reads the correct field.
+	blocks := []anthropicContentBlock{
+		{Type: "thinking", Thinking: "deep reasoning here", Signature: "sig123"},
+		{Type: "text", Text: "final answer"},
+	}
+
+	content, toolCalls, thinking := parseAnthropicContent(blocks)
+	if content != "final answer" {
+		t.Fatalf("unexpected content: %q", content)
+	}
+	if len(toolCalls) != 0 {
+		t.Fatalf("unexpected tool calls: %v", toolCalls)
+	}
+	if len(thinking.Parts) != 1 {
+		t.Fatalf("expected 1 thinking part, got %d", len(thinking.Parts))
+	}
+	if thinking.Parts[0].Text != "deep reasoning here" {
+		t.Fatalf("expected thinking text from 'thinking' field, got %q", thinking.Parts[0].Text)
+	}
+	if thinking.Parts[0].Signature != "sig123" {
+		t.Fatalf("unexpected signature: %q", thinking.Parts[0].Signature)
+	}
+}
+
+func TestParseAnthropicContentThinkingFallsBackToText(t *testing.T) {
+	t.Parallel()
+
+	// When "thinking" field is empty but "text" is populated (legacy/other providers),
+	// parseAnthropicContent should fall back to "text".
+	blocks := []anthropicContentBlock{
+		{Type: "thinking", Text: "legacy thinking", Signature: "sig-old"},
+		{Type: "text", Text: "answer"},
+	}
+
+	_, _, thinking := parseAnthropicContent(blocks)
+	if len(thinking.Parts) != 1 {
+		t.Fatalf("expected 1 thinking part, got %d", len(thinking.Parts))
+	}
+	if thinking.Parts[0].Text != "legacy thinking" {
+		t.Fatalf("expected fallback to text field, got %q", thinking.Parts[0].Text)
 	}
 }
 

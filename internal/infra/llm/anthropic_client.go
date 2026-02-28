@@ -451,6 +451,7 @@ type anthropicMessage struct {
 type anthropicContentBlock struct {
 	Type      string                `json:"type"`
 	Text      string                `json:"text,omitempty"`
+	Thinking  string                `json:"thinking,omitempty"`
 	ID        string                `json:"id,omitempty"`
 	Name      string                `json:"name,omitempty"`
 	Input     map[string]any        `json:"input,omitempty"`
@@ -503,9 +504,13 @@ func parseAnthropicContent(blocks []anthropicContentBlock) (string, []ports.Tool
 				Arguments: normalizeToolArguments(block.Input),
 			})
 		case "thinking", "redacted_thinking":
+			text := block.Thinking
+			if text == "" {
+				text = block.Text
+			}
 			appendThinkingPart(&thinking, ports.ThinkingPart{
 				Kind:      strings.ToLower(strings.TrimSpace(block.Type)),
-				Text:      block.Text,
+				Text:      text,
 				Signature: block.Signature,
 			})
 		}
