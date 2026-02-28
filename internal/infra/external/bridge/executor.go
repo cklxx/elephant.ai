@@ -348,10 +348,14 @@ func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentR
 			return result, errors.New(ev.Message)
 		}
 	}
-	if err := scanner.Err(); err != nil {
+	// When context is cancelled the watchdog kills the subprocess, closing
+	// the stdout pipe. scanner.Err() / proc.Wait() will report pipe or
+	// signal errors that are just side effects of the cancellation — suppress
+	// them so the caller sees a clean context.Canceled instead.
+	if err := scanner.Err(); err != nil && ctx.Err() == nil {
 		return result, err
 	}
-	if err := proc.Wait(); err != nil {
+	if err := proc.Wait(); err != nil && ctx.Err() == nil {
 		errMsg := formatProcessError(req.AgentType, err, proc.StderrTail())
 		return result, errors.New(e.maybeAppendAuthHint(errMsg, proc.StderrTail()))
 	}
