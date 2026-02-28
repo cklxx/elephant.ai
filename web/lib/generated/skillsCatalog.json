@@ -57,6 +57,13 @@
       "sourcePath": "../../.alex/skills/bitable-data/SKILL.md"
     },
     {
+      "name": "browser-use",
+      "title": "browser-use",
+      "description": "浏览器自动化 — 通过 Playwright MCP Extension Relay 控制用户已登录的 Chrome，复用 cookies/session。",
+      "markdown": "# browser-use\n\n通过 Playwright MCP Extension Relay 控制用户当前 Chrome 浏览器，复用已登录的 session。\n\n## 前置条件\n\n1. Chrome 安装了 [Playwright MCP Bridge](https://chromewebstore.google.com/detail/playwright-mcp-bridge/mmlmfjhmonkocbjadbfplnigmagldckm) 扩展\n2. `.env` 中配置了 `ALEX_BROWSER_BRIDGE_TOKEN`（从扩展弹窗复制）\n\n## 调用\n\n```bash\n# 导航到 URL\npython3 skills/browser-use/run.py '{\"action\":\"navigate\",\"url\":\"https://x.com\"}'\n\n# 获取页面快照（无障碍树）\npython3 skills/browser-use/run.py '{\"action\":\"snapshot\"}'\n\n# 点击元素（ref 来自 snapshot）\npython3 skills/browser-use/run.py '{\"action\":\"click\",\"ref\":\"e44\",\"element\":\"Home link\"}'\n\n# 输入文本\npython3 skills/browser-use/run.py '{\"action\":\"type\",\"ref\":\"e100\",\"text\":\"hello\",\"submit\":true}'\n\n# 截图\npython3 skills/browser-use/run.py '{\"action\":\"screenshot\",\"filename\":\"page.png\"}'\n\n# 管理标签页\npython3 skills/browser-use/run.py '{\"action\":\"tabs\",\"tab_action\":\"list\"}'\n\n# 执行 JavaScript\npython3 skills/browser-use/run.py '{\"action\":\"evaluate\",\"function\":\"() => document.title\"}'\n\n# 执行 Playwright 代码\npython3 skills/browser-use/run.py '{\"action\":\"run_code\",\"code\":\"async (page) => await page.title()\"}'\n\n# 按键\npython3 skills/browser-use/run.py '{\"action\":\"press_key\",\"key\":\"Enter\"}'\n\n# 等待文本出现\npython3 skills/browser-use/run.py '{\"action\":\"wait_for\",\"text\":\"Loading complete\"}'\n```\n\n## 典型工作流\n\n1. `navigate` → 打开目标页面\n2. `snapshot` → 获取页面结构和元素 ref\n3. `click` / `type` → 与页面交互\n4. `snapshot` → 确认结果",
+      "sourcePath": "../../.alex/skills/browser-use/SKILL.md"
+    },
+    {
       "name": "calendar-management",
       "title": "calendar-management",
       "description": "日历事件的创建、查询、修改、删除管理。",
