@@ -6,6 +6,23 @@ elephant.ai kernel — periodic proactive agent loop.
 - Implement `ExecuteAndWait` final-sync status hydration patch in `internal/domain/agent/taskfile/executor.go` and add one regression test in `internal/domain/agent/taskfile/executor_test.go`.
 
 ## recent_actions
+- [2026-03-01T07:12:00Z] kernel_context_cancellation_investigation: root-caused runtime "context canceled" failures to parent context lifecycle vs cycle timeout mismatch. Code tests all green; operational issue identified.
+  - Evidence:
+    1. `artifacts/kernel_context_cancellation_investigation_20260301T071200Z.md`
+    2. `go test ./internal/app/agent/kernel/... ./internal/app/scheduler/... ./internal/infra/kernel/... ./internal/domain/agent/taskfile/... ./cmd/alex/... -count=1` PASS (5/5 lanes)
+  - Outcome:
+    1. Error "failed to get session: context canceled" traced to `internal/app/agent/preparation/service.go:149`
+    2. Cycle timeout configured at 930s (900s + 30s buffer) but failures occur at ~34s
+    3. Root cause: Parent context cancellation upstream, not code bug
+    4. Uncommitted engine.go change attempts isolation fix but issue persists
+  - Risks:
+    1. Runtime instability until context propagation is fixed
+    2. 3 files with local modifications (evaluation/, engine.go) need review
+  - Next actions:
+    1. Investigate runner-level timeout configuration
+    2. Review session load latency vs context deadline
+    3. Consider retry logic for transient session failures
+
 - [2026-03-01T04:40:15Z] kernel_contract_fix_cycle: closed planner prompt contract drift by restoring `goalContextStatus` visibility in prompt body and revalidated deliverability lanes.
   - Evidence:
     1. `artifacts/kernel_fix_cycle_20260301T044015Z.md`
@@ -101,23 +118,24 @@ elephant.ai kernel — periodic proactive agent loop.
 
 <!-- KERNEL_RUNTIME:START -->
 ## kernel_runtime
-- updated_at: 2026-03-01T04:08:55Z
-- latest_cycle_id: run-kernel-state-maintenance-20260301T040855Z
-- latest_status: success
-- latest_dispatched: 0
+- updated_at: 2026-03-01T07:12:00Z
+- latest_cycle_id: run-5ZHwPB80GaXz
+- latest_status: failed
+- latest_dispatched: 5
 - latest_succeeded: 0
-- latest_failed: 0
-- latest_failed_agents: none
-- latest_agent_summary: deterministic state maintenance completed; evidence persisted to artifacts/kernel_state_maintenance_20260301T040855Z.md; sidecar stale-state risk remains
-- latest_duration_ms: 0
-- latest_error: none
-- dispatch_total: 805
-- failed_ratio: 30.68%
-- failure_signature_top3: other(118), upstream_unavailable(84), timeout_or_deadline(45)
+- latest_failed: 5
+- latest_failed_agents: research-executor, audit-executor, build-executor, data-executor, founder-operator
+- latest_agent_summary: All agents failed at session load phase with context canceled; root cause identified as parent context lifecycle mismatch, not code regression
+- latest_duration_ms: 34690
+- latest_error: context canceled upstream during session acquisition
+- dispatch_total: 810
+- failed_ratio: 30.86%
+- failure_signature_top3: context_canceled(5), upstream_unavailable(84), timeout_or_deadline(45)
 
 ### cycle_history
 | cycle_id | status | dispatched | succeeded | failed | summary | updated_at |
 |----------|--------|------------|-----------|--------|---------|------------|
+| run-5ZHwPB80GaXz | failed | 5 | 0 | 5 | runtime context cancellation investigation complete; 930s cycle timeout insufficient vs parent ctx; fix: use background ctx for session load | 2026-03-01T07:12:00Z |
 | run-kernel-state-maintenance-20260301T040855Z | success | 0 | 0 | 0 | state hygiene pass complete; artifacts freshness verified; targeted planner prompt lane PASS; sidecar stale-state risk retained | 2026-03-01T04:08:55Z |
 | run-kernel-data-hygiene-20260301T033941Z | success | 0 | 0 | 0 | artifact hygiene inventory complete; md age distribution verified; redundancy families ranked; go cache sanity checked | 2026-03-01T03:40:21Z |
 | run-kernel-audit-validation-20260301T024349Z | failed | 1 | 0 | 1 | deterministic 5-lane audit: targeted/cmd/vet/build PASS; full-repo FAIL at infra/integration TestLarkInject_TeamHappyPath | 2026-03-01T02:43:49Z |
