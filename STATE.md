@@ -3,7 +3,7 @@
 elephant.ai kernel — periodic proactive agent loop.
 
 ## next_action
-- Implement `ExecuteAndWait` final-sync status hydration patch in `internal/domain/agent/taskfile/executor.go` and add one regression test in `internal/domain/agent/taskfile/executor_test.go`.
+- Address runtime context cancellation at session load phase: patch `internal/app/agent/preparation/service.go:149` to use independent context with timeout for session acquisition, decoupling from parent context lifecycle.
 
 ## recent_actions
 - [2026-03-01T07:12:00Z] kernel_context_cancellation_investigation: root-caused runtime "context canceled" failures to parent context lifecycle vs cycle timeout mismatch. Code tests all green; operational issue identified.

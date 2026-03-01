@@ -1,0 +1,49 @@
+# LLM Provider Fallback Configuration
+# Auto-generated: 2026-03-01T08:15:00Z
+# Purpose: Provider redundancy to mitigate upstream API instability
+
+primary_provider:
+  name: "kimi-for-coding"
+  model: "kimi-for-coding"
+  timeout_ms: 60000
+  retry_attempts: 2
+  circuit_breaker:
+    failure_threshold: 3
+    recovery_timeout_ms: 300000
+
+fallback_chain:
+  - provider: "deepseek"
+    model: "deepseek-chat"
+    priority: 1
+    timeout_ms: 60000
+  - provider: "openai"
+    model: "gpt-4o-mini"
+    priority: 2
+    timeout_ms: 45000
+  - provider: "anthropic"
+    model: "claude-3-5-haiku-20241022"
+    priority: 3
+    timeout_ms: 60000
+
+error_patterns_triggering_fallback:
+  - "thinking is enabled but reasoning_content is missing"
+  - "HTTP 400"
+  - "context canceled"
+  - "Request timeout"
+  - "connection refused"
+
+agent_specific_overrides:
+  research-executor:
+    preferred: "deepseek"
+    fallback: "openai"
+  audit-executor:
+    preferred: "anthropic"
+    fallback: "deepseek"
+  build-executor:
+    preferred: "kimi-for-coding"
+    fallback: "deepseek"
+
+monitoring:
+  log_provider_switches: true
+  alert_on_fallback_rate_threshold: 0.3
+  metrics_collection: true

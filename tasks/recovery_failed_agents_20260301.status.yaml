@@ -1,0 +1,15 @@
+plan_id: ""
+updated_at: 2026-03-01T15:56:48.160675+08:00
+tasks:
+    - id: research-executor-recovery
+      description: Research executor recovery task
+      status: failed
+      agent_type: claude_code
+      error: 'attempt 3/3 execution failed: You''re out of extra usage · resets 6pm (Asia/Shanghai)'
+      elapsed: 16s
+    - id: audit-executor-recovery
+      description: Audit executor recovery task
+      status: failed
+      agent_type: claude_code
+      error: 'attempt 3/3 execution failed: You''re out of extra usage · resets 6pm (Asia/Shanghai)'
+      elapsed: 16s

@@ -1,0 +1,58 @@
+# Recovery tasks for failed agents from cycle run-d5nBi6fz4kjt
+# Failed due to upstream kimi-for-coding LLM API issue (HTTP 400)
+# Using claude-opus as fallback
+
+version: "1.0"
+team:
+  name: recovery-failed-agents
+  goal: Recover failed agents from previous cycle using fallback LLM
+  
+tasks:
+  - id: research-executor-recovery
+    role: research-executor
+    agent_type: claude_code
+    description: Research executor recovery task
+    prompt: |
+      You are the research-executor agent for elephant.ai kernel.
+      
+      Your original task failed due to upstream LLM API issue (kimi-for-coding HTTP 400).
+      This is a recovery execution using claude-opus as fallback.
+      
+      Execute your standard research duties:
+      1. Review recent kernel state and artifacts
+      2. Identify any research gaps or investigation needs
+      3. Perform lightweight research on current priorities
+      4. Report findings in structured format
+      
+      Focus areas:
+      - Kernel resilience and cycle stability
+      - LLM provider fallback strategies
+      - Any emergent issues from recent runs
+      
+      Read artifacts/kernel_state_update_20260301T080000Z.md for current context.
+      Write your findings to artifacts/research_recovery_20260301.md.
+
+  - id: audit-executor-recovery
+    role: audit-executor
+    agent_type: claude_code
+    description: Audit executor recovery task
+    prompt: |
+      You are the audit-executor agent for elephant.ai kernel.
+      
+      Your original task failed due to upstream LLM API issue (kimi-for-coding HTTP 400).
+      This is a recovery execution using claude-opus as fallback.
+      
+      Execute your standard audit duties:
+      1. Review recent kernel state and verification results
+      2. Audit the recovery state file and test results
+      3. Verify deterministic verification passed (go tests, go vet)
+      4. Report audit findings and any concerns
+      
+      Focus areas:
+      - Verify all kernel tests pass (14/14)
+      - Verify go vet is clean
+      - Confirm resilience patch is working
+      - Validate state update artifacts
+      
+      Read artifacts/kernel_state_update_20260301T080000Z.md for current context.
+      Write your findings to artifacts/audit_recovery_20260301.md.
