@@ -238,8 +238,9 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 	}
 
 	leaseDuration := time.Duration(leaseSeconds) * time.Second
+	retentionDuration := 14 * 24 * time.Hour
 	kernelStoreDir := resolveStorageDir("", "~/.alex/kernel")
-	kernelStore := kernelinfra.NewFileStore(kernelStoreDir, leaseDuration)
+	kernelStore := kernelinfra.NewFileStore(kernelStoreDir, leaseDuration, retentionDuration)
 	if err := kernelStore.EnsureSchema(context.Background()); err != nil {
 		return nil, fmt.Errorf("kernel dispatch schema: %w", err)
 	}

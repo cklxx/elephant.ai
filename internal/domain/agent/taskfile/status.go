@@ -103,7 +103,10 @@ func (sw *StatusWriter) StartPolling(dispatcher agent.BackgroundTaskDispatcher, 
 			case <-sw.stopCh:
 				return
 			case <-ticker.C:
-				sw.syncFromDispatcher(dispatcher, taskIDs)
+				if sw.syncFromDispatcher(dispatcher, taskIDs) {
+					sw.Stop()
+					return
+				}
 			}
 		}
 	}()
@@ -129,10 +132,10 @@ func (sw *StatusWriter) Path() string {
 	return sw.path
 }
 
-func (sw *StatusWriter) syncFromDispatcher(dispatcher agent.BackgroundTaskDispatcher, taskIDs []string) {
+func (sw *StatusWriter) syncFromDispatcher(dispatcher agent.BackgroundTaskDispatcher, taskIDs []string) bool {
 	summaries := dispatcher.Status(taskIDs)
 	if len(summaries) == 0 {
-		return
+		return false
 	}
 
 	byID := make(map[string]agent.BackgroundTaskSummary, len(summaries))
@@ -144,10 +147,12 @@ func (sw *StatusWriter) syncFromDispatcher(dispatcher agent.BackgroundTaskDispat
 	defer sw.mu.Unlock()
 
 	changed := false
+	allTerminal := true
 	for i := range sw.file.Tasks {
 		ts := &sw.file.Tasks[i]
 		s, ok := byID[ts.ID]
 		if !ok {
+			allTerminal = false
 			continue
 		}
 		newStatus := string(s.Status)
@@ -160,12 +165,19 @@ func (sw *StatusWriter) syncFromDispatcher(dispatcher agent.BackgroundTaskDispat
 			}
 			changed = true
 		}
+		switch s.Status {
+		case agent.BackgroundTaskStatusCompleted, agent.BackgroundTaskStatusFailed, agent.BackgroundTaskStatusCancelled:
+			// terminal
+		default:
+			allTerminal = false
+		}
 	}
 
 	if changed {
 		sw.file.UpdatedAt = time.Now()
 		_ = sw.writeUnsafe()
 	}
+	return allTerminal
 }
 
 func (sw *StatusWriter) writeUnsafe() error {

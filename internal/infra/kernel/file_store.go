@@ -24,25 +24,31 @@ type fileStoreDoc struct {
 // It keeps an in-memory map guarded by a RWMutex and persists
 // to a single JSON file using atomic temp-file + rename writes.
 type FileStore struct {
-	mu            sync.RWMutex
-	dispatches    map[string]kernel.Dispatch
-	filePath      string
-	leaseDuration time.Duration
-	now           func() time.Time // injectable for tests
+	mu                sync.RWMutex
+	dispatches        map[string]kernel.Dispatch
+	filePath          string
+	leaseDuration     time.Duration
+	retentionDuration time.Duration
+	now               func() time.Time // injectable for tests
 }
 
 // NewFileStore creates a new file-backed dispatch store.
 // dir is the directory where dispatches.json will be stored.
 // leaseDuration controls how long a claimed dispatch is leased to a worker.
-func NewFileStore(dir string, leaseDuration time.Duration) *FileStore {
+// retentionDuration controls how long terminal dispatches are kept before pruning.
+func NewFileStore(dir string, leaseDuration, retentionDuration time.Duration) *FileStore {
 	if leaseDuration <= 0 {
-		leaseDuration = 5 * time.Minute
+		leaseDuration = 30 * time.Minute
+	}
+	if retentionDuration <= 0 {
+		retentionDuration = 14 * 24 * time.Hour
 	}
 	return &FileStore{
-		dispatches:    make(map[string]kernel.Dispatch),
-		filePath:      filepath.Join(dir, "dispatches.json"),
-		leaseDuration: leaseDuration,
-		now:           time.Now,
+		dispatches:        make(map[string]kernel.Dispatch),
+		filePath:          filepath.Join(dir, "dispatches.json"),
+		leaseDuration:     leaseDuration,
+		retentionDuration: retentionDuration,
+		now:               time.Now,
 	}
 }
 
@@ -54,7 +60,16 @@ func (s *FileStore) EnsureSchema(ctx context.Context) error {
 	if err := filestore.EnsureParentDir(s.filePath); err != nil {
 		return fmt.Errorf("create dispatch store dir: %w", err)
 	}
-	return s.load()
+	if err := s.load(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := s.pruneLocked(ctx, s.now(), true); err != nil {
+		return err
+	}
+	return nil
 }
 
 // EnqueueDispatches inserts a batch of dispatch specs as pending dispatches.
@@ -200,6 +215,7 @@ func (s *FileStore) MarkDispatchDone(ctx context.Context, dispatchID, taskID str
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -209,8 +225,11 @@ func (s *FileStore) MarkDispatchDone(ctx context.Context, dispatchID, taskID str
 	}
 	d.Status = kernel.DispatchDone
 	d.TaskID = taskID
-	d.UpdatedAt = s.now()
+	d.UpdatedAt = now
 	s.dispatches[dispatchID] = d
+	if _, err := s.pruneLocked(ctx, now, false); err != nil {
+		return err
+	}
 	return s.persistLocked()
 }
 
@@ -219,6 +238,7 @@ func (s *FileStore) MarkDispatchFailed(ctx context.Context, dispatchID, errMsg s
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -228,8 +248,11 @@ func (s *FileStore) MarkDispatchFailed(ctx context.Context, dispatchID, errMsg s
 	}
 	d.Status = kernel.DispatchFailed
 	d.Error = errMsg
-	d.UpdatedAt = s.now()
+	d.UpdatedAt = now
 	s.dispatches[dispatchID] = d
+	if _, err := s.pruneLocked(ctx, now, false); err != nil {
+		return err
+	}
 	return s.persistLocked()
 }
 
@@ -252,15 +275,19 @@ func (s *FileStore) ListActiveDispatches(ctx context.Context, kernelID string) (
 		}
 		out = append(out, d)
 	}
-	// Deterministic ordering: created_at ASC.
+	// Deterministic ordering: created_at ASC, then dispatch_id ASC.
 	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].DispatchID < out[j].DispatchID
+		}
 		return out[i].CreatedAt.Before(out[j].CreatedAt)
 	})
 	return out, nil
 }
 
 // ListRecentByAgent returns the most recent dispatch for each agent_id
-// within the given kernel. Recency is determined by created_at.
+// within the given kernel. Recency is determined by updated_at first,
+// then created_at, with dispatch_id as a deterministic final tiebreaker.
 func (s *FileStore) ListRecentByAgent(ctx context.Context, kernelID string) (map[string]kernel.Dispatch, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -274,7 +301,7 @@ func (s *FileStore) ListRecentByAgent(ctx context.Context, kernelID string) (map
 			continue
 		}
 		existing, ok := result[d.AgentID]
-		if !ok || d.CreatedAt.After(existing.CreatedAt) {
+		if !ok || isDispatchMoreRecent(d, existing) {
 			result[d.AgentID] = d
 		}
 	}
@@ -332,6 +359,56 @@ func (s *FileStore) persistLocked() error {
 	return nil
 }
 
+func pruneDeadline(d kernel.Dispatch) time.Time {
+	if d.UpdatedAt.After(d.CreatedAt) {
+		return d.UpdatedAt
+	}
+	return d.CreatedAt
+}
+
+func (s *FileStore) pruneLocked(ctx context.Context, now time.Time, persist bool) (int, error) {
+	if s.retentionDuration <= 0 {
+		return 0, nil
+	}
+	cutoff := now.Add(-s.retentionDuration)
+	removed := 0
+	for id, d := range s.dispatches {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		if !isTerminalDispatchStatus(d.Status) {
+			continue
+		}
+		if pruneDeadline(d).After(cutoff) {
+			continue
+		}
+		delete(s.dispatches, id)
+		removed++
+	}
+	if removed > 0 && persist {
+		if err := s.persistLocked(); err != nil {
+			return 0, err
+		}
+	}
+	return removed, nil
+}
+
+func isDispatchMoreRecent(candidate, existing kernel.Dispatch) bool {
+	if candidate.UpdatedAt.After(existing.UpdatedAt) {
+		return true
+	}
+	if candidate.UpdatedAt.Before(existing.UpdatedAt) {
+		return false
+	}
+	if candidate.CreatedAt.After(existing.CreatedAt) {
+		return true
+	}
+	if candidate.CreatedAt.Before(existing.CreatedAt) {
+		return false
+	}
+	return candidate.DispatchID > existing.DispatchID
+}
+
 func isTerminalDispatchStatus(s kernel.DispatchStatus) bool {
 	switch s {
 	case kernel.DispatchDone, kernel.DispatchFailed, kernel.DispatchCancelled:
@@ -344,7 +421,11 @@ func isTerminalDispatchStatus(s kernel.DispatchStatus) bool {
 // RecoverStaleRunning marks dispatches stuck in "running" longer than
 // leaseDuration as "failed". This prevents permanently blocked agents
 // when a previous cycle's executor crashed without completing.
-func (s *FileStore) RecoverStaleRunning(_ context.Context, kernelID string) (int, error) {
+func (s *FileStore) RecoverStaleRunning(ctx context.Context, kernelID string) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
 	now := s.now()
 	cutoff := now.Add(-s.leaseDuration)
 
@@ -353,6 +434,9 @@ func (s *FileStore) RecoverStaleRunning(_ context.Context, kernelID string) (int
 
 	var recovered int
 	for id, d := range s.dispatches {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
 		if d.KernelID != kernelID {
 			continue
 		}
@@ -369,6 +453,9 @@ func (s *FileStore) RecoverStaleRunning(_ context.Context, kernelID string) (int
 		recovered++
 	}
 	if recovered > 0 {
+		if _, err := s.pruneLocked(ctx, now, false); err != nil {
+			return 0, err
+		}
 		if err := s.persistLocked(); err != nil {
 			return 0, fmt.Errorf("persist after stale recovery: %w", err)
 		}
