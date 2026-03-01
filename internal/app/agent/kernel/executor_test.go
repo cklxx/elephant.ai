@@ -17,8 +17,8 @@ type mockExecutor struct {
 	calls     []executorCall
 	teamCalls []kerneldomain.TeamDispatchSpec
 	err       error
-	taskIDs   []string // returned in order
-	summaries []string // returned in order
+	taskIDs   []string         // returned in order
+	summaries []string         // returned in order
 	teamRoles []TeamRoleResult // returned for team calls
 	idx       int
 }

@@ -174,7 +174,9 @@ func TestGetRuntimeConfigResolver_RoundTrip(t *testing.T) {
 		t.Fatal("expected non-nil after set")
 	}
 	// Verify it's the same function by calling it.
-	got(context.Background())
+	if _, _, err := got(context.Background()); err != nil {
+		t.Fatalf("expected nil error from resolver, got %v", err)
+	}
 	if !called {
 		t.Fatal("expected resolver to be invoked")
 	}

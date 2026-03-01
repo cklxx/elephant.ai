@@ -3,6 +3,7 @@ package kernel
 import (
 	"alex/internal/shared/utils"
 	"context"
+	"errors"
 	"fmt"
 	"runtime/debug"
 	"sort"
@@ -476,6 +477,7 @@ func renderStateAgentSummary(entries []kerneldomain.AgentCycleSummary) string {
 		if summary == "" {
 			summary = strings.TrimSpace(entry.Error)
 		}
+		summary = sanitizeRuntimeSummary(summary)
 		if summary == "" {
 			summary = "(none)"
 		}
@@ -483,6 +485,36 @@ func renderStateAgentSummary(entries []kerneldomain.AgentCycleSummary) string {
 		parts = append(parts, fmt.Sprintf("%s[%s]: %s", entry.AgentID, status, summary))
 	}
 	return strings.Join(parts, " | ")
+}
+
+func sanitizeRuntimeSummary(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return ""
+	}
+	lines := strings.Split(raw, "\n")
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		lower := strings.ToLower(trimmed)
+		if strings.HasPrefix(trimmed, "```") ||
+			strings.HasPrefix(lower, "thinking (previous):") ||
+			strings.HasPrefix(lower, "reasoning:") ||
+			strings.HasPrefix(lower, "## execution summary") ||
+			strings.Contains(lower, "assistant to=") ||
+			strings.Contains(lower, "recipient_name") ||
+			strings.Contains(lower, "tool_uses") ||
+			strings.Contains(lower, "tool call") {
+			continue
+		}
+		filtered = append(filtered, trimmed)
+	}
+	if len(filtered) == 0 {
+		return ""
+	}
+	return strings.Join(filtered, " ")
 }
 
 func upsertKernelRuntimeBlock(content, runtimeBlock string) string {
@@ -585,8 +617,8 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 					Error:        errMsg,
 					FailureClass: failureClass,
 				})
-				if markErr := e.store.MarkDispatchFailed(ctx, d.DispatchID, errMsg); markErr != nil {
-					e.logger.Warn("Kernel: mark failed %s: %v", d.DispatchID, markErr)
+				if err := markDispatchFailedResilient(ctx, e.store, d.DispatchID, errMsg); err != nil {
+					e.logger.Warn("Kernel: mark failed %s: %v", d.DispatchID, err)
 				}
 				e.logger.Warn("Kernel: dispatch %s (agent=%s) failed: %v", d.DispatchID, d.AgentID, execErr)
 			} else {
@@ -602,8 +634,8 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 					summaryEntry.TeamRoles = toTeamRoleSummaries(execResult.TeamRoles)
 				}
 				result.AgentSummary = append(result.AgentSummary, summaryEntry)
-				if markErr := e.store.MarkDispatchDone(ctx, d.DispatchID, execResult.TaskID); markErr != nil {
-					e.logger.Warn("Kernel: mark done %s: %v", d.DispatchID, markErr)
+				if err := markDispatchDoneResilient(ctx, e.store, d.DispatchID, execResult.TaskID); err != nil {
+					e.logger.Warn("Kernel: mark done %s: %v", d.DispatchID, err)
 				}
 			}
 		}(d)
@@ -627,6 +659,32 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 	}
 
 	return result
+}
+
+func markDispatchDoneResilient(ctx context.Context, store kerneldomain.Store, dispatchID, taskID string) error {
+	err := store.MarkDispatchDone(ctx, dispatchID, taskID)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	fallbackCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return store.MarkDispatchDone(fallbackCtx, dispatchID, taskID)
+}
+
+func markDispatchFailedResilient(ctx context.Context, store kerneldomain.Store, dispatchID, errMsg string) error {
+	err := store.MarkDispatchFailed(ctx, dispatchID, errMsg)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	fallbackCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return store.MarkDispatchFailed(fallbackCtx, dispatchID, errMsg)
 }
 
 func toTeamRoleSummaries(roles []TeamRoleResult) []kerneldomain.TeamRoleSummary {

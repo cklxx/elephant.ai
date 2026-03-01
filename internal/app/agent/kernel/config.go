@@ -4,16 +4,17 @@ const (
 	// DefaultStateRootDir is the fixed storage root for kernel markdown artifacts.
 	DefaultStateRootDir = "~/.alex/kernel"
 	// DefaultSeedStateContent initializes STATE.md on first boot.
-	DefaultSeedStateContent = "# Kernel State\n## identity\nelephant.ai autonomous kernel — founder mindset.\nNever ask, never wait — only dispatch tasks, record state, summarize, and plan.\n## recent_actions\n(none yet)\n"
+	DefaultSeedStateContent = "# Kernel State\n## status\n- last_cycle: bootstrap | unknown | duration=unknown\n- health: green\n- blocked_on: none\n\n## active_work\n- [ ] (none)\n\n## completed_last_24h\n- [x] bootstrap initialized | completed=unknown | artifact=STATE.md\n\n## next_priority\n1. Run one autonomous kernel iteration and write at least one artifact under ./artifacts/\n\n## blocked\n(none)\n"
 
-	DefaultKernelID              = "default"
-	DefaultKernelSchedule        = "8,38 * * * *"
-	DefaultKernelTimeoutSeconds  = 900
-	DefaultKernelLeaseSeconds    = 1800
-	DefaultKernelMaxConcurrent   = 3
-	DefaultKernelMaxCycleHistory = 5
-	DefaultKernelChannel         = "lark"
-	DefaultKernelUserID          = "cklxx"
+	DefaultKernelID               = "default"
+	DefaultKernelSchedule         = "8,38 * * * *"
+	DefaultKernelTimeoutSeconds   = 900
+	DefaultKernelLeaseSeconds     = 1800
+	DefaultKernelRetentionSeconds = 1209600
+	DefaultKernelMaxConcurrent    = 3
+	DefaultKernelMaxCycleHistory  = 5
+	DefaultKernelChannel          = "lark"
+	DefaultKernelUserID           = "cklxx"
 
 	DefaultKernelPlannerMaxDispatches = 5
 	DefaultKernelPlannerTimeoutSec    = 60
@@ -34,18 +35,19 @@ Requirements:
 // RuntimeSettings defines code-owned kernel runtime behavior.
 // It intentionally does not come from user YAML config.
 type RuntimeSettings struct {
-	KernelID        string
-	Schedule        string
-	SeedState       string
-	TimeoutSeconds  int
-	LeaseSeconds    int
-	MaxConcurrent   int
-	MaxCycleHistory int
-	Channel         string
-	ChatID          string
-	UserID          string
-	Planner         PlannerSettings
-	Agents          []AgentConfig
+	KernelID         string
+	Schedule         string
+	SeedState        string
+	TimeoutSeconds   int
+	LeaseSeconds     int
+	RetentionSeconds int
+	MaxConcurrent    int
+	MaxCycleHistory  int
+	Channel          string
+	ChatID           string
+	UserID           string
+	Planner          PlannerSettings
+	Agents           []AgentConfig
 }
 
 // PlannerSettings controls built-in LLM planner defaults.
@@ -71,17 +73,54 @@ func DefaultRuntimeSettings() RuntimeSettings {
 			Enabled:  true,
 			Metadata: map[string]string{"source": "kernel_default"},
 		},
+		{
+			AgentID:  "build-executor",
+			Prompt:   "Execute kernel build/implementation tasks with deterministic verification.\n\nProceed based on the following state:\n{STATE}",
+			Priority: 9,
+			Enabled:  true,
+			Metadata: map[string]string{"source": "kernel_default", "bucket": "build"},
+		},
+		{
+			AgentID:         "research-executor",
+			Prompt:          "Execute kernel research/investigation tasks and convert findings into actionable artifacts.\n\nProceed based on the following state:\n{STATE}",
+			Priority:        8,
+			Enabled:         true,
+			CooldownMinutes: 30,
+			Metadata:        map[string]string{"source": "kernel_default", "bucket": "research"},
+		},
+		{
+			AgentID:  "outreach-executor",
+			Prompt:   "Execute kernel communication/outreach tasks that unblock delivery and state sync.\n\nProceed based on the following state:\n{STATE}",
+			Priority: 7,
+			Enabled:  false,
+			Metadata: map[string]string{"source": "kernel_default", "bucket": "outreach"},
+		},
+		{
+			AgentID:  "data-executor",
+			Prompt:   "Execute kernel data/file transformation and state maintenance tasks with evidence.\n\nProceed based on the following state:\n{STATE}",
+			Priority: 8,
+			Enabled:  true,
+			Metadata: map[string]string{"source": "kernel_default", "bucket": "data"},
+		},
+		{
+			AgentID:  "audit-executor",
+			Prompt:   "Execute kernel audit/validation tasks and record risks plus next actions.\n\nProceed based on the following state:\n{STATE}",
+			Priority: 8,
+			Enabled:  true,
+			Metadata: map[string]string{"source": "kernel_default", "bucket": "audit"},
+		},
 	}
 	return RuntimeSettings{
-		KernelID:        DefaultKernelID,
-		Schedule:        DefaultKernelSchedule,
-		SeedState:       DefaultSeedStateContent,
-		TimeoutSeconds:  DefaultKernelTimeoutSeconds,
-		LeaseSeconds:    DefaultKernelLeaseSeconds,
-		MaxConcurrent:   DefaultKernelMaxConcurrent,
-		MaxCycleHistory: DefaultKernelMaxCycleHistory,
-		Channel:         DefaultKernelChannel,
-		UserID:          DefaultKernelUserID,
+		KernelID:         DefaultKernelID,
+		Schedule:         DefaultKernelSchedule,
+		SeedState:        DefaultSeedStateContent,
+		TimeoutSeconds:   DefaultKernelTimeoutSeconds,
+		LeaseSeconds:     DefaultKernelLeaseSeconds,
+		RetentionSeconds: DefaultKernelRetentionSeconds,
+		MaxConcurrent:    DefaultKernelMaxConcurrent,
+		MaxCycleHistory:  DefaultKernelMaxCycleHistory,
+		Channel:          DefaultKernelChannel,
+		UserID:           DefaultKernelUserID,
 		Planner: PlannerSettings{
 			Enabled:             true,
 			MaxDispatches:       DefaultKernelPlannerMaxDispatches,
@@ -108,11 +147,12 @@ type KernelConfig struct {
 
 // AgentConfig defines a single agent that the kernel dispatches.
 type AgentConfig struct {
-	AgentID  string
-	Prompt   string // may contain {STATE} placeholder
-	Priority int
-	Enabled  bool
-	Metadata map[string]string
+	AgentID         string
+	Prompt          string // may contain {STATE} placeholder
+	Priority        int
+	Enabled         bool
+	CooldownMinutes int // skip redispatch after successful run when within cooldown window
+	Metadata        map[string]string
 }
 
 // CloneAgentConfigs deep-copies agent config slices and metadata maps.
@@ -130,11 +170,12 @@ func CloneAgentConfigs(agents []AgentConfig) []AgentConfig {
 			}
 		}
 		cloned = append(cloned, AgentConfig{
-			AgentID:  agentCfg.AgentID,
-			Prompt:   agentCfg.Prompt,
-			Priority: agentCfg.Priority,
-			Enabled:  agentCfg.Enabled,
-			Metadata: metadata,
+			AgentID:         agentCfg.AgentID,
+			Prompt:          agentCfg.Prompt,
+			Priority:        agentCfg.Priority,
+			Enabled:         agentCfg.Enabled,
+			CooldownMinutes: agentCfg.CooldownMinutes,
+			Metadata:        metadata,
 		})
 	}
 	return cloned

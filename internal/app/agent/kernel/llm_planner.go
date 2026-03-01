@@ -49,12 +49,15 @@ type planningDecision struct {
 // It reads STATE.md, optionally GOAL.md, and recent dispatch history,
 // then calls an LLM to produce a structured dispatch plan.
 type LLMPlanner struct {
-	kernelID           string
-	factory            portsllm.LLMClientFactory
-	config             LLMPlannerConfig
-	staticAgents       []AgentConfig
-	allowedTemplateSet map[string]struct{}
-	logger             logging.Logger
+	kernelID             string
+	factory              portsllm.LLMClientFactory
+	config               LLMPlannerConfig
+	staticAgents         []AgentConfig
+	configuredAgentSet   map[string]struct{}
+	agentCooldownMinutes map[string]int
+	allowedTemplateSet   map[string]struct{}
+	defaultBucketAgentID string
+	logger               logging.Logger
 }
 
 // NewLLMPlanner creates a new LLM-driven planner.
@@ -83,13 +86,33 @@ func NewLLMPlanner(
 	for _, template := range templates {
 		allowedTemplateSet[strings.ToLower(template)] = struct{}{}
 	}
+	configuredAgentSet := make(map[string]struct{}, len(staticAgents))
+	agentCooldownMinutes := make(map[string]int, len(staticAgents))
+	defaultBucketAgentID := ""
+	for _, agentCfg := range staticAgents {
+		agentID := strings.TrimSpace(agentCfg.AgentID)
+		if agentID == "" {
+			continue
+		}
+		lowerAgentID := strings.ToLower(agentID)
+		configuredAgentSet[lowerAgentID] = struct{}{}
+		if agentCfg.CooldownMinutes > 0 {
+			agentCooldownMinutes[lowerAgentID] = agentCfg.CooldownMinutes
+		}
+		if defaultBucketAgentID == "" && strings.HasSuffix(agentID, "-executor") {
+			defaultBucketAgentID = agentID
+		}
+	}
 	return &LLMPlanner{
-		kernelID:           kernelID,
-		factory:            factory,
-		config:             config,
-		staticAgents:       staticAgents,
-		allowedTemplateSet: allowedTemplateSet,
-		logger:             logging.OrNop(logger),
+		kernelID:             kernelID,
+		factory:              factory,
+		config:               config,
+		staticAgents:         staticAgents,
+		configuredAgentSet:   configuredAgentSet,
+		agentCooldownMinutes: agentCooldownMinutes,
+		allowedTemplateSet:   allowedTemplateSet,
+		defaultBucketAgentID: defaultBucketAgentID,
+		logger:               logging.OrNop(logger),
 	}
 }
 
@@ -105,8 +128,8 @@ func (p *LLMPlanner) Plan(ctx context.Context, stateContent string, recentByAgen
 	}
 	p.logger.Info("LLMPlanner: starting plan (provider=%s model=%s timeout=%s)", profile.Provider, profile.Model, p.config.Timeout)
 
-	goalContent := p.readGoalFile()
-	planningPrompt := p.buildPlanningPrompt(stateContent, goalContent, recentByAgent)
+	goalContent, goalContextStatus := p.readGoalFile()
+	planningPrompt := p.buildPlanningPrompt(stateContent, goalContent, goalContextStatus, recentByAgent)
 
 	client, _, err := llmclient.GetClientFromProfile(p.factory, profile, p.config.Refresher, p.config.Refresher != nil)
 	if err != nil {
@@ -152,9 +175,9 @@ func (p *LLMPlanner) Plan(ctx context.Context, stateContent string, recentByAgen
 	return specs, nil
 }
 
-func (p *LLMPlanner) readGoalFile() string {
+func (p *LLMPlanner) readGoalFile() (content string, status string) {
 	if p.config.GoalFilePath == "" {
-		return ""
+		return "", "goal_context_not_configured"
 	}
 	path := p.config.GoalFilePath
 	if strings.HasPrefix(path, "~/") {
@@ -164,17 +187,26 @@ func (p *LLMPlanner) readGoalFile() string {
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return ""
+		p.logger.Warn("LLMPlanner: failed to read GOAL file at %s: %v", path, err)
+		return "", "goal_context_unreadable"
 	}
-	content := strings.TrimSpace(string(data))
+	content = strings.TrimSpace(string(data))
+	if content == "" {
+		p.logger.Warn("LLMPlanner: GOAL file at %s is empty", path)
+		return "", "goal_context_empty"
+	}
 	// Cap at 3000 chars to keep planning prompt concise.
 	if len([]rune(content)) > 3000 {
 		content = string([]rune(content)[:3000]) + "\n...(truncated)"
+		status = "goal_context_loaded_truncated"
+	} else {
+		status = "goal_context_loaded"
 	}
-	return content
+	p.logger.Info("LLMPlanner: goal context status=%s chars=%d", status, len([]rune(content)))
+	return content, status
 }
 
-func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent string, recentByAgent map[string]kerneldomain.Dispatch) string {
+func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent, goalContextStatus string, recentByAgent map[string]kerneldomain.Dispatch) string {
 	var b strings.Builder
 
 	b.WriteString("## Current Time\n")
@@ -221,7 +253,7 @@ func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent string, recen
 
 	// List statically configured agents as reference.
 	if len(p.staticAgents) > 0 {
-		b.WriteString("## Configured Agents (use directly or create new agent_id)\n")
+		b.WriteString("## Configured Agents (reuse these agent_ids; avoid creating ad-hoc ids)\n")
 		for _, a := range p.staticAgents {
 			status := "available"
 			if !a.Enabled {
@@ -256,6 +288,7 @@ func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent string, recen
 func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent string, recentByAgent map[string]kerneldomain.Dispatch) []kerneldomain.DispatchSpec {
 	var specs []kerneldomain.DispatchSpec
 	teamDispatches := 0
+	seenAgentIDs := make(map[string]struct{}, len(decisions))
 	for _, d := range decisions {
 		if !d.Dispatch {
 			continue
@@ -283,8 +316,12 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 				continue
 			}
 			agentID := "team:" + template
-			if recent, ok := recentByAgent[agentID]; ok && recent.Status == kerneldomain.DispatchRunning {
-				p.logger.Debug("LLMPlanner: skipping %s (still running)", agentID)
+			agentKey := strings.ToLower(strings.TrimSpace(agentID))
+			if _, exists := seenAgentIDs[agentKey]; exists {
+				p.logger.Debug("LLMPlanner: skipping duplicate decision for %s in same cycle", agentID)
+				continue
+			}
+			if p.shouldSkipInFlightDispatch(agentID, recentByAgent) {
 				continue
 			}
 			priority := d.Priority
@@ -315,16 +352,24 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 					"reason":        compactSummary(d.Reason, 100),
 				},
 			})
+			seenAgentIDs[agentKey] = struct{}{}
 			teamDispatches++
 			continue
 		}
 		agentID := strings.TrimSpace(d.AgentID)
+		agentID = p.normalizeAgentID(agentID, d.Reason)
 		if agentID == "" {
 			continue
 		}
-		// Skip agents that are still running.
-		if recent, ok := recentByAgent[agentID]; ok && recent.Status == kerneldomain.DispatchRunning {
-			p.logger.Debug("LLMPlanner: skipping %s (still running)", agentID)
+		agentKey := strings.ToLower(strings.TrimSpace(agentID))
+		if _, exists := seenAgentIDs[agentKey]; exists {
+			p.logger.Debug("LLMPlanner: skipping duplicate decision for %s in same cycle", agentID)
+			continue
+		}
+		if p.shouldSkipInFlightDispatch(agentID, recentByAgent) {
+			continue
+		}
+		if p.shouldSkipAgentCooldown(agentID, recentByAgent) {
 			continue
 		}
 		prompt := strings.TrimSpace(d.Prompt)
@@ -342,6 +387,10 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 		}
 		// Always inject STATE into dynamic prompts.
 		prompt = strings.ReplaceAll(prompt, "{STATE}", stateContent)
+		if reject, reason := shouldRejectAutonomyViolatingPrompt(prompt); reject {
+			p.logger.Debug("LLMPlanner: rejecting %s by autonomy gate (%s)", agentID, reason)
+			continue
+		}
 
 		priority := d.Priority
 		if priority <= 0 {
@@ -358,8 +407,146 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 				"reason":        compactSummary(d.Reason, 100),
 			},
 		})
+		seenAgentIDs[agentKey] = struct{}{}
 	}
 	return specs
+}
+
+func shouldRejectAutonomyViolatingPrompt(prompt string) (bool, string) {
+	trimmed := strings.TrimSpace(prompt)
+	if trimmed == "" {
+		return true, "empty_prompt"
+	}
+	lower := strings.ToLower(trimmed)
+
+	confirmationTokens := []string{
+		"ask_user(",
+		"needs_user_input",
+		"action=\"clarify\"",
+		"action=\"request\"",
+		"request_user",
+		"awaiting user confirmation",
+		"ask the user",
+		"wait for user",
+		"wait for confirmation",
+	}
+	for _, token := range confirmationTokens {
+		if strings.Contains(lower, token) {
+			return true, "requires_user_confirmation"
+		}
+	}
+
+	noActionTokens := []string{
+		"without tool action",
+		"no tool action",
+		"do not use tools",
+		"analysis only",
+	}
+	for _, token := range noActionTokens {
+		if strings.Contains(lower, token) {
+			return true, "no_concrete_tool_action"
+		}
+	}
+
+	return false, ""
+}
+
+func (p *LLMPlanner) shouldSkipInFlightDispatch(agentID string, recentByAgent map[string]kerneldomain.Dispatch) bool {
+	recent, ok := recentDispatchByAgentID(recentByAgent, agentID)
+	if !ok {
+		return false
+	}
+	if recent.Status == kerneldomain.DispatchRunning || recent.Status == kerneldomain.DispatchPending {
+		p.logger.Debug("LLMPlanner: skipping %s (%s dispatch already in flight)", agentID, recent.Status)
+		return true
+	}
+	return false
+}
+
+func (p *LLMPlanner) shouldSkipAgentCooldown(agentID string, recentByAgent map[string]kerneldomain.Dispatch) bool {
+	recent, ok := recentDispatchByAgentID(recentByAgent, agentID)
+	if !ok || recent.Status != kerneldomain.DispatchDone || recent.UpdatedAt.IsZero() {
+		return false
+	}
+	cooldownMinutes, hasCooldown := p.agentCooldownMinutes[strings.ToLower(strings.TrimSpace(agentID))]
+	if !hasCooldown || cooldownMinutes <= 0 {
+		return false
+	}
+	cooldown := time.Duration(cooldownMinutes) * time.Minute
+	since := time.Since(recent.UpdatedAt)
+	if since < 0 || since >= cooldown {
+		return false
+	}
+	p.logger.Debug("LLMPlanner: skipping %s (cooldown active, remaining=%s)", agentID, (cooldown - since).Round(time.Second))
+	return true
+}
+
+func (p *LLMPlanner) normalizeAgentID(agentID, reason string) string {
+	trimmed := strings.TrimSpace(agentID)
+	if trimmed != "" {
+		if _, ok := p.configuredAgentSet[strings.ToLower(trimmed)]; ok {
+			return trimmed
+		}
+		if strings.HasPrefix(strings.ToLower(trimmed), "team:") {
+			return trimmed
+		}
+	}
+	if p.defaultBucketAgentID != "" {
+		mapped := p.selectBucketAgent(reason)
+		if mapped != "" {
+			if trimmed != "" {
+				p.logger.Debug("LLMPlanner: remapped unknown agent_id %q to %q", trimmed, mapped)
+			} else {
+				p.logger.Debug("LLMPlanner: assigned bucket agent_id %q for reason", mapped)
+			}
+			return mapped
+		}
+	}
+	return trimmed
+}
+
+func (p *LLMPlanner) selectBucketAgent(reason string) string {
+	bucket := classifyReasonBucket(reason)
+	if bucket == "" {
+		return p.defaultBucketAgentID
+	}
+	candidate := strings.ToLower(strings.TrimSpace(bucket + "-executor"))
+	if _, ok := p.configuredAgentSet[candidate]; ok {
+		return candidate
+	}
+	return p.defaultBucketAgentID
+}
+
+func classifyReasonBucket(reason string) string {
+	text := strings.ToLower(strings.TrimSpace(reason))
+	if text == "" {
+		return ""
+	}
+	if containsAny(text, "build", "implement", "fix", "code", "deploy", "release") {
+		return "build"
+	}
+	if containsAny(text, "research", "investigate", "analyze", "benchmark", "compare") {
+		return "research"
+	}
+	if containsAny(text, "outreach", "message", "email", "notify", "contact", "sync") {
+		return "outreach"
+	}
+	if containsAny(text, "data", "state", "record", "snapshot", "log", "artifact", "file") {
+		return "data"
+	}
+	if containsAny(text, "audit", "validate", "verify", "review", "check", "risk") {
+		return "audit"
+	}
+	return ""
+}
+
+func containsAny(text string, keywords ...string) bool {
+	for _, keyword := range keywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 // summarizeTeamRoles reads the team status sidecar and returns a compact role summary.
@@ -455,6 +642,26 @@ func copyStringMap(source map[string]string) map[string]string {
 	return out
 }
 
+func recentDispatchByAgentID(recentByAgent map[string]kerneldomain.Dispatch, agentID string) (kerneldomain.Dispatch, bool) {
+	if len(recentByAgent) == 0 {
+		return kerneldomain.Dispatch{}, false
+	}
+	trimmed := strings.TrimSpace(agentID)
+	if trimmed == "" {
+		return kerneldomain.Dispatch{}, false
+	}
+	if dispatch, ok := recentByAgent[trimmed]; ok {
+		return dispatch, true
+	}
+	lower := strings.ToLower(trimmed)
+	for key, dispatch := range recentByAgent {
+		if strings.ToLower(strings.TrimSpace(key)) == lower {
+			return dispatch, true
+		}
+	}
+	return kerneldomain.Dispatch{}, false
+}
+
 // parsePlanningDecisions extracts a JSON array of planningDecision from raw LLM output.
 func parsePlanningDecisions(raw string) ([]planningDecision, error) {
 	raw = strings.TrimSpace(raw)
@@ -518,77 +725,44 @@ func (p *HybridPlanner) Plan(ctx context.Context, stateContent string, recentByA
 // Planning System Prompt
 // ─────────────────────────────────────────────────────────────────────────────
 
-const llmPlannerSystemPrompt = `You are the task scheduler for the elephant.ai kernel. Your role is to decide which agent tasks to dispatch this cycle, based on GOAL.md + STATE.md + dispatch history.
+const llmPlannerSystemPrompt = `You are the task scheduler for the elephant.ai kernel. Decide which agent tasks to dispatch this cycle using GOAL.md, STATE.md, and dispatch history.
 
-## Core Principles
-- **Action over research**: If GOAL contains concrete actionable opportunities, prioritize execution tasks (build, apply, publish) over further investigation.
-- **Start new tasks immediately**: When you see a high-value opportunity, dispatch the corresponding agent right away.
-- **No task type restrictions**: You may dispatch any type of task:
-  - Build websites (shell_exec + write_file to create project structure and code)
-  - Apply for APIs (browser tool to visit registration pages)
-  - Post messages (send_message / shell_exec curl)
-  - Send emails (mail_manage)
-  - Write code / develop features (shell_exec + write_file)
-  - Contact clients / external communication (send_message)
-  - Data analysis / reports (web_search + write_file)
-  - Deployment / operations (shell_exec)
-- **Do not repeat completed work**: If history shows a task was recently completed successfully with no new requirements, skip it.
-- **Every cycle must produce real output**: Each dispatched agent must execute at least one real tool action.
+Core principles:
+- Prioritize execution tasks over repeated research when actionable work exists.
+- Start high-value tasks immediately.
+- Reuse configured agent IDs; do not invent ad-hoc IDs.
+- Never redispatch agents that are running or pending.
+- Skip recently successful work when no new requirement exists.
+- Each dispatched task must produce at least one real tool action.
 
-## Agent ID Naming Convention
-- You may use pre-configured agent_ids (see the "Configured Agents" section)
-- You may also create entirely new ad-hoc agent_ids
-- Naming convention: ` + "`{action}-{target}`" + `, e.g.:
-  - ` + "`website-builder`" + ` — build websites
-  - ` + "`api-applicant`" + ` — apply for various APIs
-  - ` + "`lark-poster`" + ` — post messages in Lark groups
-  - ` + "`client-outreach`" + ` — contact potential clients
-  - ` + "`mvp-developer`" + ` — develop MVP products
-  - ` + "`content-writer`" + ` — write content/copy
-  - ` + "`deploy-operator`" + ` — deployment and operations
+Agent ID policy:
+- Prefer pre-configured agent_ids listed in the prompt context.
+- If no exact fit exists, choose one closest bucket agent:
+  - build-executor
+  - research-executor
+  - outreach-executor
+  - data-executor
+  - audit-executor
 
-## Output Format (strict JSON only, no other text)
+Output format:
+Return strict JSON array only. No prose.
+Each item fields:
+- kind: "agent" or "team"
+- agent_id: string
+- dispatch: boolean
+- priority: integer
+- prompt: string
+- reason: string
+Optional for team:
+- team_template
+- team_goal
+- team_prompts
+- timeout_seconds
 
-` + "```json" + `
-[
-  {
-    "kind": "agent or team",
-    "agent_id": "string — agent identifier",
-    "dispatch": true,
-    "priority": 8,
-    "prompt": "detailed task instructions...",
-    "team_template": "required when kind=team",
-    "team_goal": "required when kind=team",
-    "team_prompts": {"role_name": "prompt override"},
-    "timeout_seconds": 900,
-    "reason": "one-sentence explanation of why this task is dispatched"
-  }
-]
-` + "```" + `
-
-Rules:
-- Use ` + "`kind=team`" + ` only when a valid team template is available in the planning prompt.
-- For ` + "`kind=team`" + `, fill ` + "`team_template`" + ` and ` + "`team_goal`" + ` and keep ` + "`agent_id`" + ` as ` + "`team:<template>`" + `.
-- For ` + "`kind=agent`" + `, fill ` + "`agent_id`" + ` + ` + "`prompt`" + ` normally.
-
-## Prompt Writing Guidelines
-Each agent's prompt must include:
-1. **Clear task objective** (what to do, why)
-2. **Available tools hint** (browser / shell_exec / write_file / web_search / send_message, etc.)
-3. **Output path** (write under the current working directory using relative paths, e.g. ./artifacts/...)
-4. **Completion criteria** (what counts as successful completion)
-5. **Action directive**: "Do not ask questions, do not explain — start executing immediately."
-
-## Scheduling Rules
-1. Never re-dispatch an agent that is currently running (status=running)
-2. priority >= 8: urgent / high-value tasks, must be dispatched immediately
-3. Agents that completed successfully within the last 30 minutes with no new requirements may be skipped
-4. Immediately actionable opportunities in GOAL → priority >= 8
-5. Clear "next steps" in STATE → dispatch the corresponding task directly
-6. If an agent recently failed with [awaiting_input], do NOT re-dispatch with a similar prompt. Redesign the prompt to be fully autonomous or use a different approach.
-
-## Empty Dispatch
-If no tasks need to be dispatched (all completed, running, or no actionable goals), output an empty array:
-` + "```json" + `
-[]
-` + "```"
+Scheduling rules:
+1) Never re-dispatch status=running or status=pending.
+2) priority >= 8 for urgent/high-value actionable work.
+3) Respect explicit next steps from STATE.
+4) For recent [awaiting_input] failures, redesign prompt to be fully autonomous.
+5) Return [] when nothing should dispatch.
+`
