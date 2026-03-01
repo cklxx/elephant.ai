@@ -11,19 +11,26 @@ import (
 	"time"
 
 	"alex/internal/infra/filestore"
+	"alex/internal/shared/logging"
 )
 
 // FileJobStore persists jobs as individual JSON files inside a directory.
 // Each job maps to {Dir}/{jobID}.json. All operations are thread-safe.
 type FileJobStore struct {
-	dir string
-	mu  sync.RWMutex
+	dir    string
+	mu     sync.RWMutex
+	logger logging.Logger
 }
 
 // NewFileJobStore returns a store that writes jobs under dir. The directory
 // is created on the first Save if it does not already exist.
 func NewFileJobStore(dir string) *FileJobStore {
-	return &FileJobStore{dir: dir}
+	return &FileJobStore{dir: dir, logger: logging.Nop()}
+}
+
+// NewFileJobStoreWithLogger returns a store with a logger used for operational warnings.
+func NewFileJobStoreWithLogger(dir string, logger logging.Logger) *FileJobStore {
+	return &FileJobStore{dir: dir, logger: logging.OrNop(logger)}
 }
 
 // Save marshals job to JSON and writes it to {Dir}/{job.ID}.json.
@@ -106,6 +113,7 @@ func (s *FileJobStore) List(_ context.Context) ([]Job, error) {
 	}
 
 	var jobs []Job
+	skippedCorrupt := 0
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
@@ -113,9 +121,15 @@ func (s *FileJobStore) List(_ context.Context) ([]Job, error) {
 		jobID := entry.Name()[:len(entry.Name())-len(".json")]
 		job, err := s.loadLocked(jobID)
 		if err != nil {
-			continue // skip corrupt files
+			skippedCorrupt++
+			s.logger.Warn("Scheduler: skipping corrupt job file %q: %v", entry.Name(), err)
+			continue
 		}
 		jobs = append(jobs, *job)
+	}
+
+	if skippedCorrupt > 0 {
+		s.logger.Warn("Scheduler: skipped %d corrupt job file(s) in %s", skippedCorrupt, s.dir)
 	}
 
 	sort.Slice(jobs, func(i, j int) bool {

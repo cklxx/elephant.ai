@@ -85,8 +85,12 @@ func (e *Executor) ExecuteAndWait(ctx context.Context, tf *TaskFile, causationID
 	// Block until all tasks are done.
 	_ = e.dispatcher.Collect(result.TaskIDs, true, timeout)
 
-	// Final status sync.
+	// Final status sync. Rehydrate existing sidecar first so SyncOnce updates
+	// the initialized task rows instead of operating on an empty in-memory file.
 	sw := NewStatusWriter(statusPath)
+	if existing, readErr := ReadStatusFile(statusPath); readErr == nil && existing != nil {
+		sw.file = *existing
+	}
 	sw.SyncOnce(e.dispatcher, result.TaskIDs)
 
 	return result, nil

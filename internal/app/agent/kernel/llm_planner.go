@@ -213,6 +213,13 @@ func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent, goalContextS
 	b.WriteString(time.Now().Format(time.RFC3339))
 	b.WriteString("\n\n")
 
+	if strings.TrimSpace(goalContextStatus) == "" {
+		goalContextStatus = "goal_context_unknown"
+	}
+	b.WriteString("## Goal Context Status\n")
+	b.WriteString(goalContextStatus)
+	b.WriteString("\n\n")
+
 	if goalContent != "" {
 		b.WriteString("## GOAL.md (Objectives & Opportunities)\n")
 		b.WriteString(goalContent)

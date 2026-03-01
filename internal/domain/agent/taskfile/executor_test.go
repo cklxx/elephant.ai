@@ -156,3 +156,47 @@ func TestExecutor_CausationIDPropagated(t *testing.T) {
 		t.Errorf("CausationID: got %q, want %q", mock.dispatched[0].CausationID, "my-causation")
 	}
 }
+
+func TestExecutor_ExecuteAndWait_FinalSyncRehydratesStatusFile(t *testing.T) {
+	tf := &TaskFile{
+		Version: "1",
+		PlanID:  "rehydrate-test",
+		Tasks: []TaskSpec{
+			{ID: "a", Prompt: "do A"},
+			{ID: "b", Prompt: "do B", DependsOn: []string{"a"}},
+		},
+	}
+
+	mock := &mockDispatcher{
+		statusFn: func(ids []string) []agent.BackgroundTaskSummary {
+			out := make([]agent.BackgroundTaskSummary, 0, len(ids))
+			for _, id := range ids {
+				out = append(out, agent.BackgroundTaskSummary{
+					ID:     id,
+					Status: agent.BackgroundTaskStatusCompleted,
+				})
+			}
+			return out
+		},
+	}
+	statusPath := filepath.Join(t.TempDir(), "rehydrate.status.yaml")
+	exec := NewExecutor(mock)
+
+	_, err := exec.ExecuteAndWait(context.Background(), tf, "cause-rehydrate", statusPath, 2*time.Second)
+	if err != nil {
+		t.Fatalf("ExecuteAndWait: %v", err)
+	}
+
+	sf, err := ReadStatusFile(statusPath)
+	if err != nil {
+		t.Fatalf("ReadStatusFile: %v", err)
+	}
+	if len(sf.Tasks) != 2 {
+		t.Fatalf("expected 2 status rows, got %d", len(sf.Tasks))
+	}
+	for _, task := range sf.Tasks {
+		if task.Status != string(agent.BackgroundTaskStatusCompleted) {
+			t.Fatalf("task %s status = %s, want completed", task.ID, task.Status)
+		}
+	}
+}
