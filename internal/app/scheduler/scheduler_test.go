@@ -572,6 +572,56 @@ func TestScheduler_ExecuteTrigger_NoNotifier(t *testing.T) {
 	}
 }
 
+func TestScheduler_ExecuteTrigger_SkipsWhenStopped(t *testing.T) {
+	coord := &mockCoordinator{answer: "done"}
+	notifier := &mockNotifier{}
+	sched := New(Config{Enabled: true}, coord, notifier, nil)
+
+	// Mark scheduler as stopped without requiring a full Start lifecycle.
+	sched.Stop()
+
+	trigger := Trigger{
+		Name:    "stopped-skip",
+		Task:    "Run this",
+		Channel: "lark",
+		ChatID:  "oc_test",
+		UserID:  "ou_stopped",
+	}
+
+	err := sched.executeTrigger(trigger)
+	if !errors.Is(err, errSchedulerStopped) {
+		t.Fatalf("expected errSchedulerStopped, got %v", err)
+	}
+	if coord.callCount() != 0 {
+		t.Fatalf("expected coordinator not called, got %d", coord.callCount())
+	}
+	if notifier.messageCount() != 0 {
+		t.Fatalf("expected no notifications, got %d", notifier.messageCount())
+	}
+}
+
+func TestScheduler_ExecuteTrigger_PrefersStoppedGuardOverValidation(t *testing.T) {
+	coord := &mockCoordinator{answer: "done"}
+	sched := New(Config{Enabled: true}, coord, nil, nil)
+	sched.Stop()
+
+	// Invalid lark user_id would normally fail validation, but stopped guard
+	// should short-circuit first.
+	err := sched.executeTrigger(Trigger{
+		Name:    "stopped-invalid",
+		Task:    "Run this",
+		Channel: "lark",
+		ChatID:  "oc_test",
+		UserID:  "invalid-user-id",
+	})
+	if !errors.Is(err, errSchedulerStopped) {
+		t.Fatalf("expected errSchedulerStopped, got %v", err)
+	}
+	if coord.callCount() != 0 {
+		t.Fatalf("expected coordinator not called, got %d", coord.callCount())
+	}
+}
+
 func TestFormatResult_Success(t *testing.T) {
 	trigger := Trigger{Name: "test"}
 	result := &agent.TaskResult{Answer: "all good"}
@@ -807,5 +857,143 @@ func waitFor(t *testing.T, timeout time.Duration, fn func() bool) {
 			t.Fatalf("timeout waiting for condition")
 		case <-ticker.C:
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Stale-recovery guard tests
+// ---------------------------------------------------------------------------
+
+// TestScheduler_StaleRecoveryGuard_SkipsWhenLastRunAfterLastFailure verifies
+// that on scheduler restart, if a job's LastRun timestamp is more recent than
+// its LastFailure (meaning the job recovered naturally via cron while the
+// process was down), no spurious recovery timer is scheduled.
+func TestScheduler_StaleRecoveryGuard_SkipsWhenLastRunAfterLastFailure(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFileJobStore(dir)
+
+	now := time.Now().UTC()
+	// Persist a job whose last failure is older than its last successful run.
+	job := Job{
+		ID:           "stale-recovery-job",
+		Name:         "stale-recovery-job",
+		CronExpr:     "*/5 * * * *",
+		Trigger:      "noop",
+		Status:       JobStatusActive,
+		FailureCount: 2,
+		LastFailure:  now.Add(-10 * time.Minute), // failed 10 min ago
+		LastRun:      now.Add(-2 * time.Minute),  // but succeeded 2 min ago
+		CreatedAt:    now.Add(-1 * time.Hour),
+		UpdatedAt:    now,
+	}
+	if err := store.Save(context.Background(), job); err != nil {
+		t.Fatalf("store.Save: %v", err)
+	}
+
+	coord := &mockCoordinator{answer: "ok"}
+	sched := New(Config{
+		Enabled:            true,
+		JobStore:           store,
+		RecoveryMaxRetries: 5,
+		RecoveryBackoff:    100 * time.Millisecond,
+	}, coord, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	// Give the scheduler a moment to process any spurious recovery timer.
+	time.Sleep(300 * time.Millisecond)
+
+	// The coordinator should NOT have been called — recovery was suppressed.
+	if got := coord.callCount(); got != 0 {
+		t.Fatalf("expected 0 recovery calls (stale guard should suppress), got %d", got)
+	}
+}
+
+// TestScheduler_StaleRecoveryGuard_FiresWhenFailureIsRecent verifies that a
+// job with a recent failure AND no successful run after that failure DOES
+// schedule a recovery timer and retries.
+func TestScheduler_StaleRecoveryGuard_FiresWhenFailureIsRecent(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFileJobStore(dir)
+
+	now := time.Now().UTC()
+	// Last failure is recent; last run was BEFORE the failure → still unhealthy.
+	job := Job{
+		ID:           "recent-failure-job",
+		Name:         "recent-failure-job",
+		CronExpr:     "*/5 * * * *",
+		Trigger:      "noop",
+		Status:       JobStatusActive,
+		FailureCount: 1,
+		LastFailure:  now.Add(-50 * time.Millisecond), // very recent failure
+		LastRun:      now.Add(-5 * time.Minute),        // last run was before failure
+		CreatedAt:    now.Add(-1 * time.Hour),
+		UpdatedAt:    now,
+	}
+	if err := store.Save(context.Background(), job); err != nil {
+		t.Fatalf("store.Save: %v", err)
+	}
+
+	coord := &mockCoordinator{answer: "ok"}
+	sched := New(Config{
+		Enabled:            true,
+		JobStore:           store,
+		RecoveryMaxRetries: 5,
+		RecoveryBackoff:    50 * time.Millisecond, // short backoff so recovery fires quickly
+	}, coord, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	// Wait for recovery to fire.
+	waitFor(t, 2*time.Second, func() bool { return coord.callCount() >= 1 })
+}
+
+// ---------------------------------------------------------------------------
+// Exponential backoff tests
+// ---------------------------------------------------------------------------
+
+// TestRecoveryDelay_ExponentialBackoff validates that recoveryDelay produces
+// exponentially growing delays and respects the 1-hour cap.
+func TestRecoveryDelay_ExponentialBackoff(t *testing.T) {
+	sched := &Scheduler{config: Config{RecoveryBackoff: time.Minute}}
+
+	cases := []struct {
+		failures int
+		wantMin  time.Duration
+		wantMax  time.Duration
+	}{
+		{1, 1 * time.Minute, 1*time.Minute + 1},  // 1 * 2^0 = 1 min
+		{2, 2 * time.Minute, 2*time.Minute + 1},  // 1 * 2^1 = 2 min
+		{3, 4 * time.Minute, 4*time.Minute + 1},  // 1 * 2^2 = 4 min
+		{4, 8 * time.Minute, 8*time.Minute + 1},  // 1 * 2^3 = 8 min
+		{11, time.Hour, time.Hour + 1},            // capped at 1 hour
+		{100, time.Hour, time.Hour + 1},           // well above exponent cap
+	}
+
+	for _, tc := range cases {
+		got := sched.recoveryDelay(tc.failures)
+		if got < tc.wantMin || got > tc.wantMax {
+			t.Errorf("recoveryDelay(%d) = %v; want [%v, %v]", tc.failures, got, tc.wantMin, tc.wantMax)
+		}
+	}
+}
+
+// TestRecoveryDelay_DefaultBackoff confirms the 1-minute default kicks in when
+// RecoveryBackoff is zero.
+func TestRecoveryDelay_DefaultBackoff(t *testing.T) {
+	sched := &Scheduler{config: Config{RecoveryBackoff: 0}}
+	got := sched.recoveryDelay(1)
+	if got != time.Minute {
+		t.Fatalf("expected default backoff 1m, got %v", got)
 	}
 }

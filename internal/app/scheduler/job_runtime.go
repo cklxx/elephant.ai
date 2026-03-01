@@ -167,6 +167,13 @@ func (s *Scheduler) startJob(jobID string, opts jobRunOptions) (*Job, Trigger, b
 
 	trigger, err := triggerFromJob(*job)
 	if err != nil {
+		now := time.Now().UTC()
+		job.FailureCount++
+		job.LastFailure = now
+		job.LastError = fmt.Sprintf("decode payload: %v", err)
+		job.UpdatedAt = now
+		s.scheduleRecoveryLocked(context.Background(), job)
+		s.persistJobLocked(context.Background(), job)
 		s.logger.Warn("Scheduler: failed to decode job %q payload: %v", jobID, err)
 		return nil, Trigger{}, false
 	}
@@ -249,6 +256,14 @@ func (s *Scheduler) scheduleRecoveryFromJobLocked(ctx context.Context, job *Job)
 	if job.LastFailure.IsZero() {
 		return
 	}
+	// Stale-recovery guard: if the job ran successfully *after* its last
+	// failure (e.g. cron fired and succeeded while the process was down),
+	// there is nothing to recover — skip scheduling a spurious retry.
+	if !job.LastRun.IsZero() && job.LastRun.After(job.LastFailure) {
+		s.logger.Debug("Scheduler: skipping stale recovery for %q (last run %v is after last failure %v)",
+			job.ID, job.LastRun, job.LastFailure)
+		return
+	}
 	elapsed := time.Since(job.LastFailure)
 	remaining := s.recoveryDelay(job.FailureCount) - elapsed
 	if remaining < 0 {
@@ -289,7 +304,17 @@ func (s *Scheduler) recoveryDelay(failureCount int) time.Duration {
 	if failureCount < 1 {
 		failureCount = 1
 	}
-	return time.Duration(failureCount) * backoff
+	// Exponential backoff: base * 2^(n-1), capped at 1 hour.
+	shift := failureCount - 1
+	if shift > 10 { // 2^10 = 1024 — cap the exponent to avoid overflow
+		shift = 10
+	}
+	delay := backoff * (1 << uint(shift))
+	const maxDelay = time.Hour
+	if delay > maxDelay {
+		delay = maxDelay
+	}
+	return delay
 }
 
 func (s *Scheduler) nextRun(expr string, now time.Time) (time.Time, error) {

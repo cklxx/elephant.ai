@@ -50,6 +50,7 @@ type Scheduler struct {
 	config         Config
 	logger         logging.Logger
 	mu             sync.Mutex
+	runCtx         context.Context
 	entryIDs       map[string]cron.EntryID // trigger name → cron entry
 	jobs           map[string]*Job
 	inFlight       map[string]int
@@ -57,6 +58,7 @@ type Scheduler struct {
 	stopped        chan struct{}
 	stopOnce       sync.Once
 	lockHeld       bool
+	runtimeCtx     context.Context
 }
 
 // New creates a new Scheduler.
@@ -78,6 +80,7 @@ func New(cfg Config, coordinator AgentCoordinator, notifier Notifier, logger log
 		jobStore:       cfg.JobStore,
 		config:         cfg,
 		logger:         logger,
+		runCtx:         context.Background(),
 		entryIDs:       make(map[string]cron.EntryID),
 		jobs:           make(map[string]*Job),
 		inFlight:       make(map[string]int),
@@ -128,6 +131,7 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lockHeld = lockHeld
+	s.runCtx = ctx
 
 	// 0. Load persisted jobs (if configured)
 	if s.jobStore != nil {
@@ -285,7 +289,13 @@ func (s *Scheduler) registerTriggerLocked(ctx context.Context, trigger Trigger) 
 
 // syncOKRTriggers scans OKR goals and registers/prunes triggers.
 func (s *Scheduler) syncOKRTriggers() {
-	s.syncOKRTriggersWithContext(context.Background())
+	s.mu.Lock()
+	ctx := s.runCtx
+	s.mu.Unlock()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	s.syncOKRTriggersWithContext(ctx)
 }
 
 func (s *Scheduler) syncOKRTriggersWithContext(ctx context.Context) {

@@ -3,12 +3,15 @@ package scheduler
 import (
 	"alex/internal/shared/utils"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	agent "alex/internal/domain/agent/ports/agent"
 	id "alex/internal/shared/utils/id"
 )
+
+var errSchedulerStopped = errors.New("scheduler stopped")
 
 // AgentCoordinator is the subset of the coordinator interface needed by the scheduler.
 type AgentCoordinator interface {
@@ -23,6 +26,13 @@ type Notifier interface {
 
 // executeTrigger runs a trigger's task via the agent coordinator and routes the result.
 func (s *Scheduler) executeTrigger(trigger Trigger) error {
+	select {
+	case <-s.stopped:
+		s.logger.Debug("Scheduler: skipping trigger %q because scheduler is stopped", trigger.Name)
+		return errSchedulerStopped
+	default:
+	}
+
 	if strings.EqualFold(trigger.Channel, "lark") {
 		if utils.IsBlank(trigger.UserID) {
 			err := fmt.Errorf("lark trigger requires user_id as open_id")
@@ -36,7 +46,10 @@ func (s *Scheduler) executeTrigger(trigger Trigger) error {
 		}
 	}
 
-	ctx := context.Background()
+	ctx := s.runCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if trigger.UserID != "" {
 		ctx = id.WithUserID(ctx, trigger.UserID)
 	}
