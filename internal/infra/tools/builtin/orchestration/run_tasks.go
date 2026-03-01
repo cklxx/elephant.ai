@@ -247,15 +247,16 @@ func (t *runTasks) listTemplates(ctx context.Context, callID string) (*ports.Too
 func (t *runTasks) formatResult(callID string, result *taskfile.ExecuteResult, waited bool) (*ports.ToolResult, error) {
 	var sb strings.Builder
 	if waited {
-		sb.WriteString(fmt.Sprintf("All %d tasks completed.\n", len(result.TaskIDs)))
+		sb.WriteString(fmt.Sprintf("全部 %d 个任务已完成（计划 %s）。\n", len(result.TaskIDs), result.PlanID))
+		for _, id := range result.TaskIDs {
+			sb.WriteString(fmt.Sprintf("- %s\n", id))
+		}
 	} else {
-		sb.WriteString(fmt.Sprintf("Dispatched %d tasks.\n", len(result.TaskIDs)))
-	}
-	sb.WriteString(fmt.Sprintf("Plan: %s\n", result.PlanID))
-	sb.WriteString(fmt.Sprintf("Task IDs: %s\n", strings.Join(result.TaskIDs, ", ")))
-	sb.WriteString(fmt.Sprintf("Status: %s\n", result.StatusPath))
-	if !waited {
-		sb.WriteString("\nUse read_file to check the status file for progress.")
+		sb.WriteString(fmt.Sprintf("已派发 %d 个后台任务（计划 %s）。\n", len(result.TaskIDs), result.PlanID))
+		for _, id := range result.TaskIDs {
+			sb.WriteString(fmt.Sprintf("- %s\n", id))
+		}
+		sb.WriteString(fmt.Sprintf("\n任务在后台运行中，进度状态文件：%s", result.StatusPath))
 	}
 	return &ports.ToolResult{CallID: callID, Content: sb.String()}, nil
 }

@@ -274,7 +274,7 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 	session, err := g.agent.EnsureSession(execCtx, sessionID)
 	if err != nil {
 		g.logger.Warn("Lark ensure session failed: %v", err)
-		reply := g.buildReply(nil, fmt.Errorf("ensure session: %w", err))
+		reply := g.buildReply(execCtx, nil, fmt.Errorf("ensure session: %w", err))
 		if reply == "" {
 			reply = "会话初始化失败，请稍后重试，或回复“诊断”让我输出可定位信息。"
 		}
@@ -588,7 +588,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 			}
 		}
 		if reply == "" {
-			reply = g.buildReply(result, execErr)
+			reply = g.buildReply(execCtx, result, execErr)
 		}
 		if reply == "" {
 			switch {
@@ -772,8 +772,9 @@ func (g *Gateway) reprocessMessage(chatID, chatType string, input agent.UserInpu
 	}
 }
 
-// buildReply constructs the reply string from the agent result.
-func (g *Gateway) buildReply(result *agent.TaskResult, execErr error) string {
+// buildReply constructs the reply string from the agent result, then rephrases
+// it into natural conversational Chinese via LLM when available.
+func (g *Gateway) buildReply(ctx context.Context, result *agent.TaskResult, execErr error) string {
 	reply := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
 	if result == nil {
 		return channels.ShapeReply7C(reply)
@@ -781,7 +782,8 @@ func (g *Gateway) buildReply(result *agent.TaskResult, execErr error) string {
 
 	thinking := extractThinkingFallback(result.Messages)
 	if thinking == "" {
-		return channels.ShapeReply7C(reply)
+		reply = channels.ShapeReply7C(reply)
+		return g.rephraseForUser(ctx, reply, rephraseForeground)
 	}
 
 	// Lark-specific fallback: if answer is empty, show thinking directly.
@@ -798,7 +800,8 @@ func (g *Gateway) buildReply(result *agent.TaskResult, execErr error) string {
 		reply = reply + "\n\n" + thinking
 	}
 
-	return channels.ShapeReply7C(reply)
+	reply = channels.ShapeReply7C(reply)
+	return g.rephraseForUser(ctx, reply, rephraseForeground)
 }
 
 func (g *Gateway) splitThinkingAndAnswer(result *agent.TaskResult, execErr error, attachmentSummary string) (thinkingReply string, answerReply string) {

@@ -266,7 +266,7 @@ func (l *backgroundProgressListener) onBackgroundDispatched(env *domain.Workflow
 	l.mu.Unlock()
 
 	// Send initial message (reply to original message when replyToID is provided).
-	text := l.buildHumanHeader(tracker, "正在后台处理中…")
+	text := l.buildHumanHeader(tracker, "后台任务处理中")
 	msgID, err := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(text))
 	if err != nil {
 		l.logger.Warn("Lark background progress initial send failed: %v", err)
@@ -505,10 +505,8 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 	messageID := t.progressMsgID
 	status := t.status
 	startedAt := t.startedAt
-	taskID := t.taskID
 	description := t.description
 	pending := t.pendingSummary
-	mergeStatus := t.mergeStatus
 	last := t.lastProgress
 	t.mu.Unlock()
 
@@ -523,48 +521,61 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 	}
 
 	var b strings.Builder
+	desc := strings.TrimSpace(description)
 
 	switch status {
 	case taskStatusWaitingInput:
-		b.WriteString("后台任务等待中\n")
-		l.writeDescription(&b, description)
-		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
-		b.WriteString("\n")
-		b.WriteString(pending)
-	case taskStatusCompleted:
-		b.WriteString("任务已完成\n")
-		l.writeDescription(&b, description)
-		b.WriteString(fmt.Sprintf("⏱ 共耗时 %s\n", formatElapsed(elapsed)))
-		if utils.HasContent(pending) {
-			rephrased := l.g.rephraseForUser(l.ctx, pending, rephraseBackground)
-			b.WriteString("\n")
-			b.WriteString(rephrased)
+		if desc != "" {
+			b.WriteString(fmt.Sprintf("「%s」需要你确认，已等待 %s", truncateForLark(desc, 80), formatElapsed(elapsed)))
+		} else {
+			b.WriteString(fmt.Sprintf("后台任务需要你确认，已等待 %s", formatElapsed(elapsed)))
 		}
-	case taskStatusFailed:
-		b.WriteString("任务出错了\n")
-		l.writeCompletionMeta(&b, taskID, status, mergeStatus)
-		l.writeDescription(&b, description)
-		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
 		if utils.HasContent(pending) {
-			b.WriteString("\n")
+			b.WriteString("\n\n")
 			b.WriteString(pending)
 		}
+	case taskStatusCompleted:
+		// Build factual block, then let LLM narrate.
+		var raw strings.Builder
+		raw.WriteString("状态：完成\n")
+		if desc != "" {
+			raw.WriteString(fmt.Sprintf("任务：%s\n", truncateForLark(desc, 120)))
+		}
+		raw.WriteString(fmt.Sprintf("耗时：%s\n", formatElapsed(elapsed)))
+		if utils.HasContent(pending) {
+			raw.WriteString(fmt.Sprintf("结果：%s\n", pending))
+		}
+		b.WriteString(l.g.rephraseForUser(l.ctx, raw.String(), rephraseBackground))
+	case taskStatusFailed:
+		// Build factual block, then let LLM narrate.
+		var raw strings.Builder
+		raw.WriteString("状态：失败\n")
+		if desc != "" {
+			raw.WriteString(fmt.Sprintf("任务：%s\n", truncateForLark(desc, 120)))
+		}
+		raw.WriteString(fmt.Sprintf("已进行：%s\n", formatElapsed(elapsed)))
+		if utils.HasContent(pending) {
+			raw.WriteString(fmt.Sprintf("原因：%s\n", pending))
+		}
+		b.WriteString(l.g.rephraseForUser(l.ctx, raw.String(), rephraseBackground))
 	case taskStatusCancelled:
-		b.WriteString("任务已取消\n")
-		l.writeCompletionMeta(&b, taskID, status, mergeStatus)
-		l.writeDescription(&b, description)
-		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
+		var raw strings.Builder
+		raw.WriteString("状态：已取消\n")
+		if desc != "" {
+			raw.WriteString(fmt.Sprintf("任务：%s\n", truncateForLark(desc, 120)))
+		}
+		raw.WriteString(fmt.Sprintf("已进行：%s\n", formatElapsed(elapsed)))
+		b.WriteString(l.g.rephraseForUser(l.ctx, raw.String(), rephraseBackground))
 	default:
-		// Running state.
-		b.WriteString("正在后台处理中…\n")
-		l.writeDescription(&b, description)
-		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
-
-		// Show current activity as a friendly phrase.
+		// Running state — updated frequently, use template directly.
+		if desc != "" {
+			b.WriteString(fmt.Sprintf("正在处理「%s」，已进行 %s", truncateForLark(desc, 80), formatElapsed(elapsed)))
+		} else {
+			b.WriteString(fmt.Sprintf("后台任务处理中，已进行 %s", formatElapsed(elapsed)))
+		}
 		if last.currentTool != "" {
 			phrase := toolPhraseForBackground(last.currentTool, int(elapsed.Seconds()))
-			b.WriteString("\n最近动态：\n")
-			b.WriteString(phrase)
+			b.WriteString(fmt.Sprintf("，目前%s", phrase))
 		}
 	}
 
@@ -585,29 +596,6 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 	_ = force // reserved for future: immediate flush paths already call flush()
 }
 
-// writeDescription writes the task description line (if non-empty).
-func (l *backgroundProgressListener) writeDescription(b *strings.Builder, description string) {
-	if desc := strings.TrimSpace(description); desc != "" {
-		b.WriteString("📋 ")
-		b.WriteString(truncateForLark(desc, 120))
-		b.WriteString("\n")
-	}
-}
-
-func (l *backgroundProgressListener) writeCompletionMeta(b *strings.Builder, taskID, status, mergeStatus string) {
-	taskID = strings.TrimSpace(taskID)
-	status = normalizeTaskStatus(status)
-	mergeStatus = normalizeMergeStatus(mergeStatus)
-	if taskID != "" {
-		b.WriteString(fmt.Sprintf("task_id: %s\n", taskID))
-	}
-	if status != "" {
-		b.WriteString(fmt.Sprintf("status: %s\n", status))
-	}
-	if mergeStatus != "" {
-		b.WriteString(fmt.Sprintf("merge: %s\n", mergeStatus))
-	}
-}
 
 // formatElapsed formats a duration into a human-friendly Chinese string.
 func formatElapsed(d time.Duration) string {
@@ -641,14 +629,11 @@ func (l *backgroundProgressListener) getTask(taskID string) *bgTaskTracker {
 
 // buildHumanHeader returns a human-friendly initial message for a background task.
 func (l *backgroundProgressListener) buildHumanHeader(t *bgTaskTracker, title string) string {
-	var b strings.Builder
-	b.WriteString(title)
-	b.WriteString("\n")
-	if desc := strings.TrimSpace(t.description); desc != "" {
-		b.WriteString("📋 ")
-		b.WriteString(truncateForLark(desc, 120))
+	desc := strings.TrimSpace(t.description)
+	if desc != "" {
+		return fmt.Sprintf("%s — %s", title, truncateForLark(desc, 100))
 	}
-	return strings.TrimRight(b.String(), "\n")
+	return title
 }
 
 func (l *backgroundProgressListener) clock() time.Time {
@@ -859,7 +844,7 @@ func (l *backgroundProgressListener) generateTeamLLMSummary(ctx context.Context,
 	}
 
 	systemPrompt := "你是后台任务汇总助手。把多个后台任务的完成结果整理成一段自然中文汇总，简洁友好。" +
-		"包含：总任务数、成功/失败数、总耗时、每个任务一句话结果。不使用 Markdown。"
+		"包含：总任务数、成功/失败数、总耗时、每个任务一句话结果。不使用 Markdown 和 emoji。"
 	userPrompt := l.buildTeamLLMPrompt(tasks)
 
 	resp, err := client.Complete(ctx, ports.CompletionRequest{
@@ -917,48 +902,39 @@ func (l *backgroundProgressListener) buildTeamSummaryFallback(tasks []completedT
 	}
 
 	var b strings.Builder
-	b.WriteString("全部后台任务已完成\n\n")
-	b.WriteString(fmt.Sprintf("共 %d 个任务", len(tasks)))
-
-	parts := make([]string, 0, 3)
-	if succeeded > 0 {
-		parts = append(parts, fmt.Sprintf("成功 %d", succeeded))
-	}
-	if failed > 0 {
-		parts = append(parts, fmt.Sprintf("失败 %d", failed))
-	}
-	if cancelled > 0 {
-		parts = append(parts, fmt.Sprintf("取消 %d", cancelled))
-	}
-	if len(parts) > 0 {
-		b.WriteString("（")
+	b.WriteString(fmt.Sprintf("分配的 %d 个后台任务全部结束了。", len(tasks)))
+	if failed == 0 && cancelled == 0 {
+		b.WriteString("全部成功完成")
+	} else {
+		parts := []string{fmt.Sprintf("%d 个成功", succeeded)}
+		if failed > 0 {
+			parts = append(parts, fmt.Sprintf("%d 个失败", failed))
+		}
+		if cancelled > 0 {
+			parts = append(parts, fmt.Sprintf("%d 个取消", cancelled))
+		}
 		b.WriteString(strings.Join(parts, "，"))
-		b.WriteString("）")
 	}
-	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("⏱ 总耗时 %s\n", formatElapsed(maxDuration(tasks))))
+	b.WriteString(fmt.Sprintf("，总耗时约 %s。\n\n", formatElapsed(maxDuration(tasks))))
 
 	for _, t := range tasks {
-		b.WriteString("\n")
-		switch t.status {
-		case taskStatusCompleted:
-			b.WriteString("✅ ")
-		case taskStatusFailed:
-			b.WriteString("❌ ")
-		case taskStatusCancelled:
-			b.WriteString("⏹ ")
-		default:
-			b.WriteString("✅ ")
-		}
 		desc := strings.TrimSpace(t.description)
 		if desc == "" {
 			desc = t.taskID
 		}
-		b.WriteString(truncateForLark(desc, 80))
-		if t.errText != "" {
-			b.WriteString(fmt.Sprintf("\n   错误：%s", truncateForLark(t.errText, 200)))
-		} else if t.answer != "" {
-			b.WriteString(fmt.Sprintf("\n   结果：%s", truncateForLark(t.answer, 200)))
+		switch t.status {
+		case taskStatusCompleted:
+			if t.answer != "" {
+				b.WriteString(fmt.Sprintf("%s：%s\n", truncateForLark(desc, 80), truncateForLark(t.answer, 100)))
+			} else {
+				b.WriteString(fmt.Sprintf("%s：已完成\n", truncateForLark(desc, 80)))
+			}
+		case taskStatusFailed:
+			b.WriteString(fmt.Sprintf("%s：失败（%s）\n", truncateForLark(desc, 80), truncateForLark(t.errText, 100)))
+		case taskStatusCancelled:
+			b.WriteString(fmt.Sprintf("%s：已取消\n", truncateForLark(desc, 80)))
+		default:
+			b.WriteString(fmt.Sprintf("%s：已完成\n", truncateForLark(desc, 80)))
 		}
 	}
 

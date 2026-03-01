@@ -93,10 +93,14 @@ func (s *Scheduler) executeTrigger(trigger Trigger) error {
 // formatResult produces a human-readable summary of the trigger execution.
 func formatResult(trigger Trigger, result *agent.TaskResult, err error) string {
 	if err != nil {
-		return fmt.Sprintf("Scheduled task '%s' failed: %v", trigger.Name, err)
+		return fmt.Sprintf("定时任务「%s」执行失败：%v", trigger.Name, err)
 	}
 	if result == nil {
-		return fmt.Sprintf("Scheduled task '%s' completed (no result).", trigger.Name)
+		return fmt.Sprintf("定时任务「%s」已完成。", trigger.Name)
 	}
-	return result.Answer
+	answer := strings.TrimSpace(result.Answer)
+	if answer == "" {
+		return fmt.Sprintf("定时任务「%s」已完成。", trigger.Name)
+	}
+	return fmt.Sprintf("定时任务「%s」完成：\n%s", trigger.Name, answer)
 }

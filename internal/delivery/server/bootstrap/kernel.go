@@ -18,16 +18,17 @@ import (
 
 type kernelNoticeLoader func() (string, bool, error)
 type kernelNoticeSender func(ctx context.Context, chatID, text string) error
+type kernelNarrator func(ctx context.Context, rawText string) (string, error)
 
-func resolveKernelNoticePipeline(f *Foundation, logger logging.Logger) (kernelNoticeLoader, kernelNoticeSender) {
+func resolveKernelNoticePipeline(f *Foundation, logger logging.Logger) (kernelNoticeLoader, kernelNoticeSender, kernelNarrator) {
 	if f == nil || f.Container == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// Prefer the live Lark gateway when available.
 	if gw := f.Container.LarkGateway; gw != nil {
 		if loader := gw.NoticeLoader(); loader != nil {
-			return loader, gw.SendNotification
+			return loader, gw.SendNotification, gw.NarrateCycleNotification
 		}
 	}
 
@@ -35,9 +36,9 @@ func resolveKernelNoticePipeline(f *Foundation, logger logging.Logger) (kernelNo
 	// file loading plus direct Lark message sending.
 	sender := newKernelDirectLarkSender(f.Config.Channels.Lark, logger)
 	if sender == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
-	return larkgw.NewNoticeStateLoader(logger), sender
+	return larkgw.NewNoticeStateLoader(logger), sender, nil
 }
 
 func newKernelDirectLarkSender(cfg LarkGatewayConfig, logger logging.Logger) kernelNoticeSender {
@@ -71,7 +72,7 @@ func (f *Foundation) KernelStage(sm *SubsystemManager) BootstrapStage {
 			}
 
 			// Wire cycle notifier via /notice binding.
-			if loader, sender := resolveKernelNoticePipeline(f, logger); loader != nil && sender != nil {
+			if loader, sender, narrator := resolveKernelNoticePipeline(f, logger); loader != nil && sender != nil {
 				kernelID := kernel.DefaultRuntimeSettings().KernelID
 				if kernelID == "" {
 					kernelID = kernel.DefaultKernelID
@@ -85,7 +86,23 @@ func (f *Foundation) KernelStage(sm *SubsystemManager) BootstrapStage {
 					if !ok {
 						return // notice not bound, skip
 					}
-					text := kernel.FormatCycleNotification(kernelID, result, err)
+
+					// Try LLM narration of the structured data, fall back to template.
+					raw := kernel.FormatCycleNotification(kernelID, result, err)
+					var narrated string
+					if narrator != nil {
+						narrated, _ = narrator(ctx, raw)
+					}
+					if narrated == "" {
+						narrated = kernel.NarrateCycleFallback(result, err)
+					}
+
+					// Append metrics line for quantitative context.
+					text := narrated
+					if metrics := kernel.FormatCycleMetrics(result); metrics != "" {
+						text = narrated + "\n" + metrics
+					}
+
 					if sendErr := sender(ctx, chatID, text); sendErr != nil {
 						logger.Warn("Kernel notifier: send failed: %v", sendErr)
 					}

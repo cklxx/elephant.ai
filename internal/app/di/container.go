@@ -34,6 +34,7 @@ import (
 type LarkGateway interface {
 	NoticeLoader() func() (string, bool, error)
 	SendNotification(ctx context.Context, chatID, text string) error
+	NarrateCycleNotification(ctx context.Context, rawText string) (string, error)
 	InjectMessageSync(ctx context.Context, req lark.InjectSyncRequest) *lark.InjectSyncResponse
 }
 

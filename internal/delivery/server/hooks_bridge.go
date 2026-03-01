@@ -339,7 +339,7 @@ func formatPreToolUse(p hookPayload) string {
 	detail := toolDetail(p.ToolName, p.ToolInput)
 	lines := []string{phrase}
 	if thinking != "" {
-		lines = append(lines, "💭 "+thinking)
+		lines = append(lines, "思路："+thinking)
 	}
 	if detail != "" {
 		lines = append(lines, detail)
@@ -350,10 +350,7 @@ func formatPreToolUse(p hookPayload) string {
 // formatStop creates a completion message.
 func formatStop(p hookPayload) string {
 	var sb strings.Builder
-	sb.WriteString("任务完成")
-	if p.StopReason != "" {
-		sb.WriteString(fmt.Sprintf(" (%s)", p.StopReason))
-	}
+	sb.WriteString("任务已完成")
 	answer := p.Answer
 	if utils.IsBlank(answer) {
 		// Some hook emitters place the final text in `output` for Stop events.
@@ -364,7 +361,7 @@ func formatStop(p hookPayload) string {
 		sb.WriteString(truncateHookText(answer, 800))
 	}
 	if p.Error != "" {
-		sb.WriteString("\n出错了: ")
+		sb.WriteString("\n出错了：")
 		sb.WriteString(truncateHookText(p.Error, 400))
 	}
 	return sb.String()
@@ -519,7 +516,7 @@ func formatToolSummary(messages []string) string {
 		return messages[0]
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("🔧 %d tool calls:\n", len(messages)))
+	sb.WriteString(fmt.Sprintf("执行了 %d 步操作：\n", len(messages)))
 	for _, m := range messages {
 		// Take first line of each message as a compact summary.
 		line := m
