@@ -623,8 +623,8 @@ func TestLeaderAgent_MultiAgentDeepResearch_E2E(t *testing.T) {
 	}
 
 	// Verify completion message.
-	if !strings.Contains(res.Content, "All 6 tasks completed.") {
-		t.Fatalf("expected 'All 6 tasks completed.' in output, got: %q", res.Content)
+	if !strings.Contains(res.Content, "6 个任务已完成") {
+		t.Fatalf("expected '6 个任务已完成' in output, got: %q", res.Content)
 	}
 
 	// Collect all task results.

@@ -487,7 +487,7 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 	if lastMsg.ChatID != "oc_chat" {
 		t.Fatalf("unexpected notifier chat_id: %s", lastMsg.ChatID)
 	}
-	if lastMsg.Content != result.Answer {
+	if !strings.Contains(lastMsg.Content, result.Answer) {
 		t.Fatalf("unexpected notifier content: %s", lastMsg.Content)
 	}
 }

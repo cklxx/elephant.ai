@@ -167,7 +167,7 @@ func TestHooksBridge_Stop(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
-	if !strings.Contains(notifier.lastMessage, "任务完成") {
+	if !strings.Contains(notifier.lastMessage, "任务已完成") {
 		t.Errorf("message should contain completion text, got: %s", notifier.lastMessage)
 	}
 	if !strings.Contains(notifier.lastMessage, "Task completed successfully.") {
@@ -190,7 +190,7 @@ func TestHooksBridge_StopFallsBackToOutput(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
-	if !strings.Contains(notifier.lastMessage, "任务完成") {
+	if !strings.Contains(notifier.lastMessage, "任务已完成") {
 		t.Errorf("message should contain completion text, got: %s", notifier.lastMessage)
 	}
 	if !strings.Contains(notifier.lastMessage, "Final output text.") {
@@ -208,7 +208,7 @@ func TestHooksBridge_StopFromNestedEventAndFinalAnswer(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
-	if !strings.Contains(notifier.lastMessage, "任务完成") {
+	if !strings.Contains(notifier.lastMessage, "任务已完成") {
 		t.Errorf("message should contain completion text, got: %s", notifier.lastMessage)
 	}
 	if !strings.Contains(notifier.lastMessage, "Done from final_answer") {
@@ -398,7 +398,7 @@ func TestHooksBridge_PreToolUseIncludesThinking(t *testing.T) {
 
 	bridge.Close(context.Background())
 
-	if !strings.Contains(notifier.lastMessage, "💭 先确认当前目录结构，再执行命令。") {
+	if !strings.Contains(notifier.lastMessage, "思路：先确认当前目录结构，再执行命令。") {
 		t.Errorf("message should contain thinking line, got: %s", notifier.lastMessage)
 	}
 	if !strings.Contains(notifier.lastMessage, "ls -la") {
@@ -457,7 +457,7 @@ func TestHooksBridge_AggregatesMultipleToolUses(t *testing.T) {
 		t.Fatalf("expected 1 aggregated send after Close, got %d", len(notifier.messages))
 	}
 	msg := notifier.lastMessage
-	if !strings.Contains(msg, "3 tool calls") {
+	if !strings.Contains(msg, "3 步操作") {
 		t.Errorf("expected '3 tool calls' in aggregated message, got: %s", msg)
 	}
 }
@@ -483,7 +483,7 @@ func TestHooksBridge_StopFlushesBuffer(t *testing.T) {
 	if len(notifier.messages) != 2 {
 		t.Fatalf("expected 2 sends (flushed tool + stop), got %d: %v", len(notifier.messages), notifier.messages)
 	}
-	if !strings.Contains(notifier.messages[1], "任务完成") {
+	if !strings.Contains(notifier.messages[1], "任务已完成") {
 		t.Errorf("second message should be stop, got: %s", notifier.messages[1])
 	}
 }

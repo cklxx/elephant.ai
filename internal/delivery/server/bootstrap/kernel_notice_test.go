@@ -30,6 +30,10 @@ func (f *fakeKernelNoticeGateway) SendNotification(_ context.Context, chatID, te
 	return nil
 }
 
+func (f *fakeKernelNoticeGateway) NarrateCycleNotification(_ context.Context, rawText string) (string, error) {
+	return "", nil
+}
+
 func (f *fakeKernelNoticeGateway) InjectMessageSync(_ context.Context, _ larkgw.InjectSyncRequest) *larkgw.InjectSyncResponse {
 	return nil
 }
@@ -53,7 +57,7 @@ func TestResolveKernelNoticePipelinePrefersGateway(t *testing.T) {
 		},
 	}
 
-	loader, sender := resolveKernelNoticePipeline(f, nil)
+	loader, sender, _ := resolveKernelNoticePipeline(f, nil)
 	if loader == nil || sender == nil {
 		t.Fatalf("resolveKernelNoticePipeline() returned nil loader/sender: loader=%v sender=%v", loader == nil, sender == nil)
 	}
@@ -89,7 +93,7 @@ func TestResolveKernelNoticePipelineFallbackDisabledWithoutCredentials(t *testin
 		},
 	}
 
-	loader, sender := resolveKernelNoticePipeline(f, nil)
+	loader, sender, _ := resolveKernelNoticePipeline(f, nil)
 	if loader != nil || sender != nil {
 		t.Fatalf("resolveKernelNoticePipeline() = (%v, %v), want (nil, nil)", loader != nil, sender != nil)
 	}
@@ -119,7 +123,7 @@ func TestResolveKernelNoticePipelineFallsBackToNoticeStateFile(t *testing.T) {
 		},
 	}
 
-	loader, sender := resolveKernelNoticePipeline(f, nil)
+	loader, sender, _ := resolveKernelNoticePipeline(f, nil)
 	if loader == nil || sender == nil {
 		t.Fatalf("resolveKernelNoticePipeline() returned nil loader/sender: loader=%v sender=%v", loader == nil, sender == nil)
 	}

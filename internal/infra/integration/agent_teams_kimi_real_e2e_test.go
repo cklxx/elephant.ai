@@ -511,7 +511,7 @@ func TestKimiReal_AgentsTeam_EndToEnd(t *testing.T) {
 
 	// --- 7. 阶段依赖 (stage ordering) ---
 	// cc_reviewer 有 [Collaboration Context] 说明 stage-1 已全部完成后才执行
-	if strings.Contains(res.Content, "All 3 tasks completed.") {
+	if strings.Contains(res.Content, "3 个任务已完成") {
 		t.Log("[PASS] 阶段依赖: stage ordering correct")
 	}
 
@@ -767,10 +767,10 @@ func TestKimiReal_DeepResearch_EndToEnd(t *testing.T) {
 
 	// --- 8. 完成消息 ---
 
-	if !strings.Contains(res.Content, "All 6 tasks completed.") {
-		t.Fatalf("expected 'All 6 tasks completed.' in output, got: %q", res.Content)
+	if !strings.Contains(res.Content, "6 个任务已完成") {
+		t.Fatalf("expected '6 个任务已完成' in output, got: %q", res.Content)
 	}
-	t.Log("[PASS] 完成消息: All 6 tasks completed")
+	t.Log("[PASS] 完成消息: 全部 6 个任务已完成")
 
 	t.Log("=== deep research E2E 全部通过 ===")
 }

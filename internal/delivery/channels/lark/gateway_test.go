@@ -140,15 +140,17 @@ func TestExtractTextContent_MentionPlaceholderFromEventMentions(t *testing.T) {
 func TestBuildReply(t *testing.T) {
 	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
 
+	ctx := context.Background()
+
 	t.Run("with error", func(t *testing.T) {
-		reply := gw.buildReply(nil, errTest)
+		reply := gw.buildReply(ctx, nil, errTest)
 		if !strings.Contains(reply, "执行失败") {
 			t.Fatalf("expected error reply, got %q", reply)
 		}
 	})
 
 	t.Run("with empty answer", func(t *testing.T) {
-		reply := gw.buildReply(nil, nil)
+		reply := gw.buildReply(ctx, nil, nil)
 		if reply != "" {
 			t.Fatalf("expected empty reply, got %q", reply)
 		}
@@ -157,7 +159,7 @@ func TestBuildReply(t *testing.T) {
 	t.Run("with prefix", func(t *testing.T) {
 		gwPrefix := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", ReplyPrefix: "[Bot] "}}, logger: logging.OrNop(nil)}
 		result := &agent.TaskResult{Answer: "hello"}
-		reply := gwPrefix.buildReply(result, nil)
+		reply := gwPrefix.buildReply(ctx, result, nil)
 		if !strings.HasPrefix(reply, "[Bot] ") {
 			t.Fatalf("expected prefixed reply, got %q", reply)
 		}
@@ -2852,6 +2854,7 @@ func (s *stubPlanReviewStore) ClearPending(_ context.Context, _, _ string) error
 
 func TestBuildReplyThinkingFallback(t *testing.T) {
 	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
+	ctx := context.Background()
 
 	t.Run("fallback to thinking when answer empty", func(t *testing.T) {
 		result := &agent.TaskResult{
@@ -2868,7 +2871,7 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 				},
 			},
 		}
-		reply := gw.buildReply(result, nil)
+		reply := gw.buildReply(ctx, result, nil)
 		if reply != "I should greet the user" {
 			t.Fatalf("expected thinking fallback, got %q", reply)
 		}
@@ -2888,7 +2891,7 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 				},
 			},
 		}
-		reply := gw.buildReply(result, nil)
+		reply := gw.buildReply(ctx, result, nil)
 		if reply != "Hello!\n\nthinking content" {
 			t.Fatalf("expected answer, got %q", reply)
 		}
@@ -2899,7 +2902,7 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 			Answer:   "",
 			Messages: []ports.Message{{Role: "assistant"}},
 		}
-		reply := gw.buildReply(result, nil)
+		reply := gw.buildReply(ctx, result, nil)
 		if reply != "" {
 			t.Fatalf("expected empty reply, got %q", reply)
 		}
@@ -2928,7 +2931,7 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 				},
 			},
 		}
-		reply := gw.buildReply(result, nil)
+		reply := gw.buildReply(ctx, result, nil)
 		if reply != "second thought" {
 			t.Fatalf("expected last assistant thinking, got %q", reply)
 		}

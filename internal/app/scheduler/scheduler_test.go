@@ -519,8 +519,8 @@ func TestScheduler_ExecuteTrigger(t *testing.T) {
 	if msg.ChatID != "oc_exec" {
 		t.Errorf("ChatID = %q, want oc_exec", msg.ChatID)
 	}
-	if msg.Content != "task result" {
-		t.Errorf("Content = %q, want 'task result'", msg.Content)
+	if !strings.Contains(msg.Content, "task result") {
+		t.Errorf("Content = %q, want containing 'task result'", msg.Content)
 	}
 }
 
@@ -626,24 +626,27 @@ func TestFormatResult_Success(t *testing.T) {
 	trigger := Trigger{Name: "test"}
 	result := &agent.TaskResult{Answer: "all good"}
 	got := formatResult(trigger, result, nil)
-	if got != "all good" {
-		t.Errorf("formatResult = %q, want 'all good'", got)
+	if !strings.Contains(got, "all good") {
+		t.Errorf("formatResult = %q, want containing 'all good'", got)
+	}
+	if !strings.Contains(got, "test") {
+		t.Errorf("formatResult = %q, want containing task name", got)
 	}
 }
 
 func TestFormatResult_Error(t *testing.T) {
 	trigger := Trigger{Name: "test"}
 	got := formatResult(trigger, nil, context.DeadlineExceeded)
-	if !strings.Contains(got, "failed") {
-		t.Errorf("expected 'failed' in output, got %q", got)
+	if !strings.Contains(got, "失败") {
+		t.Errorf("expected '失败' in output, got %q", got)
 	}
 }
 
 func TestFormatResult_NilResult(t *testing.T) {
 	trigger := Trigger{Name: "test"}
 	got := formatResult(trigger, nil, nil)
-	if !strings.Contains(got, "no result") {
-		t.Errorf("expected 'no result' in output, got %q", got)
+	if !strings.Contains(got, "已完成") {
+		t.Errorf("expected '已完成' in output, got %q", got)
 	}
 }
 

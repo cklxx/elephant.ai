@@ -74,8 +74,8 @@ func TestBackgroundProgressListener_DispatchAndTickUpdate(t *testing.T) {
 		updates := recorder.CallsByMethod("UpdateMessage")
 		if len(updates) > 0 {
 			lastContent := updates[len(updates)-1].Content
-			// New format uses friendly phrases and human-readable status.
-			if !strings.Contains(lastContent, "正在后台处理中") {
+			// Running state shows "正在处理「desc」" or "后台任务处理中".
+			if !strings.Contains(lastContent, "正在处理") && !strings.Contains(lastContent, "后台任务处理中") {
 				t.Fatalf("expected human-friendly progress header, got %q", lastContent)
 			}
 			break
@@ -121,7 +121,7 @@ func TestBackgroundProgressListener_CodeAgentUsesThreeMinuteInterval(t *testing.
 		t.Fatalf("expected 1 reply message, got %d", len(calls))
 	}
 	// Verify the initial message uses the humanized header.
-	if !strings.Contains(calls[0].Content, "正在后台处理中") {
+	if !strings.Contains(calls[0].Content, "后台任务处理中") {
 		t.Fatalf("expected humanized header for code agent, got %q", calls[0].Content)
 	}
 }
@@ -175,7 +175,7 @@ func TestBackgroundProgressListener_CompletionUpdatesImmediatelyAndStops(t *test
 	if !strings.Contains(updates[0].Content, "done") {
 		t.Fatalf("expected completion content, got %q", updates[0].Content)
 	}
-	if !strings.Contains(updates[0].Content, "任务已完成") {
+	if !strings.Contains(updates[0].Content, "完成") {
 		t.Fatalf("expected completion header, got %q", updates[0].Content)
 	}
 
@@ -233,7 +233,7 @@ func TestBackgroundProgressListener_CompletionUppercaseStatusIsNormalized(t *tes
 	if len(updates) != 1 {
 		t.Fatalf("expected 1 update message, got %d", len(updates))
 	}
-	if !strings.Contains(updates[0].Content, "任务已完成") {
+	if !strings.Contains(updates[0].Content, "完成") {
 		t.Fatalf("expected completion header, got %q", updates[0].Content)
 	}
 	if !strings.Contains(updates[0].Content, "done") {
@@ -287,11 +287,8 @@ func TestBackgroundProgressListener_CompletionNonTerminalStatusWithErrorBecomesF
 	if len(updates) != 1 {
 		t.Fatalf("expected 1 update message, got %d", len(updates))
 	}
-	if !strings.Contains(updates[0].Content, "任务出错了") {
-		t.Fatalf("expected failed header, got %q", updates[0].Content)
-	}
-	if !strings.Contains(updates[0].Content, "status: failed") {
-		t.Fatalf("expected normalized failed status in completion content, got %q", updates[0].Content)
+	if !strings.Contains(updates[0].Content, "失败") {
+		t.Fatalf("expected failed indicator, got %q", updates[0].Content)
 	}
 	if !strings.Contains(updates[0].Content, "boom") {
 		t.Fatalf("expected error content, got %q", updates[0].Content)
@@ -578,8 +575,8 @@ func TestBgProgressListener_CancelledCtxDoesNotBreakAPICalls(t *testing.T) {
 	if !strings.Contains(lastUpdate.Content, "finished after cancel") {
 		t.Fatalf("expected completion content, got %q", lastUpdate.Content)
 	}
-	if !strings.Contains(lastUpdate.Content, "任务已完成") {
-		t.Fatalf("expected completion header, got %q", lastUpdate.Content)
+	if !strings.Contains(lastUpdate.Content, "完成") {
+		t.Fatalf("expected completion indicator, got %q", lastUpdate.Content)
 	}
 }
 
@@ -759,7 +756,7 @@ func TestCompletionPollerCatchesMissedEvents(t *testing.T) {
 	for {
 		updates := recorder.CallsByMethod("UpdateMessage")
 		for _, u := range updates {
-			if strings.Contains(u.Content, "已完成") {
+			if strings.Contains(u.Content, "完成") {
 				// Success: poller delivered the completion.
 				goto done
 			}
@@ -773,12 +770,12 @@ done:
 	updates := recorder.CallsByMethod("UpdateMessage")
 	found := false
 	for _, u := range updates {
-		if strings.Contains(u.Content, "任务已完成") {
+		if strings.Contains(u.Content, "完成") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatal("expected poller completion update with '任务已完成' header")
+		t.Fatal("expected poller completion update")
 	}
 
 	// Listener should auto-close after poller delivers completion.
@@ -1019,7 +1016,7 @@ func TestTeamCompletionSummary_SentWhenMultipleTasksComplete(t *testing.T) {
 		replies := recorder.CallsByMethod("ReplyMessage")
 		found := false
 		for _, r := range replies {
-			if strings.Contains(r.Content, "全部后台任务已完成") {
+			if strings.Contains(r.Content, "全部结束") {
 				found = true
 				break
 			}
@@ -1037,7 +1034,7 @@ func TestTeamCompletionSummary_SentWhenMultipleTasksComplete(t *testing.T) {
 	replies := recorder.CallsByMethod("ReplyMessage")
 	var summaryContent string
 	for _, r := range replies {
-		if strings.Contains(r.Content, "全部后台任务已完成") {
+		if strings.Contains(r.Content, "全部结束") {
 			summaryContent = r.Content
 			break
 		}
@@ -1045,14 +1042,14 @@ func TestTeamCompletionSummary_SentWhenMultipleTasksComplete(t *testing.T) {
 	if summaryContent == "" {
 		t.Fatal("team summary message not found")
 	}
-	if !strings.Contains(summaryContent, "成功 1") {
-		t.Fatalf("expected '成功 1' in summary, got %q", summaryContent)
+	if !strings.Contains(summaryContent, "1 个成功") {
+		t.Fatalf("expected '1 个成功' in summary, got %q", summaryContent)
 	}
-	if !strings.Contains(summaryContent, "失败 1") {
-		t.Fatalf("expected '失败 1' in summary, got %q", summaryContent)
+	if !strings.Contains(summaryContent, "1 个失败") {
+		t.Fatalf("expected '1 个失败' in summary, got %q", summaryContent)
 	}
-	if !strings.Contains(summaryContent, "共 2 个任务") {
-		t.Fatalf("expected '共 2 个任务' in summary, got %q", summaryContent)
+	if !strings.Contains(summaryContent, "2 个后台任务") {
+		t.Fatalf("expected '2 个后台任务' in summary, got %q", summaryContent)
 	}
 }
 
@@ -1105,7 +1102,7 @@ func TestTeamCompletionSummary_SkippedForSingleTask(t *testing.T) {
 
 	replies := recorder.CallsByMethod("ReplyMessage")
 	for _, r := range replies {
-		if strings.Contains(r.Content, "全部后台任务已完成") {
+		if strings.Contains(r.Content, "全部结束") {
 			t.Fatalf("team summary should not be sent for single task, got %q", r.Content)
 		}
 	}
@@ -1167,7 +1164,7 @@ func TestTeamCompletionSummary_SkippedWhenDisabled(t *testing.T) {
 
 	replies := recorder.CallsByMethod("ReplyMessage")
 	for _, r := range replies {
-		if strings.Contains(r.Content, "全部后台任务已完成") {
+		if strings.Contains(r.Content, "全部结束") {
 			t.Fatal("team summary should not be sent when disabled")
 		}
 	}
@@ -1188,26 +1185,23 @@ func TestTeamCompletionSummary_FallbackFormat(t *testing.T) {
 
 	summary := ln.buildTeamSummaryFallback(tasks)
 
-	if !strings.Contains(summary, "全部后台任务已完成") {
+	if !strings.Contains(summary, "3 个后台任务全部结束") {
 		t.Fatalf("expected header in fallback, got %q", summary)
 	}
-	if !strings.Contains(summary, "共 3 个任务") {
-		t.Fatalf("expected task count, got %q", summary)
-	}
-	if !strings.Contains(summary, "成功 2") {
+	if !strings.Contains(summary, "2 个成功") {
 		t.Fatalf("expected success count, got %q", summary)
 	}
-	if !strings.Contains(summary, "失败 1") {
+	if !strings.Contains(summary, "1 个失败") {
 		t.Fatalf("expected failure count, got %q", summary)
 	}
 	if !strings.Contains(summary, "5 分钟") {
 		t.Fatalf("expected max duration (5 min), got %q", summary)
 	}
-	if !strings.Contains(summary, "✅ Research task A") {
-		t.Fatalf("expected completed task marker, got %q", summary)
+	if !strings.Contains(summary, "Research task A") {
+		t.Fatalf("expected completed task description, got %q", summary)
 	}
-	if !strings.Contains(summary, "❌ Coding task B") {
-		t.Fatalf("expected failed task marker, got %q", summary)
+	if !strings.Contains(summary, "Coding task B") {
+		t.Fatalf("expected failed task description, got %q", summary)
 	}
 	if !strings.Contains(summary, "Build failed") {
 		t.Fatalf("expected error text, got %q", summary)

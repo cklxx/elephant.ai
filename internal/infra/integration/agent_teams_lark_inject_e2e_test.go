@@ -243,7 +243,7 @@ func TestLarkInject_TeamHappyPath(t *testing.T) {
 
 	calls := waitForReply(t, rec, 30*time.Second)
 	replyContent := calls[0].Content
-	if !strings.Contains(replyContent, "completed") && !strings.Contains(replyContent, "All 3 tasks completed") {
+	if !strings.Contains(replyContent, "completed") && !strings.Contains(replyContent, "已完成") {
 		t.Fatalf("reply missing completion marker: %q", replyContent)
 	}
 
@@ -350,7 +350,7 @@ func TestLarkInject_MultiStageTeam(t *testing.T) {
 
 	calls := waitForReply(t, rec, 60*time.Second)
 	replyContent := calls[0].Content
-	if !strings.Contains(replyContent, "All 4 tasks completed") {
+	if !strings.Contains(replyContent, "4 个任务已完成") {
 		t.Fatalf("reply missing completion: %q", replyContent)
 	}
 
@@ -469,7 +469,7 @@ func TestLarkInject_MixedAgentTypes(t *testing.T) {
 
 	calls := waitForReply(t, rec, 30*time.Second)
 	replyContent := calls[0].Content
-	if !strings.Contains(replyContent, "All 3 tasks completed") {
+	if !strings.Contains(replyContent, "3 个任务已完成") {
 		t.Fatalf("reply missing completion: %q", replyContent)
 	}
 

@@ -128,7 +128,7 @@ func TestAgentTeamsKimiInjectE2E_ParallelTemplate(t *testing.T) {
 	if res.Error != nil {
 		t.Fatalf("run_tasks tool error: %v, content=%s", res.Error, res.Content)
 	}
-	if !strings.Contains(res.Content, "All 3 tasks completed.") {
+	if !strings.Contains(res.Content, "3 个任务已完成") {
 		t.Fatalf("unexpected run_tasks content: %q", res.Content)
 	}
 	if !strings.Contains(res.Content, "team-"+teamName) {

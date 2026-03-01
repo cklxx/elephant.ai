@@ -170,7 +170,7 @@ func TestTeamsLifecycle_DeepChain4Stage(t *testing.T) {
 	}
 
 	// --- Assert: completion message ---
-	if !strings.Contains(res.Content, "All 6 tasks completed.") {
+	if !strings.Contains(res.Content, "6 个任务已完成") {
 		t.Errorf("unexpected completion: %q", res.Content)
 	}
 

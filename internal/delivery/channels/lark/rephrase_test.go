@@ -266,13 +266,10 @@ func TestBackgroundCompletion_NoTechnicalFields(t *testing.T) {
 		t.Fatalf("completion message should not contain task_id, got %q", text)
 	}
 	if strings.Contains(text, "status:") {
-		t.Fatalf("completion message should not contain status:, got %q", text)
+		t.Fatalf("completion message should not contain status: field, got %q", text)
 	}
 	if strings.Contains(text, "merge:") {
 		t.Fatalf("completion message should not contain merge:, got %q", text)
-	}
-	if !strings.Contains(text, "任务已完成") {
-		t.Fatalf("expected '任务已完成' header, got %q", text)
 	}
 	if !strings.Contains(text, "已完成数据库优化") {
 		t.Fatalf("expected rephrased content, got %q", text)

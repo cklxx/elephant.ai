@@ -46,7 +46,7 @@ func TestRunTask_BackgroundCompletionNotifiedAfterForegroundReturn(t *testing.T)
 	}
 	foundProgressSend := false
 	for _, call := range sendCalls {
-		if call.ChatID == "oc_bg_notify" && strings.Contains(call.Content, "正在后台处理中") {
+		if call.ChatID == "oc_bg_notify" && strings.Contains(call.Content, "后台任务处理中") {
 			foundProgressSend = true
 			break
 		}
@@ -59,7 +59,7 @@ func TestRunTask_BackgroundCompletionNotifiedAfterForegroundReturn(t *testing.T)
 	for {
 		updates := rec.CallsByMethod("UpdateMessage")
 		for _, call := range updates {
-			if strings.Contains(call.Content, "任务已完成") && strings.Contains(call.Content, "coding agent finished") {
+			if strings.Contains(call.Content, "coding agent finished") {
 				return
 			}
 		}
