@@ -535,7 +535,7 @@ func TestLeaderAgent_MultiAgentDeepResearch_E2E(t *testing.T) {
 		Timeout:            30 * time.Second,
 		Env: map[string]string{
 			"FAKE_KIMI_MARKER":        "FAKE_KIMI_OK",
-			"FAKE_KIMI_SLEEP_SECONDS": "0.3",
+			"FAKE_KIMI_SLEEP_SECONDS": "2",
 		},
 	}, process.NewController())
 	ccBridge := bridge.New(bridge.BridgeConfig{
@@ -738,7 +738,7 @@ func TestLeaderAgent_FailurePropagation_E2E(t *testing.T) {
 		Timeout:            30 * time.Second,
 		Env: map[string]string{
 			"FAKE_KIMI_MARKER":        "FAKE_KIMI_OK",
-			"FAKE_KIMI_SLEEP_SECONDS": "0.2",
+			"FAKE_KIMI_SLEEP_SECONDS": "2",
 		},
 	}, process.NewController())
 	failBridge := bridge.New(bridge.BridgeConfig{
@@ -885,7 +885,7 @@ func TestLeaderAgent_ScoredRubric_E2E(t *testing.T) {
 		Timeout:            30 * time.Second,
 		Env: map[string]string{
 			"FAKE_KIMI_MARKER":        "FAKE_KIMI_OK",
-			"FAKE_KIMI_SLEEP_SECONDS": "0.3",
+			"FAKE_KIMI_SLEEP_SECONDS": "2",
 		},
 	}, process.NewController())
 	ccBridge := bridge.New(bridge.BridgeConfig{

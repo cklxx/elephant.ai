@@ -61,7 +61,7 @@ func TestMsgInject_3StageChain(t *testing.T) {
 
 	kimiBridge := newFakeBridge(t, env, "kimi", fakeKimi, map[string]string{
 		"FAKE_KIMI_MARKER":        "ALPHA_KIMI",
-		"FAKE_KIMI_SLEEP_SECONDS": "0.3",
+		"FAKE_KIMI_SLEEP_SECONDS": "2",
 	})
 	codexBridge := newFakeBridge(t, env, "codex", fakeCodex, map[string]string{
 		"FAKE_CODEX_MARKER":        "BETA_CODEX",
@@ -442,7 +442,7 @@ func TestMsgInject_DependencyFailure(t *testing.T) {
 
 	kimiBridge := newFakeBridge(t, env, "kimi", fakeKimi, map[string]string{
 		"FAKE_KIMI_MARKER":        "DEP_OK",
-		"FAKE_KIMI_SLEEP_SECONDS": "0.2",
+		"FAKE_KIMI_SLEEP_SECONDS": "2",
 	})
 	failBridge := newFakeBridge(t, env, "codex", failCLI, nil)
 
@@ -601,7 +601,7 @@ func TestMsgInject_ParallelThroughput(t *testing.T) {
 
 	kimiBridge := newFakeBridge(t, env, "kimi", fakeKimi, map[string]string{
 		"FAKE_KIMI_MARKER":        "PARALLEL_OK",
-		"FAKE_KIMI_SLEEP_SECONDS": "0.4",
+		"FAKE_KIMI_SLEEP_SECONDS": "2",
 	})
 	recorder := newRecordingExternalExecutor(kimiBridge)
 

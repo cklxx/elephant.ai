@@ -204,7 +204,7 @@ func TestLarkInject_TeamHappyPath(t *testing.T) {
 		Timeout:            30 * time.Second,
 		Env: map[string]string{
 			"FAKE_KIMI_MARKER":        "KIMI_LARK_OK",
-			"FAKE_KIMI_SLEEP_SECONDS": "0.3",
+			"FAKE_KIMI_SLEEP_SECONDS": "2",
 		},
 	}, process.NewController()))
 
@@ -303,7 +303,7 @@ func TestLarkInject_MultiStageTeam(t *testing.T) {
 		Timeout:            30 * time.Second,
 		Env: map[string]string{
 			"FAKE_KIMI_MARKER":        "STAGE_KIMI_OK",
-			"FAKE_KIMI_SLEEP_SECONDS": "0.3",
+			"FAKE_KIMI_SLEEP_SECONDS": "2",
 		},
 	}, process.NewController())
 	extRecorder := newRecordingExternalExecutor(kimiBridge)
@@ -418,7 +418,7 @@ func TestLarkInject_MixedAgentTypes(t *testing.T) {
 		AgentType: "kimi", Binary: fakeKimi, PythonBinary: pythonBin, BridgeScript: bridgeScript,
 		ApprovalPolicy: "never", Sandbox: "read-only", PlanApprovalPolicy: "never", PlanSandbox: "read-only",
 		Timeout: 30 * time.Second,
-		Env:     map[string]string{"FAKE_KIMI_MARKER": "MIX_KIMI", "FAKE_KIMI_SLEEP_SECONDS": "0.3"},
+		Env:     map[string]string{"FAKE_KIMI_MARKER": "MIX_KIMI", "FAKE_KIMI_SLEEP_SECONDS": "2"},
 	}, process.NewController())
 	codexBridge := bridge.New(bridge.BridgeConfig{
 		AgentType: "codex", Binary: fakeCodex, PythonBinary: pythonBin, BridgeScript: bridgeScript,
@@ -530,7 +530,7 @@ func TestLarkInject_PartialFailure(t *testing.T) {
 		AgentType: "kimi", Binary: fakeKimi, PythonBinary: pythonBin, BridgeScript: bridgeScript,
 		ApprovalPolicy: "never", Sandbox: "read-only", PlanApprovalPolicy: "never", PlanSandbox: "read-only",
 		Timeout: 30 * time.Second,
-		Env:     map[string]string{"FAKE_KIMI_MARKER": "PARTIAL_OK", "FAKE_KIMI_SLEEP_SECONDS": "0.2"},
+		Env:     map[string]string{"FAKE_KIMI_MARKER": "PARTIAL_OK", "FAKE_KIMI_SLEEP_SECONDS": "2"},
 	}, process.NewController())
 	failBridge := bridge.New(bridge.BridgeConfig{
 		AgentType: "codex", Binary: failingCLI, PythonBinary: pythonBin, BridgeScript: bridgeScript,
@@ -645,7 +645,7 @@ func TestLarkInject_StatusFile(t *testing.T) {
 		AgentType: "kimi", Binary: fakeKimi, PythonBinary: pythonBin, BridgeScript: bridgeScript,
 		ApprovalPolicy: "never", Sandbox: "read-only", PlanApprovalPolicy: "never", PlanSandbox: "read-only",
 		Timeout: 30 * time.Second,
-		Env:     map[string]string{"FAKE_KIMI_MARKER": "STATUS_OK", "FAKE_KIMI_SLEEP_SECONDS": "0.25"},
+		Env:     map[string]string{"FAKE_KIMI_MARKER": "STATUS_OK", "FAKE_KIMI_SLEEP_SECONDS": "2"},
 	}, process.NewController())
 
 	teamName := "status_file_lark"
@@ -737,7 +737,7 @@ func TestLarkInject_TeamRunRecorder(t *testing.T) {
 		AgentType: "kimi", Binary: fakeKimi, PythonBinary: pythonBin, BridgeScript: bridgeScript,
 		ApprovalPolicy: "never", Sandbox: "read-only", PlanApprovalPolicy: "never", PlanSandbox: "read-only",
 		Timeout: 30 * time.Second,
-		Env:     map[string]string{"FAKE_KIMI_MARKER": "REC_OK", "FAKE_KIMI_SLEEP_SECONDS": "0.25"},
+		Env:     map[string]string{"FAKE_KIMI_MARKER": "REC_OK", "FAKE_KIMI_SLEEP_SECONDS": "2"},
 	}, process.NewController())
 
 	teamName := "recorder_lark"

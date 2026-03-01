@@ -64,7 +64,7 @@ func TestTeamsLifecycle_DeepChain4Stage(t *testing.T) {
 
 	kimiBridge := newFakeBridge(t, env, "kimi", fakeKimi, map[string]string{
 		"FAKE_KIMI_MARKER":        "SCOUT_KIMI_OK",
-		"FAKE_KIMI_SLEEP_SECONDS": "0.2",
+		"FAKE_KIMI_SLEEP_SECONDS": "2",
 	})
 	codexBridge := newFakeBridge(t, env, "codex", fakeCodex, map[string]string{
 		"FAKE_CODEX_MARKER":        "SCOUT_CODEX_OK",
@@ -262,7 +262,7 @@ func TestTeamsLifecycle_ProcessCreationAndCleanup(t *testing.T) {
 		Timeout:            30 * time.Second,
 		Env: map[string]string{
 			"FAKE_KIMI_MARKER":        "PROC_LIFECYCLE_OK",
-			"FAKE_KIMI_SLEEP_SECONDS": "0.5",
+			"FAKE_KIMI_SLEEP_SECONDS": "2",
 		},
 	}, ctrl)
 
@@ -473,7 +473,7 @@ func TestTeamsLifecycle_StageTiming(t *testing.T) {
 
 	kimiBridge := newFakeBridge(t, env, "kimi", fakeKimi, map[string]string{
 		"FAKE_KIMI_MARKER":        "TIMING_OK",
-		"FAKE_KIMI_SLEEP_SECONDS": "0.5",
+		"FAKE_KIMI_SLEEP_SECONDS": "2",
 	})
 	recorder := newRecordingExternalExecutor(kimiBridge)
 
@@ -580,7 +580,7 @@ func TestTeamsLifecycle_PartialFailure(t *testing.T) {
 
 	kimiBridge := newFakeBridge(t, env, "kimi", fakeKimi, map[string]string{
 		"FAKE_KIMI_MARKER":        "PARTIAL_OK",
-		"FAKE_KIMI_SLEEP_SECONDS": "0.2",
+		"FAKE_KIMI_SLEEP_SECONDS": "2",
 	})
 	failBridge := newFakeBridge(t, env, "codex", failingCLI, nil)
 
@@ -685,7 +685,7 @@ func TestTeamsLifecycle_ConfigDispatch(t *testing.T) {
 
 	kimiBridge := newFakeBridge(t, env, "kimi", fakeKimi, map[string]string{
 		"FAKE_KIMI_MARKER":        "CONFIG_OK",
-		"FAKE_KIMI_SLEEP_SECONDS": "0.15",
+		"FAKE_KIMI_SLEEP_SECONDS": "2",
 	})
 	recorder := newRecordingExternalExecutor(kimiBridge)
 
