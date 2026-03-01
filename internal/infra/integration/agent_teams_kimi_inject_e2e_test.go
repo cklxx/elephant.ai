@@ -47,7 +47,7 @@ func TestAgentTeamsKimiInjectE2E_ParallelTemplate(t *testing.T) {
 		Timeout:            30 * time.Second,
 		Env: map[string]string{
 			"FAKE_KIMI_MARKER":        "FAKE_KIMI_OK",
-			"FAKE_KIMI_SLEEP_SECONDS": "0.35",
+			"FAKE_KIMI_SLEEP_SECONDS": "2",
 		},
 	}, process.NewController()))
 
