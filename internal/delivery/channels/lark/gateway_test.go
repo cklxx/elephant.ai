@@ -2852,11 +2852,11 @@ func (s *stubPlanReviewStore) ClearPending(_ context.Context, _, _ string) error
 	return s.err
 }
 
-func TestBuildReplyThinkingFallback(t *testing.T) {
+func TestBuildReplyThinkingNotLeaked(t *testing.T) {
 	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
 	ctx := context.Background()
 
-	t.Run("fallback to thinking when answer empty", func(t *testing.T) {
+	t.Run("thinking not leaked when answer empty", func(t *testing.T) {
 		result := &agent.TaskResult{
 			Answer: "",
 			Messages: []ports.Message{
@@ -2872,12 +2872,12 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 			},
 		}
 		reply := gw.buildReply(ctx, result, nil)
-		if reply != "I should greet the user" {
-			t.Fatalf("expected thinking fallback, got %q", reply)
+		if reply != "" {
+			t.Fatalf("expected empty reply (thinking must not leak), got %q", reply)
 		}
 	})
 
-	t.Run("append thinking when answer present", func(t *testing.T) {
+	t.Run("thinking not appended when answer present", func(t *testing.T) {
 		result := &agent.TaskResult{
 			Answer: "Hello!",
 			Messages: []ports.Message{
@@ -2892,8 +2892,8 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 			},
 		}
 		reply := gw.buildReply(ctx, result, nil)
-		if reply != "Hello!\n\nthinking content" {
-			t.Fatalf("expected answer, got %q", reply)
+		if reply != "Hello!" {
+			t.Fatalf("expected answer only without thinking, got %q", reply)
 		}
 	})
 
@@ -2908,7 +2908,7 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 		}
 	})
 
-	t.Run("last assistant message thinking used", func(t *testing.T) {
+	t.Run("thinking not leaked in multi-turn", func(t *testing.T) {
 		result := &agent.TaskResult{
 			Answer: "",
 			Messages: []ports.Message{
@@ -2932,94 +2932,8 @@ func TestBuildReplyThinkingFallback(t *testing.T) {
 			},
 		}
 		reply := gw.buildReply(ctx, result, nil)
-		if reply != "second thought" {
-			t.Fatalf("expected last assistant thinking, got %q", reply)
-		}
-	})
-}
-
-func TestSplitThinkingAndAnswer(t *testing.T) {
-	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
-
-	t.Run("split when both answer and thinking exist", func(t *testing.T) {
-		result := &agent.TaskResult{
-			Answer: "final",
-			Messages: []ports.Message{
-				{
-					Role: "assistant",
-					Thinking: ports.Thinking{
-						Parts: []ports.ThinkingPart{{Kind: "reasoning", Text: "thinking content"}},
-					},
-				},
-			},
-		}
-		thinking, answer := gw.splitThinkingAndAnswer(result, nil, "attachment summary")
-		if thinking != "thinking content" {
-			t.Fatalf("expected thinking content, got %q", thinking)
-		}
-		if answer != "final\n\nattachment summary" {
-			t.Fatalf("expected answer with summary, got %q", answer)
-		}
-	})
-
-	t.Run("no split when answer missing", func(t *testing.T) {
-		result := &agent.TaskResult{
-			Answer: "",
-			Messages: []ports.Message{
-				{
-					Role: "assistant",
-					Thinking: ports.Thinking{
-						Parts: []ports.ThinkingPart{{Kind: "reasoning", Text: "only thinking"}},
-					},
-				},
-			},
-		}
-		thinking, answer := gw.splitThinkingAndAnswer(result, nil, "")
-		if thinking != "" || answer != "" {
-			t.Fatalf("expected no split output, got thinking=%q answer=%q", thinking, answer)
-		}
-	})
-
-	t.Run("no split on execution error", func(t *testing.T) {
-		result := &agent.TaskResult{
-			Answer: "final",
-			Messages: []ports.Message{
-				{
-					Role: "assistant",
-					Thinking: ports.Thinking{
-						Parts: []ports.ThinkingPart{{Kind: "reasoning", Text: "thinking content"}},
-					},
-				},
-			},
-		}
-		thinking, answer := gw.splitThinkingAndAnswer(result, fmt.Errorf("boom"), "")
-		if thinking != "" || answer != "" {
-			t.Fatalf("expected no split output on error, got thinking=%q answer=%q", thinking, answer)
-		}
-	})
-}
-
-func TestExtractThinkingFallback(t *testing.T) {
-	t.Run("nil messages", func(t *testing.T) {
-		if got := extractThinkingFallback(nil); got != "" {
-			t.Fatalf("expected empty, got %q", got)
-		}
-	})
-
-	t.Run("no assistant messages", func(t *testing.T) {
-		msgs := []ports.Message{{Role: "user", Content: "hi"}}
-		if got := extractThinkingFallback(msgs); got != "" {
-			t.Fatalf("expected empty, got %q", got)
-		}
-	})
-
-	t.Run("assistant with empty thinking", func(t *testing.T) {
-		msgs := []ports.Message{{
-			Role:     "assistant",
-			Thinking: ports.Thinking{Parts: []ports.ThinkingPart{{Text: "  "}}},
-		}}
-		if got := extractThinkingFallback(msgs); got != "" {
-			t.Fatalf("expected empty for whitespace-only thinking, got %q", got)
+		if reply != "" {
+			t.Fatalf("expected empty reply (thinking must not leak), got %q", reply)
 		}
 	})
 }

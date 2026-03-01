@@ -165,7 +165,7 @@ func TestInjectMessageSyncAppliesToolMessageHeuristic(t *testing.T) {
 	}
 }
 
-func TestInjectMessageSyncIncludesThinkingFallback(t *testing.T) {
+func TestInjectMessageSyncThinkingNotLeaked(t *testing.T) {
 	rec := NewRecordingMessenger()
 	executor := &capturingExecutor{
 		result: &agent.TaskResult{
@@ -198,29 +198,24 @@ func TestInjectMessageSyncIncludesThinkingFallback(t *testing.T) {
 		t.Fatalf("unexpected error: %s", resp.Error)
 	}
 
-	var thinkingFound bool
-	var answerFound bool
-	textReplies := 0
 	for _, r := range resp.Replies {
 		if r.MsgType != "text" {
 			continue
 		}
-		textReplies++
 		if strings.Contains(r.Content, "thinking details") {
-			thinkingFound = true
-		}
-		if strings.Contains(r.Content, "final answer") {
-			answerFound = true
+			t.Fatalf("thinking content must not leak to user replies, got %#v", resp.Replies)
 		}
 	}
-	if !thinkingFound {
-		t.Fatalf("expected thinking details in replies, got %#v", resp.Replies)
+
+	var answerFound bool
+	for _, r := range resp.Replies {
+		if r.MsgType == "text" && strings.Contains(r.Content, "final answer") {
+			answerFound = true
+			break
+		}
 	}
 	if !answerFound {
 		t.Fatalf("expected final answer in replies, got %#v", resp.Replies)
-	}
-	if textReplies < 2 {
-		t.Fatalf("expected at least 2 text replies (thinking + answer), got %d (%#v)", textReplies, resp.Replies)
 	}
 }
 

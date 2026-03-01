@@ -10,7 +10,6 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/workdir"
 	"alex/internal/delivery/channels"
-	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	builtinshared "alex/internal/infra/tools/builtin/shared"
@@ -610,25 +609,6 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	}
 
 	if !skipReply {
-		thinkingReply, answerReply := g.splitThinkingAndAnswer(result, execErr, attachmentSummary)
-		if !isAwait && thinkingReply != "" && answerReply != "" {
-			edited := false
-			if progressMsgID != "" {
-				if err := g.updateMessage(execCtx, progressMsgID, thinkingReply); err != nil {
-					g.logger.Warn("Lark progress→thinking edit failed, falling back to new message: %v", err)
-				} else {
-					edited = true
-				}
-			}
-			if !edited {
-				g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(thinkingReply))
-			}
-			answerType, answerContent := smartContent(answerReply)
-			g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), answerType, answerContent)
-			g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
-			return
-		}
-
 		// When a progress message exists, edit it into the final reply
 		// so the user sees a single message that transitions from
 		// "在思考…" → final answer, rather than two separate messages.
@@ -779,61 +759,6 @@ func (g *Gateway) buildReply(ctx context.Context, result *agent.TaskResult, exec
 	if result == nil {
 		return channels.ShapeReply7C(reply)
 	}
-
-	thinking := extractThinkingFallback(result.Messages)
-	if thinking == "" {
-		reply = channels.ShapeReply7C(reply)
-		return g.rephraseForUser(ctx, reply, rephraseForeground)
-	}
-
-	// Lark-specific fallback: if answer is empty, show thinking directly.
-	if reply == "" {
-		reply = thinking
-		if g.cfg.ReplyPrefix != "" {
-			reply = g.cfg.ReplyPrefix + reply
-		}
-		return channels.ShapeReply7C(reply)
-	}
-
-	// When answer exists, append thinking for step-by-step visibility.
-	if execErr == nil && !strings.Contains(reply, thinking) {
-		reply = reply + "\n\n" + thinking
-	}
-
 	reply = channels.ShapeReply7C(reply)
 	return g.rephraseForUser(ctx, reply, rephraseForeground)
-}
-
-func (g *Gateway) splitThinkingAndAnswer(result *agent.TaskResult, execErr error, attachmentSummary string) (thinkingReply string, answerReply string) {
-	if result == nil || execErr != nil {
-		return "", ""
-	}
-	thinking := channels.ShapeReply7C(extractThinkingFallback(result.Messages))
-	answer := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
-	if thinking == "" || answer == "" {
-		return "", ""
-	}
-	if attachmentSummary != "" {
-		answer += "\n\n" + attachmentSummary
-	}
-	return thinking, answer
-}
-
-// extractThinkingFallback scans messages in reverse for the last assistant
-// message with non-empty thinking content. This is a safety net for models
-// that reason but produce no text output.
-func extractThinkingFallback(msgs []ports.Message) string {
-	for i := len(msgs) - 1; i >= 0; i-- {
-		msg := msgs[i]
-		if msg.Role != "assistant" {
-			continue
-		}
-		for _, part := range msg.Thinking.Parts {
-			text := strings.TrimSpace(part.Text)
-			if text != "" {
-				return text
-			}
-		}
-	}
-	return ""
 }
