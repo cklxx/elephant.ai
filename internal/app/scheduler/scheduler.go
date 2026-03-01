@@ -58,7 +58,6 @@ type Scheduler struct {
 	stopped        chan struct{}
 	stopOnce       sync.Once
 	lockHeld       bool
-	runtimeCtx     context.Context
 }
 
 // New creates a new Scheduler.
