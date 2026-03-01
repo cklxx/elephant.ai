@@ -55,6 +55,10 @@ func TestScoreResultsAndFallback(t *testing.T) {
 }
 
 func TestBuildBatchConfigAppliesDefaultsAndOverrides(t *testing.T) {
+	// Blank out real API key env vars so LLM profile validation doesn't fail when
+	// OPENAI_API_KEY carries a kimi-prefixed key but OPENAI_BASE_URL is api.openai.com.
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("LLM_API_KEY", "")
 	outputDir := t.TempDir()
 	em := NewEvaluationManager(&EvaluationConfig{OutputDir: outputDir})
 

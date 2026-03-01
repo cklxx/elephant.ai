@@ -1,0 +1,20 @@
+plan_id: ""
+updated_at: 2026-03-01T15:12:32.026549+08:00
+tasks:
+    - id: research-recovery
+      description: Diagnose and recover research-executor from last cycle failure
+      status: failed
+      error: 'task execution failed: think step failed: LLM call failed: [openai/kimi-for-coding] Request rejected (HTTP 400): {"error":{"message":"thinking is enabled but reasoning_content is missing in assistant tool call message at index 4","type":"invalid_request_error"}} Streaming request failed after 0s.'
+      elapsed: 1m33s
+    - id: audit-recovery
+      description: Diagnose and recover audit-executor from last cycle failure
+      status: running
+      elapsed: 6s
+    - id: pilot-outreach-followup
+      description: Check pilot_top2_outreach status and advance to next step
+      status: running
+      elapsed: 5s
+    - id: kernel-health-verify
+      description: Run targeted tests to confirm resilience patch holds
+      status: running
+      elapsed: 3s

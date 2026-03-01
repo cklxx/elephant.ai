@@ -833,7 +833,16 @@ func (e *Engine) runCycleWithLogging(ctx context.Context) {
 	e.wg.Add(1)
 	defer e.wg.Done()
 
-	result, cycleErr := e.RunCycle(ctx)
+	// Use an independent cycle context so a process shutdown signal (SIGTERM)
+	// does not immediately cancel in-flight agent dispatches.  The ceiling
+	// timeout is generous (cycle timeout + 30 s buffer) and is enforced by the
+	// per-dispatch timeout inside CoordinatorExecutor anyway.
+	const cycleTimeoutBuffer = 30 * time.Second
+	cycleTimeout := time.Duration(DefaultKernelTimeoutSeconds)*time.Second + cycleTimeoutBuffer
+	cycleCtx, cycleCancel := context.WithTimeout(context.Background(), cycleTimeout)
+	defer cycleCancel()
+
+	result, cycleErr := e.RunCycle(cycleCtx)
 
 	// Track cycle completion time regardless of outcome.
 	now := time.Now().UnixNano()

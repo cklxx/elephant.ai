@@ -3,6 +3,10 @@ package swe_bench
 import "testing"
 
 func TestConfigManagerEnvOverrides(t *testing.T) {
+	// Blank out any real API key env vars that would cause LLM profile validation to
+	// fail when OPENAI_API_KEY looks like a kimi key but OPENAI_BASE_URL is unset.
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("LLM_API_KEY", "")
 	t.Setenv("NUM_WORKERS", "7")
 	t.Setenv("OUTPUT_PATH", "/tmp/results")
 	t.Setenv("DATASET_TYPE", "swe_bench")
