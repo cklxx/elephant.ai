@@ -75,19 +75,21 @@ func (b *ExecBackend) startAttached(ctx context.Context, cfg ProcessConfig) (Pip
 		done:       make(chan struct{}),
 	}
 
+	stderrDone := make(chan struct{})
 	go func() {
+		if stderr != nil {
+			_, _ = io.Copy(h.stderrTail, stderr)
+		}
+		close(stderrDone)
+	}()
+
+	go func() {
+		<-stderrDone
 		err := cmd.Wait()
 		h.mu.Lock()
 		h.err = err
 		close(h.done)
 		h.mu.Unlock()
-	}()
-
-	go func() {
-		if stderr == nil {
-			return
-		}
-		_, _ = io.Copy(h.stderrTail, stderr)
 	}()
 
 	if cfg.Timeout > 0 {
@@ -162,20 +164,22 @@ func (b *ExecBackend) startDetached(ctx context.Context, cfg ProcessConfig) (Pip
 		writeStatusFile(cfg.StatusFile, cmd.Process.Pid)
 	}
 
+	stderrDone := make(chan struct{})
 	go func() {
+		if stderrPipe != nil {
+			_, _ = io.Copy(h.stderrTail, stderrPipe)
+		}
+		close(stderrDone)
+	}()
+
+	go func() {
+		<-stderrDone
 		err := cmd.Wait()
 		outFile.Close()
 		h.mu.Lock()
 		h.err = err
 		close(h.done)
 		h.mu.Unlock()
-	}()
-
-	go func() {
-		if stderrPipe == nil {
-			return
-		}
-		_, _ = io.Copy(h.stderrTail, stderrPipe)
 	}()
 
 	if cfg.Timeout > 0 {
