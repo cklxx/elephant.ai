@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +43,28 @@ func Lookup(modelID string) (ModelInfo, bool) {
 // ProviderModels returns all known model IDs for provider from the default registry.
 func ProviderModels(provider string) []string {
 	return Default.ProviderModels(provider)
+}
+
+// WaitUntilReady blocks until the default registry has data or timeout elapses.
+// Returns true if data is available. Useful for warm-up in catalog loading or tests.
+func WaitUntilReady(timeout time.Duration) bool {
+	return Default.WaitUntilReady(timeout)
+}
+
+// WaitUntilReady blocks until the registry has data or timeout elapses.
+func (r *Registry) WaitUntilReady(timeout time.Duration) bool {
+	r.triggerLoad()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		r.mu.RLock()
+		ready := len(r.data) > 0
+		r.mu.RUnlock()
+		if ready {
+			return true
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return false
 }
 
 // Lookup returns ModelInfo for the given model ID.
@@ -171,22 +194,33 @@ func fetchFromAPI(ctx context.Context, client *http.Client) (map[string]ModelInf
 	data := make(map[string]ModelInfo, len(raw)*20)
 	byProvider := make(map[string][]string, len(raw))
 
-	for providerID, pPayload := range raw {
+	// Sort provider IDs for deterministic bare-key assignment.
+	// Canonical providers (e.g., "anthropic", "openai") sort before resellers
+	// (e.g., "openrouter"), so their data wins for ambiguous bare model IDs.
+	providerIDs := make([]string, 0, len(raw))
+	for providerID := range raw {
+		providerIDs = append(providerIDs, providerID)
+	}
+	sort.Strings(providerIDs)
+
+	for _, providerID := range providerIDs {
+		pPayload := raw[providerID]
 		pid := strings.ToLower(strings.TrimSpace(providerID))
 		for modelID, mData := range pPayload.Models {
 			info := ModelInfo{
 				ID:             modelID,
 				Provider:       pid,
 				ContextWindow:  mData.Limit.Context,
-				InputPer1M:     mData.Pricing.Input,
-				OutputPer1M:    mData.Pricing.Output,
-				SupportsTools:  mData.Supports.ToolCall,
-				SupportsVision: mData.Supports.Vision,
+				InputPer1M:     mData.Cost.Input,
+				OutputPer1M:    mData.Cost.Output,
+				SupportsTools:  mData.ToolCall,
+				SupportsVision: mData.supportsVision(),
 			}
-			// Compound key is unambiguous; prefer it.
+			// Compound key is unambiguous; always set it.
 			data[pid+"/"+modelID] = info
-			// Bare key: first-seen provider wins.
-			if _, exists := data[modelID]; !exists {
+			// Bare key: first provider (alphabetically) wins.
+			// Prefer entries with valid pricing over those with zero pricing.
+			if existing, exists := data[modelID]; !exists || (existing.InputPer1M == 0 && info.InputPer1M > 0) {
 				data[modelID] = info
 			}
 			byProvider[pid] = append(byProvider[pid], modelID)
@@ -204,22 +238,34 @@ type providerPayload struct {
 	Models map[string]modelPayload `json:"models"`
 }
 
+// modelPayload mirrors the models.dev API shape (as of 2026-03).
+// Fields: cost.{input,output} (USD per 1M tokens), limit.context, tool_call,
+// modalities.input (slice containing "image" when vision is supported).
 type modelPayload struct {
-	Limit    limitPayload    `json:"limit"`
-	Pricing  pricingPayload  `json:"pricing"`
-	Supports supportsPayload `json:"supports"`
+	Limit      limitPayload      `json:"limit"`
+	Cost       costPayload       `json:"cost"`
+	ToolCall   bool              `json:"tool_call"`
+	Modalities modalitiesPayload `json:"modalities"`
+}
+
+func (m modelPayload) supportsVision() bool {
+	for _, mod := range m.Modalities.Input {
+		if mod == "image" {
+			return true
+		}
+	}
+	return false
 }
 
 type limitPayload struct {
 	Context int `json:"context"`
 }
 
-type pricingPayload struct {
+type costPayload struct {
 	Input  float64 `json:"input"`
 	Output float64 `json:"output"`
 }
 
-type supportsPayload struct {
-	ToolCall bool `json:"tool_call"`
-	Vision   bool `json:"vision"`
+type modalitiesPayload struct {
+	Input []string `json:"input"`
 }
