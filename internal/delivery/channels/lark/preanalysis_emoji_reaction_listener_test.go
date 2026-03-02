@@ -212,12 +212,20 @@ func TestPreanalysisEmoji_E2E_FullPipeline(t *testing.T) {
 		t.Fatalf("expected preanalysis SMILE reaction, got reactions: %+v", rec.CallsByMethod("AddReaction"))
 	}
 
+	// Poll for the end emoji (async goroutine launched after task completes).
 	var hasEndEmoji bool
-	for _, r := range rec.CallsByMethod("AddReaction") {
-		if r.MsgID == "om_trace_1" && r.Emoji != "SMILE" && r.Emoji != defaultProcessingReactEmoji {
-			hasEndEmoji = true
+	endDeadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(endDeadline) {
+		for _, r := range rec.CallsByMethod("AddReaction") {
+			if r.MsgID == "om_trace_1" && r.Emoji != "SMILE" && r.Emoji != defaultProcessingReactEmoji {
+				hasEndEmoji = true
+				break
+			}
+		}
+		if hasEndEmoji {
 			break
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	if !hasEndEmoji {
 		t.Fatalf("expected end emoji reaction from random pool, got reactions: %+v", rec.CallsByMethod("AddReaction"))

@@ -329,7 +329,9 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 	g.removeProcessingReaction(execCtx, msg.messageID, processingReactionID)
 
 	if msg.messageID != "" && endEmoji != "" {
-		go g.addReaction(execCtx, msg.messageID, endEmoji)
+		// Use context.WithoutCancel so the end-emoji reaction is not cancelled
+		// when execCtx is torn down by the deferred cancelExec() in runTask.
+		go g.addReaction(context.WithoutCancel(execCtx), msg.messageID, endEmoji)
 	}
 
 	// Close the progress listener before reading MessageID to ensure
