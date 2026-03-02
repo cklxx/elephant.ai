@@ -493,7 +493,9 @@ func (c *openaiClient) detectProvider() string {
 
 func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 	result := make([]map[string]any, 0, len(msgs))
-	isKimi := strings.Contains(c.baseURL, "kimi.com")
+	isKimi := strings.Contains(c.baseURL, "kimi.com") ||
+		strings.Contains(strings.ToLower(c.model), "kimi") ||
+		strings.Contains(c.baseURL, "moonshot")
 	seenToolCalls := make(map[string]struct{}, 8)
 	droppedToolOutputs := make(map[string]struct{}, 4)
 	droppedCallIDs := make([]string, 0, 4)
@@ -557,10 +559,11 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 			}
 		}
 		// Kimi requires reasoning_content in assistant messages with tool_calls when thinking is enabled.
+		// The field must always be present (even as "") to satisfy the API contract; omitting it
+		// causes: "thinking is enabled but reasoning_content is missing in assistant tool call message".
 		if isKimi && msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
-			if reasoningContent := extractThinkingText(msg.Thinking); reasoningContent != "" {
-				entry["reasoning_content"] = reasoningContent
-			}
+			reasoningContent := extractThinkingText(msg.Thinking)
+			entry["reasoning_content"] = reasoningContent
 		}
 		result = append(result, entry)
 	}
