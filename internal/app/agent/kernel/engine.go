@@ -220,7 +220,7 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 
 	maxHistory := e.config.MaxCycleHistory
 	if maxHistory <= 0 {
-		maxHistory = 5
+		maxHistory = 3
 	}
 	if len(history) > maxHistory {
 		history = history[:maxHistory]
@@ -382,7 +382,7 @@ func buildCycleHistoryEntry(result *kerneldomain.CycleResult, cycleErr error, no
 	}
 	summary := renderStateAgentSummary(result.AgentSummary)
 	// Compact for table cells.
-	summary = compactSummary(summary, 120)
+	summary = compactSummary(summary, 80)
 	// Replace pipe characters to avoid breaking the markdown table.
 	summary = strings.ReplaceAll(summary, "|", "/")
 	return cycleHistoryEntry{
@@ -481,7 +481,7 @@ func renderStateAgentSummary(entries []kerneldomain.AgentCycleSummary) string {
 		if summary == "" {
 			summary = "(none)"
 		}
-		summary = compactSummary(summary, 180)
+		summary = compactSummary(summary, 80)
 		parts = append(parts, fmt.Sprintf("%s[%s]: %s", entry.AgentID, status, summary))
 	}
 	return strings.Join(parts, " | ")

@@ -34,8 +34,9 @@ func TestKernelAlignmentContextProvider_LoadsSoulUserGoal(t *testing.T) {
 	for _, snippet := range []string{
 		"Service user: cklxx",
 		"finish real objective",
-		"soul-values",
-		"serve-user",
+		"Loaded via Identity/Memory sections",
+		"SOUL.md",
+		"USER.md",
 		"run_tasks",
 		"codex",
 		"claude_code",

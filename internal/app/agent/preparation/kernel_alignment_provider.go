@@ -58,12 +58,6 @@ func NewKernelAlignmentContextProvider(cfg KernelAlignmentContextConfig) KernelA
 	userResolved := resolveHomePath(userPath)
 
 	return func() string {
-		soul := strings.TrimSpace(readTextFile(soulResolved))
-		if soul == "" {
-			// Fallback to canonical repo reference when personal SOUL.md is absent.
-			soul = strings.TrimSpace(readTextFile("docs/reference/SOUL.md"))
-		}
-		userPrefs := strings.TrimSpace(readTextFile(userResolved))
 		goal := strings.TrimSpace(readTextFile(goalPath))
 
 		var b strings.Builder
@@ -80,19 +74,9 @@ func NewKernelAlignmentContextProvider(cfg KernelAlignmentContextConfig) KernelA
 			b.WriteString("\n")
 		}
 		b.WriteString("\n## Soul Values\n")
-		if soul == "" {
-			b.WriteString("(missing)\n")
-		} else {
-			b.WriteString(soul)
-			b.WriteString("\n")
-		}
+		b.WriteString(fmt.Sprintf("[Loaded via Identity/Memory sections — use read_file %s for full content]\n", soulResolved))
 		b.WriteString("\n## User Service Settings\n")
-		if userPrefs == "" {
-			b.WriteString("(missing)\n")
-		} else {
-			b.WriteString(userPrefs)
-			b.WriteString("\n")
-		}
+		b.WriteString(fmt.Sprintf("[Loaded via Identity/Memory sections — use read_file %s for full content]\n", userResolved))
 		b.WriteString("\n## Self-Heal Channel\n")
 		b.WriteString("- On blocking engineering issues, write a task file and dispatch via `run_tasks`.\n")
 		b.WriteString("- Prefer agent_type=`codex`; fallback to `claude_code` if unavailable.\n")

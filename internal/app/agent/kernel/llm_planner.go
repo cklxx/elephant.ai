@@ -258,15 +258,14 @@ func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent, goalContextS
 	}
 	b.WriteString("\n")
 
-	// List statically configured agents as reference.
+	// List enabled agents as reference (disabled agents can never be dispatched).
 	if len(p.staticAgents) > 0 {
 		b.WriteString("## Configured Agents (reuse these agent_ids; avoid creating ad-hoc ids)\n")
 		for _, a := range p.staticAgents {
-			status := "available"
 			if !a.Enabled {
-				status = "disabled"
+				continue
 			}
-			b.WriteString(fmt.Sprintf("- `%s` (priority=%d, %s)\n", a.AgentID, a.Priority, status))
+			b.WriteString(fmt.Sprintf("- `%s` (priority=%d)\n", a.AgentID, a.Priority))
 		}
 		b.WriteString("\n")
 	}
@@ -293,6 +292,7 @@ func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent, goalContextS
 }
 
 func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent string, recentByAgent map[string]kerneldomain.Dispatch) []kerneldomain.DispatchSpec {
+	compactState := compactStateForDispatch(stateContent)
 	var specs []kerneldomain.DispatchSpec
 	teamDispatches := 0
 	seenAgentIDs := make(map[string]struct{}, len(decisions))
@@ -384,16 +384,16 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 			// Try to use a static agent's prompt template.
 			for _, a := range p.staticAgents {
 				if a.AgentID == agentID {
-					prompt = strings.ReplaceAll(a.Prompt, "{STATE}", stateContent)
+					prompt = strings.ReplaceAll(a.Prompt, "{STATE}", compactState)
 					break
 				}
 			}
 		}
 		if prompt == "" {
-			prompt = fmt.Sprintf("Execute task: %s\n\nCurrent state:\n%s", d.Reason, stateContent)
+			prompt = fmt.Sprintf("Execute task: %s\n\nCurrent state:\n%s", d.Reason, compactState)
 		}
-		// Always inject STATE into dynamic prompts.
-		prompt = strings.ReplaceAll(prompt, "{STATE}", stateContent)
+		// Always inject STATE into dynamic prompts (compact version for dispatched agents).
+		prompt = strings.ReplaceAll(prompt, "{STATE}", compactState)
 		if reject, reason := shouldRejectAutonomyViolatingPrompt(prompt); reject {
 			p.logger.Debug("LLMPlanner: rejecting %s by autonomy gate (%s)", agentID, reason)
 			continue
@@ -417,6 +417,52 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 		seenAgentIDs[agentKey] = struct{}{}
 	}
 	return specs
+}
+
+// compactStateForDispatch strips the runtime block and truncates recent_actions
+// so dispatched agents get a lighter STATE context. The planner still sees full STATE.
+func compactStateForDispatch(stateContent string) string {
+	// Remove runtime block (only planner needs cycle stats).
+	if start := strings.Index(stateContent, kernelRuntimeSectionStart); start >= 0 {
+		if end := strings.Index(stateContent, kernelRuntimeSectionEnd); end > start {
+			stateContent = stateContent[:start] + stateContent[end+len(kernelRuntimeSectionEnd):]
+		}
+	}
+	stateContent = truncateRecentActions(stateContent, 3)
+	return strings.TrimSpace(stateContent)
+}
+
+// truncateRecentActions keeps only the last N entries in a "## recent_actions" section.
+// Entries are lines starting with "- " under the section header.
+func truncateRecentActions(content string, maxEntries int) string {
+	const header = "## recent_actions"
+	idx := strings.Index(strings.ToLower(content), header)
+	if idx < 0 {
+		return content
+	}
+	sectionStart := idx + len(header)
+	// Find the end of this section (next ## header or EOF).
+	rest := content[sectionStart:]
+	sectionEnd := sectionStart + len(rest)
+	if nextHeader := strings.Index(rest, "\n## "); nextHeader >= 0 {
+		sectionEnd = sectionStart + nextHeader
+	}
+
+	sectionBody := content[sectionStart:sectionEnd]
+	lines := strings.Split(sectionBody, "\n")
+	var kept []string
+	count := 0
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "- ") {
+			count++
+			if count > maxEntries {
+				continue
+			}
+		}
+		kept = append(kept, line)
+	}
+	return content[:sectionStart] + strings.Join(kept, "\n") + content[sectionEnd:]
 }
 
 func shouldRejectAutonomyViolatingPrompt(prompt string) (bool, string) {
