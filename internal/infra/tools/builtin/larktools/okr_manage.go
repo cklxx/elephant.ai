@@ -45,7 +45,7 @@ func (t *larkOKRManage) listPeriods(ctx context.Context, client *larkapi.Client,
 		PageToken: pageToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to list OKR periods: %v", err), Error: err}, nil
+		return apiErr(call.ID, "list OKR periods", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(resp, "", "  ")
@@ -73,7 +73,7 @@ func (t *larkOKRManage) listUserOKRs(ctx context.Context, client *larkapi.Client
 
 	okrs, err := client.OKR().ListUserOKRs(ctx, userID, periodID)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to list user OKRs: %v", err), Error: err}, nil
+		return apiErr(call.ID, "list user OKRs", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(okrs, "", "  ")
@@ -107,7 +107,7 @@ func (t *larkOKRManage) batchGetOKRs(ctx context.Context, client *larkapi.Client
 
 	okrs, err := client.OKR().BatchGetOKRs(ctx, okrIDs)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to batch get OKRs: %v", err), Error: err}, nil
+		return apiErr(call.ID, "batch get OKRs", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(okrs, "", "  ")

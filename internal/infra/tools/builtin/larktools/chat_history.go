@@ -93,18 +93,10 @@ func (t *larkChatHistory) Execute(ctx context.Context, call ports.ToolCall) (*po
 
 	resp, err := client.Im.Message.List(ctx, builder.Build())
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_chat_history: API call failed: %v", err),
-			Error:   fmt.Errorf("lark API call failed: %w", err),
-		}, nil
+		return sdkCallErr(call.ID, "lark_chat_history", err), nil
 	}
 	if !resp.Success() {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_chat_history: API error code=%d msg=%s", resp.Code, resp.Msg),
-			Error:   fmt.Errorf("lark API error: code=%d msg=%s", resp.Code, resp.Msg),
-		}, nil
+		return sdkRespErr(call.ID, "lark_chat_history", resp.Code, resp.Msg), nil
 	}
 
 	if resp.Data == nil || len(resp.Data.Items) == 0 {

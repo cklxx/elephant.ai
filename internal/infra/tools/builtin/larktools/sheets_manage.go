@@ -44,7 +44,7 @@ func (t *larkSheetsManage) createSpreadsheet(ctx context.Context, client *larkap
 		FolderToken: folderToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to create spreadsheet: %v", err), Error: err}, nil
+		return apiErr(call.ID, "create spreadsheet", err), nil
 	}
 
 	grantSenderEditPermission(ctx, client, ss.SpreadsheetToken, "sheet")
@@ -76,7 +76,7 @@ func (t *larkSheetsManage) getSpreadsheet(ctx context.Context, client *larkapi.C
 
 	ss, err := client.Sheets().GetSpreadsheet(ctx, token)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to get spreadsheet: %v", err), Error: err}, nil
+		return apiErr(call.ID, "get spreadsheet", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(ss, "", "  ")
@@ -106,7 +106,7 @@ func (t *larkSheetsManage) listSheets(ctx context.Context, client *larkapi.Clien
 
 	sheets, err := client.Sheets().ListSheets(ctx, token)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to list sheets: %v", err), Error: err}, nil
+		return apiErr(call.ID, "list sheets", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(sheets, "", "  ")

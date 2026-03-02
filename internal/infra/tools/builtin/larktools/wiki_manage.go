@@ -46,11 +46,7 @@ func (t *larkWikiManage) listSpaces(ctx context.Context, client *larkapi.Client,
 		PageToken: pageToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to list wiki spaces: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "list wiki spaces", err), nil
 	}
 
 	if len(resp.Spaces) == 0 {
@@ -91,11 +87,7 @@ func (t *larkWikiManage) listNodes(ctx context.Context, client *larkapi.Client, 
 		PageToken:   pageToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to list wiki nodes: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "list wiki nodes", err), nil
 	}
 
 	if len(resp.Nodes) == 0 {
@@ -140,11 +132,7 @@ func (t *larkWikiManage) createNode(ctx context.Context, client *larkapi.Client,
 		Title:       title,
 	})
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to create wiki node: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "create wiki node", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(node, "", "  ")
@@ -173,11 +161,7 @@ func (t *larkWikiManage) getNode(ctx context.Context, client *larkapi.Client, ca
 
 	node, err := client.Wiki().GetNode(ctx, nodeToken)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to get wiki node: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "get wiki node", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(node, "", "  ")

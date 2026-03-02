@@ -54,7 +54,7 @@ func (t *larkVCManage) listMeetings(ctx context.Context, client *larkapi.Client,
 		PageToken: pageToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to list meetings: %v", err), Error: err}, nil
+		return apiErr(call.ID, "list meetings", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(resp, "", "  ")
@@ -76,7 +76,7 @@ func (t *larkVCManage) getMeeting(ctx context.Context, client *larkapi.Client, c
 
 	meeting, err := client.VC().GetMeeting(ctx, meetingID)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to get meeting: %v", err), Error: err}, nil
+		return apiErr(call.ID, "get meeting", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(meeting, "", "  ")
@@ -101,7 +101,7 @@ func (t *larkVCManage) listRooms(ctx context.Context, client *larkapi.Client, ca
 		PageToken:   pageToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to list rooms: %v", err), Error: err}, nil
+		return apiErr(call.ID, "list rooms", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(resp, "", "  ")

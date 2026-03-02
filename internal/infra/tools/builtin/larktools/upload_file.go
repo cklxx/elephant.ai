@@ -158,18 +158,10 @@ func (t *larkUploadFile) Execute(ctx context.Context, call ports.ToolCall) (*por
 
 		uploadResp, err := client.Im.V1.File.Create(ctx, uploadReq)
 		if err != nil {
-			return &ports.ToolResult{
-				CallID:  call.ID,
-				Content: fmt.Sprintf("lark_upload_file: upload API call failed: %v", err),
-				Error:   fmt.Errorf("lark upload API call failed: %w", err),
-			}, nil
+			return sdkCallErr(call.ID, "lark_upload_file: upload", err), nil
 		}
 		if !uploadResp.Success() {
-			return &ports.ToolResult{
-				CallID:  call.ID,
-				Content: fmt.Sprintf("lark_upload_file: upload API error code=%d msg=%s", uploadResp.Code, uploadResp.Msg),
-				Error:   fmt.Errorf("lark upload API error: code=%d msg=%s", uploadResp.Code, uploadResp.Msg),
-			}, nil
+			return sdkRespErr(call.ID, "lark_upload_file: upload", uploadResp.Code, uploadResp.Msg), nil
 		}
 		fileKey := ""
 		if uploadResp.Data != nil && uploadResp.Data.FileKey != nil {
@@ -219,12 +211,10 @@ func uploadImage(ctx context.Context, callID string, client *lark.Client, reader
 
 	uploadResp, err := client.Im.V1.Image.Create(ctx, uploadReq)
 	if err != nil {
-		err := fmt.Errorf("lark upload image API call failed: %w", err)
-		return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		return "", sdkCallErr(callID, "upload image", err)
 	}
 	if !uploadResp.Success() {
-		err := fmt.Errorf("lark upload image API error: code=%d msg=%s", uploadResp.Code, uploadResp.Msg)
-		return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		return "", sdkRespErr(callID, "upload image", uploadResp.Code, uploadResp.Msg)
 	}
 	imageKey := ""
 	if uploadResp.Data != nil && uploadResp.Data.ImageKey != nil {
@@ -248,12 +238,10 @@ func sendUploadedMessage(ctx context.Context, client *lark.Client, callID, chatI
 			Build()
 		resp, err := client.Im.Message.Reply(ctx, req)
 		if err != nil {
-			err := fmt.Errorf("lark reply message API call failed: %w", err)
-			return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+			return "", sdkCallErr(callID, "reply message", err)
 		}
 		if !resp.Success() {
-			err := fmt.Errorf("lark reply message API error: code=%d msg=%s", resp.Code, resp.Msg)
-			return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+			return "", sdkRespErr(callID, "reply message", resp.Code, resp.Msg)
 		}
 		if resp.Data != nil && resp.Data.MessageId != nil {
 			return *resp.Data.MessageId, nil
@@ -271,12 +259,10 @@ func sendUploadedMessage(ctx context.Context, client *lark.Client, callID, chatI
 		Build()
 	resp, err := client.Im.Message.Create(ctx, req)
 	if err != nil {
-		err := fmt.Errorf("lark send message API call failed: %w", err)
-		return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		return "", sdkCallErr(callID, "send message", err)
 	}
 	if !resp.Success() {
-		err := fmt.Errorf("lark send message API error: code=%d msg=%s", resp.Code, resp.Msg)
-		return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		return "", sdkRespErr(callID, "send message", resp.Code, resp.Msg)
 	}
 	if resp.Data != nil && resp.Data.MessageId != nil {
 		return *resp.Data.MessageId, nil

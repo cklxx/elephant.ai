@@ -2,7 +2,6 @@ package larktools
 
 import (
 	"context"
-	"fmt"
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
@@ -74,18 +73,10 @@ func (t *larkCalendarDelete) Execute(ctx context.Context, call ports.ToolCall) (
 	options := []larkcore.RequestOptionFunc{reqOpt}
 	resp, err := client.Calendar.CalendarEvent.Delete(ctx, builder.Build(), options...)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_calendar_delete: API call failed: %v", err),
-			Error:   fmt.Errorf("lark API call failed: %w", err),
-		}, nil
+		return sdkCallErr(call.ID, "lark_calendar_delete", err), nil
 	}
 	if !resp.Success() {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_calendar_delete: API error code=%d msg=%s", resp.Code, resp.Msg),
-			Error:   fmt.Errorf("lark API error: code=%d msg=%s", resp.Code, resp.Msg),
-		}, nil
+		return sdkRespErr(call.ID, "lark_calendar_delete", resp.Code, resp.Msg), nil
 	}
 
 	return &ports.ToolResult{

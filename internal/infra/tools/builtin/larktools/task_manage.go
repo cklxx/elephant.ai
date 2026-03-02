@@ -160,18 +160,10 @@ func (t *larkTaskManage) listTasks(ctx context.Context, client *lark.Client, cal
 	options := taskRequestOptions(call.Arguments)
 	resp, err := client.Task.V2.Task.List(ctx, builder.Build(), options...)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_task_manage(list): API call failed: %v", err),
-			Error:   fmt.Errorf("lark API call failed: %w", err),
-		}, nil
+		return sdkCallErr(call.ID, "lark_task_manage(list)", err), nil
 	}
 	if !resp.Success() {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_task_manage(list): API error code=%d msg=%s", resp.Code, resp.Msg),
-			Error:   fmt.Errorf("lark API error: code=%d msg=%s", resp.Code, resp.Msg),
-		}, nil
+		return sdkRespErr(call.ID, "lark_task_manage(list)", resp.Code, resp.Msg), nil
 	}
 	if resp.Data == nil || len(resp.Data.Items) == 0 {
 		return &ports.ToolResult{
@@ -244,18 +236,10 @@ func (t *larkTaskManage) createTask(ctx context.Context, client *lark.Client, ca
 	options := taskRequestOptions(call.Arguments)
 	resp, err := client.Task.V2.Task.Create(ctx, builder.Build(), options...)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_task_manage(create): API call failed: %v", err),
-			Error:   fmt.Errorf("lark API call failed: %w", err),
-		}, nil
+		return sdkCallErr(call.ID, "lark_task_manage(create)", err), nil
 	}
 	if !resp.Success() {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_task_manage(create): API error code=%d msg=%s", resp.Code, resp.Msg),
-			Error:   fmt.Errorf("lark API error: code=%d msg=%s", resp.Code, resp.Msg),
-		}, nil
+		return sdkRespErr(call.ID, "lark_task_manage(create)", resp.Code, resp.Msg), nil
 	}
 
 	guid := ""
@@ -324,18 +308,10 @@ func (t *larkTaskManage) updateTask(ctx context.Context, client *lark.Client, ca
 	options := taskRequestOptions(call.Arguments)
 	resp, err := client.Task.V2.Task.Patch(ctx, builder.Build(), options...)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_task_manage(update): API call failed: %v", err),
-			Error:   fmt.Errorf("lark API call failed: %w", err),
-		}, nil
+		return sdkCallErr(call.ID, "lark_task_manage(update)", err), nil
 	}
 	if !resp.Success() {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_task_manage(update): API error code=%d msg=%s", resp.Code, resp.Msg),
-			Error:   fmt.Errorf("lark API error: code=%d msg=%s", resp.Code, resp.Msg),
-		}, nil
+		return sdkRespErr(call.ID, "lark_task_manage(update)", resp.Code, resp.Msg), nil
 	}
 
 	return &ports.ToolResult{
@@ -363,18 +339,10 @@ func (t *larkTaskManage) deleteTask(ctx context.Context, client *lark.Client, ca
 	options := taskRequestOptions(call.Arguments)
 	resp, err := client.Task.V2.Task.Delete(ctx, builder.Build(), options...)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_task_manage(delete): API call failed: %v", err),
-			Error:   fmt.Errorf("lark API call failed: %w", err),
-		}, nil
+		return sdkCallErr(call.ID, "lark_task_manage(delete)", err), nil
 	}
 	if !resp.Success() {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_task_manage(delete): API error code=%d msg=%s", resp.Code, resp.Msg),
-			Error:   fmt.Errorf("lark API error: code=%d msg=%s", resp.Code, resp.Msg),
-		}, nil
+		return sdkRespErr(call.ID, "lark_task_manage(delete)", resp.Code, resp.Msg), nil
 	}
 
 	return &ports.ToolResult{

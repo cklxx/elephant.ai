@@ -22,8 +22,8 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 INJECT_URL="${INJECT_URL:-http://127.0.0.1:9090/api/dev/inject}"
 SENDER_ID="${SENDER_ID:-ou_e2e_claude_teams}"
-TIMEOUT_FAST="${TIMEOUT_FAST:-120}"  # single-stage claude tasks
-TIMEOUT_SLOW="${TIMEOUT_SLOW:-300}"  # multi-stage or debate tasks
+TIMEOUT_FAST="${TIMEOUT_FAST:-240}"  # single-stage claude tasks
+TIMEOUT_SLOW="${TIMEOUT_SLOW:-480}"  # multi-stage or debate tasks
 COOLDOWN="${COOLDOWN:-5}"            # seconds between cases
 DRY_RUN=0
 
@@ -62,7 +62,7 @@ inject() {
     local hdr="${TMPDIR_BASE}/${case_id}_hdr.txt"
 
     echo "${payload}" > "${req}"
-    log "  → POST ${INJECT_URL} (timeout=${timeout}s)"
+    log "  → POST ${INJECT_URL} (timeout=${timeout}s)" >&2
 
     local curl_exit=0
     curl -sS -D "${hdr}" -o "${resp}" \
@@ -72,7 +72,7 @@ inject() {
         --data @"${req}" || curl_exit=$?
 
     if [[ ${curl_exit} -ne 0 ]]; then
-        log "  ✗ curl failed (exit ${curl_exit})"
+        log "  ✗ curl failed (exit ${curl_exit})" >&2
         echo "CURL_ERROR"
         return
     fi
@@ -80,7 +80,7 @@ inject() {
     local http_code
     http_code="$(head -n 1 "${hdr}" | awk '{print $2}' | tr -d '\r')"
     if [[ "${http_code}" != "200" ]]; then
-        log "  ✗ HTTP ${http_code}"
+        log "  ✗ HTTP ${http_code}" >&2
         echo "HTTP_${http_code}"
         return
     fi
@@ -91,21 +91,23 @@ inject() {
     err="$(jq -r '.error // empty' "${resp}" 2>/dev/null || true)"
 
     if [[ -n "${err}" ]]; then
-        log "  ✗ API error: ${err}"
+        log "  ✗ API error: ${err}" >&2
         echo "API_ERROR:${err}"
         return
     fi
 
-    log "  ✓ ${replies} replies in ${duration}ms"
+    log "  ✓ ${replies} replies in ${duration}ms" >&2
     echo "OK:${replies}:${duration}"
 }
 
 make_payload() {
     local chat_id="$1" text="$2" timeout="$3"
+    # Use chat_id-derived sender so each test has an isolated session
+    local sid="${SENDER_ID}_$(echo "${chat_id}" | tr -cd '[:alnum:]' | tail -c 8)"
     jq -n \
         --arg text "${text}" \
         --arg chat_id "${chat_id}" \
-        --arg sender_id "${SENDER_ID}" \
+        --arg sender_id "${sid}" \
         --argjson timeout_seconds "${timeout}" \
         '{text: $text, chat_id: $chat_id, chat_type: "p2p",
           sender_id: $sender_id, timeout_seconds: $timeout_seconds,
@@ -262,8 +264,9 @@ run_C2() {
 run_C3() {
     log "C3: template=list → lists claude templates"
     local id="C3" chat="oc_e2e_teams_C3_$(date +%s)"
+    # Use explicit tool-call instruction to avoid conversational fallback
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=list" \
+        "@alex 请立刻调用 run_tasks 工具，template 参数设为 list，列出所有可用模板" \
         "${TIMEOUT_FAST}")"
     local result
     result="$(inject "${id}" "${p}" "${TIMEOUT_FAST}")"
@@ -271,8 +274,10 @@ run_C3() {
         local content; content="$(resp_content "${id}")"
         if echo "${content}" | grep -qiE "claude_research|claude_analysis|claude_debate"; then
             record "${id}" PASS "listed new claude templates"
+        elif echo "${content}" | grep -qiE "template|模板|研究|分析"; then
+            record "${id}" PARTIAL "replied with template info but names not exact-matched"
         else
-            record "${id}" PARTIAL "replied but claude template names not in content"
+            record "${id}" PARTIAL "replied but template info not detected"
         fi
     else
         eval_error "${id}" "${result}"

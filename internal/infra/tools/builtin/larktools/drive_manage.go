@@ -51,11 +51,7 @@ func (t *larkDriveManage) listFiles(ctx context.Context, client *larkapi.Client,
 		PageToken:   pageToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to list files: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "list files", err), nil
 	}
 
 	if len(resp.Files) == 0 {
@@ -88,11 +84,7 @@ func (t *larkDriveManage) createFolder(ctx context.Context, client *larkapi.Clie
 
 	folder, err := client.Drive().CreateFolder(ctx, folderToken, name)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to create folder: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "create folder", err), nil
 	}
 
 	grantSenderEditPermission(ctx, client, folder.Token, "folder")
@@ -128,11 +120,7 @@ func (t *larkDriveManage) copyFile(ctx context.Context, client *larkapi.Client, 
 
 	copied, err := client.Drive().CopyFile(ctx, fileToken, targetFolder, newName, fileType)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to copy file: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "copy file", err), nil
 	}
 
 	grantSenderEditPermission(ctx, client, copied.Token, fileType)
@@ -160,11 +148,7 @@ func (t *larkDriveManage) deleteFile(ctx context.Context, client *larkapi.Client
 
 	err := client.Drive().DeleteFile(ctx, fileToken, fileType)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to delete file: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "delete file", err), nil
 	}
 
 	return &ports.ToolResult{

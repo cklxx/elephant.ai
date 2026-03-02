@@ -138,18 +138,10 @@ func (t *larkCalendarCreate) Execute(ctx context.Context, call ports.ToolCall) (
 	options := []larkcore.RequestOptionFunc{reqOpt}
 	resp, err := client.Calendar.CalendarEvent.Create(ctx, builder.Build(), options...)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_calendar_create: API call failed: %v", err),
-			Error:   fmt.Errorf("lark API call failed: %w", err),
-		}, nil
+		return sdkCallErr(call.ID, "lark_calendar_create", err), nil
 	}
 	if !resp.Success() {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_calendar_create: API error code=%d msg=%s", resp.Code, resp.Msg),
-			Error:   fmt.Errorf("lark API error: code=%d msg=%s", resp.Code, resp.Msg),
-		}, nil
+		return sdkRespErr(call.ID, "lark_calendar_create", resp.Code, resp.Msg), nil
 	}
 
 	eventID := ""

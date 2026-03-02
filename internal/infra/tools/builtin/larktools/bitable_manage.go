@@ -56,11 +56,7 @@ func (t *larkBitableManage) listTables(ctx context.Context, client *larkapi.Clie
 		PageToken: pageToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to list tables: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "list tables", err), nil
 	}
 
 	if len(resp.Tables) == 0 {
@@ -101,11 +97,7 @@ func (t *larkBitableManage) listRecords(ctx context.Context, client *larkapi.Cli
 		PageToken: pageToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to list records: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "list records", err), nil
 	}
 
 	if len(resp.Records) == 0 {
@@ -149,11 +141,7 @@ func (t *larkBitableManage) createRecord(ctx context.Context, client *larkapi.Cl
 
 	record, err := client.Bitable().CreateRecord(ctx, appToken, tableID, fieldsMap)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to create record: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "create record", err), nil
 	}
 
 	return &ports.ToolResult{
@@ -192,11 +180,7 @@ func (t *larkBitableManage) updateRecord(ctx context.Context, client *larkapi.Cl
 
 	_, err := client.Bitable().UpdateRecord(ctx, appToken, tableID, recordID, fieldsMap)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to update record: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "update record", err), nil
 	}
 
 	return &ports.ToolResult{
@@ -224,11 +208,7 @@ func (t *larkBitableManage) deleteRecord(ctx context.Context, client *larkapi.Cl
 
 	err := client.Bitable().DeleteRecord(ctx, appToken, tableID, recordID)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to delete record: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "delete record", err), nil
 	}
 
 	return &ports.ToolResult{
@@ -252,11 +232,7 @@ func (t *larkBitableManage) listFields(ctx context.Context, client *larkapi.Clie
 
 	fields, err := client.Bitable().ListFields(ctx, appToken, tableID)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to list fields: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "list fields", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(fields, "", "  ")

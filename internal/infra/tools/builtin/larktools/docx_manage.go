@@ -46,11 +46,7 @@ func (t *larkDocxManage) createDoc(ctx context.Context, client *larkapi.Client, 
 		FolderID: folderID,
 	})
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to create document: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "create document", err), nil
 	}
 
 	grantSenderEditPermission(ctx, client, doc.DocumentID, "docx")
@@ -80,11 +76,7 @@ func (t *larkDocxManage) readDoc(ctx context.Context, client *larkapi.Client, ca
 
 	doc, err := client.Docx().GetDocument(ctx, documentID)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to get document: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "get document", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(doc, "", "  ")
@@ -112,11 +104,7 @@ func (t *larkDocxManage) readContent(ctx context.Context, client *larkapi.Client
 
 	content, err := client.Docx().GetDocumentRawContent(ctx, documentID)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to read document content: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "read document content", err), nil
 	}
 
 	if content == "" {
@@ -144,11 +132,7 @@ func (t *larkDocxManage) listBlocks(ctx context.Context, client *larkapi.Client,
 
 	blocks, nextToken, hasMore, err := client.Docx().ListDocumentBlocks(ctx, documentID, pageSize, pageToken)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Failed to list document blocks: %v", err),
-			Error:   err,
-		}, nil
+		return apiErr(call.ID, "list document blocks", err), nil
 	}
 
 	if len(blocks) == 0 {

@@ -44,7 +44,7 @@ func (t *larkMailManage) listMailgroups(ctx context.Context, client *larkapi.Cli
 		PageToken: pageToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to list mailgroups: %v", err), Error: err}, nil
+		return apiErr(call.ID, "list mailgroups", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(resp, "", "  ")
@@ -66,7 +66,7 @@ func (t *larkMailManage) getMailgroup(ctx context.Context, client *larkapi.Clien
 
 	mg, err := client.Mail().GetMailgroup(ctx, mailgroupID)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to get mailgroup: %v", err), Error: err}, nil
+		return apiErr(call.ID, "get mailgroup", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(mg, "", "  ")
@@ -95,7 +95,7 @@ func (t *larkMailManage) createMailgroup(ctx context.Context, client *larkapi.Cl
 		Description: description,
 	})
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to create mailgroup: %v", err), Error: err}, nil
+		return apiErr(call.ID, "create mailgroup", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(mg, "", "  ")

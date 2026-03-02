@@ -80,11 +80,7 @@ func resolveLarkCalendarAuth(ctx context.Context, callID string) (larkAccessToke
 		if auth, errResult := buildTenantAuth(); errResult == nil {
 			return auth, nil
 		}
-		return larkAccessToken{}, &ports.ToolResult{
-			CallID:  callID,
-			Content: fmt.Sprintf("Failed to load Lark user access token: %v", err),
-			Error:   err,
-		}
+		return larkAccessToken{}, apiErr(callID, "load Lark user access token", err)
 	}
 
 	token = strings.TrimSpace(token)

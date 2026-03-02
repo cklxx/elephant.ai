@@ -261,18 +261,10 @@ func (t *larkSendMessage) createMessage(ctx context.Context, client *lark.Client
 
 	resp, err := client.Im.Message.Create(ctx, req)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  callID,
-			Content: fmt.Sprintf("lark_send_message: API call failed: %v", err),
-			Error:   fmt.Errorf("lark API call failed: %w", err),
-		}, nil
+		return sdkCallErr(callID, "lark_send_message", err), nil
 	}
 	if !resp.Success() {
-		return &ports.ToolResult{
-			CallID:  callID,
-			Content: fmt.Sprintf("lark_send_message: API error code=%d msg=%s", resp.Code, resp.Msg),
-			Error:   fmt.Errorf("lark API error: code=%d msg=%s", resp.Code, resp.Msg),
-		}, nil
+		return sdkRespErr(callID, "lark_send_message", resp.Code, resp.Msg), nil
 	}
 
 	messageID := ""
@@ -301,18 +293,10 @@ func (t *larkSendMessage) replyMessage(ctx context.Context, client *lark.Client,
 
 	resp, err := client.Im.Message.Reply(ctx, req)
 	if err != nil {
-		return &ports.ToolResult{
-			CallID:  callID,
-			Content: fmt.Sprintf("lark_send_message: reply API call failed: %v", err),
-			Error:   fmt.Errorf("lark reply API call failed: %w", err),
-		}, nil
+		return sdkCallErr(callID, "lark_send_message: reply", err), nil
 	}
 	if !resp.Success() {
-		return &ports.ToolResult{
-			CallID:  callID,
-			Content: fmt.Sprintf("lark_send_message: reply API error code=%d msg=%s", resp.Code, resp.Msg),
-			Error:   fmt.Errorf("lark reply API error: code=%d msg=%s", resp.Code, resp.Msg),
-		}, nil
+		return sdkRespErr(callID, "lark_send_message: reply", resp.Code, resp.Msg), nil
 	}
 
 	messageID := ""

@@ -52,7 +52,7 @@ func (t *larkContactManage) getUser(ctx context.Context, client *larkapi.Client,
 
 	user, err := client.Contact().GetUser(ctx, userID, userIDType)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to get user: %v", err), Error: err}, nil
+		return apiErr(call.ID, "get user", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(user, "", "  ")
@@ -83,7 +83,7 @@ func (t *larkContactManage) listUsers(ctx context.Context, client *larkapi.Clien
 		PageToken:    pageToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to list users: %v", err), Error: err}, nil
+		return apiErr(call.ID, "list users", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(resp, "", "  ")
@@ -105,7 +105,7 @@ func (t *larkContactManage) getDepartment(ctx context.Context, client *larkapi.C
 
 	dept, err := client.Contact().GetDepartment(ctx, departmentID)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to get department: %v", err), Error: err}, nil
+		return apiErr(call.ID, "get department", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(dept, "", "  ")
@@ -130,7 +130,7 @@ func (t *larkContactManage) listDepartments(ctx context.Context, client *larkapi
 		PageToken:          pageToken,
 	})
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Failed to list departments: %v", err), Error: err}, nil
+		return apiErr(call.ID, "list departments", err), nil
 	}
 
 	payload, _ := json.MarshalIndent(resp, "", "  ")
