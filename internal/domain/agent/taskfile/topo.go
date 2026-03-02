@@ -40,3 +40,48 @@ func TopologicalOrder(tasks []TaskSpec) ([]string, error) {
 	}
 	return order, nil
 }
+
+// TopologicalLayers groups tasks into dependency layers using Kahn's algorithm.
+// Layer 0 contains tasks with no dependencies, layer N contains tasks whose
+// dependencies all resolve within layers 0..N-1. Returns an error if a cycle
+// is detected.
+func TopologicalLayers(tasks []TaskSpec) ([][]string, error) {
+	inDegree := make(map[string]int, len(tasks))
+	adj := make(map[string][]string, len(tasks))
+	for _, t := range tasks {
+		inDegree[t.ID] = len(t.DependsOn)
+		for _, dep := range t.DependsOn {
+			adj[dep] = append(adj[dep], t.ID)
+		}
+	}
+
+	var current []string
+	for _, t := range tasks {
+		if inDegree[t.ID] == 0 {
+			current = append(current, t.ID)
+		}
+	}
+
+	var layers [][]string
+	processed := 0
+	for len(current) > 0 {
+		layers = append(layers, current)
+		processed += len(current)
+
+		var next []string
+		for _, id := range current {
+			for _, child := range adj[id] {
+				inDegree[child]--
+				if inDegree[child] == 0 {
+					next = append(next, child)
+				}
+			}
+		}
+		current = next
+	}
+
+	if processed != len(tasks) {
+		return nil, fmt.Errorf("dependency cycle detected in task file")
+	}
+	return layers, nil
+}
