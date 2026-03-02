@@ -574,7 +574,25 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 			defer func() { <-sem }()
 
 			if err := e.store.MarkDispatchRunning(ctx, d.DispatchID); err != nil {
-				e.logger.Warn("Kernel: mark running %s: %v", d.DispatchID, err)
+				// P0: never execute a dispatch we couldn't mark RUNNING — it would
+				// produce an invalid PENDING→DONE state transition and confuse
+				// stale-recovery heuristics. Fail fast instead.
+				e.logger.Error("Kernel: mark running %s: %v — skipping execution", d.DispatchID, err)
+				errMsg := "[infra_mark_running] " + err.Error()
+				mu.Lock()
+				result.Failed++
+				result.FailedAgents = append(result.FailedAgents, d.AgentID)
+				result.AgentSummary = append(result.AgentSummary, kerneldomain.AgentCycleSummary{
+					AgentID:      d.AgentID,
+					Status:       kerneldomain.DispatchFailed,
+					Error:        errMsg,
+					FailureClass: "infra_mark_running",
+				})
+				mu.Unlock()
+				if ferr := markDispatchFailedResilient(ctx, e.store, d.DispatchID, errMsg); ferr != nil {
+					e.logger.Warn("Kernel: mark failed after running-error %s: %v", d.DispatchID, ferr)
+				}
+				return
 			}
 
 			// Copy metadata to avoid concurrent mutation of the shared map.

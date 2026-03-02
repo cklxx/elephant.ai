@@ -17,11 +17,12 @@ import (
 
 // memStore is an in-memory Store implementation for testing.
 type memStore struct {
-	mu          sync.Mutex
-	dispatches  []kerneldomain.Dispatch
-	schemaReady bool
-	recoverHits int
-	recoverErr  error
+	mu             sync.Mutex
+	dispatches     []kerneldomain.Dispatch
+	schemaReady    bool
+	recoverHits    int
+	recoverErr     error
+	markRunningErr error // if set, MarkDispatchRunning returns this error
 }
 
 type plannerFunc func(ctx context.Context, stateContent string, recentByAgent map[string]kerneldomain.Dispatch) ([]kerneldomain.DispatchSpec, error)
@@ -71,6 +72,9 @@ func (s *memStore) ClaimDispatches(_ context.Context, _, _ string, _ int) ([]ker
 func (s *memStore) MarkDispatchRunning(_ context.Context, dispatchID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.markRunningErr != nil {
+		return s.markRunningErr
+	}
 	for i := range s.dispatches {
 		if s.dispatches[i].DispatchID == dispatchID {
 			s.dispatches[i].Status = kerneldomain.DispatchRunning
@@ -869,4 +873,47 @@ func (f *failingExecutor) Execute(ctx context.Context, agentID, prompt string, m
 		return ExecutionResult{}, fmt.Errorf("simulated failure for %s", agentID)
 	}
 	return f.inner.Execute(ctx, agentID, prompt, meta)
+}
+
+// TestEngine_RunCycle_MarkRunningFailureSkipsExecution verifies BL-01:
+// if MarkDispatchRunning returns an error, the dispatch must NOT execute,
+// must be counted as failed, and must carry the "infra_mark_running" failure class.
+func TestEngine_RunCycle_MarkRunningFailureSkipsExecution(t *testing.T) {
+	exec := &mockExecutor{summaries: []string{"ok"}}
+	dir := t.TempDir()
+	store := newMemStore()
+	store.markRunningErr = fmt.Errorf("store write error")
+	sf := NewStateFile(dir)
+	planner := NewStaticPlanner("test-kernel", []AgentConfig{
+		{AgentID: "agent-a", Prompt: "go", Priority: 10, Enabled: true},
+	})
+	cfg := KernelConfig{
+		KernelID:      "test-kernel",
+		Schedule:      "*/10 * * * *",
+		SeedState:     "# STATE\n## identity\ntest\n",
+		MaxConcurrent: 2,
+	}
+	eng := NewEngine(cfg, sf, store, planner, exec, logging.NewComponentLogger("test"))
+
+	ctx := context.Background()
+	result, err := eng.RunCycle(ctx)
+	if err != nil {
+		t.Fatalf("RunCycle returned unexpected error: %v", err)
+	}
+
+	if exec.callCount() != 0 {
+		t.Fatalf("executor should not have been called when MarkRunning fails, got callCount=%d", exec.callCount())
+	}
+	if result.Failed != 1 {
+		t.Fatalf("expected 1 failed dispatch, got %d", result.Failed)
+	}
+	if result.Succeeded != 0 {
+		t.Fatalf("expected 0 succeeded, got %d", result.Succeeded)
+	}
+	if len(result.AgentSummary) != 1 {
+		t.Fatalf("expected 1 AgentSummary entry, got %d", len(result.AgentSummary))
+	}
+	if result.AgentSummary[0].FailureClass != "infra_mark_running" {
+		t.Fatalf("expected failure_class=infra_mark_running, got %q", result.AgentSummary[0].FailureClass)
+	}
 }
