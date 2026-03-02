@@ -27,9 +27,14 @@ func NewRunTasks() *runTasks {
 				Name: "run_tasks",
 				Description: `Execute tasks defined in a YAML task file. The agent writes a task file using write_file, then calls run_tasks to dispatch all tasks to background agents. Status is written to a .status sidecar file readable via read_file.
 
-Supports two modes:
+Supports two input modes:
 - file: Read a TaskFile YAML and dispatch its tasks
 - template: Use a pre-configured team template with a goal
+
+Execution strategy (mode parameter):
+- team: Sequential dispatch with dependency blocking and context inheritance. Best for tightly-coupled collaborative work.
+- swarm: Stage-batched parallel execution with adaptive concurrency. Best for independent, embarrassingly-parallel tasks.
+- auto (default): Analyzes the task DAG to pick team or swarm automatically.
 
 Use wait=true for synchronous execution (blocks until all tasks complete).`,
 				Parameters: ports.ParameterSchema{
@@ -63,6 +68,11 @@ Use wait=true for synchronous execution (blocks until all tasks complete).`,
 							Type:        "array",
 							Description: "Only execute specific task IDs from the file. Omit to execute all.",
 							Items:       &ports.Property{Type: "string"},
+						},
+						"mode": {
+							Type:        "string",
+							Description: `Execution strategy: "team" (sequential with deps), "swarm" (parallel batches with adaptive concurrency), "auto" (analyze DAG to select). Default: "auto".`,
+							Enum:        []any{"team", "swarm", "auto"},
 						},
 					},
 				},
@@ -139,10 +149,25 @@ func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		}
 	}
 
+	// Parse execution mode.
+	mode := taskfile.ModeAuto
+	if raw, ok := call.Arguments["mode"].(string); ok {
+		switch taskfile.ExecutionMode(strings.TrimSpace(raw)) {
+		case taskfile.ModeTeam:
+			mode = taskfile.ModeTeam
+		case taskfile.ModeSwarm:
+			mode = taskfile.ModeSwarm
+		case taskfile.ModeAuto, "":
+			mode = taskfile.ModeAuto
+		default:
+			return shared.ToolError(call.ID, "invalid mode %q: must be team, swarm, or auto", raw)
+		}
+	}
+
 	// Determine status path.
 	statusPath := statusPathForFile(filePath, tf.PlanID)
 
-	executor := taskfile.NewExecutor(dispatcher)
+	executor := taskfile.NewExecutor(dispatcher, mode, taskfile.DefaultSwarmConfig())
 	var result *taskfile.ExecuteResult
 
 	if wait {

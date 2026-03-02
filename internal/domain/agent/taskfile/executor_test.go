@@ -69,7 +69,7 @@ func TestExecutor_DispatchesInTopoOrder(t *testing.T) {
 
 	mock := &mockDispatcher{}
 	statusPath := filepath.Join(t.TempDir(), "test.status.yaml")
-	exec := NewExecutor(mock)
+	exec := NewExecutor(mock, ModeTeam, DefaultSwarmConfig())
 
 	result, err := exec.Execute(context.Background(), tf, "cause-1", statusPath)
 	if err != nil {
@@ -103,7 +103,7 @@ func TestExecutor_ValidationError(t *testing.T) {
 	tf := &TaskFile{Version: "1"} // no tasks
 
 	mock := &mockDispatcher{}
-	exec := NewExecutor(mock)
+	exec := NewExecutor(mock, ModeTeam, DefaultSwarmConfig())
 
 	_, err := exec.Execute(context.Background(), tf, "cause-1", "/tmp/test.status.yaml")
 	if err == nil {
@@ -125,7 +125,7 @@ func TestExecutor_ExecuteAndWait(t *testing.T) {
 
 	mock := &mockDispatcher{}
 	statusPath := filepath.Join(t.TempDir(), "wait.status.yaml")
-	exec := NewExecutor(mock)
+	exec := NewExecutor(mock, ModeTeam, DefaultSwarmConfig())
 
 	result, err := exec.ExecuteAndWait(context.Background(), tf, "cause-1", statusPath, 5*time.Second)
 	if err != nil {
@@ -145,7 +145,7 @@ func TestExecutor_CausationIDPropagated(t *testing.T) {
 
 	mock := &mockDispatcher{}
 	statusPath := filepath.Join(t.TempDir(), "cause.status.yaml")
-	exec := NewExecutor(mock)
+	exec := NewExecutor(mock, ModeTeam, DefaultSwarmConfig())
 
 	_, err := exec.Execute(context.Background(), tf, "my-causation", statusPath)
 	if err != nil {
@@ -154,6 +154,91 @@ func TestExecutor_CausationIDPropagated(t *testing.T) {
 
 	if mock.dispatched[0].CausationID != "my-causation" {
 		t.Errorf("CausationID: got %q, want %q", mock.dispatched[0].CausationID, "my-causation")
+	}
+}
+
+func TestExecutor_SwarmMode(t *testing.T) {
+	tf := &TaskFile{
+		Version: "1",
+		PlanID:  "swarm-exec-test",
+		Tasks: []TaskSpec{
+			{ID: "a", Prompt: "do A"},
+			{ID: "b", Prompt: "do B"},
+			{ID: "c", Prompt: "do C", DependsOn: []string{"a", "b"}},
+		},
+	}
+
+	mock := &mockDispatcher{}
+	statusPath := filepath.Join(t.TempDir(), "swarm.status.yaml")
+	exec := NewExecutor(mock, ModeSwarm, DefaultSwarmConfig())
+
+	result, err := exec.Execute(context.Background(), tf, "cause-swarm", statusPath)
+	if err != nil {
+		t.Fatalf("Execute (swarm): %v", err)
+	}
+	if len(result.TaskIDs) != 3 {
+		t.Fatalf("expected 3 tasks, got %d", len(result.TaskIDs))
+	}
+	// Swarm should clear DependsOn before dispatch.
+	for _, req := range mock.dispatched {
+		if len(req.DependsOn) > 0 {
+			t.Errorf("swarm dispatch of %q should have cleared DependsOn", req.TaskID)
+		}
+	}
+}
+
+func TestExecutor_AutoMode_SelectsSwarm(t *testing.T) {
+	// All independent → auto should select swarm
+	tf := &TaskFile{
+		Version: "1",
+		PlanID:  "auto-swarm-test",
+		Tasks: []TaskSpec{
+			{ID: "a", Prompt: "do A"},
+			{ID: "b", Prompt: "do B"},
+			{ID: "c", Prompt: "do C"},
+		},
+	}
+
+	mock := &mockDispatcher{}
+	statusPath := filepath.Join(t.TempDir(), "auto.status.yaml")
+	exec := NewExecutor(mock, ModeAuto, DefaultSwarmConfig())
+
+	result, err := exec.Execute(context.Background(), tf, "cause-auto", statusPath)
+	if err != nil {
+		t.Fatalf("Execute (auto): %v", err)
+	}
+	if len(result.TaskIDs) != 3 {
+		t.Fatalf("expected 3 tasks, got %d", len(result.TaskIDs))
+	}
+}
+
+func TestExecutor_AutoMode_SelectsTeam(t *testing.T) {
+	// inherit_context → auto should select team
+	tf := &TaskFile{
+		Version: "1",
+		PlanID:  "auto-team-test",
+		Tasks: []TaskSpec{
+			{ID: "a", Prompt: "do A"},
+			{ID: "b", Prompt: "do B", InheritContext: true, DependsOn: []string{"a"}},
+		},
+	}
+
+	mock := &mockDispatcher{}
+	statusPath := filepath.Join(t.TempDir(), "auto-team.status.yaml")
+	exec := NewExecutor(mock, ModeAuto, DefaultSwarmConfig())
+
+	result, err := exec.Execute(context.Background(), tf, "cause-team", statusPath)
+	if err != nil {
+		t.Fatalf("Execute (auto→team): %v", err)
+	}
+	if len(result.TaskIDs) != 2 {
+		t.Fatalf("expected 2 tasks, got %d", len(result.TaskIDs))
+	}
+	// Team mode preserves DependsOn.
+	for _, req := range mock.dispatched {
+		if req.TaskID == "b" && len(req.DependsOn) == 0 {
+			t.Error("team dispatch of 'b' should preserve DependsOn")
+		}
 	}
 }
 
@@ -180,7 +265,7 @@ func TestExecutor_ExecuteAndWait_FinalSyncRehydratesStatusFile(t *testing.T) {
 		},
 	}
 	statusPath := filepath.Join(t.TempDir(), "rehydrate.status.yaml")
-	exec := NewExecutor(mock)
+	exec := NewExecutor(mock, ModeTeam, DefaultSwarmConfig())
 
 	_, err := exec.ExecuteAndWait(context.Background(), tf, "cause-rehydrate", statusPath, 2*time.Second)
 	if err != nil {
