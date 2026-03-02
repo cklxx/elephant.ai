@@ -41,7 +41,7 @@ func (e *ReactEngine) think(
 	services Services,
 ) (Message, error) {
 
-	tools := services.ToolExecutor.List()
+	tools := selectToolsForTurn(services.ToolExecutor.List(), state)
 	requestID := e.idGenerator.NewRequestIDWithLogID(e.idContextReader.LogIDFromContext(ctx))
 	normalizeContextMessages(state)
 	filteredMessages, excluded := splitMessagesForLLM(state.Messages)
@@ -263,7 +263,7 @@ func (e *ReactEngine) think(
 
 // delayedSummaryTurns is how many additional ReAct iterations to wait before
 // applying a pending compression summary.
-const delayedSummaryTurns = 2
+const delayedSummaryTurns = 1
 
 // enforceContextBudget implements a two-phase compression strategy:
 //

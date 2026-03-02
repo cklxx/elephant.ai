@@ -144,7 +144,7 @@ func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 	expectations := []string{
 		"Perfect Subordinate — System Prompt",
 		"Primary Principle: Intent Over Instruction",
-		"Conclusion First, Details On Demand",
+		"Values & Judgment Framework",
 		"Never execute destructive shell commands",
 		"run_tasks",
 	}
@@ -551,6 +551,8 @@ func TestComposeSystemPromptIncludesMetaLayer(t *testing.T) {
 }
 
 func TestComposeSystemPromptClampsOversizedPrompt(t *testing.T) {
+	// Use "none" mode which calls buildIdentityLine (no voice truncation),
+	// allowing the raw voice to exceed maxComposedSystemPromptChars.
 	longVoice := strings.Repeat("voice ", maxComposedSystemPromptChars)
 	prompt := composeSystemPrompt(systemPromptInput{
 		Static: agent.StaticContext{
@@ -558,9 +560,8 @@ func TestComposeSystemPromptClampsOversizedPrompt(t *testing.T) {
 				ID:    "default",
 				Voice: longVoice,
 			},
-			Tools: []string{"mode=cli"},
 		},
-		PromptMode: "full",
+		PromptMode: "none",
 	})
 
 	if !strings.Contains(prompt, "[System prompt truncated for model context safety.") {
@@ -597,11 +598,14 @@ func TestCompressInjectsStructuredSummary(t *testing.T) {
 	if summary.Role != "assistant" {
 		t.Fatalf("expected summary role assistant, got %s", summary.Role)
 	}
-	if !strings.Contains(summary.Content, "Earlier conversation had") {
-		t.Fatalf("expected structured summary content, got %q", summary.Content)
+	if !strings.Contains(summary.Content, "[Earlier context compressed]") {
+		t.Fatalf("expected structured summary header, got %q", summary.Content)
 	}
-	if strings.Contains(summary.Content, "Previous conversation compressed") {
-		t.Fatalf("legacy placeholder should be removed, got %q", summary.Content)
+	if !strings.Contains(summary.Content, "Goal:") {
+		t.Fatalf("expected Goal: line in structured summary, got %q", summary.Content)
+	}
+	if !strings.Contains(summary.Content, "Last output:") {
+		t.Fatalf("expected Last output: line in structured summary, got %q", summary.Content)
 	}
 	if compressed[2].Role != "user" || !strings.Contains(compressed[2].Content, "feature 11") {
 		t.Fatalf("expected latest user input to be preserved, got %+v", compressed[2])
@@ -635,8 +639,11 @@ func TestAutoCompactTriggersCompression(t *testing.T) {
 	if summary.Source != ports.MessageSourceUserHistory || summary.Role != "assistant" {
 		t.Fatalf("summary should be injected as a user history assistant message, got %+v", summary)
 	}
-	if !strings.Contains(summary.Content, "Earlier conversation had 1 user message(s)") {
-		t.Fatalf("unexpected summary content: %q", summary.Content)
+	if !strings.Contains(summary.Content, "[Earlier context compressed]") {
+		t.Fatalf("expected structured summary header, got %q", summary.Content)
+	}
+	if !strings.Contains(summary.Content, "Goal:") {
+		t.Fatalf("expected Goal: line in structured summary, got %q", summary.Content)
 	}
 	if compacted[2].Role != "user" || compacted[2].Content != "latest request" {
 		t.Fatalf("expected latest user input to remain visible, got %+v", compacted[2])
@@ -661,8 +668,8 @@ func TestAutoCompactNoopBelowThreshold(t *testing.T) {
 
 func TestDefaultCompressionThreshold(t *testing.T) {
 	mgr := &manager{}
-	if got := mgr.compressionThreshold(); got != 0.7 {
-		t.Fatalf("expected default compression threshold 0.7, got %.2f", got)
+	if got := mgr.compressionThreshold(); got != 0.6 {
+		t.Fatalf("expected default compression threshold 0.6, got %.2f", got)
 	}
 }
 
@@ -695,8 +702,14 @@ func TestCompressPreservesAllSystemPrompts(t *testing.T) {
 	if summary.Source != ports.MessageSourceUserHistory || summary.Role != "assistant" {
 		t.Fatalf("summary should be a user history assistant message, got %+v", summary)
 	}
-	if !strings.Contains(summary.Content, "Earlier conversation had 1 user message(s) and 1 assistant response(s)") {
-		t.Fatalf("unexpected summary content: %q", summary.Content)
+	if !strings.Contains(summary.Content, "[Earlier context compressed]") {
+		t.Fatalf("expected structured summary header, got %q", summary.Content)
+	}
+	if !strings.Contains(summary.Content, "Goal: first") {
+		t.Fatalf("expected Goal: line with first user message, got %q", summary.Content)
+	}
+	if !strings.Contains(summary.Content, "Last output: first reply") {
+		t.Fatalf("expected Last output: line with last assistant reply, got %q", summary.Content)
 	}
 	if compressed[3].Role != "user" || compressed[3].Content != "second" {
 		t.Fatalf("expected latest user message preserved, got %+v", compressed[3])

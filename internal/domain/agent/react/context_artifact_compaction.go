@@ -85,18 +85,30 @@ func (e *ReactEngine) tryArtifactCompaction(
 		return messages, false
 	}
 
+	// Generate a semantic summary of the compacted messages to embed in the
+	// placeholder, giving the LLM context about what was removed.
+	semanticSummary := ""
+	if services.Context != nil {
+		semanticSummary = services.Context.SummarizeMessages(plan.summarySource)
+	}
+
+	placeholderContent := fmt.Sprintf(
+		`[CTX_PLACEHOLDER path=%q sha256=%q msgs=%d tokens=%d reason=%q seq=%d]`,
+		path,
+		hash,
+		len(plan.summarySource),
+		removedTokens,
+		string(reason),
+		sequence,
+	)
+	if semanticSummary != "" {
+		placeholderContent += "\n" + semanticSummary
+	}
+
 	placeholder := ports.Message{
-		Role: "assistant",
-		Content: fmt.Sprintf(
-			`[CTX_PLACEHOLDER path=%q sha256=%q msgs=%d tokens=%d reason=%q seq=%d]`,
-			path,
-			hash,
-			len(plan.summarySource),
-			removedTokens,
-			string(reason),
-			sequence,
-		),
-		Source: ports.MessageSourceCheckpoint,
+		Role:    "assistant",
+		Content: placeholderContent,
+		Source:  ports.MessageSourceCheckpoint,
 		Metadata: map[string]any{
 			"context_placeholder": true,
 			"path":                path,

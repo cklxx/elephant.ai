@@ -1085,7 +1085,7 @@ func TestAppendGoalPlanReminderWhenDistanceExceeded(t *testing.T) {
 		},
 	}}
 	engine.updateGoalPlanPrompts(state, calls, results)
-	messages := engine.buildToolMessages(results)
+	messages := engine.buildToolMessages(state, results)
 	updated := engine.appendGoalPlanReminder(state, messages)
 	if len(updated) != 1 {
 		t.Fatalf("expected a single tool message, got %d", len(updated))
@@ -1156,6 +1156,7 @@ func TestCollectAllToolGeneratedAttachmentsReturnsNilWhenEmpty(t *testing.T) {
 
 func TestBuildToolMessagesDoesNotInjectPlaceholders(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{SessionID: "test-session"}
 	results := []ToolResult{{
 		CallID:  "call-1",
 		Content: "Image generated successfully.",
@@ -1168,7 +1169,7 @@ func TestBuildToolMessagesDoesNotInjectPlaceholders(t *testing.T) {
 		},
 	}}
 
-	messages := engine.buildToolMessages(results)
+	messages := engine.buildToolMessages(state, results)
 	if len(messages) != 1 {
 		t.Fatalf("expected one tool message, got %d", len(messages))
 	}
@@ -1236,18 +1237,22 @@ func TestTruncateToolResultContentCutsAtLineBoundary(t *testing.T) {
 
 func TestBuildToolMessagesTruncatesLargeResult(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{SessionID: "test-session"}
 	bigContent := strings.Repeat("x", maxToolResultContentChars+1000)
 	results := []ToolResult{{
 		CallID:  "call-1",
 		Content: bigContent,
 	}}
 
-	messages := engine.buildToolMessages(results)
+	messages := engine.buildToolMessages(state, results)
 	if len(messages) != 1 {
 		t.Fatalf("expected one tool message, got %d", len(messages))
 	}
-	if !strings.Contains(messages[0].Content, "[Content truncated:") {
-		t.Fatalf("expected truncation hint in message content")
+	// With offloading, the message should contain either an offload path or a truncation hint.
+	hasOffload := strings.Contains(messages[0].Content, "[Full output:")
+	hasTruncation := strings.Contains(messages[0].Content, "[Content truncated:")
+	if !hasOffload && !hasTruncation {
+		t.Fatalf("expected offload or truncation hint in message content, got %q", messages[0].Content[:200])
 	}
 	// Original result preserved in ToolResults.
 	if messages[0].ToolResults[0].Content != bigContent {
@@ -1321,6 +1326,7 @@ func TestTruncateToolResultWithMetadataUnderLimit(t *testing.T) {
 
 func TestBuildToolMessagesUsesFileMetadataForHint(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{SessionID: "test-session"}
 	var b strings.Builder
 	for i := 0; i < 300; i++ {
 		fmt.Fprintf(&b, "line %03d: %s\n", i, strings.Repeat("z", 40))
@@ -1338,13 +1344,16 @@ func TestBuildToolMessagesUsesFileMetadataForHint(t *testing.T) {
 		},
 	}}
 
-	messages := engine.buildToolMessages(results)
+	messages := engine.buildToolMessages(state, results)
 	if len(messages) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(messages))
 	}
-	// Should have file-specific hint, not generic.
-	if !strings.Contains(messages[0].Content, "File size:") {
-		t.Fatalf("expected file-specific hint in message")
+	// With offloading, large content is offloaded with a preview + path.
+	// The message should contain either an offload hint or file-specific hint.
+	hasOffload := strings.Contains(messages[0].Content, "[Full output:")
+	hasFileHint := strings.Contains(messages[0].Content, "File size:")
+	if !hasOffload && !hasFileHint {
+		t.Fatalf("expected offload or file-specific hint in message, got %q", messages[0].Content[:min(200, len(messages[0].Content))])
 	}
 }
 
@@ -1366,7 +1375,7 @@ func TestAppendGoalPlanReminderSkippedWhenDistanceSmall(t *testing.T) {
 		},
 	}}
 	engine.updateGoalPlanPrompts(state, calls, results)
-	messages := engine.buildToolMessages(results)
+	messages := engine.buildToolMessages(state, results)
 	updated := engine.appendGoalPlanReminder(state, messages)
 	if len(updated) != 1 {
 		t.Fatalf("expected a single tool message, got %d", len(updated))
@@ -1771,6 +1780,9 @@ func (m *mockContextManager) BuildSummaryOnly(msgs []ports.Message) (string, int
 		return m.buildSummaryOnlyFunc(msgs)
 	}
 	return "", 0
+}
+func (m *mockContextManager) SummarizeMessages(msgs []ports.Message) string {
+	return ""
 }
 
 func TestEnforceContextBudget_DeferredSummaryGeneration(t *testing.T) {

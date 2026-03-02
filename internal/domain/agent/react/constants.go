@@ -34,8 +34,14 @@ const (
 
 	snapshotSummaryLimit = 160
 
+	// toolResultInlineLimit is the maximum number of characters kept inline
+	// in the LLM context for a single tool result. Content exceeding this
+	// limit is offloaded to a file and replaced with a short preview + path.
+	toolResultInlineLimit = 300
+
 	// maxToolResultContentChars caps the content sent to the LLM for a
-	// single tool result.  When exceeded, content is truncated at the
-	// nearest preceding line boundary and a hint is appended.
+	// single tool result when offloading is unavailable (fallback).
+	// When exceeded, content is truncated at the nearest preceding line
+	// boundary and a hint is appended.
 	maxToolResultContentChars = 8000
 )

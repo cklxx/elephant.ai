@@ -160,3 +160,6 @@ EOF
 __pycache__/
 elephant.ai.worktrees/
 .claude/worktrees/
+
+# Tool result offload artifacts from tests
+internal/domain/agent/react/runtime/

@@ -66,6 +66,13 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 	runtimeHistoryChunk := buildRuntimeHistoryChunk(meta)
 	memorySnapshot := m.loadMemorySnapshot(ctx, session)
 	promptMode := strings.TrimSpace(cfg.PromptMode)
+
+	// Auto-downgrade to minimal prompt mode on non-first turns to save tokens.
+	// The full prompt is only needed on the first turn for complete context.
+	isFirstTurn := len(session.Messages) == 0
+	if !isFirstTurn && normalizePromptMode(promptMode) == promptModeFull {
+		promptMode = promptModeMinimal
+	}
 	includeBootstrap := shouldInjectBootstrap(session, promptMode)
 	bootstrapRecords := []bootstrapRecord(nil)
 	if includeBootstrap {

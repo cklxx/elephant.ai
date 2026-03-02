@@ -131,6 +131,11 @@ func (m *manager) BuildSummaryOnly(messages []ports.Message) (string, int) {
 }
 
 
+// SummarizeMessages generates a structured compression summary from messages.
+func (m *manager) SummarizeMessages(messages []ports.Message) string {
+	return buildCompressionSummary(messages)
+}
+
 // Compress preserves system/important/checkpoint messages and the most recent
 // conversation turn, then summarizes older conversation history when the token
 // budget is exceeded. Existing compression summaries are never re-summarized.
@@ -183,62 +188,73 @@ func buildCompressionSummary(messages []ports.Message) string {
 		return ""
 	}
 
-	var userCount, assistantCount, toolMentions, summarizedCount int
-	var firstUser, lastUser, firstAssistant, lastAssistant string
+	var firstUser, lastAssistant string
+	const maxToolChainEntries = 5
+	toolChain := make([]string, 0, maxToolChainEntries)
 
+	summarizedCount := 0
 	for _, msg := range messages {
 		if isContextCompressionSummary(msg) {
 			continue
 		}
 		summarizedCount++
 		role := strings.ToLower(strings.TrimSpace(msg.Role))
-		snippet := buildCompressionSnippet(msg.Content, 140)
 		switch role {
 		case "user":
-			userCount++
 			if firstUser == "" {
-				firstUser = snippet
+				firstUser = buildCompressionSnippet(msg.Content, 300)
 			}
-			lastUser = snippet
 		case "assistant":
-			assistantCount++
-			toolMentions += len(msg.ToolCalls)
-			if firstAssistant == "" {
-				firstAssistant = snippet
+			lastAssistant = buildCompressionSnippet(msg.Content, 400)
+			for _, tc := range msg.ToolCalls {
+				if len(toolChain) < maxToolChainEntries {
+					argPreview := buildToolArgPreview(tc.Arguments)
+					toolChain = append(toolChain, fmt.Sprintf("%s(%s)", tc.Name, argPreview))
+				}
 			}
-			lastAssistant = snippet
-		case "tool":
-			toolMentions++
 		}
-		toolMentions += len(msg.ToolResults)
 	}
 	if summarizedCount == 0 {
 		return ""
 	}
 
-	parts := []string{fmt.Sprintf("Earlier conversation had %d user message(s) and %d assistant response(s)", userCount, assistantCount)}
-	if toolMentions > 0 {
-		parts = append(parts, fmt.Sprintf("tools were referenced %d time(s)", toolMentions))
-	}
-
-	var contextParts []string
+	var sb strings.Builder
+	sb.WriteString("[Earlier context compressed]")
 	if firstUser != "" {
-		contextParts = append(contextParts, fmt.Sprintf("user first asked: %s", firstUser))
+		sb.WriteString("\nGoal: ")
+		sb.WriteString(firstUser)
 	}
-	if firstAssistant != "" {
-		contextParts = append(contextParts, fmt.Sprintf("assistant first replied: %s", firstAssistant))
+	if len(toolChain) > 0 {
+		sb.WriteString("\nTool chain: ")
+		sb.WriteString(strings.Join(toolChain, " → "))
 	}
-	if lastUser != "" && lastUser != firstUser {
-		contextParts = append(contextParts, fmt.Sprintf("recent user request: %s", lastUser))
+	if lastAssistant != "" {
+		sb.WriteString("\nLast output: ")
+		sb.WriteString(lastAssistant)
 	}
-	if lastAssistant != "" && lastAssistant != firstAssistant {
-		contextParts = append(contextParts, fmt.Sprintf("recent assistant reply: %s", lastAssistant))
-	}
-	if len(contextParts) > 0 {
-		parts = append(parts, strings.Join(contextParts, " | "))
-	}
+	return sb.String()
+}
 
-	return fmt.Sprintf("[Earlier context compressed] %s.", strings.Join(parts, "; "))
+// buildToolArgPreview returns a compact representation of tool call arguments
+// for use in compression summaries. Keeps only short string values.
+func buildToolArgPreview(args map[string]any) string {
+	if len(args) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(args))
+	for k, v := range args {
+		switch val := v.(type) {
+		case string:
+			if len(val) > 40 {
+				val = val[:40] + "…"
+			}
+			parts = append(parts, fmt.Sprintf("%s=%q", k, val))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, ", ")
 }
 
 type compressionPlan struct {

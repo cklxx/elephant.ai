@@ -37,6 +37,11 @@ type ContextManager interface {
 	// configuration.
 	BuildWindow(ctx context.Context, session *storage.Session, cfg ContextWindowConfig) (ContextWindow, error)
 
+	// SummarizeMessages generates a structured compression summary from the
+	// given messages without modifying them. Used by artifact compaction to
+	// embed semantic summaries in placeholders.
+	SummarizeMessages(messages []core.Message) string
+
 	// RecordTurn writes the supplied turn record to the dynamic state store so
 	// that UI/API consumers can replay the session.
 	RecordTurn(ctx context.Context, record ContextTurnRecord) error
