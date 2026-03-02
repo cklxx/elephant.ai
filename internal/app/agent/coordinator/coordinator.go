@@ -513,6 +513,13 @@ func (c *AgentCoordinator) ExecuteTask(
 		c.hookRegistry.RunOnTaskCompleted(ctx, hookResult)
 	}
 
+	// Stamp execution error into session metadata so it survives persistence.
+	if executionErr != nil {
+		metadata := storage.EnsureMetadata(env.Session)
+		metadata["last_error"] = executionErr.Error()
+		metadata["last_error_at"] = c.clock.Now().UTC().Format(time.RFC3339)
+	}
+
 	// Save session unless this is a delegated subagent run (which should not
 	// mutate the parent session state).
 	wf.start(stagePersist)

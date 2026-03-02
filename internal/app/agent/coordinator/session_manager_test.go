@@ -429,6 +429,99 @@ func TestSaveSessionAfterExecution_ClearsParentRunID(t *testing.T) {
 	}
 }
 
+func TestSaveSessionAfterExecution_PersistsStopReason(t *testing.T) {
+	store := &ensureSessionStore{sessions: map[string]*storage.Session{}}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+
+	session := &storage.Session{ID: "s1"}
+	result := &agent.TaskResult{
+		StopReason: "error",
+		SessionID:  "s1",
+	}
+
+	if err := coordinator.SaveSessionAfterExecution(context.Background(), session, result); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if session.Metadata["stop_reason"] != "error" {
+		t.Fatalf("expected stop_reason=error, got %q", session.Metadata["stop_reason"])
+	}
+}
+
+func TestSaveSessionAfterExecution_ClearsStopReasonWhenEmpty(t *testing.T) {
+	store := &ensureSessionStore{sessions: map[string]*storage.Session{}}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+
+	session := &storage.Session{
+		ID:       "s1",
+		Metadata: map[string]string{"stop_reason": "error"},
+	}
+	result := &agent.TaskResult{SessionID: "s1"}
+
+	if err := coordinator.SaveSessionAfterExecution(context.Background(), session, result); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := session.Metadata["stop_reason"]; ok {
+		t.Fatal("expected stop_reason deleted when StopReason is empty")
+	}
+}
+
+func TestSaveSessionAfterExecution_ClearsErrorMetadataOnSuccess(t *testing.T) {
+	store := &ensureSessionStore{sessions: map[string]*storage.Session{}}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+
+	session := &storage.Session{
+		ID: "s1",
+		Metadata: map[string]string{
+			"last_error":    "some previous error",
+			"last_error_at": "2026-03-02T23:09:35Z",
+		},
+	}
+	result := &agent.TaskResult{
+		StopReason: "completed",
+		SessionID:  "s1",
+	}
+
+	if err := coordinator.SaveSessionAfterExecution(context.Background(), session, result); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := session.Metadata["last_error"]; ok {
+		t.Fatal("expected last_error cleared on success")
+	}
+	if _, ok := session.Metadata["last_error_at"]; ok {
+		t.Fatal("expected last_error_at cleared on success")
+	}
+	if session.Metadata["stop_reason"] != "completed" {
+		t.Fatalf("expected stop_reason=completed, got %q", session.Metadata["stop_reason"])
+	}
+}
+
+func TestSaveSessionAfterExecution_PreservesErrorMetadataOnError(t *testing.T) {
+	store := &ensureSessionStore{sessions: map[string]*storage.Session{}}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+
+	session := &storage.Session{
+		ID: "s1",
+		Metadata: map[string]string{
+			"last_error":    "think step failed: LLM call failed",
+			"last_error_at": "2026-03-02T23:09:35Z",
+		},
+	}
+	result := &agent.TaskResult{
+		StopReason: "error",
+		SessionID:  "s1",
+	}
+
+	if err := coordinator.SaveSessionAfterExecution(context.Background(), session, result); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if session.Metadata["last_error"] != "think step failed: LLM call failed" {
+		t.Fatalf("expected last_error preserved on error stop, got %q", session.Metadata["last_error"])
+	}
+	if session.Metadata["stop_reason"] != "error" {
+		t.Fatalf("expected stop_reason=error, got %q", session.Metadata["stop_reason"])
+	}
+}
+
 // --- GetSession ---
 
 func TestGetSession_EmptyIDCreates(t *testing.T) {

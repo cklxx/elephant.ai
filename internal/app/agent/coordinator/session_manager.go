@@ -100,6 +100,16 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 
 	metadata := storage.EnsureMetadata(session)
 	updateAwaitUserInputMetadata(session, result)
+	if stopReason := strings.TrimSpace(result.StopReason); stopReason != "" {
+		metadata["stop_reason"] = stopReason
+	} else {
+		delete(metadata, "stop_reason")
+	}
+	// Clear transient error metadata on successful execution.
+	if result.StopReason != "error" {
+		delete(metadata, "last_error")
+		delete(metadata, "last_error_at")
+	}
 	if result.SessionID != "" {
 		metadata["session_id"] = result.SessionID
 	}
