@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"time"
+
+	"alex/internal/shared/modelregistry"
 )
 
 // CostTracker tracks token usage and costs across LLM interactions
@@ -97,16 +99,33 @@ type ModelPricing struct {
 	OutputPer1K float64
 }
 
-// GetModelPricing returns pricing for a given model
+// GetModelPricing returns pricing for a given model.
+// It tries the live models.dev registry first and falls back to a static table.
 func GetModelPricing(model string) ModelPricing {
-	// Pricing as of 2025
+	if info, ok := modelregistry.Lookup(model); ok && info.InputPer1M > 0 {
+		return ModelPricing{
+			InputPer1K:  info.InputPer1M / 1000.0,
+			OutputPer1K: info.OutputPer1M / 1000.0,
+		}
+	}
+
+	// Static fallback table — values in USD per 1K tokens.
 	pricingMap := map[string]ModelPricing{
-		"gpt-4":                             {InputPer1K: 0.03, OutputPer1K: 0.06},
-		"gpt-4-turbo":                       {InputPer1K: 0.01, OutputPer1K: 0.03},
-		"gpt-4o":                            {InputPer1K: 0.005, OutputPer1K: 0.015},
-		"gpt-4o-mini":                       {InputPer1K: 0.00015, OutputPer1K: 0.0006},
-		"deepseek-chat":                     {InputPer1K: 0.00014, OutputPer1K: 0.00028},
-		"deepseek-reasoner":                 {InputPer1K: 0.00055, OutputPer1K: 0.00219},
+		// OpenAI
+		"gpt-4":       {InputPer1K: 0.03, OutputPer1K: 0.06},
+		"gpt-4-turbo": {InputPer1K: 0.01, OutputPer1K: 0.03},
+		"gpt-4o":      {InputPer1K: 0.005, OutputPer1K: 0.015},
+		"gpt-4o-mini": {InputPer1K: 0.00015, OutputPer1K: 0.0006},
+		"gpt-5":       {InputPer1K: 0.015, OutputPer1K: 0.06},
+		"gpt-5-mini":  {InputPer1K: 0.00150, OutputPer1K: 0.006},
+		// Anthropic
+		"claude-sonnet-4-6":        {InputPer1K: 0.003, OutputPer1K: 0.015},
+		"claude-opus-4-6":          {InputPer1K: 0.015, OutputPer1K: 0.075},
+		"claude-haiku-4-5-20251001": {InputPer1K: 0.00025, OutputPer1K: 0.00125},
+		// DeepSeek
+		"deepseek-chat":     {InputPer1K: 0.00014, OutputPer1K: 0.00028},
+		"deepseek-reasoner": {InputPer1K: 0.00055, OutputPer1K: 0.00219},
+		// OpenRouter prefixed
 		"anthropic/claude-3-5-sonnet":       {InputPer1K: 0.003, OutputPer1K: 0.015},
 		"anthropic/claude-3-opus":           {InputPer1K: 0.015, OutputPer1K: 0.075},
 		"meta-llama/llama-3.1-70b-instruct": {InputPer1K: 0.0005, OutputPer1K: 0.0008},
@@ -115,8 +134,6 @@ func GetModelPricing(model string) ModelPricing {
 	if pricing, ok := pricingMap[model]; ok {
 		return pricing
 	}
-
-	// Default pricing for unknown models
 	return ModelPricing{InputPer1K: 0.001, OutputPer1K: 0.002}
 }
 

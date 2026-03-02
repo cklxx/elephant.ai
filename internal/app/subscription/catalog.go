@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"alex/internal/shared/modelregistry"
 	"alex/internal/shared/utils"
 	"context"
 	"encoding/json"
@@ -248,14 +249,14 @@ func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, clie
 			}, maxResponseBytes)
 			if err != nil {
 				target.Error = err.Error()
-				target.Models = recommendationIDs(target.RecommendedModels)
+				target.Models = enrichWithRegistryModels(target.Provider, recommendationIDs(target.RecommendedModels))
 				target.DefaultModel = pickCatalogDefaultModel(target)
 				targets = append(targets, target)
 				continue
 			}
 			target.Models = models
 		} else {
-			target.Models = recommendationIDs(target.RecommendedModels)
+			target.Models = enrichWithRegistryModels(target.Provider, recommendationIDs(target.RecommendedModels))
 		}
 		target.DefaultModel = pickCatalogDefaultModel(target)
 		targets = append(targets, target)
@@ -451,6 +452,26 @@ func fetchProviderModels(ctx context.Context, client *http.Client, target fetchT
 	}
 
 	return parseModelList(body)
+}
+
+// enrichWithRegistryModels appends model IDs known from the models.dev registry
+// that are not already present in existing. Used as a fallback when the live
+// provider API is unavailable or unauthenticated.
+func enrichWithRegistryModels(provider string, existing []string) []string {
+	known := modelregistry.ProviderModels(provider)
+	if len(known) == 0 {
+		return existing
+	}
+	seen := make(map[string]struct{}, len(existing))
+	for _, m := range existing {
+		seen[m] = struct{}{}
+	}
+	for _, m := range known {
+		if _, ok := seen[m]; !ok {
+			existing = append(existing, m)
+		}
+	}
+	return existing
 }
 
 func isAnthropicOAuthToken(token string) bool {

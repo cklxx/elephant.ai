@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/modelregistry"
 
 	promclient "github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
@@ -560,44 +561,13 @@ func (m *MetricsCollector) RecordNSMAccuracy(ctx context.Context, toolName strin
 	))
 }
 
-// EstimateCost estimates the cost of an LLM request (simplified)
-// In production, use actual pricing from the provider
+// EstimateCost returns the USD cost for a single LLM request.
+// It consults the models.dev registry first and falls back to a $1.5/1M default.
 func EstimateCost(model string, inputTokens, outputTokens int) float64 {
-	// Simplified pricing (per 1M tokens)
-	// These are example prices and should be updated based on actual provider pricing
-	prices := map[string]struct {
-		input  float64
-		output float64
-	}{
-		"gpt-4": {
-			input:  30.0, // $30 per 1M input tokens
-			output: 60.0, // $60 per 1M output tokens
-		},
-		"gpt-3.5-turbo": {
-			input:  0.5, // $0.50 per 1M input tokens
-			output: 1.5, // $1.50 per 1M output tokens
-		},
-		"claude-3-opus": {
-			input:  15.0, // $15 per 1M input tokens
-			output: 75.0, // $75 per 1M output tokens
-		},
-		"claude-3-sonnet": {
-			input:  3.0,  // $3 per 1M input tokens
-			output: 15.0, // $15 per 1M output tokens
-		},
+	if info, ok := modelregistry.Lookup(model); ok && info.InputPer1M > 0 {
+		return float64(inputTokens)/1e6*info.InputPer1M +
+			float64(outputTokens)/1e6*info.OutputPer1M
 	}
-
-	// Default pricing if model not found
-	pricing, ok := prices[model]
-	if !ok {
-		pricing = struct {
-			input  float64
-			output float64
-		}{input: 1.0, output: 2.0}
-	}
-
-	inputCost := (float64(inputTokens) / 1_000_000) * pricing.input
-	outputCost := (float64(outputTokens) / 1_000_000) * pricing.output
-
-	return inputCost + outputCost
+	// Conservative fallback: $1.5 per 1M tokens (blended input+output).
+	return float64(inputTokens+outputTokens) / 1e6 * 1.5
 }

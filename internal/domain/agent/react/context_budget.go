@@ -5,6 +5,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	jsonx "alex/internal/shared/json"
+	"alex/internal/shared/modelregistry"
 	tokenutil "alex/internal/shared/token"
 )
 
@@ -62,6 +63,10 @@ func deriveContextTokenLimit(model string, maxOutputTokens int) int {
 }
 
 func modelContextWindowTokens(model string) int {
+	if info, ok := modelregistry.Lookup(model); ok && info.ContextWindow > 0 {
+		return info.ContextWindow
+	}
+
 	m := strings.ToLower(strings.TrimSpace(model))
 	switch {
 	case m == "":

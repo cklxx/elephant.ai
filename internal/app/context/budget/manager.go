@@ -1,6 +1,10 @@
 package budget
 
-import "sync"
+import (
+	"sync"
+
+	"alex/internal/domain/agent/ports/storage"
+)
 
 // BudgetState represents the current state of a session's token budget.
 type BudgetState string
@@ -46,13 +50,21 @@ type ModelTier struct {
 
 // DefaultModelTiers provides a reference ordering of common models from
 // cheapest to most expensive, used for downgrade suggestions.
+// CostPer1KInput is approximate — accurate pricing comes from storage.GetModelPricing.
+// Ordering is stable: within a priority level the first entry is preferred by
+// suggestDowngradeLocked.
 var DefaultModelTiers = []ModelTier{
 	{Name: "deepseek-chat", CostPer1KInput: 0.00014, Priority: 1},
-	{Name: "gpt-3.5-turbo", CostPer1KInput: 0.0005, Priority: 2},
+	{Name: "gpt-4o-mini", CostPer1KInput: 0.00015, Priority: 2},
 	{Name: "claude-3-haiku", CostPer1KInput: 0.00025, Priority: 3},
+	{Name: "claude-haiku-4-5-20251001", CostPer1KInput: 0.00025, Priority: 3},
 	{Name: "claude-3-sonnet", CostPer1KInput: 0.003, Priority: 4},
-	{Name: "gpt-4", CostPer1KInput: 0.03, Priority: 5},
+	{Name: "claude-sonnet-4-6", CostPer1KInput: 0.003, Priority: 4},
+	{Name: "gpt-4o", CostPer1KInput: 0.005, Priority: 4},
+	{Name: "gpt-4", CostPer1KInput: 0.01, Priority: 5},
+	{Name: "gpt-5", CostPer1KInput: 0.015, Priority: 5},
 	{Name: "claude-3-opus", CostPer1KInput: 0.015, Priority: 6},
+	{Name: "claude-opus-4-6", CostPer1KInput: 0.015, Priority: 6},
 }
 
 // sessionState holds the mutable usage data for a single session.
@@ -288,17 +300,10 @@ func (m *Manager) suggestDowngradeLocked(currentModel string) (string, bool) {
 	return best.Name, true
 }
 
-// estimateCost computes an approximate cost for a single recording based on
-// the model tiers table. Falls back to a conservative default when the model
-// is not in the tier list.
-func estimateCost(inputTokens, outputTokens int, model string, tiers []ModelTier) float64 {
-	for _, t := range tiers {
-		if t.Name == model {
-			// Use input cost as a proxy; output is typically 2x input.
-			return (float64(inputTokens) * t.CostPer1KInput / 1000.0) +
-				(float64(outputTokens) * t.CostPer1KInput * 2.0 / 1000.0)
-		}
-	}
-	// Unknown model — use a conservative default ($0.001 / 1K tokens).
-	return float64(inputTokens+outputTokens) * 0.001 / 1000.0
+// estimateCost delegates to storage.GetModelPricing for accurate per-model pricing.
+// The tiers parameter is kept for call-site compatibility but is unused.
+func estimateCost(inputTokens, outputTokens int, model string, _ []ModelTier) float64 {
+	pricing := storage.GetModelPricing(model)
+	return float64(inputTokens)/1000.0*pricing.InputPer1K +
+		float64(outputTokens)/1000.0*pricing.OutputPer1K
 }

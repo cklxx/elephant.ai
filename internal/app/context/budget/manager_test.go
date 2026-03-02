@@ -361,8 +361,9 @@ func TestEstimateCostUnknownModel(t *testing.T) {
 	if cost <= 0 {
 		t.Error("cost should be positive for unknown model")
 	}
-	// Fallback: (1000+500) * 0.001 / 1000 = 0.0015
-	expected := 1500.0 * 0.001 / 1000.0
+	// Fallback via storage.GetModelPricing: {InputPer1K: 0.001, OutputPer1K: 0.002}
+	// 1000/1000*0.001 + 500/1000*0.002 = 0.001 + 0.001 = 0.002
+	expected := 1000.0/1000.0*0.001 + 500.0/1000.0*0.002
 	if math.Abs(cost-expected) > 1e-9 {
 		t.Errorf("cost = %f, want %f", cost, expected)
 	}
