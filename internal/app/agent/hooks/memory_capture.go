@@ -3,7 +3,9 @@ package hooks
 import (
 	"alex/internal/shared/utils"
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	portsllm "alex/internal/domain/agent/ports/llm"
 	"alex/internal/infra/memory"
 	runtimeconfig "alex/internal/shared/config"
+	alexerrors "alex/internal/shared/errors"
 	"alex/internal/shared/logging"
 )
 
@@ -116,7 +119,7 @@ func (h *MemoryCaptureHook) OnTaskCompleted(ctx context.Context, result TaskResu
 }
 
 func (h *MemoryCaptureHook) captureWithLLM(ctx context.Context, result TaskResultInfo) []string {
-	profile, ok := h.resolveProfile(ctx)
+	profile, fallbackProfile, canFallback, ok := h.resolveProfile(ctx)
 	if !ok {
 		return nil
 	}
@@ -124,90 +127,7 @@ func (h *MemoryCaptureHook) captureWithLLM(ctx context.Context, result TaskResul
 	if prompt == "" {
 		return nil
 	}
-
-	lines, err := h.captureLinesWithProfile(ctx, profile, prompt)
-	if err == nil {
-		return lines
-	}
-	h.logger.Warn("Memory capture LLM request failed: %v", err)
-	if !h.shouldFallbackToDefault(ctx, err, profile) {
-		return nil
-	}
-	fallbackProfile, ok := h.defaultProfile()
-	if !ok {
-		return nil
-	}
-	h.logger.Warn("Memory capture pinned model rate-limited; retrying with default profile %s/%s",
-		strings.TrimSpace(fallbackProfile.Provider),
-		strings.TrimSpace(fallbackProfile.Model),
-	)
-	lines, err = h.captureLinesWithProfile(ctx, fallbackProfile, prompt)
-	if err != nil {
-		h.logger.Warn("Memory capture default fallback request failed: %v", err)
-		return nil
-	}
-	return lines
-}
-
-func (h *MemoryCaptureHook) resolveProfile(ctx context.Context) (runtimeconfig.LLMProfile, bool) {
-	// Prefer per-request LLM selection from context (e.g. model override).
-	if selection, ok := appcontext.GetLLMSelection(ctx); ok {
-		provider := strings.TrimSpace(selection.Provider)
-		model := strings.TrimSpace(selection.Model)
-		if provider != "" && model != "" {
-			return runtimeconfig.LLMProfile{
-				Provider: provider,
-				Model:    model,
-				APIKey:   strings.TrimSpace(selection.APIKey),
-				BaseURL:  strings.TrimSpace(selection.BaseURL),
-				Headers:  llmclient.CloneHeaders(selection.Headers),
-			}, true
-		}
-	}
-
-	// Fall back to the shared runtime profile.
-	p := h.config.Profile
-	if utils.IsBlank(p.Provider) || utils.IsBlank(p.Model) {
-		return runtimeconfig.LLMProfile{}, false
-	}
-	return p, true
-}
-
-func (h *MemoryCaptureHook) defaultProfile() (runtimeconfig.LLMProfile, bool) {
-	p := h.config.Profile
-	if utils.IsBlank(p.Provider) || utils.IsBlank(p.Model) {
-		return runtimeconfig.LLMProfile{}, false
-	}
-	return p, true
-}
-
-func (h *MemoryCaptureHook) shouldFallbackToDefault(ctx context.Context, err error, current runtimeconfig.LLMProfile) bool {
-	if err == nil || !llmclient.IsRateLimitError(err) {
-		return false
-	}
-	selection, ok := appcontext.GetLLMSelection(ctx)
-	if !ok || !selection.Pinned {
-		return false
-	}
-	fallback, ok := h.defaultProfile()
-	if !ok {
-		return false
-	}
-	return !sameProfileEndpoint(current, fallback)
-}
-
-func (h *MemoryCaptureHook) captureLinesWithProfile(
-	ctx context.Context,
-	profile runtimeconfig.LLMProfile,
-	prompt string,
-) ([]string, error) {
-	client, _, err := llmclient.GetIsolatedClientFromProfile(h.factory, profile, nil, false)
-	if err != nil {
-		return nil, err
-	}
-	ctxTimeout, cancel := context.WithTimeout(ctx, h.config.Timeout)
-	defer cancel()
-	resp, err := client.Complete(ctxTimeout, ports.CompletionRequest{
+	req := ports.CompletionRequest{
 		Messages: []ports.Message{
 			{
 				Role: "system",
@@ -225,20 +145,97 @@ func (h *MemoryCaptureHook) captureLinesWithProfile(
 		Metadata: map[string]any{
 			"intent": "memory_capture",
 		},
-	})
+	}
+
+	resp, err := h.completeWithProfile(ctx, profile, req)
+	if err != nil {
+		if canFallback && isRateLimitError(err) {
+			h.logger.Warn("Memory capture pinned model rate-limited (%s/%s); retrying with default profile (%s/%s)",
+				strings.TrimSpace(profile.Provider), strings.TrimSpace(profile.Model),
+				strings.TrimSpace(fallbackProfile.Provider), strings.TrimSpace(fallbackProfile.Model),
+			)
+			if fallbackResp, fallbackErr := h.completeWithProfile(ctx, fallbackProfile, req); fallbackErr == nil {
+				resp = fallbackResp
+				err = nil
+			} else {
+				h.logger.Warn("Memory capture fallback request failed: %v", fallbackErr)
+			}
+		}
+	}
+	if err != nil {
+		h.logger.Warn("Memory capture LLM request failed: %v", err)
+		return nil
+	}
+	if resp == nil || utils.IsBlank(resp.Content) {
+		return nil
+	}
+	return normalizeMemoryLines(resp.Content)
+}
+
+func (h *MemoryCaptureHook) completeWithProfile(
+	ctx context.Context,
+	profile runtimeconfig.LLMProfile,
+	req ports.CompletionRequest,
+) (*ports.CompletionResponse, error) {
+	client, _, err := llmclient.GetIsolatedClientFromProfile(h.factory, profile, nil, false)
 	if err != nil {
 		return nil, err
 	}
-	if resp == nil || utils.IsBlank(resp.Content) {
-		return nil, nil
-	}
-	return normalizeMemoryLines(resp.Content), nil
+	ctxTimeout, cancel := context.WithTimeout(ctx, h.config.Timeout)
+	defer cancel()
+	return client.Complete(ctxTimeout, req)
 }
 
-func sameProfileEndpoint(a, b runtimeconfig.LLMProfile) bool {
+func (h *MemoryCaptureHook) resolveProfile(ctx context.Context) (runtimeconfig.LLMProfile, runtimeconfig.LLMProfile, bool, bool) {
+	defaultProfile := h.config.Profile
+	defaultOK := !utils.IsBlank(defaultProfile.Provider) && !utils.IsBlank(defaultProfile.Model)
+
+	// Prefer per-request LLM selection from context (e.g. model override).
+	if selection, ok := appcontext.GetLLMSelection(ctx); ok {
+		provider := strings.TrimSpace(selection.Provider)
+		model := strings.TrimSpace(selection.Model)
+		if provider != "" && model != "" {
+			profile := runtimeconfig.LLMProfile{
+				Provider: provider,
+				Model:    model,
+				APIKey:   strings.TrimSpace(selection.APIKey),
+				BaseURL:  strings.TrimSpace(selection.BaseURL),
+				Headers:  llmclient.CloneHeaders(selection.Headers),
+			}
+			if selection.Pinned && defaultOK && !sameProviderModel(profile, defaultProfile) {
+				return profile, defaultProfile, true, true
+			}
+			return profile, runtimeconfig.LLMProfile{}, false, true
+		}
+	}
+
+	// Fall back to the shared runtime profile.
+	if !defaultOK {
+		return runtimeconfig.LLMProfile{}, runtimeconfig.LLMProfile{}, false, false
+	}
+	return defaultProfile, runtimeconfig.LLMProfile{}, false, true
+}
+
+func sameProviderModel(a, b runtimeconfig.LLMProfile) bool {
 	return strings.EqualFold(strings.TrimSpace(a.Provider), strings.TrimSpace(b.Provider)) &&
-		strings.EqualFold(strings.TrimSpace(a.Model), strings.TrimSpace(b.Model)) &&
-		strings.EqualFold(strings.TrimSpace(a.BaseURL), strings.TrimSpace(b.BaseURL))
+		strings.EqualFold(strings.TrimSpace(a.Model), strings.TrimSpace(b.Model))
+}
+
+func isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var transient *alexerrors.TransientError
+	if errors.As(err, &transient) && transient.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
+
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "usage_limit_reached") ||
+		strings.Contains(lower, "rate limit reached") ||
+		strings.Contains(lower, "status 429") ||
+		(strings.Contains(lower, "429") && strings.Contains(lower, "limit"))
 }
 
 func buildMemoryCapturePrompt(result TaskResultInfo) string {
@@ -432,7 +429,7 @@ func splitPromptSegments(input string) []string {
 }
 
 func containsHabitKeyword(segment string) bool {
-	lower := utils.TrimLower(segment)
+	lower := strings.ToLower(strings.TrimSpace(segment))
 	if lower == "" {
 		return false
 	}

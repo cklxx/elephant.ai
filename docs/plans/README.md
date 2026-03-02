@@ -4,7 +4,6 @@ Updated: 2026-02-25
 
 ## Files
 
-- [2026-02-25-context-artifact-overflow-compaction.md](2026-02-25-context-artifact-overflow-compaction.md)
 - [2026-02-25-config-field-governance-analysis-doc.md](2026-02-25-config-field-governance-analysis-doc.md)
 - [validate-before-deploy.md](validate-before-deploy.md)
 - [tool-display-ui-optimization.md](tool-display-ui-optimization.md)
@@ -25,6 +24,7 @@ Updated: 2026-02-25
 - [eval-platform.md](eval-platform.md)
 - [domain-dependency-leaks-analysis-2026-02-06.md](domain-dependency-leaks-analysis-2026-02-06.md)
 - [coding-agent-resilience.md](coding-agent-resilience.md)
+- [claude-code-visualizer.md](claude-code-visualizer.md)
 - [cc-sdk-bridge.md](cc-sdk-bridge.md)
 - [backend-event-id-analysis.md](backend-event-id-analysis.md)
 - [architecture-review-2026-02-16.md](architecture-review-2026-02-16.md)
@@ -73,6 +73,7 @@ Updated: 2026-02-25
 - [2026-02-12-kernel-agent-summary-notice.yaml](2026-02-12-kernel-agent-summary-notice.yaml)
 - [2026-02-11-zero-config-coding-cli-autodetect.md](2026-02-11-zero-config-coding-cli-autodetect.md)
 - [2026-02-11-web-lark-architecture-concurrency-review.md](2026-02-11-web-lark-architecture-concurrency-review.md)
+- [2026-02-11-visualizer-3d-construction-site.md](2026-02-11-visualizer-3d-construction-site.md)
 - [2026-02-11-view-project-direct-execution-e2e-cleanup.md](2026-02-11-view-project-direct-execution-e2e-cleanup.md)
 - [2026-02-11-view-check-list-confirmation-sources.md](2026-02-11-view-check-list-confirmation-sources.md)
 - [2026-02-11-sqlite-vec-darwin-deprecation-root-fix.md](2026-02-11-sqlite-vec-darwin-deprecation-root-fix.md)
@@ -187,6 +188,7 @@ Updated: 2026-02-25
 - [2026-02-07-session-sse-hotspots.md](2026-02-07-session-sse-hotspots.md)
 - [2026-02-07-roadmap-performance-phase1-implementation.md](2026-02-07-roadmap-performance-phase1-implementation.md)
 - [2026-02-07-performance-optimization-implementation.md](2026-02-07-performance-optimization-implementation.md)
+- [2026-02-07-log-visualizer-oneclick.md](2026-02-07-log-visualizer-oneclick.md)
 - [2026-02-07-lark-cli-await-option-selection.md](2026-02-07-lark-cli-await-option-selection.md)
 - [2026-02-06-tool-sla-profiles.md](2026-02-06-tool-sla-profiles.md)
 - [2026-02-06-system-prompt-user-habit-capture.md](2026-02-06-system-prompt-user-habit-capture.md)

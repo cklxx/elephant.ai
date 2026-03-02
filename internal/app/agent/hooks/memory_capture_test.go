@@ -18,29 +18,14 @@ import (
 	id "alex/internal/shared/utils/id"
 )
 
-type stubCompletionResult struct {
+type stubLLMClient struct {
 	response string
 	err      error
-}
-
-type stubLLMClient struct {
-	response       string
-	err            error
-	lastReq        ports.CompletionRequest
-	callCount      int
-	completionPlan []stubCompletionResult
+	lastReq  ports.CompletionRequest
 }
 
 func (s *stubLLMClient) Complete(_ context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	s.lastReq = req
-	s.callCount++
-	if idx := s.callCount - 1; idx < len(s.completionPlan) {
-		step := s.completionPlan[idx]
-		if step.err != nil {
-			return nil, step.err
-		}
-		return &ports.CompletionResponse{Content: step.response}, nil
-	}
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -51,12 +36,10 @@ func (s *stubLLMClient) Model() string { return "stub" }
 
 type stubLLMFactory struct {
 	client       portsllm.LLMClient
-	clients      map[string]portsllm.LLMClient
 	err          error
 	lastProvider string
 	lastModel    string
 	lastCfg      portsllm.LLMConfig
-	callModels   []string
 }
 
 func (s *stubLLMFactory) GetClient(provider, model string, _ portsllm.LLMConfig) (portsllm.LLMClient, error) {
@@ -67,20 +50,34 @@ func (s *stubLLMFactory) GetIsolatedClient(provider, model string, cfg portsllm.
 	s.lastProvider = provider
 	s.lastModel = model
 	s.lastCfg = cfg
-	s.callModels = append(s.callModels, provider+"|"+model)
 	if s.err != nil {
 		return nil, s.err
-	}
-	if len(s.clients) > 0 {
-		if client, ok := s.clients[provider+"|"+model]; ok {
-			return client, nil
-		}
-		return nil, errors.New("missing stub client for " + provider + "|" + model)
 	}
 	return s.client, nil
 }
 
 func (s *stubLLMFactory) DisableRetry() {}
+
+type profileClientFactory struct {
+	clients  map[string]portsllm.LLMClient
+	requests []string
+}
+
+func (f *profileClientFactory) GetClient(provider, model string, _ portsllm.LLMConfig) (portsllm.LLMClient, error) {
+	return f.GetIsolatedClient(provider, model, portsllm.LLMConfig{})
+}
+
+func (f *profileClientFactory) GetIsolatedClient(provider, model string, _ portsllm.LLMConfig) (portsllm.LLMClient, error) {
+	key := provider + "|" + model
+	f.requests = append(f.requests, key)
+	client, ok := f.clients[key]
+	if !ok {
+		return nil, errors.New("client not configured for profile")
+	}
+	return client, nil
+}
+
+func (f *profileClientFactory) DisableRetry() {}
 
 func TestMemoryCaptureHook_WritesDailyLog(t *testing.T) {
 	root := t.TempDir()
@@ -335,34 +332,30 @@ func TestMemoryCaptureHook_PrefersPinnedSelectionFromContext(t *testing.T) {
 	}
 }
 
-func TestMemoryCaptureHook_PinnedRateLimitFallsBackToDefaultProfile(t *testing.T) {
+func TestMemoryCaptureHook_FallsBackFromPinnedRateLimitToDefaultProfile(t *testing.T) {
 	root := t.TempDir()
 	engine := memory.NewMarkdownEngine(root)
 	if err := engine.EnsureSchema(context.Background()); err != nil {
 		t.Fatalf("EnsureSchema: %v", err)
 	}
 
-	primary := &stubLLMClient{
-		completionPlan: []stubCompletionResult{
-			{err: errors.New("usage_limit_reached")},
-		},
-	}
-	fallback := &stubLLMClient{response: "- Keep updates concise"}
-	factory := &stubLLMFactory{
+	pinned := &stubLLMClient{err: errors.New("status 429: usage_limit_reached")}
+	fallback := &stubLLMClient{response: "- Keep changelog entries concise"}
+	factory := &profileClientFactory{
 		clients: map[string]portsllm.LLMClient{
-			"codex|gpt-5.3-codex-spark":  primary,
-			"openrouter|kimi-for-coding": fallback,
+			"codex|gpt-5.3-codex-spark": pinned,
+			"openai|kimi-for-coding":    fallback,
 		},
 	}
+
 	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
 		Enabled: true,
 		Profile: runtimeconfig.LLMProfile{
-			Provider: "openrouter",
+			Provider: "openai",
 			Model:    "kimi-for-coding",
-			APIKey:   "default-key",
 		},
 	})
-	fixed := time.Date(2026, 2, 24, 10, 0, 0, 0, time.UTC)
+	fixed := time.Date(2026, 2, 3, 13, 0, 0, 0, time.UTC)
 	hook.clock = func() time.Time { return fixed }
 
 	ctx := appcontext.WithMemoryPolicy(context.Background(), appcontext.MemoryPolicy{
@@ -372,37 +365,31 @@ func TestMemoryCaptureHook_PinnedRateLimitFallsBackToDefaultProfile(t *testing.T
 	ctx = appcontext.WithLLMSelection(ctx, subscription.ResolvedSelection{
 		Provider: "codex",
 		Model:    "gpt-5.3-codex-spark",
-		APIKey:   "selection-key",
-		BaseURL:  "https://chatgpt.com/backend-api/codex",
 		Pinned:   true,
 	})
-	ctx = id.WithUserID(ctx, "user-rate-limit")
+	ctx = id.WithUserID(ctx, "user-rate-limit-fallback")
 
 	if err := hook.OnTaskCompleted(ctx, TaskResultInfo{
-		TaskInput: "summarize updates",
-		Answer:    "all done",
-		UserID:    "user-rate-limit",
+		TaskInput: "Keep project memory updated after each refactor",
+		UserID:    "user-rate-limit-fallback",
 	}); err != nil {
 		t.Fatalf("OnTaskCompleted: %v", err)
 	}
 
-	if primary.callCount != 1 {
-		t.Fatalf("expected pinned profile to be attempted once, got %d", primary.callCount)
-	}
-	if fallback.callCount != 1 {
-		t.Fatalf("expected default profile fallback to run once, got %d", fallback.callCount)
-	}
-	if len(factory.callModels) != 2 ||
-		factory.callModels[0] != "codex|gpt-5.3-codex-spark" ||
-		factory.callModels[1] != "openrouter|kimi-for-coding" {
-		t.Fatalf("unexpected profile call order: %#v", factory.callModels)
-	}
-
-	content, err := engine.LoadDaily(ctx, "user-rate-limit", fixed)
+	content, err := engine.LoadDaily(ctx, "user-rate-limit-fallback", fixed)
 	if err != nil {
 		t.Fatalf("LoadDaily: %v", err)
 	}
-	if !strings.Contains(content, "Keep updates concise") {
-		t.Fatalf("expected fallback summary in daily log, got: %s", content)
+	if !strings.Contains(content, "Keep changelog entries concise") {
+		t.Fatalf("expected fallback model output, got: %s", content)
+	}
+	if len(factory.requests) != 2 {
+		t.Fatalf("expected exactly two profile attempts, got %v", factory.requests)
+	}
+	if factory.requests[0] != "codex|gpt-5.3-codex-spark" {
+		t.Fatalf("expected pinned profile attempt first, got %v", factory.requests)
+	}
+	if factory.requests[1] != "openai|kimi-for-coding" {
+		t.Fatalf("expected default fallback profile second, got %v", factory.requests)
 	}
 }

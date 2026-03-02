@@ -424,6 +424,15 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		llmClient,
 	)
 	s.logger.Debug("Isolated LLM client obtained successfully")
+	if selectionPinned {
+		llmClient = s.armPinnedSelectionRateLimitFallback(
+			llmClient,
+			effectiveProfile,
+			task,
+			preloadedAttachments,
+			appcontext.GetUserAttachments(ctx),
+		)
+	}
 
 	// Use Wrap instead of Attach to avoid modifying shared client state
 	llmClient = s.costDecorator.Wrap(ctx, session.ID, llmClient)
