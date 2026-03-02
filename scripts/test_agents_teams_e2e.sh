@@ -22,8 +22,8 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 INJECT_URL="${INJECT_URL:-http://127.0.0.1:9090/api/dev/inject}"
 SENDER_ID="${SENDER_ID:-ou_e2e_claude_teams}"
-TIMEOUT_FAST="${TIMEOUT_FAST:-240}"  # single-stage claude tasks
-TIMEOUT_SLOW="${TIMEOUT_SLOW:-480}"  # multi-stage or debate tasks
+TIMEOUT_FAST="${TIMEOUT_FAST:-360}"  # single-stage claude tasks (~186s p50, 360s p99)
+TIMEOUT_SLOW="${TIMEOUT_SLOW:-720}"  # multi-stage or debate tasks (3×186s + buffer)
 COOLDOWN="${COOLDOWN:-5}"            # seconds between cases
 DRY_RUN=0
 
@@ -264,9 +264,9 @@ run_C2() {
 run_C3() {
     log "C3: template=list → lists claude templates"
     local id="C3" chat="oc_e2e_teams_C3_$(date +%s)"
-    # Use explicit tool-call instruction to avoid conversational fallback
+    # Use explicit slash-command format so the agent always calls run_tasks
     local p; p="$(make_payload "${chat}" \
-        "@alex 请立刻调用 run_tasks 工具，template 参数设为 list，列出所有可用模板" \
+        "@alex /run_tasks template=list" \
         "${TIMEOUT_FAST}")"
     local result
     result="$(inject "${id}" "${p}" "${TIMEOUT_FAST}")"
@@ -274,8 +274,8 @@ run_C3() {
         local content; content="$(resp_content "${id}")"
         if echo "${content}" | grep -qiE "claude_research|claude_analysis|claude_debate"; then
             record "${id}" PASS "listed new claude templates"
-        elif echo "${content}" | grep -qiE "template|模板|研究|分析"; then
-            record "${id}" PARTIAL "replied with template info but names not exact-matched"
+        elif echo "${content}" | grep -qiE "template|模板|团队|team"; then
+            record "${id}" PARTIAL "replied with template info but claude names not exact-matched"
         else
             record "${id}" PARTIAL "replied but template info not detected"
         fi
@@ -362,30 +362,30 @@ run_category() {
     case "${cat}" in
         A)
             log "=== Category A: Core templates ==="
-            should_run A1 && { run_A1; cooldown; }
-            should_run A2 && { run_A2; cooldown; }
-            should_run A3 && run_A3
+            if should_run A1; then run_A1; cooldown; fi
+            if should_run A2; then run_A2; cooldown; fi
+            if should_run A3; then run_A3; fi
             ;;
         B)
             log "=== Category B: Input edge cases ==="
-            should_run B1 && { run_B1; cooldown; }
-            should_run B2 && { run_B2; cooldown; }
-            should_run B3 && run_B3
+            if should_run B1; then run_B1; cooldown; fi
+            if should_run B2; then run_B2; cooldown; fi
+            if should_run B3; then run_B3; fi
             ;;
         C)
             log "=== Category C: Error handling ==="
-            should_run C1 && { run_C1; cooldown; }
-            should_run C2 && { run_C2; cooldown; }
-            should_run C3 && run_C3
+            if should_run C1; then run_C1; cooldown; fi
+            if should_run C2; then run_C2; cooldown; fi
+            if should_run C3; then run_C3; fi
             ;;
         D)
             log "=== Category D: Context inheritance ==="
-            should_run D1 && { run_D1; cooldown; }
-            should_run D2 && run_D2
+            if should_run D1; then run_D1; cooldown; fi
+            if should_run D2; then run_D2; fi
             ;;
         E)
             log "=== Category E: Prompt override ==="
-            should_run E1 && run_E1
+            if should_run E1; then run_E1; fi
             ;;
     esac
 }

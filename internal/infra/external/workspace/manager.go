@@ -241,6 +241,16 @@ func (m *Manager) git(ctx context.Context, args ...string) error {
 func (m *Manager) gitOutput(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = m.projectDir
+	// Strip GIT_DIR / GIT_WORK_TREE so git always operates on m.projectDir
+	// rather than a repo inherited from a parent process (IDE, CI, etc.).
+	env := make([]string, 0, len(os.Environ()))
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "GIT_DIR=") || strings.HasPrefix(e, "GIT_WORK_TREE=") {
+			continue
+		}
+		env = append(env, e)
+	}
+	cmd.Env = env
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
