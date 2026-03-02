@@ -17,19 +17,74 @@ type ExecuteResult struct {
 
 // Executor orchestrates TaskFile execution by translating specs into
 // BackgroundDispatchRequests and delegating to the existing dispatcher.
+// It supports team (sequential dispatch with dep-based blocking) and
+// swarm (stage-batched parallel) execution modes.
 type Executor struct {
 	dispatcher agent.BackgroundTaskDispatcher
+	mode       ExecutionMode
+	swarmCfg   SwarmConfig
 }
 
-// NewExecutor creates an Executor backed by the given dispatcher.
-func NewExecutor(dispatcher agent.BackgroundTaskDispatcher) *Executor {
-	return &Executor{dispatcher: dispatcher}
+// NewExecutor creates an Executor backed by the given dispatcher. The mode
+// parameter selects the execution strategy (team, swarm, or auto). When auto,
+// the mode is determined by analyzing the TaskFile's DAG structure.
+func NewExecutor(dispatcher agent.BackgroundTaskDispatcher, mode ExecutionMode, swarmCfg SwarmConfig) *Executor {
+	return &Executor{
+		dispatcher: dispatcher,
+		mode:       mode,
+		swarmCfg:   swarmCfg,
+	}
+}
+
+// resolveMode returns the concrete mode (team or swarm) for the given TaskFile.
+func (e *Executor) resolveMode(tf *TaskFile) ExecutionMode {
+	if e.mode == ModeAuto {
+		return AnalyzeMode(tf)
+	}
+	return e.mode
 }
 
 // Execute validates, resolves, and dispatches all tasks in the TaskFile.
-// It writes initial status to statusPath and starts a polling goroutine.
-// Returns immediately after dispatch (async).
+// For swarm mode, it blocks until all stages complete (swarm is inherently
+// synchronous per-stage). For team mode, it returns immediately after dispatch.
 func (e *Executor) Execute(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
+	if e.resolveMode(tf) == ModeSwarm {
+		sched := NewSwarmScheduler(e.dispatcher, e.swarmCfg)
+		return sched.ExecuteSwarm(ctx, tf, causationID, statusPath)
+	}
+	return e.executeTeam(ctx, tf, causationID, statusPath)
+}
+
+// ExecuteAndWait dispatches tasks and blocks until all complete or the timeout elapses.
+func (e *Executor) ExecuteAndWait(ctx context.Context, tf *TaskFile, causationID, statusPath string, timeout time.Duration) (*ExecuteResult, error) {
+	if e.resolveMode(tf) == ModeSwarm {
+		// Swarm execution is already synchronous (blocks per stage).
+		sched := NewSwarmScheduler(e.dispatcher, e.swarmCfg)
+		return sched.ExecuteSwarm(ctx, tf, causationID, statusPath)
+	}
+
+	result, err := e.executeTeam(ctx, tf, causationID, statusPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Block until all tasks are done.
+	_ = e.dispatcher.Collect(result.TaskIDs, true, timeout)
+
+	// Final status sync. Rehydrate existing sidecar first so SyncOnce updates
+	// the initialized task rows instead of operating on an empty in-memory file.
+	sw := NewStatusWriter(statusPath)
+	if existing, readErr := ReadStatusFile(statusPath); readErr == nil && existing != nil {
+		sw.file = *existing
+	}
+	sw.SyncOnce(e.dispatcher, result.TaskIDs)
+
+	return result, nil
+}
+
+// executeTeam is the original sequential-dispatch path: dispatches all tasks in
+// topological order, relying on the dispatcher's dependency blocking.
+func (e *Executor) executeTeam(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
 	if err := Validate(tf); err != nil {
 		return nil, fmt.Errorf("validate: %w", err)
 	}
@@ -73,25 +128,4 @@ func (e *Executor) Execute(ctx context.Context, tf *TaskFile, causationID, statu
 		TaskIDs:    taskIDs,
 		StatusPath: statusPath,
 	}, nil
-}
-
-// ExecuteAndWait dispatches tasks and blocks until all complete or the timeout elapses.
-func (e *Executor) ExecuteAndWait(ctx context.Context, tf *TaskFile, causationID, statusPath string, timeout time.Duration) (*ExecuteResult, error) {
-	result, err := e.Execute(ctx, tf, causationID, statusPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Block until all tasks are done.
-	_ = e.dispatcher.Collect(result.TaskIDs, true, timeout)
-
-	// Final status sync. Rehydrate existing sidecar first so SyncOnce updates
-	// the initialized task rows instead of operating on an empty in-memory file.
-	sw := NewStatusWriter(statusPath)
-	if existing, readErr := ReadStatusFile(statusPath); readErr == nil && existing != nil {
-		sw.file = *existing
-	}
-	sw.SyncOnce(e.dispatcher, result.TaskIDs)
-
-	return result, nil
 }
