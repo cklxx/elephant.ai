@@ -332,11 +332,18 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 			goalFilePath = filepath.Join(stateDir, "GOAL.md")
 		}
 
+		// profileFunc re-resolves the planner LLM profile on every Plan() call,
+		// picking up /model use overrides that happen after daemon startup.
+		profileFunc := func() runtimeconfig.LLMProfile {
+			return b.resolveSubscriptionOrDefaultProfile()
+		}
+
 		llmPlanner := kernelagent.NewLLMPlanner(
 			kernelID,
 			llmFactory,
 			kernelagent.LLMPlannerConfig{
 				Profile:              plannerProfile,
+				ProfileFunc:          profileFunc,
 				Refresher:            llmclient.CredentialRefresher(buildCredentialRefresher()),
 				MaxDispatches:        maxDispatches,
 				GoalFilePath:         goalFilePath,

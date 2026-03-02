@@ -217,61 +217,29 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 }
 
 // SetEventListener configures an optional listener to receive workflow events.
-func (g *Gateway) SetEventListener(listener agent.EventListener) {
-	if g == nil {
-		return
-	}
-	g.eventListener = listener
-}
+func (g *Gateway) SetEventListener(listener agent.EventListener) { g.eventListener = listener }
 
 // SetPlanReviewStore configures the pending plan review store.
-func (g *Gateway) SetPlanReviewStore(store PlanReviewStore) {
-	if g == nil {
-		return
-	}
-	g.planReviewStore = store
-}
+func (g *Gateway) SetPlanReviewStore(store PlanReviewStore) { g.planReviewStore = store }
 
 // SetOAuthService configures the Lark user OAuth service used for user-scoped API calls.
-func (g *Gateway) SetOAuthService(svc builtinshared.LarkOAuthService) {
-	if g == nil {
-		return
-	}
-	g.oauth = svc
-}
+func (g *Gateway) SetOAuthService(svc builtinshared.LarkOAuthService) { g.oauth = svc }
 
 // SetMessenger replaces the default SDK messenger with a custom implementation.
-// This is the primary injection point for testing.
-func (g *Gateway) SetMessenger(m LarkMessenger) {
-	if g == nil {
-		return
-	}
-	g.messenger = wrapInjectCaptureHub(m)
-}
+func (g *Gateway) SetMessenger(m LarkMessenger) { g.messenger = wrapInjectCaptureHub(m) }
 
 // SetTaskStore configures the task persistence store.
-func (g *Gateway) SetTaskStore(store TaskStore) {
-	if g == nil {
-		return
-	}
-	g.taskStore = store
-}
+func (g *Gateway) SetTaskStore(store TaskStore) { g.taskStore = store }
 
 // SetLLMFactory configures an optional LLM client factory and shared profile
 // for lightweight calls such as auto-reply generation during InjectMessageSync.
 func (g *Gateway) SetLLMFactory(factory portsllm.LLMClientFactory, profile runtimeconfig.LLMProfile) {
-	if g == nil {
-		return
-	}
 	g.llmFactory = factory
 	g.llmProfile = profile
 }
 
 // SetChatSessionBindingStore configures persistent chat->session bindings.
 func (g *Gateway) SetChatSessionBindingStore(store ChatSessionBindingStore) {
-	if g == nil {
-		return
-	}
 	g.chatSessionStore = store
 }
 
@@ -302,12 +270,7 @@ func (g *Gateway) NoticeLoader() func() (string, bool, error) {
 }
 
 // SetAIChatCoordinator configures the AI chat coordinator for multi-bot conversations.
-func (g *Gateway) SetAIChatCoordinator(coordinator *AIChatCoordinator) {
-	if g == nil {
-		return
-	}
-	g.aiCoordinator = coordinator
-}
+func (g *Gateway) SetAIChatCoordinator(coordinator *AIChatCoordinator) { g.aiCoordinator = coordinator }
 
 // NotifyCompletion implements agent.BackgroundCompletionNotifier. It writes
 // the final task status directly to TaskStore, ensuring persistence even when

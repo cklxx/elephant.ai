@@ -22,6 +22,11 @@ import (
 // LLMPlannerConfig controls the LLM-driven planner behavior.
 type LLMPlannerConfig struct {
 	Profile              runtimeconfig.LLMProfile
+	// ProfileFunc, when set, is called on every Plan() invocation and overrides
+	// the static Profile field. Use this to resolve the LLM profile dynamically
+	// (e.g. from a subscription store that may change at runtime) rather than
+	// relying on the value captured at process startup.
+	ProfileFunc          func() runtimeconfig.LLMProfile
 	Refresher            llmclient.CredentialRefresher // optional; refreshes credentials for long-running processes
 	MaxDispatches        int
 	GoalFilePath         string
@@ -122,13 +127,19 @@ func NewLLMPlanner(
 
 // Plan calls the LLM to decide which agents to dispatch and with what prompts.
 func (p *LLMPlanner) Plan(ctx context.Context, stateContent string, recentByAgent map[string]kerneldomain.Dispatch) ([]kerneldomain.DispatchSpec, error) {
+	// Resolve the LLM profile dynamically if a ProfileFunc is provided; otherwise
+	// fall back to the static Profile captured at construction time.
+	baseProfile := p.config.Profile
+	if p.config.ProfileFunc != nil {
+		baseProfile = p.config.ProfileFunc()
+	}
 	profile := runtimeconfig.LLMProfile{
-		Provider:       strings.TrimSpace(p.config.Profile.Provider),
-		Model:          strings.TrimSpace(p.config.Profile.Model),
-		APIKey:         strings.TrimSpace(p.config.Profile.APIKey),
-		BaseURL:        strings.TrimSpace(p.config.Profile.BaseURL),
-		Headers:        llmclient.CloneHeaders(p.config.Profile.Headers),
-		TimeoutSeconds: p.config.Profile.TimeoutSeconds,
+		Provider:       strings.TrimSpace(baseProfile.Provider),
+		Model:          strings.TrimSpace(baseProfile.Model),
+		APIKey:         strings.TrimSpace(baseProfile.APIKey),
+		BaseURL:        strings.TrimSpace(baseProfile.BaseURL),
+		Headers:        llmclient.CloneHeaders(baseProfile.Headers),
+		TimeoutSeconds: baseProfile.TimeoutSeconds,
 	}
 	p.logger.Info("LLMPlanner: starting plan (provider=%s model=%s timeout=%s)", profile.Provider, profile.Model, p.config.Timeout)
 
@@ -475,36 +486,13 @@ func shouldRejectAutonomyViolatingPrompt(prompt string) (bool, string) {
 		return true, "empty_prompt"
 	}
 	lower := strings.ToLower(trimmed)
-
-	confirmationTokens := []string{
-		"ask_user(",
-		"needs_user_input",
-		"action=\"clarify\"",
-		"action=\"request\"",
-		"request_user",
-		"awaiting user confirmation",
-		"ask the user",
-		"wait for user",
-		"wait for confirmation",
+	if containsAny(lower, "ask_user(", "needs_user_input", `action="clarify"`, `action="request"`,
+		"request_user", "awaiting user confirmation", "ask the user", "wait for user", "wait for confirmation") {
+		return true, "requires_user_confirmation"
 	}
-	for _, token := range confirmationTokens {
-		if strings.Contains(lower, token) {
-			return true, "requires_user_confirmation"
-		}
+	if containsAny(lower, "without tool action", "no tool action", "do not use tools", "analysis only") {
+		return true, "no_concrete_tool_action"
 	}
-
-	noActionTokens := []string{
-		"without tool action",
-		"no tool action",
-		"do not use tools",
-		"analysis only",
-	}
-	for _, token := range noActionTokens {
-		if strings.Contains(lower, token) {
-			return true, "no_concrete_tool_action"
-		}
-	}
-
 	return false, ""
 }
 

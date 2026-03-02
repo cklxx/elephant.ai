@@ -171,7 +171,9 @@ func (m *TimerManager) Add(t *Timer) error {
 	defer m.mu.Unlock()
 
 	// Enforce max timer limit (count only active timers).
-	if m.config.MaxTimers > 0 {
+	// Fast path: if total entries (including inactive) are below the limit,
+	// the active count is guaranteed to be below it too — skip the scan.
+	if m.config.MaxTimers > 0 && len(m.timers) >= m.config.MaxTimers {
 		activeCount := 0
 		for _, existing := range m.timers {
 			if existing.IsActive() {

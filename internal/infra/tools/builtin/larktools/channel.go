@@ -118,11 +118,11 @@ func NewLarkChannel() tools.ToolExecutor {
 							Type:        "string",
 							Description: "Message text for send_message.",
 						},
-					"content_format": {
-						Type:        "string",
-						Description: "Message format for send_message: text (default) or post (rich text).",
-						Enum:        []any{"text", "post"},
-					},
+						"content_format": {
+							Type:        "string",
+							Description: "Message format for send_message: text (default) or post (rich text).",
+							Enum:        []any{"text", "post"},
+						},
 						// upload_file params
 						"source": {
 							Type:        "string",
@@ -554,27 +554,34 @@ func (c *larkChannel) requireActionApproval(ctx context.Context, call ports.Tool
 	return nil, nil
 }
 
-// stripAction creates a copy of the call with the "action" key removed from arguments.
-func (c *larkChannel) stripAction(call ports.ToolCall) ports.ToolCall {
-	args := make(map[string]any, len(call.Arguments))
-	for k, v := range call.Arguments {
-		if k == "action" {
-			continue
-		}
-		args[k] = v
-	}
+// withArgs returns a copy of call with a new argument map.
+func withArgs(call ports.ToolCall, args map[string]any) ports.ToolCall {
 	return ports.ToolCall{
-		ID:        call.ID,
-		Name:      call.Name,
-		Arguments: args,
-		SessionID: call.SessionID,
-		TaskID:    call.TaskID,
+		ID: call.ID, Name: call.Name, Arguments: args,
+		SessionID: call.SessionID, TaskID: call.TaskID,
 	}
 }
 
-// rewriteCall creates a new ToolCall that only passes through the named
-// parameters, filtering out "action" and all other keys that the delegate
-// tool would reject. Used for send_message where the delegate validates strictly.
+// argsWithout copies call.Arguments, drops "action", and optionally sets a new action.
+func argsWithout(call ports.ToolCall, newAction string) map[string]any {
+	args := make(map[string]any, len(call.Arguments))
+	for k, v := range call.Arguments {
+		if k != "action" {
+			args[k] = v
+		}
+	}
+	if newAction != "" {
+		args["action"] = newAction
+	}
+	return args
+}
+
+// stripAction creates a copy of the call with the "action" key removed.
+func (c *larkChannel) stripAction(call ports.ToolCall) ports.ToolCall {
+	return withArgs(call, argsWithout(call, ""))
+}
+
+// rewriteCall creates a new ToolCall keeping only the named parameter keys.
 func (c *larkChannel) rewriteCall(call ports.ToolCall, allowedKeys ...string) ports.ToolCall {
 	allowed := make(map[string]bool, len(allowedKeys))
 	for _, k := range allowedKeys {
@@ -586,52 +593,15 @@ func (c *larkChannel) rewriteCall(call ports.ToolCall, allowedKeys ...string) po
 			args[k] = v
 		}
 	}
-	return ports.ToolCall{
-		ID:        call.ID,
-		Name:      call.Name,
-		Arguments: args,
-		SessionID: call.SessionID,
-		TaskID:    call.TaskID,
-	}
+	return withArgs(call, args)
 }
 
-// subActionCall rewrites the channel call by replacing the channel-level action
-// with the sub-handler's internal action name.
+// subActionCall replaces the channel-level action with a sub-handler action.
 func (c *larkChannel) subActionCall(call ports.ToolCall, subAction string) ports.ToolCall {
-	args := make(map[string]any, len(call.Arguments))
-	for k, v := range call.Arguments {
-		if k == "action" {
-			continue
-		}
-		args[k] = v
-	}
-	args["action"] = subAction
-	return ports.ToolCall{
-		ID:        call.ID,
-		Name:      call.Name,
-		Arguments: args,
-		SessionID: call.SessionID,
-		TaskID:    call.TaskID,
-	}
+	return withArgs(call, argsWithout(call, subAction))
 }
 
-// taskCall rewrites the channel call into a task_manage call by injecting the
-// correct "action" value for the task sub-handler.
+// taskCall rewrites the channel call into a task_manage call.
 func (c *larkChannel) taskCall(call ports.ToolCall, taskAction string) ports.ToolCall {
-	args := make(map[string]any, len(call.Arguments))
-	for k, v := range call.Arguments {
-		if k == "action" {
-			continue
-		}
-		args[k] = v
-	}
-	args["action"] = taskAction
-	// Map "summary" to task's "summary" field (already matches).
-	return ports.ToolCall{
-		ID:        call.ID,
-		Name:      call.Name,
-		Arguments: args,
-		SessionID: call.SessionID,
-		TaskID:    call.TaskID,
-	}
+	return withArgs(call, argsWithout(call, taskAction))
 }

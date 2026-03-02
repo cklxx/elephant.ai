@@ -32,15 +32,22 @@ func (c *mockPlannerClient) Complete(_ context.Context, _ core.CompletionRequest
 func (c *mockPlannerClient) Model() string { return c.model }
 
 type mockPlannerFactory struct {
-	client portsllm.LLMClient
-	err    error
+	client      portsllm.LLMClient
+	err         error
+	onGetClient func(model string) // called with the requested model string
 }
 
-func (f *mockPlannerFactory) GetClient(_, _ string, _ portsllm.LLMConfig) (portsllm.LLMClient, error) {
+func (f *mockPlannerFactory) GetClient(_, model string, _ portsllm.LLMConfig) (portsllm.LLMClient, error) {
+	if f.onGetClient != nil {
+		f.onGetClient(model)
+	}
 	return f.client, f.err
 }
 
-func (f *mockPlannerFactory) GetIsolatedClient(_, _ string, _ portsllm.LLMConfig) (portsllm.LLMClient, error) {
+func (f *mockPlannerFactory) GetIsolatedClient(_, model string, _ portsllm.LLMConfig) (portsllm.LLMClient, error) {
+	if f.onGetClient != nil {
+		f.onGetClient(model)
+	}
 	return f.client, f.err
 }
 
@@ -564,6 +571,48 @@ func TestLLMPlanner_Plan_EmptyArrayResponse(t *testing.T) {
 	}
 	if len(specs) != 0 {
 		t.Errorf("expected 0 specs for empty array, got %d", len(specs))
+	}
+}
+
+func TestLLMPlanner_Plan_ProfileFuncOverridesStaticProfile(t *testing.T) {
+	// ProfileFunc should be called on each Plan() invocation and its result
+	// should take precedence over the static Profile field.
+	callCount := 0
+	dynamicModel := "dynamic-model-v2"
+	profileFunc := func() runtimeconfig.LLMProfile {
+		callCount++
+		return runtimeconfig.LLMProfile{Provider: "openai", Model: dynamicModel}
+	}
+
+	var capturedModel string
+	client := &mockPlannerClient{
+		response: &core.CompletionResponse{Content: "[]"},
+		model:    dynamicModel,
+	}
+	factory := &mockPlannerFactory{
+		client: client,
+		onGetClient: func(model string) {
+			capturedModel = model
+		},
+	}
+	p := NewLLMPlanner("test-kernel", factory, LLMPlannerConfig{
+		Profile:       runtimeconfig.LLMProfile{Provider: "openai", Model: "static-model"},
+		ProfileFunc:   profileFunc,
+		MaxDispatches: 3,
+		Timeout:       5 * time.Second,
+	}, nil, nil)
+
+	_, err := p.Plan(context.Background(), "state", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if callCount != 1 {
+		t.Errorf("ProfileFunc called %d times, want 1", callCount)
+	}
+	// The dynamic profile model should win over the static one.
+	if capturedModel != dynamicModel {
+		t.Errorf("profile model = %q, want %q (dynamic override)", capturedModel, dynamicModel)
 	}
 }
 

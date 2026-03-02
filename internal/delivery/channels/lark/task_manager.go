@@ -317,10 +317,7 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 	// 3. Chat context enrichment from IM recent rounds (only when there is content)
 	taskContent = g.enrichWithChatContext(execCtx, taskContent, msg, hasPlanReview)
 
-	startEmoji, endEmoji := g.pickReactionEmojis()
-	if msg.messageID != "" && startEmoji != "" {
-		go g.addReaction(execCtx, msg.messageID, "Get")
-	}
+	_, endEmoji := g.pickReactionEmojis()
 
 	result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
 
@@ -461,6 +458,8 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 	if g.cfg.ShowPlanClarifyMessages {
 		listener = newPlanClarifyListener(execCtx, listener, g, msg.chatID, replyTarget(msg.messageID, true), awaitTracker)
 	}
+
+	listener = newPreanalysisEmojiReactionListener(execCtx, listener, g, msg.messageID)
 
 	listener = newFinalAnswerReviewReactionListener(
 		execCtx,
