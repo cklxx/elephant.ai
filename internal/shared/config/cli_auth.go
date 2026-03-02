@@ -22,6 +22,10 @@ const (
 
 	codexOAuthTokenURL    = "https://auth.openai.com/oauth/token"
 	codexOAuthRefreshSkew = 5 * time.Minute
+
+	claudeOAuthTokenURL    = "https://platform.claude.com/v1/oauth/token"
+	claudeOAuthClientID    = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+	claudeOAuthRefreshSkew = 5 * time.Minute
 )
 
 type CLICredential struct {
@@ -314,6 +318,94 @@ func writeCodexAuthFile(path string, payload codexAuthFile) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
+type claudeOAuthFile struct {
+	ClaudeAiOauth claudeOAuthTokens `json:"claudeAiOauth"`
+}
+
+type claudeOAuthTokens struct {
+	AccessToken      string   `json:"accessToken"`
+	RefreshToken     string   `json:"refreshToken"`
+	ExpiresAt        int64    `json:"expiresAt"` // Unix milliseconds
+	Scopes           []string `json:"scopes,omitempty"`
+	SubscriptionType string   `json:"subscriptionType,omitempty"`
+}
+
+// claudeOAuthNeedsRefresh returns true when the access token expires within the refresh skew window.
+// expiresAtMs is a Unix timestamp in milliseconds; zero means unknown (no refresh).
+func claudeOAuthNeedsRefresh(expiresAtMs int64, now time.Time) bool {
+	if expiresAtMs <= 0 {
+		return false
+	}
+	expiry := time.UnixMilli(expiresAtMs)
+	return expiry.Before(now.Add(claudeOAuthRefreshSkew))
+}
+
+func refreshClaudeOAuth(payload claudeOAuthFile) (claudeOAuthFile, error) {
+	refreshToken := strings.TrimSpace(payload.ClaudeAiOauth.RefreshToken)
+	if refreshToken == "" {
+		return claudeOAuthFile{}, io.ErrUnexpectedEOF
+	}
+
+	form := url.Values{}
+	form.Set("client_id", claudeOAuthClientID)
+	form.Set("refresh_token", refreshToken)
+	form.Set("grant_type", "refresh_token")
+
+	req, err := http.NewRequest(http.MethodPost, claudeOAuthTokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return claudeOAuthFile{}, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return claudeOAuthFile{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return claudeOAuthFile{}, fmt.Errorf("claude token refresh failed: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return claudeOAuthFile{}, err
+	}
+	var refreshed struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresIn    int64  `json:"expires_in"`
+	}
+	if err := json.Unmarshal(body, &refreshed); err != nil {
+		return claudeOAuthFile{}, err
+	}
+	if utils.IsBlank(refreshed.AccessToken) {
+		return claudeOAuthFile{}, io.ErrUnexpectedEOF
+	}
+
+	updated := payload
+	updated.ClaudeAiOauth.AccessToken = strings.TrimSpace(refreshed.AccessToken)
+	if utils.HasContent(refreshed.RefreshToken) {
+		updated.ClaudeAiOauth.RefreshToken = strings.TrimSpace(refreshed.RefreshToken)
+	}
+	if refreshed.ExpiresIn > 0 {
+		updated.ClaudeAiOauth.ExpiresAt = time.Now().Add(time.Duration(refreshed.ExpiresIn) * time.Second).UnixMilli()
+	}
+	return updated, nil
+}
+
+func writeClaudeAuthFile(path string, payload claudeOAuthFile) error {
+	if path == "" {
+		return io.ErrUnexpectedEOF
+	}
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
+}
+
 func loadClaudeCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, error), home string) CLICredential {
 	if token := lookupClaudeOAuthToken(envLookup); token != "" {
 		return CLICredential{
@@ -330,6 +422,28 @@ func loadClaudeCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, error
 		if err != nil {
 			continue
 		}
+
+		// Try to parse the full claudeAiOauth structure so we can refresh when needed.
+		var creds claudeOAuthFile
+		if jsonErr := json.Unmarshal(data, &creds); jsonErr == nil && creds.ClaudeAiOauth.AccessToken != "" {
+			now := time.Now()
+			if claudeOAuthNeedsRefresh(creds.ClaudeAiOauth.ExpiresAt, now) && creds.ClaudeAiOauth.RefreshToken != "" {
+				refreshed, refreshErr := refreshClaudeOAuth(creds)
+				if refreshErr == nil {
+					creds = refreshed
+					_ = writeClaudeAuthFile(path, creds)
+				}
+			}
+			if token := strings.TrimSpace(creds.ClaudeAiOauth.AccessToken); token != "" {
+				return CLICredential{
+					Provider: "anthropic",
+					APIKey:   token,
+					Source:   SourceClaudeCLI,
+				}
+			}
+		}
+
+		// Fall back to generic token extraction for other credential file formats.
 		token := extractJSONToken(data, []string{"access_token", "token", "api_key"})
 		if token == "" {
 			continue

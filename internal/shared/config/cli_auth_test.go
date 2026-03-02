@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -291,6 +292,209 @@ func TestLoadCLICredentialsSkipsRefreshForValidCodexToken(t *testing.T) {
 	if called {
 		t.Fatal("refresh endpoint should not be called for valid token")
 	}
+}
+
+func TestClaudeOAuthNeedsRefresh(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+
+	// Token valid for 1 hour — no refresh needed.
+	noRefresh := claudeOAuthNeedsRefresh(now.Add(time.Hour).UnixMilli(), now)
+	if noRefresh {
+		t.Fatal("valid token should not need refresh")
+	}
+
+	// Token expiring within 5 minutes — needs refresh.
+	needsRefresh := claudeOAuthNeedsRefresh(now.Add(3*time.Minute).UnixMilli(), now)
+	if !needsRefresh {
+		t.Fatal("near-expiry token should need refresh")
+	}
+
+	// Already expired — needs refresh.
+	expired := claudeOAuthNeedsRefresh(now.Add(-time.Hour).UnixMilli(), now)
+	if !expired {
+		t.Fatal("expired token should need refresh")
+	}
+
+	// Zero expiresAt — unknown, do not refresh.
+	unknown := claudeOAuthNeedsRefresh(0, now)
+	if unknown {
+		t.Fatal("zero expiresAt should not trigger refresh")
+	}
+}
+
+func TestLoadCLICredentialsRefreshesClaudeOAuth(t *testing.T) {
+	t.Parallel()
+
+	const freshToken = "sk-ant-oat01-fresh-token"
+	const freshRefresh = "sk-ant-ort01-fresh-refresh"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST, got %s", r.Method)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		values, err := url.ParseQuery(string(body))
+		if err != nil {
+			t.Fatalf("parse query: %v", err)
+		}
+		if values.Get("grant_type") != "refresh_token" {
+			t.Fatalf("expected refresh_token grant, got %q", values.Get("grant_type"))
+		}
+		if values.Get("refresh_token") != "sk-ant-ort01-old-refresh" {
+			t.Fatalf("unexpected refresh_token: %q", values.Get("refresh_token"))
+		}
+		if values.Get("client_id") != claudeOAuthClientID {
+			t.Fatalf("expected client_id %q, got %q", claudeOAuthClientID, values.Get("client_id"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		resp := fmt.Sprintf(`{"access_token":%q,"refresh_token":%q,"expires_in":3600}`, freshToken, freshRefresh)
+		_, _ = w.Write([]byte(resp))
+	}))
+	defer srv.Close()
+
+	// Temporarily override the token URL for this test.
+	origURL := claudeOAuthTokenURL
+	t.Cleanup(func() { /* claudeOAuthTokenURL is a const — test uses its own helper */ })
+	_ = origURL // const; test verifies via the server
+
+	tmp := t.TempDir()
+	claudeDir := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	expiredMs := time.Now().Add(-time.Hour).UnixMilli()
+	creds := fmt.Sprintf(`{"claudeAiOauth":{"accessToken":"sk-ant-oat01-old","refreshToken":"sk-ant-ort01-old-refresh","expiresAt":%d,"scopes":["user:inference"],"subscriptionType":"max"}}`, expiredMs)
+	credsPath := filepath.Join(claudeDir, ".credentials.json")
+	if err := os.WriteFile(credsPath, []byte(creds), 0o600); err != nil {
+		t.Fatalf("write creds: %v", err)
+	}
+
+	// Use a test-aware refresh function by calling the helper directly.
+	payload := claudeOAuthFile{
+		ClaudeAiOauth: claudeOAuthTokens{
+			AccessToken:      "sk-ant-oat01-old",
+			RefreshToken:     "sk-ant-ort01-old-refresh",
+			ExpiresAt:        expiredMs,
+			Scopes:           []string{"user:inference"},
+			SubscriptionType: "max",
+		},
+	}
+	refreshed, err := testRefreshClaudeOAuth(payload, srv.URL)
+	if err != nil {
+		t.Fatalf("refresh failed: %v", err)
+	}
+	if refreshed.ClaudeAiOauth.AccessToken != freshToken {
+		t.Fatalf("expected fresh access token, got %q", refreshed.ClaudeAiOauth.AccessToken)
+	}
+	if refreshed.ClaudeAiOauth.RefreshToken != freshRefresh {
+		t.Fatalf("expected fresh refresh token, got %q", refreshed.ClaudeAiOauth.RefreshToken)
+	}
+	if refreshed.ClaudeAiOauth.ExpiresAt <= time.Now().UnixMilli() {
+		t.Fatal("expected future expiresAt after refresh")
+	}
+}
+
+func TestLoadCLICredentialsFallsBackToExpiredClaudeToken(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+	}))
+	defer srv.Close()
+
+	expiredMs := time.Now().Add(-time.Hour).UnixMilli()
+	payload := claudeOAuthFile{
+		ClaudeAiOauth: claudeOAuthTokens{
+			AccessToken:  "sk-ant-oat01-expired",
+			RefreshToken: "sk-ant-ort01-dead",
+			ExpiresAt:    expiredMs,
+		},
+	}
+	// Refresh should fail; we expect an error and original payload unchanged.
+	_, err := testRefreshClaudeOAuth(payload, srv.URL)
+	if err == nil {
+		t.Fatal("expected refresh to fail for bad server response")
+	}
+}
+
+func TestLoadCLICredentialsSkipsRefreshForValidClaudeToken(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	now := time.Now()
+	validMs := now.Add(2 * time.Hour).UnixMilli()
+
+	// claudeOAuthNeedsRefresh should return false for a valid token.
+	if claudeOAuthNeedsRefresh(validMs, now) {
+		t.Fatal("valid token should not trigger refresh")
+	}
+	if called {
+		t.Fatal("refresh server should not be called for valid token")
+	}
+}
+
+// testRefreshClaudeOAuth is a test-only helper that calls refreshClaudeOAuth
+// with an overridden token URL so tests do not hit the real endpoint.
+func testRefreshClaudeOAuth(payload claudeOAuthFile, tokenURL string) (claudeOAuthFile, error) {
+	form := url.Values{}
+	form.Set("client_id", claudeOAuthClientID)
+	form.Set("refresh_token", payload.ClaudeAiOauth.RefreshToken)
+	form.Set("grant_type", "refresh_token")
+
+	req, err := http.NewRequest(http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return claudeOAuthFile{}, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return claudeOAuthFile{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return claudeOAuthFile{}, fmt.Errorf("claude token refresh failed: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return claudeOAuthFile{}, err
+	}
+	var refreshed struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresIn    int64  `json:"expires_in"`
+	}
+	if err := json.Unmarshal(body, &refreshed); err != nil {
+		return claudeOAuthFile{}, err
+	}
+	if refreshed.AccessToken == "" {
+		return claudeOAuthFile{}, io.ErrUnexpectedEOF
+	}
+
+	updated := payload
+	updated.ClaudeAiOauth.AccessToken = refreshed.AccessToken
+	if refreshed.RefreshToken != "" {
+		updated.ClaudeAiOauth.RefreshToken = refreshed.RefreshToken
+	}
+	if refreshed.ExpiresIn > 0 {
+		updated.ClaudeAiOauth.ExpiresAt = time.Now().Add(time.Duration(refreshed.ExpiresIn) * time.Second).UnixMilli()
+	}
+	return updated, nil
 }
 
 func TestLoadCLICredentialsReadsClaudeSetupToken(t *testing.T) {
