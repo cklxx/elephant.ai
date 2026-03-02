@@ -118,6 +118,11 @@ func NewLarkChannel() tools.ToolExecutor {
 							Type:        "string",
 							Description: "Message text for send_message.",
 						},
+					"content_format": {
+						Type:        "string",
+						Description: "Message format for send_message: text (default) or post (rich text).",
+						Enum:        []any{"text", "post"},
+					},
 						// upload_file params
 						"source": {
 							Type:        "string",
