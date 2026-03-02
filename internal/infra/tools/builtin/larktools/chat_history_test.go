@@ -23,7 +23,7 @@ func TestExecute_NoLarkClient(t *testing.T) {
 	if result.Error == nil {
 		t.Fatal("expected error in result when lark client is missing")
 	}
-	if result.Content != "lark_chat_history is only available inside a Lark chat context." {
+	if result.Content != "This operation requires a Lark chat context." {
 		t.Errorf("unexpected content: %s", result.Content)
 	}
 }

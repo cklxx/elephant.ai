@@ -10,29 +10,15 @@ import (
 	larkapi "alex/internal/infra/lark"
 	"alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
-
-	lark "github.com/larksuite/oapi-sdk-go/v3"
 )
 
 // larkOKRManage handles OKR operations via the unified channel tool.
 type larkOKRManage struct{}
 
 func (t *larkOKRManage) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	rawClient := shared.LarkClientFromContext(ctx)
-	if rawClient == nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "OKR operations require a Lark chat context.",
-			Error:   fmt.Errorf("lark client not available in context"),
-		}, nil
-	}
-	sdkClient, ok := rawClient.(*lark.Client)
-	if !ok {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "invalid lark client type in context.",
-			Error:   fmt.Errorf("invalid lark client type: %T", rawClient),
-		}, nil
+	sdkClient, errResult := requireLarkClient(ctx, call.ID)
+	if errResult != nil {
+		return errResult, nil
 	}
 	client := larkapi.Wrap(sdkClient)
 

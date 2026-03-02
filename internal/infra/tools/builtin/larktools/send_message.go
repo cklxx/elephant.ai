@@ -146,21 +146,9 @@ func (t *larkSendMessage) Execute(ctx context.Context, call ports.ToolCall) (*po
 		}, nil
 	}
 
-	rawClient := shared.LarkClientFromContext(ctx)
-	if rawClient == nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "lark_send_message is only available inside a Lark chat context.",
-			Error:   fmt.Errorf("lark client not available in context"),
-		}, nil
-	}
-	client, ok := rawClient.(*lark.Client)
-	if !ok {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "lark_send_message: invalid lark client type in context.",
-			Error:   fmt.Errorf("invalid lark client type: %T", rawClient),
-		}, nil
+	client, errResult := requireLarkClient(ctx, call.ID)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	if replyToID != "" {

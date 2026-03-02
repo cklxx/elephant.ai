@@ -8,8 +8,6 @@ import (
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/shared"
-
-	lark "github.com/larksuite/oapi-sdk-go/v3"
 )
 
 // actionSafetyLevel returns the appropriate safety level for each action.
@@ -377,20 +375,8 @@ func NewLarkChannel() tools.ToolExecutor {
 }
 
 func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	rawClient := shared.LarkClientFromContext(ctx)
-	if rawClient == nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "channel tool is only available inside a Lark chat context.",
-			Error:   fmt.Errorf("lark client not available in context"),
-		}, nil
-	}
-	if _, ok := rawClient.(*lark.Client); !ok {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "channel: invalid lark client type in context.",
-			Error:   fmt.Errorf("invalid lark client type: %T", rawClient),
-		}, nil
+	if _, errResult := requireLarkClient(ctx, call.ID); errResult != nil {
+		return errResult, nil
 	}
 
 	action, errResult := shared.RequireStringArg(call.Arguments, call.ID, "action")

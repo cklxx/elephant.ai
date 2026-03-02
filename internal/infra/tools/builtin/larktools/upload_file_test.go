@@ -36,7 +36,7 @@ func TestUploadFile_NoLarkClient(t *testing.T) {
 	if result.Error == nil {
 		t.Fatal("expected error in result when lark client is missing")
 	}
-	if result.Content != "lark_upload_file is only available inside a Lark chat context." {
+	if result.Content != "This operation requires a Lark chat context." {
 		t.Fatalf("unexpected content: %s", result.Content)
 	}
 }

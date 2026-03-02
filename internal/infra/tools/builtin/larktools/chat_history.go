@@ -11,7 +11,6 @@ import (
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/shared"
 
-	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
@@ -61,21 +60,9 @@ func NewLarkChatHistory() tools.ToolExecutor {
 }
 
 func (t *larkChatHistory) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	rawClient := shared.LarkClientFromContext(ctx)
-	if rawClient == nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "lark_chat_history is only available inside a Lark chat context.",
-			Error:   fmt.Errorf("lark client not available in context"),
-		}, nil
-	}
-	client, ok := rawClient.(*lark.Client)
-	if !ok {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "lark_chat_history: invalid lark client type in context.",
-			Error:   fmt.Errorf("invalid lark client type: %T", rawClient),
-		}, nil
+	client, errResult := requireLarkClient(ctx, call.ID)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	chatID := shared.LarkChatIDFromContext(ctx)

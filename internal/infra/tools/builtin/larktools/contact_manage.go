@@ -10,29 +10,15 @@ import (
 	larkapi "alex/internal/infra/lark"
 	"alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
-
-	lark "github.com/larksuite/oapi-sdk-go/v3"
 )
 
 // larkContactManage handles contact/directory operations via the unified channel tool.
 type larkContactManage struct{}
 
 func (t *larkContactManage) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	rawClient := shared.LarkClientFromContext(ctx)
-	if rawClient == nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "contact operations require a Lark chat context.",
-			Error:   fmt.Errorf("lark client not available in context"),
-		}, nil
-	}
-	sdkClient, ok := rawClient.(*lark.Client)
-	if !ok {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "invalid lark client type in context.",
-			Error:   fmt.Errorf("invalid lark client type: %T", rawClient),
-		}, nil
+	sdkClient, errResult := requireLarkClient(ctx, call.ID)
+	if errResult != nil {
+		return errResult, nil
 	}
 	client := larkapi.Wrap(sdkClient)
 

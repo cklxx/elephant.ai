@@ -9,29 +9,15 @@ import (
 	"alex/internal/domain/agent/ports"
 	larkapi "alex/internal/infra/lark"
 	"alex/internal/infra/tools/builtin/shared"
-
-	lark "github.com/larksuite/oapi-sdk-go/v3"
 )
 
 // larkDriveManage handles drive file/folder operations via the unified channel tool.
 type larkDriveManage struct{}
 
 func (t *larkDriveManage) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	rawClient := shared.LarkClientFromContext(ctx)
-	if rawClient == nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "drive operations require a Lark chat context.",
-			Error:   fmt.Errorf("lark client not available in context"),
-		}, nil
-	}
-	sdkClient, ok := rawClient.(*lark.Client)
-	if !ok {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "invalid lark client type in context.",
-			Error:   fmt.Errorf("invalid lark client type: %T", rawClient),
-		}, nil
+	sdkClient, errResult := requireLarkClient(ctx, call.ID)
+	if errResult != nil {
+		return errResult, nil
 	}
 	client := larkapi.Wrap(sdkClient)
 

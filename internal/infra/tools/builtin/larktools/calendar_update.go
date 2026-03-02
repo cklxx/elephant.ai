@@ -8,7 +8,6 @@ import (
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/shared"
 
-	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	larkcalendar "github.com/larksuite/oapi-sdk-go/v3/service/calendar/v4"
 )
@@ -68,21 +67,9 @@ func NewLarkCalendarUpdate() tools.ToolExecutor {
 }
 
 func (t *larkCalendarUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	rawClient := shared.LarkClientFromContext(ctx)
-	if rawClient == nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "lark_calendar_update is only available inside a Lark chat context.",
-			Error:   fmt.Errorf("lark client not available in context"),
-		}, nil
-	}
-	client, ok := rawClient.(*lark.Client)
-	if !ok {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "lark_calendar_update: invalid lark client type in context.",
-			Error:   fmt.Errorf("invalid lark client type: %T", rawClient),
-		}, nil
+	client, errResult := requireLarkClient(ctx, call.ID)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	eventID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "event_id")
