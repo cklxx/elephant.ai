@@ -111,6 +111,133 @@ runtime:
       env:
         OPENAI_API_KEY: "${OPENAI_API_KEY}"
     teams:
+      - name: "claude_research"
+        description: "Single claude_code researcher for quick technical deep-dives"
+        roles:
+          - name: "researcher"
+            agent_type: "claude_code"
+            prompt_template: |
+              [Team Role: Technical Researcher]
+              Research the following topic and deliver a structured analysis.
+
+              Topic: {GOAL}
+
+              Format:
+              1. Overview (2-3 sentences)
+              2. Key findings (3-5 bullet points, specific and concrete)
+              3. Trade-offs and risks
+              4. Recommendation with justification
+            execution_mode: "plan"
+            autonomy_level: "full"
+            config:
+              approval_policy: "never"
+              sandbox: "read-only"
+        stages:
+          - name: "research"
+            roles: ["researcher"]
+
+      - name: "claude_analysis"
+        description: "Dual-perspective parallel research then synthesis — all claude_code"
+        roles:
+          - name: "analyst_a"
+            agent_type: "claude_code"
+            prompt_template: |
+              [Team Role: Analyst A — First-Principles Perspective]
+              Analyze the following from a theoretical, first-principles standpoint.
+              Focus on fundamentals, consistency guarantees, and correctness.
+
+              Topic: {GOAL}
+
+              Provide: core theory, formal properties, where this approach excels and breaks down.
+            execution_mode: "plan"
+            autonomy_level: "full"
+            config:
+              approval_policy: "never"
+              sandbox: "read-only"
+          - name: "analyst_b"
+            agent_type: "claude_code"
+            prompt_template: |
+              [Team Role: Analyst B — Pragmatic Perspective]
+              Analyze the following from a hands-on, operational standpoint.
+              Focus on real production experience, team adoption cost, and observable behavior.
+
+              Topic: {GOAL}
+
+              Provide: operational complexity, failure modes, migration cost, tooling maturity.
+            execution_mode: "plan"
+            autonomy_level: "full"
+            config:
+              approval_policy: "never"
+              sandbox: "read-only"
+          - name: "synthesizer"
+            agent_type: "claude_code"
+            prompt_template: |
+              [Team Role: Synthesizer]
+              Two analysts have provided independent perspectives above (in Collaboration Context).
+              Synthesize their findings into a final, concrete recommendation.
+
+              Original question: {GOAL}
+
+              Structure:
+              1. Points of agreement
+              2. Key tensions between perspectives
+              3. Final verdict with explicit reasoning
+              4. When to revisit this decision
+            execution_mode: "plan"
+            autonomy_level: "full"
+            inherit_context: true
+            config:
+              approval_policy: "never"
+              sandbox: "read-only"
+        stages:
+          - name: "research"
+            roles: ["analyst_a", "analyst_b"]
+          - name: "synthesis"
+            roles: ["synthesizer"]
+
+      - name: "claude_debate"
+        description: "Analyst proposes → debate challenger critiques → reviewer decides"
+        roles:
+          - name: "analyst"
+            agent_type: "claude_code"
+            prompt_template: |
+              [Team Role: Analyst]
+              Make a clear, defensible recommendation for:
+
+              {GOAL}
+
+              State your position explicitly. Justify with concrete reasoning.
+              Anticipate and address the strongest counterargument.
+            execution_mode: "plan"
+            autonomy_level: "full"
+            config:
+              approval_policy: "never"
+              sandbox: "read-only"
+          - name: "reviewer"
+            agent_type: "claude_code"
+            prompt_template: |
+              [Team Role: Final Reviewer]
+              You have the analyst's proposal AND the debate challenger's critique (in Collaboration Context above).
+
+              Topic: {GOAL}
+
+              Evaluate both sides. Produce a final evidence-based verdict:
+              - Which arguments were strongest?
+              - What did the challenger expose that the analyst missed?
+              - Final recommendation with confidence level (low/medium/high).
+            execution_mode: "plan"
+            autonomy_level: "full"
+            inherit_context: true
+            config:
+              approval_policy: "never"
+              sandbox: "read-only"
+        stages:
+          - name: "proposal"
+            roles: ["analyst"]
+            debate_mode: true
+          - name: "verdict"
+            roles: ["reviewer"]
+
       - name: "execute_and_report"
         description: "Codex executes technical tasks, Claude Code summarizes results"
         roles:
