@@ -1,0 +1,28 @@
+# Pilot Outreach Follow-up Task
+# Goal: Advance Top2 leads (馨居母婴家政工作室, 清源护肤用品门店) to next stage
+
+tasks:
+  - id: check_payment_status
+    description: Check for any new payment confirmations
+    command: cat /Users/bytedance/code/elephant.ai/artifacts/pilot_client_payment_links.json 2>/dev/null || echo "No payment data found"
+    
+  - id: draft_followup_sequence
+    description: Draft day-3 and day-7 follow-up messages for non-responders
+    command: |
+      cat > /tmp/pilot_followup_sequence.md << 'EOF'
+      # Pilot Outreach Follow-up Sequence
+      
+      ## Lead 1: 馨居母婴家政工作室
+      - Day 3 (2026-02-28): Value-focused follow-up emphasizing 999元 ROI
+      - Day 7 (2026-03-04): Scarcity nudge — limited pilot slots
+      
+      ## Lead 2: 清源护肤用品门店  
+      - Day 3 (2026-02-28): Case study angle — similar retail clients
+      - Day 7 (2026-03-04): Direct ask — schedule 15-min call
+      
+      ## Channel Strategy
+      - Primary: 微信 (if available)
+      - Secondary: SMS
+      - Fallback: Phone call
+      EOF
+      cat /tmp/pilot_followup_sequence.md

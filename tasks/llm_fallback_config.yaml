@@ -1,0 +1,15 @@
+# LLM Fallback Chain Configuration Task
+# Goal: Reduce kernel vulnerability to single-provider upstream failures
+
+tasks:
+  - id: audit_current_llm_config
+    description: Audit current LLM provider configs and identify fallback gaps
+    command: grep -r "kimi-for-coding" /Users/bytedance/code/elephant.ai/configs/ --include="*.yaml" --include="*.json" | head -20
+    
+  - id: document_fallback_options  
+    description: Document available fallback providers and cost/latency trade-offs
+    command: echo "Fallback options: 1) deepseek-chat 2) gpt-4o-mini 3) local-llm" > /tmp/llm_fallback_options.md
+    
+  - id: implement_provider_chain
+    description: Implement provider chain with automatic failover logic
+    command: echo "TODO: Patch internal/app/agent/kernel/llm_client.go to support provider chain" >> /tmp/llm_fallback_options.md

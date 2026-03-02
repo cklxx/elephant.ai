@@ -1,0 +1,66 @@
+# SelfEvolvingAgent 配置示例
+# 将此配置合并到你的 config.yaml 中以启用自我进化能力
+
+evolution:
+  enabled: true
+  
+  # 性能分析配置
+  analyzer:
+    enabled: true
+    min_iterations_before_analysis: 3
+    success_rate_threshold: 0.7
+    iteration_time_threshold_ms: 30000
+    token_efficiency_threshold: 0.5
+  
+  # 提示词优化配置
+  optimizer:
+    enabled: true
+    max_variants: 3
+    min_confidence: 0.6
+    optimization_frequency: "per_session"  # 可选: per_task, per_session, manual
+    use_ab_testing: true
+  
+  # 学习存储配置
+  memory:
+    storage_type: "local"  # 可选: local, memory
+    max_patterns: 100
+    min_pattern_confidence: 0.5
+    pattern_retention_days: 30
+  
+  # 反馈收集配置
+  feedback:
+    enabled: true
+    auto_collect_tool_feedback: true
+    auto_collect_iteration_metrics: true
+  
+  # 进化历史配置
+  history:
+    max_generations: 50
+    retention_days: 90
+    snapshot_interval_hours: 24
+  
+  # 回滚配置
+  rollback:
+    enabled: true
+    max_snapshots: 10
+    auto_rollback_on_degradation: true
+    degradation_threshold: -0.2
+
+# 进化专用 agent 配置（覆盖默认配置）
+agents:
+  self_evolving:
+    max_iterations: 15
+    temperature: 0.3  # 更低温度以获得更确定的优化结果
+    prompt_mode: "evolution"  # 特殊模式，启用自我分析
+
+# 工具配置
+tools:
+  evolution:
+    - name: evolution_analyze
+      description: "分析执行历史和性能指标"
+    - name: evolution_optimize
+      description: "优化提示词和策略"
+    - name: evolution_rollback
+      description: "回滚到之前的进化版本"
+    - name: evolution_insights
+      description: "查询学习到的模式和洞察"
