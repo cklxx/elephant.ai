@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -771,6 +772,299 @@ func TestLLMPlanner_BuildPlanningPrompt_ShowsAwaitingInputAnnotation(t *testing.
 	if !containsAll(prompt, "lark-poster", "[awaiting_input]") {
 		t.Errorf("prompt should contain [awaiting_input] annotation for failed dispatch, got: %q", prompt)
 	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// compactStateForDispatch tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+// realisticStateMD simulates a real STATE.md with identity, recent_actions (5 entries),
+// and a full kernel_runtime block including cycle_history.
+const realisticStateMD = `## identity
+- name: alex
+- kernel_id: production
+
+## recent_actions
+- 2026-03-02T10:00:00Z: deployed v2.1 to staging → success
+- 2026-03-02T09:30:00Z: ran test suite → 142 passed, 0 failed
+- 2026-03-02T09:00:00Z: code review for PR #45 → approved
+- 2026-03-02T08:30:00Z: research on cache invalidation → wrote summary
+- 2026-03-02T08:00:00Z: fixed login timeout bug → committed fix
+
+## next_steps
+- Deploy to production after staging soak
+
+<!-- KERNEL_RUNTIME:START -->
+## kernel_runtime
+- updated_at: 2026-03-02T10:05:00Z
+- latest_cycle_id: run-abc123
+- latest_status: success
+- latest_dispatched: 3
+- latest_succeeded: 3
+- latest_failed: 0
+- latest_failed_agents: (none)
+- latest_agent_summary: build-executor[done]: deployed v2.1 / research-executor[done]: cache analysis / audit-executor[done]: security scan clean
+- latest_duration_ms: 45200
+- latest_error: (none)
+
+### cycle_history
+| cycle_id | status | dispatched | succeeded | failed | summary | updated_at |
+|----------|--------|------------|-----------|--------|---------|------------|
+| run-abc123 | success | 3 | 3 | 0 | deployed + researched + audited | 2026-03-02T10:05:00Z |
+| run-def456 | partial_success | 2 | 1 | 1 | build ok / outreach failed | 2026-03-02T09:35:00Z |
+| run-ghi789 | success | 1 | 1 | 0 | test suite run | 2026-03-02T09:05:00Z |
+<!-- KERNEL_RUNTIME:END -->
+`
+
+func TestCompactStateForDispatch_StripsRuntimeBlock(t *testing.T) {
+	compact := compactStateForDispatch(realisticStateMD)
+	if strings.Contains(compact, kernelRuntimeSectionStart) {
+		t.Error("compact state should not contain KERNEL_RUNTIME:START marker")
+	}
+	if strings.Contains(compact, kernelRuntimeSectionEnd) {
+		t.Error("compact state should not contain KERNEL_RUNTIME:END marker")
+	}
+	if strings.Contains(compact, "latest_cycle_id") {
+		t.Error("compact state should not contain runtime stats")
+	}
+	if strings.Contains(compact, "cycle_history") {
+		t.Error("compact state should not contain cycle_history table")
+	}
+}
+
+func TestCompactStateForDispatch_PreservesIdentityAndNextSteps(t *testing.T) {
+	compact := compactStateForDispatch(realisticStateMD)
+	if !strings.Contains(compact, "## identity") {
+		t.Error("compact state should preserve identity section")
+	}
+	if !strings.Contains(compact, "kernel_id: production") {
+		t.Error("compact state should preserve identity content")
+	}
+	if !strings.Contains(compact, "## next_steps") {
+		t.Error("compact state should preserve next_steps section")
+	}
+	if !strings.Contains(compact, "Deploy to production") {
+		t.Error("compact state should preserve next_steps content")
+	}
+}
+
+func TestCompactStateForDispatch_TruncatesRecentActions(t *testing.T) {
+	compact := compactStateForDispatch(realisticStateMD)
+	if !strings.Contains(compact, "## recent_actions") {
+		t.Fatal("compact state should preserve recent_actions header")
+	}
+	// Should keep first 3 entries (most recent).
+	if !strings.Contains(compact, "deployed v2.1") {
+		t.Error("should keep 1st recent action")
+	}
+	if !strings.Contains(compact, "ran test suite") {
+		t.Error("should keep 2nd recent action")
+	}
+	if !strings.Contains(compact, "code review") {
+		t.Error("should keep 3rd recent action")
+	}
+	// Should drop entries 4 and 5.
+	if strings.Contains(compact, "cache invalidation") {
+		t.Error("should drop 4th recent action")
+	}
+	if strings.Contains(compact, "login timeout") {
+		t.Error("should drop 5th recent action")
+	}
+}
+
+func TestCompactStateForDispatch_SignificantSizeReduction(t *testing.T) {
+	fullLen := len(realisticStateMD)
+	compactLen := len(compactStateForDispatch(realisticStateMD))
+	reduction := float64(fullLen-compactLen) / float64(fullLen) * 100
+	t.Logf("STATE.md compaction: %d → %d chars (%.1f%% reduction)", fullLen, compactLen, reduction)
+	if compactLen >= fullLen {
+		t.Errorf("compact state (%d chars) should be smaller than full state (%d chars)", compactLen, fullLen)
+	}
+	// Expect at least 30% reduction from a realistic STATE with runtime block.
+	if reduction < 30 {
+		t.Errorf("expected at least 30%% reduction, got %.1f%%", reduction)
+	}
+}
+
+func TestCompactStateForDispatch_NoRuntimeBlock(t *testing.T) {
+	simple := "## identity\n- name: alex\n\n## recent_actions\n- did something\n"
+	compact := compactStateForDispatch(simple)
+	if compact != strings.TrimSpace(simple) {
+		t.Errorf("state without runtime block should pass through cleanly, got %q", compact)
+	}
+}
+
+func TestTruncateRecentActions_KeepsOnlyN(t *testing.T) {
+	content := "## Recent_Actions\n- a\n- b\n- c\n- d\n- e\n\n## next\nstuff"
+	result := truncateRecentActions(content, 2)
+	if !strings.Contains(result, "- a") || !strings.Contains(result, "- b") {
+		t.Error("should keep first 2 entries")
+	}
+	if strings.Contains(result, "- c") || strings.Contains(result, "- d") || strings.Contains(result, "- e") {
+		t.Error("should drop entries beyond limit")
+	}
+	if !strings.Contains(result, "## next") {
+		t.Error("should preserve subsequent sections")
+	}
+}
+
+func TestTruncateRecentActions_NoSection(t *testing.T) {
+	content := "## identity\n- name: alex\n"
+	result := truncateRecentActions(content, 3)
+	if result != content {
+		t.Error("content without recent_actions should pass through unchanged")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// E2E: dispatch prompt uses compact STATE
+// ─────────────────────────────────────────────────────────────────────────────
+
+func TestLLMPlanner_ToDispatchSpecs_DispatchPromptUsesCompactState(t *testing.T) {
+	p := testLLMPlanner(LLMPlannerConfig{MaxDispatches: 5}, []AgentConfig{
+		{AgentID: "build-executor", Prompt: "Build task.\n\nState:\n{STATE}", Enabled: true, Priority: 8},
+	})
+	decisions := []planningDecision{
+		{AgentID: "build-executor", Dispatch: true, Priority: 8, Prompt: "", Reason: "deploy to prod"},
+	}
+	specs := p.toDispatchSpecs(decisions, realisticStateMD, map[string]kerneldomain.Dispatch{})
+	if len(specs) != 1 {
+		t.Fatalf("expected 1 spec, got %d", len(specs))
+	}
+	prompt := specs[0].Prompt
+	// Runtime block should be stripped from dispatch prompt.
+	if strings.Contains(prompt, kernelRuntimeSectionStart) {
+		t.Error("dispatch prompt should NOT contain KERNEL_RUNTIME markers")
+	}
+	if strings.Contains(prompt, "latest_cycle_id") {
+		t.Error("dispatch prompt should NOT contain runtime stats")
+	}
+	// Identity and next_steps should be preserved.
+	if !strings.Contains(prompt, "kernel_id: production") {
+		t.Error("dispatch prompt should contain identity")
+	}
+	if !strings.Contains(prompt, "Deploy to production") {
+		t.Error("dispatch prompt should contain next_steps")
+	}
+	// recent_actions should be truncated.
+	if strings.Contains(prompt, "login timeout") {
+		t.Error("dispatch prompt should NOT contain old recent_actions (5th entry)")
+	}
+	t.Logf("dispatch prompt length: %d chars (full STATE was %d chars)", len(prompt), len(realisticStateMD))
+}
+
+func TestLLMPlanner_ToDispatchSpecs_DynamicPromptUsesCompactState(t *testing.T) {
+	p := testLLMPlanner(LLMPlannerConfig{MaxDispatches: 5}, nil)
+	decisions := []planningDecision{
+		{AgentID: "ad-hoc-agent", Dispatch: true, Priority: 7, Prompt: "Do work.\nContext: {STATE}", Reason: "ad hoc"},
+	}
+	specs := p.toDispatchSpecs(decisions, realisticStateMD, map[string]kerneldomain.Dispatch{})
+	if len(specs) != 1 {
+		t.Fatalf("expected 1 spec, got %d", len(specs))
+	}
+	prompt := specs[0].Prompt
+	if strings.Contains(prompt, kernelRuntimeSectionStart) {
+		t.Error("dynamic dispatch prompt should NOT contain runtime block")
+	}
+	if !strings.Contains(prompt, "kernel_id: production") {
+		t.Error("dynamic dispatch prompt should contain identity")
+	}
+}
+
+func TestLLMPlanner_ToDispatchSpecs_FallbackPromptUsesCompactState(t *testing.T) {
+	p := testLLMPlanner(LLMPlannerConfig{MaxDispatches: 5}, nil)
+	decisions := []planningDecision{
+		{AgentID: "new-agent", Dispatch: true, Priority: 7, Prompt: "", Reason: "build something"},
+	}
+	specs := p.toDispatchSpecs(decisions, realisticStateMD, map[string]kerneldomain.Dispatch{})
+	if len(specs) != 1 {
+		t.Fatalf("expected 1 spec, got %d", len(specs))
+	}
+	prompt := specs[0].Prompt
+	if strings.Contains(prompt, kernelRuntimeSectionStart) {
+		t.Error("fallback prompt should NOT contain runtime block")
+	}
+	if !strings.Contains(prompt, "build something") {
+		t.Error("fallback prompt should contain the reason")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// E2E: planner still sees full STATE
+// ─────────────────────────────────────────────────────────────────────────────
+
+func TestLLMPlanner_BuildPlanningPrompt_ContainsFullRuntimeBlock(t *testing.T) {
+	p := testLLMPlanner(LLMPlannerConfig{MaxDispatches: 3}, nil)
+	prompt := p.buildPlanningPrompt(realisticStateMD, "", "goal_context_not_configured", nil)
+	if !strings.Contains(prompt, "latest_cycle_id") {
+		t.Error("planner prompt should contain full runtime stats")
+	}
+	if !strings.Contains(prompt, "cycle_history") {
+		t.Error("planner prompt should contain cycle_history table")
+	}
+	if !strings.Contains(prompt, "login timeout") {
+		t.Error("planner prompt should contain ALL recent_actions (not truncated)")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// E2E: disabled agents filtered from planner
+// ─────────────────────────────────────────────────────────────────────────────
+
+func TestLLMPlanner_BuildPlanningPrompt_ExcludesDisabledAgents(t *testing.T) {
+	p := testLLMPlanner(LLMPlannerConfig{MaxDispatches: 5}, []AgentConfig{
+		{AgentID: "build-executor", Priority: 8, Enabled: true},
+		{AgentID: "legacy-agent", Priority: 3, Enabled: false},
+		{AgentID: "research-executor", Priority: 5, Enabled: true},
+	})
+	prompt := p.buildPlanningPrompt("state", "", "goal_context_not_configured", nil)
+	if !strings.Contains(prompt, "build-executor") {
+		t.Error("enabled agent should appear in planner prompt")
+	}
+	if !strings.Contains(prompt, "research-executor") {
+		t.Error("enabled agent should appear in planner prompt")
+	}
+	if strings.Contains(prompt, "legacy-agent") {
+		t.Error("disabled agent should NOT appear in planner prompt")
+	}
+	if strings.Contains(prompt, "disabled") {
+		t.Error("planner prompt should not mention 'disabled' status at all")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// E2E: cycle_history compaction
+// ─────────────────────────────────────────────────────────────────────────────
+
+func TestBuildCycleHistoryEntry_CompactSummaryLimit(t *testing.T) {
+	longSummary := strings.Repeat("word ", 50) // 250 chars
+	result := &kerneldomain.CycleResult{
+		CycleID: "run-test",
+		Status:  kerneldomain.CycleSuccess,
+		AgentSummary: []kerneldomain.AgentCycleSummary{
+			{AgentID: "agent-a", Status: kerneldomain.DispatchDone, Summary: longSummary},
+		},
+	}
+	entry := buildCycleHistoryEntry(result, nil, time.Now())
+	// Summary in cycle_history should be compacted to 80 chars.
+	if len(entry.Summary) > 100 {
+		t.Errorf("cycle history summary too long (%d chars), expected compact ≤80+ellipsis: %q", len(entry.Summary), entry.Summary)
+	}
+	t.Logf("cycle history entry summary: %d chars", len(entry.Summary))
+}
+
+func TestRenderStateAgentSummary_CompactSummaryLimit(t *testing.T) {
+	longSummary := strings.Repeat("detail ", 40) // 280 chars
+	entries := []kerneldomain.AgentCycleSummary{
+		{AgentID: "agent-x", Status: kerneldomain.DispatchDone, Summary: longSummary},
+	}
+	rendered := renderStateAgentSummary(entries)
+	// Each agent summary within the runtime block should be ≤80 chars.
+	// Format: "agent-x[done]: <summary>" — so total should be manageable.
+	if len(rendered) > 120 {
+		t.Errorf("agent summary too long (%d chars), expected compact: %q", len(rendered), rendered)
+	}
+	t.Logf("runtime agent summary: %d chars", len(rendered))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

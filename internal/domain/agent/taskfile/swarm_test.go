@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,15 +17,18 @@ type orderTrackingDispatcher struct {
 	mu         sync.Mutex
 	dispatched []string
 	results    map[string]agent.BackgroundTaskResult
+	maxInFlight int64
+	inFlight    atomic.Int64
 }
 
-func newOrderTracker() *orderTrackingDispatcher {
+func newOrderTracker(resultStatus agent.BackgroundTaskStatus) *orderTrackingDispatcher {
 	return &orderTrackingDispatcher{
 		results: make(map[string]agent.BackgroundTaskResult),
 	}
 }
 
 func (d *orderTrackingDispatcher) Dispatch(_ context.Context, req agent.BackgroundDispatchRequest) error {
+	cur := d.inFlight.Add(1)
 	d.mu.Lock()
 	d.dispatched = append(d.dispatched, req.TaskID)
 	d.results[req.TaskID] = agent.BackgroundTaskResult{
@@ -32,7 +36,11 @@ func (d *orderTrackingDispatcher) Dispatch(_ context.Context, req agent.Backgrou
 		Status: agent.BackgroundTaskStatusCompleted,
 		Answer: "done",
 	}
+	if int64(cur) > d.maxInFlight {
+		d.maxInFlight = int64(cur)
+	}
 	d.mu.Unlock()
+	d.inFlight.Add(-1)
 	return nil
 }
 
@@ -69,6 +77,15 @@ func (d *orderTrackingDispatcher) dispatchedIDs() []string {
 	return cp
 }
 
+func (d *orderTrackingDispatcher) setResult(id string, status agent.BackgroundTaskStatus) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.results[id] = agent.BackgroundTaskResult{
+		ID:     id,
+		Status: status,
+	}
+}
+
 func TestSwarmScheduler_StageOrdering(t *testing.T) {
 	// Three layers: [a,b] → [c,d] → [e]
 	tf := &TaskFile{
@@ -83,7 +100,7 @@ func TestSwarmScheduler_StageOrdering(t *testing.T) {
 		},
 	}
 
-	tracker := newOrderTracker()
+	tracker := newOrderTracker(agent.BackgroundTaskStatusCompleted)
 	sched := NewSwarmScheduler(tracker, DefaultSwarmConfig())
 	statusPath := filepath.Join(t.TempDir(), "swarm.status.yaml")
 
@@ -133,7 +150,7 @@ func TestSwarmScheduler_FlatDAGAllParallel(t *testing.T) {
 		},
 	}
 
-	tracker := newOrderTracker()
+	tracker := newOrderTracker(agent.BackgroundTaskStatusCompleted)
 	sched := NewSwarmScheduler(tracker, DefaultSwarmConfig())
 	statusPath := filepath.Join(t.TempDir(), "flat.status.yaml")
 
@@ -166,7 +183,7 @@ func TestSwarmScheduler_AdaptiveConcurrency_ScaleUp(t *testing.T) {
 		StageTimeout:       5 * time.Second,
 	}
 
-	tracker := newOrderTracker()
+	tracker := newOrderTracker(agent.BackgroundTaskStatusCompleted)
 	sched := NewSwarmScheduler(tracker, cfg)
 
 	if sched.current != 2 {
@@ -195,7 +212,7 @@ func TestSwarmScheduler_AdaptiveConcurrency_ScaleDown(t *testing.T) {
 		StageTimeout:       5 * time.Second,
 	}
 
-	tracker := newOrderTracker()
+	tracker := newOrderTracker(agent.BackgroundTaskStatusCompleted)
 	sched := NewSwarmScheduler(tracker, cfg)
 
 	// 50% failure rate → scale down
@@ -222,7 +239,7 @@ func TestSwarmScheduler_ConcurrencyBounds(t *testing.T) {
 		StageTimeout:       5 * time.Second,
 	}
 
-	tracker := newOrderTracker()
+	tracker := newOrderTracker(agent.BackgroundTaskStatusCompleted)
 	sched := NewSwarmScheduler(tracker, cfg)
 
 	// Scale up should cap at max
@@ -249,7 +266,7 @@ func TestSwarmScheduler_ConcurrencyBounds(t *testing.T) {
 func TestSwarmScheduler_ValidationError(t *testing.T) {
 	tf := &TaskFile{Version: "1"} // no tasks
 
-	tracker := newOrderTracker()
+	tracker := newOrderTracker(agent.BackgroundTaskStatusCompleted)
 	sched := NewSwarmScheduler(tracker, DefaultSwarmConfig())
 
 	_, err := sched.ExecuteSwarm(context.Background(), tf, "cause-1", "/tmp/test.status.yaml")
