@@ -935,7 +935,7 @@ func (it *reactIteration) observeTools() {
 		it.runtime.engine.logger.Debug("Tool %d succeeded: result_length=%d", i, len(res.Content))
 	}
 
-	toolMessages := it.runtime.engine.buildToolMessages(state, it.toolResult)
+	toolMessages := it.runtime.engine.buildToolMessages(it.toolResult)
 	toolMessages = it.runtime.engine.appendGoalPlanReminder(state, toolMessages)
 	startIdx := len(state.Messages)
 	state.Messages = append(state.Messages, toolMessages...)

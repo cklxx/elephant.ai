@@ -21,16 +21,10 @@ func buildIdentityLine(persona agent.PersonaProfile) string {
 	return personaVoice(persona)
 }
 
-const identityVoiceInlineLimit = 1500
-
 func buildIdentitySection(persona agent.PersonaProfile) string {
 	var builder strings.Builder
 	builder.WriteString("# Identity & Persona\n\n")
-	voice := personaVoice(persona)
-	if len(voice) > identityVoiceInlineLimit {
-		voice = voice[:identityVoiceInlineLimit] + "\n\n[Full identity: ~/.alex/memory/SOUL.md]"
-	}
-	builder.WriteString(voice)
+	builder.WriteString(personaVoice(persona))
 	meta := formatBulletList(filterNonEmpty([]string{
 		formatKeyValue("Tone", persona.Tone),
 		formatKeyValue("Decision Style", persona.DecisionStyle),

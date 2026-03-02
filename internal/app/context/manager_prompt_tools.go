@@ -91,9 +91,6 @@ func buildRuntimeSection(toolHints []string, mode string) string {
 }
 
 func buildSkillsSection(logger logging.Logger, taskInput string, messages []ports.Message, sessionID string, cfg agent.SkillsConfig) string {
-	// After the first turn, skip the full available skills catalog to save
-	// tokens. Activated skills are still injected normally.
-	isFirstTurn := len(messages) == 0
 	library, err := skills.CachedLibrary(time.Duration(cfg.AutoActivation.CacheTTLSeconds) * time.Second)
 	if err != nil {
 		logging.OrNop(logger).Warn("Failed to load skills: %v", err)
@@ -169,19 +166,14 @@ func buildSkillsSection(logger logging.Logger, taskInput string, messages []port
 		}
 	}
 
+	metadata := strings.TrimSpace(renderCompactAvailableSkillsXML(library, maxAvailableSkillsEntries))
 	recentlyUsedSkills := hasRecentToolUsage(messages, "skills", 12)
-
-	// Inject full available skills XML only on the first turn to save tokens.
-	// On subsequent turns, inject a single-line hint instead.
-	if isFirstTurn {
-		metadata := strings.TrimSpace(renderCompactAvailableSkillsXML(library, maxAvailableSkillsEntries))
-		if metadata != "" && !recentlyUsedSkills {
-			if sb.Len() > 0 {
-				sb.WriteString("\n\n")
-			}
-			sb.WriteString("# Available Skills\n\n")
-			sb.WriteString(metadata)
+	if metadata != "" && !recentlyUsedSkills {
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n")
 		}
+		sb.WriteString("# Available Skills\n\n")
+		sb.WriteString(metadata)
 	}
 
 	if !recentlyUsedSkills && (autoCfg.FallbackToIndex || len(matches) == 0) {

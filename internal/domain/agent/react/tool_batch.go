@@ -127,8 +127,6 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 	b.engine.logger.Debug("Tool %d: Getting tool '%s' from registry", idx, tc.Name)
 	tool, err := b.registry.Get(tc.Name)
 	if err != nil {
-		// Safety valve: restore all tools on next turn so the LLM can retry.
-		markToolNotFoundRecovery(b.state)
 		missing := fmt.Errorf("tool not found: %s", tc.Name)
 		b.finalize(idx, tc, nodeID, ToolResult{Error: missing}, startTime, toolSpan)
 		return

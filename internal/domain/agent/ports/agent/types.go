@@ -107,7 +107,6 @@ type TaskState struct {
 	PendingSummary         string // Deferred compression summary (generated but not yet applied)
 	PendingSummaryAtIter   int    // Iteration when pending summary was generated
 	PendingSummaryMsgCount int    // Number of messages when pending summary was generated
-	ToolSelectionRecovery  bool   // When true, next turn sends all tools (safety valve after tool-not-found)
 }
 
 // AgentConfig exposes the subset of coordinator configuration required by tools.

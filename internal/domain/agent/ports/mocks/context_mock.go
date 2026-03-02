@@ -10,15 +10,14 @@ import (
 )
 
 type MockContextManager struct {
-	EstimateTokensFunc     func(messages []ports.Message) int
-	CompressFunc           func(messages []ports.Message, targetTokens int) ([]ports.Message, error)
-	AutoCompactFunc        func(messages []ports.Message, limit int) ([]ports.Message, bool)
-	ShouldCompressFunc     func(messages []ports.Message, limit int) bool
-	PreloadFunc            func(ctx context.Context) error
-	BuildWindowFunc        func(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error)
-	RecordTurnFunc         func(ctx context.Context, record agent.ContextTurnRecord) error
-	BuildSummaryOnlyFunc   func(messages []ports.Message) (string, int)
-	SummarizeMessagesFunc  func(messages []ports.Message) string
+	EstimateTokensFunc func(messages []ports.Message) int
+	CompressFunc       func(messages []ports.Message, targetTokens int) ([]ports.Message, error)
+	AutoCompactFunc    func(messages []ports.Message, limit int) ([]ports.Message, bool)
+	ShouldCompressFunc func(messages []ports.Message, limit int) bool
+	PreloadFunc        func(ctx context.Context) error
+	BuildWindowFunc    func(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error)
+	RecordTurnFunc       func(ctx context.Context, record agent.ContextTurnRecord) error
+	BuildSummaryOnlyFunc func(messages []ports.Message) (string, int)
 }
 
 func (m *MockContextManager) EstimateTokens(messages []ports.Message) int {
@@ -78,11 +77,4 @@ func (m *MockContextManager) BuildSummaryOnly(messages []ports.Message) (string,
 		return m.BuildSummaryOnlyFunc(messages)
 	}
 	return "", 0
-}
-
-func (m *MockContextManager) SummarizeMessages(messages []ports.Message) string {
-	if m.SummarizeMessagesFunc != nil {
-		return m.SummarizeMessagesFunc(messages)
-	}
-	return ""
 }

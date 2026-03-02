@@ -40,7 +40,7 @@ func (m *manager) compressionThreshold() float64 {
 }
 
 const (
-	defaultThreshold    = 0.6
+	defaultThreshold    = 0.7
 	defaultStaticTTL    = 30 * time.Minute
 	contextConfigEnvVar = "ALEX_CONTEXT_CONFIG_DIR"
 )

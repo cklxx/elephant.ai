@@ -3,7 +3,6 @@ package react
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -131,7 +130,7 @@ func truncateToolResultWithMetadata(content string, limit int, metadata map[stri
 }
 
 // buildToolMessages converts tool results into messages sent back to the LLM.
-func (e *ReactEngine) buildToolMessages(state *TaskState, results []ToolResult) []Message {
+func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 	messages := make([]Message, 0, len(results))
 
 	for _, result := range results {
@@ -145,17 +144,7 @@ func (e *ReactEngine) buildToolMessages(state *TaskState, results []ToolResult) 
 		}
 
 		content = strings.TrimSpace(content)
-
-		// Offload large tool results to disk, keeping only a preview inline.
-		if len(content) > toolResultInlineLimit && result.Error == nil {
-			if offloadPath := e.writeToolResultOffload(state, result.CallID, content); offloadPath != "" {
-				preview := truncateToolResultContent(content, toolResultInlineLimit)
-				content = fmt.Sprintf("%s\n\n[Full output: %s — use read_file to view]", preview, offloadPath)
-			} else {
-				// Offload failed — fall back to the legacy hard truncation.
-				content = truncateToolResultWithMetadata(content, maxToolResultContentChars, result.Metadata)
-			}
-		}
+		content = truncateToolResultWithMetadata(content, maxToolResultContentChars, result.Metadata)
 
 		msg := Message{
 			Role:        "tool",
@@ -171,36 +160,6 @@ func (e *ReactEngine) buildToolMessages(state *TaskState, results []ToolResult) 
 	}
 
 	return messages
-}
-
-// writeToolResultOffload persists the full tool result content to a file so
-// the LLM can retrieve it on demand via read_file. Returns the absolute path
-// on success, or "" if the write fails (callers fall back to truncation).
-func (e *ReactEngine) writeToolResultOffload(state *TaskState, callID, content string) string {
-	if state == nil || strings.TrimSpace(state.SessionID) == "" {
-		return ""
-	}
-	safeCallID := strings.Map(func(r rune) rune {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-			return r
-		}
-		return '_'
-	}, callID)
-	if safeCallID == "" {
-		safeCallID = "unknown"
-	}
-	path := filepath.Join(resolveContextCompactionRoot(e), state.SessionID, "tool_results", safeCallID+".txt")
-	absPath, err := filepath.Abs(path)
-	if err == nil {
-		path = absPath
-	}
-	if err := atomicWrite(path, []byte(content), 0o644); err != nil {
-		if e.logger != nil {
-			e.logger.Warn("Tool result offload write failed (call_id=%s): %v", callID, err)
-		}
-		return ""
-	}
-	return path
 }
 
 // cleanToolCallMarkers removes leaked tool call XML markers from content

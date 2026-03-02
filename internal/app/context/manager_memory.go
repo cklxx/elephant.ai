@@ -49,12 +49,7 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 	today, _ := m.memoryEngine.LoadDaily(ctx, userID, now)
 	yesterday, _ := m.memoryEngine.LoadDaily(ctx, userID, now.AddDate(0, 0, -1))
 
-	// SOUL.md content is already injected via buildIdentitySection (truncated
-	// to identityVoiceInlineLimit). Replace the full content here with a
-	// single-line reference to avoid duplication.
-	if soul != "" {
-		soul = "[Loaded via Identity section — use read_file ~/.alex/memory/SOUL.md for full content]"
-	}
+	soul = truncateMemorySection(soul, maxMemorySectionChars)
 	user = truncateMemorySection(user, maxMemorySectionChars)
 	longTerm = truncateMemorySection(longTerm, maxMemorySectionChars)
 	today = truncateMemorySection(today, maxMemorySectionChars)
