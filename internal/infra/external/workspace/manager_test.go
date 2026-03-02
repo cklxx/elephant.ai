@@ -112,14 +112,16 @@ func TestMergeConflictPopulatesConflictDiff(t *testing.T) {
 		t.Error("result.ConflictDiff should be populated on conflict")
 	}
 
-	// Abort the merge to leave the repo clean for any follow-on git operations.
-	runGit(t, dir, "merge", "--abort")
+	// Best-effort abort: MERGE_HEAD may not exist on all git versions.
+	_ = exec.Command("git", "-C", dir, "merge", "--abort").Run()
 }
 
 func initRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	runGit(t, dir, "init")
+	// Ensure merge creates real conflicts instead of refusing non-fast-forward.
+	runGit(t, dir, "config", "merge.ff", "false")
 	writeFile(t, filepath.Join(dir, "README.md"), "init")
 	runGit(t, dir, "add", "README.md")
 	runGit(t, dir, "commit", "-m", "init")

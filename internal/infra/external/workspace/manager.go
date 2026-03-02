@@ -270,10 +270,17 @@ func (m *Manager) gitOutputOrEmpty(ctx context.Context, args ...string) string {
 
 func (m *Manager) mergeConflicts(ctx context.Context) []string {
 	out, err := m.gitOutput(ctx, "diff", "--name-only", "--diff-filter=U")
+	if err == nil {
+		if files := splitLines(out); len(files) > 0 {
+			return files
+		}
+	}
+	// Fallback: git ls-files --unmerged works even without MERGE_HEAD.
+	out, err = m.gitOutput(ctx, "ls-files", "--unmerged")
 	if err != nil {
 		return nil
 	}
-	return splitLines(out)
+	return extractUnmergedPaths(out)
 }
 
 // mergeConflictDiff returns the raw diff output for unmerged files (those with
@@ -284,6 +291,20 @@ func (m *Manager) mergeConflictDiff(ctx context.Context) string {
 		return ""
 	}
 	return strings.TrimSpace(out)
+}
+
+// extractUnmergedPaths parses `git ls-files --unmerged` output to extract unique paths.
+// Each line has format: "<mode> <hash> <stage>\t<path>"
+func extractUnmergedPaths(raw string) []string {
+	var paths []string
+	for _, line := range strings.Split(raw, "\n") {
+		if idx := strings.IndexByte(line, '\t'); idx >= 0 {
+			if path := strings.TrimSpace(line[idx+1:]); path != "" {
+				paths = append(paths, path)
+			}
+		}
+	}
+	return dedupe(paths)
 }
 
 func branchName(taskID string) string {
