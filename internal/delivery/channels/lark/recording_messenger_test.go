@@ -65,7 +65,7 @@ func TestRecordingMessengerUpdateMessage(t *testing.T) {
 
 func TestRecordingMessengerAddReaction(t *testing.T) {
 	rec := NewRecordingMessenger()
-	err := rec.AddReaction(context.Background(), "om_msg_1", "SMILE")
+	_, err := rec.AddReaction(context.Background(), "om_msg_1", "SMILE")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

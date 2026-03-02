@@ -142,14 +142,26 @@ func (m *TracingMessenger) UpdateMessage(ctx context.Context, messageID, msgType
 	return err
 }
 
-func (m *TracingMessenger) AddReaction(ctx context.Context, messageID, emojiType string) error {
-	err := m.inner.AddReaction(ctx, messageID, emojiType)
+func (m *TracingMessenger) AddReaction(ctx context.Context, messageID, emojiType string) (string, error) {
+	reactionID, err := m.inner.AddReaction(ctx, messageID, emojiType)
 	m.trace.Append(TraceEntry{
 		Direction: "outbound",
 		Type:      "reaction",
 		Method:    "AddReaction",
 		MessageID: messageID,
 		Emoji:     emojiType,
+		Error:     errStr(err),
+	})
+	return reactionID, err
+}
+
+func (m *TracingMessenger) DeleteReaction(ctx context.Context, messageID, reactionID string) error {
+	err := m.inner.DeleteReaction(ctx, messageID, reactionID)
+	m.trace.Append(TraceEntry{
+		Direction: "outbound",
+		Type:      "reaction",
+		Method:    "DeleteReaction",
+		MessageID: messageID,
 		Error:     errStr(err),
 	})
 	return err

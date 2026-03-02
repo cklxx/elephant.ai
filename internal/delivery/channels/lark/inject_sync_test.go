@@ -56,7 +56,7 @@ func TestTeeMessengerCapturesReplyAndReaction(t *testing.T) {
 	if _, err := tee.ReplyMessage(ctx, "om_msg_1", "text", `{"text":"reply"}`); err != nil {
 		t.Fatal(err)
 	}
-	if err := tee.AddReaction(ctx, "om_msg_1", "DONE"); err != nil {
+	if _, err := tee.AddReaction(ctx, "om_msg_1", "DONE"); err != nil {
 		t.Fatal(err)
 	}
 

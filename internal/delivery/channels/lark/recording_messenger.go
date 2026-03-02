@@ -10,17 +10,18 @@ import (
 
 // MessengerCall records a single outbound call made through a LarkMessenger.
 type MessengerCall struct {
-	Method   string // "SendMessage", "ReplyMessage", "UpdateMessage", "AddReaction", "UploadImage", "UploadFile", "ListMessages"
-	ChatID   string
-	MsgType  string
-	Content  string
-	ReplyTo  string
-	MsgID    string
-	Emoji    string
-	FileName string
-	FileType string
-	PageSize int
-	Payload  []byte
+	Method     string // "SendMessage", "ReplyMessage", "UpdateMessage", "AddReaction", "DeleteReaction", "UploadImage", "UploadFile", "ListMessages"
+	ChatID     string
+	MsgType    string
+	Content    string
+	ReplyTo    string
+	MsgID      string
+	Emoji      string
+	ReactionID string
+	FileName   string
+	FileType   string
+	PageSize   int
+	Payload    []byte
 }
 
 // RecordingMessenger implements LarkMessenger by recording all outbound calls
@@ -103,10 +104,20 @@ func (r *RecordingMessenger) UpdateMessage(_ context.Context, messageID, msgType
 	return r.popError()
 }
 
-func (r *RecordingMessenger) AddReaction(_ context.Context, messageID, emojiType string) error {
+func (r *RecordingMessenger) AddReaction(_ context.Context, messageID, emojiType string) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.record(MessengerCall{Method: "AddReaction", MsgID: messageID, Emoji: emojiType})
+	if err := r.popError(); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("reaction_%s_%s", messageID, emojiType), nil
+}
+
+func (r *RecordingMessenger) DeleteReaction(_ context.Context, messageID, reactionID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.record(MessengerCall{Method: "DeleteReaction", MsgID: messageID, ReactionID: reactionID})
 	return r.popError()
 }
 

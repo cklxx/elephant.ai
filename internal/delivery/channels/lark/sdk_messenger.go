@@ -82,7 +82,7 @@ func (m *sdkMessenger) UpdateMessage(ctx context.Context, messageID, msgType, co
 	return nil
 }
 
-func (m *sdkMessenger) AddReaction(ctx context.Context, messageID, emojiType string) error {
+func (m *sdkMessenger) AddReaction(ctx context.Context, messageID, emojiType string) (string, error) {
 	req := larkim.NewCreateMessageReactionReqBuilder().
 		MessageId(messageID).
 		Body(larkim.NewCreateMessageReactionReqBodyBuilder().
@@ -93,10 +93,29 @@ func (m *sdkMessenger) AddReaction(ctx context.Context, messageID, emojiType str
 		Build()
 	resp, err := m.client.Im.V1.MessageReaction.Create(ctx, req)
 	if err != nil {
+		return "", err
+	}
+	if !resp.Success() {
+		return "", fmt.Errorf("lark add reaction error: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	var reactionID string
+	if resp.Data != nil && resp.Data.ReactionId != nil {
+		reactionID = *resp.Data.ReactionId
+	}
+	return reactionID, nil
+}
+
+func (m *sdkMessenger) DeleteReaction(ctx context.Context, messageID, reactionID string) error {
+	req := larkim.NewDeleteMessageReactionReqBuilder().
+		MessageId(messageID).
+		ReactionId(reactionID).
+		Build()
+	resp, err := m.client.Im.V1.MessageReaction.Delete(ctx, req)
+	if err != nil {
 		return err
 	}
 	if !resp.Success() {
-		return fmt.Errorf("lark add reaction error: code=%d msg=%s", resp.Code, resp.Msg)
+		return fmt.Errorf("lark delete reaction error: code=%d msg=%s", resp.Code, resp.Msg)
 	}
 	return nil
 }

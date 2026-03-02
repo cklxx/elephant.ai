@@ -80,24 +80,24 @@ func TestPreanalysisEmoji_E2E_ReactsWithLLMChosenEmoji(t *testing.T) {
 	gw.WaitForTasks()
 
 	// Allow async addReaction goroutine to settle.
+	// Poll for the specific HEART reaction since the synchronous processing
+	// reaction (OnIt) arrives first and would cause early loop exit.
 	deadline := time.Now().Add(500 * time.Millisecond)
+	var preanalysisReaction *MessengerCall
 	for time.Now().Before(deadline) {
-		if len(rec.CallsByMethod("AddReaction")) > 0 {
+		for _, r := range rec.CallsByMethod("AddReaction") {
+			if r.MsgID == "om_msg_1" && r.Emoji == "HEART" {
+				preanalysisReaction = &r
+				break
+			}
+		}
+		if preanalysisReaction != nil {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-
-	reactions := rec.CallsByMethod("AddReaction")
-	var preanalysisReaction *MessengerCall
-	for i := range reactions {
-		if reactions[i].MsgID == "om_msg_1" && reactions[i].Emoji == "HEART" {
-			preanalysisReaction = &reactions[i]
-			break
-		}
-	}
 	if preanalysisReaction == nil {
-		t.Fatalf("expected HEART reaction on om_msg_1, got reactions: %+v", reactions)
+		t.Fatalf("expected HEART reaction on om_msg_1, got reactions: %+v", rec.CallsByMethod("AddReaction"))
 	}
 }
 
@@ -192,24 +192,35 @@ func TestPreanalysisEmoji_E2E_FullPipeline(t *testing.T) {
 		t.Fatalf("InjectMessage failed: %v", err)
 	}
 	gw.WaitForTasks()
-	time.Sleep(150 * time.Millisecond)
 
-	reactions := rec.CallsByMethod("AddReaction")
-
-	var hasPreanalysis, hasEndEmoji bool
-	for _, r := range reactions {
-		if r.MsgID == "om_trace_1" && r.Emoji == "SMILE" {
-			hasPreanalysis = true
+	// Poll for the preanalysis SMILE reaction (async goroutine).
+	deadline := time.Now().Add(500 * time.Millisecond)
+	var hasPreanalysis bool
+	for time.Now().Before(deadline) {
+		for _, r := range rec.CallsByMethod("AddReaction") {
+			if r.MsgID == "om_trace_1" && r.Emoji == "SMILE" {
+				hasPreanalysis = true
+				break
+			}
 		}
-		if r.MsgID == "om_trace_1" && r.Emoji != "SMILE" {
-			hasEndEmoji = true
+		if hasPreanalysis {
+			break
 		}
+		time.Sleep(5 * time.Millisecond)
 	}
 	if !hasPreanalysis {
-		t.Fatalf("expected preanalysis SMILE reaction, got reactions: %+v", reactions)
+		t.Fatalf("expected preanalysis SMILE reaction, got reactions: %+v", rec.CallsByMethod("AddReaction"))
+	}
+
+	var hasEndEmoji bool
+	for _, r := range rec.CallsByMethod("AddReaction") {
+		if r.MsgID == "om_trace_1" && r.Emoji != "SMILE" && r.Emoji != defaultProcessingReactEmoji {
+			hasEndEmoji = true
+			break
+		}
 	}
 	if !hasEndEmoji {
-		t.Fatalf("expected end emoji reaction from random pool, got reactions: %+v", reactions)
+		t.Fatalf("expected end emoji reaction from random pool, got reactions: %+v", rec.CallsByMethod("AddReaction"))
 	}
 
 	if len(rec.CallsByMethod("SendMessage"))+len(rec.CallsByMethod("ReplyMessage")) == 0 {

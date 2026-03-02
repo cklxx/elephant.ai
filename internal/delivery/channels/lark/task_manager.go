@@ -318,9 +318,15 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 	// 3. Chat context enrichment from IM recent rounds (only when there is content)
 	taskContent = g.enrichWithChatContext(execCtx, taskContent, msg, hasPlanReview)
 
+	// Add processing reaction to indicate the task is in progress.
+	processingReactionID := g.addProcessingReaction(execCtx, msg.messageID)
+
 	_, endEmoji := g.pickReactionEmojis()
 
 	result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
+
+	// Remove the processing reaction now that the task has completed.
+	g.removeProcessingReaction(execCtx, msg.messageID, processingReactionID)
 
 	if msg.messageID != "" && endEmoji != "" {
 		go g.addReaction(execCtx, msg.messageID, endEmoji)

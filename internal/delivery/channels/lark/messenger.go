@@ -19,8 +19,11 @@ type LarkMessenger interface {
 	// UpdateMessage updates an existing message in-place.
 	UpdateMessage(ctx context.Context, messageID, msgType, content string) error
 
-	// AddReaction adds an emoji reaction to a message.
-	AddReaction(ctx context.Context, messageID, emojiType string) error
+	// AddReaction adds an emoji reaction to a message and returns the reaction ID.
+	AddReaction(ctx context.Context, messageID, emojiType string) (reactionID string, err error)
+
+	// DeleteReaction removes an emoji reaction from a message by its reaction ID.
+	DeleteReaction(ctx context.Context, messageID, reactionID string) error
 
 	// UploadImage uploads an image and returns its key.
 	UploadImage(ctx context.Context, payload []byte) (imageKey string, err error)

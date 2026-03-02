@@ -52,7 +52,7 @@ func TestTracingMessengerRecordsAllCalls(t *testing.T) {
 	_, _ = tracing.SendMessage(ctx, "chat_1", "text", `{"text":"hi"}`)
 	_, _ = tracing.ReplyMessage(ctx, "om_1", "text", `{"text":"reply"}`)
 	_ = tracing.UpdateMessage(ctx, "om_2", "text", `{"text":"updated"}`)
-	_ = tracing.AddReaction(ctx, "om_3", "SMILE")
+	_, _ = tracing.AddReaction(ctx, "om_3", "SMILE")
 	_, _ = tracing.UploadImage(ctx, []byte("img"))
 	_, _ = tracing.UploadFile(ctx, []byte("pdf"), "doc.pdf", "pdf")
 	_, _ = tracing.ListMessages(ctx, "chat_1", 10)

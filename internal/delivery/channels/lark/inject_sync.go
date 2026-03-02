@@ -756,7 +756,7 @@ func (h *injectCaptureHub) UpdateMessage(ctx context.Context, messageID, msgType
 	return err
 }
 
-func (h *injectCaptureHub) AddReaction(ctx context.Context, messageID, emojiType string) error {
+func (h *injectCaptureHub) AddReaction(ctx context.Context, messageID, emojiType string) (string, error) {
 	messageID = strings.TrimSpace(messageID)
 	h.mu.RLock()
 	chatID := h.messageToChat[messageID]
@@ -764,11 +764,27 @@ func (h *injectCaptureHub) AddReaction(ctx context.Context, messageID, emojiType
 	h.mu.RUnlock()
 	if synthetic {
 		h.recordAll(MessengerCall{Method: "AddReaction", MsgID: messageID, Emoji: emojiType})
+		return fmt.Sprintf("synthetic_reaction_%s_%s", messageID, emojiType), nil
+	}
+
+	reactionID, err := h.inner.AddReaction(ctx, messageID, emojiType)
+	h.recordAll(MessengerCall{Method: "AddReaction", MsgID: messageID, Emoji: emojiType})
+	return reactionID, err
+}
+
+func (h *injectCaptureHub) DeleteReaction(ctx context.Context, messageID, reactionID string) error {
+	messageID = strings.TrimSpace(messageID)
+	h.mu.RLock()
+	chatID := h.messageToChat[messageID]
+	synthetic := h.syntheticChat[chatID]
+	h.mu.RUnlock()
+	if synthetic {
+		h.recordAll(MessengerCall{Method: "DeleteReaction", MsgID: messageID, ReactionID: reactionID})
 		return nil
 	}
 
-	err := h.inner.AddReaction(ctx, messageID, emojiType)
-	h.recordAll(MessengerCall{Method: "AddReaction", MsgID: messageID, Emoji: emojiType})
+	err := h.inner.DeleteReaction(ctx, messageID, reactionID)
+	h.recordAll(MessengerCall{Method: "DeleteReaction", MsgID: messageID, ReactionID: reactionID})
 	return err
 }
 
@@ -973,9 +989,15 @@ func (t *teeMessenger) UpdateMessage(ctx context.Context, messageID, msgType, co
 	return err
 }
 
-func (t *teeMessenger) AddReaction(ctx context.Context, messageID, emojiType string) error {
-	err := t.inner.AddReaction(ctx, messageID, emojiType)
+func (t *teeMessenger) AddReaction(ctx context.Context, messageID, emojiType string) (string, error) {
+	reactionID, err := t.inner.AddReaction(ctx, messageID, emojiType)
 	t.record(MessengerCall{Method: "AddReaction", MsgID: messageID, Emoji: emojiType})
+	return reactionID, err
+}
+
+func (t *teeMessenger) DeleteReaction(ctx context.Context, messageID, reactionID string) error {
+	err := t.inner.DeleteReaction(ctx, messageID, reactionID)
+	t.record(MessengerCall{Method: "DeleteReaction", MsgID: messageID, ReactionID: reactionID})
 	return err
 }
 
