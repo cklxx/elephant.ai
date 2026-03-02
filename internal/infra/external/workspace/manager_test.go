@@ -72,6 +72,50 @@ func TestValidateFileScope(t *testing.T) {
 	}
 }
 
+func TestMergeConflictPopulatesConflictDiff(t *testing.T) {
+	dir := initRepo(t)
+	manager := NewManager(dir, logging.Nop())
+
+	// Allocate a branch workspace.
+	alloc, err := manager.Allocate(context.Background(), "conflict-task", agent.WorkspaceModeBranch, nil)
+	if err != nil {
+		t.Fatalf("allocate failed: %v", err)
+	}
+
+	// Commit a change on the task branch.
+	writeFile(t, filepath.Join(dir, "README.md"), "branch version\nline2")
+	runGit(t, dir, "add", "README.md")
+	runGit(t, dir, "commit", "-m", "branch change")
+
+	// Switch back to base and commit a conflicting change.
+	base := alloc.BaseBranch
+	runGit(t, dir, "checkout", base)
+	writeFile(t, filepath.Join(dir, "README.md"), "base version\nline2")
+	runGit(t, dir, "add", "README.md")
+	runGit(t, dir, "commit", "-m", "base change")
+
+	// Merge should fail with conflicts.
+	result, err := manager.Merge(context.Background(), alloc, agent.MergeStrategyAuto)
+	if err == nil {
+		t.Fatal("expected merge conflict error")
+	}
+	if result == nil {
+		t.Fatal("result should be non-nil even on conflict")
+	}
+	if result.Success {
+		t.Error("result.Success should be false on conflict")
+	}
+	if len(result.Conflicts) == 0 {
+		t.Error("result.Conflicts should be populated")
+	}
+	if result.ConflictDiff == "" {
+		t.Error("result.ConflictDiff should be populated on conflict")
+	}
+
+	// Abort the merge to leave the repo clean for any follow-on git operations.
+	runGit(t, dir, "merge", "--abort")
+}
+
 func initRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()

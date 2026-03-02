@@ -162,8 +162,9 @@ type TeamRoleConfig struct {
 // TeamStageConfig defines an execution stage within a team workflow.
 // Stages execute in order; within a stage, all role tasks run in parallel.
 type TeamStageConfig struct {
-	Name  string   `json:"name" yaml:"name"`
-	Roles []string `json:"roles" yaml:"roles"`
+	Name       string   `json:"name" yaml:"name"`
+	Roles      []string `json:"roles" yaml:"roles"`
+	DebateMode bool     `json:"debate_mode,omitempty" yaml:"debate_mode,omitempty"`
 }
 
 type ClaudeCodeConfig struct {

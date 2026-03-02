@@ -69,14 +69,6 @@ func (d *orderTrackingDispatcher) dispatchedIDs() []string {
 	return cp
 }
 
-func (d *orderTrackingDispatcher) setResult(id string, status agent.BackgroundTaskStatus) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.results[id] = agent.BackgroundTaskResult{
-		ID:     id,
-		Status: status,
-	}
-}
 
 func TestSwarmScheduler_StageOrdering(t *testing.T) {
 	// Three layers: [a,b] → [c,d] → [e]
@@ -313,6 +305,132 @@ func TestSwarmScheduler_DepsCleared(t *testing.T) {
 			t.Errorf("task %q should have DependsOn cleared, got %v", req.TaskID, req.DependsOn)
 		}
 	}
+}
+
+func TestBuildRetryBatch_StaleTriggersRetry(t *testing.T) {
+	cfg := SwarmConfig{
+		InitialConcurrency: 5,
+		MaxConcurrency:     10,
+		StageTimeout:       5 * time.Second,
+		StaleRetryMax:      2,
+	}
+
+	// Dispatcher that reports task "a" as stale.
+	staleDispatcher := &staleTrackingDispatcher{
+		staleIDs: map[string]bool{"a": true},
+	}
+	sched := NewSwarmScheduler(staleDispatcher, cfg)
+
+	byID := map[string]TaskSpec{
+		"a": {ID: "a", Prompt: "A"},
+		"b": {ID: "b", Prompt: "B"},
+	}
+	results := []agent.BackgroundTaskResult{
+		{ID: "a", Status: agent.BackgroundTaskStatusRunning},
+		{ID: "b", Status: agent.BackgroundTaskStatusCompleted},
+	}
+	retryCounts := make(map[string]int)
+
+	retryIDs := sched.buildRetryBatch(context.Background(), []string{"a", "b"}, results, byID, "cause-1", retryCounts)
+
+	if len(retryIDs) != 1 || retryIDs[0] != "a-retry-1" {
+		t.Errorf("expected [a-retry-1], got %v", retryIDs)
+	}
+	if retryCounts["a"] != 1 {
+		t.Errorf("retryCounts[a] should be 1, got %d", retryCounts["a"])
+	}
+	// Retry spec should exist in byID.
+	if _, ok := byID["a-retry-1"]; !ok {
+		t.Error("byID should contain a-retry-1")
+	}
+}
+
+func TestBuildRetryBatch_RetryCapRespected(t *testing.T) {
+	cfg := SwarmConfig{
+		StaleRetryMax: 2,
+		StageTimeout:  5 * time.Second,
+	}
+
+	staleDispatcher := &staleTrackingDispatcher{
+		staleIDs: map[string]bool{"a": true},
+	}
+	sched := NewSwarmScheduler(staleDispatcher, cfg)
+
+	byID := map[string]TaskSpec{"a": {ID: "a", Prompt: "A"}}
+	results := []agent.BackgroundTaskResult{
+		{ID: "a", Status: agent.BackgroundTaskStatusRunning},
+	}
+	// Simulate a already retried twice.
+	retryCounts := map[string]int{"a": 2}
+
+	retryIDs := sched.buildRetryBatch(context.Background(), []string{"a"}, results, byID, "cause-1", retryCounts)
+
+	if len(retryIDs) != 0 {
+		t.Errorf("expected no retries after cap, got %v", retryIDs)
+	}
+}
+
+func TestBuildRetryBatch_NoRetryWhenDisabled(t *testing.T) {
+	cfg := SwarmConfig{StaleRetryMax: 0, StageTimeout: 5 * time.Second}
+	staleDispatcher := &staleTrackingDispatcher{
+		staleIDs: map[string]bool{"a": true},
+	}
+	sched := NewSwarmScheduler(staleDispatcher, cfg)
+
+	byID := map[string]TaskSpec{"a": {ID: "a", Prompt: "A"}}
+	results := []agent.BackgroundTaskResult{
+		{ID: "a", Status: agent.BackgroundTaskStatusRunning},
+	}
+	retryCounts := make(map[string]int)
+
+	retryIDs := sched.buildRetryBatch(context.Background(), []string{"a"}, results, byID, "cause-1", retryCounts)
+	if len(retryIDs) != 0 {
+		t.Errorf("StaleRetryMax=0 should produce no retries, got %v", retryIDs)
+	}
+}
+
+// staleTrackingDispatcher reports specific task IDs as stale in Status.
+type staleTrackingDispatcher struct {
+	mu        sync.Mutex
+	staleIDs  map[string]bool
+	cancelled []string
+}
+
+func (d *staleTrackingDispatcher) Dispatch(_ context.Context, req agent.BackgroundDispatchRequest) error {
+	return nil
+}
+
+func (d *staleTrackingDispatcher) Status(ids []string) []agent.BackgroundTaskSummary {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var out []agent.BackgroundTaskSummary
+	for _, id := range ids {
+		sum := agent.BackgroundTaskSummary{
+			ID:     id,
+			Status: agent.BackgroundTaskStatusRunning,
+			Stale:  d.staleIDs[id],
+		}
+		out = append(out, sum)
+	}
+	return out
+}
+
+func (d *staleTrackingDispatcher) Collect(ids []string, _ bool, _ time.Duration) []agent.BackgroundTaskResult {
+	var out []agent.BackgroundTaskResult
+	for _, id := range ids {
+		out = append(out, agent.BackgroundTaskResult{
+			ID:     id,
+			Status: agent.BackgroundTaskStatusCompleted,
+		})
+	}
+	return out
+}
+
+func (d *staleTrackingDispatcher) CancelBackgroundTask(_ context.Context, taskID string) error {
+	d.mu.Lock()
+	d.cancelled = append(d.cancelled, taskID)
+	d.mu.Unlock()
+	return nil
 }
 
 // capturingDispatcher wraps a dispatcher to capture dispatched requests.

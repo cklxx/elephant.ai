@@ -1,6 +1,7 @@
 package taskfile
 
 import (
+	"strings"
 	"testing"
 
 	agent "alex/internal/domain/agent/ports/agent"
@@ -177,6 +178,108 @@ func TestSpecToDispatchRequest(t *testing.T) {
 	}
 	if req.WorkspaceMode != agent.WorkspaceModeWorktree {
 		t.Errorf("WorkspaceMode: got %q, want %q", req.WorkspaceMode, agent.WorkspaceModeWorktree)
+	}
+}
+
+func TestContextPreamblePrependedInDispatch(t *testing.T) {
+	preamble := "Project: elephant.ai (Go). Key packages: internal/domain/agent."
+
+	// Preamble set on spec directly.
+	spec := TaskSpec{
+		ID:              "t1",
+		Description:     "task",
+		Prompt:          "do something",
+		ContextPreamble: preamble,
+	}
+	req := SpecToDispatchRequest(spec, "")
+	if !strings.HasPrefix(req.Prompt, preamble) {
+		t.Errorf("prompt should start with preamble, got: %q", req.Prompt)
+	}
+	if !strings.Contains(req.Prompt, "do something") {
+		t.Error("original prompt should be present")
+	}
+
+	// Empty preamble: prompt unchanged.
+	spec2 := TaskSpec{
+		ID:          "t2",
+		Description: "task",
+		Prompt:      "bare prompt",
+	}
+	req2 := SpecToDispatchRequest(spec2, "")
+	if req2.Prompt != "bare prompt" {
+		t.Errorf("no preamble: prompt should be unchanged, got %q", req2.Prompt)
+	}
+}
+
+func TestContextPreambleInheritedFromDefaults(t *testing.T) {
+	preamble := "Arch context."
+	tf := &TaskFile{
+		Version: "1",
+		PlanID:  "preamble-test",
+		Defaults: TaskDefaults{
+			ContextPreamble: preamble,
+		},
+		Tasks: []TaskSpec{
+			{ID: "a", Prompt: "task A"},
+			{ID: "b", Prompt: "task B", ContextPreamble: "override preamble"},
+		},
+	}
+
+	resolved := ResolveDefaults(tf)
+
+	// Task a inherits default preamble.
+	if resolved[0].ContextPreamble != preamble {
+		t.Errorf("task a: want preamble %q, got %q", preamble, resolved[0].ContextPreamble)
+	}
+	// Task b keeps its own preamble.
+	if resolved[1].ContextPreamble != "override preamble" {
+		t.Errorf("task b: want override preamble, got %q", resolved[1].ContextPreamble)
+	}
+}
+
+func TestMaxBudgetPropagatedToConfig(t *testing.T) {
+	tf := &TaskFile{
+		Version: "1",
+		PlanID:  "budget-test",
+		Tasks: []TaskSpec{
+			{
+				ID:        "a",
+				Prompt:    "do A",
+				AgentType: "codex",
+				MaxBudget: 2.5,
+			},
+		},
+	}
+
+	resolved := ResolveDefaults(tf)
+
+	if resolved[0].Config["max_budget_usd"] != "2.5" {
+		t.Errorf("max_budget_usd: got %q, want %q", resolved[0].Config["max_budget_usd"], "2.5")
+	}
+}
+
+func TestMaxBudgetInheritedFromDefaults(t *testing.T) {
+	tf := &TaskFile{
+		Version: "1",
+		PlanID:  "budget-default-test",
+		Defaults: TaskDefaults{
+			MaxBudget: 5.0,
+		},
+		Tasks: []TaskSpec{
+			{ID: "a", Prompt: "do A", AgentType: "codex"},
+			{ID: "b", Prompt: "do B", AgentType: "codex", MaxBudget: 1.0},
+		},
+	}
+
+	resolved := ResolveDefaults(tf)
+
+	// Task a inherits default.
+	if resolved[0].Config["max_budget_usd"] != "5" {
+		t.Errorf("task a: want max_budget_usd=5, got %q", resolved[0].Config["max_budget_usd"])
+	}
+	// Task b keeps its own budget.
+	if resolved[1].Config["max_budget_usd"] != "1" {
+		t.Errorf("task b: want max_budget_usd=1, got %q", resolved[1].Config["max_budget_usd"])
 	}
 }
 

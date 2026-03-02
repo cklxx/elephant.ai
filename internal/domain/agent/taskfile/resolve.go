@@ -32,6 +32,12 @@ func mergeDefaults(t TaskSpec, d TaskDefaults) TaskSpec {
 	if t.WorkspaceMode == "" {
 		t.WorkspaceMode = d.WorkspaceMode
 	}
+	if t.ContextPreamble == "" {
+		t.ContextPreamble = d.ContextPreamble
+	}
+	if t.MaxBudget == 0 {
+		t.MaxBudget = d.MaxBudget
+	}
 	if len(d.Config) > 0 {
 		merged := make(map[string]string, len(d.Config)+len(t.Config))
 		for k, v := range d.Config {
@@ -122,6 +128,10 @@ func applyCodingDefaults(t *TaskSpec) {
 		t.Config["merge_strategy"] = t.MergeStrategy
 	}
 
+	if t.MaxBudget > 0 && t.Config["max_budget_usd"] == "" {
+		t.Config["max_budget_usd"] = strconv.FormatFloat(t.MaxBudget, 'f', -1, 64)
+	}
+
 	// Workspace mode defaults.
 	if t.WorkspaceMode == "" {
 		if t.Config["task_kind"] == "coding" && t.ExecutionMode != "plan" {
@@ -134,10 +144,14 @@ func applyCodingDefaults(t *TaskSpec) {
 
 // SpecToDispatchRequest converts a resolved TaskSpec into a BackgroundDispatchRequest.
 func SpecToDispatchRequest(spec TaskSpec, causationID string) agent.BackgroundDispatchRequest {
+	prompt := spec.Prompt
+	if spec.ContextPreamble != "" {
+		prompt = spec.ContextPreamble + "\n\n---\n\n" + prompt
+	}
 	return agent.BackgroundDispatchRequest{
 		TaskID:         spec.ID,
 		Description:    spec.Description,
-		Prompt:         spec.Prompt,
+		Prompt:         prompt,
 		AgentType:      canonicalAgentType(spec.AgentType),
 		ExecutionMode:  spec.ExecutionMode,
 		AutonomyLevel:  spec.AutonomyLevel,

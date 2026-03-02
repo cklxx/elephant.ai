@@ -131,10 +131,11 @@ type WorkspaceAllocation struct {
 type MergeStrategy string
 
 const (
-	MergeStrategyAuto   MergeStrategy = "auto"
-	MergeStrategySquash MergeStrategy = "squash"
-	MergeStrategyRebase MergeStrategy = "rebase"
-	MergeStrategyReview MergeStrategy = "review"
+	MergeStrategyAuto    MergeStrategy = "auto"
+	MergeStrategySquash  MergeStrategy = "squash"
+	MergeStrategyRebase  MergeStrategy = "rebase"
+	MergeStrategyReview  MergeStrategy = "review"
+	MergeStrategyResolve MergeStrategy = "resolve"
 )
 
 // MergeResult contains the outcome of merging an agent's work back.
@@ -147,6 +148,9 @@ type MergeResult struct {
 	FilesChanged []string
 	Conflicts    []string
 	DiffSummary  string
+	// ConflictDiff contains the raw output of git diff --diff-filter=U when
+	// conflicts are present. Populated by the workspace manager on conflict.
+	ConflictDiff string
 }
 
 // TaskDependency defines ordering between tasks.

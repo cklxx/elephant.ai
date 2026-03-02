@@ -28,8 +28,9 @@ type TeamRoleDefinition struct {
 
 // TeamStageDefinition defines an execution stage within a team workflow.
 type TeamStageDefinition struct {
-	Name  string
-	Roles []string
+	Name       string
+	Roles      []string
+	DebateMode bool
 }
 
 type teamConfigKey struct{}

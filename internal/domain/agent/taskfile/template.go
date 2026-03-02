@@ -28,8 +28,9 @@ type TeamTemplateRole struct {
 
 // TeamTemplateStage defines an execution stage within a team workflow.
 type TeamTemplateStage struct {
-	Name  string   `yaml:"name"`
-	Roles []string `yaml:"roles"`
+	Name       string   `yaml:"name"`
+	Roles      []string `yaml:"roles"`
+	DebateMode bool     `yaml:"debate_mode,omitempty"`
 }
 
 // RenderTaskFile converts a TeamTemplate + goal into a TaskFile with
@@ -56,10 +57,15 @@ func RenderTaskFile(tmpl *TeamTemplate, goal string, overrides map[string]string
 		roleTaskIDs[r.Name] = "team-" + r.Name
 	}
 
-	// Build stage dependencies.
-	deps := buildStageDeps(tmpl.Stages, roleTaskIDs)
+	// Step 1: compute which IDs each stage contributes as outputs for the
+	// next stage's dependencies. For debate stages, include both primary and
+	// challenger IDs.
+	stageOutputIDs := computeStageOutputIDs(tmpl.Stages, roleTaskIDs)
 
-	// Create task specs.
+	// Step 2: build primary task dependencies per role using stageOutputIDs.
+	deps := buildStageDeps(tmpl.Stages, stageOutputIDs)
+
+	// Step 3: create primary task specs.
 	for _, r := range tmpl.Roles {
 		prompt := renderTeamPrompt(r.PromptTemplate, overrides, r.Name, tmpl.Name, goal)
 		depIDs := deps[r.Name]
@@ -79,7 +85,76 @@ func RenderTaskFile(tmpl *TeamTemplate, goal string, overrides map[string]string
 		tf.Tasks = append(tf.Tasks, spec)
 	}
 
+	// Step 4: create debate challenger specs for debate stages.
+	for _, stage := range tmpl.Stages {
+		if !stage.DebateMode {
+			continue
+		}
+		var primaryIDs []string
+		for _, roleName := range stage.Roles {
+			primaryIDs = append(primaryIDs, roleTaskIDs[roleName])
+		}
+		for _, roleName := range stage.Roles {
+			role := roleByName[roleName]
+			debateID := roleTaskIDs[roleName] + "-debate"
+			debateSpec := TaskSpec{
+				ID:             debateID,
+				Description:    roleName + " critical analysis",
+				Prompt:         renderDebatePrompt(roleName, tmpl.Name, goal),
+				AgentType:      role.AgentType,
+				DependsOn:      append([]string(nil), primaryIDs...),
+				InheritContext: true,
+				WorkspaceMode:  "shared",
+			}
+			tf.Tasks = append(tf.Tasks, debateSpec)
+		}
+	}
+
 	return tf
+}
+
+// computeStageOutputIDs returns, for each stage index, the task IDs that the
+// following stage should depend on. For debate stages this includes both the
+// primary role IDs and their challenger IDs.
+func computeStageOutputIDs(stages []TeamTemplateStage, roleTaskIDs map[string]string) [][]string {
+	out := make([][]string, len(stages))
+	for i, stage := range stages {
+		var ids []string
+		for _, roleName := range stage.Roles {
+			if taskID, ok := roleTaskIDs[roleName]; ok {
+				ids = append(ids, taskID)
+			}
+		}
+		if stage.DebateMode {
+			for _, roleName := range stage.Roles {
+				if taskID, ok := roleTaskIDs[roleName]; ok {
+					ids = append(ids, taskID+"-debate")
+				}
+			}
+		}
+		out[i] = ids
+	}
+	return out
+}
+
+// buildStageDeps returns, for each role name, the list of task IDs it must
+// wait for. stageOutputIDs[i] is the full set of IDs produced by stage i
+// (including any debate challengers).
+func buildStageDeps(stages []TeamTemplateStage, stageOutputIDs [][]string) map[string][]string {
+	deps := make(map[string][]string)
+	for i, stage := range stages {
+		if i == 0 {
+			for _, roleName := range stage.Roles {
+				deps[roleName] = nil
+			}
+			continue
+		}
+		prevIDs := stageOutputIDs[i-1]
+		for _, roleName := range stage.Roles {
+			deps[roleName] = append([]string(nil), prevIDs...)
+		}
+	}
+	return deps
 }
 
 // TeamTemplateFromDefinition converts a domain TeamDefinition into a
@@ -101,8 +176,9 @@ func TeamTemplateFromDefinition(def agent.TeamDefinition) TeamTemplate {
 	stages := make([]TeamTemplateStage, len(def.Stages))
 	for i, s := range def.Stages {
 		stages[i] = TeamTemplateStage{
-			Name:  s.Name,
-			Roles: s.Roles,
+			Name:       s.Name,
+			Roles:      s.Roles,
+			DebateMode: s.DebateMode,
 		}
 	}
 	return TeamTemplate{
@@ -111,29 +187,6 @@ func TeamTemplateFromDefinition(def agent.TeamDefinition) TeamTemplate {
 		Roles:       roles,
 		Stages:      stages,
 	}
-}
-
-func buildStageDeps(stages []TeamTemplateStage, roleTaskIDs map[string]string) map[string][]string {
-	deps := make(map[string][]string)
-	for i, stage := range stages {
-		if i == 0 {
-			for _, roleName := range stage.Roles {
-				deps[roleName] = nil
-			}
-			continue
-		}
-		prevStage := stages[i-1]
-		var prevIDs []string
-		for _, prevRole := range prevStage.Roles {
-			if taskID, ok := roleTaskIDs[prevRole]; ok {
-				prevIDs = append(prevIDs, taskID)
-			}
-		}
-		for _, roleName := range stage.Roles {
-			deps[roleName] = append([]string(nil), prevIDs...)
-		}
-	}
-	return deps
 }
 
 func renderTeamPrompt(template string, overrides map[string]string, roleName, teamName, goal string) string {
@@ -148,6 +201,22 @@ func renderTeamPrompt(template string, overrides map[string]string, roleName, te
 	result = strings.ReplaceAll(result, "{ROLE}", roleName)
 	result = strings.ReplaceAll(result, "{TEAM}", teamName)
 	return result
+}
+
+// renderDebatePrompt builds the critical-analysis prompt for a debate challenger.
+func renderDebatePrompt(roleName, teamName, goal string) string {
+	var sb strings.Builder
+	sb.WriteString("[DEBATE MODE — Critical Analysis]\n\n")
+	sb.WriteString("Your team independently analyzed: " + goal + "\n")
+	sb.WriteString("Their conclusions appear above (in the collaboration context).\n\n")
+	sb.WriteString("Your role as critic (" + roleName + "):\n")
+	sb.WriteString("1. Identify assumptions that might be wrong in each conclusion\n")
+	sb.WriteString("2. Find specific counterexamples or edge cases that were missed\n")
+	sb.WriteString("3. Rate each conclusion's defensibility (low/medium/high) with one-line justification\n")
+	sb.WriteString("4. State which conclusion you find most credible after analysis, and why\n\n")
+	sb.WriteString("Be precise: reference specific claims, not vague criticism.\n")
+	_ = teamName
+	return sb.String()
 }
 
 func copyStringMap(m map[string]string) map[string]string {

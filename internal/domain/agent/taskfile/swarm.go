@@ -17,6 +17,9 @@ type SwarmConfig struct {
 	ScaleDownThreshold float64       `yaml:"scale_down_threshold"`
 	ScaleStep          int           `yaml:"scale_step"`
 	StageTimeout       time.Duration `yaml:"stage_timeout"`
+	// StaleRetryMax is the maximum number of times a stale or timed-out task
+	// will be re-dispatched per layer. 0 means no retries.
+	StaleRetryMax int `yaml:"stale_retry_max"`
 }
 
 // DefaultSwarmConfig returns sensible defaults for swarm execution.
@@ -28,6 +31,7 @@ func DefaultSwarmConfig() SwarmConfig {
 		ScaleDownThreshold: 0.7,
 		ScaleStep:          2,
 		StageTimeout:       5 * time.Minute,
+		StaleRetryMax:      2,
 	}
 }
 
@@ -97,14 +101,28 @@ func (s *SwarmScheduler) executeSwarmValidated(ctx context.Context, tf *TaskFile
 		allTaskIDs = append(allTaskIDs, layer...)
 	}
 
-	for _, layer := range layers {
-		if err := s.executeLayer(ctx, layer, byID, causationID); err != nil {
-			sw.SyncOnce(s.dispatcher, allTaskIDs)
-			return nil, err
-		}
+	// retryCounts tracks how many times each original task ID has been retried.
+	retryCounts := make(map[string]int)
 
-		layerResults := s.dispatcher.Collect(layer, true, s.config.StageTimeout)
-		s.adjustConcurrency(layerResults)
+	for _, layer := range layers {
+		activeIDs := append([]string(nil), layer...)
+
+		for {
+			if err := s.executeLayer(ctx, activeIDs, byID, causationID); err != nil {
+				sw.SyncOnce(s.dispatcher, allTaskIDs)
+				return nil, err
+			}
+
+			results := s.dispatcher.Collect(activeIDs, true, s.config.StageTimeout)
+			s.adjustConcurrency(results)
+
+			retryIDs := s.buildRetryBatch(ctx, activeIDs, results, byID, causationID, retryCounts)
+			if len(retryIDs) == 0 {
+				break
+			}
+			activeIDs = retryIDs
+			allTaskIDs = append(allTaskIDs, retryIDs...)
+		}
 		sw.SyncOnce(s.dispatcher, allTaskIDs)
 	}
 
@@ -113,6 +131,80 @@ func (s *SwarmScheduler) executeSwarmValidated(ctx context.Context, tf *TaskFile
 		TaskIDs:    allTaskIDs,
 		StatusPath: statusPath,
 	}, nil
+}
+
+// buildRetryBatch identifies stale or timed-out tasks from a completed layer
+// and returns a list of retry task IDs to dispatch in the next iteration.
+// It updates byID and retryCounts in place.
+func (s *SwarmScheduler) buildRetryBatch(
+	ctx context.Context,
+	layerIDs []string,
+	results []agent.BackgroundTaskResult,
+	byID map[string]TaskSpec,
+	causationID string,
+	retryCounts map[string]int,
+) []string {
+	if s.config.StaleRetryMax <= 0 {
+		return nil
+	}
+
+	resultByID := make(map[string]agent.BackgroundTaskResult, len(results))
+	for _, r := range results {
+		resultByID[r.ID] = r
+	}
+
+	var retryIDs []string
+	for _, origID := range layerIDs {
+		// Skip if already terminal in collect results.
+		if r, ok := resultByID[origID]; ok {
+			switch r.Status {
+			case agent.BackgroundTaskStatusCompleted,
+				agent.BackgroundTaskStatusFailed,
+				agent.BackgroundTaskStatusCancelled:
+				continue
+			}
+		}
+
+		// For non-terminal tasks: consult Status to distinguish stale from
+		// legitimately running tasks that just hit the stage timeout.
+		needsRetry := false
+		for _, sum := range s.dispatcher.Status([]string{origID}) {
+			switch sum.Status {
+			case agent.BackgroundTaskStatusCompleted,
+				agent.BackgroundTaskStatusFailed,
+				agent.BackgroundTaskStatusCancelled:
+				// Terminal — no retry needed.
+			default:
+				needsRetry = true
+			}
+			if sum.Stale {
+				needsRetry = true
+			}
+		}
+		if !needsRetry {
+			continue
+		}
+
+		// Enforce retry cap.
+		if retryCounts[origID] >= s.config.StaleRetryMax {
+			continue
+		}
+
+		// Best-effort cancel (no-op when not supported).
+		if canceller, ok := s.dispatcher.(agent.BackgroundTaskCanceller); ok {
+			_ = canceller.CancelBackgroundTask(ctx, origID)
+		}
+
+		retryCounts[origID]++
+		retryID := fmt.Sprintf("%s-retry-%d", origID, retryCounts[origID])
+		if origSpec, ok := byID[origID]; ok {
+			retrySpec := origSpec
+			retrySpec.ID = retryID
+			byID[retryID] = retrySpec
+		}
+		retryIDs = append(retryIDs, retryID)
+	}
+	return retryIDs
 }
 
 // executeLayer dispatches all tasks in a layer concurrently, bounded by the

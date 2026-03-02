@@ -121,6 +121,7 @@ func (m *Manager) Merge(ctx context.Context, alloc *agent.WorkspaceAllocation, s
 		if err := m.git(ctx, "merge", "--squash", taskBranch); err != nil {
 			result.Success = false
 			result.Conflicts = m.mergeConflicts(ctx)
+			result.ConflictDiff = m.mergeConflictDiff(ctx)
 			return result, err
 		}
 		if err := m.git(ctx, "commit", "-m", fmt.Sprintf("Merge external task %s", taskBranch)); err != nil {
@@ -139,12 +140,14 @@ func (m *Manager) Merge(ctx context.Context, alloc *agent.WorkspaceAllocation, s
 		if err := m.git(ctx, "merge", taskBranch); err != nil {
 			result.Success = false
 			result.Conflicts = m.mergeConflicts(ctx)
+			result.ConflictDiff = m.mergeConflictDiff(ctx)
 			return result, err
 		}
 	default:
 		if err := m.git(ctx, "merge", "--no-edit", taskBranch); err != nil {
 			result.Success = false
 			result.Conflicts = m.mergeConflicts(ctx)
+			result.ConflictDiff = m.mergeConflictDiff(ctx)
 			return result, err
 		}
 	}
@@ -261,6 +264,16 @@ func (m *Manager) mergeConflicts(ctx context.Context) []string {
 		return nil
 	}
 	return splitLines(out)
+}
+
+// mergeConflictDiff returns the raw diff output for unmerged files (those with
+// conflict markers). Used to populate MergeResult.ConflictDiff.
+func (m *Manager) mergeConflictDiff(ctx context.Context) string {
+	out, err := m.gitOutput(ctx, "diff", "--diff-filter=U")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
 }
 
 func branchName(taskID string) string {
