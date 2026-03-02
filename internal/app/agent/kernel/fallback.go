@@ -8,14 +8,13 @@ import (
 )
 
 // kernelStateFallbackPath returns an absolute path to the fallback state file
-// under the current working directory's artifacts/ folder. The result is
-// computed once and cached so that subsequent calls are allocation-free.
+// under ~/.alex/kernel/fallback/. The result is computed once and cached.
 var kernelStateFallbackPath = sync.OnceValue(func() string {
-	wd, err := os.Getwd()
+	home, err := os.UserHomeDir()
 	if err != nil {
-		wd = "."
+		home = os.TempDir()
 	}
-	return filepath.Join(wd, "artifacts", "kernel_state.md")
+	return filepath.Join(home, ".alex", "kernel", "fallback", "kernel_state.md")
 })
 
 // WriteKernelStateFallback persists the provided content to the fallback path.

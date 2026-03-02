@@ -345,6 +345,7 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 				MaxTeamsPerCycle:     maxTeamsPerCycle,
 				TeamTimeoutSeconds:   teamTimeoutSeconds,
 				AllowedTeamTemplates: allowedTeamTemplates,
+				StateDir:             stateDir,
 			},
 			agents,
 			logging.NewKernelLogger("LLMPlanner"),
@@ -356,7 +357,7 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 	}
 
 	timeout := time.Duration(timeoutSeconds) * time.Second
-	executor := kernelagent.NewCoordinatorExecutor(coordinator, timeout)
+	executor := kernelagent.NewCoordinatorExecutor(coordinator, timeout, stateDir)
 	executor.SetSelectionResolver(b.buildKernelSelectionResolver())
 
 	engine := kernelagent.NewEngine(

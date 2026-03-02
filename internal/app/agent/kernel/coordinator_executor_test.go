@@ -48,7 +48,7 @@ func TestCoordinatorExecutor_AppendsSummaryInstructionAndExtractsSummary(t *test
 			Messages: []core.Message{assistantMessageWithToolCalls("read_file")},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	res, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err != nil {
@@ -57,7 +57,7 @@ func TestCoordinatorExecutor_AppendsSummaryInstructionAndExtractsSummary(t *test
 	if !strings.Contains(runner.lastPrompt, "## Execution Summary") {
 		t.Fatalf("expected summary instruction appended, got prompt: %q", runner.lastPrompt)
 	}
-	if !strings.Contains(runner.lastPrompt, "inside the current working directory") {
+	if !strings.Contains(runner.lastPrompt, "kernel artifacts directory") {
 		t.Fatalf("expected kernel write path guidance in prompt, got prompt: %q", runner.lastPrompt)
 	}
 	if !strings.Contains(res.Summary, "## Execution Summary") {
@@ -88,7 +88,7 @@ func TestCoordinatorExecutor_DoesNotDuplicateSummaryInstruction(t *testing.T) {
 			},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	prompt := "请完成任务。\n\n## Execution Summary\n- 模板"
 	if _, err := exec.Execute(context.Background(), "agent-a", prompt, map[string]string{}); err != nil {
@@ -106,7 +106,7 @@ func TestCoordinatorExecutor_ExecuteTeam_BuildsStructuredRunTasksPrompt(t *testi
 			Messages: []core.Message{assistantMessageWithToolCalls("run_tasks")},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	spec := kerneldomain.TeamDispatchSpec{
 		Template:       "kimi_research",
@@ -136,7 +136,7 @@ func TestCoordinatorExecutor_ExecuteTeam_BuildsStructuredRunTasksPrompt(t *testi
 }
 
 func TestCoordinatorExecutor_ExecuteTeam_ValidatesRequiredFields(t *testing.T) {
-	exec := NewCoordinatorExecutor(&stubTaskRunner{}, 0)
+	exec := NewCoordinatorExecutor(&stubTaskRunner{}, 0, "")
 	if _, err := exec.ExecuteTeam(context.Background(), kerneldomain.TeamDispatchSpec{
 		Goal: "goal only",
 	}, map[string]string{}); err == nil {
@@ -156,7 +156,7 @@ func TestCoordinatorExecutor_PropagatesChannelContextAndPinnedSelection(t *testi
 			Messages: []core.Message{assistantMessageWithToolCalls("shell_exec")},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 	exec.SetSelectionResolver(func(_ context.Context, channel, chatID, userID string) (subscription.ResolvedSelection, bool) {
 		if channel != "lark" || chatID != "oc_chat" || userID != "ou_user" {
 			return subscription.ResolvedSelection{}, false
@@ -201,7 +201,7 @@ func TestCoordinatorExecutor_FailsWithoutRealToolAction(t *testing.T) {
 			Messages: []core.Message{assistantMessageWithToolCalls("plan")},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err == nil {
@@ -232,7 +232,7 @@ func TestCoordinatorExecutor_FailsWhenRealToolResultIsError(t *testing.T) {
 			},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err == nil {
@@ -263,7 +263,7 @@ func TestCoordinatorExecutor_FailsWhenResultAwaitsUserConfirmation(t *testing.T)
 			},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err == nil {
@@ -295,7 +295,7 @@ func TestCoordinatorExecutor_FailsWhenStopReasonAwaitUserInput(t *testing.T) {
 			},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err == nil {
@@ -345,7 +345,7 @@ func TestCoordinatorExecutor_RetriesAutonomouslyAfterConfirmationLoop(t *testing
 			},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	res, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err != nil {
@@ -404,7 +404,7 @@ func TestCoordinatorExecutor_RetriesWhenFirstAttemptHasNoRealToolAction(t *testi
 			},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	res, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err != nil {
@@ -463,7 +463,7 @@ func TestCoordinatorExecutor_RetriesWhenFirstAttemptHasInvalidExecutionSummary(t
 			},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	res, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err != nil {
@@ -522,7 +522,7 @@ func TestCoordinatorExecutor_FailsWhenExecutionSummaryStaysInvalidAfterRetry(t *
 			},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err == nil {
@@ -556,7 +556,7 @@ func TestCoordinatorExecutor_DoesNotRetryWhenFirstAttemptIsValid(t *testing.T) {
 			},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	res, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err != nil {
@@ -593,7 +593,7 @@ func TestCoordinatorExecutor_AllowsSuccessfulRealToolResult(t *testing.T) {
 			},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	res, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err != nil {
@@ -621,7 +621,7 @@ func TestCoordinatorExecutor_InjectsFounderDirective(t *testing.T) {
 			Messages: []core.Message{assistantMessageWithToolCalls("read_file")},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	_, err := exec.Execute(context.Background(), "agent-a", "执行真实任务", map[string]string{})
 	if err != nil {
@@ -645,7 +645,7 @@ func TestCoordinatorExecutor_SetsAutoApproveInContext(t *testing.T) {
 			Messages: []core.Message{assistantMessageWithToolCalls("shell_exec")},
 		},
 	}
-	exec := NewCoordinatorExecutor(runner, 0)
+	exec := NewCoordinatorExecutor(runner, 0, "")
 
 	_, err := exec.Execute(context.Background(), "agent-a", "test auto-approve", map[string]string{})
 	if err != nil {

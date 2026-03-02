@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,21 +29,21 @@ Core behavioral rules:
 - Founder mindset: Take full ownership of outcomes. Proactively identify problems, solve them, and drive progress. No excuses, no waiting for instructions.
 - Every cycle must produce observable progress: a written file, a search result, or a state update.`
 
-const kernelDefaultSummaryInstruction = `Kernel post-run requirement:
+const kernelDefaultSummaryInstructionTmpl = `Kernel post-run requirement:
 - You MUST complete at least one real tool action (for example: read_file, shell_exec, write_file, web_search).
 - Do NOT claim completion without tool evidence.
 - Do NOT use ask_user or any tool that requires human response.
 - If blocked, pivot to an alternative approach. Record the blocker and your decision in the summary.
-- Write files only inside the current working directory (use relative paths like ./artifacts/...).
+- Write output files to the kernel artifacts directory: %s
 - In your final answer, include a section titled "## Execution Summary".
 - Summarize: completed work, concrete evidence/artifacts, decisions made, remaining risks/next step.
 - Keep it concise (3-6 bullets) and factual.`
 
-const kernelRetryInstruction = `Kernel retry requirement:
+const kernelRetryInstructionTmpl = `Kernel retry requirement:
 - Your previous attempt was not autonomously complete.
 - Do NOT ask questions, confirmations, or A/B choices.
 - Execute at least one concrete real tool action now.
-- Write files only inside the current working directory (use relative paths like ./artifacts/...).
+- Write output files to the kernel artifacts directory: %s
 - Return a factual "## Execution Summary" with concrete actions and artifact paths.`
 
 // ExecutionResult captures the essential completion information from one dispatch.
@@ -81,6 +83,7 @@ type TeamExecutor interface {
 type CoordinatorExecutor struct {
 	coordinator       TaskRunner
 	timeout           time.Duration
+	stateDir          string // e.g. ~/.alex/kernel/{kernel_id}
 	selectionResolver SelectionResolver
 }
 
@@ -97,11 +100,34 @@ const (
 )
 
 // NewCoordinatorExecutor creates an executor backed by the given AgentCoordinator.
-func NewCoordinatorExecutor(coordinator TaskRunner, timeout time.Duration) *CoordinatorExecutor {
+// stateDir is the kernel-specific state directory (e.g. ~/.alex/kernel/{kernel_id}).
+// Artifacts produced by dispatched agents are directed to stateDir/artifacts/.
+func NewCoordinatorExecutor(coordinator TaskRunner, timeout time.Duration, stateDir string) *CoordinatorExecutor {
 	return &CoordinatorExecutor{
 		coordinator: coordinator,
 		timeout:     timeout,
+		stateDir:    stateDir,
 	}
+}
+
+// artifactsDir returns the absolute path for kernel agent output artifacts.
+func (e *CoordinatorExecutor) artifactsDir() string {
+	if e.stateDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return filepath.Join(".", "artifacts")
+		}
+		return filepath.Join(home, ".alex", "kernel", "artifacts")
+	}
+	return filepath.Join(e.stateDir, "artifacts")
+}
+
+// tasksDir returns the absolute path for kernel task status sidecars.
+func (e *CoordinatorExecutor) tasksDir() string {
+	if e.stateDir == "" {
+		return filepath.Join(".elephant", "tasks")
+	}
+	return filepath.Join(e.stateDir, "tasks")
 }
 
 // SelectionResolver resolves a request-scoped pinned LLM selection for kernel runs.
@@ -146,6 +172,8 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 	// prevent deadlocks on approval gates.
 	execCtx = toolshared.WithAutoApprove(execCtx, true)
 	execCtx = appcontext.MarkUnattendedContext(execCtx)
+	// Route run_tasks status sidecars to the kernel-specific tasks dir.
+	execCtx = toolshared.WithKernelTasksDir(execCtx, e.tasksDir())
 
 	if e.timeout > 0 {
 		var cancel context.CancelFunc
@@ -153,7 +181,7 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 		defer cancel()
 	}
 
-	taskPrompt := wrapKernelPrompt(prompt)
+	taskPrompt := e.wrapKernelPrompt(prompt)
 	result, err := e.coordinator.ExecuteTask(execCtx, taskPrompt, sessionID, nil)
 	if err != nil {
 		return ExecutionResult{}, err
@@ -162,7 +190,7 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 	recoveredFrom := ""
 	if validateErr := validateKernelDispatchResult(result); validateErr != nil {
 		recoveredFrom = classifyKernelValidationError(validateErr)
-		retryPrompt := appendKernelRetryInstruction(taskPrompt, result)
+		retryPrompt := e.appendKernelRetryInstruction(taskPrompt, result)
 		retryResult, retryErr := e.coordinator.ExecuteTask(execCtx, retryPrompt, sessionID, nil)
 		if retryErr != nil {
 			return ExecutionResult{}, retryErr
@@ -198,7 +226,7 @@ func (e *CoordinatorExecutor) ExecuteTeam(ctx context.Context, spec kerneldomain
 		return result, err
 	}
 	// Best-effort: read status sidecar for role-level results.
-	statusPath := fmt.Sprintf(".elephant/tasks/team-%s.status.yaml", template)
+	statusPath := filepath.Join(e.tasksDir(), "team-"+template+".status.yaml")
 	result.TeamRoles = readTeamRoleResults(statusPath)
 	return result, nil
 }
@@ -262,10 +290,11 @@ func buildKernelTeamDispatchPrompt(spec kerneldomain.TeamDispatchSpec) string {
 	)
 }
 
-func wrapKernelPrompt(prompt string) string {
+func (e *CoordinatorExecutor) wrapKernelPrompt(prompt string) string {
+	summaryInstruction := fmt.Sprintf(kernelDefaultSummaryInstructionTmpl, e.artifactsDir())
 	trimmed := strings.TrimSpace(prompt)
 	if trimmed == "" {
-		trimmed = kernelDefaultSummaryInstruction
+		trimmed = summaryInstruction
 	}
 	var b strings.Builder
 	b.WriteString(kernelFounderDirective)
@@ -273,19 +302,20 @@ func wrapKernelPrompt(prompt string) string {
 	b.WriteString(trimmed)
 	if !strings.Contains(trimmed, "## Execution Summary") {
 		b.WriteString("\n\n")
-		b.WriteString(kernelDefaultSummaryInstruction)
+		b.WriteString(summaryInstruction)
 	}
 	return b.String()
 }
 
-func appendKernelRetryInstruction(prompt string, result *agent.TaskResult) string {
+func (e *CoordinatorExecutor) appendKernelRetryInstruction(prompt string, result *agent.TaskResult) string {
 	var previousSummary string
 	if result != nil {
 		previousSummary = strings.TrimSpace(extractKernelExecutionSummary(result))
 	}
+	retryInstruction := fmt.Sprintf(kernelRetryInstructionTmpl, e.artifactsDir())
 	sections := []string{
 		strings.TrimSpace(prompt),
-		kernelRetryInstruction,
+		retryInstruction,
 	}
 	if previousSummary != "" {
 		sections = append(sections, "Previous attempt summary:\n"+previousSummary)

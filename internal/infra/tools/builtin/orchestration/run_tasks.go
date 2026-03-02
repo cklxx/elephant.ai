@@ -164,8 +164,8 @@ func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		}
 	}
 
-	// Determine status path.
-	statusPath := statusPathForFile(filePath, tf.PlanID)
+	// Determine status path. Kernel contexts override the default .elephant/tasks/ base dir.
+	statusPath := statusPathForFile(ctx, filePath, tf.PlanID)
 
 	executor := taskfile.NewExecutor(dispatcher, mode, taskfile.DefaultSwarmConfig())
 	var result *taskfile.ExecuteResult
@@ -374,10 +374,13 @@ func dispatchStateFromStatus(statusPath string) string {
 	return "completed"
 }
 
-func statusPathForFile(filePath, planID string) string {
+func statusPathForFile(ctx context.Context, filePath, planID string) string {
 	if filePath != "" {
 		ext := filepath.Ext(filePath)
 		return strings.TrimSuffix(filePath, ext) + ".status" + ext
+	}
+	if tasksDir := shared.KernelTasksDirFromContext(ctx); tasksDir != "" {
+		return filepath.Join(tasksDir, planID+".status.yaml")
 	}
 	return filepath.Join(".elephant", "tasks", planID+".status.yaml")
 }

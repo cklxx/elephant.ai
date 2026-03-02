@@ -13,11 +13,12 @@ import (
 type toolContextKey string
 
 const (
-	ApproverKey      toolContextKey = "approver"
-	BackupManagerKey toolContextKey = "backup_manager"
-	ToolSessionIDKey toolContextKey = "tool_session_id"
-	AutoApproveKey   toolContextKey = "auto_approve"
-	larkClientKey    toolContextKey = "lark_client"
+	ApproverKey        toolContextKey = "approver"
+	BackupManagerKey   toolContextKey = "backup_manager"
+	ToolSessionIDKey   toolContextKey = "tool_session_id"
+	AutoApproveKey     toolContextKey = "auto_approve"
+	kernelTasksDirKey  toolContextKey = "kernel_tasks_dir"
+	larkClientKey      toolContextKey = "lark_client"
 	larkMessengerKey toolContextKey = "lark_messenger"
 	larkChatIDKey    toolContextKey = "lark_chat_id"
 	larkMessageIDKey toolContextKey = "lark_message_id"
@@ -97,6 +98,17 @@ func GetAutoApproveFromContext(ctx context.Context) bool {
 // WithAutoApprove sets the auto-approve flag in context
 func WithAutoApprove(ctx context.Context, autoApprove bool) context.Context {
 	return context.WithValue(ctx, AutoApproveKey, autoApprove)
+}
+
+// WithKernelTasksDir sets a kernel-specific directory for status sidecars in context.
+// When set, run_tasks uses this directory instead of the default .elephant/tasks/.
+func WithKernelTasksDir(ctx context.Context, dir string) context.Context {
+	return context.WithValue(ctx, kernelTasksDirKey, dir)
+}
+
+// KernelTasksDirFromContext retrieves the kernel tasks directory from context.
+func KernelTasksDirFromContext(ctx context.Context) string {
+	return contextValueOr[string](ctx, kernelTasksDirKey, "")
 }
 
 // GetParentListenerFromContext retrieves the parent listener (if any) for subtask event forwarding.

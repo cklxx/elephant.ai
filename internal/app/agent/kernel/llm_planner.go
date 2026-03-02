@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,6 +30,9 @@ type LLMPlannerConfig struct {
 	MaxTeamsPerCycle     int
 	TeamTimeoutSeconds   int
 	AllowedTeamTemplates []string
+	// StateDir is the kernel-specific state directory (e.g. ~/.alex/kernel/{kernel_id}).
+	// When set, team status sidecars are read from StateDir/tasks/ instead of .elephant/tasks/.
+	StateDir             string
 }
 
 // planningDecision is the unit of LLM planning output.
@@ -248,7 +252,7 @@ func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent, goalContextS
 			}
 			// For team dispatches, annotate with role-level results.
 			if d.Kind == kerneldomain.DispatchKindTeam && d.Team != nil {
-				if roleAnnotation := summarizeTeamRoles(d.Team.Template); roleAnnotation != "" {
+				if roleAnnotation := p.summarizeTeamRoles(d.Team.Template); roleAnnotation != "" {
 					summary += " " + roleAnnotation
 				}
 			}
@@ -604,8 +608,14 @@ func containsAny(text string, keywords ...string) bool {
 
 // summarizeTeamRoles reads the team status sidecar and returns a compact role summary.
 // Returns empty string if the status file cannot be read.
-func summarizeTeamRoles(template string) string {
-	statusPath := fmt.Sprintf(".elephant/tasks/team-%s.status.yaml", template)
+func (p *LLMPlanner) summarizeTeamRoles(template string) string {
+	var tasksDir string
+	if p.config.StateDir != "" {
+		tasksDir = filepath.Join(p.config.StateDir, "tasks")
+	} else {
+		tasksDir = filepath.Join(".elephant", "tasks")
+	}
+	statusPath := filepath.Join(tasksDir, "team-"+template+".status.yaml")
 	sf, err := taskfile.ReadStatusFile(statusPath)
 	if err != nil {
 		return ""
