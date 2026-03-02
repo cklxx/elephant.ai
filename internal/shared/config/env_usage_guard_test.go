@@ -17,6 +17,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 		"cmd/auth-user-seed/main.go",
 		"cmd/alex-server/main.go",
 		"cmd/alex-web/main.go",
+		"internal/app/agent/kernel/fallback_config.go", // reads LLM_FALLBACK_CONFIG_PATH to locate config file
 		"internal/infra/external/bridge/executor_integration_test.go",
 		"internal/infra/external/claudecode/executor_sdk_integration_test.go",
 		"internal/infra/external/claudecode/executor_sdk_integration_tool_test.go",
