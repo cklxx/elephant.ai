@@ -327,8 +327,14 @@ func (s *FileStore) load() error {
 	if err != nil {
 		return fmt.Errorf("read dispatch store: %w", err)
 	}
-	if len(data) == 0 {
+	if data == nil {
+		// File does not exist yet — normal cold-start, nothing to load.
 		return nil
+	}
+	if len(data) == 0 {
+		// File exists but is empty — likely a truncated write (mid-crash).
+		// Treat as corrupted rather than silently losing all dispatch records.
+		return fmt.Errorf("dispatch store file exists but is empty (possible truncated write): %s", s.filePath)
 	}
 	var doc fileStoreDoc
 	if err := jsonx.Unmarshal(data, &doc); err != nil {
@@ -465,10 +471,11 @@ func (s *FileStore) RecoverStaleRunning(ctx context.Context, kernelID string) (i
 		recovered++
 	}
 	if recovered > 0 {
-		if _, err := s.pruneLocked(ctx, now, false); err != nil {
-			return 0, err
-		}
-		if err := s.persistLocked(); err != nil {
+		// K-03 pattern: persist=true merges the status transitions and any pruned
+		// records into a single atomic disk write, eliminating the window between
+		// pruneLocked and a separate persistLocked where a crash could leave
+		// pruned records still present on disk after restart.
+		if _, err := s.pruneLocked(ctx, now, true); err != nil {
 			return 0, fmt.Errorf("persist after stale recovery: %w", err)
 		}
 	}
