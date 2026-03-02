@@ -117,7 +117,7 @@ func TestIntegration_FullDAGOrchestration(t *testing.T) {
 	}
 
 	statusPath := t.TempDir() + "/dag.status.yaml"
-	exec := taskfile.NewExecutor(mgr)
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
 
 	result, err := exec.ExecuteAndWait(context.Background(), tf, "cause-dag", statusPath, 10*time.Second)
 	if err != nil {
@@ -198,7 +198,7 @@ func TestIntegration_FailurePropagation(t *testing.T) {
 		},
 	}
 
-	exec := taskfile.NewExecutor(mgr)
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
 	statusPath := t.TempDir() + "/fail.status.yaml"
 
 	_, err := exec.ExecuteAndWait(context.Background(), tf, "", statusPath, 5*time.Second)
@@ -247,7 +247,7 @@ func TestIntegration_PanicRecoveryInDAG(t *testing.T) {
 		},
 	}
 
-	exec := taskfile.NewExecutor(mgr)
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
 	statusPath := t.TempDir() + "/panic.status.yaml"
 
 	_, _ = exec.ExecuteAndWait(context.Background(), tf, "", statusPath, 5*time.Second)
@@ -441,7 +441,7 @@ func TestIntegration_CancelPropagation(t *testing.T) {
 		},
 	}
 
-	exec := taskfile.NewExecutor(mgr)
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
 	statusPath := t.TempDir() + "/cancel.status.yaml"
 
 	_, err := exec.Execute(context.Background(), tf, "", statusPath)
@@ -509,7 +509,7 @@ func TestIntegration_TeamTemplateExecution(t *testing.T) {
 
 	tf := taskfile.RenderTaskFile(tmpl, "build auth module", nil)
 
-	exec := taskfile.NewExecutor(mgr)
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
 	statusPath := t.TempDir() + "/team.status.yaml"
 
 	result, err := exec.ExecuteAndWait(context.Background(), tf, "team-cause", statusPath, 10*time.Second)
@@ -575,7 +575,7 @@ func TestIntegration_ParallelTasksInSameStage(t *testing.T) {
 		},
 	}
 
-	exec := taskfile.NewExecutor(mgr)
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
 	statusPath := t.TempDir() + "/parallel.status.yaml"
 
 	_, err := exec.Execute(context.Background(), tf, "", statusPath)
@@ -637,7 +637,7 @@ func TestIntegration_StatusFileReflectsLifecycle(t *testing.T) {
 	}
 
 	statusPath := t.TempDir() + "/lifecycle.status.yaml"
-	exec := taskfile.NewExecutor(mgr)
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
 
 	_, err := exec.Execute(context.Background(), tf, "", statusPath)
 	if err != nil {
@@ -714,7 +714,7 @@ func TestIntegration_CompletionNotifierEndToEnd(t *testing.T) {
 		},
 	}
 
-	exec := taskfile.NewExecutor(mgr)
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
 	statusPath := t.TempDir() + "/notifier.status.yaml"
 
 	_, err := exec.ExecuteAndWait(ctx, tf, "cause-n", statusPath, 10*time.Second)
@@ -778,7 +778,7 @@ func TestIntegration_DiamondDAG(t *testing.T) {
 		},
 	}
 
-	exec := taskfile.NewExecutor(mgr)
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
 	statusPath := t.TempDir() + "/diamond.status.yaml"
 
 	_, err := exec.ExecuteAndWait(context.Background(), tf, "", statusPath, 10*time.Second)
