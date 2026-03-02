@@ -211,6 +211,10 @@ func (s *FileStore) MarkDispatchRunning(ctx context.Context, dispatchID string) 
 }
 
 // MarkDispatchDone transitions a dispatch to done with the resulting taskID.
+// K-03 fix: pruneLocked is called with persist=true so that the status update
+// and any pruned records are written to disk in a single atomic operation.
+// This prevents memory/disk divergence if the process crashes between prune
+// and a subsequent persist call.
 func (s *FileStore) MarkDispatchDone(ctx context.Context, dispatchID, taskID string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -227,13 +231,17 @@ func (s *FileStore) MarkDispatchDone(ctx context.Context, dispatchID, taskID str
 	d.TaskID = taskID
 	d.UpdatedAt = now
 	s.dispatches[dispatchID] = d
-	if _, err := s.pruneLocked(ctx, now, false); err != nil {
+	// persist=true: write status change and pruned records atomically in one
+	// file operation, eliminating any window where in-memory prune is not
+	// reflected on disk.
+	if _, err := s.pruneLocked(ctx, now, true); err != nil {
 		return err
 	}
-	return s.persistLocked()
+	return nil
 }
 
 // MarkDispatchFailed transitions a dispatch to failed with an error message.
+// K-03 fix: same persist=true pattern as MarkDispatchDone — see above.
 func (s *FileStore) MarkDispatchFailed(ctx context.Context, dispatchID, errMsg string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -250,10 +258,13 @@ func (s *FileStore) MarkDispatchFailed(ctx context.Context, dispatchID, errMsg s
 	d.Error = errMsg
 	d.UpdatedAt = now
 	s.dispatches[dispatchID] = d
-	if _, err := s.pruneLocked(ctx, now, false); err != nil {
+	// persist=true: write status change and pruned records atomically in one
+	// file operation, eliminating any window where in-memory prune is not
+	// reflected on disk.
+	if _, err := s.pruneLocked(ctx, now, true); err != nil {
 		return err
 	}
-	return s.persistLocked()
+	return nil
 }
 
 // ListActiveDispatches returns all non-terminal dispatches for a kernel.

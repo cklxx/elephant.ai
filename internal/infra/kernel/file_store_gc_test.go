@@ -214,3 +214,127 @@ func TestFileStore_NewFileStore_Defaults(t *testing.T) {
 		t.Errorf("expected retentionDuration default=14d, got %v", store.retentionDuration)
 	}
 }
+
+// TestFileStore_MarkDispatchDone_PruneIsPersisted verifies K-03 acceptance criteria:
+// after MarkDispatchDone, a fresh load from disk should NOT contain records that
+// were pruned in memory. Previously pruneLocked used persist=false, relying on the
+// caller's subsequent persistLocked call; now it uses persist=true for atomicity.
+func TestFileStore_MarkDispatchDone_PruneIsPersisted(t *testing.T) {
+	now := time.Date(2026, 3, 2, 12, 0, 0, 0, time.UTC)
+	retention := 7 * 24 * time.Hour
+	dir := t.TempDir()
+	store := NewFileStore(dir, 30*time.Minute, retention)
+	store.now = func() time.Time { return now }
+
+	// Seed an OLD terminal dispatch that is past the retention window.
+	oldExpired := kerneldomain.Dispatch{
+		DispatchID: "old-expired",
+		KernelID:   "k1",
+		Status:     kerneldomain.DispatchDone,
+		CreatedAt:  now.Add(-10 * 24 * time.Hour),
+		UpdatedAt:  now.Add(-10 * 24 * time.Hour),
+	}
+	// Seed the dispatch we'll transition to Done.
+	active := kerneldomain.Dispatch{
+		DispatchID: "active-d1",
+		KernelID:   "k1",
+		Status:     kerneldomain.DispatchRunning,
+		CreatedAt:  now.Add(-1 * time.Minute),
+		UpdatedAt:  now.Add(-1 * time.Minute),
+	}
+
+	store.dispatches[oldExpired.DispatchID] = oldExpired
+	store.dispatches[active.DispatchID] = active
+
+	// Persist initial state to disk so there's a baseline file.
+	if err := store.persistLocked(); err != nil {
+		t.Fatalf("initial persistLocked: %v", err)
+	}
+
+	// Transition active to Done — this should also prune oldExpired and persist.
+	if err := store.MarkDispatchDone(context.Background(), "active-d1", "task-xyz"); err != nil {
+		t.Fatalf("MarkDispatchDone: %v", err)
+	}
+
+	// Load a fresh store from disk to verify what was persisted.
+	fresh := NewFileStore(dir, 30*time.Minute, retention)
+	fresh.now = func() time.Time { return now }
+	if err := fresh.load(); err != nil {
+		t.Fatalf("fresh load: %v", err)
+	}
+
+	// K-03 assertion: old-expired must NOT appear in the loaded state.
+	if _, exists := fresh.dispatches["old-expired"]; exists {
+		t.Error("K-03: old-expired was pruned in memory but NOT removed from disk — divergence detected")
+	}
+
+	// active-d1 must appear with Done status.
+	got, ok := fresh.dispatches["active-d1"]
+	if !ok {
+		t.Fatal("active-d1 not found in persisted state after MarkDispatchDone")
+	}
+	if got.Status != kerneldomain.DispatchDone {
+		t.Errorf("expected active-d1 status=done, got %v", got.Status)
+	}
+	if got.TaskID != "task-xyz" {
+		t.Errorf("expected active-d1 taskID=task-xyz, got %q", got.TaskID)
+	}
+}
+
+// TestFileStore_MarkDispatchFailed_PruneIsPersisted mirrors the above test for
+// MarkDispatchFailed, ensuring the same K-03 fix applies to the failure path.
+func TestFileStore_MarkDispatchFailed_PruneIsPersisted(t *testing.T) {
+	now := time.Date(2026, 3, 2, 12, 0, 0, 0, time.UTC)
+	retention := 7 * 24 * time.Hour
+	dir := t.TempDir()
+	store := NewFileStore(dir, 30*time.Minute, retention)
+	store.now = func() time.Time { return now }
+
+	oldExpired := kerneldomain.Dispatch{
+		DispatchID: "old-failed",
+		KernelID:   "k1",
+		Status:     kerneldomain.DispatchFailed,
+		CreatedAt:  now.Add(-15 * 24 * time.Hour),
+		UpdatedAt:  now.Add(-15 * 24 * time.Hour),
+	}
+	active := kerneldomain.Dispatch{
+		DispatchID: "active-d2",
+		KernelID:   "k1",
+		Status:     kerneldomain.DispatchRunning,
+		CreatedAt:  now.Add(-2 * time.Minute),
+		UpdatedAt:  now.Add(-2 * time.Minute),
+	}
+
+	store.dispatches[oldExpired.DispatchID] = oldExpired
+	store.dispatches[active.DispatchID] = active
+
+	if err := store.persistLocked(); err != nil {
+		t.Fatalf("initial persistLocked: %v", err)
+	}
+
+	if err := store.MarkDispatchFailed(context.Background(), "active-d2", "connection reset"); err != nil {
+		t.Fatalf("MarkDispatchFailed: %v", err)
+	}
+
+	fresh := NewFileStore(dir, 30*time.Minute, retention)
+	fresh.now = func() time.Time { return now }
+	if err := fresh.load(); err != nil {
+		t.Fatalf("fresh load: %v", err)
+	}
+
+	// K-03 assertion: old-failed must NOT appear on disk after prune.
+	if _, exists := fresh.dispatches["old-failed"]; exists {
+		t.Error("K-03: old-failed was pruned in memory but NOT removed from disk — divergence detected")
+	}
+
+	got, ok := fresh.dispatches["active-d2"]
+	if !ok {
+		t.Fatal("active-d2 not found in persisted state after MarkDispatchFailed")
+	}
+	if got.Status != kerneldomain.DispatchFailed {
+		t.Errorf("expected active-d2 status=failed, got %v", got.Status)
+	}
+	if got.Error != "connection reset" {
+		t.Errorf("expected active-d2 error='connection reset', got %q", got.Error)
+	}
+}
