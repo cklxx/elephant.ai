@@ -595,7 +595,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 				reply = attachmentSummary
 				attachmentSummary = ""
 			case execErr != nil:
-				reply = fmt.Sprintf("执行失败：%v", execErr)
+				reply = "执行失败：" + sanitizeErrorForUser(execErr.Error())
 			case isAwait:
 				reply = "还需要你补充信息后继续。请直接回复你的补充内容。"
 			default:
@@ -757,6 +757,11 @@ func (g *Gateway) reprocessMessage(chatID, chatType string, input agent.UserInpu
 func (g *Gateway) buildReply(ctx context.Context, result *agent.TaskResult, execErr error) string {
 	reply := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
 	if result == nil {
+		// No result — task failed before producing output. Sanitize the raw
+		// error deterministically so Go chain prefixes are never shown to users.
+		if execErr != nil {
+			reply = "执行失败：" + sanitizeErrorForUser(execErr.Error())
+		}
 		return channels.ShapeReply7C(reply)
 	}
 	reply = channels.ShapeReply7C(reply)

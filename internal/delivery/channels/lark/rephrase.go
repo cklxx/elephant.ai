@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"strings"
 
 	"alex/internal/shared/utils"
 )
@@ -23,6 +24,79 @@ const rephraseForegroundSystemPrompt = `把 AI 回答改写为更简洁易读的
 结构：结论/结果在第一句，关键上下文在后，细节只保留必要的。
 保留所有关键信息和文件路径，去除冗余推理过程和重复陈述。
 不要使用 markdown 格式（如 **加粗**、## 标题、- 列表、` + "`" + `代码` + "`" + `、[链接](url)），输出纯文本。`
+
+// sanitizeErrorForUser strips Go error-chain prefixes and maps known technical
+// error patterns to user-friendly Chinese. Callers must pass the raw error
+// string only — do NOT include UI prefixes like "执行失败：".
+// Used when LLM narration is unavailable (e.g. the LLM itself is failing).
+func sanitizeErrorForUser(errText string) string {
+	if errText == "" {
+		return errText
+	}
+
+	// Iteratively strip common Go error-chain technical prefixes.
+	for {
+		lower := strings.ToLower(errText)
+		stripped := false
+		for _, p := range []string{
+			"task execution failed: ",
+			"think step failed: ",
+			"agent run failed: ",
+			"step failed: ",
+			"llm call failed: ",
+		} {
+			if strings.HasPrefix(lower, p) {
+				errText = errText[len(p):]
+				stripped = true
+				break
+			}
+		}
+		if !stripped {
+			break
+		}
+	}
+
+	// Strip LLM provider prefix, e.g. "[anthropic/claude-sonnet-4-6] ".
+	if strings.HasPrefix(errText, "[") {
+		if idx := strings.Index(errText, "] "); idx >= 0 {
+			errText = errText[idx+2:]
+		}
+	}
+
+	lower := strings.ToLower(errText)
+	switch {
+	case strings.Contains(lower, "authentication failed") ||
+		strings.Contains(lower, "please verify your api key") ||
+		strings.Contains(lower, "unauthorized"):
+		return "AI 服务认证失败，请检查 API 密钥配置"
+	case strings.Contains(lower, "rate limit") ||
+		strings.Contains(lower, "too many requests"):
+		return "AI 服务请求频率超限，请稍后重试"
+	case strings.Contains(lower, "context_length_exceeded") ||
+		strings.Contains(lower, "context window") ||
+		strings.Contains(lower, "maximum context length"):
+		return "输入内容超出 AI 模型上下文长度限制"
+	case strings.Contains(lower, "model not found") ||
+		strings.Contains(lower, "not_found_error"):
+		return "AI 模型配置错误，请检查模型名称设置"
+	case strings.Contains(lower, "timeout") ||
+		strings.Contains(lower, "timed out") ||
+		strings.Contains(lower, "deadline exceeded"):
+		return "AI 服务请求超时，请稍后重试"
+	case strings.Contains(lower, "connection refused") ||
+		strings.Contains(lower, "no such host") ||
+		strings.Contains(lower, "dial tcp"):
+		return "网络连接失败，请检查网络状态后重试"
+	case strings.Contains(lower, "service unavailable"):
+		return "AI 服务暂时不可用，请稍后重试"
+	}
+
+	// Unknown error: return cleaned text, capped at a readable length.
+	if len(errText) > 150 {
+		return errText[:150] + "…"
+	}
+	return errText
+}
 
 func (g *Gateway) rephraseForUser(ctx context.Context, rawText string, kind rephraseKind) string {
 	if g == nil || g.llmFactory == nil {

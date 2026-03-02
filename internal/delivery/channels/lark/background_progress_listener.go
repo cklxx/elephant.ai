@@ -438,6 +438,12 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 	}
 	mergeStatus = normalizeMergeStatus(mergeStatus)
 
+	// Sanitize error text before any user-facing use so raw Go error chains
+	// are never shown verbatim in Lark messages.
+	if errText != "" {
+		errText = sanitizeErrorForUser(errText)
+	}
+
 	t.mu.Lock()
 	t.status = normalizedStatus
 	t.mergeStatus = mergeStatus
