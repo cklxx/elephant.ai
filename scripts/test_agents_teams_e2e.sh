@@ -118,12 +118,12 @@ record() {
     RESULT_STATUSES+=("${status}")
     RESULT_NOTES+=("${note}")
     case "${status}" in
-        PASS)    ((PASS++))    ;;
-        PARTIAL) ((PARTIAL++)) ;;
-        FAIL)    ((FAIL++))    ;;
-        SKIP)    ((SKIP++))    ;;
+        PASS)    PASS=$((PASS + 1))    ;;
+        PARTIAL) PARTIAL=$((PARTIAL + 1)) ;;
+        FAIL)    FAIL=$((FAIL + 1))    ;;
+        SKIP)    SKIP=$((SKIP + 1))    ;;
     esac
-    ((TOTAL++))
+    TOTAL=$((TOTAL + 1))
 }
 
 eval_ok() {
