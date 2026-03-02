@@ -499,14 +499,20 @@ func sanitizeRuntimeSummary(raw string) string {
 			continue
 		}
 		lower := strings.ToLower(trimmed)
+		// Strip raw LLM artifacts and internal reasoning noise, but preserve
+		// legitimate agent summary content such as "## Execution Summary" headers
+		// and natural-language mentions of tool calls.
 		if strings.HasPrefix(trimmed, "```") ||
 			strings.HasPrefix(lower, "thinking (previous):") ||
 			strings.HasPrefix(lower, "reasoning:") ||
-			strings.HasPrefix(lower, "## execution summary") ||
 			strings.Contains(lower, "assistant to=") ||
 			strings.Contains(lower, "recipient_name") ||
+			// tool_uses and "tool_call": are structured JSON/XML schema leakage,
+			// not free-text mentions; match precisely to avoid stripping bullet
+			// points like "- dispatched tasks (tool calls) to complete".
 			strings.Contains(lower, "tool_uses") ||
-			strings.Contains(lower, "tool call") {
+			strings.Contains(lower, `"tool_call"`) ||
+			strings.Contains(lower, `"tool_calls"`) {
 			continue
 		}
 		filtered = append(filtered, trimmed)
