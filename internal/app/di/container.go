@@ -2,7 +2,6 @@ package di
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -293,7 +292,7 @@ func (t *MCPInitializationTracker) Snapshot() MCPInitializationStatus {
 
 // MCPInitializationStatus returns the current asynchronous MCP bootstrap state.
 func (c *Container) MCPInitializationStatus() MCPInitializationStatus {
-	if c == nil || c.mcpInitTracker == nil {
+	if c.mcpInitTracker == nil {
 		return MCPInitializationStatus{}
 	}
 	return c.mcpInitTracker.Snapshot()
@@ -385,13 +384,13 @@ func resolveStorageDir(configured, defaultPath string) string {
 
 // HasLLMFactory reports whether the container holds an initialised LLM factory.
 func (c *Container) HasLLMFactory() bool {
-	return c != nil && c.llmFactory != nil
+	return c.llmFactory != nil
 }
 
 // LLMFactory returns the LLM client factory as a port interface.
 // Returns nil when the factory has not been initialised.
 func (c *Container) LLMFactory() portsllm.LLMClientFactory {
-	if c == nil || c.llmFactory == nil {
+	if c.llmFactory == nil {
 		return nil
 	}
 	return c.llmFactory
@@ -399,9 +398,6 @@ func (c *Container) LLMFactory() portsllm.LLMClientFactory {
 
 // DefaultLLMProfile returns the shared runtime LLM profile.
 func (c *Container) DefaultLLMProfile() runtimeconfig.LLMProfile {
-	if c == nil {
-		return runtimeconfig.LLMProfile{}
-	}
 	return runtimeconfig.LLMProfile{
 		Provider: strings.TrimSpace(c.config.LLMProvider),
 		Model:    strings.TrimSpace(c.config.LLMModel),
@@ -412,9 +408,6 @@ func (c *Container) DefaultLLMProfile() runtimeconfig.LLMProfile {
 
 // SessionDir returns the resolved session directory backing file-based stores.
 func (c *Container) SessionDir() string {
-	if c == nil {
-		return ""
-	}
 	return c.config.SessionDir
 }
 
@@ -430,9 +423,6 @@ type AlternateCoordinator struct {
 // Shutdown releases only the resources owned by this alternate coordinator
 // (tool registry and coordinator). It does NOT close shared resources.
 func (a *AlternateCoordinator) Shutdown() error {
-	if a == nil {
-		return nil
-	}
 	if a.AgentCoordinator != nil {
 		if err := a.AgentCoordinator.Close(); err != nil {
 			return err
@@ -456,10 +446,6 @@ func (c *Container) BuildAlternateCoordinator(
 	toolset toolregistry.Toolset,
 	browserCfg toolregistry.BrowserConfig,
 ) (*AlternateCoordinator, error) {
-	if c == nil {
-		return nil, fmt.Errorf("cannot build alternate coordinator from nil container")
-	}
-
 	// Override only the tool-related fields in a copy of the config.
 	altConfig := c.config
 	altConfig.ToolMode = toolMode
