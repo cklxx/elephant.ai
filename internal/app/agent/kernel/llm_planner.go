@@ -567,6 +567,12 @@ func classifyReasonBucket(reason string) string {
 	if text == "" {
 		return ""
 	}
+	// Check audit/validation first: "audit the codebase" contains "code" (a build
+	// keyword) but the dominant intent is audit. Prioritising audit avoids false
+	// routing to build-executor for review/validation tasks.
+	if containsAny(text, "audit", "validate", "verify", "review", "check", "risk") {
+		return "audit"
+	}
 	if containsAny(text, "build", "implement", "fix", "code", "deploy", "release") {
 		return "build"
 	}
@@ -578,9 +584,6 @@ func classifyReasonBucket(reason string) string {
 	}
 	if containsAny(text, "data", "state", "record", "snapshot", "log", "artifact", "file") {
 		return "data"
-	}
-	if containsAny(text, "audit", "validate", "verify", "review", "check", "risk") {
-		return "audit"
 	}
 	return ""
 }
