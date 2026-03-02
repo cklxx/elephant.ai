@@ -25,9 +25,10 @@ const rephraseForegroundSystemPrompt = `把 AI 回答改写为更简洁易读的
 保留所有关键信息和文件路径，去除冗余推理过程和重复陈述。
 不要使用 markdown 格式（如 **加粗**、## 标题、- 列表、` + "`" + `代码` + "`" + `、[链接](url)），输出纯文本。`
 
-// sanitizeErrorForUser strips Go error-chain prefixes and maps known technical
-// error patterns to user-friendly Chinese. Callers must pass the raw error
-// string only — do NOT include UI prefixes like "执行失败：".
+// sanitizeErrorForUser strips Go error-chain prefixes, extracts the LLM
+// provider/model tag when present, and maps known technical error patterns to
+// user-friendly Chinese. Callers must pass the raw error string only — do NOT
+// include UI prefixes like "执行失败：".
 // Used when LLM narration is unavailable (e.g. the LLM itself is failing).
 func sanitizeErrorForUser(errText string) string {
 	if errText == "" {
@@ -56,11 +57,35 @@ func sanitizeErrorForUser(errText string) string {
 		}
 	}
 
-	// Strip LLM provider prefix, e.g. "[anthropic/claude-sonnet-4-6] ".
+	// Extract LLM provider/model tag, e.g. "[anthropic/claude-sonnet-4-6] ".
+	// Keep it so the user can see which model/provider failed.
+	modelTag := ""
 	if strings.HasPrefix(errText, "[") {
 		if idx := strings.Index(errText, "] "); idx >= 0 {
+			modelTag = errText[1:idx] // e.g. "anthropic/claude-sonnet-4-6"
 			errText = errText[idx+2:]
 		}
+	}
+
+	// Strip trailing retry/streaming noise added by retry_client.go.
+	for _, suffix := range []string{
+		" Streaming request failed after",
+		" Retried ",
+	} {
+		if i := strings.Index(errText, suffix); i > 0 {
+			errText = strings.TrimSpace(errText[:i])
+		}
+	}
+
+	// Format a model label for inclusion in Chinese messages, e.g. "(claude-sonnet-4-6)".
+	modelLabel := ""
+	if modelTag != "" {
+		// Use just the model part after the slash when provider is obvious.
+		label := modelTag
+		if i := strings.LastIndex(modelTag, "/"); i >= 0 {
+			label = modelTag[i+1:]
+		}
+		modelLabel = "（" + label + "）"
 	}
 
 	lower := strings.ToLower(errText)
@@ -68,34 +93,38 @@ func sanitizeErrorForUser(errText string) string {
 	case strings.Contains(lower, "authentication failed") ||
 		strings.Contains(lower, "please verify your api key") ||
 		strings.Contains(lower, "unauthorized"):
-		return "AI 服务认证失败，请检查 API 密钥配置"
+		return "AI 服务认证失败" + modelLabel + "，请检查 API 密钥配置"
 	case strings.Contains(lower, "rate limit") ||
 		strings.Contains(lower, "too many requests"):
-		return "AI 服务请求频率超限，请稍后重试"
+		return "AI 服务请求频率超限" + modelLabel + "，请稍后重试"
 	case strings.Contains(lower, "context_length_exceeded") ||
 		strings.Contains(lower, "context window") ||
 		strings.Contains(lower, "maximum context length"):
-		return "输入内容超出 AI 模型上下文长度限制"
+		return "输入内容超出 AI 模型上下文长度限制" + modelLabel
 	case strings.Contains(lower, "model not found") ||
 		strings.Contains(lower, "not_found_error"):
-		return "AI 模型配置错误，请检查模型名称设置"
+		return "AI 模型配置错误" + modelLabel + "，请检查模型名称设置"
 	case strings.Contains(lower, "timeout") ||
 		strings.Contains(lower, "timed out") ||
 		strings.Contains(lower, "deadline exceeded"):
-		return "AI 服务请求超时，请稍后重试"
+		return "AI 服务请求超时" + modelLabel + "，请稍后重试"
 	case strings.Contains(lower, "connection refused") ||
 		strings.Contains(lower, "no such host") ||
 		strings.Contains(lower, "dial tcp"):
-		return "网络连接失败，请检查网络状态后重试"
+		return "网络连接失败" + modelLabel + "，请检查网络状态后重试"
 	case strings.Contains(lower, "service unavailable"):
-		return "AI 服务暂时不可用，请稍后重试"
+		return "AI 服务暂时不可用" + modelLabel + "，请稍后重试"
 	}
 
-	// Unknown error: return cleaned text, capped at a readable length.
-	if len(errText) > 150 {
-		return errText[:150] + "…"
+	// Unknown error: return cleaned text with model tag, capped at readable length.
+	result := errText
+	if modelLabel != "" {
+		result = modelLabel + " " + result
 	}
-	return errText
+	if len(result) > 150 {
+		return result[:150] + "…"
+	}
+	return result
 }
 
 func (g *Gateway) rephraseForUser(ctx context.Context, rawText string, kind rephraseKind) string {
