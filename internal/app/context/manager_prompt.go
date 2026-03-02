@@ -118,7 +118,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 }
 
 func normalizePromptMode(mode string) string {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
+	switch utils.TrimLower(mode) {
 	case promptModeMinimal:
 		return promptModeMinimal
 	case promptModeNone:

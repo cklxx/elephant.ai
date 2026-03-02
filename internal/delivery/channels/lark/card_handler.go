@@ -55,7 +55,7 @@ func (g *Gateway) loadPlanReviewPending(ctx context.Context, session *storage.Se
 func extractPlanReviewMarker(messages []ports.Message) (planReviewMarker, bool) {
 	for i := len(messages) - 1; i >= 0; i-- {
 		msg := messages[i]
-		if strings.ToLower(strings.TrimSpace(msg.Role)) != "system" {
+		if utils.TrimLower(msg.Role) != "system" {
 			continue
 		}
 		if marker, ok := parsePlanReviewMarker(msg.Content); ok {

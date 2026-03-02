@@ -55,7 +55,7 @@ func (g *Gateway) handleModelCommand(msg *incomingMessage) {
 	fields := strings.Fields(trimmed)
 	sub := ""
 	if len(fields) > 1 {
-		sub = strings.ToLower(strings.TrimSpace(fields[1]))
+		sub = utils.TrimLower(fields[1])
 	}
 	chatOnly := hasFlag(fields, "--chat")
 
@@ -308,7 +308,7 @@ func filterUsableCatalogProviders(creds runtimeconfig.CLICredentials, providers 
 	}
 	out := make([]subscription.CatalogProvider, 0, len(providers))
 	for _, provider := range providers {
-		key := strings.ToLower(strings.TrimSpace(provider.Provider))
+		key := utils.TrimLower(provider.Provider)
 		if key == "" {
 			continue
 		}
@@ -328,7 +328,7 @@ func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, s
 	if len(parts) != 2 || utils.IsBlank(parts[0]) || utils.IsBlank(parts[1]) {
 		return fmt.Errorf("format: <provider>/<model>")
 	}
-	provider := strings.ToLower(strings.TrimSpace(parts[0]))
+	provider := utils.TrimLower(parts[0])
 	model := strings.TrimSpace(parts[1])
 
 	creds := g.loadCLICredentials()

@@ -1,6 +1,10 @@
 package memory
 
-import "strings"
+import (
+	"strings"
+
+	"alex/internal/shared/utils"
+)
 
 var reservedUserDirNames = map[string]struct{}{
 	strings.ToLower(dailyDirName):      {},
@@ -10,7 +14,7 @@ var reservedUserDirNames = map[string]struct{}{
 }
 
 func isReservedUserDirName(name string) bool {
-	trimmed := strings.ToLower(strings.TrimSpace(name))
+	trimmed := utils.TrimLower(name)
 	if trimmed == "" {
 		return false
 	}

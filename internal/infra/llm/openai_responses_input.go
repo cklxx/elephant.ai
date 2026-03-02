@@ -26,7 +26,7 @@ func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
 			continue
 		}
-		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		role := utils.TrimLower(msg.Role)
 		switch role {
 		case "system", "developer":
 			if utils.IsBlank(msg.Content) {
@@ -107,7 +107,7 @@ func synthesizeFallbackResponsesInput(msgs []ports.Message, instructions string)
 
 func lastNonEmptyMessageContent(msgs []ports.Message, role string) string {
 	for i := len(msgs) - 1; i >= 0; i-- {
-		msgRole := strings.ToLower(strings.TrimSpace(msgs[i].Role))
+		msgRole := utils.TrimLower(msgs[i].Role)
 		if msgRole != role {
 			continue
 		}

@@ -25,7 +25,7 @@ func newStreamScanner(reader io.Reader) *streamScanner {
 }
 
 func (s *streamScanner) Scan() bool {
-	if s == nil || s.done {
+	if s.done {
 		return false
 	}
 
@@ -50,15 +50,9 @@ func (s *streamScanner) Scan() bool {
 }
 
 func (s *streamScanner) Text() string {
-	if s == nil {
-		return ""
-	}
 	return s.text
 }
 
 func (s *streamScanner) Err() error {
-	if s == nil {
-		return nil
-	}
 	return s.err
 }

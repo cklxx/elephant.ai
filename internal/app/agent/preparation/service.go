@@ -265,7 +265,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if systemPrompt == "" {
 		systemPrompt = DefaultSystemPrompt
 	}
-	promptMode := strings.ToLower(strings.TrimSpace(s.config.Proactive.Prompt.Mode))
+	promptMode := utils.TrimLower(s.config.Proactive.Prompt.Mode)
 	if promptMode != "none" {
 		if toolMode == presets.ToolModeCLI {
 			systemPrompt = strings.TrimSpace(systemPrompt + `

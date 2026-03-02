@@ -21,9 +21,6 @@ type streamLimitWriter struct {
 }
 
 func (w *streamLimitWriter) Unwrap() http.ResponseWriter {
-	if w == nil {
-		return nil
-	}
 	return w.ResponseWriter
 }
 

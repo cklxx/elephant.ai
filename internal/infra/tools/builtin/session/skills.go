@@ -12,6 +12,7 @@ import (
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/skills"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 )
 
 type skillsTool struct {
@@ -58,7 +59,7 @@ Use this to list available skills, search by keyword, or show a specific skill b
 
 func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	action, _ := call.Arguments["action"].(string)
-	action = strings.ToLower(strings.TrimSpace(action))
+	action = utils.TrimLower(action)
 
 	library, err := skills.CachedLibrary(5 * time.Minute)
 	if err != nil {
@@ -192,7 +193,7 @@ func searchSkills(library skills.Library, query string, limit int) []skills.Skil
 	if limit <= 0 {
 		limit = 10
 	}
-	q := strings.ToLower(strings.TrimSpace(query))
+	q := utils.TrimLower(query)
 	if q == "" {
 		return nil
 	}
@@ -244,7 +245,7 @@ func similarSkillNames(library skills.Library, input string, limit int) []string
 	if limit <= 0 {
 		limit = 8
 	}
-	needle := strings.ToLower(strings.TrimSpace(input))
+	needle := utils.TrimLower(input)
 	if needle == "" {
 		return nil
 	}

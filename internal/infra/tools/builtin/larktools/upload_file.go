@@ -286,7 +286,7 @@ func sendUploadedMessage(ctx context.Context, client *lark.Client, callID, chatI
 
 func prepareUploadCandidate(ctx context.Context, callID string, args map[string]any, maxBytes int) (uploadCandidate, *ports.ToolResult) {
 	source := strings.TrimSpace(shared.StringArg(args, "source"))
-	sourceKind := strings.ToLower(strings.TrimSpace(shared.StringArg(args, "source_kind")))
+	sourceKind := utils.TrimLower(shared.StringArg(args, "source_kind"))
 	if source == "" {
 		err := fmt.Errorf("source is required")
 		return uploadCandidate{}, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
@@ -467,7 +467,7 @@ func fileTypeForName(fileName string) string {
 }
 
 func larkFileType(ext string) string {
-	lower := strings.ToLower(strings.TrimSpace(ext))
+	lower := utils.TrimLower(ext)
 	lower = strings.TrimPrefix(lower, ".")
 	if larkSupportedFileTypes[lower] {
 		return lower

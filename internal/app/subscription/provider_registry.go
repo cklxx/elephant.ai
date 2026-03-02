@@ -176,7 +176,7 @@ func ListProviderPresets() []ProviderPreset {
 
 // LookupProviderPreset returns a provider preset by provider id.
 func LookupProviderPreset(provider string) (ProviderPreset, bool) {
-	key := strings.ToLower(strings.TrimSpace(provider))
+	key := utils.TrimLower(provider)
 	preset, ok := providerPresets[key]
 	if !ok {
 		return ProviderPreset{}, false
@@ -188,7 +188,7 @@ func applyCatalogProviderPreset(provider *CatalogProvider) {
 	if provider == nil {
 		return
 	}
-	key := strings.ToLower(strings.TrimSpace(provider.Provider))
+	key := utils.TrimLower(provider.Provider)
 	preset, ok := providerPresets[key]
 	if !ok {
 		provider.DisplayName = provider.Provider

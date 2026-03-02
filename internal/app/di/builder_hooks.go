@@ -409,7 +409,7 @@ func (b *containerBuilder) buildKernelSelectionResolver() kernelagent.SelectionR
 	})
 
 	return func(ctx context.Context, channel, chatID, userID string) (subscription.ResolvedSelection, bool) {
-		channel = strings.ToLower(strings.TrimSpace(channel))
+		channel = utils.TrimLower(channel)
 		chatID = strings.TrimSpace(chatID)
 		userID = strings.TrimSpace(userID)
 		if channel == "" {

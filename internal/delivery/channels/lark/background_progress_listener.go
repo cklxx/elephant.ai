@@ -13,9 +13,9 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	ports "alex/internal/domain/agent/ports"
 	"alex/internal/domain/agent/types"
+	"alex/internal/shared/utils"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
-	"alex/internal/shared/utils"
 )
 
 const (
@@ -73,9 +73,6 @@ type bgTaskTracker struct {
 }
 
 func (t *bgTaskTracker) stop() {
-	if t == nil {
-		return
-	}
 	select {
 	case <-t.doneCh:
 		return
@@ -757,7 +754,7 @@ func minDuration(a, b time.Duration) time.Duration {
 }
 
 func isCodeAgentType(agentType string) bool {
-	switch strings.ToLower(strings.TrimSpace(agentType)) {
+	switch utils.TrimLower(agentType) {
 	case "codex", "claude_code":
 		return true
 	default:

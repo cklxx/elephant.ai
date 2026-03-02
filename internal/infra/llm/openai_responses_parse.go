@@ -14,10 +14,10 @@ func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall, por
 	var thinking ports.Thinking
 
 	for _, item := range resp.Output {
-		switch strings.ToLower(strings.TrimSpace(item.Type)) {
+		switch utils.TrimLower(item.Type) {
 		case "message":
 			for _, part := range item.Content {
-				kind := strings.ToLower(strings.TrimSpace(part.Type))
+				kind := utils.TrimLower(part.Type)
 				switch kind {
 				case "output_text", "text":
 					if text := responseContentText(part); text != "" {
@@ -36,7 +36,7 @@ func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall, por
 				})
 			}
 		case "reasoning", "thinking":
-			kind := strings.ToLower(strings.TrimSpace(item.Type))
+			kind := utils.TrimLower(item.Type)
 			appendThinkingFromResponseContents(&thinking, kind, item.Content)
 			appendThinkingFromResponseContents(&thinking, kind, item.Summary)
 		case "tool_call", "function_call":

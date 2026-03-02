@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"alex/internal/domain/agent/ports"
 	larkapi "alex/internal/infra/lark"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 )
 
 // larkBitableManage handles bitable table/record operations via the unified channel tool.
@@ -21,7 +21,7 @@ func (t *larkBitableManage) Execute(ctx context.Context, call ports.ToolCall) (*
 	}
 	client := larkapi.Wrap(sdkClient)
 
-	action := strings.ToLower(strings.TrimSpace(shared.StringArg(call.Arguments, "action")))
+	action := utils.TrimLower(shared.StringArg(call.Arguments, "action"))
 	switch action {
 	case "list_tables":
 		return t.listTables(ctx, client, call)

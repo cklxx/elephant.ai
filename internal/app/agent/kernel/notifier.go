@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	kerneldomain "alex/internal/domain/kernel"
+	"alex/internal/shared/utils"
 )
 
 // CycleNotifier is called after each non-empty kernel cycle.
@@ -161,7 +162,7 @@ func summarizeAutonomySignals(result *kerneldomain.CycleResult) autonomySignalSu
 				signals.AutoRecovered++
 			}
 		case kerneldomain.DispatchFailed:
-			lowerErr := strings.ToLower(strings.TrimSpace(entry.Error))
+			lowerErr := utils.TrimLower(entry.Error)
 			if strings.Contains(lowerErr, strings.ToLower(errKernelAwaitingUserConfirmation.Error())) {
 				signals.BlockedAwaitingInput++
 			}

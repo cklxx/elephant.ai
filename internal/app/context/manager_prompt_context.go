@@ -6,6 +6,7 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 )
 
 const defaultPersonaVoice = "You are ALEX, an enterprise-grade assistant focused on secure, testable software delivery."
@@ -255,7 +256,7 @@ func buildWorkspaceFilesSection(records []bootstrapRecord) string {
 }
 
 func buildSandboxSection(toolMode string, omitEnvironment bool) string {
-	mode := strings.ToLower(strings.TrimSpace(toolMode))
+	mode := utils.TrimLower(toolMode)
 	status := "enabled"
 	if omitEnvironment || mode == "web" {
 		status = "channel-managed/non-local"
@@ -304,7 +305,7 @@ func buildReasoningSection() string {
 }
 
 func buildChannelFormattingSection(channel string) string {
-	if strings.ToLower(strings.TrimSpace(channel)) != "lark" {
+	if utils.TrimLower(channel) != "lark" {
 		return ""
 	}
 	return formatSection("# Reply Formatting (Lark Channel)", []string{

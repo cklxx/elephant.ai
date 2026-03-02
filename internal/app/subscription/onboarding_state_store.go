@@ -37,10 +37,10 @@ type OnboardingState struct {
 // NormalizeOnboardingState returns a normalized onboarding state value.
 func NormalizeOnboardingState(state OnboardingState) OnboardingState {
 	state.CompletedAt = strings.TrimSpace(state.CompletedAt)
-	state.SelectedProvider = strings.ToLower(strings.TrimSpace(state.SelectedProvider))
+	state.SelectedProvider = utils.TrimLower(state.SelectedProvider)
 	state.SelectedModel = strings.TrimSpace(state.SelectedModel)
-	state.SelectedRuntimeMode = strings.ToLower(strings.TrimSpace(state.SelectedRuntimeMode))
-	state.PersistenceMode = strings.ToLower(strings.TrimSpace(state.PersistenceMode))
+	state.SelectedRuntimeMode = utils.TrimLower(state.SelectedRuntimeMode)
+	state.PersistenceMode = utils.TrimLower(state.PersistenceMode)
 	state.UsedSource = strings.TrimSpace(state.UsedSource)
 	return state
 }

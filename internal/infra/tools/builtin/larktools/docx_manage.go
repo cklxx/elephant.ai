@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"alex/internal/domain/agent/ports"
 	larkapi "alex/internal/infra/lark"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 )
 
 // larkDocxManage handles document CRUD via the unified channel tool.
@@ -21,7 +21,7 @@ func (t *larkDocxManage) Execute(ctx context.Context, call ports.ToolCall) (*por
 	}
 	client := larkapi.Wrap(sdkClient)
 
-	action := strings.ToLower(strings.TrimSpace(shared.StringArg(call.Arguments, "action")))
+	action := utils.TrimLower(shared.StringArg(call.Arguments, "action"))
 	switch action {
 	case "create":
 		return t.createDoc(ctx, client, call)

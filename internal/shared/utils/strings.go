@@ -2,6 +2,9 @@ package utils
 
 import "strings"
 
+// TrimLower trims whitespace and lowercases s. Use for case-insensitive normalization.
+func TrimLower(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+
 // IsBlank returns true when s is empty or contains only whitespace.
 func IsBlank(s string) bool { return strings.TrimSpace(s) == "" }
 

@@ -78,9 +78,6 @@ func NewService(cfg ServiceConfig, tokens TokenStore, states StateStore) (*Servi
 }
 
 func (s *Service) StartURL() string {
-	if s == nil {
-		return ""
-	}
 	if s.cfg.RedirectBase == "" {
 		return ""
 	}
@@ -88,7 +85,7 @@ func (s *Service) StartURL() string {
 }
 
 func (s *Service) callbackURL() string {
-	if s == nil || s.cfg.RedirectBase == "" {
+	if s.cfg.RedirectBase == "" {
 		return ""
 	}
 	return s.cfg.RedirectBase + "/api/lark/oauth/callback"
@@ -96,9 +93,6 @@ func (s *Service) callbackURL() string {
 
 // AuthorizeURL returns the Lark OAuth authorization page URL for the given state.
 func (s *Service) AuthorizeURL(state string) (string, error) {
-	if s == nil {
-		return "", fmt.Errorf("service nil")
-	}
 	cb := s.callbackURL()
 	if cb == "" {
 		return "", fmt.Errorf("callback url not configured")
@@ -127,9 +121,6 @@ func (s *Service) AuthorizeURL(state string) (string, error) {
 
 // StartAuth creates a short-lived state and returns the Lark authorization URL.
 func (s *Service) StartAuth(ctx context.Context) (string, string, error) {
-	if s == nil {
-		return "", "", fmt.Errorf("service nil")
-	}
 	state, err := randomState(s.stateBytes)
 	if err != nil {
 		return "", "", err
@@ -146,9 +137,6 @@ func (s *Service) StartAuth(ctx context.Context) (string, string, error) {
 
 // HandleCallback consumes state, exchanges code for tokens and stores them.
 func (s *Service) HandleCallback(ctx context.Context, code, state string) (Token, error) {
-	if s == nil {
-		return Token{}, fmt.Errorf("service nil")
-	}
 	code = strings.TrimSpace(code)
 	state = strings.TrimSpace(state)
 	if code == "" {
@@ -204,9 +192,6 @@ func (s *Service) HandleCallback(ctx context.Context, code, state string) (Token
 // UserAccessToken returns a valid user_access_token for the provided open_id.
 // If none exists, returns *NeedUserAuthError containing the OAuth start URL.
 func (s *Service) UserAccessToken(ctx context.Context, openID string) (string, error) {
-	if s == nil {
-		return "", fmt.Errorf("service nil")
-	}
 	openID = strings.TrimSpace(openID)
 	if openID == "" {
 		return "", fmt.Errorf("open_id required")

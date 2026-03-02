@@ -363,7 +363,7 @@ func TestEstimateCostUnknownModel(t *testing.T) {
 	}
 	// Fallback via storage.GetModelPricing: {InputPer1K: 0.001, OutputPer1K: 0.002}
 	// 1000/1000*0.001 + 500/1000*0.002 = 0.001 + 0.001 = 0.002
-	expected := 1000.0/1000.0*0.001 + 500.0/1000.0*0.002
+	expected := 1.0*0.001 + 0.5*0.002
 	if math.Abs(cost-expected) > 1e-9 {
 		t.Errorf("cost = %f, want %f", cost, expected)
 	}

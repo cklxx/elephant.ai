@@ -13,6 +13,7 @@ import (
 	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/infra/analytics/journal"
 	sessionstate "alex/internal/infra/session/state_store"
+	"alex/internal/shared/utils"
 )
 
 func (m *manager) Preload(ctx context.Context) error {
@@ -242,12 +243,6 @@ func convertRecordToJournal(record agent.ContextTurnRecord) journal.TurnJournalE
 const historyTimelineLimit = 8
 const historyTimelineSummaryChars = 50
 
-// Shared prefix aliases from ports.
-const (
-	historyCompressionSummaryPrefix  = ports.CompressionSummaryPrefix
-	historyTrimNoticeSummaryPrefix   = ports.TrimNoticeSummaryPrefix
-	historyArtifactPlaceholderPrefix = ports.ArtifactPlaceholderPrefix
-)
 
 func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) agent.MetaContext {
 	meta := agent.MetaContext{PersonaVersion: personaVersion}
@@ -263,7 +258,7 @@ func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) age
 		if isContextCompressionSummary(msg) {
 			continue
 		}
-		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		role := utils.TrimLower(msg.Role)
 		switch role {
 		case "user":
 			if snippet := buildCompressionSnippet(msg.Content, historyTimelineSummaryChars); snippet != "" {
@@ -388,7 +383,7 @@ func shouldSkipHistoryTimelineMessage(msg ports.Message) bool {
 	case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceCheckpoint:
 		return true
 	}
-	role := strings.ToLower(strings.TrimSpace(msg.Role))
+	role := utils.TrimLower(msg.Role)
 	return role == "system" || role == "developer"
 }
 
@@ -408,7 +403,7 @@ func normalizeHistoryLabel(msg ports.Message) string {
 		}
 		return "tool"
 	}
-	role := strings.ToLower(strings.TrimSpace(msg.Role))
+	role := utils.TrimLower(msg.Role)
 	if role == "" {
 		return "message"
 	}

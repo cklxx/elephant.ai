@@ -3,11 +3,13 @@ package lark
 import (
 	"fmt"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 // isNoticeCommand checks whether the message is a /notice command.
 func (g *Gateway) isNoticeCommand(trimmed string) bool {
-	lower := strings.ToLower(strings.TrimSpace(trimmed))
+	lower := utils.TrimLower(trimmed)
 	return lower == "/notice" || strings.HasPrefix(lower, "/notice ")
 }
 
@@ -21,7 +23,7 @@ func (g *Gateway) handleNoticeCommand(msg *incomingMessage) {
 	fields := strings.Fields(strings.TrimSpace(msg.content))
 	sub := ""
 	if len(fields) > 1 {
-		sub = strings.ToLower(strings.TrimSpace(fields[1]))
+		sub = utils.TrimLower(fields[1])
 	}
 
 	var reply string

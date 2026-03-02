@@ -13,6 +13,7 @@ import (
 	serverApp "alex/internal/delivery/server/app"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 func startTelegramGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) (func(), error) {
@@ -121,7 +122,7 @@ func startTelegramGateway(ctx context.Context, cfg Config, container *di.Contain
 		if err := taskStore.MarkStaleRunning(ctx, "gateway restart"); err != nil {
 			logger.Warn("Telegram task store stale cleanup failed: %v", err)
 		}
-		logger.Info("Telegram task store enabled (mode=%s)", strings.ToLower(strings.TrimSpace(gatewayCfg.PersistenceMode)))
+		logger.Info("Telegram task store enabled (mode=%s)", utils.TrimLower(gatewayCfg.PersistenceMode))
 	}
 
 	async.Go(logger, "telegram.gateway", func() {
@@ -141,7 +142,7 @@ func startTelegramGateway(ctx context.Context, cfg Config, container *di.Contain
 }
 
 func buildTelegramPlanReviewStore(ctx context.Context, cfg telegram.Config) (telegram.PlanReviewStore, error) {
-	mode := strings.ToLower(strings.TrimSpace(cfg.PersistenceMode))
+	mode := utils.TrimLower(cfg.PersistenceMode)
 	switch mode {
 	case telegramPersistenceModeMemory:
 		store := telegram.NewPlanReviewMemoryStore(cfg.PlanReviewPendingTTL)
@@ -164,7 +165,7 @@ func buildTelegramPlanReviewStore(ctx context.Context, cfg telegram.Config) (tel
 }
 
 func buildTelegramTaskStore(ctx context.Context, cfg telegram.Config) (telegram.TaskStore, error) {
-	mode := strings.ToLower(strings.TrimSpace(cfg.PersistenceMode))
+	mode := utils.TrimLower(cfg.PersistenceMode)
 	switch mode {
 	case telegramPersistenceModeMemory:
 		store := telegram.NewTaskMemoryStore(cfg.PersistenceRetention, cfg.PersistenceMaxTasksPerChat)

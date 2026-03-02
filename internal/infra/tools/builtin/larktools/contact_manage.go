@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"alex/internal/domain/agent/ports"
 	larkapi "alex/internal/infra/lark"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -22,7 +22,7 @@ func (t *larkContactManage) Execute(ctx context.Context, call ports.ToolCall) (*
 	}
 	client := larkapi.Wrap(sdkClient)
 
-	action := strings.ToLower(strings.TrimSpace(shared.StringArg(call.Arguments, "action")))
+	action := utils.TrimLower(shared.StringArg(call.Arguments, "action"))
 	switch action {
 	case "get_user":
 		return t.getUser(ctx, client, call)

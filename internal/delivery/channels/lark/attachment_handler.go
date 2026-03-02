@@ -13,6 +13,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	toolports "alex/internal/domain/agent/ports/tools"
 	builtinshared "alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 )
 
 func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string, result *agent.TaskResult) {
@@ -84,12 +85,12 @@ func allowExtension(ext string, allowlist []string) bool {
 	if len(allowlist) == 0 {
 		return true
 	}
-	ext = strings.ToLower(strings.TrimSpace(ext))
+	ext = utils.TrimLower(ext)
 	if ext == "" {
 		return false
 	}
 	for _, item := range allowlist {
-		if strings.ToLower(strings.TrimSpace(item)) == ext {
+		if utils.TrimLower(item) == ext {
 			return true
 		}
 	}
@@ -176,17 +177,17 @@ func sortedAttachmentNames(attachments map[string]ports.Attachment) []string {
 }
 
 func isA2UIAttachment(att ports.Attachment) bool {
-	media := strings.ToLower(strings.TrimSpace(att.MediaType))
-	format := strings.ToLower(strings.TrimSpace(att.Format))
-	profile := strings.ToLower(strings.TrimSpace(att.PreviewProfile))
+	media := utils.TrimLower(att.MediaType)
+	format := utils.TrimLower(att.Format)
+	profile := utils.TrimLower(att.PreviewProfile)
 	return strings.Contains(media, "a2ui") || format == "a2ui" || strings.Contains(profile, "a2ui")
 }
 
 func isImageAttachment(att ports.Attachment, mediaType, name string) bool {
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(mediaType)), "image/") {
+	if strings.HasPrefix(utils.TrimLower(mediaType), "image/") {
 		return true
 	}
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.MediaType)), "image/") {
+	if strings.HasPrefix(utils.TrimLower(att.MediaType), "image/") {
 		return true
 	}
 
@@ -234,7 +235,7 @@ var larkSupportedFileTypes = map[string]bool{
 
 // larkFileType maps a raw file extension to a Lark-compatible file_type value.
 func larkFileType(ext string) string {
-	lower := strings.ToLower(strings.TrimSpace(ext))
+	lower := utils.TrimLower(ext)
 	if larkSupportedFileTypes[lower] {
 		return lower
 	}

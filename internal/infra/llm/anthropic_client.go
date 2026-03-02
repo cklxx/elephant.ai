@@ -225,7 +225,7 @@ func (c *anthropicClient) convertMessages(msgs []ports.Message) ([]anthropicMess
 			continue
 		}
 
-		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		role := utils.TrimLower(msg.Role)
 		if role == "" {
 			continue
 		}
@@ -494,7 +494,7 @@ func parseAnthropicContent(blocks []anthropicContentBlock) (string, []ports.Tool
 	var thinking ports.Thinking
 
 	for _, block := range blocks {
-		switch strings.ToLower(strings.TrimSpace(block.Type)) {
+		switch utils.TrimLower(block.Type) {
 		case "text":
 			contentBuilder.WriteString(block.Text)
 		case "tool_use":
@@ -509,7 +509,7 @@ func parseAnthropicContent(blocks []anthropicContentBlock) (string, []ports.Tool
 				text = block.Text
 			}
 			appendThinkingPart(&thinking, ports.ThinkingPart{
-				Kind:      strings.ToLower(strings.TrimSpace(block.Type)),
+				Kind:      utils.TrimLower(block.Type),
 				Text:      text,
 				Signature: block.Signature,
 			})

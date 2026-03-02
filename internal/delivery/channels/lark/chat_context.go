@@ -7,6 +7,8 @@ import (
 	"time"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+
+	"alex/internal/shared/utils"
 )
 
 type chatMessageLine struct {
@@ -98,10 +100,10 @@ func mapChatMessagesChronological(items []*larkim.Message, excludeMessageID stri
 		if excludeMessageID != "" && strings.TrimSpace(deref(msg.MessageId)) == strings.TrimSpace(excludeMessageID) {
 			continue
 		}
-		msgType := strings.ToLower(strings.TrimSpace(deref(msg.MsgType)))
+		msgType := utils.TrimLower(deref(msg.MsgType))
 		senderType := ""
 		if msg.Sender != nil {
-			senderType = strings.ToLower(strings.TrimSpace(deref(msg.Sender.SenderType)))
+			senderType = utils.TrimLower(deref(msg.Sender.SenderType))
 		}
 		lines = append(lines, chatMessageLine{
 			Timestamp:  formatChatTimestamp(deref(msg.CreateTime)),
@@ -156,13 +158,13 @@ func formatChatMessageLines(lines []chatMessageLine) string {
 }
 
 func normalizeChatRole(senderType string) string {
-	switch strings.ToLower(strings.TrimSpace(senderType)) {
+	switch utils.TrimLower(senderType) {
 	case "user":
 		return "user"
 	case "app":
 		return "assistant"
 	default:
-		trimmed := strings.ToLower(strings.TrimSpace(senderType))
+		trimmed := utils.TrimLower(senderType)
 		if trimmed == "" {
 			return "message"
 		}

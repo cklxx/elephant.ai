@@ -279,7 +279,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 }
 
 func extractResponsesReasoningDelta(eventType, rawEvent string) string {
-	kind := strings.ToLower(strings.TrimSpace(eventType))
+	kind := utils.TrimLower(eventType)
 	if kind == "" || (!strings.Contains(kind, "reasoning") && !strings.Contains(kind, "thinking")) {
 		return ""
 	}

@@ -9,6 +9,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/utils"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
@@ -246,9 +247,9 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 }
 
 func isKimiTarget(provider, model, baseURL string) bool {
-	provider = strings.ToLower(strings.TrimSpace(provider))
-	model = strings.ToLower(strings.TrimSpace(model))
-	baseURL = strings.ToLower(strings.TrimSpace(baseURL))
+	provider = utils.TrimLower(provider)
+	model = utils.TrimLower(model)
+	baseURL = utils.TrimLower(baseURL)
 
 	if provider == "kimi" {
 		return true

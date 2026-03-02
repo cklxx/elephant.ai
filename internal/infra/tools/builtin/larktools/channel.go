@@ -3,11 +3,11 @@ package larktools
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 )
 
 // actionSafetyLevel returns the appropriate safety level for each action.
@@ -383,7 +383,7 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	if errResult != nil {
 		return errResult, nil
 	}
-	action = strings.ToLower(strings.TrimSpace(action))
+	action = utils.TrimLower(action)
 
 	// Per-action approval: check safety level and request approval for
 	// dangerous actions. Read-only actions skip approval entirely.

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/utils"
 )
 
 type Selection struct {
@@ -37,7 +38,7 @@ func NewSelectionResolver(loadCreds func() runtimeconfig.CLICredentials) *Select
 }
 
 func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, bool) {
-	if strings.ToLower(strings.TrimSpace(selection.Mode)) != "cli" {
+	if utils.TrimLower(selection.Mode) != "cli" {
 		return ResolvedSelection{}, false
 	}
 	provider := strings.TrimSpace(strings.ToLower(selection.Provider))

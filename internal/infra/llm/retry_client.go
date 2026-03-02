@@ -468,7 +468,7 @@ func (c *retryClient) logFailureRequestEntry(
 		return
 	}
 	utils.LogStreamingErrorPayload(requestID, utils.LLMErrorLogDetails{
-		Mode:       strings.ToLower(strings.TrimSpace(mode)),
+		Mode:       utils.TrimLower(mode),
 		Provider:   provider,
 		Model:      model,
 		Intent:     sanitizeLogValue(intent, 128),

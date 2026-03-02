@@ -83,7 +83,7 @@ func appendThinkingText(thinking *ports.Thinking, kind, text string) {
 
 // isArkEndpoint returns true if the base URL points to a ByteDance ARK endpoint.
 func isArkEndpoint(baseURL string) bool {
-	return strings.Contains(strings.ToLower(strings.TrimSpace(baseURL)), "ark")
+	return strings.Contains(utils.TrimLower(baseURL), "ark")
 }
 
 // shouldSendArkReasoning returns true when thinking is enabled and the endpoint
@@ -98,7 +98,7 @@ func shouldSendOpenAIReasoning(baseURL, model string, cfg ports.ThinkingConfig) 
 	if !cfg.Enabled {
 		return false
 	}
-	lowerBase := strings.ToLower(strings.TrimSpace(baseURL))
+	lowerBase := utils.TrimLower(baseURL)
 	if lowerBase == "" {
 		return false
 	}
@@ -108,7 +108,7 @@ func shouldSendOpenAIReasoning(baseURL, model string, cfg ports.ThinkingConfig) 
 	if !(strings.Contains(lowerBase, "openai") || strings.Contains(lowerBase, "openrouter.ai") || strings.Contains(lowerBase, "api.deepseek.com")) {
 		return false
 	}
-	modelLower := strings.ToLower(strings.TrimSpace(model))
+	modelLower := utils.TrimLower(model)
 	if modelLower == "" {
 		return false
 	}
@@ -174,7 +174,7 @@ func shouldSendAnthropicThinking(model string, cfg ports.ThinkingConfig) bool {
 	if !cfg.Enabled {
 		return false
 	}
-	lower := strings.ToLower(strings.TrimSpace(model))
+	lower := utils.TrimLower(model)
 	if lower == "" {
 		return false
 	}

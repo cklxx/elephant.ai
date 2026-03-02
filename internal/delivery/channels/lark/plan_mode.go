@@ -42,7 +42,7 @@ func (g *Gateway) handlePlanModeCommand(msg *incomingMessage) {
 	fields := strings.Fields(trimmed)
 	sub := ""
 	if len(fields) > 1 {
-		sub = strings.ToLower(strings.TrimSpace(fields[1]))
+		sub = utils.TrimLower(fields[1])
 	}
 	isGlobal := hasFlag(fields, "--global")
 

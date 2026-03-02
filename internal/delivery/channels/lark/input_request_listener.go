@@ -11,6 +11,7 @@ import (
 	agentports "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 // inputRequestListener bridges external agent input requests to Lark text-based interaction.
@@ -346,6 +347,6 @@ func buildInputResponse(relay *pendingInputRelay, content string) agentports.Inp
 
 // isSkipReply checks if the input is a skip/pass command.
 func isSkipReply(input string) bool {
-	trimmed := strings.ToLower(strings.TrimSpace(input))
+	trimmed := utils.TrimLower(input)
 	return trimmed == "skip" || trimmed == "跳过" || trimmed == "pass"
 }

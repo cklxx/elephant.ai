@@ -10,6 +10,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 // planClarifyListener sends plan/clarify tool outputs to Lark as text messages.
@@ -114,7 +115,7 @@ func (p *planClarifyListener) extractMessage(event agent.AgentEvent) (planClarif
 }
 
 func planClarifyMessageFromEvent(e *domain.Event) planClarifyPayload {
-	name := strings.ToLower(strings.TrimSpace(e.Data.ToolName))
+	name := utils.TrimLower(e.Data.ToolName)
 	switch name {
 	case "plan":
 		if msg := stringMeta(e.Data.Metadata, "overall_goal_ui"); msg != "" {
@@ -148,7 +149,7 @@ func planClarifyMessageFromEnvelope(e *domain.WorkflowEventEnvelope) planClarify
 	if envelopeHasError(e) {
 		return planClarifyPayload{}
 	}
-	name := strings.ToLower(strings.TrimSpace(envelopeToolName(e)))
+	name := utils.TrimLower(envelopeToolName(e))
 	metadata, _ := e.Payload["metadata"].(map[string]any)
 	result, _ := e.Payload["result"].(string)
 	switch name {

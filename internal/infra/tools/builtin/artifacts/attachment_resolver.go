@@ -18,6 +18,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/shared/utils"
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/httpclient"
 	"alex/internal/infra/tools/builtin/pathutil"
@@ -166,7 +167,7 @@ func resolveAttachmentURI(att ports.Attachment) string {
 		if cdn == "" {
 			continue
 		}
-		mimeType := strings.ToLower(strings.TrimSpace(asset.MimeType))
+		mimeType := utils.TrimLower(asset.MimeType)
 		if strings.HasPrefix(mimeType, "image/") {
 			return cdn
 		}
@@ -296,7 +297,7 @@ func readLocalAttachment(uri string, fallbackMediaType string) ([]byte, string, 
 }
 
 func decodeInlinePayload(payload string, mediaType string) ([]byte, string, error) {
-	lower := strings.ToLower(strings.TrimSpace(payload))
+	lower := utils.TrimLower(payload)
 	if strings.HasPrefix(lower, "data:") {
 		decoded, mimeType, err := decodeDataURI(payload)
 		if err != nil {

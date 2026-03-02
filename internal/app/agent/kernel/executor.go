@@ -479,7 +479,7 @@ func answerContainsUserConfirmationPrompt(answer string) bool {
 }
 
 func isOrchestrationTool(name string) bool {
-	switch strings.ToLower(strings.TrimSpace(name)) {
+	switch utils.TrimLower(name) {
 	case "plan", "ask_user", "todo_read", "todo_update", "attention", "context_checkpoint":
 		return true
 	default:

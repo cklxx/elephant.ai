@@ -64,7 +64,7 @@ func (l *finalAnswerReviewReactionListener) maybeReact(event agent.AgentEvent) {
 	if strings.TrimSpace(env.Event) != types.EventToolStarted {
 		return
 	}
-	if strings.ToLower(strings.TrimSpace(envelopeToolName(env))) != "final_answer_review" {
+	if utils.TrimLower(envelopeToolName(env)) != "final_answer_review" {
 		return
 	}
 

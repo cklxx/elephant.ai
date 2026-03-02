@@ -270,7 +270,7 @@ func parseTaskAnalysis(raw string) *agent.TaskAnalysis {
 }
 
 func normalizeComplexity(value string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
+	switch utils.TrimLower(value) {
 	case "simple", "easy":
 		return "simple"
 	case "complex", "hard":

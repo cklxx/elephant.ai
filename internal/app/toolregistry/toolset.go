@@ -1,8 +1,9 @@
 package toolregistry
 
 import (
-	"strings"
 	"time"
+
+	"alex/internal/shared/utils"
 )
 
 // Toolset controls which builtin tool implementations are registered.
@@ -15,7 +16,7 @@ const (
 
 // NormalizeToolset coerces a raw string into a supported toolset.
 func NormalizeToolset(value string) Toolset {
-	switch strings.ToLower(strings.TrimSpace(value)) {
+	switch utils.TrimLower(value) {
 	case string(ToolsetLarkLocal), "local":
 		return ToolsetLarkLocal
 	default:

@@ -11,9 +11,6 @@ type responseRecorder struct {
 // Unwrap exposes the underlying ResponseWriter so downstream handlers
 // can recover original capabilities like http.Flusher.
 func (r *responseRecorder) Unwrap() http.ResponseWriter {
-	if r == nil {
-		return nil
-	}
 	return r.ResponseWriter
 }
 
@@ -23,9 +20,6 @@ type responseRecorderFlusher struct {
 }
 
 func (r *responseRecorderFlusher) Unwrap() http.ResponseWriter {
-	if r == nil {
-		return nil
-	}
 	return r.ResponseWriter
 }
 
@@ -35,9 +29,6 @@ type responseRecorderHijacker struct {
 }
 
 func (r *responseRecorderHijacker) Unwrap() http.ResponseWriter {
-	if r == nil {
-		return nil
-	}
 	return r.ResponseWriter
 }
 
@@ -47,9 +38,6 @@ type responseRecorderPusher struct {
 }
 
 func (r *responseRecorderPusher) Unwrap() http.ResponseWriter {
-	if r == nil {
-		return nil
-	}
 	return r.ResponseWriter
 }
 

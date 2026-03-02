@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"alex/internal/domain/agent/ports"
 	larkapi "alex/internal/infra/lark"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 )
 
 // larkSheetsManage handles spreadsheet operations via the unified channel tool.
@@ -21,7 +21,7 @@ func (t *larkSheetsManage) Execute(ctx context.Context, call ports.ToolCall) (*p
 	}
 	client := larkapi.Wrap(sdkClient)
 
-	action := strings.ToLower(strings.TrimSpace(shared.StringArg(call.Arguments, "action")))
+	action := utils.TrimLower(shared.StringArg(call.Arguments, "action"))
 	switch action {
 	case "create":
 		return t.createSpreadsheet(ctx, client, call)

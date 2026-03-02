@@ -13,6 +13,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 )
 
 type attachmentSpec struct {
@@ -167,9 +168,9 @@ func allowExtension(ext string, allowlist []string) bool {
 	if len(allowlist) == 0 {
 		return true
 	}
-	ext = strings.ToLower(strings.TrimSpace(ext))
+	ext = utils.TrimLower(ext)
 	for _, item := range allowlist {
-		if strings.ToLower(strings.TrimSpace(item)) == ext {
+		if utils.TrimLower(item) == ext {
 			return true
 		}
 	}

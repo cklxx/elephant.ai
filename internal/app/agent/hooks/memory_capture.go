@@ -432,7 +432,7 @@ func splitPromptSegments(input string) []string {
 }
 
 func containsHabitKeyword(segment string) bool {
-	lower := strings.ToLower(strings.TrimSpace(segment))
+	lower := utils.TrimLower(segment)
 	if lower == "" {
 		return false
 	}

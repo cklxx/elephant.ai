@@ -13,6 +13,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	builtinshared "alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
@@ -723,7 +724,7 @@ func (g *Gateway) reprocessMessage(chatID, chatType string, input agent.UserInpu
 
 	g.logger.Info("Reprocessing drained message for chat %s (msg_id=%s)", chatID, msgID)
 
-	chatType = strings.ToLower(strings.TrimSpace(chatType))
+	chatType = utils.TrimLower(chatType)
 	if chatType == "" {
 		chatType = "p2p"
 	}

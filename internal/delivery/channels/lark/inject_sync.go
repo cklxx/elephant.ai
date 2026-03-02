@@ -376,18 +376,12 @@ type injectCaptureSession struct {
 }
 
 func (s *injectCaptureSession) disable() {
-	if s == nil {
-		return
-	}
 	s.mu.Lock()
 	s.stopped = true
 	s.mu.Unlock()
 }
 
 func (s *injectCaptureSession) captured() []MessengerCall {
-	if s == nil {
-		return nil
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]MessengerCall, len(s.calls))
@@ -396,9 +390,6 @@ func (s *injectCaptureSession) captured() []MessengerCall {
 }
 
 func (s *injectCaptureSession) record(call MessengerCall) {
-	if s == nil {
-		return
-	}
 	s.mu.Lock()
 	if !s.stopped {
 		s.calls = append(s.calls, call)
@@ -412,21 +403,21 @@ type injectCaptureHandle struct {
 }
 
 func (h *injectCaptureHandle) disable() {
-	if h == nil || h.hub == nil || h.id == 0 {
+	if h.hub == nil || h.id == 0 {
 		return
 	}
 	h.hub.disable(h.id)
 }
 
 func (h *injectCaptureHandle) captured() []MessengerCall {
-	if h == nil || h.hub == nil || h.id == 0 {
+	if h.hub == nil || h.id == 0 {
 		return nil
 	}
 	return h.hub.captured(h.id)
 }
 
 func (h *injectCaptureHandle) close() {
-	if h == nil || h.hub == nil || h.id == 0 {
+	if h.hub == nil || h.id == 0 {
 		return
 	}
 	h.hub.close(h.id)
@@ -461,7 +452,7 @@ type injectChatHistory struct {
 }
 
 func (h *injectChatHistory) upsertLocked(msg *larkim.Message) {
-	if h == nil || msg == nil {
+	if msg == nil {
 		return
 	}
 	msgID := strings.TrimSpace(deref(msg.MessageId))
@@ -479,9 +470,6 @@ func (h *injectChatHistory) upsertLocked(msg *larkim.Message) {
 }
 
 func (h *injectChatHistory) updateLocked(messageID, msgType, content string, ts time.Time) bool {
-	if h == nil {
-		return false
-	}
 	idx, ok := h.index[strings.TrimSpace(messageID)]
 	if !ok || idx < 0 || idx >= len(h.messages) {
 		return false
@@ -503,9 +491,6 @@ func (h *injectChatHistory) updateLocked(messageID, msgType, content string, ts 
 }
 
 func (h *injectChatHistory) rebuildIndexLocked() {
-	if h == nil {
-		return
-	}
 	idx := make(map[string]int, len(h.messages))
 	for i, msg := range h.messages {
 		if msg == nil {

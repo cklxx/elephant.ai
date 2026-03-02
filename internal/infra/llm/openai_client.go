@@ -515,7 +515,7 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
 			continue
 		}
-		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		role := utils.TrimLower(msg.Role)
 		if role == "tool" {
 			callID := strings.TrimSpace(msg.ToolCallID)
 			if callID == "" {

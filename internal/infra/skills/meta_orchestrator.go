@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"alex/internal/shared/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -308,27 +309,27 @@ func chooseProactiveLevel(override string, fallback string) string {
 }
 
 func normalizeProactiveLevel(level string) string {
-	switch strings.ToLower(strings.TrimSpace(level)) {
+	switch utils.TrimLower(level) {
 	case "low", "medium", "high":
-		return strings.ToLower(strings.TrimSpace(level))
+		return utils.TrimLower(level)
 	default:
 		return ""
 	}
 }
 
 func normalizeActivationMode(mode string) string {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
+	switch utils.TrimLower(mode) {
 	case "auto", "semi_auto", "manual":
-		return strings.ToLower(strings.TrimSpace(mode))
+		return utils.TrimLower(mode)
 	default:
 		return ""
 	}
 }
 
 func normalizeGovernanceLevel(level string) string {
-	switch strings.ToLower(strings.TrimSpace(level)) {
+	switch utils.TrimLower(level) {
 	case "low", "medium", "high", "critical":
-		return strings.ToLower(strings.TrimSpace(level))
+		return utils.TrimLower(level)
 	default:
 		return "medium"
 	}
@@ -360,7 +361,7 @@ func joinSkillNames(matches []MatchResult) string {
 }
 
 func hasCapability(skill Skill, capability string) bool {
-	target := strings.ToLower(strings.TrimSpace(capability))
+	target := utils.TrimLower(capability)
 	if target == "" {
 		return false
 	}
@@ -397,7 +398,7 @@ func collectProducedEvents(matches []MatchResult) []string {
 func makeSet(items []string) map[string]bool {
 	out := make(map[string]bool, len(items))
 	for _, item := range items {
-		key := strings.ToLower(strings.TrimSpace(item))
+		key := utils.TrimLower(item)
 		if key == "" {
 			continue
 		}

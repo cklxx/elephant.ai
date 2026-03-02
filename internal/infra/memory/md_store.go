@@ -41,9 +41,6 @@ func NewMarkdownEngine(dir string) *MarkdownEngine {
 
 // SetIndexer attaches an indexer for hybrid memory search.
 func (e *MarkdownEngine) SetIndexer(indexer *Indexer) {
-	if e == nil {
-		return
-	}
 	e.indexer = indexer
 }
 
@@ -54,7 +51,7 @@ func (e *MarkdownEngine) Name() string {
 
 // Drain stops the indexer if it is running.
 func (e *MarkdownEngine) Drain(ctx context.Context) error {
-	if e == nil || e.indexer == nil {
+	if e.indexer == nil {
 		return nil
 	}
 	return e.indexer.Drain(ctx)
@@ -62,9 +59,6 @@ func (e *MarkdownEngine) Drain(ctx context.Context) error {
 
 // SetChunkConfig overrides the default chunking configuration.
 func (e *MarkdownEngine) SetChunkConfig(tokens, overlap int) {
-	if e == nil {
-		return
-	}
 	if tokens > 0 {
 		e.chunkTokens = tokens
 	}
@@ -75,17 +69,11 @@ func (e *MarkdownEngine) SetChunkConfig(tokens, overlap int) {
 
 // RootDir returns the configured root directory.
 func (e *MarkdownEngine) RootDir() string {
-	if e == nil {
-		return ""
-	}
 	return e.rootDir
 }
 
 // EnsureSchema creates required directories if missing.
 func (e *MarkdownEngine) EnsureSchema(_ context.Context) error {
-	if e == nil {
-		return fmt.Errorf("memory engine not initialized")
-	}
 	root := strings.TrimSpace(e.rootDir)
 	if root == "" {
 		return fmt.Errorf("memory root directory is required")
@@ -101,9 +89,6 @@ func (e *MarkdownEngine) EnsureSchema(_ context.Context) error {
 
 // AppendDaily appends a record to the daily memory log.
 func (e *MarkdownEngine) AppendDaily(_ context.Context, _ string, entry DailyEntry) (string, error) {
-	if e == nil {
-		return "", fmt.Errorf("memory engine not initialized")
-	}
 	content := strings.TrimSpace(entry.Content)
 	if content == "" {
 		return "", fmt.Errorf("content is required")
@@ -156,9 +141,6 @@ func (e *MarkdownEngine) AppendDaily(_ context.Context, _ string, entry DailyEnt
 
 // Search scans MEMORY.md + daily logs for the query and returns ranked hits.
 func (e *MarkdownEngine) Search(ctx context.Context, _ string, query string, maxResults int, minScore float64) ([]SearchHit, error) {
-	if e == nil {
-		return nil, fmt.Errorf("memory engine not initialized")
-	}
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, fmt.Errorf("query is required")
@@ -213,9 +195,6 @@ func (e *MarkdownEngine) Search(ctx context.Context, _ string, query string, max
 
 // Related returns graph-adjacent memory entries for a path/range.
 func (e *MarkdownEngine) Related(ctx context.Context, _ string, path string, fromLine, toLine, maxResults int) ([]RelatedHit, error) {
-	if e == nil {
-		return nil, fmt.Errorf("memory engine not initialized")
-	}
 	if utils.IsBlank(path) {
 		return nil, fmt.Errorf("path is required")
 	}
@@ -291,9 +270,6 @@ func (e *MarkdownEngine) Related(ctx context.Context, _ string, path string, fro
 
 // GetLines returns a slice of lines from the given memory path.
 func (e *MarkdownEngine) GetLines(_ context.Context, _ string, path string, fromLine, lineCount int) (string, error) {
-	if e == nil {
-		return "", fmt.Errorf("memory engine not initialized")
-	}
 	if utils.IsBlank(e.rootDir) {
 		return "", fmt.Errorf("memory root directory is required")
 	}
@@ -328,9 +304,6 @@ func (e *MarkdownEngine) GetLines(_ context.Context, _ string, path string, from
 
 // LoadDaily reads the daily log for the given day (local time).
 func (e *MarkdownEngine) LoadDaily(_ context.Context, _ string, day time.Time) (string, error) {
-	if e == nil {
-		return "", fmt.Errorf("memory engine not initialized")
-	}
 	if utils.IsBlank(e.rootDir) {
 		return "", fmt.Errorf("memory root directory is required")
 	}
@@ -351,9 +324,6 @@ func (e *MarkdownEngine) LoadDaily(_ context.Context, _ string, day time.Time) (
 
 // LoadLongTerm reads MEMORY.md for the user.
 func (e *MarkdownEngine) LoadLongTerm(_ context.Context, _ string) (string, error) {
-	if e == nil {
-		return "", fmt.Errorf("memory engine not initialized")
-	}
 	if utils.IsBlank(e.rootDir) {
 		return "", fmt.Errorf("memory root directory is required")
 	}
@@ -631,7 +601,7 @@ func mergeTokens(lines [][]string) []string {
 func normalizeTerms(terms []string) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, term := range terms {
-		trimmed := strings.ToLower(strings.TrimSpace(term))
+		trimmed := utils.TrimLower(term)
 		if trimmed == "" {
 			continue
 		}
@@ -646,7 +616,7 @@ func scoreChunk(queryTerms map[string]struct{}, queryLower string, chunkTerms []
 	}
 	chunkSet := make(map[string]struct{}, len(chunkTerms))
 	for _, term := range chunkTerms {
-		trimmed := strings.ToLower(strings.TrimSpace(term))
+		trimmed := utils.TrimLower(term)
 		if trimmed == "" {
 			continue
 		}

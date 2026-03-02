@@ -20,12 +20,12 @@ func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1, opts me
 	}
 	raw := event.Event.Message
 
-	msgType := strings.ToLower(strings.TrimSpace(deref(raw.MessageType)))
+	msgType := utils.TrimLower(deref(raw.MessageType))
 	if msgType != "text" && msgType != "post" {
 		return nil
 	}
 
-	chatType := strings.ToLower(strings.TrimSpace(deref(raw.ChatType)))
+	chatType := utils.TrimLower(deref(raw.ChatType))
 	isGroup := chatType != "" && chatType != "p2p"
 	if isGroup && !g.cfg.AllowGroups {
 		return nil

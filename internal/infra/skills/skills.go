@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"alex/internal/shared/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -233,8 +234,8 @@ func parseSkillFile(path string) (Skill, error) {
 		Output:           meta.Output,
 		Chain:            meta.Chain,
 		Capabilities:     meta.Capabilities,
-		GovernanceLevel:  strings.ToLower(strings.TrimSpace(meta.GovernanceLevel)),
-		ActivationMode:   strings.ToLower(strings.TrimSpace(meta.ActivationMode)),
+		GovernanceLevel:  utils.TrimLower(meta.GovernanceLevel),
+		ActivationMode:   utils.TrimLower(meta.ActivationMode),
 		DependsOnSkills:  meta.DependsOnSkills,
 		ProducesEvents:   meta.ProducesEvents,
 		RequiresApproval: meta.RequiresApproval,

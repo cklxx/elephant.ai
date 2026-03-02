@@ -572,7 +572,7 @@ func sanitizeSlowProgressContent(content string) string {
 }
 
 func containsInternalProgressIdentifier(text string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
+	lower := utils.TrimLower(text)
 	if lower == "" {
 		return false
 	}

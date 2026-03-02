@@ -78,10 +78,6 @@ func (h *ConfigHandler) snapshot(ctx context.Context) (runtimeConfigResponse, er
 
 // HandleGetRuntimeConfig returns the current runtime configuration snapshot.
 func (h *ConfigHandler) HandleGetRuntimeConfig(w http.ResponseWriter, r *http.Request) {
-	if h == nil {
-		http.NotFound(w, r)
-		return
-	}
 	payload, err := h.snapshot(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -92,10 +88,6 @@ func (h *ConfigHandler) HandleGetRuntimeConfig(w http.ResponseWriter, r *http.Re
 
 // HandleUpdateRuntimeConfig persists overrides provided by the UI.
 func (h *ConfigHandler) HandleUpdateRuntimeConfig(w http.ResponseWriter, r *http.Request) {
-	if h == nil {
-		http.NotFound(w, r)
-		return
-	}
 	var body struct {
 		Overrides runtimeconfig.Overrides `json:"overrides"`
 	}
@@ -123,10 +115,6 @@ func (h *ConfigHandler) HandleUpdateRuntimeConfig(w http.ResponseWriter, r *http
 
 // HandleRuntimeStream streams updates via SSE.
 func (h *ConfigHandler) HandleRuntimeStream(w http.ResponseWriter, r *http.Request) {
-	if h == nil {
-		http.NotFound(w, r)
-		return
-	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
@@ -184,10 +172,6 @@ func (h *ConfigHandler) HandleGetRuntimeModels(w http.ResponseWriter, r *http.Re
 
 // HandleGetSubscriptionCatalog returns CLI-discovered model catalogs.
 func (h *ConfigHandler) HandleGetSubscriptionCatalog(w http.ResponseWriter, r *http.Request) {
-	if h == nil {
-		http.NotFound(w, r)
-		return
-	}
 	service := h.catalogService
 	if service == nil {
 		service = defaultCatalogService(h.resolver)

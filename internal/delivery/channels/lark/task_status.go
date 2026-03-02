@@ -1,6 +1,10 @@
 package lark
 
-import "strings"
+import (
+	"strings"
+
+	"alex/internal/shared/utils"
+)
 
 const (
 	taskStatusPending      = "pending"
@@ -13,7 +17,7 @@ const (
 
 // normalizeTaskStatus maps status aliases to canonical task status values.
 func normalizeTaskStatus(status string) string {
-	switch strings.ToLower(strings.TrimSpace(status)) {
+	switch utils.TrimLower(status) {
 	case taskStatusPending:
 		return taskStatusPending
 	case taskStatusRunning:
@@ -27,7 +31,7 @@ func normalizeTaskStatus(status string) string {
 	case "canceled", taskStatusCancelled:
 		return taskStatusCancelled
 	default:
-		return strings.ToLower(strings.TrimSpace(status))
+		return utils.TrimLower(status)
 	}
 }
 

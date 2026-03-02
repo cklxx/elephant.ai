@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 type mockStreamScenario struct {
@@ -101,7 +102,7 @@ func messageContains(substrings ...string) func(ports.CompletionRequest) bool {
 			return false
 		}
 
-		message := strings.ToLower(strings.TrimSpace(lastUserMessage(req)))
+		message := utils.TrimLower(lastUserMessage(req))
 		if message == "" {
 			return false
 		}

@@ -14,6 +14,7 @@ import (
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/shared/utils"
 )
 
 func TestTeeMessengerCapturesTargetChat(t *testing.T) {
@@ -490,13 +491,13 @@ func TestInjectCaptureHubListMessages_IncludesMultipleSyntheticReplies(t *testin
 	if len(items) != 3 {
 		t.Fatalf("expected 3 messages (1 user + 2 app), got %d", len(items))
 	}
-	if got := strings.ToLower(strings.TrimSpace(deref(items[0].Sender.SenderType))); got != "app" {
+	if got := utils.TrimLower(deref(items[0].Sender.SenderType)); got != "app" {
 		t.Fatalf("expected newest synthetic reply sender=app, got %q", got)
 	}
-	if got := strings.ToLower(strings.TrimSpace(deref(items[1].Sender.SenderType))); got != "app" {
+	if got := utils.TrimLower(deref(items[1].Sender.SenderType)); got != "app" {
 		t.Fatalf("expected second synthetic reply sender=app, got %q", got)
 	}
-	if got := strings.ToLower(strings.TrimSpace(deref(items[2].Sender.SenderType))); got != "user" {
+	if got := utils.TrimLower(deref(items[2].Sender.SenderType)); got != "user" {
 		t.Fatalf("expected injected origin sender=user, got %q", got)
 	}
 }

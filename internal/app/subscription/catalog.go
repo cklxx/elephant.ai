@@ -266,7 +266,7 @@ func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, clie
 }
 
 func normalizeCatalogProvider(provider string) string {
-	key := strings.ToLower(strings.TrimSpace(provider))
+	key := utils.TrimLower(provider)
 	switch key {
 	case "":
 		return ""

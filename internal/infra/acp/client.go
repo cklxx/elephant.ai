@@ -105,7 +105,7 @@ func (c *Client) Start(ctx context.Context, handler NotificationHandler) {
 
 // Wait blocks until the read loop exits.
 func (c *Client) Wait() {
-	if c == nil || c.readDone == nil {
+	if c.readDone == nil {
 		return
 	}
 	<-c.readDone
@@ -113,9 +113,6 @@ func (c *Client) Wait() {
 
 // Call issues a JSON-RPC request.
 func (c *Client) Call(ctx context.Context, method string, params map[string]any) (*jsonrpc.Response, error) {
-	if c == nil {
-		return nil, fmt.Errorf("acp client not initialized")
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -147,9 +144,6 @@ func (c *Client) Call(ctx context.Context, method string, params map[string]any)
 
 // Notify sends a JSON-RPC notification.
 func (c *Client) Notify(method string, params map[string]any) error {
-	if c == nil {
-		return fmt.Errorf("acp client not initialized")
-	}
 	payload, err := json.Marshal(jsonrpc.NewNotification(method, params))
 	if err != nil {
 		return err

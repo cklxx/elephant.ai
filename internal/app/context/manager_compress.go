@@ -8,6 +8,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/token"
+	"alex/internal/shared/utils"
 )
 
 // EstimateTokens counts tokens for all message components: content, tool calls,
@@ -191,7 +192,7 @@ func buildCompressionSummary(messages []ports.Message) string {
 			continue
 		}
 		summarizedCount++
-		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		role := utils.TrimLower(msg.Role)
 		snippet := buildCompressionSnippet(msg.Content, 140)
 		switch role {
 		case "user":

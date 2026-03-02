@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/config"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 
 	"github.com/robfig/cron/v3"
 )
@@ -90,7 +90,7 @@ func New(cfg Config, coordinator AgentCoordinator, notifier Notifier, logger log
 
 func newCron(cfg Config, logger logging.Logger, parser cron.Parser) *cron.Cron {
 	options := []cron.Option{cron.WithParser(parser)}
-	policy := strings.ToLower(strings.TrimSpace(cfg.ConcurrencyPolicy))
+	policy := utils.TrimLower(cfg.ConcurrencyPolicy)
 	var wrapper cron.JobWrapper
 	switch policy {
 	case "delay":

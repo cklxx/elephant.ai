@@ -31,7 +31,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		ctx = context.Background()
 	}
 
-	toolMode := strings.ToLower(strings.TrimSpace(larkCfg.ToolMode))
+	toolMode := utils.TrimLower(larkCfg.ToolMode)
 	if toolMode == "" {
 		toolMode = string(presets.ToolModeCLI)
 	}
@@ -183,7 +183,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		if err := taskStore.MarkStaleRunning(ctx, "gateway restart"); err != nil {
 			logger.Warn("Lark task store stale cleanup failed: %v", err)
 		}
-		logger.Info("Lark task store enabled (mode=%s)", strings.ToLower(strings.TrimSpace(gatewayCfg.PersistenceMode)))
+		logger.Info("Lark task store enabled (mode=%s)", utils.TrimLower(gatewayCfg.PersistenceMode))
 	}
 
 	async.Go(logger, "lark.gateway", func() {
@@ -206,7 +206,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 }
 
 func buildLarkPlanReviewStore(ctx context.Context, cfg lark.Config) (lark.PlanReviewStore, error) {
-	mode := strings.ToLower(strings.TrimSpace(cfg.PersistenceMode))
+	mode := utils.TrimLower(cfg.PersistenceMode)
 	switch mode {
 	case larkPersistenceModeMemory:
 		store := lark.NewPlanReviewMemoryStore(cfg.PlanReviewPendingTTL)
@@ -229,7 +229,7 @@ func buildLarkPlanReviewStore(ctx context.Context, cfg lark.Config) (lark.PlanRe
 }
 
 func buildLarkChatSessionStore(ctx context.Context, cfg lark.Config) (lark.ChatSessionBindingStore, error) {
-	mode := strings.ToLower(strings.TrimSpace(cfg.PersistenceMode))
+	mode := utils.TrimLower(cfg.PersistenceMode)
 	switch mode {
 	case larkPersistenceModeMemory:
 		store := lark.NewChatSessionBindingMemoryStore()
@@ -252,7 +252,7 @@ func buildLarkChatSessionStore(ctx context.Context, cfg lark.Config) (lark.ChatS
 }
 
 func buildLarkTaskStore(ctx context.Context, cfg lark.Config) (lark.TaskStore, error) {
-	mode := strings.ToLower(strings.TrimSpace(cfg.PersistenceMode))
+	mode := utils.TrimLower(cfg.PersistenceMode)
 	switch mode {
 	case larkPersistenceModeMemory:
 		store := lark.NewTaskMemoryStore(cfg.PersistenceRetention, cfg.PersistenceMaxTasksPerChat)

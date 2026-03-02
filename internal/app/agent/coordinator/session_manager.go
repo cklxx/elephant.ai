@@ -353,7 +353,7 @@ func compactPersistedSystemPrompts(messages []ports.Message) []ports.Message {
 }
 
 func shouldDropPersistedMessage(msg ports.Message) bool {
-	role := strings.ToLower(strings.TrimSpace(msg.Role))
+	role := utils.TrimLower(msg.Role)
 	if role != "assistant" {
 		return false
 	}
@@ -379,7 +379,7 @@ func isPersistedPrimarySystemPrompt(msg ports.Message) bool {
 	if msg.Source != ports.MessageSourceSystemPrompt {
 		return false
 	}
-	if strings.ToLower(strings.TrimSpace(msg.Role)) != "system" {
+	if utils.TrimLower(msg.Role) != "system" {
 		return false
 	}
 	return strings.TrimSpace(msg.Content) != ""
@@ -389,7 +389,7 @@ func shouldDropPersistedSystemPrompt(msg ports.Message) bool {
 	if msg.Source == ports.MessageSourceSystemPrompt {
 		return true
 	}
-	if strings.ToLower(strings.TrimSpace(msg.Role)) != "system" {
+	if utils.TrimLower(msg.Role) != "system" {
 		return false
 	}
 	return strings.TrimSpace(string(msg.Source)) == ""

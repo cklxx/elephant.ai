@@ -144,3 +144,5 @@ func TestFileStore_ListActiveDispatches_ContextCanceled(t *testing.T) {
 	}
 }
 
+// TestFileStore_PruneLocked_RemovesExpiredTerminalDispatches verifies that
+// terminal dispatches older than the retention window are pruned from memory.

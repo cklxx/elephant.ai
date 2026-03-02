@@ -10,6 +10,7 @@ import (
 	builtinshared "alex/internal/infra/tools/builtin/shared"
 
 	"alex/internal/delivery/channels"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -246,7 +247,7 @@ func (g *Gateway) handleTaskSubcommand(ctx context.Context, msg *incomingMessage
 		return g.handleTaskList(ctx, msg)
 	}
 
-	sub := strings.ToLower(strings.TrimSpace(args[0]))
+	sub := utils.TrimLower(args[0])
 	switch sub {
 	case "list", "ls":
 		return g.handleTaskList(ctx, msg)

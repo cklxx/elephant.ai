@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 // FlushBeforeCompactionHook is called before context compression to allow
@@ -57,7 +58,7 @@ func extractFlushContent(messages []ports.Message) string {
 	var toolSummaries []string
 
 	for _, msg := range messages {
-		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		role := utils.TrimLower(msg.Role)
 		switch role {
 		case "user":
 			snippet := truncateSnippet(msg.Content, 200)

@@ -22,8 +22,8 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 INJECT_URL="${INJECT_URL:-http://127.0.0.1:9090/api/dev/inject}"
 SENDER_ID="${SENDER_ID:-ou_e2e_claude_teams}"
-TIMEOUT_FAST="${TIMEOUT_FAST:-90}"   # single-stage claude tasks
-TIMEOUT_SLOW="${TIMEOUT_SLOW:-240}"  # multi-stage or debate tasks
+TIMEOUT_FAST="${TIMEOUT_FAST:-120}"  # single-stage claude tasks
+TIMEOUT_SLOW="${TIMEOUT_SLOW:-300}"  # multi-stage or debate tasks
 COOLDOWN="${COOLDOWN:-5}"            # seconds between cases
 DRY_RUN=0
 

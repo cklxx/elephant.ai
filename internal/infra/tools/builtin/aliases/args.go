@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 func boolArgOptional(args map[string]any, key string) (bool, bool) {
@@ -19,7 +20,7 @@ func boolArgOptional(args map[string]any, key string) (bool, bool) {
 	case bool:
 		return typed, true
 	case string:
-		trimmed := strings.ToLower(strings.TrimSpace(typed))
+		trimmed := utils.TrimLower(typed)
 		if trimmed == "" {
 			return false, false
 		}

@@ -6,6 +6,7 @@ import (
 	domain "alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
+	"alex/internal/shared/utils"
 )
 
 func (t *workflowEventTranslator) translateTool(evt agent.AgentEvent, eventType, callID string, payload map[string]any) []*domain.WorkflowEventEnvelope {
@@ -35,7 +36,7 @@ func buildArtifactManifestPayload(d *domain.EventData) map[string]any {
 	if d == nil {
 		return nil
 	}
-	toolName := strings.ToLower(strings.TrimSpace(d.ToolName))
+	toolName := utils.TrimLower(d.ToolName)
 	if toolName == "acp_executor" {
 		return nil
 	}
@@ -66,7 +67,7 @@ func buildArtifactManifestPayload(d *domain.EventData) map[string]any {
 		return nil
 	}
 	for _, att := range attachments {
-		format := strings.ToLower(strings.TrimSpace(att.Format))
+		format := utils.TrimLower(att.Format)
 		if format == "manifest" || strings.Contains(strings.ToLower(att.Name), "manifest") {
 			return map[string]any{
 				"attachments": attachments,

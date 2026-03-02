@@ -1,13 +1,13 @@
 package coordinator
 
 import (
-	"strings"
 	"sync"
 
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
 	domain "alex/internal/domain/agent"
 	"alex/internal/domain/workflow"
+	"alex/internal/shared/utils"
 )
 
 func (t *workflowEventTranslator) translateLifecycle(evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
@@ -54,7 +54,7 @@ func (t *workflowEventTranslator) translateNodeCompleted(evt agent.AgentEvent, d
 		return nil
 	}
 
-	status := strings.ToLower(strings.TrimSpace(d.Status))
+	status := utils.TrimLower(d.Status)
 	eventType := types.EventNodeCompleted
 	if status == string(workflow.NodeStatusFailed) || status == "failed" {
 		eventType = types.EventNodeFailed

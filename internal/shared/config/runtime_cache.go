@@ -41,9 +41,6 @@ func NewRuntimeConfigCache(loader RuntimeConfigLoader) (*RuntimeConfigCache, err
 // Resolve returns the latest cached runtime config without triggering a reload.
 func (c *RuntimeConfigCache) Resolve(ctx context.Context) (RuntimeConfig, Metadata, error) {
 	_ = ctx
-	if c == nil {
-		return RuntimeConfig{}, Metadata{}, fmt.Errorf("runtime config cache is nil")
-	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if !c.loaded {
@@ -54,9 +51,6 @@ func (c *RuntimeConfigCache) Resolve(ctx context.Context) (RuntimeConfig, Metada
 
 // Reload refreshes the cached runtime config using the loader.
 func (c *RuntimeConfigCache) Reload(ctx context.Context) error {
-	if c == nil {
-		return fmt.Errorf("runtime config cache is nil")
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -79,8 +73,5 @@ func (c *RuntimeConfigCache) Reload(ctx context.Context) error {
 
 // Updates returns a channel that receives signals after successful reloads.
 func (c *RuntimeConfigCache) Updates() <-chan struct{} {
-	if c == nil {
-		return nil
-	}
 	return c.updates
 }

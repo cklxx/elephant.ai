@@ -338,7 +338,7 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 				continue
 			}
 			agentID := "team:" + template
-			agentKey := strings.ToLower(strings.TrimSpace(agentID))
+			agentKey := utils.TrimLower(agentID)
 			if _, exists := seenAgentIDs[agentKey]; exists {
 				p.logger.Debug("LLMPlanner: skipping duplicate decision for %s in same cycle", agentID)
 				continue
@@ -383,7 +383,7 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 		if agentID == "" {
 			continue
 		}
-		agentKey := strings.ToLower(strings.TrimSpace(agentID))
+		agentKey := utils.TrimLower(agentID)
 		if _, exists := seenAgentIDs[agentKey]; exists {
 			p.logger.Debug("LLMPlanner: skipping duplicate decision for %s in same cycle", agentID)
 			continue
@@ -513,7 +513,7 @@ func (p *LLMPlanner) shouldSkipAgentCooldown(agentID string, recentByAgent map[s
 	if !ok || recent.Status != kerneldomain.DispatchDone || recent.UpdatedAt.IsZero() {
 		return false
 	}
-	cooldownMinutes, hasCooldown := p.agentCooldownMinutes[strings.ToLower(strings.TrimSpace(agentID))]
+	cooldownMinutes, hasCooldown := p.agentCooldownMinutes[utils.TrimLower(agentID)]
 	if !hasCooldown || cooldownMinutes <= 0 {
 		return false
 	}
@@ -555,7 +555,7 @@ func (p *LLMPlanner) selectBucketAgent(reason string) string {
 	if bucket == "" {
 		return p.defaultBucketAgentID
 	}
-	candidate := strings.ToLower(strings.TrimSpace(bucket + "-executor"))
+	candidate := utils.TrimLower(bucket + "-executor")
 	if _, ok := p.configuredAgentSet[candidate]; ok {
 		return candidate
 	}
@@ -563,7 +563,7 @@ func (p *LLMPlanner) selectBucketAgent(reason string) string {
 }
 
 func classifyReasonBucket(reason string) string {
-	text := strings.ToLower(strings.TrimSpace(reason))
+	text := utils.TrimLower(reason)
 	if text == "" {
 		return ""
 	}
@@ -647,7 +647,7 @@ func (p *LLMPlanner) isAllowedTeamTemplate(template string) bool {
 }
 
 func normalizePlanningDecisionKind(d planningDecision) kerneldomain.DispatchKind {
-	kind := strings.ToLower(strings.TrimSpace(d.Kind))
+	kind := utils.TrimLower(d.Kind)
 	switch kind {
 	case string(kerneldomain.DispatchKindTeam):
 		return kerneldomain.DispatchKindTeam
@@ -706,7 +706,7 @@ func recentDispatchByAgentID(recentByAgent map[string]kerneldomain.Dispatch, age
 	}
 	lower := strings.ToLower(trimmed)
 	for key, dispatch := range recentByAgent {
-		if strings.ToLower(strings.TrimSpace(key)) == lower {
+		if utils.TrimLower(key) == lower {
 			return dispatch, true
 		}
 	}

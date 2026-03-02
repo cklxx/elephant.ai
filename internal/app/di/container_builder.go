@@ -223,7 +223,7 @@ func (b *containerBuilder) applyDetectedExternalAgents(detected []codinginfra.Lo
 		if !item.AdapterSupport {
 			continue
 		}
-		agentType := strings.ToLower(strings.TrimSpace(item.AgentType))
+		agentType := utils.TrimLower(item.AgentType)
 		var enabled *bool
 		var binary *string
 		switch agentType {
@@ -276,8 +276,8 @@ func shouldAdoptDetectedBinary(current, detectedBinary string) bool {
 }
 
 func isEquivalentCLIBinary(current, detected string) bool {
-	currentLower := strings.ToLower(strings.TrimSpace(current))
-	detectedLower := strings.ToLower(strings.TrimSpace(detected))
+	currentLower := utils.TrimLower(current)
+	detectedLower := utils.TrimLower(detected)
 	if currentLower == detectedLower {
 		return true
 	}
@@ -291,7 +291,7 @@ func isEquivalentCLIBinary(current, detected string) bool {
 }
 
 func (b *containerBuilder) isExternalAgentEnabled(agentType string) bool {
-	switch strings.ToLower(strings.TrimSpace(agentType)) {
+	switch utils.TrimLower(agentType) {
 	case "codex":
 		return b.config.ExternalAgents.Codex.Enabled
 	case "claude_code":

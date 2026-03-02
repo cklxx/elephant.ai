@@ -13,6 +13,7 @@ import (
 	"alex/internal/infra/filestore"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -31,7 +32,7 @@ type SelectionScope struct {
 }
 
 func (s SelectionScope) key() (string, error) {
-	channel := strings.ToLower(strings.TrimSpace(s.Channel))
+	channel := utils.TrimLower(s.Channel)
 	if channel == "" {
 		return "", fmt.Errorf("channel required")
 	}

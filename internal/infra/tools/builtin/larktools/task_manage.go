@@ -11,6 +11,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
@@ -122,7 +123,7 @@ func (t *larkTaskManage) Execute(ctx context.Context, call ports.ToolCall) (*por
 	if errResult != nil {
 		return errResult, nil
 	}
-	action = strings.ToLower(strings.TrimSpace(action))
+	action = utils.TrimLower(action)
 
 	switch action {
 	case "list":
