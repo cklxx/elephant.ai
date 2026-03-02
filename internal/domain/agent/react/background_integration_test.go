@@ -740,6 +740,245 @@ func TestIntegration_CompletionNotifierEndToEnd(t *testing.T) {
 	}
 }
 
+// TestIntegration_StaleTaskRetry verifies the full stale retry pipeline via
+// the swarm scheduler: a task becomes stale (via controlled clock), is
+// cancelled and re-dispatched as a retry, and the retry completes successfully.
+func TestIntegration_StaleTaskRetry(t *testing.T) {
+	started := make(chan struct{})
+	var mu sync.Mutex
+	callCount := 0
+
+	se := newScenarioExecutor()
+	se.handle("stale-candidate", func(ctx context.Context, prompt string) (*agent.TaskResult, error) {
+		mu.Lock()
+		callCount++
+		isFirst := callCount == 1
+		mu.Unlock()
+
+		if isFirst {
+			close(started)
+			// Block until cancelled by the stale retry logic.
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		// Retry call: complete normally.
+		return &agent.TaskResult{Answer: "retry-succeeded", Iterations: 1, TokensUsed: 50}, nil
+	})
+
+	clock := newControllableClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	mgr := newIntegrationManager(se.execute, clock, func(cfg *BackgroundManagerConfig) {
+		cfg.StaleThreshold = 10 * time.Minute
+	})
+	defer mgr.Shutdown()
+
+	// Advance clock after task starts so Status reports it stale during Collect timeout.
+	go func() {
+		<-started
+		clock.Advance(12 * time.Minute)
+	}()
+
+	swarmCfg := taskfile.SwarmConfig{
+		InitialConcurrency: 5,
+		MaxConcurrency:     10,
+		StageTimeout:       200 * time.Millisecond, // short so Collect returns fast
+		StaleRetryMax:      1,
+		ScaleUpThreshold:   0.9,
+		ScaleDownThreshold: 0.7,
+		ScaleStep:          1,
+	}
+
+	tf := &taskfile.TaskFile{
+		Version: "1",
+		PlanID:  "stale-retry-e2e",
+		Tasks: []taskfile.TaskSpec{
+			{ID: "a", Description: "Stale candidate", Prompt: "stale-candidate"},
+		},
+	}
+
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeSwarm, swarmCfg)
+	statusPath := t.TempDir() + "/stale-retry.status.yaml"
+
+	result, err := exec.ExecuteAndWait(context.Background(), tf, "cause-stale", statusPath, 10*time.Second)
+	if err != nil {
+		t.Fatalf("ExecuteAndWait: %v", err)
+	}
+
+	// Both original and retry task IDs should be present.
+	found := make(map[string]bool)
+	for _, id := range result.TaskIDs {
+		found[id] = true
+	}
+	if !found["a"] {
+		t.Error("original task 'a' should be in task IDs")
+	}
+	if !found["a-retry-1"] {
+		t.Errorf("retry task 'a-retry-1' should be in task IDs, got %v", result.TaskIDs)
+	}
+
+	// Retry should have completed successfully.
+	collected := mgr.Collect([]string{"a-retry-1"}, false, 0)
+	if len(collected) != 1 {
+		t.Fatalf("expected 1 result for a-retry-1, got %d", len(collected))
+	}
+	if collected[0].Status != agent.BackgroundTaskStatusCompleted {
+		t.Errorf("a-retry-1: expected completed, got %s (err=%s)", collected[0].Status, collected[0].Error)
+	}
+	if collected[0].Answer != "retry-succeeded" {
+		t.Errorf("a-retry-1 answer: %q", collected[0].Answer)
+	}
+
+	mu.Lock()
+	n := callCount
+	mu.Unlock()
+	if n < 2 {
+		t.Errorf("expected at least 2 executions (original + retry), got %d", n)
+	}
+}
+
+// TestIntegration_ContextPreamble verifies that a ContextPreamble set in
+// TaskDefaults is prepended to every task's prompt in the full execution chain:
+//   TaskFile.Defaults.ContextPreamble → ResolveDefaults → SpecToDispatchRequest →
+//   BackgroundTaskManager.Dispatch → executor prompt.
+func TestIntegration_ContextPreamble(t *testing.T) {
+	preamble := "Project: elephant.ai (Go). Key packages: internal/domain/agent."
+
+	var mu sync.Mutex
+	var receivedPrompts []string
+
+	se := newScenarioExecutor()
+	se.handle("implement feature", func(ctx context.Context, prompt string) (*agent.TaskResult, error) {
+		mu.Lock()
+		receivedPrompts = append(receivedPrompts, prompt)
+		mu.Unlock()
+		return &agent.TaskResult{Answer: "done", Iterations: 1, TokensUsed: 10}, nil
+	})
+
+	mgr := newIntegrationManager(se.execute, testClock{})
+	defer mgr.Shutdown()
+
+	tf := &taskfile.TaskFile{
+		Version: "1",
+		PlanID:  "preamble-e2e",
+		Defaults: taskfile.TaskDefaults{
+			ContextPreamble: preamble,
+		},
+		Tasks: []taskfile.TaskSpec{
+			{ID: "a", Description: "Feature A", Prompt: "implement feature X"},
+			{ID: "b", Description: "Feature B", Prompt: "implement feature Y"},
+		},
+	}
+
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
+	statusPath := t.TempDir() + "/preamble.status.yaml"
+
+	_, err := exec.ExecuteAndWait(context.Background(), tf, "cause-preamble", statusPath, 10*time.Second)
+	if err != nil {
+		t.Fatalf("ExecuteAndWait: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(receivedPrompts) != 2 {
+		t.Fatalf("expected 2 prompt executions, got %d", len(receivedPrompts))
+	}
+	for _, p := range receivedPrompts {
+		if !strings.HasPrefix(p, preamble) {
+			t.Errorf("prompt should start with preamble, got: %q", p)
+		}
+		if !strings.Contains(p, "implement feature") {
+			t.Errorf("original prompt should be present in: %q", p)
+		}
+	}
+}
+
+// TestIntegration_DebateMode verifies the debate stage pattern end-to-end:
+//   analyst (primary) → analyst-debate (challenger, inherits analyst context) →
+//   reviewer (inherits both analyst + debate results).
+func TestIntegration_DebateMode(t *testing.T) {
+	se := newScenarioExecutor()
+
+	se.handle("Analyze:", func(ctx context.Context, prompt string) (*agent.TaskResult, error) {
+		return &agent.TaskResult{Answer: "Analysis: strategy A is best", Iterations: 2, TokensUsed: 200}, nil
+	})
+	se.handle("[DEBATE MODE", func(ctx context.Context, prompt string) (*agent.TaskResult, error) {
+		// Challenger receives analyst result via collaboration context.
+		if !strings.Contains(prompt, "[Collaboration Context]") {
+			return nil, fmt.Errorf("debate challenger should receive collaboration context, got: %q", prompt)
+		}
+		if !strings.Contains(prompt, "strategy A is best") {
+			return nil, fmt.Errorf("debate challenger should have analyst result in context, got: %q", prompt)
+		}
+		return &agent.TaskResult{Answer: "critique: assumption A overlooks edge case B", Iterations: 1, TokensUsed: 100}, nil
+	})
+	se.handle("Review work by", func(ctx context.Context, prompt string) (*agent.TaskResult, error) {
+		// Reviewer receives both analyst and debate results.
+		if !strings.Contains(prompt, "[Collaboration Context]") {
+			return nil, fmt.Errorf("reviewer should receive collaboration context, got: %q", prompt)
+		}
+		if !strings.Contains(prompt, "strategy A is best") {
+			return nil, fmt.Errorf("reviewer should have analyst result in context")
+		}
+		if !strings.Contains(prompt, "critique: assumption A") {
+			return nil, fmt.Errorf("reviewer should have debate result in context, got: %q", prompt)
+		}
+		return &agent.TaskResult{Answer: "Review complete: debate raised valid concerns", Iterations: 1, TokensUsed: 80}, nil
+	})
+
+	mgr := newIntegrationManager(se.execute, testClock{})
+	defer mgr.Shutdown()
+
+	tmpl := &taskfile.TeamTemplate{
+		Name: "debate-team",
+		Roles: []taskfile.TeamTemplateRole{
+			{Name: "analyst", AgentType: "internal", PromptTemplate: "Analyze: {GOAL}"},
+			{Name: "reviewer", AgentType: "internal", PromptTemplate: "Review work by {TEAM}: {GOAL}", InheritContext: true},
+		},
+		Stages: []taskfile.TeamTemplateStage{
+			{Name: "analyze", Roles: []string{"analyst"}, DebateMode: true},
+			{Name: "review", Roles: []string{"reviewer"}},
+		},
+	}
+
+	tf := taskfile.RenderTaskFile(tmpl, "evaluate proposal Q", nil)
+
+	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
+	statusPath := t.TempDir() + "/debate.status.yaml"
+
+	result, err := exec.ExecuteAndWait(context.Background(), tf, "cause-debate", statusPath, 10*time.Second)
+	if err != nil {
+		t.Fatalf("ExecuteAndWait: %v", err)
+	}
+
+	// 3 tasks: team-analyst (primary), team-analyst-debate (challenger), team-reviewer.
+	if len(result.TaskIDs) != 3 {
+		t.Fatalf("expected 3 task IDs, got %d: %v", len(result.TaskIDs), result.TaskIDs)
+	}
+
+	// All should complete.
+	for _, s := range mgr.Status(nil) {
+		if s.Status != agent.BackgroundTaskStatusCompleted {
+			t.Errorf("task %s: expected completed, got %s (err=%s)", s.ID, s.Status, s.Error)
+		}
+	}
+
+	// Verify task results.
+	collected := mgr.Collect(nil, false, 0)
+	answerMap := make(map[string]string)
+	for _, r := range collected {
+		answerMap[r.ID] = r.Answer
+	}
+	if !strings.Contains(answerMap["team-analyst"], "strategy A") {
+		t.Errorf("analyst answer: %q", answerMap["team-analyst"])
+	}
+	if !strings.Contains(answerMap["team-analyst-debate"], "critique") {
+		t.Errorf("debate answer: %q", answerMap["team-analyst-debate"])
+	}
+	if !strings.Contains(answerMap["team-reviewer"], "Review complete") {
+		t.Errorf("reviewer answer: %q", answerMap["team-reviewer"])
+	}
+}
+
 // TestIntegration_DiamondDAG tests a diamond dependency pattern:
 //     A
 //    / \
