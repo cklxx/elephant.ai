@@ -441,5 +441,5 @@ func (s *larkProgressSender) SendProgress(ctx context.Context, text string) (str
 }
 
 func (s *larkProgressSender) UpdateProgress(ctx context.Context, messageID, text string) error {
-	return s.gateway.updateMessage(ctx, messageID, text)
+	return s.gateway.updateMessage(ctx, messageID, "text", textContent(text))
 }

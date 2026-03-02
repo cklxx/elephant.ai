@@ -614,7 +614,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		// "在思考…" → final answer, rather than two separate messages.
 		edited := false
 		if progressMsgID != "" {
-			if err := g.updateMessage(execCtx, progressMsgID, reply); err != nil {
+			if err := g.updateMessage(execCtx, progressMsgID, replyMsgType, replyContent); err != nil {
 				g.logger.Warn("Lark progress→reply edit failed, falling back to new message: %v", err)
 			} else {
 				edited = true

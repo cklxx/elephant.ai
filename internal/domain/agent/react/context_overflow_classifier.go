@@ -5,16 +5,14 @@ import (
 )
 
 type contextOverflowClassification struct {
-	Matched    bool
-	Rule       string
-	Confidence string
+	Matched bool
+	Rule    string
 }
 
-func classifyContextOverflow(err error, provider string) contextOverflowClassification {
+func classifyContextOverflow(err error) contextOverflowClassification {
 	if err == nil {
 		return contextOverflowClassification{}
 	}
-	_ = strings.TrimSpace(provider) // Reserved for provider-specific overrides.
 	msg := strings.ToLower(strings.TrimSpace(err.Error()))
 	if msg == "" {
 		return contextOverflowClassification{}
@@ -38,7 +36,7 @@ func classifyContextOverflow(err error, provider string) contextOverflowClassifi
 		`"code":"context_length_exceeded"`,
 		"context_length_exceeded",
 	) {
-		return contextOverflowClassification{Matched: true, Rule: "context_length_exceeded", Confidence: "high"}
+		return contextOverflowClassification{Matched: true, Rule: "context_length_exceeded"}
 	}
 
 	if containsAny(msg,
@@ -48,7 +46,7 @@ func classifyContextOverflow(err error, provider string) contextOverflowClassifi
 		"exceeds the model's maximum context",
 		"exceeds your current quota for context",
 	) {
-		return contextOverflowClassification{Matched: true, Rule: "context_window_phrase", Confidence: "medium"}
+		return contextOverflowClassification{Matched: true, Rule: "context_window_phrase"}
 	}
 
 	if containsAny(msg,
@@ -58,12 +56,12 @@ func classifyContextOverflow(err error, provider string) contextOverflowClassifi
 		"request exceeds maximum allowed",
 		"input length and `max_tokens` exceed context limit",
 	) {
-		return contextOverflowClassification{Matched: true, Rule: "token_limit_phrase", Confidence: "medium"}
+		return contextOverflowClassification{Matched: true, Rule: "token_limit_phrase"}
 	}
 
 	if containsAny(msg, "status 413", "http 413", "413 request entity too large") &&
 		containsAny(msg, "token", "context", "prompt", "input") {
-		return contextOverflowClassification{Matched: true, Rule: "http_413_with_context_tokens", Confidence: "low"}
+		return contextOverflowClassification{Matched: true, Rule: "http_413_with_context_tokens"}
 	}
 
 	return contextOverflowClassification{}

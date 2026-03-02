@@ -794,12 +794,11 @@ func (it *reactIteration) think() error {
 
 	thought, err := it.runtime.engine.think(it.runtime.ctx, state, services)
 	if err != nil {
-		classification := classifyContextOverflow(err, "")
+		classification := classifyContextOverflow(err)
 		if classification.Matched {
 			it.runtime.engine.logger.Warn(
-				"Context overflow detected (rule=%s confidence=%s), applying compaction plan and retrying think step",
+				"Context overflow detected (rule=%s), applying compaction plan and retrying think step",
 				classification.Rule,
-				classification.Confidence,
 			)
 			if compacted, ok := it.runtime.engine.tryArtifactCompaction(
 				it.runtime.ctx,
@@ -1220,7 +1219,7 @@ func (r *reactRuntime) persistSessionAfterIteration() {
 // rejected the request because the input exceeded the model's context window.
 // Maintained as a compatibility wrapper for existing tests.
 func isContextLengthExceeded(err error) bool {
-	return classifyContextOverflow(err, "").Matched
+	return classifyContextOverflow(err).Matched
 }
 
 // emergencyTrimState applies aggressive trimming to state.Messages when the

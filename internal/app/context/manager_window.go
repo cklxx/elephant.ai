@@ -242,10 +242,11 @@ func convertRecordToJournal(record agent.ContextTurnRecord) journal.TurnJournalE
 const historyTimelineLimit = 8
 const historyTimelineSummaryChars = 50
 
+// Shared prefix aliases from ports.
 const (
-	historyCompressionSummaryPrefix  = "[Earlier context compressed]"
-	historyTrimNoticeSummaryPrefix   = "[Context trimmed to fit model window."
-	historyArtifactPlaceholderPrefix = "[CTX_PLACEHOLDER"
+	historyCompressionSummaryPrefix  = ports.CompressionSummaryPrefix
+	historyTrimNoticeSummaryPrefix   = ports.TrimNoticeSummaryPrefix
+	historyArtifactPlaceholderPrefix = ports.ArtifactPlaceholderPrefix
 )
 
 func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) agent.MetaContext {
@@ -376,10 +377,7 @@ func buildRuntimeHistoryChunk(meta agent.MetaContext) *ports.Message {
 }
 
 func isContextCompressionSummary(msg ports.Message) bool {
-	content := strings.TrimSpace(msg.Content)
-	return strings.HasPrefix(content, historyCompressionSummaryPrefix) ||
-		strings.HasPrefix(content, historyTrimNoticeSummaryPrefix) ||
-		strings.HasPrefix(content, historyArtifactPlaceholderPrefix)
+	return ports.IsSyntheticSummary(msg.Content)
 }
 
 func shouldSkipHistoryTimelineMessage(msg ports.Message) bool {

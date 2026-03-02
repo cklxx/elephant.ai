@@ -68,8 +68,8 @@ func TestRephraseForUser_Success(t *testing.T) {
 	if stub.reqs[0].Temperature != 0.3 {
 		t.Fatalf("expected temperature 0.3, got %v", stub.reqs[0].Temperature)
 	}
-	if stub.reqs[0].MaxTokens != rephraseMaxReply {
-		t.Fatalf("expected maxTokens %d, got %d", rephraseMaxReply, stub.reqs[0].MaxTokens)
+	if stub.reqs[0].MaxTokens != 400 {
+		t.Fatalf("expected maxTokens %d, got %d", 400, stub.reqs[0].MaxTokens)
 	}
 	if len(stub.reqs[0].Messages) != 2 {
 		t.Fatalf("expected 2 messages, got %d", len(stub.reqs[0].Messages))

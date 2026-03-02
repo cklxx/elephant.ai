@@ -208,9 +208,8 @@ func buildCompressionSummary(messages []ports.Message) string {
 			}
 			lastAssistant = snippet
 		case "tool":
-			toolMentions++
+			toolMentions += 1 + len(msg.ToolResults)
 		}
-		toolMentions += len(msg.ToolResults)
 	}
 	if summarizedCount == 0 {
 		return ""
@@ -286,17 +285,7 @@ func buildCompressionPlan(messages []ports.Message) compressionPlan {
 	return plan
 }
 
-func buildCompressionSnippet(content string, limit int) string {
-	trimmed := strings.TrimSpace(content)
-	if trimmed == "" || limit <= 0 {
-		return trimmed
-	}
-	runes := []rune(trimmed)
-	if len(runes) <= limit {
-		return trimmed
-	}
-	return strings.TrimSpace(string(runes[:limit])) + "…"
-}
+var buildCompressionSnippet = ports.TruncateRuneSnippet
 
 // ---------------------------------------------------------------------------
 // Budget helpers
@@ -364,47 +353,8 @@ func AggressiveTrim(messages []ports.Message, maxTurns int) []ports.Message {
 	return result
 }
 
-func isCompressionPreservedSource(source ports.MessageSource) bool {
-	switch source {
-	case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceCheckpoint:
-		return true
-	default:
-		return false
-	}
-}
-
-// keepRecentTurns returns the last N user-initiated turns from a conversation
-// slice. A turn starts with a user message and includes all following
-// assistant/tool messages until the next user message.
-func keepRecentTurns(messages []ports.Message, maxTurns int) []ports.Message {
-	if len(messages) == 0 || maxTurns <= 0 {
-		return nil
-	}
-
-	// Find turn boundaries (indices of user messages).
-	var turnStarts []int
-	for i, msg := range messages {
-		if strings.EqualFold(strings.TrimSpace(msg.Role), "user") {
-			turnStarts = append(turnStarts, i)
-		}
-	}
-
-	if len(turnStarts) == 0 {
-		// No user messages: degrade to keeping only the most recent maxTurns
-		// entries so fallback paths still reduce context size.
-		if len(messages) <= maxTurns {
-			return messages
-		}
-		return messages[len(messages)-maxTurns:]
-	}
-
-	// Keep the last maxTurns.
-	start := 0
-	if len(turnStarts) > maxTurns {
-		start = turnStarts[len(turnStarts)-maxTurns]
-	} else {
-		start = turnStarts[0]
-	}
-
-	return messages[start:]
-}
+// Delegates to shared helpers in ports package.
+var (
+	isCompressionPreservedSource = ports.IsPreservedSource
+	keepRecentTurns              = ports.KeepRecentTurns
+)

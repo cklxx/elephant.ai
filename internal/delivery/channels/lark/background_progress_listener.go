@@ -581,7 +581,7 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 
 	text := strings.TrimRight(b.String(), "\n")
 
-	if err := l.g.updateMessage(l.ctx, messageID, text); err != nil {
+	if err := l.g.updateMessage(l.ctx, messageID, "text", textContent(text)); err != nil {
 		// If updating fails (some chats restrict updates for replies), fall back to sending a new reply.
 		newID, sendErr := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(text))
 		if sendErr != nil {

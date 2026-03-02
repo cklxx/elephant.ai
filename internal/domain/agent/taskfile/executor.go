@@ -48,22 +48,28 @@ func (e *Executor) resolveMode(tf *TaskFile) ExecutionMode {
 // For swarm mode, it blocks until all stages complete (swarm is inherently
 // synchronous per-stage). For team mode, it returns immediately after dispatch.
 func (e *Executor) Execute(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
+	if err := Validate(tf); err != nil {
+		return nil, fmt.Errorf("validate: %w", err)
+	}
 	if e.resolveMode(tf) == ModeSwarm {
 		sched := NewSwarmScheduler(e.dispatcher, e.swarmCfg)
-		return sched.ExecuteSwarm(ctx, tf, causationID, statusPath)
+		return sched.executeSwarmValidated(ctx, tf, causationID, statusPath)
 	}
-	return e.executeTeam(ctx, tf, causationID, statusPath)
+	return e.executeTeamValidated(ctx, tf, causationID, statusPath)
 }
 
 // ExecuteAndWait dispatches tasks and blocks until all complete or the timeout elapses.
 func (e *Executor) ExecuteAndWait(ctx context.Context, tf *TaskFile, causationID, statusPath string, timeout time.Duration) (*ExecuteResult, error) {
+	if err := Validate(tf); err != nil {
+		return nil, fmt.Errorf("validate: %w", err)
+	}
 	if e.resolveMode(tf) == ModeSwarm {
 		// Swarm execution is already synchronous (blocks per stage).
 		sched := NewSwarmScheduler(e.dispatcher, e.swarmCfg)
-		return sched.ExecuteSwarm(ctx, tf, causationID, statusPath)
+		return sched.executeSwarmValidated(ctx, tf, causationID, statusPath)
 	}
 
-	result, err := e.executeTeam(ctx, tf, causationID, statusPath)
+	result, err := e.executeTeamValidated(ctx, tf, causationID, statusPath)
 	if err != nil {
 		return nil, err
 	}
@@ -82,13 +88,9 @@ func (e *Executor) ExecuteAndWait(ctx context.Context, tf *TaskFile, causationID
 	return result, nil
 }
 
-// executeTeam is the original sequential-dispatch path: dispatches all tasks in
-// topological order, relying on the dispatcher's dependency blocking.
-func (e *Executor) executeTeam(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
-	if err := Validate(tf); err != nil {
-		return nil, fmt.Errorf("validate: %w", err)
-	}
-
+// executeTeamValidated dispatches all tasks in topological order, relying on
+// the dispatcher's dependency blocking. Caller must have validated tf already.
+func (e *Executor) executeTeamValidated(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
 	order, err := TopologicalOrder(tf.Tasks)
 	if err != nil {
 		return nil, fmt.Errorf("topo sort: %w", err)

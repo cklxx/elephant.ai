@@ -16,17 +16,14 @@ type postElement struct {
 
 // postPayload is the JSON structure for a Lark "post" message.
 type postPayload struct {
-	ZhCN postBody `json:"zh_cn"`
-}
-
-type postBody struct {
-	Content [][]postElement `json:"content"`
+	ZhCN struct {
+		Content [][]postElement `json:"content"`
+	} `json:"zh_cn"`
 }
 
 // Markdown detection patterns.
 var (
 	mdBoldPattern    = regexp.MustCompile(`\*\*[^*]+\*\*`)
-	mdItalicPattern  = regexp.MustCompile(`(?:^|[^*])\*[^*]+\*(?:[^*]|$)`)
 	mdHeadingPattern = regexp.MustCompile(`(?m)^#{1,6}\s+`)
 	mdLinkPattern    = regexp.MustCompile(`\[[^\]]+\]\([^)]+\)`)
 	mdCodeFence      = regexp.MustCompile("(?m)^```")
@@ -36,39 +33,26 @@ var (
 // hasMarkdownPatterns returns true if text contains 2+ distinct Markdown patterns,
 // suggesting the LLM ignored the plain-text formatting instruction.
 func hasMarkdownPatterns(text string) bool {
+	patterns := []*regexp.Regexp{mdBoldPattern, mdHeadingPattern, mdLinkPattern, mdCodeFence, mdInlineCode}
 	count := 0
-	if mdBoldPattern.MatchString(text) {
-		count++
+	for _, p := range patterns {
+		if p.MatchString(text) {
+			count++
+			if count >= 2 {
+				return true
+			}
+		}
 	}
-	if mdHeadingPattern.MatchString(text) {
-		count++
-	}
-	if mdLinkPattern.MatchString(text) {
-		count++
-	}
-	if mdCodeFence.MatchString(text) {
-		count++
-	}
-	if mdInlineCode.MatchString(text) {
-		count++
-	}
-	if count >= 2 {
-		return true
-	}
-	if mdItalicPattern.MatchString(text) {
-		count++
-	}
-	return count >= 2
+	return false
 }
 
 // smartContent inspects text for residual Markdown. If detected, it converts
 // to a Lark "post" message; otherwise returns a plain "text" message.
 func smartContent(text string) (msgType string, content string) {
-	text = renderOutgoingMentions(text)
 	if !hasMarkdownPatterns(text) {
-		payload, _ := json.Marshal(map[string]string{"text": text})
-		return "text", string(payload)
+		return "text", textContent(text)
 	}
+	text = renderOutgoingMentions(text)
 	return "post", buildPostContent(text)
 }
 
@@ -133,9 +117,8 @@ func buildPostContent(text string) string {
 		content = append(content, elems)
 	}
 
-	payload := postPayload{
-		ZhCN: postBody{Content: content},
-	}
+	var payload postPayload
+	payload.ZhCN.Content = content
 	data, _ := json.Marshal(payload)
 	return string(data)
 }
@@ -191,7 +174,7 @@ func convertInlineMarkdown(line string) []postElement {
 		raw := remaining[earliest.start:earliest.end]
 		switch earliest.kind {
 		case "bold":
-			inner := strings.Trim(raw, "*")
+			inner := raw[2 : len(raw)-2]
 			segments = append(segments, segment{text: inner, style: []string{"bold"}, tag: "text"})
 		case "link":
 			// Parse [text](url)

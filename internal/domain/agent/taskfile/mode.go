@@ -22,8 +22,7 @@ const (
 // Decision rules (evaluated in order):
 //  1. Any task with InheritContext → team (requires shared state)
 //  2. Max chain depth > 3 → team (deeply coupled work)
-//  3. Max layer width / total tasks > 0.6 → swarm (wide parallel DAG)
-//  4. Default → swarm (prefer parallelism when ambiguous)
+//  3. Default → swarm (prefer parallelism when ambiguous)
 func AnalyzeMode(tf *TaskFile) ExecutionMode {
 	if len(tf.Tasks) == 0 {
 		return ModeSwarm
@@ -42,17 +41,6 @@ func AnalyzeMode(tf *TaskFile) ExecutionMode {
 
 	if len(layers) > 3 {
 		return ModeTeam
-	}
-
-	maxWidth := 0
-	for _, layer := range layers {
-		if len(layer) > maxWidth {
-			maxWidth = len(layer)
-		}
-	}
-
-	if float64(maxWidth)/float64(len(tf.Tasks)) > 0.6 {
-		return ModeSwarm
 	}
 
 	return ModeSwarm

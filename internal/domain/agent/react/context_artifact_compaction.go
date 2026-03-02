@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	contextPlaceholderPrefix   = "[CTX_PLACEHOLDER"
+	contextPlaceholderPrefix   = ports.ArtifactPlaceholderPrefix
 	compactionCooldownTurns    = 2
 	compactionArtifactKind     = "context_compaction_artifact"
 	compactionArtifactFilename = "compaction-%04d.md"
@@ -163,7 +163,7 @@ func buildContextCompactionPlan(messages []Message) contextCompactionPlan {
 		return plan
 	}
 
-	keptConversation := keepRecentTurnsLocal(conversation, 1)
+	keptConversation := ports.KeepRecentTurns(conversation, 1)
 	compressibleCount := len(conversation) - len(keptConversation)
 	if compressibleCount <= 0 {
 		return plan
@@ -182,10 +182,7 @@ func buildContextCompactionPlan(messages []Message) contextCompactionPlan {
 }
 
 func isSyntheticCompactionMessage(msg Message) bool {
-	content := strings.TrimSpace(msg.Content)
-	return strings.HasPrefix(content, compressionSummaryPrefix) ||
-		strings.HasPrefix(content, legacyTrimNoticeSummaryPrefix) ||
-		strings.HasPrefix(content, contextPlaceholderPrefix)
+	return ports.IsSyntheticSummary(msg.Content)
 }
 
 func isCompactionInCooldown(state *TaskState) bool {

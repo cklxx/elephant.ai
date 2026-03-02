@@ -888,12 +888,12 @@ func replyTarget(messageID string, allowReply bool) string {
 	return messageID
 }
 
-// updateMessage updates an existing text message in-place.
-func (g *Gateway) updateMessage(ctx context.Context, messageID, text string) error {
+// updateMessage updates an existing message in-place using the given format.
+func (g *Gateway) updateMessage(ctx context.Context, messageID, msgType, content string) error {
 	if g.messenger == nil {
 		return fmt.Errorf("lark messenger not initialized")
 	}
-	return g.messenger.UpdateMessage(ctx, messageID, "text", textContent(text))
+	return g.messenger.UpdateMessage(ctx, messageID, msgType, content)
 }
 
 // addReaction adds an emoji reaction to the specified message.

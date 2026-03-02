@@ -311,7 +311,7 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 			"Deferred summary applied: %d \u2192 %d tokens (generated at iter %d, now iter %d)",
 			estimated, afterApply, state.PendingSummaryAtIter, state.Iterations,
 		)
-		state.Messages = rebuildStateMessages(state.Messages, applied)
+		state.Messages = applied
 		clearPendingSummary(state)
 		if afterApply <= limit {
 			return applied
@@ -352,7 +352,7 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 		applied := applyPendingSummary(messages, state)
 		afterApply := services.Context.EstimateTokens(applied)
 		e.logger.Info("Pending summary applied early (budget exceeded): %d \u2192 %d tokens", estimated, afterApply)
-		state.Messages = rebuildStateMessages(state.Messages, applied)
+		state.Messages = applied
 		clearPendingSummary(state)
 		if afterApply <= limit {
 			return applied
@@ -377,7 +377,7 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 			afterCompact := services.Context.EstimateTokens(compacted)
 			e.logger.Info("Artifact compaction reduced tokens: %d \u2192 %d (limit=%d)", estimated, afterCompact, limit)
 			if afterCompact <= limit {
-				state.Messages = rebuildStateMessages(state.Messages, compacted)
+				state.Messages = compacted
 				return compacted
 			}
 			messages = compacted
@@ -392,7 +392,7 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 			afterCompact := services.Context.EstimateTokens(compacted)
 			e.logger.Info("Auto-compact reduced tokens: %d \u2192 %d (limit=%d)", estimated, afterCompact, limit)
 			if afterCompact <= limit {
-				state.Messages = rebuildStateMessages(state.Messages, compacted)
+				state.Messages = compacted
 				return compacted
 			}
 			messages = compacted
@@ -407,7 +407,7 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 		e.logger.Info("Aggressive trim (turns=%d): %d \u2192 %d tokens (limit=%d)",
 			turns, estimated, afterTrim, limit)
 		if afterTrim <= limit {
-			state.Messages = rebuildStateMessages(state.Messages, trimmed)
+			state.Messages = trimmed
 			return trimmed
 		}
 	}
@@ -422,7 +422,7 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 		e.logger.Warn("Hard context clamp applied: %d \u2192 %d tokens (limit=%d)", afterTrim, afterForceFit, limit)
 		trimmed = forceFitted
 	}
-	state.Messages = rebuildStateMessages(state.Messages, trimmed)
+	state.Messages = trimmed
 	return trimmed
 }
 
@@ -461,7 +461,7 @@ func applyPendingSummary(messages []ports.Message, state *TaskState) []ports.Mes
 	}
 
 	// Keep at least the most recent turn from the old conversation.
-	kept := keepRecentTurnsLocal(conversation[:convCountAtGen], 1)
+	kept := ports.KeepRecentTurns(conversation[:convCountAtGen], 1)
 	replaceCount := convCountAtGen - len(kept)
 	if replaceCount <= 0 {
 		return messages
@@ -514,7 +514,7 @@ func aggressiveTrimMessages(messages []ports.Message, maxTurns int) []ports.Mess
 		}
 	}
 
-	kept := keepRecentTurnsLocal(conversation, maxTurns)
+	kept := ports.KeepRecentTurns(conversation, maxTurns)
 
 	result := make([]ports.Message, 0, len(preserved)+len(kept)+1)
 	result = append(result, preserved...)
@@ -534,6 +534,21 @@ func isPrimarySystemPromptForTrim(msg ports.Message) bool {
 	return role == "system" && strings.TrimSpace(msg.Content) != ""
 }
 
+const (
+	// maxHalveAttempts: 24 halvings can reduce a 128K-token message to <1 token.
+	maxHalveAttempts = 24
+	// halveFloorTokens: stop halving when a message is below this threshold.
+	halveFloorTokens = 64
+	// systemPromptCapTokens: hard cap for system prompt in minimal payload.
+	systemPromptCapTokens = 512
+	// lastMessageCapTokens: hard cap for last message in minimal payload.
+	lastMessageCapTokens = 256
+	// maxMinimalHalveAttempts: attempts for the final minimal-payload halving pass.
+	maxMinimalHalveAttempts = 12
+	// minimalHalveFloorTokens: floor for the minimal-payload halving pass.
+	minimalHalveFloorTokens = 32
+)
+
 func forceFitMessagesToLimit(messages []ports.Message, limit int, estimate func([]ports.Message) int) []ports.Message {
 	if len(messages) == 0 || limit <= 0 || estimate == nil {
 		return messages
@@ -545,7 +560,7 @@ func forceFitMessagesToLimit(messages []ports.Message, limit int, estimate func(
 	}
 
 	// Phase 1: iteratively halve the largest message until we fit or run out.
-	for attempt := 0; attempt < 24 && estimate(fitted) > limit; attempt++ {
+	for attempt := 0; attempt < maxHalveAttempts && estimate(fitted) > limit; attempt++ {
 		idx := indexOfLargestMessageContent(fitted)
 		if idx < 0 {
 			break
@@ -556,7 +571,7 @@ func forceFitMessagesToLimit(messages []ports.Message, limit int, estimate func(
 			continue
 		}
 		currentTokens := tokenutil.CountTokens(content)
-		if currentTokens <= 64 {
+		if currentTokens <= halveFloorTokens {
 			fitted[idx].Content = "[context truncated]"
 			continue
 		}
@@ -583,7 +598,7 @@ func forceFitMessagesToLimit(messages []ports.Message, limit int, estimate func(
 	sys := messages[systemIdx]
 	sysContent := strings.TrimSpace(sys.Content)
 	if sysContent != "" {
-		sys.Content = tokenutil.TruncateToTokens(sysContent, 512)
+		sys.Content = tokenutil.TruncateToTokens(sysContent, systemPromptCapTokens)
 	}
 	minimal = append(minimal, sys)
 
@@ -591,7 +606,7 @@ func forceFitMessagesToLimit(messages []ports.Message, limit int, estimate func(
 		last := messages[lastIdx]
 		lastContent := strings.TrimSpace(last.Content)
 		if lastContent != "" {
-			last.Content = tokenutil.TruncateToTokens(lastContent, 256)
+			last.Content = tokenutil.TruncateToTokens(lastContent, lastMessageCapTokens)
 		}
 		minimal = append(minimal, ports.Message{
 			Role:    "assistant",
@@ -602,7 +617,7 @@ func forceFitMessagesToLimit(messages []ports.Message, limit int, estimate func(
 	}
 
 	// Final nudge if still above limit: repeatedly halve largest content.
-	for attempt := 0; attempt < 12 && estimate(minimal) > limit; attempt++ {
+	for attempt := 0; attempt < maxMinimalHalveAttempts && estimate(minimal) > limit; attempt++ {
 		idx := indexOfLargestMessageContent(minimal)
 		if idx < 0 {
 			break
@@ -613,7 +628,7 @@ func forceFitMessagesToLimit(messages []ports.Message, limit int, estimate func(
 			continue
 		}
 		tokens := tokenutil.CountTokens(content)
-		if tokens <= 32 {
+		if tokens <= minimalHalveFloorTokens {
 			minimal[idx].Content = "[context truncated]"
 			continue
 		}
@@ -636,37 +651,3 @@ func indexOfLargestMessageContent(messages []ports.Message) int {
 	return longestIdx
 }
 
-// keepRecentTurnsLocal mirrors context.keepRecentTurns for use within react.
-func keepRecentTurnsLocal(messages []ports.Message, maxTurns int) []ports.Message {
-	if len(messages) == 0 || maxTurns <= 0 {
-		return nil
-	}
-	var turnStarts []int
-	for i, msg := range messages {
-		if strings.EqualFold(strings.TrimSpace(msg.Role), "user") {
-			turnStarts = append(turnStarts, i)
-		}
-	}
-	if len(turnStarts) == 0 {
-		if len(messages) <= maxTurns {
-			return messages
-		}
-		return messages[len(messages)-maxTurns:]
-	}
-	start := 0
-	if len(turnStarts) > maxTurns {
-		start = turnStarts[len(turnStarts)-maxTurns]
-	} else {
-		start = turnStarts[0]
-	}
-	return messages[start:]
-}
-
-// rebuildStateMessages replaces non-debug/non-eval messages in the original
-// state with the trimmed set. This is a best-effort update — if the trimmed
-// set is a subset, we just use it directly.
-func rebuildStateMessages(original, trimmed []ports.Message) []ports.Message {
-	// Simple approach: use the trimmed messages as the new state.
-	// The debug/eval messages were already excluded by splitMessagesForLLM.
-	return trimmed
-}

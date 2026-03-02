@@ -2,11 +2,7 @@ package lark
 
 import (
 	"context"
-	"strings"
-	"time"
 
-	"alex/internal/app/agent/llmclient"
-	ports "alex/internal/domain/agent/ports"
 	"alex/internal/shared/utils"
 )
 
@@ -16,9 +12,7 @@ const (
 	rephraseBackground rephraseKind = iota
 	rephraseForeground
 
-	rephraseTimeout  = 6 * time.Second
 	rephraseMaxInput = 2000
-	rephraseMaxReply = 400
 )
 
 const rephraseBackgroundSystemPrompt = `把后台任务完成结果改写为简洁自然的中文消息。
@@ -56,28 +50,11 @@ func (g *Gateway) rephraseForUser(ctx context.Context, rawText string, kind reph
 		return rawText
 	}
 
-	client, _, err := llmclient.GetClientFromProfile(g.llmFactory, g.llmProfile, nil, false)
-	if err != nil {
-		return rawText
-	}
-
-	llmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rephraseTimeout)
-	defer cancel()
-
-	resp, err := client.Complete(llmCtx, ports.CompletionRequest{
-		Messages: []ports.Message{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: input},
-		},
-		Temperature: 0.3,
-		MaxTokens:   rephraseMaxReply,
+	result, err := g.narrateWithLLM(ctx, systemPrompt, input, narrateOpts{
+		temperature: 0.3,
+		maxTokens:   400,
 	})
-	if err != nil {
-		return rawText
-	}
-
-	result := strings.TrimSpace(resp.Content)
-	if result == "" {
+	if err != nil || result == "" {
 		return rawText
 	}
 	return result

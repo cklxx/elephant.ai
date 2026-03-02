@@ -54,6 +54,9 @@ func NewSwarmScheduler(dispatcher agent.BackgroundTaskDispatcher, cfg SwarmConfi
 	if cfg.ScaleStep <= 0 {
 		cfg.ScaleStep = DefaultSwarmConfig().ScaleStep
 	}
+	if current > cfg.MaxConcurrency {
+		current = cfg.MaxConcurrency
+	}
 	return &SwarmScheduler{
 		config:     cfg,
 		dispatcher: dispatcher,
@@ -61,14 +64,18 @@ func NewSwarmScheduler(dispatcher agent.BackgroundTaskDispatcher, cfg SwarmConfi
 	}
 }
 
-// ExecuteSwarm groups tasks into dependency layers, then runs each layer as a
-// parallel swarm batch with adaptive concurrency. Returns after all layers
-// have been executed.
+// ExecuteSwarm validates and executes tasks using stage-batched parallelism.
 func (s *SwarmScheduler) ExecuteSwarm(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
 	if err := Validate(tf); err != nil {
 		return nil, fmt.Errorf("validate: %w", err)
 	}
+	return s.executeSwarmValidated(ctx, tf, causationID, statusPath)
+}
 
+// executeSwarmValidated groups tasks into dependency layers, then runs each
+// layer as a parallel swarm batch with adaptive concurrency. Caller must have
+// validated tf already.
+func (s *SwarmScheduler) executeSwarmValidated(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
 	layers, err := TopologicalLayers(tf.Tasks)
 	if err != nil {
 		return nil, fmt.Errorf("topo layers: %w", err)

@@ -333,14 +333,5 @@ func encodeMapForHash[T any](h hash.Hash, label string, entries map[string]T) {
 	}
 }
 
-// deriveRepoRootFromConfigRoot derives the repository root from the config root path.
-// Assumes config root is under "configs/context" in the repo.
-func deriveRepoRootFromConfigRoot(configRoot string) string {
-	cleaned := filepath.Clean(configRoot)
-	suffix := filepath.Join("configs", "context")
-	if strings.HasSuffix(cleaned, suffix) {
-		return strings.TrimSuffix(cleaned, suffix)
-	}
-	// Fallback: walk up two levels if the path ends with the expected dirs.
-	return filepath.Dir(filepath.Dir(cleaned))
-}
+// deriveRepoRootFromConfigRoot delegates to deriveRepoRoot.
+var deriveRepoRootFromConfigRoot = deriveRepoRoot

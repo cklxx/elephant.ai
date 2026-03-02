@@ -6,10 +6,11 @@ import (
 	"alex/internal/domain/agent/ports"
 )
 
+// Shared prefix aliases from ports.
 const (
-	compressionSummaryPrefix      = "[Earlier context compressed]"
-	legacyTrimNoticeSummaryPrefix = "[Context trimmed to fit model window."
-	artifactPlaceholderPrefix     = "[CTX_PLACEHOLDER"
+	compressionSummaryPrefix      = ports.CompressionSummaryPrefix
+	legacyTrimNoticeSummaryPrefix = ports.TrimNoticeSummaryPrefix
+	artifactPlaceholderPrefix     = ports.ArtifactPlaceholderPrefix
 )
 
 // normalizeContextMessages rewrites legacy synthetic messages so they don't

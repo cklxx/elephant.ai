@@ -298,17 +298,7 @@ func renderCompactAvailableSkillsXML(library skills.Library, maxEntries int) str
 	return strings.TrimSpace(sb.String())
 }
 
-func truncateSkillInlineText(content string, maxChars int) string {
-	trimmed := strings.TrimSpace(content)
-	if trimmed == "" || maxChars <= 0 {
-		return trimmed
-	}
-	runes := []rune(trimmed)
-	if len(runes) <= maxChars {
-		return trimmed
-	}
-	return strings.TrimSpace(string(runes[:maxChars])) + "…"
-}
+var truncateSkillInlineText = ports.TruncateRuneSnippet
 
 func escapeSkillXML(value string) string {
 	var builder strings.Builder

@@ -198,15 +198,8 @@ func (e *ReactEngine) applyContextCheckpoint(
 	return true
 }
 
-// isPreservedSource returns true for message sources that must survive pruning.
-func isPreservedSource(src ports.MessageSource) bool {
-	switch src {
-	case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceCheckpoint:
-		return true
-	default:
-		return false
-	}
-}
+// isPreservedSource delegates to ports.IsPreservedSource.
+var isPreservedSource = ports.IsPreservedSource
 
 // containsToolCall checks if an assistant message issued a tool call with the
 // given ID.
