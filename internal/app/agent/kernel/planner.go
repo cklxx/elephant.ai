@@ -41,11 +41,12 @@ func (p *StaticPlanner) Plan(_ context.Context, stateContent string, recentByAge
 		}
 		prompt := strings.ReplaceAll(a.Prompt, "{STATE}", stateContent)
 		specs = append(specs, kerneldomain.DispatchSpec{
-			AgentID:  a.AgentID,
-			Prompt:   prompt,
-			Priority: a.Priority,
-			Kind:     kerneldomain.DispatchKindAgent,
-			Metadata: a.Metadata,
+			AgentID:        a.AgentID,
+			Prompt:         prompt,
+			Priority:       a.Priority,
+			Kind:           kerneldomain.DispatchKindAgent,
+			TimeoutSeconds: a.TimeoutSeconds,
+			Metadata:       a.Metadata,
 		})
 	}
 	return specs, nil

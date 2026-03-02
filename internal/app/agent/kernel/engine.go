@@ -602,7 +602,7 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 			}
 
 			// Copy metadata to avoid concurrent mutation of the shared map.
-			meta := make(map[string]string, len(d.Metadata)+2)
+			meta := make(map[string]string, len(d.Metadata)+4)
 			for k, v := range d.Metadata {
 				meta[k] = v
 			}
@@ -614,6 +614,10 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 			}
 			if e.config.ChatID != "" {
 				meta["chat_id"] = e.config.ChatID
+			}
+			// Thread per-dispatch timeout so the executor can use it instead of the global default.
+			if d.TimeoutSeconds > 0 {
+				meta["timeout_seconds"] = fmt.Sprintf("%d", d.TimeoutSeconds)
 			}
 
 			var execResult ExecutionResult
@@ -728,6 +732,14 @@ func toTeamRoleSummaries(roles []TeamRoleResult) []kerneldomain.TeamRoleSummary 
 func classifyDispatchError(err error) string {
 	if err == nil {
 		return ""
+	}
+	// Classify context timeout and cancellation as distinct failure classes
+	// so the planner and notifier can surface them separately from validation failures.
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+	if errors.Is(err, context.Canceled) {
+		return "canceled"
 	}
 	return classifyKernelValidationError(err)
 }

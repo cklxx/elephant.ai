@@ -67,18 +67,20 @@ type PlannerSettings struct {
 func DefaultRuntimeSettings() RuntimeSettings {
 	agents := []AgentConfig{
 		{
-			AgentID:  "founder-operator",
-			Prompt:   defaultKernelOperatorPrompt,
-			Priority: 10,
-			Enabled:  true,
-			Metadata: map[string]string{"source": "kernel_default"},
+			AgentID:        "founder-operator",
+			Prompt:         defaultKernelOperatorPrompt,
+			Priority:       10,
+			Enabled:        true,
+			TimeoutSeconds: 600, // capped at 10 min; high-level orchestration should be fast
+			Metadata:       map[string]string{"source": "kernel_default"},
 		},
 		{
-			AgentID:  "build-executor",
-			Prompt:   "Execute kernel build/implementation tasks with deterministic verification.\n\nProceed based on the following state:\n{STATE}",
-			Priority: 9,
-			Enabled:  true,
-			Metadata: map[string]string{"source": "kernel_default", "bucket": "build"},
+			AgentID:        "build-executor",
+			Prompt:         "Execute kernel build/implementation tasks with deterministic verification.\n\nProceed based on the following state:\n{STATE}",
+			Priority:       9,
+			Enabled:        true,
+			TimeoutSeconds: 840, // build + test can be slow; allow up to 14 min
+			Metadata:       map[string]string{"source": "kernel_default", "bucket": "build"},
 		},
 		{
 			AgentID:         "research-executor",
@@ -86,28 +88,32 @@ func DefaultRuntimeSettings() RuntimeSettings {
 			Priority:        8,
 			Enabled:         true,
 			CooldownMinutes: 30,
+			TimeoutSeconds:  600, // research is I/O bound; 10 min is ample
 			Metadata:        map[string]string{"source": "kernel_default", "bucket": "research"},
 		},
 		{
-			AgentID:  "outreach-executor",
-			Prompt:   "Execute kernel communication/outreach tasks that unblock delivery and state sync.\n\nProceed based on the following state:\n{STATE}",
-			Priority: 7,
-			Enabled:  false,
-			Metadata: map[string]string{"source": "kernel_default", "bucket": "outreach"},
+			AgentID:        "outreach-executor",
+			Prompt:         "Execute kernel communication/outreach tasks that unblock delivery and state sync.\n\nProceed based on the following state:\n{STATE}",
+			Priority:       7,
+			Enabled:        false,
+			TimeoutSeconds: 300,
+			Metadata:       map[string]string{"source": "kernel_default", "bucket": "outreach"},
 		},
 		{
-			AgentID:  "data-executor",
-			Prompt:   "Execute kernel data/file transformation and state maintenance tasks with evidence.\n\nProceed based on the following state:\n{STATE}",
-			Priority: 8,
-			Enabled:  true,
-			Metadata: map[string]string{"source": "kernel_default", "bucket": "data"},
+			AgentID:        "data-executor",
+			Prompt:         "Execute kernel data/file transformation and state maintenance tasks with evidence.\n\nProceed based on the following state:\n{STATE}",
+			Priority:       8,
+			Enabled:        true,
+			TimeoutSeconds: 300, // file/data ops should complete in 5 min; keeps cycle budget free
+			Metadata:       map[string]string{"source": "kernel_default", "bucket": "data"},
 		},
 		{
-			AgentID:  "audit-executor",
-			Prompt:   "Execute kernel audit/validation tasks and record risks plus next actions.\n\nProceed based on the following state:\n{STATE}",
-			Priority: 8,
-			Enabled:  true,
-			Metadata: map[string]string{"source": "kernel_default", "bucket": "audit"},
+			AgentID:        "audit-executor",
+			Prompt:         "Execute kernel audit/validation tasks and record risks plus next actions.\n\nProceed based on the following state:\n{STATE}",
+			Priority:       8,
+			Enabled:        true,
+			TimeoutSeconds: 300, // audit/validation is read-only; 5 min ceiling
+			Metadata:       map[string]string{"source": "kernel_default", "bucket": "audit"},
 		},
 	}
 	return RuntimeSettings{
@@ -152,6 +158,7 @@ type AgentConfig struct {
 	Priority        int
 	Enabled         bool
 	CooldownMinutes int // skip redispatch after successful run when within cooldown window
+	TimeoutSeconds  int // per-agent timeout override; 0 means use global DefaultKernelTimeoutSeconds
 	Metadata        map[string]string
 }
 
@@ -175,6 +182,7 @@ func CloneAgentConfigs(agents []AgentConfig) []AgentConfig {
 			Priority:        agentCfg.Priority,
 			Enabled:         agentCfg.Enabled,
 			CooldownMinutes: agentCfg.CooldownMinutes,
+			TimeoutSeconds:  agentCfg.TimeoutSeconds,
 			Metadata:        metadata,
 		})
 	}

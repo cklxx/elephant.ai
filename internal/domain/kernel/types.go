@@ -44,32 +44,36 @@ type TeamDispatchSpec struct {
 
 // DispatchSpec is the planner's output: one unit of work to enqueue.
 type DispatchSpec struct {
-	AgentID  string            `json:"agent_id"`
-	Prompt   string            `json:"prompt"`
-	Priority int               `json:"priority"`
-	Kind     DispatchKind      `json:"kind,omitempty"`
-	Team     *TeamDispatchSpec `json:"team,omitempty"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	AgentID        string            `json:"agent_id"`
+	Prompt         string            `json:"prompt"`
+	Priority       int               `json:"priority"`
+	Kind           DispatchKind      `json:"kind,omitempty"`
+	Team           *TeamDispatchSpec `json:"team,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	// TimeoutSeconds overrides the global executor timeout for this specific dispatch.
+	// Zero means use the global default.
+	TimeoutSeconds int               `json:"timeout_seconds,omitempty"`
 }
 
 // Dispatch is the persisted row for a single dispatched task.
 type Dispatch struct {
-	DispatchID string            `json:"dispatch_id"`
-	KernelID   string            `json:"kernel_id"`
-	CycleID    string            `json:"cycle_id"`
-	AgentID    string            `json:"agent_id"`
-	Prompt     string            `json:"prompt"`
-	Priority   int               `json:"priority"`
-	Kind       DispatchKind      `json:"kind,omitempty"`
-	Team       *TeamDispatchSpec `json:"team,omitempty"`
-	Status     DispatchStatus    `json:"status"`
-	LeaseOwner string            `json:"lease_owner,omitempty"`
-	LeaseUntil *time.Time        `json:"lease_until,omitempty"`
-	TaskID     string            `json:"task_id,omitempty"`
-	Error      string            `json:"error,omitempty"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
-	CreatedAt  time.Time         `json:"created_at"`
-	UpdatedAt  time.Time         `json:"updated_at"`
+	DispatchID     string            `json:"dispatch_id"`
+	KernelID       string            `json:"kernel_id"`
+	CycleID        string            `json:"cycle_id"`
+	AgentID        string            `json:"agent_id"`
+	Prompt         string            `json:"prompt"`
+	Priority       int               `json:"priority"`
+	Kind           DispatchKind      `json:"kind,omitempty"`
+	Team           *TeamDispatchSpec `json:"team,omitempty"`
+	TimeoutSeconds int               `json:"timeout_seconds,omitempty"`
+	Status         DispatchStatus    `json:"status"`
+	LeaseOwner     string            `json:"lease_owner,omitempty"`
+	LeaseUntil     *time.Time        `json:"lease_until,omitempty"`
+	TaskID         string            `json:"task_id,omitempty"`
+	Error          string            `json:"error,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
 }
 
 // AgentCycleSummary captures one agent dispatch outcome in a cycle.

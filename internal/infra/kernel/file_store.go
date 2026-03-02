@@ -85,18 +85,19 @@ func (s *FileStore) EnqueueDispatches(ctx context.Context, kernelID, cycleID str
 	created := make([]kernel.Dispatch, 0, len(specs))
 	for _, spec := range specs {
 		d := kernel.Dispatch{
-			DispatchID: uuid.New().String(),
-			KernelID:   kernelID,
-			CycleID:    cycleID,
-			AgentID:    spec.AgentID,
-			Prompt:     spec.Prompt,
-			Priority:   spec.Priority,
-			Kind:       spec.Kind,
-			Team:       cloneTeamSpec(spec.Team),
-			Status:     kernel.DispatchPending,
-			Metadata:   spec.Metadata,
-			CreatedAt:  now,
-			UpdatedAt:  now,
+			DispatchID:     uuid.New().String(),
+			KernelID:       kernelID,
+			CycleID:        cycleID,
+			AgentID:        spec.AgentID,
+			Prompt:         spec.Prompt,
+			Priority:       spec.Priority,
+			Kind:           spec.Kind,
+			Team:           cloneTeamSpec(spec.Team),
+			TimeoutSeconds: spec.TimeoutSeconds,
+			Status:         kernel.DispatchPending,
+			Metadata:       spec.Metadata,
+			CreatedAt:      now,
+			UpdatedAt:      now,
 		}
 		created = append(created, d)
 	}
