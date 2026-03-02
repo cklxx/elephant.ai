@@ -447,6 +447,118 @@ func TestConvertMessagesKimiDropsEmptyAssistantMessages(t *testing.T) {
 	}
 }
 
+func TestConvertMessagesKimiAlwaysSetsReasoningContentOnToolCallMessages(t *testing.T) {
+	t.Parallel()
+
+	// Kimi API error: "thinking is enabled but reasoning_content is missing in
+	// assistant tool call message at index N".
+	// reasoning_content must always be present (even as "") in assistant messages
+	// with tool_calls when using Kimi, regardless of whether thinking text exists.
+	client := &openaiClient{baseClient: baseClient{baseURL: "https://api.kimi.com/coding/v1"}}
+
+	t.Run("sets empty reasoning_content when no thinking", func(t *testing.T) {
+		msgs := []ports.Message{
+			{
+				Role:    "assistant",
+				Content: "",
+				ToolCalls: []ports.ToolCall{
+					{ID: "call-1", Name: "plan", Arguments: map[string]any{"goal": "x"}},
+				},
+				// No Thinking field set
+			},
+		}
+		converted := client.convertMessages(msgs)
+		if len(converted) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(converted))
+		}
+		rc, exists := converted[0]["reasoning_content"]
+		if !exists {
+			t.Fatal("reasoning_content field must be present in Kimi assistant tool_call messages, but it was missing")
+		}
+		if rc != "" {
+			t.Fatalf("expected empty string for reasoning_content when no thinking, got %q", rc)
+		}
+	})
+
+	t.Run("sets actual reasoning_content when thinking exists", func(t *testing.T) {
+		msgs := []ports.Message{
+			{
+				Role:    "assistant",
+				Content: "",
+				ToolCalls: []ports.ToolCall{
+					{ID: "call-2", Name: "search", Arguments: map[string]any{"query": "test"}},
+				},
+				Thinking: ports.Thinking{
+					Parts: []ports.ThinkingPart{
+						{Kind: "thinking", Text: "I should search for this."},
+					},
+				},
+			},
+		}
+		converted := client.convertMessages(msgs)
+		if len(converted) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(converted))
+		}
+		rc, exists := converted[0]["reasoning_content"]
+		if !exists {
+			t.Fatal("reasoning_content field must be present in Kimi assistant tool_call messages, but it was missing")
+		}
+		if rc != "I should search for this." {
+			t.Fatalf("expected reasoning_content to be thinking text, got %q", rc)
+		}
+	})
+
+	t.Run("non-kimi client does not set reasoning_content", func(t *testing.T) {
+		nonKimiClient := &openaiClient{baseClient: baseClient{baseURL: "https://api.openai.com/v1"}}
+		msgs := []ports.Message{
+			{
+				Role:    "assistant",
+				Content: "ok",
+				ToolCalls: []ports.ToolCall{
+					{ID: "call-3", Name: "search", Arguments: map[string]any{"query": "test"}},
+				},
+			},
+		}
+		converted := nonKimiClient.convertMessages(msgs)
+		if len(converted) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(converted))
+		}
+		if _, exists := converted[0]["reasoning_content"]; exists {
+			t.Fatal("reasoning_content should not be set for non-Kimi providers")
+		}
+	})
+
+	t.Run("sets reasoning_content when model name contains kimi (proxy URL)", func(t *testing.T) {
+		// Kimi routed through a proxy — baseURL does not contain kimi.com,
+		// but model name "kimi-for-coding" should trigger the same contract.
+		proxyKimiClient := &openaiClient{baseClient: baseClient{
+			baseURL: "https://proxy.internal.company.com/v1",
+			model:   "kimi-for-coding",
+		}}
+		msgs := []ports.Message{
+			{
+				Role:    "assistant",
+				Content: "ok",
+				ToolCalls: []ports.ToolCall{
+					{ID: "call-proxy", Name: "tool_x", Arguments: map[string]any{"key": "val"}},
+				},
+				Thinking: ports.Thinking{Parts: []ports.ThinkingPart{{Text: "my reasoning"}}},
+			},
+		}
+		converted := proxyKimiClient.convertMessages(msgs)
+		if len(converted) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(converted))
+		}
+		rc, exists := converted[0]["reasoning_content"]
+		if !exists {
+			t.Fatal("reasoning_content must be set when model name contains 'kimi'")
+		}
+		if rc != "my reasoning" {
+			t.Fatalf("expected reasoning_content 'my reasoning', got %q", rc)
+		}
+	})
+}
+
 func TestConvertMessagesNonKimiKeepsEmptyAssistantMessages(t *testing.T) {
 	t.Parallel()
 
