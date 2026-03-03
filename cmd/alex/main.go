@@ -93,11 +93,9 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 		return false, 0
 	}
 
-	for _, arg := range args {
-		if arg == "help" || arg == "-h" || arg == "--help" {
-			printUsage()
-			return true, 0
-		}
+	if isTopLevelHelp(args) {
+		printUsage()
+		return true, 0
 	}
 
 	switch args[0] {
@@ -115,6 +113,18 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 	}
 
 	return false, 0
+}
+
+func isTopLevelHelp(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch args[0] {
+	case "help", "-h", "--help":
+		return true
+	default:
+		return false
+	}
 }
 
 func runStandaloneCommand(args []string, runner func([]string) error, resolveExitCode func(error) int) (handled bool, exitCode int) {

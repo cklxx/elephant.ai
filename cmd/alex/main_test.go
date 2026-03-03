@@ -111,3 +111,56 @@ func TestRunStandaloneCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestIsTopLevelHelp(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{
+			name: "empty args",
+			args: nil,
+			want: false,
+		},
+		{
+			name: "top-level help command",
+			args: []string{"help"},
+			want: true,
+		},
+		{
+			name: "top-level short help flag",
+			args: []string{"-h"},
+			want: true,
+		},
+		{
+			name: "top-level long help flag",
+			args: []string{"--help"},
+			want: true,
+		},
+		{
+			name: "nested help flag should not be treated as top-level help",
+			args: []string{"dev", "lark", "--help"},
+			want: false,
+		},
+		{
+			name: "unknown command with help flag should not be treated as top-level help",
+			args: []string{"unknown", "--help"},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := isTopLevelHelp(tc.args)
+			if got != tc.want {
+				t.Fatalf("isTopLevelHelp(%v) = %v, want %v", tc.args, got, tc.want)
+			}
+		})
+	}
+}
