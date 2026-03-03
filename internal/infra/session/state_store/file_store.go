@@ -113,33 +113,40 @@ func (s *FileStore) GetSnapshot(ctx context.Context, sessionID string, turnID in
 
 // ListSnapshots returns metadata sorted by newest turn first.
 func (s *FileStore) ListSnapshots(ctx context.Context, sessionID string, cursor string, limit int) ([]SnapshotMetadata, string, error) {
+	snapshots, nextCursor, err := s.ListSnapshotPayloads(ctx, sessionID, cursor, limit)
+	if err != nil {
+		return nil, "", err
+	}
+	metas := make([]SnapshotMetadata, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		metas = append(metas, SnapshotMetadata{
+			SessionID:  snapshot.SessionID,
+			TurnID:     snapshot.TurnID,
+			LLMTurnSeq: snapshot.LLMTurnSeq,
+			Summary:    snapshot.Summary,
+			CreatedAt:  snapshot.CreatedAt,
+		})
+	}
+	return metas, nextCursor, nil
+}
+
+// ListSnapshotPayloads returns full snapshot payloads sorted by newest turn first.
+func (s *FileStore) ListSnapshotPayloads(ctx context.Context, sessionID string, cursor string, limit int) ([]Snapshot, string, error) {
 	if sessionID == "" {
 		return nil, "", fmt.Errorf("session id required")
 	}
 	if ctx != nil && ctx.Err() != nil {
 		return nil, "", ctx.Err()
 	}
-	entries, err := os.ReadDir(s.sessionDir(sessionID))
+	turnIDs, err := s.listTurnIDs(sessionID)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, "", nil
-		}
-		return nil, "", fmt.Errorf("list session snapshots: %w", err)
+		return nil, "", err
 	}
-	turnIDs := make([]int, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if id, ok := s.parseFilename(entry.Name()); ok {
-			turnIDs = append(turnIDs, id)
-		}
-	}
-	sort.Sort(sort.Reverse(sort.IntSlice(turnIDs)))
 
 	startIdx := 0
 	if cursor != "" {
 		if cursorID, err := strconv.Atoi(cursor); err == nil {
+			startIdx = len(turnIDs)
 			for i, id := range turnIDs {
 				if id < cursorID {
 					startIdx = i
@@ -156,7 +163,7 @@ func (s *FileStore) ListSnapshots(ctx context.Context, sessionID string, cursor 
 		limit = 20
 	}
 
-	var metas []SnapshotMetadata
+	var snapshots []Snapshot
 	end := startIdx + limit
 	if end > len(turnIDs) {
 		end = len(turnIDs)
@@ -169,19 +176,13 @@ func (s *FileStore) ListSnapshots(ctx context.Context, sessionID string, cursor 
 		if err != nil {
 			return nil, "", err
 		}
-		metas = append(metas, SnapshotMetadata{
-			SessionID:  snapshot.SessionID,
-			TurnID:     snapshot.TurnID,
-			LLMTurnSeq: snapshot.LLMTurnSeq,
-			Summary:    snapshot.Summary,
-			CreatedAt:  snapshot.CreatedAt,
-		})
+		snapshots = append(snapshots, snapshot)
 	}
 	var nextCursor string
 	if end < len(turnIDs) {
-		nextCursor = strconv.Itoa(turnIDs[end])
+		nextCursor = strconv.Itoa(turnIDs[end-1])
 	}
-	return metas, nextCursor, nil
+	return snapshots, nextCursor, nil
 }
 
 func (s *FileStore) filename(turnID int) string {
@@ -201,4 +202,25 @@ func (s *FileStore) parseFilename(name string) (int, bool) {
 		return 0, false
 	}
 	return value, true
+}
+
+func (s *FileStore) listTurnIDs(sessionID string) ([]int, error) {
+	entries, err := os.ReadDir(s.sessionDir(sessionID))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("list session snapshots: %w", err)
+	}
+	turnIDs := make([]int, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if id, ok := s.parseFilename(entry.Name()); ok {
+			turnIDs = append(turnIDs, id)
+		}
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(turnIDs)))
+	return turnIDs, nil
 }

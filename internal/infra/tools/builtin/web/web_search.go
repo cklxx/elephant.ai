@@ -218,12 +218,12 @@ func (t *webSearch) searchFallback(ctx context.Context, callID string, query str
 	fallbackURL := "https://html.duckduckgo.com/html/?q=" + url.QueryEscape(query)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fallbackURL, nil)
 	if err != nil {
-		return &ports.ToolResult{CallID: callID, Content: fmt.Sprintf("Error creating fallback request: %v", err), Error: err}, nil
+		return shared.ToolError(callID, "error creating fallback request: %w", err)
 	}
 
 	resp, err := t.client.Do(req)
 	if err != nil {
-		return &ports.ToolResult{CallID: callID, Content: fmt.Sprintf("Error making fallback request: %v", err), Error: err}, nil
+		return shared.ToolError(callID, "error making fallback request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -232,12 +232,12 @@ func (t *webSearch) searchFallback(ctx context.Context, callID string, query str
 		if httpclient.IsResponseTooLarge(err) {
 			err = fmt.Errorf("response exceeds %d bytes", t.maxResponseBytes)
 		}
-		return &ports.ToolResult{CallID: callID, Content: fmt.Sprintf("Error reading fallback response: %v", err), Error: err}, nil
+		return shared.ToolError(callID, "error reading fallback response: %w", err)
 	}
 
 	results, err := parseDuckDuckGoResults(body, maxResults)
 	if err != nil {
-		return &ports.ToolResult{CallID: callID, Content: fmt.Sprintf("Error parsing fallback response: %v", err), Error: err}, nil
+		return shared.ToolError(callID, "error parsing fallback response: %w", err)
 	}
 
 	var output strings.Builder

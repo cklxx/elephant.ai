@@ -45,7 +45,7 @@ func resolveLarkCalendarAuth(ctx context.Context, callID string) (larkAccessToke
 			return auth, nil
 		}
 		err := fmt.Errorf("lark oauth not configured (missing oauth service in context)")
-		return larkAccessToken{}, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		return larkAccessToken{}, toolErrorResult(callID, "%w", err)
 	}
 
 	openID := strings.TrimSpace(id.UserIDFromContext(ctx))
@@ -54,7 +54,7 @@ func resolveLarkCalendarAuth(ctx context.Context, callID string) (larkAccessToke
 			return auth, nil
 		}
 		err := fmt.Errorf("missing lark sender open_id in context")
-		return larkAccessToken{}, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		return larkAccessToken{}, toolErrorResult(callID, "%w", err)
 	}
 
 	token, err := svc.UserAccessToken(ctx, openID)
@@ -89,7 +89,7 @@ func resolveLarkCalendarAuth(ctx context.Context, callID string) (larkAccessToke
 			return auth, nil
 		}
 		err := fmt.Errorf("empty user_access_token returned")
-		return larkAccessToken{}, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		return larkAccessToken{}, toolErrorResult(callID, "%w", err)
 	}
 
 	return larkAccessToken{token: token, kind: larkTokenUser}, nil
@@ -107,7 +107,7 @@ func resolveCalendarID(ctx context.Context, callID string, client *lark.Client, 
 		calendarID := strings.TrimSpace(auth.calendarID)
 		if calendarID == "" {
 			err := fmt.Errorf("%s: tenant token requires channels.lark.tenant_calendar_id or user OAuth", toolName)
-			return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+			return "", toolErrorResult(callID, "%w", err)
 		}
 		return calendarID, nil
 	}
@@ -121,4 +121,9 @@ func resolveCalendarID(ctx context.Context, callID string, client *lark.Client, 
 		}
 	}
 	return calendarID, nil
+}
+
+func toolErrorResult(callID, format string, args ...any) *ports.ToolResult {
+	result, _ := shared.ToolError(callID, format, args...)
+	return result
 }

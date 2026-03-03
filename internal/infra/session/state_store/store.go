@@ -24,6 +24,13 @@ type Store interface {
 	ListSnapshots(ctx context.Context, sessionID string, cursor string, limit int) ([]SnapshotMetadata, string, error)
 }
 
+// SnapshotPayloadLister is an optional Store extension that returns full
+// snapshots for paginated listings. Consumers can use this to avoid the
+// ListSnapshots + GetSnapshot N+1 read pattern.
+type SnapshotPayloadLister interface {
+	ListSnapshotPayloads(ctx context.Context, sessionID string, cursor string, limit int) ([]Snapshot, string, error)
+}
+
 // Snapshot captures the structured view of a single turn.
 type Snapshot struct {
 	SessionID     string                     `json:"session_id"`

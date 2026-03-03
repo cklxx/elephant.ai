@@ -115,10 +115,7 @@ func expandChannelsConfigEnv(lookup EnvLookup, parsed ChannelsConfig) ChannelsCo
 	expanded.TenantCalendarID = expandEnvValue(lookup, expanded.TenantCalendarID)
 	expanded.BaseDomain = expandEnvValue(lookup, expanded.BaseDomain)
 	expanded.WorkspaceDir = expandEnvValue(lookup, expanded.WorkspaceDir)
-	expanded.SessionPrefix = expandEnvValue(lookup, expanded.SessionPrefix)
-	expanded.ReplyPrefix = expandEnvValue(lookup, expanded.ReplyPrefix)
-	expanded.AgentPreset = expandEnvValue(lookup, expanded.AgentPreset)
-	expanded.ToolPreset = expandEnvValue(lookup, expanded.ToolPreset)
+	expanded.BaseChannelConfig = expandBaseChannelConfigEnv(lookup, expanded.BaseChannelConfig)
 	expanded.ToolMode = expandEnvValue(lookup, expanded.ToolMode)
 	expanded.ReactEmoji = expandEnvValue(lookup, expanded.ReactEmoji)
 	expanded.InjectionAckReactEmoji = expandEnvValue(lookup, expanded.InjectionAckReactEmoji)
@@ -148,16 +145,21 @@ func expandChannelsConfigEnv(lookup EnvLookup, parsed ChannelsConfig) ChannelsCo
 
 func expandTelegramConfigEnv(lookup EnvLookup, cfg TelegramChannelConfig) TelegramChannelConfig {
 	cfg.BotToken = expandEnvValue(lookup, cfg.BotToken)
-	cfg.SessionPrefix = expandEnvValue(lookup, cfg.SessionPrefix)
-	cfg.ReplyPrefix = expandEnvValue(lookup, cfg.ReplyPrefix)
-	cfg.AgentPreset = expandEnvValue(lookup, cfg.AgentPreset)
-	cfg.ToolPreset = expandEnvValue(lookup, cfg.ToolPreset)
+	cfg.BaseChannelConfig = expandBaseChannelConfigEnv(lookup, cfg.BaseChannelConfig)
 	if cfg.Persistence != nil {
 		p := *cfg.Persistence
 		p.Mode = expandEnvValue(lookup, p.Mode)
 		p.Dir = expandEnvValue(lookup, p.Dir)
 		cfg.Persistence = &p
 	}
+	return cfg
+}
+
+func expandBaseChannelConfigEnv(lookup EnvLookup, cfg BaseChannelConfig) BaseChannelConfig {
+	cfg.SessionPrefix = expandEnvValue(lookup, cfg.SessionPrefix)
+	cfg.ReplyPrefix = expandEnvValue(lookup, cfg.ReplyPrefix)
+	cfg.AgentPreset = expandEnvValue(lookup, cfg.AgentPreset)
+	cfg.ToolPreset = expandEnvValue(lookup, cfg.ToolPreset)
 	return cfg
 }
 

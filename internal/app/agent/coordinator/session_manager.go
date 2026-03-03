@@ -17,6 +17,10 @@ import (
 	id "alex/internal/shared/utils/id"
 )
 
+type historyManagerWithExisting interface {
+	AppendTurnWithExisting(ctx context.Context, sessionID string, existing []ports.Message, messages []ports.Message) error
+}
+
 func (c *AgentCoordinator) persistSessionTitle(ctx context.Context, sessionID string, title string) {
 	if c == nil || c.sessionStore == nil {
 		return
@@ -58,7 +62,7 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	if historyEnabled && c.historyMgr != nil && session != nil && result != nil {
 		previousHistory, _ := c.historyMgr.Replay(ctx, session.ID, 0)
 		incoming := append(agent.CloneMessages(previousHistory), stripUserHistoryMessages(result.Messages)...)
-		if err := c.historyMgr.AppendTurn(ctx, session.ID, incoming); err != nil && logger != nil {
+		if err := c.appendHistoryTurn(ctx, session.ID, previousHistory, incoming); err != nil && logger != nil {
 			logger.Warn("Failed to append turn history: %v", err)
 		}
 	}
@@ -128,6 +132,21 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	}
 
 	return nil
+}
+
+func (c *AgentCoordinator) appendHistoryTurn(
+	ctx context.Context,
+	sessionID string,
+	previous []ports.Message,
+	incoming []ports.Message,
+) error {
+	if c == nil || c.historyMgr == nil || sessionID == "" {
+		return nil
+	}
+	if optimized, ok := c.historyMgr.(historyManagerWithExisting); ok {
+		return optimized.AppendTurnWithExisting(ctx, sessionID, previous, incoming)
+	}
+	return c.historyMgr.AppendTurn(ctx, sessionID, incoming)
 }
 
 // asyncSaveSession saves session asynchronously (non-blocking) with mutex protection.

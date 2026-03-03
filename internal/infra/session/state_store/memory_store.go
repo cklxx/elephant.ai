@@ -121,6 +121,47 @@ func (s *InMemoryStore) ListSnapshots(_ context.Context, sessionID string, curso
 	return metas, nextCursor, nil
 }
 
+// ListSnapshotPayloads returns full snapshot payloads for paginated listings.
+func (s *InMemoryStore) ListSnapshotPayloads(_ context.Context, sessionID string, cursor string, limit int) ([]Snapshot, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	turns := s.turnsLocked(sessionID)
+	if len(turns) == 0 {
+		return nil, "", nil
+	}
+	startIdx := 0
+	if cursor != "" {
+		if cursorID, err := strconv.Atoi(cursor); err == nil {
+			startIdx = len(turns)
+			for idx, turn := range turns {
+				if turn > cursorID {
+					startIdx = idx
+					break
+				}
+			}
+		}
+	}
+	if startIdx >= len(turns) {
+		return nil, "", nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	end := startIdx + limit
+	if end > len(turns) {
+		end = len(turns)
+	}
+	snapshots := make([]Snapshot, 0, end-startIdx)
+	for _, turnID := range turns[startIdx:end] {
+		snapshots = append(snapshots, s.snapshots[sessionID][turnID])
+	}
+	var nextCursor string
+	if end < len(turns) {
+		nextCursor = strconv.Itoa(turns[end-1])
+	}
+	return snapshots, nextCursor, nil
+}
+
 func (s *InMemoryStore) turnsLocked(sessionID string) []int {
 	turns, ok := s.snapshots[sessionID]
 	if !ok {

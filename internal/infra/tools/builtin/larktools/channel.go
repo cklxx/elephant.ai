@@ -542,10 +542,10 @@ func (c *larkChannel) requireActionApproval(ctx context.Context, call ports.Tool
 
 	resp, err := approver.RequestApproval(ctx, req)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 	if resp == nil || !resp.Approved {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("operation rejected")}, nil
+		return shared.ToolError(call.ID, "operation rejected")
 	}
 	return nil, nil
 }

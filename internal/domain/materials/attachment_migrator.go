@@ -15,6 +15,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	materialports "alex/internal/domain/materials/ports"
+	"alex/internal/infra/httpclient"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
 )
@@ -36,7 +37,7 @@ const defaultMaxFetchBytes = int64(25 << 20) // 25 MiB
 
 func NewAttachmentStoreMigrator(store AttachmentStorer, client *http.Client, cdnBase string, logger logging.Logger) *AttachmentStoreMigrator {
 	if client == nil {
-		client = &http.Client{Timeout: 45 * time.Second}
+		client = httpclient.New(45*time.Second, logger)
 	}
 	return &AttachmentStoreMigrator{
 		store:         store,

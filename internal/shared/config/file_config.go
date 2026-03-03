@@ -334,30 +334,35 @@ type ChannelsConfig struct {
 	Telegram *TelegramChannelConfig `json:"telegram,omitempty" yaml:"telegram"`
 }
 
+// BaseChannelConfig captures fields shared by Lark and Telegram channel configs.
+type BaseChannelConfig struct {
+	Enabled                       *bool  `json:"enabled,omitempty" yaml:"enabled"`
+	SessionPrefix                 string `json:"session_prefix,omitempty" yaml:"session_prefix"`
+	ReplyPrefix                   string `json:"reply_prefix,omitempty" yaml:"reply_prefix"`
+	AllowGroups                   *bool  `json:"allow_groups,omitempty" yaml:"allow_groups"`
+	AllowDirect                   *bool  `json:"allow_direct,omitempty" yaml:"allow_direct"`
+	AgentPreset                   string `json:"agent_preset,omitempty" yaml:"agent_preset"`
+	ToolPreset                    string `json:"tool_preset,omitempty" yaml:"tool_preset"`
+	ReplyTimeoutSeconds           *int   `json:"reply_timeout_seconds,omitempty" yaml:"reply_timeout_seconds"`
+	MemoryEnabled                 *bool  `json:"memory_enabled,omitempty" yaml:"memory_enabled"`
+	ShowToolProgress              *bool  `json:"show_tool_progress,omitempty" yaml:"show_tool_progress"`
+	SlowProgressSummaryEnabled    *bool  `json:"slow_progress_summary_enabled,omitempty" yaml:"slow_progress_summary_enabled"`
+	SlowProgressSummaryDelaySecs  *int   `json:"slow_progress_summary_delay_seconds,omitempty" yaml:"slow_progress_summary_delay_seconds"`
+	PlanReviewEnabled             *bool  `json:"plan_review_enabled,omitempty" yaml:"plan_review_enabled"`
+	PlanReviewRequireConfirmation *bool  `json:"plan_review_require_confirmation,omitempty" yaml:"plan_review_require_confirmation"`
+	PlanReviewPendingTTLMinutes   *int   `json:"plan_review_pending_ttl_minutes,omitempty" yaml:"plan_review_pending_ttl_minutes"`
+	ActiveSlotTTLMinutes          *int   `json:"active_slot_ttl_minutes,omitempty" yaml:"active_slot_ttl_minutes"`
+	ActiveSlotMaxEntries          *int   `json:"active_slot_max_entries,omitempty" yaml:"active_slot_max_entries"`
+	StateCleanupIntervalSeconds   *int   `json:"state_cleanup_interval_seconds,omitempty" yaml:"state_cleanup_interval_seconds"`
+	MaxConcurrentTasks            *int   `json:"max_concurrent_tasks,omitempty" yaml:"max_concurrent_tasks"`
+}
+
 // TelegramChannelConfig captures Telegram gateway settings in YAML.
 type TelegramChannelConfig struct {
-	Enabled                       *bool                      `yaml:"enabled"`
-	BotToken                      string                     `yaml:"bot_token"`
-	SessionPrefix                 string                     `yaml:"session_prefix"`
-	ReplyPrefix                   string                     `yaml:"reply_prefix"`
-	AllowGroups                   *bool                      `yaml:"allow_groups"`
-	AllowDirect                   *bool                      `yaml:"allow_direct"`
-	AgentPreset                   string                     `yaml:"agent_preset"`
-	ToolPreset                    string                     `yaml:"tool_preset"`
-	ReplyTimeoutSeconds           *int                       `yaml:"reply_timeout_seconds"`
-	MemoryEnabled                 *bool                      `yaml:"memory_enabled"`
-	AllowedGroups                 []int64                    `yaml:"allowed_groups"`
-	ShowToolProgress              *bool                      `yaml:"show_tool_progress"`
-	SlowProgressSummaryEnabled    *bool                      `yaml:"slow_progress_summary_enabled"`
-	SlowProgressSummaryDelaySecs  *int                       `yaml:"slow_progress_summary_delay_seconds"`
-	PlanReviewEnabled             *bool                      `yaml:"plan_review_enabled"`
-	PlanReviewRequireConfirmation *bool                      `yaml:"plan_review_require_confirmation"`
-	PlanReviewPendingTTLMinutes   *int                       `yaml:"plan_review_pending_ttl_minutes"`
-	ActiveSlotTTLMinutes          *int                       `yaml:"active_slot_ttl_minutes"`
-	ActiveSlotMaxEntries          *int                       `yaml:"active_slot_max_entries"`
-	StateCleanupIntervalSeconds   *int                       `yaml:"state_cleanup_interval_seconds"`
-	Persistence                   *TelegramPersistenceConfig `yaml:"persistence"`
-	MaxConcurrentTasks            *int                       `yaml:"max_concurrent_tasks"`
+	BotToken          string                     `yaml:"bot_token"`
+	AllowedGroups     []int64                    `yaml:"allowed_groups"`
+	Persistence       *TelegramPersistenceConfig `yaml:"persistence"`
+	BaseChannelConfig `json:",inline" yaml:",inline"`
 }
 
 // TelegramPersistenceConfig captures Telegram local persistence settings.
@@ -370,45 +375,27 @@ type TelegramPersistenceConfig struct {
 
 // LarkChannelConfig captures Lark gateway settings in YAML.
 type LarkChannelConfig struct {
-	Enabled                       *bool                  `json:"enabled" yaml:"enabled"`
-	AppID                         string                 `json:"app_id" yaml:"app_id"`
-	AppSecret                     string                 `json:"app_secret" yaml:"app_secret"`
-	TenantCalendarID              string                 `json:"tenant_calendar_id" yaml:"tenant_calendar_id"`
-	BaseDomain                    string                 `json:"base_domain" yaml:"base_domain"`
-	WorkspaceDir                  string                 `json:"workspace_dir" yaml:"workspace_dir"`
-	AutoUploadFiles               *bool                  `json:"auto_upload_files" yaml:"auto_upload_files"`
-	AutoUploadMaxBytes            *int                   `json:"auto_upload_max_bytes" yaml:"auto_upload_max_bytes"`
-	AutoUploadAllowExt            []string               `json:"auto_upload_allow_ext" yaml:"auto_upload_allow_ext"`
-	Browser                       *LarkBrowserConfig     `json:"browser" yaml:"browser"`
-	SessionPrefix                 string                 `json:"session_prefix" yaml:"session_prefix"`
-	ReplyPrefix                   string                 `json:"reply_prefix" yaml:"reply_prefix"`
-	AllowGroups                   *bool                  `json:"allow_groups" yaml:"allow_groups"`
-	AllowDirect                   *bool                  `json:"allow_direct" yaml:"allow_direct"`
-	AgentPreset                   string                 `json:"agent_preset" yaml:"agent_preset"`
-	ToolPreset                    string                 `json:"tool_preset" yaml:"tool_preset"`
-	ToolMode                      string                 `json:"tool_mode" yaml:"tool_mode"`
-	ReplyTimeoutSeconds           *int                   `json:"reply_timeout_seconds" yaml:"reply_timeout_seconds"`
-	ReactEmoji                    string                 `json:"react_emoji" yaml:"react_emoji"`
-	InjectionAckReactEmoji        string                 `json:"injection_ack_react_emoji" yaml:"injection_ack_react_emoji"`
-	MemoryEnabled                 *bool                  `json:"memory_enabled" yaml:"memory_enabled"`
-	ShowToolProgress              *bool                  `json:"show_tool_progress" yaml:"show_tool_progress"`
-	SlowProgressSummaryEnabled    *bool                  `json:"slow_progress_summary_enabled" yaml:"slow_progress_summary_enabled"`
-	SlowProgressSummaryDelaySecs  *int                   `json:"slow_progress_summary_delay_seconds" yaml:"slow_progress_summary_delay_seconds"`
-	ShowPlanClarifyMessages       *bool                  `json:"show_plan_clarify_messages" yaml:"show_plan_clarify_messages"`
-	AutoChatContextSize           *int                   `json:"auto_chat_context_size" yaml:"auto_chat_context_size"`
-	PlanReviewEnabled             *bool                  `json:"plan_review_enabled" yaml:"plan_review_enabled"`
-	PlanReviewRequireConfirmation *bool                  `json:"plan_review_require_confirmation" yaml:"plan_review_require_confirmation"`
-	PlanReviewPendingTTLMinutes   *int                   `json:"plan_review_pending_ttl_minutes" yaml:"plan_review_pending_ttl_minutes"`
-	ActiveSlotTTLMinutes          *int                   `json:"active_slot_ttl_minutes" yaml:"active_slot_ttl_minutes"`
-	ActiveSlotMaxEntries          *int                   `json:"active_slot_max_entries" yaml:"active_slot_max_entries"`
-	PendingInputRelayTTLMinutes   *int                   `json:"pending_input_relay_ttl_minutes" yaml:"pending_input_relay_ttl_minutes"`
-	PendingInputRelayMaxChats     *int                   `json:"pending_input_relay_max_chats" yaml:"pending_input_relay_max_chats"`
-	PendingInputRelayMaxPerChat   *int                   `json:"pending_input_relay_max_per_chat" yaml:"pending_input_relay_max_per_chat"`
-	AIChatSessionTTLMinutes       *int                   `json:"ai_chat_session_ttl_minutes" yaml:"ai_chat_session_ttl_minutes"`
-	StateCleanupIntervalSeconds   *int                   `json:"state_cleanup_interval_seconds" yaml:"state_cleanup_interval_seconds"`
-	Persistence                   *LarkPersistenceConfig `json:"persistence" yaml:"persistence"`
-	MaxConcurrentTasks            *int                   `json:"max_concurrent_tasks" yaml:"max_concurrent_tasks"`
-	DefaultPlanMode               *string                `json:"default_plan_mode" yaml:"default_plan_mode"`
+	AppID                       string                 `json:"app_id" yaml:"app_id"`
+	AppSecret                   string                 `json:"app_secret" yaml:"app_secret"`
+	TenantCalendarID            string                 `json:"tenant_calendar_id" yaml:"tenant_calendar_id"`
+	BaseDomain                  string                 `json:"base_domain" yaml:"base_domain"`
+	WorkspaceDir                string                 `json:"workspace_dir" yaml:"workspace_dir"`
+	AutoUploadFiles             *bool                  `json:"auto_upload_files" yaml:"auto_upload_files"`
+	AutoUploadMaxBytes          *int                   `json:"auto_upload_max_bytes" yaml:"auto_upload_max_bytes"`
+	AutoUploadAllowExt          []string               `json:"auto_upload_allow_ext" yaml:"auto_upload_allow_ext"`
+	Browser                     *LarkBrowserConfig     `json:"browser" yaml:"browser"`
+	ToolMode                    string                 `json:"tool_mode" yaml:"tool_mode"`
+	ReactEmoji                  string                 `json:"react_emoji" yaml:"react_emoji"`
+	InjectionAckReactEmoji      string                 `json:"injection_ack_react_emoji" yaml:"injection_ack_react_emoji"`
+	ShowPlanClarifyMessages     *bool                  `json:"show_plan_clarify_messages" yaml:"show_plan_clarify_messages"`
+	AutoChatContextSize         *int                   `json:"auto_chat_context_size" yaml:"auto_chat_context_size"`
+	PendingInputRelayTTLMinutes *int                   `json:"pending_input_relay_ttl_minutes" yaml:"pending_input_relay_ttl_minutes"`
+	PendingInputRelayMaxChats   *int                   `json:"pending_input_relay_max_chats" yaml:"pending_input_relay_max_chats"`
+	PendingInputRelayMaxPerChat *int                   `json:"pending_input_relay_max_per_chat" yaml:"pending_input_relay_max_per_chat"`
+	AIChatSessionTTLMinutes     *int                   `json:"ai_chat_session_ttl_minutes" yaml:"ai_chat_session_ttl_minutes"`
+	Persistence                 *LarkPersistenceConfig `json:"persistence" yaml:"persistence"`
+	DefaultPlanMode             *string                `json:"default_plan_mode" yaml:"default_plan_mode"`
+	BaseChannelConfig           `json:",inline" yaml:",inline"`
 }
 
 // LarkPersistenceConfig captures Lark local persistence settings in YAML.

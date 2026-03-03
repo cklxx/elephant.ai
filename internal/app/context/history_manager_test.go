@@ -107,3 +107,39 @@ func TestHistoryManagerClearSession(t *testing.T) {
 		t.Fatalf("expected empty history after clear, got %d messages", len(history))
 	}
 }
+
+func TestHistoryManagerAppendTurnWithExisting(t *testing.T) {
+	ctx := context.Background()
+	store := sessionstate.NewInMemoryStore()
+	manager := NewHistoryManager(store, agent.NoopLogger{}, agent.ClockFunc(time.Now))
+	sessionID := "session-existing"
+
+	firstTurn := []ports.Message{
+		{Role: "user", Content: "first", Source: ports.MessageSourceUserInput},
+		{Role: "assistant", Content: "ack", Source: ports.MessageSourceAssistantReply},
+	}
+	if err := manager.AppendTurn(ctx, sessionID, firstTurn); err != nil {
+		t.Fatalf("append first turn failed: %v", err)
+	}
+
+	incoming := append(agent.CloneMessages(firstTurn),
+		ports.Message{Role: "user", Content: "second", Source: ports.MessageSourceUserInput},
+		ports.Message{Role: "assistant", Content: "done", Source: ports.MessageSourceAssistantReply},
+	)
+	if err := manager.AppendTurnWithExisting(ctx, sessionID, firstTurn, incoming); err != nil {
+		t.Fatalf("AppendTurnWithExisting failed: %v", err)
+	}
+
+	history, err := manager.Replay(ctx, sessionID, 0)
+	if err != nil {
+		t.Fatalf("replay failed: %v", err)
+	}
+	if len(history) != len(incoming) {
+		t.Fatalf("expected %d messages, got %d", len(incoming), len(history))
+	}
+	for i := range incoming {
+		if history[i].Role != incoming[i].Role || history[i].Content != incoming[i].Content {
+			t.Fatalf("message %d mismatch: want %+v got %+v", i, incoming[i], history[i])
+		}
+	}
+}

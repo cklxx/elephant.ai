@@ -80,3 +80,46 @@ func TestFileStoreListSnapshotsRespectsContext(t *testing.T) {
 		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 }
+
+func TestFileStoreListSnapshotPayloadsPagination(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFileStore(dir)
+	sessionID := "sess-payloads"
+
+	for turn := 1; turn <= 3; turn++ {
+		if err := store.SaveSnapshot(context.Background(), Snapshot{
+			SessionID:  sessionID,
+			TurnID:     turn,
+			LLMTurnSeq: turn,
+			Summary:    "snapshot",
+			CreatedAt:  time.Now().UTC().Add(time.Duration(turn) * time.Second),
+		}); err != nil {
+			t.Fatalf("SaveSnapshot turn %d: %v", turn, err)
+		}
+	}
+
+	page1, next, err := store.ListSnapshotPayloads(context.Background(), sessionID, "", 2)
+	if err != nil {
+		t.Fatalf("ListSnapshotPayloads page 1 failed: %v", err)
+	}
+	if len(page1) != 2 {
+		t.Fatalf("expected 2 payloads on page1, got %d", len(page1))
+	}
+	if page1[0].TurnID != 3 || page1[1].TurnID != 2 {
+		t.Fatalf("unexpected page1 turn ids: %+v", []int{page1[0].TurnID, page1[1].TurnID})
+	}
+	if next != "2" {
+		t.Fatalf("expected next cursor 2, got %q", next)
+	}
+
+	page2, next, err := store.ListSnapshotPayloads(context.Background(), sessionID, next, 2)
+	if err != nil {
+		t.Fatalf("ListSnapshotPayloads page 2 failed: %v", err)
+	}
+	if len(page2) != 1 || page2[0].TurnID != 1 {
+		t.Fatalf("unexpected page2 payloads: %+v", page2)
+	}
+	if next != "" {
+		t.Fatalf("expected empty next cursor, got %q", next)
+	}
+}

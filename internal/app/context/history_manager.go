@@ -83,6 +83,48 @@ func (m *HistoryManager) AppendTurn(ctx context.Context, sessionID string, messa
 	return m.store.SaveSnapshot(ctx, snapshot)
 }
 
+// AppendTurnWithExisting persists a turn using a caller-provided existing
+// history prefix. This avoids reloading every snapshot when the caller already
+// replayed history for the same session.
+func (m *HistoryManager) AppendTurnWithExisting(ctx context.Context, sessionID string, existing []ports.Message, messages []ports.Message) error {
+	if m == nil || m.store == nil || sessionID == "" || len(messages) == 0 {
+		return nil
+	}
+
+	flattened := agent.CloneMessages(existing)
+	commonPrefix := commonPrefixLen(flattened, messages)
+
+	turnID := 1
+	if commonPrefix < len(flattened) {
+		if err := m.store.ClearSession(ctx, sessionID); err != nil {
+			return err
+		}
+		commonPrefix = 0
+		if m.logger != nil {
+			m.logger.Warn("Resetting history for session %s due to prefix divergence", sessionID)
+		}
+	} else {
+		latestTurnID, err := m.latestTurnID(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		turnID = latestTurnID + 1
+	}
+
+	newTurnMessages := agent.CloneMessages(messages[commonPrefix:])
+	if len(newTurnMessages) == 0 {
+		return nil
+	}
+
+	snapshot := sessionstate.Snapshot{
+		SessionID: sessionID,
+		TurnID:    turnID,
+		CreatedAt: m.clock.Now(),
+		Messages:  newTurnMessages,
+	}
+	return m.store.SaveSnapshot(ctx, snapshot)
+}
+
 // Replay flattens the recorded turns for the provided session. If uptoTurn is
 // greater than zero, only turns with IDs less than uptoTurn are included.
 func (m *HistoryManager) Replay(ctx context.Context, sessionID string, uptoTurn int) ([]ports.Message, error) {
@@ -124,6 +166,10 @@ func (m *HistoryManager) ClearSession(ctx context.Context, sessionID string) err
 }
 
 func (m *HistoryManager) listSnapshots(ctx context.Context, sessionID string) ([]sessionstate.Snapshot, error) {
+	if payloadLister, ok := m.store.(sessionstate.SnapshotPayloadLister); ok {
+		return m.listSnapshotsViaPayloads(ctx, sessionID, payloadLister)
+	}
+
 	cursor := ""
 	var snapshots []sessionstate.Snapshot
 
@@ -160,6 +206,52 @@ func (m *HistoryManager) listSnapshots(ctx context.Context, sessionID string) ([
 	})
 
 	return snapshots, nil
+}
+
+func (m *HistoryManager) listSnapshotsViaPayloads(
+	ctx context.Context,
+	sessionID string,
+	payloadLister sessionstate.SnapshotPayloadLister,
+) ([]sessionstate.Snapshot, error) {
+	cursor := ""
+	var snapshots []sessionstate.Snapshot
+
+	for {
+		page, next, err := payloadLister.ListSnapshotPayloads(ctx, sessionID, cursor, historyPageSize)
+		if err != nil {
+			return nil, err
+		}
+		if len(page) == 0 {
+			break
+		}
+		snapshots = append(snapshots, page...)
+		if next == "" {
+			break
+		}
+		cursor = next
+	}
+
+	if len(snapshots) == 0 {
+		return nil, nil
+	}
+	sort.Slice(snapshots, func(i, j int) bool {
+		return snapshots[i].TurnID < snapshots[j].TurnID
+	})
+	return snapshots, nil
+}
+
+func (m *HistoryManager) latestTurnID(ctx context.Context, sessionID string) (int, error) {
+	latest, err := m.store.LatestSnapshot(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, sessionstate.ErrSnapshotNotFound) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	if latest.TurnID < 0 {
+		return 0, nil
+	}
+	return latest.TurnID, nil
 }
 
 func flattenSnapshots(snapshots []sessionstate.Snapshot) []ports.Message {

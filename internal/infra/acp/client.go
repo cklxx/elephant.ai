@@ -16,12 +16,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"alex/internal/infra/httpclient"
 	jsonrpc "alex/internal/infra/mcp"
 	"alex/internal/shared/async"
 	alexerrors "alex/internal/shared/errors"
 	"alex/internal/shared/logging"
-	"alex/internal/shared/utils/id"
 	"alex/internal/shared/utils"
+	"alex/internal/shared/utils/id"
 )
 
 // NotificationHandler handles ACP notifications and requests.
@@ -63,11 +64,13 @@ func Dial(addr string, timeout time.Duration, logger logging.Logger) (*Client, e
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
+	httpClient := httpclient.New(timeout, logger)
+	httpClient.Timeout = 0
 
 	return &Client{
 		baseURL:        baseURL,
 		clientID:       id.NewKSUID(),
-		httpClient:     &http.Client{},
+		httpClient:     httpClient,
 		requestTimeout: timeout,
 		logger:         logger,
 		breaker:        alexerrors.NewCircuitBreaker("acp-"+baseURL, alexerrors.DefaultCircuitBreakerConfig()),

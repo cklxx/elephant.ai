@@ -30,7 +30,7 @@ const (
 	historySummaryMaxTokens    = 320
 	historySummaryLLMTimeout   = 4 * time.Second
 	historySummaryIntent       = "user_history_summary"
-	DefaultSystemPrompt = `You are eli, a helpful AI coding assistant. Use plan() to set a visible goal header (optional).
+	DefaultSystemPrompt        = `You are eli, a helpful AI coding assistant. Use plan() to set a visible goal header (optional).
 
 Output quality (priority: Clear > Coherent > Concise > Concrete): Lead with result first, key evidence second, supporting detail only on demand. Avoid emojis in responses unless the user explicitly requests them.
 
@@ -183,111 +183,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		contextWasCompressed bool
 	)
 
-	toolMode := presets.NormalizeToolMode(s.config.ToolMode)
-	toolPreset := presets.DefaultToolPresetForMode(toolMode, s.config.ToolPreset)
-	if s.presetResolver != nil {
-		if resolved, source := s.presetResolver.resolveToolPreset(ctx, toolMode, toolPreset); resolved != "" {
-			toolPreset = strings.TrimSpace(resolved)
-			s.logger.Info("Using tool preset %s (source=%s)", resolved, source)
-		}
-	}
-	toolPreset = presets.DefaultToolPresetForMode(toolMode, toolPreset)
-	personaKey := s.config.AgentPreset
-	if s.presetResolver != nil {
-		if preset, source := s.presetResolver.resolveAgentPreset(ctx, s.config.AgentPreset); preset != "" {
-			personaKey = preset
-			s.logger.Info("Using persona preset %s (source=%s)", preset, source)
-		}
-	}
-	if s.contextMgr != nil {
-		if skip, reason := shouldSkipContextWindow(task, session); skip {
-			clilatency.PrintfWithContext(ctx, "[latency] context_window=skipped reason=%s\n", reason)
-			window.Messages = session.Messages
-			window.SystemPrompt = DefaultSystemPrompt
-		} else {
-			originalCount := len(session.Messages)
-			windowStarted := time.Now()
-			unattended := appcontext.IsUnattendedContext(ctx)
-			var okrContext string
-			if s.okrContextProvider != nil {
-				okrContext = s.okrContextProvider()
-			}
-			var kernelContext string
-			if unattended && s.kernelContextProvider != nil {
-				kernelContext = s.kernelContextProvider()
-			}
-			var err error
-			window, err = s.contextMgr.BuildWindow(ctx, session, agent.ContextWindowConfig{
-				TokenLimit:             s.config.MaxTokens,
-				PersonaKey:             personaKey,
-				ToolMode:               string(toolMode),
-				ToolPreset:             toolPreset,
-				EnvironmentSummary:     s.config.EnvironmentSummary,
-				TaskInput:              task,
-				PromptMode:             s.config.Proactive.Prompt.Mode,
-				PromptTimezone:         s.config.Proactive.Prompt.Timezone,
-				BootstrapFiles:         append([]string(nil), s.config.Proactive.Prompt.BootstrapFiles...),
-				BootstrapMaxChars:      s.config.Proactive.Prompt.BootstrapMaxChars,
-				ReplyTagsEnabled:       s.config.Proactive.Prompt.ReplyTagsEnabled,
-				Skills:                 buildSkillsConfig(s.config.Proactive.Skills),
-				OKRContext:             okrContext,
-				KernelAlignmentContext: kernelContext,
-				Unattended:             unattended,
-				Channel:                appcontext.ChannelFromContext(ctx),
-			})
-			if err != nil {
-				return nil, fmt.Errorf("build context window: %w", err)
-			}
-			clilatency.PrintfWithContext(ctx,
-				"[latency] context_window_ms=%.2f original=%d final=%d\n",
-				float64(time.Since(windowStarted))/float64(time.Millisecond),
-				originalCount,
-				len(window.Messages),
-			)
-			session.Messages = window.Messages
-			initialCognitive = buildCognitiveFromWindow(window)
-			if compressedCount := len(window.Messages); compressedCount < originalCount {
-				contextWasCompressed = true
-				compressionEvent := domain.NewDiagnosticContextCompressionEvent(
-					agent.LevelCore,
-					session.ID,
-					ids.RunID,
-					ids.ParentRunID,
-					originalCount,
-					compressedCount,
-					s.clock.Now(),
-				)
-				s.eventEmitter.OnEvent(compressionEvent)
-			}
-		}
-	}
-	systemPrompt := strings.TrimSpace(window.SystemPrompt)
-	if systemPrompt == "" {
-		systemPrompt = DefaultSystemPrompt
-	}
-	promptMode := utils.TrimLower(s.config.Proactive.Prompt.Mode)
-	if promptMode != "none" {
-		if toolMode == presets.ToolModeCLI {
-			systemPrompt = strings.TrimSpace(systemPrompt + `
-
-## File Outputs
-- When producing long-form deliverables (reports, articles, specs), write them to a Markdown file via write_file.
-- Use /tmp as the default location for temporary/generated files unless the user requests another path.
-- Always execute first. Exhaust all safe deterministic attempts before asking follow-up questions.
-- If intent is unclear, inspect memory and thread context first (memory_search, then memory_get/memory_related, then lark_chat_history when available).
-- Ask only after all viable attempts fail and missing critical input still blocks progress.
-- In Lark chats, when a generated file is part of the requested deliverable, proactively upload it; keep text-only checkpoints on lark_send_message.
-- Provide a short summary in the final answer and point the user to the generated file path instead of pasting the full content.`)
-		} else {
-			systemPrompt = strings.TrimSpace(systemPrompt + `
-
-## Artifacts & Attachments
-- When producing long-form deliverables (reports, articles, specs), write them to a Markdown artifact via artifacts_write.
-- Provide a short summary in the final answer and point the user to the generated file instead of pasting the full content.
-- Keep attachment placeholders out of the main body; list them at the end of the final answer.
-- If you want clients to render an attachment card, reference the file with a placeholder like [report.md].`)
-		}
-	}
 	preloadedAttachments := collectSessionAttachments(session)
 	preloadedImportant := collectSessionImportant(session)
 	inheritedAttachments, inheritedIterations := appcontext.GetInheritedAttachments(ctx)
@@ -321,10 +216,21 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if inheritedState != nil && len(inheritedState.Important) > 0 {
 		mergeImportantNotes(preloadedImportant, inheritedState.Important)
 	}
-	if contextWasCompressed && len(preloadedImportant) > 0 {
-		if msg := buildImportantNotesMessage(preloadedImportant); msg != nil {
-			window.Messages = append(window.Messages, *msg)
-			session.Messages = append(session.Messages, *msg)
+
+	toolMode := presets.NormalizeToolMode(s.config.ToolMode)
+	toolPreset := presets.DefaultToolPresetForMode(toolMode, s.config.ToolPreset)
+	if s.presetResolver != nil {
+		if resolved, source := s.presetResolver.resolveToolPreset(ctx, toolMode, toolPreset); resolved != "" {
+			toolPreset = strings.TrimSpace(resolved)
+			s.logger.Info("Using tool preset %s (source=%s)", resolved, source)
+		}
+	}
+	toolPreset = presets.DefaultToolPresetForMode(toolMode, toolPreset)
+	personaKey := s.config.AgentPreset
+	if s.presetResolver != nil {
+		if preset, source := s.presetResolver.resolveAgentPreset(ctx, s.config.AgentPreset); preset != "" {
+			personaKey = preset
+			s.logger.Info("Using persona preset %s (source=%s)", preset, source)
 		}
 	}
 
@@ -387,50 +293,183 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 
-	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", effectiveProfile.Provider, effectiveProfile.Model)
-	// Use GetIsolatedClient to ensure session-level cost tracking isolation
-	llmInitStarted := time.Now()
-	apiKeySource := "profile"
-	if selectionPinned {
-		apiKeySource = "pinned_selection"
-	} else if s.credentialRefresher != nil {
-		apiKeySource = "credential_refresher"
-	}
-	refreshCreds := !selectionPinned || (selectionPinned && utils.IsBlank(effectiveProfile.APIKey))
-	s.logger.Debug("LLM config resolved: provider=%s model=%s pinned=%t api_key_source=%s",
-		effectiveProfile.Provider, effectiveProfile.Model, selectionPinned, apiKeySource)
-	llmClient, _, err := llmclient.GetIsolatedClientFromProfile(
-		s.llmFactory,
-		effectiveProfile,
-		llmclient.CredentialRefresher(s.credentialRefresher),
-		refreshCreds,
+	var (
+		llmClient       llm.LLMClient
+		streamingClient llm.StreamingLLMClient
 	)
-	clilatency.PrintfWithContext(ctx,
-		"[latency] llm_client_init_ms=%.2f provider=%s model=%s\n",
-		float64(time.Since(llmInitStarted))/float64(time.Millisecond),
-		strings.TrimSpace(effectiveProfile.Provider),
-		strings.TrimSpace(effectiveProfile.Model),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get LLM client: %w", err)
-	}
-	llmClient = s.wrapPinnedRateLimitFallback(
-		ctx,
-		selectionPinned,
-		task,
-		preloadedAttachments,
-		userAttachments,
-		effectiveProfile,
-		llmClient,
-	)
-	s.logger.Debug("Isolated LLM client obtained successfully")
 
-	// Use Wrap instead of Attach to avoid modifying shared client state
-	llmClient = s.costDecorator.Wrap(ctx, session.ID, llmClient)
+	prepareCtx, cancelPrepare := context.WithCancel(ctx)
+	defer cancelPrepare()
+	prepareErrs := make(chan error, 2)
 
-	streamingClient, ok := llm.EnsureStreamingClient(llmClient).(llm.StreamingLLMClient)
-	if !ok {
-		return nil, fmt.Errorf("failed to wrap LLM client with streaming support")
+	go func() {
+		if s.contextMgr == nil {
+			prepareErrs <- nil
+			return
+		}
+		if skip, reason := shouldSkipContextWindow(task, session); skip {
+			clilatency.PrintfWithContext(ctx, "[latency] context_window=skipped reason=%s\n", reason)
+			window.Messages = session.Messages
+			window.SystemPrompt = DefaultSystemPrompt
+			prepareErrs <- nil
+			return
+		}
+
+		originalCount := len(session.Messages)
+		windowStarted := time.Now()
+		unattended := appcontext.IsUnattendedContext(prepareCtx)
+		var okrContext string
+		if s.okrContextProvider != nil {
+			okrContext = s.okrContextProvider()
+		}
+		var kernelContext string
+		if unattended && s.kernelContextProvider != nil {
+			kernelContext = s.kernelContextProvider()
+		}
+
+		var err error
+		window, err = s.contextMgr.BuildWindow(prepareCtx, session, agent.ContextWindowConfig{
+			TokenLimit:             s.config.MaxTokens,
+			PersonaKey:             personaKey,
+			ToolMode:               string(toolMode),
+			ToolPreset:             toolPreset,
+			EnvironmentSummary:     s.config.EnvironmentSummary,
+			TaskInput:              task,
+			PromptMode:             s.config.Proactive.Prompt.Mode,
+			PromptTimezone:         s.config.Proactive.Prompt.Timezone,
+			BootstrapFiles:         append([]string(nil), s.config.Proactive.Prompt.BootstrapFiles...),
+			BootstrapMaxChars:      s.config.Proactive.Prompt.BootstrapMaxChars,
+			ReplyTagsEnabled:       s.config.Proactive.Prompt.ReplyTagsEnabled,
+			Skills:                 buildSkillsConfig(s.config.Proactive.Skills),
+			OKRContext:             okrContext,
+			KernelAlignmentContext: kernelContext,
+			Unattended:             unattended,
+			Channel:                appcontext.ChannelFromContext(prepareCtx),
+		})
+		if err != nil {
+			prepareErrs <- fmt.Errorf("build context window: %w", err)
+			return
+		}
+		clilatency.PrintfWithContext(ctx,
+			"[latency] context_window_ms=%.2f original=%d final=%d\n",
+			float64(time.Since(windowStarted))/float64(time.Millisecond),
+			originalCount,
+			len(window.Messages),
+		)
+		session.Messages = window.Messages
+		initialCognitive = buildCognitiveFromWindow(window)
+		if compressedCount := len(window.Messages); compressedCount < originalCount {
+			contextWasCompressed = true
+			compressionEvent := domain.NewDiagnosticContextCompressionEvent(
+				agent.LevelCore,
+				session.ID,
+				ids.RunID,
+				ids.ParentRunID,
+				originalCount,
+				compressedCount,
+				s.clock.Now(),
+			)
+			s.eventEmitter.OnEvent(compressionEvent)
+		}
+		prepareErrs <- nil
+	}()
+
+	go func() {
+		s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", effectiveProfile.Provider, effectiveProfile.Model)
+		llmInitStarted := time.Now()
+		apiKeySource := "profile"
+		if selectionPinned {
+			apiKeySource = "pinned_selection"
+		} else if s.credentialRefresher != nil {
+			apiKeySource = "credential_refresher"
+		}
+		refreshCreds := !selectionPinned || (selectionPinned && utils.IsBlank(effectiveProfile.APIKey))
+		s.logger.Debug("LLM config resolved: provider=%s model=%s pinned=%t api_key_source=%s",
+			effectiveProfile.Provider, effectiveProfile.Model, selectionPinned, apiKeySource)
+
+		client, _, err := llmclient.GetIsolatedClientFromProfile(
+			s.llmFactory,
+			effectiveProfile,
+			llmclient.CredentialRefresher(s.credentialRefresher),
+			refreshCreds,
+		)
+		clilatency.PrintfWithContext(ctx,
+			"[latency] llm_client_init_ms=%.2f provider=%s model=%s\n",
+			float64(time.Since(llmInitStarted))/float64(time.Millisecond),
+			strings.TrimSpace(effectiveProfile.Provider),
+			strings.TrimSpace(effectiveProfile.Model),
+		)
+		if err != nil {
+			prepareErrs <- fmt.Errorf("failed to get LLM client: %w", err)
+			return
+		}
+
+		client = s.wrapPinnedRateLimitFallback(
+			prepareCtx,
+			selectionPinned,
+			task,
+			preloadedAttachments,
+			userAttachments,
+			effectiveProfile,
+			client,
+		)
+		s.logger.Debug("Isolated LLM client obtained successfully")
+
+		client = s.costDecorator.Wrap(prepareCtx, session.ID, client)
+		streaming, ok := llm.EnsureStreamingClient(client).(llm.StreamingLLMClient)
+		if !ok {
+			prepareErrs <- fmt.Errorf("failed to wrap LLM client with streaming support")
+			return
+		}
+		llmClient = client
+		streamingClient = streaming
+		prepareErrs <- nil
+	}()
+
+	var prepareErr error
+	for i := 0; i < 2; i++ {
+		if err := <-prepareErrs; err != nil && prepareErr == nil {
+			prepareErr = err
+			cancelPrepare()
+		}
+	}
+	if prepareErr != nil {
+		return nil, prepareErr
+	}
+
+	if contextWasCompressed && len(preloadedImportant) > 0 {
+		if msg := buildImportantNotesMessage(preloadedImportant); msg != nil {
+			window.Messages = append(window.Messages, *msg)
+			session.Messages = append(session.Messages, *msg)
+		}
+	}
+
+	systemPrompt := strings.TrimSpace(window.SystemPrompt)
+	if systemPrompt == "" {
+		systemPrompt = DefaultSystemPrompt
+	}
+	promptMode := utils.TrimLower(s.config.Proactive.Prompt.Mode)
+	if promptMode != "none" {
+		if toolMode == presets.ToolModeCLI {
+			systemPrompt = strings.TrimSpace(systemPrompt + `
+
+## File Outputs
+- When producing long-form deliverables (reports, articles, specs), write them to a Markdown file via write_file.
+- Use /tmp as the default location for temporary/generated files unless the user requests another path.
+- Always execute first. Exhaust all safe deterministic attempts before asking follow-up questions.
+- If intent is unclear, inspect memory and thread context first (memory_search, then memory_get/memory_related, then lark_chat_history when available).
+- Ask only after all viable attempts fail and missing critical input still blocks progress.
+- In Lark chats, when a generated file is part of the requested deliverable, proactively upload it; keep text-only checkpoints on lark_send_message.
+- Provide a short summary in the final answer and point the user to the generated file path instead of pasting the full content.`)
+		} else {
+			systemPrompt = strings.TrimSpace(systemPrompt + `
+
+## Artifacts & Attachments
+- When producing long-form deliverables (reports, articles, specs), write them to a Markdown artifact via artifacts_write.
+- Provide a short summary in the final answer and point the user to the generated file instead of pasting the full content.
+- Keep attachment placeholders out of the main body; list them at the end of the final answer.
+- If you want clients to render an attachment card, reference the file with a placeholder like [report.md].`)
+		}
 	}
 
 	history := s.recallUserHistory(ctx, llmClient, task, rawHistory)
