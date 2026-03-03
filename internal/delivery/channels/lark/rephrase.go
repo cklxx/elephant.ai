@@ -122,8 +122,8 @@ func sanitizeErrorForUser(errText string) string {
 	if modelLabel != "" {
 		result = modelLabel + " " + result
 	}
-	if len(result) > 150 {
-		return result[:150] + "…"
+	if len([]rune(result)) > 150 {
+		return utils.TruncateWithSuffix(result, 150, "…")
 	}
 	return result
 }
