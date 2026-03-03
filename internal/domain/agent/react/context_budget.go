@@ -1,6 +1,11 @@
 package react
 
 import (
+	"encoding/binary"
+	"fmt"
+	"hash"
+	"hash/fnv"
+	"sort"
 	"strings"
 
 	"alex/internal/domain/agent/ports"
@@ -91,12 +96,30 @@ func modelContextWindowTokens(model string) int {
 }
 
 func splitContextBudget(totalLimit int, tools []ports.ToolDefinition) contextBudgetSplit {
+	return splitContextBudgetWithEstimator(totalLimit, tools, estimateToolDefinitionTokens)
+}
+
+func (e *ReactEngine) splitContextBudget(totalLimit int, tools []ports.ToolDefinition) contextBudgetSplit {
+	if e == nil {
+		return splitContextBudget(totalLimit, tools)
+	}
+	return splitContextBudgetWithEstimator(totalLimit, tools, e.estimateToolDefinitionTokensCached)
+}
+
+func splitContextBudgetWithEstimator(
+	totalLimit int,
+	tools []ports.ToolDefinition,
+	estimator func([]ports.ToolDefinition) int,
+) contextBudgetSplit {
 	split := contextBudgetSplit{TotalLimit: totalLimit, MessageLimit: totalLimit}
 	if totalLimit <= 0 {
 		return split
 	}
+	if estimator == nil {
+		estimator = estimateToolDefinitionTokens
+	}
 
-	toolTokens := estimateToolDefinitionTokens(tools)
+	toolTokens := estimator(tools)
 	messageLimit := totalLimit - toolTokens - contextBudgetRequestSafetyTokens
 	if messageLimit < minMessageBudgetTokens {
 		messageLimit = minMessageBudgetTokens
@@ -111,8 +134,18 @@ func splitContextBudget(totalLimit int, tools []ports.ToolDefinition) contextBud
 }
 
 func estimateToolDefinitionTokens(tools []ports.ToolDefinition) int {
+	return estimateToolDefinitionTokensWithMarshal(tools, jsonx.Marshal)
+}
+
+func estimateToolDefinitionTokensWithMarshal(
+	tools []ports.ToolDefinition,
+	marshal func(v any) ([]byte, error),
+) int {
 	if len(tools) == 0 {
 		return 0
+	}
+	if marshal == nil {
+		marshal = jsonx.Marshal
 	}
 
 	total := 16 // list wrapper overhead
@@ -120,11 +153,181 @@ func estimateToolDefinitionTokens(tools []ports.ToolDefinition) int {
 		total += 24 // per-tool wrapper overhead
 		total += tokenutil.CountTokens(strings.TrimSpace(tool.Name))
 		total += tokenutil.CountTokens(strings.TrimSpace(tool.Description))
-		payload, err := jsonx.Marshal(tool.Parameters)
+		payload, err := marshal(tool.Parameters)
 		if err != nil {
 			continue
 		}
 		total += tokenutil.CountTokens(string(payload))
 	}
 	return total
+}
+
+func (e *ReactEngine) estimateToolDefinitionTokensCached(tools []ports.ToolDefinition) int {
+	if len(tools) == 0 {
+		return 0
+	}
+	if e == nil {
+		return estimateToolDefinitionTokens(tools)
+	}
+
+	signature := toolDefinitionsSignature(tools)
+	if tokens, ok := e.toolTokenCache.load(signature); ok {
+		return tokens
+	}
+
+	e.toolTokenCache.mu.Lock()
+	defer e.toolTokenCache.mu.Unlock()
+	if e.toolTokenCache.ready && e.toolTokenCache.signature == signature {
+		return e.toolTokenCache.tokens
+	}
+
+	total := estimateToolDefinitionTokensWithMarshal(tools, e.toolParameterMarshaler())
+	e.toolTokenCache.signature = signature
+	e.toolTokenCache.tokens = total
+	e.toolTokenCache.ready = true
+	return total
+}
+
+func (e *ReactEngine) toolParameterMarshaler() func(v any) ([]byte, error) {
+	if e != nil && e.toolParameterMarshal != nil {
+		return e.toolParameterMarshal
+	}
+	return jsonx.Marshal
+}
+
+func toolDefinitionsSignature(tools []ports.ToolDefinition) uint64 {
+	hasher := fnv.New64a()
+	hashUint64(hasher, uint64(len(tools)))
+	for _, tool := range tools {
+		hashString(hasher, strings.TrimSpace(tool.Name))
+		hashString(hasher, strings.TrimSpace(tool.Description))
+		hashParameterSchema(hasher, tool.Parameters)
+		hashStringSlice(hasher, tool.MaterialCapabilities.Consumes)
+		hashStringSlice(hasher, tool.MaterialCapabilities.Produces)
+		hashStringSlice(hasher, tool.MaterialCapabilities.ProducesArtifacts)
+	}
+	return hasher.Sum64()
+}
+
+func hashParameterSchema(hasher hash.Hash64, schema ports.ParameterSchema) {
+	hashString(hasher, strings.TrimSpace(schema.Type))
+	keys := make([]string, 0, len(schema.Properties))
+	for name := range schema.Properties {
+		keys = append(keys, name)
+	}
+	sort.Strings(keys)
+	hashUint64(hasher, uint64(len(keys)))
+	for _, name := range keys {
+		hashString(hasher, name)
+		hashProperty(hasher, schema.Properties[name])
+	}
+	required := append([]string(nil), schema.Required...)
+	sort.Strings(required)
+	hashStringSlice(hasher, required)
+}
+
+func hashProperty(hasher hash.Hash64, prop ports.Property) {
+	hashString(hasher, strings.TrimSpace(prop.Type))
+	hashString(hasher, strings.TrimSpace(prop.Description))
+	hashUint64(hasher, uint64(len(prop.Enum)))
+	for _, enumValue := range prop.Enum {
+		hashAny(hasher, enumValue)
+	}
+	if prop.Items == nil {
+		hashUint64(hasher, 0)
+		return
+	}
+	hashUint64(hasher, 1)
+	hashProperty(hasher, *prop.Items)
+}
+
+func hashAny(hasher hash.Hash64, value any) {
+	switch v := value.(type) {
+	case nil:
+		hashString(hasher, "nil")
+	case string:
+		hashString(hasher, "string")
+		hashString(hasher, v)
+	case bool:
+		hashString(hasher, "bool")
+		if v {
+			hashUint64(hasher, 1)
+			return
+		}
+		hashUint64(hasher, 0)
+	case int:
+		hashString(hasher, "int")
+		hashString(hasher, fmt.Sprintf("%d", v))
+	case int8:
+		hashString(hasher, "int8")
+		hashString(hasher, fmt.Sprintf("%d", v))
+	case int16:
+		hashString(hasher, "int16")
+		hashString(hasher, fmt.Sprintf("%d", v))
+	case int32:
+		hashString(hasher, "int32")
+		hashString(hasher, fmt.Sprintf("%d", v))
+	case int64:
+		hashString(hasher, "int64")
+		hashString(hasher, fmt.Sprintf("%d", v))
+	case uint:
+		hashString(hasher, "uint")
+		hashString(hasher, fmt.Sprintf("%d", v))
+	case uint8:
+		hashString(hasher, "uint8")
+		hashString(hasher, fmt.Sprintf("%d", v))
+	case uint16:
+		hashString(hasher, "uint16")
+		hashString(hasher, fmt.Sprintf("%d", v))
+	case uint32:
+		hashString(hasher, "uint32")
+		hashString(hasher, fmt.Sprintf("%d", v))
+	case uint64:
+		hashString(hasher, "uint64")
+		hashString(hasher, fmt.Sprintf("%d", v))
+	case float32:
+		hashString(hasher, "float32")
+		hashString(hasher, fmt.Sprintf("%g", v))
+	case float64:
+		hashString(hasher, "float64")
+		hashString(hasher, fmt.Sprintf("%g", v))
+	default:
+		hashString(hasher, fmt.Sprintf("%T", value))
+		payload, err := jsonx.Marshal(value)
+		if err != nil {
+			hashString(hasher, fmt.Sprintf("%v", value))
+			return
+		}
+		hashString(hasher, string(payload))
+	}
+}
+
+func hashStringSlice(hasher hash.Hash64, values []string) {
+	hashUint64(hasher, uint64(len(values)))
+	for _, value := range values {
+		hashString(hasher, value)
+	}
+}
+
+func hashString(hasher hash.Hash64, value string) {
+	hashUint64(hasher, uint64(len(value)))
+	if value == "" {
+		return
+	}
+	_, _ = hasher.Write([]byte(value))
+}
+
+func hashUint64(hasher hash.Hash64, value uint64) {
+	var bytes [8]byte
+	binary.LittleEndian.PutUint64(bytes[:], value)
+	_, _ = hasher.Write(bytes[:])
+}
+
+func (c *toolDefinitionTokenCache) load(signature uint64) (int, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if !c.ready || c.signature != signature {
+		return 0, false
+	}
+	return c.tokens, true
 }

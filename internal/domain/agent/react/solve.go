@@ -46,7 +46,7 @@ func (e *ReactEngine) think(
 	normalizeContextMessages(state)
 	filteredMessages, excluded := splitMessagesForLLM(state.Messages)
 	limit := e.resolveContextTokenLimit(services)
-	budget := splitContextBudget(limit, tools)
+	budget := e.splitContextBudget(limit, tools)
 
 	// Pre-flight context budget enforcement: estimate full token count and
 	// trim messages before sending to prevent context_length_exceeded errors.
@@ -650,4 +650,3 @@ func indexOfLargestMessageContent(messages []ports.Message) int {
 	}
 	return longestIdx
 }
-

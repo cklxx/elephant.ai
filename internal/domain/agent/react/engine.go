@@ -45,6 +45,9 @@ type ReactEngine struct {
 	teamDefinitions []agent.TeamDefinition
 	// Optional file-backed recorder for team dispatch run audit.
 	teamRunRecorder agent.TeamRunRecorder
+
+	toolTokenCache       toolDefinitionTokenCache
+	toolParameterMarshal func(v any) ([]byte, error)
 }
 
 type workflowRecorder struct {
@@ -135,4 +138,10 @@ type ReactEngineConfig struct {
 	TeamDefinitions []agent.TeamDefinition
 	// TeamRunRecorder persists run_tasks team run records (typically file-based).
 	TeamRunRecorder agent.TeamRunRecorder
+}
+type toolDefinitionTokenCache struct {
+	mu        sync.RWMutex
+	signature uint64
+	tokens    int
+	ready     bool
 }

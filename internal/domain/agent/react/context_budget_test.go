@@ -2,9 +2,12 @@ package react
 
 import (
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"alex/internal/domain/agent/ports"
+	jsonx "alex/internal/shared/json"
 )
 
 func TestModelContextWindowTokens(t *testing.T) {
@@ -93,5 +96,83 @@ func TestSplitContextBudgetKeepsAtLeastOneMessageToken(t *testing.T) {
 	split := splitContextBudget(1000, tools)
 	if split.MessageLimit != minMessageBudgetTokens {
 		t.Fatalf("expected floor message limit %d, got %d", minMessageBudgetTokens, split.MessageLimit)
+	}
+}
+
+func TestSplitContextBudget_CachesToolTokenEstimate(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	var marshalCalls int32
+	engine.toolParameterMarshal = func(v any) ([]byte, error) {
+		atomic.AddInt32(&marshalCalls, 1)
+		return jsonx.Marshal(v)
+	}
+	tools := []ports.ToolDefinition{
+		{
+			Name:        "search_web",
+			Description: "search web",
+			Parameters: ports.ParameterSchema{
+				Type: "object",
+				Properties: map[string]ports.Property{
+					"q": {Type: "string", Description: "query"},
+				},
+			},
+		},
+	}
+
+	first := engine.splitContextBudget(10000, tools)
+	second := engine.splitContextBudget(10000, tools)
+	if first.ToolTokens <= 0 || second.ToolTokens <= 0 {
+		t.Fatalf("expected positive tool tokens, first=%d second=%d", first.ToolTokens, second.ToolTokens)
+	}
+	if first.ToolTokens != second.ToolTokens {
+		t.Fatalf("expected stable tool token estimate, first=%d second=%d", first.ToolTokens, second.ToolTokens)
+	}
+	if got := atomic.LoadInt32(&marshalCalls); got != 1 {
+		t.Fatalf("expected marshal called once for unchanged tools, got %d", got)
+	}
+
+	tools[0].Description = "search web (updated)"
+	_ = engine.splitContextBudget(10000, tools)
+	if got := atomic.LoadInt32(&marshalCalls); got != 2 {
+		t.Fatalf("expected cache invalidation after tool change, marshal calls=%d", got)
+	}
+}
+
+func TestSplitContextBudget_CacheThreadSafe(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	var marshalCalls int32
+	engine.toolParameterMarshal = func(v any) ([]byte, error) {
+		atomic.AddInt32(&marshalCalls, 1)
+		return jsonx.Marshal(v)
+	}
+	tools := []ports.ToolDefinition{
+		{
+			Name:        "search_web",
+			Description: "search web",
+			Parameters: ports.ParameterSchema{
+				Type: "object",
+				Properties: map[string]ports.Property{
+					"q": {Type: "string", Description: "query"},
+				},
+			},
+		},
+	}
+
+	const workers = 16
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			split := engine.splitContextBudget(10000, tools)
+			if split.ToolTokens <= 0 {
+				t.Errorf("expected positive tool tokens, got %d", split.ToolTokens)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt32(&marshalCalls); got != 1 {
+		t.Fatalf("expected single marshal with concurrent access, got %d", got)
 	}
 }

@@ -5,18 +5,39 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
+	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/react"
 )
 
+const (
+	defaultBackgroundRegistryCleanupInterval = 3 * time.Minute
+	defaultBackgroundRegistryIdleTTL         = 15 * time.Minute
+)
+
+type backgroundRegistryEntry struct {
+	manager    *react.BackgroundTaskManager
+	lastAccess time.Time
+}
+
 type backgroundTaskRegistry struct {
-	mu       sync.Mutex
-	managers map[string]*react.BackgroundTaskManager
+	mu              sync.Mutex
+	managers        map[string]backgroundRegistryEntry
+	nowFn           func() time.Time
+	shutdownFn      func(*react.BackgroundTaskManager)
+	cleanupInterval time.Duration
+	idleTTL         time.Duration
+	lastCleanup     time.Time
 }
 
 func newBackgroundTaskRegistry() *backgroundTaskRegistry {
 	return &backgroundTaskRegistry{
-		managers: make(map[string]*react.BackgroundTaskManager),
+		managers:        make(map[string]backgroundRegistryEntry),
+		nowFn:           time.Now,
+		shutdownFn:      func(mgr *react.BackgroundTaskManager) { mgr.Shutdown() },
+		cleanupInterval: defaultBackgroundRegistryCleanupInterval,
+		idleTTL:         defaultBackgroundRegistryIdleTTL,
 	}
 }
 
@@ -29,19 +50,28 @@ func (r *backgroundTaskRegistry) Get(sessionID string, create func() *react.Back
 		return nil
 	}
 
+	now := r.now()
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.cleanupLocked(now)
 
-	if mgr := r.managers[sessionID]; mgr != nil {
-		return mgr
+	if entry, ok := r.managers[sessionID]; ok && entry.manager != nil {
+		entry.lastAccess = now
+		r.managers[sessionID] = entry
+		r.mu.Unlock()
+		return entry.manager
 	}
 	if create == nil {
+		r.mu.Unlock()
 		return nil
 	}
 	mgr := create()
 	if mgr != nil {
-		r.managers[sessionID] = mgr
+		r.managers[sessionID] = backgroundRegistryEntry{
+			manager:    mgr,
+			lastAccess: now,
+		}
 	}
+	r.mu.Unlock()
 	return mgr
 }
 
@@ -51,16 +81,29 @@ func (r *backgroundTaskRegistry) CancelTask(ctx context.Context, taskID string) 
 		return fmt.Errorf("background task registry not available")
 	}
 
+	now := r.now()
 	r.mu.Lock()
-	managers := make([]*react.BackgroundTaskManager, 0, len(r.managers))
-	for _, mgr := range r.managers {
-		managers = append(managers, mgr)
+	r.cleanupLocked(now)
+	type managerEntry struct {
+		sessionID string
+		manager   *react.BackgroundTaskManager
+	}
+	managers := make([]managerEntry, 0, len(r.managers))
+	for sessionID, entry := range r.managers {
+		if entry.manager == nil {
+			continue
+		}
+		managers = append(managers, managerEntry{
+			sessionID: sessionID,
+			manager:   entry.manager,
+		})
 	}
 	r.mu.Unlock()
 
-	for _, mgr := range managers {
-		err := mgr.CancelTask(ctx, taskID)
+	for _, entry := range managers {
+		err := entry.manager.CancelTask(ctx, taskID)
 		if err == nil {
+			r.touch(entry.sessionID)
 			return nil
 		}
 		// "not found" means try next manager; other errors are real failures
@@ -69,4 +112,72 @@ func (r *backgroundTaskRegistry) CancelTask(ctx context.Context, taskID string) 
 		}
 	}
 	return fmt.Errorf("task %q not found in any session", taskID)
+}
+
+func (r *backgroundTaskRegistry) cleanupLocked(now time.Time) {
+	if r.cleanupInterval > 0 && !r.lastCleanup.IsZero() && now.Sub(r.lastCleanup) < r.cleanupInterval {
+		return
+	}
+	r.lastCleanup = now
+
+	for sessionID, entry := range r.managers {
+		if entry.manager == nil {
+			delete(r.managers, sessionID)
+			continue
+		}
+		if r.idleTTL > 0 && now.Sub(entry.lastAccess) < r.idleTTL {
+			continue
+		}
+		if !managerTasksTerminal(entry.manager) {
+			continue
+		}
+		r.shutdown(entry.manager)
+		delete(r.managers, sessionID)
+	}
+}
+
+func (r *backgroundTaskRegistry) touch(sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	now := r.now()
+	r.mu.Lock()
+	entry, ok := r.managers[sessionID]
+	if ok && entry.manager != nil {
+		entry.lastAccess = now
+		r.managers[sessionID] = entry
+	}
+	r.mu.Unlock()
+}
+
+func (r *backgroundTaskRegistry) now() time.Time {
+	if r.nowFn != nil {
+		return r.nowFn()
+	}
+	return time.Now()
+}
+
+func (r *backgroundTaskRegistry) shutdown(mgr *react.BackgroundTaskManager) {
+	if mgr == nil {
+		return
+	}
+	if r.shutdownFn != nil {
+		r.shutdownFn(mgr)
+		return
+	}
+	mgr.Shutdown()
+}
+
+func managerTasksTerminal(mgr *react.BackgroundTaskManager) bool {
+	if mgr == nil {
+		return true
+	}
+	for _, summary := range mgr.Status(nil) {
+		switch summary.Status {
+		case agent.BackgroundTaskStatusCompleted, agent.BackgroundTaskStatusFailed, agent.BackgroundTaskStatusCancelled:
+		default:
+			return false
+		}
+	}
+	return true
 }
