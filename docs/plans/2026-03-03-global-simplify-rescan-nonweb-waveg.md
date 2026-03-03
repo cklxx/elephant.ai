@@ -26,6 +26,7 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 - [x] Apply subagent-rescan residual normalization in `cmd/alex`, `internal/{app/subscription,app/context,app/agent/preparation,delivery/channels/lark,delivery/server/bootstrap,infra/skills,infra/tools/builtin/larktools,shared/config}`, and `evaluation/agent_eval` (single remaining site).
 - [x] Normalize `internal/infra/tools/approval_executor.go` manual error `ToolResult` returns to `shared.ToolError(...)`.
 - [x] Consolidate local truncation logic in `internal/delivery/presentation/formatter/formatter.go` to a single rune-safe helper.
+- [x] Add shared rune-safe truncation helper in `internal/shared/utils/strings.go` and apply to selected non-web byte-truncation sites (`internal/infra/llm/openai_errors.go`, `internal/delivery/channels/telegram/format.go`, `internal/app/scheduler/notifier.go`, `evaluation/rl/llm_judge.go`).
 - [x] Run targeted tests.
 - [x] Run targeted lint.
 - [x] Run code review gate.
@@ -38,6 +39,7 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 - `go test ./cmd/alex ./internal/app/agent/coordinator ./internal/app/agent/preparation ./internal/app/context ./internal/app/subscription ./internal/delivery/channels/lark ./internal/delivery/server/bootstrap ./internal/infra/skills ./internal/infra/tools/builtin/larktools ./internal/shared/config ./internal/shared/utils/clilatency ./evaluation/agent_eval -count=1`
 - `go test ./internal/infra/tools -count=1`
 - `go test ./internal/delivery/presentation/formatter -count=1`
+- `go test ./internal/shared/utils ./internal/infra/llm ./internal/delivery/channels/telegram ./internal/app/scheduler ./evaluation/rl -count=1`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./cmd/alex/... ./internal/domain/agent/react/... ./internal/infra/attachments/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./evaluation/agent_eval/... ./internal/domain/agent/ports/mocks/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/app/agent/coordinator/... ./internal/app/agent/kernel/... ./internal/delivery/channels/lark/... ./internal/devops/process/... ./internal/domain/agent/ports/... ./internal/domain/agent/react/... ./internal/infra/external/teamrun/... ./internal/infra/llm/...`
@@ -45,6 +47,7 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./cmd/alex/... ./internal/app/agent/coordinator/... ./internal/app/agent/preparation/... ./internal/app/context/... ./internal/app/subscription/... ./internal/delivery/channels/lark/... ./internal/delivery/server/bootstrap/... ./internal/infra/skills/... ./internal/infra/tools/builtin/larktools/... ./internal/shared/config/... ./internal/shared/utils/clilatency/... ./evaluation/agent_eval/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/infra/tools/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/delivery/presentation/formatter/...`
+- `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/shared/utils/... ./internal/infra/llm/... ./internal/delivery/channels/telegram/... ./internal/app/scheduler/... ./evaluation/rl/...`
 
 ## Notes
 - This wave is intentionally mechanical and scoped to safe replacements only.

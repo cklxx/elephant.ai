@@ -11,6 +11,7 @@ import (
 	"time"
 
 	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/utils"
 )
 
 func wrapRequestError(err error) error {
@@ -106,8 +107,5 @@ func parseRetryAfter(value string) int {
 
 func truncateBody(s string, maxLen int) string {
 	s = strings.TrimSpace(s)
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
+	return utils.TruncateWithSuffix(s, maxLen, "...")
 }
