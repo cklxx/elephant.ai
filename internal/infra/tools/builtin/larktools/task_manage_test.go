@@ -256,3 +256,43 @@ func TestTaskManage_ListMissingOAuthTokenRequestsAuthorization(t *testing.T) {
 		t.Fatalf("expected authorization guidance, got %q", result.Content)
 	}
 }
+
+func TestNormalizeCreateTaskTextFields_SplitSummaryAndBody(t *testing.T) {
+	summary, description := normalizeCreateTaskTextFields("标题\n第一行内容\n第二行内容", "", "")
+	if summary != "标题" {
+		t.Fatalf("expected summary to be first line, got %q", summary)
+	}
+	if description != "第一行内容\n第二行内容" {
+		t.Fatalf("expected description to contain remaining lines, got %q", description)
+	}
+}
+
+func TestNormalizeCreateTaskTextFields_ContentAlias(t *testing.T) {
+	summary, description := normalizeCreateTaskTextFields("短标题", "", "这是正文")
+	if summary != "短标题" {
+		t.Fatalf("unexpected summary: %q", summary)
+	}
+	if description != "这是正文" {
+		t.Fatalf("expected description from content alias, got %q", description)
+	}
+}
+
+func TestNormalizeUpdateTaskTextFields_ContentAlias(t *testing.T) {
+	summary, description := normalizeUpdateTaskTextFields("", "", "仅更新正文")
+	if summary != "" {
+		t.Fatalf("expected empty summary, got %q", summary)
+	}
+	if description != "仅更新正文" {
+		t.Fatalf("expected description from content alias, got %q", description)
+	}
+}
+
+func TestNormalizeUpdateTaskTextFields_SplitSummaryAndBody(t *testing.T) {
+	summary, description := normalizeUpdateTaskTextFields("标题\n正文", "", "")
+	if summary != "标题" {
+		t.Fatalf("expected summary to be first line, got %q", summary)
+	}
+	if description != "正文" {
+		t.Fatalf("expected description from remaining lines, got %q", description)
+	}
+}

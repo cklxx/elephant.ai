@@ -68,6 +68,10 @@ func NewLarkTaskManage() tools.ToolExecutor {
 							Type:        "string",
 							Description: "Task description for create or update.",
 						},
+						"content": {
+							Type:        "string",
+							Description: "Alias of description. When summary contains multiple lines, first line is title and remaining lines become description.",
+						},
 						"due_at": {
 							Type:        "string",
 							Description: "Due time as Unix seconds for create.",
@@ -204,12 +208,15 @@ func (t *larkTaskManage) createTask(ctx context.Context, client *lark.Client, ca
 		return approvalErr, nil
 	}
 
-	summary, errResult := shared.RequireStringArg(call.Arguments, call.ID, "summary")
-	if errResult != nil {
-		return errResult, nil
+	summary, description := normalizeCreateTaskTextFields(
+		shared.StringArg(call.Arguments, "summary"),
+		shared.StringArg(call.Arguments, "description"),
+		shared.StringArg(call.Arguments, "content"),
+	)
+	if summary == "" {
+		err := fmt.Errorf("summary is required")
+		return shared.ToolError(call.ID, "%w", err)
 	}
-
-	description := shared.StringArg(call.Arguments, "description")
 
 	due, errResult := parseDue(call.Arguments, call.ID)
 	if errResult != nil {
@@ -278,11 +285,17 @@ func (t *larkTaskManage) updateTask(ctx context.Context, client *lark.Client, ca
 	input := &larktask.InputTask{}
 	var updateFields []string
 
-	if summary := shared.StringArg(call.Arguments, "summary"); summary != "" {
+	summary, description := normalizeUpdateTaskTextFields(
+		shared.StringArg(call.Arguments, "summary"),
+		shared.StringArg(call.Arguments, "description"),
+		shared.StringArg(call.Arguments, "content"),
+	)
+
+	if summary != "" {
 		input.Summary = &summary
 		updateFields = append(updateFields, "summary")
 	}
-	if description := shared.StringArg(call.Arguments, "description"); description != "" {
+	if description != "" {
 		input.Description = &description
 		updateFields = append(updateFields, "description")
 	}
@@ -465,6 +478,58 @@ func parseUnixSecondsString(value string) (int64, error) {
 		return 0, fmt.Errorf("due_at must be a unix seconds timestamp")
 	}
 	return parsed, nil
+}
+
+func normalizeCreateTaskTextFields(summary, description, content string) (string, string) {
+	summary = strings.TrimSpace(summary)
+	description = strings.TrimSpace(description)
+	content = strings.TrimSpace(content)
+	if description == "" && content != "" {
+		description = content
+	}
+	if description == "" && summary != "" {
+		title, body := splitTitleAndBody(summary)
+		if body != "" {
+			return title, body
+		}
+	}
+	if summary == "" && description != "" {
+		title, body := splitTitleAndBody(description)
+		if title != "" {
+			return title, body
+		}
+	}
+	return summary, description
+}
+
+func normalizeUpdateTaskTextFields(summary, description, content string) (string, string) {
+	summary = strings.TrimSpace(summary)
+	description = strings.TrimSpace(description)
+	content = strings.TrimSpace(content)
+	if description == "" && content != "" {
+		description = content
+	}
+	if description == "" && summary != "" {
+		title, body := splitTitleAndBody(summary)
+		if body != "" {
+			return title, body
+		}
+	}
+	return summary, description
+}
+
+func splitTitleAndBody(text string) (string, string) {
+	normalized := strings.TrimSpace(strings.ReplaceAll(text, "\r\n", "\n"))
+	if normalized == "" {
+		return "", ""
+	}
+	lines := strings.Split(normalized, "\n")
+	title := strings.TrimSpace(lines[0])
+	if len(lines) == 1 {
+		return title, ""
+	}
+	body := strings.TrimSpace(strings.Join(lines[1:], "\n"))
+	return title, body
 }
 
 func clampTaskPageSize(args map[string]any) int {

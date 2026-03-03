@@ -134,6 +134,72 @@ func TestDocxManage_CreateDoc(t *testing.T) {
 	}
 }
 
+func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
+	var patchCalled bool
+	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/docx/v1/documents"):
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"document": map[string]any{
+					"document_id": "doc_init_001",
+					"title":       "设计说明",
+					"revision_id": 1,
+				},
+			})
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/docx/v1/documents/doc_init_001/blocks"):
+			hasMore := false
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"items": []map[string]any{
+					{"block_id": "doc_init_001", "block_type": 1},
+					{"block_id": "blk_text_001", "block_type": 2, "parent_id": "doc_init_001"},
+				},
+				"has_more": hasMore,
+			})
+		case r.Method == http.MethodPatch && strings.Contains(r.URL.Path, "/docx/v1/documents/doc_init_001/blocks/blk_text_001"):
+			bodyBytes, _ := io.ReadAll(r.Body)
+			body := string(bodyBytes)
+			if !strings.Contains(body, "这是正文第一段") {
+				t.Fatalf("expected initial content in patch body, got: %s", body)
+			}
+			patchCalled = true
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"block": map[string]any{
+					"block_id":   "blk_text_001",
+					"block_type": 2,
+					"parent_id":  "doc_init_001",
+				},
+				"document_revision_id": 3,
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	})
+	defer srv.Close()
+
+	dm := &larkDocxManage{}
+	call := ports.ToolCall{ID: "c1b", Arguments: map[string]any{
+		"action":  "create",
+		"title":   "设计说明",
+		"content": "这是正文第一段",
+	}}
+	result, err := dm.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %v", result.Error)
+	}
+	if !patchCalled {
+		t.Fatal("expected initial content patch call")
+	}
+	if result.Metadata["content_written"] != true {
+		t.Fatalf("expected content_written=true, got %v", result.Metadata["content_written"])
+	}
+	if result.Metadata["content_block_id"] != "blk_text_001" {
+		t.Fatalf("expected content_block_id=blk_text_001, got %v", result.Metadata["content_block_id"])
+	}
+}
+
 func TestDocxManage_CreateDoc_WithFolder(t *testing.T) {
 	var gotPath string
 	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {

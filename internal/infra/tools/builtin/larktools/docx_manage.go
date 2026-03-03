@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"alex/internal/domain/agent/ports"
 	larkapi "alex/internal/infra/lark"
@@ -41,6 +42,10 @@ func (t *larkDocxManage) Execute(ctx context.Context, call ports.ToolCall) (*por
 
 func (t *larkDocxManage) createDoc(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
 	title := shared.StringArg(call.Arguments, "title")
+	content := strings.TrimSpace(shared.StringArg(call.Arguments, "content"))
+	if content == "" {
+		content = strings.TrimSpace(shared.StringArg(call.Arguments, "description"))
+	}
 	folderID := shared.StringArg(call.Arguments, "folder_token")
 
 	doc, err := client.Docx().CreateDocument(ctx, larkapi.CreateDocumentRequest{
@@ -53,21 +58,69 @@ func (t *larkDocxManage) createDoc(ctx context.Context, client *larkapi.Client, 
 
 	grantSenderEditPermission(ctx, client, doc.DocumentID, "docx")
 
+	var contentBlockID string
+	if content != "" {
+		blockID, err := t.writeInitialContent(ctx, client, doc.DocumentID, content)
+		if err != nil {
+			return apiErr(call.ID, "write initial document content", err), nil
+		}
+		contentBlockID = blockID
+	}
+
 	payload, _ := json.MarshalIndent(doc, "", "  ")
 	metadata := map[string]any{
 		"document_id": doc.DocumentID,
 		"title":       doc.Title,
 	}
-	content := fmt.Sprintf("Document created successfully.\n%s", string(payload))
+	if contentBlockID != "" {
+		metadata["content_written"] = true
+		metadata["content_block_id"] = contentBlockID
+	}
+	resultContent := fmt.Sprintf("Document created successfully.\n%s", string(payload))
 	if docURL := larkapi.BuildDocumentURL(shared.LarkBaseDomainFromContext(ctx), doc.DocumentID); docURL != "" {
 		metadata["url"] = docURL
-		content = fmt.Sprintf("Document created successfully.\nURL: %s\n%s", docURL, string(payload))
+		resultContent = fmt.Sprintf("Document created successfully.\nURL: %s\n%s", docURL, string(payload))
 	}
 	return &ports.ToolResult{
 		CallID:   call.ID,
-		Content:  content,
+		Content:  resultContent,
 		Metadata: metadata,
 	}, nil
+}
+
+func (t *larkDocxManage) writeInitialContent(ctx context.Context, client *larkapi.Client, documentID, content string) (string, error) {
+	blocks, _, _, err := client.Docx().ListDocumentBlocks(ctx, documentID, 50, "")
+	if err != nil {
+		return "", err
+	}
+	blockID := pickWritableBlockID(blocks)
+	if blockID == "" {
+		return "", fmt.Errorf("no writable text block found in document %s", documentID)
+	}
+	_, err = client.Docx().UpdateDocumentBlockText(ctx, larkapi.UpdateDocumentBlockTextRequest{
+		DocumentID:         documentID,
+		BlockID:            blockID,
+		Content:            content,
+		DocumentRevisionID: -1,
+	})
+	if err != nil {
+		return "", err
+	}
+	return blockID, nil
+}
+
+func pickWritableBlockID(blocks []larkapi.DocumentBlock) string {
+	for i := range blocks {
+		if blocks[i].BlockType == 2 && blocks[i].BlockID != "" {
+			return blocks[i].BlockID
+		}
+	}
+	for i := range blocks {
+		if blocks[i].BlockType != 1 && blocks[i].BlockID != "" {
+			return blocks[i].BlockID
+		}
+	}
+	return ""
 }
 
 func (t *larkDocxManage) readDoc(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
