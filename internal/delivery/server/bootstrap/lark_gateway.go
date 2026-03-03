@@ -69,19 +69,14 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		AutoUploadFiles:    larkCfg.AutoUploadFiles,
 		AutoUploadMaxBytes: larkCfg.AutoUploadMaxBytes,
 		AutoUploadAllowExt: append([]string(nil), larkCfg.AutoUploadAllowExt...),
-		Browser: lark.BrowserConfig{
-			CDPURL:      larkCfg.Browser.CDPURL,
-			ChromePath:  larkCfg.Browser.ChromePath,
-			Headless:    larkCfg.Browser.Headless,
-			UserDataDir: larkCfg.Browser.UserDataDir,
-			Timeout:     larkCfg.Browser.Timeout,
-		},
+		Browser: larkCfg.Browser,
 		ReactEmoji:                    larkCfg.ReactEmoji,
 		InjectionAckReactEmoji:        larkCfg.InjectionAckReactEmoji,
 		ShowToolProgress:              larkCfg.ShowToolProgress,
 		SlowProgressSummaryEnabled:    &larkCfg.SlowProgressSummaryEnabled,
 		SlowProgressSummaryDelay:      larkCfg.SlowProgressSummaryDelay,
 		AutoChatContextSize:           larkCfg.AutoChatContextSize,
+		ToolFailureAbortThreshold:     larkCfg.ToolFailureAbortThreshold,
 		PlanReviewEnabled:             larkCfg.PlanReviewEnabled,
 		PlanReviewRequireConfirmation: larkCfg.PlanReviewRequireConfirmation,
 		PlanReviewPendingTTL:          larkCfg.PlanReviewPendingTTL,
@@ -99,15 +94,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		MaxConcurrentTasks:            larkCfg.MaxConcurrentTasks,
 		DefaultPlanMode:               lark.PlanMode(larkCfg.DefaultPlanMode),
 		DeliveryMode:                  larkCfg.DeliveryMode,
-		DeliveryWorker: lark.DeliveryWorkerConfig{
-			Enabled:      larkCfg.DeliveryWorker.Enabled,
-			PollInterval: larkCfg.DeliveryWorker.PollInterval,
-			BatchSize:    larkCfg.DeliveryWorker.BatchSize,
-			MaxAttempts:  larkCfg.DeliveryWorker.MaxAttempts,
-			BaseBackoff:  larkCfg.DeliveryWorker.BaseBackoff,
-			MaxBackoff:   larkCfg.DeliveryWorker.MaxBackoff,
-			JitterRatio:  larkCfg.DeliveryWorker.JitterRatio,
-		},
+		DeliveryWorker: larkCfg.DeliveryWorker,
 	}
 
 	// Hooks bridge endpoint lives on the debug HTTP server (DebugPort),
@@ -216,6 +203,10 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	})
 
 	cleanup := func() {
+		interrupted := gateway.NotifyRunningTaskInterruptions("服务重启中，当前执行已中断。请稍后重试。")
+		if interrupted > 0 {
+			logger.Info("Lark gateway sent interruption notice to %d running chats", interrupted)
+		}
 		gateway.Stop()
 		if container.LarkGateway == gateway {
 			container.LarkGateway = nil

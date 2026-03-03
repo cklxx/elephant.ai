@@ -252,46 +252,14 @@ func hashAny(hasher hash.Hash64, value any) {
 		hashString(hasher, "bool")
 		if v {
 			hashUint64(hasher, 1)
-			return
+		} else {
+			hashUint64(hasher, 0)
 		}
-		hashUint64(hasher, 0)
-	case int:
-		hashString(hasher, "int")
-		hashString(hasher, fmt.Sprintf("%d", v))
-	case int8:
-		hashString(hasher, "int8")
-		hashString(hasher, fmt.Sprintf("%d", v))
-	case int16:
-		hashString(hasher, "int16")
-		hashString(hasher, fmt.Sprintf("%d", v))
-	case int32:
-		hashString(hasher, "int32")
-		hashString(hasher, fmt.Sprintf("%d", v))
-	case int64:
-		hashString(hasher, "int64")
-		hashString(hasher, fmt.Sprintf("%d", v))
-	case uint:
-		hashString(hasher, "uint")
-		hashString(hasher, fmt.Sprintf("%d", v))
-	case uint8:
-		hashString(hasher, "uint8")
-		hashString(hasher, fmt.Sprintf("%d", v))
-	case uint16:
-		hashString(hasher, "uint16")
-		hashString(hasher, fmt.Sprintf("%d", v))
-	case uint32:
-		hashString(hasher, "uint32")
-		hashString(hasher, fmt.Sprintf("%d", v))
-	case uint64:
-		hashString(hasher, "uint64")
-		hashString(hasher, fmt.Sprintf("%d", v))
-	case float32:
-		hashString(hasher, "float32")
-		hashString(hasher, fmt.Sprintf("%g", v))
 	case float64:
 		hashString(hasher, "float64")
 		hashString(hasher, fmt.Sprintf("%g", v))
 	default:
+		// Handles []any, map[string]any, and any unexpected types via JSON.
 		hashString(hasher, fmt.Sprintf("%T", value))
 		payload, err := jsonx.Marshal(value)
 		if err != nil {

@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient, type SessionSnapshotsResponse, type MemorySnapshot } from "@/lib/api";
 import { createRequestGate } from "@/lib/requestGate";
 import { type LogTraceBundle, type WorkflowEventType } from "@/lib/types";
-import { cn, formatDuration } from "@/lib/utils";
+import { cn, formatDuration, formatTraceDuration } from "@/lib/utils";
 
 type SSEDebugEvent = DevSSEDebugEvent;
 
@@ -252,19 +252,6 @@ type RunTree = {
 };
 
 type LLMDetailCache = Map<string, LogTraceBundle | "loading" | "error">;
-
-function formatTraceDuration(ms: number) {
-  if (!Number.isFinite(ms)) {
-    return "—";
-  }
-  if (ms >= 60000) {
-    return `${(ms / 1000).toFixed(2)}s`;
-  }
-  if (ms >= 1000) {
-    return formatDuration(ms);
-  }
-  return `${Math.round(ms)}ms`;
-}
 
 function truncateId(id: string, maxLen = 12): string {
   if (id.length <= maxLen) return id;

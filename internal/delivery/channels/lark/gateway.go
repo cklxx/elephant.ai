@@ -39,6 +39,7 @@ const (
 	defaultRelayMaxPerChat     = 64
 	defaultAIChatSessionTTL    = 45 * time.Minute
 	defaultStateCleanupEvery   = 5 * time.Minute
+	defaultToolFailureAbortN   = 6
 )
 
 // AgentExecutor is an alias for the shared channel executor interface.
@@ -142,7 +143,7 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if cfg.SessionPrefix == "" {
 		cfg.SessionPrefix = "lark"
 	}
-	cfg.ToolPreset = strings.TrimSpace(strings.ToLower(cfg.ToolPreset))
+	cfg.ToolPreset = utils.TrimLower(cfg.ToolPreset)
 	if cfg.ToolPreset == "" {
 		cfg.ToolPreset = "full"
 	}
@@ -182,31 +183,10 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if cfg.StateCleanupInterval <= 0 {
 		cfg.StateCleanupInterval = defaultStateCleanupEvery
 	}
+	if cfg.ToolFailureAbortThreshold <= 0 {
+		cfg.ToolFailureAbortThreshold = defaultToolFailureAbortN
+	}
 	cfg.DeliveryMode = string(normalizeDeliveryMode(cfg.DeliveryMode))
-	if cfg.DeliveryWorker.PollInterval <= 0 {
-		cfg.DeliveryWorker.PollInterval = defaultDeliveryWorkerPollInterval
-	}
-	if cfg.DeliveryWorker.BatchSize <= 0 {
-		cfg.DeliveryWorker.BatchSize = defaultDeliveryWorkerBatchSize
-	}
-	if cfg.DeliveryWorker.MaxAttempts <= 0 {
-		cfg.DeliveryWorker.MaxAttempts = defaultDeliveryWorkerMaxAttempts
-	}
-	if cfg.DeliveryWorker.BaseBackoff <= 0 {
-		cfg.DeliveryWorker.BaseBackoff = defaultDeliveryWorkerBaseBackoff
-	}
-	if cfg.DeliveryWorker.MaxBackoff <= 0 {
-		cfg.DeliveryWorker.MaxBackoff = defaultDeliveryWorkerMaxBackoff
-	}
-	if cfg.DeliveryWorker.MaxBackoff < cfg.DeliveryWorker.BaseBackoff {
-		cfg.DeliveryWorker.MaxBackoff = cfg.DeliveryWorker.BaseBackoff
-	}
-	if cfg.DeliveryWorker.JitterRatio <= 0 {
-		cfg.DeliveryWorker.JitterRatio = defaultDeliveryWorkerJitterRatio
-	}
-	if cfg.DeliveryWorker.JitterRatio > 1 {
-		cfg.DeliveryWorker.JitterRatio = 1
-	}
 	dedupCache, err := lru.New[string, time.Time](messageDedupCacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("lark message deduper init: %w", err)
@@ -406,6 +386,59 @@ func (g *Gateway) Start(ctx context.Context) error {
 // cancelling the context passed to Start is the primary shutdown mechanism.
 func (g *Gateway) Stop() {
 	g.stopStateCleanupLoop()
+}
+
+// NotifyRunningTaskInterruptions cancels in-flight foreground tasks and sends
+// a visible interruption notice to each affected chat.
+func (g *Gateway) NotifyRunningTaskInterruptions(notice string) int {
+	if g == nil {
+		return 0
+	}
+	notice = strings.TrimSpace(notice)
+	if notice == "" {
+		notice = "服务正在重启，当前执行已中断。请稍后重试。"
+	}
+
+	type runningTarget struct {
+		chatID string
+		cancel context.CancelFunc
+	}
+	targets := make([]runningTarget, 0, 4)
+
+	g.activeSlots.Range(func(key, value any) bool {
+		chatID, ok := key.(string)
+		if !ok {
+			return true
+		}
+		slot, ok := value.(*sessionSlot)
+		if !ok || slot == nil {
+			return true
+		}
+
+		slot.mu.Lock()
+		running := slot.phase == slotRunning && slot.taskCancel != nil
+		if running {
+			slot.intentionalCancelToken = slot.taskToken
+			targets = append(targets, runningTarget{
+				chatID: chatID,
+				cancel: slot.taskCancel,
+			})
+		}
+		slot.mu.Unlock()
+		return true
+	})
+
+	if len(targets) == 0 {
+		return 0
+	}
+
+	notifyCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for _, target := range targets {
+		target.cancel()
+		g.dispatch(notifyCtx, target.chatID, "", "text", textContent(notice))
+	}
+	return len(targets)
 }
 
 // WaitForTasks blocks until all in-flight task goroutines complete.
@@ -880,7 +913,7 @@ func isPostPayloadInvalidError(err error) bool {
 	if err == nil {
 		return false
 	}
-	lower := strings.ToLower(strings.TrimSpace(err.Error()))
+	lower := utils.TrimLower(err.Error())
 	if lower == "" {
 		return false
 	}
@@ -998,7 +1031,7 @@ func normalizeExtensions(exts []string) []string {
 	seen := make(map[string]struct{}, len(exts))
 	normalized := make([]string, 0, len(exts))
 	for _, raw := range exts {
-		trimmed := strings.TrimSpace(strings.ToLower(raw))
+		trimmed := utils.TrimLower(raw)
 		if trimmed == "" {
 			continue
 		}

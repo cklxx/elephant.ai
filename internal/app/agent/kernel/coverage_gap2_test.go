@@ -13,40 +13,6 @@ import (
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// copyStringMap
-// ─────────────────────────────────────────────────────────────────────────────
-
-func TestCopyStringMap_NilSource(t *testing.T) {
-	got := copyStringMap(nil)
-	if got != nil {
-		t.Errorf("expected nil, got %v", got)
-	}
-}
-
-func TestCopyStringMap_EmptySource(t *testing.T) {
-	got := copyStringMap(map[string]string{})
-	if got != nil {
-		t.Errorf("expected nil for empty map, got %v", got)
-	}
-}
-
-func TestCopyStringMap_CopiesEntries(t *testing.T) {
-	src := map[string]string{"a": "1", "b": "2"}
-	got := copyStringMap(src)
-	if len(got) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(got))
-	}
-	if got["a"] != "1" || got["b"] != "2" {
-		t.Errorf("unexpected content: %v", got)
-	}
-	// Mutating original must not affect copy.
-	src["c"] = "3"
-	if _, ok := got["c"]; ok {
-		t.Error("copy is not independent from source")
-	}
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // uniqueTrimmed
 // ─────────────────────────────────────────────────────────────────────────────
 

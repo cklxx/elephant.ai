@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -357,7 +358,7 @@ func (p *LLMPlanner) toDispatchSpecs(decisions []planningDecision, stateContent 
 			teamSpec := kerneldomain.TeamDispatchSpec{
 				Template:       template,
 				Goal:           teamGoal,
-				Prompts:        copyStringMap(d.TeamPrompts),
+				Prompts:        maps.Clone(d.TeamPrompts),
 				TimeoutSeconds: timeoutSeconds,
 				Wait:           true,
 			}
@@ -681,17 +682,6 @@ func uniqueTrimmed(values []string) []string {
 		}
 		seen[key] = struct{}{}
 		out = append(out, trimmed)
-	}
-	return out
-}
-
-func copyStringMap(source map[string]string) map[string]string {
-	if len(source) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(source))
-	for key, value := range source {
-		out[key] = value
 	}
 	return out
 }

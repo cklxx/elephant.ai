@@ -68,6 +68,20 @@ export function formatDuration(ms: number): string {
   return `${minutes}m ${seconds}s`;
 }
 
+// Format trace duration with NaN guard and seconds-only output for >= 60s
+export function formatTraceDuration(ms: number): string {
+  if (!Number.isFinite(ms)) {
+    return "—";
+  }
+  if (ms >= 60000) {
+    return `${(ms / 1000).toFixed(2)}s`;
+  }
+  if (ms >= 1000) {
+    return formatDuration(ms);
+  }
+  return `${Math.round(ms)}ms`;
+}
+
 // Format timestamp to relative time
 export function formatRelativeTime(timestamp: string, locale: string = 'en-US'): string {
   const targetDate = new Date(timestamp);

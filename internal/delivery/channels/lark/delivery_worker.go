@@ -6,10 +6,15 @@ import (
 	"math"
 	"math/rand"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 )
+
+const deliveryWorkerConcurrency = 8
 
 func (g *Gateway) startDeliveryWorker(ctx context.Context) {
 	if g == nil {
@@ -74,38 +79,47 @@ func (g *Gateway) processDeliveryOutbox(ctx context.Context) int {
 		maxAttempts = defaultDeliveryWorkerMaxAttempts
 	}
 
-	processed := 0
+	var processed atomic.Int32
+	sem := make(chan struct{}, deliveryWorkerConcurrency)
+	var wg sync.WaitGroup
 	for _, intent := range intents {
 		if ctx != nil && ctx.Err() != nil {
-			return processed
+			break
 		}
-		if err := g.deliverIntent(ctx, intent); err != nil {
-			processed++
-			if !isRetryableDeliveryError(err) || intent.AttemptCount >= maxAttempts {
-				if markErr := g.deliveryOutboxStore.MarkDead(storeCtx, intent.IntentID, err.Error()); markErr != nil {
-					g.logger.Warn("Lark delivery mark dead failed: intent=%s err=%v", intent.IntentID, markErr)
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(intent DeliveryIntent) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			if err := g.deliverIntent(ctx, intent); err != nil {
+				processed.Add(1)
+				if !isRetryableDeliveryError(err) || intent.AttemptCount >= maxAttempts {
+					if markErr := g.deliveryOutboxStore.MarkDead(storeCtx, intent.IntentID, err.Error()); markErr != nil {
+						g.logger.Warn("Lark delivery mark dead failed: intent=%s err=%v", intent.IntentID, markErr)
+					}
+					g.logger.Warn("Lark terminal delivery dead-lettered: intent=%s attempts=%d err=%v", intent.IntentID, intent.AttemptCount, err)
+					return
 				}
-				g.logger.Warn("Lark terminal delivery dead-lettered: intent=%s attempts=%d err=%v", intent.IntentID, intent.AttemptCount, err)
-				continue
+				nextAttempt := now.Add(g.nextDeliveryBackoff(intent.AttemptCount))
+				if markErr := g.deliveryOutboxStore.MarkRetry(storeCtx, intent.IntentID, nextAttempt, err.Error()); markErr != nil {
+					g.logger.Warn("Lark delivery mark retry failed: intent=%s err=%v", intent.IntentID, markErr)
+				}
+				g.logger.Warn("Lark terminal delivery retry scheduled: intent=%s attempts=%d next=%s err=%v", intent.IntentID, intent.AttemptCount, nextAttempt.Format(time.RFC3339), err)
+				return
 			}
-			nextAttempt := now.Add(g.nextDeliveryBackoff(intent.AttemptCount))
-			if markErr := g.deliveryOutboxStore.MarkRetry(storeCtx, intent.IntentID, nextAttempt, err.Error()); markErr != nil {
-				g.logger.Warn("Lark delivery mark retry failed: intent=%s err=%v", intent.IntentID, markErr)
+			processed.Add(1)
+			if markErr := g.deliveryOutboxStore.MarkSent(storeCtx, intent.IntentID, g.currentTime()); markErr != nil {
+				g.logger.Warn("Lark delivery mark sent failed: intent=%s err=%v", intent.IntentID, markErr)
 			}
-			g.logger.Warn("Lark terminal delivery retry scheduled: intent=%s attempts=%d next=%s err=%v", intent.IntentID, intent.AttemptCount, nextAttempt.Format(time.RFC3339), err)
-			continue
-		}
-		processed++
-		if markErr := g.deliveryOutboxStore.MarkSent(storeCtx, intent.IntentID, g.currentTime()); markErr != nil {
-			g.logger.Warn("Lark delivery mark sent failed: intent=%s err=%v", intent.IntentID, markErr)
-		}
+		}(intent)
 	}
+	wg.Wait()
 
-	return processed
+	return int(processed.Load())
 }
 
 func (g *Gateway) deliverIntent(parentCtx context.Context, intent DeliveryIntent) error {
-	dispatchCtx, cancel := detachedDispatchContext(parentCtx)
+	dispatchCtx, cancel := detachedContext(parentCtx, 15*time.Second)
 	defer cancel()
 
 	edited := false
@@ -119,18 +133,6 @@ func (g *Gateway) deliverIntent(parentCtx context.Context, intent DeliveryIntent
 	if !edited {
 		replyTo := replyTarget(intent.ReplyToMessageID, true)
 		if _, err := g.dispatchMessage(dispatchCtx, intent.ChatID, replyTo, intent.MsgType, intent.Content); err != nil {
-			if intent.MsgType == "post" && isInvalidPostPayloadError(err) {
-				fallbackText := flattenPostContentToText(intent.Content)
-				if strings.TrimSpace(fallbackText) == "" {
-					fallbackText = "本次富文本结果渲染失败，已回退为纯文本发送。"
-				}
-				if _, fallbackErr := g.dispatchMessage(dispatchCtx, intent.ChatID, replyTo, "text", textContent(fallbackText)); fallbackErr == nil {
-					g.logger.Warn("Lark post delivery fallback to text: intent=%s err=%v", intent.IntentID, err)
-					return nil
-				} else {
-					return errors.Join(err, fallbackErr)
-				}
-			}
 			return err
 		}
 	}
@@ -138,26 +140,6 @@ func (g *Gateway) deliverIntent(parentCtx context.Context, intent DeliveryIntent
 		g.sendAttachments(dispatchCtx, intent.ChatID, intent.ReplyToMessageID, &agent.TaskResult{Attachments: intent.Attachments})
 	}
 	return nil
-}
-
-func isInvalidPostPayloadError(err error) bool {
-	if err == nil {
-		return false
-	}
-	lower := strings.ToLower(strings.TrimSpace(err.Error()))
-	if lower == "" {
-		return false
-	}
-	if strings.Contains(lower, "message_content_text_tag") {
-		return true
-	}
-	if strings.Contains(lower, "invalid message content") {
-		return true
-	}
-	if strings.Contains(lower, "text field can't be nil") {
-		return true
-	}
-	return false
 }
 
 func (g *Gateway) nextDeliveryBackoff(attempt int) time.Duration {
@@ -198,7 +180,7 @@ func isRetryableDeliveryError(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
-	lower := strings.ToLower(strings.TrimSpace(err.Error()))
+	lower := utils.TrimLower(err.Error())
 	if lower == "" {
 		return true
 	}

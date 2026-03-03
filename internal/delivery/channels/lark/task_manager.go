@@ -303,6 +303,8 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 	awaitTracker := &awaitQuestionTracker{}
 	listener, cleanupListeners, progressLn := g.setupListeners(execCtx, msg, awaitTracker)
 	defer cleanupListeners()
+	guardListener, guardState := newToolFailureGuardListener(listener, g.cfg.ToolFailureAbortThreshold, cancelExec)
+	listener = guardListener
 	execCtx = builtinshared.WithParentListener(execCtx, listener)
 
 	// Resolve task content from three distinct concerns:
@@ -344,7 +346,7 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 		progressMsgID = progressLn.MessageID()
 	}
 
-	g.dispatchResult(execCtx, msg, result, execErr, awaitTracker, progressMsgID, taskToken)
+	g.dispatchResult(execCtx, msg, result, execErr, awaitTracker, progressMsgID, taskToken, guardState)
 
 	// Notify AI chat coordinator that this bot's turn is complete
 	if g.aiCoordinator != nil && msg.aiChatSessionActive {
@@ -548,9 +550,15 @@ func (g *Gateway) enrichWithChatContext(execCtx context.Context, taskContent str
 // the Lark chat, including any attachments. When progressMsgID is non-empty,
 // the progress message is edited in-place to become the final reply, avoiding
 // message fragmentation.
-func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, awaitTracker *awaitQuestionTracker, progressMsgID string, taskToken uint64) {
+func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, awaitTracker *awaitQuestionTracker, progressMsgID string, taskToken uint64, guardState *toolFailureGuardState) {
 	if errors.Is(execErr, context.Canceled) && g.isIntentionalTaskCancellation(msg.chatID, taskToken) {
 		g.logger.Info("Lark task cancelled intentionally: chat=%s msg=%s token=%d", msg.chatID, msg.messageID, taskToken)
+		return
+	}
+	if guardState != nil && guardState.Tripped() {
+		dispatchCtx, cancel := detachedContext(execCtx, 15*time.Second)
+		defer cancel()
+		g.dispatch(dispatchCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(guardState.UserNotice()))
 		return
 	}
 
@@ -615,20 +623,12 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	}
 }
 
-func detachedDispatchContext(execCtx context.Context) (context.Context, context.CancelFunc) {
+func detachedContext(execCtx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	baseCtx := context.Background()
 	if execCtx != nil {
 		baseCtx = context.WithoutCancel(execCtx)
 	}
-	return context.WithTimeout(baseCtx, 15*time.Second)
-}
-
-func detachedStoreContext(execCtx context.Context) (context.Context, context.CancelFunc) {
-	baseCtx := context.Background()
-	if execCtx != nil {
-		baseCtx = context.WithoutCancel(execCtx)
-	}
-	return context.WithTimeout(baseCtx, 5*time.Second)
+	return context.WithTimeout(baseCtx, timeout)
 }
 
 func (g *Gateway) buildTerminalDeliveryIntent(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, progressMsgID, msgType, content string) DeliveryIntent {
@@ -696,7 +696,7 @@ func (g *Gateway) dispatchTerminalIntent(execCtx context.Context, intent Deliver
 	switch mode {
 	case DeliveryModeOutbox:
 		if store != nil && g.cfg.DeliveryWorker.Enabled {
-			storeCtx, cancel := detachedStoreContext(execCtx)
+			storeCtx, cancel := detachedContext(execCtx, 5*time.Second)
 			enqueued, err := store.Enqueue(storeCtx, []DeliveryIntent{intent})
 			cancel()
 			if err == nil && len(enqueued) > 0 {
@@ -713,7 +713,7 @@ func (g *Gateway) dispatchTerminalIntent(execCtx context.Context, intent Deliver
 	case DeliveryModeShadow:
 		var stored DeliveryIntent
 		if store != nil {
-			storeCtx, cancel := detachedStoreContext(execCtx)
+			storeCtx, cancel := detachedContext(execCtx, 5*time.Second)
 			enqueued, err := store.Enqueue(storeCtx, []DeliveryIntent{intent})
 			cancel()
 			if err != nil {
@@ -728,14 +728,14 @@ func (g *Gateway) dispatchTerminalIntent(execCtx context.Context, intent Deliver
 		if err := g.deliverIntent(execCtx, intent); err != nil {
 			g.logger.Warn("Lark direct terminal delivery failed in shadow mode: %v", err)
 			if store != nil && stored.IntentID != "" {
-				storeCtx, cancel := detachedStoreContext(execCtx)
+				storeCtx, cancel := detachedContext(execCtx, 5*time.Second)
 				_ = store.MarkDead(storeCtx, stored.IntentID, err.Error())
 				cancel()
 			}
 			return
 		}
 		if store != nil && stored.IntentID != "" {
-			storeCtx, cancel := detachedStoreContext(execCtx)
+			storeCtx, cancel := detachedContext(execCtx, 5*time.Second)
 			_ = store.MarkSent(storeCtx, stored.IntentID, g.currentTime())
 			cancel()
 		}

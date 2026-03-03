@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"alex/internal/delivery/channels"
+	"alex/internal/delivery/channels/lark"
 	"alex/internal/domain/agent/presets"
 	"alex/internal/infra/attachments"
 	runtimeconfig "alex/internal/shared/config"
@@ -106,7 +107,7 @@ type LarkGatewayConfig struct {
 	AutoUploadFiles               bool
 	AutoUploadMaxBytes            int
 	AutoUploadAllowExt            []string
-	Browser                       LarkBrowserConfig
+	Browser                       lark.BrowserConfig
 	ToolMode                      string
 	ReactEmoji                    string
 	InjectionAckReactEmoji        string
@@ -114,6 +115,7 @@ type LarkGatewayConfig struct {
 	SlowProgressSummaryEnabled    bool
 	SlowProgressSummaryDelay      time.Duration
 	ShowPlanClarifyMessages       bool
+	ToolFailureAbortThreshold     int
 	AutoChatContextSize           int
 	PlanReviewEnabled             bool
 	PlanReviewRequireConfirmation bool
@@ -132,27 +134,7 @@ type LarkGatewayConfig struct {
 	MaxConcurrentTasks            int
 	DefaultPlanMode               string
 	DeliveryMode                  string
-	DeliveryWorker                LarkDeliveryWorkerConfig
-}
-
-// LarkBrowserConfig captures local browser settings for Lark.
-type LarkBrowserConfig struct {
-	CDPURL      string
-	ChromePath  string
-	Headless    bool
-	UserDataDir string
-	Timeout     time.Duration
-}
-
-// LarkDeliveryWorkerConfig captures outbox worker settings.
-type LarkDeliveryWorkerConfig struct {
-	Enabled      bool
-	PollInterval time.Duration
-	BatchSize    int
-	MaxAttempts  int
-	BaseBackoff  time.Duration
-	MaxBackoff   time.Duration
-	JitterRatio  float64
+	DeliveryWorker                lark.DeliveryWorkerConfig
 }
 
 // HooksBridgeConfig controls the Claude Code hooks → Lark bridge endpoint.
@@ -271,13 +253,14 @@ func LoadConfig() (ConfigResult, error) {
 				AutoUploadFiles:    true,
 				AutoUploadMaxBytes: 2 * 1024 * 1024,
 				AutoUploadAllowExt: []string{".txt", ".md", ".json", ".yaml", ".yml", ".csv", ".log", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".docx", ".xlsx", ".pptx"},
-				Browser: LarkBrowserConfig{
+				Browser: lark.BrowserConfig{
 					Headless: true,
 					Timeout:  60 * time.Second,
 				},
 				ReactEmoji:                  "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
 				SlowProgressSummaryEnabled:  true,
 				SlowProgressSummaryDelay:    30 * time.Second,
+				ToolFailureAbortThreshold:   6,
 				AutoChatContextSize:         20,
 				ActiveSlotTTL:               6 * time.Hour,
 				ActiveSlotMaxEntries:        2048,
@@ -291,7 +274,7 @@ func LoadConfig() (ConfigResult, error) {
 				PersistenceRetention:        7 * 24 * time.Hour,
 				PersistenceMaxTasksPerChat:  200,
 				DeliveryMode:                "shadow",
-				DeliveryWorker: LarkDeliveryWorkerConfig{
+				DeliveryWorker: lark.DeliveryWorkerConfig{
 					Enabled:      true,
 					PollInterval: 500 * time.Millisecond,
 					BatchSize:    50,
@@ -412,7 +395,7 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if len(larkCfg.AutoUploadAllowExt) > 0 {
 		target.AutoUploadAllowExt = append([]string(nil), larkCfg.AutoUploadAllowExt...)
 	}
-	applyLarkBrowserConfig(&target.Browser, larkCfg.Browser)
+	applyBrowserConfig(&target.Browser, larkCfg.Browser)
 	applyTrimmedString(&target.SessionPrefix, larkCfg.SessionPrefix)
 	applyTrimmedString(&target.ReplyPrefix, larkCfg.ReplyPrefix)
 	applyOptionalBool(&target.AllowGroups, larkCfg.AllowGroups)
@@ -428,6 +411,7 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyOptionalBool(&target.SlowProgressSummaryEnabled, larkCfg.SlowProgressSummaryEnabled)
 	applyPositiveDurationSeconds(&target.SlowProgressSummaryDelay, larkCfg.SlowProgressSummaryDelaySecs)
 	applyOptionalBool(&target.ShowPlanClarifyMessages, larkCfg.ShowPlanClarifyMessages)
+	applyPositiveInt(&target.ToolFailureAbortThreshold, larkCfg.ToolFailureAbortThreshold)
 	applyPositiveInt(&target.AutoChatContextSize, larkCfg.AutoChatContextSize)
 	applyOptionalBool(&target.PlanReviewEnabled, larkCfg.PlanReviewEnabled)
 	applyOptionalBool(&target.PlanReviewRequireConfirmation, larkCfg.PlanReviewRequireConfirmation)
@@ -445,7 +429,7 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyOptionalTrimmedString(&target.DefaultPlanMode, larkCfg.DefaultPlanMode)
 }
 
-func applyLarkBrowserConfig(dst *LarkBrowserConfig, browser *runtimeconfig.LarkBrowserConfig) {
+func applyBrowserConfig(dst *lark.BrowserConfig, browser *runtimeconfig.LarkBrowserConfig) {
 	if dst == nil || browser == nil {
 		return
 	}
@@ -501,7 +485,7 @@ func applyOptionalTrimmedString(dst *string, value *string) {
 }
 
 func applyTrimmedLowerString(dst *string, value string) {
-	trimmed := strings.TrimSpace(strings.ToLower(value))
+	trimmed := utils.TrimLower(value)
 	if trimmed != "" {
 		*dst = trimmed
 	}
@@ -547,7 +531,7 @@ func validateLarkPersistenceConfig(cfg *Config) error {
 	if cfg == nil {
 		return nil
 	}
-	mode := strings.TrimSpace(strings.ToLower(cfg.Channels.Lark.PersistenceMode))
+	mode := utils.TrimLower(cfg.Channels.Lark.PersistenceMode)
 	if mode == "" {
 		mode = larkPersistenceModeFile
 	}
@@ -578,7 +562,7 @@ func validateLarkDeliveryConfig(cfg *Config) error {
 	if cfg == nil {
 		return nil
 	}
-	mode := strings.TrimSpace(strings.ToLower(cfg.Channels.Lark.DeliveryMode))
+	mode := utils.TrimLower(cfg.Channels.Lark.DeliveryMode)
 	if mode == "" {
 		mode = "shadow"
 	}
@@ -671,7 +655,7 @@ func validateTelegramPersistenceConfig(cfg *Config) error {
 	if cfg == nil || !cfg.Channels.Telegram.Enabled {
 		return nil
 	}
-	mode := strings.TrimSpace(strings.ToLower(cfg.Channels.Telegram.PersistenceMode))
+	mode := utils.TrimLower(cfg.Channels.Telegram.PersistenceMode)
 	if mode == "" {
 		mode = telegramPersistenceModeFile
 	}

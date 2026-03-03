@@ -1,6 +1,7 @@
 package taskfile
 
 import (
+	"maps"
 	"strings"
 
 	agent "alex/internal/domain/agent/ports/agent"
@@ -80,7 +81,7 @@ func RenderTaskFile(tmpl *TeamTemplate, goal string, overrides map[string]string
 			WorkspaceMode:  r.WorkspaceMode,
 			DependsOn:      depIDs,
 			InheritContext: r.InheritContext,
-			Config:         copyStringMap(r.Config),
+			Config:         maps.Clone(r.Config),
 		}
 		tf.Tasks = append(tf.Tasks, spec)
 	}
@@ -219,13 +220,3 @@ func renderDebatePrompt(roleName, teamName, goal string) string {
 	return sb.String()
 }
 
-func copyStringMap(m map[string]string) map[string]string {
-	if m == nil {
-		return nil
-	}
-	out := make(map[string]string, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	return out
-}

@@ -2,10 +2,10 @@ package lark
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	ports "alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 // DeliveryMode controls how terminal replies are sent.
@@ -18,7 +18,7 @@ const (
 )
 
 func normalizeDeliveryMode(mode string) DeliveryMode {
-	switch DeliveryMode(strings.TrimSpace(strings.ToLower(mode))) {
+	switch DeliveryMode(utils.TrimLower(mode)) {
 	case DeliveryModeOutbox:
 		return DeliveryModeOutbox
 	case DeliveryModeShadow:

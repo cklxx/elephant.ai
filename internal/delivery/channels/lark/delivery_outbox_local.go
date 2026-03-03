@@ -126,8 +126,9 @@ func (s *DeliveryOutboxLocalStore) Enqueue(ctx context.Context, intents []Delive
 				intent.NextAttemptAt = now
 			}
 			intent.UpdatedAt = now
-			items[intent.IntentID] = cloneDeliveryIntent(intent)
-			out = append(out, cloneDeliveryIntent(intent))
+			clone := cloneDeliveryIntent(intent)
+			items[intent.IntentID] = clone
+			out = append(out, clone)
 		}
 		return nil
 	})

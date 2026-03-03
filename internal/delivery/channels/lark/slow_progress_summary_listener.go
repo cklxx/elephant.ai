@@ -593,7 +593,7 @@ func containsInternalProgressIdentifier(text string) bool {
 }
 
 func isOpaqueToolCallID(token string) bool {
-	token = strings.TrimSpace(strings.ToLower(token))
+	token = utils.TrimLower(token)
 	if token == "" {
 		return false
 	}
