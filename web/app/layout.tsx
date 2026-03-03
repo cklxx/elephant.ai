@@ -20,12 +20,47 @@ const mono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "elephant.ai",
+  title: "elephant.ai — Proactive AI Assistant",
   description:
-    "Lark-native proactive personal agent — lives in your groups and DMs, remembers context, executes real work autonomously.",
+    "Your AI teammate, always on. Lives in Lark, remembers everything, executes real work autonomously. Open source, self-hosted, 8 LLM providers.",
   icons: {
     icon: "/elephant.jpg",
   },
+  openGraph: {
+    title: "elephant.ai — Proactive AI Assistant",
+    description:
+      "Your AI teammate, always on. Lives in Lark, remembers everything, executes real work autonomously.",
+    url: "https://github.com/cklxx/elephant.ai",
+    siteName: "elephant.ai",
+    images: [{ url: "/og-image.png", width: 1280, height: 720, alt: "elephant.ai" }],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "elephant.ai — Proactive AI Assistant",
+    description:
+      "Your AI teammate, always on. Lives in Lark, remembers everything, executes real work autonomously.",
+    images: ["/og-image.png"],
+  },
+  alternates: {
+    languages: { "zh-CN": "/zh" },
+  },
+  robots: { index: true, follow: true },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "elephant.ai",
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Cross-platform",
+  description:
+    "Proactive AI assistant that lives in Lark, remembers everything, and executes real work autonomously.",
+  url: "https://github.com/cklxx/elephant.ai",
+  license: "https://opensource.org/licenses/MIT",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  author: { "@type": "Person", name: "cklxx" },
 };
 
 export default function RootLayout({
@@ -44,6 +79,10 @@ export default function RootLayout({
           "h-full bg-app-canvas font-sans text-foreground antialiased",
         )}
       >
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <Providers>
           <SmartErrorBoundary level="page">
             <main className="flex min-h-screen flex-col">{children}</main>

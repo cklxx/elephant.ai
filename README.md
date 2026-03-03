@@ -1,108 +1,105 @@
 <p align="center">
-    <img src="web/public/elephant-rounded.png" alt="elephant.ai mascot" width="76" height="76" />
+  <img src="assets/banner.png" alt="elephant.ai banner" width="100%" />
 </p>
 
-# elephant.ai
+<h1 align="center">elephant.ai</h1>
 
-[![CI](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<p align="center">
+  <strong>Your AI teammate, always on.</strong><br/>
+  Proactive AI assistant that lives in Lark, remembers everything, and executes real work autonomously.
+</p>
 
-**Personal local agent that maximizes human judgment leverage.**
-
-[中文文档](README.zh.md)
-
-elephant.ai lives inside your Lark groups and DMs as a first-class participant — not a bot you have to summon. It reads the room, remembers context across conversations, compresses context to keep long runs effective, takes initiative with built-in skills, and executes real work autonomously. CLI and web dashboard are there when you need them, but Lark is home.
-
----
-
-## Core Objective (2026 refresh)
-
-Build a personal local agent that helps one person leverage maximum model intelligence with minimum attention cost:
-
-- **Attention-saving first** — concise status loops, high-signal summaries, reduced noise.
-- **Judgment leverage** — the agent explores/executes; the human focuses on goals, constraints, and final decisions.
-- **Proactive + overrideable** — suggest and act early, but keep user authority explicit.
-- **Subagent leverage** — parallelize exploration with subagents, then converge into a single decision-ready output.
-- **Context compression** — preserve decision-critical history while preventing context bloat.
+<p align="center">
+  <a href="https://github.com/cklxx/elephant.ai/actions/workflows/ci.yml"><img src="https://github.com/cklxx/elephant.ai/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://goreportcard.com/report/github.com/cklxx/elephant.ai"><img src="https://goreportcard.com/badge/github.com/cklxx/elephant.ai" alt="Go Report Card"/></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"/></a>
+  <a href="README.zh.md"><img src="https://img.shields.io/badge/文档-中文-blue.svg" alt="中文文档"/></a>
+</p>
 
 ---
 
-## Why Lark-native
+## What is elephant.ai?
 
-Most AI assistants sit outside your workflow — a separate app, a separate tab, a separate context switch. elephant.ai is different:
+elephant.ai lives inside your **Lark groups and DMs** as a first-class participant — not a bot you have to summon. It reads the room, remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. CLI and web dashboard are there when you need them, but Lark is home.
 
-| Capability | How it works in Lark |
+Think of it as a personal AI engineer that's always in the chat, always paying attention, always ready to ship.
+
+---
+
+## ✨ Highlights
+
+| | |
 |---|---|
-| **Always present** | Lives in your Lark groups and DMs via WebSocket. No `/slash` commands — just talk naturally. |
-| **Reads the room** | Auto-fetches recent chat history as context. Understands the conversation before replying. |
-| **Persistent memory** | Remembers conversations, decisions, and context across sessions. Never repeat yourself. |
-| **Context compression** | Compacts long conversations into high-signal summaries so quality stays stable over time. |
-| **Autonomous execution** | Full Think → Act → Observe loop. Web search, code, documents, browser — all from a Lark message. |
-| **Subagent leverage** | Runs parallel subagent tasks and converges them into one actionable outcome. |
-| **Live progress** | Shows tool execution progress and emoji reactions in real time while working. |
-| **Built-in skills** | Deep research, meeting notes, email drafting, slide decks, video production — triggered by natural language. |
-| **Approval gates** | Knows when to ask before acting. Risky operations require explicit human approval right in the chat. |
+| 🧠 **Persistent memory** | Remembers conversations, decisions, and context across weeks and months. Never repeat yourself. |
+| ⚡ **Autonomous execution** | Full ReAct loop — Think → Act → Observe. Handles multi-step tasks without babysitting. |
+| 🔧 **15+ built-in skills** | Deep research, meeting notes, email drafts, slide decks, video scripts — triggered by natural language. |
+| 🔌 **MCP extensible** | Connect any external tool through the Model Context Protocol. Infinite integrations. |
+| 🌐 **8 LLM providers** | OpenAI, Claude, DeepSeek, Doubao, Kimi, Ollama, Codex, Qwen — auto-selects the best available. |
+| 👁️ **Full observability** | Real-time streaming, per-session cost tracking, OpenTelemetry traces, Prometheus metrics. |
+| 🛡️ **Approval gates** | Knows when to ask before acting. Risky operations require explicit human sign-off in chat. |
+| 🏠 **Lark-native** | WebSocket gateway — always present in groups and DMs, no `/slash` commands needed. |
 
 ---
 
-## North Star Scenario: Calendar + Tasks closed loop (M0)
+## 🚀 Quick Start
 
-The flagship vertical slice lives entirely in Lark: **read calendar/tasks → propose actions → write with approval → proactively follow up**.
+**Prerequisites:** Go 1.24+, Node.js 20+, a Lark bot token, and an LLM API key.
 
-Implemented building blocks:
-- **Calendar tools:** query/create/update/delete events (`lark_calendar_*`)
-- **Task tools:** list/create/update/delete tasks (`lark_task_manage`)
-- **Proactive reminders:** scheduler trigger that checks upcoming events/tasks and messages you in Lark
+```bash
+# 1. Clone and build
+git clone https://github.com/cklxx/elephant.ai.git && cd elephant.ai
+make build
 
-See `docs/roadmap/roadmap.md` for the current M0/M1 status and `docs/reference/CONFIG.md` for config details.
+# 2. Configure (LLM key + Lark credentials)
+cp examples/config/runtime-config.yaml ~/.alex/config.yaml
+export LLM_API_KEY="sk-..."
+alex setup   # interactive first-run wizard
 
----
+# 3. Start everything
+alex dev up
 
-## How it works
-
-```
-You (Lark group / DM)
-        ↓
-   elephant.ai runtime
-        ↓
-  ┌─────────────────────────────────┐
-  │  Context Assembly               │
-  │  (chat history + memory +       │
-  │   policies + session state)     │
-  ├─────────────────────────────────┤
-  │  ReAct Agent Loop               │
-  │  Think → Act → Observe          │
-  ├─────────────────────────────────┤
-  │  Tool Execution                 │
-  │  (search, code, browse, files,  │
-  │   artifacts, MCP servers)       │
-  ├─────────────────────────────────┤
-  │  Observability                  │
-  │  (traces, metrics, cost)        │
-  └─────────────────────────────────┘
-        ↓
-  Reply delivered back to Lark
+# 4. Talk to it in Lark — or use the CLI directly
+./alex "summarize the last 3 conversations and draft follow-up emails"
 ```
 
----
-
-## Surfaces
-
-- **Lark** (primary) — WebSocket gateway, auto-saves messages to memory, injects recent chat history as context, real-time tool progress, emoji reactions, group and DM support, plan review and approval flows.
-- **Web dashboard** — Next.js app with SSE streaming, artifact rendering, cost tracking, session management. Useful for reviewing past conversations and complex outputs.
-- **CLI / TUI** — Interactive terminal with streaming output and tool approval prompts. For developers who prefer the command line.
+Full setup guide → [`docs/guides/quickstart.md`](docs/guides/quickstart.md)
 
 ---
 
-## Built-in skills
+## How It Works
 
-Skills are markdown-driven workflows the agent executes on demand — just describe what you need in Lark:
+```
+You (Lark group or DM)
+        ↓
+  Context Assembly          — chat history + memory + policies
+        ↓
+  ReAct Agent Loop          — Think → Act → Observe
+        ↓
+  Tool Execution            — search · code · browser · files · MCP
+        ↓
+  Reply delivered to Lark   — with live progress and emoji reactions
+```
 
-| Skill | Description |
+---
+
+## Delivery Surfaces
+
+| Surface | Description |
+|---|---|
+| **Lark** *(primary)* | WebSocket gateway. Always present in groups/DMs. Real-time tool progress, emoji reactions, approval flows. |
+| **Web Console** | Next.js dashboard with SSE streaming, artifact rendering, cost tracking, session history. |
+| **CLI / TUI** | Interactive terminal with streaming output. Useful for developers and local workflows. |
+
+---
+
+## Built-in Skills
+
+Skills are markdown-driven workflows triggered by natural language — just describe what you need:
+
+| Skill | What it does |
 |---|---|
 | `deep-research` | Multi-step web research with source synthesis |
-| `meeting-notes` | Structured meeting summaries and action items |
+| `meeting-notes` | Structured summaries and action item extraction |
 | `email-drafting` | Context-aware email composition |
 | `ppt-deck` | Slide deck generation |
 | `video-production` | Video script and production planning |
@@ -111,188 +108,61 @@ Skills are markdown-driven workflows the agent executes on demand — just descr
 
 ---
 
-## LLM providers
+## LLM Providers
 
-elephant.ai supports multiple providers and picks the best available one automatically:
-
-- **OpenAI** — Chat API + Responses API (GPT-4o, o-series)
-- **Anthropic** — Claude API (Claude 3.5/4 family, extended thinking)
-- **ByteDance ARK** — With reasoning effort control
-- **DeepSeek** — DeepSeek models via OpenAI-compatible gateway
-- **OpenRouter** — Access to 100+ models
-- **Ollama** — Local models, zero cloud dependency
-- **Antigravity** — OpenAI-compatible gateway
-
-Set `llm_provider: auto` and the runtime resolves the best available subscription from your CLI auth and environment keys.
-
----
-
-## Getting started
-
-Prerequisites: Go 1.24+, Node.js 20+ (web UI), Docker (optional).
-
-```bash
-# 1. Configure your LLM provider
-export LLM_API_KEY="sk-..."
-# optional provider-specific overrides: OPENAI_API_KEY, ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, CODEX_API_KEY, ANTIGRAVITY_API_KEY
-cp examples/config/runtime-config.yaml ~/.alex/config.yaml
-alex config validate --profile quickstart
-
-# 2. Configure Lark bot credentials in ~/.alex/config.yaml
-#    channels:
-#      lark:
-#        enabled: true
-#        app_id: "cli_xxx"
-#        app_secret: "xxx"
-#        tenant_calendar_id: "cal_xxx" # shared calendar for tenant token fallback
-#        persistence:
-#          mode: "file"      # file|memory
-#          dir: "~/.alex/lark"
-#
-# Optional: enable proactive calendar/task reminders (scheduler)
-#    runtime:
-#      proactive:
-#        scheduler:
-#          enabled: true
-#          calendar_reminder:
-#            enabled: true
-#            schedule: "*/15 * * * *"
-#            look_ahead_minutes: 120
-#            channel: "lark"
-#            user_id: "ou_xxx"
-#            chat_id: "oc_xxx"
-
-# 3. Build and run services (sandbox, backend, web)
-make build
-alex setup                     # first-run wizard (runtime + lark + model)
-alex dev up
-
-# 4. Or use the CLI directly
-./alex
-./alex "summarize the last 3 Lark conversations and draft follow-up emails"
+```
+OpenAI · Anthropic (Claude) · DeepSeek · ByteDance ARK (Doubao)
+OpenRouter · Ollama (local) · Kimi · Qwen
 ```
 
-Configuration reference: [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md)
-
----
-
-## Development (`alex dev`)
-
-All dev environment management is built into the `alex` binary — no shell scripts needed.
-
-```bash
-make build                     # build the alex binary
-
-# Service lifecycle
-alex dev up                    # start services (sandbox, backend, web)
-alex dev up --lark             # lark mode: skips auth DB by default
-alex dev up --lark --with-authdb  # lark mode with explicit auth DB
-alex dev down                  # stop all services gracefully
-alex dev status                # show status of each service (PID, health, port)
-alex dev restart [service]     # restart one or all services
-alex dev logs [service]        # tail logs (server|web|all)
-
-# Sandbox management
-alex dev sandbox up            # start sandbox container only
-alex dev sandbox down          # stop sandbox container
-alex dev sandbox status        # check sandbox health
-
-# Quality
-alex dev test                  # run Go tests (race + coverage)
-alex dev lint                  # run Go + web lint
-alex setup                     # first-run setup wizard
-
-# Lark supervisor (production)
-alex dev lark                  # default: start supervisor daemon
-alex dev lark supervise        # foreground supervisor with restart policy
-alex dev lark up|start         # background supervisor daemon
-alex dev lark down|stop        # stop supervisor
-alex dev lark restart          # restart supervisor
-alex dev lark status           # show supervisor health + components
-
-# Log analyzer UI
-alex dev logs-ui               # start services and open log analyzer in browser
-```
-
-Key improvements over the legacy `./dev.sh`:
-- **Race-free port allocation** — reserves ports via `net.Listen` before service startup
-- **PID double-check** — verifies processes via `kill -0`, not just PID files
-- **PGID-based cleanup** — kills entire process groups on shutdown, no orphans
-- **Atomic state files** — tmp + rename for PID and supervisor state
-- **Restart storm detection** — time-windowed history with exponential backoff
-- **Typed config** — Go structs replace awk-parsed YAML; defaults + env + YAML layered
+Set `llm_provider: auto` — the runtime picks the best available subscription from your environment keys automatically.
 
 ---
 
 ## Architecture
 
 ```
-Delivery (Lark, Web, CLI)
-  → Agent Application Layer
-  → Domain Ports (ReAct loop, events, approvals)
-  → Infrastructure Adapters (LLM, tools, memory, storage, observability)
+Delivery      Lark · Web Console · CLI · API Server
+     ↓
+Application   Coordination · Context Assembly · Cost Control
+     ↓
+Domain        ReAct Loop · Typed Events · Approval Gates
+     ↓
+Infra         Multi-LLM · Memory Store · Tool Registry · Observability
 ```
 
 | Layer | Key packages |
 |---|---|
-| Delivery | `internal/delivery/channels/lark/`, `cmd/alex-server`, `web/`, `cmd/alex` |
+| Delivery | `internal/delivery/channels/lark/`, `cmd/alex-server`, `web/` |
 | Agent core | `internal/{app,domain}/agent` — ReAct loop, typed events, approval gates |
-| Tools | `internal/infra/tools/builtin/` — search, code execution, browser, files, artifacts, media |
-| Memory | `internal/infra/memory/` — persistent store (Postgres, file, in-memory) with tokenization |
-| Context | `internal/app/context/` — layered context selection and summarization |
-| LLM | `internal/infra/llm/` — multi-provider with auto-selection and streaming |
-| MCP | `internal/infra/mcp/` — JSON-RPC tool servers for external integrations |
-| Observability | `internal/infra/observability/` — OpenTelemetry traces, Prometheus metrics, cost accounting |
-| Storage | `internal/infra/storage/`, `internal/infra/session/` — session persistence and history |
-| DI | `internal/app/di/` — shared dependency injection across all surfaces |
+| Tools | `internal/infra/tools/builtin/` — search, code, browser, files, artifacts, media |
+| Memory | `internal/infra/memory/` — Postgres / file / in-memory with tokenization |
+| LLM | `internal/infra/llm/` — multi-provider, auto-selection, streaming |
+| MCP | `internal/infra/mcp/` — JSON-RPC servers for external integrations |
+| Observability | `internal/infra/observability/` — OTel traces, Prometheus metrics, cost accounting |
 
 ---
 
-## Tools the agent can use
+## 📖 Documentation
 
-- **Web search & browsing** — Search engines and full browser automation via ChromeDP
-- **Code execution** — Sandboxed code runner for multiple languages
-- **File operations** — Read, write, and manage files
-- **Artifact generation** — PDFs, images, and structured outputs
-- **Media processing** — Image, audio, and video handling
-- **Lark integration** — Send messages, fetch chat history, and manage Calendar/Tasks
-- **Memory management** — Store and recall information across sessions
-- **MCP servers** — Connect any external tool via the Model Context Protocol
-
----
-
-## Quality & operations
-
-```bash
-# Lint & test
-alex dev lint
-alex dev test
-npm --prefix web run e2e
-
-# Evaluation harnesses (SWE-Bench, regressions)
-# See evaluation/ directory
-```
-
-Observability stack: structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost accounting — all built in.
-
----
-
-## Docs
-
-| Document | Description |
+| | |
 |---|---|
-| [`docs/README.md`](docs/README.md) | Documentation landing page |
-| [`docs/reference/ARCHITECTURE_AGENT_FLOW.md`](docs/reference/ARCHITECTURE_AGENT_FLOW.md) | Architecture and execution flow |
-| [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md) | Configuration schema and precedence |
-| [`docs/guides/quickstart.md`](docs/guides/quickstart.md) | From clone to running |
-| [`docs/operations/DEPLOYMENT.md`](docs/operations/DEPLOYMENT.md) | Deployment guide |
-| [`AGENTS.md`](AGENTS.md) | Agent workflow and safety rules |
-| [`ROADMAP.md`](ROADMAP.md) | Roadmap and contribution queue |
+| [Quick Start](docs/guides/quickstart.md) | From clone to running in minutes |
+| [Configuration Reference](docs/reference/CONFIG.md) | Full config schema and precedence rules |
+| [Architecture & Flow](docs/reference/ARCHITECTURE_AGENT_FLOW.md) | Runtime layering and execution model |
+| [Deployment Guide](docs/operations/DEPLOYMENT.md) | Production deployment |
+| [Roadmap](ROADMAP.md) | What's next |
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for workflow and code standards, [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community expectations, and [`SECURITY.md`](SECURITY.md) for vulnerability reporting.
+Contributions are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for development setup, code standards, and PR workflow. First time? Look for issues labeled [`good first issue`](https://github.com/cklxx/elephant.ai/issues?q=label%3A%22good+first+issue%22).
 
-Licensed under [MIT](LICENSE).
+Please read [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before participating, and report security vulnerabilities via [`SECURITY.md`](SECURITY.md).
+
+---
+
+## License
+
+[MIT](LICENSE) © 2025 cklxx

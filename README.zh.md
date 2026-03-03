@@ -1,297 +1,158 @@
 <p align="center">
-    <img src="web/public/elephant-rounded.png" alt="elephant.ai mascot" width="76" height="76" />
+  <img src="assets/banner.png" alt="elephant.ai banner" width="100%" />
 </p>
 
-# elephant.ai
+<h1 align="center">elephant.ai</h1>
 
-[![CI](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<p align="center">
+  <strong>你的 AI 队友，永远在线。</strong><br/>
+  常驻飞书的主动式 AI 助手，跨会话记忆，自主执行真实工作。
+</p>
 
-**以“个人本地 agent”最大化人类判断力杠杆。**
-
-[English](README.md)
-
-elephant.ai 作为一等成员常驻在你的飞书群聊和私信中——不是你需要主动召唤的机器人。它理解对话上下文、跨会话记忆，并通过上下文压缩保持长会话质量；再用内置技能主动发起工作、自主执行真实任务。CLI 和 Web 控制台随时可用，但飞书是主场。
-
----
-
-## 核心目标（2026 更新）
-
-构建一个“个人本地 agent”，让单个人以最少注意力成本撬动最大的模型智能：
-
-- **注意力节省优先**：状态反馈低噪声、结论先行、摘要高信号。
-- **判断力杠杆**：机器负责探索和执行，人类聚焦目标、约束与最终判断。
-- **主动但可覆盖**：默认主动推进，但用户始终可覆盖和接管。
-- **subagent 并行杠杆**：并行探索，再收敛为单一可决策输出。
-- **上下文压缩**：保留关键决策信息，控制上下文膨胀。
+<p align="center">
+  <a href="https://github.com/cklxx/elephant.ai/actions/workflows/ci.yml"><img src="https://github.com/cklxx/elephant.ai/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://goreportcard.com/report/github.com/cklxx/elephant.ai"><img src="https://goreportcard.com/badge/github.com/cklxx/elephant.ai" alt="Go Report Card"/></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"/></a>
+  <a href="README.md"><img src="https://img.shields.io/badge/Docs-English-blue.svg" alt="English Docs"/></a>
+</p>
 
 ---
 
-## 为什么是飞书原生
+## elephant.ai 是什么？
 
-大多数 AI 助手在工作流之外——另一个应用、另一个标签页、另一次上下文切换。elephant.ai 不一样：
+elephant.ai 作为一等成员常驻在你的**飞书群聊和私信**中——不是你需要主动召唤的机器人。它理解对话上下文，跨会话持续记忆，并通过内置技能主动发起工作、自主执行真实任务。CLI 和 Web 控制台随时可用，但飞书是主场。
 
-| 能力 | 在飞书中如何工作 |
+把它想象成一位永远在线、随时就绪的 AI 工程师。
+
+---
+
+## ✨ 核心能力
+
+| | |
 |---|---|
-| **常驻在线** | 通过 WebSocket 常驻群聊和私信，无需特殊指令，自然对话即可。 |
-| **理解上下文** | 自动获取近期聊天记录作为上下文，先理解对话再回复。 |
-| **持续记忆** | 跨会话记住对话、决策和上下文，不用重复说明背景。 |
-| **上下文压缩** | 把长对话压缩为高信号摘要，保持长期会话质量稳定。 |
-| **自主执行** | 完整的 Think → Act → Observe 循环。搜索、写代码、生成文档、浏览网页——一条飞书消息触发全部。 |
-| **subagent 杠杆** | 并行派发子代理任务，并收敛为统一可执行结果。 |
-| **实时反馈** | 工作时实时展示工具执行进度和 emoji 反应。 |
-| **内置技能** | 深度研究、会议纪要、邮件撰写、PPT 生成、视频制作——自然语言触发。 |
-| **审批门控** | 知道什么时候该先征求同意。高风险操作在聊天中需要明确的人工审批。 |
+| 🧠 **持续记忆** | 跨周、跨月记住对话、决策和上下文，不用反复说明背景。 |
+| ⚡ **自主执行** | 完整 ReAct 循环——Think → Act → Observe，无需监督即可完成多步任务。 |
+| 🔧 **15+ 内置技能** | 深度研究、会议纪要、邮件撰写、PPT 生成、视频脚本——自然语言触发。 |
+| 🔌 **MCP 扩展** | 通过 Model Context Protocol 接入任意外部工具，无限集成。 |
+| 🌐 **8 个模型供应商** | OpenAI、Claude、DeepSeek、豆包、Kimi、Ollama、Codex、通义千问——自动选优。 |
+| 👁️ **完整可观测** | 实时流式输出、按会话成本核算、OpenTelemetry 追踪、Prometheus 指标。 |
+| 🛡️ **审批门控** | 知道何时该先征求同意，高风险操作在聊天中需要明确人工审批。 |
+| 🏠 **飞书原生** | WebSocket 网关——常驻群聊和私信，无需 `/slash` 指令，自然对话即可。 |
 
 ---
 
-## 北极星场景：日程 + 任务闭环（M0）
+## 🚀 快速开始
 
-当前旗舰切片完全在飞书内闭环：**读取日程/待办 → 提出行动建议 → 审批后执行写入 → 到期主动提醒/跟进**。
+**前置条件：** Go 1.24+、Node.js 20+、飞书机器人 token、LLM API Key。
 
-已具备的基础能力：
-- **日历工具：** 查询/创建/更新/删除日程（`lark_calendar_*`）
-- **任务工具：** 列出/创建/更新/删除任务（`lark_task_manage`）
-- **主动提醒：** scheduler 定时检查未来日程/任务并在飞书内提醒
+```bash
+# 1. 克隆并构建
+git clone https://github.com/cklxx/elephant.ai.git && cd elephant.ai
+make build
 
-状态以 `docs/roadmap/roadmap.md` 为准；配置细节见 `docs/reference/CONFIG.md`。
+# 2. 配置（LLM Key + 飞书凭据）
+cp examples/config/runtime-config.yaml ~/.alex/config.yaml
+export LLM_API_KEY="sk-..."
+alex setup   # 交互式初始化向导
+
+# 3. 启动全部服务
+alex dev up
+
+# 4. 在飞书中直接对话——或使用 CLI
+./alex "总结最近 3 条对话并起草跟进邮件"
+```
+
+完整配置指南 → [`docs/guides/quickstart.md`](docs/guides/quickstart.md)
 
 ---
 
 ## 工作原理
 
 ```
-你（飞书群聊 / 私信）
+你（飞书群聊或私信）
         ↓
-   elephant.ai 运行时
+  上下文组装          — 聊天记录 + 记忆 + 策略
         ↓
-  ┌─────────────────────────────────┐
-  │  上下文组装                      │
-  │  (聊天记录 + 记忆 +             │
-  │   策略 + 会话状态)              │
-  ├─────────────────────────────────┤
-  │  ReAct 代理循环                  │
-  │  Think → Act → Observe          │
-  ├─────────────────────────────────┤
-  │  工具执行                        │
-  │  (搜索、代码、浏览器、文件、     │
-  │   产物、MCP 服务器)             │
-  ├─────────────────────────────────┤
-  │  可观测性                        │
-  │  (追踪、指标、成本)             │
-  └─────────────────────────────────┘
+  ReAct 代理循环      — Think → Act → Observe
         ↓
-  回复送回飞书
+  工具执行            — 搜索 · 代码 · 浏览器 · 文件 · MCP
+        ↓
+  回复送回飞书        — 附带实时进度和 emoji 反应
 ```
 
 ---
 
 ## 交互界面
 
-- **飞书**（主场）— WebSocket 网关，自动保存消息到记忆，注入近期聊天记录作为上下文，实时工具进度，emoji 反应，群聊和私信支持，计划审查和审批流程。
-- **Web 控制台** — Next.js 应用，SSE 流式传输、产物渲染、成本追踪、会话管理。适合回顾历史对话和复杂产出。
-- **CLI / TUI 命令行** — 交互式终端，流式输出和工具审批提示。面向偏好命令行的开发者。
+| 界面 | 说明 |
+|---|---|
+| **飞书**（主场） | WebSocket 网关。常驻群聊/私信。实时工具进度、emoji 反应、审批流程。 |
+| **Web 控制台** | Next.js 控制台，SSE 流式传输、产物渲染、成本追踪、会话历史。 |
+| **CLI / TUI** | 交互式终端，流式输出。面向开发者和本地工作流。 |
 
 ---
 
 ## 内置技能
 
-技能是 markdown 驱动的工作流，在飞书中用自然语言描述需求即可触发：
+技能是由自然语言触发的 markdown 驱动工作流：
 
-| 技能 | 说明 |
+| 技能 | 功能 |
 |---|---|
-| `deep-research` | 多步骤网络搜索与信息综合 |
-| `meeting-notes` | 结构化会议纪要和待办事项 |
+| `deep-research` | 多步骤网络研究与信息综合 |
+| `meeting-notes` | 结构化摘要与待办事项提取 |
 | `email-drafting` | 基于上下文的邮件撰写 |
 | `ppt-deck` | 幻灯片生成 |
 | `video-production` | 视频脚本和制作规划 |
-| `research-briefing` | 研究简报生成 |
+| `research-briefing` | 简洁研究简报 |
 | `best-practice-search` | 工程最佳实践检索 |
 
 ---
 
 ## 模型供应商
 
-支持多个供应商并自动选择最优可用模型：
-
-- **OpenAI** — Chat API + Responses API (GPT-4o, o-series)
-- **Anthropic** — Claude API (Claude 3.5/4 family, extended thinking)
-- **ByteDance ARK** — 支持推理力度控制
-- **DeepSeek** — 通过 OpenAI 兼容网关接入
-- **OpenRouter** — 接入 100+ 模型
-- **Ollama** — 本地模型，零云依赖
-- **Antigravity** — OpenAI 兼容网关
-
-设置 `llm_provider: auto`，运行时从 CLI 认证和环境变量自动解析最优模型。
-
----
-
-## 快速开始
-
-前置条件：Go 1.24+、Node.js 20+（Web UI）、Docker（可选）。
-
-```bash
-# 1. 配置模型供应商
-export OPENAI_API_KEY="sk-..."
-# 或: ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, CODEX_API_KEY, ANTIGRAVITY_API_KEY
-cp examples/config/runtime-config.yaml ~/.alex/config.yaml
-
-# 2. 在 ~/.alex/config.yaml 中配置飞书机器人凭据
-#    channels:
-#      lark:
-#        enabled: true
-#        app_id: "cli_xxx"
-#        app_secret: "xxx"
-#        tenant_calendar_id: "cal_xxx" # 租户 token 回退使用的共享日历
-#        persistence:
-#          mode: "file"      # file|memory
-#          dir: "~/.alex/lark"
-#
-# 可选：开启日程/任务主动提醒（scheduler）
-#    runtime:
-#      proactive:
-#        scheduler:
-#          enabled: true
-#          calendar_reminder:
-#            enabled: true
-#            schedule: "*/15 * * * *"
-#            look_ahead_minutes: 120
-#            channel: "lark"
-#            user_id: "ou_xxx"
-#            chat_id: "oc_xxx"
-
-# 3. 构建并启动服务（sandbox、后端、前端）
-make build
-alex setup                     # 首次初始化向导（运行模式 + Lark + 模型）
-alex dev up
-
-# 4. 或者直接使用 CLI
-./alex
-./alex "总结最近 3 条飞书对话并起草跟进邮件"
+```
+OpenAI · Anthropic (Claude) · DeepSeek · 豆包 (ARK)
+OpenRouter · Ollama（本地） · Kimi · 通义千问
 ```
 
-配置参考：[`docs/reference/CONFIG.md`](docs/reference/CONFIG.md)
-
----
-
-## 开发环境（`alex dev`）
-
-所有开发环境管理内置在 `alex` 二进制中——无需 shell 脚本。
-
-```bash
-make build                     # 构建 alex 二进制
-
-# 服务生命周期
-alex dev up                    # 启动服务（sandbox、后端、前端）
-alex dev up --lark             # Lark 模式默认不启动 auth DB
-alex dev up --lark --with-authdb  # Lark 模式显式附带 auth DB
-alex dev down                  # 优雅停止全部服务
-alex dev status                # 显示各服务状态（PID、健康、端口）
-alex dev restart [service]     # 重启指定服务或全部
-alex dev logs [service]        # 跟踪日志（server|web|all）
-
-# Sandbox 管理
-alex dev sandbox up            # 仅启动 sandbox 容器
-alex dev sandbox down          # 停止 sandbox 容器
-alex dev sandbox status        # 检查 sandbox 健康状态
-
-# 质量保证
-alex dev test                  # 运行 Go 测试（race + coverage）
-alex dev lint                  # 运行 Go + web lint
-alex setup                     # 首次初始化向导
-
-# 飞书 Supervisor（生产）
-alex dev lark                  # 默认：启动 supervisor 守护进程
-alex dev lark supervise        # 前台运行 supervisor（含重启策略）
-alex dev lark up|start         # 后台启动 supervisor 守护进程
-alex dev lark down|stop        # 停止 supervisor
-alex dev lark restart          # 重启 supervisor
-alex dev lark status           # 显示 supervisor 健康状态和组件
-
-# 日志分析 UI
-alex dev logs-ui               # 启动服务并在浏览器中打开日志分析器
-```
-
-相比旧版 `./dev.sh` 的关键改进：
-- **无竞态端口分配** — 通过 `net.Listen` 在服务启动前预留端口
-- **PID 双重验证** — 通过 `kill -0` 验证进程，不仅依赖 PID 文件
-- **PGID 进程组清理** — 关闭时终止整个进程组，无孤儿进程
-- **原子状态文件** — PID 和 supervisor 状态使用 tmp + rename 写入
-- **重启风暴检测** — 基于时间窗口的历史记录 + 指数退避
-- **类型化配置** — Go 结构体替代 awk 解析 YAML；defaults + env + YAML 分层加载
+设置 `llm_provider: auto`——运行时从环境变量自动选择最优可用模型。
 
 ---
 
 ## 架构
 
 ```
-交付层 (飞书, Web, CLI)
-  → 代理应用层
-  → 领域端口 (ReAct 循环, 事件, 审批)
-  → 基础设施适配器 (LLM, 工具, 记忆, 存储, 可观测性)
+交付层      飞书 · Web 控制台 · CLI · API Server
+     ↓
+应用层      协调 · 上下文组装 · 成本控制
+     ↓
+领域层      ReAct 循环 · 类型化事件 · 审批门控
+     ↓
+基础设施    多模型 · 记忆存储 · 工具注册表 · 可观测性
 ```
 
-| 层级 | 核心包 |
+---
+
+## 📖 文档
+
+| | |
 |---|---|
-| 交付层 | `internal/delivery/channels/lark/`, `cmd/alex-server`, `web/`, `cmd/alex` |
-| 代理核心 | `internal/{app,domain}/agent` — ReAct 循环、类型化事件、审批门控 |
-| 工具 | `internal/infra/tools/builtin/` — 搜索、代码执行、浏览器、文件、产物、媒体 |
-| 记忆 | `internal/infra/memory/` — 持久化存储（Postgres、文件、内存）含分词 |
-| 上下文 | `internal/app/context/` — 分层上下文筛选与摘要 |
-| 模型 | `internal/infra/llm/` — 多供应商自动选择与流式传输 |
-| MCP | `internal/infra/mcp/` — JSON-RPC 工具服务器，用于外部集成 |
-| 可观测性 | `internal/infra/observability/` — OpenTelemetry 追踪、Prometheus 指标、成本核算 |
-| 存储 | `internal/infra/storage/`, `internal/infra/session/` — 会话持久化与历史 |
-| 依赖注入 | `internal/app/di/` — 所有界面共享的依赖注入 |
+| [快速开始](docs/guides/quickstart.md) | 从克隆到运行 |
+| [配置参考](docs/reference/CONFIG.md) | 完整配置模式和优先级规则 |
+| [架构与执行流](docs/reference/ARCHITECTURE_AGENT_FLOW.md) | 运行时分层和执行模型 |
+| [部署指南](docs/operations/DEPLOYMENT.md) | 生产部署 |
+| [路线图](ROADMAP.md) | 后续规划 |
 
 ---
 
-## 可用工具
+## 🤝 参与贡献
 
-- **网络搜索与浏览** — 搜索引擎和 ChromeDP 浏览器自动化
-- **代码执行** — 多语言沙箱代码运行器
-- **文件操作** — 读、写、管理文件
-- **产物生成** — PDF、图片和结构化输出
-- **媒体处理** — 图片、音频和视频处理
-- **飞书集成** — 发送消息、获取聊天记录、管理对话、日程与任务
-- **记忆管理** — 跨会话存储和召回信息
-- **MCP 服务器** — 通过 Model Context Protocol 连接任意外部工具
+欢迎贡献。参见 [`CONTRIBUTING.md`](CONTRIBUTING.md) 了解开发环境、代码规范和 PR 流程。首次贡献？查找标记为 [`good first issue`](https://github.com/cklxx/elephant.ai/issues?q=label%3A%22good+first+issue%22) 的 issue。
+
+请在参与前阅读 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)，安全漏洞请通过 [`SECURITY.md`](SECURITY.md) 报告。
 
 ---
 
-## 质量与运维
+## 许可证
 
-```bash
-# 代码检查与测试
-alex dev lint
-alex dev test
-npm --prefix web run e2e
-
-# 评估工具 (SWE-Bench, 回归测试)
-# 见 evaluation/ 目录
-```
-
-可观测性：结构化日志、OpenTelemetry 追踪、Prometheus 指标、按会话成本核算——全部内置。
-
----
-
-## 文档
-
-| 文档 | 说明 |
-|---|---|
-| [`docs/README.md`](docs/README.md) | 文档首页 |
-| [`docs/reference/ARCHITECTURE_AGENT_FLOW.md`](docs/reference/ARCHITECTURE_AGENT_FLOW.md) | 架构和执行流程 |
-| [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md) | 配置模式和优先级 |
-| [`docs/guides/quickstart.md`](docs/guides/quickstart.md) | 从克隆到运行 |
-| [`docs/operations/DEPLOYMENT.md`](docs/operations/DEPLOYMENT.md) | 部署指南 |
-| [`AGENTS.md`](AGENTS.md) | 代理工作流与安全规则 |
-| [`ROADMAP.md`](ROADMAP.md) | 路线图与贡献队列 |
-
----
-
-## 贡献
-
-参见 [`CONTRIBUTING.md`](CONTRIBUTING.md) 了解工作流和代码规范，[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) 了解社区准则，[`SECURITY.md`](SECURITY.md) 了解漏洞报告。
-
-基于 [MIT](LICENSE) 许可证。
+[MIT](LICENSE) © 2025 cklxx

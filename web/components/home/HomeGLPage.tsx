@@ -507,12 +507,52 @@ export function HomeGLPage({ lang }: { lang: HomeLang }) {
 
       {/* ── Footer ─────────────────────────────────────────── */}
       <footer
-        className="relative z-10 border-t px-6 py-8 text-center"
+        className="relative z-10 border-t px-6 py-8"
         style={{ borderColor: "#e2e8f0" }}
       >
-        <p className="text-xs" style={{ color: "#94a3b8" }}>
-          © {new Date().getFullYear()} elephant.ai — Proactive AI Assistant
-        </p>
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 sm:flex-row sm:justify-between">
+          <p className="text-xs" style={{ color: "#94a3b8" }}>
+            © {new Date().getFullYear()} elephant.ai — Proactive AI Assistant
+          </p>
+          <div className="flex items-center gap-4">
+            <a
+              href="https://github.com/cklxx/elephant.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs transition-colors hover:opacity-80"
+              style={{ color: "#94a3b8" }}
+            >
+              GitHub
+            </a>
+            <a
+              href="https://github.com/cklxx/elephant.ai/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs transition-colors hover:opacity-80"
+              style={{ color: "#94a3b8" }}
+            >
+              Issues
+            </a>
+            <a
+              href="https://github.com/cklxx/elephant.ai/blob/main/README.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs transition-colors hover:opacity-80"
+              style={{ color: "#94a3b8" }}
+            >
+              Docs
+            </a>
+            <a
+              href="https://opensource.org/licenses/MIT"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs transition-colors hover:opacity-80"
+              style={{ color: "#94a3b8" }}
+            >
+              MIT License
+            </a>
+          </div>
+        </div>
       </footer>
     </div>
   );
