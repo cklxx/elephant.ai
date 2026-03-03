@@ -64,8 +64,7 @@ func Dial(addr string, timeout time.Duration, logger logging.Logger) (*Client, e
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	httpClient := httpclient.New(timeout, logger)
-	httpClient.Timeout = 0
+	httpClient := httpclient.NewNoTimeout(logger)
 
 	return &Client{
 		baseURL:        baseURL,

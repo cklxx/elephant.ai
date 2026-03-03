@@ -22,6 +22,14 @@ func New(timeout time.Duration, logger logging.Logger) *http.Client {
 	}
 }
 
+// NewNoTimeout returns an http.Client that never applies a client-level timeout.
+// Callers should enforce per-request deadlines via context when needed.
+func NewNoTimeout(logger logging.Logger) *http.Client {
+	return &http.Client{
+		Transport: Transport(logger),
+	}
+}
+
 // Transport returns an http.Transport clone with a proxy policy suitable for
 // outbound calls.
 func Transport(logger logging.Logger) *http.Transport {
