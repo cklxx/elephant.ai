@@ -88,6 +88,33 @@ func (svc *SessionService) ListSessions(ctx context.Context, limit int, offset i
 	return svc.sessionStore.List(ctx, limit, offset)
 }
 
+// ListSessionItems returns lightweight session list rows.
+func (svc *SessionService) ListSessionItems(ctx context.Context, limit int, offset int) ([]storage.SessionListItem, error) {
+	if lister, ok := svc.sessionStore.(storage.SessionItemLister); ok {
+		return lister.ListSessionItems(ctx, limit, offset)
+	}
+
+	sessionIDs, err := svc.sessionStore.List(ctx, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]storage.SessionListItem, 0, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		session, err := svc.sessionStore.Get(ctx, sessionID)
+		if err != nil {
+			continue
+		}
+		items = append(items, storage.SessionListItem{
+			ID:        session.ID,
+			Title:     strings.TrimSpace(session.Metadata["title"]),
+			CreatedAt: session.CreatedAt,
+			UpdatedAt: session.UpdatedAt,
+		})
+	}
+	return items, nil
+}
+
 // CreateSession creates a new session record without executing a task.
 func (svc *SessionService) CreateSession(ctx context.Context) (*storage.Session, error) {
 	if svc.agentCoordinator == nil {

@@ -123,3 +123,40 @@ func TestFileStoreListSnapshotPayloadsPagination(t *testing.T) {
 		t.Fatalf("expected empty next cursor, got %q", next)
 	}
 }
+
+func TestFileStoreListSnapshotsReadsMetadataWithoutFullPayloadDecode(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFileStore(dir)
+	sessionID := "sess-meta-only"
+
+	if err := store.Init(context.Background(), sessionID); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	path := filepath.Join(dir, sessionID, "turn_000001.json")
+	raw := `{
+  "session_id": "` + sessionID + `",
+  "turn_id": 1,
+  "llm_turn_seq": 1,
+  "created_at": "2026-03-03T18:00:00Z",
+  "summary": "meta-only",
+  "messages": "intentionally-not-an-array"
+}`
+	if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
+		t.Fatalf("write snapshot fixture: %v", err)
+	}
+
+	items, next, err := store.ListSnapshots(context.Background(), sessionID, "", 10)
+	if err != nil {
+		t.Fatalf("ListSnapshots failed: %v", err)
+	}
+	if next != "" {
+		t.Fatalf("expected empty next cursor, got %q", next)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 metadata item, got %d", len(items))
+	}
+	if items[0].SessionID != sessionID || items[0].TurnID != 1 || items[0].Summary != "meta-only" {
+		t.Fatalf("unexpected metadata item: %+v", items[0])
+	}
+}

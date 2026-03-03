@@ -24,6 +24,11 @@ type store struct {
 	logger  logging.Logger
 }
 
+type sessionEntry struct {
+	id      string
+	modTime time.Time
+}
+
 var sessionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // New creates a file-backed session store rooted at baseDir.
@@ -154,11 +159,7 @@ func (s *store) Save(ctx context.Context, session *storage.Session) error {
 }
 
 func (s *store) List(ctx context.Context, limit int, offset int) ([]string, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
-	entries, err := os.ReadDir(s.baseDir)
+	entries, err := s.listSessionEntries(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -170,10 +171,75 @@ func (s *store) List(ctx context.Context, limit int, offset int) ([]string, erro
 		offset = 0
 	}
 
-	type sessionEntry struct {
-		id      string
-		modTime time.Time
+	if offset >= len(entries) {
+		return []string{}, nil
 	}
+	end := offset + limit
+	if end > len(entries) {
+		end = len(entries)
+	}
+
+	ids := make([]string, 0, end-offset)
+	for _, entry := range entries[offset:end] {
+		ids = append(ids, entry.id)
+	}
+	return ids, nil
+}
+
+// ListSessionItems returns lightweight list rows without loading full message payloads.
+func (s *store) ListSessionItems(ctx context.Context, limit int, offset int) ([]storage.SessionListItem, error) {
+	entries, err := s.listSessionEntries(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if limit <= 0 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= len(entries) {
+		return []storage.SessionListItem{}, nil
+	}
+	end := offset + limit
+	if end > len(entries) {
+		end = len(entries)
+	}
+
+	items := make([]storage.SessionListItem, 0, end-offset)
+	for _, entry := range entries[offset:end] {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		item, err := s.readSessionListItem(entry.id)
+		if err != nil {
+			continue
+		}
+		if item.ID == "" {
+			item.ID = entry.id
+		}
+		if item.UpdatedAt.IsZero() {
+			item.UpdatedAt = entry.modTime
+		}
+		if item.CreatedAt.IsZero() {
+			item.CreatedAt = item.UpdatedAt
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (s *store) listSessionEntries(ctx context.Context) ([]sessionEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	entries, err := os.ReadDir(s.baseDir)
+	if err != nil {
+		return nil, err
+	}
+
 	sessions := make([]sessionEntry, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -196,20 +262,33 @@ func (s *store) List(ctx context.Context, limit int, offset int) ([]string, erro
 	sort.Slice(sessions, func(i, j int) bool {
 		return sessions[i].modTime.After(sessions[j].modTime)
 	})
+	return sessions, nil
+}
 
-	if offset >= len(sessions) {
-		return []string{}, nil
+func (s *store) readSessionListItem(sessionID string) (storage.SessionListItem, error) {
+	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", sessionID))
+	file, err := os.Open(path)
+	if err != nil {
+		return storage.SessionListItem{}, err
 	}
-	end := offset + limit
-	if end > len(sessions) {
-		end = len(sessions)
+	defer func() { _ = file.Close() }()
+
+	var payload struct {
+		ID        string            `json:"id"`
+		Metadata  map[string]string `json:"metadata"`
+		CreatedAt time.Time         `json:"created_at"`
+		UpdatedAt time.Time         `json:"updated_at"`
+	}
+	if err := jsonx.NewDecoder(file).Decode(&payload); err != nil {
+		return storage.SessionListItem{}, err
 	}
 
-	ids := make([]string, 0, end-offset)
-	for _, session := range sessions[offset:end] {
-		ids = append(ids, session.id)
-	}
-	return ids, nil
+	return storage.SessionListItem{
+		ID:        strings.TrimSpace(payload.ID),
+		Title:     strings.TrimSpace(payload.Metadata["title"]),
+		CreatedAt: payload.CreatedAt,
+		UpdatedAt: payload.UpdatedAt,
+	}, nil
 }
 
 func (s *store) Delete(ctx context.Context, id string) error {

@@ -29,6 +29,19 @@ type SessionStore interface {
 	Delete(ctx context.Context, id string) error
 }
 
+// SessionListItem is a lightweight session row used by list UIs.
+type SessionListItem struct {
+	ID        string
+	Title     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// SessionItemLister is an optional SessionStore extension for lightweight list reads.
+type SessionItemLister interface {
+	ListSessionItems(ctx context.Context, limit int, offset int) ([]SessionListItem, error)
+}
+
 // Session represents an agent session
 type Session struct {
 	ID          string                        `json:"id"`

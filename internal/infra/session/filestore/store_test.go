@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"alex/internal/domain/agent/ports"
 	storage "alex/internal/domain/agent/ports/storage"
@@ -240,6 +241,52 @@ func TestStore_GetCompanionAttachmentsOverrideLegacyMainFile(t *testing.T) {
 
 	if got := reloaded.Attachments["photo.png"].URI; got != "https://cdn.example.com/photo.png" {
 		t.Fatalf("expected companion attachment to override legacy value, got %q", got)
+	}
+}
+
+func TestStore_ListSessionItemsReadsLightweightHeaders(t *testing.T) {
+	t.Parallel()
+
+	baseDir := t.TempDir()
+	storeImpl, ok := New(baseDir).(*store)
+	if !ok {
+		t.Fatalf("New() did not return *store")
+	}
+
+	createdAt := time.Now().Add(-time.Minute).UTC().Round(time.Second)
+	updatedAt := time.Now().UTC().Round(time.Second)
+	sessionID := "sess-list-light"
+	path := filepath.Join(baseDir, sessionID+".json")
+	raw := `{
+  "id": "` + sessionID + `",
+  "metadata": {"title": "Lightweight Title"},
+  "created_at": "` + createdAt.Format(time.RFC3339) + `",
+  "updated_at": "` + updatedAt.Format(time.RFC3339) + `",
+  "messages": "intentionally-not-an-array"
+}`
+	if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
+		t.Fatalf("write session fixture: %v", err)
+	}
+
+	items, err := storeImpl.ListSessionItems(context.Background(), 10, 0)
+	if err != nil {
+		t.Fatalf("ListSessionItems() error = %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 session item, got %d", len(items))
+	}
+	item := items[0]
+	if item.ID != sessionID {
+		t.Fatalf("expected ID %q, got %q", sessionID, item.ID)
+	}
+	if item.Title != "Lightweight Title" {
+		t.Fatalf("expected title %q, got %q", "Lightweight Title", item.Title)
+	}
+	if !item.CreatedAt.Equal(createdAt) {
+		t.Fatalf("expected created_at %s, got %s", createdAt, item.CreatedAt)
+	}
+	if !item.UpdatedAt.Equal(updatedAt) {
+		t.Fatalf("expected updated_at %s, got %s", updatedAt, item.UpdatedAt)
 	}
 }
 

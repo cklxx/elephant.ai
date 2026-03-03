@@ -209,10 +209,14 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	sessionIDs, err := h.sessions.ListSessions(r.Context(), limit, offset)
+	sessionItems, err := h.sessions.ListSessionItems(r.Context(), limit, offset)
 	if err != nil {
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to list sessions", err)
 		return
+	}
+	sessionIDs := make([]string, 0, len(sessionItems))
+	for _, item := range sessionItems {
+		sessionIDs = append(sessionIDs, item.ID)
 	}
 
 	taskSummaries, err := h.tasks.SummarizeSessionTasks(r.Context(), sessionIDs)
@@ -221,21 +225,15 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 		taskSummaries = map[string]app.SessionTaskSummary{}
 	}
 
-	// Convert session IDs to full session objects
-	sessions := make([]SessionResponse, 0, len(sessionIDs))
-	for _, id := range sessionIDs {
-		session, err := h.sessions.GetSession(r.Context(), id)
-		if err != nil {
-			continue // Skip sessions that can't be loaded
-		}
-
-		summary := taskSummaries[id]
+	sessions := make([]SessionResponse, 0, len(sessionItems))
+	for _, item := range sessionItems {
+		summary := taskSummaries[item.ID]
 
 		sessions = append(sessions, SessionResponse{
-			ID:        session.ID,
-			Title:     strings.TrimSpace(session.Metadata["title"]),
-			CreatedAt: session.CreatedAt.Format(time.RFC3339),
-			UpdatedAt: session.UpdatedAt.Format(time.RFC3339),
+			ID:        item.ID,
+			Title:     item.Title,
+			CreatedAt: item.CreatedAt.Format(time.RFC3339),
+			UpdatedAt: item.UpdatedAt.Format(time.RFC3339),
 			TaskCount: summary.TaskCount,
 			LastTask:  summary.LastTask,
 		})

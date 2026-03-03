@@ -28,6 +28,7 @@ These are the local engineering practices for this repo. Keep them short and act
 - Avoid unnecessary defensive code; trust invariants when guaranteed.
 - Keep naming consistent; follow local naming guidelines when present.
 - Be cautious with long parameter lists; if a function needs many inputs, prefer grouping into a struct or options pattern and document the boundary explicitly.
+- Prefer `internal/shared/json` (`jsonx`) for JSON encode/decode hot paths; avoid direct `encoding/json` unless `jsonx` cannot provide the required API.
 - Follow the [Code Simplification Best Practices](code-simplification.md) — covers shared utility usage, error handling, struct sizing, caching, I/O patterns, and DRY across providers.
 
 ## Go + OSS (Condensed)

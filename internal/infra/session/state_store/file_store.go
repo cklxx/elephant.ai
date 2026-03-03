@@ -113,19 +113,58 @@ func (s *FileStore) GetSnapshot(ctx context.Context, sessionID string, turnID in
 
 // ListSnapshots returns metadata sorted by newest turn first.
 func (s *FileStore) ListSnapshots(ctx context.Context, sessionID string, cursor string, limit int) ([]SnapshotMetadata, string, error) {
-	snapshots, nextCursor, err := s.ListSnapshotPayloads(ctx, sessionID, cursor, limit)
+	if sessionID == "" {
+		return nil, "", fmt.Errorf("session id required")
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return nil, "", ctx.Err()
+	}
+
+	turnIDs, err := s.listTurnIDs(sessionID)
 	if err != nil {
 		return nil, "", err
 	}
-	metas := make([]SnapshotMetadata, 0, len(snapshots))
-	for _, snapshot := range snapshots {
-		metas = append(metas, SnapshotMetadata{
-			SessionID:  snapshot.SessionID,
-			TurnID:     snapshot.TurnID,
-			LLMTurnSeq: snapshot.LLMTurnSeq,
-			Summary:    snapshot.Summary,
-			CreatedAt:  snapshot.CreatedAt,
-		})
+
+	startIdx := 0
+	if cursor != "" {
+		if cursorID, err := strconv.Atoi(cursor); err == nil {
+			startIdx = len(turnIDs)
+			for i, id := range turnIDs {
+				if id < cursorID {
+					startIdx = i
+					break
+				}
+			}
+		}
+	}
+	if startIdx >= len(turnIDs) {
+		return nil, "", nil
+	}
+
+	if limit <= 0 {
+		limit = 20
+	}
+
+	end := startIdx + limit
+	if end > len(turnIDs) {
+		end = len(turnIDs)
+	}
+
+	metas := make([]SnapshotMetadata, 0, end-startIdx)
+	for _, turnID := range turnIDs[startIdx:end] {
+		if ctx != nil && ctx.Err() != nil {
+			return nil, "", ctx.Err()
+		}
+		meta, err := s.readSnapshotMetadata(sessionID, turnID)
+		if err != nil {
+			return nil, "", err
+		}
+		metas = append(metas, meta)
+	}
+
+	var nextCursor string
+	if end < len(turnIDs) {
+		nextCursor = strconv.Itoa(turnIDs[end-1])
 	}
 	return metas, nextCursor, nil
 }
@@ -223,4 +262,42 @@ func (s *FileStore) listTurnIDs(sessionID string) ([]int, error) {
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(turnIDs)))
 	return turnIDs, nil
+}
+
+func (s *FileStore) readSnapshotMetadata(sessionID string, turnID int) (SnapshotMetadata, error) {
+	path := filepath.Join(s.sessionDir(sessionID), s.filename(turnID))
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return SnapshotMetadata{}, ErrSnapshotNotFound
+		}
+		return SnapshotMetadata{}, fmt.Errorf("read snapshot metadata: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	var payload struct {
+		SessionID  string    `json:"session_id"`
+		TurnID     int       `json:"turn_id"`
+		LLMTurnSeq int       `json:"llm_turn_seq"`
+		Summary    string    `json:"summary"`
+		CreatedAt  time.Time `json:"created_at"`
+	}
+	if err := jsonx.NewDecoder(file).Decode(&payload); err != nil {
+		return SnapshotMetadata{}, fmt.Errorf("decode snapshot metadata: %w", err)
+	}
+
+	if payload.SessionID == "" {
+		payload.SessionID = sessionID
+	}
+	if payload.TurnID == 0 {
+		payload.TurnID = turnID
+	}
+
+	return SnapshotMetadata{
+		SessionID:  payload.SessionID,
+		TurnID:     payload.TurnID,
+		LLMTurnSeq: payload.LLMTurnSeq,
+		Summary:    payload.Summary,
+		CreatedAt:  payload.CreatedAt,
+	}, nil
 }
