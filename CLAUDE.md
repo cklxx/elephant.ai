@@ -205,35 +205,33 @@ codex exec --dangerously-bypass-approvals-and-sandbox -o /tmp/codex-exec-{id}.md
 
 ## Memory loading guidance
 
-### Memory sources
-Use: error entries + summaries, good entries + summaries, postmortems under `docs/postmortems/incidents/`, plans under `docs/plans/`, and `docs/memory/long-term.md`.
-Graph artifacts: `docs/memory/index.yaml`, `edges.yaml`, `tags.yaml`.
+### Always-load set (~8 KB, every conversation start)
+1. `docs/memory/long-term.md` — stable cross-session rules.
+2. `docs/guides/engineering-practices.md` — coding conventions.
+3. Latest 3 **error summaries** from `docs/error-experience/summary/entries/` (by filename date DESC).
+4. Latest 3 **good summaries** from `docs/good-experience/summary/entries/` (by filename date DESC).
 
-### First-run memory load (mandatory)
-1. Read latest 3–5 items from each of the four folders.
-2. Rank by: **Recency** > **Frequency** (cross-entry repetition) > **Relevance** (lexical overlap with current task).
-3. Keep top 8–12 as **active memory set**.
-4. Expand 1-hop graph neighbors from `edges.yaml` (max 6, relevance-ranked).
-5. Remainder = **cold memory** (load on demand).
+No ranking algorithm needed — filenames are date-sorted; just read the most recent.
 
-### Progressive disclosure
-Expand beyond active set only when:
-- Task touches a known failure/success pattern but lacks specifics.
-- Tests fail with a known error signature.
-- User requests historical context.
-- When authoring entries, include `## Metadata` with `links` for graph edges.
+### On-demand loading (load when the task needs it)
+
+| Source | Trigger |
+|--------|---------|
+| Full error/good entry | Summary lacks detail for the current task |
+| `docs/memory/index.yaml` + `edges.yaml` | Need to search history by topic or find related entries |
+| `docs/memory/tags.yaml` | Need tag-based filtering |
+| `docs/postmortems/incidents/` | Task touches a component with a known incident |
+| `docs/plans/` | Entering planning phase; need prior design references |
+| 1-hop graph expansion | Already found a relevant entry; need its neighbors |
 
 ### Retrieval rules
-- Summaries first; full entries only if insufficient.
-- Prefer most recent item for same topic.
-- Equal relevance → pick higher recurrence.
+- Summaries first; expand to full entry only when summary is insufficient.
+- Prefer most recent item when multiple entries cover the same topic.
 - Lark tasks: `memory_search → memory_get → memory_related → lark_chat_history`.
-- `memory_related` traverses `related` edges (bidirectional). `see_also`/`supersedes`/`derived_from` = directed.
 
-### Long-term memory rules
-- `docs/memory/long-term.md` = durable, long-lived lessons only.
-- Always update `Updated:` timestamp to hour precision (`YYYY-MM-DD HH:00`).
-- First memory load each day: re-rank, refresh active set, update long-term doc if needed.
+### Authoring rules
+- `docs/memory/long-term.md` = durable, long-lived lessons only. Update `Updated:` timestamp to hour precision (`YYYY-MM-DD HH:00`).
+- New entries: include `## Metadata` with `links` for graph edges.
 - After editing memory docs: `go run ./scripts/memory/backfill_networked.go`.
 
 ---
