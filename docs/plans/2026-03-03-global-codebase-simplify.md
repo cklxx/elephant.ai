@@ -443,6 +443,14 @@ Execution (2026-03-03):
 | CX-11 | R-06: Replace manual `ToolResult` construction → `shared.ToolError()` | ~15 | `go build ./...` |
 | CX-12 | R-08: Replace ad-hoc `&http.Client{}` → `httpclient.New()` | ~10 | `go build ./...` |
 
+Execution (2026-03-03, rescan wave C — non-web):
+- [ ] CX-07 pending.
+- [x] CX-08 completed in previous wave.
+- [x] CX-09 completed: extracted shared `buildOpenAIRequest(req, stream bool)` in `openai_client.go`; parity tests added.
+- [ ] CX-10 pending.
+- [~] CX-11 partial: additional R-06 slice migrated (`aliases/read_file`, `aliases/write_file`, `aliases/shell_exec`, `aliases/replace_in_file`, `larktools/upload_file`, `larktools/calendar_query`).
+- [~] CX-12 partial: additional R-08 slice migrated (`infra/llamacpp/downloader`, `shared/config/cli_auth`, `shared/modelregistry/registry`, `delivery/channels/lark/model_command`, `app/notification/notification`).
+
 ### Wave 3: Efficiency Improvements (requires careful design — plan first)
 
 | Task ID | Finding | Risk | Approach |
