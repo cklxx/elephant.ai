@@ -161,3 +161,62 @@ func TestFileStore_RecoverStalePending_PersistAfterCancel(t *testing.T) {
 		t.Errorf("expected persisted status=cancelled, got %v", d.Status)
 	}
 }
+
+func TestFileStore_RecoverStalePending_PrunesTerminalAndPersists(t *testing.T) {
+	now := time.Date(2026, 3, 3, 12, 0, 0, 0, time.UTC)
+	leaseDur := 30 * time.Minute
+	retentionDur := 7 * 24 * time.Hour
+	dir := t.TempDir()
+	store := NewFileStore(dir, leaseDur, retentionDur)
+	store.now = func() time.Time { return now }
+
+	// Stale pending dispatch should be cancelled.
+	stale := kerneldomain.Dispatch{
+		DispatchID: "stale-p4",
+		KernelID:   "k1",
+		AgentID:    "audit-executor",
+		Status:     kerneldomain.DispatchPending,
+		CreatedAt:  now.Add(-2 * time.Hour),
+		UpdatedAt:  now.Add(-2 * time.Hour),
+	}
+	// Expired terminal record should be pruned during the same recover+persist path.
+	oldTerminal := kerneldomain.Dispatch{
+		DispatchID: "old-done",
+		KernelID:   "k1",
+		Status:     kerneldomain.DispatchDone,
+		CreatedAt:  now.Add(-15 * 24 * time.Hour),
+		UpdatedAt:  now.Add(-15 * 24 * time.Hour),
+	}
+	store.dispatches[stale.DispatchID] = stale
+	store.dispatches[oldTerminal.DispatchID] = oldTerminal
+
+	if recovered, err := store.RecoverStalePending(context.Background(), "k1"); err != nil {
+		t.Fatalf("RecoverStalePending: %v", err)
+	} else if recovered != 1 {
+		t.Fatalf("expected 1 recovered dispatch, got %d", recovered)
+	}
+
+	if got, ok := store.dispatches["stale-p4"]; !ok {
+		t.Fatal("stale-p4 should remain in-memory after recovery")
+	} else if got.Status != kerneldomain.DispatchCancelled {
+		t.Fatalf("expected stale-p4 status=cancelled, got %v", got.Status)
+	}
+	if _, exists := store.dispatches["old-done"]; exists {
+		t.Fatal("old-done should be pruned during RecoverStalePending")
+	}
+
+	fresh := NewFileStore(dir, leaseDur, retentionDur)
+	fresh.now = func() time.Time { return now }
+	if err := fresh.load(); err != nil {
+		t.Fatalf("fresh load: %v", err)
+	}
+
+	if got, ok := fresh.dispatches["stale-p4"]; !ok {
+		t.Fatal("stale-p4 should be persisted after RecoverStalePending")
+	} else if got.Status != kerneldomain.DispatchCancelled {
+		t.Fatalf("expected persisted stale-p4 status=cancelled, got %v", got.Status)
+	}
+	if _, exists := fresh.dispatches["old-done"]; exists {
+		t.Fatal("reloaded state should not contain pruned old-done")
+	}
+}

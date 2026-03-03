@@ -525,11 +525,14 @@ func (s *FileStore) RecoverStalePending(ctx context.Context, kernelID string) (i
 		// only writes to disk when it removes at least one record — the cancelled
 		// dispatches may not yet be old enough to prune, but must still be durably
 		// written to prevent orphan accumulation across restarts.
-		if _, err := s.pruneLocked(ctx, now, false); err != nil {
+		removed, err := s.pruneLocked(ctx, now, true)
+		if err != nil {
 			return 0, fmt.Errorf("prune after stale pending recovery: %w", err)
 		}
-		if err := s.persistLocked(); err != nil {
-			return 0, fmt.Errorf("persist after stale pending recovery: %w", err)
+		if removed == 0 {
+			if err := s.persistLocked(); err != nil {
+				return 0, fmt.Errorf("persist after stale pending recovery: %w", err)
+			}
 		}
 	}
 	return recovered, nil
