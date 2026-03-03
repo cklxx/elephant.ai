@@ -2,10 +2,16 @@ package larktools
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 
 	"alex/internal/domain/agent/ports"
+	larkoauth "alex/internal/infra/lark/oauth"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils/id"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 )
@@ -172,5 +178,81 @@ func TestTaskManage_InvalidActionStillWorks(t *testing.T) {
 		if result.Error == nil {
 			t.Fatalf("expected error for unsupported action=%q", action)
 		}
+	}
+}
+
+func TestTaskManage_ListAutoUsesOAuthToken(t *testing.T) {
+	var mu sync.Mutex
+	var gotAuth string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/task/v2/tasks"):
+			mu.Lock()
+			gotAuth = r.Header.Get("Authorization")
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
+				"items":    []map[string]any{},
+				"has_more": false,
+			}))
+			return
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	tool := NewLarkTaskManage()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
+	oauthSvc := &fakeLarkOAuth{token: "user-token", startURL: "http://localhost:8080/api/lark/oauth/start"}
+	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
+	ctx = shared.WithLarkOAuth(ctx, oauthSvc)
+
+	call := ports.ToolCall{ID: "test-list-oauth", Name: "lark_task_manage", Arguments: map[string]any{
+		"action": "list",
+	}}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("expected success, got error: %v", result.Error)
+	}
+	if oauthSvc.gotOpenID != "ou_123" {
+		t.Fatalf("oauth service received open_id=%q, want %q", oauthSvc.gotOpenID, "ou_123")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if gotAuth != "Bearer user-token" {
+		t.Fatalf("expected user token auth, got %q", gotAuth)
+	}
+}
+
+func TestTaskManage_ListMissingOAuthTokenRequestsAuthorization(t *testing.T) {
+	tool := NewLarkTaskManage()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret")
+	oauthSvc := &fakeLarkOAuth{
+		err:      &larkoauth.NeedUserAuthError{AuthURL: "http://localhost:8080/api/lark/oauth/start"},
+		startURL: "http://localhost:8080/api/lark/oauth/start",
+	}
+
+	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
+	ctx = shared.WithLarkOAuth(ctx, oauthSvc)
+
+	call := ports.ToolCall{ID: "test-list-oauth-missing", Name: "lark_task_manage", Arguments: map[string]any{
+		"action": "list",
+	}}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error when OAuth token is missing")
+	}
+	if !strings.Contains(result.Content, "Please authorize Lark task access first:") {
+		t.Fatalf("expected authorization guidance, got %q", result.Content)
 	}
 }

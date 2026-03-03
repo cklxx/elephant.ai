@@ -3,6 +3,7 @@ package larktools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,8 +11,10 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
+	larkoauth "alex/internal/infra/lark/oauth"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/utils"
+	"alex/internal/shared/utils/id"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
@@ -157,7 +160,10 @@ func (t *larkTaskManage) listTasks(ctx context.Context, client *lark.Client, cal
 		builder.UserIdType(userIDType)
 	}
 
-	options := taskRequestOptions(call.Arguments)
+	options, errResult := taskRequestOptions(ctx, call.ID, "list", call.Arguments)
+	if errResult != nil {
+		return errResult, nil
+	}
 	resp, err := client.Task.V2.Task.List(ctx, builder.Build(), options...)
 	if err != nil {
 		return sdkCallErr(call.ID, "lark_task_manage(list)", err), nil
@@ -233,7 +239,10 @@ func (t *larkTaskManage) createTask(ctx context.Context, client *lark.Client, ca
 		builder.UserIdType(userIDType)
 	}
 
-	options := taskRequestOptions(call.Arguments)
+	options, errResult := taskRequestOptions(ctx, call.ID, "create", call.Arguments)
+	if errResult != nil {
+		return errResult, nil
+	}
 	resp, err := client.Task.V2.Task.Create(ctx, builder.Build(), options...)
 	if err != nil {
 		return sdkCallErr(call.ID, "lark_task_manage(create)", err), nil
@@ -305,7 +314,10 @@ func (t *larkTaskManage) updateTask(ctx context.Context, client *lark.Client, ca
 		builder.UserIdType(userIDType)
 	}
 
-	options := taskRequestOptions(call.Arguments)
+	options, errResult := taskRequestOptions(ctx, call.ID, "update", call.Arguments)
+	if errResult != nil {
+		return errResult, nil
+	}
 	resp, err := client.Task.V2.Task.Patch(ctx, builder.Build(), options...)
 	if err != nil {
 		return sdkCallErr(call.ID, "lark_task_manage(update)", err), nil
@@ -336,7 +348,10 @@ func (t *larkTaskManage) deleteTask(ctx context.Context, client *lark.Client, ca
 
 	builder := larktask.NewDeleteTaskReqBuilder().TaskGuid(taskID)
 
-	options := taskRequestOptions(call.Arguments)
+	options, errResult := taskRequestOptions(ctx, call.ID, "delete", call.Arguments)
+	if errResult != nil {
+		return errResult, nil
+	}
 	resp, err := client.Task.V2.Task.Delete(ctx, builder.Build(), options...)
 	if err != nil {
 		return sdkCallErr(call.ID, "lark_task_manage(delete)", err), nil
@@ -499,10 +514,57 @@ func requireActionApproval(ctx context.Context, call ports.ToolCall, operation s
 	return nil
 }
 
-func taskRequestOptions(args map[string]any) []larkcore.RequestOptionFunc {
-	token := shared.StringArg(args, "user_access_token")
-	if token == "" {
-		return nil
+func taskRequestOptions(ctx context.Context, callID, action string, args map[string]any) ([]larkcore.RequestOptionFunc, *ports.ToolResult) {
+	token := strings.TrimSpace(shared.StringArg(args, "user_access_token"))
+	if token == "" && action == "list" {
+		resolved, errResult := resolveTaskUserTokenForList(ctx, callID)
+		if errResult != nil {
+			return nil, errResult
+		}
+		token = resolved
 	}
-	return []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(token)}
+	if token == "" {
+		return nil, nil
+	}
+	return []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(token)}, nil
+}
+
+func resolveTaskUserTokenForList(ctx context.Context, callID string) (string, *ports.ToolResult) {
+	svc := shared.LarkOAuthFromContext(ctx)
+	if svc == nil {
+		return "", nil
+	}
+
+	openID := strings.TrimSpace(id.UserIDFromContext(ctx))
+	if openID == "" {
+		return "", nil
+	}
+
+	token, err := svc.UserAccessToken(ctx, openID)
+	if err != nil {
+		var need *larkoauth.NeedUserAuthError
+		if errors.As(err, &need) {
+			url := strings.TrimSpace(need.AuthURL)
+			if url == "" {
+				url = strings.TrimSpace(svc.StartURL())
+			}
+			if url == "" {
+				url = "(missing auth url)"
+			}
+			return "", &ports.ToolResult{
+				CallID:  callID,
+				Content: fmt.Sprintf("Please authorize Lark task access first: %s", url),
+				Error:   err,
+			}
+		}
+		return "", apiErr(callID, "load Lark user access token", err)
+	}
+
+	token = strings.TrimSpace(token)
+	if token == "" {
+		err := fmt.Errorf("empty user_access_token returned")
+		return "", toolErrorResult(callID, "%w", err)
+	}
+
+	return token, nil
 }
