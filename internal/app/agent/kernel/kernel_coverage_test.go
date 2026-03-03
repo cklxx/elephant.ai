@@ -3,7 +3,6 @@ package kernel
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"strings"
 	"testing"
 	"time"
@@ -45,52 +44,6 @@ func TestValidateSchedule_InvalidExpressions(t *testing.T) {
 				t.Errorf("ValidateSchedule(%q) = nil, want error", expr)
 			}
 		})
-	}
-}
-
-// ---------------------------------------------------------------------------
-// IsSandboxPathRestriction
-// ---------------------------------------------------------------------------
-
-func TestIsSandboxPathRestriction_NilError(t *testing.T) {
-	if IsSandboxPathRestriction(nil) {
-		t.Error("expected false for nil error")
-	}
-}
-
-func TestIsSandboxPathRestriction_PermissionError(t *testing.T) {
-	err := fs.ErrPermission
-	if !IsSandboxPathRestriction(err) {
-		t.Error("expected true for fs.ErrPermission")
-	}
-}
-
-func TestIsSandboxPathRestriction_StringMatches(t *testing.T) {
-	cases := []struct {
-		msg  string
-		want bool
-	}{
-		{"permission denied by OS", true},
-		{"operation not permitted", true},
-		{"read-only file system", true},
-		{"path must stay within the working directory", true},
-		{"sandbox: restrict access", true},
-		{"some other error", false},
-		{"timeout occurred", false},
-	}
-	for _, tc := range cases {
-		err := errors.New(tc.msg)
-		got := IsSandboxPathRestriction(err)
-		if got != tc.want {
-			t.Errorf("IsSandboxPathRestriction(%q) = %v, want %v", tc.msg, got, tc.want)
-		}
-	}
-}
-
-func TestIsSandboxPathRestriction_WrappedPermissionError(t *testing.T) {
-	wrapped := fmt.Errorf("disk op failed: %w", fs.ErrPermission)
-	if !IsSandboxPathRestriction(wrapped) {
-		t.Error("expected true for wrapped fs.ErrPermission")
 	}
 }
 

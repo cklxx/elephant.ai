@@ -147,62 +147,10 @@ func TestEngine_RunCycle_EnqueueError(t *testing.T) {
 	}
 }
 
-// TestEngine_RunCycle_StateWriteRestrictedEmptyContent verifies that when
-// stateWriteRestricted is already set and stateContent is empty, the engine
-// falls back to SeedState without calling Seed().
-func TestEngine_RunCycle_StateWriteRestrictedEmptyContent(t *testing.T) {
-	exec := &mockExecutor{summaries: []string{"done"}}
-	engine, _ := newTestEngine(t, exec)
-	// Pre-set restricted flag — no STATE.md file exists yet, so Read returns "".
-	engine.stateWriteRestricted.Store(true)
-
-	result, err := engine.RunCycle(context.Background())
-	if err != nil {
-		t.Fatalf("expected success when restricted + empty state, got: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// persistCycleRuntimeState — sandbox + write error paths
-// ─────────────────────────────────────────────────────────────────────────────
-
-// TestPersistCycleRuntimeState_StateWriteRestricted verifies that when
-// stateWriteRestricted is set, the runtime state is written to the fallback
-// path instead of STATE.md.
-func TestPersistCycleRuntimeState_StateWriteRestricted(t *testing.T) {
-	exec := &mockExecutor{}
-	engine, _ := newTestEngine(t, exec)
-	engine.stateWriteRestricted.Store(true)
-
-	// Clean up fallback file before and after.
-	cleanupFallback(t)
-
-	result := &kerneldomain.CycleResult{
-		CycleID:    "test-cycle-id",
-		KernelID:   "test-kernel",
-		Status:     kerneldomain.CycleSuccess,
-		Dispatched: 0,
-	}
-	engine.persistCycleRuntimeState(result, nil)
-
-	// Fallback file should now exist.
-	data, err := os.ReadFile(kernelStateFallbackPath())
-	if err != nil {
-		t.Fatalf("expected fallback file to be written, got: %v", err)
-	}
-	if !strings.Contains(string(data), "kernel_runtime") {
-		t.Errorf("expected kernel_runtime section in fallback, got: %q", string(data))
-	}
-}
-
-// TestPersistCycleRuntimeState_WriteFailsUseFallback verifies that when
-// StateFile.Write() returns an error (read-only dir), the engine falls back
-// gracefully rather than panicking.
-func TestPersistCycleRuntimeState_WriteFailsUseFallback(t *testing.T) {
-	// Write initial STATE.md content, then make dir read-only.
+// TestPersistCycleRuntimeState_WriteFailsLogsWarn verifies that when
+// StateFile.Write() returns an error (read-only dir), the engine logs a
+// warning and does not panic.
+func TestPersistCycleRuntimeState_WriteFailsLogsWarn(t *testing.T) {
 	initialState := "# STATE\n## identity\ntest\n"
 	dir := makeReadOnlyDir(t, initialState)
 
@@ -216,8 +164,6 @@ func TestPersistCycleRuntimeState_WriteFailsUseFallback(t *testing.T) {
 	}
 	engine := NewEngine(cfg, sf, store, planner, &mockExecutor{}, logging.NewComponentLogger("test"))
 
-	cleanupFallback(t)
-
 	result := &kerneldomain.CycleResult{
 		CycleID:  "cycle-abc",
 		KernelID: "k",
@@ -225,8 +171,6 @@ func TestPersistCycleRuntimeState_WriteFailsUseFallback(t *testing.T) {
 	}
 	// Should not panic, even though Write will fail due to read-only dir.
 	engine.persistCycleRuntimeState(result, nil)
-	// Outcome: either fallback written or warning logged — both are acceptable.
-	// We just verify no panic occurred (test reaches here).
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -256,8 +200,8 @@ func TestPersistSystemPromptSnapshot_EmptyPrompt(t *testing.T) {
 }
 
 // TestPersistSystemPromptSnapshot_WriteFailsLogsWarn verifies that when
-// WriteSystemPrompt fails (read-only dir) and the error is NOT a sandbox
-// restriction, the engine logs a warning and does not panic.
+// WriteSystemPrompt fails (read-only dir), the engine logs a warning and
+// does not panic.
 func TestPersistSystemPromptSnapshot_WriteFailsLogsWarn(t *testing.T) {
 	initialState := "# STATE\n## identity\ntest\n"
 	dir := makeReadOnlyDir(t, initialState)
@@ -273,54 +217,6 @@ func TestPersistSystemPromptSnapshot_WriteFailsLogsWarn(t *testing.T) {
 	engine := NewEngine(cfg, sf, store, planner, &mockExecutor{}, logging.NewComponentLogger("test"))
 	engine.SetSystemPromptProvider(func() string { return "system prompt content" })
 
-	cleanupFallback(t)
 	// Should not panic; write fails silently with a warning log.
 	engine.persistSystemPromptSnapshot()
-}
-
-// TestPersistSystemPromptSnapshot_SandboxRestrictedFallback verifies that when
-// stateWriteRestricted is set AND AppendKernelStateFallback succeeds, the
-// function writes to the fallback path.
-func TestPersistSystemPromptSnapshot_SandboxRestrictedFallback(t *testing.T) {
-	exec := &mockExecutor{}
-	engine, _ := newTestEngine(t, exec)
-	engine.stateWriteRestricted.Store(true)
-	engine.SetSystemPromptProvider(func() string { return "prompt for fallback" })
-
-	cleanupFallback(t)
-	engine.persistSystemPromptSnapshot()
-
-	// Fallback should contain the system prompt.
-	data, err := os.ReadFile(kernelStateFallbackPath())
-	if err != nil {
-		t.Fatalf("expected fallback file: %v", err)
-	}
-	if !strings.Contains(string(data), "prompt for fallback") {
-		t.Errorf("expected prompt content in fallback, got: %q", string(data))
-	}
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-// cleanupFallback removes the fallback file before the test and restores it
-// (or removes it) after, ensuring hermetic test isolation.
-func cleanupFallback(t *testing.T) {
-	t.Helper()
-	path := kernelStateFallbackPath()
-	original, readErr := os.ReadFile(path)
-	originalExists := readErr == nil
-	if originalExists {
-		if err := os.Remove(path); err != nil {
-			t.Fatalf("remove existing fallback: %v", err)
-		}
-	}
-	t.Cleanup(func() {
-		if originalExists {
-			_ = os.WriteFile(path, original, 0o644)
-		} else {
-			_ = os.Remove(path)
-		}
-	})
 }

@@ -275,78 +275,6 @@ func TestIsKernelExecutionSummaryValid_ValidSummary(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AppendKernelStateFallback — missing branches
-// ─────────────────────────────────────────────────────────────────────────────
-
-// saveFallbackState reads the real fallback file and returns cleanup that
-// restores it (or removes it if it didn't exist originally).
-func saveFallbackState(t *testing.T) func() {
-	t.Helper()
-	fp := kernelStateFallbackPath()
-	original, err := os.ReadFile(fp)
-	existed := err == nil
-	return func() {
-		if existed {
-			_ = os.WriteFile(fp, original, 0o644)
-		} else {
-			_ = os.Remove(fp)
-		}
-	}
-}
-
-func TestAppendKernelStateFallback_AppendsToExisting(t *testing.T) {
-	restore := saveFallbackState(t)
-	t.Cleanup(restore)
-
-	fp := kernelStateFallbackPath()
-	if err := os.MkdirAll(strings.TrimSuffix(fp, "/kernel_state.md"), 0o755); err != nil {
-		// filepath.Dir is cleaner but we need to import it — use os.MkdirAll on the dir
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(fp, []byte("existing content"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err := AppendKernelStateFallback("Test Section", "appended line")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	got, _ := os.ReadFile(fp)
-	if !strings.Contains(string(got), "existing content") {
-		t.Error("expected existing content to be preserved")
-	}
-	if !strings.Contains(string(got), "## Test Section") {
-		t.Error("expected section header to be appended")
-	}
-	if !strings.Contains(string(got), "appended line") {
-		t.Error("expected appended line")
-	}
-}
-
-func TestAppendKernelStateFallback_NoSectionTitle(t *testing.T) {
-	restore := saveFallbackState(t)
-	t.Cleanup(restore)
-
-	fp := kernelStateFallbackPath()
-	// Remove any pre-existing file so we start fresh.
-	_ = os.Remove(fp)
-
-	_, err := AppendKernelStateFallback("", "just content")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	got, _ := os.ReadFile(fp)
-	if !strings.Contains(string(got), "just content") {
-		t.Error("expected content to be written")
-	}
-	if strings.Contains(string(got), "## ") {
-		t.Error("expected no section header when title is empty")
-	}
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // extractKernelExecutionSummary — missing branches
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -501,35 +429,6 @@ func TestCoordinatorExecutor_SetSelectionResolver_Sets(t *testing.T) {
 	})
 	_ = called // just verifying it compiles and sets without panic
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// engine: markStateWritesRestricted — second call (already set)
-// ─────────────────────────────────────────────────────────────────────────────
-
-func TestMarkStateWritesRestricted_AlreadySet(t *testing.T) {
-	engine, _ := newTestEngine(t, &mockExecutor{})
-	// First set it via a sandbox restriction error.
-	engine.stateWriteRestricted.Store(true)
-
-	// Call again with non-sandbox error — should return false (not a sandbox error).
-	result := engine.markStateWritesRestricted(os.ErrNotExist)
-	if result {
-		t.Error("expected false for non-sandbox error")
-	}
-}
-
-func TestMarkStateWritesRestricted_SandboxError(t *testing.T) {
-	engine, _ := newTestEngine(t, &mockExecutor{})
-	err := &os.PathError{Op: "open", Path: "/restricted", Err: os.ErrPermission}
-	result := engine.markStateWritesRestricted(err)
-	if !result {
-		t.Error("expected true for sandbox restriction error")
-	}
-	if !engine.stateWriteRestricted.Load() {
-		t.Error("expected stateWriteRestricted to be set")
-	}
-}
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // dispatchStillAwaitsUserConfirmation — missing branches

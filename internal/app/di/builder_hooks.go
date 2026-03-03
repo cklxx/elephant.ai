@@ -290,16 +290,7 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 	}
 	renderedSystemPrompt := kernelagent.RenderSystemPromptMarkdown(systemPrompt, seededAt)
 	if err := stateFile.WriteSystemPrompt(renderedSystemPrompt); err != nil {
-		if kernelagent.IsSandboxPathRestriction(err) {
-			fallbackPath, fallbackErr := kernelagent.AppendKernelStateFallback("SYSTEM_PROMPT.md fallback", renderedSystemPrompt)
-			if fallbackErr != nil {
-				b.logger.Warn("Kernel system prompt doc write blocked by sandbox restrictions (fallback write to %s failed: %v)", fallbackPath, fallbackErr)
-			} else {
-				b.logger.Warn("Kernel system prompt doc write blocked by sandbox restrictions; fallback written to %s", fallbackPath)
-			}
-		} else {
-			b.logger.Warn("Kernel system prompt doc write failed: %v", err)
-		}
+		b.logger.Warn("Kernel system prompt doc write failed: %v", err)
 	}
 
 	// Build planner: HybridPlanner (LLM + static fallback) when llm_planner enabled.

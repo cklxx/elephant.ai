@@ -2,14 +2,11 @@ package kernel
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	kerneldomain "alex/internal/domain/kernel"
 	"alex/internal/shared/logging"
@@ -329,115 +326,6 @@ func TestEngine_RunCycle_TeamDispatchUsesTeamExecutor(t *testing.T) {
 	}
 	if !strings.Contains(result.AgentSummary[0].Summary, "autonomy=actionable") {
 		t.Fatalf("expected autonomy marker in summary: %q", result.AgentSummary[0].Summary)
-	}
-}
-
-func TestWriteKernelStateFallback(t *testing.T) {
-	content := "# STATE\nfallback\n"
-	original, err := os.ReadFile(kernelStateFallbackPath())
-	originalExists := err == nil
-	if err != nil && !os.IsNotExist(err) {
-		t.Fatalf("read existing fallback: %v", err)
-	}
-	t.Cleanup(func() {
-		if originalExists {
-			_ = os.WriteFile(kernelStateFallbackPath(), original, 0o644)
-		} else {
-			_ = os.Remove(kernelStateFallbackPath())
-		}
-	})
-
-	path, err := WriteKernelStateFallback(content)
-	if err != nil {
-		t.Fatalf("WriteKernelStateFallback: %v", err)
-	}
-	if path != kernelStateFallbackPath() {
-		t.Fatalf("expected path %s, got %s", kernelStateFallbackPath(), path)
-	}
-	data, err := os.ReadFile(kernelStateFallbackPath())
-	if err != nil {
-		t.Fatalf("read fallback: %v", err)
-	}
-	if string(data) != content {
-		t.Fatalf("unexpected content: %s", string(data))
-	}
-}
-
-func TestIsSandboxPathRestriction(t *testing.T) {
-	cases := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{name: "nil", err: nil, want: false},
-		{name: "permission", err: fs.ErrPermission, want: true},
-		{name: "wrapped permission", err: fmt.Errorf("open: %w", fs.ErrPermission), want: true},
-		{name: "path error", err: &os.PathError{Op: "open", Path: "/restricted", Err: fs.ErrPermission}, want: true},
-		{name: "permission denied string", err: errors.New("permission denied"), want: true},
-		{name: "sandbox restriction", err: errors.New("sandbox path restriction: denied"), want: true},
-		{name: "path guard", err: errors.New("path must stay within the working directory"), want: true},
-		{name: "other", err: errors.New("disk full"), want: false},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := isSandboxPathRestriction(tc.err); got != tc.want {
-				t.Fatalf("expected %v, got %v", tc.want, got)
-			}
-		})
-	}
-}
-
-func TestRenderKernelRuntimeBlockWithHistory_IncludesFallbackPath(t *testing.T) {
-	block := renderKernelRuntimeBlockWithHistory(nil, nil, time.Date(2026, 2, 14, 0, 0, 0, 0, time.UTC), nil, kernelStateFallbackPath())
-	if !strings.Contains(block, "state_write_fallback") {
-		t.Fatalf("expected fallback note, got %q", block)
-	}
-	if !strings.Contains(block, kernelStateFallbackPath()) {
-		t.Fatalf("expected fallback path in block, got %q", block)
-	}
-}
-
-func TestPersistSystemPromptSnapshot_WritesFallbackWhenRestricted(t *testing.T) {
-	exec := &mockExecutor{}
-	engine, _ := newTestEngine(t, exec)
-	engine.stateWriteRestricted.Store(true)
-	engine.SetSystemPromptProvider(func() string { return "kernel prompt v2" })
-
-	original, err := os.ReadFile(kernelStateFallbackPath())
-	originalExists := err == nil
-	if err != nil && !os.IsNotExist(err) {
-		t.Fatalf("read existing fallback: %v", err)
-	}
-	if originalExists {
-		if err := os.Remove(kernelStateFallbackPath()); err != nil {
-			t.Fatalf("remove existing fallback: %v", err)
-		}
-	}
-	t.Cleanup(func() {
-		if originalExists {
-			_ = os.WriteFile(kernelStateFallbackPath(), original, 0o644)
-		} else {
-			_ = os.Remove(kernelStateFallbackPath())
-		}
-	})
-
-	engine.persistSystemPromptSnapshot()
-
-	if _, err := os.Stat(engine.stateFile.SystemPromptPath()); err == nil {
-		t.Fatalf("expected no system prompt snapshot write when restricted")
-	} else if !os.IsNotExist(err) {
-		t.Fatalf("stat system prompt: %v", err)
-	}
-	data, err := os.ReadFile(kernelStateFallbackPath())
-	if err != nil {
-		t.Fatalf("read fallback: %v", err)
-	}
-	if !strings.Contains(string(data), "SYSTEM_PROMPT.md fallback") {
-		t.Fatalf("expected fallback section, got %q", string(data))
-	}
-	if !strings.Contains(string(data), "kernel prompt v2") {
-		t.Fatalf("expected fallback prompt, got %q", string(data))
 	}
 }
 
