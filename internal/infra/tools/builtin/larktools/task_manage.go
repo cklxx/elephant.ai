@@ -62,15 +62,15 @@ func NewLarkTaskManage() tools.ToolExecutor {
 						},
 						"summary": {
 							Type:        "string",
-							Description: "Task summary for create or update.",
+							Description: "Task title (Feishu field: summary). Required for create; keep concise.",
 						},
 						"description": {
 							Type:        "string",
-							Description: "Task description for create or update.",
+							Description: "Task body text (Feishu field: description) for create or update.",
 						},
 						"content": {
 							Type:        "string",
-							Description: "Alias of description. When summary contains multiple lines, first line is title and remaining lines become description.",
+							Description: "Alias of description. Put detailed content here instead of summary. If summary has multiple lines, first line becomes title and remaining lines become description.",
 						},
 						"due_at": {
 							Type:        "string",
@@ -164,7 +164,7 @@ func (t *larkTaskManage) listTasks(ctx context.Context, client *lark.Client, cal
 		builder.UserIdType(userIDType)
 	}
 
-	options, errResult := taskRequestOptions(ctx, call.ID, "list", call.Arguments)
+	options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments)
 	if errResult != nil {
 		return errResult, nil
 	}
@@ -246,7 +246,7 @@ func (t *larkTaskManage) createTask(ctx context.Context, client *lark.Client, ca
 		builder.UserIdType(userIDType)
 	}
 
-	options, errResult := taskRequestOptions(ctx, call.ID, "create", call.Arguments)
+	options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments)
 	if errResult != nil {
 		return errResult, nil
 	}
@@ -327,7 +327,7 @@ func (t *larkTaskManage) updateTask(ctx context.Context, client *lark.Client, ca
 		builder.UserIdType(userIDType)
 	}
 
-	options, errResult := taskRequestOptions(ctx, call.ID, "update", call.Arguments)
+	options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments)
 	if errResult != nil {
 		return errResult, nil
 	}
@@ -361,7 +361,7 @@ func (t *larkTaskManage) deleteTask(ctx context.Context, client *lark.Client, ca
 
 	builder := larktask.NewDeleteTaskReqBuilder().TaskGuid(taskID)
 
-	options, errResult := taskRequestOptions(ctx, call.ID, "delete", call.Arguments)
+	options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments)
 	if errResult != nil {
 		return errResult, nil
 	}
@@ -492,12 +492,25 @@ func normalizeCreateTaskTextFields(summary, description, content string) (string
 		if body != "" {
 			return title, body
 		}
+		compact := compactTaskTitle(title)
+		if compact != "" && compact != title {
+			return compact, title
+		}
+		return title, ""
 	}
 	if summary == "" && description != "" {
 		title, body := splitTitleAndBody(description)
-		if title != "" {
+		if body != "" {
 			return title, body
 		}
+		compact := compactTaskTitle(title)
+		if compact == "" {
+			return "", ""
+		}
+		if compact != title {
+			return compact, title
+		}
+		return compact, ""
 	}
 	return summary, description
 }
@@ -530,6 +543,38 @@ func splitTitleAndBody(text string) (string, string) {
 	}
 	body := strings.TrimSpace(strings.Join(lines[1:], "\n"))
 	return title, body
+}
+
+const taskAutoTitleMaxRunes = 40
+
+func compactTaskTitle(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+
+	if boundary := firstSentenceBoundary(text); boundary > 0 {
+		text = strings.TrimSpace(text[:boundary])
+	}
+	if text == "" {
+		return ""
+	}
+
+	runes := []rune(text)
+	if len(runes) <= taskAutoTitleMaxRunes {
+		return text
+	}
+	return strings.TrimSpace(string(runes[:taskAutoTitleMaxRunes])) + "..."
+}
+
+func firstSentenceBoundary(text string) int {
+	for idx, ch := range text {
+		switch ch {
+		case '。', '！', '？', '!', '?', ';', '；', ':', '：':
+			return idx
+		}
+	}
+	return -1
 }
 
 func clampTaskPageSize(args map[string]any) int {
@@ -579,10 +624,10 @@ func requireActionApproval(ctx context.Context, call ports.ToolCall, operation s
 	return nil
 }
 
-func taskRequestOptions(ctx context.Context, callID, action string, args map[string]any) ([]larkcore.RequestOptionFunc, *ports.ToolResult) {
+func taskRequestOptions(ctx context.Context, callID string, args map[string]any) ([]larkcore.RequestOptionFunc, *ports.ToolResult) {
 	token := strings.TrimSpace(shared.StringArg(args, "user_access_token"))
-	if token == "" && action == "list" {
-		resolved, errResult := resolveTaskUserTokenForList(ctx, callID)
+	if token == "" {
+		resolved, errResult := resolveTaskUserToken(ctx, callID)
 		if errResult != nil {
 			return nil, errResult
 		}
@@ -594,7 +639,7 @@ func taskRequestOptions(ctx context.Context, callID, action string, args map[str
 	return []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(token)}, nil
 }
 
-func resolveTaskUserTokenForList(ctx context.Context, callID string) (string, *ports.ToolResult) {
+func resolveTaskUserToken(ctx context.Context, callID string) (string, *ports.ToolResult) {
 	svc := shared.LarkOAuthFromContext(ctx)
 	if svc == nil {
 		return "", nil
