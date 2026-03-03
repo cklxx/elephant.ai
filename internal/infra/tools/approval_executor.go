@@ -134,4 +134,8 @@ func buildAlternativePlan(meta ports.ToolMetadata) string {
 	return "Run a read-only or dry-run check first, then apply the smallest reversible change."
 }
 
+func toolCallErrorResult(callID string, err error) *ports.ToolResult {
+	return &ports.ToolResult{CallID: callID, Error: err}
+}
+
 var _ tools.ToolExecutor = (*ApprovalExecutor)(nil)
