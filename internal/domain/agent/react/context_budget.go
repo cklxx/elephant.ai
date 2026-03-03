@@ -12,6 +12,7 @@ import (
 	jsonx "alex/internal/shared/json"
 	"alex/internal/shared/modelregistry"
 	tokenutil "alex/internal/shared/token"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -72,7 +73,7 @@ func modelContextWindowTokens(model string) int {
 		return info.ContextWindow
 	}
 
-	m := strings.ToLower(strings.TrimSpace(model))
+	m := utils.TrimLower(model)
 	switch {
 	case m == "":
 		return defaultModelContextWindowTokens

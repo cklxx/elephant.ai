@@ -9,6 +9,7 @@ import (
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	tokenutil "alex/internal/shared/token"
+	"alex/internal/shared/utils"
 
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -508,7 +509,7 @@ func aggressiveTrimMessages(messages []ports.Message, maxTurns int) []ports.Mess
 }
 
 func isPrimarySystemPromptForTrim(msg ports.Message) bool {
-	role := strings.ToLower(strings.TrimSpace(msg.Role))
+	role := utils.TrimLower(msg.Role)
 	return role == "system" && strings.TrimSpace(msg.Content) != ""
 }
 

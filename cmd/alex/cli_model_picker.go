@@ -117,7 +117,7 @@ func chooseCatalogProvider(in io.Reader, out io.Writer, providers []subscription
 
 	defaultIndex := 1
 	for i, provider := range providers {
-		switch strings.ToLower(strings.TrimSpace(provider.Provider)) {
+		switch utils.TrimLower(provider.Provider) {
 		case "codex":
 			defaultIndex = i + 1
 			goto prompt

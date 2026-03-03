@@ -601,7 +601,7 @@ func extractToolLocations(args map[string]any, metadata map[string]any) []map[st
 }
 
 func toolKindForName(name string) string {
-	switch strings.ToLower(strings.TrimSpace(name)) {
+	switch utils.TrimLower(name) {
 	case "read_file":
 		return "read"
 	case "write_file", "replace_in_file":

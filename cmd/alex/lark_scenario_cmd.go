@@ -214,7 +214,7 @@ func runLarkScenarioRun(args []string) error {
 }
 
 func normalizeLarkScenarioMode(mode string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
+	switch utils.TrimLower(mode) {
 	case "", larkScenarioModeHTTP, "inject":
 		return larkScenarioModeHTTP, nil
 	case larkScenarioModeMock, "local":
@@ -423,7 +423,7 @@ func isTransientInjectTransportError(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	msg := utils.TrimLower(err.Error())
 	return strings.Contains(msg, "connection refused") ||
 		strings.Contains(msg, "connection reset") ||
 		strings.HasSuffix(msg, ": eof") ||

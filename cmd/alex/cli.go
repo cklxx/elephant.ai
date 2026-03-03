@@ -515,7 +515,7 @@ func executeConfigCommand(args []string, out io.Writer) error {
 	overridesPath := managedOverridesPath(envLookup)
 	subcommand := ""
 	if len(args) > 0 {
-		subcommand = strings.ToLower(strings.TrimSpace(args[0]))
+		subcommand = utils.TrimLower(args[0])
 	}
 
 	switch subcommand {

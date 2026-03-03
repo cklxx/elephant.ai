@@ -475,6 +475,10 @@ Execution (2026-03-03, rescan wave E/F — all-in):
 - [x] CX-11 completed (scope-closed): migrated remaining practical call-sites (`web_search` fallback, `larktools/channel`, `larktools/task_manage`, `larktools/lark_oauth`, `session/skills` load-path). Residual manual constructors are intentional utility internals (`shared/helpers`) and one custom-content branch in `session/skills`.
 - [x] CX-12 completed: migrated remaining non-test ad-hoc clients (`infra/acp/client`, `domain/materials/attachment_migrator`) to `httpclient.New(...)`.
 
+Execution (2026-03-03, rescan wave G — non-web):
+- [~] CX-01 continuation: migrated an additional non-web `TrimLower` batch in `cmd/alex` and selected `internal/` hot paths (`react` + `attachments`) from `strings.ToLower(strings.TrimSpace(...))` to `utils.TrimLower(...)`.
+- [x] Validation for this batch passed (`go test` on touched packages + targeted golangci-lint run).
+
 ### Wave 3: Efficiency Improvements (requires careful design — plan first)
 
 | Task ID | Finding | Risk | Approach |

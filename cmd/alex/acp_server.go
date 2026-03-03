@@ -19,6 +19,7 @@ import (
 	"alex/internal/shared/async"
 	jsonrpc "alex/internal/shared/jsonrpc"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 type acpServer struct {
@@ -556,7 +557,7 @@ func mapStopReason(result *agent.TaskResult, execErr error) string {
 	if result == nil {
 		return ""
 	}
-	reason := strings.ToLower(strings.TrimSpace(result.StopReason))
+	reason := utils.TrimLower(result.StopReason)
 	switch reason {
 	case "cancelled", "canceled":
 		return "cancelled"
@@ -569,4 +570,106 @@ func mapStopReason(result *agent.TaskResult, execErr error) string {
 	default:
 		return "end_turn"
 	}
+}
+
+func (s *acpServer) configureMCPServers(_ context.Context, _ *acpSession, servers []any) error {
+	if s.container.MCPRegistry == nil || s.container.AgentCoordinator == nil {
+		return nil
+	}
+	for _, raw := range servers {
+		spec, err := parseMCPServerSpec(raw)
+		if err != nil {
+			return err
+		}
+		if spec == nil {
+			continue
+		}
+		adapters, err := s.container.MCPRegistry.StartServerWithConfig(spec.Name, mcp.ServerConfig{
+			Command: spec.Command,
+			Args:    spec.Args,
+			Env:     spec.Env,
+		})
+		if err != nil {
+			return err
+		}
+		if len(adapters) == 0 {
+			continue
+		}
+		registry := s.container.AgentCoordinator.GetToolRegistry()
+		for _, adapter := range adapters {
+			if err := registry.Register(adapter); err != nil {
+				if !strings.Contains(err.Error(), "tool already exists") {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+type acpMCPServerSpec struct {
+	Name    string
+	Command string
+	Args    []string
+	Env     map[string]string
+}
+
+func parseMCPServerSpec(raw any) (*acpMCPServerSpec, error) {
+	item, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid mcpServers entry")
+	}
+	name := strings.TrimSpace(stringParam(item, "name"))
+	if name == "" {
+		return nil, fmt.Errorf("mcp server name is required")
+	}
+
+	serverType := utils.TrimLower(stringParam(item, "type"))
+	command := strings.TrimSpace(stringParam(item, "command"))
+	if serverType == "" && command != "" {
+		serverType = "stdio"
+	}
+
+	switch serverType {
+	case "stdio", "":
+		if command == "" {
+			return nil, fmt.Errorf("mcp server command is required")
+		}
+		args := stringSlice(item["args"])
+		env := map[string]string{}
+		for _, rawEnv := range stringSliceEnv(item["env"]) {
+			if rawEnv.name == "" {
+				continue
+			}
+			env[rawEnv.name] = rawEnv.value
+		}
+		return &acpMCPServerSpec{Name: name, Command: command, Args: args, Env: env}, nil
+	case "http", "sse":
+		return nil, fmt.Errorf("mcp server type %s not supported", serverType)
+	default:
+		return nil, fmt.Errorf("unknown mcp server type %s", serverType)
+	}
+}
+
+type acpEnvVar struct {
+	name  string
+	value string
+}
+
+func stringSliceEnv(value any) []acpEnvVar {
+	raw, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]acpEnvVar, 0, len(raw))
+	for _, item := range raw {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		name := strings.TrimSpace(stringParam(entry, "name"))
+		val := strings.TrimSpace(stringParam(entry, "value"))
+		out = append(out, acpEnvVar{name: name, value: val})
+	}
+	return out
 }

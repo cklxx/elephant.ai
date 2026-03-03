@@ -304,7 +304,7 @@ func buildFilename(name, mediaType string, data []byte) string {
 }
 
 func sanitizeAttachmentExt(ext string) string {
-	trimmed := strings.ToLower(strings.TrimSpace(ext))
+	trimmed := utils.TrimLower(ext)
 	if trimmed == "" {
 		return ""
 	}
