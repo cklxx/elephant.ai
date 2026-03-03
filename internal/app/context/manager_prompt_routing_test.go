@@ -98,3 +98,24 @@ func TestBuildSelfUpdateSectionIncludesNeverRule(t *testing.T) {
 		t.Fatal("expected self-update section to contain NEVER rule")
 	}
 }
+
+func TestBuildChannelFormattingSectionLarkIncludesIntermediateProgressRule(t *testing.T) {
+	t.Parallel()
+	section := buildChannelFormattingSection("lark")
+	for _, snippet := range []string{
+		"Current reply channel is Lark",
+		"send intermediate checkpoints via lark_send_message in parallel",
+		"Do not use Markdown syntax",
+	} {
+		if !strings.Contains(section, snippet) {
+			t.Fatalf("expected lark channel formatting section to contain %q, got %q", snippet, section)
+		}
+	}
+}
+
+func TestBuildChannelFormattingSectionNonLarkEmpty(t *testing.T) {
+	t.Parallel()
+	if section := buildChannelFormattingSection("telegram"); section != "" {
+		t.Fatalf("expected non-lark section to be empty, got %q", section)
+	}
+}

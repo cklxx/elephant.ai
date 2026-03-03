@@ -309,14 +309,15 @@ func buildChannelFormattingSection(channel string) string {
 		return ""
 	}
 	return formatSection("# Reply Formatting (Lark Channel)", []string{
-		"当前回复通道为飞书 (Lark)，飞书 text 消息不支持 Markdown 渲染。",
-		"必须遵守以下格式规则：",
-		"- 禁止使用 Markdown 语法：不要使用 **bold**、*italic*、## heading、- list、> quote、[link](url)、```code```",
-		"- 使用纯文本格式：用换行分段，用「」或『』做强调，用数字编号代替无序列表",
-		"- 代码内容：保持原样但不要用 ``` 围栏，如需展示短代码直接内联",
-		"- 链接：直接贴 URL，不要用 [text](url) 格式",
-		"- 结构层次：用中文序号（一、二、三）或数字编号（1. 2. 3.）",
-		"- 强调内容：用「关键词」或在前面加 → 箭头标注",
+		"Current reply channel is Lark; Lark text messages do not render Markdown.",
+		"For long-running or parallel execution, proactively send intermediate checkpoints via lark_send_message in parallel so users can see progress.",
+		"Follow these formatting rules:",
+		"- Do not use Markdown syntax: avoid **bold**, *italic*, ## heading, - list, > quote, [link](url), and ```code``` fences.",
+		"- Use plain text formatting: separate paragraphs with newlines and use numbered lists for structure.",
+		"- For code snippets: keep content unchanged but do not wrap with ``` fences; inline short snippets.",
+		"- For links: paste raw URLs directly; do not use [text](url).",
+		"- For hierarchy: use numeric ordering (1. 2. 3.) instead of unordered bullets.",
+		"- For emphasis: use quoted keywords (e.g., \"keyword\") or prefix with ->.",
 	})
 }
 
