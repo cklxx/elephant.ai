@@ -504,9 +504,11 @@ func renderStateAgentSummary(entries []kerneldomain.AgentCycleSummary) string {
 }
 
 func sanitizeRuntimeSummary(raw string) string {
-	if strings.TrimSpace(raw) == "" {
+	trimmedRaw := strings.TrimSpace(raw)
+	if trimmedRaw == "" {
 		return ""
 	}
+
 	lines := strings.Split(raw, "\n")
 	filtered := make([]string, 0, len(lines))
 	for _, line := range lines {
@@ -518,23 +520,34 @@ func sanitizeRuntimeSummary(raw string) string {
 		// Strip raw LLM artifacts and internal reasoning noise, but preserve
 		// legitimate agent summary content such as "## Execution Summary" headers
 		// and natural-language mentions of tool calls.
-		if strings.HasPrefix(trimmed, "```") ||
-			strings.HasPrefix(lower, "thinking (previous):") ||
-			strings.HasPrefix(lower, "reasoning:") ||
-			strings.Contains(lower, "assistant to=") ||
-			strings.Contains(lower, "recipient_name") ||
-			// tool_uses and "tool_call": are structured JSON/XML schema leakage,
-			// not free-text mentions; match precisely to avoid stripping bullet
-			// points like "- dispatched tasks (tool calls) to complete".
-			strings.Contains(lower, "tool_uses") ||
-			strings.Contains(lower, `"tool_call"`) ||
-			strings.Contains(lower, `"tool_calls"`) {
-			continue
+		skipLine := false
+		if strings.HasPrefix(trimmed, "```") {
+			skipLine = true
+		} else if strings.HasPrefix(lower, "thinking (previous):") {
+			skipLine = true
+		} else if strings.HasPrefix(lower, "reasoning:") {
+			skipLine = true
+		} else if strings.Contains(lower, "assistant to=") {
+			skipLine = true
+		} else if strings.Contains(lower, "recipient_name") {
+			skipLine = true
+		} else if strings.Contains(lower, "tool_uses") {
+			skipLine = true
+		} else if strings.Contains(lower, `"tool_call"`) {
+			skipLine = true
+		} else if strings.Contains(lower, `"tool_calls"`) {
+			skipLine = true
 		}
-		filtered = append(filtered, trimmed)
+
+		if !skipLine {
+			filtered = append(filtered, trimmed)
+		}
 	}
 	if len(filtered) == 0 {
-		return ""
+		// If every line is filtered as noise, preserve the raw summary so we
+		// never erase an agent's execution evidence. Keep it compact to avoid
+		// bloating STATE.md.
+		return "[runtime summary fallback] " + compactSummary(trimmedRaw, 300)
 	}
 	return strings.Join(filtered, " ")
 }

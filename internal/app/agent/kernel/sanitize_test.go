@@ -94,6 +94,11 @@ func TestSanitizeRuntimeSummary(t *testing.T) {
 			input: "Thinking (previous):\nAll internal.\n## Execution Summary\n- step 1 done\n```\ncode block\n```\n- step 2 done",
 			want:  "All internal. ## Execution Summary - step 1 done code block - step 2 done",
 		},
+		{
+			name:  "fallback preserves all-noise summaries",
+			input: "Thinking (previous):\nReasoning:\n<assistant to=functions>tool call</assistant>\nrecipient_name: shell_exec\n```\n",
+			want:  "[runtime summary fallback] Thinking (previous): Reasoning: <assistant to=functions>tool call</assistant> recipient_name: shell_exec ```",
+		},
 	}
 
 	for _, tc := range tests {
