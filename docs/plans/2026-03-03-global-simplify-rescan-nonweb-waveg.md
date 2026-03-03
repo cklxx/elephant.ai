@@ -27,6 +27,7 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 - [x] Normalize `internal/infra/tools/approval_executor.go` manual error `ToolResult` returns to `shared.ToolError(...)`.
 - [x] Consolidate local truncation logic in `internal/delivery/presentation/formatter/formatter.go` to a single rune-safe helper.
 - [x] Add shared rune-safe truncation helper in `internal/shared/utils/strings.go` and apply to selected non-web byte-truncation sites (`internal/infra/llm/openai_errors.go`, `internal/delivery/channels/telegram/format.go`, `internal/app/scheduler/notifier.go`, `evaluation/rl/llm_judge.go`).
+- [x] Consolidate duplicate `tool executor missing` `ToolResult` construction in `internal/app/toolregistry` via package-local helper.
 - [x] Run targeted tests.
 - [x] Run targeted lint.
 - [x] Run code review gate.
@@ -40,6 +41,7 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 - `go test ./internal/infra/tools -count=1`
 - `go test ./internal/delivery/presentation/formatter -count=1`
 - `go test ./internal/shared/utils ./internal/infra/llm ./internal/delivery/channels/telegram ./internal/app/scheduler ./evaluation/rl -count=1`
+- `go test ./internal/app/toolregistry -count=1`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./cmd/alex/... ./internal/domain/agent/react/... ./internal/infra/attachments/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./evaluation/agent_eval/... ./internal/domain/agent/ports/mocks/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/app/agent/coordinator/... ./internal/app/agent/kernel/... ./internal/delivery/channels/lark/... ./internal/devops/process/... ./internal/domain/agent/ports/... ./internal/domain/agent/react/... ./internal/infra/external/teamrun/... ./internal/infra/llm/...`
@@ -48,6 +50,7 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/infra/tools/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/delivery/presentation/formatter/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/shared/utils/... ./internal/infra/llm/... ./internal/delivery/channels/telegram/... ./internal/app/scheduler/... ./evaluation/rl/...`
+- `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/app/toolregistry/...`
 
 ## Notes
 - This wave is intentionally mechanical and scoped to safe replacements only.

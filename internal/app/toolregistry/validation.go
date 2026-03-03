@@ -19,7 +19,7 @@ type validatingExecutor struct {
 
 func (v *validatingExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	if v.delegate == nil {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("tool executor missing")}, nil
+		return missingExecutorResult(call.ID)
 	}
 
 	schema := v.delegate.Definition().Parameters
