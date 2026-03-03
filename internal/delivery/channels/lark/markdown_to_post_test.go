@@ -2,6 +2,7 @@ package lark
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -182,6 +183,68 @@ func TestBuildPostContent_CodeBlock(t *testing.T) {
 	}
 	if !found {
 		t.Error("code block content not preserved")
+	}
+}
+
+func TestBuildPostContent_BlankLinePreservesTextField(t *testing.T) {
+	t.Parallel()
+
+	content := buildPostContent("## 标题\n\n正文")
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(content), &payload); err != nil {
+		t.Fatalf("failed to parse post content: %v", err)
+	}
+	zhCN, ok := payload["zh_cn"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected zh_cn object, got %T", payload["zh_cn"])
+	}
+	rows, ok := zhCN["content"].([]any)
+	if !ok {
+		t.Fatalf("expected zh_cn.content array, got %T", zhCN["content"])
+	}
+
+	foundBlankText := false
+	for _, rowRaw := range rows {
+		row, ok := rowRaw.([]any)
+		if !ok {
+			t.Fatalf("expected row array, got %T", rowRaw)
+		}
+		for _, elemRaw := range row {
+			elem, ok := elemRaw.(map[string]any)
+			if !ok {
+				t.Fatalf("expected element object, got %T", elemRaw)
+			}
+			tag, _ := elem["tag"].(string)
+			if tag != "text" {
+				continue
+			}
+			textVal, hasText := elem["text"]
+			if !hasText {
+				t.Fatalf("text tag missing text field: %+v", elem)
+			}
+			if text, _ := textVal.(string); text == "" {
+				foundBlankText = true
+			}
+		}
+	}
+	if !foundBlankText {
+		t.Fatal("expected at least one blank text line with explicit text field")
+	}
+}
+
+func TestFlattenPostContentToText(t *testing.T) {
+	t.Parallel()
+
+	post := buildPostContent("## 标题\n\n正文 [链接](https://example.com)")
+	plain := flattenPostContentToText(post)
+	if !strings.Contains(plain, "标题") {
+		t.Fatalf("flattened text missing heading: %q", plain)
+	}
+	if !strings.Contains(plain, "链接") {
+		t.Fatalf("flattened text missing link text: %q", plain)
+	}
+	if !strings.Contains(plain, "https://example.com") {
+		t.Fatalf("flattened text missing link url: %q", plain)
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 // postElement represents a single element in a Lark post message line.
 type postElement struct {
 	Tag   string   `json:"tag"`
-	Text  string   `json:"text,omitempty"`
+	Text  string   `json:"text"`
 	Href  string   `json:"href,omitempty"`
 	Style []string `json:"style,omitempty"`
 }
@@ -117,6 +117,40 @@ func buildPostContent(text string) string {
 	payload.ZhCN.Content = content
 	data, _ := json.Marshal(payload)
 	return string(data)
+}
+
+func flattenPostContentToText(content string) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return ""
+	}
+	var payload postPayload
+	if err := json.Unmarshal([]byte(content), &payload); err != nil {
+		return ""
+	}
+	lines := make([]string, 0, len(payload.ZhCN.Content))
+	for _, line := range payload.ZhCN.Content {
+		var sb strings.Builder
+		for _, el := range line {
+			switch el.Tag {
+			case "a":
+				label := strings.TrimSpace(el.Text)
+				href := strings.TrimSpace(el.Href)
+				switch {
+				case label != "" && href != "":
+					sb.WriteString(label + " (" + href + ")")
+				case label != "":
+					sb.WriteString(label)
+				case href != "":
+					sb.WriteString(href)
+				}
+			default:
+				sb.WriteString(el.Text)
+			}
+		}
+		lines = append(lines, sb.String())
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
 // convertInlineMarkdown converts inline Markdown (bold, italic, inline code, links)
