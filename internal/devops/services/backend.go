@@ -223,7 +223,9 @@ func (s *BackendService) Build(ctx context.Context) (string, error) {
 // InvalidateCache removes the build fingerprint stamp so the next Build always recompiles.
 // Implements devops.Buildable.
 func (s *BackendService) InvalidateCache() {
-	os.Remove(s.stampPath())
+	if err := os.Remove(s.stampPath()); err != nil && !os.IsNotExist(err) {
+		s.section.Warn("Backend: failed to remove build stamp: %v", err)
+	}
 }
 
 // Promote atomically replaces the production binary with the staged one.
