@@ -1,6 +1,10 @@
 # Engineering Practices
 
+Updated: 2026-03-03
+
 These are the local engineering practices for this repo. Keep them short and actionable.
+
+See also: [Development Workflow](development-workflow.md) | [Code Simplification](code-simplification.md) | [Code Review](code-review-guide.md) | [Incident Response](incident-response.md) | [Memory Management](memory-management.md)
 
 ## Core
 - Prefer correctness and maintainability over short-term speed.
@@ -40,3 +44,27 @@ These are the local engineering practices for this repo. Keep them short and act
 - Concurrency & tests: avoid fire-and-forget goroutines (make lifetimes explicit); prefer table-driven tests for multi-case coverage.
 
 Sources: [Effective Go](https://go.dev/doc/effective_go), [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments), [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md), [Kubernetes Coding Conventions](https://www.kubernetes.dev/docs/guide/coding-convention/).
+
+## Architecture Principles
+
+- **Context engineering over prompt hacking** — modify context assembly (`internal/context/`) first. Prompt templates only if context changes are verified insufficient.
+- **Typed events over unstructured logs** — use typed event structs (`internal/agent/domain/events/`). No free-form log strings for state transitions.
+- **Clean port/adapter boundaries** — cross-layer imports go through port interfaces. Direct infra-to-domain imports forbidden. Keep `agent/ports` free of memory/RAG deps. Enforce with `make check-arch`.
+- **Multi-provider LLM support** — new LLM features must work across all providers in `internal/llm/`. No provider-specific APIs without adapter.
+- **Skills and memory over one-shot answers** — persist learnings to memory; encode reusable workflows as skills.
+- **Proactive context injection** — auto-inject relevant context before user asks. Manual retrieval is fallback.
+
+## Proactive Behavior Constraints
+
+When modifying proactive behavior code (`internal/agent/`, skill triggers, context injection):
+- Detect motivation state before proactive actions: low energy, overload, ambiguity, or clear readiness.
+- Minimum-effective intervention: `clarify` → `plan` → reminder/schedule/task execution.
+- Every proactive suggestion must remain user-overridable; never remove opt-out paths.
+- Prefer progress visibility (artifacts/checkpoints) over high-frequency nudges.
+- No manipulative framing (fear, guilt, urgency) in any LLM prompt construction.
+- External messages or irreversible operations must pass approval gates. No exceptions.
+- Honor stop signals immediately.
+
+## Self-Correction
+
+Upon receiving any correction, immediately write a preventive rule (in `docs/guides/`, `docs/error-experience/entries/`, or the relevant best-practice doc) to prevent the same class of mistake. Do not wait — codify the lesson before resuming work.
