@@ -452,12 +452,20 @@ Execution (2026-03-03, rescan continuation):
 - [~] CX-12 partial: first non-web batch migrated to `httpclient.New()` (`infra/acp/client`, `infra/llamacpp/downloader`, `devops/health/checker`) with behavior-preserving timeout/transport handling.
 
 Execution (2026-03-03, rescan wave C — non-web):
-- [ ] CX-07 pending.
+- [~] CX-07 in progress (design/scan completed, deferred execution in wave C).
 - [x] CX-08 completed in previous wave.
 - [x] CX-09 completed: extracted shared `buildOpenAIRequest(req, stream bool)` in `openai_client.go`; parity tests added.
 - [ ] CX-10 pending.
 - [~] CX-11 partial: additional R-06 slice migrated (`aliases/read_file`, `aliases/write_file`, `aliases/shell_exec`, `aliases/replace_in_file`, `larktools/upload_file`, `larktools/calendar_query`).
 - [~] CX-12 partial: additional R-08 slice migrated (`infra/llamacpp/downloader`, `shared/config/cli_auth`, `shared/modelregistry/registry`, `delivery/channels/lark/model_command`, `app/notification/notification`).
+
+Execution (2026-03-03, rescan wave D — non-web):
+- [x] CX-07 completed (alias-first): introduced `CLIAgentConfig` + `CLIAgentFileConfig`; `Codex*`/`Kimi*` converted to aliases.
+- [x] CX-08 completed in previous waves.
+- [x] CX-09 completed in previous wave.
+- [ ] CX-10 pending (deferred; medium risk around YAML flattening + loader coupling).
+- [~] CX-11 partial: additional R-06 batch migrated (`session/skills`, `orchestration/reply_agent`, `larktools/{bitable_manage,calendar_create,calendar_update,channel,contact_manage,docx_manage,drive_manage,mail_manage,okr_manage,sheets_manage,vc_manage,wiki_manage}`); remaining concentrated in `task_manage` + `lark_oauth` + helper internals.
+- [~] CX-12 partial: additional R-08 batch migrated (`cmd/alex/{cli_model,cli_model_picker,lark_scenario_cmd}`, `evaluation/swe_bench/dataset`, `internal/devops/health/checker`); remaining non-test ad-hoc clients are `infra/acp/client` and `domain/materials/attachment_migrator`.
 
 ### Wave 3: Efficiency Improvements (requires careful design — plan first)
 
