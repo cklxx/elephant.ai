@@ -2,6 +2,7 @@ package taskfile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -41,7 +42,10 @@ func DefaultSwarmConfig() SwarmConfig {
 type SwarmScheduler struct {
 	config     SwarmConfig
 	dispatcher agent.BackgroundTaskDispatcher
-	current    int
+	// current is the active concurrency limit, adjusted between layers.
+	// Not goroutine-safe: only read/written from the single-threaded
+	// executeSwarmValidated loop (between layers, never during dispatch).
+	current int
 }
 
 // NewSwarmScheduler creates a scheduler backed by the given dispatcher.
@@ -106,6 +110,10 @@ func (s *SwarmScheduler) executeSwarmValidated(ctx context.Context, tf *TaskFile
 	retryCounts := make(map[string]int)
 
 	for _, layer := range layers {
+		if err := ctx.Err(); err != nil {
+			sw.SyncOnce(s.dispatcher, allTaskIDs)
+			return nil, err
+		}
 		activeIDs := append([]string(nil), layer...)
 
 		for {
@@ -240,7 +248,7 @@ func baseTaskID(taskID string) string {
 func (s *SwarmScheduler) executeLayer(ctx context.Context, layer []string, byID map[string]TaskSpec, causationID string) error {
 	sem := make(chan struct{}, s.current)
 	var mu sync.Mutex
-	var firstErr error
+	var errs []error
 
 	var wg sync.WaitGroup
 	for _, id := range layer {
@@ -258,15 +266,13 @@ func (s *SwarmScheduler) executeLayer(ctx context.Context, layer []string, byID 
 
 			if err := s.dispatcher.Dispatch(ctx, req); err != nil {
 				mu.Lock()
-				if firstErr == nil {
-					firstErr = fmt.Errorf("dispatch task %q: %w", taskID, err)
-				}
+				errs = append(errs, fmt.Errorf("dispatch task %q: %w", taskID, err))
 				mu.Unlock()
 			}
 		}(id)
 	}
 	wg.Wait()
-	return firstErr
+	return errors.Join(errs...)
 }
 
 // adjustConcurrency scales the concurrency limit up or down based on the

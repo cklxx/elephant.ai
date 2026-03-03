@@ -15,6 +15,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Chinese format strings for user-facing output.
+const (
+	fmtAllTasksCompleted = "全部 %d 个任务已完成（计划 %s）。\n"
+	fmtTasksDispatched   = "已派发 %d 个后台任务（计划 %s）。\n"
+	fmtStatusFileHint    = "\n任务在后台运行中，进度状态文件：%s"
+)
+
 type runTasks struct {
 	shared.BaseTool
 }
@@ -111,10 +118,11 @@ func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}
 
 	var tf *taskfile.TaskFile
+	var teamDef *agent.TeamDefinition
 	var err error
 
 	if templateName != "" {
-		tf, err = t.resolveTemplate(ctx, call, templateName)
+		tf, teamDef, err = t.resolveTemplate(ctx, call, templateName)
 	} else {
 		tf, err = t.loadTaskFile(filePath)
 	}
@@ -182,7 +190,7 @@ func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	if templateName != "" {
 		if recorder := agent.GetTeamRunRecorder(ctx); recorder != nil {
 			goal, _ := call.Arguments["goal"].(string)
-			record := buildTeamRunRecord(ctx, tf, templateName, strings.TrimSpace(goal), result, statusPath, wait)
+			record := buildTeamRunRecord(tf, teamDef, templateName, strings.TrimSpace(goal), result, statusPath, wait)
 			if _, recErr := recorder.RecordTeamRun(ctx, record); recErr != nil {
 				_ = recErr // best-effort
 			}
@@ -204,11 +212,11 @@ func (t *runTasks) loadTaskFile(path string) (*taskfile.TaskFile, error) {
 	return &tf, nil
 }
 
-func (t *runTasks) resolveTemplate(ctx context.Context, call ports.ToolCall, templateName string) (*taskfile.TaskFile, error) {
+func (t *runTasks) resolveTemplate(ctx context.Context, call ports.ToolCall, templateName string) (*taskfile.TaskFile, *agent.TeamDefinition, error) {
 	goal, _ := call.Arguments["goal"].(string)
 	goal = strings.TrimSpace(goal)
 	if goal == "" {
-		return nil, fmt.Errorf("goal is required when using a template")
+		return nil, nil, fmt.Errorf("goal is required when using a template")
 	}
 
 	teams := agent.GetTeamDefinitions(ctx)
@@ -220,7 +228,7 @@ func (t *runTasks) resolveTemplate(ctx context.Context, call ports.ToolCall, tem
 		}
 	}
 	if def == nil {
-		return nil, fmt.Errorf("template %q not found. Use template=\"list\" to see available templates", templateName)
+		return nil, nil, fmt.Errorf("template %q not found. Use template=\"list\" to see available templates", templateName)
 	}
 
 	tmpl := taskfile.TeamTemplateFromDefinition(*def)
@@ -229,12 +237,12 @@ func (t *runTasks) resolveTemplate(ctx context.Context, call ports.ToolCall, tem
 	if raw, ok := call.Arguments["prompts"]; ok {
 		parsed, err := parseStringMap(map[string]any{"prompts": raw}, "prompts")
 		if err != nil {
-			return nil, fmt.Errorf("prompts: %w", err)
+			return nil, nil, fmt.Errorf("prompts: %w", err)
 		}
 		overrides = parsed
 	}
 
-	return taskfile.RenderTaskFile(&tmpl, goal, overrides), nil
+	return taskfile.RenderTaskFile(&tmpl, goal, overrides), def, nil
 }
 
 func (t *runTasks) listTemplates(ctx context.Context, callID string) (*ports.ToolResult, error) {
@@ -272,16 +280,16 @@ func (t *runTasks) listTemplates(ctx context.Context, callID string) (*ports.Too
 func (t *runTasks) formatResult(callID string, result *taskfile.ExecuteResult, waited bool) (*ports.ToolResult, error) {
 	var sb strings.Builder
 	if waited {
-		sb.WriteString(fmt.Sprintf("全部 %d 个任务已完成（计划 %s）。\n", len(result.TaskIDs), result.PlanID))
+		sb.WriteString(fmt.Sprintf(fmtAllTasksCompleted, len(result.TaskIDs), result.PlanID))
 		for _, id := range result.TaskIDs {
 			sb.WriteString(fmt.Sprintf("- %s\n", id))
 		}
 	} else {
-		sb.WriteString(fmt.Sprintf("已派发 %d 个后台任务（计划 %s）。\n", len(result.TaskIDs), result.PlanID))
+		sb.WriteString(fmt.Sprintf(fmtTasksDispatched, len(result.TaskIDs), result.PlanID))
 		for _, id := range result.TaskIDs {
 			sb.WriteString(fmt.Sprintf("- %s\n", id))
 		}
-		sb.WriteString(fmt.Sprintf("\n任务在后台运行中，进度状态文件：%s", result.StatusPath))
+		sb.WriteString(fmt.Sprintf(fmtStatusFileHint, result.StatusPath))
 	}
 	return &ports.ToolResult{CallID: callID, Content: sb.String()}, nil
 }
@@ -313,7 +321,7 @@ func filterTasks(tf *taskfile.TaskFile, ids []string) *taskfile.TaskFile {
 	return filtered
 }
 
-func buildTeamRunRecord(ctx context.Context, tf *taskfile.TaskFile, templateName, goal string, result *taskfile.ExecuteResult, statusPath string, waited bool) agent.TeamRunRecord {
+func buildTeamRunRecord(tf *taskfile.TaskFile, def *agent.TeamDefinition, templateName, goal string, result *taskfile.ExecuteResult, statusPath string, waited bool) agent.TeamRunRecord {
 	state := "dispatched"
 	if waited {
 		state = dispatchStateFromStatus(statusPath)
@@ -321,16 +329,13 @@ func buildTeamRunRecord(ctx context.Context, tf *taskfile.TaskFile, templateName
 	var stages []agent.TeamRunStageRecord
 	var roles []agent.TeamRunRoleRecord
 
-	// Populate stages from the team definition in context.
-	for _, def := range agent.GetTeamDefinitions(ctx) {
-		if strings.EqualFold(def.Name, templateName) {
-			for _, s := range def.Stages {
-				stages = append(stages, agent.TeamRunStageRecord{
-					Name:  s.Name,
-					Roles: s.Roles,
-				})
-			}
-			break
+	// Populate stages from the resolved team definition.
+	if def != nil {
+		for _, s := range def.Stages {
+			stages = append(stages, agent.TeamRunStageRecord{
+				Name:  s.Name,
+				Roles: s.Roles,
+			})
 		}
 	}
 
