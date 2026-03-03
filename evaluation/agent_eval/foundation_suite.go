@@ -12,6 +12,8 @@ import (
 	"time"
 	"unicode"
 
+	"alex/internal/shared/utils"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -939,7 +941,7 @@ func normalizeFoundationTags(tags []string) []string {
 	normalized := make([]string, 0, len(tags))
 	seen := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
-		clean := strings.ToLower(strings.TrimSpace(tag))
+		clean := utils.TrimLower(tag)
 		if clean == "" {
 			continue
 		}

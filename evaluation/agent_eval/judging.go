@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"alex/evaluation/swe_bench"
+	"alex/internal/shared/utils"
 
 	"gopkg.in/yaml.v3"
 )
@@ -291,7 +292,7 @@ func AutoJudgeTask(task EvalTask, result swe_bench.WorkerResult, rubric JudgeRub
 }
 
 func autoScoreDimension(id string, task EvalTask, result swe_bench.WorkerResult) int {
-	switch strings.ToLower(strings.TrimSpace(id)) {
+	switch utils.TrimLower(id) {
 	case "completion":
 		if result.Status == swe_bench.StatusCompleted {
 			return 2

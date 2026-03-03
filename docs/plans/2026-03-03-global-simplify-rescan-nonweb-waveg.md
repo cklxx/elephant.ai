@@ -18,13 +18,16 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 - [x] Apply `TrimLower` normalization batch in `cmd/alex`.
 - [x] Apply `TrimLower` normalization batch in selected `internal/domain/agent/react` files.
 - [x] Apply `TrimLower` normalization in `internal/infra/attachments/store.go`.
+- [x] Apply `TrimLower` normalization batch in `evaluation/agent_eval` + `internal/domain/agent/ports/mocks`.
 - [x] Run targeted tests.
 - [x] Run targeted lint.
 - [x] Run code review gate.
 
 ## Verification
 - `go test ./cmd/alex ./internal/domain/agent/react ./internal/infra/attachments -count=1`
+- `go test ./evaluation/agent_eval ./internal/domain/agent/ports/mocks -count=1`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./cmd/alex/... ./internal/domain/agent/react/... ./internal/infra/attachments/...`
+- `./scripts/run-golangci-lint.sh run --timeout=10m ./evaluation/agent_eval/... ./internal/domain/agent/ports/mocks/...`
 
 ## Notes
 - This wave is intentionally mechanical and scoped to safe replacements only.

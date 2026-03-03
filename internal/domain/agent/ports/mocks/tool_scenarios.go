@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/shared/utils"
 )
 
 // ToolScenario represents a complete tool calling scenario for testing
@@ -51,7 +52,7 @@ func newUIPlanExecutor() tools.ToolExecutor {
 			}
 
 			complexity, _ := call.Arguments["complexity"].(string)
-			complexity = strings.ToLower(strings.TrimSpace(complexity))
+			complexity = utils.TrimLower(complexity)
 			if complexity != "simple" && complexity != "complex" {
 				return &ports.ToolResult{CallID: call.ID, Content: "complexity must be simple or complex", Error: fmt.Errorf("invalid complexity")}, nil
 			}

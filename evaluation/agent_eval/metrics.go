@@ -12,6 +12,7 @@ import (
 
 	"alex/evaluation/swe_bench"
 	"alex/internal/domain/workflow"
+	"alex/internal/shared/utils"
 )
 
 // EvaluationMetrics 评估指标
@@ -325,7 +326,7 @@ func workflowFailureSignal(result swe_bench.WorkerResult) bool {
 	if strings.EqualFold(strings.TrimSpace(result.ErrorType), "max_iterations_error") {
 		return true
 	}
-	if strings.Contains(strings.ToLower(strings.TrimSpace(result.Error)), "max iterations") {
+	if strings.Contains(utils.TrimLower(result.Error), "max iterations") {
 		return true
 	}
 	if result.Workflow == nil {
@@ -543,7 +544,7 @@ func estimateInterruptions(result swe_bench.WorkerResult) int {
 	interruptions := 0
 
 	for _, cmd := range result.Commands {
-		normalized := strings.ToLower(strings.TrimSpace(cmd))
+		normalized := utils.TrimLower(cmd)
 		if normalized == "" {
 			continue
 		}
@@ -556,7 +557,7 @@ func estimateInterruptions(result swe_bench.WorkerResult) int {
 		if step.ToolCall == nil {
 			continue
 		}
-		name := strings.ToLower(strings.TrimSpace(step.ToolCall.Name))
+		name := utils.TrimLower(step.ToolCall.Name)
 		if name == "ask_user" || strings.Contains(name, "approval") {
 			interruptions++
 		}

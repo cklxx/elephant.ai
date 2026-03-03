@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"alex/internal/shared/async"
-
 	"alex/evaluation/swe_bench"
+	"alex/internal/shared/async"
+	"alex/internal/shared/utils"
 )
 
 // EvaluationManager - 简化的评估管理器（3层架构中的第一层）
@@ -406,7 +406,7 @@ func normalizeReportArtifactPath(path string) string {
 }
 
 func normalizeReportFormat(format string) string {
-	normalized := strings.ToLower(strings.TrimSpace(format))
+	normalized := utils.TrimLower(format)
 	if normalized == "" {
 		return string(ReportFormatMarkdown)
 	}

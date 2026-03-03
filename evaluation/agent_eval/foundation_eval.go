@@ -15,8 +15,9 @@ import (
 	preparation "alex/internal/app/agent/preparation"
 	"alex/internal/app/toolregistry"
 	ports "alex/internal/domain/agent/ports"
-	"alex/internal/infra/memory"
 	"alex/internal/domain/agent/presets"
+	"alex/internal/infra/memory"
+	"alex/internal/shared/utils"
 
 	"gopkg.in/yaml.v3"
 )
@@ -332,7 +333,7 @@ func LoadFoundationCaseSet(path string) (*FoundationCaseSet, error) {
 }
 
 func normalizeFoundationMode(mode string) presets.ToolMode {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
+	switch utils.TrimLower(mode) {
 	case string(presets.ToolModeWeb):
 		return presets.ToolModeWeb
 	case string(presets.ToolModeCLI):
@@ -2544,7 +2545,7 @@ func tokenize(value string) []string {
 }
 
 func normalizeToken(token string) string {
-	token = strings.ToLower(strings.TrimSpace(token))
+	token = utils.TrimLower(token)
 	token = strings.Trim(token, "_")
 	if token == "" {
 		return ""
