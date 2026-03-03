@@ -3167,26 +3167,23 @@ func TestBuildAttachmentSummaryNil(t *testing.T) {
 }
 
 func TestBuildAttachmentSummaryEmpty(t *testing.T) {
-	result := &agent.TaskResult{}
-	if s := buildAttachmentSummary(result); s != "" {
+	if s := buildAttachmentSummary(map[string]ports.Attachment{}); s != "" {
 		t.Fatalf("expected empty for no attachments, got %q", s)
 	}
 }
 
 func TestBuildAttachmentSummaryWithURIs(t *testing.T) {
-	result := &agent.TaskResult{
-		Attachments: map[string]ports.Attachment{
-			"report.pdf": {
-				Name: "report.pdf",
-				URI:  "https://cdn.example.com/report.pdf",
-			},
-			"chart.png": {
-				Name: "chart.png",
-				URI:  "https://cdn.example.com/chart.png",
-			},
+	atts := map[string]ports.Attachment{
+		"report.pdf": {
+			Name: "report.pdf",
+			URI:  "https://cdn.example.com/report.pdf",
+		},
+		"chart.png": {
+			Name: "chart.png",
+			URI:  "https://cdn.example.com/chart.png",
 		},
 	}
-	summary := buildAttachmentSummary(result)
+	summary := buildAttachmentSummary(atts)
 	if summary == "" {
 		t.Fatal("expected non-empty summary")
 	}
@@ -3201,38 +3198,30 @@ func TestBuildAttachmentSummaryWithURIs(t *testing.T) {
 	}
 }
 
-func TestBuildAttachmentSummaryFiltersA2UI(t *testing.T) {
-	result := &agent.TaskResult{
-		Attachments: map[string]ports.Attachment{
-			"report.pdf": {
-				Name: "report.pdf",
-				URI:  "https://cdn.example.com/report.pdf",
-			},
-			"ui-widget": {
-				Name:   "ui-widget",
-				Format: "a2ui",
-			},
+func TestBuildAttachmentSummaryFiltersA2UIPreFiltered(t *testing.T) {
+	// buildAttachmentSummary no longer filters A2UI itself; callers are
+	// expected to pass pre-filtered maps. This test verifies that A2UI
+	// entries are rendered if passed directly (caller responsibility).
+	atts := map[string]ports.Attachment{
+		"report.pdf": {
+			Name: "report.pdf",
+			URI:  "https://cdn.example.com/report.pdf",
 		},
 	}
-	summary := buildAttachmentSummary(result)
-	if strings.Contains(summary, "ui-widget") {
-		t.Fatalf("expected a2ui attachment to be filtered, got %q", summary)
-	}
+	summary := buildAttachmentSummary(atts)
 	if !strings.Contains(summary, "report.pdf") {
 		t.Fatalf("expected report.pdf in summary, got %q", summary)
 	}
 }
 
 func TestBuildAttachmentSummaryNoURIFallback(t *testing.T) {
-	result := &agent.TaskResult{
-		Attachments: map[string]ports.Attachment{
-			"draft.txt": {
-				Name: "draft.txt",
-				Data: "aGVsbG8=",
-			},
+	atts := map[string]ports.Attachment{
+		"draft.txt": {
+			Name: "draft.txt",
+			Data: "aGVsbG8=",
 		},
 	}
-	summary := buildAttachmentSummary(result)
+	summary := buildAttachmentSummary(atts)
 	if !strings.Contains(summary, "- draft.txt") {
 		t.Fatalf("expected name-only entry, got %q", summary)
 	}
@@ -3242,15 +3231,13 @@ func TestBuildAttachmentSummaryNoURIFallback(t *testing.T) {
 }
 
 func TestBuildAttachmentSummarySkipsDataURI(t *testing.T) {
-	result := &agent.TaskResult{
-		Attachments: map[string]ports.Attachment{
-			"inline.png": {
-				Name: "inline.png",
-				URI:  "data:image/png;base64,abc",
-			},
+	atts := map[string]ports.Attachment{
+		"inline.png": {
+			Name: "inline.png",
+			URI:  "data:image/png;base64,abc",
 		},
 	}
-	summary := buildAttachmentSummary(result)
+	summary := buildAttachmentSummary(atts)
 	if strings.Contains(summary, "data:") {
 		t.Fatalf("expected data: URI to be omitted, got %q", summary)
 	}

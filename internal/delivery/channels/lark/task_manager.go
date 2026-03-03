@@ -580,7 +580,14 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	skipReply := isAwait && awaitTracker.Sent()
 
 	if replyContent == "" && !skipReply {
-		attachmentSummary = buildAttachmentSummary(result)
+		var textOnlyAttachments map[string]ports.Attachment
+		if result != nil && len(result.Attachments) > 0 {
+			cfg := builtinshared.GetAutoUploadConfig(execCtx)
+			_, textOnlyAttachments = partitionUploadableAttachments(
+				result.Attachments, normalizeExtensions(cfg.AllowExts),
+			)
+		}
+		attachmentSummary = buildAttachmentSummary(textOnlyAttachments)
 		if reply == "" && isAwait {
 			if hasAwaitPrompt && len(awaitPrompt.Options) > 0 {
 				reply = formatNumberedOptions(awaitPrompt.Question, awaitPrompt.Options)

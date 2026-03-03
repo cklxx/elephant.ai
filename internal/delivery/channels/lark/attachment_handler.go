@@ -2,6 +2,8 @@ package lark
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"mime"
 	"path/filepath"
@@ -31,6 +33,7 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 	client := artifactruntime.NewAttachmentHTTPClient(artifactruntime.AttachmentFetchTimeout, "LarkAttachment")
 	maxBytes, allowExts := autoUploadLimits(ctx)
 
+	seen := make(map[string]struct{})
 	names := sortedAttachmentNames(attachments)
 	for _, name := range names {
 		att := attachments[name]
@@ -39,6 +42,15 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 			g.logger.Warn("Lark attachment %s resolve failed: %v", name, err)
 			continue
 		}
+
+		// Content dedup: skip if identical bytes already uploaded.
+		h := sha256.Sum256(payload)
+		digest := hex.EncodeToString(h[:])
+		if _, dup := seen[digest]; dup {
+			g.logger.Info("Lark attachment %s skipped (duplicate content of prior upload)", name)
+			continue
+		}
+		seen[digest] = struct{}{}
 
 		fileName := fileNameForAttachment(att, name)
 		if !allowExtension(filepath.Ext(fileName), allowExts) {
@@ -136,14 +148,11 @@ func mergeAttachments(out map[string]ports.Attachment, incoming map[string]ports
 	ports.MergeAttachmentMaps(out, incoming, false)
 }
 
-// buildAttachmentSummary creates a text summary of non-A2UI attachments
-// with CDN URLs appended to the reply. This consolidates attachment
-// references into the summary message so users see everything in one place.
-func buildAttachmentSummary(result *agent.TaskResult) string {
-	if result == nil {
-		return ""
-	}
-	attachments := result.Attachments
+// buildAttachmentSummary creates a text summary of the given attachments
+// with CDN URLs appended to the reply. Callers should pass only the
+// subset of attachments that need a text-based summary (e.g. text-only
+// attachments that won't be uploaded as files).
+func buildAttachmentSummary(attachments map[string]ports.Attachment) string {
 	if len(attachments) == 0 {
 		return ""
 	}
@@ -151,9 +160,6 @@ func buildAttachmentSummary(result *agent.TaskResult) string {
 	var lines []string
 	for _, name := range names {
 		att := attachments[name]
-		if isA2UIAttachment(att) {
-			continue
-		}
 		uri := strings.TrimSpace(att.URI)
 		if uri == "" || strings.HasPrefix(strings.ToLower(uri), "data:") {
 			lines = append(lines, fmt.Sprintf("- %s", name))
@@ -165,6 +171,32 @@ func buildAttachmentSummary(result *agent.TaskResult) string {
 		return ""
 	}
 	return "---\n[Attachments]\n" + strings.Join(lines, "\n")
+}
+
+// partitionUploadableAttachments splits non-A2UI attachments into two groups:
+// uploadable (extension passes the allowlist) and textOnly (everything else).
+func partitionUploadableAttachments(attachments map[string]ports.Attachment, allowExts []string) (uploadable, textOnly map[string]ports.Attachment) {
+	filtered := filterNonA2UIAttachments(attachments)
+	if len(filtered) == 0 {
+		return nil, nil
+	}
+	uploadable = make(map[string]ports.Attachment, len(filtered))
+	textOnly = make(map[string]ports.Attachment, len(filtered))
+	for name, att := range filtered {
+		fileName := fileNameForAttachment(att, name)
+		if allowExtension(filepath.Ext(fileName), allowExts) {
+			uploadable[name] = att
+		} else {
+			textOnly[name] = att
+		}
+	}
+	if len(uploadable) == 0 {
+		uploadable = nil
+	}
+	if len(textOnly) == 0 {
+		textOnly = nil
+	}
+	return uploadable, textOnly
 }
 
 func sortedAttachmentNames(attachments map[string]ports.Attachment) []string {

@@ -410,12 +410,10 @@ func TestBuildAttachmentSummary_Nil(t *testing.T) {
 }
 
 func TestBuildAttachmentSummary_WithURI(t *testing.T) {
-	result := &agent.TaskResult{
-		Attachments: map[string]ports.Attachment{
-			"report.pdf": {URI: "https://cdn/report.pdf"},
-		},
+	atts := map[string]ports.Attachment{
+		"report.pdf": {URI: "https://cdn/report.pdf"},
 	}
-	got := buildAttachmentSummary(result)
+	got := buildAttachmentSummary(atts)
 	if got == "" {
 		t.Fatal("expected non-empty summary")
 	}
@@ -425,25 +423,66 @@ func TestBuildAttachmentSummary_WithURI(t *testing.T) {
 }
 
 func TestBuildAttachmentSummary_DataURINoLink(t *testing.T) {
-	result := &agent.TaskResult{
-		Attachments: map[string]ports.Attachment{
-			"img.png": {URI: "data:image/png;base64,abc"},
-		},
+	atts := map[string]ports.Attachment{
+		"img.png": {URI: "data:image/png;base64,abc"},
 	}
-	got := buildAttachmentSummary(result)
+	got := buildAttachmentSummary(atts)
 	if got != "---\n[Attachments]\n- img.png" {
 		t.Fatalf("unexpected summary for data: URI: %q", got)
 	}
 }
 
-func TestBuildAttachmentSummary_FiltersA2UI(t *testing.T) {
-	result := &agent.TaskResult{
-		Attachments: map[string]ports.Attachment{
-			"ui.json": {Format: "a2ui", URI: "https://cdn/ui.json"},
-		},
+// --- partitionUploadableAttachments ---
+
+func TestPartitionUploadableAttachments_Basic(t *testing.T) {
+	atts := map[string]ports.Attachment{
+		"chart.png":  {Name: "chart.png", MediaType: "image/png"},
+		"report.pdf": {Name: "report.pdf", MediaType: "application/pdf"},
+		"data.csv":   {Name: "data.csv"},
 	}
-	if got := buildAttachmentSummary(result); got != "" {
-		t.Fatalf("expected empty for all-A2UI, got %q", got)
+	uploadable, textOnly := partitionUploadableAttachments(atts, []string{".png", ".pdf"})
+	if len(uploadable) != 2 {
+		t.Fatalf("expected 2 uploadable, got %d: %v", len(uploadable), uploadable)
+	}
+	if len(textOnly) != 1 {
+		t.Fatalf("expected 1 text-only, got %d: %v", len(textOnly), textOnly)
+	}
+	if _, ok := textOnly["data.csv"]; !ok {
+		t.Fatal("expected data.csv in textOnly")
+	}
+}
+
+func TestPartitionUploadableAttachments_FiltersA2UI(t *testing.T) {
+	atts := map[string]ports.Attachment{
+		"chart.png": {Name: "chart.png"},
+		"ui.json":   {Format: "a2ui"},
+	}
+	uploadable, textOnly := partitionUploadableAttachments(atts, nil)
+	if len(uploadable) != 1 {
+		t.Fatalf("expected 1 uploadable, got %d", len(uploadable))
+	}
+	if textOnly != nil {
+		t.Fatalf("expected nil textOnly, got %v", textOnly)
+	}
+}
+
+func TestPartitionUploadableAttachments_EmptyAllowlist(t *testing.T) {
+	atts := map[string]ports.Attachment{
+		"a.txt": {Name: "a.txt"},
+	}
+	uploadable, textOnly := partitionUploadableAttachments(atts, nil)
+	if len(uploadable) != 1 {
+		t.Fatalf("expected all uploadable with empty allowlist, got %d", len(uploadable))
+	}
+	if textOnly != nil {
+		t.Fatalf("expected nil textOnly, got %v", textOnly)
+	}
+}
+
+func TestPartitionUploadableAttachments_Empty(t *testing.T) {
+	uploadable, textOnly := partitionUploadableAttachments(nil, nil)
+	if uploadable != nil || textOnly != nil {
+		t.Fatalf("expected nil/nil, got %v/%v", uploadable, textOnly)
 	}
 }
 
