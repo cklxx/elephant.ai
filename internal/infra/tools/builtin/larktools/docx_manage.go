@@ -31,6 +31,8 @@ func (t *larkDocxManage) Execute(ctx context.Context, call ports.ToolCall) (*por
 		return t.readContent(ctx, client, call)
 	case "list_blocks":
 		return t.listBlocks(ctx, client, call)
+	case "update_block_text":
+		return t.updateBlockText(ctx, client, call)
 	default:
 		err := fmt.Errorf("unsupported docx action: %s", action)
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -155,6 +157,66 @@ func (t *larkDocxManage) listBlocks(ctx context.Context, client *larkapi.Client,
 	return &ports.ToolResult{
 		CallID:   call.ID,
 		Content:  fmt.Sprintf("Found %d blocks:\n%s", len(blocks), string(payload)),
+		Metadata: metadata,
+	}, nil
+}
+
+func (t *larkDocxManage) updateBlockText(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	documentID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "document_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+	blockID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "block_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+	content, errResult := shared.RequireStringArg(call.Arguments, call.ID, "content")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	documentRevisionID, hasRevision := shared.IntArg(call.Arguments, "document_revision_id")
+	if !hasRevision {
+		documentRevisionID = -1
+	}
+
+	updateResult, err := client.Docx().UpdateDocumentBlockText(ctx, larkapi.UpdateDocumentBlockTextRequest{
+		DocumentID:         documentID,
+		BlockID:            blockID,
+		Content:            content,
+		DocumentRevisionID: documentRevisionID,
+		ClientToken:        shared.StringArg(call.Arguments, "client_token"),
+		UserIDType:         shared.StringArg(call.Arguments, "user_id_type"),
+	})
+	if err != nil {
+		return apiErr(call.ID, "update document block text", err), nil
+	}
+
+	payload := map[string]any{
+		"block": updateResult.BlockData,
+	}
+	if updateResult.DocumentRevisionID > 0 {
+		payload["document_revision_id"] = updateResult.DocumentRevisionID
+	}
+	if updateResult.ClientToken != "" {
+		payload["client_token"] = updateResult.ClientToken
+	}
+	payloadJSON, _ := json.MarshalIndent(payload, "", "  ")
+
+	metadata := map[string]any{
+		"document_id": documentID,
+		"block_id":    updateResult.Block.BlockID,
+	}
+	if updateResult.DocumentRevisionID > 0 {
+		metadata["document_revision_id"] = updateResult.DocumentRevisionID
+	}
+	if updateResult.ClientToken != "" {
+		metadata["client_token"] = updateResult.ClientToken
+	}
+
+	return &ports.ToolResult{
+		CallID:   call.ID,
+		Content:  fmt.Sprintf("Block updated successfully.\n%s", string(payloadJSON)),
 		Metadata: metadata,
 	}, nil
 }

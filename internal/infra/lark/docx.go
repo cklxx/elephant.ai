@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
@@ -32,6 +33,24 @@ type DocumentBlock struct {
 type CreateDocumentRequest struct {
 	Title    string // Document title (optional)
 	FolderID string // Target folder token (optional, defaults to root)
+}
+
+// UpdateDocumentBlockTextRequest defines parameters for updating a text-like block.
+type UpdateDocumentBlockTextRequest struct {
+	DocumentID         string // Required document ID.
+	BlockID            string // Required block ID.
+	Content            string // New text content for the block.
+	DocumentRevisionID int    // Optional target revision; defaults to -1 (latest).
+	ClientToken        string // Optional idempotency token.
+	UserIDType         string // Optional user ID type.
+}
+
+// UpdateDocumentBlockTextResult is the simplified patch result for a block update.
+type UpdateDocumentBlockTextResult struct {
+	Block              DocumentBlock
+	BlockData          map[string]any
+	DocumentRevisionID int
+	ClientToken        string
 }
 
 // CreateDocument creates a new empty document and returns its metadata.
@@ -142,6 +161,71 @@ func (s *DocxService) ListDocumentBlocks(ctx context.Context, documentID string,
 	}
 
 	return blocks, nextPageToken, hasMore, nil
+}
+
+// UpdateDocumentBlockText updates a text-like block content via update_text_elements.
+func (s *DocxService) UpdateDocumentBlockText(ctx context.Context, req UpdateDocumentBlockTextRequest, opts ...CallOption) (*UpdateDocumentBlockTextResult, error) {
+	textElement := larkdocx.NewTextElementBuilder().
+		TextRun(larkdocx.NewTextRunBuilder().
+			Content(req.Content).
+			Build()).
+		Build()
+
+	updateBody := larkdocx.NewUpdateBlockRequestBuilder().
+		UpdateTextElements(larkdocx.NewUpdateTextElementsRequestBuilder().
+			Elements([]*larkdocx.TextElement{textElement}).
+			Build()).
+		Build()
+
+	patchReqBuilder := larkdocx.NewPatchDocumentBlockReqBuilder().
+		DocumentId(req.DocumentID).
+		BlockId(req.BlockID).
+		UpdateBlockRequest(updateBody)
+
+	documentRevisionID := req.DocumentRevisionID
+	if documentRevisionID == 0 {
+		documentRevisionID = -1
+	}
+	patchReqBuilder.DocumentRevisionId(documentRevisionID)
+	if req.ClientToken != "" {
+		patchReqBuilder.ClientToken(req.ClientToken)
+	}
+	if req.UserIDType != "" {
+		patchReqBuilder.UserIdType(req.UserIDType)
+	}
+
+	resp, err := s.client.Docx.V1.DocumentBlock.Patch(ctx, patchReqBuilder.Build(), buildOpts(opts)...)
+	if err != nil {
+		return nil, fmt.Errorf("update document block text: %w", err)
+	}
+	if !resp.Success() {
+		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("update document block text: unexpected nil data in response")
+	}
+
+	result := &UpdateDocumentBlockTextResult{
+		Block: parseDocumentBlock(resp.Data.Block),
+	}
+	if resp.Data.DocumentRevisionId != nil {
+		result.DocumentRevisionID = *resp.Data.DocumentRevisionId
+	}
+	if resp.Data.ClientToken != nil {
+		result.ClientToken = *resp.Data.ClientToken
+	}
+
+	if resp.Data.Block != nil {
+		rawBlock, marshalErr := json.Marshal(resp.Data.Block)
+		if marshalErr == nil {
+			var blockData map[string]any
+			if unmarshalErr := json.Unmarshal(rawBlock, &blockData); unmarshalErr == nil {
+				result.BlockData = blockData
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // --- helpers ---

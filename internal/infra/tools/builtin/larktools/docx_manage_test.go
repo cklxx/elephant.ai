@@ -3,6 +3,7 @@ package larktools
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -480,6 +481,110 @@ func TestDocxManage_ListBlocks_APIError(t *testing.T) {
 	}
 }
 
+func TestDocxManage_UpdateBlockText(t *testing.T) {
+	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Fatalf("expected PATCH, got %s", r.Method)
+		}
+		if !strings.Contains(r.URL.Path, "/docx/v1/documents/doc_update_001/blocks/blk_update_001") {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		bodyBytes, _ := io.ReadAll(r.Body)
+		body := string(bodyBytes)
+		if !strings.Contains(body, `"update_text_elements"`) || !strings.Contains(body, `"updated from tool"`) {
+			t.Fatalf("unexpected patch body: %s", body)
+		}
+		writeJSON(t, w, 0, "ok", map[string]any{
+			"block": map[string]any{
+				"block_id":   "blk_update_001",
+				"block_type": 2,
+				"parent_id":  "doc_update_001",
+				"text": map[string]any{
+					"elements": []map[string]any{
+						{
+							"text_run": map[string]any{
+								"content": "updated from tool",
+							},
+						},
+					},
+				},
+			},
+			"document_revision_id": 118,
+			"client_token":         "ctok_update_001",
+		})
+	})
+	defer srv.Close()
+
+	dm := &larkDocxManage{}
+	call := ports.ToolCall{ID: "ub1", Arguments: map[string]any{
+		"action":      "update_block_text",
+		"document_id": "doc_update_001",
+		"block_id":    "blk_update_001",
+		"content":     "updated from tool",
+	}}
+	result, err := dm.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %v", result.Error)
+	}
+	if !strings.Contains(result.Content, "Block updated successfully.") {
+		t.Fatalf("expected success content, got: %s", result.Content)
+	}
+	if result.Metadata["document_id"] != "doc_update_001" {
+		t.Fatalf("expected document_id metadata, got %v", result.Metadata["document_id"])
+	}
+	if result.Metadata["block_id"] != "blk_update_001" {
+		t.Fatalf("expected block_id metadata, got %v", result.Metadata["block_id"])
+	}
+}
+
+func TestDocxManage_UpdateBlockText_MissingArgs(t *testing.T) {
+	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("should not call API when required args are missing")
+	})
+	defer srv.Close()
+
+	dm := &larkDocxManage{}
+	call := ports.ToolCall{ID: "ub2", Arguments: map[string]any{
+		"action":      "update_block_text",
+		"document_id": "doc_update_001",
+	}}
+	result, err := dm.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error when block_id/content missing")
+	}
+}
+
+func TestDocxManage_UpdateBlockText_APIError(t *testing.T) {
+	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, 1770001, "invalid param", nil)
+	})
+	defer srv.Close()
+
+	dm := &larkDocxManage{}
+	call := ports.ToolCall{ID: "ub3", Arguments: map[string]any{
+		"action":      "update_block_text",
+		"document_id": "doc_update_001",
+		"block_id":    "blk_update_001",
+		"content":     "updated from tool",
+	}}
+	result, err := dm.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected tool error for update API failure")
+	}
+	if !strings.Contains(result.Content, "Failed to update document block text") {
+		t.Fatalf("unexpected error content: %s", result.Content)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Channel integration tests — verify full dispatch path
 // ---------------------------------------------------------------------------
@@ -597,6 +702,41 @@ func TestChannel_ListDocBlocks_E2E(t *testing.T) {
 	}
 	if !strings.Contains(result.Content, "2 blocks") {
 		t.Fatalf("expected '2 blocks' in content, got: %s", result.Content)
+	}
+}
+
+func TestChannel_UpdateDocBlock_E2E(t *testing.T) {
+	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Fatalf("expected PATCH, got %s", r.Method)
+		}
+		writeJSON(t, w, 0, "ok", map[string]any{
+			"block": map[string]any{
+				"block_id":   "blk_e2e_update_1",
+				"block_type": 2,
+				"parent_id":  "doc_e2e_update_1",
+			},
+			"document_revision_id": 205,
+		})
+	})
+	defer srv.Close()
+
+	tool := NewLarkChannel()
+	call := ports.ToolCall{ID: "e2e5", Name: "channel", Arguments: map[string]any{
+		"action":      "update_doc_block",
+		"document_id": "doc_e2e_update_1",
+		"block_id":    "blk_e2e_update_1",
+		"content":     "channel update text",
+	}}
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %v", result.Error)
+	}
+	if !strings.Contains(result.Content, "Block updated successfully.") {
+		t.Fatalf("expected update success content, got: %s", result.Content)
 	}
 }
 

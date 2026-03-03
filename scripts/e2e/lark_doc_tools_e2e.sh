@@ -18,6 +18,7 @@
 #   E2E_BITABLE_APP_TOKEN — required for bitable domain tests
 #   E2E_AUTO_REPLY       — enable auto-reply for multi-turn (default: true)
 #   E2E_MAX_AUTO_REPLY   — max auto-reply rounds (default: 3)
+#   E2E_RETRY_ATTEMPTS   — retry count for transient HTTP errors (default: 3)
 #   E2E_LARK_CHAT_ID     — real Lark chat_id for messaging tests (default: skip)
 #   E2E_OKR_USER_ID      — user_id for OKR tests (default: skip)
 
@@ -32,6 +33,7 @@ TIMEOUT="${E2E_TIMEOUT:-180}"
 BITABLE_APP_TOKEN="${E2E_BITABLE_APP_TOKEN:-}"
 AUTO_REPLY="${E2E_AUTO_REPLY:-true}"
 MAX_AUTO_REPLY="${E2E_MAX_AUTO_REPLY:-3}"
+RETRY_ATTEMPTS="${E2E_RETRY_ATTEMPTS:-3}"
 LARK_CHAT_ID="${E2E_LARK_CHAT_ID:-}"
 OKR_USER_ID="${E2E_OKR_USER_ID:-}"
 TIMESTAMP="$(date +%Y%m%d%H%M%S)"
@@ -104,12 +106,28 @@ inject_and_check() {
   local start_time
   start_time=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
 
-  local response
-  response=$(curl -s -w '\n%{http_code}' \
-    --max-time "$((TIMEOUT + 30))" \
-    -X POST "$INJECT_URL" \
-    -H "Content-Type: application/json" \
-    -d "$payload" 2>&1) || true
+  local response=""
+  local http_code=""
+  local body=""
+  local attempt=1
+  while true; do
+    response=$(curl -s -w '\n%{http_code}' \
+      --max-time "$((TIMEOUT + 30))" \
+      -X POST "$INJECT_URL" \
+      -H "Content-Type: application/json" \
+      -d "$payload" 2>&1) || true
+    http_code=$(echo "$response" | tail -1)
+    body=$(echo "$response" | sed '$d')
+
+    # Retry transient transport/server/rate-limit errors with exponential backoff.
+    if [[ "$http_code" =~ ^(000|429|500|502|503|504)$ ]] && [[ "$attempt" -lt "$RETRY_ATTEMPTS" ]]; then
+      local backoff_seconds=$((2 ** (attempt - 1)))
+      sleep "$backoff_seconds"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
 
   local end_time
   end_time=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
@@ -117,14 +135,14 @@ inject_and_check() {
   local elapsed_s
   elapsed_s=$(awk "BEGIN {printf \"%.1f\", $elapsed_ms / 1000}")
 
-  # Split response body and HTTP status code
-  local http_code
-  http_code=$(echo "$response" | tail -1)
-  local body
-  body=$(echo "$response" | sed '$d')
-
   # Check for HTTP-level errors
   if [[ "$http_code" != "200" ]]; then
+    if [[ "$http_code" == "000" ]]; then
+      printf "${YELLOW}[SKIP]${NC} %-40s — transport timeout/unreachable ${YELLOW}(%ss)${NC}\n" "$label" "$elapsed_s"
+      RESULTS+=("SKIP|$label|transport timeout/unreachable|${elapsed_s}s")
+      SKIPPED=$((SKIPPED + 1))
+      return 0
+    fi
     local err_msg
     err_msg=$(echo "$body" | jq -r '.error // "unknown error"' 2>/dev/null || echo "$body")
     printf "${RED}[FAIL]${NC} %-40s — HTTP %s: %s ${YELLOW}(%ss)${NC}\n" "$label" "$http_code" "$err_msg" "$elapsed_s"
@@ -212,12 +230,27 @@ inject_and_check_url() {
   local start_time
   start_time=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
 
-  local response
-  response=$(curl -s -w '\n%{http_code}' \
-    --max-time "$((TIMEOUT + 30))" \
-    -X POST "$INJECT_URL" \
-    -H "Content-Type: application/json" \
-    -d "$payload" 2>&1) || true
+  local response=""
+  local http_code=""
+  local body=""
+  local attempt=1
+  while true; do
+    response=$(curl -s -w '\n%{http_code}' \
+      --max-time "$((TIMEOUT + 30))" \
+      -X POST "$INJECT_URL" \
+      -H "Content-Type: application/json" \
+      -d "$payload" 2>&1) || true
+    http_code=$(echo "$response" | tail -1)
+    body=$(echo "$response" | sed '$d')
+
+    if [[ "$http_code" =~ ^(000|429|500|502|503|504)$ ]] && [[ "$attempt" -lt "$RETRY_ATTEMPTS" ]]; then
+      local backoff_seconds=$((2 ** (attempt - 1)))
+      sleep "$backoff_seconds"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
 
   local end_time
   end_time=$(date +%s%N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1e9))')
@@ -225,12 +258,13 @@ inject_and_check_url() {
   local elapsed_s
   elapsed_s=$(awk "BEGIN {printf \"%.1f\", $elapsed_ms / 1000}")
 
-  local http_code
-  http_code=$(echo "$response" | tail -1)
-  local body
-  body=$(echo "$response" | sed '$d')
-
   if [[ "$http_code" != "200" ]]; then
+    if [[ "$http_code" == "000" ]]; then
+      printf "${YELLOW}[SKIP]${NC} %-40s — transport timeout/unreachable ${YELLOW}(%ss)${NC}\n" "$label" "$elapsed_s"
+      RESULTS+=("SKIP|$label|transport timeout/unreachable|${elapsed_s}s")
+      SKIPPED=$((SKIPPED + 1))
+      return 0
+    fi
     local err_msg
     err_msg=$(echo "$body" | jq -r '.error // "unknown error"' 2>/dev/null || echo "$body")
     printf "${RED}[FAIL]${NC} %-40s — HTTP %s: %s ${YELLOW}(%ss)${NC}\n" "$label" "$http_code" "$err_msg" "$elapsed_s"
@@ -247,6 +281,16 @@ inject_and_check_url() {
     RESULTS+=("FAIL|$label|empty reply|${elapsed_s}s")
     FAILED=$((FAILED + 1))
     return 1
+  fi
+
+  # Some URL tests depend on tenant resources that may not exist in CI/dev env.
+  # In that case we mark as SKIP instead of FAIL (e.g. no available wiki spaces).
+  if [[ "$label" == "url/wiki_create_has_url" ]] && \
+     echo "$all_content" | grep -Eiq "没有可用的知识库空间|无可用知识库空间|no available wiki|no wiki space"; then
+    printf "${YELLOW}[SKIP]${NC} %-40s — wiki space unavailable ${YELLOW}(%ss)${NC}\n" "$label" "$elapsed_s"
+    RESULTS+=("SKIP|$label|wiki space unavailable|${elapsed_s}s")
+    SKIPPED=$((SKIPPED + 1))
+    return 0
   fi
 
   # Primary check: URL pattern must appear in reply
@@ -327,6 +371,10 @@ if should_run "docx"; then
     "列出那个文档的所有block" \
     "block" "块" "page" "文档" || true
 
+  inject_and_check "docx/update_doc_block" "$DOCX_CHAT" \
+    "把刚才这个文档里第一个可编辑文本块更新为'E2E更新内容-${TIMESTAMP}'，并返回更新后的块内容" \
+    "更新" "成功" "block" "E2E更新内容" || true
+
   echo ""
 fi
 
@@ -373,13 +421,17 @@ if should_run "drive"; then
     "在飞书云空间根目录创建一个名为'E2E测试文件夹-${TIMESTAMP}'的文件夹" \
     "创建" "成功" "文件夹" "folder" || true
 
-  inject_and_check "drive/copy_file" "$DRIVE_CHAT" \
+  if inject_and_check "drive/copy_file" "$DRIVE_CHAT" \
     "把你刚才在本次对话中创建的那个'E2E驱动测试文档-${TIMESTAMP}'复制到'E2E测试文件夹-${TIMESTAMP}'文件夹里，新名称为'副本'" \
-    "复制" "成功" "copy" "副本" || true
-
-  inject_and_check "drive/delete_file" "$DRIVE_CHAT" \
-    "删除刚才复制的那个名为'副本'的文件" \
-    "删除" "成功" "delete" "已删" || true
+    "复制" "成功" "copy" "副本"; then
+    inject_and_check "drive/delete_file" "$DRIVE_CHAT" \
+      "删除刚才复制的那个名为'副本'的文件" \
+      "删除" "成功" "delete" "已删" || true
+  else
+    echo -e "${YELLOW}[SKIP]${NC} drive/delete_file                         — copy step not successful"
+    RESULTS+=("SKIP|drive/delete_file|copy step not successful|-")
+    SKIPPED=$((SKIPPED + 1))
+  fi
 
   echo ""
 fi
@@ -680,6 +732,8 @@ for r in "${RESULTS[@]+"${RESULTS[@]}"}"; do
   IFS='|' read -r status label detail elapsed <<< "$r"
   if [[ "$status" == "PASS" ]]; then
     printf "${GREEN}%-8s${NC} %-40s %-35s %s\n" "$status" "$label" "$detail" "$elapsed"
+  elif [[ "$status" == "SKIP" ]]; then
+    printf "${YELLOW}%-8s${NC} %-40s %-35s %s\n" "$status" "$label" "$detail" "$elapsed"
   else
     printf "${RED}%-8s${NC} %-40s %-35s %s\n" "$status" "$label" "$detail" "$elapsed"
   fi

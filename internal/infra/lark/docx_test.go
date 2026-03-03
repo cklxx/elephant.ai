@@ -3,6 +3,7 @@ package lark
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -127,5 +128,89 @@ func TestCreateDocumentAPIError(t *testing.T) {
 	}
 	if apiErr.Code != 99991 {
 		t.Errorf("expected code 99991, got %d", apiErr.Code)
+	}
+}
+
+func TestUpdateDocumentBlockText(t *testing.T) {
+	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Fatalf("expected PATCH, got %s", r.Method)
+		}
+		if !strings.Contains(r.URL.Path, "/docx/v1/documents/doc_xyz/blocks/blk_123") {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("document_revision_id"); got != "-1" {
+			t.Fatalf("expected default document_revision_id=-1, got %q", got)
+		}
+		body := string(readBody(r))
+		if !strings.Contains(body, `"update_text_elements"`) || !strings.Contains(body, `"updated block text"`) {
+			t.Fatalf("unexpected patch body: %s", body)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
+			"block": map[string]interface{}{
+				"block_id":   "blk_123",
+				"block_type": 2,
+				"parent_id":  "doc_xyz",
+				"text": map[string]interface{}{
+					"elements": []map[string]interface{}{
+						{
+							"text_run": map[string]interface{}{
+								"content": "updated block text",
+							},
+						},
+					},
+				},
+			},
+			"document_revision_id": 117,
+			"client_token":         "ctok_123",
+		}))
+	})
+	defer srv.Close()
+
+	result, err := client.Docx().UpdateDocumentBlockText(context.Background(), UpdateDocumentBlockTextRequest{
+		DocumentID: "doc_xyz",
+		BlockID:    "blk_123",
+		Content:    "updated block text",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Block.BlockID != "blk_123" {
+		t.Fatalf("expected block_id=blk_123, got %s", result.Block.BlockID)
+	}
+	if result.DocumentRevisionID != 117 {
+		t.Fatalf("expected revision=117, got %d", result.DocumentRevisionID)
+	}
+	if result.ClientToken != "ctok_123" {
+		t.Fatalf("expected client token ctok_123, got %s", result.ClientToken)
+	}
+	if result.BlockData == nil || result.BlockData["block_id"] != "blk_123" {
+		t.Fatalf("expected block_data with block_id, got %#v", result.BlockData)
+	}
+}
+
+func TestUpdateDocumentBlockTextAPIError(t *testing.T) {
+	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(t, w, jsonResponse(1770001, "invalid param", nil))
+	})
+	defer srv.Close()
+
+	_, err := client.Docx().UpdateDocumentBlockText(context.Background(), UpdateDocumentBlockTextRequest{
+		DocumentID: "doc_xyz",
+		BlockID:    "blk_123",
+		Content:    "x",
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != 1770001 {
+		t.Fatalf("expected code 1770001, got %d", apiErr.Code)
 	}
 }
