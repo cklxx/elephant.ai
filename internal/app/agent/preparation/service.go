@@ -174,6 +174,11 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if session != nil {
 		session.Messages = sessionHistory
 	}
+	rawHistoryMessages := historyMessagesFromSession(rawHistory)
+	needsHistorySummary := s.shouldSummarizeHistory(rawHistoryMessages)
+	if len(rawHistoryMessages) > 0 && !needsHistorySummary {
+		session.Messages = rawHistoryMessages
+	}
 
 	var inheritedState *agent.TaskState
 	if appcontext.IsSubagentContext(ctx) {
@@ -303,24 +308,20 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 	prepareCtx, cancelPrepare := context.WithCancel(ctx)
 	defer cancelPrepare()
-	prepareErrs := make(chan error, 2)
-
-	go func() {
+	buildContextWindow := func(buildCtx context.Context) error {
 		if s.contextMgr == nil {
-			prepareErrs <- nil
-			return
+			return nil
 		}
 		if skip, reason := shouldSkipContextWindow(task, session); skip {
 			clilatency.PrintfWithContext(ctx, "[latency] context_window=skipped reason=%s\n", reason)
 			window.Messages = session.Messages
 			window.SystemPrompt = DefaultSystemPrompt
-			prepareErrs <- nil
-			return
+			return nil
 		}
 
 		originalCount := len(session.Messages)
 		windowStarted := time.Now()
-		unattended := appcontext.IsUnattendedContext(prepareCtx)
+		unattended := appcontext.IsUnattendedContext(buildCtx)
 		var okrContext string
 		if s.okrContextProvider != nil {
 			okrContext = s.okrContextProvider()
@@ -337,7 +338,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 
 		var err error
-		window, err = s.contextMgr.BuildWindow(prepareCtx, session, agent.ContextWindowConfig{
+		window, err = s.contextMgr.BuildWindow(buildCtx, session, agent.ContextWindowConfig{
 			TokenLimit:             s.config.MaxTokens,
 			PersonaKey:             personaKey,
 			ToolMode:               string(toolMode),
@@ -357,8 +358,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			ChannelHint:            channelHint,
 		})
 		if err != nil {
-			prepareErrs <- fmt.Errorf("build context window: %w", err)
-			return
+			return fmt.Errorf("build context window: %w", err)
 		}
 		clilatency.PrintfWithContext(ctx,
 			"[latency] context_window_ms=%.2f original=%d final=%d\n",
@@ -381,10 +381,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			)
 			s.eventEmitter.OnEvent(compressionEvent)
 		}
-		prepareErrs <- nil
-	}()
+		return nil
+	}
 
-	go func() {
+	initLLMClient := func(clientCtx context.Context) error {
 		s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", effectiveProfile.Provider, effectiveProfile.Model)
 		llmInitStarted := time.Now()
 		apiKeySource := "profile"
@@ -410,12 +410,11 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			strings.TrimSpace(effectiveProfile.Model),
 		)
 		if err != nil {
-			prepareErrs <- fmt.Errorf("failed to get LLM client: %w", err)
-			return
+			return fmt.Errorf("failed to get LLM client: %w", err)
 		}
 
 		client = s.wrapPinnedRateLimitFallback(
-			prepareCtx,
+			clientCtx,
 			selectionPinned,
 			task,
 			preloadedAttachments,
@@ -425,26 +424,46 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		)
 		s.logger.Debug("Isolated LLM client obtained successfully")
 
-		client = s.costDecorator.Wrap(prepareCtx, session.ID, client)
+		client = s.costDecorator.Wrap(clientCtx, session.ID, client)
 		streaming, ok := llm.EnsureStreamingClient(client).(llm.StreamingLLMClient)
 		if !ok {
-			prepareErrs <- fmt.Errorf("failed to wrap LLM client with streaming support")
-			return
+			return fmt.Errorf("failed to wrap LLM client with streaming support")
 		}
 		llmClient = client
 		streamingClient = streaming
-		prepareErrs <- nil
-	}()
-
-	var prepareErr error
-	for i := 0; i < 2; i++ {
-		if err := <-prepareErrs; err != nil && prepareErr == nil {
-			prepareErr = err
-			cancelPrepare()
-		}
+		return nil
 	}
-	if prepareErr != nil {
-		return nil, prepareErr
+
+	if needsHistorySummary {
+		if err := initLLMClient(prepareCtx); err != nil {
+			return nil, err
+		}
+		history := s.recallUserHistory(prepareCtx, llmClient, task, rawHistory)
+		if history != nil && len(history.messages) > 0 {
+			session.Messages = history.messages
+		}
+		if err := buildContextWindow(prepareCtx); err != nil {
+			return nil, err
+		}
+	} else {
+		prepareErrs := make(chan error, 2)
+		go func() {
+			prepareErrs <- buildContextWindow(prepareCtx)
+		}()
+		go func() {
+			prepareErrs <- initLLMClient(prepareCtx)
+		}()
+
+		var prepareErr error
+		for i := 0; i < 2; i++ {
+			if err := <-prepareErrs; err != nil && prepareErr == nil {
+				prepareErr = err
+				cancelPrepare()
+			}
+		}
+		if prepareErr != nil {
+			return nil, prepareErr
+		}
 	}
 
 	if contextWasCompressed && len(preloadedImportant) > 0 {
@@ -482,15 +501,9 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 
-	history := s.recallUserHistory(ctx, llmClient, task, rawHistory)
-	stateMessages := append([]domain.Message(nil), session.Messages...)
-	if history != nil && len(history.messages) > 0 {
-		stateMessages = history.messages
-	}
-
 	state := &domain.TaskState{
 		SystemPrompt:         systemPrompt,
-		Messages:             stateMessages,
+		Messages:             append([]domain.Message(nil), session.Messages...),
 		SessionID:            session.ID,
 		RunID:                ids.RunID,
 		ParentRunID:          ids.ParentRunID,

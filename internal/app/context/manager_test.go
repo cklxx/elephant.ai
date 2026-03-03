@@ -448,20 +448,56 @@ func TestBuildWindowMetaContextReflectsHistory(t *testing.T) {
 		t.Fatalf("expected assistant response hint in recommendations, got %q", historyHints)
 	}
 	var runtimeChunk *ports.Message
+	var dateChunk *ports.Message
 	for i := range window.Messages {
 		if window.Messages[i].Source == ports.MessageSourceUserHistory && strings.Contains(window.Messages[i].Content, "Runtime history chunk") {
 			runtimeChunk = &window.Messages[i]
-			break
+			continue
+		}
+		if window.Messages[i].Source == ports.MessageSourceUserHistory && strings.Contains(window.Messages[i].Content, "Current date chunk") {
+			dateChunk = &window.Messages[i]
 		}
 	}
 	if runtimeChunk == nil {
 		t.Fatalf("expected a dedicated runtime history chunk message, got %#v", window.Messages)
 	}
+	if dateChunk == nil {
+		t.Fatalf("expected a dedicated current date chunk message, got %#v", window.Messages)
+	}
+	if !strings.Contains(dateChunk.Content, "Current date:") {
+		t.Fatalf("expected current date chunk to include current date line, got %q", dateChunk.Content)
+	}
 	if !strings.Contains(runtimeChunk.Content, "1 | role=user | summary=请继续昨天的代码重构") {
 		t.Fatalf("expected runtime history chunk to include indexed user summary, got %q", runtimeChunk.Content)
 	}
-	if strings.Contains(window.SystemPrompt, "Recent session messages:") || strings.Contains(window.SystemPrompt, "Latest user request:") {
+	if strings.Contains(window.SystemPrompt, "Recent session messages:") ||
+		strings.Contains(window.SystemPrompt, "Latest user request:") ||
+		strings.Contains(window.SystemPrompt, "Current date:") {
 		t.Fatalf("expected runtime history to stay out of static system prompt, got %q", window.SystemPrompt)
+	}
+}
+
+func TestResolveCurrentDateInZoneUsesPromptTimezone(t *testing.T) {
+	now := time.Date(2026, time.March, 3, 16, 30, 0, 0, time.UTC)
+
+	date, zone := resolveCurrentDateInZone(now, "Asia/Shanghai")
+	if zone != "Asia/Shanghai" {
+		t.Fatalf("expected timezone Asia/Shanghai, got %q", zone)
+	}
+	if date != "2026-03-04" {
+		t.Fatalf("expected converted date 2026-03-04, got %q", date)
+	}
+}
+
+func TestResolveCurrentDateInZoneFallsBackOnInvalidTimezone(t *testing.T) {
+	now := time.Date(2026, time.March, 3, 10, 0, 0, 0, time.UTC)
+
+	date, zone := resolveCurrentDateInZone(now, "Invalid/Timezone")
+	if zone != now.Location().String() {
+		t.Fatalf("expected fallback timezone %q, got %q", now.Location().String(), zone)
+	}
+	if date != now.Format("2006-01-02") {
+		t.Fatalf("expected fallback date %q, got %q", now.Format("2006-01-02"), date)
 	}
 }
 

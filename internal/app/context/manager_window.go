@@ -63,6 +63,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 	}
 
 	meta := deriveHistoryAwareMeta(messages, persona.ID)
+	currentDateChunk := buildCurrentDateChunk(cfg.PromptTimezone, time.Now())
 	runtimeHistoryChunk := buildRuntimeHistoryChunk(meta)
 	memorySnapshot := m.loadMemorySnapshot(ctx, session)
 	promptMode := strings.TrimSpace(cfg.PromptMode)
@@ -117,6 +118,9 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		Channel:     cfg.Channel,
 		ChannelHint: cfg.ChannelHint,
 	})
+	if currentDateChunk != nil {
+		window.Messages = append(window.Messages, *currentDateChunk)
+	}
 	if runtimeHistoryChunk != nil {
 		window.Messages = append(window.Messages, *runtimeHistoryChunk)
 	}
@@ -317,7 +321,6 @@ func buildRuntimeHistoryChunk(meta agent.MetaContext) *ports.Message {
 	lines := []string{
 		"Runtime history chunk (separate from static system prompt).",
 		"Use indexed lines to locate prior turns quickly.",
-		fmt.Sprintf("Current date: %s", time.Now().Format("2006-01-02")),
 	}
 	if timeline != "" {
 		lines = append(lines, "Recent session messages:")
@@ -340,6 +343,42 @@ func buildRuntimeHistoryChunk(meta agent.MetaContext) *ports.Message {
 		Content: strings.Join(lines, "\n"),
 		Source:  ports.MessageSourceUserHistory,
 	}
+}
+
+func buildCurrentDateChunk(promptTimezone string, now time.Time) *ports.Message {
+	date, zone := resolveCurrentDateInZone(now, promptTimezone)
+	if date == "" {
+		return nil
+	}
+	lines := []string{
+		"Current date chunk (separate from static system prompt).",
+		fmt.Sprintf("Current date: %s", date),
+		fmt.Sprintf("Timezone: %s", zone),
+	}
+	return &ports.Message{
+		Role:    "system",
+		Content: strings.Join(lines, "\n"),
+		Source:  ports.MessageSourceUserHistory,
+	}
+}
+
+func resolveCurrentDateInZone(now time.Time, promptTimezone string) (date string, zone string) {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	zone = strings.TrimSpace(promptTimezone)
+	loc := now.Location()
+	if zone != "" {
+		if loaded, err := time.LoadLocation(zone); err == nil {
+			loc = loaded
+		} else {
+			zone = ""
+		}
+	}
+	if zone == "" {
+		zone = loc.String()
+	}
+	return now.In(loc).Format("2006-01-02"), zone
 }
 
 func isContextCompressionSummary(msg ports.Message) bool {
