@@ -1,6 +1,9 @@
 package textutil
 
-import "strings"
+import (
+	"alex/internal/shared/utils"
+	"strings"
+)
 
 const (
 	DefaultMaxKeywords = 10
@@ -51,7 +54,7 @@ func tokenize(text string, minTokenLen int, stopWords map[string]struct{}, maxKe
 	tokens := make([]string, 0, len(fields))
 	seen := make(map[string]bool, len(fields))
 	for _, field := range fields {
-		lower := strings.ToLower(strings.TrimSpace(field))
+		lower := utils.TrimLower(field)
 		if lower == "" || len(lower) < minTokenLen {
 			continue
 		}

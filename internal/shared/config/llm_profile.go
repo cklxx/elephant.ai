@@ -69,7 +69,7 @@ func ValidateLLMProfile(profile LLMProfile) error {
 }
 
 func normalizeProviderFamily(provider string) string {
-	switch strings.ToLower(strings.TrimSpace(provider)) {
+	switch utils.TrimLower(provider) {
 	case "openai-responses", "responses", "codex":
 		return "codex"
 	case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
@@ -77,7 +77,7 @@ func normalizeProviderFamily(provider string) string {
 	case "anthropic", "claude":
 		return "anthropic"
 	default:
-		return strings.ToLower(strings.TrimSpace(provider))
+		return utils.TrimLower(provider)
 	}
 }
 
@@ -144,7 +144,7 @@ func hostMatchesAny(rawURL string, needles ...string) bool {
 		return false
 	}
 	for _, needle := range needles {
-		token := strings.ToLower(strings.TrimSpace(needle))
+		token := utils.TrimLower(needle)
 		if token == "" {
 			continue
 		}

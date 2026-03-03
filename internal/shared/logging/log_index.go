@@ -191,7 +191,7 @@ func parseRequestLogLine(line string) requestLogIndexEntry {
 	return requestLogIndexEntry{
 		LogID:      logID,
 		Timestamp:  ts,
-		EntryType:  strings.ToLower(strings.TrimSpace(entry.EntryType)),
+		EntryType:  utils.TrimLower(entry.EntryType),
 		ErrorClass: strings.TrimSpace(entry.ErrorClass),
 	}
 }

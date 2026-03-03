@@ -162,7 +162,7 @@ func buildRequestLogEntry(requestID string, entryType string) requestLogEntry {
 	if trimmedID == "" {
 		trimmedID = "unknown"
 	}
-	entryLabel := strings.ToLower(strings.TrimSpace(entryType))
+	entryLabel := TrimLower(entryType)
 	if entryLabel == "" {
 		entryLabel = "payload"
 	}

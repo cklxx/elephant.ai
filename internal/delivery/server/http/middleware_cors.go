@@ -1,6 +1,7 @@
 package http
 
 import (
+	"alex/internal/shared/utils"
 	"net/http"
 	"strings"
 )
@@ -16,7 +17,7 @@ func CORSMiddleware(environment string, allowedOrigins []string) func(http.Handl
 		allowedSet[origin] = struct{}{}
 	}
 
-	env := strings.ToLower(strings.TrimSpace(environment))
+	env := utils.TrimLower(environment)
 	allowAny := env != "production"
 
 	return func(next http.Handler) http.Handler {
@@ -103,7 +104,7 @@ func parseForwardedHeader(header string) string {
 			if len(kv) != 2 {
 				continue
 			}
-			key := strings.ToLower(strings.TrimSpace(kv[0]))
+			key := utils.TrimLower(kv[0])
 			val := strings.Trim(kv[1], "\"")
 			switch key {
 			case "proto":

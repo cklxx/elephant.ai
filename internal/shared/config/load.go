@@ -98,7 +98,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	resolveAutoProvider(&cfg, &meta, options.envLookup, cliCreds)
 	resolveProviderCredentials(&cfg, &meta, options.envLookup, cliCreds)
 	// If API key remains unset, default to mock provider (unless keyless providers).
-	providerLower := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
+	providerLower := utils.TrimLower(cfg.LLMProvider)
 	if cfg.APIKey == "" && ProviderRequiresAPIKey(providerLower) && cfg.Profile != RuntimeProfileProduction {
 		cfg.LLMProvider = "mock"
 		setSource("llm_provider", SourceDefault)
@@ -399,7 +399,7 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	if cfg.Skills.CacheTTLSeconds <= 0 {
 		cfg.Skills.CacheTTLSeconds = 300
 	}
-	cfg.Skills.ProactiveLevel = strings.ToLower(strings.TrimSpace(cfg.Skills.ProactiveLevel))
+	cfg.Skills.ProactiveLevel = utils.TrimLower(cfg.Skills.ProactiveLevel)
 	switch cfg.Skills.ProactiveLevel {
 	case "low", "medium", "high":
 		// Keep user-provided supported value.
@@ -465,7 +465,7 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 }
 
 func shouldLoadCLICredentials(cfg RuntimeConfig) bool {
-	provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
+	provider := utils.TrimLower(cfg.LLMProvider)
 	switch provider {
 	case "auto", "cli", "codex", "openai-responses", "responses", "anthropic", "claude":
 		return true

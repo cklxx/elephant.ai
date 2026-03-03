@@ -52,7 +52,7 @@ func applyExecutionControls(agentType, mode, level string, config map[string]str
 	cfg["execution_mode"] = normalizedMode
 	cfg["autonomy_level"] = normalizedLevel
 
-	switch strings.ToLower(strings.TrimSpace(agentType)) {
+	switch utils.TrimLower(agentType) {
 	case "codex", "kimi":
 		applyCodexExecutionControls(cfg, normalizedMode, normalizedLevel)
 	case "claude_code":

@@ -8,6 +8,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	llm "alex/internal/domain/agent/ports/llm"
 	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/shared/utils"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -249,7 +250,7 @@ func sanitizeToolArgumentValue(key string, value any) any {
 }
 
 func isSensitiveArgumentKey(key string) bool {
-	lower := strings.ToLower(strings.TrimSpace(key))
+	lower := utils.TrimLower(key)
 	switch lower {
 	case "api_key", "apikey", "password", "token", "secret", "credentials", "credential",
 		"authorization", "x-api-key", "access_token", "refresh_token", "id_token",

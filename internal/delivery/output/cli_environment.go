@@ -1,6 +1,7 @@
 package output
 
 import (
+	"alex/internal/shared/utils"
 	"io"
 	"os"
 	"strings"
@@ -56,7 +57,7 @@ func forceColorOutput() bool {
 }
 
 func envTruthy(value string) bool {
-	trimmed := strings.ToLower(strings.TrimSpace(value))
+	trimmed := utils.TrimLower(value)
 	switch trimmed {
 	case "", "0", "false", "no", "off":
 		return false

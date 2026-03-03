@@ -28,7 +28,6 @@ func applyAutoProviderCandidate(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 		meta.sources["api_key"] = cand.Source
 	}
 
-
 	if base, ok := lookup(cand.BaseURLEnv); ok && utils.HasContent(base) {
 		cfg.BaseURL = strings.TrimSpace(base)
 		meta.sources["base_url"] = SourceEnv
@@ -72,7 +71,7 @@ func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, c
 		lookup = DefaultEnvLookup
 	}
 
-	provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
+	provider := utils.TrimLower(cfg.LLMProvider)
 	if provider != "auto" && provider != "cli" {
 		return
 	}
@@ -170,7 +169,7 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 		lookup = DefaultEnvLookup
 	}
 
-	provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
+	provider := utils.TrimLower(cfg.LLMProvider)
 	if provider == "" {
 		return
 	}

@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 )
 
 const runtimeSystemPromptMaxChars = 32000
@@ -27,7 +28,7 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 	}
 
 	for idx := range state.Messages {
-		role := strings.ToLower(strings.TrimSpace(state.Messages[idx].Role))
+		role := utils.TrimLower(state.Messages[idx].Role)
 		if role != "system" {
 			continue
 		}
@@ -100,24 +101,24 @@ func compactSystemPromptMessages(messages []Message) []Message {
 }
 
 func isPrimarySystemPromptMessage(msg Message) bool {
-	role := strings.ToLower(strings.TrimSpace(msg.Role))
+	role := utils.TrimLower(msg.Role)
 	if role != "system" {
 		return false
 	}
 	if msg.Source != ports.MessageSourceSystemPrompt {
 		return false
 	}
-	return strings.TrimSpace(msg.Content) != ""
+	return utils.HasContent(msg.Content)
 }
 
 func shouldDropStaleSystemPromptMessage(msg Message) bool {
 	if msg.Source == ports.MessageSourceSystemPrompt {
 		return true
 	}
-	if strings.ToLower(strings.TrimSpace(msg.Role)) != "system" {
+	if utils.TrimLower(msg.Role) != "system" {
 		return false
 	}
-	return strings.TrimSpace(string(msg.Source)) == ""
+	return utils.IsBlank(string(msg.Source))
 }
 
 func clampRuntimeSystemPrompt(prompt string) string {
@@ -193,7 +194,7 @@ func (e *ReactEngine) extractImportantNotes(call ToolCall, metadata map[string]a
 	}
 	enriched := notes[:0]
 	for _, note := range notes {
-		if strings.TrimSpace(note.Content) == "" {
+		if utils.IsBlank(note.Content) {
 			continue
 		}
 		if note.ID == "" {
@@ -290,7 +291,7 @@ func (e *ReactEngine) updateAttachmentCatalogMessage(state *TaskState) {
 		return
 	}
 	content := buildAttachmentCatalogContent(state)
-	if strings.TrimSpace(content) == "" {
+	if utils.IsBlank(content) {
 		content = "Attachment catalog (for model reference only).\nNo attachments are currently available."
 	}
 	note := Message{

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"alex/internal/shared/utils"
 	"strings"
 	"time"
 )
@@ -88,9 +89,9 @@ type ToolCallContext struct {
 // ToolPolicyConfig combines timeout, retry, and rule-based configuration.
 type ToolPolicyConfig struct {
 	EnforcementMode string            `yaml:"enforcement_mode,omitempty" json:"enforcement_mode,omitempty"` // enforce | warn_allow
-	Timeout ToolTimeoutConfig `yaml:"timeout" json:"timeout"`
-	Retry   ToolRetryConfig   `yaml:"retry" json:"retry"`
-	Rules   []PolicyRule      `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Timeout         ToolTimeoutConfig `yaml:"timeout" json:"timeout"`
+	Retry           ToolRetryConfig   `yaml:"retry" json:"retry"`
+	Rules           []PolicyRule      `yaml:"rules,omitempty" json:"rules,omitempty"`
 }
 
 // DefaultToolPolicyConfig returns sensible defaults:
@@ -300,7 +301,7 @@ func (p *configToolPolicy) Resolve(ctx ToolCallContext) ResolvedPolicy {
 }
 
 func normalizePolicyEnforcementMode(mode string) string {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
+	switch utils.TrimLower(mode) {
 	case "warn_allow":
 		return "warn_allow"
 	default:

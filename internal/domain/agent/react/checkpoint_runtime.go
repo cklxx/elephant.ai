@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 )
 
 func checkpointFromState(state *TaskState, pending []ToolCallState, idGenerator agent.IDGenerator) *Checkpoint {
@@ -46,7 +47,7 @@ func stateFromCheckpoint(cp *Checkpoint) *TaskState {
 		// Skip empty assistant messages — checkpoint only saves Role+Content,
 		// so assistant messages that originally had tool_calls (but no text)
 		// restore as empty. These cause provider rejections (e.g. kimi 400).
-		if msg.Role == "assistant" && strings.TrimSpace(msg.Content) == "" {
+		if msg.Role == "assistant" && utils.IsBlank(msg.Content) {
 			continue
 		}
 		messages = append(messages, Message{
@@ -71,7 +72,7 @@ func toolCallFromCheckpoint(state ToolCallState) ToolCall {
 }
 
 func isPendingToolStatus(status string) bool {
-	switch strings.ToLower(strings.TrimSpace(status)) {
+	switch utils.TrimLower(status) {
 	case "", "pending", "running":
 		return true
 	default:
@@ -117,7 +118,7 @@ func (e *ReactEngine) ResumeFromCheckpoint(ctx context.Context, sessionID string
 	if restored != nil {
 		state.Messages = restored.Messages
 		state.Iterations = restored.Iterations
-		if strings.TrimSpace(state.SessionID) == "" {
+		if utils.IsBlank(state.SessionID) {
 			state.SessionID = restored.SessionID
 		}
 	}
@@ -258,7 +259,7 @@ func (e *ReactEngine) recoverPendingTools(ctx context.Context, state *TaskState,
 
 	for _, pending := range cp.PendingTools {
 		call := toolCallFromCheckpoint(pending)
-		status := strings.ToLower(strings.TrimSpace(pending.Status))
+		status := utils.TrimLower(pending.Status)
 		switch status {
 		case "completed":
 			content := ""
@@ -271,7 +272,7 @@ func (e *ReactEngine) recoverPendingTools(ctx context.Context, state *TaskState,
 			results = append(results, res)
 		case "failed":
 			errMsg := "tool failed before checkpoint"
-			if pending.Result != nil && strings.TrimSpace(*pending.Result) != "" {
+			if pending.Result != nil && utils.HasContent(*pending.Result) {
 				errMsg = fmt.Sprintf("tool failed before checkpoint: %s", strings.TrimSpace(*pending.Result))
 			}
 			res := ToolResult{CallID: call.ID, Error: fmt.Errorf("%s", errMsg)}

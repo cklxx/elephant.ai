@@ -1,6 +1,9 @@
 package config
 
-import "strings"
+import (
+	"alex/internal/shared/utils"
+	"strings"
+)
 
 // ValidationIssue represents a single validation finding.
 type ValidationIssue struct {
@@ -30,7 +33,7 @@ func (r ValidationReport) HasErrors() bool {
 
 // NormalizeRuntimeProfile coerces profile values to supported runtime profile constants.
 func NormalizeRuntimeProfile(profile string) string {
-	switch strings.ToLower(strings.TrimSpace(profile)) {
+	switch utils.TrimLower(profile) {
 	case "", RuntimeProfileStandard:
 		return RuntimeProfileStandard
 	case RuntimeProfileQuickstart, "quick-start", "quick_start":
@@ -44,7 +47,7 @@ func NormalizeRuntimeProfile(profile string) string {
 
 // ProviderRequiresAPIKey reports whether the provider requires API key authentication.
 func ProviderRequiresAPIKey(provider string) bool {
-	switch strings.ToLower(strings.TrimSpace(provider)) {
+	switch utils.TrimLower(provider) {
 	case "", "mock", "llama.cpp", "llamacpp", "llama-cpp", "ollama":
 		return false
 	default:

@@ -89,7 +89,7 @@ func decodeAttachmentInline(att ports.Attachment) ([]byte, string) {
 
 	// Prefer explicit Data field.
 	if att.Data != "" {
-		lower := strings.ToLower(strings.TrimSpace(att.Data))
+		lower := utils.TrimLower(att.Data)
 		if strings.HasPrefix(lower, "data:") {
 			decoded, mt := decodeDataURIPayload(att.Data)
 			if mt != "" {
@@ -141,7 +141,7 @@ func decodeDataURIPayload(uri string) ([]byte, string) {
 }
 
 func isDataURI(uri string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(uri)), "data:")
+	return strings.HasPrefix(utils.TrimLower(uri), "data:")
 }
 
 func attachmentFingerprint(payload []byte) string {
@@ -162,7 +162,7 @@ func fingerprintFromURI(uri string) string {
 	if err == nil && parsed.Path != "" {
 		pathValue = parsed.Path
 	}
-	base := strings.ToLower(strings.TrimSpace(path.Base(pathValue)))
+	base := utils.TrimLower(path.Base(pathValue))
 	if base == "" {
 		return ""
 	}
@@ -181,7 +181,7 @@ func shouldRetainInline(mediaType string, size int) bool {
 	if size <= 0 || size > inlineRetentionLimit {
 		return false
 	}
-	media := strings.ToLower(strings.TrimSpace(mediaType))
+	media := utils.TrimLower(mediaType)
 	if media == "" {
 		return false
 	}

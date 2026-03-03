@@ -14,6 +14,7 @@ import (
 	serverPorts "alex/internal/delivery/server/ports"
 	agentports "alex/internal/domain/agent/ports"
 	"alex/internal/domain/agent/types"
+	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -166,13 +167,13 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 		}
 
 		var inlineBase64 string
-		lowerURI := strings.ToLower(strings.TrimSpace(uri))
+		lowerURI := utils.TrimLower(uri)
 		if strings.HasPrefix(lowerURI, "data:") {
 			data = uri
 			uri = ""
 		}
 
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(data)), "data:") {
+		if strings.HasPrefix(utils.TrimLower(data), "data:") {
 			_, decoded, ok := decodeDataURI(data)
 			if !ok {
 				return nil, fmt.Errorf("attachment '%s' includes invalid data uri", name)
@@ -209,7 +210,7 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 			}
 		}
 
-		if uri == "" || strings.HasPrefix(strings.ToLower(strings.TrimSpace(uri)), "data:") {
+		if uri == "" || strings.HasPrefix(utils.TrimLower(uri), "data:") {
 			return nil, fmt.Errorf("attachment '%s' must include uri (base64 uploads are disabled)", name)
 		}
 

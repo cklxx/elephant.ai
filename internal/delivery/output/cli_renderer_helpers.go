@@ -1,6 +1,7 @@
 package output
 
 import (
+	"alex/internal/shared/utils"
 	"fmt"
 	"strings"
 	"time"
@@ -46,7 +47,7 @@ func nextSpinnerFrame() string {
 }
 
 func isConversationalTool(toolName string) bool {
-	switch strings.ToLower(strings.TrimSpace(toolName)) {
+	switch utils.TrimLower(toolName) {
 	case "plan", "ask_user":
 		return true
 	default:
@@ -55,7 +56,7 @@ func isConversationalTool(toolName string) bool {
 }
 
 func displayToolName(toolName string) string {
-	normalized := strings.ToLower(strings.TrimSpace(toolName))
+	normalized := utils.TrimLower(toolName)
 	if normalized == "" {
 		return toolName
 	}

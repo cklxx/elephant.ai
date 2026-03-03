@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 const proxyModeEnv = "ALEX_PROXY_MODE"
@@ -92,7 +93,7 @@ func proxyFunc(logger logging.Logger) func(*http.Request) (*url.URL, error) {
 func proxyModeFromEnv() proxyMode {
 	proxyModeOnce.Do(func() {
 		value, _ := os.LookupEnv(proxyModeEnv)
-		raw := strings.ToLower(strings.TrimSpace(value))
+		raw := utils.TrimLower(value)
 		switch raw {
 		case "", "auto":
 			resolvedProxyMode = proxyModeAuto
@@ -158,7 +159,7 @@ func proxyHostPort(proxyURL *url.URL) (string, bool) {
 
 	port := strings.TrimSpace(proxyURL.Port())
 	if port == "" {
-		scheme := strings.ToLower(strings.TrimSpace(proxyURL.Scheme))
+		scheme := utils.TrimLower(proxyURL.Scheme)
 		if scheme == "" {
 			scheme = "http"
 		}

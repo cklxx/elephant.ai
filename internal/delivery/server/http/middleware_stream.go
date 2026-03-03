@@ -1,6 +1,7 @@
 package http
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"net/http"
 	"strings"
@@ -96,6 +97,6 @@ func isStreamRequest(r *http.Request) bool {
 	if strings.HasPrefix(path, "/api/sse") || strings.Contains(path, "/stream") {
 		return true
 	}
-	accept := strings.ToLower(strings.TrimSpace(r.Header.Get("Accept")))
+	accept := utils.TrimLower(r.Header.Get("Accept"))
 	return strings.Contains(accept, "text/event-stream")
 }

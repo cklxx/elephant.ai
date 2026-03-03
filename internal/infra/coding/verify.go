@@ -1,6 +1,7 @@
 package coding
 
 import (
+	"alex/internal/shared/utils"
 	"context"
 	"fmt"
 	"os/exec"
@@ -131,7 +132,7 @@ func runVerifyCheck(ctx context.Context, workingDir string, runner CommandRunner
 }
 
 func isTruthy(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
+	switch utils.TrimLower(value) {
 	case "1", "true", "yes", "on":
 		return true
 	default:

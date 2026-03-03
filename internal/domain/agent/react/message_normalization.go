@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 // Shared prefix aliases from ports.
@@ -32,7 +33,7 @@ func normalizeContextMessages(state *TaskState) {
 		}
 
 		if msg.Source == ports.MessageSourceUserHistory {
-			role := strings.ToLower(strings.TrimSpace(msg.Role))
+			role := utils.TrimLower(msg.Role)
 			if role == "" || role == "system" || role == "developer" {
 				msg.Role = "assistant"
 			}

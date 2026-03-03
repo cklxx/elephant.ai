@@ -1,6 +1,9 @@
 package inlinepayload
 
-import "strings"
+import (
+	"alex/internal/shared/utils"
+	"strings"
+)
 
 // ShouldRetain reports whether an inline attachment payload should be retained
 // based on media type, payload size, and the caller-provided size limit.
@@ -9,7 +12,7 @@ func ShouldRetain(mediaType string, size int, limit int) bool {
 		return false
 	}
 
-	media := strings.ToLower(strings.TrimSpace(mediaType))
+	media := utils.TrimLower(mediaType)
 	if media == "" {
 		return false
 	}

@@ -1,6 +1,7 @@
 package react
 
 import (
+	"alex/internal/shared/utils"
 	"strings"
 )
 
@@ -13,7 +14,7 @@ func classifyContextOverflow(err error) contextOverflowClassification {
 	if err == nil {
 		return contextOverflowClassification{}
 	}
-	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	msg := utils.TrimLower(err.Error())
 	if msg == "" {
 		return contextOverflowClassification{}
 	}

@@ -56,9 +56,9 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 }
 
 func isHTMLAttachment(att ports.Attachment) bool {
-	media := strings.ToLower(strings.TrimSpace(att.MediaType))
-	format := strings.ToLower(strings.TrimSpace(att.Format))
-	profile := strings.ToLower(strings.TrimSpace(att.PreviewProfile))
+	media := utils.TrimLower(att.MediaType)
+	format := utils.TrimLower(att.Format)
+	profile := utils.TrimLower(att.PreviewProfile)
 	return strings.Contains(media, "html") || format == "html" || strings.Contains(profile, "document.html")
 }
 

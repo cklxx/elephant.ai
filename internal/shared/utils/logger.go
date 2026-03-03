@@ -58,11 +58,6 @@ type Logger struct {
 	logID      string
 }
 
-// GetLogger returns the singleton logger instance
-func GetLogger() *Logger {
-	return getOrCreateCategoryLogger(LogCategoryService)
-}
-
 // NewComponentLogger creates a logger for a specific component
 func NewComponentLogger(component string) *Logger {
 	return NewCategorizedLogger(LogCategoryService, component)
@@ -343,19 +338,19 @@ func levelToString(level LogLevel) string {
 
 // Helper functions for global logging
 func Debug(format string, args ...interface{}) {
-	GetLogger().Debug(format, args...)
+	getOrCreateCategoryLogger(LogCategoryService).Debug(format, args...)
 }
 
 func Info(format string, args ...interface{}) {
-	GetLogger().Info(format, args...)
+	getOrCreateCategoryLogger(LogCategoryService).Info(format, args...)
 }
 
 func Warn(format string, args ...interface{}) {
-	GetLogger().Warn(format, args...)
+	getOrCreateCategoryLogger(LogCategoryService).Warn(format, args...)
 }
 
 func Error(format string, args ...interface{}) {
-	GetLogger().Error(format, args...)
+	getOrCreateCategoryLogger(LogCategoryService).Error(format, args...)
 }
 
 func sanitizeLogLine(line string) string {

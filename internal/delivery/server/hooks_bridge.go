@@ -117,7 +117,7 @@ func decodeHookPayload(body []byte) (hookPayload, error) {
 }
 
 func normalizeHookEvent(raw string) string {
-	s := strings.ToLower(strings.TrimSpace(raw))
+	s := utils.TrimLower(raw)
 	s = strings.ReplaceAll(s, "-", "")
 	s = strings.ReplaceAll(s, "_", "")
 

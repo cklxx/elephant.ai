@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/delivery/server/inlinepayload"
 	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 const historyInlineAttachmentRetentionLimit = 128 * 1024
@@ -77,7 +78,7 @@ func sanitizeAttachmentForHistory(att ports.Attachment) ports.Attachment {
 		size := base64.StdEncoding.DecodedLen(len(inline))
 		if inlinepayload.ShouldRetain(mediaType, size, historyInlineAttachmentRetentionLimit) {
 			att.Data = inline
-			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.URI)), "data:") {
+			if strings.HasPrefix(utils.TrimLower(att.URI), "data:") {
 				att.URI = ""
 			}
 			return att

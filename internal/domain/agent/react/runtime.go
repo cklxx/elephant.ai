@@ -7,9 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/domain/agent"
+	domain "alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -306,7 +307,7 @@ func (r *reactRuntime) handleMaxIterations() (*TaskResult, error) {
 	r.engine.logger.Warn("Max iterations (%d) reached, requesting final answer", r.engine.maxIterations)
 	finalResult := r.engine.finalize(r.state, "max_iterations", r.engine.clock.Now().Sub(r.startTime))
 
-	if strings.TrimSpace(finalResult.Answer) == "" {
+	if utils.IsBlank(finalResult.Answer) {
 		r.state.Messages = append(r.state.Messages, Message{
 			Role:    "user",
 			Content: "Please provide your final answer to the user's question now.",
@@ -347,19 +348,19 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 			continue
 		}
 
-		name := strings.ToLower(strings.TrimSpace(call.Name))
+		name := utils.TrimLower(call.Name)
 		switch name {
 		case "plan":
 			r.planEmitted = true
 			r.planVersion++
 			if raw, ok := call.Arguments["complexity"].(string); ok {
-				complexity := strings.ToLower(strings.TrimSpace(raw))
+				complexity := utils.TrimLower(raw)
 				if complexity == "simple" || complexity == "complex" {
 					r.planComplexity = complexity
 				}
 			} else if result.Metadata != nil {
 				if raw, ok := result.Metadata["complexity"].(string); ok {
-					complexity := strings.ToLower(strings.TrimSpace(raw))
+					complexity := utils.TrimLower(raw)
 					if complexity == "simple" || complexity == "complex" {
 						r.planComplexity = complexity
 					}
@@ -449,7 +450,7 @@ func (r *reactRuntime) upsertPlanNode(node agent.PlanNode) {
 	if r == nil || r.state == nil {
 		return
 	}
-	if strings.TrimSpace(node.ID) == "" {
+	if utils.IsBlank(node.ID) {
 		return
 	}
 	if updatePlanNode(r.state.Plans, node) {
@@ -481,7 +482,7 @@ func (r *reactRuntime) updatePlanStatus(id string, status string, skipIfBlocked 
 }
 
 func updatePlanStatus(nodes []agent.PlanNode, id string, status string, skipIfBlocked bool) bool {
-	if strings.TrimSpace(id) == "" {
+	if utils.IsBlank(id) {
 		return false
 	}
 	for i := range nodes {
@@ -863,7 +864,7 @@ func classifyNonRetryableToolFailure(err error) (nonRetryableToolFailure, bool) 
 		return nonRetryableToolFailure{}, false
 	}
 
-	text := strings.ToLower(strings.TrimSpace(err.Error()))
+	text := utils.TrimLower(err.Error())
 	if text == "" {
 		return nonRetryableToolFailure{}, false
 	}
@@ -962,7 +963,7 @@ func (r *reactRuntime) emitFinalAnswerStream(stopReason string, result *TaskResu
 		return
 	}
 	answer := result.Answer
-	if strings.TrimSpace(answer) == "" {
+	if utils.IsBlank(answer) {
 		return
 	}
 

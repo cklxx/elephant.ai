@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"alex/internal/shared/config"
+	"alex/internal/shared/utils"
 )
 
 // AppsConfigHandler serves internal apps configuration APIs.
@@ -113,7 +114,7 @@ func validateAppsConfig(apps config.AppsConfig) error {
 
 func normalizeAppsConfig(apps config.AppsConfig) config.AppsConfig {
 	for i, plugin := range apps.Plugins {
-		plugin.ID = strings.ToLower(strings.TrimSpace(plugin.ID))
+		plugin.ID = utils.TrimLower(plugin.ID)
 		plugin.Name = strings.TrimSpace(plugin.Name)
 		plugin.Description = strings.TrimSpace(plugin.Description)
 		plugin.IntegrationNote = strings.TrimSpace(plugin.IntegrationNote)

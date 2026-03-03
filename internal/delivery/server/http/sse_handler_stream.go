@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"alex/internal/delivery/server/app"
-	"alex/internal/domain/agent"
+	domain "alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
 	"alex/internal/infra/observability"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -41,7 +42,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	replayMode := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("replay")))
+	replayMode := utils.TrimLower(r.URL.Query().Get("replay"))
 	debugMode := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("debug")), "1") ||
 		strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("debug")), "true")
 	includeSessionHistory := true
@@ -386,7 +387,7 @@ func normalizedToolName(payload map[string]any) string {
 	for _, key := range []string{"tool_name", "tool"} {
 		if raw, ok := payload[key]; ok {
 			if name, ok := raw.(string); ok {
-				normalized := strings.ToLower(strings.TrimSpace(name))
+				normalized := utils.TrimLower(name)
 				if normalized != "" {
 					return normalized
 				}

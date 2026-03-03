@@ -194,7 +194,7 @@ func applyCodingDefaults(agentType string, config map[string]string) map[string]
 		cfg[configMergeOnSuccess] = "true"
 	}
 
-	switch strings.ToLower(strings.TrimSpace(agentType)) {
+	switch utils.TrimLower(agentType) {
 	case "codex", "kimi":
 		if utils.IsBlank(cfg["approval_policy"]) {
 			cfg["approval_policy"] = "never"

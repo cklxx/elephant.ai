@@ -1,6 +1,9 @@
 package executioncontrol
 
-import "strings"
+import (
+	"alex/internal/shared/utils"
+	"strings"
+)
 
 const (
 	executionModeExecute = "execute"
@@ -21,7 +24,7 @@ func NormalizeExecutionMode(raw string) string {
 
 // NormalizeAutonomyLevel returns one of "full", "semi", "controlled" (default).
 func NormalizeAutonomyLevel(raw string) string {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
+	switch utils.TrimLower(raw) {
 	case autonomyLevelFull:
 		return autonomyLevelFull
 	case autonomyLevelSemi:

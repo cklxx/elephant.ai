@@ -3,7 +3,10 @@
 // to present warm, human-readable status lines instead of raw tool names.
 package uxphrases
 
-import "strings"
+import (
+	"alex/internal/shared/utils"
+	"strings"
+)
 
 // phraseGroup maps a category of tools to a pool of friendly phrases.
 type phraseGroup struct {
@@ -108,7 +111,7 @@ var phraseGroups = []phraseGroup{
 // ToolPhrase returns a friendly Chinese status phrase for the given tool name.
 // The selector index provides deterministic phrase rotation (e.g. total tool count).
 func ToolPhrase(toolName string, selector int) string {
-	lower := strings.ToLower(strings.TrimSpace(toolName))
+	lower := utils.TrimLower(toolName)
 	for _, g := range phraseGroups {
 		if g.matchFn(lower) {
 			return PickPhrase(g.phrases, selector)

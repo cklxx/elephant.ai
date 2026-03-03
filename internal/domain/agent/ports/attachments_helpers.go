@@ -1,6 +1,7 @@
 package ports
 
 import (
+	"alex/internal/shared/utils"
 	"path/filepath"
 	"strings"
 )
@@ -36,7 +37,7 @@ func MergeAttachmentMaps(dst, src map[string]Attachment, override bool) map[stri
 // IsImageAttachment reports whether an attachment should be treated as an image.
 // It checks media type first, then falls back to filename extension.
 func IsImageAttachment(att Attachment, fallbackName string) bool {
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.MediaType)), "image/") {
+	if strings.HasPrefix(utils.TrimLower(att.MediaType), "image/") {
 		return true
 	}
 

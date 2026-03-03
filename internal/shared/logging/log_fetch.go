@@ -203,7 +203,7 @@ func FetchStructuredLogBundle(logID string, opts LogFetchOptions) StructuredLogB
 	}
 
 	opts = normalizeLogFetchOptions(opts)
-	searchLower := strings.ToLower(strings.TrimSpace(opts.Search))
+	searchLower := utils.TrimLower(opts.Search)
 	logDir := resolveLogDirectory()
 	requestDir := resolveRequestLogDirectory()
 

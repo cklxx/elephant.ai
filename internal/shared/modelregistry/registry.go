@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -106,7 +107,7 @@ func (r *Registry) ProviderModels(provider string) []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	key := strings.ToLower(strings.TrimSpace(provider))
+	key := utils.TrimLower(provider)
 	ids := r.byProvider[key]
 	if len(ids) == 0 {
 		return nil
@@ -205,7 +206,7 @@ func fetchFromAPI(ctx context.Context, client *http.Client) (map[string]ModelInf
 
 	for _, providerID := range providerIDs {
 		pPayload := raw[providerID]
-		pid := strings.ToLower(strings.TrimSpace(providerID))
+		pid := utils.TrimLower(providerID)
 		for modelID, mData := range pPayload.Models {
 			info := ModelInfo{
 				ID:             modelID,

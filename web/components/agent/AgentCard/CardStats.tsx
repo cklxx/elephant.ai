@@ -1,5 +1,5 @@
 import React from "react";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 import { AgentCardProgress, AgentCardStats } from "./types";
 
 interface CardStatsProps {
@@ -62,7 +62,7 @@ function StatsRow({
     items.push(`${stats.toolCalls} tool call${stats.toolCalls === 1 ? "" : "s"}`);
   if (!hideTokens && stats.tokens > 0)
     items.push(`${formatTokens(stats.tokens)} tokens`);
-  if (stats.duration) items.push(formatDuration(stats.duration));
+  if (stats.duration) items.push(formatStatsDuration(stats.duration));
 
   if (items.length === 0) return null;
 
@@ -85,12 +85,20 @@ function formatTokens(tokens: number): string {
   return tokens.toString();
 }
 
-function formatDuration(ms: number): string {
-  const seconds = ms / 1000;
-  if (seconds < 60) {
-    return `${seconds.toFixed(1)}s`;
+function formatStatsDuration(ms: number): string {
+  if (ms < 60000) {
+    const duration = formatDuration(ms);
+    if (duration.endsWith("ms")) {
+      return `${(ms / 1000).toFixed(1)}s`;
+    }
+    const seconds = Number.parseFloat(duration);
+    if (Number.isFinite(seconds)) {
+      return `${seconds.toFixed(1)}s`;
+    }
+    return `${(ms / 1000).toFixed(1)}s`;
   }
+  const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
+  const remainingSeconds = seconds % 60;
   return `${minutes}m ${remainingSeconds}s`;
 }

@@ -8,11 +8,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"alex/internal/domain/agent"
+	domain "alex/internal/domain/agent"
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/shared/executioncontrol"
 	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/executioncontrol"
+	"alex/internal/shared/utils"
 )
 
 // backgroundTask tracks an individual background task.
@@ -642,7 +643,7 @@ func (m *BackgroundTaskManager) tryAutoMerge(ctx context.Context, bt *background
 		bt.mu.Unlock()
 		return fmt.Errorf("auto merge failed for branch %q", mergeResult.Branch)
 	}
-	if result != nil && mergeResult != nil && strings.TrimSpace(mergeResult.Branch) != "" {
+	if result != nil && mergeResult != nil && utils.HasContent(mergeResult.Branch) {
 		result.Answer = strings.TrimSpace(result.Answer + "\n\n[Auto Merge] branch=" + mergeResult.Branch + " strategy=" + string(strategy))
 	}
 	bt.mu.Lock()
@@ -896,7 +897,7 @@ func (m *BackgroundTaskManager) ReplyExternalInput(ctx context.Context, resp age
 	if err := m.inputExecutor.Reply(ctx, resp); err != nil {
 		return err
 	}
-	if strings.TrimSpace(resp.TaskID) != "" {
+	if utils.HasContent(resp.TaskID) {
 		m.mu.RLock()
 		bt := m.tasks[resp.TaskID]
 		m.mu.RUnlock()
@@ -908,7 +909,7 @@ func (m *BackgroundTaskManager) ReplyExternalInput(ctx context.Context, resp age
 			bt.mu.Unlock()
 		}
 	}
-	if strings.TrimSpace(resp.TaskID) != "" {
+	if utils.HasContent(resp.TaskID) {
 		m.mu.RLock()
 		bt := m.tasks[resp.TaskID]
 		m.mu.RUnlock()
@@ -965,7 +966,7 @@ func (m *BackgroundTaskManager) forwardExternalInputRequests() {
 				m.closeInputOnce.Do(func() { close(m.externalInputCh) })
 				return
 			}
-			if strings.TrimSpace(req.TaskID) != "" {
+			if utils.HasContent(req.TaskID) {
 				m.mu.RLock()
 				bt := m.tasks[req.TaskID]
 				m.mu.RUnlock()
@@ -1206,7 +1207,7 @@ func (m *BackgroundTaskManager) validateDependencies(taskID string, deps []strin
 		return nil
 	}
 	for _, dep := range deps {
-		if strings.TrimSpace(dep) == "" {
+		if utils.IsBlank(dep) {
 			return fmt.Errorf("dependency task id must not be empty")
 		}
 		if dep == taskID {
@@ -1288,7 +1289,7 @@ func resolveBackgroundEventSink(ctx context.Context, fallback backgroundEventSin
 }
 
 func parseConfigBoolDefault(raw string, fallback bool) bool {
-	trimmed := strings.ToLower(strings.TrimSpace(raw))
+	trimmed := utils.TrimLower(raw)
 	if trimmed == "" {
 		return fallback
 	}
@@ -1303,7 +1304,7 @@ func parseConfigBoolDefault(raw string, fallback bool) bool {
 }
 
 func parseMergeStrategy(raw string) agent.MergeStrategy {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
+	switch utils.TrimLower(raw) {
 	case string(agent.MergeStrategySquash):
 		return agent.MergeStrategySquash
 	case string(agent.MergeStrategyRebase):

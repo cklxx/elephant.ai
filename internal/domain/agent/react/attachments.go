@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 // snapshotAttachments clones the attachment store and returns per-attachment
@@ -150,7 +151,7 @@ func persistAttachmentIfNeeded(ctx context.Context, att ports.Attachment, persis
 }
 
 func coalesceAttachmentSource(source, fallback string) string {
-	if strings.TrimSpace(source) != "" {
+	if utils.HasContent(source) {
 		return source
 	}
 	return fallback
@@ -200,7 +201,7 @@ func shouldSkipPersist(att ports.Attachment) bool {
 	if att.Data != "" {
 		return false
 	}
-	return !strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.URI)), "data:")
+	return !strings.HasPrefix(utils.TrimLower(att.URI), "data:")
 }
 
 func mergeAttachmentMap(dst, src map[string]ports.Attachment) {
@@ -331,7 +332,7 @@ func normalizeAttachmentEntry(key string, att ports.Attachment, fillNameWhenTrim
 	}
 
 	if fillNameWhenTrimmedEmpty {
-		if strings.TrimSpace(att.Name) == "" {
+		if utils.IsBlank(att.Name) {
 			att.Name = placeholder
 		}
 		return placeholder, att, true
@@ -515,7 +516,7 @@ func matchSeedreamPlaceholderAlias(name string, state *TaskState) (string, ports
 		return "", ports.Attachment{}, false
 	}
 
-	prefix := strings.ToLower(strings.TrimSpace(base[:underscore]))
+	prefix := utils.TrimLower(base[:underscore])
 	if prefix == "" {
 		return "", ports.Attachment{}, false
 	}
@@ -600,7 +601,7 @@ func collectImageAttachmentCandidates(state *TaskState) []attachmentCandidate {
 	}
 	candidates := make([]attachmentCandidate, 0)
 	for key, att := range state.Attachments {
-		mediaType := strings.ToLower(strings.TrimSpace(att.MediaType))
+		mediaType := utils.TrimLower(att.MediaType)
 		if !strings.HasPrefix(mediaType, "image/") {
 			continue
 		}
@@ -686,7 +687,7 @@ func looksLikeDirectAttachmentReference(value string) bool {
 }
 
 func resolveContentAttachments(content string, state *TaskState) map[string]ports.Attachment {
-	if state == nil || len(state.Attachments) == 0 || strings.TrimSpace(content) == "" {
+	if state == nil || len(state.Attachments) == 0 || utils.IsBlank(content) {
 		return nil
 	}
 	matches := contentPlaceholderPattern.FindAllStringSubmatch(content, -1)
@@ -718,9 +719,9 @@ func resolveContentAttachments(content string, state *TaskState) map[string]port
 }
 
 func isA2UIAttachment(att ports.Attachment) bool {
-	media := strings.ToLower(strings.TrimSpace(att.MediaType))
-	format := strings.ToLower(strings.TrimSpace(att.Format))
-	profile := strings.ToLower(strings.TrimSpace(att.PreviewProfile))
+	media := utils.TrimLower(att.MediaType)
+	format := utils.TrimLower(att.Format)
+	profile := utils.TrimLower(att.PreviewProfile)
 	return strings.Contains(media, "a2ui") || format == "a2ui" || strings.Contains(profile, "a2ui")
 }
 

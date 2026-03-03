@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient, type SessionSnapshotsResponse, type MemorySnapshot } from "@/lib/api";
 import { createRequestGate } from "@/lib/requestGate";
 import { type LogTraceBundle, type WorkflowEventType } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 
 type SSEDebugEvent = DevSSEDebugEvent;
 
@@ -253,16 +253,18 @@ type RunTree = {
 
 type LLMDetailCache = Map<string, LogTraceBundle | "loading" | "error">;
 
-function formatDuration(ms: number) {
+function formatTraceDuration(ms: number) {
   if (!Number.isFinite(ms)) {
     return "—";
   }
-  if (ms >= 1000) {
+  if (ms >= 60000) {
     return `${(ms / 1000).toFixed(2)}s`;
+  }
+  if (ms >= 1000) {
+    return formatDuration(ms);
   }
   return `${Math.round(ms)}ms`;
 }
-
 
 function truncateId(id: string, maxLen = 12): string {
   if (id.length <= maxLen) return id;
@@ -353,7 +355,7 @@ function LLMCallDetailView({
           )}
         </div>
         <span className="whitespace-nowrap font-semibold text-foreground/80">
-          {formatDuration(entry.durationMs)}
+          {formatTraceDuration(entry.durationMs)}
         </span>
       </summary>
       <div className="space-y-2 border-t border-border/40 px-3 py-2">
@@ -447,7 +449,7 @@ function RunNodeView({
         </span>
         {node.totalDurationMs !== null && (
           <span className="font-semibold text-foreground/80">
-            {formatDuration(node.totalDurationMs)}
+            {formatTraceDuration(node.totalDurationMs)}
           </span>
         )}
         {node.firstSeq !== null && (
@@ -472,7 +474,7 @@ function RunNodeView({
                   >
                     <span className="truncate font-medium text-foreground">{stage.label}</span>
                     <span className="whitespace-nowrap font-semibold text-foreground/80">
-                      {formatDuration(stage.durationMs)}
+                      {formatTraceDuration(stage.durationMs)}
                     </span>
                   </div>
                 ))}
@@ -504,7 +506,7 @@ function RunNodeView({
                       )}
                     </div>
                     <span className="whitespace-nowrap font-semibold text-foreground/80">
-                      {formatDuration(tool.durationMs)}
+                      {formatTraceDuration(tool.durationMs)}
                     </span>
                   </div>
                 ))}
@@ -566,7 +568,7 @@ function RunTreeView({
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Badge variant="outline">
           Total:{" "}
-          {tree.totalDurationMs !== null ? formatDuration(tree.totalDurationMs) : "—"}
+          {tree.totalDurationMs !== null ? formatTraceDuration(tree.totalDurationMs) : "—"}
         </Badge>
         <Badge variant="outline">Stages: {tree.stageCount}</Badge>
         <Badge variant="outline">Tools: {tree.toolCount}</Badge>
@@ -1204,7 +1206,7 @@ export default function DiagnosticsPage() {
               : "";
           const hintParts = [
             Number.isFinite(llmDuration) && llmDuration > 0
-              ? `llm=${formatDuration(llmDuration)}`
+              ? `llm=${formatTraceDuration(llmDuration)}`
               : "",
             llmRequest ? `req=${llmRequest}` : "",
           ]

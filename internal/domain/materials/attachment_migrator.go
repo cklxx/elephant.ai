@@ -16,6 +16,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	materialports "alex/internal/domain/materials/ports"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 type AttachmentStorer interface {
@@ -109,10 +110,10 @@ func (m *AttachmentStoreMigrator) isHosted(uri string) bool {
 }
 
 func (m *AttachmentStoreMigrator) needsUpload(att ports.Attachment) bool {
-	if strings.TrimSpace(att.Data) != "" {
+	if utils.HasContent(att.Data) {
 		return true
 	}
-	uri := strings.ToLower(strings.TrimSpace(att.URI))
+	uri := utils.TrimLower(att.URI)
 	if uri == "" {
 		return false
 	}
@@ -123,7 +124,7 @@ func (m *AttachmentStoreMigrator) needsUpload(att ports.Attachment) bool {
 }
 
 func (m *AttachmentStoreMigrator) capturePayload(ctx context.Context, att ports.Attachment) ([]byte, string, error) {
-	if strings.TrimSpace(att.Data) != "" {
+	if utils.HasContent(att.Data) {
 		decoded, err := decodeBase64Payload(att.Data)
 		if err != nil {
 			return nil, "", fmt.Errorf("decode base64 payload: %w", err)
@@ -269,11 +270,11 @@ func validateOutboundURL(raw string, opts urlValidationOptions) (*neturl.URL, er
 	if err != nil {
 		return nil, fmt.Errorf("invalid url: %w", err)
 	}
-	scheme := strings.ToLower(strings.TrimSpace(parsed.Scheme))
+	scheme := utils.TrimLower(parsed.Scheme)
 	if scheme != "http" && scheme != "https" {
 		return nil, fmt.Errorf("unsupported url scheme: %s", scheme)
 	}
-	host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+	host := utils.TrimLower(parsed.Hostname())
 	if host == "" {
 		return nil, fmt.Errorf("url host is required")
 	}

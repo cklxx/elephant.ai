@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Check, X, ChevronDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 
 interface CompactToolCallProps {
   toolName: string;
@@ -50,7 +50,7 @@ export function CompactToolCall({
             </span>
             {duration !== undefined && (
               <span className="text-[10px] text-muted-foreground">
-                {formatDuration(duration)}
+                {formatToolDuration(duration)}
               </span>
             )}
           </div>
@@ -87,9 +87,9 @@ export function CompactToolCall({
   );
 }
 
-function formatDuration(ms: number): string {
+function formatToolDuration(ms: number): string {
   if (ms < 1000) {
-    return `${ms}ms`;
+    return formatDuration(ms);
   }
   return `${(ms / 1000).toFixed(1)}s`;
 }
