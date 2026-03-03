@@ -68,9 +68,9 @@ type AgentCoordinator struct {
 	schedulerService      any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
 	toolSLACollector      *toolspolicy.SLACollector
 
-	sessionSaveMu      sync.Mutex     // Protects concurrent session saves
-	pendingSessionSave atomic.Value   // *storage.Session — latest snapshot awaiting save
-	sessionSaveOnce    sync.Once      // Ensures single save loop goroutine
+	sessionSaveMu      sync.Mutex                    // Protects concurrent session saves
+	pendingSessionSave atomic.Pointer[storage.Session] // latest snapshot awaiting save
+	sessionSaveOnce    sync.Once                    // Ensures single save loop goroutine
 }
 
 type preparationService interface {
