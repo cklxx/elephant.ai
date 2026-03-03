@@ -87,7 +87,7 @@ func (e *ReactEngine) appendGoalPlanReminder(state *TaskState, messages []Messag
 	if goal == "" || plan == "" {
 		return messages
 	}
-	if promptDistance(goal, plan) <= goalPlanPromptDistanceThreshold {
+	if lengthDivergence(goal, plan) <= goalPlanLengthDivergenceThreshold {
 		return messages
 	}
 	reminder := buildGoalPlanReminder(goal, plan)
@@ -105,7 +105,10 @@ func buildGoalPlanReminder(goal, plan string) string {
 	return fmt.Sprintf("<system-reminder>Goal: %s\nPlan: %s</system-reminder>", goal, plan)
 }
 
-func promptDistance(goal, plan string) int {
+// lengthDivergence returns the absolute rune-count difference between goal and
+// plan. When the plan elaborates far beyond the original goal the reminder is
+// injected; when they are similarly sized it is suppressed.
+func lengthDivergence(goal, plan string) int {
 	goalLen := len([]rune(goal))
 	planLen := len([]rune(plan))
 	diff := goalLen - planLen

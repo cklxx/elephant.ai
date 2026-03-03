@@ -23,7 +23,7 @@ const (
 	toolArgPreviewLength            = 64
 	toolArgHistoryInlineLimit       = 256
 	maxFeedbackSignals              = 20
-	goalPlanPromptDistanceThreshold = 800
+	goalPlanLengthDivergenceThreshold = 800
 
 	attachmentCatalogMetadataKey = "attachment_catalog"
 

@@ -12,7 +12,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/domain/agent/presets"
-	react "alex/internal/domain/agent/react"
+	checkpointinfra "alex/internal/infra/checkpoint"
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
 	"alex/internal/infra/external/teamrun"
@@ -113,7 +113,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	hookRegistry := b.buildHookRegistry(memoryEngine, llmFactory)
 	okrContextProvider := b.buildOKRContextProvider()
 	kernelContextProvider := b.buildKernelAlignmentContextProvider()
-	checkpointStore := react.NewFileCheckpointStore(filepath.Join(b.sessionDir, "checkpoints"))
+	checkpointStore := checkpointinfra.NewFileCheckpointStore(filepath.Join(b.sessionDir, "checkpoints"))
 	teamRunRecorder, err := teamrun.NewFileRecorder(filepath.Join(b.sessionDir, "_team_runs"), b.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize team run recorder: %w", err)

@@ -112,7 +112,7 @@ func TestCheckpointWriteAfterObserve(t *testing.T) {
 
 func TestResumeFromCheckpoint(t *testing.T) {
 	dir := t.TempDir()
-	store := NewFileCheckpointStore(dir)
+	store := newTestFileCheckpointStore(dir)
 
 	cp := &Checkpoint{
 		ID:            "cp-1",
@@ -163,7 +163,7 @@ func TestResumeFromCheckpoint(t *testing.T) {
 
 func TestToolInFlightRecovery_Completed(t *testing.T) {
 	dir := t.TempDir()
-	store := NewFileCheckpointStore(dir)
+	store := newTestFileCheckpointStore(dir)
 
 	result := "cached"
 	cp := &Checkpoint{
@@ -235,7 +235,7 @@ func TestToolInFlightRecovery_Completed(t *testing.T) {
 
 func TestToolInFlightRecovery_Pending(t *testing.T) {
 	dir := t.TempDir()
-	store := NewFileCheckpointStore(dir)
+	store := newTestFileCheckpointStore(dir)
 
 	cp := &Checkpoint{
 		ID:        "cp-pending",
@@ -310,7 +310,7 @@ func TestToolInFlightRecovery_Pending(t *testing.T) {
 
 func TestCheckpointDeleteAfterResume(t *testing.T) {
 	dir := t.TempDir()
-	store := NewFileCheckpointStore(dir)
+	store := newTestFileCheckpointStore(dir)
 
 	cp := &Checkpoint{
 		ID:        "cp-delete",
@@ -370,7 +370,7 @@ func TestNoCheckpointStore(t *testing.T) {
 
 func TestCheckpointSaveIncludesPendingTools(t *testing.T) {
 	dir := t.TempDir()
-	store := NewFileCheckpointStore(dir)
+	store := newTestFileCheckpointStore(dir)
 
 	engine := NewReactEngine(ReactEngineConfig{
 		Logger:          agent.NoopLogger{},

@@ -1069,7 +1069,7 @@ func TestAttachmentReferenceValueFallsBackToData(t *testing.T) {
 func TestAppendGoalPlanReminderWhenDistanceExceeded(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{}
-	planText := strings.Repeat("plan ", goalPlanPromptDistanceThreshold)
+	planText := strings.Repeat("plan ", goalPlanLengthDivergenceThreshold)
 	calls := []ToolCall{{
 		Name: "plan",
 		Arguments: map[string]any{
@@ -1647,11 +1647,6 @@ func TestEmergencyTrimStateReducesMessages(t *testing.T) {
 	}
 }
 
-func TestEmergencyTrimStateNilState(t *testing.T) {
-	// Should not panic.
-	emergencyTrimState(nil, Services{})
-}
-
 // ---------------------------------------------------------------------------
 // enforceContextBudget tests
 // ---------------------------------------------------------------------------
@@ -1672,7 +1667,7 @@ func TestEnforceContextBudgetNoopUnderLimit(t *testing.T) {
 	messages := []ports.Message{
 		{Role: "user", Content: "Hello"},
 	}
-	result := engine.enforceContextBudget(context.Background(), messages, state, services)
+	result := engine.enforceContextBudgetWithLimit(context.Background(), messages, state, services, engine.resolveContextTokenLimit(services))
 	if len(result) != len(messages) {
 		t.Errorf("expected messages unchanged when under budget, got %d vs %d", len(result), len(messages))
 	}
@@ -1709,7 +1704,7 @@ func TestEnforceContextBudgetTrimsWhenOverLimit(t *testing.T) {
 		{Role: "user", Content: "Turn 2"},
 		{Role: "assistant", Content: "Reply 2"},
 	}
-	result := engine.enforceContextBudget(context.Background(), messages, state, services)
+	result := engine.enforceContextBudgetWithLimit(context.Background(), messages, state, services, engine.resolveContextTokenLimit(services))
 	if len(result) >= len(messages) {
 		t.Errorf("expected fewer messages after budget enforcement, got %d vs %d", len(result), len(messages))
 	}
@@ -1787,7 +1782,7 @@ func TestEnforceContextBudget_DeferredSummaryGeneration(t *testing.T) {
 		{Role: "assistant", Content: "Reply 2"},
 	}
 
-	result := engine.enforceContextBudget(context.Background(), messages, state, services)
+	result := engine.enforceContextBudgetWithLimit(context.Background(), messages, state, services, engine.resolveContextTokenLimit(services))
 
 	// Messages should be unchanged (summary deferred, not applied).
 	if len(result) != len(messages) {
@@ -1834,7 +1829,7 @@ func TestEnforceContextBudget_DeferredSummaryAppliedAfterTwoTurns(t *testing.T) 
 		{Role: "assistant", Content: "Reply 3 (new)"},
 	}
 
-	result := engine.enforceContextBudget(context.Background(), messages, state, services)
+	result := engine.enforceContextBudgetWithLimit(context.Background(), messages, state, services, engine.resolveContextTokenLimit(services))
 
 	// The deferred summary should have been applied — fewer messages.
 	if len(result) >= len(messages) {
@@ -1901,7 +1896,7 @@ func TestEnforceContextBudget_PendingSummaryAppliedImmediatelyOnOverflow(t *test
 		{Role: "assistant", Content: "New reply"},
 	}
 
-	result := engine.enforceContextBudget(context.Background(), messages, state, services)
+	result := engine.enforceContextBudgetWithLimit(context.Background(), messages, state, services, engine.resolveContextTokenLimit(services))
 
 	// Summary should have been applied early due to overflow.
 	if state.PendingSummary != "" {

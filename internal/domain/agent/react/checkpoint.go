@@ -2,12 +2,7 @@ package react
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
 	"time"
-
 )
 
 // CheckpointVersion is the current schema version. Bump this when the
@@ -72,8 +67,7 @@ type ToolCallState struct {
 
 // ---------------------------------------------------------------------------
 // CheckpointStore defines the persistence contract for engine checkpoints.
-// Implementations range from a simple filesystem store (below) to database or
-// object-storage backends.
+// Implementations live in infrastructure packages (e.g. infra/checkpoint).
 // ---------------------------------------------------------------------------
 
 // CheckpointStore is the port through which the ReAct engine persists and
@@ -104,120 +98,10 @@ type CheckpointArchive struct {
 	CreatedAt  time.Time      `json:"created_at"`
 }
 
-// ---------------------------------------------------------------------------
-// FileCheckpointStore — a minimal, filesystem-backed implementation suitable
-// for local development and single-node deployments.
-// ---------------------------------------------------------------------------
-
-// FileCheckpointStore persists checkpoints as individual JSON files inside a
-// directory. Each session maps to {Dir}/{sessionID}.json.
-type FileCheckpointStore struct {
-	// Dir is the directory where checkpoint files are stored. It must exist
-	// before Save is called.
-	Dir string
-}
-
-// NewFileCheckpointStore returns a store that writes checkpoints under dir.
-func NewFileCheckpointStore(dir string) *FileCheckpointStore {
-	return &FileCheckpointStore{Dir: dir}
-}
-
-// Save marshals cp to JSON and writes it to {Dir}/{cp.SessionID}.json.
-func (s *FileCheckpointStore) Save(_ context.Context, cp *Checkpoint) error {
-	if cp == nil {
-		return fmt.Errorf("checkpoint: cannot save nil checkpoint")
-	}
-	if cp.SessionID == "" {
-		return fmt.Errorf("checkpoint: session_id is required")
-	}
-
-	data, err := json.MarshalIndent(cp, "", "  ")
-	if err != nil {
-		return fmt.Errorf("checkpoint: marshal failed: %w", err)
-	}
-
-	path := s.path(cp.SessionID)
-	if err := atomicWrite(path, data, 0o644); err != nil {
-		return fmt.Errorf("checkpoint: write failed: %w", err)
-	}
-	return nil
-}
-
-// Load reads the checkpoint file for sessionID and unmarshals it. If the file
-// does not exist, it returns (nil, nil).
-func (s *FileCheckpointStore) Load(_ context.Context, sessionID string) (*Checkpoint, error) {
-	if sessionID == "" {
-		return nil, fmt.Errorf("checkpoint: session_id is required")
-	}
-
-	data, err := os.ReadFile(s.path(sessionID))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("checkpoint: read failed: %w", err)
-	}
-
-	var cp Checkpoint
-	if err := json.Unmarshal(data, &cp); err != nil {
-		return nil, fmt.Errorf("checkpoint: unmarshal failed: %w", err)
-	}
-	return &cp, nil
-}
-
-// Delete removes the checkpoint file for sessionID. If the file does not
-// exist, Delete is a silent no-op.
-func (s *FileCheckpointStore) Delete(_ context.Context, sessionID string) error {
-	if sessionID == "" {
-		return fmt.Errorf("checkpoint: session_id is required")
-	}
-
-	err := os.Remove(s.path(sessionID))
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("checkpoint: delete failed: %w", err)
-	}
-	return nil
-}
-
-// SaveArchive writes pruned messages to {Dir}/{sessionID}/archive/{seq}.json.
-func (s *FileCheckpointStore) SaveArchive(_ context.Context, archive *CheckpointArchive) error {
-	if archive == nil {
-		return fmt.Errorf("checkpoint: cannot save nil archive")
-	}
-	if archive.SessionID == "" {
-		return fmt.Errorf("checkpoint: archive session_id is required")
-	}
-
-	data, err := json.MarshalIndent(archive, "", "  ")
-	if err != nil {
-		return fmt.Errorf("checkpoint: archive marshal failed: %w", err)
-	}
-
-	path := filepath.Join(s.Dir, archive.SessionID, "archive", fmt.Sprintf("%d.json", archive.Seq))
-	if err := atomicWrite(path, data, 0o644); err != nil {
-		return fmt.Errorf("checkpoint: archive write failed: %w", err)
-	}
-	return nil
-}
-
-// path returns the filesystem path for the given session's checkpoint.
-func (s *FileCheckpointStore) path(sessionID string) string {
-	return filepath.Join(s.Dir, sessionID+".json")
-}
-
-// atomicWrite writes data via a temporary file + rename to prevent partial writes.
-// This is a domain-local copy to avoid importing infra/filestore.
-func atomicWrite(filePath string, data []byte, perm os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
-		return err
-	}
-	tmp := filePath + ".tmp"
-	if err := os.WriteFile(tmp, data, perm); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, filePath); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+// CheckpointDirProvider is an optional interface that CheckpointStore
+// implementations may satisfy to expose their base storage directory.
+// Domain code uses this to co-locate artifacts (e.g. compaction files)
+// alongside checkpoints without importing infra packages.
+type CheckpointDirProvider interface {
+	BaseDir() string
 }

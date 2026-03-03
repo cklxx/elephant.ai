@@ -13,7 +13,7 @@ import (
 func TestTryArtifactCompactionWritesFileAndPlaceholder(t *testing.T) {
 	root := t.TempDir()
 	engine := NewReactEngine(ReactEngineConfig{
-		CheckpointStore: NewFileCheckpointStore(filepath.Join(root, "checkpoints")),
+		CheckpointStore: newTestFileCheckpointStore(filepath.Join(root, "checkpoints")),
 	})
 	state := &TaskState{
 		SessionID:  "sess-artifact",
@@ -80,7 +80,7 @@ func TestTryArtifactCompactionWritesFileAndPlaceholder(t *testing.T) {
 func TestTryArtifactCompactionRespectsCooldownUnlessForced(t *testing.T) {
 	root := t.TempDir()
 	engine := NewReactEngine(ReactEngineConfig{
-		CheckpointStore: NewFileCheckpointStore(filepath.Join(root, "checkpoints")),
+		CheckpointStore: newTestFileCheckpointStore(filepath.Join(root, "checkpoints")),
 	})
 	state := &TaskState{
 		SessionID:             "sess-cooldown",

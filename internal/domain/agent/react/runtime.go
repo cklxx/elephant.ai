@@ -26,8 +26,8 @@ type reactRuntime struct {
 	services  Services
 	tracker   *reactWorkflow
 	startTime time.Time
-	finalizer sync.Once
-	finalize  sync.Once
+	resultOnce   sync.Once
+	workflowOnce sync.Once
 	prepare   func()
 
 	// UI orchestration state (Plan → Clarify → ReAct → Finalize).
@@ -532,10 +532,6 @@ func (r *reactRuntime) maybeTriggerPlanReview(call ToolCall, result ToolResult) 
 }
 
 func (r *reactRuntime) injectPlanReviewMarker(goal string, internalPlan any, runID string) {
-	goal = strings.TrimSpace(goal)
-	if goal == "" {
-		return
-	}
 	if runID == "" {
 		runID = "<run_id>"
 	}
@@ -583,7 +579,7 @@ func (r *reactRuntime) filterValidToolCalls(toolCalls []ToolCall) []ToolCall {
 }
 
 func (r *reactRuntime) finishWorkflow(stopReason string, result *TaskResult, err error) {
-	r.finalize.Do(func() {
+	r.workflowOnce.Do(func() {
 		if r.tracker != nil {
 			r.tracker.finalize(stopReason, result, err)
 		}
@@ -915,7 +911,7 @@ func (it *reactIteration) recordThought(thought *Message) {
 }
 
 func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emitCompletionEvent bool, workflowErr error) *TaskResult {
-	r.finalizer.Do(func() {
+	r.resultOnce.Do(func() {
 		if result == nil {
 			result = r.engine.finalize(r.state, stopReason, r.engine.clock.Now().Sub(r.startTime))
 		} else {
@@ -1018,9 +1014,6 @@ func isContextLengthExceeded(err error) bool {
 // LLM rejects the request due to context length. This is the last-resort
 // safety net after pre-flight enforcement has already been attempted.
 func emergencyTrimState(state *TaskState, services Services) {
-	if state == nil {
-		return
-	}
 	trimmed := aggressiveTrimMessages(state.Messages, 2)
 	state.Messages = trimmed
 }

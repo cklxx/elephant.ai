@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/filestore"
 )
 
 const (
@@ -266,7 +267,7 @@ func (e *ReactEngine) writeContextCompactionArtifact(
 	doc.Write(payload)
 	doc.WriteString("\n```\n")
 
-	if err := atomicWrite(path, []byte(doc.String()), 0o644); err != nil {
+	if err := filestore.AtomicWrite(path, []byte(doc.String()), 0o644); err != nil {
 		return "", "", 0, fmt.Errorf("write compaction artifact: %w", err)
 	}
 	return path, hash, tokensRemoved, nil
@@ -274,8 +275,8 @@ func (e *ReactEngine) writeContextCompactionArtifact(
 
 func resolveContextCompactionRoot(engine *ReactEngine) string {
 	if engine != nil {
-		if fs, ok := engine.checkpointStore.(*FileCheckpointStore); ok && fs != nil {
-			dir := strings.TrimSpace(fs.Dir)
+		if dp, ok := engine.checkpointStore.(CheckpointDirProvider); ok {
+			dir := strings.TrimSpace(dp.BaseDir())
 			if dir != "" {
 				return filepath.Dir(dir)
 			}

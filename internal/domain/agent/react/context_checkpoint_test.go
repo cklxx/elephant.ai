@@ -326,7 +326,7 @@ func TestApplyContextCheckpoint_TokenRecalculation(t *testing.T) {
 
 func TestApplyContextCheckpoint_ArchivePersistence(t *testing.T) {
 	dir := t.TempDir()
-	store := NewFileCheckpointStore(dir)
+	store := newTestFileCheckpointStore(dir)
 	engine := makeCheckpointEngine(store)
 	services := makeCheckpointServices()
 	checkpointCallID := "call-cp"
@@ -405,7 +405,7 @@ func TestApplyContextCheckpoint_ErrorResult(t *testing.T) {
 
 func TestFileCheckpointStore_SaveArchive(t *testing.T) {
 	dir := t.TempDir()
-	store := NewFileCheckpointStore(dir)
+	store := newTestFileCheckpointStore(dir)
 
 	archive := &CheckpointArchive{
 		SessionID:  "session-1",
@@ -447,7 +447,7 @@ func TestFileCheckpointStore_SaveArchive(t *testing.T) {
 
 func TestFileCheckpointStore_SaveArchiveValidation(t *testing.T) {
 	dir := t.TempDir()
-	store := NewFileCheckpointStore(dir)
+	store := newTestFileCheckpointStore(dir)
 
 	if err := store.SaveArchive(context.Background(), nil); err == nil {
 		t.Fatal("expected error for nil archive")

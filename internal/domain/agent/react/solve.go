@@ -154,33 +154,30 @@ func (e *ReactEngine) think(
 	var streamBuffer strings.Builder
 	streamedContent := false
 
+	flushStreamBuffer := func() {
+		if streamBuffer.Len() == 0 {
+			return
+		}
+		chunk := streamBuffer.String()
+		streamBuffer.Reset()
+		streamedContent = true
+		e.emitEvent(domain.NewNodeOutputDeltaEvent(
+			e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
+			state.Iterations, 0, chunk, false, e.clock.Now(), modelName,
+		))
+	}
+
 	callbacks := ports.CompletionStreamCallbacks{
 		OnContentDelta: func(delta ports.ContentDelta) {
 			if delta.Delta != "" {
 				streamedContent = true
 				streamBuffer.WriteString(delta.Delta)
 				if streamBuffer.Len() >= streamChunkMinChars {
-					chunk := streamBuffer.String()
-					streamBuffer.Reset()
-					if chunk != "" {
-						e.emitEvent(domain.NewNodeOutputDeltaEvent(
-							e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
-							state.Iterations, 0, chunk, false, e.clock.Now(), modelName,
-						))
-					}
+					flushStreamBuffer()
 				}
 			}
 			if delta.Final {
-				if streamBuffer.Len() > 0 {
-					chunk := streamBuffer.String()
-					streamBuffer.Reset()
-					if chunk != "" {
-						e.emitEvent(domain.NewNodeOutputDeltaEvent(
-							e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
-							state.Iterations, 0, chunk, false, e.clock.Now(), modelName,
-						))
-					}
-				}
+				flushStreamBuffer()
 			}
 		},
 	}
@@ -221,17 +218,7 @@ func (e *ReactEngine) think(
 		attribute.String("alex.llm.stop_reason", strings.TrimSpace(resp.StopReason)),
 	)
 
-	if streamBuffer.Len() > 0 {
-		chunk := streamBuffer.String()
-		streamBuffer.Reset()
-		if chunk != "" {
-			streamedContent = true
-			e.emitEvent(domain.NewNodeOutputDeltaEvent(
-				e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
-				state.Iterations, 0, chunk, false, e.clock.Now(), modelName,
-			))
-		}
-	}
+	flushStreamBuffer()
 
 	finalDelta := ""
 	if !streamedContent {
@@ -273,7 +260,7 @@ func (e *ReactEngine) think(
 // applying a pending compression summary.
 const delayedSummaryTurns = 2
 
-// enforceContextBudget implements a two-phase compression strategy:
+// enforceContextBudgetWithLimit implements a two-phase compression strategy:
 //
 // Phase A (proactive): when token usage reaches the compression threshold (~70%)
 // but is still under the hard limit, generate a summary but do NOT replace yet.
@@ -284,21 +271,6 @@ const delayedSummaryTurns = 2
 //
 // Phase C (safety net): if tokens actually exceed the hard limit, fall through
 // to artifact compaction, immediate AutoCompact, aggressive trim, and force-fit.
-func (e *ReactEngine) enforceContextBudget(
-	ctx context.Context,
-	messages []ports.Message,
-	state *TaskState,
-	services Services,
-) []ports.Message {
-	return e.enforceContextBudgetWithLimit(
-		ctx,
-		messages,
-		state,
-		services,
-		e.resolveContextTokenLimit(services),
-	)
-}
-
 func (e *ReactEngine) enforceContextBudgetWithLimit(
 	ctx context.Context,
 	messages []ports.Message,
@@ -372,13 +344,11 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 	// Layer 1a: Try artifact compaction (Manus-style placeholder + file).
 	inCooldown := isCompactionInCooldown(state)
 	if inCooldown {
-		if state != nil {
-			e.logger.Debug(
-				"Context artifact compaction cooling down: iteration=%d next_allowed=%d",
-				state.Iterations,
-				state.NextCompactionAllowed,
-			)
-		}
+		e.logger.Debug(
+			"Context artifact compaction cooling down: iteration=%d next_allowed=%d",
+			state.Iterations,
+			state.NextCompactionAllowed,
+		)
 	} else {
 		compacted, ok := e.tryArtifactCompaction(ctx, state, services, messages, compactionReasonThreshold, false)
 		if ok {
