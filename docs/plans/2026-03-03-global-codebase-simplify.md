@@ -477,6 +477,7 @@ Execution (2026-03-03, rescan wave E/F — all-in):
 
 Execution (2026-03-03, rescan wave G — non-web):
 - [~] CX-01 continuation: migrated additional non-web `TrimLower` batches in `cmd/alex`, selected `internal/` hot paths (`react` + `attachments`), and `evaluation/agent_eval` + `ports/mocks` from `strings.ToLower(strings.TrimSpace(...))` to `utils.TrimLower(...)`.
+- [~] CX-02/CX-03 continuation (evaluation scope): migrated `strings.TrimSpace(...) ==/!= ""` checks in `evaluation/agent_eval` to `utils.IsBlank/HasContent`.
 - [x] Validation for this batch passed (`go test` + targeted golangci-lint on touched packages).
 
 ### Wave 3: Efficiency Improvements (requires careful design — plan first)

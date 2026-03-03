@@ -270,7 +270,7 @@ func (em *EvaluationManager) loadDataset(ctx context.Context, config *Evaluation
 		}
 
 		var rubric *JudgeRubric
-		if strings.TrimSpace(def.RubricPath) != "" {
+		if utils.HasContent(def.RubricPath) {
 			loaded, err := LoadJudgeRubric(def.RubricPath)
 			if err != nil {
 				return nil, err

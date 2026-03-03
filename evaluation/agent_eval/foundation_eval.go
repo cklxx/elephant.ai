@@ -203,25 +203,25 @@ func RunFoundationEvaluation(ctx context.Context, options *FoundationEvaluationO
 		options = DefaultFoundationEvaluationOptions()
 	}
 	opts := *options
-	if strings.TrimSpace(opts.OutputDir) == "" {
+	if utils.IsBlank(opts.OutputDir) {
 		opts.OutputDir = DefaultFoundationEvaluationOptions().OutputDir
 	}
-	if strings.TrimSpace(opts.Mode) == "" {
+	if utils.IsBlank(opts.Mode) {
 		opts.Mode = DefaultFoundationEvaluationOptions().Mode
 	}
-	if strings.TrimSpace(opts.Preset) == "" {
+	if utils.IsBlank(opts.Preset) {
 		opts.Preset = DefaultFoundationEvaluationOptions().Preset
 	}
-	if strings.TrimSpace(opts.Toolset) == "" {
+	if utils.IsBlank(opts.Toolset) {
 		opts.Toolset = DefaultFoundationEvaluationOptions().Toolset
 	}
-	if strings.TrimSpace(opts.CasesPath) == "" {
+	if utils.IsBlank(opts.CasesPath) {
 		opts.CasesPath = defaultFoundationCasesPath
 	}
 	if opts.TopK <= 0 {
 		opts.TopK = DefaultFoundationEvaluationOptions().TopK
 	}
-	if strings.TrimSpace(opts.ReportFormat) == "" {
+	if utils.IsBlank(opts.ReportFormat) {
 		opts.ReportFormat = DefaultFoundationEvaluationOptions().ReportFormat
 	}
 
@@ -278,7 +278,7 @@ func RunFoundationEvaluation(ctx context.Context, options *FoundationEvaluationO
 
 // LoadFoundationCaseSet loads and validates the scenario YAML.
 func LoadFoundationCaseSet(path string) (*FoundationCaseSet, error) {
-	if strings.TrimSpace(path) == "" {
+	if utils.IsBlank(path) {
 		return nil, fmt.Errorf("foundation case set path is required")
 	}
 	data, err := os.ReadFile(path)
@@ -289,10 +289,10 @@ func LoadFoundationCaseSet(path string) (*FoundationCaseSet, error) {
 	if err := yaml.Unmarshal(data, &set); err != nil {
 		return nil, fmt.Errorf("decode foundation case set: %w", err)
 	}
-	if strings.TrimSpace(set.Name) == "" {
+	if utils.IsBlank(set.Name) {
 		return nil, fmt.Errorf("foundation case set name is required")
 	}
-	if strings.TrimSpace(set.Version) == "" {
+	if utils.IsBlank(set.Version) {
 		return nil, fmt.Errorf("foundation case set version is required")
 	}
 	if len(set.Scenarios) == 0 {
@@ -308,7 +308,7 @@ func LoadFoundationCaseSet(path string) (*FoundationCaseSet, error) {
 			return nil, fmt.Errorf("duplicate scenario id: %s", id)
 		}
 		seen[id] = struct{}{}
-		if strings.TrimSpace(scenario.Intent) == "" {
+		if utils.IsBlank(scenario.Intent) {
 			return nil, fmt.Errorf("scenario %s intent is required", id)
 		}
 		if len(scenario.ExpectedTools) == 0 {
@@ -635,7 +635,7 @@ func scoreToolProfile(profile foundationToolProfile) FoundationToolScore {
 		arrays := 0
 		arraysWithItems := 0
 		for _, prop := range def.Parameters.Properties {
-			if strings.TrimSpace(prop.Type) != "" {
+			if utils.HasContent(prop.Type) {
 				typed++
 			}
 			if len(strings.Fields(strings.TrimSpace(prop.Description))) >= 3 {
@@ -673,7 +673,7 @@ func scoreToolProfile(profile foundationToolProfile) FoundationToolScore {
 		issues = append(issues, "tool_description_thin")
 	}
 
-	if strings.TrimSpace(meta.Category) != "" {
+	if utils.HasContent(meta.Category) {
 		usability += 3
 	} else {
 		issues = append(issues, "metadata_category_missing")
@@ -705,7 +705,7 @@ func scoreToolProfile(profile foundationToolProfile) FoundationToolScore {
 	} else {
 		issues = append(issues, "description_not_informative")
 	}
-	if strings.TrimSpace(meta.Category) != "" {
+	if utils.HasContent(meta.Category) {
 		discoverability += 7
 	}
 	if len(meta.Tags) >= 2 {
@@ -936,7 +936,7 @@ func evaluateDeliverableContract(contract *FoundationDeliverableContract, topMat
 	}
 	candidateTools := make(map[string]struct{}, len(selected))
 	for _, match := range selected {
-		if strings.TrimSpace(match.Name) == "" {
+		if utils.IsBlank(match.Name) {
 			continue
 		}
 		candidateTools[match.Name] = struct{}{}
@@ -2533,7 +2533,7 @@ func tokenize(value string) []string {
 		if strings.Contains(token, "_") {
 			parts := strings.Split(token, "_")
 			for _, part := range parts {
-				if strings.TrimSpace(part) != "" {
+				if utils.HasContent(part) {
 					result = append(result, part)
 				}
 			}

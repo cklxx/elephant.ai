@@ -107,7 +107,7 @@ func (NoopAgentJudge) Judge(_ context.Context, _ EvalTask, _ swe_bench.WorkerRes
 
 // LoadJudgeRubric loads a rubric from a YAML file.
 func LoadJudgeRubric(path string) (*JudgeRubric, error) {
-	if strings.TrimSpace(path) == "" {
+	if utils.IsBlank(path) {
 		return nil, fmt.Errorf("rubric path is required")
 	}
 	data, err := os.ReadFile(path)
@@ -126,7 +126,7 @@ func LoadJudgeRubric(path string) (*JudgeRubric, error) {
 
 // Validate ensures the rubric is well-formed.
 func (r JudgeRubric) Validate() error {
-	if strings.TrimSpace(r.Name) == "" {
+	if utils.IsBlank(r.Name) {
 		return fmt.Errorf("rubric name is required")
 	}
 	if len(r.Dimensions) == 0 {
@@ -135,7 +135,7 @@ func (r JudgeRubric) Validate() error {
 
 	var totalWeight float64
 	for _, d := range r.Dimensions {
-		if strings.TrimSpace(d.ID) == "" {
+		if utils.IsBlank(d.ID) {
 			return fmt.Errorf("rubric dimension id is required")
 		}
 		if d.Weight <= 0 {
@@ -364,7 +364,7 @@ func constraintScore(task EvalTask, result swe_bench.WorkerResult) int {
 }
 
 func pickResultText(result swe_bench.WorkerResult) string {
-	if strings.TrimSpace(result.Solution) != "" {
+	if utils.HasContent(result.Solution) {
 		return strings.ToLower(result.Solution)
 	}
 	return strings.ToLower(result.Explanation)
@@ -468,7 +468,7 @@ func (t EvalTask) ConstraintCriteria() []string {
 		if strings.HasPrefix(c, "expected_output:") {
 			continue
 		}
-		if strings.TrimSpace(c) != "" {
+		if utils.HasContent(c) {
 			constraints = append(constraints, c)
 		}
 	}

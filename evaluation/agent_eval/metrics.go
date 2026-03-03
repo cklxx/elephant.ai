@@ -293,7 +293,7 @@ func (qc *QualityCollector) assessSolutionQuality(result swe_bench.WorkerResult)
 	}
 
 	// Completed-with-error should not appear high quality.
-	if strings.TrimSpace(result.Error) != "" {
+	if utils.HasContent(result.Error) {
 		score = math.Min(score, 0.35)
 	}
 
@@ -534,7 +534,7 @@ func estimateVerificationMinutes(result swe_bench.WorkerResult) float64 {
 	if len(result.FilesChanged) > 0 {
 		base += math.Min(float64(len(result.FilesChanged))*0.12, 1.2)
 	}
-	if strings.TrimSpace(result.Error) != "" {
+	if utils.HasContent(result.Error) {
 		base += 0.5
 	}
 	return round3(base)
@@ -578,7 +578,7 @@ func estimateRecoveryCostMinutes(result swe_bench.WorkerResult) float64 {
 	if workflowFailureSignal(result) {
 		recovery += 1.0
 	}
-	if strings.TrimSpace(result.Error) != "" {
+	if utils.HasContent(result.Error) {
 		recovery += 0.5
 	}
 	return round3(recovery)
@@ -587,7 +587,7 @@ func estimateRecoveryCostMinutes(result swe_bench.WorkerResult) float64 {
 func estimateTrustCalibrationError(result swe_bench.WorkerResult) float64 {
 	confidence := inferConfidenceScore(result)
 	actual := 0.0
-	if result.Status == swe_bench.StatusCompleted && !workflowFailureSignal(result) && strings.TrimSpace(result.Error) == "" {
+	if result.Status == swe_bench.StatusCompleted && !workflowFailureSignal(result) && utils.IsBlank(result.Error) {
 		actual = 1.0
 	}
 	return round3(math.Abs(confidence - actual))
@@ -610,7 +610,7 @@ func inferConfidenceScore(result swe_bench.WorkerResult) float64 {
 	if result.RetryCount > 0 {
 		score -= math.Min(float64(result.RetryCount)*0.08, 0.25)
 	}
-	if strings.TrimSpace(result.Error) != "" {
+	if utils.HasContent(result.Error) {
 		score -= 0.25
 	}
 	if workflowFailureSignal(result) {
@@ -631,7 +631,7 @@ func isDeliverableReady(result swe_bench.WorkerResult) bool {
 	if result.Status != swe_bench.StatusCompleted {
 		return false
 	}
-	if workflowFailureSignal(result) || strings.TrimSpace(result.Error) != "" {
+	if workflowFailureSignal(result) || utils.HasContent(result.Error) {
 		return false
 	}
 	if len(result.FilesChanged) > 0 {

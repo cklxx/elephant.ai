@@ -146,7 +146,7 @@ type FoundationSuiteCollectionResult struct {
 
 // LoadFoundationSuiteSet loads and validates a suite YAML.
 func LoadFoundationSuiteSet(path string) (*FoundationSuiteSet, error) {
-	if strings.TrimSpace(path) == "" {
+	if utils.IsBlank(path) {
 		return nil, fmt.Errorf("foundation suite path is required")
 	}
 	data, err := os.ReadFile(path)
@@ -158,10 +158,10 @@ func LoadFoundationSuiteSet(path string) (*FoundationSuiteSet, error) {
 	if err := yaml.Unmarshal(data, &set); err != nil {
 		return nil, fmt.Errorf("decode foundation suite: %w", err)
 	}
-	if strings.TrimSpace(set.Version) == "" {
+	if utils.IsBlank(set.Version) {
 		return nil, fmt.Errorf("foundation suite version is required")
 	}
-	if strings.TrimSpace(set.Name) == "" {
+	if utils.IsBlank(set.Name) {
 		return nil, fmt.Errorf("foundation suite name is required")
 	}
 	if len(set.Collections) == 0 {
@@ -223,13 +223,13 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 		options = DefaultFoundationSuiteOptions()
 	}
 	opts := *options
-	if strings.TrimSpace(opts.OutputDir) == "" {
+	if utils.IsBlank(opts.OutputDir) {
 		opts.OutputDir = DefaultFoundationSuiteOptions().OutputDir
 	}
-	if strings.TrimSpace(opts.SuitePath) == "" {
+	if utils.IsBlank(opts.SuitePath) {
 		opts.SuitePath = defaultFoundationSuitePath
 	}
-	if strings.TrimSpace(opts.ReportFormat) == "" {
+	if utils.IsBlank(opts.ReportFormat) {
 		opts.ReportFormat = DefaultFoundationSuiteOptions().ReportFormat
 	}
 
@@ -281,7 +281,7 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 		deliverableGoodCases := 0
 		deliverableBadCases := 0
 		for _, caseResult := range evalResult.Implicit.CaseResults {
-			if strings.TrimSpace(caseResult.FailureType) == "" {
+			if utils.IsBlank(caseResult.FailureType) {
 				if caseResult.DeliverableCheck != nil && caseResult.DeliverableCheck.Applicable {
 					deliverableCases++
 					if strings.EqualFold(caseResult.DeliverableCheck.Status, "good") {
@@ -521,7 +521,7 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 		b.WriteString("|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
 		for _, row := range rows {
 			dimension := row.Dimension
-			if strings.TrimSpace(dimension) == "" {
+			if utils.IsBlank(dimension) {
 				dimension = "-"
 			}
 			tagText := "-"
@@ -640,7 +640,7 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 					continue
 				}
 				failureType := caseResult.FailureType
-				if strings.TrimSpace(failureType) == "" {
+				if utils.IsBlank(failureType) {
 					failureType = "ranking"
 				}
 				b.WriteString(fmt.Sprintf(

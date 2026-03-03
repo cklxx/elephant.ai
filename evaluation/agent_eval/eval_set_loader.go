@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"alex/evaluation/swe_bench"
+	"alex/internal/shared/utils"
 
 	"gopkg.in/yaml.v3"
 )
@@ -39,7 +40,7 @@ type EvalSetFilters struct {
 
 // LoadEvalSetDefinition reads and validates an eval set definition from a YAML file.
 func LoadEvalSetDefinition(path string) (*EvalSetDefinition, error) {
-	if strings.TrimSpace(path) == "" {
+	if utils.IsBlank(path) {
 		return nil, fmt.Errorf("eval set path is required")
 	}
 	data, err := os.ReadFile(path)
@@ -52,10 +53,10 @@ func LoadEvalSetDefinition(path string) (*EvalSetDefinition, error) {
 		return nil, fmt.Errorf("decode eval set definition: %w", err)
 	}
 
-	if strings.TrimSpace(def.Name) == "" {
+	if utils.IsBlank(def.Name) {
 		return nil, fmt.Errorf("eval set name is required")
 	}
-	if strings.TrimSpace(def.Version) == "" {
+	if utils.IsBlank(def.Version) {
 		return nil, fmt.Errorf("eval set version is required")
 	}
 
@@ -158,13 +159,13 @@ func convertGeneralTasks(tasks []GeneralAgentTask) []EvalTask {
 func generalTaskToEvalTask(task GeneralAgentTask) EvalTask {
 	pass := make([]string, 0, len(task.Constraints)+1)
 	pass = append(pass, task.Constraints...)
-	if strings.TrimSpace(task.ExpectedOutput) != "" {
+	if utils.HasContent(task.ExpectedOutput) {
 		pass = append(pass, "expected_output: "+strings.TrimSpace(task.ExpectedOutput))
 	}
 
 	tags := make([]string, 0, len(task.Skills)+1)
 	tags = append(tags, task.Skills...)
-	if strings.TrimSpace(task.Surface) != "" {
+	if utils.HasContent(task.Surface) {
 		tags = append(tags, "surface:"+strings.TrimSpace(task.Surface))
 	}
 

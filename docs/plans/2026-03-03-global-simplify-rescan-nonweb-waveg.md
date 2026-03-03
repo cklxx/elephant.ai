@@ -6,7 +6,8 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 ## Scope (this wave)
 1. Re-scan non-`web/` code for remaining mechanical simplification opportunities.
 2. Prioritize `R-01` style normalization (`strings.ToLower(strings.TrimSpace(...))` → `utils.TrimLower(...)`) in runtime-critical CLI and core internal paths.
-3. Keep behavior unchanged; no architectural refactors in this wave.
+3. Continue `R-02` style normalization in evaluation flows (`strings.TrimSpace(...) ==/!= ""` → `utils.IsBlank/HasContent`).
+4. Keep behavior unchanged; no architectural refactors in this wave.
 
 ## Subagent scan summary
 - `R-08` (ad-hoc `http.Client`): no remaining high-confidence production bypasses needing immediate non-risky edits in this wave scope.
@@ -19,6 +20,7 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 - [x] Apply `TrimLower` normalization batch in selected `internal/domain/agent/react` files.
 - [x] Apply `TrimLower` normalization in `internal/infra/attachments/store.go`.
 - [x] Apply `TrimLower` normalization batch in `evaluation/agent_eval` + `internal/domain/agent/ports/mocks`.
+- [x] Apply `IsBlank/HasContent` normalization batch in `evaluation/agent_eval`.
 - [x] Run targeted tests.
 - [x] Run targeted lint.
 - [x] Run code review gate.

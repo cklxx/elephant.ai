@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 func buildFoundationMarkdownReport(result *FoundationEvaluationResult) string {
@@ -136,7 +138,7 @@ func buildFoundationMarkdownReport(result *FoundationEvaluationResult) string {
 		b.WriteString("|---|---|---|---|---|---|\n")
 		for _, c := range failedCases {
 			failureType := c.FailureType
-			if strings.TrimSpace(failureType) == "" {
+			if utils.IsBlank(failureType) {
 				failureType = "ranking"
 			}
 			b.WriteString(fmt.Sprintf("| `%s` | `%s` | `%s` | `%s` | %s | %s |\n",
