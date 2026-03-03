@@ -467,6 +467,14 @@ Execution (2026-03-03, rescan wave D — non-web):
 - [~] CX-11 partial: additional R-06 batch migrated (`session/skills`, `orchestration/reply_agent`, `larktools/{bitable_manage,calendar_create,calendar_update,channel,contact_manage,docx_manage,drive_manage,mail_manage,okr_manage,sheets_manage,vc_manage,wiki_manage}`); remaining concentrated in `task_manage` + `lark_oauth` + helper internals.
 - [~] CX-12 partial: additional R-08 batch migrated (`cmd/alex/{cli_model,cli_model_picker,lark_scenario_cmd}`, `evaluation/swe_bench/dataset`, `internal/devops/health/checker`); remaining non-test ad-hoc clients are `infra/acp/client` and `domain/materials/attachment_migrator`.
 
+Execution (2026-03-03, rescan wave E/F — all-in):
+- [x] CX-07 completed in previous wave D.
+- [x] CX-08 completed in previous waves.
+- [x] CX-09 completed in previous wave.
+- [x] CX-10 completed: introduced `BaseChannelConfig` and shared channel env-expansion helper in `file_loader`; kept YAML compatibility via inline embedding.
+- [x] CX-11 completed (scope-closed): migrated remaining practical call-sites (`web_search` fallback, `larktools/channel`, `larktools/task_manage`, `larktools/lark_oauth`, `session/skills` load-path). Residual manual constructors are intentional utility internals (`shared/helpers`) and one custom-content branch in `session/skills`.
+- [x] CX-12 completed: migrated remaining non-test ad-hoc clients (`infra/acp/client`, `domain/materials/attachment_migrator`) to `httpclient.New(...)`.
+
 ### Wave 3: Efficiency Improvements (requires careful design — plan first)
 
 | Task ID | Finding | Risk | Approach |
@@ -484,6 +492,10 @@ Execution (2026-03-03):
 - [ ] CX-16 deferred (high-risk, requires dedicated design pass).
 - [ ] CX-17 deferred (needs dependency analysis in preparation flow).
 
+Execution (2026-03-03, rescan wave E/F):
+- [x] CX-16 completed: added `SnapshotPayloadLister` fast-path and switched history replay loading to payload pages (eliminates List+Get N+1 pattern for supported stores); fixed file-store cursor pagination semantics and added payload pagination tests.
+- [x] CX-17 completed: preparation critical path now runs context-window build and LLM client initialization concurrently with cancellation-aware coordination; behavior parity kept for prompt/system-state assembly.
+
 ### Wave 3b: Low-risk efficiency continuation (2026-03-03, rescan)
 
 | Task ID | Finding | Result |
@@ -500,6 +512,14 @@ Execution (2026-03-03):
 - `./scripts/pre-push.sh` still flaky in this environment on two checks:
   - `go test -race` intermittent failure (passes on standalone rerun).
   - `golangci-lint` 3-minute timeout in script (passes with 10-minute timeout).
+
+Validation Snapshot (2026-03-03, wave E/F):
+
+- `go test ./...` passed.
+- `go test -race -count=1 ./...` passed.
+- `./scripts/run-golangci-lint.sh run --timeout=10m ./...` passed.
+- `npm --prefix web run lint` passed (after `npm --prefix web install` in local worktree where `eslint` was initially missing).
+- `npm --prefix web run build` passed.
 
 ### Wave 4: Architectural (requires design review — not Codex-ready)
 
