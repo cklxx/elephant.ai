@@ -1,12 +1,13 @@
 # Index: analysis
 
-Updated: 2026-02-26
+Updated: 2026-03-03
 
 ## Project snapshots
 
 - [project-evolution-report.md](project-evolution-report.md)
 - [evaluation_status_and_todo.md](evaluation_status_and_todo.md)
 - [evaluation_remaining_features.md](evaluation_remaining_features.md)
+- [2026-03-03-product-feature-map-user-journey.md](2026-03-03-product-feature-map-user-journey.md)
 
 ## Evaluation reports
 
