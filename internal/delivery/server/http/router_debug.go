@@ -2,10 +2,12 @@ package http
 
 import (
 	"net/http"
+	"net/http/pprof"
 
 	"alex/internal/delivery/server/app"
 	"alex/internal/infra/observability"
 	"alex/internal/shared/logging"
+	promclient "github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // DebugRouterDeps holds the minimal dependencies for the debug-only HTTP router.
@@ -74,6 +76,13 @@ func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 	mux.Handle("GET /api/dev/logs/structured", routeHandler("/api/dev/logs/structured", http.HandlerFunc(apiHandler.HandleDevLogStructured)))
 	mux.Handle("GET /api/dev/logs/index", routeHandler("/api/dev/logs/index", http.HandlerFunc(apiHandler.HandleDevLogIndex)))
 	mux.Handle("GET /api/dev/memory", routeHandler("/api/dev/memory", http.HandlerFunc(apiHandler.HandleGetMemorySnapshot)))
+	mux.Handle("/debug/pprof/", routeHandler("/debug/pprof", http.HandlerFunc(pprof.Index)))
+	mux.Handle("GET /debug/pprof/cmdline", routeHandler("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline)))
+	mux.Handle("GET /debug/pprof/profile", routeHandler("/debug/pprof/profile", http.HandlerFunc(pprof.Profile)))
+	mux.Handle("GET /debug/pprof/symbol", routeHandler("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol)))
+	mux.Handle("POST /debug/pprof/symbol", routeHandler("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol)))
+	mux.Handle("GET /debug/pprof/trace", routeHandler("/debug/pprof/trace", http.HandlerFunc(pprof.Trace)))
+	mux.Handle("GET /metrics", routeHandler("/metrics", promclient.Handler()))
 
 	contextConfigHandler := NewContextConfigHandler("")
 	if contextConfigHandler != nil {

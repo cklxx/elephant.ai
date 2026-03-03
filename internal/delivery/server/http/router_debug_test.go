@@ -31,6 +31,9 @@ func TestNewDebugRouter_RegistersDebugEndpoints(t *testing.T) {
 		{"GET", "/api/dev/logs/structured"},
 		{"GET", "/api/dev/logs/index"},
 		{"GET", "/api/dev/context-config"},
+		{"GET", "/debug/pprof/"},
+		{"GET", "/debug/pprof/heap"},
+		{"GET", "/metrics"},
 	}
 
 	for _, ep := range debugEndpoints {

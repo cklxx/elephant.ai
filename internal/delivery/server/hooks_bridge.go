@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -17,7 +18,12 @@ import (
 	"alex/internal/shared/uxphrases"
 )
 
-const defaultHooksAggregateWindow = 30 * time.Second
+const (
+	defaultHooksAggregateWindow = 30 * time.Second
+	defaultHooksDedupeWindow    = 2 * time.Second
+	maxRecentHookFingerprints   = 4096
+	maxFingerprintInputBytes    = 1024
+)
 
 // NoticeLoader loads the notice binding to determine which chat receives
 // hook notifications. It mirrors the read-only subset of noticeStateStore.
@@ -46,6 +52,10 @@ type HooksBridge struct {
 	flushTimer *time.Timer
 	aggWindow  time.Duration
 	now        func() time.Time // injectable clock for testing
+
+	dedupeMu           sync.Mutex
+	recentFingerprints map[uint64]time.Time
+	dedupeWindow       time.Duration
 }
 
 // NewHooksBridge constructs a hooks bridge.
@@ -69,6 +79,7 @@ func NewHooksBridge(gateway LarkNotifier, noticeLoader NoticeLoader, token, defa
 		noticeLoader:  noticeLoader,
 		aggWindow:     defaultHooksAggregateWindow,
 		now:           time.Now,
+		dedupeWindow:  defaultHooksDedupeWindow,
 	}
 }
 
@@ -267,6 +278,10 @@ func (h *HooksBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	chatID := h.resolveChatID(r)
 	if chatID == "" {
 		http.Error(w, "no target chat_id", http.StatusBadRequest)
+		return
+	}
+	if h.isDuplicateEvent(chatID, payload) {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
@@ -549,4 +564,77 @@ func extractPreToolThinkingLine(thinking string) string {
 		return ""
 	}
 	return truncateHookText(thinking, 240)
+}
+
+func (h *HooksBridge) isDuplicateEvent(chatID string, payload hookPayload) bool {
+	if h == nil || h.dedupeWindow <= 0 {
+		return false
+	}
+
+	now := h.now()
+	cutoff := now.Add(-h.dedupeWindow)
+	fingerprint := hookEventFingerprint(chatID, payload)
+
+	h.dedupeMu.Lock()
+	defer h.dedupeMu.Unlock()
+
+	if h.recentFingerprints == nil {
+		h.recentFingerprints = make(map[uint64]time.Time)
+	}
+
+	for key, ts := range h.recentFingerprints {
+		if ts.Before(cutoff) {
+			delete(h.recentFingerprints, key)
+		}
+	}
+
+	if ts, ok := h.recentFingerprints[fingerprint]; ok && now.Sub(ts) <= h.dedupeWindow {
+		return true
+	}
+	h.recentFingerprints[fingerprint] = now
+
+	if len(h.recentFingerprints) <= maxRecentHookFingerprints {
+		return false
+	}
+	oldestKey := uint64(0)
+	found := false
+	oldest := now
+	for key, ts := range h.recentFingerprints {
+		if !found || ts.Before(oldest) {
+			oldest = ts
+			oldestKey = key
+			found = true
+		}
+	}
+	if found {
+		delete(h.recentFingerprints, oldestKey)
+	}
+	return false
+}
+
+func hookEventFingerprint(chatID string, payload hookPayload) uint64 {
+	hasher := fnv.New64a()
+	write := func(s string) {
+		_, _ = hasher.Write([]byte(s))
+		_, _ = hasher.Write([]byte{0})
+	}
+
+	write(chatID)
+	write(payload.Event)
+	write(payload.SessionID)
+	write(payload.ToolName)
+	write(truncateHookText(payload.Output, 512))
+	write(truncateHookText(payload.Error, 512))
+	write(payload.StopReason)
+	write(truncateHookText(payload.Answer, 512))
+	write(truncateHookText(payload.Thinking, 512))
+	if len(payload.ToolInput) > 0 {
+		input := payload.ToolInput
+		if len(input) > maxFingerprintInputBytes {
+			input = input[:maxFingerprintInputBytes]
+		}
+		_, _ = hasher.Write(input)
+	}
+
+	return hasher.Sum64()
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -16,15 +17,15 @@ type stubSubtaskWrapper struct {
 	level agent.AgentLevel
 }
 
-func (w *stubSubtaskWrapper) EventType() string            { return w.inner.EventType() }
-func (w *stubSubtaskWrapper) Timestamp() time.Time         { return w.inner.Timestamp() }
-func (w *stubSubtaskWrapper) GetSessionID() string         { return w.inner.GetSessionID() }
-func (w *stubSubtaskWrapper) GetRunID() string             { return w.inner.GetRunID() }
-func (w *stubSubtaskWrapper) GetParentRunID() string       { return w.inner.GetParentRunID() }
-func (w *stubSubtaskWrapper) GetCorrelationID() string     { return w.inner.GetCorrelationID() }
-func (w *stubSubtaskWrapper) GetCausationID() string       { return w.inner.GetCausationID() }
-func (w *stubSubtaskWrapper) GetEventID() string           { return w.inner.GetEventID() }
-func (w *stubSubtaskWrapper) GetSeq() uint64               { return w.inner.GetSeq() }
+func (w *stubSubtaskWrapper) EventType() string                     { return w.inner.EventType() }
+func (w *stubSubtaskWrapper) Timestamp() time.Time                  { return w.inner.Timestamp() }
+func (w *stubSubtaskWrapper) GetSessionID() string                  { return w.inner.GetSessionID() }
+func (w *stubSubtaskWrapper) GetRunID() string                      { return w.inner.GetRunID() }
+func (w *stubSubtaskWrapper) GetParentRunID() string                { return w.inner.GetParentRunID() }
+func (w *stubSubtaskWrapper) GetCorrelationID() string              { return w.inner.GetCorrelationID() }
+func (w *stubSubtaskWrapper) GetCausationID() string                { return w.inner.GetCausationID() }
+func (w *stubSubtaskWrapper) GetEventID() string                    { return w.inner.GetEventID() }
+func (w *stubSubtaskWrapper) GetSeq() uint64                        { return w.inner.GetSeq() }
 func (w *stubSubtaskWrapper) SubtaskDetails() agent.SubtaskMetadata { return w.meta }
 func (w *stubSubtaskWrapper) WrappedEvent() agent.AgentEvent        { return w.inner }
 func (w *stubSubtaskWrapper) GetAgentLevel() agent.AgentLevel {
@@ -256,5 +257,82 @@ func makeToolEnvelope(sessionID string, ts time.Time) *domain.WorkflowEventEnvel
 			"tool_name": "bash",
 			"result":    "ok",
 		},
+	}
+}
+
+func TestEventBroadcasterSanitizesHugeWorkflowPayloadForHistory(t *testing.T) {
+	store := &capturingHistoryStore{}
+	broadcaster := NewEventBroadcaster(WithEventHistoryStore(store))
+
+	hugeOutput := strings.Repeat("x", historyMaxStringBytes*4)
+	envelope := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess-large", "run-large", "", time.Now()),
+		Version:   1,
+		Event:     "workflow.lifecycle.updated",
+		NodeKind:  "node",
+		Payload: map[string]any{
+			"workflow": map[string]any{
+				"id": "run-large",
+				"nodes": []any{
+					map[string]any{
+						"id":     "tool:1",
+						"status": "succeeded",
+						"output": hugeOutput,
+					},
+				},
+			},
+			"node": map[string]any{
+				"id":     "tool:1",
+				"status": "succeeded",
+				"output": hugeOutput,
+			},
+		},
+	}
+
+	broadcaster.OnEvent(envelope)
+
+	got := store.lastEvent()
+	if got == nil {
+		t.Fatalf("expected sanitized event to be stored")
+	}
+	storedEnvelope, ok := got.(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected WorkflowEventEnvelope, got %T", got)
+	}
+
+	workflow, ok := storedEnvelope.Payload["workflow"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected workflow payload map, got %T", storedEnvelope.Payload["workflow"])
+	}
+	if gotCount, ok := workflow["nodes_count"].(int); !ok || gotCount != 1 {
+		t.Fatalf("expected workflow.nodes_count=1, got %v", workflow["nodes_count"])
+	}
+	nodes, ok := workflow["nodes"].([]any)
+	if !ok || len(nodes) != 1 {
+		t.Fatalf("expected one sanitized workflow node, got %T len=%d", workflow["nodes"], len(nodes))
+	}
+
+	node, ok := nodes[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sanitized node map, got %T", nodes[0])
+	}
+	preview, ok := node["output_preview"].(string)
+	if !ok || preview == "" {
+		t.Fatalf("expected output_preview on sanitized node, got %v", node["output_preview"])
+	}
+	if len(preview) > historyNodeOutputPreviewBytes+64 {
+		t.Fatalf("expected bounded node output preview, got len=%d", len(preview))
+	}
+
+	payloadNode, ok := storedEnvelope.Payload["node"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sanitized payload.node map, got %T", storedEnvelope.Payload["node"])
+	}
+	payloadPreview, ok := payloadNode["output_preview"].(string)
+	if !ok || payloadPreview == "" {
+		t.Fatalf("expected output_preview in payload.node, got %v", payloadNode["output_preview"])
+	}
+	if len(payloadPreview) > historyNodeOutputPreviewBytes+64 {
+		t.Fatalf("expected bounded payload.node preview, got len=%d", len(payloadPreview))
 	}
 }

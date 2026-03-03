@@ -12,29 +12,7 @@
         ]
       }
     ],
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/cc_hooks/notify_lark.sh",
-            "async": true,
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/cc_hooks/notify_lark.sh",
-            "async": true,
-            "timeout": 10
-          }
-        ]
-      }
-    ]
+    "PostToolUse": [],
+    "Stop": []
   }
 }

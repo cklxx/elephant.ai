@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 type mockLarkNotifier struct {
@@ -485,6 +486,46 @@ func TestHooksBridge_StopFlushesBuffer(t *testing.T) {
 	}
 	if !strings.Contains(notifier.messages[1], "任务已完成") {
 		t.Errorf("second message should be stop, got: %s", notifier.messages[1])
+	}
+}
+
+func TestHooksBridge_DedupesImmediateDuplicateEvent(t *testing.T) {
+	notifier := &mockLarkNotifier{}
+	bridge := NewHooksBridge(notifier, nil, "", "chat-123", nil)
+
+	p := hookPayload{Event: "PostToolUse", ToolName: "Bash", ToolInput: json.RawMessage(`{"command":"ls"}`)}
+	body, _ := json.Marshal(p)
+	postHook(bridge, string(body), "", "")
+	postHook(bridge, string(body), "", "")
+
+	bridge.Close(context.Background())
+
+	if len(notifier.messages) != 1 {
+		t.Fatalf("expected one deduped message, got %d", len(notifier.messages))
+	}
+	if strings.Contains(notifier.messages[0], "2 步操作") {
+		t.Fatalf("expected duplicate event to be suppressed, got aggregated message: %s", notifier.messages[0])
+	}
+}
+
+func TestHooksBridge_AllowsSameEventAfterDedupeWindow(t *testing.T) {
+	notifier := &mockLarkNotifier{}
+	bridge := NewHooksBridge(notifier, nil, "", "chat-123", nil)
+	bridge.dedupeWindow = 1 * time.Millisecond
+
+	p := hookPayload{Event: "PostToolUse", ToolName: "Bash", ToolInput: json.RawMessage(`{"command":"ls"}`)}
+	body, _ := json.Marshal(p)
+	postHook(bridge, string(body), "", "")
+	time.Sleep(3 * time.Millisecond)
+	postHook(bridge, string(body), "", "")
+
+	bridge.Close(context.Background())
+
+	if len(notifier.messages) != 1 {
+		t.Fatalf("expected one aggregated send, got %d", len(notifier.messages))
+	}
+	if !strings.Contains(notifier.messages[0], "2 步操作") {
+		t.Fatalf("expected both events after dedupe window, got: %s", notifier.messages[0])
 	}
 }
 
