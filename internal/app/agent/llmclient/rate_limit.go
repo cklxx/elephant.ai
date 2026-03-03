@@ -1,11 +1,21 @@
 package llmclient
 
-import "strings"
+import (
+	"errors"
+	"net/http"
+	"strings"
+
+	alexerrors "alex/internal/shared/errors"
+)
 
 // IsRateLimitError reports whether err indicates provider-side rate limiting.
 func IsRateLimitError(err error) bool {
 	if err == nil {
 		return false
+	}
+	var transient *alexerrors.TransientError
+	if errors.As(err, &transient) && transient.StatusCode == http.StatusTooManyRequests {
+		return true
 	}
 	lower := strings.ToLower(err.Error())
 	return strings.Contains(lower, "usage_limit_reached") ||

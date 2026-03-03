@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const jsonLd = {
+const jsonLdString = JSON.stringify({
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: "elephant.ai",
@@ -61,7 +61,7 @@ const jsonLd = {
   license: "https://opensource.org/licenses/MIT",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   author: { "@type": "Person", name: "cklxx" },
-};
+});
 
 export default function RootLayout({
   children,
@@ -81,7 +81,7 @@ export default function RootLayout({
       >
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdString }}
         />
         <Providers>
           <SmartErrorBoundary level="page">

@@ -12,6 +12,8 @@ import (
 	"alex/internal/shared/logging"
 )
 
+const mergeConflictFixtureFile = "merge-conflict-fixture.txt"
+
 func TestAllocateShared(t *testing.T) {
 	dir := initRepo(t)
 	manager := NewManager(dir, logging.Nop())
@@ -83,15 +85,15 @@ func TestMergeConflictPopulatesConflictDiff(t *testing.T) {
 	}
 
 	// Commit a change on the task branch.
-	writeFile(t, filepath.Join(dir, "README.md"), "branch version\nline2")
-	runGit(t, dir, "add", "README.md")
+	writeFile(t, filepath.Join(dir, mergeConflictFixtureFile), "branch version\nline2")
+	runGit(t, dir, "add", mergeConflictFixtureFile)
 	runGit(t, dir, "commit", "-m", "branch change")
 
 	// Switch back to base and commit a conflicting change.
 	base := alloc.BaseBranch
 	runGit(t, dir, "checkout", base)
-	writeFile(t, filepath.Join(dir, "README.md"), "base version\nline2")
-	runGit(t, dir, "add", "README.md")
+	writeFile(t, filepath.Join(dir, mergeConflictFixtureFile), "base version\nline2")
+	runGit(t, dir, "add", mergeConflictFixtureFile)
 	runGit(t, dir, "commit", "-m", "base change")
 
 	// Merge should fail with conflicts.
@@ -122,8 +124,12 @@ func initRepo(t *testing.T) string {
 	runGit(t, dir, "init")
 	// Ensure merge creates real conflicts instead of refusing non-fast-forward.
 	runGit(t, dir, "config", "merge.ff", "false")
+	// Keep merge/checkout behavior independent from runner-global git identity.
+	runGit(t, dir, "config", "user.name", "Test")
+	runGit(t, dir, "config", "user.email", "test@example.com")
 	writeFile(t, filepath.Join(dir, "README.md"), "init")
-	runGit(t, dir, "add", "README.md")
+	writeFile(t, filepath.Join(dir, mergeConflictFixtureFile), "init")
+	runGit(t, dir, "add", "README.md", mergeConflictFixtureFile)
 	runGit(t, dir, "commit", "-m", "init")
 	return dir
 }

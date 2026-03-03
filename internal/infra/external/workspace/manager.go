@@ -20,15 +20,27 @@ type Manager struct {
 	worktreeDir string
 	logger      logging.Logger
 	mu          sync.Mutex
+	// cleanEnv is os.Environ() minus GIT_DIR and GIT_WORK_TREE, precomputed once
+	// at construction to avoid repeated env copies on every git call.
+	cleanEnv []string
 }
 
 func NewManager(projectDir string, logger logging.Logger) *Manager {
 	projectDir = strings.TrimSpace(projectDir)
 	worktreeDir := filepath.Join(projectDir, ".elephant", "worktrees")
+	raw := os.Environ()
+	clean := make([]string, 0, len(raw))
+	for _, e := range raw {
+		if strings.HasPrefix(e, "GIT_DIR=") || strings.HasPrefix(e, "GIT_WORK_TREE=") {
+			continue
+		}
+		clean = append(clean, e)
+	}
 	return &Manager{
 		projectDir:  projectDir,
 		worktreeDir: worktreeDir,
 		logger:      logging.OrNop(logger),
+		cleanEnv:    clean,
 	}
 }
 
@@ -241,16 +253,9 @@ func (m *Manager) git(ctx context.Context, args ...string) error {
 func (m *Manager) gitOutput(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = m.projectDir
-	// Strip GIT_DIR / GIT_WORK_TREE so git always operates on m.projectDir
-	// rather than a repo inherited from a parent process (IDE, CI, etc.).
-	env := make([]string, 0, len(os.Environ()))
-	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "GIT_DIR=") || strings.HasPrefix(e, "GIT_WORK_TREE=") {
-			continue
-		}
-		env = append(env, e)
-	}
-	cmd.Env = env
+	// Use precomputed env (GIT_DIR / GIT_WORK_TREE stripped at construction) so
+	// git always operates on m.projectDir regardless of the parent process env.
+	cmd.Env = m.cleanEnv
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

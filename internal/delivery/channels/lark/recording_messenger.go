@@ -8,9 +8,21 @@ import (
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
+// Messenger method name constants used in MessengerCall.Method.
+const (
+	MethodSendMessage    = "SendMessage"
+	MethodReplyMessage   = "ReplyMessage"
+	MethodUpdateMessage  = "UpdateMessage"
+	MethodAddReaction    = "AddReaction"
+	MethodDeleteReaction = "DeleteReaction"
+	MethodUploadImage    = "UploadImage"
+	MethodUploadFile     = "UploadFile"
+	MethodListMessages   = "ListMessages"
+)
+
 // MessengerCall records a single outbound call made through a LarkMessenger.
 type MessengerCall struct {
-	Method     string // "SendMessage", "ReplyMessage", "UpdateMessage", "AddReaction", "DeleteReaction", "UploadImage", "UploadFile", "ListMessages"
+	Method     string // one of the Method* constants above
 	ChatID     string
 	MsgType    string
 	Content    string
@@ -80,7 +92,7 @@ func (r *RecordingMessenger) nextMsgID() string {
 func (r *RecordingMessenger) SendMessage(_ context.Context, chatID, msgType, content string) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.record(MessengerCall{Method: "SendMessage", ChatID: chatID, MsgType: msgType, Content: content})
+	r.record(MessengerCall{Method: MethodSendMessage, ChatID: chatID, MsgType: msgType, Content: content})
 	if err := r.popError(); err != nil {
 		return "", err
 	}
@@ -90,7 +102,7 @@ func (r *RecordingMessenger) SendMessage(_ context.Context, chatID, msgType, con
 func (r *RecordingMessenger) ReplyMessage(_ context.Context, replyToID, msgType, content string) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.record(MessengerCall{Method: "ReplyMessage", ReplyTo: replyToID, MsgType: msgType, Content: content})
+	r.record(MessengerCall{Method: MethodReplyMessage, ReplyTo: replyToID, MsgType: msgType, Content: content})
 	if err := r.popError(); err != nil {
 		return "", err
 	}
@@ -100,14 +112,14 @@ func (r *RecordingMessenger) ReplyMessage(_ context.Context, replyToID, msgType,
 func (r *RecordingMessenger) UpdateMessage(_ context.Context, messageID, msgType, content string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.record(MessengerCall{Method: "UpdateMessage", MsgID: messageID, MsgType: msgType, Content: content})
+	r.record(MessengerCall{Method: MethodUpdateMessage, MsgID: messageID, MsgType: msgType, Content: content})
 	return r.popError()
 }
 
 func (r *RecordingMessenger) AddReaction(_ context.Context, messageID, emojiType string) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.record(MessengerCall{Method: "AddReaction", MsgID: messageID, Emoji: emojiType})
+	r.record(MessengerCall{Method: MethodAddReaction, MsgID: messageID, Emoji: emojiType})
 	if err := r.popError(); err != nil {
 		return "", err
 	}
@@ -117,14 +129,14 @@ func (r *RecordingMessenger) AddReaction(_ context.Context, messageID, emojiType
 func (r *RecordingMessenger) DeleteReaction(_ context.Context, messageID, reactionID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.record(MessengerCall{Method: "DeleteReaction", MsgID: messageID, ReactionID: reactionID})
+	r.record(MessengerCall{Method: MethodDeleteReaction, MsgID: messageID, ReactionID: reactionID})
 	return r.popError()
 }
 
 func (r *RecordingMessenger) UploadImage(_ context.Context, payload []byte) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.record(MessengerCall{Method: "UploadImage", Payload: payload})
+	r.record(MessengerCall{Method: MethodUploadImage, Payload: payload})
 	if err := r.popError(); err != nil {
 		return "", err
 	}
@@ -139,7 +151,7 @@ func (r *RecordingMessenger) UploadImage(_ context.Context, payload []byte) (str
 func (r *RecordingMessenger) UploadFile(_ context.Context, payload []byte, fileName, fileType string) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.record(MessengerCall{Method: "UploadFile", Payload: payload, FileName: fileName, FileType: fileType})
+	r.record(MessengerCall{Method: MethodUploadFile, Payload: payload, FileName: fileName, FileType: fileType})
 	if err := r.popError(); err != nil {
 		return "", err
 	}
@@ -154,7 +166,7 @@ func (r *RecordingMessenger) UploadFile(_ context.Context, payload []byte, fileN
 func (r *RecordingMessenger) ListMessages(_ context.Context, chatID string, pageSize int) ([]*larkim.Message, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.record(MessengerCall{Method: "ListMessages", ChatID: chatID, PageSize: pageSize})
+	r.record(MessengerCall{Method: MethodListMessages, ChatID: chatID, PageSize: pageSize})
 	if err := r.popError(); err != nil {
 		return nil, err
 	}

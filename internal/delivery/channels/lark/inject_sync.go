@@ -346,7 +346,7 @@ Output only the reply content with no explanation. If the AI presented numbered 
 // in a list of captured messenger calls.
 func extractLastReplyText(calls []MessengerCall) string {
 	for i := len(calls) - 1; i >= 0; i-- {
-		if calls[i].Method == "AddReaction" || calls[i].Method == "DeleteReaction" {
+		if calls[i].Method == MethodAddReaction || calls[i].Method == MethodDeleteReaction {
 			continue
 		}
 		if text := extractTextFromContent(calls[i].Content); text != "" {

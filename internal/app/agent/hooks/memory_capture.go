@@ -3,9 +3,7 @@ package hooks
 import (
 	"alex/internal/shared/utils"
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -15,7 +13,6 @@ import (
 	portsllm "alex/internal/domain/agent/ports/llm"
 	"alex/internal/infra/memory"
 	runtimeconfig "alex/internal/shared/config"
-	alexerrors "alex/internal/shared/errors"
 	"alex/internal/shared/logging"
 )
 
@@ -149,7 +146,7 @@ func (h *MemoryCaptureHook) captureWithLLM(ctx context.Context, result TaskResul
 
 	resp, err := h.completeWithProfile(ctx, profile, req)
 	if err != nil {
-		if canFallback && isRateLimitError(err) {
+		if canFallback && llmclient.IsRateLimitError(err) {
 			h.logger.Warn("Memory capture pinned model rate-limited (%s/%s); retrying with default profile (%s/%s)",
 				strings.TrimSpace(profile.Provider), strings.TrimSpace(profile.Model),
 				strings.TrimSpace(fallbackProfile.Provider), strings.TrimSpace(fallbackProfile.Model),
@@ -218,25 +215,10 @@ func (h *MemoryCaptureHook) resolveProfile(ctx context.Context) (runtimeconfig.L
 
 func sameProviderModel(a, b runtimeconfig.LLMProfile) bool {
 	return strings.EqualFold(strings.TrimSpace(a.Provider), strings.TrimSpace(b.Provider)) &&
-		strings.EqualFold(strings.TrimSpace(a.Model), strings.TrimSpace(b.Model))
+		strings.EqualFold(strings.TrimSpace(a.Model), strings.TrimSpace(b.Model)) &&
+		strings.EqualFold(strings.TrimSpace(a.BaseURL), strings.TrimSpace(b.BaseURL))
 }
 
-func isRateLimitError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	var transient *alexerrors.TransientError
-	if errors.As(err, &transient) && transient.StatusCode == http.StatusTooManyRequests {
-		return true
-	}
-
-	lower := strings.ToLower(err.Error())
-	return strings.Contains(lower, "usage_limit_reached") ||
-		strings.Contains(lower, "rate limit reached") ||
-		strings.Contains(lower, "status 429") ||
-		(strings.Contains(lower, "429") && strings.Contains(lower, "limit"))
-}
 
 func buildMemoryCapturePrompt(result TaskResultInfo) string {
 	if utils.IsBlank(result.TaskInput) && utils.IsBlank(result.Answer) && len(result.ToolCalls) == 0 {
@@ -429,7 +411,7 @@ func splitPromptSegments(input string) []string {
 }
 
 func containsHabitKeyword(segment string) bool {
-	lower := strings.ToLower(strings.TrimSpace(segment))
+	lower := utils.TrimLower(segment)
 	if lower == "" {
 		return false
 	}
