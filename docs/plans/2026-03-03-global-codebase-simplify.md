@@ -428,7 +428,7 @@ Execution (2026-03-03):
 - [x] CX-01 completed (target ownership set under `internal/` migrated to `utils.TrimLower`).
 - [x] CX-02 completed (target ownership set under `internal/` migrated to `utils.IsBlank`).
 - [x] CX-03 completed (target ownership set under `internal/` migrated to `utils.HasContent`).
-- [ ] CX-04 not started in this batch.
+- [~] CX-04 partial: shared `utils.Truncate()` / `utils.TruncateWithEllipsis()` added, and first call-site batch migrated (`memory_capture`, `flush_hook`, `manager_memory`).
 - [x] CX-05 completed (web duplicate `formatDuration` call sites consolidated to `@/lib/utils` with local behavior-preserving wrappers).
 - [~] CX-06 partial: `GetLogger()` removed; `OpenLogFile()` retained because still used by `cmd/alex/container.go`.
 
@@ -442,6 +442,14 @@ Execution (2026-03-03):
 | CX-10 | Q-15: Extract `BaseChannelConfig` for shared channel fields | 2-3 | `go build ./...` |
 | CX-11 | R-06: Replace manual `ToolResult` construction → `shared.ToolError()` | ~15 | `go build ./...` |
 | CX-12 | R-08: Replace ad-hoc `&http.Client{}` → `httpclient.New()` | ~10 | `go build ./...` |
+
+Execution (2026-03-03, rescan continuation):
+- [ ] CX-07 pending.
+- [x] CX-08 completed: notifier now prioritizes structured `FailureClass` over error-string substring matching; fallback keeps compatibility when class is missing.
+- [ ] CX-09 pending.
+- [ ] CX-10 pending.
+- [~] CX-11 partial: first batch (`aliases/read_file`, `aliases/write_file`, `session/skills`) migrated to `shared.ToolError()`.
+- [~] CX-12 partial: first non-web batch migrated to `httpclient.New()` (`infra/acp/client`, `infra/llamacpp/downloader`, `devops/health/checker`) with behavior-preserving timeout/transport handling.
 
 Execution (2026-03-03, rescan wave C — non-web):
 - [ ] CX-07 pending.
@@ -468,10 +476,16 @@ Execution (2026-03-03):
 - [ ] CX-16 deferred (high-risk, requires dedicated design pass).
 - [ ] CX-17 deferred (needs dependency analysis in preparation flow).
 
+### Wave 3b: Low-risk efficiency continuation (2026-03-03, rescan)
+
+| Task ID | Finding | Result |
+|---------|---------|--------|
+| CX-18 | E-12: Cost store reads all records, filters in Go | [x] Completed: `GetByModel()` now scans date dirs directly and filters while reading (no `ListAll()` full replay); ordering preserved by shared timestamp sort helper; tests updated. |
+
 ## Validation Snapshot (2026-03-03)
 
 - `go test ./...` passed.
-- `go test -race -count=1 ./...` passed.
+- `go test -race -count=1 ./...` hit one intermittent failure at `internal/domain/agent/react TestMultipleTasks` (`expected 5 completions, got 4`); targeted rerun `go test -race -count=1 ./internal/domain/agent/react -run TestMultipleTasks` passed.
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./...` passed.
 - `npm --prefix web run lint` passed.
 - `npm --prefix web run build` passed.

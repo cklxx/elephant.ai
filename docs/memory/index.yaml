@@ -8,6 +8,13 @@ nodes:
       tags:
         - error
       summary: 在大规模改动后执行 `./scripts/pre-push.sh`。
+    - id: err-2026-03-03-race-react-testmultipletasks-flake
+      path: docs/error-experience/entries/2026-03-03-race-react-testmultipletasks-flake.md
+      type: error_entry
+      date: "2026-03-03"
+      tags:
+        - error
+      summary: 在“全局简化复扫 + 非 web 优先优化”后执行全量门禁。
     - id: errsum-2026-03-03-prepush-race-flake-lint-timeout
       path: docs/error-experience/summary/entries/2026-03-03-prepush-race-flake-lint-timeout.md
       type: error_summary
@@ -20,6 +27,26 @@ nodes:
         +v6IO95Ye6546wIGBnbyB0ZXN0IC1yYWNlYCDlgbblj5HlpLHotKXlkowgYGdvbGFuZ2Np
         LWxpbnQgLS10aW1lb3V0PTNtYCDotoXml7bvvJvpnIDku6Xni6znq4vlpI3ot5Hnoa7orq
         TnnJ/lrp7lm57lvZLvvIzlho3lhrPlLi4u
+    - id: errsum-2026-03-03-race-react-testmultipletasks-flake
+      path: docs/error-experience/summary/entries/2026-03-03-race-react-testmultipletasks-flake.md
+      type: error_summary
+      date: "2026-03-03"
+      tags:
+        - error
+        - summary
+      summary: !!binary |
+        U3VtbWFyeTogYGdvIHRlc3QgLXJhY2UgLWNvdW50PTEgLi8uLi5gIOWcqOmrmOi0n+i9ve
+        WFqOmHj+aJp+ihjOaXtu+8jGBpbnRlcm5hbC9kb21haW4vYWdlbnQvcmVhY3QgVGVzdE11
+        bHRpcGxlVGFza3NgIOWHuueOsOS4gOasoSBjb21wbGV0aW9uIOiuoeaVsOaKluWKqO+8m+
+        WumuWQkeWkjei3kemAmui/h++8jOivLi4u
+    - id: good-2026-03-03-subagent-global-simplify-rescan-wave2-wave3b
+      path: docs/good-experience/entries/2026-03-03-subagent-global-simplify-rescan-wave2-wave3b.md
+      type: good_entry
+      date: "2026-03-03"
+      tags:
+        - good
+        - lark
+      summary: 任务：按 `docs/plans/2026-03-03-global-codebase-simplify.md` 继续全库优化，要求先全局复扫再落地。
     - id: good-2026-03-03-subagent-global-simplify-wave1-wave3
       path: docs/good-experience/entries/2026-03-03-subagent-global-simplify-wave1-wave3.md
       type: good_entry
@@ -29,6 +56,18 @@ nodes:
         - memory
         - performance
       summary: 任务：按 `docs/plans/2026-03-03-global-codebase-simplify.md` 推进全库优化。
+    - id: goodsum-2026-03-03-subagent-global-simplify-rescan-wave2-wave3b
+      path: docs/good-experience/summary/entries/2026-03-03-subagent-global-simplify-rescan-wave2-wave3b.md
+      type: good_summary
+      date: "2026-03-03"
+      tags:
+        - good
+        - summary
+      summary: !!binary |
+        U3VtbWFyeTog5YWo5bGA5aSN5omr5ZCO5YWI5YGa6Z2eIGB3ZWIvYCDkvY7po47pmanpob
+        nvvIhSLTAzL1ItMDYvUS0wOC9FLTEyL1ItMDgg5a2Q6ZuG77yJ77yM55SoIGV4cGxvcmVy
+        IOaUtuaVm+OAgXdvcmtlciDmjIkgb3duZXJzaGlwIOW5tuihjOiQveWcsO+8jOWGjeeUse
+        S4uyBhZ2VudCDot5Hlhajph4/pl6jnLi4u
     - id: goodsum-2026-03-03-subagent-global-simplify-wave1-wave3
       path: docs/good-experience/summary/entries/2026-03-03-subagent-global-simplify-wave1-wave3.md
       type: good_summary

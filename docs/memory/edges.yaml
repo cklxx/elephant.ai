@@ -113,6 +113,10 @@ edges:
       to: errsum-2026-03-03-prepush-race-flake-lint-timeout
       type: see_also
       direction: directed
+    - from: err-2026-03-03-race-react-testmultipletasks-flake
+      to: errsum-2026-03-03-race-react-testmultipletasks-flake
+      type: see_also
+      direction: directed
     - from: errsum-2026-01-27-dev-lint-test-cmd-alex-context
       to: err-2026-01-27-dev-lint-test-cmd-alex-context
       type: derived_from
@@ -223,6 +227,10 @@ edges:
       direction: directed
     - from: errsum-2026-03-03-prepush-race-flake-lint-timeout
       to: err-2026-03-03-prepush-race-flake-lint-timeout
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-03-03-race-react-testmultipletasks-flake
+      to: err-2026-03-03-race-react-testmultipletasks-flake
       type: derived_from
       direction: directed
     - from: good-2026-01-30-continuous-practice-optimization
@@ -431,6 +439,10 @@ edges:
       direction: directed
     - from: good-2026-02-28-codebase-conciseness-optimization
       to: goodsum-2026-02-28-codebase-conciseness-optimization
+      type: see_also
+      direction: directed
+    - from: good-2026-03-03-subagent-global-simplify-rescan-wave2-wave3b
+      to: goodsum-2026-03-03-subagent-global-simplify-rescan-wave2-wave3b
       type: see_also
       direction: directed
     - from: good-2026-03-03-subagent-global-simplify-wave1-wave3
@@ -643,6 +655,10 @@ edges:
       direction: directed
     - from: goodsum-2026-02-28-codebase-conciseness-optimization
       to: good-2026-02-28-codebase-conciseness-optimization
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-03-03-subagent-global-simplify-rescan-wave2-wave3b
+      to: good-2026-03-03-subagent-global-simplify-rescan-wave2-wave3b
       type: derived_from
       direction: directed
     - from: goodsum-2026-03-03-subagent-global-simplify-wave1-wave3
