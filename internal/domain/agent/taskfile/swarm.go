@@ -125,7 +125,7 @@ func (s *SwarmScheduler) executeSwarmValidated(ctx context.Context, tf *TaskFile
 			results := s.dispatcher.Collect(activeIDs, true, s.config.StageTimeout)
 			s.adjustConcurrency(results)
 
-			retryIDs := s.buildRetryBatch(ctx, activeIDs, results, byID, causationID, retryCounts)
+			retryIDs := s.buildRetryBatch(ctx, activeIDs, results, byID, retryCounts)
 			if len(retryIDs) == 0 {
 				break
 			}
@@ -150,7 +150,6 @@ func (s *SwarmScheduler) buildRetryBatch(
 	layerIDs []string,
 	results []agent.BackgroundTaskResult,
 	byID map[string]TaskSpec,
-	causationID string,
 	retryCounts map[string]int,
 ) []string {
 	if s.config.StaleRetryMax <= 0 {
@@ -160,6 +159,10 @@ func (s *SwarmScheduler) buildRetryBatch(
 	resultByID := make(map[string]agent.BackgroundTaskResult, len(results))
 	for _, r := range results {
 		resultByID[r.ID] = r
+	}
+	statusByID := make(map[string]agent.BackgroundTaskSummary, len(layerIDs))
+	for _, summary := range s.dispatcher.Status(layerIDs) {
+		statusByID[summary.ID] = summary
 	}
 
 	var retryIDs []string
@@ -179,7 +182,7 @@ func (s *SwarmScheduler) buildRetryBatch(
 		// For non-terminal tasks: consult Status to distinguish stale from
 		// legitimately running tasks that just hit the stage timeout.
 		needsRetry := false
-		for _, sum := range s.dispatcher.Status([]string{origID}) {
+		if sum, ok := statusByID[origID]; ok {
 			switch sum.Status {
 			case agent.BackgroundTaskStatusCompleted,
 				agent.BackgroundTaskStatusFailed,

@@ -129,11 +129,16 @@ func (m *manager) readDefaultPersonaProfile() agent.PersonaProfile {
 		strings.TrimSpace(m.defaultPersonaSourcePath()),
 		defaultPersonaConfig,
 	}
+	seen := make(map[string]struct{}, len(candidates))
 	for _, path := range candidates {
 		path = strings.TrimSpace(path)
 		if path == "" {
 			continue
 		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			continue
@@ -304,13 +309,5 @@ func resolveMemoryUserID(ctx context.Context, session *storage.Session) string {
 }
 
 func truncateMemorySection(content string, limit int) string {
-	trimmed := strings.TrimSpace(content)
-	if trimmed == "" || limit <= 0 {
-		return trimmed
-	}
-	runes := []rune(trimmed)
-	if len(runes) <= limit {
-		return trimmed
-	}
-	return strings.TrimSpace(string(runes[:limit])) + "..."
+	return truncateWithEllipsis(content, limit)
 }

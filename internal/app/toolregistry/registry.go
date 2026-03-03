@@ -35,6 +35,18 @@ type filteredRegistry struct {
 	exclude map[string]bool
 }
 
+const (
+	runTasksToolName   = "run_tasks"
+	replyAgentToolName = "reply_agent"
+)
+
+func orchestrationExcludeSet() map[string]bool {
+	return map[string]bool{
+		runTasksToolName:   true,
+		replyAgentToolName: true,
+	}
+}
+
 type Config struct {
 	Profile string
 
@@ -223,11 +235,8 @@ func (w *idAwareExecutor) Metadata() ports.ToolMetadata {
 // tools. This prevents recursive delegation chains inside background tasks.
 func (r *Registry) WithoutOrchestration() tools.ToolRegistry {
 	return &filteredRegistry{
-		parent: r,
-		exclude: map[string]bool{
-			"run_tasks":   true,
-			"reply_agent": true,
-		},
+		parent:  r,
+		exclude: orchestrationExcludeSet(),
 	}
 }
 
@@ -378,11 +387,15 @@ func (r *Registry) RegisterOrchestration() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.static["run_tasks"]; exists {
+	if _, exists := r.static[runTasksToolName]; exists {
 		return
 	}
 
-	r.static["run_tasks"] = r.wrapDegradation("run_tasks", wrapTool(orchestration.NewRunTasks(), r.policy, r.breakers, r.SLACollector))
-	r.static["reply_agent"] = r.wrapDegradation("reply_agent", wrapTool(orchestration.NewReplyAgent(), r.policy, r.breakers, r.SLACollector))
+	r.registerStaticWrapped(runTasksToolName, orchestration.NewRunTasks())
+	r.registerStaticWrapped(replyAgentToolName, orchestration.NewReplyAgent())
 	r.defsDirty = true
+}
+
+func (r *Registry) registerStaticWrapped(name string, tool tools.ToolExecutor) {
+	r.static[name] = r.wrapDegradation(name, wrapTool(tool, r.policy, r.breakers, r.SLACollector))
 }

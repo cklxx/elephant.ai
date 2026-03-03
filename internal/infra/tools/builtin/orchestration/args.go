@@ -9,9 +9,8 @@ import (
 	"alex/internal/shared/utils"
 )
 
-func parseStringList(args map[string]any, key string) ([]string, error) {
-	raw, exists := args[key]
-	if !exists || raw == nil {
+func parseStringList(raw any, key string) ([]string, error) {
+	if raw == nil {
 		return nil, nil
 	}
 
@@ -41,9 +40,8 @@ func parseStringList(args map[string]any, key string) ([]string, error) {
 	}
 }
 
-func parseStringMap(args map[string]any, key string) (map[string]string, error) {
-	raw, exists := args[key]
-	if !exists || raw == nil {
+func parseStringMap(raw any, key string) (map[string]string, error) {
+	if raw == nil {
 		return nil, nil
 	}
 
@@ -75,39 +73,34 @@ func parseStringMap(args map[string]any, key string) (map[string]string, error) 
 	}
 }
 
-func parseOptionalInt(args map[string]any, key string) (int, bool, error) {
-	raw, exists := args[key]
-	if !exists {
-		return 0, false, nil
-	}
+func parseOptionalInt(raw any, key string) (int, error) {
 	if raw == nil {
-		return 0, true, nil
+		return 0, nil
 	}
 
 	switch v := raw.(type) {
 	case int:
-		return v, true, nil
+		return v, nil
 	case int32:
-		return int(v), true, nil
+		return int(v), nil
 	case int64:
-		return int(v), true, nil
+		return int(v), nil
 	case float64:
 		if math.Trunc(v) != v {
-			return 0, true, fmt.Errorf("%s must be an integer", key)
+			return 0, fmt.Errorf("%s must be an integer", key)
 		}
-		return int(v), true, nil
+		return int(v), nil
 	case string:
 		trimmed := strings.TrimSpace(v)
 		if trimmed == "" {
-			return 0, true, nil
+			return 0, nil
 		}
 		num, err := strconv.Atoi(trimmed)
 		if err != nil {
-			return 0, true, fmt.Errorf("%s must be an integer", key)
+			return 0, fmt.Errorf("%s must be an integer", key)
 		}
-		return num, true, nil
+		return num, nil
 	default:
-		return 0, true, fmt.Errorf("%s must be an integer", key)
+		return 0, fmt.Errorf("%s must be an integer", key)
 	}
 }
-

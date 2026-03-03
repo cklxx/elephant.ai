@@ -102,7 +102,7 @@ func TestIndexerSearchRunsVectorAndBM25InParallel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIndexer: %v", err)
 	}
-	indexer.stores["root"] = &IndexStore{}
+	indexer.store = &IndexStore{}
 	indexer.ensureSchemaFn = func(context.Context, *IndexStore, int) error { return nil }
 	indexer.countRelatedFn = func(context.Context, *IndexStore, string, int, int) (int, error) { return 0, nil }
 
@@ -169,7 +169,7 @@ func TestIndexerSearchReturnsErrgroupError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIndexer: %v", err)
 	}
-	indexer.stores["root"] = &IndexStore{}
+	indexer.store = &IndexStore{}
 	indexer.ensureSchemaFn = func(context.Context, *IndexStore, int) error { return nil }
 
 	vectorErr := errors.New("vector search failed")

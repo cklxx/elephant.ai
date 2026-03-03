@@ -74,9 +74,9 @@ func (e *MarkdownEngine) RootDir() string {
 
 // EnsureSchema creates required directories if missing.
 func (e *MarkdownEngine) EnsureSchema(_ context.Context) error {
-	root := strings.TrimSpace(e.rootDir)
-	if root == "" {
-		return fmt.Errorf("memory root directory is required")
+	root, err := e.requireRoot()
+	if err != nil {
+		return err
 	}
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return err
@@ -97,9 +97,9 @@ func (e *MarkdownEngine) AppendDaily(_ context.Context, _ string, entry DailyEnt
 	if createdAt.IsZero() {
 		createdAt = time.Now()
 	}
-	root := e.userRoot()
-	if root == "" {
-		return "", fmt.Errorf("memory root directory is required")
+	root, err := e.requireRoot()
+	if err != nil {
+		return "", err
 	}
 	dailyDir := filepath.Join(root, dailyDirName)
 	if err := os.MkdirAll(dailyDir, 0o755); err != nil {
@@ -152,9 +152,9 @@ func (e *MarkdownEngine) Search(ctx context.Context, _ string, query string, max
 		minScore = defaultSearchMinScore
 	}
 
-	root := e.userRoot()
-	if root == "" {
-		return nil, fmt.Errorf("memory root directory is required")
+	root, err := e.requireRoot()
+	if err != nil {
+		return nil, err
 	}
 
 	if e.indexer != nil {
@@ -163,7 +163,7 @@ func (e *MarkdownEngine) Search(ctx context.Context, _ string, query string, max
 			return results, nil
 		}
 	}
-	paths, err := e.collectMemoryFiles(root)
+	paths, err := collectMemoryFilesForRoot(root)
 	if err != nil {
 		return nil, err
 	}
@@ -270,8 +270,8 @@ func (e *MarkdownEngine) Related(ctx context.Context, _ string, path string, fro
 
 // GetLines returns a slice of lines from the given memory path.
 func (e *MarkdownEngine) GetLines(_ context.Context, _ string, path string, fromLine, lineCount int) (string, error) {
-	if utils.IsBlank(e.rootDir) {
-		return "", fmt.Errorf("memory root directory is required")
+	if _, err := e.requireRoot(); err != nil {
+		return "", err
 	}
 	absPath, err := e.resolvePath(path)
 	if err != nil {
@@ -304,14 +304,15 @@ func (e *MarkdownEngine) GetLines(_ context.Context, _ string, path string, from
 
 // LoadDaily reads the daily log for the given day (local time).
 func (e *MarkdownEngine) LoadDaily(_ context.Context, _ string, day time.Time) (string, error) {
-	if utils.IsBlank(e.rootDir) {
-		return "", fmt.Errorf("memory root directory is required")
+	root, err := e.requireRoot()
+	if err != nil {
+		return "", err
 	}
 	if day.IsZero() {
 		day = time.Now()
 	}
 	dateStr := day.Format("2006-01-02")
-	path := filepath.Join(e.userRoot(), dailyDirName, dateStr+".md")
+	path := filepath.Join(root, dailyDirName, dateStr+".md")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -324,10 +325,11 @@ func (e *MarkdownEngine) LoadDaily(_ context.Context, _ string, day time.Time) (
 
 // LoadLongTerm reads MEMORY.md for the user.
 func (e *MarkdownEngine) LoadLongTerm(_ context.Context, _ string) (string, error) {
-	if utils.IsBlank(e.rootDir) {
-		return "", fmt.Errorf("memory root directory is required")
+	root, err := e.requireRoot()
+	if err != nil {
+		return "", err
 	}
-	path := filepath.Join(e.userRoot(), memoryFileName)
+	path := filepath.Join(root, memoryFileName)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -342,12 +344,23 @@ func (e *MarkdownEngine) userRoot() string {
 	return ResolveUserRoot(e.rootDir, "")
 }
 
+func (e *MarkdownEngine) requireRoot() (string, error) {
+	root := e.userRoot()
+	if root == "" {
+		return "", fmt.Errorf("memory root directory is required")
+	}
+	return root, nil
+}
+
 func (e *MarkdownEngine) resolvePath(path string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return "", fmt.Errorf("path is required")
 	}
-	root := e.userRoot()
+	root, err := e.requireRoot()
+	if err != nil {
+		return "", err
+	}
 	var abs string
 	if filepath.IsAbs(path) {
 		abs = filepath.Clean(path)
@@ -358,10 +371,6 @@ func (e *MarkdownEngine) resolvePath(path string) (string, error) {
 		return "", fmt.Errorf("path outside memory root")
 	}
 	return abs, nil
-}
-
-func (e *MarkdownEngine) collectMemoryFiles(root string) ([]string, error) {
-	return collectMemoryFilesForRoot(root)
 }
 
 func collectMemoryFilesForRoot(root string) ([]string, error) {

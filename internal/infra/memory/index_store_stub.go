@@ -8,6 +8,8 @@ import (
 	"fmt"
 )
 
+const errSQLiteVecCGODisabled = "sqlite-vec requires CGO (build with CGO_ENABLED=1)"
+
 // StoredChunk represents a chunk stored in the index.
 type StoredChunk struct {
 	ID        int64
@@ -64,15 +66,12 @@ type IndexStore struct{}
 
 // OpenIndexStore returns an error when CGO is disabled.
 func OpenIndexStore(_ string) (*IndexStore, error) {
-	return nil, fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
+	return nil, fmt.Errorf(errSQLiteVecCGODisabled)
 }
 
 // EnsureSchema returns an error when CGO is disabled.
 func (s *IndexStore) EnsureSchema(_ context.Context, _ int) error {
-	if s == nil {
-		return fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
-	}
-	return fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
+	return fmt.Errorf(errSQLiteVecCGODisabled)
 }
 
 // Close is a no-op stub.
@@ -82,35 +81,35 @@ func (s *IndexStore) Close() error {
 
 // LookupEmbeddings returns an error when CGO is disabled.
 func (s *IndexStore) LookupEmbeddings(_ context.Context, _ []string) (map[string][]float32, error) {
-	return nil, fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
+	return nil, fmt.Errorf(errSQLiteVecCGODisabled)
 }
 
 // ReplaceChunks returns an error when CGO is disabled.
 func (s *IndexStore) ReplaceChunks(_ context.Context, _ string, _ []IndexedChunk) error {
-	return fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
+	return fmt.Errorf(errSQLiteVecCGODisabled)
 }
 
 // DeleteByPath returns an error when CGO is disabled.
 func (s *IndexStore) DeleteByPath(_ context.Context, _ string) error {
-	return fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
+	return fmt.Errorf(errSQLiteVecCGODisabled)
 }
 
 // SearchVector returns an error when CGO is disabled.
 func (s *IndexStore) SearchVector(_ context.Context, _ []float32, _ int) ([]VectorMatch, error) {
-	return nil, fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
+	return nil, fmt.Errorf(errSQLiteVecCGODisabled)
 }
 
 // SearchBM25 returns an error when CGO is disabled.
 func (s *IndexStore) SearchBM25(_ context.Context, _ string, _ int) ([]TextMatch, error) {
-	return nil, fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
+	return nil, fmt.Errorf(errSQLiteVecCGODisabled)
 }
 
 // CountRelated returns an error when CGO is disabled.
 func (s *IndexStore) CountRelated(_ context.Context, _ string, _, _ int) (int, error) {
-	return 0, fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
+	return 0, fmt.Errorf(errSQLiteVecCGODisabled)
 }
 
 // SearchRelated returns an error when CGO is disabled.
 func (s *IndexStore) SearchRelated(_ context.Context, _ string, _, _, _ int) ([]RelatedMatch, error) {
-	return nil, fmt.Errorf("sqlite-vec requires CGO (build with CGO_ENABLED=1)")
+	return nil, fmt.Errorf(errSQLiteVecCGODisabled)
 }

@@ -42,7 +42,7 @@ type Indexer struct {
 	mu       sync.Mutex
 	watcher  *fsnotify.Watcher
 	timers   map[string]*time.Timer
-	stores   map[string]*IndexStore
+	store    *IndexStore
 	started  bool
 	stopOnce sync.Once
 	stopCh   chan struct{}
@@ -78,7 +78,6 @@ func NewIndexer(rootDir string, cfg IndexerConfig, embedder EmbeddingProvider, l
 		embedder: embedder,
 		logger:   logger,
 		timers:   make(map[string]*time.Timer),
-		stores:   make(map[string]*IndexStore),
 		stopCh:   make(chan struct{}),
 	}, nil
 }
@@ -135,9 +134,9 @@ func (i *Indexer) Drain(ctx context.Context) error {
 			_ = i.watcher.Close()
 			i.watcher = nil
 		}
-		for key, store := range i.stores {
-			_ = store.Close()
-			delete(i.stores, key)
+		if i.store != nil {
+			_ = i.store.Close()
+			i.store = nil
 		}
 		i.started = false
 		i.mu.Unlock()
@@ -560,18 +559,17 @@ func (i *Indexer) addWatchDir(path string) error {
 }
 
 func (i *Indexer) storeForUser() (*IndexStore, error) {
-	const key = "root"
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	if store, ok := i.stores[key]; ok {
-		return store, nil
+	if i.store != nil {
+		return i.store, nil
 	}
 	path := i.cfg.DBPath
 	store, err := OpenIndexStore(path)
 	if err != nil {
 		return nil, err
 	}
-	i.stores[key] = store
+	i.store = store
 	return store, nil
 }
 

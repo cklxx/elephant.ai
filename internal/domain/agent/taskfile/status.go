@@ -76,15 +76,10 @@ func (sw *StatusWriter) InitFromTaskFile(tf *TaskFile) error {
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
 
-	hasDeps := make(map[string]bool, len(tf.Tasks))
-	for _, t := range tf.Tasks {
-		hasDeps[t.ID] = len(t.DependsOn) > 0
-	}
-
 	statuses := make([]TaskStatus, len(tf.Tasks))
 	for i, t := range tf.Tasks {
 		status := "pending"
-		if hasDeps[t.ID] {
+		if len(t.DependsOn) > 0 {
 			status = "blocked"
 		}
 		statuses[i] = TaskStatus{

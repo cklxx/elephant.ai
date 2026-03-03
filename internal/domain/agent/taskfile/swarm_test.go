@@ -347,7 +347,6 @@ func TestSwarmScheduler_BuildRetryBatchUsesBaseIDCounter(t *testing.T) {
 		[]string{"slow-task-retry-1"},
 		nil,
 		byID,
-		"cause-1",
 		retryCounts,
 	)
 

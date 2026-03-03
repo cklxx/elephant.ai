@@ -132,7 +132,7 @@ func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 	// Filter to specific task IDs if requested.
 	if raw, ok := call.Arguments["task_ids"]; ok {
-		ids, parseErr := parseStringList(map[string]any{"task_ids": raw}, "task_ids")
+		ids, parseErr := parseStringList(raw, "task_ids")
 		if parseErr != nil {
 			return shared.ToolError(call.ID, "task_ids: %s", parseErr)
 		}
@@ -152,7 +152,7 @@ func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}
 	timeout := 120 * time.Second
 	if raw, ok := call.Arguments["timeout_seconds"]; ok {
-		if v, _, err := parseOptionalInt(map[string]any{"timeout_seconds": raw}, "timeout_seconds"); err == nil && v > 0 {
+		if v, err := parseOptionalInt(raw, "timeout_seconds"); err == nil && v > 0 {
 			timeout = time.Duration(v) * time.Second
 		}
 	}
@@ -235,7 +235,7 @@ func (t *runTasks) resolveTemplate(ctx context.Context, call ports.ToolCall, tem
 
 	var overrides map[string]string
 	if raw, ok := call.Arguments["prompts"]; ok {
-		parsed, err := parseStringMap(map[string]any{"prompts": raw}, "prompts")
+		parsed, err := parseStringMap(raw, "prompts")
 		if err != nil {
 			return nil, nil, fmt.Errorf("prompts: %w", err)
 		}
@@ -281,14 +281,13 @@ func (t *runTasks) formatResult(callID string, result *taskfile.ExecuteResult, w
 	var sb strings.Builder
 	if waited {
 		sb.WriteString(fmt.Sprintf(fmtAllTasksCompleted, len(result.TaskIDs), result.PlanID))
-		for _, id := range result.TaskIDs {
-			sb.WriteString(fmt.Sprintf("- %s\n", id))
-		}
 	} else {
 		sb.WriteString(fmt.Sprintf(fmtTasksDispatched, len(result.TaskIDs), result.PlanID))
-		for _, id := range result.TaskIDs {
-			sb.WriteString(fmt.Sprintf("- %s\n", id))
-		}
+	}
+	for _, id := range result.TaskIDs {
+		sb.WriteString(fmt.Sprintf("- %s\n", id))
+	}
+	if !waited {
 		sb.WriteString(fmt.Sprintf(fmtStatusFileHint, result.StatusPath))
 	}
 	return &ports.ToolResult{CallID: callID, Content: sb.String()}, nil
