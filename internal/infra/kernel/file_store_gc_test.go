@@ -204,6 +204,59 @@ func TestFileStore_RecoverStaleRunning_ContextCancellation(t *testing.T) {
 	}
 }
 
+// TestFileStore_RecoverStaleRunning_PersistAfterFailure verifies that stale
+// running dispatches are persisted immediately after recovery, even when no
+// terminal records are eligible for retention pruning. This guards against the
+// historical two-step prune+persist race that could lose the failure transition
+// on restart.
+func TestFileStore_RecoverStaleRunning_PersistAfterFailure(t *testing.T) {
+	now := time.Date(2026, 3, 2, 12, 0, 0, 0, time.UTC)
+	leaseDur := 30 * time.Minute
+	retention := 365 * 24 * time.Hour
+	dir := t.TempDir()
+	store := NewFileStore(dir, leaseDur, retention)
+	store.now = func() time.Time { return now }
+
+	stale := kerneldomain.Dispatch{
+		DispatchID: "stale-run-1",
+		KernelID:   "k1",
+		Status:     kerneldomain.DispatchRunning,
+		CreatedAt:  now.Add(-2 * time.Hour),
+		UpdatedAt:  now.Add(-2 * time.Hour),
+	}
+	store.dispatches[stale.DispatchID] = stale
+
+	// Persist initial state so the store file exists before recovery.
+	if err := store.persistLocked(); err != nil {
+		t.Fatalf("initial persistLocked: %v", err)
+	}
+
+	recovered, err := store.RecoverStaleRunning(context.Background(), "k1")
+	if err != nil {
+		t.Fatalf("RecoverStaleRunning: %v", err)
+	}
+	if recovered != 1 {
+		t.Fatalf("expected 1 recovered dispatch, got %d", recovered)
+	}
+
+	fresh := NewFileStore(dir, leaseDur, retention)
+	fresh.now = func() time.Time { return now }
+	if err := fresh.load(); err != nil {
+		t.Fatalf("fresh load: %v", err)
+	}
+
+	d, exists := fresh.dispatches["stale-run-1"]
+	if !exists {
+		t.Fatal("stale-run-1 not found in persisted state after recovery")
+	}
+	if d.Status != kerneldomain.DispatchFailed {
+		t.Fatalf("expected status=failed, got %v", d.Status)
+	}
+	if d.Error == "" {
+		t.Fatal("expected stale-run-1 to have recovery error message")
+	}
+}
+
 // TestFileStore_NewFileStore_Defaults verifies that NewFileStore applies safe defaults.
 func TestFileStore_NewFileStore_Defaults(t *testing.T) {
 	store := NewFileStore(t.TempDir(), 0, 0)
@@ -382,4 +435,3 @@ func TestFileStore_MarkDispatchDone_PersistsWithoutPrune(t *testing.T) {
 		t.Errorf("expected taskID=task-abc, got=%q", got.TaskID)
 	}
 }
-
