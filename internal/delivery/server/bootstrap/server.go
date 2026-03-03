@@ -21,9 +21,9 @@ import (
 	"alex/internal/infra/analytics"
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/diagnostics"
-	"alex/internal/infra/httpclient"
 	"alex/internal/shared/async"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/httpclient"
 	"alex/internal/shared/logging"
 )
 

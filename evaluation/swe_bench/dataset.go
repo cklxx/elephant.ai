@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/infra/httpclient"
+	"alex/internal/shared/httpclient"
 )
 
 // DatasetLoaderImpl implements the DatasetLoader interface

@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	"alex/internal/infra/httpclient"
+	"alex/internal/shared/httpclient"
 )
 
 const defaultBaseURL = "https://www.moltbook.com"

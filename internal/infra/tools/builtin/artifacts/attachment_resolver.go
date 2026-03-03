@@ -18,13 +18,13 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
-	"alex/internal/shared/utils"
 	"alex/internal/infra/attachments"
-	"alex/internal/infra/httpclient"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/config"
+	"alex/internal/shared/httpclient"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 const (

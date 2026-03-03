@@ -16,10 +16,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"alex/internal/infra/httpclient"
 	jsonrpc "alex/internal/infra/mcp"
 	"alex/internal/shared/async"
 	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/httpclient"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
 	"alex/internal/shared/utils/id"

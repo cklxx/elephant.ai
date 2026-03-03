@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"alex/internal/infra/httpclient"
+	"alex/internal/shared/httpclient"
 )
 
 // Result captures the outcome of a health probe.

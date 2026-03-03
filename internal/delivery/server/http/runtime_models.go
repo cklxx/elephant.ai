@@ -11,8 +11,8 @@ import (
 	"sort"
 	"strings"
 
-	"alex/internal/infra/httpclient"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/httpclient"
 	"alex/internal/shared/utils"
 )
 

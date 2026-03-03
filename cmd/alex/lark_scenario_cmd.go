@@ -16,8 +16,8 @@ import (
 
 	larkgw "alex/internal/delivery/channels/lark"
 	larktesting "alex/internal/delivery/channels/lark/testing"
-	"alex/internal/infra/httpclient"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/httpclient"
 	"alex/internal/shared/utils"
 )
 

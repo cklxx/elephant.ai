@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/infra/httpclient"
+	"alex/internal/shared/httpclient"
 	"github.com/segmentio/ksuid"
 )
 

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"alex/internal/app/subscription"
-	"alex/internal/infra/httpclient"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/httpclient"
 	"alex/internal/shared/utils"
 )
 

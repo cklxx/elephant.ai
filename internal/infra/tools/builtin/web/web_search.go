@@ -12,8 +12,8 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
-	"alex/internal/infra/httpclient"
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/httpclient"
 	"golang.org/x/net/html"
 )
 

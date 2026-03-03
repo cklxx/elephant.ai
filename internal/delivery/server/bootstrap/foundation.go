@@ -8,10 +8,10 @@ import (
 	"alex/internal/app/di"
 	"alex/internal/domain/materials"
 	"alex/internal/infra/attachments"
-	"alex/internal/infra/httpclient"
 	"alex/internal/infra/observability"
 	runtimeconfig "alex/internal/shared/config"
 	configadmin "alex/internal/shared/config/admin"
+	"alex/internal/shared/httpclient"
 	"alex/internal/shared/logging"
 )
 

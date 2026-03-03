@@ -9,8 +9,8 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/subscription"
 	"alex/internal/delivery/channels"
-	"alex/internal/infra/httpclient"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/httpclient"
 	"alex/internal/shared/utils"
 )
 

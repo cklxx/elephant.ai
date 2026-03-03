@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/infra/httpclient"
+	"alex/internal/shared/httpclient"
 	"alex/internal/shared/utils"
 )
 

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/infra/httpclient"
+	"alex/internal/shared/httpclient"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
 )
