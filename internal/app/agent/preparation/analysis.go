@@ -132,7 +132,7 @@ func quickTriageTask(task string) (*agent.TaskAnalysis, bool) {
 		return nil, false
 	}
 
-	switch strings.ToLower(trimmed) {
+	switch utils.TrimLower(trimmed) {
 	case "hi", "hello", "hey", "yo", "nihao", "你好", "您好", "嗨", "在吗", "ping", "pings":
 		return &agent.TaskAnalysis{
 			Complexity: "simple",

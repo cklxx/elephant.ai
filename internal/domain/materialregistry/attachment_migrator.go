@@ -120,7 +120,7 @@ func (m *AttachmentStoreMigrator) capturePayload(ctx context.Context, att ports.
 	}
 
 	uri := strings.TrimSpace(att.URI)
-	lower := strings.ToLower(uri)
+	lower := utils.TrimLower(uri)
 	if strings.HasPrefix(lower, "data:") {
 		data, mediaType, err := decodeDataURI(uri)
 		if err != nil {

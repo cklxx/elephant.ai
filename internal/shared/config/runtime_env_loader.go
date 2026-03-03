@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
@@ -184,8 +186,7 @@ func parseStopSequences(value string) []string {
 }
 
 func parseBoolEnv(value string) (bool, error) {
-	trimmed := strings.TrimSpace(value)
-	lower := strings.ToLower(trimmed)
+	lower := utils.TrimLower(value)
 	switch lower {
 	case "1", "true", "t", "yes", "y", "on":
 		return true, nil

@@ -10,23 +10,23 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/llmclient"
 	"alex/internal/domain/agent"
-	agent "alex/internal/domain/agent/ports/agent"
 	ports "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
-	"alex/internal/shared/utils"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 const (
-	defaultBackgroundProgressInterval       = 10 * time.Minute
-	defaultBackgroundProgressWindow         = 10 * time.Minute
-	codeBackgroundProgressInterval          = 3 * time.Minute
-	maxBackgroundListenerLifetime           = 4 * time.Hour
-	defaultTeamCompletionSummaryLLMTimeout  = 10 * time.Second
-	teamCompletionSummaryMaxPromptChars     = 3000
-	teamCompletionSummaryMaxReplyChars      = 1200
-	teamCompletionSummaryMinTasks           = 2
+	defaultBackgroundProgressInterval      = 10 * time.Minute
+	defaultBackgroundProgressWindow        = 10 * time.Minute
+	codeBackgroundProgressInterval         = 3 * time.Minute
+	maxBackgroundListenerLifetime          = 4 * time.Hour
+	defaultTeamCompletionSummaryLLMTimeout = 10 * time.Second
+	teamCompletionSummaryMaxPromptChars    = 3000
+	teamCompletionSummaryMaxReplyChars     = 1200
+	teamCompletionSummaryMinTasks          = 2
 )
 
 // completedTaskRecord captures the final state of a completed background task
@@ -599,7 +599,6 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 	_ = force // reserved for future: immediate flush paths already call flush()
 }
 
-
 // formatElapsed formats a duration into a human-friendly Chinese string.
 func formatElapsed(d time.Duration) string {
 	if d < time.Minute {
@@ -717,7 +716,7 @@ func asStringSlice(v any) []string {
 
 func normalizeMergeStatus(status string) string {
 	status = strings.TrimSpace(status)
-	switch strings.ToLower(status) {
+	switch utils.TrimLower(status) {
 	case "":
 		return agent.MergeStatusNotMerged
 	case "merged", "merged/success":
