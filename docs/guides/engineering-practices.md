@@ -27,6 +27,7 @@ These are the local engineering practices for this repo. Keep them short and act
 - Avoid unnecessary defensive code; trust invariants when guaranteed.
 - Keep naming consistent; follow local naming guidelines when present.
 - Be cautious with long parameter lists; if a function needs many inputs, prefer grouping into a struct or options pattern and document the boundary explicitly.
+- Follow the [Code Simplification Best Practices](code-simplification.md) — covers shared utility usage, error handling, struct sizing, caching, I/O patterns, and DRY across providers.
 
 ## Go + OSS (Condensed)
 - Formatting/imports: always run `gofmt`; use `goimports` to manage imports.
