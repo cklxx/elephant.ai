@@ -1,6 +1,10 @@
 package ports
 
-import "strings"
+import (
+	"strings"
+
+	"alex/internal/shared/utils"
+)
 
 // NormalizeAttachmentMap normalizes attachment map keys by trimming
 // placeholders and falling back to attachment names when needed.
@@ -32,7 +36,7 @@ func normalizeAttachmentMap(values map[string]Attachment, fillBlankName bool) ma
 		}
 
 		if fillBlankName {
-			if strings.TrimSpace(att.Name) == "" {
+			if utils.IsBlank(att.Name) {
 				att.Name = name
 			}
 		} else if att.Name == "" {

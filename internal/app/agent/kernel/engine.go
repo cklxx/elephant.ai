@@ -454,7 +454,7 @@ var runtimeSummaryNoisePrefixes = []string{
 
 func sanitizeRuntimeSummary(raw string) string {
 	trimmedRaw := strings.TrimSpace(raw)
-	if trimmedRaw == "" {
+	if utils.IsBlank(trimmedRaw) {
 		return ""
 	}
 

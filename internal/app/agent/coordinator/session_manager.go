@@ -419,13 +419,13 @@ func shouldDropPersistedMessage(msg ports.Message) bool {
 	if role != "assistant" {
 		return false
 	}
-	if strings.TrimSpace(msg.Content) != "" {
+	if utils.HasContent(msg.Content) {
 		return false
 	}
 	if len(msg.ToolCalls) > 0 || len(msg.ToolResults) > 0 {
 		return false
 	}
-	if strings.TrimSpace(msg.ToolCallID) != "" {
+	if utils.HasContent(msg.ToolCallID) {
 		return false
 	}
 	if len(msg.Attachments) > 0 {
@@ -444,7 +444,7 @@ func isPersistedPrimarySystemPrompt(msg ports.Message) bool {
 	if utils.TrimLower(msg.Role) != "system" {
 		return false
 	}
-	return strings.TrimSpace(msg.Content) != ""
+	return utils.HasContent(msg.Content)
 }
 
 func shouldDropPersistedSystemPrompt(msg ports.Message) bool {

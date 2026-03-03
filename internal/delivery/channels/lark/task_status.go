@@ -1,8 +1,6 @@
 package lark
 
 import (
-	"strings"
-
 	"alex/internal/shared/utils"
 )
 
@@ -59,7 +57,7 @@ func normalizeCompletionTaskStatus(status, errText string) string {
 	if isTerminalTaskStatus(normalized) {
 		return normalized
 	}
-	if strings.TrimSpace(errText) != "" {
+	if utils.HasContent(errText) {
 		return taskStatusFailed
 	}
 	return taskStatusCompleted

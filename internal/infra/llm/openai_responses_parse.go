@@ -104,10 +104,10 @@ func appendThinkingFromResponseContents(thinking *ports.Thinking, kind string, p
 }
 
 func responseContentText(part responseContent) string {
-	if strings.TrimSpace(part.Text) != "" {
+	if utils.HasContent(part.Text) {
 		return part.Text
 	}
-	if strings.TrimSpace(part.Content) != "" {
+	if utils.HasContent(part.Content) {
 		return part.Content
 	}
 	if len(part.Summary) == 0 {
