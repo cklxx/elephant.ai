@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -175,9 +176,15 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 	// Route run_tasks status sidecars to the kernel-specific tasks dir.
 	execCtx = toolshared.WithKernelTasksDir(execCtx, e.tasksDir())
 
-	if e.timeout > 0 {
+	timeout := e.timeout
+	if raw, ok := meta["timeout_seconds"]; ok {
+		if seconds, err := strconv.Atoi(raw); err == nil && seconds > 0 {
+			timeout = time.Duration(seconds) * time.Second
+		}
+	}
+	if timeout > 0 {
 		var cancel context.CancelFunc
-		execCtx, cancel = context.WithTimeout(execCtx, e.timeout)
+		execCtx, cancel = context.WithTimeout(execCtx, timeout)
 		defer cancel()
 	}
 

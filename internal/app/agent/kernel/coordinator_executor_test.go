@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	appcontext "alex/internal/app/agent/context"
@@ -653,6 +654,66 @@ func TestCoordinatorExecutor_SetsAutoApproveInContext(t *testing.T) {
 	}
 	if !toolshared.GetAutoApproveFromContext(runner.lastCtx) {
 		t.Fatal("expected auto-approve=true in kernel dispatch context")
+	}
+}
+
+func TestCoordinatorExecutor_UsesPerDispatchTimeout(t *testing.T) {
+	runner := &stubTaskRunner{
+		result: &agent.TaskResult{
+			Answer:   "## Execution Summary\n- done",
+			Messages: []core.Message{assistantMessageWithToolCalls("shell_exec")},
+		},
+	}
+	globalTimeout := 15 * time.Minute
+	exec := NewCoordinatorExecutor(runner, globalTimeout, "")
+
+	_, err := exec.Execute(context.Background(), "build-executor", "build task", map[string]string{
+		"timeout_seconds": "840",
+	})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	deadline, ok := runner.lastCtx.Deadline()
+	if !ok {
+		t.Fatal("expected context to have a deadline")
+	}
+	// The deadline should be ~840s from now, not ~900s.
+	// Allow a generous 10s margin for test execution time.
+	remaining := time.Until(deadline)
+	if remaining > 850*time.Second {
+		t.Fatalf("expected deadline ~840s, got %v — per-dispatch timeout not applied", remaining)
+	}
+	if remaining < 830*time.Second {
+		t.Fatalf("expected deadline ~840s, got %v — timeout unexpectedly short", remaining)
+	}
+}
+
+func TestCoordinatorExecutor_FallsBackToGlobalTimeout(t *testing.T) {
+	runner := &stubTaskRunner{
+		result: &agent.TaskResult{
+			Answer:   "## Execution Summary\n- done",
+			Messages: []core.Message{assistantMessageWithToolCalls("shell_exec")},
+		},
+	}
+	globalTimeout := 15 * time.Minute
+	exec := NewCoordinatorExecutor(runner, globalTimeout, "")
+
+	_, err := exec.Execute(context.Background(), "agent-a", "task", map[string]string{})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	deadline, ok := runner.lastCtx.Deadline()
+	if !ok {
+		t.Fatal("expected context to have a deadline from global timeout")
+	}
+	remaining := time.Until(deadline)
+	if remaining > 910*time.Second {
+		t.Fatalf("expected deadline ~900s (global), got %v", remaining)
+	}
+	if remaining < 890*time.Second {
+		t.Fatalf("expected deadline ~900s (global), got %v — timeout unexpectedly short", remaining)
 	}
 }
 

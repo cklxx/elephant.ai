@@ -8,7 +8,7 @@ const (
 
 	DefaultKernelID               = "default"
 	DefaultKernelSchedule         = "8,38 * * * *"
-	DefaultKernelTimeoutSeconds   = 900
+	DefaultKernelTimeoutSeconds   = 1200
 	DefaultKernelLeaseSeconds     = 1800
 	DefaultKernelRetentionSeconds = 1209600
 	DefaultKernelMaxConcurrent    = 3
@@ -79,7 +79,7 @@ func DefaultRuntimeSettings() RuntimeSettings {
 			Prompt:         "Execute kernel build/implementation tasks with deterministic verification.\n\nProceed based on the following state:\n{STATE}",
 			Priority:       9,
 			Enabled:        true,
-			TimeoutSeconds: 840, // build + test can be slow; allow up to 14 min
+			TimeoutSeconds: 1200, // build + test can be slow; allow up to 20 min
 			Metadata:       map[string]string{"source": "kernel_default", "bucket": "build"},
 		},
 		{

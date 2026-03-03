@@ -198,6 +198,14 @@ func (e *ReactEngine) think(
 	if err != nil {
 		llmErr = err
 		e.logger.Error("LLM call failed (request_id=%s): %v", requestID, err)
+		if ctx.Err() == context.DeadlineExceeded && services.Context != nil {
+			estimated := services.Context.EstimateTokens(filteredMessages) + budget.ToolTokens
+			e.logger.Warn(
+				"Timeout context budget: estimated=%d limit=%d usage=%.0f%% messages=%d iteration=%d request_id=%s",
+				estimated, limit, float64(estimated)/float64(limit)*100,
+				len(filteredMessages), state.Iterations, requestID,
+			)
+		}
 		return Message{}, fmt.Errorf("LLM call failed: %w", err)
 	}
 	if resp == nil {
