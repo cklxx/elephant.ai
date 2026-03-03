@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/infra/httpclient"
 	"alex/internal/shared/utils"
 )
 
@@ -136,7 +137,7 @@ func DownloadGGUF(ctx context.Context, ref GGUFRef, opts DownloadOptions) (strin
 		if timeout <= 0 {
 			timeout = defaultHTTPTimeout
 		}
-		client = &http.Client{Timeout: timeout}
+		client = httpclient.New(timeout, nil)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, resolveURL, nil)
@@ -284,4 +285,3 @@ func fileSHA256Matches(path string, wantHex string) (bool, error) {
 	actual := hex.EncodeToString(hasher.Sum(nil))
 	return strings.EqualFold(actual, wantHex), nil
 }
-

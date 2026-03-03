@@ -298,6 +298,105 @@ func TestOpenAIClientCompleteQuotaExceeded(t *testing.T) {
 	}
 }
 
+func TestOpenAIClientBuildOpenAIRequestStreamAndStop(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{
+		baseClient: baseClient{
+			model:   "test-model",
+			baseURL: "https://api.openai.com/v1",
+		},
+	}
+
+	req := ports.CompletionRequest{
+		Messages:      []ports.Message{{Role: "user", Content: "hi"}},
+		StopSequences: []string{"END", "STOP"},
+	}
+
+	nonStream := client.buildOpenAIRequest(req, false)
+	if got, ok := nonStream["stream"].(bool); !ok || got {
+		t.Fatalf("expected non-stream request to set stream=false, got %v", nonStream["stream"])
+	}
+	if _, ok := nonStream["stop"]; ok {
+		t.Fatalf("expected non-stream request to omit stop, got %v", nonStream["stop"])
+	}
+
+	streamReq := client.buildOpenAIRequest(req, true)
+	if got, ok := streamReq["stream"].(bool); !ok || !got {
+		t.Fatalf("expected stream request to set stream=true, got %v", streamReq["stream"])
+	}
+	stop, ok := streamReq["stop"].([]string)
+	if !ok {
+		t.Fatalf("expected stop to be []string, got %T", streamReq["stop"])
+	}
+	if len(stop) != 2 || stop[0] != "END" || stop[1] != "STOP" {
+		t.Fatalf("unexpected stop sequences: %+v", stop)
+	}
+
+	req.StopSequences[0] = "MUTATED"
+	if stop[0] != "END" {
+		t.Fatalf("expected stop sequences to be copied, got %+v", stop)
+	}
+}
+
+func TestOpenAIClientBuildOpenAIRequestArkMaxCompletionTokens(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{
+		baseClient: baseClient{
+			model:   "test-model",
+			baseURL: "https://ark.cn-beijing.volces.com/api/v3",
+		},
+	}
+
+	req := ports.CompletionRequest{
+		Messages:    []ports.Message{{Role: "user", Content: "hi"}},
+		MaxTokens:   128,
+		Temperature: 0.7,
+		Thinking: ports.ThinkingConfig{
+			Enabled: true,
+		},
+	}
+
+	payload := client.buildOpenAIRequest(req, false)
+	if got, ok := payload["reasoning_effort"].(string); !ok || got != "medium" {
+		t.Fatalf("expected ARK reasoning_effort=medium, got %v", payload["reasoning_effort"])
+	}
+	if _, ok := payload["max_tokens"]; ok {
+		t.Fatalf("expected ARK request to omit max_tokens when MaxTokens>0, got %v", payload["max_tokens"])
+	}
+	if got, ok := payload["max_completion_tokens"].(int); !ok || got != 128 {
+		t.Fatalf("expected max_completion_tokens=128, got %v", payload["max_completion_tokens"])
+	}
+}
+
+func TestOpenAIClientBuildOpenAIRequestArkKeepsMaxTokensWhenNonPositive(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{
+		baseClient: baseClient{
+			model:   "test-model",
+			baseURL: "https://ark.cn-beijing.volces.com/api/v3",
+		},
+	}
+
+	req := ports.CompletionRequest{
+		Messages:  []ports.Message{{Role: "user", Content: "hi"}},
+		MaxTokens: 0,
+		Thinking: ports.ThinkingConfig{
+			Enabled: true,
+		},
+	}
+
+	payload := client.buildOpenAIRequest(req, true)
+	if _, ok := payload["max_completion_tokens"]; ok {
+		t.Fatalf("expected no max_completion_tokens for non-positive MaxTokens, got %v", payload["max_completion_tokens"])
+	}
+	if got, ok := payload["max_tokens"].(int); !ok || got != 0 {
+		t.Fatalf("expected max_tokens=0, got %v", payload["max_tokens"])
+	}
+}
+
 func TestConvertMessagesKeepsToolAttachmentsAsText(t *testing.T) {
 	t.Parallel()
 

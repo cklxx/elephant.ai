@@ -79,8 +79,7 @@ func (t *larkCalendarQuery) Execute(ctx context.Context, call ports.ToolCall) (*
 		return errResult, nil
 	}
 	if endUnix < startUnix {
-		err := fmt.Errorf("end_time must be >= start_time")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "end_time must be >= start_time")
 	}
 
 	auth, errResult := resolveLarkCalendarAuth(ctx, call.ID)
@@ -241,13 +240,13 @@ func clampCalendarPageSize(args map[string]any) int {
 
 func requireUnixSeconds(args map[string]any, callID, key string) (string, int64, *ports.ToolResult) {
 	if args == nil {
-		err := fmt.Errorf("missing '%s'", key)
-		return "", 0, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		result, _ := shared.ToolError(callID, "missing '%s'", key)
+		return "", 0, result
 	}
 	raw, ok := args[key]
 	if !ok {
-		err := fmt.Errorf("missing '%s'", key)
-		return "", 0, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		result, _ := shared.ToolError(callID, "missing '%s'", key)
+		return "", 0, result
 	}
 	return parseUnixSecondsValue(callID, key, raw)
 }
@@ -263,8 +262,8 @@ func parseUnixSecondsValue(callID, key string, raw any) (string, int64, *ports.T
 		}
 		val, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
-			err = fmt.Errorf("%s must be a unix seconds timestamp", key)
-			return "", 0, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+			result, _ := shared.ToolError(callID, "%s must be a unix seconds timestamp", key)
+			return "", 0, result
 		}
 		parsed = val
 	case float64:
@@ -277,12 +276,12 @@ func parseUnixSecondsValue(callID, key string, raw any) (string, int64, *ports.T
 		parsed = v
 		value = fmt.Sprintf("%d", parsed)
 	default:
-		err := fmt.Errorf("%s must be a unix seconds timestamp", key)
-		return "", 0, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		result, _ := shared.ToolError(callID, "%s must be a unix seconds timestamp", key)
+		return "", 0, result
 	}
 	if value == "" {
-		err := fmt.Errorf("%s cannot be empty", key)
-		return "", 0, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		result, _ := shared.ToolError(callID, "%s cannot be empty", key)
+		return "", 0, result
 	}
 	return value, parsed, nil
 }

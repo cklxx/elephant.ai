@@ -3,13 +3,13 @@ package lark
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/subscription"
 	"alex/internal/delivery/channels"
+	"alex/internal/infra/httpclient"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/utils"
 )
@@ -284,7 +284,7 @@ func (g *Gateway) loadModelCatalog(ctx context.Context) subscription.Catalog {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	client := &http.Client{Timeout: 20 * time.Second}
+	client := httpclient.New(20*time.Second, nil)
 	loadCreds := func() runtimeconfig.CLICredentials { return g.loadCLICredentials() }
 	llamaResolver := func(context.Context) (subscription.LlamaServerTarget, bool) {
 		return resolveLlamaServerTarget(runtimeconfig.DefaultEnvLookup)

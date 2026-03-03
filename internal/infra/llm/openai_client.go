@@ -35,34 +35,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
 	provider := c.detectProvider()
 
-	// Convert to OpenAI format
-	oaiReq := map[string]any{
-		"model":       c.model,
-		"messages":    c.convertMessages(req.Messages),
-		"temperature": req.Temperature,
-		"max_tokens":  req.MaxTokens,
-		"stream":      false,
-	}
-	if shouldSendArkReasoning(c.baseURL, req.Thinking) {
-		effort := strings.TrimSpace(req.Thinking.Effort)
-		if effort == "" {
-			effort = "medium"
-		}
-		oaiReq["reasoning_effort"] = effort
-		if req.MaxTokens > 0 {
-			delete(oaiReq, "max_tokens")
-			oaiReq["max_completion_tokens"] = req.MaxTokens
-		}
-	} else if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
-		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
-			oaiReq["reasoning"] = reasoning
-		}
-	}
-
-	if len(req.Tools) > 0 {
-		oaiReq["tools"] = c.convertTools(req.Tools)
-		oaiReq["tool_choice"] = "auto"
-	}
+	oaiReq := c.buildOpenAIRequest(req, false)
 
 	body, err := jsonx.Marshal(oaiReq)
 	if err != nil {
@@ -203,37 +176,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
 	provider := c.detectProvider()
 
-	oaiReq := map[string]any{
-		"model":       c.model,
-		"messages":    c.convertMessages(req.Messages),
-		"temperature": req.Temperature,
-		"max_tokens":  req.MaxTokens,
-		"stream":      true,
-	}
-	if shouldSendArkReasoning(c.baseURL, req.Thinking) {
-		effort := strings.TrimSpace(req.Thinking.Effort)
-		if effort == "" {
-			effort = "medium"
-		}
-		oaiReq["reasoning_effort"] = effort
-		if req.MaxTokens > 0 {
-			delete(oaiReq, "max_tokens")
-			oaiReq["max_completion_tokens"] = req.MaxTokens
-		}
-	} else if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
-		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
-			oaiReq["reasoning"] = reasoning
-		}
-	}
-
-	if len(req.Tools) > 0 {
-		oaiReq["tools"] = c.convertTools(req.Tools)
-		oaiReq["tool_choice"] = "auto"
-	}
-
-	if len(req.StopSequences) > 0 {
-		oaiReq["stop"] = append([]string(nil), req.StopSequences...)
-	}
+	oaiReq := c.buildOpenAIRequest(req, true)
 
 	body, err := jsonx.Marshal(oaiReq)
 	if err != nil {
@@ -470,6 +413,43 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 
 	c.logResponseSummary(prefix, result)
 	return result, nil
+}
+
+func (c *openaiClient) buildOpenAIRequest(req ports.CompletionRequest, stream bool) map[string]any {
+	oaiReq := map[string]any{
+		"model":       c.model,
+		"messages":    c.convertMessages(req.Messages),
+		"temperature": req.Temperature,
+		"max_tokens":  req.MaxTokens,
+		"stream":      stream,
+	}
+
+	if shouldSendArkReasoning(c.baseURL, req.Thinking) {
+		effort := strings.TrimSpace(req.Thinking.Effort)
+		if effort == "" {
+			effort = "medium"
+		}
+		oaiReq["reasoning_effort"] = effort
+		if req.MaxTokens > 0 {
+			delete(oaiReq, "max_tokens")
+			oaiReq["max_completion_tokens"] = req.MaxTokens
+		}
+	} else if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
+		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
+			oaiReq["reasoning"] = reasoning
+		}
+	}
+
+	if len(req.Tools) > 0 {
+		oaiReq["tools"] = c.convertTools(req.Tools)
+		oaiReq["tool_choice"] = "auto"
+	}
+
+	if stream && len(req.StopSequences) > 0 {
+		oaiReq["stop"] = append([]string(nil), req.StopSequences...)
+	}
+
+	return oaiReq
 }
 
 // SetUsageCallback implements UsageTrackingClient

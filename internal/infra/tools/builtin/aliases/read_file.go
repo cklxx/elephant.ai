@@ -64,13 +64,12 @@ func NewReadFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 func (t *readFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
-		err := errors.New("path is required")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "path is required")
 	}
 
 	resolved, err := pathutil.ResolveLocalPath(ctx, path)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 
 	hasRange := false
@@ -82,7 +81,7 @@ func (t *readFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 	info, err := os.Stat(resolved)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 	fileSize := info.Size()
 
@@ -100,7 +99,7 @@ func (t *readFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	// Normal path: read entire file.
 	content, err := os.ReadFile(resolved)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 
 	output := string(content)
@@ -127,8 +126,7 @@ func (t *readFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 				endLine = len(lines)
 			}
 			if endLine < startLine {
-				err := fmt.Errorf("end_line must be >= start_line")
-				return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+				return shared.ToolError(call.ID, "end_line must be >= start_line")
 			}
 			output = strings.Join(lines[startLine:endLine], "\n")
 			metadata["shown_range"] = [2]int{startLine, endLine}
@@ -149,13 +147,12 @@ func (t *readFile) readLargeFileRange(callID, resolved string, fileSize int64, s
 		startLine = 0
 	}
 	if endLine > 0 && endLine < startLine {
-		err := fmt.Errorf("end_line must be >= start_line")
-		return &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(callID, "end_line must be >= start_line")
 	}
 
 	f, err := os.Open(resolved)
 	if err != nil {
-		return &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(callID, "%w", err)
 	}
 	defer f.Close()
 
@@ -166,7 +163,7 @@ func (t *readFile) readLargeFileRange(callID, resolved string, fileSize int64, s
 	for {
 		line, readErr := reader.ReadString('\n')
 		if readErr != nil && !errors.Is(readErr, io.EOF) {
-			return &ports.ToolResult{CallID: callID, Content: fmt.Sprintf("error scanning file: %v", readErr), Error: readErr}, nil
+			return shared.ToolError(callID, "error scanning file: %w", readErr)
 		}
 		if line == "" && errors.Is(readErr, io.EOF) {
 			break
@@ -212,7 +209,7 @@ func (t *readFile) readLargeFileRange(callID, resolved string, fileSize int64, s
 func (t *readFile) readLargeFilePreview(callID, resolved string, fileSize int64) (*ports.ToolResult, error) {
 	f, err := os.Open(resolved)
 	if err != nil {
-		return &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(callID, "%w", err)
 	}
 	defer f.Close()
 
@@ -235,7 +232,7 @@ func (t *readFile) readLargeFilePreview(callID, resolved string, fileSize int64)
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return &ports.ToolResult{CallID: callID, Content: fmt.Sprintf("error scanning file: %v", err), Error: err}, nil
+		return shared.ToolError(callID, "error scanning file: %w", err)
 	}
 
 	metadata := map[string]any{

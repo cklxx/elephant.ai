@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/infra/httpclient"
 	"alex/internal/shared/utils"
 )
 
@@ -265,7 +266,7 @@ func refreshCodexOAuth(payload codexAuthFile) (codexAuthFile, error) {
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := httpclient.New(10*time.Second, nil)
 	resp, err := client.Do(req)
 	if err != nil {
 		return codexAuthFile{}, err
@@ -357,7 +358,7 @@ func refreshClaudeOAuth(payload claudeOAuthFile) (claudeOAuthFile, error) {
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := httpclient.New(10*time.Second, nil)
 	resp, err := client.Do(req)
 	if err != nil {
 		return claudeOAuthFile{}, err

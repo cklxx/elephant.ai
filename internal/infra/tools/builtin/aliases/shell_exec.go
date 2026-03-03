@@ -3,7 +3,6 @@ package aliases
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -57,21 +56,19 @@ func NewShellExec(cfg shared.ShellToolConfig) tools.ToolExecutor {
 
 func (t *shellExec) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	if !localExecEnabled {
-		err := errors.New("local shell execution is disabled in this build")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "local shell execution is disabled in this build")
 	}
 
 	command := strings.TrimSpace(shared.StringArg(call.Arguments, "command"))
 	if command == "" {
-		err := errors.New("command is required")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "command is required")
 	}
 
 	execDir := strings.TrimSpace(shared.StringArg(call.Arguments, "exec_dir"))
 	if execDir != "" {
 		resolved, err := pathutil.ResolveLocalPath(ctx, execDir)
 		if err != nil {
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "%w", err)
 		}
 		execDir = resolved
 	}
@@ -97,19 +94,19 @@ func (t *shellExec) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 
 	script, err := os.CreateTemp("", "alex-bash-*.sh")
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 	defer func() { _ = os.Remove(script.Name()) }()
 
 	if _, err := script.WriteString(command); err != nil {
 		_ = script.Close()
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 	if err := script.Close(); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 	if err := os.Chmod(script.Name(), 0o755); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 
 	cmd := exec.CommandContext(runCtx, "bash", script.Name())
@@ -161,7 +158,7 @@ func (t *shellExec) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 
 	specs, err := parseAttachmentSpecs(call.Arguments)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 
 	uploadCfg := shared.GetAutoUploadConfig(ctx)

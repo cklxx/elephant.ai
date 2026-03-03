@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/infra/httpclient"
 	"github.com/segmentio/ksuid"
 )
 
@@ -450,7 +451,7 @@ func NewWebhookChannel(name, url string, opts ...WebhookOption) *WebhookChannel 
 	w := &WebhookChannel{
 		name:    name,
 		url:     url,
-		client:  &http.Client{Timeout: 10 * time.Second},
+		client:  httpclient.New(10*time.Second, nil),
 		headers: make(map[string]string),
 	}
 	for _, o := range opts {

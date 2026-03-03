@@ -3,7 +3,6 @@ package aliases
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,19 +52,17 @@ func NewWriteFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 func (t *writeFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
-		err := errors.New("path is required")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "path is required")
 	}
 
 	content := shared.StringArg(call.Arguments, "content")
 	if content == "" {
-		err := errors.New("content is required")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "content is required")
 	}
 
 	resolved, err := pathutil.ResolveLocalPath(ctx, path)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 
 	encoding := strings.TrimSpace(shared.StringArg(call.Arguments, "encoding"))
@@ -77,7 +74,7 @@ func (t *writeFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	if strings.EqualFold(encoding, "base64") {
 		decoded, err := base64.StdEncoding.DecodeString(content)
 		if err != nil {
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "%w", err)
 		}
 		payload = decoded
 	} else {
@@ -92,24 +89,24 @@ func (t *writeFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	}
 
 	if err := os.MkdirAll(filepath.Dir(resolved), 0o755); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 
 	bytesWritten := 0
 	if appendMode {
 		file, err := os.OpenFile(resolved, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "%w", err)
 		}
 		defer func() { _ = file.Close() }()
 		n, err := file.Write(payload)
 		if err != nil {
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "%w", err)
 		}
 		bytesWritten = n
 	} else {
 		if err := os.WriteFile(resolved, payload, 0o644); err != nil {
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "%w", err)
 		}
 		bytesWritten = len(payload)
 	}

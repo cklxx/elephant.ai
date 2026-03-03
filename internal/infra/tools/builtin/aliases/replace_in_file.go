@@ -2,7 +2,6 @@ package aliases
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -48,36 +47,33 @@ func NewReplaceInFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 func (t *replaceInFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
-		err := errors.New("path is required")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "path is required")
 	}
 	oldStr := shared.StringArg(call.Arguments, "old_str")
 	if oldStr == "" {
-		err := errors.New("old_str is required")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "old_str is required")
 	}
 	newStr := shared.StringArg(call.Arguments, "new_str")
 
 	resolved, err := pathutil.ResolveLocalPath(ctx, path)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 
 	content, err := os.ReadFile(resolved)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 
 	original := string(content)
 	count := strings.Count(original, oldStr)
 	if count == 0 {
-		err := fmt.Errorf("old_str not found in file")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "old_str not found in file")
 	}
 
 	updated := strings.ReplaceAll(original, oldStr, newStr)
 	if err := os.WriteFile(resolved, []byte(updated), 0o644); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 
 	result := &ports.ToolResult{

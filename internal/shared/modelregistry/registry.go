@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/infra/httpclient"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
 )
@@ -153,7 +154,7 @@ func (r *Registry) fetchAndStore() {
 
 	client := r.client
 	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
+		client = httpclient.New(10*time.Second, logging.NewComponentLogger("modelregistry"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
