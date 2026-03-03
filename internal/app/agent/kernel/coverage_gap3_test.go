@@ -13,7 +13,6 @@ import (
 	"errors"
 	"os"
 	"strings"
-	"syscall"
 	"testing"
 
 	kerneldomain "alex/internal/domain/kernel"
@@ -59,11 +58,6 @@ func newTestEngineWithStore(t *testing.T, exec Executor, store kerneldomain.Stor
 		MaxConcurrent: 1,
 	}
 	return NewEngine(cfg, sf, store, planner, exec, logging.NewComponentLogger("test"))
-}
-
-// sandboxPermError returns an error that isSandboxPathRestriction recognises.
-func sandboxPermError() error {
-	return &os.PathError{Op: "open", Path: "/restricted/path", Err: syscall.EPERM}
 }
 
 // makeReadOnlyDir creates a temp dir, writes STATE.md into it, then makes
