@@ -248,3 +248,4 @@ Expand beyond active set only when:
 
 - Prefer subagents for parallelizable tasks.
 - Understand full context of changes before reviewing; respect architectural decisions over personal preferences.
+- **Self-correction rule:** Upon receiving ANY correction from the user, immediately write a preventive rule for yourself (in `docs/guides/`, `docs/error-experience/entries/`, or the relevant best-practice doc) to prevent the same class of mistake from recurring. Do not wait — codify the lesson before resuming work.

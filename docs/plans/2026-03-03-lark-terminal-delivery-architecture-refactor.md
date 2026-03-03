@@ -1,131 +1,133 @@
-# 2026-03-03 Lark Terminal Delivery 架构重构方案（事件化 + Outbox）
+# 2026-03-03 Lark Terminal Delivery Architecture Refactor (Event-Driven + Outbox)
 
 Updated: 2026-03-03  
 Status: Proposed
 
-## 1. 背景与问题定义
+## 1. Background and Problem Statement
 
-现状中，Lark 最终回复（含 final answer / failure / await 提示）在 `task_manager.runTask -> dispatchResult` 同步发送，且与任务执行上下文强耦合。  
-当执行上下文超时或取消时（例如 `ReplyTimeout`），终态消息发送可能被连带取消，导致用户“任务结束但未收到最终消息”。
+Today, Lark terminal replies (final answer / failure / await-user-input prompts) are sent synchronously in `task_manager.runTask -> dispatchResult`, tightly coupled to the task execution context.  
+When the execution context times out or is canceled (for example, `ReplyTimeout`), terminal delivery can be canceled as a side effect, causing "task completed but no final message received."
 
-核心问题不是“是否能发一次”，而是**终态投递缺乏独立的可靠投递语义**：
-1. 发送生命周期与执行生命周期耦合。
-2. 缺少统一投递状态机（pending/sent/failed/retrying/dead）。
-3. 缺少显式幂等键和可重放机制。
+The core issue is not "can we send once," but that **terminal delivery lacks an independent reliable delivery semantic**:
+1. Delivery lifecycle is coupled to execution lifecycle.
+2. There is no unified delivery state machine (`pending/sent/failed/retrying/dead`).
+3. There is no explicit idempotency key and replay mechanism.
 
-## 2. 目标架构（应有形态）
+## 2. Target Architecture
 
-采用“**领域事件 + 投递意图 Outbox + 异步投递 Worker**”三段式：
+Adopt a three-stage model: **Domain Event + Delivery Intent Outbox + Async Delivery Worker**.
 
-1. Domain/Coordinator 产生终态事件（`workflow.result.final` 等）。
-2. Delivery Intent Builder 将事件转为 `DeliveryIntent`（终态文本、附件、chat_id、幂等键、序号）。
-3. Intent 与任务状态在同一事务边界内持久化到 Outbox（或同等可靠持久层）。
-4. Delivery Worker 异步拉取 Intent，按重试策略投递到 Lark。
-5. 投递结果回写状态；超过上限进入 dead-letter，并可人工/自动重放。
+1. Domain/Coordinator emits terminal events (for example, `workflow.result.final`).
+2. Delivery Intent Builder converts events into `DeliveryIntent` (terminal text, attachments, chat_id, idempotency key, sequence).
+3. Persist intent and task status in the same transactional boundary (or equivalent durable boundary).
+4. Delivery Worker asynchronously claims intents and delivers to Lark with retry policy.
+5. Delivery result is written back; over retry limit goes to dead-letter and can be replayed.
 
-## 3. 关键设计点
+## 3. Key Design Points
 
-### 3.1 可靠性边界
+### 3.1 Reliability Boundary
 
-- 执行成功/失败与“消息已送达”解耦：执行完成只保证写入 Intent；是否投递成功由 Worker 负责。
-- 不再依赖 task execution context；Worker 使用自己的超时与重试预算。
+- Decouple task execution success/failure from message-delivered status:
+  execution completion only guarantees intent persistence; delivery success is owned by Worker.
+- Worker must not rely on task execution context; it uses its own timeout and retry budget.
 
-### 3.2 幂等与顺序
+### 3.2 Idempotency and Ordering
 
-- 幂等键建议：`lark:{chat_id}:{run_id}:{event_type}:{sequence}`。
-- 同一 `chat_id + run_id` 内要求单调序列；`final` 事件优先级最高。
-- 重放时按幂等键去重，保证“至少一次投递 + 业务幂等”。
+- Recommended idempotency key: `lark:{chat_id}:{run_id}:{event_type}:{sequence}`.
+- Require monotonic sequence within same `chat_id + run_id`; `final` event has highest priority.
+- Replay uses idempotency keys for dedupe, ensuring at-least-once delivery with business idempotency.
 
-### 3.3 重试策略
+### 3.3 Retry Policy
 
-- 指数退避 + jitter + 最大重试次数。
-- 仅对可重试错误重试（429/5xx/网络抖动）；4xx 语义错误直接失败并告警。
-- 维护 retry budget，避免故障放大。
+- Exponential backoff + jitter + max retry count.
+- Retry only retriable failures (429/5xx/network instability); fail fast for semantic 4xx errors with alerting.
+- Maintain retry budget to avoid blast-radius amplification.
 
-### 3.4 可观测性
+### 3.4 Observability
 
-必须有：
+Required signals:
 1. `delivery_intent_pending_total`
 2. `delivery_intent_retry_total`
 3. `delivery_intent_dead_total`
-4. `terminal_delivery_latency_ms`（事件产生到消息送达）
-5. 按 `chat_id/run_id/intent_id` 可追踪日志
+4. `terminal_delivery_latency_ms` (event creation to successful delivery)
+5. Traceable logs by `chat_id/run_id/intent_id`
 
-## 4. 与当前代码的映射（建议）
+## 4. Mapping to Current Code (Proposed)
 
-### 新增
+### New Files
 
 1. `internal/delivery/channels/lark/delivery_intent.go`
-   - Intent 模型与状态机。
+   - Intent model and state machine.
 2. `internal/delivery/channels/lark/delivery_outbox_store.go`
-   - 持久化接口与实现（可先 file store，后续可切 DB）。
+   - Persistence interface and implementation (file store first, DB later).
 3. `internal/delivery/channels/lark/delivery_worker.go`
-   - 轮询/拉取、投递、重试、回写。
+   - Poll/claim, deliver, retry, write-back.
 4. `internal/delivery/channels/lark/delivery_worker_test.go`
-   - 幂等、重试、死信、重放覆盖。
+   - Coverage for idempotency, retry, dead-letter, replay.
 
-### 改造
+### Refactors
 
 1. `internal/delivery/channels/lark/task_manager.go`
-   - `dispatchResult` 从“直接发送”改为“写 Intent”。
+   - Change `dispatchResult` from direct-send to enqueue-intent.
 2. `internal/app/agent/coordinator/workflow_event_translator_react.go`
-   - 保证终态 envelope 字段完整（answer/stop_reason/attachments/seq）。
-3. `internal/delivery/server/app/event_broadcaster.go`（可选）
-   - 若需要共享投递管线，可统一终态事件入口。
+   - Ensure terminal envelope fields are complete (`answer/stop_reason/attachments/seq`).
+3. `internal/delivery/server/app/event_broadcaster.go` (optional)
+   - Unified terminal event ingress if a shared delivery pipeline is desired.
 
-## 5. 分阶段重构计划
+## 5. Phased Rollout Plan
 
-### Phase 0（已完成）
-- 最小修复：终态发送使用 detached context（止血）。
+### Phase 0 (Completed)
+- Minimum stopgap: send terminal messages with detached context.
 
-### Phase 1（低风险）
-- 引入 `DeliveryIntent` 模型与 Outbox Store。
-- 终态路径“写 Intent + 继续直发”（shadow mode，对账不切流）。
-- 验收：Intent 生成率与直发终态事件 1:1 对齐。
+### Phase 1 (Low Risk)
+- Introduce `DeliveryIntent` model and Outbox Store.
+- Terminal path does "enqueue intent + still direct-send" (shadow mode).
+- Acceptance: intent generation count matches terminal direct-send count 1:1.
 
-### Phase 2（切流）
-- 终态路径切到 Worker 异步发送；直发仅作 fallback（feature flag）。
-- 验收：`terminal_delivery_missing_rate` 显著下降；无用户可见退化。
+### Phase 2 (Cutover)
+- Switch terminal path to Worker async delivery; keep direct-send as feature-flagged fallback.
+- Acceptance: `terminal_delivery_missing_rate` drops significantly with no visible user regression.
 
-### Phase 3（统一投递）
-- 将进度编辑、附件发送也纳入 Intent 机制（多类型 Intent）。
-- 引入 dead-letter replay 命令。
+### Phase 3 (Unified Delivery)
+- Bring progress edits and attachment sends into the intent mechanism (multi-type intents).
+- Add dead-letter replay command.
 
-### Phase 4（收敛）
-- 移除旧直发主路径，保留应急旁路。
-- 文档、运维手册、告警策略同步。
+### Phase 4 (Convergence)
+- Remove legacy direct-send primary path, keep emergency bypass.
+- Sync docs, runbook, and alert strategy.
 
-## 6. 测试与验收
+## 6. Testing and Acceptance
 
-### 单测
-1. Context 取消后 Intent 仍可被 Worker 投递。
-2. 相同幂等键重复入队只发送一次。
-3. 429/5xx 触发重试；4xx 不重试。
-4. 达到最大重试进入 dead-letter。
+### Unit Tests
+1. Intent can still be delivered after task context cancellation.
+2. Duplicate enqueue with same idempotency key sends only once.
+3. 429/5xx retries; 4xx does not retry.
+4. Over max retries transitions to dead-letter.
 
-### 集成
-1. 人为注入 Lark API 间歇失败，验证最终可达。
-2. 进程重启后未完成 Intent 可恢复发送。
-3. 高并发 chat 场景下终态顺序正确。
+### Integration Tests
+1. Inject intermittent Lark API failures and verify eventual terminal delivery.
+2. Restart process and verify unfinished intents can resume and deliver.
+3. Under high chat concurrency, terminal ordering remains correct.
 
-### 运行指标
-1. `terminal_delivery_latency_p95` < 5s（示例目标）
-2. `terminal_delivery_missing_rate` 接近 0
-3. dead-letter 可观测且可重放
+### Runtime SLO/Signals
+1. `terminal_delivery_latency_p95` < 5s (example target)
+2. `terminal_delivery_missing_rate` approaches 0
+3. Dead-letter queue is observable and replayable
 
-## 7. 风险与回滚
+## 7. Risks and Rollback
 
-风险：
-1. 双写（直发+outbox）阶段可能重复通知。
-2. Worker 故障导致投递积压。
+Risks:
+1. During dual-write (direct-send + outbox), duplicates may occur.
+2. Worker failures may accumulate pending backlog.
 
-缓解：
-1. 幂等键 + 发送端去重。
-2. 监控 pending backlog + 自动扩容。
-3. 保留 feature flag：一键回退到直发。
+Mitigations:
+1. Idempotency keys + sender-side dedupe.
+2. Monitor pending backlog and auto-scale worker.
+3. Keep feature flag for one-step rollback to direct-send.
 
-## 8. 结论
+## 8. Conclusion
 
-这次故障暴露的是“终态投递语义”缺失，而不是单点代码 bug。  
-推荐将终态消息升级为**可靠事件投递架构**：  
-“事件生成（可追踪）→ 意图持久化（可恢复）→ 异步投递（可重试）→ 状态回写（可审计）”。
+The incident exposed a missing **terminal delivery semantic**, not a single code bug.  
+Recommended direction is a reliable event-driven delivery architecture:
+
+**event emission (traceable) -> durable intent persistence (recoverable) -> async delivery (retryable) -> status write-back (auditable).**
