@@ -14,10 +14,10 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/presets"
-	"alex/internal/infra/mcp"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/async"
+	jsonrpc "alex/internal/shared/jsonrpc"
 	"alex/internal/shared/logging"
 )
 
@@ -118,7 +118,7 @@ func (s *acpServer) Serve(ctx context.Context, in io.Reader, out io.Writer) erro
 	}
 }
 
-func (s *acpServer) handleRequest(ctx context.Context, req *mcp.Request, clientID string) {
+func (s *acpServer) handleRequest(ctx context.Context, req *jsonrpc.Request, clientID string) {
 	if req == nil {
 		return
 	}
@@ -133,7 +133,7 @@ func (s *acpServer) handleRequest(ctx context.Context, req *mcp.Request, clientI
 	_ = transport.SendResponse(resp)
 }
 
-func (s *acpServer) handleNotification(_ context.Context, req *mcp.Request, _ string) {
+func (s *acpServer) handleNotification(_ context.Context, req *jsonrpc.Request, _ string) {
 	if req == nil {
 		return
 	}
@@ -143,12 +143,12 @@ func (s *acpServer) handleNotification(_ context.Context, req *mcp.Request, _ st
 	}
 }
 
-func (s *acpServer) dispatch(ctx context.Context, req *mcp.Request, clientID string) *mcp.Response {
+func (s *acpServer) dispatch(ctx context.Context, req *jsonrpc.Request, clientID string) *jsonrpc.Response {
 	switch req.Method {
 	case "initialize":
 		return s.handleInitialize(req)
 	case "authenticate":
-		return mcp.NewResponse(req.ID, map[string]any{})
+		return jsonrpc.NewResponse(req.ID, map[string]any{})
 	case "session/new":
 		return s.handleSessionNew(ctx, req, clientID)
 	case "session/load":
@@ -158,11 +158,11 @@ func (s *acpServer) dispatch(ctx context.Context, req *mcp.Request, clientID str
 	case "session/set_mode":
 		return s.handleSessionSetMode(req)
 	default:
-		return mcp.NewErrorResponse(req.ID, mcp.MethodNotFound, fmt.Sprintf("unknown method: %s", req.Method), nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.MethodNotFound, fmt.Sprintf("unknown method: %s", req.Method), nil)
 	}
 }
 
-func (s *acpServer) handleInitialize(req *mcp.Request) *mcp.Response {
+func (s *acpServer) handleInitialize(req *jsonrpc.Request) *jsonrpc.Response {
 	params := req.Params
 	clientVersion, _ := intParam(params, "protocolVersion")
 	_ = clientVersion
@@ -181,36 +181,27 @@ func (s *acpServer) handleInitialize(req *mcp.Request) *mcp.Response {
 				"image":           true,
 				"embeddedContext": true,
 			},
-			"mcpCapabilities": map[string]any{
-				"http": false,
-				"sse":  false,
-			},
 			"sessionCapabilities": map[string]any{},
 		},
 		"authMethods": []any{},
 	}
 
-	return mcp.NewResponse(req.ID, resp)
+	return jsonrpc.NewResponse(req.ID, resp)
 }
 
-func (s *acpServer) handleSessionNew(ctx context.Context, req *mcp.Request, clientID string) *mcp.Response {
+func (s *acpServer) handleSessionNew(ctx context.Context, req *jsonrpc.Request, clientID string) *jsonrpc.Response {
 	params := req.Params
 	cwd := strings.TrimSpace(stringParam(params, "cwd"))
 	if cwd == "" {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "cwd is required", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "cwd is required", nil)
 	}
 	if !filepath.IsAbs(cwd) {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "cwd must be an absolute path", nil)
-	}
-
-	mcpServers := sliceParam(params, "mcpServers")
-	if mcpServers == nil {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "mcpServers is required", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "cwd must be an absolute path", nil)
 	}
 
 	session, err := s.container.SessionStore.Create(ctx)
 	if err != nil {
-		return mcp.NewErrorResponse(req.ID, mcp.InternalError, "failed to create session", err.Error())
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InternalError, "failed to create session", err.Error())
 	}
 
 	if s.initialMessage != "" {
@@ -220,7 +211,7 @@ func (s *acpServer) handleSessionNew(ctx context.Context, req *mcp.Request, clie
 			Source:  ports.MessageSourceSystemPrompt,
 		})
 		if err := s.container.SessionStore.Save(ctx, session); err != nil {
-			return mcp.NewErrorResponse(req.ID, mcp.InternalError, "failed to seed session message", err.Error())
+			return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InternalError, "failed to seed session message", err.Error())
 		}
 	}
 
@@ -232,69 +223,57 @@ func (s *acpServer) handleSessionNew(ctx context.Context, req *mcp.Request, clie
 	}
 	s.registerSession(acpSession)
 
-	if err := s.configureMCPServers(ctx, acpSession, mcpServers); err != nil {
-		return mcp.NewErrorResponse(req.ID, mcp.InternalError, "failed to configure MCP servers", err.Error())
-	}
-
 	resp := map[string]any{
 		"sessionId": session.ID,
 		"modes":     buildModeState(acpSession.modeID),
 	}
-	return mcp.NewResponse(req.ID, resp)
+	return jsonrpc.NewResponse(req.ID, resp)
 }
 
-func (s *acpServer) handleSessionLoad(ctx context.Context, req *mcp.Request, clientID string) *mcp.Response {
+func (s *acpServer) handleSessionLoad(ctx context.Context, req *jsonrpc.Request, clientID string) *jsonrpc.Response {
 	params := req.Params
 	sessionID := strings.TrimSpace(stringParam(params, "sessionId"))
 	if sessionID == "" {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "sessionId is required", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "sessionId is required", nil)
 	}
 	cwd := strings.TrimSpace(stringParam(params, "cwd"))
 	if cwd == "" {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "cwd is required", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "cwd is required", nil)
 	}
 	if !filepath.IsAbs(cwd) {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "cwd must be an absolute path", nil)
-	}
-
-	mcpServers := sliceParam(params, "mcpServers")
-	if mcpServers == nil {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "mcpServers is required", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "cwd must be an absolute path", nil)
 	}
 
 	if _, err := s.container.SessionStore.Get(ctx, sessionID); err != nil {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "session not found", err.Error())
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "session not found", err.Error())
 	}
 
 	acpSession := s.ensureSession(sessionID, cwd)
 	acpSession.clientID = clientID
-	if err := s.configureMCPServers(ctx, acpSession, mcpServers); err != nil {
-		return mcp.NewErrorResponse(req.ID, mcp.InternalError, "failed to configure MCP servers", err.Error())
-	}
 
 	resp := map[string]any{
 		"modes": buildModeState(acpSession.modeID),
 	}
-	return mcp.NewResponse(req.ID, resp)
+	return jsonrpc.NewResponse(req.ID, resp)
 }
 
-func (s *acpServer) handleSessionSetMode(req *mcp.Request) *mcp.Response {
+func (s *acpServer) handleSessionSetMode(req *jsonrpc.Request) *jsonrpc.Response {
 	params := req.Params
 	sessionID := strings.TrimSpace(stringParam(params, "sessionId"))
 	if sessionID == "" {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "sessionId is required", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "sessionId is required", nil)
 	}
 	modeID := strings.TrimSpace(stringParam(params, "modeId"))
 	if modeID == "" {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "modeId is required", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "modeId is required", nil)
 	}
 	if !isValidMode(modeID) {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "unsupported mode", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "unsupported mode", nil)
 	}
 
 	session := s.getSession(sessionID)
 	if session == nil {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "session not found", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "session not found", nil)
 	}
 
 	session.modeID = modeID
@@ -303,7 +282,7 @@ func (s *acpServer) handleSessionSetMode(req *mcp.Request) *mcp.Response {
 		"currentModeId": modeID,
 	})
 
-	return mcp.NewResponse(req.ID, map[string]any{})
+	return jsonrpc.NewResponse(req.ID, map[string]any{})
 }
 
 func (s *acpServer) handleSessionCancel(params map[string]any) {
@@ -323,29 +302,29 @@ func (s *acpServer) handleSessionCancel(params map[string]any) {
 	}
 }
 
-func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *mcp.Response {
+func (s *acpServer) handleSessionPrompt(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
 	if ctx == nil {
 		ctx = cliBaseContext()
 	}
 	params := req.Params
 	sessionID := strings.TrimSpace(stringParam(params, "sessionId"))
 	if sessionID == "" {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "sessionId is required", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "sessionId is required", nil)
 	}
 	prompt := params["prompt"]
 
 	session := s.getSession(sessionID)
 	if session == nil {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, "session not found", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "session not found", nil)
 	}
 
 	parsed, err := parseACPPrompt(prompt)
 	if err != nil {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidParams, err.Error(), nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, err.Error(), nil)
 	}
 
 	if !session.tryStartPrompt() {
-		return mcp.NewErrorResponse(req.ID, mcp.InvalidRequest, "prompt already running", nil)
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidRequest, "prompt already running", nil)
 	}
 	defer session.finishPrompt()
 
@@ -405,13 +384,13 @@ func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *
 
 	stopReason := mapStopReason(result, execErr)
 	if execErr != nil && result == nil && stopReason == "" {
-		return mcp.NewErrorResponse(req.ID, mcp.InternalError, "prompt execution failed", execErr.Error())
+		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InternalError, "prompt execution failed", execErr.Error())
 	}
 
 	resp := map[string]any{
 		"stopReason": stopReason,
 	}
-	return mcp.NewResponse(req.ID, resp)
+	return jsonrpc.NewResponse(req.ID, resp)
 }
 
 func (s *acpServer) registerSession(session *acpSession) {
@@ -590,106 +569,4 @@ func mapStopReason(result *agent.TaskResult, execErr error) string {
 	default:
 		return "end_turn"
 	}
-}
-
-func (s *acpServer) configureMCPServers(_ context.Context, _ *acpSession, servers []any) error {
-	if s.container.MCPRegistry == nil || s.container.AgentCoordinator == nil {
-		return nil
-	}
-	for _, raw := range servers {
-		spec, err := parseMCPServerSpec(raw)
-		if err != nil {
-			return err
-		}
-		if spec == nil {
-			continue
-		}
-		adapters, err := s.container.MCPRegistry.StartServerWithConfig(spec.Name, mcp.ServerConfig{
-			Command: spec.Command,
-			Args:    spec.Args,
-			Env:     spec.Env,
-		})
-		if err != nil {
-			return err
-		}
-		if len(adapters) == 0 {
-			continue
-		}
-		registry := s.container.AgentCoordinator.GetToolRegistry()
-		for _, adapter := range adapters {
-			if err := registry.Register(adapter); err != nil {
-				if !strings.Contains(err.Error(), "tool already exists") {
-					return err
-				}
-			}
-		}
-	}
-	return nil
-}
-
-type acpMCPServerSpec struct {
-	Name    string
-	Command string
-	Args    []string
-	Env     map[string]string
-}
-
-func parseMCPServerSpec(raw any) (*acpMCPServerSpec, error) {
-	item, ok := raw.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid mcpServers entry")
-	}
-	name := strings.TrimSpace(stringParam(item, "name"))
-	if name == "" {
-		return nil, fmt.Errorf("mcp server name is required")
-	}
-
-	serverType := strings.ToLower(strings.TrimSpace(stringParam(item, "type")))
-	command := strings.TrimSpace(stringParam(item, "command"))
-	if serverType == "" && command != "" {
-		serverType = "stdio"
-	}
-
-	switch serverType {
-	case "stdio", "":
-		if command == "" {
-			return nil, fmt.Errorf("mcp server command is required")
-		}
-		args := stringSlice(item["args"])
-		env := map[string]string{}
-		for _, rawEnv := range stringSliceEnv(item["env"]) {
-			if rawEnv.name == "" {
-				continue
-			}
-			env[rawEnv.name] = rawEnv.value
-		}
-		return &acpMCPServerSpec{Name: name, Command: command, Args: args, Env: env}, nil
-	case "http", "sse":
-		return nil, fmt.Errorf("mcp server type %s not supported", serverType)
-	default:
-		return nil, fmt.Errorf("unknown mcp server type %s", serverType)
-	}
-}
-
-type acpEnvVar struct {
-	name  string
-	value string
-}
-
-func stringSliceEnv(value any) []acpEnvVar {
-	raw, ok := value.([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]acpEnvVar, 0, len(raw))
-	for _, item := range raw {
-		entry, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		name := strings.TrimSpace(stringParam(entry, "name"))
-		val := strings.TrimSpace(stringParam(entry, "value"))
-		out = append(out, acpEnvVar{name: name, value: val})
-	}
-	return out
 }

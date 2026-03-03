@@ -438,7 +438,6 @@ type LarkBrowserConfig struct {
 type ServerConfig struct {
 	Port                                   string   `yaml:"port"`
 	DebugPort                              string   `yaml:"debug_port"`
-	EnableMCP                              *bool    `yaml:"enable_mcp"`
 	MaxTaskBodyBytes                       *int64   `yaml:"max_task_body_bytes"`
 	AllowedOrigins                         []string `yaml:"allowed_origins"`
 	StreamMaxDurationSeconds               *int     `yaml:"stream_max_duration_seconds"`

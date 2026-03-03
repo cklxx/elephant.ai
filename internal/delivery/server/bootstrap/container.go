@@ -11,7 +11,6 @@ import (
 // BuildContainer wires the shared DI container using the server runtime configuration.
 func BuildContainer(config Config) (*di.Container, error) {
 	diConfig := di.ConfigFromRuntimeConfig(config.Runtime)
-	diConfig.EnableMCP = config.EnableMCP
 	diConfig.EnvironmentSummary = config.EnvironmentSummary
 	diConfig.SessionDir = strings.TrimSpace(config.Session.Dir)
 	if utils.IsBlank(diConfig.AgentPreset) {

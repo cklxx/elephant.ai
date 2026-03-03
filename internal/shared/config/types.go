@@ -102,12 +102,11 @@ type RuntimeConfig struct {
 	ExternalAgents             ExternalAgentsConfig         `json:"external_agents" yaml:"external_agents"`
 }
 
-// BrowserConfig configures the Playwright MCP browser backend.
-// Browser tools are provided by the Playwright MCP server (microsoft/playwright-mcp).
+// BrowserConfig configures the browser integration backend.
 //
 // Connector modes:
 //   - "extension" (default): Connect to user's existing Chrome via the Playwright
-//     MCP Bridge extension. Reuses cookies/sessions/login state.
+//     Bridge extension. Reuses cookies/sessions/login state.
 //   - "headless": Launch an isolated headless browser instance.
 //   - "cdp": Connect to an existing browser via a CDP endpoint URL.
 type BrowserConfig struct {

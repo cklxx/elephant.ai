@@ -13,8 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	jsonrpc "alex/internal/infra/mcp"
 	"alex/internal/shared/async"
+	jsonrpc "alex/internal/shared/jsonrpc"
 	"alex/internal/shared/logging"
 )
 

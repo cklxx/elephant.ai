@@ -12,7 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	jsonrpc "alex/internal/infra/mcp"
+	jsonrpc "alex/internal/shared/jsonrpc"
 	"alex/internal/shared/utils"
 )
 

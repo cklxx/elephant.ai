@@ -26,8 +26,6 @@ func (r *Registry) registerSessionTools() {
 }
 
 // registerPlatformTools registers the essential platform tools (local only).
-// Browser tools are now provided by the Playwright MCP server (registered via
-// mcp.WithPlaywrightBrowser in the DI container).
 func (r *Registry) registerPlatformTools(config Config) error {
 	fileConfig := shared.FileToolConfig{}
 	shellConfig := shared.ShellToolConfig{}

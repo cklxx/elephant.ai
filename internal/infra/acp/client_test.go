@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	jsonrpc "alex/internal/infra/mcp"
+	jsonrpc "alex/internal/shared/jsonrpc"
 
 	"github.com/stretchr/testify/require"
 )

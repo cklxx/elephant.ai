@@ -214,7 +214,6 @@ func TestBuildContainer(t *testing.T) {
 			CostDir:       "/tmp/alex-test-costs",
 			Environment:   "development",
 			Verbose:       false,
-			EnableMCP:     false, // Disable to avoid external dependencies
 		}
 
 		container, err := BuildContainer(config)
@@ -238,10 +237,6 @@ func TestBuildContainer(t *testing.T) {
 			t.Error("CostTracker is nil")
 		}
 
-		if container.MCPRegistry == nil {
-			t.Error("MCPRegistry is nil")
-		}
-
 		// Cleanup
 		if err := container.Shutdown(); err != nil {
 			t.Errorf("Shutdown() error = %v", err)
@@ -256,7 +251,6 @@ func TestBuildContainer(t *testing.T) {
 			MaxIterations: 20,
 			SessionDir:    "/tmp/alex-test-noapi-sessions",
 			CostDir:       "/tmp/alex-test-noapi-costs",
-			EnableMCP:     false,
 		}
 
 		container, err := BuildContainer(config)
@@ -278,7 +272,6 @@ func TestContainer_Lifecycle(t *testing.T) {
 			LLMModel:    "test",
 			SessionDir:  "/tmp/alex-test-lifecycle",
 			CostDir:     "/tmp/alex-test-lifecycle-costs",
-			EnableMCP:   false,
 		}
 
 		container, err := BuildContainer(config)
@@ -292,11 +285,6 @@ func TestContainer_Lifecycle(t *testing.T) {
 			t.Errorf("Start() error = %v", err)
 		}
 
-		// Verify MCP not started
-		if container.mcpStarted {
-			t.Error("Expected MCP to not be started when disabled")
-		}
-
 		// Shutdown should succeed
 		if err := container.Shutdown(); err != nil {
 			t.Errorf("Shutdown() error = %v", err)
@@ -307,53 +295,4 @@ func TestContainer_Lifecycle(t *testing.T) {
 			t.Errorf("Second Shutdown() error = %v", err)
 		}
 	})
-}
-
-func TestMCPInitializationTracker(t *testing.T) {
-	tracker := newMCPInitializationTracker()
-
-	// Initial state
-	status := tracker.Snapshot()
-	if status.Ready {
-		t.Error("Expected Ready to be false initially")
-	}
-	if status.Attempts != 0 {
-		t.Error("Expected Attempts to be 0 initially")
-	}
-
-	// Record attempt
-	tracker.recordAttempt()
-	status = tracker.Snapshot()
-	if status.Attempts != 1 {
-		t.Errorf("Expected Attempts to be 1, got %d", status.Attempts)
-	}
-
-	// Record failure
-	testErr := &testError{msg: "test error"}
-	tracker.recordFailure(testErr)
-	status = tracker.Snapshot()
-	if status.Ready {
-		t.Error("Expected Ready to be false after failure")
-	}
-	if status.LastError == nil {
-		t.Error("Expected LastError to be set")
-	}
-
-	// Record success
-	tracker.recordSuccess()
-	status = tracker.Snapshot()
-	if !status.Ready {
-		t.Error("Expected Ready to be true after success")
-	}
-	if status.LastError != nil {
-		t.Error("Expected LastError to be nil after success")
-	}
-}
-
-type testError struct {
-	msg string
-}
-
-func (e *testError) Error() string {
-	return e.msg
 }

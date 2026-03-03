@@ -29,7 +29,6 @@ type BridgeConfig struct {
 	Binary       string // Agent CLI binary name/path (primarily for codex bridge).
 	PythonBinary string
 	BridgeScript string
-	Interactive  bool // whether to start permission relay (only claude_code)
 
 	// Claude Code fields.
 	APIKey                 string
@@ -93,14 +92,14 @@ func (a *pipedHandleAdapter) Done() <-chan struct{} { return a.h.Done() }
 // failRunner is returned when the controller fails to start a process.
 type failRunner struct{ err error }
 
-func (f *failRunner) Start(_ context.Context) error                      { return f.err }
-func (f *failRunner) Write(_ []byte) error                               { return f.err }
-func (f *failRunner) Stdout() interface{ Read([]byte) (int, error) }     { return nil }
-func (f *failRunner) StderrTail() string                                 { return "" }
-func (f *failRunner) Wait() error                                        { return f.err }
-func (f *failRunner) Stop() error                                        { return nil }
-func (f *failRunner) PID() int                                           { return 0 }
-func (f *failRunner) Done() <-chan struct{}                               { return nil }
+func (f *failRunner) Start(_ context.Context) error                  { return f.err }
+func (f *failRunner) Write(_ []byte) error                           { return f.err }
+func (f *failRunner) Stdout() interface{ Read([]byte) (int, error) } { return nil }
+func (f *failRunner) StderrTail() string                             { return "" }
+func (f *failRunner) Wait() error                                    { return f.err }
+func (f *failRunner) Stop() error                                    { return nil }
+func (f *failRunner) PID() int                                       { return 0 }
+func (f *failRunner) Done() <-chan struct{}                          { return nil }
 
 // Executor implements agent.InteractiveExternalExecutor by spawning a Python
 // bridge sidecar and reading pre-filtered JSONL events from its stdout.
@@ -161,15 +160,14 @@ func (e *Executor) Reply(ctx context.Context, resp agent.InputResponse) error {
 
 // bridgeConfig is the JSON payload sent to any bridge script via stdin.
 type bridgeConfig struct {
-	Prompt            string         `json:"prompt"`
-	Model             string         `json:"model,omitempty"`
-	Mode              string         `json:"mode,omitempty"`
-	MaxTurns          int            `json:"max_turns,omitempty"`
-	MaxBudgetUSD      float64        `json:"max_budget_usd,omitempty"`
-	WorkingDir        string         `json:"working_dir,omitempty"`
-	Binary            string         `json:"binary,omitempty"`
-	AllowedTools      []string       `json:"allowed_tools,omitempty"`
-	PermissionMCPConf map[string]any `json:"permission_mcp_config,omitempty"`
+	Prompt       string   `json:"prompt"`
+	Model        string   `json:"model,omitempty"`
+	Mode         string   `json:"mode,omitempty"`
+	MaxTurns     int      `json:"max_turns,omitempty"`
+	MaxBudgetUSD float64  `json:"max_budget_usd,omitempty"`
+	WorkingDir   string   `json:"working_dir,omitempty"`
+	Binary       string   `json:"binary,omitempty"`
+	AllowedTools []string `json:"allowed_tools,omitempty"`
 	// Codex-specific fields.
 	ApprovalPolicy string `json:"approval_policy,omitempty"`
 	Sandbox        string `json:"sandbox,omitempty"`
@@ -228,13 +226,6 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 				}
 			}
 			bcfg.AllowedTools = allowedTools
-		} else if e.cfg.Interactive {
-			socketPath, cleanup, err := e.startPermissionServer(ctx, req)
-			if err != nil {
-				return nil, err
-			}
-			defer cleanup()
-			bcfg.PermissionMCPConf = buildPermissionMCPPayload(socketPath, req.TaskID)
 		}
 	case "codex", "kimi":
 		bcfg.ApprovalPolicy = pickString(req.Config, "approval_policy", e.cfg.ApprovalPolicy)
@@ -496,34 +487,6 @@ func (b BridgeStartedInfo) BridgePID() int { return b.PID }
 
 // BridgeOutputFile implements task.BridgeInfoProvider.
 func (b BridgeStartedInfo) BridgeOutputFile() string { return b.OutputFile }
-
-func (e *Executor) startPermissionServer(ctx context.Context, req agent.ExternalAgentRequest) (string, func(), error) {
-	relay, err := newPermissionRelay(ctx, req.TaskID, req.AgentType, e.cfg.AutonomousAllowedTools, e.inputCh, &e.pending, e.logger)
-	if err != nil {
-		return "", nil, err
-	}
-	socketPath, cleanup, err := relay.Start()
-	if err != nil {
-		return "", nil, err
-	}
-	return socketPath, cleanup, nil
-}
-
-// buildPermissionMCPPayload generates the MCP server config dict that the
-// Python bridge will pass to ClaudeAgentOptions.mcp_servers.
-func buildPermissionMCPPayload(socketPath, taskID string) map[string]any {
-	return map[string]any{
-		"elephant": map[string]any{
-			"command": os.Args[0],
-			"args": []string{
-				"mcp-permission-server",
-				"--task-id", taskID,
-				"--sock", socketPath,
-			},
-			"type": "stdio",
-		},
-	}
-}
 
 func (e *Executor) resolvePython() string {
 	if e.cfg.PythonBinary != "" {

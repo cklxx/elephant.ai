@@ -62,15 +62,10 @@ func (c *CLI) Run(args []string) error {
 	case "llama-cpp", "llamacpp":
 		return executeLlamaCppCommand(cmdArgs, os.Stdout, runtimeEnvLookup())
 
-	case "mcp":
-		return c.handleMCP(cmdArgs)
-
 	case "eval", "evaluation":
 		return c.handleEval(cmdArgs)
 	case "acp":
 		return c.handleACP(cmdArgs)
-	case "mcp-permission-server":
-		return runMCPPermissionServer(cmdArgs)
 	case "resume":
 		return c.handleResume(cmdArgs)
 
@@ -111,7 +106,6 @@ Usage:
   alex model clear               Remove subscription selection
   alex llama-cpp pull <repo> <file>  Download GGUF weights from Hugging Face
   alex cost                      Show cost tracking commands
-  alex mcp                       MCP (Model Context Protocol) management
   alex eval [options]            Run local agent evaluation against SWE-Bench datasets
   alex acp [--initial-message]        Run ACP (Agent Client Protocol) over stdio
   alex acp serve [--port N]           Run ACP over HTTP/SSE (default 127.0.0.1:9000)

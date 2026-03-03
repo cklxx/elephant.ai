@@ -15,9 +15,8 @@ import (
 	react "alex/internal/domain/agent/react"
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
-	"alex/internal/infra/process"
 	"alex/internal/infra/external/teamrun"
-	"alex/internal/infra/mcp"
+	"alex/internal/infra/process"
 	sessionstate "alex/internal/infra/session/state_store"
 	toolspolicy "alex/internal/infra/tools"
 	runtimeconfig "alex/internal/shared/config"
@@ -39,7 +38,6 @@ type sessionResources struct {
 }
 
 // BuildContainer builds the dependency injection container with the given configuration.
-// Heavy initialization (MCP) is deferred until Start() is called.
 func BuildContainer(config Config) (*Container, error) {
 	builder := newContainerBuilder(config)
 	return builder.Build()
@@ -112,19 +110,6 @@ func (b *containerBuilder) Build() (*Container, error) {
 		externalExecutor = codinginfra.NewManagedExternalExecutor(externalRegistry, b.logger)
 	}
 
-	mcpRegistry := mcp.NewRegistry(
-		mcp.WithPlaywrightBrowser(mcp.PlaywrightBrowserConfig{
-			Connector:   b.config.BrowserConfig.Connector,
-			CDPURL:      b.config.BrowserConfig.CDPURL,
-			ChromePath:  b.config.BrowserConfig.ChromePath,
-			Headless:    b.config.BrowserConfig.Headless,
-			UserDataDir: b.config.BrowserConfig.UserDataDir,
-			Timeout:     b.config.BrowserConfig.Timeout,
-			BridgeToken: b.config.BrowserConfig.BridgeToken,
-		}),
-	)
-	tracker := newMCPInitializationTracker()
-
 	hookRegistry := b.buildHookRegistry(memoryEngine, llmFactory)
 	okrContextProvider := b.buildOKRContextProvider()
 	kernelContextProvider := b.buildKernelAlignmentContextProvider()
@@ -169,12 +154,9 @@ func (b *containerBuilder) Build() (*Container, error) {
 		CostTracker:      costTracker,
 		MemoryEngine:     memoryEngine,
 		CheckpointStore:  checkpointStore,
-		MCPRegistry:      mcpRegistry,
-		mcpInitTracker:   tracker,
 		config:           b.config,
 		toolRegistry:     toolRegistry,
 		llmFactory:       llmFactory,
-		mcpStarted:       false,
 	}
 	if drainable, ok := memoryEngine.(lifecycle.Drainable); ok {
 		container.Drainables = append(container.Drainables, drainable)

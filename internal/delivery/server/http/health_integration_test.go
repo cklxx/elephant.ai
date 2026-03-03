@@ -16,7 +16,6 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 	config := di.Config{
 		LLMProvider: "mock",
 		LLMModel:    "test",
-		EnableMCP:   false,
 	}
 
 	container, err := di.BuildContainer(config)
@@ -52,7 +51,6 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 
 	// Setup health checker
 	healthChecker := app.NewHealthChecker()
-	healthChecker.RegisterProbe(app.NewMCPProbe(container, false))
 	healthChecker.RegisterProbe(app.NewLLMFactoryProbe(container))
 
 	// Create router
@@ -100,8 +98,8 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 	}
 
 	// Verify components
-	if len(response.Components) != 2 {
-		t.Errorf("Expected 2 components, got %d", len(response.Components))
+	if len(response.Components) != 1 {
+		t.Errorf("Expected 1 component, got %d", len(response.Components))
 	}
 
 	// Check component names
@@ -110,20 +108,15 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 		componentNames[comp.Name] = true
 	}
 
-	expectedComponents := []string{"mcp", "llm_factory"}
+	expectedComponents := []string{"llm_factory"}
 	for _, name := range expectedComponents {
 		if !componentNames[name] {
 			t.Errorf("Expected component '%s' not found", name)
 		}
 	}
 
-	// Verify disabled components report correctly
+	// Verify component status
 	for _, comp := range response.Components {
-		if comp.Name == "mcp" {
-			if comp.Status != ports.HealthStatusDisabled {
-				t.Errorf("Expected mcp to be disabled, got %s", comp.Status)
-			}
-		}
 		if comp.Name == "llm_factory" {
 			if comp.Status != ports.HealthStatusReady {
 				t.Errorf("Expected llm_factory to be ready, got %s", comp.Status)

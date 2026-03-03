@@ -191,9 +191,6 @@ async def main() -> None:
             opts.allowed_tools = ["Read", "Glob", "Grep", "WebSearch"]
     else:
         opts.permission_mode = "default"
-        perm_cfg = cfg.get("permission_mcp_config")
-        if perm_cfg:
-            opts.mcp_servers = perm_cfg
 
     prompt = cfg.get("prompt", "")
     if not prompt:

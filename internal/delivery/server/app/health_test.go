@@ -57,52 +57,6 @@ func TestHealthChecker(t *testing.T) {
 	})
 }
 
-func TestMCPProbe(t *testing.T) {
-	t.Run("disabled state", func(t *testing.T) {
-		config := di.Config{
-			LLMProvider: "mock",
-			LLMModel:    "test",
-			EnableMCP:   false,
-		}
-		container, err := di.BuildContainer(config)
-		if err != nil {
-			t.Fatalf("BuildContainer failed: %v", err)
-		}
-		defer func() { _ = container.Shutdown() }()
-
-		probe := NewMCPProbe(container, false)
-		health := probe.Check(context.Background())
-
-		if health.Name != "mcp" {
-			t.Errorf("Expected name 'mcp', got '%s'", health.Name)
-		}
-
-		if health.Status != ports.HealthStatusDisabled {
-			t.Errorf("Expected status 'disabled', got '%s'", health.Status)
-		}
-	})
-
-	t.Run("not started", func(t *testing.T) {
-		config := di.Config{
-			LLMProvider: "mock",
-			LLMModel:    "test",
-			EnableMCP:   false, // Not started
-		}
-		container, err := di.BuildContainer(config)
-		if err != nil {
-			t.Fatalf("BuildContainer failed: %v", err)
-		}
-		defer func() { _ = container.Shutdown() }()
-
-		probe := NewMCPProbe(container, true) // Probe thinks it's enabled
-		health := probe.Check(context.Background())
-
-		if health.Status != ports.HealthStatusNotReady {
-			t.Errorf("Expected status 'not_ready', got '%s'", health.Status)
-		}
-	})
-}
-
 func TestLLMFactoryProbe(t *testing.T) {
 	t.Run("ready when factory initialized", func(t *testing.T) {
 		config := di.Config{

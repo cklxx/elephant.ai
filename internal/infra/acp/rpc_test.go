@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	jsonrpc "alex/internal/infra/mcp"
+	jsonrpc "alex/internal/shared/jsonrpc"
 )
 
 type failingWriter struct{}

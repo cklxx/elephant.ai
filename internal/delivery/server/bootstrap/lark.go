@@ -43,9 +43,6 @@ func RunLark(observabilityConfigPath string) error {
 		return fmt.Errorf("lark standalone mode requires channels.lark.app_id and app_secret")
 	}
 
-	// No MCP needed in standalone mode.
-	config.EnableMCP = false
-
 	// ── Phase 2: Optional services (attachments only) ──
 
 	optionalStages := []BootstrapStage{

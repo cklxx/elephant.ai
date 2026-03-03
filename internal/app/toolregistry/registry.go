@@ -20,7 +20,6 @@ import (
 type Registry struct {
 	static       map[string]tools.ToolExecutor
 	dynamic      map[string]tools.ToolExecutor
-	mcp          map[string]tools.ToolExecutor
 	mu           sync.RWMutex
 	cachedDefs   []ports.ToolDefinition
 	defsDirty    bool
@@ -41,12 +40,12 @@ type Config struct {
 
 	TavilyAPIKey string
 
-	ArkAPIKey    string
-	MemoryEngine memory.Engine
-	HTTPLimits     runtimeconfig.HTTPLimitsConfig
-	ToolPolicy     toolspolicy.ToolPolicy
-	BreakerConfig  CircuitBreakerConfig
-	SLACollector   *toolspolicy.SLACollector
+	ArkAPIKey     string
+	MemoryEngine  memory.Engine
+	HTTPLimits    runtimeconfig.HTTPLimitsConfig
+	ToolPolicy    toolspolicy.ToolPolicy
+	BreakerConfig CircuitBreakerConfig
+	SLACollector  *toolspolicy.SLACollector
 	// DegradationConfig, when provided, overrides the registry defaults.
 	// When nil, DefaultRegistryDegradationConfig is used.
 	DegradationConfig *DegradationConfig
@@ -80,7 +79,6 @@ func NewRegistry(config Config) (*Registry, error) {
 	r := &Registry{
 		static:       make(map[string]tools.ToolExecutor),
 		dynamic:      make(map[string]tools.ToolExecutor),
-		mcp:          make(map[string]tools.ToolExecutor),
 		defsDirty:    true,
 		policy:       policy,
 		breakers:     breakers,
@@ -107,14 +105,9 @@ func (r *Registry) Register(tool tools.ToolExecutor) error {
 		return fmt.Errorf("tool already exists: %s", name)
 	}
 
-	// Check if this is an MCP tool (tools with mcp__ prefix go to mcp map)
 	wrapped := wrapTool(tool, r.policy, r.breakers, r.SLACollector)
 	wrapped = r.wrapDegradation(name, wrapped)
-	if len(name) > 5 && name[:5] == "mcp__" {
-		r.mcp[name] = wrapped
-	} else {
-		r.dynamic[name] = wrapped
-	}
+	r.dynamic[name] = wrapped
 	r.defsDirty = true
 	return nil
 }
@@ -133,9 +126,6 @@ func (r *Registry) getRawLocked(name string) (tools.ToolExecutor, bool) {
 		return tool, true
 	}
 	if tool, ok := r.dynamic[name]; ok {
-		return tool, true
-	}
-	if tool, ok := r.mcp[name]; ok {
 		return tool, true
 	}
 	return nil, false
@@ -292,14 +282,11 @@ func (r *Registry) List() []ports.ToolDefinition {
 	if !r.defsDirty && r.cachedDefs != nil {
 		return r.cachedDefs
 	}
-	defs := make([]ports.ToolDefinition, 0, len(r.static)+len(r.dynamic)+len(r.mcp))
+	defs := make([]ports.ToolDefinition, 0, len(r.static)+len(r.dynamic))
 	for _, tool := range r.static {
 		defs = append(defs, tool.Definition())
 	}
 	for _, tool := range r.dynamic {
-		defs = append(defs, tool.Definition())
-	}
-	for _, tool := range r.mcp {
 		defs = append(defs, tool.Definition())
 	}
 	sort.Slice(defs, func(i, j int) bool {
@@ -312,7 +299,7 @@ func (r *Registry) List() []ports.ToolDefinition {
 
 // Close releases managed resources.
 func (r *Registry) Close() {
-	// No-op: browser lifecycle now managed by MCP registry.
+	// No-op.
 }
 
 func (r *Registry) Unregister(name string) error {
@@ -322,7 +309,6 @@ func (r *Registry) Unregister(name string) error {
 		return fmt.Errorf("cannot unregister built-in tool: %s", name)
 	}
 	delete(r.dynamic, name)
-	delete(r.mcp, name)
 	r.defsDirty = true
 	return nil
 }

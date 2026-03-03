@@ -12,7 +12,6 @@ runtime:
   tool_max_concurrent: 12
 server:
   port: "${PORT}"
-  enable_mcp: false
   max_task_body_bytes: 1048576
   allowed_origins:
     - "http://${ORIGIN_HOST}"
@@ -60,7 +59,7 @@ web:
 	if cfg.Runtime == nil || cfg.Runtime.ToolMaxConcurrent == nil || *cfg.Runtime.ToolMaxConcurrent != 12 {
 		t.Fatalf("expected tool_max_concurrent to parse, got %#v", cfg.Runtime)
 	}
-	if cfg.Server == nil || cfg.Server.Port != "8081" || cfg.Server.EnableMCP == nil || *cfg.Server.EnableMCP {
+	if cfg.Server == nil || cfg.Server.Port != "8081" {
 		t.Fatalf("expected server config to expand, got %#v", cfg.Server)
 	}
 	if cfg.Server == nil || cfg.Server.MaxTaskBodyBytes == nil || *cfg.Server.MaxTaskBodyBytes != 1048576 {

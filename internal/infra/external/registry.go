@@ -35,7 +35,6 @@ func NewRegistry(cfg config.ExternalAgentsConfig, ctrl *process.Controller, logg
 		exec := bridge.New(bridge.BridgeConfig{
 			AgentType:              "claude_code",
 			Binary:                 cfg.ClaudeCode.Binary,
-			Interactive:            true,
 			APIKey:                 cfg.ClaudeCode.Env["ANTHROPIC_API_KEY"],
 			DefaultModel:           cfg.ClaudeCode.DefaultModel,
 			DefaultMode:            cfg.ClaudeCode.DefaultMode,
@@ -53,7 +52,6 @@ func NewRegistry(cfg config.ExternalAgentsConfig, ctrl *process.Controller, logg
 		exec := bridge.New(bridge.BridgeConfig{
 			AgentType:          "codex",
 			Binary:             cfg.Codex.Binary,
-			Interactive:        false,
 			APIKey:             cfg.Codex.Env["OPENAI_API_KEY"],
 			DefaultModel:       cfg.Codex.DefaultModel,
 			ApprovalPolicy:     cfg.Codex.ApprovalPolicy,
@@ -70,7 +68,6 @@ func NewRegistry(cfg config.ExternalAgentsConfig, ctrl *process.Controller, logg
 		exec := bridge.New(bridge.BridgeConfig{
 			AgentType:          "kimi",
 			Binary:             cfg.Kimi.Binary,
-			Interactive:        false,
 			APIKey:             pickFirstNonEmpty(cfg.Kimi.Env["KIMI_API_KEY"], cfg.Kimi.Env["OPENAI_API_KEY"]),
 			DefaultModel:       cfg.Kimi.DefaultModel,
 			ApprovalPolicy:     cfg.Kimi.ApprovalPolicy,

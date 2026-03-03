@@ -55,18 +55,6 @@ func intParam(m map[string]any, key string) (int, bool) {
 	}
 }
 
-func sliceParam(m map[string]any, key string) []any {
-	if m == nil {
-		return nil
-	}
-	if val, ok := m[key]; ok {
-		if arr, ok := val.([]any); ok {
-			return arr
-		}
-	}
-	return nil
-}
-
 func mapParam(m map[string]any, key string) map[string]any {
 	if m == nil {
 		return nil
@@ -77,20 +65,6 @@ func mapParam(m map[string]any, key string) map[string]any {
 		}
 	}
 	return nil
-}
-
-func stringSlice(value any) []string {
-	raw, ok := value.([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]string, 0, len(raw))
-	for _, item := range raw {
-		if s, ok := item.(string); ok {
-			out = append(out, s)
-		}
-	}
-	return out
 }
 
 func randSuffix(length int) string {

@@ -57,7 +57,7 @@ func main() {
 		os.Exit(130)
 	}()
 
-	// Start the container (initializes MCP, Git tools, etc.)
+	// Start the container lifecycle.
 	if err := container.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to start container: %v\n", err)
 		os.Exit(1)

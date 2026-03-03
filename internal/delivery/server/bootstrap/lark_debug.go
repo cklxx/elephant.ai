@@ -22,7 +22,7 @@ import (
 func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster, container *di.Container, cfg Config) (*http.Server, error) {
 	logger := logging.OrNop(f.Logger)
 
-	// Health checker — mirrors the probes from RunServer minus MCP.
+	// Health checker — mirrors the probes from RunServer.
 	healthChecker := serverApp.NewHealthChecker()
 	if container != nil {
 		healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))

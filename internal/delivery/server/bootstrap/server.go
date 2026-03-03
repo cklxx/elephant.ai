@@ -199,7 +199,6 @@ func RunServer(observabilityConfigPath string) error {
 	// ── Phase 4: HTTP layer ──
 
 	healthChecker := serverApp.NewHealthChecker()
-	healthChecker.RegisterProbe(serverApp.NewMCPProbe(container, config.EnableMCP))
 	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
 	healthChecker.RegisterProbe(serverApp.NewDegradedProbe(f.Degraded))
 

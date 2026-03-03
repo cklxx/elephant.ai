@@ -314,7 +314,7 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 		names[def.Name] = true
 	}
 
-	// Core tools MUST be present (browser tools now via Playwright MCP, not static)
+	// Core tools MUST be present.
 	for _, want := range []string{
 		"read_file", "write_file", "replace_in_file", "shell_exec",
 		"plan", "ask_user",

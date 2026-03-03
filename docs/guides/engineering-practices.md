@@ -27,6 +27,7 @@ See also: [Development Workflow](development-workflow.md) | [Code Simplification
 - Avoid destructive operations or history rewrites unless explicitly requested.
 - Prefer reversible steps and explain risks when needed.
 - If command policy blocks `git branch -d/-D`, use Git plumbing fallback: `git update-ref -d refs/heads/<branch>` then `git worktree prune`; verify with `git branch --list '<branch>'`.
+- When unrelated modified files are present, explicitly surface them and exclude them from staging/commit unless the user asks to include them.
 
 ## Code Style
 - Avoid unnecessary defensive code; trust invariants when guaranteed.

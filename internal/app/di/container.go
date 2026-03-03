@@ -3,7 +3,6 @@ package di
 import (
 	"context"
 	"strings"
-	"sync"
 	"time"
 
 	agentcoordinator "alex/internal/app/agent/coordinator"
@@ -13,18 +12,15 @@ import (
 	lark "alex/internal/delivery/channels/lark"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	agentstorage "alex/internal/domain/agent/ports/storage"
-	tools "alex/internal/domain/agent/ports/tools"
 	react "alex/internal/domain/agent/react"
 	kerneldomain "alex/internal/domain/kernel"
 	taskdomain "alex/internal/domain/task"
 	"alex/internal/infra/filestore"
 	larkoauth "alex/internal/infra/lark/oauth"
 	"alex/internal/infra/llm"
-	"alex/internal/infra/mcp"
 	"alex/internal/infra/memory"
 	sessionstate "alex/internal/infra/session/state_store"
 	toolspolicy "alex/internal/infra/tools"
-	"alex/internal/shared/async"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
@@ -61,9 +57,6 @@ type Container struct {
 	CostTracker      agentstorage.CostTracker
 	MemoryEngine     memory.Engine
 	CheckpointStore  react.CheckpointStore
-	MCPRegistry      *mcp.Registry
-	mcpInitTracker   *MCPInitializationTracker
-	mcpInitCancel    context.CancelFunc
 	TaskStore        taskdomain.Store // Unified durable task store (nil when unavailable)
 	KernelEngine     KernelEngine     // nil only if kernel initialization failed
 	LarkGateway      LarkGateway
@@ -76,8 +69,6 @@ type Container struct {
 	config       Config
 	toolRegistry *toolregistry.Registry
 	llmFactory   *llm.Factory
-	mcpStarted   bool
-	mcpMu        sync.Mutex
 }
 
 // Config holds the dependency injection configuration
@@ -139,30 +130,15 @@ type Config struct {
 	ToolPolicy        toolspolicy.ToolPolicyConfig
 	BrowserConfig     toolregistry.BrowserConfig
 
-	// Feature Flags
-	EnableMCP bool // Enable MCP tool registration (requires external dependencies)
-
 	HTTPLimits     runtimeconfig.HTTPLimitsConfig
 	Proactive      runtimeconfig.ProactiveConfig
 	ExternalAgents runtimeconfig.ExternalAgentsConfig
 }
 
-// Start initializes heavy dependencies (MCP) based on feature flags
+// Start initializes container lifecycle hooks.
 func (c *Container) Start() error {
 	logger := logging.NewComponentLogger("DI")
 	logger.Info("Starting container lifecycle...")
-
-	// Initialize MCP if enabled
-	if c.config.EnableMCP {
-		if err := c.startMCP(); err != nil {
-			logger.Warn("Failed to start MCP: %v (continuing without MCP)", err)
-		} else {
-			logger.Info("MCP initialization started (asynchronous)")
-		}
-	} else {
-		logger.Info("MCP disabled by configuration")
-	}
-
 	logger.Info("Container lifecycle started")
 	return nil
 }
@@ -192,23 +168,6 @@ func (c *Container) Shutdown() error {
 	logger := logging.NewComponentLogger("DI")
 	logger.Info("Shutting down container...")
 
-	c.mcpMu.Lock()
-	defer c.mcpMu.Unlock()
-
-	if c.mcpInitCancel != nil {
-		c.mcpInitCancel()
-		c.mcpInitCancel = nil
-	}
-
-	if c.mcpStarted && c.MCPRegistry != nil {
-		if err := c.MCPRegistry.Shutdown(); err != nil {
-			logger.Error("Failed to shutdown MCP: %v", err)
-			return err
-		}
-		c.mcpStarted = false
-		logger.Info("MCP shutdown successfully")
-	}
-
 	if c.AgentCoordinator != nil {
 		if err := c.AgentCoordinator.Close(); err != nil {
 			logger.Error("Failed to close agent coordinator: %v", err)
@@ -222,158 +181,6 @@ func (c *Container) Shutdown() error {
 
 	logger.Info("Container shutdown complete")
 	return nil
-}
-
-// startMCP starts MCP registry initialization
-func (c *Container) startMCP() error {
-	c.mcpMu.Lock()
-	defer c.mcpMu.Unlock()
-
-	if c.mcpStarted {
-		return nil // Already started
-	}
-
-	logger := logging.NewComponentLogger("DI")
-	initCtx, cancel := context.WithCancel(context.Background())
-	c.mcpInitCancel = cancel
-	startMCPInitialization(initCtx, c.MCPRegistry, c.toolRegistry, logger, c.mcpInitTracker)
-	c.mcpStarted = true
-
-	return nil
-}
-
-// MCPInitializationStatus captures the asynchronous MCP bootstrap status.
-type MCPInitializationStatus struct {
-	Ready       bool
-	Attempts    int
-	LastError   error
-	LastAttempt time.Time
-	LastSuccess time.Time
-}
-
-// MCPInitializationTracker tracks registry initialization state over time.
-type MCPInitializationTracker struct {
-	mu     sync.RWMutex
-	status MCPInitializationStatus
-}
-
-func newMCPInitializationTracker() *MCPInitializationTracker {
-	return &MCPInitializationTracker{}
-}
-
-func (t *MCPInitializationTracker) recordAttempt() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.status.Attempts++
-	t.status.LastAttempt = time.Now()
-}
-
-func (t *MCPInitializationTracker) recordFailure(err error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.status.LastError = err
-	t.status.Ready = false
-}
-
-func (t *MCPInitializationTracker) recordSuccess() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.status.Ready = true
-	t.status.LastError = nil
-	t.status.LastSuccess = time.Now()
-}
-
-// Snapshot returns a copy of the current initialization status.
-func (t *MCPInitializationTracker) Snapshot() MCPInitializationStatus {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.status
-}
-
-// MCPInitializationStatus returns the current asynchronous MCP bootstrap state.
-func (c *Container) MCPInitializationStatus() MCPInitializationStatus {
-	if c.mcpInitTracker == nil {
-		return MCPInitializationStatus{}
-	}
-	return c.mcpInitTracker.Snapshot()
-}
-
-func startMCPInitialization(ctx context.Context, registry *mcp.Registry, toolRegistry tools.ToolRegistry, logger logging.Logger, tracker *MCPInitializationTracker) {
-	const (
-		initialBackoff = time.Second
-		maxBackoff     = 30 * time.Second
-	)
-
-	async.Go(logger, "di.mcpInitialization", func() {
-		logger = logging.OrNop(logger)
-		backoff := initialBackoff
-		for {
-			if ctx.Err() != nil {
-				logger.Info("MCP initialization cancelled")
-				return
-			}
-			tracker.recordAttempt()
-			snapshot := tracker.Snapshot()
-			logger.Info("Initializing MCP registry (attempt %d)", snapshot.Attempts)
-
-			if err := registry.Initialize(); err != nil {
-				logger.Warn("MCP initialization failed: %v", err)
-				tracker.recordFailure(err)
-				backoff = nextBackoff(backoff, maxBackoff)
-				if !sleepContext(ctx, backoff) {
-					return
-				}
-				continue
-			}
-
-			backoff = initialBackoff
-
-			for {
-				if ctx.Err() != nil {
-					logger.Info("MCP initialization cancelled")
-					return
-				}
-				if err := registry.RegisterWithToolRegistry(toolRegistry); err != nil {
-					logger.Warn("MCP tool registration failed: %v", err)
-					tracker.recordFailure(err)
-					backoff = nextBackoff(backoff, maxBackoff)
-					if !sleepContext(ctx, backoff) {
-						return
-					}
-					continue
-				}
-				tracker.recordSuccess()
-				logger.Info("MCP registry ready")
-				return
-			}
-		}
-	})
-}
-
-func sleepContext(ctx context.Context, d time.Duration) bool {
-	timer := time.NewTimer(d)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-		return true
-	}
-}
-
-func nextBackoff(current, max time.Duration) time.Duration {
-	if current >= max {
-		return max
-	}
-	next := current * 2
-	if next > max {
-		return max
-	}
-	if next < time.Second {
-		return time.Second
-	}
-	return next
 }
 
 // resolveStorageDir resolves a storage directory path, handling ~ expansion and environment variables.

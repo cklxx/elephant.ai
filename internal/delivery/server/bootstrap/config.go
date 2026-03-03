@@ -21,7 +21,6 @@ type Config struct {
 	RuntimeMeta        runtimeconfig.Metadata
 	Port               string
 	DebugPort          string // Debug HTTP port for Lark standalone mode (default "9090")
-	EnableMCP          bool
 	EnvironmentSummary string
 	Session            runtimeconfig.SessionConfig
 	Analytics          runtimeconfig.AnalyticsConfig
@@ -211,7 +210,6 @@ func LoadConfig() (ConfigResult, error) {
 		RuntimeMeta:    runtimeMeta,
 		Port:           "8080",
 		DebugPort:      "9090",
-		EnableMCP:      true, // Default: enabled
 		AllowedOrigins: append([]string(nil), defaultAllowedOrigins...),
 		StreamGuard: StreamGuardConfig{
 			MaxDuration:   2 * time.Hour,
@@ -691,9 +689,6 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if debugPort := strings.TrimSpace(file.Server.DebugPort); debugPort != "" {
 		cfg.DebugPort = debugPort
-	}
-	if file.Server.EnableMCP != nil {
-		cfg.EnableMCP = *file.Server.EnableMCP
 	}
 	if file.Server.MaxTaskBodyBytes != nil && *file.Server.MaxTaskBodyBytes > 0 {
 		cfg.MaxTaskBodyBytes = *file.Server.MaxTaskBodyBytes
