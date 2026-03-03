@@ -9,10 +9,6 @@ import (
 	"alex/internal/shared/utils"
 )
 
-func (t *workflowEventTranslator) translateTool(evt agent.AgentEvent, eventType, callID string, payload map[string]any) []*domain.WorkflowEventEnvelope {
-	return t.toolEnvelope(evt, eventType, callID, payload)
-}
-
 func (t *workflowEventTranslator) translateToolComplete(evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 	payload := map[string]any{
 		"tool_name":   d.ToolName,
