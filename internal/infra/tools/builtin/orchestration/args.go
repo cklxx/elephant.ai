@@ -75,21 +75,6 @@ func parseStringMap(args map[string]any, key string) (map[string]string, error) 
 	}
 }
 
-func parseOptionalBool(args map[string]any, key string) (bool, bool, error) {
-	raw, exists := args[key]
-	if !exists {
-		return false, false, nil
-	}
-	if raw == nil {
-		return false, true, nil
-	}
-	val, ok := raw.(bool)
-	if !ok {
-		return false, true, fmt.Errorf("%s must be a boolean", key)
-	}
-	return val, true, nil
-}
-
 func parseOptionalInt(args map[string]any, key string) (int, bool, error) {
 	raw, exists := args[key]
 	if !exists {
@@ -126,29 +111,3 @@ func parseOptionalInt(args map[string]any, key string) (int, bool, error) {
 	}
 }
 
-func canonicalAgentType(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	switch strings.ToLower(trimmed) {
-	case "":
-		return ""
-	case "internal":
-		return "internal"
-	case "codex":
-		return "codex"
-	case "kimi", "kimi_cli", "kimi-cli", "k2", "kimi cli":
-		return "kimi"
-	case "claude_code", "claude-code", "claude code":
-		return "claude_code"
-	default:
-		return trimmed
-	}
-}
-
-func isCodingExternalAgent(agentType string) bool {
-	switch canonicalAgentType(agentType) {
-	case "codex", "claude_code", "kimi":
-		return true
-	default:
-		return false
-	}
-}

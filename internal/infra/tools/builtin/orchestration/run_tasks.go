@@ -299,6 +299,14 @@ func filterTasks(tf *taskfile.TaskFile, ids []string) *taskfile.TaskFile {
 	}
 	for _, t := range tf.Tasks {
 		if idSet[t.ID] {
+			// Remove DependsOn references to tasks not in the filtered set.
+			var cleanDeps []string
+			for _, dep := range t.DependsOn {
+				if idSet[dep] {
+					cleanDeps = append(cleanDeps, dep)
+				}
+			}
+			t.DependsOn = cleanDeps
 			filtered.Tasks = append(filtered.Tasks, t)
 		}
 	}
@@ -354,7 +362,7 @@ func buildTeamRunRecord(ctx context.Context, tf *taskfile.TaskFile, templateName
 func dispatchStateFromStatus(statusPath string) string {
 	sf, err := taskfile.ReadStatusFile(statusPath)
 	if err != nil {
-		return "completed" // best-effort: assume done if waited
+		return "unknown"
 	}
 	failed, completed := 0, 0
 	for _, ts := range sf.Tasks {

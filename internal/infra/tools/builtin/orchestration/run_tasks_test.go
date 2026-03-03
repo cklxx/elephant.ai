@@ -11,6 +11,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/taskfile"
 )
 
 type mockBGDispatcher struct {
@@ -345,6 +346,37 @@ tasks:
 	defer recorder.mu.Unlock()
 	if len(recorder.records) != 0 {
 		t.Fatalf("expected no recorded team runs for file mode, got %d", len(recorder.records))
+	}
+}
+
+func TestFilterTasks_CleansDependsOn(t *testing.T) {
+	tf := &taskfile.TaskFile{
+		Version: "1",
+		PlanID:  "test",
+		Tasks: []taskfile.TaskSpec{
+			{ID: "a", Prompt: "A"},
+			{ID: "b", Prompt: "B", DependsOn: []string{"a"}},
+			{ID: "c", Prompt: "C", DependsOn: []string{"a", "b"}},
+		},
+	}
+	// Filter to only "a" and "c" — "c" should lose its "b" dependency.
+	filtered := filterTasks(tf, []string{"a", "c"})
+	if len(filtered.Tasks) != 2 {
+		t.Fatalf("expected 2 tasks, got %d", len(filtered.Tasks))
+	}
+	for _, task := range filtered.Tasks {
+		if task.ID == "c" {
+			if len(task.DependsOn) != 1 || task.DependsOn[0] != "a" {
+				t.Fatalf("expected c.DependsOn=[a], got %v", task.DependsOn)
+			}
+		}
+	}
+}
+
+func TestDispatchStateFromStatus_UnknownOnError(t *testing.T) {
+	state := dispatchStateFromStatus("/nonexistent/path.yaml")
+	if state != "unknown" {
+		t.Fatalf("expected 'unknown' for unreadable status file, got %q", state)
 	}
 }
 
