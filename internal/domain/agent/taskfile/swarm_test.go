@@ -69,7 +69,6 @@ func (d *orderTrackingDispatcher) dispatchedIDs() []string {
 	return cp
 }
 
-
 func TestSwarmScheduler_StageOrdering(t *testing.T) {
 	// Three layers: [a,b] → [c,d] → [e]
 	tf := &TaskFile{
@@ -305,6 +304,84 @@ func TestSwarmScheduler_DepsCleared(t *testing.T) {
 			t.Errorf("task %q should have DependsOn cleared, got %v", req.TaskID, req.DependsOn)
 		}
 	}
+}
+
+func TestBaseTaskID(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{input: "slow-task", want: "slow-task"},
+		{input: "slow-task-retry-1", want: "slow-task"},
+		{input: "slow-task-retry-1-retry-2", want: "slow-task"},
+		{input: "slow-task-retry-x", want: "slow-task-retry-x"},
+	}
+
+	for _, tc := range cases {
+		got := baseTaskID(tc.input)
+		if got != tc.want {
+			t.Errorf("baseTaskID(%q)=%q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestSwarmScheduler_BuildRetryBatchUsesBaseIDCounter(t *testing.T) {
+	sched := NewSwarmScheduler(retryDispatcherStub{}, SwarmConfig{
+		InitialConcurrency: 1,
+		MaxConcurrency:     2,
+		ScaleUpThreshold:   0.9,
+		ScaleDownThreshold: 0.7,
+		ScaleStep:          1,
+		StageTimeout:       1 * time.Second,
+		StaleRetryMax:      2,
+	})
+
+	byID := map[string]TaskSpec{
+		"slow-task":         {ID: "slow-task", Prompt: "A"},
+		"slow-task-retry-1": {ID: "slow-task-retry-1", Prompt: "A"},
+	}
+	retryCounts := map[string]int{"slow-task": 1}
+
+	retryIDs := sched.buildRetryBatch(
+		context.Background(),
+		[]string{"slow-task-retry-1"},
+		nil,
+		byID,
+		"cause-1",
+		retryCounts,
+	)
+
+	if len(retryIDs) != 1 {
+		t.Fatalf("expected 1 retry ID, got %d (%v)", len(retryIDs), retryIDs)
+	}
+	if retryIDs[0] != "slow-task-retry-2" {
+		t.Fatalf("expected retry ID slow-task-retry-2, got %q", retryIDs[0])
+	}
+	if retryCounts["slow-task"] != 2 {
+		t.Fatalf("expected base retry count 2, got %d", retryCounts["slow-task"])
+	}
+}
+
+type retryDispatcherStub struct{}
+
+func (retryDispatcherStub) Dispatch(context.Context, agent.BackgroundDispatchRequest) error {
+	return nil
+}
+
+func (retryDispatcherStub) Status(ids []string) []agent.BackgroundTaskSummary {
+	out := make([]agent.BackgroundTaskSummary, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, agent.BackgroundTaskSummary{
+			ID:     id,
+			Status: agent.BackgroundTaskStatusRunning,
+			Stale:  true,
+		})
+	}
+	return out
+}
+
+func (retryDispatcherStub) Collect([]string, bool, time.Duration) []agent.BackgroundTaskResult {
+	return nil
 }
 
 // capturingDispatcher wraps a dispatcher to capture dispatched requests.

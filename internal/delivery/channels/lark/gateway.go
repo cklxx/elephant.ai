@@ -856,10 +856,37 @@ func (g *Gateway) dispatchMessage(ctx context.Context, chatID, replyToID, msgTyp
 		return "", fmt.Errorf("lark messenger not initialized")
 	}
 
-	if replyToID != "" {
-		return g.messenger.ReplyMessage(ctx, replyToID, msgType, content)
+	send := func(currentType, currentContent string) (string, error) {
+		if replyToID != "" {
+			return g.messenger.ReplyMessage(ctx, replyToID, currentType, currentContent)
+		}
+		return g.messenger.SendMessage(ctx, chatID, currentType, currentContent)
 	}
-	return g.messenger.SendMessage(ctx, chatID, msgType, content)
+
+	messageID, err := send(msgType, content)
+	if err == nil || !strings.EqualFold(strings.TrimSpace(msgType), "post") || !isPostPayloadInvalidError(err) {
+		return messageID, err
+	}
+
+	fallbackText := flattenPostContentToText(content)
+	if strings.TrimSpace(fallbackText) == "" {
+		fallbackText = "本次富文本结果渲染失败，已回退为纯文本发送。"
+	}
+	g.logger.Warn("Lark post dispatch fallback to text: %v", err)
+	return send("text", textContent(fallbackText))
+}
+
+func isPostPayloadInvalidError(err error) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(strings.TrimSpace(err.Error()))
+	if lower == "" {
+		return false
+	}
+	return strings.Contains(lower, "message_content_text_tag") ||
+		strings.Contains(lower, "invalid message content") ||
+		strings.Contains(lower, "text field can't be nil")
 }
 
 // dispatch is a fire-and-forget wrapper around dispatchMessage that logs errors.

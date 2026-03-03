@@ -3,6 +3,7 @@ package taskfile
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -101,7 +102,7 @@ func (s *SwarmScheduler) executeSwarmValidated(ctx context.Context, tf *TaskFile
 		allTaskIDs = append(allTaskIDs, layer...)
 	}
 
-	// retryCounts tracks how many times each original task ID has been retried.
+	// retryCounts tracks how many times each base task ID has been retried.
 	retryCounts := make(map[string]int)
 
 	for _, layer := range layers {
@@ -155,6 +156,8 @@ func (s *SwarmScheduler) buildRetryBatch(
 
 	var retryIDs []string
 	for _, origID := range layerIDs {
+		baseID := baseTaskID(origID)
+
 		// Skip if already terminal in collect results.
 		if r, ok := resultByID[origID]; ok {
 			switch r.Status {
@@ -186,7 +189,7 @@ func (s *SwarmScheduler) buildRetryBatch(
 		}
 
 		// Enforce retry cap.
-		if retryCounts[origID] >= s.config.StaleRetryMax {
+		if retryCounts[baseID] >= s.config.StaleRetryMax {
 			continue
 		}
 
@@ -195,16 +198,40 @@ func (s *SwarmScheduler) buildRetryBatch(
 			_ = canceller.CancelBackgroundTask(ctx, origID)
 		}
 
-		retryCounts[origID]++
-		retryID := fmt.Sprintf("%s-retry-%d", origID, retryCounts[origID])
+		retryCounts[baseID]++
+		retryID := fmt.Sprintf("%s-retry-%d", baseID, retryCounts[baseID])
 		if origSpec, ok := byID[origID]; ok {
 			retrySpec := origSpec
+			retrySpec.ID = retryID
+			byID[retryID] = retrySpec
+		} else if baseSpec, ok := byID[baseID]; ok {
+			retrySpec := baseSpec
 			retrySpec.ID = retryID
 			byID[retryID] = retrySpec
 		}
 		retryIDs = append(retryIDs, retryID)
 	}
 	return retryIDs
+}
+
+func baseTaskID(taskID string) string {
+	base := taskID
+	for {
+		idx := strings.LastIndex(base, "-retry-")
+		if idx <= 0 {
+			return base
+		}
+		suffix := base[idx+len("-retry-"):]
+		if suffix == "" {
+			return base
+		}
+		for _, r := range suffix {
+			if r < '0' || r > '9' {
+				return base
+			}
+		}
+		base = base[:idx]
+	}
 }
 
 // executeLayer dispatches all tasks in a layer concurrently, bounded by the
