@@ -68,9 +68,9 @@ type AgentCoordinator struct {
 	schedulerService      any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
 	toolSLACollector      *toolspolicy.SLACollector
 
-	sessionSaveMu      sync.Mutex                    // Protects concurrent session saves
+	sessionSaveMu      sync.Mutex                      // Protects concurrent session saves
 	pendingSessionSave atomic.Pointer[storage.Session] // latest snapshot awaiting save
-	sessionSaveOnce    sync.Once                    // Ensures single save loop goroutine
+	sessionSaveOnce    sync.Once                       // Ensures single save loop goroutine
 }
 
 type preparationService interface {
@@ -215,7 +215,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	prepareStarted := time.Now()
 	// Decorate the listener with the workflow envelope translator so downstream
 	// consumers receive workflow event envelopes.
-	eventListener := wrapWithWorkflowEnvelope(wrapWithSLAEnrichment(listener, c.toolSLACollector), nil)
+	eventListener := wrapWithWorkflowEnvelope(wrapWithSLAEnrichment(listener, c.toolSLACollector))
 	var planTitleRecorder *planSessionTitleRecorder
 	var serializingListener *SerializingEventListener
 	if eventListener != nil && !appcontext.IsSubagentContext(ctx) {

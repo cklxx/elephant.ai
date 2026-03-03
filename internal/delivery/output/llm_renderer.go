@@ -34,11 +34,11 @@ func (r *LLMRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 	if err != nil {
 		return r.formatToolError(ctx, toolName, err)
 	}
-	return r.formatToolResult(ctx, toolName, result)
+	return r.formatToolResult(ctx, result)
 }
 
 // formatToolResult organizes tool output with hierarchical context
-func (r *LLMRenderer) formatToolResult(ctx *types.OutputContext, toolName string, result string) string {
+func (r *LLMRenderer) formatToolResult(ctx *types.OutputContext, result string) string {
 	// For LLM: raw result with minimal context markers
 	var parts []string
 
@@ -47,31 +47,7 @@ func (r *LLMRenderer) formatToolResult(ctx *types.OutputContext, toolName string
 		parts = append(parts, fmt.Sprintf("[Subagent %s]", ctx.AgentID))
 	}
 
-	// Add category context for better organization
-	category := CategorizeToolName(toolName)
-	switch category {
-	case types.CategoryFile:
-		// File operations: include full content
-		parts = append(parts, result)
-	case types.CategorySearch:
-		// Search results: include all matches for LLM analysis
-		parts = append(parts, result)
-	case types.CategoryShell, types.CategoryExecution:
-		// Shell/execution: include full output
-		parts = append(parts, result)
-	case types.CategoryWeb:
-		// Web content: include full content
-		parts = append(parts, result)
-	case types.CategoryTask:
-		// Task info: include full details
-		parts = append(parts, result)
-	case types.CategoryReasoning:
-		// Reasoning: include full analysis
-		parts = append(parts, result)
-	default:
-		// Default: raw result
-		parts = append(parts, result)
-	}
+	parts = append(parts, result)
 
 	return strings.Join(parts, "\n")
 }

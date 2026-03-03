@@ -2,6 +2,7 @@ package react
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -1068,7 +1069,7 @@ func TestCancelTask_NotFound(t *testing.T) {
 	defer mgr.Shutdown()
 
 	err := mgr.CancelTask(context.Background(), "nonexistent")
-	if err == nil || !strings.Contains(err.Error(), "not found") {
+	if err == nil || !errors.Is(err, ErrBackgroundTaskNotFound) {
 		t.Errorf("expected not found error, got: %v", err)
 	}
 }
@@ -1335,4 +1336,3 @@ func TestDispatchContextPropagators(t *testing.T) {
 		t.Fatalf("expected propagated context value, got %q", captured)
 	}
 }
-

@@ -31,7 +31,7 @@ func (r *recordingAgentListener) snapshot() []agent.AgentEvent {
 
 func TestWorkflowEventTranslatorEmitsToolCallNodes(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	ts := time.Unix(1710000000, 0)
 	translator.OnEvent(domain.NewNodeCompletedEvent(
@@ -57,7 +57,7 @@ func TestWorkflowEventTranslatorEmitsToolCallNodes(t *testing.T) {
 
 func TestWorkflowEventTranslatorSkipsToolsAggregateNode(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	ts := time.Unix(1710000000, 0)
 	translator.OnEvent(domain.NewNodeCompletedEvent(
@@ -72,7 +72,7 @@ func TestWorkflowEventTranslatorSkipsToolsAggregateNode(t *testing.T) {
 
 func TestWorkflowEventTranslatorForwardsNonToolNodes(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	ts := time.Unix(1710000000, 0)
 	translator.OnEvent(domain.NewNodeCompletedEvent(
@@ -99,7 +99,7 @@ func TestWorkflowEventTranslatorForwardsNonToolNodes(t *testing.T) {
 
 func TestWorkflowEventTranslatorFiltersToolNodesFromLifecycleSnapshots(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	toolNode := workflow.NodeSnapshot{ID: "react:iter:1:tool:text_to_image:0", Status: workflow.NodeStatusSucceeded}
 	planNode := workflow.NodeSnapshot{ID: "react:iter:1:plan", Status: workflow.NodeStatusSucceeded}
@@ -141,7 +141,7 @@ func TestWorkflowEventTranslatorFiltersToolNodesFromLifecycleSnapshots(t *testin
 
 func TestWorkflowEventTranslatorUsesWorkflowIDFromLifecycleEvent(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	now := time.Unix(1710000100, 0)
 	translator.OnEvent(domain.NewLifecycleUpdatedEvent(
@@ -166,7 +166,7 @@ func TestWorkflowEventTranslatorUsesWorkflowIDFromLifecycleEvent(t *testing.T) {
 
 func TestWorkflowEventTranslatorSkipsLifecycleToolsAggregate(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	now := time.Unix(1710000001, 0)
 	aggregate := workflow.NodeSnapshot{ID: "react:iter:1:tools", Status: workflow.NodeStatusSucceeded}
@@ -183,7 +183,7 @@ func TestWorkflowEventTranslatorSkipsLifecycleToolsAggregate(t *testing.T) {
 
 func TestWorkflowEventTranslatorSanitizesWorkflowOnNodeEvents(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	snapshot := workflow.WorkflowSnapshot{
 		ID:    "wf-2",
@@ -229,7 +229,7 @@ func TestWorkflowEventTranslatorSanitizesWorkflowOnNodeEvents(t *testing.T) {
 
 func TestWorkflowEventTranslatorEmitsLifecycleEventsForToolCallNode(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	toolNode := workflow.NodeSnapshot{ID: "react:iter:1:tool:text_to_image:0", Status: workflow.NodeStatusSucceeded}
 
@@ -248,7 +248,7 @@ func TestWorkflowEventTranslatorEmitsLifecycleEventsForToolCallNode(t *testing.T
 
 func TestWorkflowEventTranslatorAddsCallIDToToolPayload(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	translator.OnEvent(domain.NewToolProgressEvent(
 		domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000003, 0)),
@@ -280,7 +280,7 @@ func TestSLADecoratorEnrichesToolCompletedWhenCollectorConfigured(t *testing.T) 
 	collector, _ := toolspolicy.NewSLACollector(prometheus.NewRegistry())
 	collector.RecordExecutionWithCost("bash", 120*time.Millisecond, nil, 0.42)
 	// Chain: translator → sla decorator → sink
-	decorated := wrapWithWorkflowEnvelope(wrapWithSLAEnrichment(sink, collector), nil)
+	decorated := wrapWithWorkflowEnvelope(wrapWithSLAEnrichment(sink, collector))
 
 	decorated.OnEvent(domain.NewToolCompletedEvent(
 		domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000003, 0)),
@@ -312,7 +312,7 @@ func TestSLADecoratorEnrichesToolCompletedWhenCollectorConfigured(t *testing.T) 
 
 func TestWorkflowEventTranslatorOmitsToolSLAWhenCollectorNotConfigured(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	translator.OnEvent(domain.NewToolCompletedEvent(
 		domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000003, 0)),
@@ -334,7 +334,7 @@ func TestWorkflowEventTranslatorOmitsToolSLAWhenCollectorNotConfigured(t *testin
 
 func TestWorkflowEventTranslatorEmitsDiagnosticNodeFailure(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	translator.OnEvent(domain.NewNodeFailedEvent(
 		domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000004, 0)),
@@ -365,7 +365,7 @@ func TestWorkflowEventTranslatorEmitsDiagnosticNodeFailure(t *testing.T) {
 
 func TestWorkflowEventTranslatorReusesWorkflowContextForTools(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	snapshot := workflow.WorkflowSnapshot{ID: "wf-context", Phase: workflow.PhaseRunning}
 	base := domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000005, 0))
@@ -400,7 +400,7 @@ func TestWorkflowEventTranslatorReusesWorkflowContextForTools(t *testing.T) {
 
 func TestWorkflowEventTranslatorForwardsContextSnapshotEvents(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	ts := time.Unix(1710000200, 0)
 	original := domain.NewDiagnosticContextSnapshotEvent(
@@ -432,7 +432,7 @@ func TestWorkflowEventTranslatorForwardsContextSnapshotEvents(t *testing.T) {
 
 func TestWorkflowEventTranslatorEmitsArtifactManifestEvent(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	ts := time.Unix(1710000300, 0)
 	translator.OnEvent(domain.NewToolCompletedEvent(
@@ -466,7 +466,7 @@ func TestWorkflowEventTranslatorEmitsArtifactManifestEvent(t *testing.T) {
 
 func TestWorkflowEventTranslator_EnvelopesBackgroundTaskEvents(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	ts := time.Unix(1710001000, 0)
 	translator.OnEvent(domain.NewBackgroundTaskDispatchedEvent(
@@ -517,7 +517,7 @@ func TestWorkflowEventTranslator_EnvelopesBackgroundTaskEvents(t *testing.T) {
 
 func TestWorkflowEventTranslator_EnvelopesExternalAgentEvents(t *testing.T) {
 	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
+	translator := wrapWithWorkflowEnvelope(sink)
 
 	ts := time.Unix(1710002000, 0)
 	translator.OnEvent(domain.NewExternalAgentProgressEvent(

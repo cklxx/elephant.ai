@@ -164,8 +164,9 @@ func (c *AgentCoordinator) asyncSaveSession(ctx context.Context, session *storag
 
 // ensureSessionSaveLoop starts the debounce goroutine exactly once.
 func (c *AgentCoordinator) ensureSessionSaveLoop(ctx context.Context) {
+	loopCtx := context.WithoutCancel(ctx)
 	c.sessionSaveOnce.Do(func() {
-		go c.sessionSaveLoop(ctx)
+		go c.sessionSaveLoop(loopCtx)
 	})
 }
 

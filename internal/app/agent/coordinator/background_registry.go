@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -106,8 +107,7 @@ func (r *backgroundTaskRegistry) CancelTask(ctx context.Context, taskID string) 
 			r.touch(entry.sessionID)
 			return nil
 		}
-		// "not found" means try next manager; other errors are real failures
-		if !strings.Contains(err.Error(), "not found") {
+		if !errors.Is(err, react.ErrBackgroundTaskNotFound) {
 			return err
 		}
 	}

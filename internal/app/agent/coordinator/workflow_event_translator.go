@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 	"sync"
 
@@ -15,23 +14,18 @@ import (
 // wrapWithWorkflowEnvelope decorates the provided listener with a translator that
 // converts domain workflow events into the `domain.WorkflowEventEnvelope` contract
 // consumed by downstream adapters (SSE, CLI bridges, replay stores, etc.).
-func wrapWithWorkflowEnvelope(listener agent.EventListener, logger *slog.Logger) agent.EventListener {
+func wrapWithWorkflowEnvelope(listener agent.EventListener) agent.EventListener {
 	if listener == nil {
 		return nil
 	}
-	if logger == nil {
-		logger = slog.Default()
-	}
 	return &workflowEventTranslator{
 		sink:           listener,
-		logger:         logger,
 		subflowTracker: newSubflowStatsTracker(),
 	}
 }
 
 type workflowEventTranslator struct {
 	sink           agent.EventListener
-	logger         *slog.Logger
 	subflowTracker *subflowStatsTracker
 
 	ctxMu sync.RWMutex
@@ -100,14 +94,14 @@ func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *doma
 		return t.translateNodeOutputDelta(evt, d)
 
 	case types.EventToolStarted:
-		return t.translateTool(evt, types.EventToolStarted, d.CallID, map[string]any{
+		return t.toolEnvelope(evt, types.EventToolStarted, d.CallID, map[string]any{
 			"tool_name": d.ToolName,
 			"arguments": d.Arguments,
 			"iteration": d.Iteration,
 		})
 
 	case types.EventToolProgress:
-		return t.translateTool(evt, types.EventToolProgress, d.CallID, map[string]any{
+		return t.toolEnvelope(evt, types.EventToolProgress, d.CallID, map[string]any{
 			"chunk":       d.Chunk,
 			"is_complete": d.IsComplete,
 		})

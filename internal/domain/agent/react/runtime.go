@@ -332,7 +332,7 @@ func (r *reactRuntime) handleMaxIterations() (*TaskResult, error) {
 }
 
 func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolResult) {
-	if r == nil || len(calls) == 0 || len(results) == 0 {
+	if len(calls) == 0 || len(results) == 0 {
 		return
 	}
 	limit := len(calls)
@@ -379,7 +379,7 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 }
 
 func (r *reactRuntime) handleToolError(_ ToolCall, _ ToolResult) {
-	if r == nil || r.state == nil {
+	if r.state == nil {
 		return
 	}
 	targetID := strings.TrimSpace(r.currentTaskID)
@@ -392,7 +392,7 @@ func (r *reactRuntime) handleToolError(_ ToolCall, _ ToolResult) {
 }
 
 func (r *reactRuntime) handleClarifyResult(result ToolResult) {
-	if r == nil || r.state == nil || result.Metadata == nil {
+	if r.state == nil || result.Metadata == nil {
 		return
 	}
 	taskID, _ := result.Metadata["task_id"].(string)
@@ -447,7 +447,7 @@ func extractSuccessCriteria(metadata map[string]any) []string {
 }
 
 func (r *reactRuntime) upsertPlanNode(node agent.PlanNode) {
-	if r == nil || r.state == nil {
+	if r.state == nil {
 		return
 	}
 	if utils.IsBlank(node.ID) {
@@ -475,7 +475,7 @@ func updatePlanNode(nodes []agent.PlanNode, node agent.PlanNode) bool {
 }
 
 func (r *reactRuntime) updatePlanStatus(id string, status string, skipIfBlocked bool) bool {
-	if r == nil || r.state == nil {
+	if r.state == nil {
 		return false
 	}
 	return updatePlanStatus(r.state.Plans, strings.TrimSpace(id), status, skipIfBlocked)
@@ -501,7 +501,7 @@ func updatePlanStatus(nodes []agent.PlanNode, id string, status string, skipIfBl
 }
 
 func (r *reactRuntime) maybeTriggerPlanReview(call ToolCall, result ToolResult) {
-	if r == nil || !r.planReviewEnabled {
+	if !r.planReviewEnabled {
 		return
 	}
 	if !strings.EqualFold(strings.TrimSpace(r.planComplexity), "complex") {
@@ -541,7 +541,7 @@ func (r *reactRuntime) maybeTriggerPlanReview(call ToolCall, result ToolResult) 
 }
 
 func (r *reactRuntime) injectPlanReviewMarker(goal string, internalPlan any, runID string) {
-	if r == nil || r.state == nil {
+	if r.state == nil {
 		return
 	}
 	goal = strings.TrimSpace(goal)
@@ -694,26 +694,25 @@ func (it *reactIteration) think() error {
 func (it *reactIteration) planTools() (*TaskResult, bool, error) {
 	it.runtime.tracker.startPlan(it.index, len(it.toolCalls))
 
-	validCalls := it.runtime.filterValidToolCalls(it.toolCalls)
-	it.runtime.tracker.completePlan(it.index, validCalls, nil)
-	if len(validCalls) == 0 {
+	it.runtime.tracker.completePlan(it.index, it.toolCalls, nil)
+	if len(it.toolCalls) == 0 {
 		return it.handleNoTools()
 	}
 
 	it.plan = toolExecutionPlan{
 		iteration: it.index,
 		nodeID:    iterationToolsNode(it.index),
-		calls:     validCalls,
+		calls:     it.toolCalls,
 	}
 
-	it.runtime.tracker.startTools(it.plan.iteration, it.plan.nodeID, len(validCalls))
+	it.runtime.tracker.startTools(it.plan.iteration, it.plan.nodeID, len(it.toolCalls))
 
 	if it.thought.Content != "" {
 		it.thought.Content = it.runtime.engine.cleanToolCallMarkers(it.thought.Content)
 	}
 
-	it.runtime.engine.logger.Debug("EXECUTE phase: Running %d tools in parallel", len(validCalls))
-	it.runtime.emitWorkflowToolStartedEvents(validCalls)
+	it.runtime.engine.logger.Debug("EXECUTE phase: Running %d tools in parallel", len(it.toolCalls))
+	it.runtime.emitWorkflowToolStartedEvents(it.toolCalls)
 
 	return nil, false, nil
 }
@@ -783,7 +782,7 @@ func (it *reactIteration) observeTools() {
 }
 
 func (r *reactRuntime) maybeStopAfterRepeatedToolFailures(results []ToolResult) (*TaskResult, bool) {
-	if r == nil || len(results) == 0 {
+	if len(results) == 0 {
 		return nil, false
 	}
 

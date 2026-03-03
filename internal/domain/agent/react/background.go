@@ -2,6 +2,7 @@ package react
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -96,6 +97,8 @@ type BackgroundTaskManager struct {
 }
 
 const defaultStaleThreshold = 15 * time.Minute
+
+var ErrBackgroundTaskNotFound = errors.New("background task not found")
 
 // BackgroundManagerConfig configures a shared background task manager.
 type BackgroundManagerConfig struct {
@@ -864,7 +867,7 @@ func (m *BackgroundTaskManager) CancelTask(ctx context.Context, taskID string) e
 	bt := m.tasks[taskID]
 	m.mu.RUnlock()
 	if bt == nil {
-		return fmt.Errorf("task %q not found", taskID)
+		return fmt.Errorf("%w: task %q", ErrBackgroundTaskNotFound, taskID)
 	}
 
 	bt.mu.Lock()
@@ -907,17 +910,12 @@ func (m *BackgroundTaskManager) ReplyExternalInput(ctx context.Context, resp age
 				bt.pendingInput = nil
 			}
 			bt.mu.Unlock()
-		}
-	}
-	if utils.HasContent(resp.TaskID) {
-		m.mu.RLock()
-		bt := m.tasks[resp.TaskID]
-		m.mu.RUnlock()
-		if bt != nil && bt.emitEvent != nil && bt.baseEvent != nil {
-			bt.emitEvent(domain.NewExternalInputResponseEvent(
-				bt.baseEvent(ctx),
-				resp.TaskID, resp.RequestID, resp.Approved, resp.OptionID, resp.Text,
-			))
+			if bt.emitEvent != nil && bt.baseEvent != nil {
+				bt.emitEvent(domain.NewExternalInputResponseEvent(
+					bt.baseEvent(ctx),
+					resp.TaskID, resp.RequestID, resp.Approved, resp.OptionID, resp.Text,
+				))
+			}
 		}
 	}
 	return nil
