@@ -11,7 +11,7 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 
 ## Subagent scan summary
 - `R-08` (ad-hoc `http.Client`): no remaining high-confidence production bypasses needing immediate non-risky edits in this wave scope.
-- `R-06` (manual `ToolResult`): remaining candidates are mostly intentional/custom-content paths; defer to a helper-shape cleanup wave.
+- `R-06` (manual `ToolResult`): follow-up scan found 3 high-confidence `ApprovalExecutor` returns that can be normalized to `shared.ToolError(...)`.
 - Truncation helpers: mixed semantics (rune/byte/domain-specific); defer to dedicated truncation unification wave.
 
 ## Execution checklist
@@ -24,6 +24,7 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 - [x] Apply `IsBlank/HasContent` normalization batch in selected runtime non-web paths (`internal/app/agent/*`, `internal/delivery/channels/lark`, `internal/domain/agent/react`, `internal/infra/llm`, `internal/devops/process`, `internal/infra/external/teamrun`, `internal/domain/agent/ports`).
 - [x] Apply residual non-web mechanical normalization in `internal/{domain/agent/taskfile,devops,delivery/server/bootstrap,infra/tools/builtin/artifacts,shared/config}` and `scripts/memory/backfill_networked.go`.
 - [x] Apply subagent-rescan residual normalization in `cmd/alex`, `internal/{app/subscription,app/context,app/agent/preparation,delivery/channels/lark,delivery/server/bootstrap,infra/skills,infra/tools/builtin/larktools,shared/config}`, and `evaluation/agent_eval` (single remaining site).
+- [x] Normalize `internal/infra/tools/approval_executor.go` manual error `ToolResult` returns to `shared.ToolError(...)`.
 - [x] Run targeted tests.
 - [x] Run targeted lint.
 - [x] Run code review gate.
@@ -34,11 +35,13 @@ Continue non-`web/` simplification after Wave E/F with another subagent-assisted
 - `go test ./internal/app/agent/coordinator ./internal/app/agent/kernel ./internal/delivery/channels/lark ./internal/devops/process ./internal/domain/agent/ports ./internal/domain/agent/react ./internal/infra/external/teamrun ./internal/infra/llm -count=1`
 - `go test ./internal/domain/agent/taskfile ./internal/devops/... ./internal/delivery/server/bootstrap ./internal/infra/tools/builtin/artifacts ./internal/shared/config ./scripts/memory -count=1`
 - `go test ./cmd/alex ./internal/app/agent/coordinator ./internal/app/agent/preparation ./internal/app/context ./internal/app/subscription ./internal/delivery/channels/lark ./internal/delivery/server/bootstrap ./internal/infra/skills ./internal/infra/tools/builtin/larktools ./internal/shared/config ./internal/shared/utils/clilatency ./evaluation/agent_eval -count=1`
+- `go test ./internal/infra/tools -count=1`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./cmd/alex/... ./internal/domain/agent/react/... ./internal/infra/attachments/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./evaluation/agent_eval/... ./internal/domain/agent/ports/mocks/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/app/agent/coordinator/... ./internal/app/agent/kernel/... ./internal/delivery/channels/lark/... ./internal/devops/process/... ./internal/domain/agent/ports/... ./internal/domain/agent/react/... ./internal/infra/external/teamrun/... ./internal/infra/llm/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/domain/agent/taskfile/... ./internal/devops/... ./internal/delivery/server/bootstrap/... ./internal/infra/tools/builtin/artifacts/... ./internal/shared/config/... ./scripts/memory/...`
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./cmd/alex/... ./internal/app/agent/coordinator/... ./internal/app/agent/preparation/... ./internal/app/context/... ./internal/app/subscription/... ./internal/delivery/channels/lark/... ./internal/delivery/server/bootstrap/... ./internal/infra/skills/... ./internal/infra/tools/builtin/larktools/... ./internal/shared/config/... ./internal/shared/utils/clilatency/... ./evaluation/agent_eval/...`
+- `./scripts/run-golangci-lint.sh run --timeout=10m ./internal/infra/tools/...`
 
 ## Notes
 - This wave is intentionally mechanical and scoped to safe replacements only.

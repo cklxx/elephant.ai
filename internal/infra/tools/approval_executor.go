@@ -29,7 +29,7 @@ func (a *ApprovalExecutor) Delegate() tools.ToolExecutor {
 
 func (a *ApprovalExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	if a.delegate == nil {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("tool executor missing")}, nil
+		return shared.ToolError(call.ID, "tool executor missing")
 	}
 	meta := a.delegate.Metadata()
 	if !meta.Dangerous {
@@ -58,10 +58,10 @@ func (a *ApprovalExecutor) Execute(ctx context.Context, call ports.ToolCall) (*p
 	}
 	resp, err := approver.RequestApproval(ctx, req)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 	if resp == nil || !resp.Approved {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("operation rejected")}, nil
+		return shared.ToolError(call.ID, "operation rejected")
 	}
 
 	return a.delegate.Execute(ctx, call)
