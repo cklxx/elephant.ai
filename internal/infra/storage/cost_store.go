@@ -157,18 +157,30 @@ func (s *fileCostStore) GetByModel(ctx context.Context, model string) ([]agentst
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Read all records and filter by model
-	allRecords, err := s.ListAll(ctx)
+	entries, err := os.ReadDir(s.baseDir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read base dir: %w", err)
 	}
 
 	var filtered []agentstorage.UsageRecord
-	for _, record := range allRecords {
-		if record.Model == model {
-			filtered = append(filtered, record)
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == "_index" {
+			continue
+		}
+
+		dateRecords, err := s.readDateRecords(entry.Name())
+		if err != nil {
+			continue
+		}
+
+		for _, record := range dateRecords {
+			if record.Model == model {
+				filtered = append(filtered, record)
+			}
 		}
 	}
+
+	sortUsageRecordsByTimestamp(filtered)
 
 	return filtered, nil
 }
@@ -199,12 +211,15 @@ func (s *fileCostStore) ListAll(ctx context.Context) ([]agentstorage.UsageRecord
 		records = append(records, dateRecords...)
 	}
 
-	// Sort by timestamp
+	sortUsageRecordsByTimestamp(records)
+
+	return records, nil
+}
+
+func sortUsageRecordsByTimestamp(records []agentstorage.UsageRecord) {
 	sort.Slice(records, func(i, j int) bool {
 		return records[i].Timestamp.Before(records[j].Timestamp)
 	})
-
-	return records, nil
 }
 
 // readDateRecords reads all records for a specific date

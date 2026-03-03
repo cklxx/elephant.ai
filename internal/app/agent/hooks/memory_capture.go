@@ -219,7 +219,6 @@ func sameProviderModel(a, b runtimeconfig.LLMProfile) bool {
 		strings.EqualFold(strings.TrimSpace(a.BaseURL), strings.TrimSpace(b.BaseURL))
 }
 
-
 func buildMemoryCapturePrompt(result TaskResultInfo) string {
 	if utils.IsBlank(result.TaskInput) && utils.IsBlank(result.Answer) && len(result.ToolCalls) == 0 {
 		return ""
@@ -232,7 +231,7 @@ func buildMemoryCapturePrompt(result TaskResultInfo) string {
 		var toolLines []string
 		var toolOutputs []string
 		for _, tool := range result.ToolCalls {
-			out := truncateText(tool.Output, 200)
+			out := utils.TruncateWithEllipsis(tool.Output, 200)
 			status := "ok"
 			if !tool.Success {
 				status = "fail"
@@ -256,13 +255,13 @@ func buildMemoryCapturePrompt(result TaskResultInfo) string {
 	}
 	prompt := strings.TrimSpace(b.String())
 	if len(prompt) > maxPromptChars {
-		prompt = truncateText(prompt, maxPromptChars)
+		prompt = utils.TruncateWithEllipsis(prompt, maxPromptChars)
 	}
 	return prompt
 }
 
 func appendField(b *strings.Builder, label, value string, limit int) {
-	value = truncateText(value, limit)
+	value = utils.TruncateWithEllipsis(value, limit)
 	if value == "" {
 		return
 	}
@@ -270,18 +269,6 @@ func appendField(b *strings.Builder, label, value string, limit int) {
 	b.WriteString(":\n")
 	b.WriteString(value)
 	b.WriteString("\n\n")
-}
-
-func truncateText(value string, limit int) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" || limit <= 0 {
-		return ""
-	}
-	runes := []rune(trimmed)
-	if len(runes) <= limit {
-		return trimmed
-	}
-	return strings.TrimSpace(string(runes[:limit])) + "..."
 }
 
 func normalizeMemoryLines(content string) []string {
@@ -296,7 +283,7 @@ func normalizeMemoryLines(content string) []string {
 		if line == "" {
 			continue
 		}
-		line = truncateText(line, maxLineChars)
+		line = utils.TruncateWithEllipsis(line, maxLineChars)
 		out = append(out, "- "+line)
 		if len(out) >= maxCaptureLines {
 			break
@@ -335,13 +322,13 @@ func stripBulletPrefix(line string) string {
 
 func (h *MemoryCaptureHook) fallbackLines(result TaskResultInfo) []string {
 	var lines []string
-	if task := truncateText(result.TaskInput, 200); task != "" {
+	if task := utils.TruncateWithEllipsis(result.TaskInput, 200); task != "" {
 		lines = append(lines, "- Task: "+task)
 	}
 	if signals := extractHabitSignals(result.TaskInput, result.Answer); len(signals) > 0 {
 		lines = append(lines, "- Habits: "+strings.Join(signals, "; "))
 	}
-	if answer := truncateText(result.Answer, 260); answer != "" {
+	if answer := utils.TruncateWithEllipsis(result.Answer, 260); answer != "" {
 		lines = append(lines, "- Outcome: "+answer)
 	}
 	if len(result.ToolCalls) > 0 {
@@ -374,7 +361,7 @@ func extractHabitSignals(inputs ...string) []string {
 			if !containsHabitKeyword(segment) {
 				continue
 			}
-			normalized := truncateText(segment, 120)
+			normalized := utils.TruncateWithEllipsis(segment, 120)
 			if normalized == "" {
 				continue
 			}

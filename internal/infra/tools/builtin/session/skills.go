@@ -64,7 +64,7 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	library, err := skills.CachedLibrary(5 * time.Minute)
 	if err != nil {
 		wrapped := fmt.Errorf("load skills: %w", err)
-		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
+		return shared.ToolError(call.ID, "%w", wrapped)
 	}
 
 	switch action {
@@ -84,7 +84,7 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		name = strings.TrimSpace(name)
 		if name == "" {
 			err := errors.New("name is required for action=show")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "%w", err)
 		}
 
 		skill, ok := library.Get(name)
@@ -141,7 +141,7 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		query = strings.TrimSpace(query)
 		if query == "" {
 			err := errors.New("query is required for action=search")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "%w", err)
 		}
 
 		matches := searchSkills(library, query, 10)
@@ -185,7 +185,7 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 
 	default:
 		err := fmt.Errorf("unsupported action %q (expected list|show|search)", action)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%w", err)
 	}
 }
 
