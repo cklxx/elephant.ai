@@ -1,6 +1,88 @@
 version: 1
-updated: "2026-02-26"
+updated: "2026-03-03"
 nodes:
+    - id: err-2026-03-03-prepush-race-flake-lint-timeout
+      path: docs/error-experience/entries/2026-03-03-prepush-race-flake-lint-timeout.md
+      type: error_entry
+      date: "2026-03-03"
+      tags:
+        - error
+      summary: 在大规模改动后执行 `./scripts/pre-push.sh`。
+    - id: errsum-2026-03-03-prepush-race-flake-lint-timeout
+      path: docs/error-experience/summary/entries/2026-03-03-prepush-race-flake-lint-timeout.md
+      type: error_summary
+      date: "2026-03-03"
+      tags:
+        - error
+        - summary
+      summary: !!binary |
+        U3VtbWFyeTogcHJlLXB1c2gg5bm26KGM6Zeo56aB5Zyo5aSn5pS55Yqo5Zy65pmv5LiL5Y
+        +v6IO95Ye6546wIGBnbyB0ZXN0IC1yYWNlYCDlgbblj5HlpLHotKXlkowgYGdvbGFuZ2Np
+        LWxpbnQgLS10aW1lb3V0PTNtYCDotoXml7bvvJvpnIDku6Xni6znq4vlpI3ot5Hnoa7orq
+        TnnJ/lrp7lm57lvZLvvIzlho3lhrPlLi4u
+    - id: good-2026-03-03-subagent-global-simplify-wave1-wave3
+      path: docs/good-experience/entries/2026-03-03-subagent-global-simplify-wave1-wave3.md
+      type: good_entry
+      date: "2026-03-03"
+      tags:
+        - good
+        - memory
+        - performance
+      summary: 任务：按 `docs/plans/2026-03-03-global-codebase-simplify.md` 推进全库优化。
+    - id: goodsum-2026-03-03-subagent-global-simplify-wave1-wave3
+      path: docs/good-experience/summary/entries/2026-03-03-subagent-global-simplify-wave1-wave3.md
+      type: good_summary
+      date: "2026-03-03"
+      tags:
+        - good
+        - performance
+        - summary
+      summary: !!binary |
+        U3VtbWFyeTog5oyJIG93bmVyc2hpcCDmi4bliIYgc3ViYWdlbnQg5bm26KGM5omn6KGM5Y
+        +v5Zyo5aSn6KeE5qih5py65qKw6YeN5p6E5ZKM5L2O6aOO6Zmp5oCn6IO95LyY5YyW5Lit
+        5L+d5oyB6auY5ZCe5ZCQ44CB5L2O5Yay56qB77yb5YWz6ZSu5piv5q+P5LiqIHdvcmtlci
+        DlvLrliLboh6rluKbpqozor4Hlkb3kLi4u
+    - id: good-2026-03-02-e2e-test-script-debugging
+      path: docs/good-experience/entries/2026-03-02-e2e-test-script-debugging.md
+      type: good_entry
+      date: "2026-03-02"
+      tags:
+        - config
+        - good
+        - observability
+      summary: '**Date**: 2026-03-02'
+    - id: good-2026-02-28-codebase-conciseness-optimization
+      path: docs/good-experience/entries/2026-02-28-codebase-conciseness-optimization.md
+      type: good_entry
+      date: "2026-02-28"
+      tags:
+        - config
+        - good
+        - kernel
+        - lark
+        - observability
+        - session
+      summary: 'Impact: Removed 208 net lines across 14 files (497 deleted, 289 added) with zero behavior change. Applied "if 30 lines can be 5, write 5" principle systematically across domain, in...'
+    - id: goodsum-2026-02-28-codebase-conciseness-optimization
+      path: docs/good-experience/summary/entries/2026-02-28-codebase-conciseness-optimization.md
+      type: good_summary
+      date: "2026-02-28"
+      tags:
+        - config
+        - good
+        - lark
+        - observability
+        - summary
+      summary: Systematic "if 30 lines can be 5, write 5" refactoring across all 4 architecture layers. 208 net lines removed from 14 files with zero behavior change.
+    - id: plan-2026-02-28-lark-no-markdown-formatting
+      path: docs/plans/2026-02-28-lark-no-markdown-formatting.md
+      type: plan
+      date: "2026-02-28"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: '**Status**: Draft'
     - id: err-2026-02-26-main-branch-dirty-workspace-quality-gate-noise
       path: docs/error-experience/entries/2026-02-26-main-branch-dirty-workspace-quality-gate-noise.md
       type: error_entry
@@ -120,6 +202,15 @@ nodes:
         - plan
         - session
       summary: User reports Lark replies are incorrect and `/new` has no practical effect.
+    - id: plan-2026-02-26-lark-dotenv-hot-reload
+      path: docs/plans/2026-02-26-lark-dotenv-hot-reload.md
+      type: plan
+      date: "2026-02-26"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: 修复 Lark 运行时改 `.env` 后不自动生效的问题，使无需重启即可更新由 `.env` 提供的配置值（如 `TAVILY_API_KEY`、Lark 凭证引用值等）。
     - id: plan-2026-02-26-lark-kernel-alignment-cycle-selfheal
       path: docs/plans/2026-02-26-lark-kernel-alignment-cycle-selfheal.md
       type: plan
@@ -137,6 +228,24 @@ nodes:
         - lark
         - plan
       summary: 系统性优化消息交互流程，解决两类问题：
+    - id: plan-2026-02-26-lark-restart-storm-hardening
+      path: docs/plans/2026-02-26-lark-restart-storm-hardening.md
+      type: plan
+      date: "2026-02-26"
+      tags:
+        - lark
+        - observability
+        - plan
+        - session
+      summary: User reported repeated `restart storm` incidents in Lark supervisor health.
+    - id: plan-2026-02-26-lark-slow-summary-llm-style
+      path: docs/plans/2026-02-26-lark-slow-summary-llm-style.md
+      type: plan
+      date: "2026-02-26"
+      tags:
+        - lark
+        - plan
+      summary: '**Status:** completed'
     - id: plan-2026-02-26-lark-sync-async-terminal-status-unification
       path: docs/plans/2026-02-26-lark-sync-async-terminal-status-unification.md
       type: plan

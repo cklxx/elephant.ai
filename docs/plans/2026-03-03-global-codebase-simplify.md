@@ -2,7 +2,7 @@
 
 > Date: 2026-03-03
 > Scope: Historical codebase review (not recent commits)
-> Status: Plan ready, awaiting approval for Codex execution
+> Status: In progress (Wave 1 + Wave 3 partial delivered on 2026-03-03)
 
 ---
 
@@ -424,6 +424,14 @@ These are search-and-replace operations that Codex can execute autonomously:
 | CX-05 | R-09: Delete duplicate `formatDuration()` in web, import from `@/lib/utils` | 4 | `cd web && npx vitest run` |
 | CX-06 | Q-16: Delete dead code `OpenLogFile()`, `GetLogger()` | 1 | `go build ./...` |
 
+Execution (2026-03-03):
+- [x] CX-01 completed (target ownership set under `internal/` migrated to `utils.TrimLower`).
+- [x] CX-02 completed (target ownership set under `internal/` migrated to `utils.IsBlank`).
+- [x] CX-03 completed (target ownership set under `internal/` migrated to `utils.HasContent`).
+- [ ] CX-04 not started in this batch.
+- [x] CX-05 completed (web duplicate `formatDuration` call sites consolidated to `@/lib/utils` with local behavior-preserving wrappers).
+- [~] CX-06 partial: `GetLogger()` removed; `OpenLogFile()` retained because still used by `cmd/alex/container.go`.
+
 ### Wave 2: Targeted Quality Fixes (moderate complexity)
 
 | Task ID | Finding | Estimated Files | Verify Command |
@@ -444,6 +452,24 @@ These are search-and-replace operations that Codex can execute autonomously:
 | CX-15 | E-06: Parallel vector + BM25 search | Low | `errgroup.Go()` wrapper |
 | CX-16 | E-01/E-02: History snapshot I/O optimization | High | Requires design — skip for now |
 | CX-17 | E-04: Parallel preparation | Medium | Requires understanding of data dependencies |
+
+Execution (2026-03-03):
+- [x] CX-13 completed: tool definition token estimate now cached on `ReactEngine` with thread-safe invalidation by tool signature.
+- [x] CX-14 completed: `backgroundTaskRegistry` now has TTL+terminal-state cleanup with tests.
+- [x] CX-15 completed: memory vector/BM25 search now runs in parallel with cancellation-aware error convergence and tests.
+- [ ] CX-16 deferred (high-risk, requires dedicated design pass).
+- [ ] CX-17 deferred (needs dependency analysis in preparation flow).
+
+## Validation Snapshot (2026-03-03)
+
+- `go test ./...` passed.
+- `go test -race -count=1 ./...` passed.
+- `./scripts/run-golangci-lint.sh run --timeout=10m ./...` passed.
+- `npm --prefix web run lint` passed.
+- `npm --prefix web run build` passed.
+- `./scripts/pre-push.sh` still flaky in this environment on two checks:
+  - `go test -race` intermittent failure (passes on standalone rerun).
+  - `golangci-lint` 3-minute timeout in script (passes with 10-minute timeout).
 
 ### Wave 4: Architectural (requires design review — not Codex-ready)
 
