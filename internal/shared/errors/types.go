@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -268,6 +270,24 @@ func FormatForLLM(err error) string {
 
 // Helper functions
 
+var explicitHTTPStatusPattern = regexp.MustCompile(`\b(?:http(?:\s+status)?|status(?:[_\s-]?code)?|code|api\s+error|error)\s*[:=]?\s*(400|401|403|404|429|500|502|503|504)\b`)
+
+var httpStatusReasonHints = []struct {
+	phrase string
+	code   int
+}{
+	{phrase: "bad request", code: http.StatusBadRequest},
+	{phrase: "unauthorized", code: http.StatusUnauthorized},
+	{phrase: "forbidden", code: http.StatusForbidden},
+	{phrase: "not found", code: http.StatusNotFound},
+	{phrase: "too many requests", code: http.StatusTooManyRequests},
+	{phrase: "rate limit", code: http.StatusTooManyRequests},
+	{phrase: "internal server error", code: http.StatusInternalServerError},
+	{phrase: "bad gateway", code: http.StatusBadGateway},
+	{phrase: "service unavailable", code: http.StatusServiceUnavailable},
+	{phrase: "gateway timeout", code: http.StatusGatewayTimeout},
+}
+
 func isNetworkError(err error) bool {
 	// net.Error with Timeout or Temporary
 	var netErr net.Error
@@ -350,65 +370,16 @@ func isPermanentHTTPStatus(statusCode int) bool {
 }
 
 func extractHTTPStatusCode(err error) int {
-	errStr := err.Error()
-
-	// Try to extract status code from error message
-	// Format: "API error 429: ..." or "HTTP 500: ..."
-	patterns := []string{
-		"status 429", "429", "status 400", "400", "status 401", "401",
-		"status 403", "403", "status 404", "404", "status 500", "500",
-		"status 502", "502", "status 503", "503", "status 504", "504",
+	lowerErr := strings.ToLower(err.Error())
+	if match := explicitHTTPStatusPattern.FindStringSubmatch(lowerErr); len(match) == 2 {
+		if code, convErr := strconv.Atoi(match[1]); convErr == nil {
+			return code
+		}
 	}
 
-	lowerErr := strings.ToLower(errStr)
-	for _, pattern := range patterns {
-		if strings.Contains(lowerErr, pattern) {
-			// Extract the number
-			if strings.HasPrefix(pattern, "status ") {
-				code := strings.TrimPrefix(pattern, "status ")
-				switch code {
-				case "400":
-					return 400
-				case "401":
-					return 401
-				case "403":
-					return 403
-				case "404":
-					return 404
-				case "429":
-					return 429
-				case "500":
-					return 500
-				case "502":
-					return 502
-				case "503":
-					return 503
-				case "504":
-					return 504
-				}
-			} else {
-				// Just the number
-				switch pattern {
-				case "400":
-					return 400
-				case "401":
-					return 401
-				case "403":
-					return 403
-				case "404":
-					return 404
-				case "429":
-					return 429
-				case "500":
-					return 500
-				case "502":
-					return 502
-				case "503":
-					return 503
-				case "504":
-					return 504
-				}
-			}
+	for _, hint := range httpStatusReasonHints {
+		if strings.Contains(lowerErr, hint.phrase) {
+			return hint.code
 		}
 	}
 

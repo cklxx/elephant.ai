@@ -69,12 +69,13 @@ const (
 const repeatedNonRetryableToolFailureThreshold = 3
 
 type reactIteration struct {
-	runtime    *reactRuntime
-	index      int
-	thought    Message
-	toolCalls  []ToolCall
-	plan       toolExecutionPlan
-	toolResult []ToolResult
+	runtime     *reactRuntime
+	index       int
+	thought     Message
+	toolCalls   []ToolCall
+	toolCallErr error
+	plan        toolExecutionPlan
+	toolResult  []ToolResult
 }
 
 type toolExecutionPlan struct {
@@ -640,7 +641,11 @@ func (it *reactIteration) think() error {
 		return fmt.Errorf("think step failed: %w", err)
 	}
 
-	parsedCalls := it.runtime.engine.parseToolCalls(thought, services.Parser)
+	parsedCalls, parseErr := it.runtime.engine.parseToolCalls(thought, services.Parser)
+	if parseErr != nil {
+		it.toolCallErr = parseErr
+		it.runtime.engine.logger.Warn("Tool call parse failed (iteration=%d): %v", it.index, parseErr)
+	}
 	it.runtime.engine.logger.Debug("Parsed %d tool calls", len(parsedCalls))
 
 	validCalls := it.runtime.filterValidToolCalls(parsedCalls)
@@ -677,6 +682,19 @@ func (it *reactIteration) think() error {
 
 func (it *reactIteration) planTools() (*TaskResult, bool, error) {
 	it.runtime.tracker.startPlan(it.index, len(it.toolCalls))
+	if it.toolCallErr != nil && len(it.toolCalls) == 0 {
+		it.runtime.tracker.completePlan(it.index, nil, nil)
+		it.runtime.state.Messages = append(it.runtime.state.Messages, Message{
+			Role:    "system",
+			Content: malformedToolCallRetryPrompt,
+			Source:  ports.MessageSourceSystemPrompt,
+		})
+		it.runtime.engine.logger.Warn(
+			"Malformed tool call payload detected; requesting retry on next iteration: %v",
+			it.toolCallErr,
+		)
+		return nil, false, nil
+	}
 
 	it.runtime.tracker.completePlan(it.index, it.toolCalls, nil)
 	if len(it.toolCalls) == 0 {

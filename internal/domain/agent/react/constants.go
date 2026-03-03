@@ -19,6 +19,10 @@ const (
 	workflowNodeContext  = "react:context"
 	workflowNodeFinalize = "react:finalize"
 
+	malformedToolCallRetryPrompt = "The previous response contained malformed tool-call markup. " +
+		"If you need tools, emit valid <tool_call>{\"name\":\"tool_name\",\"args\":{...}}</tool_call>. " +
+		"If no tool is needed, provide the final answer without tool-call markers."
+
 	toolArgInlineLengthLimit        = 256
 	toolArgPreviewLength            = 64
 	toolArgHistoryInlineLimit       = 256
