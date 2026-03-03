@@ -537,3 +537,18 @@ Validation Snapshot (2026-03-03, wave E/F):
 | Q-03: God struct decomposition | Needs sub-struct design review |
 | Q-04/Q-05: Config layer violation + parallel hierarchies | Needs architectural discussion |
 | Q-13: runtime.go file split | Needs file boundary design |
+
+### Wave G: Non-web Systemic Correctness Hardening (2026-03-03, rescan)
+
+| Task ID | Finding | Result |
+|---------|---------|--------|
+| CX-19 | Q-09: Swallowed tool-call parse failures could silently finalize as no-tools answer | [x] Completed: ReAct now treats malformed tool-call markup as recoverable parse failure, appends corrective system guidance, and continues next iteration instead of taking `handleNoTools()` finalization path; added targeted tests in `internal/domain/agent/react/tooling_parse_test.go`. |
+| CX-20 | Q-01: HTTP status extraction false positives from bare number substring matching | [~] Risk reduced: `extractHTTPStatusCode()` now parses only explicit HTTP/status tokens plus canonical reason phrases; removed bare-number matching (`\"400\"`, `\"401\"`, etc.) and added precision regression tests for false positives (`port 1400`, `id 4042`). Full typed-error hierarchy redesign remains deferred to Wave 4 architecture work. |
+
+Validation Snapshot (2026-03-03, wave G):
+
+- `go test ./internal/shared/errors` passed.
+- `go test ./internal/domain/agent/react -run 'TestParseToolCalls|TestPlanToolsSkipsFinalizationWhenToolCallParseFails'` passed.
+- `go test ./...` passed.
+- `./scripts/run-golangci-lint.sh run --timeout=10m ./...` passed.
+- `python3 skills/code-review/run.py '{"action":"review"}'` executed (no blocking P0/P1 findings for this change set).
