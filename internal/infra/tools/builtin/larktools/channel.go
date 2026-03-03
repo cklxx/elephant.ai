@@ -114,7 +114,7 @@ func NewLarkChannel() tools.ToolExecutor {
 						// send_message params
 						"content": {
 							Type:        "string",
-							Description: "Message text for send_message; document initial content for create_doc; new block text for update_doc_block; or task detail text (alias of description) for create_task/update_task.",
+							Description: "Message text for send_message; document initial content for create_doc; new block text for update_doc_block; or task body text (alias of description) for create_task/update_task.",
 						},
 						"content_format": {
 							Type:        "string",
@@ -151,7 +151,7 @@ func NewLarkChannel() tools.ToolExecutor {
 						// calendar params
 						"summary": {
 							Type:        "string",
-							Description: "Short title for create_event/update_event and create_task/update_task. Keep concise; put details in description/content.",
+							Description: "Short title for create_event/update_event and create_task/update_task (Feishu field: summary). Keep concise; put details in description/content.",
 						},
 						"start_time": {
 							Type:        "string",
@@ -163,7 +163,7 @@ func NewLarkChannel() tools.ToolExecutor {
 						},
 						"description": {
 							Type:        "string",
-							Description: "Detailed body text for create_event/update_event, create_task/update_task, create_doc (optional initial body), or wiki node.",
+							Description: "Detailed body text for create_event/update_event, create_task/update_task (Feishu field: description), create_doc (optional initial body), or wiki node.",
 						},
 						"timezone": {
 							Type:        "string",

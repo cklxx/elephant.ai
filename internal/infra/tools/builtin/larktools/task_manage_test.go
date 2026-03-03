@@ -2,6 +2,7 @@ package larktools
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -257,6 +258,99 @@ func TestTaskManage_ListMissingOAuthTokenRequestsAuthorization(t *testing.T) {
 	}
 }
 
+func TestTaskManage_CreateAutoUsesOAuthToken(t *testing.T) {
+	var mu sync.Mutex
+	var gotAuth string
+	var gotBody string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/task/v2/tasks"):
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("read request body: %v", err)
+			}
+			mu.Lock()
+			gotAuth = r.Header.Get("Authorization")
+			gotBody = string(body)
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
+				"task": map[string]any{
+					"guid": "task-guid-1",
+				},
+			}))
+			return
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	tool := NewLarkTaskManage()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
+	oauthSvc := &fakeLarkOAuth{token: "user-token", startURL: "http://localhost:8080/api/lark/oauth/start"}
+	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
+	ctx = shared.WithLarkOAuth(ctx, oauthSvc)
+
+	call := ports.ToolCall{ID: "test-create-oauth", Name: "lark_task_manage", Arguments: map[string]any{
+		"action":      "create",
+		"summary":     "Task title",
+		"description": "Task body",
+	}}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("expected success, got error: %v", result.Error)
+	}
+	if oauthSvc.gotOpenID != "ou_123" {
+		t.Fatalf("oauth service received open_id=%q, want %q", oauthSvc.gotOpenID, "ou_123")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if gotAuth != "Bearer user-token" {
+		t.Fatalf("expected user token auth, got %q", gotAuth)
+	}
+	if !strings.Contains(gotBody, `"summary":"Task title"`) {
+		t.Fatalf("expected request body to include summary, got %q", gotBody)
+	}
+	if !strings.Contains(gotBody, `"description":"Task body"`) {
+		t.Fatalf("expected request body to include description, got %q", gotBody)
+	}
+}
+
+func TestTaskManage_CreateMissingOAuthTokenRequestsAuthorization(t *testing.T) {
+	tool := NewLarkTaskManage()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret")
+	oauthSvc := &fakeLarkOAuth{
+		err:      &larkoauth.NeedUserAuthError{AuthURL: "http://localhost:8080/api/lark/oauth/start"},
+		startURL: "http://localhost:8080/api/lark/oauth/start",
+	}
+
+	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
+	ctx = shared.WithLarkOAuth(ctx, oauthSvc)
+
+	call := ports.ToolCall{ID: "test-create-oauth-missing", Name: "lark_task_manage", Arguments: map[string]any{
+		"action":  "create",
+		"summary": "Task title",
+	}}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error when OAuth token is missing")
+	}
+	if !strings.Contains(result.Content, "Please authorize Lark task access first:") {
+		t.Fatalf("expected authorization guidance, got %q", result.Content)
+	}
+}
+
 func TestNormalizeCreateTaskTextFields_SplitSummaryAndBody(t *testing.T) {
 	summary, description := normalizeCreateTaskTextFields("标题\n第一行内容\n第二行内容", "", "")
 	if summary != "标题" {
@@ -294,5 +388,39 @@ func TestNormalizeUpdateTaskTextFields_SplitSummaryAndBody(t *testing.T) {
 	}
 	if description != "正文" {
 		t.Fatalf("expected description from remaining lines, got %q", description)
+	}
+}
+
+func TestNormalizeCreateTaskTextFields_ContentOnlyLongSingleLine(t *testing.T) {
+	content := "This is a long single-line task detail that should remain in description instead of being title only."
+	summary, description := normalizeCreateTaskTextFields("", "", content)
+	if summary == "" {
+		t.Fatal("expected non-empty summary")
+	}
+	if summary == content {
+		t.Fatalf("expected compact summary, got full content: %q", summary)
+	}
+	if !strings.HasSuffix(summary, "...") {
+		t.Fatalf("expected compact summary to end with ellipsis, got %q", summary)
+	}
+	if description != content {
+		t.Fatalf("expected description to keep full content, got %q", description)
+	}
+}
+
+func TestNormalizeCreateTaskTextFields_LongSummaryFallsBackToDescription(t *testing.T) {
+	rawSummary := "This summary is too long to be a title by itself and should be preserved as description when auto-normalized."
+	summary, description := normalizeCreateTaskTextFields(rawSummary, "", "")
+	if summary == "" {
+		t.Fatal("expected non-empty summary")
+	}
+	if summary == rawSummary {
+		t.Fatalf("expected compact summary, got full summary: %q", summary)
+	}
+	if !strings.HasSuffix(summary, "...") {
+		t.Fatalf("expected compact summary to end with ellipsis, got %q", summary)
+	}
+	if description != rawSummary {
+		t.Fatalf("expected full summary to be preserved in description, got %q", description)
 	}
 }
