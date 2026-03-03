@@ -429,18 +429,16 @@ func renderStateAgentSummary(entries []kerneldomain.AgentCycleSummary) string {
 	return strings.Join(parts, " | ")
 }
 
-// runtimeSummaryNoisePatterns lists substrings (matched against lowercased
-// lines) that indicate raw LLM artifacts or internal reasoning noise.
+// runtimeSummaryNoisePrefixes lists whole-line prefixes (matched case-insensitively)
+// that indicate raw LLM artifacts or internal reasoning noise.
 // Legitimate content such as "## Execution Summary" and natural-language
 // mentions of tool calls are intentionally not matched.
-var runtimeSummaryNoisePatterns = []string{
+var runtimeSummaryNoisePrefixes = []string{
 	"thinking (previous):",
 	"reasoning:",
-	"assistant to=",
-	"recipient_name",
-	"tool_uses",
-	`"tool_call"`,
-	`"tool_calls"`,
+	"<assistant to=",
+	"recipient_name:",
+	"tool_uses:",
 }
 
 func sanitizeRuntimeSummary(raw string) string {
@@ -453,23 +451,11 @@ func sanitizeRuntimeSummary(raw string) string {
 	filtered := make([]string, 0, len(lines))
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
+		sanitizedLine := sanitizeRuntimeSummaryLine(trimmed)
+		if sanitizedLine == "" {
 			continue
 		}
-		if strings.HasPrefix(trimmed, "```") {
-			continue
-		}
-		lower := strings.ToLower(trimmed)
-		noise := false
-		for _, pat := range runtimeSummaryNoisePatterns {
-			if strings.Contains(lower, pat) {
-				noise = true
-				break
-			}
-		}
-		if !noise {
-			filtered = append(filtered, trimmed)
-		}
+		filtered = append(filtered, sanitizedLine)
 	}
 	if len(filtered) == 0 {
 		// If every line is filtered as noise, preserve the raw summary so we
@@ -478,6 +464,40 @@ func sanitizeRuntimeSummary(raw string) string {
 		return "[runtime summary fallback] " + compactSummary(trimmedRaw, 300)
 	}
 	return strings.Join(filtered, " ")
+}
+
+func sanitizeRuntimeSummaryLine(line string) string {
+	if line == "" {
+		return ""
+	}
+	if strings.HasPrefix(line, "```") {
+		return ""
+	}
+
+	lower := strings.ToLower(line)
+	for _, pat := range runtimeSummaryNoisePrefixes {
+		if strings.HasPrefix(lower, pat) {
+			return ""
+		}
+	}
+
+	if isToolCallJSONLine(line) {
+		return ""
+	}
+	return line
+}
+
+func isToolCallJSONLine(line string) bool {
+	lower := strings.ToLower(strings.TrimSpace(line))
+	if !(strings.Contains(lower, "\"tool_call\"") || strings.Contains(lower, "\"tool_calls\"")) {
+		return false
+	}
+	for _, ch := range []byte{'{', '[', ' ', '"'} {
+		if strings.HasPrefix(lower, string(ch)) {
+			return true
+		}
+	}
+	return false
 }
 
 func upsertKernelRuntimeBlock(content, runtimeBlock string) string {
