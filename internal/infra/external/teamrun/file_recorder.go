@@ -19,7 +19,7 @@ const (
 	defaultFilePerm = 0o600
 )
 
-// FileRecorder persists each team run as an individual JSON file.
+// FileRecorder persists each team run as an individual YAML file.
 type FileRecorder struct {
 	baseDir string
 	logger  logging.Logger
