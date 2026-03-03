@@ -276,29 +276,28 @@ func renderCompactAvailableSkillsXML(library skills.Library, maxEntries int) str
 	var sb strings.Builder
 	sb.WriteString("<available_skills>\n")
 	for _, skill := range skillList[:maxEntries] {
-		desc := truncateSkillInlineText(skill.Description, maxSkillDescriptionChars)
-		if desc == "" {
-			desc = "(no description)"
-		}
-		sb.WriteString("  <skill>\n")
-		sb.WriteString(fmt.Sprintf("    <name>%s</name>\n", escapeSkillXML(skill.Name)))
-		sb.WriteString(fmt.Sprintf("    <description>%s</description>\n", escapeSkillXML(desc)))
-		if level := strings.TrimSpace(skill.GovernanceLevel); level != "" {
-			sb.WriteString(fmt.Sprintf("    <governance_level>%s</governance_level>\n", escapeSkillXML(level)))
-		}
-		if mode := strings.TrimSpace(skill.ActivationMode); mode != "" {
-			sb.WriteString(fmt.Sprintf("    <activation_mode>%s</activation_mode>\n", escapeSkillXML(mode)))
-		}
-		sb.WriteString("  </skill>\n")
+		name := compactSkillField(skill.Name, "(unnamed)")
+		desc := compactSkillField(truncateSkillInlineText(skill.Description, maxSkillDescriptionChars), "(no description)")
+		level := compactSkillField(skill.GovernanceLevel, "-")
+		mode := compactSkillField(skill.ActivationMode, "-")
+		sb.WriteString(fmt.Sprintf("- %s | %s | %s | %s\n", escapeSkillXML(name), escapeSkillXML(desc), escapeSkillXML(level), escapeSkillXML(mode)))
 	}
 	if len(skillList) > maxEntries {
-		sb.WriteString(fmt.Sprintf("  <truncated>Showing first %d of %d skills. Use skills(action=list|search|show) for full catalog.</truncated>\n", maxEntries, len(skillList)))
+		sb.WriteString(fmt.Sprintf("- ... (%d more; use skills(action=list|search|show))\n", len(skillList)-maxEntries))
 	}
 	sb.WriteString("</available_skills>")
 	return strings.TrimSpace(sb.String())
 }
 
 var truncateSkillInlineText = ports.TruncateRuneSnippet
+
+func compactSkillField(value string, fallback string) string {
+	normalized := strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	if normalized == "" {
+		return fallback
+	}
+	return normalized
+}
 
 func escapeSkillXML(value string) string {
 	var builder strings.Builder

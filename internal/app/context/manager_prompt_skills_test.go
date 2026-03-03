@@ -44,7 +44,7 @@ triggers:
 	if !strings.Contains(out, "<available_skills>") {
 		t.Fatalf("expected available skills metadata, got %q", out)
 	}
-	if !strings.Contains(out, "<name>foo-skill</name>") || !strings.Contains(out, "<name>bar-skill</name>") {
+	if !strings.Contains(out, "- foo-skill |") || !strings.Contains(out, "- bar-skill |") {
 		t.Fatalf("expected all skill names in metadata, got %q", out)
 	}
 	if !strings.Contains(out, "# Activated Skills") {
@@ -209,8 +209,11 @@ func TestBuildSkillsSection_UsesCompactAvailableSkillsXML(t *testing.T) {
 	if !strings.Contains(out, "<available_skills>") {
 		t.Fatalf("expected compact available skills metadata, got %q", out)
 	}
-	if !strings.Contains(out, "<truncated>Showing first") {
+	if !strings.Contains(out, "- ... (") {
 		t.Fatalf("expected compact metadata truncation marker, got %q", out)
+	}
+	if strings.Contains(out, "<skill>") || strings.Contains(out, "<name>") || strings.Contains(out, "<description>") {
+		t.Fatalf("did not expect verbose skill xml tags in compact catalog, got %q", out)
 	}
 	if strings.Contains(out, "<location>") || strings.Contains(out, "<exec>") {
 		t.Fatalf("did not expect heavy skill metadata fields in compact catalog, got %q", out)
