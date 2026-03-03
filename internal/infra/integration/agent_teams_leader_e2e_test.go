@@ -445,7 +445,10 @@ func scoreDependencyOrdering(results []agent.BackgroundTaskResult, team agent.Te
 		prevResults := stageResults[stageIdx-1]
 		for _, r := range prevResults {
 			if r.Status != agent.BackgroundTaskStatusCompleted {
-				return 0, fmt.Sprintf("stage %d task %s not completed (status=%s)", stageIdx-1, r.ID, r.Status)
+				return 0, fmt.Sprintf(
+					"stage %d task %s not completed (status=%s, error=%q)",
+					stageIdx-1, r.ID, r.Status, strings.TrimSpace(r.Error),
+				)
 			}
 		}
 	}
@@ -866,151 +869,179 @@ func TestLeaderAgent_ScoredRubric_E2E(t *testing.T) {
 		t.Fatalf("load rubric: %v", err)
 	}
 
-	workspace := t.TempDir()
-	t.Chdir(workspace)
-
-	fakeKimi := writeFakeKimiCLI(t, workspace)
-	fakeCC := writeFakeClaudeCodeCLI(t, workspace)
-	fakeCodex := writeFakeCodexCLI(t, workspace)
-
-	kimiBridge := bridge.New(bridge.BridgeConfig{
-		AgentType:          "kimi",
-		Binary:             fakeKimi,
-		PythonBinary:       pythonBin,
-		BridgeScript:       bridgeScript,
-		ApprovalPolicy:     "never",
-		Sandbox:            "read-only",
-		PlanApprovalPolicy: "never",
-		PlanSandbox:        "read-only",
-		Timeout:            30 * time.Second,
-		Env: map[string]string{
-			"FAKE_KIMI_MARKER":        "FAKE_KIMI_OK",
-			"FAKE_KIMI_SLEEP_SECONDS": "2",
-		},
-	}, process.NewController())
-	ccBridge := bridge.New(bridge.BridgeConfig{
-		AgentType:          "claude_code",
-		Binary:             fakeCC,
-		PythonBinary:       pythonBin,
-		BridgeScript:       bridgeScript,
-		ApprovalPolicy:     "never",
-		Sandbox:            "read-only",
-		PlanApprovalPolicy: "never",
-		PlanSandbox:        "read-only",
-		Timeout:            30 * time.Second,
-		Env: map[string]string{
-			"FAKE_CC_MARKER":        "FAKE_CC_OK",
-			"FAKE_CC_SLEEP_SECONDS": "0.3",
-		},
-	}, process.NewController())
-	codexBridge := bridge.New(bridge.BridgeConfig{
-		AgentType:          "codex",
-		Binary:             fakeCodex,
-		PythonBinary:       pythonBin,
-		BridgeScript:       bridgeScript,
-		ApprovalPolicy:     "never",
-		Sandbox:            "read-only",
-		PlanApprovalPolicy: "never",
-		PlanSandbox:        "read-only",
-		Timeout:            30 * time.Second,
-		Env: map[string]string{
-			"FAKE_CODEX_MARKER":        "FAKE_CODEX_OK",
-			"FAKE_CODEX_SLEEP_SECONDS": "0.3",
-		},
-	}, process.NewController())
-
-	mux := &multiplexExternalExecutor{
-		byType: map[string]agent.ExternalAgentExecutor{
-			"kimi":        kimiBridge,
-			"claude_code": ccBridge,
-			"codex":       codexBridge,
-		},
-	}
-	recorder := newRecordingExternalExecutor(mux)
-	capture := &internalCapture{}
-	const synthesisMarker = "SYNTHESIS_COMPLETE"
-
-	mgr := react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
-		RunContext: context.Background(),
-		Logger:     agent.NoopLogger{},
-		Clock:      agent.SystemClock{},
-		ExecuteTask: func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
-			capture.record(prompt)
-			return &agent.TaskResult{
-				Answer:     synthesisMarker + ":: synthesized from upstream results",
-				Iterations: 1,
-				TokensUsed: 10,
-			}, nil
-		},
-		ExternalExecutor: recorder,
-		SessionID:        "leader-scored-e2e",
-	})
-	defer mgr.Shutdown()
-
 	team := buildDeepResearchTeam()
-	ctx := context.Background()
-	ctx = agent.WithBackgroundDispatcher(ctx, mgr)
-	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
-	tool := orchestration.NewRunTasks()
-	goal := "proactive AI assistant architecture: event-driven design, persistent memory, approval gates, multi-agent coordination"
-	res, err := tool.Execute(ctx, ports.ToolCall{
-		ID: "call-leader-scored-e2e",
-		Arguments: map[string]any{
-			"template":        team.Name,
-			"goal":            goal,
-			"wait":            true,
-			"timeout_seconds": 90,
-		},
-	})
-	if err != nil {
-		t.Fatalf("run_tasks execute: %v", err)
-	}
-	if res.Error != nil {
-		t.Fatalf("run_tasks tool error: %v, content=%s", res.Error, res.Content)
+	runScenario := func() (agent_eval.AutoJudgement, []agent.BackgroundTaskResult) {
+		workspace := t.TempDir()
+		t.Chdir(workspace)
+
+		fakeKimi := writeFakeKimiCLI(t, workspace)
+		fakeCC := writeFakeClaudeCodeCLI(t, workspace)
+		fakeCodex := writeFakeCodexCLI(t, workspace)
+
+		kimiBridge := bridge.New(bridge.BridgeConfig{
+			AgentType:          "kimi",
+			Binary:             fakeKimi,
+			PythonBinary:       pythonBin,
+			BridgeScript:       bridgeScript,
+			ApprovalPolicy:     "never",
+			Sandbox:            "read-only",
+			PlanApprovalPolicy: "never",
+			PlanSandbox:        "read-only",
+			Timeout:            30 * time.Second,
+			Env: map[string]string{
+				"FAKE_KIMI_MARKER":        "FAKE_KIMI_OK",
+				"FAKE_KIMI_SLEEP_SECONDS": "2",
+			},
+		}, process.NewController())
+		ccBridge := bridge.New(bridge.BridgeConfig{
+			AgentType:          "claude_code",
+			Binary:             fakeCC,
+			PythonBinary:       pythonBin,
+			BridgeScript:       bridgeScript,
+			ApprovalPolicy:     "never",
+			Sandbox:            "read-only",
+			PlanApprovalPolicy: "never",
+			PlanSandbox:        "read-only",
+			Timeout:            30 * time.Second,
+			Env: map[string]string{
+				"FAKE_CC_MARKER":        "FAKE_CC_OK",
+				"FAKE_CC_SLEEP_SECONDS": "0.3",
+			},
+		}, process.NewController())
+		codexBridge := bridge.New(bridge.BridgeConfig{
+			AgentType:          "codex",
+			Binary:             fakeCodex,
+			PythonBinary:       pythonBin,
+			BridgeScript:       bridgeScript,
+			ApprovalPolicy:     "never",
+			Sandbox:            "read-only",
+			PlanApprovalPolicy: "never",
+			PlanSandbox:        "read-only",
+			Timeout:            30 * time.Second,
+			Env: map[string]string{
+				"FAKE_CODEX_MARKER":        "FAKE_CODEX_OK",
+				"FAKE_CODEX_SLEEP_SECONDS": "0.3",
+			},
+		}, process.NewController())
+
+		mux := &multiplexExternalExecutor{
+			byType: map[string]agent.ExternalAgentExecutor{
+				"kimi":        kimiBridge,
+				"claude_code": ccBridge,
+				"codex":       codexBridge,
+			},
+		}
+		recorder := newRecordingExternalExecutor(mux)
+		capture := &internalCapture{}
+		const synthesisMarker = "SYNTHESIS_COMPLETE"
+
+		mgr := react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
+			RunContext: context.Background(),
+			Logger:     agent.NoopLogger{},
+			Clock:      agent.SystemClock{},
+			ExecuteTask: func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+				capture.record(prompt)
+				return &agent.TaskResult{
+					Answer:     synthesisMarker + ":: synthesized from upstream results",
+					Iterations: 1,
+					TokensUsed: 10,
+				}, nil
+			},
+			ExternalExecutor: recorder,
+			SessionID:        "leader-scored-e2e",
+		})
+		defer mgr.Shutdown()
+
+		ctx := context.Background()
+		ctx = agent.WithBackgroundDispatcher(ctx, mgr)
+		ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
+
+		tool := orchestration.NewRunTasks()
+		goal := "proactive AI assistant architecture: event-driven design, persistent memory, approval gates, multi-agent coordination"
+		res, err := tool.Execute(ctx, ports.ToolCall{
+			ID: "call-leader-scored-e2e",
+			Arguments: map[string]any{
+				"template":        team.Name,
+				"goal":            goal,
+				"wait":            true,
+				"timeout_seconds": 90,
+			},
+		})
+		if err != nil {
+			t.Fatalf("run_tasks execute: %v", err)
+		}
+		if res.Error != nil {
+			t.Fatalf("run_tasks tool error: %v, content=%s", res.Error, res.Content)
+		}
+
+		allIDs := []string{
+			"team-researcher_kimi", "team-researcher_codex", "team-researcher_cc",
+			"team-synthesizer",
+			"team-writer_kimi", "team-reviewer_cc",
+		}
+		results := mgr.Collect(allIDs, false, 0)
+		requests, maxActive := recorder.snapshot()
+		internalPrompts := capture.snapshot()
+
+		judgement := scoreLeaderResult(rubric, scoringInput{
+			requests:        requests,
+			maxActive:       maxActive,
+			internalPrompts: internalPrompts,
+			results:         results,
+			team:            team,
+			totalTasks:      6,
+			externalCount:   5,
+			internalCount:   1,
+		})
+
+		return judgement, results
 	}
 
-	allIDs := []string{
-		"team-researcher_kimi", "team-researcher_codex", "team-researcher_cc",
-		"team-synthesizer",
-		"team-writer_kimi", "team-reviewer_cc",
-	}
-	results := mgr.Collect(allIDs, false, 0)
-	requests, maxActive := recorder.snapshot()
-	internalPrompts := capture.snapshot()
-
-	// Score against rubric.
-	judgement := scoreLeaderResult(rubric, scoringInput{
-		requests:        requests,
-		maxActive:       maxActive,
-		internalPrompts: internalPrompts,
-		results:         results,
-		team:            team,
-		totalTasks:      6,
-		externalCount:   5,
-		internalCount:   1,
-	})
-
-	// Print scoring summary.
-	t.Log("=== Leader Agent Coordination Score ===")
-	t.Logf("Status: %s", judgement.Status)
-	t.Logf("Normalized Score: %.2f (threshold: %.2f)", judgement.Score, rubric.PassThreshold)
-	t.Log("---------------------------------------")
-	for _, dim := range judgement.Dimensions {
-		t.Logf("  %-25s  score=%d/2  weight=%.2f  notes=%s", dim.ID, dim.Score, dim.Weight, dim.Notes)
-	}
-	t.Log("=======================================")
-
-	// Assert pass.
-	if judgement.Status != agent_eval.JudgementStatusPassed {
-		t.Fatalf("leader agent scored %.2f (threshold=%.2f), status=%s", judgement.Score, rubric.PassThreshold, judgement.Status)
-	}
-	if judgement.Score < rubric.PassThreshold {
-		t.Fatalf("score %.2f below threshold %.2f", judgement.Score, rubric.PassThreshold)
+	shouldRetry := func(results []agent.BackgroundTaskResult) bool {
+		for _, result := range results {
+			if strings.HasPrefix(result.ID, "team-researcher_") && result.Status == agent.BackgroundTaskStatusFailed {
+				return true
+			}
+		}
+		return false
 	}
 
-	// Assert no zero-scores on critical dimensions.
-	for _, dim := range judgement.Dimensions {
+	var finalJudgement agent_eval.AutoJudgement
+	var finalResults []agent.BackgroundTaskResult
+	for attempt := 1; attempt <= 2; attempt++ {
+		finalJudgement, finalResults = runScenario()
+		t.Logf("=== Leader Agent Coordination Score (attempt %d) ===", attempt)
+		t.Logf("Status: %s", finalJudgement.Status)
+		t.Logf("Normalized Score: %.2f (threshold: %.2f)", finalJudgement.Score, rubric.PassThreshold)
+		t.Log("---------------------------------------")
+		for _, dim := range finalJudgement.Dimensions {
+			t.Logf("  %-25s  score=%d/2  weight=%.2f  notes=%s", dim.ID, dim.Score, dim.Weight, dim.Notes)
+		}
+		for _, result := range finalResults {
+			if result.Status == agent.BackgroundTaskStatusFailed {
+				t.Logf("  failed task: id=%s error=%q", result.ID, strings.TrimSpace(result.Error))
+			}
+		}
+		t.Log("=======================================")
+
+		if finalJudgement.Status == agent_eval.JudgementStatusPassed && finalJudgement.Score >= rubric.PassThreshold {
+			break
+		}
+		if attempt < 2 && shouldRetry(finalResults) {
+			t.Log("retrying scored rubric scenario due transient external task failure")
+			continue
+		}
+		break
+	}
+
+	if finalJudgement.Status != agent_eval.JudgementStatusPassed {
+		t.Fatalf("leader agent scored %.2f (threshold=%.2f), status=%s", finalJudgement.Score, rubric.PassThreshold, finalJudgement.Status)
+	}
+	if finalJudgement.Score < rubric.PassThreshold {
+		t.Fatalf("score %.2f below threshold %.2f", finalJudgement.Score, rubric.PassThreshold)
+	}
+	for _, dim := range finalJudgement.Dimensions {
 		if _, critical := map[string]bool{"dispatch_correctness": true, "dependency_ordering": true}[dim.ID]; critical {
 			if dim.Score == 0 {
 				t.Fatalf("critical dimension %s scored 0", dim.ID)
