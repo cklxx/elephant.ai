@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "studio": "remotion studio src/index.ts",
-    "render": "mkdir -p ../../artifacts/remotion && remotion render src/index.ts ElephantPromo ../../artifacts/remotion/elephant-promo-demo.mp4 --codec=h264 --crf=18"
+    "render": "mkdir -p ../../artifacts/remotion && remotion render src/index.ts ElephantPromo ../../artifacts/remotion/elephant-promo-demo.mp4 --codec=h264 --crf=18",
+    "render:web": "mkdir -p ../../web/public/media && remotion render src/index.ts ElephantPromo ../../web/public/media/elephant-home-demo.mp4 --codec=h264 --crf=18"
   },
   "dependencies": {
     "react": "19.2.0",

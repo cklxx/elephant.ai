@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 type HomeLang = "en" | "zh";
 
 /* ================================================================
@@ -17,6 +18,14 @@ const copy = {
       cta: "Get Started",
       ctaHref: "/conversation",
       ctaSec: "See how it works",
+    },
+    showcase: {
+      label: "Project showcase",
+      title: "One unified brand surface.",
+      desc: "Homepage banner and promo video generated from this repository and deployed directly on GitHub Pages.",
+      bannerAlt: "elephant.ai project banner",
+      videoTitle: "Project promo video",
+      videoDesc: "20-second overview of product value and architecture.",
     },
     how: {
       label: "How it works",
@@ -77,6 +86,14 @@ const copy = {
       cta: "开始使用",
       ctaHref: "/conversation",
       ctaSec: "了解工作方式",
+    },
+    showcase: {
+      label: "项目展示",
+      title: "统一风格的一体化主页素材。",
+      desc: "首页 Banner 与宣传视频都来自本仓库，直接用于 GitHub Pages 部署首页。",
+      bannerAlt: "elephant.ai 项目横幅",
+      videoTitle: "项目宣传视频",
+      videoDesc: "20 秒展示产品价值和分层架构。",
     },
     how: {
       label: "工作方式",
@@ -209,6 +226,8 @@ function LangToggle({ lang }: { lang: HomeLang }) {
 export function HomeGLPage({ lang }: { lang: HomeLang }) {
   const t = copy[lang];
   const ref = useScrollReveal();
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  const withBasePath = (path: string) => `${basePath}${path}`;
 
   return (
     <div ref={ref} className="relative w-full overflow-x-hidden" style={{ background: "#fafbfc" }}>
@@ -299,6 +318,64 @@ export function HomeGLPage({ lang }: { lang: HomeLang }) {
           >
             {t.hero.ctaSec} ↓
           </a>
+        </div>
+      </section>
+
+      {/* ── Banner + Video Showcase ───────────────────────── */}
+      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-10 sm:pb-14">
+        <div data-anim="fade-up" className="text-center">
+          <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#6366f1" }}>
+            {t.showcase.label}
+          </span>
+          <h2
+            className="mt-3 text-[clamp(1.75rem,4vw,2.75rem)] font-bold leading-tight tracking-tight"
+            style={{ color: "#0f172a" }}
+          >
+            {t.showcase.title}
+          </h2>
+          <p className="mx-auto mt-4 max-w-3xl text-sm leading-relaxed" style={{ color: "#64748b" }}>
+            {t.showcase.desc}
+          </p>
+        </div>
+
+        <div data-anim="stagger" className="mt-10 grid gap-6 lg:grid-cols-2">
+          <article
+            className="overflow-hidden rounded-3xl border bg-white/90 shadow-sm"
+            style={{ borderColor: "#e2e8f0", boxShadow: "0 16px 40px rgba(15,23,42,0.08)" }}
+          >
+            <Image
+              src="/media/home-banner.png"
+              alt={t.showcase.bannerAlt}
+              width={1600}
+              height={900}
+              className="block h-full w-full object-cover"
+              loading="lazy"
+            />
+          </article>
+
+          <article
+            className="rounded-3xl border bg-white/90 p-3 shadow-sm"
+            style={{ borderColor: "#e2e8f0", boxShadow: "0 16px 40px rgba(15,23,42,0.08)" }}
+          >
+            <video
+              controls
+              playsInline
+              preload="metadata"
+              poster={withBasePath("/media/home-banner.png")}
+              className="w-full rounded-2xl border"
+              style={{ borderColor: "#e2e8f0" }}
+            >
+              <source src={withBasePath("/media/elephant-home-demo.mp4")} type="video/mp4" />
+            </video>
+            <div className="px-1 pb-1 pt-3">
+              <h3 className="text-sm font-bold" style={{ color: "#0f172a" }}>
+                {t.showcase.videoTitle}
+              </h3>
+              <p className="mt-1 text-sm leading-relaxed" style={{ color: "#64748b" }}>
+                {t.showcase.videoDesc}
+              </p>
+            </div>
+          </article>
         </div>
       </section>
 

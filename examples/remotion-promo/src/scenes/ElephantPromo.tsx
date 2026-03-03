@@ -1,4 +1,4 @@
-import type {CSSProperties, ReactNode} from 'react';
+import type {CSSProperties, ReactNode} from "react";
 import {
   AbsoluteFill,
   Easing,
@@ -9,102 +9,81 @@ import {
   staticFile,
   useCurrentFrame,
   useVideoConfig,
-} from 'remotion';
+} from "remotion";
 
-const colors = {
-  bg: '#061722',
-  deep: '#0a2b40',
-  accent: '#16a34a',
-  accentSoft: '#4ade80',
-  textMain: '#ecfeff',
-  textSub: '#bae6fd',
-  panel: 'rgba(9, 37, 55, 0.75)',
-  border: 'rgba(125, 211, 252, 0.22)',
+const palette = {
+  bg: "#fafbfc",
+  panel: "rgba(255, 255, 255, 0.88)",
+  border: "#e2e8f0",
+  text: "#0f172a",
+  sub: "#64748b",
+  indigo: "#6366f1",
+  violet: "#8b5cf6",
 };
 
-const full: CSSProperties = {
-  width: '100%',
-  height: '100%',
+const sectionTitle: CSSProperties = {
+  fontFamily: "\"Inter\", \"Plus Jakarta Sans\", sans-serif",
+  fontSize: 72,
+  lineHeight: 1.08,
+  fontWeight: 800,
+  color: palette.text,
+  letterSpacing: -1.5,
 };
 
-const cardBase: CSSProperties = {
-  background: colors.panel,
-  border: `1px solid ${colors.border}`,
-  borderRadius: 24,
-  boxShadow: '0 30px 60px rgba(2, 12, 26, 0.45)',
-  backdropFilter: 'blur(4px)',
-};
-
-const titleStyle: CSSProperties = {
-  fontFamily: '"Plus Jakarta Sans", "Avenir Next", "Helvetica Neue", sans-serif',
-  color: colors.textMain,
-  fontSize: 86,
-  fontWeight: 700,
-  lineHeight: 1.06,
-  letterSpacing: -2,
-};
-
-const subtitleStyle: CSSProperties = {
-  fontFamily: '"Plus Jakarta Sans", "Avenir Next", "Helvetica Neue", sans-serif',
-  color: colors.textSub,
-  fontSize: 36,
+const sectionSub: CSSProperties = {
+  fontFamily: "\"Inter\", \"Plus Jakarta Sans\", sans-serif",
+  fontSize: 32,
+  lineHeight: 1.45,
   fontWeight: 500,
-  lineHeight: 1.4,
+  color: palette.sub,
 };
 
-const FloatingGlow = () => {
-  const frame = useCurrentFrame();
-  const drift = Math.sin(frame / 28) * 24;
-
-  return (
-    <>
-      <div
-        style={{
-          position: 'absolute',
-          top: 120 + drift,
-          left: 180,
-          width: 460,
-          height: 460,
-          borderRadius: 999,
-          background: 'radial-gradient(circle, rgba(22,163,74,0.45), rgba(22,163,74,0.02) 70%)',
-          filter: 'blur(8px)',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          right: 140,
-          bottom: 80 - drift,
-          width: 520,
-          height: 520,
-          borderRadius: 999,
-          background: 'radial-gradient(circle, rgba(56,189,248,0.38), rgba(56,189,248,0.02) 70%)',
-          filter: 'blur(12px)',
-        }}
-      />
-    </>
-  );
+const card: CSSProperties = {
+  background: palette.panel,
+  border: `1px solid ${palette.border}`,
+  borderRadius: 28,
+  boxShadow: "0 24px 44px rgba(15, 23, 42, 0.08)",
 };
 
-const SceneFrame = ({children}: {children: ReactNode}) => {
+const SceneBase = ({children}: {children: ReactNode}) => {
   return (
     <AbsoluteFill
       style={{
-        ...full,
-        background:
-          'linear-gradient(135deg, #05121d 0%, #052033 42%, #09324a 100%)',
+        background: palette.bg,
+        overflow: "hidden",
       }}
     >
-      <FloatingGlow />
       <div
         style={{
-          ...full,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          padding: '78px 92px',
-          position: 'relative',
-          zIndex: 1,
+          position: "absolute",
+          width: 560,
+          height: 560,
+          borderRadius: 9999,
+          left: -180,
+          top: -160,
+          background: "radial-gradient(circle, rgba(99,102,241,0.18), rgba(99,102,241,0) 70%)",
+          filter: "blur(4px)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          width: 620,
+          height: 620,
+          borderRadius: 9999,
+          right: -200,
+          bottom: -180,
+          background: "radial-gradient(circle, rgba(139,92,246,0.16), rgba(139,92,246,0) 70%)",
+          filter: "blur(4px)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          padding: "72px 84px",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         {children}
@@ -113,350 +92,252 @@ const SceneFrame = ({children}: {children: ReactNode}) => {
   );
 };
 
-const IntroScene = () => {
+const Intro = () => {
   const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-
-  const lift = interpolate(frame, [0, 70], [52, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+  const y = interpolate(frame, [0, 36], [32, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
     easing: Easing.out(Easing.cubic),
   });
-
-  const fadeIn = interpolate(frame, [0, 22], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  const logoPop = spring({
-    frame,
-    fps,
-    config: {
-      damping: 12,
-      stiffness: 110,
-      mass: 0.8,
-    },
+  const opacity = interpolate(frame, [0, 24], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
   });
 
   return (
-    <SceneFrame>
+    <SceneBase>
       <div
         style={{
-          ...cardBase,
-          height: 860,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '80px 84px',
-          opacity: fadeIn,
-          transform: `translateY(${lift}px)`,
+          ...card,
+          padding: 48,
+          display: "flex",
+          flexDirection: "column",
+          gap: 28,
+          opacity,
+          transform: `translateY(${y}px)`,
         }}
       >
-        <div style={{maxWidth: 1100}}>
-          <div style={{...subtitleStyle, fontSize: 28, letterSpacing: 4, textTransform: 'uppercase'}}>
-            Project Promo Demo
-          </div>
-          <div style={{...titleStyle, marginTop: 22}}>elephant.ai</div>
-          <div style={{...subtitleStyle, marginTop: 28, maxWidth: 980}}>
-            Your AI teammate, always on. Lives in Lark, remembers context, and executes real work autonomously.
-          </div>
-          <div
-            style={{
-              marginTop: 42,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 16,
-              borderRadius: 999,
-              border: `1px solid ${colors.accentSoft}`,
-              padding: '12px 24px',
-              color: '#dcfce7',
-              fontFamily: '"Plus Jakarta Sans", "Avenir Next", "Helvetica Neue", sans-serif',
-              fontSize: 28,
-              fontWeight: 600,
-            }}
-          >
-            Proactive AI Assistant for Teams
-          </div>
-        </div>
-
-        <div
+        <Img
+          src={staticFile("home-banner.png")}
           style={{
-            width: 360,
-            height: 360,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transform: `scale(${0.8 + logoPop * 0.2}) rotate(${(1 - logoPop) * 8}deg)`,
+            width: "100%",
+            height: 370,
+            borderRadius: 20,
+            objectFit: "cover",
+            border: `1px solid ${palette.border}`,
           }}
-        >
-          <Img
-            src={staticFile('elephant-rounded.png')}
-            style={{
-              width: 300,
-              height: 300,
-              borderRadius: 72,
-              boxShadow: '0 40px 80px rgba(4, 20, 38, 0.5)',
-            }}
-          />
+        />
+        <div style={{fontFamily: "\"Inter\", sans-serif", fontSize: 24, color: palette.indigo, fontWeight: 700}}>
+          elephant.ai project promo
+        </div>
+        <div style={sectionTitle}>Your AI teammate, always on.</div>
+        <div style={{...sectionSub, fontSize: 30}}>
+          Proactive assistant in Lark with persistent memory, autonomous execution, and production-grade safety gates.
         </div>
       </div>
-    </SceneFrame>
+    </SceneBase>
   );
 };
 
-const capabilities = [
+const highlights = [
   {
-    title: 'Persistent Memory',
-    body: 'Remembers decisions and conversation context across weeks, so teams never repeat themselves.',
+    title: "Persistent memory",
+    desc: "Keeps decisions and context across sessions so teams stop repeating the same setup.",
   },
   {
-    title: 'Autonomous ReAct Loop',
-    body: 'Think → Act → Observe execution handles multi-step tasks without babysitting.',
+    title: "Autonomous ReAct loop",
+    desc: "Think, act, observe workflows complete multi-step tasks with minimal supervision.",
   },
   {
-    title: '15+ Built-in Skills',
-    body: 'Research, meeting notes, email, slide decks, and more triggered by natural language.',
-  },
-  {
-    title: 'Approval Gates',
-    body: 'Risky operations require explicit human approval before external action.',
+    title: "Approval gates",
+    desc: "External or risky operations require explicit human sign-off before execution.",
   },
 ];
 
-const CapabilitiesScene = () => {
+const Highlights = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
-    <SceneFrame>
-      <div
-        style={{
-          ...subtitleStyle,
-          fontSize: 24,
-          letterSpacing: 3,
-          textTransform: 'uppercase',
-          color: '#bbf7d0',
-        }}
-      >
-        Core strengths
+    <SceneBase>
+      <div style={{fontFamily: "\"Inter\", sans-serif", fontSize: 24, color: palette.indigo, fontWeight: 700}}>
+        Capabilities
       </div>
-      <div style={{...titleStyle, marginTop: 12, fontSize: 74}}>Built to move real work</div>
-      <div
-        style={{
-          marginTop: 44,
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gridTemplateRows: '1fr 1fr',
-          gap: 24,
-          flex: 1,
-        }}
-      >
-        {capabilities.map((cap, i) => {
-          const delay = i * 10;
-          const progress = spring({
-            frame: frame - delay,
+      <div style={{...sectionTitle, marginTop: 14}}>Everything an agent should be.</div>
+      <div style={{...sectionSub, marginTop: 18}}>
+        Same style as homepage. Same product story. One consistent voice.
+      </div>
+      <div style={{marginTop: 40, display: "grid", gap: 20}}>
+        {highlights.map((item, i) => {
+          const s = spring({
+            frame: frame - i * 10,
             fps,
-            config: {
-              damping: 14,
-              stiffness: 115,
-              mass: 0.8,
-            },
+            config: {damping: 14, stiffness: 110},
           });
-          const y = interpolate(progress, [0, 1], [30, 0]);
-          const opacity = interpolate(progress, [0, 0.35, 1], [0, 0.45, 1]);
-
+          const localOpacity = interpolate(s, [0, 1], [0, 1]);
+          const localY = interpolate(s, [0, 1], [24, 0]);
           return (
             <div
-              key={cap.title}
+              key={item.title}
               style={{
-                ...cardBase,
-                padding: '34px 34px 30px',
-                opacity,
-                transform: `translateY(${y}px) scale(${0.94 + 0.06 * progress})`,
+                ...card,
+                padding: "24px 26px",
+                opacity: localOpacity,
+                transform: `translateY(${localY}px)`,
               }}
             >
               <div
                 style={{
-                  fontFamily: '"Plus Jakarta Sans", "Avenir Next", "Helvetica Neue", sans-serif',
-                  fontSize: 34,
+                  fontFamily: "\"Inter\", sans-serif",
+                  fontSize: 38,
+                  lineHeight: 1.25,
                   fontWeight: 700,
-                  lineHeight: 1.2,
-                  color: '#ecfccb',
-                  letterSpacing: -0.5,
+                  color: palette.text,
                 }}
               >
-                {cap.title}
+                {item.title}
               </div>
-              <div
-                style={{
-                  marginTop: 18,
-                  fontFamily: '"Plus Jakarta Sans", "Avenir Next", "Helvetica Neue", sans-serif',
-                  fontSize: 27,
-                  fontWeight: 500,
-                  lineHeight: 1.42,
-                  color: colors.textSub,
-                }}
-              >
-                {cap.body}
-              </div>
+              <div style={{...sectionSub, marginTop: 8, fontSize: 27}}>{item.desc}</div>
             </div>
           );
         })}
       </div>
-    </SceneFrame>
+    </SceneBase>
   );
 };
 
-const layers = ['Delivery', 'Application', 'Domain', 'Infrastructure'];
+const layers = ["Delivery", "Application", "Domain", "Infrastructure"];
 
-const ArchitectureScene = () => {
+const Architecture = () => {
   const frame = useCurrentFrame();
-  const reveal = interpolate(frame, [0, 130], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-    easing: Easing.out(Easing.quad),
-  });
-
   return (
-    <SceneFrame>
-      <div style={{...titleStyle, fontSize: 72}}>Layered architecture, production ready</div>
-      <div style={{...subtitleStyle, marginTop: 20, fontSize: 30, maxWidth: 1160}}>
-        Clean boundaries make delivery channels, agent logic, and tool adapters evolve independently.
+    <SceneBase>
+      <div style={{fontFamily: "\"Inter\", sans-serif", fontSize: 24, color: palette.violet, fontWeight: 700}}>
+        Architecture
       </div>
-
-      <div
-        style={{
-          marginTop: 42,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 18,
-          width: 1540,
-        }}
-      >
-        {layers.map((layer, i) => {
-          const start = i * 15;
-          const local = interpolate(frame, [start, start + 30], [0, 1], {
-            extrapolateLeft: 'clamp',
-            extrapolateRight: 'clamp',
+      <div style={{...sectionTitle, marginTop: 14}}>Built for production.</div>
+      <div style={{...sectionSub, marginTop: 16, maxWidth: 1500}}>
+        Clean layered boundaries keep channels, orchestration, and infrastructure adapters independently evolvable.
+      </div>
+      <div style={{marginTop: 32, display: "flex", flexDirection: "column", gap: 14}}>
+        {layers.map((layer, idx) => {
+          const local = interpolate(frame, [idx * 12, idx * 12 + 28], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
           });
           return (
             <div
               key={layer}
               style={{
-                ...cardBase,
-                height: 125,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0 38px',
+                ...card,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "18px 24px",
                 opacity: local,
-                transform: `translateX(${interpolate(local, [0, 1], [80, 0])}px)`,
+                transform: `translateX(${interpolate(local, [0, 1], [64, 0])}px)`,
               }}
             >
               <div
                 style={{
-                  fontFamily: '"Plus Jakarta Sans", "Avenir Next", "Helvetica Neue", sans-serif',
-                  fontSize: 44,
+                  fontFamily: "\"Inter\", sans-serif",
+                  fontSize: 40,
                   fontWeight: 700,
-                  color: '#f0fdf4',
-                  letterSpacing: -0.8,
+                  color: palette.text,
                 }}
               >
                 {layer}
               </div>
               <div
                 style={{
-                  width: `${Math.max(16, 360 * reveal)}px`,
+                  width: 300,
                   height: 10,
                   borderRadius: 999,
-                  background: 'linear-gradient(90deg, #34d399, #38bdf8)',
-                  boxShadow: '0 0 18px rgba(52, 211, 153, 0.42)',
+                  background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
+                  opacity: Math.max(0.3, local),
                 }}
               />
             </div>
           );
         })}
       </div>
-    </SceneFrame>
+    </SceneBase>
   );
 };
 
-const CtaScene = () => {
+const Cta = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const beat = spring({
+  const pulse = spring({
     frame,
     fps,
-    durationInFrames: 60,
-    delay: 8,
-    config: {
-      damping: 8,
-      stiffness: 90,
-      mass: 0.6,
-    },
-  });
-
-  const fade = interpolate(frame, [0, 24], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+    config: {damping: 10, stiffness: 100},
   });
 
   return (
-    <SceneFrame>
+    <SceneBase>
       <div
         style={{
-          ...cardBase,
-          height: 860,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          textAlign: 'center',
-          opacity: fade,
-          transform: `scale(${0.94 + beat * 0.06})`,
+          ...card,
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center",
+          transform: `scale(${0.95 + pulse * 0.05})`,
+          padding: 48,
         }}
       >
-        <div style={{...titleStyle, fontSize: 94}}>Ship faster with elephant.ai</div>
-        <div style={{...subtitleStyle, marginTop: 26, fontSize: 36, maxWidth: 1180}}>
-          Run proactive workflows in Lark, keep long-term memory, and execute with full observability.
+        <Img
+          src={staticFile("elephant-rounded.png")}
+          style={{
+            width: 170,
+            height: 170,
+            borderRadius: 40,
+            marginBottom: 26,
+            border: `1px solid ${palette.border}`,
+            boxShadow: "0 18px 32px rgba(15, 23, 42, 0.12)",
+          }}
+        />
+        <div style={{...sectionTitle, fontSize: 84}}>Ship faster with elephant.ai</div>
+        <div style={{...sectionSub, marginTop: 18, maxWidth: 1240}}>
+          Add to Lark. Capture context. Execute real workflows with full observability and safe approval gates.
         </div>
         <div
           style={{
-            marginTop: 40,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 14,
+            marginTop: 30,
             borderRadius: 999,
-            background: 'linear-gradient(90deg, #22c55e, #14b8a6)',
-            color: '#052e16',
-            fontFamily: '"Plus Jakarta Sans", "Avenir Next", "Helvetica Neue", sans-serif',
-            fontSize: 32,
+            padding: "14px 28px",
+            fontFamily: "\"Inter\", sans-serif",
+            fontSize: 34,
             fontWeight: 700,
-            padding: '16px 34px',
-            boxShadow: '0 18px 40px rgba(20, 184, 166, 0.35)',
+            color: "#ffffff",
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            boxShadow: "0 14px 30px rgba(99,102,241,0.28)",
           }}
         >
           github.com/cklxx/elephant.ai
         </div>
       </div>
-    </SceneFrame>
+    </SceneBase>
   );
 };
 
 export const ElephantPromo = () => {
   return (
-    <AbsoluteFill style={{backgroundColor: colors.bg}}>
+    <AbsoluteFill style={{backgroundColor: palette.bg}}>
       <Sequence from={0} durationInFrames={150}>
-        <IntroScene />
+        <Intro />
       </Sequence>
-      <Sequence from={150} durationInFrames={180}>
-        <CapabilitiesScene />
+      <Sequence from={150} durationInFrames={170}>
+        <Highlights />
       </Sequence>
-      <Sequence from={330} durationInFrames={160}>
-        <ArchitectureScene />
+      <Sequence from={320} durationInFrames={160}>
+        <Architecture />
       </Sequence>
-      <Sequence from={490} durationInFrames={110}>
-        <CtaScene />
+      <Sequence from={480} durationInFrames={120}>
+        <Cta />
       </Sequence>
     </AbsoluteFill>
   );
