@@ -15,8 +15,8 @@
 ## Validation
 - [ ] `make check-arch`
 - [ ] `make check-arch-policy`
-- [ ] `./dev.sh lint`
-- [ ] `./dev.sh test`
+- [ ] `alex dev lint`
+- [ ] `alex dev test`
 - [ ] `go test ./...`
 
 ## Notes

@@ -163,6 +163,12 @@ Please read [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before participating, and
 
 ---
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=cklxx/elephant.ai&type=Date)](https://star-history.com/#cklxx/elephant.ai&Date)
+
+---
+
 ## License
 
 [MIT](LICENSE) © 2025 cklxx

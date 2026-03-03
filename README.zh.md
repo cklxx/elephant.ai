@@ -153,6 +153,12 @@ OpenRouter · Ollama（本地） · Kimi · 通义千问
 
 ---
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=cklxx/elephant.ai&type=Date)](https://star-history.com/#cklxx/elephant.ai&Date)
+
+---
+
 ## 许可证
 
 [MIT](LICENSE) © 2025 cklxx

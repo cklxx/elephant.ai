@@ -142,6 +142,23 @@ personal-assistant  mcp  openai  golang  self-hosted  proactive-ai
 
 ---
 
+### 竞品对比定位
+
+| 维度 | elephant.ai | Cursor Agent / Claude Code | AutoGPT / AgentGPT |
+|------|-------------|---------------------------|---------------------|
+| 定位 | 工作流内 AI 队友 | IDE/CLI 编码助手 | 通用自主 Agent |
+| 嵌入位置 | 飞书群聊（Lark-native） | 编辑器/终端 | Web UI / 独立运行 |
+| 记忆 | 持久跨会话记忆 | 仅当前会话 | 有限/实验性 |
+| 安全机制 | 审批门控 + 可观测性 | 沙盒/权限系统 | 无成熟机制 |
+| 模型 | 8 个 Provider 自动选优 | 单 Provider 锁定 | 通常 OpenAI 单一 |
+| 自托管 | 完整自托管 | 云服务为主 | 可自托管 |
+| 技能系统 | 15+ 内置 Skill + MCP 扩展 | 内置工具 | 插件系统 |
+| 适用场景 | 团队协作、日常工作流 | 软件开发 | 实验/演示 |
+
+**核心差异叙事：** elephant.ai 不是又一个 AI 编码工具或通用 Agent。它是唯一一个真正嵌入团队通讯工具（飞书）、作为持久「队友」存在的 AI 助手，面向日常工作场景而非仅限于编程。
+
+---
+
 ## 第三阶段：社区运营（持续）
 
 ### GitHub Issues 运营
@@ -173,6 +190,58 @@ documentation       — 文档改进
 - `#showcase` — 用户展示
 - `#dev` — 开发者讨论
 - `#announcements` — 版本公告
+
+### Conference Talk 投稿计划
+
+| 会议 | 时间 | 话题方向 | 优先级 |
+|------|------|----------|--------|
+| GopherCon | 年度 | Multi-Provider LLM Architecture in Go | 高 |
+| KubeCon AI Day | 年度 | Self-Hosted AI Agents: From Dev to Production | 中 |
+| QCon | 半年度 | Context Engineering vs Prompt Engineering | 高 |
+| ArchSummit | 半年度 | 生产级 AI Agent 的架构演进 | 中 |
+
+CFP 提交时机：通常提前 3-6 个月。优先投 Lightning Talk（10 分钟），降低首次入选门槛。
+
+### Awesome Lists 收录
+
+提交 PR 到以下 Awesome Lists（仓库有 50+ stars 后进行）：
+
+- [awesome-ai-agents](https://github.com/e2b-dev/awesome-ai-agents) — 最大的 AI Agent 列表
+- [awesome-lark](https://github.com/nicephil/awesome-lark) — 飞书生态
+- [awesome-golang](https://github.com/avelino/awesome-go) — Go 项目列表
+- [awesome-selfhosted](https://github.com/awesome-selfhosted/awesome-selfhosted) — 自托管项目
+- [awesome-mcp](https://github.com/punkpeye/awesome-mcp-servers) — MCP 生态
+
+每个 Awesome List PR 需符合其 contribution guidelines，通常要求：项目活跃、有文档、有 CI、有 License。
+
+---
+
+## GitHub 仓库设置操作清单
+
+以下设置需手动在 GitHub Settings 中配置：
+
+### About 区域
+- **Description**: `Your AI teammate, always on. Proactive AI agent that lives in Lark — persistent memory, autonomous execution, 15+ skills, 8 LLM providers.`
+- **Website**: GitHub Pages URL
+- **Topics**: `ai-agent`, `lark`, `llm`, `autonomous-agent`, `personal-assistant`, `golang`, `react-loop`, `mcp`, `open-source`
+
+### Social Preview
+- Settings → Social preview → Upload `assets/banner.png`
+
+### Discussions
+- Settings → Features → 启用 Discussions
+- 创建分类：
+  - **Announcements** — 版本发布、重要公告（仅维护者可发帖）
+  - **Q&A** — 使用问题（启用 "Mark as answer"）
+  - **Ideas** — 功能建议和讨论
+  - **Show and tell** — 社区展示
+
+### Sponsorship
+- Settings → Sponsor → 考虑启用 GitHub Sponsors
+- 或创建 `.github/FUNDING.yml`：
+  ```yaml
+  github: cklxx
+  ```
 
 ---
 
