@@ -42,11 +42,6 @@ type reactRuntime struct {
 	nextTaskSeq           int
 	pauseRequested        bool
 	replanRequested       bool
-	finalReviewAttempts   int
-	finalReviewCallID     string
-	finalReviewStartedAt  time.Time
-	finalReviewInFlight   bool
-	finalReviewAttempt    int
 
 	// Background task manager for async agent execution.
 	bgManager      *BackgroundTaskManager
@@ -73,17 +68,6 @@ const (
 
 const replanPrompt = "Tool execution failed. Re-evaluate your approach and call plan() to adjust the strategy before retrying."
 const repeatedNonRetryableToolFailureThreshold = 3
-
-const finalAnswerReviewPrompt = `<final_answer_review>
-Before finalizing, do a quick review pass:
-- Confirm the user goal is fully satisfied and the answer is correct.
-- If additional tool usage would materially improve correctness or completeness, call the relevant tools now.
-- If an external CLI tool is required (e.g., ffmpeg):
-  1) Use bash to check availability: command -v ffmpeg
-  2) If missing and on macOS with Homebrew: brew install ffmpeg
-  3) If install fails or brew is unavailable: report what is needed and provide manual steps.
-- If everything is complete, provide the final answer (no tool calls).
-</final_answer_review>`
 
 type reactIteration struct {
 	runtime    *reactRuntime
@@ -394,96 +378,6 @@ func (r *reactRuntime) injectOrchestratorCorrection(content string) {
 	r.state.Messages = append(r.state.Messages, Message{
 		Role:    "system",
 		Content: trimmed,
-		Source:  ports.MessageSourceSystemPrompt,
-	})
-}
-
-func (r *reactRuntime) shouldTriggerFinalAnswerReview() bool {
-	if r == nil || r.state == nil || r.engine == nil {
-		return false
-	}
-	cfg := r.engine.finalAnswerReview
-	if !cfg.Enabled {
-		return false
-	}
-	maxExtra := cfg.MaxExtraIterations
-	if maxExtra <= 0 {
-		maxExtra = 1
-	}
-	if r.finalReviewAttempts >= maxExtra {
-		return false
-	}
-	// Only trigger for non-trivial runs (at least one tool executed).
-	if len(r.state.ToolResults) == 0 {
-		return false
-	}
-	// Need at least one remaining iteration to perform the review.
-	if r.state.Iterations >= r.engine.maxIterations {
-		return false
-	}
-	return true
-}
-
-func (r *reactRuntime) startFinalAnswerReviewToolEvent(callID string, attempt int) {
-	if r == nil || r.engine == nil || r.state == nil {
-		return
-	}
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return
-	}
-
-	if r.finalReviewInFlight {
-		r.completeFinalAnswerReviewToolEvent("superseded by another review attempt")
-	}
-
-	r.finalReviewCallID = callID
-	r.finalReviewStartedAt = r.engine.clock.Now()
-	r.finalReviewInFlight = true
-	r.finalReviewAttempt = attempt
-
-	r.engine.emitEvent(domain.NewToolStartedEvent(
-		r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-		r.state.Iterations, callID, "final_answer_review", map[string]any{"attempt": attempt},
-	))
-}
-
-func (r *reactRuntime) completeFinalAnswerReviewToolEvent(result string) {
-	if r == nil || r.engine == nil || r.state == nil {
-		return
-	}
-	if !r.finalReviewInFlight {
-		return
-	}
-	callID := strings.TrimSpace(r.finalReviewCallID)
-	if callID == "" {
-		return
-	}
-
-	duration := r.engine.clock.Now().Sub(r.finalReviewStartedAt)
-	r.engine.emitEvent(domain.NewToolCompletedEvent(
-		r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-		callID, "final_answer_review", strings.TrimSpace(result), nil, duration,
-		map[string]any{"attempt": r.finalReviewAttempt}, nil,
-	))
-
-	r.finalReviewInFlight = false
-	r.finalReviewCallID = ""
-	r.finalReviewAttempt = 0
-	r.finalReviewStartedAt = time.Time{}
-}
-
-func (r *reactRuntime) injectFinalAnswerReviewPrompt() {
-	if r == nil || r.state == nil {
-		return
-	}
-	attempt := r.finalReviewAttempts + 1
-	r.finalReviewAttempts = attempt
-	callID := fmt.Sprintf("final_answer_review:%d", attempt)
-	r.startFinalAnswerReviewToolEvent(callID, attempt)
-	r.state.Messages = append(r.state.Messages, Message{
-		Role:    "system",
-		Content: finalAnswerReviewPrompt,
 		Source:  ports.MessageSourceSystemPrompt,
 	})
 }
@@ -1088,12 +982,6 @@ func (it *reactIteration) handleNoTools() (*TaskResult, bool, error) {
 		return nil, false, nil
 	}
 
-	if it.runtime.shouldTriggerFinalAnswerReview() {
-		it.runtime.engine.logger.Debug("Triggering final answer review iteration (attempt=%d)", it.runtime.finalReviewAttempts+1)
-		it.runtime.injectFinalAnswerReviewPrompt()
-		return nil, false, nil
-	}
-
 	it.runtime.engine.logger.Debug("No tool calls with content, treating response as final answer")
 	finalResult := it.runtime.finalizeResult("final_answer", nil, true, nil)
 	return finalResult, true, nil
@@ -1118,8 +1006,6 @@ func (it *reactIteration) recordThought(thought *Message) {
 
 func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emitCompletionEvent bool, workflowErr error) *TaskResult {
 	r.finalizer.Do(func() {
-		r.completeFinalAnswerReviewToolEvent("review complete")
-
 		if result == nil {
 			result = r.engine.finalize(r.state, stopReason, r.engine.clock.Now().Sub(r.startTime))
 		} else {

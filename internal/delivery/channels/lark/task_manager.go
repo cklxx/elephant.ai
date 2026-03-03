@@ -470,14 +470,6 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 
 	listener = newPreanalysisEmojiReactionListener(execCtx, listener, g, msg.messageID)
 
-	listener = newFinalAnswerReviewReactionListener(
-		execCtx,
-		listener,
-		g,
-		msg.messageID,
-		strings.TrimSpace(g.cfg.FinalAnswerReviewReactEmoji),
-	)
-
 	cleanup := func() {
 		for i := len(cleanups) - 1; i >= 0; i-- {
 			cleanups[i]()

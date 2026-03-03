@@ -59,11 +59,6 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 	}
 
 	completion := buildCompletionDefaults(cfg.CompletionDefaults)
-
-	finalReview := cfg.FinalAnswerReview
-	if finalReview.MaxExtraIterations <= 0 {
-		finalReview.MaxExtraIterations = 1
-	}
 	domain.SetEventIDGenerator(idGenerator)
 
 	return &ReactEngine{
@@ -80,7 +75,6 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		workspaceMgrFactory: workspaceMgrFactory,
 		eventListener:       cfg.EventListener,
 		completion:          completion,
-		finalAnswerReview:   finalReview,
 		attachmentMigrator:  cfg.AttachmentMigrator,
 		attachmentPersister: cfg.AttachmentPersister,
 		checkpointStore:     cfg.CheckpointStore,

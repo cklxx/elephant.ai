@@ -419,10 +419,6 @@ func (c *AgentCoordinator) ExecuteTask(
 		WorkingDirResolver:  workingDirResolver,
 		WorkspaceMgrFactory: workspaceMgrFactory,
 		CompletionDefaults:  completionDefaults,
-		FinalAnswerReview: react.FinalAnswerReviewConfig{
-			Enabled:            effectiveCfg.Proactive.FinalAnswerReview.Enabled,
-			MaxExtraIterations: effectiveCfg.Proactive.FinalAnswerReview.MaxExtraIterations,
-		},
 		AttachmentMigrator:  c.attachmentMigrator,
 		AttachmentPersister: c.attachmentPersister,
 		CheckpointStore:     c.checkpointStore,

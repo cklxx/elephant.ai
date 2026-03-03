@@ -122,7 +122,6 @@ func expandChannelsConfigEnv(lookup EnvLookup, parsed ChannelsConfig) ChannelsCo
 	expanded.ToolMode = expandEnvValue(lookup, expanded.ToolMode)
 	expanded.ReactEmoji = expandEnvValue(lookup, expanded.ReactEmoji)
 	expanded.InjectionAckReactEmoji = expandEnvValue(lookup, expanded.InjectionAckReactEmoji)
-	expanded.FinalAnswerReviewReactEmoji = expandEnvValue(lookup, expanded.FinalAnswerReviewReactEmoji)
 	if len(expanded.AutoUploadAllowExt) > 0 {
 		allowExt := make([]string, 0, len(expanded.AutoUploadAllowExt))
 		for _, ext := range expanded.AutoUploadAllowExt {

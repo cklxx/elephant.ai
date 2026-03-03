@@ -26,7 +26,6 @@ type ReactEngine struct {
 	workspaceMgrFactory agent.WorkspaceManagerFactoryFunc
 	eventListener       EventListener // Optional event listener for TUI
 	completion          completionConfig
-	finalAnswerReview   FinalAnswerReviewConfig
 	attachmentMigrator  materialports.Migrator
 	attachmentPersister ports.AttachmentPersister // Optional: eagerly persists inline attachment payloads
 	checkpointStore     CheckpointStore           // Optional: persists execution checkpoints
@@ -116,7 +115,6 @@ type ReactEngineConfig struct {
 	WorkspaceMgrFactory agent.WorkspaceManagerFactoryFunc
 	EventListener       EventListener
 	CompletionDefaults  CompletionDefaults
-	FinalAnswerReview   FinalAnswerReviewConfig
 	AttachmentMigrator  materialports.Migrator
 	AttachmentPersister ports.AttachmentPersister // Optional: eagerly persists attachment payloads to a durable store.
 	CheckpointStore     CheckpointStore           // Optional: persists execution checkpoints.
@@ -137,9 +135,4 @@ type ReactEngineConfig struct {
 	TeamDefinitions []agent.TeamDefinition
 	// TeamRunRecorder persists run_tasks team run records (typically file-based).
 	TeamRunRecorder agent.TeamRunRecorder
-}
-
-type FinalAnswerReviewConfig struct {
-	Enabled            bool
-	MaxExtraIterations int
 }

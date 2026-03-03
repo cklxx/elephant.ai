@@ -22,7 +22,6 @@ type Config struct {
 	ReactEmoji                    string // Random emoji pool for start/end reactions (comma/space separated).
 	ProcessingReactEmoji          string // Emoji reaction while task is running. Removed on completion. Default "OnIt".
 	InjectionAckReactEmoji        string // Emoji reaction for injected user messages while a task is running. Default THINKING.
-	FinalAnswerReviewReactEmoji   string // Emoji reaction when final_answer_review triggers. Default GLANCE.
 	ShowToolProgress              bool   // Show real-time tool progress in chat. Default false.
 	SlowProgressSummaryEnabled    *bool  // Emit periodic progress summaries when foreground task exceeds delay. Default true.
 	SlowProgressSummaryDelay      time.Duration
@@ -43,14 +42,14 @@ type Config struct {
 	AIChatSessionTTL              time.Duration // Expire inactive AI chat coordination sessions.
 	StateCleanupInterval          time.Duration // Sweeper interval for in-memory Lark runtime state.
 	// Task management configuration.
-	PersistenceMode            string        // "file" or "memory". Default "file".
-	PersistenceDir             string        // Base dir used by file persistence.
-	PersistenceRetention       time.Duration // Expiration horizon for terminal task cleanup.
-	PersistenceMaxTasksPerChat int           // Max retained tasks per chat in persistence store.
+	PersistenceMode                 string        // "file" or "memory". Default "file".
+	PersistenceDir                  string        // Base dir used by file persistence.
+	PersistenceRetention            time.Duration // Expiration horizon for terminal task cleanup.
+	PersistenceMaxTasksPerChat      int           // Max retained tasks per chat in persistence store.
 	MaxConcurrentTasks              int           // Max concurrent tasks per chat. Default 3.
 	TeamCompletionSummaryEnabled    *bool         // Send summary when all background tasks finish. Default true.
 	TeamCompletionSummaryLLMTimeout time.Duration // LLM timeout for team summary generation. Default 10s.
-	DefaultPlanMode            PlanMode      // Global default plan mode strategy. Default "auto".
+	DefaultPlanMode                 PlanMode      // Global default plan mode strategy. Default "auto".
 	// AIChatBotIDs is a list of bot IDs that participate in coordinated multi-bot chats.
 	// When multiple bots from this list are mentioned in a group message, they will
 	// take turns responding instead of all responding simultaneously.

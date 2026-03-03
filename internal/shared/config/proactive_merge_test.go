@@ -139,45 +139,6 @@ func TestExpandProactiveFileConfigEnv_MemoryIndex(t *testing.T) {
 	}
 }
 
-func TestMergeFinalAnswerReviewConfig(t *testing.T) {
-	target := FinalAnswerReviewConfig{
-		Enabled:            false,
-		MaxExtraIterations: 1,
-	}
-	file := &FinalAnswerReviewFileConfig{
-		Enabled:            boolPtr(true),
-		MaxExtraIterations: intPtr(2),
-	}
-
-	mergeFinalAnswerReviewConfig(&target, file)
-
-	if !target.Enabled {
-		t.Error("expected Enabled to be true")
-	}
-	if target.MaxExtraIterations != 2 {
-		t.Errorf("expected MaxExtraIterations=2, got %d", target.MaxExtraIterations)
-	}
-}
-
-func TestMergeProactiveConfig_IncludesFinalAnswerReview(t *testing.T) {
-	target := DefaultProactiveConfig()
-	file := &ProactiveFileConfig{
-		FinalAnswerReview: &FinalAnswerReviewFileConfig{
-			Enabled:            boolPtr(false),
-			MaxExtraIterations: intPtr(3),
-		},
-	}
-
-	mergeProactiveConfig(&target, file)
-
-	if target.FinalAnswerReview.Enabled {
-		t.Error("expected FinalAnswerReview.Enabled to be overridden to false")
-	}
-	if target.FinalAnswerReview.MaxExtraIterations != 3 {
-		t.Errorf("expected FinalAnswerReview.MaxExtraIterations=3, got %d", target.FinalAnswerReview.MaxExtraIterations)
-	}
-}
-
 func TestMergeSchedulerConfig_IncludesChatIDAndCalendarReminder(t *testing.T) {
 	target := DefaultProactiveConfig().Scheduler
 	target.CalendarReminder = CalendarReminderConfig{

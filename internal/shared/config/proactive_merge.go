@@ -42,9 +42,6 @@ func mergeProactiveConfig(target *ProactiveConfig, file *ProactiveFileConfig) {
 	if file.Timer != nil {
 		mergeTimerConfig(&target.Timer, file.Timer)
 	}
-	if file.FinalAnswerReview != nil {
-		mergeFinalAnswerReviewConfig(&target.FinalAnswerReview, file.FinalAnswerReview)
-	}
 	if file.Attention != nil {
 		mergeAttentionConfig(&target.Attention, file.Attention)
 	}
@@ -173,18 +170,6 @@ func mergeSkillsFeedbackConfig(target *SkillsFeedbackConfig, file *SkillsFeedbac
 	}
 	if utils.HasContent(file.StorePath) {
 		target.StorePath = strings.TrimSpace(file.StorePath)
-	}
-}
-
-func mergeFinalAnswerReviewConfig(target *FinalAnswerReviewConfig, file *FinalAnswerReviewFileConfig) {
-	if target == nil || file == nil {
-		return
-	}
-	if file.Enabled != nil {
-		target.Enabled = *file.Enabled
-	}
-	if file.MaxExtraIterations != nil {
-		target.MaxExtraIterations = *file.MaxExtraIterations
 	}
 }
 

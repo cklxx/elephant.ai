@@ -201,7 +201,6 @@ apps:
 - `reply_timeout_seconds`：单条消息执行超时（秒）。
 - `react_emoji`：随机表情池（逗号/空格分隔）。同一次请求会在开始/结束分别随机挑选不同表情；少于 2 个时会回退默认池。
 - `injection_ack_react_emoji`：任务执行中收到“插入消息”时的 ACK 表情（默认 `THINKING`；仅在成功入队时 ACK）。
-- `final_answer_review_react_emoji`：触发 Final Answer 复查轮时对原消息的提示表情（默认 `GLANCE`）。
 - 备注：以上 reaction 依赖 Lark “消息表情回复（Message Reaction）”相关权限；若未开通，代码会继续执行但客户端看不到表情（日志会提示 add reaction failed）。
 - `memory_enabled`：启用 Markdown 记忆加载（MEMORY.md + daily logs）。
 - `show_tool_progress`：是否在 Lark 显示工具执行进度。
@@ -532,29 +531,6 @@ runtime:
 - `tool_policy.enforcement_mode`：策略命中 `enabled=false` 时的处理模式。
   - `enforce`：直接拒绝工具调用（默认）。
   - `warn_allow`：记录告警并放行执行（用于灰度/兼容阶段）。
-
-### Final Answer 复查（proactive.final_answer_review）
-
-当任务已经执行过工具（非 trivial），但模型在某一轮给出“最终回答（无 tool_calls）”时，系统会自动插入一次复查提示并允许最多再跑一轮，以便：
-
-- 缺信息时主动追问（`clarify(needs_user_input=true)` / `request_user`）
-- 发现更优方案/需要更多工具校验时继续探索
-- 需要外部工具（例如 `ffmpeg`）时先检查并尝试安装（如 `brew install`），失败再转为向用户说明步骤
-
-配置项：
-
-- `proactive.final_answer_review.enabled`：开关（默认 `true`）。
-- `proactive.final_answer_review.max_extra_iterations`：最多追加迭代次数（默认 `1`）。
-
-示例（YAML）：
-
-```yaml
-runtime:
-  proactive:
-    final_answer_review:
-      enabled: true
-      max_extra_iterations: 1
-```
 
 ### ACP 执行器配置（executor 适配层）
 

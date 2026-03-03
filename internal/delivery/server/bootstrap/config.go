@@ -110,7 +110,6 @@ type LarkGatewayConfig struct {
 	ToolMode                      string
 	ReactEmoji                    string
 	InjectionAckReactEmoji        string
-	FinalAnswerReviewReactEmoji   string
 	ShowToolProgress              bool
 	SlowProgressSummaryEnabled    bool
 	SlowProgressSummaryDelay      time.Duration
@@ -398,7 +397,6 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyPositiveDurationSeconds(&target.ReplyTimeout, larkCfg.ReplyTimeoutSeconds)
 	applyTrimmedString(&target.ReactEmoji, larkCfg.ReactEmoji)
 	applyTrimmedString(&target.InjectionAckReactEmoji, larkCfg.InjectionAckReactEmoji)
-	applyTrimmedString(&target.FinalAnswerReviewReactEmoji, larkCfg.FinalAnswerReviewReactEmoji)
 	applyOptionalBool(&target.MemoryEnabled, larkCfg.MemoryEnabled)
 	applyOptionalBool(&target.ShowToolProgress, larkCfg.ShowToolProgress)
 	applyOptionalBool(&target.SlowProgressSummaryEnabled, larkCfg.SlowProgressSummaryEnabled)
