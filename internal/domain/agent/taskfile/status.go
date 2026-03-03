@@ -8,6 +8,7 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/logging"
 	"gopkg.in/yaml.v3"
 )
 
@@ -49,15 +50,24 @@ type StatusWriter struct {
 	path     string
 	file     StatusFile
 	stopCh   chan struct{}
-	stopped  bool
+	stopOnce sync.Once
+	logger   logging.Logger
 }
 
 // NewStatusWriter creates a StatusWriter that writes to the given path.
-func NewStatusWriter(path string) *StatusWriter {
+func NewStatusWriter(path string, logger logging.Logger) *StatusWriter {
 	return &StatusWriter{
 		path:   path,
 		stopCh: make(chan struct{}),
+		logger: logging.OrNop(logger),
 	}
+}
+
+// RehydrateFrom restores in-memory state from a previously persisted StatusFile.
+func (sw *StatusWriter) RehydrateFrom(sf *StatusFile) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	sw.file = *sf
 }
 
 // InitFromTaskFile initializes status entries from a TaskFile. Tasks with
@@ -114,12 +124,9 @@ func (sw *StatusWriter) StartPolling(dispatcher agent.BackgroundTaskDispatcher, 
 
 // Stop terminates the polling goroutine.
 func (sw *StatusWriter) Stop() {
-	sw.mu.Lock()
-	defer sw.mu.Unlock()
-	if !sw.stopped {
-		sw.stopped = true
+	sw.stopOnce.Do(func() {
 		close(sw.stopCh)
-	}
+	})
 }
 
 // SyncOnce performs a single status sync and writes to disk.
@@ -175,7 +182,9 @@ func (sw *StatusWriter) syncFromDispatcher(dispatcher agent.BackgroundTaskDispat
 
 	if changed {
 		sw.file.UpdatedAt = time.Now()
-		_ = sw.writeUnsafe()
+		if err := sw.writeUnsafe(); err != nil {
+			sw.logger.Warn("status write failed: %v", err)
+		}
 	}
 	return allTerminal
 }

@@ -79,9 +79,9 @@ func (e *Executor) ExecuteAndWait(ctx context.Context, tf *TaskFile, causationID
 
 	// Final status sync. Rehydrate existing sidecar first so SyncOnce updates
 	// the initialized task rows instead of operating on an empty in-memory file.
-	sw := NewStatusWriter(statusPath)
+	sw := NewStatusWriter(statusPath, nil)
 	if existing, readErr := ReadStatusFile(statusPath); readErr == nil && existing != nil {
-		sw.file = *existing
+		sw.RehydrateFrom(existing)
 	}
 	sw.SyncOnce(e.dispatcher, result.TaskIDs)
 
@@ -105,7 +105,7 @@ func (e *Executor) executeTeamValidated(ctx context.Context, tf *TaskFile, causa
 	}
 
 	// Init status file.
-	sw := NewStatusWriter(statusPath)
+	sw := NewStatusWriter(statusPath, nil)
 	if err := sw.InitFromTaskFile(tf); err != nil {
 		return nil, fmt.Errorf("init status: %w", err)
 	}

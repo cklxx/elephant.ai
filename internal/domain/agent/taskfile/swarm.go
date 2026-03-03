@@ -92,7 +92,7 @@ func (s *SwarmScheduler) executeSwarmValidated(ctx context.Context, tf *TaskFile
 		byID[t.ID] = t
 	}
 
-	sw := NewStatusWriter(statusPath)
+	sw := NewStatusWriter(statusPath, nil)
 	if err := sw.InitFromTaskFile(tf); err != nil {
 		return nil, fmt.Errorf("init status: %w", err)
 	}

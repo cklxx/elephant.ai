@@ -10,7 +10,7 @@ import (
 // TestStatusWriter_ConcurrentStop verifies that calling Stop() concurrently
 // from multiple goroutines does NOT panic (K-04/BL-04 regression guard).
 func TestStatusWriter_ConcurrentStop(t *testing.T) {
-	sw := taskfile.NewStatusWriter("/tmp/status_writer_concurrent_test.yaml")
+	sw := taskfile.NewStatusWriter("/tmp/status_writer_concurrent_test.yaml", nil)
 
 	const goroutines = 20
 	var wg sync.WaitGroup
