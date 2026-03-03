@@ -55,4 +55,6 @@ type Buildable interface {
 	Build(ctx context.Context) (stagingPath string, err error)
 	// Promote atomically replaces the production binary with the staged one.
 	Promote(stagingPath string) error
+	// InvalidateCache removes the build fingerprint so the next Build always recompiles.
+	InvalidateCache()
 }

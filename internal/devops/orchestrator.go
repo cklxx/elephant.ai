@@ -155,6 +155,8 @@ func (o *Orchestrator) Restart(ctx context.Context, names ...string) error {
 		o.section.Section("Restart " + svc.Name())
 
 		if buildable, ok := svc.(Buildable); ok {
+			// Explicit restart always recompiles — invalidate fingerprint cache.
+			buildable.InvalidateCache()
 			// Safe path: build before stopping the old process
 			staging, err := buildable.Build(ctx)
 			if err != nil {

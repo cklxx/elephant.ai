@@ -53,6 +53,8 @@ type mockBuildableService struct {
 	calls      []string // records "build", "stop", "start", "promote"
 }
 
+func (m *mockBuildableService) InvalidateCache() {}
+
 func (m *mockBuildableService) Build(_ context.Context) (string, error) {
 	m.calls = append(m.calls, "build")
 	if m.buildErr != nil {
