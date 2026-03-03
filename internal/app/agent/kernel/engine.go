@@ -429,6 +429,20 @@ func renderStateAgentSummary(entries []kerneldomain.AgentCycleSummary) string {
 	return strings.Join(parts, " | ")
 }
 
+// runtimeSummaryNoisePatterns lists substrings (matched against lowercased
+// lines) that indicate raw LLM artifacts or internal reasoning noise.
+// Legitimate content such as "## Execution Summary" and natural-language
+// mentions of tool calls are intentionally not matched.
+var runtimeSummaryNoisePatterns = []string{
+	"thinking (previous):",
+	"reasoning:",
+	"assistant to=",
+	"recipient_name",
+	"tool_uses",
+	`"tool_call"`,
+	`"tool_calls"`,
+}
+
 func sanitizeRuntimeSummary(raw string) string {
 	trimmedRaw := strings.TrimSpace(raw)
 	if trimmedRaw == "" {
@@ -442,30 +456,18 @@ func sanitizeRuntimeSummary(raw string) string {
 		if trimmed == "" {
 			continue
 		}
-		lower := strings.ToLower(trimmed)
-		// Strip raw LLM artifacts and internal reasoning noise, but preserve
-		// legitimate agent summary content such as "## Execution Summary" headers
-		// and natural-language mentions of tool calls.
-		skipLine := false
 		if strings.HasPrefix(trimmed, "```") {
-			skipLine = true
-		} else if strings.HasPrefix(lower, "thinking (previous):") {
-			skipLine = true
-		} else if strings.HasPrefix(lower, "reasoning:") {
-			skipLine = true
-		} else if strings.Contains(lower, "assistant to=") {
-			skipLine = true
-		} else if strings.Contains(lower, "recipient_name") {
-			skipLine = true
-		} else if strings.Contains(lower, "tool_uses") {
-			skipLine = true
-		} else if strings.Contains(lower, `"tool_call"`) {
-			skipLine = true
-		} else if strings.Contains(lower, `"tool_calls"`) {
-			skipLine = true
+			continue
 		}
-
-		if !skipLine {
+		lower := strings.ToLower(trimmed)
+		noise := false
+		for _, pat := range runtimeSummaryNoisePatterns {
+			if strings.Contains(lower, pat) {
+				noise = true
+				break
+			}
+		}
+		if !noise {
 			filtered = append(filtered, trimmed)
 		}
 	}
@@ -550,7 +552,7 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 					FailureClass: "infra_mark_running",
 				})
 				mu.Unlock()
-				if ferr := markDispatchFailedResilient(ctx, e.store, d.DispatchID, errMsg); ferr != nil {
+				if ferr := resilientStoreOp(ctx, func(c context.Context) error { return e.store.MarkDispatchFailed(c, d.DispatchID, errMsg) }); ferr != nil {
 					e.logger.Warn("Kernel: mark failed after running-error %s: %v", d.DispatchID, ferr)
 				}
 				return
@@ -600,7 +602,7 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 					Error:        errMsg,
 					FailureClass: failureClass,
 				})
-				if err := markDispatchFailedResilient(ctx, e.store, d.DispatchID, errMsg); err != nil {
+				if err := resilientStoreOp(ctx, func(c context.Context) error { return e.store.MarkDispatchFailed(c, d.DispatchID, errMsg) }); err != nil {
 					e.logger.Warn("Kernel: mark failed %s: %v", d.DispatchID, err)
 				}
 				e.logger.Warn("Kernel: dispatch %s (agent=%s) failed: %v", d.DispatchID, d.AgentID, execErr)
@@ -617,7 +619,7 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 					summaryEntry.TeamRoles = toTeamRoleSummaries(execResult.TeamRoles)
 				}
 				result.AgentSummary = append(result.AgentSummary, summaryEntry)
-				if err := markDispatchDoneResilient(ctx, e.store, d.DispatchID, execResult.TaskID); err != nil {
+				if err := resilientStoreOp(ctx, func(c context.Context) error { return e.store.MarkDispatchDone(c, d.DispatchID, execResult.TaskID) }); err != nil {
 					e.logger.Warn("Kernel: mark done %s: %v", d.DispatchID, err)
 				}
 			}
@@ -644,8 +646,11 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 	return result
 }
 
-func markDispatchDoneResilient(ctx context.Context, store kerneldomain.Store, dispatchID, taskID string) error {
-	err := store.MarkDispatchDone(ctx, dispatchID, taskID)
+// resilientStoreOp retries the operation with a fresh context if the original
+// context was cancelled or timed out, ensuring dispatch status transitions
+// are persisted even during graceful shutdown.
+func resilientStoreOp(ctx context.Context, op func(context.Context) error) error {
+	err := op(ctx)
 	if err == nil {
 		return nil
 	}
@@ -654,20 +659,7 @@ func markDispatchDoneResilient(ctx context.Context, store kerneldomain.Store, di
 	}
 	fallbackCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	return store.MarkDispatchDone(fallbackCtx, dispatchID, taskID)
-}
-
-func markDispatchFailedResilient(ctx context.Context, store kerneldomain.Store, dispatchID, errMsg string) error {
-	err := store.MarkDispatchFailed(ctx, dispatchID, errMsg)
-	if err == nil {
-		return nil
-	}
-	if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-		return err
-	}
-	fallbackCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	return store.MarkDispatchFailed(fallbackCtx, dispatchID, errMsg)
+	return op(fallbackCtx)
 }
 
 func toTeamRoleSummaries(roles []TeamRoleResult) []kerneldomain.TeamRoleSummary {
