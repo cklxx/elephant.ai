@@ -38,6 +38,7 @@ type Snapshot struct {
 	LLMTurnSeq    int                        `json:"llm_turn_seq"`
 	CreatedAt     time.Time                  `json:"created_at"`
 	Summary       string                     `json:"summary"`
+	MessageCount  int                        `json:"message_count,omitempty"`
 	Plans         []agent.PlanNode           `json:"plans"`
 	Beliefs       []agent.Belief             `json:"beliefs"`
 	World         map[string]any             `json:"world_state"`

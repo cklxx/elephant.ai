@@ -149,24 +149,57 @@ func (c *AgentCoordinator) appendHistoryTurn(
 	return c.historyMgr.AppendTurn(ctx, sessionID, incoming)
 }
 
-// asyncSaveSession saves session asynchronously (non-blocking) with mutex protection.
-// Used for per-iteration saves to make sessions visible in diagnostics during execution.
-// Errors are logged but do not fail the iteration.
+// asyncSaveSession saves session asynchronously with debounce.
+// Instead of spawning a goroutine per iteration (which creates O(N) goroutines
+// that serialize on sessionSaveMu), this stores the latest snapshot in an
+// atomic pointer. A single background goroutine drains the pointer every 2s.
 func (c *AgentCoordinator) asyncSaveSession(ctx context.Context, session *storage.Session) {
 	snapshot := cloneSessionForSave(session)
 	if snapshot == nil {
 		return
 	}
+	c.pendingSessionSave.Store(snapshot)
+	c.ensureSessionSaveLoop(ctx)
+}
 
-	go func(saved *storage.Session) {
-		c.sessionSaveMu.Lock()
-		defer c.sessionSaveMu.Unlock()
+// ensureSessionSaveLoop starts the debounce goroutine exactly once.
+func (c *AgentCoordinator) ensureSessionSaveLoop(ctx context.Context) {
+	c.sessionSaveOnce.Do(func() {
+		go c.sessionSaveLoop(ctx)
+	})
+}
 
-		logger := c.loggerFor(ctx)
-		if err := c.sessionStore.Save(ctx, saved); err != nil {
-			logger.Warn("Async session save failed (non-fatal): %v", err)
+const sessionSaveDebounceInterval = 2 * time.Second
+
+func (c *AgentCoordinator) sessionSaveLoop(ctx context.Context) {
+	ticker := time.NewTicker(sessionSaveDebounceInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			c.flushPendingSessionSave(ctx)
+		case <-ctx.Done():
+			// Final flush on shutdown.
+			c.flushPendingSessionSave(context.Background())
+			return
 		}
-	}(snapshot)
+	}
+}
+
+func (c *AgentCoordinator) flushPendingSessionSave(ctx context.Context) {
+	ptr := c.pendingSessionSave.Swap(nil)
+	if ptr == nil {
+		return
+	}
+	saved := ptr.(*storage.Session)
+
+	c.sessionSaveMu.Lock()
+	defer c.sessionSaveMu.Unlock()
+
+	logger := c.loggerFor(ctx)
+	if err := c.sessionStore.Save(ctx, saved); err != nil {
+		logger.Warn("Async session save failed (non-fatal): %v", err)
+	}
 }
 
 func cloneSessionForSave(session *storage.Session) *storage.Session {

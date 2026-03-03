@@ -2,6 +2,7 @@ package react
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -106,8 +107,14 @@ func offloadMessageAttachmentData(state *TaskState) {
 	}
 }
 
+// attachmentStripThreshold is the size above which inline attachment data is
+// stripped even when no external persister is configured (dev environments).
+const attachmentStripThreshold = 64 * 1024 // 64KB
+
 // offloadAttachmentMap clears the Data field from attachments that already
-// have a non-data-URI external reference. Returns true if any field changed.
+// have a non-data-URI external reference. As a fallback for dev environments
+// where no attachment persister is configured, large data blobs (>64KB) are
+// also stripped to prevent them from accumulating in the context window.
 func offloadAttachmentMap(atts map[string]ports.Attachment) bool {
 	changed := false
 	for key, att := range atts {
@@ -115,12 +122,18 @@ func offloadAttachmentMap(atts map[string]ports.Attachment) bool {
 			continue
 		}
 		uri := strings.TrimSpace(att.URI)
-		if uri == "" || strings.HasPrefix(strings.ToLower(uri), "data:") {
+		if uri != "" && !strings.HasPrefix(strings.ToLower(uri), "data:") {
+			att.Data = ""
+			atts[key] = att
+			changed = true
 			continue
 		}
-		att.Data = ""
-		atts[key] = att
-		changed = true
+		// Dev fallback: strip large inline data that will never be persisted.
+		if len(att.Data) > attachmentStripThreshold {
+			att.Data = fmt.Sprintf("[attachment data stripped: no persister configured, size=%d]", len(att.Data))
+			atts[key] = att
+			changed = true
+		}
 	}
 	return changed
 }

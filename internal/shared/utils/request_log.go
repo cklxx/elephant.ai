@@ -67,7 +67,6 @@ func LogStreamingErrorPayload(requestID string, details LLMErrorLogDetails) {
 
 	entry := buildRequestLogEntry(requestID, "error")
 	entry.BodyBytes = len(detailsJSON)
-	entry.Payload = json.RawMessage(detailsJSON)
 	entry.Mode = strings.TrimSpace(details.Mode)
 	entry.Provider = strings.TrimSpace(details.Provider)
 	entry.Model = strings.TrimSpace(details.Model)
@@ -79,7 +78,8 @@ func LogStreamingErrorPayload(requestID string, details LLMErrorLogDetails) {
 		entry.LatencyMS = details.LatencyMS
 	}
 
-	writeRequestLogEntry(entry)
+	// Error payloads are small enough to write inline via the separate payload line.
+	writeRequestLogEntryWithPayload(entry, detailsJSON)
 }
 
 func logStreamingPayload(requestID string, payload []byte, entryType string) {
@@ -88,12 +88,12 @@ func logStreamingPayload(requestID string, payload []byte, entryType string) {
 	}
 	entry := buildRequestLogEntry(requestID, entryType)
 	entry.BodyBytes = len(payload)
-	if json.Valid(payload) {
-		entry.Payload = json.RawMessage(payload)
-	} else {
-		entry.PayloadText = string(payload)
-	}
-	writeRequestLogEntry(entry)
+
+	// Write the entry metadata (without full payload) as a JSONL line,
+	// then append the raw payload on a separate line. This avoids
+	// json.Marshal re-serializing the entire payload into the entry,
+	// which was a major source of O(N²) memory growth during long runs.
+	writeRequestLogEntryWithPayload(entry, payload)
 }
 
 func resolveRequestLogDir() string {
@@ -139,22 +139,28 @@ type requestLogWrite struct {
 	entry []byte
 }
 
+// payloadPreviewBytes is the max number of bytes from the raw payload to
+// include inline in the metadata entry for quick debugging.
+const payloadPreviewBytes = 2048
+
 type requestLogEntry struct {
-	Timestamp   string          `json:"timestamp"`
-	RequestID   string          `json:"request_id"`
-	LogID       string          `json:"log_id,omitempty"`
-	EntryType   string          `json:"entry_type"`
-	BodyBytes   int             `json:"body_bytes"`
-	Mode        string          `json:"mode,omitempty"`
-	Provider    string          `json:"provider,omitempty"`
-	Model       string          `json:"model,omitempty"`
-	Intent      string          `json:"intent,omitempty"`
-	Stage       string          `json:"stage,omitempty"`
-	ErrorClass  string          `json:"error_class,omitempty"`
-	Error       string          `json:"error,omitempty"`
-	LatencyMS   int64           `json:"latency_ms,omitempty"`
-	Payload     json.RawMessage `json:"payload,omitempty"`
-	PayloadText string          `json:"payload_text,omitempty"`
+	Timestamp      string `json:"timestamp"`
+	RequestID      string `json:"request_id"`
+	LogID          string `json:"log_id,omitempty"`
+	EntryType      string `json:"entry_type"`
+	BodyBytes      int    `json:"body_bytes"`
+	Mode           string `json:"mode,omitempty"`
+	Provider       string `json:"provider,omitempty"`
+	Model          string `json:"model,omitempty"`
+	Intent         string `json:"intent,omitempty"`
+	Stage          string `json:"stage,omitempty"`
+	ErrorClass     string `json:"error_class,omitempty"`
+	Error          string `json:"error,omitempty"`
+	LatencyMS      int64  `json:"latency_ms,omitempty"`
+	PayloadPreview string `json:"payload_preview,omitempty"` // first N bytes of payload
+	// NOTE: full Payload field removed to prevent json.Marshal from
+	// re-serializing the entire LLM request/response body inside the
+	// entry. The full payload is written as a separate JSONL line.
 }
 
 func buildRequestLogEntry(requestID string, entryType string) requestLogEntry {
@@ -174,7 +180,11 @@ func buildRequestLogEntry(requestID string, entryType string) requestLogEntry {
 	}
 }
 
-func writeRequestLogEntry(entry requestLogEntry) {
+// writeRequestLogEntryWithPayload writes the entry metadata and full payload
+// as two consecutive JSONL lines. The entry gets a truncated preview; the
+// full payload follows on the next line so that json.Marshal never needs to
+// re-encode the (potentially multi-MB) body.
+func writeRequestLogEntryWithPayload(entry requestLogEntry, payload []byte) {
 	dir := resolveRequestLogDir()
 	if IsBlank(dir) {
 		log.Printf("request log: resolved log directory empty")
@@ -186,13 +196,32 @@ func writeRequestLogEntry(entry requestLogEntry) {
 		return
 	}
 
+	// Attach a truncated preview for quick debugging.
+	if len(payload) > 0 {
+		preview := payload
+		if len(preview) > payloadPreviewBytes {
+			preview = preview[:payloadPreviewBytes]
+		}
+		entry.PayloadPreview = string(preview)
+	}
+
 	entryBytes, err := json.Marshal(entry)
 	if err != nil {
 		log.Printf("request log: failed to encode entry: %v", err)
 		return
 	}
-	entryBytes = append(entryBytes, '\n')
-	enqueueRequestLogWrite(filepath.Join(dir, requestLogFileName), entryBytes)
+
+	// Build a single write buffer: metadata line + payload line.
+	// This keeps the two lines atomic from the writer's perspective.
+	buf := make([]byte, 0, len(entryBytes)+1+len(payload)+1)
+	buf = append(buf, entryBytes...)
+	buf = append(buf, '\n')
+	if len(payload) > 0 {
+		buf = append(buf, payload...)
+		buf = append(buf, '\n')
+	}
+
+	enqueueRequestLogWrite(filepath.Join(dir, requestLogFileName), buf)
 }
 
 func logIDFromRequestID(requestID string) string {

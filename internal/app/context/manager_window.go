@@ -130,17 +130,17 @@ func (m *manager) RecordTurn(ctx context.Context, record agent.ContextTurnRecord
 	}
 	if m.stateStore != nil {
 		snapshot := sessionstate.Snapshot{
-			SessionID:     record.SessionID,
-			TurnID:        record.TurnID,
-			LLMTurnSeq:    record.LLMTurnSeq,
-			CreatedAt:     record.Timestamp,
-			Summary:       record.Summary,
-			Plans:         record.Plans,
-			Beliefs:       record.Beliefs,
-			World:         record.World,
-			Diff:          record.Diff,
-			Messages:      record.Messages,
-			Feedback:      record.Feedback,
+			SessionID:    record.SessionID,
+			TurnID:       record.TurnID,
+			LLMTurnSeq:   record.LLMTurnSeq,
+			CreatedAt:    record.Timestamp,
+			Summary:      record.Summary,
+			MessageCount: record.MessageCount,
+			Plans:        record.Plans,
+			Beliefs:      record.Beliefs,
+			World:        record.World,
+			Diff:         record.Diff,
+			Feedback:     record.Feedback,
 			KnowledgeRefs: record.KnowledgeRefs,
 		}
 		if snapshot.CreatedAt.IsZero() {
@@ -228,7 +228,6 @@ func convertRecordToJournal(record agent.ContextTurnRecord) journal.TurnJournalE
 		Beliefs:       record.Beliefs,
 		World:         record.World,
 		Diff:          record.Diff,
-		Messages:      record.Messages,
 		Feedback:      record.Feedback,
 		KnowledgeRefs: record.KnowledgeRefs,
 	}

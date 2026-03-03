@@ -64,8 +64,8 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	endpoint := c.baseURL + "/responses"
 	c.logRequestMeta(prefix, "POST", endpoint)
 
-	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
-	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
+	c.logger.Debug("%sRequest Body: %s", prefix, logBody)
+	utils.LogStreamingRequestPayload(requestID, logBody)
 
 	resp, err := c.doPost(ctx, endpoint, body)
 	if err != nil {
@@ -87,7 +87,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
+		c.logger.Debug("%sError Response Body: %s", prefix, respBody)
 		mappedErr := mapHTTPError(resp.StatusCode, respBody, resp.Header)
 		c.logHTTPFailure(prefix, requestID, "complete", provider, endpoint, req, resp.StatusCode, resp.Header, respBody, mappedErr)
 		return nil, mappedErr
@@ -133,8 +133,8 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 
 	c.fireUsageCallback(result.Usage, "openai")
 
-	c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
-	utils.LogStreamingResponsePayload(requestID, append([]byte(nil), respBody...))
+	c.logger.Debug("%sResponse Body: %s", prefix, respBody)
+	utils.LogStreamingResponsePayload(requestID, respBody)
 
 	c.logResponseSummary(prefix, result)
 	return result, nil

@@ -9,7 +9,6 @@ import (
 	"alex/internal/delivery/server/inlinepayload"
 	domain "alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
-	"alex/internal/domain/agent/types"
 	"alex/internal/domain/workflow"
 	"alex/internal/shared/utils"
 )
@@ -18,8 +17,7 @@ const (
 	historyInlineAttachmentRetentionLimit = 128 * 1024
 	historyMaxStringBytes                 = 16 * 1024
 	historyMaxCollectionItems             = 256
-	historyMaxContextMessages             = 64
-	historyMaxWorkflowNodes               = 128
+	historyMaxWorkflowNodes = 128
 	historyNodeOutputPreviewBytes         = 1024
 )
 
@@ -141,33 +139,6 @@ func sanitizeAttachmentForHistory(att ports.Attachment) ports.Attachment {
 	return att
 }
 
-func sanitizeContextAttachmentForHistory(att ports.Attachment) ports.Attachment {
-	mediaType := strings.TrimSpace(att.MediaType)
-	if mediaType == "" {
-		mediaType = "application/octet-stream"
-		att.MediaType = mediaType
-	}
-
-	trimmedURI := strings.TrimSpace(att.URI)
-	if att.Data == "" && trimmedURI != "" && !strings.HasPrefix(strings.ToLower(trimmedURI), "data:") {
-		return att
-	}
-
-	inline := strings.TrimSpace(ports.AttachmentInlineBase64(att))
-	if inline != "" {
-		size := base64.StdEncoding.DecodedLen(len(inline))
-		if size > 0 && size <= historyInlineAttachmentRetentionLimit {
-			att.Data = inline
-			if strings.HasPrefix(utils.TrimLower(att.URI), "data:") {
-				att.URI = ""
-			}
-			return att
-		}
-	}
-
-	att.Data = ""
-	return att
-}
 
 func truncateHistoryString(s string, limit int) string {
 	if limit <= 0 || len(s) <= limit {
@@ -403,14 +374,9 @@ func sanitizeDomainEventDataForHistory(kind string, data domain.EventData) domai
 		cleaned.Workflow = sanitizeWorkflowSnapshotForEventData(cleaned.Workflow)
 	}
 
-	switch kind {
-	case types.EventDiagnosticContextSnapshot:
-		cleaned.Messages = sanitizeHistoryMessages(cleaned.Messages)
-		cleaned.Excluded = sanitizeHistoryMessages(cleaned.Excluded)
-	default:
-		cleaned.Messages = nil
-		cleaned.Excluded = nil
-	}
+	// Context snapshot events no longer carry full message slices —
+	// they use ContextMsgCount/ExcludedCount/ContextPreview instead.
+	cleaned.ContextPreview = truncateHistoryString(cleaned.ContextPreview, historyMaxStringBytes)
 
 	return cleaned
 }
@@ -470,56 +436,3 @@ func sanitizeWorkflowSnapshotForEventData(snapshot *workflow.WorkflowSnapshot) *
 	return cleaned
 }
 
-func sanitizeHistoryMessages(messages []ports.Message) []ports.Message {
-	if len(messages) == 0 {
-		return nil
-	}
-
-	limit := len(messages)
-	if limit > historyMaxContextMessages {
-		limit = historyMaxContextMessages
-	}
-
-	cleaned := make([]ports.Message, 0, limit)
-	for i := 0; i < limit; i++ {
-		message := messages[i]
-		sanitized := ports.Message{
-			Role:       truncateHistoryString(message.Role, 64),
-			Content:    truncateHistoryString(message.Content, historyMaxStringBytes),
-			ToolCallID: truncateHistoryString(message.ToolCallID, 256),
-			Source:     message.Source,
-		}
-		if len(message.Attachments) > 0 {
-			attachments := make(map[string]ports.Attachment, len(message.Attachments))
-			for key, att := range message.Attachments {
-				attachments[key] = sanitizeContextAttachmentForHistory(att)
-			}
-			sanitized.Attachments = attachments
-		}
-		if len(message.Metadata) > 0 {
-			if metadata, ok := stripBinaryPayloadsWithStore(message.Metadata, nil).(map[string]any); ok && len(metadata) > 0 {
-				sanitized.Metadata = metadata
-			}
-		}
-		thinkingParts := len(message.Thinking.Parts)
-		if len(message.ToolCalls) > 0 || len(message.ToolResults) > 0 || thinkingParts > 0 {
-			if sanitized.Metadata == nil {
-				sanitized.Metadata = map[string]any{}
-			}
-			sanitized.Metadata["tool_calls_count"] = len(message.ToolCalls)
-			sanitized.Metadata["tool_results_count"] = len(message.ToolResults)
-			sanitized.Metadata["thinking_parts_count"] = thinkingParts
-		}
-		cleaned = append(cleaned, sanitized)
-	}
-
-	if len(messages) > limit {
-		cleaned = append(cleaned, ports.Message{
-			Role:    "system",
-			Source:  ports.MessageSourceDebug,
-			Content: fmt.Sprintf("[truncated %d history messages]", len(messages)-limit),
-		})
-	}
-
-	return cleaned
-}

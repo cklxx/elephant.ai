@@ -5,7 +5,6 @@ import (
 	"time"
 
 	agentcoordinator "alex/internal/app/agent/coordinator"
-	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 )
@@ -22,14 +21,15 @@ type AgentExecutor interface {
 // Ensure AgentCoordinator implements AgentExecutor
 var _ AgentExecutor = (*agentcoordinator.AgentCoordinator)(nil)
 
-// ContextSnapshotRecord captures a snapshot of the messages sent to the LLM.
+// ContextSnapshotRecord captures a lightweight summary of the messages sent to the LLM.
 type ContextSnapshotRecord struct {
-	SessionID   string
-	RunID       string
-	ParentRunID string
-	RequestID   string
-	Iteration   int
-	Timestamp   time.Time
-	Messages    []ports.Message
-	Excluded    []ports.Message
+	SessionID       string
+	RunID           string
+	ParentRunID     string
+	RequestID       string
+	Iteration       int
+	Timestamp       time.Time
+	ContextMsgCount int
+	ExcludedCount   int
+	ContextPreview  string
 }

@@ -45,9 +45,9 @@ func roleSummaryPrefix(role string) string {
 
 func buildContextTurnRecord(state *agent.TaskState, messages []ports.Message, timestamp time.Time, summary string) agent.ContextTurnRecord {
 	record := agent.ContextTurnRecord{
-		Timestamp: timestamp,
-		Summary:   summary,
-		Messages:  append([]ports.Message(nil), messages...),
+		Timestamp:    timestamp,
+		Summary:      summary,
+		MessageCount: len(messages),
 	}
 	if state == nil {
 		return record

@@ -159,14 +159,15 @@ func (svc *SnapshotService) GetContextSnapshots(sessionID string) []ContextSnaps
 			return nil
 		}
 		record := ContextSnapshotRecord{
-			SessionID:   sessionID,
-			RunID:       e.GetRunID(),
-			ParentRunID: e.GetParentRunID(),
-			RequestID:   e.Data.RequestID,
-			Iteration:   e.Data.Iteration,
-			Timestamp:   e.Timestamp(),
-			Messages:    cloneMessages(e.Data.Messages),
-			Excluded:    cloneMessages(e.Data.Excluded),
+			SessionID:       sessionID,
+			RunID:           e.GetRunID(),
+			ParentRunID:     e.GetParentRunID(),
+			RequestID:       e.Data.RequestID,
+			Iteration:       e.Data.Iteration,
+			Timestamp:       e.Timestamp(),
+			ContextMsgCount: e.Data.ContextMsgCount,
+			ExcludedCount:   e.Data.ExcludedCount,
+			ContextPreview:  e.Data.ContextPreview,
 		}
 		snapshots = append(snapshots, record)
 		return nil

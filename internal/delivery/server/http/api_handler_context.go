@@ -9,13 +9,14 @@ import (
 )
 
 type ContextSnapshotItem struct {
-	RequestID        string         `json:"request_id"`
-	Iteration        int            `json:"iteration"`
-	Timestamp        string         `json:"timestamp"`
-	RunID            string         `json:"run_id,omitempty"`
-	ParentRunID      string         `json:"parent_run_id,omitempty"`
-	Messages         []core.Message `json:"messages"`
-	ExcludedMessages []core.Message `json:"excluded_messages,omitempty"`
+	RequestID       string `json:"request_id"`
+	Iteration       int    `json:"iteration"`
+	Timestamp       string `json:"timestamp"`
+	RunID           string `json:"run_id,omitempty"`
+	ParentRunID     string `json:"parent_run_id,omitempty"`
+	ContextMsgCount int    `json:"context_msg_count"`
+	ExcludedCount   int    `json:"excluded_count"`
+	ContextPreview  string `json:"context_preview,omitempty"`
 }
 
 type ContextSnapshotResponse struct {
@@ -97,21 +98,17 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 		Snapshots: make([]ContextSnapshotItem, len(snapshots)),
 	}
 
-	sentAttachments := newStringLRU(sseSentAttachmentCacheSize)
-
 	for i, snapshot := range snapshots {
-		item := ContextSnapshotItem{
-			RequestID:   snapshot.RequestID,
-			Iteration:   snapshot.Iteration,
-			Timestamp:   snapshot.Timestamp.Format(time.RFC3339Nano),
-			RunID:       snapshot.RunID,
-			ParentRunID: snapshot.ParentRunID,
+		response.Snapshots[i] = ContextSnapshotItem{
+			RequestID:       snapshot.RequestID,
+			Iteration:       snapshot.Iteration,
+			Timestamp:       snapshot.Timestamp.Format(time.RFC3339Nano),
+			RunID:           snapshot.RunID,
+			ParentRunID:     snapshot.ParentRunID,
+			ContextMsgCount: snapshot.ContextMsgCount,
+			ExcludedCount:   snapshot.ExcludedCount,
+			ContextPreview:  snapshot.ContextPreview,
 		}
-		item.Messages = sanitizeMessagesForDelivery(snapshot.Messages, sentAttachments)
-		if len(snapshot.Excluded) > 0 {
-			item.ExcludedMessages = sanitizeMessagesForDelivery(snapshot.Excluded, sentAttachments)
-		}
-		response.Snapshots[i] = item
 	}
 
 	h.writeJSON(w, http.StatusOK, response)

@@ -253,12 +253,17 @@ func WithSessionTTL(ttl time.Duration) EventBroadcasterOption {
 	}
 }
 
+const (
+	defaultMaxHistoryWithStore    = 1000
+	defaultMaxHistoryWithoutStore = 200
+)
+
 // NewEventBroadcaster creates a new event broadcaster
 func NewEventBroadcaster(opts ...EventBroadcasterOption) *EventBroadcaster {
 	b := &EventBroadcaster{
 		eventHistory:       make(map[string]*sessionHistory),
 		highVolumeCounters: make(map[string]int),
-		maxHistory:         1000, // Keep up to 1000 events per session
+		maxHistory:         defaultMaxHistoryWithStore,
 		logger:             logging.NewComponentLogger("EventBroadcaster"),
 		metrics:            newBroadcasterMetrics(),
 	}
@@ -267,6 +272,13 @@ func NewEventBroadcaster(opts ...EventBroadcasterOption) *EventBroadcaster {
 		if opt != nil {
 			opt(b)
 		}
+	}
+	// When no persistent history store is configured (dev/fallback mode),
+	// all events accumulate in memory. Cap more aggressively to prevent
+	// memory explosion during long agent runs.
+	if b.historyStore == nil && b.maxHistory > defaultMaxHistoryWithoutStore {
+		b.maxHistory = defaultMaxHistoryWithoutStore
+		b.logger.Warn("No event history store configured; capping in-memory history to %d events per session", b.maxHistory)
 	}
 	return b
 }

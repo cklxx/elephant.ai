@@ -509,7 +509,7 @@ func (r *staticJournalReader) Stream(_ context.Context, sessionID string, fn fun
 	return nil
 }
 
-func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
+func TestHandleGetContextSnapshotsReturnsLightweightSummary(t *testing.T) {
 	broadcaster := app.NewEventBroadcaster()
 	tasks, sessions, snapshots := buildTestServices(
 		&stubAgentCoordinator{},
@@ -520,24 +520,9 @@ func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
 	)
 	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), true)
 
-	attachments := map[string]core.Attachment{
-		"preview.png": {
-			Name:      "preview.png",
-			MediaType: "image/png",
-			Data:      "iVBORw0KGgo=",
-			URI:       "https://cdn.example/preview.png",
-		},
-		"notes.txt": {
-			Name:      "notes.txt",
-			MediaType: "text/plain",
-			Data:      "hello",
-		},
-	}
-
-	message := core.Message{
-		Role:        "assistant",
-		Content:     "see [preview.png]",
-		Attachments: attachments,
+	messages := []core.Message{
+		{Role: "user", Content: "hello"},
+		{Role: "assistant", Content: "world"},
 	}
 
 	broadcaster.OnEvent(domain.NewDiagnosticContextSnapshotEvent(
@@ -548,22 +533,9 @@ func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
 		1,
 		1,
 		"req-1",
-		[]core.Message{message},
-		nil,
+		messages,
+		messages[:1],
 		time.Now(),
-	))
-
-	broadcaster.OnEvent(domain.NewDiagnosticContextSnapshotEvent(
-		agent.LevelCore,
-		"sess-ctx",
-		"task-1",
-		"",
-		2,
-		2,
-		"req-2",
-		[]core.Message{message},
-		nil,
-		time.Now().Add(time.Second),
 	))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/internal/sessions/sess-ctx/context", nil)
@@ -580,31 +552,19 @@ func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if len(body.Snapshots) != 2 {
-		t.Fatalf("expected 2 snapshots, got %d", len(body.Snapshots))
+	if len(body.Snapshots) != 1 {
+		t.Fatalf("expected 1 snapshot, got %d", len(body.Snapshots))
 	}
 
 	first := body.Snapshots[0]
-	if len(first.Messages) != 1 {
-		t.Fatalf("expected 1 message in first snapshot, got %d", len(first.Messages))
+	if first.ContextMsgCount != 2 {
+		t.Fatalf("expected context_msg_count=2, got %d", first.ContextMsgCount)
 	}
-	firstAttachments := first.Messages[0].Attachments
-	if len(firstAttachments) != 2 {
-		t.Fatalf("expected 2 attachments in first snapshot, got %d", len(firstAttachments))
+	if first.ExcludedCount != 1 {
+		t.Fatalf("expected excluded_count=1, got %d", first.ExcludedCount)
 	}
-	if firstAttachments["preview.png"].Data != "iVBORw0KGgo=" {
-		t.Fatalf("expected image data to remain, got %q", firstAttachments["preview.png"].Data)
-	}
-	if firstAttachments["notes.txt"].Data != "hello" {
-		t.Fatalf("expected text attachment data to remain, got %q", firstAttachments["notes.txt"].Data)
-	}
-
-	second := body.Snapshots[1]
-	if len(second.Messages) != 1 {
-		t.Fatalf("expected 1 message in second snapshot, got %d", len(second.Messages))
-	}
-	if second.Messages[0].Attachments != nil {
-		t.Fatalf("expected duplicate attachments to be omitted, got %v", second.Messages[0].Attachments)
+	if first.ContextPreview == "" {
+		t.Fatalf("expected non-empty context preview")
 	}
 }
 

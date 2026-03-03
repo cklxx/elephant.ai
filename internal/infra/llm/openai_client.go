@@ -46,8 +46,8 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	endpoint := c.baseURL + "/chat/completions"
 	c.logRequestMeta(prefix, "POST", endpoint)
 
-	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
-	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
+	c.logger.Debug("%sRequest Body: %s", prefix, logBody)
+	utils.LogStreamingRequestPayload(requestID, logBody)
 
 	resp, err := c.doPost(ctx, endpoint, body)
 	if err != nil {
@@ -69,7 +69,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
+		c.logger.Debug("%sError Response Body: %s", prefix, respBody)
 		mappedErr := mapHTTPError(resp.StatusCode, respBody, resp.Header)
 		c.logHTTPFailure(prefix, requestID, "complete", provider, endpoint, req, resp.StatusCode, resp.Header, respBody, mappedErr)
 		return nil, mappedErr
@@ -104,8 +104,8 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		} `json:"error"`
 	}
 
-	c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
-	utils.LogStreamingResponsePayload(requestID, append([]byte(nil), respBody...))
+	c.logger.Debug("%sResponse Body: %s", prefix, respBody)
+	utils.LogStreamingResponsePayload(requestID, respBody)
 
 	if err := jsonx.Unmarshal(respBody, &oaiResp); err != nil {
 		c.logger.Debug("%sFailed to decode response: %v", prefix, err)
@@ -187,8 +187,8 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	endpoint := c.baseURL + "/chat/completions"
 	c.logRequestMeta(prefix, "POST", endpoint)
 
-	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
-	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
+	c.logger.Debug("%sRequest Body: %s", prefix, logBody)
+	utils.LogStreamingRequestPayload(requestID, logBody)
 
 	requestStarted := time.Now()
 	resp, err := c.doPost(ctx, endpoint, body)
@@ -211,7 +211,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 			c.logProcessingFailure(prefix, requestID, "stream", provider, endpoint, "read_error_response", req, errRead)
 			return nil, errRead
 		}
-		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
+		c.logger.Debug("%sError Response Body: %s", prefix, respBody)
 		mappedErr := mapHTTPError(resp.StatusCode, respBody, resp.Header)
 		c.logHTTPFailure(prefix, requestID, "stream", provider, endpoint, req, resp.StatusCode, resp.Header, respBody, mappedErr)
 		return nil, mappedErr

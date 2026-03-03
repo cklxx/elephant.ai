@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -246,10 +247,11 @@ type EventData struct {
 	CompressionRate float64 `json:"compression_rate,omitempty"`
 
 	// --- Diagnostic: context snapshot ---------------------------------------
-	LLMTurnSeq int             `json:"llm_turn_seq,omitempty"`
-	RequestID  string          `json:"request_id,omitempty"`
-	Messages   []ports.Message `json:"messages,omitempty"`
-	Excluded   []ports.Message `json:"excluded,omitempty"`
+	LLMTurnSeq      int    `json:"llm_turn_seq,omitempty"`
+	RequestID       string `json:"request_id,omitempty"`
+	ContextMsgCount int    `json:"context_msg_count,omitempty"`
+	ExcludedCount   int    `json:"excluded_count,omitempty"`
+	ContextPreview  string `json:"context_preview,omitempty"` // summary of first/last messages
 
 	// --- Diagnostic: tool filtering -----------------------------------------
 	PresetName      string   `json:"preset_name,omitempty"`
@@ -539,7 +541,9 @@ func NewDiagnosticContextCompressionEvent(level agent.AgentLevel, sessionID, run
 	}
 }
 
-// NewDiagnosticContextSnapshotEvent creates an immutable snapshot of the LLM context payload.
+// NewDiagnosticContextSnapshotEvent creates a lightweight summary of the LLM context.
+// Instead of cloning all messages (which caused O(N²) memory growth during long runs),
+// this stores only counts and a short preview of recent messages.
 func NewDiagnosticContextSnapshotEvent(
 	level agent.AgentLevel,
 	sessionID, runID, parentRunID string,
@@ -553,13 +557,63 @@ func NewDiagnosticContextSnapshotEvent(
 		BaseEvent: newBaseEventWithIDs(level, sessionID, runID, parentRunID, ts),
 		Kind:      types.EventDiagnosticContextSnapshot,
 		Data: EventData{
-			Iteration:  iteration,
-			LLMTurnSeq: llmTurnSeq,
-			RequestID:  requestID,
-			Messages:   cloneMessageSlice(messages),
-			Excluded:   cloneMessageSlice(excluded),
+			Iteration:       iteration,
+			LLMTurnSeq:      llmTurnSeq,
+			RequestID:       requestID,
+			ContextMsgCount: len(messages),
+			ExcludedCount:   len(excluded),
+			ContextPreview:  buildContextPreview(messages),
 		},
 	}
+}
+
+// buildContextPreview creates a short textual digest from the first and last
+// few messages so that diagnostics remain useful without retaining the full
+// message slice.
+func buildContextPreview(messages []ports.Message) string {
+	if len(messages) == 0 {
+		return ""
+	}
+	const previewCount = 3
+	const maxContentLen = 200
+
+	var b strings.Builder
+	writeMsg := func(label string, msg ports.Message) {
+		content := strings.TrimSpace(msg.Content)
+		if len(content) > maxContentLen {
+			content = content[:maxContentLen] + "..."
+		}
+		if b.Len() > 0 {
+			b.WriteString(" | ")
+		}
+		fmt.Fprintf(&b, "[%s] %s: %s", label, msg.Role, content)
+	}
+
+	// First N messages
+	end := previewCount
+	if end > len(messages) {
+		end = len(messages)
+	}
+	for i := 0; i < end; i++ {
+		writeMsg("first", messages[i])
+	}
+
+	// Last N messages (non-overlapping)
+	start := len(messages) - previewCount
+	if start < end {
+		start = end
+	}
+	for i := start; i < len(messages); i++ {
+		writeMsg("last", messages[i])
+	}
+
+	// Cap total preview length
+	const maxPreviewLen = 2048
+	s := b.String()
+	if len(s) > maxPreviewLen {
+		s = s[:maxPreviewLen] + "..."
+	}
+	return s
 }
 
 // NewDiagnosticToolFilteringEvent creates a new tool filtering event.
@@ -702,48 +756,6 @@ func NewExternalInputResponseEvent(base BaseEvent, taskID, requestID string, app
 // ---------------------------------------------------------------------------
 // Helper utilities
 // ---------------------------------------------------------------------------
-
-func cloneMessageSlice(values []ports.Message) []ports.Message {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make([]ports.Message, len(values))
-	for i, msg := range values {
-		cloned[i] = cloneMessage(msg)
-	}
-	return cloned
-}
-
-func cloneMessage(msg ports.Message) ports.Message {
-	cloned := msg
-	if len(msg.ToolCalls) > 0 {
-		cloned.ToolCalls = append([]ports.ToolCall(nil), msg.ToolCalls...)
-	}
-	if len(msg.ToolResults) > 0 {
-		cloned.ToolResults = make([]ports.ToolResult, len(msg.ToolResults))
-		for i, result := range msg.ToolResults {
-			cloned.ToolResults[i] = cloneToolResult(result)
-		}
-	}
-	if len(msg.Metadata) > 0 {
-		cloned.Metadata = ports.CloneAnyMap(msg.Metadata)
-	}
-	if len(msg.Attachments) > 0 {
-		cloned.Attachments = ports.CloneAttachmentMap(msg.Attachments)
-	}
-	return cloned
-}
-
-func cloneToolResult(result ports.ToolResult) ports.ToolResult {
-	cloned := result
-	if len(result.Metadata) > 0 {
-		cloned.Metadata = ports.CloneAnyMap(result.Metadata)
-	}
-	if len(result.Attachments) > 0 {
-		cloned.Attachments = ports.CloneAttachmentMap(result.Attachments)
-	}
-	return cloned
-}
 
 func percentageOf(value, total int) float64 {
 	if total <= 0 {

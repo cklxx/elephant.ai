@@ -369,7 +369,7 @@ func TestSplitMessagesForLLM_FiltersDebugAndEval(t *testing.T) {
 	}
 }
 
-func TestSplitMessagesForLLM_ClonesToolCalls(t *testing.T) {
+func TestSplitMessagesForLLM_PreservesToolCalls(t *testing.T) {
 	messages := []Message{{
 		Role: "assistant",
 		ToolCalls: []ToolCall{{
@@ -380,12 +380,10 @@ func TestSplitMessagesForLLM_ClonesToolCalls(t *testing.T) {
 
 	filtered, _ := splitMessagesForLLM(messages)
 	if len(filtered) != 1 || len(filtered[0].ToolCalls) != 1 {
-		t.Fatal("expected tool calls cloned")
+		t.Fatal("expected tool calls preserved")
 	}
-	// Mutate original
-	messages[0].ToolCalls[0].Name = "mutated"
-	if filtered[0].ToolCalls[0].Name == "mutated" {
-		t.Fatal("expected deep clone - mutation should not propagate")
+	if filtered[0].ToolCalls[0].Name != "web_search" {
+		t.Fatal("expected tool call name preserved")
 	}
 }
 

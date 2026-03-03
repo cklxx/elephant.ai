@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	appconfig "alex/internal/app/agent/config"
@@ -67,7 +68,9 @@ type AgentCoordinator struct {
 	schedulerService      any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
 	toolSLACollector      *toolspolicy.SLACollector
 
-	sessionSaveMu sync.Mutex // Protects concurrent session saves
+	sessionSaveMu      sync.Mutex     // Protects concurrent session saves
+	pendingSessionSave atomic.Value   // *storage.Session — latest snapshot awaiting save
+	sessionSaveOnce    sync.Once      // Ensures single save loop goroutine
 }
 
 type preparationService interface {

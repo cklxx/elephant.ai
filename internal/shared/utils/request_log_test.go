@@ -30,17 +30,17 @@ func TestLogStreamingPayload_WritesSequentialEntries(t *testing.T) {
 		t.Fatalf("expected 2 log entries, got %d", len(entries))
 	}
 
-	if entries[0].RequestID != "req-123" || entries[0].EntryType != "request" {
-		t.Fatalf("expected first entry to be request, got %+v", entries[0])
+	if entries[0].entry.RequestID != "req-123" || entries[0].entry.EntryType != "request" {
+		t.Fatalf("expected first entry to be request, got %+v", entries[0].entry)
 	}
-	if entries[1].RequestID != "req-123" || entries[1].EntryType != "response" {
-		t.Fatalf("expected second entry to be response, got %+v", entries[1])
+	if entries[1].entry.RequestID != "req-123" || entries[1].entry.EntryType != "response" {
+		t.Fatalf("expected second entry to be response, got %+v", entries[1].entry)
 	}
-	if string(entries[0].Payload) != string(reqPayload) {
-		t.Fatalf("expected request payload to match, got %s", string(entries[0].Payload))
+	if entries[0].rawPayload != string(reqPayload) {
+		t.Fatalf("expected request payload to match, got %s", entries[0].rawPayload)
 	}
-	if string(entries[1].Payload) != string(respPayload) {
-		t.Fatalf("expected response payload to match, got %s", string(entries[1].Payload))
+	if entries[1].rawPayload != string(respPayload) {
+		t.Fatalf("expected response payload to match, got %s", entries[1].rawPayload)
 	}
 }
 
@@ -61,8 +61,8 @@ func TestLogStreamingPayload_DeduplicatesByEntryType(t *testing.T) {
 	if len(entries) != 2 {
 		t.Fatalf("expected 2 deduped entries, got %d: %#v", len(entries), entries)
 	}
-	if entries[0].EntryType != "request" || entries[1].EntryType != "response" {
-		t.Fatalf("expected request/response entries, got %#v", entries)
+	if entries[0].entry.EntryType != "request" || entries[1].entry.EntryType != "response" {
+		t.Fatalf("expected request/response entries, got %+v / %+v", entries[0].entry, entries[1].entry)
 	}
 }
 
@@ -88,7 +88,7 @@ func TestLogStreamingErrorPayload_WritesErrorEntry(t *testing.T) {
 		t.Fatalf("expected 1 error entry, got %d", len(entries))
 	}
 
-	entry := entries[0]
+	entry := entries[0].entry
 	if entry.EntryType != "error" {
 		t.Fatalf("expected entry_type=error, got %q", entry.EntryType)
 	}
@@ -107,12 +107,18 @@ func TestLogStreamingErrorPayload_WritesErrorEntry(t *testing.T) {
 	if entry.LatencyMS != 60000 {
 		t.Fatalf("expected latency_ms=60000, got %d", entry.LatencyMS)
 	}
-	if len(entry.Payload) == 0 {
-		t.Fatalf("expected non-empty payload")
+	if entries[0].rawPayload == "" {
+		t.Fatalf("expected non-empty raw payload line")
 	}
 }
 
-func readRequestLogEntries(t *testing.T, path string) []requestLogEntry {
+// parsedEntry holds a decoded metadata entry and its raw payload line.
+type parsedEntry struct {
+	entry      requestLogEntry
+	rawPayload string
+}
+
+func readRequestLogEntries(t *testing.T, path string) []parsedEntry {
 	t.Helper()
 	if !WaitForRequestLogQueueDrain(2 * time.Second) {
 		t.Fatalf("timed out waiting for request log queue to drain")
@@ -122,16 +128,33 @@ func readRequestLogEntries(t *testing.T, path string) []requestLogEntry {
 		t.Fatalf("failed to read log file: %v", err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	entries := make([]requestLogEntry, 0, len(lines))
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
+
+	// Format: metadata JSON line, then raw payload line, repeating.
+	var entries []parsedEntry
+	for i := 0; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
 			continue
 		}
 		var entry requestLogEntry
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
-			t.Fatalf("failed to decode log entry: %v", err)
+			t.Fatalf("failed to decode log entry at line %d: %v", i, err)
 		}
-		entries = append(entries, entry)
+		// Next line is the raw payload (if present and not another JSON entry).
+		rawPayload := ""
+		if i+1 < len(lines) {
+			next := strings.TrimSpace(lines[i+1])
+			if next != "" {
+				var probe struct {
+					EntryType string `json:"entry_type"`
+				}
+				if json.Unmarshal([]byte(next), &probe) != nil || probe.EntryType == "" {
+					rawPayload = next
+					i++ // consume the payload line
+				}
+			}
+		}
+		entries = append(entries, parsedEntry{entry: entry, rawPayload: rawPayload})
 	}
 	return entries
 }

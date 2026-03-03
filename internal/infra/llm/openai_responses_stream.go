@@ -74,8 +74,8 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	endpoint := c.baseURL + "/responses"
 	c.logRequestMeta(prefix, "POST", endpoint)
 
-	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
-	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
+	c.logger.Debug("%sRequest Body: %s", prefix, logBody)
+	utils.LogStreamingRequestPayload(requestID, logBody)
 
 	resp, err := c.doPost(ctx, endpoint, body)
 	if err != nil {
@@ -97,7 +97,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 			c.logProcessingFailure(prefix, requestID, "stream", provider, endpoint, "read_error_response", req, errRead)
 			return nil, errRead
 		}
-		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
+		c.logger.Debug("%sError Response Body: %s", prefix, respBody)
 		mappedErr := mapHTTPError(resp.StatusCode, respBody, resp.Header)
 		c.logHTTPFailure(prefix, requestID, "stream", provider, endpoint, req, resp.StatusCode, resp.Header, respBody, mappedErr)
 		return nil, mappedErr

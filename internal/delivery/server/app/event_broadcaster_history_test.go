@@ -422,21 +422,12 @@ func TestEventBroadcasterSanitizesDiagnosticContextSnapshotForHistory(t *testing
 	store := &capturingHistoryStore{}
 	broadcaster := NewEventBroadcaster(WithEventHistoryStore(store))
 
-	hugeContent := strings.Repeat("m", historyMaxStringBytes*3)
-	messages := make([]ports.Message, 0, historyMaxContextMessages+8)
-	for i := 0; i < historyMaxContextMessages+8; i++ {
-		messages = append(messages, ports.Message{
+	messages := make([]ports.Message, 80)
+	for i := range messages {
+		messages[i] = ports.Message{
 			Role:    "user",
-			Content: hugeContent,
-			Thinking: ports.Thinking{
-				Parts: []ports.ThinkingPart{{Kind: "text", Text: "reasoning"}},
-			},
-			ToolCalls: []ports.ToolCall{{ID: "call-1", Name: "bash"}},
-			ToolResults: []ports.ToolResult{{
-				CallID:  "call-1",
-				Content: strings.Repeat("r", historyMaxStringBytes),
-			}},
-		})
+			Content: strings.Repeat("m", 500),
+		}
 	}
 
 	event := domain.NewDiagnosticContextSnapshotEvent(
@@ -448,7 +439,7 @@ func TestEventBroadcasterSanitizesDiagnosticContextSnapshotForHistory(t *testing
 		1,
 		"request-"+strings.Repeat("x", historyMaxStringBytes),
 		messages,
-		messages,
+		messages[:5],
 		time.Now(),
 	)
 
@@ -462,18 +453,18 @@ func TestEventBroadcasterSanitizesDiagnosticContextSnapshotForHistory(t *testing
 	if stored.Kind != types.EventDiagnosticContextSnapshot {
 		t.Fatalf("expected context snapshot event kind, got %q", stored.Kind)
 	}
-	if len(stored.Data.Messages) != historyMaxContextMessages+1 {
-		t.Fatalf("expected capped messages with truncation marker, got %d", len(stored.Data.Messages))
+	// Snapshot events now carry counts + preview, not full message slices.
+	if stored.Data.ContextMsgCount != 80 {
+		t.Fatalf("expected context_msg_count=80, got %d", stored.Data.ContextMsgCount)
 	}
-	first := stored.Data.Messages[0]
-	if len(first.Content) > historyMaxStringBytes+64 {
-		t.Fatalf("expected truncated message content, got len=%d", len(first.Content))
+	if stored.Data.ExcludedCount != 5 {
+		t.Fatalf("expected excluded_count=5, got %d", stored.Data.ExcludedCount)
 	}
-	if len(first.ToolCalls) != 0 || len(first.ToolResults) != 0 {
-		t.Fatalf("expected heavy tool payloads to be dropped, got calls=%d results=%d", len(first.ToolCalls), len(first.ToolResults))
+	if stored.Data.ContextPreview == "" {
+		t.Fatalf("expected non-empty context preview")
 	}
-	if first.Metadata["tool_calls_count"] != 1 {
-		t.Fatalf("expected tool call count marker, got %v", first.Metadata["tool_calls_count"])
+	if len(stored.Data.ContextPreview) > historyMaxStringBytes+64 {
+		t.Fatalf("expected truncated context preview, got len=%d", len(stored.Data.ContextPreview))
 	}
 	if len(stored.Data.RequestID) > historyMaxStringBytes+64 {
 		t.Fatalf("expected truncated request id, got len=%d", len(stored.Data.RequestID))
