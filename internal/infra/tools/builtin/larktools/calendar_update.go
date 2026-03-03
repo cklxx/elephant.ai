@@ -130,11 +130,11 @@ func (t *larkCalendarUpdate) Execute(ctx context.Context, call ports.ToolCall) (
 
 	if !hasFields {
 		err := fmt.Errorf("at least one field to update must be provided (summary, description, start_time, end_time)")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 	if hasStart && hasEnd && endUnix <= startUnix {
 		err := fmt.Errorf("end_time must be greater than start_time")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 
 	auth, errResult := resolveLarkCalendarAuth(ctx, call.ID)

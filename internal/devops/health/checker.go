@@ -10,6 +10,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"alex/internal/infra/httpclient"
 )
 
 // Result captures the outcome of a health probe.
@@ -44,14 +46,12 @@ type Checker struct {
 
 // NewChecker creates a new health checker.
 func NewChecker() *Checker {
+	client := httpclient.New(5*time.Second, nil)
+	client.Transport.(*http.Transport).DisableKeepAlives = true
+
 	return &Checker{
 		probes: make(map[string]Probe),
-		client: &http.Client{
-			Timeout: 5 * time.Second,
-			Transport: &http.Transport{
-				DisableKeepAlives: true,
-			},
-		},
+		client: client,
 	}
 }
 

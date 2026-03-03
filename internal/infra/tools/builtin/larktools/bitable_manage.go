@@ -37,7 +37,7 @@ func (t *larkBitableManage) Execute(ctx context.Context, call ports.ToolCall) (*
 		return t.listFields(ctx, client, call)
 	default:
 		err := fmt.Errorf("unsupported bitable action: %s", action)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 }
 
@@ -131,12 +131,12 @@ func (t *larkBitableManage) createRecord(ctx context.Context, client *larkapi.Cl
 	fieldsRaw, ok := call.Arguments["fields"]
 	if !ok || fieldsRaw == nil {
 		err := fmt.Errorf("fields parameter is required for create_record")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 	fieldsMap, ok := fieldsRaw.(map[string]interface{})
 	if !ok {
 		err := fmt.Errorf("fields must be a JSON object, got %T", fieldsRaw)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 
 	record, err := client.Bitable().CreateRecord(ctx, appToken, tableID, fieldsMap)
@@ -170,12 +170,12 @@ func (t *larkBitableManage) updateRecord(ctx context.Context, client *larkapi.Cl
 	fieldsRaw, ok := call.Arguments["fields"]
 	if !ok || fieldsRaw == nil {
 		err := fmt.Errorf("fields parameter is required for update_record")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 	fieldsMap, ok := fieldsRaw.(map[string]interface{})
 	if !ok {
 		err := fmt.Errorf("fields must be a JSON object, got %T", fieldsRaw)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 
 	_, err := client.Bitable().UpdateRecord(ctx, appToken, tableID, recordID, fieldsMap)

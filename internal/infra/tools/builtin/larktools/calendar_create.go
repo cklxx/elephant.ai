@@ -91,7 +91,7 @@ func (t *larkCalendarCreate) Execute(ctx context.Context, call ports.ToolCall) (
 	}
 	if endUnix <= startUnix {
 		err := fmt.Errorf("end_time must be greater than start_time")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 
 	description := shared.StringArg(call.Arguments, "description")

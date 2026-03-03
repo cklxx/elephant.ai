@@ -121,7 +121,7 @@ func (t *replyAgent) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		OptionID:  optionID,
 		Text:      message,
 	}); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 
 	return &ports.ToolResult{

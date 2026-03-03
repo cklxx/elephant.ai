@@ -34,7 +34,7 @@ func (t *larkContactManage) Execute(ctx context.Context, call ports.ToolCall) (*
 		return t.listDepartments(ctx, client, call)
 	default:
 		err := fmt.Errorf("unsupported contact action: %s", action)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 }
 
@@ -46,7 +46,7 @@ func (t *larkContactManage) getUser(ctx context.Context, client *larkapi.Client,
 	}
 	if userID == "" {
 		err := fmt.Errorf("user_id is required (provide it explicitly or send from a Lark chat)")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 	userIDType := shared.StringArg(call.Arguments, "user_id_type")
 

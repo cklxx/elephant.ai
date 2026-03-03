@@ -31,7 +31,7 @@ func (t *larkMailManage) Execute(ctx context.Context, call ports.ToolCall) (*por
 		return t.createMailgroup(ctx, client, call)
 	default:
 		err := fmt.Errorf("unsupported mail action: %s", action)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 }
 

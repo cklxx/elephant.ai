@@ -84,7 +84,7 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		name = strings.TrimSpace(name)
 		if name == "" {
 			err := errors.New("name is required for action=show")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "%v", err)
 		}
 
 		skill, ok := library.Get(name)
@@ -141,7 +141,7 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		query = strings.TrimSpace(query)
 		if query == "" {
 			err := errors.New("query is required for action=search")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "%v", err)
 		}
 
 		matches := searchSkills(library, query, 10)
@@ -185,7 +185,7 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 
 	default:
 		err := fmt.Errorf("unsupported action %q (expected list|show|search)", action)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 }
 

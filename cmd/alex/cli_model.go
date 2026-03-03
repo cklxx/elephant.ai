@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"alex/internal/app/subscription"
+	"alex/internal/infra/httpclient"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/utils"
 )
@@ -22,7 +23,7 @@ func executeModelCommand(args []string, out io.Writer) error {
 
 	switch subcommand {
 	case "", "list", "ls":
-		client := &http.Client{Timeout: 20 * time.Second}
+		client := httpclient.New(20*time.Second, nil)
 		return listModelsFromWith(out, runtimeconfig.LoadCLICredentials(), client,
 			func(context.Context) (subscription.LlamaServerTarget, bool) {
 				return resolveLlamaServerTarget()
@@ -54,7 +55,7 @@ func listModelsFromWith(
 	defer cancel()
 
 	if client == nil {
-		client = &http.Client{Timeout: 20 * time.Second}
+		client = httpclient.New(20*time.Second, nil)
 	}
 	opts := []subscription.CatalogOption{}
 	if llamaResolver != nil {

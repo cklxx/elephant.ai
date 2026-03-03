@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"alex/internal/infra/httpclient"
 )
 
 // DatasetLoaderImpl implements the DatasetLoader interface
@@ -31,7 +33,7 @@ func NewDatasetLoader() *DatasetLoaderImpl {
 	}
 
 	return &DatasetLoaderImpl{
-		client:   &http.Client{Timeout: 30 * time.Minute},
+		client:   httpclient.New(30*time.Minute, nil),
 		cacheDir: cacheDir,
 		downloadURLs: map[string]string{
 			// SWE-bench Lite (300 instances) - Hugging Face API

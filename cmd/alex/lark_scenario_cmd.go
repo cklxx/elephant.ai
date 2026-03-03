@@ -14,10 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	larkgw "alex/internal/delivery/channels/lark"
 	larktesting "alex/internal/delivery/channels/lark/testing"
+	"alex/internal/infra/httpclient"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -166,7 +167,7 @@ func runLarkScenarioRun(args []string) error {
 		opts := larkScenarioHTTPRunOptions{
 			endpoint:       endpoint,
 			timeoutSeconds: maxInt(*timeout, defaultLarkInjectTimeoutSeconds),
-			httpClient:     &http.Client{Timeout: clientTimeout},
+			httpClient:     httpclient.New(clientTimeout, nil),
 		}
 		results = runHTTPScenarios(ctx, filtered, *failFast, opts)
 	default:
@@ -259,7 +260,7 @@ func runHTTPScenario(ctx context.Context, scenario *larktesting.Scenario, opts l
 	}
 
 	if opts.httpClient == nil {
-		opts.httpClient = &http.Client{Timeout: time.Duration(maxInt(opts.timeoutSeconds, defaultLarkInjectTimeoutSeconds)+30) * time.Second}
+		opts.httpClient = httpclient.New(time.Duration(maxInt(opts.timeoutSeconds, defaultLarkInjectTimeoutSeconds)+30)*time.Second, nil)
 	}
 	if utils.IsBlank(opts.endpoint) {
 		opts.endpoint = larkInjectEndpoint("", defaultLarkInjectPort)
@@ -368,7 +369,7 @@ func larkInjectEndpoint(baseURL, port string) string {
 
 func postLarkInject(ctx context.Context, httpClient *http.Client, endpoint string, reqBody larkInjectRequest) (*larkInjectHTTPResponse, error) {
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: time.Duration(defaultLarkInjectTimeoutSeconds+30) * time.Second}
+		httpClient = httpclient.New(time.Duration(defaultLarkInjectTimeoutSeconds+30)*time.Second, nil)
 	}
 
 	payload, err := json.Marshal(reqBody)
@@ -547,7 +548,7 @@ func runLarkInjectCommand(args []string) error {
 	}
 	fmt.Printf("Injecting message to Lark gateway (chat=%s, type=%s)...\n\n", displayChatID, reqBody.ChatType)
 
-	httpClient := &http.Client{Timeout: time.Duration(reqBody.TimeoutSeconds+30) * time.Second}
+	httpClient := httpclient.New(time.Duration(reqBody.TimeoutSeconds+30)*time.Second, nil)
 	resp, err := postLarkInject(context.Background(), httpClient, endpoint, reqBody)
 	if err != nil {
 		return &ExitCodeError{Code: 1, Err: err}

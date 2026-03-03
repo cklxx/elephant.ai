@@ -33,7 +33,7 @@ func (t *larkDriveManage) Execute(ctx context.Context, call ports.ToolCall) (*po
 		return t.deleteFile(ctx, client, call)
 	default:
 		err := fmt.Errorf("unsupported drive action: %s", action)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 }
 

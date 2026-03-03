@@ -123,8 +123,8 @@ type HTTPLimitsFileConfig struct {
 type ExternalAgentsFileConfig struct {
 	MaxParallelAgents *int                  `yaml:"max_parallel_agents"`
 	ClaudeCode        *ClaudeCodeFileConfig `yaml:"claude_code"`
-	Codex             *CodexFileConfig      `yaml:"codex"`
-	Kimi              *KimiFileConfig       `yaml:"kimi"`
+	Codex             *CLIAgentFileConfig   `yaml:"codex"`
+	Kimi              *CLIAgentFileConfig   `yaml:"kimi"`
 	Teams             []TeamFileConfig      `yaml:"teams"`
 }
 
@@ -142,7 +142,7 @@ type ClaudeCodeFileConfig struct {
 	Env                    map[string]string `yaml:"env"`
 }
 
-type CodexFileConfig struct {
+type CLIAgentFileConfig struct {
 	Enabled            *bool             `yaml:"enabled"`
 	Binary             string            `yaml:"binary"`
 	DefaultModel       string            `yaml:"default_model"`
@@ -155,18 +155,8 @@ type CodexFileConfig struct {
 	Env                map[string]string `yaml:"env"`
 }
 
-type KimiFileConfig struct {
-	Enabled            *bool             `yaml:"enabled"`
-	Binary             string            `yaml:"binary"`
-	DefaultModel       string            `yaml:"default_model"`
-	ApprovalPolicy     string            `yaml:"approval_policy"`
-	Sandbox            string            `yaml:"sandbox"`
-	PlanApprovalPolicy string            `yaml:"plan_approval_policy"`
-	PlanSandbox        string            `yaml:"plan_sandbox"`
-	Timeout            string            `yaml:"timeout"`
-	ResumeEnabled      *bool             `yaml:"resume_enabled"`
-	Env                map[string]string `yaml:"env"`
-}
+type CodexFileConfig = CLIAgentFileConfig
+type KimiFileConfig = CLIAgentFileConfig
 
 // TeamFileConfig mirrors TeamConfig for YAML decoding.
 type TeamFileConfig struct {

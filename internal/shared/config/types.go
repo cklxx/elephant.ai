@@ -134,8 +134,8 @@ type HTTPLimitsConfig struct {
 type ExternalAgentsConfig struct {
 	MaxParallelAgents int              `json:"max_parallel_agents" yaml:"max_parallel_agents"`
 	ClaudeCode        ClaudeCodeConfig `json:"claude_code" yaml:"claude_code"`
-	Codex             CodexConfig      `json:"codex" yaml:"codex"`
-	Kimi              KimiConfig       `json:"kimi" yaml:"kimi"`
+	Codex             CLIAgentConfig   `json:"codex" yaml:"codex"`
+	Kimi              CLIAgentConfig   `json:"kimi" yaml:"kimi"`
 	Teams             []TeamConfig     `json:"teams" yaml:"teams"`
 }
 
@@ -181,7 +181,7 @@ type ClaudeCodeConfig struct {
 	Env                    map[string]string `json:"env" yaml:"env"`
 }
 
-type CodexConfig struct {
+type CLIAgentConfig struct {
 	Enabled            bool              `json:"enabled" yaml:"enabled"`
 	Binary             string            `json:"binary" yaml:"binary"`
 	DefaultModel       string            `json:"default_model" yaml:"default_model"`
@@ -194,18 +194,8 @@ type CodexConfig struct {
 	Env                map[string]string `json:"env" yaml:"env"`
 }
 
-type KimiConfig struct {
-	Enabled            bool              `json:"enabled" yaml:"enabled"`
-	Binary             string            `json:"binary" yaml:"binary"`
-	DefaultModel       string            `json:"default_model" yaml:"default_model"`
-	ApprovalPolicy     string            `json:"approval_policy" yaml:"approval_policy"`
-	Sandbox            string            `json:"sandbox" yaml:"sandbox"`
-	PlanApprovalPolicy string            `json:"plan_approval_policy" yaml:"plan_approval_policy"`
-	PlanSandbox        string            `json:"plan_sandbox" yaml:"plan_sandbox"`
-	Timeout            time.Duration     `json:"timeout" yaml:"timeout"`
-	ResumeEnabled      bool              `json:"resume_enabled" yaml:"resume_enabled"`
-	Env                map[string]string `json:"env" yaml:"env"`
-}
+type CodexConfig = CLIAgentConfig
+type KimiConfig = CLIAgentConfig
 
 // DefaultExternalAgentsConfig provides baseline defaults for external agents.
 func DefaultExternalAgentsConfig() ExternalAgentsConfig {
@@ -229,7 +219,7 @@ func DefaultExternalAgentsConfig() ExternalAgentsConfig {
 			ResumeEnabled: true,
 			Env:           map[string]string{},
 		},
-		Codex: CodexConfig{
+		Codex: CLIAgentConfig{
 			Enabled:            false,
 			Binary:             "codex",
 			DefaultModel:       "gpt-5.2-codex",
@@ -241,7 +231,7 @@ func DefaultExternalAgentsConfig() ExternalAgentsConfig {
 			ResumeEnabled:      true,
 			Env:                map[string]string{},
 		},
-		Kimi: KimiConfig{
+		Kimi: CLIAgentConfig{
 			Enabled:            false,
 			Binary:             "kimi",
 			ApprovalPolicy:     "never",

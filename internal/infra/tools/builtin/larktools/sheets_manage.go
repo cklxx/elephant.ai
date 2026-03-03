@@ -31,7 +31,7 @@ func (t *larkSheetsManage) Execute(ctx context.Context, call ports.ToolCall) (*p
 		return t.listSheets(ctx, client, call)
 	default:
 		err := fmt.Errorf("unsupported sheets action: %s", action)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 }
 

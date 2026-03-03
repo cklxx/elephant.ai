@@ -32,7 +32,7 @@ func (t *larkOKRManage) Execute(ctx context.Context, call ports.ToolCall) (*port
 		return t.batchGetOKRs(ctx, client, call)
 	default:
 		err := fmt.Errorf("unsupported OKR action: %s", action)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 }
 
@@ -67,7 +67,7 @@ func (t *larkOKRManage) listUserOKRs(ctx context.Context, client *larkapi.Client
 	}
 	if userID == "" {
 		err := fmt.Errorf("user_id is required (provide it explicitly or send from a Lark chat)")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 	periodID := shared.StringArg(call.Arguments, "period_id")
 
@@ -102,7 +102,7 @@ func (t *larkOKRManage) batchGetOKRs(ctx context.Context, client *larkapi.Client
 	}
 	if len(okrIDs) == 0 {
 		err := fmt.Errorf("okr_ids parameter is required and must be a non-empty array")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 
 	okrs, err := client.OKR().BatchGetOKRs(ctx, okrIDs)

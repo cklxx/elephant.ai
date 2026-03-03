@@ -512,7 +512,7 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		return c.vc.Execute(ctx, c.subActionCall(call, "list_rooms"))
 	default:
 		err := fmt.Errorf("unsupported channel action: %s", action)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "%v", err)
 	}
 }
 

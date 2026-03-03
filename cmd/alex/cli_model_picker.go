@@ -5,15 +5,15 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	"alex/internal/app/subscription"
+	"alex/internal/infra/httpclient"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/utils"
 
 	"golang.org/x/term"
 )
@@ -49,7 +49,7 @@ func useModelPickerWith(
 }
 
 func loadSubscriptionCatalog(ctx context.Context, creds runtimeconfig.CLICredentials) subscription.Catalog {
-	client := &http.Client{Timeout: 20 * time.Second}
+	client := httpclient.New(20*time.Second, nil)
 	service := subscription.NewCatalogService(
 		func() runtimeconfig.CLICredentials { return creds },
 		client,
