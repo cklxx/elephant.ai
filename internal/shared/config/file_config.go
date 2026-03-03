@@ -388,6 +388,7 @@ type LarkChannelConfig struct {
 	ReactEmoji                  string                 `json:"react_emoji" yaml:"react_emoji"`
 	InjectionAckReactEmoji      string                 `json:"injection_ack_react_emoji" yaml:"injection_ack_react_emoji"`
 	ShowPlanClarifyMessages     *bool                  `json:"show_plan_clarify_messages" yaml:"show_plan_clarify_messages"`
+	ToolFailureAbortThreshold   *int                   `json:"tool_failure_abort_threshold" yaml:"tool_failure_abort_threshold"`
 	AutoChatContextSize         *int                   `json:"auto_chat_context_size" yaml:"auto_chat_context_size"`
 	PendingInputRelayTTLMinutes *int                   `json:"pending_input_relay_ttl_minutes" yaml:"pending_input_relay_ttl_minutes"`
 	PendingInputRelayMaxChats   *int                   `json:"pending_input_relay_max_chats" yaml:"pending_input_relay_max_chats"`

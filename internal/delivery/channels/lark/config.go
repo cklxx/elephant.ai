@@ -26,6 +26,7 @@ type Config struct {
 	SlowProgressSummaryEnabled    *bool  // Emit periodic progress summaries when foreground task exceeds delay. Default true.
 	SlowProgressSummaryDelay      time.Duration
 	ShowPlanClarifyMessages       bool  // Send plan/clarify tool outputs as chat messages. Default false.
+	ToolFailureAbortThreshold     int   // Abort foreground run after N consecutive tool failures. Default 6.
 	AutoChatContextSize           int   // Number of recent messages to fetch for auto chat context. Default 20.
 	BackgroundProgressEnabled     *bool // Push background task progress updates. Default true.
 	RephraseEnabled               *bool // LLM rephrase of background task results for readability. Default true.

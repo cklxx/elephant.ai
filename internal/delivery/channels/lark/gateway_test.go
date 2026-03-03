@@ -64,6 +64,17 @@ func TestNewGatewayDefaultsToolPreset(t *testing.T) {
 	}
 }
 
+func TestNewGatewayDefaultsToolFailureAbortThreshold(t *testing.T) {
+	cfg := Config{AppID: "cli_test", AppSecret: "secret"}
+	gw, err := NewGateway(cfg, &stubExecutor{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gw.cfg.ToolFailureAbortThreshold != 6 {
+		t.Fatalf("expected default tool failure abort threshold 6, got %d", gw.cfg.ToolFailureAbortThreshold)
+	}
+}
+
 func TestNewGatewayPreservesCustomPrefix(t *testing.T) {
 	cfg := Config{BaseConfig: channels.BaseConfig{SessionPrefix: "custom"}, AppID: "cli_test", AppSecret: "secret"}
 	gw, err := NewGateway(cfg, &stubExecutor{}, nil)

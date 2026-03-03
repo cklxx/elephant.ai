@@ -162,6 +162,7 @@ runtime:
   llm_provider: mock
 channels:
   lark:
+    tool_failure_abort_threshold: 5
     active_slot_ttl_minutes: 90
     active_slot_max_entries: 1200
     pending_input_relay_ttl_minutes: 25
@@ -181,6 +182,9 @@ channels:
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
 	lark := cr.Config.Channels.Lark
+	if lark.ToolFailureAbortThreshold != 5 {
+		t.Fatalf("expected tool failure abort threshold 5, got %d", lark.ToolFailureAbortThreshold)
+	}
 	if lark.ActiveSlotTTL != 90*time.Minute {
 		t.Fatalf("expected active slot ttl 90m, got %s", lark.ActiveSlotTTL)
 	}

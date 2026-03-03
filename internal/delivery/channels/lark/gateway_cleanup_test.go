@@ -1,8 +1,11 @@
 package lark
 
 import (
+	"strings"
 	"testing"
 	"time"
+
+	"alex/internal/shared/logging"
 )
 
 func TestGatewayPruneActiveSlots_RemovesExpiredAndCaps(t *testing.T) {
@@ -70,4 +73,54 @@ func TestGatewayPrunePendingInputRelays_RemovesExpiredAndCaps(t *testing.T) {
 	if chatCount != 1 {
 		t.Fatalf("expected pending relay chats capped to 1, got %d", chatCount)
 	}
+}
+
+func TestGatewayNotifyRunningTaskInterruptionsCancelsAndNotifies(t *testing.T) {
+	rec := NewRecordingMessenger()
+	canceled := make(chan struct{}, 1)
+	running := &sessionSlot{
+		phase:     slotRunning,
+		taskToken: 9,
+		taskCancel: func() {
+			select {
+			case canceled <- struct{}{}:
+			default:
+			}
+		},
+	}
+	idle := &sessionSlot{phase: slotIdle}
+	gw := &Gateway{
+		messenger: rec,
+		logger:    logging.OrNop(nil),
+	}
+	gw.activeSlots.Store("chat-running", running)
+	gw.activeSlots.Store("chat-idle", idle)
+
+	notified := gw.NotifyRunningTaskInterruptions("服务重启中断通知")
+	if notified != 1 {
+		t.Fatalf("expected one notified running chat, got %d", notified)
+	}
+	select {
+	case <-canceled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected running task to be cancelled")
+	}
+
+	calls := rec.CallsByMethod(MethodSendMessage)
+	if len(calls) != 1 {
+		t.Fatalf("expected one interruption message, got %#v", calls)
+	}
+	if calls[0].ChatID != "chat-running" {
+		t.Fatalf("expected interruption for chat-running, got %q", calls[0].ChatID)
+	}
+	text := extractTextContent(calls[0].Content, nil)
+	if !strings.Contains(text, "服务重启中断通知") {
+		t.Fatalf("expected custom interruption notice, got %q", text)
+	}
+	running.mu.Lock()
+	if running.intentionalCancelToken != running.taskToken {
+		running.mu.Unlock()
+		t.Fatalf("expected intentional cancel token=%d, got %d", running.taskToken, running.intentionalCancelToken)
+	}
+	running.mu.Unlock()
 }
