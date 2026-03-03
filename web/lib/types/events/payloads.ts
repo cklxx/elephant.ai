@@ -105,13 +105,6 @@ export interface WorkflowToolCompletedPayload {
   tool_sla?: ToolSLAPayload;
 }
 
-export interface WorkflowReplanRequestedPayload {
-  call_id?: string;
-  tool_name?: string;
-  reason?: string;
-  error?: string;
-}
-
 export interface WorkflowArtifactManifestPayload {
   manifest?: any;
   attachments?: Record<string, AttachmentPayload> | null;

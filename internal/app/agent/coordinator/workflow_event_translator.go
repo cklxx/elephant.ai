@@ -115,14 +115,6 @@ func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *doma
 	case types.EventToolCompleted:
 		return t.translateToolComplete(evt, d)
 
-	case types.EventReplanRequested:
-		return t.singleEnvelope(evt, types.EventReplanRequested, "orchestrator", "replan", map[string]any{
-			"call_id":   d.CallID,
-			"tool_name": d.ToolName,
-			"reason":    d.Reason,
-			"error":     d.ErrorStr,
-		})
-
 	case types.EventResultFinal:
 		return t.translateResultFinal(evt, d)
 
@@ -176,15 +168,15 @@ func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *doma
 
 	case types.EventBackgroundTaskCompleted:
 		return t.singleEnvelope(evt, types.EventBackgroundTaskCompleted, "background", d.TaskID, map[string]any{
-			"task_id":     d.TaskID,
-			"description": d.Description,
-			"status":      d.Status,
-			"answer":      d.Answer,
-			"error":       d.ErrorStr,
+			"task_id":      d.TaskID,
+			"description":  d.Description,
+			"status":       d.Status,
+			"answer":       d.Answer,
+			"error":        d.ErrorStr,
 			"merge_status": d.MergeStatus,
-			"duration":    d.Duration.Milliseconds(),
-			"iterations":  d.Iterations,
-			"tokens_used": d.TokensUsed,
+			"duration":     d.Duration.Milliseconds(),
+			"iterations":   d.Iterations,
+			"tokens_used":  d.TokensUsed,
 		})
 
 	case types.EventExternalAgentProgress:
@@ -520,4 +512,3 @@ func subflowNodeID(index int) string {
 	}
 	return fmt.Sprintf("subflow-%d", index)
 }
-

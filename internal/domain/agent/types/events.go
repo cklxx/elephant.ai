@@ -16,10 +16,9 @@ const (
 	EventNodeOutputSummary = "workflow.node.output.summary"
 
 	// Tool lifecycle
-	EventToolStarted     = "workflow.tool.started"
-	EventToolProgress    = "workflow.tool.progress"
-	EventToolCompleted   = "workflow.tool.completed"
-	EventReplanRequested = "workflow.replan.requested"
+	EventToolStarted   = "workflow.tool.started"
+	EventToolProgress  = "workflow.tool.progress"
+	EventToolCompleted = "workflow.tool.completed"
 
 	// Subflow (subtask delegation)
 	EventSubflowProgress  = "workflow.subflow.progress"
@@ -35,7 +34,7 @@ const (
 	EventDiagnosticContextCompression  = "workflow.diagnostic.context_compression"
 	EventDiagnosticContextSnapshot     = "workflow.diagnostic.context_snapshot"
 	EventDiagnosticEnvironmentSnapshot = "workflow.diagnostic.environment_snapshot"
-	EventDiagnosticToolFiltering        = "workflow.diagnostic.tool_filtering"
+	EventDiagnosticToolFiltering       = "workflow.diagnostic.tool_filtering"
 	EventDiagnosticContextCheckpoint   = "workflow.diagnostic.context_checkpoint"
 
 	// Artifact

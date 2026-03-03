@@ -332,34 +332,6 @@ func TestWorkflowEventTranslatorOmitsToolSLAWhenCollectorNotConfigured(t *testin
 	}
 }
 
-func TestWorkflowEventTranslatorEmitsReplanRequestedEnvelope(t *testing.T) {
-	sink := &recordingAgentListener{}
-	translator := wrapWithWorkflowEnvelope(sink, nil)
-
-	translator.OnEvent(domain.NewReplanRequestedEvent(
-		domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000004, 0)),
-		"call-789", "web_search", "orchestrator tool failure triggered replan injection", "boom",
-	))
-
-	events := sink.snapshot()
-	if got := len(events); got != 1 {
-		t.Fatalf("expected one workflow envelope, got %d", got)
-	}
-	env, ok := events[0].(*domain.WorkflowEventEnvelope)
-	if !ok {
-		t.Fatalf("expected workflow envelope, got %T", events[0])
-	}
-	if env.Event != types.EventReplanRequested {
-		t.Fatalf("unexpected event type %q", env.Event)
-	}
-	if env.NodeKind != "orchestrator" {
-		t.Fatalf("unexpected node kind %q", env.NodeKind)
-	}
-	if env.Payload["tool_name"] != "web_search" || env.Payload["error"] != "boom" {
-		t.Fatalf("unexpected payload %#v", env.Payload)
-	}
-}
-
 func TestWorkflowEventTranslatorEmitsDiagnosticNodeFailure(t *testing.T) {
 	sink := &recordingAgentListener{}
 	translator := wrapWithWorkflowEnvelope(sink, nil)

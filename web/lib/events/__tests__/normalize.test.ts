@@ -44,22 +44,6 @@ describe('normalizeAgentEvent', () => {
     expect(result.event.tool_name).toBe('web_search');
   });
 
-  it('accepts workflow.replan.requested events', () => {
-    const raw = {
-      event_type: 'workflow.replan.requested',
-      timestamp: '2024-01-02T00:00:00Z',
-      agent_level: 'core',
-      session_id: 'session-replan',
-      reason: 'orchestrator tool failure triggered replan injection',
-      error: 'boom',
-    };
-
-    const result = normalizeAgentEvent(raw);
-
-    expect(result.status).toBe('valid');
-    expect(result.event?.event_type).toBe('workflow.replan.requested');
-  });
-
   it('accepts workflow.tool.completed events with tool_sla payload', () => {
     const raw = {
       event_type: 'workflow.tool.completed',

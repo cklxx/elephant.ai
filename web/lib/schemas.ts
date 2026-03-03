@@ -208,14 +208,6 @@ const WorkflowToolCompletedEventSchema = BaseAgentEventSchema.extend({
   tool_sla: ToolSLAPayloadSchema.optional(),
 });
 
-const WorkflowReplanRequestedEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('workflow.replan.requested'),
-  call_id: z.string().optional(),
-  tool_name: z.string().optional(),
-  reason: z.string().optional(),
-  error: z.string().optional(),
-});
-
 const WorkflowArtifactManifestEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('workflow.artifact.manifest'),
   manifest: z.unknown().optional(),
@@ -326,7 +318,6 @@ const EventSchemas = [
   WorkflowToolStartedEventSchema,
   WorkflowToolProgressEventSchema,
   WorkflowToolCompletedEventSchema,
-  WorkflowReplanRequestedEventSchema,
   WorkflowArtifactManifestEventSchema,
   WorkflowResultFinalEventSchema,
   WorkflowResultCancelledEventSchema,

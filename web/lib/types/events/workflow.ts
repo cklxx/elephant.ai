@@ -14,7 +14,6 @@ import type {
   WorkflowToolStartedPayload,
   WorkflowToolProgressPayload,
   WorkflowToolCompletedPayload,
-  WorkflowReplanRequestedPayload,
   WorkflowArtifactManifestPayload,
   WorkflowResultFinalPayload,
   WorkflowResultCancelledPayload,
@@ -63,10 +62,6 @@ export type WorkflowToolProgressEvent = WorkflowEvent<
 export type WorkflowToolCompletedEvent = WorkflowEvent<
   WorkflowToolCompletedPayload,
   'workflow.tool.completed'
->;
-export type WorkflowReplanRequestedEvent = WorkflowEvent<
-  WorkflowReplanRequestedPayload,
-  'workflow.replan.requested'
 >;
 export type WorkflowArtifactManifestEvent = WorkflowEvent<
   WorkflowArtifactManifestPayload,
@@ -132,7 +127,6 @@ export type AnyAgentEvent =
   | WorkflowToolStartedEvent
   | WorkflowToolProgressEvent
   | WorkflowToolCompletedEvent
-  | WorkflowReplanRequestedEvent
   | WorkflowArtifactManifestEvent
   | WorkflowResultFinalEvent
   | WorkflowResultCancelledEvent

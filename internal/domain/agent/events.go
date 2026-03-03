@@ -456,20 +456,6 @@ func NewToolCompletedEvent(base BaseEvent, callID, toolName, result string, err 
 	}
 }
 
-// NewReplanRequestedEvent constructs a replan requested event.
-func NewReplanRequestedEvent(base BaseEvent, callID, toolName, reason, errMsg string) *Event {
-	return &Event{
-		BaseEvent: base,
-		Kind:      types.EventReplanRequested,
-		Data: EventData{
-			CallID:   callID,
-			ToolName: toolName,
-			Reason:   reason,
-			ErrorStr: errMsg,
-		},
-	}
-}
-
 // NewResultFinalEvent constructs a result final event.
 func NewResultFinalEvent(base BaseEvent, finalAnswer string, totalIterations, totalTokens int, stopReason string, duration time.Duration, isStreaming, streamFinished bool, attachments map[string]ports.Attachment) *Event {
 	return &Event{
