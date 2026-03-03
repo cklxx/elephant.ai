@@ -197,17 +197,17 @@ func renderTeamPrompt(template string, overrides map[string]string, roleName, te
 	if strings.TrimSpace(template) == "" {
 		return goal
 	}
-	result := template
-	result = strings.ReplaceAll(result, "{GOAL}", goal)
-	result = strings.ReplaceAll(result, "{ROLE}", roleName)
-	result = strings.ReplaceAll(result, "{TEAM}", teamName)
-	return result
+	return strings.NewReplacer(
+		"{GOAL}", goal,
+		"{ROLE}", roleName,
+		"{TEAM}", teamName,
+	).Replace(template)
 }
 
 // renderDebatePrompt builds the critical-analysis prompt for a debate challenger.
 func renderDebatePrompt(roleName, teamName, goal string) string {
 	var sb strings.Builder
-	sb.WriteString("[DEBATE MODE — Critical Analysis]\n\n")
+	sb.WriteString("[DEBATE MODE — Critical Analysis for team " + teamName + "]\n\n")
 	sb.WriteString("Your team independently analyzed: " + goal + "\n")
 	sb.WriteString("Their conclusions appear above (in the collaboration context).\n\n")
 	sb.WriteString("Your role as critic (" + roleName + "):\n")
@@ -216,7 +216,6 @@ func renderDebatePrompt(roleName, teamName, goal string) string {
 	sb.WriteString("3. Rate each conclusion's defensibility (low/medium/high) with one-line justification\n")
 	sb.WriteString("4. State which conclusion you find most credible after analysis, and why\n\n")
 	sb.WriteString("Be precise: reference specific claims, not vague criticism.\n")
-	_ = teamName
 	return sb.String()
 }
 

@@ -23,11 +23,14 @@ func (e *SubtaskEvent) EventType() string {
 }
 
 func (e *SubtaskEvent) Timestamp() time.Time {
+	if e.OriginalEvent == nil {
+		return time.Time{}
+	}
 	return e.OriginalEvent.Timestamp()
 }
 
 func (e *SubtaskEvent) GetAgentLevel() agent.AgentLevel {
-	if e == nil || e.OriginalEvent == nil {
+	if e.OriginalEvent == nil {
 		return agent.LevelSubagent
 	}
 	if level := e.OriginalEvent.GetAgentLevel(); level != "" && level != agent.LevelCore {
@@ -45,9 +48,6 @@ func (e *SubtaskEvent) GetEventID() string        { return e.OriginalEvent.GetEv
 func (e *SubtaskEvent) GetSeq() uint64            { return e.OriginalEvent.GetSeq() }
 
 func (e *SubtaskEvent) SubtaskDetails() agent.SubtaskMetadata {
-	if e == nil {
-		return agent.SubtaskMetadata{}
-	}
 	return agent.SubtaskMetadata{
 		Index:       e.SubtaskIndex,
 		Total:       e.TotalSubtasks,
@@ -57,15 +57,9 @@ func (e *SubtaskEvent) SubtaskDetails() agent.SubtaskMetadata {
 }
 
 func (e *SubtaskEvent) WrappedEvent() agent.AgentEvent {
-	if e == nil {
-		return nil
-	}
 	return e.OriginalEvent
 }
 
 func (e *SubtaskEvent) SetWrappedEvent(event agent.AgentEvent) {
-	if e == nil {
-		return
-	}
 	e.OriginalEvent = event
 }
