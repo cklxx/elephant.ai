@@ -195,13 +195,13 @@ func ToolError(callID string, format string, args ...any) (*ports.ToolResult, er
 func RequireStringArg(args map[string]any, callID, key string) (string, *ports.ToolResult) {
 	raw, ok := args[key].(string)
 	if !ok {
-		err := fmt.Errorf("missing '%s'", key)
-		return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		result, _ := ToolError(callID, "missing '%s'", key)
+		return "", result
 	}
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		err := fmt.Errorf("%s cannot be empty", key)
-		return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+		result, _ := ToolError(callID, "%s cannot be empty", key)
+		return "", result
 	}
 	return trimmed, nil
 }

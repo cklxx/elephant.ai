@@ -106,11 +106,7 @@ func (t *larkUploadFile) Execute(ctx context.Context, call ports.ToolCall) (*por
 
 	chatID := shared.LarkChatIDFromContext(ctx)
 	if chatID == "" {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "lark_upload_file: no chat_id available in context.",
-			Error:   fmt.Errorf("chat_id not available in context"),
-		}, nil
+		return missingChatIDResult(call.ID, "lark_upload_file"), nil
 	}
 
 	maxBytes := parseMaxBytes(call.Arguments)

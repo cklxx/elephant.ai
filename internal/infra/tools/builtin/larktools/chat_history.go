@@ -67,11 +67,7 @@ func (t *larkChatHistory) Execute(ctx context.Context, call ports.ToolCall) (*po
 
 	chatID := shared.LarkChatIDFromContext(ctx)
 	if chatID == "" {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "lark_chat_history: no chat_id available in context.",
-			Error:   fmt.Errorf("chat_id not available in context"),
-		}, nil
+		return missingChatIDResult(call.ID, "lark_chat_history"), nil
 	}
 
 	pageSize := clampPageSize(call.Arguments)

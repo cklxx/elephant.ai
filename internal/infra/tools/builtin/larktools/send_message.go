@@ -65,11 +65,7 @@ func (t *larkSendMessage) Execute(ctx context.Context, call ports.ToolCall) (*po
 
 	chatID := shared.LarkChatIDFromContext(ctx)
 	if chatID == "" {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "lark_send_message: no chat_id available in context.",
-			Error:   fmt.Errorf("chat_id not available in context"),
-		}, nil
+		return missingChatIDResult(call.ID, "lark_send_message"), nil
 	}
 
 	content, errResult := shared.RequireStringArg(call.Arguments, call.ID, "content")
@@ -186,8 +182,8 @@ func postPayload(markdown string) string {
 				// Bold text
 				boldText := strings.SplitN(part[7:], "__END__", 2)[0]
 				row = append(row, map[string]string{
-					"tag":  "text",
-					"text": boldText,
+					"tag":   "text",
+					"text":  boldText,
 					"style": "bold",
 				})
 				if rest := strings.SplitN(part, "__END__", 2); len(rest) > 1 {

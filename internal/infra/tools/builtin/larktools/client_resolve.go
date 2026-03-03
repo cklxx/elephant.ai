@@ -2,7 +2,6 @@ package larktools
 
 import (
 	"context"
-	"fmt"
 
 	"alex/internal/domain/agent/ports"
 	"alex/internal/infra/tools/builtin/shared"
@@ -15,19 +14,11 @@ import (
 func requireLarkClient(ctx context.Context, callID string) (*lark.Client, *ports.ToolResult) {
 	raw := shared.LarkClientFromContext(ctx)
 	if raw == nil {
-		return nil, &ports.ToolResult{
-			CallID:  callID,
-			Content: "This operation requires a Lark chat context.",
-			Error:   fmt.Errorf("lark client not available in context"),
-		}
+		return nil, larkToolErrorResult(callID, "This operation requires a Lark chat context.")
 	}
 	client, ok := raw.(*lark.Client)
 	if !ok {
-		return nil, &ports.ToolResult{
-			CallID:  callID,
-			Content: "Invalid lark client type in context.",
-			Error:   fmt.Errorf("invalid lark client type: %T", raw),
-		}
+		return nil, larkToolErrorResult(callID, "Invalid lark client type in context: %T", raw)
 	}
 	return client, nil
 }
