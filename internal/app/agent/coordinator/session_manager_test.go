@@ -81,6 +81,35 @@ func TestCloneSessionForSave_EmptyFieldsNil(t *testing.T) {
 	}
 }
 
+func TestFlushPendingSessionSave_NoPendingSnapshot(t *testing.T) {
+	store := &ensureSessionStore{sessions: map[string]*storage.Session{}}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+
+	coordinator.flushPendingSessionSave(context.Background())
+
+	if store.saveCalls != 0 {
+		t.Fatalf("expected no save call, got %d", store.saveCalls)
+	}
+}
+
+func TestFlushPendingSessionSave_DrainsAndClearsPendingSnapshot(t *testing.T) {
+	store := &ensureSessionStore{sessions: map[string]*storage.Session{}}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+
+	session := &storage.Session{ID: "s1"}
+	coordinator.pendingSessionSave.Store(session)
+
+	coordinator.flushPendingSessionSave(context.Background())
+	if store.saveCalls != 1 {
+		t.Fatalf("expected exactly one save, got %d", store.saveCalls)
+	}
+
+	coordinator.flushPendingSessionSave(context.Background())
+	if store.saveCalls != 1 {
+		t.Fatalf("expected no additional save after draining pending value, got %d", store.saveCalls)
+	}
+}
+
 // --- sanitizeAttachmentForPersistence ---
 
 func TestSanitizeAttachmentForPersistence_ClearsDataWhenURI(t *testing.T) {

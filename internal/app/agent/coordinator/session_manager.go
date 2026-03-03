@@ -187,11 +187,12 @@ func (c *AgentCoordinator) sessionSaveLoop(ctx context.Context) {
 }
 
 func (c *AgentCoordinator) flushPendingSessionSave(ctx context.Context) {
-	ptr := c.pendingSessionSave.Swap(nil)
-	if ptr == nil {
+	var empty *storage.Session
+	ptr := c.pendingSessionSave.Swap(empty)
+	saved, _ := ptr.(*storage.Session)
+	if saved == nil {
 		return
 	}
-	saved := ptr.(*storage.Session)
 
 	c.sessionSaveMu.Lock()
 	defer c.sessionSaveMu.Unlock()
