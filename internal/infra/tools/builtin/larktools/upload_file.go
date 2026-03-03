@@ -218,8 +218,7 @@ func uploadImage(ctx context.Context, callID string, client *lark.Client, reader
 		imageKey = strings.TrimSpace(*uploadResp.Data.ImageKey)
 	}
 	if imageKey == "" {
-		result, _ := shared.ToolError(callID, "lark upload image missing image_key")
-		return "", result
+		return "", toolErrorResult(callID, "lark upload image missing image_key")
 	}
 	return imageKey, nil
 }
@@ -271,18 +270,15 @@ func prepareUploadCandidate(ctx context.Context, callID string, args map[string]
 	source := strings.TrimSpace(shared.StringArg(args, "source"))
 	sourceKind := utils.TrimLower(shared.StringArg(args, "source_kind"))
 	if source == "" {
-		result, _ := shared.ToolError(callID, "source is required")
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "source is required")
 	}
 	if sourceKind != "path" && sourceKind != "attachment" {
-		result, _ := shared.ToolError(callID, "source_kind must be one of: path, attachment")
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "source_kind must be one of: path, attachment")
 	}
 
 	fileNameOverride := strings.TrimSpace(shared.StringArg(args, "file_name"))
 	if _, ok := args["file_name"]; ok && fileNameOverride == "" {
-		result, _ := shared.ToolError(callID, "file_name cannot be empty")
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "file_name cannot be empty")
 	}
 
 	if maxBytes <= 0 {
@@ -298,27 +294,22 @@ func prepareUploadCandidate(ctx context.Context, callID string, args map[string]
 func preparePathCandidate(ctx context.Context, callID, rawPath, fileNameOverride string, maxBytes int) (uploadCandidate, *ports.ToolResult) {
 	resolved, err := pathutil.ResolveLocalPathOrTemp(ctx, rawPath)
 	if err != nil {
-		result, _ := shared.ToolError(callID, "%s: %w", rawPath, err)
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "%s: %w", rawPath, err)
 	}
 	info, err := os.Stat(resolved)
 	if err != nil {
-		result, _ := shared.ToolError(callID, "%s: %w", rawPath, err)
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "%s: %w", rawPath, err)
 	}
 	if info.IsDir() {
-		result, _ := shared.ToolError(callID, "%s: path is a directory", rawPath)
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "%s: path is a directory", rawPath)
 	}
 	if maxBytes > 0 && info.Size() > int64(maxBytes) {
-		result, _ := shared.ToolError(callID, "%s: exceeds max size %d bytes", rawPath, maxBytes)
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "%s: exceeds max size %d bytes", rawPath, maxBytes)
 	}
 
 	file, err := os.Open(resolved)
 	if err != nil {
-		result, _ := shared.ToolError(callID, "%s: %w", rawPath, err)
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "%s: %w", rawPath, err)
 	}
 
 	fileName := strings.TrimSpace(fileNameOverride)
@@ -328,8 +319,7 @@ func preparePathCandidate(ctx context.Context, callID, rawPath, fileNameOverride
 	fileName = strings.TrimSpace(filepath.Base(fileName))
 	if fileName == "" {
 		_ = file.Close()
-		result, _ := shared.ToolError(callID, "%s: file name missing", rawPath)
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "%s: file name missing", rawPath)
 	}
 
 	meta := map[string]any{
@@ -357,12 +347,10 @@ func prepareAttachmentCandidate(ctx context.Context, callID, attachmentName, fil
 	}
 	payload, _, err := artifacts.ResolveAttachmentBytes(ctx, ref, client)
 	if err != nil {
-		result, _ := shared.ToolError(callID, "%s: %w", attachmentName, err)
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "%s: %w", attachmentName, err)
 	}
 	if maxBytes > 0 && len(payload) > maxBytes {
-		result, _ := shared.ToolError(callID, "%s: exceeds max size %d bytes", attachmentName, maxBytes)
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "%s: exceeds max size %d bytes", attachmentName, maxBytes)
 	}
 
 	fileName := strings.TrimSpace(fileNameOverride)
@@ -371,8 +359,7 @@ func prepareAttachmentCandidate(ctx context.Context, callID, attachmentName, fil
 	}
 	fileName = strings.TrimSpace(filepath.Base(fileName))
 	if fileName == "" {
-		result, _ := shared.ToolError(callID, "%s: file name missing", attachmentName)
-		return uploadCandidate{}, result
+		return uploadCandidate{}, toolErrorResult(callID, "%s: file name missing", attachmentName)
 	}
 
 	meta := map[string]any{

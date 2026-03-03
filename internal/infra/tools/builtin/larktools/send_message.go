@@ -78,7 +78,7 @@ func (t *larkSendMessage) Execute(ctx context.Context, call ports.ToolCall) (*po
 	if format == "" {
 		format = "text"
 	}
-	format = strings.ToLower(format)
+	format = utils.TrimLower(format)
 
 	rawReplyToID := strings.TrimSpace(shared.LarkMessageIDFromContext(ctx))
 	replyToID := rawReplyToID

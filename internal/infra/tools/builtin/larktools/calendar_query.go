@@ -240,13 +240,11 @@ func clampCalendarPageSize(args map[string]any) int {
 
 func requireUnixSeconds(args map[string]any, callID, key string) (string, int64, *ports.ToolResult) {
 	if args == nil {
-		result, _ := shared.ToolError(callID, "missing '%s'", key)
-		return "", 0, result
+		return "", 0, toolErrorResult(callID, "missing '%s'", key)
 	}
 	raw, ok := args[key]
 	if !ok {
-		result, _ := shared.ToolError(callID, "missing '%s'", key)
-		return "", 0, result
+		return "", 0, toolErrorResult(callID, "missing '%s'", key)
 	}
 	return parseUnixSecondsValue(callID, key, raw)
 }
@@ -262,8 +260,7 @@ func parseUnixSecondsValue(callID, key string, raw any) (string, int64, *ports.T
 		}
 		val, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
-			result, _ := shared.ToolError(callID, "%s must be a unix seconds timestamp", key)
-			return "", 0, result
+			return "", 0, toolErrorResult(callID, "%s must be a unix seconds timestamp", key)
 		}
 		parsed = val
 	case float64:
@@ -276,12 +273,10 @@ func parseUnixSecondsValue(callID, key string, raw any) (string, int64, *ports.T
 		parsed = v
 		value = fmt.Sprintf("%d", parsed)
 	default:
-		result, _ := shared.ToolError(callID, "%s must be a unix seconds timestamp", key)
-		return "", 0, result
+		return "", 0, toolErrorResult(callID, "%s must be a unix seconds timestamp", key)
 	}
 	if value == "" {
-		result, _ := shared.ToolError(callID, "%s cannot be empty", key)
-		return "", 0, result
+		return "", 0, toolErrorResult(callID, "%s cannot be empty", key)
 	}
 	return value, parsed, nil
 }
