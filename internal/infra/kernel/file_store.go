@@ -482,5 +482,58 @@ func (s *FileStore) RecoverStaleRunning(ctx context.Context, kernelID string) (i
 	return recovered, nil
 }
 
+// RecoverStalePending cancels dispatches stuck in "pending" longer than
+// leaseDuration. This handles the case where a cycle crash or timeout caused
+// EnqueueDispatches to succeed but ClaimDispatches to never run, leaving
+// dispatches that will never be executed. Such orphans accumulate unboundedly
+// and cause O(n) scan growth in ClaimDispatches.
+func (s *FileStore) RecoverStalePending(ctx context.Context, kernelID string) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	now := s.now()
+	cutoff := now.Add(-s.leaseDuration)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var recovered int
+	for id, d := range s.dispatches {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		if d.KernelID != kernelID {
+			continue
+		}
+		if d.Status != kernel.DispatchPending {
+			continue
+		}
+		if d.UpdatedAt.After(cutoff) {
+			continue
+		}
+		d.Status = kernel.DispatchCancelled
+		d.Error = fmt.Sprintf("recovered: stale pending since %s (lease=%s)", d.UpdatedAt.Format("2006-01-02T15:04:05Z"), s.leaseDuration)
+		d.UpdatedAt = now
+		s.dispatches[id] = d
+		recovered++
+	}
+	if recovered > 0 {
+		// Prune any expired terminal records, then persist the full state
+		// (including the newly-cancelled dispatches) in one atomic write.
+		// We call persistLocked unconditionally after prune because pruneLocked
+		// only writes to disk when it removes at least one record — the cancelled
+		// dispatches may not yet be old enough to prune, but must still be durably
+		// written to prevent orphan accumulation across restarts.
+		if _, err := s.pruneLocked(ctx, now, false); err != nil {
+			return 0, fmt.Errorf("prune after stale pending recovery: %w", err)
+		}
+		if err := s.persistLocked(); err != nil {
+			return 0, fmt.Errorf("persist after stale pending recovery: %w", err)
+		}
+	}
+	return recovered, nil
+}
+
 // Compile-time interface check.
 var _ kernel.Store = (*FileStore)(nil)

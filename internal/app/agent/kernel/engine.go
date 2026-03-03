@@ -68,6 +68,10 @@ type staleDispatchRecoverer interface {
 	RecoverStaleRunning(ctx context.Context, kernelID string) (int, error)
 }
 
+type stalePendingRecoverer interface {
+	RecoverStalePending(ctx context.Context, kernelID string) (int, error)
+}
+
 // SetNotifier registers an optional callback invoked after each non-empty cycle.
 func (e *Engine) SetNotifier(fn func(ctx context.Context, result *kerneldomain.CycleResult, err error)) {
 	e.notifier = fn
@@ -146,6 +150,18 @@ func (e *Engine) RunCycle(ctx context.Context) (result *kerneldomain.CycleResult
 			e.logger.Warn("Kernel: recover stale dispatches failed: %v", recoverErr)
 		} else if recovered > 0 {
 			e.logger.Warn("Kernel: recovered %d stale running dispatch(es)", recovered)
+		}
+	}
+
+	// 2b. Recover stale pending dispatches — enqueued but never claimed (e.g.
+	// executor crashed before ClaimDispatches ran). Cancel them so they do not
+	// accumulate indefinitely in dispatches.json.
+	if recoverer, ok := e.store.(stalePendingRecoverer); ok {
+		recovered, recoverErr := recoverer.RecoverStalePending(ctx, e.config.KernelID)
+		if recoverErr != nil {
+			e.logger.Warn("Kernel: recover stale pending dispatches failed: %v", recoverErr)
+		} else if recovered > 0 {
+			e.logger.Warn("Kernel: cancelled %d stale pending dispatch(es)", recovered)
 		}
 	}
 
