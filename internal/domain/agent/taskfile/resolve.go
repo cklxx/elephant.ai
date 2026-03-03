@@ -140,6 +140,7 @@ func applyCodingDefaults(t *TaskSpec) {
 			t.WorkspaceMode = string(agent.WorkspaceModeShared)
 		}
 	}
+	t.Config["workspace_mode"] = t.WorkspaceMode
 }
 
 // SpecToDispatchRequest converts a resolved TaskSpec into a BackgroundDispatchRequest.
