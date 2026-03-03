@@ -247,3 +247,9 @@ No ranking algorithm needed — filenames are date-sorted; just read the most re
 - Prefer subagents for parallelizable tasks.
 - Understand full context of changes before reviewing; respect architectural decisions over personal preferences.
 - **Self-correction rule:** Upon receiving ANY correction from the user, immediately write a preventive rule for yourself (in `docs/guides/`, `docs/error-experience/entries/`, or the relevant best-practice doc) to prevent the same class of mistake from recurring. Do not wait — codify the lesson before resuming work.
+- **User-pattern learning & auto-continue rule:**
+  1. **Record**: Save notable user decisions, preferences, and interaction patterns to `docs/memory/user-patterns.md` (e.g., "user always picks option A when asked X", "user says 'continue' after lint passes").
+  2. **Analyze**: Before asking the user a question or pausing at a task boundary, review accumulated patterns to determine if the answer is predictable.
+  3. **Auto-continue**: If prior patterns indicate a high-confidence answer (same decision made ≥2 times in similar context), skip the question and proceed automatically. State what was auto-decided and why in a brief inline note (e.g., "[auto: chose X based on prior pattern]").
+  4. **Still ask when**: The decision is genuinely ambiguous, involves irreversible/destructive actions, or no matching pattern exists. Safety gates and approval gates are never bypassed.
+  5. **At task end**: Check if the next logical step is obvious from context + patterns. If so, continue into it instead of stopping to ask. Announce what you're doing.
