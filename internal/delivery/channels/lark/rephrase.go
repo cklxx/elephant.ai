@@ -18,12 +18,13 @@ const (
 
 const rephraseBackgroundSystemPrompt = `把后台任务完成结果改写为简洁自然的中文消息。
 去掉 task_id、status、merge 等技术字段，保留关键结论、具体成果、耗时。
-2-5 句话，不要使用 markdown 格式。`
+2-5 句话，用 **加粗** 标注关键结论。`
 
 const rephraseForegroundSystemPrompt = `把 AI 回答改写为更简洁易读的版本。
 结构：结论/结果在第一句，关键上下文在后，细节只保留必要的。
 保留所有关键信息和文件路径，去除冗余推理过程和重复陈述。
-不要使用 markdown 格式（如 **加粗**、## 标题、- 列表、` + "`" + `代码` + "`" + `、[链接](url)），输出纯文本。`
+使用 markdown 格式增强可读性：**加粗**关键结论、用列表整理要点、` + "`" + `代码` + "`" + `标注路径和命令。
+不要使用标题（## ）。`
 
 // sanitizeErrorForUser strips Go error-chain prefixes, extracts the LLM
 // provider/model tag when present, and maps known technical error patterns to

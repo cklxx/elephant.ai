@@ -860,12 +860,11 @@ func (g *Gateway) updateMessage(ctx context.Context, messageID, msgType, content
 }
 
 // addReaction adds an emoji reaction to the specified message and returns the reaction ID.
+// Synthetic (inject_*) message IDs are handled transparently by the injectCaptureHub
+// messenger wrapper, which records the call without hitting the real Lark API.
 func (g *Gateway) addReaction(ctx context.Context, messageID, emojiType string) string {
 	if g.messenger == nil || messageID == "" || emojiType == "" {
 		g.logger.Warn("Lark add reaction skipped: messenger=%v messageID=%q emojiType=%q", g.messenger != nil, messageID, emojiType)
-		return ""
-	}
-	if isInjectSyntheticMessageID(messageID) {
 		return ""
 	}
 	reactionID, err := g.messenger.AddReaction(ctx, messageID, emojiType)
@@ -879,9 +878,6 @@ func (g *Gateway) addReaction(ctx context.Context, messageID, emojiType string) 
 // deleteReaction removes an emoji reaction from the specified message.
 func (g *Gateway) deleteReaction(ctx context.Context, messageID, reactionID string) {
 	if g.messenger == nil || messageID == "" || reactionID == "" {
-		return
-	}
-	if isInjectSyntheticMessageID(messageID) {
 		return
 	}
 	if err := g.messenger.DeleteReaction(ctx, messageID, reactionID); err != nil {

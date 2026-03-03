@@ -17,9 +17,9 @@ func TestHasMarkdownPatterns(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "single pattern not enough",
+			name: "single bold pattern triggers post",
 			text: "这是 **加粗** 的文字",
-			want: false,
+			want: true,
 		},
 		{
 			name: "bold and heading",

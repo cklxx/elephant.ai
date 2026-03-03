@@ -30,17 +30,13 @@ var (
 	mdInlineCode     = regexp.MustCompile("`[^`]+`")
 )
 
-// hasMarkdownPatterns returns true if text contains 2+ distinct Markdown patterns,
-// suggesting the LLM ignored the plain-text formatting instruction.
+// hasMarkdownPatterns returns true if text contains any Markdown patterns
+// that benefit from rich text rendering.
 func hasMarkdownPatterns(text string) bool {
 	patterns := []*regexp.Regexp{mdBoldPattern, mdHeadingPattern, mdLinkPattern, mdCodeFence, mdInlineCode}
-	count := 0
 	for _, p := range patterns {
 		if p.MatchString(text) {
-			count++
-			if count >= 2 {
-				return true
-			}
+			return true
 		}
 	}
 	return false
