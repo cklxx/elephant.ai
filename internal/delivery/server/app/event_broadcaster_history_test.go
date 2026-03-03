@@ -8,7 +8,10 @@ import (
 	"time"
 
 	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
+	"alex/internal/domain/workflow"
 )
 
 type stubSubtaskWrapper struct {
@@ -334,5 +337,145 @@ func TestEventBroadcasterSanitizesHugeWorkflowPayloadForHistory(t *testing.T) {
 	}
 	if len(payloadPreview) > historyNodeOutputPreviewBytes+64 {
 		t.Fatalf("expected bounded payload.node preview, got len=%d", len(payloadPreview))
+	}
+}
+
+func TestEventBroadcasterSanitizesTypedWorkflowPayloadForHistory(t *testing.T) {
+	store := &capturingHistoryStore{}
+	broadcaster := NewEventBroadcaster(WithEventHistoryStore(store))
+
+	hugeOutput := strings.Repeat("x", historyMaxStringBytes*4)
+	envelope := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess-typed", "run-typed", "", time.Now()),
+		Version:   1,
+		Event:     "workflow.lifecycle.updated",
+		NodeKind:  "node",
+		Payload: map[string]any{
+			"workflow": &workflow.WorkflowSnapshot{
+				ID:    "run-typed",
+				Phase: workflow.PhaseRunning,
+				Order: []string{"tool:1"},
+				Nodes: []workflow.NodeSnapshot{
+					{
+						ID:     "tool:1",
+						Status: workflow.NodeStatusSucceeded,
+						Output: hugeOutput,
+					},
+				},
+			},
+			"node": &workflow.NodeSnapshot{
+				ID:     "tool:1",
+				Status: workflow.NodeStatusSucceeded,
+				Output: hugeOutput,
+			},
+		},
+	}
+
+	broadcaster.OnEvent(envelope)
+
+	got := store.lastEvent()
+	if got == nil {
+		t.Fatalf("expected sanitized typed workflow event to be stored")
+	}
+	storedEnvelope, ok := got.(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected WorkflowEventEnvelope, got %T", got)
+	}
+
+	workflowPayload, ok := storedEnvelope.Payload["workflow"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sanitized workflow payload map, got %T", storedEnvelope.Payload["workflow"])
+	}
+	if gotCount, ok := workflowPayload["nodes_count"].(int); !ok || gotCount != 1 {
+		t.Fatalf("expected workflow.nodes_count=1, got %v", workflowPayload["nodes_count"])
+	}
+	nodes, ok := workflowPayload["nodes"].([]any)
+	if !ok || len(nodes) != 1 {
+		t.Fatalf("expected one sanitized workflow node, got %T len=%d", workflowPayload["nodes"], len(nodes))
+	}
+	node, ok := nodes[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sanitized workflow node map, got %T", nodes[0])
+	}
+	preview, ok := node["output_preview"].(string)
+	if !ok || preview == "" {
+		t.Fatalf("expected output_preview on typed workflow node, got %v", node["output_preview"])
+	}
+	if len(preview) > historyNodeOutputPreviewBytes+64 {
+		t.Fatalf("expected bounded typed workflow node preview, got len=%d", len(preview))
+	}
+
+	payloadNode, ok := storedEnvelope.Payload["node"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sanitized payload.node map, got %T", storedEnvelope.Payload["node"])
+	}
+	payloadPreview, ok := payloadNode["output_preview"].(string)
+	if !ok || payloadPreview == "" {
+		t.Fatalf("expected output_preview in typed payload.node, got %v", payloadNode["output_preview"])
+	}
+	if len(payloadPreview) > historyNodeOutputPreviewBytes+64 {
+		t.Fatalf("expected bounded typed payload.node preview, got len=%d", len(payloadPreview))
+	}
+}
+
+func TestEventBroadcasterSanitizesDiagnosticContextSnapshotForHistory(t *testing.T) {
+	store := &capturingHistoryStore{}
+	broadcaster := NewEventBroadcaster(WithEventHistoryStore(store))
+
+	hugeContent := strings.Repeat("m", historyMaxStringBytes*3)
+	messages := make([]ports.Message, 0, historyMaxContextMessages+8)
+	for i := 0; i < historyMaxContextMessages+8; i++ {
+		messages = append(messages, ports.Message{
+			Role:    "user",
+			Content: hugeContent,
+			Thinking: ports.Thinking{
+				Parts: []ports.ThinkingPart{{Kind: "text", Text: "reasoning"}},
+			},
+			ToolCalls: []ports.ToolCall{{ID: "call-1", Name: "bash"}},
+			ToolResults: []ports.ToolResult{{
+				CallID:  "call-1",
+				Content: strings.Repeat("r", historyMaxStringBytes),
+			}},
+		})
+	}
+
+	event := domain.NewDiagnosticContextSnapshotEvent(
+		agent.LevelCore,
+		"sess-context",
+		"run-context",
+		"",
+		1,
+		1,
+		"request-"+strings.Repeat("x", historyMaxStringBytes),
+		messages,
+		messages,
+		time.Now(),
+	)
+
+	broadcaster.OnEvent(event)
+
+	got := store.lastEvent()
+	stored, ok := got.(*domain.Event)
+	if !ok {
+		t.Fatalf("expected domain.Event, got %T", got)
+	}
+	if stored.Kind != types.EventDiagnosticContextSnapshot {
+		t.Fatalf("expected context snapshot event kind, got %q", stored.Kind)
+	}
+	if len(stored.Data.Messages) != historyMaxContextMessages+1 {
+		t.Fatalf("expected capped messages with truncation marker, got %d", len(stored.Data.Messages))
+	}
+	first := stored.Data.Messages[0]
+	if len(first.Content) > historyMaxStringBytes+64 {
+		t.Fatalf("expected truncated message content, got len=%d", len(first.Content))
+	}
+	if len(first.ToolCalls) != 0 || len(first.ToolResults) != 0 {
+		t.Fatalf("expected heavy tool payloads to be dropped, got calls=%d results=%d", len(first.ToolCalls), len(first.ToolResults))
+	}
+	if first.Metadata["tool_calls_count"] != 1 {
+		t.Fatalf("expected tool call count marker, got %v", first.Metadata["tool_calls_count"])
+	}
+	if len(stored.Data.RequestID) > historyMaxStringBytes+64 {
+		t.Fatalf("expected truncated request id, got len=%d", len(stored.Data.RequestID))
 	}
 }

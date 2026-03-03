@@ -571,8 +571,9 @@ func sanitizeBaseEventForHistory(event agent.AgentEvent) agent.AgentEvent {
 		}
 		return &cloned
 	case *domain.Event:
-		// Pass through unified events (e.g., InputReceived, DiagnosticContextSnapshot).
-		return base
+		cloned := *e
+		cloned.Data = sanitizeDomainEventDataForHistory(e.Kind, e.Data)
+		return &cloned
 	default:
 		return base
 	}

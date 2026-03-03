@@ -25,3 +25,23 @@
 - [x] Hook config de-duplicated.
 - [x] Tests green.
 - [x] Final quantitative analysis delivered.
+
+## Phase 2 (Direct Optimization + Verification)
+### Additional Goals
+1. Eliminate the remaining giant history lines caused by typed `workflow.WorkflowSnapshot` / `workflow.NodeSnapshot` payloads bypassing map-based sanitization.
+2. Reduce repeated heavy persistence for context snapshot diagnostic events by capping and sanitizing message payloads.
+3. Add focused regression tests that reproduce the previous blow-up pattern and verify bounded persisted payload size.
+
+### Execution Plan
+1. Extend history sanitizer to handle typed workflow/node snapshots directly, producing bounded summaries instead of full node outputs.
+2. Sanitize persisted `domain.Event` payloads (especially `workflow.diagnostic.context_snapshot`) by truncating message text and dropping heavy nested fields.
+3. Add/expand tests in `event_broadcaster_history_test.go` to cover:
+   - typed workflow snapshot sanitization path
+   - diagnostic context snapshot sanitization path
+4. Run targeted package tests (`server/app`, `server`, `server/http`) to confirm behavior and prevent regressions.
+
+### Progress
+- [x] Typed workflow/node sanitizer path implemented.
+- [x] Domain diagnostic context snapshot sanitizer implemented.
+- [x] Regression tests added.
+- [x] Targeted tests green.
