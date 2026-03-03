@@ -552,3 +552,18 @@ Validation Snapshot (2026-03-03, wave G):
 - `go test ./...` passed.
 - `./scripts/run-golangci-lint.sh run --timeout=10m ./...` passed.
 - `python3 skills/code-review/run.py '{"action":"review"}'` executed (no blocking P0/P1 findings for this change set).
+
+### Wave H: Non-web Prepare/Context Injection Consistency (2026-03-03, rescan)
+
+| Task ID | Finding | Result |
+|---------|---------|--------|
+| CX-21 | Prepare ordering risk: context window build result overwritten by post-window history recall | [x] Completed: introduced history-seed phase before context-window build; when summary is needed, recall completes first and seeds `session.Messages`, then `BuildWindow` runs; removed post-window `state.Messages` override path. |
+| CX-22 | Date injection path check: ensure dynamic date is injected as runtime chunk (not static system prompt) | [x] Completed: added dedicated `Current date chunk` message in `BuildWindow` output, timezone-aware (`PromptTimezone`), and kept system prompt free of dynamic date lines. |
+
+Validation Snapshot (2026-03-03, wave H):
+
+- `go test ./internal/app/agent/preparation` passed.
+- `go test ./internal/app/context` passed.
+- `go test ./...` passed.
+- `./scripts/run-golangci-lint.sh run --timeout=10m ./...` passed.
+- `python3 skills/code-review/run.py '{"action":"review"}'` executed (no blocking P0/P1 findings for this change set).
