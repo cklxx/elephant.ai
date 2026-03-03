@@ -454,7 +454,7 @@ func shouldDropPersistedSystemPrompt(msg ports.Message) bool {
 	if utils.TrimLower(msg.Role) != "system" {
 		return false
 	}
-	return strings.TrimSpace(string(msg.Source)) == ""
+	return utils.IsBlank(string(msg.Source))
 }
 
 func stripUserHistoryMessages(messages []ports.Message) []ports.Message {

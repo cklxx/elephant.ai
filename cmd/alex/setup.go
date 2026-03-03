@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/utils"
 )
 
 func executeSetupCommandWith(
@@ -55,10 +56,10 @@ func executeSetupCommandWith(
 	provider = strings.TrimSpace(provider)
 	model = strings.TrimSpace(model)
 	apiKey = strings.TrimSpace(apiKey)
-	runtimeMode = strings.TrimSpace(strings.ToLower(runtimeMode))
+	runtimeMode = utils.TrimLower(runtimeMode)
 	larkAppID = strings.TrimSpace(larkAppID)
 	larkAppSecret = strings.TrimSpace(larkAppSecret)
-	persistenceMode = strings.TrimSpace(strings.ToLower(persistenceMode))
+	persistenceMode = utils.TrimLower(persistenceMode)
 	persistenceDir = strings.TrimSpace(persistenceDir)
 	allowOpenLinks := openLinks && isInteractiveTerminal(in, out)
 	if provider == "" && model != "" {

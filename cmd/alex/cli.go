@@ -891,7 +891,7 @@ func parseBool(value string, name string) (bool, error) {
 }
 
 func normalizeOverrideKey(key string) string {
-	trimmed := strings.TrimSpace(strings.ToLower(key))
+	trimmed := utils.TrimLower(key)
 	trimmed = strings.ReplaceAll(trimmed, "-", "_")
 	trimmed = strings.ReplaceAll(trimmed, " ", "_")
 	return trimmed

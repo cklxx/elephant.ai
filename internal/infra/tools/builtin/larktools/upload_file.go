@@ -124,7 +124,7 @@ func (t *larkUploadFile) Execute(ctx context.Context, call ports.ToolCall) (*por
 
 	replyToID := strings.TrimSpace(shared.LarkMessageIDFromContext(ctx))
 
-	msgType := ""
+	var msgType string
 	msgContent := ""
 	metadata := map[string]any{
 		"chat_id":   chatID,
@@ -463,17 +463,17 @@ func larkFileType(ext string) string {
 }
 
 func normalizeMimeType(mimeType string) string {
-	mimeType = strings.TrimSpace(strings.ToLower(mimeType))
+	mimeType = utils.TrimLower(mimeType)
 	if mimeType == "" {
 		return ""
 	}
 	if parsed, _, err := mime.ParseMediaType(mimeType); err == nil {
-		return strings.TrimSpace(strings.ToLower(parsed))
+		return utils.TrimLower(parsed)
 	}
 	if idx := strings.Index(mimeType, ";"); idx >= 0 {
 		mimeType = mimeType[:idx]
 	}
-	return strings.TrimSpace(strings.ToLower(mimeType))
+	return utils.TrimLower(mimeType)
 }
 
 func isAudioMimeType(mimeType string) bool {

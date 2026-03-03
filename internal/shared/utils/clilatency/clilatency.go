@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -14,7 +15,7 @@ func Enabled() bool {
 	if !ok {
 		return false
 	}
-	value = strings.TrimSpace(strings.ToLower(value))
+	value = utils.TrimLower(value)
 	return value == "" || value == "1" || value == "true" || value == "yes"
 }
 

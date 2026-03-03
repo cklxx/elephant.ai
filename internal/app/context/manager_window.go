@@ -160,7 +160,7 @@ func (m *manager) RecordTurn(ctx context.Context, record agent.ContextTurnRecord
 // Helper conversions -------------------------------------------------------
 
 func buildToolHints(mode string, preset string) []string {
-	mode = strings.TrimSpace(strings.ToLower(mode))
+	mode = utils.TrimLower(mode)
 	preset = strings.TrimSpace(preset)
 	if mode == "" && preset == "" {
 		return nil
@@ -214,7 +214,6 @@ func convertSnapshotToDynamic(snapshot sessionstate.Snapshot) agent.DynamicConte
 
 const historyTimelineLimit = 8
 const historyTimelineSummaryChars = 50
-
 
 func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) agent.MetaContext {
 	meta := agent.MetaContext{PersonaVersion: personaVersion}

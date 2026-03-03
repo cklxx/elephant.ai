@@ -905,7 +905,7 @@ func buildTop1ConflictClusterSection(rows []FoundationSuiteCollectionResult) str
 }
 
 func sanitizeCollectionID(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
+	value = utils.TrimLower(value)
 	if value == "" {
 		return "collection"
 	}
