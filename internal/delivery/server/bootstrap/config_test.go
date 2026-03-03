@@ -84,6 +84,18 @@ func TestLoadConfig_LarkPersistenceDefaults(t *testing.T) {
 	if cr.Config.Channels.Lark.PersistenceMaxTasksPerChat != 200 {
 		t.Fatalf("expected default max tasks per chat 200, got %d", cr.Config.Channels.Lark.PersistenceMaxTasksPerChat)
 	}
+	if cr.Config.Channels.Lark.DeliveryMode != "shadow" {
+		t.Fatalf("expected default delivery mode shadow, got %q", cr.Config.Channels.Lark.DeliveryMode)
+	}
+	if !cr.Config.Channels.Lark.DeliveryWorker.Enabled {
+		t.Fatalf("expected default delivery worker enabled")
+	}
+	if cr.Config.Channels.Lark.DeliveryWorker.PollInterval != 500*time.Millisecond {
+		t.Fatalf("expected default delivery poll interval 500ms, got %s", cr.Config.Channels.Lark.DeliveryWorker.PollInterval)
+	}
+	if cr.Config.Channels.Lark.DeliveryWorker.BatchSize != 50 {
+		t.Fatalf("expected default delivery batch size 50, got %d", cr.Config.Channels.Lark.DeliveryWorker.BatchSize)
+	}
 }
 
 func TestLoadConfig_InvalidLarkPersistenceMode(t *testing.T) {
@@ -189,6 +201,61 @@ channels:
 	}
 	if lark.StateCleanupInterval != 70*time.Second {
 		t.Fatalf("expected state cleanup interval 70s, got %s", lark.StateCleanupInterval)
+	}
+}
+
+func TestLoadConfig_LarkDeliveryOverrides(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+channels:
+  lark:
+    delivery:
+      mode: outbox
+      worker:
+        enabled: true
+        poll_interval_ms: 250
+        batch_size: 20
+        max_attempts: 5
+        base_backoff_ms: 200
+        max_backoff_ms: 5000
+        jitter_ratio: 0.4
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+
+	cr, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	lark := cr.Config.Channels.Lark
+	if lark.DeliveryMode != "outbox" {
+		t.Fatalf("expected delivery mode outbox, got %q", lark.DeliveryMode)
+	}
+	if !lark.DeliveryWorker.Enabled {
+		t.Fatalf("expected delivery worker enabled")
+	}
+	if lark.DeliveryWorker.PollInterval != 250*time.Millisecond {
+		t.Fatalf("expected delivery poll interval 250ms, got %s", lark.DeliveryWorker.PollInterval)
+	}
+	if lark.DeliveryWorker.BatchSize != 20 {
+		t.Fatalf("expected delivery batch size 20, got %d", lark.DeliveryWorker.BatchSize)
+	}
+	if lark.DeliveryWorker.MaxAttempts != 5 {
+		t.Fatalf("expected delivery max attempts 5, got %d", lark.DeliveryWorker.MaxAttempts)
+	}
+	if lark.DeliveryWorker.BaseBackoff != 200*time.Millisecond {
+		t.Fatalf("expected delivery base backoff 200ms, got %s", lark.DeliveryWorker.BaseBackoff)
+	}
+	if lark.DeliveryWorker.MaxBackoff != 5*time.Second {
+		t.Fatalf("expected delivery max backoff 5s, got %s", lark.DeliveryWorker.MaxBackoff)
+	}
+	if lark.DeliveryWorker.JitterRatio != 0.4 {
+		t.Fatalf("expected delivery jitter ratio 0.4, got %v", lark.DeliveryWorker.JitterRatio)
 	}
 }
 

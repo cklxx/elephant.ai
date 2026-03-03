@@ -131,6 +131,8 @@ type LarkGatewayConfig struct {
 	PersistenceMaxTasksPerChat    int
 	MaxConcurrentTasks            int
 	DefaultPlanMode               string
+	DeliveryMode                  string
+	DeliveryWorker                LarkDeliveryWorkerConfig
 }
 
 // LarkBrowserConfig captures local browser settings for Lark.
@@ -140,6 +142,17 @@ type LarkBrowserConfig struct {
 	Headless    bool
 	UserDataDir string
 	Timeout     time.Duration
+}
+
+// LarkDeliveryWorkerConfig captures outbox worker settings.
+type LarkDeliveryWorkerConfig struct {
+	Enabled      bool
+	PollInterval time.Duration
+	BatchSize    int
+	MaxAttempts  int
+	BaseBackoff  time.Duration
+	MaxBackoff   time.Duration
+	JitterRatio  float64
 }
 
 // HooksBridgeConfig controls the Claude Code hooks → Lark bridge endpoint.
@@ -277,6 +290,16 @@ func LoadConfig() (ConfigResult, error) {
 				PersistenceDir:              "~/.alex/lark",
 				PersistenceRetention:        7 * 24 * time.Hour,
 				PersistenceMaxTasksPerChat:  200,
+				DeliveryMode:                "shadow",
+				DeliveryWorker: LarkDeliveryWorkerConfig{
+					Enabled:      true,
+					PollInterval: 500 * time.Millisecond,
+					BatchSize:    50,
+					MaxAttempts:  8,
+					BaseBackoff:  500 * time.Millisecond,
+					MaxBackoff:   60 * time.Second,
+					JitterRatio:  0.2,
+				},
 			},
 			Telegram: TelegramGatewayConfig{
 				BaseConfig: channels.BaseConfig{
@@ -313,6 +336,9 @@ func LoadConfig() (ConfigResult, error) {
 	applyLarkEnvFallback(&cfg, envLookup)
 	applyTelegramEnvFallback(&cfg, envLookup)
 	if err := validateLarkPersistenceConfig(&cfg); err != nil {
+		return ConfigResult{}, err
+	}
+	if err := validateLarkDeliveryConfig(&cfg); err != nil {
 		return ConfigResult{}, err
 	}
 	if err := validateTelegramPersistenceConfig(&cfg); err != nil {
@@ -414,6 +440,7 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyPositiveDurationMinutes(&target.AIChatSessionTTL, larkCfg.AIChatSessionTTLMinutes)
 	applyPositiveDurationSeconds(&target.StateCleanupInterval, larkCfg.StateCleanupIntervalSeconds)
 	applyLarkPersistenceConfig(target, larkCfg.Persistence)
+	applyLarkDeliveryConfig(target, larkCfg.Delivery)
 	applyPositiveInt(&target.MaxConcurrentTasks, larkCfg.MaxConcurrentTasks)
 	applyOptionalTrimmedString(&target.DefaultPlanMode, larkCfg.DefaultPlanMode)
 }
@@ -437,6 +464,26 @@ func applyLarkPersistenceConfig(dst *LarkGatewayConfig, persistence *runtimeconf
 	applyTrimmedString(&dst.PersistenceDir, persistence.Dir)
 	applyPositiveDurationHours(&dst.PersistenceRetention, persistence.RetentionHours)
 	applyPositiveInt(&dst.PersistenceMaxTasksPerChat, persistence.MaxTasksPerChat)
+}
+
+func applyLarkDeliveryConfig(dst *LarkGatewayConfig, delivery *runtimeconfig.LarkDeliveryConfig) {
+	if dst == nil || delivery == nil {
+		return
+	}
+	applyTrimmedLowerString(&dst.DeliveryMode, delivery.Mode)
+	if delivery.Worker == nil {
+		return
+	}
+	worker := delivery.Worker
+	applyOptionalBool(&dst.DeliveryWorker.Enabled, worker.Enabled)
+	applyPositiveDurationMilliseconds(&dst.DeliveryWorker.PollInterval, worker.PollIntervalMs)
+	applyPositiveInt(&dst.DeliveryWorker.BatchSize, worker.BatchSize)
+	applyPositiveInt(&dst.DeliveryWorker.MaxAttempts, worker.MaxAttempts)
+	applyPositiveDurationMilliseconds(&dst.DeliveryWorker.BaseBackoff, worker.BaseBackoffMs)
+	applyPositiveDurationMilliseconds(&dst.DeliveryWorker.MaxBackoff, worker.MaxBackoffMs)
+	if worker.JitterRatio != nil && *worker.JitterRatio > 0 {
+		dst.DeliveryWorker.JitterRatio = *worker.JitterRatio
+	}
 }
 
 func applyTrimmedString(dst *string, value string) {
@@ -490,6 +537,12 @@ func applyPositiveDurationHours(dst *time.Duration, hours *int) {
 	}
 }
 
+func applyPositiveDurationMilliseconds(dst *time.Duration, ms *int) {
+	if ms != nil && *ms > 0 {
+		*dst = time.Duration(*ms) * time.Millisecond
+	}
+}
+
 func validateLarkPersistenceConfig(cfg *Config) error {
 	if cfg == nil {
 		return nil
@@ -517,6 +570,49 @@ func validateLarkPersistenceConfig(cfg *Config) error {
 	}
 	if cfg.Channels.Lark.PersistenceMaxTasksPerChat <= 0 {
 		cfg.Channels.Lark.PersistenceMaxTasksPerChat = 200
+	}
+	return nil
+}
+
+func validateLarkDeliveryConfig(cfg *Config) error {
+	if cfg == nil {
+		return nil
+	}
+	mode := strings.TrimSpace(strings.ToLower(cfg.Channels.Lark.DeliveryMode))
+	if mode == "" {
+		mode = "shadow"
+	}
+	switch mode {
+	case "direct", "shadow", "outbox":
+	default:
+		return fmt.Errorf("channels.lark.delivery.mode must be one of [direct,shadow,outbox], got %q", mode)
+	}
+	cfg.Channels.Lark.DeliveryMode = mode
+
+	worker := &cfg.Channels.Lark.DeliveryWorker
+	if worker.PollInterval <= 0 {
+		worker.PollInterval = 500 * time.Millisecond
+	}
+	if worker.BatchSize <= 0 {
+		worker.BatchSize = 50
+	}
+	if worker.MaxAttempts <= 0 {
+		worker.MaxAttempts = 8
+	}
+	if worker.BaseBackoff <= 0 {
+		worker.BaseBackoff = 500 * time.Millisecond
+	}
+	if worker.MaxBackoff <= 0 {
+		worker.MaxBackoff = 60 * time.Second
+	}
+	if worker.MaxBackoff < worker.BaseBackoff {
+		worker.MaxBackoff = worker.BaseBackoff
+	}
+	if worker.JitterRatio <= 0 {
+		worker.JitterRatio = 0.2
+	}
+	if worker.JitterRatio > 1 {
+		return fmt.Errorf("channels.lark.delivery.worker.jitter_ratio must be <= 1, got %v", worker.JitterRatio)
 	}
 	return nil
 }

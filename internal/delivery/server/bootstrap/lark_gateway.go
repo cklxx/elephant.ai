@@ -98,6 +98,16 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		PersistenceMaxTasksPerChat:    larkCfg.PersistenceMaxTasksPerChat,
 		MaxConcurrentTasks:            larkCfg.MaxConcurrentTasks,
 		DefaultPlanMode:               lark.PlanMode(larkCfg.DefaultPlanMode),
+		DeliveryMode:                  larkCfg.DeliveryMode,
+		DeliveryWorker: lark.DeliveryWorkerConfig{
+			Enabled:      larkCfg.DeliveryWorker.Enabled,
+			PollInterval: larkCfg.DeliveryWorker.PollInterval,
+			BatchSize:    larkCfg.DeliveryWorker.BatchSize,
+			MaxAttempts:  larkCfg.DeliveryWorker.MaxAttempts,
+			BaseBackoff:  larkCfg.DeliveryWorker.BaseBackoff,
+			MaxBackoff:   larkCfg.DeliveryWorker.MaxBackoff,
+			JitterRatio:  larkCfg.DeliveryWorker.JitterRatio,
+		},
 	}
 
 	// Hooks bridge endpoint lives on the debug HTTP server (DebugPort),
@@ -146,6 +156,17 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		chatSessionStore = store
 	}
 
+	var deliveryOutboxStore lark.DeliveryOutboxStore
+	if mode := utils.TrimLower(gatewayCfg.DeliveryMode); mode != "direct" {
+		outboxStore, outboxErr := buildLarkDeliveryOutboxStore(ctx, gatewayCfg)
+		if outboxErr != nil {
+			logger.Warn("Lark delivery outbox store init failed: %v", outboxErr)
+			gatewayCfg.DeliveryMode = "direct"
+		} else {
+			deliveryOutboxStore = outboxStore
+		}
+	}
+
 	gateway, err := lark.NewGateway(gatewayCfg, altCoord.AgentCoordinator, logger)
 	if err != nil {
 		_ = altCoord.Shutdown()
@@ -168,6 +189,9 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 	if chatSessionStore != nil {
 		gateway.SetChatSessionBindingStore(chatSessionStore)
+	}
+	if deliveryOutboxStore != nil {
+		gateway.SetDeliveryOutboxStore(deliveryOutboxStore)
 	}
 
 	if container.HasLLMFactory() {
@@ -261,6 +285,29 @@ func buildLarkTaskStore(ctx context.Context, cfg lark.Config) (lark.TaskStore, e
 		return store, nil
 	case larkPersistenceModeFile:
 		store, err := lark.NewTaskFileStore(cfg.PersistenceDir, cfg.PersistenceRetention, cfg.PersistenceMaxTasksPerChat)
+		if err != nil {
+			return nil, err
+		}
+		if err := store.EnsureSchema(ctx); err != nil {
+			return nil, err
+		}
+		return store, nil
+	default:
+		return nil, fmt.Errorf("unsupported lark persistence mode %q", cfg.PersistenceMode)
+	}
+}
+
+func buildLarkDeliveryOutboxStore(ctx context.Context, cfg lark.Config) (lark.DeliveryOutboxStore, error) {
+	mode := utils.TrimLower(cfg.PersistenceMode)
+	switch mode {
+	case larkPersistenceModeMemory:
+		store := lark.NewDeliveryOutboxMemoryStore()
+		if err := store.EnsureSchema(ctx); err != nil {
+			return nil, err
+		}
+		return store, nil
+	case larkPersistenceModeFile:
+		store, err := lark.NewDeliveryOutboxFileStore(cfg.PersistenceDir)
 		if err != nil {
 			return nil, err
 		}

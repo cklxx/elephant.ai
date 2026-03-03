@@ -75,35 +75,36 @@ type sessionSlot struct {
 // Gateway bridges Lark bot messages into the agent runtime.
 type Gateway struct {
 	channels.BaseGateway
-	cfg                Config
-	agent              AgentExecutor
-	logger             logging.Logger
-	client             *lark.Client
-	wsClient           *larkws.Client
-	messenger          LarkMessenger
-	eventListener      agent.EventListener
-	emojiPicker        *emojiPicker
-	dedupMu            sync.Mutex
-	dedupCache         *lru.Cache[string, time.Time]
-	now                func() time.Time
-	planReviewStore    PlanReviewStore
-	oauth              builtinshared.LarkOAuthService
-	llmSelections      *subscription.SelectionStore
-	llmResolver        *subscription.SelectionResolver
-	cliCredsLoader     func() runtimeconfig.CLICredentials
-	llamaResolver      func(context.Context) (subscription.LlamaServerTarget, bool)
-	llmFactory         portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
-	llmProfile         runtimeconfig.LLMProfile  // shared runtime LLM profile for auto-reply
-	taskStore          TaskStore
-	chatSessionStore   ChatSessionBindingStore
-	noticeState        *noticeStateStore
-	activeSlots        sync.Map           // chatID → *sessionSlot
-	pendingInputRelays sync.Map           // chatID → *pendingRelayQueue
-	aiCoordinator      *AIChatCoordinator // coordinates multi-bot chat sessions
-	taskWG             sync.WaitGroup     // tracks running task goroutines (for tests)
-	cleanupMu          sync.Mutex
-	cleanupCancel      context.CancelFunc
-	cleanupWG          sync.WaitGroup
+	cfg                 Config
+	agent               AgentExecutor
+	logger              logging.Logger
+	client              *lark.Client
+	wsClient            *larkws.Client
+	messenger           LarkMessenger
+	eventListener       agent.EventListener
+	emojiPicker         *emojiPicker
+	dedupMu             sync.Mutex
+	dedupCache          *lru.Cache[string, time.Time]
+	now                 func() time.Time
+	planReviewStore     PlanReviewStore
+	oauth               builtinshared.LarkOAuthService
+	llmSelections       *subscription.SelectionStore
+	llmResolver         *subscription.SelectionResolver
+	cliCredsLoader      func() runtimeconfig.CLICredentials
+	llamaResolver       func(context.Context) (subscription.LlamaServerTarget, bool)
+	llmFactory          portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
+	llmProfile          runtimeconfig.LLMProfile  // shared runtime LLM profile for auto-reply
+	taskStore           TaskStore
+	chatSessionStore    ChatSessionBindingStore
+	deliveryOutboxStore DeliveryOutboxStore
+	noticeState         *noticeStateStore
+	activeSlots         sync.Map           // chatID → *sessionSlot
+	pendingInputRelays  sync.Map           // chatID → *pendingRelayQueue
+	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
+	taskWG              sync.WaitGroup     // tracks running task goroutines (for tests)
+	cleanupMu           sync.Mutex
+	cleanupCancel       context.CancelFunc
+	cleanupWG           sync.WaitGroup
 }
 
 type awaitQuestionTracker struct {
@@ -181,6 +182,31 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if cfg.StateCleanupInterval <= 0 {
 		cfg.StateCleanupInterval = defaultStateCleanupEvery
 	}
+	cfg.DeliveryMode = string(normalizeDeliveryMode(cfg.DeliveryMode))
+	if cfg.DeliveryWorker.PollInterval <= 0 {
+		cfg.DeliveryWorker.PollInterval = defaultDeliveryWorkerPollInterval
+	}
+	if cfg.DeliveryWorker.BatchSize <= 0 {
+		cfg.DeliveryWorker.BatchSize = defaultDeliveryWorkerBatchSize
+	}
+	if cfg.DeliveryWorker.MaxAttempts <= 0 {
+		cfg.DeliveryWorker.MaxAttempts = defaultDeliveryWorkerMaxAttempts
+	}
+	if cfg.DeliveryWorker.BaseBackoff <= 0 {
+		cfg.DeliveryWorker.BaseBackoff = defaultDeliveryWorkerBaseBackoff
+	}
+	if cfg.DeliveryWorker.MaxBackoff <= 0 {
+		cfg.DeliveryWorker.MaxBackoff = defaultDeliveryWorkerMaxBackoff
+	}
+	if cfg.DeliveryWorker.MaxBackoff < cfg.DeliveryWorker.BaseBackoff {
+		cfg.DeliveryWorker.MaxBackoff = cfg.DeliveryWorker.BaseBackoff
+	}
+	if cfg.DeliveryWorker.JitterRatio <= 0 {
+		cfg.DeliveryWorker.JitterRatio = defaultDeliveryWorkerJitterRatio
+	}
+	if cfg.DeliveryWorker.JitterRatio > 1 {
+		cfg.DeliveryWorker.JitterRatio = 1
+	}
 	dedupCache, err := lru.New[string, time.Time](messageDedupCacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("lark message deduper init: %w", err)
@@ -241,6 +267,11 @@ func (g *Gateway) SetLLMFactory(factory portsllm.LLMClientFactory, profile runti
 // SetChatSessionBindingStore configures persistent chat->session bindings.
 func (g *Gateway) SetChatSessionBindingStore(store ChatSessionBindingStore) {
 	g.chatSessionStore = store
+}
+
+// SetDeliveryOutboxStore configures persistent terminal delivery intents.
+func (g *Gateway) SetDeliveryOutboxStore(store DeliveryOutboxStore) {
+	g.deliveryOutboxStore = store
 }
 
 // SendNotification sends a text notification to a Lark chat (no session/slot management).
@@ -341,6 +372,7 @@ func (g *Gateway) Start(ctx context.Context) error {
 		g.messenger = newSDKMessenger(g.client)
 	}
 	g.messenger = wrapInjectCaptureHub(g.messenger)
+	g.startDeliveryWorker(runCtx)
 
 	// Build the event dispatcher and register event handlers.
 	eventDispatcher := dispatcher.NewEventDispatcher("", "")

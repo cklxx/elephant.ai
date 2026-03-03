@@ -50,6 +50,8 @@ type Config struct {
 	TeamCompletionSummaryEnabled    *bool         // Send summary when all background tasks finish. Default true.
 	TeamCompletionSummaryLLMTimeout time.Duration // LLM timeout for team summary generation. Default 10s.
 	DefaultPlanMode                 PlanMode      // Global default plan mode strategy. Default "auto".
+	DeliveryMode                    string        // Terminal delivery strategy: direct|shadow|outbox.
+	DeliveryWorker                  DeliveryWorkerConfig
 	// AIChatBotIDs is a list of bot IDs that participate in coordinated multi-bot chats.
 	// When multiple bots from this list are mentioned in a group message, they will
 	// take turns responding instead of all responding simultaneously.
@@ -57,6 +59,26 @@ type Config struct {
 	// CCHooksAutoConfig enables automatic Claude Code hooks configuration
 	// (direct file write to .claude/settings.local.json) after /notice bind.
 	CCHooksAutoConfig *CCHooksAutoConfig
+}
+
+const (
+	defaultDeliveryWorkerPollInterval = 500 * time.Millisecond
+	defaultDeliveryWorkerBatchSize    = 50
+	defaultDeliveryWorkerMaxAttempts  = 8
+	defaultDeliveryWorkerBaseBackoff  = 500 * time.Millisecond
+	defaultDeliveryWorkerMaxBackoff   = 60 * time.Second
+	defaultDeliveryWorkerJitterRatio  = 0.2
+)
+
+// DeliveryWorkerConfig controls async outbox processing.
+type DeliveryWorkerConfig struct {
+	Enabled      bool
+	PollInterval time.Duration
+	BatchSize    int
+	MaxAttempts  int
+	BaseBackoff  time.Duration
+	MaxBackoff   time.Duration
+	JitterRatio  float64
 }
 
 // CCHooksAutoConfig holds parameters for automatic Claude Code hooks setup.

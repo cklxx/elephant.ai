@@ -394,6 +394,7 @@ type LarkChannelConfig struct {
 	PendingInputRelayMaxPerChat *int                   `json:"pending_input_relay_max_per_chat" yaml:"pending_input_relay_max_per_chat"`
 	AIChatSessionTTLMinutes     *int                   `json:"ai_chat_session_ttl_minutes" yaml:"ai_chat_session_ttl_minutes"`
 	Persistence                 *LarkPersistenceConfig `json:"persistence" yaml:"persistence"`
+	Delivery                    *LarkDeliveryConfig    `json:"delivery" yaml:"delivery"`
 	DefaultPlanMode             *string                `json:"default_plan_mode" yaml:"default_plan_mode"`
 	BaseChannelConfig           `json:",inline" yaml:",inline"`
 }
@@ -404,6 +405,23 @@ type LarkPersistenceConfig struct {
 	Dir             string `json:"dir" yaml:"dir"`
 	RetentionHours  *int   `json:"retention_hours" yaml:"retention_hours"`
 	MaxTasksPerChat *int   `json:"max_tasks_per_chat" yaml:"max_tasks_per_chat"`
+}
+
+// LarkDeliveryConfig captures Lark terminal delivery reliability settings.
+type LarkDeliveryConfig struct {
+	Mode   string                    `json:"mode" yaml:"mode"`
+	Worker *LarkDeliveryWorkerConfig `json:"worker" yaml:"worker"`
+}
+
+// LarkDeliveryWorkerConfig captures outbox worker settings.
+type LarkDeliveryWorkerConfig struct {
+	Enabled        *bool    `json:"enabled" yaml:"enabled"`
+	PollIntervalMs *int     `json:"poll_interval_ms" yaml:"poll_interval_ms"`
+	BatchSize      *int     `json:"batch_size" yaml:"batch_size"`
+	MaxAttempts    *int     `json:"max_attempts" yaml:"max_attempts"`
+	BaseBackoffMs  *int     `json:"base_backoff_ms" yaml:"base_backoff_ms"`
+	MaxBackoffMs   *int     `json:"max_backoff_ms" yaml:"max_backoff_ms"`
+	JitterRatio    *float64 `json:"jitter_ratio" yaml:"jitter_ratio"`
 }
 
 // LarkBrowserConfig captures local browser settings for the Lark channel.

@@ -10,6 +10,7 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/workdir"
 	"alex/internal/delivery/channels"
+	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	builtinshared "alex/internal/infra/tools/builtin/shared"
@@ -552,8 +553,6 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		g.logger.Info("Lark task cancelled intentionally: chat=%s msg=%s token=%d", msg.chatID, msg.messageID, taskToken)
 		return
 	}
-	dispatchCtx, cancelDispatch := detachedDispatchContext(execCtx)
-	defer cancelDispatch()
 
 	isAwait := execErr == nil && isResultAwaitingInput(result)
 	awaitPrompt, hasAwaitPrompt := agent.AwaitUserInputPrompt{}, false
@@ -611,21 +610,8 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	}
 
 	if !skipReply {
-		// When a progress message exists, edit it into the final reply
-		// so the user sees a single message that transitions from
-		// "在思考…" → final answer, rather than two separate messages.
-		edited := false
-		if progressMsgID != "" {
-			if err := g.updateMessage(dispatchCtx, progressMsgID, replyMsgType, replyContent); err != nil {
-				g.logger.Warn("Lark progress→reply edit failed, falling back to new message: %v", err)
-			} else {
-				edited = true
-			}
-		}
-		if !edited {
-			g.dispatch(dispatchCtx, msg.chatID, replyTarget(msg.messageID, true), replyMsgType, replyContent)
-		}
-		g.sendAttachments(dispatchCtx, msg.chatID, msg.messageID, result)
+		intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, progressMsgID, replyMsgType, replyContent)
+		g.dispatchTerminalIntent(execCtx, intent)
 	}
 }
 
@@ -635,6 +621,130 @@ func detachedDispatchContext(execCtx context.Context) (context.Context, context.
 		baseCtx = context.WithoutCancel(execCtx)
 	}
 	return context.WithTimeout(baseCtx, 15*time.Second)
+}
+
+func detachedStoreContext(execCtx context.Context) (context.Context, context.CancelFunc) {
+	baseCtx := context.Background()
+	if execCtx != nil {
+		baseCtx = context.WithoutCancel(execCtx)
+	}
+	return context.WithTimeout(baseCtx, 5*time.Second)
+}
+
+func (g *Gateway) buildTerminalDeliveryIntent(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, progressMsgID, msgType, content string) DeliveryIntent {
+	runID := ""
+	sessionID := ""
+	if result != nil {
+		runID = strings.TrimSpace(result.RunID)
+		sessionID = strings.TrimSpace(result.SessionID)
+	}
+	if runID == "" {
+		runID = strings.TrimSpace(id.RunIDFromContext(execCtx))
+	}
+	if sessionID == "" {
+		sessionID = strings.TrimSpace(id.SessionIDFromContext(execCtx))
+	}
+	eventType := "result_final"
+	switch {
+	case execErr != nil:
+		eventType = "result_failed"
+	case result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input"):
+		eventType = "result_await"
+	}
+
+	intent := DeliveryIntent{
+		Channel:           chatSessionBindingChannel,
+		ChatID:            strings.TrimSpace(msg.chatID),
+		ReplyToMessageID:  strings.TrimSpace(msg.messageID),
+		ProgressMessageID: strings.TrimSpace(progressMsgID),
+		SessionID:         sessionID,
+		RunID:             runID,
+		EventType:         eventType,
+		Sequence:          1,
+		MsgType:           msgType,
+		Content:           content,
+		Status:            DeliveryIntentPending,
+	}
+	if result != nil && len(result.Attachments) > 0 {
+		intent.Attachments = make(map[string]ports.Attachment, len(result.Attachments))
+		for name, att := range result.Attachments {
+			intent.Attachments[name] = att
+		}
+	}
+	intent.IdempotencyKey = buildTerminalDeliveryIdempotencyKey(intent)
+	return intent
+}
+
+func buildTerminalDeliveryIdempotencyKey(intent DeliveryIntent) string {
+	runKey := strings.TrimSpace(intent.RunID)
+	if runKey == "" {
+		runKey = strings.TrimSpace(intent.ReplyToMessageID)
+	}
+	if runKey == "" {
+		runKey = strings.TrimSpace(intent.SessionID)
+	}
+	if runKey == "" {
+		runKey = "unknown"
+	}
+	return fmt.Sprintf("lark:%s:%s:%s:%d", strings.TrimSpace(intent.ChatID), runKey, strings.TrimSpace(intent.EventType), intent.Sequence)
+}
+
+func (g *Gateway) dispatchTerminalIntent(execCtx context.Context, intent DeliveryIntent) {
+	mode := normalizeDeliveryMode(g.cfg.DeliveryMode)
+	store := g.deliveryOutboxStore
+
+	switch mode {
+	case DeliveryModeOutbox:
+		if store != nil && g.cfg.DeliveryWorker.Enabled {
+			storeCtx, cancel := detachedStoreContext(execCtx)
+			enqueued, err := store.Enqueue(storeCtx, []DeliveryIntent{intent})
+			cancel()
+			if err == nil && len(enqueued) > 0 {
+				return
+			}
+			if err != nil {
+				g.logger.Warn("Lark outbox enqueue failed in outbox mode, fallback to direct dispatch: %v", err)
+			} else {
+				g.logger.Warn("Lark outbox enqueue returned empty in outbox mode, fallback to direct dispatch")
+			}
+		} else {
+			g.logger.Warn("Lark outbox mode enabled but outbox store/worker unavailable, fallback to direct dispatch")
+		}
+	case DeliveryModeShadow:
+		var stored DeliveryIntent
+		if store != nil {
+			storeCtx, cancel := detachedStoreContext(execCtx)
+			enqueued, err := store.Enqueue(storeCtx, []DeliveryIntent{intent})
+			cancel()
+			if err != nil {
+				g.logger.Warn("Lark outbox enqueue failed in shadow mode: %v", err)
+			} else if len(enqueued) > 0 {
+				stored = enqueued[0]
+			}
+		}
+		if stored.IntentID != "" && stored.Status == DeliveryIntentSent {
+			return
+		}
+		if err := g.deliverIntent(execCtx, intent); err != nil {
+			g.logger.Warn("Lark direct terminal delivery failed in shadow mode: %v", err)
+			if store != nil && stored.IntentID != "" {
+				storeCtx, cancel := detachedStoreContext(execCtx)
+				_ = store.MarkDead(storeCtx, stored.IntentID, err.Error())
+				cancel()
+			}
+			return
+		}
+		if store != nil && stored.IntentID != "" {
+			storeCtx, cancel := detachedStoreContext(execCtx)
+			_ = store.MarkSent(storeCtx, stored.IntentID, g.currentTime())
+			cancel()
+		}
+		return
+	}
+
+	if err := g.deliverIntent(execCtx, intent); err != nil {
+		g.logger.Warn("Lark direct terminal delivery failed: %v", err)
+	}
 }
 
 func (g *Gateway) isIntentionalTaskCancellation(chatID string, taskToken uint64) bool {

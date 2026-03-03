@@ -1,7 +1,22 @@
 # 2026-03-03 Lark Terminal Delivery Architecture Refactor (Event-Driven + Outbox)
 
-Updated: 2026-03-03  
-Status: Proposed
+Updated: 2026-03-03 22:00  
+Status: Implemented (Phase 0-2 baseline)
+
+## 0. Implementation Snapshot (2026-03-03)
+
+Implemented in this wave:
+1. Added `DeliveryIntent` + `DeliveryOutboxStore` abstractions with local memory/file implementation.
+2. Added outbox worker (`delivery_worker.go`) with claim/send/retry/dead-letter state transitions.
+3. Refactored `task_manager.dispatchResult` to build terminal intents and route by `delivery_mode` (`direct|shadow|outbox`).
+4. Added bootstrap/runtime YAML config support for delivery mode and worker tunables.
+5. Wired gateway startup to initialize outbox store and start worker in `outbox` mode.
+6. Added unit/integration tests for outbox dedupe, retry/dead/replay, and worker delivery behavior.
+
+Not yet implemented in this wave:
+1. Unified progress/attachment delivery into multi-intent type taxonomy (current baseline keeps terminal intent + attachment send in one delivery step).
+2. Dedicated metrics family (`delivery_intent_*`) and alert wiring.
+3. Operator-facing replay command endpoint/CLI.
 
 ## 1. Background and Problem Statement
 
@@ -56,9 +71,9 @@ Required signals:
 
 ### New Files
 
-1. `internal/delivery/channels/lark/delivery_intent.go`
-   - Intent model and state machine.
-2. `internal/delivery/channels/lark/delivery_outbox_store.go`
+1. `internal/delivery/channels/lark/delivery_outbox_store.go`
+   - Intent model, delivery mode constants, and outbox interface.
+2. `internal/delivery/channels/lark/delivery_outbox_local.go`
    - Persistence interface and implementation (file store first, DB later).
 3. `internal/delivery/channels/lark/delivery_worker.go`
    - Poll/claim, deliver, retry, write-back.
