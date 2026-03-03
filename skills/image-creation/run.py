@@ -113,6 +113,23 @@ def _resolve_seedream_text_endpoint() -> str:
     return _DEFAULT_SEEDREAM_TEXT_ENDPOINT_ID
 
 
+def _coerce_bool(value: object, default: bool) -> bool:
+    """Parse bool-ish values from JSON args with a safe default."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+    return default
+
+
 def _normalize_size(size: str) -> str:
     parts = size.lower().split("x")
     if len(parts) != 2:
@@ -139,6 +156,7 @@ def generate(args: dict) -> dict:
     endpoint = _resolve_seedream_text_endpoint()
 
     style = str(args.get("style", "realistic")).strip()
+    watermark = _coerce_bool(args.get("watermark"), default=False)
     requested_size = str(args.get("size", "1920x1920")).strip()
     try:
         effective_size = _normalize_size(requested_size)
@@ -153,6 +171,7 @@ def generate(args: dict) -> dict:
         "prompt": prompt_with_style,
         "size": effective_size,
         "n": 1,
+        "watermark": watermark,
     })
 
     if "error" in result:
@@ -178,6 +197,7 @@ def generate(args: dict) -> dict:
         "image_path": output,
         "prompt": prompt,
         "style": style,
+        "watermark": watermark,
         "size": effective_size,
         "requested_size": requested_size,
         "message": f"图片已保存到 {output}",
@@ -193,6 +213,7 @@ def refine(args: dict) -> dict:
     endpoint = os.environ.get("SEEDREAM_I2I_ENDPOINT_ID", "")
     if not endpoint:
         return {"success": False, "error": "SEEDREAM_I2I_ENDPOINT_ID not set"}
+    watermark = _coerce_bool(args.get("watermark"), default=False)
 
     with open(image_path, "rb") as f:
         img_b64 = base64.b64encode(f.read()).decode()
@@ -201,6 +222,7 @@ def refine(args: dict) -> dict:
         "prompt": prompt,
         "image": img_b64,
         "n": 1,
+        "watermark": watermark,
     })
 
     if "error" in result:
@@ -224,6 +246,7 @@ def refine(args: dict) -> dict:
         "success": True,
         "image_path": output,
         "prompt": prompt,
+        "watermark": watermark,
         "message": f"优化后图片已保存到 {output}",
     }
 

@@ -73,6 +73,36 @@ class ImageCreationRunTests(unittest.TestCase):
             self.assertIn("missing both b64_json and url", result.get("error", ""))
             self.assertFalse(Path(output).exists())
 
+    def test_generate_watermark_defaults_to_false(self) -> None:
+        captured = {}
+
+        def fake_ark_request(_endpoint, body):
+            captured["body"] = body
+            payload = base64.b64encode(b"fake-png-bytes").decode()
+            return {"data": [{"b64_json": payload}]}
+
+        self.mod._ark_request = fake_ark_request
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = str(Path(tmp_dir) / "wm-default.png")
+            result = self.mod.generate({"prompt": "cat", "output": output})
+            self.assertTrue(result.get("success"), result)
+            self.assertFalse(captured["body"]["watermark"])
+
+    def test_generate_watermark_accepts_true(self) -> None:
+        captured = {}
+
+        def fake_ark_request(_endpoint, body):
+            captured["body"] = body
+            payload = base64.b64encode(b"fake-png-bytes").decode()
+            return {"data": [{"b64_json": payload}]}
+
+        self.mod._ark_request = fake_ark_request
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = str(Path(tmp_dir) / "wm-true.png")
+            result = self.mod.generate({"prompt": "cat", "output": output, "watermark": True})
+            self.assertTrue(result.get("success"), result)
+            self.assertTrue(captured["body"]["watermark"])
+
 
 if __name__ == "__main__":
     unittest.main()

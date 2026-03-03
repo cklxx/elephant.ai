@@ -40,6 +40,18 @@ class TestGenerate:
                 generate({"prompt": "a cat"})
                 assert mock_call.call_args.args[0] == _mod._DEFAULT_SEEDREAM_TEXT_ENDPOINT_ID
 
+    def test_watermark_defaults_to_false(self):
+        fake_img = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100).decode()
+        with patch.object(_mod, "_ark_request", return_value={"data": [{"b64_json": fake_img}]}) as mock_call:
+            generate({"prompt": "a cat"})
+            assert mock_call.call_args.args[1]["watermark"] is False
+
+    def test_watermark_can_be_enabled(self):
+        fake_img = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100).decode()
+        with patch.object(_mod, "_ark_request", return_value={"data": [{"b64_json": fake_img}]}) as mock_call:
+            generate({"prompt": "a cat", "watermark": True})
+            assert mock_call.call_args.args[1]["watermark"] is True
+
     def test_successful_generation(self, tmp_path):
         fake_img = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100).decode()
         mock_resp = MagicMock()
