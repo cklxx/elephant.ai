@@ -148,8 +148,7 @@ func (t *larkTaskManage) Execute(ctx context.Context, call ports.ToolCall) (*por
 	case "create_subtask":
 		return t.createSubtask(ctx, client, call)
 	default:
-		err := fmt.Errorf("unsupported action: %s", action)
-		return shared.ToolError(call.ID, "%w", err)
+		return shared.ToolError(call.ID, "unsupported action: %s", action)
 	}
 }
 
@@ -473,7 +472,7 @@ func (t *larkTaskManage) updateTask(ctx context.Context, client *lark.Client, ca
 	if dueTimeRaw := shared.StringArg(call.Arguments, "due_time"); dueTimeRaw != "" {
 		seconds, err := parseUnixSecondsString(dueTimeRaw)
 		if err != nil {
-			return shared.ToolError(call.ID, "%w", err)
+			return shared.ToolError(call.ID, "%v", err)
 		}
 		ms := seconds * 1000
 		value := fmt.Sprintf("%d", ms)
@@ -482,8 +481,7 @@ func (t *larkTaskManage) updateTask(ctx context.Context, client *lark.Client, ca
 	}
 
 	if len(updateFields) == 0 {
-		err := fmt.Errorf("update requires at least one field to change (summary, description, or due_time)")
-		return shared.ToolError(call.ID, "%w", err)
+		return shared.ToolError(call.ID, "update requires at least one field to change (summary, description, or due_time)")
 	}
 
 	body := larktask.NewPatchTaskReqBodyBuilder().
@@ -657,15 +655,15 @@ func parseDue(args map[string]any, callID string) (*larktask.Due, *ports.ToolRes
 		return nil, nil
 	}
 	if dueAtRaw != "" && dueDate != "" {
-		err := fmt.Errorf("provide only one of due_at or due_date")
-		return nil, toolErrorResult(callID, "%w", err)
+		result, _ := shared.ToolError(callID, "provide only one of due_at or due_date")
+		return nil, result
 	}
 
 	if dueDate != "" {
 		parsed, err := time.Parse("2006-01-02", dueDate)
 		if err != nil {
-			err = fmt.Errorf("due_date must be YYYY-MM-DD")
-			return nil, toolErrorResult(callID, "%w", err)
+			result, _ := shared.ToolError(callID, "due_date must be YYYY-MM-DD")
+			return nil, result
 		}
 		ms := parsed.UnixMilli()
 		value := fmt.Sprintf("%d", ms)
@@ -675,7 +673,8 @@ func parseDue(args map[string]any, callID string) (*larktask.Due, *ports.ToolRes
 
 	seconds, err := parseUnixSecondsString(dueAtRaw)
 	if err != nil {
-		return nil, toolErrorResult(callID, "%w", err)
+		result, _ := shared.ToolError(callID, "%v", err)
+		return nil, result
 	}
 	ms := seconds * 1000
 	value := fmt.Sprintf("%d", ms)
@@ -830,10 +829,12 @@ func requireActionApproval(ctx context.Context, call ports.ToolCall, operation s
 	}
 	resp, err := approver.RequestApproval(ctx, req)
 	if err != nil {
-		return toolErrorResult(call.ID, "%w", err)
+		result, _ := shared.ToolError(call.ID, "%v", err)
+		return result
 	}
 	if resp == nil || !resp.Approved {
-		return toolErrorResult(call.ID, "operation rejected")
+		result, _ := shared.ToolError(call.ID, "operation rejected")
+		return result
 	}
 	return nil
 }

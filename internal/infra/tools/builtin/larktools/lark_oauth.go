@@ -73,8 +73,8 @@ func resolveLarkCalendarAuth(ctx context.Context, callID string) (larkAccessToke
 		if auth, errResult := buildTenantAuth(); errResult == nil {
 			return auth, nil
 		}
-		err := fmt.Errorf("lark oauth not configured (missing oauth service in context)")
-		return larkAccessToken{}, toolErrorResult(callID, "%w", err)
+		result, _ := shared.ToolError(callID, "lark oauth not configured (missing oauth service in context)")
+		return larkAccessToken{}, result
 	}
 
 	openID := strings.TrimSpace(id.UserIDFromContext(ctx))
@@ -82,8 +82,8 @@ func resolveLarkCalendarAuth(ctx context.Context, callID string) (larkAccessToke
 		if auth, errResult := buildTenantAuth(); errResult == nil {
 			return auth, nil
 		}
-		err := fmt.Errorf("missing lark sender open_id in context")
-		return larkAccessToken{}, toolErrorResult(callID, "%w", err)
+		result, _ := shared.ToolError(callID, "missing lark sender open_id in context")
+		return larkAccessToken{}, result
 	}
 
 	token, err := svc.UserAccessToken(ctx, openID)
@@ -117,8 +117,8 @@ func resolveLarkCalendarAuth(ctx context.Context, callID string) (larkAccessToke
 		if auth, errResult := buildTenantAuth(); errResult == nil {
 			return auth, nil
 		}
-		err := fmt.Errorf("empty user_access_token returned")
-		return larkAccessToken{}, toolErrorResult(callID, "%w", err)
+		result, _ := shared.ToolError(callID, "empty user_access_token returned")
+		return larkAccessToken{}, result
 	}
 
 	return larkAccessToken{token: token, kind: larkTokenUser}, nil
@@ -135,8 +135,8 @@ func resolveCalendarID(ctx context.Context, callID string, client *lark.Client, 
 	if auth.kind == larkTokenTenant {
 		calendarID := strings.TrimSpace(auth.calendarID)
 		if calendarID == "" {
-			err := fmt.Errorf("%s: tenant token requires channels.lark.tenant_calendar_id or user OAuth", toolName)
-			return "", toolErrorResult(callID, "%w", err)
+			result, _ := shared.ToolError(callID, "%s: tenant token requires channels.lark.tenant_calendar_id or user OAuth", toolName)
+			return "", result
 		}
 		return calendarID, nil
 	}
