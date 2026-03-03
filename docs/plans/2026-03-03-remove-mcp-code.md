@@ -22,7 +22,7 @@ Remove MCP-related implementation from runtime code paths while keeping non-MCP 
 - [x] Update prompts/config/tool-display strings that reference MCP browser tools.
 - [x] Run focused tests for touched packages.
 - [x] Run full lint/tests as required gate.
-- [ ] Commit incremental changes.
+- [x] Commit incremental changes.
 
 ## Risks
 - ACP currently reuses MCP JSON-RPC structs; deleting MCP first will break ACP.
