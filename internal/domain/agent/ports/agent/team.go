@@ -37,37 +37,37 @@ type teamConfigKey struct{}
 
 // TeamRunRecord captures one dispatched team run for file-based audit/history.
 type TeamRunRecord struct {
-	RunID         string
-	SessionID     string
-	ParentRunID   string
-	CausationID   string
-	TeamName      string
-	Goal          string
-	DispatchedAt  time.Time
-	DispatchState string
-	Error         string
-	Stages        []TeamRunStageRecord
-	Roles         []TeamRunRoleRecord
+	RunID         string               `yaml:"run_id"`
+	SessionID     string               `yaml:"session_id,omitempty"`
+	ParentRunID   string               `yaml:"parent_run_id,omitempty"`
+	CausationID   string               `yaml:"causation_id,omitempty"`
+	TeamName      string               `yaml:"team_name"`
+	Goal          string               `yaml:"goal"`
+	DispatchedAt  time.Time            `yaml:"dispatched_at"`
+	DispatchState string               `yaml:"dispatch_state"`
+	Error         string               `yaml:"error,omitempty"`
+	Stages        []TeamRunStageRecord `yaml:"stages,omitempty"`
+	Roles         []TeamRunRoleRecord  `yaml:"roles,omitempty"`
 }
 
 // TeamRunStageRecord captures one stage in a team run.
 type TeamRunStageRecord struct {
-	Name  string
-	Roles []string
+	Name  string   `yaml:"name"`
+	Roles []string `yaml:"roles"`
 }
 
 // TeamRunRoleRecord captures one role assignment in a team run.
 type TeamRunRoleRecord struct {
-	Name           string
-	AgentType      string
-	TaskID         string
-	DependsOn      []string
-	ExecutionMode  string
-	AutonomyLevel  string
-	WorkspaceMode  string
-	InheritContext bool
-	Config         map[string]string
-	PromptPreview  string
+	Name           string            `yaml:"name"`
+	AgentType      string            `yaml:"agent_type"`
+	TaskID         string            `yaml:"task_id"`
+	DependsOn      []string          `yaml:"depends_on,omitempty"`
+	ExecutionMode  string            `yaml:"execution_mode,omitempty"`
+	AutonomyLevel  string            `yaml:"autonomy_level,omitempty"`
+	WorkspaceMode  string            `yaml:"workspace_mode,omitempty"`
+	InheritContext bool              `yaml:"inherit_context,omitempty"`
+	Config         map[string]string `yaml:"config,omitempty"`
+	PromptPreview  string            `yaml:"prompt_preview,omitempty"`
 }
 
 // TeamRunRecorder persists team run records to a durable store (typically file-based).

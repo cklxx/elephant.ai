@@ -2,7 +2,6 @@ package teamrun
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"alex/internal/infra/filestore"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -27,9 +27,9 @@ type FileRecorder struct {
 }
 
 type persistedTeamRunRecord struct {
-	Version    int                 `json:"version"`
-	RecordedAt time.Time           `json:"recorded_at"`
-	Record     agent.TeamRunRecord `json:"record"`
+	Version    int                 `yaml:"version"`
+	RecordedAt time.Time           `yaml:"recorded_at"`
+	Record     agent.TeamRunRecord `yaml:"record"`
 }
 
 // NewFileRecorder creates a file-based team run recorder under baseDir.
@@ -70,18 +70,17 @@ func (r *FileRecorder) RecordTeamRun(_ context.Context, record agent.TeamRunReco
 		RecordedAt: recordedAt,
 		Record:     record,
 	}
-	data, err := json.MarshalIndent(payload, "", "  ")
+	data, err := yaml.Marshal(payload)
 	if err != nil {
 		return "", fmt.Errorf("marshal team run record: %w", err)
 	}
-	data = append(data, '\n')
 
 	safeTeam := sanitizeFileToken(record.TeamName)
 	if safeTeam == "" {
 		safeTeam = "team"
 	}
 	filename := fmt.Sprintf(
-		"%s-%s-%s.json",
+		"%s-%s-%s.yaml",
 		recordedAt.Format("20060102T150405Z"),
 		safeTeam,
 		runID,

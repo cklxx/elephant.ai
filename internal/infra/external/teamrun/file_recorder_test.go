@@ -2,16 +2,16 @@ package teamrun
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"gopkg.in/yaml.v3"
 )
 
-func TestFileRecorder_RecordTeamRunWritesJSONFile(t *testing.T) {
+func TestFileRecorder_RecordTeamRunWritesYAMLFile(t *testing.T) {
 	baseDir := t.TempDir()
 	recorder, err := NewFileRecorder(baseDir, nil)
 	if err != nil {
@@ -38,7 +38,7 @@ func TestFileRecorder_RecordTeamRunWritesJSONFile(t *testing.T) {
 		t.Fatalf("read record file: %v", err)
 	}
 	var persisted persistedTeamRunRecord
-	if err := json.Unmarshal(data, &persisted); err != nil {
+	if err := yaml.Unmarshal(data, &persisted); err != nil {
 		t.Fatalf("unmarshal persisted record: %v", err)
 	}
 	if persisted.Version != 1 {
