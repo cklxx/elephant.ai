@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/app/subscription"
+	agentports "alex/internal/domain/agent/ports/agent"
 	kerneldomain "alex/internal/domain/kernel"
+	subscription "alex/internal/app/subscription"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -560,5 +561,106 @@ func TestMarkStateWritesRestricted_SandboxError(t *testing.T) {
 	}
 	if !engine.stateWriteRestricted.Load() {
 		t.Error("expected stateWriteRestricted to be set")
+	}
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// dispatchStillAwaitsUserConfirmation — missing branches
+// ─────────────────────────────────────────────────────────────────────────────
+
+func TestDispatchStillAwaitsUserConfirmation_NilResult(t *testing.T) {
+	if dispatchStillAwaitsUserConfirmation(nil) {
+		t.Error("nil result should return false")
+	}
+}
+
+func TestDispatchStillAwaitsUserConfirmation_StopReasonAwait(t *testing.T) {
+	result := &agentports.TaskResult{StopReason: "await_user_input"}
+	if !dispatchStillAwaitsUserConfirmation(result) {
+		t.Error("expected true for await_user_input stop reason")
+	}
+}
+
+func TestDispatchStillAwaitsUserConfirmation_StopReasonCaseInsensitive(t *testing.T) {
+	result := &agentports.TaskResult{StopReason: "AWAIT_USER_INPUT"}
+	if !dispatchStillAwaitsUserConfirmation(result) {
+		t.Error("expected true for case-insensitive await_user_input stop reason")
+	}
+}
+
+func TestDispatchStillAwaitsUserConfirmation_AnswerWithConfirmation(t *testing.T) {
+	result := &agentports.TaskResult{Answer: "Please confirm this action."}
+	if !dispatchStillAwaitsUserConfirmation(result) {
+		t.Error("expected true for answer containing confirmation prompt")
+	}
+}
+
+func TestDispatchStillAwaitsUserConfirmation_NormalAnswer(t *testing.T) {
+	result := &agentports.TaskResult{Answer: "All done, no action needed."}
+	if dispatchStillAwaitsUserConfirmation(result) {
+		t.Error("expected false for normal answer")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// readGoalFile — empty and truncated paths
+// ─────────────────────────────────────────────────────────────────────────────
+
+func TestReadGoalFile_EmptyFile(t *testing.T) {
+	dir := t.TempDir()
+	goalPath := dir + "/GOAL.md"
+	if err := os.WriteFile(goalPath, []byte("  \n  "), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := NewLLMPlanner("k", nil, LLMPlannerConfig{GoalFilePath: goalPath}, nil, nil)
+	content, status := p.readGoalFile()
+	if content != "" {
+		t.Errorf("expected empty content, got %q", content)
+	}
+	if status != "goal_context_empty" {
+		t.Errorf("expected goal_context_empty status, got %q", status)
+	}
+}
+
+func TestReadGoalFile_TruncatesLongFile(t *testing.T) {
+	dir := t.TempDir()
+	goalPath := dir + "/GOAL.md"
+	// Write > 3000 rune content.
+	longContent := strings.Repeat("a", 3100)
+	if err := os.WriteFile(goalPath, []byte(longContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := NewLLMPlanner("k", nil, LLMPlannerConfig{GoalFilePath: goalPath}, nil, nil)
+	content, status := p.readGoalFile()
+	if status != "goal_context_loaded_truncated" {
+		t.Errorf("expected goal_context_loaded_truncated, got %q", status)
+	}
+	if !strings.Contains(content, "...(truncated)") {
+		t.Error("expected truncation marker in content")
+	}
+}
+
+func TestReadGoalFile_HomeTildeExpansion(t *testing.T) {
+	// We can't easily test tilde expansion without knowing HOME,
+	// but we can verify the "not configured" fast path.
+	p := NewLLMPlanner("k", nil, LLMPlannerConfig{}, nil, nil)
+	content, status := p.readGoalFile()
+	if content != "" {
+		t.Errorf("expected empty content, got %q", content)
+	}
+	if status != "goal_context_not_configured" {
+		t.Errorf("expected goal_context_not_configured, got %q", status)
+	}
+}
+
+func TestReadGoalFile_UnreadablePath(t *testing.T) {
+	p := NewLLMPlanner("k", nil, LLMPlannerConfig{GoalFilePath: "/nonexistent/GOAL.md"}, nil, nil)
+	content, status := p.readGoalFile()
+	if content != "" {
+		t.Errorf("expected empty content, got %q", content)
+	}
+	if status != "goal_context_unreadable" {
+		t.Errorf("expected goal_context_unreadable, got %q", status)
 	}
 }
