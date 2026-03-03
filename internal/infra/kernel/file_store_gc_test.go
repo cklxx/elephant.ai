@@ -338,3 +338,48 @@ func TestFileStore_MarkDispatchFailed_PruneIsPersisted(t *testing.T) {
 		t.Errorf("expected active-d2 error='connection reset', got %q", got.Error)
 	}
 }
+
+// TestFileStore_MarkDispatchDone_PersistsWithoutPrune ensures K-03 is fixed when no terminal
+// dispatch is eligible for prune: MarkDispatchDone must still persist status change in one write.
+func TestFileStore_MarkDispatchDone_PersistsWithoutPrune(t *testing.T) {
+	now := time.Date(2026, 3, 3, 12, 0, 0, 0, time.UTC)
+	retention := 365 * 24 * time.Hour
+	dir := t.TempDir()
+	store := NewFileStore(dir, 30*time.Minute, retention)
+	store.now = func() time.Time { return now }
+
+	d := kerneldomain.Dispatch{
+		DispatchID: "running-no-prune",
+		KernelID:   "k1",
+		Status:     kerneldomain.DispatchRunning,
+		CreatedAt:  now.Add(-1 * time.Minute),
+		UpdatedAt:  now.Add(-1 * time.Minute),
+	}
+	store.dispatches[d.DispatchID] = d
+
+	if err := store.persistLocked(); err != nil {
+		t.Fatalf("initial persistLocked: %v", err)
+	}
+
+	if err := store.MarkDispatchDone(context.Background(), "running-no-prune", "task-abc"); err != nil {
+		t.Fatalf("MarkDispatchDone: %v", err)
+	}
+
+	fresh := NewFileStore(dir, 30*time.Minute, retention)
+	fresh.now = func() time.Time { return now }
+	if err := fresh.load(); err != nil {
+		t.Fatalf("fresh load: %v", err)
+	}
+
+	got, ok := fresh.dispatches["running-no-prune"]
+	if !ok {
+		t.Fatal("running-no-prune not found after MarkDispatchDone")
+	}
+	if got.Status != kerneldomain.DispatchDone {
+		t.Errorf("expected status=done, got=%v", got.Status)
+	}
+	if got.TaskID != "task-abc" {
+		t.Errorf("expected taskID=task-abc, got=%q", got.TaskID)
+	}
+}
+

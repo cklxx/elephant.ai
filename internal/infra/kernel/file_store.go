@@ -403,7 +403,7 @@ func (s *FileStore) pruneLocked(ctx context.Context, now time.Time, persist bool
 		delete(s.dispatches, id)
 		removed++
 	}
-	if removed > 0 && persist {
+	if persist {
 		if err := s.persistLocked(); err != nil {
 			return 0, err
 		}
