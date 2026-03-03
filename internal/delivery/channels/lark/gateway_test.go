@@ -1884,6 +1884,74 @@ func TestHandleMessageContextCanceledSendsFailureReplyWhenNotIntentional(t *test
 	}
 }
 
+func TestHandleMessageTimeoutStillSendsFailureReply(t *testing.T) {
+	openID := "ou_sender_timeout_fail"
+	chatID := "oc_chat_timeout_fail"
+	msgID := "om_msg_timeout_fail"
+	content := `{"text":"run task"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &cancelOnContextExecutor{
+		started: make(chan struct{}),
+	}
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg: Config{
+			BaseConfig: channels.BaseConfig{
+				SessionPrefix: "lark",
+				AllowDirect:   true,
+				ReplyTimeout:  20 * time.Millisecond,
+			},
+			AppID:     "test",
+			AppSecret: "secret",
+		},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: &strictContextMessenger{inner: recorder},
+		now:       func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+	gw.WaitForTasks()
+
+	replies := recorder.CallsByMethod("ReplyMessage")
+	if len(replies) == 0 {
+		t.Fatal("expected failure reply after timeout")
+	}
+	foundFailure := false
+	for _, call := range replies {
+		if strings.Contains(call.Content, "执行失败") || strings.Contains(call.Content, "失败") {
+			foundFailure = true
+			break
+		}
+	}
+	if !foundFailure {
+		t.Fatalf("expected failure text in replies, got %#v", replies)
+	}
+}
+
 func TestHandleMessageStopCommandWhenIdle(t *testing.T) {
 	openID := "ou_sender_stop_idle"
 	chatID := "oc_chat_stop_idle"
@@ -2676,6 +2744,66 @@ type blockingExecutor struct {
 	inputCh     <-chan agent.UserInput
 	sessionID   string
 	callCount   int
+}
+
+type strictContextMessenger struct {
+	inner *RecordingMessenger
+}
+
+func (m *strictContextMessenger) SendMessage(ctx context.Context, chatID, msgType, content string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return m.inner.SendMessage(ctx, chatID, msgType, content)
+}
+
+func (m *strictContextMessenger) ReplyMessage(ctx context.Context, replyToID, msgType, content string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return m.inner.ReplyMessage(ctx, replyToID, msgType, content)
+}
+
+func (m *strictContextMessenger) UpdateMessage(ctx context.Context, messageID, msgType, content string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return m.inner.UpdateMessage(ctx, messageID, msgType, content)
+}
+
+func (m *strictContextMessenger) AddReaction(ctx context.Context, messageID, emojiType string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return m.inner.AddReaction(ctx, messageID, emojiType)
+}
+
+func (m *strictContextMessenger) DeleteReaction(ctx context.Context, messageID, reactionID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return m.inner.DeleteReaction(ctx, messageID, reactionID)
+}
+
+func (m *strictContextMessenger) UploadImage(ctx context.Context, payload []byte) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return m.inner.UploadImage(ctx, payload)
+}
+
+func (m *strictContextMessenger) UploadFile(ctx context.Context, payload []byte, fileName, fileType string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return m.inner.UploadFile(ctx, payload, fileName, fileType)
+}
+
+func (m *strictContextMessenger) ListMessages(ctx context.Context, chatID string, pageSize int) ([]*larkim.Message, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return m.inner.ListMessages(ctx, chatID, pageSize)
 }
 
 func (b *blockingExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {

@@ -552,6 +552,8 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		g.logger.Info("Lark task cancelled intentionally: chat=%s msg=%s token=%d", msg.chatID, msg.messageID, taskToken)
 		return
 	}
+	dispatchCtx, cancelDispatch := detachedDispatchContext(execCtx)
+	defer cancelDispatch()
 
 	isAwait := execErr == nil && isResultAwaitingInput(result)
 	awaitPrompt, hasAwaitPrompt := agent.AwaitUserInputPrompt{}, false
@@ -614,17 +616,25 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		// "在思考…" → final answer, rather than two separate messages.
 		edited := false
 		if progressMsgID != "" {
-			if err := g.updateMessage(execCtx, progressMsgID, replyMsgType, replyContent); err != nil {
+			if err := g.updateMessage(dispatchCtx, progressMsgID, replyMsgType, replyContent); err != nil {
 				g.logger.Warn("Lark progress→reply edit failed, falling back to new message: %v", err)
 			} else {
 				edited = true
 			}
 		}
 		if !edited {
-			g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), replyMsgType, replyContent)
+			g.dispatch(dispatchCtx, msg.chatID, replyTarget(msg.messageID, true), replyMsgType, replyContent)
 		}
-		g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
+		g.sendAttachments(dispatchCtx, msg.chatID, msg.messageID, result)
 	}
+}
+
+func detachedDispatchContext(execCtx context.Context) (context.Context, context.CancelFunc) {
+	baseCtx := context.Background()
+	if execCtx != nil {
+		baseCtx = context.WithoutCancel(execCtx)
+	}
+	return context.WithTimeout(baseCtx, 15*time.Second)
 }
 
 func (g *Gateway) isIntentionalTaskCancellation(chatID string, taskToken uint64) bool {
