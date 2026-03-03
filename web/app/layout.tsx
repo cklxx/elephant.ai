@@ -19,12 +19,17 @@ const mono = localFont({
   weight: "100 800",
 });
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
 export const metadata: Metadata = {
+  metadataBase: basePath
+    ? new URL(`https://cklxx.github.io${basePath}`)
+    : undefined,
   title: "elephant.ai — Proactive AI Assistant",
   description:
     "Your AI teammate, always on. Lives in Lark, remembers everything, executes real work autonomously. Open source, self-hosted, 8 LLM providers.",
   icons: {
-    icon: "/elephant.jpg",
+    icon: `${basePath}/elephant.jpg`,
   },
   openGraph: {
     title: "elephant.ai — Proactive AI Assistant",
@@ -32,7 +37,7 @@ export const metadata: Metadata = {
       "Your AI teammate, always on. Lives in Lark, remembers everything, executes real work autonomously.",
     url: "https://github.com/cklxx/elephant.ai",
     siteName: "elephant.ai",
-    images: [{ url: "/og-image.png", width: 1280, height: 720, alt: "elephant.ai" }],
+    images: [{ url: `${basePath}/og-image.png`, width: 1280, height: 720, alt: "elephant.ai" }],
     locale: "en_US",
     type: "website",
   },
@@ -41,7 +46,7 @@ export const metadata: Metadata = {
     title: "elephant.ai — Proactive AI Assistant",
     description:
       "Your AI teammate, always on. Lives in Lark, remembers everything, executes real work autonomously.",
-    images: ["/og-image.png"],
+    images: [`${basePath}/og-image.png`],
   },
   alternates: {
     languages: { "zh-CN": "/zh" },

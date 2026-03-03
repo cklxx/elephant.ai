@@ -344,7 +344,7 @@ export function HomeGLPage({ lang }: { lang: HomeLang }) {
             style={{ borderColor: "#e2e8f0", boxShadow: "0 16px 40px rgba(15,23,42,0.08)" }}
           >
             <Image
-              src="/media/home-banner.png"
+              src={withBasePath("/media/home-banner.png")}
               alt={t.showcase.bannerAlt}
               width={1600}
               height={900}
