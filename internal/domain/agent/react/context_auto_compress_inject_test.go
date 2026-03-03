@@ -535,6 +535,338 @@ func TestThinkNoCompressionBelowThreshold(t *testing.T) {
 	}
 }
 
+// TestThinkAutoCompactBringsTokensUnderBudget verifies that after AutoCompact
+// fires through the full think() pipeline, the estimated tokens of the final
+// LLM request stay within the overall token limit. This catches the critical
+// gap in existing tests that only check message count, not token count.
+func TestThinkAutoCompactBringsTokensUnderBudget(t *testing.T) {
+	mockLLM, getReq := captureLLMRequest()
+
+	// Budget math: MessageLimit = 3024 - 1024 (safety) = 2000.
+	// 20 turns × 200-char content: 41 msgs × ~55 tokens = ~2211 → exceeds 2000.
+	// After AutoCompact (keep last turn): 4 msgs × ~55 = ~220 → fits.
+	tokenLimit := 3024
+
+	mockCtx := &mocks.MockContextManager{
+		EstimateTokensFunc: contentAwareEstimate,
+		ShouldCompressFunc: func(msgs []ports.Message, limit int) bool {
+			return float64(contentAwareEstimate(msgs)) > float64(limit)*0.70
+		},
+		AutoCompactFunc:      autoCompactKeepLastTurn,
+		BuildSummaryOnlyFunc: func(msgs []ports.Message) (string, int) { return "", 0 },
+	}
+
+	engine := NewReactEngine(ReactEngineConfig{
+		MaxIterations: 10,
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.SystemClock{},
+		CompletionDefaults: CompletionDefaults{
+			ContextTokenLimit: &tokenLimit,
+		},
+	})
+
+	msgs := buildConversation(20, 200)
+	state := &agent.TaskState{Iterations: 5, Messages: msgs}
+
+	_, err := engine.think(context.Background(), state, agent.ServiceBundle{
+		LLM:          mockLLM,
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      mockCtx,
+	})
+	if err != nil {
+		t.Fatalf("think() error: %v", err)
+	}
+
+	req := getReq()
+	estimated := contentAwareEstimate(req.Messages)
+	if estimated > tokenLimit {
+		t.Errorf("estimated tokens %d exceed token limit %d after compression", estimated, tokenLimit)
+	}
+	if len(req.Messages) >= len(msgs) {
+		t.Fatalf("expected compression to reduce messages, got %d (original %d)", len(req.Messages), len(msgs))
+	}
+
+	// AutoCompact should suffice — no aggressive trim marker.
+	for _, msg := range req.Messages {
+		if strings.HasPrefix(msg.Content, "[Context trimmed") {
+			t.Error("unexpected aggressive trim — AutoCompact should have been sufficient")
+		}
+	}
+}
+
+// TestThinkForceFitLastResort verifies that when messages are so large that
+// even aggressive trim with 1 turn exceeds the budget, forceFitMessagesToLimit
+// truncates content to bring tokens under the limit.
+func TestThinkForceFitLastResort(t *testing.T) {
+	mockLLM, getReq := captureLLMRequest()
+
+	// MessageLimit = 2048 - 1024 = 1024.
+	// 2 turns × 5000-char content: each conv msg ≈ 1254 tokens. Total ≈ 5035.
+	// After aggressive trim (1 turn): 4 msgs ≈ 2545 tokens → still > 1024.
+	// Force-fit halves largest messages until fit.
+	tokenLimit := 2048
+
+	mockCtx := &mocks.MockContextManager{
+		EstimateTokensFunc: contentAwareEstimate,
+		ShouldCompressFunc: func(_ []ports.Message, _ int) bool { return true },
+		AutoCompactFunc:    func(msgs []ports.Message, _ int) ([]ports.Message, bool) { return msgs, false },
+		BuildSummaryOnlyFunc: func(msgs []ports.Message) (string, int) {
+			return "[Earlier context compressed] summary", len(msgs)
+		},
+	}
+
+	engine := NewReactEngine(ReactEngineConfig{
+		MaxIterations: 10,
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.SystemClock{},
+		CompletionDefaults: CompletionDefaults{
+			ContextTokenLimit: &tokenLimit,
+		},
+	})
+
+	msgs := buildConversation(2, 5000)
+	state := &agent.TaskState{Iterations: 3, Messages: msgs}
+
+	_, err := engine.think(context.Background(), state, agent.ServiceBundle{
+		LLM:          mockLLM,
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      mockCtx,
+	})
+	if err != nil {
+		t.Fatalf("think() error: %v", err)
+	}
+
+	req := getReq()
+	estimated := contentAwareEstimate(req.Messages)
+	if estimated > tokenLimit {
+		t.Errorf("force-fit failed: estimated tokens %d exceed limit %d", estimated, tokenLimit)
+	}
+	// At least the system prompt should survive.
+	if req.Messages[0].Role != "system" {
+		t.Errorf("first message role = %q, want system", req.Messages[0].Role)
+	}
+}
+
+// TestThinkDeferredSummaryAppliedNaturallyAfterDelay verifies Phase B:
+// a pending deferred summary is applied after the configured delay (2 turns)
+// even when the budget is not exceeded — the normal, non-emergency path.
+func TestThinkDeferredSummaryAppliedNaturallyAfterDelay(t *testing.T) {
+	mockLLM, getReq := captureLLMRequest()
+
+	// Generous limit — messages fit comfortably.
+	tokenLimit := 50000
+
+	mockCtx := &mocks.MockContextManager{
+		EstimateTokensFunc:   contentAwareEstimate,
+		ShouldCompressFunc:   func(_ []ports.Message, _ int) bool { return false },
+		BuildSummaryOnlyFunc: func(_ []ports.Message) (string, int) { return "", 0 },
+	}
+
+	engine := NewReactEngine(ReactEngineConfig{
+		MaxIterations: 10,
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.SystemClock{},
+		CompletionDefaults: CompletionDefaults{
+			ContextTokenLimit: &tokenLimit,
+		},
+	})
+
+	msgs := buildConversation(4, 50) // 9 messages, ~135 tokens
+	state := &agent.TaskState{
+		Iterations:             5,
+		Messages:               msgs,
+		PendingSummary:         "[Earlier context compressed] from iter 2.",
+		PendingSummaryAtIter:   2,
+		PendingSummaryMsgCount: 7,
+	}
+	lastUserContent := msgs[len(msgs)-2].Content
+
+	_, err := engine.think(context.Background(), state, agent.ServiceBundle{
+		LLM:          mockLLM,
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      mockCtx,
+	})
+	if err != nil {
+		t.Fatalf("think() error: %v", err)
+	}
+
+	if state.PendingSummary != "" {
+		t.Errorf("PendingSummary should be cleared after natural apply, got %q", state.PendingSummary)
+	}
+
+	req := getReq()
+
+	// Fewer messages than original — summary replaced older messages.
+	if len(req.Messages) >= len(msgs) {
+		t.Errorf("expected fewer messages after deferred apply, got %d (original %d)",
+			len(req.Messages), len(msgs))
+	}
+
+	// Summary text must appear in the request.
+	hasSummary := false
+	for _, msg := range req.Messages {
+		if strings.Contains(msg.Content, "[Earlier context compressed] from iter 2.") {
+			hasSummary = true
+			break
+		}
+	}
+	if !hasSummary {
+		t.Error("deferred summary text not found in LLM request")
+	}
+
+	// Most recent user message must survive.
+	found := false
+	for _, msg := range req.Messages {
+		if msg.Content == lastUserContent {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("most recent user message lost after deferred summary apply")
+	}
+}
+
+// TestThinkDeferredSummaryNotAppliedBeforeDelay verifies that a pending
+// deferred summary is NOT applied when fewer than delayedSummaryTurns (2)
+// iterations have passed since generation.
+func TestThinkDeferredSummaryNotAppliedBeforeDelay(t *testing.T) {
+	mockLLM, getReq := captureLLMRequest()
+
+	tokenLimit := 50000
+
+	mockCtx := &mocks.MockContextManager{
+		EstimateTokensFunc: contentAwareEstimate,
+		ShouldCompressFunc: func(_ []ports.Message, _ int) bool { return false },
+	}
+
+	engine := NewReactEngine(ReactEngineConfig{
+		MaxIterations: 10,
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.SystemClock{},
+		CompletionDefaults: CompletionDefaults{
+			ContextTokenLimit: &tokenLimit,
+		},
+	})
+
+	msgs := buildConversation(3, 50) // 7 messages
+	originalCount := len(msgs)
+	state := &agent.TaskState{
+		Iterations:             3,                                         // Only 1 turn since generation
+		Messages:               msgs,
+		PendingSummary:         "[Earlier context compressed] too soon.",
+		PendingSummaryAtIter:   2,                                         // delay requires iter >= 4
+		PendingSummaryMsgCount: 5,
+	}
+
+	_, err := engine.think(context.Background(), state, agent.ServiceBundle{
+		LLM:          mockLLM,
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      mockCtx,
+	})
+	if err != nil {
+		t.Fatalf("think() error: %v", err)
+	}
+
+	if state.PendingSummary == "" {
+		t.Error("PendingSummary should NOT be cleared before delay elapses")
+	}
+
+	req := getReq()
+	if len(req.Messages) != originalCount {
+		t.Errorf("expected all %d messages sent (no apply), got %d", originalCount, len(req.Messages))
+	}
+}
+
+// TestThinkCascadeAutoCompactFailsThenAggressiveTrimSucceeds verifies that when
+// AutoCompact returns messages unchanged (fails to help), the aggressive trim
+// cascade activates and successfully brings tokens under budget with a trim
+// marker rather than a compression summary.
+func TestThinkCascadeAutoCompactFailsThenAggressiveTrimSucceeds(t *testing.T) {
+	mockLLM, getReq := captureLLMRequest()
+
+	// MessageLimit = 2524 - 1024 = 1500.
+	// 15 turns × 200-char: 31 msgs × ~55 = ~1705 tokens → exceeds 1500.
+	// AutoCompact fails. Aggressive trim (4 turns) → ~10 msgs ≈ ~560 → fits.
+	tokenLimit := 2524
+
+	mockCtx := &mocks.MockContextManager{
+		EstimateTokensFunc: contentAwareEstimate,
+		ShouldCompressFunc: func(_ []ports.Message, _ int) bool { return true },
+		AutoCompactFunc:    func(msgs []ports.Message, _ int) ([]ports.Message, bool) { return msgs, false },
+		BuildSummaryOnlyFunc: func(msgs []ports.Message) (string, int) {
+			return "[Earlier context compressed] summary", len(msgs)
+		},
+	}
+
+	engine := NewReactEngine(ReactEngineConfig{
+		MaxIterations: 10,
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.SystemClock{},
+		CompletionDefaults: CompletionDefaults{
+			ContextTokenLimit: &tokenLimit,
+		},
+	})
+
+	msgs := buildConversation(15, 200)
+	state := &agent.TaskState{Iterations: 10, Messages: msgs}
+	lastUserContent := msgs[len(msgs)-2].Content
+
+	_, err := engine.think(context.Background(), state, agent.ServiceBundle{
+		LLM:          mockLLM,
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      mockCtx,
+	})
+	if err != nil {
+		t.Fatalf("think() error: %v", err)
+	}
+
+	req := getReq()
+
+	// Verify tokens fit.
+	estimated := contentAwareEstimate(req.Messages)
+	if estimated > tokenLimit {
+		t.Errorf("estimated tokens %d exceed limit %d after aggressive trim", estimated, tokenLimit)
+	}
+
+	// Aggressive trim marker must be present.
+	hasTrimMarker := false
+	for _, msg := range req.Messages {
+		if strings.HasPrefix(msg.Content, "[Context trimmed") {
+			hasTrimMarker = true
+			break
+		}
+	}
+	if !hasTrimMarker {
+		t.Error("expected aggressive trim marker — AutoCompact returned unchanged")
+	}
+
+	// No AutoCompact summary (it didn't fire).
+	for _, msg := range req.Messages {
+		if strings.HasPrefix(msg.Content, "[Earlier context compressed]") {
+			t.Error("unexpected AutoCompact summary — it should have returned unchanged")
+			break
+		}
+	}
+
+	// Last user turn must survive.
+	found := false
+	for _, msg := range req.Messages {
+		if msg.Content == lastUserContent {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("most recent user message lost after aggressive trim")
+	}
+}
+
 // TestThinkPreservesImportantAndCheckpointMessages verifies that messages
 // marked as Important or Checkpoint survive compression when the budget allows.
 func TestThinkPreservesImportantAndCheckpointMessages(t *testing.T) {
