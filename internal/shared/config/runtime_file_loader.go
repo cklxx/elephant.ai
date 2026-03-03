@@ -439,31 +439,31 @@ func applyExternalAgentsFileConfig(cfg *RuntimeConfig, meta *Metadata, external 
 			cfg.ExternalAgents.Kimi.Enabled = *km.Enabled
 			meta.sources["external_agents.kimi.enabled"] = SourceFile
 		}
-		if strings.TrimSpace(km.Binary) != "" {
+		if utils.HasContent(km.Binary) {
 			cfg.ExternalAgents.Kimi.Binary = km.Binary
 			meta.sources["external_agents.kimi.binary"] = SourceFile
 		}
-		if strings.TrimSpace(km.DefaultModel) != "" {
+		if utils.HasContent(km.DefaultModel) {
 			cfg.ExternalAgents.Kimi.DefaultModel = km.DefaultModel
 			meta.sources["external_agents.kimi.default_model"] = SourceFile
 		}
-		if strings.TrimSpace(km.ApprovalPolicy) != "" {
+		if utils.HasContent(km.ApprovalPolicy) {
 			cfg.ExternalAgents.Kimi.ApprovalPolicy = km.ApprovalPolicy
 			meta.sources["external_agents.kimi.approval_policy"] = SourceFile
 		}
-		if strings.TrimSpace(km.Sandbox) != "" {
+		if utils.HasContent(km.Sandbox) {
 			cfg.ExternalAgents.Kimi.Sandbox = km.Sandbox
 			meta.sources["external_agents.kimi.sandbox"] = SourceFile
 		}
-		if strings.TrimSpace(km.PlanApprovalPolicy) != "" {
+		if utils.HasContent(km.PlanApprovalPolicy) {
 			cfg.ExternalAgents.Kimi.PlanApprovalPolicy = km.PlanApprovalPolicy
 			meta.sources["external_agents.kimi.plan_approval_policy"] = SourceFile
 		}
-		if strings.TrimSpace(km.PlanSandbox) != "" {
+		if utils.HasContent(km.PlanSandbox) {
 			cfg.ExternalAgents.Kimi.PlanSandbox = km.PlanSandbox
 			meta.sources["external_agents.kimi.plan_sandbox"] = SourceFile
 		}
-		if strings.TrimSpace(km.Timeout) != "" {
+		if utils.HasContent(km.Timeout) {
 			timeout, err := parseDuration(km.Timeout)
 			if err != nil {
 				return fmt.Errorf("parse external_agents.kimi.timeout: %w", err)

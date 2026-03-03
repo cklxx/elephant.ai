@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -91,7 +92,7 @@ func LoadDevConfig(configPath string) (*DevConfig, error) {
 func defaultSharedPIDDir(configPath, projectDir string) string {
 	path := strings.TrimSpace(configPath)
 	if path == "" {
-		if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+		if home, err := os.UserHomeDir(); err == nil && utils.HasContent(home) {
 			path = filepath.Join(home, ".alex", "config.yaml")
 		} else {
 			path = filepath.Join(projectDir, "config.yaml")
@@ -99,7 +100,7 @@ func defaultSharedPIDDir(configPath, projectDir string) string {
 	}
 
 	if strings.HasPrefix(path, "~/") {
-		if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+		if home, err := os.UserHomeDir(); err == nil && utils.HasContent(home) {
 			path = filepath.Join(home, strings.TrimPrefix(path, "~/"))
 		}
 	}
@@ -111,7 +112,7 @@ func defaultSharedPIDDir(configPath, projectDir string) string {
 	}
 
 	path = filepath.Clean(path)
-	if resolved, err := filepath.EvalSymlinks(path); err == nil && strings.TrimSpace(resolved) != "" {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil && utils.HasContent(resolved) {
 		path = resolved
 	}
 
