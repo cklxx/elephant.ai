@@ -41,7 +41,6 @@ type reactRuntime struct {
 	pendingTaskID         string
 	nextTaskSeq           int
 	pauseRequested        bool
-	replanRequested       bool
 
 	// Background task manager for async agent execution.
 	bgManager      *BackgroundTaskManager
@@ -66,7 +65,6 @@ const (
 	planStatusCompleted  = "completed"
 )
 
-const replanPrompt = "Tool execution failed. Re-evaluate your approach and call plan() to adjust the strategy before retrying."
 const repeatedNonRetryableToolFailureThreshold = 3
 
 type reactIteration struct {
@@ -332,56 +330,6 @@ func (r *reactRuntime) handleMaxIterations() (*TaskResult, error) {
 	return r.finalizeResult("max_iterations", finalResult, true, nil), nil
 }
 
-// enforceOrchestratorGates prevents plan/ask_user from being
-// called in parallel with other tools (they must be sole calls in a batch).
-func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string) {
-	if len(calls) == 0 {
-		return false, ""
-	}
-
-	hasPlan := false
-	hasAskUser := false
-	hasContextCheckpoint := false
-	for _, call := range calls {
-		name := strings.ToLower(strings.TrimSpace(call.Name))
-		switch name {
-		case "plan":
-			hasPlan = true
-		case "ask_user":
-			hasAskUser = true
-		case "context_checkpoint":
-			hasContextCheckpoint = true
-		}
-	}
-
-	if hasPlan && len(calls) > 1 {
-		return true, "plan() 必须单独调用。请移除同轮其它工具调用并重试。"
-	}
-	if hasAskUser && len(calls) > 1 {
-		return true, "ask_user() 必须单独调用。请移除同轮其它工具调用并重试。"
-	}
-	if hasContextCheckpoint && len(calls) > 1 {
-		return true, "context_checkpoint() 必须单独调用。请移除同轮其它工具调用并重试。"
-	}
-
-	return false, ""
-}
-
-func (r *reactRuntime) injectOrchestratorCorrection(content string) {
-	if r == nil || r.state == nil {
-		return
-	}
-	trimmed := strings.TrimSpace(content)
-	if trimmed == "" {
-		return
-	}
-	r.state.Messages = append(r.state.Messages, Message{
-		Role:    "system",
-		Content: trimmed,
-		Source:  ports.MessageSourceSystemPrompt,
-	})
-}
-
 func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolResult) {
 	if r == nil || len(calls) == 0 || len(results) == 0 {
 		return
@@ -404,7 +352,6 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 		case "plan":
 			r.planEmitted = true
 			r.planVersion++
-			r.replanRequested = false
 			if raw, ok := call.Arguments["complexity"].(string); ok {
 				complexity := strings.ToLower(strings.TrimSpace(raw))
 				if complexity == "simple" || complexity == "complex" {
@@ -430,7 +377,7 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 	}
 }
 
-func (r *reactRuntime) handleToolError(call ToolCall, result ToolResult) {
+func (r *reactRuntime) handleToolError(_ ToolCall, _ ToolResult) {
 	if r == nil || r.state == nil {
 		return
 	}
@@ -440,19 +387,6 @@ func (r *reactRuntime) handleToolError(call ToolCall, result ToolResult) {
 	}
 	if targetID != "" {
 		r.updatePlanStatus(targetID, planStatusBlocked, false)
-	}
-	if !r.replanRequested {
-		r.injectOrchestratorCorrection(replanPrompt)
-		reason := "orchestrator tool failure triggered replan injection"
-		errMsg := "tool execution failed"
-		if result.Error != nil {
-			errMsg = result.Error.Error()
-		}
-		r.engine.emitEvent(domain.NewReplanRequestedEvent(
-			r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-			call.ID, call.Name, reason, errMsg,
-		))
-		r.replanRequested = true
 	}
 }
 
@@ -483,7 +417,6 @@ func (r *reactRuntime) handleClarifyResult(result ToolResult) {
 	r.currentTaskID = taskID
 	r.clarifyEmitted[taskID] = true
 	r.pendingTaskID = ""
-	r.replanRequested = false
 }
 
 func extractSuccessCriteria(metadata map[string]any) []string {
@@ -726,14 +659,6 @@ func (it *reactIteration) think() error {
 	it.runtime.engine.logger.Debug("Parsed %d tool calls", len(parsedCalls))
 
 	validCalls := it.runtime.filterValidToolCalls(parsedCalls)
-	if retry, prompt := it.runtime.enforceOrchestratorGates(validCalls); retry {
-		it.runtime.injectOrchestratorCorrection(prompt)
-		tracker.completeThink(it.index, Message{}, nil, nil)
-		it.toolCalls = nil
-		it.thought = Message{}
-		return nil
-	}
-
 	if len(validCalls) > 0 {
 		thought.ToolCalls = append([]ToolCall(nil), validCalls...)
 	} else {

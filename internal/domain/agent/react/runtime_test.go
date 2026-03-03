@@ -366,54 +366,6 @@ func TestRecordThoughtSkipsThinkingOnlyMessage(t *testing.T) {
 	require.Empty(t, state.Messages)
 }
 
-func TestReactRuntimeAllowsActionWithoutPlan(t *testing.T) {
-	engine := NewReactEngine(ReactEngineConfig{})
-	state := &TaskState{
-		RunID: "run-no-plan",
-	}
-	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
-
-	// Simulate action tool calls without prior plan() — should not be blocked.
-	calls := []ToolCall{
-		{Name: "web_search", Arguments: map[string]any{"query": "test"}},
-		{Name: "file_read", Arguments: map[string]any{"path": "/tmp/test"}},
-	}
-
-	blocked, msg := runtime.enforceOrchestratorGates(calls)
-	require.False(t, blocked, "action tools should NOT be blocked without prior plan()")
-	require.Empty(t, msg)
-}
-
-func TestReactRuntimeBlocksParallelPlanCalls(t *testing.T) {
-	engine := NewReactEngine(ReactEngineConfig{})
-	state := &TaskState{RunID: "run-parallel"}
-	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
-
-	calls := []ToolCall{
-		{Name: "plan", Arguments: map[string]any{"overall_goal_ui": "goal", "complexity": "simple"}},
-		{Name: "web_search", Arguments: map[string]any{"query": "test"}},
-	}
-
-	blocked, msg := runtime.enforceOrchestratorGates(calls)
-	require.True(t, blocked, "plan() in parallel with other tools should be blocked")
-	require.Contains(t, msg, "plan()")
-}
-
-func TestReactRuntimeBlocksParallelAskUserCalls(t *testing.T) {
-	engine := NewReactEngine(ReactEngineConfig{})
-	state := &TaskState{RunID: "run-parallel"}
-	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
-
-	calls := []ToolCall{
-		{Name: "ask_user", Arguments: map[string]any{"task_goal_ui": "sub"}},
-		{Name: "web_search", Arguments: map[string]any{"query": "test"}},
-	}
-
-	blocked, msg := runtime.enforceOrchestratorGates(calls)
-	require.True(t, blocked, "ask_user() in parallel with other tools should be blocked")
-	require.Contains(t, msg, "ask_user()")
-}
-
 func TestPlanReviewTriggersPauseAndMarker(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{
@@ -498,9 +450,8 @@ func TestAskUserCompletesPreviousPlanNode(t *testing.T) {
 	require.Equal(t, planStatusInProgress, state.Plans[1].Status)
 }
 
-func TestToolErrorBlocksPlanNodeAndRequestsReplan(t *testing.T) {
-	listener := &collectingListener{}
-	engine := NewReactEngine(ReactEngineConfig{EventListener: listener})
+func TestToolErrorBlocksPlanNode(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{
 		RunID: "run-plan",
 		Plans: []agent.PlanNode{{
@@ -517,26 +468,6 @@ func TestToolErrorBlocksPlanNodeAndRequestsReplan(t *testing.T) {
 	}})
 
 	require.Equal(t, planStatusBlocked, state.Plans[0].Status)
-	found := false
-	for _, msg := range state.Messages {
-		if strings.Contains(msg.Content, "Tool execution failed") {
-			found = true
-			break
-		}
-	}
-	require.True(t, found, "expected replan prompt to be injected")
-
-	replanEvents := 0
-	for _, event := range listener.collected() {
-		replan, ok := event.(*domain.Event)
-		if !ok || replan.Kind != types.EventReplanRequested {
-			continue
-		}
-		replanEvents++
-		require.Equal(t, "web_search", replan.Data.ToolName)
-		require.Equal(t, "boom", replan.Data.ErrorStr)
-	}
-	require.Equal(t, 1, replanEvents, "expected one replan requested event")
 }
 
 func TestRepeatedNonRetryableToolFailureStopsRuntime(t *testing.T) {
