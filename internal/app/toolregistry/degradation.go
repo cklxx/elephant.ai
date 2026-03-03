@@ -144,7 +144,7 @@ func (d *degradationExecutor) Execute(ctx context.Context, call ports.ToolCall) 
 	if result != nil {
 		return result, originalErr
 	}
-	return &ports.ToolResult{CallID: call.ID, Error: originalErr}, originalErr
+	return toolErrorResult(call, originalErr), originalErr
 }
 
 func (d *degradationExecutor) Definition() ports.ToolDefinition {

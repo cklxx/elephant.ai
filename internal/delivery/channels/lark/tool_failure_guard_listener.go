@@ -9,6 +9,7 @@ import (
 	domain "alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
+	"alex/internal/shared/utils"
 )
 
 type toolFailureGuardListener struct {
@@ -63,7 +64,7 @@ func isToolCompletedFailureEvent(event agent.AgentEvent) (failed, ok bool) {
 		if e == nil || e.Kind != types.EventToolCompleted {
 			return false, false
 		}
-		return e.Data.Error != nil || strings.TrimSpace(e.Data.ErrorStr) != "", true
+		return e.Data.Error != nil || utils.HasContent(e.Data.ErrorStr), true
 	case *domain.WorkflowEventEnvelope:
 		if e == nil || strings.TrimSpace(e.Event) != types.EventToolCompleted {
 			return false, false

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"alex/internal/domain/agent"
+	domain "alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
