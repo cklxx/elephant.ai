@@ -219,7 +219,6 @@ func sameProviderModel(a, b runtimeconfig.LLMProfile) bool {
 		strings.EqualFold(strings.TrimSpace(a.BaseURL), strings.TrimSpace(b.BaseURL))
 }
 
-
 func buildMemoryCapturePrompt(result TaskResultInfo) string {
 	if utils.IsBlank(result.TaskInput) && utils.IsBlank(result.Answer) && len(result.ToolCalls) == 0 {
 		return ""
@@ -277,11 +276,10 @@ func truncateText(value string, limit int) string {
 	if trimmed == "" || limit <= 0 {
 		return ""
 	}
-	runes := []rune(trimmed)
-	if len(runes) <= limit {
+	if len([]rune(trimmed)) <= limit {
 		return trimmed
 	}
-	return strings.TrimSpace(string(runes[:limit])) + "..."
+	return strings.TrimSpace(utils.TruncateWithSuffix(trimmed, limit, "..."))
 }
 
 func normalizeMemoryLines(content string) []string {

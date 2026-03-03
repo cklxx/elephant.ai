@@ -732,11 +732,10 @@ func normalizeMergeStatus(status string) string {
 
 func truncateForLark(s string, max int) string {
 	s = strings.TrimSpace(s)
-	runes := []rune(s)
-	if max <= 0 || len(runes) <= max {
+	if max <= 0 || len([]rune(s)) <= max {
 		return s
 	}
-	return string(runes[:max])
+	return utils.TruncateWithSuffix(s, max, "")
 }
 
 func minDuration(a, b time.Duration) time.Duration {

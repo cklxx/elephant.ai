@@ -181,11 +181,10 @@ func summarizeChatContent(content string, limit int) string {
 	if limit <= 0 {
 		return normalized
 	}
-	runes := []rune(normalized)
-	if len(runes) <= limit {
+	if len([]rune(normalized)) <= limit {
 		return normalized
 	}
-	return string(runes[:limit]) + "…"
+	return utils.TruncateWithSuffix(normalized, limit, "…")
 }
 
 // formatChatTimestamp converts a millisecond Unix timestamp string to a readable format.
