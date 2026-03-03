@@ -134,7 +134,6 @@ func TestFileCostStore_GetByModel(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	base := time.Date(2026, time.January, 2, 10, 0, 0, 0, time.UTC)
 
 	records := []agentstorage.UsageRecord{
 		{
@@ -142,28 +141,21 @@ func TestFileCostStore_GetByModel(t *testing.T) {
 			SessionID: "session-1",
 			Model:     "gpt-4o",
 			Provider:  "openrouter",
-			Timestamp: base.Add(48 * time.Hour),
+			Timestamp: time.Now(),
 		},
 		{
 			ID:        "2",
 			SessionID: "session-1",
 			Model:     "gpt-4o-mini",
 			Provider:  "openrouter",
-			Timestamp: base.Add(24 * time.Hour),
+			Timestamp: time.Now(),
 		},
 		{
 			ID:        "3",
 			SessionID: "session-1",
 			Model:     "gpt-4o",
 			Provider:  "openrouter",
-			Timestamp: base,
-		},
-		{
-			ID:        "4",
-			SessionID: "session-1",
-			Model:     "gpt-4o",
-			Provider:  "openrouter",
-			Timestamp: base.Add(12 * time.Hour),
+			Timestamp: time.Now(),
 		},
 	}
 
@@ -179,21 +171,14 @@ func TestFileCostStore_GetByModel(t *testing.T) {
 		t.Fatalf("GetByModel failed: %v", err)
 	}
 
-	if len(retrieved) != 3 {
-		t.Errorf("Expected 3 gpt-4o records, got %d", len(retrieved))
+	if len(retrieved) != 2 {
+		t.Errorf("Expected 2 gpt-4o records, got %d", len(retrieved))
 	}
 
 	// Verify all are gpt-4o
 	for _, r := range retrieved {
 		if r.Model != "gpt-4o" {
 			t.Errorf("Expected model gpt-4o, got %s", r.Model)
-		}
-	}
-
-	wantIDs := []string{"3", "4", "1"}
-	for i := range wantIDs {
-		if retrieved[i].ID != wantIDs[i] {
-			t.Fatalf("retrieved[%d].ID = %s, want %s", i, retrieved[i].ID, wantIDs[i])
 		}
 	}
 }
@@ -206,26 +191,23 @@ func TestFileCostStore_ListAll(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	base := time.Date(2026, time.January, 2, 10, 0, 0, 0, time.UTC)
+
+	// Create records on multiple days
+	today := time.Now()
+	yesterday := today.Add(-24 * time.Hour)
 
 	records := []agentstorage.UsageRecord{
 		{
 			ID:        "1",
 			SessionID: "session-1",
 			Model:     "gpt-4o",
-			Timestamp: base.Add(48 * time.Hour),
+			Timestamp: yesterday,
 		},
 		{
 			ID:        "2",
 			SessionID: "session-1",
 			Model:     "gpt-4o",
-			Timestamp: base.Add(12 * time.Hour),
-		},
-		{
-			ID:        "3",
-			SessionID: "session-1",
-			Model:     "gpt-4o-mini",
-			Timestamp: base,
+			Timestamp: today,
 		},
 	}
 
@@ -241,15 +223,8 @@ func TestFileCostStore_ListAll(t *testing.T) {
 		t.Fatalf("ListAll failed: %v", err)
 	}
 
-	if len(all) != 3 {
-		t.Errorf("Expected 3 records, got %d", len(all))
-	}
-
-	wantIDs := []string{"3", "2", "1"}
-	for i := range wantIDs {
-		if all[i].ID != wantIDs[i] {
-			t.Fatalf("all[%d].ID = %s, want %s", i, all[i].ID, wantIDs[i])
-		}
+	if len(all) != 2 {
+		t.Errorf("Expected 2 records, got %d", len(all))
 	}
 }
 

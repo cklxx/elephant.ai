@@ -49,11 +49,11 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 	today, _ := m.memoryEngine.LoadDaily(ctx, userID, now)
 	yesterday, _ := m.memoryEngine.LoadDaily(ctx, userID, now.AddDate(0, 0, -1))
 
-	soul = utils.TruncateWithEllipsis(soul, maxMemorySectionChars)
-	user = utils.TruncateWithEllipsis(user, maxMemorySectionChars)
-	longTerm = utils.TruncateWithEllipsis(longTerm, maxMemorySectionChars)
-	today = utils.TruncateWithEllipsis(today, maxMemorySectionChars)
-	yesterday = utils.TruncateWithEllipsis(yesterday, maxMemorySectionChars)
+	soul = truncateMemorySection(soul, maxMemorySectionChars)
+	user = truncateMemorySection(user, maxMemorySectionChars)
+	longTerm = truncateMemorySection(longTerm, maxMemorySectionChars)
+	today = truncateMemorySection(today, maxMemorySectionChars)
+	yesterday = truncateMemorySection(yesterday, maxMemorySectionChars)
 
 	var sections []string
 	if soul != "" {
@@ -77,7 +77,7 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 		return ""
 	}
 
-	return utils.TruncateWithEllipsis(strings.Join(sections, "\n\n"), maxMemorySnapshotChars)
+	return truncateMemorySection(strings.Join(sections, "\n\n"), maxMemorySnapshotChars)
 }
 
 func (m *manager) loadIdentitySnapshot(userID string) (soul string, user string, soulPath string, userPath string) {
@@ -301,4 +301,16 @@ func resolveMemoryUserID(ctx context.Context, session *storage.Session) string {
 		return session.ID
 	}
 	return ""
+}
+
+func truncateMemorySection(content string, limit int) string {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" || limit <= 0 {
+		return trimmed
+	}
+	runes := []rune(trimmed)
+	if len(runes) <= limit {
+		return trimmed
+	}
+	return strings.TrimSpace(string(runes[:limit])) + "..."
 }

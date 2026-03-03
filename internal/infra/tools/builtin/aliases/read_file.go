@@ -65,12 +65,12 @@ func (t *readFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
 		err := errors.New("path is required")
-		return shared.ToolError(call.ID, "%w", err)
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
 	resolved, err := pathutil.ResolveLocalPath(ctx, path)
 	if err != nil {
-		return shared.ToolError(call.ID, "%w", err)
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
 	hasRange := false
@@ -82,7 +82,7 @@ func (t *readFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 	info, err := os.Stat(resolved)
 	if err != nil {
-		return shared.ToolError(call.ID, "%w", err)
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 	fileSize := info.Size()
 
@@ -100,7 +100,7 @@ func (t *readFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	// Normal path: read entire file.
 	content, err := os.ReadFile(resolved)
 	if err != nil {
-		return shared.ToolError(call.ID, "%w", err)
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
 	output := string(content)
@@ -128,7 +128,7 @@ func (t *readFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 			}
 			if endLine < startLine {
 				err := fmt.Errorf("end_line must be >= start_line")
-				return shared.ToolError(call.ID, "%w", err)
+				return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 			}
 			output = strings.Join(lines[startLine:endLine], "\n")
 			metadata["shown_range"] = [2]int{startLine, endLine}
@@ -150,12 +150,12 @@ func (t *readFile) readLargeFileRange(callID, resolved string, fileSize int64, s
 	}
 	if endLine > 0 && endLine < startLine {
 		err := fmt.Errorf("end_line must be >= start_line")
-		return shared.ToolError(callID, "%w", err)
+		return &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}, nil
 	}
 
 	f, err := os.Open(resolved)
 	if err != nil {
-		return shared.ToolError(callID, "%w", err)
+		return &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}, nil
 	}
 	defer f.Close()
 
@@ -212,7 +212,7 @@ func (t *readFile) readLargeFileRange(callID, resolved string, fileSize int64, s
 func (t *readFile) readLargeFilePreview(callID, resolved string, fileSize int64) (*ports.ToolResult, error) {
 	f, err := os.Open(resolved)
 	if err != nil {
-		return shared.ToolError(callID, "%w", err)
+		return &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}, nil
 	}
 	defer f.Close()
 

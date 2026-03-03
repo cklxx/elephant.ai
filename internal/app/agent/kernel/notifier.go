@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	kerneldomain "alex/internal/domain/kernel"
+	"alex/internal/shared/utils"
 )
 
 // CycleNotifier is called after each non-empty kernel cycle.
@@ -161,36 +162,16 @@ func summarizeAutonomySignals(result *kerneldomain.CycleResult) autonomySignalSu
 				signals.AutoRecovered++
 			}
 		case kerneldomain.DispatchFailed:
-			failureClass := strings.TrimSpace(entry.FailureClass)
-			if failureClass == "" {
-				failureClass = inferFailureClassFromError(entry.Error)
-			}
-			switch failureClass {
-			case kernelAutonomyAwaiting:
+			lowerErr := utils.TrimLower(entry.Error)
+			if strings.Contains(lowerErr, strings.ToLower(errKernelAwaitingUserConfirmation.Error())) {
 				signals.BlockedAwaitingInput++
-			case kernelAutonomyNoTool:
+			}
+			if strings.Contains(lowerErr, strings.ToLower(errKernelNoRealToolAction.Error())) {
 				signals.BlockedNoAction++
 			}
 		}
 	}
 	return signals
-}
-
-func inferFailureClassFromError(errMsg string) string {
-	trimmed := strings.TrimSpace(errMsg)
-	if strings.HasPrefix(trimmed, "[") {
-		if end := strings.Index(trimmed, "]"); end > 1 {
-			return strings.TrimSpace(trimmed[1:end])
-		}
-	}
-	switch trimmed {
-	case errKernelAwaitingUserConfirmation.Error():
-		return kernelAutonomyAwaiting
-	case errKernelNoRealToolAction.Error():
-		return kernelAutonomyNoTool
-	default:
-		return ""
-	}
 }
 
 func extractAttempts(summary string) int {
