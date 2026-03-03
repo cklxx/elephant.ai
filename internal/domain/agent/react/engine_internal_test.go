@@ -1530,31 +1530,16 @@ func TestCompactToolResultAttachmentsClearsStateToolResults(t *testing.T) {
 			}},
 		}},
 	}
-	results := []ToolResult{{
-		CallID: "call-1",
-		Attachments: map[string]ports.Attachment{
-			"report.pdf": {
-				Name:      "report.pdf",
-				MediaType: "application/pdf",
-				Data:      "aGVsbG8=",
-				URI:       "https://cdn.example.com/new.pdf",
-			},
-		},
-	}}
+	engine.compactToolResultAttachments(context.Background(), state)
 
-	engine.compactToolResultAttachments(context.Background(), state, results)
-
-	if results[0].Attachments["report.pdf"].Data != "" {
-		t.Fatalf("expected Data cleared from results")
-	}
 	if state.ToolResults[0].Attachments["report.pdf"].Data != "" {
 		t.Fatalf("expected Data cleared from state.ToolResults")
 	}
 	if state.Messages[0].ToolResults[0].Attachments["report.pdf"].Data != "" {
 		t.Fatalf("expected Data cleared from message tool results")
 	}
-	if results[0].Attachments["report.pdf"].URI != "https://cdn.example.com/new.pdf" {
-		t.Fatalf("expected URI preserved, got %q", results[0].Attachments["report.pdf"].URI)
+	if state.ToolResults[0].Attachments["report.pdf"].URI != "https://cdn.example.com/new.pdf" {
+		t.Fatalf("expected URI preserved, got %q", state.ToolResults[0].Attachments["report.pdf"].URI)
 	}
 }
 

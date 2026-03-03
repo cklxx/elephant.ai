@@ -28,20 +28,16 @@ func (e *ReactEngine) observeToolResults(ctx context.Context, state *TaskState, 
 		"tool_results": updates,
 	}
 	e.compactToolCallHistory(state, results)
-	e.compactToolResultAttachments(ctx, state, results)
+	e.compactToolResultAttachments(ctx, state)
 	offloadMessageAttachmentData(state)
 	e.appendFeedbackSignals(state, results)
 }
 
-func (e *ReactEngine) compactToolResultAttachments(ctx context.Context, state *TaskState, results []ToolResult) {
+func (e *ReactEngine) compactToolResultAttachments(ctx context.Context, state *TaskState) {
 	if state == nil {
 		return
 	}
-	e.persistToolResultAttachments(ctx, results)
 	e.persistToolResultAttachments(ctx, state.ToolResults)
-	for i := range results {
-		offloadAttachmentMap(results[i].Attachments)
-	}
 	for i := range state.ToolResults {
 		offloadAttachmentMap(state.ToolResults[i].Attachments)
 	}

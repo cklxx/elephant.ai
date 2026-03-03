@@ -8,90 +8,83 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 )
 
-func newWorkflowRecorder(tracker WorkflowTracker) *workflowRecorder {
-	if tracker == nil {
-		return nil
-	}
-	return &workflowRecorder{tracker: tracker}
+func newReactWorkflow(tracker WorkflowTracker) *reactWorkflow {
+	return &reactWorkflow{tracker: tracker}
 }
 
-func (r *workflowRecorder) ensure(nodeID string, input any) string {
-	if r == nil || nodeID == "" {
+func (rw *reactWorkflow) ensure(nodeID string, input any) string {
+	if rw.tracker == nil || nodeID == "" {
 		return ""
 	}
-	r.tracker.EnsureNode(nodeID, input)
+	rw.tracker.EnsureNode(nodeID, input)
 	return nodeID
 }
 
-func (r *workflowRecorder) start(nodeID string, input any) {
-	if r.ensure(nodeID, input) == "" {
+func (rw *reactWorkflow) start(nodeID string, input any) {
+	if rw.ensure(nodeID, input) == "" {
 		return
 	}
-	r.tracker.StartNode(nodeID)
+	rw.tracker.StartNode(nodeID)
 }
 
-func (r *workflowRecorder) complete(nodeID string, output any, err error) {
-	if r == nil || nodeID == "" {
+func (rw *reactWorkflow) complete(nodeID string, output any, err error) {
+	if rw.tracker == nil || nodeID == "" {
 		return
 	}
 	if err != nil {
-		r.tracker.CompleteNodeFailure(nodeID, err)
+		rw.tracker.CompleteNodeFailure(nodeID, err)
 		return
 	}
-	r.tracker.CompleteNodeSuccess(nodeID, output)
-}
-
-func newReactWorkflow(tracker WorkflowTracker) *reactWorkflow {
-	return &reactWorkflow{recorder: newWorkflowRecorder(tracker)}
+	rw.tracker.CompleteNodeSuccess(nodeID, output)
 }
 
 func (rw *reactWorkflow) startContext(task string) {
-	rw.recorder.start(workflowNodeContext, map[string]any{"task": task})
+	rw.start(workflowNodeContext, map[string]any{"task": task})
 }
 
 func (rw *reactWorkflow) completeContext(output map[string]any) {
-	rw.recorder.complete(workflowNodeContext, output, nil)
+	rw.complete(workflowNodeContext, output, nil)
 }
 
 func (rw *reactWorkflow) startThink(iteration int) {
-	rw.recorder.start(iterationThinkNode(iteration), map[string]any{"iteration": iteration})
+	rw.start(iterationThinkNode(iteration), map[string]any{"iteration": iteration})
 }
 
 func (rw *reactWorkflow) startPlan(iteration, requested int) {
-	rw.recorder.start(iterationPlanNode(iteration), map[string]any{"iteration": iteration, "requested_calls": requested})
+	rw.start(iterationPlanNode(iteration), map[string]any{"iteration": iteration, "requested_calls": requested})
 }
 
 func (rw *reactWorkflow) completePlan(iteration int, planned []ToolCall, err error) {
-	rw.recorder.complete(iterationPlanNode(iteration), workflowPlanOutput(iteration, planned), err)
+	rw.complete(iterationPlanNode(iteration), workflowPlanOutput(iteration, planned), err)
 }
 
 func (rw *reactWorkflow) completeThink(iteration int, thought Message, toolCalls []ToolCall, err error) {
-	rw.recorder.complete(iterationThinkNode(iteration), workflowThinkOutput(iteration, thought, toolCalls), err)
+	rw.complete(iterationThinkNode(iteration), workflowThinkOutput(iteration, thought, toolCalls), err)
 }
 
 func (rw *reactWorkflow) startTools(iteration int, nodeID string, calls int) {
-	rw.recorder.start(nodeID, map[string]any{"iteration": iteration, "calls": calls})
+	rw.start(nodeID, map[string]any{"iteration": iteration, "calls": calls})
 }
 
 func (rw *reactWorkflow) completeTools(iteration int, nodeID string, results []ToolResult, err error) {
-	rw.recorder.complete(nodeID, workflowToolOutput(iteration, results), err)
+	rw.complete(nodeID, workflowToolOutput(iteration, results), err)
 }
 
 func (rw *reactWorkflow) ensureToolCall(iteration int, call ToolCall) string {
-	return rw.recorder.ensure(iterationToolCallNode(iteration, call.ID), workflowToolCallInput(iteration, call))
+	return rw.ensure(iterationToolCallNode(iteration, call.ID), workflowToolCallInput(iteration, call))
 }
 
 func (rw *reactWorkflow) startToolCall(nodeID string) {
-	rw.recorder.start(nodeID, nil)
+	rw.start(nodeID, nil)
 }
 
 func (rw *reactWorkflow) completeToolCall(nodeID string, iteration int, call ToolCall, result ToolResult, err error) {
-	rw.recorder.complete(nodeID, workflowToolCallOutput(iteration, call, result), err)
+	rw.complete(nodeID, workflowToolCallOutput(iteration, call, result), err)
 }
 
 func (rw *reactWorkflow) finalize(stopReason string, result *TaskResult, err error) {
-	rw.recorder.start(workflowNodeFinalize, map[string]any{"stop_reason": stopReason})
-	rw.recorder.complete(workflowNodeFinalize, workflowFinalizeOutput(result), err)
+	rw.start(workflowNodeFinalize, map[string]any{"stop_reason": stopReason})
+	rw.complete(workflowNodeFinalize, workflowFinalizeOutput(result), err)
 }
 
 func iterationThinkNode(iteration int) string {

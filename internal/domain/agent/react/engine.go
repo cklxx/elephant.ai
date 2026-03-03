@@ -50,12 +50,8 @@ type ReactEngine struct {
 	toolParameterMarshal func(v any) ([]byte, error)
 }
 
-type workflowRecorder struct {
-	tracker WorkflowTracker
-}
-
 type reactWorkflow struct {
-	recorder *workflowRecorder
+	tracker WorkflowTracker
 }
 
 type toolCallBatch struct {

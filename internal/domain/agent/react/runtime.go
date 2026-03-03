@@ -379,9 +379,6 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 }
 
 func (r *reactRuntime) handleToolError(_ ToolCall, _ ToolResult) {
-	if r.state == nil {
-		return
-	}
 	targetID := strings.TrimSpace(r.currentTaskID)
 	if targetID == "" && len(r.state.Plans) > 0 {
 		targetID = strings.TrimSpace(r.state.Plans[len(r.state.Plans)-1].ID)
@@ -392,7 +389,7 @@ func (r *reactRuntime) handleToolError(_ ToolCall, _ ToolResult) {
 }
 
 func (r *reactRuntime) handleClarifyResult(result ToolResult) {
-	if r.state == nil || result.Metadata == nil {
+	if result.Metadata == nil {
 		return
 	}
 	taskID, _ := result.Metadata["task_id"].(string)
@@ -447,9 +444,6 @@ func extractSuccessCriteria(metadata map[string]any) []string {
 }
 
 func (r *reactRuntime) upsertPlanNode(node agent.PlanNode) {
-	if r.state == nil {
-		return
-	}
 	if utils.IsBlank(node.ID) {
 		return
 	}
@@ -475,9 +469,6 @@ func updatePlanNode(nodes []agent.PlanNode, node agent.PlanNode) bool {
 }
 
 func (r *reactRuntime) updatePlanStatus(id string, status string, skipIfBlocked bool) bool {
-	if r.state == nil {
-		return false
-	}
 	return updatePlanStatus(r.state.Plans, strings.TrimSpace(id), status, skipIfBlocked)
 }
 
@@ -541,9 +532,6 @@ func (r *reactRuntime) maybeTriggerPlanReview(call ToolCall, result ToolResult) 
 }
 
 func (r *reactRuntime) injectPlanReviewMarker(goal string, internalPlan any, runID string) {
-	if r.state == nil {
-		return
-	}
 	goal = strings.TrimSpace(goal)
 	if goal == "" {
 		return
@@ -846,9 +834,6 @@ func (r *reactRuntime) finalizeRepeatedToolFailure(hint string, lastErr error) *
 }
 
 func (r *reactRuntime) resetNonRetryableToolFailures() {
-	if r == nil {
-		return
-	}
 	r.lastNonRetryableToolFailure = ""
 	r.consecutiveNonRetryableFails = 0
 }
@@ -972,16 +957,12 @@ func (r *reactRuntime) emitFinalAnswerStream(stopReason string, result *TaskResu
 		return
 	}
 
-	var builder strings.Builder
-	for i := 0; i < len(runes); i += chunkSize {
-		end := i + chunkSize
-		if end > len(runes) {
-			end = len(runes)
-		}
-		builder.WriteString(string(runes[i:end]))
+	// Emit cumulative chunks up to (but not including) the full length.
+	// The caller emits the final complete ResultFinalEvent with streamFinished=true.
+	for end := chunkSize; end < len(runes); end += chunkSize {
 		r.engine.emitEvent(domain.NewResultFinalEvent(
 			r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-			builder.String(), result.Iterations, result.TokensUsed, stopReason,
+			string(runes[:end]), result.Iterations, result.TokensUsed, stopReason,
 			result.Duration, true, false, nil,
 		))
 	}
