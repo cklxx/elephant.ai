@@ -2,6 +2,7 @@ package larktools
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -295,6 +296,33 @@ func TestTaskManage_ListMissingOAuthTokenRequestsAuthorization(t *testing.T) {
 	}
 	if result.Error == nil {
 		t.Fatal("expected error when OAuth token is missing")
+	}
+	if !strings.Contains(result.Content, "Please authorize Lark task access first:") {
+		t.Fatalf("expected authorization guidance, got %q", result.Content)
+	}
+}
+
+func TestTaskManage_ListRefreshTokenInvalidRequestsAuthorization(t *testing.T) {
+	tool := NewLarkTaskManage()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret")
+	oauthSvc := &fakeLarkOAuth{
+		err:      fmt.Errorf("lark authen refresh_access_token create failed: code=20026 msg=refresh token not found"),
+		startURL: "http://localhost:8080/api/lark/oauth/start",
+	}
+
+	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
+	ctx = shared.WithLarkOAuth(ctx, oauthSvc)
+
+	call := ports.ToolCall{ID: "test-list-oauth-refresh-invalid", Name: "lark_task_manage", Arguments: map[string]any{
+		"action": "list",
+	}}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error when refresh token is invalid")
 	}
 	if !strings.Contains(result.Content, "Please authorize Lark task access first:") {
 		t.Fatalf("expected authorization guidance, got %q", result.Content)

@@ -877,8 +877,11 @@ func resolveTaskUserToken(ctx context.Context, callID string) (string, *ports.To
 	token, err := svc.UserAccessToken(ctx, openID)
 	if err != nil {
 		var need *larkoauth.NeedUserAuthError
-		if errors.As(err, &need) {
-			url := strings.TrimSpace(need.AuthURL)
+		if errors.As(err, &need) || isReauthRequiredError(err) {
+			url := ""
+			if need != nil {
+				url = strings.TrimSpace(need.AuthURL)
+			}
 			if url == "" {
 				url = strings.TrimSpace(svc.StartURL())
 			}
@@ -911,4 +914,22 @@ func (a larkAccessToken) mode() string {
 	default:
 		return ""
 	}
+}
+
+func isReauthRequiredError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var need *larkoauth.NeedUserAuthError
+	if errors.As(err, &need) {
+		return true
+	}
+
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	if msg == "" {
+		return false
+	}
+	return strings.Contains(msg, "refresh token not found") ||
+		strings.Contains(msg, "refresh_access_token create failed")
 }
