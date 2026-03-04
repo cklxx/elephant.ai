@@ -5,7 +5,14 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	jsonx "alex/internal/shared/json"
 )
+
+// MaxInlineOutputBytes is the threshold above which node output is truncated
+// in snapshots. Outputs larger than this are replaced with a truncated
+// preview and a reference placeholder.
+const MaxInlineOutputBytes = 4096
 
 // NodeStatus represents the lifecycle stage for a workflow node.
 type NodeStatus string
@@ -40,6 +47,7 @@ type NodeSnapshot struct {
 	Status      NodeStatus    `json:"status"`
 	Input       any           `json:"input,omitempty"`
 	Output      any           `json:"output,omitempty"`
+	OutputRef   string        `json:"output_ref,omitempty"` // placeholder when output exceeds MaxInlineOutputBytes
 	Error       string        `json:"error,omitempty"`
 	StartedAt   time.Time     `json:"started_at,omitempty"`
 	CompletedAt time.Time     `json:"completed_at,omitempty"`
@@ -158,7 +166,39 @@ func (n *Node) snapshotLocked() NodeSnapshot {
 		}
 		snapshot.Duration = end.Sub(snapshot.StartedAt)
 	}
+	// Apply output size governance: truncate large outputs in the snapshot
+	// and set OutputRef so consumers know the full output is available.
+	if snapshot.Output != nil {
+		if _, inline, err := ClassifyOutput(snapshot.Output); err == nil && !inline {
+			snapshot.Output = TruncateOutputForSnapshot(snapshot.Output)
+			snapshot.OutputRef = fmt.Sprintf("node:%s:output", n.id)
+		}
+	}
 	return snapshot
+}
+
+// ClassifyOutput determines whether output should be inlined or referenced.
+// It returns the serialized bytes, whether the output fits inline, and any
+// marshal error.
+func ClassifyOutput(output any) (data []byte, inline bool, err error) {
+	data, err = jsonx.Marshal(output)
+	if err != nil {
+		return nil, false, err
+	}
+	return data, len(data) <= MaxInlineOutputBytes, nil
+}
+
+// TruncateOutputForSnapshot returns a truncated string representation of
+// large outputs, suitable for inline snapshot display.
+func TruncateOutputForSnapshot(output any) string {
+	data, err := jsonx.Marshal(output)
+	if err != nil {
+		return "[marshal error]"
+	}
+	if len(data) <= MaxInlineOutputBytes {
+		return string(data)
+	}
+	return string(data[:MaxInlineOutputBytes]) + "...[truncated]"
 }
 
 func (n *Node) canTransition(target NodeStatus) bool {
