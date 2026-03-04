@@ -17,6 +17,7 @@ import (
 // OpenAI API compatible client
 type openaiClient struct {
 	baseClient
+	kimiCompat bool
 }
 
 // NewOpenAIClient constructs an LLM client that speaks the OpenAI-compatible
@@ -28,6 +29,7 @@ func NewOpenAIClient(model string, config Config) (portsllm.LLMClient, error) {
 			logCategory:    utils.LogCategoryLLM,
 			logComponent:   "openai",
 		}),
+		kimiCompat: config.KimiCompat,
 	}, nil
 }
 
@@ -473,9 +475,7 @@ func (c *openaiClient) detectProvider() string {
 
 func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 	result := make([]map[string]any, 0, len(msgs))
-	isKimi := strings.Contains(c.baseURL, "kimi.com") ||
-		strings.Contains(strings.ToLower(c.model), "kimi") ||
-		strings.Contains(c.baseURL, "moonshot")
+	isKimi := c.kimiCompat
 	seenToolCalls := make(map[string]struct{}, 8)
 	droppedToolOutputs := make(map[string]struct{}, 4)
 	droppedCallIDs := make([]string, 0, 4)

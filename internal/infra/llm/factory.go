@@ -195,6 +195,28 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	if !ok {
 		return nil, fmt.Errorf("unknown provider: %s", provider)
 	}
+
+	// Apply provider-specific config mutations.
+	if desc.ConfigMutator != nil {
+		desc.ConfigMutator(&config)
+	}
+
+	// Kimi-compat behaviors for any Kimi target (URL/model detection preserves existing behavior).
+	if isKimiTarget(provider, model, config.BaseURL) {
+		config.KimiCompat = true
+		if config.Headers == nil {
+			config.Headers = make(map[string]string)
+		}
+		if _, hasUA := config.Headers["User-Agent"]; !hasUA {
+			config.Headers["User-Agent"] = "KimiCLI/1.3"
+		}
+	}
+
+	// Codex endpoint behaviors.
+	if strings.Contains(strings.TrimSpace(config.BaseURL), "/backend-api/codex") {
+		config.CodexEndpoint = true
+	}
+
 	client, err := desc.ClientFactory(model, config)
 	if err != nil {
 		return nil, err
@@ -265,9 +287,11 @@ func (f *Factory) GetProviderHealth() []ProviderHealth {
 }
 
 type Config struct {
-	APIKey     string
-	BaseURL    string
-	Timeout    int
-	MaxRetries int
-	Headers    map[string]string
+	APIKey        string
+	BaseURL       string
+	Timeout       int
+	MaxRetries    int
+	Headers       map[string]string
+	KimiCompat    bool // Kimi-specific protocol quirks (drop empty messages, inject reasoning_content)
+	CodexEndpoint bool // Codex endpoint behaviors (stream-only, instructions field, omit temperature)
 }

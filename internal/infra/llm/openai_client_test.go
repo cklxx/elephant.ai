@@ -509,7 +509,7 @@ func TestConvertMessagesKimiDropsEmptyAssistantMessages(t *testing.T) {
 
 	// Kimi API rejects assistant messages with empty content and no tool_calls.
 	// This happens after checkpoint recovery where MessageState drops ToolCalls.
-	client := &openaiClient{baseClient: baseClient{baseURL: "https://api.kimi.com/coding/v1"}}
+	client := &openaiClient{baseClient: baseClient{baseURL: "https://api.kimi.com/coding/v1"}, kimiCompat: true}
 	msgs := []ports.Message{
 		{Role: "system", Content: "system prompt"},
 		{Role: "user", Content: "hello"},
@@ -553,7 +553,7 @@ func TestConvertMessagesKimiAlwaysSetsReasoningContentOnToolCallMessages(t *test
 	// assistant tool call message at index N".
 	// reasoning_content must always be present (even as "") in assistant messages
 	// with tool_calls when using Kimi, regardless of whether thinking text exists.
-	client := &openaiClient{baseClient: baseClient{baseURL: "https://api.kimi.com/coding/v1"}}
+	client := &openaiClient{baseClient: baseClient{baseURL: "https://api.kimi.com/coding/v1"}, kimiCompat: true}
 
 	t.Run("sets empty reasoning_content when no thinking", func(t *testing.T) {
 		msgs := []ports.Message{
@@ -630,10 +630,13 @@ func TestConvertMessagesKimiAlwaysSetsReasoningContentOnToolCallMessages(t *test
 	t.Run("sets reasoning_content when model name contains kimi (proxy URL)", func(t *testing.T) {
 		// Kimi routed through a proxy — baseURL does not contain kimi.com,
 		// but model name "kimi-for-coding" should trigger the same contract.
-		proxyKimiClient := &openaiClient{baseClient: baseClient{
-			baseURL: "https://proxy.internal.company.com/v1",
-			model:   "kimi-for-coding",
-		}}
+		proxyKimiClient := &openaiClient{
+			baseClient: baseClient{
+				baseURL: "https://proxy.internal.company.com/v1",
+				model:   "kimi-for-coding",
+			},
+			kimiCompat: true,
+		}
 		msgs := []ports.Message{
 			{
 				Role:    "assistant",

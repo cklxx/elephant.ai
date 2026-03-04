@@ -13,7 +13,7 @@ import (
 func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
 	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
 	provider := "openai-responses"
-	if c.isCodexEndpoint() {
+	if c.isCodex {
 		provider = "codex"
 	}
 
@@ -42,19 +42,19 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	}
 	if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
 		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
-			if c.isCodexEndpoint() {
+			if c.isCodex {
 				reasoning = applyCodexReasoningDefaults(reasoning)
 			}
 			payload["reasoning"] = reasoning
 		}
 	}
-	if !c.isCodexEndpoint() {
+	if !c.isCodex {
 		payload["temperature"] = req.Temperature
 	}
-	if req.MaxTokens > 0 && !c.isCodexEndpoint() {
+	if req.MaxTokens > 0 && !c.isCodex {
 		payload["max_output_tokens"] = req.MaxTokens
 	}
-	if c.isCodexEndpoint() {
+	if c.isCodex {
 		payload["instructions"] = instructions
 	}
 	if len(req.Tools) > 0 {

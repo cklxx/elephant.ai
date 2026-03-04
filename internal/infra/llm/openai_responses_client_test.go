@@ -304,7 +304,8 @@ func TestOpenAIResponsesClientOmitsMaxOutputTokensForCodex(t *testing.T) {
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -360,7 +361,8 @@ func TestOpenAIResponsesClientOmitsTemperatureForCodex(t *testing.T) {
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -417,7 +419,8 @@ func TestOpenAIResponsesClientIncludesReasoningForCodexWhenThinkingEnabled(t *te
 
 	client, err := NewOpenAIResponsesClient("gpt-5.3-codex-spark", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -489,7 +492,8 @@ func TestOpenAIResponsesClientUsesFlatToolsForCodex(t *testing.T) {
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -774,7 +778,8 @@ func TestOpenAIResponsesClientSetsInstructionsForCodex(t *testing.T) {
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -855,7 +860,8 @@ func TestOpenAIResponsesClientDeduplicatesInstructionsForCodex(t *testing.T) {
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -932,7 +938,8 @@ func TestOpenAIResponsesClientSynthesizesInputWhenCodexInputIsEmpty(t *testing.T
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -984,7 +991,8 @@ func TestOpenAIResponsesClientErrorsWhenInputEmptyAndNoFallback(t *testing.T) {
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: "http://127.0.0.1:65535/backend-api/codex",
+		BaseURL:       "http://127.0.0.1:65535/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -1048,7 +1056,8 @@ func TestOpenAIResponsesClientOmitsToolCallsForCodex(t *testing.T) {
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -1119,7 +1128,8 @@ func TestOpenAIResponsesClientConvertsToolMessagesToFunctionCallOutput(t *testin
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -1215,7 +1225,8 @@ func TestOpenAIResponsesClientDropsFunctionCallOutputWithoutFunctionCall(t *test
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -1307,7 +1318,8 @@ func TestOpenAIResponsesClientCompleteStreamsForCodex(t *testing.T) {
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -1369,7 +1381,8 @@ func TestOpenAIResponsesClientCompleteCollectsReasoningSummaryDeltas(t *testing.
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -1425,7 +1438,8 @@ func TestOpenAIResponsesClientCompleteDeduplicatesRepeatedReasoningBlocks(t *tes
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -1475,7 +1489,8 @@ func TestOpenAIResponsesClientCompleteParsesThinkingFromCompletedOutput(t *testi
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -1526,7 +1541,8 @@ func TestOpenAIResponsesClientCompleteParsesThinkingFromOutputItemDoneSummary(t 
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)
@@ -1575,7 +1591,8 @@ func TestOpenAIResponsesClientCompleteParsesThinkingFromCompletedSummary(t *test
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
 		APIKey:  "test-key",
-		BaseURL: server.URL + "/backend-api/codex",
+		BaseURL:       server.URL + "/backend-api/codex",
+		CodexEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("NewOpenAIResponsesClient: %v", err)

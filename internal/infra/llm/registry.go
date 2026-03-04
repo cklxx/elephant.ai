@@ -13,6 +13,7 @@ type ProviderDescriptor struct {
 	Name          string // canonical name: "openai", "anthropic", "kimi", etc.
 	Family        string // "openai-compat", "codex-compat", "anthropic", "llamacpp", "mock"
 	ClientFactory func(model string, cfg Config) (portsllm.LLMClient, error)
+	ConfigMutator func(cfg *Config) // optional: mutate config before client creation
 }
 
 // Registry holds registered provider descriptors and alias mappings.

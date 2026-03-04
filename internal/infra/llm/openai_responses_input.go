@@ -20,7 +20,7 @@ const (
 func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.Message) ([]map[string]any, string) {
 	items := make([]map[string]any, 0, len(msgs))
 	var instructionsParts []string
-	collectInstructions := c.isCodexEndpoint()
+	collectInstructions := c.isCodex
 	seenInstructions := make(map[string]struct{})
 	embedMask := attachmentEmbeddingMask(msgs)
 	for idx, msg := range msgs {
