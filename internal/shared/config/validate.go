@@ -1,8 +1,10 @@
 package config
 
 import (
-	"alex/internal/shared/utils"
 	"strings"
+
+	providerinfo "alex/internal/shared/provider"
+	"alex/internal/shared/utils"
 )
 
 // ValidationIssue represents a single validation finding.
@@ -47,12 +49,7 @@ func NormalizeRuntimeProfile(profile string) string {
 
 // ProviderRequiresAPIKey reports whether the provider requires API key authentication.
 func ProviderRequiresAPIKey(provider string) bool {
-	switch utils.TrimLower(provider) {
-	case "", "mock", "llama.cpp", "llamacpp", "llama-cpp", "ollama":
-		return false
-	default:
-		return true
-	}
+	return providerinfo.RequiresAPIKey(provider)
 }
 
 // ValidateRuntimeConfig validates runtime configuration and computes optional capability gating.

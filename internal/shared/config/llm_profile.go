@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	providerinfo "alex/internal/shared/provider"
 	"alex/internal/shared/utils"
 )
 
@@ -68,17 +69,8 @@ func ValidateLLMProfile(profile LLMProfile) error {
 	return nil
 }
 
-func normalizeProviderFamily(provider string) string {
-	switch utils.TrimLower(provider) {
-	case "openai-responses", "responses", "codex":
-		return "codex"
-	case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
-		return "openai"
-	case "anthropic", "claude":
-		return "anthropic"
-	default:
-		return utils.TrimLower(provider)
-	}
+func normalizeProviderFamily(p string) string {
+	return providerinfo.Family(p)
 }
 
 func detectKeyProviderMismatch(provider, apiKey, baseURL string) (bool, string) {
@@ -88,13 +80,13 @@ func detectKeyProviderMismatch(provider, apiKey, baseURL string) (bool, string) 
 	}
 
 	switch provider {
-	case "anthropic":
+	case providerinfo.FamilyAnthropic:
 		// Anthropic keys can come from OAuth/session tokens without sk-ant-* prefix.
 		// We only fail fast on clearly incompatible vendor-specific prefixes.
 		if hasAnyPrefix(key, "sk-proj-", "sk-kimi-", "sk-deepseek-", "sess-codex-") {
 			return true, fmt.Sprintf("api key prefix=%s looks incompatible with anthropic provider", safeAPIKeyPrefix(key))
 		}
-	case "codex", "openai":
+	case providerinfo.FamilyCodex, providerinfo.FamilyOpenAI:
 		// codex family expects OpenAI/Codex credentials. Non-OpenAI vendor keys
 		// should fail fast unless the endpoint is explicitly vendor-compatible.
 		switch {
@@ -126,11 +118,11 @@ func detectBaseURLProviderMismatch(provider, baseURL string) (bool, string) {
 	}
 
 	switch provider {
-	case "anthropic":
+	case providerinfo.FamilyAnthropic:
 		if hostMatchesAny(trimmed, "openai", "chatgpt", "codex") {
 			return true, fmt.Sprintf("base_url=%q looks like OpenAI/Codex endpoint for anthropic provider", trimmed)
 		}
-	case "codex", "openai":
+	case providerinfo.FamilyCodex, providerinfo.FamilyOpenAI:
 		if hostMatchesAny(trimmed, "anthropic") {
 			return true, fmt.Sprintf("base_url=%q looks like anthropic endpoint for %s provider", trimmed, provider)
 		}

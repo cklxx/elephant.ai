@@ -6,6 +6,7 @@ import (
 	"time"
 
 	toolspolicy "alex/internal/infra/tools"
+	providerinfo "alex/internal/shared/provider"
 	"alex/internal/shared/utils"
 )
 
@@ -467,13 +468,7 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 }
 
 func shouldLoadCLICredentials(cfg RuntimeConfig) bool {
-	provider := utils.TrimLower(cfg.LLMProvider)
-	switch provider {
-	case "auto", "cli", "codex", "openai-responses", "responses", "anthropic", "claude":
-		return true
-	default:
-		return false
-	}
+	return providerinfo.UsesCLIAuth(cfg.LLMProvider)
 }
 
 func normalizeToolPolicy(cfg *toolspolicy.ToolPolicyConfig) {

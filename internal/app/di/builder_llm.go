@@ -4,7 +4,7 @@ import (
 	"alex/internal/app/agent/preparation"
 	"alex/internal/infra/llm"
 	runtimeconfig "alex/internal/shared/config"
-	"alex/internal/shared/utils"
+	providerinfo "alex/internal/shared/provider"
 	"golang.org/x/time/rate"
 )
 
@@ -25,14 +25,13 @@ func (b *containerBuilder) buildLLMFactory() *llm.Factory {
 // fresh tokens even after the startup token expires (Codex).
 func buildCredentialRefresher() preparation.CredentialRefresher {
 	return func(provider string) (string, string, bool) {
-		provider = utils.TrimLower(provider)
 		creds := runtimeconfig.LoadCLICredentials()
-		switch provider {
-		case "codex", "openai-responses", "responses":
+		switch providerinfo.Family(provider) {
+		case providerinfo.FamilyCodex:
 			if creds.Codex.APIKey != "" {
 				return creds.Codex.APIKey, creds.Codex.BaseURL, true
 			}
-		case "anthropic", "claude":
+		case providerinfo.FamilyAnthropic:
 			if creds.Claude.APIKey != "" {
 				return creds.Claude.APIKey, creds.Claude.BaseURL, true
 			}

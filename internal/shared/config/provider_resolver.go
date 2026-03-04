@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 
+	providerinfo "alex/internal/shared/provider"
 	"alex/internal/shared/utils"
 )
 
@@ -181,8 +182,8 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 	// provider's key. Keep the key when it was explicitly overridden or
 	// already sourced from the matching CLI.
 	keySource := meta.Source("api_key")
-	switch provider {
-	case "anthropic", "claude":
+	switch providerinfo.Family(provider) {
+	case providerinfo.FamilyAnthropic:
 		if keySource != SourceOverride && keySource != SourceClaudeCLI {
 			if cli.Claude.APIKey != "" {
 				cfg.APIKey = strings.TrimSpace(cli.Claude.APIKey)
@@ -194,7 +195,7 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				meta.sources["api_key"] = SourceEnv
 			}
 		}
-	case "openai-responses", "responses", "codex":
+	case providerinfo.FamilyCodex:
 		if keySource != SourceOverride && keySource != SourceCodexCLI {
 			if cli.Codex.APIKey != "" {
 				cfg.APIKey = strings.TrimSpace(cli.Codex.APIKey)
@@ -211,7 +212,7 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				meta.sources["api_key"] = SourceEnv
 			}
 		}
-	case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
+	case providerinfo.FamilyOpenAI:
 		if cfg.APIKey == "" {
 			if key, ok := lookup("OPENAI_API_KEY"); ok && utils.HasContent(key) {
 				cfg.APIKey = strings.TrimSpace(key)
@@ -226,19 +227,16 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 		}
 	}
 
-	if meta.Source("llm_model") == SourceDefault {
-		switch provider {
-		case "codex":
-			if cli.Codex.Model != "" {
-				cfg.LLMModel = cli.Codex.Model
-				meta.sources["llm_model"] = cli.Codex.Source
-			}
+	if meta.Source("llm_model") == SourceDefault && provider == "codex" {
+		if cli.Codex.Model != "" {
+			cfg.LLMModel = cli.Codex.Model
+			meta.sources["llm_model"] = cli.Codex.Source
 		}
 	}
 
 	if meta.Source("base_url") == SourceDefault {
-		switch provider {
-		case "anthropic", "claude":
+		switch providerinfo.Family(provider) {
+		case providerinfo.FamilyAnthropic:
 			if base, ok := lookup("ANTHROPIC_BASE_URL"); ok && utils.HasContent(base) {
 				cfg.BaseURL = strings.TrimSpace(base)
 				meta.sources["base_url"] = SourceEnv
@@ -246,7 +244,7 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				cfg.BaseURL = "https://api.anthropic.com/v1"
 				meta.sources["base_url"] = SourceEnv
 			}
-		case "openai-responses", "responses", "codex":
+		case providerinfo.FamilyCodex:
 			if cli.Codex.BaseURL != "" {
 				cfg.BaseURL = cli.Codex.BaseURL
 				meta.sources["base_url"] = cli.Codex.Source
@@ -261,7 +259,7 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				cfg.BaseURL = codexCLIBaseURL
 				meta.sources["base_url"] = SourceEnv
 			}
-		case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
+		case providerinfo.FamilyOpenAI:
 			if base, ok := lookup("OPENAI_BASE_URL"); ok && utils.HasContent(base) {
 				cfg.BaseURL = strings.TrimSpace(base)
 				meta.sources["base_url"] = SourceEnv
