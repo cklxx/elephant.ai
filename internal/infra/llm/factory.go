@@ -32,6 +32,7 @@ type Factory struct {
 	kimiLimiter          *rate.Limiter
 	toolCallParser       agent.FunctionCallParser
 	HealthRegistry       *HealthRegistry
+	registry             *Registry
 }
 
 type cacheEntry struct {
@@ -53,6 +54,7 @@ func NewFactory() *Factory {
 		circuitBreakerConfig: alexerrors.DefaultCircuitBreakerConfig(),
 		userRateBurst:        1,
 		kimiRateBurst:        1,
+		registry:             NewDefaultRegistry(),
 	}
 }
 
@@ -66,6 +68,7 @@ func NewFactoryWithRetryConfig(retryConfig alexerrors.RetryConfig, circuitBreake
 		circuitBreakerConfig: circuitBreakerConfig,
 		userRateBurst:        1,
 		kimiRateBurst:        1,
+		registry:             NewDefaultRegistry(),
 	}
 }
 
@@ -173,6 +176,7 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	userRateBurst := f.userRateBurst
 	kimiLimiter := f.kimiLimiter
 	healthRegistry := f.HealthRegistry
+	registry := f.registry
 	f.mu.RUnlock()
 
 	// Check cache if enabled
@@ -187,24 +191,11 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 		}
 	}
 
-	var client portsllm.LLMClient
-	var err error
-
-	switch provider {
-	case "openai", "openrouter", "deepseek", "kimi", "glm", "minimax":
-		client, err = NewOpenAIClient(model, config)
-	case "openai-responses", "responses", "codex":
-		client, err = NewOpenAIResponsesClient(model, config)
-	case "anthropic", "claude":
-		client, err = NewAnthropicClient(model, config)
-	case "llama.cpp", "llama-cpp", "llamacpp":
-		client, err = NewLlamaCppClient(model, config)
-	case "mock":
-		client = NewMockClient()
-	default:
+	desc, ok := registry.Get(provider)
+	if !ok {
 		return nil, fmt.Errorf("unknown provider: %s", provider)
 	}
-
+	client, err := desc.ClientFactory(model, config)
 	if err != nil {
 		return nil, err
 	}
