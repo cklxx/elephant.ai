@@ -242,8 +242,14 @@ func (e *ReactEngine) writeContextCompactionArtifact(
 	doc.Write(payload)
 	doc.WriteString("\n```\n")
 
-	if err := writeFileAtomically(path, []byte(doc.String()), 0o644); err != nil {
-		return "", "", 0, fmt.Errorf("write compaction artifact: %w", err)
+	var writeErr error
+	if e != nil && e.atomicWriter != nil {
+		writeErr = e.atomicWriter.WriteFileAtomically(path, []byte(doc.String()), 0o644)
+	} else {
+		writeErr = writeFileAtomically(path, []byte(doc.String()), 0o644)
+	}
+	if writeErr != nil {
+		return "", "", 0, fmt.Errorf("write compaction artifact: %w", writeErr)
 	}
 	return path, hash, tokensRemoved, nil
 }

@@ -48,6 +48,10 @@ type ReactEngine struct {
 
 	toolTokenCache       toolDefinitionTokenCache
 	toolParameterMarshal func(v any) ([]byte, error)
+
+	// atomicWriter is used for atomic file writes (context compaction artifacts).
+	// If nil, falls back to the local writeFileAtomically function.
+	atomicWriter agent.AtomicFileWriter
 }
 
 type reactWorkflow struct {

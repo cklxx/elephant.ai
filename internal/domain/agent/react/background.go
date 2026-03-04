@@ -98,13 +98,14 @@ type BackgroundTaskManager struct {
 
 	// contextPropagators copy app-layer context values into detached background task contexts.
 	contextPropagators []agent.ContextPropagatorFunc
+
+	tmuxSender    agent.TmuxSender
+	eventAppender agent.EventAppender
 }
 
 const defaultStaleThreshold = 15 * time.Minute
 
 var ErrBackgroundTaskNotFound = errors.New("background task not found")
-
-var backgroundExecCommand = exec.CommandContext
 
 // BackgroundManagerConfig configures a shared background task manager.
 type BackgroundManagerConfig struct {
@@ -125,6 +126,9 @@ type BackgroundManagerConfig struct {
 	// ContextPropagators are called during Dispatch to copy app-layer context values
 	// (e.g. LLM selection) from the dispatch context into the detached task context.
 	ContextPropagators []agent.ContextPropagatorFunc
+
+	TmuxSender    agent.TmuxSender
+	EventAppender agent.EventAppender
 }
 
 // newBackgroundTaskManager creates a new manager bound to the current run context.
@@ -275,6 +279,8 @@ func NewBackgroundTaskManager(cfg BackgroundManagerConfig) *BackgroundTaskManage
 		mgr.staleThreshold = cfg.StaleThreshold
 	}
 	mgr.contextPropagators = cfg.ContextPropagators
+	mgr.tmuxSender = cfg.TmuxSender
+	mgr.eventAppender = cfg.EventAppender
 	return mgr
 }
 
@@ -954,21 +960,28 @@ func (m *BackgroundTaskManager) InjectBackgroundInput(ctx context.Context, taskI
 	bt.mu.Unlock()
 	if pane == "" {
 		err := fmt.Errorf("task %q is not bound to a tmux pane", id)
-		recordTmuxInputInjectEvent(bt, "tmux_input_inject_failed", pane, data, err)
+		recordTmuxInputInjectEvent(m.eventAppender, bt, "tmux_input_inject_failed", pane, data, err)
 		return err
 	}
 
-	cmd := backgroundExecCommand(ctx, "tmux", "-L", "elephant", "send-keys", "-t", pane, data, "C-m")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		wrapped := fmt.Errorf("inject input to pane %s: %s: %w", pane, strings.TrimSpace(string(out)), err)
-		recordTmuxInputInjectEvent(bt, "tmux_input_inject_failed", pane, data, wrapped)
-		return wrapped
+	if m.tmuxSender != nil {
+		if err := m.tmuxSender.SendKeys(ctx, pane, data); err != nil {
+			recordTmuxInputInjectEvent(m.eventAppender, bt, "tmux_input_inject_failed", pane, data, err)
+			return err
+		}
+	} else {
+		cmd := exec.CommandContext(ctx, "tmux", "-L", "elephant", "send-keys", "-t", pane, data, "C-m")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			wrapped := fmt.Errorf("inject input to pane %s: %s: %w", pane, strings.TrimSpace(string(out)), err)
+			recordTmuxInputInjectEvent(m.eventAppender, bt, "tmux_input_inject_failed", pane, data, wrapped)
+			return wrapped
+		}
 	}
-	recordTmuxInputInjectEvent(bt, "tmux_input_injected", pane, data, nil)
+	recordTmuxInputInjectEvent(m.eventAppender, bt, "tmux_input_injected", pane, data, nil)
 	return nil
 }
 
-func recordTmuxInputInjectEvent(bt *backgroundTask, eventType string, pane string, input string, injectErr error) {
+func recordTmuxInputInjectEvent(appender agent.EventAppender, bt *backgroundTask, eventType string, pane string, input string, injectErr error) {
 	if bt == nil {
 		return
 	}
@@ -1008,8 +1021,14 @@ func recordTmuxInputInjectEvent(bt *backgroundTask, eventType string, pane strin
 	if err != nil {
 		return
 	}
-	appendTeamRuntimeEventLine(eventLogPath, string(data))
-	appendTeamRuntimeEventLine(roleLogPath, string(data))
+	line := string(data)
+	if appender != nil {
+		appender.AppendLine(eventLogPath, line)
+		appender.AppendLine(roleLogPath, line)
+	} else {
+		appendTeamRuntimeEventLine(eventLogPath, line)
+		appendTeamRuntimeEventLine(roleLogPath, line)
+	}
 }
 
 func appendTeamRuntimeEventLine(path string, line string) {

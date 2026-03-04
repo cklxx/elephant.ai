@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -1375,24 +1374,34 @@ func TestInjectBackgroundInputRequiresPaneBinding(t *testing.T) {
 	}
 }
 
+// mockTmuxSender is a test double for agent.TmuxSender.
+type mockTmuxSender struct {
+	mu       sync.Mutex
+	calls    []mockTmuxCall
+	failOnce bool // if true, first SendKeys call returns an error
+}
+
+type mockTmuxCall struct {
+	pane string
+	data string
+}
+
+func (m *mockTmuxSender) SendKeys(_ context.Context, pane string, data string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, mockTmuxCall{pane: pane, data: data})
+	if m.failOnce && len(m.calls) == 1 {
+		return fmt.Errorf("inject input to pane %s: denied: exit status 9", pane)
+	}
+	return nil
+}
+
 func TestInjectBackgroundInputCommandFailureAndSuccess(t *testing.T) {
-	oldExec := backgroundExecCommand
-	t.Cleanup(func() {
-		backgroundExecCommand = oldExec
-	})
 	logDir := t.TempDir()
 	eventLogPath := filepath.Join(logDir, "events.jsonl")
 	roleLogPath := filepath.Join(logDir, "role.log")
 
-	var gotName string
-	var gotArgs []string
-	backgroundExecCommand = func(ctx context.Context, name string, args ...string) *exec.Cmd {
-		_ = ctx
-		gotName = name
-		gotArgs = append([]string(nil), args...)
-		return exec.Command("sh", "-c", "echo denied >&2; exit 9")
-	}
-
+	sender := &mockTmuxSender{failOnce: true}
 	mgr := &BackgroundTaskManager{
 		tasks: map[string]*backgroundTask{
 			"task-1": {
@@ -1406,31 +1415,34 @@ func TestInjectBackgroundInputCommandFailureAndSuccess(t *testing.T) {
 				},
 			},
 		},
+		tmuxSender: sender,
 	}
 
 	err := mgr.InjectBackgroundInput(context.Background(), "task-1", "continue")
 	if err == nil {
 		t.Fatal("expected command failure error")
 	}
-	if gotName != "tmux" {
-		t.Fatalf("expected tmux executable, got %q", gotName)
-	}
-	wantArgs := []string{"-L", "elephant", "send-keys", "-t", "%11", "continue", "C-m"}
-	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
-		t.Fatalf("unexpected command args: got %v want %v", gotArgs, wantArgs)
-	}
 	if !strings.Contains(err.Error(), "inject input to pane %11: denied") {
 		t.Fatalf("expected wrapped command error, got %v", err)
 	}
 
-	backgroundExecCommand = func(ctx context.Context, name string, args ...string) *exec.Cmd {
-		_ = ctx
-		_ = name
-		_ = args
-		return exec.Command("sh", "-c", "exit 0")
-	}
 	if err := mgr.InjectBackgroundInput(context.Background(), "task-1", "continue"); err != nil {
 		t.Fatalf("expected success, got %v", err)
+	}
+
+	sender.mu.Lock()
+	calls := sender.calls
+	sender.mu.Unlock()
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 SendKeys calls, got %d", len(calls))
+	}
+	for _, c := range calls {
+		if c.pane != "%11" {
+			t.Fatalf("expected pane %%11, got %q", c.pane)
+		}
+		if c.data != "continue" {
+			t.Fatalf("expected data %q, got %q", "continue", c.data)
+		}
 	}
 
 	eventLines := readJSONLinesForTest(t, eventLogPath)
