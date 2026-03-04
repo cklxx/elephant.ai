@@ -205,7 +205,7 @@ func TestTaskManage_ListAutoUsesOAuthToken(t *testing.T) {
 	defer srv.Close()
 
 	tool := NewLarkTaskManage()
-	larkClient := lark.NewClient("task_fallback_create_app_id", "task_fallback_create_secret", lark.WithOpenBaseUrl(srv.URL))
+	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
 	oauthSvc := &fakeLarkOAuth{token: "user-token", startURL: "http://localhost:8080/api/lark/oauth/start"}
 	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
 	ctx = shared.WithLarkOAuth(ctx, oauthSvc)
