@@ -119,6 +119,7 @@ Sources: [Effective Go](https://go.dev/doc/effective_go), [Go Code Review Commen
 ## 6. Testing
 
 - Use **TDD** when touching logic; cover edge cases.
+- Mocking policy: only unit tests may use mock/fake/stub. Integration/E2E/inject/live validation must use real runtime dependencies and real external integration paths.
 - Run full lint + tests before delivery:
   ```bash
   alex dev lint

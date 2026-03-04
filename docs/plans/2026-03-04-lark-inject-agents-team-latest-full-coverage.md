@@ -136,10 +136,8 @@ go run ./cmd/alex lark inject \
 1. Baseline health + smoke
    - `./lark.sh status`
    - `go run ./cmd/alex lark inject --timeout 30 "agents team smoke"`
-2. Run team-focused scenario layer (mock, deterministic)
-   - `go run ./cmd/alex lark scenario run --mode mock --dir tests/scenarios/lark --tag teams --json-out tmp/agents-team-mock.json --md-out tmp/agents-team-mock.md`
-3. Run live inject matrix A-E using unique `chat_id` per case.
-4. Collect artifacts + report failures by case ID.
+2. Run live inject matrix A-E using unique `chat_id` per case (no mock mode).
+3. Collect artifacts + report failures by case ID.
 
 ## Pass Criteria
 1. `BOOT-*` all pass: no role dispatch before bootstrap completion.
