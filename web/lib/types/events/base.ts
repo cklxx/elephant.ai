@@ -1,6 +1,6 @@
 export type AgentLevel = 'core' | 'subagent';
 
-export type WorkflowPhase = 'pending' | 'running' | 'succeeded' | 'failed';
+export type WorkflowPhase = 'pending' | 'running' | 'waiting_input' | 'succeeded' | 'failed';
 export type WorkflowNodeStatus = 'pending' | 'running' | 'succeeded' | 'failed';
 
 export type WorkflowEventType =

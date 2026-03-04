@@ -227,8 +227,10 @@ func domainStatusToServer(s taskdomain.Status) ports.TaskStatus {
 	switch s {
 	case taskdomain.StatusPending:
 		return ports.TaskStatusPending
-	case taskdomain.StatusRunning, taskdomain.StatusWaitingInput:
+	case taskdomain.StatusRunning:
 		return ports.TaskStatusRunning
+	case taskdomain.StatusWaitingInput:
+		return ports.TaskStatusWaitingInput
 	case taskdomain.StatusCompleted:
 		return ports.TaskStatusCompleted
 	case taskdomain.StatusFailed:
@@ -246,6 +248,8 @@ func serverStatusToDomain(s ports.TaskStatus) taskdomain.Status {
 		return taskdomain.StatusPending
 	case ports.TaskStatusRunning:
 		return taskdomain.StatusRunning
+	case ports.TaskStatusWaitingInput:
+		return taskdomain.StatusWaitingInput
 	case ports.TaskStatusCompleted:
 		return taskdomain.StatusCompleted
 	case ports.TaskStatusFailed:

@@ -11,11 +11,12 @@ import (
 type TaskStatus string
 
 const (
-	TaskStatusPending   TaskStatus = "pending"
-	TaskStatusRunning   TaskStatus = "running"
-	TaskStatusCompleted TaskStatus = "completed"
-	TaskStatusFailed    TaskStatus = "failed"
-	TaskStatusCancelled TaskStatus = "cancelled"
+	TaskStatusPending      TaskStatus = "pending"
+	TaskStatusRunning      TaskStatus = "running"
+	TaskStatusWaitingInput TaskStatus = "waiting_input"
+	TaskStatusCompleted    TaskStatus = "completed"
+	TaskStatusFailed       TaskStatus = "failed"
+	TaskStatusCancelled    TaskStatus = "cancelled"
 )
 
 // TerminationReason represents why a task terminated

@@ -57,7 +57,7 @@ export interface AgentStreamData {
   currentIteration: number | null;
   activeToolCallId: string | null;
   activeResearchStepId: string | null;
-  taskStatus: "idle" | "running" | "completed" | "cancelled" | "error";
+  taskStatus: "idle" | "running" | "waiting_input" | "completed" | "cancelled" | "error";
   finalAnswer?: string;
   finalAnswerAttachments?: Record<string, AttachmentPayload>;
   totalIterations?: number;
