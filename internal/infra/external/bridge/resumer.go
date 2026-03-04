@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -46,13 +47,21 @@ func ClassifyOrphan(orphan OrphanedBridge, task *taskdomain.Task) ResumeAction {
 
 // Resumer handles bridge orphan adoption and task resumption on restart.
 type Resumer struct {
-	store    taskdomain.Store
+	store    resumerTaskStore
 	executor *Executor
 	logger   logging.Logger
 }
 
+type resumerTaskStore interface {
+	Get(ctx context.Context, taskID string) (*taskdomain.Task, error)
+	SetStatus(ctx context.Context, taskID string, status taskdomain.Status, opts ...taskdomain.TransitionOption) error
+	SetResult(ctx context.Context, taskID string, answer string, resultJSON json.RawMessage, tokensUsed int) error
+	SetError(ctx context.Context, taskID string, errText string) error
+	SetBridgeMeta(ctx context.Context, taskID string, meta taskdomain.BridgeMeta) error
+}
+
 // NewResumer creates a bridge resumer.
-func NewResumer(store taskdomain.Store, executor *Executor, logger logging.Logger) *Resumer {
+func NewResumer(store resumerTaskStore, executor *Executor, logger logging.Logger) *Resumer {
 	return &Resumer{
 		store:    store,
 		executor: executor,
