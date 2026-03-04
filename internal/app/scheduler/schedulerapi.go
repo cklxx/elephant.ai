@@ -10,6 +10,9 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+// Compile-time check that *Scheduler satisfies Service.
+var _ Service = (*Scheduler)(nil)
+
 // JobDTO is a Data Transfer Object for job data exposed to external consumers.
 // The scheduler converts its internal Job type to this DTO when returning
 // results through the Service interface.

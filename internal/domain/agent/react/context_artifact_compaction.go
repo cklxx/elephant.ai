@@ -241,8 +241,8 @@ func (e *ReactEngine) writeContextCompactionArtifact(
 	doc.Write(payload)
 	doc.WriteString("\n```\n")
 
-	if e == nil || e.atomicWriter == nil {
-		return "", "", 0, fmt.Errorf("atomic writer not configured")
+	if e.atomicWriter == nil {
+		return "", "", 0, fmt.Errorf("atomicWriter not configured")
 	}
 	if err := e.atomicWriter.WriteFileAtomically(path, []byte(doc.String()), 0o644); err != nil {
 		return "", "", 0, fmt.Errorf("write compaction artifact: %w", err)

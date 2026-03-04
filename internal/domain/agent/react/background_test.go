@@ -1396,18 +1396,18 @@ func (m *mockTmuxSender) SendKeys(_ context.Context, pane string, data string) e
 	return nil
 }
 
-// testFileEventAppender is a test double for agent.EventAppender that writes to disk.
-type testFileEventAppender struct{}
+// testEventAppender is a simple in-test EventAppender that writes to disk.
+type testEventAppender struct{}
 
-func (a *testFileEventAppender) AppendLine(path string, line string) {
-	trimmedPath := strings.TrimSpace(path)
-	if trimmedPath == "" {
+func (testEventAppender) AppendLine(path string, line string) {
+	p := strings.TrimSpace(path)
+	if p == "" {
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(trimmedPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return
 	}
-	f, err := os.OpenFile(trimmedPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return
 	}
@@ -1435,7 +1435,7 @@ func TestInjectBackgroundInputCommandFailureAndSuccess(t *testing.T) {
 			},
 		},
 		tmuxSender:    sender,
-		eventAppender: &testFileEventAppender{},
+		eventAppender: testEventAppender{},
 	}
 
 	err := mgr.InjectBackgroundInput(context.Background(), "task-1", "continue")

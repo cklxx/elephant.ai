@@ -1,6 +1,6 @@
 package agent
 
-import "os"
+import "io/fs"
 
 // EventAppender appends a line to an event log file.
 type EventAppender interface {
@@ -9,5 +9,5 @@ type EventAppender interface {
 
 // AtomicFileWriter writes files atomically using temp-file + rename.
 type AtomicFileWriter interface {
-	WriteFileAtomically(path string, data []byte, perm os.FileMode) error
+	WriteFileAtomically(path string, data []byte, perm fs.FileMode) error
 }

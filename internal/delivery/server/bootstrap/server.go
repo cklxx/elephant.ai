@@ -17,14 +17,10 @@ import (
 	serverHTTP "alex/internal/delivery/server/http"
 	"alex/internal/delivery/server/ports"
 	agentdomain "alex/internal/domain/agent"
-	materials "alex/internal/domain/materialregistry"
-	"alex/internal/infra/adapters"
 	"alex/internal/infra/analytics"
-	"alex/internal/infra/attachments"
 	"alex/internal/infra/diagnostics"
 	"alex/internal/shared/async"
 	runtimeconfig "alex/internal/shared/config"
-	"alex/internal/shared/httpclient"
 	"alex/internal/shared/logging"
 )
 
@@ -50,25 +46,8 @@ func RunServer(observabilityConfigPath string) error {
 	var analyticsClient analytics.Client
 	var analyticsCleanup func()
 
-	config.Attachment = attachments.NormalizeConfig(config.Attachment)
 	optionalStages := []BootstrapStage{
-		{
-			Name: "attachments", Required: false,
-			Init: func() error {
-				store, err := attachments.NewStore(config.Attachment)
-				if err != nil {
-					return err
-				}
-				client := httpclient.NewWithCircuitBreaker(45*time.Second, logger, "attachment_migrator")
-				fetcher := adapters.NewHTTPRemoteFetcher(client, 25<<20, false)
-				migrator := materials.NewAttachmentStoreMigrator(store, fetcher, config.Attachment.CloudflarePublicBaseURL, logger)
-				container.AgentCoordinator.SetAttachmentMigrator(migrator)
-				container.AgentCoordinator.SetAttachmentPersister(
-					attachments.NewStorePersister(store),
-				)
-				return nil
-			},
-		},
+		f.AttachmentStage(),
 		{
 			Name: "event-history", Required: false,
 			Init: func() error {

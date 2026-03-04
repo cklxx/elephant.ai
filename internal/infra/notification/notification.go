@@ -5,6 +5,7 @@ package notification
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -40,7 +41,7 @@ func NewLarkSenderWithClient(client *lark.Client, logger logging.Logger) *LarkSe
 
 // Send sends a notification. Only handles channel "lark".
 func (n *LarkSender) Send(ctx context.Context, target notification.Target, content string) error {
-	if target.Channel != "lark" {
+	if target.Channel != notification.ChannelLark {
 		return nil
 	}
 	if target.ChatID == "" {
@@ -102,7 +103,7 @@ func NewMoltbookSender(client *moltbook.RateLimitedClient, logger logging.Logger
 
 // Send sends a notification. Only handles channel "moltbook".
 func (n *MoltbookSender) Send(ctx context.Context, target notification.Target, content string) error {
-	if target.Channel != "moltbook" {
+	if target.Channel != notification.ChannelMoltbook {
 		return nil
 	}
 	title, body := splitTitleBody(content)
@@ -135,14 +136,15 @@ func NewCompositeNotifier(notifiers ...notification.Notifier) *CompositeNotifier
 	return &CompositeNotifier{notifiers: notifiers}
 }
 
-// Send delegates to all notifiers, returning the first error.
+// Send delegates to all notifiers, collecting errors via errors.Join for best-effort delivery.
 func (c *CompositeNotifier) Send(ctx context.Context, target notification.Target, content string) error {
+	var errs []error
 	for _, n := range c.notifiers {
 		if err := n.Send(ctx, target, content); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // splitTitleBody splits content into a title (first line) and body (rest).

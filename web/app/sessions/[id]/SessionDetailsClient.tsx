@@ -26,6 +26,7 @@ const statusLabels: Record<string, TranslationKey> = {
   in_progress: 'sessions.details.history.status.in_progress',
   error: 'sessions.details.history.status.error',
   cancelled: 'sessions.details.history.status.cancelled',
+  waiting_input: 'sessions.details.history.status.waiting_input',
 };
 
 type SessionDetailsClientProps = {
@@ -276,7 +277,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
                         ? 'success'
                         : task.status === 'failed' || task.status === 'error'
                           ? 'destructive'
-                          : task.status === 'cancelled'
+                          : task.status === 'cancelled' || task.status === 'waiting_input'
                             ? 'warning'
                             : 'info';
 

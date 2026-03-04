@@ -961,9 +961,6 @@ func (m *BackgroundTaskManager) InjectBackgroundInput(ctx context.Context, taskI
 		return err
 	}
 
-	if m.tmuxSender == nil {
-		return fmt.Errorf("tmux sender not configured for task %q", id)
-	}
 	if err := m.tmuxSender.SendKeys(ctx, pane, data); err != nil {
 		recordTmuxInputInjectEvent(m.eventAppender, bt, "tmux_input_inject_failed", pane, data, err)
 		return err

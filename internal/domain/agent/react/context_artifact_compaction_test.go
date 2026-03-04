@@ -2,6 +2,7 @@ package react
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,21 +11,20 @@ import (
 	"alex/internal/domain/agent/ports"
 )
 
-// testAtomicWriter implements agent.AtomicFileWriter for tests using real OS operations.
+// testAtomicWriter implements agent.AtomicFileWriter for tests using real filesystem.
 type testAtomicWriter struct{}
 
-func (w *testAtomicWriter) WriteFileAtomically(path string, data []byte, perm os.FileMode) error {
+func (testAtomicWriter) WriteFileAtomically(path string, data []byte, perm fs.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".tmp-compaction-*")
+	tmp, err := os.CreateTemp(dir, ".tmp-test-*")
 	if err != nil {
 		return err
 	}
 	tmpPath := tmp.Name()
 	defer func() { _ = os.Remove(tmpPath) }()
-
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
 		return err
@@ -42,8 +42,8 @@ func (w *testAtomicWriter) WriteFileAtomically(path string, data []byte, perm os
 func TestTryArtifactCompactionWritesFileAndPlaceholder(t *testing.T) {
 	root := t.TempDir()
 	engine := NewReactEngine(ReactEngineConfig{
-		CheckpointStore: newTestFileCheckpointStore(filepath.Join(root, "checkpoints")),
-		AtomicWriter:    &testAtomicWriter{},
+		CheckpointStore:  newTestFileCheckpointStore(filepath.Join(root, "checkpoints")),
+		AtomicFileWriter: testAtomicWriter{},
 	})
 	state := &TaskState{
 		SessionID:  "sess-artifact",
@@ -110,8 +110,8 @@ func TestTryArtifactCompactionWritesFileAndPlaceholder(t *testing.T) {
 func TestTryArtifactCompactionRespectsCooldownUnlessForced(t *testing.T) {
 	root := t.TempDir()
 	engine := NewReactEngine(ReactEngineConfig{
-		CheckpointStore: newTestFileCheckpointStore(filepath.Join(root, "checkpoints")),
-		AtomicWriter:    &testAtomicWriter{},
+		CheckpointStore:  newTestFileCheckpointStore(filepath.Join(root, "checkpoints")),
+		AtomicFileWriter: testAtomicWriter{},
 	})
 	state := &TaskState{
 		SessionID:             "sess-cooldown",

@@ -24,6 +24,7 @@ import (
 	"alex/internal/domain/agent/textutil"
 	"alex/internal/domain/agent/types"
 	materialports "alex/internal/domain/materialregistry/ports"
+	infraadapters "alex/internal/infra/adapters"
 	infraruntime "alex/internal/infra/runtime"
 	toolspolicy "alex/internal/infra/tools"
 	"alex/internal/infra/tools/builtin/shared"
@@ -396,6 +397,8 @@ func (c *AgentCoordinator) ExecuteTask(
 				ContextPropagators: []agent.ContextPropagatorFunc{
 					appcontext.PropagateLLMSelection,
 				},
+				TmuxSender:    infraadapters.NewExecTmuxSender(),
+				EventAppender: infraadapters.NewFileEventAppender(),
 			})
 		})
 	}
@@ -427,7 +430,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		ExternalExecutor:   c.externalExecutor,
 		TeamDefinitions:    c.teamDefinitions,
 		TeamRunRecorder:    c.teamRunRecorder,
-		AtomicWriter:       c.atomicWriter,
+		AtomicFileWriter:   infraadapters.NewOSAtomicWriter(),
 	})
 
 	if eventListener != nil {

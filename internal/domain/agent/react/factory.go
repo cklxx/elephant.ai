@@ -86,7 +86,7 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		externalExecutor:    cfg.ExternalExecutor,
 		teamDefinitions:     cfg.TeamDefinitions,
 		teamRunRecorder:     cfg.TeamRunRecorder,
-		atomicWriter:        cfg.AtomicWriter,
+		atomicWriter:        cfg.AtomicFileWriter,
 	}
 }
 

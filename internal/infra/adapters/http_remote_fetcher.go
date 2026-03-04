@@ -5,16 +5,13 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"net"
 	"net/http"
-	neturl "net/url"
 	"strings"
 	"time"
 
 	materialports "alex/internal/domain/materialregistry/ports"
 	"alex/internal/shared/httpclient"
 	"alex/internal/shared/logging"
-	"alex/internal/shared/utils"
 )
 
 // HTTPRemoteFetcher implements materialports.RemoteFetcher using an HTTP client.
@@ -43,11 +40,11 @@ func (f *HTTPRemoteFetcher) Fetch(ctx context.Context, uri string, expectedMedia
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	opts := defaultURLValidationOptions()
+	opts := httpclient.DefaultURLValidationOptions()
 	if f.allowLocal {
-		opts.allowLocalhost = true
+		opts.AllowLocalhost = true
 	}
-	parsed, err := validateOutboundURL(uri, opts)
+	parsed, err := httpclient.ValidateOutboundURL(uri, opts)
 	if err != nil {
 		return nil, "", err
 	}
@@ -86,63 +83,4 @@ func (f *HTTPRemoteFetcher) Fetch(ctx context.Context, uri string, expectedMedia
 	}
 
 	return data, ct, nil
-}
-
-// --- URL validation helpers (moved from domain) ---
-
-type urlValidationOptions struct {
-	allowLocalhost       bool
-	allowPrivateNetworks bool
-}
-
-func defaultURLValidationOptions() urlValidationOptions {
-	return urlValidationOptions{}
-}
-
-func validateOutboundURL(raw string, opts urlValidationOptions) (*neturl.URL, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return nil, fmt.Errorf("url is required")
-	}
-	parsed, err := neturl.Parse(trimmed)
-	if err != nil {
-		return nil, fmt.Errorf("invalid url: %w", err)
-	}
-	scheme := utils.TrimLower(parsed.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return nil, fmt.Errorf("unsupported url scheme: %s", scheme)
-	}
-	host := utils.TrimLower(parsed.Hostname())
-	if host == "" {
-		return nil, fmt.Errorf("url host is required")
-	}
-	if !opts.allowLocalhost && isLocalHostname(host) {
-		return nil, fmt.Errorf("local urls are not allowed")
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		if !opts.allowLocalhost && (ip.IsLoopback() || ip.IsUnspecified()) {
-			return nil, fmt.Errorf("local urls are not allowed")
-		}
-		if !opts.allowPrivateNetworks && isPrivateIP(ip) {
-			return nil, fmt.Errorf("private network urls are not allowed")
-		}
-	}
-	return parsed, nil
-}
-
-func isLocalHostname(host string) bool {
-	if strings.EqualFold(host, "localhost") {
-		return true
-	}
-	return strings.HasSuffix(host, ".localhost")
-}
-
-func isPrivateIP(ip net.IP) bool {
-	if ip == nil {
-		return false
-	}
-	if ip.IsPrivate() {
-		return true
-	}
-	return ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
 }

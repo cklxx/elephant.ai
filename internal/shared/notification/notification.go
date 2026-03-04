@@ -4,9 +4,15 @@ package notification
 
 import "context"
 
+// Channel constants identify supported notification channels.
+const (
+	ChannelLark     = "lark"
+	ChannelMoltbook = "moltbook"
+)
+
 // Target identifies where to send a notification.
 type Target struct {
-	Channel string // "lark", "moltbook"
+	Channel string // ChannelLark, ChannelMoltbook
 	ChatID  string // for lark
 }
 

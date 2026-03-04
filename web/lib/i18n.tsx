@@ -467,6 +467,7 @@ const translations = {
     "sessions.details.history.status.in_progress": "In progress",
     "sessions.details.history.status.error": "Error",
     "sessions.details.history.status.cancelled": "Cancelled",
+    "sessions.details.history.status.waiting_input": "Waiting for input",
     "sessions.details.toast.taskStarted.title": "Task started",
     "sessions.details.toast.taskStarted.description":
       "Execution has begun in this session.",
