@@ -245,6 +245,7 @@ No ranking algorithm needed — filenames are date-sorted; just read the most re
 ## §2 · Workflow preferences
 
 * **Always use worktrees for code changes.** Never modify code directly on `main`. Use `EnterWorktree` (or `git worktree add`) to create an isolated branch, develop there, then merge back via `git merge --ff-only`.
+* **Auto-merge worktree on completion.** After all commits are done in a worktree, automatically merge the branch back to `main` (`git checkout main && git merge --ff-only <branch>`) without asking. Do not leave the user to merge manually.
 
 ---
 
