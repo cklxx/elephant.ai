@@ -194,10 +194,6 @@ func NewLarkChannel() tools.ToolExecutor {
 							Type:        "boolean",
 							Description: "Filter by completed status for list_tasks.",
 						},
-						"type": {
-							Type:        "string",
-							Description: "Task list scope for list_tasks.",
-						},
 						"due_at": {
 							Type:        "string",
 							Description: "Due time as Unix seconds for create_task/create_subtask.",

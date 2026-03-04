@@ -25,6 +25,8 @@ type larkTaskManage struct {
 	shared.BaseTool
 }
 
+const taskListScopeMyTasks = "my_tasks"
+
 // NewLarkTaskManage constructs a tool for listing, creating, updating, and deleting tasks.
 func NewLarkTaskManage() tools.ToolExecutor {
 	return &larkTaskManage{
@@ -59,10 +61,6 @@ func NewLarkTaskManage() tools.ToolExecutor {
 						"completed": {
 							Type:        "boolean",
 							Description: "Filter by completed status for list.",
-						},
-						"type": {
-							Type:        "string",
-							Description: "Task list scope (e.g., my_tasks).",
 						},
 						"summary": {
 							Type:        "string",
@@ -157,16 +155,15 @@ func (t *larkTaskManage) Execute(ctx context.Context, call ports.ToolCall) (*por
 
 func (t *larkTaskManage) listTasks(ctx context.Context, client *lark.Client, call ports.ToolCall) (*ports.ToolResult, error) {
 	pageSize := clampTaskPageSize(call.Arguments)
-	builder := larktask.NewListTaskReqBuilder().PageSize(pageSize)
+	builder := larktask.NewListTaskReqBuilder().
+		PageSize(pageSize).
+		Type(taskListScopeMyTasks)
 
 	if pageToken := shared.StringArg(call.Arguments, "page_token"); pageToken != "" {
 		builder.PageToken(pageToken)
 	}
 	if completed, ok := boolArg(call.Arguments, "completed"); ok {
 		builder.Completed(completed)
-	}
-	if scope := shared.StringArg(call.Arguments, "type"); scope != "" {
-		builder.Type(scope)
 	}
 	if userIDType := shared.StringArg(call.Arguments, "user_id_type"); userIDType != "" {
 		builder.UserIdType(userIDType)

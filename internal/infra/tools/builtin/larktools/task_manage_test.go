@@ -222,6 +222,7 @@ func TestTaskManage_InvalidActionStillWorks(t *testing.T) {
 func TestTaskManage_ListAutoUsesOAuthToken(t *testing.T) {
 	var mu sync.Mutex
 	var gotAuth string
+	var gotScope string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -229,6 +230,7 @@ func TestTaskManage_ListAutoUsesOAuthToken(t *testing.T) {
 		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/task/v2/tasks"):
 			mu.Lock()
 			gotAuth = r.Header.Get("Authorization")
+			gotScope = r.URL.Query().Get("type")
 			mu.Unlock()
 			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
 				"items":    []map[string]any{},
@@ -249,6 +251,7 @@ func TestTaskManage_ListAutoUsesOAuthToken(t *testing.T) {
 
 	call := ports.ToolCall{ID: "test-list-oauth", Name: "lark_task_manage", Arguments: map[string]any{
 		"action": "list",
+		"type":   "wrong_scope",
 	}}
 
 	result, err := tool.Execute(ctx, call)
@@ -265,6 +268,9 @@ func TestTaskManage_ListAutoUsesOAuthToken(t *testing.T) {
 	defer mu.Unlock()
 	if gotAuth != "Bearer user-token" {
 		t.Fatalf("expected user token auth, got %q", gotAuth)
+	}
+	if gotScope != taskListScopeMyTasks {
+		t.Fatalf("expected query type=%q, got %q", taskListScopeMyTasks, gotScope)
 	}
 }
 
