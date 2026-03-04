@@ -1,9 +1,15 @@
 package tools
 
 import (
-	"alex/internal/shared/utils"
+	"fmt"
+	"os"
 	"strings"
+	"sync"
 	"time"
+
+	"alex/internal/shared/utils"
+
+	"gopkg.in/yaml.v3"
 )
 
 // ---------------------------------------------------------------------------
@@ -114,8 +120,24 @@ func DefaultToolPolicyConfig() ToolPolicyConfig {
 	}
 }
 
+// DefaultPolicyConfigPath is the conventional location for the default
+// policy rules YAML file, relative to the project root.
+const DefaultPolicyConfigPath = "configs/tools/default-policy.yaml"
+
+// defaultPolicyOnce ensures YAML loading is attempted exactly once.
+var defaultPolicyOnce sync.Once
+
+// cachedDefaultRules stores the result of the one-time YAML load.
+// If nil after defaultPolicyOnce fires, the YAML was absent or invalid
+// and callers should fall back to hardcodedPolicyRules().
+var cachedDefaultRules []PolicyRule
+
 // DefaultPolicyRules returns the built-in policy rules for elephant.ai's
 // tool ecosystem. These are applied unless overridden by user configuration.
+//
+// Rules are loaded from configs/tools/default-policy.yaml when the file
+// exists. If the file is absent or cannot be parsed, the hardcoded
+// fallback rules are returned (identical semantics).
 //
 // Rule order matters — first match wins:
 //  1. l4-irreversible: no retries for L4 tools (requires confirmation + alternative plan)
@@ -126,6 +148,56 @@ func DefaultToolPolicyConfig() ToolPolicyConfig {
 //  6. execution-long: long timeout for code execution
 //  7. dangerous-no-retry: catch-all suppressing retries for any dangerous tool
 func DefaultPolicyRules() []PolicyRule {
+	defaultPolicyOnce.Do(func() {
+		rules, err := LoadPolicyRulesFromFile(DefaultPolicyConfigPath)
+		if err == nil {
+			cachedDefaultRules = rules
+		}
+		// On error (file missing, parse failure) cachedDefaultRules stays nil
+		// and the fallback below is used.
+	})
+	if cachedDefaultRules != nil {
+		// Return a defensive copy so callers cannot mutate the cached slice.
+		out := make([]PolicyRule, len(cachedDefaultRules))
+		copy(out, cachedDefaultRules)
+		return out
+	}
+	return hardcodedPolicyRules()
+}
+
+// policyRulesFile is the top-level YAML structure for default-policy.yaml.
+type policyRulesFile struct {
+	Rules []PolicyRule `yaml:"rules"`
+}
+
+// LoadPolicyRulesFromFile reads and parses policy rules from a YAML file.
+// Returns an error if the file cannot be read or parsed, or if it contains
+// zero rules (to guard against accidental empty files).
+func LoadPolicyRulesFromFile(path string) ([]PolicyRule, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read policy rules file: %w", err)
+	}
+	var f policyRulesFile
+	if err := yaml.Unmarshal(data, &f); err != nil {
+		return nil, fmt.Errorf("parse policy rules YAML: %w", err)
+	}
+	if len(f.Rules) == 0 {
+		return nil, fmt.Errorf("policy rules file %s contains no rules", path)
+	}
+	return f.Rules, nil
+}
+
+// resetDefaultPolicyCache is used by tests to clear the sync.Once cache
+// so YAML loading can be re-exercised.
+func resetDefaultPolicyCache() {
+	defaultPolicyOnce = sync.Once{}
+	cachedDefaultRules = nil
+}
+
+// hardcodedPolicyRules returns the compiled-in fallback rules identical to
+// what was previously the sole implementation of DefaultPolicyRules.
+func hardcodedPolicyRules() []PolicyRule {
 	t30 := 30 * time.Second
 	t60 := 60 * time.Second
 	t300 := 300 * time.Second

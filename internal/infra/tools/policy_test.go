@@ -1,6 +1,8 @@
 package tools
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -520,6 +522,184 @@ func TestMatchesAnyGlob(t *testing.T) {
 	for _, tt := range tests {
 		if got := matchesAnyGlob(tt.patterns, tt.name); got != tt.want {
 			t.Errorf("matchesAnyGlob(%v, %q) = %v, want %v", tt.patterns, tt.name, got, tt.want)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// YAML loading tests
+// ---------------------------------------------------------------------------
+
+func TestLoadPolicyRulesFromFile_ValidYAML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yaml")
+	content := `rules:
+  - name: test-rule
+    match:
+      categories: ["web"]
+    timeout: 45s
+    retry:
+      max_retries: 5
+      initial_backoff: 1s
+      max_backoff: 30s
+      backoff_factor: 2.0
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rules, err := LoadPolicyRulesFromFile(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rules) != 1 {
+		t.Fatalf("got %d rules, want 1", len(rules))
+	}
+	if rules[0].Name != "test-rule" {
+		t.Errorf("rule name = %q, want test-rule", rules[0].Name)
+	}
+	if rules[0].Timeout == nil || *rules[0].Timeout != 45*time.Second {
+		t.Errorf("rule timeout = %v, want 45s", rules[0].Timeout)
+	}
+	if rules[0].Retry == nil || rules[0].Retry.MaxRetries != 5 {
+		t.Errorf("rule retry max_retries = %v, want 5", rules[0].Retry)
+	}
+}
+
+func TestLoadPolicyRulesFromFile_MissingFile(t *testing.T) {
+	_, err := LoadPolicyRulesFromFile("/nonexistent/path/policy.yaml")
+	if err == nil {
+		t.Fatal("expected error for missing file")
+	}
+}
+
+func TestLoadPolicyRulesFromFile_EmptyRules(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yaml")
+	if err := os.WriteFile(path, []byte("rules: []\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadPolicyRulesFromFile(path)
+	if err == nil {
+		t.Fatal("expected error for empty rules")
+	}
+}
+
+func TestLoadPolicyRulesFromFile_InvalidYAML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yaml")
+	if err := os.WriteFile(path, []byte("not: valid: yaml: ["), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadPolicyRulesFromFile(path)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+}
+
+func TestLoadPolicyRulesFromFile_DangerousSelector(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yaml")
+	content := `rules:
+  - name: danger-rule
+    match:
+      dangerous: true
+    retry:
+      max_retries: 0
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rules, err := LoadPolicyRulesFromFile(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rules) != 1 {
+		t.Fatalf("got %d rules, want 1", len(rules))
+	}
+	if rules[0].Match.Dangerous == nil || !*rules[0].Match.Dangerous {
+		t.Error("expected dangerous=true in selector")
+	}
+}
+
+func TestDefaultPolicyRules_FallbackWhenNoYAML(t *testing.T) {
+	// Reset cache so the test exercises the fallback path.
+	resetDefaultPolicyCache()
+	defer resetDefaultPolicyCache()
+
+	// With no YAML file present (CWD is a temp dir), should fall back to hardcoded.
+	origDir, _ := os.Getwd()
+	dir := t.TempDir()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origDir)
+
+	rules := DefaultPolicyRules()
+	if len(rules) != 7 {
+		t.Errorf("fallback rules count = %d, want 7", len(rules))
+	}
+	// Verify first rule name matches hardcoded.
+	if rules[0].Name != "l4-irreversible" {
+		t.Errorf("first rule name = %q, want l4-irreversible", rules[0].Name)
+	}
+}
+
+func TestDefaultPolicyRules_LoadsFromYAML(t *testing.T) {
+	resetDefaultPolicyCache()
+	defer resetDefaultPolicyCache()
+
+	// Create a minimal YAML in a temp directory structure.
+	dir := t.TempDir()
+	configDir := filepath.Join(dir, "configs", "tools")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := `rules:
+  - name: yaml-only-rule
+    match:
+      categories: ["test"]
+    timeout: 99s
+`
+	if err := os.WriteFile(filepath.Join(configDir, "default-policy.yaml"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origDir)
+
+	rules := DefaultPolicyRules()
+	if len(rules) != 1 {
+		t.Fatalf("YAML rules count = %d, want 1", len(rules))
+	}
+	if rules[0].Name != "yaml-only-rule" {
+		t.Errorf("rule name = %q, want yaml-only-rule", rules[0].Name)
+	}
+}
+
+func TestHardcodedPolicyRules_MatchesExpected(t *testing.T) {
+	rules := hardcodedPolicyRules()
+	if len(rules) != 7 {
+		t.Fatalf("hardcodedPolicyRules() count = %d, want 7", len(rules))
+	}
+	expected := []string{
+		"l4-irreversible",
+		"l3-high-impact",
+		"media-generation",
+		"lark-write-ops",
+		"web-tools",
+		"execution-long",
+		"dangerous-no-retry",
+	}
+	for i, name := range expected {
+		if rules[i].Name != name {
+			t.Errorf("rule[%d].Name = %q, want %q", i, rules[i].Name, name)
 		}
 	}
 }

@@ -1,0 +1,76 @@
+# Default tool policy rules for elephant.ai.
+#
+# These rules control timeout, retry, and enablement overrides for tool
+# invocations. Rules are evaluated in order; the first matching rule wins
+# for each setting it specifies (timeout, retry, enabled).
+#
+# Selector fields within a rule use AND logic (all non-empty fields must
+# match). Within a list field (e.g. tools, categories), any single match
+# is sufficient (OR logic). Glob patterns with trailing '*' are supported
+# in the tools field.
+#
+# Programmatic overrides in config.yaml (runtime.tool_policy.rules) will
+# replace these defaults entirely when present.
+
+rules:
+  # L4 irreversible operations: no retries, moderate timeout.
+  # Requires user confirmation + alternative plan before execution.
+  - name: l4-irreversible
+    match:
+      safety_levels: [4]
+    timeout: 60s
+    retry:
+      max_retries: 0
+
+  # L3 high-impact operations: no retries, moderate timeout.
+  # Requires user confirmation + rollback steps before execution.
+  - name: l3-high-impact
+    match:
+      safety_levels: [3]
+    timeout: 60s
+    retry:
+      max_retries: 0
+
+  # Media/design generation: long timeout to accommodate image/video creation.
+  - name: media-generation
+    match:
+      categories: ["design"]
+    timeout: 300s
+    retry:
+      max_retries: 2
+      initial_backoff: 5s
+      max_backoff: 60s
+      backoff_factor: 2.0
+
+  # Lark API write operations: short timeout, no retries for mutations.
+  - name: lark-write-ops
+    match:
+      categories: ["lark"]
+      dangerous: true
+    timeout: 30s
+    retry:
+      max_retries: 0
+
+  # Web tools: moderate timeout with retries for network flakiness.
+  - name: web-tools
+    match:
+      categories: ["web"]
+    timeout: 60s
+    retry:
+      max_retries: 3
+      initial_backoff: 2s
+      max_backoff: 30s
+      backoff_factor: 2.0
+
+  # Code execution tools: long timeout for shell/bash commands.
+  - name: execution-long
+    match:
+      tools: ["shell_exec", "bash"]
+    timeout: 300s
+
+  # Catch-all: suppress retries for any dangerous tool not matched above.
+  - name: dangerous-no-retry
+    match:
+      dangerous: true
+    retry:
+      max_retries: 0
