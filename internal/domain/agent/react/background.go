@@ -198,6 +198,10 @@ func newBackgroundTaskManagerWithDeps(
 	if workingDirResolver != nil {
 		workingDir = strings.TrimSpace(workingDirResolver(runCtx))
 	}
+	if workingDir == "" {
+		// Keep workspace features available even when cwd probing fails in long-running test/process setups.
+		workingDir = "."
+	}
 	var workspaceMgr agent.WorkspaceManager
 	if workspaceMgrFactory != nil && workingDir != "" {
 		workspaceMgr = workspaceMgrFactory(workingDir, logger)
