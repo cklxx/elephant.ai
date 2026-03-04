@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"alex/internal/shared/notification"
 	"alex/internal/shared/utils"
 	"context"
 	"errors"
@@ -19,10 +20,7 @@ type AgentCoordinator interface {
 }
 
 // Notifier routes scheduler results to external channels.
-type Notifier interface {
-	SendLark(ctx context.Context, chatID string, content string) error
-	SendMoltbook(ctx context.Context, content string) error
-}
+type Notifier = notification.Notifier
 
 // executeTrigger runs a trigger's task via the agent coordinator and routes the result.
 func (s *Scheduler) executeTrigger(trigger Trigger) error {
@@ -72,18 +70,10 @@ func (s *Scheduler) executeTrigger(trigger Trigger) error {
 
 	content := formatResult(trigger, result, err)
 
-	if s.notifier != nil {
-		switch trigger.Channel {
-		case "lark":
-			if trigger.ChatID != "" {
-				if sendErr := s.notifier.SendLark(ctx, trigger.ChatID, content); sendErr != nil {
-					s.logger.Warn("Scheduler: failed to send Lark notification for %q: %v", trigger.Name, sendErr)
-				}
-			}
-		case "moltbook":
-			if sendErr := s.notifier.SendMoltbook(ctx, content); sendErr != nil {
-				s.logger.Warn("Scheduler: failed to send Moltbook notification for %q: %v", trigger.Name, sendErr)
-			}
+	if s.notifier != nil && trigger.Channel != "" {
+		target := notification.Target{Channel: trigger.Channel, ChatID: trigger.ChatID}
+		if sendErr := s.notifier.Send(ctx, target, content); sendErr != nil {
+			s.logger.Warn("Scheduler: failed to send notification for %q: %v", trigger.Name, sendErr)
 		}
 	}
 

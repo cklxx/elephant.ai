@@ -7,9 +7,9 @@ import (
 
 	kernel "alex/internal/app/agent/kernel"
 	"alex/internal/app/lifecycle"
-	"alex/internal/app/scheduler"
 	larkgw "alex/internal/delivery/channels/lark"
 	kerneldomain "alex/internal/domain/kernel"
+	"alex/internal/infra/notification"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 
@@ -56,8 +56,8 @@ func newKernelDirectLarkSender(cfg LarkGatewayConfig, logger logging.Logger) ker
 		clientOpts = append(clientOpts, larksdk.WithOpenBaseUrl(domain))
 	}
 	client := larksdk.NewClient(appID, appSecret, clientOpts...)
-	notifier := scheduler.NewLarkNotifierWithClient(client, logger)
-	return notifier.SendLark
+	sender := notification.NewLarkSenderWithClient(client, logger)
+	return sender.SendLark
 }
 
 // KernelStage returns a BootstrapStage that starts the kernel agent loop engine

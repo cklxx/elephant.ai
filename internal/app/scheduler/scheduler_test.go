@@ -11,6 +11,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/config"
+	"alex/internal/shared/notification"
 )
 
 // mockCoordinator records calls to ExecuteTask.
@@ -113,25 +114,21 @@ func (m *mockLeaderLock) stats() (acquireCalls int, releaseCalls int) {
 	return m.acquireCalls, m.releaseCalls
 }
 
-// mockNotifier records Lark messages.
+// mockNotifier records notification messages.
 type mockNotifier struct {
 	mu       sync.Mutex
-	messages []larkMessage
+	messages []sentMessage
 }
 
-type larkMessage struct {
-	ChatID  string
+type sentMessage struct {
+	Target  notification.Target
 	Content string
 }
 
-func (m *mockNotifier) SendLark(_ context.Context, chatID string, content string) error {
+func (m *mockNotifier) Send(_ context.Context, target notification.Target, content string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.messages = append(m.messages, larkMessage{ChatID: chatID, Content: content})
-	return nil
-}
-
-func (m *mockNotifier) SendMoltbook(_ context.Context, _ string) error {
+	m.messages = append(m.messages, sentMessage{Target: target, Content: content})
 	return nil
 }
 
@@ -516,8 +513,8 @@ func TestScheduler_ExecuteTrigger(t *testing.T) {
 	msg := notifier.messages[0]
 	notifier.mu.Unlock()
 
-	if msg.ChatID != "oc_exec" {
-		t.Errorf("ChatID = %q, want oc_exec", msg.ChatID)
+	if msg.Target.ChatID != "oc_exec" {
+		t.Errorf("ChatID = %q, want oc_exec", msg.Target.ChatID)
 	}
 	if !strings.Contains(msg.Content, "task result") {
 		t.Errorf("Content = %q, want containing 'task result'", msg.Content)

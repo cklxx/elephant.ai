@@ -8,6 +8,7 @@ import (
 
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/notification"
 	id "alex/internal/shared/utils/id"
 
 	"github.com/robfig/cron/v3"
@@ -19,10 +20,7 @@ type AgentCoordinator interface {
 }
 
 // Notifier routes timer results to external channels.
-type Notifier interface {
-	SendLark(ctx context.Context, chatID string, content string) error
-	SendMoltbook(ctx context.Context, content string) error
-}
+type Notifier = notification.Notifier
 
 // Config holds TimerManager runtime configuration.
 type Config struct {
@@ -337,21 +335,12 @@ func (m *TimerManager) fireTimer(t *Timer) {
 }
 
 func (m *TimerManager) notify(ctx context.Context, t *Timer, content string) {
-	if m.notifier == nil {
+	if m.notifier == nil || t.Channel == "" {
 		return
 	}
-
-	switch t.Channel {
-	case "lark":
-		if t.ChatID != "" {
-			if err := m.notifier.SendLark(ctx, t.ChatID, content); err != nil {
-				m.logger.Warn("TimerManager: Lark notification failed for %q: %v", t.Name, err)
-			}
-		}
-	case "moltbook":
-		if err := m.notifier.SendMoltbook(ctx, content); err != nil {
-			m.logger.Warn("TimerManager: Moltbook notification failed for %q: %v", t.Name, err)
-		}
+	target := notification.Target{Channel: t.Channel, ChatID: t.ChatID}
+	if err := m.notifier.Send(ctx, target, content); err != nil {
+		m.logger.Warn("TimerManager: notification failed for %q: %v", t.Name, err)
 	}
 }
 

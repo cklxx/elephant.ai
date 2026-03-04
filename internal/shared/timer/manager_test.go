@@ -8,6 +8,7 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/notification"
 )
 
 // mockCoordinator records calls to ExecuteTask.
@@ -65,27 +66,19 @@ func (m *mockCoordinator) getCalls() []executedTask {
 
 // mockNotifier records notifications.
 type mockNotifier struct {
-	mu       sync.Mutex
-	lark     []larkMsg
-	moltbook []string
+	mu   sync.Mutex
+	sent []sentNotification
 }
 
-type larkMsg struct {
-	ChatID  string
+type sentNotification struct {
+	Target  notification.Target
 	Content string
 }
 
-func (n *mockNotifier) SendLark(_ context.Context, chatID, content string) error {
+func (n *mockNotifier) Send(_ context.Context, target notification.Target, content string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.lark = append(n.lark, larkMsg{ChatID: chatID, Content: content})
-	return nil
-}
-
-func (n *mockNotifier) SendMoltbook(_ context.Context, content string) error {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.moltbook = append(n.moltbook, content)
+	n.sent = append(n.sent, sentNotification{Target: target, Content: content})
 	return nil
 }
 
@@ -573,14 +566,14 @@ func TestManagerNotification(t *testing.T) {
 
 	notifier.mu.Lock()
 	defer notifier.mu.Unlock()
-	if len(notifier.lark) == 0 {
-		t.Fatal("expected Lark notification")
+	if len(notifier.sent) == 0 {
+		t.Fatal("expected notification")
 	}
-	if notifier.lark[0].ChatID != "oc_chat456" {
-		t.Errorf("chatID: got %q, want %q", notifier.lark[0].ChatID, "oc_chat456")
+	if notifier.sent[0].Target.ChatID != "oc_chat456" {
+		t.Errorf("chatID: got %q, want %q", notifier.sent[0].Target.ChatID, "oc_chat456")
 	}
-	if notifier.lark[0].Content != "timer result" {
-		t.Errorf("content: got %q, want %q", notifier.lark[0].Content, "timer result")
+	if notifier.sent[0].Content != "timer result" {
+		t.Errorf("content: got %q, want %q", notifier.sent[0].Content, "timer result")
 	}
 }
 

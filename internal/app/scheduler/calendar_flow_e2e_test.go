@@ -23,6 +23,7 @@ import (
 	"alex/internal/infra/memory"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/config"
+	"alex/internal/shared/notification"
 	"alex/internal/shared/utils/id"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
@@ -182,23 +183,21 @@ func (m testContextManager) BuildSummaryOnly(msgs []ports.Message) (string, int)
 
 type recordingNotifier struct {
 	mu       sync.Mutex
-	messages []larkMessage
+	messages []sentMessage
 }
 
-func (n *recordingNotifier) SendLark(_ context.Context, chatID string, content string) error {
+func (n *recordingNotifier) Send(_ context.Context, target notification.Target, content string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.messages = append(n.messages, larkMessage{ChatID: chatID, Content: content})
+	n.messages = append(n.messages, sentMessage{Target: target, Content: content})
 	return nil
 }
 
-func (n *recordingNotifier) SendMoltbook(_ context.Context, _ string) error { return nil }
-
-func (n *recordingNotifier) lastMessage() (larkMessage, bool) {
+func (n *recordingNotifier) lastMessage() (sentMessage, bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if len(n.messages) == 0 {
-		return larkMessage{}, false
+		return sentMessage{}, false
 	}
 	return n.messages[len(n.messages)-1], true
 }
@@ -484,8 +483,8 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 	if !ok {
 		t.Fatal("expected scheduler notifier message")
 	}
-	if lastMsg.ChatID != "oc_chat" {
-		t.Fatalf("unexpected notifier chat_id: %s", lastMsg.ChatID)
+	if lastMsg.Target.ChatID != "oc_chat" {
+		t.Fatalf("unexpected notifier chat_id: %s", lastMsg.Target.ChatID)
 	}
 	if !strings.Contains(lastMsg.Content, result.Answer) {
 		t.Fatalf("unexpected notifier content: %s", lastMsg.Content)
