@@ -2,9 +2,12 @@ package react
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -946,14 +949,79 @@ func (m *BackgroundTaskManager) InjectBackgroundInput(ctx context.Context, taskI
 	pane := strings.TrimSpace(bt.config["tmux_pane"])
 	bt.mu.Unlock()
 	if pane == "" {
-		return fmt.Errorf("task %q is not bound to a tmux pane", id)
+		err := fmt.Errorf("task %q is not bound to a tmux pane", id)
+		recordTmuxInputInjectEvent(bt, "tmux_input_inject_failed", pane, data, err)
+		return err
 	}
 
 	cmd := backgroundExecCommand(ctx, "tmux", "-L", "elephant", "send-keys", "-t", pane, data, "C-m")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("inject input to pane %s: %s: %w", pane, strings.TrimSpace(string(out)), err)
+		wrapped := fmt.Errorf("inject input to pane %s: %s: %w", pane, strings.TrimSpace(string(out)), err)
+		recordTmuxInputInjectEvent(bt, "tmux_input_inject_failed", pane, data, wrapped)
+		return wrapped
 	}
+	recordTmuxInputInjectEvent(bt, "tmux_input_injected", pane, data, nil)
 	return nil
+}
+
+func recordTmuxInputInjectEvent(bt *backgroundTask, eventType string, pane string, input string, injectErr error) {
+	if bt == nil {
+		return
+	}
+	bt.mu.Lock()
+	taskID := bt.id
+	cfg := make(map[string]string, len(bt.config))
+	for k, v := range bt.config {
+		cfg[k] = v
+	}
+	bt.mu.Unlock()
+
+	eventLogPath := strings.TrimSpace(cfg["team_event_log"])
+	roleLogPath := strings.TrimSpace(cfg["role_log_path"])
+	if eventLogPath == "" && roleLogPath == "" {
+		return
+	}
+
+	payload := map[string]any{
+		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+		"type":      strings.TrimSpace(eventType),
+		"task_id":   strings.TrimSpace(taskID),
+		"input_len": len([]rune(strings.TrimSpace(input))),
+	}
+	if teamID := strings.TrimSpace(cfg["team_id"]); teamID != "" {
+		payload["team_id"] = teamID
+	}
+	if roleID := strings.TrimSpace(cfg["role_id"]); roleID != "" {
+		payload["role_id"] = roleID
+	}
+	if trimmedPane := strings.TrimSpace(pane); trimmedPane != "" {
+		payload["pane"] = trimmedPane
+	}
+	if injectErr != nil {
+		payload["error"] = injectErr.Error()
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	appendTeamRuntimeEventLine(eventLogPath, string(data))
+	appendTeamRuntimeEventLine(roleLogPath, string(data))
+}
+
+func appendTeamRuntimeEventLine(path string, line string) {
+	trimmedPath := strings.TrimSpace(path)
+	if trimmedPath == "" {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(trimmedPath), 0o755); err != nil {
+		return
+	}
+	f, err := os.OpenFile(trimmedPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString(strings.TrimSpace(line) + "\n")
 }
 
 // MergeExternalWorkspace merges an external agent's workspace back into the base branch.

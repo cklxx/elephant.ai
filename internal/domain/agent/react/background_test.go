@@ -2,9 +2,12 @@ package react
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -1377,6 +1380,9 @@ func TestInjectBackgroundInputCommandFailureAndSuccess(t *testing.T) {
 	t.Cleanup(func() {
 		backgroundExecCommand = oldExec
 	})
+	logDir := t.TempDir()
+	eventLogPath := filepath.Join(logDir, "events.jsonl")
+	roleLogPath := filepath.Join(logDir, "role.log")
 
 	var gotName string
 	var gotArgs []string
@@ -1392,7 +1398,11 @@ func TestInjectBackgroundInputCommandFailureAndSuccess(t *testing.T) {
 			"task-1": {
 				id: "task-1",
 				config: map[string]string{
-					"tmux_pane": "%11",
+					"tmux_pane":      "%11",
+					"team_event_log": eventLogPath,
+					"role_log_path":  roleLogPath,
+					"team_id":        "team-test",
+					"role_id":        "executor",
 				},
 			},
 		},
@@ -1422,4 +1432,50 @@ func TestInjectBackgroundInputCommandFailureAndSuccess(t *testing.T) {
 	if err := mgr.InjectBackgroundInput(context.Background(), "task-1", "continue"); err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
+
+	eventLines := readJSONLinesForTest(t, eventLogPath)
+	if len(eventLines) != 2 {
+		t.Fatalf("expected 2 team event lines, got %d", len(eventLines))
+	}
+	if got := strings.TrimSpace(fmt.Sprint(eventLines[0]["type"])); got != "tmux_input_inject_failed" {
+		t.Fatalf("expected first event type tmux_input_inject_failed, got %q", got)
+	}
+	if got := strings.TrimSpace(fmt.Sprint(eventLines[1]["type"])); got != "tmux_input_injected" {
+		t.Fatalf("expected second event type tmux_input_injected, got %q", got)
+	}
+	if got := strings.TrimSpace(fmt.Sprint(eventLines[0]["pane"])); got != "%11" {
+		t.Fatalf("expected pane %%11, got %q", got)
+	}
+	if got := strings.TrimSpace(fmt.Sprint(eventLines[0]["role_id"])); got != "executor" {
+		t.Fatalf("expected role_id executor, got %q", got)
+	}
+	if got := strings.TrimSpace(fmt.Sprint(eventLines[0]["team_id"])); got != "team-test" {
+		t.Fatalf("expected team_id team-test, got %q", got)
+	}
+	roleLines := readJSONLinesForTest(t, roleLogPath)
+	if len(roleLines) != 2 {
+		t.Fatalf("expected 2 role log lines, got %d", len(roleLines))
+	}
+}
+
+func readJSONLinesForTest(t *testing.T, path string) []map[string]any {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read jsonl %s: %v", path, err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	out := make([]map[string]any, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		var item map[string]any
+		if err := json.Unmarshal([]byte(trimmed), &item); err != nil {
+			t.Fatalf("unmarshal jsonl line %q: %v", trimmed, err)
+		}
+		out = append(out, item)
+	}
+	return out
 }
