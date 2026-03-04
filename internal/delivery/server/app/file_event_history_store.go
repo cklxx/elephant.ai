@@ -170,14 +170,16 @@ func sanitiseSessionID(id string) string {
 // eventFileRecord is the on-disk JSON line format for a single event.
 type eventFileRecord struct {
 	// Common metadata (extracted via AgentEvent interface methods).
-	RecordType  string    `json:"record_type"` // "event" or "envelope"
-	EventType   string    `json:"event_type"`
-	SessionID   string    `json:"session_id"`
-	RunID       string    `json:"run_id"`
-	ParentRunID string    `json:"parent_run_id,omitempty"`
-	AgentLevel  string    `json:"agent_level"`
-	Timestamp   time.Time `json:"timestamp"`
-	Seq         uint64    `json:"seq,omitempty"`
+	RecordType    string    `json:"record_type"` // "event" or "envelope"
+	EventType     string    `json:"event_type"`
+	SessionID     string    `json:"session_id"`
+	RunID         string    `json:"run_id"`
+	ParentRunID   string    `json:"parent_run_id,omitempty"`
+	AgentLevel    string    `json:"agent_level"`
+	Timestamp     time.Time `json:"timestamp"`
+	Seq           uint64    `json:"seq,omitempty"`
+	CorrelationID string    `json:"correlation_id,omitempty"`
+	CausationID   string    `json:"causation_id,omitempty"`
 
 	// For Event (RecordType="event"): Kind + Data JSON.
 	Kind string          `json:"kind,omitempty"`
@@ -198,13 +200,15 @@ type eventFileRecord struct {
 
 func recordFromAgentEvent(event agent.AgentEvent) eventFileRecord {
 	rec := eventFileRecord{
-		EventType:   event.EventType(),
-		SessionID:   event.GetSessionID(),
-		RunID:       event.GetRunID(),
-		ParentRunID: event.GetParentRunID(),
-		AgentLevel:  string(event.GetAgentLevel()),
-		Timestamp:   event.Timestamp(),
-		Seq:         event.GetSeq(),
+		EventType:     event.EventType(),
+		SessionID:     event.GetSessionID(),
+		RunID:         event.GetRunID(),
+		ParentRunID:   event.GetParentRunID(),
+		AgentLevel:    string(event.GetAgentLevel()),
+		Timestamp:     event.Timestamp(),
+		Seq:           event.GetSeq(),
+		CorrelationID: event.GetCorrelationID(),
+		CausationID:   event.GetCausationID(),
 	}
 
 	switch e := event.(type) {
@@ -244,7 +248,7 @@ func agentEventFromRecord(rec eventFileRecord) agent.AgentEvent {
 		rec.SessionID,
 		rec.RunID,
 		rec.ParentRunID,
-		"", "", // correlationID, causationID — not persisted
+		rec.CorrelationID, rec.CausationID,
 		rec.Seq,
 		rec.Timestamp,
 	)
