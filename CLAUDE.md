@@ -242,6 +242,12 @@ No ranking algorithm needed — filenames are date-sorted; just read the most re
 - **Entry point**: `python3 skills/code-review/run.py '{"action":"review"}'`.
 - **Blocking rule**: P0/P1 must be fixed. P2 creates follow-up. P3 optional.
 
+## §2 · Workflow preferences
+
+* **Always use worktrees for code changes.** Never modify code directly on `main`. Use `EnterWorktree` (or `git worktree add`) to create an isolated branch, develop there, then merge back via `git merge --ff-only`.
+
+---
+
 ## Additional agent rules
 
 - Prefer run_tasks for parallelizable tasks.
