@@ -188,9 +188,6 @@ func TestUpdateDocumentBlockText(t *testing.T) {
 	if result.ClientToken != "ctok_123" {
 		t.Fatalf("expected client token ctok_123, got %s", result.ClientToken)
 	}
-	if result.BlockData == nil || result.BlockData["block_id"] != "blk_123" {
-		t.Fatalf("expected block_data with block_id, got %#v", result.BlockData)
-	}
 }
 
 func TestConvertMarkdownToBlocks(t *testing.T) {

@@ -61,6 +61,7 @@ func (t *larkDocxManage) createDoc(ctx context.Context, client *larkapi.Client, 
 	grantSenderEditPermission(ctx, client, doc.DocumentID, "docx")
 
 	if content != "" {
+		// Lark guarantees that a newly created document's page block ID equals its document ID.
 		if err := client.Docx().WriteMarkdown(ctx, doc.DocumentID, doc.DocumentID, content); err != nil {
 			return apiErr(call.ID, "write initial document content", err), nil
 		}
@@ -238,10 +239,7 @@ func (t *larkDocxManage) updateBlockText(ctx context.Context, client *larkapi.Cl
 		return errResult, nil
 	}
 
-	documentRevisionID, hasRevision := shared.IntArg(call.Arguments, "document_revision_id")
-	if !hasRevision {
-		documentRevisionID = -1
-	}
+	documentRevisionID, _ := shared.IntArg(call.Arguments, "document_revision_id")
 
 	updateResult, err := client.Docx().UpdateDocumentBlockText(ctx, larkapi.UpdateDocumentBlockTextRequest{
 		DocumentID:         documentID,
@@ -256,7 +254,7 @@ func (t *larkDocxManage) updateBlockText(ctx context.Context, client *larkapi.Cl
 	}
 
 	payload := map[string]any{
-		"block": updateResult.BlockData,
+		"block": updateResult.Block,
 	}
 	if updateResult.DocumentRevisionID > 0 {
 		payload["document_revision_id"] = updateResult.DocumentRevisionID

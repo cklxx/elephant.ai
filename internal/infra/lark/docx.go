@@ -2,7 +2,6 @@ package lark
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
@@ -48,7 +47,6 @@ type UpdateDocumentBlockTextRequest struct {
 // UpdateDocumentBlockTextResult is the simplified patch result for a block update.
 type UpdateDocumentBlockTextResult struct {
 	Block              DocumentBlock
-	BlockData          map[string]any
 	DocumentRevisionID int
 	ClientToken        string
 }
@@ -213,16 +211,6 @@ func (s *DocxService) UpdateDocumentBlockText(ctx context.Context, req UpdateDoc
 	}
 	if resp.Data.ClientToken != nil {
 		result.ClientToken = *resp.Data.ClientToken
-	}
-
-	if resp.Data.Block != nil {
-		rawBlock, marshalErr := json.Marshal(resp.Data.Block)
-		if marshalErr == nil {
-			var blockData map[string]any
-			if unmarshalErr := json.Unmarshal(rawBlock, &blockData); unmarshalErr == nil {
-				result.BlockData = blockData
-			}
-		}
 	}
 
 	return result, nil
