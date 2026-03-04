@@ -21,6 +21,7 @@ func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.
 	items := make([]map[string]any, 0, len(msgs))
 	var instructionsParts []string
 	collectInstructions := c.isCodexEndpoint()
+	seenInstructions := make(map[string]struct{})
 	embedMask := attachmentEmbeddingMask(msgs)
 	for idx, msg := range msgs {
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
@@ -33,7 +34,15 @@ func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.
 				continue
 			}
 			if collectInstructions {
-				instructionsParts = append(instructionsParts, msg.Content)
+				instruction := strings.TrimSpace(msg.Content)
+				if instruction == "" {
+					continue
+				}
+				if _, exists := seenInstructions[instruction]; exists {
+					continue
+				}
+				seenInstructions[instruction] = struct{}{}
+				instructionsParts = append(instructionsParts, instruction)
 				continue
 			}
 			items = append(items, map[string]any{
