@@ -24,7 +24,7 @@ Implement the approved optimization blueprint on core backend:
 - [completed] Adopt narrowed store dependency in bridge resumer.
 - [completed] Run tests and lint on touched packages.
 - [completed] Run mandatory code review skill and address P0/P1.
-- [pending] Commit in incremental commits, merge back to `main`, remove worktree.
+- [completed] Commit in incremental commits, merge back to `main`, remove worktree.
 
 ## Verification Notes
 - Targeted Go tests on touched packages: pass.
