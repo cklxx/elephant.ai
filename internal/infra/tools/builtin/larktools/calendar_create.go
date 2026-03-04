@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/tools/builtin/shared"
+	id "alex/internal/shared/utils/id"
 
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	larkcalendar "github.com/larksuite/oapi-sdk-go/v3/service/calendar/v4"
@@ -126,10 +128,14 @@ func (t *larkCalendarCreate) Execute(ctx context.Context, call ports.ToolCall) (
 	if hasNeedNotification {
 		event.NeedNotification = &needNotification
 	}
+	autoAddedSender := ensureTenantCalendarVisibilityAttendee(ctx, event, auth)
 
 	builder := larkcalendar.NewCreateCalendarEventReqBuilder().
 		CalendarId(calendarID).
 		CalendarEvent(event)
+	if autoAddedSender {
+		builder.UserIdType(larkcalendar.UserIdTypeCreateCalendarEventOpenId)
+	}
 
 	if idempotencyKey := shared.StringArg(call.Arguments, "idempotency_key"); idempotencyKey != "" {
 		builder.IdempotencyKey(idempotencyKey)
@@ -149,16 +155,56 @@ func (t *larkCalendarCreate) Execute(ctx context.Context, call ports.ToolCall) (
 		eventID = *resp.Data.Event.EventId
 	}
 
+	metadata := map[string]any{
+		"calendar_id": calendarID,
+		"event_id":    eventID,
+		"start_time":  startTime,
+		"end_time":    endTime,
+		"auth_mode":   auth.mode(),
+	}
+	if autoAddedSender {
+		metadata["sender_added_as_attendee"] = true
+	}
+
 	return &ports.ToolResult{
-		CallID:  call.ID,
-		Content: "Calendar event created successfully.",
-		Metadata: map[string]any{
-			"calendar_id": calendarID,
-			"event_id":    eventID,
-			"start_time":  startTime,
-			"end_time":    endTime,
-		},
+		CallID:   call.ID,
+		Content:  "Calendar event created successfully.",
+		Metadata: metadata,
 	}, nil
+}
+
+func ensureTenantCalendarVisibilityAttendee(ctx context.Context, event *larkcalendar.CalendarEvent, auth larkAccessToken) bool {
+	if auth.kind != larkTokenTenant || event == nil {
+		return false
+	}
+
+	senderID := strings.TrimSpace(id.UserIDFromContext(ctx))
+	if senderID == "" {
+		return false
+	}
+	for _, attendee := range event.Attendees {
+		if attendee == nil || attendee.AttendeeId == nil {
+			continue
+		}
+		if strings.TrimSpace(*attendee.AttendeeId) != senderID {
+			continue
+		}
+		attendeeType := "user"
+		if attendee.Type != nil && strings.TrimSpace(*attendee.Type) != "" {
+			attendeeType = strings.TrimSpace(*attendee.Type)
+		}
+		if strings.EqualFold(attendeeType, "user") {
+			return false
+		}
+	}
+
+	attendeeType := "user"
+	attendeeID := senderID
+	event.Attendees = append(event.Attendees, &larkcalendar.CalendarEventAttendee{
+		Type:       &attendeeType,
+		AttendeeId: &attendeeID,
+	})
+	return true
 }
 
 func boolArg(args map[string]any, key string) (bool, bool) {

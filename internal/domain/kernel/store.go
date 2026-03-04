@@ -28,4 +28,7 @@ type Store interface {
 
 	// ListRecentByAgent returns the most recent dispatch for each agent_id.
 	ListRecentByAgent(ctx context.Context, kernelID string) (map[string]Dispatch, error)
+
+	// PruneExpired removes terminal dispatches older than the retention window.
+	PruneExpired(ctx context.Context) (int, error)
 }

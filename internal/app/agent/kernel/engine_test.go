@@ -130,6 +130,10 @@ func (s *memStore) ListRecentByAgent(_ context.Context, kernelID string) (map[st
 	return result, nil
 }
 
+func (s *memStore) PruneExpired(_ context.Context) (int, error) {
+	return 0, nil
+}
+
 func (s *memStore) RecoverStaleRunning(_ context.Context, _ string) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

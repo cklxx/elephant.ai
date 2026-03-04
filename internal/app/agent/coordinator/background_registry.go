@@ -15,6 +15,7 @@ import (
 const (
 	defaultBackgroundRegistryCleanupInterval = 3 * time.Minute
 	defaultBackgroundRegistryIdleTTL         = 15 * time.Minute
+	defaultBackgroundRegistryMaxEntryAge     = 1 * time.Hour
 )
 
 type backgroundRegistryEntry struct {
@@ -29,6 +30,7 @@ type backgroundTaskRegistry struct {
 	shutdownFn      func(*react.BackgroundTaskManager)
 	cleanupInterval time.Duration
 	idleTTL         time.Duration
+	maxEntryAge     time.Duration
 	lastCleanup     time.Time
 }
 
@@ -39,6 +41,7 @@ func newBackgroundTaskRegistry() *backgroundTaskRegistry {
 		shutdownFn:      func(mgr *react.BackgroundTaskManager) { mgr.Shutdown() },
 		cleanupInterval: defaultBackgroundRegistryCleanupInterval,
 		idleTTL:         defaultBackgroundRegistryIdleTTL,
+		maxEntryAge:     defaultBackgroundRegistryMaxEntryAge,
 	}
 }
 
@@ -122,6 +125,13 @@ func (r *backgroundTaskRegistry) cleanupLocked(now time.Time) {
 
 	for sessionID, entry := range r.managers {
 		if entry.manager == nil {
+			delete(r.managers, sessionID)
+			continue
+		}
+		// Hard TTL: force-remove entries older than maxEntryAge regardless of
+		// task terminal state. This prevents indefinite accumulation from stuck tasks.
+		if r.maxEntryAge > 0 && now.Sub(entry.lastAccess) > r.maxEntryAge {
+			r.shutdown(entry.manager)
 			delete(r.managers, sessionID)
 			continue
 		}

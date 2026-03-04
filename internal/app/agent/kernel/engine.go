@@ -48,6 +48,7 @@ type Engine struct {
 	teamExecutor         TeamExecutor
 	logger               logging.Logger
 	notifier             CycleNotifier // optional; called after non-empty cycles
+	sessionCleaner       SessionCleaner
 	systemPromptProvider func() string
 
 	stopped   chan struct{}
@@ -68,6 +69,11 @@ type staleDispatchRecoverer interface {
 
 type stalePendingRecoverer interface {
 	RecoverStalePending(ctx context.Context, kernelID string) (int, error)
+}
+
+// SessionCleaner removes old kernel session files from the session store.
+type SessionCleaner interface {
+	CleanExpiredSessions(ctx context.Context, maxAge time.Duration) (int, error)
 }
 
 // SetNotifier registers an optional callback invoked after each non-empty cycle.
@@ -94,14 +100,19 @@ func NewEngine(
 	if impl, ok := executor.(TeamExecutor); ok {
 		teamExecutor = impl
 	}
+	var sessionCleaner SessionCleaner
+	if impl, ok := executor.(SessionCleaner); ok {
+		sessionCleaner = impl
+	}
 	return &Engine{
 		config:       config,
 		stateFile:    stateFile,
 		store:        store,
 		planner:      planner,
-		executor:     executor,
-		teamExecutor: teamExecutor,
-		logger:       logging.OrNop(logger),
+		executor:       executor,
+		teamExecutor:   teamExecutor,
+		sessionCleaner: sessionCleaner,
+		logger:         logging.OrNop(logger),
 		stopped:      make(chan struct{}),
 		triggerCh:    make(chan struct{}, 1),
 	}
@@ -874,6 +885,19 @@ func (e *Engine) runCycleWithLogging(ctx context.Context) {
 		}
 	}
 
+	// Prune expired terminal dispatches from the store.
+	if pruned, pruneErr := e.store.PruneExpired(cycleCtx); pruneErr != nil {
+		e.logger.Warn("Kernel[%s] prune expired dispatches: %v", e.config.KernelID, pruneErr)
+	} else if pruned > 0 {
+		e.logger.Info("Kernel[%s] pruned %d expired dispatch(es)", e.config.KernelID, pruned)
+	}
+
+	// Clean up old kernel session files.
+	e.cleanExpiredSessions(cycleCtx)
+
+	// Return freed memory to the OS after potentially large cycle allocations.
+	debug.FreeOSMemory()
+
 	// Absence alert: warn if no successful cycle for too long.
 	e.checkAbsenceAlert(ctx)
 }
@@ -914,6 +938,22 @@ func (e *Engine) checkAbsenceAlert(ctx context.Context) {
 		e.config.KernelID, since.Truncate(time.Minute), consec)
 	e.notifier(ctx, nil, fmt.Errorf("kernel absence: no successful cycle for %s (consecutive_failures=%d)",
 		since.Truncate(time.Minute), consec))
+}
+
+const sessionMaxAge = 24 * time.Hour
+
+func (e *Engine) cleanExpiredSessions(ctx context.Context) {
+	if e.sessionCleaner == nil {
+		return
+	}
+	cleaned, err := e.sessionCleaner.CleanExpiredSessions(ctx, sessionMaxAge)
+	if err != nil {
+		e.logger.Warn("Kernel[%s] session cleanup: %v", e.config.KernelID, err)
+		return
+	}
+	if cleaned > 0 {
+		e.logger.Info("Kernel[%s] cleaned %d expired session file(s)", e.config.KernelID, cleaned)
+	}
 }
 
 // Stop signals the engine to exit the Run loop.

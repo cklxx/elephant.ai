@@ -85,6 +85,7 @@ type CoordinatorExecutor struct {
 	coordinator       TaskRunner
 	timeout           time.Duration
 	stateDir          string // e.g. ~/.alex/kernel/{kernel_id}
+	sessionsDir       string // session file store directory for cleanup
 	selectionResolver SelectionResolver
 }
 
@@ -133,6 +134,68 @@ func (e *CoordinatorExecutor) tasksDir() string {
 
 // SelectionResolver resolves a request-scoped pinned LLM selection for kernel runs.
 type SelectionResolver func(ctx context.Context, channel, chatID, userID string) (subscription.ResolvedSelection, bool)
+
+// SetSessionsDir configures the session file store directory used for cleanup
+// of old kernel session files.
+func (e *CoordinatorExecutor) SetSessionsDir(dir string) {
+	if e == nil {
+		return
+	}
+	e.sessionsDir = dir
+}
+
+// CleanExpiredSessions removes kernel session files and their companion
+// directories (snapshots, turns, journals, checkpoints) older than maxAge.
+// Only entries matching the kernel-* prefix are considered.
+func (e *CoordinatorExecutor) CleanExpiredSessions(ctx context.Context, maxAge time.Duration) (int, error) {
+	if e.sessionsDir == "" {
+		return 0, nil
+	}
+	cutoff := time.Now().Add(-maxAge)
+	var removed int
+
+	// Clean main session JSON files.
+	removed += cleanKernelDir(ctx, e.sessionsDir, cutoff, false)
+
+	// Clean companion subdirectories (snapshots, turns, journals, checkpoints).
+	for _, sub := range []string{"snapshots", "turns", "journals", "checkpoints"} {
+		removed += cleanKernelDir(ctx, filepath.Join(e.sessionsDir, sub), cutoff, true)
+	}
+	return removed, nil
+}
+
+func cleanKernelDir(ctx context.Context, dir string, cutoff time.Time, removeAll bool) int {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	var removed int
+	for _, entry := range entries {
+		if ctx.Err() != nil {
+			return removed
+		}
+		if !strings.HasPrefix(entry.Name(), "kernel-") {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().After(cutoff) {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		if removeAll {
+			_ = os.RemoveAll(path)
+		} else {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				continue
+			}
+		}
+		removed++
+	}
+	return removed
+}
 
 // SetSelectionResolver configures an optional selection resolver used to pin
 // provider/model credentials per dispatch context.

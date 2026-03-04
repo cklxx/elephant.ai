@@ -52,33 +52,47 @@ func (b *ExecBackend) startAttached(ctx context.Context, cfg ProcessConfig) (Pip
 	if err != nil {
 		return nil, fmt.Errorf("stdin pipe: %w", err)
 	}
-	stdout, err := cmd.StdoutPipe()
+	stdoutR, stdoutW, err := os.Pipe()
 	if err != nil {
+		_ = stdin.Close()
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
-	stderr, err := cmd.StderrPipe()
+	stderrR, stderrW, err := os.Pipe()
 	if err != nil {
+		_ = stdin.Close()
+		_ = stdoutR.Close()
+		_ = stdoutW.Close()
 		return nil, fmt.Errorf("stderr pipe: %w", err)
 	}
+	cmd.Stdout = stdoutW
+	cmd.Stderr = stderrW
 	if err := cmd.Start(); err != nil {
+		_ = stdin.Close()
+		_ = stdoutR.Close()
+		_ = stdoutW.Close()
+		_ = stderrR.Close()
+		_ = stderrW.Close()
 		return nil, fmt.Errorf("start process: %w", err)
 	}
+	_ = stdoutW.Close()
+	_ = stderrW.Close()
 
 	h := &execHandle{
 		name:       cfg.Name,
 		cfg:        cfg,
 		cmd:        cmd,
 		stdin:      stdin,
-		stdout:     stdout,
-		stderr:     stderr,
+		stdout:     stdoutR,
+		stderr:     stderrR,
 		stderrTail: NewTailBuffer(DefaultStderrTail),
 		done:       make(chan struct{}),
 	}
 
 	stderrDone := make(chan struct{})
 	go func() {
-		if stderr != nil {
-			_, _ = io.Copy(h.stderrTail, stderr)
+		if stderrR != nil {
+			_, _ = io.Copy(h.stderrTail, stderrR)
+			_ = stderrR.Close()
 		}
 		close(stderrDone)
 	}()

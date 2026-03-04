@@ -3,6 +3,7 @@ package larktools
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -140,6 +141,7 @@ func TestCalendarCreate_MissingOAuthToken_RequiresTenantCalendarID(t *testing.T)
 func TestCalendarCreate_TenantAutoSharedCalendar(t *testing.T) {
 	var mu sync.Mutex
 	var gotAuth string
+	var gotBody string
 	var tokenCalls int
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -157,8 +159,13 @@ func TestCalendarCreate_TenantAutoSharedCalendar(t *testing.T) {
 			if !strings.Contains(r.URL.Path, "/calendar/v4/calendars/cal-shared/") {
 				t.Fatalf("unexpected calendar_id in path: %s", r.URL.Path)
 			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("read request body: %v", err)
+			}
 			mu.Lock()
 			gotAuth = r.Header.Get("Authorization")
+			gotBody = string(body)
 			mu.Unlock()
 			_, _ = w.Write(jsonResponse(0, "ok", map[string]interface{}{
 				"event": map[string]interface{}{
@@ -174,7 +181,7 @@ func TestCalendarCreate_TenantAutoSharedCalendar(t *testing.T) {
 
 	tool := NewLarkCalendarCreate()
 	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
-	ctx := shared.WithLarkClient(context.Background(), larkClient)
+	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
 	ctx = shared.WithLarkTenantCalendarID(ctx, "cal-shared")
 
 	call := ports.ToolCall{ID: "test-tenant-auto", Name: "lark_calendar_create", Arguments: map[string]any{
@@ -190,6 +197,12 @@ func TestCalendarCreate_TenantAutoSharedCalendar(t *testing.T) {
 	if result.Error != nil {
 		t.Fatalf("expected success, got error: %v", result.Error)
 	}
+	if got := result.Metadata["auth_mode"]; got != "tenant" {
+		t.Fatalf("expected auth_mode=tenant, got %v", got)
+	}
+	if got := result.Metadata["sender_added_as_attendee"]; got != true {
+		t.Fatalf("expected sender_added_as_attendee=true, got %v", got)
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -198,6 +211,12 @@ func TestCalendarCreate_TenantAutoSharedCalendar(t *testing.T) {
 	}
 	if gotAuth != "Bearer tenant-token" {
 		t.Fatalf("expected tenant token auth, got %q", gotAuth)
+	}
+	if !strings.Contains(gotBody, `"attendee_id":"ou_123"`) {
+		t.Fatalf("expected sender attendee in tenant mode, got body %q", gotBody)
+	}
+	if !strings.Contains(gotBody, `"type":"user"`) {
+		t.Fatalf("expected user attendee type, got body %q", gotBody)
 	}
 }
 

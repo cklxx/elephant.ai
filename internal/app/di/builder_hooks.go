@@ -238,7 +238,7 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 	}
 
 	leaseDuration := time.Duration(leaseSeconds) * time.Second
-	retentionDuration := 14 * 24 * time.Hour
+	retentionDuration := 24 * time.Hour
 	kernelStoreDir := resolveStorageDir("", "~/.alex/kernel")
 	kernelStore := kernelinfra.NewFileStore(kernelStoreDir, leaseDuration, retentionDuration)
 	if err := kernelStore.EnsureSchema(context.Background()); err != nil {
@@ -356,6 +356,7 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 
 	timeout := time.Duration(timeoutSeconds) * time.Second
 	executor := kernelagent.NewCoordinatorExecutor(coordinator, timeout, stateDir)
+	executor.SetSessionsDir(b.sessionDir)
 	executor.SetSelectionResolver(b.buildKernelSelectionResolver())
 
 	engine := kernelagent.NewEngine(

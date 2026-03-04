@@ -230,6 +230,8 @@ func (s *FileStore) MarkDispatchDone(ctx context.Context, dispatchID, taskID str
 	}
 	d.Status = kernel.DispatchDone
 	d.TaskID = taskID
+	d.Prompt = ""
+	d.Team = nil
 	d.UpdatedAt = now
 	s.dispatches[dispatchID] = d
 	// persist=true: write status change and pruned records atomically in one
@@ -257,6 +259,8 @@ func (s *FileStore) MarkDispatchFailed(ctx context.Context, dispatchID, errMsg s
 	}
 	d.Status = kernel.DispatchFailed
 	d.Error = errMsg
+	d.Prompt = ""
+	d.Team = nil
 	d.UpdatedAt = now
 	s.dispatches[dispatchID] = d
 	// persist=true: write status change and pruned records atomically in one
@@ -536,6 +540,16 @@ func (s *FileStore) RecoverStalePending(ctx context.Context, kernelID string) (i
 		}
 	}
 	return recovered, nil
+}
+
+// PruneExpired removes terminal dispatches older than the retention window.
+func (s *FileStore) PruneExpired(ctx context.Context) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.pruneLocked(ctx, s.now(), true)
 }
 
 // Compile-time interface check.
