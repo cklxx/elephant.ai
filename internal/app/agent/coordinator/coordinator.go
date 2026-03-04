@@ -213,24 +213,13 @@ func (c *AgentCoordinator) ExecuteTask(
 	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
 	logger := c.loggerFor(ctx)
 	prepareStarted := time.Now()
-	// Decorate the listener with the workflow envelope translator so downstream
-	// consumers receive workflow event envelopes.
-	eventListener := wrapWithWorkflowEnvelope(wrapWithSLAEnrichment(listener, c.toolSLACollector))
-	var planTitleRecorder *planSessionTitleRecorder
-	var serializingListener *SerializingEventListener
-	if eventListener != nil && !appcontext.IsSubagentContext(ctx) {
-		planTitleRecorder = &planSessionTitleRecorder{
-			sink: eventListener,
-			onTitle: func(title string) {
-				c.persistSessionTitle(ctx, sessionID, title)
-			},
-		}
-		eventListener = planTitleRecorder
-	}
-	if eventListener != nil {
-		serializingListener = NewSerializingEventListener(eventListener)
-		eventListener = serializingListener
-	}
+	dispatcher := NewEventDispatcher(listener, c.toolSLACollector, EventDispatcherOptions{
+		EnablePlanTitle: !appcontext.IsSubagentContext(ctx),
+		OnPlanTitle: func(title string) {
+			c.persistSessionTitle(ctx, sessionID, title)
+		},
+	})
+	eventListener := dispatcher.Listener()
 
 	ctx = id.WithSessionID(ctx, sessionID)
 	if c.timerManager != nil {
@@ -244,11 +233,11 @@ func (c *AgentCoordinator) ExecuteTask(
 		ensuredRunID = id.RunIDFromContext(ctx)
 	}
 	parentRunID := id.ParentRunIDFromContext(ctx)
-	if serializingListener != nil {
+	if eventListener != nil {
 		defer func() {
 			flushCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			serializingListener.Flush(flushCtx, ensuredRunID)
+			dispatcher.Flush(flushCtx, ensuredRunID)
 		}()
 	}
 
@@ -526,14 +515,12 @@ func (c *AgentCoordinator) ExecuteTask(
 		logger.Debug("Skipping session persistence for subagent execution")
 		wf.succeed(stagePersist, "skipped (subagent context)")
 	} else {
-		if planTitleRecorder != nil {
-			if title := strings.TrimSpace(planTitleRecorder.Title()); title != "" {
-				if env.Session.Metadata == nil {
-					env.Session.Metadata = make(map[string]string)
-				}
-				if utils.IsBlank(env.Session.Metadata["title"]) {
-					env.Session.Metadata["title"] = title
-				}
+		if title := strings.TrimSpace(dispatcher.Title()); title != "" {
+			if env.Session.Metadata == nil {
+				env.Session.Metadata = make(map[string]string)
+			}
+			if utils.IsBlank(env.Session.Metadata["title"]) {
+				env.Session.Metadata["title"] = title
 			}
 		}
 		if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
