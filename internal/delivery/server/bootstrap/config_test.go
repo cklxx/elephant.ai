@@ -67,34 +67,35 @@ func TestLoadConfig_LarkPersistenceDefaults(t *testing.T) {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
 
-	if cr.Config.Channels.Lark.PersistenceMode != "file" {
-		t.Fatalf("expected default persistence mode file, got %q", cr.Config.Channels.Lark.PersistenceMode)
+	larkCfg := cr.Config.Channels.LarkConfig()
+	if larkCfg.PersistenceMode != "file" {
+		t.Fatalf("expected default persistence mode file, got %q", larkCfg.PersistenceMode)
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatalf("resolve home dir: %v", err)
 	}
 	wantDir := filepath.Join(home, ".alex", "lark")
-	if cr.Config.Channels.Lark.PersistenceDir != wantDir {
-		t.Fatalf("expected default persistence dir %q, got %q", wantDir, cr.Config.Channels.Lark.PersistenceDir)
+	if larkCfg.PersistenceDir != wantDir {
+		t.Fatalf("expected default persistence dir %q, got %q", wantDir, larkCfg.PersistenceDir)
 	}
-	if cr.Config.Channels.Lark.PersistenceRetention != 7*24*time.Hour {
-		t.Fatalf("expected default persistence retention 168h, got %s", cr.Config.Channels.Lark.PersistenceRetention)
+	if larkCfg.PersistenceRetention != 7*24*time.Hour {
+		t.Fatalf("expected default persistence retention 168h, got %s", larkCfg.PersistenceRetention)
 	}
-	if cr.Config.Channels.Lark.PersistenceMaxTasksPerChat != 200 {
-		t.Fatalf("expected default max tasks per chat 200, got %d", cr.Config.Channels.Lark.PersistenceMaxTasksPerChat)
+	if larkCfg.PersistenceMaxTasksPerChat != 200 {
+		t.Fatalf("expected default max tasks per chat 200, got %d", larkCfg.PersistenceMaxTasksPerChat)
 	}
-	if cr.Config.Channels.Lark.DeliveryMode != "shadow" {
-		t.Fatalf("expected default delivery mode shadow, got %q", cr.Config.Channels.Lark.DeliveryMode)
+	if larkCfg.DeliveryMode != "shadow" {
+		t.Fatalf("expected default delivery mode shadow, got %q", larkCfg.DeliveryMode)
 	}
-	if !cr.Config.Channels.Lark.DeliveryWorker.Enabled {
+	if !larkCfg.DeliveryWorker.Enabled {
 		t.Fatalf("expected default delivery worker enabled")
 	}
-	if cr.Config.Channels.Lark.DeliveryWorker.PollInterval != 500*time.Millisecond {
-		t.Fatalf("expected default delivery poll interval 500ms, got %s", cr.Config.Channels.Lark.DeliveryWorker.PollInterval)
+	if larkCfg.DeliveryWorker.PollInterval != 500*time.Millisecond {
+		t.Fatalf("expected default delivery poll interval 500ms, got %s", larkCfg.DeliveryWorker.PollInterval)
 	}
-	if cr.Config.Channels.Lark.DeliveryWorker.BatchSize != 50 {
-		t.Fatalf("expected default delivery batch size 50, got %d", cr.Config.Channels.Lark.DeliveryWorker.BatchSize)
+	if larkCfg.DeliveryWorker.BatchSize != 50 {
+		t.Fatalf("expected default delivery batch size 50, got %d", larkCfg.DeliveryWorker.BatchSize)
 	}
 }
 
@@ -150,8 +151,8 @@ channels:
 		t.Fatalf("resolve home dir: %v", err)
 	}
 	wantDir := filepath.Join(home, ".alex", "lark-custom")
-	if cr.Config.Channels.Lark.PersistenceDir != wantDir {
-		t.Fatalf("expected expanded persistence dir %q, got %q", wantDir, cr.Config.Channels.Lark.PersistenceDir)
+	if cr.Config.Channels.LarkConfig().PersistenceDir != wantDir {
+		t.Fatalf("expected expanded persistence dir %q, got %q", wantDir, cr.Config.Channels.LarkConfig().PersistenceDir)
 	}
 }
 
@@ -181,7 +182,7 @@ channels:
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
-	lark := cr.Config.Channels.Lark
+	lark := cr.Config.Channels.LarkConfig()
 	if lark.ToolFailureAbortThreshold != 5 {
 		t.Fatalf("expected tool failure abort threshold 5, got %d", lark.ToolFailureAbortThreshold)
 	}
@@ -236,7 +237,7 @@ channels:
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
-	lark := cr.Config.Channels.Lark
+	lark := cr.Config.Channels.LarkConfig()
 	if lark.DeliveryMode != "outbox" {
 		t.Fatalf("expected delivery mode outbox, got %q", lark.DeliveryMode)
 	}

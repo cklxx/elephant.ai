@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/app/di"
 	"alex/internal/app/toolregistry"
+	"alex/internal/delivery/channels"
 	"alex/internal/delivery/channels/lark"
 	serverApp "alex/internal/delivery/server/app"
 	"alex/internal/domain/agent/presets"
@@ -18,9 +19,26 @@ import (
 	"alex/internal/shared/utils"
 )
 
+// registerLarkChannel registers the Lark channel plugin into the registry
+// if Lark is enabled. The plugin factory captures the full Config and
+// dependencies needed to start the gateway.
+func registerLarkChannel(cfg Config, registry *ChannelRegistry, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) {
+	larkCfg := cfg.Channels.LarkConfig()
+	if !larkCfg.Enabled {
+		return
+	}
+	registry.Register(channels.PluginFactory{
+		Name:     "lark",
+		Required: true,
+		Build: func(ctx context.Context) (func(), error) {
+			return startLarkGateway(ctx, cfg, container, logger, broadcaster)
+		},
+	})
+}
+
 func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) (func(), error) {
 	logger = logging.OrNop(logger)
-	larkCfg := cfg.Channels.Lark
+	larkCfg := cfg.Channels.LarkConfig()
 	if !larkCfg.Enabled {
 		return nil, nil
 	}
@@ -316,7 +334,7 @@ func buildLarkOAuthService(ctx context.Context, cfg Config, container *di.Contai
 	if container == nil {
 		return nil
 	}
-	larkCfg := cfg.Channels.Lark
+	larkCfg := cfg.Channels.LarkConfig()
 	if !larkCfg.Enabled {
 		return nil
 	}

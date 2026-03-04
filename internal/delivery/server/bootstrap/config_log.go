@@ -51,7 +51,7 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	logger.Debug("Event History Max Sessions: %d", config.EventHistory.MaxSessions)
 	logger.Debug("Event History Session TTL: %s", config.EventHistory.SessionTTL)
 	logger.Debug("Event History Max Events: %d", config.EventHistory.MaxEvents)
-	larkCfg := config.Channels.Lark
+	larkCfg := config.Channels.LarkConfig()
 	if larkCfg.Enabled {
 		logger.Info(
 			"Lark Gateway: enabled (tool_mode=%s, tool_preset=%s, allow_groups=%t)",

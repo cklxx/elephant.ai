@@ -13,7 +13,7 @@ func BuildNotifiers(cfg Config, label string, logger logging.Logger) notificatio
 	logger = logging.OrNop(logger)
 	var notifiers []notification.Notifier
 
-	larkCfg := cfg.Channels.Lark
+	larkCfg := cfg.Channels.LarkConfig()
 	if larkCfg.Enabled && larkCfg.AppID != "" && larkCfg.AppSecret != "" {
 		notifiers = append(notifiers, infranotify.NewLarkSender(larkCfg.AppID, larkCfg.AppSecret, logger))
 		logger.Info("%s: Lark notifier initialized", label)

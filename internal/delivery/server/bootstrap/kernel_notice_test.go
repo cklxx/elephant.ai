@@ -38,6 +38,15 @@ func (f *fakeKernelNoticeGateway) InjectMessageSync(_ context.Context, _ larkgw.
 	return nil
 }
 
+// newTestChannelsConfig builds a ChannelsConfig with a registry pre-loaded
+// with the given Lark and Telegram configs. Intended for test use only.
+func newTestChannelsConfig(larkCfg LarkGatewayConfig, tgCfg TelegramGatewayConfig) ChannelsConfig {
+	r := NewChannelRegistry()
+	r.SetConfig("lark", larkCfg)
+	r.SetConfig("telegram", tgCfg)
+	return ChannelsConfig{Registry: r}
+}
+
 func TestResolveKernelNoticePipelinePrefersGateway(t *testing.T) {
 	gw := &fakeKernelNoticeGateway{
 		loader: func() (string, bool, error) {
@@ -47,13 +56,11 @@ func TestResolveKernelNoticePipelinePrefersGateway(t *testing.T) {
 	f := &Foundation{
 		Container: &di.Container{LarkGateway: gw},
 		Config: Config{
-			Channels: ChannelsConfig{
-				Lark: LarkGatewayConfig{
-					Enabled:   true,
-					AppID:     "fallback-id",
-					AppSecret: "fallback-secret",
-				},
-			},
+			Channels: newTestChannelsConfig(LarkGatewayConfig{
+				Enabled:   true,
+				AppID:     "fallback-id",
+				AppSecret: "fallback-secret",
+			}, TelegramGatewayConfig{}),
 		},
 	}
 
@@ -85,11 +92,9 @@ func TestResolveKernelNoticePipelineFallbackDisabledWithoutCredentials(t *testin
 	f := &Foundation{
 		Container: &di.Container{},
 		Config: Config{
-			Channels: ChannelsConfig{
-				Lark: LarkGatewayConfig{
-					Enabled: true,
-				},
-			},
+			Channels: newTestChannelsConfig(LarkGatewayConfig{
+				Enabled: true,
+			}, TelegramGatewayConfig{}),
 		},
 	}
 
@@ -112,14 +117,12 @@ func TestResolveKernelNoticePipelineFallsBackToNoticeStateFile(t *testing.T) {
 	f := &Foundation{
 		Container: &di.Container{},
 		Config: Config{
-			Channels: ChannelsConfig{
-				Lark: LarkGatewayConfig{
-					Enabled:    true,
-					AppID:      "cli_test",
-					AppSecret:  "secret",
-					BaseDomain: "https://open.feishu.cn",
-				},
-			},
+			Channels: newTestChannelsConfig(LarkGatewayConfig{
+				Enabled:    true,
+				AppID:      "cli_test",
+				AppSecret:  "secret",
+				BaseDomain: "https://open.feishu.cn",
+			}, TelegramGatewayConfig{}),
 		},
 	}
 

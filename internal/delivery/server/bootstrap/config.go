@@ -66,10 +66,55 @@ type TaskExecutionConfig struct {
 	ResumeClaimBatchSize int
 }
 
-// ChannelsConfig captures server-side channel gateways.
+// ChannelsConfig captures server-side channel gateways via a plugin registry.
+// Individual channel configs are stored inside the registry and accessed
+// through typed helper methods (LarkConfig, TelegramConfig).
 type ChannelsConfig struct {
-	Lark     LarkGatewayConfig
-	Telegram TelegramGatewayConfig
+	Registry *ChannelRegistry
+}
+
+// LarkConfig returns the resolved Lark gateway configuration from the
+// channel registry. Returns a zero value if not registered.
+func (c ChannelsConfig) LarkConfig() LarkGatewayConfig {
+	if c.Registry == nil {
+		return LarkGatewayConfig{}
+	}
+	if v, ok := c.Registry.Config("lark"); ok {
+		if cfg, ok := v.(LarkGatewayConfig); ok {
+			return cfg
+		}
+	}
+	return LarkGatewayConfig{}
+}
+
+// SetLarkConfig stores or replaces the Lark gateway configuration in the
+// channel registry.
+func (c ChannelsConfig) SetLarkConfig(cfg LarkGatewayConfig) {
+	if c.Registry != nil {
+		c.Registry.SetConfig("lark", cfg)
+	}
+}
+
+// TelegramConfig returns the resolved Telegram gateway configuration from the
+// channel registry. Returns a zero value if not registered.
+func (c ChannelsConfig) TelegramConfig() TelegramGatewayConfig {
+	if c.Registry == nil {
+		return TelegramGatewayConfig{}
+	}
+	if v, ok := c.Registry.Config("telegram"); ok {
+		if cfg, ok := v.(TelegramGatewayConfig); ok {
+			return cfg
+		}
+	}
+	return TelegramGatewayConfig{}
+}
+
+// SetTelegramConfig stores or replaces the Telegram gateway configuration in
+// the channel registry.
+func (c ChannelsConfig) SetTelegramConfig(cfg TelegramGatewayConfig) {
+	if c.Registry != nil {
+		c.Registry.SetConfig("telegram", cfg)
+	}
 }
 
 // TelegramGatewayConfig captures the resolved Telegram gateway configuration.
@@ -237,77 +282,17 @@ func LoadConfig() (ConfigResult, error) {
 			Dir: "~/.alex/sessions",
 		},
 		Channels: ChannelsConfig{
-			Lark: LarkGatewayConfig{
-				BaseConfig: channels.BaseConfig{
-					SessionPrefix: "lark",
-					AllowGroups:   true,
-					AllowDirect:   true,
-					AgentPreset:   string(presets.PresetDefault),
-					ToolPreset:    string(presets.ToolPresetFull),
-					ReplyTimeout:  3 * time.Minute,
-				},
-				BaseDomain:         "https://open.larkoffice.com",
-				ToolMode:           "cli",
-				AutoUploadFiles:    true,
-				AutoUploadMaxBytes: 2 * 1024 * 1024,
-				AutoUploadAllowExt: []string{".txt", ".md", ".json", ".yaml", ".yml", ".csv", ".log", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".docx", ".xlsx", ".pptx"},
-				Browser: lark.BrowserConfig{
-					Headless: true,
-					Timeout:  60 * time.Second,
-				},
-				ReactEmoji:                  "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
-				SlowProgressSummaryEnabled:  true,
-				SlowProgressSummaryDelay:    30 * time.Second,
-				ToolFailureAbortThreshold:   6,
-				AutoChatContextSize:         20,
-				ActiveSlotTTL:               6 * time.Hour,
-				ActiveSlotMaxEntries:        2048,
-				PendingInputRelayTTL:        30 * time.Minute,
-				PendingInputRelayMaxChats:   2048,
-				PendingInputRelayMaxPerChat: 64,
-				AIChatSessionTTL:            45 * time.Minute,
-				StateCleanupInterval:        5 * time.Minute,
-				PersistenceMode:             larkPersistenceModeFile,
-				PersistenceDir:              "~/.alex/lark",
-				PersistenceRetention:        7 * 24 * time.Hour,
-				PersistenceMaxTasksPerChat:  200,
-				DeliveryMode:                "shadow",
-				DeliveryWorker: lark.DeliveryWorkerConfig{
-					Enabled:      true,
-					PollInterval: 500 * time.Millisecond,
-					BatchSize:    50,
-					MaxAttempts:  8,
-					BaseBackoff:  500 * time.Millisecond,
-					MaxBackoff:   60 * time.Second,
-					JitterRatio:  0.2,
-				},
-			},
-			Telegram: TelegramGatewayConfig{
-				BaseConfig: channels.BaseConfig{
-					SessionPrefix: "tg",
-					AllowGroups:   true,
-					AllowDirect:   true,
-					AgentPreset:   string(presets.PresetDefault),
-					ToolPreset:    string(presets.ToolPresetFull),
-					ReplyTimeout:  3 * time.Minute,
-					MemoryEnabled: true,
-				},
-				SlowProgressSummaryEnabled: true,
-				SlowProgressSummaryDelay:   30 * time.Second,
-				ActiveSlotTTL:              6 * time.Hour,
-				ActiveSlotMaxEntries:       2048,
-				StateCleanupInterval:       5 * time.Minute,
-				PersistenceMode:            telegramPersistenceModeFile,
-				PersistenceDir:             "~/.alex/telegram",
-				PersistenceRetention:       7 * 24 * time.Hour,
-				PersistenceMaxTasksPerChat: 200,
-			},
+			Registry: NewChannelRegistry(),
 		},
 		Attachment: attachments.StoreConfig{
 			Provider: attachments.ProviderLocal,
 			Dir:      "~/.alex/attachments",
 		},
 	}
+
+	// Register default channel configs in the registry.
+	cfg.Channels.SetLarkConfig(defaultLarkGatewayConfig())
+	cfg.Channels.SetTelegramConfig(defaultTelegramGatewayConfig())
 
 	fileCfg, _, err := runtimeconfig.LoadFileConfig(runtimeconfig.WithEnv(envLookup))
 	if err != nil {
@@ -341,6 +326,77 @@ func LoadConfig() (ConfigResult, error) {
 		Resolver:      runtimeCache.Resolve,
 		RuntimeCache:  runtimeCache,
 	}, nil
+}
+
+func defaultLarkGatewayConfig() LarkGatewayConfig {
+	return LarkGatewayConfig{
+		BaseConfig: channels.BaseConfig{
+			SessionPrefix: "lark",
+			AllowGroups:   true,
+			AllowDirect:   true,
+			AgentPreset:   string(presets.PresetDefault),
+			ToolPreset:    string(presets.ToolPresetFull),
+			ReplyTimeout:  3 * time.Minute,
+		},
+		BaseDomain:         "https://open.larkoffice.com",
+		ToolMode:           "cli",
+		AutoUploadFiles:    true,
+		AutoUploadMaxBytes: 2 * 1024 * 1024,
+		AutoUploadAllowExt: []string{".txt", ".md", ".json", ".yaml", ".yml", ".csv", ".log", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".docx", ".xlsx", ".pptx"},
+		Browser: lark.BrowserConfig{
+			Headless: true,
+			Timeout:  60 * time.Second,
+		},
+		ReactEmoji:                  "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
+		SlowProgressSummaryEnabled:  true,
+		SlowProgressSummaryDelay:    30 * time.Second,
+		ToolFailureAbortThreshold:   6,
+		AutoChatContextSize:         20,
+		ActiveSlotTTL:               6 * time.Hour,
+		ActiveSlotMaxEntries:        2048,
+		PendingInputRelayTTL:        30 * time.Minute,
+		PendingInputRelayMaxChats:   2048,
+		PendingInputRelayMaxPerChat: 64,
+		AIChatSessionTTL:            45 * time.Minute,
+		StateCleanupInterval:        5 * time.Minute,
+		PersistenceMode:             larkPersistenceModeFile,
+		PersistenceDir:              "~/.alex/lark",
+		PersistenceRetention:        7 * 24 * time.Hour,
+		PersistenceMaxTasksPerChat:  200,
+		DeliveryMode:                "shadow",
+		DeliveryWorker: lark.DeliveryWorkerConfig{
+			Enabled:      true,
+			PollInterval: 500 * time.Millisecond,
+			BatchSize:    50,
+			MaxAttempts:  8,
+			BaseBackoff:  500 * time.Millisecond,
+			MaxBackoff:   60 * time.Second,
+			JitterRatio:  0.2,
+		},
+	}
+}
+
+func defaultTelegramGatewayConfig() TelegramGatewayConfig {
+	return TelegramGatewayConfig{
+		BaseConfig: channels.BaseConfig{
+			SessionPrefix: "tg",
+			AllowGroups:   true,
+			AllowDirect:   true,
+			AgentPreset:   string(presets.PresetDefault),
+			ToolPreset:    string(presets.ToolPresetFull),
+			ReplyTimeout:  3 * time.Minute,
+			MemoryEnabled: true,
+		},
+		SlowProgressSummaryEnabled: true,
+		SlowProgressSummaryDelay:   30 * time.Second,
+		ActiveSlotTTL:              6 * time.Hour,
+		ActiveSlotMaxEntries:       2048,
+		StateCleanupInterval:       5 * time.Minute,
+		PersistenceMode:            telegramPersistenceModeFile,
+		PersistenceDir:             "~/.alex/telegram",
+		PersistenceRetention:       7 * 24 * time.Hour,
+		PersistenceMaxTasksPerChat: 200,
+	}
 }
 
 func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
@@ -381,7 +437,7 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		return
 	}
 	larkCfg := file.Channels.Lark
-	target := &cfg.Channels.Lark
+	target := cfg.Channels.LarkConfig()
 	applyOptionalBool(&target.Enabled, larkCfg.Enabled)
 	applyTrimmedString(&target.AppID, larkCfg.AppID)
 	applyTrimmedString(&target.AppSecret, larkCfg.AppSecret)
@@ -421,10 +477,11 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyPositiveInt(&target.PendingInputRelayMaxPerChat, larkCfg.PendingInputRelayMaxPerChat)
 	applyPositiveDurationMinutes(&target.AIChatSessionTTL, larkCfg.AIChatSessionTTLMinutes)
 	applyPositiveDurationSeconds(&target.StateCleanupInterval, larkCfg.StateCleanupIntervalSeconds)
-	applyLarkPersistenceConfig(target, larkCfg.Persistence)
-	applyLarkDeliveryConfig(target, larkCfg.Delivery)
+	applyLarkPersistenceConfig(&target, larkCfg.Persistence)
+	applyLarkDeliveryConfig(&target, larkCfg.Delivery)
 	applyPositiveInt(&target.MaxConcurrentTasks, larkCfg.MaxConcurrentTasks)
 	applyOptionalTrimmedString(&target.DefaultPlanMode, larkCfg.DefaultPlanMode)
+	cfg.Channels.SetLarkConfig(target)
 }
 
 func applyBrowserConfig(dst *lark.BrowserConfig, browser *runtimeconfig.LarkBrowserConfig) {
@@ -529,7 +586,8 @@ func validateLarkPersistenceConfig(cfg *Config) error {
 	if cfg == nil {
 		return nil
 	}
-	mode := utils.TrimLower(cfg.Channels.Lark.PersistenceMode)
+	larkCfg := cfg.Channels.LarkConfig()
+	mode := utils.TrimLower(larkCfg.PersistenceMode)
 	if mode == "" {
 		mode = larkPersistenceModeFile
 	}
@@ -538,21 +596,22 @@ func validateLarkPersistenceConfig(cfg *Config) error {
 	default:
 		return fmt.Errorf("channels.lark.persistence.mode must be one of [file,memory], got %q", mode)
 	}
-	cfg.Channels.Lark.PersistenceMode = mode
+	larkCfg.PersistenceMode = mode
 
 	if mode == larkPersistenceModeFile {
-		dir := strings.TrimSpace(cfg.Channels.Lark.PersistenceDir)
+		dir := strings.TrimSpace(larkCfg.PersistenceDir)
 		if dir == "" {
 			return fmt.Errorf("channels.lark.persistence.dir is required when persistence.mode=file")
 		}
-		cfg.Channels.Lark.PersistenceDir = expandHome(dir)
+		larkCfg.PersistenceDir = expandHome(dir)
 	}
-	if cfg.Channels.Lark.PersistenceRetention <= 0 {
-		cfg.Channels.Lark.PersistenceRetention = 7 * 24 * time.Hour
+	if larkCfg.PersistenceRetention <= 0 {
+		larkCfg.PersistenceRetention = 7 * 24 * time.Hour
 	}
-	if cfg.Channels.Lark.PersistenceMaxTasksPerChat <= 0 {
-		cfg.Channels.Lark.PersistenceMaxTasksPerChat = 200
+	if larkCfg.PersistenceMaxTasksPerChat <= 0 {
+		larkCfg.PersistenceMaxTasksPerChat = 200
 	}
+	cfg.Channels.SetLarkConfig(larkCfg)
 	return nil
 }
 
@@ -560,7 +619,8 @@ func validateLarkDeliveryConfig(cfg *Config) error {
 	if cfg == nil {
 		return nil
 	}
-	mode := utils.TrimLower(cfg.Channels.Lark.DeliveryMode)
+	larkCfg := cfg.Channels.LarkConfig()
+	mode := utils.TrimLower(larkCfg.DeliveryMode)
 	if mode == "" {
 		mode = "shadow"
 	}
@@ -569,9 +629,9 @@ func validateLarkDeliveryConfig(cfg *Config) error {
 	default:
 		return fmt.Errorf("channels.lark.delivery.mode must be one of [direct,shadow,outbox], got %q", mode)
 	}
-	cfg.Channels.Lark.DeliveryMode = mode
+	larkCfg.DeliveryMode = mode
 
-	worker := &cfg.Channels.Lark.DeliveryWorker
+	worker := &larkCfg.DeliveryWorker
 	if worker.PollInterval <= 0 {
 		worker.PollInterval = 500 * time.Millisecond
 	}
@@ -596,6 +656,7 @@ func validateLarkDeliveryConfig(cfg *Config) error {
 	if worker.JitterRatio > 1 {
 		return fmt.Errorf("channels.lark.delivery.worker.jitter_ratio must be <= 1, got %v", worker.JitterRatio)
 	}
+	cfg.Channels.SetLarkConfig(larkCfg)
 	return nil
 }
 
@@ -604,7 +665,7 @@ func applyTelegramConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		return
 	}
 	tgCfg := file.Channels.Telegram
-	target := &cfg.Channels.Telegram
+	target := cfg.Channels.TelegramConfig()
 	applyOptionalBool(&target.Enabled, tgCfg.Enabled)
 	applyTrimmedString(&target.BotToken, tgCfg.BotToken)
 	applyTrimmedString(&target.SessionPrefix, tgCfg.SessionPrefix)
@@ -627,8 +688,9 @@ func applyTelegramConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyPositiveDurationMinutes(&target.ActiveSlotTTL, tgCfg.ActiveSlotTTLMinutes)
 	applyPositiveInt(&target.ActiveSlotMaxEntries, tgCfg.ActiveSlotMaxEntries)
 	applyPositiveDurationSeconds(&target.StateCleanupInterval, tgCfg.StateCleanupIntervalSeconds)
-	applyTelegramPersistenceConfig(target, tgCfg.Persistence)
+	applyTelegramPersistenceConfig(&target, tgCfg.Persistence)
 	applyPositiveInt(&target.MaxConcurrentTasks, tgCfg.MaxConcurrentTasks)
+	cfg.Channels.SetTelegramConfig(target)
 }
 
 func applyTelegramPersistenceConfig(dst *TelegramGatewayConfig, persistence *runtimeconfig.TelegramPersistenceConfig) {
@@ -643,17 +705,23 @@ func applyTelegramPersistenceConfig(dst *TelegramGatewayConfig, persistence *run
 
 func applyTelegramEnvFallback(cfg *Config, lookup runtimeconfig.EnvLookup) {
 	if token := lookupFirstNonEmptyEnv(lookup, "TELEGRAM_BOT_TOKEN"); token != "" {
-		if cfg.Channels.Telegram.BotToken == "" {
-			cfg.Channels.Telegram.BotToken = token
+		tgCfg := cfg.Channels.TelegramConfig()
+		if tgCfg.BotToken == "" {
+			tgCfg.BotToken = token
+			cfg.Channels.SetTelegramConfig(tgCfg)
 		}
 	}
 }
 
 func validateTelegramPersistenceConfig(cfg *Config) error {
-	if cfg == nil || !cfg.Channels.Telegram.Enabled {
+	if cfg == nil {
 		return nil
 	}
-	mode := utils.TrimLower(cfg.Channels.Telegram.PersistenceMode)
+	tgCfg := cfg.Channels.TelegramConfig()
+	if !tgCfg.Enabled {
+		return nil
+	}
+	mode := utils.TrimLower(tgCfg.PersistenceMode)
 	if mode == "" {
 		mode = telegramPersistenceModeFile
 	}
@@ -662,21 +730,22 @@ func validateTelegramPersistenceConfig(cfg *Config) error {
 	default:
 		return fmt.Errorf("channels.telegram.persistence.mode must be one of [file,memory], got %q", mode)
 	}
-	cfg.Channels.Telegram.PersistenceMode = mode
+	tgCfg.PersistenceMode = mode
 
 	if mode == telegramPersistenceModeFile {
-		dir := strings.TrimSpace(cfg.Channels.Telegram.PersistenceDir)
+		dir := strings.TrimSpace(tgCfg.PersistenceDir)
 		if dir == "" {
 			return fmt.Errorf("channels.telegram.persistence.dir is required when persistence.mode=file")
 		}
-		cfg.Channels.Telegram.PersistenceDir = expandHome(dir)
+		tgCfg.PersistenceDir = expandHome(dir)
 	}
-	if cfg.Channels.Telegram.PersistenceRetention <= 0 {
-		cfg.Channels.Telegram.PersistenceRetention = 7 * 24 * time.Hour
+	if tgCfg.PersistenceRetention <= 0 {
+		tgCfg.PersistenceRetention = 7 * 24 * time.Hour
 	}
-	if cfg.Channels.Telegram.PersistenceMaxTasksPerChat <= 0 {
-		cfg.Channels.Telegram.PersistenceMaxTasksPerChat = 200
+	if tgCfg.PersistenceMaxTasksPerChat <= 0 {
+		tgCfg.PersistenceMaxTasksPerChat = 200
 	}
+	cfg.Channels.SetTelegramConfig(tgCfg)
 	return nil
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/app/di"
 	"alex/internal/app/toolregistry"
+	"alex/internal/delivery/channels"
 	"alex/internal/delivery/channels/telegram"
 	serverApp "alex/internal/delivery/server/app"
 	"alex/internal/shared/async"
@@ -16,9 +17,26 @@ import (
 	"alex/internal/shared/utils"
 )
 
+// registerTelegramChannel registers the Telegram channel plugin into the
+// registry if Telegram is enabled. The plugin factory captures the full
+// Config and dependencies needed to start the gateway.
+func registerTelegramChannel(cfg Config, registry *ChannelRegistry, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) {
+	tgCfg := cfg.Channels.TelegramConfig()
+	if !tgCfg.Enabled {
+		return
+	}
+	registry.Register(channels.PluginFactory{
+		Name:     "telegram",
+		Required: false,
+		Build: func(ctx context.Context) (func(), error) {
+			return startTelegramGateway(ctx, cfg, container, logger, broadcaster)
+		},
+	})
+}
+
 func startTelegramGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) (func(), error) {
 	logger = logging.OrNop(logger)
-	tgCfg := cfg.Channels.Telegram
+	tgCfg := cfg.Channels.TelegramConfig()
 	if !tgCfg.Enabled {
 		return nil, nil
 	}

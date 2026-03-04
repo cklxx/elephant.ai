@@ -35,7 +35,7 @@ func RunLark(observabilityConfigPath string) error {
 	container := f.Container
 
 	// Validate Lark is enabled and has credentials — fail fast.
-	larkCfg := config.Channels.Lark
+	larkCfg := config.Channels.LarkConfig()
 	if !larkCfg.Enabled {
 		return fmt.Errorf("lark standalone mode requires channels.lark.enabled = true")
 	}
@@ -68,38 +68,34 @@ func RunLark(observabilityConfigPath string) error {
 		Captured: f.EnvCapturedAt,
 	})
 
-	// ── Phase 3: Subsystems (Lark gateway required, scheduler/timer optional) ──
+	// ── Phase 3: Subsystems (channel gateways, scheduler/timer) ──
 	// NOTE: kernel now runs in a dedicated `alex-server kernel-daemon` process.
 
 	subsystems := NewSubsystemManager(logger)
 	defer subsystems.StopAll()
 
-	gatewayStages := []BootstrapStage{
-		{
-			Name: "lark-gateway", Required: true,
+	// Register channel plugins into the registry.
+	registerLarkChannel(config, config.Channels.Registry, container, logger, broadcaster)
+	registerTelegramChannel(config, config.Channels.Registry, container, logger, broadcaster)
+
+	// Build gateway stages from the channel registry.
+	var gatewayStages []BootstrapStage
+	for _, plugin := range config.Channels.Registry.Plugins() {
+		p := plugin // capture loop variable
+		gatewayStages = append(gatewayStages, BootstrapStage{
+			Name: p.Name + "-gateway", Required: p.Required,
 			Init: func() error {
 				return subsystems.Start(context.Background(), &gatewaySubsystem{
-					name: "lark",
-					startFn: func(ctx context.Context) (func(), error) {
-						return startLarkGateway(ctx, config, container, logger, broadcaster)
-					},
+					name:    p.Name,
+					startFn: p.Build,
 				})
 			},
-		},
-		{
-			Name: "telegram-gateway", Required: false,
-			Init: func() error {
-				return subsystems.Start(context.Background(), &gatewaySubsystem{
-					name: "telegram",
-					startFn: func(ctx context.Context) (func(), error) {
-						return startTelegramGateway(ctx, config, container, logger, broadcaster)
-					},
-				})
-			},
-		},
+		})
+	}
+	gatewayStages = append(gatewayStages,
 		f.SchedulerStage(subsystems),
 		f.TimerManagerStage(subsystems),
-	}
+	)
 
 	if err := RunStages(gatewayStages, f.Degraded, logger); err != nil {
 		return fmt.Errorf("gateway stages: %w", err)

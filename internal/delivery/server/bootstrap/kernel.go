@@ -34,7 +34,7 @@ func resolveKernelNoticePipeline(f *Foundation, logger logging.Logger) (kernelNo
 
 	// kernel-daemon mode has no Lark gateway; fall back to local notice-state
 	// file loading plus direct Lark message sending.
-	sender := newKernelDirectLarkSender(f.Config.Channels.Lark, logger)
+	sender := newKernelDirectLarkSender(f.Config.Channels.LarkConfig(), logger)
 	if sender == nil {
 		return nil, nil, nil
 	}
