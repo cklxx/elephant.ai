@@ -360,6 +360,15 @@ run_validation() {
   (cd "${AUTOFIX_ROOT}" && bash -n lark.sh scripts/lark/*.sh scripts/lib/common/*.sh)
   (cd "${AUTOFIX_ROOT}" && ./tests/scripts/lark-supervisor-smoke.sh)
   (cd "${AUTOFIX_ROOT}" && ./lark.sh doctor)
+
+  # Runtime-focused validation targets for kernel audit cycles.
+  # Keep these aligned with active package layout; retired targets such as
+  # ./internal/infra/agent/... and ./internal/agent/... must not be used.
+  (cd "${AUTOFIX_ROOT}" && go test \
+    ./internal/infra/teamruntime/... \
+    ./internal/app/agent/... \
+    ./internal/infra/kernel/... \
+    -count=1)
 }
 
 commit_if_needed() {

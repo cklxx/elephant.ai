@@ -61,7 +61,9 @@ func writeJSON(t *testing.T, w http.ResponseWriter, code int, msg string, data a
 }
 
 func isDocxBlocksConvertRoute(path string) bool {
-	return strings.Contains(path, "/docx/v1/documents/blocks/convert")
+	// Lark SDK requests may include `/open-apis` prefix depending on base URL wiring.
+	return strings.Contains(path, "/open-apis/docx/v1/documents/blocks/convert") ||
+		strings.Contains(path, "/docx/v1/documents/blocks/convert")
 }
 
 // ---------------------------------------------------------------------------
