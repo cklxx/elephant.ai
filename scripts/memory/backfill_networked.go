@@ -395,9 +395,7 @@ func extractSummaryAndTags(path, nodeType, slug string) (string, []string, error
 	if summary == "" {
 		summary = "See entry content for details."
 	}
-	if len(summary) > 180 {
-		summary = strings.TrimSpace(summary[:180]) + "..."
-	}
+	summary = truncateRunes(summary, 180)
 	tags := inferTags(nodeType, slug, content)
 	return summary, tags, nil
 }
@@ -495,4 +493,15 @@ func writeYAML(path string, value any) error {
 		return err
 	}
 	return os.WriteFile(path, payload, 0o644)
+}
+
+func truncateRunes(value string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	runes := []rune(strings.TrimSpace(value))
+	if len(runes) <= max {
+		return string(runes)
+	}
+	return strings.TrimSpace(string(runes[:max])) + "..."
 }
