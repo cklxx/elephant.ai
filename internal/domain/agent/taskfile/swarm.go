@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -167,7 +166,7 @@ func (s *SwarmScheduler) buildRetryBatch(
 
 	var retryIDs []string
 	for _, origID := range layerIDs {
-		baseID := baseTaskID(origID)
+		baseID := BaseTaskID(origID)
 
 		// Skip if already terminal in collect results.
 		if r, ok := resultByID[origID]; ok {
@@ -223,26 +222,6 @@ func (s *SwarmScheduler) buildRetryBatch(
 		retryIDs = append(retryIDs, retryID)
 	}
 	return retryIDs
-}
-
-func baseTaskID(taskID string) string {
-	base := taskID
-	for {
-		idx := strings.LastIndex(base, "-retry-")
-		if idx <= 0 {
-			return base
-		}
-		suffix := base[idx+len("-retry-"):]
-		if suffix == "" {
-			return base
-		}
-		for _, r := range suffix {
-			if r < '0' || r > '9' {
-				return base
-			}
-		}
-		base = base[:idx]
-	}
 }
 
 // executeLayer dispatches all tasks in a layer concurrently, bounded by the

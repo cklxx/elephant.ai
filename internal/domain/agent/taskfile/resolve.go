@@ -126,11 +126,21 @@ func SpecToDispatchRequest(spec TaskSpec, causationID string) agent.BackgroundDi
 	if spec.ContextPreamble != "" {
 		prompt = spec.ContextPreamble + "\n\n---\n\n" + prompt
 	}
+
+	// Flatten RuntimeMeta into Config for bridge consumption.
+	flattenRuntimeMeta(spec.RuntimeMeta, spec.Config)
+
+	// Override AgentType from SelectedAgentType if set.
+	agentType := spec.AgentType
+	if strings.TrimSpace(spec.RuntimeMeta.SelectedAgentType) != "" {
+		agentType = strings.TrimSpace(spec.RuntimeMeta.SelectedAgentType)
+	}
+
 	return agent.BackgroundDispatchRequest{
 		TaskID:         spec.ID,
 		Description:    spec.Description,
 		Prompt:         prompt,
-		AgentType:      canonicalAgentType(spec.AgentType),
+		AgentType:      canonicalAgentType(agentType),
 		ExecutionMode:  spec.ExecutionMode,
 		AutonomyLevel:  spec.AutonomyLevel,
 		CausationID:    causationID,
@@ -142,31 +152,56 @@ func SpecToDispatchRequest(spec TaskSpec, causationID string) agent.BackgroundDi
 	}
 }
 
+// setIfPresent sets cfg[key] = val when val is non-empty after trimming.
+func setIfPresent(cfg map[string]string, key, val string) {
+	if v := strings.TrimSpace(val); v != "" {
+		cfg[key] = v
+	}
+}
+
+// flattenRuntimeMeta writes all non-empty TeamRuntimeMeta fields into the
+// Config map so the bridge subprocess can consume them as flat key-value pairs.
+func flattenRuntimeMeta(meta TeamRuntimeMeta, cfg map[string]string) {
+	if cfg == nil {
+		return
+	}
+	setIfPresent(cfg, "team_id", meta.TeamID)
+	setIfPresent(cfg, "role_id", meta.RoleID)
+	setIfPresent(cfg, "team_runtime_dir", meta.TeamRuntimeDir)
+	setIfPresent(cfg, "team_event_log", meta.TeamEventLog)
+	setIfPresent(cfg, "capability_profile", meta.CapabilityProfile)
+	setIfPresent(cfg, "target_cli", meta.TargetCLI)
+	setIfPresent(cfg, "selected_cli", meta.SelectedCLI)
+	if len(meta.FallbackCLIs) > 0 {
+		cfg["fallback_clis"] = strings.Join(meta.FallbackCLIs, ",")
+	}
+	setIfPresent(cfg, "binary", meta.Binary)
+	setIfPresent(cfg, "role_log_path", meta.RoleLogPath)
+	setIfPresent(cfg, "tmux_session", meta.TmuxSession)
+	setIfPresent(cfg, "tmux_pane", meta.TmuxPane)
+	setIfPresent(cfg, "selected_agent_type", meta.SelectedAgentType)
+}
+
 func canonicalAgentType(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	switch strings.ToLower(trimmed) {
 	case "":
 		return ""
 	case "internal":
-		return "internal"
+		return agent.AgentTypeInternal
 	case "generic_cli", "generic-cli", "generic":
-		return "generic_cli"
+		return agent.AgentTypeGenericCLI
 	case "codex":
-		return "codex"
+		return agent.AgentTypeCodex
 	case "kimi", "kimi_cli", "kimi-cli", "k2", "kimi cli":
-		return "kimi"
+		return agent.AgentTypeKimi
 	case "claude_code", "claude-code", "claude code":
-		return "claude_code"
+		return agent.AgentTypeClaudeCode
 	default:
 		return trimmed
 	}
 }
 
 func isCodingExternalAgent(agentType string) bool {
-	switch canonicalAgentType(agentType) {
-	case "codex", "claude_code", "kimi", "generic_cli":
-		return true
-	default:
-		return false
-	}
+	return agent.IsCodingExternalAgent(agentType)
 }

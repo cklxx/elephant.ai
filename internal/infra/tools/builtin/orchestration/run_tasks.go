@@ -96,6 +96,53 @@ Use wait=true for synchronous execution (blocks until all tasks complete).`,
 	}
 }
 
+// execParams bundles shared execution parameters parsed from the tool call.
+type execParams struct {
+	dispatcher agent.BackgroundTaskDispatcher
+	wait       bool
+	timeout    time.Duration
+	mode       taskfile.ExecutionMode
+	taskIDs    []string
+}
+
+func parseExecParams(call ports.ToolCall, dispatcher agent.BackgroundTaskDispatcher) (execParams, error) {
+	ep := execParams{
+		dispatcher: dispatcher,
+		timeout:    120 * time.Second,
+		mode:       taskfile.ModeAuto,
+	}
+	if raw, ok := call.Arguments["wait"]; ok {
+		if v, ok := raw.(bool); ok {
+			ep.wait = v
+		}
+	}
+	if raw, ok := call.Arguments["timeout_seconds"]; ok {
+		if v, err := parseOptionalInt(raw, "timeout_seconds"); err == nil && v > 0 {
+			ep.timeout = time.Duration(v) * time.Second
+		}
+	}
+	if raw, ok := call.Arguments["mode"].(string); ok {
+		switch taskfile.ExecutionMode(strings.TrimSpace(raw)) {
+		case taskfile.ModeTeam:
+			ep.mode = taskfile.ModeTeam
+		case taskfile.ModeSwarm:
+			ep.mode = taskfile.ModeSwarm
+		case taskfile.ModeAuto, "":
+			// already default
+		default:
+			return ep, fmt.Errorf("invalid mode %q: must be team, swarm, or auto", raw)
+		}
+	}
+	if raw, ok := call.Arguments["task_ids"]; ok {
+		ids, err := parseStringList(raw, "task_ids")
+		if err != nil {
+			return ep, fmt.Errorf("task_ids: %s", err)
+		}
+		ep.taskIDs = ids
+	}
+	return ep, nil
+}
+
 func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	dispatcher := agent.GetBackgroundDispatcher(ctx)
 	if dispatcher == nil {
@@ -113,102 +160,92 @@ func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	if filePath != "" && templateName != "" {
 		return shared.ToolError(call.ID, "file and template are mutually exclusive")
 	}
-
-	// Handle template listing.
 	if strings.EqualFold(templateName, "list") {
 		return t.listTemplates(ctx, call.ID)
 	}
 
-	var tf *taskfile.TaskFile
-	var teamDef *agent.TeamDefinition
-	var err error
-
-	if templateName != "" {
-		tf, teamDef, err = t.resolveTemplate(ctx, call, templateName)
-	} else {
-		tf, err = t.loadTaskFile(filePath)
-	}
+	ep, err := parseExecParams(call, dispatcher)
 	if err != nil {
 		return shared.ToolError(call.ID, "%s", err)
 	}
 
-	// Filter to specific task IDs if requested.
-	if raw, ok := call.Arguments["task_ids"]; ok {
-		ids, parseErr := parseStringList(raw, "task_ids")
-		if parseErr != nil {
-			return shared.ToolError(call.ID, "task_ids: %s", parseErr)
-		}
-		if len(ids) > 0 {
-			tf = filterTasks(tf, ids)
-			if len(tf.Tasks) == 0 {
-				return shared.ToolError(call.ID, "no matching task IDs found in file")
-			}
+	if templateName != "" {
+		return t.executeFromTemplate(ctx, call, templateName, ep)
+	}
+	return t.executeFromFile(ctx, call.ID, filePath, ep)
+}
+
+// executeFromFile loads a YAML task file and executes its tasks.
+func (t *runTasks) executeFromFile(ctx context.Context, callID string, filePath string, ep execParams) (*ports.ToolResult, error) {
+	tf, err := t.loadTaskFile(filePath)
+	if err != nil {
+		return shared.ToolError(callID, "%s", err)
+	}
+
+	if len(ep.taskIDs) > 0 {
+		tf = taskfile.FilterTasks(tf, ep.taskIDs)
+		if len(tf.Tasks) == 0 {
+			return shared.ToolError(callID, "no matching task IDs found in file")
 		}
 	}
 
-	wait := false
-	if raw, ok := call.Arguments["wait"]; ok {
-		if v, ok := raw.(bool); ok {
-			wait = v
-		}
-	}
-	timeout := 120 * time.Second
-	if raw, ok := call.Arguments["timeout_seconds"]; ok {
-		if v, err := parseOptionalInt(raw, "timeout_seconds"); err == nil && v > 0 {
-			timeout = time.Duration(v) * time.Second
-		}
-	}
-
-	// Parse execution mode.
-	mode := taskfile.ModeAuto
-	if raw, ok := call.Arguments["mode"].(string); ok {
-		switch taskfile.ExecutionMode(strings.TrimSpace(raw)) {
-		case taskfile.ModeTeam:
-			mode = taskfile.ModeTeam
-		case taskfile.ModeSwarm:
-			mode = taskfile.ModeSwarm
-		case taskfile.ModeAuto, "":
-			mode = taskfile.ModeAuto
-		default:
-			return shared.ToolError(call.ID, "invalid mode %q: must be team, swarm, or auto", raw)
-		}
-	}
-
-	// Determine status path. Kernel contexts override the default .elephant/tasks/ base dir.
 	statusPath := statusPathForFile(ctx, filePath, tf.PlanID)
+	result, err := t.executeTasks(ctx, callID, tf, statusPath, ep)
+	if err != nil {
+		return shared.ToolError(callID, "execution failed: %s", err)
+	}
+	return t.formatResult(callID, result, ep.wait)
+}
 
-	if templateName != "" && teamDef != nil {
-		goal, _ := call.Arguments["goal"].(string)
-		bootstrap, bootstrapErr := t.ensureTeamBootstrap(ctx, statusPath, templateName, strings.TrimSpace(goal), *teamDef)
-		if bootstrapErr != nil {
-			return shared.ToolError(call.ID, "team bootstrap failed: %s", bootstrapErr)
-		}
-		applyBootstrapToTaskFile(tf, bootstrap)
+// executeFromTemplate resolves a team template, bootstraps the runtime, and executes.
+func (t *runTasks) executeFromTemplate(ctx context.Context, call ports.ToolCall, templateName string, ep execParams) (*ports.ToolResult, error) {
+	goal, teamDef, overrides, err := t.resolveTemplateArgs(ctx, call, templateName)
+	if err != nil {
+		return shared.ToolError(call.ID, "%s", err)
 	}
 
-	executor := taskfile.NewExecutor(dispatcher, mode, taskfile.DefaultSwarmConfig())
-	var result *taskfile.ExecuteResult
+	statusPath := statusPathForFile(ctx, "", fmt.Sprintf("team-%s", teamDef.Name))
 
-	if wait {
-		result, err = executor.ExecuteAndWait(ctx, tf, call.ID, statusPath, timeout)
-	} else {
-		result, err = executor.Execute(ctx, tf, call.ID, statusPath)
-	}
+	runResult, err := taskfile.DispatchTeamRun(ctx, taskfile.TeamRunRequest{
+		Dispatcher:      ep.dispatcher,
+		TeamDef:         teamDef,
+		Goal:            goal,
+		PromptOverrides: overrides,
+		CausationID:     call.ID,
+		StatusPath:      statusPath,
+		Mode:            ep.mode,
+		Wait:            ep.wait,
+		Timeout:         ep.timeout,
+		TaskIDs:         ep.taskIDs,
+		BootstrapFn: func(ctx context.Context, tf *taskfile.TaskFile) error {
+			bootstrap, err := t.ensureTeamBootstrap(ctx, statusPath, templateName, goal, *teamDef)
+			if err != nil {
+				return err
+			}
+			applyBootstrapToTaskFile(tf, bootstrap)
+			return nil
+		},
+	})
 	if err != nil {
 		return shared.ToolError(call.ID, "execution failed: %s", err)
 	}
 
-	if templateName != "" {
-		if recorder := agent.GetTeamRunRecorder(ctx); recorder != nil {
-			goal, _ := call.Arguments["goal"].(string)
-			record := buildTeamRunRecord(tf, teamDef, templateName, strings.TrimSpace(goal), result, statusPath, wait)
-			if _, recErr := recorder.RecordTeamRun(ctx, record); recErr != nil {
-				_ = recErr // best-effort
-			}
+	if recorder := agent.GetTeamRunRecorder(ctx); recorder != nil {
+		if _, recErr := recorder.RecordTeamRun(ctx, runResult.Record); recErr != nil {
+			_ = recErr // best-effort
 		}
 	}
 
-	return t.formatResult(call.ID, result, wait)
+	return t.formatResult(call.ID, runResult.ExecuteResult, ep.wait)
+}
+
+// executeTasks creates an executor and runs the task file.
+func (t *runTasks) executeTasks(ctx context.Context, callID string, tf *taskfile.TaskFile, statusPath string, ep execParams) (*taskfile.ExecuteResult, error) {
+	executor := taskfile.NewExecutor(ep.dispatcher, ep.mode, taskfile.DefaultSwarmConfig())
+	if ep.wait {
+		return executor.ExecuteAndWait(ctx, tf, callID, statusPath, ep.timeout)
+	}
+	return executor.Execute(ctx, tf, callID, statusPath)
 }
 
 func (t *runTasks) loadTaskFile(path string) (*taskfile.TaskFile, error) {
@@ -223,11 +260,11 @@ func (t *runTasks) loadTaskFile(path string) (*taskfile.TaskFile, error) {
 	return &tf, nil
 }
 
-func (t *runTasks) resolveTemplate(ctx context.Context, call ports.ToolCall, templateName string) (*taskfile.TaskFile, *agent.TeamDefinition, error) {
+func (t *runTasks) resolveTemplateArgs(ctx context.Context, call ports.ToolCall, templateName string) (string, *agent.TeamDefinition, map[string]string, error) {
 	goal, _ := call.Arguments["goal"].(string)
 	goal = strings.TrimSpace(goal)
 	if goal == "" {
-		return nil, nil, fmt.Errorf("goal is required when using a template")
+		return "", nil, nil, fmt.Errorf("goal is required when using a template")
 	}
 
 	teams := agent.GetTeamDefinitions(ctx)
@@ -239,19 +276,19 @@ func (t *runTasks) resolveTemplate(ctx context.Context, call ports.ToolCall, tem
 		}
 	}
 	if def == nil {
-		return nil, nil, fmt.Errorf("template %q not found. Use template=\"list\" to see available templates", templateName)
+		return "", nil, nil, fmt.Errorf("template %q not found. Use template=\"list\" to see available templates", templateName)
 	}
 
 	var overrides map[string]string
 	if raw, ok := call.Arguments["prompts"]; ok {
 		parsed, err := parseStringMap(raw, "prompts")
 		if err != nil {
-			return nil, nil, fmt.Errorf("prompts: %w", err)
+			return "", nil, nil, fmt.Errorf("prompts: %w", err)
 		}
 		overrides = parsed
 	}
 
-	return taskfile.RenderTaskFile(def, goal, overrides), def, nil
+	return goal, def, overrides, nil
 }
 
 func (t *runTasks) listTemplates(ctx context.Context, callID string) (*ports.ToolResult, error) {
@@ -302,79 +339,6 @@ func (t *runTasks) formatResult(callID string, result *taskfile.ExecuteResult, w
 	return &ports.ToolResult{CallID: callID, Content: sb.String()}, nil
 }
 
-func filterTasks(tf *taskfile.TaskFile, ids []string) *taskfile.TaskFile {
-	idSet := make(map[string]bool, len(ids))
-	for _, id := range ids {
-		idSet[id] = true
-	}
-	filtered := &taskfile.TaskFile{
-		Version:  tf.Version,
-		PlanID:   tf.PlanID,
-		Defaults: tf.Defaults,
-		Metadata: tf.Metadata,
-	}
-	for _, t := range tf.Tasks {
-		if idSet[t.ID] {
-			// Remove DependsOn references to tasks not in the filtered set.
-			var cleanDeps []string
-			for _, dep := range t.DependsOn {
-				if idSet[dep] {
-					cleanDeps = append(cleanDeps, dep)
-				}
-			}
-			t.DependsOn = cleanDeps
-			filtered.Tasks = append(filtered.Tasks, t)
-		}
-	}
-	return filtered
-}
-
-func buildTeamRunRecord(tf *taskfile.TaskFile, def *agent.TeamDefinition, templateName, goal string, result *taskfile.ExecuteResult, statusPath string, waited bool) agent.TeamRunRecord {
-	state := "dispatched"
-	if waited {
-		state = dispatchStateFromStatus(statusPath)
-	}
-	var stages []agent.TeamRunStageRecord
-	var roles []agent.TeamRunRoleRecord
-
-	// Populate stages from the resolved team definition.
-	if def != nil {
-		for _, s := range def.Stages {
-			stages = append(stages, agent.TeamRunStageRecord{
-				Name:  s.Name,
-				Roles: s.Roles,
-			})
-		}
-	}
-
-	// Populate roles from the rendered TaskFile tasks.
-	for _, t := range tf.Tasks {
-		roles = append(roles, agent.TeamRunRoleRecord{
-			Name:              t.ID,
-			AgentType:         t.AgentType,
-			CapabilityProfile: strings.TrimSpace(t.Config["capability_profile"]),
-			TargetCLI:         strings.TrimSpace(t.Config["target_cli"]),
-			SelectedCLI:       strings.TrimSpace(t.Config["selected_cli"]),
-			FallbackCLIs:      splitCSV(t.Config["fallback_clis"]),
-			TaskID:            t.ID,
-			DependsOn:         t.DependsOn,
-			ExecutionMode:     t.ExecutionMode,
-			AutonomyLevel:     t.AutonomyLevel,
-			WorkspaceMode:     t.WorkspaceMode,
-			InheritContext:    t.InheritContext,
-			Config:            t.Config,
-		})
-	}
-	return agent.TeamRunRecord{
-		TeamName:      templateName,
-		Goal:          goal,
-		CausationID:   result.PlanID,
-		DispatchedAt:  time.Now(),
-		DispatchState: state,
-		Stages:        stages,
-		Roles:         roles,
-	}
-}
 
 func (t *runTasks) ensureTeamBootstrap(
 	ctx context.Context,
@@ -417,7 +381,7 @@ func applyBootstrapToTaskFile(tf *taskfile.TaskFile, bootstrap *teamruntime.Ensu
 		return
 	}
 	for i := range tf.Tasks {
-		roleID := extractRoleIDFromTaskID(tf.Tasks[i].ID)
+		roleID := taskfile.ExtractRoleID(tf.Tasks[i].ID)
 		if roleID == "" {
 			continue
 		}
@@ -425,100 +389,22 @@ func applyBootstrapToTaskFile(tf *taskfile.TaskFile, bootstrap *teamruntime.Ensu
 		if !ok {
 			continue
 		}
-		if tf.Tasks[i].Config == nil {
-			tf.Tasks[i].Config = make(map[string]string)
-		}
-		tf.Tasks[i].Config["team_id"] = bootstrap.Bootstrap.TeamID
-		tf.Tasks[i].Config["role_id"] = roleID
-		tf.Tasks[i].Config["team_runtime_dir"] = bootstrap.BaseDir
-		tf.Tasks[i].Config["team_event_log"] = bootstrap.EventLogPath
-		if strings.TrimSpace(binding.CapabilityProfile) != "" {
-			tf.Tasks[i].Config["capability_profile"] = strings.TrimSpace(binding.CapabilityProfile)
-		}
-		if strings.TrimSpace(binding.TargetCLI) != "" {
-			tf.Tasks[i].Config["target_cli"] = strings.TrimSpace(binding.TargetCLI)
-		}
-		if strings.TrimSpace(binding.SelectedCLI) != "" {
-			tf.Tasks[i].Config["selected_cli"] = strings.TrimSpace(binding.SelectedCLI)
-		}
-		if len(binding.FallbackCLIs) > 0 {
-			tf.Tasks[i].Config["fallback_clis"] = strings.Join(binding.FallbackCLIs, ",")
-		}
-		if strings.TrimSpace(binding.SelectedPath) != "" {
-			tf.Tasks[i].Config["binary"] = strings.TrimSpace(binding.SelectedPath)
-		}
-		if strings.TrimSpace(binding.RoleLogPath) != "" {
-			tf.Tasks[i].Config["role_log_path"] = strings.TrimSpace(binding.RoleLogPath)
-		}
-		if strings.TrimSpace(bootstrap.Bootstrap.TmuxSession) != "" {
-			tf.Tasks[i].Config["tmux_session"] = strings.TrimSpace(bootstrap.Bootstrap.TmuxSession)
-		}
-		if strings.TrimSpace(binding.TmuxPane) != "" {
-			tf.Tasks[i].Config["tmux_pane"] = strings.TrimSpace(binding.TmuxPane)
-		}
-		if strings.TrimSpace(binding.SelectedAgentType) != "" {
-			tf.Tasks[i].AgentType = strings.TrimSpace(binding.SelectedAgentType)
+		tf.Tasks[i].RuntimeMeta = taskfile.TeamRuntimeMeta{
+			TeamID:            bootstrap.Bootstrap.TeamID,
+			RoleID:            roleID,
+			TeamRuntimeDir:    bootstrap.BaseDir,
+			TeamEventLog:      bootstrap.EventLogPath,
+			CapabilityProfile: binding.CapabilityProfile,
+			TargetCLI:         binding.TargetCLI,
+			SelectedCLI:       binding.SelectedCLI,
+			FallbackCLIs:      binding.FallbackCLIs,
+			Binary:            binding.SelectedPath,
+			RoleLogPath:       binding.RoleLogPath,
+			TmuxSession:       bootstrap.Bootstrap.TmuxSession,
+			TmuxPane:          binding.TmuxPane,
+			SelectedAgentType: binding.SelectedAgentType,
 		}
 	}
-}
-
-func extractRoleIDFromTaskID(taskID string) string {
-	id := strings.TrimSpace(taskID)
-	if !strings.HasPrefix(id, "team-") {
-		return ""
-	}
-	trimmed := strings.TrimPrefix(id, "team-")
-	trimmed = strings.TrimSuffix(trimmed, "-debate")
-	for {
-		idx := strings.LastIndex(trimmed, "-retry-")
-		if idx <= 0 {
-			break
-		}
-		suffix := strings.TrimSpace(trimmed[idx+len("-retry-"):])
-		if suffix == "" || strings.IndexFunc(suffix, func(r rune) bool { return r < '0' || r > '9' }) != -1 {
-			break
-		}
-		trimmed = strings.TrimSpace(trimmed[:idx])
-	}
-	return strings.TrimSpace(trimmed)
-}
-
-func splitCSV(raw string) []string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return nil
-	}
-	parts := strings.Split(trimmed, ",")
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if value := strings.TrimSpace(part); value != "" {
-			out = append(out, value)
-		}
-	}
-	return out
-}
-
-func dispatchStateFromStatus(statusPath string) string {
-	sf, err := taskfile.ReadStatusFile(statusPath)
-	if err != nil {
-		return "unknown"
-	}
-	failed, completed := 0, 0
-	for _, ts := range sf.Tasks {
-		switch ts.Status {
-		case "failed":
-			failed++
-		case "completed":
-			completed++
-		}
-	}
-	if failed > 0 {
-		if completed > 0 {
-			return "partial_failure"
-		}
-		return "failed"
-	}
-	return "completed"
 }
 
 func statusPathForFile(ctx context.Context, filePath, planID string) string {

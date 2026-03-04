@@ -357,6 +357,14 @@ func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.Agent
 	executor := kernelagent.NewCoordinatorExecutor(coordinator, timeout, stateDir)
 	executor.SetSessionsDir(b.sessionDir)
 	executor.SetSelectionResolver(b.buildKernelSelectionResolver())
+	// Wire team dispatch dependencies. The dispatcher is session-scoped so
+	// remains nil; ExecuteTeam falls back to prompt-based dispatch until a
+	// kernel-scoped dispatcher is provided.
+	executor.SetTeamDefinitions(convertTeamConfigs(b.config.ExternalAgents.Teams))
+	teamRunRecorderPath := filepath.Join(stateDir, "_team_runs")
+	if kernelTeamRecorder, recErr := teamrun.NewFileRecorder(teamRunRecorderPath, b.logger); recErr == nil {
+		executor.SetTeamRunRecorder(kernelTeamRecorder)
+	}
 
 	engine := kernelagent.NewEngine(
 		kernelagent.KernelConfig{

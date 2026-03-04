@@ -361,7 +361,7 @@ func TestFilterTasks_CleansDependsOn(t *testing.T) {
 		},
 	}
 	// Filter to only "a" and "c" — "c" should lose its "b" dependency.
-	filtered := filterTasks(tf, []string{"a", "c"})
+	filtered := taskfile.FilterTasks(tf, []string{"a", "c"})
 	if len(filtered.Tasks) != 2 {
 		t.Fatalf("expected 2 tasks, got %d", len(filtered.Tasks))
 	}
@@ -375,7 +375,7 @@ func TestFilterTasks_CleansDependsOn(t *testing.T) {
 }
 
 func TestDispatchStateFromStatus_UnknownOnError(t *testing.T) {
-	state := dispatchStateFromStatus("/nonexistent/path.yaml")
+	state := taskfile.DispatchStateFromStatus("/nonexistent/path.yaml")
 	if state != "unknown" {
 		t.Fatalf("expected 'unknown' for unreadable status file, got %q", state)
 	}
@@ -408,23 +408,6 @@ func TestRunTasks_TemplateList(t *testing.T) {
 	}
 	if result.Content == "" {
 		t.Error("expected non-empty template listing")
-	}
-}
-
-func TestExtractRoleIDFromTaskID(t *testing.T) {
-	tests := []struct {
-		taskID string
-		want   string
-	}{
-		{taskID: "team-planner", want: "planner"},
-		{taskID: "team-planner-debate", want: "planner"},
-		{taskID: "team-planner-retry-2", want: "planner"},
-		{taskID: "other", want: ""},
-	}
-	for _, tc := range tests {
-		if got := extractRoleIDFromTaskID(tc.taskID); got != tc.want {
-			t.Fatalf("extractRoleIDFromTaskID(%q)=%q want=%q", tc.taskID, got, tc.want)
-		}
 	}
 }
 
@@ -462,24 +445,31 @@ func TestApplyBootstrapToTaskFile_InjectsRoleRuntimeConfig(t *testing.T) {
 	applyBootstrapToTaskFile(tf, bootstrap)
 
 	planner := tf.Tasks[0]
-	if planner.AgentType != "claude_code" {
-		t.Fatalf("expected planner agent_type=claude_code, got %q", planner.AgentType)
+	meta := planner.RuntimeMeta
+	if meta.SelectedAgentType != "claude_code" {
+		t.Fatalf("expected SelectedAgentType=claude_code, got %q", meta.SelectedAgentType)
 	}
-	if planner.Config["team_id"] != "team-1" {
-		t.Fatalf("expected team_id injected, got %+v", planner.Config)
+	if meta.TeamID != "team-1" {
+		t.Fatalf("expected TeamID=team-1, got %q", meta.TeamID)
 	}
-	if planner.Config["binary"] != "/usr/local/bin/claude" {
-		t.Fatalf("expected binary injected, got %+v", planner.Config)
+	if meta.Binary != "/usr/local/bin/claude" {
+		t.Fatalf("expected Binary=/usr/local/bin/claude, got %q", meta.Binary)
 	}
-	if planner.Config["tmux_pane"] != "%11" {
-		t.Fatalf("expected tmux pane injected, got %+v", planner.Config)
+	if meta.TmuxPane != "%11" {
+		t.Fatalf("expected TmuxPane=%%11, got %q", meta.TmuxPane)
 	}
-	if planner.Config["fallback_clis"] != "codex" {
-		t.Fatalf("expected fallback_clis injected, got %+v", planner.Config)
+	if len(meta.FallbackCLIs) != 1 || meta.FallbackCLIs[0] != "codex" {
+		t.Fatalf("expected FallbackCLIs=[codex], got %v", meta.FallbackCLIs)
+	}
+	if meta.RoleLogPath != "/tmp/team-runtime/logs/planner.log" {
+		t.Fatalf("expected RoleLogPath set, got %q", meta.RoleLogPath)
+	}
+	if meta.TmuxSession != "elephant-team-team-1" {
+		t.Fatalf("expected TmuxSession set, got %q", meta.TmuxSession)
 	}
 
 	executor := tf.Tasks[1]
-	if executor.Config != nil && executor.Config["team_id"] != "" {
-		t.Fatalf("expected non-bound role untouched, got %+v", executor.Config)
+	if executor.RuntimeMeta.TeamID != "" {
+		t.Fatalf("expected non-bound role untouched, got %+v", executor.RuntimeMeta)
 	}
 }

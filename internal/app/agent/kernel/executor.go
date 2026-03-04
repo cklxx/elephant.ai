@@ -87,6 +87,11 @@ type CoordinatorExecutor struct {
 	stateDir          string // e.g. ~/.alex/kernel/{kernel_id}
 	sessionsDir       string // session file store directory for cleanup
 	selectionResolver SelectionResolver
+	// Optional direct-dispatch fields. When all three are set, ExecuteTeam
+	// bypasses prompt-based dispatch and calls taskfile.DispatchTeamRun directly.
+	dispatcher      agent.BackgroundTaskDispatcher
+	teamDefinitions []agent.TeamDefinition
+	teamRunRecorder agent.TeamRunRecorder
 }
 
 var errKernelNoRealToolAction = errors.New("kernel dispatch completed without successful real tool action")
@@ -206,6 +211,30 @@ func (e *CoordinatorExecutor) SetSelectionResolver(resolver SelectionResolver) {
 	e.selectionResolver = resolver
 }
 
+// SetDispatcher configures the background task dispatcher for direct team dispatch.
+func (e *CoordinatorExecutor) SetDispatcher(dispatcher agent.BackgroundTaskDispatcher) {
+	if e == nil {
+		return
+	}
+	e.dispatcher = dispatcher
+}
+
+// SetTeamDefinitions configures team definitions for direct team dispatch.
+func (e *CoordinatorExecutor) SetTeamDefinitions(defs []agent.TeamDefinition) {
+	if e == nil {
+		return
+	}
+	e.teamDefinitions = defs
+}
+
+// SetTeamRunRecorder configures the recorder for direct team dispatch.
+func (e *CoordinatorExecutor) SetTeamRunRecorder(recorder agent.TeamRunRecorder) {
+	if e == nil {
+		return
+	}
+	e.teamRunRecorder = recorder
+}
+
 // Execute runs a task through the AgentCoordinator and returns the session ID as task identifier.
 func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt string, meta map[string]string) (ExecutionResult, error) {
 	runID := id.NewRunID()
@@ -280,7 +309,10 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 	}, nil
 }
 
-// ExecuteTeam executes an explicit team template run through run_tasks.
+// ExecuteTeam executes an explicit team template run. When the dispatcher and
+// team definitions are wired, it calls taskfile.DispatchTeamRun directly for
+// faster, more reliable execution. Otherwise, it falls back to prompt-based
+// dispatch through the coordinator.
 func (e *CoordinatorExecutor) ExecuteTeam(ctx context.Context, spec kerneldomain.TeamDispatchSpec, meta map[string]string) (ExecutionResult, error) {
 	template := strings.TrimSpace(spec.Template)
 	if template == "" {
@@ -290,12 +322,80 @@ func (e *CoordinatorExecutor) ExecuteTeam(ctx context.Context, spec kerneldomain
 	if goal == "" {
 		return ExecutionResult{}, fmt.Errorf("team dispatch goal is required")
 	}
+
+	// Direct dispatch when dependencies are wired.
+	if e.dispatcher != nil && len(e.teamDefinitions) > 0 {
+		return e.executeTeamDirect(ctx, spec, meta)
+	}
+
+	// Fallback: prompt-based dispatch through coordinator.
+	return e.executeTeamViaPrompt(ctx, spec, meta)
+}
+
+// executeTeamDirect dispatches a team run directly via taskfile.DispatchTeamRun,
+// bypassing the prompt-based coordinator path.
+func (e *CoordinatorExecutor) executeTeamDirect(ctx context.Context, spec kerneldomain.TeamDispatchSpec, meta map[string]string) (ExecutionResult, error) {
+	template := strings.TrimSpace(spec.Template)
+	goal := strings.TrimSpace(spec.Goal)
+
+	var teamDef *agent.TeamDefinition
+	for i := range e.teamDefinitions {
+		if strings.EqualFold(e.teamDefinitions[i].Name, template) {
+			teamDef = &e.teamDefinitions[i]
+			break
+		}
+	}
+	if teamDef == nil {
+		return ExecutionResult{}, fmt.Errorf("team template %q not found", template)
+	}
+
+	statusPath := filepath.Join(e.tasksDir(), fmt.Sprintf("team-%s.status.yaml", template))
+	timeoutSeconds := spec.TimeoutSeconds
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = DefaultKernelTeamTimeoutSeconds
+	}
+	timeout := time.Duration(timeoutSeconds) * time.Second
+
+	runResult, err := taskfile.DispatchTeamRun(ctx, taskfile.TeamRunRequest{
+		Dispatcher:      e.dispatcher,
+		TeamDef:         teamDef,
+		Goal:            goal,
+		PromptOverrides: spec.Prompts,
+		CausationID:     fmt.Sprintf("kernel-team-%s", template),
+		StatusPath:      statusPath,
+		Mode:            taskfile.ModeAuto,
+		Wait:            true,
+		Timeout:         timeout,
+	})
+	if err != nil {
+		return ExecutionResult{}, fmt.Errorf("direct team dispatch: %w", err)
+	}
+
+	// Record team run.
+	if e.teamRunRecorder != nil {
+		if _, recErr := e.teamRunRecorder.RecordTeamRun(ctx, runResult.Record); recErr != nil {
+			_ = recErr // best-effort
+		}
+	}
+
+	result := ExecutionResult{
+		TaskID:   fmt.Sprintf("kernel-team-%s", template),
+		Summary:  fmt.Sprintf("Team %q completed via direct dispatch (%d tasks)", template, len(runResult.TaskIDs)),
+		Attempts: 1,
+		Autonomy: kernelAutonomyActionable,
+	}
+	result.TeamRoles = readTeamRoleResults(statusPath)
+	return result, nil
+}
+
+// executeTeamViaPrompt falls back to prompt-based dispatch through the coordinator.
+func (e *CoordinatorExecutor) executeTeamViaPrompt(ctx context.Context, spec kerneldomain.TeamDispatchSpec, meta map[string]string) (ExecutionResult, error) {
+	template := strings.TrimSpace(spec.Template)
 	prompt := buildKernelTeamDispatchPrompt(spec)
 	result, err := e.Execute(ctx, "team:"+template, prompt, meta)
 	if err != nil {
 		return result, err
 	}
-	// Best-effort: read status sidecar for role-level results.
 	statusPath := filepath.Join(e.tasksDir(), "team-"+template+".status.yaml")
 	result.TeamRoles = readTeamRoleResults(statusPath)
 	return result, nil

@@ -40,4 +40,24 @@ type TaskSpec struct {
 	Config          map[string]string `yaml:"config,omitempty"`
 	ContextPreamble string            `yaml:"context_preamble,omitempty"`
 	MaxBudget       float64           `yaml:"max_budget_usd,omitempty"`
+	RuntimeMeta     TeamRuntimeMeta   `yaml:"-"`
+}
+
+// TeamRuntimeMeta captures team bootstrap runtime bindings for a task.
+// Populated by applyBootstrapToTaskFile; flattened into Config for bridge
+// consumption via flattenRuntimeMeta.
+type TeamRuntimeMeta struct {
+	TeamID            string   `yaml:"team_id,omitempty"`
+	RoleID            string   `yaml:"role_id,omitempty"`
+	TeamRuntimeDir    string   `yaml:"team_runtime_dir,omitempty"`
+	TeamEventLog      string   `yaml:"team_event_log,omitempty"`
+	CapabilityProfile string   `yaml:"capability_profile,omitempty"`
+	TargetCLI         string   `yaml:"target_cli,omitempty"`
+	SelectedCLI       string   `yaml:"selected_cli,omitempty"`
+	FallbackCLIs      []string `yaml:"fallback_clis,omitempty"`
+	Binary            string   `yaml:"binary,omitempty"`
+	RoleLogPath       string   `yaml:"role_log_path,omitempty"`
+	TmuxSession       string   `yaml:"tmux_session,omitempty"`
+	TmuxPane          string   `yaml:"tmux_pane,omitempty"`
+	SelectedAgentType string   `yaml:"selected_agent_type,omitempty"`
 }

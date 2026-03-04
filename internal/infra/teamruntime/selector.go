@@ -4,19 +4,20 @@ import (
 	"sort"
 	"strings"
 
+	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/infra/coding"
 	"alex/internal/shared/utils"
 )
 
 var profilePreference = map[string][]string{
 	"execution": {
-		"codex", "opencode", "kimi", "claude_code", "gemini",
+		agent.AgentTypeCodex, "opencode", agent.AgentTypeKimi, agent.AgentTypeClaudeCode, "gemini",
 	},
 	"planning": {
-		"claude_code", "codex", "gemini", "kimi", "opencode",
+		agent.AgentTypeClaudeCode, agent.AgentTypeCodex, "gemini", agent.AgentTypeKimi, "opencode",
 	},
 	"long_context": {
-		"gemini", "claude_code", "kimi", "codex", "opencode",
+		"gemini", agent.AgentTypeClaudeCode, agent.AgentTypeKimi, agent.AgentTypeCodex, "opencode",
 	},
 }
 
@@ -83,13 +84,13 @@ func selectedAgentType(cap coding.DiscoveredCLICapability) string {
 	if strings.TrimSpace(cap.AgentType) != "" {
 		return cap.AgentType
 	}
-	return "generic_cli"
+	return agent.AgentTypeGenericCLI
 }
 
 func rankByProfile(caps []coding.DiscoveredCLICapability, profile string) []coding.DiscoveredCLICapability {
 	preferences := profilePreference[normalizeProfile(profile)]
 	if len(preferences) == 0 {
-		preferences = []string{"codex", "claude_code", "kimi", "gemini", "opencode"}
+		preferences = []string{agent.AgentTypeCodex, agent.AgentTypeClaudeCode, agent.AgentTypeKimi, "gemini", "opencode"}
 	}
 
 	index := make(map[string]int, len(preferences))

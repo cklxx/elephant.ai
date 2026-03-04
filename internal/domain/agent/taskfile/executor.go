@@ -113,6 +113,10 @@ func (e *Executor) executeTeamValidated(ctx context.Context, tf *TaskFile, causa
 	// Dispatch in topological order.
 	var taskIDs []string
 	for _, id := range order {
+		if err := ctx.Err(); err != nil {
+			sw.Stop()
+			return nil, err
+		}
 		spec := byID[id]
 		req := SpecToDispatchRequest(spec, causationID)
 		if err := e.dispatcher.Dispatch(ctx, req); err != nil {
