@@ -18,6 +18,35 @@ nodes:
         - lark
         - summary
       summary: 'Summary: 生成 Lark OAuth 授权链接前，必须先校验 redirect_uri 白名单与网页能力配置；未预检会直接触发 20029 并阻断授权。'
+    - id: good-2026-03-04-feature-review-architecture-simplification
+      path: docs/good-experience/entries/2026-03-04-feature-review-architecture-simplification.md
+      type: good_entry
+      date: "2026-03-04"
+      tags:
+        - good
+      summary: 目标：提升核心后端的简洁性、复用度、抽象组合质量。
+    - id: goodsum-2026-03-04-feature-review-architecture-simplification
+      path: docs/good-experience/summary/entries/2026-03-04-feature-review-architecture-simplification.md
+      type: good_summary
+      date: "2026-03-04"
+      tags:
+        - good
+        - summary
+      summary: !!binary |
+        U3VtbWFyeTog6Leo5bGC6YeN5p6E5YWI5oq95YWx5Lqr5aWR57qm77yIRXZlbnREaXNwYX
+        RjaGVyICsgQ29tcHJlc3Npb25Qb2xpY3kgKyBUYXNrIOWtkOaOpeWPo++8ieWGjei/geen
+        u+iwg+eUqOeCue+8jOWPr+WcqOS4jeaUueihjOS4uuWJjeaPkOS4i+eos+WumuaPkOWNh+
+        eugOa0geaAp+S4juWkjeeUqOW6pu+8Li4u
+    - id: plan-2026-03-04-lark-inject-agents-team-latest-full-coverage
+      path: docs/plans/2026-03-04-lark-inject-agents-team-latest-full-coverage.md
+      type: plan
+      date: "2026-03-04"
+      tags:
+        - kernel
+        - lark
+        - plan
+        - session
+      summary: 'Use `lark inject`-driven verification to cover all critical paths introduced by latest agents team runtime changes:'
     - id: plan-2026-03-04-lark-standalone-oauth-routing
       path: docs/plans/2026-03-04-lark-standalone-oauth-routing.md
       type: plan
@@ -26,6 +55,14 @@ nodes:
         - lark
         - plan
       summary: 'In `alex-server lark` standalone mode, OAuth links returned by Lark tools were not usable:'
+    - id: plan-2026-03-04-lark-task-subtask-support
+      path: docs/plans/2026-03-04-lark-task-subtask-support.md
+      type: plan
+      date: "2026-03-04"
+      tags:
+        - lark
+        - plan
+      summary: User requested subtask capability for Lark task operations.
     - id: plan-2026-03-04-lark-task-tenant-token-and-visibility
       path: docs/plans/2026-03-04-lark-task-tenant-token-and-visibility.md
       type: plan

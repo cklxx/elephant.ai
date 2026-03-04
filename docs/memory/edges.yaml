@@ -481,6 +481,10 @@ edges:
       to: goodsum-2026-03-03-subagent-global-simplify-wave1-wave3
       type: see_also
       direction: directed
+    - from: good-2026-03-04-feature-review-architecture-simplification
+      to: goodsum-2026-03-04-feature-review-architecture-simplification
+      type: see_also
+      direction: directed
     - from: goodsum-2026-01-30-continuous-practice-optimization
       to: good-2026-01-30-continuous-practice-optimization
       type: derived_from
@@ -695,6 +699,10 @@ edges:
       direction: directed
     - from: goodsum-2026-03-03-subagent-global-simplify-wave1-wave3
       to: good-2026-03-03-subagent-global-simplify-wave1-wave3
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-03-04-feature-review-architecture-simplification
+      to: good-2026-03-04-feature-review-architecture-simplification
       type: derived_from
       direction: directed
     - from: ltm-long-term-memory
@@ -1186,7 +1194,15 @@ edges:
       type: see_also
       direction: directed
     - from: ltm-long-term-memory
+      to: plan-2026-03-04-lark-inject-agents-team-latest-full-coverage
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
       to: plan-2026-03-04-lark-standalone-oauth-routing
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-04-lark-task-subtask-support
       type: see_also
       direction: directed
     - from: ltm-long-term-memory
