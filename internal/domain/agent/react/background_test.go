@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -1334,5 +1335,91 @@ func TestDispatchContextPropagators(t *testing.T) {
 
 	if captured != "propagated-value" {
 		t.Fatalf("expected propagated context value, got %q", captured)
+	}
+}
+
+func TestInjectBackgroundInputValidation(t *testing.T) {
+	mgr := &BackgroundTaskManager{}
+
+	if err := mgr.InjectBackgroundInput(context.Background(), " ", "hello"); err == nil || !strings.Contains(err.Error(), "task_id is required") {
+		t.Fatalf("expected task_id validation error, got %v", err)
+	}
+	if err := mgr.InjectBackgroundInput(context.Background(), "task-1", " "); err == nil || !strings.Contains(err.Error(), "input is required") {
+		t.Fatalf("expected input validation error, got %v", err)
+	}
+	err := mgr.InjectBackgroundInput(context.Background(), "task-404", "hello")
+	if err == nil {
+		t.Fatal("expected task not found error")
+	}
+	if !errors.Is(err, ErrBackgroundTaskNotFound) {
+		t.Fatalf("expected ErrBackgroundTaskNotFound, got %v", err)
+	}
+}
+
+func TestInjectBackgroundInputRequiresPaneBinding(t *testing.T) {
+	mgr := &BackgroundTaskManager{
+		tasks: map[string]*backgroundTask{
+			"task-1": {
+				id:     "task-1",
+				config: map[string]string{},
+			},
+		},
+	}
+
+	err := mgr.InjectBackgroundInput(context.Background(), "task-1", "hello")
+	if err == nil || !strings.Contains(err.Error(), "is not bound to a tmux pane") {
+		t.Fatalf("expected pane binding error, got %v", err)
+	}
+}
+
+func TestInjectBackgroundInputCommandFailureAndSuccess(t *testing.T) {
+	oldExec := backgroundExecCommand
+	t.Cleanup(func() {
+		backgroundExecCommand = oldExec
+	})
+
+	var gotName string
+	var gotArgs []string
+	backgroundExecCommand = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		_ = ctx
+		gotName = name
+		gotArgs = append([]string(nil), args...)
+		return exec.Command("sh", "-c", "echo denied >&2; exit 9")
+	}
+
+	mgr := &BackgroundTaskManager{
+		tasks: map[string]*backgroundTask{
+			"task-1": {
+				id: "task-1",
+				config: map[string]string{
+					"tmux_pane": "%11",
+				},
+			},
+		},
+	}
+
+	err := mgr.InjectBackgroundInput(context.Background(), "task-1", "continue")
+	if err == nil {
+		t.Fatal("expected command failure error")
+	}
+	if gotName != "tmux" {
+		t.Fatalf("expected tmux executable, got %q", gotName)
+	}
+	wantArgs := []string{"-L", "elephant", "send-keys", "-t", "%11", "continue", "C-m"}
+	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
+		t.Fatalf("unexpected command args: got %v want %v", gotArgs, wantArgs)
+	}
+	if !strings.Contains(err.Error(), "inject input to pane %11: denied") {
+		t.Fatalf("expected wrapped command error, got %v", err)
+	}
+
+	backgroundExecCommand = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		_ = ctx
+		_ = name
+		_ = args
+		return exec.Command("sh", "-c", "exit 0")
+	}
+	if err := mgr.InjectBackgroundInput(context.Background(), "task-1", "continue"); err != nil {
+		t.Fatalf("expected success, got %v", err)
 	}
 }

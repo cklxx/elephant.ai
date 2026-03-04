@@ -101,6 +101,8 @@ const defaultStaleThreshold = 15 * time.Minute
 
 var ErrBackgroundTaskNotFound = errors.New("background task not found")
 
+var backgroundExecCommand = exec.CommandContext
+
 // BackgroundManagerConfig configures a shared background task manager.
 type BackgroundManagerConfig struct {
 	RunContext          context.Context
@@ -947,7 +949,7 @@ func (m *BackgroundTaskManager) InjectBackgroundInput(ctx context.Context, taskI
 		return fmt.Errorf("task %q is not bound to a tmux pane", id)
 	}
 
-	cmd := exec.CommandContext(ctx, "tmux", "-L", "elephant", "send-keys", "-t", pane, data, "C-m")
+	cmd := backgroundExecCommand(ctx, "tmux", "-L", "elephant", "send-keys", "-t", pane, data, "C-m")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("inject input to pane %s: %s: %w", pane, strings.TrimSpace(string(out)), err)
 	}
