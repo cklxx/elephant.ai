@@ -4,7 +4,7 @@
 - [x] Reproduce failing CI signal locally (arch-policy violation)
 - [x] Remove infra->delivery reverse dependency in task adapters
 - [x] Run CI-critical validation (arch, arch-policy, race tests)
-- [ ] Commit on fix branch and ff-merge to main
+- [x] Commit on fix branch and ff-merge to main
 - [ ] Push and confirm remote CI pipeline success
 
 ## Scope
