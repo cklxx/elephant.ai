@@ -649,6 +649,7 @@ restart_count_window_for_component() {
 
 restart_component() {
   local component="$1"
+  local pid_file pid
   case "${component}" in
     main)
       "${MAIN_SH}" restart >> "${LOG_FILE}" 2>&1
@@ -663,6 +664,17 @@ restart_component() {
       return 1
       ;;
   esac
+
+  pid_file="$(component_pid_file "${component}" 2>/dev/null || true)"
+  [[ -n "${pid_file}" ]] || return 1
+
+  pid="$(read_pid_if_running "${pid_file}" || true)"
+  if [[ -z "${pid}" ]]; then
+    append_log "[supervisor] ${component} restart command exited but component is still down"
+    return 1
+  fi
+
+  return 0
 }
 
 component_needs_restart() {
