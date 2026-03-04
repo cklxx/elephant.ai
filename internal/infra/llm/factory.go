@@ -213,7 +213,7 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	}
 
 	// Codex endpoint behaviors.
-	if strings.Contains(strings.TrimSpace(config.BaseURL), "/backend-api/codex") {
+	if strings.Contains(strings.ToLower(strings.TrimSpace(config.BaseURL)), "/backend-api/codex") {
 		config.CodexEndpoint = true
 	}
 

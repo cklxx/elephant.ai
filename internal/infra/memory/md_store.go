@@ -334,11 +334,21 @@ func (e *MarkdownEngine) LoadIdentity(_ context.Context, _ string, defaultSoul, 
 	soulPath := filepath.Join(root, soulFileName)
 	userPath := filepath.Join(root, userFileName)
 
-	ensureFileWithDefault(soulPath, defaultSoul)
-	ensureFileWithDefault(userPath, defaultUser)
+	if err := ensureFileWithDefault(soulPath, defaultSoul); err != nil {
+		return "", "", fmt.Errorf("ensure soul identity: %w", err)
+	}
+	if err := ensureFileWithDefault(userPath, defaultUser); err != nil {
+		return "", "", fmt.Errorf("ensure user identity: %w", err)
+	}
 
-	soulBytes, _ := os.ReadFile(soulPath)
-	userBytes, _ := os.ReadFile(userPath)
+	soulBytes, err := os.ReadFile(soulPath)
+	if err != nil && !os.IsNotExist(err) {
+		return "", "", fmt.Errorf("read soul identity: %w", err)
+	}
+	userBytes, err := os.ReadFile(userPath)
+	if err != nil && !os.IsNotExist(err) {
+		return "", "", fmt.Errorf("read user identity: %w", err)
+	}
 	return strings.TrimSpace(string(soulBytes)), strings.TrimSpace(string(userBytes)), nil
 }
 
@@ -387,20 +397,22 @@ func (e *MarkdownEngine) ListDailyEntries(_ context.Context, _ string) ([]DailyS
 }
 
 // ensureFileWithDefault creates a file with the given default content if it doesn't exist.
-func ensureFileWithDefault(path, defaultContent string) {
+func ensureFileWithDefault(path, defaultContent string) error {
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return
+		return nil
 	}
 	if _, err := os.Stat(path); err == nil {
-		return
+		return nil // already exists
 	}
 	defaultContent = strings.TrimSpace(defaultContent)
 	if defaultContent == "" {
-		return
+		return nil
 	}
-	_ = os.MkdirAll(filepath.Dir(path), 0o755)
-	_ = os.WriteFile(path, []byte(defaultContent+"\n"), 0o644)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("mkdir: %w", err)
+	}
+	return os.WriteFile(path, []byte(defaultContent+"\n"), 0o644)
 }
 
 // LoadLongTerm reads MEMORY.md for the user.

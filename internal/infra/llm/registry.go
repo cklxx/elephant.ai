@@ -35,14 +35,14 @@ func NewRegistry() *Registry {
 func (r *Registry) Register(desc *ProviderDescriptor) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.providers[desc.Name] = desc
+	r.providers[strings.TrimSpace(strings.ToLower(desc.Name))] = desc
 }
 
 // RegisterAlias maps an alternative name to a canonical provider name.
 func (r *Registry) RegisterAlias(alias, canonical string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.aliases[alias] = canonical
+	r.aliases[strings.TrimSpace(strings.ToLower(alias))] = strings.TrimSpace(strings.ToLower(canonical))
 }
 
 // Get returns the provider descriptor for the given name or alias.

@@ -27,6 +27,7 @@ var familyMap = map[string]string{
 	"llama.cpp":        FamilyLlamaCpp,
 	"llama-cpp":        FamilyLlamaCpp,
 	"llamacpp":         FamilyLlamaCpp,
+	"ollama":           FamilyLlamaCpp,
 	"mock":             FamilyMock,
 }
 
@@ -54,11 +55,9 @@ func UsesCLIAuth(provider string) bool {
 
 // RequiresAPIKey reports whether the provider requires API key authentication.
 func RequiresAPIKey(provider string) bool {
-	key := utils.TrimLower(provider)
-	switch key {
-	case "", "mock", "llama.cpp", "llamacpp", "llama-cpp", "ollama":
+	switch Family(provider) {
+	case "", FamilyMock, FamilyLlamaCpp:
 		return false
-	default:
-		return true
 	}
+	return true
 }

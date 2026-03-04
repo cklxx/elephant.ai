@@ -18,7 +18,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
 	provider := "openai-responses"
 
-	input, instructions := c.buildResponsesInputAndInstructions(req.Messages)
+	input, _ := c.buildResponsesInputAndInstructions(req.Messages)
 	var droppedCallIDs []string
 	input, droppedCallIDs = pruneOrphanFunctionCallOutputs(input)
 	if len(droppedCallIDs) > 0 {
@@ -32,17 +32,11 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	}
 	if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
 		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
-			if c.isCodex {
-				reasoning = applyCodexReasoningDefaults(reasoning)
-			}
 			payload["reasoning"] = reasoning
 		}
 	}
-	if req.MaxTokens > 0 && !c.isCodex {
+	if req.MaxTokens > 0 {
 		payload["max_output_tokens"] = req.MaxTokens
-	}
-	if c.isCodex {
-		payload["instructions"] = instructions
 	}
 	payload["store"] = false
 
