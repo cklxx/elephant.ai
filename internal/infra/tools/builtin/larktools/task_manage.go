@@ -37,12 +37,16 @@ func NewLarkTaskManage() tools.ToolExecutor {
 					Properties: map[string]ports.Property{
 						"action": {
 							Type:        "string",
-							Description: "Action to perform: list, create, update, or delete.",
-							Enum:        []any{"list", "create", "update", "delete"},
+							Description: "Action to perform: list, create, update, delete, list_subtasks, or create_subtask.",
+							Enum:        []any{"list", "create", "update", "delete", "list_subtasks", "create_subtask"},
 						},
 						"task_id": {
 							Type:        "string",
 							Description: "Task GUID for update or delete.",
+						},
+						"parent_task_id": {
+							Type:        "string",
+							Description: "Parent task GUID for list_subtasks or create_subtask.",
 						},
 						"page_size": {
 							Type:        "integer",
@@ -141,6 +145,10 @@ func (t *larkTaskManage) Execute(ctx context.Context, call ports.ToolCall) (*por
 		return t.updateTask(ctx, client, call)
 	case "delete":
 		return t.deleteTask(ctx, client, call)
+	case "list_subtasks":
+		return t.listSubtasks(ctx, client, call)
+	case "create_subtask":
+		return t.createSubtask(ctx, client, call)
 	default:
 		err := fmt.Errorf("unsupported action: %s", action)
 		return shared.ToolError(call.ID, "%w", err)
@@ -277,6 +285,153 @@ func (t *larkTaskManage) createTask(ctx context.Context, client *lark.Client, ca
 	return &ports.ToolResult{
 		CallID:   call.ID,
 		Content:  "Task created successfully.",
+		Metadata: metadata,
+	}, nil
+}
+
+func (t *larkTaskManage) listSubtasks(ctx context.Context, client *lark.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	parentTaskID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "parent_task_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	pageSize := clampTaskPageSize(call.Arguments)
+	builder := larktask.NewListTaskSubtaskReqBuilder().
+		TaskGuid(parentTaskID).
+		PageSize(pageSize)
+
+	if pageToken := shared.StringArg(call.Arguments, "page_token"); pageToken != "" {
+		builder.PageToken(pageToken)
+	}
+	if userIDType := shared.StringArg(call.Arguments, "user_id_type"); userIDType != "" {
+		builder.UserIdType(userIDType)
+	}
+
+	_, options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments, false)
+	if errResult != nil {
+		return errResult, nil
+	}
+	resp, err := client.Task.V2.TaskSubtask.List(ctx, builder.Build(), options...)
+	if err != nil {
+		return sdkCallErr(call.ID, "lark_task_manage(list_subtasks)", err), nil
+	}
+	if !resp.Success() {
+		return sdkRespErr(call.ID, "lark_task_manage(list_subtasks)", resp.Code, resp.Msg), nil
+	}
+	if resp.Data == nil || len(resp.Data.Items) == 0 {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: "No subtasks found.",
+			Metadata: map[string]any{
+				"parent_task_id": parentTaskID,
+			},
+		}, nil
+	}
+
+	summaries := summarizeTasks(resp.Data.Items)
+	payload, _ := json.MarshalIndent(summaries, "", "  ")
+	content := fmt.Sprintf("Found %d subtasks:\n%s", len(summaries), string(payload))
+
+	metadata := map[string]any{
+		"parent_task_id": parentTaskID,
+		"subtask_count":  len(summaries),
+	}
+	if resp.Data.PageToken != nil {
+		metadata["page_token"] = *resp.Data.PageToken
+	}
+	if resp.Data.HasMore != nil {
+		metadata["has_more"] = *resp.Data.HasMore
+	}
+
+	return &ports.ToolResult{
+		CallID:   call.ID,
+		Content:  content,
+		Metadata: metadata,
+	}, nil
+}
+
+func (t *larkTaskManage) createSubtask(ctx context.Context, client *lark.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	if approvalErr := requireActionApproval(ctx, call, "lark_task_create_subtask"); approvalErr != nil {
+		return approvalErr, nil
+	}
+
+	parentTaskID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "parent_task_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	summary, description := normalizeCreateTaskTextFields(
+		shared.StringArg(call.Arguments, "summary"),
+		shared.StringArg(call.Arguments, "description"),
+		shared.StringArg(call.Arguments, "content"),
+	)
+	if summary == "" {
+		err := fmt.Errorf("summary is required")
+		return shared.ToolError(call.ID, "%w", err)
+	}
+
+	due, errResult := parseDue(call.Arguments, call.ID)
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	auth, options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments, true)
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	userIDType := shared.StringArg(call.Arguments, "user_id_type")
+	members := buildMembers(shared.StringSliceArg(call.Arguments, "assignee_ids"), shared.StringArg(call.Arguments, "assignee_type"))
+	members, autoAddedSender := ensureTenantTaskVisibilityMember(ctx, members, auth, userIDType)
+
+	input := &larktask.InputTask{
+		Summary: &summary,
+	}
+	if description != "" {
+		input.Description = &description
+	}
+	if due != nil {
+		input.Due = due
+	}
+	if len(members) > 0 {
+		input.Members = members
+	}
+	if clientToken := shared.StringArg(call.Arguments, "client_token"); clientToken != "" {
+		input.ClientToken = &clientToken
+	}
+
+	builder := larktask.NewCreateTaskSubtaskReqBuilder().
+		TaskGuid(parentTaskID).
+		InputTask(input)
+	if userIDType != "" {
+		builder.UserIdType(userIDType)
+	}
+
+	resp, err := client.Task.V2.TaskSubtask.Create(ctx, builder.Build(), options...)
+	if err != nil {
+		return sdkCallErr(call.ID, "lark_task_manage(create_subtask)", err), nil
+	}
+	if !resp.Success() {
+		return sdkRespErr(call.ID, "lark_task_manage(create_subtask)", resp.Code, resp.Msg), nil
+	}
+
+	guid := ""
+	if resp.Data != nil && resp.Data.Subtask != nil && resp.Data.Subtask.Guid != nil {
+		guid = *resp.Data.Subtask.Guid
+	}
+
+	metadata := map[string]any{
+		"task_id":        guid,
+		"parent_task_id": parentTaskID,
+		"auth_mode":      auth.mode(),
+	}
+	if autoAddedSender {
+		metadata["sender_added_as_member"] = true
+	}
+
+	return &ports.ToolResult{
+		CallID:   call.ID,
+		Content:  "Subtask created successfully.",
 		Metadata: metadata,
 	}, nil
 }

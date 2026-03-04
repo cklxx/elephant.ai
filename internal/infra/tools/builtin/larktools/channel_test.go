@@ -242,6 +242,39 @@ func TestChannel_CreateTask_MissingSummary(t *testing.T) {
 	}
 }
 
+func TestChannel_ListSubtasks_MissingParentTaskID(t *testing.T) {
+	tool := NewLarkChannel()
+	larkClient := lark.NewClient("id", "secret")
+	ctx := shared.WithLarkClient(context.Background(), larkClient)
+	call := ports.ToolCall{ID: "t13a", Name: "channel", Arguments: map[string]any{
+		"action": "list_subtasks",
+	}}
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error for missing parent_task_id on list_subtasks")
+	}
+}
+
+func TestChannel_CreateSubtask_MissingParentTaskID(t *testing.T) {
+	tool := NewLarkChannel()
+	larkClient := lark.NewClient("id", "secret")
+	ctx := shared.WithLarkClient(context.Background(), larkClient)
+	call := ports.ToolCall{ID: "t13b", Name: "channel", Arguments: map[string]any{
+		"action":  "create_subtask",
+		"summary": "Subtask title",
+	}}
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error for missing parent_task_id on create_subtask")
+	}
+}
+
 func TestChannel_UpdateTask_MissingTaskID(t *testing.T) {
 	tool := NewLarkChannel()
 	larkClient := lark.NewClient("id", "secret")
@@ -301,7 +334,7 @@ func TestChannel_ActionCaseInsensitive(t *testing.T) {
 func TestChannel_DescriptionMentionsActions(t *testing.T) {
 	tool := NewLarkChannel()
 	desc := tool.Definition().Description
-	for _, keyword := range []string{"send_message", "upload_file", "history", "create_event", "query_events", "list_tasks"} {
+	for _, keyword := range []string{"send_message", "upload_file", "history", "create_event", "query_events", "list_tasks", "list_subtasks", "create_subtask"} {
 		if !strings.Contains(desc, keyword) {
 			t.Fatalf("expected description to mention %q", keyword)
 		}

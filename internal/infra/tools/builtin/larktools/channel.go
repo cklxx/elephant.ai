@@ -16,7 +16,7 @@ import (
 func actionSafetyLevel(action string) (dangerous bool, level int) {
 	switch action {
 	// Read-only actions — no approval needed.
-	case "history", "query_events", "list_tasks",
+	case "history", "query_events", "list_tasks", "list_subtasks",
 		"read_doc", "read_doc_content", "list_doc_blocks",
 		"list_wiki_spaces", "list_wiki_nodes", "get_wiki_node",
 		"list_bitable_tables", "list_bitable_records", "list_bitable_fields",
@@ -31,7 +31,7 @@ func actionSafetyLevel(action string) (dangerous bool, level int) {
 	case "send_message", "upload_file":
 		return true, ports.SafetyLevelReversible
 	// High-impact create/update actions.
-	case "create_event", "update_event", "create_task", "update_task",
+	case "create_event", "update_event", "create_task", "create_subtask", "update_task",
 		"create_doc", "update_doc_block", "write_doc_markdown", "create_wiki_node",
 		"create_bitable_record", "update_bitable_record",
 		"create_drive_folder", "copy_drive_file",
@@ -77,7 +77,7 @@ func NewLarkChannel() tools.ToolExecutor {
 				Description: "Unified Lark channel tool. Dispatches to messaging, calendar, task, document, wiki, bitable, drive, sheets, OKR, contact, mail, and VC operations via the 'action' parameter. " +
 					"Actions: send_message/upload_file/history (messaging), " +
 					"create_event/query_events/update_event/delete_event (calendar), " +
-					"list_tasks/create_task/update_task/delete_task (tasks), " +
+					"list_tasks/list_subtasks/create_task/create_subtask/update_task/delete_task (tasks), " +
 					"create_doc/read_doc/read_doc_content/list_doc_blocks/update_doc_block/write_doc_markdown (documents), " +
 					"list_wiki_spaces/list_wiki_nodes/create_wiki_node/get_wiki_node (wiki), " +
 					"list_bitable_tables/list_bitable_records/create_bitable_record/update_bitable_record/delete_bitable_record/list_bitable_fields (bitable), " +
@@ -99,7 +99,7 @@ func NewLarkChannel() tools.ToolExecutor {
 							Enum: []any{
 								"send_message", "upload_file", "history",
 								"create_event", "query_events", "update_event", "delete_event",
-								"list_tasks", "create_task", "update_task", "delete_task",
+								"list_tasks", "list_subtasks", "create_task", "create_subtask", "update_task", "delete_task",
 								"create_doc", "read_doc", "read_doc_content", "list_doc_blocks", "update_doc_block", "write_doc_markdown",
 								"list_wiki_spaces", "list_wiki_nodes", "create_wiki_node", "get_wiki_node",
 								"list_bitable_tables", "list_bitable_records", "create_bitable_record", "update_bitable_record", "delete_bitable_record", "list_bitable_fields",
@@ -186,6 +186,10 @@ func NewLarkChannel() tools.ToolExecutor {
 							Type:        "string",
 							Description: "Task GUID for update_task/delete_task.",
 						},
+						"parent_task_id": {
+							Type:        "string",
+							Description: "Parent task GUID for list_subtasks/create_subtask.",
+						},
 						"completed": {
 							Type:        "boolean",
 							Description: "Filter by completed status for list_tasks.",
@@ -196,11 +200,11 @@ func NewLarkChannel() tools.ToolExecutor {
 						},
 						"due_at": {
 							Type:        "string",
-							Description: "Due time as Unix seconds for create_task.",
+							Description: "Due time as Unix seconds for create_task/create_subtask.",
 						},
 						"due_date": {
 							Type:        "string",
-							Description: "Due date (YYYY-MM-DD) for create_task.",
+							Description: "Due date (YYYY-MM-DD) for create_task/create_subtask.",
 						},
 						"due_time": {
 							Type:        "string",
@@ -208,12 +212,12 @@ func NewLarkChannel() tools.ToolExecutor {
 						},
 						"assignee_ids": {
 							Type:        "array",
-							Description: "Assignee IDs for create_task. Optional — defaults to current sender if omitted.",
+							Description: "Assignee IDs for create_task/create_subtask. Optional — defaults to current sender if omitted.",
 							Items:       &ports.Property{Type: "string"},
 						},
 						"assignee_type": {
 							Type:        "string",
-							Description: "Assignee type for create_task (default user).",
+							Description: "Assignee type for create_task/create_subtask (default user).",
 						},
 						"user_id_type": {
 							Type:        "string",
@@ -225,7 +229,7 @@ func NewLarkChannel() tools.ToolExecutor {
 						},
 						"client_token": {
 							Type:        "string",
-							Description: "Idempotency token for create_task or update_doc_block.",
+							Description: "Idempotency token for create_task/create_subtask or update_doc_block.",
 						},
 						// docx params
 						"document_id": {
@@ -425,8 +429,12 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	// --- tasks ---
 	case "list_tasks":
 		return c.task.Execute(ctx, c.taskCall(call, "list"))
+	case "list_subtasks":
+		return c.task.Execute(ctx, c.taskCall(call, "list_subtasks"))
 	case "create_task":
 		return c.task.Execute(ctx, c.taskCall(call, "create"))
+	case "create_subtask":
+		return c.task.Execute(ctx, c.taskCall(call, "create_subtask"))
 	case "update_task":
 		return c.task.Execute(ctx, c.taskCall(call, "update"))
 	case "delete_task":

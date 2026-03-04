@@ -162,6 +162,43 @@ func TestTaskManage_DeleteMissingTaskID(t *testing.T) {
 	}
 }
 
+func TestTaskManage_ListSubtasksMissingParentTaskID(t *testing.T) {
+	tool := NewLarkTaskManage()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret")
+	ctx := shared.WithLarkClient(context.Background(), larkClient)
+
+	call := ports.ToolCall{ID: "test-list-subtasks-missing-parent", Name: "lark_task_manage", Arguments: map[string]any{
+		"action": "list_subtasks",
+	}}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error for missing parent_task_id on list_subtasks")
+	}
+}
+
+func TestTaskManage_CreateSubtaskMissingParentTaskID(t *testing.T) {
+	tool := NewLarkTaskManage()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret")
+	ctx := shared.WithLarkClient(context.Background(), larkClient)
+
+	call := ports.ToolCall{ID: "test-create-subtask-missing-parent", Name: "lark_task_manage", Arguments: map[string]any{
+		"action":  "create_subtask",
+		"summary": "Subtask title",
+	}}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error for missing parent_task_id on create_subtask")
+	}
+}
+
 func TestTaskManage_InvalidActionStillWorks(t *testing.T) {
 	tool := NewLarkTaskManage()
 	larkClient := lark.NewClient("test_app_id", "test_app_secret")
@@ -319,6 +356,138 @@ func TestTaskManage_CreateAutoUsesOAuthToken(t *testing.T) {
 		t.Fatalf("expected request body to include summary, got %q", gotBody)
 	}
 	if !strings.Contains(gotBody, `"description":"Task body"`) {
+		t.Fatalf("expected request body to include description, got %q", gotBody)
+	}
+}
+
+func TestTaskManage_ListSubtasksAutoUsesOAuthToken(t *testing.T) {
+	var mu sync.Mutex
+	var gotAuth string
+	var gotPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/task/v2/tasks/parent-guid/subtasks"):
+			mu.Lock()
+			gotAuth = r.Header.Get("Authorization")
+			gotPath = r.URL.Path
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
+				"items": []map[string]any{
+					{
+						"guid":    "subtask-guid-1",
+						"summary": "Subtask A",
+					},
+				},
+				"has_more": false,
+			}))
+			return
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	tool := NewLarkTaskManage()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
+	oauthSvc := &fakeLarkOAuth{token: "user-token", startURL: "http://localhost:8080/api/lark/oauth/start"}
+	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
+	ctx = shared.WithLarkOAuth(ctx, oauthSvc)
+
+	call := ports.ToolCall{ID: "test-list-subtasks-oauth", Name: "lark_task_manage", Arguments: map[string]any{
+		"action":         "list_subtasks",
+		"parent_task_id": "parent-guid",
+	}}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("expected success, got error: %v", result.Error)
+	}
+	if oauthSvc.gotOpenID != "ou_123" {
+		t.Fatalf("oauth service received open_id=%q, want %q", oauthSvc.gotOpenID, "ou_123")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if gotAuth != "Bearer user-token" {
+		t.Fatalf("expected user token auth, got %q", gotAuth)
+	}
+	if gotPath != "/open-apis/task/v2/tasks/parent-guid/subtasks" {
+		t.Fatalf("expected subtask list path, got %q", gotPath)
+	}
+}
+
+func TestTaskManage_CreateSubtaskAutoUsesOAuthToken(t *testing.T) {
+	var mu sync.Mutex
+	var gotAuth string
+	var gotPath string
+	var gotBody string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/task/v2/tasks/parent-guid/subtasks"):
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("read request body: %v", err)
+			}
+			mu.Lock()
+			gotAuth = r.Header.Get("Authorization")
+			gotPath = r.URL.Path
+			gotBody = string(body)
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
+				"subtask": map[string]any{
+					"guid": "subtask-guid-1",
+				},
+			}))
+			return
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	tool := NewLarkTaskManage()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
+	oauthSvc := &fakeLarkOAuth{token: "user-token", startURL: "http://localhost:8080/api/lark/oauth/start"}
+	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
+	ctx = shared.WithLarkOAuth(ctx, oauthSvc)
+
+	call := ports.ToolCall{ID: "test-create-subtask-oauth", Name: "lark_task_manage", Arguments: map[string]any{
+		"action":         "create_subtask",
+		"parent_task_id": "parent-guid",
+		"summary":        "Subtask title",
+		"description":    "Subtask body",
+	}}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("expected success, got error: %v", result.Error)
+	}
+	if oauthSvc.gotOpenID != "ou_123" {
+		t.Fatalf("oauth service received open_id=%q, want %q", oauthSvc.gotOpenID, "ou_123")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if gotAuth != "Bearer user-token" {
+		t.Fatalf("expected user token auth, got %q", gotAuth)
+	}
+	if gotPath != "/open-apis/task/v2/tasks/parent-guid/subtasks" {
+		t.Fatalf("expected subtask create path, got %q", gotPath)
+	}
+	if !strings.Contains(gotBody, `"summary":"Subtask title"`) {
+		t.Fatalf("expected request body to include summary, got %q", gotBody)
+	}
+	if !strings.Contains(gotBody, `"description":"Subtask body"`) {
 		t.Fatalf("expected request body to include description, got %q", gotBody)
 	}
 }
