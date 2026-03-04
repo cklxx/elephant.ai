@@ -1,6 +1,6 @@
 # Index: guides
 
-Updated: 2026-03-03
+Updated: 2026-03-04
 
 ## Files
 
@@ -11,6 +11,7 @@ Updated: 2026-03-03
 - [incident-response.md](incident-response.md) — Incident response and postmortem process
 - [memory-management.md](memory-management.md) — Memory loading, authoring, and networked graph
 - [documentation-rules.md](documentation-rules.md) — Documentation standards and update protocol
+- [reuse-precheck.md](reuse-precheck.md) — Reuse-first precheck and file placement gate
 - [orchestration.md](orchestration.md) — File-based multi-agent task orchestration
 - [skills.md](skills.md) — Skills system layout and discovery
 - [quickstart.md](quickstart.md) — Getting started guide

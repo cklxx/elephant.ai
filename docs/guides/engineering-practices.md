@@ -18,6 +18,8 @@ See also: [Development Workflow](development-workflow.md) | [Code Simplification
 ## Planning & Records
 - Every non-trivial task must have a plan file under `docs/plans/` and be updated as work progresses.
 - Continuously review best practices and execution flow; record improvements and update guides/plans when new patterns emerge.
+- For governance and folder-rule tasks, specify deterministic file-type-to-directory mapping and naming rules; avoid ambiguous high-level wording.
+- For `internal/**` governance, always include explicit first-level namespace routing (`app/domain/infra/delivery/shared/devops/testutil`) and forbidden placements.
 - Log notable incidents in `docs/error-experience/entries/` and add a summary entry under `docs/error-experience/summary/entries/`.
 - Log notable wins in `docs/good-experience/entries/` and add a summary entry under `docs/good-experience/summary/entries/`.
 - Keep `docs/error-experience.md` and `docs/error-experience/summary.md` as index-only.

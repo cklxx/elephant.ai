@@ -1,9 +1,10 @@
 # Index: plans
 
-Updated: 2026-02-25
+Updated: 2026-03-04
 
 ## Files
 
+- [2026-03-04-reuse-catalog-folder-governance.md](2026-03-04-reuse-catalog-folder-governance.md)
 - [2026-02-25-config-field-governance-analysis-doc.md](2026-02-25-config-field-governance-analysis-doc.md)
 - [validate-before-deploy.md](validate-before-deploy.md)
 - [tool-display-ui-optimization.md](tool-display-ui-optimization.md)

@@ -1,6 +1,6 @@
 # Index: memory
 
-Updated: 2026-02-26
+Updated: 2026-03-04
 
 ## Core
 
@@ -21,6 +21,7 @@ Updated: 2026-02-26
 ## Other
 
 - [migration.md](migration.md)
+- [user-patterns.md](user-patterns.md)
 
 ## Subdirectories
 

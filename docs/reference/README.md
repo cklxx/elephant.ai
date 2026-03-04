@@ -1,6 +1,6 @@
 # Index: reference
 
-Updated: 2026-02-25
+Updated: 2026-03-04
 
 ## Canonical references
 
@@ -17,6 +17,8 @@ Updated: 2026-02-25
 - [TOOLS.md](TOOLS.md)
 - [LARK_CARDS.md](LARK_CARDS.md)
 - [LARK_MENTIONS.md](LARK_MENTIONS.md)
+- [reuse-catalog-and-folder-governance.md](reuse-catalog-and-folder-governance.md)
+- [reuse-path-index.md](reuse-path-index.md)
 - [external-agents-codex-claude-code.md](external-agents-codex-claude-code.md)
 - [lark-web-agent-event-flow.md](lark-web-agent-event-flow.md)
 
