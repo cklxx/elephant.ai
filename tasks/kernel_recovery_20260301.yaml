@@ -26,7 +26,7 @@ tasks:
     prompt: |
       Verify the kernel is healthy after the context decoupling patch.
       
-      1. Run: go test ./internal/app/agent/kernel/... -v -count=1
+      1. Run: go test ./internal/infra/kernel/... ./internal/infra/teamruntime/... ./internal/app/agent/... -v -count=1
       2. Check go vet ./...
       3. Verify the patch is still in place in runCycleWithLogging
       

@@ -180,14 +180,6 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 	var createDescCalled bool
 	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodPost && isDocxCreateDocumentRoute(r.URL.Path):
-			writeJSON(t, w, 0, "ok", map[string]any{
-				"document": map[string]any{
-					"document_id": "doc_init_001",
-					"title":       "设计说明",
-					"revision_id": 1,
-				},
-			})
 		case r.Method == http.MethodPost && isDocxBlocksConvertRoute(r.URL.Path):
 			bodyBytes, _ := io.ReadAll(r.Body)
 			body := string(bodyBytes)
@@ -201,6 +193,14 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 					{"block_id": "tmp_blk_001", "block_type": 2, "parent_id": "doc_init_001"},
 				},
 				"block_id_to_image_urls": []map[string]any{},
+			})
+		case r.Method == http.MethodPost && isDocxCreateDocumentRoute(r.URL.Path):
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"document": map[string]any{
+					"document_id": "doc_init_001",
+					"title":       "设计说明",
+					"revision_id": 1,
+				},
 			})
 		case r.Method == http.MethodPost && isDocxDescendantRoute(r.URL.Path, "doc_init_001", "doc_init_001"):
 			bodyBytes, _ := io.ReadAll(r.Body)
