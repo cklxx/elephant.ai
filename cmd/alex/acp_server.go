@@ -199,7 +199,7 @@ func (s *acpServer) handleSessionNew(ctx context.Context, req *jsonrpc.Request, 
 		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "cwd must be an absolute path", nil)
 	}
 
-	session, err := s.container.SessionStore.Create(ctx)
+	session, err := s.container.Container.SessionStore.Create(ctx)
 	if err != nil {
 		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InternalError, "failed to create session", err.Error())
 	}
@@ -210,7 +210,7 @@ func (s *acpServer) handleSessionNew(ctx context.Context, req *jsonrpc.Request, 
 			Content: s.initialMessage,
 			Source:  ports.MessageSourceSystemPrompt,
 		})
-		if err := s.container.SessionStore.Save(ctx, session); err != nil {
+		if err := s.container.Container.SessionStore.Save(ctx, session); err != nil {
 			return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InternalError, "failed to seed session message", err.Error())
 		}
 	}
@@ -244,7 +244,7 @@ func (s *acpServer) handleSessionLoad(ctx context.Context, req *jsonrpc.Request,
 		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "cwd must be an absolute path", nil)
 	}
 
-	if _, err := s.container.SessionStore.Get(ctx, sessionID); err != nil {
+	if _, err := s.container.Container.SessionStore.Get(ctx, sessionID); err != nil {
 		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.InvalidParams, "session not found", err.Error())
 	}
 
@@ -373,7 +373,7 @@ func (s *acpServer) handleSessionPrompt(ctx context.Context, req *jsonrpc.Reques
 		}
 	}
 
-	result, execErr := s.container.AgentCoordinator.ExecuteTask(promptCtx, parsed.Text, sessionID, listener)
+	result, execErr := s.container.Container.AgentCoordinator.ExecuteTask(promptCtx, parsed.Text, sessionID, listener)
 
 	if switchedCwd {
 		if oldCwd != "" {

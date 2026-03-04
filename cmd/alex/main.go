@@ -27,7 +27,7 @@ func main() {
 			if container != nil {
 				drainCtx, drainCancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer drainCancel()
-				if err := container.Drain(drainCtx); err != nil {
+				if err := container.Container.Drain(drainCtx); err != nil {
 					fmt.Fprintf(os.Stderr, "Shutdown error: %v\n", err)
 				}
 			}
@@ -58,7 +58,7 @@ func main() {
 	}()
 
 	// Start the container lifecycle.
-	if err := container.Start(); err != nil {
+	if err := container.Container.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to start container: %v\n", err)
 		os.Exit(1)
 	}

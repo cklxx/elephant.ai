@@ -12,7 +12,7 @@ import (
 
 // handleCostCommand handles all cost-related subcommands
 func (c *CLI) handleCostCommand(args []string) error {
-	if c.container.CostTracker == nil {
+	if c.container.Container.CostTracker == nil {
 		return fmt.Errorf("cost tracking is not enabled")
 	}
 
@@ -82,7 +82,7 @@ func (c *CLI) handleCostShow(ctx context.Context, _ []string) error {
 	start := time.Unix(0, 0)
 	end := time.Now()
 
-	summary, err := c.container.CostTracker.GetDateRangeCost(ctx, start, end)
+	summary, err := c.container.Container.CostTracker.GetDateRangeCost(ctx, start, end)
 	if err != nil {
 		return fmt.Errorf("get cost summary: %w", err)
 	}
@@ -97,7 +97,7 @@ func (c *CLI) handleCostSession(ctx context.Context, args []string) error {
 	}
 
 	sessionID := args[0]
-	summary, err := c.container.CostTracker.GetSessionCost(ctx, sessionID)
+	summary, err := c.container.Container.CostTracker.GetSessionCost(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("get session cost: %w", err)
 	}
@@ -120,7 +120,7 @@ func (c *CLI) handleCostDaily(ctx context.Context, args []string) error {
 		}
 	}
 
-	summary, err := c.container.CostTracker.GetDailyCost(ctx, date)
+	summary, err := c.container.Container.CostTracker.GetDailyCost(ctx, date)
 	if err != nil {
 		return fmt.Errorf("get daily cost: %w", err)
 	}
@@ -148,7 +148,7 @@ func (c *CLI) handleCostMonthly(ctx context.Context, args []string) error {
 		month = int(t.Month())
 	}
 
-	summary, err := c.container.CostTracker.GetMonthlyCost(ctx, year, month)
+	summary, err := c.container.Container.CostTracker.GetMonthlyCost(ctx, year, month)
 	if err != nil {
 		return fmt.Errorf("get monthly cost: %w", err)
 	}
@@ -235,7 +235,7 @@ func (c *CLI) handleCostExport(ctx context.Context, args []string) error {
 	}
 
 	// Export data
-	data, err := c.container.CostTracker.Export(ctx, format, filter)
+	data, err := c.container.Container.CostTracker.Export(ctx, format, filter)
 	if err != nil {
 		return fmt.Errorf("export failed: %w", err)
 	}

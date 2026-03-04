@@ -65,7 +65,7 @@ func buildContainer() (*Container, error) {
 	}
 
 	if environmentSummary != "" {
-		result.AgentCoordinator.SetEnvironmentSummary(environmentSummary)
+		result.Container.AgentCoordinator.SetEnvironmentSummary(environmentSummary)
 	}
 
 	return result, nil

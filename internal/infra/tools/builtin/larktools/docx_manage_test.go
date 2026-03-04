@@ -31,7 +31,9 @@ func larkTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, c
 				"app_access_token":    "test-token",
 				"expire":              7200,
 			})
-			w.Write(resp)
+			if _, err := w.Write(resp); err != nil {
+				t.Fatalf("failed to write auth response: %v", err)
+			}
 			return
 		}
 		handler(w, r)
@@ -53,7 +55,9 @@ func writeJSON(t *testing.T, w http.ResponseWriter, code int, msg string, data a
 		resp["data"] = data
 	}
 	b, _ := json.Marshal(resp)
-	w.Write(b)
+	if _, err := w.Write(b); err != nil {
+		t.Fatalf("failed to write response: %v", err)
+	}
 }
 
 // ---------------------------------------------------------------------------

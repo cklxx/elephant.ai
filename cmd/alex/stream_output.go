@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"alex/internal/shared/utils"
 	"alex/internal/delivery/output"
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
@@ -24,6 +23,7 @@ import (
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -206,7 +206,7 @@ func RunTaskWithStreamOutputResult(container *Container, task string, sessionID 
 	defer cancel()
 
 	if sessionID == "" {
-		session, err := container.SessionStore.Create(ctx)
+		session, err := container.Container.SessionStore.Create(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("create session: %w", err)
 		}
@@ -278,7 +278,7 @@ func RunTaskWithStreamOutputResult(container *Container, task string, sessionID 
 	})
 
 	// Execute task with streaming via listener
-	domainResult, err := container.AgentCoordinator.ExecuteTask(ctx, task, sessionID, bridge)
+	domainResult, err := container.Container.AgentCoordinator.ExecuteTask(ctx, task, sessionID, bridge)
 	if err != nil {
 		if forceExit.Load() {
 			handler.consumeTaskCompletion()

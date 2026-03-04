@@ -40,7 +40,7 @@ func (c *CLI) cleanupSessions(ctx context.Context, args []string) error {
 
 	metas := make([]sessionMetadata, 0, len(sessionIDs))
 	for _, sid := range sessionIDs {
-		session, err := c.container.SessionStore.Get(ctx, sid)
+		session, err := c.container.Container.SessionStore.Get(ctx, sid)
 		if err != nil {
 			fmt.Printf("Skipping %s: %v\n", sid, err)
 			continue
@@ -78,7 +78,7 @@ func (c *CLI) cleanupSessions(ctx context.Context, args []string) error {
 
 	deleted := 0
 	for _, target := range targets {
-		if err := c.container.SessionStore.Delete(ctx, target.ID); err != nil {
+		if err := c.container.Container.SessionStore.Delete(ctx, target.ID); err != nil {
 			fmt.Printf("  ✗ %s (error: %v)\n", target.ID, err)
 			continue
 		}

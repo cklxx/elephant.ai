@@ -39,6 +39,6 @@ func TestBuildContainer(t *testing.T) {
 		t.Fatalf("buildContainer returned error: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = container.Shutdown()
+		_ = container.Container.Shutdown()
 	})
 }

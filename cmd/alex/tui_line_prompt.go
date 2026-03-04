@@ -138,7 +138,7 @@ func historyFilePath(container *Container) string {
 	}
 	baseDir := ""
 	if container.Container != nil {
-		if sessionDir := container.SessionDir(); sessionDir != "" {
+		if sessionDir := container.Container.SessionDir(); sessionDir != "" {
 			baseDir = filepath.Dir(sessionDir)
 		}
 	}

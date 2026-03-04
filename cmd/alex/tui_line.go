@@ -45,7 +45,7 @@ func runLineChatUI(container *Container, in io.Reader, out io.Writer, errOut io.
 
 	interactive := isInteractiveTTY(in, out)
 	ctx := cliBaseContext()
-	session, err := container.AgentCoordinator.GetSession(ctx, "")
+	session, err := container.Container.AgentCoordinator.GetSession(ctx, "")
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}

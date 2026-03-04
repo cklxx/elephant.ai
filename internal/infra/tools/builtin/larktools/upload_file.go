@@ -124,7 +124,7 @@ func (t *larkUploadFile) Execute(ctx context.Context, call ports.ToolCall) (*por
 
 	replyToID := strings.TrimSpace(shared.LarkMessageIDFromContext(ctx))
 
-	msgType := "file"
+	msgType := ""
 	msgContent := ""
 	metadata := map[string]any{
 		"chat_id":   chatID,
@@ -175,9 +175,10 @@ func (t *larkUploadFile) Execute(ctx context.Context, call ports.ToolCall) (*por
 			}, nil
 		}
 
-		msgType = "file"
 		if isAudioFile(candidate.fileName, candidate.mimeType) {
 			msgType = "audio"
+		} else {
+			msgType = "file"
 		}
 		msgContent = fileContent(fileKey)
 		metadata["file_key"] = fileKey

@@ -145,7 +145,7 @@ func (c *CLI) handleResume(args []string) error {
 	}
 	sessionID := strings.TrimSpace(args[0])
 
-	store := c.container.CheckpointStore
+	store := c.container.Container.CheckpointStore
 	if store == nil {
 		return fmt.Errorf("checkpoint store not configured")
 	}
@@ -208,7 +208,7 @@ func (c *CLI) pullSessionSnapshotsWithWriter(ctx context.Context, args []string,
 	if c == nil || c.container == nil {
 		return fmt.Errorf("container not initialized")
 	}
-	store := c.container.StateStore
+	store := c.container.Container.StateStore
 	if store == nil {
 		return fmt.Errorf("session state store not configured")
 	}
@@ -448,7 +448,7 @@ func (c *CLI) listSessions(ctx context.Context) error {
 
 	// Fetch and display detailed metadata for each session
 	for i, sid := range sessionIDs {
-		session, err := c.container.SessionStore.Get(ctx, sid)
+		session, err := c.container.Container.SessionStore.Get(ctx, sid)
 		if err != nil {
 			fmt.Printf("  %d. %s (error loading metadata: %v)\n", i+1, sid, err)
 			continue
@@ -493,7 +493,7 @@ func (c *CLI) listAllSessions(ctx context.Context) ([]string, error) {
 	var sessionIDs []string
 	offset := 0
 	for {
-		ids, err := c.container.AgentCoordinator.ListSessions(ctx, pageSize, offset)
+		ids, err := c.container.Container.AgentCoordinator.ListSessions(ctx, pageSize, offset)
 		if err != nil {
 			return nil, err
 		}
