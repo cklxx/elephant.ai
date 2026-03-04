@@ -131,21 +131,12 @@ func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, boo
 // from environment variables defined in the provider preset.
 func (r *SelectionResolver) resolveFromPreset(provider, model string) (ResolvedSelection, bool) {
 	apiKey, baseURL, source, ok := LookupEnvCredential(provider, r.envLookup)
-	if !ok {
-		// No env credential — still return a partial resolution with the
-		// preset's default base URL so downstream can attempt refresh.
-		preset, found := LookupProviderPreset(provider)
-		if !found {
-			return ResolvedSelection{}, false
-		}
-		return ResolvedSelection{
-			Provider: provider,
-			Model:    model,
-			BaseURL:  preset.DefaultBaseURL,
-			Source:   source,
-			Pinned:   true,
-		}, true
+	if !ok && baseURL == "" {
+		// Unknown provider with no env credential.
+		return ResolvedSelection{}, false
 	}
+	// For known providers, baseURL is always populated (preset default or env
+	// override) even when no API key is found, allowing downstream refresh.
 	return ResolvedSelection{
 		Provider: provider,
 		Model:    model,

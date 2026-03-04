@@ -90,21 +90,6 @@ var providerPresets = map[string]providerPreset{
 		KeyCreateURL: "https://console.anthropic.com/settings/keys",
 		SetupHint:    "Sign in with Claude CLI or set CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY.",
 	},
-	"claude": {
-		DisplayName:    "Anthropic",
-		AuthMode:       "cli_oauth_or_api_key",
-		APIKeyEnvVars:  []string{"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"},
-		BaseURLEnvVar:  "ANTHROPIC_BASE_URL",
-		DefaultBaseURL: "https://api.anthropic.com/v1",
-		DefaultModel:   "claude-sonnet-4-6",
-		RecommendedModels: []ModelRecommendation{
-			{ID: "claude-sonnet-4-6", Tier: "balanced", Default: true},
-			{ID: "claude-sonnet-4-20250514", Tier: "balanced"},
-			{ID: "claude-3-7-sonnet-20250219", Tier: "quality"},
-		},
-		KeyCreateURL: "https://console.anthropic.com/settings/keys",
-		SetupHint:    "Sign in with Claude CLI or set CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY.",
-	},
 	"kimi": {
 		DisplayName:    "Kimi",
 		AuthMode:       "api_key",
@@ -152,6 +137,11 @@ var providerPresets = map[string]providerPreset{
 		AuthMode:    "local_server",
 		SetupHint:   "Start a local OpenAI-compatible llama server (LLAMA_SERVER_BASE_URL).",
 	},
+}
+
+func init() {
+	// "claude" is an alias for "anthropic".
+	providerPresets["claude"] = providerPresets["anthropic"]
 }
 
 // ProviderPreset contains the public setup metadata for a runtime provider.
@@ -256,6 +246,10 @@ func recommendationIDs(items []ModelRecommendation) []string {
 // using its preset's env-var conventions. It returns the first non-empty API key
 // found, the resolved base URL (env override or preset default), the env var name
 // that matched, and whether a key was found.
+//
+// For known providers, baseURL is always populated (from env override or preset
+// default) regardless of whether an API key was found — callers can use it
+// without a redundant preset lookup.
 // Falls back to LLM_API_KEY as a universal last resort.
 func LookupEnvCredential(provider string, lookup runtimeconfig.EnvLookup) (apiKey, baseURL, source string, ok bool) {
 	if lookup == nil {
@@ -272,6 +266,18 @@ func LookupEnvCredential(provider string, lookup runtimeconfig.EnvLookup) (apiKe
 			}
 		}
 		return "", "", "", false
+	}
+
+	// Resolve base URL: env override → preset default.
+	// Done first so baseURL is always available for known providers.
+	baseURL = preset.DefaultBaseURL
+	if preset.BaseURLEnvVar != "" {
+		if v, has := lookup(preset.BaseURLEnvVar); has {
+			v = strings.TrimSpace(v)
+			if v != "" {
+				baseURL = v
+			}
+		}
 	}
 
 	// Try provider-specific env vars.
@@ -298,18 +304,7 @@ func LookupEnvCredential(provider string, lookup runtimeconfig.EnvLookup) (apiKe
 	}
 
 	if apiKey == "" {
-		return "", "", "", false
-	}
-
-	// Resolve base URL: env override → preset default.
-	baseURL = preset.DefaultBaseURL
-	if preset.BaseURLEnvVar != "" {
-		if v, has := lookup(preset.BaseURLEnvVar); has {
-			v = strings.TrimSpace(v)
-			if v != "" {
-				baseURL = v
-			}
-		}
+		return "", baseURL, "", false
 	}
 
 	return apiKey, baseURL, source, true

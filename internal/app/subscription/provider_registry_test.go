@@ -92,9 +92,10 @@ func TestLookupEnvCredential(t *testing.T) {
 			wantOK:     true,
 		},
 		{
-			name:     "kimi no env vars",
+			name:     "kimi no env vars returns baseURL but ok=false",
 			provider: "kimi",
 			env:      map[string]string{},
+			wantURL:  "https://api.kimi.com/coding/v1",
 			wantOK:   false,
 		},
 		{
@@ -153,6 +154,10 @@ func TestLookupEnvCredential(t *testing.T) {
 				t.Fatalf("ok: got %v, want %v", gotOK, tt.wantOK)
 			}
 			if !tt.wantOK {
+				// Even on failure, known providers should return baseURL.
+				if gotURL != tt.wantURL {
+					t.Fatalf("baseURL on failure: got %q, want %q", gotURL, tt.wantURL)
+				}
 				return
 			}
 			if gotKey != tt.wantKey {

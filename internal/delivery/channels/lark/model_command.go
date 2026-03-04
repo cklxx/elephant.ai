@@ -435,13 +435,13 @@ func matchSubscriptionCredential(creds runtimeconfig.CLICredentials, provider st
 		}, true
 	default:
 		// Generic preset-based resolution for api_key providers via env vars.
-		apiKey, baseURL, source, ok := subscription.LookupEnvCredential(provider, runtimeconfig.DefaultEnvLookup)
+		apiKey, baseURL, _, ok := subscription.LookupEnvCredential(provider, runtimeconfig.DefaultEnvLookup)
 		if ok {
 			return runtimeconfig.CLICredential{
 				Provider: provider,
 				APIKey:   apiKey,
 				BaseURL:  baseURL,
-				Source:   runtimeconfig.ValueSource(source),
+				Source:   runtimeconfig.SourceEnv,
 			}, true
 		}
 	}
