@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/delivery/schedulerapi"
 	"alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/config"
 	"alex/internal/shared/logging"
@@ -380,9 +379,9 @@ func (s *Scheduler) pruneStaleOKRTriggers(ctx context.Context, activeGoalIDs map
 
 // RegisterDynamicTrigger registers a new trigger at runtime (e.g. from an
 // agent tool call). It creates the corresponding Job, persists it, and
-// schedules it in the cron runner. Returns a schedulerapi.Job DTO so callers
-// can inspect the computed NextRun time without importing this package.
-func (s *Scheduler) RegisterDynamicTrigger(ctx context.Context, name, schedule, task, channel string) (*schedulerapi.Job, error) {
+// schedules it in the cron runner. Returns a JobDTO so callers can inspect
+// the computed NextRun time.
+func (s *Scheduler) RegisterDynamicTrigger(ctx context.Context, name, schedule, task, channel string) (*JobDTO, error) {
 	trigger := Trigger{
 		Name:     name,
 		Schedule: schedule,
@@ -442,7 +441,7 @@ func (s *Scheduler) UnregisterTrigger(ctx context.Context, name string) error {
 
 // ListJobs returns all persisted jobs as DTOs. Returns an error if no store
 // is configured.
-func (s *Scheduler) ListJobs(ctx context.Context) ([]schedulerapi.Job, error) {
+func (s *Scheduler) ListJobs(ctx context.Context) ([]JobDTO, error) {
 	if s.jobStore == nil {
 		return nil, fmt.Errorf("job store not configured")
 	}
@@ -450,7 +449,7 @@ func (s *Scheduler) ListJobs(ctx context.Context) ([]schedulerapi.Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	dtos := make([]schedulerapi.Job, len(jobs))
+	dtos := make([]JobDTO, len(jobs))
 	for i := range jobs {
 		dtos[i] = *jobToDTO(&jobs[i])
 	}
@@ -458,7 +457,7 @@ func (s *Scheduler) ListJobs(ctx context.Context) ([]schedulerapi.Job, error) {
 }
 
 // LoadJob loads a single job by ID from the job store as a DTO.
-func (s *Scheduler) LoadJob(ctx context.Context, id string) (*schedulerapi.Job, error) {
+func (s *Scheduler) LoadJob(ctx context.Context, id string) (*JobDTO, error) {
 	if s.jobStore == nil {
 		return nil, fmt.Errorf("job store not configured")
 	}
@@ -474,9 +473,9 @@ func (s *Scheduler) CronParser() cron.Parser {
 	return s.parser
 }
 
-// jobToDTO converts an internal Job to a schedulerapi.Job DTO.
-func jobToDTO(j *Job) *schedulerapi.Job {
-	return &schedulerapi.Job{
+// jobToDTO converts an internal Job to a JobDTO.
+func jobToDTO(j *Job) *JobDTO {
+	return &JobDTO{
 		ID:           j.ID,
 		Name:         j.Name,
 		CronExpr:     j.CronExpr,
