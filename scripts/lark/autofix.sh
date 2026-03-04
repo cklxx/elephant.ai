@@ -366,8 +366,10 @@ run_validation() {
   # ./internal/infra/agent/... and ./internal/agent/... must not be used.
   (cd "${AUTOFIX_ROOT}" && go test \
     ./internal/infra/teamruntime/... \
-    ./internal/app/agent/... \
     ./internal/infra/kernel/... \
+    ./internal/delivery/channels/lark/... \
+    ./internal/infra/tools/builtin/larktools/... \
+    ./internal/app/agent/... \
     -count=1)
 }
 
