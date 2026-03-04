@@ -36,6 +36,13 @@ type RelatedHit struct {
 	NodeID       string
 }
 
+// DailySnapshot holds one day's memory entry for inspection.
+type DailySnapshot struct {
+	Date    string // "2024-01-15" or filename without extension
+	Path    string // relative path, e.g. "memory/2024-01-15.md"
+	Content string
+}
+
 // Engine provides Markdown-based memory operations.
 type Engine interface {
 	EnsureSchema(ctx context.Context) error
@@ -45,5 +52,11 @@ type Engine interface {
 	GetLines(ctx context.Context, userID, path string, fromLine, lineCount int) (string, error)
 	LoadDaily(ctx context.Context, userID string, day time.Time) (string, error)
 	LoadLongTerm(ctx context.Context, userID string) (string, error)
-	RootDir() string
+
+	// LoadIdentity returns the soul and user identity markdown content.
+	// Creates default files from defaultSoul/defaultUser if they don't exist.
+	LoadIdentity(ctx context.Context, userID, defaultSoul, defaultUser string) (soul, user string, err error)
+
+	// ListDailyEntries returns all daily memory entries sorted newest-first.
+	ListDailyEntries(ctx context.Context, userID string) ([]DailySnapshot, error)
 }

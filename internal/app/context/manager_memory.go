@@ -21,8 +21,6 @@ import (
 const (
 	maxMemorySnapshotChars = 10000
 	maxMemorySectionChars  = 4000
-	soulFileName           = "SOUL.md"
-	userFileName           = "USER.md"
 	defaultPersonaConfig   = "configs/context/personas/default.yaml"
 )
 
@@ -43,7 +41,7 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 
 	userID := resolveMemoryUserID(ctx, session)
 	now := time.Now()
-	soul, user, soulPath, userPath := m.loadIdentitySnapshot(userID)
+	soul, user := m.loadIdentitySnapshot(userID)
 
 	longTerm, _ := m.memoryEngine.LoadLongTerm(ctx, userID)
 	today, _ := m.memoryEngine.LoadDaily(ctx, userID, now)
@@ -57,10 +55,10 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 
 	var sections []string
 	if soul != "" {
-		sections = append(sections, fmt.Sprintf("## Identity (SOUL.md: %s)\n%s", soulPath, soul))
+		sections = append(sections, fmt.Sprintf("## Identity (SOUL.md)\n%s", soul))
 	}
 	if user != "" {
-		sections = append(sections, fmt.Sprintf("## Identity (USER.md: %s)\n%s", userPath, user))
+		sections = append(sections, fmt.Sprintf("## Identity (USER.md)\n%s", user))
 	}
 	// Daily logs are high-churn runtime notes intended for kernel/autonomous
 	// loops. Keep them out of normal sessions to avoid leaking kernel-only
@@ -80,28 +78,18 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 	return truncateMemorySection(strings.Join(sections, "\n\n"), maxMemorySnapshotChars)
 }
 
-func (m *manager) loadIdentitySnapshot(userID string) (soul string, user string, soulPath string, userPath string) {
+func (m *manager) loadIdentitySnapshot(userID string) (soul, user string) {
 	if m == nil || m.memoryEngine == nil {
-		return "", "", "", ""
+		return "", ""
 	}
-	root := strings.TrimSpace(m.memoryEngine.RootDir())
-	if root == "" {
-		return "", "", "", ""
+	defaultSoul := m.renderSoulTemplate()
+	defaultUser := renderUserTemplate(userID)
+	soul, user, err := m.memoryEngine.LoadIdentity(context.Background(), userID, defaultSoul, defaultUser)
+	if err != nil {
+		logging.OrNop(m.logger).Warn("Failed to load identity: %v", err)
+		return "", ""
 	}
-
-	soulPath = filepath.Join(root, soulFileName)
-	userPath = filepath.Join(root, userFileName)
-
-	if err := ensureMarkdownFileIfMissing(soulPath, m.renderSoulTemplate); err != nil {
-		logging.OrNop(m.logger).Warn("Failed to bootstrap SOUL.md: %v", err)
-	}
-	if err := ensureMarkdownFileIfMissing(userPath, func() string { return renderUserTemplate(userID) }); err != nil {
-		logging.OrNop(m.logger).Warn("Failed to bootstrap USER.md: %v", err)
-	}
-
-	soul, _ = readMarkdownFile(soulPath)
-	user, _ = readMarkdownFile(userPath)
-	return soul, user, soulPath, userPath
+	return soul, user
 }
 
 func (m *manager) renderSoulTemplate() string {
@@ -258,37 +246,6 @@ func containsNonASCII(value string) bool {
 		}
 	}
 	return false
-}
-
-func ensureMarkdownFileIfMissing(path string, contentBuilder func() string) error {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return fmt.Errorf("path is required")
-	}
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	if contentBuilder == nil {
-		return fmt.Errorf("content builder is required for %s", path)
-	}
-	content := contentBuilder()
-	if utils.IsBlank(content) {
-		return fmt.Errorf("file content is required for %s", path)
-	}
-	return os.WriteFile(path, []byte(strings.TrimSpace(content)+"\n"), 0o644)
-}
-
-func readMarkdownFile(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(data)), nil
 }
 
 func resolveMemoryUserID(ctx context.Context, session *storage.Session) string {

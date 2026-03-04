@@ -5,6 +5,7 @@ import (
 
 	"alex/internal/app/subscription"
 	"alex/internal/delivery/server/app"
+	"alex/internal/infra/memory"
 	"alex/internal/infra/observability"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
@@ -16,8 +17,8 @@ const (
 
 // MemoryEngine is the subset used by API handlers for dev memory inspection.
 type MemoryEngine interface {
-	RootDir() string
 	LoadLongTerm(ctx context.Context, userID string) (string, error)
+	ListDailyEntries(ctx context.Context, userID string) ([]memory.DailySnapshot, error)
 }
 
 // APIHandler handles REST API endpoints

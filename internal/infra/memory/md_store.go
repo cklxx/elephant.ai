@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -321,6 +322,85 @@ func (e *MarkdownEngine) LoadDaily(_ context.Context, _ string, day time.Time) (
 		return "", err
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+// LoadIdentity returns the soul and user identity markdown content.
+// Missing files are bootstrapped from the provided defaults.
+func (e *MarkdownEngine) LoadIdentity(_ context.Context, _ string, defaultSoul, defaultUser string) (soul, user string, err error) {
+	root := strings.TrimSpace(e.rootDir)
+	if root == "" {
+		return "", "", nil
+	}
+	soulPath := filepath.Join(root, soulFileName)
+	userPath := filepath.Join(root, userFileName)
+
+	ensureFileWithDefault(soulPath, defaultSoul)
+	ensureFileWithDefault(userPath, defaultUser)
+
+	soulBytes, _ := os.ReadFile(soulPath)
+	userBytes, _ := os.ReadFile(userPath)
+	return strings.TrimSpace(string(soulBytes)), strings.TrimSpace(string(userBytes)), nil
+}
+
+// ListDailyEntries returns all daily memory entries sorted newest-first.
+func (e *MarkdownEngine) ListDailyEntries(_ context.Context, _ string) ([]DailySnapshot, error) {
+	root := strings.TrimSpace(e.rootDir)
+	if root == "" {
+		return nil, nil
+	}
+	dailyDir := filepath.Join(root, dailyDirName)
+	entries, err := os.ReadDir(dailyDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	files := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		files = append(files, entry.Name())
+	}
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i] > files[j]
+	})
+
+	snapshots := make([]DailySnapshot, 0, len(files))
+	for _, name := range files {
+		content, readErr := os.ReadFile(filepath.Join(dailyDir, name))
+		if readErr != nil {
+			return nil, readErr
+		}
+		date := strings.TrimSuffix(name, ".md")
+		relPath := filepath.ToSlash(filepath.Join(dailyDirName, name))
+		snapshots = append(snapshots, DailySnapshot{
+			Date:    date,
+			Path:    relPath,
+			Content: strings.TrimSpace(string(content)),
+		})
+	}
+	return snapshots, nil
+}
+
+// ensureFileWithDefault creates a file with the given default content if it doesn't exist.
+func ensureFileWithDefault(path, defaultContent string) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return
+	}
+	if _, err := os.Stat(path); err == nil {
+		return
+	}
+	defaultContent = strings.TrimSpace(defaultContent)
+	if defaultContent == "" {
+		return
+	}
+	_ = os.MkdirAll(filepath.Dir(path), 0o755)
+	_ = os.WriteFile(path, []byte(defaultContent+"\n"), 0o644)
 }
 
 // LoadLongTerm reads MEMORY.md for the user.
