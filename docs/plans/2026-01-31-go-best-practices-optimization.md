@@ -51,5 +51,5 @@ Cross-cutting quality improvements applying Go best practices across `internal/s
 
 - `go build ./...` — pass
 - `go vet ./...` — pass
-- `go test ./internal/server/... ./internal/agent/... -count=1` — all pass
+- `go test ./internal/infra/kernel/... ./internal/infra/teamruntime/... ./internal/app/agent/kernel/... -count=1` — all pass
 - Race detector: `go test ./internal/agent/domain/react/... -count=1 -race` — pass

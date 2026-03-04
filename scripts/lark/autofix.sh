@@ -361,9 +361,11 @@ run_validation() {
   (cd "${AUTOFIX_ROOT}" && ./tests/scripts/lark-supervisor-smoke.sh)
   (cd "${AUTOFIX_ROOT}" && ./lark.sh doctor)
 
-  # Runtime-focused validation targets for kernel audit cycles.
-  # Keep these aligned with active package layout; retired targets such as
-  # ./internal/infra/agent/... and ./internal/agent/... must not be used.
+  # Runtime validation targets are:
+  #   ./internal/infra/teamruntime/...
+  #   ./internal/infra/kernel/...
+  #   ./internal/app/agent/kernel/...
+  # Retired targets such as ./internal/infra/agent/... and ./internal/agent/... must not be used.
   local agent_runtime_pkg="./internal/app/agent/kernel/..."
   if ! (cd "${AUTOFIX_ROOT}" && go list "${agent_runtime_pkg}" >/dev/null 2>&1); then
     fail_state "agent runtime package missing: ${agent_runtime_pkg}"

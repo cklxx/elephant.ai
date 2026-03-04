@@ -61,6 +61,14 @@ func writeJSON(t *testing.T, w http.ResponseWriter, code int, msg string, data a
 	}
 }
 
+func isDocxCreateDocumentRoute(path string) bool {
+	// Lark SDK requests may include `/open-apis` prefix depending on base URL wiring.
+	isCreate := strings.Contains(path, "/open-apis/docx/v1/documents") ||
+		strings.Contains(path, "/docx/v1/documents")
+	// Exclude nested document sub-routes (e.g. /blocks/convert) from create-route matching.
+	return isCreate && !strings.Contains(path, "/blocks/")
+}
+
 func isDocxBlocksConvertRoute(path string) bool {
 	// Lark SDK requests may include `/open-apis` prefix depending on base URL wiring.
 	return strings.Contains(path, "/open-apis/docx/v1/documents/blocks/convert") ||
@@ -115,7 +123,7 @@ func TestDocxManage_CreateDoc(t *testing.T) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("expected POST, got %s", r.Method)
 		}
-		if !strings.HasSuffix(r.URL.Path, "/docx/v1/documents") {
+		if !isDocxCreateDocumentRoute(r.URL.Path) {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		bodyBytes, _ := io.ReadAll(r.Body)
@@ -172,7 +180,7 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 	var createDescCalled bool
 	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/docx/v1/documents"):
+		case r.Method == http.MethodPost && isDocxCreateDocumentRoute(r.URL.Path):
 			writeJSON(t, w, 0, "ok", map[string]any{
 				"document": map[string]any{
 					"document_id": "doc_init_001",

@@ -21,8 +21,8 @@ import (
     "context"
     "testing"
 
-    react "alex/internal/agent/domain/react"
-    "alex/internal/agent/ports/mocks"
+    react "alex/internal/domain/agent/react"
+    "alex/internal/domain/agent/ports/mocks"
 )
 
 func TestMyAgent(t *testing.T) {
@@ -252,7 +252,7 @@ if result.StopReason != "final_answer" {
 Run benchmarks for all scenarios:
 
 ```bash
-go test ./internal/agent/domain/react -bench=BenchmarkScenarios -benchmem
+go test ./internal/domain/agent/react -bench=BenchmarkScenarios -benchmem
 ```
 
 ## Adding New Scenarios
@@ -311,21 +311,21 @@ func TestReactEngine_MyScenario(t *testing.T) {
 
 ```bash
 # Run all scenario tests
-go test ./internal/agent/domain/react -v -run Scenario
+go test ./internal/domain/agent/react -v -run Scenario
 
 # Run specific scenario
-go test ./internal/agent/domain/react -v -run TestReactEngine_FileReadScenario
+go test ./internal/domain/agent/react -v -run TestReactEngine_FileReadScenario
 
 # Run all tests including scenarios
-go test ./internal/agent/domain/react -v
+go test ./internal/domain/agent/react -v
 
 # Run with coverage
-go test ./internal/agent/domain/react -cover
+go test ./internal/domain/agent/react -cover
 ```
 
 ## See Also
 
-- `internal/agent/domain/react/engine.go` - ReAct engine implementation
-- `internal/agent/domain/react/engine_test.go` - Basic unit tests
-- `internal/agent/domain/react/scenarios_test.go` - Scenario-based tests
-- `internal/agent/ports/` - Port interfaces
+- `internal/domain/agent/react/engine.go` - ReAct engine implementation
+- `internal/domain/agent/react/engine_test.go` - Basic unit tests
+- `internal/domain/agent/react/scenarios_test.go` - Scenario-based tests
+- `internal/domain/agent/ports/` - Port interfaces

@@ -25,7 +25,7 @@ echo '{
   "hook_event_name": "tool-use",
   "tool_name": "Write",
   "tool_input": {
-    "file_path": "/Users/bytedance/code/elephant.ai/internal/agent/domain.go"
+    "file_path": "/Users/bytedance/code/elephant.ai/internal/domain/agent/react/engine.go"
   }
 }' | ~/.claude/hooks/visualizer-hook.sh
 sleep 1
