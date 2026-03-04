@@ -27,4 +27,4 @@
 ## Status
 - [x] Code changes
 - [x] Tests
-- [ ] Commit
+- [x] Commit
