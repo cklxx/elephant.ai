@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	larkdocx "github.com/larksuite/oapi-sdk-go/v3/service/docx/v1"
 )
 
 func TestCreateDocument(t *testing.T) {
@@ -189,6 +191,124 @@ func TestUpdateDocumentBlockText(t *testing.T) {
 	if result.BlockData == nil || result.BlockData["block_id"] != "blk_123" {
 		t.Fatalf("expected block_data with block_id, got %#v", result.BlockData)
 	}
+}
+
+func TestConvertMarkdownToBlocks(t *testing.T) {
+	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST, got %s", r.Method)
+		}
+		if !strings.Contains(r.URL.Path, "/docx/v1/documents/blocks/convert") {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		body := string(readBody(r))
+		if !strings.Contains(body, `"content_type":"markdown"`) {
+			t.Fatalf("expected content_type=markdown in body: %s", body)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
+			"first_level_block_ids": []string{"tmp_blk_1", "tmp_blk_2"},
+			"blocks": []map[string]interface{}{
+				{"block_id": "tmp_blk_1", "block_type": 3, "parent_id": "root"},
+				{"block_id": "tmp_blk_2", "block_type": 2, "parent_id": "root"},
+			},
+			"block_id_to_image_urls": []map[string]interface{}{
+				{"block_id": "tmp_img_1", "image_url": "https://example.com/img.png"},
+			},
+		}))
+	})
+	defer srv.Close()
+
+	result, err := client.Docx().ConvertMarkdownToBlocks(context.Background(), "# Hello\nWorld")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.FirstLevelBlockIDs) != 2 {
+		t.Fatalf("expected 2 first-level IDs, got %d", len(result.FirstLevelBlockIDs))
+	}
+	if len(result.Blocks) != 2 {
+		t.Fatalf("expected 2 blocks, got %d", len(result.Blocks))
+	}
+	if len(result.ImageMappings) != 1 {
+		t.Fatalf("expected 1 image mapping, got %d", len(result.ImageMappings))
+	}
+	if result.ImageMappings[0].BlockID != "tmp_img_1" {
+		t.Errorf("expected image block_id=tmp_img_1, got %s", result.ImageMappings[0].BlockID)
+	}
+}
+
+func TestConvertMarkdownToBlocksAPIError(t *testing.T) {
+	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(t, w, jsonResponse(99001, "invalid content", nil))
+	})
+	defer srv.Close()
+
+	_, err := client.Docx().ConvertMarkdownToBlocks(context.Background(), "bad")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != 99001 {
+		t.Errorf("expected code 99001, got %d", apiErr.Code)
+	}
+}
+
+func TestSplitBlockBatches(t *testing.T) {
+	makeBlock := func(id, parentID string) *larkdocx.Block {
+		b := &larkdocx.Block{}
+		b.BlockId = &id
+		b.ParentId = &parentID
+		return b
+	}
+
+	t.Run("single batch", func(t *testing.T) {
+		blocks := []*larkdocx.Block{
+			makeBlock("a", "root"),
+			makeBlock("b", "root"),
+		}
+		batches := splitBlockBatches([]string{"a", "b"}, blocks, 1000)
+		if len(batches) != 1 {
+			t.Fatalf("expected 1 batch, got %d", len(batches))
+		}
+		if len(batches[0].childrenIDs) != 2 {
+			t.Errorf("expected 2 children, got %d", len(batches[0].childrenIDs))
+		}
+	})
+
+	t.Run("split on boundary", func(t *testing.T) {
+		// 3 first-level blocks each with 1 child = 6 total blocks
+		// max 4 per batch → should split into [a+child, b+child] and [c+child]
+		blocks := []*larkdocx.Block{
+			makeBlock("a", "root"),
+			makeBlock("a1", "a"),
+			makeBlock("b", "root"),
+			makeBlock("b1", "b"),
+			makeBlock("c", "root"),
+			makeBlock("c1", "c"),
+		}
+		batches := splitBlockBatches([]string{"a", "b", "c"}, blocks, 4)
+		if len(batches) != 2 {
+			t.Fatalf("expected 2 batches, got %d", len(batches))
+		}
+		if len(batches[0].childrenIDs) != 2 || batches[0].childrenIDs[0] != "a" {
+			t.Errorf("first batch children: %v", batches[0].childrenIDs)
+		}
+		if len(batches[1].childrenIDs) != 1 || batches[1].childrenIDs[0] != "c" {
+			t.Errorf("second batch children: %v", batches[1].childrenIDs)
+		}
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		batches := splitBlockBatches(nil, nil, 1000)
+		if len(batches) != 0 {
+			t.Errorf("expected 0 batches, got %d", len(batches))
+		}
+	})
 }
 
 func TestUpdateDocumentBlockTextAPIError(t *testing.T) {

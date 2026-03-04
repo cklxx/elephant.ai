@@ -228,7 +228,206 @@ func (s *DocxService) UpdateDocumentBlockText(ctx context.Context, req UpdateDoc
 	return result, nil
 }
 
+// ConvertResult holds the result of converting markdown/HTML to document blocks.
+type ConvertResult struct {
+	FirstLevelBlockIDs []string                // Ordered top-level block IDs.
+	Blocks             []*larkdocx.Block       // All blocks with parent-child relationships.
+	ImageMappings      []BlockImageMapping     // Block ID → image URL mappings for external images.
+}
+
+// BlockImageMapping maps a temporary block ID to its source image URL.
+type BlockImageMapping struct {
+	BlockID  string
+	ImageURL string
+}
+
+// ConvertMarkdownToBlocks converts markdown content to document blocks.
+func (s *DocxService) ConvertMarkdownToBlocks(ctx context.Context, markdown string, opts ...CallOption) (*ConvertResult, error) {
+	contentType := "markdown"
+	body := &larkdocx.ConvertDocumentReqBody{
+		ContentType: &contentType,
+		Content:     &markdown,
+	}
+
+	req := larkdocx.NewConvertDocumentReqBuilder().
+		Body(body).
+		Build()
+
+	resp, err := s.client.Docx.V1.Document.Convert(ctx, req, buildOpts(opts)...)
+	if err != nil {
+		return nil, fmt.Errorf("convert markdown to blocks: %w", err)
+	}
+	if !resp.Success() {
+		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("convert markdown to blocks: unexpected nil data in response")
+	}
+
+	result := &ConvertResult{
+		FirstLevelBlockIDs: resp.Data.FirstLevelBlockIds,
+		Blocks:             resp.Data.Blocks,
+	}
+	for _, m := range resp.Data.BlockIdToImageUrls {
+		if m.BlockId != nil && m.ImageUrl != nil {
+			result.ImageMappings = append(result.ImageMappings, BlockImageMapping{
+				BlockID:  *m.BlockId,
+				ImageURL: *m.ImageUrl,
+			})
+		}
+	}
+	return result, nil
+}
+
+// CreateDescendantBlocksRequest defines parameters for creating descendant blocks.
+type CreateDescendantBlocksRequest struct {
+	DocumentID  string
+	BlockID     string            // Parent block ID (typically the page block).
+	ChildrenIDs []string          // IDs of direct children to add under the parent.
+	Descendants []*larkdocx.Block // All blocks (children + nested descendants).
+	Index       int               // Insertion position among existing children (0 = beginning).
+}
+
+// CreateDescendantBlocks creates nested blocks under a parent block in a document.
+func (s *DocxService) CreateDescendantBlocks(ctx context.Context, req CreateDescendantBlocksRequest, opts ...CallOption) (int, error) {
+	body := larkdocx.NewCreateDocumentBlockDescendantReqBodyBuilder().
+		ChildrenId(req.ChildrenIDs).
+		Descendants(req.Descendants).
+		Index(req.Index).
+		Build()
+
+	apiReq := larkdocx.NewCreateDocumentBlockDescendantReqBuilder().
+		DocumentId(req.DocumentID).
+		BlockId(req.BlockID).
+		DocumentRevisionId(-1).
+		Body(body).
+		Build()
+
+	resp, err := s.client.Docx.V1.DocumentBlockDescendant.Create(ctx, apiReq, buildOpts(opts)...)
+	if err != nil {
+		return 0, fmt.Errorf("create descendant blocks: %w", err)
+	}
+	if !resp.Success() {
+		return 0, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+
+	var revisionID int
+	if resp.Data != nil && resp.Data.DocumentRevisionId != nil {
+		revisionID = *resp.Data.DocumentRevisionId
+	}
+	return revisionID, nil
+}
+
+// WriteMarkdown converts markdown to document blocks and inserts them into a document.
+// It handles table merge_info stripping and batching (max 1000 blocks per call).
+func (s *DocxService) WriteMarkdown(ctx context.Context, documentID, parentBlockID, markdown string, opts ...CallOption) error {
+	converted, err := s.ConvertMarkdownToBlocks(ctx, markdown, opts...)
+	if err != nil {
+		return err
+	}
+	if len(converted.Blocks) == 0 {
+		return nil
+	}
+
+	// Strip read-only merge_info from table blocks before insertion.
+	for _, block := range converted.Blocks {
+		if block.Table != nil && block.Table.Property != nil {
+			block.Table.Property.MergeInfo = nil
+		}
+	}
+
+	// Batch insert: max 1000 blocks per API call.
+	const maxBlocksPerBatch = 1000
+	if len(converted.Blocks) <= maxBlocksPerBatch {
+		_, err = s.CreateDescendantBlocks(ctx, CreateDescendantBlocksRequest{
+			DocumentID:  documentID,
+			BlockID:     parentBlockID,
+			ChildrenIDs: converted.FirstLevelBlockIDs,
+			Descendants: converted.Blocks,
+			Index:       0,
+		}, opts...)
+		return err
+	}
+
+	// For large documents, split blocks into batches by first-level block boundaries.
+	batches := splitBlockBatches(converted.FirstLevelBlockIDs, converted.Blocks, maxBlocksPerBatch)
+	insertIndex := 0
+	for _, batch := range batches {
+		_, err = s.CreateDescendantBlocks(ctx, CreateDescendantBlocksRequest{
+			DocumentID:  documentID,
+			BlockID:     parentBlockID,
+			ChildrenIDs: batch.childrenIDs,
+			Descendants: batch.blocks,
+			Index:       insertIndex,
+		}, opts...)
+		if err != nil {
+			return fmt.Errorf("batch insert at index %d: %w", insertIndex, err)
+		}
+		insertIndex += len(batch.childrenIDs)
+	}
+	return nil
+}
+
 // --- helpers ---
+
+type blockBatch struct {
+	childrenIDs []string
+	blocks      []*larkdocx.Block
+}
+
+// splitBlockBatches groups blocks into batches, each containing at most maxBlocks.
+// Splits on first-level block boundaries to maintain parent-child integrity.
+func splitBlockBatches(firstLevelIDs []string, allBlocks []*larkdocx.Block, maxBlocks int) []blockBatch {
+	// Index blocks by parent to find all descendants of each first-level block.
+	childrenOf := make(map[string][]*larkdocx.Block)
+	blockByID := make(map[string]*larkdocx.Block, len(allBlocks))
+	for _, b := range allBlocks {
+		if b.BlockId != nil {
+			blockByID[*b.BlockId] = b
+		}
+		if b.ParentId != nil {
+			childrenOf[*b.ParentId] = append(childrenOf[*b.ParentId], b)
+		}
+	}
+
+	// Collect all descendants (BFS) for a given block ID.
+	collectDescendants := func(rootID string) []*larkdocx.Block {
+		var result []*larkdocx.Block
+		if root, ok := blockByID[rootID]; ok {
+			result = append(result, root)
+		}
+		queue := []string{rootID}
+		for len(queue) > 0 {
+			current := queue[0]
+			queue = queue[1:]
+			for _, child := range childrenOf[current] {
+				result = append(result, child)
+				if child.BlockId != nil {
+					queue = append(queue, *child.BlockId)
+				}
+			}
+		}
+		return result
+	}
+
+	var batches []blockBatch
+	var currentBatch blockBatch
+
+	for _, flID := range firstLevelIDs {
+		descendants := collectDescendants(flID)
+		// If adding this block's tree would exceed the limit, flush current batch.
+		if len(currentBatch.blocks)+len(descendants) > maxBlocks && len(currentBatch.blocks) > 0 {
+			batches = append(batches, currentBatch)
+			currentBatch = blockBatch{}
+		}
+		currentBatch.childrenIDs = append(currentBatch.childrenIDs, flID)
+		currentBatch.blocks = append(currentBatch.blocks, descendants...)
+	}
+	if len(currentBatch.blocks) > 0 {
+		batches = append(batches, currentBatch)
+	}
+	return batches
+}
 
 func parseDocument(doc *larkdocx.Document) *Document {
 	if doc == nil {

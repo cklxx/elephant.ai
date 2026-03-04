@@ -32,7 +32,7 @@ func actionSafetyLevel(action string) (dangerous bool, level int) {
 		return true, ports.SafetyLevelReversible
 	// High-impact create/update actions.
 	case "create_event", "update_event", "create_task", "update_task",
-		"create_doc", "update_doc_block", "create_wiki_node",
+		"create_doc", "update_doc_block", "write_doc_markdown", "create_wiki_node",
 		"create_bitable_record", "update_bitable_record",
 		"create_drive_folder", "copy_drive_file",
 		"create_spreadsheet", "create_mailgroup":
@@ -78,7 +78,7 @@ func NewLarkChannel() tools.ToolExecutor {
 					"Actions: send_message/upload_file/history (messaging), " +
 					"create_event/query_events/update_event/delete_event (calendar), " +
 					"list_tasks/create_task/update_task/delete_task (tasks), " +
-					"create_doc/read_doc/read_doc_content/list_doc_blocks/update_doc_block (documents), " +
+					"create_doc/read_doc/read_doc_content/list_doc_blocks/update_doc_block/write_doc_markdown (documents), " +
 					"list_wiki_spaces/list_wiki_nodes/create_wiki_node/get_wiki_node (wiki), " +
 					"list_bitable_tables/list_bitable_records/create_bitable_record/update_bitable_record/delete_bitable_record/list_bitable_fields (bitable), " +
 					"list_drive_files/create_drive_folder/copy_drive_file/delete_drive_file (drive), " +
@@ -100,7 +100,7 @@ func NewLarkChannel() tools.ToolExecutor {
 								"send_message", "upload_file", "history",
 								"create_event", "query_events", "update_event", "delete_event",
 								"list_tasks", "create_task", "update_task", "delete_task",
-								"create_doc", "read_doc", "read_doc_content", "list_doc_blocks", "update_doc_block",
+								"create_doc", "read_doc", "read_doc_content", "list_doc_blocks", "update_doc_block", "write_doc_markdown",
 								"list_wiki_spaces", "list_wiki_nodes", "create_wiki_node", "get_wiki_node",
 								"list_bitable_tables", "list_bitable_records", "create_bitable_record", "update_bitable_record", "delete_bitable_record", "list_bitable_fields",
 								"list_drive_files", "create_drive_folder", "copy_drive_file", "delete_drive_file",
@@ -114,7 +114,7 @@ func NewLarkChannel() tools.ToolExecutor {
 						// send_message params
 						"content": {
 							Type:        "string",
-							Description: "Message text for send_message; document initial content for create_doc; new block text for update_doc_block; or task body text (alias of description) for create_task/update_task.",
+							Description: "Message text for send_message; markdown content for create_doc and write_doc_markdown (auto-converted to rich document blocks); new block text for update_doc_block; or task body text (alias of description) for create_task/update_task.",
 						},
 						"content_format": {
 							Type:        "string",
@@ -442,6 +442,8 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		return c.docx.Execute(ctx, c.subActionCall(call, "list_blocks"))
 	case "update_doc_block":
 		return c.docx.Execute(ctx, c.subActionCall(call, "update_block_text"))
+	case "write_doc_markdown":
+		return c.docx.Execute(ctx, c.subActionCall(call, "write_markdown"))
 	// --- wiki ---
 	case "list_wiki_spaces":
 		return c.wiki.Execute(ctx, c.subActionCall(call, "list_spaces"))

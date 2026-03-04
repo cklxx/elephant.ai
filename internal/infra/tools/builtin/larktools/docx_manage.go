@@ -34,6 +34,8 @@ func (t *larkDocxManage) Execute(ctx context.Context, call ports.ToolCall) (*por
 		return t.listBlocks(ctx, client, call)
 	case "update_block_text":
 		return t.updateBlockText(ctx, client, call)
+	case "write_markdown":
+		return t.writeMarkdown(ctx, client, call)
 	default:
 		err := fmt.Errorf("unsupported docx action: %s", action)
 		return shared.ToolError(call.ID, "%v", err)
@@ -58,13 +60,10 @@ func (t *larkDocxManage) createDoc(ctx context.Context, client *larkapi.Client, 
 
 	grantSenderEditPermission(ctx, client, doc.DocumentID, "docx")
 
-	var contentBlockID string
 	if content != "" {
-		blockID, err := t.writeInitialContent(ctx, client, doc.DocumentID, content)
-		if err != nil {
+		if err := client.Docx().WriteMarkdown(ctx, doc.DocumentID, doc.DocumentID, content); err != nil {
 			return apiErr(call.ID, "write initial document content", err), nil
 		}
-		contentBlockID = blockID
 	}
 
 	payload, _ := json.MarshalIndent(doc, "", "  ")
@@ -72,9 +71,8 @@ func (t *larkDocxManage) createDoc(ctx context.Context, client *larkapi.Client, 
 		"document_id": doc.DocumentID,
 		"title":       doc.Title,
 	}
-	if contentBlockID != "" {
+	if content != "" {
 		metadata["content_written"] = true
-		metadata["content_block_id"] = contentBlockID
 	}
 	resultContent := fmt.Sprintf("Document created successfully.\n%s", string(payload))
 	if docURL := larkapi.BuildDocumentURL(shared.LarkBaseDomainFromContext(ctx), doc.DocumentID); docURL != "" {
@@ -88,40 +86,6 @@ func (t *larkDocxManage) createDoc(ctx context.Context, client *larkapi.Client, 
 	}, nil
 }
 
-func (t *larkDocxManage) writeInitialContent(ctx context.Context, client *larkapi.Client, documentID, content string) (string, error) {
-	blocks, _, _, err := client.Docx().ListDocumentBlocks(ctx, documentID, 50, "")
-	if err != nil {
-		return "", err
-	}
-	blockID := pickWritableBlockID(blocks)
-	if blockID == "" {
-		return "", fmt.Errorf("no writable text block found in document %s", documentID)
-	}
-	_, err = client.Docx().UpdateDocumentBlockText(ctx, larkapi.UpdateDocumentBlockTextRequest{
-		DocumentID:         documentID,
-		BlockID:            blockID,
-		Content:            content,
-		DocumentRevisionID: -1,
-	})
-	if err != nil {
-		return "", err
-	}
-	return blockID, nil
-}
-
-func pickWritableBlockID(blocks []larkapi.DocumentBlock) string {
-	for i := range blocks {
-		if blocks[i].BlockType == 2 && blocks[i].BlockID != "" {
-			return blocks[i].BlockID
-		}
-	}
-	for i := range blocks {
-		if blocks[i].BlockType != 1 && blocks[i].BlockID != "" {
-			return blocks[i].BlockID
-		}
-	}
-	return ""
-}
 
 func (t *larkDocxManage) readDoc(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
 	documentID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "document_id")
@@ -210,6 +174,52 @@ func (t *larkDocxManage) listBlocks(ctx context.Context, client *larkapi.Client,
 	return &ports.ToolResult{
 		CallID:   call.ID,
 		Content:  fmt.Sprintf("Found %d blocks:\n%s", len(blocks), string(payload)),
+		Metadata: metadata,
+	}, nil
+}
+
+func (t *larkDocxManage) writeMarkdown(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	documentID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "document_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+	content, errResult := shared.RequireStringArg(call.Arguments, call.ID, "content")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	// Find the page block (type 1) as the parent for inserting converted blocks.
+	blocks, _, _, err := client.Docx().ListDocumentBlocks(ctx, documentID, 50, "")
+	if err != nil {
+		return apiErr(call.ID, "list document blocks", err), nil
+	}
+	pageBlockID := ""
+	for _, b := range blocks {
+		if b.BlockType == 1 {
+			pageBlockID = b.BlockID
+			break
+		}
+	}
+	if pageBlockID == "" {
+		pageBlockID = documentID
+	}
+
+	if err := client.Docx().WriteMarkdown(ctx, documentID, pageBlockID, content); err != nil {
+		return apiErr(call.ID, "write markdown to document", err), nil
+	}
+
+	metadata := map[string]any{
+		"document_id":     documentID,
+		"content_written": true,
+	}
+	resultContent := "Markdown content written to document successfully."
+	if docURL := larkapi.BuildDocumentURL(shared.LarkBaseDomainFromContext(ctx), documentID); docURL != "" {
+		metadata["url"] = docURL
+		resultContent = fmt.Sprintf("Markdown content written to document successfully.\nURL: %s", docURL)
+	}
+	return &ports.ToolResult{
+		CallID:   call.ID,
+		Content:  resultContent,
 		Metadata: metadata,
 	}, nil
 }
