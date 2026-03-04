@@ -5,8 +5,7 @@ Updated: 2026-03-04
 ## Canonical references
 
 - [ACP.md](ACP.md)
-- [ARCHITECTURE_AGENT_FLOW.md](ARCHITECTURE_AGENT_FLOW.md)
-- [CURRENT_ARCHITECTURE_OVERVIEW.md](CURRENT_ARCHITECTURE_OVERVIEW.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
 - [CONFIG.md](CONFIG.md)
 - [config-field-governance-analysis.md](config-field-governance-analysis.md)
 - [DOMAIN_LAYERS_AND_IDS.md](DOMAIN_LAYERS_AND_IDS.md)

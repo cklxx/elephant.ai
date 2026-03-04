@@ -207,7 +207,7 @@ codex exec --dangerously-bypass-approvals-and-sandbox -o /tmp/codex-exec-{id}.md
 
 ### Always-load set (~8 KB, every conversation start)
 1. `docs/memory/long-term.md` — stable cross-session rules.
-2. `docs/guides/engineering-practices.md` — coding conventions.
+2. `docs/guides/engineering-workflow.md` — engineering standards and development cycle.
 3. Latest 3 **error summaries** from `docs/error-experience/summary/entries/` (by filename date DESC).
 4. Latest 3 **good summaries** from `docs/good-experience/summary/entries/` (by filename date DESC).
 

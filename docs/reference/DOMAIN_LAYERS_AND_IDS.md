@@ -1,26 +1,12 @@
 # Domain Layers and ID Semantics
 
-Updated: 2026-02-10
+Updated: 2026-03-04
 
 ## Scope
-Defines the current layer boundaries and correlation ID semantics used across CLI, Lark, server, and web event delivery.
+Correlation ID semantics and propagation rules for all delivery channels.
 
 ## Layering
-- **Domain**: `internal/domain/*`
-  - Agent runtime and domain events: `internal/domain/agent/*`
-  - Workflow model/state machine: `internal/domain/workflow/*`
-- **Application**: `internal/app/*`
-  - Agent coordination: `internal/app/agent/*`
-  - Context/session orchestration: `internal/app/context/*`
-  - Tool orchestration policy/registry: `internal/app/toolregistry/*`
-- **Delivery**: `internal/delivery/*`
-  - HTTP/SSE surfaces: `internal/delivery/server/*`
-  - Lark channel adapter: `internal/delivery/channels/lark/*`
-  - CLI output: `internal/delivery/output/*`
-- **Infrastructure**: `internal/infra/*`
-  - LLM, memory, MCP, session, tools, external executors, storage.
-- **Shared**: `internal/shared/*`
-  - Config, logging, parser, utilities.
+For layer boundaries and package layout, see [ARCHITECTURE.md](ARCHITECTURE.md) §2.
 
 ## Core Rule
 IDs are created/ensured at entry or orchestration boundaries (delivery/app) and propagated through domain/runtime. Domain code may carry IDs but should avoid introducing ad-hoc, delivery-specific correlation schemes.
@@ -48,10 +34,4 @@ IDs are created/ensured at entry or orchestration boundaries (delivery/app) and 
 4. Use `run_id` + `parent_run_id` to reconstruct event sequence in web/Lark timelines.
 
 ## Legacy Path Mapping
-- `internal/agent/domain` -> `internal/domain/agent`
-- `internal/agent/app` -> `internal/app/agent`
-- `internal/agent/ports` -> `internal/domain/agent/ports`
-- `internal/server/http` -> `internal/delivery/server/http`
-- `internal/server/app` -> `internal/delivery/server/app`
-- `internal/llm` -> `internal/infra/llm`
-- `internal/utils/id` -> `internal/shared/utils/id`
+For legacy path mappings, see [ARCHITECTURE.md](ARCHITECTURE.md) §12.

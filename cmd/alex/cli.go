@@ -132,7 +132,7 @@ Features:
   ✓ Subscription model selection
 
 Architecture: Hexagonal (Ports & Adapters)
-Documentation: AGENTS.md + docs/reference/ARCHITECTURE_AGENT_FLOW.md + docs/reference/CONFIG.md
+Documentation: AGENTS.md + docs/reference/ARCHITECTURE.md + docs/reference/CONFIG.md
 `, appVersion(), configLine)
 }
 

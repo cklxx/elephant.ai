@@ -149,7 +149,7 @@ Infra         Multi-LLM · Memory Store · Tool Registry · Observability
 |---|---|
 | [Quick Start](docs/guides/quickstart.md) | From clone to running in minutes |
 | [Configuration Reference](docs/reference/CONFIG.md) | Full config schema and precedence rules |
-| [Architecture & Flow](docs/reference/ARCHITECTURE_AGENT_FLOW.md) | Runtime layering and execution model |
+| [Architecture](docs/reference/ARCHITECTURE.md) | Runtime layering and execution model |
 | [Deployment Guide](docs/operations/DEPLOYMENT.md) | Production deployment |
 | [Roadmap](ROADMAP.md) | What's next |
 

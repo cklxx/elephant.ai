@@ -180,4 +180,4 @@ alex dev test
 
 - Deployment: `docs/operations/DEPLOYMENT.md`
 - Configuration reference: `docs/reference/CONFIG.md`
-- Runtime/agent deep dive: `docs/reference/ARCHITECTURE_AGENT_FLOW.md`
+- Runtime/agent deep dive: `docs/reference/ARCHITECTURE.md`

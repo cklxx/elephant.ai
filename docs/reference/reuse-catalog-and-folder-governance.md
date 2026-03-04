@@ -138,14 +138,44 @@ Status suffix policy:
 3. If it extends process lifecycle, modify the existing process manager/controller path.
 4. If it adds config input, extend shared config loading and documented config contracts.
 
-## 9. Review Gate
+## 9. Pre-Check and Review Gate
 
-Before adding a new file or component:
+Before adding any new file or component, complete this workflow:
 
-1. Search existing paths for matching capability (`rg`, `glob`).
-2. If found, reuse or extend. If not, document why in the commit message.
-3. Blocked if: parallel orchestration tool, non-`.status.yaml` sidecar, env parser bypassing shared config, lifecycle manager outside `internal/devops/process`.
+### 9.1 Mandatory Steps
 
-## 10. Discoverability
+1. Classify the intended file by type and responsibility (see sections 3--4).
+2. Resolve the required directory from the file-type mapping in this document.
+3. Search existing capabilities using `docs/reference/reuse-path-index.md` and the commands below.
+4. Decide one action: `reuse`, `extend`, or `new`.
+5. If action is `new`, record the replacement reason (see 9.3).
 
-Before creating a new file, search the codebase for existing implementations of the same capability.
+### 9.2 Required Search Commands
+
+```bash
+# Global reuse scan
+rg -n "run_tasks|taskfile|status\\.yaml|TeamDefinition|tmux|process manager|runtime_env_loader|envmerge|wrapper" internal scripts docs configs
+
+# File placement sanity check (advisory script)
+bash scripts/check-reuse-precheck.sh
+```
+
+### 9.3 Replacement Reason Template (required when action is `new`)
+
+```text
+Existing capability checked: <path list>
+Reuse decision: new
+Why not reusable: <single concrete contract mismatch>
+Convergence plan: <future merge path or none>
+```
+
+### 9.4 Blocking Conditions
+
+A change is blocked if any of the following are true:
+
+1. A parallel orchestration tool was added.
+2. A status format other than `.status.yaml` was introduced.
+3. A new env parser bypassing shared config loader was added.
+4. New files violate the file-type placement rules in sections 3--4.
+5. Canonical docs were not updated for behavior/contract changes.
+6. A lifecycle manager was placed outside `internal/devops/process`.

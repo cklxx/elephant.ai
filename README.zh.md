@@ -139,7 +139,7 @@ OpenRouter · Ollama（本地） · Kimi · 通义千问
 |---|---|
 | [快速开始](docs/guides/quickstart.md) | 从克隆到运行 |
 | [配置参考](docs/reference/CONFIG.md) | 完整配置模式和优先级规则 |
-| [架构与执行流](docs/reference/ARCHITECTURE_AGENT_FLOW.md) | 运行时分层和执行模型 |
+| [架构](docs/reference/ARCHITECTURE.md) | 运行时分层和执行模型 |
 | [部署指南](docs/operations/DEPLOYMENT.md) | 生产部署 |
 | [路线图](ROADMAP.md) | 后续规划 |
 

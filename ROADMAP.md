@@ -19,7 +19,7 @@ Build elephant.ai as a **personal local agent** that maximizes one person's judg
 
 1. `README.md` / `README.zh.md`
 2. `docs/README.md`
-3. `docs/reference/ARCHITECTURE_AGENT_FLOW.md`
+3. `docs/reference/ARCHITECTURE.md`
 4. `docs/reference/CONFIG.md`
 5. `docs/guides/quickstart.md`
 6. `docs/operations/DEPLOYMENT.md`

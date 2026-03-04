@@ -6,7 +6,7 @@ Start here for current architecture, config, and operations docs.
 ## Core Docs
 
 - [`../AGENTS.md`](../AGENTS.md): Repo workflow and safety constraints.
-- [`reference/ARCHITECTURE_AGENT_FLOW.md`](reference/ARCHITECTURE_AGENT_FLOW.md): Runtime layering and execution flow.
+- [`reference/ARCHITECTURE.md`](reference/ARCHITECTURE.md): Runtime layering and execution flow.
 - [`reference/CONFIG.md`](reference/CONFIG.md): Canonical config schema and precedence.
 - [`guides/quickstart.md`](guides/quickstart.md): Local setup and dev loop.
 - [`operations/DEPLOYMENT.md`](operations/DEPLOYMENT.md): Local/Compose/K8s deployment guidance.
