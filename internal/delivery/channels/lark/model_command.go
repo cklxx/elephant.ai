@@ -109,7 +109,8 @@ Model command usage:
 
 Examples:
   /model use codex/gpt-5.2-codex
-  /model use anthropic/claude-sonnet-4-20250514 --chat
+  /model use anthropic/claude-sonnet-4-6 --chat
+  /model use kimi/kimi-for-coding
   /model use llama_server/local-model
 `)
 }
@@ -432,6 +433,17 @@ func matchSubscriptionCredential(creds runtimeconfig.CLICredentials, provider st
 			Provider: "llama_server",
 			Source:   "llama_server",
 		}, true
+	default:
+		// Generic preset-based resolution for api_key providers via env vars.
+		apiKey, baseURL, source, ok := subscription.LookupEnvCredential(provider, runtimeconfig.DefaultEnvLookup)
+		if ok {
+			return runtimeconfig.CLICredential{
+				Provider: provider,
+				APIKey:   apiKey,
+				BaseURL:  baseURL,
+				Source:   runtimeconfig.ValueSource(source),
+			}, true
+		}
 	}
 	return runtimeconfig.CLICredential{}, false
 }

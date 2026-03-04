@@ -444,3 +444,44 @@ func TestFirstNonFlag(t *testing.T) {
 		t.Fatalf("expected empty, got %q", got)
 	}
 }
+
+func TestMatchSubscriptionCredentialKimiViaEnv(t *testing.T) {
+	t.Setenv("KIMI_API_KEY", "sk-kimi-match-test")
+	creds := runtimeconfig.CLICredentials{}
+	cred, ok := matchSubscriptionCredential(creds, "kimi")
+	if !ok {
+		t.Fatal("expected kimi to match via env var")
+	}
+	if cred.Provider != "kimi" {
+		t.Fatalf("expected provider kimi, got %q", cred.Provider)
+	}
+	if cred.APIKey != "sk-kimi-match-test" {
+		t.Fatalf("expected api key, got %q", cred.APIKey)
+	}
+	if cred.BaseURL != "https://api.kimi.com/coding/v1" {
+		t.Fatalf("expected kimi base url, got %q", cred.BaseURL)
+	}
+}
+
+func TestMatchSubscriptionCredentialOpenRouterViaEnv(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "sk-or-test")
+	creds := runtimeconfig.CLICredentials{}
+	cred, ok := matchSubscriptionCredential(creds, "openrouter")
+	if !ok {
+		t.Fatal("expected openrouter to match via env var")
+	}
+	if cred.Provider != "openrouter" {
+		t.Fatalf("expected provider openrouter, got %q", cred.Provider)
+	}
+	if cred.APIKey != "sk-or-test" {
+		t.Fatalf("expected api key, got %q", cred.APIKey)
+	}
+}
+
+func TestMatchSubscriptionCredentialUnknownProviderNoEnv(t *testing.T) {
+	creds := runtimeconfig.CLICredentials{}
+	_, ok := matchSubscriptionCredential(creds, "totally_unknown")
+	if ok {
+		t.Fatal("expected unknown provider without env to not match")
+	}
+}
