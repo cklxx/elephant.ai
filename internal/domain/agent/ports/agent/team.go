@@ -83,18 +83,48 @@ type TeamRunRecorder interface {
 
 type teamRunRecorderKey struct{}
 
+// OrchestrationContext bundles the three values that the ReAct runtime injects
+// into context for orchestration tools: team definitions, a run recorder, and
+// a background task dispatcher.  Storing them as a single context value
+// reduces context.WithValue overhead from three calls to one.
+type OrchestrationContext struct {
+	TeamDefinitions []TeamDefinition
+	TeamRunRecorder TeamRunRecorder
+	Dispatcher      BackgroundTaskDispatcher
+}
+
+type orchestrationContextKey struct{}
+
+// WithOrchestrationContext stores an OrchestrationContext in ctx.
+func WithOrchestrationContext(ctx context.Context, oc OrchestrationContext) context.Context {
+	return context.WithValue(ctx, orchestrationContextKey{}, oc)
+}
+
+// GetOrchestrationContext retrieves the OrchestrationContext from ctx.
+// Returns the zero value when none is present.
+func GetOrchestrationContext(ctx context.Context) OrchestrationContext {
+	if ctx == nil {
+		return OrchestrationContext{}
+	}
+	oc, _ := ctx.Value(orchestrationContextKey{}).(OrchestrationContext)
+	return oc
+}
+
 // WithTeamDefinitions stores team definitions in context for tool access.
 func WithTeamDefinitions(ctx context.Context, teams []TeamDefinition) context.Context {
 	return context.WithValue(ctx, teamConfigKey{}, teams)
 }
 
 // GetTeamDefinitions retrieves team definitions from context.
+// Falls back to OrchestrationContext when no standalone value is found.
 func GetTeamDefinitions(ctx context.Context) []TeamDefinition {
 	if ctx == nil {
 		return nil
 	}
-	teams, _ := ctx.Value(teamConfigKey{}).([]TeamDefinition)
-	return teams
+	if teams, ok := ctx.Value(teamConfigKey{}).([]TeamDefinition); ok {
+		return teams
+	}
+	return GetOrchestrationContext(ctx).TeamDefinitions
 }
 
 // WithTeamRunRecorder stores a TeamRunRecorder in context for run_tasks.
@@ -103,10 +133,13 @@ func WithTeamRunRecorder(ctx context.Context, recorder TeamRunRecorder) context.
 }
 
 // GetTeamRunRecorder retrieves the TeamRunRecorder from context.
+// Falls back to OrchestrationContext when no standalone value is found.
 func GetTeamRunRecorder(ctx context.Context) TeamRunRecorder {
 	if ctx == nil {
 		return nil
 	}
-	recorder, _ := ctx.Value(teamRunRecorderKey{}).(TeamRunRecorder)
-	return recorder
+	if recorder, ok := ctx.Value(teamRunRecorderKey{}).(TeamRunRecorder); ok {
+		return recorder
+	}
+	return GetOrchestrationContext(ctx).TeamRunRecorder
 }

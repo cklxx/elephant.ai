@@ -166,17 +166,17 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 		r.prepareContext()
 	}
 
-	// Set background dispatcher in context for tools.
-	if r.bgManager != nil {
-		r.ctx = agent.WithBackgroundDispatcher(r.ctx, newBackgroundDispatcherWithEvents(r, r.bgManager))
-	}
-
-	// Inject team definitions for run_tasks tool.
-	if len(r.engine.teamDefinitions) > 0 {
-		r.ctx = agent.WithTeamDefinitions(r.ctx, r.engine.teamDefinitions)
-	}
-	if r.engine.teamRunRecorder != nil {
-		r.ctx = agent.WithTeamRunRecorder(r.ctx, r.engine.teamRunRecorder)
+	// Inject orchestration context (dispatcher + team defs + recorder) in a
+	// single context.WithValue call for tools.
+	{
+		oc := agent.OrchestrationContext{
+			TeamDefinitions: r.engine.teamDefinitions,
+			TeamRunRecorder: r.engine.teamRunRecorder,
+		}
+		if r.bgManager != nil {
+			oc.Dispatcher = newBackgroundDispatcherWithEvents(r, r.bgManager)
+		}
+		r.ctx = agent.WithOrchestrationContext(r.ctx, oc)
 	}
 
 	for r.state.Iterations < r.engine.maxIterations {

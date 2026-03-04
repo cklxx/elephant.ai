@@ -156,11 +156,14 @@ func WithBackgroundDispatcher(ctx context.Context, d BackgroundTaskDispatcher) c
 }
 
 // GetBackgroundDispatcher retrieves the BackgroundTaskDispatcher from ctx.
+// Falls back to OrchestrationContext when no standalone value is found.
 // Returns nil when no dispatcher is available.
 func GetBackgroundDispatcher(ctx context.Context) BackgroundTaskDispatcher {
 	if ctx == nil {
 		return nil
 	}
-	d, _ := ctx.Value(backgroundDispatcherKey{}).(BackgroundTaskDispatcher)
-	return d
+	if d, ok := ctx.Value(backgroundDispatcherKey{}).(BackgroundTaskDispatcher); ok {
+		return d
+	}
+	return GetOrchestrationContext(ctx).Dispatcher
 }
