@@ -1,6 +1,40 @@
 version: 1
-updated: "2026-03-03"
+updated: "2026-03-04"
 nodes:
+    - id: err-2026-03-04-lark-oauth-redirect-uri-precheck
+      path: docs/error-experience/entries/2026-03-04-lark-oauth-redirect-uri-precheck.md
+      type: error_entry
+      date: "2026-03-04"
+      tags:
+        - error
+        - lark
+      summary: 用户要求“走 OAuth”完成 `user_access_token` 授权。
+    - id: errsum-2026-03-04-lark-oauth-redirect-uri-precheck
+      path: docs/error-experience/summary/entries/2026-03-04-lark-oauth-redirect-uri-precheck.md
+      type: error_summary
+      date: "2026-03-04"
+      tags:
+        - error
+        - lark
+        - summary
+      summary: 'Summary: 生成 Lark OAuth 授权链接前，必须先校验 redirect_uri 白名单与网页能力配置；未预检会直接触发 20029 并阻断授权。'
+    - id: plan-2026-03-04-lark-standalone-oauth-routing
+      path: docs/plans/2026-03-04-lark-standalone-oauth-routing.md
+      type: plan
+      date: "2026-03-04"
+      tags:
+        - lark
+        - plan
+      summary: 'In `alex-server lark` standalone mode, OAuth links returned by Lark tools were not usable:'
+    - id: plan-2026-03-04-lark-task-tenant-token-and-visibility
+      path: docs/plans/2026-03-04-lark-task-tenant-token-and-visibility.md
+      type: plan
+      date: "2026-03-04"
+      tags:
+        - lark
+        - observability
+        - plan
+      summary: 调研并落地飞书机器人“创建任务”链路，补齐自动获取 `tenant_access_token` 的逻辑。
     - id: err-2026-03-03-prepush-race-flake-lint-timeout
       path: docs/error-experience/entries/2026-03-03-prepush-race-flake-lint-timeout.md
       type: error_entry
@@ -15,6 +49,31 @@ nodes:
       tags:
         - error
       summary: 在“全局简化复扫 + 非 web 优先优化”后执行全量门禁。
+    - id: err-2026-03-03-service-readiness-claim-without-verification
+      path: docs/error-experience/entries/2026-03-03-service-readiness-claim-without-verification.md
+      type: error_entry
+      date: "2026-03-03"
+      tags:
+        - error
+        - lark
+        - memory
+      summary: 在连续修复与模拟后，先给出“可继续联调”的状态判断。
+    - id: err-2026-03-03-tool-domain-misread-lark-doc-vs-task
+      path: docs/error-experience/entries/2026-03-03-tool-domain-misread-lark-doc-vs-task.md
+      type: error_entry
+      date: "2026-03-03"
+      tags:
+        - error
+        - lark
+      summary: User clarified the target tool domain was **Feishu doc writing**, but I was still tracing **task management** paths.
+    - id: err-2026-03-03-user-scope-correction-task-only
+      path: docs/error-experience/entries/2026-03-03-user-scope-correction-task-only.md
+      type: error_entry
+      date: "2026-03-03"
+      tags:
+        - error
+        - lark
+      summary: 用户最初要求测试 Lark 日程和任务。
     - id: errsum-2026-03-03-prepush-race-flake-lint-timeout
       path: docs/error-experience/summary/entries/2026-03-03-prepush-race-flake-lint-timeout.md
       type: error_summary
@@ -39,6 +98,31 @@ nodes:
         WFqOmHj+aJp+ihjOaXtu+8jGBpbnRlcm5hbC9kb21haW4vYWdlbnQvcmVhY3QgVGVzdE11
         bHRpcGxlVGFza3NgIOWHuueOsOS4gOasoSBjb21wbGV0aW9uIOiuoeaVsOaKluWKqO+8m+
         WumuWQkeWkjei3kemAmui/h++8jOivLi4u
+    - id: errsum-2026-03-03-service-readiness-claim-without-verification
+      path: docs/error-experience/summary/entries/2026-03-03-service-readiness-claim-without-verification.md
+      type: error_summary
+      date: "2026-03-03"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: 曾出现“服务已就绪”结论先于验证。后续统一要求在对外汇报前完成进程、监听端口与健康探针三项核验，未通过则明确标注未...'
+    - id: errsum-2026-03-03-tool-domain-misread-lark-doc-vs-task
+      path: docs/error-experience/summary/entries/2026-03-03-tool-domain-misread-lark-doc-vs-task.md
+      type: error_summary
+      date: "2026-03-03"
+      tags:
+        - error
+        - lark
+        - summary
+      summary: 'Summary: 用户纠正工具域后，必须立刻冻结旧假设并切换到正确模块检索，避免在错误子系统继续排查。'
+    - id: errsum-2026-03-03-user-scope-correction-task-only
+      path: docs/error-experience/summary/entries/2026-03-03-user-scope-correction-task-only.md
+      type: error_summary
+      date: "2026-03-03"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: 用户将任务范围从“日程+任务”收敛为“仅任务”后，必须立刻冻结旧目标并把新边界写入执行清单，避免回流到已排除范围。'
     - id: good-2026-03-03-subagent-global-simplify-rescan-wave2-wave3b
       path: docs/good-experience/entries/2026-03-03-subagent-global-simplify-rescan-wave2-wave3b.md
       type: good_entry
@@ -81,6 +165,94 @@ nodes:
         +v5Zyo5aSn6KeE5qih5py65qKw6YeN5p6E5ZKM5L2O6aOO6Zmp5oCn6IO95LyY5YyW5Lit
         5L+d5oyB6auY5ZCe5ZCQ44CB5L2O5Yay56qB77yb5YWz6ZSu5piv5q+P5LiqIHdvcmtlci
         DlvLrliLboh6rluKbpqozor4Hlkb3kLi4u
+    - id: plan-2026-03-03-hooks-memory-root-cause-and-guardrails
+      path: docs/plans/2026-03-03-hooks-memory-root-cause-and-guardrails.md
+      type: plan
+      date: "2026-03-03"
+      tags:
+        - config
+        - memory
+        - plan
+      summary: User reported `alex-server` memory blow-up.
+    - id: plan-2026-03-03-lark-docx-title-content-fix
+      path: docs/plans/2026-03-03-lark-docx-title-content-fix.md
+      type: plan
+      date: "2026-03-03"
+      tags:
+        - lark
+        - plan
+      summary: Fix Feishu doc writing path where body content is written into title.
+    - id: plan-2026-03-03-lark-emoji-only-reply-fix
+      path: docs/plans/2026-03-03-lark-emoji-only-reply-fix.md
+      type: plan
+      date: "2026-03-03"
+      tags:
+        - lark
+        - plan
+      summary: Recent logs show Lark receives user messages and adds emoji reactions, but some replies never arrive.
+    - id: plan-2026-03-03-lark-perceivable-guards
+      path: docs/plans/2026-03-03-lark-perceivable-guards.md
+      type: plan
+      date: "2026-03-03"
+      tags:
+        - config
+        - lark
+        - plan
+      summary: 'User requires both reliability guards to be enabled and clearly perceivable in chat:'
+    - id: plan-2026-03-03-lark-task-create-oauth-title-body-fix
+      path: docs/plans/2026-03-03-lark-task-create-oauth-title-body-fix.md
+      type: plan
+      date: "2026-03-03"
+      tags:
+        - lark
+        - plan
+      summary: Run through user-authorized task creation end-to-end in `lark_task_manage`.
+    - id: plan-2026-03-03-lark-task-list-oauth-fix
+      path: docs/plans/2026-03-03-lark-task-list-oauth-fix.md
+      type: plan
+      date: "2026-03-03"
+      tags:
+        - lark
+        - plan
+        - session
+      summary: Fix `channel(action=list_tasks)` returning `user access token is empty` when user OAuth token is available in context, and return actionable guidance when OAuth authorization is mi...
+    - id: plan-2026-03-03-lark-task-title-content-fix
+      path: docs/plans/2026-03-03-lark-task-title-content-fix.md
+      type: plan
+      date: "2026-03-03"
+      tags:
+        - lark
+        - plan
+      summary: Fix the bug where task body/content is overwritten into title when creating/updating tasks after Lark authorization.
+    - id: plan-2026-03-03-lark-terminal-delivery-architecture-refactor
+      path: docs/plans/2026-03-03-lark-terminal-delivery-architecture-refactor.md
+      type: plan
+      date: "2026-03-03"
+      tags:
+        - concurrency
+        - config
+        - lark
+        - memory
+        - observability
+        - plan
+      summary: 'Updated: 2026-03-03 22:00'
+    - id: plan-2026-03-03-memory-file-architecture-simplification
+      path: docs/plans/2026-03-03-memory-file-architecture-simplification.md
+      type: plan
+      date: "2026-03-03"
+      tags:
+        - memory
+        - plan
+      summary: 'Date: 2026-03-03'
+    - id: plan-2026-03-03-web-memory-hotpath-fix
+      path: docs/plans/2026-03-03-web-memory-hotpath-fix.md
+      type: plan
+      date: "2026-03-03"
+      tags:
+        - memory
+        - plan
+        - session
+      summary: Reduce `alex-web` peak memory during active task execution by removing heavy full-payload reads on high-frequency polling endpoints.
     - id: good-2026-03-02-e2e-test-script-debugging
       path: docs/good-experience/entries/2026-03-02-e2e-test-script-debugging.md
       type: good_entry
