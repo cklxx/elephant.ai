@@ -279,9 +279,14 @@ func (t *larkTaskManage) createTask(ctx context.Context, client *lark.Client, ca
 		metadata["sender_added_as_member"] = true
 	}
 
+	content := "Task created successfully."
+	if guid != "" {
+		content = fmt.Sprintf("Task created successfully. task_id=%s", guid)
+	}
+
 	return &ports.ToolResult{
 		CallID:   call.ID,
-		Content:  "Task created successfully.",
+		Content:  content,
 		Metadata: metadata,
 	}, nil
 }
@@ -426,9 +431,14 @@ func (t *larkTaskManage) createSubtask(ctx context.Context, client *lark.Client,
 		metadata["sender_added_as_member"] = true
 	}
 
+	content := "Subtask created successfully."
+	if guid != "" {
+		content = fmt.Sprintf("Subtask created successfully. task_id=%s", guid)
+	}
+
 	return &ports.ToolResult{
 		CallID:   call.ID,
-		Content:  "Subtask created successfully.",
+		Content:  content,
 		Metadata: metadata,
 	}, nil
 }

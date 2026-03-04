@@ -349,6 +349,12 @@ func TestTaskManage_CreateAutoUsesOAuthToken(t *testing.T) {
 	if result.Error != nil {
 		t.Fatalf("expected success, got error: %v", result.Error)
 	}
+	if !strings.Contains(result.Content, "task_id=task-guid-1") {
+		t.Fatalf("expected task_id in content, got %q", result.Content)
+	}
+	if got := result.Metadata["task_id"]; got != "task-guid-1" {
+		t.Fatalf("expected metadata task_id=task-guid-1, got %v", got)
+	}
 	if oauthSvc.gotOpenID != "ou_123" {
 		t.Fatalf("oauth service received open_id=%q, want %q", oauthSvc.gotOpenID, "ou_123")
 	}
@@ -477,6 +483,12 @@ func TestTaskManage_CreateSubtaskAutoUsesOAuthToken(t *testing.T) {
 	}
 	if result.Error != nil {
 		t.Fatalf("expected success, got error: %v", result.Error)
+	}
+	if !strings.Contains(result.Content, "task_id=subtask-guid-1") {
+		t.Fatalf("expected task_id in content, got %q", result.Content)
+	}
+	if got := result.Metadata["task_id"]; got != "subtask-guid-1" {
+		t.Fatalf("expected metadata task_id=subtask-guid-1, got %v", got)
 	}
 	if oauthSvc.gotOpenID != "ou_123" {
 		t.Fatalf("oauth service received open_id=%q, want %q", oauthSvc.gotOpenID, "ou_123")
