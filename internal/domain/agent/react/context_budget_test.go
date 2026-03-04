@@ -11,15 +11,18 @@ import (
 )
 
 func TestModelContextWindowTokens(t *testing.T) {
+	// Use synthetic model IDs so this test only verifies local fallback
+	// heuristics and stays deterministic even if the shared model registry
+	// asynchronously refreshes with new real model metadata.
 	cases := []struct {
 		name  string
 		model string
 		want  int
 	}{
-		{name: "gpt5 codex", model: "gpt-5.2-codex", want: gpt5ContextWindowTokens},
-		{name: "gpt5 spark", model: "gpt-5.3-codex-spark", want: gpt5ContextWindowTokens},
-		{name: "claude", model: "claude-sonnet-4-20250514", want: claudeContextWindowTokens},
-		{name: "gpt4o", model: "gpt-4o-mini", want: defaultModelContextWindowTokens},
+		{name: "gpt5 prefix fallback", model: "gpt-5-local-preview", want: gpt5ContextWindowTokens},
+		{name: "codex spark fallback", model: "my-codex-spark-local", want: gpt5ContextWindowTokens},
+		{name: "claude fallback", model: "claude-local-sonnet", want: claudeContextWindowTokens},
+		{name: "gpt4 fallback", model: "gpt-4o-mini-local", want: defaultModelContextWindowTokens},
 		{name: "unknown", model: "my-custom-model", want: defaultModelContextWindowTokens},
 	}
 
