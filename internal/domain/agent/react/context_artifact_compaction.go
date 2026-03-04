@@ -6,12 +6,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"alex/internal/domain/agent/ports"
-	"alex/internal/infra/filestore"
 )
 
 const (
@@ -267,10 +267,44 @@ func (e *ReactEngine) writeContextCompactionArtifact(
 	doc.Write(payload)
 	doc.WriteString("\n```\n")
 
-	if err := filestore.AtomicWrite(path, []byte(doc.String()), 0o644); err != nil {
+	if err := writeFileAtomically(path, []byte(doc.String()), 0o644); err != nil {
 		return "", "", 0, fmt.Errorf("write compaction artifact: %w", err)
 	}
 	return path, hash, tokensRemoved, nil
+}
+
+func writeFileAtomically(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp(dir, ".tmp-compaction-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+
+	cleanup := func() {
+		_ = os.Remove(tmpPath)
+	}
+	defer cleanup()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return err
+	}
+	return nil
 }
 
 func resolveContextCompactionRoot(engine *ReactEngine) string {
