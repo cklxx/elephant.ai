@@ -29,6 +29,35 @@ type larkAccessToken struct {
 	calendarID string
 }
 
+// resolveLarkTaskAuth resolves task API auth with user token priority and
+// tenant fallback.
+//
+// Fallback behavior follows task-v2 guidance: tenant_access_token has no
+// elevated privilege, but it is a valid app identity and should keep API calls
+// available when user OAuth is not ready.
+func resolveLarkTaskAuth(ctx context.Context) larkAccessToken {
+	svc := shared.LarkOAuthFromContext(ctx)
+	if svc == nil {
+		return larkAccessToken{kind: larkTokenTenant}
+	}
+
+	openID := strings.TrimSpace(id.UserIDFromContext(ctx))
+	if openID == "" {
+		return larkAccessToken{kind: larkTokenTenant}
+	}
+
+	token, err := svc.UserAccessToken(ctx, openID)
+	if err != nil {
+		return larkAccessToken{kind: larkTokenTenant}
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return larkAccessToken{kind: larkTokenTenant}
+	}
+
+	return larkAccessToken{token: token, kind: larkTokenUser}
+}
+
 func resolveLarkCalendarAuth(ctx context.Context, callID string) (larkAccessToken, *ports.ToolResult) {
 	tenantCalendarID := strings.TrimSpace(shared.LarkTenantCalendarIDFromContext(ctx))
 

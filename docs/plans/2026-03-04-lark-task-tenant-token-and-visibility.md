@@ -17,10 +17,11 @@
 - `docs/plans/2026-03-04-lark-task-tenant-token-and-visibility.md`
 
 ## Plan
-- [in_progress] 抽取任务 token 解析：显式 `user_access_token` > OAuth 用户 token > tenant fallback（不再因缺失 OAuth 阻断）。
-- [pending] 任务创建在 tenant 模式下自动追加当前消息用户为 follower（若未显式传入），提升“用户可见性”。
-- [pending] 补充测试：tenant 自动 token、OAuth 缺失回退、tenant 模式成员自动注入。
-- [pending] 运行目标测试并复核变更。
+- [x] 抽取任务 token 解析：显式 `user_access_token` > OAuth 用户 token > tenant fallback（不再因缺失 OAuth 阻断）。
+- [x] 任务创建在 tenant 模式下自动追加当前消息用户为 follower（若未显式传入），提升“用户可见性”。
+- [x] 补充测试：tenant 自动 token、OAuth 缺失回退、tenant 模式成员自动注入。
+- [x] 运行目标测试并复核变更。
 
 ## Validation
 - `go test ./internal/infra/tools/builtin/larktools -run "TaskManage|Calendar"`
+- `go test -race -covermode=atomic -run "TestP0P2_StaleRetry_E2E|TestTaskCancellation|TestCostTrackingWithCancellation" -count=5 ./internal/infra/integration`

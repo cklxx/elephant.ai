@@ -411,9 +411,10 @@ func TestP0P2_StaleRetry_E2E(t *testing.T) {
 		ScaleUpThreshold:   0.9,
 		ScaleDownThreshold: 0.7,
 		ScaleStep:          2,
-		// StageTimeout must be long enough for the task to go stale (> StaleThreshold),
-		// but short enough to trigger retry before the test times out.
-		StageTimeout:  staleThreshold + 400*time.Millisecond,
+		// StageTimeout must be long enough for retry subprocess startup under
+		// -race/-cover overhead, otherwise retry can be killed too early with
+		// "bridge terminated by signal".
+		StageTimeout:  staleThreshold + 4*time.Second,
 		StaleRetryMax: 1,
 	}
 
@@ -428,15 +429,33 @@ func TestP0P2_StaleRetry_E2E(t *testing.T) {
 		t.Fatalf("Execute: %v", err)
 	}
 
-	// Collect results — should include original + retry task IDs.
-	results := mgr.Collect(result.TaskIDs, true, 15*time.Second)
+	retryID := "slow-task-retry-1"
+	// Collect until retry reaches terminal state (or timeout). Under -race and
+	// coverage, scheduler timings are slower than non-race runs.
+	deadline := time.Now().Add(45 * time.Second)
+	var results []agent.BackgroundTaskResult
 	resultMap := make(map[string]agent.BackgroundTaskResult)
-	for _, r := range results {
-		resultMap[r.ID] = r
+	for {
+		results = mgr.Collect(result.TaskIDs, false, 0)
+		clear(resultMap)
+		for _, r := range results {
+			resultMap[r.ID] = r
+		}
+		retryResult, ok := resultMap[retryID]
+		if ok {
+			switch retryResult.Status {
+			case agent.BackgroundTaskStatusCompleted, agent.BackgroundTaskStatusFailed, agent.BackgroundTaskStatusCancelled:
+				goto retryCollected
+			}
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 
+retryCollected:
 	// The retry task should have completed successfully.
-	retryID := "slow-task-retry-1"
 	retryResult, hasRetry := resultMap[retryID]
 	if !hasRetry {
 		t.Errorf("expected retry task %q in results; got task IDs: %v", retryID, taskIDsFromResults(results))

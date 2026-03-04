@@ -205,7 +205,7 @@ func TestTaskManage_ListAutoUsesOAuthToken(t *testing.T) {
 	defer srv.Close()
 
 	tool := NewLarkTaskManage()
-	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
+	larkClient := lark.NewClient("task_fallback_create_app_id", "task_fallback_create_secret", lark.WithOpenBaseUrl(srv.URL))
 	oauthSvc := &fakeLarkOAuth{token: "user-token", startURL: "http://localhost:8080/api/lark/oauth/start"}
 	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
 	ctx = shared.WithLarkOAuth(ctx, oauthSvc)
@@ -323,9 +323,40 @@ func TestTaskManage_CreateAutoUsesOAuthToken(t *testing.T) {
 	}
 }
 
-func TestTaskManage_CreateMissingOAuthTokenRequestsAuthorization(t *testing.T) {
+func TestTaskManage_CreateMissingOAuthTokenFallsBackToTenantAndAddsSender(t *testing.T) {
+	var mu sync.Mutex
+	var gotAuth string
+	var gotBody string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/auth/v3/tenant_access_token/internal"):
+			_, _ = w.Write(tokenResponse("tenant-token", 7200))
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/task/v2/tasks"):
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("read request body: %v", err)
+			}
+			mu.Lock()
+			gotAuth = r.Header.Get("Authorization")
+			gotBody = string(body)
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]any{
+				"task": map[string]any{
+					"guid": "task-guid-tenant",
+				},
+			}))
+			return
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
 	tool := NewLarkTaskManage()
-	larkClient := lark.NewClient("test_app_id", "test_app_secret")
+	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
 	oauthSvc := &fakeLarkOAuth{
 		err:      &larkoauth.NeedUserAuthError{AuthURL: "http://localhost:8080/api/lark/oauth/start"},
 		startURL: "http://localhost:8080/api/lark/oauth/start",
@@ -343,11 +374,26 @@ func TestTaskManage_CreateMissingOAuthTokenRequestsAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result.Error == nil {
-		t.Fatal("expected error when OAuth token is missing")
+	if result.Error != nil {
+		t.Fatalf("expected tenant fallback success, got error: %v", result.Error)
 	}
-	if !strings.Contains(result.Content, "Please authorize Lark task access first:") {
-		t.Fatalf("expected authorization guidance, got %q", result.Content)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.HasPrefix(gotAuth, "Bearer ") || strings.TrimSpace(strings.TrimPrefix(gotAuth, "Bearer ")) == "" {
+		t.Fatalf("expected non-empty bearer auth when using tenant fallback, got %q", gotAuth)
+	}
+	if !strings.Contains(gotBody, `"id":"ou_123"`) {
+		t.Fatalf("expected sender to be auto-added as member, got body %q", gotBody)
+	}
+	if !strings.Contains(gotBody, `"role":"follower"`) {
+		t.Fatalf("expected sender role=follower, got body %q", gotBody)
+	}
+	if got := result.Metadata["auth_mode"]; got != "tenant" {
+		t.Fatalf("expected auth_mode=tenant, got %v", got)
+	}
+	if got := result.Metadata["sender_added_as_member"]; got != true {
+		t.Fatalf("expected sender_added_as_member=true, got %v", got)
 	}
 }
 

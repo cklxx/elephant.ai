@@ -197,14 +197,10 @@ func TestTaskCancellation(t *testing.T) {
 
 	t.Logf("Started task: %s", task.ID)
 
-	// Wait for task to start running
-	time.Sleep(300 * time.Millisecond)
-
-	// Verify task is running
-	runningTask, err := tasksSvc.GetTask(ctx, task.ID)
-	if err != nil {
-		t.Fatalf("failed to get task: %v", err)
-	}
+	// Wait for task to enter running state.
+	runningTask := waitForTask(t, ctx, tasksSvc, task.ID, 10*time.Second, func(task *serverPorts.Task) bool {
+		return task.Status == serverPorts.TaskStatusRunning
+	})
 	t.Logf("Task status before cancellation: %s", runningTask.Status)
 
 	// Cancel the task
@@ -214,14 +210,12 @@ func TestTaskCancellation(t *testing.T) {
 
 	t.Logf("Cancelled task: %s", task.ID)
 
-	// Wait for task to finish cancellation
-	time.Sleep(500 * time.Millisecond)
-
-	// Verify: Task status is cancelled
-	finalTask, err := tasksSvc.GetTask(ctx, task.ID)
-	if err != nil {
-		t.Fatalf("failed to get task: %v", err)
-	}
+	// Wait for cancellation to reach terminal persisted state.
+	finalTask := waitForTask(t, ctx, tasksSvc, task.ID, 15*time.Second, func(task *serverPorts.Task) bool {
+		return task.Status == serverPorts.TaskStatusCancelled &&
+			task.TerminationReason == serverPorts.TerminationReasonCancelled &&
+			task.CompletedAt != nil
+	})
 
 	if finalTask.Status != serverPorts.TaskStatusCancelled {
 		t.Errorf("expected status cancelled, got %s", finalTask.Status)
@@ -336,8 +330,10 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 		t.Fatalf("failed to cancel task: %v", err)
 	}
 
-	// Wait for cancellation to complete
-	time.Sleep(500 * time.Millisecond)
+	// Wait for cancellation to complete.
+	_ = waitForTask(t, ctx, tasksSvc, task.ID, 15*time.Second, func(task *serverPorts.Task) bool {
+		return task.Status == serverPorts.TaskStatusCancelled
+	})
 
 	// Get final cost
 	finalSummary, err := costTracker.GetSessionCost(ctx, session.ID)
@@ -370,6 +366,37 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 // Test helpers
 
 type testToolRegistry struct{}
+
+func waitForTask(
+	t *testing.T,
+	ctx context.Context,
+	svc *serverApp.TaskExecutionService,
+	taskID string,
+	timeout time.Duration,
+	predicate func(*serverPorts.Task) bool,
+) *serverPorts.Task {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for {
+		task, err := svc.GetTask(ctx, taskID)
+		if err != nil {
+			t.Fatalf("failed to get task %s: %v", taskID, err)
+		}
+		if predicate(task) {
+			return task
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf(
+				"task %s did not reach expected state before timeout (last status=%s reason=%s)",
+				taskID,
+				task.Status,
+				task.TerminationReason,
+			)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
 
 func newTestToolRegistry() *testToolRegistry {
 	return &testToolRegistry{}
@@ -606,7 +633,7 @@ func (m *testContextManager) BuildWindow(ctx context.Context, session *agentstor
 }
 
 func (m *testContextManager) RecordTurn(context.Context, agent.ContextTurnRecord) error { return nil }
-func (m *testContextManager) BuildSummaryOnly(msgs []ports.Message) (string, int) { return "", 0 }
+func (m *testContextManager) BuildSummaryOnly(msgs []ports.Message) (string, int)       { return "", 0 }
 
 type testParser struct{}
 

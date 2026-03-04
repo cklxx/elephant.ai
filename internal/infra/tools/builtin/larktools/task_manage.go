@@ -164,7 +164,7 @@ func (t *larkTaskManage) listTasks(ctx context.Context, client *lark.Client, cal
 		builder.UserIdType(userIDType)
 	}
 
-	options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments)
+	_, options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments, false)
 	if errResult != nil {
 		return errResult, nil
 	}
@@ -223,7 +223,14 @@ func (t *larkTaskManage) createTask(ctx context.Context, client *lark.Client, ca
 		return errResult, nil
 	}
 
+	auth, options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments, true)
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	userIDType := shared.StringArg(call.Arguments, "user_id_type")
 	members := buildMembers(shared.StringSliceArg(call.Arguments, "assignee_ids"), shared.StringArg(call.Arguments, "assignee_type"))
+	members, autoAddedSender := ensureTenantTaskVisibilityMember(ctx, members, auth, userIDType)
 
 	input := &larktask.InputTask{
 		Summary: &summary,
@@ -242,14 +249,10 @@ func (t *larkTaskManage) createTask(ctx context.Context, client *lark.Client, ca
 	}
 
 	builder := larktask.NewCreateTaskReqBuilder().InputTask(input)
-	if userIDType := shared.StringArg(call.Arguments, "user_id_type"); userIDType != "" {
+	if userIDType != "" {
 		builder.UserIdType(userIDType)
 	}
 
-	options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments)
-	if errResult != nil {
-		return errResult, nil
-	}
 	resp, err := client.Task.V2.Task.Create(ctx, builder.Build(), options...)
 	if err != nil {
 		return sdkCallErr(call.ID, "lark_task_manage(create)", err), nil
@@ -263,12 +266,18 @@ func (t *larkTaskManage) createTask(ctx context.Context, client *lark.Client, ca
 		guid = *resp.Data.Task.Guid
 	}
 
+	metadata := map[string]any{
+		"task_id":   guid,
+		"auth_mode": auth.mode(),
+	}
+	if autoAddedSender {
+		metadata["sender_added_as_member"] = true
+	}
+
 	return &ports.ToolResult{
-		CallID:  call.ID,
-		Content: "Task created successfully.",
-		Metadata: map[string]any{
-			"task_id": guid,
-		},
+		CallID:   call.ID,
+		Content:  "Task created successfully.",
+		Metadata: metadata,
 	}, nil
 }
 
@@ -327,7 +336,7 @@ func (t *larkTaskManage) updateTask(ctx context.Context, client *lark.Client, ca
 		builder.UserIdType(userIDType)
 	}
 
-	options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments)
+	_, options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments, true)
 	if errResult != nil {
 		return errResult, nil
 	}
@@ -361,7 +370,7 @@ func (t *larkTaskManage) deleteTask(ctx context.Context, client *lark.Client, ca
 
 	builder := larktask.NewDeleteTaskReqBuilder().TaskGuid(taskID)
 
-	options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments)
+	_, options, errResult := taskRequestOptions(ctx, call.ID, call.Arguments, true)
 	if errResult != nil {
 		return errResult, nil
 	}
@@ -434,6 +443,49 @@ func buildMembers(ids []string, memberType string) []*larktask.Member {
 		members = append(members, &larktask.Member{Id: &memberID, Type: &typeValue})
 	}
 	return members
+}
+
+func ensureTenantTaskVisibilityMember(ctx context.Context, members []*larktask.Member, auth larkAccessToken, userIDType string) ([]*larktask.Member, bool) {
+	if auth.kind != larkTokenTenant {
+		return members, false
+	}
+	if userIDType != "" && !strings.EqualFold(strings.TrimSpace(userIDType), "open_id") {
+		return members, false
+	}
+
+	senderID := strings.TrimSpace(id.UserIDFromContext(ctx))
+	if senderID == "" || hasTaskUserMember(members, senderID) {
+		return members, false
+	}
+
+	memberID := senderID
+	memberType := "user"
+	role := "follower"
+	members = append(members, &larktask.Member{
+		Id:   &memberID,
+		Type: &memberType,
+		Role: &role,
+	})
+	return members, true
+}
+
+func hasTaskUserMember(members []*larktask.Member, memberID string) bool {
+	for _, member := range members {
+		if member == nil || member.Id == nil {
+			continue
+		}
+		if strings.TrimSpace(*member.Id) != memberID {
+			continue
+		}
+		memberType := "user"
+		if member.Type != nil && strings.TrimSpace(*member.Type) != "" {
+			memberType = strings.TrimSpace(*member.Type)
+		}
+		if strings.EqualFold(memberType, "user") {
+			return true
+		}
+	}
+	return false
 }
 
 func parseDue(args map[string]any, callID string) (*larktask.Due, *ports.ToolResult) {
@@ -624,30 +676,40 @@ func requireActionApproval(ctx context.Context, call ports.ToolCall, operation s
 	return nil
 }
 
-func taskRequestOptions(ctx context.Context, callID string, args map[string]any) ([]larkcore.RequestOptionFunc, *ports.ToolResult) {
+func taskRequestOptions(ctx context.Context, callID string, args map[string]any, allowTenantFallback bool) (larkAccessToken, []larkcore.RequestOptionFunc, *ports.ToolResult) {
 	token := strings.TrimSpace(shared.StringArg(args, "user_access_token"))
-	if token == "" {
+	if token != "" {
+		auth := larkAccessToken{token: token, kind: larkTokenUser}
+		_, reqOpt := buildLarkAuthOptions(auth)
+		return auth, []larkcore.RequestOptionFunc{reqOpt}, nil
+	}
+
+	if !allowTenantFallback {
 		resolved, errResult := resolveTaskUserToken(ctx, callID)
 		if errResult != nil {
-			return nil, errResult
+			return larkAccessToken{}, nil, errResult
 		}
-		token = resolved
+		auth := larkAccessToken{token: resolved, kind: larkTokenUser}
+		_, reqOpt := buildLarkAuthOptions(auth)
+		return auth, []larkcore.RequestOptionFunc{reqOpt}, nil
 	}
-	if token == "" {
-		return nil, nil
-	}
-	return []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(token)}, nil
+
+	auth := resolveLarkTaskAuth(ctx)
+	_, reqOpt := buildLarkAuthOptions(auth)
+	return auth, []larkcore.RequestOptionFunc{reqOpt}, nil
 }
 
 func resolveTaskUserToken(ctx context.Context, callID string) (string, *ports.ToolResult) {
 	svc := shared.LarkOAuthFromContext(ctx)
 	if svc == nil {
-		return "", nil
+		err := fmt.Errorf("task list requires user OAuth token")
+		return "", toolErrorResult(callID, "%w", err)
 	}
 
 	openID := strings.TrimSpace(id.UserIDFromContext(ctx))
 	if openID == "" {
-		return "", nil
+		err := fmt.Errorf("task list requires sender open_id")
+		return "", toolErrorResult(callID, "%w", err)
 	}
 
 	token, err := svc.UserAccessToken(ctx, openID)
@@ -675,6 +737,16 @@ func resolveTaskUserToken(ctx context.Context, callID string) (string, *ports.To
 		err := fmt.Errorf("empty user_access_token returned")
 		return "", toolErrorResult(callID, "%w", err)
 	}
-
 	return token, nil
+}
+
+func (a larkAccessToken) mode() string {
+	switch a.kind {
+	case larkTokenUser:
+		return "user"
+	case larkTokenTenant:
+		return "tenant"
+	default:
+		return ""
+	}
 }
