@@ -9,6 +9,17 @@ nodes:
         - error
         - lark
       summary: 用户要求“走 OAuth”完成 `user_access_token` 授权。
+    - id: err-2026-03-04-session-system-prompt-multi-call-misread
+      path: docs/error-experience/entries/2026-03-04-session-system-prompt-multi-call-misread.md
+      type: error_entry
+      date: "2026-03-04"
+      tags:
+        - error
+        - lark
+        - memory
+        - observability
+        - session
+      summary: Session `lark-3ASwX52mwXVZ1E54p4RxMPkpYVn` was suspected of injecting the same core system prompt four times.
     - id: errsum-2026-03-04-lark-oauth-redirect-uri-precheck
       path: docs/error-experience/summary/entries/2026-03-04-lark-oauth-redirect-uri-precheck.md
       type: error_summary
@@ -18,6 +29,18 @@ nodes:
         - lark
         - summary
       summary: 'Summary: 生成 Lark OAuth 授权链接前，必须先校验 redirect_uri 白名单与网页能力配置；未预检会直接触发 20029 并阻断授权。'
+    - id: errsum-2026-03-04-session-system-prompt-multi-call-misread
+      path: docs/error-experience/summary/entries/2026-03-04-session-system-prompt-multi-call-misread.md
+      type: error_summary
+      date: "2026-03-04"
+      tags:
+        - error
+        - lark
+        - memory
+        - observability
+        - session
+        - summary
+      summary: 'Summary: “四个 system prompt”来自同一 log_id 下的四次独立 LLM 调用（main/memory_extract/rephrase），不是单次请求内的核心系统提示词重复注入；排查时需先区分 request_id 级别与 session 聚合级别。'
     - id: good-2026-03-04-feature-review-architecture-simplification
       path: docs/good-experience/entries/2026-03-04-feature-review-architecture-simplification.md
       type: good_entry
@@ -32,11 +55,7 @@ nodes:
       tags:
         - good
         - summary
-      summary: !!binary |
-        U3VtbWFyeTog6Leo5bGC6YeN5p6E5YWI5oq95YWx5Lqr5aWR57qm77yIRXZlbnREaXNwYX
-        RjaGVyICsgQ29tcHJlc3Npb25Qb2xpY3kgKyBUYXNrIOWtkOaOpeWPo++8ieWGjei/geen
-        u+iwg+eUqOeCue+8jOWPr+WcqOS4jeaUueihjOS4uuWJjeaPkOS4i+eos+WumuaPkOWNh+
-        eugOa0geaAp+S4juWkjeeUqOW6pu+8Li4u
+      summary: 'Summary: 跨层重构先抽共享契约（EventDispatcher + CompressionPolicy + Task 子接口）再迁移调用点，可在不改行为前提下稳定提升简洁性与复用度；并可通过分主题提交与分层门禁快速定位基线失败。'
     - id: plan-2026-03-04-lark-inject-agents-team-latest-full-coverage
       path: docs/plans/2026-03-04-lark-inject-agents-team-latest-full-coverage.md
       type: plan
@@ -118,11 +137,7 @@ nodes:
       tags:
         - error
         - summary
-      summary: !!binary |
-        U3VtbWFyeTogcHJlLXB1c2gg5bm26KGM6Zeo56aB5Zyo5aSn5pS55Yqo5Zy65pmv5LiL5Y
-        +v6IO95Ye6546wIGBnbyB0ZXN0IC1yYWNlYCDlgbblj5HlpLHotKXlkowgYGdvbGFuZ2Np
-        LWxpbnQgLS10aW1lb3V0PTNtYCDotoXml7bvvJvpnIDku6Xni6znq4vlpI3ot5Hnoa7orq
-        TnnJ/lrp7lm57lvZLvvIzlho3lhrPlLi4u
+      summary: 'Summary: pre-push 并行门禁在大改动场景下可能出现 `go test -race` 偶发失败和 `golangci-lint --timeout=3m` 超时；需以独立复跑确认真实回归，再决定是否放行。'
     - id: errsum-2026-03-03-race-react-testmultipletasks-flake
       path: docs/error-experience/summary/entries/2026-03-03-race-react-testmultipletasks-flake.md
       type: error_summary
@@ -130,11 +145,7 @@ nodes:
       tags:
         - error
         - summary
-      summary: !!binary |
-        U3VtbWFyeTogYGdvIHRlc3QgLXJhY2UgLWNvdW50PTEgLi8uLi5gIOWcqOmrmOi0n+i9ve
-        WFqOmHj+aJp+ihjOaXtu+8jGBpbnRlcm5hbC9kb21haW4vYWdlbnQvcmVhY3QgVGVzdE11
-        bHRpcGxlVGFza3NgIOWHuueOsOS4gOasoSBjb21wbGV0aW9uIOiuoeaVsOaKluWKqO+8m+
-        WumuWQkeWkjei3kemAmui/h++8jOivLi4u
+      summary: 'Summary: `go test -race -count=1 ./...` 在高负载全量执行时，`internal/domain/agent/react TestMultipleTasks` 出现一次 completion 计数抖动；定向复跑通过，说明当前更像 flaky 而非确定性回归。'
     - id: errsum-2026-03-03-service-readiness-claim-without-verification
       path: docs/error-experience/summary/entries/2026-03-03-service-readiness-claim-without-verification.md
       type: error_summary
@@ -142,7 +153,7 @@ nodes:
       tags:
         - error
         - summary
-      summary: 'Summary: 曾出现“服务已就绪”结论先于验证。后续统一要求在对外汇报前完成进程、监听端口与健康探针三项核验，未通过则明确标注未...'
+      summary: 'Summary: 曾出现“服务已就绪”结论先于验证。后续统一要求在对外汇报前完成进程、监听端口与健康探针三项核验，未通过则明确标注未就绪。'
     - id: errsum-2026-03-03-tool-domain-misread-lark-doc-vs-task
       path: docs/error-experience/summary/entries/2026-03-03-tool-domain-misread-lark-doc-vs-task.md
       type: error_summary
@@ -184,11 +195,7 @@ nodes:
       tags:
         - good
         - summary
-      summary: !!binary |
-        U3VtbWFyeTog5YWo5bGA5aSN5omr5ZCO5YWI5YGa6Z2eIGB3ZWIvYCDkvY7po47pmanpob
-        nvvIhSLTAzL1ItMDYvUS0wOC9FLTEyL1ItMDgg5a2Q6ZuG77yJ77yM55SoIGV4cGxvcmVy
-        IOaUtuaVm+OAgXdvcmtlciDmjIkgb3duZXJzaGlwIOW5tuihjOiQveWcsO+8jOWGjeeUse
-        S4uyBhZ2VudCDot5Hlhajph4/pl6jnLi4u
+      summary: 'Summary: 全局复扫后先做非 `web/` 低风险项（R-03/R-06/Q-08/E-12/R-08 子集），用 explorer 收敛、worker 按 ownership 并行落地，再由主 agent 跑全量门禁，是高吞吐且低冲突的推进方式。'
     - id: goodsum-2026-03-03-subagent-global-simplify-wave1-wave3
       path: docs/good-experience/summary/entries/2026-03-03-subagent-global-simplify-wave1-wave3.md
       type: good_summary
@@ -197,11 +204,7 @@ nodes:
         - good
         - performance
         - summary
-      summary: !!binary |
-        U3VtbWFyeTog5oyJIG93bmVyc2hpcCDmi4bliIYgc3ViYWdlbnQg5bm26KGM5omn6KGM5Y
-        +v5Zyo5aSn6KeE5qih5py65qKw6YeN5p6E5ZKM5L2O6aOO6Zmp5oCn6IO95LyY5YyW5Lit
-        5L+d5oyB6auY5ZCe5ZCQ44CB5L2O5Yay56qB77yb5YWz6ZSu5piv5q+P5LiqIHdvcmtlci
-        DlvLrliLboh6rluKbpqozor4Hlkb3kLi4u
+      summary: 'Summary: 按 ownership 拆分 subagent 并行执行可在大规模机械重构和低风险性能优化中保持高吞吐、低冲突；关键是每个 worker 强制自带验证命令并由主 agent 统一跑全量 gate。'
     - id: plan-2026-03-03-hooks-memory-root-cause-and-guardrails
       path: docs/plans/2026-03-03-hooks-memory-root-cause-and-guardrails.md
       type: plan
@@ -850,7 +853,7 @@ nodes:
         - good
         - lark
         - observability
-      summary: 'Impact: Closed a real autonomy regression where delegated low-risk Lark actions still triggered repeated confirmation loops ("我的理解是...对吗？"), while keeping high-risk...'
+      summary: 'Impact: Closed a real autonomy regression where delegated low-risk Lark actions still triggered repeated confirmation loops ("我的理解是...对吗？"), while keeping high-risk confirmation bo...'
     - id: goodsum-2026-02-11-lark-small-action-autonomy-guardrail-and-eval
       path: docs/good-experience/summary/entries/2026-02-11-lark-small-action-autonomy-guardrail-and-eval.md
       type: good_summary
@@ -932,11 +935,7 @@ nodes:
         - error
         - observability
         - summary
-      summary: !!binary |
-        U3VtbWFyeTog5aSn6KeE5qih5bel5YW35LyY5YyW5ZCO77yMYHdlYi9mdWxsL2RlZmF1bH
-        RgIOS4i+WPr+eUqOW3peWFt+mbhuaYvuiRl+aUtue8qe+8jOWvvOiHtCBmb3VuZGF0aW9u
-        IOivhOa1i+WHuueOsCBgTi9BYCDmv4Dlop7vvIhFMkUgYDE3N2DvvIxDdXJyZW50IGAxMz
-        hg77yJ5LiOIGRlbGl2ZXJhYmxlIOi0Li4u
+      summary: 'Summary: 大规模工具优化后，`web/full/default` 下可用工具集显著收缩，导致 foundation 评测出现 `N/A` 激增（E2E `177`，Current `138`）与 deliverable 质量归零，评测结果被 availability 问题主导。'
     - id: good-2026-02-10-basic-active-suite-zero-na-regression-baseline
       path: docs/good-experience/entries/2026-02-10-basic-active-suite-zero-na-regression-baseline.md
       type: good_entry
@@ -1072,11 +1071,7 @@ nodes:
       tags:
         - error
         - summary
-      summary: !!binary |
-        U3VtbWFyeTogR28gRGV2T3BzIOi/m+eoi+mTvui3r+WtmOWcqCBQSUQg5aSN55So6K+v5Y
-        ik44CB5ZCM5ZCN6L+b56iLIHdhaXQg5riF55CG56ue5oCB44CBc3VwZXJ2aXNvciDpmIjl
-        gLzovrnnlYzkuI3kuIDoh7TlkozlkIzmraUgYmFja29mZiDpmLvloZ7vvIzlr7zoh7Tnir
-        bmgIHkuI7mgaLlpI3ooYzkuLrkuI3nLi4u
+      summary: 'Summary: Go DevOps 进程链路存在 PID 复用误判、同名进程 wait 清理竞态、supervisor 阈值边界不一致和同步 backoff 阻塞，导致状态与恢复行为不稳定。'
     - id: errsum-2026-02-09-lark-group-chat-apikey-not-registered-chat-scope
       path: docs/error-experience/summary/entries/2026-02-09-lark-group-chat-apikey-not-registered-chat-scope.md
       type: error_summary
@@ -1095,7 +1090,7 @@ nodes:
         - error
         - lark
         - summary
-      summary: 'Summary: `scripts/lark/test.sh` 将 PID 记录到包装 shell 而非真实 `alex-server`，导致孤儿 Lark 进程累积并耗尽 auth Postgres 连接（`too many clients already`...'
+      summary: 'Summary: `scripts/lark/test.sh` 将 PID 记录到包装 shell 而非真实 `alex-server`，导致孤儿 Lark 进程累积并耗尽 auth Postgres 连接（`too many clients already`），触发 supervisor 持续降级。'
     - id: good-2026-02-09-auth-refresh-cookie-compat-and-transient-failure-tolerance
       path: docs/good-experience/entries/2026-02-09-auth-refresh-cookie-compat-and-transient-failure-tolerance.md
       type: good_entry
@@ -1289,11 +1284,7 @@ nodes:
         - good
         - lark
         - summary
-      summary: !!binary |
-        U3VtbWFyeTog5a6M5oiQIEdvIERldk9wcy9MYXJrIOi/m+eoi+mTvui3r+ehrOWMlu+8jO
-        S/ruWkjSB3YXRjaGVyIHJhY2XjgIFQSUQg6Lqr5Lu96K+v5Yik44CBc3VwZXJ2aXNvciDp
-        mIjlgLzkuI4gYmFja29mZiDosIPluqbpl67popjvvIzlubbpgJrov4flhajph48gbGludC
-        90ZXN0ICsgbGFyayBzbW9rZSDpqozmLi4u
+      summary: 'Summary: 完成 Go DevOps/Lark 进程链路硬化，修复 watcher race、PID 身份误判、supervisor 阈值与 backoff 调度问题，并通过全量 lint/test + lark smoke 验收。'
     - id: goodsum-2026-02-09-eval-retire-expand-agent-opt-v4
       path: docs/good-experience/summary/entries/2026-02-09-eval-retire-expand-agent-opt-v4.md
       type: good_summary
@@ -1959,11 +1950,7 @@ nodes:
         - config
         - lark
         - plan
-      summary: !!binary |
-        6L+Q6KGM5Lit55qEIGFsZXgtc2VydmVyIOmcgOimgeWQjOaXtuebkeaOp+S4pOS4qiBjb2
-        5maWcg5paH5Lu277yaYH4vLmFsZXgvY29uZmlnLnlhbWxgIOS4jiBgfi8uYWxleC90ZXN0
-        LnlhbWxg77yI5Lul5Y+KIGBBTEVYX0NPTkZJR19QQVRIYCDmjIflkJHnmoTnlJ/mlYjphY
-        3nva7vvInvvIzku7vkuIDlj5jmm7ToLi4u
+      summary: 运行中的 alex-server 需要同时监控两个 config 文件：`~/.alex/config.yaml` 与 `~/.alex/test.yaml`（以及 `ALEX_CONFIG_PATH` 指向的生效配置），任一变更触发异步 reload（debounce），且不阻塞任何执行。
     - id: plan-2026-02-04-fix-lark-worktree-ensure
       path: docs/plans/2026-02-04-fix-lark-worktree-ensure.md
       type: plan
@@ -2751,7 +2738,7 @@ nodes:
         - error
         - observability
         - summary
-      summary: 'Summary: `make fmt`, `make vet`, and `make test` failed because golangci-lint/go vet/go test hit an `internal/logging` ↔ `internal/observability` import cycle plus typecheck erro...'
+      summary: 'Summary: `make fmt`, `make vet`, and `make test` failed because golangci-lint/go vet/go test hit an `internal/logging` ↔ `internal/observability` import cycle plus typecheck errors...'
     - id: errsum-2026-01-24-playwright-e2e-missing-ui
       path: docs/error-experience/summary/entries/2026-01-24-playwright-e2e-missing-ui.md
       type: error_summary
