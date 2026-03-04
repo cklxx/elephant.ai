@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -964,18 +961,12 @@ func (m *BackgroundTaskManager) InjectBackgroundInput(ctx context.Context, taskI
 		return err
 	}
 
-	if m.tmuxSender != nil {
-		if err := m.tmuxSender.SendKeys(ctx, pane, data); err != nil {
-			recordTmuxInputInjectEvent(m.eventAppender, bt, "tmux_input_inject_failed", pane, data, err)
-			return err
-		}
-	} else {
-		cmd := exec.CommandContext(ctx, "tmux", "-L", "elephant", "send-keys", "-t", pane, data, "C-m")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			wrapped := fmt.Errorf("inject input to pane %s: %s: %w", pane, strings.TrimSpace(string(out)), err)
-			recordTmuxInputInjectEvent(m.eventAppender, bt, "tmux_input_inject_failed", pane, data, wrapped)
-			return wrapped
-		}
+	if m.tmuxSender == nil {
+		return fmt.Errorf("tmux sender not configured for task %q", id)
+	}
+	if err := m.tmuxSender.SendKeys(ctx, pane, data); err != nil {
+		recordTmuxInputInjectEvent(m.eventAppender, bt, "tmux_input_inject_failed", pane, data, err)
+		return err
 	}
 	recordTmuxInputInjectEvent(m.eventAppender, bt, "tmux_input_injected", pane, data, nil)
 	return nil
@@ -1021,30 +1012,12 @@ func recordTmuxInputInjectEvent(appender agent.EventAppender, bt *backgroundTask
 	if err != nil {
 		return
 	}
+	if appender == nil {
+		return
+	}
 	line := string(data)
-	if appender != nil {
-		appender.AppendLine(eventLogPath, line)
-		appender.AppendLine(roleLogPath, line)
-	} else {
-		appendTeamRuntimeEventLine(eventLogPath, line)
-		appendTeamRuntimeEventLine(roleLogPath, line)
-	}
-}
-
-func appendTeamRuntimeEventLine(path string, line string) {
-	trimmedPath := strings.TrimSpace(path)
-	if trimmedPath == "" {
-		return
-	}
-	if err := os.MkdirAll(filepath.Dir(trimmedPath), 0o755); err != nil {
-		return
-	}
-	f, err := os.OpenFile(trimmedPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	_, _ = f.WriteString(strings.TrimSpace(line) + "\n")
+	appender.AppendLine(eventLogPath, line)
+	appender.AppendLine(roleLogPath, line)
 }
 
 // MergeExternalWorkspace merges an external agent's workspace back into the base branch.

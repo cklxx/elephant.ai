@@ -10,10 +10,40 @@ import (
 	"alex/internal/domain/agent/ports"
 )
 
+// testAtomicWriter implements agent.AtomicFileWriter for tests using real OS operations.
+type testAtomicWriter struct{}
+
+func (w *testAtomicWriter) WriteFileAtomically(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".tmp-compaction-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
+}
+
 func TestTryArtifactCompactionWritesFileAndPlaceholder(t *testing.T) {
 	root := t.TempDir()
 	engine := NewReactEngine(ReactEngineConfig{
 		CheckpointStore: newTestFileCheckpointStore(filepath.Join(root, "checkpoints")),
+		AtomicWriter:    &testAtomicWriter{},
 	})
 	state := &TaskState{
 		SessionID:  "sess-artifact",
@@ -81,6 +111,7 @@ func TestTryArtifactCompactionRespectsCooldownUnlessForced(t *testing.T) {
 	root := t.TempDir()
 	engine := NewReactEngine(ReactEngineConfig{
 		CheckpointStore: newTestFileCheckpointStore(filepath.Join(root, "checkpoints")),
+		AtomicWriter:    &testAtomicWriter{},
 	})
 	state := &TaskState{
 		SessionID:             "sess-cooldown",

@@ -12,6 +12,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/domain/agent/presets"
+	"alex/internal/infra/adapters"
 	checkpointinfra "alex/internal/infra/checkpoint"
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
@@ -136,6 +137,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
 		agentcoordinator.WithTeamDefinitions(convertTeamConfigs(b.config.ExternalAgents.Teams)),
 		agentcoordinator.WithTeamRunRecorder(teamRunRecorder),
+		agentcoordinator.WithAtomicWriter(adapters.NewOSAtomicWriter()),
 	)
 
 	// Register orchestration tools (run_tasks, reply_agent).

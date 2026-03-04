@@ -138,6 +138,9 @@ type ReactEngineConfig struct {
 	TeamDefinitions []agent.TeamDefinition
 	// TeamRunRecorder persists run_tasks team run records (typically file-based).
 	TeamRunRecorder agent.TeamRunRecorder
+	// AtomicWriter writes files atomically via temp-file + rename.
+	// Required for context compaction; when nil, writeContextCompactionArtifact returns an error.
+	AtomicWriter agent.AtomicFileWriter
 }
 type toolDefinitionTokenCache struct {
 	mu        sync.RWMutex

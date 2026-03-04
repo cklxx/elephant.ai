@@ -19,6 +19,7 @@ import (
 	toolregistry "alex/internal/app/toolregistry"
 	agent "alex/internal/domain/agent/ports/agent"
 	portsllm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/infra/adapters"
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
 	"alex/internal/infra/external/teamrun"
@@ -167,6 +168,7 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
 		agentcoordinator.WithTeamDefinitions(convertTeamConfigs(b.config.ExternalAgents.Teams)),
 		agentcoordinator.WithTeamRunRecorder(teamRunRecorder),
+		agentcoordinator.WithAtomicWriter(adapters.NewOSAtomicWriter()),
 	)
 
 	// Inherit runtime config resolver from parent coordinator so that

@@ -55,6 +55,7 @@ type AgentCoordinator struct {
 	teamDefinitions  []agent.TeamDefinition
 	teamRunRecorder  agent.TeamRunRecorder
 	checkpointStore  react.CheckpointStore
+	atomicWriter     agent.AtomicFileWriter
 
 	prepService           preparationService
 	costDecorator         *cost.CostTrackingDecorator
@@ -426,6 +427,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		ExternalExecutor:   c.externalExecutor,
 		TeamDefinitions:    c.teamDefinitions,
 		TeamRunRecorder:    c.teamRunRecorder,
+		AtomicWriter:       c.atomicWriter,
 	})
 
 	if eventListener != nil {

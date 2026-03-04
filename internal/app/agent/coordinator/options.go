@@ -133,3 +133,12 @@ func WithTeamRunRecorder(recorder agent.TeamRunRecorder) CoordinatorOption {
 		}
 	}
 }
+
+// WithAtomicWriter provides the atomic file writer used for context compaction artifacts.
+func WithAtomicWriter(writer agent.AtomicFileWriter) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		if writer != nil {
+			c.atomicWriter = writer
+		}
+	}
+}
