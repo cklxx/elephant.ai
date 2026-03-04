@@ -17,7 +17,7 @@ import (
 	serverHTTP "alex/internal/delivery/server/http"
 	"alex/internal/delivery/server/ports"
 	agentdomain "alex/internal/domain/agent"
-	"alex/internal/domain/materials"
+	materials "alex/internal/domain/materialregistry"
 	"alex/internal/infra/analytics"
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/diagnostics"

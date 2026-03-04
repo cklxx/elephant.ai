@@ -1,4 +1,4 @@
-package materials
+package materialregistry
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"alex/internal/domain/agent/ports"
-	materialports "alex/internal/domain/materials/ports"
+	materialports "alex/internal/domain/materialregistry/ports"
 	"alex/internal/shared/logging"
 )
 

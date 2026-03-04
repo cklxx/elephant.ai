@@ -11,7 +11,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
-	materialports "alex/internal/domain/materials/ports"
+	materialports "alex/internal/domain/materialregistry/ports"
 	"alex/internal/shared/async"
 	utils "alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"

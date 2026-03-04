@@ -1,4 +1,4 @@
-package task
+package taskadapters
 
 import (
 	"context"

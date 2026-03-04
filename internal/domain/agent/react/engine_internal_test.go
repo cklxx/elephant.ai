@@ -13,7 +13,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/ports/storage"
-	materialports "alex/internal/domain/materials/ports"
+	materialports "alex/internal/domain/materialregistry/ports"
 )
 
 func TestCollectGeneratedAttachmentsIncludesAllGeneratedUpToIteration(t *testing.T) {
@@ -1712,7 +1712,7 @@ func TestEnforceContextBudgetTrimsWhenOverLimit(t *testing.T) {
 
 // mockContextManager for enforceContextBudget tests.
 type mockContextManager struct {
-	estimateFunc          func([]ports.Message) int
+	estimateFunc         func([]ports.Message) int
 	autoCompactFunc      func([]ports.Message, int) ([]ports.Message, bool)
 	shouldCompressFunc   func([]ports.Message, int) bool
 	buildSummaryOnlyFunc func([]ports.Message) (string, int)
@@ -1739,7 +1739,7 @@ func (m *mockContextManager) ShouldCompress(msgs []ports.Message, limit int) boo
 	}
 	return false
 }
-func (m *mockContextManager) Preload(ctx context.Context) error                   { return nil }
+func (m *mockContextManager) Preload(ctx context.Context) error { return nil }
 func (m *mockContextManager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	return agent.ContextWindow{}, nil
 }
@@ -1813,9 +1813,9 @@ func TestEnforceContextBudget_DeferredSummaryAppliedAfterTwoTurns(t *testing.T) 
 		},
 	}
 	state := &TaskState{
-		Iterations:          7, // was generated at iter 5, now at 7 (5+2)
-		PendingSummary:      "[Earlier context compressed] summary of old messages",
-		PendingSummaryAtIter: 5,
+		Iterations:             7, // was generated at iter 5, now at 7 (5+2)
+		PendingSummary:         "[Earlier context compressed] summary of old messages",
+		PendingSummaryAtIter:   5,
 		PendingSummaryMsgCount: 5,
 	}
 	services := Services{Context: mockCtx}
@@ -1880,9 +1880,9 @@ func TestEnforceContextBudget_PendingSummaryAppliedImmediatelyOnOverflow(t *test
 		},
 	}
 	state := &TaskState{
-		Iterations:          6, // only 1 turn after generation (not 2 yet)
-		PendingSummary:      "[Earlier context compressed] summary",
-		PendingSummaryAtIter: 5,
+		Iterations:             6, // only 1 turn after generation (not 2 yet)
+		PendingSummary:         "[Earlier context compressed] summary",
+		PendingSummaryAtIter:   5,
 		PendingSummaryMsgCount: 4, // 1 system + 3 conv at generation time
 	}
 	services := Services{Context: mockCtx}

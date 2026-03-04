@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"alex/internal/app/di"
-	"alex/internal/domain/materials"
+	materials "alex/internal/domain/materialregistry"
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/observability"
 	runtimeconfig "alex/internal/shared/config"

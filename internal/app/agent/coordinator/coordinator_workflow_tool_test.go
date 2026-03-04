@@ -15,7 +15,7 @@ import (
 	"alex/internal/domain/agent/ports/mocks"
 	storage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
-	materialports "alex/internal/domain/materials/ports"
+	materialports "alex/internal/domain/materialregistry/ports"
 	"alex/internal/domain/workflow"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/utils/id"

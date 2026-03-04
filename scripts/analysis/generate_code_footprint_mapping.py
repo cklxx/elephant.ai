@@ -74,7 +74,7 @@ PREFIX_CAPABILITY: List[Tuple[str, str]] = [
     ("internal/domain/agent", "Agent 领域模型、事件与核心行为"),
     ("internal/domain/workflow", "工作流 DAG 结构与执行规则"),
     ("internal/domain/task", "任务领域实体与状态语义"),
-    ("internal/domain/materials", "附件/材料领域模型与迁移"),
+    ("internal/domain/materialregistry", "附件/材料领域模型与迁移"),
     ("internal/domain/kernel", "内核级领域抽象"),
     ("internal/app/agent/coordinator", "应用层会话编排与事件翻译"),
     ("internal/app/agent/kernel", "应用层 Agent 内核装配"),

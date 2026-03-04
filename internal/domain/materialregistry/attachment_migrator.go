@@ -1,4 +1,4 @@
-package materials
+package materialregistry
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"unicode"
 
 	"alex/internal/domain/agent/ports"
-	materialports "alex/internal/domain/materials/ports"
+	materialports "alex/internal/domain/materialregistry/ports"
 	"alex/internal/shared/httpclient"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"

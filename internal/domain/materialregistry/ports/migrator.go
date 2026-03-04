@@ -5,7 +5,7 @@ import (
 	"time"
 
 	agentports "alex/internal/domain/agent/ports"
-	materialapi "alex/internal/domain/materials/api"
+	materialapi "alex/internal/domain/materialregistry/api"
 )
 
 // MigrationRequest describes a batch of attachments that should be normalized.

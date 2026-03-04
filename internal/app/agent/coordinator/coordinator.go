@@ -23,7 +23,7 @@ import (
 	react "alex/internal/domain/agent/react"
 	"alex/internal/domain/agent/textutil"
 	"alex/internal/domain/agent/types"
-	materialports "alex/internal/domain/materials/ports"
+	materialports "alex/internal/domain/materialregistry/ports"
 	infraruntime "alex/internal/infra/runtime"
 	toolspolicy "alex/internal/infra/tools"
 	"alex/internal/infra/tools/builtin/shared"

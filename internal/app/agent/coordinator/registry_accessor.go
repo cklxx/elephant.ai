@@ -5,12 +5,12 @@ import (
 	"fmt"
 
 	"alex/internal/app/agent/llmclient"
+	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	llm "alex/internal/domain/agent/ports/llm"
 	storage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
-	materialports "alex/internal/domain/materials/ports"
-	"alex/internal/domain/agent/ports"
+	materialports "alex/internal/domain/materialregistry/ports"
 	"alex/internal/infra/tools/builtin/shared"
 )
 

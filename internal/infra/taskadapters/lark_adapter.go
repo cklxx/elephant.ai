@@ -1,4 +1,4 @@
-package task
+package taskadapters
 
 import (
 	"context"
@@ -125,7 +125,7 @@ func (a *LarkAdapter) SetBridgeMeta(ctx context.Context, taskID string, info any
 }
 
 // BridgeInfoProvider is the interface that bridge info structs should satisfy
-// for type-safe extraction. This avoids circular imports between infra/task and
+// for type-safe extraction. This avoids circular imports between infra/taskadapters and
 // infra/external/bridge packages.
 type BridgeInfoProvider interface {
 	BridgePID() int
