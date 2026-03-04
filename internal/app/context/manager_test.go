@@ -180,6 +180,7 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 
 	expectedPolicies := []string{
 		"Core Guardrails",
+		"Communication Style",
 	}
 	for _, id := range expectedPolicies {
 		if _, ok := snapshot.Policies[id]; !ok {

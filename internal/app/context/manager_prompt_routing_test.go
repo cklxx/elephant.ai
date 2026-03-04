@@ -3,6 +3,8 @@ package context
 import (
 	"strings"
 	"testing"
+
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 func TestBuildToolRoutingSectionIncludesDeterministicAndMemoryBoundaries(t *testing.T) {
@@ -121,5 +123,27 @@ func TestBuildChannelFormattingSectionEmptyHintEmpty(t *testing.T) {
 	}
 	if section := buildChannelFormattingSection("   "); section != "" {
 		t.Fatalf("expected whitespace-only hint to produce empty section, got %q", section)
+	}
+}
+
+func TestBuildPoliciesSectionRendersCommunicationStyle(t *testing.T) {
+	t.Parallel()
+	policies := []agent.PolicyRule{{
+		ID:              "Communication Style",
+		HardConstraints: []string{"Brevity is law.", "NEVER sacrifice clarity for cleverness."},
+		SoftPreferences: []string{"Plain language only.", "A dash of wit."},
+	}}
+	section := buildPoliciesSection(policies)
+	for _, snippet := range []string{
+		"# Guardrails & Policies",
+		"Communication Style:",
+		"Brevity is law.",
+		"NEVER sacrifice clarity for cleverness.",
+		"Plain language only.",
+		"A dash of wit.",
+	} {
+		if !strings.Contains(section, snippet) {
+			t.Fatalf("expected policies section to contain %q", snippet)
+		}
 	}
 }
