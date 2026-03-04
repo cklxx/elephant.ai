@@ -603,6 +603,8 @@ func expandExternalAgentsFileConfigEnv(lookup EnvLookup, external *ExternalAgent
 			role := &team.Roles[j]
 			role.Name = expandEnvValue(lookup, role.Name)
 			role.AgentType = expandEnvValue(lookup, role.AgentType)
+			role.CapabilityProfile = expandEnvValue(lookup, role.CapabilityProfile)
+			role.TargetCLI = expandEnvValue(lookup, role.TargetCLI)
 			role.PromptTemplate = expandEnvValue(lookup, role.PromptTemplate)
 			role.ExecutionMode = expandEnvValue(lookup, role.ExecutionMode)
 			role.AutonomyLevel = expandEnvValue(lookup, role.AutonomyLevel)
@@ -642,14 +644,16 @@ func convertTeamFileConfigs(raw []TeamFileConfig) []TeamConfig {
 				inheritContext = *role.InheritContext
 			}
 			roles = append(roles, TeamRoleConfig{
-				Name:           role.Name,
-				AgentType:      role.AgentType,
-				PromptTemplate: role.PromptTemplate,
-				ExecutionMode:  role.ExecutionMode,
-				AutonomyLevel:  role.AutonomyLevel,
-				WorkspaceMode:  role.WorkspaceMode,
-				Config:         cloneStringMap(role.Config),
-				InheritContext: inheritContext,
+				Name:              role.Name,
+				AgentType:         role.AgentType,
+				CapabilityProfile: role.CapabilityProfile,
+				TargetCLI:         role.TargetCLI,
+				PromptTemplate:    role.PromptTemplate,
+				ExecutionMode:     role.ExecutionMode,
+				AutonomyLevel:     role.AutonomyLevel,
+				WorkspaceMode:     role.WorkspaceMode,
+				Config:            cloneStringMap(role.Config),
+				InheritContext:    inheritContext,
 			})
 		}
 		stages := make([]TeamStageConfig, 0, len(team.Stages))

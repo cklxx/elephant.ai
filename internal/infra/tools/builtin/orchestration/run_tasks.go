@@ -11,7 +11,9 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/taskfile"
+	"alex/internal/infra/teamruntime"
 	"alex/internal/infra/tools/builtin/shared"
+	id "alex/internal/shared/utils/id"
 	"gopkg.in/yaml.v3"
 )
 
@@ -174,6 +176,15 @@ func (t *runTasks) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 	// Determine status path. Kernel contexts override the default .elephant/tasks/ base dir.
 	statusPath := statusPathForFile(ctx, filePath, tf.PlanID)
+
+	if templateName != "" && teamDef != nil {
+		goal, _ := call.Arguments["goal"].(string)
+		bootstrap, bootstrapErr := t.ensureTeamBootstrap(ctx, statusPath, templateName, strings.TrimSpace(goal), *teamDef)
+		if bootstrapErr != nil {
+			return shared.ToolError(call.ID, "team bootstrap failed: %s", bootstrapErr)
+		}
+		applyBootstrapToTaskFile(tf, bootstrap)
+	}
 
 	executor := taskfile.NewExecutor(dispatcher, mode, taskfile.DefaultSwarmConfig())
 	var result *taskfile.ExecuteResult
@@ -341,15 +352,19 @@ func buildTeamRunRecord(tf *taskfile.TaskFile, def *agent.TeamDefinition, templa
 	// Populate roles from the rendered TaskFile tasks.
 	for _, t := range tf.Tasks {
 		roles = append(roles, agent.TeamRunRoleRecord{
-			Name:           t.ID,
-			AgentType:      t.AgentType,
-			TaskID:         t.ID,
-			DependsOn:      t.DependsOn,
-			ExecutionMode:  t.ExecutionMode,
-			AutonomyLevel:  t.AutonomyLevel,
-			WorkspaceMode:  t.WorkspaceMode,
-			InheritContext: t.InheritContext,
-			Config:         t.Config,
+			Name:              t.ID,
+			AgentType:         t.AgentType,
+			CapabilityProfile: strings.TrimSpace(t.Config["capability_profile"]),
+			TargetCLI:         strings.TrimSpace(t.Config["target_cli"]),
+			SelectedCLI:       strings.TrimSpace(t.Config["selected_cli"]),
+			FallbackCLIs:      splitCSV(t.Config["fallback_clis"]),
+			TaskID:            t.ID,
+			DependsOn:         t.DependsOn,
+			ExecutionMode:     t.ExecutionMode,
+			AutonomyLevel:     t.AutonomyLevel,
+			WorkspaceMode:     t.WorkspaceMode,
+			InheritContext:    t.InheritContext,
+			Config:            t.Config,
 		})
 	}
 	return agent.TeamRunRecord{
@@ -361,6 +376,128 @@ func buildTeamRunRecord(tf *taskfile.TaskFile, def *agent.TeamDefinition, templa
 		Stages:        stages,
 		Roles:         roles,
 	}
+}
+
+func (t *runTasks) ensureTeamBootstrap(
+	ctx context.Context,
+	statusPath string,
+	templateName string,
+	goal string,
+	teamDef agent.TeamDefinition,
+) (*teamruntime.EnsureResult, error) {
+	sessionID, _ := shared.GetSessionID(ctx)
+	if strings.TrimSpace(sessionID) == "" {
+		sessionID = id.SessionIDFromContext(ctx)
+	}
+	roleIDs := make([]string, 0, len(teamDef.Roles))
+	profiles := make(map[string]string, len(teamDef.Roles))
+	targets := make(map[string]string, len(teamDef.Roles))
+	for _, role := range teamDef.Roles {
+		roleID := strings.TrimSpace(role.Name)
+		if roleID == "" {
+			continue
+		}
+		roleIDs = append(roleIDs, roleID)
+		profiles[roleID] = strings.TrimSpace(role.CapabilityProfile)
+		targets[roleID] = strings.TrimSpace(role.TargetCLI)
+	}
+
+	baseDir := filepath.Join(filepath.Dir(statusPath), "_team_runtime")
+	manager := teamruntime.NewBootstrapManager(baseDir, nil)
+	return manager.Ensure(ctx, teamruntime.EnsureRequest{
+		SessionID: sessionID,
+		Template:  templateName,
+		Goal:      goal,
+		RoleIDs:   roleIDs,
+		Profiles:  profiles,
+		Targets:   targets,
+	})
+}
+
+func applyBootstrapToTaskFile(tf *taskfile.TaskFile, bootstrap *teamruntime.EnsureResult) {
+	if tf == nil || bootstrap == nil {
+		return
+	}
+	for i := range tf.Tasks {
+		roleID := extractRoleIDFromTaskID(tf.Tasks[i].ID)
+		if roleID == "" {
+			continue
+		}
+		binding, ok := bootstrap.RoleBindings[roleID]
+		if !ok {
+			continue
+		}
+		if tf.Tasks[i].Config == nil {
+			tf.Tasks[i].Config = make(map[string]string)
+		}
+		tf.Tasks[i].Config["team_id"] = bootstrap.Bootstrap.TeamID
+		tf.Tasks[i].Config["role_id"] = roleID
+		tf.Tasks[i].Config["team_runtime_dir"] = bootstrap.BaseDir
+		tf.Tasks[i].Config["team_event_log"] = bootstrap.EventLogPath
+		if strings.TrimSpace(binding.CapabilityProfile) != "" {
+			tf.Tasks[i].Config["capability_profile"] = strings.TrimSpace(binding.CapabilityProfile)
+		}
+		if strings.TrimSpace(binding.TargetCLI) != "" {
+			tf.Tasks[i].Config["target_cli"] = strings.TrimSpace(binding.TargetCLI)
+		}
+		if strings.TrimSpace(binding.SelectedCLI) != "" {
+			tf.Tasks[i].Config["selected_cli"] = strings.TrimSpace(binding.SelectedCLI)
+		}
+		if len(binding.FallbackCLIs) > 0 {
+			tf.Tasks[i].Config["fallback_clis"] = strings.Join(binding.FallbackCLIs, ",")
+		}
+		if strings.TrimSpace(binding.SelectedPath) != "" {
+			tf.Tasks[i].Config["binary"] = strings.TrimSpace(binding.SelectedPath)
+		}
+		if strings.TrimSpace(binding.RoleLogPath) != "" {
+			tf.Tasks[i].Config["role_log_path"] = strings.TrimSpace(binding.RoleLogPath)
+		}
+		if strings.TrimSpace(bootstrap.Bootstrap.TmuxSession) != "" {
+			tf.Tasks[i].Config["tmux_session"] = strings.TrimSpace(bootstrap.Bootstrap.TmuxSession)
+		}
+		if strings.TrimSpace(binding.TmuxPane) != "" {
+			tf.Tasks[i].Config["tmux_pane"] = strings.TrimSpace(binding.TmuxPane)
+		}
+		if strings.TrimSpace(binding.SelectedAgentType) != "" {
+			tf.Tasks[i].AgentType = strings.TrimSpace(binding.SelectedAgentType)
+		}
+	}
+}
+
+func extractRoleIDFromTaskID(taskID string) string {
+	id := strings.TrimSpace(taskID)
+	if !strings.HasPrefix(id, "team-") {
+		return ""
+	}
+	trimmed := strings.TrimPrefix(id, "team-")
+	trimmed = strings.TrimSuffix(trimmed, "-debate")
+	for {
+		idx := strings.LastIndex(trimmed, "-retry-")
+		if idx <= 0 {
+			break
+		}
+		suffix := strings.TrimSpace(trimmed[idx+len("-retry-"):])
+		if suffix == "" || strings.IndexFunc(suffix, func(r rune) bool { return r < '0' || r > '9' }) != -1 {
+			break
+		}
+		trimmed = strings.TrimSpace(trimmed[:idx])
+	}
+	return strings.TrimSpace(trimmed)
+}
+
+func splitCSV(raw string) []string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+	parts := strings.Split(trimmed, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if value := strings.TrimSpace(part); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func dispatchStateFromStatus(statusPath string) string {

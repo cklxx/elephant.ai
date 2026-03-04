@@ -84,6 +84,6 @@ func formatExternalInputRequestMessage(req agent.InputRequest) string {
 		}
 		sb.WriteString("\n")
 	}
-	sb.WriteString(fmt.Sprintf("Use reply_agent(task_id=%q, request_id=%q, approved=true|false) to respond.", req.TaskID, req.RequestID))
+	sb.WriteString(fmt.Sprintf("Use reply_agent(task_id=%q, request_id=%q, approved=true|false) to respond. For direct pane input, reply_agent(task_id=%q, message=\"...\").", req.TaskID, req.RequestID, req.TaskID))
 	return sb.String()
 }

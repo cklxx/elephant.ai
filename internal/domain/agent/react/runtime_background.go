@@ -37,6 +37,14 @@ func (d *backgroundDispatcherWithEvents) Collect(ids []string, wait bool, timeou
 	return d.inner.Collect(ids, wait, timeout)
 }
 
+func (d *backgroundDispatcherWithEvents) InjectBackgroundInput(ctx context.Context, taskID string, input string) error {
+	injector, ok := d.inner.(agent.BackgroundTaskSessionInjector)
+	if !ok {
+		return fmt.Errorf("background input injector is not available in this context")
+	}
+	return injector.InjectBackgroundInput(ctx, taskID, input)
+}
+
 // injectBackgroundNotifications drains completed background tasks and injects
 // system messages into the conversation so the LLM can decide when to collect
 // results.

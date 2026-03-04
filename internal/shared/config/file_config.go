@@ -168,14 +168,16 @@ type TeamFileConfig struct {
 
 // TeamRoleFileConfig mirrors TeamRoleConfig for YAML decoding.
 type TeamRoleFileConfig struct {
-	Name           string            `yaml:"name"`
-	AgentType      string            `yaml:"agent_type"`
-	PromptTemplate string            `yaml:"prompt_template"`
-	ExecutionMode  string            `yaml:"execution_mode"`
-	AutonomyLevel  string            `yaml:"autonomy_level"`
-	WorkspaceMode  string            `yaml:"workspace_mode"`
-	Config         map[string]string `yaml:"config"`
-	InheritContext *bool             `yaml:"inherit_context"`
+	Name              string            `yaml:"name"`
+	AgentType         string            `yaml:"agent_type"`
+	CapabilityProfile string            `yaml:"capability_profile"`
+	TargetCLI         string            `yaml:"target_cli"`
+	PromptTemplate    string            `yaml:"prompt_template"`
+	ExecutionMode     string            `yaml:"execution_mode"`
+	AutonomyLevel     string            `yaml:"autonomy_level"`
+	WorkspaceMode     string            `yaml:"workspace_mode"`
+	Config            map[string]string `yaml:"config"`
+	InheritContext    *bool             `yaml:"inherit_context"`
 }
 
 // TeamStageFileConfig mirrors TeamStageConfig for YAML decoding.

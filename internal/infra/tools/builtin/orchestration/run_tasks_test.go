@@ -12,6 +12,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/taskfile"
+	"alex/internal/infra/teamruntime"
 )
 
 type mockBGDispatcher struct {
@@ -407,5 +408,78 @@ func TestRunTasks_TemplateList(t *testing.T) {
 	}
 	if result.Content == "" {
 		t.Error("expected non-empty template listing")
+	}
+}
+
+func TestExtractRoleIDFromTaskID(t *testing.T) {
+	tests := []struct {
+		taskID string
+		want   string
+	}{
+		{taskID: "team-planner", want: "planner"},
+		{taskID: "team-planner-debate", want: "planner"},
+		{taskID: "team-planner-retry-2", want: "planner"},
+		{taskID: "other", want: ""},
+	}
+	for _, tc := range tests {
+		if got := extractRoleIDFromTaskID(tc.taskID); got != tc.want {
+			t.Fatalf("extractRoleIDFromTaskID(%q)=%q want=%q", tc.taskID, got, tc.want)
+		}
+	}
+}
+
+func TestApplyBootstrapToTaskFile_InjectsRoleRuntimeConfig(t *testing.T) {
+	tf := &taskfile.TaskFile{
+		Version: "1",
+		PlanID:  "team-plan",
+		Tasks: []taskfile.TaskSpec{
+			{ID: "team-planner", AgentType: "internal", Prompt: "p"},
+			{ID: "team-executor", AgentType: "internal", Prompt: "e"},
+		},
+	}
+	bootstrap := &teamruntime.EnsureResult{
+		BaseDir:      "/tmp/team-runtime",
+		EventLogPath: "/tmp/team-runtime/events.jsonl",
+		Bootstrap: teamruntime.BootstrapState{
+			TeamID:      "team-1",
+			TmuxSession: "elephant-team-team-1",
+		},
+		RoleBindings: map[string]teamruntime.RoleBinding{
+			"planner": {
+				RoleID:            "planner",
+				CapabilityProfile: "planning",
+				TargetCLI:         "claude_code",
+				SelectedCLI:       "claude_code",
+				SelectedPath:      "/usr/local/bin/claude",
+				SelectedAgentType: "claude_code",
+				FallbackCLIs:      []string{"codex"},
+				TmuxPane:          "%11",
+				RoleLogPath:       "/tmp/team-runtime/logs/planner.log",
+			},
+		},
+	}
+
+	applyBootstrapToTaskFile(tf, bootstrap)
+
+	planner := tf.Tasks[0]
+	if planner.AgentType != "claude_code" {
+		t.Fatalf("expected planner agent_type=claude_code, got %q", planner.AgentType)
+	}
+	if planner.Config["team_id"] != "team-1" {
+		t.Fatalf("expected team_id injected, got %+v", planner.Config)
+	}
+	if planner.Config["binary"] != "/usr/local/bin/claude" {
+		t.Fatalf("expected binary injected, got %+v", planner.Config)
+	}
+	if planner.Config["tmux_pane"] != "%11" {
+		t.Fatalf("expected tmux pane injected, got %+v", planner.Config)
+	}
+	if planner.Config["fallback_clis"] != "codex" {
+		t.Fatalf("expected fallback_clis injected, got %+v", planner.Config)
+	}
+
+	executor := tf.Tasks[1]
+	if executor.Config != nil && executor.Config["team_id"] != "" {
+		t.Fatalf("expected non-bound role untouched, got %+v", executor.Config)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -917,6 +918,38 @@ func (m *BackgroundTaskManager) ReplyExternalInput(ctx context.Context, resp age
 				))
 			}
 		}
+	}
+	return nil
+}
+
+// InjectBackgroundInput forwards free-form input into a tmux-backed role pane.
+func (m *BackgroundTaskManager) InjectBackgroundInput(ctx context.Context, taskID string, input string) error {
+	id := strings.TrimSpace(taskID)
+	if id == "" {
+		return fmt.Errorf("task_id is required")
+	}
+	data := strings.TrimSpace(input)
+	if data == "" {
+		return fmt.Errorf("input is required")
+	}
+
+	m.mu.RLock()
+	bt := m.tasks[id]
+	m.mu.RUnlock()
+	if bt == nil {
+		return fmt.Errorf("%w: task %q", ErrBackgroundTaskNotFound, id)
+	}
+
+	bt.mu.Lock()
+	pane := strings.TrimSpace(bt.config["tmux_pane"])
+	bt.mu.Unlock()
+	if pane == "" {
+		return fmt.Errorf("task %q is not bound to a tmux pane", id)
+	}
+
+	cmd := exec.CommandContext(ctx, "tmux", "-L", "elephant", "send-keys", "-t", pane, data, "C-m")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("inject input to pane %s: %s: %w", pane, strings.TrimSpace(string(out)), err)
 	}
 	return nil
 }

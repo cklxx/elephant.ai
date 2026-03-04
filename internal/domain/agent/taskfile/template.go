@@ -17,14 +17,16 @@ type TeamTemplate struct {
 
 // TeamTemplateRole defines a single role within a team template.
 type TeamTemplateRole struct {
-	Name           string            `yaml:"name"`
-	AgentType      string            `yaml:"agent_type"`
-	PromptTemplate string            `yaml:"prompt_template,omitempty"`
-	ExecutionMode  string            `yaml:"execution_mode,omitempty"`
-	AutonomyLevel  string            `yaml:"autonomy_level,omitempty"`
-	WorkspaceMode  string            `yaml:"workspace_mode,omitempty"`
-	Config         map[string]string `yaml:"config,omitempty"`
-	InheritContext bool              `yaml:"inherit_context,omitempty"`
+	Name              string            `yaml:"name"`
+	AgentType         string            `yaml:"agent_type"`
+	CapabilityProfile string            `yaml:"capability_profile,omitempty"`
+	TargetCLI         string            `yaml:"target_cli,omitempty"`
+	PromptTemplate    string            `yaml:"prompt_template,omitempty"`
+	ExecutionMode     string            `yaml:"execution_mode,omitempty"`
+	AutonomyLevel     string            `yaml:"autonomy_level,omitempty"`
+	WorkspaceMode     string            `yaml:"workspace_mode,omitempty"`
+	Config            map[string]string `yaml:"config,omitempty"`
+	InheritContext    bool              `yaml:"inherit_context,omitempty"`
 }
 
 // TeamTemplateStage defines an execution stage within a team workflow.
@@ -82,6 +84,15 @@ func RenderTaskFile(tmpl *TeamTemplate, goal string, overrides map[string]string
 			DependsOn:      depIDs,
 			InheritContext: r.InheritContext,
 			Config:         maps.Clone(r.Config),
+		}
+		if spec.Config == nil {
+			spec.Config = make(map[string]string)
+		}
+		if strings.TrimSpace(r.CapabilityProfile) != "" {
+			spec.Config["capability_profile"] = strings.TrimSpace(r.CapabilityProfile)
+		}
+		if strings.TrimSpace(r.TargetCLI) != "" {
+			spec.Config["target_cli"] = strings.TrimSpace(r.TargetCLI)
 		}
 		tf.Tasks = append(tf.Tasks, spec)
 	}
@@ -164,14 +175,16 @@ func TeamTemplateFromDefinition(def agent.TeamDefinition) TeamTemplate {
 	roles := make([]TeamTemplateRole, len(def.Roles))
 	for i, r := range def.Roles {
 		roles[i] = TeamTemplateRole{
-			Name:           r.Name,
-			AgentType:      r.AgentType,
-			PromptTemplate: r.PromptTemplate,
-			ExecutionMode:  r.ExecutionMode,
-			AutonomyLevel:  r.AutonomyLevel,
-			WorkspaceMode:  r.WorkspaceMode,
-			Config:         r.Config,
-			InheritContext: r.InheritContext,
+			Name:              r.Name,
+			AgentType:         r.AgentType,
+			CapabilityProfile: r.CapabilityProfile,
+			TargetCLI:         r.TargetCLI,
+			PromptTemplate:    r.PromptTemplate,
+			ExecutionMode:     r.ExecutionMode,
+			AutonomyLevel:     r.AutonomyLevel,
+			WorkspaceMode:     r.WorkspaceMode,
+			Config:            r.Config,
+			InheritContext:    r.InheritContext,
 		}
 	}
 	stages := make([]TeamTemplateStage, len(def.Stages))
@@ -218,4 +231,3 @@ func renderDebatePrompt(roleName, teamName, goal string) string {
 	sb.WriteString("Be precise: reference specific claims, not vague criticism.\n")
 	return sb.String()
 }
-

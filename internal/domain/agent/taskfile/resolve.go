@@ -172,6 +172,8 @@ func canonicalAgentType(raw string) string {
 		return ""
 	case "internal":
 		return "internal"
+	case "generic_cli", "generic-cli", "generic":
+		return "generic_cli"
 	case "codex":
 		return "codex"
 	case "kimi", "kimi_cli", "kimi-cli", "k2", "kimi cli":
@@ -185,7 +187,7 @@ func canonicalAgentType(raw string) string {
 
 func isCodingExternalAgent(agentType string) bool {
 	switch canonicalAgentType(agentType) {
-	case "codex", "claude_code", "kimi":
+	case "codex", "claude_code", "kimi", "generic_cli":
 		return true
 	default:
 		return false

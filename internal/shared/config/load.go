@@ -285,6 +285,8 @@ func normalizeExternalAgentsConfig(cfg *ExternalAgentsConfig) {
 			role := &cfg.Teams[i].Roles[j]
 			role.Name = strings.TrimSpace(role.Name)
 			role.AgentType = strings.TrimSpace(role.AgentType)
+			role.CapabilityProfile = strings.TrimSpace(role.CapabilityProfile)
+			role.TargetCLI = strings.TrimSpace(role.TargetCLI)
 			role.PromptTemplate = strings.TrimSpace(role.PromptTemplate)
 			role.ExecutionMode = strings.TrimSpace(role.ExecutionMode)
 			role.AutonomyLevel = strings.TrimSpace(role.AutonomyLevel)

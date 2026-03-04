@@ -148,14 +148,16 @@ type TeamConfig struct {
 
 // TeamRoleConfig defines a single role within a team.
 type TeamRoleConfig struct {
-	Name           string            `json:"name" yaml:"name"`
-	AgentType      string            `json:"agent_type" yaml:"agent_type"`
-	PromptTemplate string            `json:"prompt_template" yaml:"prompt_template"`
-	ExecutionMode  string            `json:"execution_mode" yaml:"execution_mode"`
-	AutonomyLevel  string            `json:"autonomy_level" yaml:"autonomy_level"`
-	WorkspaceMode  string            `json:"workspace_mode" yaml:"workspace_mode"`
-	Config         map[string]string `json:"config" yaml:"config"`
-	InheritContext bool              `json:"inherit_context" yaml:"inherit_context"`
+	Name              string            `json:"name" yaml:"name"`
+	AgentType         string            `json:"agent_type" yaml:"agent_type"`
+	CapabilityProfile string            `json:"capability_profile,omitempty" yaml:"capability_profile,omitempty"`
+	TargetCLI         string            `json:"target_cli,omitempty" yaml:"target_cli,omitempty"`
+	PromptTemplate    string            `json:"prompt_template" yaml:"prompt_template"`
+	ExecutionMode     string            `json:"execution_mode" yaml:"execution_mode"`
+	AutonomyLevel     string            `json:"autonomy_level" yaml:"autonomy_level"`
+	WorkspaceMode     string            `json:"workspace_mode" yaml:"workspace_mode"`
+	Config            map[string]string `json:"config" yaml:"config"`
+	InheritContext    bool              `json:"inherit_context" yaml:"inherit_context"`
 }
 
 // TeamStageConfig defines an execution stage within a team workflow.

@@ -43,10 +43,10 @@ Use this when an external background task requests permission or clarification.`
 						},
 						"message": {
 							Type:        "string",
-							Description: "Free-form response text (for clarification requests).",
+							Description: "Free-form response text (for clarification requests or direct pane input injection).",
 						},
 					},
-					Required: []string{"task_id", "request_id"},
+					Required: []string{"task_id"},
 				},
 			},
 			ports.ToolMetadata{
@@ -73,9 +73,10 @@ func (t *replyAgent) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		return errResult, nil
 	}
 	requestID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "request_id")
-	if errResult != nil {
+	if errResult != nil && call.Arguments["request_id"] != nil {
 		return errResult, nil
 	}
+	requestID = strings.TrimSpace(requestID)
 
 	approved := false
 	if raw, ok := call.Arguments["approved"]; ok {
@@ -109,11 +110,27 @@ func (t *replyAgent) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		return shared.ToolError(call.ID, "background task dispatch is not available in this context")
 	}
 
+	if requestID == "" {
+		if message == "" {
+			return shared.ToolError(call.ID, "request_id is required unless message injection is provided")
+		}
+		injector, ok := dispatcher.(agent.BackgroundTaskSessionInjector)
+		if !ok {
+			return shared.ToolError(call.ID, "background input injector is not available in this context")
+		}
+		if err := injector.InjectBackgroundInput(ctx, taskID, message); err != nil {
+			return shared.ToolError(call.ID, "%v", err)
+		}
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: fmt.Sprintf("Injected input into task %q.", taskID),
+		}, nil
+	}
+
 	responder, ok := dispatcher.(agent.ExternalInputResponder)
 	if !ok {
 		return shared.ToolError(call.ID, "external input responder is not available in this context")
 	}
-
 	if err := responder.ReplyExternalInput(ctx, agent.InputResponse{
 		TaskID:    taskID,
 		RequestID: requestID,

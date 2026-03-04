@@ -195,7 +195,7 @@ func applyCodingDefaults(agentType string, config map[string]string) map[string]
 	}
 
 	switch utils.TrimLower(agentType) {
-	case "codex", "kimi":
+	case "codex", "kimi", "generic_cli":
 		if utils.IsBlank(cfg["approval_policy"]) {
 			cfg["approval_policy"] = "never"
 		}

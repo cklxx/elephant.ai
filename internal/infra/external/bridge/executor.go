@@ -289,6 +289,14 @@ const defaultAttachedTimeout = 4 * time.Hour
 
 // executeAttached runs the bridge with stdout piped back to this process.
 func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentRequest, bcfg bridgeConfig, pythonBin, bridgeScript string, env map[string]string) (*agent.ExternalAgentResult, error) {
+	sink := newRuntimeEventSink(req)
+	sink.record("role_started", map[string]any{
+		"task_id":    req.TaskID,
+		"agent_type": req.AgentType,
+		"binary":     bcfg.Binary,
+		"mode":       bcfg.ExecutionMode,
+	})
+
 	timeout := e.cfg.Timeout
 	if timeout <= 0 {
 		timeout = defaultAttachedTimeout
@@ -335,7 +343,12 @@ func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentR
 			continue
 		}
 		e.applyEvent(ev, result, req.OnProgress)
+		sink.recordFromSDK(ev)
 		if ev.Type == SDKEventError {
+			sink.record("role_failed", map[string]any{
+				"task_id": req.TaskID,
+				"error":   ev.Message,
+			})
 			return result, errors.New(ev.Message)
 		}
 	}
@@ -344,13 +357,26 @@ func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentR
 	// signal errors that are just side effects of the cancellation — suppress
 	// them so the caller sees a clean context.Canceled instead.
 	if err := scanner.Err(); err != nil && ctx.Err() == nil {
+		sink.record("role_failed", map[string]any{
+			"task_id": req.TaskID,
+			"error":   err.Error(),
+		})
 		return result, err
 	}
 	if err := proc.Wait(); err != nil && ctx.Err() == nil {
 		errMsg := formatProcessError(req.AgentType, err, proc.StderrTail())
+		sink.record("role_failed", map[string]any{
+			"task_id":     req.TaskID,
+			"error":       errMsg,
+			"stderr_tail": compactTail(proc.StderrTail(), 400),
+		})
 		return result, errors.New(e.maybeAppendAuthHint(errMsg, proc.StderrTail()))
 	}
 	enrichPlanMetadata(result, bcfg.ExecutionMode)
+	sink.record("role_completed", map[string]any{
+		"task_id": req.TaskID,
+		"status":  "completed",
+	})
 	return result, nil
 }
 
@@ -360,6 +386,14 @@ func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentR
 // Note: bridges require stdin for config delivery, which tmux cannot provide.
 // Detached bridges always use the exec backend (Setsid session leader).
 func (e *Executor) executeDetached(ctx context.Context, req agent.ExternalAgentRequest, bcfg bridgeConfig, pythonBin, bridgeScript string, env map[string]string) (*agent.ExternalAgentResult, error) {
+	sink := newRuntimeEventSink(req)
+	sink.record("role_started", map[string]any{
+		"task_id":    req.TaskID,
+		"agent_type": req.AgentType,
+		"binary":     bcfg.Binary,
+		"mode":       bcfg.ExecutionMode,
+	})
+
 	workDir := req.WorkingDir
 	if workDir == "" {
 		workDir = "."
@@ -420,6 +454,7 @@ func (e *Executor) executeDetached(ctx context.Context, req agent.ExternalAgentR
 
 	for ev := range events {
 		e.applyEvent(ev, result, req.OnProgress)
+		sink.recordFromSDK(ev)
 		if ev.Type == SDKEventError {
 			lastErr = errors.New(ev.Message)
 		}
@@ -436,13 +471,26 @@ func (e *Executor) executeDetached(ctx context.Context, req agent.ExternalAgentR
 	}
 
 	if lastErr != nil {
+		sink.record("role_failed", map[string]any{
+			"task_id": req.TaskID,
+			"error":   lastErr.Error(),
+		})
 		return result, lastErr
 	}
 	if err := proc.Wait(); err != nil {
 		errMsg := formatProcessError(req.AgentType, err, proc.StderrTail())
+		sink.record("role_failed", map[string]any{
+			"task_id":     req.TaskID,
+			"error":       errMsg,
+			"stderr_tail": compactTail(proc.StderrTail(), 400),
+		})
 		return result, errors.New(e.maybeAppendAuthHint(errMsg, proc.StderrTail()))
 	}
 	enrichPlanMetadata(result, bcfg.ExecutionMode)
+	sink.record("role_completed", map[string]any{
+		"task_id": req.TaskID,
+		"status":  "completed",
+	})
 	return result, nil
 }
 
@@ -487,6 +535,101 @@ func (b BridgeStartedInfo) BridgePID() int { return b.PID }
 
 // BridgeOutputFile implements task.BridgeInfoProvider.
 func (b BridgeStartedInfo) BridgeOutputFile() string { return b.OutputFile }
+
+type runtimeEventSink struct {
+	roleLogPath  string
+	eventLogPath string
+	teamID       string
+	roleID       string
+	taskID       string
+}
+
+func newRuntimeEventSink(req agent.ExternalAgentRequest) *runtimeEventSink {
+	var roleLogPath string
+	var eventLogPath string
+	var teamID string
+	var roleID string
+	if req.Config != nil {
+		roleLogPath = strings.TrimSpace(req.Config["role_log_path"])
+		eventLogPath = strings.TrimSpace(req.Config["team_event_log"])
+		teamID = strings.TrimSpace(req.Config["team_id"])
+		roleID = strings.TrimSpace(req.Config["role_id"])
+	}
+	return &runtimeEventSink{
+		roleLogPath:  roleLogPath,
+		eventLogPath: eventLogPath,
+		teamID:       teamID,
+		roleID:       roleID,
+		taskID:       strings.TrimSpace(req.TaskID),
+	}
+}
+
+func (s *runtimeEventSink) record(eventType string, fields map[string]any) {
+	if s == nil {
+		return
+	}
+	payload := map[string]any{
+		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+		"type":      eventType,
+		"task_id":   s.taskID,
+	}
+	if s.teamID != "" {
+		payload["team_id"] = s.teamID
+	}
+	if s.roleID != "" {
+		payload["role_id"] = s.roleID
+	}
+	for k, v := range fields {
+		payload[k] = v
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	if s.eventLogPath != "" {
+		appendLogLine(s.eventLogPath, string(data))
+	}
+	if s.roleLogPath != "" {
+		appendLogLine(s.roleLogPath, string(data))
+	}
+}
+
+func (s *runtimeEventSink) recordFromSDK(ev SDKEvent) {
+	switch ev.Type {
+	case SDKEventTool:
+		s.record("tool_call", map[string]any{
+			"tool_name": ev.ToolName,
+			"summary":   ev.Summary,
+			"iter":      ev.Iter,
+		})
+	case SDKEventResult:
+		s.record("result", map[string]any{
+			"iters":    ev.Iters,
+			"tokens":   ev.Tokens,
+			"is_error": ev.IsError,
+		})
+	case SDKEventError:
+		s.record("error", map[string]any{
+			"message": ev.Message,
+		})
+	}
+}
+
+func appendLogLine(path string, line string) {
+	trimmedPath := strings.TrimSpace(path)
+	if trimmedPath == "" {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(trimmedPath), 0o755); err != nil {
+		return
+	}
+	f, err := os.OpenFile(trimmedPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString(strings.TrimSpace(line) + "\n")
+}
 
 func (e *Executor) resolvePython() string {
 	if e.cfg.PythonBinary != "" {

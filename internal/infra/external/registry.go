@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/infra/external/bridge"
@@ -16,6 +17,7 @@ import (
 
 // Registry routes external agent requests to the appropriate executor.
 type Registry struct {
+	mu        sync.RWMutex
 	executors map[string]agent.ExternalAgentExecutor
 	inputCh   chan agent.InputRequest
 	pending   sync.Map
@@ -81,13 +83,36 @@ func NewRegistry(cfg config.ExternalAgentsConfig, ctrl *process.Controller, logg
 		registry.register(exec)
 	}
 
+	// Always register a generic CLI bridge so dynamically selected CLIs can be
+	// executed through one unified path using per-task binary overrides.
+	registry.register(bridge.New(bridge.BridgeConfig{
+		AgentType:    "generic_cli",
+		BridgeScript: "scripts/generic_cli_bridge/generic_cli_bridge.py",
+		Timeout:      pickGenericTimeout(cfg),
+	}, ctrl))
+
 	return registry
+}
+
+func pickGenericTimeout(cfg config.ExternalAgentsConfig) time.Duration {
+	if cfg.Codex.Timeout > 0 {
+		return cfg.Codex.Timeout
+	}
+	if cfg.Kimi.Timeout > 0 {
+		return cfg.Kimi.Timeout
+	}
+	if cfg.ClaudeCode.Timeout > 0 {
+		return cfg.ClaudeCode.Timeout
+	}
+	return 30 * time.Minute
 }
 
 func (r *Registry) register(exec agent.ExternalAgentExecutor) {
 	if exec == nil {
 		return
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for _, agentType := range exec.SupportedTypes() {
 		if utils.IsBlank(agentType) {
 			continue
@@ -118,19 +143,36 @@ func (r *Registry) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 	if req.AgentType == "" {
 		return nil, fmt.Errorf("agent_type is required for external execution")
 	}
-	exec, ok := r.executors[req.AgentType]
+	exec, ok := r.get(req.AgentType)
 	if !ok {
+		// Dynamic fallback: if task provides a concrete CLI binary, route through
+		// the generic bridge path instead of hard-failing by static type list.
+		if req.Config != nil && strings.TrimSpace(req.Config["binary"]) != "" {
+			if generic, ok := r.get("generic_cli"); ok {
+				req.AgentType = "generic_cli"
+				return generic.Execute(ctx, req)
+			}
+		}
 		return nil, fmt.Errorf("unsupported external agent type: %s", req.AgentType)
 	}
 	return exec.Execute(ctx, req)
 }
 
 func (r *Registry) SupportedTypes() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	out := make([]string, 0, len(r.executors))
 	for key := range r.executors {
 		out = append(out, key)
 	}
 	return out
+}
+
+func (r *Registry) get(agentType string) (agent.ExternalAgentExecutor, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	exec, ok := r.executors[agentType]
+	return exec, ok
 }
 
 func (r *Registry) InputRequests() <-chan agent.InputRequest {

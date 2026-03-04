@@ -106,6 +106,12 @@ type ExternalInputResponder interface {
 	ReplyExternalInput(ctx context.Context, resp InputResponse) error
 }
 
+// BackgroundTaskSessionInjector allows injecting free-form input into a running
+// role session (typically tmux-backed role panes).
+type BackgroundTaskSessionInjector interface {
+	InjectBackgroundInput(ctx context.Context, taskID string, input string) error
+}
+
 // ExternalWorkspaceMerger allows tools to merge external agent workspaces.
 type ExternalWorkspaceMerger interface {
 	MergeExternalWorkspace(ctx context.Context, taskID string, strategy MergeStrategy) (*MergeResult, error)

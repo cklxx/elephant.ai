@@ -53,7 +53,7 @@ func applyExecutionControls(agentType, mode, level string, config map[string]str
 	cfg["autonomy_level"] = normalizedLevel
 
 	switch utils.TrimLower(agentType) {
-	case "codex", "kimi":
+	case "codex", "kimi", "generic_cli":
 		applyCodexExecutionControls(cfg, normalizedMode, normalizedLevel)
 	case "claude_code":
 		applyClaudeExecutionControls(cfg, normalizedMode, normalizedLevel)
