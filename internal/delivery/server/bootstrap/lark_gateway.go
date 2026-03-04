@@ -59,17 +59,17 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 
 	gatewayCfg := lark.Config{
-		BaseConfig:         larkCfg.BaseConfig,
-		Enabled:            larkCfg.Enabled,
-		AppID:              larkCfg.AppID,
-		AppSecret:          larkCfg.AppSecret,
-		TenantCalendarID:   larkCfg.TenantCalendarID,
-		BaseDomain:         larkCfg.BaseDomain,
-		WorkspaceDir:       larkCfg.WorkspaceDir,
-		AutoUploadFiles:    larkCfg.AutoUploadFiles,
-		AutoUploadMaxBytes: larkCfg.AutoUploadMaxBytes,
-		AutoUploadAllowExt: append([]string(nil), larkCfg.AutoUploadAllowExt...),
-		Browser: larkCfg.Browser,
+		BaseConfig:                    larkCfg.BaseConfig,
+		Enabled:                       larkCfg.Enabled,
+		AppID:                         larkCfg.AppID,
+		AppSecret:                     larkCfg.AppSecret,
+		TenantCalendarID:              larkCfg.TenantCalendarID,
+		BaseDomain:                    larkCfg.BaseDomain,
+		WorkspaceDir:                  larkCfg.WorkspaceDir,
+		AutoUploadFiles:               larkCfg.AutoUploadFiles,
+		AutoUploadMaxBytes:            larkCfg.AutoUploadMaxBytes,
+		AutoUploadAllowExt:            append([]string(nil), larkCfg.AutoUploadAllowExt...),
+		Browser:                       larkCfg.Browser,
 		ReactEmoji:                    larkCfg.ReactEmoji,
 		InjectionAckReactEmoji:        larkCfg.InjectionAckReactEmoji,
 		ShowToolProgress:              larkCfg.ShowToolProgress,
@@ -94,7 +94,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		MaxConcurrentTasks:            larkCfg.MaxConcurrentTasks,
 		DefaultPlanMode:               lark.PlanMode(larkCfg.DefaultPlanMode),
 		DeliveryMode:                  larkCfg.DeliveryMode,
-		DeliveryWorker: larkCfg.DeliveryWorker,
+		DeliveryWorker:                larkCfg.DeliveryWorker,
 	}
 
 	// Hooks bridge endpoint lives on the debug HTTP server (DebugPort),
@@ -324,9 +324,14 @@ func buildLarkOAuthService(ctx context.Context, cfg Config, container *di.Contai
 		return nil
 	}
 
-	port := strings.TrimPrefix(cfg.Port, ":")
+	// In standalone mode, OAuth handlers are served by the embedded debug HTTP
+	// server, so redirect_uri must target DebugPort first.
+	port := strings.TrimPrefix(strings.TrimSpace(cfg.DebugPort), ":")
 	if port == "" {
-		port = "8080"
+		port = strings.TrimPrefix(strings.TrimSpace(cfg.Port), ":")
+	}
+	if port == "" {
+		port = "9090"
 	}
 	redirectBase := fmt.Sprintf("http://localhost:%s", port)
 	if !strings.HasPrefix(redirectBase, "http://") && !strings.HasPrefix(redirectBase, "https://") {

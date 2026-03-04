@@ -150,9 +150,6 @@ func TestNewDebugRouter_ExcludesWebEndpoints(t *testing.T) {
 		{"DELETE", "/api/sessions/test-session"},
 		// Agents
 		{"GET", "/api/agents"},
-		// Lark OAuth
-		{"GET", "/api/lark/oauth/start"},
-		{"GET", "/api/lark/oauth/callback"},
 		// Share
 		{"GET", "/api/share/sessions/test-session"},
 	}
@@ -169,6 +166,45 @@ func TestNewDebugRouter_ExcludesWebEndpoints(t *testing.T) {
 					ep.method, ep.path, w.Code)
 			}
 		})
+	}
+}
+
+func TestNewDebugRouter_LarkOAuthOptional(t *testing.T) {
+	broadcaster := app.NewEventBroadcaster()
+	healthChecker := app.NewHealthChecker()
+
+	// Without oauth handler, endpoints should not be exposed.
+	router := NewDebugRouter(DebugRouterDeps{
+		Broadcaster:   broadcaster,
+		HealthChecker: healthChecker,
+	})
+
+	req := httptest.NewRequest("GET", "/api/lark/oauth/start", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound && w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET /api/lark/oauth/start without handler returned %d; expected 404/405", w.Code)
+	}
+
+	// With oauth handler, endpoints should be routed (handler may return 503).
+	routerWithOAuth := NewDebugRouter(DebugRouterDeps{
+		Broadcaster:      broadcaster,
+		HealthChecker:    healthChecker,
+		LarkOAuthHandler: &LarkOAuthHandler{},
+	})
+
+	req = httptest.NewRequest("GET", "/api/lark/oauth/start", nil)
+	w = httptest.NewRecorder()
+	routerWithOAuth.ServeHTTP(w, req)
+	if w.Code == http.StatusNotFound {
+		t.Errorf("GET /api/lark/oauth/start with handler returned 404")
+	}
+
+	req = httptest.NewRequest("GET", "/api/lark/oauth/callback", nil)
+	w = httptest.NewRecorder()
+	routerWithOAuth.ServeHTTP(w, req)
+	if w.Code == http.StatusNotFound {
+		t.Errorf("GET /api/lark/oauth/callback with handler returned 404")
 	}
 }
 

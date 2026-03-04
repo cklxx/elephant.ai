@@ -35,7 +35,7 @@ func TestLarkOAuthHandler_StartRedirects(t *testing.T) {
 		t.Fatalf("status=%d, want %d", rec.Code, http.StatusFound)
 	}
 	loc := rec.Header().Get("Location")
-	if !strings.Contains(loc, "/open-apis/authen/v1/index") {
+	if !strings.Contains(loc, "/open-apis/authen/v1/authorize") {
 		t.Fatalf("unexpected redirect location: %s", loc)
 	}
 	if !strings.Contains(loc, "app_id=app") {

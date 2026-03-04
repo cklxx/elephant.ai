@@ -25,6 +25,7 @@ type DebugRouterDeps struct {
 	MemoryEngine           MemoryEngine      // may be nil
 	HooksBridge            http.Handler      // may be nil
 	LarkInjectGateway      LarkInjectGateway // may be nil; set when Lark gateway is available
+	LarkOAuthHandler       *LarkOAuthHandler // may be nil
 }
 
 // NewDebugRouter creates an HTTP handler exposing only debug / diagnostic
@@ -39,7 +40,6 @@ type DebugRouterDeps struct {
 //   - Agents catalog
 //   - Attachments / data cache / sandbox browser
 //   - Rate-limit / Stream-guard / Request-timeout middleware
-//   - Lark OAuth
 func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 	logger := logging.NewComponentLogger("DebugRouter")
 	latencyLogger := logging.NewLatencyLogger("DebugHTTP")
@@ -112,6 +112,12 @@ func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 	// ── Claude Code hooks bridge ──
 	if deps.HooksBridge != nil {
 		mux.Handle("POST /api/hooks/claude-code", routeHandler("/api/hooks/claude-code", deps.HooksBridge))
+	}
+
+	// ── Lark OAuth ──
+	if deps.LarkOAuthHandler != nil {
+		mux.Handle("GET /api/lark/oauth/start", routeHandler("/api/lark/oauth/start", http.HandlerFunc(deps.LarkOAuthHandler.HandleStart)))
+		mux.Handle("GET /api/lark/oauth/callback", routeHandler("/api/lark/oauth/callback", http.HandlerFunc(deps.LarkOAuthHandler.HandleCallback)))
 	}
 
 	// ── Lark inject (local e2e testing) ──

@@ -46,6 +46,7 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 	var hooksBridge http.Handler
 	var memoryEngine serverHTTP.MemoryEngine
 	var larkInjectGateway serverHTTP.LarkInjectGateway
+	var larkOAuthHandler *serverHTTP.LarkOAuthHandler
 	if container != nil {
 		if container.LarkGateway != nil {
 			if hb := buildHooksBridge(cfg, container, logger); hb != nil {
@@ -55,6 +56,9 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 				)
 			}
 			larkInjectGateway = container.LarkGateway
+		}
+		if container.LarkOAuth != nil {
+			larkOAuthHandler = serverHTTP.NewLarkOAuthHandler(container.LarkOAuth, logger)
 		}
 		memoryEngine = container.MemoryEngine
 	}
@@ -70,6 +74,7 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 		MemoryEngine:           memoryEngine,
 		HooksBridge:            hooksBridge,
 		LarkInjectGateway:      larkInjectGateway,
+		LarkOAuthHandler:       larkOAuthHandler,
 	})
 
 	port := cfg.DebugPort

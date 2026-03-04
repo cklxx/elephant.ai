@@ -132,7 +132,7 @@ func TestService_StartAuthAndHandleCallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse auth url: %v", err)
 	}
-	if !strings.Contains(parsed.Path, "/open-apis/authen/v1/index") {
+	if !strings.Contains(parsed.Path, "/open-apis/authen/v1/authorize") {
 		t.Fatalf("unexpected auth url path: %s", parsed.Path)
 	}
 	if got := parsed.Query().Get("app_id"); got != "app" {
@@ -253,7 +253,14 @@ func TestService_UserAccessToken_Missing(t *testing.T) {
 	if !errors.As(err, &need) {
 		t.Fatalf("expected NeedUserAuthError, got %v", err)
 	}
-	if !strings.Contains(need.AuthURL, "/api/lark/oauth/start") {
+	if !strings.Contains(need.AuthURL, "/open-apis/authen/v1/authorize") {
 		t.Fatalf("unexpected auth url: %s", need.AuthURL)
+	}
+	parsed, parseErr := url.Parse(need.AuthURL)
+	if parseErr != nil {
+		t.Fatalf("parse auth url: %v", parseErr)
+	}
+	if got := parsed.Query().Get("redirect_uri"); got != "http://localhost:8080/api/lark/oauth/callback" {
+		t.Fatalf("redirect_uri=%q, want %q", got, "http://localhost:8080/api/lark/oauth/callback")
 	}
 }

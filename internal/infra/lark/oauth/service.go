@@ -107,7 +107,7 @@ func (s *Service) AuthorizeURL(state string) (string, error) {
 		base = "https://" + base
 	}
 
-	u, err := url.Parse(base + "/open-apis/authen/v1/index")
+	u, err := url.Parse(base + "/open-apis/authen/v1/authorize")
 	if err != nil {
 		return "", err
 	}
@@ -190,7 +190,7 @@ func (s *Service) HandleCallback(ctx context.Context, code, state string) (Token
 }
 
 // UserAccessToken returns a valid user_access_token for the provided open_id.
-// If none exists, returns *NeedUserAuthError containing the OAuth start URL.
+// If none exists, returns *NeedUserAuthError containing a direct authorization URL.
 func (s *Service) UserAccessToken(ctx context.Context, openID string) (string, error) {
 	openID = strings.TrimSpace(openID)
 	if openID == "" {
@@ -200,7 +200,11 @@ func (s *Service) UserAccessToken(ctx context.Context, openID string) (string, e
 	token, err := s.tokens.Get(ctx, openID)
 	if err != nil {
 		if errors.Is(err, ErrTokenNotFound) {
-			return "", &NeedUserAuthError{AuthURL: s.StartURL()}
+			_, authURL, startErr := s.StartAuth(ctx)
+			if startErr != nil {
+				authURL = s.StartURL()
+			}
+			return "", &NeedUserAuthError{AuthURL: authURL}
 		}
 		return "", err
 	}
