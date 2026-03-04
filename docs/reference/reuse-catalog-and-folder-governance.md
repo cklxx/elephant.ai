@@ -4,14 +4,7 @@ Updated: 2026-03-04
 
 ## 1. Scope
 
-This document is the canonical policy for file-level placement, reuse boundaries, and anti-duplication review gates.
-
-Hard priority for all changes:
-
-1. safety
-2. correctness
-3. maintainability
-4. speed
+Canonical policy for file-level placement, reuse boundaries, and anti-duplication review gates.
 
 ## 2. Non-Negotiable Rules
 
@@ -21,7 +14,7 @@ Hard priority for all changes:
 4. Configuration examples are YAML-only.
 5. If reuse is impossible, record why with explicit path-level evidence.
 
-## 3. File-Type to Directory Mapping (Mandatory)
+## 3. File-Type to Directory Mapping
 
 | File type | Responsibility | Required location | Forbidden locations |
 | --- | --- | --- | --- |
@@ -40,9 +33,9 @@ Hard priority for all changes:
 | `*.py` (bridge/tooling) | helper bridge or local tooling scripts | `scripts/**` | `internal/**` as runtime business code |
 | runtime artifacts | logs/pids/tmp outputs | `logs/**`, `pids/**`, `tmp/**`, `.tmp/**`, `artifacts/**` | `internal/**`, `docs/**`, `configs/**` |
 
-## 4. Internal Package Placement Matrix (No Ambiguity)
+## 4. Internal Package Placement Matrix
 
-All new files under `internal/` must map to one and only one first-level namespace:
+Every file under `internal/` belongs to exactly one first-level namespace:
 
 - `internal/app/`
 - `internal/domain/`
@@ -66,24 +59,9 @@ Adding a new first-level namespace under `internal/` is forbidden without an arc
 | `internal/devops/` | local/dev runtime process orchestration and service lifecycle tooling | production domain logic, user-facing delivery handlers |
 | `internal/testutil/` | reusable test-only helpers | runtime production paths |
 
-### 4.2 Required Subdirectory Mapping
+### 4.2 Subdirectory Placement
 
-| If the new file does... | Must go under... | Example anchor paths |
-| --- | --- | --- |
-| ReAct loop coordination, agent execution orchestration | `internal/app/agent/**` | `internal/app/agent/coordinator/`, `internal/app/agent/kernel/` |
-| Context assembly/compression and context-level app policy | `internal/app/context/**` | `internal/app/context/` |
-| Dependency wiring/container construction | `internal/app/di/**` | `internal/app/di/` |
-| Scheduler/reminder/notification app orchestration | `internal/app/scheduler/**`, `internal/app/reminder/**`, `internal/app/notification/**` | corresponding existing folders |
-| Core task/workflow domain states and transitions | `internal/domain/task/**`, `internal/domain/workflow/**` | existing domain packages |
-| Domain-level agent contracts/types | `internal/domain/agent/**` | `ports/`, `react/`, `taskfile/` |
-| Tool implementations and concrete tool adapters | `internal/infra/tools/**` | `internal/infra/tools/builtin/` |
-| External agent bridge/executor implementation | `internal/infra/external/**` | `internal/infra/external/bridge/` |
-| Process/tmux backend internals | `internal/infra/process/**` | `tmux_backend.go`, `exec_backend.go` |
-| HTTP/SSE router/handler/channel gateway | `internal/delivery/server/**`, `internal/delivery/channels/**` | existing delivery paths |
-| Global config model/loading/normalization | `internal/shared/config/**` | `types.go`, `load.go`, `runtime_env_loader.go` |
-| General utility package with no feature ownership | `internal/shared/**` | `logging/`, `json/`, `utils/` |
-| Local service lifecycle supervisor/start-stop | `internal/devops/**` | `process/`, `services/`, `supervisor/` |
-| Reusable test fixtures/helpers | `internal/testutil/**` | test helper packages |
+Place new files alongside existing code that shares the same responsibility. When uncertain, check neighboring files in the target package for patterns. The table in 4.1 defines the first-level boundary; within each namespace, follow existing subdirectory conventions.
 
 ### 4.3 Internal Anti-Duplication Rules
 
@@ -93,21 +71,21 @@ Adding a new first-level namespace under `internal/` is forbidden without an arc
 4. Do not add feature-specific helpers to `shared`; keep `shared` generic and reusable.
 5. Do not create `internal/<new-root>/...` without architecture approval.
 
-## 5. Directory Ownership Boundary
+## 5. Directory Boundary
 
-| Directory | Owner | Writable by runtime | Notes |
-| --- | --- | --- | --- |
-| `internal/` | backend engineers | no | source code only |
-| `cmd/` | backend engineers | no | entrypoints only |
-| `configs/` | platform/config owners | no | YAML only |
-| `docs/reference/` | architecture owners | no | single source of truth |
-| `docs/guides/` | developer productivity owners | no | executable workflows |
-| `docs/plans/` | task implementer | no | must include progress/status |
-| `scripts/` | devops/tooling owners | no | operational automation |
-| `tasks/` | operators/agents | yes (sidecar only) | input YAML + file-mode sidecar |
-| `.elephant/tasks/` | runtime | yes | template/kernel sidecar only |
-| `artifacts/` | runtime and operators | yes | durable outputs only |
-| `tmp/`, `.tmp/` | runtime and operators | yes | disposable temporary outputs |
+| Directory | Writable by runtime | Notes |
+| --- | --- | --- |
+| `internal/` | no | source code only |
+| `cmd/` | no | entrypoints only |
+| `configs/` | no | YAML only |
+| `docs/reference/` | no | single source of truth |
+| `docs/guides/` | no | executable workflows |
+| `docs/plans/` | no | must include progress/status |
+| `scripts/` | no | operational automation |
+| `tasks/` | yes (sidecar only) | input YAML + file-mode sidecar |
+| `.elephant/tasks/` | yes | template/kernel sidecar only |
+| `artifacts/` | yes | durable outputs only |
+| `tmp/`, `.tmp/` | yes | disposable temporary outputs |
 
 Minimum writable set for runtime processes:
 
@@ -118,20 +96,20 @@ Minimum writable set for runtime processes:
 - `tmp/` and `.tmp/`
 - `artifacts/`
 
-## 6. Naming Rules (Default)
+## 6. Naming Rules
 
-### 5.1 Documents
+### 6.1 Documents
 
 - Canonical references and guides: `kebab-case.md`
 - Plans and records: `YYYY-MM-DD-short-slug.md`
 
-### 5.2 Task and Status Files
+### 6.2 Task and Status Files
 
 - Task input file: `<domain>_<purpose>_<YYYYMMDD>.yaml`
 - Status sidecar file: `<task-file-basename>.status.yaml`
 - Team/template status sidecar: `<plan_id>.status.yaml`
 
-### 5.3 Scripts
+### 6.3 Scripts
 
 - Check scripts: `check-<topic>.sh`
 - Domain scripts: `<domain>/<verb>-<target>.sh`
@@ -141,7 +119,7 @@ Status suffix policy:
 - The only approved runtime status suffix is `.status.yaml`.
 - Do not introduce parallel suffixes such as `.progress.yaml`, `.state.yaml`, or `.status.json`.
 
-## 7. Reuse-First Catalog (Do Not Re-Implement)
+## 7. Reuse-First Catalog
 
 | Capability | Reuse entrypoint | Do not build |
 | --- | --- | --- |
@@ -160,42 +138,14 @@ Status suffix policy:
 3. If it extends process lifecycle, modify the existing process manager/controller path.
 4. If it adds config input, extend shared config loading and documented config contracts.
 
-## 9. Interface Change Flow
+## 9. Review Gate
 
-1. Update canonical reference doc first (`docs/reference/**`).
-2. Update implementation files (`internal/**`, `cmd/**`).
-3. Update tests in matching layers.
-4. Update how-to docs (`docs/guides/**`) for operator workflow changes.
-5. Keep record docs (`docs/plans/**`, `docs/reviews/**`) as historical context, not canonical truth.
+Before adding a new file or component:
 
-## 10. Review Gate (Anti-Duplication)
+1. Search existing paths for matching capability (`rg`, `glob`).
+2. If found, reuse or extend. If not, document why in the commit message.
+3. Blocked if: parallel orchestration tool, non-`.status.yaml` sidecar, env parser bypassing shared config, lifecycle manager outside `internal/devops/process`.
 
-Mandatory checks before adding a file/component:
+## 10. Discoverability
 
-1. Search existing capability paths by keyword and path index.
-2. If existing capability matches, reuse or extend directly.
-3. If no capability matches, document explicit replacement reason.
-
-Required review fields:
-
-- `Existing capability checked: <path list>`
-- `Reuse decision: reuse | extend | new`
-- `If new, why not reusable: <single concrete mismatch>`
-- `Convergence plan: <future merge path or none>`
-
-Blocking conditions:
-
-1. New parallel orchestration tool when `run_tasks` is sufficient.
-2. New status sidecar protocol not ending in `.status.yaml`.
-3. New business-layer env parser bypassing shared config loader.
-4. New tmux/PID lifecycle manager outside existing process management.
-5. File placement violating the file-type-to-directory mapping.
-
-## 11. Discoverability Commands
-
-Use these commands before implementation:
-
-```bash
-rg -n "run_tasks|taskfile|status\\.yaml|TeamDefinition|tmux|process manager|runtime_env_loader|envmerge|wrapper" internal scripts docs configs
-rg --files internal/domain/agent/taskfile internal/infra/tools/builtin/orchestration internal/infra/process internal/devops/process scripts/cli
-```
+Before creating a new file, search the codebase for existing implementations of the same capability.
