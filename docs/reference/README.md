@@ -21,9 +21,3 @@ Updated: 2026-03-04
 - [reuse-path-index.md](reuse-path-index.md)
 - [external-agents-codex-claude-code.md](external-agents-codex-claude-code.md)
 - [lark-web-agent-event-flow.md](lark-web-agent-event-flow.md)
-
-## Historical snapshots (for context)
-
-- [BACKEND_ARCHITECTURE_ISSUES.md](BACKEND_ARCHITECTURE_ISSUES.md)
-- [REPO_STRUCTURE_REVIEW.md](REPO_STRUCTURE_REVIEW.md)
-- [TASK_EXECUTION_FRAMEWORK.md](TASK_EXECUTION_FRAMEWORK.md)
