@@ -60,6 +60,10 @@ func writeJSON(t *testing.T, w http.ResponseWriter, code int, msg string, data a
 	}
 }
 
+func isDocxBlocksConvertRoute(path string) bool {
+	return strings.Contains(path, "/docx/v1/documents/blocks/convert")
+}
+
 // ---------------------------------------------------------------------------
 // Direct docx_manage tests
 // ---------------------------------------------------------------------------
@@ -167,7 +171,7 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 					"revision_id": 1,
 				},
 			})
-		case r.Method == http.MethodPost && (strings.Contains(r.URL.Path, "/open-apis/docx/v1/documents/blocks/convert") || strings.HasSuffix(r.URL.Path, "/docx/v1/documents/blocks/convert")):
+		case r.Method == http.MethodPost && isDocxBlocksConvertRoute(r.URL.Path):
 			bodyBytes, _ := io.ReadAll(r.Body)
 			body := string(bodyBytes)
 			if !strings.Contains(body, "这是正文第一段") {
