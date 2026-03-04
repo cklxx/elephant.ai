@@ -1,5 +1,5 @@
 version: 1
-updated: "2026-03-03"
+updated: "2026-03-04"
 edges:
     - from: err-2026-01-27-dev-lint-test-cmd-alex-context
       to: errsum-2026-01-27-dev-lint-test-cmd-alex-context
@@ -117,6 +117,22 @@ edges:
       to: errsum-2026-03-03-race-react-testmultipletasks-flake
       type: see_also
       direction: directed
+    - from: err-2026-03-03-service-readiness-claim-without-verification
+      to: errsum-2026-03-03-service-readiness-claim-without-verification
+      type: see_also
+      direction: directed
+    - from: err-2026-03-03-tool-domain-misread-lark-doc-vs-task
+      to: errsum-2026-03-03-tool-domain-misread-lark-doc-vs-task
+      type: see_also
+      direction: directed
+    - from: err-2026-03-03-user-scope-correction-task-only
+      to: errsum-2026-03-03-user-scope-correction-task-only
+      type: see_also
+      direction: directed
+    - from: err-2026-03-04-lark-oauth-redirect-uri-precheck
+      to: errsum-2026-03-04-lark-oauth-redirect-uri-precheck
+      type: see_also
+      direction: directed
     - from: errsum-2026-01-27-dev-lint-test-cmd-alex-context
       to: err-2026-01-27-dev-lint-test-cmd-alex-context
       type: derived_from
@@ -231,6 +247,22 @@ edges:
       direction: directed
     - from: errsum-2026-03-03-race-react-testmultipletasks-flake
       to: err-2026-03-03-race-react-testmultipletasks-flake
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-03-03-service-readiness-claim-without-verification
+      to: err-2026-03-03-service-readiness-claim-without-verification
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-03-03-tool-domain-misread-lark-doc-vs-task
+      to: err-2026-03-03-tool-domain-misread-lark-doc-vs-task
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-03-03-user-scope-correction-task-only
+      to: err-2026-03-03-user-scope-correction-task-only
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-03-04-lark-oauth-redirect-uri-precheck
+      to: err-2026-03-04-lark-oauth-redirect-uri-precheck
       type: derived_from
       direction: directed
     - from: good-2026-01-30-continuous-practice-optimization
@@ -1111,6 +1143,54 @@ edges:
       direction: directed
     - from: ltm-long-term-memory
       to: plan-2026-02-28-lark-no-markdown-formatting
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-03-hooks-memory-root-cause-and-guardrails
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-03-lark-docx-title-content-fix
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-03-lark-emoji-only-reply-fix
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-03-lark-perceivable-guards
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-03-lark-task-create-oauth-title-body-fix
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-03-lark-task-list-oauth-fix
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-03-lark-task-title-content-fix
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-03-lark-terminal-delivery-architecture-refactor
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-03-memory-file-architecture-simplification
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-03-web-memory-hotpath-fix
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-04-lark-standalone-oauth-routing
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-04-lark-task-tenant-token-and-visibility
       type: see_also
       direction: directed
 schema:
