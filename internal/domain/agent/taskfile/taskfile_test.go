@@ -7,9 +7,6 @@ import (
 )
 
 func TestTaskFileYAMLRoundTrip(t *testing.T) {
-	boolTrue := true
-	retryMax := 3
-
 	original := &TaskFile{
 		Version: "1",
 		PlanID:  "plan-001",
@@ -26,12 +23,14 @@ func TestTaskFileYAMLRoundTrip(t *testing.T) {
 				DependsOn:   nil,
 			},
 			{
-				ID:             "task-2",
-				Description:    "test feature X",
-				Prompt:         "Write tests for feature X",
-				DependsOn:      []string{"task-1"},
-				Verify:         &boolTrue,
-				RetryMax:       &retryMax,
+				ID:          "task-2",
+				Description: "test feature X",
+				Prompt:      "Write tests for feature X",
+				DependsOn:   []string{"task-1"},
+				Config: map[string]string{
+					"verify":             "true",
+					"retry_max_attempts": "3",
+				},
 				InheritContext: true,
 			},
 		},
@@ -60,10 +59,10 @@ func TestTaskFileYAMLRoundTrip(t *testing.T) {
 	if roundTripped.Tasks[1].DependsOn[0] != "task-1" {
 		t.Errorf("depends_on: got %q, want %q", roundTripped.Tasks[1].DependsOn[0], "task-1")
 	}
-	if roundTripped.Tasks[1].Verify == nil || !*roundTripped.Tasks[1].Verify {
+	if roundTripped.Tasks[1].Config["verify"] != "true" {
 		t.Error("verify should be true after round-trip")
 	}
-	if roundTripped.Tasks[1].RetryMax == nil || *roundTripped.Tasks[1].RetryMax != 3 {
-		t.Error("retry_max should be 3 after round-trip")
+	if roundTripped.Tasks[1].Config["retry_max_attempts"] != "3" {
+		t.Error("retry_max_attempts should be 3 after round-trip")
 	}
 }

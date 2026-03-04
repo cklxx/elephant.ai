@@ -494,20 +494,20 @@ func TestIntegration_TeamTemplateExecution(t *testing.T) {
 	mgr := newIntegrationManager(se.execute, testClock{})
 	defer mgr.Shutdown()
 
-	tmpl := &taskfile.TeamTemplate{
+	def := &agent.TeamDefinition{
 		Name:        "code-review",
 		Description: "Coder + reviewer team",
-		Roles: []taskfile.TeamTemplateRole{
+		Roles: []agent.TeamRoleDefinition{
 			{Name: "coder", AgentType: "internal", PromptTemplate: "Implement: {GOAL}"},
 			{Name: "reviewer", AgentType: "internal", PromptTemplate: "Review work by {TEAM}: {GOAL}", InheritContext: true},
 		},
-		Stages: []taskfile.TeamTemplateStage{
+		Stages: []agent.TeamStageDefinition{
 			{Name: "execute", Roles: []string{"coder"}},
 			{Name: "review", Roles: []string{"reviewer"}},
 		},
 	}
 
-	tf := taskfile.RenderTaskFile(tmpl, "build auth module", nil)
+	tf := taskfile.RenderTaskFile(def, "build auth module", nil)
 
 	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
 	statusPath := t.TempDir() + "/team.status.yaml"
@@ -928,19 +928,19 @@ func TestIntegration_DebateMode(t *testing.T) {
 	mgr := newIntegrationManager(se.execute, testClock{})
 	defer mgr.Shutdown()
 
-	tmpl := &taskfile.TeamTemplate{
+	def := &agent.TeamDefinition{
 		Name: "debate-team",
-		Roles: []taskfile.TeamTemplateRole{
+		Roles: []agent.TeamRoleDefinition{
 			{Name: "analyst", AgentType: "internal", PromptTemplate: "Analyze: {GOAL}"},
 			{Name: "reviewer", AgentType: "internal", PromptTemplate: "Review work by {TEAM}: {GOAL}", InheritContext: true},
 		},
-		Stages: []taskfile.TeamTemplateStage{
+		Stages: []agent.TeamStageDefinition{
 			{Name: "analyze", Roles: []string{"analyst"}, DebateMode: true},
 			{Name: "review", Roles: []string{"reviewer"}},
 		},
 	}
 
-	tf := taskfile.RenderTaskFile(tmpl, "evaluate proposal Q", nil)
+	tf := taskfile.RenderTaskFile(def, "evaluate proposal Q", nil)
 
 	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
 	statusPath := t.TempDir() + "/debate.status.yaml"

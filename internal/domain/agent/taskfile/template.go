@@ -7,75 +7,46 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 )
 
-// TeamTemplate is the YAML-serializable form of a team workflow definition.
-type TeamTemplate struct {
-	Name        string              `yaml:"name"`
-	Description string              `yaml:"description,omitempty"`
-	Roles       []TeamTemplateRole  `yaml:"roles"`
-	Stages      []TeamTemplateStage `yaml:"stages"`
-}
-
-// TeamTemplateRole defines a single role within a team template.
-type TeamTemplateRole struct {
-	Name              string            `yaml:"name"`
-	AgentType         string            `yaml:"agent_type"`
-	CapabilityProfile string            `yaml:"capability_profile,omitempty"`
-	TargetCLI         string            `yaml:"target_cli,omitempty"`
-	PromptTemplate    string            `yaml:"prompt_template,omitempty"`
-	ExecutionMode     string            `yaml:"execution_mode,omitempty"`
-	AutonomyLevel     string            `yaml:"autonomy_level,omitempty"`
-	WorkspaceMode     string            `yaml:"workspace_mode,omitempty"`
-	Config            map[string]string `yaml:"config,omitempty"`
-	InheritContext    bool              `yaml:"inherit_context,omitempty"`
-}
-
-// TeamTemplateStage defines an execution stage within a team workflow.
-type TeamTemplateStage struct {
-	Name       string   `yaml:"name"`
-	Roles      []string `yaml:"roles"`
-	DebateMode bool     `yaml:"debate_mode,omitempty"`
-}
-
-// RenderTaskFile converts a TeamTemplate + goal into a TaskFile with
+// RenderTaskFile converts a TeamDefinition + goal into a TaskFile with
 // appropriate dependencies between stages.
-func RenderTaskFile(tmpl *TeamTemplate, goal string, overrides map[string]string) *TaskFile {
+func RenderTaskFile(def *agent.TeamDefinition, goal string, overrides map[string]string) *TaskFile {
 	tf := &TaskFile{
 		Version: "1",
-		PlanID:  "team-" + tmpl.Name,
+		PlanID:  "team-" + def.Name,
 		Metadata: map[string]string{
-			"team": tmpl.Name,
+			"team": def.Name,
 			"goal": goal,
 		},
 	}
 
 	// Build role lookup.
-	roleByName := make(map[string]TeamTemplateRole, len(tmpl.Roles))
-	for _, r := range tmpl.Roles {
+	roleByName := make(map[string]agent.TeamRoleDefinition, len(def.Roles))
+	for _, r := range def.Roles {
 		roleByName[r.Name] = r
 	}
 
 	// Generate task IDs per role.
-	roleTaskIDs := make(map[string]string, len(tmpl.Roles))
-	for _, r := range tmpl.Roles {
+	roleTaskIDs := make(map[string]string, len(def.Roles))
+	for _, r := range def.Roles {
 		roleTaskIDs[r.Name] = "team-" + r.Name
 	}
 
 	// Step 1: compute which IDs each stage contributes as outputs for the
 	// next stage's dependencies. For debate stages, include both primary and
 	// challenger IDs.
-	stageOutputIDs := computeStageOutputIDs(tmpl.Stages, roleTaskIDs)
+	stageOutputIDs := computeStageOutputIDs(def.Stages, roleTaskIDs)
 
 	// Step 2: build primary task dependencies per role using stageOutputIDs.
-	deps := buildStageDeps(tmpl.Stages, stageOutputIDs)
+	deps := buildStageDeps(def.Stages, stageOutputIDs)
 
 	// Step 3: create primary task specs.
-	for _, r := range tmpl.Roles {
-		prompt := renderTeamPrompt(r.PromptTemplate, overrides, r.Name, tmpl.Name, goal)
+	for _, r := range def.Roles {
+		prompt := renderTeamPrompt(r.PromptTemplate, overrides, r.Name, def.Name, goal)
 		depIDs := deps[r.Name]
 
 		spec := TaskSpec{
 			ID:             roleTaskIDs[r.Name],
-			Description:    r.Name + " role for team " + tmpl.Name,
+			Description:    r.Name + " role for team " + def.Name,
 			Prompt:         prompt,
 			AgentType:      r.AgentType,
 			ExecutionMode:  r.ExecutionMode,
@@ -98,7 +69,7 @@ func RenderTaskFile(tmpl *TeamTemplate, goal string, overrides map[string]string
 	}
 
 	// Step 4: create debate challenger specs for debate stages.
-	for _, stage := range tmpl.Stages {
+	for _, stage := range def.Stages {
 		if !stage.DebateMode {
 			continue
 		}
@@ -112,7 +83,7 @@ func RenderTaskFile(tmpl *TeamTemplate, goal string, overrides map[string]string
 			debateSpec := TaskSpec{
 				ID:             debateID,
 				Description:    roleName + " critical analysis",
-				Prompt:         renderDebatePrompt(roleName, tmpl.Name, goal),
+				Prompt:         renderDebatePrompt(roleName, def.Name, goal),
 				AgentType:      role.AgentType,
 				DependsOn:      append([]string(nil), primaryIDs...),
 				InheritContext: true,
@@ -128,7 +99,7 @@ func RenderTaskFile(tmpl *TeamTemplate, goal string, overrides map[string]string
 // computeStageOutputIDs returns, for each stage index, the task IDs that the
 // following stage should depend on. For debate stages this includes both the
 // primary role IDs and their challenger IDs.
-func computeStageOutputIDs(stages []TeamTemplateStage, roleTaskIDs map[string]string) [][]string {
+func computeStageOutputIDs(stages []agent.TeamStageDefinition, roleTaskIDs map[string]string) [][]string {
 	out := make([][]string, len(stages))
 	for i, stage := range stages {
 		var ids []string
@@ -152,7 +123,7 @@ func computeStageOutputIDs(stages []TeamTemplateStage, roleTaskIDs map[string]st
 // buildStageDeps returns, for each role name, the list of task IDs it must
 // wait for. stageOutputIDs[i] is the full set of IDs produced by stage i
 // (including any debate challengers).
-func buildStageDeps(stages []TeamTemplateStage, stageOutputIDs [][]string) map[string][]string {
+func buildStageDeps(stages []agent.TeamStageDefinition, stageOutputIDs [][]string) map[string][]string {
 	deps := make(map[string][]string)
 	for i, stage := range stages {
 		if i == 0 {
@@ -167,40 +138,6 @@ func buildStageDeps(stages []TeamTemplateStage, stageOutputIDs [][]string) map[s
 		}
 	}
 	return deps
-}
-
-// TeamTemplateFromDefinition converts a domain TeamDefinition into a
-// YAML-serializable TeamTemplate.
-func TeamTemplateFromDefinition(def agent.TeamDefinition) TeamTemplate {
-	roles := make([]TeamTemplateRole, len(def.Roles))
-	for i, r := range def.Roles {
-		roles[i] = TeamTemplateRole{
-			Name:              r.Name,
-			AgentType:         r.AgentType,
-			CapabilityProfile: r.CapabilityProfile,
-			TargetCLI:         r.TargetCLI,
-			PromptTemplate:    r.PromptTemplate,
-			ExecutionMode:     r.ExecutionMode,
-			AutonomyLevel:     r.AutonomyLevel,
-			WorkspaceMode:     r.WorkspaceMode,
-			Config:            r.Config,
-			InheritContext:    r.InheritContext,
-		}
-	}
-	stages := make([]TeamTemplateStage, len(def.Stages))
-	for i, s := range def.Stages {
-		stages[i] = TeamTemplateStage{
-			Name:       s.Name,
-			Roles:      s.Roles,
-			DebateMode: s.DebateMode,
-		}
-	}
-	return TeamTemplate{
-		Name:        def.Name,
-		Description: def.Description,
-		Roles:       roles,
-		Stages:      stages,
-	}
 }
 
 func renderTeamPrompt(template string, overrides map[string]string, roleName, teamName, goal string) string {

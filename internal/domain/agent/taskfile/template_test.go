@@ -7,20 +7,20 @@ import (
 )
 
 func TestRenderTaskFile_BasicTeam(t *testing.T) {
-	tmpl := &TeamTemplate{
+	def := &agent.TeamDefinition{
 		Name:        "test-team",
 		Description: "A test team",
-		Roles: []TeamTemplateRole{
+		Roles: []agent.TeamRoleDefinition{
 			{Name: "coder", AgentType: "codex", PromptTemplate: "Implement: {GOAL}"},
 			{Name: "reviewer", AgentType: "claude_code", PromptTemplate: "Review work by {TEAM}: {GOAL}", InheritContext: true},
 		},
-		Stages: []TeamTemplateStage{
+		Stages: []agent.TeamStageDefinition{
 			{Name: "execute", Roles: []string{"coder"}},
 			{Name: "review", Roles: []string{"reviewer"}},
 		},
 	}
 
-	tf := RenderTaskFile(tmpl, "build feature X", nil)
+	tf := RenderTaskFile(def, "build feature X", nil)
 
 	if tf.Version != "1" {
 		t.Errorf("version: got %q, want %q", tf.Version, "1")
@@ -51,12 +51,12 @@ func TestRenderTaskFile_BasicTeam(t *testing.T) {
 }
 
 func TestRenderTaskFile_WithOverrides(t *testing.T) {
-	tmpl := &TeamTemplate{
+	def := &agent.TeamDefinition{
 		Name: "override-team",
-		Roles: []TeamTemplateRole{
+		Roles: []agent.TeamRoleDefinition{
 			{Name: "worker", AgentType: "codex", PromptTemplate: "Default: {GOAL}"},
 		},
-		Stages: []TeamTemplateStage{
+		Stages: []agent.TeamStageDefinition{
 			{Name: "do", Roles: []string{"worker"}},
 		},
 	}
@@ -65,7 +65,7 @@ func TestRenderTaskFile_WithOverrides(t *testing.T) {
 		"worker": "Custom prompt for worker",
 	}
 
-	tf := RenderTaskFile(tmpl, "goal", overrides)
+	tf := RenderTaskFile(def, "goal", overrides)
 
 	if tf.Tasks[0].Prompt != "Custom prompt for worker" {
 		t.Errorf("expected override prompt, got %q", tf.Tasks[0].Prompt)
@@ -73,7 +73,7 @@ func TestRenderTaskFile_WithOverrides(t *testing.T) {
 }
 
 func TestBuildStageDeps_ThreeStages(t *testing.T) {
-	stages := []TeamTemplateStage{
+	stages := []agent.TeamStageDefinition{
 		{Name: "s1", Roles: []string{"a", "b"}},
 		{Name: "s2", Roles: []string{"c"}},
 		{Name: "s3", Roles: []string{"d"}},
@@ -97,19 +97,19 @@ func TestBuildStageDeps_ThreeStages(t *testing.T) {
 }
 
 func TestRenderTaskFile_DebateMode(t *testing.T) {
-	tmpl := &TeamTemplate{
+	def := &agent.TeamDefinition{
 		Name: "debate-team",
-		Roles: []TeamTemplateRole{
+		Roles: []agent.TeamRoleDefinition{
 			{Name: "analyst", AgentType: "codex"},
 			{Name: "reviewer", AgentType: "claude_code", InheritContext: true},
 		},
-		Stages: []TeamTemplateStage{
+		Stages: []agent.TeamStageDefinition{
 			{Name: "analyze", Roles: []string{"analyst"}, DebateMode: true},
 			{Name: "review", Roles: []string{"reviewer"}},
 		},
 	}
 
-	tf := RenderTaskFile(tmpl, "evaluate proposal X", nil)
+	tf := RenderTaskFile(def, "evaluate proposal X", nil)
 
 	// Expect 3 tasks: analyst (primary), analyst-debate (challenger), reviewer.
 	if len(tf.Tasks) != 3 {
@@ -150,7 +150,7 @@ func TestRenderTaskFile_DebateMode(t *testing.T) {
 }
 
 func TestComputeStageOutputIDs_DebateMode(t *testing.T) {
-	stages := []TeamTemplateStage{
+	stages := []agent.TeamStageDefinition{
 		{Name: "s1", Roles: []string{"a"}, DebateMode: true},
 		{Name: "s2", Roles: []string{"b"}},
 	}
@@ -175,24 +175,6 @@ func TestComputeStageOutputIDs_DebateMode(t *testing.T) {
 	}
 }
 
-func TestTeamTemplateFromDefinition_DebateMode(t *testing.T) {
-	def := agent.TeamDefinition{
-		Name: "debate-team",
-		Roles: []agent.TeamRoleDefinition{
-			{Name: "worker", AgentType: "codex"},
-		},
-		Stages: []agent.TeamStageDefinition{
-			{Name: "do", Roles: []string{"worker"}, DebateMode: true},
-		},
-	}
-
-	tmpl := TeamTemplateFromDefinition(def)
-
-	if len(tmpl.Stages) != 1 || !tmpl.Stages[0].DebateMode {
-		t.Error("DebateMode should be propagated from TeamStageDefinition")
-	}
-}
-
 // taskIDs returns all task IDs from a TaskFile for debugging.
 func taskIDs(tf *TaskFile) []string {
 	var ids []string
@@ -200,29 +182,4 @@ func taskIDs(tf *TaskFile) []string {
 		ids = append(ids, t.ID)
 	}
 	return ids
-}
-
-func TestTeamTemplateFromDefinition(t *testing.T) {
-	def := agent.TeamDefinition{
-		Name:        "my-team",
-		Description: "desc",
-		Roles: []agent.TeamRoleDefinition{
-			{Name: "worker", AgentType: "codex", ExecutionMode: "execute"},
-		},
-		Stages: []agent.TeamStageDefinition{
-			{Name: "do", Roles: []string{"worker"}},
-		},
-	}
-
-	tmpl := TeamTemplateFromDefinition(def)
-
-	if tmpl.Name != "my-team" {
-		t.Errorf("name: got %q", tmpl.Name)
-	}
-	if len(tmpl.Roles) != 1 || tmpl.Roles[0].AgentType != "codex" {
-		t.Error("roles mismatch")
-	}
-	if len(tmpl.Stages) != 1 || tmpl.Stages[0].Roles[0] != "worker" {
-		t.Error("stages mismatch")
-	}
 }

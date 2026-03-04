@@ -8,31 +8,31 @@ import (
 // TeamDefinition describes a reusable agent team for the tool layer.
 // Defined in the domain to avoid import cycles with config package.
 type TeamDefinition struct {
-	Name        string
-	Description string
-	Roles       []TeamRoleDefinition
-	Stages      []TeamStageDefinition
+	Name        string                `yaml:"name"`
+	Description string                `yaml:"description,omitempty"`
+	Roles       []TeamRoleDefinition  `yaml:"roles"`
+	Stages      []TeamStageDefinition `yaml:"stages"`
 }
 
 // TeamRoleDefinition defines a single role within a team.
 type TeamRoleDefinition struct {
-	Name              string
-	AgentType         string
-	CapabilityProfile string
-	TargetCLI         string
-	PromptTemplate    string
-	ExecutionMode     string
-	AutonomyLevel     string
-	WorkspaceMode     string
-	Config            map[string]string
-	InheritContext    bool
+	Name              string            `yaml:"name"`
+	AgentType         string            `yaml:"agent_type"`
+	CapabilityProfile string            `yaml:"capability_profile,omitempty"`
+	TargetCLI         string            `yaml:"target_cli,omitempty"`
+	PromptTemplate    string            `yaml:"prompt_template,omitempty"`
+	ExecutionMode     string            `yaml:"execution_mode,omitempty"`
+	AutonomyLevel     string            `yaml:"autonomy_level,omitempty"`
+	WorkspaceMode     string            `yaml:"workspace_mode,omitempty"`
+	Config            map[string]string `yaml:"config,omitempty"`
+	InheritContext    bool              `yaml:"inherit_context,omitempty"`
 }
 
 // TeamStageDefinition defines an execution stage within a team workflow.
 type TeamStageDefinition struct {
-	Name       string
-	Roles      []string
-	DebateMode bool
+	Name       string   `yaml:"name"`
+	Roles      []string `yaml:"roles"`
+	DebateMode bool     `yaml:"debate_mode,omitempty"`
 }
 
 type teamConfigKey struct{}

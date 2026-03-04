@@ -287,6 +287,30 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 
 const defaultAttachedTimeout = 4 * time.Hour
 
+// writeBridgeConfig marshals and sends the bridge config to the subprocess stdin.
+func writeBridgeConfig(proc bridgeRunner, bcfg bridgeConfig) error {
+	data, err := json.Marshal(bcfg)
+	if err != nil {
+		return fmt.Errorf("marshal bridge config: %w", err)
+	}
+	data = append(data, '\n')
+	if err := proc.Write(data); err != nil {
+		return fmt.Errorf("write bridge config: %w", err)
+	}
+	return nil
+}
+
+// handleProcessError records a role failure and returns a formatted error.
+func (e *Executor) handleProcessError(sink *runtimeEventSink, result *agent.ExternalAgentResult, taskID string, err error, stderrTail string) (*agent.ExternalAgentResult, error) {
+	errMsg := formatProcessError(e.cfg.AgentType, err, stderrTail)
+	sink.record("role_failed", map[string]any{
+		"task_id":     taskID,
+		"error":       errMsg,
+		"stderr_tail": compactTail(stderrTail, 400),
+	})
+	return result, errors.New(e.maybeAppendAuthHint(errMsg, stderrTail))
+}
+
 // executeAttached runs the bridge with stdout piped back to this process.
 func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentRequest, bcfg bridgeConfig, pythonBin, bridgeScript string, env map[string]string) (*agent.ExternalAgentResult, error) {
 	sink := newRuntimeEventSink(req)
@@ -323,13 +347,8 @@ func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentR
 		}
 	}()
 
-	configJSON, err := json.Marshal(bcfg)
-	if err != nil {
-		return nil, fmt.Errorf("marshal bridge config: %w", err)
-	}
-	configJSON = append(configJSON, '\n')
-	if err := proc.Write(configJSON); err != nil {
-		return nil, fmt.Errorf("write bridge config: %w", err)
+	if err := writeBridgeConfig(proc, bcfg); err != nil {
+		return nil, err
 	}
 
 	result := &agent.ExternalAgentResult{}
@@ -364,13 +383,7 @@ func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentR
 		return result, err
 	}
 	if err := proc.Wait(); err != nil && ctx.Err() == nil {
-		errMsg := formatProcessError(req.AgentType, err, proc.StderrTail())
-		sink.record("role_failed", map[string]any{
-			"task_id":     req.TaskID,
-			"error":       errMsg,
-			"stderr_tail": compactTail(proc.StderrTail(), 400),
-		})
-		return result, errors.New(e.maybeAppendAuthHint(errMsg, proc.StderrTail()))
+		return e.handleProcessError(sink, result, req.TaskID, err, proc.StderrTail())
 	}
 	enrichPlanMetadata(result, bcfg.ExecutionMode)
 	sink.record("role_completed", map[string]any{
@@ -424,16 +437,9 @@ func (e *Executor) executeDetached(ctx context.Context, req agent.ExternalAgentR
 		return nil, fmt.Errorf("start detached bridge: %w", err)
 	}
 
-	// Write config to stdin.
-	configJSON, err := json.Marshal(bcfg)
-	if err != nil {
+	if err := writeBridgeConfig(proc, bcfg); err != nil {
 		_ = proc.Stop()
-		return nil, fmt.Errorf("marshal bridge config: %w", err)
-	}
-	configJSON = append(configJSON, '\n')
-	if err := proc.Write(configJSON); err != nil {
-		_ = proc.Stop()
-		return nil, fmt.Errorf("write bridge config: %w", err)
+		return nil, err
 	}
 
 	// Notify caller of bridge meta if available.
@@ -478,13 +484,7 @@ func (e *Executor) executeDetached(ctx context.Context, req agent.ExternalAgentR
 		return result, lastErr
 	}
 	if err := proc.Wait(); err != nil {
-		errMsg := formatProcessError(req.AgentType, err, proc.StderrTail())
-		sink.record("role_failed", map[string]any{
-			"task_id":     req.TaskID,
-			"error":       errMsg,
-			"stderr_tail": compactTail(proc.StderrTail(), 400),
-		})
-		return result, errors.New(e.maybeAppendAuthHint(errMsg, proc.StderrTail()))
+		return e.handleProcessError(sink, result, req.TaskID, err, proc.StderrTail())
 	}
 	enrichPlanMetadata(result, bcfg.ExecutionMode)
 	sink.record("role_completed", map[string]any{

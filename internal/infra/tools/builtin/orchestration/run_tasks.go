@@ -242,8 +242,6 @@ func (t *runTasks) resolveTemplate(ctx context.Context, call ports.ToolCall, tem
 		return nil, nil, fmt.Errorf("template %q not found. Use template=\"list\" to see available templates", templateName)
 	}
 
-	tmpl := taskfile.TeamTemplateFromDefinition(*def)
-
 	var overrides map[string]string
 	if raw, ok := call.Arguments["prompts"]; ok {
 		parsed, err := parseStringMap(raw, "prompts")
@@ -253,7 +251,7 @@ func (t *runTasks) resolveTemplate(ctx context.Context, call ports.ToolCall, tem
 		overrides = parsed
 	}
 
-	return taskfile.RenderTaskFile(&tmpl, goal, overrides), def, nil
+	return taskfile.RenderTaskFile(def, goal, overrides), def, nil
 }
 
 func (t *runTasks) listTemplates(ctx context.Context, callID string) (*ports.ToolResult, error) {

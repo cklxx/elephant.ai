@@ -120,20 +120,20 @@ func TestResolveDefaults_ControlledToFull(t *testing.T) {
 }
 
 func TestResolveDefaults_ExplicitOverridesDefaults(t *testing.T) {
-	boolFalse := false
-	retryMax := 5
 	tf := &TaskFile{
 		Version: "1",
 		PlanID:  "override-test",
 		Tasks: []TaskSpec{
 			{
-				ID:             "a",
-				Prompt:         "do A",
-				AgentType:      "codex",
-				ExecutionMode:  "execute",
-				Verify:         &boolFalse,
-				RetryMax:       &retryMax,
-				MergeOnSuccess: &boolFalse,
+				ID:            "a",
+				Prompt:        "do A",
+				AgentType:     "codex",
+				ExecutionMode: "execute",
+				Config: map[string]string{
+					"verify":             "false",
+					"retry_max_attempts": "5",
+					"merge_on_success":   "false",
+				},
 			},
 		},
 	}

@@ -24,6 +24,8 @@ type TaskDefaults struct {
 }
 
 // TaskSpec defines a single task within a TaskFile.
+// Coding-specific settings (verify, merge_on_success, retry_max_attempts, etc.)
+// are set via the Config map — see applyCodingDefaults in resolve.go.
 type TaskSpec struct {
 	ID              string            `yaml:"id"`
 	Description     string            `yaml:"description"`
@@ -36,14 +38,6 @@ type TaskSpec struct {
 	FileScope       []string          `yaml:"file_scope,omitempty"`
 	InheritContext  bool              `yaml:"inherit_context,omitempty"`
 	Config          map[string]string `yaml:"config,omitempty"`
-	Verify          *bool             `yaml:"verify,omitempty"`
-	MergeOnSuccess  *bool             `yaml:"merge_on_success,omitempty"`
-	MergeStrategy   string            `yaml:"merge_strategy,omitempty"`
-	CodingProfile   string            `yaml:"coding_profile,omitempty"`
-	RetryMax        *int              `yaml:"retry_max,omitempty"`
-	VerifyBuildCmd  string            `yaml:"verify_build_cmd,omitempty"`
-	VerifyTestCmd   string            `yaml:"verify_test_cmd,omitempty"`
-	VerifyLintCmd   string            `yaml:"verify_lint_cmd,omitempty"`
 	ContextPreamble string            `yaml:"context_preamble,omitempty"`
 	MaxBudget       float64           `yaml:"max_budget_usd,omitempty"`
 }

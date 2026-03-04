@@ -51,8 +51,9 @@ func mergeDefaults(t TaskSpec, d TaskDefaults) TaskSpec {
 	return t
 }
 
-// applyCodingDefaults sets sensible defaults for external coding agents,
-// mirroring the legacy coding defaults logic.
+// applyCodingDefaults sets sensible defaults for external coding agents.
+// All coding-specific knobs (verify, merge_on_success, retry_max_attempts, etc.)
+// live in the Config map — no dedicated struct fields.
 func applyCodingDefaults(t *TaskSpec) {
 	if t.Config == nil {
 		t.Config = make(map[string]string)
@@ -81,9 +82,7 @@ func applyCodingDefaults(t *TaskSpec) {
 	}
 
 	if t.Config["verify"] == "" {
-		if t.Verify != nil {
-			t.Config["verify"] = strconv.FormatBool(*t.Verify)
-		} else if isPlan {
+		if isPlan {
 			t.Config["verify"] = "false"
 		} else {
 			t.Config["verify"] = "true"
@@ -91,41 +90,19 @@ func applyCodingDefaults(t *TaskSpec) {
 	}
 
 	if t.Config["merge_on_success"] == "" {
-		if t.MergeOnSuccess != nil {
-			t.Config["merge_on_success"] = strconv.FormatBool(*t.MergeOnSuccess)
-		} else if isPlan {
+		if isPlan {
 			t.Config["merge_on_success"] = "false"
 		} else {
 			t.Config["merge_on_success"] = "true"
 		}
 	}
 
-	if t.Config["coding_profile"] == "" && t.CodingProfile != "" {
-		t.Config["coding_profile"] = t.CodingProfile
-	}
-
-	if t.RetryMax != nil {
-		t.Config["retry_max_attempts"] = strconv.Itoa(*t.RetryMax)
-	} else if t.Config["retry_max_attempts"] == "" {
+	if t.Config["retry_max_attempts"] == "" {
 		if isPlan {
 			t.Config["retry_max_attempts"] = "1"
 		} else {
 			t.Config["retry_max_attempts"] = "3"
 		}
-	}
-
-	if t.VerifyBuildCmd != "" {
-		t.Config["verify_build_cmd"] = t.VerifyBuildCmd
-	}
-	if t.VerifyTestCmd != "" {
-		t.Config["verify_test_cmd"] = t.VerifyTestCmd
-	}
-	if t.VerifyLintCmd != "" {
-		t.Config["verify_lint_cmd"] = t.VerifyLintCmd
-	}
-
-	if t.MergeStrategy != "" {
-		t.Config["merge_strategy"] = t.MergeStrategy
 	}
 
 	if t.MaxBudget > 0 && t.Config["max_budget_usd"] == "" {
