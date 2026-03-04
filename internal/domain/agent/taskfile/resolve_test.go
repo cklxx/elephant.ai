@@ -359,9 +359,9 @@ func TestCanonicalAgentType(t *testing.T) {
 		{"custom", "custom"},
 	}
 	for _, tc := range cases {
-		got := canonicalAgentType(tc.input)
+		got := agent.CanonicalAgentType(tc.input)
 		if got != tc.want {
-			t.Errorf("canonicalAgentType(%q) = %q, want %q", tc.input, got, tc.want)
+			t.Errorf("CanonicalAgentType(%q) = %q, want %q", tc.input, got, tc.want)
 		}
 	}
 }

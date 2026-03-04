@@ -31,7 +31,7 @@ func TestExtractRoleID(t *testing.T) {
 		{input: "team-planner", want: "planner"},
 		{input: "team-planner-debate", want: "planner"},
 		{input: "team-planner-retry-2", want: "planner"},
-		{input: "team-planner-debate-retry-1", want: "planner-debate"},
+		{input: "team-planner-debate-retry-1", want: "planner"},
 		{input: "other", want: ""},
 		{input: "", want: ""},
 		{input: "team-", want: ""},

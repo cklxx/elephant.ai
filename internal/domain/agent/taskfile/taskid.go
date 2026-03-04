@@ -34,8 +34,8 @@ func ExtractRoleID(id string) string {
 		return ""
 	}
 	result := strings.TrimPrefix(trimmed, "team-")
-	result = strings.TrimSuffix(result, "-debate")
-	// Strip retry suffixes using BaseTaskID.
+	// Strip retry suffixes first, then debate suffix.
 	result = BaseTaskID(result)
+	result = strings.TrimSuffix(result, "-debate")
 	return strings.TrimSpace(result)
 }

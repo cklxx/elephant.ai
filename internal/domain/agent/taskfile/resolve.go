@@ -66,7 +66,7 @@ func applyCodingDefaults(t *TaskSpec) {
 		t.Config["autonomy_level"] = t.AutonomyLevel
 	}
 
-	if !isCodingExternalAgent(t.AgentType) {
+	if !agent.IsCodingExternalAgent(t.AgentType) {
 		return
 	}
 
@@ -140,7 +140,7 @@ func SpecToDispatchRequest(spec TaskSpec, causationID string) agent.BackgroundDi
 		TaskID:         spec.ID,
 		Description:    spec.Description,
 		Prompt:         prompt,
-		AgentType:      canonicalAgentType(agentType),
+		AgentType:      agent.CanonicalAgentType(agentType),
 		ExecutionMode:  spec.ExecutionMode,
 		AutonomyLevel:  spec.AutonomyLevel,
 		CausationID:    causationID,
@@ -182,26 +182,3 @@ func flattenRuntimeMeta(meta TeamRuntimeMeta, cfg map[string]string) {
 	setIfPresent(cfg, "selected_agent_type", meta.SelectedAgentType)
 }
 
-func canonicalAgentType(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	switch strings.ToLower(trimmed) {
-	case "":
-		return ""
-	case "internal":
-		return agent.AgentTypeInternal
-	case "generic_cli", "generic-cli", "generic":
-		return agent.AgentTypeGenericCLI
-	case "codex":
-		return agent.AgentTypeCodex
-	case "kimi", "kimi_cli", "kimi-cli", "k2", "kimi cli":
-		return agent.AgentTypeKimi
-	case "claude_code", "claude-code", "claude code":
-		return agent.AgentTypeClaudeCode
-	default:
-		return trimmed
-	}
-}
-
-func isCodingExternalAgent(agentType string) bool {
-	return agent.IsCodingExternalAgent(agentType)
-}

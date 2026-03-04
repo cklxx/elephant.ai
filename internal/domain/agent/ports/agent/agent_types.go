@@ -15,7 +15,7 @@ const (
 // coding CLIs that benefit from coding-specific defaults (verify, merge,
 // retry, workspace mode).
 func IsCodingExternalAgent(agentType string) bool {
-	switch canonicalAgentType(agentType) {
+	switch CanonicalAgentType(agentType) {
 	case AgentTypeCodex, AgentTypeClaudeCode, AgentTypeKimi, AgentTypeGenericCLI:
 		return true
 	default:
@@ -23,7 +23,8 @@ func IsCodingExternalAgent(agentType string) bool {
 	}
 }
 
-func canonicalAgentType(raw string) string {
+// CanonicalAgentType normalizes agent type aliases to their canonical constant.
+func CanonicalAgentType(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	switch strings.ToLower(trimmed) {
 	case "":
