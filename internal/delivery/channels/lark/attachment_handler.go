@@ -19,6 +19,9 @@ import (
 )
 
 func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string, result *agent.TaskResult) {
+	if !g.cfg.AutoUploadFiles {
+		return
+	}
 	if result == nil || g.messenger == nil {
 		return
 	}

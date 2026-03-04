@@ -1,11 +1,13 @@
 package lark
 
 import (
+	"context"
 	"testing"
 
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/shared/logging"
 )
 
 // --- allowExtension ---
@@ -553,5 +555,29 @@ func TestSessionHasAwaitFlag_False(t *testing.T) {
 func TestSessionHasAwaitFlag_Nil(t *testing.T) {
 	if sessionHasAwaitFlag(nil) {
 		t.Fatal("expected false for nil session")
+	}
+}
+
+func TestSendAttachments_AutoUploadDisabledSkips(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg:       Config{AutoUploadFiles: false},
+		messenger: recorder,
+		logger:    logging.OrNop(nil),
+	}
+	result := &agent.TaskResult{Attachments: map[string]ports.Attachment{
+		"report.pdf": {Name: "report.pdf", MediaType: "application/pdf", Data: "ZmFrZS1wZGY="},
+	}}
+
+	gw.sendAttachments(context.Background(), "oc_chat", "om_msg", result)
+
+	if len(recorder.CallsByMethod("UploadFile")) != 0 {
+		t.Fatalf("expected no file upload when auto upload disabled, got %#v", recorder.CallsByMethod("UploadFile"))
+	}
+	if len(recorder.CallsByMethod("UploadImage")) != 0 {
+		t.Fatalf("expected no image upload when auto upload disabled, got %#v", recorder.CallsByMethod("UploadImage"))
+	}
+	if len(recorder.CallsByMethod("ReplyMessage")) != 0 || len(recorder.CallsByMethod("SendMessage")) != 0 {
+		t.Fatalf("expected no outbound message calls, got reply=%#v send=%#v", recorder.CallsByMethod("ReplyMessage"), recorder.CallsByMethod("SendMessage"))
 	}
 }
