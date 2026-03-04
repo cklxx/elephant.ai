@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/app/di"
 	materials "alex/internal/domain/materialregistry"
+	"alex/internal/infra/adapters"
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/observability"
 	runtimeconfig "alex/internal/shared/config"
@@ -154,7 +155,8 @@ func (f *Foundation) AttachmentStage() BootstrapStage {
 				return err
 			}
 			client := httpclient.NewWithCircuitBreaker(45*time.Second, f.Logger, "attachment_migrator")
-			migrator := materials.NewAttachmentStoreMigrator(store, client, f.Config.Attachment.CloudflarePublicBaseURL, f.Logger)
+			fetcher := adapters.NewHTTPRemoteFetcher(client, 25<<20, false)
+			migrator := materials.NewAttachmentStoreMigrator(store, fetcher, f.Config.Attachment.CloudflarePublicBaseURL, f.Logger)
 			f.Container.AgentCoordinator.SetAttachmentMigrator(migrator)
 			f.Container.AgentCoordinator.SetAttachmentPersister(
 				attachments.NewStorePersister(store),

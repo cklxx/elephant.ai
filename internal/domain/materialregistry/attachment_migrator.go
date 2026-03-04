@@ -4,18 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io"
-	"mime"
-	"net"
-	"net/http"
 	neturl "net/url"
 	"strings"
-	"time"
 	"unicode"
 
 	"alex/internal/domain/agent/ports"
 	materialports "alex/internal/domain/materialregistry/ports"
-	"alex/internal/shared/httpclient"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
 )
@@ -25,26 +19,18 @@ type AttachmentStorer interface {
 }
 
 type AttachmentStoreMigrator struct {
-	store         AttachmentStorer
-	client        *http.Client
-	logger        logging.Logger
-	cdnBase       string
-	maxFetchBytes int64
-	allowLocal    bool
+	store   AttachmentStorer
+	fetcher materialports.RemoteFetcher
+	logger  logging.Logger
+	cdnBase string
 }
 
-const defaultMaxFetchBytes = int64(25 << 20) // 25 MiB
-
-func NewAttachmentStoreMigrator(store AttachmentStorer, client *http.Client, cdnBase string, logger logging.Logger) *AttachmentStoreMigrator {
-	if client == nil {
-		client = httpclient.New(45*time.Second, logger)
-	}
+func NewAttachmentStoreMigrator(store AttachmentStorer, fetcher materialports.RemoteFetcher, cdnBase string, logger logging.Logger) *AttachmentStoreMigrator {
 	return &AttachmentStoreMigrator{
-		store:         store,
-		client:        client,
-		logger:        logging.OrNop(logger),
-		cdnBase:       strings.TrimRight(strings.TrimSpace(cdnBase), "/"),
-		maxFetchBytes: defaultMaxFetchBytes,
+		store:   store,
+		fetcher: fetcher,
+		logger:  logging.OrNop(logger),
+		cdnBase: strings.TrimRight(strings.TrimSpace(cdnBase), "/"),
 	}
 }
 
@@ -147,61 +133,10 @@ func (m *AttachmentStoreMigrator) capturePayload(ctx context.Context, att ports.
 	}
 
 	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
-		return m.fetchRemote(ctx, uri, att.MediaType)
+		return m.fetcher.Fetch(ctx, uri, att.MediaType)
 	}
 
 	return nil, "", fmt.Errorf("attachment %s has no transferable payload", att.Name)
-}
-
-func (m *AttachmentStoreMigrator) fetchRemote(ctx context.Context, uri, mediaType string) ([]byte, string, error) {
-	requestCtx := ctx
-	if requestCtx == nil {
-		requestCtx = context.Background()
-	}
-	opts := defaultURLValidationOptions()
-	if m.allowLocal {
-		opts.allowLocalhost = true
-	}
-	parsed, err := validateOutboundURL(uri, opts)
-	if err != nil {
-		return nil, "", err
-	}
-	// URL is validated by ValidateOutboundURL before request construction.
-	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, parsed.String(), nil)
-	if err != nil {
-		return nil, "", err
-	}
-	resp, err := m.client.Do(req)
-	if err != nil {
-		return nil, "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return nil, "", fmt.Errorf("unexpected status %d", resp.StatusCode)
-	}
-
-	reader := io.LimitReader(resp.Body, m.maxFetchBytes+1)
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, "", err
-	}
-	if int64(len(data)) > m.maxFetchBytes {
-		return nil, "", fmt.Errorf("attachment exceeds %d bytes", m.maxFetchBytes)
-	}
-
-	ct := strings.TrimSpace(mediaType)
-	if ct == "" {
-		ct = strings.TrimSpace(resp.Header.Get("Content-Type"))
-	}
-	if parsed, _, err := mime.ParseMediaType(ct); err == nil && parsed != "" {
-		ct = parsed
-	}
-	if ct == "" {
-		ct = "application/octet-stream"
-	}
-
-	return data, ct, nil
 }
 
 func decodeBase64Payload(encoded string) ([]byte, error) {
@@ -252,63 +187,6 @@ func decodeDataURI(value string) ([]byte, string, error) {
 }
 
 var _ materialports.Migrator = (*AttachmentStoreMigrator)(nil)
-
-type urlValidationOptions struct {
-	allowLocalhost       bool
-	allowPrivateNetworks bool
-}
-
-func defaultURLValidationOptions() urlValidationOptions {
-	return urlValidationOptions{}
-}
-
-func validateOutboundURL(raw string, opts urlValidationOptions) (*neturl.URL, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return nil, fmt.Errorf("url is required")
-	}
-	parsed, err := neturl.Parse(trimmed)
-	if err != nil {
-		return nil, fmt.Errorf("invalid url: %w", err)
-	}
-	scheme := utils.TrimLower(parsed.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return nil, fmt.Errorf("unsupported url scheme: %s", scheme)
-	}
-	host := utils.TrimLower(parsed.Hostname())
-	if host == "" {
-		return nil, fmt.Errorf("url host is required")
-	}
-	if !opts.allowLocalhost && isLocalHostname(host) {
-		return nil, fmt.Errorf("local urls are not allowed")
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		if !opts.allowLocalhost && (ip.IsLoopback() || ip.IsUnspecified()) {
-			return nil, fmt.Errorf("local urls are not allowed")
-		}
-		if !opts.allowPrivateNetworks && isPrivateIP(ip) {
-			return nil, fmt.Errorf("private network urls are not allowed")
-		}
-	}
-	return parsed, nil
-}
-
-func isLocalHostname(host string) bool {
-	if strings.EqualFold(host, "localhost") {
-		return true
-	}
-	return strings.HasSuffix(host, ".localhost")
-}
-
-func isPrivateIP(ip net.IP) bool {
-	if ip == nil {
-		return false
-	}
-	if ip.IsPrivate() {
-		return true
-	}
-	return ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
-}
 
 func decodeBase64(value string) ([]byte, error) {
 	if decoded, err := base64.StdEncoding.DecodeString(value); err == nil {

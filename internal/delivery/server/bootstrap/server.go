@@ -18,6 +18,7 @@ import (
 	"alex/internal/delivery/server/ports"
 	agentdomain "alex/internal/domain/agent"
 	materials "alex/internal/domain/materialregistry"
+	"alex/internal/infra/adapters"
 	"alex/internal/infra/analytics"
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/diagnostics"
@@ -59,7 +60,8 @@ func RunServer(observabilityConfigPath string) error {
 					return err
 				}
 				client := httpclient.NewWithCircuitBreaker(45*time.Second, logger, "attachment_migrator")
-				migrator := materials.NewAttachmentStoreMigrator(store, client, config.Attachment.CloudflarePublicBaseURL, logger)
+				fetcher := adapters.NewHTTPRemoteFetcher(client, 25<<20, false)
+				migrator := materials.NewAttachmentStoreMigrator(store, fetcher, config.Attachment.CloudflarePublicBaseURL, logger)
 				container.AgentCoordinator.SetAttachmentMigrator(migrator)
 				container.AgentCoordinator.SetAttachmentPersister(
 					attachments.NewStorePersister(store),

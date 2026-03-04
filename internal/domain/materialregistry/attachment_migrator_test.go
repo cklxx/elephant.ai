@@ -2,8 +2,6 @@ package materialregistry
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -29,6 +27,16 @@ func (s *recordingStore) StoreBytes(name, mediaType string, data []byte) (string
 		return "", s.err
 	}
 	return "https://cdn.example.com/" + name, nil
+}
+
+type mockFetcher struct {
+	data        []byte
+	contentType string
+	err         error
+}
+
+func (f *mockFetcher) Fetch(_ context.Context, _ string, _ string) ([]byte, string, error) {
+	return f.data, f.contentType, f.err
 }
 
 func TestAttachmentStoreMigratorUploadsInlinePayloads(t *testing.T) {
@@ -60,20 +68,13 @@ func TestAttachmentStoreMigratorUploadsInlinePayloads(t *testing.T) {
 }
 
 func TestAttachmentStoreMigratorFetchesRemoteContent(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		_, _ = w.Write([]byte("hello"))
-	}))
-	t.Cleanup(server.Close)
-
 	store := &recordingStore{}
-	migrator := NewAttachmentStoreMigrator(store, nil, "", logging.Nop())
-	migrator.maxFetchBytes = 1 << 20
-	migrator.allowLocal = true
+	fetcher := &mockFetcher{data: []byte("hello"), contentType: "text/plain"}
+	migrator := NewAttachmentStoreMigrator(store, fetcher, "", logging.Nop())
 
 	result, err := migrator.Normalize(context.Background(), materialports.MigrationRequest{
 		Attachments: map[string]ports.Attachment{
-			"note.txt": {Name: "note.txt", URI: server.URL + "/file"},
+			"note.txt": {Name: "note.txt", URI: "https://example.com/file"},
 		},
 	})
 	if err != nil {
