@@ -99,23 +99,27 @@ func TestBuildSelfUpdateSectionIncludesNeverRule(t *testing.T) {
 	}
 }
 
-func TestBuildChannelFormattingSectionLarkIncludesIntermediateProgressRule(t *testing.T) {
+func TestBuildChannelFormattingSectionWithHintPassesThrough(t *testing.T) {
 	t.Parallel()
-	section := buildChannelFormattingSection("lark")
+	hint := "# Reply Formatting (Lark Channel)\nCurrent reply channel is Lark; Lark text messages do not render Markdown.\nFor long-running or parallel execution, proactively send intermediate checkpoints via lark_send_message in parallel so users can see progress.\nDo not use Markdown syntax"
+	section := buildChannelFormattingSection(hint)
 	for _, snippet := range []string{
 		"Current reply channel is Lark",
 		"send intermediate checkpoints via lark_send_message in parallel",
 		"Do not use Markdown syntax",
 	} {
 		if !strings.Contains(section, snippet) {
-			t.Fatalf("expected lark channel formatting section to contain %q, got %q", snippet, section)
+			t.Fatalf("expected channel formatting section to contain %q, got %q", snippet, section)
 		}
 	}
 }
 
-func TestBuildChannelFormattingSectionNonLarkEmpty(t *testing.T) {
+func TestBuildChannelFormattingSectionEmptyHintEmpty(t *testing.T) {
 	t.Parallel()
-	if section := buildChannelFormattingSection("telegram"); section != "" {
-		t.Fatalf("expected non-lark section to be empty, got %q", section)
+	if section := buildChannelFormattingSection(""); section != "" {
+		t.Fatalf("expected empty hint to produce empty section, got %q", section)
+	}
+	if section := buildChannelFormattingSection("   "); section != "" {
+		t.Fatalf("expected whitespace-only hint to produce empty section, got %q", section)
 	}
 }

@@ -63,6 +63,7 @@ type ExecutionPreparationDeps struct {
 	OKRContextProvider    OKRContextProvider             // Optional: provides OKR context for system prompt
 	KernelContextProvider KernelAlignmentContextProvider // Optional: kernel mission/soul/user context
 	CredentialRefresher   CredentialRefresher            // Optional: re-resolves CLI credentials at task time
+	ChannelHints          map[string]string              // Optional: channel-name → formatting hint text
 }
 
 // ExecutionPreparationService prepares everything needed before executing a task.
@@ -84,6 +85,7 @@ type ExecutionPreparationService struct {
 	okrContextProvider    OKRContextProvider
 	kernelContextProvider KernelAlignmentContextProvider
 	credentialRefresher   CredentialRefresher
+	channelHints          map[string]string
 }
 
 // NewExecutionPreparationService creates a service instance.
@@ -136,6 +138,7 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 		okrContextProvider:    deps.OKRContextProvider,
 		kernelContextProvider: deps.KernelContextProvider,
 		credentialRefresher:   deps.CredentialRefresher,
+		channelHints:          deps.ChannelHints,
 	}
 }
 
@@ -327,6 +330,12 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			kernelContext = s.kernelContextProvider()
 		}
 
+		channel := appcontext.ChannelFromContext(prepareCtx)
+		channelHint := ""
+		if s.channelHints != nil {
+			channelHint = s.channelHints[channel]
+		}
+
 		var err error
 		window, err = s.contextMgr.BuildWindow(prepareCtx, session, agent.ContextWindowConfig{
 			TokenLimit:             s.config.MaxTokens,
@@ -344,7 +353,8 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			OKRContext:             okrContext,
 			KernelAlignmentContext: kernelContext,
 			Unattended:             unattended,
-			Channel:                appcontext.ChannelFromContext(prepareCtx),
+			Channel:                channel,
+			ChannelHint:            channelHint,
 		})
 		if err != nil {
 			prepareErrs <- fmt.Errorf("build context window: %w", err)

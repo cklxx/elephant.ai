@@ -304,21 +304,11 @@ func buildReasoningSection() string {
 	})
 }
 
-func buildChannelFormattingSection(channel string) string {
-	if utils.TrimLower(channel) != "lark" {
+func buildChannelFormattingSection(hint string) string {
+	if strings.TrimSpace(hint) == "" {
 		return ""
 	}
-	return formatSection("# Reply Formatting (Lark Channel)", []string{
-		"Current reply channel is Lark; Lark text messages do not render Markdown.",
-		"For long-running or parallel execution, proactively send intermediate checkpoints via lark_send_message in parallel so users can see progress.",
-		"Follow these formatting rules:",
-		"- Do not use Markdown syntax: avoid **bold**, *italic*, ## heading, - list, > quote, [link](url), and ```code``` fences.",
-		"- Use plain text formatting: separate paragraphs with newlines and use numbered lists for structure.",
-		"- For code snippets: keep content unchanged but do not wrap with ``` fences; inline short snippets.",
-		"- For links: paste raw URLs directly; do not use [text](url).",
-		"- For hierarchy: use numeric ordering (1. 2. 3.) instead of unordered bullets.",
-		"- For emphasis: use quoted keywords (e.g., \"keyword\") or prefix with ->.",
-	})
+	return hint
 }
 
 func buildEnvironmentSection(static agent.StaticContext) string {

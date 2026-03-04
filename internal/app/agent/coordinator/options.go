@@ -124,6 +124,18 @@ func WithTeamDefinitions(teams []agent.TeamDefinition) CoordinatorOption {
 	}
 }
 
+// WithChannelHints provides the channel-name to formatting-hint mapping.
+// The preparation service uses this to resolve a pre-rendered hint for the
+// active delivery channel, removing hardcoded channel checks from prompt
+// composition.
+func WithChannelHints(hints map[string]string) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		if hints != nil {
+			c.channelHints = hints
+		}
+	}
+}
+
 // WithTeamRunRecorder provides a recorder used by run_tasks to persist
 // file-based run records.
 func WithTeamRunRecorder(recorder agent.TeamRunRecorder) CoordinatorOption {

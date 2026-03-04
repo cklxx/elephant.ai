@@ -61,7 +61,8 @@ type ContextWindowConfig struct {
 	OKRContext             string // Pre-rendered OKR goals section for system prompt injection
 	KernelAlignmentContext string // Pre-rendered kernel mission/soul/user section
 	Unattended             bool   // If true, agent runs autonomously without user interaction
-	Channel                string // Delivery channel (e.g. "lark", "cli", "web") for format-aware prompts
+	Channel     string // Delivery channel (e.g. "lark", "cli", "web") for format-aware prompts
+	ChannelHint string // Pre-rendered channel-specific formatting hint (replaces hardcoded channel checks)
 }
 
 // ContextWindow exposes the layered context returned by the manager.

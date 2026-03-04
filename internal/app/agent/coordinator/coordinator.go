@@ -66,6 +66,7 @@ type AgentCoordinator struct {
 	okrContextProvider    preparation.OKRContextProvider
 	kernelContextProvider preparation.KernelAlignmentContextProvider
 	credentialRefresher   preparation.CredentialRefresher
+	channelHints          map[string]string
 	timerManager          shared.TimerManagerService // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
 	schedulerService      any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
 	toolSLACollector      *toolspolicy.SLACollector
@@ -136,6 +137,7 @@ func NewAgentCoordinator(
 		OKRContextProvider:    coordinator.okrContextProvider,
 		KernelContextProvider: coordinator.kernelContextProvider,
 		CredentialRefresher:   coordinator.credentialRefresher,
+		ChannelHints:          coordinator.channelHints,
 	})
 
 	if coordinator.contextMgr != nil {
@@ -625,6 +627,7 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 		OKRContextProvider:    c.okrContextProvider,
 		KernelContextProvider: c.kernelContextProvider,
 		CredentialRefresher:   c.credentialRefresher,
+		ChannelHints:          c.channelHints,
 	})
 	return prepService.Prepare(ctx, task, sessionID)
 }

@@ -12,6 +12,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/domain/agent/presets"
+	"alex/internal/delivery/channels"
 	"alex/internal/infra/adapters"
 	checkpointinfra "alex/internal/infra/checkpoint"
 	codinginfra "alex/internal/infra/coding"
@@ -135,6 +136,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithCheckpointStore(checkpointStore),
 		agentcoordinator.WithCredentialRefresher(credentialRefresher),
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
+		agentcoordinator.WithChannelHints(channels.DefaultHints()),
 		agentcoordinator.WithTeamDefinitions(convertTeamConfigs(b.config.ExternalAgents.Teams)),
 		agentcoordinator.WithTeamRunRecorder(teamRunRecorder),
 		agentcoordinator.WithAtomicWriter(adapters.NewOSAtomicWriter()),
