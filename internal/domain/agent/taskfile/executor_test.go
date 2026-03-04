@@ -2,6 +2,7 @@ package taskfile
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -240,6 +241,105 @@ func TestExecutor_AutoMode_SelectsTeam(t *testing.T) {
 			t.Error("team dispatch of 'b' should preserve DependsOn")
 		}
 	}
+}
+
+func TestExecutor_DispatchErrorMidExecution(t *testing.T) {
+	tf := &TaskFile{
+		Version: "1",
+		PlanID:  "dispatch-err-test",
+		Tasks: []TaskSpec{
+			{ID: "a", Prompt: "do A"},
+			{ID: "b", Prompt: "do B", DependsOn: []string{"a"}},
+			{ID: "c", Prompt: "do C", DependsOn: []string{"b"}},
+		},
+	}
+
+	mock := &mockDispatcher{}
+	failOnSecond := &failingDispatcher{
+		inner:     mock,
+		failAfter: 1, // fail on dispatch index 1 (the second task)
+	}
+
+	statusPath := filepath.Join(t.TempDir(), "dispatch-err.status.yaml")
+	exec := NewExecutor(failOnSecond, ModeTeam, DefaultSwarmConfig())
+
+	_, err := exec.Execute(context.Background(), tf, "cause-err", statusPath)
+	if err == nil {
+		t.Fatal("expected dispatch error")
+	}
+	if !strings.Contains(err.Error(), "dispatch task") {
+		t.Errorf("error should mention dispatch task: %v", err)
+	}
+
+	// Only the first task should have been dispatched before the error.
+	failOnSecond.mu.Lock()
+	dispatched := len(failOnSecond.dispatched)
+	failOnSecond.mu.Unlock()
+	if dispatched != 1 {
+		t.Errorf("expected 1 successful dispatch before error, got %d", dispatched)
+	}
+}
+
+func TestExecutor_ContextCancellation(t *testing.T) {
+	tf := &TaskFile{
+		Version: "1",
+		PlanID:  "ctx-cancel-test",
+		Tasks: []TaskSpec{
+			{ID: "a", Prompt: "do A"},
+			{ID: "b", Prompt: "do B", DependsOn: []string{"a"}},
+			{ID: "c", Prompt: "do C", DependsOn: []string{"b"}},
+		},
+	}
+
+	// Cancel context before executing; the executor checks ctx.Err() in the
+	// dispatch loop so it should bail out.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // pre-cancel
+
+	mock := &mockDispatcher{}
+	statusPath := filepath.Join(t.TempDir(), "ctx-cancel.status.yaml")
+	exec := NewExecutor(mock, ModeTeam, DefaultSwarmConfig())
+
+	_, err := exec.Execute(ctx, tf, "cause-cancel", statusPath)
+	if err == nil {
+		t.Fatal("expected context cancellation error")
+	}
+	if !strings.Contains(err.Error(), "context canceled") {
+		t.Errorf("error should mention context canceled: %v", err)
+	}
+	// No tasks should have been dispatched.
+	if len(mock.dispatched) != 0 {
+		t.Errorf("expected 0 dispatches with cancelled context, got %d", len(mock.dispatched))
+	}
+}
+
+// failingDispatcher wraps a dispatcher and returns an error after failAfter
+// successful dispatches.
+type failingDispatcher struct {
+	inner     *mockDispatcher
+	failAfter int
+	mu        sync.Mutex
+	dispatched []agent.BackgroundDispatchRequest
+	count     int
+}
+
+func (f *failingDispatcher) Dispatch(ctx context.Context, req agent.BackgroundDispatchRequest) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.count >= f.failAfter {
+		return fmt.Errorf("simulated dispatch failure for %s", req.TaskID)
+	}
+	f.count++
+	f.dispatched = append(f.dispatched, req)
+	return f.inner.Dispatch(ctx, req)
+}
+
+func (f *failingDispatcher) Status(ids []string) []agent.BackgroundTaskSummary {
+	return f.inner.Status(ids)
+}
+
+func (f *failingDispatcher) Collect(ids []string, wait bool, timeout time.Duration) []agent.BackgroundTaskResult {
+	return f.inner.Collect(ids, wait, timeout)
 }
 
 func TestExecutor_ExecuteAndWait_FinalSyncRehydratesStatusFile(t *testing.T) {

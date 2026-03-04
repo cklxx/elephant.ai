@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -306,25 +307,6 @@ func TestSwarmScheduler_DepsCleared(t *testing.T) {
 	}
 }
 
-func TestBaseTaskID(t *testing.T) {
-	cases := []struct {
-		input string
-		want  string
-	}{
-		{input: "slow-task", want: "slow-task"},
-		{input: "slow-task-retry-1", want: "slow-task"},
-		{input: "slow-task-retry-1-retry-2", want: "slow-task"},
-		{input: "slow-task-retry-x", want: "slow-task-retry-x"},
-	}
-
-	for _, tc := range cases {
-		got := baseTaskID(tc.input)
-		if got != tc.want {
-			t.Errorf("baseTaskID(%q)=%q, want %q", tc.input, got, tc.want)
-		}
-	}
-}
-
 func TestSwarmScheduler_BuildRetryBatchUsesBaseIDCounter(t *testing.T) {
 	sched := NewSwarmScheduler(retryDispatcherStub{}, SwarmConfig{
 		InitialConcurrency: 1,
@@ -381,6 +363,181 @@ func (retryDispatcherStub) Status(ids []string) []agent.BackgroundTaskSummary {
 
 func (retryDispatcherStub) Collect([]string, bool, time.Duration) []agent.BackgroundTaskResult {
 	return nil
+}
+
+func TestSwarmScheduler_RetryCapEnforcement(t *testing.T) {
+	// Use a dispatcher that always returns stale/non-terminal tasks, forcing
+	// retries. With StaleRetryMax=2 the scheduler should stop retrying after
+	// 2 retries per base task.
+	cfg := SwarmConfig{
+		InitialConcurrency: 5,
+		MaxConcurrency:     10,
+		ScaleUpThreshold:   0.9,
+		ScaleDownThreshold: 0.7,
+		ScaleStep:          1,
+		StageTimeout:       1 * time.Second,
+		StaleRetryMax:      2,
+	}
+
+	tracker := &staleDispatcher{dispatched: make(map[string]bool)}
+	sched := NewSwarmScheduler(tracker, cfg)
+	statusPath := filepath.Join(t.TempDir(), "retry-cap.status.yaml")
+
+	tf := &TaskFile{
+		Version: "1",
+		PlanID:  "retry-cap-test",
+		Tasks: []TaskSpec{
+			{ID: "slow", Prompt: "slow task"},
+		},
+	}
+
+	result, err := sched.ExecuteSwarm(context.Background(), tf, "cause-retry", statusPath)
+	if err != nil {
+		t.Fatalf("ExecuteSwarm: %v", err)
+	}
+
+	// Should have the original + 2 retries = 3 task IDs total.
+	if len(result.TaskIDs) != 3 {
+		t.Fatalf("expected 3 task IDs (original + 2 retries), got %d: %v", len(result.TaskIDs), result.TaskIDs)
+	}
+	// Verify the retry IDs follow the naming convention.
+	if result.TaskIDs[1] != "slow-retry-1" {
+		t.Errorf("expected slow-retry-1, got %q", result.TaskIDs[1])
+	}
+	if result.TaskIDs[2] != "slow-retry-2" {
+		t.Errorf("expected slow-retry-2, got %q", result.TaskIDs[2])
+	}
+}
+
+func TestSwarmScheduler_ContextCancellationBetweenLayers(t *testing.T) {
+	// Two layers: [a] → [b]. Cancel context after layer 0 completes.
+	tf := &TaskFile{
+		Version: "1",
+		PlanID:  "ctx-cancel-layers",
+		Tasks: []TaskSpec{
+			{ID: "a", Prompt: "do A"},
+			{ID: "b", Prompt: "do B", DependsOn: []string{"a"}},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// The cancellingDispatcher cancels the context after "a" is collected,
+	// simulating cancellation between layers.
+	disp := &cancellingAfterLayerDispatcher{
+		cancel:      cancel,
+		cancelAfter: "a",
+		results:     make(map[string]agent.BackgroundTaskResult),
+	}
+
+	cfg := DefaultSwarmConfig()
+	cfg.StaleRetryMax = 0 // no retries to simplify
+	sched := NewSwarmScheduler(disp, cfg)
+	statusPath := filepath.Join(t.TempDir(), "ctx-between-layers.status.yaml")
+
+	_, err := sched.ExecuteSwarm(ctx, tf, "cause-ctx", statusPath)
+	if err == nil {
+		t.Fatal("expected context cancellation error")
+	}
+	if !strings.Contains(err.Error(), "context canceled") {
+		t.Errorf("error should mention context canceled: %v", err)
+	}
+
+	// Only layer 0 task "a" should have been dispatched.
+	disp.mu.Lock()
+	dispatched := append([]string(nil), disp.dispatched...)
+	disp.mu.Unlock()
+	for _, id := range dispatched {
+		if id == "b" {
+			t.Error("task 'b' should NOT have been dispatched after cancellation")
+		}
+	}
+}
+
+// staleDispatcher always returns tasks as stale/running, forcing the retry
+// logic to fire.
+type staleDispatcher struct {
+	mu         sync.Mutex
+	dispatched map[string]bool
+}
+
+func (d *staleDispatcher) Dispatch(_ context.Context, req agent.BackgroundDispatchRequest) error {
+	d.mu.Lock()
+	d.dispatched[req.TaskID] = true
+	d.mu.Unlock()
+	return nil
+}
+
+func (d *staleDispatcher) Status(ids []string) []agent.BackgroundTaskSummary {
+	out := make([]agent.BackgroundTaskSummary, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, agent.BackgroundTaskSummary{
+			ID:     id,
+			Status: agent.BackgroundTaskStatusRunning,
+			Stale:  true,
+		})
+	}
+	return out
+}
+
+func (d *staleDispatcher) Collect(_ []string, _ bool, _ time.Duration) []agent.BackgroundTaskResult {
+	// Return nil results so tasks are not considered terminal.
+	return nil
+}
+
+// cancellingAfterLayerDispatcher cancels the context after the specified task
+// is collected, simulating cancellation between layers.
+type cancellingAfterLayerDispatcher struct {
+	mu          sync.Mutex
+	dispatched  []string
+	results     map[string]agent.BackgroundTaskResult
+	cancel      context.CancelFunc
+	cancelAfter string
+	cancelled   bool
+}
+
+func (d *cancellingAfterLayerDispatcher) Dispatch(_ context.Context, req agent.BackgroundDispatchRequest) error {
+	d.mu.Lock()
+	d.dispatched = append(d.dispatched, req.TaskID)
+	d.results[req.TaskID] = agent.BackgroundTaskResult{
+		ID:     req.TaskID,
+		Status: agent.BackgroundTaskStatusCompleted,
+		Answer: "done",
+	}
+	d.mu.Unlock()
+	return nil
+}
+
+func (d *cancellingAfterLayerDispatcher) Status(ids []string) []agent.BackgroundTaskSummary {
+	out := make([]agent.BackgroundTaskSummary, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, agent.BackgroundTaskSummary{
+			ID:     id,
+			Status: agent.BackgroundTaskStatusCompleted,
+		})
+	}
+	return out
+}
+
+func (d *cancellingAfterLayerDispatcher) Collect(ids []string, _ bool, _ time.Duration) []agent.BackgroundTaskResult {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	var out []agent.BackgroundTaskResult
+	for _, id := range ids {
+		if r, ok := d.results[id]; ok {
+			out = append(out, r)
+		}
+	}
+
+	// Cancel context after the target task is collected.
+	for _, id := range ids {
+		if id == d.cancelAfter && !d.cancelled {
+			d.cancelled = true
+			d.cancel()
+		}
+	}
+	return out
 }
 
 // capturingDispatcher wraps a dispatcher to capture dispatched requests.

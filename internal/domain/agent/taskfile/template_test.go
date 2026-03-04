@@ -175,6 +175,117 @@ func TestComputeStageOutputIDs_DebateMode(t *testing.T) {
 	}
 }
 
+func TestRenderTaskFile_DebateMultiStage_MiddleDebate(t *testing.T) {
+	// 3 stages: execute (no debate) → analyze (debate) → review (no debate).
+	// The debate in stage 2 should create challengers for "analyst" that depend
+	// on the primary analyst task. Stage 3 "reviewer" should depend on both the
+	// primary analyst and the analyst-debate tasks.
+	def := &agent.TeamDefinition{
+		Name: "three-stage-team",
+		Roles: []agent.TeamRoleDefinition{
+			{Name: "coder", AgentType: "codex", PromptTemplate: "Code: {GOAL}"},
+			{Name: "analyst", AgentType: "claude_code", PromptTemplate: "Analyze: {GOAL}"},
+			{Name: "reviewer", AgentType: "claude_code", PromptTemplate: "Review: {GOAL}", InheritContext: true},
+		},
+		Stages: []agent.TeamStageDefinition{
+			{Name: "execute", Roles: []string{"coder"}},
+			{Name: "analyze", Roles: []string{"analyst"}, DebateMode: true},
+			{Name: "review", Roles: []string{"reviewer"}},
+		},
+	}
+
+	tf := RenderTaskFile(def, "build and validate feature Y", nil)
+
+	// Expected tasks: coder, analyst, analyst-debate, reviewer = 4 total.
+	if len(tf.Tasks) != 4 {
+		t.Fatalf("expected 4 tasks, got %d: %v", len(tf.Tasks), taskIDs(tf))
+	}
+
+	byID := make(map[string]TaskSpec)
+	for _, spec := range tf.Tasks {
+		byID[spec.ID] = spec
+	}
+
+	// Stage 1 (coder): no deps.
+	coder, ok := byID["team-coder"]
+	if !ok {
+		t.Fatal("expected team-coder task")
+	}
+	if len(coder.DependsOn) != 0 {
+		t.Errorf("coder should have no deps, got %v", coder.DependsOn)
+	}
+
+	// Stage 2 (analyst): depends on coder (stage 1 output).
+	analyst, ok := byID["team-analyst"]
+	if !ok {
+		t.Fatal("expected team-analyst task")
+	}
+	if len(analyst.DependsOn) != 1 || analyst.DependsOn[0] != "team-coder" {
+		t.Errorf("analyst deps: got %v, want [team-coder]", analyst.DependsOn)
+	}
+
+	// Debate challenger for analyst: depends on primary analyst task.
+	debate, ok := byID["team-analyst-debate"]
+	if !ok {
+		t.Fatal("expected team-analyst-debate task")
+	}
+	if len(debate.DependsOn) != 1 || debate.DependsOn[0] != "team-analyst" {
+		t.Errorf("debate deps: got %v, want [team-analyst]", debate.DependsOn)
+	}
+	if !debate.InheritContext {
+		t.Error("debate challenger should have InheritContext=true")
+	}
+
+	// Stage 3 (reviewer): depends on both analyst and analyst-debate
+	// (the full output of the debate stage).
+	reviewer, ok := byID["team-reviewer"]
+	if !ok {
+		t.Fatal("expected team-reviewer task")
+	}
+	wantDeps := map[string]bool{"team-analyst": true, "team-analyst-debate": true}
+	if len(reviewer.DependsOn) != 2 {
+		t.Fatalf("reviewer should depend on 2 tasks, got %v", reviewer.DependsOn)
+	}
+	for _, dep := range reviewer.DependsOn {
+		if !wantDeps[dep] {
+			t.Errorf("unexpected reviewer dep %q", dep)
+		}
+	}
+	if !reviewer.InheritContext {
+		t.Error("reviewer should inherit context from role definition")
+	}
+}
+
+func TestRenderTaskFile_EmptyRoles(t *testing.T) {
+	// A stage with an empty Roles slice should produce no tasks for that stage.
+	def := &agent.TeamDefinition{
+		Name: "empty-roles-team",
+		Roles: []agent.TeamRoleDefinition{
+			{Name: "worker", AgentType: "codex", PromptTemplate: "Do: {GOAL}"},
+		},
+		Stages: []agent.TeamStageDefinition{
+			{Name: "prep", Roles: []string{}},    // empty roles
+			{Name: "work", Roles: []string{"worker"}},
+		},
+	}
+
+	tf := RenderTaskFile(def, "goal X", nil)
+
+	// Only the "worker" role produces a task; the empty stage contributes nothing.
+	if len(tf.Tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d: %v", len(tf.Tasks), taskIDs(tf))
+	}
+	if tf.Tasks[0].ID != "team-worker" {
+		t.Errorf("expected task ID team-worker, got %q", tf.Tasks[0].ID)
+	}
+
+	// Worker is in stage 1 which depends on stage 0's outputs.
+	// Stage 0 has no roles, so its output set is empty → worker has no deps.
+	if len(tf.Tasks[0].DependsOn) != 0 {
+		t.Errorf("worker should have no deps when previous stage has empty roles, got %v", tf.Tasks[0].DependsOn)
+	}
+}
+
 // taskIDs returns all task IDs from a TaskFile for debugging.
 func taskIDs(tf *TaskFile) []string {
 	var ids []string
