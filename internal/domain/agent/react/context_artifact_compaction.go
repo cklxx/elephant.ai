@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
@@ -217,11 +217,7 @@ func (e *ReactEngine) writeContextCompactionArtifact(
 	sum := sha256.Sum256(payload)
 	hash := hex.EncodeToString(sum[:])
 
-	path := filepath.Join(resolveContextCompactionRoot(e), artifact.SessionID, "context", fmt.Sprintf(compactionArtifactFilename, sequence))
-	absPath, err := filepath.Abs(path)
-	if err == nil {
-		path = absPath
-	}
+	artifactPath := path.Join(resolveContextCompactionRoot(e), artifact.SessionID, "context", fmt.Sprintf(compactionArtifactFilename, sequence))
 
 	var doc strings.Builder
 	doc.WriteString("---\n")
@@ -244,10 +240,10 @@ func (e *ReactEngine) writeContextCompactionArtifact(
 	if e.atomicWriter == nil {
 		return "", "", 0, fmt.Errorf("atomicWriter not configured")
 	}
-	if err := e.atomicWriter.WriteFileAtomically(path, []byte(doc.String()), 0o644); err != nil {
+	if err := e.atomicWriter.WriteFileAtomically(artifactPath, []byte(doc.String()), 0o644); err != nil {
 		return "", "", 0, fmt.Errorf("write compaction artifact: %w", err)
 	}
-	return path, hash, tokensRemoved, nil
+	return artifactPath, hash, tokensRemoved, nil
 }
 
 func resolveContextCompactionRoot(engine *ReactEngine) string {
@@ -255,9 +251,9 @@ func resolveContextCompactionRoot(engine *ReactEngine) string {
 		if dp, ok := engine.checkpointStore.(CheckpointDirProvider); ok {
 			dir := strings.TrimSpace(dp.BaseDir())
 			if dir != "" {
-				return filepath.Dir(dir)
+				return path.Dir(dir)
 			}
 		}
 	}
-	return filepath.Join("runtime", "sessions")
+	return path.Join("runtime", "sessions")
 }
