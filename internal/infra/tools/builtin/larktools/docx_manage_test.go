@@ -167,7 +167,7 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 					"revision_id": 1,
 				},
 			})
-		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/docx/v1/documents/blocks/convert"):
+		case r.Method == http.MethodPost && (strings.Contains(r.URL.Path, "/open-apis/docx/v1/documents/blocks/convert") || strings.HasSuffix(r.URL.Path, "/docx/v1/documents/blocks/convert")):
 			bodyBytes, _ := io.ReadAll(r.Body)
 			body := string(bodyBytes)
 			if !strings.Contains(body, "这是正文第一段") {
