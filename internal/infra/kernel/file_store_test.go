@@ -144,5 +144,129 @@ func TestFileStore_ListActiveDispatches_ContextCanceled(t *testing.T) {
 	}
 }
 
+func TestFileStore_MarkDispatchDone_ClearsHeavyweightFields(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFileStore(dir, 30*time.Minute, 24*time.Hour)
+	ctx := context.Background()
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+
+	dispatches, err := store.EnqueueDispatches(ctx, "k1", "c1", []kerneldomain.DispatchSpec{
+		{AgentID: "agent-a", Prompt: "large prompt content here", Priority: 10,
+			Team: &kerneldomain.TeamDispatchSpec{Template: "t", Goal: "g"}},
+	})
+	if err != nil {
+		t.Fatalf("EnqueueDispatches: %v", err)
+	}
+	dID := dispatches[0].DispatchID
+
+	if err := store.MarkDispatchRunning(ctx, dID); err != nil {
+		t.Fatalf("MarkDispatchRunning: %v", err)
+	}
+	if err := store.MarkDispatchDone(ctx, dID, "task-1"); err != nil {
+		t.Fatalf("MarkDispatchDone: %v", err)
+	}
+
+	store.mu.RLock()
+	d := store.dispatches[dID]
+	store.mu.RUnlock()
+
+	if d.Prompt != "" {
+		t.Errorf("expected Prompt to be cleared after Done, got %q", d.Prompt)
+	}
+	if d.Team != nil {
+		t.Errorf("expected Team to be nil after Done, got %+v", d.Team)
+	}
+}
+
+func TestFileStore_MarkDispatchFailed_ClearsHeavyweightFields(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFileStore(dir, 30*time.Minute, 24*time.Hour)
+	ctx := context.Background()
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+
+	dispatches, err := store.EnqueueDispatches(ctx, "k1", "c1", []kerneldomain.DispatchSpec{
+		{AgentID: "agent-a", Prompt: "another large prompt", Priority: 10,
+			Team: &kerneldomain.TeamDispatchSpec{Template: "t", Goal: "g"}},
+	})
+	if err != nil {
+		t.Fatalf("EnqueueDispatches: %v", err)
+	}
+	dID := dispatches[0].DispatchID
+
+	if err := store.MarkDispatchRunning(ctx, dID); err != nil {
+		t.Fatalf("MarkDispatchRunning: %v", err)
+	}
+	if err := store.MarkDispatchFailed(ctx, dID, "timeout"); err != nil {
+		t.Fatalf("MarkDispatchFailed: %v", err)
+	}
+
+	store.mu.RLock()
+	d := store.dispatches[dID]
+	store.mu.RUnlock()
+
+	if d.Prompt != "" {
+		t.Errorf("expected Prompt to be cleared after Failed, got %q", d.Prompt)
+	}
+	if d.Team != nil {
+		t.Errorf("expected Team to be nil after Failed, got %+v", d.Team)
+	}
+}
+
+func TestFileStore_PruneExpired_RemovesOldTerminalDispatches(t *testing.T) {
+	now := time.Date(2026, 3, 4, 12, 0, 0, 0, time.UTC)
+	store := &FileStore{
+		dispatches:        make(map[string]kerneldomain.Dispatch),
+		filePath:          t.TempDir() + "/dispatches.json",
+		retentionDuration: 24 * time.Hour,
+		now:               func() time.Time { return now },
+	}
+
+	// Old terminal dispatch — should be pruned.
+	store.dispatches["old-done"] = kerneldomain.Dispatch{
+		DispatchID: "old-done",
+		KernelID:   "k1",
+		Status:     kerneldomain.DispatchDone,
+		CreatedAt:  now.Add(-48 * time.Hour),
+		UpdatedAt:  now.Add(-48 * time.Hour),
+	}
+	// Recent terminal dispatch — should remain.
+	store.dispatches["new-done"] = kerneldomain.Dispatch{
+		DispatchID: "new-done",
+		KernelID:   "k1",
+		Status:     kerneldomain.DispatchDone,
+		CreatedAt:  now.Add(-1 * time.Hour),
+		UpdatedAt:  now.Add(-1 * time.Hour),
+	}
+	// Active dispatch — should remain.
+	store.dispatches["running"] = kerneldomain.Dispatch{
+		DispatchID: "running",
+		KernelID:   "k1",
+		Status:     kerneldomain.DispatchRunning,
+		CreatedAt:  now.Add(-48 * time.Hour),
+		UpdatedAt:  now.Add(-48 * time.Hour),
+	}
+
+	pruned, err := store.PruneExpired(context.Background())
+	if err != nil {
+		t.Fatalf("PruneExpired: %v", err)
+	}
+	if pruned != 1 {
+		t.Fatalf("expected 1 pruned, got %d", pruned)
+	}
+	if _, ok := store.dispatches["old-done"]; ok {
+		t.Fatal("expected old-done to be pruned")
+	}
+	if _, ok := store.dispatches["new-done"]; !ok {
+		t.Fatal("expected new-done to remain")
+	}
+	if _, ok := store.dispatches["running"]; !ok {
+		t.Fatal("expected running to remain")
+	}
+}
+
 // TestFileStore_PruneLocked_RemovesExpiredTerminalDispatches verifies that
 // terminal dispatches older than the retention window are pruned from memory.

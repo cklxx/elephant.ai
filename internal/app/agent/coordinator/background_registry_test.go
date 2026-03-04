@@ -89,6 +89,66 @@ func TestBackgroundTaskRegistryCleanupKeepsNonTerminalManagers(t *testing.T) {
 	}
 }
 
+func TestBackgroundTaskRegistryCleanupForceRemovesStaleNonTerminal(t *testing.T) {
+	now := time.Date(2026, 3, 3, 10, 0, 0, 0, time.UTC)
+	registry := newBackgroundTaskRegistry()
+	registry.cleanupInterval = time.Minute
+	registry.idleTTL = 15 * time.Minute
+	registry.maxEntryAge = 1 * time.Hour
+	registry.nowFn = func() time.Time { return now }
+
+	shutdownCalls := 0
+	registry.shutdownFn = func(_ *react.BackgroundTaskManager) {
+		shutdownCalls++
+	}
+
+	// Create a manager with a non-terminal (running) task.
+	unblock := make(chan struct{})
+	runningManager := newTestBackgroundManager(
+		"session-stuck",
+		func(ctx context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-unblock:
+				return &agent.TaskResult{Answer: "done"}, nil
+			}
+		},
+	)
+	t.Cleanup(func() {
+		close(unblock)
+		runningManager.Shutdown()
+	})
+	if err := runningManager.Dispatch(context.Background(), agent.BackgroundDispatchRequest{
+		TaskID:      "stuck-task",
+		Description: "stuck",
+		Prompt:      "run",
+	}); err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+
+	registry.Get("session-stuck", func() *react.BackgroundTaskManager {
+		return runningManager
+	})
+
+	// After idleTTL (15min) but before maxEntryAge (1h) — should stay.
+	now = now.Add(20 * time.Minute)
+	_ = registry.Get("session-other", nil) // trigger cleanup
+	if _, ok := registry.managers["session-stuck"]; !ok {
+		t.Fatalf("expected non-terminal manager to remain before maxEntryAge")
+	}
+
+	// After maxEntryAge (1h) — should be force-removed.
+	now = now.Add(50 * time.Minute) // total: 70 minutes
+	_ = registry.Get("session-other2", nil) // trigger cleanup
+	if _, ok := registry.managers["session-stuck"]; ok {
+		t.Fatalf("expected stale non-terminal manager to be force-removed after maxEntryAge")
+	}
+	if shutdownCalls != 1 {
+		t.Fatalf("expected shutdown called once for force-removed manager, got %d", shutdownCalls)
+	}
+}
+
 func TestManagerTasksTerminal(t *testing.T) {
 	mgr := newTestBackgroundManager("session-terminal", func(context.Context, string, string, agent.EventListener) (*agent.TaskResult, error) {
 		return &agent.TaskResult{Answer: "done"}, nil
