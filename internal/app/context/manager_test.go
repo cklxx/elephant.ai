@@ -12,7 +12,6 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
-	"alex/internal/infra/analytics/journal"
 	sessionstate "alex/internal/infra/session/state_store"
 )
 
@@ -731,42 +730,6 @@ func TestCompressSkipsExistingCompressionSummaryContent(t *testing.T) {
 	if strings.Contains(summary, "assistant first replied: [Earlier context compressed]") {
 		t.Fatalf("existing compression summary should not be recursively summarized: %q", summary)
 	}
-}
-
-func TestRecordTurnEmitsJournalEntry(t *testing.T) {
-	store := sessionstate.NewInMemoryStore()
-	jr := &recordingJournal{}
-	mgr := NewManager(WithStateStore(store), WithJournalWriter(jr))
-	record := agent.ContextTurnRecord{
-		SessionID:  "sess-99",
-		TurnID:     7,
-		LLMTurnSeq: 3,
-		Timestamp:  time.Unix(1710000000, 0),
-		Summary:    "completed step",
-		Plans:      []agent.PlanNode{{ID: "p1"}},
-	}
-	if err := mgr.RecordTurn(context.Background(), record); err != nil {
-		t.Fatalf("RecordTurn returned error: %v", err)
-	}
-	if len(jr.entries) != 1 {
-		t.Fatalf("expected 1 journal entry, got %d", len(jr.entries))
-	}
-	entry := jr.entries[0]
-	if entry.SessionID != record.SessionID || entry.TurnID != record.TurnID {
-		t.Fatalf("unexpected journal entry: %+v", entry)
-	}
-	if entry.Timestamp != record.Timestamp {
-		t.Fatalf("expected timestamp to match, got %v", entry.Timestamp)
-	}
-}
-
-type recordingJournal struct {
-	entries []journal.TurnJournalEntry
-}
-
-func (r *recordingJournal) Write(_ context.Context, entry journal.TurnJournalEntry) error {
-	r.entries = append(r.entries, entry)
-	return nil
 }
 
 func buildStaticContextTree(t *testing.T) string {

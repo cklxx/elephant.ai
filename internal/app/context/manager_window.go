@@ -11,7 +11,6 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
-	"alex/internal/infra/analytics/journal"
 	sessionstate "alex/internal/infra/session/state_store"
 	"alex/internal/shared/utils"
 )
@@ -154,12 +153,6 @@ func (m *manager) RecordTurn(ctx context.Context, record agent.ContextTurnRecord
 			return err
 		}
 	}
-	if m.journal != nil {
-		entry := convertRecordToJournal(record)
-		if err := m.journal.Write(ctx, entry); err != nil && m.logger != nil {
-			m.logger.Warn("Failed to write turn journal: %v", err)
-		}
-	}
 	return nil
 }
 
@@ -216,27 +209,6 @@ func convertSnapshotToDynamic(snapshot sessionstate.Snapshot) agent.DynamicConte
 		Feedback:          snapshot.Feedback,
 		SnapshotTimestamp: snapshot.CreatedAt,
 	}
-}
-
-func convertRecordToJournal(record agent.ContextTurnRecord) journal.TurnJournalEntry {
-	entry := journal.TurnJournalEntry{
-		SessionID:     record.SessionID,
-		TurnID:        record.TurnID,
-		LLMTurnSeq:    record.LLMTurnSeq,
-		Summary:       record.Summary,
-		Plans:         record.Plans,
-		Beliefs:       record.Beliefs,
-		World:         record.World,
-		Diff:          record.Diff,
-		Feedback:      record.Feedback,
-		KnowledgeRefs: record.KnowledgeRefs,
-	}
-	if record.Timestamp.IsZero() {
-		entry.Timestamp = time.Now()
-	} else {
-		entry.Timestamp = record.Timestamp
-	}
-	return entry
 }
 
 const historyTimelineLimit = 8

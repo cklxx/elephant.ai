@@ -151,7 +151,6 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 		parent.SessionStore,
 		ctxmgr.NewManager(
 			ctxmgr.WithStateStore(parent.StateStore),
-			ctxmgr.WithJournalWriter(b.buildJournalWriter()),
 			ctxmgr.WithMemoryEngine(parent.MemoryEngine),
 			ctxmgr.WithMemoryGate(memoryGateFunc(b.config.Proactive.Memory.Enabled)),
 		),

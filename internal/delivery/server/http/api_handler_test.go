@@ -21,7 +21,6 @@ import (
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
-	"alex/internal/infra/analytics/journal"
 	"alex/internal/infra/memory"
 	"alex/internal/infra/session/filestore"
 	sessionstate "alex/internal/infra/session/state_store"
@@ -287,14 +286,12 @@ func TestSnapshotHandlers(t *testing.T) {
 	stateStore := sessionstate.NewInMemoryStore()
 	broadcaster := app.NewEventBroadcaster()
 	taskStore := app.NewInMemoryTaskStore()
-	reader := &staticJournalReader{entries: []journal.TurnJournalEntry{{SessionID: "sess-1", TurnID: 1, Summary: "rehydrate"}}}
 	tasks, sessions, snapshots := buildTestServices(
 		&stubAgentCoordinator{},
 		broadcaster,
 		sessionStore,
 		taskStore,
 		stateStore,
-		app.WithSnapshotJournalReader(reader),
 	)
 	handler := NewAPIHandler(tasks, sessions, snapshots, app.NewHealthChecker(), false)
 
@@ -341,13 +338,6 @@ func TestSnapshotHandlers(t *testing.T) {
 		t.Fatalf("unexpected turn payload: %+v", turn)
 	}
 
-	replayReq := httptest.NewRequest(http.MethodPost, "/api/sessions/sess-1/replay", nil)
-	replayReq.SetPathValue("session_id", "sess-1")
-	replayResp := httptest.NewRecorder()
-	handler.HandleReplaySession(replayResp, replayReq)
-	if replayResp.Code != http.StatusAccepted {
-		t.Fatalf("expected 202 for replay, got %d", replayResp.Code)
-	}
 }
 
 func TestHandleCreateSession(t *testing.T) {
@@ -490,23 +480,6 @@ func TestHandleListSessionsIncludesTaskSummaryFields(t *testing.T) {
 	if summaryC.LastTask != "" {
 		t.Fatalf("expected session C last_task empty, got %q", summaryC.LastTask)
 	}
-}
-
-type staticJournalReader struct {
-	entries []journal.TurnJournalEntry
-}
-
-func (r *staticJournalReader) Stream(_ context.Context, sessionID string, fn func(journal.TurnJournalEntry) error) error {
-	for _, entry := range r.entries {
-		e := entry
-		if e.SessionID == "" {
-			e.SessionID = sessionID
-		}
-		if err := fn(e); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func TestHandleGetContextSnapshotsReturnsLightweightSummary(t *testing.T) {
@@ -895,13 +868,3 @@ func TestHandleGetTaskStats(t *testing.T) {
 	}
 }
 
-func (r *staticJournalReader) ReadAll(_ context.Context, sessionID string) ([]journal.TurnJournalEntry, error) {
-	entries := make([]journal.TurnJournalEntry, len(r.entries))
-	copy(entries, r.entries)
-	for i := range entries {
-		if entries[i].SessionID == "" {
-			entries[i].SessionID = sessionID
-		}
-	}
-	return entries, nil
-}

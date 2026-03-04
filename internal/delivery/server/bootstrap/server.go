@@ -123,8 +123,6 @@ func RunServer(observabilityConfigPath string) error {
 	cleanupDiagnostics := subscribeDiagnostics(broadcaster)
 	defer cleanupDiagnostics()
 
-	journalReader := BuildJournalReader(container.SessionDir(), logger)
-
 	// ── Build the 3 standalone services ──
 
 	taskOpts := []serverApp.TaskExecutionServiceOption{
@@ -168,7 +166,6 @@ func RunServer(observabilityConfigPath string) error {
 		container.AgentCoordinator,
 		broadcaster,
 		serverApp.WithSnapshotStateStore(container.StateStore),
-		serverApp.WithSnapshotJournalReader(journalReader),
 	)
 
 	if resumed, err := tasksSvc.ResumePendingTasks(context.Background()); err != nil {

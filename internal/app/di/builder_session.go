@@ -7,7 +7,6 @@ import (
 
 	agentcost "alex/internal/app/agent/cost"
 	agentstorage "alex/internal/domain/agent/ports/storage"
-	"alex/internal/infra/analytics/journal"
 	"alex/internal/infra/memory"
 	"alex/internal/infra/session/filestore"
 	sessionstate "alex/internal/infra/session/state_store"
@@ -36,16 +35,6 @@ func (b *containerBuilder) buildMemoryEngine() (memory.Engine, error) {
 		b.logger.Warn("Failed to initialize memory root: %v", err)
 	}
 	return engine, nil
-}
-
-func (b *containerBuilder) buildJournalWriter() journal.Writer {
-	journalDir := filepath.Join(b.sessionDir, "journals")
-	fileWriter, err := journal.NewFileWriter(journalDir)
-	if err != nil {
-		b.logger.Warn("Failed to initialize journal writer: %v", err)
-		return journal.NopWriter()
-	}
-	return fileWriter
 }
 
 func (b *containerBuilder) buildCostTracker() (agentstorage.CostTracker, error) {

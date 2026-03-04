@@ -8,7 +8,6 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/infra/analytics/journal"
 	"alex/internal/infra/memory"
 	"alex/internal/infra/observability"
 	sessionstate "alex/internal/infra/session/state_store"
@@ -21,7 +20,6 @@ type manager struct {
 	logger     logging.Logger
 	stateStore sessionstate.Store
 	metrics    *observability.ContextMetrics
-	journal    journal.Writer
 
 	static       *staticRegistry
 	sopResolver  *SOPResolver
@@ -72,15 +70,6 @@ func WithLogger(logger logging.Logger) Option {
 	return func(m *manager) {
 		if !logging.IsNil(logger) {
 			m.logger = logger
-		}
-	}
-}
-
-// WithJournalWriter wires a turn journal writer for replay and meta-context jobs.
-func WithJournalWriter(writer journal.Writer) Option {
-	return func(m *manager) {
-		if writer != nil {
-			m.journal = writer
 		}
 	}
 }
@@ -138,7 +127,6 @@ func NewManager(opts ...Option) agent.ContextManager {
 		configRoot: root,
 		logger:     logging.NewComponentLogger("ContextManager"),
 		metrics:    observability.NewContextMetrics(),
-		journal:    journal.NopWriter(),
 	}
 	for _, opt := range opts {
 		if opt != nil {

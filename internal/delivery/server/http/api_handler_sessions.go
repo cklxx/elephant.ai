@@ -339,23 +339,6 @@ func (h *APIHandler) HandleGetTurnSnapshot(w http.ResponseWriter, r *http.Reques
 	h.writeJSON(w, http.StatusOK, resp)
 }
 
-// HandleReplaySession handles POST /api/sessions/{session_id}/replay
-func (h *APIHandler) HandleReplaySession(w http.ResponseWriter, r *http.Request) {
-	sessionID, err := extractRequiredSessionIDFromPath(r)
-	if err != nil {
-		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
-		return
-	}
-	if err := h.snapshots.ReplaySession(r.Context(), sessionID); err != nil {
-		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to schedule replay")
-		return
-	}
-	h.writeJSON(w, http.StatusAccepted, map[string]string{
-		"status":     "scheduled",
-		"session_id": sessionID,
-	})
-}
-
 // HandleForkSession handles POST /api/sessions/{session_id}/fork
 func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
 	sessionID, err := extractRequiredSessionIDFromPath(r)

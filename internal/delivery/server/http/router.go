@@ -151,7 +151,6 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	mux.Handle("PUT /api/sessions/{session_id}/persona", routeHandler("/api/sessions/:session_id/persona", wrap(http.HandlerFunc(apiHandler.HandleUpdateSessionPersona))))
 	mux.Handle("GET /api/sessions/{session_id}/snapshots", routeHandler("/api/sessions/:session_id/snapshots", wrap(http.HandlerFunc(apiHandler.HandleListSnapshots))))
 	mux.Handle("GET /api/sessions/{session_id}/turns/{turn_id}", routeHandler("/api/sessions/:session_id/turns/:turn_id", wrap(http.HandlerFunc(apiHandler.HandleGetTurnSnapshot))))
-	mux.Handle("POST /api/sessions/{session_id}/replay", routeHandler("/api/sessions/:session_id/replay", wrap(http.HandlerFunc(apiHandler.HandleReplaySession))))
 	mux.Handle("POST /api/sessions/{session_id}/share", routeHandler("/api/sessions/:session_id/share", wrap(http.HandlerFunc(apiHandler.HandleCreateSessionShare))))
 	mux.Handle("POST /api/sessions/{session_id}/fork", routeHandler("/api/sessions/:session_id/fork", wrap(http.HandlerFunc(apiHandler.HandleForkSession))))
 

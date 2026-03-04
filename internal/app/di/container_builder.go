@@ -77,10 +77,8 @@ func (b *containerBuilder) Build() (*Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	journalWriter := b.buildJournalWriter()
 	contextOptions := []ctxmgr.Option{
 		ctxmgr.WithStateStore(resources.stateStore),
-		ctxmgr.WithJournalWriter(journalWriter),
 	}
 	contextOptions = append(contextOptions, ctxmgr.WithMemoryEngine(memoryEngine))
 	contextOptions = append(contextOptions, ctxmgr.WithMemoryGate(memoryGateFunc(b.config.Proactive.Memory.Enabled)))
@@ -295,14 +293,16 @@ func convertTeamConfigs(configs []runtimeconfig.TeamConfig) []agent.TeamDefiniti
 		roles := make([]agent.TeamRoleDefinition, 0, len(cfg.Roles))
 		for _, r := range cfg.Roles {
 			roles = append(roles, agent.TeamRoleDefinition{
-				Name:           r.Name,
-				AgentType:      r.AgentType,
-				PromptTemplate: r.PromptTemplate,
-				ExecutionMode:  r.ExecutionMode,
-				AutonomyLevel:  r.AutonomyLevel,
-				WorkspaceMode:  r.WorkspaceMode,
-				Config:         r.Config,
-				InheritContext: r.InheritContext,
+				Name:              r.Name,
+				AgentType:         r.AgentType,
+				CapabilityProfile: r.CapabilityProfile,
+				TargetCLI:         r.TargetCLI,
+				PromptTemplate:    r.PromptTemplate,
+				ExecutionMode:     r.ExecutionMode,
+				AutonomyLevel:     r.AutonomyLevel,
+				WorkspaceMode:     r.WorkspaceMode,
+				Config:            r.Config,
+				InheritContext:    r.InheritContext,
 			})
 		}
 		stages := make([]agent.TeamStageDefinition, 0, len(cfg.Stages))
