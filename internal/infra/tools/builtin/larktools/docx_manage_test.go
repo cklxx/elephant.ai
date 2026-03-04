@@ -3,6 +3,7 @@ package larktools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -64,6 +65,12 @@ func isDocxBlocksConvertRoute(path string) bool {
 	// Lark SDK requests may include `/open-apis` prefix depending on base URL wiring.
 	return strings.Contains(path, "/open-apis/docx/v1/documents/blocks/convert") ||
 		strings.Contains(path, "/docx/v1/documents/blocks/convert")
+}
+
+func isDocxDescendantRoute(path, documentID, blockID string) bool {
+	openPath := fmt.Sprintf("/open-apis/docx/v1/documents/%s/blocks/%s/descendant", documentID, blockID)
+	plainPath := fmt.Sprintf("/docx/v1/documents/%s/blocks/%s/descendant", documentID, blockID)
+	return strings.Contains(path, openPath) || strings.Contains(path, plainPath)
 }
 
 // ---------------------------------------------------------------------------
@@ -185,8 +192,9 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 				"blocks": []map[string]any{
 					{"block_id": "tmp_blk_001", "block_type": 2, "parent_id": "doc_init_001"},
 				},
+				"block_id_to_image_urls": []map[string]any{},
 			})
-		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/docx/v1/documents/doc_init_001/blocks/doc_init_001/descendant"):
+		case r.Method == http.MethodPost && isDocxDescendantRoute(r.URL.Path, "doc_init_001", "doc_init_001"):
 			bodyBytes, _ := io.ReadAll(r.Body)
 			body := string(bodyBytes)
 			if !strings.Contains(body, "tmp_blk_001") {

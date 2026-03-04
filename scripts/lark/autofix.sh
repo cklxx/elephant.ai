@@ -364,12 +364,19 @@ run_validation() {
   # Runtime-focused validation targets for kernel audit cycles.
   # Keep these aligned with active package layout; retired targets such as
   # ./internal/infra/agent/... and ./internal/agent/... must not be used.
+  local agent_runtime_pkg="./internal/app/agent/kernel/..."
+  if ! (cd "${AUTOFIX_ROOT}" && go list "${agent_runtime_pkg}" >/dev/null 2>&1); then
+    fail_state "agent runtime package missing: ${agent_runtime_pkg}"
+    return 1
+  fi
+  append_log "[autofix] validated agent runtime target: ${agent_runtime_pkg}"
+
   (cd "${AUTOFIX_ROOT}" && go test \
     ./internal/infra/teamruntime/... \
     ./internal/infra/kernel/... \
     ./internal/delivery/channels/lark/... \
     ./internal/infra/tools/builtin/larktools/... \
-    ./internal/app/agent/... \
+    "${agent_runtime_pkg}" \
     -count=1)
 }
 
