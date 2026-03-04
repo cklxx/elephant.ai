@@ -97,7 +97,20 @@ func TestDocxManage_InvalidAction(t *testing.T) {
 }
 
 func TestDocxManage_CreateDoc(t *testing.T) {
+	var createCalled bool
 	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST, got %s", r.Method)
+		}
+		if !strings.HasSuffix(r.URL.Path, "/docx/v1/documents") {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		bodyBytes, _ := io.ReadAll(r.Body)
+		body := string(bodyBytes)
+		if !strings.Contains(body, `"title":"My New Doc"`) {
+			t.Fatalf("expected title in create body, got: %s", body)
+		}
+		createCalled = true
 		writeJSON(t, w, 0, "ok", map[string]any{
 			"document": map[string]any{
 				"document_id": "doc_create_001",
@@ -119,6 +132,9 @@ func TestDocxManage_CreateDoc(t *testing.T) {
 	}
 	if result.Error != nil {
 		t.Fatalf("unexpected tool error: %v", result.Error)
+	}
+	if !createCalled {
+		t.Fatal("expected create document API call")
 	}
 	if !strings.Contains(result.Content, "doc_create_001") {
 		t.Fatalf("expected document_id in content, got: %s", result.Content)
@@ -206,8 +222,11 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 
 func TestDocxManage_CreateDoc_WithFolder(t *testing.T) {
 	var gotPath string
+	var gotBody string
 	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
+		bodyBytes, _ := io.ReadAll(r.Body)
+		gotBody = string(bodyBytes)
 		writeJSON(t, w, 0, "ok", map[string]any{
 			"document": map[string]any{
 				"document_id": "doc_folder_001",
@@ -231,7 +250,12 @@ func TestDocxManage_CreateDoc_WithFolder(t *testing.T) {
 	if result.Error != nil {
 		t.Fatalf("unexpected tool error: %v", result.Error)
 	}
-	_ = gotPath // Request was made; content verified via response
+	if !strings.HasSuffix(gotPath, "/docx/v1/documents") {
+		t.Fatalf("unexpected path for create doc with folder: %s", gotPath)
+	}
+	if !strings.Contains(gotBody, `"folder_token":"fldr_abc"`) {
+		t.Fatalf("expected folder_token in request body, got: %s", gotBody)
+	}
 	if result.Metadata["title"] != "Folder Doc" {
 		t.Fatalf("expected title=Folder Doc, got %v", result.Metadata["title"])
 	}
