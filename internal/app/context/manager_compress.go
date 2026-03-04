@@ -118,6 +118,7 @@ func (m *manager) AutoCompact(messages []ports.Message, limit int) ([]ports.Mess
 
 	return compressed, true
 }
+
 // BuildSummaryOnly generates a compression summary for older messages without
 // replacing them. Returns the summary text and the count of messages that would
 // be replaced. This is the first half of the delayed summary replacement:
@@ -130,7 +131,6 @@ func (m *manager) BuildSummaryOnly(messages []ports.Message) (string, int) {
 	summary := buildCompressionSummary(plan.summarySource)
 	return summary, len(plan.compressibleOriginalIndexes)
 }
-
 
 // Compress preserves system/important/checkpoint messages and the most recent
 // conversation turn, then summarizes older conversation history when the token
@@ -247,43 +247,17 @@ type compressionPlan struct {
 }
 
 func buildCompressionPlan(messages []ports.Message) compressionPlan {
-	plan := compressionPlan{
-		compressibleOriginalIndexes: map[int]struct{}{},
+	shared := ports.BuildCompressionPlan(messages, ports.CompressionPlanOptions{
+		KeepRecentTurns: 1,
+		PreserveSource:  isCompressionPreservedSource,
+		IsSynthetic: func(msg ports.Message) bool {
+			return isContextCompressionSummary(msg)
+		},
+	})
+	return compressionPlan{
+		compressibleOriginalIndexes: shared.CompressibleIndexes,
+		summarySource:               shared.SummarySource,
 	}
-	if len(messages) == 0 {
-		return plan
-	}
-
-	conversation := make([]ports.Message, 0, len(messages))
-	conversationIndexes := make([]int, 0, len(messages))
-	for idx, msg := range messages {
-		if isCompressionPreservedSource(msg.Source) {
-			continue
-		}
-		conversation = append(conversation, msg)
-		conversationIndexes = append(conversationIndexes, idx)
-	}
-	if len(conversation) == 0 {
-		return plan
-	}
-
-	keptConversation := keepRecentTurns(conversation, 1)
-	compressibleCount := len(conversation) - len(keptConversation)
-	if compressibleCount <= 0 {
-		return plan
-	}
-
-	plan.compressibleOriginalIndexes = make(map[int]struct{}, compressibleCount)
-	plan.summarySource = make([]ports.Message, 0, compressibleCount)
-	for idx := 0; idx < compressibleCount; idx++ {
-		plan.compressibleOriginalIndexes[conversationIndexes[idx]] = struct{}{}
-		msg := conversation[idx]
-		if isContextCompressionSummary(msg) {
-			continue
-		}
-		plan.summarySource = append(plan.summarySource, msg)
-	}
-	return plan
 }
 
 var buildCompressionSnippet = ports.TruncateRuneSnippet

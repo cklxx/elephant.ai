@@ -144,42 +144,17 @@ func (e *ReactEngine) tryArtifactCompaction(
 }
 
 func buildContextCompactionPlan(messages []Message) contextCompactionPlan {
-	plan := contextCompactionPlan{
-		compressibleOriginalIndexes: map[int]struct{}{},
+	shared := ports.BuildCompressionPlan(messages, ports.CompressionPlanOptions{
+		KeepRecentTurns: 1,
+		PreserveSource:  isPreservedSource,
+		IsSynthetic: func(msg ports.Message) bool {
+			return isSyntheticCompactionMessage(msg)
+		},
+	})
+	return contextCompactionPlan{
+		compressibleOriginalIndexes: shared.CompressibleIndexes,
+		summarySource:               shared.SummarySource,
 	}
-	if len(messages) == 0 {
-		return plan
-	}
-
-	conversation := make([]Message, 0, len(messages))
-	conversationIndexes := make([]int, 0, len(messages))
-	for idx, msg := range messages {
-		if isPreservedSource(msg.Source) {
-			continue
-		}
-		conversation = append(conversation, msg)
-		conversationIndexes = append(conversationIndexes, idx)
-	}
-	if len(conversation) == 0 {
-		return plan
-	}
-
-	keptConversation := ports.KeepRecentTurns(conversation, 1)
-	compressibleCount := len(conversation) - len(keptConversation)
-	if compressibleCount <= 0 {
-		return plan
-	}
-
-	plan.summarySource = make([]Message, 0, compressibleCount)
-	for idx := 0; idx < compressibleCount; idx++ {
-		plan.compressibleOriginalIndexes[conversationIndexes[idx]] = struct{}{}
-		msg := conversation[idx]
-		if isSyntheticCompactionMessage(msg) {
-			continue
-		}
-		plan.summarySource = append(plan.summarySource, msg)
-	}
-	return plan
 }
 
 func isSyntheticCompactionMessage(msg Message) bool {
