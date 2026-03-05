@@ -113,7 +113,9 @@ Usage:
   alex acp [--initial-message]        Run ACP (Agent Client Protocol) over stdio
   alex acp serve [--port N]           Run ACP over HTTP/SSE (default 127.0.0.1:9000)
   alex team run [...]                 Dispatch team orchestration from YAML/template
-  alex team reply [...]               Reply to/inject input for a background team task
+  alex team templates                 List configured team templates
+  alex team reply [...]               Reply to a background input request
+  alex team inject [...]              Inject free-form input into a running task
 
 Configuration:
 %s
