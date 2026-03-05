@@ -46,6 +46,7 @@ See `docs/guides/memory-management.md` for the full on-demand trigger table, ret
 
 * **Always use worktrees for code changes.** Never modify code directly on `main`. Use `EnterWorktree` (or `git worktree add`) to create an isolated branch, develop there, then merge back via `git merge --ff-only`.
 * **Auto-merge worktree on completion.** After all commits are done in a worktree, automatically merge the branch back to `main` without asking.
+* **Mark active worktrees.** Each active worktree must have `<worktree>/.worktree-active.yaml` with `status: in_progress`; never remove that worktree until status is updated to `merged` after `git merge --ff-only`.
 
 ---
 
