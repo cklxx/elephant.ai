@@ -26,4 +26,4 @@ Ensure all team capabilities are reachable through `skills + CLI` mode, without 
 - [x] Apply code changes
 - [x] Run tests
 - [x] Real CLI verification
-- [ ] Commit
+- [x] Commit
