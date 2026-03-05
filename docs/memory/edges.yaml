@@ -1,5 +1,5 @@
 version: 1
-updated: "2026-03-04"
+updated: "2026-03-05"
 edges:
     - from: err-2026-01-27-dev-lint-test-cmd-alex-context
       to: errsum-2026-01-27-dev-lint-test-cmd-alex-context
@@ -109,6 +109,10 @@ edges:
       to: errsum-2026-02-26-main-branch-dirty-workspace-quality-gate-noise
       type: see_also
       direction: directed
+    - from: err-2026-03-03-midtask-scope-correction-date-chunk
+      to: errsum-2026-03-03-midtask-scope-correction-date-chunk
+      type: see_also
+      direction: directed
     - from: err-2026-03-03-prepush-race-flake-lint-timeout
       to: errsum-2026-03-03-prepush-race-flake-lint-timeout
       type: see_also
@@ -135,6 +139,26 @@ edges:
       direction: directed
     - from: err-2026-03-04-session-system-prompt-multi-call-misread
       to: errsum-2026-03-04-session-system-prompt-multi-call-misread
+      type: see_also
+      direction: directed
+    - from: err-2026-03-05-lint-missing-eslint-misdiagnosis
+      to: errsum-2026-03-05-lint-missing-eslint-misdiagnosis
+      type: see_also
+      direction: directed
+    - from: err-2026-03-05-user-correction-prune-unused-tools-first
+      to: errsum-2026-03-05-user-correction-prune-unused-tools-first
+      type: see_also
+      direction: directed
+    - from: err-2026-03-05-user-correction-remove-channel-registration
+      to: errsum-2026-03-05-user-correction-remove-channel-registration
+      type: see_also
+      direction: directed
+    - from: err-2026-03-05-user-correction-reuse-existing-auth-and-unified-runtime
+      to: errsum-2026-03-05-user-correction-reuse-existing-auth-and-unified-runtime
+      type: see_also
+      direction: directed
+    - from: err-2026-03-05-user-correction-teams-fallback-and-inject-e2e
+      to: errsum-2026-03-05-user-correction-teams-fallback-and-inject-e2e
       type: see_also
       direction: directed
     - from: errsum-2026-01-27-dev-lint-test-cmd-alex-context
@@ -245,6 +269,10 @@ edges:
       to: err-2026-02-26-main-branch-dirty-workspace-quality-gate-noise
       type: derived_from
       direction: directed
+    - from: errsum-2026-03-03-midtask-scope-correction-date-chunk
+      to: err-2026-03-03-midtask-scope-correction-date-chunk
+      type: derived_from
+      direction: directed
     - from: errsum-2026-03-03-prepush-race-flake-lint-timeout
       to: err-2026-03-03-prepush-race-flake-lint-timeout
       type: derived_from
@@ -271,6 +299,26 @@ edges:
       direction: directed
     - from: errsum-2026-03-04-session-system-prompt-multi-call-misread
       to: err-2026-03-04-session-system-prompt-multi-call-misread
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-03-05-lint-missing-eslint-misdiagnosis
+      to: err-2026-03-05-lint-missing-eslint-misdiagnosis
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-03-05-user-correction-prune-unused-tools-first
+      to: err-2026-03-05-user-correction-prune-unused-tools-first
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-03-05-user-correction-remove-channel-registration
+      to: err-2026-03-05-user-correction-remove-channel-registration
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-03-05-user-correction-reuse-existing-auth-and-unified-runtime
+      to: err-2026-03-05-user-correction-reuse-existing-auth-and-unified-runtime
+      type: derived_from
+      direction: directed
+    - from: errsum-2026-03-05-user-correction-teams-fallback-and-inject-e2e
+      to: err-2026-03-05-user-correction-teams-fallback-and-inject-e2e
       type: derived_from
       direction: directed
     - from: good-2026-01-30-continuous-practice-optimization
@@ -493,6 +541,10 @@ edges:
       to: goodsum-2026-03-04-feature-review-architecture-simplification
       type: see_also
       direction: directed
+    - from: good-2026-03-05-anygen-cli-progressive-disclosure-wrapper
+      to: goodsum-2026-03-05-anygen-cli-progressive-disclosure-wrapper
+      type: see_also
+      direction: directed
     - from: goodsum-2026-01-30-continuous-practice-optimization
       to: good-2026-01-30-continuous-practice-optimization
       type: derived_from
@@ -711,6 +763,10 @@ edges:
       direction: directed
     - from: goodsum-2026-03-04-feature-review-architecture-simplification
       to: good-2026-03-04-feature-review-architecture-simplification
+      type: derived_from
+      direction: directed
+    - from: goodsum-2026-03-05-anygen-cli-progressive-disclosure-wrapper
+      to: good-2026-03-05-anygen-cli-progressive-disclosure-wrapper
       type: derived_from
       direction: directed
     - from: ltm-long-term-memory
@@ -1215,6 +1271,14 @@ edges:
       direction: directed
     - from: ltm-long-term-memory
       to: plan-2026-03-04-lark-task-tenant-token-and-visibility
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-05-fix-lint-and-lark-tests
+      type: see_also
+      direction: directed
+    - from: ltm-long-term-memory
+      to: plan-2026-03-05-migrate-lark-builtins-to-skills
       type: see_also
       direction: directed
 schema:

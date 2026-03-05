@@ -1,6 +1,115 @@
 version: 1
-updated: "2026-03-04"
+updated: "2026-03-05"
 nodes:
+    - id: err-2026-03-05-lint-missing-eslint-misdiagnosis
+      path: docs/error-experience/entries/2026-03-05-lint-missing-eslint-misdiagnosis.md
+      type: error_entry
+      date: "2026-03-05"
+      tags:
+        - error
+      summary: '在 `alex dev lint` 报 `eslint: command not found` 时，未先验证执行上下文与 Node 依赖安装状态，就把现象直接表述为“本机缺 eslint”，导致结论不够严谨。'
+    - id: err-2026-03-05-user-correction-prune-unused-tools-first
+      path: docs/error-experience/entries/2026-03-05-user-correction-prune-unused-tools-first.md
+      type: error_entry
+      date: "2026-03-05"
+      tags:
+        - error
+      summary: 任务目标：梳理当前内置工具并继续做工具层优化。
+    - id: err-2026-03-05-user-correction-remove-channel-registration
+      path: docs/error-experience/entries/2026-03-05-user-correction-remove-channel-registration.md
+      type: error_entry
+      date: "2026-03-05"
+      tags:
+        - error
+      summary: 'Date: 2026-03-05'
+    - id: err-2026-03-05-user-correction-reuse-existing-auth-and-unified-runtime
+      path: docs/error-experience/entries/2026-03-05-user-correction-reuse-existing-auth-and-unified-runtime.md
+      type: error_entry
+      date: "2026-03-05"
+      tags:
+        - error
+      summary: 任务目标：将飞书工具统一为 CLI 并通过 skill 暴露给 agent。
+    - id: err-2026-03-05-user-correction-teams-fallback-and-inject-e2e
+      path: docs/error-experience/entries/2026-03-05-user-correction-teams-fallback-and-inject-e2e.md
+      type: error_entry
+      date: "2026-03-05"
+      tags:
+        - error
+        - observability
+      summary: 任务目标：验证 teams 功能可用性，覆盖自动 fallback 与注入能力。
+    - id: errsum-2026-03-05-lint-missing-eslint-misdiagnosis
+      path: docs/error-experience/summary/entries/2026-03-05-lint-missing-eslint-misdiagnosis.md
+      type: error_summary
+      date: "2026-03-05"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: `command not found` 不能直接等同于“本机缺依赖”；必须先验证执行目录、依赖安装与 PATH，再下结论并优先使用 `npm exec` 这类稳健调用。'
+    - id: errsum-2026-03-05-user-correction-prune-unused-tools-first
+      path: docs/error-experience/summary/entries/2026-03-05-user-correction-prune-unused-tools-first.md
+      type: error_summary
+      date: "2026-03-05"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: 当用户明确指出某工具“没用要删”时，先完成工具注册面收敛，再做 CLI 替代与 skills 文档迁移，禁止先做迁移细节后保留旧工具入口。'
+    - id: errsum-2026-03-05-user-correction-remove-channel-registration
+      path: docs/error-experience/summary/entries/2026-03-05-user-correction-remove-channel-registration.md
+      type: error_summary
+      date: "2026-03-05"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: 用户明确要求“不要注册旧入口”时，必须把“删除注册点与调用入口”作为硬约束执行，不能仅保留兼容适配层。'
+    - id: errsum-2026-03-05-user-correction-reuse-existing-auth-and-unified-runtime
+      path: docs/error-experience/summary/entries/2026-03-05-user-correction-reuse-existing-auth-and-unified-runtime.md
+      type: error_summary
+      date: "2026-03-05"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: 用户明确要求“复用既有授权代码 + 统一运行时与环境变量”时，必须先冻结新授权分支，改为旧授权内核外包 CLI 壳，并在完整测试通过后再执行全量迁移和旧代码删除。'
+    - id: errsum-2026-03-05-user-correction-teams-fallback-and-inject-e2e
+      path: docs/error-experience/summary/entries/2026-03-05-user-correction-teams-fallback-and-inject-e2e.md
+      type: error_summary
+      date: "2026-03-05"
+      tags:
+        - error
+        - observability
+        - summary
+      summary: 用户纠正了“单点冒烟即可”的错误方向：teams 验证必须覆盖自动 fallback 与注入产品链路。
+    - id: good-2026-03-05-anygen-cli-progressive-disclosure-wrapper
+      path: docs/good-experience/entries/2026-03-05-anygen-cli-progressive-disclosure-wrapper.md
+      type: good_entry
+      date: "2026-03-05"
+      tags:
+        - good
+      summary: 目标：把上游 `AnyGenIO/anygen-skills` 以 elephant.ai 可执行的 `CLI + SKILL.md` 形式落地。
+    - id: goodsum-2026-03-05-anygen-cli-progressive-disclosure-wrapper
+      path: docs/good-experience/summary/entries/2026-03-05-anygen-cli-progressive-disclosure-wrapper.md
+      type: good_summary
+      date: "2026-03-05"
+      tags:
+        - good
+        - summary
+      summary: 'Summary: 外部 skills 仓库接入采用“统一 CLI runtime + 薄 skill wrapper + 渐进式 help 层级（overview/modules/module/action）”可在保持兼容的同时快速上线并降低后续维护复杂度。'
+    - id: plan-2026-03-05-fix-lint-and-lark-tests
+      path: docs/plans/2026-03-05-fix-lint-and-lark-tests.md
+      type: plan
+      date: "2026-03-05"
+      tags:
+        - lark
+        - observability
+        - plan
+      summary: Resolve the reported `alex dev lint` failure (`eslint` not found) with a robust fix.
+    - id: plan-2026-03-05-migrate-lark-builtins-to-skills
+      path: docs/plans/2026-03-05-migrate-lark-builtins-to-skills.md
+      type: plan
+      date: "2026-03-05"
+      tags:
+        - lark
+        - plan
+      summary: 将内置飞书工具实现从 `internal/infra/tools/builtin/larktools/*` 迁移到 skill/CLI 运行时，彻底移除 `channel` 注册入口，统一改为 `shell_exec` + `skills/*/run.py` + `scripts/cli/feishu/feishu_cli.py`。
     - id: err-2026-03-04-lark-oauth-redirect-uri-precheck
       path: docs/error-experience/entries/2026-03-04-lark-oauth-redirect-uri-precheck.md
       type: error_entry
@@ -91,6 +200,13 @@ nodes:
         - observability
         - plan
       summary: 调研并落地飞书机器人“创建任务”链路，补齐自动获取 `tenant_access_token` 的逻辑。
+    - id: err-2026-03-03-midtask-scope-correction-date-chunk
+      path: docs/error-experience/entries/2026-03-03-midtask-scope-correction-date-chunk.md
+      type: error_entry
+      date: "2026-03-03"
+      tags:
+        - error
+      summary: 用户在进行中任务里追加了明确约束：检查“今天日期”注入，并要求通过独立 chunk 注入（而非 system prompt）。
     - id: err-2026-03-03-prepush-race-flake-lint-timeout
       path: docs/error-experience/entries/2026-03-03-prepush-race-flake-lint-timeout.md
       type: error_entry
@@ -130,6 +246,14 @@ nodes:
         - error
         - lark
       summary: 用户最初要求测试 Lark 日程和任务。
+    - id: errsum-2026-03-03-midtask-scope-correction-date-chunk
+      path: docs/error-experience/summary/entries/2026-03-03-midtask-scope-correction-date-chunk.md
+      type: error_summary
+      date: "2026-03-03"
+      tags:
+        - error
+        - summary
+      summary: 'Summary: 用户在任务中途追加约束后，必须立即重排执行路径并纳入同轮实现与验证，尤其是“注入位置/层级”类要求要在测试中显式锁定（例如 runtime chunk 而非 system prompt）。'
     - id: errsum-2026-03-03-prepush-race-flake-lint-timeout
       path: docs/error-experience/summary/entries/2026-03-03-prepush-race-flake-lint-timeout.md
       type: error_summary
