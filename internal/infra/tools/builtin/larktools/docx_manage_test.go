@@ -68,9 +68,9 @@ func isDocxCreateDocumentRoute(path string) bool {
 }
 
 func isDocxBlocksConvertRoute(path string) bool {
-	// Lark SDK requests may include `/open-apis` prefix depending on base URL wiring.
-	return strings.Contains(path, "/open-apis/docx/v1/documents/blocks/convert") ||
-		strings.Contains(path, "/docx/v1/documents/blocks/convert")
+	// Match convert endpoint exactly (optionally with trailing slash).
+	normalized := strings.TrimSuffix(path, "/")
+	return normalized == "/open-apis/docx/v1/documents/blocks/convert" || normalized == "/docx/v1/documents/blocks/convert"
 }
 
 func isDocxDescendantRoute(path, documentID, blockID string) bool {
