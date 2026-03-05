@@ -169,6 +169,13 @@
       "sourcePath": "../../.alex/skills/eval-systematic-optimization/SKILL.md"
     },
     {
+      "name": "feishu-cli",
+      "title": "feishu-cli",
+      "description": "统一飞书 CLI（auth/tool/api/help），支持渐进式帮助，供 agent 本地直接调用。",
+      "markdown": "# feishu-cli\n\n统一的飞书 CLI skill。通过一个运行时处理：\n- `help` 渐进式帮助（适配 LLM 自发现）\n- `auth` 授权与 token 管理\n- `tool` 业务动作（calendar/contact/doc/wiki/drive/sheets/mail/meeting/okr/bitable）\n- `api` 原始 Open API 调用\n\n## 渐进式 help（推荐顺序）\n\n```bash\n# 1) 顶层命令总览\npython3 skills/feishu-cli/run.py '{\"action\":\"help\"}'\n\n# 2) 认证帮助\npython3 skills/feishu-cli/run.py '{\"action\":\"help\",\"topic\":\"auth\"}'\n\n# 3) 查看全部模块\npython3 skills/feishu-cli/run.py '{\"action\":\"help\",\"topic\":\"modules\"}'\n\n# 4) 查看某模块动作\npython3 skills/feishu-cli/run.py '{\"action\":\"help\",\"topic\":\"module\",\"module\":\"calendar\"}'\n\n# 5) 查看某动作参数与示例\npython3 skills/feishu-cli/run.py '{\"action\":\"help\",\"topic\":\"action\",\"module\":\"calendar\",\"action_name\":\"create\"}'\n```\n\n## auth 示例\n\n```bash\n# 查看授权状态\npython3 skills/feishu-cli/run.py '{\"action\":\"auth\",\"subcommand\":\"status\"}'\n\n# 获取租户 token（复用现有 lark_auth）\npython3 skills/feishu-cli/run.py '{\"action\":\"auth\",\"subcommand\":\"tenant_token\"}'\n\n# 生成 OAuth URL（先做 redirect allowlist 预检）\npython3 skills/feishu-cli/run.py '{\"action\":\"auth\",\"subcommand\":\"oauth_url\",\"redirect_uri\":\"https://example.com/callback\",\"scopes\":[\"contact:user.base:readonly\"]}'\n```\n\n## tool 示例\n\n```bash\n# 创建日程\npython3 skills/feishu-cli/run.py '{\"action\":\"tool\",\"module\":\"calendar\",\"tool_action\":\"create\",\"title\":\"周会\",\"start\":\"2026-03-06 10:00\",\"duration\":\"60m\"}'\n\n# 读取文档\npython3 skills/feishu-cli/run.py '{\"action\":\"tool\",\"module\":\"doc\",\"tool_action\":\"read\",\"document_id\":\"doccnxxxx\"}'\n\n# 查询通讯录用户\npython3 skills/feishu-cli/run.py '{\"action\":\"tool\",\"module\":\"contact\",\"tool_action\":\"get_user\",\"user_id\":\"ou_xxx\"}'\n```\n\n## api 示例\n\n```bash\n# 原始 Open API 调用（tenant）\npython3 skills/feishu-cli/run.py '{\"action\":\"api\",\"method\":\"GET\",\"path\":\"/contact/v3/scopes\"}'\n```\n\n## 统一环境变量（建议）\n\n- `LARK_APP_ID`\n- `LARK_APP_SECRET`\n- `LARK_TENANT_TOKEN`（可选，优先直用）\n- `LARK_OPEN_BASE_URL`（可选）\n- `LARK_OAUTH_REDIRECT_URI`（OAuth）\n- `LARK_OAUTH_REDIRECT_ALLOWLIST`（OAuth 预检）\n- `LARK_OAUTH_SCOPES`（OAuth 默认 scope）",
+      "sourcePath": "../../.alex/skills/feishu-cli/SKILL.md"
+    },
+    {
       "name": "image-creation",
       "title": "image-creation",
       "description": "Generate or refine images with Seedream (text-to-image + image-to-image).",
@@ -237,6 +244,13 @@
       "description": "音乐发现 — 搜索 iTunes API 查找歌曲/专辑/艺人信息。",
       "markdown": "# music-discovery\n\n音乐搜索和发现：通过 iTunes Search API 查找歌曲。\n\n## 调用\n\n```bash\npython3 skills/music-discovery/run.py '{\"action\":\"search\",\"query\":\"周杰伦 晴天\"}'\n```",
       "sourcePath": "../../.alex/skills/music-discovery/SKILL.md"
+    },
+    {
+      "name": "notebooklm-cli",
+      "title": "notebooklm-cli",
+      "description": "用 `nlm`（NotebookLM CLI）完成 notebook/source/query/report 的本地操作；先 help 再执行。",
+      "markdown": "# notebooklm-cli\n\n使用 `nlm` 直接操作 NotebookLM，优先走 CLI（`bash`）。\n\n## 渐进式 Help（先看再做）\n\n```bash\nnlm --help\nnlm notebook --help\nnlm source --help\nnlm report --help\nnlm studio --help\n```\n\n## 最小可执行流程\n\n```bash\nnlm login\nnlm notebook create \"Weekly Research\"\nnlm source add <notebook-id> --url \"https://example.com/article\"\nnlm notebook query <notebook-id> \"总结 3 个关键结论\"\nnlm report create <notebook-id> --confirm\nnlm studio status <notebook-id>\n```\n\n## 规则\n\n- 删除前必须确认：`nlm notebook delete ... --confirm` / `nlm source delete ... --confirm`。\n- 不使用 `nlm chat start`（交互 REPL，不适合 agent 自动执行）。\n- 鉴权失败时先执行 `nlm login` 重新登录。",
+      "sourcePath": "../../.alex/skills/notebooklm-cli/SKILL.md"
     },
     {
       "name": "okr-management",
