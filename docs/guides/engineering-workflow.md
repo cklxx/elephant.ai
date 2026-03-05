@@ -90,6 +90,26 @@ git worktree remove ../<dir>
 
 If `git branch -d` is denied by policy: `git update-ref -d refs/heads/<branch>` then `git worktree prune`; verify with `git branch --list '<branch>'`.
 
+### Active Worktree Marking (mandatory)
+
+To avoid accidental worktree deletion during active work:
+
+1. Immediately after creating or re-entering a worktree, create `<worktree>/.worktree-active.yaml`:
+   ```yaml
+   owner: ckl
+   agent: codex
+   branch: <branch>
+   path: <absolute-worktree-path>
+   task: <short-task-name>
+   status: in_progress
+   started_at: <RFC3339 timestamp>
+   last_touch_at: <RFC3339 timestamp>
+   ```
+2. Update `last_touch_at` whenever handing off phases (explore -> implement -> test -> review) and before long-running commands.
+3. Never remove a worktree while `.worktree-active.yaml` has `status: in_progress`.
+4. After successful `git merge --ff-only <branch>`, set `status: merged` and then remove the worktree.
+5. On interruption/crash, keep the marker file untouched so the next session can detect that work was in progress.
+
 ---
 
 ## 5. Implementation

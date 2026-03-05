@@ -110,6 +110,7 @@ npm/*/bin/alex.exe
 .deep-coding-config.json
 .worktrees/
 .worktrees-*/
+.worktree-active.yaml
 .elephant/
 .env.local
 .env*.local
