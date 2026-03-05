@@ -198,6 +198,7 @@ func TestDocxManage_CreateDoc(t *testing.T) {
 
 func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 	var convertCalled bool
+	var convertPath string
 	var createDescCalled bool
 	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -210,6 +211,7 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 				},
 			})
 		case r.Method == http.MethodPost && isDocxBlocksConvertRoute(r.URL.Path):
+			convertPath = r.URL.Path
 			bodyBytes, _ := io.ReadAll(r.Body)
 			body := string(bodyBytes)
 			if !strings.Contains(body, "这是正文第一段") {
@@ -248,6 +250,9 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 	}
 	if !convertCalled {
 		t.Fatal("expected markdown convert call")
+	}
+	if !strings.Contains(convertPath, "/documents/blocks/convert") {
+		t.Fatalf("expected convert API path, got %s", convertPath)
 	}
 	if !createDescCalled {
 		t.Fatal("expected create descendant blocks call")
