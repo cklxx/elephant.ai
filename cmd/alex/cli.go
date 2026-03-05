@@ -51,6 +51,9 @@ func (c *CLI) Run(args []string) error {
 	case "config":
 		return executeConfigCommand(cmdArgs, os.Stdout)
 
+	case "team":
+		return runTeamCommand(cmdArgs)
+
 	case "cost", "costs":
 		return c.handleCostCommand(cmdArgs)
 
@@ -94,7 +97,7 @@ Usage:
   alex sessions pull <id> [...]  Inspect or export context snapshots
   alex sessions cleanup [...]    Remove historical sessions (see options below)
   alex lark scenario run [...]   Run Lark scenario suite (YAML-driven; http/mock)
-  alex lark team status [...]    Show latest team-runtime status (CLI capabilities/tmux/events)
+  alex team status [...]         Show latest team-runtime status (CLI capabilities/tmux/events)
   alex config                    Show current configuration
   alex config set <field> <value> Persist a managed override
   alex config clear <field>       Remove a managed override

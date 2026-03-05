@@ -110,6 +110,8 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 		return runStandaloneCommand(args[1:], runDevCommand, exitCodeFromError)
 	case "lark":
 		return runStandaloneCommand(args[1:], runLarkCommand, exitCodeFromError)
+	case "team":
+		return runStandaloneCommand(args[1:], runTeamCommand, exitCodeFromError)
 	}
 
 	return false, 0

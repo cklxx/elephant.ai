@@ -50,6 +50,20 @@ turns:
 	}
 }
 
+func TestRunLarkCommand_RejectsTeamSubcommand(t *testing.T) {
+	err := runLarkCommand([]string{"team"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	var exitErr *ExitCodeError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("expected ExitCodeError, got %T: %v", err, err)
+	}
+	if exitErr.Code != 2 {
+		t.Fatalf("expected exit code 2, got %d", exitErr.Code)
+	}
+}
+
 func TestRunLarkScenarioRun_FailReturnsExitCode1(t *testing.T) {
 	dir := t.TempDir()
 

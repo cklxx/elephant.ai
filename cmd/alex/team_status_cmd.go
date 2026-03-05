@@ -19,11 +19,11 @@ import (
 )
 
 const (
-	larkTeamUsage       = "usage: alex lark team status [--runtime-root path] [--session-id id] [--team-id id] [--all] [--json] [--tail N]"
+	teamStatusUsage     = "usage: alex team status [--runtime-root path] [--session-id id] [--team-id id] [--all] [--json] [--tail N]"
 	defaultEventTailNum = 20
 )
 
-type larkTeamStatusOptions struct {
+type teamStatusOptions struct {
 	runtimeRoot string
 	sessionID   string
 	teamID      string
@@ -32,13 +32,13 @@ type larkTeamStatusOptions struct {
 	eventsTail  int
 }
 
-type larkTeamStatusReport struct {
-	GeneratedAt time.Time               `json:"generated_at"`
-	Count       int                     `json:"count"`
-	Entries     []larkTeamRuntimeStatus `json:"entries"`
+type teamStatusReport struct {
+	GeneratedAt time.Time           `json:"generated_at"`
+	Count       int                 `json:"count"`
+	Entries     []teamRuntimeStatus `json:"entries"`
 }
 
-type larkTeamRuntimeStatus struct {
+type teamRuntimeStatus struct {
 	BaseDir                 string                           `json:"base_dir"`
 	SessionID               string                           `json:"session_id"`
 	TeamID                  string                           `json:"team_id"`
@@ -54,20 +54,8 @@ type larkTeamRuntimeStatus struct {
 	RecentEvents            []map[string]any                 `json:"recent_events,omitempty"`
 }
 
-func runLarkTeamCommand(args []string) error {
-	if len(args) == 0 {
-		return &ExitCodeError{Code: 2, Err: errors.New(larkTeamUsage)}
-	}
-	switch strings.ToLower(strings.TrimSpace(args[0])) {
-	case "status":
-		return runLarkTeamStatus(args[1:])
-	default:
-		return &ExitCodeError{Code: 2, Err: fmt.Errorf("unknown lark team subcommand %q (expected: status)", args[0])}
-	}
-}
-
-func runLarkTeamStatus(args []string) error {
-	fs, flagBuf := newBufferedFlagSet("alex lark team status")
+func runTeamStatus(args []string) error {
+	fs, flagBuf := newBufferedFlagSet("alex team status")
 	runtimeRoot := fs.String("runtime-root", "", "Team runtime root (_team_runtime). Default: auto-discover.")
 	sessionID := fs.String("session-id", "", "Filter by session_id.")
 	teamID := fs.String("team-id", "", "Filter by team_id.")
@@ -81,7 +69,7 @@ func runLarkTeamStatus(args []string) error {
 		return &ExitCodeError{Code: 2, Err: fmt.Errorf("--tail must be >= 0")}
 	}
 
-	statuses, err := loadLarkTeamRuntimeStatus(larkTeamStatusOptions{
+	statuses, err := loadTeamRuntimeStatus(teamStatusOptions{
 		runtimeRoot: strings.TrimSpace(*runtimeRoot),
 		sessionID:   strings.TrimSpace(*sessionID),
 		teamID:      strings.TrimSpace(*teamID),
@@ -99,7 +87,7 @@ func runLarkTeamStatus(args []string) error {
 		statuses = statuses[:1]
 	}
 
-	report := larkTeamStatusReport{
+	report := teamStatusReport{
 		GeneratedAt: time.Now().UTC(),
 		Count:       len(statuses),
 		Entries:     statuses,
@@ -109,11 +97,23 @@ func runLarkTeamStatus(args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(report)
 	}
-	fmt.Print(renderLarkTeamStatusReport(report))
+	fmt.Print(renderTeamStatusReport(report))
 	return nil
 }
 
-func loadLarkTeamRuntimeStatus(opts larkTeamStatusOptions) ([]larkTeamRuntimeStatus, error) {
+func runTeamCommand(args []string) error {
+	if len(args) == 0 {
+		return &ExitCodeError{Code: 2, Err: errors.New(teamStatusUsage)}
+	}
+	switch strings.ToLower(strings.TrimSpace(args[0])) {
+	case "status":
+		return runTeamStatus(args[1:])
+	default:
+		return &ExitCodeError{Code: 2, Err: fmt.Errorf("unknown team subcommand %q (expected: status)", args[0])}
+	}
+}
+
+func loadTeamRuntimeStatus(opts teamStatusOptions) ([]teamRuntimeStatus, error) {
 	roots, err := resolveTeamRuntimeRoots(opts.runtimeRoot)
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func loadLarkTeamRuntimeStatus(opts larkTeamStatusOptions) ([]larkTeamRuntimeSta
 	}
 
 	seen := make(map[string]struct{})
-	out := make([]larkTeamRuntimeStatus, 0, 16)
+	out := make([]teamRuntimeStatus, 0, 16)
 	for _, root := range roots {
 		teamDirs, listErr := listTeamRuntimeDirs(root)
 		if listErr != nil {
@@ -277,14 +277,14 @@ func listTeamRuntimeDirs(root string) ([]string, error) {
 	return out, nil
 }
 
-func loadSingleTeamRuntime(teamDir string, eventsTail int) (larkTeamRuntimeStatus, error) {
+func loadSingleTeamRuntime(teamDir string, eventsTail int) (teamRuntimeStatus, error) {
 	bootstrapPath := filepath.Join(teamDir, "bootstrap.yaml")
 	var bootstrap teamruntime.BootstrapState
 	if err := readYAMLFile(bootstrapPath, &bootstrap); err != nil {
-		return larkTeamRuntimeStatus{}, err
+		return teamRuntimeStatus{}, err
 	}
 
-	status := larkTeamRuntimeStatus{
+	status := teamRuntimeStatus{
 		BaseDir:       strings.TrimSpace(teamDir),
 		SessionID:     strings.TrimSpace(bootstrap.SessionID),
 		TeamID:        strings.TrimSpace(bootstrap.TeamID),
@@ -329,7 +329,7 @@ func loadSingleTeamRuntime(teamDir string, eventsTail int) (larkTeamRuntimeStatu
 	return status, nil
 }
 
-func renderLarkTeamStatusReport(report larkTeamStatusReport) string {
+func renderTeamStatusReport(report teamStatusReport) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Team runtime entries: %d\n", report.Count)
 	for idx, entry := range report.Entries {

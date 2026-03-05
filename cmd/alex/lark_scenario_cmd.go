@@ -29,7 +29,7 @@ const (
 	defaultLarkInjectPort           = "9090"
 	defaultLarkInjectSenderID       = "ou_inject_user"
 	defaultLarkInjectTimeoutSeconds = 300
-	larkCommandUsage                = "usage: alex lark <scenario|inject|team> [...]"
+	larkCommandUsage                = "usage: alex lark <scenario|inject> [...]"
 	scenarioRunUsage                = "usage: alex lark scenario run [--mode http|mock] [--dir path] [--json-out file] [--md-out file]"
 )
 
@@ -79,10 +79,8 @@ func runLarkCommand(args []string) error {
 		return runLarkScenarioCommand(args[1:])
 	case "inject":
 		return runLarkInjectCommand(args[1:])
-	case "team", "teams", "team-runtime", "teamruntime":
-		return runLarkTeamCommand(args[1:])
 	default:
-		return &ExitCodeError{Code: 2, Err: fmt.Errorf("unknown lark subcommand %q (expected: scenario, inject, team)", args[0])}
+		return &ExitCodeError{Code: 2, Err: fmt.Errorf("unknown lark subcommand %q (expected: scenario, inject)", args[0])}
 	}
 }
 

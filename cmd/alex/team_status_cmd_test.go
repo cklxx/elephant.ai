@@ -13,18 +13,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestLoadLarkTeamRuntimeStatus_SortsAndLoads(t *testing.T) {
+func TestLoadTeamRuntimeStatus_SortsAndLoads(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "_team_runtime")
 	now := time.Now().UTC().Truncate(time.Second)
 	writeTeamRuntimeFixture(t, root, "session-old", "team-old", now.Add(-2*time.Hour))
 	writeTeamRuntimeFixture(t, root, "session-new", "team-new", now)
 
-	statuses, err := loadLarkTeamRuntimeStatus(larkTeamStatusOptions{
+	statuses, err := loadTeamRuntimeStatus(teamStatusOptions{
 		runtimeRoot: root,
 		eventsTail:  2,
 	})
 	if err != nil {
-		t.Fatalf("loadLarkTeamRuntimeStatus failed: %v", err)
+		t.Fatalf("loadTeamRuntimeStatus failed: %v", err)
 	}
 	if len(statuses) != 2 {
 		t.Fatalf("expected 2 statuses, got %d", len(statuses))
@@ -43,20 +43,20 @@ func TestLoadLarkTeamRuntimeStatus_SortsAndLoads(t *testing.T) {
 	}
 }
 
-func TestLoadLarkTeamRuntimeStatus_FiltersSessionAndTeam(t *testing.T) {
+func TestLoadTeamRuntimeStatus_FiltersSessionAndTeam(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "_team_runtime")
 	now := time.Now().UTC().Truncate(time.Second)
 	writeTeamRuntimeFixture(t, root, "session-a", "team-a", now)
 	writeTeamRuntimeFixture(t, root, "session-b", "team-b", now.Add(-time.Hour))
 
-	statuses, err := loadLarkTeamRuntimeStatus(larkTeamStatusOptions{
+	statuses, err := loadTeamRuntimeStatus(teamStatusOptions{
 		runtimeRoot: root,
 		sessionID:   "session-a",
 		teamID:      "team-a",
 		eventsTail:  1,
 	})
 	if err != nil {
-		t.Fatalf("loadLarkTeamRuntimeStatus failed: %v", err)
+		t.Fatalf("loadTeamRuntimeStatus failed: %v", err)
 	}
 	if len(statuses) != 1 {
 		t.Fatalf("expected 1 filtered status, got %d", len(statuses))
@@ -66,8 +66,8 @@ func TestLoadLarkTeamRuntimeStatus_FiltersSessionAndTeam(t *testing.T) {
 	}
 }
 
-func TestRunLarkTeamStatus_NoRuntimeFoundReturnsExitCode1(t *testing.T) {
-	err := runLarkTeamStatus([]string{"--runtime-root", filepath.Join(t.TempDir(), "missing")})
+func TestRunTeamStatus_NoRuntimeFoundReturnsExitCode1(t *testing.T) {
+	err := runTeamStatus([]string{"--runtime-root", filepath.Join(t.TempDir(), "missing")})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -80,12 +80,26 @@ func TestRunLarkTeamStatus_NoRuntimeFoundReturnsExitCode1(t *testing.T) {
 	}
 }
 
-func TestRunLarkTeamStatus_JSONOutput(t *testing.T) {
+func TestRunTeamStatus_JSONOutput(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "_team_runtime")
 	writeTeamRuntimeFixture(t, root, "session-json", "team-json", time.Now().UTC().Truncate(time.Second))
 
-	if err := runLarkTeamStatus([]string{"--runtime-root", root, "--json", "--all"}); err != nil {
+	if err := runTeamStatus([]string{"--runtime-root", root, "--json", "--all"}); err != nil {
 		t.Fatalf("expected success, got err: %v", err)
+	}
+}
+
+func TestRunTeamCommand_RejectsUnknownSubcommand(t *testing.T) {
+	err := runTeamCommand([]string{"unknown"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	var exitErr *ExitCodeError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("expected ExitCodeError, got %T: %v", err, err)
+	}
+	if exitErr.Code != 2 {
+		t.Fatalf("expected exit code 2, got %d", exitErr.Code)
 	}
 }
 

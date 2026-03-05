@@ -182,6 +182,7 @@ func buildSkillsSection(logger logging.Logger, taskInput string, messages []port
 		}
 		sb.WriteString("# Skill Discovery\n\n")
 		sb.WriteString("Use the `skills` tool to load playbooks on demand (action=list|search|show).\n")
+		sb.WriteString("For `runner=py` entries, execute via `shell_exec` and follow the CLI contract in SKILL.md.\n")
 	}
 
 	return strings.TrimSpace(sb.String())
@@ -275,12 +276,18 @@ func renderCompactAvailableSkillsXML(library skills.Library, maxEntries int) str
 
 	var sb strings.Builder
 	sb.WriteString("<available_skills>\n")
+	sb.WriteString("- format: name | description | governance | activation | runner\n")
+	sb.WriteString("- runner=py -> shell_exec python3 skills/<skill-name>/run.py --flag value\n")
 	for _, skill := range skillList[:maxEntries] {
 		name := compactSkillField(skill.Name, "(unnamed)")
 		desc := compactSkillField(truncateSkillInlineText(skill.Description, maxSkillDescriptionChars), "(no description)")
 		level := compactSkillField(skill.GovernanceLevel, "-")
 		mode := compactSkillField(skill.ActivationMode, "-")
-		sb.WriteString(fmt.Sprintf("- %s | %s | %s | %s\n", escapeSkillXML(name), escapeSkillXML(desc), escapeSkillXML(level), escapeSkillXML(mode)))
+		runner := "md"
+		if skill.HasRunScript {
+			runner = "py"
+		}
+		sb.WriteString(fmt.Sprintf("- %s | %s | %s | %s | %s\n", escapeSkillXML(name), escapeSkillXML(desc), escapeSkillXML(level), escapeSkillXML(mode), escapeSkillXML(runner)))
 	}
 	if len(skillList) > maxEntries {
 		sb.WriteString(fmt.Sprintf("- ... (%d more; use skills(action=list|search|show))\n", len(skillList)-maxEntries))
