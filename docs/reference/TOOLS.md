@@ -21,7 +21,9 @@ The registry currently keeps a **small core surface**. Deprecated standalone too
 `run_tasks` and `reply_agent` are no longer registered as built-in tools.
 Use CLI orchestration commands (typically via `shell_exec`):
 - `alex team run` — dispatch YAML tasks / team templates (supports wait/timeout/mode/task filter/prompt overrides)
-- `alex team reply` — respond to external input requests or inject free-form input into a running task
+- `alex team templates` — list configured team templates
+- `alex team reply` — respond to external input requests (`--request-id`)
+- `alex team inject` — inject free-form input into a running task
 
 ## 3) Dynamic MCP tools
 

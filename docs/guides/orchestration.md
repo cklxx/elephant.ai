@@ -2,9 +2,11 @@
 
 ## Overview
 
-Orchestration now uses two CLI commands:
+Orchestration now uses CLI-first subcommands:
 - `alex team run`: dispatch YAML tasks or team templates
-- `alex team reply`: respond to external-agent input requests or inject free-form text
+- `alex team templates`: list configured team templates
+- `alex team reply`: respond to external-agent input requests
+- `alex team inject`: inject free-form text into a running task
 
 In agent runs, call these via `shell_exec`. Planning is still done via `write_file` (YAML task files), status monitoring via `read_file` (`.status` sidecar files).
 
@@ -60,8 +62,8 @@ For external coding agents (`codex`, `claude_code`, `kimi`), these defaults are 
 alex team run --file path/to/tasks.yaml
 alex team run --file path/to/tasks.yaml --wait
 alex team run --template execute_and_report --goal "..."
-alex team run --template list
-alex team run --file path/to/tasks.yaml --task-id impl
+alex team templates
+alex team run --file path/to/tasks.yaml --only-task impl
 ```
 
 Status is written to a `.status.yaml` sidecar file. Monitor via `read_file`.
@@ -69,9 +71,9 @@ Status is written to a `.status.yaml` sidecar file. Monitor via `read_file`.
 ## `alex team reply`
 
 ```
-alex team reply --task-id "..." --request-id "..." --approved=true
+alex team reply --task-id "..." --request-id "..." --decision approve
 alex team reply --task-id "..." --request-id "..." --message "Use approach B"
-alex team reply --task-id "..." --message "continue"
+alex team inject --task-id "..." --message "continue"
 ```
 
 ## Team Templates

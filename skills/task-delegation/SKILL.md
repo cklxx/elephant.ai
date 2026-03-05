@@ -24,20 +24,24 @@ cooldown: 120
 ```bash
 alex team run --file tasks/review.yaml --wait
 alex team run --template execute_and_report --goal "review auth module" --wait --mode auto
-alex team run --template list
+alex team templates
 
-alex team reply --task-id task-123 --request-id req-456 --approved=true
-alex team reply --task-id task-123 --message "continue"
+alex team reply --task-id task-123 --request-id req-456 --decision approve
+alex team inject --task-id task-123 --message "continue"
 ```
 
 ### 参数要点
 - `alex team run`
   - `--file` 与 `--template` 二选一。
-  - `--template` 模式下需提供 `--goal`（`--template list` 除外）。
-  - 常用：`--wait`、`--timeout-seconds`、`--mode auto|team|swarm`、`--task-id`、`--prompt role=text`。
+  - `--template` 模式下需提供 `--goal`。
+  - 常用：`--wait`、`--wait-timeout-seconds`、`--mode auto|team|swarm`、`--only-task`、`--role-prompt role=text`。
+- `alex team templates`
+  - 列出可用模板；不再使用 `--template list` 哨兵参数。
 - `alex team reply`
-  - 带 `--request-id` 时用于审批/选项回复。
-  - 不带 `--request-id` 时用于注入自由文本（需 `--message`）。
+  - 仅用于请求回复，必须提供 `--request-id`。
+  - 审批用 `--decision approve|reject`；也可附加 `--option-id` 与 `--message`。
+- `alex team inject`
+  - 仅用于向运行中的任务注入自由文本，需 `--task-id` + `--message`。
 
 ## 兼容方式（skill 脚本）
 
