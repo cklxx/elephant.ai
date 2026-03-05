@@ -149,10 +149,16 @@ func LoadFoundationSuiteSet(path string) (*FoundationSuiteSet, error) {
 	if utils.IsBlank(path) {
 		return nil, fmt.Errorf("foundation suite path is required")
 	}
-	data, err := os.ReadFile(path)
+	absoluteSuitePath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve foundation suite path: %w", err)
+	}
+	data, err := os.ReadFile(absoluteSuitePath)
 	if err != nil {
 		return nil, fmt.Errorf("read foundation suite: %w", err)
 	}
+	suiteDir := filepath.Dir(absoluteSuitePath)
+	moduleRoot := findModuleRootFrom(suiteDir)
 
 	var set FoundationSuiteSet
 	if err := yaml.Unmarshal(data, &set); err != nil {
@@ -194,6 +200,9 @@ func LoadFoundationSuiteSet(path string) (*FoundationSuiteSet, error) {
 		if collection.CasesPath == "" {
 			return nil, fmt.Errorf("collection %s cases_path is required", collection.ID)
 		}
+		if !filepath.IsAbs(collection.CasesPath) {
+			collection.CasesPath = resolveRelativeCasePath(collection.CasesPath, suiteDir, moduleRoot)
+		}
 
 		if collection.Mode == "" {
 			collection.Mode = defaultEvalOpts.Mode
@@ -214,6 +223,37 @@ func LoadFoundationSuiteSet(path string) (*FoundationSuiteSet, error) {
 	}
 
 	return &set, nil
+}
+
+func resolveRelativeCasePath(rawPath, suiteDir, moduleRoot string) string {
+	normalized := filepath.Clean(rawPath)
+	candidates := []string{
+		normalized,
+		filepath.Clean(filepath.Join(suiteDir, normalized)),
+	}
+	if moduleRoot != "" {
+		candidates = append(candidates, filepath.Clean(filepath.Join(moduleRoot, normalized)))
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return filepath.Clean(filepath.Join(suiteDir, normalized))
+}
+
+func findModuleRootFrom(start string) string {
+	dir := filepath.Clean(start)
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }
 
 // RunFoundationEvaluationSuite executes a full suite and writes aggregate artifacts.

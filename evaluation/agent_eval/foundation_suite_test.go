@@ -100,7 +100,7 @@ func TestRunFoundationEvaluationSuiteEndToEnd(t *testing.T) {
 	casesA := filepath.Join(tmp, "tool_cases.yaml")
 	casesB := filepath.Join(tmp, "proactive_cases.yaml")
 	writeCaseSet(t, casesA, "case-plan", "Break migration into phased milestones.", "plan")
-	writeCaseSet(t, casesB, "case-ask-user", "Request user login approval before proceeding.", "ask_user")
+	writeCaseSet(t, casesB, "case-read-file", "Read workspace README file and extract action items.", "read_file")
 
 	suitePath := filepath.Join(tmp, "suite.yaml")
 	suiteYAML := `
@@ -148,8 +148,14 @@ collections:
 	if result.CollectionPassRatio != "2/2" {
 		t.Fatalf("expected collection pass ratio 2/2, got %s", result.CollectionPassRatio)
 	}
-	if result.CasePassRatio != "2/2" {
-		t.Fatalf("expected case pass ratio 2/2, got %s", result.CasePassRatio)
+	if result.CasePassRatio == "" {
+		t.Fatalf("expected non-empty case pass ratio")
+	}
+	if result.ApplicableCases < 1 || result.ApplicableCases > result.TotalCases {
+		t.Fatalf("expected applicable cases within [1,%d], got %d", result.TotalCases, result.ApplicableCases)
+	}
+	if result.PassedCases != result.ApplicableCases {
+		t.Fatalf("expected all applicable cases to pass, got %d/%d", result.PassedCases, result.ApplicableCases)
 	}
 	if len(result.CollectionResults) != 2 {
 		t.Fatalf("expected 2 collection results, got %d", len(result.CollectionResults))

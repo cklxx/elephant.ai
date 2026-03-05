@@ -9,16 +9,7 @@ import (
 
 func TestActiveSuitesOnlyReferenceActiveTools(t *testing.T) {
 	t.Parallel()
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if strings.HasSuffix(filepath.ToSlash(cwd), "/evaluation/agent_eval") {
-		if err := os.Chdir(filepath.Clean(filepath.Join(cwd, "..", ".."))); err != nil {
-			t.Fatalf("chdir repo root: %v", err)
-		}
-		defer func() { _ = os.Chdir(cwd) }()
-	}
+	repoRoot := mustResolveRepoRoot(t)
 
 	activeTools := map[string]struct{}{
 		"ask_user":        {},
@@ -33,8 +24,8 @@ func TestActiveSuitesOnlyReferenceActiveTools(t *testing.T) {
 	}
 
 	suitePaths := []string{
-		"evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml",
-		"evaluation/agent_eval/datasets/foundation_eval_suite_motivation_aware.yaml",
+		filepath.Join(repoRoot, "evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml"),
+		filepath.Join(repoRoot, "evaluation/agent_eval/datasets/foundation_eval_suite_motivation_aware.yaml"),
 	}
 
 	for _, suitePath := range suitePaths {
@@ -43,13 +34,13 @@ func TestActiveSuitesOnlyReferenceActiveTools(t *testing.T) {
 			t.Fatalf("load suite %s: %v", suitePath, err)
 		}
 		for _, collection := range suite.Collections {
-			caseSet, err := LoadFoundationCaseSet(collection.CasesPath)
-			if err != nil {
-				trimmed := strings.TrimPrefix(collection.CasesPath, "evaluation/agent_eval/")
-				caseSet, err = LoadFoundationCaseSet(trimmed)
+			casePath := collection.CasesPath
+			if !filepath.IsAbs(casePath) {
+				casePath = filepath.Join(repoRoot, casePath)
 			}
+			caseSet, err := LoadFoundationCaseSet(casePath)
 			if err != nil {
-				t.Fatalf("load cases %s: %v", collection.CasesPath, err)
+				t.Fatalf("load cases %s: %v", casePath, err)
 			}
 			for _, scenario := range caseSet.Scenarios {
 				for _, tool := range scenario.ExpectedTools {
@@ -60,4 +51,19 @@ func TestActiveSuitesOnlyReferenceActiveTools(t *testing.T) {
 			}
 		}
 	}
+}
+
+func mustResolveRepoRoot(t *testing.T) string {
+	t.Helper()
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	clean := filepath.Clean(cwd)
+	evalSuffix := filepath.Clean(filepath.FromSlash("evaluation/agent_eval"))
+	if strings.HasSuffix(clean, evalSuffix) {
+		return filepath.Clean(filepath.Join(clean, "..", ".."))
+	}
+	return clean
 }
