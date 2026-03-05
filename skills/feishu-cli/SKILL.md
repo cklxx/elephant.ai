@@ -21,6 +21,15 @@ cooldown: 15
 - `tool` 业务动作（calendar/contact/doc/wiki/drive/sheets/mail/meeting/okr/bitable）
 - `api` 原始 Open API 调用
 
+## 参数语义（独立调用）
+
+- 统一命令：`help | auth | tool | api`
+- `auth/tool` 支持两种入参形式（等价）：
+  - 嵌套：`{"action":"tool","module":"calendar","tool_action":"query","args":{"start":"2026-03-06"}}`
+  - 扁平：`{"action":"tool","module":"calendar","tool_action":"query","start":"2026-03-06"}`
+- `help action` 支持 `action_name / tool_action / action` 三种字段别名。
+- `tool` 返回统一带 `command/module/action`，便于 LLM 稳定解析和二次调用。
+
 ## 渐进式 help（推荐顺序）
 
 ```bash

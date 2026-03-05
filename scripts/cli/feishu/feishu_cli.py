@@ -40,6 +40,9 @@ TOKEN_ERROR_CODES = {
     99991665,
     99991668,
 }
+COMMAND_CHOICES = ("help", "auth", "tool", "api")
+HELP_TOPICS = ("overview", "auth", "modules", "module", "action")
+AUTH_SUBCOMMANDS = ("status", "tenant_token", "oauth_url", "exchange_code", "refresh_user", "user_token")
 
 
 @dataclass
@@ -1435,14 +1438,6 @@ ACTION_SPECS: dict[str, dict[str, ActionSpec]] = {
             optional=(),
             example={"app_token": "bascnxxxx", "table_id": "tblxxx"},
         ),
-    },
-    "sheets": {
-        "create_spreadsheet": "create",
-        "get_spreadsheet": "get",
-    },
-    "okr": {
-        "list_okr_periods": "list_periods",
-        "batch_get_okrs": "batch_get",
     },
 }
 
@@ -2895,7 +2890,103 @@ TOOL_ACTION_ALIASES: dict[str, dict[str, str]] = {
         "update_doc_block": "update_block_text",
         "write_doc_markdown": "write_markdown",
     },
+    "sheets": {
+        "create_spreadsheet": "create",
+        "get_spreadsheet": "get",
+    },
+    "okr": {
+        "list_okr_periods": "list_periods",
+        "batch_get_okrs": "batch_get",
+    },
 }
+
+
+def _validate_action_specs() -> None:
+    for module, actions in ACTION_SPECS.items():
+        if not isinstance(actions, dict):
+            raise TypeError(f"ACTION_SPECS[{module}] must be a mapping")
+        for action, spec in actions.items():
+            if not isinstance(spec, ActionSpec):
+                raise TypeError(f"ACTION_SPECS[{module}][{action}] must be ActionSpec")
+
+
+def _aliases_for_action(module: str, canonical_action: str) -> list[str]:
+    aliases = []
+    for alias, target in TOOL_ACTION_ALIASES.get(module, {}).items():
+        if target == canonical_action:
+            aliases.append(alias)
+    return sorted(set(aliases))
+
+
+def _help_request_contracts() -> dict[str, Any]:
+    return {
+        "help": {
+            "shape": {"command": "help", "topic": "overview|auth|modules|module|action", "module": "", "action_name": ""},
+            "notes": "When topic=action, module + action_name are required.",
+        },
+        "auth": {
+            "shape": {"command": "auth", "subcommand": "|".join(AUTH_SUBCOMMANDS), "args": {}},
+            "notes": "Auth args can be nested in args or passed as top-level fields.",
+        },
+        "tool": {
+            "shape": {"command": "tool", "module": "<module>", "tool_action": "<action>", "args": {}},
+            "notes": "Tool args can be nested in args or passed as top-level fields.",
+        },
+        "api": {
+            "shape": {
+                "command": "api",
+                "method": "GET|POST|PUT|DELETE",
+                "path": "/open-api-path",
+                "body": {},
+                "query": {},
+                "auth": "tenant|user",
+                "user_key": "",
+            },
+            "notes": "query supports dict or raw query string.",
+        },
+    }
+
+
+def _with_context(result: dict[str, Any], **context: Any) -> dict[str, Any]:
+    enriched = copy.deepcopy(result)
+    for key, value in context.items():
+        enriched.setdefault(key, value)
+    return enriched
+
+
+def _collect_request_args(request: dict[str, Any], *, reserved: set[str]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    raw_args = request.get("args", {})
+    if raw_args is None:
+        raw_args = {}
+    if not isinstance(raw_args, dict):
+        return None, {"success": False, "error": "args must be an object"}
+
+    merged = copy.deepcopy(raw_args)
+    for key, value in request.items():
+        if key in reserved or key == "args":
+            continue
+        merged.setdefault(key, value)
+    return merged, None
+
+
+def _resolve_command(request: dict[str, Any]) -> str:
+    explicit = str(request.get("command", "")).strip().lower()
+    if explicit:
+        return explicit
+
+    action = str(request.get("action", "")).strip().lower()
+    if action in COMMAND_CHOICES:
+        return action
+    if str(request.get("module", "")).strip():
+        return "tool"
+    if str(request.get("subcommand", "")).strip():
+        return "auth"
+    if str(request.get("method", "")).strip() and str(request.get("path", "")).strip():
+        return "api"
+    return "help"
+
+
+_validate_action_specs()
 
 
 def _help_overview() -> dict[str, Any]:
@@ -2914,6 +3005,7 @@ def _help_overview() -> dict[str, Any]:
         "success": True,
         "help_level": "overview",
         "description": "Unified Feishu CLI (auth/tool/api/help)",
+        "request_contracts": _help_request_contracts(),
         "commands": {
             "help": "Discover usage progressively",
             "auth": "Tenant + OAuth authorization flows",
@@ -2933,6 +3025,7 @@ def _help_auth() -> dict[str, Any]:
     return {
         "success": True,
         "help_level": "auth",
+        "request_schema": _help_request_contracts()["auth"],
         "subcommands": {
             "status": {
                 "summary": "Show credential and token cache status",
@@ -2987,13 +3080,17 @@ def _help_module(module: str) -> dict[str, Any]:
 
     entries = []
     for action, spec in actions.items():
+        if not isinstance(spec, ActionSpec):
+            return {"success": False, "error": f"invalid action spec for {module}.{action}"}
         entries.append(
             {
                 "action": action,
+                "aliases": _aliases_for_action(module, action),
                 "summary": spec.summary,
                 "required": list(spec.required),
                 "optional": list(spec.optional),
                 "example_args": spec.example,
+                "request_schema": {"command": "tool", "module": module, "tool_action": action, "args": spec.example},
                 "example": f"python3 scripts/cli/feishu/feishu_cli.py tool {module} {action} '{json.dumps(spec.example, ensure_ascii=False)}'",
             }
         )
@@ -3026,11 +3123,13 @@ def _help_action(module: str, action: str) -> dict[str, Any]:
         "help_level": "action",
         "module": module,
         "action": canonical,
-        "alias": action if canonical != normalized else "",
+        "aliases": _aliases_for_action(module, canonical),
+        "input_alias": action if canonical != normalized else "",
         "summary": spec.summary,
         "required": list(spec.required),
         "optional": list(spec.optional),
         "example_args": spec.example,
+        "request_schema": {"command": "tool", "module": module, "tool_action": canonical, "args": spec.example},
         "example": f"python3 scripts/cli/feishu/feishu_cli.py tool {module} {canonical} '{json.dumps(spec.example, ensure_ascii=False)}'",
     }
 
@@ -3039,117 +3138,156 @@ def _run_help(request: dict[str, Any]) -> dict[str, Any]:
     topic = str(request.get("topic", "overview")).strip().lower() or "overview"
 
     if topic in {"overview", "top", "root"}:
-        return _help_overview()
+        return _with_context(_help_overview(), command="help", topic="overview")
     if topic == "auth":
-        return _help_auth()
+        return _with_context(_help_auth(), command="help", topic=topic)
     if topic == "modules":
-        return _help_modules()
+        return _with_context(_help_modules(), command="help", topic=topic)
     if topic == "module":
         module = str(request.get("module", "")).strip().lower()
         if not module:
-            return {"success": False, "error": "module is required for help topic=module"}
-        return _help_module(module)
+            return _with_context({"success": False, "error": "module is required for help topic=module"}, command="help", topic=topic)
+        return _with_context(_help_module(module), command="help", topic=topic)
     if topic == "action":
         module = str(request.get("module", "")).strip().lower()
         action = str(request.get("action_name", "")).strip()
         if not action:
             action = str(request.get("tool_action", "")).strip()
+        if not action:
+            fallback = str(request.get("action", "")).strip()
+            if fallback.lower() not in COMMAND_CHOICES:
+                action = fallback
         if not module or not action:
-            return {"success": False, "error": "module and action_name are required for help topic=action"}
-        return _help_action(module, action)
+            return _with_context(
+                {"success": False, "error": "module and action_name are required for help topic=action"},
+                command="help",
+                topic=topic,
+            )
+        return _with_context(_help_action(module, action), command="help", topic=topic)
 
-    return {
-        "success": False,
-        "error": f"unknown help topic: {topic}",
-        "available_topics": ["overview", "auth", "modules", "module", "action"],
-    }
+    return _with_context(
+        {
+            "success": False,
+            "error": f"unknown help topic: {topic}",
+            "available_topics": list(HELP_TOPICS),
+        },
+        command="help",
+        topic=topic,
+    )
 
 
 def _run_auth(request: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
     subcommand = str(request.get("subcommand", "status")).strip().lower() or "status"
-    args = request.get("args", {})
-    if not isinstance(args, dict):
-        return {"success": False, "error": "auth args must be an object"}
+    args, args_err = _collect_request_args(request, reserved={"command", "action", "subcommand"})
+    if args_err:
+        return _with_context({"success": False, "error": f"auth {args_err['error']}"}, command="auth", subcommand=subcommand)
+    assert args is not None
 
+    result: dict[str, Any]
     if subcommand == "status":
-        return auth_manager.status()
-    if subcommand == "tenant_token":
+        result = auth_manager.status()
+    elif subcommand == "tenant_token":
         token, err = auth_manager.get_tenant_token(force_refresh=bool(args.get("force_refresh", False)))
         if err:
-            return {"success": False, "error": err}
-        return {"success": True, "access_token": token, "access_token_preview": _mask_token(token)}
-    if subcommand == "oauth_url":
-        return auth_manager.build_oauth_url(
+            result = {"success": False, "error": err}
+        else:
+            result = {"success": True, "access_token": token, "access_token_preview": _mask_token(token)}
+    elif subcommand == "oauth_url":
+        result = auth_manager.build_oauth_url(
             redirect_uri=str(args.get("redirect_uri", "")),
             scopes=args.get("scopes"),
             state=str(args.get("state", "")),
         )
-    if subcommand == "exchange_code":
-        return auth_manager.exchange_code(
+    elif subcommand == "exchange_code":
+        result = auth_manager.exchange_code(
             code=str(args.get("code", "")),
             redirect_uri=str(args.get("redirect_uri", "")),
         )
-    if subcommand == "refresh_user":
-        return auth_manager.refresh_user_token(user_key=str(args.get("user_key", "")))
-    if subcommand == "user_token":
+    elif subcommand == "refresh_user":
+        result = auth_manager.refresh_user_token(user_key=str(args.get("user_key", "")))
+    elif subcommand == "user_token":
         token, err = auth_manager.get_user_access_token(
             user_key=str(args.get("user_key", "")),
             force_refresh=bool(args.get("force_refresh", False)),
         )
         if err:
-            return {"success": False, "error": err}
-        return {"success": True, "access_token": token, "access_token_preview": _mask_token(token)}
-
-    return {
-        "success": False,
-        "error": f"unknown auth subcommand: {subcommand}",
-        "available": ["status", "tenant_token", "oauth_url", "exchange_code", "refresh_user", "user_token"],
-    }
+            result = {"success": False, "error": err}
+        else:
+            result = {"success": True, "access_token": token, "access_token_preview": _mask_token(token)}
+    else:
+        result = {
+            "success": False,
+            "error": f"unknown auth subcommand: {subcommand}",
+            "available": list(AUTH_SUBCOMMANDS),
+        }
+    return _with_context(result, command="auth", subcommand=subcommand)
 
 
 def _run_tool(request: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
     module = str(request.get("module", "")).strip().lower()
     action = str(request.get("tool_action", "")).strip() or str(request.get("action_name", "")).strip()
+    if not action:
+        fallback = str(request.get("action", "")).strip()
+        if fallback.lower() not in COMMAND_CHOICES:
+            action = fallback
     action = action.strip().lower()
-    args = request.get("args", {})
-    if not isinstance(args, dict):
-        return {"success": False, "error": "tool args must be an object"}
+    args, args_err = _collect_request_args(request, reserved={"command", "action", "module", "tool_action", "action_name"})
+    if args_err:
+        return _with_context({"success": False, "error": f"tool {args_err['error']}"}, command="tool", module=module, action=action)
+    assert args is not None
 
     if not module or not action:
-        return {"success": False, "error": "module and tool_action are required"}
+        return _with_context({"success": False, "error": "module and tool_action are required"}, command="tool", module=module, action=action)
 
     module_handlers = TOOL_HANDLERS.get(module)
     if not module_handlers:
-        return {"success": False, "error": f"unknown module: {module}", "available_modules": sorted(TOOL_HANDLERS.keys())}
+        return _with_context(
+            {"success": False, "error": f"unknown module: {module}", "available_modules": sorted(TOOL_HANDLERS.keys())},
+            command="tool",
+            module=module,
+            action=action,
+        )
 
     canonical = TOOL_ACTION_ALIASES.get(module, {}).get(action, action)
     handler = module_handlers.get(canonical)
     if handler is None:
-        return {
-            "success": False,
-            "error": f"unknown action: {module}.{action}",
-            "available_actions": sorted(module_handlers.keys()),
-        }
+        return _with_context(
+            {
+                "success": False,
+                "error": f"unknown action: {module}.{action}",
+                "available_actions": sorted(module_handlers.keys()),
+            },
+            command="tool",
+            module=module,
+            action=action,
+        )
 
-    return handler(copy.deepcopy(args), auth_manager)
+    result = handler(copy.deepcopy(args), auth_manager)
+    return _with_context(
+        result,
+        command="tool",
+        module=module,
+        action=canonical,
+        input_action=action if canonical != action else "",
+    )
 
 
 def _run_api(request: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
     method = str(request.get("method", "")).strip().upper()
     path = str(request.get("path", "")).strip()
     if not method or not path:
-        return {"success": False, "error": "method and path are required"}
+        return _with_context({"success": False, "error": "method and path are required"}, command="api", method=method, path=path)
 
     body = request.get("body")
     if body is not None and not isinstance(body, dict):
-        return {"success": False, "error": "body must be an object"}
+        return _with_context({"success": False, "error": "body must be an object"}, command="api", method=method, path=path)
     query = request.get("query")
     if query is not None and not isinstance(query, (dict, str)):
-        return {"success": False, "error": "query must be an object or query string"}
+        return _with_context({"success": False, "error": "query must be an object or query string"}, command="api", method=method, path=path)
 
     auth_mode = str(request.get("auth", "tenant")).strip().lower() or "tenant"
     if auth_mode not in {"tenant", "user"}:
-        return {"success": False, "error": "auth must be tenant or user"}
+        return _with_context({"success": False, "error": "auth must be tenant or user"}, command="api", method=method, path=path)
 
     result = api_request(
         method,
@@ -3163,15 +3301,15 @@ def _run_api(request: dict[str, Any], auth_manager: AuthManager) -> dict[str, An
     )
     failure = _api_failure(result)
     if failure:
-        return failure
-    return {"success": True, "result": result}
+        return _with_context(failure, command="api", method=method, path=path, auth=auth_mode)
+    return _with_context({"success": True, "result": result}, command="api", method=method, path=path, auth=auth_mode)
 
 
 def execute(request: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(request, dict):
         return {"success": False, "error": "request must be an object"}
 
-    command = str(request.get("command") or request.get("action") or "help").strip().lower() or "help"
+    command = _resolve_command(request)
     auth_manager = AuthManager()
 
     if command == "help":
@@ -3186,7 +3324,8 @@ def execute(request: dict[str, Any]) -> dict[str, Any]:
     return {
         "success": False,
         "error": f"unknown command: {command}",
-        "available": ["help", "auth", "tool", "api"],
+        "available": list(COMMAND_CHOICES),
+        "command": command,
     }
 
 
@@ -3205,14 +3344,14 @@ def _build_request_from_cli(argv: list[str]) -> dict[str, Any]:
     subparsers = parser.add_subparsers(dest="command", required=False)
 
     help_parser = subparsers.add_parser("help", help="Progressive help")
-    help_parser.add_argument("topic", nargs="?", default="overview", choices=["overview", "auth", "modules", "module", "action"])
+    help_parser.add_argument("topic", nargs="?", default="overview", choices=HELP_TOPICS)
     help_parser.add_argument("--module", default="")
     help_parser.add_argument("--action", dest="action_name", default="")
 
     auth_parser = subparsers.add_parser("auth", help="Auth operations")
     auth_parser.add_argument(
         "subcommand",
-        choices=["status", "tenant_token", "oauth_url", "exchange_code", "refresh_user", "user_token"],
+        choices=AUTH_SUBCOMMANDS,
     )
     auth_parser.add_argument("args", nargs="?", default="{}")
 

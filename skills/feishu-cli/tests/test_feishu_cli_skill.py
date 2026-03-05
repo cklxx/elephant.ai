@@ -29,3 +29,16 @@ def test_tool_dispatch():
         result = _mod.run({"action": "tool", "module": "calendar", "tool_action": "query", "start": "2026-03-06"})
         mock.assert_called_once_with("calendar", "query", {"start": "2026-03-06"})
     assert result["success"] is True
+
+
+def test_command_alias_for_tool():
+    with patch.object(_mod, "feishu_tool", return_value={"success": True}) as mock:
+        result = _mod.run({"command": "tool", "module": "calendar", "action": "query", "start": "2026-03-06"})
+        mock.assert_called_once_with("calendar", "query", {"start": "2026-03-06"})
+    assert result["success"] is True
+
+
+def test_non_object_args_rejected():
+    result = _mod.run([])
+    assert result["success"] is False
+    assert "object" in result["error"]

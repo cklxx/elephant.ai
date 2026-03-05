@@ -18,38 +18,63 @@ import json
 
 from skill_runner.feishu_cli import feishu_api, feishu_auth, feishu_help, feishu_tool
 
+COMMAND_CHOICES = ("help", "auth", "tool", "api")
+
 
 def run(args: dict) -> dict:
-    action = str(args.pop("action", "help"))
+    if not isinstance(args, dict):
+        return {"success": False, "error": "args must be an object"}
 
-    if action == "help":
+    payload = dict(args)
+    command = str(payload.pop("command", "")).strip().lower()
+    action = str(payload.pop("action", "")).strip()
+
+    if not command:
+        normalized_action = action.lower()
+        if normalized_action in COMMAND_CHOICES:
+            command = normalized_action
+        elif str(payload.get("module", "")).strip():
+            command = "tool"
+        elif str(payload.get("subcommand", "")).strip():
+            command = "auth"
+        elif str(payload.get("method", "")).strip() and str(payload.get("path", "")).strip():
+            command = "api"
+        else:
+            command = "help"
+
+    if command == "help":
+        action_name = str(payload.get("action_name", "")).strip() or str(payload.get("tool_action", "")).strip()
+        if not action_name and action.lower() not in COMMAND_CHOICES:
+            action_name = action
         return feishu_help(
-            topic=str(args.get("topic", "overview")),
-            module=str(args.get("module", "")),
-            action_name=str(args.get("action_name", "")),
+            topic=str(payload.get("topic", "overview")),
+            module=str(payload.get("module", "")),
+            action_name=action_name,
         )
 
-    if action == "auth":
-        subcommand = str(args.pop("subcommand", "status"))
-        return feishu_auth(subcommand, args)
+    if command == "auth":
+        subcommand = str(payload.pop("subcommand", "status"))
+        return feishu_auth(subcommand, payload)
 
-    if action == "tool":
-        module = str(args.pop("module", "")).strip()
-        tool_action = str(args.pop("tool_action", "")).strip()
+    if command == "tool":
+        module = str(payload.pop("module", "")).strip()
+        tool_action = str(payload.pop("tool_action", "")).strip() or str(payload.pop("action_name", "")).strip()
+        if not tool_action and action.lower() not in COMMAND_CHOICES:
+            tool_action = action.strip()
         if not module or not tool_action:
             return {"success": False, "error": "module and tool_action are required"}
-        return feishu_tool(module, tool_action, args)
+        return feishu_tool(module, tool_action, payload)
 
-    if action == "api":
-        method = str(args.pop("method", "")).strip()
-        path = str(args.pop("path", "")).strip()
+    if command == "api":
+        method = str(payload.pop("method", "")).strip()
+        path = str(payload.pop("path", "")).strip()
         if not method or not path:
             return {"success": False, "error": "method and path are required"}
-        body = args.pop("body", None)
-        query = args.pop("query", None)
-        auth = str(args.pop("auth", "tenant")).strip() or "tenant"
-        user_key = str(args.pop("user_key", "")).strip()
-        retry_on_auth_error = bool(args.pop("retry_on_auth_error", True))
+        body = payload.pop("body", None)
+        query = payload.pop("query", None)
+        auth = str(payload.pop("auth", "tenant")).strip() or "tenant"
+        user_key = str(payload.pop("user_key", "")).strip()
+        retry_on_auth_error = bool(payload.pop("retry_on_auth_error", True))
         return feishu_api(
             method,
             path,
@@ -62,7 +87,7 @@ def run(args: dict) -> dict:
 
     return {
         "success": False,
-        "error": f"unknown action: {action}, valid: ['help','auth','tool','api']",
+        "error": f"unknown command: {command}, valid: {list(COMMAND_CHOICES)}",
     }
 
 
