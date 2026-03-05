@@ -2,9 +2,9 @@
   "skills": [
     {
       "name": "anygen",
-      "title": "AnyGen CLI (Independent + Progressive)",
-      "description": "AnyGen 独立 CLI 封装（help/task），支持渐进式披露与清晰语义的任务执行协议。",
-      "markdown": "# AnyGen CLI (Independent + Progressive)\n\n该 skill 封装上游仓库 `https://github.com/AnyGenIO/anygen-skills`，提供一个**独立、语义清晰**的统一入口。\n\n## 设计目标\n\n- 独立：只依赖 `ANYGEN_API_KEY` 与网络，不依赖其他 skill 状态。\n- 清晰：使用固定协议 `command + task_action + args`。\n- 渐进：`help` 采用 `overview -> modules -> module -> action` 分层披露。\n\n## 入口\n\n推荐（人类可读 CLI）：\n\n```bash\npython3 scripts/cli/anygen/anygen_cli.py task create --operation slide --prompt \"Q2 roadmap\"\n```\n\nSkill 运行入口（结构化参数）：\n\n```bash\npython3 skills/anygen/run.py '{...}'\n```\n\n## Canonical 协议（推荐）\n\n### 1) 帮助协议\n\n```json\n{\n  \"command\": \"help\",\n  \"topic\": \"overview|modules|module|action\",\n  \"module\": \"task-manager\",\n  \"action_name\": \"create\"\n}\n```\n\n### 2) 任务协议\n\n```json\n{\n  \"command\": \"task\",\n  \"module\": \"task-manager\",\n  \"task_action\": \"create|status|poll|download|run\",\n  \"api_key\": \"sk-xxx\",\n  \"args\": {\n    \"operation\": \"slide\",\n    \"prompt\": \"Q2 roadmap\"\n  }\n}\n```\n\n> 兼容：历史扁平参数仍可用，但会返回 `warnings`，建议迁移到 `args`。\n\n## 渐进式 help（推荐顺序）\n\n```bash\npython3 scripts/cli/anygen/anygen_cli.py help\npython3 scripts/cli/anygen/anygen_cli.py help modules\npython3 scripts/cli/anygen/anygen_cli.py help module --module task-manager\npython3 scripts/cli/anygen/anygen_cli.py help action --module task-manager --action-name create\n```\n\n## task-manager 动作\n\n支持 operation：`chat|slide|doc|storybook|data_analysis|website|smart_draw`\n\n```bash\n# create\npython3 scripts/cli/anygen/anygen_cli.py task create --api-key sk-xxx --operation slide --prompt \"Q2 roadmap\" --style business\n\n# status (single-shot)\npython3 scripts/cli/anygen/anygen_cli.py task status --api-key sk-xxx --task-id task_xxx\n\n# poll (until completed / failed / timeout)\npython3 scripts/cli/anygen/anygen_cli.py task poll --api-key sk-xxx --task-id task_xxx --output ./output\n\n# download\npython3 scripts/cli/anygen/anygen_cli.py task download --api-key sk-xxx --task-id task_xxx --output ./output\n\n# run (create + poll + optional download)\npython3 scripts/cli/anygen/anygen_cli.py task run --api-key sk-xxx --operation doc --prompt \"Technical design for notification service\" --output ./output\n```\n\n## 参数语义（task_action）\n\n- `create`: 必填 `operation`, `prompt`\n- `status`: 必填 `task_id`\n- `poll`: 必填 `task_id`; 可选 `max_time`, `poll_interval`, `output`\n- `download`: 必填 `task_id`; 可选 `output`\n- `run`: 必填 `operation`, `prompt`; 可选 `output`, `max_time`, `poll_interval`\n\n## 模块边界\n\n- `task-manager`: 本 skill 可执行。\n- `finance-report`: 当前仅提供引导信息（`help` 可见），不在本 skill 直接执行。",
+      "title": "AnyGen (CLI + Progressive Skills)",
+      "description": "封装 AnyGenIO/anygen-skills 为统一 CLI（help/task），支持渐进式披露与任务执行（task-manager）。",
+      "markdown": "# AnyGen (CLI + Progressive Skills)\n\n将上游仓库 `https://github.com/AnyGenIO/anygen-skills` 封装成 elephant.ai 可直接调用的统一入口：\n\n- `help`：渐进式披露（overview → modules → module → action）\n- `task`：执行 `task-manager` 的动作（`create/status/poll/download/run`）\n\n## 快速前置\n\n- 需要环境变量：`ANYGEN_API_KEY=sk-xxx`\n- 入口命令：`python3 skills/anygen/run.py '{...}'`\n\n## 渐进式披露（推荐顺序）\n\n```bash\n# 1) 顶层总览\npython3 skills/anygen/run.py '{\"action\":\"help\"}'\n\n# 2) 模块清单\npython3 skills/anygen/run.py '{\"action\":\"help\",\"topic\":\"modules\"}'\n\n# 3) 查看模块说明\npython3 skills/anygen/run.py '{\"action\":\"help\",\"topic\":\"module\",\"module\":\"task-manager\"}'\n\n# 4) 查看具体动作参数与示例\npython3 skills/anygen/run.py '{\"action\":\"help\",\"topic\":\"action\",\"module\":\"task-manager\",\"action_name\":\"create\"}'\n```\n\n## task-manager 执行动作\n\n支持 operation：`chat|slide|doc|storybook|data_analysis|website|smart_draw`\n\n```bash\n# 创建任务\npython3 skills/anygen/run.py '{\"action\":\"task\",\"task_action\":\"create\",\"operation\":\"slide\",\"prompt\":\"Q2 roadmap deck\",\"style\":\"business\"}'\n\n# 查询状态（单次）\npython3 skills/anygen/run.py '{\"action\":\"task\",\"task_action\":\"status\",\"task_id\":\"task_xxx\"}'\n\n# 轮询直到结束（可自动下载）\npython3 skills/anygen/run.py '{\"action\":\"task\",\"task_action\":\"poll\",\"task_id\":\"task_xxx\",\"output\":\"./output\"}'\n\n# 直接下载完成任务文件\npython3 skills/anygen/run.py '{\"action\":\"task\",\"task_action\":\"download\",\"task_id\":\"task_xxx\",\"output\":\"./output\"}'\n\n# 一步式 create + poll (+可下载)\npython3 skills/anygen/run.py '{\"action\":\"task\",\"task_action\":\"run\",\"operation\":\"doc\",\"prompt\":\"Technical design for notification service\",\"output\":\"./output\"}'\n```\n\n## 模块边界\n\n- `task-manager`：本封装可执行。\n- `finance-report`：当前提供引导说明（help 可见），不在此 skill 内直接执行。\n\n## 兼容说明\n\n- 输入支持 `command` 或 `action` 作为顶层命令名。\n- 当 `action=create/status/poll/download/run` 时，会自动路由到 `task` 命令。",
       "sourcePath": "skills/anygen/SKILL.md"
     },
     {
@@ -34,13 +34,6 @@
       "description": "自主调度技能 — 管理周期任务、去重、触发窗口与执行状态。",
       "markdown": "# autonomous-scheduler\n\n维护自主任务计划：任务 upsert/list/delete、触发窗口查询、运行状态推进。\n\n## 调用\n\n```bash\npython3 skills/autonomous-scheduler/run.py '{\"action\":\"upsert\",\"name\":\"weekly-retro\",\"schedule\":\"0 18 * * 5\",\"task\":\"发送复盘提醒\"}'\npython3 skills/autonomous-scheduler/run.py '{\"action\":\"due\",\"now\":\"2026-02-13T10:00:00Z\"}'\n```",
       "sourcePath": "skills/autonomous-scheduler/SKILL.md"
-    },
-    {
-      "name": "background-tasks",
-      "title": "background-tasks",
-      "description": "后台任务管理 — 创建/查询/收集后台长时间运行的任务。",
-      "markdown": "# background-tasks\n\n管理后台任务：派发、查询状态、收集结果。\n\n## 调用\n\n```bash\npython3 skills/background-tasks/run.py '{\"action\":\"dispatch\",\"command\":\"go test ./...\",\"description\":\"run tests\"}'\npython3 skills/background-tasks/run.py '{\"action\":\"list\"}'\npython3 skills/background-tasks/run.py '{\"action\":\"collect\",\"task_id\":\"abc\"}'\n```",
-      "sourcePath": "skills/background-tasks/SKILL.md"
     },
     {
       "name": "browser-use",
@@ -85,13 +78,6 @@
       "sourcePath": "skills/diagram-to-image/SKILL.md"
     },
     {
-      "name": "eval-systematic-optimization",
-      "title": "eval-systematic-optimization",
-      "description": "Run foundation-suite baseline, cluster failures, and optimize pass@1 systematically.",
-      "markdown": "# eval-systematic-optimization\n\nRun baseline evaluation and failure clustering for foundation-suite.\n\n## Requirements\n- Go toolchain available (`go` in PATH).\n- Repo root as working directory (or pass `cwd`).\n\n## Constraints\n- Baseline command timeout: 600s.\n- Default baseline output path: `/tmp/foundation-suite-<tag>-baseline`.\n- `analyze` requires a valid JSON result file path.\n- Focus is conflict-family optimization, not single-case overfitting.\n\n## Usage\n\n```bash\n# Run baseline\npython3 skills/eval-systematic-optimization/run.py '{\"action\":\"baseline\",\"tag\":\"r12\"}'\n\n# Analyze failures\npython3 skills/eval-systematic-optimization/run.py '{\"action\":\"analyze\",\"result_file\":\"/tmp/foundation-suite-r12-baseline/foundation_suite_cases.json\"}'\n```",
-      "sourcePath": "skills/eval-systematic-optimization/SKILL.md"
-    },
-    {
       "name": "image-creation",
       "title": "image-creation",
       "description": "Generate or refine images with Seedream (text-to-image + image-to-image).",
@@ -104,13 +90,6 @@
       "description": "Json-render protocol templates for flowchart, form, dashboard, info cards, gallery, table, kanban, and diagram.",
       "markdown": "# json-render-templates\n\nGenerate json-render protocol payloads for visual layouts: flowcharts, forms, dashboards, info cards, galleries, tables, kanban boards, and diagrams. All templates and serialization logic are handled by run.py.\n\n## 调用\n\n```bash\npython3 skills/json-render-templates/run.py '{\"action\":\"render\",\"template\":\"dashboard\",\"title\":\"Product Dashboard\",\"data\":{\"metrics\":[{\"label\":\"Active users\",\"value\":12450}]}}'\n```",
       "sourcePath": "skills/json-render-templates/SKILL.md"
-    },
-    {
-      "name": "lark-conversation-governor",
-      "title": "lark-conversation-governor",
-      "description": "Lark 对话治理技能 — 主动消息节奏控制、静默窗、停用信号检测。",
-      "markdown": "# lark-conversation-governor\n\n管理 Lark 主动沟通策略：停用词优先、静默时段约束、中频推进节奏。\n\n## 调用\n\n```bash\npython3 skills/lark-conversation-governor/run.py '{\"action\":\"evaluate\",\"text\":\"今天提醒我复盘\"}'\npython3 skills/lark-conversation-governor/run.py '{\"action\":\"compose\",\"objective\":\"周报\",\"status\":\"已完成70%\",\"next_step\":\"补齐风险项\"}'\n```",
-      "sourcePath": "skills/lark-conversation-governor/SKILL.md"
     },
     {
       "name": "memory-search",
@@ -146,20 +125,6 @@
       "description": "NotebookLM 独立 CLI skill：本地直接调 `nlm`，统一 `command/op`，返回结构化结果。",
       "markdown": "# notebooklm-cli\n\n独立本地运行，不依赖任何 channel 注册。\n统一入口：\n\n```bash\npython3 skills/notebooklm-cli/run.py '{\"command\":\"...\",\"op\":\"...\"}'\n```\n\n## 渐进式 help（给 LLM 先学契约）\n\n- `overview`：入口、环境变量、命令总览\n- `schema`：全部命令契约（推荐机器读取）\n- `<command>`：单命令契约\n- `progressive`：overview + 各命令契约链路\n\n```bash\npython3 skills/notebooklm-cli/run.py '{\"command\":\"help\",\"topic\":\"overview\"}'\npython3 skills/notebooklm-cli/run.py '{\"command\":\"help\",\"topic\":\"schema\"}'\npython3 skills/notebooklm-cli/run.py '{\"command\":\"help\",\"topic\":\"progressive\"}'\n```\n\n如果需要底层原生命令帮助，可加：\n\n```bash\npython3 skills/notebooklm-cli/run.py '{\"command\":\"help\",\"topic\":\"source\",\"include_cli\":true}'\n```\n\n## 输入契约（统一）\n\n- `command`: `help | auth | notebook | source | query | report | studio | raw`\n- `op`: 命令内操作；不填走默认 op（见 `help/schema`）\n- 兼容旧别名：`action`, `*_action`，新代码统一用 `command/op`\n- 统一返回字段：`success, command, exit_code, stdout, stderr, hints, error?`\n\n## 命令总览（精简）\n\n- `auth`: 登录与 profile 管理（`profile_delete` 强制 `confirm=true`）\n- `notebook`: list/create/get/describe/rename/query/delete（delete 强制确认）\n- `source`: list/add_*/get/describe/content/rename/delete（delete 强制确认）\n- `query`: notebook query 快捷入口\n- `report`: create（默认），强制确认，支持 format/prompt/language/source_ids\n- `studio`: status/rename/delete（delete 强制确认）\n- `raw`: 透传 argv；禁止 `nlm chat start`；delete 需 `confirm=true`\n\n## 最小 E2E 示例\n\n```bash\npython3 skills/notebooklm-cli/run.py '{\"command\":\"auth\",\"op\":\"check\"}'\npython3 skills/notebooklm-cli/run.py '{\"command\":\"notebook\",\"op\":\"create\",\"title\":\"NLM E2E\"}'\npython3 skills/notebooklm-cli/run.py '{\"command\":\"source\",\"op\":\"add_url\",\"notebook_id\":\"<nb-id>\",\"url\":\"https://example.com/article\"}'\npython3 skills/notebooklm-cli/run.py '{\"command\":\"query\",\"notebook_id\":\"<nb-id>\",\"question\":\"总结 3 个关键结论\"}'\npython3 skills/notebooklm-cli/run.py '{\"command\":\"report\",\"notebook_id\":\"<nb-id>\",\"confirm\":true}'\npython3 skills/notebooklm-cli/run.py '{\"command\":\"studio\",\"op\":\"status\",\"notebook_id\":\"<nb-id>\"}'\n```\n\n## 规则\n\n- 删除前必须显式确认：`confirm=true`。\n- 禁止交互式 `nlm chat start`。\n- 鉴权失败先执行 `auth/login` 再重试业务命令。",
       "sourcePath": "skills/notebooklm-cli/SKILL.md"
-    },
-    {
-      "name": "okr-management",
-      "title": "okr-management",
-      "description": "创建和管理 OKR（目标与关键结果），支持创建、回顾和进度更新工作流。",
-      "markdown": "# okr-management\n\nCreate, review, and update OKRs (Objectives and Key Results) with automatic progress calculation and status dashboards. Supports creation workflows, review ticks, and batch KR updates. All OKR logic and formatting are handled by run.py.\n\n## 调用\n\n```bash\npython3 skills/okr-management/run.py '{\"action\":\"create\",\"objective\":\"Increase Q1 revenue\",\"key_results\":[{\"metric\":\"MRR\",\"baseline\":100,\"target\":150}]}'\n```",
-      "sourcePath": "../../.alex/skills/okr-management/SKILL.md"
-    },
-    {
-      "name": "okr-native",
-      "title": "okr-native",
-      "description": "飞书原生 OKR 的查询和管理。",
-      "markdown": "# okr-native\n\n飞书原生 OKR 管理：查询 OKR 周期、用户 OKR、批量获取 OKR。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `list_okr_periods` | 列出 OKR 周期 |\n| `list_user_okrs` | 查询用户的 OKR |\n| `batch_get_okrs` | 批量获取 OKR 详情 |\n\n## 参数\n\n### list_okr_periods\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| page_size | integer | 否 | 每页数量（默认 20） |\n| page_token | string | 否 | 分页 token |\n\n### list_user_okrs\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| user_id | string | 否 | 用户 open_id。**省略时自动使用当前发送者的 open_id**，查询\"我的 OKR\"时无需提供。仅在查询其他人的 OKR 时才需指定。 |\n| period_id | string | 否 | OKR 周期 ID |\n\n### batch_get_okrs\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| okr_ids | array | 是 | OKR ID 列表 |\n\n## 示例\n\n```\n查看我的 OKR（自动使用当前用户）\n-> channel(action=\"list_user_okrs\")\n\n查看当前 OKR 周期\n-> channel(action=\"list_okr_periods\")\n\n查看某人的 OKR（需指定 user_id）\n-> channel(action=\"list_user_okrs\", user_id=\"ou_xxx\")\n\n批量获取 OKR\n-> channel(action=\"batch_get_okrs\", okr_ids=[\"okr_1\", \"okr_2\"])\n```\n\n## 自动执行原则\n\n- **user_id 自动解析**：省略时从当前发送者的 open_id 自动获取，不要向用户询问。\n- **period_id 自动推断**：省略时查询当前进行中的周期。先调用 `list_okr_periods` 获取最新周期 ID，再自动传入 `list_user_okrs`。\n- **零参数调用**：用户说\"查看我的 OKR\"时，直接调用 `channel(action=\"list_user_okrs\")`，不需要任何参数。\n- **禁止交互式菜单**：不要给出 [1] [2] [3] 选项让用户选择，直接执行最合理的操作。\n- **链式自动执行**：获取 OKR 列表后，如果用户想看详情，自动提取 okr_ids 调用 `batch_get_okrs`，不要二次确认。\n\n## 安全等级\n\n- 所有操作: L1 只读，无需审批",
-      "sourcePath": "../../.alex/skills/okr-native/SKILL.md"
     },
     {
       "name": "ppt-deck",
