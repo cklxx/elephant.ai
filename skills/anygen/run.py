@@ -51,6 +51,10 @@ def run(args: dict) -> dict:
     if command == "task":
         module = str(payload.pop("module", "task-manager")).strip() or "task-manager"
         task_action = str(payload.pop("task_action", "") or payload.pop("action_name", "") or "").strip().lower()
+        if not task_action:
+            positionals = payload.pop("positionals", [])
+            if isinstance(positionals, list) and positionals:
+                task_action = str(positionals[0]).strip().lower()
         if not task_action and action in TASK_ACTIONS:
             task_action = action
         if not task_action:

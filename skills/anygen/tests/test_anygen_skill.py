@@ -48,6 +48,24 @@ def test_task_action_alias():
     assert result["success"] is True
 
 
+def test_task_action_from_positionals():
+    with patch.object(_mod, "anygen_task", return_value={"success": True}) as mock:
+        result = _mod.run(
+            {
+                "action": "task",
+                "positionals": ["create"],
+                "operation": "doc",
+                "prompt": "design",
+            }
+        )
+        mock.assert_called_once_with(
+            "create",
+            {"operation": "doc", "prompt": "design"},
+            module="task-manager",
+        )
+    assert result["success"] is True
+
+
 def test_non_object_args_rejected():
     result = _mod.run([])
     assert result["success"] is False
