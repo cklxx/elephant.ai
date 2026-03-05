@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -173,8 +174,7 @@ func (c *CLI) runTeamCLI(args []string) error {
 		runSessionID = id.NewSessionID()
 	}
 
-	ctx := cliBaseContext()
-	ctx = id.WithSessionID(ctx, runSessionID)
+	ctx := buildTeamRunContext(runSessionID)
 
 	dispatcher, err := c.container.Container.AgentCoordinator.EnsureBackgroundDispatcher(ctx, runSessionID)
 	if err != nil {
@@ -232,6 +232,12 @@ func (c *CLI) runTeamCLI(args []string) error {
 	fmt.Println(strings.TrimSpace(result.Content))
 	fmt.Printf("\nSession ID: %s\n", runSessionID)
 	return nil
+}
+
+func buildTeamRunContext(sessionID string) context.Context {
+	ctx := cliBaseContext()
+	ctx = id.WithSessionID(ctx, sessionID)
+	return applyPinnedCLILLMSelection(ctx, runtimeEnvLookup(), nil)
 }
 
 func (c *CLI) teamTemplatesCLI(args []string) error {

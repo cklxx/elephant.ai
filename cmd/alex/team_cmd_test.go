@@ -1,10 +1,17 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/app/subscription"
+	runtimeconfig "alex/internal/shared/config"
+	id "alex/internal/shared/utils/id"
 )
 
 func TestParseTeamRunOptions(t *testing.T) {
@@ -200,4 +207,33 @@ func TestHandleTeamRoutes(t *testing.T) {
 			t.Fatalf("unexpected error: %+v", exitErr)
 		}
 	})
+}
+
+func TestBuildTeamRunContextAppliesPinnedSelection(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, "config.yaml")
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+
+	storePath := subscription.ResolveSelectionStorePath(runtimeconfig.DefaultEnvLookup, nil)
+	store := subscription.NewSelectionStore(storePath)
+	if err := store.Set(context.Background(), subscription.SelectionScope{Channel: "cli"}, subscription.Selection{
+		Mode:     "cli",
+		Provider: "llama_server",
+		Model:    "llama3:latest",
+	}); err != nil {
+		t.Fatalf("seed selection store: %v", err)
+	}
+
+	ctx := buildTeamRunContext("team-session-1")
+	if got := id.SessionIDFromContext(ctx); got != "team-session-1" {
+		t.Fatalf("session id mismatch: got %q", got)
+	}
+
+	selection, ok := appcontext.GetLLMSelection(ctx)
+	if !ok {
+		t.Fatalf("expected pinned LLM selection on context")
+	}
+	if selection.Provider != "llama.cpp" || selection.Model != "llama3:latest" || !selection.Pinned {
+		t.Fatalf("unexpected selection: %#v", selection)
+	}
 }
