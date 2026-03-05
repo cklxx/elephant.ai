@@ -737,6 +737,79 @@ func TestChannel_CreateDoc_E2E(t *testing.T) {
 	}
 }
 
+func TestChannel_CreateDoc_WithContent_E2E(t *testing.T) {
+	var createCalled bool
+	var convertCalled bool
+	var createDescCalled bool
+
+	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && isDocxCreateDocumentRoute(r.URL.Path):
+			createCalled = true
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"document": map[string]any{
+					"document_id": "doc_e2e_content_001",
+					"title":       "E2E Content Doc",
+					"revision_id": 1,
+				},
+			})
+		case r.Method == http.MethodPost && isDocxBlocksConvertRoute(r.URL.Path):
+			convertCalled = true
+			bodyBytes, _ := io.ReadAll(r.Body)
+			body := string(bodyBytes)
+			if !strings.Contains(body, "channel create_doc body") {
+				t.Fatalf("expected markdown content in convert body, got: %s", body)
+			}
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"first_level_block_ids": []string{"tmp_blk_e2e_001"},
+				"blocks": []map[string]any{
+					{"block_id": "tmp_blk_e2e_001", "block_type": 2, "parent_id": "doc_e2e_content_001"},
+				},
+				"block_id_to_image_urls": []map[string]any{},
+			})
+		case r.Method == http.MethodPost && isDocxDescendantRoute(r.URL.Path, "doc_e2e_content_001", "doc_e2e_content_001"):
+			createDescCalled = true
+			bodyBytes, _ := io.ReadAll(r.Body)
+			body := string(bodyBytes)
+			if !strings.Contains(body, "tmp_blk_e2e_001") {
+				t.Fatalf("expected converted block id in descendant body, got: %s", body)
+			}
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"document_revision_id": 2,
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	})
+	defer srv.Close()
+
+	tool := NewLarkChannel()
+	call := ports.ToolCall{ID: "e2e1-content", Name: "channel", Arguments: map[string]any{
+		"action":  "create_doc",
+		"title":   "E2E Content Doc",
+		"content": "# Headline\n\nchannel create_doc body",
+	}}
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %v", result.Error)
+	}
+	if !createCalled {
+		t.Fatal("expected create document API call")
+	}
+	if !convertCalled {
+		t.Fatal("expected blocks convert API call")
+	}
+	if !createDescCalled {
+		t.Fatal("expected create descendant blocks API call")
+	}
+	if contentWritten, ok := result.Metadata["content_written"].(bool); !ok || !contentWritten {
+		t.Fatalf("expected content_written=true metadata, got %v", result.Metadata["content_written"])
+	}
+}
+
 func TestChannel_ReadDoc_E2E(t *testing.T) {
 	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(t, w, 0, "ok", map[string]any{
