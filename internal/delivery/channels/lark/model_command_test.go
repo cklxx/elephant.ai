@@ -13,6 +13,29 @@ import (
 	"alex/internal/shared/logging"
 )
 
+func clearSubscriptionCredentialEnv(t *testing.T) {
+	t.Helper()
+
+	t.Setenv("LLM_API_KEY", "")
+	t.Setenv("LLAMA_SERVER_BASE_URL", "")
+	t.Setenv("LLAMA_SERVER_HOST", "")
+
+	seen := map[string]struct{}{}
+	for _, preset := range subscription.ListProviderPresets() {
+		for _, key := range preset.APIKeyEnvVars {
+			key = strings.TrimSpace(key)
+			if key == "" {
+				continue
+			}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			t.Setenv(key, "")
+		}
+	}
+}
+
 func TestBuildModelListIncludesLlamaServerWhenAvailable(t *testing.T) {
 	t.Parallel()
 
@@ -48,7 +71,7 @@ func TestBuildModelListIncludesLlamaServerWhenAvailable(t *testing.T) {
 }
 
 func TestBuildModelListSkipsProvidersWithoutCredentials(t *testing.T) {
-	t.Parallel()
+	clearSubscriptionCredentialEnv(t)
 
 	gw := &Gateway{
 		logger: logging.OrNop(nil),
