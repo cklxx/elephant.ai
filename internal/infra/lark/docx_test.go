@@ -14,6 +14,13 @@ func TestCreateDocument(t *testing.T) {
 		if r.Method != http.MethodPost {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
+		if !strings.Contains(r.URL.Path, "/docx/v1/documents") {
+			t.Fatalf("unexpected create document path: %s", r.URL.Path)
+		}
+		body := string(readBody(r))
+		if !strings.Contains(body, `"title":"Test Document"`) {
+			t.Fatalf("expected title in request body, got: %s", body)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		mustWrite(t, w, jsonResponse(0, "ok", map[string]interface{}{
 			"document": map[string]interface{}{
