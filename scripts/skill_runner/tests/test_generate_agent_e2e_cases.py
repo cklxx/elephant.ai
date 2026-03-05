@@ -53,7 +53,7 @@ def test_build_cases_generates_expected_exec_command():
     cases = {item["skill_name"]: item for item in payload["cases"]}
 
     assert cases["image-creation"]["expected_exec_command"] == (
-        "python3 skills/image-creation/run.py '{...}'"
+        "python3 skills/image-creation/run.py <command> [args]"
     )
     assert cases["video-production"]["expected_exec_command"] == ""
 
@@ -68,4 +68,4 @@ def test_case_prompt_requires_skills_tool_only():
     prompt = _mod._build_prompt(meta)
     assert "Call the `skills` tool with action=show and name=\"feishu-cli\"" in prompt
     assert "Do not call any tool except `skills`." in prompt
-    assert "python3 skills/feishu-cli/run.py '{...}'" in prompt
+    assert "python3 skills/feishu-cli/run.py <command> [args]" in prompt

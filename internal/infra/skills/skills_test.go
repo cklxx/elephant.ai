@@ -389,8 +389,45 @@ Body.
 	if !strings.Contains(xml, "<type>python</type>") {
 		t.Fatalf("expected <type>python</type> for Python skill, got %q", xml)
 	}
-	if !strings.Contains(xml, "<exec>python3 skills/my-skill/run.py") {
+	if !strings.Contains(xml, "<exec>python3 skills/my-skill/run.py &lt;command&gt; [args]</exec>") {
 		t.Fatalf("expected <exec> element for Python skill, got %q", xml)
+	}
+}
+
+func TestAvailableSkillsXMLExecUsesSourcePathDirectory(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "moltbook-posting")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	content := `---
+name: moltbook
+description: A Python skill with mismatched name/dir.
+---
+# moltbook
+
+Body.
+`
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "run.py"), []byte("# stub"), 0o644); err != nil {
+		t.Fatalf("write run.py: %v", err)
+	}
+
+	lib, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	xml := AvailableSkillsXML(lib)
+	if !strings.Contains(xml, "<exec>python3 skills/moltbook-posting/run.py &lt;command&gt; [args]</exec>") {
+		t.Fatalf("expected <exec> to use source directory, got %q", xml)
+	}
+	if strings.Contains(xml, "python3 skills/moltbook/run.py") {
+		t.Fatalf("expected <exec> not to use skill name as directory, got %q", xml)
 	}
 }
 

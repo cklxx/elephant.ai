@@ -86,7 +86,9 @@ func AvailableSkillsXML(library Library) string {
 		}
 		if skill.HasRunScript {
 			builder.WriteString("    <type>python</type>\n")
-			builder.WriteString(fmt.Sprintf("    <exec>python3 skills/%s/run.py '{...}'</exec>\n", escapeXML(skill.Name)))
+			if exec := skill.ExecCommand(); exec != "" {
+				builder.WriteString(fmt.Sprintf("    <exec>%s</exec>\n", escapeXML(exec)))
+			}
 		}
 		builder.WriteString(fmt.Sprintf("    <location>%s</location>\n", escapeXML(skill.SourcePath)))
 		builder.WriteString("  </skill>\n")

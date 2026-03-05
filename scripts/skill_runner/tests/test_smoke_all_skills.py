@@ -18,30 +18,36 @@ def _write_script(path: Path, source: str) -> None:
     path.chmod(0o755)
 
 
-def test_run_one_accepts_valid_skill_contract(tmp_path):
+def test_run_one_accepts_text_output_contract(tmp_path):
+    run_py = tmp_path / "run.py"
+    _write_script(run_py, "print('ok')\n")
+
+    result = _mod._run_one(sys.executable, run_py, [], timeout=5)
+    assert result.contract_ok is True
+    assert result.returncode == 0
+    assert result.stdout == "ok"
+
+
+def test_run_one_rejects_empty_output(tmp_path):
+    run_py = tmp_path / "run.py"
+    _write_script(run_py, "pass\n")
+
+    result = _mod._run_one(sys.executable, run_py, [], timeout=5)
+    assert result.contract_ok is False
+    assert "empty stdout/stderr output" in result.error
+
+
+def test_run_one_accepts_stderr_output_with_nonzero_exit(tmp_path):
     run_py = tmp_path / "run.py"
     _write_script(
         run_py,
-        """
-import json
-print(json.dumps({"success": True, "data": {"ok": 1}}))
-""".strip()
-        + "\n",
+        "import sys\nsys.stderr.write('usage: run.py <command>\\n')\nsys.exit(2)\n",
     )
 
-    result = _mod._run_one(sys.executable, run_py, "{}", timeout=5)
+    result = _mod._run_one(sys.executable, run_py, [], timeout=5)
     assert result.contract_ok is True
-    assert result.success_value is True
-    assert result.returncode == 0
-
-
-def test_run_one_rejects_non_json_output(tmp_path):
-    run_py = tmp_path / "run.py"
-    _write_script(run_py, "print('not json')\n")
-
-    result = _mod._run_one(sys.executable, run_py, "{}", timeout=5)
-    assert result.contract_ok is False
-    assert "invalid JSON output" in result.error
+    assert result.returncode == 2
+    assert "usage: run.py" in result.stderr
 
 
 def test_discover_run_scripts_lists_skill_entries(tmp_path):

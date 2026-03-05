@@ -3,18 +3,19 @@
 
 Default checks:
 - discover `skills/*/run.py`
-- execute each skill with JSON payload `{"action":"__smoke__"}`
-- assert stdout is valid JSON object containing `success` boolean
+- execute each skill with optional shared CLI args
+- validate behavior contract via process output and exit code policy
 
-By default, a non-zero exit code is allowed if JSON contract is valid because
-many skills intentionally return structured validation errors for empty input.
-Use `--strict-exit` to require exit code 0 for every skill.
+Behavior contract:
+- process must not time out
+- process must emit text on stdout or stderr
+- non-zero exits are allowed unless `--strict-exit` is set
 """
 
 from __future__ import annotations
 
 import argparse
-import json
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -26,7 +27,8 @@ class SmokeResult:
     skill: str
     returncode: int
     contract_ok: bool
-    success_value: bool | None
+    stdout: str
+    stderr: str
     error: str = ""
 
 
@@ -34,11 +36,13 @@ def _discover_run_scripts(skills_root: Path) -> list[Path]:
     return sorted(path for path in skills_root.glob("*/run.py") if path.is_file())
 
 
-def _run_one(python_bin: str, run_py: Path, payload: str, timeout: int) -> SmokeResult:
+def _run_one(
+    python_bin: str, run_py: Path, cli_args: list[str], timeout: int
+) -> SmokeResult:
     skill = run_py.parent.name
     try:
         completed = subprocess.run(
-            [python_bin, str(run_py), payload],
+            [python_bin, str(run_py), *cli_args],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -48,36 +52,38 @@ def _run_one(python_bin: str, run_py: Path, payload: str, timeout: int) -> Smoke
             skill=skill,
             returncode=124,
             contract_ok=False,
-            success_value=None,
+            stdout="",
+            stderr="",
             error=f"timed out after {timeout}s",
         )
 
     stdout = (completed.stdout or "").strip()
-    try:
-        data = json.loads(stdout)
-    except json.JSONDecodeError as exc:
+    stderr = (completed.stderr or "").strip()
+    if completed.returncode < 0:
         return SmokeResult(
             skill=skill,
             returncode=completed.returncode,
             contract_ok=False,
-            success_value=None,
-            error=f"invalid JSON output: {exc}",
+            stdout=stdout,
+            stderr=stderr,
+            error=f"terminated by signal {-completed.returncode}",
         )
-
-    if not isinstance(data, dict) or not isinstance(data.get("success"), bool):
+    if not stdout and not stderr:
         return SmokeResult(
             skill=skill,
             returncode=completed.returncode,
             contract_ok=False,
-            success_value=None,
-            error="output JSON must be an object with boolean `success`",
+            stdout=stdout,
+            stderr=stderr,
+            error="empty stdout/stderr output",
         )
 
     return SmokeResult(
         skill=skill,
         returncode=completed.returncode,
         contract_ok=True,
-        success_value=bool(data["success"]),
+        stdout=stdout,
+        stderr=stderr,
     )
 
 
@@ -106,9 +112,9 @@ def _parse_args() -> argparse.Namespace:
         help="Python interpreter to use (default: current interpreter).",
     )
     parser.add_argument(
-        "--payload",
-        default='{"action":"__smoke__"}',
-        help='JSON payload passed to each run.py (default: \'{"action":"__smoke__"}\').',
+        "--args",
+        default="",
+        help="Shared CLI args passed to each run.py, shell-split (default: empty).",
     )
     parser.add_argument(
         "--timeout",
@@ -135,9 +141,9 @@ def main() -> int:
     skills_root = repo_root / "skills"
 
     try:
-        json.loads(args.payload)
-    except json.JSONDecodeError as exc:
-        print(f"Invalid --payload JSON: {exc}", file=sys.stderr)
+        cli_args = shlex.split(args.args)
+    except ValueError as exc:
+        print(f"Invalid --args: {exc}", file=sys.stderr)
         return 2
 
     run_scripts = _discover_run_scripts(skills_root)
@@ -146,24 +152,38 @@ def main() -> int:
         return 2
 
     print(f"Discovered {len(run_scripts)} skills with run.py under {skills_root}.")
+    if cli_args:
+        print(f"Shared args: {cli_args}")
 
     failures: list[SmokeResult] = []
     for run_py in run_scripts:
-        result = _run_one(args.python, run_py, args.payload, args.timeout)
+        result = _run_one(args.python, run_py, cli_args, args.timeout)
         strict_exit_failed = args.strict_exit and result.returncode != 0
         if not result.contract_ok or strict_exit_failed:
             failures.append(result)
+        output_state = "stdout+stderr"
+        if result.stdout and not result.stderr:
+            output_state = "stdout"
+        elif result.stderr and not result.stdout:
+            output_state = "stderr"
+        elif not result.stdout and not result.stderr:
+            output_state = "none"
         status = "PASS" if result.contract_ok and not strict_exit_failed else "FAIL"
         print(
             f"[{status}] {result.skill:32s} rc={result.returncode:3d} "
-            f"contract_ok={str(result.contract_ok):5s} success={result.success_value}"
+            f"contract_ok={str(result.contract_ok):5s} output={output_state}"
         )
 
     if failures:
         print("\nFailures:", file=sys.stderr)
         for item in failures:
+            combined = " | ".join(
+                part for part in [item.stdout, item.stderr] if part
+            )[:280]
             print(
-                f"- {item.skill}: rc={item.returncode}, error={item.error or 'strict-exit check failed'}",
+                f"- {item.skill}: rc={item.returncode}, "
+                f"error={item.error or 'strict-exit check failed'}"
+                + (f", output={combined}" if combined else ""),
                 file=sys.stderr,
             )
 

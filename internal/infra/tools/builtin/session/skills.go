@@ -115,7 +115,9 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		}
 		if skill.HasRunScript {
 			meta["type"] = "python"
-			meta["exec"] = fmt.Sprintf("python3 skills/%s/run.py '{...}'", skill.Name)
+			if exec := skill.ExecCommand(); exec != "" {
+				meta["exec"] = exec
+			}
 		}
 		if len(skill.RequiresTools) > 0 {
 			meta["requires_tools"] = skill.RequiresTools

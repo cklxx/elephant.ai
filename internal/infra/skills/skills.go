@@ -38,8 +38,26 @@ type Skill struct {
 	RequiresApproval bool           `yaml:"requires_approval,omitempty"`
 
 	// HasRunScript is true when a run.py exists alongside the SKILL.md.
-	// Python skills are invoked via: shell_exec python3 skills/<name>/run.py '{...}'
+	// Python skills are invoked via: shell_exec python3 skills/<dir>/run.py <command> [args]
 	HasRunScript bool `yaml:"-"`
+}
+
+// SourceDir returns the skill directory inferred from SourcePath.
+func (s Skill) SourceDir() string {
+	dir := strings.TrimSpace(filepath.Base(filepath.Dir(s.SourcePath)))
+	if dir != "" && dir != "." && dir != string(filepath.Separator) {
+		return dir
+	}
+	return strings.TrimSpace(s.Name)
+}
+
+// ExecCommand returns the CLI invocation example for Python skills.
+func (s Skill) ExecCommand() string {
+	dir := s.SourceDir()
+	if dir == "" {
+		return ""
+	}
+	return fmt.Sprintf("python3 skills/%s/run.py <command> [args]", dir)
 }
 
 type SkillTriggers struct {

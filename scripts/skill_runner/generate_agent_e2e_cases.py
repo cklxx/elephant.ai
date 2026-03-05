@@ -71,7 +71,9 @@ def _case_id(skill_name: str) -> str:
 
 def _build_prompt(skill: SkillMeta) -> str:
     if skill.has_run_script:
-        exec_command = f"python3 skills/{skill.skill_dir}/run.py '{{...}}'"
+        exec_command = (
+            f"python3 skills/{skill.skill_dir}/run.py <command> [args]"
+        )
         py_line = (
             "Set `has_python_entrypoint` to true and set `exec_command` to "
             f"\"{exec_command}\" exactly."
@@ -106,7 +108,7 @@ def build_cases(skills: list[SkillMeta]) -> dict[str, Any]:
                 "description": skill.description,
                 "has_run_script": skill.has_run_script,
                 "expected_exec_command": (
-                    f"python3 skills/{skill.skill_dir}/run.py '{{...}}'"
+                    f"python3 skills/{skill.skill_dir}/run.py <command> [args]"
                     if skill.has_run_script
                     else ""
                 ),
