@@ -283,6 +283,45 @@ func TestSetModelWithChatFlag(t *testing.T) {
 	}
 }
 
+func TestSetModelSelectionCanonicalizesClaudeAlias(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+
+	gw := newTestGatewayWithStore(t)
+	ctx := context.Background()
+	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
+
+	if err := gw.setModelSelection(ctx, msg, "claude/claude-sonnet-4-6", false); err != nil {
+		t.Fatalf("setModelSelection: %v", err)
+	}
+
+	selection, _, ok, err := gw.llmSelections.GetWithFallback(ctx, channelScope())
+	if err != nil {
+		t.Fatalf("GetWithFallback: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected global selection")
+	}
+	if selection.Provider != "anthropic" {
+		t.Fatalf("expected canonical provider anthropic, got %q", selection.Provider)
+	}
+}
+
+func TestSetModelSelectionRejectsUnknownProviderEvenWithLLMAPIKey(t *testing.T) {
+	t.Setenv("LLM_API_KEY", "sk-universal")
+
+	gw := newTestGatewayWithStore(t)
+	ctx := context.Background()
+	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
+
+	err := gw.setModelSelection(ctx, msg, "totally_unknown/model-x", false)
+	if err == nil {
+		t.Fatal("expected unknown provider to be rejected")
+	}
+	if !strings.Contains(err.Error(), "unsupported provider") {
+		t.Fatalf("expected unsupported provider error, got %v", err)
+	}
+}
+
 func TestApplyPinnedSupportsLegacyChatUserScope(t *testing.T) {
 	t.Parallel()
 	gw := newTestGatewayWithStore(t)
@@ -483,5 +522,14 @@ func TestMatchSubscriptionCredentialUnknownProviderNoEnv(t *testing.T) {
 	_, ok := matchSubscriptionCredential(creds, "totally_unknown")
 	if ok {
 		t.Fatal("expected unknown provider without env to not match")
+	}
+}
+
+func TestMatchSubscriptionCredentialUnknownProviderWithLLMAPIKey(t *testing.T) {
+	t.Setenv("LLM_API_KEY", "sk-universal")
+	creds := runtimeconfig.CLICredentials{}
+	_, ok := matchSubscriptionCredential(creds, "totally_unknown")
+	if ok {
+		t.Fatal("expected unknown provider with LLM_API_KEY to not match")
 	}
 }
