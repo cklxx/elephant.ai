@@ -2,7 +2,11 @@
 
 ## Overview
 
-Orchestration uses two tools: `run_tasks` dispatches tasks, `reply_agent` responds to agent input requests. Planning is done via `write_file` (YAML task files), status monitoring via `read_file` (`.status` sidecar files).
+Orchestration now uses two CLI commands:
+- `alex team run`: dispatch YAML tasks or team templates
+- `alex team reply`: respond to external-agent input requests or inject free-form text
+
+In agent runs, call these via `shell_exec`. Planning is still done via `write_file` (YAML task files), status monitoring via `read_file` (`.status` sidecar files).
 
 ## Task File Format
 
@@ -50,38 +54,39 @@ For external coding agents (`codex`, `claude_code`, `kimi`), these defaults are 
 - **plan mode**: `verify=false`, `merge_on_success=false`, `retry_max=1`, `workspace_mode=shared`
 - `autonomy_level=controlled` is promoted to `full`
 
-## run_tasks Tool
+## `alex team run`
 
 ```
-run_tasks(file="path/to/tasks.yaml")              # async dispatch
-run_tasks(file="path/to/tasks.yaml", wait=true)    # sync wait
-run_tasks(template="execute_and_report", goal="…") # team template
-run_tasks(template="list")                          # list templates
-run_tasks(file="…", task_ids=["impl"])              # filter tasks
+alex team run --file path/to/tasks.yaml
+alex team run --file path/to/tasks.yaml --wait
+alex team run --template execute_and_report --goal "..."
+alex team run --template list
+alex team run --file path/to/tasks.yaml --task-id impl
 ```
 
 Status is written to a `.status.yaml` sidecar file. Monitor via `read_file`.
 
-## reply_agent Tool
+## `alex team reply`
 
 ```
-reply_agent(task_id="…", request_id="…", approved=true)
-reply_agent(task_id="…", request_id="…", message="Use approach B")
+alex team reply --task-id "..." --request-id "..." --approved=true
+alex team reply --task-id "..." --request-id "..." --message "Use approach B"
+alex team reply --task-id "..." --message "continue"
 ```
 
 ## Team Templates
 
-Team templates define reusable multi-agent workflows with roles and stages. Templates are loaded from config and can be invoked via `run_tasks(template="name", goal="…")`.
+Team templates define reusable multi-agent workflows with roles and stages. Templates are loaded from config and can be invoked via `alex team run --template <name> --goal "..."`.
 
 ## Architecture
 
 ```
 Agent writes YAML (write_file)
-  → run_tasks reads YAML → validates → resolves defaults → topo sort
+  → shell_exec runs `alex team run ...` → validates → resolves defaults → topo sort
     → BackgroundTaskManager.Dispatch() (unchanged)
       → coordinator.ExecuteTask / bridge.Execute (unchanged)
     ← status written to .status sidecar (2s polling)
   ← Agent reads .status (read_file)
 ```
 
-The `taskfile` package (`internal/domain/agent/taskfile/`) handles parsing, validation, dependency ordering, defaults resolution, and status writing. `run_tasks` is a thin tool that reads the file and delegates to the taskfile executor.
+The `taskfile` package (`internal/domain/agent/taskfile/`) handles parsing, validation, dependency ordering, defaults resolution, and status writing. `alex team run` delegates to this execution path.
