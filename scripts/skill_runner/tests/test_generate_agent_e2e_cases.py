@@ -60,12 +60,12 @@ def test_build_cases_generates_expected_exec_command():
 
 def test_case_prompt_requires_skills_tool_only():
     meta = _mod.SkillMeta(
-        skill_name="calendar-management",
-        skill_dir="calendar-management",
+        skill_name="feishu-cli",
+        skill_dir="feishu-cli",
         has_run_script=True,
         description="desc",
     )
     prompt = _mod._build_prompt(meta)
-    assert "Call the `skills` tool with action=show and name=\"calendar-management\"" in prompt
+    assert "Call the `skills` tool with action=show and name=\"feishu-cli\"" in prompt
     assert "Do not call any tool except `skills`." in prompt
-    assert "python3 skills/calendar-management/run.py '{...}'" in prompt
+    assert "python3 skills/feishu-cli/run.py '{...}'" in prompt

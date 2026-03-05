@@ -1,5 +1,5 @@
 # Skills integration
-> Last updated: 2026-02-13
+> Last updated: 2026-03-05
 
 This guide explains how `alex` discovers and serves skills (Markdown playbooks) following the [Agent Skills specification](https://agentskills.io/integrate-skills).
 
@@ -35,6 +35,14 @@ When `ALEX_SKILLS_DIR` is not set, runtime and web catalog generation both use `
 - never delete files from `~/.alex/skills`
 
 Only folder-based `SKILL.md` layouts are supported. Skills with missing frontmatter are rejected; duplicate names are rejected.
+
+## Product-level dedup policy
+- Evaluate skill redundancy by **user-visible capability coverage**, not implementation differences.
+- Prefer **one canonical entrypoint per product capability domain** (for example, keep `feishu-cli` as the single Feishu operations skill).
+- Remove thin wrapper skills when the canonical entrypoint already supports the same user job-to-be-done.
+- Keep domain workflow skills only if they provide clear product value beyond generic model behavior (for example, stronger SOP, governance, or artifacts).
+- For capability review docs and decisions, list overlaps in terms of user intents, expected outcomes, and operating surface area.
+- When two skills overlap, merge the more specific/derived variant into the canonical product-facing skill name (for example, `anygen-task-creator -> anygen`), not the reverse.
 
 ## Prompt metadata
 At startup we parse frontmatter to build a compact catalog for prompts and the `skills` tool. The system prompt injects the metadata using the Agent Skills `<available_skills>` XML format. A Claude-style example based on the Agent Skills guide:

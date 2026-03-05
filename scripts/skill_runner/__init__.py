@@ -9,8 +9,8 @@ Usage in a skill's ``run.py``::
 
     from skill_runner import Skill, SkillResult
 
-    class CalendarSkill(Skill):
-        name = "calendar-management"
+    class FeishuSkill(Skill):
+        name = "feishu-cli"
 
         def execute(self, action: str, **kwargs) -> SkillResult:
             if action == "create":
