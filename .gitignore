@@ -160,3 +160,4 @@ EOF
 __pycache__/
 elephant.ai.worktrees/
 .claude/worktrees/
+.claire/worktrees/
