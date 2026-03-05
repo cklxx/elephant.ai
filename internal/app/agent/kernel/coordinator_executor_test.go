@@ -128,7 +128,7 @@ func TestCoordinatorExecutor_ExecuteTeam_BuildsStructuredTeamCLIPrompt(t *testin
 	if !strings.Contains(runner.lastPrompt, "--goal \"compare redis vs memcached\"") {
 		t.Fatalf("expected goal in team prompt, got: %q", runner.lastPrompt)
 	}
-	if !strings.Contains(runner.lastPrompt, "--timeout-seconds 240") {
+	if !strings.Contains(runner.lastPrompt, "--wait-timeout-seconds 240") {
 		t.Fatalf("expected timeout in team prompt, got: %q", runner.lastPrompt)
 	}
 	if !strings.Contains(runner.lastPrompt, "--wait") {

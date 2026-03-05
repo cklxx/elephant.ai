@@ -442,7 +442,7 @@ func buildKernelTeamDispatchPrompt(spec kerneldomain.TeamDispatchSpec) string {
 		"--template", fmt.Sprintf("%q", strings.TrimSpace(spec.Template)),
 		"--goal", fmt.Sprintf("%q", strings.TrimSpace(spec.Goal)),
 		"--wait",
-		"--timeout-seconds", strconv.Itoa(timeoutSeconds),
+		"--wait-timeout-seconds", strconv.Itoa(timeoutSeconds),
 		"--mode", "auto",
 	}
 	if len(spec.Prompts) > 0 {
@@ -455,7 +455,7 @@ func buildKernelTeamDispatchPrompt(spec kerneldomain.TeamDispatchSpec) string {
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
-			parts = append(parts, "--prompt", fmt.Sprintf("%s=%q", key, spec.Prompts[key]))
+			parts = append(parts, "--role-prompt", fmt.Sprintf("%s=%q", key, spec.Prompts[key]))
 		}
 	}
 	command := strings.Join(parts, " ")

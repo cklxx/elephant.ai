@@ -84,6 +84,6 @@ func formatExternalInputRequestMessage(req agent.InputRequest) string {
 		}
 		sb.WriteString("\n")
 	}
-	sb.WriteString(fmt.Sprintf("Use shell_exec with `alex team reply --task-id %q --request-id %q --approved=true|false` to respond. For direct pane input, use `alex team reply --task-id %q --message \\\"...\\\"`.", req.TaskID, req.RequestID, req.TaskID))
+	sb.WriteString(fmt.Sprintf("Use shell_exec with `alex team reply --task-id %q --request-id %q --decision approve|reject` to respond. For direct pane input, use `alex team inject --task-id %q --message \\\"...\\\"`.", req.TaskID, req.RequestID, req.TaskID))
 	return sb.String()
 }

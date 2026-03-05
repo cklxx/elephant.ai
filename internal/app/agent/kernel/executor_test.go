@@ -160,13 +160,13 @@ func TestBuildKernelTeamDispatchPrompt_ContainsTeamCLIArguments(t *testing.T) {
 	if !strings.Contains(prompt, "--goal \"compare cache strategies\"") {
 		t.Fatalf("expected goal in prompt: %q", prompt)
 	}
-	if !strings.Contains(prompt, "--timeout-seconds 222") {
+	if !strings.Contains(prompt, "--wait-timeout-seconds 222") {
 		t.Fatalf("expected timeout in prompt: %q", prompt)
 	}
 	if !strings.Contains(prompt, "--wait") {
 		t.Fatalf("expected --wait in prompt: %q", prompt)
 	}
-	if !strings.Contains(prompt, "--prompt researcher=\"focus on Redis\"") {
+	if !strings.Contains(prompt, "--role-prompt researcher=\"focus on Redis\"") {
 		t.Fatalf("expected prompt override in prompt: %q", prompt)
 	}
 }

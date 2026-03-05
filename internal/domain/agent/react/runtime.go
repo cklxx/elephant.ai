@@ -876,7 +876,7 @@ func classifyNonRetryableToolFailure(err error) (nonRetryableToolFailure, bool) 
 	case strings.Contains(text, "template \"") && strings.Contains(text, "not found"):
 		return nonRetryableToolFailure{
 			signature: "template_not_found",
-			hint:      "Use shell_exec to run `alex team run --template list`, then choose one of the listed templates.",
+			hint:      "Use shell_exec to run `alex team templates`, then choose one of the listed templates.",
 		}, true
 	default:
 		return nonRetryableToolFailure{}, false
