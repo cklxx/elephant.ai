@@ -25,6 +25,37 @@ func TestLookupProviderPresetReturnsCopiedRecommendations(t *testing.T) {
 	}
 }
 
+func TestCanonicalProvider(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: "claude", want: "anthropic"},
+		{input: " Claude ", want: "anthropic"},
+		{input: "openai", want: "openai"},
+		{input: "", want: ""},
+	}
+	for _, tt := range tests {
+		if got := CanonicalProvider(tt.input); got != tt.want {
+			t.Fatalf("CanonicalProvider(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestLookupProviderPresetCanonicalizesAlias(t *testing.T) {
+	t.Parallel()
+
+	preset, ok := LookupProviderPreset("claude")
+	if !ok {
+		t.Fatal("expected claude alias preset to resolve")
+	}
+	if preset.Provider != "anthropic" {
+		t.Fatalf("expected canonical provider anthropic, got %q", preset.Provider)
+	}
+}
+
 func TestListProviderPresetsReturnsSortedCopies(t *testing.T) {
 	first := ListProviderPresets()
 	if len(first) == 0 {
@@ -117,13 +148,10 @@ func TestLookupEnvCredential(t *testing.T) {
 			wantOK:     true,
 		},
 		{
-			name:       "universal fallback LLM_API_KEY for unknown provider",
-			provider:   "unknown_provider",
-			env:        map[string]string{"LLM_API_KEY": "sk-fallback"},
-			wantKey:    "sk-fallback",
-			wantURL:    "",
-			wantSource: "LLM_API_KEY",
-			wantOK:     true,
+			name:     "unknown provider ignores LLM_API_KEY fallback",
+			provider: "unknown_provider",
+			env:      map[string]string{"LLM_API_KEY": "sk-fallback"},
+			wantOK:   false,
 		},
 		{
 			name:     "unknown provider no env",

@@ -66,7 +66,7 @@ func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, boo
 	if utils.TrimLower(selection.Mode) != "cli" {
 		return ResolvedSelection{}, false
 	}
-	provider := strings.TrimSpace(strings.ToLower(selection.Provider))
+	provider := CanonicalProvider(selection.Provider)
 	model := strings.TrimSpace(selection.Model)
 	if provider == "" || model == "" {
 		return ResolvedSelection{}, false
@@ -79,6 +79,8 @@ func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, boo
 	// creds.XXX.Provider is "", so the dynamic match fails. The hardcoded
 	// fallback ensures the stored selection is still recognised.
 	matchProvider := func(credProvider, knownName string) bool {
+		credProvider = CanonicalProvider(credProvider)
+		knownName = CanonicalProvider(knownName)
 		return provider == credProvider || (credProvider == "" && provider == knownName)
 	}
 

@@ -144,6 +144,17 @@ func init() {
 	providerPresets["claude"] = providerPresets["anthropic"]
 }
 
+// CanonicalProvider normalizes user/provider input to a canonical provider ID.
+func CanonicalProvider(provider string) string {
+	key := utils.TrimLower(provider)
+	switch key {
+	case "claude":
+		return "anthropic"
+	default:
+		return key
+	}
+}
+
 // ProviderPreset contains the public setup metadata for a runtime provider.
 type ProviderPreset struct {
 	Provider          string
@@ -191,7 +202,7 @@ func ListProviderPresets() []ProviderPreset {
 
 // LookupProviderPreset returns a provider preset by provider id.
 func LookupProviderPreset(provider string) (ProviderPreset, bool) {
-	key := utils.TrimLower(provider)
+	key := CanonicalProvider(provider)
 	preset, ok := providerPresets[key]
 	if !ok {
 		return ProviderPreset{}, false
@@ -203,7 +214,8 @@ func applyCatalogProviderPreset(provider *CatalogProvider) {
 	if provider == nil {
 		return
 	}
-	key := utils.TrimLower(provider.Provider)
+	key := CanonicalProvider(provider.Provider)
+	provider.Provider = key
 	preset, ok := providerPresets[key]
 	if !ok {
 		provider.DisplayName = provider.Provider
@@ -250,21 +262,15 @@ func recommendationIDs(items []ModelRecommendation) []string {
 // For known providers, baseURL is always populated (from env override or preset
 // default) regardless of whether an API key was found — callers can use it
 // without a redundant preset lookup.
-// Falls back to LLM_API_KEY as a universal last resort.
+// Falls back to LLM_API_KEY as a last resort for known providers only.
 func LookupEnvCredential(provider string, lookup runtimeconfig.EnvLookup) (apiKey, baseURL, source string, ok bool) {
 	if lookup == nil {
 		lookup = runtimeconfig.DefaultEnvLookup
 	}
-	key := utils.TrimLower(provider)
+	key := CanonicalProvider(provider)
 	preset, found := providerPresets[key]
 	if !found {
-		// Unknown provider — try universal fallback only.
-		if v, has := lookup("LLM_API_KEY"); has {
-			v = strings.TrimSpace(v)
-			if v != "" {
-				return v, "", "LLM_API_KEY", true
-			}
-		}
+		// Unknown provider — reject.
 		return "", "", "", false
 	}
 

@@ -173,6 +173,35 @@ func TestResolveSelectionForOpenAIViaEnv(t *testing.T) {
 	}
 }
 
+func TestResolveSelectionForClaudeAliasViaEnv(t *testing.T) {
+	t.Parallel()
+	resolver := NewSelectionResolver(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.CLICredentials{
+			Claude: runtimeconfig.CLICredential{
+				Provider: "anthropic",
+				APIKey:   "sk-ant-test",
+				BaseURL:  "https://api.anthropic.com/v1",
+				Source:   runtimeconfig.SourceClaudeCLI,
+			},
+		}
+	})
+
+	selection := Selection{Mode: "cli", Provider: "claude", Model: "claude-sonnet-4-6"}
+	resolved, ok := resolver.Resolve(selection)
+	if !ok {
+		t.Fatal("expected claude alias selection to resolve")
+	}
+	if resolved.Provider != "anthropic" {
+		t.Fatalf("expected canonical provider anthropic, got %q", resolved.Provider)
+	}
+	if resolved.APIKey != "sk-ant-test" {
+		t.Fatalf("expected api key sk-ant-test, got %q", resolved.APIKey)
+	}
+	if resolved.BaseURL != "https://api.anthropic.com/v1" {
+		t.Fatalf("expected anthropic base url, got %q", resolved.BaseURL)
+	}
+}
+
 func TestResolveSelectionGenericPresetNoEnv(t *testing.T) {
 	t.Parallel()
 	// When no env vars are set, should still return partial resolution with
@@ -209,5 +238,24 @@ func TestResolveSelectionUnknownProviderNoEnv(t *testing.T) {
 	_, ok := resolver.Resolve(selection)
 	if ok {
 		t.Fatal("expected unknown provider with no env to fail resolution")
+	}
+}
+
+func TestResolveSelectionUnknownProviderWithLLMAPIKeyStillFails(t *testing.T) {
+	t.Parallel()
+	resolver := NewSelectionResolver(
+		func() runtimeconfig.CLICredentials { return runtimeconfig.CLICredentials{} },
+		WithEnvLookup(func(key string) (string, bool) {
+			if key == "LLM_API_KEY" {
+				return "sk-universal", true
+			}
+			return "", false
+		}),
+	)
+
+	selection := Selection{Mode: "cli", Provider: "totally_unknown", Model: "some-model"}
+	_, ok := resolver.Resolve(selection)
+	if ok {
+		t.Fatal("expected unknown provider with LLM_API_KEY to fail resolution")
 	}
 }
