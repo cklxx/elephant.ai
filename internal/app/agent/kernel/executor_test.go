@@ -144,7 +144,7 @@ func TestReadTeamRoleResults_MissingFile(t *testing.T) {
 	}
 }
 
-func TestBuildKernelTeamDispatchPrompt_ContainsRunTasksArguments(t *testing.T) {
+func TestBuildKernelTeamDispatchPrompt_ContainsTeamCLIArguments(t *testing.T) {
 	prompt := buildKernelTeamDispatchPrompt(kerneldomain.TeamDispatchSpec{
 		Template:       "kimi_research",
 		Goal:           "compare cache strategies",
@@ -154,16 +154,22 @@ func TestBuildKernelTeamDispatchPrompt_ContainsRunTasksArguments(t *testing.T) {
 			"researcher": "focus on Redis",
 		},
 	})
-	if !strings.Contains(prompt, "\"template\":\"kimi_research\"") {
+	if !strings.Contains(prompt, "alex team run") {
+		t.Fatalf("expected alex team run command in prompt: %q", prompt)
+	}
+	if !strings.Contains(prompt, "--template \"kimi_research\"") {
 		t.Fatalf("expected template in prompt: %q", prompt)
 	}
-	if !strings.Contains(prompt, "\"goal\":\"compare cache strategies\"") {
+	if !strings.Contains(prompt, "--goal \"compare cache strategies\"") {
 		t.Fatalf("expected goal in prompt: %q", prompt)
 	}
-	if !strings.Contains(prompt, "\"timeout_seconds\":222") {
+	if !strings.Contains(prompt, "--timeout-seconds 222") {
 		t.Fatalf("expected timeout in prompt: %q", prompt)
 	}
-	if !strings.Contains(prompt, "\"wait\":true") {
+	if !strings.Contains(prompt, "--wait=true") {
 		t.Fatalf("expected wait in prompt: %q", prompt)
+	}
+	if !strings.Contains(prompt, "--role-prompt \"researcher=focus on Redis\"") {
+		t.Fatalf("expected role prompt override in prompt: %q", prompt)
 	}
 }
