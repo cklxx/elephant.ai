@@ -26,34 +26,34 @@ cooldown: 10
 
 ```bash
 # 导航到 URL
-python3 skills/browser-use/run.py '{"action":"navigate","url":"https://x.com"}'
+python3 skills/browser-use/run.py navigate --url https://x.com
 
 # 获取页面快照（无障碍树）
-python3 skills/browser-use/run.py '{"action":"snapshot"}'
+python3 skills/browser-use/run.py snapshot
 
 # 点击元素（ref 来自 snapshot）
-python3 skills/browser-use/run.py '{"action":"click","ref":"e44","element":"Home link"}'
+python3 skills/browser-use/run.py click --ref e44 --element 'Home link'
 
 # 输入文本
-python3 skills/browser-use/run.py '{"action":"type","ref":"e100","text":"hello","submit":true}'
+python3 skills/browser-use/run.py type --ref e100 --text hello --submit true
 
 # 截图
-python3 skills/browser-use/run.py '{"action":"screenshot","filename":"page.png"}'
+python3 skills/browser-use/run.py screenshot --filename page.png
 
 # 管理标签页
-python3 skills/browser-use/run.py '{"action":"tabs","tab_action":"list"}'
+python3 skills/browser-use/run.py tabs list
 
 # 执行 JavaScript
-python3 skills/browser-use/run.py '{"action":"evaluate","function":"() => document.title"}'
+python3 skills/browser-use/run.py evaluate --function '() => document.title'
 
 # 执行 Playwright 代码
-python3 skills/browser-use/run.py '{"action":"run_code","code":"async (page) => await page.title()"}'
+python3 skills/browser-use/run.py run_code --code 'async (page) => await page.title()'
 
 # 按键
-python3 skills/browser-use/run.py '{"action":"press_key","key":"Enter"}'
+python3 skills/browser-use/run.py press_key --key Enter
 
 # 等待文本出现
-python3 skills/browser-use/run.py '{"action":"wait_for","text":"Loading complete"}'
+python3 skills/browser-use/run.py wait_for --text 'Loading complete'
 ```
 
 ## 典型工作流

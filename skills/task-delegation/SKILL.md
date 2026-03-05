@@ -20,6 +20,6 @@ cooldown: 120
 ## 调用
 
 ```bash
-python3 skills/task-delegation/run.py '{"action":"dispatch","agent":"codex","task":"fix the bug in main.go"}'
-python3 skills/task-delegation/run.py '{"action":"list"}'
+python3 skills/task-delegation/run.py dispatch --agent codex --task 'fix the bug in main.go'
+python3 skills/task-delegation/run.py list
 ```

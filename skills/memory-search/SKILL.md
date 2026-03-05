@@ -20,6 +20,6 @@ cooldown: 30
 ## 调用
 
 ```bash
-python3 skills/memory-search/run.py '{"action":"search","query":"项目进度"}'
-python3 skills/memory-search/run.py '{"action":"get","file":"2026-02-09-meeting.md"}'
+python3 skills/memory-search/run.py search --query '项目进度'
+python3 skills/memory-search/run.py get --file 2026-02-09-meeting.md
 ```

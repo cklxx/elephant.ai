@@ -33,11 +33,7 @@ Render Mermaid code into image files.
 ## Usage
 
 ```bash
-python3 skills/diagram-to-image/run.py '{
-  "action":"render",
-  "code":"graph LR\nA[Client] --> B[API]\nB --> C[(DB)]",
-  "format":"png",
-  "theme":"default",
-  "output":"/tmp/diagram_arch.png"
-}'
+python3 skills/diagram-to-image/run.py render --code 'graph LR
+A[Client] --> B[API]
+B --> C[(DB)]' --format png --theme default --output /tmp/diagram_arch.png
 ```

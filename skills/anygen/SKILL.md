@@ -27,22 +27,22 @@ output:
 ## 快速前置
 
 - 需要环境变量：`ANYGEN_API_KEY=sk-xxx`
-- 入口命令：`python3 skills/anygen/run.py '{...}'`
+- 入口命令：`python3 skills/anygen/run.py <command> [subcommand] [--flag value ...]`
 
 ## 渐进式披露（推荐顺序）
 
 ```bash
 # 1) 顶层总览
-python3 skills/anygen/run.py '{"action":"help"}'
+python3 skills/anygen/run.py help
 
 # 2) 模块清单
-python3 skills/anygen/run.py '{"action":"help","topic":"modules"}'
+python3 skills/anygen/run.py help --topic modules
 
 # 3) 查看模块说明
-python3 skills/anygen/run.py '{"action":"help","topic":"module","module":"task-manager"}'
+python3 skills/anygen/run.py help --topic module --module task-manager
 
 # 4) 查看具体动作参数与示例
-python3 skills/anygen/run.py '{"action":"help","topic":"action","module":"task-manager","action_name":"create"}'
+python3 skills/anygen/run.py help --topic action --module task-manager --action_name create
 ```
 
 ## task-manager 执行动作
@@ -51,19 +51,19 @@ python3 skills/anygen/run.py '{"action":"help","topic":"action","module":"task-m
 
 ```bash
 # 创建任务
-python3 skills/anygen/run.py '{"action":"task","task_action":"create","operation":"slide","prompt":"Q2 roadmap deck","style":"business"}'
+python3 skills/anygen/run.py task create --operation slide --prompt 'Q2 roadmap deck' --style business
 
 # 查询状态（单次）
-python3 skills/anygen/run.py '{"action":"task","task_action":"status","task_id":"task_xxx"}'
+python3 skills/anygen/run.py task status --task_id task_xxx
 
 # 轮询直到结束（可自动下载）
-python3 skills/anygen/run.py '{"action":"task","task_action":"poll","task_id":"task_xxx","output":"./output"}'
+python3 skills/anygen/run.py task poll --task_id task_xxx --output ./output
 
 # 直接下载完成任务文件
-python3 skills/anygen/run.py '{"action":"task","task_action":"download","task_id":"task_xxx","output":"./output"}'
+python3 skills/anygen/run.py task download --task_id task_xxx --output ./output
 
 # 一步式 create + poll (+可下载)
-python3 skills/anygen/run.py '{"action":"task","task_action":"run","operation":"doc","prompt":"Technical design for notification service","output":"./output"}'
+python3 skills/anygen/run.py task run --operation doc --prompt 'Technical design for notification service' --output ./output
 ```
 
 ## 模块边界

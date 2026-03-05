@@ -20,5 +20,5 @@ Run the Lark scenario test suite, analyze failures by root cause (test_drift, pr
 ## 调用
 
 ```bash
-python3 skills/self-test/run.py '{"action":"run"}'
+python3 skills/self-test/run.py run
 ```

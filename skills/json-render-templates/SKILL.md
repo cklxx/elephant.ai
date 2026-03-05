@@ -20,5 +20,5 @@ Generate json-render protocol payloads for visual layouts: flowcharts, forms, da
 ## 调用
 
 ```bash
-python3 skills/json-render-templates/run.py '{"action":"render","template":"dashboard","title":"Product Dashboard","data":{"metrics":[{"label":"Active users","value":12450}]}}'
+python3 skills/json-render-templates/run.py render --template dashboard --title 'Product Dashboard' --data '{"metrics":[{"label":"Active users","value":12450}]}'
 ```

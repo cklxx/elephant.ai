@@ -28,7 +28,7 @@ output:
 ## Usage
 
 ```bash
-python3 skills/audio-tts/run.py '{"action":"speak","text":"你好，这是语音测试"}'
+python3 skills/audio-tts/run.py speak --text '你好，这是语音测试'
 ```
 
 ## Parameters

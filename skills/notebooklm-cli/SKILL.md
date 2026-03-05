@@ -19,7 +19,7 @@ cooldown: 20
 统一入口：
 
 ```bash
-python3 skills/notebooklm-cli/run.py '{"command":"...","op":"..."}'
+python3 skills/notebooklm-cli/run.py <command> [op] [--flag value ...]
 ```
 
 ## 渐进式 help（给 LLM 先学契约）
@@ -30,15 +30,15 @@ python3 skills/notebooklm-cli/run.py '{"command":"...","op":"..."}'
 - `progressive`：overview + 各命令契约链路
 
 ```bash
-python3 skills/notebooklm-cli/run.py '{"command":"help","topic":"overview"}'
-python3 skills/notebooklm-cli/run.py '{"command":"help","topic":"schema"}'
-python3 skills/notebooklm-cli/run.py '{"command":"help","topic":"progressive"}'
+python3 skills/notebooklm-cli/run.py help --topic overview
+python3 skills/notebooklm-cli/run.py help --topic schema
+python3 skills/notebooklm-cli/run.py help --topic progressive
 ```
 
 如果需要底层原生命令帮助，可加：
 
 ```bash
-python3 skills/notebooklm-cli/run.py '{"command":"help","topic":"source","include_cli":true}'
+python3 skills/notebooklm-cli/run.py help --topic source --include_cli true
 ```
 
 ## 输入契约（统一）
@@ -61,12 +61,12 @@ python3 skills/notebooklm-cli/run.py '{"command":"help","topic":"source","includ
 ## 最小 E2E 示例
 
 ```bash
-python3 skills/notebooklm-cli/run.py '{"command":"auth","op":"check"}'
-python3 skills/notebooklm-cli/run.py '{"command":"notebook","op":"create","title":"NLM E2E"}'
-python3 skills/notebooklm-cli/run.py '{"command":"source","op":"add_url","notebook_id":"<nb-id>","url":"https://example.com/article"}'
-python3 skills/notebooklm-cli/run.py '{"command":"query","notebook_id":"<nb-id>","question":"总结 3 个关键结论"}'
-python3 skills/notebooklm-cli/run.py '{"command":"report","notebook_id":"<nb-id>","confirm":true}'
-python3 skills/notebooklm-cli/run.py '{"command":"studio","op":"status","notebook_id":"<nb-id>"}'
+python3 skills/notebooklm-cli/run.py auth check
+python3 skills/notebooklm-cli/run.py notebook create --title 'NLM E2E'
+python3 skills/notebooklm-cli/run.py source add_url --notebook_id '<nb-id>' --url https://example.com/article
+python3 skills/notebooklm-cli/run.py query --notebook_id '<nb-id>' --question '总结 3 个关键结论'
+python3 skills/notebooklm-cli/run.py report --notebook_id '<nb-id>' --confirm true
+python3 skills/notebooklm-cli/run.py studio status --notebook_id '<nb-id>'
 ```
 
 ## 规则

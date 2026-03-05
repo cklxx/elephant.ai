@@ -36,7 +36,7 @@ Goal: minimize mandatory reading and enforce strict conditional progressive disc
 ### 1.4 Delivery baseline
 - For logic changes, prefer TDD and include edge cases.
 - Run lint + tests before delivery.
-- Run code review before commit: `python3 skills/code-review/run.py '{"action":"review"}'`.
+- Run code review before commit: `python3 skills/code-review/run.py review`.
 - Fix P0/P1 before commit; create follow-up for P2.
 - Commit after completing changes; prefer small incremental commits.
 - Warn before destructive operations; avoid history rewrites unless explicitly requested.

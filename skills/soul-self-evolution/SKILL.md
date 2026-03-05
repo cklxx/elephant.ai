@@ -31,6 +31,6 @@ requires_approval: false
 ## 调用
 
 ```bash
-python3 skills/soul-self-evolution/run.py '{"action":"apply","path":"docs/reference/SOUL.md","changes":[{"section":"## Collaboration Preferences","content":"- Keep updates concise."}]}'
-python3 skills/soul-self-evolution/run.py '{"action":"list_checkpoints"}'
+python3 skills/soul-self-evolution/run.py apply --path docs/reference/SOUL.md --changes '[{"section":"## Collaboration Preferences","content":"- Keep updates concise."}]'
+python3 skills/soul-self-evolution/run.py list_checkpoints
 ```

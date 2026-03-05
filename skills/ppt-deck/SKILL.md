@@ -20,5 +20,5 @@ Generate presentation decks from topic to deliverable PPTX/PDF, following storyl
 ## 调用
 
 ```bash
-python3 skills/ppt-deck/run.py '{"action":"create","topic":"Q1 Review","audience":"leadership","format":"pptx"}'
+python3 skills/ppt-deck/run.py create --topic 'Q1 Review' --audience leadership --format pptx
 ```

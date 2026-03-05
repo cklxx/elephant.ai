@@ -20,5 +20,5 @@ Run a multi-dimensional code review (SOLID architecture, security, quality, edge
 ## 调用
 
 ```bash
-python3 skills/code-review/run.py '{"action":"review"}'
+python3 skills/code-review/run.py review
 ```

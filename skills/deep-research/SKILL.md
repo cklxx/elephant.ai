@@ -28,7 +28,7 @@ output:
 ## 调用
 
 ```bash
-python3 skills/deep-research/run.py '{"topic":"研究主题", "queries":["关键词1","关键词2"], "max_results":5, "depth":"basic"}'
+python3 skills/deep-research/run.py --topic '研究主题' --queries '["关键词1","关键词2"]' --max_results 5 --depth basic
 ```
 
 ## 参数

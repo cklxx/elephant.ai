@@ -24,7 +24,7 @@ output:
 ## 调用
 
 ```bash
-python3 skills/social-trends/run.py '{"platform":"douyin", "limit":20}'
+python3 skills/social-trends/run.py --platform douyin --limit 20
 ```
 
 ## 参数

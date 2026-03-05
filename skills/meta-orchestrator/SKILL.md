@@ -29,6 +29,6 @@ requires_approval: false
 ## 调用
 
 ```bash
-python3 skills/meta-orchestrator/run.py '{"action":"plan","skills":[{"name":"reminder-scheduler","score":0.8}],"proactive_level":"medium"}'
-python3 skills/meta-orchestrator/run.py '{"action":"summarize","plan":{"selected_skills":["meta-orchestrator"]}}'
+python3 skills/meta-orchestrator/run.py plan --skills '[{"name":"reminder-scheduler","score":0.8}]' --proactive_level medium
+python3 skills/meta-orchestrator/run.py summarize --plan '{"selected_skills":["meta-orchestrator"]}'
 ```

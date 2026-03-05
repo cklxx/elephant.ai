@@ -20,6 +20,6 @@ HTML 内容编辑：解析、修改、生成 HTML 片段。
 ## 调用
 
 ```bash
-python3 skills/web-page-editing/run.py '{"action":"extract","html":"<div><p>Hello</p></div>","selector":"p"}'
-python3 skills/web-page-editing/run.py '{"action":"generate","template":"landing","title":"My Page"}'
+python3 skills/web-page-editing/run.py extract --html '<div><p>Hello</p></div>' --selector p
+python3 skills/web-page-editing/run.py generate --template landing --title 'My Page'
 ```

@@ -27,5 +27,5 @@ Generate short videos via ARK Seedance backend.
 ## Usage
 
 ```bash
-python3 skills/video-production/run.py '{"action":"generate","prompt":"cute cat animation","duration":5,"output":"/tmp/cat.mp4"}'
+python3 skills/video-production/run.py generate --prompt 'cute cat animation' --duration 5 --output /tmp/cat.mp4
 ```

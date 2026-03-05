@@ -20,7 +20,7 @@ cooldown: 30
 ## 调用
 
 ```bash
-python3 skills/config-management/run.py '{"action":"get","key":"llm.model"}'
-python3 skills/config-management/run.py '{"action":"set","key":"llm.model","value":"gpt-4o"}'
-python3 skills/config-management/run.py '{"action":"list"}'
+python3 skills/config-management/run.py get --key llm.model
+python3 skills/config-management/run.py set --key llm.model --value gpt-4o
+python3 skills/config-management/run.py list
 ```

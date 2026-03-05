@@ -20,5 +20,5 @@ Automatically create new skills from repeated task patterns by dispatching to ex
 ## 调用
 
 ```bash
-python3 skills/auto-skill-creation/run.py '{"action":"create","skill_name":"my-new-skill","description":"What the skill does","agent_type":"codex"}'
+python3 skills/auto-skill-creation/run.py create --skill_name my-new-skill --description 'What the skill does' --agent_type codex
 ```

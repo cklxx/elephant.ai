@@ -134,7 +134,7 @@ Sources: [Effective Go](https://go.dev/doc/effective_go), [Go Code Review Commen
 **Mandatory before every commit.** After lint + tests pass:
 
 ```bash
-python3 skills/code-review/run.py '{"action":"review"}'
+python3 skills/code-review/run.py review
 ```
 
 See [Code Review Guide](code-review-guide.md) for full process.

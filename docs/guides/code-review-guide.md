@@ -11,7 +11,7 @@ Mandatory code review process before every commit. Covers SOLID architecture, se
 After lint + tests pass, **before any commit or merge**. No exceptions.
 
 ```bash
-python3 skills/code-review/run.py '{"action":"review"}'
+python3 skills/code-review/run.py review
 ```
 
 ---
@@ -59,7 +59,7 @@ python3 skills/code-review/run.py '{"action":"review"}'
 ## Review Workflow
 
 1. Run `alex dev lint` + `alex dev test` — all must pass.
-2. Run `python3 skills/code-review/run.py '{"action":"review"}'`.
+2. Run `python3 skills/code-review/run.py review`.
 3. Read the generated report.
 4. Fix all P0/P1 findings.
 5. Re-run lint + test after fixes.

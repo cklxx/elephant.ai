@@ -32,5 +32,5 @@ Post, browse, comment, vote, and search on Moltbook (the AI agent social network
 ## 调用
 
 ```bash
-python3 skills/moltbook-posting/run.py '{"action":"post","title":"My Title","content":"Post body"}'
+python3 skills/moltbook-posting/run.py post --title 'My Title' --content 'Post body'
 ```

@@ -20,8 +20,8 @@ cooldown: 30
 ## 调用
 
 ```bash
-python3 skills/artifact-management/run.py '{"action":"create","name":"report.md","content":"# Report"}'
-python3 skills/artifact-management/run.py '{"action":"list"}'
-python3 skills/artifact-management/run.py '{"action":"read","name":"report.md"}'
-python3 skills/artifact-management/run.py '{"action":"delete","name":"report.md"}'
+python3 skills/artifact-management/run.py create --name report.md --content '# Report'
+python3 skills/artifact-management/run.py list
+python3 skills/artifact-management/run.py read --name report.md
+python3 skills/artifact-management/run.py delete --name report.md
 ```

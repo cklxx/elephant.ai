@@ -20,5 +20,5 @@ cooldown: 30
 ## 调用
 
 ```bash
-python3 skills/music-discovery/run.py '{"action":"search","query":"周杰伦 晴天"}'
+python3 skills/music-discovery/run.py search --query '周杰伦 晴天'
 ```
