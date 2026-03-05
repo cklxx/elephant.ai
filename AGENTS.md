@@ -70,6 +70,7 @@
 3. Develop in the worktree.
 4. `git checkout main && git merge --ff-only <branch>`
 5. `git worktree remove ../<dir>` (optionally delete the branch).
+6. Push policy: only execute `git push` from the primary repository workspace (`/Users/bytedance/code/elephant.ai`) or its managed worktrees sharing the same `.git` directory. Do not push from ad-hoc temporary clones.
 
 **Testing & quality**
 * Use TDD when touching logic; cover edge cases.

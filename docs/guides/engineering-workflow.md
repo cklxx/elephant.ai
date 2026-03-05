@@ -169,6 +169,7 @@ For kernel validation: `go run ./cmd/alex-server kernel-once`.
 ### Pre-Push Gate
 
 `scripts/pre-push.sh` mirrors CI fast-fail checks. Always runs before `git push`. Skip only with `SKIP_PRE_PUSH=1`.
+Push scope rule: run `git push` only from the primary repository workspace (`/Users/bytedance/code/elephant.ai`) or its managed worktrees that share the same `.git` directory; never push from ad-hoc temporary clones.
 
 Note: parallel checks on large diffs may produce `-race` flakes and lint timeouts. Confirm with a targeted re-run before treating as a real regression.
 
