@@ -42,7 +42,7 @@ func TestNewRegistryRegistersLarkLocalTools(t *testing.T) {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	for _, want := range []string{"read_file", "write_file", "replace_in_file", "shell_exec", "channel"} {
+	for _, want := range []string{"read_file", "write_file", "replace_in_file", "shell_exec"} {
 		if _, err := registry.Get(want); err != nil {
 			t.Fatalf("expected %s to be registered for lark-local toolset: %v", want, err)
 		}
@@ -59,11 +59,10 @@ func TestNewRegistryRegistersExpectedToolCount(t *testing.T) {
 	for _, def := range defs {
 		names = append(names, def.Name)
 	}
-	// 10 core tools: read_file, write_file, replace_in_file, shell_exec,
-	// channel, web_search, skills,
-	// ask_user, context_checkpoint
-	if len(defs) != 9 {
-		t.Fatalf("expected 9 tools, got %d: %v", len(defs), names)
+	// 8 core tools: read_file, write_file, replace_in_file, shell_exec,
+	// web_search, skills, ask_user, context_checkpoint
+	if len(defs) != 8 {
+		t.Fatalf("expected 8 tools, got %d: %v", len(defs), names)
 	}
 }
 
@@ -318,7 +317,8 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 	for _, want := range []string{
 		"read_file", "write_file", "replace_in_file", "shell_exec",
 		"ask_user",
-		"web_search", "skills", "channel",
+		"web_search", "skills",
+		"context_checkpoint",
 	} {
 		if !names[want] {
 			t.Errorf("expected tool %s to be registered", want)

@@ -9,7 +9,7 @@ triggers:
   confidence_threshold: 0.6
 priority: 7
 exclusive_group: lark-vc
-requires_tools: [channel]
+requires_tools: [bash]
 max_tokens: 200
 cooldown: 30
 ---

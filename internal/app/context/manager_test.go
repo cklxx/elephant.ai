@@ -212,7 +212,7 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 	for _, snippet := range []string{
 		"task_has_explicit_operation",
 		"read_only_inspection",
-		"read_file for memory files",
+		"inspect thread context + memory files via read_file/shell_exec",
 		"user_delegates",
 		"needs_human_gate",
 		"ALWAYS exhaust deterministic tools",

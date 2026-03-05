@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import mimetypes
 import os
 import secrets
 import sys
@@ -768,6 +769,220 @@ def _parse_duration_seconds(value: str | int | float | None) -> int:
     return 3600
 
 
+def _clamp_page_size(value: Any, *, default: int = 20, minimum: int = 1, maximum: int = 200) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    if parsed < minimum:
+        return minimum
+    if parsed > maximum:
+        return maximum
+    return parsed
+
+
+def _resolve_chat_id(args: dict[str, Any]) -> str:
+    return (
+        str(args.get("chat_id", "")).strip()
+        or os.environ.get("LARK_CHAT_ID", "").strip()
+        or os.environ.get("FEISHU_CHAT_ID", "").strip()
+    )
+
+
+def _resolve_reply_to_message_id(args: dict[str, Any]) -> str:
+    candidate = str(args.get("reply_to_message_id", "")).strip() or str(args.get("message_id", "")).strip()
+    if candidate.startswith("inject_"):
+        return ""
+    return candidate
+
+
+def _message_text_payload(content: str) -> str:
+    return json.dumps({"text": content}, ensure_ascii=False)
+
+
+def _message_post_payload(content: str) -> str:
+    lines = [line for line in str(content).splitlines() if line.strip()]
+    if not lines:
+        lines = [str(content)]
+    rich_rows = [[{"tag": "text", "text": line}] for line in lines]
+    payload = {"post": {"zh_cn": {"content": rich_rows}}}
+    return json.dumps(payload, ensure_ascii=False)
+
+
+def _select_im_file_type(file_name: str) -> str:
+    extension = Path(file_name).suffix.lower().lstrip(".")
+    if extension in {"opus", "mp4", "pdf", "doc", "xls", "ppt"}:
+        return extension
+    return "stream"
+
+
+def _is_image_file(file_name: str) -> bool:
+    extension = Path(file_name).suffix.lower().lstrip(".")
+    return extension in {"jpg", "jpeg", "png", "gif", "webp", "bmp", "ico", "tif", "tiff"}
+
+
+def _is_audio_file(file_name: str) -> bool:
+    extension = Path(file_name).suffix.lower().lstrip(".")
+    return extension in {"m4a", "mp3", "opus", "wav", "aac"}
+
+
+def _resolve_source_file(args: dict[str, Any]) -> tuple[Path | None, dict[str, Any] | None]:
+    source = str(args.get("source", "")).strip()
+    source_kind = str(args.get("source_kind", "path")).strip().lower() or "path"
+    if not source:
+        return None, {"success": False, "error": "source is required"}
+    if source_kind not in {"path", "attachment"}:
+        return None, {"success": False, "error": "source_kind must be 'path' or 'attachment'"}
+
+    # In CLI mode attachment aliases are treated as local file paths.
+    if source_kind == "attachment" and source.startswith("[") and source.endswith("]"):
+        source = source[1:-1].strip()
+    path = Path(source).expanduser().resolve()
+    if not path.exists() or not path.is_file():
+        return None, {"success": False, "error": f"source file not found: {source}"}
+    return path, None
+
+
+def _multipart_json_request(
+    url: str,
+    *,
+    token: str,
+    fields: dict[str, str],
+    file_field: str,
+    file_name: str,
+    file_bytes: bytes,
+    timeout: int = 30,
+) -> dict[str, Any]:
+    boundary = f"----feishu-cli-{secrets.token_hex(12)}"
+    mime_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+
+    chunks: list[bytes] = []
+    for key, value in fields.items():
+        chunks.append(f"--{boundary}\r\n".encode("utf-8"))
+        chunks.append(f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode("utf-8"))
+        chunks.append(str(value).encode("utf-8"))
+        chunks.append(b"\r\n")
+
+    chunks.append(f"--{boundary}\r\n".encode("utf-8"))
+    chunks.append(
+        f'Content-Disposition: form-data; name="{file_field}"; filename="{file_name}"\r\n'.encode("utf-8")
+    )
+    chunks.append(f"Content-Type: {mime_type}\r\n\r\n".encode("utf-8"))
+    chunks.append(file_bytes)
+    chunks.append(b"\r\n")
+    chunks.append(f"--{boundary}--\r\n".encode("utf-8"))
+
+    body = b"".join(chunks)
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        raw = ""
+        try:
+            raw = exc.read().decode("utf-8")
+        except Exception:
+            raw = ""
+        parsed = _parse_json_dict(raw)
+        if parsed:
+            parsed.setdefault("http_status", exc.code)
+            parsed.setdefault("error", parsed.get("msg") or parsed.get("message") or f"HTTP Error {exc.code}")
+            return parsed
+        return {"http_status": exc.code, "error": f"HTTP Error {exc.code}: {raw or str(exc)}"}
+    except urllib.error.URLError as exc:
+        return {"error": str(exc)}
+
+    parsed = _parse_json_dict(raw)
+    if parsed:
+        return parsed
+    return {"error": "invalid JSON response", "raw": raw}
+
+
+def _resolve_bearer_token(auth_manager: AuthManager, *, auth: str = "tenant", user_key: str = "", timeout: int = 15) -> tuple[str, str | None]:
+    if auth == "user":
+        return auth_manager.get_user_access_token(user_key=user_key, timeout=timeout)
+    return legacy_lark_auth.get_lark_tenant_token(timeout=timeout)
+
+
+def _normalize_task_create_fields(args: dict[str, Any]) -> tuple[str, str]:
+    summary = str(args.get("summary", "")).strip()
+    description = str(args.get("description", "")).strip()
+    content = str(args.get("content", "")).strip()
+    if not description and content:
+        description = content
+    if summary:
+        lines = summary.splitlines()
+        if len(lines) > 1 and not description:
+            summary = lines[0].strip()
+            description = "\n".join(line.rstrip() for line in lines[1:]).strip()
+    if not summary and description:
+        first, *rest = description.splitlines()
+        summary = first.strip()
+        if rest:
+            description = "\n".join(line.rstrip() for line in rest).strip()
+        else:
+            description = ""
+    return summary, description
+
+
+def _normalize_task_update_fields(args: dict[str, Any]) -> tuple[str, str]:
+    summary = str(args.get("summary", "")).strip()
+    description = str(args.get("description", "")).strip()
+    content = str(args.get("content", "")).strip()
+    if not description and content:
+        description = content
+    if summary and not description:
+        lines = summary.splitlines()
+        if len(lines) > 1:
+            summary = lines[0].strip()
+            description = "\n".join(line.rstrip() for line in lines[1:]).strip()
+    return summary, description
+
+
+def _parse_unix_seconds(value: Any, *, field_name: str) -> tuple[int | None, dict[str, Any] | None]:
+    text = str(value or "").strip()
+    if not text:
+        return None, {"success": False, "error": f"{field_name} is required"}
+    if not text.isdigit():
+        return None, {"success": False, "error": f"{field_name} must be unix timestamp in seconds"}
+    return int(text), None
+
+
+def _build_task_due(args: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    due_at = str(args.get("due_at", "")).strip()
+    due_date = str(args.get("due_date", "")).strip()
+    if due_at and due_date:
+        return None, {"success": False, "error": "provide only one of due_at or due_date"}
+    if due_date:
+        try:
+            parsed = datetime.strptime(due_date, "%Y-%m-%d")
+        except ValueError:
+            return None, {"success": False, "error": "due_date must be YYYY-MM-DD"}
+        return {"timestamp": str(int(parsed.replace(tzinfo=timezone.utc).timestamp() * 1000)), "is_all_day": True}, None
+    if due_at:
+        seconds, due_err = _parse_unix_seconds(due_at, field_name="due_at")
+        if due_err:
+            return None, due_err
+        return {"timestamp": str(seconds * 1000)}, None
+    return None, None
+
+
+def _task_request_mode(args: dict[str, Any]) -> tuple[str, str]:
+    user_key = str(args.get("user_key", "")).strip()
+    if user_key:
+        return "user", user_key
+    return "tenant", ""
+
+
 def _resolve_calendar_id(args: dict[str, Any], auth_manager: AuthManager) -> tuple[str, dict[str, Any] | None]:
     provided = (
         str(args.get("calendar_id", "")).strip()
@@ -783,8 +998,18 @@ def _resolve_calendar_id(args: dict[str, Any], auth_manager: AuthManager) -> tup
     if failure:
         return "primary", None
 
-    items = listing.get("data", {}).get("items", [])
+    data = listing.get("data", {})
+    items = data.get("items", [])
+    if not isinstance(items, list) or not items:
+        items = data.get("calendar_list", [])
     if isinstance(items, list) and items:
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            calendar_type = str(item.get("type", "")).strip().lower()
+            calendar_id = str(item.get("calendar_id", "")).strip()
+            if calendar_type == "primary" and calendar_id:
+                return calendar_id, None
         calendar_id = str(items[0].get("calendar_id", "")).strip()
         if calendar_id:
             return calendar_id, None
@@ -881,11 +1106,31 @@ ToolHandler = Callable[[dict[str, Any], AuthManager], dict[str, Any]]
 
 
 ACTION_SPECS: dict[str, dict[str, ActionSpec]] = {
+    "message": {
+        "send_message": ActionSpec(
+            summary="Send message to current chat",
+            required=("content",),
+            optional=("chat_id", "content_format", "reply_to_message_id"),
+            example={"content": "progress update", "content_format": "text"},
+        ),
+        "upload_file": ActionSpec(
+            summary="Upload and send file/image/audio message",
+            required=("source",),
+            optional=("source_kind", "file_name", "chat_id", "reply_to_message_id", "max_bytes"),
+            example={"source": "/tmp/report.pdf", "source_kind": "path"},
+        ),
+        "history": ActionSpec(
+            summary="Fetch chat message history",
+            required=(),
+            optional=("chat_id", "page_size", "page_token", "start_time", "end_time"),
+            example={"page_size": 20},
+        ),
+    },
     "calendar": {
         "create": ActionSpec(
             summary="Create calendar event",
             required=("title", "start"),
-            optional=("duration", "description", "calendar_id"),
+            optional=("duration", "description", "calendar_id", "timezone"),
             example={"title": "Weekly Sync", "start": "2026-03-06 10:00", "duration": "60m"},
         ),
         "query": ActionSpec(
@@ -893,6 +1138,12 @@ ACTION_SPECS: dict[str, dict[str, ActionSpec]] = {
             required=("start",),
             optional=("end", "calendar_id"),
             example={"start": "2026-03-06", "end": "2026-03-07"},
+        ),
+        "update": ActionSpec(
+            summary="Update calendar event",
+            required=("event_id",),
+            optional=("summary", "description", "start_time", "end_time", "timezone", "calendar_id"),
+            example={"event_id": "evt_xxx", "summary": "Updated title"},
         ),
         "delete": ActionSpec(
             summary="Delete calendar event",
@@ -943,7 +1194,7 @@ ACTION_SPECS: dict[str, dict[str, ActionSpec]] = {
         "create": ActionSpec(
             summary="Create docx document",
             required=(),
-            optional=("title", "folder_token"),
+            optional=("title", "folder_token", "content", "description"),
             example={"title": "Project Notes"},
         ),
         "read": ActionSpec(
@@ -957,6 +1208,62 @@ ACTION_SPECS: dict[str, dict[str, ActionSpec]] = {
             required=("document_id",),
             optional=(),
             example={"document_id": "doccnxxxx"},
+        ),
+        "list_blocks": ActionSpec(
+            summary="List document blocks",
+            required=("document_id",),
+            optional=("page_size", "page_token"),
+            example={"document_id": "doccnxxxx", "page_size": 20},
+        ),
+        "update_block_text": ActionSpec(
+            summary="Update text content of a document block",
+            required=("document_id", "block_id", "content"),
+            optional=("document_revision_id", "client_token", "user_id_type"),
+            example={"document_id": "doccnxxxx", "block_id": "blk_xxx", "content": "Updated content"},
+        ),
+        "write_markdown": ActionSpec(
+            summary="Convert markdown and append to document",
+            required=("document_id", "content"),
+            optional=(),
+            example={"document_id": "doccnxxxx", "content": "# Heading\nBody"},
+        ),
+    },
+    "task": {
+        "list": ActionSpec(
+            summary="List my tasks",
+            required=(),
+            optional=("page_size", "page_token", "completed", "user_id_type", "user_key"),
+            example={"page_size": 20},
+        ),
+        "list_subtasks": ActionSpec(
+            summary="List subtasks under a parent task",
+            required=("parent_task_id",),
+            optional=("page_size", "page_token", "user_id_type", "user_key"),
+            example={"parent_task_id": "task_xxx"},
+        ),
+        "create": ActionSpec(
+            summary="Create task",
+            required=("summary",),
+            optional=("description", "content", "due_at", "due_date", "assignee_ids", "assignee_type", "client_token", "user_id_type", "user_key"),
+            example={"summary": "Review PR", "description": "Before EOD"},
+        ),
+        "create_subtask": ActionSpec(
+            summary="Create subtask under a parent task",
+            required=("parent_task_id", "summary"),
+            optional=("description", "content", "due_at", "due_date", "assignee_ids", "assignee_type", "client_token", "user_id_type", "user_key"),
+            example={"parent_task_id": "task_xxx", "summary": "Prepare draft"},
+        ),
+        "update": ActionSpec(
+            summary="Update task fields",
+            required=("task_id",),
+            optional=("summary", "description", "content", "due_time", "user_id_type", "user_key"),
+            example={"task_id": "task_xxx", "summary": "Updated task title"},
+        ),
+        "delete": ActionSpec(
+            summary="Delete task",
+            required=("task_id",),
+            optional=("user_id_type", "user_key"),
+            example={"task_id": "task_xxx"},
         ),
     },
     "wiki": {
@@ -1129,23 +1436,212 @@ ACTION_SPECS: dict[str, dict[str, ActionSpec]] = {
             example={"app_token": "bascnxxxx", "table_id": "tblxxx"},
         ),
     },
+    "sheets": {
+        "create_spreadsheet": "create",
+        "get_spreadsheet": "get",
+    },
+    "okr": {
+        "list_okr_periods": "list_periods",
+        "batch_get_okrs": "batch_get",
+    },
 }
 
 
 # ---- Tool handlers ---------------------------------------------------------
 
+
+def _message_send(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    chat_id = _resolve_chat_id(args)
+    if not chat_id:
+        return {"success": False, "error": "chat_id is required"}
+
+    content = str(args.get("content", "")).strip()
+    if not content:
+        return {"success": False, "error": "content is required"}
+
+    content_format = str(args.get("content_format", "text")).strip().lower() or "text"
+    msg_type = "post" if content_format in {"post", "richtext", "rich_text"} else "text"
+    payload = _message_post_payload(content) if msg_type == "post" else _message_text_payload(content)
+    reply_to_message_id = _resolve_reply_to_message_id(args)
+
+    if reply_to_message_id:
+        result = api_request(
+            "POST",
+            f"/im/v1/messages/{reply_to_message_id}/reply",
+            {"content": payload, "msg_type": msg_type},
+            auth_manager=auth_manager,
+        )
+    else:
+        result = api_request(
+            "POST",
+            "/im/v1/messages",
+            {"receive_id": chat_id, "msg_type": msg_type, "content": payload},
+            query={"receive_id_type": "chat_id"},
+            auth_manager=auth_manager,
+        )
+    failure = _api_failure(result)
+    if failure:
+        return failure
+
+    data = result.get("data", {})
+    message_id = str(data.get("message_id", "") or "").strip()
+    return {
+        "success": True,
+        "message_id": message_id,
+        "chat_id": chat_id,
+        "msg_type": msg_type,
+        "message": "message sent successfully",
+    }
+
+
+def _message_history(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    chat_id = _resolve_chat_id(args)
+    if not chat_id:
+        return {"success": False, "error": "chat_id is required"}
+
+    query: dict[str, Any] = {
+        "container_id_type": "chat",
+        "container_id": chat_id,
+        "sort_type": "ByCreateTimeDesc",
+        "page_size": _clamp_page_size(args.get("page_size"), default=20, maximum=50),
+    }
+    start_time = str(args.get("start_time", "")).strip()
+    end_time = str(args.get("end_time", "")).strip()
+    page_token = str(args.get("page_token", "")).strip()
+    if start_time:
+        query["start_time"] = start_time
+    if end_time:
+        query["end_time"] = end_time
+    if page_token:
+        query["page_token"] = page_token
+
+    result = api_request("GET", "/im/v1/messages", query=query, auth_manager=auth_manager)
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    data = result.get("data", {})
+    items = data.get("items", [])
+    return {
+        "success": True,
+        "chat_id": chat_id,
+        "messages": items,
+        "count": len(items) if isinstance(items, list) else 0,
+        "page_token": data.get("page_token", ""),
+        "has_more": bool(data.get("has_more", False)),
+    }
+
+
+def _message_upload_file(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    source_path, source_err = _resolve_source_file(args)
+    if source_err:
+        return source_err
+
+    assert source_path is not None
+    chat_id = _resolve_chat_id(args)
+    if not chat_id:
+        return {"success": False, "error": "chat_id is required"}
+
+    max_bytes = int(args.get("max_bytes", 20 * 1024 * 1024) or 20 * 1024 * 1024)
+    file_size = source_path.stat().st_size
+    if max_bytes > 0 and file_size > max_bytes:
+        return {"success": False, "error": f"file too large: {file_size} bytes > {max_bytes}"}
+
+    file_name = str(args.get("file_name", "")).strip() or source_path.name
+    file_bytes = source_path.read_bytes()
+    token, token_err = _resolve_bearer_token(auth_manager, timeout=30)
+    if token_err:
+        return {"success": False, "error": token_err}
+
+    if _is_image_file(file_name):
+        upload = _multipart_json_request(
+            _build_url(auth_manager._open_api_base, "/im/v1/images", None),
+            token=token,
+            fields={"image_type": "message"},
+            file_field="image",
+            file_name=file_name,
+            file_bytes=file_bytes,
+        )
+        failure = _api_failure(upload)
+        if failure:
+            return failure
+        image_key = str(upload.get("data", {}).get("image_key", "")).strip()
+        if not image_key:
+            return {"success": False, "error": "upload image succeeded but image_key is missing"}
+        msg_type = "image"
+        msg_content = json.dumps({"image_key": image_key}, ensure_ascii=False)
+        upload_key = image_key
+        upload_field = "image_key"
+    else:
+        upload = _multipart_json_request(
+            _build_url(auth_manager._open_api_base, "/im/v1/files", None),
+            token=token,
+            fields={"file_type": _select_im_file_type(file_name), "file_name": file_name},
+            file_field="file",
+            file_name=file_name,
+            file_bytes=file_bytes,
+        )
+        failure = _api_failure(upload)
+        if failure:
+            return failure
+        file_key = str(upload.get("data", {}).get("file_key", "")).strip()
+        if not file_key:
+            return {"success": False, "error": "upload file succeeded but file_key is missing"}
+        msg_type = "audio" if _is_audio_file(file_name) else "file"
+        msg_content = json.dumps({"file_key": file_key}, ensure_ascii=False)
+        upload_key = file_key
+        upload_field = "file_key"
+
+    reply_to_message_id = _resolve_reply_to_message_id(args)
+    if reply_to_message_id:
+        send = api_request(
+            "POST",
+            f"/im/v1/messages/{reply_to_message_id}/reply",
+            {"msg_type": msg_type, "content": msg_content},
+            auth_manager=auth_manager,
+        )
+    else:
+        send = api_request(
+            "POST",
+            "/im/v1/messages",
+            {"receive_id": chat_id, "msg_type": msg_type, "content": msg_content},
+            query={"receive_id_type": "chat_id"},
+            auth_manager=auth_manager,
+        )
+    failure = _api_failure(send)
+    if failure:
+        return failure
+
+    message_id = str(send.get("data", {}).get("message_id", "")).strip()
+    return {
+        "success": True,
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "msg_type": msg_type,
+        upload_field: upload_key,
+        "file_name": file_name,
+        "bytes": file_size,
+        "message": "file sent successfully",
+    }
+
+
 def _calendar_create(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
-    title = str(args.get("title", "")).strip()
-    start = str(args.get("start", "")).strip()
+    title = str(args.get("title", "")).strip() or str(args.get("summary", "")).strip()
+    start = str(args.get("start", "")).strip() or str(args.get("start_time", "")).strip()
     if not title or not start:
-        return {"success": False, "error": "title and start are required"}
+        return {"success": False, "error": "title/summary and start/start_time are required"}
 
     start_ts = _parse_ts(start)
     if not start_ts:
         return {"success": False, "error": "invalid start format; use timestamp or YYYY-MM-DD[ HH:MM]"}
 
-    duration_seconds = _parse_duration_seconds(args.get("duration"))
-    end_ts = str(int(start_ts) + duration_seconds)
+    end_source = str(args.get("end_time", "")).strip() or str(args.get("end", "")).strip()
+    if end_source:
+        end_ts = _parse_ts(end_source)
+        if not end_ts:
+            return {"success": False, "error": "invalid end_time/end format"}
+    else:
+        duration_seconds = _parse_duration_seconds(args.get("duration"))
+        end_ts = str(int(start_ts) + duration_seconds)
     calendar_id, calendar_err = _resolve_calendar_id(args, auth_manager)
     if calendar_err:
         return calendar_err
@@ -1156,6 +1652,12 @@ def _calendar_create(args: dict[str, Any], auth_manager: AuthManager) -> dict[st
         "end_time": {"timestamp": end_ts},
         "description": args.get("description", ""),
     }
+    timezone_name = str(args.get("timezone", "")).strip()
+    if timezone_name:
+        body["start_time"]["timezone"] = timezone_name
+        body["end_time"]["timezone"] = timezone_name
+    if "need_notification" in args:
+        body["need_notification"] = bool(args.get("need_notification"))
     result = api_request(
         "POST",
         f"/calendar/v4/calendars/{calendar_id}/events",
@@ -1169,10 +1671,10 @@ def _calendar_create(args: dict[str, Any], auth_manager: AuthManager) -> dict[st
 
 
 def _calendar_query(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
-    start = str(args.get("start", "")).strip()
-    end = str(args.get("end", "")).strip()
+    start = str(args.get("start", "")).strip() or str(args.get("start_time", "")).strip()
+    end = str(args.get("end", "")).strip() or str(args.get("end_time", "")).strip()
     if not start:
-        return {"success": False, "error": "start is required"}
+        return {"success": False, "error": "start/start_time is required"}
 
     start_ts = _parse_ts(start)
     if not start_ts:
@@ -1204,6 +1706,62 @@ def _calendar_query(args: dict[str, Any], auth_manager: AuthManager) -> dict[str
     return {"success": True, "events": events, "count": len(events)}
 
 
+def _calendar_update(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    event_id = str(args.get("event_id", "")).strip()
+    if not event_id:
+        return {"success": False, "error": "event_id is required"}
+
+    body: dict[str, Any] = {}
+    summary = str(args.get("summary", "")).strip()
+    description = str(args.get("description", "")).strip()
+    start_time = str(args.get("start_time", "")).strip()
+    end_time = str(args.get("end_time", "")).strip()
+    timezone_name = str(args.get("timezone", "")).strip()
+
+    if summary:
+        body["summary"] = summary
+    if description:
+        body["description"] = description
+
+    parsed_start: int | None = None
+    parsed_end: int | None = None
+    if start_time:
+        parsed = _parse_ts(start_time)
+        if not parsed:
+            return {"success": False, "error": "invalid start_time format"}
+        parsed_start = int(parsed)
+        body["start_time"] = {"timestamp": parsed}
+        if timezone_name:
+            body["start_time"]["timezone"] = timezone_name
+    if end_time:
+        parsed = _parse_ts(end_time)
+        if not parsed:
+            return {"success": False, "error": "invalid end_time format"}
+        parsed_end = int(parsed)
+        body["end_time"] = {"timestamp": parsed}
+        if timezone_name:
+            body["end_time"]["timezone"] = timezone_name
+    if parsed_start is not None and parsed_end is not None and parsed_end <= parsed_start:
+        return {"success": False, "error": "end_time must be greater than start_time"}
+    if not body:
+        return {"success": False, "error": "at least one of summary, description, start_time, end_time is required"}
+
+    calendar_id, calendar_err = _resolve_calendar_id(args, auth_manager)
+    if calendar_err:
+        return calendar_err
+
+    result = api_request(
+        "PATCH",
+        f"/calendar/v4/calendars/{calendar_id}/events/{event_id}",
+        body,
+        auth_manager=auth_manager,
+    )
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    return {"success": True, "event": result.get("data", {}).get("event", {}), "message": "event updated"}
+
+
 def _calendar_delete(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
     event_id = str(args.get("event_id", "")).strip()
     if not event_id:
@@ -1229,7 +1787,10 @@ def _calendar_list(args: dict[str, Any], auth_manager: AuthManager) -> dict[str,
     failure = _api_failure(result)
     if failure:
         return failure
-    calendars = result.get("data", {}).get("items", [])
+    data = result.get("data", {})
+    calendars = data.get("items", [])
+    if not isinstance(calendars, list) or not calendars:
+        calendars = data.get("calendar_list", [])
     return {"success": True, "calendars": calendars, "count": len(calendars)}
 
 
@@ -1336,6 +1897,7 @@ def _doc_create(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, An
     body: dict[str, Any] = {}
     title = str(args.get("title", "")).strip()
     folder_token = str(args.get("folder_token", "")).strip()
+    initial_content = str(args.get("content", "")).strip() or str(args.get("description", "")).strip()
     if title:
         body["title"] = title
     if folder_token:
@@ -1346,7 +1908,15 @@ def _doc_create(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, An
     if failure:
         return failure
     doc = result.get("data", {}).get("document", {})
-    return {"success": True, "document": doc, "message": f"文档「{title}」已创建" if title else "文档已创建"}
+    response: dict[str, Any] = {"success": True, "document": doc, "message": f"文档「{title}」已创建" if title else "文档已创建"}
+    if initial_content:
+        document_id = str(doc.get("document_id", "")).strip()
+        if document_id:
+            write_result = _doc_write_markdown({"document_id": document_id, "content": initial_content}, auth_manager)
+            if not write_result.get("success"):
+                return write_result
+            response["content_written"] = True
+    return response
 
 
 def _doc_read(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
@@ -1371,6 +1941,378 @@ def _doc_read_content(args: dict[str, Any], auth_manager: AuthManager) -> dict[s
     if failure:
         return failure
     return {"success": True, "content": result.get("data", {}).get("content", "")}
+
+
+def _doc_list_blocks(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    document_id = str(args.get("document_id", "")).strip()
+    if not document_id:
+        return {"success": False, "error": "document_id is required"}
+
+    query: dict[str, Any] = {"page_size": _clamp_page_size(args.get("page_size"), default=50, maximum=500)}
+    page_token = str(args.get("page_token", "")).strip()
+    if page_token:
+        query["page_token"] = page_token
+
+    result = api_request("GET", f"/docx/v1/documents/{document_id}/blocks", query=query, auth_manager=auth_manager)
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    data = result.get("data", {})
+    blocks = data.get("items", [])
+    return {
+        "success": True,
+        "document_id": document_id,
+        "blocks": blocks,
+        "count": len(blocks) if isinstance(blocks, list) else 0,
+        "page_token": data.get("page_token", ""),
+        "has_more": bool(data.get("has_more", False)),
+    }
+
+
+def _doc_update_block_text(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    document_id = str(args.get("document_id", "")).strip()
+    block_id = str(args.get("block_id", "")).strip()
+    content = str(args.get("content", "")).strip()
+    if not document_id or not block_id or not content:
+        return {"success": False, "error": "document_id, block_id and content are required"}
+
+    revision = int(args.get("document_revision_id", -1) or -1)
+    body = {
+        "update_text_elements": {
+            "elements": [{"text_run": {"content": content}}],
+        }
+    }
+    query: dict[str, Any] = {"document_revision_id": revision}
+    client_token = str(args.get("client_token", "")).strip()
+    user_id_type = str(args.get("user_id_type", "")).strip()
+    if client_token:
+        query["client_token"] = client_token
+    if user_id_type:
+        query["user_id_type"] = user_id_type
+
+    result = api_request(
+        "PATCH",
+        f"/docx/v1/documents/{document_id}/blocks/{block_id}",
+        body,
+        query=query,
+        auth_manager=auth_manager,
+    )
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    return {
+        "success": True,
+        "document_id": document_id,
+        "block": result.get("data", {}).get("block", {}),
+        "document_revision_id": result.get("data", {}).get("document_revision_id", 0),
+        "client_token": result.get("data", {}).get("client_token", ""),
+        "message": "block updated",
+    }
+
+
+def _doc_write_markdown(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    document_id = str(args.get("document_id", "")).strip()
+    content = str(args.get("content", "")).strip()
+    if not document_id or not content:
+        return {"success": False, "error": "document_id and content are required"}
+
+    blocks_result = api_request(
+        "GET",
+        f"/docx/v1/documents/{document_id}/blocks",
+        query={"page_size": 50},
+        auth_manager=auth_manager,
+    )
+    blocks_failure = _api_failure(blocks_result)
+    if blocks_failure:
+        return blocks_failure
+    page_block_id = document_id
+    items = blocks_result.get("data", {}).get("items", [])
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if int(item.get("block_type", 0) or 0) == 1:
+                block_id = str(item.get("block_id", "")).strip()
+                if block_id:
+                    page_block_id = block_id
+                    break
+
+    convert = api_request(
+        "POST",
+        "/docx/v1/documents/blocks/convert",
+        {"content_type": "markdown", "content": content},
+        auth_manager=auth_manager,
+    )
+    convert_failure = _api_failure(convert)
+    if convert_failure:
+        return convert_failure
+
+    data = convert.get("data", {})
+    children_ids = data.get("first_level_block_ids", [])
+    descendants = data.get("blocks", [])
+    if not isinstance(children_ids, list) or not isinstance(descendants, list) or not descendants:
+        return {"success": True, "message": "markdown converted but no blocks to insert", "document_id": document_id}
+
+    create = api_request(
+        "POST",
+        f"/docx/v1/documents/{document_id}/blocks/{page_block_id}/descendant",
+        {"children_id": children_ids, "descendants": descendants, "index": 0},
+        query={"document_revision_id": -1},
+        auth_manager=auth_manager,
+    )
+    create_failure = _api_failure(create)
+    if create_failure:
+        return create_failure
+    return {
+        "success": True,
+        "document_id": document_id,
+        "inserted_blocks": len(descendants),
+        "first_level_blocks": len(children_ids),
+        "document_revision_id": create.get("data", {}).get("document_revision_id", 0),
+        "message": "markdown written",
+    }
+
+
+def _task_list(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    auth_mode, user_key = _task_request_mode(args)
+    query: dict[str, Any] = {
+        "page_size": _clamp_page_size(args.get("page_size"), default=20, maximum=200),
+        "type": "my_tasks",
+    }
+    page_token = str(args.get("page_token", "")).strip()
+    if page_token:
+        query["page_token"] = page_token
+    if "completed" in args:
+        query["completed"] = bool(args.get("completed"))
+    user_id_type = str(args.get("user_id_type", "")).strip()
+    if user_id_type:
+        query["user_id_type"] = user_id_type
+
+    result = api_request("GET", "/task/v2/tasks", query=query, auth=auth_mode, user_key=user_key, auth_manager=auth_manager)
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    data = result.get("data", {})
+    items = data.get("items", [])
+    return {
+        "success": True,
+        "tasks": items,
+        "count": len(items) if isinstance(items, list) else 0,
+        "has_more": bool(data.get("has_more", False)),
+        "page_token": data.get("page_token", ""),
+        "auth_mode": auth_mode,
+    }
+
+
+def _task_list_subtasks(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    parent_task_id = str(args.get("parent_task_id", "")).strip()
+    if not parent_task_id:
+        return {"success": False, "error": "parent_task_id is required"}
+
+    auth_mode, user_key = _task_request_mode(args)
+    query: dict[str, Any] = {
+        "page_size": _clamp_page_size(args.get("page_size"), default=20, maximum=200),
+    }
+    page_token = str(args.get("page_token", "")).strip()
+    if page_token:
+        query["page_token"] = page_token
+    user_id_type = str(args.get("user_id_type", "")).strip()
+    if user_id_type:
+        query["user_id_type"] = user_id_type
+
+    result = api_request(
+        "GET",
+        f"/task/v2/tasks/{parent_task_id}/subtasks",
+        query=query,
+        auth=auth_mode,
+        user_key=user_key,
+        auth_manager=auth_manager,
+    )
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    data = result.get("data", {})
+    items = data.get("items", [])
+    return {
+        "success": True,
+        "parent_task_id": parent_task_id,
+        "subtasks": items,
+        "count": len(items) if isinstance(items, list) else 0,
+        "has_more": bool(data.get("has_more", False)),
+        "page_token": data.get("page_token", ""),
+        "auth_mode": auth_mode,
+    }
+
+
+def _task_create(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    summary, description = _normalize_task_create_fields(args)
+    if not summary:
+        return {"success": False, "error": "summary is required"}
+
+    auth_mode, user_key = _task_request_mode(args)
+    due, due_err = _build_task_due(args)
+    if due_err:
+        return due_err
+
+    input_task: dict[str, Any] = {"summary": summary}
+    if description:
+        input_task["description"] = description
+    if due:
+        input_task["due"] = due
+
+    assignee_ids = args.get("assignee_ids", [])
+    if isinstance(assignee_ids, list) and assignee_ids:
+        member_type = str(args.get("assignee_type", "")).strip() or "user"
+        input_task["members"] = [{"id": str(member).strip(), "type": member_type} for member in assignee_ids if str(member).strip()]
+    client_token = str(args.get("client_token", "")).strip()
+    if client_token:
+        input_task["client_token"] = client_token
+
+    query: dict[str, Any] = {}
+    user_id_type = str(args.get("user_id_type", "")).strip()
+    if user_id_type:
+        query["user_id_type"] = user_id_type
+
+    result = api_request(
+        "POST",
+        "/task/v2/tasks",
+        {"input_task": input_task},
+        query=query or None,
+        auth=auth_mode,
+        user_key=user_key,
+        auth_manager=auth_manager,
+    )
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    task_id = str(result.get("data", {}).get("task", {}).get("guid", "")).strip()
+    return {"success": True, "task_id": task_id, "task": result.get("data", {}).get("task", {}), "auth_mode": auth_mode}
+
+
+def _task_create_subtask(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    parent_task_id = str(args.get("parent_task_id", "")).strip()
+    if not parent_task_id:
+        return {"success": False, "error": "parent_task_id is required"}
+
+    summary, description = _normalize_task_create_fields(args)
+    if not summary:
+        return {"success": False, "error": "summary is required"}
+
+    auth_mode, user_key = _task_request_mode(args)
+    due, due_err = _build_task_due(args)
+    if due_err:
+        return due_err
+
+    input_task: dict[str, Any] = {"summary": summary}
+    if description:
+        input_task["description"] = description
+    if due:
+        input_task["due"] = due
+
+    assignee_ids = args.get("assignee_ids", [])
+    if isinstance(assignee_ids, list) and assignee_ids:
+        member_type = str(args.get("assignee_type", "")).strip() or "user"
+        input_task["members"] = [{"id": str(member).strip(), "type": member_type} for member in assignee_ids if str(member).strip()]
+    client_token = str(args.get("client_token", "")).strip()
+    if client_token:
+        input_task["client_token"] = client_token
+
+    query: dict[str, Any] = {}
+    user_id_type = str(args.get("user_id_type", "")).strip()
+    if user_id_type:
+        query["user_id_type"] = user_id_type
+
+    result = api_request(
+        "POST",
+        f"/task/v2/tasks/{parent_task_id}/subtasks",
+        {"input_task": input_task},
+        query=query or None,
+        auth=auth_mode,
+        user_key=user_key,
+        auth_manager=auth_manager,
+    )
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    task_id = str(result.get("data", {}).get("subtask", {}).get("guid", "")).strip()
+    return {
+        "success": True,
+        "parent_task_id": parent_task_id,
+        "task_id": task_id,
+        "subtask": result.get("data", {}).get("subtask", {}),
+        "auth_mode": auth_mode,
+    }
+
+
+def _task_update(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    task_id = str(args.get("task_id", "")).strip()
+    if not task_id:
+        return {"success": False, "error": "task_id is required"}
+
+    summary, description = _normalize_task_update_fields(args)
+    task_patch: dict[str, Any] = {}
+    update_fields: list[str] = []
+    if summary:
+        task_patch["summary"] = summary
+        update_fields.append("summary")
+    if description:
+        task_patch["description"] = description
+        update_fields.append("description")
+
+    due_time = str(args.get("due_time", "")).strip()
+    if due_time:
+        due_seconds, due_err = _parse_unix_seconds(due_time, field_name="due_time")
+        if due_err:
+            return due_err
+        task_patch["due"] = {"timestamp": str(due_seconds * 1000)}
+        update_fields.append("due")
+    if not update_fields:
+        return {"success": False, "error": "at least one of summary, description, content or due_time is required"}
+
+    query: dict[str, Any] = {}
+    user_id_type = str(args.get("user_id_type", "")).strip()
+    if user_id_type:
+        query["user_id_type"] = user_id_type
+    auth_mode, user_key = _task_request_mode(args)
+
+    result = api_request(
+        "PATCH",
+        f"/task/v2/tasks/{task_id}",
+        {"task": task_patch, "update_fields": update_fields},
+        query=query or None,
+        auth=auth_mode,
+        user_key=user_key,
+        auth_manager=auth_manager,
+    )
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    return {"success": True, "task_id": task_id, "updated_fields": update_fields, "task": result.get("data", {}).get("task", {})}
+
+
+def _task_delete(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    task_id = str(args.get("task_id", "")).strip()
+    if not task_id:
+        return {"success": False, "error": "task_id is required"}
+
+    query: dict[str, Any] = {}
+    user_id_type = str(args.get("user_id_type", "")).strip()
+    if user_id_type:
+        query["user_id_type"] = user_id_type
+    auth_mode, user_key = _task_request_mode(args)
+
+    result = api_request(
+        "DELETE",
+        f"/task/v2/tasks/{task_id}",
+        query=query or None,
+        auth=auth_mode,
+        user_key=user_key,
+        auth_manager=auth_manager,
+    )
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    return {"success": True, "task_id": task_id, "message": "task deleted", "auth_mode": auth_mode}
 
 
 def _wiki_list_spaces(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
@@ -1851,9 +2793,15 @@ def _bitable_list_fields(args: dict[str, Any], auth_manager: AuthManager) -> dic
 
 
 TOOL_HANDLERS: dict[str, dict[str, ToolHandler]] = {
+    "message": {
+        "send_message": _message_send,
+        "upload_file": _message_upload_file,
+        "history": _message_history,
+    },
     "calendar": {
         "create": _calendar_create,
         "query": _calendar_query,
+        "update": _calendar_update,
         "delete": _calendar_delete,
         "list_calendars": _calendar_list,
     },
@@ -1868,6 +2816,17 @@ TOOL_HANDLERS: dict[str, dict[str, ToolHandler]] = {
         "create": _doc_create,
         "read": _doc_read,
         "read_content": _doc_read_content,
+        "list_blocks": _doc_list_blocks,
+        "update_block_text": _doc_update_block_text,
+        "write_markdown": _doc_write_markdown,
+    },
+    "task": {
+        "list": _task_list,
+        "list_subtasks": _task_list_subtasks,
+        "create": _task_create,
+        "create_subtask": _task_create_subtask,
+        "update": _task_update,
+        "delete": _task_delete,
     },
     "wiki": {
         "list_spaces": _wiki_list_spaces,
@@ -1908,6 +2867,33 @@ TOOL_HANDLERS: dict[str, dict[str, ToolHandler]] = {
         "update_record": _bitable_update_record,
         "delete_record": _bitable_delete_record,
         "list_fields": _bitable_list_fields,
+    },
+}
+
+TOOL_ACTION_ALIASES: dict[str, dict[str, str]] = {
+    "message": {
+        "send": "send_message",
+        "chat_history": "history",
+    },
+    "calendar": {
+        "create_event": "create",
+        "query_events": "query",
+        "update_event": "update",
+        "delete_event": "delete",
+    },
+    "task": {
+        "list_tasks": "list",
+        "create_task": "create",
+        "update_task": "update",
+        "delete_task": "delete",
+    },
+    "doc": {
+        "create_doc": "create",
+        "read_doc": "read",
+        "read_doc_content": "read_content",
+        "list_doc_blocks": "list_blocks",
+        "update_doc_block": "update_block_text",
+        "write_doc_markdown": "write_markdown",
     },
 }
 
@@ -2025,7 +3011,9 @@ def _help_action(module: str, action: str) -> dict[str, Any]:
     module_actions = ACTION_SPECS.get(module)
     if not module_actions:
         return {"success": False, "error": f"unknown module: {module}", "available_modules": sorted(ACTION_SPECS.keys())}
-    spec = module_actions.get(action)
+    normalized = action.strip().lower()
+    canonical = TOOL_ACTION_ALIASES.get(module, {}).get(normalized, normalized)
+    spec = module_actions.get(canonical)
     if not spec:
         return {
             "success": False,
@@ -2037,12 +3025,13 @@ def _help_action(module: str, action: str) -> dict[str, Any]:
         "success": True,
         "help_level": "action",
         "module": module,
-        "action": action,
+        "action": canonical,
+        "alias": action if canonical != normalized else "",
         "summary": spec.summary,
         "required": list(spec.required),
         "optional": list(spec.optional),
         "example_args": spec.example,
-        "example": f"python3 scripts/cli/feishu/feishu_cli.py tool {module} {action} '{json.dumps(spec.example, ensure_ascii=False)}'",
+        "example": f"python3 scripts/cli/feishu/feishu_cli.py tool {module} {canonical} '{json.dumps(spec.example, ensure_ascii=False)}'",
     }
 
 
@@ -2121,6 +3110,7 @@ def _run_auth(request: dict[str, Any], auth_manager: AuthManager) -> dict[str, A
 def _run_tool(request: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
     module = str(request.get("module", "")).strip().lower()
     action = str(request.get("tool_action", "")).strip() or str(request.get("action_name", "")).strip()
+    action = action.strip().lower()
     args = request.get("args", {})
     if not isinstance(args, dict):
         return {"success": False, "error": "tool args must be an object"}
@@ -2132,7 +3122,8 @@ def _run_tool(request: dict[str, Any], auth_manager: AuthManager) -> dict[str, A
     if not module_handlers:
         return {"success": False, "error": f"unknown module: {module}", "available_modules": sorted(TOOL_HANDLERS.keys())}
 
-    handler = module_handlers.get(action)
+    canonical = TOOL_ACTION_ALIASES.get(module, {}).get(action, action)
+    handler = module_handlers.get(canonical)
     if handler is None:
         return {
             "success": False,

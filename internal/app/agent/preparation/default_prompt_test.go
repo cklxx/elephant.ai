@@ -18,8 +18,7 @@ func TestDefaultSystemPromptIncludesRoutingBoundaries(t *testing.T) {
 		"low-risk read-only inspection asks",
 		"do not ask for reconfirmation",
 		"Treat explicit user delegation signals (\"you decide\", \"anything works\", \"use your judgment\") as authorization for low-risk reversible actions",
-		"lark_chat_history for prior thread context",
-		"generated file is part of the requested deliverable in Lark, proactively upload it",
+		"For Lark/Feishu operations, run local skill CLIs via shell_exec",
 		"/tmp as the default location for temporary/generated files",
 		"artifacts_list for inventory and artifacts_write for creating/updating durable outputs",
 	} {

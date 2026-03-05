@@ -7,7 +7,7 @@ type ChannelHints map[string]string
 // LarkFormattingHint is the prompt section injected when the reply channel is Lark.
 const LarkFormattingHint = `# Reply Formatting (Lark Channel)
 Current reply channel is Lark; Lark text messages do not render Markdown.
-For long-running or parallel execution, proactively send intermediate checkpoints via lark_send_message in parallel so users can see progress.
+For long-running or parallel execution, proactively send intermediate checkpoints via shell_exec + skills/feishu-cli/run.py so users can see progress.
 Follow these formatting rules:
 - Do not use Markdown syntax: avoid **bold**, *italic*, ## heading, - list, > quote, [link](url), and ` + "```" + `code` + "```" + ` fences.
 - Use plain text formatting: separate paragraphs with newlines and use numbered lists for structure.

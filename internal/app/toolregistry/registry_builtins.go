@@ -2,7 +2,6 @@ package toolregistry
 
 import (
 	"alex/internal/infra/tools/builtin/aliases"
-	"alex/internal/infra/tools/builtin/larktools"
 	sessiontools "alex/internal/infra/tools/builtin/session"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/infra/tools/builtin/ui"
@@ -35,8 +34,4 @@ func (r *Registry) registerPlatformTools(config Config) error {
 	r.static["replace_in_file"] = aliases.NewReplaceInFile(fileConfig)
 	r.static["shell_exec"] = aliases.NewShellExec(shellConfig)
 	return nil
-}
-
-func (r *Registry) registerLarkTools() {
-	r.static["channel"] = larktools.NewLarkChannel()
 }

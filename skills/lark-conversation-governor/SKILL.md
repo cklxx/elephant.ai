@@ -8,7 +8,7 @@ triggers:
     keywords: ["lark", "message", "reminder", "quiet"]
   confidence_threshold: 0.65
 priority: 8
-requires_tools: [channel]
+requires_tools: [bash]
 max_tokens: 260
 cooldown: 60
 capabilities: [lark_chat, proactive_messaging]
