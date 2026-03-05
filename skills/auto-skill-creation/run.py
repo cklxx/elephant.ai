@@ -17,6 +17,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from skill_runner.env import load_repo_dotenv
+from skill_runner.cli_contract import parse_cli_args, render_result
 
 load_repo_dotenv(__file__)
 
@@ -62,7 +63,7 @@ cooldown: 60
 ## 调用
 
 ```bash
-python3 skills/{name}/run.py '{{"action":"default", ...}}'
+python3 skills/{name}/run.py default --key value
 ```
 """, encoding="utf-8")
 
@@ -73,7 +74,6 @@ python3 skills/{name}/run.py '{{"action":"default", ...}}'
 from __future__ import annotations
 
 from pathlib import Path
-import json
 import sys
 
 _SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
@@ -81,6 +81,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from skill_runner.env import load_repo_dotenv
+from skill_runner.cli_contract import parse_cli_args, render_result
 
 load_repo_dotenv(__file__)
 
@@ -93,16 +94,18 @@ def run(args: dict) -> dict:
 
 
 def main() -> None:
-    if len(sys.argv) > 1:
-        args = json.loads(sys.argv[1])
-    elif not sys.stdin.isatty():
-        args = json.load(sys.stdin)
-    else:
-        args = {{}}
+    args = parse_cli_args(sys.argv[1:])
     result = run(args)
-    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
-    sys.stdout.write("\\n")
-    sys.exit(0 if result.get("success") else 1)
+    stdout_text, stderr_text, exit_code = render_result(result)
+    if stdout_text:
+        sys.stdout.write(stdout_text)
+        if not stdout_text.endswith("\\n"):
+            sys.stdout.write("\\n")
+    if stderr_text:
+        sys.stderr.write(stderr_text)
+        if not stderr_text.endswith("\\n"):
+            sys.stderr.write("\\n")
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
@@ -155,16 +158,18 @@ def run(args: dict) -> dict:
 
 
 def main() -> None:
-    if len(sys.argv) > 1:
-        args = json.loads(sys.argv[1])
-    elif not sys.stdin.isatty():
-        args = json.load(sys.stdin)
-    else:
-        args = {}
+    args = parse_cli_args(sys.argv[1:])
     result = run(args)
-    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
-    sys.stdout.write("\n")
-    sys.exit(0 if result.get("success") else 1)
+    stdout_text, stderr_text, exit_code = render_result(result)
+    if stdout_text:
+        sys.stdout.write(stdout_text)
+        if not stdout_text.endswith("\n"):
+            sys.stdout.write("\n")
+    if stderr_text:
+        sys.stderr.write(stderr_text)
+        if not stderr_text.endswith("\n"):
+            sys.stderr.write("\n")
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

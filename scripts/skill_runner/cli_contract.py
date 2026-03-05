@@ -153,7 +153,9 @@ def _store_arg(args: dict[str, Any], key: str, value: Any) -> None:
     args[key] = value
 
 
-def parse_cli_args(argv: Sequence[str], primary_key: str = "action") -> dict[str, Any]:
+def parse_cli_args(
+    argv: Sequence[str], primary_key: str = "action", secondary_key: str = ""
+) -> dict[str, Any]:
     """Parse CLI arguments into a payload dict.
 
     Supported forms:
@@ -213,6 +215,9 @@ def parse_cli_args(argv: Sequence[str], primary_key: str = "action") -> dict[str
         args[primary_key] = positionals[0]
         positionals = positionals[1:]
 
+    if positionals and secondary_key and secondary_key not in args:
+        args[secondary_key] = positionals[0]
+        positionals = positionals[1:]
     if positionals:
         _store_arg(args, "positionals", [_coerce_value(item) for item in positionals])
 

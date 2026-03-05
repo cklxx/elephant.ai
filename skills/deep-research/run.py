@@ -2,7 +2,7 @@
 """deep-research skill — 多源检索 + 证据汇编。
 
 LLM 调用方式:
-    bash: python3 skills/deep-research/run.py '{"topic":"...", "queries":["q1","q2"], "max_results":5}'
+    bash: python3 skills/deep-research/run.py --topic "..." --queries q1 --queries q2 --max_results 5
 
 输入:
     topic       (str)  研究主题
@@ -11,18 +11,8 @@ LLM 调用方式:
     depth       (str)  "basic" | "advanced"（默认 basic）
     fetch_urls  (list) 额外要抓取全文的 URL（可选）
 
-输出 JSON:
-    {
-      "topic": "...",
-      "searches": [
-        {"query": "q1", "source": "tavily", "results": [...]},
-        ...
-      ],
-      "fetched_pages": [
-        {"url": "...", "title": "...", "content": "..."}
-      ],
-      "summary_prompt": "基于以上 N 条来源，请..."
-    }
+输出:
+    CLI 文本格式，包含 topic/searches/fetched_pages/summary_prompt 等字段。
 """
 
 from __future__ import annotations
@@ -35,10 +25,10 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from skill_runner.env import load_repo_dotenv
+from skill_runner.cli_contract import parse_cli_args, render_result
 
 load_repo_dotenv(__file__)
 
-import json
 import os
 import sys
 import urllib.error
@@ -126,17 +116,18 @@ def run(args: dict) -> dict:
 
 
 def main() -> None:
-    if len(sys.argv) > 1:
-        args = json.loads(sys.argv[1])
-    elif not sys.stdin.isatty():
-        args = json.load(sys.stdin)
-    else:
-        args = {}
-
+    args = parse_cli_args(sys.argv[1:])
     result = run(args)
-    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
-    sys.stdout.write("\n")
-    sys.exit(0 if result.get("success", False) else 1)
+    stdout_text, stderr_text, exit_code = render_result(result)
+    if stdout_text:
+        sys.stdout.write(stdout_text)
+        if not stdout_text.endswith("\n"):
+            sys.stdout.write("\n")
+    if stderr_text:
+        sys.stderr.write(stderr_text)
+        if not stderr_text.endswith("\n"):
+            sys.stderr.write("\n")
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

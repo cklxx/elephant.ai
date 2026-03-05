@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import json
 import os
 import re
 import shlex
@@ -17,6 +16,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from skill_runner.env import load_repo_dotenv
+from skill_runner.cli_contract import parse_cli_args, render_result
 
 load_repo_dotenv(__file__)
 
@@ -299,7 +299,7 @@ def _resolve_op(payload: dict, command: str) -> str:
 
 def _overview_payload() -> dict:
     return {
-        "entrypoint": "python3 skills/notebooklm-cli/run.py '{\"command\":\"...\",\"op\":\"...\"}'",
+        "entrypoint": "python3 skills/notebooklm-cli/run.py <command> <op> [--flag value ...]",
         "runtime": {
             "binary_env": "NOTEBOOKLM_CLI_BIN",
             "timeout_env": "NOTEBOOKLM_CLI_TIMEOUT",
@@ -681,23 +681,19 @@ def run(args: dict) -> dict:
     return _base_result(False, error=f"unhandled command: {command}")
 
 
-def _load_args_from_cli() -> tuple[dict, dict | None]:
-    try:
-        if len(sys.argv) > 1:
-            return json.loads(sys.argv[1]), None
-        if not sys.stdin.isatty():
-            return json.load(sys.stdin), None
-    except json.JSONDecodeError as exc:
-        return {}, _base_result(False, error=f"invalid json input: {exc.msg}")
-    return {}, None
-
-
 def main() -> None:
-    args, parse_error = _load_args_from_cli()
-    result = parse_error or run(args)
-    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
-    sys.stdout.write("\n")
-    sys.exit(0 if result.get("success", False) else 1)
+    args = parse_cli_args(sys.argv[1:], primary_key="command", secondary_key="op")
+    result = run(args)
+    stdout_text, stderr_text, exit_code = render_result(result)
+    if stdout_text:
+        sys.stdout.write(stdout_text)
+        if not stdout_text.endswith("\n"):
+            sys.stdout.write("\n")
+    if stderr_text:
+        sys.stderr.write(stderr_text)
+        if not stderr_text.endswith("\n"):
+            sys.stderr.write("\n")
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

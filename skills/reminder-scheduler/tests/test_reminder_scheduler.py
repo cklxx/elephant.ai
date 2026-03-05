@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib.util
 import io
-import json
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -29,7 +28,7 @@ class TestMainRouting:
     def test_set_once_action(self):
         mock_result = {"success": True, "timer_id": "abc"}
         with patch.object(_mod, "set_timer", return_value=mock_result) as mock:
-            with patch("sys.argv", ["run.py", json.dumps({"action": "set_once", "delay": "5m", "task": "test"})]):
+            with patch("sys.argv", ["run.py", "set_once", "--delay", "5m", "--task", "test"]):
                 with patch("sys.stdout", new=io.StringIO()):
                     with pytest.raises(SystemExit) as exc:
                         _mod.main()
@@ -39,7 +38,7 @@ class TestMainRouting:
     def test_list_once_action(self):
         mock_result = {"success": True, "timers": []}
         with patch.object(_mod, "list_timers", return_value=mock_result) as mock:
-            with patch("sys.argv", ["run.py", json.dumps({"action": "list_once"})]):
+            with patch("sys.argv", ["run.py", "list_once"]):
                 with patch("sys.stdout", new=io.StringIO()):
                     with pytest.raises(SystemExit) as exc:
                         _mod.main()
@@ -49,7 +48,7 @@ class TestMainRouting:
     def test_cancel_once_action(self):
         mock_result = {"success": True, "message": "cancelled"}
         with patch.object(_mod, "cancel_timer", return_value=mock_result) as mock:
-            with patch("sys.argv", ["run.py", json.dumps({"action": "cancel_once", "id": "timer-1"})]):
+            with patch("sys.argv", ["run.py", "cancel_once", "--id", "timer-1"]):
                 with patch("sys.stdout", new=io.StringIO()):
                     with pytest.raises(SystemExit) as exc:
                         _mod.main()
@@ -57,7 +56,7 @@ class TestMainRouting:
                     mock.assert_called_once()
 
     def test_unknown_action(self):
-        with patch("sys.argv", ["run.py", json.dumps({"action": "invalid"})]):
+        with patch("sys.argv", ["run.py", "invalid"]):
             with patch("sys.stdout", new=io.StringIO()):
                 with pytest.raises(SystemExit) as exc:
                     _mod.main()
