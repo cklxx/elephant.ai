@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "node scripts/generate-skills-catalog.js",
+    "predev": "ALEX_SKILLS_DIR=../skills node scripts/generate-skills-catalog.js",
     "dev": "node scripts/start-dev.js",
-    "prebuild": "node scripts/generate-skills-catalog.js",
+    "prebuild": "ALEX_SKILLS_DIR=../skills node scripts/generate-skills-catalog.js",
     "build": "next build --turbo",
     "build:turbo": "next build --turbo",
     "build:webpack": "next build --webpack",
