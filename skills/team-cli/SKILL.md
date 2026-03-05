@@ -65,7 +65,7 @@ alex team run --file /tmp/team-task.yaml
 ### 1.4 单 prompt 任务（必须支持）
 
 ```bash
-alex team run --prompt "Audit current branch changes and list top 3 regression risks"
+alex team run --prompt "Audit current branch changes and list top 3 regression risks" --workspace-mode shared
 ```
 
 ### 1.5 常用可选参数

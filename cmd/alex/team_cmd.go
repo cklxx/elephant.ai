@@ -92,7 +92,7 @@ func runTeamRun(args []string, container *Container) error {
 	agentType := fs.String("agent-type", "codex", "Agent type for --prompt mode.")
 	executionMode := fs.String("execution-mode", "execute", "Execution mode for --prompt mode (execute|plan).")
 	autonomyLevel := fs.String("autonomy-level", "full", "Autonomy level for --prompt mode.")
-	workspaceMode := fs.String("workspace-mode", "worktree", "Workspace mode for --prompt mode.")
+	workspaceMode := fs.String("workspace-mode", "shared", "Workspace mode for --prompt mode.")
 	sessionID := fs.String("session-id", "", "Session ID for runtime artifacts.")
 	wait := fs.Bool("wait", true, "Wait for completion (must be true in CLI mode).")
 	timeoutSec := fs.Int("timeout-seconds", 600, "Wait timeout in seconds.")
