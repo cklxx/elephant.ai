@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -99,18 +98,6 @@ func runTeamStatus(args []string) error {
 	}
 	fmt.Print(renderTeamStatusReport(report))
 	return nil
-}
-
-func runTeamCommand(args []string) error {
-	if len(args) == 0 {
-		return &ExitCodeError{Code: 2, Err: errors.New(teamStatusUsage)}
-	}
-	switch strings.ToLower(strings.TrimSpace(args[0])) {
-	case "status":
-		return runTeamStatus(args[1:])
-	default:
-		return &ExitCodeError{Code: 2, Err: fmt.Errorf("unknown team subcommand %q (expected: status)", args[0])}
-	}
 }
 
 func loadTeamRuntimeStatus(opts teamStatusOptions) ([]teamRuntimeStatus, error) {

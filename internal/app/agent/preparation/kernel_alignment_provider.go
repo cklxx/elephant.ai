@@ -78,9 +78,9 @@ func NewKernelAlignmentContextProvider(cfg KernelAlignmentContextConfig) KernelA
 		b.WriteString("\n## User Service Settings\n")
 		b.WriteString(fmt.Sprintf("[Loaded via Identity/Memory sections — use read_file %s for full content]\n", userResolved))
 		b.WriteString("\n## Self-Heal Channel\n")
-		b.WriteString("- On blocking engineering issues, write a task file and dispatch via `run_tasks`.\n")
+		b.WriteString("- On blocking engineering issues, dispatch via `team-cli` skill + `alex team run`.\n")
 		b.WriteString("- Prefer agent_type=`codex`; fallback to `claude_code` if unavailable.\n")
-		b.WriteString("- Monitor status via `read_file` on the .status sidecar.\n")
+		b.WriteString("- Monitor progress via `alex team status --json` and read the generated .status sidecar.\n")
 		return strings.TrimSpace(b.String())
 	}
 }

@@ -3,11 +3,11 @@ package kernel
 import (
 	"alex/internal/shared/utils"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -265,7 +265,7 @@ func (e *CoordinatorExecutor) Execute(ctx context.Context, agentID, prompt strin
 	// prevent deadlocks on approval gates.
 	execCtx = toolshared.WithAutoApprove(execCtx, true)
 	execCtx = appcontext.MarkUnattendedContext(execCtx)
-	// Route run_tasks status sidecars to the kernel-specific tasks dir.
+	// Route team-run status sidecars to the kernel-specific tasks dir.
 	execCtx = toolshared.WithKernelTasksDir(execCtx, e.tasksDir())
 
 	timeout := e.timeout
@@ -437,26 +437,36 @@ func buildKernelTeamDispatchPrompt(spec kerneldomain.TeamDispatchSpec) string {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = DefaultKernelTeamTimeoutSeconds
 	}
-	args := map[string]any{
-		"template":        strings.TrimSpace(spec.Template),
-		"goal":            strings.TrimSpace(spec.Goal),
-		"wait":            true,
-		"timeout_seconds": timeoutSeconds,
+
+	commandParts := []string{
+		"alex team run",
+		"--template",
+		strconv.Quote(strings.TrimSpace(spec.Template)),
+		"--goal",
+		strconv.Quote(strings.TrimSpace(spec.Goal)),
+		"--wait=true",
+		"--timeout-seconds",
+		strconv.Itoa(timeoutSeconds),
 	}
 	if len(spec.Prompts) > 0 {
-		args["prompts"] = spec.Prompts
+		keys := make([]string, 0, len(spec.Prompts))
+		for key := range spec.Prompts {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, role := range keys {
+			prompt := strings.TrimSpace(spec.Prompts[role])
+			if prompt == "" {
+				continue
+			}
+			commandParts = append(commandParts, "--role-prompt", strconv.Quote(role+"="+prompt))
+		}
 	}
-	payload, err := json.Marshal(args)
-	if err != nil {
-		return fmt.Sprintf(
-			"Run the team template %q with goal %q via run_tasks. Wait for completion and include the status file path in Execution Summary.",
-			spec.Template,
-			spec.Goal,
-		)
-	}
+
+	command := strings.Join(commandParts, " ")
 	return fmt.Sprintf(
-		"CRITICAL: Execute autonomously. Do NOT ask for confirmation or clarification. Make all decisions independently.\n\nExecute a structured team run now. Call run_tasks exactly once with arguments: %s\nThen read the generated .status sidecar and summarize completed roles, failures (if any), and artifact paths.",
-		string(payload),
+		"CRITICAL: Execute autonomously. Do NOT ask for confirmation or clarification. Make all decisions independently.\n\nExecute a structured team run now via CLI (not via run_tasks/reply_agent tools). Run this command exactly once:\n%s\n\nIf `alex` binary is unavailable in PATH, execute the same command with `go run ./cmd/alex` prefix.\nThen read the generated .status sidecar and summarize completed roles, failures (if any), and artifact paths.",
+		command,
 	)
 }
 

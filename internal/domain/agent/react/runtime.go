@@ -19,16 +19,16 @@ import (
 // engine can focus on business rules while the runtime owns iteration control,
 // workflow transitions, and cancellation handling.
 type reactRuntime struct {
-	engine    *ReactEngine
-	ctx       context.Context
-	task      string
-	state     *TaskState
-	services  Services
-	tracker   *reactWorkflow
-	startTime time.Time
+	engine       *ReactEngine
+	ctx          context.Context
+	task         string
+	state        *TaskState
+	services     Services
+	tracker      *reactWorkflow
+	startTime    time.Time
 	resultOnce   sync.Once
 	workflowOnce sync.Once
-	prepare   func()
+	prepare      func()
 
 	// UI orchestration state (Plan → Clarify → ReAct → Finalize).
 	runID                 string
@@ -858,7 +858,7 @@ func classifyNonRetryableToolFailure(err error) (nonRetryableToolFailure, bool) 
 	case strings.Contains(text, "template \"") && strings.Contains(text, "not found"):
 		return nonRetryableToolFailure{
 			signature: "template_not_found",
-			hint:      "Call run_tasks(template=\"list\") first, then choose one of the listed templates.",
+			hint:      "Run `alex team run --template list` first, then choose one of the listed templates and call `alex team run --template <name> --goal \"...\"`.",
 		}, true
 	default:
 		return nonRetryableToolFailure{}, false

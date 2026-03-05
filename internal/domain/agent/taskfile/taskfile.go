@@ -1,6 +1,6 @@
 // Package taskfile defines the YAML-based task file format for orchestration.
 // A TaskFile describes a set of tasks with dependencies that can be dispatched
-// to the BackgroundTaskManager via the run_tasks tool.
+// to the BackgroundTaskManager via team orchestration entrypoints (CLI/tooling).
 package taskfile
 
 // TaskFile is the top-level YAML structure for file-based orchestration.
