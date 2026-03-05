@@ -1,0 +1,244 @@
+package larktools
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"alex/internal/domain/agent/ports"
+	larkapi "alex/internal/infra/lark"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
+)
+
+// larkBitableManage handles bitable table/record operations via the unified channel tool.
+type larkBitableManage struct{}
+
+func (t *larkBitableManage) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	sdkClient, errResult := requireLarkClient(ctx, call.ID)
+	if errResult != nil {
+		return errResult, nil
+	}
+	client := larkapi.Wrap(sdkClient)
+
+	action := utils.TrimLower(shared.StringArg(call.Arguments, "action"))
+	switch action {
+	case "list_tables":
+		return t.listTables(ctx, client, call)
+	case "list_records":
+		return t.listRecords(ctx, client, call)
+	case "create_record":
+		return t.createRecord(ctx, client, call)
+	case "update_record":
+		return t.updateRecord(ctx, client, call)
+	case "delete_record":
+		return t.deleteRecord(ctx, client, call)
+	case "list_fields":
+		return t.listFields(ctx, client, call)
+	default:
+		err := fmt.Errorf("unsupported bitable action: %s", action)
+		return shared.ToolError(call.ID, "%v", err)
+	}
+}
+
+func (t *larkBitableManage) listTables(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	appToken, errResult := shared.RequireStringArg(call.Arguments, call.ID, "app_token")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	pageSize, _ := shared.IntArg(call.Arguments, "page_size")
+	pageToken := shared.StringArg(call.Arguments, "page_token")
+
+	resp, err := client.Bitable().ListTables(ctx, larkapi.ListTablesRequest{
+		AppToken:  appToken,
+		PageSize:  pageSize,
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return apiErr(call.ID, "list tables", err), nil
+	}
+
+	if len(resp.Tables) == 0 {
+		return &ports.ToolResult{CallID: call.ID, Content: "No tables found."}, nil
+	}
+
+	payload, _ := json.MarshalIndent(resp.Tables, "", "  ")
+	metadata := map[string]any{"table_count": len(resp.Tables)}
+	if resp.HasMore {
+		metadata["has_more"] = true
+		metadata["page_token"] = resp.PageToken
+	}
+
+	return &ports.ToolResult{
+		CallID:   call.ID,
+		Content:  fmt.Sprintf("Found %d tables:\n%s", len(resp.Tables), string(payload)),
+		Metadata: metadata,
+	}, nil
+}
+
+func (t *larkBitableManage) listRecords(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	appToken, errResult := shared.RequireStringArg(call.Arguments, call.ID, "app_token")
+	if errResult != nil {
+		return errResult, nil
+	}
+	tableID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "table_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	pageSize, _ := shared.IntArg(call.Arguments, "page_size")
+	pageToken := shared.StringArg(call.Arguments, "page_token")
+
+	resp, err := client.Bitable().ListRecords(ctx, larkapi.ListRecordsRequest{
+		AppToken:  appToken,
+		TableID:   tableID,
+		PageSize:  pageSize,
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return apiErr(call.ID, "list records", err), nil
+	}
+
+	if len(resp.Records) == 0 {
+		return &ports.ToolResult{CallID: call.ID, Content: "No records found."}, nil
+	}
+
+	payload, _ := json.MarshalIndent(resp.Records, "", "  ")
+	metadata := map[string]any{"record_count": len(resp.Records), "total": resp.Total}
+	if resp.HasMore {
+		metadata["has_more"] = true
+		metadata["page_token"] = resp.PageToken
+	}
+
+	return &ports.ToolResult{
+		CallID:   call.ID,
+		Content:  fmt.Sprintf("Found %d records (total %d):\n%s", len(resp.Records), resp.Total, string(payload)),
+		Metadata: metadata,
+	}, nil
+}
+
+func (t *larkBitableManage) createRecord(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	appToken, errResult := shared.RequireStringArg(call.Arguments, call.ID, "app_token")
+	if errResult != nil {
+		return errResult, nil
+	}
+	tableID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "table_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	fieldsRaw, ok := call.Arguments["fields"]
+	if !ok || fieldsRaw == nil {
+		err := fmt.Errorf("fields parameter is required for create_record")
+		return shared.ToolError(call.ID, "%v", err)
+	}
+	fieldsMap, ok := fieldsRaw.(map[string]interface{})
+	if !ok {
+		err := fmt.Errorf("fields must be a JSON object, got %T", fieldsRaw)
+		return shared.ToolError(call.ID, "%v", err)
+	}
+
+	record, err := client.Bitable().CreateRecord(ctx, appToken, tableID, fieldsMap)
+	if err != nil {
+		return apiErr(call.ID, "create record", err), nil
+	}
+
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: "Record created successfully.",
+		Metadata: map[string]any{
+			"record_id": record.RecordID,
+		},
+	}, nil
+}
+
+func (t *larkBitableManage) updateRecord(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	appToken, errResult := shared.RequireStringArg(call.Arguments, call.ID, "app_token")
+	if errResult != nil {
+		return errResult, nil
+	}
+	tableID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "table_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+	recordID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "record_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	fieldsRaw, ok := call.Arguments["fields"]
+	if !ok || fieldsRaw == nil {
+		err := fmt.Errorf("fields parameter is required for update_record")
+		return shared.ToolError(call.ID, "%v", err)
+	}
+	fieldsMap, ok := fieldsRaw.(map[string]interface{})
+	if !ok {
+		err := fmt.Errorf("fields must be a JSON object, got %T", fieldsRaw)
+		return shared.ToolError(call.ID, "%v", err)
+	}
+
+	_, err := client.Bitable().UpdateRecord(ctx, appToken, tableID, recordID, fieldsMap)
+	if err != nil {
+		return apiErr(call.ID, "update record", err), nil
+	}
+
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: "Record updated successfully.",
+		Metadata: map[string]any{
+			"record_id": recordID,
+		},
+	}, nil
+}
+
+func (t *larkBitableManage) deleteRecord(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	appToken, errResult := shared.RequireStringArg(call.Arguments, call.ID, "app_token")
+	if errResult != nil {
+		return errResult, nil
+	}
+	tableID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "table_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+	recordID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "record_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	err := client.Bitable().DeleteRecord(ctx, appToken, tableID, recordID)
+	if err != nil {
+		return apiErr(call.ID, "delete record", err), nil
+	}
+
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: "Record deleted successfully.",
+		Metadata: map[string]any{
+			"record_id": recordID,
+		},
+	}, nil
+}
+
+func (t *larkBitableManage) listFields(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	appToken, errResult := shared.RequireStringArg(call.Arguments, call.ID, "app_token")
+	if errResult != nil {
+		return errResult, nil
+	}
+	tableID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "table_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	fields, err := client.Bitable().ListFields(ctx, appToken, tableID)
+	if err != nil {
+		return apiErr(call.ID, "list fields", err), nil
+	}
+
+	payload, _ := json.MarshalIndent(fields, "", "  ")
+	return &ports.ToolResult{
+		CallID:   call.ID,
+		Content:  fmt.Sprintf("Found %d fields:\n%s", len(fields), string(payload)),
+		Metadata: map[string]any{"field_count": len(fields)},
+	}, nil
+}

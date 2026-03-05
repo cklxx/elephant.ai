@@ -9,7 +9,6 @@ import (
 	domain "alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	tokenutil "alex/internal/shared/token"
-	"alex/internal/shared/utils"
 )
 
 // minPrunableMessages is the minimum number of prunable messages required
@@ -59,12 +58,12 @@ func (e *ReactEngine) applyContextCheckpoint(
 
 	summary, _ := checkpointCall.Arguments["summary"].(string)
 	summary = strings.TrimSpace(summary)
-	if utils.IsBlank(summary) {
+	if summary == "" {
 		return false
 	}
 
 	phaseLabel := "phase"
-	if label, ok := checkpointCall.Arguments["phase_label"].(string); ok && utils.HasContent(label) {
+	if label, ok := checkpointCall.Arguments["phase_label"].(string); ok && strings.TrimSpace(label) != "" {
 		phaseLabel = strings.TrimSpace(label)
 	}
 

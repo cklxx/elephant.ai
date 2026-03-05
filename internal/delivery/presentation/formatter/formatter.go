@@ -121,7 +121,7 @@ func (tf *ToolFormatter) joinArgs(args map[string]string, maxLen int) string {
 		if maxLen > 0 && builder.Len() > maxLen {
 			preview := builder.String()
 			if len(preview) > maxLen {
-				return truncateWithSuffix(preview, maxLen, "…")
+				return preview[:maxLen] + "…"
 			}
 			return preview
 		}
@@ -313,22 +313,6 @@ func countLines(value string) int {
 	return strings.Count(value, "\n") + 1
 }
 
-func truncateWithSuffix(text string, maxRunes int, suffix string) string {
-	if maxRunes <= 0 {
-		return ""
-	}
-	runes := []rune(text)
-	if len(runes) <= maxRunes {
-		return text
-	}
-	suffixRunes := []rune(suffix)
-	limit := maxRunes - len(suffixRunes)
-	if limit < 0 {
-		limit = 0
-	}
-	return string(runes[:limit]) + suffix
-}
-
 func pluralize(word string, count int) string {
 	if count == 1 {
 		return word
@@ -450,7 +434,9 @@ func (tf *ToolFormatter) formatBashResult(content string) string {
 		}
 		if len(lines) == 1 {
 			output := lines[0]
-			output = truncateWithSuffix(output, 100, "...")
+			if len(output) > 100 {
+				output = output[:100] + "..."
+			}
 			return fmt.Sprintf("  → %s", output)
 		}
 		return fmt.Sprintf("  → %d lines output", len(lines))
@@ -700,7 +686,7 @@ func (tf *ToolFormatter) formatFileReadResult(content string) string {
 		line := strings.TrimSpace(lines[i])
 		if line != "" && !strings.HasPrefix(line, "//") && !strings.HasPrefix(line, "#") {
 			if len(line) > 80 {
-				line = truncateWithSuffix(line, 80, "...")
+				line = line[:80] + "..."
 			}
 			preview = append(preview, "    "+line)
 		}
@@ -812,7 +798,10 @@ func (tf *ToolFormatter) formatListFilesResult(content string) string {
 
 // formatDefaultResult shows compact preview
 func (tf *ToolFormatter) formatDefaultResult(content string) string {
-	preview := truncateWithSuffix(content, 60, "...")
+	preview := content
+	if len(preview) > 60 {
+		preview = preview[:60] + "..."
+	}
 	preview = strings.ReplaceAll(preview, "\n", " ")
 	return "  → " + preview
 }

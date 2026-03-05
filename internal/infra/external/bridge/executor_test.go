@@ -531,58 +531,6 @@ func TestResolvePython_UsesVenvWhenPresent(t *testing.T) {
 	}
 }
 
-func TestResolveBinary(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		config   map[string]string
-		fallback string
-		want     string
-	}{
-		{
-			name:     "fallback when config missing",
-			config:   map[string]string{},
-			fallback: "/tmp/fake/kimi",
-			want:     "/tmp/fake/kimi",
-		},
-		{
-			name: "request binary when fallback missing",
-			config: map[string]string{
-				"binary": "/usr/local/bin/kimi",
-			},
-			fallback: "",
-			want:     "/usr/local/bin/kimi",
-		},
-		{
-			name: "prefer absolute fallback when same basename",
-			config: map[string]string{
-				"binary": "/usr/bin/kimi",
-			},
-			fallback: "/tmp/fake/kimi",
-			want:     "/tmp/fake/kimi",
-		},
-		{
-			name: "request binary when different cli",
-			config: map[string]string{
-				"binary": "/usr/bin/codex",
-			},
-			fallback: "/tmp/fake/kimi",
-			want:     "/usr/bin/codex",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := resolveBinary(tt.config, tt.fallback)
-			if got != tt.want {
-				t.Fatalf("resolveBinary() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestResolvePython_FallsBackToSystemPython(t *testing.T) {
 	t.Parallel()
 

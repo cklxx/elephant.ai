@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"alex/evaluation/swe_bench"
-	"alex/internal/shared/utils"
 
 	"gopkg.in/yaml.v3"
 )
@@ -107,7 +106,7 @@ func (NoopAgentJudge) Judge(_ context.Context, _ EvalTask, _ swe_bench.WorkerRes
 
 // LoadJudgeRubric loads a rubric from a YAML file.
 func LoadJudgeRubric(path string) (*JudgeRubric, error) {
-	if utils.IsBlank(path) {
+	if strings.TrimSpace(path) == "" {
 		return nil, fmt.Errorf("rubric path is required")
 	}
 	data, err := os.ReadFile(path)
@@ -126,7 +125,7 @@ func LoadJudgeRubric(path string) (*JudgeRubric, error) {
 
 // Validate ensures the rubric is well-formed.
 func (r JudgeRubric) Validate() error {
-	if utils.IsBlank(r.Name) {
+	if strings.TrimSpace(r.Name) == "" {
 		return fmt.Errorf("rubric name is required")
 	}
 	if len(r.Dimensions) == 0 {
@@ -135,7 +134,7 @@ func (r JudgeRubric) Validate() error {
 
 	var totalWeight float64
 	for _, d := range r.Dimensions {
-		if utils.IsBlank(d.ID) {
+		if strings.TrimSpace(d.ID) == "" {
 			return fmt.Errorf("rubric dimension id is required")
 		}
 		if d.Weight <= 0 {
@@ -292,7 +291,7 @@ func AutoJudgeTask(task EvalTask, result swe_bench.WorkerResult, rubric JudgeRub
 }
 
 func autoScoreDimension(id string, task EvalTask, result swe_bench.WorkerResult) int {
-	switch utils.TrimLower(id) {
+	switch strings.ToLower(strings.TrimSpace(id)) {
 	case "completion":
 		if result.Status == swe_bench.StatusCompleted {
 			return 2
@@ -364,7 +363,7 @@ func constraintScore(task EvalTask, result swe_bench.WorkerResult) int {
 }
 
 func pickResultText(result swe_bench.WorkerResult) string {
-	if utils.HasContent(result.Solution) {
+	if strings.TrimSpace(result.Solution) != "" {
 		return strings.ToLower(result.Solution)
 	}
 	return strings.ToLower(result.Explanation)
@@ -468,7 +467,7 @@ func (t EvalTask) ConstraintCriteria() []string {
 		if strings.HasPrefix(c, "expected_output:") {
 			continue
 		}
-		if utils.HasContent(c) {
+		if strings.TrimSpace(c) != "" {
 			constraints = append(constraints, c)
 		}
 	}

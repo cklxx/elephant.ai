@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"alex/internal/shared/utils"
 )
 
 type sessionCleanupOptions struct {
@@ -133,7 +131,7 @@ func requireCleanupValue(args []string, index *int, flag string) (string, error)
 }
 
 func parseRetentionDuration(value string) (time.Duration, error) {
-	value = utils.TrimLower(value)
+	value = strings.TrimSpace(strings.ToLower(value))
 	if value == "" {
 		return 0, fmt.Errorf("retention duration cannot be empty")
 	}

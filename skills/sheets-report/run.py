@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """sheets-report skill — 飞书电子表格管理。
 
-All actions delegate to unified Feishu CLI runtime.
+通过 channel tool 的 sheets actions 管理飞书电子表格。
 """
 
 from __future__ import annotations
@@ -18,20 +18,63 @@ from skill_runner.env import load_repo_dotenv
 load_repo_dotenv(__file__)
 
 import json
+import os
+import urllib.error
+import urllib.request
 
-from skill_runner.feishu_cli import feishu_tool
+
+def _lark_api(method: str, path: str, body: dict | None = None) -> dict:
+    base = "https://open.feishu.cn/open-apis"
+    token = os.environ.get("LARK_TENANT_TOKEN", "")
+    if not token:
+        return {"error": "LARK_TENANT_TOKEN not set"}
+
+    url = f"{base}{path}"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    data = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.URLError as exc:
+        return {"error": str(exc)}
 
 
 def create_spreadsheet(args: dict) -> dict:
-    return feishu_tool("sheets", "create", args)
+    title = args.get("title", "")
+    folder_token = args.get("folder_token", "")
+    body: dict = {}
+    if title:
+        body["title"] = title
+    if folder_token:
+        body["folder_token"] = folder_token
+
+    result = _lark_api("POST", "/sheets/v3/spreadsheets", {"spreadsheet": body} if body else None)
+    if "error" in result:
+        return {"success": False, **result}
+    ss = result.get("data", {}).get("spreadsheet", {})
+    return {"success": True, "spreadsheet": ss}
 
 
 def get_spreadsheet(args: dict) -> dict:
-    return feishu_tool("sheets", "get", args)
+    token = args.get("spreadsheet_token", "")
+    if not token:
+        return {"success": False, "error": "spreadsheet_token is required"}
+    result = _lark_api("GET", f"/sheets/v3/spreadsheets/{token}")
+    if "error" in result:
+        return {"success": False, **result}
+    return {"success": True, "spreadsheet": result.get("data", {}).get("spreadsheet", {})}
 
 
 def list_sheets(args: dict) -> dict:
-    return feishu_tool("sheets", "list_sheets", args)
+    token = args.get("spreadsheet_token", "")
+    if not token:
+        return {"success": False, "error": "spreadsheet_token is required"}
+    result = _lark_api("GET", f"/sheets/v3/spreadsheets/{token}/sheets/query")
+    if "error" in result:
+        return {"success": False, **result}
+    return {"success": True, "sheets": result.get("data", {}).get("sheets", [])}
 
 
 def run(args: dict) -> dict:

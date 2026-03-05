@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 _RUN_PATH = Path(__file__).resolve().parent.parent / "run.py"
 _spec = importlib.util.spec_from_file_location("calendar_run", _RUN_PATH)
@@ -18,27 +22,72 @@ run = _mod.run
 
 
 class TestCreateEvent:
-    def test_delegates_to_feishu_cli(self):
-        with patch.object(_mod, "feishu_tool", return_value={"success": True, "event": {"id": "evt1"}}) as mock:
+    def test_missing_title(self):
+        result = create_event({"start": "2026-02-10 14:00"})
+        assert result["success"] is False
+        assert "title" in result["error"]
+
+    def test_missing_start(self):
+        result = create_event({"title": "周会"})
+        assert result["success"] is False
+        assert "start" in result["error"]
+
+    def test_no_token(self):
+        with patch.object(_mod, "_lark_api", return_value={"error": "LARK_TENANT_TOKEN not set"}):
             result = create_event({"title": "周会", "start": "2026-02-10 14:00"})
-            mock.assert_called_once_with("calendar", "create", {"title": "周会", "start": "2026-02-10 14:00"})
-            assert result["success"] is True
+            assert result["success"] is False
+            assert "LARK_TENANT_TOKEN" in result.get("error", "")
+
+    def test_successful_creation(self):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "data": {"event_id": "evt_123", "summary": "周会"}
+        }).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch.dict("os.environ", {"LARK_TENANT_TOKEN": "test-token"}):
+            with patch("urllib.request.urlopen", return_value=mock_resp):
+                result = create_event({"title": "周会", "start": "2026-02-10 14:00"})
+                assert result["success"] is True
+                assert "周会" in result["message"]
 
 
 class TestQueryEvents:
-    def test_delegates_to_feishu_cli(self):
-        with patch.object(_mod, "feishu_tool", return_value={"success": True, "count": 1}) as mock:
-            result = query_events({"start": "2026-02-10"})
-            mock.assert_called_once_with("calendar", "query", {"start": "2026-02-10"})
-            assert result["count"] == 1
+    def test_missing_start(self):
+        result = query_events({})
+        assert result["success"] is False
+
+    def test_successful_query(self):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "data": {"items": [{"event_id": "evt_1", "summary": "Meeting"}]}
+        }).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch.dict("os.environ", {"LARK_TENANT_TOKEN": "test-token"}):
+            with patch("urllib.request.urlopen", return_value=mock_resp):
+                result = query_events({"start": "2026-02-10"})
+                assert result["success"] is True
+                assert result["count"] == 1
 
 
 class TestDeleteEvent:
-    def test_delegates_to_feishu_cli(self):
-        with patch.object(_mod, "feishu_tool", return_value={"success": True}) as mock:
-            result = delete_event({"event_id": "evt_123"})
-            mock.assert_called_once_with("calendar", "delete", {"event_id": "evt_123"})
-            assert result["success"] is True
+    def test_missing_event_id(self):
+        result = delete_event({})
+        assert result["success"] is False
+
+    def test_successful_delete(self):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({}).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch.dict("os.environ", {"LARK_TENANT_TOKEN": "test-token"}):
+            with patch("urllib.request.urlopen", return_value=mock_resp):
+                result = delete_event({"event_id": "evt_123"})
+                assert result["success"] is True
 
 
 class TestRunDispatch:

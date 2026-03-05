@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"alex/evaluation/swe_bench"
-	"alex/internal/shared/utils"
 )
 
 //go:embed datasets/general_agent_eval.json
@@ -38,7 +37,7 @@ func loadGeneralAgentDataset(path string, limit int) ([]swe_bench.Instance, erro
 
 	instances := make([]swe_bench.Instance, 0, len(tasks))
 	for _, task := range tasks {
-		if utils.IsBlank(task.Surface) {
+		if strings.TrimSpace(task.Surface) == "" {
 			task.Surface = "web"
 		}
 		instances = append(instances, task.toInstance())
@@ -103,7 +102,7 @@ func formatConstraints(constraints []string) string {
 func loadGeneralAgentTasks(path string, limit int) ([]GeneralAgentTask, error) {
 	var tasks []GeneralAgentTask
 
-	if utils.IsBlank(path) {
+	if strings.TrimSpace(path) == "" {
 		if err := decodeGeneralDataset(bytes.NewReader(embeddedGeneralDataset), &tasks); err != nil {
 			return nil, fmt.Errorf("decode embedded general agent dataset: %w", err)
 		}

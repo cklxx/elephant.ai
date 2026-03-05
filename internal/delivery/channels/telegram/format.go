@@ -1,10 +1,6 @@
 package telegram
 
-import (
-	"strings"
-
-	"alex/internal/shared/utils"
-)
+import "strings"
 
 const telegramMaxMessageLen = 4096
 
@@ -37,11 +33,11 @@ func splitForTelegram(text string, limit int) []string {
 
 // truncateWithEllipsis truncates text to limit, appending "..." if truncated.
 func truncateWithEllipsis(text string, limit int) string {
-	if len([]rune(text)) <= limit {
+	if len(text) <= limit {
 		return text
 	}
 	if limit <= 3 {
-		return utils.TruncateWithSuffix(text, limit, "")
+		return text[:limit]
 	}
-	return utils.TruncateWithSuffix(text, limit-3, "...")
+	return text[:limit-3] + "..."
 }

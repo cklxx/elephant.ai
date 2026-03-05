@@ -12,16 +12,18 @@ _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
 
-def test_read_doc_delegates_to_feishu_cli():
-    with patch.object(_mod, "feishu_tool", return_value={"success": False, "error": "document_id is required"}) as mock:
-        result = _mod.read_doc({})
-        mock.assert_called_once_with("doc", "read", {})
-
+def test_read_doc_requires_document_id():
+    result = _mod.read_doc({})
     assert result["success"] is False
+    assert "document_id" in result["error"]
 
 
 def test_create_doc_success():
-    with patch.object(_mod, "feishu_tool", return_value={"success": True, "document": {"document_id": "doc_1"}}):
+    with patch.object(
+        _mod,
+        "_lark_api",
+        return_value={"data": {"document": {"document_id": "doc_1"}}},
+    ):
         result = _mod.create_doc({"title": "test"})
 
     assert result["success"] is True

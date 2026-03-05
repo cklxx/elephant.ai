@@ -419,13 +419,13 @@ func shouldDropPersistedMessage(msg ports.Message) bool {
 	if role != "assistant" {
 		return false
 	}
-	if utils.HasContent(msg.Content) {
+	if strings.TrimSpace(msg.Content) != "" {
 		return false
 	}
 	if len(msg.ToolCalls) > 0 || len(msg.ToolResults) > 0 {
 		return false
 	}
-	if utils.HasContent(msg.ToolCallID) {
+	if strings.TrimSpace(msg.ToolCallID) != "" {
 		return false
 	}
 	if len(msg.Attachments) > 0 {
@@ -444,7 +444,7 @@ func isPersistedPrimarySystemPrompt(msg ports.Message) bool {
 	if utils.TrimLower(msg.Role) != "system" {
 		return false
 	}
-	return utils.HasContent(msg.Content)
+	return strings.TrimSpace(msg.Content) != ""
 }
 
 func shouldDropPersistedSystemPrompt(msg ports.Message) bool {
@@ -454,7 +454,7 @@ func shouldDropPersistedSystemPrompt(msg ports.Message) bool {
 	if utils.TrimLower(msg.Role) != "system" {
 		return false
 	}
-	return utils.IsBlank(string(msg.Source))
+	return strings.TrimSpace(string(msg.Source)) == ""
 }
 
 func stripUserHistoryMessages(messages []ports.Message) []ports.Message {

@@ -1,11 +1,9 @@
 package subscription
 
 import (
+	"alex/internal/shared/utils"
 	"sort"
 	"strings"
-
-	runtimeconfig "alex/internal/shared/config"
-	"alex/internal/shared/utils"
 )
 
 // ModelRecommendation marks a curated model choice for onboarding and pickers.
@@ -19,8 +17,6 @@ type ModelRecommendation struct {
 type providerPreset struct {
 	DisplayName       string
 	AuthMode          string
-	APIKeyEnvVars     []string
-	BaseURLEnvVar     string
 	DefaultBaseURL    string
 	DefaultModel      string
 	RecommendedModels []ModelRecommendation
@@ -32,8 +28,6 @@ var providerPresets = map[string]providerPreset{
 	"codex": {
 		DisplayName:    "Codex",
 		AuthMode:       "cli_oauth_or_api_key",
-		APIKeyEnvVars:  []string{"CODEX_API_KEY"},
-		BaseURLEnvVar:  "CODEX_BASE_URL",
 		DefaultBaseURL: "https://chatgpt.com/backend-api/codex",
 		DefaultModel:   "gpt-5.2-codex",
 		RecommendedModels: []ModelRecommendation{
@@ -48,8 +42,6 @@ var providerPresets = map[string]providerPreset{
 	"openai": {
 		DisplayName:    "OpenAI",
 		AuthMode:       "api_key",
-		APIKeyEnvVars:  []string{"OPENAI_API_KEY"},
-		BaseURLEnvVar:  "OPENAI_BASE_URL",
 		DefaultBaseURL: "https://api.openai.com/v1",
 		DefaultModel:   "gpt-5-mini",
 		RecommendedModels: []ModelRecommendation{
@@ -63,8 +55,6 @@ var providerPresets = map[string]providerPreset{
 	"openrouter": {
 		DisplayName:    "OpenRouter",
 		AuthMode:       "api_key",
-		APIKeyEnvVars:  []string{"OPENROUTER_API_KEY"},
-		BaseURLEnvVar:  "OPENROUTER_BASE_URL",
 		DefaultBaseURL: "https://openrouter.ai/api/v1",
 		DefaultModel:   "openai/gpt-4o-mini",
 		RecommendedModels: []ModelRecommendation{
@@ -78,8 +68,19 @@ var providerPresets = map[string]providerPreset{
 	"anthropic": {
 		DisplayName:    "Anthropic",
 		AuthMode:       "cli_oauth_or_api_key",
-		APIKeyEnvVars:  []string{"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"},
-		BaseURLEnvVar:  "ANTHROPIC_BASE_URL",
+		DefaultBaseURL: "https://api.anthropic.com/v1",
+		DefaultModel:   "claude-sonnet-4-6",
+		RecommendedModels: []ModelRecommendation{
+			{ID: "claude-sonnet-4-6", Tier: "balanced", Default: true},
+			{ID: "claude-sonnet-4-20250514", Tier: "balanced"},
+			{ID: "claude-3-7-sonnet-20250219", Tier: "quality"},
+		},
+		KeyCreateURL: "https://console.anthropic.com/settings/keys",
+		SetupHint:    "Sign in with Claude CLI or set CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY.",
+	},
+	"claude": {
+		DisplayName:    "Anthropic",
+		AuthMode:       "cli_oauth_or_api_key",
 		DefaultBaseURL: "https://api.anthropic.com/v1",
 		DefaultModel:   "claude-sonnet-4-6",
 		RecommendedModels: []ModelRecommendation{
@@ -91,25 +92,20 @@ var providerPresets = map[string]providerPreset{
 		SetupHint:    "Sign in with Claude CLI or set CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY.",
 	},
 	"kimi": {
-		DisplayName:    "Kimi",
+		DisplayName:    "Kimi (Moonshot)",
 		AuthMode:       "api_key",
-		APIKeyEnvVars:  []string{"KIMI_API_KEY", "OPENAI_API_KEY"},
-		BaseURLEnvVar:  "KIMI_BASE_URL",
-		DefaultBaseURL: "https://api.kimi.com/coding/v1",
-		DefaultModel:   "kimi-for-coding",
+		DefaultBaseURL: "https://api.moonshot.cn/v1",
+		DefaultModel:   "kimi-k2-0711-preview",
 		RecommendedModels: []ModelRecommendation{
-			{ID: "kimi-for-coding", Tier: "balanced", Default: true},
-			{ID: "kimi-k2-0711-preview", Tier: "quality"},
+			{ID: "kimi-k2-0711-preview", Tier: "balanced", Default: true},
 			{ID: "moonshot-v1-8k", Tier: "fast"},
 		},
 		KeyCreateURL: "https://platform.moonshot.cn/console/api-keys",
-		SetupHint:    "Set KIMI_API_KEY or OPENAI_API_KEY with a Kimi-compatible key.",
+		SetupHint:    "Create an API key in Moonshot console and paste it here.",
 	},
 	"glm": {
 		DisplayName:    "GLM (Zhipu)",
 		AuthMode:       "api_key",
-		APIKeyEnvVars:  []string{"GLM_API_KEY"},
-		BaseURLEnvVar:  "GLM_BASE_URL",
 		DefaultBaseURL: "https://open.bigmodel.cn/api/paas/v4",
 		DefaultModel:   "glm-4.5-flash",
 		RecommendedModels: []ModelRecommendation{
@@ -122,8 +118,6 @@ var providerPresets = map[string]providerPreset{
 	"minimax": {
 		DisplayName:    "MiniMax",
 		AuthMode:       "api_key",
-		APIKeyEnvVars:  []string{"MINIMAX_API_KEY"},
-		BaseURLEnvVar:  "MINIMAX_BASE_URL",
 		DefaultBaseURL: "https://api.minimax.chat/v1",
 		DefaultModel:   "MiniMax-Text-01",
 		RecommendedModels: []ModelRecommendation{
@@ -139,29 +133,11 @@ var providerPresets = map[string]providerPreset{
 	},
 }
 
-func init() {
-	// "claude" is an alias for "anthropic".
-	providerPresets["claude"] = providerPresets["anthropic"]
-}
-
-// CanonicalProvider normalizes user/provider input to a canonical provider ID.
-func CanonicalProvider(provider string) string {
-	key := utils.TrimLower(provider)
-	switch key {
-	case "claude":
-		return "anthropic"
-	default:
-		return key
-	}
-}
-
 // ProviderPreset contains the public setup metadata for a runtime provider.
 type ProviderPreset struct {
 	Provider          string
 	DisplayName       string
 	AuthMode          string
-	APIKeyEnvVars     []string
-	BaseURLEnvVar     string
 	DefaultBaseURL    string
 	DefaultModel      string
 	RecommendedModels []ModelRecommendation
@@ -174,8 +150,6 @@ func buildProviderPreset(provider string, preset providerPreset) ProviderPreset 
 		Provider:          provider,
 		DisplayName:       preset.DisplayName,
 		AuthMode:          preset.AuthMode,
-		APIKeyEnvVars:     append([]string(nil), preset.APIKeyEnvVars...),
-		BaseURLEnvVar:     preset.BaseURLEnvVar,
 		DefaultBaseURL:    preset.DefaultBaseURL,
 		DefaultModel:      preset.DefaultModel,
 		RecommendedModels: append([]ModelRecommendation(nil), preset.RecommendedModels...),
@@ -202,7 +176,7 @@ func ListProviderPresets() []ProviderPreset {
 
 // LookupProviderPreset returns a provider preset by provider id.
 func LookupProviderPreset(provider string) (ProviderPreset, bool) {
-	key := CanonicalProvider(provider)
+	key := utils.TrimLower(provider)
 	preset, ok := providerPresets[key]
 	if !ok {
 		return ProviderPreset{}, false
@@ -214,8 +188,7 @@ func applyCatalogProviderPreset(provider *CatalogProvider) {
 	if provider == nil {
 		return
 	}
-	key := CanonicalProvider(provider.Provider)
-	provider.Provider = key
+	key := utils.TrimLower(provider.Provider)
 	preset, ok := providerPresets[key]
 	if !ok {
 		provider.DisplayName = provider.Provider
@@ -252,68 +225,6 @@ func recommendationIDs(items []ModelRecommendation) []string {
 		out = append(out, id)
 	}
 	return out
-}
-
-// LookupEnvCredential resolves an API key and base URL for the given provider
-// using its preset's env-var conventions. It returns the first non-empty API key
-// found, the resolved base URL (env override or preset default), the env var name
-// that matched, and whether a key was found.
-//
-// For known providers, baseURL is always populated (from env override or preset
-// default) regardless of whether an API key was found — callers can use it
-// without a redundant preset lookup.
-// Falls back to LLM_API_KEY as a last resort for known providers only.
-func LookupEnvCredential(provider string, lookup runtimeconfig.EnvLookup) (apiKey, baseURL, source string, ok bool) {
-	if lookup == nil {
-		lookup = runtimeconfig.DefaultEnvLookup
-	}
-	key := CanonicalProvider(provider)
-	preset, found := providerPresets[key]
-	if !found {
-		// Unknown provider — reject.
-		return "", "", "", false
-	}
-
-	// Resolve base URL: env override → preset default.
-	// Done first so baseURL is always available for known providers.
-	baseURL = preset.DefaultBaseURL
-	if preset.BaseURLEnvVar != "" {
-		if v, has := lookup(preset.BaseURLEnvVar); has {
-			v = strings.TrimSpace(v)
-			if v != "" {
-				baseURL = v
-			}
-		}
-	}
-
-	// Try provider-specific env vars.
-	for _, envVar := range preset.APIKeyEnvVars {
-		if v, has := lookup(envVar); has {
-			v = strings.TrimSpace(v)
-			if v != "" {
-				apiKey = v
-				source = envVar
-				break
-			}
-		}
-	}
-
-	// Universal fallback.
-	if apiKey == "" {
-		if v, has := lookup("LLM_API_KEY"); has {
-			v = strings.TrimSpace(v)
-			if v != "" {
-				apiKey = v
-				source = "LLM_API_KEY"
-			}
-		}
-	}
-
-	if apiKey == "" {
-		return "", baseURL, "", false
-	}
-
-	return apiKey, baseURL, source, true
 }
 
 func pickCatalogDefaultModel(provider CatalogProvider) string {

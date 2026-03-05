@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/shared/utils"
 )
 
 // RenderTaskFile converts a TeamDefinition + goal into a TaskFile with
@@ -142,10 +141,10 @@ func buildStageDeps(stages []agent.TeamStageDefinition, stageOutputIDs [][]strin
 }
 
 func renderTeamPrompt(template string, overrides map[string]string, roleName, teamName, goal string) string {
-	if override, ok := overrides[roleName]; ok && utils.HasContent(override) {
+	if override, ok := overrides[roleName]; ok && strings.TrimSpace(override) != "" {
 		return override
 	}
-	if utils.IsBlank(template) {
+	if strings.TrimSpace(template) == "" {
 		return goal
 	}
 	return strings.NewReplacer(

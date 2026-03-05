@@ -109,8 +109,7 @@ Model command usage:
 
 Examples:
   /model use codex/gpt-5.2-codex
-  /model use anthropic/claude-sonnet-4-6 --chat
-  /model use kimi/kimi-for-coding
+  /model use anthropic/claude-sonnet-4-20250514 --chat
   /model use llama_server/local-model
 `)
 }
@@ -329,12 +328,8 @@ func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, s
 	if len(parts) != 2 || utils.IsBlank(parts[0]) || utils.IsBlank(parts[1]) {
 		return fmt.Errorf("format: <provider>/<model>")
 	}
-	providerRaw := strings.TrimSpace(parts[0])
-	provider := subscription.CanonicalProvider(providerRaw)
+	provider := utils.TrimLower(parts[0])
 	model := strings.TrimSpace(parts[1])
-	if _, known := subscription.LookupProviderPreset(provider); !known {
-		return fmt.Errorf("unsupported provider %q", providerRaw)
-	}
 
 	creds := g.loadCLICredentials()
 	cred, ok := matchSubscriptionCredential(creds, provider)
@@ -423,37 +418,19 @@ func resolveLlamaServerTarget(lookup runtimeconfig.EnvLookup) (subscription.Llam
 }
 
 func matchSubscriptionCredential(creds runtimeconfig.CLICredentials, provider string) (runtimeconfig.CLICredential, bool) {
-	provider = subscription.CanonicalProvider(provider)
-	matchCLIProvider := func(cred runtimeconfig.CLICredential, known string) bool {
-		credProvider := subscription.CanonicalProvider(cred.Provider)
-		knownProvider := subscription.CanonicalProvider(known)
-		return provider == credProvider || (credProvider == "" && provider == knownProvider)
-	}
-
-	if matchCLIProvider(creds.Codex, "codex") && creds.Codex.APIKey != "" {
-		resolved := creds.Codex
-		resolved.Provider = provider
-		return resolved, true
-	}
-	if matchCLIProvider(creds.Claude, "anthropic") && creds.Claude.APIKey != "" {
-		resolved := creds.Claude
-		resolved.Provider = provider
-		return resolved, true
-	}
-	if provider == "llama_server" {
+	switch provider {
+	case creds.Codex.Provider:
+		if creds.Codex.APIKey != "" {
+			return creds.Codex, true
+		}
+	case creds.Claude.Provider:
+		if creds.Claude.APIKey != "" {
+			return creds.Claude, true
+		}
+	case "llama_server":
 		return runtimeconfig.CLICredential{
 			Provider: "llama_server",
 			Source:   "llama_server",
-		}, true
-	}
-	// Generic preset-based resolution for api_key providers via env vars.
-	apiKey, baseURL, _, ok := subscription.LookupEnvCredential(provider, runtimeconfig.DefaultEnvLookup)
-	if ok && utils.HasContent(apiKey) {
-		return runtimeconfig.CLICredential{
-			Provider: provider,
-			APIKey:   apiKey,
-			BaseURL:  baseURL,
-			Source:   runtimeconfig.SourceEnv,
 		}, true
 	}
 	return runtimeconfig.CLICredential{}, false

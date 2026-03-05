@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"alex/internal/domain/agent/ports"
-	jsonx "alex/internal/shared/json"
+	"alex/internal/shared/json"
 	"alex/internal/shared/utils"
 )
 
@@ -104,10 +104,10 @@ func appendThinkingFromResponseContents(thinking *ports.Thinking, kind string, p
 }
 
 func responseContentText(part responseContent) string {
-	if utils.HasContent(part.Text) {
+	if strings.TrimSpace(part.Text) != "" {
 		return part.Text
 	}
-	if utils.HasContent(part.Content) {
+	if strings.TrimSpace(part.Content) != "" {
 		return part.Content
 	}
 	if len(part.Summary) == 0 {

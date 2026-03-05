@@ -2,7 +2,6 @@ package external
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -144,101 +143,19 @@ func (r *Registry) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 	if req.AgentType == "" {
 		return nil, fmt.Errorf("agent_type is required for external execution")
 	}
-
-	candidates := buildAgentFallbackChain(req.AgentType, req.Config)
-	if len(candidates) == 0 {
-		return nil, fmt.Errorf("agent_type is required for external execution")
-	}
-	if len(candidates) == 1 {
-		req.AgentType = candidates[0]
-		return r.executeSingle(ctx, req)
-	}
-
-	primary := candidates[0]
-	var (
-		lastResult *agent.ExternalAgentResult
-		lastErr    error
-		failures   []string
-	)
-	for i, candidate := range candidates {
-		attemptReq := req
-		attemptReq.AgentType = candidate
-		result, err := r.executeSingle(ctx, attemptReq)
-		if err == nil {
-			if i > 0 {
-				if result == nil {
-					result = &agent.ExternalAgentResult{}
-				}
-				if result.Metadata == nil {
-					result.Metadata = make(map[string]any)
-				}
-				result.Metadata["fallback_used"] = true
-				result.Metadata["fallback_from_agent_type"] = primary
-				result.Metadata["fallback_to_agent_type"] = candidate
-				result.Metadata["fallback_attempt"] = i + 1
-			}
-			return result, nil
-		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return result, err
-		}
-
-		lastResult = result
-		lastErr = err
-		failures = append(failures, fmt.Sprintf("%s: %v", candidate, err))
-		if i+1 < len(candidates) {
-			r.logger.Warn("external agent attempt failed (task=%s from=%s to=%s err=%v)", strings.TrimSpace(req.TaskID), candidate, candidates[i+1], err)
-		}
-	}
-
-	if len(failures) == 0 {
-		if lastErr == nil {
-			lastErr = fmt.Errorf("external execution failed")
-		}
-		return lastResult, lastErr
-	}
-	return lastResult, fmt.Errorf("all external agent fallback candidates failed: %s", strings.Join(failures, " | "))
-}
-
-func (r *Registry) executeSingle(ctx context.Context, req agent.ExternalAgentRequest) (*agent.ExternalAgentResult, error) {
 	exec, ok := r.get(req.AgentType)
 	if !ok {
 		// Dynamic fallback: if task provides a concrete CLI binary, route through
 		// the generic bridge path instead of hard-failing by static type list.
 		if req.Config != nil && strings.TrimSpace(req.Config["binary"]) != "" {
-			if generic, ok := r.get(agent.AgentTypeGenericCLI); ok {
-				req.AgentType = agent.AgentTypeGenericCLI
+			if generic, ok := r.get("generic_cli"); ok {
+				req.AgentType = "generic_cli"
 				return generic.Execute(ctx, req)
 			}
 		}
 		return nil, fmt.Errorf("unsupported external agent type: %s", req.AgentType)
 	}
 	return exec.Execute(ctx, req)
-}
-
-func buildAgentFallbackChain(primary string, cfg map[string]string) []string {
-	chain := make([]string, 0, 4)
-	chain = appendUniqueAgentType(chain, primary)
-	if cfg == nil {
-		return chain
-	}
-	for _, candidate := range strings.Split(cfg["fallback_clis"], ",") {
-		chain = appendUniqueAgentType(chain, candidate)
-	}
-	return chain
-}
-
-func appendUniqueAgentType(chain []string, raw string) []string {
-	canonical := agent.CanonicalAgentType(raw)
-	if strings.TrimSpace(canonical) == "" {
-		return chain
-	}
-	for _, existing := range chain {
-		if existing == canonical {
-			return chain
-		}
-	}
-	return append(chain, canonical)
 }
 
 func (r *Registry) SupportedTypes() []string {

@@ -43,11 +43,11 @@ type GroupSummary struct {
 
 // SummaryConfig controls summarization thresholds and output limits.
 type SummaryConfig struct {
-	MaxOutputChars  int
-	MinMessages     int
+	MaxOutputChars int
+	MinMessages    int
 	MinParticipants int
-	HighlightLimit  int
-	TimeWindow      time.Duration
+	HighlightLimit int
+	TimeWindow     time.Duration
 }
 
 // DefaultSummaryConfig returns sensible defaults for group summarization.
@@ -313,10 +313,7 @@ func buildTextSummary(s *GroupSummary, maxChars int) string {
 
 	result := sb.String()
 	if maxChars > 0 && len(result) > maxChars {
-		if maxChars <= 3 {
-			return result[:maxChars]
-		}
-		return result[:maxChars-3] + "..."
+		result = result[:maxChars-3] + "..."
 	}
 	return result
 }

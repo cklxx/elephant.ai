@@ -167,8 +167,9 @@ func buildInjectToolMessageTask(task string, rounds int) string {
 	builder.WriteString("This is an inject-chain verification run.\n")
 	builder.WriteString(fmt.Sprintf("Before the final answer, send exactly %d progress updates to the current Lark chat via tools.\n", rounds))
 	builder.WriteString(fmt.Sprintf("Each progress update must start with \"[过程 i/%d]\" where i is 1..%d.\n", rounds, rounds))
-	builder.WriteString("Use shell_exec and call python3 skills/feishu-cli/run.py for progress messages.\n")
-	builder.WriteString("Only use this CLI skill path for progress updates.\n")
+	builder.WriteString("Preferred tool call: channel with action=\"send_message\" and a short message.\n")
+	builder.WriteString("Fallback tool call: lark_send_message with short text.\n")
+	builder.WriteString("Only use these messaging tools for progress updates.\n")
 	builder.WriteString("Avoid request_user, plan, clarify, run_tasks, or any unrelated tools.\n")
 	builder.WriteString("If a send tool call fails, continue to the next i without retry loops.\n")
 	builder.WriteString("Do not ask for confirmation during these progress updates.\n\n")
@@ -522,7 +523,7 @@ func (h *injectCaptureHub) nextSyntheticMessageIDLocked(chatID string) string {
 }
 
 func (h *injectCaptureHub) appendSyntheticMessageLocked(chatID string, msg *larkim.Message) {
-	if utils.IsBlank(chatID) || msg == nil {
+	if strings.TrimSpace(chatID) == "" || msg == nil {
 		return
 	}
 	history := h.ensureChatHistoryLocked(chatID)
@@ -539,7 +540,7 @@ func (h *injectCaptureHub) recordInjectedIncoming(chatID, messageID, senderID, m
 	if chatID == "" || messageID == "" {
 		return
 	}
-	if utils.IsBlank(senderID) {
+	if strings.TrimSpace(senderID) == "" {
 		senderID = "ou_inject_user"
 	}
 	msg := buildInjectHistoryMessage(messageID, msgType, content, "user", senderID, ts)
@@ -562,7 +563,7 @@ func (h *injectCaptureHub) recordSyntheticSend(chatID, messageID, msgType, conte
 		h.mu.Unlock()
 		return
 	}
-	if utils.IsBlank(messageID) {
+	if strings.TrimSpace(messageID) == "" {
 		messageID = h.nextSyntheticMessageIDLocked(chatID)
 	}
 	msg := buildInjectHistoryMessage(messageID, msgType, content, "app", injectBotSenderID, ts)
@@ -581,7 +582,7 @@ func (h *injectCaptureHub) recordSyntheticReply(replyToID, messageID, msgType, c
 		h.mu.Unlock()
 		return
 	}
-	if utils.IsBlank(messageID) {
+	if strings.TrimSpace(messageID) == "" {
 		messageID = h.nextSyntheticMessageIDLocked(chatID)
 	}
 	msg := buildInjectHistoryMessage(messageID, msgType, content, "app", injectBotSenderID, ts)

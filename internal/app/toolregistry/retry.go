@@ -88,7 +88,7 @@ func newRetryExecutor(delegate tools.ToolExecutor, policy toolspolicy.ToolPolicy
 
 func (r *retryExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	if r == nil || r.delegate == nil {
-		return missingExecutorResult(call.ID)
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("tool executor missing")}, nil
 	}
 
 	resolved := r.resolvePolicy(ctx, call)

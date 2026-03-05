@@ -1,0 +1,116 @@
+package larktools
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"alex/internal/domain/agent/ports"
+	larkapi "alex/internal/infra/lark"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
+)
+
+// larkVCManage handles video conference operations via the unified channel tool.
+type larkVCManage struct{}
+
+func (t *larkVCManage) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	sdkClient, errResult := requireLarkClient(ctx, call.ID)
+	if errResult != nil {
+		return errResult, nil
+	}
+	client := larkapi.Wrap(sdkClient)
+
+	action := utils.TrimLower(shared.StringArg(call.Arguments, "action"))
+	switch action {
+	case "list_meetings":
+		return t.listMeetings(ctx, client, call)
+	case "get_meeting":
+		return t.getMeeting(ctx, client, call)
+	case "list_rooms":
+		return t.listRooms(ctx, client, call)
+	default:
+		err := fmt.Errorf("unsupported vc action: %s", action)
+		return shared.ToolError(call.ID, "%v", err)
+	}
+}
+
+func (t *larkVCManage) listMeetings(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	startTime, errResult := shared.RequireStringArg(call.Arguments, call.ID, "start_time")
+	if errResult != nil {
+		return errResult, nil
+	}
+	endTime, errResult := shared.RequireStringArg(call.Arguments, call.ID, "end_time")
+	if errResult != nil {
+		return errResult, nil
+	}
+	pageSize, _ := shared.IntArg(call.Arguments, "page_size")
+	pageToken := shared.StringArg(call.Arguments, "page_token")
+
+	resp, err := client.VC().ListMeetings(ctx, larkapi.ListMeetingsRequest{
+		StartTime: startTime,
+		EndTime:   endTime,
+		PageSize:  pageSize,
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return apiErr(call.ID, "list meetings", err), nil
+	}
+
+	payload, _ := json.MarshalIndent(resp, "", "  ")
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: fmt.Sprintf("Found %d meeting(s).\n%s", len(resp.Meetings), string(payload)),
+		Metadata: map[string]any{
+			"count":    len(resp.Meetings),
+			"has_more": resp.HasMore,
+		},
+	}, nil
+}
+
+func (t *larkVCManage) getMeeting(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	meetingID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "meeting_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	meeting, err := client.VC().GetMeeting(ctx, meetingID)
+	if err != nil {
+		return apiErr(call.ID, "get meeting", err), nil
+	}
+
+	payload, _ := json.MarshalIndent(meeting, "", "  ")
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: fmt.Sprintf("Meeting: %s\n%s", meeting.Topic, string(payload)),
+		Metadata: map[string]any{
+			"meeting_id": meeting.MeetingID,
+			"topic":      meeting.Topic,
+		},
+	}, nil
+}
+
+func (t *larkVCManage) listRooms(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	roomLevelID := shared.StringArg(call.Arguments, "room_level_id")
+	pageSize, _ := shared.IntArg(call.Arguments, "page_size")
+	pageToken := shared.StringArg(call.Arguments, "page_token")
+
+	resp, err := client.VC().ListRooms(ctx, larkapi.ListRoomsRequest{
+		RoomLevelID: roomLevelID,
+		PageSize:    pageSize,
+		PageToken:   pageToken,
+	})
+	if err != nil {
+		return apiErr(call.ID, "list rooms", err), nil
+	}
+
+	payload, _ := json.MarshalIndent(resp, "", "  ")
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: fmt.Sprintf("Found %d room(s).\n%s", len(resp.Rooms), string(payload)),
+		Metadata: map[string]any{
+			"count":    len(resp.Rooms),
+			"has_more": resp.HasMore,
+		},
+	}, nil
+}

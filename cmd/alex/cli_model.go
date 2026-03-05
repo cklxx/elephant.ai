@@ -18,7 +18,7 @@ import (
 func executeModelCommand(args []string, out io.Writer) error {
 	subcommand := ""
 	if len(args) > 0 {
-		subcommand = utils.TrimLower(args[0])
+		subcommand = strings.ToLower(strings.TrimSpace(args[0]))
 	}
 
 	switch subcommand {
@@ -145,7 +145,7 @@ func modelCommandProviders(providers []subscription.CatalogProvider) []subscript
 	}
 	out := make([]subscription.CatalogProvider, 0, len(providers))
 	for _, provider := range providers {
-		source := utils.TrimLower(provider.Source)
+		source := strings.ToLower(strings.TrimSpace(provider.Source))
 		if source == "manual" {
 			continue
 		}
@@ -235,7 +235,7 @@ func matchCredential(creds runtimeconfig.CLICredentials, provider string) (runti
 }
 
 func normalizeProviderID(provider string) string {
-	key := utils.TrimLower(provider)
+	key := strings.ToLower(strings.TrimSpace(provider))
 	switch key {
 	case "claude":
 		return "anthropic"

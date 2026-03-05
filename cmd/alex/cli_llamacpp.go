@@ -16,7 +16,7 @@ import (
 func executeLlamaCppCommand(args []string, out io.Writer, envLookup runtimeconfig.EnvLookup) error {
 	subcommand := ""
 	if len(args) > 0 {
-		subcommand = utils.TrimLower(args[0])
+		subcommand = strings.ToLower(strings.TrimSpace(args[0]))
 	}
 	switch subcommand {
 	case "", "help", "-h", "--help":

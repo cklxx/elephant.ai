@@ -34,9 +34,9 @@ const (
 
 Output quality (priority: Clear > Coherent > Concise > Concrete): Lead with result first, key evidence second, supporting detail only on demand. Avoid emojis in responses unless the user explicitly requests them.
 
-Execution: Always execute first and exhaust safe deterministic attempts before asking questions. If intent is unclear, inspect workspace memory files and thread context first (use read_file for memory files, then local chat context snapshots when available). For explicit low-risk read-only inspection asks (view/check/list/inspect project state, files, branch, workspace), execute directly with read/list/shell tools and report findings; do not ask for reconfirmation. Use clarify(needs_user_input=true) only when requirements are missing/contradictory after all viable attempts fail; ask one minimal blocking question only then, and do not use clarify for explicit operational asks. For explicit approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation), call request_user with clear steps and wait. Treat explicit user delegation signals ("you decide", "anything works", "use your judgment") as authorization for low-risk reversible actions: choose a sensible default, execute, and report instead of asking again.
+Execution: Always execute first and exhaust safe deterministic attempts before asking questions. If intent is unclear, inspect memory and thread context first (memory_search, then memory_get/memory_related, then lark_chat_history when available). For explicit low-risk read-only inspection asks (view/check/list/inspect project state, files, branch, workspace), execute directly with read/list/shell tools and report findings; do not ask for reconfirmation. Use clarify(needs_user_input=true) only when requirements are missing/contradictory after all viable attempts fail; ask one minimal blocking question only then, and do not use clarify for explicit operational asks. For explicit approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation), call request_user with clear steps and wait. Treat explicit user delegation signals ("you decide", "anything works", "use your judgment") as authorization for low-risk reversible actions: choose a sensible default, execute, and report instead of asking again.
 
-Tools: Use web_search when no URL is fixed and source discovery is needed; use web_fetch after a URL is chosen. Avoid assuming interactive browser automation capabilities unless matching browser tools are explicitly present in the runtime tool list. When capability is missing, proactively search/install suitable skills or tools from trusted sources before escalating. For Lark/Feishu operations, run local skill CLIs via shell_exec (for example python3 skills/feishu-cli/run.py); do not assume a dedicated channel tool exists. Use /tmp as the default location for temporary/generated files unless the user specifies another path. Use artifacts_list for inventory and artifacts_write for creating/updating durable outputs. Use write_attachment only to materialize an existing attachment into a downloadable file path.`
+Tools: Use web_search when no URL is fixed and source discovery is needed; use web_fetch after a URL is chosen. Avoid assuming interactive browser automation capabilities unless matching browser tools are explicitly present in the runtime tool list. When capability is missing, proactively search/install suitable skills or tools from trusted sources before escalating. Use lark_chat_history for prior thread context, lark_send_message for text-only updates, and lark_upload_file when file delivery is expected; if a generated file is part of the requested deliverable in Lark, proactively upload it after generation. Use /tmp as the default location for temporary/generated files unless the user specifies another path. Use artifacts_list for inventory and artifacts_write for creating/updating durable outputs. Use write_attachment only to materialize an existing attachment into a downloadable file path.`
 )
 
 // CredentialRefresher resolves fresh API credentials for a given LLM provider.
@@ -174,11 +174,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if session != nil {
 		session.Messages = sessionHistory
 	}
-	rawHistoryMessages := historyMessagesFromSession(rawHistory)
-	needsHistorySummary := s.shouldSummarizeHistory(rawHistoryMessages)
-	if len(rawHistoryMessages) > 0 && !needsHistorySummary {
-		session.Messages = rawHistoryMessages
-	}
 
 	var inheritedState *agent.TaskState
 	if appcontext.IsSubagentContext(ctx) {
@@ -308,20 +303,24 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 	prepareCtx, cancelPrepare := context.WithCancel(ctx)
 	defer cancelPrepare()
-	buildContextWindow := func(buildCtx context.Context) error {
+	prepareErrs := make(chan error, 2)
+
+	go func() {
 		if s.contextMgr == nil {
-			return nil
+			prepareErrs <- nil
+			return
 		}
 		if skip, reason := shouldSkipContextWindow(task, session); skip {
 			clilatency.PrintfWithContext(ctx, "[latency] context_window=skipped reason=%s\n", reason)
 			window.Messages = session.Messages
 			window.SystemPrompt = DefaultSystemPrompt
-			return nil
+			prepareErrs <- nil
+			return
 		}
 
 		originalCount := len(session.Messages)
 		windowStarted := time.Now()
-		unattended := appcontext.IsUnattendedContext(buildCtx)
+		unattended := appcontext.IsUnattendedContext(prepareCtx)
 		var okrContext string
 		if s.okrContextProvider != nil {
 			okrContext = s.okrContextProvider()
@@ -338,7 +337,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 
 		var err error
-		window, err = s.contextMgr.BuildWindow(buildCtx, session, agent.ContextWindowConfig{
+		window, err = s.contextMgr.BuildWindow(prepareCtx, session, agent.ContextWindowConfig{
 			TokenLimit:             s.config.MaxTokens,
 			PersonaKey:             personaKey,
 			ToolMode:               string(toolMode),
@@ -358,7 +357,8 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			ChannelHint:            channelHint,
 		})
 		if err != nil {
-			return fmt.Errorf("build context window: %w", err)
+			prepareErrs <- fmt.Errorf("build context window: %w", err)
+			return
 		}
 		clilatency.PrintfWithContext(ctx,
 			"[latency] context_window_ms=%.2f original=%d final=%d\n",
@@ -381,10 +381,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			)
 			s.eventEmitter.OnEvent(compressionEvent)
 		}
-		return nil
-	}
+		prepareErrs <- nil
+	}()
 
-	initLLMClient := func(clientCtx context.Context) error {
+	go func() {
 		s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", effectiveProfile.Provider, effectiveProfile.Model)
 		llmInitStarted := time.Now()
 		apiKeySource := "profile"
@@ -410,11 +410,12 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			strings.TrimSpace(effectiveProfile.Model),
 		)
 		if err != nil {
-			return fmt.Errorf("failed to get LLM client: %w", err)
+			prepareErrs <- fmt.Errorf("failed to get LLM client: %w", err)
+			return
 		}
 
 		client = s.wrapPinnedRateLimitFallback(
-			clientCtx,
+			prepareCtx,
 			selectionPinned,
 			task,
 			preloadedAttachments,
@@ -424,46 +425,26 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		)
 		s.logger.Debug("Isolated LLM client obtained successfully")
 
-		client = s.costDecorator.Wrap(clientCtx, session.ID, client)
+		client = s.costDecorator.Wrap(prepareCtx, session.ID, client)
 		streaming, ok := llm.EnsureStreamingClient(client).(llm.StreamingLLMClient)
 		if !ok {
-			return fmt.Errorf("failed to wrap LLM client with streaming support")
+			prepareErrs <- fmt.Errorf("failed to wrap LLM client with streaming support")
+			return
 		}
 		llmClient = client
 		streamingClient = streaming
-		return nil
+		prepareErrs <- nil
+	}()
+
+	var prepareErr error
+	for i := 0; i < 2; i++ {
+		if err := <-prepareErrs; err != nil && prepareErr == nil {
+			prepareErr = err
+			cancelPrepare()
+		}
 	}
-
-	if needsHistorySummary {
-		if err := initLLMClient(prepareCtx); err != nil {
-			return nil, err
-		}
-		history := s.recallUserHistory(prepareCtx, llmClient, task, rawHistory)
-		if history != nil && len(history.messages) > 0 {
-			session.Messages = history.messages
-		}
-		if err := buildContextWindow(prepareCtx); err != nil {
-			return nil, err
-		}
-	} else {
-		prepareErrs := make(chan error, 2)
-		go func() {
-			prepareErrs <- buildContextWindow(prepareCtx)
-		}()
-		go func() {
-			prepareErrs <- initLLMClient(prepareCtx)
-		}()
-
-		var prepareErr error
-		for i := 0; i < 2; i++ {
-			if err := <-prepareErrs; err != nil && prepareErr == nil {
-				prepareErr = err
-				cancelPrepare()
-			}
-		}
-		if prepareErr != nil {
-			return nil, prepareErr
-		}
+	if prepareErr != nil {
+		return nil, prepareErr
 	}
 
 	if contextWasCompressed && len(preloadedImportant) > 0 {
@@ -486,9 +467,9 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 - When producing long-form deliverables (reports, articles, specs), write them to a Markdown file via write_file.
 - Use /tmp as the default location for temporary/generated files unless the user requests another path.
 - Always execute first. Exhaust all safe deterministic attempts before asking follow-up questions.
-- If intent is unclear, inspect workspace memory files and thread context first (use read_file for memory files, then local chat context snapshots when available).
+- If intent is unclear, inspect memory and thread context first (memory_search, then memory_get/memory_related, then lark_chat_history when available).
 - Ask only after all viable attempts fail and missing critical input still blocks progress.
-- In Lark chats, use shell_exec + skill CLIs (for example skills/feishu-cli/run.py) for both text updates and file delivery.
+- In Lark chats, when a generated file is part of the requested deliverable, proactively upload it; keep text-only checkpoints on lark_send_message.
 - Provide a short summary in the final answer and point the user to the generated file path instead of pasting the full content.`)
 		} else {
 			systemPrompt = strings.TrimSpace(systemPrompt + `
@@ -501,9 +482,15 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 
+	history := s.recallUserHistory(ctx, llmClient, task, rawHistory)
+	stateMessages := append([]domain.Message(nil), session.Messages...)
+	if history != nil && len(history.messages) > 0 {
+		stateMessages = history.messages
+	}
+
 	state := &domain.TaskState{
 		SystemPrompt:         systemPrompt,
-		Messages:             append([]domain.Message(nil), session.Messages...),
+		Messages:             stateMessages,
 		SessionID:            session.ID,
 		RunID:                ids.RunID,
 		ParentRunID:          ids.ParentRunID,

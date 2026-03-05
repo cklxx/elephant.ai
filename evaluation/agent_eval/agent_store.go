@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"alex/internal/shared/utils"
 )
 
 // AgentDataStore 负责持久化 agent 画像与历史评估快照
@@ -572,7 +570,7 @@ func agentMatchesTags(profile *AgentProfile, tags []string) bool {
 
 	normalized := make(map[string]struct{}, len(profile.Tags))
 	for _, tag := range profile.Tags {
-		cleaned := utils.TrimLower(tag)
+		cleaned := strings.ToLower(strings.TrimSpace(tag))
 		if cleaned == "" {
 			continue
 		}
@@ -580,7 +578,7 @@ func agentMatchesTags(profile *AgentProfile, tags []string) bool {
 	}
 
 	for _, tag := range tags {
-		cleaned := utils.TrimLower(tag)
+		cleaned := strings.ToLower(strings.TrimSpace(tag))
 		if cleaned == "" {
 			continue
 		}

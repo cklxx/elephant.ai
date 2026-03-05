@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"alex/internal/shared/utils"
 )
 
 // currentGitBranch returns the current git branch name, or empty if the working
@@ -48,8 +46,8 @@ func currentGitBranch() string {
 	const prefix = "ref: refs/heads/"
 	if strings.HasPrefix(line, prefix) {
 		branch := strings.TrimPrefix(line, prefix)
-		if len([]rune(branch)) > 28 {
-			branch = utils.TruncateWithSuffix(branch, 25, "...")
+		if len(branch) > 28 {
+			branch = branch[:25] + "..."
 		}
 		return branch
 	}

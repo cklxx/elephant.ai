@@ -10,7 +10,6 @@ import (
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/types"
 	"alex/internal/infra/tools/builtin/orchestration"
-	"alex/internal/shared/utils"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -315,13 +314,14 @@ func sanitizePreview(preview string) string {
 
 func truncatePreview(preview string) string {
 	const maxRunes = 60
-	if len([]rune(preview)) <= maxRunes {
+	runes := []rune(preview)
+	if len(runes) <= maxRunes {
 		return preview
 	}
 	if maxRunes <= 3 {
-		return utils.TruncateWithSuffix(preview, maxRunes, "")
+		return string(runes[:maxRunes])
 	}
-	return utils.TruncateWithSuffix(preview, maxRunes-3, "...")
+	return string(runes[:maxRunes-3]) + "..."
 }
 
 func pluralize(count int, singular, plural string) string {

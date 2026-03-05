@@ -464,7 +464,7 @@ func (c *retryClient) logFailureRequestEntry(
 	latency time.Duration,
 	err error,
 ) {
-	if utils.IsBlank(requestID) {
+	if strings.TrimSpace(requestID) == "" {
 		return
 	}
 	utils.LogStreamingErrorPayload(requestID, utils.LLMErrorLogDetails{

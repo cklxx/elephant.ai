@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """doc-management skill — 飞书云文档管理。
 
-All actions delegate to unified Feishu CLI runtime.
+通过 channel tool 的 docx actions 管理飞书云文档。
+当前为框架实现，实际调用通过 channel tool 的 create_doc/read_doc/read_doc_content actions。
 """
 
 from __future__ import annotations
@@ -18,20 +19,68 @@ from skill_runner.env import load_repo_dotenv
 load_repo_dotenv(__file__)
 
 import json
+import os
+import urllib.error
+import urllib.request
 
-from skill_runner.feishu_cli import feishu_tool
+
+def _lark_api(method: str, path: str, body: dict | None = None) -> dict:
+    """Call Lark Open API (placeholder — needs tenant_access_token)."""
+    base = "https://open.feishu.cn/open-apis"
+    token = os.environ.get("LARK_TENANT_TOKEN", "")
+    if not token:
+        return {"error": "LARK_TENANT_TOKEN not set, docx operations unavailable"}
+
+    url = f"{base}{path}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    data = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.URLError as exc:
+        return {"error": str(exc)}
 
 
 def create_doc(args: dict) -> dict:
-    return feishu_tool("doc", "create", args)
+    title = args.get("title", "")
+    folder_token = args.get("folder_token", "")
+
+    body = {"title": title}
+    if folder_token:
+        body["folder_token"] = folder_token
+
+    result = _lark_api("POST", "/docx/v1/documents", body)
+    if "error" in result:
+        return {"success": False, **result}
+    doc = result.get("data", {}).get("document", {})
+    return {"success": True, "document": doc, "message": f"文档「{title}」已创建"}
 
 
 def read_doc(args: dict) -> dict:
-    return feishu_tool("doc", "read", args)
+    document_id = args.get("document_id", "")
+    if not document_id:
+        return {"success": False, "error": "document_id is required"}
+
+    result = _lark_api("GET", f"/docx/v1/documents/{document_id}")
+    if "error" in result:
+        return {"success": False, **result}
+    return {"success": True, "document": result.get("data", {}).get("document", {})}
 
 
 def read_doc_content(args: dict) -> dict:
-    return feishu_tool("doc", "read_content", args)
+    document_id = args.get("document_id", "")
+    if not document_id:
+        return {"success": False, "error": "document_id is required"}
+
+    result = _lark_api("GET", f"/docx/v1/documents/{document_id}/raw_content")
+    if "error" in result:
+        return {"success": False, **result}
+    return {"success": True, "content": result.get("data", {}).get("content", "")}
 
 
 def run(args: dict) -> dict:

@@ -5,24 +5,22 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"alex/internal/shared/utils"
 )
 
 // TestReport is the JSON-serializable output of a full scenario run.
 type TestReport struct {
-	Timestamp time.Time        `json:"timestamp"`
-	Duration  time.Duration    `json:"duration_ms"`
-	Summary   ReportSummary    `json:"summary"`
-	Scenarios []ScenarioReport `json:"scenarios"`
+	Timestamp  time.Time        `json:"timestamp"`
+	Duration   time.Duration    `json:"duration_ms"`
+	Summary    ReportSummary    `json:"summary"`
+	Scenarios  []ScenarioReport `json:"scenarios"`
 }
 
 // ReportSummary aggregates pass/fail/skip counts.
 type ReportSummary struct {
-	Total   int `json:"total"`
-	Passed  int `json:"passed"`
-	Failed  int `json:"failed"`
-	Skipped int `json:"skipped"`
+	Total    int `json:"total"`
+	Passed   int `json:"passed"`
+	Failed   int `json:"failed"`
+	Skipped  int `json:"skipped"`
 }
 
 // ScenarioReport captures the outcome of a single scenario.
@@ -44,11 +42,11 @@ type TurnReport struct {
 
 // FailureDiagnosis classifies a scenario failure for the self-iteration loop.
 type FailureDiagnosis struct {
-	ScenarioName  string   `json:"scenario_name"`
-	RootCause     string   `json:"root_cause"` // test_drift, prompt_issue, tool_bug, gateway_logic, context_issue, llm_quality, architecture
-	FixTier       int      `json:"fix_tier"`   // 1-4
-	Description   string   `json:"description"`
-	SuggestedFix  string   `json:"suggested_fix,omitempty"`
+	ScenarioName string `json:"scenario_name"`
+	RootCause    string `json:"root_cause"`   // test_drift, prompt_issue, tool_bug, gateway_logic, context_issue, llm_quality, architecture
+	FixTier      int    `json:"fix_tier"`      // 1-4
+	Description  string `json:"description"`
+	SuggestedFix string `json:"suggested_fix,omitempty"`
 	FilesInvolved []string `json:"files_involved,omitempty"`
 }
 
@@ -121,8 +119,8 @@ func (r *TestReport) ToMarkdown() string {
 			errSummary := "(none)"
 			if len(s.Errors) > 0 {
 				first := s.Errors[0]
-				if len([]rune(first)) > 60 {
-					first = utils.TruncateWithSuffix(first, 60, "...")
+				if len(first) > 60 {
+					first = first[:60] + "..."
 				}
 				errSummary = first
 				if len(s.Errors) > 1 {

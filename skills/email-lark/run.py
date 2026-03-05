@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """email-lark skill — 飞书邮件组管理。
 
-All actions delegate to unified Feishu CLI runtime.
+通过 channel tool 的 mail actions 管理飞书邮件组。
 """
 
 from __future__ import annotations
@@ -18,20 +18,62 @@ from skill_runner.env import load_repo_dotenv
 load_repo_dotenv(__file__)
 
 import json
+import os
+import urllib.error
+import urllib.request
 
-from skill_runner.feishu_cli import feishu_tool
+
+def _lark_api(method: str, path: str, body: dict | None = None) -> dict:
+    base = "https://open.feishu.cn/open-apis"
+    token = os.environ.get("LARK_TENANT_TOKEN", "")
+    if not token:
+        return {"error": "LARK_TENANT_TOKEN not set"}
+
+    url = f"{base}{path}"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    data = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.URLError as exc:
+        return {"error": str(exc)}
 
 
 def list_mailgroups(args: dict) -> dict:
-    return feishu_tool("mail", "list_mailgroups", args)
+    page_size = args.get("page_size", 20)
+    page_token = args.get("page_token", "")
+    params = f"?page_size={page_size}"
+    if page_token:
+        params += f"&page_token={page_token}"
+    result = _lark_api("GET", f"/mail/v1/mailgroups{params}")
+    if "error" in result:
+        return {"success": False, **result}
+    data = result.get("data", {})
+    return {"success": True, "mailgroups": data.get("items", []),
+            "has_more": data.get("has_more", False)}
 
 
 def get_mailgroup(args: dict) -> dict:
-    return feishu_tool("mail", "get_mailgroup", args)
+    mg_id = args.get("mailgroup_id", "")
+    if not mg_id:
+        return {"success": False, "error": "mailgroup_id is required"}
+    result = _lark_api("GET", f"/mail/v1/mailgroups/{mg_id}")
+    if "error" in result:
+        return {"success": False, **result}
+    return {"success": True, "mailgroup": result.get("data", {})}
 
 
 def create_mailgroup(args: dict) -> dict:
-    return feishu_tool("mail", "create_mailgroup", args)
+    body = {}
+    for key in ("email", "name", "description"):
+        if args.get(key):
+            body[key] = args[key]
+    result = _lark_api("POST", "/mail/v1/mailgroups", body if body else None)
+    if "error" in result:
+        return {"success": False, **result}
+    return {"success": True, "mailgroup": result.get("data", {})}
 
 
 def run(args: dict) -> dict:

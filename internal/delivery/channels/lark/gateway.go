@@ -902,7 +902,7 @@ func (g *Gateway) dispatchMessage(ctx context.Context, chatID, replyToID, msgTyp
 	}
 
 	fallbackText := flattenPostContentToText(content)
-	if utils.IsBlank(fallbackText) {
+	if strings.TrimSpace(fallbackText) == "" {
 		fallbackText = "本次富文本结果渲染失败，已回退为纯文本发送。"
 	}
 	g.logger.Warn("Lark post dispatch fallback to text: %v", err)

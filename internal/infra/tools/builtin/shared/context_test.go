@@ -60,51 +60,49 @@ func (testLarkMessenger) ReplyMessage(ctx context.Context, replyToID, msgType, c
 }
 
 func TestContextGetters_NilContextReturnsZeroValues(t *testing.T) {
-	var nilCtx context.Context
-
-	if got := GetApproverFromContext(nilCtx); got != nil {
+	if got := GetApproverFromContext(nil); got != nil {
 		t.Fatalf("expected nil approver, got %T", got)
 	}
-	if got := GetBackupManagerFromContext(nilCtx); got != nil {
+	if got := GetBackupManagerFromContext(nil); got != nil {
 		t.Fatalf("expected nil backup manager, got %T", got)
 	}
-	if got := GetToolSessionIDFromContext(nilCtx); got != "" {
+	if got := GetToolSessionIDFromContext(nil); got != "" {
 		t.Fatalf("expected empty session id, got %q", got)
 	}
-	if got := GetAutoApproveFromContext(nilCtx); got {
+	if got := GetAutoApproveFromContext(nil); got {
 		t.Fatal("expected false auto approve")
 	}
-	if got := GetParentListenerFromContext(nilCtx); got != nil {
+	if got := GetParentListenerFromContext(nil); got != nil {
 		t.Fatalf("expected nil parent listener, got %T", got)
 	}
-	if got := LarkClientFromContext(nilCtx); got != nil {
+	if got := LarkClientFromContext(nil); got != nil {
 		t.Fatalf("expected nil lark client, got %T", got)
 	}
-	if got := LarkMessengerFromContext(nilCtx); got != nil {
+	if got := LarkMessengerFromContext(nil); got != nil {
 		t.Fatalf("expected nil lark messenger, got %T", got)
 	}
-	if got := LarkChatIDFromContext(nilCtx); got != "" {
+	if got := LarkChatIDFromContext(nil); got != "" {
 		t.Fatalf("expected empty lark chat id, got %q", got)
 	}
-	if got := LarkMessageIDFromContext(nilCtx); got != "" {
+	if got := LarkMessageIDFromContext(nil); got != "" {
 		t.Fatalf("expected empty lark message id, got %q", got)
 	}
-	if got := LarkOAuthFromContext(nilCtx); got != nil {
+	if got := LarkOAuthFromContext(nil); got != nil {
 		t.Fatalf("expected nil lark oauth service, got %T", got)
 	}
-	if got := LarkBaseDomainFromContext(nilCtx); got != "" {
+	if got := LarkBaseDomainFromContext(nil); got != "" {
 		t.Fatalf("expected empty lark base domain, got %q", got)
 	}
-	if got := LarkTenantCalendarIDFromContext(nilCtx); got != "" {
+	if got := LarkTenantCalendarIDFromContext(nil); got != "" {
 		t.Fatalf("expected empty lark tenant calendar id, got %q", got)
 	}
-	if got := TimerManagerFromContext(nilCtx); got != nil {
+	if got := TimerManagerFromContext(nil); got != nil {
 		t.Fatalf("expected nil timer manager, got %T", got)
 	}
-	if got := SchedulerFromContext(nilCtx); got != nil {
+	if got := SchedulerFromContext(nil); got != nil {
 		t.Fatalf("expected nil scheduler, got %T", got)
 	}
-	if got := GetAutoUploadConfig(nilCtx); !reflect.DeepEqual(got, AutoUploadConfig{}) {
+	if got := GetAutoUploadConfig(nil); !reflect.DeepEqual(got, AutoUploadConfig{}) {
 		t.Fatalf("expected zero auto upload config, got %#v", got)
 	}
 }

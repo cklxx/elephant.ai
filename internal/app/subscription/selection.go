@@ -24,49 +24,24 @@ type ResolvedSelection struct {
 	Pinned   bool
 }
 
-// SelectionResolverOption configures optional behavior for SelectionResolver.
-type SelectionResolverOption func(*SelectionResolver)
-
-// WithEnvLookup overrides the environment variable lookup function used for
-// generic preset-based resolution (api_key providers resolved via env vars).
-func WithEnvLookup(lookup runtimeconfig.EnvLookup) SelectionResolverOption {
-	return func(r *SelectionResolver) {
-		if lookup != nil {
-			r.envLookup = lookup
-		}
-	}
-}
-
-// SelectionResolver resolves a subscription Selection into concrete credentials.
 type SelectionResolver struct {
 	loadCreds func() runtimeconfig.CLICredentials
-	envLookup runtimeconfig.EnvLookup
 }
 
-// NewSelectionResolver creates a resolver. The loadCreds function provides
-// CLI-stored credentials (Codex/Claude). Options allow injecting an env
-// lookup for generic preset-based providers.
-func NewSelectionResolver(loadCreds func() runtimeconfig.CLICredentials, opts ...SelectionResolverOption) *SelectionResolver {
+func NewSelectionResolver(loadCreds func() runtimeconfig.CLICredentials) *SelectionResolver {
 	if loadCreds == nil {
 		loadCreds = func() runtimeconfig.CLICredentials {
 			return runtimeconfig.LoadCLICredentials()
 		}
 	}
-	r := &SelectionResolver{
-		loadCreds: loadCreds,
-		envLookup: runtimeconfig.DefaultEnvLookup,
-	}
-	for _, opt := range opts {
-		opt(r)
-	}
-	return r
+	return &SelectionResolver{loadCreds: loadCreds}
 }
 
 func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, bool) {
 	if utils.TrimLower(selection.Mode) != "cli" {
 		return ResolvedSelection{}, false
 	}
-	provider := CanonicalProvider(selection.Provider)
+	provider := strings.TrimSpace(strings.ToLower(selection.Provider))
 	model := strings.TrimSpace(selection.Model)
 	if provider == "" || model == "" {
 		return ResolvedSelection{}, false
@@ -79,8 +54,6 @@ func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, boo
 	// creds.XXX.Provider is "", so the dynamic match fails. The hardcoded
 	// fallback ensures the stored selection is still recognised.
 	matchProvider := func(credProvider, knownName string) bool {
-		credProvider = CanonicalProvider(credProvider)
-		knownName = CanonicalProvider(knownName)
 		return provider == credProvider || (credProvider == "" && provider == knownName)
 	}
 
@@ -125,28 +98,8 @@ func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, boo
 			Pinned:   true,
 		}, true
 	default:
-		return r.resolveFromPreset(provider, model)
-	}
-}
-
-// resolveFromPreset handles generic api_key providers whose credentials come
-// from environment variables defined in the provider preset.
-func (r *SelectionResolver) resolveFromPreset(provider, model string) (ResolvedSelection, bool) {
-	apiKey, baseURL, source, ok := LookupEnvCredential(provider, r.envLookup)
-	if !ok && baseURL == "" {
-		// Unknown provider with no env credential.
 		return ResolvedSelection{}, false
 	}
-	// For known providers, baseURL is always populated (preset default or env
-	// override) even when no API key is found, allowing downstream refresh.
-	return ResolvedSelection{
-		Provider: provider,
-		Model:    model,
-		APIKey:   apiKey,
-		BaseURL:  baseURL,
-		Source:   source,
-		Pinned:   true,
-	}, true
 }
 
 func resolveLlamaServerBaseURL(lookup runtimeconfig.EnvLookup) string {

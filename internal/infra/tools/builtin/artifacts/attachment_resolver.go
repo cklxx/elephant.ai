@@ -268,7 +268,7 @@ func readLocalAttachment(uri string, fallbackMediaType string) ([]byte, string, 
 		return nil, "", true, errors.New("attachment store dir is empty")
 	}
 	if strings.HasPrefix(dir, "~/") {
-		if home, err := os.UserHomeDir(); err == nil && utils.HasContent(home) {
+		if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
 			dir = filepath.Join(home, strings.TrimPrefix(dir, "~/"))
 		}
 	}

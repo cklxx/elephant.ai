@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -252,7 +251,7 @@ func collectPlanNodes(root string, nodesByPath map[string]graphNode, idByPath ma
 		relPath = filepath.ToSlash(relPath)
 		base := strings.TrimSuffix(entry.Name(), ".md")
 		date, slug := parseDateSlug(base)
-		if utils.IsBlank(date) {
+		if strings.TrimSpace(date) == "" {
 			date = "1970-01-01"
 		}
 		id := buildID("plan", date, slug)
@@ -449,7 +448,7 @@ func extractUpdatedDate(content string) string {
 }
 
 func parseDateSlug(base string) (string, string) {
-	m := dateFromNamePattern.FindStringSubmatch(utils.TrimLower(base))
+	m := dateFromNamePattern.FindStringSubmatch(strings.ToLower(strings.TrimSpace(base)))
 	if len(m) == 0 {
 		return "", sanitizeSlug(base)
 	}
@@ -473,7 +472,7 @@ func buildID(prefix, date, slug string) string {
 }
 
 func sanitizeSlug(raw string) string {
-	raw = utils.TrimLower(raw)
+	raw = strings.ToLower(strings.TrimSpace(raw))
 	raw = strings.Trim(raw, "-_ ")
 	if raw == "" {
 		return ""

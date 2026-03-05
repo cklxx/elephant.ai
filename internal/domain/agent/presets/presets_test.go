@@ -257,6 +257,7 @@ func TestDefaultPromptIncludesRoutingGuardrails(t *testing.T) {
 		// Tool routing reinforcement (slimmed to 3 key rules)
 		"ONLY when critical input is missing after all viable tool attempts fail",
 		"ONLY for explicit human gates (login, 2FA, CAPTCHA",
+		"NEVER for single-step actions",
 	} {
 		if !strings.Contains(prompt, snippet) {
 			t.Fatalf("expected system prompt to contain %q", snippet)
@@ -315,10 +316,10 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "full allows skills in cli mode",
+			name:      "full allows channel in cli mode",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetFull,
-			toolName:  "skills",
+			toolName:  "channel",
 			wantAllow: true,
 		},
 		{
