@@ -100,7 +100,7 @@ func TestCoordinatorExecutor_DoesNotDuplicateSummaryInstruction(t *testing.T) {
 	}
 }
 
-func TestCoordinatorExecutor_ExecuteTeam_BuildsStructuredRunTasksPrompt(t *testing.T) {
+func TestCoordinatorExecutor_ExecuteTeam_BuildsStructuredTeamCLIPrompt(t *testing.T) {
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
 			Answer:   "## Execution Summary\n- team run completed",
@@ -122,17 +122,17 @@ func TestCoordinatorExecutor_ExecuteTeam_BuildsStructuredRunTasksPrompt(t *testi
 	if strings.TrimSpace(res.TaskID) == "" {
 		t.Fatal("expected non-empty task id")
 	}
-	if !strings.Contains(runner.lastPrompt, "\"template\":\"kimi_research\"") {
-		t.Fatalf("expected template in team prompt, got: %q", runner.lastPrompt)
+	if !strings.Contains(runner.lastPrompt, "alex team run --template \"kimi_research\"") {
+		t.Fatalf("expected team CLI command in prompt, got: %q", runner.lastPrompt)
 	}
-	if !strings.Contains(runner.lastPrompt, "\"goal\":\"compare redis vs memcached\"") {
+	if !strings.Contains(runner.lastPrompt, "--goal \"compare redis vs memcached\"") {
 		t.Fatalf("expected goal in team prompt, got: %q", runner.lastPrompt)
 	}
-	if !strings.Contains(runner.lastPrompt, "\"timeout_seconds\":240") {
+	if !strings.Contains(runner.lastPrompt, "--timeout-seconds 240") {
 		t.Fatalf("expected timeout in team prompt, got: %q", runner.lastPrompt)
 	}
-	if !strings.Contains(runner.lastPrompt, "\"wait\":true") {
-		t.Fatalf("expected wait=true in team prompt, got: %q", runner.lastPrompt)
+	if !strings.Contains(runner.lastPrompt, "--wait") {
+		t.Fatalf("expected --wait in team prompt, got: %q", runner.lastPrompt)
 	}
 }
 

@@ -66,6 +66,8 @@ func (c *CLI) Run(args []string) error {
 		return c.handleEval(cmdArgs)
 	case "acp":
 		return c.handleACP(cmdArgs)
+	case "team", "teams":
+		return c.handleTeam(cmdArgs)
 	case "resume":
 		return c.handleResume(cmdArgs)
 
@@ -110,6 +112,8 @@ Usage:
   alex eval [options]            Run local agent evaluation against SWE-Bench datasets
   alex acp [--initial-message]        Run ACP (Agent Client Protocol) over stdio
   alex acp serve [--port N]           Run ACP over HTTP/SSE (default 127.0.0.1:9000)
+  alex team run [...]                 Dispatch team orchestration from YAML/template
+  alex team reply [...]               Reply to/inject input for a background team task
 
 Configuration:
 %s

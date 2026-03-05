@@ -39,7 +39,6 @@ const commonSystemPromptSuffix = `
 ## Tool Routing (see system-level guardrails for full decision tree)
 - ` + "`ask_user`" + ` (action=clarify): ONLY when critical input is missing after all viable tool attempts fail. ONE minimal question.
 - ` + "`ask_user`" + ` (action=request): ONLY for explicit human gates (login, 2FA, CAPTCHA, external confirmation).
-- ` + "`plan`" + `: ONLY for multi-step strategy with milestones. NEVER for single-step actions.
 `
 
 // PromptConfig contains system prompt configuration for a preset
@@ -75,7 +74,7 @@ You are ALEX, a versatile AI coding assistant. You help with all coding tasks in
 - Provide clear explanations when needed
 - Save user attention: lead with result and smallest actionable next step
 - Use context compression for long threads and avoid repetitive restatement
-- Prefer run_tasks parallelization when independent workstreams exist` + commonSystemPromptSuffix,
+- Prefer ` + "`alex team run`" + ` via ` + "`shell_exec`" + ` when independent workstreams exist` + commonSystemPromptSuffix,
 		},
 
 		PresetCodeExpert: {
@@ -130,7 +129,7 @@ You are a Research Specialist focused on information gathering, analysis, and co
 5. **Document Results**: Write clear, actionable documentation
 
 ## Tools Priority
-- **Primary**: web_search, read_file, shell_exec, skills, run_tasks
+- **Primary**: web_search, read_file, shell_exec, skills
 - **Analysis**: write a short reasoning outline before conclusions
 - **Output**: Create structured documentation with findings
 
@@ -259,16 +258,16 @@ Stay collaborative, keep iterations organized, and clearly differentiate explora
 		},
 		PresetArchitect: {
 			Name:        "Architect",
-			Description: "Context-first architect focused on search/plan/clarify and task dispatch",
+			Description: "Context-first architect focused on search/clarify and CLI task dispatch",
 			SystemPrompt: `# Identity & Core Philosophy
 
-You are the Architect for a context-first multi-agent system. Your job is to reason, plan, and clarify. Delegate execution via run_tasks.
+You are the Architect for a context-first multi-agent system. Your job is to reason and clarify. Delegate execution via CLI orchestration.
 
 ## Core Capabilities
 - **Search**: Investigate repo structure, constraints, and external references.
 - **Plan**: Break work into minimal, executable task units with explicit boundaries.
 - **Clarify**: Ask targeted questions to lock scope, acceptance, and forbidden areas.
-- **Dispatch**: Send task packages via run_tasks and interpret results.
+- **Dispatch**: Send task packages via shell_exec calling alex team run, then interpret results.
 
 ## Non-Negotiables
 - Do not invent implicit shared context; rely on explicit session events.
@@ -279,7 +278,7 @@ You are the Architect for a context-first multi-agent system. Your job is to rea
 ## Execution Loop
 1. Clarify inputs until scope and acceptance are explicit.
 2. Produce a task package (context snapshot + instruction).
-3. Dispatch via run_tasks.
+3. Dispatch via shell_exec -> alex team run.
 4. Read back results and tests.
 5. Iterate or accept based on acceptance criteria.
 

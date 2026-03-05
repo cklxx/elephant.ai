@@ -10,7 +10,7 @@ import (
 )
 
 // injectExternalInputRequests drains external agent input requests and injects
-// system messages so the core agent can respond via reply_agent.
+// system messages so the core agent can respond via team CLI commands.
 func (r *reactRuntime) injectExternalInputRequests() {
 	if r.externalInputCh == nil {
 		return
@@ -84,6 +84,6 @@ func formatExternalInputRequestMessage(req agent.InputRequest) string {
 		}
 		sb.WriteString("\n")
 	}
-	sb.WriteString(fmt.Sprintf("Use reply_agent(task_id=%q, request_id=%q, approved=true|false) to respond. For direct pane input, reply_agent(task_id=%q, message=\"...\").", req.TaskID, req.RequestID, req.TaskID))
+	sb.WriteString(fmt.Sprintf("Use shell_exec with `alex team reply --task-id %q --request-id %q --approved=true|false` to respond. For direct pane input, use `alex team reply --task-id %q --message \\\"...\\\"`.", req.TaskID, req.RequestID, req.TaskID))
 	return sb.String()
 }

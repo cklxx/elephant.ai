@@ -37,7 +37,8 @@ func TestKernelAlignmentContextProvider_LoadsSoulUserGoal(t *testing.T) {
 		"Loaded via Identity/Memory sections",
 		"SOUL.md",
 		"USER.md",
-		"run_tasks",
+		"alex team run",
+		"shell_exec",
 		"codex",
 		"claude_code",
 	} {
