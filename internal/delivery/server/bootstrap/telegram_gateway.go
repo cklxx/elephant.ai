@@ -21,6 +21,9 @@ import (
 // registry if Telegram is enabled. The plugin factory captures the full
 // Config and dependencies needed to start the gateway.
 func registerTelegramChannel(cfg Config, registry *ChannelRegistry, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) {
+	if registry == nil {
+		return
+	}
 	tgCfg := cfg.Channels.TelegramConfig()
 	if !tgCfg.Enabled {
 		return
