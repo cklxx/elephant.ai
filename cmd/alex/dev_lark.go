@@ -552,6 +552,7 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 			Window:        envDuration("LARK_SUPERVISOR_AUTOFIX_WINDOW_SECONDS", 3600*time.Second),
 			Cooldown:      envDuration("LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS", 900*time.Second),
 			Scope:         envString("LARK_SUPERVISOR_AUTOFIX_SCOPE", "repo"),
+			MainRoot:      mainRoot,
 			ScriptPath:    filepath.Join(mainRoot, "scripts", "lark", "autofix.sh"),
 			HistoryFile:   filepath.Join(tmpDir, "lark-autofix.history"),
 			SignatureFile: filepath.Join(tmpDir, "lark-autofix.last-signature"),
@@ -570,12 +571,10 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 	sup.RegisterComponent(&supervisor.Component{
 		Name: "main",
 		StartFn: func(ctx context.Context) error {
-			cmd := exec.CommandContext(ctx, mainSH, "restart")
-			return cmd.Run()
+			return runLarkScript(ctx, cfg.MainRoot, mainSH, "restart")
 		},
 		StopFn: func(ctx context.Context) error {
-			cmd := exec.CommandContext(ctx, mainSH, "stop")
-			return cmd.Run()
+			return runLarkScript(ctx, cfg.MainRoot, mainSH, "stop")
 		},
 		HealthFn: func() string {
 			return checkPIDHealth(filepath.Join(cfg.PIDDir, "lark-main.pid"))
@@ -587,12 +586,10 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 	sup.RegisterComponent(&supervisor.Component{
 		Name: "kernel",
 		StartFn: func(ctx context.Context) error {
-			cmd := exec.CommandContext(ctx, kernelSH, "restart")
-			return cmd.Run()
+			return runLarkScript(ctx, cfg.MainRoot, kernelSH, "restart")
 		},
 		StopFn: func(ctx context.Context) error {
-			cmd := exec.CommandContext(ctx, kernelSH, "stop")
-			return cmd.Run()
+			return runLarkScript(ctx, cfg.MainRoot, kernelSH, "stop")
 		},
 		HealthFn: func() string {
 			return checkPIDHealth(filepath.Join(cfg.PIDDir, "lark-kernel.pid"))
@@ -604,12 +601,10 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 	sup.RegisterComponent(&supervisor.Component{
 		Name: "loop",
 		StartFn: func(ctx context.Context) error {
-			cmd := exec.CommandContext(ctx, loopSH, "restart")
-			return cmd.Run()
+			return runLarkScript(ctx, cfg.MainRoot, loopSH, "restart")
 		},
 		StopFn: func(ctx context.Context) error {
-			cmd := exec.CommandContext(ctx, loopSH, "stop")
-			return cmd.Run()
+			return runLarkScript(ctx, cfg.MainRoot, loopSH, "stop")
 		},
 		HealthFn: func() string {
 			pidFile := filepath.Join(cfg.PIDDir, "lark-loop.pid")
@@ -625,6 +620,13 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 		},
 		PIDFile: filepath.Join(cfg.PIDDir, "lark-loop.pid"),
 	})
+}
+
+func runLarkScript(ctx context.Context, mainRoot, scriptPath, action string) error {
+	cmd := exec.CommandContext(ctx, scriptPath, action)
+	cmd.Dir = mainRoot
+	cmd.Env = append(os.Environ(), "LARK_MAIN_ROOT="+mainRoot)
+	return cmd.Run()
 }
 
 func checkPIDHealth(pidFile string) string {

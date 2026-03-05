@@ -33,6 +33,7 @@ type AutofixConfig struct {
 	Window        time.Duration
 	Cooldown      time.Duration
 	Scope         string // "repo"
+	MainRoot      string // main worktree root for script execution context
 	ScriptPath    string // path to autofix.sh
 	HistoryFile   string
 	SignatureFile string
@@ -170,9 +171,14 @@ func (r *AutofixRunner) runAutofix(incidentID, reason, signature, mainSHA string
 		"--signature", signature,
 		"--main-sha", mainSHA)
 
-	cmd.Env = append(os.Environ(),
+	env := append(os.Environ(),
 		fmt.Sprintf("LARK_SUPERVISOR_AUTOFIX_TIMEOUT_SECONDS=%d", int(r.config.Timeout.Seconds())),
 		fmt.Sprintf("LARK_SUPERVISOR_AUTOFIX_SCOPE=%s", r.config.Scope))
+	if r.config.MainRoot != "" {
+		cmd.Dir = r.config.MainRoot
+		env = append(env, "LARK_MAIN_ROOT="+r.config.MainRoot)
+	}
+	cmd.Env = env
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
