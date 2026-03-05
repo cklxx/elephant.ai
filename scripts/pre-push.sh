@@ -24,6 +24,23 @@ pass() { printf "${GREEN}✓${RESET} %s\n" "$1"; }
 fail() { printf "${RED}✗${RESET} %s\n" "$1"; }
 warn() { printf "${YELLOW}⚠${RESET} %s\n" "$1"; }
 
+guard_origin_remote() {
+  local origin_url
+  origin_url="$(git remote get-url origin 2>/dev/null || true)"
+  if [[ -z "$origin_url" ]]; then
+    return 0
+  fi
+
+  case "$origin_url" in
+    /*|file://*)
+      echo "origin remote uses a local filesystem path: $origin_url"
+      echo "Refusing push from a local-path clone; use the primary repository/worktree with hosted origin."
+      echo "Override intentionally with: ALLOW_LOCAL_ORIGIN_PUSH=1 git push"
+      return 1
+      ;;
+  esac
+}
+
 # Heavy checks can consume large memory when run together.
 # Default: run them sequentially to avoid OOM kills on developer machines.
 HEAVY_MODE="${PRE_PUSH_HEAVY_MODE:-sequential}" # sequential | parallel
@@ -220,6 +237,16 @@ main() {
   printf "${BOLD}🔍 Pre-push CI checks (parallel)${RESET}\n"
   echo "─────────────────────────────────────"
   echo "mode: PRE_PUSH_MODE=${PRE_PUSH_MODE}, PRE_PUSH_HEAVY_MODE=${HEAVY_MODE}"
+
+  if [[ "${ALLOW_LOCAL_ORIGIN_PUSH:-}" == "1" ]]; then
+    warn "Skipping origin remote guard (ALLOW_LOCAL_ORIGIN_PUSH=1)"
+  else
+    if ! guard_origin_remote; then
+      echo "─────────────────────────────────────"
+      fail "origin remote guard failed — push aborted"
+      exit 1
+    fi
+  fi
 
   # Collect changed files
   local files=""
