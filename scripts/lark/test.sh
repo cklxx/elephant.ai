@@ -45,10 +45,7 @@ EOF
 # Resolve paths
 # ---------------------------------------------------------------------------
 
-ROOT="$(git_worktree_path_for_branch "refs/heads/main" || true)"
-if [[ -z "${ROOT}" ]]; then
-  ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-fi
+ROOT="$(git_resolve_main_root "${SCRIPT_DIR}" || true)"
 [[ -n "${ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
 TEST_ROOT="${ROOT}/.worktrees/test"

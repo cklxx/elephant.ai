@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
 # shellcheck source=../lib/common/process.sh
 source "${SCRIPT_DIR}/../lib/common/process.sh"
+# shellcheck source=../lib/common/git_worktree.sh
+source "${SCRIPT_DIR}/../lib/common/git_worktree.sh"
 # shellcheck source=./identity_lock.sh
 source "${SCRIPT_DIR}/identity_lock.sh"
 
@@ -22,18 +24,7 @@ Behavior:
 EOF
 }
 
-git_worktree_path_for_branch() {
-  local want_branch_ref="$1" # e.g. refs/heads/main
-  git worktree list --porcelain | awk -v want="${want_branch_ref}" '
-    $1=="worktree"{p=$2}
-    $1=="branch" && $2==want {print p; exit}
-  '
-}
-
-ROOT="$(git_worktree_path_for_branch "refs/heads/main" || true)"
-if [[ -z "${ROOT}" ]]; then
-  ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-fi
+ROOT="$(git_resolve_main_root "${SCRIPT_DIR}" || true)"
 [[ -n "${ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
 MAIN_CONFIG_PATH="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"

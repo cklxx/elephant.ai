@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
 # shellcheck source=../lib/common/process.sh
 source "${SCRIPT_DIR}/../lib/common/process.sh"
+# shellcheck source=../lib/common/git_worktree.sh
+source "${SCRIPT_DIR}/../lib/common/git_worktree.sh"
 # shellcheck source=./identity_lock.sh
 source "${SCRIPT_DIR}/identity_lock.sh"
 
@@ -32,23 +34,12 @@ Env:
 EOF
 }
 
-git_worktree_path_for_branch() {
-  local want_branch_ref="$1"
-  git -C "${SCRIPT_DIR}" worktree list --porcelain | awk -v want="${want_branch_ref}" '
-    $1=="worktree"{p=$2}
-    $1=="branch" && $2==want {print p; exit}
-  '
-}
-
 if [[ -n "${LARK_MAIN_ROOT:-}" ]]; then
   MAIN_ROOT="${LARK_MAIN_ROOT}"
 else
-  MAIN_ROOT="$(git_worktree_path_for_branch "refs/heads/main" || true)"
-  if [[ -z "${MAIN_ROOT}" ]]; then
-    MAIN_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || true)"
-  fi
+  MAIN_ROOT="$(git_resolve_main_root "${SCRIPT_DIR}" || true)"
 fi
-[[ -n "${MAIN_ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
+git_is_worktree_dir "${MAIN_ROOT}" || die "Not a git repository (cannot resolve main worktree)"
 
 TEST_ROOT="${MAIN_ROOT}/.worktrees/test"
 AUTOFIX_ROOT="${MAIN_ROOT}/.worktrees/autofix"
