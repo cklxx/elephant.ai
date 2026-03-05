@@ -62,11 +62,9 @@ func writeJSON(t *testing.T, w http.ResponseWriter, code int, msg string, data a
 }
 
 func isDocxCreateDocumentRoute(path string) bool {
-	// Lark SDK requests may include `/open-apis` prefix depending on base URL wiring.
-	isCreate := strings.Contains(path, "/open-apis/docx/v1/documents") ||
-		strings.Contains(path, "/docx/v1/documents")
-	// Exclude nested document sub-routes (e.g. /blocks/convert) from create-route matching.
-	return isCreate && !strings.Contains(path, "/blocks/")
+	// Match create-document endpoint exactly (optionally with trailing slash).
+	normalized := strings.TrimSuffix(path, "/")
+	return normalized == "/open-apis/docx/v1/documents" || normalized == "/docx/v1/documents"
 }
 
 func isDocxBlocksConvertRoute(path string) bool {
