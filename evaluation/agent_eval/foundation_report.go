@@ -1,7 +1,6 @@
 package agent_eval
 
 import (
-	"alex/internal/shared/utils"
 	"fmt"
 	"sort"
 	"strings"

@@ -1,7 +1,6 @@
 package agent_eval
 
 import (
-	"alex/internal/shared/utils"
 	"context"
 	"encoding/json"
 	"fmt"
