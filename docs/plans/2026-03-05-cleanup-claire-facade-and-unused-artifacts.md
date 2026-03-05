@@ -20,4 +20,4 @@
 - [x] Usage/reference validation complete.
 - [x] Cleanup changes applied.
 - [x] Validation complete.
-- [ ] Commit + merge + push complete.
+- [x] Commit + merge + push complete.
