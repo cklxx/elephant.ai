@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"alex/evaluation/swe_bench"
 	"alex/internal/shared/async"
-	"alex/internal/shared/utils"
+
+	"alex/evaluation/swe_bench"
 )
 
 // EvaluationManager - 简化的评估管理器（3层架构中的第一层）
@@ -270,7 +270,7 @@ func (em *EvaluationManager) loadDataset(ctx context.Context, config *Evaluation
 		}
 
 		var rubric *JudgeRubric
-		if utils.HasContent(def.RubricPath) {
+		if strings.TrimSpace(def.RubricPath) != "" {
 			loaded, err := LoadJudgeRubric(def.RubricPath)
 			if err != nil {
 				return nil, err
@@ -406,7 +406,7 @@ func normalizeReportArtifactPath(path string) string {
 }
 
 func normalizeReportFormat(format string) string {
-	normalized := utils.TrimLower(format)
+	normalized := strings.ToLower(strings.TrimSpace(format))
 	if normalized == "" {
 		return string(ReportFormatMarkdown)
 	}

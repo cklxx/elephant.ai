@@ -132,7 +132,7 @@ func quickTriageTask(task string) (*agent.TaskAnalysis, bool) {
 		return nil, false
 	}
 
-	switch utils.TrimLower(trimmed) {
+	switch strings.ToLower(trimmed) {
 	case "hi", "hello", "hey", "yo", "nihao", "你好", "您好", "嗨", "在吗", "ping", "pings":
 		return &agent.TaskAnalysis{
 			Complexity: "simple",
@@ -165,7 +165,7 @@ func shouldSkipContextWindow(task string, session *storage.Session) (bool, strin
 	if !ok || analysis == nil {
 		return false, ""
 	}
-	switch utils.TrimLower(analysis.Approach) {
+	switch strings.TrimSpace(strings.ToLower(analysis.Approach)) {
 	case "greeting":
 		return true, "greeting"
 	case "ack":
@@ -176,15 +176,15 @@ func shouldSkipContextWindow(task string, session *storage.Session) (bool, strin
 }
 
 type taskAnalysisPayload struct {
-	Complexity      string                     `json:"complexity"`
-	TaskName        string                     `json:"task_name"`
-	ActionName      string                     `json:"action_name"`
-	Goal            string                     `json:"goal"`
-	Approach        string                     `json:"approach"`
-	SuccessCriteria []string                   `json:"success_criteria"`
-	Steps           []taskAnalysisStepPayload  `json:"steps"`
-	Retrieval       taskAnalysisRetrievalHints `json:"retrieval"`
-	ReactEmoji      string                     `json:"react_emoji"`
+	Complexity string `json:"complexity"`
+	TaskName   string `json:"task_name"`
+	ActionName       string                     `json:"action_name"`
+	Goal             string                     `json:"goal"`
+	Approach         string                     `json:"approach"`
+	SuccessCriteria  []string                   `json:"success_criteria"`
+	Steps            []taskAnalysisStepPayload  `json:"steps"`
+	Retrieval        taskAnalysisRetrievalHints `json:"retrieval"`
+	ReactEmoji       string                     `json:"react_emoji"`
 }
 
 type taskAnalysisStepPayload struct {

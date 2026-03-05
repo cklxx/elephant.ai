@@ -117,53 +117,6 @@ func (r *backgroundTaskRegistry) CancelTask(ctx context.Context, taskID string) 
 	return fmt.Errorf("task %q not found in any session", taskID)
 }
 
-func (r *backgroundTaskRegistry) findTaskManager(taskID string) (string, *react.BackgroundTaskManager, error) {
-	if r == nil {
-		return "", nil, fmt.Errorf("background task registry not available")
-	}
-	taskID = strings.TrimSpace(taskID)
-	if taskID == "" {
-		return "", nil, fmt.Errorf("task_id is required")
-	}
-
-	now := r.now()
-	r.mu.Lock()
-	r.cleanupLocked(now)
-	type managerEntry struct {
-		sessionID string
-		manager   *react.BackgroundTaskManager
-	}
-	managers := make([]managerEntry, 0, len(r.managers))
-	for sessionID, entry := range r.managers {
-		if entry.manager == nil {
-			continue
-		}
-		managers = append(managers, managerEntry{
-			sessionID: sessionID,
-			manager:   entry.manager,
-		})
-	}
-	r.mu.Unlock()
-
-	var matches []managerEntry
-	for _, entry := range managers {
-		summaries := entry.manager.Status([]string{taskID})
-		if len(summaries) == 0 {
-			continue
-		}
-		matches = append(matches, entry)
-	}
-
-	switch len(matches) {
-	case 0:
-		return "", nil, fmt.Errorf("task %q not found in any session", taskID)
-	case 1:
-		return matches[0].sessionID, matches[0].manager, nil
-	default:
-		return "", nil, fmt.Errorf("task %q found in multiple sessions; specify a unique task id", taskID)
-	}
-}
-
 func (r *backgroundTaskRegistry) cleanupLocked(now time.Time) {
 	if r.cleanupInterval > 0 && !r.lastCleanup.IsZero() && now.Sub(r.lastCleanup) < r.cleanupInterval {
 		return

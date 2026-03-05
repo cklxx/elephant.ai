@@ -204,7 +204,7 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		MaxTurns:      maxTurns,
 		MaxBudgetUSD:  maxBudget,
 		WorkingDir:    req.WorkingDir,
-		Binary:        resolveBinary(req.Config, e.cfg.Binary),
+		Binary:        pickString(req.Config, "binary", e.cfg.Binary),
 		ExecutionMode: normalizeExecutionMode(req.ExecutionMode, req.Config),
 		AutonomyLevel: normalizeAutonomyLevel(req.AutonomyLevel, req.Config),
 	}
@@ -802,35 +802,6 @@ func validateWorktreePolicy(workDir string) error {
 
 func requestKey(taskID, reqID string) string {
 	return fmt.Sprintf("%s:%s", strings.TrimSpace(taskID), strings.TrimSpace(reqID))
-}
-
-// resolveBinary returns the effective binary path/name for a bridge run.
-//
-// Priority order:
-// 1. Request config "binary"
-// 2. Executor fallback binary
-//
-// Special case: when the executor fallback is an absolute path and the request
-// binary refers to the same basename (e.g. both are "kimi"), keep the absolute
-// fallback path. This allows explicit pinned test/runtime binaries to remain
-// stable even when runtime metadata injects a generic binary name/path.
-func resolveBinary(config map[string]string, fallback string) string {
-	requestBinary := pickString(config, "binary", "")
-	fallback = strings.TrimSpace(fallback)
-	if requestBinary == "" {
-		return fallback
-	}
-	if fallback == "" {
-		return requestBinary
-	}
-	if filepath.IsAbs(fallback) {
-		requestBase := strings.TrimSpace(filepath.Base(requestBinary))
-		fallbackBase := strings.TrimSpace(filepath.Base(fallback))
-		if requestBase != "" && requestBase == fallbackBase {
-			return fallback
-		}
-	}
-	return requestBinary
 }
 
 func pickString(config map[string]string, key string, fallback string) string {

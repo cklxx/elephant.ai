@@ -11,21 +11,6 @@ func IsBlank(s string) bool { return strings.TrimSpace(s) == "" }
 // HasContent returns true when s contains at least one non-whitespace character.
 func HasContent(s string) bool { return strings.TrimSpace(s) != "" }
 
-// TruncateWithSuffix truncates value to maxRunes and appends suffix when truncated.
-func TruncateWithSuffix(value string, maxRunes int, suffix string) string {
-	if maxRunes <= 0 {
-		return ""
-	}
-	runes := []rune(value)
-	if len(runes) <= maxRunes {
-		return value
-	}
-	if suffix == "" {
-		return string(runes[:maxRunes])
-	}
-	return string(runes[:maxRunes]) + suffix
-}
-
 // NormalizeSessionTitle trims and truncates session titles for storage/display.
 func NormalizeSessionTitle(value string) string {
 	trimmed := strings.TrimSpace(value)
@@ -36,9 +21,10 @@ func NormalizeSessionTitle(value string) string {
 		trimmed = strings.TrimSpace(trimmed[:idx])
 	}
 
+	runes := []rune(trimmed)
 	const maxRunes = 32
-	if len([]rune(trimmed)) > maxRunes {
-		trimmed = TruncateWithSuffix(trimmed, maxRunes, "…")
+	if len(runes) > maxRunes {
+		trimmed = string(runes[:maxRunes]) + "…"
 	}
 	return trimmed
 }

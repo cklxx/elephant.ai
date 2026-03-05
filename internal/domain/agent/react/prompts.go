@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"alex/internal/shared/utils"
 )
 
 func (e *ReactEngine) updateGoalPlanPrompts(state *TaskState, calls []ToolCall, results []ToolResult) {
@@ -94,7 +92,7 @@ func (e *ReactEngine) appendGoalPlanReminder(state *TaskState, messages []Messag
 	}
 	reminder := buildGoalPlanReminder(goal, plan)
 	for i := range messages {
-		if utils.IsBlank(messages[i].Content) {
+		if strings.TrimSpace(messages[i].Content) == "" {
 			messages[i].Content = reminder
 			continue
 		}

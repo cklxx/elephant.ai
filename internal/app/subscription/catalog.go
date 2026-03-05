@@ -266,7 +266,15 @@ func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, clie
 }
 
 func normalizeCatalogProvider(provider string) string {
-	return CanonicalProvider(provider)
+	key := utils.TrimLower(provider)
+	switch key {
+	case "":
+		return ""
+	case "claude":
+		return "anthropic"
+	default:
+		return key
+	}
 }
 
 func defaultManualCatalogProviders() []string {

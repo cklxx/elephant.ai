@@ -74,19 +74,13 @@ func RunLark(observabilityConfigPath string) error {
 	subsystems := NewSubsystemManager(logger)
 	defer subsystems.StopAll()
 
-	registry := config.Channels.Registry
-	if registry == nil {
-		registry = NewChannelRegistry()
-		config.Channels.Registry = registry
-	}
-
 	// Register channel plugins into the registry.
-	registerLarkChannel(config, registry, container, logger, broadcaster)
-	registerTelegramChannel(config, registry, container, logger, broadcaster)
+	registerLarkChannel(config, config.Channels.Registry, container, logger, broadcaster)
+	registerTelegramChannel(config, config.Channels.Registry, container, logger, broadcaster)
 
 	// Build gateway stages from the channel registry.
 	var gatewayStages []BootstrapStage
-	for _, plugin := range registry.Plugins() {
+	for _, plugin := range config.Channels.Registry.Plugins() {
 		p := plugin // capture loop variable
 		gatewayStages = append(gatewayStages, BootstrapStage{
 			Name: p.Name + "-gateway", Required: p.Required,

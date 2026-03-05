@@ -631,10 +631,7 @@ func TestDefaultPolicyRules_FallbackWhenNoYAML(t *testing.T) {
 	defer resetDefaultPolicyCache()
 
 	// With no YAML file present (CWD is a temp dir), should fall back to hardcoded.
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
+	origDir, _ := os.Getwd()
 	dir := t.TempDir()
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
@@ -675,10 +672,7 @@ func TestDefaultPolicyRules_LoadsFromYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
+	origDir, _ := os.Getwd()
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}

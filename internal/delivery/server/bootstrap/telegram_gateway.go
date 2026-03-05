@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"alex/internal/app/di"
@@ -20,9 +21,6 @@ import (
 // registry if Telegram is enabled. The plugin factory captures the full
 // Config and dependencies needed to start the gateway.
 func registerTelegramChannel(cfg Config, registry *ChannelRegistry, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) {
-	if registry == nil {
-		return
-	}
 	tgCfg := cfg.Channels.TelegramConfig()
 	if !tgCfg.Enabled {
 		return
@@ -45,7 +43,7 @@ func startTelegramGateway(ctx context.Context, cfg Config, container *di.Contain
 	if container == nil {
 		return nil, fmt.Errorf("telegram gateway requires server container")
 	}
-	if utils.IsBlank(tgCfg.BotToken) {
+	if strings.TrimSpace(tgCfg.BotToken) == "" {
 		return nil, fmt.Errorf("telegram gateway requires channels.telegram.bot_token")
 	}
 	if ctx == nil {
@@ -98,10 +96,10 @@ func startTelegramGateway(ctx context.Context, cfg Config, container *di.Contain
 		}
 	}
 
-	if utils.IsBlank(gatewayCfg.PersistenceMode) {
+	if strings.TrimSpace(gatewayCfg.PersistenceMode) == "" {
 		gatewayCfg.PersistenceMode = telegramPersistenceModeFile
 	}
-	if utils.IsBlank(gatewayCfg.PersistenceDir) {
+	if strings.TrimSpace(gatewayCfg.PersistenceDir) == "" {
 		gatewayCfg.PersistenceDir = filepath.Join(container.SessionDir(), "telegram")
 	}
 

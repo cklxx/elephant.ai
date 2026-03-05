@@ -292,7 +292,7 @@ func extractMarkdownTitle(body string) string {
 
 // NormalizeName normalizes a skill name for lookups.
 func NormalizeName(name string) string {
-	name = utils.TrimLower(name)
+	name = strings.TrimSpace(strings.ToLower(name))
 	name = strings.ReplaceAll(name, " ", "_")
 	return name
 }

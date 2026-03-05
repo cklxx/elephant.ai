@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	tools "alex/internal/domain/agent/ports/tools"
-	"alex/internal/shared/utils"
 )
 
 type acpApprover struct {
@@ -138,7 +137,7 @@ func parsePermissionOutcome(result any) (string, string) {
 		}
 		return "", ""
 	}
-	outcome := utils.TrimLower(stringParam(outcomeMap, "outcome"))
+	outcome := strings.ToLower(strings.TrimSpace(stringParam(outcomeMap, "outcome")))
 	optionID := strings.TrimSpace(stringParam(outcomeMap, "optionId"))
 	return outcome, optionID
 }

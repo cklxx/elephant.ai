@@ -328,49 +328,6 @@ func TestErrorWrapping(t *testing.T) {
 	})
 }
 
-func TestExtractHTTPStatusCodePreciseMatching(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      error
-		expected int
-	}{
-		{
-			name:     "explicit http status token",
-			err:      fmt.Errorf("HTTP 500: internal server error"),
-			expected: 500,
-		},
-		{
-			name:     "explicit status code token",
-			err:      fmt.Errorf("request failed with status_code=429"),
-			expected: 429,
-		},
-		{
-			name:     "status reason hint",
-			err:      fmt.Errorf("upstream bad gateway"),
-			expected: 502,
-		},
-		{
-			name:     "port number should not match",
-			err:      fmt.Errorf("dial failed on port 1400"),
-			expected: 0,
-		},
-		{
-			name:     "identifier number should not match",
-			err:      fmt.Errorf("resource id 4042 is invalid"),
-			expected: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			code := extractHTTPStatusCode(tt.err)
-			if code != tt.expected {
-				t.Fatalf("extractHTTPStatusCode(%q) = %d, want %d", tt.err.Error(), code, tt.expected)
-			}
-		})
-	}
-}
-
 func TestExtractHTTPStatusCode(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -12,8 +12,6 @@ import (
 	"time"
 	"unicode"
 
-	"alex/internal/shared/utils"
-
 	"gopkg.in/yaml.v3"
 )
 
@@ -146,28 +144,22 @@ type FoundationSuiteCollectionResult struct {
 
 // LoadFoundationSuiteSet loads and validates a suite YAML.
 func LoadFoundationSuiteSet(path string) (*FoundationSuiteSet, error) {
-	if utils.IsBlank(path) {
+	if strings.TrimSpace(path) == "" {
 		return nil, fmt.Errorf("foundation suite path is required")
 	}
-	absoluteSuitePath, err := filepath.Abs(path)
-	if err != nil {
-		return nil, fmt.Errorf("resolve foundation suite path: %w", err)
-	}
-	data, err := os.ReadFile(absoluteSuitePath)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read foundation suite: %w", err)
 	}
-	suiteDir := filepath.Dir(absoluteSuitePath)
-	moduleRoot := findModuleRootFrom(suiteDir)
 
 	var set FoundationSuiteSet
 	if err := yaml.Unmarshal(data, &set); err != nil {
 		return nil, fmt.Errorf("decode foundation suite: %w", err)
 	}
-	if utils.IsBlank(set.Version) {
+	if strings.TrimSpace(set.Version) == "" {
 		return nil, fmt.Errorf("foundation suite version is required")
 	}
-	if utils.IsBlank(set.Name) {
+	if strings.TrimSpace(set.Name) == "" {
 		return nil, fmt.Errorf("foundation suite name is required")
 	}
 	if len(set.Collections) == 0 {
@@ -200,9 +192,6 @@ func LoadFoundationSuiteSet(path string) (*FoundationSuiteSet, error) {
 		if collection.CasesPath == "" {
 			return nil, fmt.Errorf("collection %s cases_path is required", collection.ID)
 		}
-		if !filepath.IsAbs(collection.CasesPath) {
-			collection.CasesPath = resolveRelativeCasePath(collection.CasesPath, suiteDir, moduleRoot)
-		}
 
 		if collection.Mode == "" {
 			collection.Mode = defaultEvalOpts.Mode
@@ -225,37 +214,6 @@ func LoadFoundationSuiteSet(path string) (*FoundationSuiteSet, error) {
 	return &set, nil
 }
 
-func resolveRelativeCasePath(rawPath, suiteDir, moduleRoot string) string {
-	normalized := filepath.Clean(rawPath)
-	candidates := []string{
-		normalized,
-		filepath.Clean(filepath.Join(suiteDir, normalized)),
-	}
-	if moduleRoot != "" {
-		candidates = append(candidates, filepath.Clean(filepath.Join(moduleRoot, normalized)))
-	}
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-	return filepath.Clean(filepath.Join(suiteDir, normalized))
-}
-
-func findModuleRootFrom(start string) string {
-	dir := filepath.Clean(start)
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
-}
-
 // RunFoundationEvaluationSuite executes a full suite and writes aggregate artifacts.
 func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteOptions) (*FoundationSuiteResult, error) {
 	startedAt := time.Now().UTC()
@@ -263,13 +221,13 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 		options = DefaultFoundationSuiteOptions()
 	}
 	opts := *options
-	if utils.IsBlank(opts.OutputDir) {
+	if strings.TrimSpace(opts.OutputDir) == "" {
 		opts.OutputDir = DefaultFoundationSuiteOptions().OutputDir
 	}
-	if utils.IsBlank(opts.SuitePath) {
+	if strings.TrimSpace(opts.SuitePath) == "" {
 		opts.SuitePath = defaultFoundationSuitePath
 	}
-	if utils.IsBlank(opts.ReportFormat) {
+	if strings.TrimSpace(opts.ReportFormat) == "" {
 		opts.ReportFormat = DefaultFoundationSuiteOptions().ReportFormat
 	}
 
@@ -321,7 +279,7 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 		deliverableGoodCases := 0
 		deliverableBadCases := 0
 		for _, caseResult := range evalResult.Implicit.CaseResults {
-			if utils.IsBlank(caseResult.FailureType) {
+			if strings.TrimSpace(caseResult.FailureType) == "" {
 				if caseResult.DeliverableCheck != nil && caseResult.DeliverableCheck.Applicable {
 					deliverableCases++
 					if strings.EqualFold(caseResult.DeliverableCheck.Status, "good") {
@@ -561,7 +519,7 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 		b.WriteString("|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
 		for _, row := range rows {
 			dimension := row.Dimension
-			if utils.IsBlank(dimension) {
+			if strings.TrimSpace(dimension) == "" {
 				dimension = "-"
 			}
 			tagText := "-"
@@ -680,7 +638,7 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 					continue
 				}
 				failureType := caseResult.FailureType
-				if utils.IsBlank(failureType) {
+				if strings.TrimSpace(failureType) == "" {
 					failureType = "ranking"
 				}
 				b.WriteString(fmt.Sprintf(
@@ -945,7 +903,7 @@ func buildTop1ConflictClusterSection(rows []FoundationSuiteCollectionResult) str
 }
 
 func sanitizeCollectionID(value string) string {
-	value = utils.TrimLower(value)
+	value = strings.TrimSpace(strings.ToLower(value))
 	if value == "" {
 		return "collection"
 	}
@@ -981,7 +939,7 @@ func normalizeFoundationTags(tags []string) []string {
 	normalized := make([]string, 0, len(tags))
 	seen := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
-		clean := utils.TrimLower(tag)
+		clean := strings.ToLower(strings.TrimSpace(tag))
 		if clean == "" {
 			continue
 		}

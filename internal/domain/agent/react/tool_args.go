@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"alex/internal/shared/utils"
 )
 
 // formatToolArgumentsForLog renders tool arguments into a log-friendly JSON
@@ -224,7 +222,7 @@ func isContentReferenceMap(value map[string]any) bool {
 }
 
 func toolArgumentContentRef(call ToolCall, result ToolResult) string {
-	toolName := utils.TrimLower(call.Name)
+	toolName := strings.ToLower(strings.TrimSpace(call.Name))
 	switch toolName {
 	case "file_write":
 		if ref := stringFromMap(result.Metadata, "path", "resolved_path", "file_path"); ref != "" {

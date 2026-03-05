@@ -9,7 +9,6 @@ import (
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	tokenutil "alex/internal/shared/token"
-	"alex/internal/shared/utils"
 
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -29,7 +28,7 @@ func (e *ReactEngine) SolveTask(
 
 // RecordUserInput appends the user input to the task state without running ReAct.
 func (e *ReactEngine) RecordUserInput(ctx context.Context, task string, state *TaskState) {
-	if state == nil || utils.IsBlank(task) {
+	if state == nil || strings.TrimSpace(task) == "" {
 		return
 	}
 	e.prepareUserTaskContext(ctx, task, state)
@@ -509,8 +508,8 @@ func aggressiveTrimMessages(messages []ports.Message, maxTurns int) []ports.Mess
 }
 
 func isPrimarySystemPromptForTrim(msg ports.Message) bool {
-	role := utils.TrimLower(msg.Role)
-	return role == "system" && utils.HasContent(msg.Content)
+	role := strings.ToLower(strings.TrimSpace(msg.Role))
+	return role == "system" && strings.TrimSpace(msg.Content) != ""
 }
 
 const (

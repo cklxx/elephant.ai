@@ -1,0 +1,145 @@
+package larktools
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"alex/internal/domain/agent/ports"
+	larkapi "alex/internal/infra/lark"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
+	id "alex/internal/shared/utils/id"
+)
+
+// larkContactManage handles contact/directory operations via the unified channel tool.
+type larkContactManage struct{}
+
+func (t *larkContactManage) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	sdkClient, errResult := requireLarkClient(ctx, call.ID)
+	if errResult != nil {
+		return errResult, nil
+	}
+	client := larkapi.Wrap(sdkClient)
+
+	action := utils.TrimLower(shared.StringArg(call.Arguments, "action"))
+	switch action {
+	case "get_user":
+		return t.getUser(ctx, client, call)
+	case "list_users":
+		return t.listUsers(ctx, client, call)
+	case "get_department":
+		return t.getDepartment(ctx, client, call)
+	case "list_departments":
+		return t.listDepartments(ctx, client, call)
+	default:
+		err := fmt.Errorf("unsupported contact action: %s", action)
+		return shared.ToolError(call.ID, "%v", err)
+	}
+}
+
+func (t *larkContactManage) getUser(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	userID := shared.StringArg(call.Arguments, "user_id")
+	if userID == "" {
+		// Auto-resolve from context: the sender's open_id is stored by BuildBaseContext.
+		userID = id.UserIDFromContext(ctx)
+	}
+	if userID == "" {
+		err := fmt.Errorf("user_id is required (provide it explicitly or send from a Lark chat)")
+		return shared.ToolError(call.ID, "%v", err)
+	}
+	userIDType := shared.StringArg(call.Arguments, "user_id_type")
+
+	user, err := client.Contact().GetUser(ctx, userID, userIDType)
+	if err != nil {
+		return apiErr(call.ID, "get user", err), nil
+	}
+
+	payload, _ := json.MarshalIndent(user, "", "  ")
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: fmt.Sprintf("User found: %s (%s)\n%s", user.Name, user.OpenID, string(payload)),
+		Metadata: map[string]any{
+			"user_id": user.UserID,
+			"open_id": user.OpenID,
+			"name":    user.Name,
+		},
+	}, nil
+}
+
+func (t *larkContactManage) listUsers(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	departmentID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "department_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+	pageSize, _ := shared.IntArg(call.Arguments, "page_size")
+	pageToken := shared.StringArg(call.Arguments, "page_token")
+	userIDType := shared.StringArg(call.Arguments, "user_id_type")
+
+	resp, err := client.Contact().ListUsers(ctx, larkapi.ListUsersRequest{
+		DepartmentID: departmentID,
+		UserIDType:   userIDType,
+		PageSize:     pageSize,
+		PageToken:    pageToken,
+	})
+	if err != nil {
+		return apiErr(call.ID, "list users", err), nil
+	}
+
+	payload, _ := json.MarshalIndent(resp, "", "  ")
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: fmt.Sprintf("Found %d user(s).\n%s", len(resp.Users), string(payload)),
+		Metadata: map[string]any{
+			"count":    len(resp.Users),
+			"has_more": resp.HasMore,
+		},
+	}, nil
+}
+
+func (t *larkContactManage) getDepartment(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	departmentID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "department_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	dept, err := client.Contact().GetDepartment(ctx, departmentID)
+	if err != nil {
+		return apiErr(call.ID, "get department", err), nil
+	}
+
+	payload, _ := json.MarshalIndent(dept, "", "  ")
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: fmt.Sprintf("Department: %s\n%s", dept.Name, string(payload)),
+		Metadata: map[string]any{
+			"department_id": dept.DepartmentID,
+			"name":          dept.Name,
+		},
+	}, nil
+}
+
+func (t *larkContactManage) listDepartments(ctx context.Context, client *larkapi.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	parentID := shared.StringArg(call.Arguments, "parent_department_id")
+	pageSize, _ := shared.IntArg(call.Arguments, "page_size")
+	pageToken := shared.StringArg(call.Arguments, "page_token")
+
+	resp, err := client.Contact().ListDepartments(ctx, larkapi.ListDepartmentsRequest{
+		ParentDepartmentID: parentID,
+		PageSize:           pageSize,
+		PageToken:          pageToken,
+	})
+	if err != nil {
+		return apiErr(call.ID, "list departments", err), nil
+	}
+
+	payload, _ := json.MarshalIndent(resp, "", "  ")
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: fmt.Sprintf("Found %d department(s).\n%s", len(resp.Departments), string(payload)),
+		Metadata: map[string]any{
+			"count":    len(resp.Departments),
+			"has_more": resp.HasMore,
+		},
+	}, nil
+}

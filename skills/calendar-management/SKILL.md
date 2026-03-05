@@ -9,7 +9,7 @@ triggers:
   confidence_threshold: 0.6
 priority: 7
 exclusive_group: calendar
-requires_tools: [bash]
+requires_tools: [bash, channel]
 max_tokens: 200
 cooldown: 30
 ---

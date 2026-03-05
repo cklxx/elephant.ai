@@ -475,13 +475,6 @@ Execution (2026-03-03, rescan wave E/F — all-in):
 - [x] CX-11 completed (scope-closed): migrated remaining practical call-sites (`web_search` fallback, `larktools/channel`, `larktools/task_manage`, `larktools/lark_oauth`, `session/skills` load-path). Residual manual constructors are intentional utility internals (`shared/helpers`) and one custom-content branch in `session/skills`.
 - [x] CX-12 completed: migrated remaining non-test ad-hoc clients (`infra/acp/client`, `domain/materials/attachment_migrator`) to `httpclient.New(...)`.
 
-Execution (2026-03-03, rescan wave G — non-web):
-- [~] CX-01 continuation: migrated additional non-web `TrimLower` batches in `cmd/alex`, selected `internal/` hot paths (`react` + `attachments`), and `evaluation/agent_eval` + `ports/mocks` from `strings.ToLower(strings.TrimSpace(...))` to `utils.TrimLower(...)`.
-- [~] CX-02/CX-03 continuation (evaluation scope): migrated `strings.TrimSpace(...) ==/!= ""` checks in `evaluation/agent_eval` to `utils.IsBlank/HasContent`.
-- [~] CX-02/CX-03 continuation (runtime non-web scope): migrated selected blank/non-blank checks in `internal/app/agent/*`, `internal/delivery/channels/lark`, `internal/domain/agent/react`, `internal/infra/llm`, `internal/devops/process`, `internal/infra/external/teamrun`, and `internal/domain/agent/ports`.
-- [~] CX-01/CX-02/CX-03 residual cleanup: completed remaining non-web mechanical sites in `internal/{domain/agent/taskfile,devops,delivery/server/bootstrap,infra/tools/builtin/artifacts,shared/config}` and `scripts/memory/backfill_networked.go` (excluding helper definitions themselves).
-- [x] Validation for this batch passed (`go test` + targeted golangci-lint on touched packages).
-
 ### Wave 3: Efficiency Improvements (requires careful design — plan first)
 
 | Task ID | Finding | Risk | Approach |
@@ -537,33 +530,3 @@ Validation Snapshot (2026-03-03, wave E/F):
 | Q-03: God struct decomposition | Needs sub-struct design review |
 | Q-04/Q-05: Config layer violation + parallel hierarchies | Needs architectural discussion |
 | Q-13: runtime.go file split | Needs file boundary design |
-
-### Wave G: Non-web Systemic Correctness Hardening (2026-03-03, rescan)
-
-| Task ID | Finding | Result |
-|---------|---------|--------|
-| CX-19 | Q-09: Swallowed tool-call parse failures could silently finalize as no-tools answer | [x] Completed: ReAct now treats malformed tool-call markup as recoverable parse failure, appends corrective system guidance, and continues next iteration instead of taking `handleNoTools()` finalization path; added targeted tests in `internal/domain/agent/react/tooling_parse_test.go`. |
-| CX-20 | Q-01: HTTP status extraction false positives from bare number substring matching | [~] Risk reduced: `extractHTTPStatusCode()` now parses only explicit HTTP/status tokens plus canonical reason phrases; removed bare-number matching (`\"400\"`, `\"401\"`, etc.) and added precision regression tests for false positives (`port 1400`, `id 4042`). Full typed-error hierarchy redesign remains deferred to Wave 4 architecture work. |
-
-Validation Snapshot (2026-03-03, wave G):
-
-- `go test ./internal/shared/errors` passed.
-- `go test ./internal/domain/agent/react -run 'TestParseToolCalls|TestPlanToolsSkipsFinalizationWhenToolCallParseFails'` passed.
-- `go test ./...` passed.
-- `./scripts/run-golangci-lint.sh run --timeout=10m ./...` passed.
-- `python3 skills/code-review/run.py '{"action":"review"}'` executed (no blocking P0/P1 findings for this change set).
-
-### Wave H: Non-web Prepare/Context Injection Consistency (2026-03-03, rescan)
-
-| Task ID | Finding | Result |
-|---------|---------|--------|
-| CX-21 | Prepare ordering risk: context window build result overwritten by post-window history recall | [x] Completed: introduced history-seed phase before context-window build; when summary is needed, recall completes first and seeds `session.Messages`, then `BuildWindow` runs; removed post-window `state.Messages` override path. |
-| CX-22 | Date injection path check: ensure dynamic date is injected as runtime chunk (not static system prompt) | [x] Completed: added dedicated `Current date chunk` message in `BuildWindow` output, timezone-aware (`PromptTimezone`), and kept system prompt free of dynamic date lines. |
-
-Validation Snapshot (2026-03-03, wave H):
-
-- `go test ./internal/app/agent/preparation` passed.
-- `go test ./internal/app/context` passed.
-- `go test ./...` passed.
-- `./scripts/run-golangci-lint.sh run --timeout=10m ./...` passed.
-- `python3 skills/code-review/run.py '{"action":"review"}'` executed (no blocking P0/P1 findings for this change set).

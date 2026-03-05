@@ -22,7 +22,7 @@ import (
 
 // LLMPlannerConfig controls the LLM-driven planner behavior.
 type LLMPlannerConfig struct {
-	Profile runtimeconfig.LLMProfile
+	Profile              runtimeconfig.LLMProfile
 	// ProfileFunc, when set, is called on every Plan() invocation and overrides
 	// the static Profile field. Use this to resolve the LLM profile dynamically
 	// (e.g. from a subscription store that may change at runtime) rather than
@@ -38,7 +38,7 @@ type LLMPlannerConfig struct {
 	AllowedTeamTemplates []string
 	// StateDir is the kernel-specific state directory (e.g. ~/.alex/kernel/{kernel_id}).
 	// When set, team status sidecars are read from StateDir/tasks/ instead of .elephant/tasks/.
-	StateDir string
+	StateDir             string
 }
 
 // planningDecision is the unit of LLM planning output.
@@ -229,7 +229,7 @@ func (p *LLMPlanner) buildPlanningPrompt(stateContent, goalContent, goalContextS
 	b.WriteString(time.Now().Format(time.RFC3339))
 	b.WriteString("\n\n")
 
-	if utils.IsBlank(goalContextStatus) {
+	if strings.TrimSpace(goalContextStatus) == "" {
 		goalContextStatus = "goal_context_unknown"
 	}
 	b.WriteString("## Goal Context Status\n")
@@ -656,7 +656,7 @@ func normalizePlanningDecisionKind(d planningDecision) kerneldomain.DispatchKind
 	case string(kerneldomain.DispatchKindTeam):
 		return kerneldomain.DispatchKindTeam
 	case "", string(kerneldomain.DispatchKindAgent):
-		if utils.HasContent(d.TeamTemplate) {
+		if strings.TrimSpace(d.TeamTemplate) != "" {
 			return kerneldomain.DispatchKindTeam
 		}
 		return kerneldomain.DispatchKindAgent

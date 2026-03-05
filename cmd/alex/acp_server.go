@@ -19,7 +19,6 @@ import (
 	"alex/internal/shared/async"
 	jsonrpc "alex/internal/shared/jsonrpc"
 	"alex/internal/shared/logging"
-	"alex/internal/shared/utils"
 )
 
 type acpServer struct {
@@ -557,7 +556,7 @@ func mapStopReason(result *agent.TaskResult, execErr error) string {
 	if result == nil {
 		return ""
 	}
-	reason := utils.TrimLower(result.StopReason)
+	reason := strings.ToLower(strings.TrimSpace(result.StopReason))
 	switch reason {
 	case "cancelled", "canceled":
 		return "cancelled"

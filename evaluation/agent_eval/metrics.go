@@ -12,7 +12,6 @@ import (
 
 	"alex/evaluation/swe_bench"
 	"alex/internal/domain/workflow"
-	"alex/internal/shared/utils"
 )
 
 // EvaluationMetrics 评估指标
@@ -293,7 +292,7 @@ func (qc *QualityCollector) assessSolutionQuality(result swe_bench.WorkerResult)
 	}
 
 	// Completed-with-error should not appear high quality.
-	if utils.HasContent(result.Error) {
+	if strings.TrimSpace(result.Error) != "" {
 		score = math.Min(score, 0.35)
 	}
 
@@ -326,7 +325,7 @@ func workflowFailureSignal(result swe_bench.WorkerResult) bool {
 	if strings.EqualFold(strings.TrimSpace(result.ErrorType), "max_iterations_error") {
 		return true
 	}
-	if strings.Contains(utils.TrimLower(result.Error), "max iterations") {
+	if strings.Contains(strings.ToLower(strings.TrimSpace(result.Error)), "max iterations") {
 		return true
 	}
 	if result.Workflow == nil {
@@ -534,7 +533,7 @@ func estimateVerificationMinutes(result swe_bench.WorkerResult) float64 {
 	if len(result.FilesChanged) > 0 {
 		base += math.Min(float64(len(result.FilesChanged))*0.12, 1.2)
 	}
-	if utils.HasContent(result.Error) {
+	if strings.TrimSpace(result.Error) != "" {
 		base += 0.5
 	}
 	return round3(base)
@@ -544,7 +543,7 @@ func estimateInterruptions(result swe_bench.WorkerResult) int {
 	interruptions := 0
 
 	for _, cmd := range result.Commands {
-		normalized := utils.TrimLower(cmd)
+		normalized := strings.ToLower(strings.TrimSpace(cmd))
 		if normalized == "" {
 			continue
 		}
@@ -557,7 +556,7 @@ func estimateInterruptions(result swe_bench.WorkerResult) int {
 		if step.ToolCall == nil {
 			continue
 		}
-		name := utils.TrimLower(step.ToolCall.Name)
+		name := strings.ToLower(strings.TrimSpace(step.ToolCall.Name))
 		if name == "ask_user" || strings.Contains(name, "approval") {
 			interruptions++
 		}
@@ -578,7 +577,7 @@ func estimateRecoveryCostMinutes(result swe_bench.WorkerResult) float64 {
 	if workflowFailureSignal(result) {
 		recovery += 1.0
 	}
-	if utils.HasContent(result.Error) {
+	if strings.TrimSpace(result.Error) != "" {
 		recovery += 0.5
 	}
 	return round3(recovery)
@@ -587,7 +586,7 @@ func estimateRecoveryCostMinutes(result swe_bench.WorkerResult) float64 {
 func estimateTrustCalibrationError(result swe_bench.WorkerResult) float64 {
 	confidence := inferConfidenceScore(result)
 	actual := 0.0
-	if result.Status == swe_bench.StatusCompleted && !workflowFailureSignal(result) && utils.IsBlank(result.Error) {
+	if result.Status == swe_bench.StatusCompleted && !workflowFailureSignal(result) && strings.TrimSpace(result.Error) == "" {
 		actual = 1.0
 	}
 	return round3(math.Abs(confidence - actual))
@@ -610,7 +609,7 @@ func inferConfidenceScore(result swe_bench.WorkerResult) float64 {
 	if result.RetryCount > 0 {
 		score -= math.Min(float64(result.RetryCount)*0.08, 0.25)
 	}
-	if utils.HasContent(result.Error) {
+	if strings.TrimSpace(result.Error) != "" {
 		score -= 0.25
 	}
 	if workflowFailureSignal(result) {
@@ -631,7 +630,7 @@ func isDeliverableReady(result swe_bench.WorkerResult) bool {
 	if result.Status != swe_bench.StatusCompleted {
 		return false
 	}
-	if workflowFailureSignal(result) || utils.HasContent(result.Error) {
+	if workflowFailureSignal(result) || strings.TrimSpace(result.Error) != "" {
 		return false
 	}
 	if len(result.FilesChanged) > 0 {

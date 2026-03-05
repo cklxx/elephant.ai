@@ -90,13 +90,13 @@ func (c *CLI) handleEval(args []string) error {
 }
 
 func resolveEvalDatasetType(flagValue, datasetPath string) string {
-	explicit := utils.TrimLower(flagValue)
+	explicit := strings.ToLower(strings.TrimSpace(flagValue))
 	switch explicit {
 	case "swe_bench", "general_agent", "eval_set", "file", "huggingface":
 		return explicit
 	}
 
-	trimmedPath := utils.TrimLower(datasetPath)
+	trimmedPath := strings.ToLower(strings.TrimSpace(datasetPath))
 	if trimmedPath == "" {
 		return "general_agent"
 	}

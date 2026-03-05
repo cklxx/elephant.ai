@@ -8,7 +8,6 @@ import (
 
 	ports "alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
-	"alex/internal/shared/utils"
 )
 
 // LLMJudge implements the Judge interface using an LLM provider to score
@@ -141,5 +140,8 @@ func parseJudgeResponse(content string) (float64, error) {
 }
 
 func truncate(s string, maxLen int) string {
-	return utils.TruncateWithSuffix(s, maxLen, "...")
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	proclive "alex/internal/infra/process"
-	"alex/internal/shared/utils"
 )
 
 // Shutdown timeout hierarchy (keep in sync with scripts/lib/common/process.sh):
@@ -401,7 +400,7 @@ func writePIDState(pidFile, metaFile string, pid int, identity string) error {
 	if err := atomicWriteFile(pidFile, []byte(strconv.Itoa(pid))); err != nil {
 		return err
 	}
-	if utils.IsBlank(identity) {
+	if strings.TrimSpace(identity) == "" {
 		return nil
 	}
 	return writePIDMetadata(metaFile, identity)

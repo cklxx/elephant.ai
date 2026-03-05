@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	larkgw "alex/internal/delivery/channels/lark"
-	"alex/internal/shared/utils"
 )
 
 // EvaluateAssertions checks all assertions for a turn and returns error messages.
@@ -182,8 +181,8 @@ func summarizeCalls(calls []larkgw.MessengerCall) string {
 	var parts []string
 	for _, c := range calls {
 		content := c.Content
-		if len([]rune(content)) > 80 {
-			content = utils.TruncateWithSuffix(content, 80, "...")
+		if len(content) > 80 {
+			content = content[:80] + "..."
 		}
 		parts = append(parts, fmt.Sprintf("[%s: %s]", c.Method, content))
 	}

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/shared/utils"
 	"alex/internal/app/subscription"
 	runtimeconfig "alex/internal/shared/config"
-	"alex/internal/shared/utils"
 )
 
 type onboardingSetupSelection struct {
@@ -25,7 +25,7 @@ func markOnboardingCompleteFromSelection(ctx context.Context, envLookup runtimec
 	)
 	state := subscription.OnboardingState{
 		CompletedAt:      time.Now().UTC().Format(time.RFC3339),
-		SelectedProvider: utils.TrimLower(selection.Provider),
+		SelectedProvider: strings.ToLower(strings.TrimSpace(selection.Provider)),
 		SelectedModel:    strings.TrimSpace(selection.Model),
 		UsedSource:       strings.TrimSpace(selection.Source),
 	}
@@ -62,8 +62,8 @@ func markOnboardingSetupSelections(ctx context.Context, envLookup runtimeconfig.
 		state = subscription.OnboardingState{}
 	}
 
-	runtimeMode := utils.TrimLower(selection.RuntimeMode)
-	persistenceMode := utils.TrimLower(selection.PersistenceMode)
+	runtimeMode := strings.ToLower(strings.TrimSpace(selection.RuntimeMode))
+	persistenceMode := strings.ToLower(strings.TrimSpace(selection.PersistenceMode))
 	state.SelectedRuntimeMode = runtimeMode
 	if persistenceMode != "" {
 		state.PersistenceMode = persistenceMode

@@ -9,7 +9,7 @@ triggers:
   confidence_threshold: 0.6
 priority: 7
 exclusive_group: lark-bitable
-requires_tools: [bash]
+requires_tools: [channel]
 max_tokens: 200
 cooldown: 30
 ---

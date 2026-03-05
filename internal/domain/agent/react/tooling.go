@@ -48,28 +48,26 @@ func (e *ReactEngine) emitWorkflowToolCompletedEvent(ctx context.Context, state 
 	))
 }
 
-// parseToolCalls extracts tool calls from assistant message.
-func (e *ReactEngine) parseToolCalls(msg Message, parser agent.FunctionCallParser) ([]ToolCall, error) {
+// parseToolCalls extracts tool calls from assistant message
+func (e *ReactEngine) parseToolCalls(msg Message, parser agent.FunctionCallParser) []ToolCall {
 
 	if len(msg.ToolCalls) > 0 {
 		e.logger.Debug("Using native tool calls from message: count=%d", len(msg.ToolCalls))
-		return msg.ToolCalls, nil
+		return msg.ToolCalls
 	}
 
 	e.logger.Debug("Parsing tool calls from content: length=%d", len(msg.Content))
 	parsed, err := parser.Parse(msg.Content)
 	if err != nil {
-		return nil, fmt.Errorf("parse tool calls: %w", err)
-	}
-	if len(parsed) == 0 && containsToolCallMarkers(msg.Content) {
-		return nil, fmt.Errorf("detected tool call markers but parsed zero calls")
+		e.logger.Warn("Failed to parse tool calls from content: %v", err)
+		return nil
 	}
 
 	calls := make([]ToolCall, 0, len(parsed))
 	calls = append(calls, parsed...)
 
 	e.logger.Debug("Parsed %d tool calls from content", len(calls))
-	return calls, nil
+	return calls
 }
 
 // truncateToolResultContent caps content at maxToolResultContentChars,
@@ -171,13 +169,4 @@ func (e *ReactEngine) cleanToolCallMarkers(content string) string {
 		cleaned = re.ReplaceAllString(cleaned, "")
 	}
 	return strings.TrimSpace(cleaned)
-}
-
-func containsToolCallMarkers(content string) bool {
-	if content == "" {
-		return false
-	}
-	return strings.Contains(content, "<tool_call") ||
-		strings.Contains(content, "<|tool_call_begin|>") ||
-		strings.Contains(content, "<start_function_call>")
 }

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/utils"
+	runtimeconfig "alex/internal/shared/config"
 
 	"gopkg.in/yaml.v3"
 )
@@ -42,10 +42,10 @@ type setupSelection struct {
 
 func resolveSetupSelection(in io.Reader, out io.Writer, input setupSelectionInput) (setupSelection, error) {
 	selection := setupSelection{
-		RuntimeMode:     utils.TrimLower(input.RuntimeMode),
+		RuntimeMode:     strings.TrimSpace(strings.ToLower(input.RuntimeMode)),
 		LarkAppID:       strings.TrimSpace(input.LarkAppID),
 		LarkAppSecret:   strings.TrimSpace(input.LarkAppSecret),
-		PersistenceMode: utils.TrimLower(input.PersistenceMode),
+		PersistenceMode: strings.TrimSpace(strings.ToLower(input.PersistenceMode)),
 		PersistenceDir:  strings.TrimSpace(input.PersistenceDir),
 	}
 

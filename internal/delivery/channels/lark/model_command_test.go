@@ -13,29 +13,6 @@ import (
 	"alex/internal/shared/logging"
 )
 
-func clearSubscriptionCredentialEnv(t *testing.T) {
-	t.Helper()
-
-	t.Setenv("LLM_API_KEY", "")
-	t.Setenv("LLAMA_SERVER_BASE_URL", "")
-	t.Setenv("LLAMA_SERVER_HOST", "")
-
-	seen := map[string]struct{}{}
-	for _, preset := range subscription.ListProviderPresets() {
-		for _, key := range preset.APIKeyEnvVars {
-			key = strings.TrimSpace(key)
-			if key == "" {
-				continue
-			}
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			t.Setenv(key, "")
-		}
-	}
-}
-
 func TestBuildModelListIncludesLlamaServerWhenAvailable(t *testing.T) {
 	t.Parallel()
 
@@ -71,7 +48,7 @@ func TestBuildModelListIncludesLlamaServerWhenAvailable(t *testing.T) {
 }
 
 func TestBuildModelListSkipsProvidersWithoutCredentials(t *testing.T) {
-	clearSubscriptionCredentialEnv(t)
+	t.Parallel()
 
 	gw := &Gateway{
 		logger: logging.OrNop(nil),
@@ -306,45 +283,6 @@ func TestSetModelWithChatFlag(t *testing.T) {
 	}
 }
 
-func TestSetModelSelectionCanonicalizesClaudeAlias(t *testing.T) {
-	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-
-	gw := newTestGatewayWithStore(t)
-	ctx := context.Background()
-	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
-
-	if err := gw.setModelSelection(ctx, msg, "claude/claude-sonnet-4-6", false); err != nil {
-		t.Fatalf("setModelSelection: %v", err)
-	}
-
-	selection, _, ok, err := gw.llmSelections.GetWithFallback(ctx, channelScope())
-	if err != nil {
-		t.Fatalf("GetWithFallback: %v", err)
-	}
-	if !ok {
-		t.Fatal("expected global selection")
-	}
-	if selection.Provider != "anthropic" {
-		t.Fatalf("expected canonical provider anthropic, got %q", selection.Provider)
-	}
-}
-
-func TestSetModelSelectionRejectsUnknownProviderEvenWithLLMAPIKey(t *testing.T) {
-	t.Setenv("LLM_API_KEY", "sk-universal")
-
-	gw := newTestGatewayWithStore(t)
-	ctx := context.Background()
-	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
-
-	err := gw.setModelSelection(ctx, msg, "totally_unknown/model-x", false)
-	if err == nil {
-		t.Fatal("expected unknown provider to be rejected")
-	}
-	if !strings.Contains(err.Error(), "unsupported provider") {
-		t.Fatalf("expected unsupported provider error, got %v", err)
-	}
-}
-
 func TestApplyPinnedSupportsLegacyChatUserScope(t *testing.T) {
 	t.Parallel()
 	gw := newTestGatewayWithStore(t)
@@ -504,55 +442,5 @@ func TestFirstNonFlag(t *testing.T) {
 	}
 	if got := firstNonFlag([]string{"--chat"}); got != "" {
 		t.Fatalf("expected empty, got %q", got)
-	}
-}
-
-func TestMatchSubscriptionCredentialKimiViaEnv(t *testing.T) {
-	t.Setenv("KIMI_API_KEY", "sk-kimi-match-test")
-	creds := runtimeconfig.CLICredentials{}
-	cred, ok := matchSubscriptionCredential(creds, "kimi")
-	if !ok {
-		t.Fatal("expected kimi to match via env var")
-	}
-	if cred.Provider != "kimi" {
-		t.Fatalf("expected provider kimi, got %q", cred.Provider)
-	}
-	if cred.APIKey != "sk-kimi-match-test" {
-		t.Fatalf("expected api key, got %q", cred.APIKey)
-	}
-	if cred.BaseURL != "https://api.kimi.com/coding/v1" {
-		t.Fatalf("expected kimi base url, got %q", cred.BaseURL)
-	}
-}
-
-func TestMatchSubscriptionCredentialOpenRouterViaEnv(t *testing.T) {
-	t.Setenv("OPENROUTER_API_KEY", "sk-or-test")
-	creds := runtimeconfig.CLICredentials{}
-	cred, ok := matchSubscriptionCredential(creds, "openrouter")
-	if !ok {
-		t.Fatal("expected openrouter to match via env var")
-	}
-	if cred.Provider != "openrouter" {
-		t.Fatalf("expected provider openrouter, got %q", cred.Provider)
-	}
-	if cred.APIKey != "sk-or-test" {
-		t.Fatalf("expected api key, got %q", cred.APIKey)
-	}
-}
-
-func TestMatchSubscriptionCredentialUnknownProviderNoEnv(t *testing.T) {
-	creds := runtimeconfig.CLICredentials{}
-	_, ok := matchSubscriptionCredential(creds, "totally_unknown")
-	if ok {
-		t.Fatal("expected unknown provider without env to not match")
-	}
-}
-
-func TestMatchSubscriptionCredentialUnknownProviderWithLLMAPIKey(t *testing.T) {
-	t.Setenv("LLM_API_KEY", "sk-universal")
-	creds := runtimeconfig.CLICredentials{}
-	_, ok := matchSubscriptionCredential(creds, "totally_unknown")
-	if ok {
-		t.Fatal("expected unknown provider with LLM_API_KEY to not match")
 	}
 }

@@ -60,11 +60,6 @@ func SelectRoleBinding(
 				break
 			}
 		}
-		// Explicit target requested but unavailable: keep the role unresolved
-		// instead of silently drifting to another CLI.
-		if binding.SelectedCLI == "" {
-			return binding
-		}
 	}
 
 	// Profile-driven selection.

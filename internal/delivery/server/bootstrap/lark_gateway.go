@@ -23,9 +23,6 @@ import (
 // if Lark is enabled. The plugin factory captures the full Config and
 // dependencies needed to start the gateway.
 func registerLarkChannel(cfg Config, registry *ChannelRegistry, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) {
-	if registry == nil {
-		return
-	}
 	larkCfg := cfg.Channels.LarkConfig()
 	if !larkCfg.Enabled {
 		return

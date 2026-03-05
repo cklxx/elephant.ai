@@ -346,7 +346,7 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	if cfg == nil {
 		return
 	}
-	cfg.Prompt.Mode = utils.TrimLower(cfg.Prompt.Mode)
+	cfg.Prompt.Mode = strings.TrimSpace(strings.ToLower(cfg.Prompt.Mode))
 	switch cfg.Prompt.Mode {
 	case "full", "minimal", "none":
 	default:
@@ -475,7 +475,7 @@ func normalizeToolPolicy(cfg *toolspolicy.ToolPolicyConfig) {
 	if cfg == nil {
 		return
 	}
-	cfg.EnforcementMode = utils.TrimLower(cfg.EnforcementMode)
+	cfg.EnforcementMode = strings.TrimSpace(strings.ToLower(cfg.EnforcementMode))
 	switch cfg.EnforcementMode {
 	case "", "enforce", "warn_allow":
 	default:

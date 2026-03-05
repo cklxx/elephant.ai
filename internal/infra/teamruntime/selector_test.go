@@ -33,17 +33,3 @@ func TestSelectRoleBinding_ProfileFallback(t *testing.T) {
 		t.Fatalf("expected generic_cli for non-adapter gemini, got %q", binding.SelectedAgentType)
 	}
 }
-
-func TestSelectRoleBinding_TargetCLIMissingDoesNotDrift(t *testing.T) {
-	caps := []coding.DiscoveredCLICapability{
-		{ID: "codex", Path: "/x/codex", Executable: true, AdapterSupport: true, AgentType: "codex"},
-		{ID: "claude_code", Path: "/x/claude", Executable: true, AdapterSupport: true, AgentType: "claude_code"},
-	}
-	binding := SelectRoleBinding("executor", "planning", "kimi", caps, "")
-	if binding.SelectedCLI != "" {
-		t.Fatalf("expected no selected cli when target is missing, got %q", binding.SelectedCLI)
-	}
-	if binding.SelectedAgentType != "" {
-		t.Fatalf("expected no selected agent type when target is missing, got %q", binding.SelectedAgentType)
-	}
-}

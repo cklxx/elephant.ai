@@ -1,14 +1,10 @@
 package agent_eval
 
-import (
-	"strings"
-
-	"alex/internal/shared/utils"
-)
+import "strings"
 
 // ParseCSVTags trims and splits comma-separated tags.
 func ParseCSVTags(raw string) []string {
-	if utils.IsBlank(raw) {
+	if strings.TrimSpace(raw) == "" {
 		return nil
 	}
 

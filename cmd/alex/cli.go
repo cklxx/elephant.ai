@@ -66,8 +66,6 @@ func (c *CLI) Run(args []string) error {
 		return c.handleEval(cmdArgs)
 	case "acp":
 		return c.handleACP(cmdArgs)
-	case "team", "teams":
-		return c.handleTeam(cmdArgs)
 	case "resume":
 		return c.handleResume(cmdArgs)
 
@@ -112,10 +110,6 @@ Usage:
   alex eval [options]            Run local agent evaluation against SWE-Bench datasets
   alex acp [--initial-message]        Run ACP (Agent Client Protocol) over stdio
   alex acp serve [--port N]           Run ACP over HTTP/SSE (default 127.0.0.1:9000)
-  alex team run [...]                 Dispatch team orchestration from YAML/template
-  alex team templates                 List configured team templates
-  alex team reply [...]               Reply to a background input request
-  alex team inject [...]              Inject free-form input into a running task
 
 Configuration:
 %s
@@ -521,7 +515,7 @@ func executeConfigCommand(args []string, out io.Writer) error {
 	overridesPath := managedOverridesPath(envLookup)
 	subcommand := ""
 	if len(args) > 0 {
-		subcommand = utils.TrimLower(args[0])
+		subcommand = strings.ToLower(strings.TrimSpace(args[0]))
 	}
 
 	switch subcommand {
@@ -897,7 +891,7 @@ func parseBool(value string, name string) (bool, error) {
 }
 
 func normalizeOverrideKey(key string) string {
-	trimmed := utils.TrimLower(key)
+	trimmed := strings.TrimSpace(strings.ToLower(key))
 	trimmed = strings.ReplaceAll(trimmed, "-", "_")
 	trimmed = strings.ReplaceAll(trimmed, " ", "_")
 	return trimmed

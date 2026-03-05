@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -276,42 +275,10 @@ func devLint() error {
 	if err != nil {
 		return fmt.Errorf("npm not found: %w", err)
 	}
-	if err := ensureWebLintDependencies(npmPath, webDir); err != nil {
-		return err
-	}
 	cmd = exec.Command(npmPath, "--prefix", webDir, "run", "lint")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
-}
-
-func ensureWebLintDependencies(npmPath, webDir string) error {
-	needsInstall, err := webLintNeedsInstall(webDir)
-	if err != nil {
-		return err
-	}
-	if !needsInstall {
-		return nil
-	}
-	fmt.Println("Web lint dependencies missing; running npm ci...")
-	cmd := exec.Command(npmPath, "--prefix", webDir, "ci")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("install web dependencies: %w", err)
-	}
-	return nil
-}
-
-func webLintNeedsInstall(webDir string) (bool, error) {
-	eslintPath := filepath.Join(webDir, "node_modules", ".bin", "eslint")
-	if _, err := os.Stat(eslintPath); err == nil {
-		return false, nil
-	} else if errors.Is(err, os.ErrNotExist) {
-		return true, nil
-	} else {
-		return false, fmt.Errorf("check web lint dependencies: %w", err)
-	}
 }
 
 func devLogsUI() error {

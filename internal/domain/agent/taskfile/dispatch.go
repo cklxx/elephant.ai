@@ -114,7 +114,7 @@ func BuildTeamRunRecord(tf *TaskFile, def *agent.TeamDefinition, templateName, g
 
 	for _, t := range tf.Tasks {
 		agentType := t.AgentType
-		if sel := strings.TrimSpace(t.RuntimeMeta.SelectedAgentType); sel != "" && agent.IsCodingExternalAgent(agentType) {
+		if sel := strings.TrimSpace(t.RuntimeMeta.SelectedAgentType); sel != "" {
 			agentType = sel
 		}
 		roles = append(roles, agent.TeamRunRoleRecord{

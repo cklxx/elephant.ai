@@ -15,9 +15,8 @@ import (
 	preparation "alex/internal/app/agent/preparation"
 	"alex/internal/app/toolregistry"
 	ports "alex/internal/domain/agent/ports"
-	"alex/internal/domain/agent/presets"
 	"alex/internal/infra/memory"
-	"alex/internal/shared/utils"
+	"alex/internal/domain/agent/presets"
 
 	"gopkg.in/yaml.v3"
 )
@@ -203,25 +202,25 @@ func RunFoundationEvaluation(ctx context.Context, options *FoundationEvaluationO
 		options = DefaultFoundationEvaluationOptions()
 	}
 	opts := *options
-	if utils.IsBlank(opts.OutputDir) {
+	if strings.TrimSpace(opts.OutputDir) == "" {
 		opts.OutputDir = DefaultFoundationEvaluationOptions().OutputDir
 	}
-	if utils.IsBlank(opts.Mode) {
+	if strings.TrimSpace(opts.Mode) == "" {
 		opts.Mode = DefaultFoundationEvaluationOptions().Mode
 	}
-	if utils.IsBlank(opts.Preset) {
+	if strings.TrimSpace(opts.Preset) == "" {
 		opts.Preset = DefaultFoundationEvaluationOptions().Preset
 	}
-	if utils.IsBlank(opts.Toolset) {
+	if strings.TrimSpace(opts.Toolset) == "" {
 		opts.Toolset = DefaultFoundationEvaluationOptions().Toolset
 	}
-	if utils.IsBlank(opts.CasesPath) {
+	if strings.TrimSpace(opts.CasesPath) == "" {
 		opts.CasesPath = defaultFoundationCasesPath
 	}
 	if opts.TopK <= 0 {
 		opts.TopK = DefaultFoundationEvaluationOptions().TopK
 	}
-	if utils.IsBlank(opts.ReportFormat) {
+	if strings.TrimSpace(opts.ReportFormat) == "" {
 		opts.ReportFormat = DefaultFoundationEvaluationOptions().ReportFormat
 	}
 
@@ -278,7 +277,7 @@ func RunFoundationEvaluation(ctx context.Context, options *FoundationEvaluationO
 
 // LoadFoundationCaseSet loads and validates the scenario YAML.
 func LoadFoundationCaseSet(path string) (*FoundationCaseSet, error) {
-	if utils.IsBlank(path) {
+	if strings.TrimSpace(path) == "" {
 		return nil, fmt.Errorf("foundation case set path is required")
 	}
 	data, err := os.ReadFile(path)
@@ -289,10 +288,10 @@ func LoadFoundationCaseSet(path string) (*FoundationCaseSet, error) {
 	if err := yaml.Unmarshal(data, &set); err != nil {
 		return nil, fmt.Errorf("decode foundation case set: %w", err)
 	}
-	if utils.IsBlank(set.Name) {
+	if strings.TrimSpace(set.Name) == "" {
 		return nil, fmt.Errorf("foundation case set name is required")
 	}
-	if utils.IsBlank(set.Version) {
+	if strings.TrimSpace(set.Version) == "" {
 		return nil, fmt.Errorf("foundation case set version is required")
 	}
 	if len(set.Scenarios) == 0 {
@@ -308,7 +307,7 @@ func LoadFoundationCaseSet(path string) (*FoundationCaseSet, error) {
 			return nil, fmt.Errorf("duplicate scenario id: %s", id)
 		}
 		seen[id] = struct{}{}
-		if utils.IsBlank(scenario.Intent) {
+		if strings.TrimSpace(scenario.Intent) == "" {
 			return nil, fmt.Errorf("scenario %s intent is required", id)
 		}
 		if len(scenario.ExpectedTools) == 0 {
@@ -333,7 +332,7 @@ func LoadFoundationCaseSet(path string) (*FoundationCaseSet, error) {
 }
 
 func normalizeFoundationMode(mode string) presets.ToolMode {
-	switch utils.TrimLower(mode) {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case string(presets.ToolModeWeb):
 		return presets.ToolModeWeb
 	case string(presets.ToolModeCLI):
@@ -635,7 +634,7 @@ func scoreToolProfile(profile foundationToolProfile) FoundationToolScore {
 		arrays := 0
 		arraysWithItems := 0
 		for _, prop := range def.Parameters.Properties {
-			if utils.HasContent(prop.Type) {
+			if strings.TrimSpace(prop.Type) != "" {
 				typed++
 			}
 			if len(strings.Fields(strings.TrimSpace(prop.Description))) >= 3 {
@@ -673,7 +672,7 @@ func scoreToolProfile(profile foundationToolProfile) FoundationToolScore {
 		issues = append(issues, "tool_description_thin")
 	}
 
-	if utils.HasContent(meta.Category) {
+	if strings.TrimSpace(meta.Category) != "" {
 		usability += 3
 	} else {
 		issues = append(issues, "metadata_category_missing")
@@ -705,7 +704,7 @@ func scoreToolProfile(profile foundationToolProfile) FoundationToolScore {
 	} else {
 		issues = append(issues, "description_not_informative")
 	}
-	if utils.HasContent(meta.Category) {
+	if strings.TrimSpace(meta.Category) != "" {
 		discoverability += 7
 	}
 	if len(meta.Tags) >= 2 {
@@ -936,7 +935,7 @@ func evaluateDeliverableContract(contract *FoundationDeliverableContract, topMat
 	}
 	candidateTools := make(map[string]struct{}, len(selected))
 	for _, match := range selected {
-		if utils.IsBlank(match.Name) {
+		if strings.TrimSpace(match.Name) == "" {
 			continue
 		}
 		candidateTools[match.Name] = struct{}{}
@@ -2533,7 +2532,7 @@ func tokenize(value string) []string {
 		if strings.Contains(token, "_") {
 			parts := strings.Split(token, "_")
 			for _, part := range parts {
-				if utils.HasContent(part) {
+				if strings.TrimSpace(part) != "" {
 					result = append(result, part)
 				}
 			}
@@ -2545,7 +2544,7 @@ func tokenize(value string) []string {
 }
 
 func normalizeToken(token string) string {
-	token = utils.TrimLower(token)
+	token = strings.ToLower(strings.TrimSpace(token))
 	token = strings.Trim(token, "_")
 	if token == "" {
 		return ""

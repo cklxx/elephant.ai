@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	domain "alex/internal/domain/agent"
+	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
@@ -601,7 +601,7 @@ func extractToolLocations(args map[string]any, metadata map[string]any) []map[st
 }
 
 func toolKindForName(name string) string {
-	switch utils.TrimLower(name) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "read_file":
 		return "read"
 	case "write_file", "replace_in_file":

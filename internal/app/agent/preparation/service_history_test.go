@@ -283,61 +283,6 @@ func TestPrepareHistoryRecallReplacesOriginalTurns(t *testing.T) {
 	}
 }
 
-func TestPrepareHistorySeedPreservesWindowMutations(t *testing.T) {
-	session := &storage.Session{
-		ID: "session-history-window-seed",
-		Messages: []ports.Message{
-			{
-				Role:    "user",
-				Source:  ports.MessageSourceUserInput,
-				Content: "Draft a release note for v1.2.3",
-			},
-			{
-				Role:    "assistant",
-				Source:  ports.MessageSourceAssistantReply,
-				Content: "I outlined highlights and risk notes.",
-			},
-		},
-		Metadata: map[string]string{},
-	}
-	store := &stubSessionStore{session: session}
-	deps := ExecutionPreparationDeps{
-		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{},
-		SessionStore:  store,
-		ContextMgr:    windowAnnotatingContextManager{},
-		Parser:        stubParser{},
-		Config:        appconfig.Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3},
-		Logger:        agent.NoopLogger{},
-		Clock:         agent.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
-		CostDecorator: cost.NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
-		EventEmitter:  agent.NoopEventListener{},
-	}
-
-	service := NewExecutionPreparationService(deps)
-	env, err := service.Prepare(context.Background(), "Summarize release readiness", session.ID)
-	if err != nil {
-		t.Fatalf("prepare execution failed: %v", err)
-	}
-
-	foundWindowMarker := false
-	foundHistoryRecall := false
-	for _, msg := range env.State.Messages {
-		if msg.Content == "window-marker: compacted-by-context-manager" {
-			foundWindowMarker = true
-		}
-		if msg.Source == ports.MessageSourceUserHistory && strings.Contains(msg.Content, "release note") {
-			foundHistoryRecall = true
-		}
-	}
-	if !foundWindowMarker {
-		t.Fatalf("expected state messages to preserve context-window mutation marker, got %#v", env.State.Messages)
-	}
-	if !foundHistoryRecall {
-		t.Fatalf("expected state messages to include recalled history seed, got %#v", env.State.Messages)
-	}
-}
-
 func TestHistoryRecallSummarizesWhenThresholdExceeded(t *testing.T) {
 	session := &storage.Session{
 		ID: "session-history-3",
@@ -636,7 +581,7 @@ func TestPrepareUsesInheritedStateForSubagent(t *testing.T) {
 			"report.md": {Name: "report.md", Data: "YmFzZQ=="},
 		},
 		AttachmentIterations: map[string]int{"report.md": 4},
-		Plans:                []agent.PlanNode{{ID: "plan-1", Title: "Investigate"}},
+		Plans: []agent.PlanNode{{ID: "plan-1", Title: "Investigate"}},
 		Cognitive: &agent.CognitiveExtension{
 			Beliefs:         []agent.Belief{{Statement: "Delegation works"}},
 			KnowledgeRefs:   []agent.KnowledgeReference{{ID: "rag-1", Description: "Docs"}},
@@ -698,19 +643,4 @@ func collectHistoryMessages(messages []ports.Message) []ports.Message {
 		}
 	}
 	return recalled
-}
-
-type windowAnnotatingContextManager struct{ stubContextManager }
-
-func (windowAnnotatingContextManager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
-	window, err := stubContextManager{}.BuildWindow(ctx, session, cfg)
-	if err != nil {
-		return agent.ContextWindow{}, err
-	}
-	window.Messages = append(window.Messages, ports.Message{
-		Role:    "system",
-		Source:  ports.MessageSourceSystemPrompt,
-		Content: "window-marker: compacted-by-context-manager",
-	})
-	return window, nil
 }

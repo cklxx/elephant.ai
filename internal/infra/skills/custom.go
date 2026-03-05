@@ -9,8 +9,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"alex/internal/shared/utils"
 )
 
 // DefaultMaxSkillSize is the default maximum file size for a custom skill (100KB).
@@ -239,7 +237,7 @@ func ValidateSkill(skill Skill, config CustomSkillConfig) []ValidationError {
 			Message:   fmt.Sprintf("priority %d must be between 0 and 100", skill.Priority),
 		})
 	}
-	if level := utils.TrimLower(skill.GovernanceLevel); level != "" {
+	if level := strings.TrimSpace(strings.ToLower(skill.GovernanceLevel)); level != "" {
 		switch level {
 		case "low", "medium", "high", "critical":
 		default:
@@ -250,7 +248,7 @@ func ValidateSkill(skill Skill, config CustomSkillConfig) []ValidationError {
 			})
 		}
 	}
-	if mode := utils.TrimLower(skill.ActivationMode); mode != "" {
+	if mode := strings.TrimSpace(strings.ToLower(skill.ActivationMode)); mode != "" {
 		switch mode {
 		case "auto", "semi_auto", "manual":
 		default:
