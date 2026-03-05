@@ -26,3 +26,6 @@ Prompt the model with a “compiler-style” pipeline that converts user input i
   - Task graph: abstract the flow → map to LLM modules → give implementation tips.
   - External info: no retrieval required.
   - Output strategy: instructional; clear steps without over-formatting.
+
+## Correction handling rule
+- When the user narrows scope from analysis to an immediate operational action (for example, "stop service first"), execute the operational action first, then resume documentation/analysis.

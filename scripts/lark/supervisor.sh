@@ -34,6 +34,7 @@ Env:
   LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS   Autofix cooldown seconds (default: 900)
   LARK_SUPERVISOR_AUTOFIX_SCOPE              Prompt scope hint (default: repo)
   LARK_LOOP_AUTOFIX_ENABLED                  Enable loop gate auto-fix edits (default: 0)
+  LARK_SUPERVISOR_KERNEL_ENABLED             Enable kernel child management (default: 0; disabled)
   LARK_SUPERVISOR_NOTIFY_SH                  Notification sender script (default: scripts/lark/notify.sh)
   LARK_NOTICE_STATE_FILE                     Notice binding state file path (default: .worktrees/test/tmp/lark-notice.state.json)
   LARK_STALE_LOOP_STATE_TIMEOUT_SECONDS      Max seconds to keep validation phase while loop is down before stale-state recovery (default: 30)
@@ -108,6 +109,7 @@ AUTOFIX_WINDOW_SECONDS="${LARK_SUPERVISOR_AUTOFIX_WINDOW_SECONDS:-3600}"
 AUTOFIX_COOLDOWN_SECONDS="${LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS:-900}"
 AUTOFIX_SCOPE="${LARK_SUPERVISOR_AUTOFIX_SCOPE:-repo}"
 LOOP_AUTOFIX_ENABLED="${LARK_LOOP_AUTOFIX_ENABLED:-0}"
+KERNEL_ENABLED="${LARK_SUPERVISOR_KERNEL_ENABLED:-0}"
 STALE_LOOP_STATE_TIMEOUT_SECONDS="${LARK_STALE_LOOP_STATE_TIMEOUT_SECONDS:-30}"
 
 MODE="degraded"
@@ -240,6 +242,10 @@ main_health_state() {
 }
 
 kernel_health_state() {
+  if [[ "${KERNEL_ENABLED}" != "1" ]]; then
+    echo "disabled"
+    return
+  fi
   local pid
   pid="$(read_pid_if_running "${KERNEL_PID_FILE}")"
   if [[ -n "${pid}" ]]; then
@@ -483,6 +489,19 @@ maybe_notify_mode_transition() {
   fi
 }
 
+enforce_kernel_disabled() {
+  if [[ "${KERNEL_ENABLED}" == "1" ]]; then
+    return 0
+  fi
+  local pid
+  pid="$(read_pid_if_running "${KERNEL_PID_FILE}" || true)"
+  if [[ -z "${pid}" ]]; then
+    return 0
+  fi
+  append_log "[supervisor] kernel disabled; stopping running kernel pid=${pid}"
+  "${KERNEL_SH}" stop >> "${LOG_FILE}" 2>&1 || true
+}
+
 trigger_autofix() {
   local component="$1"
   local reason="$2"
@@ -633,7 +652,11 @@ total_restart_count_window() {
   local main_count loop_count kernel_count
   main_count="$(restart_count_window_for_component "main" "${now_epoch}")"
   loop_count="$(restart_count_window_for_component "loop" "${now_epoch}")"
-  kernel_count="$(restart_count_window_for_component "kernel" "${now_epoch}")"
+  if [[ "${KERNEL_ENABLED}" == "1" ]]; then
+    kernel_count="$(restart_count_window_for_component "kernel" "${now_epoch}")"
+  else
+    kernel_count=0
+  fi
   echo $((main_count + loop_count + kernel_count))
 }
 
@@ -658,6 +681,10 @@ restart_component() {
       "${LOOP_AGENT_SH}" restart >> "${LOG_FILE}" 2>&1
       ;;
     kernel)
+      if [[ "${KERNEL_ENABLED}" != "1" ]]; then
+        append_log "[supervisor] kernel restart skipped (disabled)"
+        return 0
+      fi
       "${KERNEL_SH}" restart >> "${LOG_FILE}" 2>&1
       ;;
     *)
@@ -682,6 +709,9 @@ component_needs_restart() {
   local state="$2"
   case "${component}" in
     main|kernel)
+      if [[ "${component}" == "kernel" && "${KERNEL_ENABLED}" != "1" ]]; then
+        return 1
+      fi
       [[ "${state}" != "healthy" ]]
       ;;
     loop)
@@ -736,7 +766,11 @@ observe_states() {
 
   OBS_MAIN_PID="$(read_pid_if_running "${MAIN_PID_FILE}" || true)"
   OBS_LOOP_PID="$(read_pid_if_running "${LOOP_PID_FILE}" || true)"
-  OBS_KERNEL_PID="$(read_pid_if_running "${KERNEL_PID_FILE}" || true)"
+  if [[ "${KERNEL_ENABLED}" == "1" ]]; then
+    OBS_KERNEL_PID="$(read_pid_if_running "${KERNEL_PID_FILE}" || true)"
+  else
+    OBS_KERNEL_PID=""
+  fi
   OBS_CODEX_LOOP_PID="$(read_pid_if_running "${CODEX_LOOP_PID_FILE}" || true)"
   OBS_CODEX_AUTOFIX_PID="$(read_pid_if_running "${CODEX_AUTOFIX_PID_FILE}" || true)"
 
@@ -746,7 +780,11 @@ observe_states() {
 
   OBS_MAIN_SHA="$(git -C "${MAIN_ROOT}" rev-parse main 2>/dev/null || echo "unknown")"
   OBS_MAIN_DEPLOYED_SHA="$(cat "${MAIN_SHA_FILE}" 2>/dev/null || echo "unknown")"
-  OBS_KERNEL_DEPLOYED_SHA="$(cat "${KERNEL_SHA_FILE}" 2>/dev/null || echo "unknown")"
+  if [[ "${KERNEL_ENABLED}" == "1" ]]; then
+    OBS_KERNEL_DEPLOYED_SHA="$(cat "${KERNEL_SHA_FILE}" 2>/dev/null || echo "unknown")"
+  else
+    OBS_KERNEL_DEPLOYED_SHA="disabled"
+  fi
   OBS_LAST_PROCESSED_SHA="$(cat "${LAST_PROCESSED_FILE}" 2>/dev/null || true)"
 
   OBS_CYCLE_PHASE="$(extract_json_string "${LOOP_STATE_FILE}" "cycle_phase" || echo "idle")"
@@ -758,15 +796,21 @@ observe_states() {
 
 current_mode() {
   local now_epoch="$1"
+  local kernel_ready
+  if [[ "${OBS_KERNEL_HEALTH}" == "healthy" || "${OBS_KERNEL_HEALTH}" == "disabled" ]]; then
+    kernel_ready="healthy"
+  else
+    kernel_ready="down"
+  fi
   if (( now_epoch < COOLDOWN_UNTIL )); then
     echo "cooldown"
     return
   fi
-  if is_validation_active && [[ "${OBS_MAIN_HEALTH}" == "healthy" && "${OBS_KERNEL_HEALTH}" == "healthy" && "${OBS_LOOP_HEALTH}" == "alive" ]]; then
+  if is_validation_active && [[ "${OBS_MAIN_HEALTH}" == "healthy" && "${kernel_ready}" == "healthy" && "${OBS_LOOP_HEALTH}" == "alive" ]]; then
     echo "validating"
     return
   fi
-  if [[ "${OBS_MAIN_HEALTH}" == "healthy" && "${OBS_KERNEL_HEALTH}" == "healthy" && "${OBS_LOOP_HEALTH}" == "alive" ]]; then
+  if [[ "${OBS_MAIN_HEALTH}" == "healthy" && "${kernel_ready}" == "healthy" && "${OBS_LOOP_HEALTH}" == "alive" ]]; then
     echo "healthy"
   else
     echo "degraded"
@@ -780,7 +824,11 @@ write_status_file() {
   now_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   restart_count="$(total_restart_count_window "${now_epoch}")"
   main_runs_window="$(restart_count_window_for_component "main" "${now_epoch}")"
-  kernel_runs_window="$(restart_count_window_for_component "kernel" "${now_epoch}")"
+  if [[ "${KERNEL_ENABLED}" == "1" ]]; then
+    kernel_runs_window="$(restart_count_window_for_component "kernel" "${now_epoch}")"
+  else
+    kernel_runs_window=0
+  fi
   loop_runs_window="$(restart_count_window_for_component "loop" "${now_epoch}")"
   OBS_RESTART_COUNT_WINDOW="${restart_count}"
   mode="$(current_mode "${now_epoch}")"
@@ -928,6 +976,7 @@ maybe_upgrade_for_sha_drift() {
   fi
 
   if [[ "${OBS_KERNEL_HEALTH}" == "healthy" \
+     && "${KERNEL_ENABLED}" == "1" \
      && "${OBS_KERNEL_DEPLOYED_SHA}" != "unknown" \
      && "${OBS_MAIN_SHA}" != "unknown" \
      && "${OBS_KERNEL_DEPLOYED_SHA}" != "${OBS_MAIN_SHA}" ]]; then
@@ -952,11 +1001,14 @@ run_tick() {
   previous_mode="$(extract_json_string "${STATUS_FILE}" "mode" || true)"
 
   cleanup_orphan_lark_agents
+  enforce_kernel_disabled
   observe_states
   reconcile_stale_loop_state
   observe_states
 
-  restart_with_backoff "kernel" "${OBS_KERNEL_HEALTH}" || true
+  if [[ "${KERNEL_ENABLED}" == "1" ]]; then
+    restart_with_backoff "kernel" "${OBS_KERNEL_HEALTH}" || true
+  fi
   observe_states
 
   restart_with_backoff "main" "${OBS_MAIN_HEALTH}" || true
@@ -1006,6 +1058,7 @@ run_supervisor() {
   append_log "[supervisor] start tick=${TICK_SECONDS}s window=${RESTART_WINDOW_SECONDS}s max=${RESTART_MAX_IN_WINDOW} cooldown=${COOLDOWN_SECONDS}s"
   append_log "[supervisor] pid_dir=${PID_DIR}"
   append_log "[supervisor] main_config=$(lark_canonical_path "${MAIN_CONFIG_PATH}")"
+  append_log "[supervisor] kernel_enabled=${KERNEL_ENABLED}"
   append_log "[supervisor] autofix enabled=${AUTOFIX_ENABLED} trigger=${AUTOFIX_TRIGGER} timeout=${AUTOFIX_TIMEOUT_SECONDS}s max=${AUTOFIX_MAX_IN_WINDOW}/${AUTOFIX_WINDOW_SECONDS}s cooldown=${AUTOFIX_COOLDOWN_SECONDS}s scope=${AUTOFIX_SCOPE}"
   append_log "[supervisor] loop_autofix_enabled=${LOOP_AUTOFIX_ENABLED}"
 
@@ -1041,7 +1094,9 @@ report_children_health() {
     log_success "  main: healthy (pid=${OBS_MAIN_PID})"
   fi
 
-  if [[ "${OBS_KERNEL_HEALTH}" != "healthy" ]]; then
+  if [[ "${OBS_KERNEL_HEALTH}" == "disabled" ]]; then
+    log_info "  kernel: disabled"
+  elif [[ "${OBS_KERNEL_HEALTH}" != "healthy" ]]; then
     log_warn "  kernel: ${OBS_KERNEL_HEALTH} (pid=${OBS_KERNEL_PID:-none})"
     degraded=1
   else
@@ -1076,6 +1131,9 @@ reconcile_children_once() {
   observe_states
   append_log "[start] reconcile-on-demand begin main=${OBS_MAIN_HEALTH} kernel=${OBS_KERNEL_HEALTH} loop=${OBS_LOOP_HEALTH}"
 
+  enforce_kernel_disabled
+  observe_states
+
   if component_needs_restart "kernel" "${OBS_KERNEL_HEALTH}"; then
     append_log "[start] kernel=${OBS_KERNEL_HEALTH}; restarting"
     restart_component "kernel" || append_log "[start] kernel restart failed"
@@ -1105,6 +1163,9 @@ start() {
   ensure_dirs
   assert_main_config
   cleanup_orphan_lark_agents
+  if [[ "${KERNEL_ENABLED}" != "1" ]]; then
+    "${KERNEL_SH}" stop >> "${LOG_FILE}" 2>&1 || true
+  fi
 
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
@@ -1193,6 +1254,7 @@ status() {
   echo "pid_dir: ${PID_DIR}"
   echo "main_config: $(lark_canonical_path "${MAIN_CONFIG_PATH}")"
   echo "main: ${OBS_MAIN_HEALTH} pid=${OBS_MAIN_PID}"
+  echo "kernel_enabled: ${KERNEL_ENABLED}"
   echo "kernel: ${OBS_KERNEL_HEALTH} pid=${OBS_KERNEL_PID}"
   echo "loop: ${OBS_LOOP_HEALTH} pid=${OBS_LOOP_PID}"
   echo "codex_loop_pid: ${OBS_CODEX_LOOP_PID}"
@@ -1284,6 +1346,10 @@ doctor() {
   fi
 
   for pid_file in "${PID_FILE}" "${MAIN_PID_FILE}" "${KERNEL_PID_FILE}" "${LOOP_PID_FILE}" "${CODEX_LOOP_PID_FILE}" "${CODEX_AUTOFIX_PID_FILE}"; do
+    if [[ "${KERNEL_ENABLED}" != "1" && "${pid_file}" == "${KERNEL_PID_FILE}" ]]; then
+      echo "[ok] kernel disabled: skip pid check (${pid_file})"
+      continue
+    fi
     pid="$(read_pid "${pid_file}" || true)"
     if [[ -z "${pid}" ]]; then
       echo "[warn] missing pid file value: ${pid_file}"
