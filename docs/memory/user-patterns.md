@@ -1,6 +1,6 @@
 # User Patterns
 
-Updated: 2026-03-05 11:00
+Updated: 2026-03-05 15:00
 
 ## Patterns
 
@@ -9,3 +9,4 @@ Updated: 2026-03-05 11:00
 3. `internal/**` rules must be explicit at first-level namespace and responsibility mapping level; high-level layer descriptions are insufficient.
 4. Except unit tests, never use mock-based validation; inject/integration/live checks must run against real dependency paths.
 5. For Feishu/Lark capabilities, user preference is CLI-first (`bash` + skills), and explicit `channel` tool registration should be removed rather than kept as compatibility wrapper.
+6. For external capability integration (e.g., AnyGen), user preference is packaging into unified CLI + SKILL.md with progressive disclosure rather than ad-hoc direct prompts.
