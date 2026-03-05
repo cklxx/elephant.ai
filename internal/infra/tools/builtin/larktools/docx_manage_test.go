@@ -79,6 +79,29 @@ func isDocxDescendantRoute(path, documentID, blockID string) bool {
 	return strings.Contains(path, openPath) || strings.Contains(path, plainPath)
 }
 
+func writeDocxConvertSuccess(t *testing.T, w http.ResponseWriter, blockID, parentID string) {
+	t.Helper()
+	writeJSON(t, w, 0, "ok", map[string]any{
+		"first_level_block_ids": []string{blockID},
+		"blocks": []map[string]any{
+			{
+				"block_id":   blockID,
+				"block_type": 2,
+				"parent_id":  parentID,
+				"children":   []string{},
+				"text": map[string]any{
+					"elements": []map[string]any{
+						{"text_run": map[string]any{"content": "converted markdown"}},
+					},
+				},
+			},
+		},
+		"block_id_to_image_urls": []map[string]any{
+			{"block_id": blockID, "image_url": "https://example.com/docx-convert.png"},
+		},
+	})
+}
+
 // ---------------------------------------------------------------------------
 // Direct docx_manage tests
 // ---------------------------------------------------------------------------
@@ -193,13 +216,7 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 				t.Fatalf("expected initial content in convert body, got: %s", body)
 			}
 			convertCalled = true
-			writeJSON(t, w, 0, "ok", map[string]any{
-				"first_level_block_ids": []string{"tmp_blk_001"},
-				"blocks": []map[string]any{
-					{"block_id": "tmp_blk_001", "block_type": 2, "parent_id": "doc_init_001"},
-				},
-				"block_id_to_image_urls": []map[string]any{},
-			})
+			writeDocxConvertSuccess(t, w, "tmp_blk_001", "doc_init_001")
 		case r.Method == http.MethodPost && isDocxDescendantRoute(r.URL.Path, "doc_init_001", "doc_init_001"):
 			bodyBytes, _ := io.ReadAll(r.Body)
 			body := string(bodyBytes)
@@ -959,6 +976,14 @@ func TestDocx_FullLifecycle(t *testing.T) {
 				},
 			})
 
+		case r.Method == http.MethodPost && isDocxBlocksConvertRoute(path):
+			writeDocxConvertSuccess(t, w, "tmp_blk_lc_1", "doc_lifecycle_001")
+
+		case r.Method == http.MethodPost && isDocxDescendantRoute(path, "doc_lifecycle_001", "doc_lifecycle_001"):
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"document_revision_id": 2,
+			})
+
 		case strings.Contains(path, "doc_lifecycle_001") && strings.Contains(path, "raw_content"):
 			writeJSON(t, w, 0, "ok", map[string]any{
 				"content": "Lifecycle document body text",
@@ -991,8 +1016,9 @@ func TestDocx_FullLifecycle(t *testing.T) {
 
 	// Step 1: Create
 	result, err := dm.Execute(ctx, ports.ToolCall{ID: "lc1", Arguments: map[string]any{
-		"action": "create",
-		"title":  "Lifecycle Test",
+		"action":  "create",
+		"title":   "Lifecycle Test",
+		"content": "Lifecycle seeded content",
 	}})
 	if err != nil {
 		t.Fatalf("create: unexpected error: %v", err)
