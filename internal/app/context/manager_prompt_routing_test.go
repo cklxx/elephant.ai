@@ -21,6 +21,7 @@ func TestBuildToolRoutingSectionIncludesDeterministicAndMemoryBoundaries(t *test
 		"ALWAYS use read_file for workspace",
 		"ALWAYS inject runtime facts",
 		"ALWAYS probe capabilities",
+		"ALWAYS discover feishu-cli actions progressively via help flow",
 		"NEVER expose secrets",
 		"NEVER use ask_user for explicit",
 	} {

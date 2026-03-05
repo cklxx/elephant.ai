@@ -62,6 +62,7 @@ func buildToolRoutingSection() string {
 	sb.WriteString("- ALWAYS use web_search for URL discovery; web_fetch after URL is known.\n")
 	sb.WriteString("- ALWAYS avoid interactive browser click-flow assumptions unless explicit browser automation tools are available.\n")
 	sb.WriteString("- ALWAYS use shell_exec to run skill CLIs for channel delivery (e.g. python3 skills/feishu-cli/run.py).\n")
+	sb.WriteString("- ALWAYS discover feishu-cli actions progressively via help flow (help -> modules -> module -> action) before first write call.\n")
 	sb.WriteString("- ALWAYS use skills for complex workflows (deep research, media generation, slide decks).\n")
 	sb.WriteString("- ALWAYS default temp/generated files to /tmp with deterministic names.\n")
 	sb.WriteString("- ALWAYS probe capabilities (command -v, --version) before declaring unavailable.\n")
