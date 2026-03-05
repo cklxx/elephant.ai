@@ -339,7 +339,6 @@ func (t *runTasks) formatResult(callID string, result *taskfile.ExecuteResult, w
 	return &ports.ToolResult{CallID: callID, Content: sb.String()}, nil
 }
 
-
 func (t *runTasks) ensureTeamBootstrap(
 	ctx context.Context,
 	statusPath string,
@@ -359,9 +358,12 @@ func (t *runTasks) ensureTeamBootstrap(
 		if roleID == "" {
 			continue
 		}
+		if !shouldBootstrapRole(role) {
+			continue
+		}
 		roleIDs = append(roleIDs, roleID)
 		profiles[roleID] = strings.TrimSpace(role.CapabilityProfile)
-		targets[roleID] = strings.TrimSpace(role.TargetCLI)
+		targets[roleID] = bootstrapTargetCLI(role)
 	}
 
 	baseDir := filepath.Join(filepath.Dir(statusPath), "_team_runtime")
@@ -374,6 +376,25 @@ func (t *runTasks) ensureTeamBootstrap(
 		Profiles:  profiles,
 		Targets:   targets,
 	})
+}
+
+func bootstrapTargetCLI(role agent.TeamRoleDefinition) string {
+	if target := strings.TrimSpace(role.TargetCLI); target != "" {
+		return target
+	}
+	// Respect explicit external agent_type as the bootstrap target so role
+	// routing remains deterministic and doesn't drift to another CLI.
+	if agent.IsCodingExternalAgent(role.AgentType) {
+		return strings.TrimSpace(role.AgentType)
+	}
+	return ""
+}
+
+func shouldBootstrapRole(role agent.TeamRoleDefinition) bool {
+	if strings.TrimSpace(role.TargetCLI) != "" {
+		return true
+	}
+	return agent.IsCodingExternalAgent(role.AgentType)
 }
 
 func applyBootstrapToTaskFile(tf *taskfile.TaskFile, bootstrap *teamruntime.EnsureResult) {

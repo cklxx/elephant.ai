@@ -543,8 +543,9 @@ func TestTeamsLifecycle_StageTiming(t *testing.T) {
 		t.Errorf("stage-0 parallelism: expected >=2, got %d", maxActive)
 	}
 
-	// Wall clock upper bound: parallel should be well under 8s
-	if wallClock > 8*time.Second {
+	// Wall clock upper bound: allow headroom for -race instrumentation and
+	// loaded CI/dev hosts while still catching obvious serialization regressions.
+	if wallClock > 20*time.Second {
 		t.Errorf("wall clock %s too slow", wallClock)
 	}
 

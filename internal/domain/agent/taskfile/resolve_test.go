@@ -181,6 +181,24 @@ func TestSpecToDispatchRequest(t *testing.T) {
 	}
 }
 
+func TestSpecToDispatchRequest_DoesNotOverrideInternalAgentType(t *testing.T) {
+	spec := TaskSpec{
+		ID:          "t1",
+		Description: "internal task",
+		Prompt:      "do internal work",
+		AgentType:   "internal",
+		RuntimeMeta: TeamRuntimeMeta{
+			SelectedAgentType: "codex",
+		},
+	}
+
+	req := SpecToDispatchRequest(spec, "cause-123")
+
+	if req.AgentType != agent.AgentTypeInternal {
+		t.Fatalf("AgentType: got %q, want %q", req.AgentType, agent.AgentTypeInternal)
+	}
+}
+
 func TestContextPreamblePrependedInDispatch(t *testing.T) {
 	preamble := "Project: elephant.ai (Go). Key packages: internal/domain/agent."
 

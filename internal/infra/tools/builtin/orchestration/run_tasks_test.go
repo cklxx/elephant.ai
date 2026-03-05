@@ -442,3 +442,89 @@ func TestApplyBootstrapToTaskFile_InjectsRoleRuntimeConfig(t *testing.T) {
 		t.Fatalf("expected non-bound role untouched, got %+v", executor.RuntimeMeta)
 	}
 }
+
+func TestBootstrapTargetCLI(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		role agent.TeamRoleDefinition
+		want string
+	}{
+		{
+			name: "explicit target cli wins",
+			role: agent.TeamRoleDefinition{
+				AgentType: "kimi",
+				TargetCLI: "codex",
+			},
+			want: "codex",
+		},
+		{
+			name: "external agent type becomes target",
+			role: agent.TeamRoleDefinition{
+				AgentType: "kimi",
+			},
+			want: "kimi",
+		},
+		{
+			name: "non-external role has no target",
+			role: agent.TeamRoleDefinition{
+				AgentType: "internal",
+			},
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := bootstrapTargetCLI(tt.role)
+			if got != tt.want {
+				t.Fatalf("bootstrapTargetCLI() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestShouldBootstrapRole(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		role agent.TeamRoleDefinition
+		want bool
+	}{
+		{
+			name: "external role bootstrapped",
+			role: agent.TeamRoleDefinition{
+				AgentType: "kimi",
+			},
+			want: true,
+		},
+		{
+			name: "internal role without target skipped",
+			role: agent.TeamRoleDefinition{
+				AgentType: "internal",
+			},
+			want: false,
+		},
+		{
+			name: "explicit target forces bootstrap",
+			role: agent.TeamRoleDefinition{
+				AgentType: "internal",
+				TargetCLI: "codex",
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := shouldBootstrapRole(tt.role)
+			if got != tt.want {
+				t.Fatalf("shouldBootstrapRole() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

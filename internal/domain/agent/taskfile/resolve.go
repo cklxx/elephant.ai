@@ -132,7 +132,7 @@ func SpecToDispatchRequest(spec TaskSpec, causationID string) agent.BackgroundDi
 
 	// Override AgentType from SelectedAgentType if set.
 	agentType := spec.AgentType
-	if strings.TrimSpace(spec.RuntimeMeta.SelectedAgentType) != "" {
+	if strings.TrimSpace(spec.RuntimeMeta.SelectedAgentType) != "" && agent.IsCodingExternalAgent(agentType) {
 		agentType = strings.TrimSpace(spec.RuntimeMeta.SelectedAgentType)
 	}
 
@@ -181,4 +181,3 @@ func flattenRuntimeMeta(meta TeamRuntimeMeta, cfg map[string]string) {
 	setIfPresent(cfg, "tmux_pane", meta.TmuxPane)
 	setIfPresent(cfg, "selected_agent_type", meta.SelectedAgentType)
 }
-
