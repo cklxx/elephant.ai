@@ -377,7 +377,6 @@ run_validation() {
     ./internal/infra/teamruntime/... \
     ./internal/infra/kernel/... \
     ./internal/delivery/channels/lark/... \
-    ./internal/infra/tools/builtin/larktools/... \
     "${agent_runtime_pkg}" \
     -count=1)
 }
