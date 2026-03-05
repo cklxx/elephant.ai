@@ -61,9 +61,9 @@ func TestNewRegistryRegistersExpectedToolCount(t *testing.T) {
 	}
 	// 10 core tools: read_file, write_file, replace_in_file, shell_exec,
 	// channel, web_search, skills,
-	// plan, ask_user, context_checkpoint
-	if len(defs) != 10 {
-		t.Fatalf("expected 10 tools, got %d: %v", len(defs), names)
+	// ask_user, context_checkpoint
+	if len(defs) != 9 {
+		t.Fatalf("expected 9 tools, got %d: %v", len(defs), names)
 	}
 }
 
@@ -317,7 +317,7 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 	// Core tools MUST be present.
 	for _, want := range []string{
 		"read_file", "write_file", "replace_in_file", "shell_exec",
-		"plan", "ask_user",
+		"ask_user",
 		"web_search", "skills", "channel",
 	} {
 		if !names[want] {
@@ -328,7 +328,7 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 	// Deprecated tools MUST NOT be present
 	for _, dropped := range []string{
 		"grep", "ripgrep", "find", "kernel_goal",
-		"execute_code", "clarify", "request_user",
+		"execute_code", "plan", "clarify", "request_user",
 		"memory_search", "memory_get", "memory_related",
 		"todo_read", "todo_update", "apps", "music_play",
 		"artifacts_write", "artifacts_list", "artifacts_delete",

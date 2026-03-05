@@ -9,10 +9,10 @@ import (
 	agentcoordinator "alex/internal/app/agent/coordinator"
 	ctxmgr "alex/internal/app/context"
 	"alex/internal/app/lifecycle"
+	"alex/internal/delivery/channels"
 	agent "alex/internal/domain/agent/ports/agent"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/domain/agent/presets"
-	"alex/internal/delivery/channels"
 	"alex/internal/infra/adapters"
 	checkpointinfra "alex/internal/infra/checkpoint"
 	codinginfra "alex/internal/infra/coding"
@@ -141,9 +141,6 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithTeamRunRecorder(teamRunRecorder),
 		agentcoordinator.WithAtomicWriter(adapters.NewOSAtomicWriter()),
 	)
-
-	// Register orchestration tools (run_tasks, reply_agent).
-	toolRegistry.RegisterOrchestration()
 
 	b.logger.Info("Container built successfully (heavy initialization deferred to Start())")
 

@@ -10,7 +10,7 @@ import (
 )
 
 func (r *Registry) registerUITools(config Config) {
-	r.static["plan"] = ui.NewPlan(config.MemoryEngine)
+	_ = config
 	r.static["ask_user"] = ui.NewAskUser()
 	r.static["context_checkpoint"] = ui.NewContextCheckpoint()
 }

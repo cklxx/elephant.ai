@@ -23,10 +23,10 @@ import (
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
 	"alex/internal/infra/external/teamrun"
-	"alex/internal/infra/process"
 	kernelinfra "alex/internal/infra/kernel"
 	"alex/internal/infra/llm"
 	"alex/internal/infra/memory"
+	"alex/internal/infra/process"
 	toolspolicy "alex/internal/infra/tools"
 	okrtools "alex/internal/infra/tools/builtin/okr"
 	runtimeconfig "alex/internal/shared/config"
@@ -179,9 +179,6 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 			coordinator.SetRuntimeConfigResolver(resolver)
 		}
 	}
-
-	// Register orchestration tools (run_tasks, reply_agent).
-	toolRegistry.RegisterOrchestration()
 
 	b.logger.Info("Alternate coordinator built (tool_mode=%s, toolset=%s)", b.config.ToolMode, b.config.Toolset)
 
