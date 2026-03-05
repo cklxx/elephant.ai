@@ -221,7 +221,7 @@ func buildKernelDailyLogPromptChunk(now time.Time, today, yesterday string) stri
 	if len(lines) == 0 {
 		return ""
 	}
-	lines = append(lines, "Use injected memory snapshot sections for full details.")
+	lines = append(lines, "Use read_file to open workspace memory files for full details.")
 	return fmt.Sprintf("## Daily Log Digest (Kernel only)\n%s", strings.Join(lines, "\n"))
 }
 
@@ -231,7 +231,7 @@ func summarizeKernelDailyLog(content string) string {
 		return "daily memory entry available"
 	}
 	if containsNonASCII(snippet) {
-		return "non-English daily memory available in injected snapshot."
+		return "non-English daily memory available in workspace memory files."
 	}
 	return snippet
 }

@@ -127,7 +127,7 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 func TestKernelDailyDigestMasksNonEnglishRawContent(t *testing.T) {
 	now := time.Date(2026, time.February, 24, 9, 0, 0, 0, time.UTC)
 	digest := buildKernelDailyLogPromptChunk(now, "你是 elephant.ai 的 kernel 自主代理", "yesterday note")
-	if !strings.Contains(digest, "non-English daily memory available in injected snapshot.") {
+	if !strings.Contains(digest, "non-English daily memory available in workspace memory files.") {
 		t.Fatalf("expected non-English daily content to be masked into English summary, got: %s", digest)
 	}
 }

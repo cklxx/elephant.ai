@@ -11,7 +11,7 @@ func TestDefaultSystemPromptIncludesRoutingBoundaries(t *testing.T) {
 	for _, snippet := range []string{
 		"do not use clarify for explicit operational asks",
 		"exhaust safe deterministic attempts before asking questions",
-		"inspect injected memory snapshot and thread context first",
+		"inspect workspace memory files and thread context first",
 		"ask one minimal blocking question only then",
 		"search/install suitable skills or tools from trusted sources",
 		"explicit approval/consent/manual gates",
