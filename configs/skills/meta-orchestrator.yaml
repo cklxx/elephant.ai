@@ -12,11 +12,5 @@ governance:
 
 links:
   - from: "meta-orchestrator"
-    to: "autonomous-scheduler"
+    to: "reminder-scheduler"
     on_event: "workflow.skill.meta.route_selected"
-  - from: "autonomous-scheduler"
-    to: "lark-conversation-governor"
-    on_event: "schedule.created"
-  - from: "soul-self-evolution"
-    to: "lark-conversation-governor"
-    on_event: "workflow.skill.meta.soul_updated"

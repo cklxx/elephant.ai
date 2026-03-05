@@ -307,15 +307,15 @@ func TestIndexMarkdownShowsPyMarkerForPythonSkills(t *testing.T) {
 	dir := t.TempDir()
 
 	// Python skill (with run.py)
-	pyDir := filepath.Join(dir, "timer-management")
+	pyDir := filepath.Join(dir, "reminder-scheduler")
 	if err := os.Mkdir(pyDir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	pyContent := `---
-name: timer-management
+name: reminder-scheduler
 description: Manage timers.
 ---
-# timer-management
+# reminder-scheduler
 
 Body.
 `
@@ -349,7 +349,7 @@ Body.
 	}
 
 	index := IndexMarkdown(lib)
-	if !strings.Contains(index, "`timer-management` [py]") {
+	if !strings.Contains(index, "`reminder-scheduler` [py]") {
 		t.Fatalf("expected [py] marker for Python skill, got %q", index)
 	}
 	if strings.Contains(index, "`guide` [py]") {

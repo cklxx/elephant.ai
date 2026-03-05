@@ -38,7 +38,7 @@ func TestOrchestrateMatchesFiltersAndLinks(t *testing.T) {
 		},
 		{
 			Skill: Skill{
-				Name:            "lark-conversation-governor",
+				Name:            "lark-messaging",
 				ActivationMode:  "auto",
 				GovernanceLevel: "medium",
 				DependsOnSkills: []string{"meta-orchestrator"},
@@ -69,7 +69,7 @@ func TestOrchestrateMatchesFiltersAndLinks(t *testing.T) {
 			RequireApprovalLevels: []string{"critical"},
 		},
 		Links: []SkillLinkRule{
-			{From: "meta-orchestrator", To: "lark-conversation-governor", OnEvent: "workflow.skill.meta.route_selected"},
+			{From: "meta-orchestrator", To: "lark-messaging", OnEvent: "workflow.skill.meta.route_selected"},
 		},
 	}
 	plan := OrchestrateMatches(matches, OrchestrationConfig{
@@ -81,7 +81,7 @@ func TestOrchestrateMatchesFiltersAndLinks(t *testing.T) {
 	if len(plan.Selected) != 2 {
 		t.Fatalf("expected 2 selected skills, got %d", len(plan.Selected))
 	}
-	if plan.Selected[0].Skill.Name != "meta-orchestrator" || plan.Selected[1].Skill.Name != "lark-conversation-governor" {
+	if plan.Selected[0].Skill.Name != "meta-orchestrator" || plan.Selected[1].Skill.Name != "lark-messaging" {
 		t.Fatalf("expected dependency order, got %s -> %s", plan.Selected[0].Skill.Name, plan.Selected[1].Skill.Name)
 	}
 	if len(plan.Blocked) != 1 || plan.Blocked[0].Name != "soul-self-evolution" {
@@ -114,7 +114,7 @@ governance:
     - "## Core Identity"
 links:
   - from: "meta-orchestrator"
-    to: "autonomous-scheduler"
+    to: "reminder-scheduler"
     on_event: "workflow.skill.meta.route_selected"
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -130,7 +130,7 @@ links:
 	if len(policy.Governance.ImmutableSoulSections) != 1 {
 		t.Fatalf("expected immutable soul section, got %+v", policy.Governance.ImmutableSoulSections)
 	}
-	if len(policy.Links) != 1 || policy.Links[0].To != "autonomous-scheduler" {
+	if len(policy.Links) != 1 || policy.Links[0].To != "reminder-scheduler" {
 		t.Fatalf("unexpected links: %+v", policy.Links)
 	}
 }
