@@ -12,18 +12,16 @@ _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
 
-def test_list_nodes_requires_space_id():
-    result = _mod.list_nodes({})
+def test_list_nodes_delegates_to_feishu_cli():
+    with patch.object(_mod, "feishu_tool", return_value={"success": False, "error": "space_id is required"}) as mock:
+        result = _mod.list_nodes({})
+        mock.assert_called_once_with("wiki", "list_nodes", {})
+
     assert result["success"] is False
-    assert "space_id" in result["error"]
 
 
 def test_list_spaces_success():
-    with patch.object(
-        _mod,
-        "_lark_api",
-        return_value={"data": {"items": [{"space_id": "w1"}]}},
-    ):
+    with patch.object(_mod, "feishu_tool", return_value={"success": True, "spaces": [{"space_id": "w1"}], "count": 1}):
         result = _mod.list_spaces({})
 
     assert result["success"] is True

@@ -11,7 +11,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-_LARK_BASE = "https://open.feishu.cn/open-apis"
 _TOKEN_CACHE: dict[str, Any] = {
     "token": "",
     "expires_at": 0.0,
@@ -83,6 +82,18 @@ def _parse_json(text: str) -> dict:
         return {}
 
 
+def _lark_base() -> str:
+    raw = (
+        os.environ.get("LARK_OPEN_BASE_URL", "").strip()
+        or os.environ.get("FEISHU_OPEN_BASE_URL", "").strip()
+        or "https://open.feishu.cn/open-apis"
+    )
+    normalized = raw.rstrip("/")
+    if normalized.endswith("/open-apis"):
+        return normalized
+    return normalized + "/open-apis"
+
+
 def get_lark_tenant_token(*, force_refresh: bool = False, timeout: int = 15) -> tuple[str, str | None]:
     """Resolve tenant token from env or by exchanging app credentials."""
     env_token = os.environ.get("LARK_TENANT_TOKEN", "").strip()
@@ -101,7 +112,7 @@ def get_lark_tenant_token(*, force_refresh: bool = False, timeout: int = 15) -> 
 
     body = json.dumps({"app_id": app_id, "app_secret": app_secret}).encode()
     req = urllib.request.Request(
-        f"{_LARK_BASE}/auth/v3/tenant_access_token/internal",
+        f"{_lark_base()}/auth/v3/tenant_access_token/internal",
         data=body,
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -149,7 +160,7 @@ def _auth_error(code: int, payload: dict) -> bool:
 
 def _build_url(path: str, query: dict | str | None = None) -> str:
     path = path if path.startswith("/") else f"/{path}"
-    url = f"{_LARK_BASE}{path}"
+    url = f"{_lark_base()}{path}"
     if query is None:
         return url
     if isinstance(query, str):
