@@ -1659,12 +1659,11 @@ func TestHandleMessageSendsTextReplyWithAttachments(t *testing.T) {
 	}
 	gw.WaitForTasks()
 
-	// Expect a text reply followed by separate image/file attachment dispatches.
+	// Expect a text reply and no attachment upload because the reply text does not reference any attachment names.
 	replyCalls := recorder.CallsByMethod("ReplyMessage")
 	sendCalls := recorder.CallsByMethod("SendMessage")
 	allMsgCalls := append(replyCalls, sendCalls...)
 
-	// The first message call should be the text reply with "done".
 	foundTextReply := false
 	for _, call := range allMsgCalls {
 		if call.MsgType == "text" {
@@ -1678,13 +1677,11 @@ func TestHandleMessageSendsTextReplyWithAttachments(t *testing.T) {
 	if !foundTextReply {
 		t.Fatalf("expected a text reply containing 'done', got calls: %#v", allMsgCalls)
 	}
-
-	// Attachments are uploaded and dispatched as separate image/file messages.
-	if len(recorder.CallsByMethod("UploadImage")) != 1 {
-		t.Fatalf("expected image upload, got %#v", recorder.CallsByMethod("UploadImage"))
+	if len(recorder.CallsByMethod("UploadImage")) != 0 {
+		t.Fatalf("expected no image upload without explicit attachment reference, got %#v", recorder.CallsByMethod("UploadImage"))
 	}
-	if len(recorder.CallsByMethod("UploadFile")) != 1 {
-		t.Fatalf("expected file upload, got %#v", recorder.CallsByMethod("UploadFile"))
+	if len(recorder.CallsByMethod("UploadFile")) != 0 {
+		t.Fatalf("expected no file upload without explicit attachment reference, got %#v", recorder.CallsByMethod("UploadFile"))
 	}
 }
 

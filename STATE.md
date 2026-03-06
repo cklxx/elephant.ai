@@ -1,3 +1,30 @@
+
+
+---
+
+**Last sync:** 2026-03-06T01:39:00Z  
+**Updated by:** kernel autonomous lark docx closeout cycle
+
+### State Entry — 2026-03-06T01:39:00Z
+
+- **HEAD:** `6794d3402e6eef3ddeb4895db35c68d4d72551f4` — branch `main`, **0 ahead / 7 behind** origin/main.
+- **Focus:** verify recent build-executor Lark docx test/mocking fix is actually landed in workspace and still passes deterministic gates.
+- **Landing check:** current workspace contains exact-match convert-route helper in `internal/infra/tools/builtin/larktools/docx_manage_test.go`:
+  - `isDocxBlocksConvertRoute()` matches both `/open-apis/docx/v1/documents/blocks/convert` and `/docx/v1/documents/blocks/convert` after trailing-slash normalization.
+  - shared helper `writeDocxConvertSuccess(...)` remains present and supplies minimal valid convert payload for markdown→blocks flow.
+- **Deterministic validation executed:**
+  - `go test -count=1 ./internal/infra/lark/...` ✅ PASS
+  - `go test -count=1 ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/lark/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+- **Decision:** no source patch required in this cycle because the requested mock support is already present in the working tree and validated on current HEAD.
+- **Residual risk / backlog:**
+  - No scoped lint backlog in validated paths.
+  - Legacy path `internal/infra/tools/builtin/larktools/...` is still active and testable; path migration residue remains conceptual rather than failing (both active baseline `internal/infra/lark/...` and legacy tool path coexist).
+  - Working tree still has unrelated untracked file: `scripts/cli/team-observe.sh`.
+- **Cycle artifacts:**
+  - `/Users/bytedance/.alex/kernel/default/artifacts/kernel-lark-docx-audit-20260306-093900.md`
+- **Conclusion:** requested Lark docx convert mock support is landed and green; no additional code repair was necessary.
 # elephant.ai — STATE.md
 
 > Kernel runtime state. Updated autonomously each cycle.
@@ -392,4 +419,7 @@ Hook setup: `artifacts/hook_setup_20260303T100800Z.md`
 
 
 - [2026-03-06T00:39:54Z] lark_docx_baseline_audit_scoped_pass: audited current baseline with focus on `internal/infra/tools/builtin/larktools` and related Lark packages. `larktools` directory still exists (not migrated/deleted); active docx/lark code validated in `internal/infra/tools/builtin/larktools`, `internal/infra/lark`, and `internal/delivery/channels/lark`. Validation: `git status --short`; `git rev-parse HEAD`; `git rev-list --left-right --count origin/main...HEAD` => behind origin/main by 5, ahead 0; `go test -count=1 ./internal/infra/tools/builtin/larktools ./internal/infra/lark ./internal/delivery/channels/lark` => PASS; `golangci-lint run ./internal/infra/tools/builtin/larktools ./internal/infra/lark ./internal/delivery/channels/lark` => PASS. Risk status: missing convert mock = resolved (convert stub/assertions present in `docx_manage_test.go`), lint backlog = not observed in audited scope. Report: `docs/reports/lark-docx-baseline-audit-20260306T003954Z.md`; artifact mirror: `/Users/bytedance/.alex/kernel/default/artifacts/lark-docx-baseline-audit-20260306T003954Z.md`.
+- [2026-03-06T02:09:51Z] lark_docx_convert_mock_revalidated: Revalidated `internal/infra/tools/builtin/larktools` docx create-doc flow; confirmed `/open-apis/docx/v1/documents/blocks/convert` default mock remains active in `docx_manage_test.go`; tightened convert response contract via `TestLarkTestServerWithDocxConvertMock_HandlesConvertRoutes` assertions for `block_id` and `text_run.content`. Validation: `go test -count=1 -run TestDocxManage_CreateDoc_WithInitialContent ./internal/infra/tools/builtin/larktools` ✅ PASS; `go test -count=1 ./internal/infra/tools/builtin/larktools/...` ✅ PASS. Reports: `docs/reports/lark-docx-baseline-fix-20260306.md`; artifact mirror: `/Users/bytedance/.alex/kernel/default/artifacts/lark-docx-baseline-fix-20260306.md`.
+
+- [2026-03-06T10:09:00Z] kernel_lark_lint_backlog_targeted_audit: Confirmed active target package remains `internal/infra/tools/builtin/larktools` (not migrated away in current workspace). Executed scoped deterministic gates on that package: `golangci-lint run ./internal/infra/tools/builtin/larktools/...` produced empty log and exit 0; `go test -count=1 ./internal/infra/tools/builtin/larktools/...` PASS (`ok alex/internal/infra/tools/builtin/larktools 0.843s`). Task/subtask/docx entry points confirmed present in `task_manage.go` (`listSubtasks`, `createSubtask`) and `docx_manage.go` (`createDoc`, `writeMarkdown`, `updateBlockText`). Conclusion: no current scoped lint backlog in active larktools package, and no lint/build blocker for build-executor docx-fix verification in this scope. Evidence: `/Users/bytedance/.alex/kernel/default/artifacts/lark-scoped-lint-audit-20260306-1009.md`, lint log `/Users/bytedance/.alex/kernel/default/artifacts/larktools-scoped-golangci-lint-20260306-100848.log`, test log `/Users/bytedance/.alex/kernel/default/artifacts/larktools-scoped-go-test-20260306-100911.log`.
 

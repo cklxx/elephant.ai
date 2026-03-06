@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	ports "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/shared/logging"
 )
 
@@ -247,5 +249,32 @@ func TestDeliverIntent_PostInvalidPayloadFallbacksToText(t *testing.T) {
 	}
 	if !strings.Contains(replies[1].Content, `"text"`) {
 		t.Fatalf("fallback content should be text payload JSON, got %q", replies[1].Content)
+	}
+}
+
+func TestBuildTerminalDeliveryIntent_OnlyKeepsReferencedAttachments(t *testing.T) {
+	t.Parallel()
+
+	gw := &Gateway{logger: logging.Nop()}
+	msg := &incomingMessage{chatID: "chat-1", messageID: "om-parent"}
+	result := &agent.TaskResult{
+		RunID:     "run-1",
+		SessionID: "session-1",
+		Attachments: map[string]ports.Attachment{
+			"report.md":  {Name: "report.md", URI: "https://cdn/report.md"},
+			"trace.json": {Name: "trace.json", URI: "https://cdn/trace.json"},
+		},
+	}
+
+	intent := gw.buildTerminalDeliveryIntent(context.Background(), msg, result, nil, "", "text", textContent("已整理好，见 [report.md]。"))
+
+	if len(intent.Attachments) != 1 {
+		t.Fatalf("expected only 1 attachment in intent, got %#v", intent.Attachments)
+	}
+	if _, ok := intent.Attachments["report.md"]; !ok {
+		t.Fatalf("expected report.md kept, got %#v", intent.Attachments)
+	}
+	if _, ok := intent.Attachments["trace.json"]; ok {
+		t.Fatalf("expected trace.json removed, got %#v", intent.Attachments)
 	}
 }

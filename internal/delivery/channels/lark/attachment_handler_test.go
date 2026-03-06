@@ -581,3 +581,46 @@ func TestSendAttachments_AutoUploadDisabledSkips(t *testing.T) {
 		t.Fatalf("expected no outbound message calls, got reply=%#v send=%#v", recorder.CallsByMethod("ReplyMessage"), recorder.CallsByMethod("SendMessage"))
 	}
 }
+
+func TestFilterReferencedAttachments_TextContent(t *testing.T) {
+	attachments := map[string]ports.Attachment{
+		"report.md":  {Name: "report.md", URI: "https://cdn/report.md"},
+		"trace.json": {Name: "trace.json", URI: "https://cdn/trace.json"},
+	}
+
+	filtered := filterReferencedAttachments(attachments, textContent("已附上 [report.md]，trace 先不发。"))
+
+	if len(filtered) != 1 {
+		t.Fatalf("expected 1 referenced attachment, got %#v", filtered)
+	}
+	if _, ok := filtered["report.md"]; !ok {
+		t.Fatalf("expected report.md to be kept, got %#v", filtered)
+	}
+	if _, ok := filtered["trace.json"]; ok {
+		t.Fatalf("expected trace.json to be filtered out, got %#v", filtered)
+	}
+}
+
+func TestFilterReferencedAttachments_PostContent(t *testing.T) {
+	attachments := map[string]ports.Attachment{
+		"summary.pdf": {Name: "summary.pdf", URI: "https://cdn/summary.pdf"},
+		"data.csv":    {Name: "data.csv", URI: "https://cdn/data.csv"},
+	}
+
+	_, content := smartContent("## 结果\n\n请看 summary.pdf")
+	gotText := extractOutgoingContentText(content)
+	if gotText == "" {
+		t.Fatalf("expected post content to extract text, got empty; raw=%s", content)
+	}
+	filtered := filterReferencedAttachments(attachments, content)
+
+	if len(filtered) != 1 {
+		t.Fatalf("expected 1 referenced attachment, got %#v", filtered)
+	}
+	if _, ok := filtered["summary.pdf"]; !ok {
+		t.Fatalf("expected summary.pdf to be kept, got %#v", filtered)
+	}
+	if _, ok := filtered["data.csv"]; ok {
+		t.Fatalf("expected data.csv to be filtered out, got %#v", filtered)
+	}
+}

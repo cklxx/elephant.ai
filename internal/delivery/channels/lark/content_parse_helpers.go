@@ -19,6 +19,10 @@ type larkPostElement struct {
 type larkPostPayload struct {
 	Title   string              `json:"title"`
 	Content [][]larkPostElement `json:"content"`
+	ZhCN    struct {
+		Title   string              `json:"title"`
+		Content [][]larkPostElement `json:"content"`
+	} `json:"zh_cn"`
 }
 
 func parseLarkTextPayload(raw string) (string, bool) {
@@ -34,7 +38,13 @@ func parseLarkPostPayload(raw string) (larkPostPayload, bool) {
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return larkPostPayload{}, false
 	}
-	return parsed, true
+	if len(parsed.Content) == 0 && len(parsed.ZhCN.Content) > 0 {
+		parsed.Content = parsed.ZhCN.Content
+	}
+	if strings.TrimSpace(parsed.Title) == "" && strings.TrimSpace(parsed.ZhCN.Title) != "" {
+		parsed.Title = parsed.ZhCN.Title
+	}
+	return parsed, len(parsed.Content) > 0 || strings.TrimSpace(parsed.Title) != ""
 }
 
 func flattenLarkPostPayload(parsed larkPostPayload, renderText func(larkPostElement) string, renderAt func(larkPostElement) string) string {

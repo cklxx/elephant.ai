@@ -176,6 +176,52 @@ func buildAttachmentSummary(attachments map[string]ports.Attachment) string {
 	return "---\n[Attachments]\n" + strings.Join(lines, "\n")
 }
 
+func filterReferencedAttachments(attachments map[string]ports.Attachment, rawContent string) map[string]ports.Attachment {
+	if len(attachments) == 0 {
+		return nil
+	}
+	content := extractOutgoingContentText(rawContent)
+	if content == "" {
+		return nil
+	}
+	lowerContent := strings.ToLower(content)
+	filtered := make(map[string]ports.Attachment)
+	for name, att := range attachments {
+		if attachmentMentionedInText(lowerContent, name, att) {
+			filtered[name] = att
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered
+}
+
+func extractOutgoingContentText(rawContent string) string {
+	if rawContent == "" {
+		return ""
+	}
+	if text, ok := parseLarkTextPayload(rawContent); ok && strings.TrimSpace(text) != "" {
+		return text
+	}
+	return extractPostContent(rawContent, nil)
+}
+
+func attachmentMentionedInText(lowerContent, name string, att ports.Attachment) bool {
+	candidates := []string{strings.TrimSpace(name), strings.TrimSpace(att.Name)}
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		lowerCandidate := strings.ToLower(candidate)
+		if strings.Contains(lowerContent, "["+lowerCandidate+"]") || strings.Contains(lowerContent, lowerCandidate) {
+			return true
+		}
+	}
+	return false
+}
+
 // partitionUploadableAttachments splits non-A2UI attachments into two groups:
 // uploadable (extension passes the allowlist) and textOnly (everything else).
 func partitionUploadableAttachments(attachments map[string]ports.Attachment, allowExts []string) (uploadable, textOnly map[string]ports.Attachment) {

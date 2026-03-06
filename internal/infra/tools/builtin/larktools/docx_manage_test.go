@@ -380,6 +380,12 @@ func TestLarkTestServerWithDocxConvertMock_HandlesConvertRoutes(t *testing.T) {
 			if !strings.Contains(body, `"first_level_block_ids":["tmp_blk_default"]`) {
 				t.Fatalf("expected default first_level_block_ids in body, got %s", body)
 			}
+			if !strings.Contains(body, `"block_id":"tmp_blk_default"`) {
+				t.Fatalf("expected converted block_id in body, got %s", body)
+			}
+			if !strings.Contains(body, `"text_run":{"content":"converted markdown"}`) {
+				t.Fatalf("expected converted markdown text_run payload in body, got %s", body)
+			}
 			if !strings.Contains(body, `"parent_id":"doc_mock_parent"`) {
 				t.Fatalf("expected default parent_id in body, got %s", body)
 			}

@@ -673,10 +673,7 @@ func (g *Gateway) buildTerminalDeliveryIntent(execCtx context.Context, msg *inco
 		Status:            DeliveryIntentPending,
 	}
 	if result != nil && len(result.Attachments) > 0 {
-		intent.Attachments = make(map[string]ports.Attachment, len(result.Attachments))
-		for name, att := range result.Attachments {
-			intent.Attachments[name] = att
-		}
+		intent.Attachments = filterReferencedAttachments(result.Attachments, content)
 	}
 	intent.IdempotencyKey = buildTerminalDeliveryIdempotencyKey(intent)
 	return intent
