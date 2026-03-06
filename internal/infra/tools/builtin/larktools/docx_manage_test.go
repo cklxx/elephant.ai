@@ -54,8 +54,21 @@ func larkTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, c
 // fail when they omit an explicit convert stub.
 func larkTestServerWithDocxConvertMock(t *testing.T, handler http.HandlerFunc) (*httptest.Server, context.Context) {
 	t.Helper()
+	return larkTestServerWithObservedDocxConvertMock(t, nil, handler)
+}
+
+// larkTestServerWithObservedDocxConvertMock installs the same default convert
+// route as larkTestServerWithDocxConvertMock, but also exposes the request to
+// the test so callers can assert the markdown->blocks conversion payload while
+// still relying on the shared success stub.
+func larkTestServerWithObservedDocxConvertMock(t *testing.T, observe func(path, body string), handler http.HandlerFunc) (*httptest.Server, context.Context) {
+	t.Helper()
 	return larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost && isDocxBlocksConvertRoute(r.URL.Path) {
+			bodyBytes, _ := io.ReadAll(r.Body)
+			if observe != nil {
+				observe(r.URL.Path, string(bodyBytes))
+			}
 			writeDocxConvertSuccess(t, w, "tmp_blk_default", "doc_mock_parent")
 			return
 		}
@@ -214,7 +227,16 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 	var convertCalled bool
 	var convertPath string
 	var createDescCalled bool
-	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+	srv, ctx := larkTestServerWithObservedDocxConvertMock(t, func(path, body string) {
+		convertPath = path
+		if !strings.Contains(body, "\"content_type\":\"markdown\"") {
+			t.Fatalf("expected markdown content_type in convert body, got: %s", body)
+		}
+		if !strings.Contains(body, "这是正文第一段") {
+			t.Fatalf("expected initial content in convert body, got: %s", body)
+		}
+		convertCalled = true
+	}, func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && isDocxCreateDocumentRoute(r.URL.Path):
 			createCalled = true
@@ -225,26 +247,13 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 					"revision_id": 1,
 				},
 			})
-		case r.Method == http.MethodPost && isDocxBlocksConvertRoute(r.URL.Path):
-			convertPath = r.URL.Path
-			bodyBytes, _ := io.ReadAll(r.Body)
-			body := string(bodyBytes)
-			if !strings.Contains(body, "\"content_type\":\"markdown\"") {
-				t.Fatalf("expected markdown content_type in convert body, got: %s", body)
-			}
-			if !strings.Contains(body, "这是正文第一段") {
-				t.Fatalf("expected initial content in convert body, got: %s", body)
-			}
-			convertCalled = true
-			// Return convert payload compatible with DocxService.WriteMarkdown -> CreateDescendantBlocks flow.
-			writeDocxConvertSuccess(t, w, "tmp_blk_001", "doc_init_001")
 		case r.Method == http.MethodPost && isDocxDescendantRoute(r.URL.Path, "doc_init_001", "doc_init_001"):
 			bodyBytes, _ := io.ReadAll(r.Body)
 			body := string(bodyBytes)
-			if !strings.Contains(body, "\"children_id\":[\"tmp_blk_001\"]") {
+			if !strings.Contains(body, "\"children_id\":[\"tmp_blk_default\"]") {
 				t.Fatalf("expected converted children_id in create-descendant body, got: %s", body)
 			}
-			if !strings.Contains(body, "\"block_id\":\"tmp_blk_001\"") {
+			if !strings.Contains(body, "\"block_id\":\"tmp_blk_default\"") {
 				t.Fatalf("expected converted descendant block payload, got: %s", body)
 			}
 			createDescCalled = true

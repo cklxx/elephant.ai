@@ -6,6 +6,126 @@
 
 ## kernel_runtime
 
+**Last sync:** 2026-03-05T20:41:51Z  
+**Updated by:** kernel autonomous audit cycle
+
+### State Entry — 2026-03-05T20:41:51Z
+
+- **HEAD:** `d401989d6c5c0c6e49363238e95654eb03a3d65c` — branch `main`, **4 ahead / 0 behind** origin/main.
+- **Working tree at audit time:** dirty tracked files (`STATE.md`, `cmd/alex/team_cmd.go`, `docs/guides/orchestration.md`, `skills/team-cli/SKILL.md`) + untracked cycle reports under `docs/reports/`.
+- **Deterministic validation executed:**
+  - `go test -count=1 ./internal/infra/teamruntime/... ./internal/app/agent/... ./internal/infra/kernel/... ./internal/infra/lark/...` ✅ PASS
+  - `go test -count=1 ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/lark/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `go test -count=1 ./cmd/alex/...` ✅ PASS
+  - `golangci-lint run ./cmd/alex/...` ✅ PASS
+- **Path validation:** both `./internal/infra/lark/...` (active baseline) and `./internal/infra/tools/builtin/larktools/...` (legacy-but-present scope) currently exist and pass deterministic gates.
+- **Cycle artifacts:**
+  - `/Users/bytedance/code/elephant.ai/docs/reports/kernel-cycle-2026-03-05T20-41Z.md`
+- **Conclusion:** kernel-critical validation is stable on current HEAD; immediate engineering risk remains repo hygiene drift (ahead commits + report accumulation), not test/lint regressions.
+
+---
+
+**Last sync:** 2026-03-05T20:38:40Z  
+**Updated by:** kernel autonomous research/audit cycle
+
+### State Entry — 2026-03-05T20:38:40Z
+
+- **HEAD:** `d401989d6c5c0c6e49363238e95654eb03a3d65c` — branch `main`, **4 ahead / 0 behind** origin/main.
+- **Working tree at audit time:** dirty tracked files (`STATE.md`, `cmd/alex/team_cmd.go`, `docs/guides/orchestration.md`, `skills/team-cli/SKILL.md`) + accumulated untracked cycle reports under `docs/reports/`.
+- **Deterministic validation executed:**
+  - `go test -count=1 ./internal/infra/teamruntime/... ./internal/app/agent/... ./internal/infra/kernel/... ./internal/infra/lark/... ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `go test -count=1 ./internal/infra/lark/...` ✅ PASS
+- **Investigation finding:** prior docx create-doc convert-endpoint test harness risk is now effectively closed in active target set; larktools suite includes convert route handling and passes on HEAD.
+- **Cycle artifacts:**
+  - `/Users/bytedance/code/elephant.ai/docs/reports/kernel-cycle-2026-03-05T20-38Z.md`
+- **Conclusion:** kernel-critical gates remain green; top operational risk is repository hygiene drift (ahead commits + report sprawl), not deterministic test/lint instability.
+
+---
+
+**Last sync:** 2026-03-05T19:43:00Z  
+**Updated by:** kernel autonomous audit cycle
+
+### State Entry — 2026-03-05T19:43:00Z
+
+- **HEAD:** `3eff544a1902b3d684bf3c1f4486473c443cf5a8` — branch `main`, **3 ahead / 0 behind** origin/main.
+- **Working tree at audit time:** dirty (`STATE.md`, `cmd/alex/team_cmd.go`, `docs/guides/orchestration.md`, `skills/team-cli/SKILL.md`) + untracked reports under `docs/reports/`.
+- **Deterministic validation executed:**
+  - `go test -count=1 ./internal/infra/teamruntime/... ./internal/app/agent/... ./internal/infra/kernel/... ./internal/infra/lark/...` ✅ PASS
+  - `go test -count=1 ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/lark/...` ✅ PASS
+  - `go test -count=1 ./cmd/alex/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `golangci-lint run ./cmd/alex/...` ✅ PASS
+- **Failure localization / fix suggestion:** not required (no deterministic failures observed).
+- **Cycle artifacts:**
+  - `/Users/bytedance/code/elephant.ai/docs/reports/kernel-cycle-2026-03-05T19-43Z.md`
+- **Conclusion:** kernel build/implementation gates remain green; immediate operational debt is repository hygiene drift (ahead commits + report accumulation).
+
+---
+
+**Last sync:** 2026-03-05T19:40:39Z  
+**Updated by:** kernel autonomous audit cycle
+
+### State Entry — 2026-03-05T19:40:39Z
+
+- **HEAD:** `3eff544a1902b3d684bf3c1f4486473c443cf5a8` — branch `main`, **3 ahead / 0 behind** origin/main.
+- **Working tree at audit time:** dirty (`STATE.md`, `cmd/alex/team_cmd.go`, `docs/guides/orchestration.md`, `skills/team-cli/SKILL.md`) + untracked reports under `docs/reports/`.
+- **Deterministic validation executed:**
+  - `go test -count=1 ./internal/infra/teamruntime/... ./internal/app/agent/... ./internal/infra/kernel/... ./internal/infra/lark/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/lark/...` ✅ PASS
+  - `go test -count=1 ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `go test -count=1 ./cmd/alex/...` ✅ PASS
+  - `golangci-lint run ./cmd/alex/...` ✅ PASS
+- **Failure localization / fix suggestion:** not required (no deterministic failures observed).
+- **Cycle artifacts:**
+  - `/Users/bytedance/code/elephant.ai/docs/reports/kernel-cycle-2026-03-05T19-40Z.md`
+- **Conclusion:** validation gates are green across kernel-critical scopes; active risk is repository hygiene drift and local ahead commits.
+
+---
+
+**Last sync:** 2026-03-05T19:38:11Z  
+**Updated by:** kernel autonomous audit cycle
+
+### State Entry — 2026-03-05T19:38:11Z
+
+- **HEAD:** `3eff544a1902b3d684bf3c1f4486473c443cf5a8` — branch `main`, **3 ahead / 0 behind** origin/main.
+- **Working tree at audit time:** dirty (`STATE.md`, `cmd/alex/team_cmd.go`, `docs/guides/orchestration.md`, `skills/team-cli/SKILL.md`) + untracked reports under `docs/reports/`.
+- **Deterministic validation executed:**
+  - `go test -count=1 ./cmd/alex/...` ✅ PASS
+  - `go test -count=1 ./internal/infra/teamruntime/... ./internal/app/agent/... ./internal/infra/kernel/... ./internal/infra/lark/... ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `golangci-lint run ./cmd/alex/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/lark/...` ✅ PASS
+  - `go list ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `go test -count=1 ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+- **Failure localization / fix suggestion:** not required (no deterministic failures observed).
+- **Cycle artifacts:**
+  - `/Users/bytedance/code/elephant.ai/docs/reports/kernel-cycle-2026-03-05T19-38Z.md`
+- **Conclusion:** kernel validation gates are green on current HEAD; active risk remains repository hygiene drift and local main divergence (+3 commits).
+
+---
+
+**Last sync:** 2026-03-05T19:12:41Z  
+**Updated by:** kernel autonomous audit cycle
+
+### State Entry — 2026-03-05T19:12:41Z
+
+- **HEAD:** `3eff544a1902b3d684bf3c1f4486473c443cf5a8` — branch `main`, **3 ahead / 0 behind** origin/main.
+- **Working tree at audit time:** dirty (`cmd/alex/team_cmd.go`, `docs/guides/orchestration.md`, `skills/team-cli/SKILL.md`) + untracked reports under `docs/reports/`.
+- **Deterministic validation executed:**
+  - `go test -count=1 ./internal/infra/teamruntime/... ./internal/app/agent/... ./internal/infra/kernel/... ./internal/infra/lark/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/lark/...` ✅ PASS
+- **Failure localization / fix suggestion:** not required (no failures observed).
+- **Cycle artifacts:**
+  - `/Users/bytedance/code/elephant.ai/docs/reports/kernel-cycle-2026-03-05T19-12Z.md`
+  - `/Users/bytedance/.alex/kernel/default/artifacts/kernel-cycle-2026-03-05T19-12Z.md`
+- **Conclusion:** requested kernel audit gates are green on current HEAD; primary residual risk is repository hygiene drift from pre-existing dirty/untracked files.
+
+---
+
 **Last sync:** 2026-03-05T18:43:33Z  
 **Updated by:** kernel autonomous close-loop fix cycle
 
@@ -217,3 +337,59 @@ Hook setup: `artifacts/hook_setup_20260303T100800Z.md`
 
 - [2026-03-05T15:38:11Z] kernel_state_audit: Revalidated on `main` at HEAD `3838b0fd`; origin divergence `10/0`; deterministic suites PASS for `./internal/infra/teamruntime/...`, `./internal/app/agent/...`, `./internal/infra/kernel/...`, `./internal/infra/lark/...`, and `./internal/infra/tools/builtin/larktools/...`; scoped lint PASS for both `./internal/infra/lark/...` and `./internal/infra/tools/builtin/larktools/...`. Evidence: `docs/reports/kernel-cycle-2026-03-05T15-38Z.md`.
 - [2026-03-05T05:45:00Z] kernel_investigation: Confirmed current cycle failures are dominated by upstream LLM think-step errors on `openai/kimi-for-coding`, while local deterministic validation remains green on canonical targets (`./internal/infra/teamruntime/...`, `./internal/app/agent/...`, `./internal/infra/kernel/...`, `./internal/infra/lark/...`) and `golangci-lint run ./internal/infra/lark/...`. Identified drift root causes: stale `larktools` path references and selection mismatch (`~/.alex/llm_selection.json` lark→`codex/gpt-5.3-codex`) vs runtime default (`~/.alex/config.yaml` openai/kimi). Authored remediation artifact `docs/reports/kernel-investigation-remediation-2026-03-05T05-45Z.md` with executable fixes (single-source validation script + deterministic degraded mode + selection alignment checks).
+
+---
+
+**Last sync:** 2026-03-05T19:39:26Z  
+**Updated by:** kernel autonomous audit cycle
+
+### State Entry — 2026-03-05T19:39:26Z
+
+- **HEAD:** `3eff544a1902` — branch `main`, **3 ahead / 0 behind** origin/main.
+- **Decision log:** previous state claimed `internal/infra/tools/builtin/larktools` had been removed; this cycle revalidated with `go list` and confirmed path is present, so baseline remains dual-scope (`infra/lark` + `larktools`) where applicable.
+- **Deterministic validation executed:**
+  - `go list ./internal/infra/tools/builtin/larktools/...` ✅ PASS (path present)
+  - `golangci-lint run ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `go test -count=1 ./internal/infra/teamruntime/... ./internal/app/agent/... ./internal/infra/kernel/... ./internal/infra/lark/...` ✅ PASS
+- **Cycle artifact:**
+  - `/Users/bytedance/code/elephant.ai/docs/reports/kernel-cycle-2026-03-05T19-39Z.md`
+- **Residual risk:** working tree hygiene drift (tracked edits + accumulated untracked historical reports) can reduce future audit signal.
+
+- [2026-03-05T21:12:51Z] larktools_docx_create_doc_convert_mock_aligned: Updated `internal/infra/tools/builtin/larktools/docx_manage_test.go` (`TestChannel_CreateDoc_WithContent_E2E`) to route `/open-apis/docx/v1/documents/blocks/convert` through a semantically accurate convert mock (`writeDocxConvertSuccess`) consumable by create-descendant flow; added convert-path assertion to lock endpoint dispatch. Formatting: `gofmt -w internal/infra/tools/builtin/larktools/docx_manage_test.go`. Validation: `go test -count=1 ./internal/infra/tools/builtin/larktools/...` ✅ PASS (`ok alex/internal/infra/tools/builtin/larktools 0.659s`). Key failure points: none in target scope. Next step: reuse shared convert mock helper across any new create-doc/write-markdown E2E tests to prevent payload-shape drift.
+
+## [2026-03-05T21-12-17Z] Kernel independent verification audit
+- Audit report: docs/reports/kernel-cycle-2026-03-05T21-12-17Z.md
+- Artifact logs: /Users/bytedance/.alex/kernel/default/artifacts/kernel-cycle-2026-03-05T21-12-17Z/
+- Result: **PASS**
+- Checks:
+  - git status --short + origin/main...HEAD diff collected
+  - go test -count=1 ./internal/infra/teamruntime/... ./internal/app/agent/... ./internal/infra/kernel/... ./internal/infra/lark/... (pass)
+  - go test -count=1 ./internal/infra/tools/builtin/larktools/... (pass)
+  - golangci-lint run ./internal/infra/lark/... (pass)
+  - scoped lint for touched larktools package ./internal/infra/tools/builtin/larktools (pass)
+- Residual risk:
+  - Working tree contains unrelated ongoing docs/cmd edits and multiple historical untracked reports; current audit follows "以当前工作树为准" baseline.
+
+---
+
+**Last sync:** 2026-03-06T00:09:56Z  
+**Updated by:** kernel autonomous post-build audit cycle
+
+### State Entry — 2026-03-06T08:08+08
+
+- **HEAD:** `d401989d` — branch `main`.
+- **Working tree at audit time:** dirty tracked files + accumulated untracked `docs/reports/*` history.
+- **Deterministic validation executed:**
+  - `go test -count=1 ./internal/infra/teamruntime/... ./internal/app/agent/... ./internal/infra/kernel/... ./internal/infra/lark/...` ✅ PASS
+  - `go test -count=1 ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/lark/...` ✅ PASS
+  - `golangci-lint run ./internal/infra/tools/builtin/larktools/...` ✅ PASS
+- **Mergeability verdict (audited scopes):** ✅ mergeable by quality gates; hygiene caveat remains.
+- **Risk update:** `docx mock 缺失` = **resolved**; `lint backlog` = **resolved** (for audited scopes).
+- **Cycle artifacts:**
+  - `/Users/bytedance/code/elephant.ai/docs/reports/kernel-cycle-2026-03-06T08-08+08-audit.md`
+  - `/Users/bytedance/.alex/kernel/default/artifacts/kernel-cycle-2026-03-06T08-08+08-audit.md`
+
+
+- [2026-03-06T00:39:54Z] lark_docx_baseline_audit_scoped_pass: audited current baseline with focus on `internal/infra/tools/builtin/larktools` and related Lark packages. `larktools` directory still exists (not migrated/deleted); active docx/lark code validated in `internal/infra/tools/builtin/larktools`, `internal/infra/lark`, and `internal/delivery/channels/lark`. Validation: `git status --short`; `git rev-parse HEAD`; `git rev-list --left-right --count origin/main...HEAD` => behind origin/main by 5, ahead 0; `go test -count=1 ./internal/infra/tools/builtin/larktools ./internal/infra/lark ./internal/delivery/channels/lark` => PASS; `golangci-lint run ./internal/infra/tools/builtin/larktools ./internal/infra/lark ./internal/delivery/channels/lark` => PASS. Risk status: missing convert mock = resolved (convert stub/assertions present in `docx_manage_test.go`), lint backlog = not observed in audited scope. Report: `docs/reports/lark-docx-baseline-audit-20260306T003954Z.md`; artifact mirror: `/Users/bytedance/.alex/kernel/default/artifacts/lark-docx-baseline-audit-20260306T003954Z.md`.
+
