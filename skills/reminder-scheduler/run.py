@@ -218,14 +218,28 @@ def run(args: dict[str, Any]) -> dict[str, Any]:
     return handler(args)
 
 
-def main() -> None:
+def _load_main_args() -> tuple[dict[str, Any], dict[str, Any] | None]:
     if len(sys.argv) > 1:
-        args = parse_cli_args(sys.argv[1:])
-    elif not sys.stdin.isatty():
-        args = json.load(sys.stdin)
-    else:
-        args = {}
-    result = run(args)
+        return parse_cli_args(sys.argv[1:]), None
+    if sys.stdin.isatty():
+        return {}, None
+
+    payload = sys.stdin.read()
+    if not payload.strip():
+        return {}, None
+
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError:
+        return {}, {"success": False, "error": "invalid stdin JSON payload"}
+    if not isinstance(parsed, dict):
+        return {}, {"success": False, "error": "stdin JSON payload must be an object"}
+    return parsed, None
+
+
+def main() -> None:
+    args, early_result = _load_main_args()
+    result = early_result if early_result is not None else run(args)
     stdout_text, stderr_text, exit_code = render_result(result)
     if stdout_text:
         sys.stdout.write(stdout_text)

@@ -153,6 +153,15 @@ func TestRenderTeamRunCLIOutput_IncludesSessionID(t *testing.T) {
 	}
 }
 
+func TestTeamRunOutputSessionID_OmitsTemplateListSessions(t *testing.T) {
+	if got := teamRunOutputSessionID(teamRunOptions{template: "list", sessionID: "session-123"}); got != "" {
+		t.Fatalf("expected template list to omit session output, got %q", got)
+	}
+	if got := teamRunOutputSessionID(teamRunOptions{template: "claude_research", sessionID: "session-123"}); got != "session-123" {
+		t.Fatalf("expected session output for real run, got %q", got)
+	}
+}
+
 func TestResolveRequestedRoleID(t *testing.T) {
 	roleID, err := resolveRequestedRoleID(teamInjectOptions{roleID: "reviewer"})
 	if err != nil {
@@ -172,6 +181,10 @@ func TestResolveRequestedRoleID(t *testing.T) {
 
 	if _, err := resolveRequestedRoleID(teamInjectOptions{taskID: "plain-task"}); err == nil {
 		t.Fatal("expected non-team task id to fail")
+	}
+
+	if _, err := resolveRequestedRoleID(teamInjectOptions{roleID: "reviewer", taskID: "team-analyst"}); err == nil {
+		t.Fatal("expected conflicting role/task selectors to fail")
 	}
 }
 

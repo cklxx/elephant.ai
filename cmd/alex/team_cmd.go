@@ -151,7 +151,7 @@ func runTeamRun(args []string, container *Container) error {
 		return &ExitCodeError{Code: 2, Err: err}
 	}
 
-	if opts.sessionID == "" {
+	if opts.sessionID == "" && teamRunNeedsRuntimeArtifacts(opts) {
 		opts.sessionID = id.NewSessionID()
 	}
 
@@ -203,7 +203,7 @@ func runTeamRun(args []string, container *Container) error {
 	if result == nil {
 		return &ExitCodeError{Code: 1, Err: fmt.Errorf("team run returned empty result")}
 	}
-	if rendered := renderTeamRunCLIOutput(result.Content, opts.sessionID); rendered != "" {
+	if rendered := renderTeamRunCLIOutput(result.Content, teamRunOutputSessionID(opts)); rendered != "" {
 		fmt.Fprintln(os.Stdout, rendered)
 	}
 	return nil
@@ -445,6 +445,17 @@ func renderTeamRunCLIOutput(content string, sessionID string) string {
 	return strings.Join(parts, "\n")
 }
 
+func teamRunNeedsRuntimeArtifacts(opts teamRunOptions) bool {
+	return !strings.EqualFold(strings.TrimSpace(opts.template), "list")
+}
+
+func teamRunOutputSessionID(opts teamRunOptions) string {
+	if !teamRunNeedsRuntimeArtifacts(opts) {
+		return ""
+	}
+	return strings.TrimSpace(opts.sessionID)
+}
+
 func runTeamTerminal(args []string) error {
 	fs, flagBuf := newBufferedFlagSet("alex team terminal")
 	runtimeRoot := fs.String("runtime-root", "", "Team runtime root (_team_runtime). Default: auto-discover.")
@@ -641,10 +652,14 @@ func runTeamInject(args []string) error {
 }
 
 func resolveRequestedRoleID(opts teamInjectOptions) (string, error) {
-	if trimmed := strings.TrimSpace(opts.roleID); trimmed != "" {
-		return trimmed, nil
-	}
+	trimmedRoleID := strings.TrimSpace(opts.roleID)
 	taskID := strings.TrimSpace(opts.taskID)
+	if trimmedRoleID != "" && taskID != "" {
+		return "", fmt.Errorf("--role-id and --task-id are mutually exclusive")
+	}
+	if trimmedRoleID != "" {
+		return trimmedRoleID, nil
+	}
 	if taskID == "" {
 		return "", nil
 	}
