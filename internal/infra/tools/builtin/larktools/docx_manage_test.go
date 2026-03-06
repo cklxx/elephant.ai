@@ -351,6 +351,42 @@ func TestDocxManage_CreateDoc_WithInitialContent_UsesServerConvertMock(t *testin
 	}
 }
 
+func TestLarkTestServerWithDocxConvertMock_HandlesConvertRoutes(t *testing.T) {
+	srv, _ := larkTestServerWithDocxConvertMock(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("convert route should be intercepted before handler: %s %s", r.Method, r.URL.Path)
+	})
+	defer srv.Close()
+
+	paths := []string{
+		"/open-apis/docx/v1/documents/blocks/convert",
+		"/docx/v1/documents/blocks/convert",
+	}
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			resp, err := http.Post(srv.URL+path, "application/json", strings.NewReader(`{"content_type":"markdown","content":"hello"}`))
+			if err != nil {
+				t.Fatalf("post convert route: %v", err)
+			}
+			defer resp.Body.Close()
+
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			body := string(bodyBytes)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("expected 200, got %d body=%s", resp.StatusCode, body)
+			}
+			if !strings.Contains(body, `"code":0`) {
+				t.Fatalf("expected success code in body, got %s", body)
+			}
+			if !strings.Contains(body, `"first_level_block_ids":["tmp_blk_default"]`) {
+				t.Fatalf("expected default first_level_block_ids in body, got %s", body)
+			}
+			if !strings.Contains(body, `"parent_id":"doc_mock_parent"`) {
+				t.Fatalf("expected default parent_id in body, got %s", body)
+			}
+		})
+	}
+}
+
 func TestDocxManage_CreateDoc_WithFolder(t *testing.T) {
 	var gotPath string
 	var gotBody string
