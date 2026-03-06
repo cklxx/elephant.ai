@@ -84,7 +84,7 @@ func formatExternalInputRequestMessage(req agent.InputRequest) string {
 		}
 		sb.WriteString("\n")
 	}
-	sb.WriteString(fmt.Sprintf("Use the `team-cli` skill and run CLI commands only (no JSON payloads). "))
+	sb.WriteString("Use the `team-cli` skill and run CLI commands only (no JSON payloads). ")
 	sb.WriteString(fmt.Sprintf("Respond by sending input to the role pane: `alex team inject --task-id %q --message \"...\"`.", req.TaskID))
 	if req.RequestID != "" {
 		sb.WriteString(fmt.Sprintf(" Include request_id %q in the message content when acknowledging approval/denial.", req.RequestID))
