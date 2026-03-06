@@ -54,9 +54,6 @@ func (h *ShareHandler) HandleSharedSession(w http.ResponseWriter, r *http.Reques
 		if !h.sseHandler.shouldStreamEvent(event, false) {
 			continue
 		}
-		if isDelegationToolEvent(event) {
-			continue
-		}
 		payload, err := h.sseHandler.buildEventData(event, sentAttachments, finalAnswerCache, false)
 		if err != nil {
 			h.logger.Error("Failed to serialize shared event: %v", err)

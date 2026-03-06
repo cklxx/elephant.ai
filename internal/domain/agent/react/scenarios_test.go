@@ -321,7 +321,7 @@ func TestReactEngine_SubagentDelegationScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 4 iterations: plan, clarify, run_tasks call, final answer
+	// 4 iterations: plan, clarify, bash delegation call, final answer
 	if result.Iterations != 4 {
 		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
 	}
@@ -330,7 +330,7 @@ func TestReactEngine_SubagentDelegationScenario(t *testing.T) {
 		t.Errorf("Expected 3 tool results, got %d", len(state.ToolResults))
 	}
 
-	// Verify run_tasks result contains analysis
+	// Verify delegated analysis result contains detail
 	foundDetail := false
 	for _, res := range state.ToolResults {
 		if len(res.Content) >= 100 {
@@ -339,7 +339,7 @@ func TestReactEngine_SubagentDelegationScenario(t *testing.T) {
 		}
 	}
 	if !foundDetail {
-		t.Error("Expected detailed tool result (run_tasks analysis)")
+		t.Error("Expected detailed tool result from delegated analysis")
 	}
 }
 

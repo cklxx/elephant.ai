@@ -313,6 +313,7 @@ func loadSingleTeamRuntime(teamDir string, eventsTail int) (teamRuntimeStatus, e
 	}
 	events, _ := readJSONLinesTail(eventLogPath, eventsTail)
 	status.RecentEvents = events
+	status.RuntimeState = overlayRuntimeState(status.RuntimeState, status.Roles, events)
 	return status, nil
 }
 
@@ -413,6 +414,110 @@ func formatRuntimeEventSummary(ev map[string]any) string {
 		return string(raw)
 	}
 	return strings.Join(parts, " | ")
+}
+
+func overlayRuntimeState(
+	state teamruntime.RuntimeState,
+	roles []teamruntime.RoleBinding,
+	events []map[string]any,
+) teamruntime.RuntimeState {
+	if state.Roles == nil {
+		state.Roles = make(map[string]teamruntime.RoleRuntimeState, len(roles))
+	}
+	for _, role := range roles {
+		current := state.Roles[role.RoleID]
+		if strings.TrimSpace(current.RoleID) == "" {
+			current.RoleID = role.RoleID
+		}
+		if strings.TrimSpace(current.SelectedCLI) == "" {
+			current.SelectedCLI = role.SelectedCLI
+		}
+		if len(current.FallbackCLIs) == 0 && len(role.FallbackCLIs) > 0 {
+			current.FallbackCLIs = append([]string(nil), role.FallbackCLIs...)
+		}
+		if current.UpdatedAt.IsZero() {
+			current.UpdatedAt = state.UpdatedAt
+		}
+		if strings.TrimSpace(current.Status) == "" {
+			current.Status = "initialized"
+		}
+		state.Roles[role.RoleID] = current
+	}
+
+	for _, ev := range events {
+		roleID := strings.TrimSpace(stringValue(ev["role_id"]))
+		if roleID == "" {
+			continue
+		}
+		current := state.Roles[roleID]
+		if strings.TrimSpace(current.RoleID) == "" {
+			current.RoleID = roleID
+		}
+		if ts := parseEventTimestamp(stringValue(ev["timestamp"])); !ts.IsZero() {
+			current.UpdatedAt = ts
+			if state.UpdatedAt.IsZero() || ts.After(state.UpdatedAt) {
+				state.UpdatedAt = ts
+			}
+		}
+		switch strings.TrimSpace(stringValue(ev["type"])) {
+		case "role_started":
+			current.Status = "running"
+		case "role_completed":
+			statusValue := strings.TrimSpace(stringValue(ev["status"]))
+			if statusValue == "" {
+				statusValue = "completed"
+			}
+			current.Status = statusValue
+		}
+		state.Roles[roleID] = current
+	}
+
+	state.Status = aggregateTeamRuntimeStatus(state)
+	return state
+}
+
+func aggregateTeamRuntimeStatus(state teamruntime.RuntimeState) string {
+	if len(state.Roles) == 0 {
+		if strings.TrimSpace(state.Status) == "" {
+			return "initialized"
+		}
+		return state.Status
+	}
+
+	hasRunning := false
+	hasCompleted := false
+	for _, role := range state.Roles {
+		switch strings.ToLower(strings.TrimSpace(role.Status)) {
+		case "failed", "error":
+			return "failed"
+		case "running":
+			hasRunning = true
+		case "completed":
+			hasCompleted = true
+		}
+	}
+	if hasRunning {
+		return "running"
+	}
+	if hasCompleted {
+		return "completed"
+	}
+	if strings.TrimSpace(state.Status) == "" {
+		return "initialized"
+	}
+	return state.Status
+}
+
+func parseEventTimestamp(raw string) time.Time {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return time.Time{}
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, trimmed)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
 }
 
 func readJSONLinesTail(path string, tail int) ([]map[string]any, error) {

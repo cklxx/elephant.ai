@@ -185,7 +185,7 @@ run_A1() {
     log "A1: claude_research — single-stage research"
     local id="A1" chat="oc_e2e_teams_A1_$(date +%s)"
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=claude_research goal=\"Go context propagation: patterns, pitfalls, and best practices for cancellation in concurrent programs\"" \
+        "@alex Execute exactly once: alex team run --template claude_research --goal \"Go context propagation: patterns, pitfalls, and best practices for cancellation in concurrent programs\"" \
         "${TIMEOUT_FAST}")"
     eval_ok "${id}" "$(inject "${id}" "${p}" "${TIMEOUT_FAST}")" 1
 }
@@ -194,7 +194,7 @@ run_A2() {
     log "A2: claude_analysis — parallel dual-perspective + synthesis"
     local id="A2" chat="oc_e2e_teams_A2_$(date +%s)"
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=claude_analysis goal=\"PostgreSQL vs CockroachDB for multi-region deployment: consistency, operational complexity, cost at 5K TPS\"" \
+        "@alex Execute exactly once: alex team run --template claude_analysis --goal \"PostgreSQL vs CockroachDB for multi-region deployment: consistency, operational complexity, cost at 5K TPS\"" \
         "${TIMEOUT_SLOW}")"
     eval_ok "${id}" "$(inject "${id}" "${p}" "${TIMEOUT_SLOW}")" 1
 }
@@ -203,7 +203,7 @@ run_A3() {
     log "A3: claude_debate — analyst + auto-challenger (debate_mode) + reviewer"
     local id="A3" chat="oc_e2e_teams_A3_$(date +%s)"
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=claude_debate goal=\"Event sourcing vs CRUD for a financial audit system: which provides stronger long-term auditability with acceptable query complexity?\"" \
+        "@alex Execute exactly once: alex team run --template claude_debate --goal \"Event sourcing vs CRUD for a financial audit system: which provides stronger long-term auditability with acceptable query complexity?\"" \
         "${TIMEOUT_SLOW}")"
     eval_ok "${id}" "$(inject "${id}" "${p}" "${TIMEOUT_SLOW}")" 1
 }
@@ -216,7 +216,7 @@ run_B1() {
     log "B1: claude_research — minimal single-word goal"
     local id="B1" chat="oc_e2e_teams_B1_$(date +%s)"
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=claude_research goal=\"Kubernetes\"" \
+        "@alex Execute exactly once: alex team run --template claude_research --goal \"Kubernetes\"" \
         "${TIMEOUT_FAST}")"
     eval_ok "${id}" "$(inject "${id}" "${p}" "${TIMEOUT_FAST}")" 1
 }
@@ -225,7 +225,7 @@ run_B2() {
     log "B2: claude_research — long multi-constraint goal"
     local id="B2" chat="oc_e2e_teams_B2_$(date +%s)"
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=claude_research goal=\"Compare gRPC vs REST vs GraphQL for inter-service communication: latency under high concurrency, schema evolution, streaming support, tooling in Go, and team onboarding cost for a 20-engineer org\"" \
+        "@alex Execute exactly once: alex team run --template claude_research --goal \"Compare gRPC vs REST vs GraphQL for inter-service communication: latency under high concurrency, schema evolution, streaming support, tooling in Go, and team onboarding cost for a 20-engineer org\"" \
         "${TIMEOUT_FAST}")"
     eval_ok "${id}" "$(inject "${id}" "${p}" "${TIMEOUT_FAST}")" 1
 }
@@ -234,7 +234,7 @@ run_B3() {
     log "B3: claude_research — goal with code syntax"
     local id="B3" chat="oc_e2e_teams_B3_$(date +%s)"
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=claude_research goal=\"Go select{} with default case vs time.After() for timeout: when each is correct and when it causes goroutine leaks\"" \
+        "@alex Execute exactly once: alex team run --template claude_research --goal \"Go select{} with default case vs time.After() for timeout: when each is correct and when it causes goroutine leaks\"" \
         "${TIMEOUT_FAST}")"
     eval_ok "${id}" "$(inject "${id}" "${p}" "${TIMEOUT_FAST}")" 1
 }
@@ -247,7 +247,7 @@ run_C1() {
     log "C1: non-existent template → graceful error"
     local id="C1" chat="oc_e2e_teams_C1_$(date +%s)"
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=nonexistent_template goal=\"test\"" \
+        "@alex Execute exactly once: alex team run --template nonexistent_template --goal \"test\"" \
         "${TIMEOUT_FAST}")"
     eval_error "${id}" "$(inject "${id}" "${p}" "${TIMEOUT_FAST}")"
 }
@@ -256,7 +256,7 @@ run_C2() {
     log "C2: missing goal parameter → graceful error"
     local id="C2" chat="oc_e2e_teams_C2_$(date +%s)"
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=claude_research" \
+        "@alex Execute exactly once: alex team run --template claude_research" \
         "${TIMEOUT_FAST}")"
     eval_error "${id}" "$(inject "${id}" "${p}" "${TIMEOUT_FAST}")"
 }
@@ -264,9 +264,9 @@ run_C2() {
 run_C3() {
     log "C3: template=list → lists claude templates"
     local id="C3" chat="oc_e2e_teams_C3_$(date +%s)"
-    # Use explicit slash-command format so the agent always calls run_tasks
+    # Use an explicit CLI instruction so the agent always follows the team CLI path
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=list" \
+        "@alex Execute exactly once: alex team run --template list" \
         "${TIMEOUT_FAST}")"
     local result
     result="$(inject "${id}" "${p}" "${TIMEOUT_FAST}")"
@@ -292,7 +292,7 @@ run_D1() {
     log "D1: claude_analysis — synthesizer merges both analyst perspectives"
     local id="D1" chat="oc_e2e_teams_D1_$(date +%s)"
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=claude_analysis goal=\"Saga vs 2PC for distributed transactions in Go microservices: choose the better default for a new greenfield service\"" \
+        "@alex Execute exactly once: alex team run --template claude_analysis --goal \"Saga vs 2PC for distributed transactions in Go microservices: choose the better default for a new greenfield service\"" \
         "${TIMEOUT_SLOW}")"
     local result
     result="$(inject "${id}" "${p}" "${TIMEOUT_SLOW}")"
@@ -318,7 +318,7 @@ run_D2() {
     log "D2: claude_debate — reviewer sees analyst + challenger via InheritContext"
     local id="D2" chat="oc_e2e_teams_D2_$(date +%s)"
     local p; p="$(make_payload "${chat}" \
-        "@alex /run_tasks template=claude_debate goal=\"Clean Architecture vs simple layered approach for a new team: pick one and defend it\"" \
+        "@alex Execute exactly once: alex team run --template claude_debate --goal \"Clean Architecture vs simple layered approach for a new team: pick one and defend it\"" \
         "${TIMEOUT_SLOW}")"
     local result
     result="$(inject "${id}" "${p}" "${TIMEOUT_SLOW}")"
@@ -345,10 +345,10 @@ run_D2() {
 # ---------------------------------------------------------------------------
 
 run_E1() {
-    log "E1: claude_research — custom role prompt via prompts= override"
+    log "E1: claude_research — custom role prompt via --role-prompt override"
     local id="E1" chat="oc_e2e_teams_E1_$(date +%s)"
     local p; p="$(make_payload "${chat}" \
-        '@alex /run_tasks template=claude_research goal="Python asyncio event loop internals" prompts={"researcher":"Explain in exactly 3 bullet points, each under 20 words. Topic: {GOAL}"}' \
+        "@alex Execute exactly once: alex team run --template claude_research --goal \"Python asyncio event loop internals\" --role-prompt 'researcher=Explain in exactly 3 bullet points, each under 20 words. Topic: {GOAL}'" \
         "${TIMEOUT_FAST}")"
     eval_ok "${id}" "$(inject "${id}" "${p}" "${TIMEOUT_FAST}")" 1
 }

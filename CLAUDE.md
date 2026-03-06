@@ -52,7 +52,7 @@ See `docs/guides/memory-management.md` for the full on-demand trigger table, ret
 
 ## Agent behavior rules
 
-- Prefer run_tasks for parallelizable tasks.
+- Prefer the team CLI (`alex team run ...`) for parallelizable tasks.
 - Understand full context of changes before reviewing; respect architectural decisions over personal preferences.
 - **Self-correction rule:** Upon receiving ANY correction from the user, immediately write a preventive rule (in `docs/guides/`, `docs/error-experience/entries/`, or the relevant best-practice doc). Do not wait — codify the lesson before resuming work.
 - **User-pattern learning & auto-continue rule:**

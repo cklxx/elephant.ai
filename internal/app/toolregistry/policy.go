@@ -17,14 +17,6 @@ func (r *Registry) WithPolicy(policy toolspolicy.ToolPolicy, channel string) too
 	return &policyAwareRegistry{parent: r, policy: policy, channel: channel}
 }
 
-// WithPolicy returns a registry wrapper that enforces tool policy rules.
-func (f *filteredRegistry) WithPolicy(policy toolspolicy.ToolPolicy, channel string) tools.ToolRegistry {
-	if policy == nil {
-		return f
-	}
-	return &policyAwareRegistry{parent: f, policy: policy, channel: channel}
-}
-
 type policyAwareRegistry struct {
 	parent  tools.ToolRegistry
 	policy  toolspolicy.ToolPolicy

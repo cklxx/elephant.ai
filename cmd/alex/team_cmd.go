@@ -12,7 +12,6 @@ import (
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
-	"alex/internal/domain/agent/ports"
 	agentports "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/react"
 	"alex/internal/domain/agent/taskfile"
@@ -182,40 +181,27 @@ func runTeamRun(args []string, container *Container) error {
 	}
 	defer cleanupTaskFile()
 
-	callArgs := map[string]any{
-		"wait":            opts.wait,
-		"timeout_seconds": opts.timeoutSec,
-		"mode":            opts.mode,
-	}
-	if actualFilePath != "" {
-		callArgs["file"] = actualFilePath
-	}
-	if opts.template != "" {
-		callArgs["template"] = opts.template
-		callArgs["goal"] = opts.goal
-	}
-	if len(opts.rolePrompts) > 0 {
-		callArgs["prompts"] = opts.rolePrompts
-	}
-	if len(opts.taskIDs) > 0 {
-		callArgs["task_ids"] = opts.taskIDs
-	}
-
-	tool := orchestration.NewRunTasks()
-	result, execErr := tool.Execute(ctx, ports.ToolCall{
-		ID:        "team-cli-run-" + id.NewKSUID(),
-		Name:      "run_tasks",
-		Arguments: callArgs,
-		SessionID: opts.sessionID,
+	executionStrategy := taskfile.ExecutionMode(opts.mode)
+	runner := orchestration.NewTeamRunner()
+	result, execErr := runner.Run(ctx, orchestration.RunRequest{
+		Dispatcher:      dispatcher,
+		FilePath:        actualFilePath,
+		TemplateName:    opts.template,
+		Goal:            opts.goal,
+		PromptOverrides: opts.rolePrompts,
+		Wait:            opts.wait,
+		Timeout:         time.Duration(opts.timeoutSec) * time.Second,
+		Mode:            executionStrategy,
+		TaskIDs:         opts.taskIDs,
+		CausationID:     "team-cli-run-" + id.NewKSUID(),
+		SessionID:       opts.sessionID,
+		TeamDefinitions: convertTeamConfigsForCLI(effectiveContainer.Runtime.ExternalAgents.Teams),
 	})
 	if execErr != nil {
 		return &ExitCodeError{Code: 1, Err: execErr}
 	}
 	if result == nil {
 		return &ExitCodeError{Code: 1, Err: fmt.Errorf("team run returned empty result")}
-	}
-	if result.Error != nil {
-		return &ExitCodeError{Code: 1, Err: result.Error}
 	}
 	if rendered := renderTeamRunCLIOutput(result.Content, opts.sessionID); rendered != "" {
 		fmt.Fprintln(os.Stdout, rendered)

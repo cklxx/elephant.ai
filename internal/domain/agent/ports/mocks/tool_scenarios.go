@@ -838,11 +838,12 @@ func NewTodoManagementScenario() ToolScenario {
 	}
 }
 
-// NewSubagentDelegationScenario creates a scenario with run_tasks tool
+// NewSubagentDelegationScenario creates a scenario where the agent shells out
+// to the team CLI for deeper analysis.
 func NewSubagentDelegationScenario() ToolScenario {
 	return ToolScenario{
-		Name:        "run_tasks_delegation",
-		Description: "Agent delegates complex task via run_tasks",
+		Name:        "team_cli_delegation",
+		Description: "Agent delegates complex task via the team CLI",
 		LLM: newScriptedLLMClient(
 			ports.CompletionResponse{
 				Content: "委托子代理进行分析，并汇总建议。",
@@ -877,14 +878,13 @@ func NewSubagentDelegationScenario() ToolScenario {
 				Usage:      ports.TokenUsage{PromptTokens: 180, CompletionTokens: 45, TotalTokens: 225},
 			},
 			ports.CompletionResponse{
-				Content: "This task is complex, I'll delegate it via run_tasks",
+				Content: "This task is complex, I'll delegate it via the team CLI",
 				ToolCalls: []ports.ToolCall{
 					{
 						ID:   "call_001",
-						Name: "run_tasks",
+						Name: "bash",
 						Arguments: map[string]any{
-							"file": "tasks.yaml",
-							"wait": true,
+							"command": "alex team run --file tasks.yaml --wait",
 						},
 					},
 				},
@@ -892,7 +892,7 @@ func NewSubagentDelegationScenario() ToolScenario {
 				Usage:      ports.TokenUsage{PromptTokens: 150, CompletionTokens: 60, TotalTokens: 210},
 			},
 			ports.CompletionResponse{
-				Content:    "The run_tasks delegation completed the analysis. Main suggestions: 1) Use sync.Pool for object reuse, 2) Add caching layer, 3) Optimize database queries.",
+				Content:    "The team CLI delegation completed the analysis. Main suggestions: 1) Use sync.Pool for object reuse, 2) Add caching layer, 3) Optimize database queries.",
 				StopReason: "stop",
 				Usage:      ports.TokenUsage{PromptTokens: 500, CompletionTokens: 90, TotalTokens: 590},
 			},

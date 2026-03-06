@@ -12,8 +12,6 @@ import (
 	"alex/internal/infra/memory"
 	toolspolicy "alex/internal/infra/tools"
 	runtimeconfig "alex/internal/shared/config"
-
-	"alex/internal/infra/tools/builtin/orchestration"
 )
 
 // Registry implements ToolRegistry with three-tier caching
@@ -27,24 +25,6 @@ type Registry struct {
 	breakers     *circuitBreakerStore
 	degradation  DegradationConfig
 	SLACollector *toolspolicy.SLACollector
-}
-
-// filteredRegistry wraps a parent registry and excludes certain tools
-type filteredRegistry struct {
-	parent  *Registry
-	exclude map[string]bool
-}
-
-const (
-	runTasksToolName   = "run_tasks"
-	replyAgentToolName = "reply_agent"
-)
-
-func orchestrationExcludeSet() map[string]bool {
-	return map[string]bool{
-		runTasksToolName:   true,
-		replyAgentToolName: true,
-	}
 }
 
 type Config struct {
@@ -231,49 +211,11 @@ func (w *idAwareExecutor) Metadata() ports.ToolMetadata {
 	return w.delegate.Metadata()
 }
 
-// WithoutOrchestration returns a filtered registry that excludes orchestration
-// tools. This prevents recursive delegation chains inside background tasks.
+// WithoutOrchestration returns the registry view used by subagents and other
+// delegated execution paths. Team orchestration now runs through CLI services,
+// so there are no orchestration tools to filter here.
 func (r *Registry) WithoutOrchestration() tools.ToolRegistry {
-	return &filteredRegistry{
-		parent:  r,
-		exclude: orchestrationExcludeSet(),
-	}
-}
-
-// filteredRegistry implements tools.ToolRegistry with exclusions
-
-func (f *filteredRegistry) Get(name string) (tools.ToolExecutor, error) {
-	if f.exclude[name] {
-		return nil, fmt.Errorf("tool not available: %s", name)
-	}
-	return f.parent.Get(name)
-}
-
-func (f *filteredRegistry) List() []ports.ToolDefinition {
-	allTools := f.parent.List()
-	filtered := make([]ports.ToolDefinition, 0, len(allTools))
-	for _, tool := range allTools {
-		if !f.exclude[tool.Name] {
-			filtered = append(filtered, tool)
-		}
-	}
-	return filtered
-}
-
-func (f *filteredRegistry) Register(tool tools.ToolExecutor) error {
-	// Delegate to parent, but exclude from own filter
-	name := tool.Metadata().Name
-	if f.exclude[name] {
-		return fmt.Errorf("tool registration blocked: %s", name)
-	}
-	return f.parent.Register(tool)
-}
-
-func (f *filteredRegistry) Unregister(name string) error {
-	if f.exclude[name] {
-		return fmt.Errorf("tool unregistration blocked: %s", name)
-	}
-	return f.parent.Unregister(name)
+	return r
 }
 
 func (r *Registry) List() []ports.ToolDefinition {
@@ -379,23 +321,4 @@ func (r *Registry) pruneDisabledTools(disabled map[string]string) {
 	for name := range disabled {
 		delete(r.static, name)
 	}
-}
-
-// RegisterOrchestration registers file-based orchestration tools.
-// Dispatcher is injected via context at runtime.
-func (r *Registry) RegisterOrchestration() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if _, exists := r.static[runTasksToolName]; exists {
-		return
-	}
-
-	r.registerStaticWrapped(runTasksToolName, orchestration.NewRunTasks())
-	r.registerStaticWrapped(replyAgentToolName, orchestration.NewReplyAgent())
-	r.defsDirty = true
-}
-
-func (r *Registry) registerStaticWrapped(name string, tool tools.ToolExecutor) {
-	r.static[name] = r.wrapDegradation(name, wrapTool(tool, r.policy, r.breakers, r.SLACollector))
 }

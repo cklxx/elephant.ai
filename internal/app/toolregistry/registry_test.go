@@ -86,68 +86,24 @@ func TestToolDefinitionsArrayItems(t *testing.T) {
 	}
 }
 
-func TestToolDefinitionsArrayItemsIncludesOrchestrationTools(t *testing.T) {
+func TestRegistryDoesNotExposeTeamOrchestrationTools(t *testing.T) {
 	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	registry.RegisterOrchestration()
-
-	defs := registry.List()
-	for _, def := range defs {
-		for name, prop := range def.Parameters.Properties {
-			if prop.Type != "array" {
-				continue
-			}
-			if prop.Items == nil {
-				t.Fatalf("tool %s property %s missing items schema", def.Name, name)
-			}
-		}
-	}
-}
-
-func TestRegisterOrchestrationIncludesRunTasks(t *testing.T) {
-	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
-	if err != nil {
-		t.Fatalf("unexpected error creating registry: %v", err)
-	}
-
-	// Before RegisterOrchestration, run_tasks should not exist.
 	if _, err := registry.Get("run_tasks"); err == nil {
-		t.Fatal("run_tasks should not exist before RegisterOrchestration")
+		t.Fatal("run_tasks should not be registered")
+	}
+	if _, err := registry.Get("reply_agent"); err == nil {
+		t.Fatal("reply_agent should not be registered")
 	}
 
-	registry.RegisterOrchestration()
-
-	// After RegisterOrchestration, run_tasks should be available.
-	tool, err := registry.Get("run_tasks")
-	if err != nil {
-		t.Fatalf("run_tasks should be registered after RegisterOrchestration: %v", err)
-	}
-	if tool.Definition().Name != "run_tasks" {
-		t.Fatalf("expected tool name run_tasks, got %s", tool.Definition().Name)
-	}
-
-	// reply_agent should also be available.
-	tool2, err := registry.Get("reply_agent")
-	if err != nil {
-		t.Fatalf("reply_agent should be registered: %v", err)
-	}
-	if tool2.Definition().Name != "reply_agent" {
-		t.Fatalf("expected tool name reply_agent, got %s", tool2.Definition().Name)
-	}
-
-	// Verify both appear in List().
 	defs := registry.List()
-	found := map[string]bool{}
 	for _, def := range defs {
 		if def.Name == "run_tasks" || def.Name == "reply_agent" {
-			found[def.Name] = true
+			t.Fatalf("unexpected orchestration tool in registry: %s", def.Name)
 		}
-	}
-	if !found["run_tasks"] || !found["reply_agent"] {
-		t.Fatalf("expected run_tasks and reply_agent in List()")
 	}
 }
 

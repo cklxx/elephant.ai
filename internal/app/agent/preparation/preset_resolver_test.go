@@ -275,13 +275,7 @@ func (r *mockToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 func (r *mockToolRegistry) List() []ports.ToolDefinition { return r.tools }
 func (r *mockToolRegistry) Unregister(name string) error { return nil }
 func (r *mockToolRegistry) WithoutOrchestration() tools.ToolRegistry {
-	filtered := make([]ports.ToolDefinition, 0, len(r.tools))
-	for _, t := range r.tools {
-		if t.Name != "run_tasks" && t.Name != "reply_agent" {
-			filtered = append(filtered, t)
-		}
-	}
-	return &mockToolRegistry{tools: filtered}
+	return &mockToolRegistry{tools: append([]ports.ToolDefinition(nil), r.tools...)}
 }
 
 // Event capturer for testing

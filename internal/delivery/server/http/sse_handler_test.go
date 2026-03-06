@@ -219,30 +219,6 @@ func TestSSEConnectedEventEmptyActiveRunID(t *testing.T) {
 	}
 }
 
-func TestIsDelegationToolEvent(t *testing.T) {
-	now := time.Now()
-	env := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "session-1", "task-1", "", now),
-		Event:     "workflow.tool.completed",
-		NodeKind:  "tool",
-		NodeID:    "run_tasks:0",
-		Payload: map[string]any{
-			"tool_name": "run_tasks",
-			"result":    "delegation summary",
-		},
-	}
-
-	if !isDelegationToolEvent(env) {
-		t.Fatalf("expected run_tasks tool envelope to be treated as delegation")
-	}
-
-	env.Payload["tool_name"] = "bash"
-	env.NodeID = "bash:1"
-	if isDelegationToolEvent(env) {
-		t.Fatalf("expected non-run_tasks tool envelope to pass through")
-	}
-}
-
 func TestSSEHandlerReplaysStepEventsAndFiltersLifecycle(t *testing.T) {
 	broadcaster := serverapp.NewEventBroadcaster()
 	handler := NewSSEHandler(broadcaster)
@@ -767,18 +743,18 @@ func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
 	}
 }
 
-func TestSSEHandlerStreamsRunTasksToolStartAndComplete(t *testing.T) {
+func TestSSEHandlerStreamsToolStartAndComplete(t *testing.T) {
 	broadcaster := serverapp.NewEventBroadcaster()
 	handler := NewSSEHandler(broadcaster)
 
-	sessionID := "session-run-tasks-tool"
+	sessionID := "session-tool-stream"
 	taskID := "task-main"
 	parentTaskID := "task-parent"
 	now := time.Now()
 	base := domain.NewBaseEvent(agent.LevelCore, sessionID, taskID, parentTaskID, now)
 
 	startEvent := domain.NewToolStartedEvent(
-		base, 1, "call-run-tasks-1", "run_tasks", map[string]interface{}{"file": "tasks.yaml"},
+		base, 1, "call-bash-1", "bash", map[string]interface{}{"command": "alex team run --template list"},
 	)
 	startEnvelope := domain.NewWorkflowEnvelopeFromEvent(startEvent, "workflow.tool.started")
 	if startEnvelope == nil {
@@ -794,7 +770,7 @@ func TestSSEHandlerStreamsRunTasksToolStartAndComplete(t *testing.T) {
 	}
 
 	completeEvent := domain.NewToolCompletedEvent(
-		base, startEvent.Data.CallID, "run_tasks", "delegation complete", nil, 175*time.Millisecond, nil, nil,
+		base, startEvent.Data.CallID, "bash", "team status ready", nil, 175*time.Millisecond, nil, nil,
 	)
 	completeEnvelope := domain.NewWorkflowEnvelopeFromEvent(completeEvent, "workflow.tool.completed")
 	if completeEnvelope == nil {
@@ -868,8 +844,8 @@ func TestSSEHandlerStreamsRunTasksToolStartAndComplete(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected payload map in event data, got %T", payload["payload"])
 		}
-		if toolPayload["tool_name"] != "run_tasks" {
-			t.Fatalf("expected tool_name run_tasks, got %v", toolPayload["tool_name"])
+		if toolPayload["tool_name"] != "bash" {
+			t.Fatalf("expected tool_name bash, got %v", toolPayload["tool_name"])
 		}
 	}
 }

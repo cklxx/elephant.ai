@@ -127,20 +127,6 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 			wants:    []string{"todo_read(path=TODO.md)"},
 		},
 		{
-			name:     "run_tasks with file",
-			toolName: "run_tasks",
-			args: map[string]any{
-				"file": "tasks.yaml",
-			},
-			wants: []string{"run_tasks(file=tasks.yaml"},
-		},
-		{
-			name:     "run_tasks without args",
-			toolName: "run_tasks",
-			args:     map[string]any{},
-			wants:    []string{"run_tasks"},
-		},
-		{
 			name:     "final summary",
 			toolName: "final",
 			args: map[string]any{
@@ -326,13 +312,6 @@ func TestToolFormatterFormatToolResult(t *testing.T) {
 			success:  true,
 			content:  todoContent,
 			wants:    []string{"Todo List"},
-		},
-		{
-			name:     "run_tasks",
-			toolName: "run_tasks",
-			success:  true,
-			content:  "Dispatched 3 tasks\nSuccess: 2 tasks\nFailed: 1 tasks",
-			wants:    []string{"Dispatched 3 tasks"},
 		},
 		{
 			name:     "final",

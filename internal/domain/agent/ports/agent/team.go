@@ -127,7 +127,7 @@ func GetTeamDefinitions(ctx context.Context) []TeamDefinition {
 	return GetOrchestrationContext(ctx).TeamDefinitions
 }
 
-// WithTeamRunRecorder stores a TeamRunRecorder in context for run_tasks.
+// WithTeamRunRecorder stores a TeamRunRecorder in context for team dispatch.
 func WithTeamRunRecorder(ctx context.Context, recorder TeamRunRecorder) context.Context {
 	return context.WithValue(ctx, teamRunRecorderKey{}, recorder)
 }

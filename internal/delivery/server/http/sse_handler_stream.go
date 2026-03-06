@@ -159,15 +159,6 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 			return true
 		}
 
-		if isDelegationToolEvent(event) {
-			switch event.EventType() {
-			case types.EventToolStarted, types.EventToolCompleted:
-				// Allow delegation tool anchors to reach the frontend.
-			default:
-				return true
-			}
-		}
-
 		if !shouldSendEvent(event, seenEventIDs, lastSeqByRun) {
 			return true
 		}
@@ -357,27 +348,6 @@ func resolveHTTPFlusher(w http.ResponseWriter) (http.Flusher, bool) {
 		checked++
 	}
 	return nil, false
-}
-
-// isDelegationToolEvent identifies run_tasks delegation tool calls so streaming
-// filters can suppress noisy delegation traffic while preserving anchor events.
-func isDelegationToolEvent(event agent.AgentEvent) bool {
-	env, ok := app.BaseAgentEvent(event).(*domain.WorkflowEventEnvelope)
-	if !ok || env == nil {
-		return false
-	}
-
-	switch env.Event {
-	case types.EventToolStarted, types.EventToolProgress, types.EventToolCompleted:
-	default:
-		return false
-	}
-
-	if toolName := normalizedToolName(env.Payload); toolName != "" {
-		return toolName == "run_tasks"
-	}
-
-	return strings.HasPrefix(strings.ToLower(env.NodeID), "run_tasks:")
 }
 
 func normalizedToolName(payload map[string]any) string {

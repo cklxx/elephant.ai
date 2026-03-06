@@ -86,8 +86,6 @@ func (tf *ToolFormatter) visibleArgs(name string, args map[string]any) (map[stri
 		return map[string]string{}, 0
 	case "todo_read", "list_files", "list_dir":
 		return tf.simplePathArgs(args), 80
-	case "run_tasks":
-		return tf.runTasksArgs(args), 120
 	case "final":
 		return tf.finalArgs(args), 160
 	default:
@@ -252,20 +250,6 @@ func (tf *ToolFormatter) simplePathArgs(args map[string]any) map[string]string {
 	return map[string]string{}
 }
 
-func (tf *ToolFormatter) runTasksArgs(args map[string]any) map[string]string {
-	result := make(map[string]string)
-	if file := tf.getStringArg(args, "file", ""); file != "" {
-		result["file"] = file
-	}
-	if tmpl := tf.getStringArg(args, "template", ""); tmpl != "" {
-		result["template"] = tmpl
-	}
-	if goal := tf.getStringArg(args, "goal", ""); goal != "" {
-		result["goal"] = tf.summarizeString(goal, 80)
-	}
-	return result
-}
-
 func (tf *ToolFormatter) finalArgs(args map[string]any) map[string]string {
 	result := make(map[string]string)
 	if answer := tf.getStringArg(args, "answer", ""); answer != "" {
@@ -407,8 +391,6 @@ func (tf *ToolFormatter) FormatToolResult(name string, content string, success b
 		return tf.formatWebFetchResult(content)
 	case "todo_update", "todo_read":
 		return tf.formatTodoResult(content)
-	case "run_tasks":
-		return tf.formatRunTasksResult(content)
 	case "final":
 		return tf.formatFinalResult(content)
 	default:
@@ -580,17 +562,6 @@ func (tf *ToolFormatter) formatWebFetchResult(content string) string {
 	}
 
 	return fmt.Sprintf("  → Fetched %d lines (%dKB)", lines, chars/1024)
-}
-
-// formatSubagentResult shows task completion summary
-func (tf *ToolFormatter) formatRunTasksResult(content string) string {
-	if strings.Contains(content, "Dispatched") {
-		lines := strings.SplitN(content, "\n", 3)
-		if len(lines) > 0 {
-			return "  → " + strings.TrimSpace(lines[0])
-		}
-	}
-	return "  → Tasks dispatched"
 }
 
 func (tf *ToolFormatter) formatFinalResult(content string) string {

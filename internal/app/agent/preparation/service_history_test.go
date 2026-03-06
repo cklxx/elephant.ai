@@ -437,14 +437,7 @@ func (r *registryWithList) List() []ports.ToolDefinition {
 func (r *registryWithList) Unregister(name string) error { return nil }
 
 func (r *registryWithList) WithoutOrchestration() tools.ToolRegistry {
-	filtered := make([]ports.ToolDefinition, 0, len(r.defs))
-	for _, def := range r.defs {
-		if def.Name == "run_tasks" || def.Name == "reply_agent" {
-			continue
-		}
-		filtered = append(filtered, def)
-	}
-	return &registryWithList{defs: filtered}
+	return &registryWithList{defs: append([]ports.ToolDefinition(nil), r.defs...)}
 }
 
 func TestPrepareCarriesSessionHistoryIntoState(t *testing.T) {
@@ -581,7 +574,7 @@ func TestPrepareUsesInheritedStateForSubagent(t *testing.T) {
 			"report.md": {Name: "report.md", Data: "YmFzZQ=="},
 		},
 		AttachmentIterations: map[string]int{"report.md": 4},
-		Plans: []agent.PlanNode{{ID: "plan-1", Title: "Investigate"}},
+		Plans:                []agent.PlanNode{{ID: "plan-1", Title: "Investigate"}},
 		Cognitive: &agent.CognitiveExtension{
 			Beliefs:         []agent.Belief{{Statement: "Delegation works"}},
 			KnowledgeRefs:   []agent.KnowledgeReference{{ID: "rag-1", Description: "Docs"}},

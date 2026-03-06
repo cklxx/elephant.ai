@@ -104,7 +104,7 @@ func TestCoordinatorExecutor_ExecuteTeam_BuildsStructuredTeamCLIPrompt(t *testin
 	runner := &stubTaskRunner{
 		result: &agent.TaskResult{
 			Answer:   "## Execution Summary\n- team run completed",
-			Messages: []core.Message{assistantMessageWithToolCalls("run_tasks")},
+			Messages: []core.Message{assistantMessageWithToolCalls("bash")},
 		},
 	}
 	exec := NewCoordinatorExecutor(runner, 0, "")

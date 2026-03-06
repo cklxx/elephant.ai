@@ -16,8 +16,7 @@ type attachmentContext struct {
 }
 
 // WithAttachmentContext annotates ctx with a snapshot of available attachments
-// and their iteration metadata so downstream tools (e.g. run_tasks) can reuse
-// them.
+// and their iteration metadata so downstream execution paths can reuse them.
 func WithAttachmentContext(ctx context.Context, attachments map[string]core.Attachment, iterations map[string]int) context.Context {
 	if len(attachments) == 0 {
 		return ctx

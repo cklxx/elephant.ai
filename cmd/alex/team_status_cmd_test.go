@@ -41,6 +41,12 @@ func TestLoadTeamRuntimeStatus_SortsAndLoads(t *testing.T) {
 	if len(statuses[0].RecentEvents) != 2 {
 		t.Fatalf("expected tail=2 events, got %d", len(statuses[0].RecentEvents))
 	}
+	if got := statuses[0].RuntimeState.Status; got != "completed" {
+		t.Fatalf("expected derived team status completed, got %q", got)
+	}
+	if got := statuses[0].RuntimeState.Roles["executor"].Status; got != "completed" {
+		t.Fatalf("expected derived role status completed, got %q", got)
+	}
 }
 
 func TestLoadTeamRuntimeStatus_FiltersSessionAndTeam(t *testing.T) {

@@ -465,7 +465,7 @@ func buildKernelTeamDispatchPrompt(spec kerneldomain.TeamDispatchSpec) string {
 
 	command := strings.Join(commandParts, " ")
 	return fmt.Sprintf(
-		"CRITICAL: Execute autonomously. Do NOT ask for confirmation or clarification. Make all decisions independently.\n\nExecute a structured team run now via CLI (not via run_tasks/reply_agent tools). Run this command exactly once:\n%s\n\nIf `alex` binary is unavailable in PATH, execute the same command with `go run ./cmd/alex` prefix.\nThen read the generated .status sidecar and summarize completed roles, failures (if any), and artifact paths.",
+		"CRITICAL: Execute autonomously. Do NOT ask for confirmation or clarification. Make all decisions independently.\n\nExecute a structured team run now via CLI. Run this command exactly once:\n%s\n\nIf `alex` binary is unavailable in PATH, execute the same command with `go run ./cmd/alex` prefix.\nThen read the generated .status sidecar and summarize completed roles, failures (if any), and artifact paths.",
 		command,
 	)
 }

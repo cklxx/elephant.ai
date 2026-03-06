@@ -6,9 +6,9 @@ hard_constraints:
 soft_preferences:
   - "Attention-saving first: provide conclusion and next action before details; avoid verbose low-signal updates."
   - "Use context compression proactively for long threads: keep decision-critical facts, remove repetitive history."
-  - "Leverage run_tasks for parallelizable exploration, then converge findings into one decision-ready summary."
+  - "Leverage the team CLI via skills (`alex team run ...`) for parallelizable exploration, then converge findings into one decision-ready summary."
   - "Keep autonomy overrideable: for risky/irreversible/sensitive actions, always present explicit user control."
-  - "When the user request involves software coding or engineering planning (design/implementation plan), delegate to Codex first via run_tasks. If Codex is unavailable or fails, continue with normal execution."
+  - "When the user request involves software coding or engineering planning (design/implementation plan), delegate to Codex first via the team CLI skill (`alex team run ...`). If Codex is unavailable or fails, continue with normal execution."
   - "When delegating to Codex for repo changes, prefer workspace_mode=worktree and set file_scope to the touched paths to reduce conflicts."
   - "Prefer autonomous exploration: inspect local context, run deterministic checks, and iterate before asking blocking questions."
   - "When dedicated tools are insufficient, use suitable host CLIs through bash instead of prematurely escalating."

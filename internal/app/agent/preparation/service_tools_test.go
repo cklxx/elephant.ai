@@ -18,7 +18,7 @@ import (
 func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "todo_read"}, {Name: "todo_update"}, {Name: "run_tasks"}, {Name: "final"}, {Name: "file_read"}}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "todo_read"}, {Name: "todo_update"}, {Name: "final"}, {Name: "file_read"}}},
 		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "core", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
@@ -33,7 +33,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 	filtered := service.selectToolRegistry(context.Background(), presets.ToolModeCLI, service.config.ToolPreset)
 
 	names := sortedToolNames(filtered.List())
-	expected := []string{"file_read", "final", "run_tasks", "todo_read", "todo_update"}
+	expected := []string{"file_read", "final", "todo_read", "todo_update"}
 
 	if len(names) != len(expected) {
 		t.Fatalf("core agent should see %d tools from full preset, got %v", len(expected), names)
@@ -48,7 +48,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 func TestSelectToolRegistryDefaultsToFullWhenUnset(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "todo_read"}, {Name: "todo_update"}, {Name: "run_tasks"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "todo_read"}, {Name: "todo_update"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
 		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "core", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
@@ -63,7 +63,7 @@ func TestSelectToolRegistryDefaultsToFullWhenUnset(t *testing.T) {
 	filtered := service.selectToolRegistry(context.Background(), presets.ToolModeCLI, service.config.ToolPreset)
 
 	names := sortedToolNames(filtered.List())
-	expected := []string{"bash", "file_read", "final", "run_tasks", "todo_read", "todo_update"}
+	expected := []string{"bash", "file_read", "final", "todo_read", "todo_update"}
 
 	if len(names) != len(expected) {
 		t.Fatalf("core agent should default to full preset tools, got %v", names)
@@ -75,10 +75,10 @@ func TestSelectToolRegistryDefaultsToFullWhenUnset(t *testing.T) {
 	}
 }
 
-func TestSelectToolRegistryFiltersOrchestrationForSubagents(t *testing.T) {
+func TestSelectToolRegistryRetainsExecutionToolsForSubagents(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "run_tasks"}, {Name: "reply_agent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
 		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "sub", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
@@ -94,12 +94,6 @@ func TestSelectToolRegistryFiltersOrchestrationForSubagents(t *testing.T) {
 	filtered := service.selectToolRegistry(ctx, presets.ToolModeCLI, service.config.ToolPreset)
 	names := sortedToolNames(filtered.List())
 
-	if containsString(names, "run_tasks") {
-		t.Fatalf("subagents should not retain run_tasks: %v", names)
-	}
-	if containsString(names, "reply_agent") {
-		t.Fatalf("subagents should not retain reply_agent: %v", names)
-	}
 	if !containsString(names, "bash") || !containsString(names, "file_read") {
 		t.Fatalf("configured preset should retain execution tools after policy change: %v", names)
 	}
@@ -108,7 +102,7 @@ func TestSelectToolRegistryFiltersOrchestrationForSubagents(t *testing.T) {
 func TestSelectToolRegistryRetainsExecutionToolsForSubagentsWhenPresetUnset(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "run_tasks"}, {Name: "reply_agent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
 		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "sub", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
@@ -124,12 +118,6 @@ func TestSelectToolRegistryRetainsExecutionToolsForSubagentsWhenPresetUnset(t *t
 	filtered := service.selectToolRegistry(ctx, presets.ToolModeCLI, service.config.ToolPreset)
 	names := sortedToolNames(filtered.List())
 
-	if containsString(names, "run_tasks") {
-		t.Fatalf("subagents should not be able to call run_tasks: %v", names)
-	}
-	if containsString(names, "reply_agent") {
-		t.Fatalf("subagents should not be able to call reply_agent: %v", names)
-	}
 	if !containsString(names, "bash") || !containsString(names, "file_read") {
 		t.Fatalf("subagents should retain execution tools when preset unset, got: %v", names)
 	}

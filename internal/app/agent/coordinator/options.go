@@ -117,7 +117,7 @@ func WithToolSLACollector(collector *toolspolicy.SLACollector) CoordinatorOption
 }
 
 // WithTeamDefinitions provides pre-configured agent team definitions for
-// the run_tasks tool.
+// structured team dispatch.
 func WithTeamDefinitions(teams []agent.TeamDefinition) CoordinatorOption {
 	return func(c *AgentCoordinator) {
 		c.teamDefinitions = teams
@@ -136,8 +136,8 @@ func WithChannelHints(hints map[string]string) CoordinatorOption {
 	}
 }
 
-// WithTeamRunRecorder provides a recorder used by run_tasks to persist
-// file-based run records.
+// WithTeamRunRecorder provides a recorder used to persist file-based
+// team run records.
 func WithTeamRunRecorder(recorder agent.TeamRunRecorder) CoordinatorOption {
 	return func(c *AgentCoordinator) {
 		if recorder != nil {

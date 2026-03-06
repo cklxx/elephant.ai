@@ -41,7 +41,7 @@ type ReactEngine struct {
 	backgroundManager *BackgroundTaskManager
 	// Optional external agent executor for non-internal agent types.
 	externalExecutor agent.ExternalAgentExecutor
-	// Pre-configured team definitions for run_tasks template dispatch.
+	// Pre-configured team definitions for structured team dispatch.
 	teamDefinitions []agent.TeamDefinition
 	// Optional file-backed recorder for team dispatch run audit.
 	teamRunRecorder agent.TeamRunRecorder
@@ -126,7 +126,7 @@ type ReactEngineConfig struct {
 	SessionPersister    agent.SessionPersister // Optional: async save session after each iteration.
 
 	// BackgroundExecutor is a closure that delegates to coordinator.ExecuteTask
-	// for background agent tasks. When nil, run_tasks is unavailable.
+	// for background agent tasks.
 	BackgroundExecutor func(ctx context.Context, prompt, sessionID string,
 		listener agent.EventListener) (*agent.TaskResult, error)
 	// BackgroundManager optionally supplies a shared background task manager.
@@ -134,9 +134,9 @@ type ReactEngineConfig struct {
 	// ExternalExecutor handles external code agents (e.g., Claude Code CLI).
 	// Optional; when nil only "internal" agent type is supported.
 	ExternalExecutor agent.ExternalAgentExecutor
-	// TeamDefinitions are pre-configured agent teams available to the run_tasks tool.
+	// TeamDefinitions are pre-configured agent teams available to structured team dispatch.
 	TeamDefinitions []agent.TeamDefinition
-	// TeamRunRecorder persists run_tasks team run records (typically file-based).
+	// TeamRunRecorder persists team run records (typically file-based).
 	TeamRunRecorder agent.TeamRunRecorder
 	// AtomicFileWriter writes files atomically (for context compaction artifacts).
 	AtomicFileWriter agent.AtomicFileWriter
