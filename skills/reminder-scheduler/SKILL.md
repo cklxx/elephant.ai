@@ -24,12 +24,12 @@ cooldown: 30
 
 ```bash
 # 单次提醒：设置、查看、取消
-python3 skills/reminder-scheduler/run.py set_once --delay 30m --task '喝水提醒'
+python3 skills/reminder-scheduler/run.py set_once --delay 30m --task "喝水提醒"
 python3 skills/reminder-scheduler/run.py list_once
 python3 skills/reminder-scheduler/run.py cancel_once --id timer-12345
 
 # 周期计划：创建/更新、查看、删除、到期扫描
-python3 skills/reminder-scheduler/run.py upsert_plan --name weekly-retro --schedule '0 18 * * 5' --task '发送复盘提醒' --next_run_at 2026-03-06T10:00:00Z
+python3 skills/reminder-scheduler/run.py upsert_plan --name weekly-retro --schedule "0 18 * * 5" --task "发送复盘提醒" --next-run-at 2026-03-06T10:00:00Z
 python3 skills/reminder-scheduler/run.py list_plans
 python3 skills/reminder-scheduler/run.py due_plans --now 2026-03-06T10:00:00Z
 python3 skills/reminder-scheduler/run.py delete_plan --name weekly-retro

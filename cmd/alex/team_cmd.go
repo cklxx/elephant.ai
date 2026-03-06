@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	appcontext "alex/internal/app/agent/context"
 	"alex/internal/domain/agent/ports"
 	agentports "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/react"
@@ -147,7 +148,7 @@ func runTeamRun(args []string, container *Container) error {
 		return &ExitCodeError{Code: 2, Err: err}
 	}
 
-	if err := validateTeamRunOptions(opts); err != nil {
+	if err := validateTeamRunOptions(opts, fs.Args()); err != nil {
 		return &ExitCodeError{Code: 2, Err: err}
 	}
 
@@ -161,16 +162,13 @@ func runTeamRun(args []string, container *Container) error {
 	}
 	defer cleanup()
 
-	dispatcher, shutdown := newTeamCLIDispatcher(effectiveContainer, opts.sessionID)
+	logger := logging.NewComponentLogger("TeamCLI")
+	baseCtx := applyPinnedCLILLMSelection(cliBaseContext(), runtimeEnvLookup(), logger)
+
+	dispatcher, shutdown := newTeamCLIDispatcher(effectiveContainer, baseCtx, opts.sessionID)
 	defer shutdown()
 
-	ctx := context.Background()
-	ctx = toolshared.WithSessionID(ctx, opts.sessionID)
-	ctx = id.WithSessionID(ctx, opts.sessionID)
-	ctx = agentports.WithOrchestrationContext(ctx, agentports.OrchestrationContext{
-		TeamDefinitions: convertTeamConfigsForCLI(effectiveContainer.Runtime.ExternalAgents.Teams),
-		Dispatcher:      dispatcher,
-	})
+	ctx := buildTeamRunContext(baseCtx, effectiveContainer, dispatcher, opts.sessionID)
 
 	actualFilePath := opts.file
 	cleanupTaskFile := func() {}
@@ -219,13 +217,16 @@ func runTeamRun(args []string, container *Container) error {
 	if result.Error != nil {
 		return &ExitCodeError{Code: 1, Err: result.Error}
 	}
-	if strings.TrimSpace(result.Content) != "" {
-		fmt.Println(strings.TrimSpace(result.Content))
+	if rendered := renderTeamRunCLIOutput(result.Content, opts.sessionID); rendered != "" {
+		fmt.Fprintln(os.Stdout, rendered)
 	}
 	return nil
 }
 
-func validateTeamRunOptions(opts teamRunOptions) error {
+func validateTeamRunOptions(opts teamRunOptions, extraArgs []string) error {
+	if len(extraArgs) > 0 {
+		return fmt.Errorf("unexpected positional arguments: %s", strings.Join(extraArgs, " "))
+	}
 	modeCount := 0
 	if opts.file != "" {
 		modeCount++
@@ -239,8 +240,22 @@ func validateTeamRunOptions(opts teamRunOptions) error {
 	if modeCount != 1 {
 		return errors.New(teamRunUsage)
 	}
+	if opts.template == "" && opts.goal != "" {
+		return fmt.Errorf("--goal requires --template")
+	}
+	if opts.template == "" && len(opts.rolePrompts) > 0 {
+		return fmt.Errorf("--role-prompt requires --template")
+	}
 	if opts.template != "" && opts.goal == "" && !strings.EqualFold(opts.template, "list") {
 		return fmt.Errorf("--goal is required when --template is provided (except --template list)")
+	}
+	if strings.EqualFold(opts.template, "list") {
+		if opts.goal != "" {
+			return fmt.Errorf("--goal is not supported with --template list")
+		}
+		if len(opts.rolePrompts) > 0 {
+			return fmt.Errorf("--role-prompt is not supported with --template list")
+		}
 	}
 	return nil
 }
@@ -264,9 +279,28 @@ func ensureTeamContainer(existing *Container) (*Container, func(), error) {
 	return container, cleanup, nil
 }
 
-func newTeamCLIDispatcher(container *Container, sessionID string) (*react.BackgroundTaskManager, func()) {
-	logger := logging.NewComponentLogger("TeamCLI")
+func buildTeamRunContext(
+	baseCtx context.Context,
+	container *Container,
+	dispatcher agentports.BackgroundTaskDispatcher,
+	sessionID string,
+) context.Context {
+	ctx := toolshared.WithSessionID(baseCtx, sessionID)
+	ctx = id.WithSessionID(ctx, sessionID)
+	ctx = agentports.WithOrchestrationContext(ctx, agentports.OrchestrationContext{
+		TeamDefinitions: convertTeamConfigsForCLI(container.Runtime.ExternalAgents.Teams),
+		TeamRunRecorder: container.Container.AgentCoordinator.TeamRunRecorder(),
+		Dispatcher:      dispatcher,
+	})
+	return ctx
+}
 
+func newTeamCLIDispatcher(
+	container *Container,
+	runCtx context.Context,
+	sessionID string,
+) (*react.BackgroundTaskManager, func()) {
+	logger := logging.NewComponentLogger("TeamCLI")
 	var externalExecutor agentports.ExternalAgentExecutor
 	externalRegistry := external.NewRegistry(container.Runtime.ExternalAgents, process.NewController(), logger)
 	if len(externalRegistry.SupportedTypes()) > 0 {
@@ -275,7 +309,7 @@ func newTeamCLIDispatcher(container *Container, sessionID string) (*react.Backgr
 
 	idAdapter := runtime.IDsAdapter{}
 	manager := react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
-		RunContext:          context.Background(),
+		RunContext:          runCtx,
 		Logger:              logger,
 		Clock:               agentports.SystemClock{},
 		IDGenerator:         idAdapter,
@@ -284,13 +318,17 @@ func newTeamCLIDispatcher(container *Container, sessionID string) (*react.Backgr
 		WorkingDirResolver:  runtime.WorkingDirResolver,
 		WorkspaceMgrFactory: runtime.WorkspaceManagerFactory,
 		ExecuteTask: func(ctx context.Context, prompt, subSessionID string, listener agentports.EventListener) (*agentports.TaskResult, error) {
+			ctx = appcontext.MarkSubagentContext(ctx)
 			return container.Container.AgentCoordinator.ExecuteTask(ctx, prompt, subSessionID, listener)
 		},
 		ExternalExecutor:   externalExecutor,
 		SessionID:          sessionID,
 		MaxConcurrentTasks: container.Runtime.ExternalAgents.MaxParallelAgents,
-		TmuxSender:         adapters.NewExecTmuxSender(),
-		EventAppender:      adapters.NewFileEventAppender(),
+		ContextPropagators: []agentports.ContextPropagatorFunc{
+			appcontext.PropagateLLMSelection,
+		},
+		TmuxSender:    adapters.NewExecTmuxSender(),
+		EventAppender: adapters.NewFileEventAppender(),
 	})
 	return manager, manager.Shutdown
 }
@@ -410,6 +448,17 @@ func parseTeamTerminalMode(raw string) string {
 	}
 }
 
+func renderTeamRunCLIOutput(content string, sessionID string) string {
+	parts := make([]string, 0, 2)
+	if trimmed := strings.TrimSpace(content); trimmed != "" {
+		parts = append(parts, trimmed)
+	}
+	if trimmed := strings.TrimSpace(sessionID); trimmed != "" {
+		parts = append(parts, "Session ID: "+trimmed)
+	}
+	return strings.Join(parts, "\n")
+}
+
 func runTeamTerminal(args []string) error {
 	fs, flagBuf := newBufferedFlagSet("alex team terminal")
 	runtimeRoot := fs.String("runtime-root", "", "Team runtime root (_team_runtime). Default: auto-discover.")
@@ -437,8 +486,9 @@ func runTeamTerminal(args []string) error {
 		roleID:      strings.TrimSpace(*roleID),
 		taskID:      strings.TrimSpace(*taskID),
 	}
-	if opts.roleID == "" && opts.taskID != "" {
-		opts.roleID = taskfile.ExtractRoleID(opts.taskID)
+	resolvedRoleID, err := resolveRequestedRoleID(opts)
+	if err != nil {
+		return &ExitCodeError{Code: 2, Err: err}
 	}
 
 	statuses, err := loadTeamRuntimeStatus(teamStatusOptions{
@@ -454,7 +504,10 @@ func runTeamTerminal(args []string) error {
 	if len(statuses) == 0 {
 		return &ExitCodeError{Code: 1, Err: fmt.Errorf("no team runtime artifacts found")}
 	}
-	entry := statuses[0]
+	entry, err := selectTeamRuntimeStatus(statuses, opts, resolvedRoleID)
+	if err != nil {
+		return &ExitCodeError{Code: 2, Err: err}
+	}
 	if resolvedMode == "attach" {
 		session := strings.TrimSpace(entry.TmuxSession)
 		if session == "" {
@@ -470,10 +523,10 @@ func runTeamTerminal(args []string) error {
 		return nil
 	}
 
-	if opts.roleID == "" && len(entry.Roles) != 1 {
+	if resolvedRoleID == "" && len(entry.Roles) != 1 {
 		return &ExitCodeError{Code: 2, Err: fmt.Errorf("--role-id is required when team has multiple roles")}
 	}
-	binding, err := resolveInjectRole(entry, opts.roleID)
+	binding, err := resolveInjectRole(entry, resolvedRoleID)
 	if err != nil {
 		return &ExitCodeError{Code: 1, Err: err}
 	}
@@ -546,8 +599,9 @@ func runTeamInject(args []string) error {
 		message:     msg,
 	}
 
-	if opts.roleID == "" && opts.taskID != "" {
-		opts.roleID = taskfile.ExtractRoleID(opts.taskID)
+	resolvedRoleID, err := resolveRequestedRoleID(opts)
+	if err != nil {
+		return &ExitCodeError{Code: 2, Err: err}
 	}
 
 	statuses, err := loadTeamRuntimeStatus(teamStatusOptions{
@@ -563,12 +617,15 @@ func runTeamInject(args []string) error {
 	if len(statuses) == 0 {
 		return &ExitCodeError{Code: 1, Err: fmt.Errorf("no team runtime artifacts found")}
 	}
-	entry := statuses[0]
-	if opts.roleID == "" && len(entry.Roles) != 1 {
+	entry, err := selectTeamRuntimeStatus(statuses, opts, resolvedRoleID)
+	if err != nil {
+		return &ExitCodeError{Code: 2, Err: err}
+	}
+	if resolvedRoleID == "" && len(entry.Roles) != 1 {
 		return &ExitCodeError{Code: 2, Err: fmt.Errorf("--role-id is required when team has multiple roles")}
 	}
 
-	binding, err := resolveInjectRole(entry, opts.roleID)
+	binding, err := resolveInjectRole(entry, resolvedRoleID)
 	if err != nil {
 		return &ExitCodeError{Code: 1, Err: err}
 	}
@@ -595,6 +652,55 @@ func runTeamInject(args []string) error {
 		pane,
 	)
 	return nil
+}
+
+func resolveRequestedRoleID(opts teamInjectOptions) (string, error) {
+	if trimmed := strings.TrimSpace(opts.roleID); trimmed != "" {
+		return trimmed, nil
+	}
+	taskID := strings.TrimSpace(opts.taskID)
+	if taskID == "" {
+		return "", nil
+	}
+	roleID := taskfile.ExtractRoleID(taskID)
+	if roleID == "" {
+		return "", fmt.Errorf("task %q is not a team task id", taskID)
+	}
+	return roleID, nil
+}
+
+func selectTeamRuntimeStatus(
+	statuses []teamRuntimeStatus,
+	opts teamInjectOptions,
+	roleID string,
+) (teamRuntimeStatus, error) {
+	if len(statuses) == 0 {
+		return teamRuntimeStatus{}, fmt.Errorf("no team runtime artifacts found")
+	}
+	candidates := statuses
+	if roleID != "" {
+		filtered := make([]teamRuntimeStatus, 0, len(statuses))
+		for _, status := range statuses {
+			if _, err := resolveInjectRole(status, roleID); err == nil {
+				filtered = append(filtered, status)
+			}
+		}
+		candidates = filtered
+		if len(candidates) == 0 {
+			return teamRuntimeStatus{}, fmt.Errorf("role %q not found in matched team runtimes", roleID)
+		}
+	}
+	if len(candidates) == 1 {
+		return candidates[0], nil
+	}
+	hint := "use --session-id or --team-id to choose one runtime"
+	if roleID != "" {
+		return teamRuntimeStatus{}, fmt.Errorf("role %q matched multiple team runtimes; %s", roleID, hint)
+	}
+	if strings.TrimSpace(opts.sessionID) != "" || strings.TrimSpace(opts.teamID) != "" {
+		return teamRuntimeStatus{}, fmt.Errorf("multiple team runtimes matched the provided filters; %s", hint)
+	}
+	return teamRuntimeStatus{}, fmt.Errorf("multiple team runtimes found; %s", hint)
 }
 
 func resolveInjectRole(entry teamRuntimeStatus, roleID string) (teamruntime.RoleBinding, error) {

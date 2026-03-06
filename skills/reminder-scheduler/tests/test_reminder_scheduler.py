@@ -39,11 +39,12 @@ class TestMainRouting:
         mock_result = {"success": True, "timers": []}
         with patch.object(_mod, "list_timers", return_value=mock_result) as mock:
             with patch("sys.argv", ["run.py", "list_once"]):
-                with patch("sys.stdout", new=io.StringIO()):
+                with patch("sys.stdout", new=io.StringIO()) as stdout:
                     with pytest.raises(SystemExit) as exc:
                         _mod.main()
                     assert exc.value.code == 0
                     mock.assert_called_once()
+                    assert "timers:" in stdout.getvalue()
 
     def test_cancel_once_action(self):
         mock_result = {"success": True, "message": "cancelled"}
@@ -57,10 +58,11 @@ class TestMainRouting:
 
     def test_unknown_action(self):
         with patch("sys.argv", ["run.py", "invalid"]):
-            with patch("sys.stdout", new=io.StringIO()):
+            with patch("sys.stdout", new=io.StringIO()), patch("sys.stderr", new=io.StringIO()) as stderr:
                 with pytest.raises(SystemExit) as exc:
                     _mod.main()
                 assert exc.value.code == 1
+                assert "unknown action: invalid" in stderr.getvalue()
 
 
 class TestPlanLifecycle:
@@ -116,3 +118,31 @@ class TestPlanLifecycle:
         due = _mod.due_plans({"now": "2026-03-05T10:00:00"})
         assert due["success"] is True
         assert due["count"] == 1
+
+    def test_delete_requires_same_record_when_name_and_id_are_both_provided(self):
+        _mod.upsert_plan({"name": "plan-a", "schedule": "*", "task": "task-a"})
+        created_b = _mod.upsert_plan({"name": "plan-b", "schedule": "*", "task": "task-b"})
+
+        deleted = _mod.delete_plan({"name": "plan-a", "id": created_b["plan"]["id"]})
+
+        assert deleted["success"] is False
+        assert deleted["error"] == "plan not found"
+        assert _mod.list_plans({})["count"] == 2
+
+    def test_touch_requires_same_record_when_name_and_id_are_both_provided(self):
+        _mod.upsert_plan({"name": "plan-a", "schedule": "*", "task": "task-a"})
+        created_b = _mod.upsert_plan({"name": "plan-b", "schedule": "*", "task": "task-b"})
+
+        touched = _mod.touch_plan(
+            {
+                "name": "plan-a",
+                "id": created_b["plan"]["id"],
+                "next_run_at": "2026-03-12T10:00:00Z",
+            }
+        )
+
+        assert touched["success"] is False
+        assert touched["error"] == "plan not found"
+        plans = _mod.list_plans({})["plans"]
+        assert plans[0]["next_run_at"] == ""
+        assert plans[1]["next_run_at"] == ""

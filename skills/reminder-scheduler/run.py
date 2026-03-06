@@ -134,7 +134,11 @@ def delete_plan(args: dict[str, Any]) -> dict[str, Any]:
         return {"success": False, "error": "name or id is required"}
 
     plans = _load_plans()
-    remain = [plan for plan in plans if plan.get("name") != name and plan.get("id") != plan_id]
+    remain = [
+        plan
+        for plan in plans
+        if not _plan_matches_identity(plan, name=name, plan_id=plan_id)
+    ]
     removed = len(plans) - len(remain)
     if removed == 0:
         return {"success": False, "error": "plan not found"}
@@ -171,7 +175,7 @@ def touch_plan(args: dict[str, Any]) -> dict[str, Any]:
     plans = _load_plans()
     now = _now_iso()
     for plan in plans:
-        if plan.get("name") != name and plan.get("id") != plan_id:
+        if not _plan_matches_identity(plan, name=name, plan_id=plan_id):
             continue
         plan["last_run_at"] = now
         if next_run_at:
@@ -181,6 +185,19 @@ def touch_plan(args: dict[str, Any]) -> dict[str, Any]:
         return {"success": True, "plan": plan}
 
     return {"success": False, "error": "plan not found"}
+
+
+def _plan_matches_identity(
+    plan: dict[str, Any],
+    *,
+    name: str,
+    plan_id: str,
+) -> bool:
+    if name and str(plan.get("name", "")).strip() != name:
+        return False
+    if plan_id and str(plan.get("id", "")).strip() != plan_id:
+        return False
+    return bool(name or plan_id)
 
 
 def run(args: dict[str, Any]) -> dict[str, Any]:
@@ -202,7 +219,12 @@ def run(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> None:
-    args = parse_cli_args(sys.argv[1:])
+    if len(sys.argv) > 1:
+        args = parse_cli_args(sys.argv[1:])
+    elif not sys.stdin.isatty():
+        args = json.load(sys.stdin)
+    else:
+        args = {}
     result = run(args)
     stdout_text, stderr_text, exit_code = render_result(result)
     if stdout_text:

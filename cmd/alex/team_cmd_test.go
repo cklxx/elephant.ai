@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"alex/internal/domain/agent/taskfile"
@@ -10,20 +11,35 @@ import (
 )
 
 func TestValidateTeamRunOptions_RequiresExactlyOneInputMode(t *testing.T) {
-	if err := validateTeamRunOptions(teamRunOptions{}); err == nil {
+	if err := validateTeamRunOptions(teamRunOptions{}, nil); err == nil {
 		t.Fatal("expected error when no run mode is selected")
 	}
-	if err := validateTeamRunOptions(teamRunOptions{template: "claude_research", goal: "x", prompt: "y"}); err == nil {
+	if err := validateTeamRunOptions(teamRunOptions{template: "claude_research", goal: "x", prompt: "y"}, nil); err == nil {
 		t.Fatal("expected error when multiple run modes are selected")
 	}
 }
 
 func TestValidateTeamRunOptions_RequiresGoalExceptTemplateList(t *testing.T) {
-	if err := validateTeamRunOptions(teamRunOptions{template: "claude_research"}); err == nil {
+	if err := validateTeamRunOptions(teamRunOptions{template: "claude_research"}, nil); err == nil {
 		t.Fatal("expected goal validation error")
 	}
-	if err := validateTeamRunOptions(teamRunOptions{template: "list"}); err != nil {
+	if err := validateTeamRunOptions(teamRunOptions{template: "list"}, nil); err != nil {
 		t.Fatalf("template=list should be allowed without goal: %v", err)
+	}
+}
+
+func TestValidateTeamRunOptions_RejectsUnexpectedArgsAndUnsupportedFlagMixes(t *testing.T) {
+	if err := validateTeamRunOptions(teamRunOptions{template: "claude_research", goal: "x"}, []string{"extra"}); err == nil {
+		t.Fatal("expected unexpected positional args to fail")
+	}
+	if err := validateTeamRunOptions(teamRunOptions{file: "tasks.yaml", goal: "x"}, nil); err == nil {
+		t.Fatal("expected --goal without template to fail")
+	}
+	if err := validateTeamRunOptions(teamRunOptions{prompt: "ship it", rolePrompts: map[string]string{"reviewer": "focus"}}, nil); err == nil {
+		t.Fatal("expected --role-prompt without template to fail")
+	}
+	if err := validateTeamRunOptions(teamRunOptions{template: "list", goal: "x"}, nil); err == nil {
+		t.Fatal("expected --template list with goal to fail")
 	}
 }
 
@@ -124,6 +140,73 @@ func TestParseTeamTerminalMode(t *testing.T) {
 		if got := parseTeamTerminalMode(input); got != want {
 			t.Fatalf("parseTeamTerminalMode(%q)=%q, want %q", input, got, want)
 		}
+	}
+}
+
+func TestRenderTeamRunCLIOutput_IncludesSessionID(t *testing.T) {
+	output := renderTeamRunCLIOutput("completed", "session-123")
+	if !strings.Contains(output, "completed") {
+		t.Fatalf("expected content in output, got %q", output)
+	}
+	if !strings.Contains(output, "Session ID: session-123") {
+		t.Fatalf("expected session id in output, got %q", output)
+	}
+}
+
+func TestResolveRequestedRoleID(t *testing.T) {
+	roleID, err := resolveRequestedRoleID(teamInjectOptions{roleID: "reviewer"})
+	if err != nil {
+		t.Fatalf("resolveRequestedRoleID explicit role failed: %v", err)
+	}
+	if roleID != "reviewer" {
+		t.Fatalf("expected reviewer, got %q", roleID)
+	}
+
+	roleID, err = resolveRequestedRoleID(teamInjectOptions{taskID: "team-analyst"})
+	if err != nil {
+		t.Fatalf("resolveRequestedRoleID task id failed: %v", err)
+	}
+	if roleID != "analyst" {
+		t.Fatalf("expected analyst, got %q", roleID)
+	}
+
+	if _, err := resolveRequestedRoleID(teamInjectOptions{taskID: "plain-task"}); err == nil {
+		t.Fatal("expected non-team task id to fail")
+	}
+}
+
+func TestSelectTeamRuntimeStatus(t *testing.T) {
+	statuses := []teamRuntimeStatus{
+		{
+			SessionID: "session-a",
+			TeamID:    "team-a",
+			Roles: []teamruntime.RoleBinding{
+				{RoleID: "planner"},
+			},
+		},
+		{
+			SessionID: "session-b",
+			TeamID:    "team-b",
+			Roles: []teamruntime.RoleBinding{
+				{RoleID: "planner"},
+			},
+		},
+	}
+
+	if _, err := selectTeamRuntimeStatus(statuses, teamInjectOptions{}, ""); err == nil {
+		t.Fatal("expected multiple statuses without filters to fail")
+	}
+
+	if _, err := selectTeamRuntimeStatus(statuses, teamInjectOptions{}, "planner"); err == nil {
+		t.Fatal("expected ambiguous role match to fail")
+	}
+
+	selected, err := selectTeamRuntimeStatus(statuses[:1], teamInjectOptions{}, "planner")
+	if err != nil {
+		t.Fatalf("expected unique match, got %v", err)
+	}
+	if selected.TeamID != "team-a" {
+		t.Fatalf("expected team-a, got %q", selected.TeamID)
 	}
 }
 
