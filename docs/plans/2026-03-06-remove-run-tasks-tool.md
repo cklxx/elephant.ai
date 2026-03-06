@@ -30,4 +30,4 @@ Remove `run_tasks` and `reply_agent` as tool-layer concepts for team orchestrati
 - [x] Remove tool wrappers and dead references
 - [x] Run tests
 - [x] Real CLI validation
-- [ ] Commit
+- [x] Commit
