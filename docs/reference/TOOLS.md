@@ -1,6 +1,6 @@
 # Built-in Tool Catalog
 
-Updated: 2026-02-10
+Updated: 2026-03-06
 
 Source of truth: `internal/app/toolregistry/registry.go` and `internal/app/toolregistry/registry_builtins.go`.
 
@@ -16,11 +16,22 @@ The registry currently keeps a **small core surface**. Deprecated standalone too
 | Platform execution | `browser_action`, `read_file`, `write_file`, `replace_in_file`, `shell_exec`, `execute_code` | implementation depends on `toolset` |
 | Lark channel | `channel` | unified Lark messaging/calendar/task operations |
 
-## 2) Orchestration tools
+## 2) Team orchestration contract
 
-Registry exposes two orchestration tools:
-- `run_tasks` — dispatches tasks from a YAML task file (supports async/sync, team templates, dependency DAGs)
-- `reply_agent` — responds to external agent input requests
+User-facing team orchestration is **CLI-first**, not registry-tool-first.
+
+Primary contract:
+- `alex team run` — dispatch a team workflow from template, file, or prompt
+- `alex team status` — inspect runtime status, roles, and recent events
+- `alex team inject` — send follow-up input to a running role
+- `alex team terminal` — inspect or attach to terminal output
+
+Prompt alignment:
+- LLMs should discover this capability via the `team-cli` skill.
+- Product-facing docs should describe **team runs**, **roles**, **terminal view**, and **artifacts**.
+
+Implementation note:
+- Legacy `run_tasks` / `reply_agent` remain internal implementation details and are intentionally not part of the default tool registry.
 
 ## 3) Dynamic MCP tools
 
@@ -52,5 +63,6 @@ The following classes are intentionally not part of the default registry anymore
 - legacy Lark split tools (`lark_send_message`, `lark_calendar_*`, `lark_task_manage`, ...)
 - legacy browser split tools (`browser_info`, `browser_screenshot`, `browser_dom`)
 - legacy artifact/media singleton tools (`artifacts_*`, `a2ui_emit`, `pptx_from_images`, ...)
+- legacy orchestration entrypoints (`run_tasks`, `reply_agent`) as product-facing contracts
 
 See `internal/app/toolregistry/registry_test.go` (`TestNewRegistryRegistersOnlyCoreTools`) for enforced expectations.

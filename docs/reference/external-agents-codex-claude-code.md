@@ -6,6 +6,7 @@ Updated: 2026-02-24
 - Run Codex / Claude Code / Kimi as **external agents** (background delegated execution).
 - Distinguish external-agent usage from core `llm_provider` selection.
 - Support team orchestration with file-based run records.
+- Prefer the CLI-first user-facing contract: `alex team run/status/inject/terminal`.
 
 ## 1) Runtime architecture
 
@@ -17,13 +18,17 @@ Current external-agent path is bridge-based:
   - Claude Code: `scripts/cc_bridge/cc_bridge.py`
   - Codex/Kimi: `scripts/codex_bridge/codex_bridge.py`
 
-Orchestration tools:
-- `run_tasks`, `reply_agent`
-- Implemented in `internal/infra/tools/builtin/orchestration/*`
+User-facing orchestration contract:
+- `alex team run`
+- `alex team status`
+- `alex team inject`
+- `alex team terminal`
+
+Legacy `run_tasks` / `reply_agent` remain internal implementation details and should not be presented as the primary product contract.
 
 Team run file-based audit:
-- `run_tasks(template=...)` writes one JSON record per team run.
-- Default location: `${session_dir}/_team_runs/*.json`.
+- team execution writes status/runtime artifacts and team-run records.
+- Default runtime location: `.elephant/tasks/_team_runtime` (or worktree runtime roots).
 
 ## 2) Config (YAML)
 

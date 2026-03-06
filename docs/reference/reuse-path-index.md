@@ -8,7 +8,7 @@ This index is used during precheck to find existing capabilities before adding f
 
 | Capability | Search keywords | Canonical paths | Reuse notes |
 | --- | --- | --- | --- |
-| Task dispatch | `run_tasks`, `orchestration` | `internal/infra/tools/builtin/orchestration/run_tasks.go` | Always extend this tool; no parallel dispatcher |
+| Task dispatch | `team run`, `team-cli`, `run_tasks`, `orchestration` | `cmd/alex/team_cmd.go`, `internal/infra/tools/builtin/orchestration/run_tasks.go` | User-facing entrypoint is `alex team ...`; keep `run_tasks` as internal execution primitive |
 | Task file schema/validation | `taskfile`, `validate`, `topo` | `internal/domain/agent/taskfile/` | Single task DSL source |
 | Task status sidecar | `StatusWriter`, `ReadStatusFile`, `status.yaml` | `internal/domain/agent/taskfile/status.go` | Keep `.status.yaml` protocol |
 | Team templates and role channels | `TeamDefinition`, `TeamTemplate`, `stages`, `roles` | `internal/domain/agent/ports/agent/team.go`, `internal/domain/agent/taskfile/template.go` | Keep role/stage model unified |

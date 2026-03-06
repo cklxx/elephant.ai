@@ -94,9 +94,17 @@ Builtins: `internal/infra/tools/builtin/*`.
 
 `plan`, `clarify`, `request_user`, `memory_search`, `memory_get`, `skills`, `web_search`, `browser_action`, `read_file`, `write_file`, `replace_in_file`, `shell_exec`, `execute_code`, `channel`.
 
-### Orchestration tools
+### Team orchestration contract
 
-`run_tasks`, `reply_agent` -- registered via `RegisterOrchestration()`.
+Product-facing multi-agent orchestration is **CLI-first**:
+- `alex team run` — dispatch a team workflow from template/file/prompt
+- `alex team status` — inspect runtime status, roles, events, artifacts
+- `alex team inject` — send follow-up input to a running role
+- `alex team terminal` — inspect or attach to a role terminal
+
+Notes:
+- Legacy `run_tasks` / `reply_agent` remain internal implementation details and are intentionally excluded from the default tool registry.
+- LLM-facing guidance should prefer the `team-cli` skill so prompts align with the stable CLI contract.
 
 ### Subagent/delegation tools
 
