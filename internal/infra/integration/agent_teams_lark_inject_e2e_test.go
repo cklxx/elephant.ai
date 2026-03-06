@@ -21,23 +21,22 @@ import (
 	"alex/internal/domain/agent/taskfile"
 	"alex/internal/infra/external/bridge"
 	"alex/internal/infra/process"
-	"alex/internal/infra/tools/builtin/orchestration"
 	"alex/internal/shared/logging"
 )
 
 // ---------------------------------------------------------------------------
-// teamsLarkExecutor — bridges channels.AgentExecutor to run_tasks execution
+// teamsLarkExecutor — bridges channels.AgentExecutor to team runner execution
 // ---------------------------------------------------------------------------
 
 type teamsLarkExecutor struct {
-	mgr          *react.BackgroundTaskManager
-	teamDefs     []agent.TeamDefinition
-	recorder     agent.TeamRunRecorder
-	timeout      time.Duration
+	mgr      *react.BackgroundTaskManager
+	teamDefs []agent.TeamDefinition
+	recorder agent.TeamRunRecorder
+	timeout  time.Duration
 
-	mu          sync.Mutex
-	lastTask    string
-	callCount   int
+	mu        sync.Mutex
+	lastTask  string
+	callCount int
 }
 
 func (e *teamsLarkExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
@@ -79,8 +78,7 @@ func (e *teamsLarkExecutor) ExecuteTask(ctx context.Context, task string, _ stri
 		return &agent.TaskResult{Answer: "no matching team template found"}, nil
 	}
 
-	tool := orchestration.NewRunTasks()
-	res, err := tool.Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-lark-inject-e2e",
 		Arguments: map[string]any{
 			"template":        templateName,
@@ -225,8 +223,8 @@ func TestLarkInject_TeamHappyPath(t *testing.T) {
 
 	mgr := react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
 		RunContext: context.Background(),
-		Logger:    agent.NoopLogger{},
-		Clock:     agent.SystemClock{},
+		Logger:     agent.NoopLogger{},
+		Clock:      agent.SystemClock{},
 		ExecuteTask: func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 			return &agent.TaskResult{Answer: "internal-not-used", Iterations: 1, TokensUsed: 1}, nil
 		},
@@ -331,8 +329,8 @@ func TestLarkInject_MultiStageTeam(t *testing.T) {
 
 	mgr := react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
 		RunContext: context.Background(),
-		Logger:    agent.NoopLogger{},
-		Clock:     agent.SystemClock{},
+		Logger:     agent.NoopLogger{},
+		Clock:      agent.SystemClock{},
 		ExecuteTask: func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 			capture.record(prompt)
 			return &agent.TaskResult{Answer: synthesisMarker + ":: synthesized results", Iterations: 1, TokensUsed: 5}, nil
@@ -450,8 +448,8 @@ func TestLarkInject_MixedAgentTypes(t *testing.T) {
 
 	mgr := react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
 		RunContext: context.Background(),
-		Logger:    agent.NoopLogger{},
-		Clock:     agent.SystemClock{},
+		Logger:     agent.NoopLogger{},
+		Clock:      agent.SystemClock{},
 		ExecuteTask: func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 			capture.record(prompt)
 			return &agent.TaskResult{Answer: "REVIEW_DONE:: internal review", Iterations: 1, TokensUsed: 5}, nil
@@ -559,8 +557,8 @@ func TestLarkInject_PartialFailure(t *testing.T) {
 	internalCalled := false
 	mgr := react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
 		RunContext: context.Background(),
-		Logger:    agent.NoopLogger{},
-		Clock:     agent.SystemClock{},
+		Logger:     agent.NoopLogger{},
+		Clock:      agent.SystemClock{},
 		ExecuteTask: func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 			internalCalled = true
 			return &agent.TaskResult{Answer: "should-not-reach", Iterations: 1, TokensUsed: 1}, nil
@@ -665,8 +663,8 @@ func TestLarkInject_StatusFile(t *testing.T) {
 
 	mgr := react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
 		RunContext: context.Background(),
-		Logger:    agent.NoopLogger{},
-		Clock:     agent.SystemClock{},
+		Logger:     agent.NoopLogger{},
+		Clock:      agent.SystemClock{},
 		ExecuteTask: func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 			return &agent.TaskResult{Answer: "internal-not-used", Iterations: 1, TokensUsed: 1}, nil
 		},
@@ -757,8 +755,8 @@ func TestLarkInject_TeamRunRecorder(t *testing.T) {
 
 	mgr := react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
 		RunContext: context.Background(),
-		Logger:    agent.NoopLogger{},
-		Clock:     agent.SystemClock{},
+		Logger:     agent.NoopLogger{},
+		Clock:      agent.SystemClock{},
 		ExecuteTask: func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 			return &agent.TaskResult{Answer: "internal-not-used", Iterations: 1, TokensUsed: 1}, nil
 		},

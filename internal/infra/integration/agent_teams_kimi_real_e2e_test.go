@@ -18,7 +18,6 @@ import (
 	"alex/internal/domain/agent/react"
 	"alex/internal/infra/external/bridge"
 	"alex/internal/infra/process"
-	"alex/internal/infra/tools/builtin/orchestration"
 )
 
 // ---------------------------------------------------------------------------
@@ -369,7 +368,7 @@ func TestKimiReal_AgentsTeam_EndToEnd(t *testing.T) {
 
 	// --- 执行 ---
 
-	res, err := orchestration.NewRunTasks().Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-kimi-real-team-e2e",
 		Arguments: map[string]any{
 			"template":        teamName,
@@ -636,7 +635,7 @@ func TestKimiReal_DeepResearch_EndToEnd(t *testing.T) {
 	// --- 执行 ---
 
 	goal := "proactive AI assistant architecture: event-driven design, persistent memory, approval gates"
-	res, err := orchestration.NewRunTasks().Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-kimi-deep-research-e2e",
 		Arguments: map[string]any{
 			"template":        team.Name,

@@ -18,7 +18,6 @@ import (
 	"alex/internal/domain/agent/react"
 	"alex/internal/infra/external/bridge"
 	"alex/internal/infra/process"
-	"alex/internal/infra/tools/builtin/orchestration"
 )
 
 // ===========================================================================
@@ -132,7 +131,7 @@ func TestTeamsLifecycle_DeepChain4Stage(t *testing.T) {
 	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
 	goal := "evaluate observability patterns for distributed AI agent systems"
-	res, err := orchestration.NewRunTasks().Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-deep-chain-4stage",
 		Arguments: map[string]any{
 			"template":        team.Name,
@@ -300,7 +299,7 @@ func TestTeamsLifecycle_ProcessCreationAndCleanup(t *testing.T) {
 	ctx = agent.WithBackgroundDispatcher(ctx, mgr)
 	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
-	res, err := orchestration.NewRunTasks().Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-proc-lifecycle",
 		Arguments: map[string]any{
 			"template":        teamName,
@@ -412,9 +411,8 @@ func TestTeamsLifecycle_ShutdownCancellation(t *testing.T) {
 	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
 	// Dispatch without waiting
-	tool := orchestration.NewRunTasks()
 	go func() {
-		_, _ = tool.Execute(ctx, ports.ToolCall{
+		_, _ = runTeamLikeTool(ctx, ports.ToolCall{
 			ID: "call-shutdown-test",
 			Arguments: map[string]any{
 				"template":        teamName,
@@ -513,7 +511,7 @@ func TestTeamsLifecycle_StageTiming(t *testing.T) {
 	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
 	start := time.Now()
-	res, err := orchestration.NewRunTasks().Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-timing-test",
 		Arguments: map[string]any{
 			"template":        team.Name,
@@ -625,7 +623,7 @@ func TestTeamsLifecycle_PartialFailure(t *testing.T) {
 	ctx = agent.WithBackgroundDispatcher(ctx, mgr)
 	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
-	res, err := orchestration.NewRunTasks().Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-partial-failure",
 		Arguments: map[string]any{
 			"template":        team.Name,
@@ -727,7 +725,7 @@ func TestTeamsLifecycle_ConfigDispatch(t *testing.T) {
 	ctx = agent.WithBackgroundDispatcher(ctx, mgr)
 	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
-	res, err := orchestration.NewRunTasks().Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-config-dispatch",
 		Arguments: map[string]any{
 			"template":        team.Name,

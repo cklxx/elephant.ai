@@ -19,7 +19,6 @@ import (
 	"alex/internal/domain/agent/react"
 	"alex/internal/infra/external/bridge"
 	"alex/internal/infra/process"
-	"alex/internal/infra/tools/builtin/orchestration"
 )
 
 // ---------------------------------------------------------------------------
@@ -289,14 +288,14 @@ func buildFailurePropagationTeam() agent.TeamDefinition {
 // ---------------------------------------------------------------------------
 
 type scoringInput struct {
-	requests       []agent.ExternalAgentRequest
-	maxActive      int64
+	requests        []agent.ExternalAgentRequest
+	maxActive       int64
 	internalPrompts []string
-	results        []agent.BackgroundTaskResult
-	team           agent.TeamDefinition
-	totalTasks     int
-	externalCount  int
-	internalCount  int
+	results         []agent.BackgroundTaskResult
+	team            agent.TeamDefinition
+	totalTasks      int
+	externalCount   int
+	internalCount   int
 }
 
 func scoreLeaderResult(rubric *agent_eval.JudgeRubric, input scoringInput) agent_eval.AutoJudgement {
@@ -576,9 +575,9 @@ func TestLeaderAgent_MultiAgentDeepResearch_E2E(t *testing.T) {
 
 	mux := &multiplexExternalExecutor{
 		byType: map[string]agent.ExternalAgentExecutor{
-			"kimi":       kimiBridge,
+			"kimi":        kimiBridge,
 			"claude_code": ccBridge,
-			"codex":      codexBridge,
+			"codex":       codexBridge,
 		},
 	}
 	recorder := newRecordingExternalExecutor(mux)
@@ -609,9 +608,8 @@ func TestLeaderAgent_MultiAgentDeepResearch_E2E(t *testing.T) {
 	ctx = agent.WithBackgroundDispatcher(ctx, mgr)
 	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
-	tool := orchestration.NewRunTasks()
 	goal := "proactive AI assistant architecture: event-driven design, persistent memory, approval gates, multi-agent coordination"
-	res, err := tool.Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-leader-deep-research-e2e",
 		Arguments: map[string]any{
 			"template":        team.Name,
@@ -785,8 +783,7 @@ func TestLeaderAgent_FailurePropagation_E2E(t *testing.T) {
 	ctx = agent.WithBackgroundDispatcher(ctx, mgr)
 	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
-	tool := orchestration.NewRunTasks()
-	res, err := tool.Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-leader-failure-e2e",
 		Arguments: map[string]any{
 			"template":        team.Name,
@@ -959,9 +956,8 @@ func TestLeaderAgent_ScoredRubric_E2E(t *testing.T) {
 		ctx = agent.WithBackgroundDispatcher(ctx, mgr)
 		ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
-		tool := orchestration.NewRunTasks()
 		goal := "proactive AI assistant architecture: event-driven design, persistent memory, approval gates, multi-agent coordination"
-		res, err := tool.Execute(ctx, ports.ToolCall{
+		res, err := runTeamLikeTool(ctx, ports.ToolCall{
 			ID: "call-leader-scored-e2e",
 			Arguments: map[string]any{
 				"template":        team.Name,

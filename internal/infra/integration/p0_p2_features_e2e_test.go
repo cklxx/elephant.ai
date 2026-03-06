@@ -15,7 +15,6 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/react"
 	"alex/internal/domain/agent/taskfile"
-	"alex/internal/infra/tools/builtin/orchestration"
 )
 
 // ===========================================================================
@@ -237,7 +236,7 @@ func TestP0P2_DebateMode_E2E(t *testing.T) {
 	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
 	goal := "evaluate event-driven vs request-response for real-time AI assistant systems"
-	res, err := orchestration.NewRunTasks().Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-debate-e2e",
 		Arguments: map[string]any{
 			"template":        team.Name,

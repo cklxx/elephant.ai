@@ -18,7 +18,6 @@ import (
 	"alex/internal/domain/agent/react"
 	"alex/internal/infra/external/bridge"
 	"alex/internal/infra/process"
-	"alex/internal/infra/tools/builtin/orchestration"
 )
 
 func TestAgentTeamsKimiInjectE2E_ParallelTemplate(t *testing.T) {
@@ -113,9 +112,8 @@ func TestAgentTeamsKimiInjectE2E_ParallelTemplate(t *testing.T) {
 	ctx = agent.WithBackgroundDispatcher(ctx, mgr)
 	ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
-	tool := orchestration.NewRunTasks()
 	goal := "validate kimi cli parallel team execution"
-	res, err := tool.Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-kimi-team-inject-e2e",
 		Arguments: map[string]any{
 			"template":        teamName,

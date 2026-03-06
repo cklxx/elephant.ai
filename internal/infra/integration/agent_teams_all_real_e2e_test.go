@@ -5,8 +5,8 @@ package integration
 import (
 	"context"
 	"fmt"
-	osexec "os/exec"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,7 +18,6 @@ import (
 	"alex/internal/domain/agent/react"
 	"alex/internal/infra/external/bridge"
 	"alex/internal/infra/process"
-	"alex/internal/infra/tools/builtin/orchestration"
 )
 
 // ---------------------------------------------------------------------------
@@ -154,7 +153,7 @@ func TestAllReal_DeepResearch_E2E(t *testing.T) {
 	// --- Execute ---
 
 	goal := "Compare Saga vs 2PC vs TCC for distributed transaction in a Go microservice system with 10+ services"
-	res, err := orchestration.NewRunTasks().Execute(ctx, ports.ToolCall{
+	res, err := runTeamLikeTool(ctx, ports.ToolCall{
 		ID: "call-all-real-deep-research-e2e",
 		Arguments: map[string]any{
 			"template":        team.Name,
@@ -370,7 +369,7 @@ func TestAllReal_DeepResearch_5Cases(t *testing.T) {
 			ctx = agent.WithBackgroundDispatcher(ctx, mgr)
 			ctx = agent.WithTeamDefinitions(ctx, []agent.TeamDefinition{team})
 
-			res, err := orchestration.NewRunTasks().Execute(ctx, ports.ToolCall{
+			res, err := runTeamLikeTool(ctx, ports.ToolCall{
 				ID: fmt.Sprintf("call-5case-%s", tc.name),
 				Arguments: map[string]any{
 					"template":        team.Name,

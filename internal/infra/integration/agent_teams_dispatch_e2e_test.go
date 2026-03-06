@@ -22,7 +22,7 @@ import (
 //
 // These tests exercise the teams agent by directly injecting dispatch messages
 // (BackgroundDispatchRequest) into the BackgroundTaskManager. Unlike the
-// tool-level tests that go through orchestration.NewRunTasks(), these tests
+// tool-level tests that go through the team runner compatibility shim, these tests
 // verify the core dispatcher engine:
 //
 //   - Direct Dispatch → Collect lifecycle
