@@ -110,3 +110,25 @@ func TestResolveInjectRole(t *testing.T) {
 		t.Fatal("expected missing role to fail")
 	}
 }
+
+func TestParseTeamTerminalMode(t *testing.T) {
+	cases := map[string]string{
+		"":         "stream",
+		"stream":   "stream",
+		" STREAM ": "stream",
+		"attach":   "attach",
+		"capture":  "capture",
+		"bad":      "",
+	}
+	for input, want := range cases {
+		if got := parseTeamTerminalMode(input); got != want {
+			t.Fatalf("parseTeamTerminalMode(%q)=%q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestRunTeamCommandWithContainer_HelpFlag(t *testing.T) {
+	if err := runTeamCommandWithContainer([]string{"--help"}, nil); err != nil {
+		t.Fatalf("expected --help to succeed, got %v", err)
+	}
+}

@@ -48,6 +48,21 @@ func larkTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, c
 	return srv, ctx
 }
 
+// larkTestServerWithDocxConvertMock extends larkTestServer with a default
+// /open-apis/docx/v1/documents/blocks/convert route. It returns a minimal
+// successful convert payload so tests that focus on create+write flows don't
+// fail when they omit an explicit convert stub.
+func larkTestServerWithDocxConvertMock(t *testing.T, handler http.HandlerFunc) (*httptest.Server, context.Context) {
+	t.Helper()
+	return larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && isDocxBlocksConvertRoute(r.URL.Path) {
+			writeDocxConvertSuccess(t, w, "tmp_blk_default", "doc_mock_parent")
+			return
+		}
+		handler(w, r)
+	})
+}
+
 func writeJSON(t *testing.T, w http.ResponseWriter, code int, msg string, data any) {
 	t.Helper()
 	w.Header().Set("Content-Type", "application/json")
@@ -81,6 +96,7 @@ func isDocxDescendantRoute(path, documentID, blockID string) bool {
 
 func writeDocxConvertSuccess(t *testing.T, w http.ResponseWriter, blockID, parentID string) {
 	t.Helper()
+	// Minimal valid convert response that DocxService.WriteMarkdown can consume.
 	writeJSON(t, w, 0, "ok", map[string]any{
 		"first_level_block_ids": []string{blockID},
 		"blocks": []map[string]any{
@@ -95,9 +111,6 @@ func writeDocxConvertSuccess(t *testing.T, w http.ResponseWriter, blockID, paren
 					},
 				},
 			},
-		},
-		"block_id_to_image_urls": []map[string]any{
-			{"block_id": blockID, "image_url": "https://example.com/docx-convert.png"},
 		},
 	})
 }
@@ -197,12 +210,14 @@ func TestDocxManage_CreateDoc(t *testing.T) {
 }
 
 func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
+	var createCalled bool
 	var convertCalled bool
 	var convertPath string
 	var createDescCalled bool
 	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && isDocxCreateDocumentRoute(r.URL.Path):
+			createCalled = true
 			writeJSON(t, w, 0, "ok", map[string]any{
 				"document": map[string]any{
 					"document_id": "doc_init_001",
@@ -214,16 +229,23 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 			convertPath = r.URL.Path
 			bodyBytes, _ := io.ReadAll(r.Body)
 			body := string(bodyBytes)
+			if !strings.Contains(body, "\"content_type\":\"markdown\"") {
+				t.Fatalf("expected markdown content_type in convert body, got: %s", body)
+			}
 			if !strings.Contains(body, "这是正文第一段") {
 				t.Fatalf("expected initial content in convert body, got: %s", body)
 			}
 			convertCalled = true
+			// Return convert payload compatible with DocxService.WriteMarkdown -> CreateDescendantBlocks flow.
 			writeDocxConvertSuccess(t, w, "tmp_blk_001", "doc_init_001")
 		case r.Method == http.MethodPost && isDocxDescendantRoute(r.URL.Path, "doc_init_001", "doc_init_001"):
 			bodyBytes, _ := io.ReadAll(r.Body)
 			body := string(bodyBytes)
-			if !strings.Contains(body, "tmp_blk_001") {
-				t.Fatalf("expected converted block id in create-descendant body, got: %s", body)
+			if !strings.Contains(body, "\"children_id\":[\"tmp_blk_001\"]") {
+				t.Fatalf("expected converted children_id in create-descendant body, got: %s", body)
+			}
+			if !strings.Contains(body, "\"block_id\":\"tmp_blk_001\"") {
+				t.Fatalf("expected converted descendant block payload, got: %s", body)
 			}
 			createDescCalled = true
 			writeJSON(t, w, 0, "ok", map[string]any{
@@ -248,11 +270,69 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 	if result.Error != nil {
 		t.Fatalf("unexpected tool error: %v", result.Error)
 	}
+	if !createCalled {
+		t.Fatal("expected create document API call")
+	}
 	if !convertCalled {
 		t.Fatal("expected markdown convert call")
 	}
 	if !strings.Contains(convertPath, "/documents/blocks/convert") {
 		t.Fatalf("expected convert API path, got %s", convertPath)
+	}
+	if !createDescCalled {
+		t.Fatal("expected create descendant blocks call")
+	}
+	if result.Metadata["content_written"] != true {
+		t.Fatalf("expected content_written=true, got %v", result.Metadata["content_written"])
+	}
+}
+
+func TestDocxManage_CreateDoc_WithInitialContent_UsesServerConvertMock(t *testing.T) {
+	var createCalled bool
+	var createDescCalled bool
+
+	srv, ctx := larkTestServerWithDocxConvertMock(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && isDocxCreateDocumentRoute(r.URL.Path):
+			createCalled = true
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"document": map[string]any{
+					"document_id": "doc_init_002",
+					"title":       "默认Convert路由",
+					"revision_id": 1,
+				},
+			})
+		case r.Method == http.MethodPost && isDocxDescendantRoute(r.URL.Path, "doc_init_002", "doc_init_002"):
+			bodyBytes, _ := io.ReadAll(r.Body)
+			body := string(bodyBytes)
+			if !strings.Contains(body, "\"children_id\":[\"tmp_blk_default\"]") {
+				t.Fatalf("expected default converted children_id in create-descendant body, got: %s", body)
+			}
+			createDescCalled = true
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"document_revision_id": 2,
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	})
+	defer srv.Close()
+
+	dm := &larkDocxManage{}
+	call := ports.ToolCall{ID: "c1c", Arguments: map[string]any{
+		"action":  "create",
+		"title":   "默认Convert路由",
+		"content": "正文内容",
+	}}
+	result, err := dm.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %v", result.Error)
+	}
+	if !createCalled {
+		t.Fatal("expected create document API call")
 	}
 	if !createDescCalled {
 		t.Fatal("expected create descendant blocks call")
@@ -760,6 +840,7 @@ func TestChannel_CreateDoc_E2E(t *testing.T) {
 func TestChannel_CreateDoc_WithContent_E2E(t *testing.T) {
 	var createCalled bool
 	var convertCalled bool
+	var convertPath string
 	var createDescCalled bool
 
 	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -775,18 +856,14 @@ func TestChannel_CreateDoc_WithContent_E2E(t *testing.T) {
 			})
 		case r.Method == http.MethodPost && isDocxBlocksConvertRoute(r.URL.Path):
 			convertCalled = true
+			convertPath = r.URL.Path
 			bodyBytes, _ := io.ReadAll(r.Body)
 			body := string(bodyBytes)
 			if !strings.Contains(body, "channel create_doc body") {
 				t.Fatalf("expected markdown content in convert body, got: %s", body)
 			}
-			writeJSON(t, w, 0, "ok", map[string]any{
-				"first_level_block_ids": []string{"tmp_blk_e2e_001"},
-				"blocks": []map[string]any{
-					{"block_id": "tmp_blk_e2e_001", "block_type": 2, "parent_id": "doc_e2e_content_001"},
-				},
-				"block_id_to_image_urls": []map[string]any{},
-			})
+			// Match current convert API semantics and return data consumable by CreateDescendantBlocks.
+			writeDocxConvertSuccess(t, w, "tmp_blk_e2e_001", "doc_e2e_content_001")
 		case r.Method == http.MethodPost && isDocxDescendantRoute(r.URL.Path, "doc_e2e_content_001", "doc_e2e_content_001"):
 			createDescCalled = true
 			bodyBytes, _ := io.ReadAll(r.Body)
@@ -822,11 +899,117 @@ func TestChannel_CreateDoc_WithContent_E2E(t *testing.T) {
 	if !convertCalled {
 		t.Fatal("expected blocks convert API call")
 	}
+	if !strings.Contains(convertPath, "/documents/blocks/convert") {
+		t.Fatalf("expected convert API path, got %s", convertPath)
+	}
 	if !createDescCalled {
 		t.Fatal("expected create descendant blocks API call")
 	}
 	if contentWritten, ok := result.Metadata["content_written"].(bool); !ok || !contentWritten {
 		t.Fatalf("expected content_written=true metadata, got %v", result.Metadata["content_written"])
+	}
+}
+
+func TestChannel_CreateDoc_WithContent_UsesDefaultConvertMockRoute(t *testing.T) {
+	var createCalled bool
+	var createDescCalled bool
+
+	srv, ctx := larkTestServerWithDocxConvertMock(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && isDocxCreateDocumentRoute(r.URL.Path):
+			createCalled = true
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"document": map[string]any{
+					"document_id": "doc_e2e_content_default_convert_001",
+					"title":       "E2E Content Doc (default convert mock)",
+					"revision_id": 1,
+				},
+			})
+		case r.Method == http.MethodPost && isDocxDescendantRoute(r.URL.Path, "doc_e2e_content_default_convert_001", "doc_e2e_content_default_convert_001"):
+			createDescCalled = true
+			bodyBytes, _ := io.ReadAll(r.Body)
+			body := string(bodyBytes)
+			if !strings.Contains(body, "\"children_id\":[\"tmp_blk_default\"]") {
+				t.Fatalf("expected default converted children_id in descendant body, got: %s", body)
+			}
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"document_revision_id": 2,
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	})
+	defer srv.Close()
+
+	tool := NewLarkChannel()
+	call := ports.ToolCall{ID: "e2e1-content-default-convert", Name: "channel", Arguments: map[string]any{
+		"action":  "create_doc",
+		"title":   "E2E Content Doc (default convert mock)",
+		"content": "# Headline\n\ndefault convert body",
+	}}
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %v", result.Error)
+	}
+	if !createCalled {
+		t.Fatal("expected create document API call")
+	}
+	if !createDescCalled {
+		t.Fatal("expected create descendant blocks API call")
+	}
+	if contentWritten, ok := result.Metadata["content_written"].(bool); !ok || !contentWritten {
+		t.Fatalf("expected content_written=true metadata, got %v", result.Metadata["content_written"])
+	}
+}
+
+func TestChannel_CreateDoc_WithContent_ConvertAPIError(t *testing.T) {
+	var createCalled bool
+	var convertCalled bool
+
+	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && isDocxCreateDocumentRoute(r.URL.Path):
+			createCalled = true
+			writeJSON(t, w, 0, "ok", map[string]any{
+				"document": map[string]any{
+					"document_id": "doc_e2e_content_err_001",
+					"title":       "E2E Content Error Doc",
+					"revision_id": 1,
+				},
+			})
+		case r.Method == http.MethodPost && isDocxBlocksConvertRoute(r.URL.Path):
+			convertCalled = true
+			writeJSON(t, w, 99991663, "convert failed", nil)
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	})
+	defer srv.Close()
+
+	tool := NewLarkChannel()
+	call := ports.ToolCall{ID: "e2e1-content-err", Name: "channel", Arguments: map[string]any{
+		"action":  "create_doc",
+		"title":   "E2E Content Error Doc",
+		"content": "# Headline\n\nchannel create_doc body",
+	}}
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !createCalled {
+		t.Fatal("expected create document API call")
+	}
+	if !convertCalled {
+		t.Fatal("expected blocks convert API call")
+	}
+	if result.Error == nil {
+		t.Fatal("expected tool error when blocks convert API fails")
+	}
+	if !strings.Contains(result.Content, "Failed to write initial document content") {
+		t.Fatalf("unexpected error content: %s", result.Content)
 	}
 }
 

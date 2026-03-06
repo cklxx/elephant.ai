@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -29,9 +30,10 @@ import (
 )
 
 const (
-	teamUsage       = "usage: alex team [status|run|inject]"
-	teamRunUsage    = "usage: alex team run (--template name --goal text | --template list | --file path | --prompt text) [--mode team|swarm|auto] [--session-id id] [--timeout-seconds N] [--role-prompt role=prompt] [--task-id id]"
-	teamInjectUsage = "usage: alex team inject [--runtime-root path] [--session-id id] [--team-id id] [--role-id id|--task-id id] --message text"
+	teamUsage         = "usage: alex team [status|run|inject|terminal]"
+	teamRunUsage      = "usage: alex team run (--template name --goal text | --template list | --file path | --prompt text) [--mode team|swarm|auto] [--session-id id] [--timeout-seconds N] [--role-prompt role=prompt] [--task-id id]"
+	teamInjectUsage   = "usage: alex team inject [--runtime-root path] [--session-id id] [--team-id id] [--role-id id|--task-id id] --message text"
+	teamTerminalUsage = "usage: alex team terminal [--runtime-root path] [--session-id id] [--team-id id] [--role-id id|--task-id id] [--mode stream|attach|capture] [--lines N]"
 )
 
 func runTeamCommand(args []string) error {
@@ -44,16 +46,25 @@ func runTeamCommandWithContainer(args []string, container *Container) error {
 	}
 
 	first := strings.TrimSpace(args[0])
+	if first == "-h" || first == "--help" {
+		fmt.Fprintln(os.Stdout, teamUsage)
+		fmt.Fprintln(os.Stdout, teamStatusUsage)
+		fmt.Fprintln(os.Stdout, teamRunUsage)
+		fmt.Fprintln(os.Stdout, teamInjectUsage)
+		fmt.Fprintln(os.Stdout, teamTerminalUsage)
+		return nil
+	}
 	if strings.HasPrefix(first, "-") {
 		return runTeamStatus(args)
 	}
 
 	switch strings.ToLower(first) {
-	case "help", "-h", "--help":
+	case "help":
 		fmt.Fprintln(os.Stdout, teamUsage)
 		fmt.Fprintln(os.Stdout, teamStatusUsage)
 		fmt.Fprintln(os.Stdout, teamRunUsage)
 		fmt.Fprintln(os.Stdout, teamInjectUsage)
+		fmt.Fprintln(os.Stdout, teamTerminalUsage)
 		return nil
 	case "status":
 		return runTeamStatus(args[1:])
@@ -61,8 +72,10 @@ func runTeamCommandWithContainer(args []string, container *Container) error {
 		return runTeamRun(args[1:], container)
 	case "inject":
 		return runTeamInject(args[1:])
+	case "terminal", "term", "attach":
+		return runTeamTerminal(args[1:])
 	default:
-		return &ExitCodeError{Code: 2, Err: fmt.Errorf("unknown team subcommand %q (expected: status|run|inject)", args[0])}
+		return &ExitCodeError{Code: 2, Err: fmt.Errorf("unknown team subcommand %q (expected: status|run|inject|terminal)", args[0])}
 	}
 }
 
@@ -383,6 +396,117 @@ func parseRolePrompts(entries []string) (map[string]string, error) {
 		return nil, nil
 	}
 	return out, nil
+}
+
+func parseTeamTerminalMode(raw string) string {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	switch mode {
+	case "", "stream":
+		return "stream"
+	case "attach", "capture":
+		return mode
+	default:
+		return ""
+	}
+}
+
+func runTeamTerminal(args []string) error {
+	fs, flagBuf := newBufferedFlagSet("alex team terminal")
+	runtimeRoot := fs.String("runtime-root", "", "Team runtime root (_team_runtime). Default: auto-discover.")
+	sessionID := fs.String("session-id", "", "Filter by session_id.")
+	teamID := fs.String("team-id", "", "Filter by team_id.")
+	roleID := fs.String("role-id", "", "Target role_id.")
+	taskID := fs.String("task-id", "", "Target task_id (auto-resolves role_id from team-*).")
+	mode := fs.String("mode", "stream", "View mode: stream|attach|capture.")
+	lines := fs.Int("lines", 120, "Capture/stream line window.")
+	if err := fs.Parse(args); err != nil {
+		return &ExitCodeError{Code: 2, Err: formatBufferedFlagParseError(err, flagBuf)}
+	}
+	if *lines <= 0 {
+		return &ExitCodeError{Code: 2, Err: fmt.Errorf("--lines must be > 0")}
+	}
+	resolvedMode := parseTeamTerminalMode(*mode)
+	if resolvedMode == "" {
+		return &ExitCodeError{Code: 2, Err: fmt.Errorf("invalid --mode %q (expected stream|attach|capture)", strings.TrimSpace(*mode))}
+	}
+
+	opts := teamInjectOptions{
+		runtimeRoot: strings.TrimSpace(*runtimeRoot),
+		sessionID:   strings.TrimSpace(*sessionID),
+		teamID:      strings.TrimSpace(*teamID),
+		roleID:      strings.TrimSpace(*roleID),
+		taskID:      strings.TrimSpace(*taskID),
+	}
+	if opts.roleID == "" && opts.taskID != "" {
+		opts.roleID = taskfile.ExtractRoleID(opts.taskID)
+	}
+
+	statuses, err := loadTeamRuntimeStatus(teamStatusOptions{
+		runtimeRoot: opts.runtimeRoot,
+		sessionID:   opts.sessionID,
+		teamID:      opts.teamID,
+		includeAll:  true,
+		eventsTail:  0,
+	})
+	if err != nil {
+		return &ExitCodeError{Code: 1, Err: err}
+	}
+	if len(statuses) == 0 {
+		return &ExitCodeError{Code: 1, Err: fmt.Errorf("no team runtime artifacts found")}
+	}
+	entry := statuses[0]
+	if resolvedMode == "attach" {
+		session := strings.TrimSpace(entry.TmuxSession)
+		if session == "" {
+			return &ExitCodeError{Code: 1, Err: fmt.Errorf("team %q has no tmux session", entry.TeamID)}
+		}
+		cmd := exec.Command("tmux", "-L", "elephant", "attach", "-t", session)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return &ExitCodeError{Code: 1, Err: fmt.Errorf("attach tmux session %q: %w", session, err)}
+		}
+		return nil
+	}
+
+	if opts.roleID == "" && len(entry.Roles) != 1 {
+		return &ExitCodeError{Code: 2, Err: fmt.Errorf("--role-id is required when team has multiple roles")}
+	}
+	binding, err := resolveInjectRole(entry, opts.roleID)
+	if err != nil {
+		return &ExitCodeError{Code: 1, Err: err}
+	}
+	pane := strings.TrimSpace(binding.TmuxPane)
+	if pane == "" {
+		return &ExitCodeError{Code: 1, Err: fmt.Errorf("role %q has no tmux pane binding", binding.RoleID)}
+	}
+
+	var cmd *exec.Cmd
+	target := "-L elephant"
+	switch resolvedMode {
+	case "capture":
+		start := fmt.Sprintf("-%d", *lines)
+		cmd = exec.Command("tmux", "-L", "elephant", "capture-pane", "-pt", pane, "-S", start)
+		fmt.Fprintf(os.Stdout, "Capturing pane %s (%s role=%s)\n", pane, target, nonEmpty(binding.RoleID, "(unknown)"))
+	case "stream":
+		start := fmt.Sprintf("-%d", *lines)
+		cmd = exec.Command("tmux", "-L", "elephant", "capture-pane", "-pet", pane, "-S", start)
+		fmt.Fprintf(os.Stdout, "Streaming pane snapshot %s (%s role=%s)\n", pane, target, nonEmpty(binding.RoleID, "(unknown)"))
+	default:
+		return &ExitCodeError{Code: 2, Err: fmt.Errorf("invalid --mode %q", resolvedMode)}
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return &ExitCodeError{Code: 1, Err: fmt.Errorf("tmux %s pane %s: %s", resolvedMode, pane, strings.TrimSpace(string(out)))}
+	}
+	if len(out) > 0 {
+		fmt.Fprintln(os.Stdout, string(out))
+	}
+	if resolvedMode == "stream" {
+		fmt.Fprintln(os.Stdout, "Tip: run again to refresh, or use --mode attach for interactive view.")
+	}
+	return nil
 }
 
 type teamInjectOptions struct {

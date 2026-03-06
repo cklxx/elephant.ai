@@ -1,8 +1,15 @@
-# File-Based Orchestration
+# Team Orchestration（CLI-first）
 
 ## Overview
 
-Orchestration uses two tools: `run_tasks` dispatches tasks, `reply_agent` responds to agent input requests. Planning is done via `write_file` (YAML task files), status monitoring via `read_file` (`.status` sidecar files).
+Team orchestration now uses **CLI + skill** as the primary path:
+
+- Dispatch: `alex team run`
+- Observe runtime: `alex team status`
+- Send follow-up input: `alex team inject`
+- Inspect terminal output: `alex team terminal`
+
+Legacy `run_tasks/reply_agent` remains internal implementation detail and should not be used as user-facing contract.
 
 ## Task File Format
 
@@ -24,64 +31,40 @@ tasks:
     inherit_context: true
 ```
 
-### Task Spec Fields
+## CLI Commands
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `id` | yes | Unique task identifier |
-| `prompt` | yes | Instructions for the agent |
-| `description` | no | Human-readable summary |
-| `agent_type` | no | `codex`, `claude_code`, `kimi`, `internal` |
-| `execution_mode` | no | `execute` or `plan` |
-| `autonomy_level` | no | `full` or `controlled` |
-| `depends_on` | no | List of task IDs that must complete first |
-| `workspace_mode` | no | `shared`, `branch`, `worktree` |
-| `file_scope` | no | Advisory file/dir restrictions |
-| `inherit_context` | no | Inherit dependency results as context |
-| `verify` | no | Enable build/test/lint verification |
-| `merge_on_success` | no | Auto-merge workspace on success |
-| `retry_max` | no | Max retry attempts |
+### 1) Run
 
-### Coding Defaults
-
-For external coding agents (`codex`, `claude_code`, `kimi`), these defaults are applied automatically:
-
-- **execute mode**: `verify=true`, `merge_on_success=true`, `retry_max=3`, `workspace_mode=worktree`
-- **plan mode**: `verify=false`, `merge_on_success=false`, `retry_max=1`, `workspace_mode=shared`
-- `autonomy_level=controlled` is promoted to `full`
-
-## run_tasks Tool
-
-```
-run_tasks(file="path/to/tasks.yaml")              # async dispatch
-run_tasks(file="path/to/tasks.yaml", wait=true)    # sync wait
-run_tasks(template="execute_and_report", goal="…") # team template
-run_tasks(template="list")                          # list templates
-run_tasks(file="…", task_ids=["impl"])              # filter tasks
+```bash
+alex team run --template claude_research --goal "Compare A vs B"
+alex team run --template list
+alex team run --file /tmp/team-task.yaml
+alex team run --prompt "Audit current branch and list top 3 risks"
 ```
 
-Status is written to a `.status.yaml` sidecar file. Monitor via `read_file`.
+### 2) Status
 
-## reply_agent Tool
-
-```
-reply_agent(task_id="…", request_id="…", approved=true)
-reply_agent(task_id="…", request_id="…", message="Use approach B")
+```bash
+alex team status --json
+alex team status --all --tail 50 --json
 ```
 
-## Team Templates
+### 3) Inject
 
-Team templates define reusable multi-agent workflows with roles and stages. Templates are loaded from config and can be invoked via `run_tasks(template="name", goal="…")`.
-
-## Architecture
-
-```
-Agent writes YAML (write_file)
-  → run_tasks reads YAML → validates → resolves defaults → topo sort
-    → BackgroundTaskManager.Dispatch() (unchanged)
-      → coordinator.ExecuteTask / bridge.Execute (unchanged)
-    ← status written to .status sidecar (2s polling)
-  ← Agent reads .status (read_file)
+```bash
+alex team inject --task-id analyst_a-1 --message "continue with stricter evidence"
 ```
 
-The `taskfile` package (`internal/domain/agent/taskfile/`) handles parsing, validation, dependency ordering, defaults resolution, and status writing. `run_tasks` is a thin tool that reads the file and delegates to the taskfile executor.
+### 4) Terminal View
+
+```bash
+alex team terminal --mode attach
+alex team terminal --mode capture --lines 200
+alex team terminal --task-id team-researcher --mode capture
+```
+
+## Notes
+
+- Runtime artifacts are under `.elephant/tasks/_team_runtime` (or worktree runtime roots).
+- Prefer `skills/team-cli` for LLM-facing instructions so prompts stay aligned with CLI contract.
+

@@ -11,7 +11,7 @@ priority: 8
 requires_tools: [bash]
 max_tokens: 300
 cooldown: 15
-capabilities: [team_run, team_runtime_status, team_inject]
+capabilities: [team_run, team_runtime_status, team_inject, team_terminal]
 governance_level: medium
 activation_mode: auto
 ---
@@ -32,6 +32,7 @@ activation_mode: auto
 alex team run ...
 alex team status ...
 alex team inject ...
+alex team terminal ...
 ```
 
 若本机未安装 `alex` 二进制，在仓库内使用：
@@ -40,6 +41,7 @@ alex team inject ...
 go run ./cmd/alex team run ...
 go run ./cmd/alex team status ...
 go run ./cmd/alex team inject ...
+go run ./cmd/alex team terminal ...
 ```
 
 ## 1) 运行 team（run）
@@ -119,6 +121,25 @@ alex team inject --session-id sess_manual_001 --team-id claude_analysis --role-i
 - `--role-id`: 目标角色
 - `--task-id`: 由 task_id 自动推导 role（可替代 `--role-id`）
 - `--message`: 注入内容（必填）
+
+## 4) 终端可视化（terminal）
+
+直观查看 team 打开的 tmux 终端（会话或角色 pane）：
+
+```bash
+alex team terminal --mode attach
+alex team terminal --mode capture --lines 200
+alex team terminal --task-id team-researcher --mode capture
+```
+
+参数（`alex team terminal`）：
+- `--runtime-root`: 显式 runtime 根目录
+- `--session-id`: 过滤 session
+- `--team-id`: 过滤 team
+- `--role-id`: 指定角色 pane
+- `--task-id`: 由 task_id 自动推导 role（可替代 `--role-id`）
+- `--mode`: `attach|capture|stream`（默认 `stream`）
+- `--lines`: 抓取/展示行数窗口（默认 120）
 
 ## 产物语义
 
