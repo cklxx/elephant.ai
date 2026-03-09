@@ -28,20 +28,19 @@ StallDetector（60s 无心跳）→ LeaderAgent（决策：INJECT/FAIL）
 
 ---
 
-## Step 0 — 建立四宫格布局
+## Step 0 — 建立四宫格布局（独立新窗口）
 
 ```bash
-# 从当前 Claude pane 分裂三个辅助 pane
+# 新窗口建四宫格（不与用户当前窗口重叠）
 eval $(bash scripts/kaku/layout.sh 4grid \
-  --pane-id "$KAKU_PANE_ID" \
+  --new-window \
   --cwd /Users/bytedance/code/elephant.ai \
   | grep -E "TOP_RIGHT|BOT_LEFT|BOT_RIGHT" \
   | awk '{print "export "$0}')
 
 # BL：实时日志（runtime bus 事件 + 工具调用）
-kaku cli send-text --pane-id $BOT_LEFT \
+bash scripts/kaku/send.sh --pane-id $BOT_LEFT \
   "tail -f ~/code/elephant.ai/logs/alex-service.log | grep -E 'runtime_bus_event|TaskExecution|leader'"
-kaku cli send-text --no-paste --pane-id $BOT_LEFT $'\r'
 ```
 
 ```
