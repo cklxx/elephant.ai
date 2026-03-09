@@ -1,6 +1,8 @@
 package bootstrap
 
 import (
+	"context"
+
 	"alex/internal/app/di"
 	"alex/internal/delivery/server"
 	"alex/internal/runtime/hooks"
@@ -34,4 +36,28 @@ func buildHooksBridge(cfg Config, container *di.Container, logger logging.Logger
 func buildRuntimeHooksHandler(logger logging.Logger) (*server.RuntimeHooksHandler, hooks.Bus) {
 	bus := hooks.NewInProcessBus()
 	return server.NewRuntimeHooksHandler(bus, logger), bus
+}
+
+// startRuntimeBusLogger subscribes to all runtime events and logs them.
+// This provides observability for the runtime hooks flow in production.
+func startRuntimeBusLogger(ctx context.Context, bus hooks.Bus, logger logging.Logger) {
+	ch, cancel := bus.SubscribeAll()
+	go func() {
+		defer cancel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev, ok := <-ch:
+				if !ok {
+					return
+				}
+				logger.Info("runtime_bus_event",
+					"type", string(ev.Type),
+					"session_id", ev.SessionID,
+					"at", ev.At.Format("15:04:05"),
+				)
+			}
+		}
+	}()
 }

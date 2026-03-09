@@ -204,6 +204,10 @@ func RunServer(observabilityConfigPath string) error {
 		}
 	}
 
+	// Runtime hooks bridge: receive CC PostToolUse/Stop events and publish to in-process bus.
+	runtimeHooksHandler, runtimeBus := buildRuntimeHooksHandler(logger)
+	startRuntimeBusLogger(context.Background(), runtimeBus, logger)
+
 	router := serverHTTP.NewRouter(
 		serverHTTP.RouterDeps{
 			Tasks:                  tasksSvc,
@@ -220,6 +224,7 @@ func RunServer(observabilityConfigPath string) error {
 			LarkOAuthHandler:       larkOAuthHandler,
 			MemoryEngine:           container.MemoryEngine,
 			HooksBridge:            hooksBridge,
+			RuntimeHooksBridge:     runtimeHooksHandler,
 		},
 		serverHTTP.RouterConfig{
 			Environment:      config.Runtime.Environment,
