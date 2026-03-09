@@ -52,12 +52,6 @@ See `docs/guides/memory-management.md` for the full on-demand trigger table, ret
 
 ## Agent behavior rules
 
-- Prefer the team CLI (`alex team run ...`) for parallelizable tasks.
-- Understand full context of changes before reviewing; respect architectural decisions over personal preferences.
-- **Self-correction rule:** Upon receiving ANY correction from the user, immediately write a preventive rule (in `docs/guides/`, `docs/error-experience/entries/`, or the relevant best-practice doc). Do not wait — codify the lesson before resuming work.
-- **User-pattern learning & auto-continue rule:**
-  1. **Record**: Save notable user decisions/preferences to `docs/memory/user-patterns.md`.
-  2. **Analyze**: Before asking a question, review accumulated patterns.
-  3. **Auto-continue**: If prior patterns indicate a high-confidence answer (same decision ≥2 times), proceed automatically with a brief inline note.
-  4. **Still ask when**: genuinely ambiguous, irreversible/destructive, or no matching pattern.
-  5. **At task end**: If the next step is obvious from context + patterns, continue without stopping.
+- Prefer team CLI (`alex team run ...`) for parallelizable tasks.
+- **Self-correction:** On ANY user correction, immediately codify a preventive rule before resuming.
+- **Auto-continue:** Check `docs/memory/user-patterns.md` before asking; if same decision ≥2 times, proceed with inline note. Still ask when ambiguous, irreversible, or no matching pattern. At task end, continue if next step is obvious.
