@@ -170,7 +170,6 @@ nodes:
       type: plan
       date: "2026-03-04"
       tags:
-        - kernel
         - lark
         - plan
         - session
@@ -433,7 +432,6 @@ nodes:
       tags:
         - config
         - good
-        - kernel
         - lark
         - observability
         - session
@@ -572,7 +570,6 @@ nodes:
       type: plan
       date: "2026-02-26"
       tags:
-        - kernel
         - lark
         - plan
         - session
@@ -586,15 +583,6 @@ nodes:
         - lark
         - plan
       summary: 修复 Lark 运行时改 `.env` 后不自动生效的问题，使无需重启即可更新由 `.env` 提供的配置值（如 `TAVILY_API_KEY`、Lark 凭证引用值等）。
-    - id: plan-2026-02-26-lark-kernel-alignment-cycle-selfheal
-      path: docs/plans/2026-02-26-lark-kernel-alignment-cycle-selfheal.md
-      type: plan
-      date: "2026-02-26"
-      tags:
-        - kernel
-        - lark
-        - plan
-      summary: '> Created: 2026-02-26'
     - id: plan-2026-02-26-lark-message-flow-history-attachment-thinking
       path: docs/plans/2026-02-26-lark-message-flow-history-attachment-thinking.md
       type: plan
@@ -638,59 +626,6 @@ nodes:
         - lark
         - plan
       summary: 恢复 Lark 通道中的 thinking 可见性：
-    - id: err-2026-02-25-kernel-alignment-context-leak-into-lark-session
-      path: docs/error-experience/entries/2026-02-25-kernel-alignment-context-leak-into-lark-session.md
-      type: error_entry
-      date: "2026-02-25"
-      tags:
-        - error
-        - kernel
-        - lark
-        - session
-      summary: '**Date:** 2026-02-25'
-    - id: errsum-2026-02-25-kernel-alignment-context-leak-into-lark-session
-      path: docs/error-experience/summary/entries/2026-02-25-kernel-alignment-context-leak-into-lark-session.md
-      type: error_summary
-      date: "2026-02-25"
-      tags:
-        - error
-        - kernel
-        - lark
-        - session
-        - summary
-      summary: 'Summary: Kernel-only alignment context leaked into normal Lark prompt assembly, causing oversized system messages and context pollution.'
-    - id: good-2026-02-25-unattended-boundary-guard-for-kernel-context
-      path: docs/good-experience/entries/2026-02-25-unattended-boundary-guard-for-kernel-context.md
-      type: good_entry
-      date: "2026-02-25"
-      tags:
-        - good
-        - kernel
-        - lark
-        - session
-      summary: 'Feature: kernel alignment context in shared prompt assembly path.'
-    - id: goodsum-2026-02-25-unattended-boundary-guard-for-kernel-context
-      path: docs/good-experience/summary/entries/2026-02-25-unattended-boundary-guard-for-kernel-context.md
-      type: good_summary
-      date: "2026-02-25"
-      tags:
-        - good
-        - kernel
-        - summary
-      summary: 'Summary: Runtime-only kernel context injection stayed stable after adding an unattended-only boundary guard plus dual-path regression tests.'
-    - id: plan-2026-02-25-kernel-lark-prompt-notice-reliability
-      path: docs/plans/2026-02-25-kernel-lark-prompt-notice-reliability.md
-      type: plan
-      date: "2026-02-25"
-      tags:
-        - config
-        - kernel
-        - lark
-        - memory
-        - observability
-        - plan
-        - session
-      summary: User observed oversized first system prompt in Lark (`~83.5k` cumulative) and suspected kernel context leakage.
     - id: plan-2026-02-25-lark-30s-progress-summary
       path: docs/plans/2026-02-25-lark-30s-progress-summary.md
       type: plan
@@ -713,7 +648,6 @@ nodes:
       type: plan
       date: "2026-02-25"
       tags:
-        - kernel
         - lark
         - observability
         - plan
@@ -733,7 +667,6 @@ nodes:
       date: "2026-02-25"
       tags:
         - config
-        - kernel
         - lark
         - plan
       summary: 'Incident: `afx-20260225T062054Z-kernel-d001186b`'
@@ -850,15 +783,6 @@ nodes:
         - error
         - memory
       summary: '**Date:** 2026-02-12'
-    - id: err-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
-      path: docs/error-experience/entries/2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription.md
-      type: error_entry
-      date: "2026-02-12"
-      tags:
-        - error
-        - kernel
-        - observability
-      summary: '**Date:** 2026-02-12'
     - id: err-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
       path: docs/error-experience/entries/2026-02-12-lark-test-config-provider-key-mismatch-blocks-start.md
       type: error_entry
@@ -866,18 +790,8 @@ nodes:
       tags:
         - config
         - error
-        - kernel
         - lark
       summary: 'Date: 2026-02-12'
-    - id: errsum-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
-      path: docs/error-experience/summary/entries/2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription.md
-      type: error_summary
-      date: "2026-02-12"
-      tags:
-        - error
-        - kernel
-        - summary
-      summary: 'Summary: Kernel minute-level repeated cycles on a shared subscription profile caused bursty LLM traffic and intermittent API rate-limit failures.'
     - id: errsum-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
       path: docs/error-experience/summary/entries/2026-02-12-lark-test-config-provider-key-mismatch-blocks-start.md
       type: error_summary
@@ -888,27 +802,6 @@ nodes:
         - lark
         - summary
       summary: 'Summary: `scripts/lark/test.sh start` failed repeatedly because `~/.alex/test.yaml` had provider/base_url/api_key mismatches (`codex`/`anthropic` with `sk-kimi-*`), preventing dual...'
-    - id: good-2026-02-12-kernel-e2e-state-summary-alignment
-      path: docs/good-experience/entries/2026-02-12-kernel-e2e-state-summary-alignment.md
-      type: good_entry
-      date: "2026-02-12"
-      tags:
-        - config
-        - good
-        - kernel
-        - memory
-        - observability
-      summary: 'Impact: Kernel loop now persists actionable cycle summaries into state, refreshes system prompt snapshots each cycle, and keeps component boundaries clean (execution components con...'
-    - id: good-2026-02-12-kernel-once-real-e2e-and-goal-alignment
-      path: docs/good-experience/entries/2026-02-12-kernel-once-real-e2e-and-goal-alignment.md
-      type: good_entry
-      date: "2026-02-12"
-      tags:
-        - config
-        - good
-        - kernel
-        - observability
-      summary: 'Impact: Added a deterministic real E2E trigger (`alex-server kernel-once`) so kernel validation no longer depends on cron timing, and verified runtime goal alignment injection end-...'
     - id: good-2026-02-12-llm-profile-client-provider-decoupling
       path: docs/good-experience/entries/2026-02-12-llm-profile-client-provider-decoupling.md
       type: good_entry
@@ -916,29 +809,8 @@ nodes:
       tags:
         - config
         - good
-        - kernel
         - memory
       summary: 'Impact: Removed provider/key/base_url assembly from execution components and centralized it into an atomic runtime profile plus client-provider helper, reducing cross-module coupli...'
-    - id: goodsum-2026-02-12-kernel-e2e-state-summary-alignment
-      path: docs/good-experience/summary/entries/2026-02-12-kernel-e2e-state-summary-alignment.md
-      type: good_summary
-      date: "2026-02-12"
-      tags:
-        - good
-        - kernel
-        - observability
-        - summary
-      summary: 'Summary: Kernel now writes per-agent execution summaries to STATE runtime block, refreshes SYSTEM_PROMPT each cycle, and keeps INIT as seed-only while using injected client/profile...'
-    - id: goodsum-2026-02-12-kernel-once-real-e2e-and-goal-alignment
-      path: docs/good-experience/summary/entries/2026-02-12-kernel-once-real-e2e-and-goal-alignment.md
-      type: good_summary
-      date: "2026-02-12"
-      tags:
-        - good
-        - kernel
-        - observability
-        - summary
-      summary: 'Summary: Added `alex-server kernel-once` for deterministic real kernel E2E runs (no cron wait), validated two successful real cycles, and confirmed updated `GOAL.md` is injected in...'
     - id: goodsum-2026-02-12-llm-profile-client-provider-decoupling
       path: docs/good-experience/summary/entries/2026-02-12-llm-profile-client-provider-decoupling.md
       type: good_summary
@@ -988,17 +860,6 @@ nodes:
         - observability
         - summary
       summary: 'Summary: Solved Lark over-confirmation for delegated low-risk actions by adding explicit no-reconfirm autonomy guardrails across persona/prompt layers and locking behavior with a m...'
-    - id: plan-2026-02-11-kernel-log-lark-only
-      path: docs/plans/2026-02-11-kernel-log-lark-only.md
-      type: plan
-      date: "2026-02-11"
-      tags:
-        - config
-        - kernel
-        - lark
-        - observability
-        - plan
-      summary: 'Created: 2026-02-11'
     - id: plan-2026-02-11-lark-think-step-upstream-rejection-log-hardening
       path: docs/plans/2026-02-11-lark-think-step-upstream-rejection-log-hardening.md
       type: plan

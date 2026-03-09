@@ -8,7 +8,6 @@ Updated: 2026-03-09 12:00
 
 ## Topic Files
 - **Eval & Routing** → see [eval-routing.md](eval-routing.md) (suite design, heuristic rules, routing patterns)
-- **Kernel Operations** → see [kernel-ops.md](kernel-ops.md) (execution rules, supervisor, process management)
 - **Lark & DevOps** → see [lark-devops.md](lark-devops.md) (local ops, PID management, auth infra)
 - **Runtime & Events** → see [runtime-events.md](runtime-events.md) (event partitioning, streaming perf, subagent rules)
 

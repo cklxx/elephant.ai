@@ -4,11 +4,8 @@ Updated: 2026-02-25
 
 ## Files
 
-- [2026-02-25-unattended-boundary-guard-for-kernel-context.md](2026-02-25-unattended-boundary-guard-for-kernel-context.md)
 - [2026-02-23-branch-delete-policy-fallback.md](2026-02-23-branch-delete-policy-fallback.md)
 - [2026-02-12-llm-profile-client-provider-decoupling.md](2026-02-12-llm-profile-client-provider-decoupling.md)
-- [2026-02-12-kernel-once-real-e2e-and-goal-alignment.md](2026-02-12-kernel-once-real-e2e-and-goal-alignment.md)
-- [2026-02-12-kernel-e2e-state-summary-alignment.md](2026-02-12-kernel-e2e-state-summary-alignment.md)
 - [2026-02-11-lark-small-action-autonomy-guardrail-and-eval.md](2026-02-11-lark-small-action-autonomy-guardrail-and-eval.md)
 - [2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review.md](2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review.md)
 - [2026-02-10-context-autonomy-rules-and-safe-env-injection.md](2026-02-10-context-autonomy-rules-and-safe-env-injection.md)

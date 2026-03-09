@@ -12,7 +12,7 @@ Practical map of elephant.ai runtime architecture for implementation and debuggi
 |---------|-------------|-------|
 | CLI/TUI | `cmd/alex/main.go` | |
 | Web/API/SSE | `cmd/alex-web/main.go` | Full HTTP API + SSE + web backend |
-| Lark gateway | `cmd/alex-server/main.go` | Lark-first runtime + debug HTTP; supports `kernel-once` mode |
+| Lark gateway | `cmd/alex-server/main.go` | Lark-first runtime + debug HTTP |
 | Eval server | `cmd/eval-server` | `internal/delivery/eval` |
 | Web UI | `web/` | Next.js dashboard, consumes SSE |
 
@@ -37,7 +37,7 @@ Sequence:
 2. Initialize observability.
 3. Build DI container (`internal/app/di`).
 4. Build coordinator, tool registry, session, memory, checkpoint dependencies.
-5. Start optional subsystems (MCP, scheduler, timer, kernel depending on mode/config).
+5. Start optional subsystems (MCP, scheduler, timer depending on mode/config).
 
 ```mermaid
 flowchart TD
@@ -157,11 +157,6 @@ Downstream delivery:
 ## 9. Proactivity Subsystems
 
 Scheduler: `internal/app/scheduler/scheduler.go`, `executor.go`, `notifier.go`.
-
-Kernel periodic loop:
-- Engine: `internal/app/agent/kernel/engine.go`
-- Bootstrap: `internal/delivery/server/bootstrap/kernel.go`
-- Single cycle: `internal/delivery/server/bootstrap/kernel_once.go`
 
 ## 10. IDs and Correlation
 

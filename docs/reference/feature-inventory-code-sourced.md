@@ -100,11 +100,7 @@ Priority definition:
 - User value: recurring/one-shot proactive tasks execute automatically.
 - Evidence: `internal/app/scheduler/scheduler.go`, `internal/shared/timer/manager.go`, `internal/delivery/server/bootstrap/scheduler.go`, `internal/delivery/server/bootstrap/timer.go`.
 
-9. Kernel daemon autonomous cycle
-- User value: dedicated daemon runs plan/dispatch loop from kernel state.
-- Evidence: `cmd/alex-server/main.go`, `internal/delivery/server/bootstrap/kernel_daemon.go`, `internal/app/agent/kernel/engine.go`.
-
-10. Standalone eval server (RL + eval task mgmt)
+9. Standalone eval server (RL + eval task mgmt)
 - User value: separate eval service for larger offline/ops workloads.
 - Evidence: `cmd/eval-server/main.go`, `internal/delivery/eval/bootstrap/server.go`, `internal/delivery/eval/http/router.go`.
 
@@ -137,7 +133,7 @@ Priority definition:
 - CLI binaries
   - `alex` (interactive + command mode): `cmd/alex/main.go`, `cmd/alex/cli.go`
   - `alex-web` (web API + frontend runtime): `cmd/alex-web/main.go`
-  - `alex-server` (Lark standalone + kernel subcommands): `cmd/alex-server/main.go`
+  - `alex-server` (Lark standalone): `cmd/alex-server/main.go`
   - `eval-server` (evaluation/RL API): `cmd/eval-server/main.go`
 
 - Web routes (Next app)
@@ -225,13 +221,12 @@ Evidence: `internal/infra/tools/builtin/larktools/channel.go`.
 - Observability: instrumented LLM/tool metrics, cost estimation, tracing.
 - Evidence: `internal/infra/llm/factory.go`, `internal/infra/observability/instrumentation.go`, `internal/infra/observability/metrics.go`.
 
-### 7) Proactive/Kernel Layer
+### 7) Proactive Layer
 
 - Scheduler (cron triggers + OKR sync + calendar + heartbeat + persistence).
 - Timer manager (one-shot/recurring timers, persistence, execution callbacks).
-- Kernel engine (cycle planning, dispatch enqueue, execution, runtime state persistence).
 - Hooks (OKR context injection, memory capture on completion).
-- Evidence: `internal/app/scheduler/scheduler.go`, `internal/shared/timer/manager.go`, `internal/app/agent/kernel/engine.go`, `internal/app/agent/hooks/*.go`.
+- Evidence: `internal/app/scheduler/scheduler.go`, `internal/shared/timer/manager.go`, `internal/app/agent/hooks/*.go`.
 
 ### 8) External Execution Layer
 
@@ -312,8 +307,6 @@ Evidence: `internal/infra/tools/builtin/larktools/channel.go`.
 #### A.9 Other binaries
 
 - `alex-server` default: run Lark standalone gateway (`cmd/alex-server/main.go`)
-- `alex-server kernel-daemon`
-- `alex-server kernel-once`
 - `eval-server --config <path>` (`cmd/eval-server/main.go`)
 
 ### Appendix B: HTTP Route Inventory (Complete from Code)

@@ -360,7 +360,6 @@ func buildTagDefs(tagSet map[string]struct{}) []tagDef {
 		"plan":          "Implementation planning or execution tracking.",
 		"config":        "Configuration, env, profile, or key management concerns.",
 		"session":       "Session identity, reuse, or state recovery concerns.",
-		"kernel":        "Kernel scheduler/runtime behavior and cadence.",
 		"observability": "Metrics, logs, tracing, and runtime diagnosis.",
 		"concurrency":   "Concurrency, race, or synchronization behavior.",
 		"performance":   "Performance, memory growth, latency, or throughput.",
@@ -417,7 +416,7 @@ func inferTags(nodeType, slug, content string) []string {
 	text := strings.ToLower(slug + " " + content)
 	for _, token := range tokenPattern.FindAllString(text, -1) {
 		switch token {
-		case "memory", "lark", "config", "session", "kernel", "observability", "concurrency", "performance":
+		case "memory", "lark", "config", "session", "observability", "concurrency", "performance":
 			set[token] = struct{}{}
 		case "authdb", "database", "db":
 			set["config"] = struct{}{}

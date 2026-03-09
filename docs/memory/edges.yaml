@@ -93,16 +93,8 @@ edges:
       to: errsum-2026-02-10-tool-optimization-caused-eval-tool-availability-collapse
       type: see_also
       direction: directed
-    - from: err-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
-      to: errsum-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
-      type: see_also
-      direction: directed
     - from: err-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
       to: errsum-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
-      type: see_also
-      direction: directed
-    - from: err-2026-02-25-kernel-alignment-context-leak-into-lark-session
-      to: errsum-2026-02-25-kernel-alignment-context-leak-into-lark-session
       type: see_also
       direction: directed
     - from: err-2026-02-26-main-branch-dirty-workspace-quality-gate-noise
@@ -253,16 +245,8 @@ edges:
       to: err-2026-02-10-tool-optimization-caused-eval-tool-availability-collapse
       type: derived_from
       direction: directed
-    - from: errsum-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
-      to: err-2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription
-      type: derived_from
-      direction: directed
     - from: errsum-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
       to: err-2026-02-12-lark-test-config-provider-key-mismatch-blocks-start
-      type: derived_from
-      direction: directed
-    - from: errsum-2026-02-25-kernel-alignment-context-leak-into-lark-session
-      to: err-2026-02-25-kernel-alignment-context-leak-into-lark-session
       type: derived_from
       direction: directed
     - from: errsum-2026-02-26-main-branch-dirty-workspace-quality-gate-noise
@@ -481,14 +465,6 @@ edges:
       to: goodsum-2026-02-11-lark-small-action-autonomy-guardrail-and-eval
       type: see_also
       direction: directed
-    - from: good-2026-02-12-kernel-e2e-state-summary-alignment
-      to: goodsum-2026-02-12-kernel-e2e-state-summary-alignment
-      type: see_also
-      direction: directed
-    - from: good-2026-02-12-kernel-once-real-e2e-and-goal-alignment
-      to: goodsum-2026-02-12-kernel-once-real-e2e-and-goal-alignment
-      type: see_also
-      direction: directed
     - from: good-2026-02-12-llm-profile-client-provider-decoupling
       to: goodsum-2026-02-12-llm-profile-client-provider-decoupling
       type: see_also
@@ -499,10 +475,6 @@ edges:
       direction: directed
     - from: good-2026-02-24-systematic-log-noise-reduction
       to: goodsum-2026-02-24-systematic-log-noise-reduction
-      type: see_also
-      direction: directed
-    - from: good-2026-02-25-unattended-boundary-guard-for-kernel-context
-      to: goodsum-2026-02-25-unattended-boundary-guard-for-kernel-context
       type: see_also
       direction: directed
     - from: good-2026-02-26-error-first-llm-log-observability
@@ -705,14 +677,6 @@ edges:
       to: good-2026-02-11-lark-small-action-autonomy-guardrail-and-eval
       type: derived_from
       direction: directed
-    - from: goodsum-2026-02-12-kernel-e2e-state-summary-alignment
-      to: good-2026-02-12-kernel-e2e-state-summary-alignment
-      type: derived_from
-      direction: directed
-    - from: goodsum-2026-02-12-kernel-once-real-e2e-and-goal-alignment
-      to: good-2026-02-12-kernel-once-real-e2e-and-goal-alignment
-      type: derived_from
-      direction: directed
     - from: goodsum-2026-02-12-llm-profile-client-provider-decoupling
       to: good-2026-02-12-llm-profile-client-provider-decoupling
       type: derived_from
@@ -723,10 +687,6 @@ edges:
       direction: directed
     - from: goodsum-2026-02-24-systematic-log-noise-reduction
       to: good-2026-02-24-systematic-log-noise-reduction
-      type: derived_from
-      direction: directed
-    - from: goodsum-2026-02-25-unattended-boundary-guard-for-kernel-context
-      to: good-2026-02-25-unattended-boundary-guard-for-kernel-context
       type: derived_from
       direction: directed
     - from: goodsum-2026-02-26-error-first-llm-log-observability
@@ -1110,10 +1070,6 @@ edges:
       type: see_also
       direction: directed
     - from: ltm-long-term-memory
-      to: plan-2026-02-11-kernel-log-lark-only
-      type: see_also
-      direction: directed
-    - from: ltm-long-term-memory
       to: plan-2026-02-11-lark-think-step-upstream-rejection-log-hardening
       type: see_also
       direction: directed
@@ -1158,10 +1114,6 @@ edges:
       type: see_also
       direction: directed
     - from: ltm-long-term-memory
-      to: plan-2026-02-25-kernel-lark-prompt-notice-reliability
-      type: see_also
-      direction: directed
-    - from: ltm-long-term-memory
       to: plan-2026-02-25-lark-30s-progress-summary
       type: see_also
       direction: directed
@@ -1187,10 +1139,6 @@ edges:
       direction: directed
     - from: ltm-long-term-memory
       to: plan-2026-02-26-lark-dotenv-hot-reload
-      type: see_also
-      direction: directed
-    - from: ltm-long-term-memory
-      to: plan-2026-02-26-lark-kernel-alignment-cycle-selfheal
       type: see_also
       direction: directed
     - from: ltm-long-term-memory

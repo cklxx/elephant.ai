@@ -67,7 +67,6 @@ Verdict legend:
 | Web session management and sharing UX | Pass (Watch) | `web/app/sessions/page.tsx`, `web/app/share/SharePageContent.tsx`, `web/lib/api.ts` | web app tests + server share/session tests (`share_test.go`, session API tests) | Browser-level E2E for share links should remain in release checklist. |
 | Web evaluation dashboard | Pass (Watch) | `web/app/evaluation/page.tsx`, eval API handlers/services | `internal/delivery/server/app/evaluation_service_test.go`, evaluation package tests | UI behavior currently has less dedicated frontend test depth than core conversation flow. |
 | Proactive scheduler + timer manager | Pass | `internal/app/scheduler/scheduler.go`, `internal/shared/timer/manager.go` | `scheduler_test.go`, `calendar_flow_e2e_test.go`, `manager_test.go`, `store_test.go` | Cron and clock-skew behavior needs periodic real-time smoke tests. |
-| Kernel daemon autonomous cycle | Pass | `cmd/alex-server/main.go`, `internal/delivery/server/bootstrap/kernel_daemon.go`, `internal/app/agent/kernel/engine.go` | `cmd/alex-server/main_test.go`, `internal/app/agent/kernel/*_test.go` | Kernel behavior under prolonged autonomous cycles needs continuing monitoring. |
 | Standalone eval server | Pass | `cmd/eval-server/main.go`, `internal/delivery/eval/bootstrap/server.go`, `internal/delivery/eval/http/router.go` | tests under `evaluation/*_test.go` and eval delivery modules | Dataset drift and judge-model changes can affect score stability. |
 
 ### P2 Features
