@@ -79,6 +79,32 @@ cgo_sqlite_ready() {
   return 0
 }
 
+cgo_ensure_real_cc() {
+  # Claude Code (and similar tools) may place a sandboxed `cc` wrapper early
+  # in $PATH that does not support flags like `-E` required by CGO.  Detect
+  # this and fall back to the real system compiler.
+  if [[ -n "${CC:-}" ]]; then
+    # User already chose a compiler — respect it.
+    return 0
+  fi
+  local cc_path
+  cc_path="$(command -v cc 2>/dev/null || true)"
+  if [[ -n "$cc_path" ]]; then
+    local ver
+    ver="$("$cc_path" --version 2>&1 | head -1 || true)"
+    if [[ "$ver" == *"Claude Code"* ]]; then
+      # Sandboxed wrapper detected — pick a real compiler.
+      if [[ -x /usr/bin/clang ]]; then
+        export CC=/usr/bin/clang
+      elif command_exists clang; then
+        export CC="$(command -v clang)"
+      elif command_exists gcc; then
+        export CC="$(command -v gcc)"
+      fi
+    fi
+  fi
+}
+
 cgo_apply_mode() {
   if [[ -n "${CGO_ENABLED:-}" ]]; then
     return 0
@@ -87,6 +113,7 @@ cgo_apply_mode() {
   mode="$(cgo_mode)"
   case "$mode" in
     on)
+      cgo_ensure_real_cc
       export CGO_ENABLED=1
       ;;
     off)
@@ -94,6 +121,7 @@ cgo_apply_mode() {
       ;;
     auto)
       if cgo_sqlite_ready; then
+        cgo_ensure_real_cc
         export CGO_ENABLED=1
       else
         export CGO_ENABLED=0
