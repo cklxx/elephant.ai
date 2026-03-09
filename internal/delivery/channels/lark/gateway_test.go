@@ -366,7 +366,7 @@ func TestStartReturnsNilWhenDisabled(t *testing.T) {
 }
 
 func TestAddReactionSkipsWhenClientNil(t *testing.T) {
-	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}, ReactEmoji: "SMILE"}, logger: logging.OrNop(nil)}
+	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
 	// Should not panic when client is nil.
 	gw.addReaction(context.Background(), "om_test_msg", "SMILE")
 }

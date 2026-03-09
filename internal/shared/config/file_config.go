@@ -387,7 +387,6 @@ type LarkChannelConfig struct {
 	AutoUploadAllowExt          []string               `json:"auto_upload_allow_ext" yaml:"auto_upload_allow_ext"`
 	Browser                     *LarkBrowserConfig     `json:"browser" yaml:"browser"`
 	ToolMode                    string                 `json:"tool_mode" yaml:"tool_mode"`
-	ReactEmoji                  string                 `json:"react_emoji" yaml:"react_emoji"`
 	InjectionAckReactEmoji      string                 `json:"injection_ack_react_emoji" yaml:"injection_ack_react_emoji"`
 	ShowPlanClarifyMessages     *bool                  `json:"show_plan_clarify_messages" yaml:"show_plan_clarify_messages"`
 	ToolFailureAbortThreshold   *int                   `json:"tool_failure_abort_threshold" yaml:"tool_failure_abort_threshold"`

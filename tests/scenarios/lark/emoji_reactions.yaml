@@ -1,12 +1,11 @@
 name: emoji_reactions
-description: "Start and end emoji reactions are sent when ReactEmoji is configured"
+description: "Processing emoji reaction is sent while task runs"
 tags: [emoji, reactions]
 
 setup:
   config:
     session_prefix: "test-lark"
     allow_direct: true
-    react_emoji: "SMILE,HEART,THUMBSUP,FISTBUMP"
   llm_mode: mock
 
 turns:

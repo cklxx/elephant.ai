@@ -34,7 +34,6 @@ type GatewayConfig struct {
 	AllowGroups       bool   `yaml:"allow_groups"`
 	ShowToolProgress  bool   `yaml:"show_tool_progress"`
 	ShowPlanClarify   bool   `yaml:"show_plan_clarify_messages"`
-	ReactEmoji        string `yaml:"react_emoji"`
 	PlanReviewEnabled bool   `yaml:"plan_review_enabled"`
 	MemoryEnabled     bool   `yaml:"memory_enabled"`
 }

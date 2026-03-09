@@ -117,7 +117,6 @@ func expandChannelsConfigEnv(lookup EnvLookup, parsed ChannelsConfig) ChannelsCo
 	expanded.WorkspaceDir = expandEnvValue(lookup, expanded.WorkspaceDir)
 	expanded.BaseChannelConfig = expandBaseChannelConfigEnv(lookup, expanded.BaseChannelConfig)
 	expanded.ToolMode = expandEnvValue(lookup, expanded.ToolMode)
-	expanded.ReactEmoji = expandEnvValue(lookup, expanded.ReactEmoji)
 	expanded.InjectionAckReactEmoji = expandEnvValue(lookup, expanded.InjectionAckReactEmoji)
 	if len(expanded.AutoUploadAllowExt) > 0 {
 		allowExt := make([]string, 0, len(expanded.AutoUploadAllowExt))

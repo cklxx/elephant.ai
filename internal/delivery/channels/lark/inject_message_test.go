@@ -161,9 +161,6 @@ func TestInjectMessageWithReaction(t *testing.T) {
 		SessionPrefix: "test",
 		AllowDirect:   true,
 	})
-	gw.cfg.ReactEmoji = "SMILE,HEART"
-	gw.emojiPicker = newEmojiPicker(42, resolveEmojiPool("SMILE,HEART"))
-
 	err := gw.InjectMessage(context.Background(), "oc_chat_1", "p2p", "ou_user_1", "om_msg_react", "with emoji")
 	if err != nil {
 		t.Fatalf("InjectMessage failed: %v", err)
@@ -239,7 +236,6 @@ func newTestGatewayWithMessenger(exec AgentExecutor, messenger LarkMessenger, ba
 		agent:       exec,
 		logger:      logging.OrNop(nil),
 		messenger:   wrapInjectCaptureHub(messenger),
-		emojiPicker: newEmojiPicker(0, resolveEmojiPool("")),
 		dedupCache:  cache,
 		now:         func() time.Time { return time.Now() },
 	}

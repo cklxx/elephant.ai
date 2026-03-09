@@ -19,7 +19,6 @@ type Config struct {
 	AutoUploadMaxBytes            int
 	AutoUploadAllowExt            []string
 	Browser                       BrowserConfig
-	ReactEmoji                    string // Random emoji pool for start/end reactions (comma/space separated).
 	ProcessingReactEmoji          string // Emoji reaction while task is running. Removed on completion. Default "OnIt".
 	InjectionAckReactEmoji        string // Emoji reaction for injected user messages while a task is running. Default THINKING.
 	ShowToolProgress              bool   // Show real-time tool progress in chat. Default false.

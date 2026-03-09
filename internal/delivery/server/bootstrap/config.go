@@ -153,7 +153,6 @@ type LarkGatewayConfig struct {
 	AutoUploadAllowExt            []string
 	Browser                       lark.BrowserConfig
 	ToolMode                      string
-	ReactEmoji                    string
 	InjectionAckReactEmoji        string
 	ShowToolProgress              bool
 	SlowProgressSummaryEnabled    bool
@@ -347,7 +346,6 @@ func defaultLarkGatewayConfig() LarkGatewayConfig {
 			Headless: true,
 			Timeout:  60 * time.Second,
 		},
-		ReactEmoji:                  "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
 		SlowProgressSummaryEnabled:  true,
 		SlowProgressSummaryDelay:    30 * time.Second,
 		ToolFailureAbortThreshold:   6,
@@ -458,7 +456,6 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyTrimmedString(&target.ToolPreset, larkCfg.ToolPreset)
 	applyTrimmedString(&target.ToolMode, larkCfg.ToolMode)
 	applyPositiveDurationSeconds(&target.ReplyTimeout, larkCfg.ReplyTimeoutSeconds)
-	applyTrimmedString(&target.ReactEmoji, larkCfg.ReactEmoji)
 	applyTrimmedString(&target.InjectionAckReactEmoji, larkCfg.InjectionAckReactEmoji)
 	applyOptionalBool(&target.MemoryEnabled, larkCfg.MemoryEnabled)
 	applyOptionalBool(&target.ShowToolProgress, larkCfg.ShowToolProgress)

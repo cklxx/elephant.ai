@@ -78,7 +78,6 @@ func (r *Runner) Run(ctx context.Context, scenario *Scenario) *ScenarioResult {
 		AppSecret:               "secret_scenario",
 		ShowToolProgress:        scenario.Setup.Config.ShowToolProgress,
 		ShowPlanClarifyMessages: scenario.Setup.Config.ShowPlanClarify,
-		ReactEmoji:              scenario.Setup.Config.ReactEmoji,
 		PlanReviewEnabled:       scenario.Setup.Config.PlanReviewEnabled,
 	}
 	if cfg.SessionPrefix == "" {

@@ -84,7 +84,6 @@ type Gateway struct {
 	wsClient            *larkws.Client
 	messenger           LarkMessenger
 	eventListener       agent.EventListener
-	emojiPicker         *emojiPicker
 	dedupMu             sync.Mutex
 	dedupCache          *lru.Cache[string, time.Time]
 	now                 func() time.Time
@@ -206,7 +205,6 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		cfg:           cfg,
 		agent:         agent,
 		logger:        logger,
-		emojiPicker:   newEmojiPicker(time.Now().UnixNano(), resolveEmojiPool(cfg.ReactEmoji)),
 		dedupCache:    dedupCache,
 		now:           time.Now,
 		llmSelections: subscription.NewSelectionStore(selectionPath),

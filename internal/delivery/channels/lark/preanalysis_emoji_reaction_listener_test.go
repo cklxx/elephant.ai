@@ -103,8 +103,7 @@ func TestPreanalysisEmoji_E2E_ReactsWithLLMChosenEmoji(t *testing.T) {
 
 func TestPreanalysisEmoji_E2E_StartReactionIsLLMChosen(t *testing.T) {
 	rec := NewRecordingMessenger()
-	// Use SMILE (not in defaultEmojiPool) so we can distinguish it from
-	// the random end emoji that pickReactionEmojis() produces.
+	// Use SMILE to verify the LLM-chosen emoji is applied.
 	gw := newTestGatewayWithMessenger(
 		&preanalysisEmojiExecutor{emoji: "SMILE"},
 		rec,
@@ -168,9 +167,8 @@ func TestPreanalysisEmoji_E2E_IgnoresNonPreanalysisEvents(t *testing.T) {
 	gw.WaitForTasks()
 	time.Sleep(100 * time.Millisecond)
 
-	// Preanalysis listener should NOT have fired — only the random end emoji
-	// from pickReactionEmojis() may appear. We verify by checking that no
-	// reaction matches an emoji outside the default pool.
+	// Preanalysis listener should NOT have fired. Only the processing emoji
+	// (OnIt) should appear. Verify no SMILE reaction exists.
 	for _, r := range rec.CallsByMethod("AddReaction") {
 		if r.MsgID == "om_msg_4" && r.Emoji == "SMILE" {
 			t.Fatalf("unexpected preanalysis-sourced reaction on om_msg_4: %+v", r)
@@ -179,7 +177,7 @@ func TestPreanalysisEmoji_E2E_IgnoresNonPreanalysisEvents(t *testing.T) {
 }
 
 // TestPreanalysisEmoji_E2E_FullPipeline verifies the complete reaction lifecycle:
-// preanalysis start emoji (LLM-chosen) + random end emoji + reply message.
+// preanalysis emoji (LLM-chosen) + processing emoji + reply message.
 func TestPreanalysisEmoji_E2E_FullPipeline(t *testing.T) {
 	rec := NewRecordingMessenger()
 	gw := newTestGatewayWithMessenger(
@@ -210,25 +208,6 @@ func TestPreanalysisEmoji_E2E_FullPipeline(t *testing.T) {
 	}
 	if !hasPreanalysis {
 		t.Fatalf("expected preanalysis SMILE reaction, got reactions: %+v", rec.CallsByMethod("AddReaction"))
-	}
-
-	// Poll for the end emoji (async goroutine launched after task completes).
-	var hasEndEmoji bool
-	endDeadline := time.Now().Add(500 * time.Millisecond)
-	for time.Now().Before(endDeadline) {
-		for _, r := range rec.CallsByMethod("AddReaction") {
-			if r.MsgID == "om_trace_1" && r.Emoji != "SMILE" && r.Emoji != defaultProcessingReactEmoji {
-				hasEndEmoji = true
-				break
-			}
-		}
-		if hasEndEmoji {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if !hasEndEmoji {
-		t.Fatalf("expected end emoji reaction from random pool, got reactions: %+v", rec.CallsByMethod("AddReaction"))
 	}
 
 	if len(rec.CallsByMethod("SendMessage"))+len(rec.CallsByMethod("ReplyMessage")) == 0 {
