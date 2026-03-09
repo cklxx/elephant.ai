@@ -154,7 +154,7 @@ func buildMemorySection(snapshot string) string {
 		return ""
 	}
 	return formatSection("# Persistent Memory (Markdown)", []string{
-		"USER.md refines collaboration preferences. SOUL.md identity is injected via the Identity section above.",
+		"Persona precedence: SOUL.md is the assistant baseline; USER.md refines collaboration preferences when non-conflicting.",
 		trimmed,
 	})
 }
