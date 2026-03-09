@@ -131,6 +131,12 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 		return fmt.Errorf("failed to save session: %w", err)
 	}
 
+	// Discard any stale pending async save. During execution, asyncSaveSession
+	// clones env.Session BEFORE sanitization. If the debounce timer fires
+	// after this authoritative save, it would overwrite with the stale clone
+	// (which may contain duplicate system prompts or outdated messages).
+	c.pendingSessionSave.Store(nil)
+
 	return nil
 }
 
@@ -207,7 +213,10 @@ func cloneSessionForSave(session *storage.Session) *storage.Session {
 		return nil
 	}
 	cloned := *session
-	cloned.Messages = agent.CloneMessages(session.Messages)
+	// Compact system prompts defensively: loadSessionHistory may inject
+	// accumulated history (with multiple system prompts from past runs)
+	// into session.Messages before asyncSaveSession clones it.
+	cloned.Messages = compactPersistedSystemPrompts(agent.CloneMessages(session.Messages))
 	if len(session.Todos) > 0 {
 		cloned.Todos = append([]storage.Todo(nil), session.Todos...)
 	} else {
@@ -464,6 +473,14 @@ func stripUserHistoryMessages(messages []ports.Message) []ports.Message {
 	trimmed := make([]ports.Message, 0, len(messages))
 	for _, msg := range messages {
 		if msg.Source == ports.MessageSourceUserHistory {
+			continue
+		}
+		// Strip system_prompt messages: the history accumulates across runs,
+		// and each run's result.Messages carries its own system prompt. Without
+		// this filter, N runs produce N system prompt copies in the history.
+		// The system prompt is re-injected fresh on each run start, so there
+		// is no need to persist it in turn history.
+		if msg.Source == ports.MessageSourceSystemPrompt {
 			continue
 		}
 		trimmed = append(trimmed, msg)
