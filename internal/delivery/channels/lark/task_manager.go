@@ -559,7 +559,6 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	if isAwait && result != nil {
 		awaitPrompt, hasAwaitPrompt = agent.ExtractAwaitUserInputPrompt(result.Messages)
 	}
-
 	reply := ""
 	replyContent := ""
 	replyMsgType := "text"
@@ -618,10 +617,13 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 
 	if !skipReply {
 		// Split long replies into multiple short messages for conversational delivery.
-		chunks := splitMessage(reply)
-		if len(chunks) > 1 {
-			g.dispatchMultiMessageReply(execCtx, msg, result, execErr, progressMsgID, chunks)
-			return
+		// Skip splitting for await-input prompts: numbered option lists must stay
+		// together with the question so users see them as a single coherent message.
+		if !isAwait {
+			if chunks := splitMessage(reply); len(chunks) > 1 {
+				g.dispatchMultiMessageReply(execCtx, msg, result, execErr, progressMsgID, chunks)
+				return
+			}
 		}
 		intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, progressMsgID, replyMsgType, replyContent)
 		g.dispatchTerminalIntent(execCtx, intent)

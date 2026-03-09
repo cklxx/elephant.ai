@@ -116,7 +116,10 @@ func (r *Runner) Run(ctx context.Context, scenario *Scenario) *ScenarioResult {
 
 		err := gw.InjectMessage(ctx, turn.ChatID, chatType, turn.SenderID, turn.MessageID, turn.Content)
 
-		// Wait briefly for async reactions (goroutines).
+		// Wait for the task goroutine to complete (including multi-message
+		// delivery with inter-chunk delays) before collecting calls.
+		gw.WaitForTasks()
+		// Brief additional sleep for any async side-effects (e.g. reactions).
 		time.Sleep(50 * time.Millisecond)
 
 		turnDuration := time.Since(turnStart)
