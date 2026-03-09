@@ -102,22 +102,23 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 		t.Fatalf("expected SOUL.md bootstrap content from default persona voice, got: %s", string(soulBytes))
 	}
 
-	if !strings.Contains(snapshot, "Identity (SOUL.md") {
-		t.Fatalf("expected SOUL section in snapshot, got: %s", snapshot)
+	// SOUL.md is intentionally excluded from the memory snapshot to avoid
+	// duplicating content already injected via buildIdentitySection(persona.Voice).
+	if strings.Contains(snapshot, "Identity (SOUL.md") {
+		t.Fatalf("SOUL.md should NOT appear in memory snapshot (injected via Identity section), got: %s", snapshot)
 	}
 	if !strings.Contains(snapshot, "Identity (USER.md") {
 		t.Fatalf("expected USER section in snapshot, got: %s", snapshot)
 	}
 
-	soulIdx := strings.Index(snapshot, "Identity (SOUL.md")
 	userIdx := strings.Index(snapshot, "Identity (USER.md")
 	todayIdx := strings.Index(snapshot, "Daily Log Digest (Unattended only)")
 	memoryIdx := strings.Index(snapshot, "Long-term Memory (MEMORY.md)")
-	if soulIdx == -1 || userIdx == -1 || todayIdx == -1 || memoryIdx == -1 {
-		t.Fatalf("expected identity/daily/memory sections in snapshot, got: %s", snapshot)
+	if userIdx == -1 || todayIdx == -1 || memoryIdx == -1 {
+		t.Fatalf("expected user/daily/memory sections in snapshot, got: %s", snapshot)
 	}
-	if !(soulIdx < userIdx && userIdx < todayIdx && todayIdx < memoryIdx) {
-		t.Fatalf("expected SOUL -> USER -> daily -> long-term order, got: %s", snapshot)
+	if !(userIdx < todayIdx && todayIdx < memoryIdx) {
+		t.Fatalf("expected USER -> daily -> long-term order, got: %s", snapshot)
 	}
 	if !strings.Contains(snapshot, "1 | date="+now.Format("2006-01-02")) {
 		t.Fatalf("expected indexed daily digest entry for today, got: %s", snapshot)

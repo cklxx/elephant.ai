@@ -41,22 +41,23 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 
 	userID := resolveMemoryUserID(ctx, session)
 	now := time.Now()
-	soul, user := m.loadIdentitySnapshot(userID)
+	// Note: SOUL.md is intentionally NOT loaded here. The persona voice
+	// (from voice_path in persona YAML) already injects the full SOUL.md
+	// content via buildIdentitySection(). Including it again in the memory
+	// section would duplicate ~200 lines of prompt, wasting tokens and
+	// triggering premature context compression.
+	_, user := m.loadIdentitySnapshot(userID)
 
 	longTerm, _ := m.memoryEngine.LoadLongTerm(ctx, userID)
 	today, _ := m.memoryEngine.LoadDaily(ctx, userID, now)
 	yesterday, _ := m.memoryEngine.LoadDaily(ctx, userID, now.AddDate(0, 0, -1))
 
-	soul = truncateMemorySection(soul, maxMemorySectionChars)
 	user = truncateMemorySection(user, maxMemorySectionChars)
 	longTerm = truncateMemorySection(longTerm, maxMemorySectionChars)
 	today = truncateMemorySection(today, maxMemorySectionChars)
 	yesterday = truncateMemorySection(yesterday, maxMemorySectionChars)
 
 	var sections []string
-	if soul != "" {
-		sections = append(sections, fmt.Sprintf("## Identity (SOUL.md)\n%s", soul))
-	}
 	if user != "" {
 		sections = append(sections, fmt.Sprintf("## Identity (USER.md)\n%s", user))
 	}
