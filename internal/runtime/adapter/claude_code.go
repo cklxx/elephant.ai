@@ -186,10 +186,29 @@ func alreadyRegistered(hooksMap map[string]any, event, scriptPath string) bool {
 	return false
 }
 
+// findNotifyScript locates notify_runtime.sh by searching workDir and its
+// ancestors. This avoids registering a non-existent path when workDir is /tmp.
+func findNotifyScript(workDir string) string {
+	dir := workDir
+	for {
+		candidate := filepath.Join(dir, "scripts", "cc_hooks", "notify_runtime.sh")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "" // reached filesystem root without finding the script
+		}
+		dir = parent
+	}
+}
+
 // Start creates a Kaku pane, launches Claude Code, and injects the goal.
 func (a *ClaudeCodeAdapter) Start(ctx context.Context, sessionID, goal, workDir string, parentPaneID int) error {
-	// Auto-register CC hooks so notify_runtime.sh fires without manual setup.
-	ensureCCHooks(filepath.Join(workDir, "scripts/cc_hooks/notify_runtime.sh"))
+	// Auto-register CC hooks. Walk up from workDir so /tmp doesn't register a wrong path.
+	if script := findNotifyScript(workDir); script != "" {
+		ensureCCHooks(script)
+	}
 
 	pane, err := a.pm.Split(ctx, panel.SplitOpts{
 		ParentPaneID: parentPaneID,
@@ -305,8 +324,9 @@ func (a *ClaudeCodeAdapter) watchForCompletion(ctx context.Context, sessionID st
 	}
 }
 
-// hasBashPrompt returns true when the pane output shows a bare $ prompt,
+// hasBashPrompt returns true when the pane output shows a shell prompt,
 // indicating that CC has exited back to the shell.
+// Supports both bash (ends with "$" or "$ ") and zsh (ends with "%" or "% ").
 func hasBashPrompt(output string) bool {
 	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
@@ -314,8 +334,8 @@ func hasBashPrompt(output string) bool {
 		if line == "" {
 			continue
 		}
-		// A bare "$ " (with optional colour codes stripped) signals the shell is idle.
-		return strings.HasSuffix(line, "$") || strings.HasSuffix(line, ccShellPrompt)
+		return strings.HasSuffix(line, "$") || strings.HasSuffix(line, "$ ") ||
+			strings.HasSuffix(line, "%") || strings.HasSuffix(line, "% ")
 	}
 	return false
 }

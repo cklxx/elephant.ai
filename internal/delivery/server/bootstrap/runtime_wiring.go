@@ -7,13 +7,15 @@ import (
 
 	"alex/internal/app/di"
 	"alex/internal/runtime"
+	"alex/internal/runtime/adapter"
 	"alex/internal/runtime/hooks"
 	"alex/internal/runtime/leader"
+	"alex/internal/runtime/panel"
 	"alex/internal/shared/logging"
 )
 
-// startRuntimeSubsystem wires the Runtime, StallDetector, and LeaderAgent
-// inside the Lark process and starts them as background goroutines.
+// startRuntimeSubsystem wires the Runtime, AdapterFactory, StallDetector, and
+// LeaderAgent inside the Lark process and starts them as background goroutines.
 // It returns the *runtime.Runtime so callers can attach HTTP handlers.
 func startRuntimeSubsystem(
 	ctx context.Context,
@@ -32,6 +34,16 @@ func startRuntimeSubsystem(
 	if err != nil {
 		log.Warn("runtime: failed to create runtime subsystem: %v — runtime features disabled", err)
 		return nil
+	}
+
+	// Wire the adapter factory so StartSession actually launches CC in a Kaku pane.
+	pm, err := panel.NewManager()
+	if err != nil {
+		log.Warn("runtime: panel manager unavailable: %v — CC pane launch disabled", err)
+	} else {
+		fac := adapter.NewFactory(pm, rt, "http://localhost:9090", nil)
+		rt.SetFactory(fac)
+		log.Info("runtime: adapter factory wired (CC pane launch enabled)")
 	}
 
 	// StallDetector: scans every 10 s, stall threshold 60 s.
