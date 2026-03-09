@@ -3,8 +3,8 @@
 Updated: 2026-03-09 10:57 CST
 
 ## Current status
-- Local `main` is at `0ab67d1c test(larktools): harden docx convert mock baseline`.
-- `origin/main` is at `1dfdbcc5 docs(team): unify cli-first team contract`; local branch is `14 ahead / 0 behind`.
+- Local `main` contains the March 9 local integration line for `team-cli`, background stale-active-task self-heal, and `larktools` docx convert mock hardening.
+- `origin/main` still trails the local integration line; push remains pending and the last observed failure was transport-related rather than Git rejection.
 - Since the 2026-03-06 snapshot, local-only merges landed the `team-cli` status/list fixes and the background stale-active-task self-heal fix.
 - Targeted validation for the new local-only changes passed:
   - `go test ./cmd/alex ./internal/infra/skills`
