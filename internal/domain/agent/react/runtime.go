@@ -922,6 +922,19 @@ func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emi
 			}
 		}
 
+		// Log precise LLM token breakdown at task completion.
+		tb := result.TokenBreakdown
+		r.engine.logger.Info(
+			"Token breakdown: think=%d act=%d observe=%d total=%d (prompt=%d completion=%d llm_calls=%d)",
+			tb.ThinkPromptTokens+tb.ThinkCompletionTokens,
+			tb.ActPromptTokens+tb.ActCompletionTokens,
+			tb.ObservePromptTokens+tb.ObserveCompletionTokens,
+			tb.TotalTokens,
+			tb.TotalPromptTokens,
+			tb.TotalCompletionTokens,
+			tb.LLMCalls,
+		)
+
 		attachments := r.engine.decorateFinalResult(r.state, result)
 		if emitCompletionEvent {
 			r.emitFinalAnswerStream(stopReason, result)

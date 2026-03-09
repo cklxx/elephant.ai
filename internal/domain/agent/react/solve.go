@@ -218,6 +218,9 @@ func (e *ReactEngine) think(
 		attribute.String("alex.llm.stop_reason", strings.TrimSpace(resp.StopReason)),
 	)
 
+	// Accumulate actual LLM-reported token usage for precise tracking.
+	state.TokenBreakdown.AccumulateThink(resp.Usage)
+
 	flushStreamBuffer()
 
 	finalDelta := ""

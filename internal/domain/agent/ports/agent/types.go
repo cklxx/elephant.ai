@@ -80,6 +80,32 @@ type TaskRetrievalPlan struct {
 	Notes          string
 }
 
+// LLMTokenBreakdown tracks actual LLM-reported token usage accumulated across
+// the ReAct loop. Only the think phase issues LLM calls, so Act and Observe
+// are reserved for future per-phase attribution (e.g. tool-internal LLM calls).
+type LLMTokenBreakdown struct {
+	ThinkPromptTokens      int `json:"think_prompt_tokens"`
+	ThinkCompletionTokens  int `json:"think_completion_tokens"`
+	ActPromptTokens        int `json:"act_prompt_tokens"`
+	ActCompletionTokens    int `json:"act_completion_tokens"`
+	ObservePromptTokens    int `json:"observe_prompt_tokens"`
+	ObserveCompletionTokens int `json:"observe_completion_tokens"`
+	TotalPromptTokens      int `json:"total_prompt_tokens"`
+	TotalCompletionTokens  int `json:"total_completion_tokens"`
+	TotalTokens            int `json:"total_tokens"`
+	LLMCalls               int `json:"llm_calls"`
+}
+
+// AccumulateThink adds a single think-phase LLM call's token usage.
+func (b *LLMTokenBreakdown) AccumulateThink(usage core.TokenUsage) {
+	b.ThinkPromptTokens += usage.PromptTokens
+	b.ThinkCompletionTokens += usage.CompletionTokens
+	b.TotalPromptTokens += usage.PromptTokens
+	b.TotalCompletionTokens += usage.CompletionTokens
+	b.TotalTokens += usage.TotalTokens
+	b.LLMCalls++
+}
+
 // TaskState tracks execution state during ReAct loop.
 type TaskState struct {
 	SystemPrompt           string
@@ -89,6 +115,7 @@ type TaskState struct {
 	LastCompactionArtifact string
 	ContextCompactionSeq   int
 	TokenCount             int
+	TokenBreakdown         LLMTokenBreakdown
 	ToolResults            []core.ToolResult
 	Complete               bool
 	FinalAnswer            string
@@ -125,18 +152,19 @@ type AgentConfig struct {
 
 // TaskResult represents the result of task execution.
 type TaskResult struct {
-	Answer      string
-	Messages    []core.Message
-	Iterations  int
-	TokensUsed  int
-	StopReason  string
-	SessionID   string // The session ID used for this run
-	RunID       string // The unique run identifier for this execution
-	ParentRunID string // The parent run identifier when invoked as a subtask
-	Duration    time.Duration
-	Important   map[string]core.ImportantNote
-	Workflow    *workflow.WorkflowSnapshot
-	Attachments map[string]core.Attachment // Resolved attachments for the final answer
+	Answer         string
+	Messages       []core.Message
+	Iterations     int
+	TokensUsed     int               // Estimated context-window tokens (tiktoken)
+	TokenBreakdown LLMTokenBreakdown // Actual LLM-reported token usage breakdown
+	StopReason     string
+	SessionID      string // The session ID used for this run
+	RunID          string // The unique run identifier for this execution
+	ParentRunID    string // The parent run identifier when invoked as a subtask
+	Duration       time.Duration
+	Important      map[string]core.ImportantNote
+	Workflow       *workflow.WorkflowSnapshot
+	Attachments    map[string]core.Attachment // Resolved attachments for the final answer
 }
 
 // StreamCallback is called during task execution to stream events.
