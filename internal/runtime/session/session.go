@@ -32,40 +32,47 @@ const (
 	MemberShell      MemberType = "shell"
 )
 
+// SessionData holds the serialisable fields of a session without any
+// synchronisation primitives. It is used for snapshots and JSON persistence.
+type SessionData struct {
+	ID            string     `json:"id"`
+	Member        MemberType `json:"member"`
+	Goal          string     `json:"goal"`
+	WorkDir       string     `json:"work_dir"`
+	State         State      `json:"state"`
+	PaneID        int        `json:"pane_id"`                // Kaku pane ID (-1 if not yet assigned)
+	TabID         int        `json:"tab_id"`                 // Kaku tab ID (-1 if not yet assigned)
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	StartedAt     *time.Time `json:"started_at,omitempty"`
+	EndedAt       *time.Time `json:"ended_at,omitempty"`
+	LastHeartbeat *time.Time `json:"last_heartbeat,omitempty"`
+	ErrorMsg      string     `json:"error_msg,omitempty"`
+	Answer        string     `json:"answer,omitempty"`
+}
+
 // Session is the unit of execution in the Kaku runtime.
 // It tracks one member CLI process and its metadata.
 type Session struct {
 	mu sync.RWMutex
-
-	ID         string     `json:"id"`
-	Member     MemberType `json:"member"`
-	Goal       string     `json:"goal"`
-	WorkDir    string     `json:"work_dir"`
-	State      State      `json:"state"`
-	PaneID     int        `json:"pane_id"`      // Kaku pane ID (-1 if not yet assigned)
-	TabID      int        `json:"tab_id"`       // Kaku tab ID (-1 if not yet assigned)
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
-	StartedAt  *time.Time `json:"started_at,omitempty"`
-	EndedAt    *time.Time `json:"ended_at,omitempty"`
-	LastHeartbeat *time.Time `json:"last_heartbeat,omitempty"`
-	ErrorMsg   string     `json:"error_msg,omitempty"`
-	Answer     string     `json:"answer,omitempty"`
+	SessionData
 }
 
 // New creates a new Session in the Created state.
 func New(id string, member MemberType, goal, workDir string) *Session {
 	now := time.Now()
 	return &Session{
-		ID:        id,
-		Member:    member,
-		Goal:      goal,
-		WorkDir:   workDir,
-		State:     StateCreated,
-		PaneID:    -1,
-		TabID:     -1,
-		CreatedAt: now,
-		UpdatedAt: now,
+		SessionData: SessionData{
+			ID:        id,
+			Member:    member,
+			Goal:      goal,
+			WorkDir:   workDir,
+			State:     StateCreated,
+			PaneID:    -1,
+			TabID:     -1,
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
 	}
 }
 
@@ -128,11 +135,11 @@ func (s *Session) SetError(msg string) {
 	s.UpdatedAt = time.Now()
 }
 
-// Snapshot returns a copy of the session safe for reading without holding the lock.
-func (s *Session) Snapshot() Session {
+// Snapshot returns a copy of the session data safe for reading without holding the lock.
+func (s *Session) Snapshot() SessionData {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return *s
+	return s.SessionData
 }
 
 // isValidTransition defines the allowed state machine edges.

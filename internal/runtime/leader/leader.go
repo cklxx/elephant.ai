@@ -19,7 +19,7 @@ import (
 
 // RuntimeReader is the minimal interface the Agent needs from Runtime.
 type RuntimeReader interface {
-	GetSession(id string) (session.Session, bool)
+	GetSession(id string) (session.SessionData, bool)
 	InjectText(ctx context.Context, id, text string) error
 	MarkFailed(id, errMsg string) error
 }

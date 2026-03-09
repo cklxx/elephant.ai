@@ -219,11 +219,11 @@ func (rt *Runtime) RecordEvent(sessionID, eventType string, payload map[string]a
 }
 
 // ListSessions returns snapshots of all known sessions.
-func (rt *Runtime) ListSessions() []session.Session {
+func (rt *Runtime) ListSessions() []session.SessionData {
 	rt.mu.RLock()
 	defer rt.mu.RUnlock()
 
-	out := make([]session.Session, 0, len(rt.sessions))
+	out := make([]session.SessionData, 0, len(rt.sessions))
 	for _, s := range rt.sessions {
 		out = append(out, s.Snapshot())
 	}
@@ -231,10 +231,10 @@ func (rt *Runtime) ListSessions() []session.Session {
 }
 
 // GetSession returns a snapshot of a single session.
-func (rt *Runtime) GetSession(id string) (session.Session, bool) {
+func (rt *Runtime) GetSession(id string) (session.SessionData, bool) {
 	s := rt.get(id)
 	if s == nil {
-		return session.Session{}, false
+		return session.SessionData{}, false
 	}
 	return s.Snapshot(), true
 }
