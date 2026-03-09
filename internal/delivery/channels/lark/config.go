@@ -51,9 +51,8 @@ type Config struct {
 	TeamCompletionSummaryEnabled    *bool         // Send summary when all background tasks finish. Default true.
 	TeamCompletionSummaryLLMTimeout time.Duration // LLM timeout for team summary generation. Default 10s.
 	DefaultPlanMode                 PlanMode      // Global default plan mode strategy. Default "auto".
-	DeliveryMode                    string              // Terminal delivery strategy: direct|shadow|outbox.
+	DeliveryMode                    string        // Terminal delivery strategy: direct|shadow|outbox.
 	DeliveryWorker                  DeliveryWorkerConfig
-	MessageSplit                    *MessageSplitConfig `yaml:"message_split"` // Auto-split long replies into multiple short messages.
 	// AIChatBotIDs is a list of bot IDs that participate in coordinated multi-bot chats.
 	// When multiple bots from this list are mentioned in a group message, they will
 	// take turns responding instead of all responding simultaneously.

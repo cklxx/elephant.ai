@@ -625,13 +625,11 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	}
 
 	if !skipReply {
-		// Try multi-message split for conversational delivery.
-		if g.cfg.MessageSplit != nil && g.cfg.MessageSplit.Enabled && replyMsgType == "text" {
-			chunks := splitMessage(reply, *g.cfg.MessageSplit)
-			if len(chunks) > 1 {
-				g.dispatchMultiMessageReply(execCtx, msg, result, execErr, progressMsgID, chunks)
-				return
-			}
+		// Split long replies into multiple short messages for conversational delivery.
+		chunks := splitMessage(reply)
+		if len(chunks) > 1 {
+			g.dispatchMultiMessageReply(execCtx, msg, result, execErr, progressMsgID, chunks)
+			return
 		}
 		intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, progressMsgID, replyMsgType, replyContent)
 		g.dispatchTerminalIntent(execCtx, intent)
@@ -763,11 +761,6 @@ func (g *Gateway) dispatchTerminalIntent(execCtx context.Context, intent Deliver
 // editing the progress message in-place for the first chunk and sending
 // new reply messages for subsequent chunks with a delay between them.
 func (g *Gateway) dispatchMultiMessageReply(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, progressMsgID string, chunks []string) {
-	delay := time.Duration(0)
-	if g.cfg.MessageSplit != nil {
-		delay = g.cfg.MessageSplit.delayBetween()
-	}
-
 	for i, chunk := range chunks {
 		chunkMsgType, chunkContent := smartContent(chunk)
 		intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, "", chunkMsgType, chunkContent)
@@ -789,8 +782,8 @@ func (g *Gateway) dispatchMultiMessageReply(execCtx context.Context, msg *incomi
 		g.dispatchTerminalIntent(execCtx, intent)
 
 		// Delay between messages to simulate typing rhythm.
-		if i < len(chunks)-1 && delay > 0 {
-			time.Sleep(delay)
+		if i < len(chunks)-1 {
+			time.Sleep(messageSplitDelay)
 		}
 	}
 }

@@ -5,47 +5,27 @@ import (
 	"time"
 )
 
-// MessageSplitConfig controls automatic splitting of long replies into
-// multiple short messages for a more conversational feel.
-type MessageSplitConfig struct {
-	Enabled       bool          `yaml:"enabled"`
-	MaxChunkChars int           `yaml:"max_chunk_chars"` // default 400
-	MaxChunks     int           `yaml:"max_chunks"`      // default 5
-	DelayBetween  time.Duration `yaml:"delay_between"`   // default 500ms
-}
-
-func (c MessageSplitConfig) maxChunkChars() int {
-	if c.MaxChunkChars > 0 {
-		return c.MaxChunkChars
-	}
-	return 400
-}
-
-func (c MessageSplitConfig) maxChunks() int {
-	if c.MaxChunks > 0 {
-		return c.MaxChunks
-	}
-	return 5
-}
-
-func (c MessageSplitConfig) delayBetween() time.Duration {
-	if c.DelayBetween > 0 {
-		return c.DelayBetween
-	}
-	return 500 * time.Millisecond
-}
+const (
+	// messageSplitMaxChunkChars is the target maximum characters per chunk.
+	messageSplitMaxChunkChars = 400
+	// messageSplitMaxChunks caps the number of chunks to avoid message spam.
+	messageSplitMaxChunks = 5
+	// messageSplitDelay is the pause between consecutive messages to
+	// simulate a natural typing rhythm.
+	messageSplitDelay = 500 * time.Millisecond
+)
 
 // splitMessage splits a long text into multiple chunks suitable for
 // sequential delivery as chat messages. The algorithm:
 //  1. Split by double-newline into paragraphs.
-//  2. Merge short paragraphs up to ~maxChunkChars.
+//  2. Merge short paragraphs up to ~400 chars.
 //  3. Keep code fences (``` blocks) intact within a single chunk.
 //  4. Keep consecutive numbered list lines together.
-//  5. Merge trailing chunks when exceeding maxChunks.
-//  6. Return a single chunk when total length < maxChunkChars.
-func splitMessage(text string, cfg MessageSplitConfig) []string {
-	maxChars := cfg.maxChunkChars()
-	maxC := cfg.maxChunks()
+//  5. Merge trailing chunks when exceeding 5.
+//  6. Return a single chunk when total length < 400 chars.
+func splitMessage(text string) []string {
+	maxChars := messageSplitMaxChunkChars
+	maxC := messageSplitMaxChunks
 
 	text = strings.TrimSpace(text)
 	if text == "" {
