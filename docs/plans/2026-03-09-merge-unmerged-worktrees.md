@@ -30,3 +30,6 @@ Review current worktrees and local branches that are not merged into `main`, kee
   - Feature branches (`feat/anygen-skills-cli`, `ckl/notebooklm-cli-independent-20260305`) due larger product surface and no immediate need to land during cleanup.
   - `fix/ci-arch-policy-exceptions-20260304` because current architecture baseline already passes without the extra exceptions.
   - Active uncommitted `fix/bg-stale-slot-selfheal` because it lacks tests / a demonstrated repro and should be finished before merge.
+- 2026-03-09: User explicitly requested merging `ckl/notebooklm-cli-independent-20260305`, `feat/anygen-skills-cli`, and `fix/bg-stale-slot-selfheal`; re-opened follow-up integration pass to land them with focused validation.
+- 2026-03-09: Merged `fix/bg-stale-slot-selfheal` after adding a regression test for stale active-task counting.
+- 2026-03-09: Confirmed `ckl/notebooklm-cli-independent-20260305` and `feat/anygen-skills-cli` are functionally superseded by the current CLI-contract implementations already on `main`; consumed both branches without regressing the newer contract.
