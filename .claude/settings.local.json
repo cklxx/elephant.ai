@@ -4,10 +4,10 @@
       {
         "hooks": [
           {
-            "async": true,
+            "type": "command",
             "command": "ELEPHANT_HOOKS_URL='http://localhost:9090' \"$CLAUDE_PROJECT_DIR\"/scripts/cc_hooks/notify_lark.sh",
             "timeout": 10,
-            "type": "command"
+            "async": true
           }
         ]
       }
@@ -16,13 +16,14 @@
       {
         "hooks": [
           {
-            "async": true,
+            "type": "command",
             "command": "ELEPHANT_HOOKS_URL='http://localhost:9090' \"$CLAUDE_PROJECT_DIR\"/scripts/cc_hooks/notify_lark.sh",
             "timeout": 10,
-            "type": "command"
+            "async": true
           }
         ]
       }
     ]
-  }
+  },
+  "prefersReducedMotion": true
 }
