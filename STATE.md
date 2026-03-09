@@ -1,10 +1,10 @@
 # STATE
 
-Updated: 2026-03-09 10:55 CST
+Updated: 2026-03-09 10:57 CST
 
 ## Current status
-- Local `main` is at `8161c5f4 docs(plan): record follow-up branch integration`.
-- `origin/main` is at `1dfdbcc5 docs(team): unify cli-first team contract`; local branch is `13 ahead / 0 behind`.
+- Local `main` is at `0ab67d1c test(larktools): harden docx convert mock baseline`.
+- `origin/main` is at `1dfdbcc5 docs(team): unify cli-first team contract`; local branch is `14 ahead / 0 behind`.
 - Since the 2026-03-06 snapshot, local-only merges landed the `team-cli` status/list fixes and the background stale-active-task self-heal fix.
 - Targeted validation for the new local-only changes passed:
   - `go test ./cmd/alex ./internal/infra/skills`
