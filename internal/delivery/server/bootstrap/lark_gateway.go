@@ -181,9 +181,11 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 
 	// Lark calendar operations require user-scoped OAuth tokens to access a user's
 	// primary calendar. Provide an OAuth service to tools via the gateway context.
+	// Also set up AutoAuth for in-message device flow authorization.
 	if oauthSvc := buildLarkOAuthService(ctx, cfg, container, logger); oauthSvc != nil {
 		container.LarkOAuth = oauthSvc
 		gateway.SetOAuthService(oauthSvc)
+		gateway.EnableAutoAuth(oauthSvc, logger)
 	}
 
 	if broadcaster != nil {

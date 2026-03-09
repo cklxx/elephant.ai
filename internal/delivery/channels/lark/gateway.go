@@ -13,6 +13,7 @@ import (
 	"alex/internal/delivery/channels"
 	agent "alex/internal/domain/agent/ports/agent"
 	portsllm "alex/internal/domain/agent/ports/llm"
+	larkoauth "alex/internal/infra/lark/oauth"
 	builtinshared "alex/internal/infra/tools/builtin/shared"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
@@ -102,6 +103,7 @@ type Gateway struct {
 	activeSlots         sync.Map           // chatID → *sessionSlot
 	pendingInputRelays  sync.Map           // chatID → *pendingRelayQueue
 	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
+	autoAuth            *AutoAuth          // in-message OAuth device flow
 	taskWG              sync.WaitGroup     // tracks running task goroutines (for tests)
 	cleanupMu           sync.Mutex
 	cleanupCancel       context.CancelFunc
@@ -230,6 +232,16 @@ func (g *Gateway) SetPlanReviewStore(store PlanReviewStore) { g.planReviewStore 
 
 // SetOAuthService configures the Lark user OAuth service used for user-scoped API calls.
 func (g *Gateway) SetOAuthService(svc builtinshared.LarkOAuthService) { g.oauth = svc }
+
+// SetAutoAuth configures automatic in-message OAuth authorization.
+func (g *Gateway) SetAutoAuth(aa *AutoAuth) { g.autoAuth = aa }
+
+// EnableAutoAuth creates and configures an AutoAuth instance that uses the
+// gateway's messenger. The messenger is resolved lazily at first use since
+// it is initialized during Start().
+func (g *Gateway) EnableAutoAuth(oauthSvc *larkoauth.Service, logger logging.Logger) {
+	g.autoAuth = NewAutoAuth(oauthSvc, &lazyMessenger{g: g}, logger)
+}
 
 // SetMessenger replaces the default SDK messenger with a custom implementation.
 func (g *Gateway) SetMessenger(m LarkMessenger) { g.messenger = wrapInjectCaptureHub(m) }
