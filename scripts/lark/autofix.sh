@@ -358,21 +358,12 @@ run_validation() {
   #   ./internal/shared/timer/...
   # Retired targets such as ./internal/infra/agent/... and ./internal/agent/... must not be used.
 
-  local -a optional_targets=()
-  if (cd "${AUTOFIX_ROOT}" && go list ./internal/infra/tools/builtin/larktools/... >/dev/null 2>&1); then
-    optional_targets+=("./internal/infra/tools/builtin/larktools/...")
-    append_log "[autofix] optional target enabled: ./internal/infra/tools/builtin/larktools/..."
-  else
-    append_log "[autofix] optional target skipped: ./internal/infra/tools/builtin/larktools/... (not present)"
-  fi
-
   (cd "${AUTOFIX_ROOT}" && go test \
     ./internal/infra/teamruntime/... \
     ./internal/app/scheduler/... \
     ./internal/shared/timer/... \
     ./internal/delivery/channels/lark/... \
     ./internal/infra/lark/... \
-    "${optional_targets[@]}" \
     -count=1)
 }
 

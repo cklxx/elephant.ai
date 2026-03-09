@@ -103,11 +103,11 @@ func TestBuildSelfUpdateSectionIncludesNeverRule(t *testing.T) {
 
 func TestBuildChannelFormattingSectionWithHintPassesThrough(t *testing.T) {
 	t.Parallel()
-	hint := "# Reply Formatting (Lark Channel)\nCurrent reply channel is Lark; Lark text messages do not render Markdown.\nFor long-running or parallel execution, proactively send intermediate checkpoints via lark_send_message in parallel so users can see progress.\nDo not use Markdown syntax"
+	hint := "# Reply Formatting (Lark Channel)\nCurrent reply channel is Lark; Lark text messages do not render Markdown.\nFor long-running or parallel execution, proactively send intermediate checkpoints via shell_exec + skills/feishu-cli/run.py so users can see progress.\nDo not use Markdown syntax"
 	section := buildChannelFormattingSection(hint)
 	for _, snippet := range []string{
 		"Current reply channel is Lark",
-		"send intermediate checkpoints via lark_send_message in parallel",
+		"send intermediate checkpoints via shell_exec + skills/feishu-cli/run.py",
 		"Do not use Markdown syntax",
 	} {
 		if !strings.Contains(section, snippet) {

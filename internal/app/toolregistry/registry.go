@@ -273,7 +273,6 @@ func (r *Registry) registerBuiltins(config Config) error {
 	if err := r.registerPlatformTools(config); err != nil {
 		return err
 	}
-	r.registerLarkTools()
 	r.pruneDisabledTools(disabled)
 
 	for name, tool := range r.static {

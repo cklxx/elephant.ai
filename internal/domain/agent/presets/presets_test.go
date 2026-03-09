@@ -316,10 +316,10 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "full allows channel in cli mode",
+			name:      "full allows skills in cli mode",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetFull,
-			toolName:  "channel",
+			toolName:  "skills",
 			wantAllow: true,
 		},
 		{
