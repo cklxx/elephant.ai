@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/delivery/channels"
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/llmclient"
 	"alex/internal/domain/agent"
@@ -438,7 +439,7 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 	// Sanitize error text before any user-facing use so raw Go error chains
 	// are never shown verbatim in Lark messages.
 	if errText != "" {
-		errText = sanitizeErrorForUser(errText)
+		errText = channels.SanitizeErrorForUser(errText)
 	}
 
 	t.mu.Lock()

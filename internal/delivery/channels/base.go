@@ -2,7 +2,6 @@ package channels
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -94,7 +93,7 @@ func ApplyTimeout(ctx context.Context, cfg BaseConfig) (context.Context, context
 func BuildReplyCore(cfg BaseConfig, result *agent.TaskResult, execErr error) string {
 	reply := ""
 	if execErr != nil {
-		reply = fmt.Sprintf("执行失败：%v", execErr)
+		reply = "执行失败：" + SanitizeErrorForUser(execErr.Error())
 	} else if result != nil {
 		reply = result.Answer
 	}
