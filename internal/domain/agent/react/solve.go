@@ -300,21 +300,38 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 		estimated = afterApply
 	}
 
-	// Phase A: Proactively generate a summary when approaching the threshold,
-	// but only if we have no pending summary and we are still under the hard limit.
-	if estimated <= limit && state.PendingSummary == "" {
-		if services.Context.ShouldCompress(messages, limit) {
-			summary, msgCount := services.Context.BuildSummaryOnly(messages)
-			if summary != "" && msgCount > 0 {
-				state.PendingSummary = summary
-				state.PendingSummaryAtIter = state.Iterations
-				state.PendingSummaryMsgCount = len(messages)
-				e.logger.Info(
-					"Deferred summary generated: iter=%d msgs=%d compressible=%d ratio=%.2f",
-					state.Iterations, len(messages), msgCount,
-					float64(estimated)/float64(limit),
-				)
+	// --- Unified compression: all paths share the ShouldCompress threshold. ---
+	shouldCompress := services.Context.ShouldCompress(messages, limit)
+
+	// Phase A: Artifact compaction at the threshold — preserves compressed
+	// messages as reviewable files before replacing them with a placeholder.
+	if shouldCompress && !isCompactionInCooldown(state) {
+		compacted, ok := e.tryArtifactCompaction(ctx, state, services, messages, compactionReasonThreshold, false)
+		if ok {
+			afterCompact := services.Context.EstimateTokens(compacted)
+			e.logger.Info("Artifact compaction at threshold: %d \u2192 %d tokens (limit=%d)", estimated, afterCompact, limit)
+			state.Messages = compacted
+			if afterCompact <= limit {
+				return compacted
 			}
+			messages = compacted
+			estimated = afterCompact
+		}
+	}
+
+	// Phase A fallback: If artifact compaction didn't fire (cooldown, no writer,
+	// etc.), generate a deferred summary as before.
+	if shouldCompress && estimated <= limit && state.PendingSummary == "" {
+		summary, msgCount := services.Context.BuildSummaryOnly(messages)
+		if summary != "" && msgCount > 0 {
+			state.PendingSummary = summary
+			state.PendingSummaryAtIter = state.Iterations
+			state.PendingSummaryMsgCount = len(messages)
+			e.logger.Info(
+				"Deferred summary generated: iter=%d msgs=%d compressible=%d ratio=%.2f",
+				state.Iterations, len(messages), msgCount,
+				float64(estimated)/float64(limit),
+			)
 		}
 		return messages
 	}
@@ -327,7 +344,7 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 	e.logger.Warn("Context budget exceeded: estimated=%d limit=%d messages=%d \u2014 applying safety-net compression",
 		estimated, limit, len(messages))
 
-	// If we have a pending summary, apply it immediately as first resort.
+	// If we have a pending summary, apply it immediately.
 	if state.PendingSummary != "" {
 		applied := applyPendingSummary(messages, state)
 		afterApply := services.Context.EstimateTokens(applied)
@@ -341,19 +358,12 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 		estimated = afterApply
 	}
 
-	// Layer 1a: Try artifact compaction (Manus-style placeholder + file).
-	inCooldown := isCompactionInCooldown(state)
-	if inCooldown {
-		e.logger.Debug(
-			"Context artifact compaction cooling down: iteration=%d next_allowed=%d",
-			state.Iterations,
-			state.NextCompactionAllowed,
-		)
-	} else {
-		compacted, ok := e.tryArtifactCompaction(ctx, state, services, messages, compactionReasonThreshold, false)
+	// Layer 1a: Forced artifact compaction (bypass cooldown in emergency).
+	{
+		compacted, ok := e.tryArtifactCompaction(ctx, state, services, messages, compactionReasonOverflow, true)
 		if ok {
 			afterCompact := services.Context.EstimateTokens(compacted)
-			e.logger.Info("Artifact compaction reduced tokens: %d \u2192 %d (limit=%d)", estimated, afterCompact, limit)
+			e.logger.Info("Artifact compaction (overflow): %d \u2192 %d tokens (limit=%d)", estimated, afterCompact, limit)
 			if afterCompact <= limit {
 				state.Messages = compacted
 				return compacted
@@ -363,8 +373,8 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 		}
 	}
 
-	// Layer 1b: Immediate AutoCompact (skip during cooldown).
-	if !inCooldown {
+	// Layer 1b: Immediate AutoCompact.
+	{
 		compacted, ok := services.Context.AutoCompact(messages, limit)
 		if ok {
 			afterCompact := services.Context.EstimateTokens(compacted)
