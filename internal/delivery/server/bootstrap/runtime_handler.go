@@ -44,11 +44,16 @@ func (h *RuntimeSessionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 }
 
 // createRequest is the body for POST /api/runtime/sessions.
+//
+// parent_pane_id semantics:
+//   - omitted / null  → 400 Bad Request (callers must be explicit)
+//   - -1              → no pane split (session tracked but CC not launched)
+//   - >0              → split a new pane from that pane ID and launch CC there
 type createRequest struct {
 	Member       string `json:"member"`
 	Goal         string `json:"goal"`
 	WorkDir      string `json:"work_dir"`
-	ParentPaneID int    `json:"parent_pane_id"`
+	ParentPaneID *int   `json:"parent_pane_id"`
 }
 
 func (h *RuntimeSessionHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -57,6 +62,16 @@ func (h *RuntimeSessionHandler) handleCreate(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "invalid JSON body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// parent_pane_id is mandatory — callers must be explicit.
+	// Use -1 to intentionally skip pane creation; omitting the field is an error.
+	if req.ParentPaneID == nil {
+		h.logger.Warn("runtime_handler: create request missing parent_pane_id (member=%s goal=%q)", req.Member, req.Goal)
+		http.Error(w, "parent_pane_id required (use -1 to disable pane creation)", http.StatusBadRequest)
+		return
+	}
+	parentPaneID := *req.ParentPaneID
+	h.logger.Info("runtime_handler: create session member=%s parent_pane_id=%d goal=%q", req.Member, parentPaneID, req.Goal)
 
 	member := session.MemberType(req.Member)
 	if member == "" {
@@ -68,11 +83,6 @@ func (h *RuntimeSessionHandler) handleCreate(w http.ResponseWriter, r *http.Requ
 		h.logger.Warn("runtime_handler: create session: %v", err)
 		http.Error(w, "create session: "+err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	parentPaneID := req.ParentPaneID
-	if parentPaneID == 0 {
-		parentPaneID = -1 // default: no pane split
 	}
 
 	if err := h.rt.StartSession(r.Context(), s.ID, parentPaneID); err != nil {
