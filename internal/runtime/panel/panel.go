@@ -37,6 +37,16 @@ type Pane struct {
 	binary string
 }
 
+// NewPane creates a Pane with the given ID and the default kaku binary path.
+// Use this when you have a pane ID but no Manager reference (e.g. pool mode).
+func NewPane(id int) *Pane {
+	bin := os.Getenv("KAKU_BIN")
+	if bin == "" {
+		bin = defaultKakuBin
+	}
+	return &Pane{ID: id, binary: bin}
+}
+
 // Manager creates and controls Kaku panes.
 type Manager struct {
 	binary string

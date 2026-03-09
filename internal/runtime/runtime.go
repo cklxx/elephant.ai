@@ -279,7 +279,7 @@ func (rt *Runtime) StopSession(ctx context.Context, id string) error {
 		_ = adp.Stop(ctx, id, snap.PoolPane) // best-effort
 	} else {
 		if snap.PaneID >= 0 && !snap.PoolPane {
-			p := &panel.Pane{ID: snap.PaneID}
+			p := panel.NewPane(snap.PaneID)
 			_ = p.Kill(ctx)
 		}
 	}

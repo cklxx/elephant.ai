@@ -213,7 +213,7 @@ func (a *ClaudeCodeAdapter) Start(ctx context.Context, opts StartOpts) error {
 	switch opts.Mode {
 	case ModeDirectPane:
 		// Pool mode: reuse an existing pane — clear it and prepare for a new CC session.
-		pane = &panel.Pane{ID: opts.PaneID}
+		pane = panel.NewPane(opts.PaneID)
 
 		// Interrupt any residual process and clear the screen.
 		_ = pane.SendKey(ctx, "C-c")
