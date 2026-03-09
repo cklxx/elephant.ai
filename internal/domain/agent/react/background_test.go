@@ -185,6 +185,42 @@ func TestDispatchRespectsMaxConcurrentTasks(t *testing.T) {
 	}
 }
 
+func TestReconcileActiveTaskCountLockedIgnoresCompletedAndSignaledTasks(t *testing.T) {
+	mgr := &BackgroundTaskManager{
+		tasks: map[string]*backgroundTask{
+			"pending": {
+				status: agent.BackgroundTaskStatusPending,
+			},
+			"blocked": {
+				status: agent.BackgroundTaskStatusBlocked,
+			},
+			"running": {
+				status: agent.BackgroundTaskStatusRunning,
+			},
+			"completed": {
+				status:      agent.BackgroundTaskStatusCompleted,
+				completedAt: time.Now(),
+			},
+			"failed": {
+				status: agent.BackgroundTaskStatusFailed,
+			},
+			"signaled": {
+				status:             agent.BackgroundTaskStatusRunning,
+				completionSignaled: true,
+			},
+		},
+	}
+	mgr.activeTasks.Store(99)
+
+	got := mgr.reconcileActiveTaskCountLocked()
+	if got != 3 {
+		t.Fatalf("expected 3 active tasks, got %d", got)
+	}
+	if stored := mgr.activeTasks.Load(); stored != 3 {
+		t.Fatalf("expected reconciled activeTasks=3, got %d", stored)
+	}
+}
+
 func TestCollectWait(t *testing.T) {
 	mgr := newTestManager(blockingExecutor(50*time.Millisecond, "waited-result"))
 	defer mgr.Shutdown()
