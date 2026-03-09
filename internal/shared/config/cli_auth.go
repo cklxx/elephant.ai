@@ -50,6 +50,7 @@ func LoadCLICredentials(opts ...Option) CLICredentials {
 		envLookup: DefaultEnvLookup,
 		readFile:  os.ReadFile,
 		homeDir:   os.UserHomeDir,
+		cmdRunner: defaultCmdRunner,
 	}
 	for _, opt := range opts {
 		opt(&options)
