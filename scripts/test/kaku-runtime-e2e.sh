@@ -242,7 +242,9 @@ tc_1_single_agent_task() {
   local M; M=$(mark_log)
 
   info "Injecting: single agent task → write $OUTPUT_FILE"
-  local RESP; RESP=$(inject "请用 kaku runtime 在 pane $KAKU_PARENT_PANE 里启动一个 Claude Code session，任务是：用 bash 执行 echo 'kaku-tc1-done' > $OUTPUT_FILE 然后退出。完成后告诉我文件路径。" 180)
+  local RESP; RESP=$(inject "请调用 POST http://localhost:9090/api/runtime/sessions 启动一个 Claude Code session。
+JSON body 必须包含：member=claude_code，goal=\"bash 执行: echo 'kaku-tc1-done' > ${OUTPUT_FILE} 然后退出\"，work_dir=/tmp，parent_pane_id=${KAKU_PARENT_PANE}（必须传这个值，否则 CC 不会在宫格内启动）。
+完成后告诉我 session id 和文件路径。" 180)
 
   # L1: agent 回复了任务确认
   assert_no_error "$RESP"
@@ -299,10 +301,11 @@ tc_2_parallel_team() {
 
   info "Injecting: parallel team — 2 agents running simultaneously"
   local RESP; RESP=$(inject \
-    "请同时启动两个 Claude Code session 来并行工作：
-Agent-A：在 pane $KAKU_PARENT_PANE 附近启动，任务是写文件 $FILE_A 内容为 'agent-a-done'
-Agent-B：另开一个 pane 启动，任务是执行 echo 'agent-b-$(date +%s)' 并输出结果
-两个 agent 应该同时运行，不要等 A 完成再启动 B。完成后报告两个任务的结果。" \
+    "请同时调用两次 POST http://localhost:9090/api/runtime/sessions 来并行启动两个 Claude Code session：
+Agent-A：parent_pane_id=${KAKU_PARENT_PANE}，goal=\"写文件 ${FILE_A} 内容为 agent-a-done 然后退出\"，work_dir=/tmp
+Agent-B：parent_pane_id=${KAKU_PARENT_PANE}，goal=\"执行 echo agent-b-done 然后退出\"，work_dir=/tmp
+两个 API 调用要同时发出（不要等 A 的 session 完成再发 B 的），然后等两个 session 都完成，汇报结果。
+注意：parent_pane_id 必须传 ${KAKU_PARENT_PANE}，不能省略。" \
     240)
 
   # L1: agent 确认启动了任务
@@ -364,10 +367,11 @@ tc_3_sequential_dependency() {
 
   info "Injecting: sequential dependency — B depends on A"
   local RESP; RESP=$(inject \
-    "请完成一个两阶段编程任务：
-阶段1：启动 Claude Code session，在 $FILE1 写一个 Go 函数 Add(a, b int) int，写完后结束
-阶段2：等阶段1完成后，再启动另一个 Claude Code session，在 $FILE2 写一个调用 $FILE1 中 Add 函数的测试用例，写完后结束
-两个阶段必须顺序执行（不能并行），完成后告诉我两个文件的内容摘要。" \
+    "请分两阶段完成任务，每个阶段都要调用 POST http://localhost:9090/api/runtime/sessions（parent_pane_id 必须是 ${KAKU_PARENT_PANE}）：
+阶段1：创建 session，goal=\"在 ${FILE1} 写一个 Go 函数 Add(a, b int) int，写完后退出\"，work_dir=/tmp，parent_pane_id=${KAKU_PARENT_PANE}
+      然后轮询 GET http://localhost:9090/api/runtime/sessions/<id> 直到 state=completed
+阶段2：等阶段1 completed 后，再创建另一个 session，goal=\"在 ${FILE2} 写一个调用 Add 函数的 Go 测试用例，写完后退出\"，work_dir=/tmp，parent_pane_id=${KAKU_PARENT_PANE}
+两个阶段严格顺序（不能并行），完成后告诉我两个文件的内容摘要。" \
     360)
 
   # L1
@@ -415,9 +419,10 @@ tc_4_stall_and_leader_recovery() {
 
   info "Injecting: task that will stall (CC waits for input)"
   local RESP; RESP=$(inject \
-    "请在 pane $KAKU_PARENT_PANE 启动一个 Claude Code session，任务是：
-'请等待用户输入后再执行，不要自动做任何事情'
-启动后就让它等着，不要给它任何后续指令。" \
+    "请调用 POST http://localhost:9090/api/runtime/sessions 启动一个 Claude Code session：
+parent_pane_id=${KAKU_PARENT_PANE}（必须传，不能省略），member=claude_code，work_dir=/tmp
+goal=\"请等待用户输入后再执行，不要自动做任何事情，保持等待状态\"
+启动后返回 session id，不要给 session 任何后续指令，让它保持等待。" \
     60)
 
   assert_no_error "$RESP"
@@ -519,18 +524,21 @@ tc_6_full_team_workflow() {
 
   info "Injecting: full 3-agent team workflow (Analyst → Coder → Tester)"
   local RESP; RESP=$(inject \
-    "请用 kaku 编程团队完成以下任务（三个阶段，顺序执行）：
+    "请分三个阶段完成任务，每个阶段都要调用 POST http://localhost:9090/api/runtime/sessions（parent_pane_id 必须是 ${KAKU_PARENT_PANE}，不能省略）：
 
-阶段1 - 分析师（Claude Code session，pane $KAKU_PARENT_PANE 附近）：
-  写一个简单的方案文档到 $PLAN，内容是「实现 Go 函数 Max(a,b int) int 返回较大值，以及配套单测」
+阶段1（分析师）：
+  POST /api/runtime/sessions，parent_pane_id=${KAKU_PARENT_PANE}，goal=\"写方案文档到 ${PLAN}，内容：实现 Go 函数 Max(a,b int) int 返回较大值，写完后退出\"，work_dir=/tmp
+  等待该 session completed
 
-阶段2 - 开发者（新的 Claude Code session）：
-  读取 $PLAN，实现 Go 文件 $IMPL，只包含 Max 函数
+阶段2（开发者）：
+  POST /api/runtime/sessions，parent_pane_id=${KAKU_PARENT_PANE}，goal=\"读取 ${PLAN}，实现 Go 文件 ${IMPL}，只包含 Max 函数，写完后退出\"，work_dir=/tmp
+  等待该 session completed
 
-阶段3 - 验证（新的 Claude Code session）：
-  读取 $IMPL，用 echo 输出一行验证结论：「Max(3,5)=5, 实现正确」
+阶段3（验证）：
+  POST /api/runtime/sessions，parent_pane_id=${KAKU_PARENT_PANE}，goal=\"读取 ${IMPL}，echo 输出验证结论：Max(3,5)=5 实现正确，完成后退出\"，work_dir=/tmp
+  等待该 session completed
 
-三个阶段严格顺序执行，每个阶段完成后再启动下一个。全部完成后汇报结果。" \
+三个阶段严格顺序，全部完成后汇报。" \
     480)
 
   # L1: agent 确认开始了多阶段任务
