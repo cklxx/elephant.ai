@@ -128,6 +128,64 @@ func TestListenDebugPort_InvalidPort(t *testing.T) {
 	}
 }
 
+func TestStartupProfile_RecordAndSnapshot(t *testing.T) {
+	sp := newStartupProfile()
+	sp.record("P1 Foundation", 120*time.Millisecond)
+	sp.record("P2 Attachments", 45*time.Millisecond)
+	sp.finalize(200 * time.Millisecond)
+
+	snap := sp.snapshot()
+	if len(snap.Phases) != 2 {
+		t.Fatalf("expected 2 phases, got %d", len(snap.Phases))
+	}
+	if snap.Phases[0].Name != "P1 Foundation" || snap.Phases[0].DurationMS != 120 {
+		t.Errorf("unexpected P1: %+v", snap.Phases[0])
+	}
+	if snap.Phases[1].Name != "P2 Attachments" || snap.Phases[1].DurationMS != 45 {
+		t.Errorf("unexpected P2: %+v", snap.Phases[1])
+	}
+	if snap.TotalMS != 200 {
+		t.Errorf("expected total 200ms, got %d", snap.TotalMS)
+	}
+}
+
+func TestStartupProfileHandler_Endpoint(t *testing.T) {
+	sp := newStartupProfile()
+	sp.record("P1 Foundation", 100*time.Millisecond)
+	sp.record("P2 Attachments", 50*time.Millisecond)
+	sp.finalize(180 * time.Millisecond)
+
+	f := &Foundation{
+		Degraded:     NewDegradedComponents(),
+		Config:       Config{DebugPort: "0"},
+		ConfigResult: ConfigResult{},
+	}
+	broadcaster := serverApp.NewEventBroadcaster()
+	server, _, err := BuildDebugHTTPServer(f, broadcaster, nil, Config{DebugPort: "0"}, withStartupProfile(sp))
+	if err != nil {
+		t.Fatalf("BuildDebugHTTPServer failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/health/startup-profile", nil)
+	rec := httptest.NewRecorder()
+	server.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var resp startupProfileResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("JSON decode: %v body=%s", err, rec.Body.String())
+	}
+	if len(resp.Phases) != 2 {
+		t.Fatalf("expected 2 phases, got %d", len(resp.Phases))
+	}
+	if resp.TotalMS != 180 {
+		t.Errorf("expected total 180, got %d", resp.TotalMS)
+	}
+}
+
 func TestBuildDebugHTTPServer_HealthWithNilContainer(t *testing.T) {
 	f := &Foundation{
 		Degraded: NewDegradedComponents(),

@@ -2,11 +2,13 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"alex/internal/app/di"
@@ -20,12 +22,22 @@ import (
 	"alex/internal/shared/logging"
 )
 
+// debugServerOption configures optional components of the debug HTTP server.
+type debugServerOption func(*serverHTTP.DebugRouterDeps)
+
+// withStartupProfile attaches a startup-profile HTTP handler to the debug router.
+func withStartupProfile(sp *startupProfile) debugServerOption {
+	return func(deps *serverHTTP.DebugRouterDeps) {
+		deps.StartupProfileHandler = &startupProfileHandler{profile: sp}
+	}
+}
+
 // BuildDebugHTTPServer creates a lightweight HTTP server for the Lark standalone
 // binary. It exposes health, SSE, dev/debug, config, hooks-bridge, and runtime
 // endpoints on cfg.DebugPort (default "9090") — no auth, no rate limiting.
 // It returns the server and the runtime event bus so the caller can wire
 // StallDetector, LeaderAgent, and other bus consumers.
-func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster, container *di.Container, cfg Config) (*http.Server, hooks.Bus, error) {
+func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster, container *di.Container, cfg Config, opts ...debugServerOption) (*http.Server, hooks.Bus, error) {
 	logger := logging.OrNop(f.Logger)
 	ctx := context.Background()
 
@@ -83,7 +95,7 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 		runtimePoolAPI = NewRuntimePoolHandler(rt, logger)
 	}
 
-	router := serverHTTP.NewDebugRouter(serverHTTP.DebugRouterDeps{
+	deps := serverHTTP.DebugRouterDeps{
 		Broadcaster:            broadcaster,
 		HealthChecker:          healthChecker,
 		ConfigHandler:          configHandler,
@@ -98,7 +110,11 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 		RuntimeHooksBridge:     runtimeHooksHandler,
 		RuntimeAPI:             runtimeAPI,
 		RuntimePoolAPI:         runtimePoolAPI,
-	})
+	}
+	for _, o := range opts {
+		o(&deps)
+	}
+	router := serverHTTP.NewDebugRouter(deps)
 
 	port := cfg.DebugPort
 	if port == "" {
@@ -144,6 +160,65 @@ func listenDebugPort(basePort string, logger logging.Logger) (net.Listener, erro
 
 	logger.Warn("All debug ports :%d–:%d unavailable; debug HTTP server disabled", port, port+debugPortMaxRetries)
 	return nil, nil
+}
+
+// startupProfile records per-phase timing from RunLark. It is created before
+// Phase 1 and populated as each phase completes. The HTTP handler reads
+// whatever data is available at request time.
+type startupProfile struct {
+	mu     sync.RWMutex
+	phases []phaseTiming
+	total  time.Duration
+}
+
+type phaseTiming struct {
+	Name       string `json:"name"`
+	DurationMS int64  `json:"duration_ms"`
+}
+
+func newStartupProfile() *startupProfile {
+	return &startupProfile{}
+}
+
+func (sp *startupProfile) record(name string, d time.Duration) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	sp.phases = append(sp.phases, phaseTiming{
+		Name:       name,
+		DurationMS: d.Milliseconds(),
+	})
+}
+
+func (sp *startupProfile) finalize(total time.Duration) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	sp.total = total
+}
+
+func (sp *startupProfile) snapshot() startupProfileResponse {
+	sp.mu.RLock()
+	defer sp.mu.RUnlock()
+	phases := make([]phaseTiming, len(sp.phases))
+	copy(phases, sp.phases)
+	return startupProfileResponse{
+		Phases:  phases,
+		TotalMS: sp.total.Milliseconds(),
+	}
+}
+
+type startupProfileResponse struct {
+	Phases  []phaseTiming `json:"phases"`
+	TotalMS int64         `json:"total_ms"`
+}
+
+// startupProfileHandler serves GET /api/health/startup-profile.
+type startupProfileHandler struct {
+	profile *startupProfile
+}
+
+func (h *startupProfileHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(h.profile.snapshot())
 }
 
 // buildDebugBroadcaster creates the EventBroadcaster for Lark standalone mode.

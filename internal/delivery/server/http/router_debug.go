@@ -29,6 +29,7 @@ type DebugRouterDeps struct {
 	RuntimeHooksBridge     http.Handler      // may be nil; POST /api/hooks/runtime
 	RuntimeAPI             http.Handler      // may be nil; POST+GET /api/runtime/sessions
 	RuntimePoolAPI         http.Handler      // may be nil; POST+GET /api/runtime/pool
+	StartupProfileHandler  http.Handler      // may be nil; GET /api/health/startup-profile
 }
 
 // NewDebugRouter creates an HTTP handler exposing only debug / diagnostic
@@ -70,6 +71,9 @@ func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 
 	// ── Health ──
 	mux.Handle("GET /health", routeHandler("/health", http.HandlerFunc(apiHandler.HandleHealthCheck)))
+	if deps.StartupProfileHandler != nil {
+		mux.Handle("GET /api/health/startup-profile", routeHandler("/api/health/startup-profile", deps.StartupProfileHandler))
+	}
 
 	// ── SSE event stream ──
 	mux.Handle("GET /api/sse", routeHandler("/api/sse", http.HandlerFunc(sseHandler.HandleSSEStream)))

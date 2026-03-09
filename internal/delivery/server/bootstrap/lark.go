@@ -23,8 +23,12 @@ func RunLark(observabilityConfigPath string) error {
 	logger := logging.NewComponentLogger("Main")
 	logger.Info("Starting elephant.ai Lark standalone mode...")
 
+	totalStart := time.Now()
+	profile := newStartupProfile()
+
 	// ── Phase 1: Required infrastructure ──
 
+	p1Start := time.Now()
 	f, err := BootstrapFoundation(observabilityConfigPath, logger)
 	if err != nil {
 		return err
@@ -42,9 +46,13 @@ func RunLark(observabilityConfigPath string) error {
 	if utils.IsBlank(larkCfg.AppID) || utils.IsBlank(larkCfg.AppSecret) {
 		return fmt.Errorf("lark standalone mode requires channels.lark.app_id and app_secret")
 	}
+	p1Duration := time.Since(p1Start)
+	profile.record("P1 Foundation", p1Duration)
+	logger.Info("Phase 1 Foundation: %dms", p1Duration.Milliseconds())
 
 	// ── Phase 2: Optional services (attachments only) ──
 
+	p2Start := time.Now()
 	optionalStages := []BootstrapStage{
 		f.AttachmentStage(),
 	}
@@ -67,9 +75,13 @@ func RunLark(observabilityConfigPath string) error {
 		Host:     f.HostEnv,
 		Captured: f.EnvCapturedAt,
 	})
+	p2Duration := time.Since(p2Start)
+	profile.record("P2 Attachments", p2Duration)
+	logger.Info("Phase 2 Attachments: %dms", p2Duration.Milliseconds())
 
 	// ── Phase 3: Subsystems (channel gateways, scheduler/timer) ──
 
+	p3Start := time.Now()
 	subsystems := NewSubsystemManager(logger)
 	defer subsystems.StopAll()
 
@@ -120,10 +132,14 @@ func RunLark(observabilityConfigPath string) error {
 	async.Go(logger, "watchdog", func() {
 		watchdog.Run(watchdogCtx)
 	})
+	p3Duration := time.Since(p3Start)
+	profile.record("P3 Subsystems", p3Duration)
+	logger.Info("Phase 3 Subsystems: %dms", p3Duration.Milliseconds())
 
 	// ── Phase 4: Debug HTTP server ──
 
-	debugServer, _, err := BuildDebugHTTPServer(f, broadcaster, container, config)
+	p4Start := time.Now()
+	debugServer, _, err := BuildDebugHTTPServer(f, broadcaster, container, config, withStartupProfile(profile))
 	if err != nil {
 		return fmt.Errorf("debug HTTP server: %w", err)
 	}
@@ -147,10 +163,22 @@ func RunLark(observabilityConfigPath string) error {
 	} else {
 		logger.Warn("Continuing without debug HTTP server (port unavailable)")
 	}
+	p4Duration := time.Since(p4Start)
+	profile.record("P4 DebugHTTP", p4Duration)
+	logger.Info("Phase 4 DebugHTTP: %dms", p4Duration.Milliseconds())
+
+	// Finalize startup profile and print summary.
+	totalDuration := time.Since(totalStart)
+	profile.finalize(totalDuration)
+	logger.Info("Lark service ready in %dms (P1: %dms, P2: %dms, P3: %dms, P4: %dms)",
+		totalDuration.Milliseconds(),
+		p1Duration.Milliseconds(),
+		p2Duration.Milliseconds(),
+		p3Duration.Milliseconds(),
+		p4Duration.Milliseconds(),
+	)
 
 	// ── Phase 5: Block until signal ──
-
-	logger.Info("Lark standalone mode running (WS + debug HTTP). Waiting for signal...")
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
