@@ -11,6 +11,8 @@ import (
 	"time"
 
 	runtimepkg "alex/internal/runtime"
+	"alex/internal/runtime/adapter"
+	"alex/internal/runtime/panel"
 	"alex/internal/runtime/session"
 )
 
@@ -108,6 +110,18 @@ func runRuntimeStart(args []string) error {
 	if err != nil {
 		return &ExitCodeError{Code: 1, Err: err}
 	}
+
+	// Wire a real adapter factory so CC/Codex actually launches.
+	hooksURL := strings.TrimSpace(os.Getenv("RUNTIME_HOOKS_URL"))
+	if hooksURL == "" {
+		hooksURL = "http://localhost:8080"
+	}
+	pm, err := panel.NewManager()
+	if err != nil {
+		return &ExitCodeError{Code: 1, Err: fmt.Errorf("panel manager: %w", err)}
+	}
+	fac := adapter.NewFactory(pm, rt, hooksURL, nil)
+	rt.SetFactory(fac)
 
 	s, err := rt.CreateSession(member, goalVal, dir)
 	if err != nil {

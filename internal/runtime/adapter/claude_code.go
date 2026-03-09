@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	ccWelcomeDelay = 1500 * time.Millisecond // wait for CC welcome screen to render
-	ccPollInterval = 3 * time.Second          // pane output poll interval
-	ccShellPrompt  = "$ "                     // bash prompt that signals CC exited
+	ccShellReadyDelay = 800 * time.Millisecond  // wait for bash login shell to initialise
+	ccWelcomeDelay    = 2500 * time.Millisecond // wait for CC welcome screen to render (❯ prompt)
+	ccPollInterval    = 3 * time.Second         // pane output poll interval
+	ccShellPrompt     = "$ "                    // bash prompt that signals CC exited
 )
 
 // ClaudeCodeAdapter launches Claude Code in interactive mode inside a Kaku pane.
@@ -64,6 +65,10 @@ func (a *ClaudeCodeAdapter) Start(ctx context.Context, sessionID, goal, workDir 
 	// Activate the pane so the user can watch.
 	_ = pane.Activate(ctx)
 
+	// Wait for the bash login shell to finish initialising.
+	// spawn/split starts a fresh bash -l; sending commands before it's ready silently drops them.
+	time.Sleep(ccShellReadyDelay)
+
 	// Export runtime session env vars so CC hooks can call back.
 	envLine := fmt.Sprintf(
 		"export RUNTIME_SESSION_ID=%s RUNTIME_HOOKS_URL=%s",
@@ -82,10 +87,13 @@ func (a *ClaudeCodeAdapter) Start(ctx context.Context, sessionID, goal, workDir 
 	// Wait for CC welcome screen to render (❯ prompt appears).
 	time.Sleep(ccWelcomeDelay)
 
-	// Inject goal text (paste mode, then submit with \r).
+	// Inject goal text then submit. A brief pause between inject and submit is
+	// required: CC renders the input buffer asynchronously; submitting too soon
+	// sends \r before CC's readline is ready, silently dropping the submission.
 	if err := pane.InjectText(ctx, goal); err != nil {
 		return fmt.Errorf("claude_code adapter: inject goal: %w", err)
 	}
+	time.Sleep(300 * time.Millisecond)
 	if err := pane.Submit(ctx); err != nil {
 		return fmt.Errorf("claude_code adapter: submit goal: %w", err)
 	}

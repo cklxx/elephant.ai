@@ -90,6 +90,14 @@ func New(storeDir string, cfg Config) (*Runtime, error) {
 // Bus returns the event bus (read-only; for wiring scheduler/leader/detector).
 func (rt *Runtime) Bus() hooks.Bus { return rt.bus }
 
+// SetFactory wires an adapter factory after construction.
+// Useful when the factory needs the runtime as its HookSink (circular init).
+func (rt *Runtime) SetFactory(f *adapter.Factory) {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	rt.factory = f
+}
+
 // CreateSession allocates a new session and persists its metadata.
 func (rt *Runtime) CreateSession(member session.MemberType, goal, workDir string) (*session.Session, error) {
 	id := newSessionID()
