@@ -67,7 +67,8 @@ func startRuntimeBusLogger(ctx context.Context, bus hooks.Bus, logger logging.Lo
 }
 
 // startRuntimeCompletionNotifier subscribes to all runtime events and sends a
-// Feishu (Lark) notification when a session completes or fails.
+// Feishu (Lark) notification when a session completes or fails. It runs in a
+// non-blocking goroutine mirroring the pattern used by startRuntimeBusLogger.
 // If chatID is empty the notifier starts but silently skips every notification.
 func startRuntimeCompletionNotifier(ctx context.Context, bus hooks.Bus, lark LarkNotifier, chatID string, logger logging.Logger) {
 	ch, cancel := bus.SubscribeAll()
