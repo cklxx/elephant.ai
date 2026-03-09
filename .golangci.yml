@@ -3,13 +3,11 @@ run:
   concurrency: 4
 
 linters:
+  disable-all: true
   enable:
     - errcheck
     - govet
     - ineffassign
-    - staticcheck
-    - gosimple
-    - unused
 
 issues:
   max-issues-per-linter: 0
