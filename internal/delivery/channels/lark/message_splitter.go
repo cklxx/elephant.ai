@@ -3,6 +3,10 @@ package lark
 import (
 	"strings"
 	"time"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
 )
 
 const (
@@ -13,10 +17,10 @@ const (
 	messageSplitDelay = 500 * time.Millisecond
 )
 
-// splitMessage splits text into multiple chunks by markdown structure.
-// It preserves structural integrity: headings stay with their body content,
-// code fences and numbered lists are kept intact, and intro paragraphs
-// are grouped with immediately following lists.
+// splitMessage splits text into multiple chunks by markdown structure using
+// a goldmark AST parser. Each chunk is a complete structural unit — headings
+// stay with their body content, code fences, lists, tables, and blockquotes
+// are never broken apart.
 // Returns a single chunk when the text has no structural breaks.
 func splitMessage(text string) []string {
 	text = strings.TrimSpace(text)
@@ -24,7 +28,7 @@ func splitMessage(text string) []string {
 		return []string{""}
 	}
 
-	segments := splitIntoSegments(text)
+	segments := splitByAST(text)
 	if len(segments) <= 1 {
 		return []string{text}
 	}
@@ -40,164 +44,227 @@ func splitMessage(text string) []string {
 	return segments
 }
 
-// splitIntoSegments splits text into semantic segments preserving markdown
-// structure. If the text contains headings, it splits by sections (heading +
-// body). Otherwise, it splits by paragraphs while keeping code fences,
-// lists intact, and grouping intro text with following lists.
-func splitIntoSegments(text string) []string {
-	if hasHeadings(text) {
-		return splitBySections(text)
-	}
-	return splitByParagraphs(text)
+// topLevelBlock describes a top-level AST node's position in source lines.
+type topLevelBlock struct {
+	kind      ast.NodeKind
+	startLine int // inclusive, 0-indexed
+	endLine   int // inclusive, 0-indexed
 }
 
-// hasHeadings returns true if text contains any markdown heading lines.
-func hasHeadings(text string) bool {
-	for _, line := range strings.Split(text, "\n") {
-		if isHeadingLine(strings.TrimSpace(line)) {
-			return true
+// splitByAST parses markdown into a goldmark AST and groups top-level nodes
+// into structural segments. Headings act as section delimiters: each heading
+// and all following non-heading nodes form one segment. Without headings,
+// consecutive blocks are individual segments, with intro+list merging.
+func splitByAST(source string) []string {
+	src := []byte(source)
+	sourceLines := strings.Split(source, "\n")
+	md := goldmark.New()
+	reader := text.NewReader(src)
+	doc := md.Parser().Parse(reader)
+
+	// Build line offset index for byte→line conversion.
+	lineOffsets := buildLineOffsets(src)
+
+	// Collect top-level blocks with their source line ranges.
+	var blocks []topLevelBlock
+	for child := doc.FirstChild(); child != nil; child = child.NextSibling() {
+		b := nodeToBlock(child, src, lineOffsets)
+		if b.startLine >= 0 {
+			blocks = append(blocks, b)
 		}
 	}
-	return false
+
+	if len(blocks) == 0 {
+		return []string{source}
+	}
+
+	// Fix any gaps between blocks (blank lines, thematic breaks, etc.)
+	// by assigning unaccounted source lines to surrounding blocks.
+	blocks = fillGaps(blocks, len(sourceLines)-1)
+
+	// Group into segments.
+	hasHeadings := false
+	for _, b := range blocks {
+		if b.kind == ast.KindHeading {
+			hasHeadings = true
+			break
+		}
+	}
+
+	var rawSegments []string
+	if hasHeadings {
+		rawSegments = groupByHeadings(blocks, sourceLines)
+	} else {
+		rawSegments = groupByBlocks(blocks, sourceLines)
+		rawSegments = mergeIntroWithList(rawSegments)
+	}
+
+	return rawSegments
 }
 
-// isHeadingLine checks if a line is a markdown heading (starts with # ).
-func isHeadingLine(trimmed string) bool {
-	if !strings.HasPrefix(trimmed, "#") {
-		return false
+// buildLineOffsets returns the byte offset of the start of each line.
+func buildLineOffsets(src []byte) []int {
+	offsets := []int{0}
+	for i, b := range src {
+		if b == '\n' && i+1 <= len(src) {
+			offsets = append(offsets, i+1)
+		}
 	}
-	i := 0
-	for i < len(trimmed) && trimmed[i] == '#' {
-		i++
-	}
-	return i >= 1 && i <= 6 && i < len(trimmed) && trimmed[i] == ' '
+	return offsets
 }
 
-// splitBySections splits text into heading-delimited sections.
-// Each heading starts a new section that includes all content until the
-// next heading. Content before the first heading becomes its own section.
-func splitBySections(text string) []string {
-	lines := strings.Split(text, "\n")
-	var sections []string
-	var current []string
-
-	flushSection := func() {
-		if len(current) == 0 {
-			return
+// byteToLine converts a byte offset to a 0-indexed line number.
+func byteToLine(offsets []int, bytePos int) int {
+	// Binary search for the line containing bytePos.
+	lo, hi := 0, len(offsets)-1
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if offsets[mid] <= bytePos {
+			lo = mid
+		} else {
+			hi = mid - 1
 		}
-		seg := strings.TrimSpace(strings.Join(current, "\n"))
-		if seg != "" {
-			sections = append(sections, seg)
-		}
-		current = nil
 	}
-
-	inCodeFence := false
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// Track code fence state — never split inside code fences.
-		if strings.HasPrefix(trimmed, "```") {
-			inCodeFence = !inCodeFence
-			current = append(current, line)
-			continue
-		}
-		if inCodeFence {
-			current = append(current, line)
-			continue
-		}
-
-		// Heading outside code fence starts a new section.
-		if isHeadingLine(trimmed) {
-			flushSection()
-			current = append(current, line)
-			continue
-		}
-
-		current = append(current, line)
-	}
-
-	flushSection()
-	return sections
+	return lo
 }
 
-// splitByParagraphs splits text by double-newline paragraph breaks, keeping
-// code fences and lists intact. An intro paragraph immediately followed by
-// a list is grouped together.
-func splitByParagraphs(text string) []string {
-	lines := strings.Split(text, "\n")
+// nodeToBlock maps a top-level AST node to its source line range.
+func nodeToBlock(node ast.Node, src []byte, lineOffsets []int) topLevelBlock {
+	minByte := len(src)
+	maxByte := 0
+	collectBlockBytes(node, &minByte, &maxByte)
+
+	if minByte >= maxByte {
+		// Node with no content lines (e.g. ThematicBreak).
+		// These will be handled by fillGaps.
+		return topLevelBlock{kind: node.Kind(), startLine: -1, endLine: -1}
+	}
+
+	startLine := byteToLine(lineOffsets, minByte)
+	endLine := byteToLine(lineOffsets, maxByte-1)
+
+	// Extend for fenced code blocks to include fence lines.
+	if node.Kind() == ast.KindFencedCodeBlock {
+		if startLine > 0 {
+			startLine--
+		}
+		endLine++
+	}
+
+	return topLevelBlock{kind: node.Kind(), startLine: startLine, endLine: endLine}
+}
+
+// collectBlockBytes finds the min and max byte offsets across all block-level
+// Lines() in a node tree. Inline nodes are skipped (they panic on Lines()).
+func collectBlockBytes(node ast.Node, minByte, maxByte *int) {
+	if node.Type() == ast.TypeInline {
+		return
+	}
+	lines := node.Lines()
+	for i := 0; i < lines.Len(); i++ {
+		seg := lines.At(i)
+		if seg.Start < *minByte {
+			*minByte = seg.Start
+		}
+		if seg.Stop > *maxByte {
+			*maxByte = seg.Stop
+		}
+	}
+	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+		collectBlockBytes(child, minByte, maxByte)
+	}
+}
+
+// fillGaps assigns unaccounted source lines to adjacent blocks.
+// Lines between blocks are appended to the preceding block.
+func fillGaps(blocks []topLevelBlock, maxLine int) []topLevelBlock {
+	if len(blocks) == 0 {
+		return blocks
+	}
+
+	result := make([]topLevelBlock, len(blocks))
+	copy(result, blocks)
+
+	// Extend each block's endLine to cover lines up to (but not including)
+	// the next block's startLine.
+	for i := 0; i < len(result)-1; i++ {
+		nextStart := result[i+1].startLine
+		if nextStart > result[i].endLine+1 {
+			// There's a gap — extend current block to cover it.
+			result[i].endLine = nextStart - 1
+		}
+	}
+
+	// Extend last block to cover remaining lines.
+	if result[len(result)-1].endLine < maxLine {
+		result[len(result)-1].endLine = maxLine
+	}
+
+	return result
+}
+
+// groupByHeadings groups blocks by heading sections. Each heading and all
+// following non-heading blocks form one segment.
+func groupByHeadings(blocks []topLevelBlock, sourceLines []string) []string {
 	var segments []string
-	var current []string
-	inCodeFence := false
+	var sectionStart, sectionEnd int
+	inSection := false
 
-	flushCurrent := func() {
-		if len(current) == 0 {
+	flush := func() {
+		if !inSection {
 			return
 		}
-		seg := strings.TrimSpace(strings.Join(current, "\n"))
+		seg := extractLines(sourceLines, sectionStart, sectionEnd)
 		if seg != "" {
 			segments = append(segments, seg)
 		}
-		current = nil
 	}
 
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// Toggle code fence state.
-		if strings.HasPrefix(trimmed, "```") {
-			if !inCodeFence {
-				flushCurrent()
-				inCodeFence = true
-				current = append(current, line)
-				continue
-			}
-			current = append(current, line)
-			inCodeFence = false
-			flushCurrent()
-			continue
-		}
-
-		if inCodeFence {
-			current = append(current, line)
-			continue
-		}
-
-		// Empty line = paragraph break (outside code fence).
-		if trimmed == "" {
-			flushCurrent()
-			continue
-		}
-
-		// Check if this is a numbered list continuation.
-		if isNumberedListLine(trimmed) && len(current) > 0 && isNumberedListLine(strings.TrimSpace(current[len(current)-1])) {
-			current = append(current, line)
-			continue
-		}
-
-		// Check if this is a bullet list continuation.
-		if isBulletListLine(trimmed) && len(current) > 0 && isBulletListLine(strings.TrimSpace(current[len(current)-1])) {
-			current = append(current, line)
-			continue
-		}
-
-		// Non-list line after a list — break.
-		if len(current) > 0 {
-			lastFirst := strings.TrimSpace(current[0])
-			if (isNumberedListLine(lastFirst) || isBulletListLine(lastFirst)) && !isNumberedListLine(trimmed) && !isBulletListLine(trimmed) {
-				flushCurrent()
+	for _, b := range blocks {
+		if b.kind == ast.KindHeading {
+			flush()
+			sectionStart = b.startLine
+			sectionEnd = b.endLine
+			inSection = true
+		} else if inSection {
+			sectionEnd = b.endLine
+		} else {
+			// Content before first heading.
+			seg := extractLines(sourceLines, b.startLine, b.endLine)
+			if seg != "" {
+				segments = append(segments, seg)
 			}
 		}
-
-		current = append(current, line)
 	}
-
-	flushCurrent()
-
-	// Post-process: merge an intro paragraph with a following list.
-	segments = mergeIntroWithList(segments)
+	flush()
 
 	return segments
+}
+
+// groupByBlocks creates one segment per top-level block.
+func groupByBlocks(blocks []topLevelBlock, sourceLines []string) []string {
+	var segments []string
+	for _, b := range blocks {
+		seg := extractLines(sourceLines, b.startLine, b.endLine)
+		if seg != "" {
+			segments = append(segments, seg)
+		}
+	}
+	return segments
+}
+
+// extractLines joins source lines [start, end] (inclusive) and trims whitespace.
+func extractLines(sourceLines []string, start, end int) string {
+	if start < 0 {
+		start = 0
+	}
+	if end >= len(sourceLines) {
+		end = len(sourceLines) - 1
+	}
+	if start > end {
+		return ""
+	}
+	return strings.TrimSpace(strings.Join(sourceLines[start:end+1], "\n"))
 }
 
 // mergeIntroWithList merges a non-list segment with the immediately following

@@ -76,11 +76,10 @@ func TestSplitMessageCodeFenceIntact(t *testing.T) {
 func TestSplitMessageNumberedListIntact(t *testing.T) {
 	text := "总结如下\n\n1. 第一点\n2. 第二点\n3. 第三点\n\n最后一段"
 	result := splitMessage(text)
-	// "总结如下" + list should merge into one chunk, then "最后一段" separate.
+	// Intro + list should merge into one chunk, then "最后一段" separate.
 	if len(result) != 2 {
 		t.Fatalf("expected 2 chunks (intro+list merged, tail), got %d: %v", len(result), result)
 	}
-	// First chunk should contain both intro and all list items.
 	if !strings.Contains(result[0], "总结如下") {
 		t.Errorf("expected intro in chunk 0, got %q", result[0])
 	}
@@ -113,12 +112,11 @@ func TestSplitMessagePreservesContent(t *testing.T) {
 	}
 }
 
-// --- New tests for structural splitting ---
+// --- Heading-based structural tests ---
 
 func TestSplitMessageHeadingSections(t *testing.T) {
 	text := "## 总结\n\n这是总结内容。\n\n补充说明。\n\n## 下一步\n\n接下来做什么。"
 	result := splitMessage(text)
-	// Should split into 2 sections by heading.
 	if len(result) != 2 {
 		t.Fatalf("expected 2 sections, got %d: %v", len(result), result)
 	}
@@ -142,14 +140,12 @@ func TestSplitMessageHeadingWithCodeFence(t *testing.T) {
 	if len(result) != 2 {
 		t.Fatalf("expected 2 sections, got %d: %v", len(result), result)
 	}
-	// Code fence should stay with its heading section.
 	if !strings.Contains(result[0], "```go") {
 		t.Errorf("code fence should be in section 0: %q", result[0])
 	}
 }
 
 func TestSplitMessageHeadingCodeFenceWithFakeHeading(t *testing.T) {
-	// A heading-like line inside a code fence should NOT trigger a split.
 	text := "## 开始\n\n```\n## 这不是标题\nsome code\n```\n\n## 结束\n\n完了。"
 	result := splitMessage(text)
 	if len(result) != 2 {
@@ -174,19 +170,20 @@ func TestSplitMessageContentBeforeFirstHeading(t *testing.T) {
 func TestSplitMessageIntroWithBulletList(t *testing.T) {
 	text := "需要注意以下几点\n\n- 第一点\n- 第二点\n- 第三点\n\n最后总结"
 	result := splitMessage(text)
-	// Intro + bullet list should merge.
 	if len(result) != 2 {
 		t.Fatalf("expected 2 chunks (intro+list, tail), got %d: %v", len(result), result)
 	}
-	if !strings.Contains(result[0], "需要注意") && !strings.Contains(result[0], "- 第一点") {
-		t.Errorf("intro and list should be merged in chunk 0: %q", result[0])
+	if !strings.Contains(result[0], "需要注意") {
+		t.Errorf("intro should be in chunk 0: %q", result[0])
+	}
+	if !strings.Contains(result[0], "- 第一点") {
+		t.Errorf("list should be merged with intro in chunk 0: %q", result[0])
 	}
 }
 
 func TestSplitMessageSingleHeading(t *testing.T) {
 	text := "## 标题\n\n段落一\n\n段落二"
 	result := splitMessage(text)
-	// Single heading = single section, no split.
 	if len(result) != 1 {
 		t.Fatalf("expected 1 section for single heading, got %d: %v", len(result), result)
 	}
@@ -195,29 +192,97 @@ func TestSplitMessageSingleHeading(t *testing.T) {
 func TestSplitMessageBulletListIntact(t *testing.T) {
 	text := "要点\n\n- A\n- B\n- C"
 	result := splitMessage(text)
-	// Intro + list merged = single chunk.
 	if len(result) != 1 {
 		t.Fatalf("expected 1 chunk (intro merged with list), got %d: %v", len(result), result)
 	}
 }
 
-func TestIsHeadingLine(t *testing.T) {
-	tests := []struct {
-		line string
-		want bool
-	}{
-		{"# Title", true},
-		{"## Section", true},
-		{"### Sub", true},
-		{"###### Deep", true},
-		{"####### TooDeep", false},
-		{"#NoSpace", false},
-		{"Not a heading", false},
-		{"", false},
-	}
-	for _, tt := range tests {
-		if got := isHeadingLine(tt.line); got != tt.want {
-			t.Errorf("isHeadingLine(%q) = %v, want %v", tt.line, got, tt.want)
+// --- AST-specific structural tests ---
+
+func TestSplitMessageBlockquoteIntact(t *testing.T) {
+	text := "引用说明\n\n> 这是一段引用\n> 引用第二行\n\n后续内容"
+	result := splitMessage(text)
+	// Blockquote should be a single AST node, not split by internal newlines.
+	found := false
+	for _, chunk := range result {
+		if strings.Contains(chunk, "> 这是一段引用") && strings.Contains(chunk, "> 引用第二行") {
+			found = true
+			break
 		}
+	}
+	if !found {
+		t.Errorf("blockquote was split across chunks: %v", result)
+	}
+}
+
+func TestSplitMessageTableIntact(t *testing.T) {
+	text := "数据表\n\n| 名称 | 值 |\n|------|----|\n| A | 1 |\n| B | 2 |\n\n结论"
+	result := splitMessage(text)
+	// Table should remain in one chunk.
+	found := false
+	for _, chunk := range result {
+		if strings.Contains(chunk, "| 名称") && strings.Contains(chunk, "| B") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("table was split across chunks: %v", result)
+	}
+}
+
+func TestSplitMessageNestedListIntact(t *testing.T) {
+	text := "概述\n\n- 项目一\n  - 子项 A\n  - 子项 B\n- 项目二\n\n总结"
+	result := splitMessage(text)
+	found := false
+	for _, chunk := range result {
+		if strings.Contains(chunk, "项目一") && strings.Contains(chunk, "子项 B") && strings.Contains(chunk, "项目二") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("nested list was split: %v", result)
+	}
+}
+
+func TestSplitMessageHeadingWithTable(t *testing.T) {
+	text := "## 分析\n\n| 指标 | 结果 |\n|------|------|\n| CPU | 90% |\n\n## 建议\n\n降低负载。"
+	result := splitMessage(text)
+	if len(result) != 2 {
+		t.Fatalf("expected 2 sections, got %d: %v", len(result), result)
+	}
+	if !strings.Contains(result[0], "| CPU") {
+		t.Errorf("table should stay in heading section: %q", result[0])
+	}
+}
+
+func TestSplitMessageHeadingWithBlockquote(t *testing.T) {
+	text := "## 引用\n\n> 重要提示\n> 请注意\n\n## 操作\n\n执行步骤。"
+	result := splitMessage(text)
+	if len(result) != 2 {
+		t.Fatalf("expected 2 sections, got %d: %v", len(result), result)
+	}
+	if !strings.Contains(result[0], "> 重要提示") {
+		t.Errorf("blockquote should stay in heading section: %q", result[0])
+	}
+}
+
+func TestSplitMessageMixedStructure(t *testing.T) {
+	text := "## 背景\n\n情况说明。\n\n> 关键引用\n\n## 方案\n\n1. 第一步\n2. 第二步\n\n```go\nfmt.Println(\"ok\")\n```\n\n## 总结\n\n完成。"
+	result := splitMessage(text)
+	if len(result) != 3 {
+		t.Fatalf("expected 3 sections, got %d: %v", len(result), result)
+	}
+	// Section 0: 背景 + body + blockquote
+	if !strings.Contains(result[0], "关键引用") {
+		t.Errorf("blockquote should be in section 0: %q", result[0])
+	}
+	// Section 1: 方案 + list + code
+	if !strings.Contains(result[1], "1. 第一步") {
+		t.Errorf("list should be in section 1: %q", result[1])
+	}
+	if !strings.Contains(result[1], "fmt.Println") {
+		t.Errorf("code block should be in section 1: %q", result[1])
 	}
 }
