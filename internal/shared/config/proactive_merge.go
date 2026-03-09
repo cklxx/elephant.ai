@@ -84,6 +84,12 @@ func mergeMemoryConfig(target *MemoryConfig, file *MemoryFileConfig) {
 	if file.Index != nil {
 		mergeMemoryIndexConfig(&target.Index, file.Index)
 	}
+	if file.ArchiveAfterDays != nil {
+		target.ArchiveAfterDays = *file.ArchiveAfterDays
+	}
+	if utils.HasContent(file.CleanupInterval) {
+		target.CleanupInterval = strings.TrimSpace(file.CleanupInterval)
+	}
 }
 
 func mergeMemoryIndexConfig(target *MemoryIndexConfig, file *MemoryIndexFileConfig) {

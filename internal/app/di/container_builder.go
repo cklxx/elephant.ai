@@ -2,6 +2,7 @@ package di
 
 import (
 	"alex/internal/shared/utils"
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -81,7 +82,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	b.applyDetectedExternalAgents(detectedCLIs, true)
 	b.logLocalCodingCLIDetection(detectedCLIs)
 
-	memoryEngine, err := b.buildMemoryEngine()
+	memoryEngine, err := b.buildMemoryEngine(context.Background())
 	if err != nil {
 		return nil, err
 	}

@@ -214,8 +214,10 @@ type OKRFileConfig struct {
 }
 
 type MemoryFileConfig struct {
-	Enabled *bool                  `yaml:"enabled"`
-	Index   *MemoryIndexFileConfig `yaml:"index"`
+	Enabled          *bool                  `yaml:"enabled"`
+	Index            *MemoryIndexFileConfig `yaml:"index"`
+	ArchiveAfterDays *int                   `yaml:"archive_after_days"`
+	CleanupInterval  string                 `yaml:"cleanup_interval"`
 }
 
 type MemoryIndexFileConfig struct {

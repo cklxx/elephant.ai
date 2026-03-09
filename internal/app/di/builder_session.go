@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	agentcost "alex/internal/app/agent/cost"
 	agentstorage "alex/internal/domain/agent/ports/storage"
@@ -21,7 +22,7 @@ func (b *containerBuilder) buildSessionResources() (sessionResources, error) {
 	}, nil
 }
 
-func (b *containerBuilder) buildMemoryEngine() (memory.Engine, error) {
+func (b *containerBuilder) buildMemoryEngine(ctx context.Context) (memory.Engine, error) {
 	root := resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")
 	engine := memory.NewMarkdownEngine(root)
 	indexCfg := b.config.Proactive.Memory.Index
@@ -34,6 +35,19 @@ func (b *containerBuilder) buildMemoryEngine() (memory.Engine, error) {
 	if err := engine.EnsureSchema(context.Background()); err != nil {
 		b.logger.Warn("Failed to initialize memory root: %v", err)
 	}
+
+	memoryCfg := b.config.Proactive.Memory
+	if memoryCfg.ArchiveAfterDays > 0 {
+		interval, err := time.ParseDuration(memoryCfg.CleanupInterval)
+		if err != nil || interval <= 0 {
+			interval = 24 * time.Hour
+		}
+		engine.StartCleanupLoop(ctx, memory.CleanupConfig{
+			ArchiveAfterDays: memoryCfg.ArchiveAfterDays,
+			CleanupInterval:  interval,
+		})
+	}
+
 	return engine, nil
 }
 

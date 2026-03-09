@@ -299,8 +299,10 @@ type OKRProactiveConfig struct {
 
 // MemoryConfig controls loading persistent Markdown memory.
 type MemoryConfig struct {
-	Enabled bool              `json:"enabled" yaml:"enabled"`
-	Index   MemoryIndexConfig `json:"index" yaml:"index"`
+	Enabled          bool              `json:"enabled" yaml:"enabled"`
+	Index            MemoryIndexConfig `json:"index" yaml:"index"`
+	ArchiveAfterDays int               `json:"archive_after_days" yaml:"archive_after_days"` // move daily entries older than N days to archive/ (default 30, 0 disables)
+	CleanupInterval  string            `json:"cleanup_interval" yaml:"cleanup_interval"`     // how often to run cleanup (default "24h", Go duration)
 }
 
 // MemoryIndexConfig controls local vector indexing for Markdown memory.
@@ -425,7 +427,9 @@ func DefaultProactiveConfig() ProactiveConfig {
 			},
 		},
 		Memory: MemoryConfig{
-			Enabled: true,
+			Enabled:          true,
+			ArchiveAfterDays: 30,
+			CleanupInterval:  "24h",
 			Index: MemoryIndexConfig{
 				Enabled:            true,
 				DBPath:             "~/.alex/memory/index.sqlite",
