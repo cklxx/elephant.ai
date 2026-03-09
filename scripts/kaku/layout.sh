@@ -3,6 +3,8 @@
 #
 # 用法:
 #   bash scripts/kaku/layout.sh 4grid [--cwd <dir>] [--pane-id <id>]
+#   bash scripts/kaku/layout.sh 4grid --new-window [--cwd <dir>]    # 新窗口（不与用户当前窗口重叠）
+#   bash scripts/kaku/layout.sh 4grid --new-tab    [--cwd <dir>]    # 当前窗口新 tab
 #   bash scripts/kaku/layout.sh 2h    [--cwd <dir>] [--pane-id <id>]
 #   bash scripts/kaku/layout.sh 2v    [--cwd <dir>] [--pane-id <id>]
 #   bash scripts/kaku/layout.sh 3col  [--cwd <dir>] [--pane-id <id>]
@@ -17,24 +19,37 @@ KAKU="${KAKU_BIN:-/Applications/Kaku.app/Contents/MacOS/kaku}"
 LAYOUT="${1:-4grid}"
 CWD="$(pwd)"
 PARENT=""
+NEW_WINDOW=false
+NEW_TAB=false
 
 # 解析参数
 shift || true
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --cwd)      CWD="$2";    shift 2 ;;
-    --pane-id)  PARENT="$2"; shift 2 ;;
-    *)          shift ;;
+    --cwd)         CWD="$2";    shift 2 ;;
+    --pane-id)     PARENT="$2"; shift 2 ;;
+    --new-window)  NEW_WINDOW=true; shift ;;
+    --new-tab)     NEW_TAB=true;    shift ;;
+    *)             shift ;;
   esac
 done
 
-# 解析父 pane：优先 --pane-id，再读环境变量
-if [[ -z "$PARENT" ]]; then
-  PARENT="${KAKU_PANE_ID:-}"
-fi
-if [[ -z "$PARENT" ]]; then
-  echo "ERROR: parent pane ID required (--pane-id or KAKU_PANE_ID)" >&2
-  exit 1
+# 确定起始 pane
+if [[ "$NEW_WINDOW" == "true" ]]; then
+  # 在新独立窗口创建第一个 pane（不影响用户当前窗口）
+  PARENT=$("$KAKU" cli spawn --new-window --cwd "$CWD" -- bash -l)
+elif [[ "$NEW_TAB" == "true" ]]; then
+  # 在当前窗口新 tab 创建第一个 pane
+  PARENT=$("$KAKU" cli spawn --cwd "$CWD" -- bash -l)
+else
+  # 沿用已有 pane（--pane-id 或 KAKU_PANE_ID）
+  if [[ -z "$PARENT" ]]; then
+    PARENT="${KAKU_PANE_ID:-}"
+  fi
+  if [[ -z "$PARENT" ]]; then
+    echo "ERROR: parent pane ID required (--pane-id, KAKU_PANE_ID, --new-window, or --new-tab)" >&2
+    exit 1
+  fi
 fi
 
 kaku_split() {

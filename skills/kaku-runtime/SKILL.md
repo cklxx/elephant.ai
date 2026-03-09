@@ -114,44 +114,93 @@ kaku cli set-tab-title --tab-id $TAB "任务名称"
 ## 2. 布局预置（一键多 pane）
 
 ```bash
-# 四方格 2×2（最常用）
-KAKU_PANE_ID=$PARENT bash scripts/kaku/layout.sh 4grid --cwd $DIR
-# 输出：TOP_LEFT=5  TOP_RIGHT=12  BOT_LEFT=13  BOT_RIGHT=14
+# 四方格 2×2 — 新独立窗口（推荐：不与用户当前窗口重叠）
+eval $(bash scripts/kaku/layout.sh 4grid --new-window --cwd $DIR \
+  | grep -E "TOP_RIGHT|BOT_LEFT|BOT_RIGHT" \
+  | awk '{print "export "$0}')
+
+# 四方格 — 当前窗口新 tab
+eval $(bash scripts/kaku/layout.sh 4grid --new-tab --cwd $DIR \
+  | grep -E "TOP_RIGHT|BOT_LEFT|BOT_RIGHT" \
+  | awk '{print "export "$0}')
+
+# 四方格 — 从指定 pane 分裂（用于已有 pane 的场景）
+eval $(bash scripts/kaku/layout.sh 4grid --pane-id $P --cwd $DIR \
+  | grep -E "TOP_RIGHT|BOT_LEFT|BOT_RIGHT" \
+  | awk '{print "export "$0}')
 
 # 其他预置
-bash scripts/kaku/layout.sh 2h   --pane-id $P --cwd $DIR  # 上下两行
+bash scripts/kaku/layout.sh 2h   --new-window --cwd $DIR  # 上下两行，新窗口
 bash scripts/kaku/layout.sh 2v   --pane-id $P --cwd $DIR  # 左右两列
 bash scripts/kaku/layout.sh 3col --pane-id $P --cwd $DIR  # 左中右
 bash scripts/kaku/layout.sh 1+2  --pane-id $P --cwd $DIR  # 主+底部双监控
-
-# 查看所有选项
-bash scripts/kaku/layout.sh help
 ```
 
 ---
 
-## 3. 启动 Claude Code（完整序列）
+## 3. 发送文本 + 自动回车（一行搞定）
+
+```bash
+# ✅ 推荐：用 send.sh wrapper，自动追加 Enter
+bash scripts/kaku/send.sh --pane-id $PANE "你的命令"
+
+# 等效的两步写法（老写法，不推荐，容易漏 $'\r'）
+kaku cli send-text --pane-id $PANE "你的命令"
+kaku cli send-text --no-paste --pane-id $PANE $'\r'
+
+# 只注入不回车（粘贴到 CC 输入框，等待手动 submit）
+bash scripts/kaku/send.sh --pane-id $PANE --no-submit "待补充的内容"
+```
+
+---
+
+## 4. 启动 Claude Code（两种方式）
+
+### 方式 A：通过 Runtime API（推荐，全自动）
+
+LLM 只需一个 API 调用，所有步骤（split pane / unset CLAUDECODE / 等待 CC 启动 / 注入 goal / enter）全部自动完成：
+
+```bash
+# 通过 HTTP API（:9090）
+curl -s -X POST http://localhost:9090/api/runtime/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "member": "claude_code",
+    "goal": "你的任务描述",
+    "work_dir": "/path/to/project",
+    "parent_pane_id": 25
+  }'
+# 返回：{"id":"rs-xxx","state":"running",...}
+
+# 或通过 CLI（等价）
+alex runtime session start \
+  --member claude_code \
+  --goal "你的任务描述" \
+  --work-dir . \
+  --parent-pane-id $KAKU_PANE_ID
+```
+
+### 方式 B：手动 kaku CLI（仅调试用）
 
 ```bash
 # Step 1: 拆分 pane
 PANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 70 --cwd $WORKDIR -- bash -l)
 
-# Step 2: 设置 runtime 环境变量（如有 runtime session）
-kaku cli send-text --pane-id $PANE \
-  "export RUNTIME_SESSION_ID=<id> RUNTIME_HOOKS_URL=http://localhost:8080"
-kaku cli send-text --no-paste --pane-id $PANE $'\r'
+# Step 2: 设置 runtime 环境变量
+bash scripts/kaku/send.sh --pane-id $PANE \
+  "export RUNTIME_SESSION_ID=<id> RUNTIME_HOOKS_URL=http://localhost:9090"
 
-# Step 3: 启动 CC（unset CLAUDECODE 是必须的）
-kaku cli send-text --pane-id $PANE \
+# Step 3: 启动 CC（注意：unset 不加斜线，是 bash 内建命令）
+# ✅ 正确：unset CLAUDECODE
+# ❌ 错误：/unset CLAUDECODE（/unset 是路径，bash 找不到）
+bash scripts/kaku/send.sh --pane-id $PANE \
   "unset CLAUDECODE && claude --dangerously-skip-permissions"
-kaku cli send-text --no-paste --pane-id $PANE $'\r'
 
-# Step 4: 等待 CC 欢迎界面（❯ 提示符出现，约 2-5s）
+# Step 4: 等待 CC 欢迎界面（约 3s）
 sleep 3
 
-# Step 5: 注入目标（paste 模式 + 回车）
-kaku cli send-text --pane-id $PANE "你的任务描述"
-kaku cli send-text --no-paste --pane-id $PANE $'\r'
+# Step 5: 注入目标并回车
+bash scripts/kaku/send.sh --pane-id $PANE "你的任务描述"
 ```
 
 ---
@@ -169,21 +218,29 @@ kaku cli send-text --no-paste --pane-id $PANE $'\r'
 ## 5. Runtime Session 生命周期
 
 ```bash
-# 启动 session（CC 在新 pane 中运行，父 pane 从 KAKU_PANE_ID 读取）
+# 启动 session（CC 在新 pane 中运行）— 两种等价方式
+# CLI
 alex runtime session start \
   --member claude_code \
   --goal "任务描述" \
   --work-dir . \
   --parent-pane-id $KAKU_PANE_ID
 
+# HTTP API（:9090）
+curl -s -X POST http://localhost:9090/api/runtime/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"member":"claude_code","goal":"任务描述","work_dir":".","parent_pane_id":25}'
+
 # 列出所有 session
 alex runtime session list
+curl -s http://localhost:9090/api/runtime/sessions | jq .
 
 # 只看运行中
 alex runtime session list --state running
 
 # 查看 session 详情（JSON）
 alex runtime session status <session-id>
+curl -s http://localhost:9090/api/runtime/sessions/<id> | jq .
 
 # 注入文本（解封 stalled session）
 alex runtime session inject --id <id> --message "请继续"

@@ -1,153 +1,133 @@
-# /kaku-runtime-test — Kaku Runtime 集成测试（从对话注入起点）
+# /kaku-runtime-test — Kaku Runtime 集成测试
 
-端到端测试 Kaku Runtime。**起点永远是 inject 接口**（模拟用户发飞书消息），
-通过三层验证观察系统行为，不直接调用内部 CLI。
+测试 Agent 用 Kaku 管理编程团队的完整端到端流程。
+**起点永远是 inject**（模拟飞书消息），不直接调用内部 CLI。
 
-**参数**: `$ARGUMENTS`（可选，如 `TC-1`、`TC-2 TC-3`；不写则全跑）
-
----
-
-## 测试原则
-
-```
-[1] inject → POST /api/dev/inject（模拟飞书对话）
-       ↓
-[2] 观察 Agent 执行轨迹（BL pane 日志）
-       ↓
-[3] 观察 Kaku GUI 结果（TR pane 的 CC session 输出）
-```
-
-**不允许**在测试步骤中直接调用 `alex runtime session start` 或 `POST /api/runtime/sessions`——那是 CLI 开发者的测试，不是 E2E。
+**参数**: `$ARGUMENTS`（可选，如 `TC-1`、`TC-2 TC-4`；不填则全跑）
 
 ---
 
-## Step 0 — 建立四宫格测试布局
+## 测试场景概览
 
-用 `scripts/kaku/layout.sh` 从当前 pane（`$KAKU_PANE_ID`）分裂出三个辅助 pane：
+Agent 收到飞书消息后，通过 kaku-runtime skill 在 Kaku pane 中启动 CC/Codex 编程团队，
+监控其执行，在卡住时介入，最终汇报结果。测试验证这整条链路。
+
+```
+用户飞书消息（inject）
+  ↓
+Agent（LLM + kaku-runtime skill）
+  ↓  kaku cli split-pane → CC/Codex 启动
+Kaku pane（TR 区域）
+  ↓  CC 执行工具 → PostToolUse hook → notify_runtime.sh
+runtime bus（:9090/api/hooks/runtime）
+  ↓  heartbeat / stalled / completed 事件
+StallDetector（60s 无心跳）→ LeaderAgent（决策：INJECT/FAIL）
+  ↓
+飞书通知（completed/failed）
+```
+
+---
+
+## Step 0 — 建立四宫格布局
 
 ```bash
+# 从当前 Claude pane 分裂三个辅助 pane
 eval $(bash scripts/kaku/layout.sh 4grid \
   --pane-id "$KAKU_PANE_ID" \
   --cwd /Users/bytedance/code/elephant.ai \
-  | grep -E "TOP_LEFT|TOP_RIGHT|BOT_LEFT|BOT_RIGHT" \
-  | sed 's/  /\n/g' | awk '{print "export "$0}')
+  | grep -E "TOP_RIGHT|BOT_LEFT|BOT_RIGHT" \
+  | awk '{print "export "$0}')
 
-echo "TL=$TOP_LEFT TR=$TOP_RIGHT BL=$BOT_LEFT BR=$BOT_RIGHT"
+# BL：实时日志（runtime bus 事件 + 工具调用）
+kaku cli send-text --pane-id $BOT_LEFT \
+  "tail -f ~/code/elephant.ai/logs/alex-service.log | grep -E 'runtime_bus_event|TaskExecution|leader'"
+kaku cli send-text --no-paste --pane-id $BOT_LEFT $'\r'
 ```
 
 ```
 ┌──────────────────────┬──────────────────────┐
-│   TL: 当前 Claude    │   TR: CC session 在此出现  │
-│  (KAKU_PANE_ID)      │  (runtime 会 split 此 pane) │
+│   TL: Claude (当前)  │   TR: CC team panes  │
+│  测试结果在此汇报     │  agent splits here   │
 ├──────────────────────┼──────────────────────┤
-│   BL: 日志监控        │   BR: inject 命令    │
-│  tail + grep runtime │  curl 注入，看响应    │
+│   BL: 日志监控        │   BR: （空闲）       │
+│  runtime_bus_event   │                      │
 └──────────────────────┴──────────────────────┘
-```
-
-在 BL pane 启动日志监控：
-
-```bash
-kaku cli send-text --pane-id $BOT_LEFT \
-  "tail -f ~/code/elephant.ai/logs/alex-service.log | grep -E 'runtime_bus_event|TaskExecution'"
-kaku cli send-text --no-paste --pane-id $BOT_LEFT $'\r'
-```
-
-告知 runtime：CC session 应 split 自 TR pane：
-
-```bash
-export KAKU_PARENT_PANE=$TOP_RIGHT
 ```
 
 ---
 
 ## Step 1 — 运行测试
 
-在 BR pane 执行（或在当前 Claude pane 直接 Bash 调用）：
-
 ```bash
+# 告知测试脚本：CC session 应 split 自 TR pane
 KAKU_PARENT_PANE=$TOP_RIGHT \
-bash scripts/test/kaku-runtime-e2e.sh $ARGUMENTS
+bash scripts/test/kaku-runtime-e2e.sh $ARGUMENTS 2>&1 | tee /tmp/kaku-e2e-$(date +%H%M).log
 ```
 
 ---
 
-## 测试用例（每个从 inject 开始）
+## 测试用例
 
-### TC-1 基础对话
-
-```bash
-# BR pane 执行
-curl -s -X POST http://localhost:9090/api/dev/inject \
-  -H "Content-Type: application/json" \
-  -d '{"text":"你好，请只回复两个字：OK好的","chat_type":"p2p","timeout_seconds":30}' | jq .
-```
-
-- **Layer 1**（inject 响应）：`.replies[].content` 含"OK"或"好"
-- **Layer 2**（BL 日志）：出现 `TaskExecution` 或 agent 处理记录
-
----
-
-### TC-2 任务执行
-
-```bash
-curl -s -X POST http://localhost:9090/api/dev/inject \
-  -H "Content-Type: application/json" \
-  -d '{"text":"请告诉我项目里大约有多少个 .go 文件（估算即可）","chat_type":"p2p","timeout_seconds":60}' | jq .
-```
-
-- **Layer 1**：reply 含数字或估算答案
-- **Layer 2**：BL 日志出现 agent tool 调用轨迹
+| TC | 场景 | 关键验证 |
+|---|---|---|
+| TC-0 | 基础设施健康检查 | HTTP 200 + bus 事件 + session API |
+| TC-1 | 单 Agent 写文件 | 新 pane 出现 + heartbeat + 文件存在 |
+| TC-2 | 两个 Agent 并行 | 2 个不同 session_id + 2 个新 pane |
+| TC-3 | A→B 依赖任务链 | 两文件存在，B 晚于 A 的 completed |
+| TC-4 | Stall + LeaderAgent | `type=stalled` + LeaderAgent 决策日志 |
+| TC-5 | 查询团队状态 | reply 含 session 状态信息 |
+| TC-6 | 分析→实现→验证 | 3 个 session_id + 3 个输出文件 |
+| TC-7 | 手动注入恢复卡住的 session | agent 使用 `session inject` 命令 |
 
 ---
 
-### TC-3 Runtime Session（CC 在 Kaku 中运行）
+## Step 2 — 观察验证（三层）
+
+**Layer 1（BL pane 实时可见）**:
 
 ```bash
-curl -s -X POST http://localhost:9090/api/dev/inject \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"text\": \"请启动一个编程 session，任务是：echo kaku-runtime-tc3-ok，完成后告诉我结果\",
-    \"chat_type\": \"p2p\",
-    \"timeout_seconds\": 120
-  }" | jq .
+# runtime bus 事件序列
+tail -f ~/code/elephant.ai/logs/alex-service.log | grep "runtime_bus_event"
+# 期望：started → heartbeat × N → completed
 ```
 
-等待约 20s，然后三层验证：
+**Layer 2（TR pane 中 CC 实际执行）**:
 
 ```bash
-# Layer 2：BL 日志应出现 runtime_bus_event
-tail -50 ~/code/elephant.ai/logs/alex-service.log | grep "runtime_bus_event"
-# 期望：type=heartbeat, type=completed
+# 找到新增的 CC pane ID
+kaku cli list
 
-# Layer 3：TR pane (TOP_RIGHT) 应出现 CC session
-kaku cli get-text --pane-id $TOP_RIGHT | tail -20
-# 期望：CC 运行并输出 "kaku-runtime-tc3-ok"
+# 读取 CC pane 输出
+kaku cli get-text --pane-id <CC_PANE_ID> | tail -20
+# 期望：⏺ 工具调用行 + 最终输出 + bash 提示符（CC 结束标志）
+```
+
+**Layer 3（文件/状态验证）**:
+
+```bash
+# TC-1 文件
+ls -la /tmp/tc1-kaku-*.txt
+
+# TC-6 三阶段文件
+ls -la /tmp/tc6-*.md /tmp/tc6-*.go
+
+# 所有 session 当前状态
+curl -s http://localhost:9090/api/runtime/sessions | jq '.[].state'
 ```
 
 ---
 
-### TC-4 Stall 检测（等 60s 以上）
-
-注入一个"会卡住"的请求，不注入任何 goal 给 CC，等待 stall 超时：
+## Step 3 — 清理
 
 ```bash
-# Layer 2：60s 后应出现
-tail -100 ~/code/elephant.ai/logs/alex-service.log | grep "runtime_bus_event" | grep "stalled"
-# 期望：type=stalled session_id=rs-xxxx
-```
-
----
-
-## Step 2 — 完成后清理
-
-```bash
-# Kill 三个辅助 pane（TL 即当前 Claude pane 保留）
+# Kill 三个辅助 pane（TR/BL/BR）
 kaku cli kill-pane --pane-id $TOP_RIGHT 2>/dev/null || true
 kaku cli kill-pane --pane-id $BOT_LEFT  2>/dev/null || true
 kaku cli kill-pane --pane-id $BOT_RIGHT 2>/dev/null || true
 
-# 确认 pane 数量恢复
+# 清理临时文件
+rm -f /tmp/tc{1,2,3,6}-*.txt /tmp/tc{3,6}-*.go /tmp/tc6-*.md
+
 kaku cli list
 ```
 
@@ -155,12 +135,14 @@ kaku cli list
 
 ## 验收标准
 
-| 层 | 检查点 | 期望 |
+| 层 | 验证点 | 期望 |
 |---|---|---|
-| L1 | inject 响应 | `.error` 为空，`.replies` 非空 |
-| L1 | TC-1 reply | 含"OK"/"好" |
-| L2 | runtime bus 事件 | `grep runtime_bus_event` 有输出 |
-| L2 | heartbeat | `type=heartbeat` 出现（CC 每次 tool use）|
-| L2 | completed | `type=completed` 出现（CC 结束） |
-| L3 | TR pane 内容 | `kaku cli get-text $TOP_RIGHT` 含任务结果 |
-| 清理 | pane 数量 | 测试结束后恢复到测试前数量 |
+| L1 | inject 响应 | `.error` 空，`.replies` 非空，内容提及任务 |
+| L2 | runtime bus 序列 | started → heartbeat(s) → completed |
+| L2 | 并行证据（TC-2） | 2 个不同 session_id |
+| L2 | stall 检测（TC-4） | `type=stalled` 在 60s 后出现 |
+| L2 | LeaderAgent 决策（TC-4） | log 中有 `leader decision=INJECT/FAIL` |
+| L3 | 新 pane 出现 | `kaku cli list` 多出对应 CC pane |
+| L3 | CC pane 有执行轨迹 | `get-text` 含 `⏺` 工具调用记录 |
+| L3 | 任务输出文件存在 | `/tmp/tc*.go` `/tmp/tc*.txt` |
+| 清理 | pane 数量恢复 | 测试后 `kaku cli list` 恢复原数量 |
