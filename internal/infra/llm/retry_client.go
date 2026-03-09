@@ -56,6 +56,12 @@ type retryClient struct {
 	rlMu              sync.Mutex
 	rlConsecutive429  int
 	rlCircuitOpenedAt time.Time
+
+	// fallback support: when all retries are exhausted on a transient error,
+	// attempt a single call to the fallback client.
+	fallbackClientFn func() (portsllm.LLMClient, error)
+	fallbackProvider string
+	fallbackModel    string
 }
 
 var _ portsllm.StreamingLLMClient = (*retryClient)(nil)
@@ -179,7 +185,67 @@ func (c *retryClient) completeWithRetry(ctx context.Context, req ports.Completio
 		}
 	}
 
+	// All retries exhausted — try fallback if available and error is transient.
+	if c.fallbackClientFn != nil && alexerrors.IsTransient(lastErr) {
+		return c.tryFallbackComplete(ctx, req, lastErr)
+	}
+
 	return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
+}
+
+// tryFallbackComplete attempts a single Complete call on the fallback client.
+func (c *retryClient) tryFallbackComplete(ctx context.Context, req ports.CompletionRequest, originalErr error) (*ports.CompletionResponse, error) {
+	c.logger.Warn("[FALLBACK] Primary %s/%s exhausted retries (transient); attempting fallback to %s/%s: %v",
+		c.provider, c.model, c.fallbackProvider, c.fallbackModel, originalErr)
+
+	fallbackClient, err := c.fallbackClientFn()
+	if err != nil {
+		c.logger.Warn("[FALLBACK] Failed to create fallback client %s/%s: %v", c.fallbackProvider, c.fallbackModel, err)
+		return nil, fmt.Errorf("max retries exceeded (fallback unavailable): %w", originalErr)
+	}
+
+	resp, err := fallbackClient.Complete(ctx, req)
+	if err != nil {
+		c.logger.Warn("[FALLBACK] Fallback %s/%s also failed: %v", c.fallbackProvider, c.fallbackModel, err)
+		return nil, fmt.Errorf("max retries exceeded (fallback %s/%s also failed): %w", c.fallbackProvider, c.fallbackModel, originalErr)
+	}
+
+	c.logger.Info("[FALLBACK] Successfully completed via fallback %s/%s (primary %s/%s was unavailable)",
+		c.fallbackProvider, c.fallbackModel, c.provider, c.model)
+	return resp, nil
+}
+
+// tryFallbackStreamComplete attempts a single StreamComplete call on the fallback client.
+func (c *retryClient) tryFallbackStreamComplete(
+	ctx context.Context,
+	req ports.CompletionRequest,
+	callbacks ports.CompletionStreamCallbacks,
+	originalErr error,
+) (*ports.CompletionResponse, error) {
+	c.logger.Warn("[FALLBACK] Primary %s/%s exhausted streaming retries (transient); attempting fallback to %s/%s: %v",
+		c.provider, c.model, c.fallbackProvider, c.fallbackModel, originalErr)
+
+	fallbackClient, err := c.fallbackClientFn()
+	if err != nil {
+		c.logger.Warn("[FALLBACK] Failed to create fallback client %s/%s: %v", c.fallbackProvider, c.fallbackModel, err)
+		return nil, err
+	}
+
+	streamingFB, ok := EnsureStreamingClient(fallbackClient).(portsllm.StreamingLLMClient)
+	if !ok {
+		c.logger.Warn("[FALLBACK] Fallback client %s/%s does not support streaming", c.fallbackProvider, c.fallbackModel)
+		return nil, fmt.Errorf("fallback client does not support streaming")
+	}
+
+	resp, err := streamingFB.StreamComplete(ctx, req, callbacks)
+	if err != nil {
+		c.logger.Warn("[FALLBACK] Fallback streaming %s/%s also failed: %v", c.fallbackProvider, c.fallbackModel, err)
+		return nil, err
+	}
+
+	c.logger.Info("[FALLBACK] Successfully completed streaming via fallback %s/%s (primary %s/%s was unavailable)",
+		c.fallbackProvider, c.fallbackModel, c.provider, c.model)
+	return resp, nil
 }
 
 // Model returns the underlying model name
@@ -228,6 +294,7 @@ func (c *retryClient) StreamComplete(
 	maxAttempts := c.retryConfig.MaxAttempts + 1
 	var resp *ports.CompletionResponse
 	var err error
+	observedStreamOutput := false
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		// Check the rate-limit circuit before each streaming attempt.
@@ -236,7 +303,7 @@ func (c *retryClient) StreamComplete(
 			break
 		}
 
-		observedStreamOutput := false
+		observedStreamOutput = false
 		attemptCallbacks := callbacks
 		if callbacks.OnContentDelta != nil {
 			original := callbacks.OnContentDelta
@@ -274,6 +341,15 @@ func (c *retryClient) StreamComplete(
 				return nil, err
 			}
 		}
+	}
+
+	// All retries exhausted — try streaming fallback if available, transient, and no output was emitted.
+	if err != nil && c.fallbackClientFn != nil && alexerrors.IsTransient(err) && !observedStreamOutput {
+		fbResp, fbErr := c.tryFallbackStreamComplete(ctx, req, callbacks, err)
+		if fbErr == nil {
+			return fbResp, nil
+		}
+		// Fallback also failed — continue to normal error reporting with the original error.
 	}
 
 	duration := time.Since(startTime)
@@ -451,6 +527,7 @@ var llmErrorClassificationRules = []errorClassificationRule{
 	{patterns: []string{"502", "bad gateway"}, message: "Bad gateway (502). Retrying request."},
 	{patterns: []string{"503", "service unavailable"}, message: "Service unavailable (503). Retrying request."},
 	{patterns: []string{"504", "gateway timeout"}, message: "Gateway timeout (504). Retrying request."},
+	{patterns: []string{"529", "overloaded"}, message: "Server overloaded (529). Retrying request."},
 	// Network / transport errors
 	{patterns: []string{"stream error", "received from peer", "internal_error", "read stream"}, message: "Streaming transport was interrupted. Retrying request."},
 	{patterns: []string{"connection refused"}, message: "Connection refused. Retrying request."},

@@ -341,6 +341,185 @@ func TestRetryClientAuthRefreshNotTriggeredWithoutRefresher(t *testing.T) {
 	require.Equal(t, 1, mock.calls, "should not retry when no refresher")
 }
 
+// overloadedCompleteMock always returns a 529 overloaded transient error.
+type overloadedCompleteMock struct {
+	calls int
+}
+
+func (m *overloadedCompleteMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	m.calls++
+	return nil, &alexerrors.TransientError{
+		Err:        errors.New("HTTP 529: overloaded"),
+		StatusCode: 529,
+		Message:    "Server overloaded (529). Retrying request.",
+	}
+}
+
+func (m *overloadedCompleteMock) Model() string { return "claude-sonnet-4-6" }
+
+// fallbackCompleteMock always succeeds.
+type fallbackCompleteMock struct {
+	calls int
+}
+
+func (m *fallbackCompleteMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	m.calls++
+	return &ports.CompletionResponse{Content: "fallback-ok"}, nil
+}
+
+func (m *fallbackCompleteMock) Model() string { return "kimi-for-coding" }
+
+func TestRetryClientFallbackOnTransientExhaustion(t *testing.T) {
+	primary := &overloadedCompleteMock{}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
+	client := NewRetryClient(primary, alexerrors.RetryConfig{
+		MaxAttempts: 1,
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    50 * time.Millisecond,
+	}, breaker)
+
+	rc, ok := client.(*retryClient)
+	require.True(t, ok)
+
+	rc.provider = "anthropic"
+	rc.model = "claude-sonnet-4-6"
+	rc.sleepFn = func(ctx context.Context, d time.Duration) error { return nil }
+
+	fallback := &fallbackCompleteMock{}
+	rc.fallbackProvider = "kimi"
+	rc.fallbackModel = "kimi-for-coding"
+	rc.fallbackClientFn = func() (portsllm.LLMClient, error) {
+		return fallback, nil
+	}
+
+	resp, err := rc.Complete(context.Background(), ports.CompletionRequest{})
+	require.NoError(t, err)
+	require.Equal(t, "fallback-ok", resp.Content)
+	require.Equal(t, 2, primary.calls, "primary should be called 2 times (1 + 1 retry)")
+	require.Equal(t, 1, fallback.calls, "fallback should be called once")
+}
+
+func TestRetryClientNoFallbackOnPermanentError(t *testing.T) {
+	mock := &authRefreshMock{} // returns 401 permanent on first call
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
+	client := NewRetryClient(mock, alexerrors.RetryConfig{
+		MaxAttempts: 0,
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    50 * time.Millisecond,
+	}, breaker)
+
+	rc, ok := client.(*retryClient)
+	require.True(t, ok)
+	rc.sleepFn = func(ctx context.Context, d time.Duration) error { return nil }
+
+	fallbackCalled := false
+	rc.fallbackProvider = "kimi"
+	rc.fallbackModel = "kimi-for-coding"
+	rc.fallbackClientFn = func() (portsllm.LLMClient, error) {
+		fallbackCalled = true
+		return &fallbackCompleteMock{}, nil
+	}
+
+	_, err := rc.Complete(context.Background(), ports.CompletionRequest{})
+	require.Error(t, err)
+	require.False(t, fallbackCalled, "fallback should NOT be called for permanent errors")
+}
+
+func TestRetryClientFallbackStreamingOnTransientExhaustion(t *testing.T) {
+	primary := &overloadedStreamMock{}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
+	client := NewRetryClient(primary, alexerrors.RetryConfig{
+		MaxAttempts: 1,
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    50 * time.Millisecond,
+	}, breaker)
+
+	rc, ok := client.(*retryClient)
+	require.True(t, ok)
+
+	rc.provider = "anthropic"
+	rc.model = "claude-sonnet-4-6"
+	rc.sleepFn = func(ctx context.Context, d time.Duration) error { return nil }
+
+	fallbackStream := &fallbackStreamMock{}
+	rc.fallbackProvider = "kimi"
+	rc.fallbackModel = "kimi-for-coding"
+	rc.fallbackClientFn = func() (portsllm.LLMClient, error) {
+		return fallbackStream, nil
+	}
+
+	var deltas []ports.ContentDelta
+	streaming := portsllm.StreamingLLMClient(rc)
+	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{}, ports.CompletionStreamCallbacks{
+		OnContentDelta: func(delta ports.ContentDelta) {
+			deltas = append(deltas, delta)
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "fallback-stream-ok", resp.Content)
+	require.Equal(t, 1, fallbackStream.calls, "fallback should be called once")
+}
+
+// overloadedStreamMock always returns 529 on StreamComplete.
+type overloadedStreamMock struct {
+	calls int
+}
+
+func (m *overloadedStreamMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	return nil, &alexerrors.TransientError{Err: errors.New("529 overloaded"), StatusCode: 529}
+}
+
+func (m *overloadedStreamMock) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
+	m.calls++
+	return nil, &alexerrors.TransientError{
+		Err:        errors.New("HTTP 529: overloaded"),
+		StatusCode: 529,
+		Message:    "Server overloaded (529). Retrying request.",
+	}
+}
+
+func (m *overloadedStreamMock) Model() string { return "claude-sonnet-4-6" }
+
+// fallbackStreamMock succeeds on StreamComplete.
+type fallbackStreamMock struct {
+	calls int
+}
+
+func (m *fallbackStreamMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	return &ports.CompletionResponse{Content: "fallback-stream-ok"}, nil
+}
+
+func (m *fallbackStreamMock) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
+	m.calls++
+	if callbacks.OnContentDelta != nil {
+		callbacks.OnContentDelta(ports.ContentDelta{Delta: "fallback-stream-ok"})
+		callbacks.OnContentDelta(ports.ContentDelta{Final: true})
+	}
+	return &ports.CompletionResponse{Content: "fallback-stream-ok"}, nil
+}
+
+func (m *fallbackStreamMock) Model() string { return "kimi-for-coding" }
+
+func TestRetryClientClassify529AsTransient(t *testing.T) {
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
+	rc := &retryClient{
+		underlying:     &streamingMockClient{content: "ok"},
+		circuitBreaker: breaker,
+		logger:         &noopLogger{},
+		llmLogger:      &noopLogger{},
+	}
+
+	err := rc.classifyLLMError(errors.New("HTTP 529: overloaded"))
+	require.True(t, alexerrors.IsTransient(err), "529/overloaded should be classified as transient")
+}
+
+type noopLogger struct{}
+
+func (noopLogger) Debug(format string, args ...any) {}
+func (noopLogger) Info(format string, args ...any)  {}
+func (noopLogger) Warn(format string, args ...any)  {}
+func (noopLogger) Error(format string, args ...any) {}
+
 func TestRetryClientCalculateBackoffClampsExponentialDelay(t *testing.T) {
 	rc := &retryClient{
 		retryConfig: alexerrors.RetryConfig{

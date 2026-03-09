@@ -17,7 +17,30 @@ func (b *containerBuilder) buildLLMFactory() *llm.Factory {
 	if b.config.KimiRateLimitRPS > 0 {
 		llmFactory.EnableKimiRateLimit(rate.Limit(b.config.KimiRateLimitRPS), b.config.KimiRateLimitBurst)
 	}
+	if rules := buildFallbackRules(b.config.LLMFallbackRules); len(rules) > 0 {
+		llmFactory.SetFallbackRules(rules)
+		b.logger.Info("LLM fallback rules configured: %d rule(s)", len(rules))
+	}
 	return llmFactory
+}
+
+func buildFallbackRules(configs []runtimeconfig.LLMFallbackRuleConfig) map[string]llm.FallbackRule {
+	if len(configs) == 0 {
+		return nil
+	}
+	rules := make(map[string]llm.FallbackRule, len(configs))
+	for _, cfg := range configs {
+		if cfg.Model == "" || cfg.FallbackProvider == "" || cfg.FallbackModel == "" {
+			continue
+		}
+		rules[cfg.Model] = llm.FallbackRule{
+			Provider: cfg.FallbackProvider,
+			Model:    cfg.FallbackModel,
+			APIKey:   cfg.FallbackAPIKey,
+			BaseURL:  cfg.FallbackBaseURL,
+		}
+	}
+	return rules
 }
 
 // buildCredentialRefresher creates a function that re-resolves CLI credentials

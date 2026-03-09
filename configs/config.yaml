@@ -78,6 +78,12 @@ runtime:
       min_interval_seconds: 1800
       quiet_hours: [22, 8]
       priority_threshold: 0.6
+  llm_fallback_rules:
+    - model: "claude-sonnet-4-6"
+      fallback_provider: "openai"
+      fallback_model: "ep-20250926173528-8zl5v"
+      fallback_base_url: "https://ark-cn-beijing.bytedance.net/api/v3"
+      fallback_api_key: "${LLM_API_KEY}"
   tool_policy:
     enforcement_mode: "warn_allow"
   external_agents:

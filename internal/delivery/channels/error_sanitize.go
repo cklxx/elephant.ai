@@ -104,6 +104,7 @@ func SanitizeErrorForUser(errText string) string {
 		return "网络连接失败" + modelLabel + "，请检查网络状态后重试"
 
 	case strings.Contains(lower, "unavailable") ||
+		strings.Contains(lower, "overloaded") ||
 		strings.Contains(lower, "bad gateway") ||
 		strings.Contains(lower, "request was rejected"):
 		return "AI 服务暂时不可用" + modelLabel + "，请稍后重试"

@@ -19,6 +19,14 @@ import (
 // Ensure Factory implements portsllm.LLMClientFactory interface
 var _ portsllm.LLMClientFactory = (*Factory)(nil)
 
+// FallbackRule defines a model-level failover target for transient failures.
+type FallbackRule struct {
+	Provider string
+	Model    string
+	APIKey   string
+	BaseURL  string
+}
+
 type Factory struct {
 	cache                *lru.Cache[string, cacheEntry]
 	cacheTTL             time.Duration
@@ -34,6 +42,7 @@ type Factory struct {
 	toolCallParser       agent.FunctionCallParser
 	healthRegistry       *healthRegistry
 	registry             *Registry
+	fallbackRules        map[string]FallbackRule // model → fallback target
 }
 
 type cacheEntry struct {
@@ -109,6 +118,15 @@ func (f *Factory) EnableKimiRateLimit(limit rate.Limit, burst int) {
 	}
 }
 
+// SetFallbackRules configures model-level fallback targets for transient failures.
+// The map key is the primary model name; when all retries are exhausted for that
+// model, the retry client will attempt a single call to the fallback target.
+func (f *Factory) SetFallbackRules(rules map[string]FallbackRule) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.fallbackRules = rules
+}
+
 // DisableRetry disables retry logic for all clients created by this factory
 func (f *Factory) DisableRetry() {
 	f.mu.Lock()
@@ -164,6 +182,7 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	kimiLimiter := f.kimiLimiter
 	healthRegistry := f.healthRegistry
 	registry := f.registry
+	fallbackRules := f.fallbackRules
 	f.mu.RUnlock()
 
 	// Check cache if enabled
@@ -228,6 +247,29 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 		if provider == "anthropic" && isAnthropicOAuthToken(config.APIKey) {
 			if rc, ok := client.(*retryClient); ok {
 				rc.authRefresher = claudeOAuthTokenRefresher()
+			}
+		}
+
+		// Wire model-level fallback for transient failures.
+		if rule, ok := fallbackRules[model]; ok && rule.Provider != "" && rule.Model != "" {
+			if rc, ok := client.(*retryClient); ok {
+				fbProvider := rule.Provider
+				fbModel := rule.Model
+				fbAPIKey := rule.APIKey
+				if fbAPIKey == "" {
+					fbAPIKey = config.APIKey
+				}
+				fbBaseURL := rule.BaseURL
+				rc.fallbackProvider = fbProvider
+				rc.fallbackModel = fbModel
+				rc.fallbackClientFn = func() (portsllm.LLMClient, error) {
+					return f.getClient(fbProvider, fbModel, Config{
+						APIKey:  fbAPIKey,
+						BaseURL: fbBaseURL,
+						Timeout: config.Timeout,
+						Headers: config.Headers,
+					}, false)
+				}
 			}
 		}
 	}

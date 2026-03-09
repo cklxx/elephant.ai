@@ -100,6 +100,18 @@ type RuntimeConfig struct {
 	ToolPolicy                 toolspolicy.ToolPolicyConfig `json:"tool_policy" yaml:"tool_policy"`
 	Proactive                  ProactiveConfig              `json:"proactive" yaml:"proactive"`
 	ExternalAgents             ExternalAgentsConfig         `json:"external_agents" yaml:"external_agents"`
+	LLMFallbackRules           []LLMFallbackRuleConfig      `json:"llm_fallback_rules" yaml:"llm_fallback_rules"`
+}
+
+// LLMFallbackRuleConfig defines a model-level failover target for transient LLM failures.
+// When the primary model exhausts retries on a transient error (e.g. 529 overloaded),
+// the system falls back to the specified model.
+type LLMFallbackRuleConfig struct {
+	Model            string `json:"model" yaml:"model"`                         // primary model to match
+	FallbackProvider string `json:"fallback_provider" yaml:"fallback_provider"` // fallback provider name
+	FallbackModel    string `json:"fallback_model" yaml:"fallback_model"`       // fallback model name
+	FallbackBaseURL  string `json:"fallback_base_url" yaml:"fallback_base_url"` // fallback base URL (optional)
+	FallbackAPIKey   string `json:"fallback_api_key" yaml:"fallback_api_key"`   // fallback API key (optional; inherits primary if empty)
 }
 
 // BrowserConfig configures the browser integration backend.
