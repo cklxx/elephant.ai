@@ -1,3 +1,0 @@
-status: in_progress
-branch: fix/streaming-block-md-structure
-task: optimize streaming block reply to preserve markdown structure
