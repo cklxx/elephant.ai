@@ -22,6 +22,21 @@ import (
 // flows and credential persistence.
 type tokenRefresher func() (newToken string, err error)
 
+// Rate-limit-specific backoff and circuit breaker constants.
+const (
+	// rateLimitBaseDelay is the minimum backoff for 429 errors (vs 1s default).
+	rateLimitBaseDelay = 5 * time.Second
+
+	// rateLimitCircuitThreshold is the number of consecutive 429s before the
+	// rate-limit circuit opens. This is independent of the general circuit
+	// breaker (which uses FailureThreshold, typically 5).
+	rateLimitCircuitThreshold = 3
+
+	// rateLimitCircuitCooldown is the cooldown period after the rate-limit
+	// circuit opens. No requests are attempted during this window.
+	rateLimitCircuitCooldown = 30 * time.Second
+)
+
 // retryClient wraps an LLM client with retry logic and circuit breaker
 type retryClient struct {
 	underlying     portsllm.LLMClient
@@ -36,6 +51,11 @@ type retryClient struct {
 	authRefresher  tokenRefresher
 	authRefreshMu  sync.Mutex
 	lastAuthRefresh time.Time
+
+	// Rate-limit circuit: opens after rateLimitCircuitThreshold consecutive 429s.
+	rlMu              sync.Mutex
+	rlConsecutive429  int
+	rlCircuitOpenedAt time.Time
 }
 
 var _ portsllm.StreamingLLMClient = (*retryClient)(nil)
@@ -111,6 +131,11 @@ func (c *retryClient) completeWithRetry(ctx context.Context, req ports.Completio
 		default:
 		}
 
+		// Check the rate-limit circuit before each attempt.
+		if err := c.checkRateLimitCircuit(); err != nil {
+			return nil, err
+		}
+
 		if attempt == 0 {
 			c.logger.Debug("Executing (attempt 1/%d)", maxAttempts)
 		} else {
@@ -124,6 +149,9 @@ func (c *retryClient) completeWithRetry(ctx context.Context, req ports.Completio
 			}
 			return response, nil
 		})
+
+		c.recordRateLimitOutcome(err)
+
 		if err == nil {
 			if attempt > 0 {
 				c.logger.Info("Retry succeeded after %d attempts", attempt+1)
@@ -202,6 +230,12 @@ func (c *retryClient) StreamComplete(
 	var err error
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
+		// Check the rate-limit circuit before each streaming attempt.
+		if rlErr := c.checkRateLimitCircuit(); rlErr != nil {
+			err = rlErr
+			break
+		}
+
 		observedStreamOutput := false
 		attemptCallbacks := callbacks
 		if callbacks.OnContentDelta != nil {
@@ -221,6 +255,8 @@ func (c *retryClient) StreamComplete(
 			}
 			return response, nil
 		})
+
+		c.recordRateLimitOutcome(err)
 
 		if err == nil {
 			break
@@ -285,13 +321,28 @@ func (c *retryClient) calculateBackoff(attempt int) time.Duration {
 }
 
 func (c *retryClient) retryDelay(attempt int, err error) time.Duration {
+	is429 := isRateLimitError(err)
+
+	// Honour upstream Retry-After as a floor. For 429 errors the server's
+	// value is authoritative and must NOT be capped by MaxDelay.
 	if retryAfter := retryAfterDuration(err); retryAfter > 0 {
+		if is429 {
+			// Use Retry-After as-is (uncapped) for rate limits.
+			return retryAfter
+		}
 		maxDelay := c.retryConfig.MaxDelay
 		if maxDelay > 0 && retryAfter > maxDelay {
 			return maxDelay
 		}
 		return retryAfter
 	}
+
+	// For 429 without Retry-After, use a more aggressive base delay.
+	if is429 {
+		delay := backoff.ExponentialClamp(rateLimitBaseDelay, 0, attempt)
+		return backoff.ScaleJitter(delay, 0.25, float64(time.Now().UnixNano()%1000)/1000)
+	}
+
 	return c.calculateBackoff(attempt)
 }
 
@@ -323,6 +374,57 @@ func retryAfterDuration(err error) time.Duration {
 		return time.Duration(transientErr.RetryAfter) * time.Second
 	}
 	return 0
+}
+
+// isRateLimitError returns true if the error represents an HTTP 429 rate limit.
+func isRateLimitError(err error) bool {
+	var transientErr *alexerrors.TransientError
+	if errors.As(err, &transientErr) && transientErr.StatusCode == 429 {
+		return true
+	}
+	return false
+}
+
+// checkRateLimitCircuit returns an error if the rate-limit circuit is open
+// (too many consecutive 429s). Callers should check this before each attempt.
+func (c *retryClient) checkRateLimitCircuit() error {
+	c.rlMu.Lock()
+	defer c.rlMu.Unlock()
+
+	if c.rlConsecutive429 < rateLimitCircuitThreshold {
+		return nil
+	}
+	// Circuit is open — check if cooldown has elapsed.
+	if time.Since(c.rlCircuitOpenedAt) < rateLimitCircuitCooldown {
+		remaining := rateLimitCircuitCooldown - time.Since(c.rlCircuitOpenedAt)
+		return alexerrors.NewDegradedError(
+			fmt.Errorf("rate limit circuit open for %s (429 ×%d)", c.underlying.Model(), c.rlConsecutive429),
+			fmt.Sprintf("Rate limit circuit open for '%s'. Cooling down for %v after %d consecutive 429 errors.",
+				c.underlying.Model(), remaining.Round(time.Second), c.rlConsecutive429),
+			"",
+		)
+	}
+	// Cooldown elapsed — half-open: reset counter and let one request through.
+	c.rlConsecutive429 = 0
+	c.logger.Info("Rate-limit circuit half-open for %s, allowing probe request", c.underlying.Model())
+	return nil
+}
+
+// recordRateLimitOutcome updates the consecutive-429 counter.
+func (c *retryClient) recordRateLimitOutcome(err error) {
+	c.rlMu.Lock()
+	defer c.rlMu.Unlock()
+
+	if isRateLimitError(err) {
+		c.rlConsecutive429++
+		if c.rlConsecutive429 == rateLimitCircuitThreshold {
+			c.rlCircuitOpenedAt = time.Now()
+			c.logger.Warn("Rate-limit circuit OPEN for %s after %d consecutive 429s, cooldown %v",
+				c.underlying.Model(), c.rlConsecutive429, rateLimitCircuitCooldown)
+		}
+	} else {
+		c.rlConsecutive429 = 0
+	}
 }
 
 func (c *retryClient) streamingClient() portsllm.StreamingLLMClient {
@@ -398,7 +500,13 @@ func (c *retryClient) classifyLLMError(err error) error {
 				if rule.permanent {
 					return alexerrors.NewPermanentError(err, rule.message)
 				}
-				return alexerrors.NewTransientError(err, rule.message)
+				terr := alexerrors.NewTransientError(err, rule.message)
+				// Tag rate-limit errors with StatusCode so retryDelay and the
+				// rate-limit circuit can identify them.
+				if pattern == "429" || pattern == "rate limit" {
+					terr.StatusCode = 429
+				}
+				return terr
 			}
 		}
 	}

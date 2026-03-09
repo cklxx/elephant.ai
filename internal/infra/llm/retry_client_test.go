@@ -9,6 +9,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/logging"
 	"github.com/stretchr/testify/require"
 )
 
@@ -364,4 +365,173 @@ func TestRetryClientCalculateBackoffClampsExponentialDelay(t *testing.T) {
 	delay3 := rc.calculateBackoff(3)
 	require.GreaterOrEqual(t, delay3, 187500*time.Microsecond)
 	require.LessOrEqual(t, delay3, 312500*time.Microsecond)
+}
+
+// --- Rate-limit backoff and circuit tests ---
+
+// rateLimitMock always returns 429 errors.
+type rateLimitMock struct {
+	calls int
+}
+
+func (m *rateLimitMock) Complete(_ context.Context, _ ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	m.calls++
+	return nil, &alexerrors.TransientError{
+		Err:        errors.New("429 Too Many Requests"),
+		StatusCode: 429,
+		Message:    "rate limit",
+	}
+}
+
+func (m *rateLimitMock) Model() string { return "mock" }
+
+// rateLimitThenOKMock returns 429 for the first N calls, then succeeds.
+type rateLimitThenOKMock struct {
+	failCount int // how many 429s to return
+	calls     int
+}
+
+func (m *rateLimitThenOKMock) Complete(_ context.Context, _ ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	m.calls++
+	if m.calls <= m.failCount {
+		return nil, &alexerrors.TransientError{
+			Err:        errors.New("429 Too Many Requests"),
+			StatusCode: 429,
+			Message:    "rate limit",
+		}
+	}
+	return &ports.CompletionResponse{Content: "ok"}, nil
+}
+
+func (m *rateLimitThenOKMock) Model() string { return "mock" }
+
+func TestRetryClient429UsesAggressiveBackoff(t *testing.T) {
+	mock := &rateLimitThenOKMock{failCount: 1}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.CircuitBreakerConfig{
+		FailureThreshold: 10, // high so general breaker doesn't trip
+		SuccessThreshold: 1,
+		Timeout:          time.Minute,
+	})
+	client := NewRetryClient(mock, alexerrors.RetryConfig{
+		MaxAttempts: 2,
+		BaseDelay:   100 * time.Millisecond, // low default — 429 should override
+		MaxDelay:    30 * time.Second,
+	}, breaker)
+
+	rc := client.(*retryClient)
+	var waits []time.Duration
+	rc.sleepFn = func(_ context.Context, d time.Duration) error {
+		waits = append(waits, d)
+		return nil
+	}
+
+	resp, err := rc.Complete(context.Background(), ports.CompletionRequest{})
+	require.NoError(t, err)
+	require.Equal(t, "ok", resp.Content)
+	require.Len(t, waits, 1)
+	// Should use rateLimitBaseDelay (5s) ± jitter, NOT the 100ms BaseDelay.
+	require.GreaterOrEqual(t, waits[0], 3750*time.Millisecond, "429 backoff should be >= 5s * 0.75 (jitter)")
+	require.LessOrEqual(t, waits[0], 6250*time.Millisecond, "429 backoff should be <= 5s * 1.25 (jitter)")
+}
+
+func TestRetryClient429RespectsRetryAfterUncapped(t *testing.T) {
+	// Verify that Retry-After for 429 is NOT capped by MaxDelay.
+	rc := &retryClient{
+		retryConfig: alexerrors.RetryConfig{
+			BaseDelay: 100 * time.Millisecond,
+			MaxDelay:  2 * time.Second, // very low MaxDelay
+		},
+	}
+	// 429 with Retry-After=60s — should NOT be capped to 2s.
+	delay := rc.retryDelay(0, &alexerrors.TransientError{
+		Err:        errors.New("429"),
+		StatusCode: 429,
+		RetryAfter: 60,
+	})
+	require.Equal(t, 60*time.Second, delay, "429 Retry-After must not be capped by MaxDelay")
+}
+
+func TestRetryClientNon429RetryAfterStillCapped(t *testing.T) {
+	// Verify that Retry-After for non-429 errors IS still capped by MaxDelay.
+	rc := &retryClient{
+		retryConfig: alexerrors.RetryConfig{
+			BaseDelay: 100 * time.Millisecond,
+			MaxDelay:  2 * time.Second,
+		},
+	}
+	delay := rc.retryDelay(0, &alexerrors.TransientError{
+		Err:        errors.New("503"),
+		StatusCode: 503,
+		RetryAfter: 60,
+	})
+	require.Equal(t, 2*time.Second, delay, "non-429 Retry-After should be capped by MaxDelay")
+}
+
+func TestRetryClientRateLimitCircuitOpensAfter3Consecutive429s(t *testing.T) {
+	mock := &rateLimitMock{}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.CircuitBreakerConfig{
+		FailureThreshold: 10, // high so general breaker doesn't trip
+		SuccessThreshold: 1,
+		Timeout:          time.Minute,
+	})
+	client := NewRetryClient(mock, alexerrors.RetryConfig{
+		MaxAttempts: 5, // enough attempts to hit the RL circuit
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    30 * time.Second,
+	}, breaker)
+
+	rc := client.(*retryClient)
+	rc.sleepFn = func(_ context.Context, _ time.Duration) error { return nil }
+
+	_, err := rc.Complete(context.Background(), ports.CompletionRequest{})
+	require.Error(t, err)
+
+	// After 3 consecutive 429s the rate-limit circuit should be open.
+	// The 4th attempt should be blocked by the circuit, so total calls <= 3.
+	require.LessOrEqual(t, mock.calls, rateLimitCircuitThreshold,
+		"rate-limit circuit should block further attempts after %d consecutive 429s", rateLimitCircuitThreshold)
+
+	// Complete() formats DegradedErrors into plain strings for the LLM,
+	// so we check the message content instead of the error type.
+	require.Contains(t, err.Error(), "Rate limit circuit open",
+		"error should indicate rate-limit circuit is open")
+}
+
+func TestRetryClientRateLimitCircuitResetsOnSuccess(t *testing.T) {
+	// 2 consecutive 429s, then success — circuit should NOT trip (threshold is 3).
+	mock := &rateLimitThenOKMock{failCount: 2}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.CircuitBreakerConfig{
+		FailureThreshold: 10,
+		SuccessThreshold: 1,
+		Timeout:          time.Minute,
+	})
+	client := NewRetryClient(mock, alexerrors.RetryConfig{
+		MaxAttempts: 3,
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    30 * time.Second,
+	}, breaker)
+
+	rc := client.(*retryClient)
+	rc.sleepFn = func(_ context.Context, _ time.Duration) error { return nil }
+
+	resp, err := rc.Complete(context.Background(), ports.CompletionRequest{})
+	require.NoError(t, err)
+	require.Equal(t, "ok", resp.Content)
+	require.Equal(t, 3, mock.calls, "should retry twice then succeed")
+
+	// Counter should be reset after the success.
+	rc.rlMu.Lock()
+	require.Equal(t, 0, rc.rlConsecutive429, "consecutive counter should reset after success")
+	rc.rlMu.Unlock()
+}
+
+func TestRetryClientClassifyLLMErrorSets429StatusCode(t *testing.T) {
+	rc := &retryClient{
+		logger: logging.NewComponentLogger("test"),
+	}
+	// An error containing "429" that is not already a TransientError.
+	classified := rc.classifyLLMError(errors.New("API error 429: rate limit exceeded"))
+	var terr *alexerrors.TransientError
+	require.True(t, errors.As(classified, &terr))
+	require.Equal(t, 429, terr.StatusCode, "classifyLLMError should set StatusCode=429 for rate limit errors")
 }
