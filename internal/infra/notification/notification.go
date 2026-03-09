@@ -50,12 +50,6 @@ func (n *LarkSender) Send(ctx context.Context, target notification.Target, conte
 	return n.sendLark(ctx, target.ChatID, content)
 }
 
-// SendLark sends a text message to a Lark chat. Exported for direct use in
-// unattended notice flows where only Lark sending is needed.
-func (n *LarkSender) SendLark(ctx context.Context, chatID, content string) error {
-	return n.sendLark(ctx, chatID, content)
-}
-
 func (n *LarkSender) sendLark(ctx context.Context, chatID, content string) error {
 	if n.client == nil {
 		return fmt.Errorf("lark client not initialized")
@@ -157,9 +151,10 @@ func splitTitleBody(content string) (string, string) {
 			return title, body
 		}
 	}
+	const maxTitleLen = 80
 	title := content
-	if len(title) > 80 {
-		title = title[:77] + "..."
+	if len(title) > maxTitleLen {
+		title = title[:maxTitleLen-3] + "..."
 	}
 	return title, content
 }

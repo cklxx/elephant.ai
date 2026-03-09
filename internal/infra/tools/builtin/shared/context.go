@@ -35,12 +35,10 @@ func contextValue[T any](ctx context.Context, key any) (T, bool) {
 	if ctx == nil {
 		return zero, false
 	}
-
 	value, ok := ctx.Value(key).(T)
 	if !ok {
 		return zero, false
 	}
-
 	return value, true
 }
 

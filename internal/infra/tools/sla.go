@@ -153,19 +153,19 @@ func NewSLACollector(registerer prometheus.Registerer) (*SLACollector, error) {
 	}, []string{"tool_name"})
 
 	var err error
-	toolLatency, err = registerHistogramVec(registerer, toolLatency)
+	toolLatency, err = registerCollectorVec(registerer, toolLatency, "histogram")
 	if err != nil {
 		return nil, fmt.Errorf("register tool_sla latency: %w", err)
 	}
-	toolErrors, err = registerCounterVec(registerer, toolErrors)
+	toolErrors, err = registerCollectorVec(registerer, toolErrors, "counter")
 	if err != nil {
 		return nil, fmt.Errorf("register tool_sla errors: %w", err)
 	}
-	toolCalls, err = registerCounterVec(registerer, toolCalls)
+	toolCalls, err = registerCollectorVec(registerer, toolCalls, "counter")
 	if err != nil {
 		return nil, fmt.Errorf("register tool_sla calls: %w", err)
 	}
-	toolSuccessRate, err = registerGaugeVec(registerer, toolSuccessRate)
+	toolSuccessRate, err = registerCollectorVec(registerer, toolSuccessRate, "gauge")
 	if err != nil {
 		return nil, fmt.Errorf("register tool_sla success_rate: %w", err)
 	}
@@ -272,17 +272,6 @@ func registerCollectorVec[T prometheus.Collector](registerer prometheus.Register
 	return collector, nil
 }
 
-func registerHistogramVec(registerer prometheus.Registerer, collector *prometheus.HistogramVec) (*prometheus.HistogramVec, error) {
-	return registerCollectorVec(registerer, collector, "histogram")
-}
-
-func registerCounterVec(registerer prometheus.Registerer, collector *prometheus.CounterVec) (*prometheus.CounterVec, error) {
-	return registerCollectorVec(registerer, collector, "counter")
-}
-
-func registerGaugeVec(registerer prometheus.Registerer, collector *prometheus.GaugeVec) (*prometheus.GaugeVec, error) {
-	return registerCollectorVec(registerer, collector, "gauge")
-}
 
 // classifyError returns a short error-type label for Prometheus.
 func classifyError(err error) string {

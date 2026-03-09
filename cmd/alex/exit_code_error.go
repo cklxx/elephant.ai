@@ -11,15 +11,12 @@ type ExitCodeError struct {
 }
 
 func (e *ExitCodeError) Error() string {
-	if e == nil || e.Err == nil {
+	if e.Err == nil {
 		return ""
 	}
 	return e.Err.Error()
 }
 
 func (e *ExitCodeError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
 	return e.Err
 }

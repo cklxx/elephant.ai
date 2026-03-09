@@ -549,11 +549,6 @@ func (c *retryClient) recordHealthError(err error) {
 	}
 }
 
-// WrapWithRetry wraps an existing LLM client with retry logic using provided configuration
-func WrapWithRetry(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig) portsllm.LLMClient {
-	return WrapWithRetryWithMeta(client, retryConfig, circuitBreakerConfig, "", "")
-}
-
 // WrapWithRetryWithMeta wraps an existing LLM client with retry logic and
 // optional provider/model metadata for log enrichment.
 func WrapWithRetryWithMeta(
@@ -595,33 +590,3 @@ func WrapWithRetryAndHealth(client portsllm.LLMClient, retryConfig alexerrors.Re
 	return newRetryClientWithHealth(client, retryConfig, circuitBreaker, hr, provider, model)
 }
 
-// HTTPStatusError represents an HTTP error with status code
-type HTTPStatusError struct {
-	StatusCode int
-	Status     string
-	Body       string
-}
-
-func (e *HTTPStatusError) Error() string {
-	return fmt.Sprintf("HTTP %d: %s", e.StatusCode, e.Status)
-}
-
-// NewHTTPStatusError creates an HTTP status error
-func NewHTTPStatusError(statusCode int, status, body string) error {
-	return &HTTPStatusError{
-		StatusCode: statusCode,
-		Status:     status,
-		Body:       body,
-	}
-}
-
-// IsHTTPStatusError checks if error is an HTTP status error
-func IsHTTPStatusError(err error, statusCode int) bool {
-	var httpErr *HTTPStatusError
-	if !strings.Contains(err.Error(), fmt.Sprintf("%d", statusCode)) {
-		return false
-	}
-	return strings.Contains(strings.ToLower(err.Error()), "http") ||
-		strings.Contains(strings.ToLower(err.Error()), "api error") ||
-		httpErr != nil
-}

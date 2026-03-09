@@ -179,9 +179,6 @@ func proxyHostPort(proxyURL *url.URL) (string, bool) {
 }
 
 func isProxyReachable(ctx context.Context, hostPort string) bool {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	dialer := net.Dialer{Timeout: proxyDialTimeout}
 	conn, err := dialer.DialContext(ctx, "tcp", hostPort)
 	if err != nil {
