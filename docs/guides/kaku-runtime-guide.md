@@ -163,7 +163,62 @@ kaku cli send-text --no-paste --pane-id $PANE $'\r'
 
 ---
 
-## 4. 标准布局模式
+## 4. 标准布局模式（预置脚本）
+
+### 一键初始化布局
+
+`scripts/kaku/layout.sh` 提供常用布局预置，避免手动多次 split-pane：
+
+```bash
+# 四方格（2x2）— 最常用
+KAKU_PANE_ID=5 bash scripts/kaku/layout.sh 4grid --cwd /path/to/project
+# 输出：
+# 4grid layout:
+#   TOP_LEFT=5    TOP_RIGHT=12
+#   BOT_LEFT=13   BOT_RIGHT=14
+
+# 上下两行（执行 + 监控）
+KAKU_PANE_ID=5 bash scripts/kaku/layout.sh 2h
+
+# 左中右三列
+KAKU_PANE_ID=5 bash scripts/kaku/layout.sh 3col
+
+# 主窗口 + 底部双监控
+KAKU_PANE_ID=5 bash scripts/kaku/layout.sh 1+2
+```
+
+### 可用预置一览
+
+| 名称 | 别名 | ASCII 示意 |
+|---|---|---|
+| `4grid` | `quad` | `[TL][TR]` / `[BL][BR]` |
+| `2h` | `horizontal` | `[TOP]` / `[BOT]` |
+| `2v` | `vertical` | `[LEFT][RIGHT]` |
+| `3col` | `three` | `[L][M][R]` |
+| `1+2` | `main-bottom` | `[MAIN]` / `[BL][BR]` |
+
+```bash
+bash scripts/kaku/layout.sh help   # 查看所有选项
+```
+
+### 在 runtime 启动流程中使用
+
+```bash
+# 初始化四方格，然后把右上角给 CC
+KAKU_PANE_ID=5 bash scripts/kaku/layout.sh 4grid --cwd .
+# → TL=5 TR=12 BL=13 BR=14（从输出读取）
+
+alex runtime session start \
+  --member claude_code \
+  --goal "你的任务" \
+  --work-dir . \
+  --parent-pane-id 12    # TR: CC 在右上角运行
+
+# 左下角开事件监控
+kaku cli send-text --pane-id 13 \
+  "tail -f ~/.kaku/sessions/*.events.jsonl | jq -r '.type'"
+kaku cli send-text --no-paste --pane-id 13 $'\r'
+```
 
 ### 双 pane（主 + 监控）
 
