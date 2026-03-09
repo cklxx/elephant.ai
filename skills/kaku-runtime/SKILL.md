@@ -160,8 +160,12 @@ bash scripts/kaku/send.sh --pane-id $PANE --no-submit "待补充的内容"
 
 LLM 只需一个 API 调用，所有步骤（split pane / unset CLAUDECODE / 等待 CC 启动 / 注入 goal / enter）全部自动完成：
 
+> **⚠️ `parent_pane_id` 是必填字段**，省略会返回 400 Bad Request。
+> 用 `-1` 表示「只创建 session 记录，不启动 CC pane」（调试/测试用）。
+> 用实际 pane ID（如 `$KAKU_PANE_ID`）表示在该 pane 旁边 split 出一个 CC 子 pane 并启动 CC。
+
 ```bash
-# 通过 HTTP API（:9090）
+# 通过 HTTP API（:9090）— parent_pane_id 必传
 curl -s -X POST http://localhost:9090/api/runtime/sessions \
   -H "Content-Type: application/json" \
   -d '{
@@ -171,6 +175,7 @@ curl -s -X POST http://localhost:9090/api/runtime/sessions \
     "parent_pane_id": 25
   }'
 # 返回：{"id":"rs-xxx","state":"running",...}
+# ❌ 错误：省略 parent_pane_id → 400 Bad Request
 
 # 或通过 CLI（等价）
 alex runtime session start \
