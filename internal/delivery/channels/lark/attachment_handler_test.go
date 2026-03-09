@@ -419,7 +419,7 @@ func TestBuildAttachmentSummary_WithURI(t *testing.T) {
 	if got == "" {
 		t.Fatal("expected non-empty summary")
 	}
-	if got != "---\n[Attachments]\n- report.pdf: https://cdn/report.pdf" {
+	if got != "[Attachments]\n- report.pdf: https://cdn/report.pdf" {
 		t.Fatalf("unexpected summary: %q", got)
 	}
 }
@@ -429,7 +429,7 @@ func TestBuildAttachmentSummary_DataURINoLink(t *testing.T) {
 		"img.png": {URI: "data:image/png;base64,abc"},
 	}
 	got := buildAttachmentSummary(atts)
-	if got != "---\n[Attachments]\n- img.png" {
+	if got != "[Attachments]\n- img.png" {
 		t.Fatalf("unexpected summary for data: URI: %q", got)
 	}
 }

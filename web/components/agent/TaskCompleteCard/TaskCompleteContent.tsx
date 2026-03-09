@@ -14,7 +14,7 @@ import {
 import type { InlineRenderBlock } from "./hooks/useTaskCompleteSegments";
 
 const RICH_MD_PATTERN =
-  /^#{1,6}\s|^```|^[-*+]\s|^\d+\.\s|^\|.+\||^>\s|^---$/m;
+  /^#{1,6}\s|^```|^[-*+]\s|^\d+\.\s|^\|.+\||^>\s/m;
 const RICH_MD_MIN_LENGTH = 200;
 
 function isRichMarkdown(content: string): boolean {

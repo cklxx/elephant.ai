@@ -51,7 +51,15 @@ func ShapeReply7C(raw string) string {
 			continue
 		}
 
+		// Strip standalone horizontal rules ("---", "***", "___") — they
+		// render poorly in Lark and add visual noise.  Check before
+		// resetting blankStreak so surrounding blank lines collapse.
+		if isHorizontalRule(trimmed) {
+			continue
+		}
+
 		blankStreak = 0
+
 		if prevNormalized != "" && trimmed == prevNormalized && !isStructuredMarkdownLine(trimmed) {
 			continue
 		}
@@ -64,6 +72,23 @@ func ShapeReply7C(raw string) string {
 	}
 
 	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+// isHorizontalRule returns true for markdown horizontal rules: ---, ***, ___.
+func isHorizontalRule(line string) bool {
+	if len(line) < 3 {
+		return false
+	}
+	ch := line[0]
+	if ch != '-' && ch != '*' && ch != '_' {
+		return false
+	}
+	for i := 1; i < len(line); i++ {
+		if line[i] != ch {
+			return false
+		}
+	}
+	return true
 }
 
 func isStructuredMarkdownLine(line string) bool {

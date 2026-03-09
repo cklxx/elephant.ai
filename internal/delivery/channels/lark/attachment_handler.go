@@ -173,7 +173,7 @@ func buildAttachmentSummary(attachments map[string]ports.Attachment) string {
 	if len(lines) == 0 {
 		return ""
 	}
-	return "---\n[Attachments]\n" + strings.Join(lines, "\n")
+	return "[Attachments]\n" + strings.Join(lines, "\n")
 }
 
 func filterReferencedAttachments(attachments map[string]ports.Attachment, rawContent string) map[string]ports.Attachment {

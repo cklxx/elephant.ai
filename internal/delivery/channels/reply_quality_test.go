@@ -33,6 +33,24 @@ func TestShapeReply7C_PreservesCodeFenceContent(t *testing.T) {
 	}
 }
 
+func TestShapeReply7C_StripsHorizontalRules(t *testing.T) {
+	input := "第一段\n\n---\n\n第二段\n***\n尾部"
+	got := ShapeReply7C(input)
+	want := "第一段\n\n第二段\n尾部"
+	if got != want {
+		t.Fatalf("ShapeReply7C() = %q, want %q", got, want)
+	}
+}
+
+func TestShapeReply7C_PreservesHRInsideCodeFence(t *testing.T) {
+	input := "```\n---\n***\n```"
+	got := ShapeReply7C(input)
+	want := "```\n---\n***\n```"
+	if got != want {
+		t.Fatalf("ShapeReply7C() = %q, want %q", got, want)
+	}
+}
+
 func TestBuildReplyCore_AppliesSevenCShaping(t *testing.T) {
 	cfg := BaseConfig{ReplyPrefix: "[bot] "}
 	result := &agent.TaskResult{
