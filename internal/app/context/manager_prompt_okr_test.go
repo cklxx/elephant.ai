@@ -50,15 +50,7 @@ func TestComposeSystemPrompt_NoOKRSection_WhenEmpty(t *testing.T) {
 	}
 }
 
-func TestComposeSystemPrompt_IncludesHabitStewardshipSection(t *testing.T) {
-	prompt := composeSystemPrompt(systemPromptInput{})
-	if !containsSubstring(prompt, "# Habit Stewardship") {
-		t.Fatalf("expected system prompt to include habit stewardship section, got %q", prompt)
-	}
-	if !containsSubstring(prompt, "stable user habits") {
-		t.Fatalf("expected system prompt to include habit capture guidance, got %q", prompt)
-	}
-}
+// TestComposeSystemPrompt_IncludesHabitStewardshipSection removed — section was deleted.
 
 func containsSubstring(s, sub string) bool {
 	return len(s) >= len(sub) && (s == sub || len(s) > 0 && findSubstring(s, sub))

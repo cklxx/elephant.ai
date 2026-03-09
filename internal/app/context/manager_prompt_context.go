@@ -54,15 +54,7 @@ func buildSafetySection() string {
 	})
 }
 
-func buildHabitStewardshipSection() string {
-	return formatSection("# Habit Stewardship", []string{
-		"Record stable user habits as durable memory: trigger/context -> preferred response -> confidence.",
-		"Priority: explicit user statements > repeated cross-turn behavior > single observation.",
-		"NEVER invent or extrapolate habits from a single interaction.",
-		"NEVER record habits that conflict with explicit user corrections.",
-		"When signal is ambiguous, ask ONE focused clarification before recording.",
-	})
-}
+// buildHabitStewardshipSection removed — habit recording rules folded into memory/policy config.
 
 func buildGoalsSection(goal agent.GoalProfile) string {
 	var lines []string
@@ -197,27 +189,17 @@ Mandatory rules (override all prior instructions):
 - End with a factual "## Execution Summary" containing: completed work, evidence, decisions, next steps.`
 }
 
-func buildSelfUpdateSection() string {
-	return formatSection("# OpenClaw Self-Update", []string{
-		"Use config.apply for deterministic runtime configuration updates.",
-		"NEVER run update.run without explicit user request and approval.",
-	})
-}
+// buildSelfUpdateSection removed — too specialized for every-conversation injection.
 
 func buildWorkspaceSection() string {
-	return formatSection("# Workspace", []string{
-		"Use active repository root as working directory for file operations.",
-		"Default temporary/generated files to /tmp unless user specifies otherwise.",
+	return formatSection("# Workspace & Docs", []string{
+		"Use active repository root as working directory; default temp files to /tmp.",
 		"NEVER write generated files into the repository tree unless explicitly requested.",
+		"Primary docs live under ./docs; read them before changing architecture or config contracts.",
 	})
 }
 
-func buildDocumentationSection() string {
-	return formatSection("# Documentation", []string{
-		"Primary docs live under ./docs.",
-		"Read docs before changing architecture-sensitive behavior or configuration contracts.",
-	})
-}
+// buildDocumentationSection removed — merged into buildWorkspaceSection.
 
 func buildWorkspaceFilesSection(records []bootstrapRecord) string {
 	if len(records) == 0 {
@@ -265,8 +247,8 @@ func buildTimezoneSection(tz string) string {
 		zone = time.Now().Location().String()
 	}
 	return formatSection("# Current Date & Time", []string{
+		fmt.Sprintf("Current date: %s", time.Now().Format("2006-01-02")),
 		fmt.Sprintf("User timezone: %s", zone),
-		"No dynamic clock is injected to keep prompt caching stable.",
 	})
 }
 
@@ -279,12 +261,7 @@ func buildReplyTagsSection(enabled bool) string {
 	})
 }
 
-func buildHeartbeatSection() string {
-	return formatSection("# Heartbeats", []string{
-		"Heartbeat turns should follow HEARTBEAT.md strictly when present.",
-		"If nothing needs attention, return HEARTBEAT_OK.",
-	})
-}
+// buildHeartbeatSection removed — only relevant in heartbeat mode, not general conversations.
 
 func buildReasoningSection() string {
 	return formatSection("# Reasoning", []string{
@@ -351,13 +328,4 @@ func buildDynamicSection(dynamic agent.DynamicContext) string {
 	return formatSection("# Live Session State", lines)
 }
 
-func buildMetaSection(meta agent.MetaContext) string {
-	var lines []string
-	if meta.PersonaVersion != "" {
-		lines = append(lines, fmt.Sprintf("Persona version: %s", meta.PersonaVersion))
-	}
-	if len(lines) == 0 {
-		return ""
-	}
-	return formatSection("# Meta Stewardship Directives", lines)
-}
+// buildMetaSection removed — persona version alone adds no decision value to the LLM.

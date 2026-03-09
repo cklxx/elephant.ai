@@ -41,7 +41,7 @@ triggers:
 	if out == "" {
 		t.Fatalf("expected non-empty skills section")
 	}
-	if !strings.Contains(out, "<available_skills>") {
+	if !strings.Contains(out, "format: name | description | runner") {
 		t.Fatalf("expected available skills metadata, got %q", out)
 	}
 	if !strings.Contains(out, "- foo-skill |") || !strings.Contains(out, "- bar-skill |") {
@@ -83,7 +83,7 @@ func TestBuildSkillsSection_NoMatchStillAvoidsCatalog(t *testing.T) {
 	if out == "" {
 		t.Fatalf("expected non-empty skills section")
 	}
-	if !strings.Contains(out, "<available_skills>") {
+	if !strings.Contains(out, "format: name | description | runner") {
 		t.Fatalf("expected available skills metadata, got %q", out)
 	}
 	if strings.Contains(out, "## Skill: sample-skill") || strings.Contains(out, "# Activated Skills") {
@@ -184,7 +184,7 @@ func TestBuildSkillsSection_SuppressesDiscoveryAfterRecentSkillsUse(t *testing.T
 	}
 }
 
-func TestBuildSkillsSection_UsesCompactAvailableSkillsXML(t *testing.T) {
+func TestBuildSkillsSection_UsesCompactAvailableSkills(t *testing.T) {
 	dir := t.TempDir()
 	for i := 0; i < 30; i++ {
 		name := fmt.Sprintf("skill-%02d", i)
@@ -206,17 +206,14 @@ func TestBuildSkillsSection_UsesCompactAvailableSkillsXML(t *testing.T) {
 	}
 
 	out := buildSkillsSection(logging.Nop(), "no match here", nil, "session-compact", cfg)
-	if !strings.Contains(out, "<available_skills>") {
+	if !strings.Contains(out, "format: name | description | runner") {
 		t.Fatalf("expected compact available skills metadata, got %q", out)
 	}
 	if !strings.Contains(out, "- ... (") {
 		t.Fatalf("expected compact metadata truncation marker, got %q", out)
 	}
-	if strings.Contains(out, "<skill>") || strings.Contains(out, "<name>") || strings.Contains(out, "<description>") {
-		t.Fatalf("did not expect verbose skill xml tags in compact catalog, got %q", out)
-	}
-	if strings.Contains(out, "<location>") || strings.Contains(out, "<exec>") {
-		t.Fatalf("did not expect heavy skill metadata fields in compact catalog, got %q", out)
+	if strings.Contains(out, "<available_skills>") || strings.Contains(out, "<skill>") || strings.Contains(out, "<description>") {
+		t.Fatalf("did not expect XML tags in compact catalog, got %q", out)
 	}
 }
 

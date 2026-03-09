@@ -51,21 +51,17 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildToolingSection(input.Static.Tools),
 		buildToolRoutingSection(),
 		buildSafetySection(),
-		buildHabitStewardshipSection(),
 		buildGoalsSection(input.Static.Goal),
 		buildPoliciesSection(input.Static.Policies),
 		buildKnowledgeSection(input.Static.Knowledge, input.SOPSummaryOnly),
 		buildMemorySection(input.Memory),
 		buildOKRSection(input.OKRContext),
 		buildSkillsSection(input.Logger, input.TaskInput, input.Messages, input.SessionID, input.SkillsConfig),
-		buildSelfUpdateSection(),
 		buildWorkspaceSection(),
-		buildDocumentationSection(),
 		buildWorkspaceFilesSection(input.BootstrapRecords),
 		buildSandboxSection(input.ToolMode, input.OmitEnvironment),
 		buildTimezoneSection(input.PromptTimezone),
 		buildReplyTagsSection(input.ReplyTagsEnabled),
-		buildHeartbeatSection(),
 		buildRuntimeSection(input.Static.Tools, input.ToolMode),
 		buildReasoningSection(),
 		buildChannelFormattingSection(input.ChannelHint),
@@ -73,7 +69,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 	if !input.OmitEnvironment {
 		fullSections = append(fullSections, buildEnvironmentSection(input.Static))
 	}
-	fullSections = append(fullSections, buildDynamicSection(input.Dynamic), buildMetaSection(input.Meta))
+	fullSections = append(fullSections, buildDynamicSection(input.Dynamic))
 	if input.Unattended {
 		fullSections = append(fullSections, buildUnattendedOverrideSection())
 	}
@@ -86,7 +82,6 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildGoalsSection(input.Static.Goal),
 		buildPoliciesSection(input.Static.Policies),
 		buildWorkspaceSection(),
-		buildDocumentationSection(),
 		buildTimezoneSection(input.PromptTimezone),
 		buildRuntimeSection(input.Static.Tools, input.ToolMode),
 		buildReasoningSection(),

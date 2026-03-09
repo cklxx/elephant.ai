@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	maxActivatedSkillBodyChars = 2200
-	maxAvailableSkillsEntries  = 24
-	maxSkillDescriptionChars   = 120
+	maxActivatedSkillBodyChars = 1500
+	maxAvailableSkillsEntries  = 16
+	maxSkillDescriptionChars   = 100
 )
 
 func buildToolingSection(hints []string) string {
@@ -25,69 +25,29 @@ func buildToolingSection(hints []string) string {
 		"NEVER assume a tool exists without checking; NEVER pass undocumented parameters.",
 	}
 	if len(hints) > 0 {
-		lines = append(lines, "Runtime tool hints: "+strings.Join(hints, ", "))
+		lines = append(lines, "Tool hints: "+strings.Join(hints, ", "))
 	}
 	return formatSection("# Tooling", lines)
 }
 
-// buildToolRoutingSection uses pseudocode decision tree + ALWAYS/NEVER binary rules
-// instead of formatSection, because the multi-section structure (code block + sub-headings)
-// doesn't fit formatSection's flat-line model.
-// NOTE: Some NEVER rules (secrets, irreversible consent) intentionally overlap with
-// buildSafetySection — redundancy in safety rules reinforces model compliance.
+// buildToolRoutingSection provides concise guardrails for tool selection.
+// Safety-critical NEVER rules intentionally overlap with buildSafetySection.
 func buildToolRoutingSection() string {
-	var sb strings.Builder
-	sb.WriteString("# Tool Routing Guardrails\n")
-	// Decision tree in pseudocode — model compliance is higher with structured if/else
-	sb.WriteString("```\n")
-	sb.WriteString("IF task_has_explicit_operation(replace, read, send, check):\n")
-	sb.WriteString("  execute with concrete tool immediately\n")
-	sb.WriteString("ELIF task_is_read_only_inspection(view, check, list, inspect):\n")
-	sb.WriteString("  execute with read_file/list_dir/shell_exec; report findings\n")
-	sb.WriteString("ELIF intent_is_unclear:\n")
-	sb.WriteString("  inspect thread context + memory files via read_file/shell_exec\n")
-	sb.WriteString("  IF still_unclear AND critical_input_missing:\n")
-	sb.WriteString("    ask_user(action=clarify, needs_user_input=true) with ONE minimal question\n")
-	sb.WriteString("ELIF user_delegates(\"you decide\", \"anything works\"):\n")
-	sb.WriteString("  choose sensible default for low-risk reversible action; execute and report\n")
-	sb.WriteString("ELIF needs_human_gate(login, 2FA, CAPTCHA, external confirmation):\n")
-	sb.WriteString("  ask_user(action=request) with clear steps; wait\n")
-	sb.WriteString("```\n")
-	// ALWAYS rules — binary, no ambiguity
-	sb.WriteString("## ALWAYS\n")
-	sb.WriteString("- ALWAYS exhaust deterministic tools (read_file, shell_exec, bash) before asking the user.\n")
-	sb.WriteString("- ALWAYS use read_file for workspace/repo files and memory files.\n")
-	sb.WriteString("- ALWAYS use shell_exec for CLI commands and code snippets/scripts/computation.\n")
-	sb.WriteString("- ALWAYS use write_file to create; replace_in_file to edit in place; artifacts_write for durable outputs.\n")
-	sb.WriteString("- ALWAYS use web_search for URL discovery; web_fetch after URL is known.\n")
-	sb.WriteString("- ALWAYS avoid interactive browser click-flow assumptions unless explicit browser automation tools are available.\n")
-	sb.WriteString("- ALWAYS use shell_exec to run skill CLIs for channel delivery (e.g. python3 skills/feishu-cli/run.py).\n")
-	sb.WriteString("- ALWAYS use skills for complex workflows (deep research, media generation, slide decks).\n")
-	sb.WriteString("- ALWAYS default temp/generated files to /tmp with deterministic names.\n")
-	sb.WriteString("- ALWAYS probe capabilities (command -v, --version) before declaring unavailable.\n")
-	sb.WriteString("- ALWAYS inject runtime facts (cwd, OS, toolchain) before irreversible decisions.\n")
-	// NEVER rules — explicit bans are more effective than vague positive instructions
-	sb.WriteString("## NEVER\n")
-	sb.WriteString("- NEVER use ask_user for explicit operational asks; execute with the concrete tool.\n")
-	sb.WriteString("- NEVER ask for reconfirmation on explicit read_only_inspection requests.\n")
-	sb.WriteString("- NEVER use plan for one-step operational actions (send message, run command).\n")
-	sb.WriteString("- NEVER use browser/calendar tools for pure computation; use shell_exec.\n")
-	sb.WriteString("- NEVER expose secrets in prompts/outputs; redact sensitive tokens by default.\n")
-	sb.WriteString("- NEVER skip user consent for high-impact, irreversible, or external actions.\n")
-	sb.WriteString("- NEVER declare a tool unavailable without probing first; search/install from trusted sources before escalating.\n")
-	return strings.TrimSpace(sb.String())
+	return formatSection("# Tool Routing", []string{
+		"Exhaust deterministic tools (read_file, shell_exec) before asking the user.",
+		"Probe capabilities (command -v, --version) before declaring unavailable.",
+		"NEVER use ask_user for explicit operational asks; execute with the concrete tool.",
+		"NEVER expose secrets in prompts/outputs; redact sensitive tokens by default.",
+		"NEVER skip user consent for high-impact, irreversible, or external actions.",
+		"NEVER declare a tool unavailable without probing first.",
+	})
 }
 
 func buildRuntimeSection(toolHints []string, mode string) string {
-	lines := []string{
+	return formatSection("# Runtime", []string{
 		fmt.Sprintf("Tool mode: %s", fallbackString(strings.TrimSpace(mode), "cli")),
-	}
-	if len(toolHints) > 0 {
-		lines = append(lines, "Tool hints: "+strings.Join(toolHints, ", "))
-	}
-	lines = append(lines, "A <ctx/> tag per turn reports token budget and phase; adapt verbosity accordingly.")
-	lines = append(lines, "Runtime profile should be inferred from channel + config, not guessed.")
-	return formatSection("# Runtime", lines)
+		"A <ctx/> tag per turn reports token budget and phase; adapt verbosity accordingly.",
+	})
 }
 
 func buildSkillsSection(logger logging.Logger, taskInput string, messages []ports.Message, sessionID string, cfg agent.SkillsConfig) string {
@@ -166,7 +126,7 @@ func buildSkillsSection(logger logging.Logger, taskInput string, messages []port
 		}
 	}
 
-	metadata := strings.TrimSpace(renderCompactAvailableSkillsXML(library, maxAvailableSkillsEntries))
+	metadata := strings.TrimSpace(renderCompactAvailableSkills(library, maxAvailableSkillsEntries))
 	recentlyUsedSkills := hasRecentToolUsage(messages, "skills", 12)
 	if metadata != "" && !recentlyUsedSkills {
 		if sb.Len() > 0 {
@@ -265,7 +225,7 @@ func truncateSkillPromptText(content string, maxChars int) string {
 	return trimmed + "\n\n[Skill instructions truncated for prompt budget. Use skills(action=show,name=...) for full workflow.]"
 }
 
-func renderCompactAvailableSkillsXML(library skills.Library, maxEntries int) string {
+func renderCompactAvailableSkills(library skills.Library, maxEntries int) string {
 	skillList := library.List()
 	if len(skillList) == 0 {
 		return ""
@@ -275,24 +235,20 @@ func renderCompactAvailableSkillsXML(library skills.Library, maxEntries int) str
 	}
 
 	var sb strings.Builder
-	sb.WriteString("<available_skills>\n")
-	sb.WriteString("- format: name | description | governance | activation | runner\n")
-	sb.WriteString("- runner=py -> shell_exec python3 skills/<skill-name>/run.py ... (see SKILL.md for args)\n")
+	sb.WriteString("format: name | description | runner\n")
+	sb.WriteString("runner=py -> shell_exec python3 skills/<name>/run.py (see SKILL.md)\n")
 	for _, skill := range skillList[:maxEntries] {
 		name := compactSkillField(skill.Name, "(unnamed)")
-		desc := compactSkillField(truncateSkillInlineText(skill.Description, maxSkillDescriptionChars), "(no description)")
-		level := compactSkillField(skill.GovernanceLevel, "-")
-		mode := compactSkillField(skill.ActivationMode, "-")
+		desc := compactSkillField(truncateSkillInlineText(skill.Description, maxSkillDescriptionChars), "-")
 		runner := "md"
 		if skill.HasRunScript {
 			runner = "py"
 		}
-		sb.WriteString(fmt.Sprintf("- %s | %s | %s | %s | %s\n", escapeSkillXML(name), escapeSkillXML(desc), escapeSkillXML(level), escapeSkillXML(mode), escapeSkillXML(runner)))
+		sb.WriteString(fmt.Sprintf("- %s | %s | %s\n", name, desc, runner))
 	}
 	if len(skillList) > maxEntries {
 		sb.WriteString(fmt.Sprintf("- ... (%d more; use skills(action=list|search|show))\n", len(skillList)-maxEntries))
 	}
-	sb.WriteString("</available_skills>")
 	return strings.TrimSpace(sb.String())
 }
 
@@ -306,23 +262,3 @@ func compactSkillField(value string, fallback string) string {
 	return normalized
 }
 
-func escapeSkillXML(value string) string {
-	var builder strings.Builder
-	for _, r := range value {
-		switch r {
-		case '&':
-			builder.WriteString("&amp;")
-		case '<':
-			builder.WriteString("&lt;")
-		case '>':
-			builder.WriteString("&gt;")
-		case '"':
-			builder.WriteString("&quot;")
-		case '\'':
-			builder.WriteString("&apos;")
-		default:
-			builder.WriteRune(r)
-		}
-	}
-	return builder.String()
-}

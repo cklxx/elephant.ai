@@ -197,7 +197,7 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 
 	sections := []string{
 		"# Identity & Persona",
-		"# Tool Routing Guardrails",
+		"# Tool Routing",
 		"# Mission Objectives",
 		"# Guardrails & Policies",
 		"# Knowledge & Experience",
@@ -208,17 +208,11 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 			t.Fatalf("expected system prompt to include section %q, got %q", section, window.SystemPrompt)
 		}
 	}
-	// Check for decision tree + ALWAYS/NEVER tool routing rules
+	// Check for concise tool routing rules
 	for _, snippet := range []string{
-		"task_has_explicit_operation",
-		"read_only_inspection",
-		"inspect thread context + memory files via read_file/shell_exec",
-		"user_delegates",
-		"needs_human_gate",
-		"ALWAYS exhaust deterministic tools",
-		"ALWAYS inject runtime facts",
+		"Exhaust deterministic tools",
 		"NEVER expose secrets",
-		"host shell execution with any available PATH tool",
+		"NEVER skip user consent",
 	} {
 		if !strings.Contains(window.SystemPrompt, snippet) {
 			t.Fatalf("expected routing guardrail snippet %q, got %q", snippet, window.SystemPrompt)
@@ -542,8 +536,9 @@ func TestComposeSystemPromptIncludesMetaLayer(t *testing.T) {
 		Dynamic: dynamic,
 		Meta:    meta,
 	})
-	if !strings.Contains(prompt, "Persona version: persona-v2") {
-		t.Fatalf("expected persona version in prompt, got %q", prompt)
+	// Meta section (persona version) was removed from prompt — verify it's absent
+	if strings.Contains(prompt, "Persona version: persona-v2") {
+		t.Fatalf("expected persona version to NOT appear in prompt after meta section removal, got %q", prompt)
 	}
 	if strings.Contains(prompt, "Prefers Go") || strings.Contains(prompt, "Prioritize secure defaults") || strings.Contains(prompt, memoTime.Format("2006-01-02")) {
 		t.Fatalf("expected runtime memories/recommendations to stay out of static prompt, got %q", prompt)
