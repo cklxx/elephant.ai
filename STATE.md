@@ -1,10 +1,30 @@
 # STATE
 
-Updated: 2026-03-09 12:43 CST
+Updated: 2026-03-09 17:46 CST
 
 ## Current status
+- **kernel-cycle-2026-03-09T09-46Z:** Full test suite PASS (14/14 packages, `CC=/usr/bin/clang`). Lint CLEAN on `lark` and `larktools`. All orphaned untracked report files committed.
+- Local `main` HEAD `f3f19dde`, 10 commits ahead of `origin/main`; push pending (network transport blocker, not a code issue).
+- `CC=/usr/bin/clang` mitigation confirmed stable — Node.js shim at `/Users/bytedance/.local/bin/cc` rejects `-E` flag and breaks CGO builds; all kernel/CI invocations must prefix this.
+- All previously identified risks resolved or actively mitigated (see Risk Register in latest cycle report).
+- Validated packages: `./internal/infra/teamruntime/...`, `./internal/app/agent/...` (7 sub-packages), `./internal/infra/lark/...` (4 sub-packages), `./internal/infra/tools/builtin/larktools/...`.
+
+## Next actions
+1. Push local `main` to `origin/main` (10 commits pending — retry from stable network).
+2. Add `CC=/usr/bin/clang` to Makefile/CI targets to prevent future CGO false-negative failures.
+3. Architectural cleanup: larktools/infra/lark split documented but not blocking; defer unless new features touch both layers.
+
+## Validated packages (as of 2026-03-09T09:46Z)
+- `./internal/infra/teamruntime/...` ✅
+- `./internal/app/agent/...` (all 7 sub-packages) ✅
+- `./internal/infra/lark/...` (4 sub-packages) ✅
+- `./internal/infra/tools/builtin/larktools/...` ✅
+- lint: `./internal/infra/lark/...` + `./internal/infra/tools/builtin/larktools/...` ✅
+
+---
+
+## Historical status
 - Local `main` contains the March 9 local integration line for `team-cli`, background stale-active-task self-heal, and `larktools` docx convert mock hardening.
-- `origin/main` still trails the local integration line; push remains pending and the last observed failure was transport-related rather than Git rejection.
 - Since the 2026-03-06 snapshot, local-only merges landed the `team-cli` status/list fixes and the background stale-active-task self-heal fix.
 - Targeted validation for the new local-only changes passed:
   - `go test ./cmd/alex ./internal/infra/skills`
@@ -46,6 +66,48 @@ Updated: 2026-03-09 12:43 CST
 - Added JSON request assertions (`content_type=markdown`, non-empty `content`), expanded accepted convert-route variants to include trailing-slash paths, and returned explicit `block_id_to_image_urls: []` in the shared success payload.
 - Revalidated with `go test -count=1 ./internal/infra/lark/... ./internal/infra/tools/builtin/larktools/...` ✅.
 - Next action: if future refactors move channel/docx write flow again, keep this shared convert mock helper as the single source of truth and extend assertions there first.
+
+## 2026-03-09 kernel cycle (09:46Z) — autonomous maintenance
+**Cycle ID:** kernel-cycle-2026-03-09T09-46Z
+**Status:** ✅ VALIDATION PASS — 14/14 packages, lint CLEAN
+
+### Key Findings
+1. **Full test suite PASS (14 packages):** `CC=/usr/bin/clang go test -count=1` — all green including `larktools`, all `app/agent/*`, all `infra/lark/*`, `teamruntime`.
+2. **Lint PASS:** `golangci-lint run ./internal/infra/lark/... ./internal/infra/tools/builtin/larktools/...` — clean.
+3. **Git state:** HEAD `f3f19dde`, local 10 commits ahead of `origin/main`; push pending (network transport, not code issue).
+4. **Stale target confirmed removed:** `./internal/infra/kernel/...` no longer exists; correct kernel target is `./internal/app/agent/...`.
+5. **Untracked orphaned reports (4 files):** committed alongside this cycle report.
+
+### Risk Register
+| Risk | Status |
+|------|--------|
+| CC PATH shadowing (Node.js shim) | Mitigated — `CC=/usr/bin/clang` in all invocations |
+| `origin/main` 10 commits behind | Active — push blocked by network transport |
+| larktools lint backlog | Resolved — lint passes cleanly |
+
+### Next Actions
+1. Push local `main` to `origin/main` (retry on stable network)
+2. Add `CC=/usr/bin/clang` to Makefile/CI go test targets to prevent future CGO false negatives
+
+**Artifact:** `docs/reports/kernel-cycle-2026-03-09T09-46Z.md`
+
+## 2026-03-09 kernel cycle (09:46Z) — autonomous maintenance
+**Cycle ID:** kernel-cycle-2026-03-09T09-46Z
+**Status:** ✅ VALIDATION PASS — 14/14 packages green, lint CLEAN
+
+### Key Findings
+1. **Full test suite PASS:** All 14 packages pass with `CC=/usr/bin/clang go test -count=1` — teamruntime, app/agent (7), infra/lark (4), larktools.
+2. **Lint PASS:** `golangci-lint run ./internal/infra/lark/... ./internal/infra/tools/builtin/larktools/...` — clean.
+3. **CC shadowing mitigation confirmed stable:** `/Users/bytedance/.local/bin/cc` Node.js shim continues to reject `-E`; `CC=/usr/bin/clang` prefix required for all CGO-linked packages.
+4. **Git state:** HEAD `f3f19dde`, local 10 commits ahead of `origin/main`; push pending (transport blocker).
+5. **Orphaned report files:** 4 untracked kernel-cycle report files committed this cycle (T04-39Z, T04-40Z, T04-43Z, T08-00Z).
+6. **Stale kernel path confirmed removed:** `./internal/infra/kernel/...` does not exist; correct baseline excludes it.
+
+### Next Actions
+1. Push local `main` to `origin/main` when network is stable.
+2. Add `CC=/usr/bin/clang` to Makefile/CI targets to prevent future CGO false negatives.
+
+**Artifact:** `docs/reports/kernel-cycle-2026-03-09T09-46Z.md`
 
 ## 2026-03-09 kernel cycle (04:43Z) — CC path shadow diagnosis
 
