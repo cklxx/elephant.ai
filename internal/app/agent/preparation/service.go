@@ -167,6 +167,9 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		float64(time.Since(historyLoadStarted))/float64(time.Millisecond),
 		len(sessionHistory),
 	)
+	// loadSessionHistory already returns cloned messages, so we only need one
+	// additional clone for rawHistory (used independently downstream).
+	// Previously this was CloneMessages(sessionHistory) which triple-cloned.
 	rawHistory := agent.CloneMessages(sessionHistory)
 	if session != nil {
 		session.Messages = sessionHistory

@@ -2,6 +2,8 @@ package context
 
 import (
 	"context"
+	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -141,5 +143,124 @@ func TestHistoryManagerAppendTurnWithExisting(t *testing.T) {
 		if history[i].Role != incoming[i].Role || history[i].Content != incoming[i].Content {
 			t.Fatalf("message %d mismatch: want %+v got %+v", i, incoming[i], history[i])
 		}
+	}
+}
+
+func TestReplayMaxSnapshotCap(t *testing.T) {
+	ctx := context.Background()
+	store := sessionstate.NewInMemoryStore()
+	manager := NewHistoryManager(store, agent.NoopLogger{}, agent.ClockFunc(time.Now))
+	sessionID := "session-cap"
+
+	// Write 200 snapshots (well above maxReplaySnapshots=50).
+	var allMessages []ports.Message
+	for i := 1; i <= 200; i++ {
+		msg := ports.Message{
+			Role:    "user",
+			Content: fmt.Sprintf("turn %d", i),
+			Source:  ports.MessageSourceUserInput,
+		}
+		allMessages = append(allMessages, msg)
+
+		snapshot := sessionstate.Snapshot{
+			SessionID: sessionID,
+			TurnID:    i,
+			CreatedAt: time.Now(),
+			Messages:  []ports.Message{msg},
+		}
+		if err := store.SaveSnapshot(ctx, snapshot); err != nil {
+			t.Fatalf("save snapshot %d: %v", i, err)
+		}
+	}
+
+	history, err := manager.Replay(ctx, sessionID, 0)
+	if err != nil {
+		t.Fatalf("replay failed: %v", err)
+	}
+
+	// Should be capped at maxReplaySnapshots * 1 message per snapshot = 50 messages.
+	if len(history) > maxReplaySnapshots {
+		t.Errorf("expected at most %d messages, got %d", maxReplaySnapshots, len(history))
+	}
+
+	// Should contain the MOST RECENT messages (turn 151..200).
+	if len(history) > 0 {
+		first := history[0]
+		expected := fmt.Sprintf("turn %d", 200-maxReplaySnapshots+1)
+		if first.Content != expected {
+			t.Errorf("expected first message to be %q, got %q", expected, first.Content)
+		}
+		last := history[len(history)-1]
+		if last.Content != "turn 200" {
+			t.Errorf("expected last message to be 'turn 200', got %q", last.Content)
+		}
+	}
+}
+
+func TestReplayStress10000Turns(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping stress test in short mode")
+	}
+
+	ctx := context.Background()
+	store := sessionstate.NewInMemoryStore()
+	manager := NewHistoryManager(store, agent.NoopLogger{}, agent.ClockFunc(time.Now))
+	sessionID := "session-stress"
+
+	const totalTurns = 10000
+
+	// Write 10000 snapshots, each with a message containing some data.
+	for i := 1; i <= totalTurns; i++ {
+		snapshot := sessionstate.Snapshot{
+			SessionID: sessionID,
+			TurnID:    i,
+			CreatedAt: time.Now(),
+			Messages: []ports.Message{
+				{
+					Role:    "user",
+					Content: fmt.Sprintf("turn %d with some reasonable content that simulates a real message payload", i),
+					Source:  ports.MessageSourceUserInput,
+				},
+				{
+					Role:    "assistant",
+					Content: fmt.Sprintf("response to turn %d with tool output and reasoning", i),
+					Source:  ports.MessageSourceAssistantReply,
+				},
+			},
+		}
+		if err := store.SaveSnapshot(ctx, snapshot); err != nil {
+			t.Fatalf("save snapshot %d: %v", i, err)
+		}
+	}
+
+	// Measure memory before replay.
+	runtime.GC()
+	var memBefore runtime.MemStats
+	runtime.ReadMemStats(&memBefore)
+
+	history, err := manager.Replay(ctx, sessionID, 0)
+	if err != nil {
+		t.Fatalf("replay failed: %v", err)
+	}
+
+	// Measure memory after replay.
+	var memAfter runtime.MemStats
+	runtime.ReadMemStats(&memAfter)
+
+	heapGrowth := memAfter.HeapAlloc - memBefore.HeapAlloc
+	t.Logf("Results:")
+	t.Logf("  Total turns:    %d", totalTurns)
+	t.Logf("  Messages loaded: %d", len(history))
+	t.Logf("  Heap growth:    %.2f MB", float64(heapGrowth)/1024/1024)
+
+	// With maxReplaySnapshots=50, should load at most 50 * 2 = 100 messages.
+	maxExpected := maxReplaySnapshots * 2
+	if len(history) > maxExpected {
+		t.Errorf("expected at most %d messages, got %d — cap not working", maxExpected, len(history))
+	}
+
+	// Memory growth should be minimal (< 50 MB even with overhead).
+	if heapGrowth > 50*1024*1024 {
+		t.Errorf("heap growth too high: %.2f MB — likely unbounded loading", float64(heapGrowth)/1024/1024)
 	}
 }

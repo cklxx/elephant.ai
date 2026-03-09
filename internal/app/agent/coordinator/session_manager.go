@@ -60,9 +60,11 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	logger := c.loggerFor(ctx)
 	historyEnabled := appcontext.SessionHistoryEnabled(ctx)
 	if historyEnabled && c.historyMgr != nil && session != nil && result != nil {
-		previousHistory, _ := c.historyMgr.Replay(ctx, session.ID, 0)
-		incoming := append(agent.CloneMessages(previousHistory), stripUserHistoryMessages(result.Messages)...)
-		if err := c.appendHistoryTurn(ctx, session.ID, previousHistory, incoming); err != nil && logger != nil {
+		// Only load previous history if appending (not for ephemeral sessions).
+		// Use the optimized AppendTurnWithExisting path when available to avoid
+		// a full Replay just to pass existing messages.
+		incoming := stripUserHistoryMessages(result.Messages)
+		if err := c.appendHistoryTurn(ctx, session.ID, nil, incoming); err != nil && logger != nil {
 			logger.Warn("Failed to append turn history: %v", err)
 		}
 	}

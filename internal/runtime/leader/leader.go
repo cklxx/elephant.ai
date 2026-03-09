@@ -10,12 +10,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
+	appcontext "alex/internal/app/agent/context"
 	"alex/internal/runtime/hooks"
 	"alex/internal/runtime/session"
+	"alex/internal/shared/logging"
 )
-
 
 // RuntimeReader is the minimal interface the Agent needs from Runtime.
 type RuntimeReader interface {
@@ -37,11 +39,23 @@ type Agent struct {
 	rt      RuntimeReader
 	bus     hooks.Bus
 	execute ExecuteFunc
+	logger  logging.Logger
+
+	// inflight tracks sessions currently being handled to prevent concurrent
+	// stall handling for the same session (which causes duplicate history loads).
+	inflight   map[string]struct{}
+	inflightMu sync.Mutex
 }
 
 // New creates a LeaderAgent.
 func New(rt RuntimeReader, bus hooks.Bus, execute ExecuteFunc) *Agent {
-	return &Agent{rt: rt, bus: bus, execute: execute}
+	return &Agent{
+		rt:       rt,
+		bus:      bus,
+		execute:  execute,
+		logger:   logging.NewComponentLogger("LeaderAgent"),
+		inflight: make(map[string]struct{}),
+	}
 }
 
 // Run subscribes to the bus and processes stall/needs-input events.
@@ -57,13 +71,41 @@ func (a *Agent) Run(ctx context.Context) {
 		case ev := <-ch:
 			switch ev.Type {
 			case hooks.EventStalled, hooks.EventNeedsInput:
-				go a.handleStall(ctx, ev)
+				if a.tryAcquire(ev.SessionID) {
+					go func(ev hooks.Event) {
+						defer a.release(ev.SessionID)
+						a.handleStall(ctx, ev)
+					}(ev)
+				} else {
+					a.logger.Debug("Skipping stall event for session %s — already in-flight", ev.SessionID)
+				}
 			}
 		}
 	}
 }
 
+// tryAcquire attempts to mark a session as in-flight.
+// Returns false if the session is already being handled.
+func (a *Agent) tryAcquire(sessionID string) bool {
+	a.inflightMu.Lock()
+	defer a.inflightMu.Unlock()
+	if _, ok := a.inflight[sessionID]; ok {
+		return false
+	}
+	a.inflight[sessionID] = struct{}{}
+	return true
+}
+
+// release marks a session as no longer in-flight.
+func (a *Agent) release(sessionID string) {
+	a.inflightMu.Lock()
+	defer a.inflightMu.Unlock()
+	delete(a.inflight, sessionID)
+}
+
 // handleStall makes an LLM decision for a stalled/needs-input session.
+// The context disables session history loading since the stall prompt is
+// self-contained and does not need conversation history.
 func (a *Agent) handleStall(ctx context.Context, ev hooks.Event) {
 	snap, ok := a.rt.GetSession(ev.SessionID)
 	if !ok {
@@ -77,7 +119,11 @@ func (a *Agent) handleStall(ctx context.Context, ev hooks.Event) {
 
 	prompt := buildStallPrompt(snap.ID, string(snap.Member), snap.Goal, elapsed, ev.Type)
 
-	decision, err := a.execute(ctx, prompt)
+	// Disable session history for stall decisions — the prompt is self-contained
+	// and loading full history is the primary cause of memory explosion.
+	stallCtx := appcontext.WithSessionHistory(ctx, false)
+
+	decision, err := a.execute(stallCtx, prompt)
 	if err != nil {
 		// LLM unavailable — escalate to human.
 		a.escalate(ev.SessionID, fmt.Sprintf("leader llm error: %v", err))

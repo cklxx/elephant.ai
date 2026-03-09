@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -51,10 +52,14 @@ func startRuntimeSubsystem(
 	go detector.Run(ctx)
 
 	// LeaderAgent: handles stalled / needs-input events via LLM.
+	// The leader uses a dedicated ephemeral session ID per call to avoid
+	// accumulating unbounded history in a single "leader-agent" session.
 	if container != nil && container.AgentCoordinator != nil {
 		coord := container.AgentCoordinator
 		executeFunc := func(ctx context.Context, prompt string) (string, error) {
-			result, err := coord.ExecuteTask(ctx, prompt, "leader-agent", nil)
+			// Use a fresh ephemeral session each time to avoid history accumulation.
+			sessionID := fmt.Sprintf("leader-ephemeral-%d", time.Now().UnixNano())
+			result, err := coord.ExecuteTask(ctx, prompt, sessionID, nil)
 			if err != nil {
 				return "", err
 			}

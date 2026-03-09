@@ -13,6 +13,10 @@ import (
 
 const historyPageSize = 200
 
+// maxReplaySnapshots caps the total number of snapshots loaded during Replay
+// to prevent unbounded memory growth. Only the most recent snapshots are kept.
+const maxReplaySnapshots = 50
+
 // HistoryManager provides turn-level history persistence and replay with stable
 // ordering guarantees. It is designed to live alongside context snapshots so
 // that history retrieval uses a single module.
@@ -148,6 +152,16 @@ func (m *HistoryManager) Replay(ctx context.Context, sessionID string, uptoTurn 
 			}
 		}
 		snapshots = filtered
+	}
+
+	// Cap snapshot count to prevent unbounded memory usage.
+	// Keep only the most recent snapshots (they are sorted by TurnID ascending).
+	if len(snapshots) > maxReplaySnapshots {
+		if m.logger != nil {
+			m.logger.Warn("Truncating replay for session %s: %d snapshots → %d (max)",
+				sessionID, len(snapshots), maxReplaySnapshots)
+		}
+		snapshots = snapshots[len(snapshots)-maxReplaySnapshots:]
 	}
 
 	if len(snapshots) == 0 {
