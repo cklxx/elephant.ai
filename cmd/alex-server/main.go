@@ -16,31 +16,16 @@ import (
 )
 
 type runners struct {
-	runLark         func(string) error
-	runKernelDaemon func(string) error
-	runKernelOnce   func(string) error
+	runLark func(string) error
 }
 
 func run(args []string, obsConfig string, rs runners) error {
 	if rs.runLark == nil {
 		rs.runLark = serverBootstrap.RunLark
 	}
-	if rs.runKernelDaemon == nil {
-		rs.runKernelDaemon = serverBootstrap.RunKernelDaemon
-	}
-	if rs.runKernelOnce == nil {
-		rs.runKernelOnce = serverBootstrap.RunKernelOnce
-	}
 
 	if len(args) > 1 {
-		switch args[1] {
-		case "kernel-daemon":
-			return rs.runKernelDaemon(obsConfig)
-		case "kernel-once":
-			return rs.runKernelOnce(obsConfig)
-		default:
-			return fmt.Errorf("unknown subcommand: %s", args[1])
-		}
+		return fmt.Errorf("unknown subcommand: %s", args[1])
 	}
 	return rs.runLark(obsConfig)
 }

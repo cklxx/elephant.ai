@@ -62,25 +62,24 @@ type ContextManager interface {
 
 // ContextWindowConfig drives context composition behaviour.
 type ContextWindowConfig struct {
-	TokenLimit             int
-	PersonaKey             string
-	GoalKey                string
-	WorldKey               string
-	ToolMode               string
-	ToolPreset             string
-	EnvironmentSummary     string
-	TaskInput              string
-	PromptMode             string
-	PromptTimezone         string
-	BootstrapFiles         []string
-	BootstrapMaxChars      int
-	ReplyTagsEnabled       bool
-	Skills                 SkillsConfig
-	OKRContext             string // Pre-rendered OKR goals section for system prompt injection
-	KernelAlignmentContext string // Pre-rendered kernel mission/soul/user section
-	Unattended             bool   // If true, agent runs autonomously without user interaction
-	Channel     string // Delivery channel (e.g. "lark", "cli", "web") for format-aware prompts
-	ChannelHint string // Pre-rendered channel-specific formatting hint (replaces hardcoded channel checks)
+	TokenLimit         int
+	PersonaKey         string
+	GoalKey            string
+	WorldKey           string
+	ToolMode           string
+	ToolPreset         string
+	EnvironmentSummary string
+	TaskInput          string
+	PromptMode         string
+	PromptTimezone     string
+	BootstrapFiles     []string
+	BootstrapMaxChars  int
+	ReplyTagsEnabled   bool
+	Skills             SkillsConfig
+	OKRContext         string // Pre-rendered OKR goals section for system prompt injection
+	Unattended         bool   // If true, agent runs autonomously without user interaction
+	Channel            string // Delivery channel (e.g. "lark", "cli", "web") for format-aware prompts
+	ChannelHint        string // Pre-rendered channel-specific formatting hint (replaces hardcoded channel checks)
 }
 
 // ContextWindow exposes the layered context returned by the manager.

@@ -69,7 +69,6 @@ func RunLark(observabilityConfigPath string) error {
 	})
 
 	// ── Phase 3: Subsystems (channel gateways, scheduler/timer) ──
-	// NOTE: kernel now runs in a dedicated `alex-server kernel-daemon` process.
 
 	subsystems := NewSubsystemManager(logger)
 	defer subsystems.StopAll()

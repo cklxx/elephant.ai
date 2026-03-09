@@ -36,7 +36,6 @@ Env:
   LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS   Autofix cooldown seconds (default: 900)
   LARK_SUPERVISOR_AUTOFIX_SCOPE              Prompt scope hint (default: repo)
   LARK_LOOP_AUTOFIX_ENABLED                  Enable loop gate auto-fix edits (default: 0)
-  LARK_SUPERVISOR_KERNEL_ENABLED             Enable kernel child management (default: 0; disabled)
   LARK_SUPERVISOR_NOTIFY_SH                  Notification sender script (default: scripts/lark/notify.sh)
   LARK_NOTICE_STATE_FILE                     Notice binding state file path (default: .worktrees/test/tmp/lark-notice.state.json)
   LARK_STALE_LOOP_STATE_TIMEOUT_SECONDS      Max seconds to keep validation phase while loop is down before stale-state recovery (default: 30)
@@ -55,7 +54,6 @@ git_is_worktree_dir "${MAIN_ROOT}" || die "Not a git repository (cannot resolve 
 
 MAIN_SH="${MAIN_SH:-${MAIN_ROOT}/scripts/lark/main.sh}"
 LOOP_AGENT_SH="${LOOP_AGENT_SH:-${MAIN_ROOT}/scripts/lark/loop-agent.sh}"
-KERNEL_SH="${KERNEL_SH:-${MAIN_ROOT}/scripts/lark/kernel.sh}"
 AUTOFIX_SH="${AUTOFIX_SH:-${MAIN_ROOT}/scripts/lark/autofix.sh}"
 NOTIFY_SH="${LARK_SUPERVISOR_NOTIFY_SH:-${MAIN_ROOT}/scripts/lark/notify.sh}"
 
@@ -100,7 +98,7 @@ AUTOFIX_WINDOW_SECONDS="${LARK_SUPERVISOR_AUTOFIX_WINDOW_SECONDS:-3600}"
 AUTOFIX_COOLDOWN_SECONDS="${LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS:-900}"
 AUTOFIX_SCOPE="${LARK_SUPERVISOR_AUTOFIX_SCOPE:-repo}"
 LOOP_AUTOFIX_ENABLED="${LARK_LOOP_AUTOFIX_ENABLED:-0}"
-KERNEL_ENABLED="${LARK_SUPERVISOR_KERNEL_ENABLED:-0}"
+KERNEL_ENABLED="0"
 STALE_LOOP_STATE_TIMEOUT_SECONDS="${LARK_STALE_LOOP_STATE_TIMEOUT_SECONDS:-30}"
 
 MODE="degraded"
@@ -489,8 +487,7 @@ enforce_kernel_disabled() {
   if [[ -z "${pid}" ]]; then
     return 0
   fi
-  append_log "[supervisor] kernel disabled; stopping running kernel pid=${pid}"
-  "${KERNEL_SH}" stop >> "${LOG_FILE}" 2>&1 || true
+  append_log "[supervisor] kernel disabled; stale pid detected pid=${pid}"
 }
 
 trigger_autofix() {
@@ -580,7 +577,6 @@ handle_autofix_success_restart() {
   fi
 
   append_log "[autofix] applying post-success restart for incident=${OBS_AUTOFIX_INCIDENT_ID}"
-  restart_component "kernel" || true
   restart_component "main" || true
   restart_component "loop" || true
   printf '%s\n' "${OBS_AUTOFIX_INCIDENT_ID}" > "${AUTOFIX_APPLIED_INCIDENT_FILE}"
@@ -670,13 +666,6 @@ restart_component() {
       ;;
     loop)
       "${LOOP_AGENT_SH}" restart >> "${LOG_FILE}" 2>&1
-      ;;
-    kernel)
-      if [[ "${KERNEL_ENABLED}" != "1" ]]; then
-        append_log "[supervisor] kernel restart skipped (disabled)"
-        return 0
-      fi
-      "${KERNEL_SH}" restart >> "${LOG_FILE}" 2>&1
       ;;
     *)
       return 1
@@ -1154,9 +1143,6 @@ start() {
   ensure_dirs
   assert_main_config
   cleanup_orphan_lark_agents
-  if [[ "${KERNEL_ENABLED}" != "1" ]]; then
-    "${KERNEL_SH}" stop >> "${LOG_FILE}" 2>&1 || true
-  fi
 
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
@@ -1199,7 +1185,6 @@ start() {
 stop_components() {
   "${LOOP_AGENT_SH}" stop >> "${LOG_FILE}" 2>&1 || true
   "${MAIN_SH}" stop >> "${LOG_FILE}" 2>&1 || true
-  "${KERNEL_SH}" stop >> "${LOG_FILE}" 2>&1 || true
 }
 
 stop_codex_processes() {
@@ -1304,7 +1289,7 @@ doctor() {
     fi
   done
 
-  for script in "${MAIN_SH}" "${LOOP_AGENT_SH}" "${KERNEL_SH}" "${AUTOFIX_SH}"; do
+  for script in "${MAIN_SH}" "${LOOP_AGENT_SH}" "${AUTOFIX_SH}"; do
     if [[ -x "${script}" ]]; then
       echo "[ok] script: ${script}"
     else

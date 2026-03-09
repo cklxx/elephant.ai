@@ -174,26 +174,26 @@ func TestReadLoopStateMissingFiles(t *testing.T) {
 func TestWriteStatusIncludesComponentRunsWindow(t *testing.T) {
 	s, dir := newTestSupervisor(t)
 
-	kernelPIDFile := filepath.Join(dir, "lark-kernel.pid")
-	if err := os.WriteFile(kernelPIDFile, []byte("73499"), 0o644); err != nil {
-		t.Fatalf("write kernel pid file: %v", err)
+	mainPIDFile := filepath.Join(dir, "lark-main.pid")
+	if err := os.WriteFile(mainPIDFile, []byte("73499"), 0o644); err != nil {
+		t.Fatalf("write main pid file: %v", err)
 	}
-	kernelSHAFile := filepath.Join(dir, "lark-kernel.sha")
-	if err := os.WriteFile(kernelSHAFile, []byte("0113334f"), 0o644); err != nil {
-		t.Fatalf("write kernel sha file: %v", err)
+	mainSHAFile := filepath.Join(dir, "lark-main.sha")
+	if err := os.WriteFile(mainSHAFile, []byte("0113334f"), 0o644); err != nil {
+		t.Fatalf("write main sha file: %v", err)
 	}
 
 	s.RegisterComponent(&Component{
-		Name:    "kernel",
-		PIDFile: kernelPIDFile,
-		SHAFile: kernelSHAFile,
+		Name:    "main",
+		PIDFile: mainPIDFile,
+		SHAFile: mainSHAFile,
 		HealthFn: func() string {
 			return "healthy"
 		},
 	})
 
-	s.policy.RecordRestart("kernel")
-	s.policy.RecordRestart("kernel")
+	s.policy.RecordRestart("main")
+	s.policy.RecordRestart("main")
 
 	s.writeStatus()
 
@@ -202,12 +202,12 @@ func TestWriteStatusIncludesComponentRunsWindow(t *testing.T) {
 		t.Fatalf("read status: %v", err)
 	}
 
-	kernel, ok := status.Components["kernel"]
+	main, ok := status.Components["main"]
 	if !ok {
-		t.Fatal("missing kernel component in status")
+		t.Fatal("missing main component in status")
 	}
-	if kernel.RunsWindow != 2 {
-		t.Fatalf("kernel runs_window = %d, want 2", kernel.RunsWindow)
+	if main.RunsWindow != 2 {
+		t.Fatalf("main runs_window = %d, want 2", main.RunsWindow)
 	}
 }
 
@@ -258,33 +258,6 @@ func TestMaybeUpgradeForSHADrift(t *testing.T) {
 
 	if !startCalled {
 		t.Error("StartFn should be called when deployed SHA differs from main SHA")
-	}
-}
-
-func TestMaybeUpgradeForSHADriftKernel(t *testing.T) {
-	s, dir := newTestSupervisor(t)
-
-	var startCalled bool
-	shaFile := filepath.Join(dir, "kernel.sha")
-	if err := os.WriteFile(shaFile, []byte("oldsha123"), 0o644); err != nil {
-		t.Fatalf("write kernel sha file: %v", err)
-	}
-
-	s.RegisterComponent(&Component{
-		Name:     "kernel",
-		SHAFile:  shaFile,
-		HealthFn: func() string { return "healthy" },
-		StartFn: func(ctx context.Context) error {
-			startCalled = true
-			return nil
-		},
-	})
-
-	s.loopState.MainSHA = "newsha456"
-	s.maybeUpgradeForSHADrift(context.Background())
-
-	if !startCalled {
-		t.Error("StartFn should be called for kernel when deployed SHA differs from main SHA")
 	}
 }
 

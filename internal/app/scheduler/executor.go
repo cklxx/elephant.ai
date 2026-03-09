@@ -1,14 +1,15 @@
 package scheduler
 
 import (
-	"alex/internal/shared/notification"
-	"alex/internal/shared/utils"
 	"context"
 	"errors"
 	"fmt"
 	"strings"
 
+	appcontext "alex/internal/app/agent/context"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/notification"
+	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -48,6 +49,7 @@ func (s *Scheduler) executeTrigger(trigger Trigger) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	ctx = appcontext.MarkUnattendedContext(ctx)
 	if trigger.UserID != "" {
 		ctx = id.WithUserID(ctx, trigger.UserID)
 	}

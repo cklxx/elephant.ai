@@ -121,7 +121,6 @@ func parseFlatStatus(data []byte, status *Status) {
 	}
 	defs := []compDef{
 		{"main", "main_pid", "main_health", "main_deployed_sha", "", "main_runs_window"},
-		{"kernel", "kernel_pid", "kernel_health", "kernel_deployed_sha", "", "kernel_runs_window"},
 		{"test", "test_pid", "test_health", "test_deployed_sha", "", "test_runs_window"},
 		{"loop", "loop_pid", "", "", "loop_alive", "loop_runs_window"},
 	}

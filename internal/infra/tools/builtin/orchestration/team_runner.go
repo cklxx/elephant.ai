@@ -305,8 +305,5 @@ func statusPathForFile(ctx context.Context, filePath, planID string) string {
 		ext := filepath.Ext(filePath)
 		return strings.TrimSuffix(filePath, ext) + ".status" + ext
 	}
-	if tasksDir := toolshared.KernelTasksDirFromContext(ctx); tasksDir != "" {
-		return filepath.Join(tasksDir, planID+".status.yaml")
-	}
 	return filepath.Join(".elephant", "tasks", planID+".status.yaml")
 }

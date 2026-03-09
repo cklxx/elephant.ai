@@ -34,12 +34,6 @@ func TestParseLarkCommand(t *testing.T) {
 			wantAction: "restart",
 		},
 		{
-			name:       "component first up alias",
-			args:       []string{"kernel", "up"},
-			wantTarget: "kernel",
-			wantAction: "start",
-		},
-		{
 			name:       "component second restart",
 			args:       []string{"restart", "main"},
 			wantTarget: "main",

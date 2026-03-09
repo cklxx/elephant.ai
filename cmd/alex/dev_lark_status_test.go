@@ -7,7 +7,7 @@ import (
 	"alex/internal/devops/supervisor"
 )
 
-func TestFormatLarkComponentStatusKernelIncludesRuns(t *testing.T) {
+func TestFormatLarkComponentStatusIncludesRunsWhenPresent(t *testing.T) {
 	comp := supervisor.ComponentStatus{
 		PID:         73499,
 		Health:      "healthy",
@@ -15,7 +15,7 @@ func TestFormatLarkComponentStatusKernelIncludesRuns(t *testing.T) {
 		RunsWindow:  3,
 	}
 
-	got := formatLarkComponentStatus("kernel", comp, "f08a3be4")
+	got := formatLarkComponentStatus("main", comp, "f08a3be4")
 
 	if !strings.Contains(got, "healthy  pid=73499") {
 		t.Fatalf("expected health/pid segment in %q", got)
@@ -24,11 +24,11 @@ func TestFormatLarkComponentStatusKernelIncludesRuns(t *testing.T) {
 		t.Fatalf("expected sha/head segment in %q", got)
 	}
 	if !strings.Contains(got, "runs=3") {
-		t.Fatalf("expected kernel runs in %q", got)
+		t.Fatalf("expected runs in %q", got)
 	}
 }
 
-func TestFormatLarkComponentStatusNonKernelOmitsRuns(t *testing.T) {
+func TestFormatLarkComponentStatusOmitsRunsWhenZero(t *testing.T) {
 	comp := supervisor.ComponentStatus{
 		PID:    69314,
 		Health: "healthy",
@@ -37,6 +37,6 @@ func TestFormatLarkComponentStatusNonKernelOmitsRuns(t *testing.T) {
 	got := formatLarkComponentStatus("main", comp, "f08a3be4")
 
 	if strings.Contains(got, "runs=") {
-		t.Fatalf("expected non-kernel status to omit runs, got %q", got)
+		t.Fatalf("expected zero-run status to omit runs, got %q", got)
 	}
 }

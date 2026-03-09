@@ -95,27 +95,26 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 	}
 
 	window.SystemPrompt = composeSystemPrompt(systemPromptInput{
-		Logger:                 m.logger,
-		Static:                 window.Static,
-		Dynamic:                window.Dynamic,
-		Meta:                   window.Meta,
-		Memory:                 memorySnapshot,
-		OmitEnvironment:        omitEnvironment,
-		TaskInput:              cfg.TaskInput,
-		Messages:               window.Messages,
-		SessionID:              session.ID,
-		PromptMode:             cfg.PromptMode,
-		PromptTimezone:         cfg.PromptTimezone,
-		ReplyTagsEnabled:       cfg.ReplyTagsEnabled,
-		BootstrapRecords:       bootstrapRecords,
-		ToolMode:               cfg.ToolMode,
-		SkillsConfig:           cfg.Skills,
-		OKRContext:             cfg.OKRContext,
-		KernelAlignmentContext: cfg.KernelAlignmentContext,
-		SOPSummaryOnly:         true, // Default to summary-only mode for token optimization
-		Unattended:             cfg.Unattended,
-		Channel:     cfg.Channel,
-		ChannelHint: cfg.ChannelHint,
+		Logger:           m.logger,
+		Static:           window.Static,
+		Dynamic:          window.Dynamic,
+		Meta:             window.Meta,
+		Memory:           memorySnapshot,
+		OmitEnvironment:  omitEnvironment,
+		TaskInput:        cfg.TaskInput,
+		Messages:         window.Messages,
+		SessionID:        session.ID,
+		PromptMode:       cfg.PromptMode,
+		PromptTimezone:   cfg.PromptTimezone,
+		ReplyTagsEnabled: cfg.ReplyTagsEnabled,
+		BootstrapRecords: bootstrapRecords,
+		ToolMode:         cfg.ToolMode,
+		SkillsConfig:     cfg.Skills,
+		OKRContext:       cfg.OKRContext,
+		SOPSummaryOnly:   true, // Default to summary-only mode for token optimization
+		Unattended:       cfg.Unattended,
+		Channel:          cfg.Channel,
+		ChannelHint:      cfg.ChannelHint,
 	})
 	if runtimeHistoryChunk != nil {
 		window.Messages = append(window.Messages, *runtimeHistoryChunk)
@@ -130,17 +129,17 @@ func (m *manager) RecordTurn(ctx context.Context, record agent.ContextTurnRecord
 	}
 	if m.stateStore != nil {
 		snapshot := sessionstate.Snapshot{
-			SessionID:    record.SessionID,
-			TurnID:       record.TurnID,
-			LLMTurnSeq:   record.LLMTurnSeq,
-			CreatedAt:    record.Timestamp,
-			Summary:      record.Summary,
-			MessageCount: record.MessageCount,
-			Plans:        record.Plans,
-			Beliefs:      record.Beliefs,
-			World:        record.World,
-			Diff:         record.Diff,
-			Feedback:     record.Feedback,
+			SessionID:     record.SessionID,
+			TurnID:        record.TurnID,
+			LLMTurnSeq:    record.LLMTurnSeq,
+			CreatedAt:     record.Timestamp,
+			Summary:       record.Summary,
+			MessageCount:  record.MessageCount,
+			Plans:         record.Plans,
+			Beliefs:       record.Beliefs,
+			World:         record.World,
+			Diff:          record.Diff,
+			Feedback:      record.Feedback,
 			KnowledgeRefs: record.KnowledgeRefs,
 		}
 		if snapshot.CreatedAt.IsZero() {
@@ -214,7 +213,6 @@ func convertSnapshotToDynamic(snapshot sessionstate.Snapshot) agent.DynamicConte
 
 const historyTimelineLimit = 8
 const historyTimelineSummaryChars = 50
-
 
 func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) agent.MetaContext {
 	meta := agent.MetaContext{PersonaVersion: personaVersion}

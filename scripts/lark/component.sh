@@ -3,12 +3,12 @@
 ###############################################################################
 # Shared Lark component lifecycle library.
 #
-# Each Lark component script (main.sh, test.sh, kernel.sh) sources this file
+# Each Lark component script (main.sh, test.sh, loop-agent.sh) sources this file
 # and configures a handful of variables, then delegates to these functions.
 #
 # Required variables (set by caller before calling any function):
 #   COMPONENT_NAME        — human-readable label, e.g. "Lark agent", "Test Lark agent"
-#   COMPONENT_TAG         — short tag for identity lock, e.g. "main", "test", "kernel"
+#   COMPONENT_TAG         — short tag for identity lock, e.g. "main", "test", "loop"
 #   ROOT                  — repo root (main worktree)
 #   BIN                   — path to the compiled binary
 #   CONFIG_PATH           — config file path for this component
@@ -236,7 +236,7 @@ _component_wait_ready() {
   local pid="$1"
   local check_files=("${LOG_FILE}")
 
-  # For kernel, also check the structured log
+  # Some components also check structured logs for readiness
   if [[ -n "${COMPONENT_READY_EXTRA_LOG:-}" ]]; then
     check_files+=("${COMPONENT_READY_EXTRA_LOG}")
   fi

@@ -126,7 +126,7 @@ func normalizeLarkComponentAction(action string) (string, bool) {
 
 func isLarkComponent(name string) bool {
 	switch name {
-	case "main", "kernel", "loop":
+	case "main", "loop":
 		return true
 	default:
 		return false
@@ -143,8 +143,6 @@ func runLarkComponentCommand(component, action string) error {
 	switch component {
 	case "main":
 		scriptPath = filepath.Join(cfg.MainRoot, "scripts", "lark", "main.sh")
-	case "kernel":
-		scriptPath = filepath.Join(cfg.MainRoot, "scripts", "lark", "kernel.sh")
 	case "loop":
 		scriptPath = filepath.Join(cfg.MainRoot, "scripts", "lark", "loop-agent.sh")
 	default:
@@ -429,7 +427,7 @@ func formatLarkComponentStatus(name string, comp supervisor.ComponentStatus, hea
 		}
 		parts += fmt.Sprintf("  sha=%s%s", sha, aligned)
 	}
-	if name == "kernel" {
+	if comp.RunsWindow > 0 {
 		parts += fmt.Sprintf("  runs=%d", comp.RunsWindow)
 	}
 	return parts
@@ -472,7 +470,6 @@ func larkLogs() error {
 	logFiles := []string{
 		filepath.Join(cfg.LogDir, "lark-supervisor.log"),
 		filepath.Join(cfg.MainRoot, "logs", "lark-main.log"),
-		filepath.Join(cfg.MainRoot, "logs", "lark-kernel.log"),
 		filepath.Join(cfg.TestRoot, "logs", "lark-loop.log"),
 	}
 
@@ -565,7 +562,6 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 
 func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 	mainSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "main.sh")
-	kernelSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "kernel.sh")
 	loopSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "loop-agent.sh")
 
 	sup.RegisterComponent(&supervisor.Component{
@@ -581,21 +577,6 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 		},
 		PIDFile: filepath.Join(cfg.PIDDir, "lark-main.pid"),
 		SHAFile: filepath.Join(cfg.PIDDir, "lark-main.sha"),
-	})
-
-	sup.RegisterComponent(&supervisor.Component{
-		Name: "kernel",
-		StartFn: func(ctx context.Context) error {
-			return runLarkScript(ctx, cfg.MainRoot, kernelSH, "restart")
-		},
-		StopFn: func(ctx context.Context) error {
-			return runLarkScript(ctx, cfg.MainRoot, kernelSH, "stop")
-		},
-		HealthFn: func() string {
-			return checkPIDHealth(filepath.Join(cfg.PIDDir, "lark-kernel.pid"))
-		},
-		PIDFile: filepath.Join(cfg.PIDDir, "lark-kernel.pid"),
-		SHAFile: filepath.Join(cfg.PIDDir, "lark-kernel.sha"),
 	})
 
 	sup.RegisterComponent(&supervisor.Component{
@@ -845,9 +826,8 @@ Commands:
   status           Show supervisor status
   logs             Tail all Lark logs
   main <cmd>       Manage main component (cmd: start|stop|restart|status|logs)
-  kernel <cmd>     Manage kernel component (cmd: start|stop|restart|status|logs)
   loop <cmd>       Manage loop component (cmd: start|stop|restart|status|logs)
-  <cmd> main|kernel|loop
+  <cmd> main|loop
                    Component command compatibility form
   help             Show this help
 `)

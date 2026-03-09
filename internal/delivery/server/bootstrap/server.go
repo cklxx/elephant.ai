@@ -165,7 +165,6 @@ func RunServer(observabilityConfigPath string) error {
 
 	gatewayStages := []BootstrapStage{
 		// Lark gateway removed - use `alex-server lark` for Lark integration
-		// Kernel removed - runs in dedicated mode (`alex-server kernel-daemon`)
 		f.SchedulerStage(subsystems),
 		f.TimerManagerStage(subsystems),
 	}

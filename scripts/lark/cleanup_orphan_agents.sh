@@ -46,7 +46,7 @@ read_pid_if_running() {
 collect_candidates() {
   local scope="$1"
   # Match both new-style (`alex-server` without args) and legacy (`alex-server lark`),
-  # but avoid matching other subcommands like `kernel-daemon`.
+  # but avoid matching other subcommands.
   ps -axo pid= -o command= | awk \
     -v main_cmd="${ROOT}/alex-server" \
     -v main_cmd_legacy="${ROOT}/alex-server lark" \

@@ -112,7 +112,6 @@ func (b *containerBuilder) Build() (*Container, error) {
 
 	hookRegistry := b.buildHookRegistry(memoryEngine, llmFactory)
 	okrContextProvider := b.buildOKRContextProvider()
-	kernelContextProvider := b.buildKernelAlignmentContextProvider()
 	checkpointStore := checkpointinfra.NewFileCheckpointStore(filepath.Join(b.sessionDir, "checkpoints"))
 	teamRunRecorder, err := teamrun.NewFileRecorder(filepath.Join(b.sessionDir, "_team_runs"), b.logger)
 	if err != nil {
@@ -132,7 +131,6 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithHookRegistry(hookRegistry),
 		agentcoordinator.WithExternalExecutor(externalExecutor),
 		agentcoordinator.WithOKRContextProvider(okrContextProvider),
-		agentcoordinator.WithKernelAlignmentContextProvider(kernelContextProvider),
 		agentcoordinator.WithCheckpointStore(checkpointStore),
 		agentcoordinator.WithCredentialRefresher(credentialRefresher),
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
@@ -159,14 +157,6 @@ func (b *containerBuilder) Build() (*Container, error) {
 	}
 	if drainable, ok := memoryEngine.(lifecycle.Drainable); ok {
 		container.Drainables = append(container.Drainables, drainable)
-	}
-
-	// Build kernel engine from code-owned defaults.
-	kernelEngine, err := b.buildKernelEngine(coordinator, llmFactory)
-	if err != nil {
-		b.logger.Warn("Kernel engine init failed: %v", err)
-	} else {
-		container.KernelEngine = kernelEngine
 	}
 
 	return container, nil

@@ -164,7 +164,7 @@ alex dev restart web       # web changes
 
 Never `./dev.sh down && ./dev.sh`.
 
-For kernel validation: `go run ./cmd/alex-server kernel-once`.
+For proactive trigger validation: `go test ./internal/app/scheduler/... ./internal/shared/timer/... -count=1`.
 
 ### Pre-Push Gate
 

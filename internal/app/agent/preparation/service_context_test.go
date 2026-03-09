@@ -131,11 +131,10 @@ func TestPreparePromptModeNoneSkipsOutputGuidanceAppend(t *testing.T) {
 	}
 }
 
-func TestPrepareSkipsKernelAlignmentContextForNonUnattendedSessions(t *testing.T) {
-	session := &storage.Session{ID: "session-kernel-align-skip", Messages: []ports.Message{}, Metadata: map[string]string{}}
+func TestPrepareMarksUnattendedContextOnlyWhenRequested(t *testing.T) {
+	session := &storage.Session{ID: "session-unattended", Messages: []ports.Message{}, Metadata: map[string]string{}}
 	store := &stubSessionStore{session: session}
-	ctxMgr := &kernelAlignmentCaptureContextManager{}
-	kernelCalls := 0
+	ctxMgr := &unattendedCaptureContextManager{}
 
 	deps := ExecutionPreparationDeps{
 		LLMFactory:   &fakeLLMFactory{client: fakeLLMClient{}},
@@ -148,12 +147,8 @@ func TestPrepareSkipsKernelAlignmentContextForNonUnattendedSessions(t *testing.T
 			LLMModel:      "test-model",
 			MaxIterations: 3,
 		},
-		Logger: agent.NoopLogger{},
-		Clock:  agent.ClockFunc(func() time.Time { return time.Date(2024, time.June, 3, 10, 0, 0, 0, time.UTC) }),
-		KernelContextProvider: func() string {
-			kernelCalls++
-			return "Service user: cklxx\n## Kernel Objective\n- keep loop healthy"
-		},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Date(2024, time.June, 3, 10, 0, 0, 0, time.UTC) }),
 		CostDecorator: cost.NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
 		EventEmitter:  agent.NoopEventListener{},
 	}
@@ -163,56 +158,12 @@ func TestPrepareSkipsKernelAlignmentContextForNonUnattendedSessions(t *testing.T
 	if _, err := service.Prepare(runCtx, "show current branch", session.ID); err != nil {
 		t.Fatalf("prepare execution failed: %v", err)
 	}
-
-	if kernelCalls != 0 {
-		t.Fatalf("expected kernel context provider to be skipped, got calls=%d", kernelCalls)
-	}
-	if got := strings.TrimSpace(ctxMgr.lastCfg.KernelAlignmentContext); got != "" {
-		t.Fatalf("expected empty KernelAlignmentContext for non-unattended session, got %q", got)
-	}
 	if ctxMgr.lastCfg.Unattended {
 		t.Fatalf("expected unattended flag false for normal lark session")
 	}
-}
-
-func TestPrepareInjectsKernelAlignmentContextForUnattendedSessions(t *testing.T) {
-	session := &storage.Session{ID: "session-kernel-align-inject", Messages: []ports.Message{}, Metadata: map[string]string{}}
-	store := &stubSessionStore{session: session}
-	ctxMgr := &kernelAlignmentCaptureContextManager{}
-	kernelCalls := 0
-
-	deps := ExecutionPreparationDeps{
-		LLMFactory:   &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry: &registryWithList{},
-		SessionStore: store,
-		ContextMgr:   ctxMgr,
-		Parser:       stubParser{},
-		Config: appconfig.Config{
-			LLMProvider:   "mock",
-			LLMModel:      "test-model",
-			MaxIterations: 3,
-		},
-		Logger: agent.NoopLogger{},
-		Clock:  agent.ClockFunc(func() time.Time { return time.Date(2024, time.June, 3, 10, 0, 0, 0, time.UTC) }),
-		KernelContextProvider: func() string {
-			kernelCalls++
-			return "Service user: cklxx\n## Kernel Objective\n- keep loop healthy"
-		},
-		CostDecorator: cost.NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
-		EventEmitter:  agent.NoopEventListener{},
-	}
-
-	service := NewExecutionPreparationService(deps)
-	runCtx := appcontext.MarkUnattendedContext(appcontext.WithChannel(context.Background(), "lark"))
-	if _, err := service.Prepare(runCtx, "execute unattended kernel task", session.ID); err != nil {
+	runCtx = appcontext.MarkUnattendedContext(appcontext.WithChannel(context.Background(), "lark"))
+	if _, err := service.Prepare(runCtx, "execute unattended scheduled task", session.ID); err != nil {
 		t.Fatalf("prepare execution failed: %v", err)
-	}
-
-	if kernelCalls != 1 {
-		t.Fatalf("expected kernel context provider called once, got calls=%d", kernelCalls)
-	}
-	if got := strings.TrimSpace(ctxMgr.lastCfg.KernelAlignmentContext); got == "" {
-		t.Fatalf("expected KernelAlignmentContext for unattended session")
 	}
 	if !ctxMgr.lastCfg.Unattended {
 		t.Fatalf("expected unattended flag true for unattended context")
@@ -289,27 +240,27 @@ func (fixedPromptContextManager) RecordTurn(context.Context, agent.ContextTurnRe
 	return nil
 }
 
-type kernelAlignmentCaptureContextManager struct {
+type unattendedCaptureContextManager struct {
 	lastCfg agent.ContextWindowConfig
 }
 
-func (m *kernelAlignmentCaptureContextManager) EstimateTokens(messages []ports.Message) int {
+func (m *unattendedCaptureContextManager) EstimateTokens(messages []ports.Message) int {
 	return len(messages)
 }
-func (m *kernelAlignmentCaptureContextManager) Compress(messages []ports.Message, targetTokens int) ([]ports.Message, error) {
+func (m *unattendedCaptureContextManager) Compress(messages []ports.Message, targetTokens int) ([]ports.Message, error) {
 	return messages, nil
 }
-func (m *kernelAlignmentCaptureContextManager) AutoCompact(messages []ports.Message, limit int) ([]ports.Message, bool) {
+func (m *unattendedCaptureContextManager) AutoCompact(messages []ports.Message, limit int) ([]ports.Message, bool) {
 	return messages, false
 }
-func (m *kernelAlignmentCaptureContextManager) ShouldCompress(messages []ports.Message, limit int) bool {
+func (m *unattendedCaptureContextManager) ShouldCompress(messages []ports.Message, limit int) bool {
 	return false
 }
-func (m *kernelAlignmentCaptureContextManager) Preload(context.Context) error { return nil }
-func (m *kernelAlignmentCaptureContextManager) BuildSummaryOnly(messages []ports.Message) (string, int) {
+func (m *unattendedCaptureContextManager) Preload(context.Context) error { return nil }
+func (m *unattendedCaptureContextManager) BuildSummaryOnly(messages []ports.Message) (string, int) {
 	return "", len(messages)
 }
-func (m *kernelAlignmentCaptureContextManager) BuildWindow(_ context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
+func (m *unattendedCaptureContextManager) BuildWindow(_ context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	if session == nil {
 		return agent.ContextWindow{}, fmt.Errorf("session required")
 	}
@@ -319,6 +270,6 @@ func (m *kernelAlignmentCaptureContextManager) BuildWindow(_ context.Context, se
 		Messages:  append([]ports.Message(nil), session.Messages...),
 	}, nil
 }
-func (m *kernelAlignmentCaptureContextManager) RecordTurn(context.Context, agent.ContextTurnRecord) error {
+func (m *unattendedCaptureContextManager) RecordTurn(context.Context, agent.ContextTurnRecord) error {
 	return nil
 }

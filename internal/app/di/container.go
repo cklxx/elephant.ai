@@ -6,14 +6,12 @@ import (
 	"time"
 
 	agentcoordinator "alex/internal/app/agent/coordinator"
-	kernelagent "alex/internal/app/agent/kernel"
 	"alex/internal/app/lifecycle"
 	"alex/internal/app/toolregistry"
 	lark "alex/internal/delivery/channels/lark"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	react "alex/internal/domain/agent/react"
-	kerneldomain "alex/internal/domain/kernel"
 	taskdomain "alex/internal/domain/task"
 	"alex/internal/infra/filestore"
 	larkoauth "alex/internal/infra/lark/oauth"
@@ -29,22 +27,7 @@ import (
 type LarkGateway interface {
 	NoticeLoader() func() (string, bool, error)
 	SendNotification(ctx context.Context, chatID, text string) error
-	NarrateCycleNotification(ctx context.Context, rawText string) (string, error)
 	InjectMessageSync(ctx context.Context, req lark.InjectSyncRequest) *lark.InjectSyncResponse
-}
-
-// KernelEngine is the minimal interface exposed by the kernel agent loop engine.
-type KernelEngine interface {
-	Run(ctx context.Context)
-	Stop()
-	Name() string
-	Drain(ctx context.Context) error
-	SetNotifier(func(ctx context.Context, result *kerneldomain.CycleResult, err error))
-	// TriggerNow signals the engine to run a cycle immediately without waiting
-	// for the next cron tick. Non-blocking and idempotent.
-	TriggerNow() bool
-	// HealthStatus reports the kernel engine's liveness status.
-	HealthStatus() kernelagent.EngineHealth
 }
 
 // Container holds all application dependencies
@@ -58,7 +41,6 @@ type Container struct {
 	MemoryEngine     memory.Engine
 	CheckpointStore  react.CheckpointStore
 	TaskStore        taskdomain.Store // Unified durable task store (nil when unavailable)
-	KernelEngine     KernelEngine     // nil only if kernel initialization failed
 	LarkGateway      LarkGateway
 	LarkOAuth        *larkoauth.Service
 

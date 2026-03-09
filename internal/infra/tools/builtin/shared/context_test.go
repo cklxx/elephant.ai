@@ -8,7 +8,6 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/backup"
-	tmr "alex/internal/shared/timer"
 )
 
 type testApprover struct{}
@@ -29,21 +28,7 @@ func (testLarkOAuthService) StartURL() string {
 
 type testTimerManager struct{}
 
-func (testTimerManager) Add(t *tmr.Timer) error {
-	return nil
-}
-
-func (testTimerManager) Cancel(timerID string) error {
-	return nil
-}
-
-func (testTimerManager) List(userID string) []tmr.Timer {
-	return nil
-}
-
-func (testTimerManager) Get(timerID string) (tmr.Timer, bool) {
-	return tmr.Timer{}, false
-}
+func (testTimerManager) ToolTimerManagerServiceMarker() {}
 
 type testEventListener struct{}
 

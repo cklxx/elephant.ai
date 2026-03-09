@@ -78,10 +78,6 @@ func TestStatusFileReadFlatFormat(t *testing.T) {
   "main_sha": "abc123",
   "main_deployed_sha": "4f978d87",
   "main_runs_window": 2,
-  "kernel_pid": "73499",
-  "kernel_health": "healthy",
-  "kernel_deployed_sha": "0113334f",
-  "kernel_runs_window": 3,
   "test_sha": "def456",
   "test_deployed_sha": "1f1531ab",
   "test_runs_window": 1,
@@ -105,8 +101,8 @@ func TestStatusFileReadFlatFormat(t *testing.T) {
 	}
 
 	// Verify components were parsed from flat fields
-	if len(got.Components) != 4 {
-		t.Fatalf("Components count = %d, want 4", len(got.Components))
+	if len(got.Components) != 3 {
+		t.Fatalf("Components count = %d, want 3", len(got.Components))
 	}
 
 	main := got.Components["main"]
@@ -121,20 +117,6 @@ func TestStatusFileReadFlatFormat(t *testing.T) {
 	}
 	if main.RunsWindow != 2 {
 		t.Errorf("main runs_window = %d, want 2", main.RunsWindow)
-	}
-
-	kernel := got.Components["kernel"]
-	if kernel.PID != 73499 {
-		t.Errorf("kernel PID = %d, want 73499", kernel.PID)
-	}
-	if kernel.Health != "healthy" {
-		t.Errorf("kernel health = %q, want healthy", kernel.Health)
-	}
-	if kernel.DeployedSHA != "0113334f" {
-		t.Errorf("kernel deployed_sha = %q, want 0113334f", kernel.DeployedSHA)
-	}
-	if kernel.RunsWindow != 3 {
-		t.Errorf("kernel runs_window = %d, want 3", kernel.RunsWindow)
 	}
 
 	test := got.Components["test"]

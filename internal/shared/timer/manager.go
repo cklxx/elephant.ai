@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	appcontext "alex/internal/app/agent/context"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/notification"
@@ -47,6 +48,10 @@ type TimerManager struct {
 	stopped  chan struct{}
 	stopOnce sync.Once
 }
+
+// ToolTimerManagerServiceMarker lets TimerManager cross the tool context
+// boundary without the shared context package importing timer types.
+func (*TimerManager) ToolTimerManagerServiceMarker() {}
 
 // NewTimerManager creates a new TimerManager.
 func NewTimerManager(cfg Config, coordinator AgentCoordinator, notifier Notifier, logger logging.Logger) (*TimerManager, error) {
@@ -294,6 +299,7 @@ func (m *TimerManager) scheduleRecurringLocked(t *Timer) error {
 // fireTimer executes the timer's task within the originating session context.
 func (m *TimerManager) fireTimer(t *Timer) {
 	ctx := context.Background()
+	ctx = appcontext.MarkUnattendedContext(ctx)
 	if t.UserID != "" {
 		ctx = id.WithUserID(ctx, t.UserID)
 	}

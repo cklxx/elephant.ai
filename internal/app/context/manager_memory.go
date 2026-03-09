@@ -60,11 +60,11 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 	if user != "" {
 		sections = append(sections, fmt.Sprintf("## Identity (USER.md)\n%s", user))
 	}
-	// Daily logs are high-churn runtime notes intended for kernel/autonomous
-	// loops. Keep them out of normal sessions to avoid leaking kernel-only
+	// Daily logs are high-churn runtime notes intended for unattended/autonomous
+	// runs. Keep them out of normal sessions to avoid leaking unattended-only
 	// directives into regular assistant runs.
 	if appcontext.IsUnattendedContext(ctx) {
-		if daily := buildKernelDailyLogPromptChunk(now, today, yesterday); daily != "" {
+		if daily := buildUnattendedDailyLogPromptChunk(now, today, yesterday); daily != "" {
 			sections = append(sections, daily)
 		}
 	}
@@ -197,7 +197,7 @@ func renderUserTemplate(userID string) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-func buildKernelDailyLogPromptChunk(now time.Time, today, yesterday string) string {
+func buildUnattendedDailyLogPromptChunk(now time.Time, today, yesterday string) string {
 	type dailyItem struct {
 		date    string
 		content string
@@ -214,7 +214,7 @@ func buildKernelDailyLogPromptChunk(now time.Time, today, yesterday string) stri
 		if raw == "" {
 			continue
 		}
-		summary := summarizeKernelDailyLog(raw)
+		summary := summarizeUnattendedDailyLog(raw)
 		lines = append(lines, fmt.Sprintf("%d | date=%s | summary=%s", index, item.date, summary))
 		index++
 	}
@@ -222,10 +222,10 @@ func buildKernelDailyLogPromptChunk(now time.Time, today, yesterday string) stri
 		return ""
 	}
 	lines = append(lines, "Use memory_search/memory_get for full details.")
-	return fmt.Sprintf("## Daily Log Digest (Kernel only)\n%s", strings.Join(lines, "\n"))
+	return fmt.Sprintf("## Daily Log Digest (Unattended only)\n%s", strings.Join(lines, "\n"))
 }
 
-func summarizeKernelDailyLog(content string) string {
+func summarizeUnattendedDailyLog(content string) string {
 	snippet := buildCompressionSnippet(content, historyTimelineSummaryChars)
 	if snippet == "" {
 		return "daily memory entry available"

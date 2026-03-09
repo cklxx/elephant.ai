@@ -354,15 +354,9 @@ run_validation() {
 
   # Runtime validation targets are:
   #   ./internal/infra/teamruntime/...
-  #   ./internal/infra/kernel/...
-  #   ./internal/app/agent/kernel/...
+  #   ./internal/app/scheduler/...
+  #   ./internal/shared/timer/...
   # Retired targets such as ./internal/infra/agent/... and ./internal/agent/... must not be used.
-  local agent_runtime_pkg="./internal/app/agent/kernel/..."
-  if ! (cd "${AUTOFIX_ROOT}" && go list "${agent_runtime_pkg}" >/dev/null 2>&1); then
-    fail_state "agent runtime package missing: ${agent_runtime_pkg}"
-    return 1
-  fi
-  append_log "[autofix] validated agent runtime target: ${agent_runtime_pkg}"
 
   local -a optional_targets=()
   if (cd "${AUTOFIX_ROOT}" && go list ./internal/infra/tools/builtin/larktools/... >/dev/null 2>&1); then
@@ -374,11 +368,11 @@ run_validation() {
 
   (cd "${AUTOFIX_ROOT}" && go test \
     ./internal/infra/teamruntime/... \
-    ./internal/infra/kernel/... \
+    ./internal/app/scheduler/... \
+    ./internal/shared/timer/... \
     ./internal/delivery/channels/lark/... \
     ./internal/infra/lark/... \
     "${optional_targets[@]}" \
-    "${agent_runtime_pkg}" \
     -count=1)
 }
 

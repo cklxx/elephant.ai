@@ -265,7 +265,7 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 
 	for _, comp := range s.components {
 		// Keep runtime components that should track main SHA aligned.
-		if comp.Name != "main" && comp.Name != "kernel" {
+		if comp.Name != "main" {
 			continue
 		}
 

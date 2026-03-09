@@ -181,14 +181,6 @@ func buildOKRSection(okrContext string) string {
 	return "# OKR Goals\n" + trimmed
 }
 
-func buildKernelAlignmentSection(kernelContext string) string {
-	trimmed := strings.TrimSpace(kernelContext)
-	if trimmed == "" {
-		return ""
-	}
-	return "# Kernel Alignment\n" + trimmed
-}
-
 func buildUnattendedOverrideSection() string {
 	return `# CRITICAL OVERRIDE — Unattended Autonomous Mode
 

@@ -1,18 +1,14 @@
 package di
 
 import (
-	"alex/internal/shared/utils"
 	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	appcontext "alex/internal/app/agent/context"
 	agentcoordinator "alex/internal/app/agent/coordinator"
 	"alex/internal/app/agent/hooks"
-	kernelagent "alex/internal/app/agent/kernel"
-	"alex/internal/app/agent/llmclient"
 	"alex/internal/app/agent/preparation"
 	ctxmgr "alex/internal/app/context"
 	"alex/internal/app/subscription"
@@ -23,15 +19,12 @@ import (
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
 	"alex/internal/infra/external/teamrun"
-	kernelinfra "alex/internal/infra/kernel"
 	"alex/internal/infra/llm"
 	"alex/internal/infra/memory"
 	"alex/internal/infra/process"
 	toolspolicy "alex/internal/infra/tools"
 	okrtools "alex/internal/infra/tools/builtin/okr"
 	runtimeconfig "alex/internal/shared/config"
-	"alex/internal/shared/logging"
-	"alex/internal/shared/markdown"
 	"alex/internal/shared/parser"
 )
 
@@ -98,18 +91,6 @@ func (b *containerBuilder) buildOKRContextProvider() preparation.OKRContextProvi
 	return preparation.NewOKRContextProvider(store)
 }
 
-func (b *containerBuilder) buildKernelAlignmentContextProvider() preparation.KernelAlignmentContextProvider {
-	kernelID := strings.TrimSpace(kernelagent.DefaultRuntimeSettings().KernelID)
-	if kernelID == "" {
-		kernelID = kernelagent.DefaultKernelID
-	}
-	provider := preparation.NewKernelAlignmentContextProvider(preparation.KernelAlignmentContextConfig{
-		KernelID: kernelID,
-	})
-	b.logger.Info("Kernel alignment context provider enabled (kernel_id=%s)", kernelID)
-	return provider
-}
-
 // buildAlternateFrom creates an AlternateCoordinator that shares the parent
 // container's heavy resources (LLM Factory, Session Store, Memory Engine,
 // Cost Tracker, Context Manager, History Manager, Parser) but owns its own
@@ -130,7 +111,6 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 
 	hookRegistry := b.buildHookRegistry(parent.MemoryEngine, parent.llmFactory)
 	okrContextProvider := b.buildOKRContextProvider()
-	kernelContextProvider := b.buildKernelAlignmentContextProvider()
 	teamRunRecorder, err := teamrun.NewFileRecorder(filepath.Join(b.sessionDir, "_team_runs"), b.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize team run recorder: %w", err)
@@ -162,7 +142,6 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 		agentcoordinator.WithHookRegistry(hookRegistry),
 		agentcoordinator.WithExternalExecutor(externalExecutor),
 		agentcoordinator.WithOKRContextProvider(okrContextProvider),
-		agentcoordinator.WithKernelAlignmentContextProvider(kernelContextProvider),
 		agentcoordinator.WithCheckpointStore(parent.CheckpointStore),
 		agentcoordinator.WithCredentialRefresher(credentialRefresher),
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
@@ -195,249 +174,6 @@ func memoryGateFunc(enabled bool) func(context.Context) bool {
 		}
 		policy := appcontext.ResolveMemoryPolicy(ctx)
 		return policy.Enabled
-	}
-}
-
-func stringOr(value, fallback string) string {
-	if v := strings.TrimSpace(value); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func intOr(value, fallback int) int {
-	if value > 0 {
-		return value
-	}
-	return fallback
-}
-
-// buildKernelEngine creates the kernel agent loop engine from code-owned defaults.
-func (b *containerBuilder) buildKernelEngine(coordinator *agentcoordinator.AgentCoordinator, llmFactory portsllm.LLMClientFactory) (*kernelagent.Engine, error) {
-	settings := kernelagent.DefaultRuntimeSettings()
-	kernelID := stringOr(settings.KernelID, kernelagent.DefaultKernelID)
-	schedule := stringOr(settings.Schedule, kernelagent.DefaultKernelSchedule)
-	timeoutSeconds := intOr(settings.TimeoutSeconds, kernelagent.DefaultKernelTimeoutSeconds)
-	leaseSeconds := intOr(settings.LeaseSeconds, kernelagent.DefaultKernelLeaseSeconds)
-	maxConcurrent := intOr(settings.MaxConcurrent, kernelagent.DefaultKernelMaxConcurrent)
-	maxCycleHistory := intOr(settings.MaxCycleHistory, kernelagent.DefaultKernelMaxCycleHistory)
-	seedState := settings.SeedState
-	if utils.IsBlank(seedState) {
-		seedState = kernelagent.DefaultSeedStateContent
-	}
-	channel := stringOr(settings.Channel, kernelagent.DefaultKernelChannel)
-	userID := stringOr(settings.UserID, kernelagent.DefaultKernelUserID)
-	chatID := strings.TrimSpace(settings.ChatID)
-	agents := kernelagent.CloneAgentConfigs(settings.Agents)
-
-	// Validate cron schedule at build time (fail fast).
-	if err := kernelagent.ValidateSchedule(schedule); err != nil {
-		return nil, fmt.Errorf("kernel schedule: %w", err)
-	}
-
-	leaseDuration := time.Duration(leaseSeconds) * time.Second
-	retentionDuration := 24 * time.Hour
-	kernelStoreDir := resolveStorageDir("", "~/.alex/kernel")
-	kernelStore := kernelinfra.NewFileStore(kernelStoreDir, leaseDuration, retentionDuration)
-	if err := kernelStore.EnsureSchema(context.Background()); err != nil {
-		return nil, fmt.Errorf("kernel dispatch schema: %w", err)
-	}
-
-	stateRoot := resolveStorageDir("", kernelagent.DefaultStateRootDir)
-	stateDir := filepath.Join(stateRoot, kernelID)
-
-	versionedStore := markdown.NewVersionedStore(markdown.StoreConfig{
-		Dir:        stateDir,
-		AutoCommit: true,
-		Logger:     logging.NewKernelLogger("KernelVersionedStore"),
-	})
-	var stateFile *kernelagent.StateFile
-	if err := versionedStore.Init(context.Background()); err != nil {
-		b.logger.Warn("Kernel versioned store init failed: %v (falling back to unversioned)", err)
-		stateFile = kernelagent.NewStateFile(stateDir)
-	} else {
-		stateFile = kernelagent.NewVersionedStateFile(stateDir, versionedStore)
-	}
-
-	seededAt := time.Now()
-	initDoc := kernelagent.RenderInitMarkdown(kernelagent.InitDocSnapshot{
-		GeneratedAt:      seededAt,
-		KernelID:         kernelID,
-		Schedule:         schedule,
-		StateDir:         stateRoot,
-		StatePath:        stateFile.Path(),
-		InitPath:         stateFile.InitPath(),
-		SystemPromptPath: stateFile.SystemPromptPath(),
-		TimeoutSeconds:   timeoutSeconds,
-		LeaseSeconds:     leaseSeconds,
-		MaxConcurrent:    maxConcurrent,
-		Channel:          channel,
-		UserID:           userID,
-		ChatID:           chatID,
-		SeedState:        seedState,
-		Agents:           agents,
-	})
-	// INIT.md is a bootstrap snapshot; keep it immutable after first creation.
-	if err := stateFile.SeedInit(initDoc); err != nil {
-		b.logger.Warn("Kernel init doc seed failed: %v", err)
-	}
-
-	systemPrompt := strings.TrimSpace(coordinator.GetSystemPrompt())
-	if systemPrompt == "" {
-		systemPrompt = preparation.DefaultSystemPrompt
-	}
-	renderedSystemPrompt := kernelagent.RenderSystemPromptMarkdown(systemPrompt, seededAt)
-	if err := stateFile.WriteSystemPrompt(renderedSystemPrompt); err != nil {
-		b.logger.Warn("Kernel system prompt doc write failed: %v", err)
-	}
-
-	// Build planner: HybridPlanner (LLM + static fallback) when llm_planner enabled.
-	staticPlanner := kernelagent.NewStaticPlanner(kernelID, agents)
-	var planner kernelagent.Planner = staticPlanner
-
-	plannerSettings := settings.Planner
-	if plannerSettings.Enabled && llmFactory != nil {
-		plannerProfile := b.resolveSubscriptionOrDefaultProfile()
-
-		plannerTimeout := time.Duration(plannerSettings.TimeoutSeconds) * time.Second
-		if plannerTimeout <= 0 {
-			plannerTimeout = 30 * time.Second
-		}
-		maxDispatches := plannerSettings.MaxDispatches
-		if maxDispatches <= 0 {
-			maxDispatches = 5
-		}
-		maxTeamsPerCycle := plannerSettings.MaxTeamsPerCycle
-		if maxTeamsPerCycle <= 0 {
-			maxTeamsPerCycle = kernelagent.DefaultKernelMaxTeamsPerCycle
-		}
-		teamTimeoutSeconds := plannerSettings.TeamTimeoutSeconds
-		if teamTimeoutSeconds <= 0 {
-			teamTimeoutSeconds = kernelagent.DefaultKernelTeamTimeoutSeconds
-		}
-		allowedTeamTemplates := collectTeamTemplateNames(b.config.ExternalAgents.Teams)
-		goalFilePath := plannerSettings.GoalFile
-		if goalFilePath == "" {
-			goalFilePath = filepath.Join(stateDir, "GOAL.md")
-		}
-
-		// profileFunc re-resolves the planner LLM profile on every Plan() call,
-		// picking up /model use overrides that happen after daemon startup.
-		profileFunc := func() runtimeconfig.LLMProfile {
-			return b.resolveSubscriptionOrDefaultProfile()
-		}
-
-		llmPlanner := kernelagent.NewLLMPlanner(
-			kernelID,
-			llmFactory,
-			kernelagent.LLMPlannerConfig{
-				Profile:              plannerProfile,
-				ProfileFunc:          profileFunc,
-				Refresher:            llmclient.CredentialRefresher(buildCredentialRefresher()),
-				MaxDispatches:        maxDispatches,
-				GoalFilePath:         goalFilePath,
-				Timeout:              plannerTimeout,
-				TeamDispatchEnabled:  plannerSettings.TeamDispatchEnabled,
-				MaxTeamsPerCycle:     maxTeamsPerCycle,
-				TeamTimeoutSeconds:   teamTimeoutSeconds,
-				AllowedTeamTemplates: allowedTeamTemplates,
-				StateDir:             stateDir,
-			},
-			agents,
-			logging.NewKernelLogger("LLMPlanner"),
-		)
-		planner = kernelagent.NewHybridPlanner(staticPlanner, llmPlanner, logging.NewKernelLogger("HybridPlanner"))
-		b.logger.Info("Kernel LLM planner enabled (provider=%s model=%s goal=%s)", plannerProfile.Provider, plannerProfile.Model, goalFilePath)
-		logging.NewKernelLogger("HybridPlanner").Info("HybridPlanner created (provider=%s model=%s baseURL=%s goal=%s maxDispatches=%d maxTeams=%d timeout=%s)",
-			plannerProfile.Provider, plannerProfile.Model, plannerProfile.BaseURL, goalFilePath, maxDispatches, maxTeamsPerCycle, plannerTimeout)
-	}
-
-	timeout := time.Duration(timeoutSeconds) * time.Second
-	executor := kernelagent.NewCoordinatorExecutor(coordinator, timeout, stateDir)
-	executor.SetSessionsDir(b.sessionDir)
-	executor.SetSelectionResolver(b.buildKernelSelectionResolver())
-	// Wire team dispatch dependencies. The dispatcher is session-scoped so
-	// remains nil; ExecuteTeam falls back to prompt-based dispatch until a
-	// kernel-scoped dispatcher is provided.
-	executor.SetTeamDefinitions(convertTeamConfigs(b.config.ExternalAgents.Teams))
-	teamRunRecorderPath := filepath.Join(stateDir, "_team_runs")
-	if kernelTeamRecorder, recErr := teamrun.NewFileRecorder(teamRunRecorderPath, b.logger); recErr == nil {
-		executor.SetTeamRunRecorder(kernelTeamRecorder)
-	}
-
-	engine := kernelagent.NewEngine(
-		kernelagent.KernelConfig{
-			KernelID:        kernelID,
-			Schedule:        schedule,
-			SeedState:       seedState,
-			MaxConcurrent:   maxConcurrent,
-			MaxCycleHistory: maxCycleHistory,
-			Channel:         channel,
-			ChatID:          chatID,
-			UserID:          userID,
-		},
-		stateFile, kernelStore, planner, executor, logging.NewKernelLogger("KernelEngine"),
-	)
-	engine.SetSystemPromptProvider(func() string { return coordinator.GetSystemPrompt() })
-
-	b.logger.Info("Kernel engine built (kernel_id=%s, schedule=%s, agents=%d)", kernelID, schedule, len(agents))
-	return engine, nil
-}
-
-func collectTeamTemplateNames(teams []runtimeconfig.TeamConfig) []string {
-	if len(teams) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(teams))
-	for _, team := range teams {
-		name := strings.TrimSpace(team.Name)
-		if name == "" {
-			continue
-		}
-		out = append(out, name)
-	}
-	return out
-}
-
-func (b *containerBuilder) buildKernelSelectionResolver() kernelagent.SelectionResolver {
-	storePath := subscription.ResolveSelectionStorePath(runtimeconfig.DefaultEnvLookup, nil)
-	store := subscription.NewSelectionStore(storePath)
-	resolver := subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
-		return runtimeconfig.LoadCLICredentials()
-	})
-
-	return func(ctx context.Context, channel, chatID, userID string) (subscription.ResolvedSelection, bool) {
-		channel = utils.TrimLower(channel)
-		chatID = strings.TrimSpace(chatID)
-		userID = strings.TrimSpace(userID)
-		if channel == "" {
-			return subscription.ResolvedSelection{}, false
-		}
-
-		scopes := make([]subscription.SelectionScope, 0, 3)
-		if chatID != "" {
-			scopes = append(scopes, subscription.SelectionScope{Channel: channel, ChatID: chatID})
-			if userID != "" {
-				scopes = append(scopes, subscription.SelectionScope{Channel: channel, ChatID: chatID, UserID: userID})
-			}
-		}
-		scopes = append(scopes, subscription.SelectionScope{Channel: channel})
-
-		selection, _, ok, err := store.GetWithFallback(ctx, scopes...)
-		if err != nil {
-			b.logger.Warn("Kernel LLM selection load failed: %v", err)
-			return subscription.ResolvedSelection{}, false
-		}
-		if !ok {
-			return subscription.ResolvedSelection{}, false
-		}
-
-		resolved, ok := resolver.Resolve(selection)
-		if !ok {
-			b.logger.Warn("Kernel LLM selection resolve failed: provider=%q model=%q", selection.Provider, selection.Model)
-			return subscription.ResolvedSelection{}, false
-		}
-		return resolved, true
 	}
 }
 

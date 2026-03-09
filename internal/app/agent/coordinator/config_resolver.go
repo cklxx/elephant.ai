@@ -124,23 +124,18 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 	if c.okrContextProvider != nil {
 		okrContext = c.okrContextProvider()
 	}
-	kernelContext := ""
-	if c.kernelContextProvider != nil {
-		kernelContext = c.kernelContextProvider()
-	}
 	window, err := c.contextMgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{
-		TokenLimit:             c.config.MaxTokens,
-		PersonaKey:             personaKey,
-		ToolMode:               string(toolMode),
-		ToolPreset:             toolPreset,
-		EnvironmentSummary:     c.config.EnvironmentSummary,
-		PromptMode:             c.config.Proactive.Prompt.Mode,
-		PromptTimezone:         c.config.Proactive.Prompt.Timezone,
-		BootstrapFiles:         append([]string(nil), c.config.Proactive.Prompt.BootstrapFiles...),
-		BootstrapMaxChars:      c.config.Proactive.Prompt.BootstrapMaxChars,
-		ReplyTagsEnabled:       c.config.Proactive.Prompt.ReplyTagsEnabled,
-		OKRContext:             okrContext,
-		KernelAlignmentContext: kernelContext,
+		TokenLimit:         c.config.MaxTokens,
+		PersonaKey:         personaKey,
+		ToolMode:           string(toolMode),
+		ToolPreset:         toolPreset,
+		EnvironmentSummary: c.config.EnvironmentSummary,
+		PromptMode:         c.config.Proactive.Prompt.Mode,
+		PromptTimezone:     c.config.Proactive.Prompt.Timezone,
+		BootstrapFiles:     append([]string(nil), c.config.Proactive.Prompt.BootstrapFiles...),
+		BootstrapMaxChars:  c.config.Proactive.Prompt.BootstrapMaxChars,
+		ReplyTagsEnabled:   c.config.Proactive.Prompt.ReplyTagsEnabled,
+		OKRContext:         okrContext,
 	})
 	if err != nil {
 		if c.logger != nil {

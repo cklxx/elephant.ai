@@ -35,7 +35,6 @@ const (
 	LogCategoryService LogCategory = "service"
 	LogCategoryLLM     LogCategory = "llm"
 	LogCategoryLatency LogCategory = "latency"
-	LogCategoryKernel  LogCategory = "kernel"
 )
 
 var (
@@ -184,8 +183,6 @@ func logFileName(category LogCategory) string {
 		return "alex-llm.log"
 	case LogCategoryLatency:
 		return "alex-latency.log"
-	case LogCategoryKernel:
-		return "alex-kernel.log"
 	default:
 		return "alex-service.log"
 	}

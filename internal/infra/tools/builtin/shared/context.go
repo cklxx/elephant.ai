@@ -6,7 +6,6 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/backup"
-	tmr "alex/internal/shared/timer"
 )
 
 // Context keys for tool dependencies
@@ -17,7 +16,6 @@ const (
 	BackupManagerKey  toolContextKey = "backup_manager"
 	ToolSessionIDKey  toolContextKey = "tool_session_id"
 	AutoApproveKey    toolContextKey = "auto_approve"
-	kernelTasksDirKey toolContextKey = "kernel_tasks_dir"
 	larkClientKey     toolContextKey = "lark_client"
 	larkMessengerKey  toolContextKey = "lark_messenger"
 	larkChatIDKey     toolContextKey = "lark_chat_id"
@@ -98,18 +96,6 @@ func GetAutoApproveFromContext(ctx context.Context) bool {
 // WithAutoApprove sets the auto-approve flag in context
 func WithAutoApprove(ctx context.Context, autoApprove bool) context.Context {
 	return context.WithValue(ctx, AutoApproveKey, autoApprove)
-}
-
-// WithKernelTasksDir sets a kernel-specific directory for status sidecars in context.
-// When set, structured team dispatch uses this directory instead of the default
-// .elephant/tasks/.
-func WithKernelTasksDir(ctx context.Context, dir string) context.Context {
-	return context.WithValue(ctx, kernelTasksDirKey, dir)
-}
-
-// KernelTasksDirFromContext retrieves the kernel tasks directory from context.
-func KernelTasksDirFromContext(ctx context.Context) string {
-	return contextValueOr[string](ctx, kernelTasksDirKey, "")
 }
 
 // GetParentListenerFromContext retrieves the parent listener (if any) for subtask event forwarding.
@@ -205,12 +191,11 @@ func LarkTenantCalendarIDFromContext(ctx context.Context) string {
 	return contextValueOr[string](ctx, larkTenantCalKey, "")
 }
 
-// TimerManagerService is the interface for timer management needed by tools.
+// TimerManagerService is an opaque timer manager handle injected into tool
+// execution context. The marker method keeps type checks strict without
+// importing the concrete timer package here.
 type TimerManagerService interface {
-	Add(t *tmr.Timer) error
-	Cancel(timerID string) error
-	List(userID string) []tmr.Timer
-	Get(timerID string) (tmr.Timer, bool)
+	ToolTimerManagerServiceMarker()
 }
 
 // WithTimerManager sets the timer manager in context.

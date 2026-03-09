@@ -17,7 +17,7 @@ func IsSubagentContext(ctx context.Context) bool {
 
 type unattendedCtxKey struct{}
 
-// MarkUnattendedContext marks the context to indicate unattended (kernel) execution.
+// MarkUnattendedContext marks the context to indicate unattended execution.
 // Agents running in unattended mode must never ask for user confirmation.
 func MarkUnattendedContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, unattendedCtxKey{}, true)

@@ -58,18 +58,17 @@ type AgentCoordinator struct {
 	checkpointStore  react.CheckpointStore
 	atomicWriter     agent.AtomicFileWriter
 
-	prepService           preparationService
-	costDecorator         *cost.CostTrackingDecorator
-	attachmentMigrator    materialports.Migrator
-	attachmentPersister   ports.AttachmentPersister
-	hookRegistry          *hooks.Registry
-	okrContextProvider    preparation.OKRContextProvider
-	kernelContextProvider preparation.KernelAlignmentContextProvider
-	credentialRefresher   preparation.CredentialRefresher
-	channelHints          map[string]string
-	timerManager          shared.TimerManagerService // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
-	schedulerService      any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
-	toolSLACollector      *toolspolicy.SLACollector
+	prepService         preparationService
+	costDecorator       *cost.CostTrackingDecorator
+	attachmentMigrator  materialports.Migrator
+	attachmentPersister ports.AttachmentPersister
+	hookRegistry        *hooks.Registry
+	okrContextProvider  preparation.OKRContextProvider
+	credentialRefresher preparation.CredentialRefresher
+	channelHints        map[string]string
+	timerManager        shared.TimerManagerService // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
+	schedulerService    any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
+	toolSLACollector    *toolspolicy.SLACollector
 
 	sessionSaveMu      sync.Mutex                      // Protects concurrent session saves
 	pendingSessionSave atomic.Pointer[storage.Session] // latest snapshot awaiting save
@@ -123,21 +122,20 @@ func NewAgentCoordinator(
 	}
 
 	coordinator.prepService = preparation.NewExecutionPreparationService(preparation.ExecutionPreparationDeps{
-		LLMFactory:            llmFactory,
-		ToolRegistry:          toolRegistry,
-		SessionStore:          sessionStore,
-		ContextMgr:            contextMgr,
-		HistoryMgr:            historyManager,
-		Parser:                parser,
-		Config:                config,
-		Logger:                coordinator.logger,
-		Clock:                 coordinator.clock,
-		CostDecorator:         coordinator.costDecorator,
-		CostTracker:           coordinator.costTracker,
-		OKRContextProvider:    coordinator.okrContextProvider,
-		KernelContextProvider: coordinator.kernelContextProvider,
-		CredentialRefresher:   coordinator.credentialRefresher,
-		ChannelHints:          coordinator.channelHints,
+		LLMFactory:          llmFactory,
+		ToolRegistry:        toolRegistry,
+		SessionStore:        sessionStore,
+		ContextMgr:          contextMgr,
+		HistoryMgr:          historyManager,
+		Parser:              parser,
+		Config:              config,
+		Logger:              coordinator.logger,
+		Clock:               coordinator.clock,
+		CostDecorator:       coordinator.costDecorator,
+		CostTracker:         coordinator.costTracker,
+		OKRContextProvider:  coordinator.okrContextProvider,
+		CredentialRefresher: coordinator.credentialRefresher,
+		ChannelHints:        coordinator.channelHints,
 	})
 
 	if coordinator.contextMgr != nil {
@@ -612,22 +610,21 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 	}
 	logger := c.loggerFor(ctx)
 	prepService := preparation.NewExecutionPreparationService(preparation.ExecutionPreparationDeps{
-		LLMFactory:            c.llmFactory,
-		ToolRegistry:          c.toolRegistry,
-		SessionStore:          c.sessionStore,
-		ContextMgr:            c.contextMgr,
-		HistoryMgr:            c.historyMgr,
-		Parser:                c.parser,
-		Config:                cfg,
-		Logger:                logger,
-		Clock:                 c.clock,
-		CostDecorator:         c.costDecorator,
-		EventEmitter:          listener,
-		CostTracker:           c.costTracker,
-		OKRContextProvider:    c.okrContextProvider,
-		KernelContextProvider: c.kernelContextProvider,
-		CredentialRefresher:   c.credentialRefresher,
-		ChannelHints:          c.channelHints,
+		LLMFactory:          c.llmFactory,
+		ToolRegistry:        c.toolRegistry,
+		SessionStore:        c.sessionStore,
+		ContextMgr:          c.contextMgr,
+		HistoryMgr:          c.historyMgr,
+		Parser:              c.parser,
+		Config:              cfg,
+		Logger:              logger,
+		Clock:               c.clock,
+		CostDecorator:       c.costDecorator,
+		EventEmitter:        listener,
+		CostTracker:         c.costTracker,
+		OKRContextProvider:  c.okrContextProvider,
+		CredentialRefresher: c.credentialRefresher,
+		ChannelHints:        c.channelHints,
 	})
 	return prepService.Prepare(ctx, task, sessionID)
 }

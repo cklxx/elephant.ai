@@ -111,7 +111,7 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 
 	soulIdx := strings.Index(snapshot, "Identity (SOUL.md")
 	userIdx := strings.Index(snapshot, "Identity (USER.md")
-	todayIdx := strings.Index(snapshot, "Daily Log Digest (Kernel only)")
+	todayIdx := strings.Index(snapshot, "Daily Log Digest (Unattended only)")
 	memoryIdx := strings.Index(snapshot, "Long-term Memory (MEMORY.md)")
 	if soulIdx == -1 || userIdx == -1 || todayIdx == -1 || memoryIdx == -1 {
 		t.Fatalf("expected identity/daily/memory sections in snapshot, got: %s", snapshot)
@@ -124,9 +124,9 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 	}
 }
 
-func TestKernelDailyDigestMasksNonEnglishRawContent(t *testing.T) {
+func TestUnattendedDailyDigestMasksNonEnglishRawContent(t *testing.T) {
 	now := time.Date(2026, time.February, 24, 9, 0, 0, 0, time.UTC)
-	digest := buildKernelDailyLogPromptChunk(now, "你是 elephant.ai 的 kernel 自主代理", "yesterday note")
+	digest := buildUnattendedDailyLogPromptChunk(now, "你是 elephant.ai 的 unattended 自主代理", "yesterday note")
 	if !strings.Contains(digest, "non-English daily memory available (open via memory_search).") {
 		t.Fatalf("expected non-English daily content to be masked into English summary, got: %s", digest)
 	}
