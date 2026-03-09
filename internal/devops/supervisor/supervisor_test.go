@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -217,14 +216,9 @@ func newTestSupervisor(t *testing.T) (*Supervisor, string) {
 	dir := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	policy := NewRestartPolicy(5, 600*time.Second, 300*time.Second)
-	autofix := NewAutofixRunner(AutofixConfig{
-		StateFile:   filepath.Join(dir, "autofix.state.json"),
-		HistoryFile: filepath.Join(dir, "autofix.history"),
-	}, logger)
 
 	s := &Supervisor{
 		policy:     policy,
-		autofix:    autofix,
 		statusFile: NewStatusFile(filepath.Join(dir, "lark-supervisor.status.json")),
 		logger:     logger,
 		failCounts: make(map[string]int),
@@ -368,115 +362,6 @@ func TestMaybeUpgradeForSHADriftDuringCooldown(t *testing.T) {
 
 	if startCalled {
 		t.Error("StartFn should NOT be called during global cooldown")
-	}
-}
-
-func TestHandleAutofixSuccessRestart(t *testing.T) {
-	s, dir := newTestSupervisor(t)
-	s.appliedFile = filepath.Join(dir, "autofix.applied")
-
-	var mainStarted, testStarted, loopStarted bool
-	s.RegisterComponent(&Component{
-		Name:     "main",
-		HealthFn: func() string { return "healthy" },
-		StartFn:  func(ctx context.Context) error { mainStarted = true; return nil },
-	})
-	s.RegisterComponent(&Component{
-		Name:     "test",
-		HealthFn: func() string { return "healthy" },
-		StartFn:  func(ctx context.Context) error { testStarted = true; return nil },
-	})
-	s.RegisterComponent(&Component{
-		Name:     "loop",
-		HealthFn: func() string { return "alive" },
-		StartFn:  func(ctx context.Context) error { loopStarted = true; return nil },
-	})
-
-	// Write autofix state: succeeded + restart_required
-	stateJSON := `{
-  "autofix_state": "succeeded",
-  "autofix_incident_id": "afx-test-001",
-  "autofix_restart_required": "true"
-}`
-	if err := os.WriteFile(filepath.Join(dir, "autofix.state.json"), []byte(stateJSON), 0o644); err != nil {
-		t.Fatalf("write autofix state: %v", err)
-	}
-
-	s.handleAutofixSuccessRestart(context.Background())
-
-	if !mainStarted || !testStarted || !loopStarted {
-		t.Errorf("All components should restart: main=%v test=%v loop=%v",
-			mainStarted, testStarted, loopStarted)
-	}
-
-	// Verify applied file was written
-	data, err := os.ReadFile(s.appliedFile)
-	if err != nil {
-		t.Fatalf("applied file not written: %v", err)
-	}
-	if got := strings.TrimSpace(string(data)); got != "afx-test-001" {
-		t.Errorf("applied file = %q, want afx-test-001", got)
-	}
-
-	// Second call should not restart (dedup by incident ID)
-	mainStarted = false
-	s.handleAutofixSuccessRestart(context.Background())
-	if mainStarted {
-		t.Error("should not restart on duplicate incident ID")
-	}
-}
-
-func TestHandleAutofixSuccessRestartNotSucceeded(t *testing.T) {
-	s, dir := newTestSupervisor(t)
-
-	var startCalled bool
-	s.RegisterComponent(&Component{
-		Name:     "main",
-		HealthFn: func() string { return "healthy" },
-		StartFn:  func(ctx context.Context) error { startCalled = true; return nil },
-	})
-
-	// Write autofix state: failed
-	stateJSON := `{
-  "autofix_state": "failed",
-  "autofix_incident_id": "afx-test-002",
-  "autofix_restart_required": "true"
-}`
-	if err := os.WriteFile(filepath.Join(dir, "autofix.state.json"), []byte(stateJSON), 0o644); err != nil {
-		t.Fatalf("write autofix state: %v", err)
-	}
-
-	s.handleAutofixSuccessRestart(context.Background())
-
-	if startCalled {
-		t.Error("should not restart when autofix state is not succeeded")
-	}
-}
-
-func TestHandleAutofixSuccessRestartNotRequired(t *testing.T) {
-	s, dir := newTestSupervisor(t)
-
-	var startCalled bool
-	s.RegisterComponent(&Component{
-		Name:     "main",
-		HealthFn: func() string { return "healthy" },
-		StartFn:  func(ctx context.Context) error { startCalled = true; return nil },
-	})
-
-	// Write autofix state: succeeded but restart not required
-	stateJSON := `{
-  "autofix_state": "succeeded",
-  "autofix_incident_id": "afx-test-003",
-  "autofix_restart_required": "false"
-}`
-	if err := os.WriteFile(filepath.Join(dir, "autofix.state.json"), []byte(stateJSON), 0o644); err != nil {
-		t.Fatalf("write autofix state: %v", err)
-	}
-
-	s.handleAutofixSuccessRestart(context.Background())
-
-	if startCalled {
-		t.Error("should not restart when restart_required is false")
 	}
 }
 

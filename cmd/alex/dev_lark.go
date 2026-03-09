@@ -385,29 +385,10 @@ func larkStatus() error {
 		}
 	}
 
-	// Health + Autofix section
-	showHealth := status.RestartCountWindow > 0 || status.Autofix.State != ""
-	if showHealth {
+	// Health section
+	if status.RestartCountWindow > 0 {
 		sec.Section("Health")
-		if status.RestartCountWindow > 0 {
-			sec.Warn("%-14s %d", "Restarts", status.RestartCountWindow)
-		}
-	}
-
-	if status.Autofix.State != "" {
-		if !showHealth {
-			sec.Section("Autofix")
-		}
-		sec.Info("%-14s %s (runs: %d)", "Autofix", status.Autofix.State, status.Autofix.RunsWindow)
-		if status.Autofix.IncidentID != "" {
-			sec.Info("%-14s %s", "Incident", status.Autofix.IncidentID)
-		}
-		if status.Autofix.LastReason != "" {
-			sec.Info("%-14s %s", "Reason", status.Autofix.LastReason)
-		}
-		if status.Autofix.LastCommit != "" {
-			sec.Info("%-14s %s", "Commit", shortSHA(status.Autofix.LastCommit))
-		}
+		sec.Warn("%-14s %d", "Restarts", status.RestartCountWindow)
 	}
 
 	return nil
@@ -541,22 +522,6 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 		PIDDir:             pidDir,
 		LogDir:             logDir,
 		TmpDir:             tmpDir,
-		AutofixConfig: supervisor.AutofixConfig{
-			Enabled:       envBool("LARK_SUPERVISOR_AUTOFIX_ENABLED", true),
-			Trigger:       envString("LARK_SUPERVISOR_AUTOFIX_TRIGGER", "cooldown"),
-			Timeout:       envDuration("LARK_SUPERVISOR_AUTOFIX_TIMEOUT_SECONDS", 1800*time.Second),
-			MaxInWindow:   envInt("LARK_SUPERVISOR_AUTOFIX_MAX_IN_WINDOW", 3),
-			Window:        envDuration("LARK_SUPERVISOR_AUTOFIX_WINDOW_SECONDS", 3600*time.Second),
-			Cooldown:      envDuration("LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS", 900*time.Second),
-			Scope:         envString("LARK_SUPERVISOR_AUTOFIX_SCOPE", "repo"),
-			MainRoot:      mainRoot,
-			ScriptPath:    filepath.Join(mainRoot, "scripts", "lark", "autofix.sh"),
-			HistoryFile:   filepath.Join(tmpDir, "lark-autofix.history"),
-			SignatureFile: filepath.Join(tmpDir, "lark-autofix.last-signature"),
-			AppliedFile:   filepath.Join(tmpDir, "lark-autofix.applied"),
-			StateFile:     filepath.Join(tmpDir, "lark-autofix.state.json"),
-			LockDir:       filepath.Join(tmpDir, "lark-autofix.lock"),
-		},
 	}, nil
 }
 

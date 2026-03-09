@@ -21,7 +21,6 @@ const (
 	ComponentUp       ComponentState = "up"
 	ComponentDown     ComponentState = "down"
 	ComponentCooldown ComponentState = "cooldown"
-	ComponentAutofix  ComponentState = "autofix"
 )
 
 // Component represents a supervised process.
@@ -46,24 +45,21 @@ type LoopState struct {
 
 // Supervisor manages multiple supervised components with restart policies.
 type Supervisor struct {
-	components            []*Component
-	policy                *RestartPolicy
-	autofix               *AutofixRunner
-	statusFile            *StatusFile
-	logFile               string
-	ticker                *time.Ticker
-	interval              time.Duration
-	lockDir               string
-	pidFile               string
-	mainRoot              string
-	testRoot              string
-	logger                *slog.Logger
-	failCounts            map[string]int
-	restartLocks          sync.Map // map[string]*sync.Mutex — per-component restart guard
-	loopState             LoopState
-	tmpDir                string
-	lastAppliedIncidentID string
-	appliedFile           string
+	components   []*Component
+	policy       *RestartPolicy
+	statusFile   *StatusFile
+	logFile      string
+	ticker       *time.Ticker
+	interval     time.Duration
+	lockDir      string
+	pidFile      string
+	mainRoot     string
+	testRoot     string
+	logger       *slog.Logger
+	failCounts   map[string]int
+	restartLocks sync.Map // map[string]*sync.Mutex — per-component restart guard
+	loopState    LoopState
+	tmpDir       string
 }
 
 // Config holds supervisor configuration.
@@ -77,7 +73,6 @@ type Config struct {
 	PIDDir             string
 	LogDir             string
 	TmpDir             string
-	AutofixConfig      AutofixConfig
 }
 
 // New creates a new Supervisor.
@@ -91,22 +86,18 @@ func New(cfg Config) *Supervisor {
 	statusPath := filepath.Join(cfg.TmpDir, "lark-supervisor.status.json")
 	statusFile := NewStatusFile(statusPath)
 
-	autofix := NewAutofixRunner(cfg.AutofixConfig, logger)
-
 	return &Supervisor{
-		policy:      policy,
-		autofix:     autofix,
-		statusFile:  statusFile,
-		logFile:     filepath.Join(cfg.LogDir, "lark-supervisor.log"),
-		interval:    cfg.TickInterval,
-		lockDir:     filepath.Join(cfg.TmpDir, "lark-supervisor.lock"),
-		pidFile:     filepath.Join(cfg.PIDDir, "lark-supervisor.pid"),
-		mainRoot:    cfg.MainRoot,
-		testRoot:    cfg.TestRoot,
-		logger:      logger,
-		failCounts:  make(map[string]int),
-		tmpDir:      cfg.TmpDir,
-		appliedFile: cfg.AutofixConfig.AppliedFile,
+		policy:     policy,
+		statusFile: statusFile,
+		logFile:    filepath.Join(cfg.LogDir, "lark-supervisor.log"),
+		interval:   cfg.TickInterval,
+		lockDir:    filepath.Join(cfg.TmpDir, "lark-supervisor.lock"),
+		pidFile:    filepath.Join(cfg.PIDDir, "lark-supervisor.pid"),
+		mainRoot:   cfg.MainRoot,
+		testRoot:   cfg.TestRoot,
+		logger:     logger,
+		failCounts: make(map[string]int),
+		tmpDir:     cfg.TmpDir,
 	}
 }
 
@@ -146,13 +137,6 @@ func (s *Supervisor) Run(ctx context.Context) error {
 		return fmt.Errorf("write supervisor pid file: %w", err)
 	}
 
-	// Load last applied autofix incident to prevent duplicate restarts
-	if s.appliedFile != "" {
-		if data, err := os.ReadFile(s.appliedFile); err == nil {
-			s.lastAppliedIncidentID = strings.TrimSpace(string(data))
-		}
-	}
-
 	s.logger.Info("supervisor started",
 		"tick", s.interval,
 		"window", s.policy.WindowDuration,
@@ -173,12 +157,11 @@ func (s *Supervisor) Run(ctx context.Context) error {
 	}
 }
 
-// tick runs a single supervision cycle matching supervisor.sh run_tick():
+// tick runs a single supervision cycle:
 //  1. Observe loop state
 //  2. Health-check restarts
 //  3. SHA drift auto-upgrade
-//  4. Autofix success restart
-//  5. Re-observe + write status
+//  4. Re-observe + write status
 func (s *Supervisor) tick(ctx context.Context) {
 	// 1. Observe
 	s.readLoopState()
@@ -194,9 +177,6 @@ func (s *Supervisor) tick(ctx context.Context) {
 		}
 
 		if s.policy.InCooldown(comp.Name, now) {
-			s.autofix.TryTrigger(comp.Name,
-				fmt.Sprintf("restart storm: %s", comp.Name),
-				s.loopState.MainSHA)
 			continue
 		}
 
@@ -214,9 +194,6 @@ func (s *Supervisor) tick(ctx context.Context) {
 				"component", comp.Name,
 				"count", count,
 				"window", s.policy.WindowDuration)
-			s.autofix.TryTrigger(comp.Name,
-				fmt.Sprintf("restart storm: %d restarts in %s", count, s.policy.WindowDuration),
-				s.loopState.MainSHA)
 			continue
 		}
 
@@ -239,10 +216,7 @@ func (s *Supervisor) tick(ctx context.Context) {
 	// 3. SHA drift auto-upgrade
 	s.maybeUpgradeForSHADrift(ctx)
 
-	// 4. Autofix success restart
-	s.handleAutofixSuccessRestart(ctx)
-
-	// 5. Re-observe + write status
+	// 4. Re-observe + write status
 	s.readLoopState()
 	s.writeStatus()
 }
@@ -303,9 +277,6 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 			s.logger.Warn("upgrade storm detected, entering cooldown",
 				"component", comp.Name,
 				"count", count)
-			s.autofix.TryTrigger(comp.Name,
-				fmt.Sprintf("upgrade storm: %d restarts in %s", count, s.policy.WindowDuration),
-				mainSHA)
 			continue
 		}
 
@@ -327,54 +298,6 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 			s.logger.Info("upgrade restart succeeded", "component", comp.Name)
 		}
 		mu.Unlock()
-	}
-}
-
-// handleAutofixSuccessRestart restarts all components when autofix has
-// succeeded and flagged restart_required. Corresponds to supervisor.sh
-// handle_autofix_success_restart (lines 360-382).
-func (s *Supervisor) handleAutofixSuccessRestart(ctx context.Context) {
-	afState, err := s.autofix.ReadStateFile()
-	if err != nil || afState.State != "succeeded" {
-		return
-	}
-	if afState.RestartRequired != "true" {
-		return
-	}
-	if afState.IncidentID == "" {
-		return
-	}
-	if afState.IncidentID == s.lastAppliedIncidentID {
-		return
-	}
-
-	s.logger.Info("applying post-autofix restart",
-		"incident", afState.IncidentID)
-
-	for _, comp := range s.components {
-		mu := s.componentMu(comp.Name)
-		if !mu.TryLock() {
-			continue
-		}
-		if err := comp.StartFn(ctx); err != nil {
-			s.logger.Error("autofix restart failed",
-				"component", comp.Name,
-				"error", err)
-		} else {
-			s.logger.Info("autofix restart succeeded", "component", comp.Name)
-		}
-		mu.Unlock()
-	}
-
-	s.lastAppliedIncidentID = afState.IncidentID
-	if s.appliedFile != "" {
-		if err := os.MkdirAll(filepath.Dir(s.appliedFile), 0o755); err != nil {
-			s.logger.Warn("failed to create applied incident dir", "path", s.appliedFile, "error", err)
-			return
-		}
-		if err := os.WriteFile(s.appliedFile, []byte(afState.IncidentID+"\n"), 0o644); err != nil {
-			s.logger.Warn("failed to persist applied incident id", "path", s.appliedFile, "error", err)
-		}
 	}
 }
 
@@ -496,26 +419,12 @@ func (s *Supervisor) writeStatus() {
 		Mode:               s.currentMode(now),
 		Components:         make(map[string]ComponentStatus),
 		RestartCountWindow: s.policy.TotalRestartCount(now),
-		Autofix: AutofixStatus{
-			State:      s.autofix.State(),
-			RunsWindow: s.autofix.RunsInWindow(),
-		},
-		CyclePhase:       s.loopState.CyclePhase,
-		CycleResult:      s.loopState.CycleResult,
-		LastError:        s.loopState.LastError,
-		MainSHA:          s.loopState.MainSHA,
-		LastProcessedSHA: s.loopState.LastProcessedSHA,
-		LastValidatedSHA: s.loopState.LastValidatedSHA,
-	}
-
-	// Populate autofix from state file (source of truth) when available
-	if afState, err := s.autofix.ReadStateFile(); err == nil && afState.State != "" {
-		status.Autofix.State = afState.State
-		status.Autofix.IncidentID = afState.IncidentID
-		status.Autofix.LastReason = afState.LastReason
-		status.Autofix.LastStarted = afState.LastStartedAt
-		status.Autofix.LastFinished = afState.LastFinishedAt
-		status.Autofix.LastCommit = afState.LastCommit
+		CyclePhase:         s.loopState.CyclePhase,
+		CycleResult:        s.loopState.CycleResult,
+		LastError:          s.loopState.LastError,
+		MainSHA:            s.loopState.MainSHA,
+		LastProcessedSHA:   s.loopState.LastProcessedSHA,
+		LastValidatedSHA:   s.loopState.LastValidatedSHA,
 	}
 
 	for _, comp := range s.components {
@@ -623,4 +532,11 @@ func (s *Supervisor) componentMu(name string) *sync.Mutex {
 // StatusReport returns the current status for display.
 func (s *Supervisor) StatusReport() (Status, error) {
 	return s.statusFile.Read()
+}
+
+func truncSHA(sha string) string {
+	if len(sha) > 8 {
+		return sha[:8]
+	}
+	return sha
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"alex/internal/devops"
+	"alex/internal/devops/health"
 	"alex/internal/devops/services"
 	"alex/internal/shared/utils"
 )
@@ -513,6 +514,18 @@ func buildOrchestrator() (*devops.Orchestrator, error) {
 	backendSvc := buildBackendService(orch)
 	webSvc := buildWebService(orch)
 	orch.RegisterServices(backendSvc, webSvc)
+
+	// Register default health probes from config so that status/ps commands
+	// can check service health without requiring Start() to have been called.
+	orch.Health().Register("backend", health.Probe{
+		Type:   health.ProbeHTTP,
+		Target: fmt.Sprintf("http://localhost:%d/health", cfg.ServerPort),
+	})
+	orch.Health().Register("web", health.Probe{
+		Type:   health.ProbeHTTP,
+		Target: fmt.Sprintf("http://localhost:%d", cfg.WebPort),
+	})
+
 	return orch, nil
 }
 

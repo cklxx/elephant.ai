@@ -15,7 +15,6 @@ type Status struct {
 	Mode               string                     `json:"mode"`
 	Components         map[string]ComponentStatus `json:"components"`
 	RestartCountWindow int                        `json:"restart_count_window"`
-	Autofix            AutofixStatus              `json:"autofix"`
 	CyclePhase         string                     `json:"cycle_phase,omitempty"`
 	CycleResult        string                     `json:"cycle_result,omitempty"`
 	LastError          string                     `json:"last_error,omitempty"`
@@ -30,17 +29,6 @@ type ComponentStatus struct {
 	Health      string `json:"health"`
 	DeployedSHA string `json:"deployed_sha,omitempty"`
 	RunsWindow  int    `json:"runs_window,omitempty"`
-}
-
-// AutofixStatus holds autofix-related status.
-type AutofixStatus struct {
-	State        string `json:"state"`
-	IncidentID   string `json:"incident_id,omitempty"`
-	LastReason   string `json:"last_reason,omitempty"`
-	LastStarted  string `json:"last_started_at,omitempty"`
-	LastFinished string `json:"last_finished_at,omitempty"`
-	LastCommit   string `json:"last_commit,omitempty"`
-	RunsWindow   int    `json:"runs_window"`
 }
 
 // StatusFile provides atomic JSON status file operations.
@@ -148,32 +136,6 @@ func parseFlatStatus(data []byte, status *Status) {
 			Health:      health,
 			DeployedSHA: sha,
 			RunsWindow:  runs,
-		}
-	}
-
-	// Flat autofix fields
-	if state := jsonString(raw, "autofix_state"); state != "" {
-		status.Autofix.State = state
-	}
-	if v := jsonString(raw, "autofix_incident_id"); v != "" {
-		status.Autofix.IncidentID = v
-	}
-	if v := jsonString(raw, "autofix_last_reason"); v != "" {
-		status.Autofix.LastReason = v
-	}
-	if v := jsonString(raw, "autofix_last_started_at"); v != "" {
-		status.Autofix.LastStarted = v
-	}
-	if v := jsonString(raw, "autofix_last_finished_at"); v != "" {
-		status.Autofix.LastFinished = v
-	}
-	if v := jsonString(raw, "autofix_last_commit"); v != "" {
-		status.Autofix.LastCommit = v
-	}
-	if v, ok := raw["autofix_runs_window"]; ok {
-		var n int
-		if json.Unmarshal(v, &n) == nil {
-			status.Autofix.RunsWindow = n
 		}
 	}
 

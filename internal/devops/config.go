@@ -43,13 +43,6 @@ type SupervisorConfig struct {
 	RestartMaxInWindow int           `yaml:"restart_max_in_window" default:"5"`
 	RestartWindow      time.Duration `yaml:"restart_window" default:"10m"`
 	CooldownDuration   time.Duration `yaml:"cooldown_duration" default:"5m"`
-	AutofixEnabled     bool          `yaml:"autofix_enabled" default:"true"`
-	AutofixTrigger     string        `yaml:"autofix_trigger" default:"cooldown"`
-	AutofixTimeout     time.Duration `yaml:"autofix_timeout" default:"30m"`
-	AutofixMaxInWindow int           `yaml:"autofix_max_in_window" default:"3"`
-	AutofixWindow      time.Duration `yaml:"autofix_window" default:"1h"`
-	AutofixCooldown    time.Duration `yaml:"autofix_cooldown" default:"15m"`
-	AutofixScope       string        `yaml:"autofix_scope" default:"repo"`
 }
 
 // LoadDevConfig loads configuration with the priority:

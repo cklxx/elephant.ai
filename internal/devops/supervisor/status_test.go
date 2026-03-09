@@ -19,10 +19,6 @@ func TestStatusFileWriteRead(t *testing.T) {
 			"test": {PID: 5678, Health: "healthy", DeployedSHA: "def456", RunsWindow: 1},
 		},
 		RestartCountWindow: 2,
-		Autofix: AutofixStatus{
-			State:      "idle",
-			RunsWindow: 0,
-		},
 	}
 
 	if err := sf.Write(status); err != nil {
@@ -138,13 +134,6 @@ func TestStatusFileReadFlatFormat(t *testing.T) {
 		t.Errorf("loop health = %q, want alive", loop.Health)
 	}
 
-	// Verify autofix parsed
-	if got.Autofix.State != "idle" {
-		t.Errorf("autofix state = %q, want idle", got.Autofix.State)
-	}
-	if got.Autofix.RunsWindow != 1 {
-		t.Errorf("autofix runs_window = %d, want 1", got.Autofix.RunsWindow)
-	}
 }
 
 func TestStatusFileReadFlatFormatEmptyPID(t *testing.T) {
