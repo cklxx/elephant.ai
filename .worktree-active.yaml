@@ -1,4 +1,0 @@
-status: in_progress
-branch: refactor/tool-layer
-created: 2026-03-09
-description: Tool layer refactor — fix architecture boundaries, type system, wrapper chain, policy unification, cleanup
