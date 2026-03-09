@@ -12,7 +12,6 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/shared/logging"
 
-	lru "github.com/hashicorp/golang-lru/v2"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
@@ -181,8 +180,7 @@ func TestHandleMessageNoticeCommandBypassesInFlightInjection(t *testing.T) {
 		noticeState: store,
 		now:         func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event1 := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{

@@ -22,7 +22,6 @@ import (
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
 
-	lru "github.com/hashicorp/golang-lru/v2"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
@@ -380,28 +379,27 @@ func TestAddReactionSkipsEmptyInputs(t *testing.T) {
 
 func TestGatewayMessageDedup(t *testing.T) {
 	now := time.Date(2026, 1, 29, 11, 0, 0, 0, time.UTC)
-	cache, err := lru.New[string, time.Time](2)
-	if err != nil {
-		t.Fatalf("failed to create dedup cache: %v", err)
-	}
+	d := newEventDedup(nil)
+	d.now = func() time.Time { return now }
 	gw := &Gateway{
-		cfg:        Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}},
-		logger:     logging.OrNop(nil),
-		dedupCache: cache,
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}},
+		logger: logging.OrNop(nil),
+		dedup:  d,
 		now: func() time.Time {
 			return now
 		},
 	}
 
-	if gw.isDuplicateMessage("msg-1") {
+	if gw.isDuplicateMessage("msg-1", "evt-1") {
 		t.Fatalf("expected first message not to be duplicate")
 	}
-	if !gw.isDuplicateMessage("msg-1") {
+	if !gw.isDuplicateMessage("msg-1", "evt-1") {
 		t.Fatalf("expected second message to be duplicate")
 	}
 
-	now = now.Add(messageDedupTTL + time.Second)
-	if gw.isDuplicateMessage("msg-1") {
+	now = now.Add(eventDedupTTL + time.Second)
+	d.now = func() time.Time { return now }
+	if gw.isDuplicateMessage("msg-1", "evt-1") {
 		t.Fatalf("expected message to expire from dedupe window")
 	}
 }
@@ -422,8 +420,7 @@ func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
 		now:    func() time.Time { return time.Now() },
 	}
 	// Initialize dedup cache.
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -475,8 +472,7 @@ func TestHandleMessageSessionHistoryEnabled(t *testing.T) {
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -524,8 +520,7 @@ func TestHandleMessagePostContent(t *testing.T) {
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -622,8 +617,7 @@ func TestHandleMessageSetsMemoryPolicy(t *testing.T) {
 		now:    func() time.Time { return time.Now() },
 	}
 
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -673,8 +667,7 @@ func TestHandleMessageReusesSessionAcrossTurns(t *testing.T) {
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -756,8 +749,7 @@ func TestHandleMessageReusesAwaitingSession(t *testing.T) {
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -832,8 +824,7 @@ func TestHandleMessageDropsInFlightFollowUpWhenRunCompletes(t *testing.T) {
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -922,8 +913,7 @@ func TestHandleMessageDropsInFlightFollowUpForGroupChat(t *testing.T) {
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1012,8 +1002,7 @@ func TestHandleMessageReprocessesInFlightFollowUpWhenAwaitingInput(t *testing.T)
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1168,8 +1157,7 @@ func TestHandleMessageInjectsPlanFeedback(t *testing.T) {
 		now:    func() time.Time { return time.Now() },
 	}
 	gw.SetPlanReviewStore(store)
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1228,8 +1216,7 @@ func TestHandleMessageSavesPlanReviewPendingOnAwaitUserInput(t *testing.T) {
 		now:    func() time.Time { return time.Now() },
 	}
 	gw.SetPlanReviewStore(store)
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1292,8 +1279,7 @@ func TestHandleMessageAwaitUserInputRepliesWithQuestion(t *testing.T) {
 		messenger: recorder,
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1366,8 +1352,7 @@ func TestHandleMessageAwaitUserInputRepliesWithNumberedOptions(t *testing.T) {
 		messenger: recorder,
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1428,8 +1413,7 @@ func TestHandleMessageSeedsPendingUserInput(t *testing.T) {
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1494,8 +1478,7 @@ func TestHandleMessageSendsPlanReviewTextWhenEnabled(t *testing.T) {
 		messenger: recorder,
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1560,8 +1543,7 @@ func TestHandleMessageSendsTextResultReply(t *testing.T) {
 		messenger: recorder,
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1634,8 +1616,7 @@ func TestHandleMessageSendsTextReplyWithAttachments(t *testing.T) {
 		messenger: recorder,
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1702,8 +1683,7 @@ func TestHandleMessageResetCommand(t *testing.T) {
 		messenger: recorder,
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1763,8 +1743,7 @@ func TestHandleMessageStopCommandCancelsInFlightTask(t *testing.T) {
 		messenger: recorder,
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	startEvent := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1851,8 +1830,7 @@ func TestHandleMessageContextCanceledSendsFailureReplyWhenNotIntentional(t *test
 		messenger: recorder,
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1919,8 +1897,7 @@ func TestHandleMessageTimeoutStillSendsFailureReply(t *testing.T) {
 		messenger: &strictContextMessenger{inner: recorder},
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -1977,8 +1954,7 @@ func TestHandleMessageStopCommandWhenIdle(t *testing.T) {
 		messenger: recorder,
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -2033,8 +2009,7 @@ func TestHandleMessageNewCommandSwitchesSessionBinding(t *testing.T) {
 		chatSessionStore: store,
 		now:              func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -2113,8 +2088,7 @@ func TestHandleMessageNewCommandBypassesInFlightInjection(t *testing.T) {
 		chatSessionStore: store,
 		now:              func() time.Time { return now },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event1 := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -2228,8 +2202,7 @@ func TestHandleMessageModelCommandPinsSelection(t *testing.T) {
 			return runtimeconfig.CLICredentials{}
 		}),
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	content1 := `{"text":"/model use llama_server/llama3:latest"}`
 	event1 := &larkim.P2MessageReceiveV1{
@@ -2324,8 +2297,7 @@ func TestHandleMessageModelListUsesTextReply(t *testing.T) {
 			return subscription.LlamaServerTarget{}, false
 		},
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	content := `{"text":"/model list"}`
 	event := &larkim.P2MessageReceiveV1{
@@ -2390,8 +2362,7 @@ func TestHandleMessageAIChatAdvancesSingleTurn(t *testing.T) {
 		messenger: recorder,
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 	if gw.aiCoordinator == nil {
 		gw.aiCoordinator = NewAIChatCoordinator(logging.OrNop(nil), []string{bot1, bot2})
 	}
@@ -2460,8 +2431,7 @@ func TestHandleMessageNaturalTaskStatusQueryUsesTaskList(t *testing.T) {
 		taskStore: store,
 		now:       func() time.Time { return now },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -2538,8 +2508,7 @@ func TestHandleMessageNaturalTaskStatusQueryBypassesInFlightInjection(t *testing
 		taskStore: store,
 		now:       func() time.Time { return now },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	event1 := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -3365,8 +3334,7 @@ func TestDrainAndReprocessPreservesOrdering(t *testing.T) {
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	ch := make(chan agent.UserInput, 16)
 	msgs := []string{"first", "second", "third"}

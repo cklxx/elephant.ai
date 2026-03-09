@@ -11,7 +11,6 @@ import (
 	builtinshared "alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/logging"
 
-	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 func TestInjectMessageBasicP2P(t *testing.T) {
@@ -230,13 +229,12 @@ func TestBuildExecContextInjectsLarkMessenger(t *testing.T) {
 // --- test helpers ---
 
 func newTestGatewayWithMessenger(exec AgentExecutor, messenger LarkMessenger, baseCfg channels.BaseConfig) *Gateway {
-	cache, _ := lru.New[string, time.Time](16)
-	return &Gateway{
+		return &Gateway{
 		cfg:         Config{BaseConfig: baseCfg, AppID: "test", AppSecret: "secret"},
 		agent:       exec,
 		logger:      logging.OrNop(nil),
 		messenger:   wrapInjectCaptureHub(messenger),
-		dedupCache:  cache,
+		dedup: newEventDedup(nil),
 		now:         func() time.Time { return time.Now() },
 	}
 }

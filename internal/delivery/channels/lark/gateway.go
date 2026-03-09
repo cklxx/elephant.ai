@@ -20,7 +20,6 @@ import (
 	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 
-	lru "github.com/hashicorp/golang-lru/v2"
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
@@ -29,8 +28,6 @@ import (
 )
 
 const (
-	messageDedupCacheSize      = 2048
-	messageDedupTTL            = 10 * time.Minute
 	chatSessionBindingChannel  = "lark"
 	defaultRecentChatMaxRounds = 5
 	defaultActiveSlotTTL       = 6 * time.Hour
@@ -84,8 +81,7 @@ type Gateway struct {
 	wsClient            *larkws.Client
 	messenger           LarkMessenger
 	eventListener       agent.EventListener
-	dedupMu             sync.Mutex
-	dedupCache          *lru.Cache[string, time.Time]
+	dedup               *eventDedup
 	now                 func() time.Time
 	planReviewStore     PlanReviewStore
 	oauth               builtinshared.LarkOAuthService
@@ -188,10 +184,6 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		cfg.ToolFailureAbortThreshold = defaultToolFailureAbortN
 	}
 	cfg.DeliveryMode = string(normalizeDeliveryMode(cfg.DeliveryMode))
-	dedupCache, err := lru.New[string, time.Time](messageDedupCacheSize)
-	if err != nil {
-		return nil, fmt.Errorf("lark message deduper init: %w", err)
-	}
 	logger = logging.OrNop(logger)
 
 	// Initialize AI chat coordinator if bot IDs are configured
@@ -205,7 +197,7 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		cfg:           cfg,
 		agent:         agent,
 		logger:        logger,
-		dedupCache:    dedupCache,
+		dedup:         newEventDedup(logger),
 		now:           time.Now,
 		llmSelections: subscription.NewSelectionStore(selectionPath),
 		noticeState:   newNoticeStateStore(logger),
@@ -354,6 +346,7 @@ func (g *Gateway) Start(ctx context.Context) error {
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	g.setCleanupCancel(cancel)
+	g.dedup.startCleanup(runCtx, &g.cleanupWG)
 	g.startStateCleanupLoop(runCtx)
 
 	// Build the REST client for sending replies.
@@ -920,27 +913,8 @@ func (g *Gateway) InjectMessage(ctx context.Context, chatID, chatType, senderID,
 	return g.handleMessage(ctx, event)
 }
 
-func (g *Gateway) isDuplicateMessage(messageID string) bool {
-	if messageID == "" {
-		return false
-	}
-	g.dedupMu.Lock()
-	defer g.dedupMu.Unlock()
-
-	nowFn := g.now
-	if nowFn == nil {
-		nowFn = time.Now
-	}
-	now := nowFn()
-
-	if ts, ok := g.dedupCache.Get(messageID); ok {
-		if now.Sub(ts) <= messageDedupTTL {
-			return true
-		}
-		g.dedupCache.Remove(messageID)
-	}
-	g.dedupCache.Add(messageID, now)
-	return false
+func (g *Gateway) isDuplicateMessage(messageID, eventID string) bool {
+	return g.dedup.isDuplicate(messageID, eventID)
 }
 
 // dispatchMessage sends a message to a Lark chat. When replyToID is non-empty

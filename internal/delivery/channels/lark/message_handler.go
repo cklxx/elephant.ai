@@ -46,8 +46,12 @@ func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1, opts me
 	}
 
 	messageID := deref(raw.MessageId)
-	if messageID != "" && !opts.skipDedup && g.isDuplicateMessage(messageID) {
-		g.logger.Warn("Lark duplicate message skipped (WS re-delivery): msg_id=%s", messageID)
+	eventID := ""
+	if event.EventV2Base != nil && event.EventV2Base.Header != nil {
+		eventID = event.EventV2Base.Header.EventID
+	}
+	if !opts.skipDedup && g.isDuplicateMessage(messageID, eventID) {
+		g.logger.Debug("Lark duplicate message skipped (WS re-delivery): msg_id=%s event_id=%s", messageID, eventID)
 		return nil
 	}
 

@@ -14,7 +14,6 @@ import (
 	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/shared/logging"
 
-	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 type toolFailureBurstExecutor struct {
@@ -79,8 +78,7 @@ func TestHandleMessageToolFailureThresholdSendsAbortNotice(t *testing.T) {
 		messenger: &strictContextMessenger{inner: recorder},
 		now:       func() time.Time { return time.Now() },
 	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
+		gw.dedup = newEventDedup(nil)
 
 	if err := gw.InjectMessage(context.Background(), "oc_tool_fail", "p2p", "ou_sender", "om_tool_fail", "run task"); err != nil {
 		t.Fatalf("InjectMessage failed: %v", err)
