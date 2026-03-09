@@ -88,20 +88,3 @@ func TestRestartPolicyTotalCount(t *testing.T) {
 	}
 }
 
-func TestRestartPolicyReset(t *testing.T) {
-	p := NewRestartPolicy(3, 10*time.Second, 5*time.Second)
-
-	p.RecordRestart("main")
-	p.RecordRestart("main")
-	p.EnterCooldown("main")
-
-	p.Reset("main")
-
-	now := time.Now()
-	if !p.ShouldRestart("main", now) {
-		t.Error("should allow restart after reset")
-	}
-	if p.InCooldown("main", now) {
-		t.Error("should not be in cooldown after reset")
-	}
-}

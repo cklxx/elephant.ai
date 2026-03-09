@@ -69,7 +69,6 @@ func sortedAttachmentKeys(attachments map[string]ports.Attachment) []string {
 		seen[name] = true
 		keys = append(keys, name)
 	}
-	sort.Strings(keys)
 	return keys
 }
 

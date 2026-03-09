@@ -25,7 +25,7 @@ const (
 )
 
 func (m *manager) memoryEnabled(ctx context.Context) bool {
-	if m == nil || m.memoryEngine == nil {
+	if m.memoryEngine == nil {
 		return false
 	}
 	if m.memoryGate == nil {
@@ -79,7 +79,7 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 }
 
 func (m *manager) loadIdentitySnapshot(userID string) (soul, user string) {
-	if m == nil || m.memoryEngine == nil {
+	if m.memoryEngine == nil {
 		return "", ""
 	}
 	defaultSoul := m.renderSoulTemplate()

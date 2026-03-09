@@ -60,7 +60,7 @@ func NewSerializingEventListener(next agent.EventListener) *SerializingEventList
 
 // OnEvent enqueues events to be delivered in order per run.
 func (s *SerializingEventListener) OnEvent(event agent.AgentEvent) {
-	if s == nil || s.next == nil || event == nil {
+	if s.next == nil || event == nil {
 		return
 	}
 	runID := strings.TrimSpace(event.GetRunID())
@@ -82,7 +82,7 @@ func (s *SerializingEventListener) OnEvent(event agent.AgentEvent) {
 // Flush waits until all events queued before the flush barrier have been
 // delivered to the wrapped listener for the given runID.
 func (s *SerializingEventListener) Flush(ctx context.Context, runID string) {
-	if s == nil || s.next == nil {
+	if s.next == nil {
 		return
 	}
 

@@ -61,6 +61,10 @@ func DefaultSLARouterConfig() SLARouterConfig {
 	}
 }
 
+// recommendationThreshold is the minimum health score at which a tool is
+// considered "recommended" / healthy.
+const recommendationThreshold = 0.7
+
 // SLARouter uses live SLA metrics from an SLACollector to compute health
 // scores, rank tools, and select the best alternative from a set of
 // candidates. All methods are safe for concurrent use.
@@ -124,7 +128,7 @@ func (r *SLARouter) GetProfile(toolName string) ToolSLAProfile {
 		ToolName:    toolName,
 		SLA:         sla,
 		HealthScore: score,
-		Recommended: score >= 0.7,
+		Recommended: score >= recommendationThreshold,
 	}
 }
 
@@ -156,5 +160,5 @@ func (r *SLARouter) SelectBest(toolNames []string) (string, bool) {
 // 0.7 (the recommendation threshold).
 func (r *SLARouter) IsHealthy(toolName string) bool {
 	profile := r.GetProfile(toolName)
-	return profile.HealthScore >= 0.7
+	return profile.HealthScore >= recommendationThreshold
 }

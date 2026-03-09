@@ -53,7 +53,7 @@ func (c *AgentCoordinator) SetScheduler(service any) {
 
 // Close releases coordinator-owned resources such as background persisters.
 func (c *AgentCoordinator) Close() error {
-	if c == nil || c.attachmentPersister == nil {
+	if c.attachmentPersister == nil {
 		return nil
 	}
 	if closer, ok := c.attachmentPersister.(interface{ Close() error }); ok {

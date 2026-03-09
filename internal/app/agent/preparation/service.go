@@ -222,19 +222,15 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 	toolMode := presets.NormalizeToolMode(s.config.ToolMode)
 	toolPreset := presets.DefaultToolPresetForMode(toolMode, s.config.ToolPreset)
-	if s.presetResolver != nil {
-		if resolved, source := s.presetResolver.resolveToolPreset(ctx, toolMode, toolPreset); resolved != "" {
-			toolPreset = strings.TrimSpace(resolved)
-			s.logger.Info("Using tool preset %s (source=%s)", resolved, source)
-		}
+	if resolved, source := s.presetResolver.resolveToolPreset(ctx, toolMode, toolPreset); resolved != "" {
+		toolPreset = strings.TrimSpace(resolved)
+		s.logger.Info("Using tool preset %s (source=%s)", resolved, source)
 	}
 	toolPreset = presets.DefaultToolPresetForMode(toolMode, toolPreset)
 	personaKey := s.config.AgentPreset
-	if s.presetResolver != nil {
-		if preset, source := s.presetResolver.resolveAgentPreset(ctx, s.config.AgentPreset); preset != "" {
-			personaKey = preset
-			s.logger.Info("Using persona preset %s (source=%s)", preset, source)
-		}
+	if preset, source := s.presetResolver.resolveAgentPreset(ctx, s.config.AgentPreset); preset != "" {
+		personaKey = preset
+		s.logger.Info("Using persona preset %s (source=%s)", preset, source)
 	}
 
 	selection, hasSelection := appcontext.GetLLMSelection(ctx)

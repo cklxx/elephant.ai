@@ -100,14 +100,6 @@ func (p *RestartPolicy) TotalRestartCount(now time.Time) int {
 	return total
 }
 
-// Reset clears all history for a component.
-func (p *RestartPolicy) Reset(component string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	delete(p.history, component)
-	delete(p.cooldownUntil, component)
-}
-
 func (p *RestartPolicy) pruneHistory(component string, now time.Time) {
 	cutoff := now.Add(-p.WindowDuration)
 	entries := p.history[component]

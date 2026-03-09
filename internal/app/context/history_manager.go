@@ -48,7 +48,7 @@ func NewHistoryManager(store sessionstate.Store, logger agent.Logger, clock agen
 // diverges, it resets the stored history and records the supplied messages as
 // the first turn to keep downstream replay consistent.
 func (m *HistoryManager) AppendTurn(ctx context.Context, sessionID string, messages []ports.Message) error {
-	if m == nil || m.store == nil || sessionID == "" || len(messages) == 0 {
+	if m.store == nil || sessionID == "" || len(messages) == 0 {
 		return nil
 	}
 
@@ -91,7 +91,7 @@ func (m *HistoryManager) AppendTurn(ctx context.Context, sessionID string, messa
 // history prefix. This avoids reloading every snapshot when the caller already
 // replayed history for the same session.
 func (m *HistoryManager) AppendTurnWithExisting(ctx context.Context, sessionID string, existing []ports.Message, messages []ports.Message) error {
-	if m == nil || m.store == nil || sessionID == "" || len(messages) == 0 {
+	if m.store == nil || sessionID == "" || len(messages) == 0 {
 		return nil
 	}
 
@@ -132,7 +132,7 @@ func (m *HistoryManager) AppendTurnWithExisting(ctx context.Context, sessionID s
 // Replay flattens the recorded turns for the provided session. If uptoTurn is
 // greater than zero, only turns with IDs less than uptoTurn are included.
 func (m *HistoryManager) Replay(ctx context.Context, sessionID string, uptoTurn int) ([]ports.Message, error) {
-	if m == nil || m.store == nil || sessionID == "" {
+	if m.store == nil || sessionID == "" {
 		return nil, nil
 	}
 
@@ -173,7 +173,7 @@ func (m *HistoryManager) Replay(ctx context.Context, sessionID string, uptoTurn 
 
 // ClearSession removes all stored turns for the session.
 func (m *HistoryManager) ClearSession(ctx context.Context, sessionID string) error {
-	if m == nil || m.store == nil || sessionID == "" {
+	if m.store == nil || sessionID == "" {
 		return nil
 	}
 	return m.store.ClearSession(ctx, sessionID)
