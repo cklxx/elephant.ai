@@ -82,6 +82,25 @@ python3 skills/feishu-cli/run.py '{"action":"tool","module":"contact","tool_acti
 python3 skills/feishu-cli/run.py '{"action":"api","method":"GET","path":"/contact/v3/scopes"}'
 ```
 
+## 各模块动作速查
+
+| module | 支持的 tool_action |
+|--------|-------------------|
+| calendar | create, query, update, delete, list_calendars, freebusy |
+| contact | get_user, search_user, list_departments |
+| doc | create, read, read_content, write_markdown, list_blocks, update_block_text |
+| wiki | list_spaces, list_nodes, create_node, get_node |
+| drive | list_files, upload, download |
+| **sheets** | **create, get, list_sheets** |
+| mail | list_mailgroups, list_members |
+| meeting | create, list, get, update, delete |
+| **okr** | **list_periods, batch_get, list_user_okrs** |
+| bitable | list_tables, list_fields, list_records, create_record, update_record, delete_record |
+| message | send_message, history, upload_file |
+| task | list, create, update, delete, complete, uncomplete, list_subtasks, create_subtask |
+
+> **别名兼容**：旧名 `create_spreadsheet`→`create`，`get_spreadsheet`→`get`，`list_okr_periods`→`list_periods`，`batch_get_okrs`→`batch_get` 均已配置别名，可正常调用但文档以新名为准。
+
 ## 统一环境变量（建议）
 
 - `LARK_APP_ID`

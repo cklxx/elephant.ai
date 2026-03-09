@@ -40,18 +40,20 @@ cooldown: 15
 
 ## 快速索引：意图 → 工具调用
 
+> ⚠️ **CLI 支持的动作**（标注 ✅）可直接用 `python3 skills/feishu-cli/run.py` 调用；未标注的需改用 `api` 原始调用。
+
 | 用户意图 | module | tool_action | 必填参数 | 常用可选 |
 |---------|--------|-------------|---------|---------|
-| 查表有哪些字段 | bitable | list_fields | app_token, table_id | - |
-| 查记录 | bitable | list_records | app_token, table_id | filter, sort, field_names |
-| 新增一行 | bitable | create_record | app_token, table_id, fields | - |
-| 批量导入 | bitable | batch_create_records | app_token, table_id, records (≤500) | - |
-| 更新一行 | bitable | update_record | app_token, table_id, record_id, fields | - |
-| 批量更新 | bitable | batch_update_records | app_token, table_id, records (≤500) | - |
-| 删除记录 | bitable | delete_record | app_token, table_id, record_id | - |
-| 创建多维表格 | bitable | create_app | name | folder_token |
-| 创建数据表 | bitable | create_table | app_token, name | fields |
-| 查看所有表 | bitable | list_tables | app_token | - |
+| ✅ 查表有哪些字段 | bitable | list_fields | app_token, table_id | - |
+| ✅ 查记录 | bitable | list_records | app_token, table_id | filter, sort, field_names |
+| ✅ 新增一行 | bitable | create_record | app_token, table_id, fields | - |
+| ✅ 更新一行 | bitable | update_record | app_token, table_id, record_id, fields | - |
+| ✅ 删除记录 | bitable | delete_record | app_token, table_id, record_id | - |
+| ✅ 查看所有表 | bitable | list_tables | app_token | - |
+| 🔧 批量导入 | api | POST /bitable/v1/apps/{app_token}/tables/{table_id}/records/batch_create | records (≤500) | - |
+| 🔧 批量更新 | api | PUT /bitable/v1/apps/{app_token}/tables/{table_id}/records/batch_update | records (≤500) | - |
+| 🔧 创建多维表格 | api | POST /bitable/v1/apps | name | folder_token |
+| 🔧 创建数据表 | api | POST /bitable/v1/apps/{app_token}/tables | name | fields |
 
 ### 调用方式
 

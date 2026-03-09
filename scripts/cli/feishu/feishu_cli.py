@@ -1337,6 +1337,9 @@ ACTION_SPECS: dict[str, dict[str, ActionSpec]] = {
             optional=(),
             example={"spreadsheet_token": "shtcnxxxx"},
         ),
+        # backward-compat aliases
+        "create_spreadsheet": "create",
+        "get_spreadsheet": "get",
     },
     "mail": {
         "list_mailgroups": ActionSpec(
@@ -1397,6 +1400,9 @@ ACTION_SPECS: dict[str, dict[str, ActionSpec]] = {
             optional=(),
             example={"okr_ids": ["okr_1", "okr_2"]},
         ),
+        # backward-compat aliases
+        "list_okr_periods": "list_periods",
+        "batch_get_okrs": "batch_get",
     },
     "bitable": {
         "list_tables": ActionSpec(
@@ -1435,14 +1441,6 @@ ACTION_SPECS: dict[str, dict[str, ActionSpec]] = {
             optional=(),
             example={"app_token": "bascnxxxx", "table_id": "tblxxx"},
         ),
-    },
-    "sheets": {
-        "create_spreadsheet": "create",
-        "get_spreadsheet": "get",
-    },
-    "okr": {
-        "list_okr_periods": "list_periods",
-        "batch_get_okrs": "batch_get",
     },
 }
 
@@ -2615,7 +2613,15 @@ def _okr_list_user_okrs(args: dict[str, Any], auth_manager: AuthManager) -> dict
     if not user_id:
         return {"success": False, "error": "user_id is required"}
 
-    result = api_request("GET", f"/okr/v1/users/{user_id}/okrs", auth_manager=auth_manager)
+    query: dict[str, Any] = {
+        "user_type": int(args.get("user_type", 1)),  # 1=open_id (default), 2=union_id, 3=user_id
+        "offset": int(args.get("offset", 0)),
+        "limit": int(args.get("limit", 20)),
+    }
+    if args.get("period_id"):
+        query["period_id"] = str(args["period_id"])
+
+    result = api_request("GET", f"/okr/v1/users/{user_id}/okrs", query=query, auth_manager=auth_manager)
     failure = _api_failure(result)
     if failure:
         return failure
@@ -2987,6 +2993,10 @@ def _help_module(module: str) -> dict[str, Any]:
 
     entries = []
     for action, spec in actions.items():
+        if isinstance(spec, str):
+            # alias entry — point to canonical name
+            entries.append({"action": action, "alias_for": spec})
+            continue
         entries.append(
             {
                 "action": action,

@@ -33,9 +33,9 @@ cooldown: 15
 | 创建文档 | doc | create | title |
 | 读取文档 | doc | read | document_id |
 | 读取文档内容 | doc | read_content | document_id |
-| 写入 Markdown | doc | write_markdown | document_id, markdown |
+| 写入 Markdown | doc | write_markdown | document_id, content |
 | 列出文档块 | doc | list_blocks | document_id |
-| 更新文本块 | doc | update_block_text | document_id, block_id, text |
+| 更新文本块 | doc | update_block_text | document_id, block_id, content |
 
 ### Wiki 操作
 
@@ -79,7 +79,7 @@ python3 skills/feishu-cli/run.py '{
   "module": "doc",
   "tool_action": "write_markdown",
   "document_id": "doccnXXXX",
-  "markdown": "## 概述\n\n本季度完成了以下关键目标：\n\n1. 项目 A 上线\n2. 性能优化 30%"
+  "content": "## 概述\n\n本季度完成了以下关键目标：\n\n1. 项目 A 上线\n2. 性能优化 30%"
 }'
 ```
 

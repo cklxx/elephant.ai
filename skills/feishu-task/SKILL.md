@@ -30,7 +30,7 @@ cooldown: 15
 | 创建任务 | task | create | summary |
 | 更新任务 | task | update | task_id + 字段 |
 | 删除任务 | task | delete | task_id |
-| 列出子任务 | task | list_subtasks | task_id |
+| 列出子任务 | task | list_subtasks | parent_task_id |
 | 创建子任务 | task | create_subtask | task_id, summary |
 
 ## 调用示例
@@ -43,9 +43,9 @@ python3 skills/feishu-cli/run.py '{
   "module": "task",
   "tool_action": "create",
   "summary": "完成 Q1 OKR 回顾",
-  "due": "2026-03-15 18:00",
+  "due_date": "2026-03-15",
   "description": "回顾 Q1 各项 KR 的完成情况",
-  "members": ["ou_xxx"]
+  "assignee_ids": ["ou_xxx"]
 }'
 ```
 
@@ -58,12 +58,12 @@ python3 skills/feishu-cli/run.py '{"action":"tool","module":"task","tool_action"
 ### 完成任务
 
 ```bash
+# 通过 complete 动作直接标记完成（推荐）
 python3 skills/feishu-cli/run.py '{
   "action": "tool",
   "module": "task",
-  "tool_action": "update",
-  "task_id": "t_xxx",
-  "status": "completed"
+  "tool_action": "complete",
+  "task_id": "t_xxx"
 }'
 ```
 
@@ -81,8 +81,9 @@ python3 skills/feishu-cli/run.py '{
 
 ## 核心约束
 
-- **due 格式**：支持 `"2026-03-15 18:00"` 或 ISO 8601
-- **members**: 使用 `open_id`（`ou_` 开头），数组格式
-- **任务状态**: `"needs_action"` (待完成), `"completed"` (已完成)
+- **需要 user OAuth token**：task 模块操作基于用户身份，需先完成 OAuth 授权（`auth oauth_url` → 登录 → `auth exchange_code`）
+- **due_date 格式**：支持 `"2026-03-15"` 或 `"2026-03-15 18:00"` 等字符串
+- **assignee_ids**: 指派人 open_id（`ou_` 开头），数组格式
+- **任务状态**: 完成用 `complete` 动作；撤销完成用 `uncomplete` 动作；`update` 不支持 status 字段
 - **只能操作有权限的任务**：作为成员的任务
 - **重复规则**: 只有设置了截止时间的任务才能设置重复规则

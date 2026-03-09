@@ -29,7 +29,7 @@ cooldown: 15
 |---------|--------|-------------|---------|
 | 发送消息 | message | send_message | chat_id/user_id, content |
 | 读取消息历史 | message | history | chat_id |
-| 上传文件 | message | upload_file | file_path, file_type |
+| 上传文件 | message | upload_file | source, file_type |
 
 ## 调用示例
 
@@ -61,7 +61,7 @@ python3 skills/feishu-cli/run.py '{
 
 ## 核心约束
 
-- **chat_id**: 群聊 ID（`oc_` 开头）
+- **chat_id**: 群聊 ID（`oc_` 开头）；**必填**——可通过参数直传，或由环境变量 `LARK_CHAT_ID` 自动注入（Lark channel 中默认已注入）
 - **user_id**: 用户 open_id（`ou_` 开头），用于私聊
 - **消息类型**: 支持 text、post（富文本）、image、file 等
 - **分页**: 使用 `page_token` 和 `page_size` 进行分页
