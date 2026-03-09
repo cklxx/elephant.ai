@@ -522,13 +522,13 @@ tc_6_full_team_workflow() {
     "请用 kaku 编程团队完成以下任务（三个阶段，顺序执行）：
 
 阶段1 - 分析师（Claude Code session，pane $KAKU_PARENT_PANE 附近）：
-  写一个简单的方案文档到 $PLAN，内容是「实现 Go 函数 Max(a,b int) int 返回较大值，以及配套单测」
+  写一个简单的方案文档到 ${PLAN}，内容是「实现 Go 函数 Max(a,b int) int 返回较大值，以及配套单测」
 
 阶段2 - 开发者（新的 Claude Code session）：
-  读取 $PLAN，实现 Go 文件 $IMPL，只包含 Max 函数
+  读取 ${PLAN}，实现 Go 文件 ${IMPL}，只包含 Max 函数
 
 阶段3 - 验证（新的 Claude Code session）：
-  读取 $IMPL，用 echo 输出一行验证结论：「Max(3,5)=5, 实现正确」
+  读取 ${IMPL}，用 echo 输出一行验证结论：「Max(3,5)=5, 实现正确」
 
 三个阶段严格顺序执行，每个阶段完成后再启动下一个。全部完成后汇报结果。" \
     480)
