@@ -183,10 +183,15 @@ alex runtime session start \
 ### 方式 B：手动 kaku CLI（仅调试用）
 
 ```bash
+# Step 0: 确保 CC hooks 已注册（幂等，可重复执行）
+# 这一步保证 notify_runtime.sh 在 ~/.claude/settings.json 中注册，
+# 即使不走 runtime API，CC 的每次工具调用也能上报到 runtime bus。
+bash scripts/cc_hooks/notify_runtime.sh --ensure-registered
+
 # Step 1: 拆分 pane
 PANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 70 --cwd $WORKDIR -- bash -l)
 
-# Step 2: 设置 runtime 环境变量
+# Step 2: 设置 runtime 环境变量（如有已知 session ID 则填入）
 bash scripts/kaku/send.sh --pane-id $PANE \
   "export RUNTIME_SESSION_ID=<id> RUNTIME_HOOKS_URL=http://localhost:9090"
 
@@ -201,6 +206,12 @@ sleep 3
 
 # Step 5: 注入目标并回车
 bash scripts/kaku/send.sh --pane-id $PANE "你的任务描述"
+```
+
+**快速诊断**（检查 hooks 状态）：
+```bash
+bash scripts/cc_hooks/notify_runtime.sh --ensure-registered
+cat ~/.claude/settings.json | jq '.hooks | keys'
 ```
 
 ---
