@@ -159,6 +159,9 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	if deps.HooksBridge != nil {
 		mux.Handle("POST /api/hooks/claude-code", routeHandler("/api/hooks/claude-code", deps.HooksBridge))
 	}
+	if deps.RuntimeHooksBridge != nil {
+		mux.Handle("POST /api/hooks/runtime", routeHandler("/api/hooks/runtime", deps.RuntimeHooksBridge))
+	}
 
 	// ── Health check ──
 

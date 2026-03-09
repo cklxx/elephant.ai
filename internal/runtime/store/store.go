@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"alex/internal/runtime/session"
 )
@@ -114,6 +115,42 @@ func (s *Store) Delete(id string) error {
 	return err
 }
 
+// AppendEvent appends a serialised event line to <dir>/<session-id>.events.jsonl.
+// The file is created on first write. Errors are silently ignored to keep
+// event persistence from blocking the hot path.
+func (s *Store) AppendEvent(sessionID string, eventType string, payload map[string]any) {
+	if sessionID == "" {
+		return
+	}
+	entry := make(map[string]any, len(payload)+2)
+	for k, v := range payload {
+		entry[k] = v
+	}
+	entry["session_id"] = sessionID
+	entry["type"] = eventType
+	entry["at"] = time.Now().UTC().Format(time.RFC3339Nano)
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return
+	}
+
+	path := s.eventsPath(sessionID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.Write(append(data, '\n'))
+}
+
 func (s *Store) path(id string) string {
 	return filepath.Join(s.dir, id+".json")
+}
+
+func (s *Store) eventsPath(id string) string {
+	return filepath.Join(s.dir, id+".events.jsonl")
 }

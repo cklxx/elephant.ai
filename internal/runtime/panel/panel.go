@@ -17,6 +17,14 @@ import (
 	"time"
 )
 
+// ManagerIface is the interface satisfied by Manager.
+// It allows adapters to accept a mock in tests without requiring a real Kaku binary.
+type ManagerIface interface {
+	Split(ctx context.Context, opts SplitOpts) (*Pane, error)
+	List(ctx context.Context) (string, error)
+	SetTabTitle(ctx context.Context, tabID int, title string) error
+}
+
 const (
 	defaultKakuBin     = "/Applications/Kaku.app/Contents/MacOS/kaku"
 	defaultSplitBottom = "bottom"

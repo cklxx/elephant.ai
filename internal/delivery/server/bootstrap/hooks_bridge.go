@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"alex/internal/app/di"
 	"alex/internal/delivery/server"
+	"alex/internal/runtime/hooks"
 	"alex/internal/shared/logging"
 )
 
@@ -25,4 +26,12 @@ func buildHooksBridge(cfg Config, container *di.Container, logger logging.Logger
 		cfg.HooksBridge.DefaultChatID,
 		logger,
 	)
+}
+
+// buildRuntimeHooksHandler creates a RuntimeHooksHandler that translates
+// Claude Code hook events into runtime lifecycle events on an in-process bus.
+// Returns the handler and the bus (so callers can subscribe to events).
+func buildRuntimeHooksHandler(logger logging.Logger) (*server.RuntimeHooksHandler, hooks.Bus) {
+	bus := hooks.NewInProcessBus()
+	return server.NewRuntimeHooksHandler(bus, logger), bus
 }

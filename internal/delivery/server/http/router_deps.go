@@ -26,6 +26,7 @@ type RouterDeps struct {
 	LarkOAuthHandler       *LarkOAuthHandler
 	MemoryEngine           MemoryEngine
 	HooksBridge            http.Handler // optional: Claude Code hooks → Lark bridge
+	RuntimeHooksBridge     http.Handler // optional: Claude Code hooks → runtime event bus
 }
 
 // RouterConfig holds configuration values for the HTTP router.

@@ -305,3 +305,138 @@ func (p *KakuPanel) Kill() error {
 ```
 
 P0 Runtime Skeleton 无需实现 pty 管理，直接封装 `kaku cli` shell 调用即可。用户在 Kaku GUI 中实时可见所有执行过程。
+
+---
+
+## 8. Hooks 事件流（P1）
+
+### notify_runtime.sh 配置
+
+ClaudeCodeAdapter 会在启动 CC 前注入环境变量，并期望 CC 的 settings.json 配置了如下 hooks：
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [{
+      "hooks": [{ "type": "command",
+        "command": "/path/to/scripts/cc_hooks/notify_runtime.sh",
+        "async": true }]
+    }],
+    "Stop": [{
+      "hooks": [{ "type": "command",
+        "command": "/path/to/scripts/cc_hooks/notify_runtime.sh",
+        "async": true }]
+    }]
+  }
+}
+```
+
+### 事件映射表
+
+| CC Hook | RuntimeHooksHandler 转化 | 含义 |
+|---|---|---|
+| PostToolUse | `EventHeartbeat` | CC 正在工作 |
+| PreToolUse | `EventHeartbeat` | CC 准备用工具 |
+| Stop (end_turn) | `EventCompleted` | 成功完成 |
+| Stop (error) | `EventFailed` | 错误退出 |
+
+### 手动测试 hooks endpoint
+
+```bash
+# 测试 heartbeat
+curl -X POST "http://localhost:8080/api/hooks/runtime?session_id=rs-test" \
+  -H "Content-Type: application/json" \
+  -d '{"hook_event_name":"PostToolUse","tool_name":"Bash"}'
+
+# 测试 completed
+curl -X POST "http://localhost:8080/api/hooks/runtime?session_id=rs-test" \
+  -H "Content-Type: application/json" \
+  -d '{"hook_event_name":"Stop","stop_reason":"end_turn","answer":"done"}'
+```
+
+---
+
+## 9. alex runtime CLI（P3）
+
+### Session 生命周期命令
+
+```bash
+# 启动（使用当前 pane 作为父 pane，CC 在新 pane 中运行）
+alex runtime session start \
+  --member claude_code \
+  --goal "统计 Go 文件数量" \
+  --work-dir . \
+  --parent-pane-id $KAKU_PANE_ID
+
+# 列出所有 session
+alex runtime session list
+
+# 只看运行中
+alex runtime session list --state running
+
+# 查看详情（JSON）
+alex runtime session status rs-abc12345
+
+# 注入文本（解封 stalled session）
+alex runtime session inject --id rs-abc12345 --message "请继续"
+
+# 停止
+alex runtime session stop --id rs-abc12345
+```
+
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `KAKU_PANE_ID` | — | 自动传入 `--parent-pane-id` |
+| `KAKU_STORE_DIR` | `~/.kaku/sessions` | 持久化目录 |
+
+---
+
+## 10. Stall 检测与 Leader Agent（P2）
+
+### Stall 检测流程
+
+```
+StallDetector（每 60s 扫描）
+  → ScanStalled(threshold=60s)
+  → bus.Publish(EventStalled)
+  → LeaderAgent.handleStall()
+     → LLM prompt: "session stalled for X — inject/fail/escalate?"
+     → INJECT <message>  → rt.InjectText()
+     → FAIL <reason>     → rt.MarkFailed()
+     → ESCALATE          → bus.Publish(EventHandoffRequired)
+```
+
+### 查看 session 事件历史
+
+```bash
+# 所有事件
+cat ~/.kaku/sessions/rs-abc12345.events.jsonl | jq .
+
+# 只看 stall 事件
+cat ~/.kaku/sessions/rs-abc12345.events.jsonl | jq 'select(.type == "stalled")'
+
+# 监控实时事件流
+tail -f ~/.kaku/sessions/*.events.jsonl | jq -r '"\(.type) \(.session_id)"'
+```
+
+---
+
+## 11. 多 Session 编排（DependencyScheduler）
+
+```go
+// 创建 engine
+engine := scheduler.NewEngine(rt, rt.Bus(), parentPaneID)
+
+// 注册 sessions（串行）
+ids, _ := engine.Schedule(ctx, []scheduler.SessionSpec{
+    {Member: session.MemberClaudeCode, Goal: "phase 1"},
+})
+engine.Schedule(ctx, []scheduler.SessionSpec{
+    {Member: session.MemberCodex, Goal: "phase 2", DependsOn: ids},
+})
+
+// 开始调度（阻塞直到所有完成）
+engine.Run(ctx)
+```
