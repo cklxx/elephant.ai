@@ -37,8 +37,6 @@ func buildToolRoutingSection() string {
 		"Exhaust deterministic tools (read_file, shell_exec) before asking the user.",
 		"Probe capabilities (command -v, --version) before declaring unavailable.",
 		"NEVER use ask_user for explicit operational asks; execute with the concrete tool.",
-		"NEVER expose secrets in prompts/outputs; redact sensitive tokens by default.",
-		"NEVER skip user consent for high-impact, irreversible, or external actions.",
 		"NEVER declare a tool unavailable without probing first.",
 	})
 }

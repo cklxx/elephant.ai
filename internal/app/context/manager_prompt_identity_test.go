@@ -7,7 +7,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 )
 
-func TestBuildIdentitySectionIncludesIdentityFileLocations(t *testing.T) {
+func TestBuildIdentitySectionIncludesPersonaAttributes(t *testing.T) {
 	section := buildIdentitySection(agent.PersonaProfile{
 		ID:            "default",
 		Voice:         "You are eli.",
@@ -16,13 +16,14 @@ func TestBuildIdentitySectionIncludesIdentityFileLocations(t *testing.T) {
 		RiskProfile:   "calibrated",
 	})
 
-	if !strings.Contains(section, "SOUL.md: ~/.alex/memory/SOUL.md") {
-		t.Fatalf("expected SOUL.md path hint in identity section, got: %s", section)
-	}
-	if !strings.Contains(section, "USER.md: ~/.alex/memory/USER.md") {
-		t.Fatalf("expected USER.md path hint in identity section, got: %s", section)
-	}
-	if !strings.Contains(section, "docs/reference/SOUL.md") {
-		t.Fatalf("expected persona source path hint in identity section, got: %s", section)
+	for _, snippet := range []string{
+		"You are eli.",
+		"Tone: pragmatic",
+		"Decision Style: evidence-first",
+		"Risk Profile: calibrated",
+	} {
+		if !strings.Contains(section, snippet) {
+			t.Fatalf("expected identity section to contain %q, got: %s", snippet, section)
+		}
 	}
 }

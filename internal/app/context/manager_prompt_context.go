@@ -6,7 +6,6 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/shared/utils"
 )
 
 const defaultPersonaVoice = "You are ALEX, an enterprise-grade assistant focused on secure, testable software delivery."
@@ -35,11 +34,6 @@ func buildIdentitySection(persona agent.PersonaProfile) string {
 		builder.WriteString("\n")
 		builder.WriteString(meta)
 	}
-	builder.WriteString("\n")
-	builder.WriteString(formatBulletList([]string{
-		"SOUL.md: ~/.alex/memory/SOUL.md (canonical source: docs/reference/SOUL.md)",
-		"USER.md: ~/.alex/memory/USER.md",
-	}))
 	return strings.TrimSpace(builder.String())
 }
 
@@ -229,17 +223,7 @@ func buildWorkspaceFilesSection(records []bootstrapRecord) string {
 	return formatSection("# Workspace Files", lines)
 }
 
-func buildSandboxSection(toolMode string, omitEnvironment bool) string {
-	mode := utils.TrimLower(toolMode)
-	status := "enabled"
-	if omitEnvironment || mode == "web" {
-		status = "channel-managed/non-local"
-	}
-	return formatSection("# Sandbox", []string{
-		fmt.Sprintf("Tool mode: %s", fallbackString(mode, "cli")),
-		fmt.Sprintf("Sandbox context: %s", status),
-	})
-}
+// buildSandboxSection removed — sandbox concept retired; tool mode lives in Runtime section.
 
 func buildTimezoneSection(tz string) string {
 	zone := strings.TrimSpace(tz)
@@ -267,9 +251,6 @@ func buildReasoningSection() string {
 	return formatSection("# Reasoning", []string{
 		"Structure: conclusion → key context → supporting detail. Omit detail tiers that add no decision value.",
 		"Match verbosity to channel: concise for chat, thorough for reports and analysis.",
-		"NEVER switch reasoning verbosity unless explicitly requested by the user.",
-		"NEVER emit internal chain-of-thought to channels that expect concise output.",
-		"NEVER suppress reasoning traces in channels that expect step-by-step visibility.",
 	})
 }
 
@@ -296,9 +277,6 @@ func buildEnvironmentSection(static agent.StaticContext) string {
 	}
 	if len(static.World.CostModel) > 0 {
 		lines = append(lines, fmt.Sprintf("Cost awareness: %s", strings.Join(static.World.CostModel, ", ")))
-	}
-	if len(static.Tools) > 0 {
-		lines = append(lines, fmt.Sprintf("Tool access: %s", strings.Join(static.Tools, ", ")))
 	}
 	if len(lines) == 0 {
 		return ""

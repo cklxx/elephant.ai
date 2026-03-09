@@ -15,8 +15,6 @@ func TestBuildToolRoutingSectionIncludesDeterministicAndMemoryBoundaries(t *test
 		"Exhaust deterministic tools",
 		"Probe capabilities",
 		"NEVER use ask_user for explicit",
-		"NEVER expose secrets",
-		"NEVER skip user consent",
 		"NEVER declare a tool unavailable",
 	} {
 		if !strings.Contains(section, snippet) {
@@ -40,13 +38,12 @@ func TestBuildSafetySectionIncludesNeverRules(t *testing.T) {
 	}
 }
 
-func TestBuildReasoningSectionIncludesNeverRules(t *testing.T) {
+func TestBuildReasoningSectionIncludesCoreGuidance(t *testing.T) {
 	t.Parallel()
 	section := buildReasoningSection()
 	for _, snippet := range []string{
-		"NEVER switch reasoning verbosity",
-		"NEVER emit internal chain-of-thought",
-		"NEVER suppress reasoning traces",
+		"conclusion",
+		"Match verbosity to channel",
 	} {
 		if !strings.Contains(section, snippet) {
 			t.Fatalf("expected reasoning section to contain %q", snippet)

@@ -14,7 +14,6 @@ type systemPromptInput struct {
 	Logger           logging.Logger
 	Static           agent.StaticContext
 	Dynamic          agent.DynamicContext
-	Meta             agent.MetaContext
 	Memory           string
 	OmitEnvironment  bool
 	TaskInput        string
@@ -29,7 +28,6 @@ type systemPromptInput struct {
 	OKRContext       string
 	SOPSummaryOnly   bool   // If true, only show SOP references without full content
 	Unattended       bool   // If true, inject autonomous behavior override (no user interaction)
-	Channel          string // Delivery channel for format-aware sections (e.g. "lark")
 	ChannelHint      string // Pre-rendered channel-specific formatting hint
 }
 
@@ -59,7 +57,6 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildSkillsSection(input.Logger, input.TaskInput, input.Messages, input.SessionID, input.SkillsConfig),
 		buildWorkspaceSection(),
 		buildWorkspaceFilesSection(input.BootstrapRecords),
-		buildSandboxSection(input.ToolMode, input.OmitEnvironment),
 		buildTimezoneSection(input.PromptTimezone),
 		buildReplyTagsSection(input.ReplyTagsEnabled),
 		buildRuntimeSection(input.Static.Tools, input.ToolMode),

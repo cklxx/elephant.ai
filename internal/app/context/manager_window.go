@@ -98,7 +98,6 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		Logger:           m.logger,
 		Static:           window.Static,
 		Dynamic:          window.Dynamic,
-		Meta:             window.Meta,
 		Memory:           memorySnapshot,
 		OmitEnvironment:  omitEnvironment,
 		TaskInput:        cfg.TaskInput,
@@ -113,7 +112,6 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		OKRContext:       cfg.OKRContext,
 		SOPSummaryOnly:   true, // Default to summary-only mode for token optimization
 		Unattended:       cfg.Unattended,
-		Channel:          cfg.Channel,
 		ChannelHint:      cfg.ChannelHint,
 	})
 	if runtimeHistoryChunk != nil {

@@ -208,11 +208,11 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 			t.Fatalf("expected system prompt to include section %q, got %q", section, window.SystemPrompt)
 		}
 	}
-	// Check for concise tool routing rules
+	// Check for concise tool routing + safety rules
 	for _, snippet := range []string{
 		"Exhaust deterministic tools",
-		"NEVER expose secrets",
-		"NEVER skip user consent",
+		"NEVER include secrets",
+		"NEVER execute irreversible actions",
 	} {
 		if !strings.Contains(window.SystemPrompt, snippet) {
 			t.Fatalf("expected routing guardrail snippet %q, got %q", snippet, window.SystemPrompt)
@@ -519,29 +519,14 @@ func TestComposeSystemPromptIncludesMetaLayer(t *testing.T) {
 		TurnID:     1,
 		LLMTurnSeq: 2,
 	}
-	memoTime := time.Date(2024, time.January, 2, 0, 0, 0, 0, time.UTC)
-	meta := agent.MetaContext{
-		PersonaVersion: "persona-v2",
-		Memories: []agent.MemoryFragment{{
-			Key:       "user-pref",
-			Content:   "Prefers Go",
-			CreatedAt: memoTime,
-			Source:    "memory",
-		}},
-		Recommendations: []string{"Prioritize secure defaults"},
-	}
 
 	prompt := composeSystemPrompt(systemPromptInput{
 		Static:  static,
 		Dynamic: dynamic,
-		Meta:    meta,
 	})
-	// Meta section (persona version) was removed from prompt — verify it's absent
-	if strings.Contains(prompt, "Persona version: persona-v2") {
-		t.Fatalf("expected persona version to NOT appear in prompt after meta section removal, got %q", prompt)
-	}
-	if strings.Contains(prompt, "Prefers Go") || strings.Contains(prompt, "Prioritize secure defaults") || strings.Contains(prompt, memoTime.Format("2006-01-02")) {
-		t.Fatalf("expected runtime memories/recommendations to stay out of static prompt, got %q", prompt)
+	// Meta section was removed — verify meta content stays out of static prompt
+	if strings.Contains(prompt, "Persona version") {
+		t.Fatalf("expected persona version to NOT appear in prompt, got %q", prompt)
 	}
 }
 
