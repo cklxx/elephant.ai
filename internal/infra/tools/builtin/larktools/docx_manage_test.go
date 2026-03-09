@@ -1230,7 +1230,7 @@ func TestChannel_UpdateDocBlock_E2E(t *testing.T) {
 
 func TestDocx_FullLifecycle(t *testing.T) {
 	callCount := 0
-	srv, ctx := larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+	srv, ctx := larkTestServerWithDocxConvertMock(t, func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		path := r.URL.Path
 
@@ -1255,9 +1255,6 @@ func TestDocx_FullLifecycle(t *testing.T) {
 					"revision_id": 1,
 				},
 			})
-
-		case r.Method == http.MethodPost && isDocxBlocksConvertRoute(path):
-			writeDocxConvertSuccess(t, w, "tmp_blk_lc_1", "doc_lifecycle_001")
 
 		case r.Method == http.MethodPost && isDocxDescendantRoute(path, "doc_lifecycle_001", "doc_lifecycle_001"):
 			writeJSON(t, w, 0, "ok", map[string]any{
