@@ -52,10 +52,8 @@ func startRuntimeBusLogger(ctx context.Context, bus hooks.Bus, logger logging.Lo
 				if !ok {
 					return
 				}
-				logger.Info("runtime_bus_event",
-					"type", string(ev.Type),
-					"session_id", ev.SessionID,
-					"at", ev.At.Format("15:04:05"),
+				logger.Info("runtime_bus_event type=%s session_id=%s at=%s",
+					string(ev.Type), ev.SessionID, ev.At.Format("15:04:05"),
 				)
 			}
 		}
