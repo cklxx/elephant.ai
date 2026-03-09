@@ -4,9 +4,18 @@ description: 统一飞书 CLI（auth/tool/api/help），支持渐进式帮助，
 triggers:
   intent_patterns:
     - "feishu cli|飞书cli|飞书工具|lark api|飞书授权|oauth"
+    - "日历|日程|calendar|会议|meeting|视频会议"
+    - "通讯录|contact|用户查询|部门"
+    - "云文档|document|docx|创建文档|读取文档"
+    - "云盘|drive|文件管理|文件夹"
+    - "邮件|email|mail|邮件组"
+    - "多维表格|bitable|表格记录"
+    - "OKR|目标管理|okr"
+    - "电子表格|spreadsheet|sheets"
+    - "知识库|wiki|知识空间"
   context_signals:
-    keywords: ["feishu", "lark", "oauth", "calendar", "docx", "wiki", "drive", "bitable"]
-  confidence_threshold: 0.5
+    keywords: ["feishu", "lark", "oauth", "calendar", "docx", "wiki", "drive", "bitable", "contact", "mail", "okr", "sheets", "meeting", "spreadsheet"]
+  confidence_threshold: 0.4
 priority: 8
 requires_tools: [bash]
 max_tokens: 300

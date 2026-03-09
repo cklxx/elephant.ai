@@ -106,13 +106,6 @@
       "sourcePath": "skills/moltbook-posting/SKILL.md"
     },
     {
-      "name": "music-discovery",
-      "title": "music-discovery",
-      "description": "音乐发现 — 搜索 iTunes API 查找歌曲/专辑/艺人信息。",
-      "markdown": "# music-discovery\n\n音乐搜索和发现：通过 iTunes Search API 查找歌曲。\n\n## 调用\n\n```bash\npython3 skills/music-discovery/run.py search --query '周杰伦 晴天'\n```",
-      "sourcePath": "skills/music-discovery/SKILL.md"
-    },
-    {
       "name": "notebooklm-cli",
       "title": "notebooklm-cli",
       "description": "NotebookLM 独立 CLI skill：本地直接调 `nlm`，统一 `command/op`，返回结构化结果。",
@@ -141,13 +134,6 @@
       "sourcePath": "skills/self-test/SKILL.md"
     },
     {
-      "name": "social-trends",
-      "title": "social-trends",
-      "description": "社交媒体热点趋势分析（抖音、微博、小红书等）。",
-      "markdown": "# social-trends\n\n社交媒体热点趋势分析。\n\n## 调用\n\n```bash\npython3 skills/social-trends/run.py --platform douyin --limit 20\n```\n\n## 参数\n\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| platform | string | 否 | 平台（douyin/weibo/all），默认 all |\n| limit | int | 否 | 返回条数，默认 20 |\n| query | string | 否 | 关键词过滤 |",
-      "sourcePath": "skills/social-trends/SKILL.md"
-    },
-    {
       "name": "soul-self-evolution",
       "title": "soul-self-evolution",
       "description": "SOUL 自演进技能 — 在不可变段保护下更新可演进人格/协作策略并支持回滚。",
@@ -174,13 +160,6 @@
       "description": "Generate short videos with Seedance and save validated output files.",
       "markdown": "# video-production\n\nGenerate short videos via ARK Seedance backend.\n\n## Required Env\n- `ARK_API_KEY`\n- `SEEDANCE_ENDPOINT_ID`\n\n## Constraints\n- `action=generate` only.\n- Backend must return a video `url`; missing URL fails fast.\n- Output file must be written and non-empty, otherwise `success=false`.\n- Default output path: `/tmp/seedance_<ts>.mp4`.\n\n## Parameters\n| name | type | required | notes |\n|---|---|---|---|\n| prompt | string | yes | video description |\n| duration | number | no | seconds, default `5` |\n| output | string | no | output path |\n\n## Usage\n\n```bash\npython3 skills/video-production/run.py generate --prompt 'cute cat animation' --duration 5 --output /tmp/cat.mp4\n```",
       "sourcePath": "skills/video-production/SKILL.md"
-    },
-    {
-      "name": "web-page-editing",
-      "title": "web-page-editing",
-      "description": "HTML 内容编辑 — 解析/修改/生成 HTML 页面内容。",
-      "markdown": "# web-page-editing\n\nHTML 内容编辑：解析、修改、生成 HTML 片段。\n\n## 调用\n\n```bash\npython3 skills/web-page-editing/run.py extract --html '<div><p>Hello</p></div>' --selector p\npython3 skills/web-page-editing/run.py generate --template landing --title 'My Page'\n```",
-      "sourcePath": "skills/web-page-editing/SKILL.md"
     }
   ]
 }

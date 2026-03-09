@@ -213,20 +213,6 @@ cases:
     \ to true if the skill content was loaded.\n6) Set `has_python_entrypoint` to\
     \ true and set `exec_command` to \"python3 skills/moltbook-posting/run.py <command>\
     \ [args]\" exactly.\n7) Keep `summary` under 30 words."
-- id: skills-tool-e2e-music-discovery
-  skill_name: music-discovery
-  skill_dir: music-discovery
-  description: 音乐发现 — 搜索 iTunes API 查找歌曲/专辑/艺人信息。
-  has_run_script: true
-  expected_exec_command: python3 skills/music-discovery/run.py <command> [args]
-  prompt: "You are validating repository skill \"music-discovery\".\nMandatory steps:\n\
-    1) Call the `skills` tool with action=show and name=\"music-discovery\".\n2) Do\
-    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
-    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
-    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
-    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
-    \ to true and set `exec_command` to \"python3 skills/music-discovery/run.py <command>\
-    \ [args]\" exactly.\n7) Keep `summary` under 30 words."
 - id: skills-tool-e2e-notebooklm-cli
   skill_name: notebooklm-cli
   skill_dir: notebooklm-cli
@@ -284,20 +270,6 @@ cases:
     \ to true if the skill content was loaded.\n6) Set `has_python_entrypoint` to\
     \ true and set `exec_command` to \"python3 skills/self-test/run.py <command> [args]\"\
     \ exactly.\n7) Keep `summary` under 30 words."
-- id: skills-tool-e2e-social-trends
-  skill_name: social-trends
-  skill_dir: social-trends
-  description: 社交媒体热点趋势分析（抖音、微博、小红书等）。
-  has_run_script: true
-  expected_exec_command: python3 skills/social-trends/run.py <command> [args]
-  prompt: "You are validating repository skill \"social-trends\".\nMandatory steps:\n\
-    1) Call the `skills` tool with action=show and name=\"social-trends\".\n2) Do\
-    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
-    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
-    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
-    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
-    \ to true and set `exec_command` to \"python3 skills/social-trends/run.py <command>\
-    \ [args]\" exactly.\n7) Keep `summary` under 30 words."
 - id: skills-tool-e2e-soul-self-evolution
   skill_name: soul-self-evolution
   skill_dir: soul-self-evolution
@@ -339,18 +311,4 @@ cases:
     4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
     5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
     \ to true and set `exec_command` to \"python3 skills/video-production/run.py <command>\
-    \ [args]\" exactly.\n7) Keep `summary` under 30 words."
-- id: skills-tool-e2e-web-page-editing
-  skill_name: web-page-editing
-  skill_dir: web-page-editing
-  description: HTML 内容编辑 — 解析/修改/生成 HTML 页面内容。
-  has_run_script: true
-  expected_exec_command: python3 skills/web-page-editing/run.py <command> [args]
-  prompt: "You are validating repository skill \"web-page-editing\".\nMandatory steps:\n\
-    1) Call the `skills` tool with action=show and name=\"web-page-editing\".\n2)\
-    \ Do not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
-    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
-    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
-    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
-    \ to true and set `exec_command` to \"python3 skills/web-page-editing/run.py <command>\
     \ [args]\" exactly.\n7) Keep `summary` under 30 words."
