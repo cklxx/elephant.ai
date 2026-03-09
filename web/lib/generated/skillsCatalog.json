@@ -5,224 +5,175 @@
       "title": "AnyGen (CLI + Progressive Skills)",
       "description": "封装 AnyGenIO/anygen-skills 为统一 CLI（help/task），支持渐进式披露与任务执行（task-manager）。",
       "markdown": "# AnyGen (CLI + Progressive Skills)\n\n将上游仓库 `https://github.com/AnyGenIO/anygen-skills` 封装成 elephant.ai 可直接调用的统一入口：\n\n- `help`：渐进式披露（overview → modules → module → action）\n- `task`：执行 `task-manager` 的动作（`create/status/poll/download/run`）\n\n## 快速前置\n\n- 需要环境变量：`ANYGEN_API_KEY=sk-xxx`\n- 入口命令：`python3 skills/anygen/run.py <command> [subcommand] [--flag value ...]`\n\n## 渐进式披露（推荐顺序）\n\n```bash\n# 1) 顶层总览\npython3 skills/anygen/run.py help\n\n# 2) 模块清单\npython3 skills/anygen/run.py help --topic modules\n\n# 3) 查看模块说明\npython3 skills/anygen/run.py help --topic module --module task-manager\n\n# 4) 查看具体动作参数与示例\npython3 skills/anygen/run.py help --topic action --module task-manager --action_name create\n```\n\n## task-manager 执行动作\n\n支持 operation：`chat|slide|doc|storybook|data_analysis|website|smart_draw`\n\n```bash\n# 创建任务\npython3 skills/anygen/run.py task create --operation slide --prompt 'Q2 roadmap deck' --style business\n\n# 查询状态（单次）\npython3 skills/anygen/run.py task status --task_id task_xxx\n\n# 轮询直到结束（可自动下载）\npython3 skills/anygen/run.py task poll --task_id task_xxx --output ./output\n\n# 直接下载完成任务文件\npython3 skills/anygen/run.py task download --task_id task_xxx --output ./output\n\n# 一步式 create + poll (+可下载)\npython3 skills/anygen/run.py task run --operation doc --prompt 'Technical design for notification service' --output ./output\n```\n\n## 模块边界\n\n- `task-manager`：本封装可执行。\n- `finance-report`：当前提供引导说明（help 可见），不在此 skill 内直接执行。\n\n## 兼容说明\n\n- 输入支持 `command` 或 `action` 作为顶层命令名。\n- 当 `action=create/status/poll/download/run` 时，会自动路由到 `task` 命令。",
-      "sourcePath": "skills/anygen/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/anygen/SKILL.md"
     },
     {
       "name": "artifact-management",
       "title": "artifact-management",
       "description": "工件管理 — 创建/查询/删除持久化文件工件（报告、文档、证据）。",
       "markdown": "# artifact-management\n\n管理持久化工件：创建、列表、读取、删除。\n\n## 调用\n\n```bash\npython3 skills/artifact-management/run.py create --name report.md --content '# Report'\npython3 skills/artifact-management/run.py list\npython3 skills/artifact-management/run.py read --name report.md\npython3 skills/artifact-management/run.py delete --name report.md\n```",
-      "sourcePath": "skills/artifact-management/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/artifact-management/SKILL.md"
     },
     {
       "name": "audio-tts",
       "title": "audio-tts",
       "description": "本地 TTS 语音生成（macOS say + afconvert），输出 m4a 文件。",
       "markdown": "# audio-tts\n\n使用 macOS 自带 `say` 生成语音，并转成 m4a。\n\n## Requirements\n- macOS（内置 `say`）\n- `afconvert`（macOS 自带）\n\n## Usage\n\n```bash\npython3 skills/audio-tts/run.py speak --text '你好，这是语音测试'\n```\n\n## Parameters\n\n### speak\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| text | string | 是 | 朗读文本 |\n| voice | string | 否 | voice 名称（如 Ting-Ting / Samantha），默认空（系统默认） |\n| rate | int | 否 | 语速 WPM（say 的 -r 参数） |\n| output | string | 否 | 输出路径（默认 /tmp/tts_<ts>.m4a） |\n```",
-      "sourcePath": "skills/audio-tts/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/audio-tts/SKILL.md"
     },
     {
       "name": "auto-skill-creation",
       "title": "auto-skill-creation",
       "description": "自动创建技能并将重复流程沉淀为技能，支持使用 Codex/Claude 等外部代理执行任务并生成技能文件。",
       "markdown": "# auto-skill-creation\n\nAutomatically create new skills from repeated task patterns by dispatching to external agents (Codex/Claude), collecting results, and generating compliant skill directory structures. All task dispatch, status monitoring, and file generation logic are handled by run.py.\n\n## 调用\n\n```bash\npython3 skills/auto-skill-creation/run.py create --skill_name my-new-skill --description 'What the skill does' --agent_type codex\n```",
-      "sourcePath": "skills/auto-skill-creation/SKILL.md"
-    },
-    {
-      "name": "bitable-data",
-      "title": "bitable-data",
-      "description": "飞书多维表格的表、记录、字段管理，支持数据查询和写入。",
-      "markdown": "# bitable-data\n\n飞书多维表格管理：表 CRUD、记录查询与写入、字段查看。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `list_bitable_tables` | 列出应用下的所有数据表 |\n| `list_bitable_records` | 查询表中的记录 |\n| `create_bitable_record` | 创建新记录 |\n| `update_bitable_record` | 更新已有记录 |\n| `delete_bitable_record` | 删除记录 |\n| `list_bitable_fields` | 列出表的字段定义 |\n\n## 参数\n\n### list_bitable_tables\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 多维表格应用 token |\n| page_size | integer | 否 | 每页数量 |\n| page_token | string | 否 | 分页 token |\n\n### list_bitable_records\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 应用 token |\n| table_id | string | 是 | 表 ID |\n| page_size | integer | 否 | 每页数量 |\n| page_token | string | 否 | 分页 token |\n\n### create_bitable_record\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 应用 token |\n| table_id | string | 是 | 表 ID |\n| fields | object | 是 | 字段 key-value 映射 |\n\n### update_bitable_record\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 应用 token |\n| table_id | string | 是 | 表 ID |\n| record_id | string | 是 | 记录 ID |\n| fields | object | 是 | 要更新的字段 |\n\n### delete_bitable_record\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 应用 token |\n| table_id | string | 是 | 表 ID |\n| record_id | string | 是 | 记录 ID |\n\n### list_bitable_fields\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| app_token | string | 是 | 应用 token |\n| table_id | string | 是 | 表 ID |\n\n## 示例\n\n```\n查看表的字段定义\n→ channel(action=\"list_bitable_fields\", app_token=\"appXXX\", table_id=\"tblXXX\")\n\n查询所有记录\n→ channel(action=\"list_bitable_records\", app_token=\"appXXX\", table_id=\"tblXXX\")\n\n创建一条记录\n→ channel(action=\"create_bitable_record\", app_token=\"appXXX\", table_id=\"tblXXX\", fields={\"Name\":\"Alice\",\"Score\":\"95\"})\n```\n\n## 自动执行原则\n\n- **链式自动发现**：用户提供 app_token 后，自动调用 `list_bitable_tables` 获取所有表，再自动 `list_bitable_fields` 获取字段定义，不要中间问用户。\n- **禁止交互式菜单**：不要给出 table_id 列表让用户选择，如果只有一个表则直接使用，多个表时按名称匹配用户意图。\n- **字段智能映射**：写入记录时根据字段定义自动转换类型，不要问用户字段名怎么写。\n- **分页自动处理**：数据量大时自动翻页获取全部数据，不要问用户\"要继续获取下一页吗\"。\n\n## 安全等级\n\n- `list_bitable_tables` / `list_bitable_records` / `list_bitable_fields`: L1 只读\n- `create_bitable_record` / `update_bitable_record`: L3 高影响\n- `delete_bitable_record`: L4 不可逆\n\n## 链式组合\n\n- 与 `deep-research` skill 组合：研究数据写入多维表格进行可视化\n- 与 `okr-management` skill 组合：OKR 进度数据同步到多维表格看板",
-      "sourcePath": "skills/bitable-data/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/auto-skill-creation/SKILL.md"
     },
     {
       "name": "browser-use",
       "title": "browser-use",
       "description": "浏览器自动化 — 通过 Playwright MCP Extension Relay 控制用户已登录的 Chrome，复用 cookies/session。",
       "markdown": "# browser-use\n\n通过 Playwright MCP Extension Relay 控制用户当前 Chrome 浏览器，复用已登录的 session。\n\n## 前置条件\n\n1. Chrome 安装了 [Playwright MCP Bridge](https://chromewebstore.google.com/detail/playwright-mcp-bridge/mmlmfjhmonkocbjadbfplnigmagldckm) 扩展\n2. `.env` 中配置了 `ALEX_BROWSER_BRIDGE_TOKEN`（从扩展弹窗复制）\n\n## 调用\n\n```bash\n# 导航到 URL\npython3 skills/browser-use/run.py navigate --url https://x.com\n\n# 获取页面快照（无障碍树）\npython3 skills/browser-use/run.py snapshot\n\n# 点击元素（ref 来自 snapshot）\npython3 skills/browser-use/run.py click --ref e44 --element 'Home link'\n\n# 输入文本\npython3 skills/browser-use/run.py type --ref e100 --text hello --submit true\n\n# 截图\npython3 skills/browser-use/run.py screenshot --filename page.png\n\n# 管理标签页\npython3 skills/browser-use/run.py tabs list\n\n# 执行 JavaScript\npython3 skills/browser-use/run.py evaluate --function '() => document.title'\n\n# 执行 Playwright 代码\npython3 skills/browser-use/run.py run_code --code 'async (page) => await page.title()'\n\n# 按键\npython3 skills/browser-use/run.py press_key --key Enter\n\n# 等待文本出现\npython3 skills/browser-use/run.py wait_for --text 'Loading complete'\n```\n\n## 典型工作流\n\n1. `navigate` → 打开目标页面\n2. `snapshot` → 获取页面结构和元素 ref\n3. `click` / `type` → 与页面交互\n4. `snapshot` → 确认结果",
-      "sourcePath": "skills/browser-use/SKILL.md"
-    },
-    {
-      "name": "calendar-management",
-      "title": "calendar-management",
-      "description": "日历事件的创建、查询、修改、删除管理。",
-      "markdown": "# calendar-management\n\n日历事件管理：创建、查询、修改、删除。\n\n## 调用\n\n```bash\npython3 skills/calendar-management/run.py '{\"action\":\"create\", \"title\":\"周会\", \"start\":\"2026-02-10 14:00\", \"duration\":\"60m\", \"attendees\":[\"user@example.com\"]}'\npython3 skills/calendar-management/run.py '{\"action\":\"query\", \"start\":\"2026-02-10\", \"end\":\"2026-02-14\"}'\npython3 skills/calendar-management/run.py '{\"action\":\"delete\", \"event_id\":\"evt_xxx\"}'\n```\n\n## 参数\n\n### create\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| title | string | 是 | 事件标题 |\n| start | string | 是 | 开始时间 (YYYY-MM-DD HH:MM) |\n| duration | string | 否 | 时长（30m/1h/2h），默认 60m |\n| attendees | string[] | 否 | 参会者邮箱列表 |\n| description | string | 否 | 事件描述 |\n\n### query\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| start | string | 是 | 查询开始日期 |\n| end | string | 否 | 查询结束日期 |\n\n### delete / update\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| event_id | string | 是 | 事件 ID |\n\n## 自动执行原则\n\n- **时间自动计算**：用户说\"帮我明天下午 3 点开个会\"时，自动计算 start 时间为明天 15:00，不要问用户提供精确格式。\n- **duration 有默认值**：不提供则默认 60m，不要问用户时长。\n- **attendees 可选**：不提供则仅创建给自己的日程，不要问用户参会者列表。\n- **自然语言查询**：用户说\"这周的日程\"时，自动计算本周的 start/end，不要问用户提供日期。\n- **禁止交互式菜单**：不要给出 [1] [2] [3] 选项，直接执行最合理的操作。",
-      "sourcePath": "skills/calendar-management/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/browser-use/SKILL.md"
     },
     {
       "name": "code-review",
       "title": "code-review",
       "description": "编码完成后的多维度代码审查，覆盖 SOLID 架构、安全性、代码质量、边界条件与清理计划，输出结构化审查报告。",
       "markdown": "# code-review\n\nRun a multi-dimensional code review (SOLID architecture, security, quality, edge cases, cleanup) on the current diff and output a structured report with severity levels (P0-P3). All review checklists, workflow steps, and report generation are handled by run.py.\n\n## 调用\n\n```bash\npython3 skills/code-review/run.py review\n```",
-      "sourcePath": "skills/code-review/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/code-review/SKILL.md"
     },
     {
       "name": "config-management",
       "title": "config-management",
       "description": "配置管理 — 查询/修改 agent 配置参数（YAML 配置文件）。",
       "markdown": "# config-management\n\n查询和修改 agent YAML 配置文件。\n\n## 调用\n\n```bash\npython3 skills/config-management/run.py get --key llm.model\npython3 skills/config-management/run.py set --key llm.model --value gpt-4o\npython3 skills/config-management/run.py list\n```",
-      "sourcePath": "skills/config-management/SKILL.md"
-    },
-    {
-      "name": "contact-lookup",
-      "title": "contact-lookup",
-      "description": "飞书通讯录的用户和部门查询。",
-      "markdown": "# contact-lookup\n\n飞书通讯录查询：查找用户、列出部门成员、查询组织架构。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `get_user` | 查询用户信息 |\n| `list_users` | 列出部门下的用户 |\n| `get_department` | 查询部门信息 |\n| `list_departments` | 列出子部门 |\n\n## 参数\n\n### get_user\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| user_id | string | 否 | 用户 open_id。**省略时自动使用当前发送者的 open_id**，查询\"我是谁\"时无需提供。仅在查询其他人时才需指定。 |\n| user_id_type | string | 否 | ID 类型 (open_id/union_id/user_id，默认 open_id) |\n\n### list_users\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| department_id | string | 是 | 部门 ID |\n| user_id_type | string | 否 | 返回的用户 ID 类型 |\n| page_size | integer | 否 | 每页数量（默认 50） |\n| page_token | string | 否 | 分页 token |\n\n### get_department\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| department_id | string | 是 | 部门 ID |\n\n### list_departments\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| parent_department_id | string | 否 | 父部门 ID（默认根部门） |\n| page_size | integer | 否 | 每页数量（默认 50） |\n| page_token | string | 否 | 分页 token |\n\n## 示例\n\n```\n查看我的信息（自动使用当前用户）\n-> channel(action=\"get_user\")\n\n查找其他用户信息（需指定 user_id）\n-> channel(action=\"get_user\", user_id=\"ou_xxx\")\n\n列出工程部成员\n-> channel(action=\"list_users\", department_id=\"dept_xxx\")\n\n查看部门信息\n-> channel(action=\"get_department\", department_id=\"dept_xxx\")\n\n列出所有顶级部门\n-> channel(action=\"list_departments\")\n```\n\n## 自动执行原则\n\n- **user_id 自动解析**：省略时从当前发送者的 open_id 自动获取，不要向用户询问。\n- **user_id_type 自动默认**：默认使用 `open_id`，不要问用户选哪种 ID 类型。\n- **零参数调用**：用户说\"我是谁\"/\"查看我的信息\"时，直接调用 `channel(action=\"get_user\")`，不需要任何参数。\n- **部门浏览自动执行**：用户说\"看看部门\"时，直接调用 `channel(action=\"list_departments\")` 列出根部门，不要问父部门 ID。\n- **禁止交互式菜单**：不要给出 [1] [2] [3] 选项让用户选择身份类型，直接使用最合理的默认值。\n- **链式自动执行**：查到用户信息后，如果包含部门 ID，可以自动查询部门详情丰富结果。\n\n## 安全等级\n\n- 所有操作: L1 只读，无需审批",
-      "sourcePath": "skills/contact-lookup/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/config-management/SKILL.md"
     },
     {
       "name": "deep-research",
       "title": "deep-research",
       "description": "深度调研技能，多源检索 + 证据汇编 + 结构化报告。",
       "markdown": "# deep-research\n\n多源检索 + 证据汇编 + 结构化报告。\n\n## 调用\n\n```bash\npython3 skills/deep-research/run.py --topic '研究主题' --queries '[\"关键词1\",\"关键词2\"]' --max_results 5 --depth basic\n```\n\n## 参数\n\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| topic | string | 是 | 研究主题 |\n| queries | string[] | 否 | 搜索关键词，默认自动生成 3 条 |\n| max_results | int | 否 | 每条 query 结果数，默认 5 |\n| depth | string | 否 | \"basic\" 或 \"advanced\" |\n| fetch_urls | string[] | 否 | 额外抓取全文的 URL |\n\n## 输出\n\n返回 JSON，包含 `searches`（搜索结果）、`fetched_pages`（抓取页面）、`summary_prompt`（综合提示）。\n\nLLM 拿到结果后，按「问题→发现/证据→置信度→影响/建议」结构化整理。",
-      "sourcePath": "skills/deep-research/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/deep-research/SKILL.md"
     },
     {
       "name": "desktop-automation",
       "title": "desktop-automation",
       "description": "桌面自动化 — 通过 AppleScript 控制 macOS 应用（Atlas、Chrome、Finder 等）。",
       "markdown": "# desktop-automation\n\nmacOS 桌面自动化：运行 AppleScript 控制应用程序。\n\n## 调用\n\n```bash\npython3 skills/desktop-automation/run.py run --script 'tell application \"Finder\" to activate'\npython3 skills/desktop-automation/run.py open_app --app Safari\n```",
-      "sourcePath": "skills/desktop-automation/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/desktop-automation/SKILL.md"
     },
     {
       "name": "diagram-to-image",
       "title": "diagram-to-image",
       "description": "Render Mermaid diagrams to PNG/SVG for sharing.",
       "markdown": "# diagram-to-image\n\nRender Mermaid code into image files.\n\n## Requirements\n- `mmdc` (Mermaid CLI) installed and in PATH.\n- Install command: `npm install -g @mermaid-js/mermaid-cli`\n\n## Constraints\n- `action=render` only.\n- Input field is `code` (Mermaid source).\n- Supported output formats: `png` (default), `svg`.\n- Render timeout: 30s.\n- Default output path: `/tmp/diagram_<ts>.<format>`.\n\n## Usage\n\n```bash\npython3 skills/diagram-to-image/run.py render --code 'graph LR\nA[Client] --> B[API]\nB --> C[(DB)]' --format png --theme default --output /tmp/diagram_arch.png\n```",
-      "sourcePath": "skills/diagram-to-image/SKILL.md"
-    },
-    {
-      "name": "doc-management",
-      "title": "doc-management",
-      "description": "飞书云文档的创建、读取和内容获取。",
-      "markdown": "# doc-management\n\n飞书云文档管理：创建文档、查看文档元信息、获取文档内容。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `create_doc` | 创建新的飞书云文档 |\n| `read_doc` | 获取文档元信息（标题、修订版本等） |\n| `read_doc_content` | 获取文档的原始文本内容 |\n\n## 参数\n\n### create_doc\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| title | string | 否 | 文档标题 |\n| folder_token | string | 否 | 目标文件夹 token |\n\n### read_doc / read_doc_content\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| document_id | string | 是 | 文档 ID |\n\n## 示例\n\n```\n创建一个名为\"周报\"的文档\n→ channel(action=\"create_doc\", title=\"周报\")\n\n读取文档内容\n→ channel(action=\"read_doc_content\", document_id=\"doxcnXXX\")\n```\n\n## 自动执行原则\n\n- **folder_token 可选**：创建文档时省略 folder_token 则创建在用户根目录，不要问用户放哪个文件夹。\n- **title 智能推断**：用户说\"创建一个文档\"时，根据上下文自动生成标题，不要问用户取什么名。\n- **链式自动执行**：读取文档元信息后，如果用户需要内容，自动调用 `read_doc_content`，不要二次确认。\n- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。\n\n## 安全等级\n\n- `read_doc` / `read_doc_content`: L1 只读，无需审批\n- `create_doc`: L3 高影响，需要审批",
-      "sourcePath": "skills/doc-management/SKILL.md"
-    },
-    {
-      "name": "drive-file",
-      "title": "drive-file",
-      "description": "飞书云盘文件和文件夹管理，支持浏览、创建、复制和删除。",
-      "markdown": "# drive-file\n\n飞书云盘管理：浏览文件、创建文件夹、复制和删除文件。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `list_drive_files` | 列出文件夹中的文件 |\n| `create_drive_folder` | 创建新文件夹 |\n| `copy_drive_file` | 复制文件到指定文件夹 |\n| `delete_drive_file` | 删除文件 |\n\n## 参数\n\n### list_drive_files\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| folder_token | string | 否 | 文件夹 token（默认根目录） |\n| page_size | integer | 否 | 每页数量 |\n| page_token | string | 否 | 分页 token |\n\n### create_drive_folder\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| folder_token | string | 否 | 父文件夹 token（默认根目录） |\n| name | string | 是 | 文件夹名称 |\n\n### copy_drive_file\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| file_token | string | 是 | 源文件 token |\n| folder_token | string | 是 | 目标文件夹 token |\n| name | string | 是 | 新文件名 |\n| file_type | string | 否 | 文件类型（默认 file） |\n\n### delete_drive_file\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| file_token | string | 是 | 文件 token |\n| file_type | string | 否 | 文件类型（默认 file） |\n\n## 示例\n\n```\n浏览根目录文件\n→ channel(action=\"list_drive_files\")\n\n创建新文件夹\n→ channel(action=\"create_drive_folder\", name=\"项目资料\")\n\n复制文件到另一个文件夹\n→ channel(action=\"copy_drive_file\", file_token=\"fileXXX\", folder_token=\"folderYYY\", name=\"副本.pdf\")\n```\n\n## 自动执行原则\n\n- **根目录默认**：用户说\"看看我的文件\"时，直接调用 `channel(action=\"list_drive_files\")`，默认列出根目录，不要问 folder_token。\n- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。\n- **链式浏览**：列出文件后如果用户想进入某个文件夹，自动用该文件夹的 token 再次查询。\n- **名称智能推断**：创建文件夹时如果用户没给名称，根据上下文自动命名。\n\n## 安全等级\n\n- `list_drive_files`: L1 只读\n- `create_drive_folder` / `copy_drive_file`: L3 高影响\n- `delete_drive_file`: L4 不可逆",
-      "sourcePath": "skills/drive-file/SKILL.md"
-    },
-    {
-      "name": "email-lark",
-      "title": "email-lark",
-      "description": "飞书邮件组的查询和管理。",
-      "markdown": "# email-lark\n\n飞书邮件组管理：查询邮件组列表、查看邮件组详情、创建邮件组。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `list_mailgroups` | 列出邮件组 |\n| `get_mailgroup` | 获取邮件组详情 |\n| `create_mailgroup` | 创建新的邮件组 |\n\n## 参数\n\n### list_mailgroups\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| page_size | integer | 否 | 每页数量（默认 20） |\n| page_token | string | 否 | 分页 token |\n\n### get_mailgroup\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| mailgroup_id | string | 是 | 邮件组 ID |\n\n### create_mailgroup\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| email | string | 否 | 邮件组地址 |\n| name | string | 否 | 邮件组名称 |\n| description | string | 否 | 邮件组描述 |\n\n## 示例\n\n```\n列出所有邮件组\n-> channel(action=\"list_mailgroups\")\n\n查看邮件组详情\n-> channel(action=\"get_mailgroup\", mailgroup_id=\"mg_xxx\")\n\n创建邮件组\n-> channel(action=\"create_mailgroup\", email=\"team@company.com\", name=\"Team Group\")\n```\n\n## 自动执行原则\n\n- **零参数查询**：用户说\"看看邮件组\"时，直接调用 `channel(action=\"list_mailgroups\")`，不需要任何参数。\n- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。\n- **链式自动执行**：列出邮件组后，如果用户想看详情，自动提取 mailgroup_id 调用 `get_mailgroup`。\n\n## 安全等级\n\n- `list_mailgroups` / `get_mailgroup`: L1 只读，无需审批\n- `create_mailgroup`: L3 高影响，需要审批",
-      "sourcePath": "skills/email-lark/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/diagram-to-image/SKILL.md"
     },
     {
       "name": "feishu-cli",
       "title": "feishu-cli",
       "description": "统一飞书 CLI（auth/tool/api/help），支持渐进式帮助，供 agent 本地直接调用。",
       "markdown": "# feishu-cli\n\n统一的飞书 CLI skill。通过一个运行时处理：\n- `help` 渐进式帮助（适配 LLM 自发现）\n- `auth` 授权与 token 管理\n- `tool` 业务动作（calendar/contact/doc/wiki/drive/sheets/mail/meeting/okr/bitable）\n- `api` 原始 Open API 调用\n\n## 渐进式 help（推荐顺序）\n\n```bash\n# 1) 顶层命令总览\npython3 skills/feishu-cli/run.py '{\"action\":\"help\"}'\n\n# 2) 认证帮助\npython3 skills/feishu-cli/run.py '{\"action\":\"help\",\"topic\":\"auth\"}'\n\n# 3) 查看全部模块\npython3 skills/feishu-cli/run.py '{\"action\":\"help\",\"topic\":\"modules\"}'\n\n# 4) 查看某模块动作\npython3 skills/feishu-cli/run.py '{\"action\":\"help\",\"topic\":\"module\",\"module\":\"calendar\"}'\n\n# 5) 查看某动作参数与示例\npython3 skills/feishu-cli/run.py '{\"action\":\"help\",\"topic\":\"action\",\"module\":\"calendar\",\"action_name\":\"create\"}'\n```\n\n## auth 示例\n\n```bash\n# 查看授权状态\npython3 skills/feishu-cli/run.py '{\"action\":\"auth\",\"subcommand\":\"status\"}'\n\n# 获取租户 token（复用现有 lark_auth）\npython3 skills/feishu-cli/run.py '{\"action\":\"auth\",\"subcommand\":\"tenant_token\"}'\n\n# 生成 OAuth URL（先做 redirect allowlist 预检）\npython3 skills/feishu-cli/run.py '{\"action\":\"auth\",\"subcommand\":\"oauth_url\",\"redirect_uri\":\"https://example.com/callback\",\"scopes\":[\"contact:user.base:readonly\"]}'\n```\n\n## tool 示例\n\n```bash\n# 创建日程\npython3 skills/feishu-cli/run.py '{\"action\":\"tool\",\"module\":\"calendar\",\"tool_action\":\"create\",\"title\":\"周会\",\"start\":\"2026-03-06 10:00\",\"duration\":\"60m\"}'\n\n# 读取文档\npython3 skills/feishu-cli/run.py '{\"action\":\"tool\",\"module\":\"doc\",\"tool_action\":\"read\",\"document_id\":\"doccnxxxx\"}'\n\n# 查询通讯录用户\npython3 skills/feishu-cli/run.py '{\"action\":\"tool\",\"module\":\"contact\",\"tool_action\":\"get_user\",\"user_id\":\"ou_xxx\"}'\n```\n\n## api 示例\n\n```bash\n# 原始 Open API 调用（tenant）\npython3 skills/feishu-cli/run.py '{\"action\":\"api\",\"method\":\"GET\",\"path\":\"/contact/v3/scopes\"}'\n```\n\n## 统一环境变量（建议）\n\n- `LARK_APP_ID`\n- `LARK_APP_SECRET`\n- `LARK_TENANT_TOKEN`（可选，优先直用）\n- `LARK_OPEN_BASE_URL`（可选）\n- `LARK_OAUTH_REDIRECT_URI`（OAuth）\n- `LARK_OAUTH_REDIRECT_ALLOWLIST`（OAuth 预检）\n- `LARK_OAUTH_SCOPES`（OAuth 默认 scope）",
-      "sourcePath": "skills/feishu-cli/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/feishu-cli/SKILL.md"
     },
     {
       "name": "image-creation",
       "title": "image-creation",
       "description": "Generate or refine images with Seedream (text-to-image + image-to-image).",
       "markdown": "# image-creation\n\nGenerate images via Seedream.\n\n## Required Env\n- `ARK_API_KEY` (required)\n- `SEEDREAM_TEXT_ENDPOINT_ID` (optional; fallback: `SEEDREAM_TEXT_MODEL` -> built-in default model)\n- `SEEDREAM_I2I_ENDPOINT_ID` (required for `refine`)\n\n## Constraints\n- Backend minimum pixels: `1920*1920`. Smaller inputs (for example `1024x1024`) are auto-upscaled.\n- `success=true` only when the output file is actually written and non-empty.\n- Backend response must contain `b64_json` or `url`; otherwise the call fails.\n- Default output path is `/tmp` unless `output` is provided.\n- `watermark` defaults to `false` (no \"AI generated\" watermark). Set to `true` only when you explicitly need watermark.\n\n## Usage\n\n```bash\n# Text to image\npython3 skills/image-creation/run.py generate --prompt 'white cat in moonlight' --style realistic --watermark false\n\n# Image to image\npython3 skills/image-creation/run.py refine --image_path /tmp/cat.png --prompt 'add starry sky background' --watermark false\n```\n\n## Parameters\n\n### generate\n| name | type | required | notes |\n|------|------|------|------|\n| prompt | string | yes | image description |\n| style | string | no | style tag (default: `realistic`) |\n| size | string | no | `WIDTHxHEIGHT`, default `1920x1920` |\n| watermark | bool | no | default `false`; whether to enable API watermark |\n| output | string | no | output file path (default `/tmp/seedream_<ts>.png`) |\n\n### refine\n| name | type | required | notes |\n|------|------|------|------|\n| image_path | string | yes | input image path |\n| prompt | string | yes | refinement instruction |\n| watermark | bool | no | default `false`; whether to enable API watermark |\n| output | string | no | output path (default `/tmp/seedream_refined_<ts>.png`) |",
-      "sourcePath": "skills/image-creation/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/image-creation/SKILL.md"
     },
     {
       "name": "json-render-templates",
       "title": "json-render-templates",
       "description": "Json-render protocol templates for flowchart, form, dashboard, info cards, gallery, table, kanban, and diagram.",
       "markdown": "# json-render-templates\n\nGenerate json-render protocol payloads for visual layouts: flowcharts, forms, dashboards, info cards, galleries, tables, kanban boards, and diagrams. All templates and serialization logic are handled by run.py.\n\n## 调用\n\n```bash\npython3 skills/json-render-templates/run.py render --template dashboard --title 'Product Dashboard' --data '{\"metrics\":[{\"label\":\"Active users\",\"value\":12450}]}'\n```",
-      "sourcePath": "skills/json-render-templates/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/json-render-templates/SKILL.md"
     },
     {
       "name": "kaku-runtime",
       "title": "kaku-runtime",
       "description": ">",
       "markdown": "# kaku-runtime\n\nKaku 终端面板控制与多 session 运行时管理。\n\n## ⚠️ 关键规则（违反会静默失败）\n\n### 规则 1：提交必须用 `--no-paste $'\\r'`，不能用 `\\n`\n\n```bash\n# ✅ 正确 — 触发真实回车键\nkaku cli send-text --pane-id $PANE \"你的任务\"\nkaku cli send-text --no-paste --pane-id $PANE $'\\r'\n\n# ❌ 错误 — \\n 在交互式 CLI（CC/Codex）中不会触发提交\nkaku cli send-text --pane-id $PANE \"你的任务\\n\"\nkaku cli send-text --no-paste --pane-id $PANE $'\\n'\n```\n\n### 规则 2：启动 CC 前必须 `unset CLAUDECODE`\n\n```bash\n# ✅ 正确\nkaku cli send-text --pane-id $PANE \"unset CLAUDECODE && claude --dangerously-skip-permissions\"\nkaku cli send-text --no-paste --pane-id $PANE $'\\r'\n\n# ❌ 错误 — 嵌套 session 会报错退出\nkaku cli send-text --pane-id $PANE \"claude --dangerously-skip-permissions\"\n```\n\n### 规则 3：创建 pane 用 `split-pane`，不用 `spawn`\n\n```bash\n# ✅ 正确 — 挂在现有窗口，pane 不会消失\nPANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 65 --cwd $DIR -- bash -l)\n\n# ❌ 错误 — spawn 的 pane 在命令退出后消失\nkaku cli spawn --cwd $DIR -- bash -l\n```\n\n---\n\n## 1. Pane 基础操作\n\n```bash\n# 查看所有 pane（输出列：WINID TABID PANEID WORKSPACE SIZE TITLE CWD）\nkaku cli list\n\n# 拆分 pane（返回新 pane ID）\n# 方向标志：--bottom / --top / --left / --right（--horizontal 等同 --right）\nPANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 65 --cwd $DIR -- bash -l)\n\n# 注入文本（不提交，bracketed-paste 模式）\nkaku cli send-text --pane-id $PANE \"文本内容\"\n\n# 提交（⚠️ $'\\r' 不是 $'\\n'）\nkaku cli send-text --no-paste --pane-id $PANE $'\\r'\n\n# 注入并提交（shell 命令）\nkaku cli send-text --pane-id $PANE \"ls -la\"\nkaku cli send-text --no-paste --pane-id $PANE $'\\r'\n\n# 读取屏幕（当前可见区域）\nkaku cli get-text --pane-id $PANE | tail -20\n\n# 读取滚动历史（负数 = 向上滚动，例如 -100 表示 100 行前）\nkaku cli get-text --pane-id $PANE --start-line -100\n\n# 聚焦 / 关闭\nkaku cli activate-pane --pane-id $PANE\nkaku cli kill-pane --pane-id $PANE\n\n# 设置 tab 标题（用 --pane-id 通过 pane 找到所在 tab）\nkaku cli set-tab-title --pane-id $PANE \"任务名称\"\n# 或直接指定 tab ID\nkaku cli set-tab-title --tab-id $TAB \"任务名称\"\n```\n\n---\n\n## 2. 布局预置（一键多 pane）\n\n```bash\n# 四方格 2×2（最常用）\nKAKU_PANE_ID=$PARENT bash scripts/kaku/layout.sh 4grid --cwd $DIR\n# 输出：TOP_LEFT=5  TOP_RIGHT=12  BOT_LEFT=13  BOT_RIGHT=14\n\n# 其他预置\nbash scripts/kaku/layout.sh 2h   --pane-id $P --cwd $DIR  # 上下两行\nbash scripts/kaku/layout.sh 2v   --pane-id $P --cwd $DIR  # 左右两列\nbash scripts/kaku/layout.sh 3col --pane-id $P --cwd $DIR  # 左中右\nbash scripts/kaku/layout.sh 1+2  --pane-id $P --cwd $DIR  # 主+底部双监控\n\n# 查看所有选项\nbash scripts/kaku/layout.sh help\n```\n\n---\n\n## 3. 启动 Claude Code（完整序列）\n\n```bash\n# Step 1: 拆分 pane\nPANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 70 --cwd $WORKDIR -- bash -l)\n\n# Step 2: 设置 runtime 环境变量（如有 runtime session）\nkaku cli send-text --pane-id $PANE \\\n  \"export RUNTIME_SESSION_ID=<id> RUNTIME_HOOKS_URL=http://localhost:8080\"\nkaku cli send-text --no-paste --pane-id $PANE $'\\r'\n\n# Step 3: 启动 CC（unset CLAUDECODE 是必须的）\nkaku cli send-text --pane-id $PANE \\\n  \"unset CLAUDECODE && claude --dangerously-skip-permissions\"\nkaku cli send-text --no-paste --pane-id $PANE $'\\r'\n\n# Step 4: 等待 CC 欢迎界面（❯ 提示符出现，约 2-5s）\nsleep 3\n\n# Step 5: 注入目标（paste 模式 + 回车）\nkaku cli send-text --pane-id $PANE \"你的任务描述\"\nkaku cli send-text --no-paste --pane-id $PANE $'\\r'\n```\n\n---\n\n## 4. 启动 Codex\n\n```bash\nPANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 65 --cwd $WORKDIR -- bash -l)\nkaku cli send-text --pane-id $PANE \"codex exec --full-auto -- '你的任务'\"\nkaku cli send-text --no-paste --pane-id $PANE $'\\r'\n```\n\n---\n\n## 5. Runtime Session 生命周期\n\n```bash\n# 启动 session（CC 在新 pane 中运行，父 pane 从 KAKU_PANE_ID 读取）\nalex runtime session start \\\n  --member claude_code \\\n  --goal \"任务描述\" \\\n  --work-dir . \\\n  --parent-pane-id $KAKU_PANE_ID\n\n# 列出所有 session\nalex runtime session list\n\n# 只看运行中\nalex runtime session list --state running\n\n# 查看 session 详情（JSON）\nalex runtime session status <session-id>\n\n# 注入文本（解封 stalled session）\nalex runtime session inject --id <id> --message \"请继续\"\n\n# 停止 session\nalex runtime session stop --id <id>\n```\n\n环境变量：\n- `KAKU_PANE_ID` — 自动传入 `--parent-pane-id`\n- `KAKU_STORE_DIR` — 持久化目录（默认 `~/.kaku/sessions`）\n\n---\n\n## 6. 检测 CC 完成状态\n\n```bash\n# 轮询直到 bash $ 提示符出现（CC 退出信号）\n# macOS bash 提示符格式：hostname:dir user$  或  user@host dir %\nwhile true; do\n  LAST=$(kaku cli get-text --pane-id $PANE | tail -3)\n  if echo \"$LAST\" | grep -qE '\\$\\s*$|%\\s*$|bash-[0-9]'; then\n    echo \"CC session ended\"\n    break\n  fi\n  sleep 3\ndone\n```\n\nCC 屏幕状态特征：\n- `❯ ` — 等待输入（needs_input）\n- `⏺` 开头行滚动 — 正在执行（heartbeat）\n- bash `$` 或 zsh `%` 提示符结尾 — CC 进程已退出（completed/failed）\n\n> **注意**：macOS bash 提示符是 `hostname:dir user$` 格式，不是裸 `^$`。\n> 用 `\\$\\s*$` 匹配行尾 `$`（bash）或 `%\\s*$` 匹配 zsh 提示符。\n\n---\n\n## 7. 事件监控\n\n```bash\n# 实时监控所有 session 事件\ntail -f ~/.kaku/sessions/*.events.jsonl | jq -r '\"\\(.type) \\(.session_id)\"'\n\n# 查看单个 session 历史\ncat ~/.kaku/sessions/<id>.events.jsonl | jq .\n\n# 筛选 stall 事件\ncat ~/.kaku/sessions/<id>.events.jsonl | jq 'select(.type == \"stalled\")'\n```\n\n---\n\n## 推荐工作流（四方格 + 两个 session）\n\n```bash\n# 1. 四方格布局\nKAKU_PANE_ID=$KAKU_PANE_ID bash scripts/kaku/layout.sh 4grid --cwd .\n# TL=当前 TR=12 BL=13 BR=14\n\n# 2. 右上角跑 CC session\nalex runtime session start --member claude_code \\\n  --goal \"分析代码结构\" --work-dir . --parent-pane-id 12\n\n# 3. 右下角跑第二个 session\nalex runtime session start --member codex \\\n  --goal \"实现分析结果\" --work-dir . --parent-pane-id 14\n\n# 4. 左下角监控事件\nkaku cli send-text --pane-id 13 \\\n  \"tail -f ~/.kaku/sessions/*.events.jsonl | jq -r '.type + \\\" \\\" + .session_id'\"\nkaku cli send-text --no-paste --pane-id 13 $'\\r'\n```",
-      "sourcePath": "skills/kaku-runtime/SKILL.md"
-    },
-    {
-      "name": "meeting-automation",
-      "title": "meeting-automation",
-      "description": "飞书视频会议的查询和会议室管理。",
-      "markdown": "# meeting-automation\n\n飞书视频会议管理：查询会议列表、获取会议详情、查询会议室。\n\n## 调用\n\n通过 channel tool 的 action 参数调用：\n\n| Action | 说明 |\n|--------|------|\n| `list_meetings` | 列出指定时间范围的会议 |\n| `get_meeting` | 获取会议详情 |\n| `list_rooms` | 列出会议室 |\n\n## 参数\n\n### list_meetings\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| start_time | string | 是 | 开始时间（Unix 时间戳） |\n| end_time | string | 是 | 结束时间（Unix 时间戳） |\n| page_size | integer | 否 | 每页数量（默认 20） |\n| page_token | string | 否 | 分页 token |\n\n### get_meeting\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| meeting_id | string | 是 | 会议 ID |\n\n### list_rooms\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| room_level_id | string | 否 | 会议室层级 ID |\n| page_size | integer | 否 | 每页数量（默认 20） |\n| page_token | string | 否 | 分页 token |\n\n## 示例\n\n```\n查看今天的会议\n-> channel(action=\"list_meetings\", start_time=\"1700000000\", end_time=\"1700086400\")\n\n查看会议详情\n-> channel(action=\"get_meeting\", meeting_id=\"m_xxx\")\n\n列出会议室\n-> channel(action=\"list_rooms\")\n```\n\n## 自动执行原则\n\n- **时间自动推断**：用户说\"今天的会议\"时，自动计算今天的 start_time 和 end_time（Unix 时间戳），不要问用户提供时间戳。\n- **时间表达式支持**：用户说\"这周的会议\"/\"明天的会议\"时，自动计算对应时间范围。\n- **零参数会议室**：用户说\"看看会议室\"时，直接调用 `channel(action=\"list_rooms\")`，不需要 room_level_id。\n- **禁止交互式菜单**：不要给出选项让用户选择，直接执行最合理的操作。\n- **链式自动执行**：列出会议后，如果用户想看某个会议详情，自动提取 meeting_id 调用 `get_meeting`。\n\n## 安全等级\n\n- 所有操作: L1 只读，无需审批",
-      "sourcePath": "skills/meeting-automation/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/kaku-runtime/SKILL.md"
     },
     {
       "name": "memory-search",
       "title": "memory-search",
       "description": "记忆检索 — 搜索和读取对话记忆（存储为 Markdown 文件）。",
       "markdown": "# memory-search\n\n搜索和读取对话记忆。\n\n## 调用\n\n```bash\npython3 skills/memory-search/run.py search --query '项目进度'\npython3 skills/memory-search/run.py get --file 2026-02-09-meeting.md\n```",
-      "sourcePath": "skills/memory-search/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/memory-search/SKILL.md"
     },
     {
       "name": "meta-orchestrator",
       "title": "meta-orchestrator",
       "description": "元技能编排器 — 统一管理技能激活、联动、冲突仲裁、策略与审计摘要。",
       "markdown": "# meta-orchestrator\n\n统一技能控制平面：根据策略执行技能筛选、依赖排序、联动关系输出、风险摘要。\n\n## 调用\n\n```bash\npython3 skills/meta-orchestrator/run.py plan --skills '[{\"name\":\"reminder-scheduler\",\"score\":0.8}]' --proactive_level medium\npython3 skills/meta-orchestrator/run.py summarize --plan '{\"selected_skills\":[\"meta-orchestrator\"]}'\n```",
-      "sourcePath": "skills/meta-orchestrator/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/meta-orchestrator/SKILL.md"
     },
     {
       "name": "moltbook",
       "title": "moltbook-posting",
       "description": "Interact with Moltbook (the AI agent social network) — post, browse, comment, vote, search — via shell curl.",
       "markdown": "# moltbook-posting\n\nPost, browse, comment, vote, and search on Moltbook (the AI agent social network) via API. All API calls, authentication, and posting workflows are handled by run.py.\n\n## 认证与配置\n\n- 首选：环境变量 `MOLTBOOK_API_KEY`\n- 备选：`~/.alex/config.yaml` 中的 `runtime.moltbook_api_key`\n- 可选：`MOLTBOOK_API_URL` 或 `runtime.moltbook_base_url`\n\n## 速率限制与发帖字段\n\n- 发帖需提供 `title` 与 `submolt`（默认 `general`）。\n- API 有节流（示例：30 分钟仅允许发一帖）。\n- 如遇 400，先检查 `submolt/title` 是否缺失。\n\n## 调用\n\n```bash\npython3 skills/moltbook-posting/run.py post --title 'My Title' --content 'Post body'\n```",
-      "sourcePath": "skills/moltbook-posting/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/moltbook-posting/SKILL.md"
     },
     {
       "name": "notebooklm-cli",
       "title": "notebooklm-cli",
       "description": "NotebookLM 独立 CLI skill：本地直接调 `nlm`，统一 `command/op`，返回结构化结果。",
       "markdown": "# notebooklm-cli\n\n独立本地运行，不依赖任何 channel 注册。\n统一入口：\n\n```bash\npython3 skills/notebooklm-cli/run.py <command> [op] [--flag value ...]\n```\n\n## 渐进式 help（给 LLM 先学契约）\n\n- `overview`：入口、环境变量、命令总览\n- `schema`：全部命令契约（推荐机器读取）\n- `<command>`：单命令契约\n- `progressive`：overview + 各命令契约链路\n\n```bash\npython3 skills/notebooklm-cli/run.py help --topic overview\npython3 skills/notebooklm-cli/run.py help --topic schema\npython3 skills/notebooklm-cli/run.py help --topic progressive\n```\n\n如果需要底层原生命令帮助，可加：\n\n```bash\npython3 skills/notebooklm-cli/run.py help --topic source --include_cli true\n```\n\n## 输入契约（统一）\n\n- `command`: `help | auth | notebook | source | query | report | studio | raw`\n- `op`: 命令内操作；不填走默认 op（见 `help/schema`）\n- 兼容旧别名：`action`, `*_action`，新代码统一用 `command/op`\n- 统一返回字段：`success, command, exit_code, stdout, stderr, hints, error?`\n\n## 命令总览（精简）\n\n- `auth`: 登录与 profile 管理（`profile_delete` 强制 `confirm=true`）\n- `notebook`: list/create/get/describe/rename/query/delete（delete 强制确认）\n- `source`: list/add_*/get/describe/content/rename/delete（delete 强制确认）\n- `query`: notebook query 快捷入口\n- `report`: create（默认），强制确认，支持 format/prompt/language/source_ids\n- `studio`: status/rename/delete（delete 强制确认）\n- `raw`: 透传 argv；禁止 `nlm chat start`；delete 需 `confirm=true`\n\n## 最小 E2E 示例\n\n```bash\npython3 skills/notebooklm-cli/run.py auth check\npython3 skills/notebooklm-cli/run.py notebook create --title 'NLM E2E'\npython3 skills/notebooklm-cli/run.py source add_url --notebook_id '<nb-id>' --url https://example.com/article\npython3 skills/notebooklm-cli/run.py query --notebook_id '<nb-id>' --question '总结 3 个关键结论'\npython3 skills/notebooklm-cli/run.py report --notebook_id '<nb-id>' --confirm true\npython3 skills/notebooklm-cli/run.py studio status --notebook_id '<nb-id>'\n```\n\n## 规则\n\n- 删除前必须显式确认：`confirm=true`。\n- 禁止交互式 `nlm chat start`。\n- 鉴权失败先执行 `auth/login` 再重试业务命令。",
-      "sourcePath": "skills/notebooklm-cli/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/notebooklm-cli/SKILL.md"
     },
     {
       "name": "ppt-deck",
       "title": "ppt-deck",
       "description": "PPT 产出 playbook（目标/受众 -> 故事线 -> 版式设计 -> 可访问性 -> 交付），含 10/20/30 与 Accessibility 最佳实践。",
       "markdown": "# ppt-deck\n\nGenerate presentation decks from topic to deliverable PPTX/PDF, following storyline templates (SCQA, Pyramid, Before/After/Bridge), accessibility best practices, and 10/20/30 guidelines. All slide generation, layout, and export logic are handled by run.py.\n\n## 调用\n\n```bash\npython3 skills/ppt-deck/run.py create --topic 'Q1 Review' --audience leadership --format pptx\n```",
-      "sourcePath": "skills/ppt-deck/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/ppt-deck/SKILL.md"
     },
     {
       "name": "reminder-scheduler",
       "title": "reminder-scheduler",
       "description": "统一提醒调度：单次提醒与周期提醒计划的创建、查询、取消和到期扫描。",
       "markdown": "# reminder-scheduler\n\n一个 skill 同时覆盖两类能力：\n\n- 单次提醒：延迟触发（如 30 分钟后提醒）\n- 周期计划：维护长期提醒计划（如每周复盘）\n\n## 调用\n\n```bash\n# 单次提醒：设置、查看、取消\npython3 skills/reminder-scheduler/run.py set_once --delay 30m --task \"喝水提醒\"\npython3 skills/reminder-scheduler/run.py list_once\npython3 skills/reminder-scheduler/run.py cancel_once --id timer-12345\n\n# 周期计划：创建/更新、查看、删除、到期扫描、执行后推进\npython3 skills/reminder-scheduler/run.py upsert_plan --name weekly-retro --schedule \"0 18 * * 5\" --task \"发送复盘提醒\" --next-run-at 2026-03-06T10:00:00Z\npython3 skills/reminder-scheduler/run.py list_plans\npython3 skills/reminder-scheduler/run.py due_plans --now 2026-03-06T10:00:00Z\npython3 skills/reminder-scheduler/run.py delete_plan --name weekly-retro\npython3 skills/reminder-scheduler/run.py touch_plan --name weekly-retro --next-run-at 2026-03-13T10:00:00Z\n```\n\n## 参数\n\n### `set_once`\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| delay | string | 是 | 延迟时间（`30s` / `5m` / `2h`） |\n| task | string | 是 | 提醒内容 |\n\n### `cancel_once`\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| id | string | 是 | 单次提醒 ID |\n\n### `upsert_plan`\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| name | string | 是 | 计划名（唯一键） |\n| schedule | string | 是 | 周期表达式（cron 字符串） |\n| task | string | 是 | 提醒内容 |\n| next_run_at | string | 否 | 下一次执行时间（ISO8601） |\n| channel | string | 否 | 渠道，默认 `lark` |\n| enabled | bool | 否 | 是否启用，默认 `true` |\n| metadata | object | 否 | 扩展元数据 |\n\n### `list_plans`\n无参数，返回当前所有周期计划。\n\n### `delete_plan`\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| name | string | 否 | 计划名；与 `id` 至少提供一个 |\n| id | string | 否 | 计划 ID；与 `name` 至少提供一个 |\n\n当同时提供 `name` 和 `id` 时，必须命中同一条记录才会删除。\n\n### `due_plans`\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| now | string | 否 | 当前时间（ISO8601）；未提供时取系统 UTC 时间 |\n\n### `touch_plan`\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| name | string | 否 | 计划名；与 `id` 至少提供一个 |\n| id | string | 否 | 计划 ID；与 `name` 至少提供一个 |\n| next_run_at | string | 否 | 更新下一次执行时间（ISO8601） |\n\n当同时提供 `name` 和 `id` 时，必须命中同一条记录才会更新。",
-      "sourcePath": "skills/reminder-scheduler/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/reminder-scheduler/SKILL.md"
     },
     {
       "name": "self-test",
       "title": "self-test",
       "description": "自主运行 Lark 场景测试套件，分析失败，按修复分级自动迭代修复。",
       "markdown": "# self-test\n\nRun the Lark scenario test suite, analyze failures by root cause (test_drift, prompt_issue, tool_bug, etc.), apply tiered auto-fixes (up to 3 rounds), and generate a structured report. All test execution, failure analysis, and iterative repair logic are handled by run.py.\n\n## 调用\n\n```bash\npython3 skills/self-test/run.py run\n```",
-      "sourcePath": "skills/self-test/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/self-test/SKILL.md"
     },
     {
       "name": "soul-self-evolution",
       "title": "soul-self-evolution",
       "description": "SOUL 自演进技能 — 在不可变段保护下更新可演进人格/协作策略并支持回滚。",
       "markdown": "# soul-self-evolution\n\n对 `SOUL.md` 或 `docs/reference/SOUL.md` 进行受控更新：\n- 只允许改动可演进段\n- 记录 checkpoint\n- 支持一键回滚\n\n## 调用\n\n```bash\npython3 skills/soul-self-evolution/run.py apply --path docs/reference/SOUL.md --changes '[{\"section\":\"## Collaboration Preferences\",\"content\":\"- Keep updates concise.\"}]'\npython3 skills/soul-self-evolution/run.py list_checkpoints\n```",
-      "sourcePath": "skills/soul-self-evolution/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/soul-self-evolution/SKILL.md"
     },
     {
       "name": "task-delegation",
       "title": "task-delegation",
       "description": "跨 Agent 任务委派 — 将子任务分发给 Codex/Claude/Gemini CLI 执行。",
       "markdown": "# task-delegation\n\n跨 Agent 任务分发：将子任务委派给外部 CLI agent 执行。\n\n## 调用\n\n```bash\npython3 skills/task-delegation/run.py dispatch --agent codex --task 'fix the bug in main.go'\npython3 skills/task-delegation/run.py list\n```",
-      "sourcePath": "skills/task-delegation/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/task-delegation/SKILL.md"
     },
     {
       "name": "team-cli",
       "title": "team-cli",
       "description": "Team runtime CLI 技能：通过 `alex team run/status/inject` 执行与观测 team（flag-only，无 JSON）。",
       "markdown": "# team-cli\n\n通过独立 CLI 使用团队能力，不依赖 channel 工具注册。\n\n## 强约束\n\n- 只允许调用 `alex team ...`（或 `go run ./cmd/alex team ...` 回退）。\n- 只允许 flag 传参，禁止 JSON 参数。\n- 不使用 `python3 skills/team-cli/run.py`（本 skill 无 run.py）。\n\n## CLI 总览\n\n```bash\nalex team run ...\nalex team status ...\nalex team inject ...\nalex team terminal ...\n```\n\n若本机未安装 `alex` 二进制，在仓库内使用：\n\n```bash\ngo run ./cmd/alex team run ...\ngo run ./cmd/alex team status ...\ngo run ./cmd/alex team inject ...\ngo run ./cmd/alex team terminal ...\n```\n\n## 1) 运行 team（run）\n\n### 1.1 用模板执行\n\n```bash\nalex team run --template claude_research --goal \"Compare Postgres logical replication vs CDC for this repo\"\n```\n\n### 1.2 查看可用模板\n\n```bash\nalex team run --template list\n```\n\n### 1.3 用 taskfile 执行\n\n```bash\nalex team run --file /tmp/team-task.yaml\n```\n\n### 1.4 单 prompt 任务（必须支持）\n\n```bash\nalex team run --prompt \"Audit current branch changes and list top 3 regression risks\" --workspace-mode shared\n```\n\n### 1.5 常用可选参数\n\n```bash\nalex team run \\\n  --template claude_analysis \\\n  --goal \"Evaluate migration strategy\" \\\n  --mode auto \\\n  --timeout-seconds 900 \\\n  --session-id sess_manual_001 \\\n  --role-prompt analyst_a=\"Focus on correctness\" \\\n  --role-prompt analyst_b=\"Focus on ops risk\"\n```\n\n- `--task-id` 可重复传入，限制执行特定 task。\n- `--role-prompt role=prompt` 可重复传入，覆盖角色提示词。\n\n## 2) 查询状态（status）\n\n```bash\nalex team status --json\nalex team status --all --tail 50 --json\nalex team status --session-id sess_manual_001 --json\nalex team status --team-id team-executor --json\nalex team status --runtime-root .elephant/tasks/_team_runtime --json\nalex team --json --all\nalex team \"帮我看下 team 运行状态\"\n```\n\n参数（`alex team status`）：\n- `--runtime-root`: 显式 team runtime 根目录\n- `--session-id`: 按 session 过滤\n- `--team-id`: 按 team 过滤\n- `--all`: 返回全部匹配（默认仅最新）\n- `--tail`: 每个 team 返回的 events tail 条数（默认 20）\n- `--json`: 建议开启，便于结构化消费\n\n## 3) 注入输入（inject）\n\n向 team role 对应 tmux pane 注入真实输入：\n\n```bash\nalex team inject --task-id analyst_a-1 --message \"Continue with stricter evidence and cite files\"\nalex team inject --role-id analyst_a --message \"Focus on replication lag scenarios\"\nalex team inject --session-id sess_manual_001 --team-id claude_analysis --role-id analyst_b --message \"Add operational rollback plan\"\n```\n\n参数（`alex team inject`）：\n- `--runtime-root`: 显式 runtime 根目录\n- `--session-id`: 过滤 session\n- `--team-id`: 过滤 team\n- `--role-id`: 目标角色\n- `--task-id`: 由 task_id 自动推导 role（可替代 `--role-id`）\n- `--message`: 注入内容（必填）\n\n## 4) 终端可视化（terminal）\n\n直观查看 team 打开的 tmux 终端（会话或角色 pane）：\n\n```bash\nalex team terminal --mode attach\nalex team terminal --mode capture --lines 200\nalex team terminal --task-id team-researcher --mode capture\n```\n\n参数（`alex team terminal`）：\n- `--runtime-root`: 显式 runtime 根目录\n- `--session-id`: 过滤 session\n- `--team-id`: 过滤 team\n- `--role-id`: 指定角色 pane\n- `--task-id`: 由 task_id 自动推导 role（可替代 `--role-id`）\n- `--mode`: `attach|capture|stream`（默认 `stream`）\n- `--lines`: 抓取/展示行数窗口（默认 120）\n\n## 产物语义\n\n- Team 运行时产物通常位于：\n  - `.elephant/tasks/_team_runtime`\n  - `.worktrees/**/_team_runtime`\n- run 命令成功后，应继续使用 `status` 读取角色状态、最近事件、路径产物。",
-      "sourcePath": "skills/team-cli/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/team-cli/SKILL.md"
     },
     {
       "name": "video-production",
       "title": "video-production",
       "description": "Generate short videos with Seedance and save validated output files.",
       "markdown": "# video-production\n\nGenerate short videos via ARK Seedance backend.\n\n## Required Env\n- `ARK_API_KEY`\n- `SEEDANCE_ENDPOINT_ID`\n\n## Constraints\n- `action=generate` only.\n- Backend must return a video `url`; missing URL fails fast.\n- Output file must be written and non-empty, otherwise `success=false`.\n- Default output path: `/tmp/seedance_<ts>.mp4`.\n\n## Parameters\n| name | type | required | notes |\n|---|---|---|---|\n| prompt | string | yes | video description |\n| duration | number | no | seconds, default `5` |\n| output | string | no | output path |\n\n## Usage\n\n```bash\npython3 skills/video-production/run.py generate --prompt 'cute cat animation' --duration 5 --output /tmp/cat.mp4\n```",
-      "sourcePath": "skills/video-production/SKILL.md"
+      "sourcePath": "../../../../../.alex/skills/video-production/SKILL.md"
     }
   ]
 }
