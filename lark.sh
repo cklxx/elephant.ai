@@ -28,7 +28,7 @@ Aliases:
 Notes:
   - This is the only supported entrypoint for local lark autonomous iteration.
   - up does exactly two things: ensure test worktree/.env, then start supervisor.
-  - kernel is disabled by default under supervisor; set LARK_SUPERVISOR_KERNEL_ENABLED=1 to enable.
+  - supervisor only manages the main agent and loop; there is no second agent process.
   - loop gate auto-fix is controlled by LARK_LOOP_AUTOFIX_ENABLED (default: 0).
   - Deprecated (compat for one cycle): ./lark.sh ma ..., ./lark.sh ta ...
 EOF

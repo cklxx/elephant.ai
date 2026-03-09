@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 // CommitEntry represents a single git log entry.
@@ -117,7 +117,7 @@ func (g *gitOperations) run(ctx context.Context, args ...string) (string, error)
 	fullArgs := []string{
 		"-C", g.dir,
 		"-c", "user.name=elephant.ai",
-		"-c", "user.email=kernel@elephant.ai",
+		"-c", "user.email=agent@elephant.ai",
 	}
 	fullArgs = append(fullArgs, args...)
 

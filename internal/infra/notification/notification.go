@@ -51,7 +51,7 @@ func (n *LarkSender) Send(ctx context.Context, target notification.Target, conte
 }
 
 // SendLark sends a text message to a Lark chat. Exported for direct use in
-// kernel notice pipeline where only Lark sending is needed.
+// unattended notice flows where only Lark sending is needed.
 func (n *LarkSender) SendLark(ctx context.Context, chatID, content string) error {
 	return n.sendLark(ctx, chatID, content)
 }
