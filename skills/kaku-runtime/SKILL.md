@@ -76,13 +76,14 @@ kaku cli spawn --cwd $DIR -- bash -l
 ## 1. Pane 基础操作
 
 ```bash
-# 查看所有 pane
+# 查看所有 pane（输出列：WINID TABID PANEID WORKSPACE SIZE TITLE CWD）
 kaku cli list
 
 # 拆分 pane（返回新 pane ID）
+# 方向标志：--bottom / --top / --left / --right（--horizontal 等同 --right）
 PANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 65 --cwd $DIR -- bash -l)
 
-# 注入文本（不提交）
+# 注入文本（不提交，bracketed-paste 模式）
 kaku cli send-text --pane-id $PANE "文本内容"
 
 # 提交（⚠️ $'\r' 不是 $'\n'）
@@ -92,14 +93,19 @@ kaku cli send-text --no-paste --pane-id $PANE $'\r'
 kaku cli send-text --pane-id $PANE "ls -la"
 kaku cli send-text --no-paste --pane-id $PANE $'\r'
 
-# 读取屏幕快照（非完整历史）
+# 读取屏幕（当前可见区域）
 kaku cli get-text --pane-id $PANE | tail -20
+
+# 读取滚动历史（负数 = 向上滚动，例如 -100 表示 100 行前）
+kaku cli get-text --pane-id $PANE --start-line -100
 
 # 聚焦 / 关闭
 kaku cli activate-pane --pane-id $PANE
 kaku cli kill-pane --pane-id $PANE
 
-# 设置 tab 标题
+# 设置 tab 标题（用 --pane-id 通过 pane 找到所在 tab）
+kaku cli set-tab-title --pane-id $PANE "任务名称"
+# 或直接指定 tab ID
 kaku cli set-tab-title --tab-id $TAB "任务名称"
 ```
 
@@ -196,9 +202,10 @@ alex runtime session stop --id <id>
 
 ```bash
 # 轮询直到 bash $ 提示符出现（CC 退出信号）
+# macOS bash 提示符格式：hostname:dir user$  或  user@host dir %
 while true; do
   LAST=$(kaku cli get-text --pane-id $PANE | tail -3)
-  if echo "$LAST" | grep -qE '^\$|bash-[0-9]'; then
+  if echo "$LAST" | grep -qE '\$\s*$|%\s*$|bash-[0-9]'; then
     echo "CC session ended"
     break
   fi
@@ -209,7 +216,10 @@ done
 CC 屏幕状态特征：
 - `❯ ` — 等待输入（needs_input）
 - `⏺` 开头行滚动 — 正在执行（heartbeat）
-- bash `$` 提示符出现 — CC 进程已退出（completed/failed）
+- bash `$` 或 zsh `%` 提示符结尾 — CC 进程已退出（completed/failed）
+
+> **注意**：macOS bash 提示符是 `hostname:dir user$` 格式，不是裸 `^$`。
+> 用 `\$\s*$` 匹配行尾 `$`（bash）或 `%\s*$` 匹配 zsh 提示符。
 
 ---
 
