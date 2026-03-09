@@ -97,7 +97,7 @@ Usage:
   alex sessions pull <id> [...]  Inspect or export context snapshots
   alex sessions cleanup [...]    Remove historical sessions (see options below)
   alex lark scenario run [...]   Run Lark scenario suite (YAML-driven; http/mock)
-  alex team status [...]         Show latest team-runtime status (CLI capabilities/tmux/events)
+  alex team [status] [...]       Show latest team-runtime status (CLI capabilities/tmux/events)
   alex team run [...]            Execute team workflow via CLI (template/file/prompt)
   alex team inject [...]         Inject input into a team role tmux pane
   alex config                    Show current configuration

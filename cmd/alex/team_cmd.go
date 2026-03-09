@@ -75,6 +75,9 @@ func runTeamCommandWithContainer(args []string, container *Container) error {
 	case "terminal", "term", "attach":
 		return runTeamTerminal(args[1:])
 	default:
+		if looksLikeTeamStatusPrompt(strings.Join(args, " ")) {
+			return runTeamStatus(nil)
+		}
 		return &ExitCodeError{Code: 2, Err: fmt.Errorf("unknown team subcommand %q (expected: status|run|inject|terminal)", args[0])}
 	}
 }

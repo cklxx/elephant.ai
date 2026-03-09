@@ -94,6 +94,8 @@ alex team status --all --tail 50 --json
 alex team status --session-id sess_manual_001 --json
 alex team status --team-id team-executor --json
 alex team status --runtime-root .elephant/tasks/_team_runtime --json
+alex team --json --all
+alex team "帮我看下 team 运行状态"
 ```
 
 参数（`alex team status`）：

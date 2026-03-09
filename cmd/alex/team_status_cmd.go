@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	teamStatusUsage     = "usage: alex team status [--runtime-root path] [--session-id id] [--team-id id] [--all] [--json] [--tail N]"
+	teamStatusUsage     = "usage: alex team [status] [--runtime-root path] [--session-id id] [--team-id id] [--all] [--json] [--tail N]"
 	defaultEventTailNum = 20
 )
 
@@ -100,6 +100,31 @@ func runTeamStatus(args []string) error {
 	return nil
 }
 
+func looksLikeTeamStatusPrompt(text string) bool {
+	normalized := utils.TrimLower(strings.TrimSpace(text))
+	if normalized == "" {
+		return false
+	}
+	keywords := []string{
+		"team status",
+		"team runtime",
+		"runtime status",
+		"status",
+		"运行状态",
+		"运行态",
+		"查看状态",
+		"查状态",
+		"团队状态",
+		"tmux",
+		"_team_runtime",
+	}
+	for _, keyword := range keywords {
+		if strings.Contains(normalized, keyword) {
+			return true
+		}
+	}
+	return false
+}
 func loadTeamRuntimeStatus(opts teamStatusOptions) ([]teamRuntimeStatus, error) {
 	roots, err := resolveTeamRuntimeRoots(opts.runtimeRoot)
 	if err != nil {

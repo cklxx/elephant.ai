@@ -109,6 +109,76 @@ func TestRunTeamCommand_RejectsUnknownSubcommand(t *testing.T) {
 	}
 }
 
+func TestRunTeamCommand_SupportsFlagOnlyInvocation(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "_team_runtime")
+	writeTeamRuntimeFixture(t, root, "session-flag", "team-flag", time.Now().UTC().Truncate(time.Second))
+
+	if err := runTeamCommand([]string{"--runtime-root", root, "--json", "--all"}); err != nil {
+		t.Fatalf("expected success, got err: %v", err)
+	}
+}
+
+func TestRunTeamCommand_SinglePromptRoutesToStatus(t *testing.T) {
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd failed: %v", err)
+	}
+	tmp := t.TempDir()
+	root := filepath.Join(tmp, ".elephant", "tasks", "_team_runtime")
+	writeTeamRuntimeFixture(t, root, "session-prompt", "team-prompt", time.Now().UTC().Truncate(time.Second))
+
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+
+	if err := runTeamCommand([]string{"请帮我看一下team运行状态"}); err != nil {
+		t.Fatalf("expected success, got err: %v", err)
+	}
+}
+
+func TestRunTeamCommand_NoArgsDefaultsToStatus(t *testing.T) {
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd failed: %v", err)
+	}
+	tmp := t.TempDir()
+	root := filepath.Join(tmp, ".elephant", "tasks", "_team_runtime")
+	writeTeamRuntimeFixture(t, root, "session-default", "team-default", time.Now().UTC().Truncate(time.Second))
+
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+
+	if err := runTeamCommand(nil); err != nil {
+		t.Fatalf("expected success, got err: %v", err)
+	}
+}
+
+func TestLooksLikeTeamStatusPrompt(t *testing.T) {
+	cases := []struct {
+		input string
+		want  bool
+	}{
+		{input: "team status", want: true},
+		{input: "帮我查一下 team 运行状态", want: true},
+		{input: "show tmux panes for team runtime", want: true},
+		{input: "deploy this branch", want: false},
+		{input: "", want: false},
+	}
+	for _, tc := range cases {
+		got := looksLikeTeamStatusPrompt(tc.input)
+		if got != tc.want {
+			t.Fatalf("looksLikeTeamStatusPrompt(%q)=%v, want %v", tc.input, got, tc.want)
+		}
+	}
+}
+
 func writeTeamRuntimeFixture(t *testing.T, root, sessionID, teamID string, initializedAt time.Time) {
 	t.Helper()
 	teamDir := filepath.Join(root, sessionID, "teams", teamID)

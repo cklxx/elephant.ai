@@ -117,3 +117,50 @@ func TestApplyActivationLimitsRespectsBudget(t *testing.T) {
 		t.Fatalf("expected skill a, got %s", out[0].Skill.Name)
 	}
 }
+
+func TestSkillMatcherTeamCLISinglePrompt(t *testing.T) {
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "team-cli")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	content := `---
+name: team-cli
+description: Team runtime CLI skill.
+triggers:
+  intent_patterns:
+    - "team status|team runtime|运行状态|运行态"
+  confidence_threshold: 0.55
+priority: 8
+---
+# team-cli
+`
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+
+	lib, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	matcher := NewSkillMatcher(&lib, MatcherOptions{})
+
+	matches := matcher.Match(MatchContext{
+		TaskInput: "帮我看下 team 运行状态",
+		SessionID: "sess-team-cli",
+	}, AutoActivationConfig{Enabled: true, ConfidenceThreshold: 0.5})
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match for Chinese single prompt, got %d", len(matches))
+	}
+	if matches[0].Skill.Name != "team-cli" {
+		t.Fatalf("expected team-cli, got %s", matches[0].Skill.Name)
+	}
+
+	english := matcher.Match(MatchContext{
+		TaskInput: "check team runtime status",
+		SessionID: "sess-team-cli-en",
+	}, AutoActivationConfig{Enabled: true, ConfidenceThreshold: 0.5})
+	if len(english) != 1 || english[0].Skill.Name != "team-cli" {
+		t.Fatalf("expected team-cli for English single prompt, got %+v", english)
+	}
+}
