@@ -338,7 +338,13 @@ func (g *Gateway) PersistBridgeMeta(ctx context.Context, taskID string, info any
 	}
 }
 
+const (
+	wsReconnectBaseDelay = 2 * time.Second
+	wsReconnectMaxDelay  = 60 * time.Second
+)
+
 // Start creates the Lark SDK client, event dispatcher, and WebSocket client, then blocks.
+// It automatically reconnects with exponential backoff when the WebSocket connection drops.
 func (g *Gateway) Start(ctx context.Context) error {
 	if !g.cfg.Enabled {
 		return nil
@@ -364,10 +370,23 @@ func (g *Gateway) Start(ctx context.Context) error {
 	g.messenger = wrapInjectCaptureHub(g.messenger)
 	g.startDeliveryWorker(runCtx)
 
-	// Build the event dispatcher and register event handlers.
+	// Build the event dispatcher (shared across reconnections).
+	eventDispatcher := g.buildEventDispatcher()
+
+	g.logger.Info("Lark gateway connecting (app_id=%s)...", g.cfg.AppID)
+	err := g.wsConnectLoop(runCtx, eventDispatcher)
+	g.stopStateCleanupLoop()
+	return err
+}
+
+// buildEventDispatcher creates the Lark event dispatcher with all registered handlers.
+func (g *Gateway) buildEventDispatcher() *dispatcher.EventDispatcher {
 	eventDispatcher := dispatcher.NewEventDispatcher("", "")
 	eventDispatcher.OnP2MessageReceiveV1(g.handleMessage)
 	eventDispatcher.OnP2MessageReactionCreatedV1(func(_ context.Context, _ *larkim.P2MessageReactionCreatedV1) error {
+		return nil
+	})
+	eventDispatcher.OnP2MessageReactionDeletedV1(func(_ context.Context, _ *larkim.P2MessageReactionDeletedV1) error {
 		return nil
 	})
 	eventDispatcher.OnP2ChatAccessEventBotP2pChatEnteredV1(func(_ context.Context, _ *larkim.P2ChatAccessEventBotP2pChatEnteredV1) error {
@@ -376,20 +395,53 @@ func (g *Gateway) Start(ctx context.Context) error {
 	eventDispatcher.OnP2MessageReadV1(func(_ context.Context, _ *larkim.P2MessageReadV1) error {
 		return nil
 	})
+	return eventDispatcher
+}
 
-	// Build and start the WebSocket client.
+// wsConnectLoop connects the WebSocket client and automatically reconnects
+// with exponential backoff when the connection drops. It blocks until the
+// context is cancelled.
+func (g *Gateway) wsConnectLoop(ctx context.Context, eventDispatcher *dispatcher.EventDispatcher) error {
+	delay := wsReconnectBaseDelay
+	for {
+		wsClient := g.newWSClient(eventDispatcher)
+		g.wsClient = wsClient
+
+		err := wsClient.Start(ctx)
+
+		// Context cancelled — intentional shutdown, exit cleanly.
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		// Unexpected disconnect — log and reconnect with backoff.
+		g.logger.Warn("Lark WebSocket disconnected (err=%v), reconnecting in %v...", err, delay)
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+
+		// Exponential backoff capped at wsReconnectMaxDelay.
+		delay = delay * 2
+		if delay > wsReconnectMaxDelay {
+			delay = wsReconnectMaxDelay
+		}
+
+		g.logger.Info("Lark gateway reconnecting (app_id=%s)...", g.cfg.AppID)
+	}
+}
+
+// newWSClient creates a fresh larkws.Client for a (re)connection attempt.
+func (g *Gateway) newWSClient(eventDispatcher *dispatcher.EventDispatcher) *larkws.Client {
 	var wsOpts []larkws.ClientOption
 	wsOpts = append(wsOpts, larkws.WithEventHandler(eventDispatcher))
 	wsOpts = append(wsOpts, larkws.WithLogLevel(larkcore.LogLevelInfo))
 	if domain := strings.TrimSpace(g.cfg.BaseDomain); domain != "" {
 		wsOpts = append(wsOpts, larkws.WithDomain(domain))
 	}
-	g.wsClient = larkws.NewClient(g.cfg.AppID, g.cfg.AppSecret, wsOpts...)
-
-	g.logger.Info("Lark gateway connecting (app_id=%s)...", g.cfg.AppID)
-	err := g.wsClient.Start(runCtx)
-	g.stopStateCleanupLoop()
-	return err
+	return larkws.NewClient(g.cfg.AppID, g.cfg.AppSecret, wsOpts...)
 }
 
 // Stop releases resources. The WebSocket client does not expose a Stop method;

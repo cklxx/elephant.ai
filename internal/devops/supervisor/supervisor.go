@@ -60,6 +60,11 @@ type Supervisor struct {
 	restartLocks sync.Map // map[string]*sync.Mutex — per-component restart guard
 	loopState    LoopState
 	tmpDir       string
+
+	// lastUpgradeAt tracks the last SHA drift upgrade time per component to
+	// enforce a minimum interval between upgrades, preventing rapid restart
+	// storms when commits land in quick succession.
+	lastUpgradeAt map[string]time.Time
 }
 
 // Config holds supervisor configuration.
@@ -87,17 +92,18 @@ func New(cfg Config) *Supervisor {
 	statusFile := NewStatusFile(statusPath)
 
 	return &Supervisor{
-		policy:     policy,
-		statusFile: statusFile,
-		logFile:    filepath.Join(cfg.LogDir, "lark-supervisor.log"),
-		interval:   cfg.TickInterval,
-		lockDir:    filepath.Join(cfg.TmpDir, "lark-supervisor.lock"),
-		pidFile:    filepath.Join(cfg.PIDDir, "lark-supervisor.pid"),
-		mainRoot:   cfg.MainRoot,
-		testRoot:   cfg.TestRoot,
-		logger:     logger,
-		failCounts: make(map[string]int),
-		tmpDir:     cfg.TmpDir,
+		policy:        policy,
+		statusFile:    statusFile,
+		logFile:       filepath.Join(cfg.LogDir, "lark-supervisor.log"),
+		interval:      cfg.TickInterval,
+		lockDir:       filepath.Join(cfg.TmpDir, "lark-supervisor.lock"),
+		pidFile:       filepath.Join(cfg.PIDDir, "lark-supervisor.pid"),
+		mainRoot:      cfg.MainRoot,
+		testRoot:      cfg.TestRoot,
+		logger:        logger,
+		failCounts:    make(map[string]int),
+		tmpDir:        cfg.TmpDir,
+		lastUpgradeAt: make(map[string]time.Time),
 	}
 }
 
@@ -221,6 +227,11 @@ func (s *Supervisor) tick(ctx context.Context) {
 	s.writeStatus()
 }
 
+// minUpgradeInterval is the minimum time between SHA drift upgrades for a
+// component. This prevents rapid restart storms when multiple commits land
+// on main in quick succession (e.g. from the devops loop).
+const minUpgradeInterval = 5 * time.Minute
+
 // maybeUpgradeForSHADrift auto-restarts healthy components whose deployed
 // SHA differs from the latest main SHA. Corresponds to supervisor.sh
 // maybe_upgrade_for_sha_drift.
@@ -250,6 +261,12 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 
 		// Skip during per-component cooldown
 		if s.policy.InCooldown(comp.Name, now) {
+			continue
+		}
+
+		// Enforce minimum interval between SHA drift upgrades to avoid
+		// killing the process every time a new commit lands on main.
+		if lastUpgrade, ok := s.lastUpgradeAt[comp.Name]; ok && now.Sub(lastUpgrade) < minUpgradeInterval {
 			continue
 		}
 
@@ -295,6 +312,7 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 				"component", comp.Name,
 				"error", err)
 		} else {
+			s.lastUpgradeAt[comp.Name] = now
 			s.logger.Info("upgrade restart succeeded", "component", comp.Name)
 		}
 		mu.Unlock()

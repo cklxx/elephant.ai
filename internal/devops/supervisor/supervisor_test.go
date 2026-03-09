@@ -218,12 +218,13 @@ func newTestSupervisor(t *testing.T) (*Supervisor, string) {
 	policy := NewRestartPolicy(5, 600*time.Second, 300*time.Second)
 
 	s := &Supervisor{
-		policy:     policy,
-		statusFile: NewStatusFile(filepath.Join(dir, "lark-supervisor.status.json")),
-		logger:     logger,
-		failCounts: make(map[string]int),
-		mainRoot:   dir,
-		tmpDir:     dir,
+		policy:        policy,
+		statusFile:    NewStatusFile(filepath.Join(dir, "lark-supervisor.status.json")),
+		logger:        logger,
+		failCounts:    make(map[string]int),
+		mainRoot:      dir,
+		tmpDir:        dir,
+		lastUpgradeAt: make(map[string]time.Time),
 	}
 	return s, dir
 }
@@ -362,6 +363,50 @@ func TestMaybeUpgradeForSHADriftDuringCooldown(t *testing.T) {
 
 	if startCalled {
 		t.Error("StartFn should NOT be called during global cooldown")
+	}
+}
+
+func TestMaybeUpgradeForSHADriftMinInterval(t *testing.T) {
+	s, dir := newTestSupervisor(t)
+
+	callCount := 0
+	shaFile := filepath.Join(dir, "main.sha")
+	if err := os.WriteFile(shaFile, []byte("sha_v1"), 0o644); err != nil {
+		t.Fatalf("write main sha file: %v", err)
+	}
+
+	s.RegisterComponent(&Component{
+		Name:     "main",
+		SHAFile:  shaFile,
+		HealthFn: func() string { return "healthy" },
+		StartFn: func(ctx context.Context) error {
+			callCount++
+			return nil
+		},
+	})
+
+	// First upgrade should succeed.
+	s.loopState.MainSHA = "sha_v2"
+	s.maybeUpgradeForSHADrift(context.Background())
+	if callCount != 1 {
+		t.Fatalf("expected first upgrade to proceed, callCount=%d", callCount)
+	}
+
+	// Simulate immediate second SHA change — should be rate-limited.
+	if err := os.WriteFile(shaFile, []byte("sha_v2"), 0o644); err != nil {
+		t.Fatalf("update sha file: %v", err)
+	}
+	s.loopState.MainSHA = "sha_v3"
+	s.maybeUpgradeForSHADrift(context.Background())
+	if callCount != 1 {
+		t.Errorf("expected second upgrade to be rate-limited, callCount=%d", callCount)
+	}
+
+	// After clearing the throttle, upgrade should proceed.
+	s.lastUpgradeAt["main"] = time.Now().Add(-minUpgradeInterval - time.Second)
+	s.maybeUpgradeForSHADrift(context.Background())
+	if callCount != 2 {
+		t.Errorf("expected upgrade after interval passed, callCount=%d", callCount)
 	}
 }
 
