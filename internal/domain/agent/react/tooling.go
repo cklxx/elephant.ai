@@ -130,7 +130,14 @@ func truncateToolResultWithMetadata(content string, limit int, metadata map[stri
 }
 
 // buildToolMessages converts tool results into messages sent back to the LLM.
-func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
+// calls is used to resolve tool names for tool-aware compression; it may be nil.
+func (e *ReactEngine) buildToolMessages(calls []ToolCall, results []ToolResult) []Message {
+	// Build call-ID → tool-name index for compression routing.
+	callNames := make(map[string]string, len(calls))
+	for _, c := range calls {
+		callNames[c.ID] = c.Name
+	}
+
 	messages := make([]Message, 0, len(results))
 
 	for _, result := range results {
@@ -144,6 +151,8 @@ func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 		}
 
 		content = strings.TrimSpace(content)
+		toolName := callNames[result.CallID]
+		content = compressToolOutput(toolName, content, result.Metadata)
 		content = truncateToolResultWithMetadata(content, maxToolResultContentChars, result.Metadata)
 
 		msg := Message{

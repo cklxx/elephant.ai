@@ -1085,7 +1085,7 @@ func TestAppendGoalPlanReminderWhenDistanceExceeded(t *testing.T) {
 		},
 	}}
 	engine.updateGoalPlanPrompts(state, calls, results)
-	messages := engine.buildToolMessages(results)
+	messages := engine.buildToolMessages(nil, results)
 	updated := engine.appendGoalPlanReminder(state, messages)
 	if len(updated) != 1 {
 		t.Fatalf("expected a single tool message, got %d", len(updated))
@@ -1168,7 +1168,7 @@ func TestBuildToolMessagesDoesNotInjectPlaceholders(t *testing.T) {
 		},
 	}}
 
-	messages := engine.buildToolMessages(results)
+	messages := engine.buildToolMessages(nil, results)
 	if len(messages) != 1 {
 		t.Fatalf("expected one tool message, got %d", len(messages))
 	}
@@ -1242,7 +1242,7 @@ func TestBuildToolMessagesTruncatesLargeResult(t *testing.T) {
 		Content: bigContent,
 	}}
 
-	messages := engine.buildToolMessages(results)
+	messages := engine.buildToolMessages(nil, results)
 	if len(messages) != 1 {
 		t.Fatalf("expected one tool message, got %d", len(messages))
 	}
@@ -1338,7 +1338,7 @@ func TestBuildToolMessagesUsesFileMetadataForHint(t *testing.T) {
 		},
 	}}
 
-	messages := engine.buildToolMessages(results)
+	messages := engine.buildToolMessages(nil, results)
 	if len(messages) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(messages))
 	}
@@ -1366,7 +1366,7 @@ func TestAppendGoalPlanReminderSkippedWhenDistanceSmall(t *testing.T) {
 		},
 	}}
 	engine.updateGoalPlanPrompts(state, calls, results)
-	messages := engine.buildToolMessages(results)
+	messages := engine.buildToolMessages(nil, results)
 	updated := engine.appendGoalPlanReminder(state, messages)
 	if len(updated) != 1 {
 		t.Fatalf("expected a single tool message, got %d", len(updated))

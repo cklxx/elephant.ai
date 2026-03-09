@@ -167,7 +167,7 @@ func (e *ReactEngine) ResumeFromCheckpoint(ctx context.Context, sessionID string
 			e.observeToolResults(ctx, state, cp.Iteration, results)
 			e.updateGoalPlanPrompts(state, calls, results)
 
-			toolMessages := e.buildToolMessages(results)
+			toolMessages := e.buildToolMessages(calls, results)
 			toolMessages = e.appendGoalPlanReminder(state, toolMessages)
 			startIdx := len(state.Messages)
 			state.Messages = append(state.Messages, toolMessages...)
