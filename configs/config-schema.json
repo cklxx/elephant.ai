@@ -1,0 +1,314 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "alex config",
+  "type": "object",
+  "properties": {
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "session": { "type": "object", "properties": { "dir": { "type": "string" } }, "additionalProperties": true },
+    "attachments": { "type": "object", "additionalProperties": true },
+    "server": { "type": "object", "additionalProperties": true }
+  },
+  "required": ["runtime"],
+  "additionalProperties": true,
+  "$defs": {
+    "runtime": {
+      "type": "object",
+      "required": ["llm_provider", "llm_model"],
+      "properties": {
+        "llm_provider":                { "type": "string" },
+        "llm_model":                   { "type": "string" },
+        "llm_vision_model":            { "type": "string" },
+        "api_key":                     { "type": "string" },
+        "ark_api_key":                 { "type": "string" },
+        "base_url":                    { "type": "string" },
+        "acp_executor_addr":           { "type": "string" },
+        "acp_executor_cwd":            { "type": "string" },
+        "acp_executor_mode":           { "type": "string" },
+        "acp_executor_auto_approve":   { "type": "boolean" },
+        "acp_executor_max_cli_calls":  { "type": "integer" },
+        "acp_executor_max_duration_seconds": { "type": "integer" },
+        "acp_executor_require_manifest": { "type": "boolean" },
+        "tavily_api_key":              { "type": "string" },
+        "moltbook_api_key":            { "type": "string" },
+        "moltbook_base_url":           { "type": "string" },
+        "seedream_text_endpoint_id":   { "type": "string" },
+        "seedream_image_endpoint_id":  { "type": "string" },
+        "seedream_text_model":         { "type": "string" },
+        "seedream_image_model":        { "type": "string" },
+        "seedream_vision_model":       { "type": "string" },
+        "seedream_video_model":        { "type": "string" },
+        "profile":                     { "type": "string" },
+        "environment":                 { "type": "string" },
+        "verbose":                     { "type": "boolean" },
+        "disable_tui":                 { "type": "boolean" },
+        "follow_transcript":           { "type": "boolean" },
+        "follow_stream":               { "type": "boolean" },
+        "max_iterations":              { "type": "integer" },
+        "max_tokens":                  { "type": "integer" },
+        "tool_max_concurrent":         { "type": "integer" },
+        "llm_cache_size":              { "type": "integer" },
+        "llm_cache_ttl_seconds":       { "type": "integer" },
+        "llm_request_timeout_seconds": { "type": "integer" },
+        "user_rate_limit_rps":         { "type": "number" },
+        "user_rate_limit_burst":       { "type": "integer" },
+        "kimi_rate_limit_rps":         { "type": "number" },
+        "kimi_rate_limit_burst":       { "type": "integer" },
+        "temperature":                 { "type": "number" },
+        "temperature_provided":        { "type": "boolean" },
+        "top_p":                       { "type": "number" },
+        "stop_sequences":              { "type": "array", "items": { "type": "string" } },
+        "session_dir":                 { "type": "string" },
+        "cost_dir":                    { "type": "string" },
+        "session_stale_after_seconds": { "type": "integer" },
+        "agent_preset":                { "type": "string" },
+        "tool_preset":                 { "type": "string" },
+        "toolset":                     { "type": "string" },
+        "browser":                     { "$ref": "#/$defs/browser" },
+        "http_limits":                 { "$ref": "#/$defs/http_limits" },
+        "tool_policy":                 { "$ref": "#/$defs/tool_policy" },
+        "proactive":                   { "$ref": "#/$defs/proactive" },
+        "external_agents":             { "$ref": "#/$defs/external_agents" },
+        "llm_fallback_rules":          { "type": "array", "items": { "$ref": "#/$defs/llm_fallback_rule" } }
+      },
+      "additionalProperties": false
+    },
+    "browser": {
+      "type": "object",
+      "properties": {
+        "connector":          { "type": "string" },
+        "cdp_url":            { "type": "string" },
+        "chrome_path":        { "type": "string" },
+        "headless":           { "type": "boolean" },
+        "user_data_dir":      { "type": "string" },
+        "timeout_seconds":    { "type": "integer" },
+        "bridge_listen_addr": { "type": "string" },
+        "bridge_token":       { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "http_limits": {
+      "type": "object",
+      "properties": {
+        "default_max_response_bytes":      { "type": "integer" },
+        "web_fetch_max_response_bytes":    { "type": "integer" },
+        "web_search_max_response_bytes":   { "type": "integer" },
+        "music_search_max_response_bytes": { "type": "integer" },
+        "model_list_max_response_bytes":   { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "tool_policy": {
+      "type": "object",
+      "properties": {
+        "enforcement_mode": { "type": "string" },
+        "timeout":          { "type": "object", "additionalProperties": true },
+        "retry":            { "type": "object", "additionalProperties": true },
+        "rules":            { "type": "array" }
+      },
+      "additionalProperties": false
+    },
+    "proactive": {
+      "type": "object",
+      "properties": {
+        "enabled":   { "type": "boolean" },
+        "prompt":    { "$ref": "#/$defs/prompt" },
+        "memory":    { "type": "object", "properties": { "enabled": { "type": "boolean" }, "index": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
+        "skills":    { "$ref": "#/$defs/skills" },
+        "okr":       { "type": "object", "properties": { "enabled": { "type": "boolean" }, "goals_root": { "type": "string" }, "auto_inject": { "type": "boolean" } }, "additionalProperties": false },
+        "scheduler": { "$ref": "#/$defs/scheduler" },
+        "timer":     { "$ref": "#/$defs/timer" },
+        "attention": { "$ref": "#/$defs/attention" }
+      },
+      "additionalProperties": false
+    },
+    "prompt": {
+      "type": "object",
+      "properties": {
+        "mode":                { "type": "string" },
+        "timezone":            { "type": "string" },
+        "bootstrap_max_chars": { "type": "integer" },
+        "bootstrap_files":     { "type": "array", "items": { "type": "string" } },
+        "reply_tags_enabled":  { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "skills": {
+      "type": "object",
+      "properties": {
+        "auto_activation":            { "type": "object", "properties": { "enabled": { "type": "boolean" }, "max_activated": { "type": "integer" }, "token_budget": { "type": "integer" }, "confidence_threshold": { "type": "number" } }, "additionalProperties": false },
+        "feedback":                   { "type": "object", "properties": { "enabled": { "type": "boolean" }, "store_path": { "type": "string" } }, "additionalProperties": false },
+        "cache_ttl_seconds":          { "type": "integer" },
+        "meta_orchestrator_enabled":  { "type": "boolean" },
+        "soul_auto_evolution_enabled": { "type": "boolean" },
+        "proactive_level":            { "type": "string" },
+        "policy_path":                { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "scheduler": {
+      "type": "object",
+      "properties": {
+        "enabled":                             { "type": "boolean" },
+        "triggers":                            { "type": "array", "items": { "$ref": "#/$defs/scheduler_trigger" } },
+        "trigger_timeout_seconds":             { "type": "integer" },
+        "concurrency_policy":                  { "type": "string" },
+        "leader_lock_enabled":                 { "type": "boolean" },
+        "leader_lock_name":                    { "type": "string" },
+        "leader_lock_acquire_interval_seconds": { "type": "integer" },
+        "job_store_path":                      { "type": "string" },
+        "cooldown_seconds":                    { "type": "integer" },
+        "max_concurrent":                      { "type": "integer" },
+        "recovery_max_retries":                { "type": "integer" },
+        "recovery_backoff_seconds":            { "type": "integer" },
+        "calendar_reminder":                   { "type": "object", "additionalProperties": true },
+        "heartbeat":                           { "$ref": "#/$defs/heartbeat" }
+      },
+      "additionalProperties": false
+    },
+    "scheduler_trigger": {
+      "type": "object",
+      "required": ["name", "schedule", "task"],
+      "properties": {
+        "name":              { "type": "string" },
+        "schedule":          { "type": "string" },
+        "task":              { "type": "string" },
+        "channel":           { "type": "string" },
+        "user_id":           { "type": "string" },
+        "chat_id":           { "type": "string" },
+        "approval_required": { "type": "boolean" },
+        "risk":              { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "heartbeat": {
+      "type": "object",
+      "properties": {
+        "enabled":               { "type": "boolean" },
+        "schedule":              { "type": "string" },
+        "task":                  { "type": "string" },
+        "channel":               { "type": "string" },
+        "user_id":               { "type": "string" },
+        "chat_id":               { "type": "string" },
+        "quiet_hours":           { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+        "window_lookback_hours": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "timer": {
+      "type": "object",
+      "properties": {
+        "enabled":              { "type": "boolean" },
+        "store_path":           { "type": "string" },
+        "max_timers":           { "type": "integer" },
+        "task_timeout_seconds": { "type": "integer" },
+        "heartbeat_enabled":    { "type": "boolean" },
+        "heartbeat_minutes":    { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "attention": {
+      "type": "object",
+      "properties": {
+        "max_daily_notifications": { "type": "integer" },
+        "min_interval_seconds":    { "type": "integer" },
+        "quiet_hours":             { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+        "priority_threshold":      { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "external_agents": {
+      "type": "object",
+      "properties": {
+        "max_parallel_agents": { "type": "integer" },
+        "claude_code":         { "$ref": "#/$defs/claude_code_agent" },
+        "codex":               { "$ref": "#/$defs/cli_agent" },
+        "kimi":                { "$ref": "#/$defs/cli_agent" },
+        "teams":               { "type": "array", "items": { "$ref": "#/$defs/team" } }
+      },
+      "additionalProperties": false
+    },
+    "claude_code_agent": {
+      "type": "object",
+      "properties": {
+        "enabled":                  { "type": "boolean" },
+        "binary":                   { "type": "string" },
+        "default_model":            { "type": "string" },
+        "default_mode":             { "type": "string" },
+        "autonomous_allowed_tools": { "type": "array", "items": { "type": "string" } },
+        "plan_allowed_tools":       { "type": "array", "items": { "type": "string" } },
+        "max_budget_usd":           { "type": "number" },
+        "max_turns":                { "type": "integer" },
+        "timeout":                  { "type": "string" },
+        "resume_enabled":           { "type": "boolean" },
+        "env":                      { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "cli_agent": {
+      "type": "object",
+      "properties": {
+        "enabled":              { "type": "boolean" },
+        "binary":               { "type": "string" },
+        "default_model":        { "type": "string" },
+        "approval_policy":      { "type": "string" },
+        "sandbox":              { "type": "string" },
+        "plan_approval_policy": { "type": "string" },
+        "plan_sandbox":         { "type": "string" },
+        "timeout":              { "type": "string" },
+        "resume_enabled":       { "type": "boolean" },
+        "env":                  { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "team": {
+      "type": "object",
+      "required": ["name", "roles", "stages"],
+      "properties": {
+        "name":        { "type": "string" },
+        "description": { "type": "string" },
+        "roles":       { "type": "array", "items": { "$ref": "#/$defs/team_role" } },
+        "stages":      { "type": "array", "items": { "$ref": "#/$defs/team_stage" } }
+      },
+      "additionalProperties": false
+    },
+    "team_role": {
+      "type": "object",
+      "required": ["name", "agent_type"],
+      "properties": {
+        "name":               { "type": "string" },
+        "agent_type":         { "type": "string" },
+        "capability_profile": { "type": "string" },
+        "target_cli":         { "type": "string" },
+        "prompt_template":    { "type": "string" },
+        "execution_mode":     { "type": "string" },
+        "autonomy_level":     { "type": "string" },
+        "workspace_mode":     { "type": "string" },
+        "config":             { "type": "object", "additionalProperties": { "type": "string" } },
+        "inherit_context":    { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "team_stage": {
+      "type": "object",
+      "required": ["name", "roles"],
+      "properties": {
+        "name":        { "type": "string" },
+        "roles":       { "type": "array", "items": { "type": "string" } },
+        "debate_mode": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "llm_fallback_rule": {
+      "type": "object",
+      "required": ["model", "fallback_provider", "fallback_model"],
+      "properties": {
+        "model":             { "type": "string" },
+        "fallback_provider": { "type": "string" },
+        "fallback_model":    { "type": "string" },
+        "fallback_base_url": { "type": "string" },
+        "fallback_api_key":  { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
