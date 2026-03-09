@@ -142,31 +142,6 @@ func TestGetToolConfig(t *testing.T) {
 	}
 }
 
-func TestIsValidPreset(t *testing.T) {
-	tests := []struct {
-		name   string
-		preset string
-		want   bool
-	}{
-		{"default", "default", true},
-		{"code-expert", "code-expert", true},
-		{"researcher", "researcher", true},
-		{"devops", "devops", true},
-		{"security-analyst", "security-analyst", true},
-		{"architect", "architect", true},
-		{"invalid", "invalid", false},
-		{"empty", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := IsValidPreset(tt.preset); got != tt.want {
-				t.Errorf("IsValidPreset() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestIsValidToolPreset(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -469,63 +444,3 @@ func TestToolPresetBlocking(t *testing.T) {
 	}
 }
 
-func TestGetAllPresets(t *testing.T) {
-	presets := GetAllPresets()
-	if len(presets) != 7 {
-		t.Errorf("GetAllPresets() returned %d presets, want 7", len(presets))
-	}
-
-	// Check all expected presets are present
-	expected := map[AgentPreset]bool{
-		PresetDefault:         false,
-		PresetCodeExpert:      false,
-		PresetResearcher:      false,
-		PresetDevOps:          false,
-		PresetSecurityAnalyst: false,
-		PresetDesigner:        false,
-		PresetArchitect:       false,
-	}
-
-	for _, preset := range presets {
-		if _, ok := expected[preset]; ok {
-			expected[preset] = true
-		} else {
-			t.Errorf("Unexpected preset: %s", preset)
-		}
-	}
-
-	for preset, found := range expected {
-		if !found {
-			t.Errorf("Missing preset: %s", preset)
-		}
-	}
-}
-
-func TestGetAllToolPresets(t *testing.T) {
-	presets := GetAllToolPresets()
-	if len(presets) != 4 {
-		t.Errorf("GetAllToolPresets() returned %d presets, want 4", len(presets))
-	}
-
-	// Check all expected presets are present
-	expected := map[ToolPreset]bool{
-		ToolPresetFull:      false,
-		ToolPresetReadOnly:  false,
-		ToolPresetSafe:      false,
-		ToolPresetArchitect: false,
-	}
-
-	for _, preset := range presets {
-		if _, ok := expected[preset]; ok {
-			expected[preset] = true
-		} else {
-			t.Errorf("Unexpected tool preset: %s", preset)
-		}
-	}
-
-	for preset, found := range expected {
-		if !found {
-			t.Errorf("Missing tool preset: %s", preset)
-		}
-	}
-}

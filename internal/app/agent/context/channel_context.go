@@ -44,13 +44,3 @@ func WithIsGroup(ctx context.Context, isGroup bool) context.Context {
 	return context.WithValue(ctx, isGroupKey{}, isGroup)
 }
 
-// IsGroupFromContext returns true when the request is marked as a group chat.
-func IsGroupFromContext(ctx context.Context) bool {
-	if ctx == nil {
-		return false
-	}
-	if isGroup, ok := ctx.Value(isGroupKey{}).(bool); ok {
-		return isGroup
-	}
-	return false
-}

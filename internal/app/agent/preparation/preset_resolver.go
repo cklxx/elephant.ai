@@ -19,8 +19,8 @@ type PresetResolver struct {
 	eventEmitter agent.EventListener
 }
 
-// PresetResolverDeps enumerates dependencies for PresetResolver
-type PresetResolverDeps struct {
+// presetResolverDeps enumerates dependencies for PresetResolver
+type presetResolverDeps struct {
 	Logger       agent.Logger
 	Clock        agent.Clock
 	EventEmitter agent.EventListener
@@ -28,11 +28,11 @@ type PresetResolverDeps struct {
 
 // NewPresetResolver creates a new preset resolver instance.
 func NewPresetResolver(logger agent.Logger) *PresetResolver {
-	return NewPresetResolverWithDeps(PresetResolverDeps{Logger: logger})
+	return newPresetResolverWithDeps(presetResolverDeps{Logger: logger})
 }
 
-// NewPresetResolverWithDeps creates a new preset resolver with full dependencies
-func NewPresetResolverWithDeps(deps PresetResolverDeps) *PresetResolver {
+// newPresetResolverWithDeps creates a new preset resolver with full dependencies
+func newPresetResolverWithDeps(deps presetResolverDeps) *PresetResolver {
 	logger := deps.Logger
 	if logger == nil {
 		logger = agent.NoopLogger{}

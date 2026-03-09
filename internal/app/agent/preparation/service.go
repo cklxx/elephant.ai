@@ -109,7 +109,7 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 
 	presetResolver := deps.PresetResolver
 	if presetResolver == nil {
-		presetResolver = NewPresetResolverWithDeps(PresetResolverDeps{
+		presetResolver = newPresetResolverWithDeps(presetResolverDeps{
 			Logger:       logger,
 			Clock:        clock,
 			EventEmitter: eventEmitter,

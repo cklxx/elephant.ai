@@ -195,7 +195,7 @@ func TestPresetResolver_EmitsWorkflowDiagnosticToolFilteringEvent(t *testing.T) 
 	mockClk := newMockClock(time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC))
 	eventCapturer := &eventCapturer{}
 
-	resolver := NewPresetResolverWithDeps(PresetResolverDeps{
+	resolver := newPresetResolverWithDeps(presetResolverDeps{
 		Logger:       logger,
 		Clock:        mockClk,
 		EventEmitter: eventCapturer,
@@ -232,7 +232,7 @@ func TestPresetResolver_EmitsWorkflowDiagnosticToolFilteringEvent(t *testing.T) 
 
 func TestPresetResolver_DefaultPresetStillEmitsEvent(t *testing.T) {
 	eventCapturer := &eventCapturer{}
-	resolver := NewPresetResolverWithDeps(PresetResolverDeps{
+	resolver := newPresetResolverWithDeps(presetResolverDeps{
 		Logger:       &testLogger{},
 		EventEmitter: eventCapturer,
 	})

@@ -9,19 +9,19 @@ import (
 	"alex/internal/shared/logging"
 )
 
-// InjectionType classifies the kind of content being injected into context.
-type InjectionType string
+// injectionType classifies the kind of content being injected into context.
+type injectionType string
 
 const (
-	InjectionSkillActivation InjectionType = "skill_activation"
-	InjectionSuggestion      InjectionType = "suggestion"
-	InjectionWarning         InjectionType = "warning"
-	InjectionOKRContext      InjectionType = "okr_context"
+	injectionSkillActivation injectionType = "skill_activation"
+	injectionSuggestion      injectionType = "suggestion"
+	injectionWarning         injectionType = "warning"
+	injectionOKRContext      injectionType = "okr_context"
 )
 
 // Injection describes content to be injected into the agent context.
 type Injection struct {
-	Type     InjectionType // Classification of the injection
+	Type     injectionType // Classification of the injection
 	Content  string        // Text content to inject
 	Source   string        // Name of the hook that produced this injection
 	Priority int           // Higher priority injections appear first

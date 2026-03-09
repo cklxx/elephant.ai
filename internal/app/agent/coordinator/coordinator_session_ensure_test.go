@@ -92,9 +92,10 @@ func TestAgentCoordinatorEnsureSessionCreatesMissing(t *testing.T) {
 	store := &ensureSessionStore{sessions: map[string]*storage.Session{}}
 	fixedTime := time.Date(2026, 1, 29, 10, 0, 0, 0, time.UTC)
 
-	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{}, WithClock(agent.ClockFunc(func() time.Time {
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+	coordinator.clock = agent.ClockFunc(func() time.Time {
 		return fixedTime
-	})))
+	})
 
 	session, err := coordinator.EnsureSession(context.Background(), "lark-2")
 	if err != nil {

@@ -4,12 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"alex/internal/app/agent/llmclient"
 	"alex/internal/domain/agent/ports"
-	agent "alex/internal/domain/agent/ports/agent"
-	llm "alex/internal/domain/agent/ports/llm"
-	storage "alex/internal/domain/agent/ports/storage"
-	tools "alex/internal/domain/agent/ports/tools"
 	materialports "alex/internal/domain/materialregistry/ports"
 	"alex/internal/infra/tools/builtin/shared"
 )
@@ -20,56 +15,6 @@ func (c *AgentCoordinator) CancelBackgroundTask(ctx context.Context, taskID stri
 		return fmt.Errorf("background task registry not available")
 	}
 	return c.bgRegistry.CancelTask(ctx, taskID)
-}
-
-// GetCostTracker returns the cost tracker instance
-func (c *AgentCoordinator) GetCostTracker() storage.CostTracker {
-	return c.costTracker
-}
-
-// GetToolRegistry returns the tool registry instance
-func (c *AgentCoordinator) GetToolRegistry() tools.ToolRegistry {
-	return c.toolRegistry
-}
-
-// GetToolRegistryWithoutOrchestration returns a filtered registry that excludes
-// orchestration tools to prevent recursive delegation chains inside background tasks.
-func (c *AgentCoordinator) GetToolRegistryWithoutOrchestration() tools.ToolRegistry {
-	type registryWithFilter interface {
-		WithoutOrchestration() tools.ToolRegistry
-	}
-
-	if filtered, ok := c.toolRegistry.(registryWithFilter); ok {
-		return filtered.WithoutOrchestration()
-	}
-
-	return c.toolRegistry
-}
-
-// GetLLMClient returns an LLM client
-func (c *AgentCoordinator) GetLLMClient() (llm.LLMClient, error) {
-	cfg := c.effectiveConfig(context.Background())
-	profile := cfg.DefaultLLMProfile()
-	client, _, err := llmclient.GetClientFromProfile(
-		c.llmFactory,
-		profile,
-		llmclient.CredentialRefresher(c.credentialRefresher),
-		true,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
-}
-
-// GetParser returns the function call parser
-func (c *AgentCoordinator) GetParser() agent.FunctionCallParser {
-	return c.parser
-}
-
-// GetContextManager returns the context manager
-func (c *AgentCoordinator) GetContextManager() agent.ContextManager {
-	return c.contextMgr
 }
 
 // SetEnvironmentSummary updates the environment context appended to system prompts.

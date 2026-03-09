@@ -228,13 +228,3 @@ func TestGetConfig_DeepCopiesStopSequences(t *testing.T) {
 		t.Fatal("expected deep copy of stop sequences")
 	}
 }
-
-// --- GetSystemPrompt ---
-
-func TestGetSystemPrompt_NilContextManager(t *testing.T) {
-	coordinator := NewAgentCoordinator(nil, nil, nil, nil, nil, nil, nil, appconfig.Config{})
-	prompt := coordinator.GetSystemPrompt()
-	if prompt == "" {
-		t.Fatal("expected non-empty default prompt")
-	}
-}

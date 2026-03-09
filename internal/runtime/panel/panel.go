@@ -22,7 +22,6 @@ import (
 type ManagerIface interface {
 	Split(ctx context.Context, opts SplitOpts) (*Pane, error)
 	List(ctx context.Context) (string, error)
-	SetTabTitle(ctx context.Context, tabID int, title string) error
 }
 
 const (
@@ -176,15 +175,6 @@ func (p *Pane) Kill(ctx context.Context) error {
 	_, err := p.run(ctx, "cli", "kill-pane", "--pane-id", strconv.Itoa(p.ID))
 	if err != nil {
 		return fmt.Errorf("panel: kill pane %d: %w", p.ID, err)
-	}
-	return nil
-}
-
-// SetTabTitle sets the title of the tab containing this pane.
-func (m *Manager) SetTabTitle(ctx context.Context, tabID int, title string) error {
-	_, err := m.run(ctx, "cli", "set-tab-title", "--tab-id", strconv.Itoa(tabID), title)
-	if err != nil {
-		return fmt.Errorf("panel: set-tab-title %d: %w", tabID, err)
 	}
 	return nil
 }

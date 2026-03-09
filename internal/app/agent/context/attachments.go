@@ -38,21 +38,8 @@ type inheritedAttachmentPayload struct {
 	iterations  map[string]int
 }
 
-// WithInheritedAttachments shares generated attachments with delegated agents
-// (e.g. subagent) so they can resolve placeholders in nested tasks.
-func WithInheritedAttachments(ctx context.Context, attachments map[string]ports.Attachment, iterations map[string]int) context.Context {
-	if len(attachments) == 0 {
-		return ctx
-	}
-	payload := inheritedAttachmentPayload{
-		attachments: ports.CloneAttachmentMap(attachments),
-		iterations:  ports.CloneStringIntMap(iterations),
-	}
-	return context.WithValue(ctx, inheritedAttachmentsKey{}, payload)
-}
-
-// GetInheritedAttachments retrieves attachments propagated through
-// WithInheritedAttachments. Returns nil maps when not present.
+// GetInheritedAttachments retrieves inherited attachments from the context.
+// Returns nil maps when not present.
 func GetInheritedAttachments(ctx context.Context) (map[string]ports.Attachment, map[string]int) {
 	if ctx == nil {
 		return nil, nil

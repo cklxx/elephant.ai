@@ -31,8 +31,8 @@ func CloneHeaders(headers map[string]string) map[string]string {
 	return cloned
 }
 
-// BuildConfig maps a resolved profile to low-level LLM config.
-func BuildConfig(profile runtimeconfig.LLMProfile) portsllm.LLMConfig {
+// buildConfig maps a resolved profile to low-level LLM config.
+func buildConfig(profile runtimeconfig.LLMProfile) portsllm.LLMConfig {
 	return portsllm.LLMConfig{
 		APIKey:  strings.TrimSpace(profile.APIKey),
 		BaseURL: strings.TrimSpace(profile.BaseURL),
@@ -41,10 +41,10 @@ func BuildConfig(profile runtimeconfig.LLMProfile) portsllm.LLMConfig {
 	}
 }
 
-// BuildConfigWithRefresh maps a profile to low-level config and optionally applies
+// buildConfigWithRefresh maps a profile to low-level config and optionally applies
 // runtime credential refresh. Refresh is enabled only when refresh=true.
-func BuildConfigWithRefresh(profile runtimeconfig.LLMProfile, refresher CredentialRefresher, refresh bool) portsllm.LLMConfig {
-	cfg := BuildConfig(profile)
+func buildConfigWithRefresh(profile runtimeconfig.LLMProfile, refresher CredentialRefresher, refresh bool) portsllm.LLMConfig {
+	cfg := buildConfig(profile)
 	if !refresh || refresher == nil {
 		return cfg
 	}
@@ -66,7 +66,7 @@ func GetIsolatedClientFromProfile(factory portsllm.LLMClientFactory, profile run
 	if provider == "" || model == "" {
 		return nil, portsllm.LLMConfig{}, fmt.Errorf("llm profile requires provider and model")
 	}
-	cfg := BuildConfigWithRefresh(profile, refresher, refresh)
+	cfg := buildConfigWithRefresh(profile, refresher, refresh)
 	client, err := factory.GetIsolatedClient(provider, model, cfg)
 	if err != nil {
 		return nil, portsllm.LLMConfig{}, err
@@ -81,7 +81,7 @@ func GetClientFromProfile(factory portsllm.LLMClientFactory, profile runtimeconf
 	if provider == "" || model == "" {
 		return nil, portsllm.LLMConfig{}, fmt.Errorf("llm profile requires provider and model")
 	}
-	cfg := BuildConfigWithRefresh(profile, refresher, refresh)
+	cfg := buildConfigWithRefresh(profile, refresher, refresh)
 	client, err := factory.GetClient(provider, model, cfg)
 	if err != nil {
 		return nil, portsllm.LLMConfig{}, err

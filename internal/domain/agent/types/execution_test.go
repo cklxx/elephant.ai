@@ -40,33 +40,3 @@ func TestAgentTaskJSONEncodingIncludesIdentifiers(t *testing.T) {
 		t.Fatalf("expected completed_at %s, got %v", completedAt, decoded["completed_at"])
 	}
 }
-
-func TestExecutionEventOmitsEmptyParentRunID(t *testing.T) {
-	event := ExecutionEvent{
-		EventType: "tool_start",
-		Timestamp: "2024-05-01T12:30:00Z",
-		SessionID: "session-123",
-		RunID:     "task-456",
-		Payload:   map[string]any{"tool": "subagent"},
-	}
-
-	data, err := json.Marshal(event)
-	if err != nil {
-		t.Fatalf("failed to marshal execution event: %v", err)
-	}
-
-	var decoded map[string]any
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("failed to unmarshal execution event json: %v", err)
-	}
-
-	if _, ok := decoded["parent_run_id"]; ok {
-		t.Fatalf("expected parent_run_id to be omitted, got %v", decoded["parent_run_id"])
-	}
-	if decoded["session_id"] != event.SessionID {
-		t.Fatalf("expected session_id %s, got %v", event.SessionID, decoded["session_id"])
-	}
-	if decoded["run_id"] != event.RunID {
-		t.Fatalf("expected run_id %s, got %v", event.RunID, decoded["run_id"])
-	}
-}

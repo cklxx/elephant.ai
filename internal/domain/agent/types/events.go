@@ -40,10 +40,6 @@ const (
 	// Artifact
 	EventArtifactManifest = "workflow.artifact.manifest"
 
-	// Executor (ACP)
-	EventExecutorUpdate      = "workflow.executor.update"
-	EventExecutorUserMessage = "workflow.executor.user_message"
-
 	// Proactive
 	EventProactiveContextRefresh = "proactive.context.refresh"
 

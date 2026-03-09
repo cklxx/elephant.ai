@@ -53,19 +53,6 @@ func DetectLocalCLIs() []LocalCLIDetection {
 	return detected
 }
 
-// DetectLocalAdapters reports locally available coding adapters that are
-// currently wired into the external-agent execution path.
-func DetectLocalAdapters() []string {
-	available := make([]string, 0, 2)
-	for _, item := range DetectLocalCLIs() {
-		if !item.AdapterSupport || utils.IsBlank(item.AgentType) {
-			continue
-		}
-		available = append(available, item.AgentType)
-	}
-	return available
-}
-
 func detectFirstBinary(binaries []string) (path string, binary string, ok bool) {
 	for _, name := range binaries {
 		trimmed := strings.TrimSpace(name)

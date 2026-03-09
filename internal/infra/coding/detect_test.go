@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 )
 
@@ -50,30 +49,6 @@ func TestDetectLocalCLIs_IncludesSupportedCLIAdapters(t *testing.T) {
 	}
 	if got[2].ID != "kimi" || !got[2].AdapterSupport || got[2].AgentType != "kimi" {
 		t.Fatalf("unexpected kimi detection: %+v", got[2])
-	}
-}
-
-func TestDetectLocalAdapters_ReturnsOnlyIntegratedAdapters(t *testing.T) {
-	disableFallbackCLIPaths(t)
-
-	old := detectLookPath
-	defer func() { detectLookPath = old }()
-
-	detectLookPath = func(name string) (string, error) {
-		switch name {
-		case "codex":
-			return "/fake/codex", nil
-		case "k2":
-			return "/fake/k2", nil
-		default:
-			return "", fmt.Errorf("%s not found", name)
-		}
-	}
-
-	got := DetectLocalAdapters()
-	want := []string{"codex", "kimi"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("unexpected adapters: got=%v want=%v", got, want)
 	}
 }
 

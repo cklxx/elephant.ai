@@ -59,7 +59,7 @@ func (h *OKRContextHook) OnTaskStart(_ context.Context, _ TaskInfo) []Injection 
 
 	return []Injection{
 		{
-			Type:     InjectionOKRContext,
+			Type:     injectionOKRContext,
 			Content:  content,
 			Source:   "okr_context",
 			Priority: 80,

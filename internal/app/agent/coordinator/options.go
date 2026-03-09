@@ -1,7 +1,6 @@
 package coordinator
 
 import (
-	"alex/internal/app/agent/cost"
 	"alex/internal/app/agent/hooks"
 	"alex/internal/app/agent/preparation"
 	agent "alex/internal/domain/agent/ports/agent"
@@ -21,25 +20,6 @@ func WithLogger(logger agent.Logger) CoordinatorOption {
 	}
 }
 
-// WithClock overrides the default coordinator clock.
-func WithClock(clock agent.Clock) CoordinatorOption {
-	return func(c *AgentCoordinator) {
-		if clock != nil {
-			c.clock = clock
-		}
-	}
-}
-
-// WithCostTrackingDecorator overrides the default cost tracking decorator.
-// This allows injecting a custom decorator for testing or alternative cost tracking strategies.
-func WithCostTrackingDecorator(decorator *cost.CostTrackingDecorator) CoordinatorOption {
-	return func(c *AgentCoordinator) {
-		if decorator != nil {
-			c.costDecorator = decorator
-		}
-	}
-}
-
 // WithHookRegistry sets the proactive hook registry for pre/post-task processing.
 func WithHookRegistry(registry *hooks.Registry) CoordinatorOption {
 	return func(c *AgentCoordinator) {
@@ -54,15 +34,6 @@ func WithExternalExecutor(executor agent.ExternalAgentExecutor) CoordinatorOptio
 	return func(c *AgentCoordinator) {
 		if executor != nil {
 			c.externalExecutor = executor
-		}
-	}
-}
-
-// WithIterationHook provides an iteration hook for mid-loop behavior.
-func WithIterationHook(hook agent.IterationHook) CoordinatorOption {
-	return func(c *AgentCoordinator) {
-		if hook != nil {
-			c.iterationHook = hook
 		}
 	}
 }

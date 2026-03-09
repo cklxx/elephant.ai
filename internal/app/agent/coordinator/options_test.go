@@ -2,10 +2,8 @@ package coordinator
 
 import (
 	"testing"
-	"time"
 
 	appconfig "alex/internal/app/agent/config"
-	"alex/internal/app/agent/cost"
 	"alex/internal/infra/llm"
 )
 
@@ -25,15 +23,6 @@ func (l *testLogger) Warn(format string, args ...interface{}) {
 }
 func (l *testLogger) Error(format string, args ...interface{}) {
 	l.messages = append(l.messages, "ERROR")
-}
-
-// Mock clock for testing
-type testClock struct {
-	fixedTime time.Time
-}
-
-func (c *testClock) Now() time.Time {
-	return c.fixedTime
 }
 
 func TestWithLogger(t *testing.T) {
@@ -62,59 +51,8 @@ func TestWithLogger(t *testing.T) {
 	}
 }
 
-func TestWithClock(t *testing.T) {
-	fixedTime := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
-	clock := &testClock{fixedTime: fixedTime}
-
-	coordinator := NewAgentCoordinator(
-		llm.NewFactory(),
-		stubToolRegistry{},
-		&stubSessionStore{},
-		stubContextManager{},
-		nil,
-		stubParser{},
-		nil,
-		appconfig.Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
-		WithClock(clock),
-	)
-
-	// Verify clock is set
-	if coordinator.clock != clock {
-		t.Fatal("expected custom clock to be set")
-	}
-
-	// Verify clock works
-	if got := coordinator.clock.Now(); !got.Equal(fixedTime) {
-		t.Fatalf("expected clock to return %v, got %v", fixedTime, got)
-	}
-}
-
-func TestWithCostTrackingDecorator(t *testing.T) {
-	logger := &testLogger{}
-	clock := &testClock{fixedTime: time.Now()}
-	decorator := cost.NewCostTrackingDecorator(nil, logger, clock)
-
-	coordinator := NewAgentCoordinator(
-		llm.NewFactory(),
-		stubToolRegistry{},
-		&stubSessionStore{},
-		stubContextManager{},
-		nil,
-		stubParser{},
-		nil,
-		appconfig.Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
-		WithCostTrackingDecorator(decorator),
-	)
-
-	// Verify decorator is set
-	if coordinator.costDecorator != decorator {
-		t.Fatal("expected custom cost decorator to be set")
-	}
-}
-
 func TestMultipleOptions(t *testing.T) {
 	logger := &testLogger{}
-	clock := &testClock{fixedTime: time.Now()}
 
 	coordinator := NewAgentCoordinator(
 		llm.NewFactory(),
@@ -126,15 +64,11 @@ func TestMultipleOptions(t *testing.T) {
 		nil,
 		appconfig.Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 		WithLogger(logger),
-		WithClock(clock),
 	)
 
-	// Verify all options are applied
+	// Verify option is applied
 	if coordinator.logger != logger {
 		t.Fatal("expected custom logger to be set")
-	}
-	if coordinator.clock != clock {
-		t.Fatal("expected custom clock to be set")
 	}
 }
 

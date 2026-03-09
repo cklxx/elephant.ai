@@ -40,7 +40,7 @@ func TestBuildConfigWithRefresh(t *testing.T) {
 			" Authorization ": "Bearer token",
 		},
 	}
-	cfg := BuildConfigWithRefresh(profile, func(provider string) (string, string, bool) {
+	cfg := buildConfigWithRefresh(profile, func(provider string) (string, string, bool) {
 		if provider != "openai" {
 			t.Fatalf("unexpected provider %q", provider)
 		}

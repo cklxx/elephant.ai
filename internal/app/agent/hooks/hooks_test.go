@@ -60,13 +60,13 @@ func TestRunOnTaskStart_AggregatesAndSorts(t *testing.T) {
 	r.Register(&testHook{
 		name: "low-priority",
 		startResult: []Injection{
-			{Type: InjectionSuggestion, Content: "suggestion", Source: "low-priority", Priority: 1},
+			{Type: injectionSuggestion, Content: "suggestion", Source: "low-priority", Priority: 1},
 		},
 	})
 	r.Register(&testHook{
 		name: "high-priority",
 		startResult: []Injection{
-			{Type: InjectionSuggestion, Content: "memory", Source: "high-priority", Priority: 10},
+			{Type: injectionSuggestion, Content: "memory", Source: "high-priority", Priority: 10},
 		},
 	})
 
@@ -143,8 +143,8 @@ func TestRunOnTaskCompleted_ErrorDoesNotStopOthers(t *testing.T) {
 
 func TestFormatInjectionsAsContext(t *testing.T) {
 	injections := []Injection{
-		{Type: InjectionSuggestion, Content: "You discussed X before", Source: "memory_recall_hook", Priority: 10},
-		{Type: InjectionSuggestion, Content: "Consider Y", Source: "suggestion_hook", Priority: 5},
+		{Type: injectionSuggestion, Content: "You discussed X before", Source: "memory_recall_hook", Priority: 10},
+		{Type: injectionSuggestion, Content: "Consider Y", Source: "suggestion_hook", Priority: 5},
 	}
 
 	result := FormatInjectionsAsContext(injections)
@@ -188,13 +188,13 @@ func TestRunOnTaskStart_StableSortOrder(t *testing.T) {
 	r.Register(&testHook{
 		name: "first",
 		startResult: []Injection{
-			{Type: InjectionSuggestion, Content: "first", Source: "first", Priority: 5},
+			{Type: injectionSuggestion, Content: "first", Source: "first", Priority: 5},
 		},
 	})
 	r.Register(&testHook{
 		name: "second",
 		startResult: []Injection{
-			{Type: InjectionWarning, Content: "second", Source: "second", Priority: 5},
+			{Type: injectionWarning, Content: "second", Source: "second", Priority: 5},
 		},
 	})
 

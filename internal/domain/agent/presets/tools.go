@@ -196,16 +196,6 @@ func (f *FilteredToolRegistry) Unregister(name string) error {
 	return f.parent.Unregister(name)
 }
 
-// GetAllToolPresets returns all available tool presets
-func GetAllToolPresets() []ToolPreset {
-	return []ToolPreset{
-		ToolPresetFull,
-		ToolPresetReadOnly,
-		ToolPresetSafe,
-		ToolPresetArchitect,
-	}
-}
-
 // IsValidToolPreset checks if a tool preset is valid
 func IsValidToolPreset(preset string) bool {
 	switch ToolPreset(preset) {

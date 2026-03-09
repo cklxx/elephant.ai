@@ -101,8 +101,8 @@ func TestOKRContextHook_InjectsActiveGoals(t *testing.T) {
 	}
 
 	inj := injections[0]
-	if inj.Type != InjectionOKRContext {
-		t.Errorf("Type = %q, want %q", inj.Type, InjectionOKRContext)
+	if inj.Type != injectionOKRContext {
+		t.Errorf("Type = %q, want %q", inj.Type, injectionOKRContext)
 	}
 	if inj.Source != "okr_context" {
 		t.Errorf("Source = %q, want okr_context", inj.Source)

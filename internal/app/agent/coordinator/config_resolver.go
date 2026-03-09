@@ -8,9 +8,7 @@ import (
 	"time"
 
 	appconfig "alex/internal/app/agent/config"
-	"alex/internal/app/agent/preparation"
 	agent "alex/internal/domain/agent/ports/agent"
-	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/domain/agent/presets"
 	runtimeconfig "alex/internal/shared/config"
 )
@@ -100,53 +98,6 @@ func (c *AgentCoordinator) GetConfig() agent.AgentConfig {
 		ToolPreset:    c.config.ToolPreset,
 		ToolMode:      c.config.ToolMode,
 	}
-}
-
-// GetSystemPrompt returns the system prompt
-func (c *AgentCoordinator) GetSystemPrompt() string {
-	if c.contextMgr == nil {
-		return preparation.DefaultSystemPrompt
-	}
-	personaKey := c.config.AgentPreset
-	toolMode := presets.NormalizeToolMode(c.config.ToolMode)
-	toolPreset := presets.DefaultToolPresetForMode(toolMode, c.config.ToolPreset)
-	if c.prepService != nil {
-		if resolved := c.prepService.ResolveAgentPreset(context.Background(), personaKey); resolved != "" {
-			personaKey = resolved
-		}
-		if resolved := c.prepService.ResolveToolPreset(context.Background(), toolPreset); resolved != "" {
-			toolPreset = strings.TrimSpace(resolved)
-		}
-	}
-	toolPreset = presets.DefaultToolPresetForMode(toolMode, toolPreset)
-	session := &storage.Session{ID: "", Messages: nil}
-	okrContext := ""
-	if c.okrContextProvider != nil {
-		okrContext = c.okrContextProvider()
-	}
-	window, err := c.contextMgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{
-		TokenLimit:         c.config.MaxTokens,
-		PersonaKey:         personaKey,
-		ToolMode:           string(toolMode),
-		ToolPreset:         toolPreset,
-		EnvironmentSummary: c.config.EnvironmentSummary,
-		PromptMode:         c.config.Proactive.Prompt.Mode,
-		PromptTimezone:     c.config.Proactive.Prompt.Timezone,
-		BootstrapFiles:     append([]string(nil), c.config.Proactive.Prompt.BootstrapFiles...),
-		BootstrapMaxChars:  c.config.Proactive.Prompt.BootstrapMaxChars,
-		ReplyTagsEnabled:   c.config.Proactive.Prompt.ReplyTagsEnabled,
-		OKRContext:         okrContext,
-	})
-	if err != nil {
-		if c.logger != nil {
-			c.logger.Warn("Failed to build preview context window: %v", err)
-		}
-		return preparation.DefaultSystemPrompt
-	}
-	if prompt := strings.TrimSpace(window.SystemPrompt); prompt != "" {
-		return prompt
-	}
-	return preparation.DefaultSystemPrompt
 }
 
 // PreviewContextWindow constructs the current context window for a session

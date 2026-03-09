@@ -388,8 +388,8 @@ func TestResetSession_ClearsSession(t *testing.T) {
 			},
 		},
 	}
-	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{},
-		WithClock(agent.ClockFunc(func() time.Time { return fixedTime })))
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+	coordinator.clock = agent.ClockFunc(func() time.Time { return fixedTime })
 
 	err := coordinator.ResetSession(context.Background(), "s1")
 	if err != nil {
@@ -411,8 +411,8 @@ func TestSaveSessionAfterExecution_BasicSave(t *testing.T) {
 	store := &ensureSessionStore{
 		sessions: map[string]*storage.Session{},
 	}
-	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{},
-		WithClock(agent.ClockFunc(func() time.Time { return fixedTime })))
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+	coordinator.clock = agent.ClockFunc(func() time.Time { return fixedTime })
 
 	session := &storage.Session{ID: "s1"}
 	result := &agent.TaskResult{

@@ -298,21 +298,3 @@ You are the Architect for a context-first multi-agent system. Your job is to rea
 	return config, nil
 }
 
-// GetAllPresets returns all available agent presets
-func GetAllPresets() []AgentPreset {
-	return []AgentPreset{
-		PresetDefault,
-		PresetCodeExpert,
-		PresetResearcher,
-		PresetDevOps,
-		PresetSecurityAnalyst,
-		PresetDesigner,
-		PresetArchitect,
-	}
-}
-
-// IsValidPreset checks if a preset is valid
-func IsValidPreset(preset string) bool {
-	_, err := GetPromptConfig(AgentPreset(preset))
-	return err == nil
-}

@@ -59,20 +59,6 @@ func NewFactory() *Factory {
 	}
 }
 
-// NewFactoryWithRetryConfig creates a factory with custom retry configuration
-func NewFactoryWithRetryConfig(retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig) *Factory {
-	return &Factory{
-		cache:                newLLMCache(defaultLLMCacheSize),
-		cacheTTL:             defaultLLMCacheTTL,
-		enableRetry:          true,
-		retryConfig:          retryConfig,
-		circuitBreakerConfig: circuitBreakerConfig,
-		userRateBurst:        1,
-		kimiRateBurst:        1,
-		registry:             NewDefaultRegistry(),
-	}
-}
-
 // SetCacheOptions configures the LLM client cache.
 // A size <= 0 disables caching. A TTL <= 0 disables expiration.
 func (f *Factory) SetCacheOptions(size int, ttl time.Duration) {
@@ -280,19 +266,6 @@ func isKimiTarget(provider, model, baseURL string) bool {
 		return true
 	}
 	return strings.Contains(baseURL, "kimi.com") || strings.Contains(baseURL, "moonshot")
-}
-
-// GetProviderHealth returns health snapshots for all registered providers.
-// Returns nil if no HealthRegistry is configured.
-func (f *Factory) GetProviderHealth() []ProviderHealth {
-	f.mu.RLock()
-	hr := f.HealthRegistry
-	f.mu.RUnlock()
-
-	if hr == nil {
-		return nil
-	}
-	return hr.GetAllHealth()
 }
 
 // claudeOAuthTokenRefresher returns a TokenRefresher that forces a Claude OAuth

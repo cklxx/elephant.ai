@@ -7,7 +7,6 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
-	alexerrors "alex/internal/shared/errors"
 )
 
 // --- adaptConfig ---
@@ -118,15 +117,6 @@ func TestFactory_GetIsolatedClient_DoesNotPopulateCache(t *testing.T) {
 	}
 }
 
-// --- Factory.GetProviderHealth ---
-
-func TestFactory_GetProviderHealth_NilRegistry(t *testing.T) {
-	factory := NewFactory()
-	if got := factory.GetProviderHealth(); got != nil {
-		t.Fatalf("expected nil when no HealthRegistry, got %v", got)
-	}
-}
-
 // --- Factory.SetCacheOptions ---
 
 func TestFactory_SetCacheOptions_DisablesCache(t *testing.T) {
@@ -227,24 +217,6 @@ func TestFactory_DisableRetry(t *testing.T) {
 	factory.mu.RUnlock()
 	if enabled {
 		t.Fatal("expected retry disabled after DisableRetry")
-	}
-}
-
-// --- NewFactoryWithRetryConfig ---
-
-func TestNewFactoryWithRetryConfig_SetsValues(t *testing.T) {
-	factory := NewFactoryWithRetryConfig(
-		alexerrors.DefaultRetryConfig(),
-		alexerrors.DefaultCircuitBreakerConfig(),
-	)
-	if factory == nil {
-		t.Fatal("expected non-nil factory")
-	}
-	if !factory.enableRetry {
-		t.Fatal("expected retry enabled")
-	}
-	if factory.cache == nil {
-		t.Fatal("expected cache initialized")
 	}
 }
 
