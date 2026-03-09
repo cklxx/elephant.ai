@@ -65,10 +65,10 @@ kaku cli send-text --pane-id $PANE "claude --dangerously-skip-permissions"
 
 ```bash
 # ✅ 正确 — 挂在现有窗口，pane 不会消失
-PANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 65 --cwd $DIR -- bash -l)
+PANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 65 --cwd $DIR -- zsh -l)
 
 # ❌ 错误 — spawn 的 pane 在命令退出后消失
-kaku cli spawn --cwd $DIR -- bash -l
+kaku cli spawn --cwd $DIR -- zsh -l
 ```
 
 ---
@@ -81,7 +81,7 @@ kaku cli list
 
 # 拆分 pane（返回新 pane ID）
 # 方向标志：--bottom / --top / --left / --right（--horizontal 等同 --right）
-PANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 65 --cwd $DIR -- bash -l)
+PANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 65 --cwd $DIR -- zsh -l)
 
 # 注入文本（不提交，bracketed-paste 模式）
 kaku cli send-text --pane-id $PANE "文本内容"
@@ -180,7 +180,18 @@ alex runtime session start \
   --parent-pane-id $KAKU_PANE_ID
 ```
 
-### 方式 B：手动 kaku CLI（仅调试用）
+### 方式 B：launch-cc.sh（一行搞定，手动场景推荐）
+
+```bash
+# 一行启动 CC：split pane + env + unset + claude + 注入 goal + Enter
+PANE=$(bash scripts/kaku/launch-cc.sh \
+  --parent-pane $KAKU_PARENT_PANE \
+  --goal "你的任务描述" \
+  --work-dir /path/to/project)
+echo "CC started in pane $PANE"
+```
+
+### 方式 C：逐步手动 kaku CLI（仅调试用）
 
 ```bash
 # Step 0: 确保 CC hooks 已注册（幂等，可重复执行）
@@ -189,7 +200,7 @@ alex runtime session start \
 bash scripts/cc_hooks/notify_runtime.sh --ensure-registered
 
 # Step 1: 拆分 pane
-PANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 70 --cwd $WORKDIR -- bash -l)
+PANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 70 --cwd $WORKDIR -- zsh -l)
 
 # Step 2: 设置 runtime 环境变量（如有已知 session ID 则填入）
 bash scripts/kaku/send.sh --pane-id $PANE \
@@ -219,7 +230,7 @@ cat ~/.claude/settings.json | jq '.hooks | keys'
 ## 4. 启动 Codex
 
 ```bash
-PANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 65 --cwd $WORKDIR -- bash -l)
+PANE=$(kaku cli split-pane --pane-id $PARENT --bottom --percent 65 --cwd $WORKDIR -- zsh -l)
 kaku cli send-text --pane-id $PANE "codex exec --full-auto -- '你的任务'"
 kaku cli send-text --no-paste --pane-id $PANE $'\r'
 ```

@@ -64,7 +64,7 @@ type SplitOpts struct {
 }
 
 // Split creates a new pane by splitting an existing one.
-// Returns the new Pane. The pane starts a login shell (bash -l).
+// Returns the new Pane. The pane starts a login shell (zsh -l).
 func (m *Manager) Split(ctx context.Context, opts SplitOpts) (*Pane, error) {
 	dir := opts.Direction
 	if dir == "" {
@@ -85,7 +85,7 @@ func (m *Manager) Split(ctx context.Context, opts SplitOpts) (*Pane, error) {
 		"--" + dir,
 		"--percent", strconv.Itoa(pct),
 		"--cwd", cwd,
-		"--", "bash", "-l",
+		"--", "zsh", "-l",
 	}
 
 	out, err := m.run(ctx, args...)

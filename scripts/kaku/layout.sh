@@ -37,10 +37,10 @@ done
 # 确定起始 pane
 if [[ "$NEW_WINDOW" == "true" ]]; then
   # 在新独立窗口创建第一个 pane（不影响用户当前窗口）
-  PARENT=$("$KAKU" cli spawn --new-window --cwd "$CWD" -- bash -l)
+  PARENT=$("$KAKU" cli spawn --new-window --cwd "$CWD" -- zsh -l)
 elif [[ "$NEW_TAB" == "true" ]]; then
   # 在当前窗口新 tab 创建第一个 pane
-  PARENT=$("$KAKU" cli spawn --cwd "$CWD" -- bash -l)
+  PARENT=$("$KAKU" cli spawn --cwd "$CWD" -- zsh -l)
 else
   # 沿用已有 pane（--pane-id 或 KAKU_PANE_ID）
   if [[ -z "$PARENT" ]]; then
@@ -59,7 +59,7 @@ kaku_split() {
     "--${dir}" \
     --percent "$pct" \
     --cwd "$cwd" \
-    -- bash -l
+    -- zsh -l
 }
 
 case "$LAYOUT" in
