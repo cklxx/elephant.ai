@@ -35,6 +35,8 @@ func (c *AgentCoordinator) ExecuteTask(
 		defer cleanup()
 	}
 
+	timer := newStepTimer()
+
 	wf := newAgentWorkflow(ensuredRunID, slog.Default(), eventListener, outCtx)
 	wf.start(stagePrepare)
 
@@ -60,14 +62,28 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	c.finishPrepareStage(ctx, task, env, wf, outCtx, ensuredRunID, parentRunID, prepareStarted)
+	timer.track("prepare_context", prepareStarted)
+	timer.logStep(logger, ensuredRunID, timer.records[len(timer.records)-1])
 	ctx = id.WithSessionID(ctx, env.Session.ID)
 
+	hookStart := time.Now()
 	c.runPreTaskHooks(ctx, task, env, ensuredRunID, logger)
+	timer.track("pre_hooks", hookStart)
+	timer.logStep(logger, ensuredRunID, timer.records[len(timer.records)-1])
 
+	execStart := time.Now()
 	result, executionErr := c.buildAndRunReactEngine(ctx, task, env, wf, eventListener, effectiveCfg, ensuredRunID, parentRunID, logger)
+	timer.track("execute", execStart)
+	timer.logStep(logger, ensuredRunID, timer.records[len(timer.records)-1])
 
-	return c.finalizeExecution(ctx, task, env, wf, dispatcher, result, executionErr,
+	finalizeStart := time.Now()
+	finalResult, finalErr := c.finalizeExecution(ctx, task, env, wf, dispatcher, result, executionErr,
 		ensuredRunID, parentRunID, logger, attachWorkflow)
+	timer.track("finalize", finalizeStart)
+	timer.logStep(logger, ensuredRunID, timer.records[len(timer.records)-1])
+
+	timer.logSummary(logger, ensuredRunID)
+	return finalResult, finalErr
 }
 
 // setupExecutionContext initialises IDs, dispatcher, output context and returns
