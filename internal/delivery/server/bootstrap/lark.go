@@ -104,6 +104,23 @@ func RunLark(observabilityConfigPath string) error {
 		logger.Warn("[Bootstrap] Lark standalone starting in degraded mode: %v", f.Degraded.Map())
 	}
 
+	// ── Phase 3b: Runtime watchdog ──
+
+	watchdogCtx, watchdogCancel := context.WithCancel(context.Background())
+	defer watchdogCancel()
+
+	watchdogLogger := logging.NewComponentLogger("Watchdog")
+	dumpDir := os.Getenv("ALEX_LOG_DIR")
+	if dumpDir == "" {
+		dumpDir = "logs"
+	}
+	watchdog := diagnostics.NewWatchdog(diagnostics.WatchdogConfig{
+		DumpDir: dumpDir,
+	}, watchdogLogger)
+	async.Go(logger, "watchdog", func() {
+		watchdog.Run(watchdogCtx)
+	})
+
 	// ── Phase 4: Debug HTTP server ──
 
 	debugServer, _, err := BuildDebugHTTPServer(f, broadcaster, container, config)
