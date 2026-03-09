@@ -18,8 +18,10 @@ func (c *AgentCoordinator) CancelBackgroundTask(ctx context.Context, taskID stri
 }
 
 // SetEnvironmentSummary updates the environment context appended to system prompts.
+// It wraps the static string as a provider for consistency with the lazy path.
 func (c *AgentCoordinator) SetEnvironmentSummary(summary string) {
 	c.config.EnvironmentSummary = summary
+	c.config.EnvironmentSummaryProvider = func() string { return summary }
 	if c.prepService != nil {
 		c.prepService.SetEnvironmentSummary(summary)
 	}

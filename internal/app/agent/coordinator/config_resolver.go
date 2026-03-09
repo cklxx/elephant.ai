@@ -136,7 +136,7 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 		PersonaKey:         preview.PersonaKey,
 		ToolMode:           string(toolMode),
 		ToolPreset:         toolPreset,
-		EnvironmentSummary: cfg.EnvironmentSummary,
+		EnvironmentSummary: cfg.ResolveEnvironmentSummary(),
 		PromptMode:         cfg.Proactive.Prompt.Mode,
 		PromptTimezone:     cfg.Proactive.Prompt.Timezone,
 		BootstrapFiles:     append([]string(nil), cfg.Proactive.Prompt.BootstrapFiles...),

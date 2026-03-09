@@ -102,7 +102,8 @@ type Config struct {
 	FollowTranscript           bool
 	FollowStream               bool
 
-	EnvironmentSummary string
+	EnvironmentSummary         string
+	EnvironmentSummaryProvider func() string // lazy; overrides EnvironmentSummary when set
 
 	// Storage Configuration
 	SessionDir        string // Directory for session storage (default: ~/.alex/sessions)
@@ -112,9 +113,10 @@ type Config struct {
 	ToolPolicy        toolspolicy.ToolPolicyConfig
 	BrowserConfig     toolregistry.BrowserConfig
 
-	HTTPLimits     runtimeconfig.HTTPLimitsConfig
-	Proactive      runtimeconfig.ProactiveConfig
-	ExternalAgents runtimeconfig.ExternalAgentsConfig
+	HTTPLimits       runtimeconfig.HTTPLimitsConfig
+	Proactive        runtimeconfig.ProactiveConfig
+	ExternalAgents   runtimeconfig.ExternalAgentsConfig
+	LLMFallbackRules []runtimeconfig.LLMFallbackRuleConfig
 }
 
 // Start initializes container lifecycle hooks.

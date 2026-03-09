@@ -35,20 +35,44 @@ var defaultCLICandidates = []cliCandidate{
 }
 
 // DetectLocalCLIs reports available local coding CLIs discovered on the host.
+// Binary lookups run in parallel to reduce wall-clock time.
 func DetectLocalCLIs() []LocalCLIDetection {
+	type indexedResult struct {
+		det LocalCLIDetection
+		ok  bool
+		idx int
+	}
+	ch := make(chan indexedResult, len(defaultCLICandidates))
+	for i, c := range defaultCLICandidates {
+		go func(idx int, cand cliCandidate) {
+			path, binary, ok := detectFirstBinary(cand.binaries)
+			if ok {
+				ch <- indexedResult{
+					det: LocalCLIDetection{
+						ID:             cand.id,
+						Binary:         binary,
+						Path:           path,
+						AgentType:      cand.agentType,
+						AdapterSupport: cand.supported,
+					},
+					ok:  true,
+					idx: idx,
+				}
+			} else {
+				ch <- indexedResult{idx: idx}
+			}
+		}(i, c)
+	}
+	results := make(map[int]indexedResult, len(defaultCLICandidates))
+	for range defaultCLICandidates {
+		r := <-ch
+		results[r.idx] = r
+	}
 	detected := make([]LocalCLIDetection, 0, len(defaultCLICandidates))
-	for _, candidate := range defaultCLICandidates {
-		path, binary, ok := detectFirstBinary(candidate.binaries)
-		if !ok {
-			continue
+	for i := range defaultCLICandidates {
+		if r, ok := results[i]; ok && r.ok {
+			detected = append(detected, r.det)
 		}
-		detected = append(detected, LocalCLIDetection{
-			ID:             candidate.id,
-			Binary:         binary,
-			Path:           path,
-			AgentType:      candidate.agentType,
-			AdapterSupport: candidate.supported,
-		})
 	}
 	return detected
 }

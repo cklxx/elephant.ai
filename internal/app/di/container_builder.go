@@ -65,15 +65,21 @@ func newContainerBuilder(config Config) *containerBuilder {
 
 func (b *containerBuilder) Build() (*Container, error) {
 	b.logger.Debug("Building container with session_dir=%s, cost_dir=%s", b.sessionDir, b.costDir)
-	detectedCLIs := codinginfra.DetectLocalCLIs()
-	b.applyDetectedExternalAgents(detectedCLIs, true)
-	b.logLocalCodingCLIDetection(detectedCLIs)
+
+	// Start CLI detection in background — runs concurrently with LLM factory + session init.
+	cliCh := make(chan []codinginfra.LocalCLIDetection, 1)
+	go func() { cliCh <- codinginfra.DetectLocalCLIs() }()
 
 	llmFactory := b.buildLLMFactory()
 	resources, err := b.buildSessionResources()
 	if err != nil {
 		return nil, err
 	}
+
+	// Collect CLI detection results (should be ready by now).
+	detectedCLIs := <-cliCh
+	b.applyDetectedExternalAgents(detectedCLIs, true)
+	b.logLocalCodingCLIDetection(detectedCLIs)
 
 	memoryEngine, err := b.buildMemoryEngine()
 	if err != nil {

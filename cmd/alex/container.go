@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 
 	"alex/internal/app/di"
 	"alex/internal/infra/environment"
@@ -47,26 +48,24 @@ func buildContainer() (*Container, error) {
 	// Keep CLI output clean by default; only show info logs when verbose is enabled.
 	configureDefaultLogger(cfg.Verbose)
 
-	// Build DI container with configurable storage
-	localSummary := environment.CollectLocalSummary(20)
-	environmentSummary := environment.FormatSummary(localSummary)
+	// Start env collection in background — resolved lazily on first use.
+	envCh := make(chan string, 1)
+	go func() {
+		s := environment.CollectLocalSummary(20)
+		envCh <- environment.FormatSummary(s)
+	}()
+	envProvider := sync.OnceValue(func() string { return <-envCh })
 
 	diConfig := di.ConfigFromRuntimeConfig(cfg)
-	diConfig.EnvironmentSummary = environmentSummary
+	diConfig.EnvironmentSummaryProvider = envProvider
 
 	container, err := di.BuildContainer(diConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	result := &Container{
+	return &Container{
 		Container: container,
 		Runtime:   cfg,
-	}
-
-	if environmentSummary != "" {
-		result.Container.AgentCoordinator.SetEnvironmentSummary(environmentSummary)
-	}
-
-	return result, nil
+	}, nil
 }

@@ -28,10 +28,20 @@ type Config struct {
 	AgentPreset         string // Agent persona preset (default, code-expert, etc.)
 	ToolPreset          string // Tool access preset (full, read-only, safe, architect)
 	ToolMode            string // Tool access mode (web or cli)
-	EnvironmentSummary  string
-	SessionStaleAfter   time.Duration
+	EnvironmentSummary         string
+	EnvironmentSummaryProvider func() string // lazy; resolved on first use, overrides EnvironmentSummary
+	SessionStaleAfter          time.Duration
 	Proactive           runtimeconfig.ProactiveConfig
 	ToolPolicy          toolspolicy.ToolPolicyConfig
+}
+
+// ResolveEnvironmentSummary returns the environment summary, preferring the
+// lazy provider when set, falling back to the static string.
+func (c Config) ResolveEnvironmentSummary() string {
+	if c.EnvironmentSummaryProvider != nil {
+		return c.EnvironmentSummaryProvider()
+	}
+	return c.EnvironmentSummary
 }
 
 // DefaultLLMProfile returns the resolved default profile used by the runtime.
