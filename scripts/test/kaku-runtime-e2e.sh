@@ -242,7 +242,7 @@ tc_1_single_agent_task() {
   local M; M=$(mark_log)
 
   info "Injecting: single agent task → write $OUTPUT_FILE"
-  local RESP; RESP=$(inject "请用 kaku runtime 在 pane $KAKU_PARENT_PANE 里启动一个 Claude Code session，任务是：用 bash 执行 echo 'kaku-tc1-done' > $OUTPUT_FILE 然后退出。完成后告诉我文件路径。" 180)
+  local RESP; RESP=$(inject "请调用 POST http://localhost:9090/api/runtime/sessions 创建一个 Claude Code session，body 必须包含 parent_pane_id=$KAKU_PARENT_PANE。任务(goal)：用 bash 执行 echo 'kaku-tc1-done' > $OUTPUT_FILE 然后退出。work_dir 用 $REPO_ROOT。完成后告诉我文件路径。" 180)
 
   # L1: agent 回复了任务确认
   assert_no_error "$RESP"
@@ -299,10 +299,10 @@ tc_2_parallel_team() {
 
   info "Injecting: parallel team — 2 agents running simultaneously"
   local RESP; RESP=$(inject \
-    "请同时启动两个 Claude Code session 来并行工作：
-Agent-A：在 pane $KAKU_PARENT_PANE 附近启动，任务是写文件 $FILE_A 内容为 'agent-a-done'
-Agent-B：另开一个 pane 启动，任务是执行 echo 'agent-b-$(date +%s)' 并输出结果
-两个 agent 应该同时运行，不要等 A 完成再启动 B。完成后报告两个任务的结果。" \
+    "请调用 POST http://localhost:9090/api/runtime/sessions 两次，同时创建两个 Claude Code session（parent_pane_id 都用 $KAKU_PARENT_PANE，work_dir 用 $REPO_ROOT）：
+Agent-A goal：用 bash 写文件 $FILE_A 内容为 'agent-a-done' 然后退出
+Agent-B goal：用 bash 执行 echo 'agent-b-done' 然后退出
+两次 API 调用要几乎同时发出（并行），不要等 A 完成再启动 B。完成后报告两个 session id 和结果。" \
     240)
 
   # L1: agent 确认启动了任务
@@ -364,10 +364,10 @@ tc_3_sequential_dependency() {
 
   info "Injecting: sequential dependency — B depends on A"
   local RESP; RESP=$(inject \
-    "请完成一个两阶段编程任务：
-阶段1：启动 Claude Code session，在 $FILE1 写一个 Go 函数 Add(a, b int) int，写完后结束
-阶段2：等阶段1完成后，再启动另一个 Claude Code session，在 $FILE2 写一个调用 $FILE1 中 Add 函数的测试用例，写完后结束
-两个阶段必须顺序执行（不能并行），完成后告诉我两个文件的内容摘要。" \
+    "请完成一个两阶段编程任务，每阶段都用 POST http://localhost:9090/api/runtime/sessions 创建 session（parent_pane_id=$KAKU_PARENT_PANE，work_dir=$REPO_ROOT）：
+阶段1：创建 Claude Code session，goal 是在 $FILE1 写一个 Go 函数 Add(a, b int) int，等 session 完成（polling GET /api/runtime/sessions/<id> 直到 state=completed）
+阶段2：阶段1完成后，再创建另一个 Claude Code session，goal 是在 $FILE2 写一个调用 $FILE1 中 Add 函数的测试用例
+两个阶段必须顺序执行，完成后告诉我两个文件的内容摘要。" \
     360)
 
   # L1
@@ -415,7 +415,7 @@ tc_4_stall_and_leader_recovery() {
 
   info "Injecting: task that will stall (CC waits for input)"
   local RESP; RESP=$(inject \
-    "请在 pane $KAKU_PARENT_PANE 启动一个 Claude Code session，任务是：
+    "请调用 POST http://localhost:9090/api/runtime/sessions 创建一个 Claude Code session（parent_pane_id=$KAKU_PARENT_PANE，work_dir=$REPO_ROOT），goal 是：
 '请等待用户输入后再执行，不要自动做任何事情'
 启动后就让它等着，不要给它任何后续指令。" \
     60)
@@ -519,18 +519,13 @@ tc_6_full_team_workflow() {
 
   info "Injecting: full 3-agent team workflow (Analyst → Coder → Tester)"
   local RESP; RESP=$(inject \
-    "请用 kaku 编程团队完成以下任务（三个阶段，顺序执行）：
+    "请用 POST http://localhost:9090/api/runtime/sessions 按顺序创建三个 Claude Code session（每个都用 parent_pane_id=$KAKU_PARENT_PANE，work_dir=$REPO_ROOT），等上一个 state=completed 后再创建下一个：
 
-阶段1 - 分析师（Claude Code session，pane $KAKU_PARENT_PANE 附近）：
-  写一个简单的方案文档到 ${PLAN}，内容是「实现 Go 函数 Max(a,b int) int 返回较大值，以及配套单测」
+session-1 goal：写方案文档到 ${PLAN}，内容是「实现 Go 函数 Max(a,b int) int 返回较大值，以及配套单测」然后退出
+session-2 goal：读取 ${PLAN}，实现 Go 文件 ${IMPL}，只包含 Max 函数，然后退出
+session-3 goal：读取 ${IMPL}，用 bash echo 输出「Max(3,5)=5, 实现正确」然后退出
 
-阶段2 - 开发者（新的 Claude Code session）：
-  读取 ${PLAN}，实现 Go 文件 ${IMPL}，只包含 Max 函数
-
-阶段3 - 验证（新的 Claude Code session）：
-  读取 ${IMPL}，用 echo 输出一行验证结论：「Max(3,5)=5, 实现正确」
-
-三个阶段严格顺序执行，每个阶段完成后再启动下一个。全部完成后汇报结果。" \
+每次调用 POST 后 polling GET /api/runtime/sessions/<id> 等 state=completed。全部完成后汇报三个 session id 和文件内容。" \
     480)
 
   # L1: agent 确认开始了多阶段任务
