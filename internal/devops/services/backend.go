@@ -193,6 +193,9 @@ func (s *BackendService) Build(ctx context.Context) (string, error) {
 	env := os.Environ()
 	if cgoEnabled {
 		env = append(env, "CGO_ENABLED=1")
+		if cc := s.resolveRealCC(env); cc != "" {
+			env = append(env, "CC="+cc)
+		}
 	} else {
 		env = append(env, "CGO_ENABLED=0")
 	}
@@ -314,6 +317,36 @@ func hasSQLiteHeader() bool {
 		}
 	}
 	return false
+}
+
+// resolveRealCC returns a path to a real C compiler, bypassing sandboxed
+// wrappers (e.g. Claude Code places a non-functional `cc` in PATH).
+// Returns "" if CC is already set in env or no wrapper is detected.
+func (s *BackendService) resolveRealCC(env []string) string {
+	for _, e := range env {
+		if strings.HasPrefix(e, "CC=") {
+			return "" // already set
+		}
+	}
+	ccPath, err := exec.LookPath("cc")
+	if err != nil {
+		return ""
+	}
+	out, err := exec.Command(ccPath, "--version").CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "Claude Code") {
+		return "" // real compiler or unknown — leave it alone
+	}
+	// Sandboxed wrapper detected; prefer system clang.
+	if _, err := os.Stat("/usr/bin/clang"); err == nil {
+		return "/usr/bin/clang"
+	}
+	if p, err := exec.LookPath("clang"); err == nil {
+		return p
+	}
+	if p, err := exec.LookPath("gcc"); err == nil {
+		return p
+	}
+	return ""
 }
 
 func (s *BackendService) buildEnv(port int) []string {
