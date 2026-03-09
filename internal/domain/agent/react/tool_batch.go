@@ -184,9 +184,14 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 
 func (b *toolCallBatch) finalize(idx int, tc ToolCall, nodeID string, result ToolResult, startTime time.Time, span trace.Span) {
 	normalized := b.engine.normalizeToolResult(tc, b.state, result)
-	b.results[idx] = normalized
 
 	duration := b.engine.clock.Now().Sub(startTime)
+	if normalized.Metadata == nil {
+		normalized.Metadata = make(map[string]any)
+	}
+	normalized.Metadata["_duration_ms"] = duration.Milliseconds()
+
+	b.results[idx] = normalized
 	if span != nil {
 		span.SetAttributes(
 			attribute.Int64("alex.tool.duration_ms", duration.Milliseconds()),

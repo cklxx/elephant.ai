@@ -738,6 +738,7 @@ func (it *reactIteration) observeTools() {
 	}
 
 	toolMessages := it.runtime.engine.buildToolMessages(it.plan.calls, it.toolResult)
+	toolMessages = appendLongRunningToolReminder(it.plan.calls, it.toolResult, toolMessages)
 	toolMessages = it.runtime.engine.appendGoalPlanReminder(state, toolMessages)
 	startIdx := len(state.Messages)
 	state.Messages = append(state.Messages, toolMessages...)
