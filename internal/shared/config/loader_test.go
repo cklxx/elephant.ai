@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+// noopCmdRunner disables external command execution (keychain, setup-token) in tests.
+func noopCmdRunner(_ string, _ ...string) ([]byte, error) {
+	return nil, fmt.Errorf("disabled in test")
+}
+
 type envMap map[string]string
 
 func (e envMap) Lookup(key string) (string, bool) {
@@ -448,6 +453,7 @@ runtime:
 		WithEnv(envMap{
 			"ANTHROPIC_API_KEY": "anthropic-key",
 		}.Lookup),
+		WithCmdRunner(noopCmdRunner),
 	)
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
@@ -660,6 +666,7 @@ runtime:
 		WithEnv(envMap{
 			"ANTHROPIC_API_KEY": "anthropic-key",
 		}.Lookup),
+		WithCmdRunner(noopCmdRunner),
 	)
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)

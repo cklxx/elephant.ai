@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"testing"
 )
@@ -66,6 +67,9 @@ runtime:
 			"LLM_API_KEY":       "ark-generic-key",
 			"ANTHROPIC_API_KEY": "sk-ant-api-key",
 		}.Lookup),
+		WithCmdRunner(func(_ string, _ ...string) ([]byte, error) {
+			return nil, fmt.Errorf("disabled in test")
+		}),
 	)
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)

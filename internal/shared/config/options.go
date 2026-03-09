@@ -9,6 +9,7 @@ type loadOptions struct {
 	envLookup  EnvLookup
 	readFile   func(string) ([]byte, error)
 	homeDir    func() (string, error)
+	cmdRunner  func(name string, args ...string) ([]byte, error)
 	overrides  Overrides
 	configPath string
 }
@@ -45,6 +46,13 @@ func WithFileReader(reader func(string) ([]byte, error)) Option {
 func WithHomeDir(resolver func() (string, error)) Option {
 	return func(o *loadOptions) {
 		o.homeDir = resolver
+	}
+}
+
+// WithCmdRunner injects a custom command runner, used primarily for tests.
+func WithCmdRunner(runner func(name string, args ...string) ([]byte, error)) Option {
+	return func(o *loadOptions) {
+		o.cmdRunner = runner
 	}
 }
 

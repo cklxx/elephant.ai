@@ -90,10 +90,15 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	autoEnableExternalAgents(&cfg, &meta)
 	cliCreds := CLICredentials{}
 	if shouldLoadCLICredentials(cfg) {
+		cmdRunner := options.cmdRunner
+		if cmdRunner == nil {
+			cmdRunner = defaultCmdRunner
+		}
 		cliCreds = LoadCLICredentials(
 			WithEnv(options.envLookup),
 			WithFileReader(options.readFile),
 			WithHomeDir(options.homeDir),
+			WithCmdRunner(cmdRunner),
 		)
 	}
 	resolveAutoProvider(&cfg, &meta, options.envLookup, cliCreds)

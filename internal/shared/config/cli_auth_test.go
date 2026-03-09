@@ -524,3 +524,154 @@ func TestLoadCLICredentialsReadsClaudeSetupToken(t *testing.T) {
 		t.Fatalf("expected SourceClaudeCLI, got %q", result.Claude.Source)
 	}
 }
+
+func TestLoadClaudeFromKeychainMock(t *testing.T) {
+	t.Parallel()
+	keychainJSON := `{"claudeAiOauth":{"accessToken":"sk-ant-oat01-keychain","refreshToken":"sk-ant-ort01-kc","expiresAt":9999999999999,"scopes":["user:inference"],"subscriptionType":"max"}}`
+
+	mockRunner := func(name string, args ...string) ([]byte, error) {
+		if name == "security" && len(args) >= 3 && args[0] == "find-generic-password" {
+			return []byte(keychainJSON), nil
+		}
+		return nil, fmt.Errorf("unexpected command: %s", name)
+	}
+
+	cred := loadClaudeFromKeychain(mockRunner)
+	if cred.APIKey != "sk-ant-oat01-keychain" {
+		t.Fatalf("expected keychain token, got %q", cred.APIKey)
+	}
+	if cred.Provider != "anthropic" {
+		t.Fatalf("expected anthropic provider, got %q", cred.Provider)
+	}
+	if cred.Source != SourceClaudeCLI {
+		t.Fatalf("expected SourceClaudeCLI, got %q", cred.Source)
+	}
+}
+
+func TestLoadClaudeFromKeychainFallsBackOnError(t *testing.T) {
+	t.Parallel()
+	mockRunner := func(name string, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("keychain item not found")
+	}
+
+	cred := loadClaudeFromKeychain(mockRunner)
+	if cred.APIKey != "" {
+		t.Fatalf("expected empty credential on keychain error, got %q", cred.APIKey)
+	}
+}
+
+func TestLoadClaudeFromSetupTokenMock(t *testing.T) {
+	t.Parallel()
+	setupJSON := `{"claudeAiOauth":{"accessToken":"sk-ant-oat01-setup","refreshToken":"sk-ant-ort01-st","expiresAt":9999999999999,"scopes":["user:inference"],"subscriptionType":"pro"}}`
+
+	mockRunner := func(name string, args ...string) ([]byte, error) {
+		if name == "claude" && len(args) >= 1 && args[0] == "setup-token" {
+			return []byte(setupJSON), nil
+		}
+		return nil, fmt.Errorf("unexpected command: %s", name)
+	}
+
+	cred := loadClaudeFromSetupToken(mockRunner)
+	if cred.APIKey != "sk-ant-oat01-setup" {
+		t.Fatalf("expected setup-token, got %q", cred.APIKey)
+	}
+	if cred.Provider != "anthropic" {
+		t.Fatalf("expected anthropic provider, got %q", cred.Provider)
+	}
+}
+
+func TestLoadClaudeFromSetupTokenFallsBackOnError(t *testing.T) {
+	t.Parallel()
+	mockRunner := func(name string, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("claude not found")
+	}
+
+	cred := loadClaudeFromSetupToken(mockRunner)
+	if cred.APIKey != "" {
+		t.Fatalf("expected empty credential on setup-token error, got %q", cred.APIKey)
+	}
+}
+
+func TestLoadClaudeCLIAuthKeychainFallthrough(t *testing.T) {
+	t.Parallel()
+	// No env vars, no credential files, Keychain returns a valid token.
+	keychainJSON := `{"claudeAiOauth":{"accessToken":"sk-ant-oat01-kc-fallthrough","refreshToken":"sk-ant-ort01-kc","expiresAt":9999999999999}}`
+
+	tmp := t.TempDir() // empty home — no credential files
+	mockRunner := func(name string, args ...string) ([]byte, error) {
+		if name == "security" {
+			return []byte(keychainJSON), nil
+		}
+		return nil, fmt.Errorf("not found")
+	}
+
+	result := LoadCLICredentials(
+		WithHomeDir(func() (string, error) { return tmp, nil }),
+		WithEnv(func(string) (string, bool) { return "", false }),
+		WithCmdRunner(mockRunner),
+	)
+
+	if result.Claude.APIKey != "sk-ant-oat01-kc-fallthrough" {
+		t.Fatalf("expected keychain fallthrough token, got %q", result.Claude.APIKey)
+	}
+}
+
+func TestLoadClaudeCLIAuthSetupTokenFallthrough(t *testing.T) {
+	t.Parallel()
+	// No env vars, no credential files, Keychain fails, setup-token succeeds.
+	setupJSON := `{"claudeAiOauth":{"accessToken":"sk-ant-oat01-st-fallthrough","refreshToken":"sk-ant-ort01-st","expiresAt":9999999999999}}`
+
+	tmp := t.TempDir()
+	mockRunner := func(name string, args ...string) ([]byte, error) {
+		if name == "security" {
+			return nil, fmt.Errorf("keychain not found")
+		}
+		if name == "claude" {
+			return []byte(setupJSON), nil
+		}
+		return nil, fmt.Errorf("not found")
+	}
+
+	result := LoadCLICredentials(
+		WithHomeDir(func() (string, error) { return tmp, nil }),
+		WithEnv(func(string) (string, bool) { return "", false }),
+		WithCmdRunner(mockRunner),
+	)
+
+	if result.Claude.APIKey != "sk-ant-oat01-st-fallthrough" {
+		t.Fatalf("expected setup-token fallthrough token, got %q", result.Claude.APIKey)
+	}
+}
+
+func TestLoadClaudeCLIAuthFileBeatsKeychain(t *testing.T) {
+	t.Parallel()
+	// Credential file should take priority over Keychain.
+	tmp := t.TempDir()
+	claudeDir := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	fileCreds := `{"claudeAiOauth":{"accessToken":"sk-ant-oat01-from-file","refreshToken":"sk-ant-ort01-f","expiresAt":9999999999999}}`
+	if err := os.WriteFile(filepath.Join(claudeDir, ".credentials.json"), []byte(fileCreds), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	keychainCalled := false
+	mockRunner := func(name string, args ...string) ([]byte, error) {
+		keychainCalled = true
+		return []byte(`{"claudeAiOauth":{"accessToken":"sk-ant-oat01-from-keychain"}}`), nil
+	}
+
+	result := LoadCLICredentials(
+		WithHomeDir(func() (string, error) { return tmp, nil }),
+		WithEnv(func(string) (string, bool) { return "", false }),
+		WithCmdRunner(mockRunner),
+	)
+
+	if result.Claude.APIKey != "sk-ant-oat01-from-file" {
+		t.Fatalf("expected file credential to win, got %q", result.Claude.APIKey)
+	}
+	if keychainCalled {
+		t.Fatal("keychain should not be called when file credentials exist")
+	}
+}

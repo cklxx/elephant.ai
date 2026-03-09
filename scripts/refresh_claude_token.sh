@@ -4,11 +4,17 @@
 # Created: 2026-03-02T16:40:00+08:00
 #
 # Context:
-#   The Claude CLI uses an OAuth token stored in ~/.claude/.credentials.json
+#   Claude Code v2.1+ stores OAuth credentials in macOS Keychain
+#   (service: "Claude Code-credentials") instead of ~/.claude/.credentials.json.
+#   The credential file path is kept as a fallback for older versions.
 #   accessToken (sk-ant-oat01-*) expires every ~10h after login.
-#   refreshToken (sk-ant-ort01-*) MAY be used for programmatic refresh,
-#   but Anthropic's public SDK does not expose a refresh endpoint — manual
-#   re-login is the only guaranteed method.
+#   refreshToken (sk-ant-ort01-*) MAY be used for programmatic refresh.
+#
+#   Alex auto-detects credentials in this order:
+#     1. CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_AUTH_TOKEN env vars
+#     2. ~/.claude/.credentials.json (legacy file paths)
+#     3. macOS Keychain ("Claude Code-credentials")
+#     4. `claude setup-token` CLI
 #
 # Usage:
 #   ./scripts/refresh_claude_token.sh          # inspect current status
