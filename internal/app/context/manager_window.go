@@ -133,6 +133,7 @@ func (m *manager) RecordTurn(ctx context.Context, record agent.ContextTurnRecord
 			CreatedAt:     record.Timestamp,
 			Summary:       record.Summary,
 			MessageCount:  record.MessageCount,
+			Messages:      record.Messages,
 			Plans:         record.Plans,
 			Beliefs:       record.Beliefs,
 			World:         record.World,

@@ -214,9 +214,8 @@ type MemoryFragment struct {
 }
 
 // ContextTurnRecord is persisted each time the LLM is invoked.
-// Messages are not stored inline to avoid O(N²) memory growth during
-// long agent runs; use MessageCount + the DiagnosticContextSnapshot event
-// for full message history.
+// Messages holds the context window sent to the LLM on this turn so that
+// diagnostics can display them immediately without waiting for task completion.
 type ContextTurnRecord struct {
 	SessionID     string               `json:"session_id"`
 	TurnID        int                  `json:"turn_id"`
@@ -224,6 +223,7 @@ type ContextTurnRecord struct {
 	Timestamp     time.Time            `json:"timestamp"`
 	Summary       string               `json:"summary"`
 	MessageCount  int                  `json:"message_count"`
+	Messages      []core.Message       `json:"messages,omitempty"`
 	Plans         []PlanNode           `json:"plans"`
 	Beliefs       []Belief             `json:"beliefs"`
 	World         map[string]any       `json:"world_state"`
