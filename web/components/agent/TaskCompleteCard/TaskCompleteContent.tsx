@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 import { AgentMarkdown } from "@/components/agent/AgentMarkdown";
 import { LoadingDots } from "@/components/ui/loading-states";
 import type { AttachmentPayload } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 import {
   createInlineImageRenderer,
@@ -11,6 +12,14 @@ import {
   type InlineAttachmentEntry,
 } from "./InlineMediaRenderer";
 import type { InlineRenderBlock } from "./hooks/useTaskCompleteSegments";
+
+const RICH_MD_PATTERN =
+  /^#{1,6}\s|^```|^[-*+]\s|^\d+\.\s|^\|.+\||^>\s|^---$/m;
+const RICH_MD_MIN_LENGTH = 200;
+
+function isRichMarkdown(content: string): boolean {
+  return content.length >= RICH_MD_MIN_LENGTH || RICH_MD_PATTERN.test(content);
+}
 
 interface StopReasonCopy {
   title: string;
@@ -100,15 +109,23 @@ export function TaskCompleteContent({
                 if (block.kind === "attachment") {
                   return renderInlineAttachment(block.segment, index);
                 }
+                const rich = isRichMarkdown(block.content);
                 return (
-                  <AgentMarkdown
+                  <div
                     key={`task-complete-inline-text-${index}`}
-                    content={block.content}
-                    className="prose max-w-none text-base leading-snug text-foreground"
-                    isStreaming={false}
-                    streamFinished
-                    components={shouldSoftenSummary ? summaryComponents : {}}
-                  />
+                    className={cn(
+                      rich &&
+                        "rounded-lg border border-border/60 bg-card/50 px-4 py-3 shadow-sm",
+                    )}
+                  >
+                    <AgentMarkdown
+                      content={block.content}
+                      className="prose max-w-none text-base leading-snug text-foreground"
+                      isStreaming={false}
+                      streamFinished
+                      components={shouldSoftenSummary ? summaryComponents : {}}
+                    />
+                  </div>
                 );
               })}
             </div>
