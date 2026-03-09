@@ -275,6 +275,71 @@ func TestRetryClientRetryAfterRespectsMaxDelay(t *testing.T) {
 	require.Equal(t, 2*time.Second, delay)
 }
 
+// authRefreshMock returns 401 on the first call and succeeds on the second,
+// and implements APIKeyUpdatable to verify the API key was swapped.
+type authRefreshMock struct {
+	calls  int
+	apiKey string
+}
+
+func (m *authRefreshMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	m.calls++
+	if m.calls == 1 {
+		return nil, errors.New("HTTP 401: unauthorized")
+	}
+	return &ports.CompletionResponse{Content: "ok"}, nil
+}
+
+func (m *authRefreshMock) Model() string { return "mock" }
+
+func (m *authRefreshMock) SetAPIKey(key string) {
+	m.apiKey = key
+}
+
+func TestRetryClientAuthRefreshOn401(t *testing.T) {
+	mock := &authRefreshMock{}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
+	client := NewRetryClient(mock, alexerrors.RetryConfig{
+		MaxAttempts: 2,
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    50 * time.Millisecond,
+	}, breaker)
+
+	rc, ok := client.(*retryClient)
+	require.True(t, ok)
+
+	// Wire a mock auth refresher that returns a new token.
+	rc.authRefresher = func() (string, error) {
+		return "sk-ant-oat01-fresh-token", nil
+	}
+	rc.sleepFn = func(ctx context.Context, d time.Duration) error { return nil }
+
+	resp, err := rc.Complete(context.Background(), ports.CompletionRequest{})
+	require.NoError(t, err)
+	require.Equal(t, "ok", resp.Content)
+	require.Equal(t, 2, mock.calls, "should have retried after auth refresh")
+	require.Equal(t, "sk-ant-oat01-fresh-token", mock.apiKey, "API key should be updated")
+}
+
+func TestRetryClientAuthRefreshNotTriggeredWithoutRefresher(t *testing.T) {
+	mock := &authRefreshMock{}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
+	client := NewRetryClient(mock, alexerrors.RetryConfig{
+		MaxAttempts: 1,
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    50 * time.Millisecond,
+	}, breaker)
+
+	rc, ok := client.(*retryClient)
+	require.True(t, ok)
+	rc.sleepFn = func(ctx context.Context, d time.Duration) error { return nil }
+	// No authRefresher set.
+
+	_, err := rc.Complete(context.Background(), ports.CompletionRequest{})
+	require.Error(t, err)
+	require.Equal(t, 1, mock.calls, "should not retry when no refresher")
+}
+
 func TestRetryClientCalculateBackoffClampsExponentialDelay(t *testing.T) {
 	rc := &retryClient{
 		retryConfig: alexerrors.RetryConfig{

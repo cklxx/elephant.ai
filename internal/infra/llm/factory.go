@@ -8,6 +8,7 @@ import (
 
 	agent "alex/internal/domain/agent/ports/agent"
 	portsllm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/shared/config"
 	alexerrors "alex/internal/shared/errors"
 	"alex/internal/shared/utils"
 
@@ -235,6 +236,14 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 		} else {
 			client = WrapWithRetryWithMeta(client, retryConfig, circuitBreakerConfig, provider, model)
 		}
+
+		// Wire auth refresher for Anthropic OAuth tokens so 401s trigger
+		// automatic token refresh instead of permanent failure.
+		if provider == "anthropic" && isAnthropicOAuthToken(config.APIKey) {
+			if rc, ok := client.(*retryClient); ok {
+				rc.authRefresher = claudeOAuthTokenRefresher()
+			}
+		}
 	}
 
 	if userRateLimit > 0 {
@@ -284,6 +293,14 @@ func (f *Factory) GetProviderHealth() []ProviderHealth {
 		return nil
 	}
 	return hr.GetAllHealth()
+}
+
+// claudeOAuthTokenRefresher returns a TokenRefresher that forces a Claude OAuth
+// token refresh via the Keychain and returns the new access token.
+func claudeOAuthTokenRefresher() TokenRefresher {
+	return func() (string, error) {
+		return config.ForceRefreshClaudeOAuth()
+	}
 }
 
 type Config struct {

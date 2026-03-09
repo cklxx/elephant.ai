@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"alex/internal/domain/agent/ports"
@@ -21,12 +22,33 @@ import (
 type baseClient struct {
 	model         string
 	apiKey        string
+	apiKeyMu      sync.RWMutex
 	baseURL       string
 	httpClient    *http.Client
 	logger        logging.Logger
 	headers       map[string]string
 	maxRetries    int
 	usageCallback func(usage ports.TokenUsage, model string, provider string)
+}
+
+// APIKeyUpdatable is implemented by LLM clients that support hot-swapping
+// the API key at runtime (e.g. after an OAuth token refresh).
+type APIKeyUpdatable interface {
+	SetAPIKey(key string)
+}
+
+// getAPIKey returns the current API key, safe for concurrent reads.
+func (c *baseClient) getAPIKey() string {
+	c.apiKeyMu.RLock()
+	defer c.apiKeyMu.RUnlock()
+	return c.apiKey
+}
+
+// SetAPIKey atomically replaces the API key used for subsequent requests.
+func (c *baseClient) SetAPIKey(key string) {
+	c.apiKeyMu.Lock()
+	defer c.apiKeyMu.Unlock()
+	c.apiKey = key
 }
 
 // baseClientOpts configures provider-specific defaults for newBaseClient.
@@ -91,8 +113,8 @@ func (c *baseClient) doPost(ctx context.Context, endpoint string, body []byte) (
 		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if key := c.getAPIKey(); key != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+key)
 	}
 	if c.maxRetries > 0 {
 		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))

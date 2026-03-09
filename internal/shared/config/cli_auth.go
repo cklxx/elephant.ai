@@ -585,6 +585,68 @@ func claudeAuthPaths(home string) []string {
 	}
 }
 
+// ForceRefreshClaudeOAuth loads the Claude OAuth credential from macOS Keychain,
+// unconditionally refreshes it using the refresh token, writes the updated
+// credential back to the Keychain, and returns the new access token.
+// This is called reactively by the retry client when a 401 is received for an
+// OAuth token whose local expiresAt has not yet been reached (server-side revocation).
+func ForceRefreshClaudeOAuth() (string, error) {
+	if runtime.GOOS != "darwin" {
+		return "", fmt.Errorf("keychain refresh only supported on macOS")
+	}
+
+	out, err := exec.Command("security", "find-generic-password", "-s", "Claude Code-credentials", "-w").Output()
+	if err != nil {
+		return "", fmt.Errorf("read keychain: %w", err)
+	}
+	data := bytes.TrimSpace(out)
+	if len(data) == 0 {
+		return "", fmt.Errorf("keychain entry is empty")
+	}
+
+	var creds claudeOAuthFile
+	if err := json.Unmarshal(data, &creds); err != nil {
+		return "", fmt.Errorf("parse keychain JSON: %w", err)
+	}
+	if creds.ClaudeAiOauth.RefreshToken == "" {
+		return "", fmt.Errorf("no refresh token available")
+	}
+
+	refreshed, err := refreshClaudeOAuth(creds)
+	if err != nil {
+		return "", fmt.Errorf("refresh token: %w", err)
+	}
+
+	token := strings.TrimSpace(refreshed.ClaudeAiOauth.AccessToken)
+	if token == "" {
+		return "", fmt.Errorf("refreshed token is empty")
+	}
+
+	// Write back to Keychain.
+	updatedJSON, err := json.Marshal(refreshed)
+	if err != nil {
+		return token, nil // refresh succeeded, write-back failed — still usable
+	}
+	_ = writeClaudeKeychainCredential(string(updatedJSON))
+
+	return token, nil
+}
+
+// writeClaudeKeychainCredential updates the Claude Code credentials in macOS Keychain.
+func writeClaudeKeychainCredential(jsonData string) error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("keychain write only supported on macOS")
+	}
+	// -U updates existing entry; -s service; -a account; -w password.
+	cmd := exec.Command("security", "add-generic-password",
+		"-U",
+		"-s", "Claude Code-credentials",
+		"-a", "claude-credentials",
+		"-w", jsonData,
+	)
+	return cmd.Run()
+}
+
 func extractJSONToken(data []byte, keys []string) string {
 	var raw map[string]any
 	if err := json.Unmarshal(data, &raw); err != nil {

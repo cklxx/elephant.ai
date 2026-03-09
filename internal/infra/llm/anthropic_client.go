@@ -101,12 +101,14 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	hasAuthorization := utils.HasContent(httpReq.Header.Get("Authorization"))
 	hasAPIKeyHeader := utils.HasContent(httpReq.Header.Get(anthropicRequestHeaderKey))
 	usesOAuth := hasAuthorization
-	if !hasAuthorization && !hasAPIKeyHeader && c.apiKey != "" {
-		if isAnthropicOAuthToken(c.apiKey) {
-			httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-			usesOAuth = true
-		} else {
-			httpReq.Header.Set(anthropicRequestHeaderKey, c.apiKey)
+	if !hasAuthorization && !hasAPIKeyHeader {
+		if key := c.getAPIKey(); key != "" {
+			if isAnthropicOAuthToken(key) {
+				httpReq.Header.Set("Authorization", "Bearer "+key)
+				usesOAuth = true
+			} else {
+				httpReq.Header.Set(anthropicRequestHeaderKey, key)
+			}
 		}
 	}
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"alex/internal/domain/agent/ports"
@@ -15,6 +16,11 @@ import (
 	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 )
+
+// TokenRefresher is called when a 401 is received for an OAuth token to
+// obtain a fresh access token. Implementations should handle refresh-token
+// flows and credential persistence.
+type TokenRefresher func() (newToken string, err error)
 
 // retryClient wraps an LLM client with retry logic and circuit breaker
 type retryClient struct {
@@ -27,6 +33,9 @@ type retryClient struct {
 	provider       string
 	model          string
 	sleepFn        func(context.Context, time.Duration) error
+	authRefresher  TokenRefresher
+	authRefreshMu  sync.Mutex
+	lastAuthRefresh time.Time
 }
 
 var _ portsllm.StreamingLLMClient = (*retryClient)(nil)
@@ -379,6 +388,13 @@ func (c *retryClient) classifyLLMError(err error) error {
 	for _, rule := range llmErrorClassificationRules {
 		for _, pattern := range rule.patterns {
 			if strings.Contains(lowerErr, pattern) {
+				// On 401/unauthorized with an auth refresher, attempt token refresh
+				// before classifying as permanent.
+				if rule.permanent && (pattern == "401" || pattern == "unauthorized") {
+					if refreshed := c.tryAuthRefresh(); refreshed {
+						return alexerrors.NewTransientError(err, "Authentication refreshed. Retrying request.")
+					}
+				}
 				if rule.permanent {
 					return alexerrors.NewPermanentError(err, rule.message)
 				}
@@ -389,6 +405,46 @@ func (c *retryClient) classifyLLMError(err error) error {
 
 	// Default: return as-is (will be classified by IsTransient)
 	return err
+}
+
+// tryAuthRefresh attempts to refresh the OAuth token when a 401 is received.
+// Returns true if the token was successfully refreshed and the underlying
+// client's API key was updated. Uses a mutex and cooldown to prevent
+// thundering-herd refreshes from concurrent requests.
+func (c *retryClient) tryAuthRefresh() bool {
+	if c.authRefresher == nil {
+		return false
+	}
+
+	c.authRefreshMu.Lock()
+	defer c.authRefreshMu.Unlock()
+
+	// Cooldown: skip if refreshed within the last 30 seconds.
+	if !c.lastAuthRefresh.IsZero() && time.Since(c.lastAuthRefresh) < 30*time.Second {
+		// Another goroutine already refreshed recently; the underlying client's
+		// API key is already updated — return true so the caller retries.
+		return true
+	}
+
+	newToken, err := c.authRefresher()
+	if err != nil {
+		c.logger.Warn("Auth token refresh failed: %v", err)
+		return false
+	}
+	if newToken == "" {
+		return false
+	}
+
+	// Update the underlying client's API key.
+	if updatable, ok := c.underlying.(APIKeyUpdatable); ok {
+		updatable.SetAPIKey(newToken)
+		c.lastAuthRefresh = time.Now()
+		c.logger.Info("Auth token refreshed successfully, updated API key")
+		return true
+	}
+
+	c.logger.Warn("Auth token refreshed but underlying client does not support SetAPIKey")
+	return false
 }
 
 // formatRetryError formats error message with retry context
