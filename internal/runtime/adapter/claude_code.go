@@ -2,7 +2,11 @@ package adapter
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -46,8 +50,147 @@ func NewClaudeCodeAdapter(pm panel.ManagerIface, sink HookSink, hooksURL string)
 	}
 }
 
+// ensureCCHooks reads ~/.claude/settings.json and ensures notify_runtime.sh is
+// registered under hooks.PostToolUse and hooks.Stop. The write is atomic
+// (temp file + rename). The function is idempotent and non-fatal: on any
+// error it logs and returns without propagating.
+func ensureCCHooks(hooksScriptPath string) {
+	settingsPath := filepath.Join(os.Getenv("HOME"), ".claude", "settings.json")
+
+	// Read existing settings (create empty object if file absent).
+	raw, err := os.ReadFile(settingsPath)
+	if err != nil && !os.IsNotExist(err) {
+		log.Printf("ensureCCHooks: read %s: %v (skipping)", settingsPath, err)
+		return
+	}
+	if os.IsNotExist(err) {
+		raw = []byte("{}")
+	}
+
+	// Unmarshal into a generic map to preserve unknown keys.
+	var settings map[string]any
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		log.Printf("ensureCCHooks: parse settings.json: %v (skipping)", err)
+		return
+	}
+
+	// Retrieve or initialise the hooks map.
+	hooksRaw, _ := settings["hooks"]
+	hooksMap, ok := hooksRaw.(map[string]any)
+	if !ok {
+		hooksMap = make(map[string]any)
+	}
+
+	// hookEntry is the object we inject under each event key.
+	hookEntry := map[string]any{
+		"hooks": []any{
+			map[string]any{
+				"type":    "command",
+				"command": hooksScriptPath,
+				"async":   true,
+			},
+		},
+	}
+
+	changed := false
+	for _, event := range []string{"PostToolUse", "Stop"} {
+		if alreadyRegistered(hooksMap, event, hooksScriptPath) {
+			continue
+		}
+		// Append the hook entry to the event slice.
+		var entries []any
+		if existing, ok := hooksMap[event]; ok {
+			if sl, ok := existing.([]any); ok {
+				entries = sl
+			}
+		}
+		hooksMap[event] = append(entries, hookEntry)
+		changed = true
+	}
+
+	if !changed {
+		return // already up-to-date, nothing to write
+	}
+
+	settings["hooks"] = hooksMap
+
+	// Marshal with indentation so the file stays human-readable.
+	out, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		log.Printf("ensureCCHooks: marshal: %v (skipping)", err)
+		return
+	}
+
+	// Atomic write: temp file in the same directory + rename.
+	dir := filepath.Dir(settingsPath)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		log.Printf("ensureCCHooks: mkdir %s: %v (skipping)", dir, err)
+		return
+	}
+	tmp, err := os.CreateTemp(dir, "settings-*.json.tmp")
+	if err != nil {
+		log.Printf("ensureCCHooks: create temp: %v (skipping)", err)
+		return
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(out); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		log.Printf("ensureCCHooks: write temp: %v (skipping)", err)
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		log.Printf("ensureCCHooks: close temp: %v (skipping)", err)
+		return
+	}
+	if err := os.Rename(tmpName, settingsPath); err != nil {
+		os.Remove(tmpName)
+		log.Printf("ensureCCHooks: rename to %s: %v (skipping)", settingsPath, err)
+		return
+	}
+
+	log.Printf("ensureCCHooks: registered notify_runtime.sh hooks in %s", settingsPath)
+}
+
+// alreadyRegistered returns true if hooksScriptPath already appears in the
+// command of any hook entry under the given event key.
+func alreadyRegistered(hooksMap map[string]any, event, scriptPath string) bool {
+	raw, ok := hooksMap[event]
+	if !ok {
+		return false
+	}
+	entries, ok := raw.([]any)
+	if !ok {
+		return false
+	}
+	for _, e := range entries {
+		em, ok := e.(map[string]any)
+		if !ok {
+			continue
+		}
+		hooks, ok := em["hooks"].([]any)
+		if !ok {
+			continue
+		}
+		for _, h := range hooks {
+			hm, ok := h.(map[string]any)
+			if !ok {
+				continue
+			}
+			if cmd, _ := hm["command"].(string); cmd == scriptPath {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Start creates a Kaku pane, launches Claude Code, and injects the goal.
 func (a *ClaudeCodeAdapter) Start(ctx context.Context, sessionID, goal, workDir string, parentPaneID int) error {
+	// Auto-register CC hooks so notify_runtime.sh fires without manual setup.
+	ensureCCHooks(filepath.Join(workDir, "scripts/cc_hooks/notify_runtime.sh"))
+
 	pane, err := a.pm.Split(ctx, panel.SplitOpts{
 		ParentPaneID: parentPaneID,
 		Direction:    "bottom",

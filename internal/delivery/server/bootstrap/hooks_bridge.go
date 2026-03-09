@@ -2,12 +2,18 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 
 	"alex/internal/app/di"
 	"alex/internal/delivery/server"
 	"alex/internal/runtime/hooks"
 	"alex/internal/shared/logging"
 )
+
+// LarkNotifier is the minimal interface needed to send a completion message.
+type LarkNotifier interface {
+	SendNotification(ctx context.Context, chatID, text string) error
+}
 
 // buildHooksBridge creates a HooksBridge handler that forwards Claude Code
 // hook events to the Lark gateway. Always wired when Lark is enabled.
@@ -55,6 +61,43 @@ func startRuntimeBusLogger(ctx context.Context, bus hooks.Bus, logger logging.Lo
 				logger.Info("runtime_bus_event type=%s session_id=%s at=%s",
 					string(ev.Type), ev.SessionID, ev.At.Format("15:04:05"),
 				)
+			}
+		}
+	}()
+}
+
+// startRuntimeCompletionNotifier subscribes to all runtime events and sends a
+// Feishu (Lark) notification when a session completes or fails.
+// If chatID is empty the notifier starts but silently skips every notification.
+func startRuntimeCompletionNotifier(ctx context.Context, bus hooks.Bus, lark LarkNotifier, chatID string, logger logging.Logger) {
+	ch, cancel := bus.SubscribeAll()
+	go func() {
+		defer cancel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev, ok := <-ch:
+				if !ok {
+					return
+				}
+				var text string
+				switch ev.Type {
+				case hooks.EventCompleted:
+					text = fmt.Sprintf("✅ Runtime session `%s` completed", ev.SessionID)
+				case hooks.EventFailed:
+					text = fmt.Sprintf("❌ Runtime session `%s` failed", ev.SessionID)
+				default:
+					continue
+				}
+				if chatID == "" {
+					continue
+				}
+				if err := lark.SendNotification(ctx, chatID, text); err != nil {
+					logger.Warn("runtime_completion_notifier: send failed session_id=%s type=%s err=%v",
+						ev.SessionID, string(ev.Type), err,
+					)
+				}
 			}
 		}
 	}()

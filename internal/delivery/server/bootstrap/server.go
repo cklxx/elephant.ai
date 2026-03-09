@@ -207,6 +207,9 @@ func RunServer(observabilityConfigPath string) error {
 	// Runtime hooks bridge: receive CC PostToolUse/Stop events and publish to in-process bus.
 	runtimeHooksHandler, runtimeBus := buildRuntimeHooksHandler(logger)
 	startRuntimeBusLogger(context.Background(), runtimeBus, logger)
+	if container.LarkGateway != nil {
+		startRuntimeCompletionNotifier(context.Background(), runtimeBus, container.LarkGateway, config.HooksBridge.DefaultChatID, logger)
+	}
 
 	router := serverHTTP.NewRouter(
 		serverHTTP.RouterDeps{
