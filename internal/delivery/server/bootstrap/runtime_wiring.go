@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"time"
 
@@ -58,14 +57,12 @@ func startRuntimeSubsystem(
 	go detector.Run(ctx)
 
 	// LeaderAgent: handles stalled / needs-input / child-completed events via LLM.
-	// The leader uses a dedicated ephemeral session ID per stall call to avoid
-	// accumulating unbounded history in a single session.
+	// The leader reuses a stable session ID per runtime session (leader-stall-<id>)
+	// so repeated stall checks share one conversation context without creating
+	// unbounded new sessions.
 	if container != nil && container.AgentCoordinator != nil {
 		coord := container.AgentCoordinator
 		executeFunc := func(ctx context.Context, prompt, sessionID string) (string, error) {
-			if sessionID == "" {
-				sessionID = fmt.Sprintf("leader-ephemeral-%d", time.Now().UnixNano())
-			}
 			result, err := coord.ExecuteTask(ctx, prompt, sessionID, nil)
 			if err != nil {
 				return "", err

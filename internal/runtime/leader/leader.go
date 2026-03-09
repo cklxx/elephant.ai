@@ -24,8 +24,9 @@ type RuntimeReader interface {
 }
 
 // ExecuteFunc sends a prompt to the LLM and returns the answer.
-// sessionID identifies the conversation context to use — ephemeral for stall
-// decisions, parent session ID for child-completed orchestration continuity.
+// sessionID identifies the conversation context to use — the leader reuses a
+// stable session ID per runtime session so stall decisions accumulate context
+// without creating unbounded new sessions.
 type ExecuteFunc func(ctx context.Context, prompt, sessionID string) (string, error)
 
 // Agent subscribes to EventStalled, EventNeedsInput, and EventChildCompleted
@@ -41,19 +42,29 @@ type Agent struct {
 	logger  logging.Logger
 
 	// inflight tracks sessions currently being handled to prevent concurrent
-	// stall handling for the same session (which causes duplicate history loads).
+	// stall handling for the same session (which causes duplicate LLM calls).
 	inflight   map[string]struct{}
 	inflightMu sync.Mutex
+
+	// stallCounts tracks how many times each runtime session has been handled
+	// for stall events, used to escalate after repeated failures.
+	stallCounts   map[string]int
+	stallCountsMu sync.Mutex
 }
+
+// maxStallAttempts is the maximum number of stall handling attempts per runtime
+// session before the leader gives up and escalates to a human operator.
+const maxStallAttempts = 3
 
 // New creates a LeaderAgent.
 func New(rt RuntimeReader, bus hooks.Bus, execute ExecuteFunc) *Agent {
 	return &Agent{
-		rt:       rt,
-		bus:      bus,
-		execute:  execute,
-		logger:   logging.NewComponentLogger("LeaderAgent"),
-		inflight: make(map[string]struct{}),
+		rt:          rt,
+		bus:         bus,
+		execute:     execute,
+		logger:      logging.NewComponentLogger("LeaderAgent"),
+		inflight:    make(map[string]struct{}),
+		stallCounts: make(map[string]int),
 	}
 }
 
@@ -80,6 +91,9 @@ func (a *Agent) Run(ctx context.Context) {
 				}
 			case hooks.EventChildCompleted:
 				go a.handleChildCompleted(ctx, ev)
+			case hooks.EventCompleted, hooks.EventHeartbeat:
+				// Session recovered — reset stall counter.
+				a.resetStallCount(ev.SessionID)
 			}
 		}
 	}
@@ -104,6 +118,29 @@ func (a *Agent) release(sessionID string) {
 	delete(a.inflight, sessionID)
 }
 
+// incrementStallCount increments and returns the stall count for a session.
+func (a *Agent) incrementStallCount(sessionID string) int {
+	a.stallCountsMu.Lock()
+	defer a.stallCountsMu.Unlock()
+	a.stallCounts[sessionID]++
+	return a.stallCounts[sessionID]
+}
+
+// resetStallCount resets the stall counter when a session recovers.
+func (a *Agent) resetStallCount(sessionID string) {
+	a.stallCountsMu.Lock()
+	defer a.stallCountsMu.Unlock()
+	delete(a.stallCounts, sessionID)
+}
+
+// stallSessionID returns a stable, deterministic session ID for leader stall
+// decisions about a given runtime session. This ensures repeated stall checks
+// for the same runtime session reuse one conversation context instead of
+// creating a new session each time.
+func stallSessionID(runtimeSessionID string) string {
+	return "leader-stall-" + runtimeSessionID
+}
+
 // handleStall makes an LLM decision for a stalled/needs-input session.
 // The context disables session history loading since the stall prompt is
 // self-contained and does not need conversation history.
@@ -113,20 +150,28 @@ func (a *Agent) handleStall(ctx context.Context, ev hooks.Event) {
 		return
 	}
 
+	// Check stall count — escalate after maxStallAttempts.
+	count := a.incrementStallCount(ev.SessionID)
+	if count > maxStallAttempts {
+		a.logger.Info("Session %s stalled %d times (max %d) — escalating", ev.SessionID, count, maxStallAttempts)
+		a.escalate(ev.SessionID, fmt.Sprintf("leader agent: session stalled %d times, escalating to human", count))
+		return
+	}
+
 	var elapsed time.Duration
 	if snap.StartedAt != nil {
 		elapsed = time.Since(*snap.StartedAt).Round(time.Second)
 	}
 
-	prompt := buildStallPrompt(snap.ID, string(snap.Member), snap.Goal, elapsed, ev.Type)
+	prompt := buildStallPrompt(snap.ID, string(snap.Member), snap.Goal, elapsed, ev.Type, count)
 
 	// Disable session history for stall decisions — the prompt is self-contained
 	// and loading full history is the primary cause of memory explosion.
 	stallCtx := appcontext.WithSessionHistory(ctx, false)
 
-	// Use ephemeral session ID for stall decisions (no context accumulation).
-	stallSessionID := fmt.Sprintf("leader-stall-%s-%d", ev.SessionID, time.Now().UnixMilli())
-	decision, err := a.execute(stallCtx, prompt, stallSessionID)
+	// Reuse a stable session ID per runtime session to avoid session explosion.
+	sid := stallSessionID(ev.SessionID)
+	decision, err := a.execute(stallCtx, prompt, sid)
 	if err != nil {
 		// LLM unavailable — escalate to human.
 		a.escalate(ev.SessionID, fmt.Sprintf("leader llm error: %v", err))
@@ -240,7 +285,7 @@ func (a *Agent) escalate(sessionID, reason string) {
 }
 
 // buildStallPrompt constructs the short decision prompt for the LLM.
-func buildStallPrompt(id, member, goal string, elapsed time.Duration, eventType hooks.EventType) string {
+func buildStallPrompt(id, member, goal string, elapsed time.Duration, eventType hooks.EventType, attempt int) string {
 	kind := "stalled"
 	if eventType == hooks.EventNeedsInput {
 		kind = "waiting for input"
@@ -251,6 +296,7 @@ Session ID: %s
 Member:     %s
 Goal:       %s
 Status:     %s for %s
+Attempt:    %d of %d
 
 The session has been %s. Decide what to do next. Reply with EXACTLY one of:
 
@@ -264,6 +310,8 @@ Reply only with one of the above. No explanation.`,
 		goal,
 		kind,
 		elapsed,
+		attempt,
+		maxStallAttempts,
 		kind,
 	)
 }

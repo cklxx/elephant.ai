@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -264,6 +265,169 @@ func TestStallStress10000Events(t *testing.T) {
 	}
 }
 
+func TestStallSessionIDStable(t *testing.T) {
+	// Verify that the same runtime session always maps to the same leader session.
+	id1 := stallSessionID("rs-abc123")
+	id2 := stallSessionID("rs-abc123")
+	if id1 != id2 {
+		t.Errorf("expected stable ID, got %q and %q", id1, id2)
+	}
+	if id1 != "leader-stall-rs-abc123" {
+		t.Errorf("unexpected format: %q", id1)
+	}
+
+	// Different runtime sessions produce different leader sessions.
+	id3 := stallSessionID("rs-xyz789")
+	if id1 == id3 {
+		t.Error("expected different IDs for different sessions")
+	}
+}
+
+func TestStallSessionIDUsedByExecute(t *testing.T) {
+	// Verify that handleStall passes the stable session ID to execute.
+	var capturedSessionIDs []string
+	var mu sync.Mutex
+
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{
+			"rs-test": {ID: "rs-test", Goal: "test"},
+		},
+	}
+	bus := newMockBus()
+	executeFn := func(_ context.Context, _, sid string) (string, error) {
+		mu.Lock()
+		capturedSessionIDs = append(capturedSessionIDs, sid)
+		mu.Unlock()
+		return "INJECT ok", nil
+	}
+
+	a := New(rt, bus, executeFn)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.Run(ctx)
+	time.Sleep(10 * time.Millisecond)
+
+	// Send 3 stall events for the same session (with gaps to allow processing).
+	for i := 0; i < 3; i++ {
+		bus.send(hooks.Event{
+			Type:      hooks.EventStalled,
+			SessionID: "rs-test",
+			At:        time.Now(),
+		})
+		time.Sleep(80 * time.Millisecond)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(capturedSessionIDs) == 0 {
+		t.Fatal("expected at least 1 execute call")
+	}
+
+	// All calls should use the same stable session ID.
+	expected := "leader-stall-rs-test"
+	for i, sid := range capturedSessionIDs {
+		if sid != expected {
+			t.Errorf("call %d: expected session ID %q, got %q", i, expected, sid)
+		}
+	}
+	t.Logf("captured %d calls, all using stable session ID %q", len(capturedSessionIDs), expected)
+}
+
+func TestMaxStallAttemptsEscalates(t *testing.T) {
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{
+			"sess-1": {ID: "sess-1", Goal: "stuck task"},
+		},
+	}
+	bus := newMockBus()
+	var callCount atomic.Int32
+	executeFn := func(_ context.Context, _, _ string) (string, error) {
+		callCount.Add(1)
+		return "INJECT try again", nil
+	}
+
+	a := New(rt, bus, executeFn)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.Run(ctx)
+	time.Sleep(10 * time.Millisecond)
+
+	// Send maxStallAttempts + 2 events with gaps.
+	for i := 0; i < maxStallAttempts+2; i++ {
+		bus.send(hooks.Event{
+			Type:      hooks.EventStalled,
+			SessionID: "sess-1",
+			At:        time.Now(),
+		})
+		time.Sleep(80 * time.Millisecond)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	// Should have called execute exactly maxStallAttempts times.
+	calls := callCount.Load()
+	if calls != int32(maxStallAttempts) {
+		t.Errorf("expected %d execute calls (max attempts), got %d", maxStallAttempts, calls)
+	}
+
+	// Should have published escalation events for attempts beyond max.
+	events := bus.publishedEvents()
+	escalations := 0
+	for _, ev := range events {
+		if ev.Type == hooks.EventHandoffRequired {
+			escalations++
+		}
+	}
+	if escalations == 0 {
+		t.Error("expected at least one escalation event after max stall attempts")
+	}
+	t.Logf("execute calls: %d, escalations: %d", calls, escalations)
+}
+
+func TestHeartbeatResetsStallCount(t *testing.T) {
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{
+			"sess-1": {ID: "sess-1", Goal: "task"},
+		},
+	}
+	bus := newMockBus()
+	var callCount atomic.Int32
+	executeFn := func(_ context.Context, _, _ string) (string, error) {
+		callCount.Add(1)
+		return "INJECT ok", nil
+	}
+
+	a := New(rt, bus, executeFn)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.Run(ctx)
+	time.Sleep(10 * time.Millisecond)
+
+	// Exhaust maxStallAttempts - 1.
+	for i := 0; i < maxStallAttempts-1; i++ {
+		bus.send(hooks.Event{Type: hooks.EventStalled, SessionID: "sess-1", At: time.Now()})
+		time.Sleep(80 * time.Millisecond)
+	}
+
+	// Heartbeat resets the counter.
+	bus.send(hooks.Event{Type: hooks.EventHeartbeat, SessionID: "sess-1", At: time.Now()})
+	time.Sleep(20 * time.Millisecond)
+
+	// Now we should be able to do maxStallAttempts more.
+	for i := 0; i < maxStallAttempts; i++ {
+		bus.send(hooks.Event{Type: hooks.EventStalled, SessionID: "sess-1", At: time.Now()})
+		time.Sleep(80 * time.Millisecond)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	calls := callCount.Load()
+	expected := int32(maxStallAttempts-1) + int32(maxStallAttempts)
+	if calls != expected {
+		t.Errorf("expected %d execute calls after heartbeat reset, got %d", expected, calls)
+	}
+}
+
 func TestApplyDecisionINJECT(t *testing.T) {
 	rt := &mockRuntime{sessions: map[string]session.SessionData{}}
 	bus := newMockBus()
@@ -290,27 +454,14 @@ func TestApplyDecisionESCALATE(t *testing.T) {
 }
 
 func TestBuildStallPrompt(t *testing.T) {
-	prompt := buildStallPrompt("s1", "backend", "fix the bug", 90*time.Second, hooks.EventStalled)
+	prompt := buildStallPrompt("s1", "backend", "fix the bug", 90*time.Second, hooks.EventStalled, 2)
 	if prompt == "" {
 		t.Fatal("expected non-empty prompt")
 	}
-	// Should contain session info.
-	for _, expected := range []string{"s1", "backend", "fix the bug", "stalled", "1m30s"} {
-		if !contains(prompt, expected) {
+	// Should contain session info and attempt count.
+	for _, expected := range []string{"s1", "backend", "fix the bug", "stalled", "1m30s", "2 of 3"} {
+		if !strings.Contains(prompt, expected) {
 			t.Errorf("prompt missing %q", expected)
 		}
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
-}
-
-func searchString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
