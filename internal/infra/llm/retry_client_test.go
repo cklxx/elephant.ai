@@ -276,7 +276,7 @@ func TestRetryClientRetryAfterRespectsMaxDelay(t *testing.T) {
 }
 
 // authRefreshMock returns 401 on the first call and succeeds on the second,
-// and implements APIKeyUpdatable to verify the API key was swapped.
+// and implements apiKeyUpdatable to verify the API key was swapped.
 type authRefreshMock struct {
 	calls  int
 	apiKey string

@@ -85,7 +85,7 @@ func TestSwarmScheduler_StageOrdering(t *testing.T) {
 	}
 
 	tracker := newOrderTracker()
-	sched := NewSwarmScheduler(tracker, DefaultSwarmConfig())
+	sched := newSwarmScheduler(tracker, DefaultSwarmConfig())
 	statusPath := filepath.Join(t.TempDir(), "swarm.status.yaml")
 
 	result, err := sched.ExecuteSwarm(context.Background(), tf, "cause-1", statusPath)
@@ -135,7 +135,7 @@ func TestSwarmScheduler_FlatDAGAllParallel(t *testing.T) {
 	}
 
 	tracker := newOrderTracker()
-	sched := NewSwarmScheduler(tracker, DefaultSwarmConfig())
+	sched := newSwarmScheduler(tracker, DefaultSwarmConfig())
 	statusPath := filepath.Join(t.TempDir(), "flat.status.yaml")
 
 	result, err := sched.ExecuteSwarm(context.Background(), tf, "cause-1", statusPath)
@@ -168,7 +168,7 @@ func TestSwarmScheduler_AdaptiveConcurrency_ScaleUp(t *testing.T) {
 	}
 
 	tracker := newOrderTracker()
-	sched := NewSwarmScheduler(tracker, cfg)
+	sched := newSwarmScheduler(tracker, cfg)
 
 	if sched.current != 2 {
 		t.Fatalf("initial concurrency should be 2, got %d", sched.current)
@@ -197,7 +197,7 @@ func TestSwarmScheduler_AdaptiveConcurrency_ScaleDown(t *testing.T) {
 	}
 
 	tracker := newOrderTracker()
-	sched := NewSwarmScheduler(tracker, cfg)
+	sched := newSwarmScheduler(tracker, cfg)
 
 	// 50% failure rate → scale down
 	results := []agent.BackgroundTaskResult{
@@ -224,7 +224,7 @@ func TestSwarmScheduler_ConcurrencyBounds(t *testing.T) {
 	}
 
 	tracker := newOrderTracker()
-	sched := NewSwarmScheduler(tracker, cfg)
+	sched := newSwarmScheduler(tracker, cfg)
 
 	// Scale up should cap at max
 	results := []agent.BackgroundTaskResult{
@@ -251,7 +251,7 @@ func TestSwarmScheduler_ValidationError(t *testing.T) {
 	tf := &TaskFile{Version: "1"} // no tasks
 
 	tracker := newOrderTracker()
-	sched := NewSwarmScheduler(tracker, DefaultSwarmConfig())
+	sched := newSwarmScheduler(tracker, DefaultSwarmConfig())
 
 	_, err := sched.ExecuteSwarm(context.Background(), tf, "cause-1", filepath.Join(t.TempDir(), "test.status.yaml"))
 	if err == nil {
@@ -290,7 +290,7 @@ func TestSwarmScheduler_DepsCleared(t *testing.T) {
 		dispatched: &dispatched,
 	}
 
-	sched := NewSwarmScheduler(captureDispatcher, DefaultSwarmConfig())
+	sched := newSwarmScheduler(captureDispatcher, DefaultSwarmConfig())
 	statusPath := filepath.Join(t.TempDir(), "deps.status.yaml")
 
 	_, err := sched.ExecuteSwarm(context.Background(), tf, "cause-1", statusPath)
@@ -308,7 +308,7 @@ func TestSwarmScheduler_DepsCleared(t *testing.T) {
 }
 
 func TestSwarmScheduler_BuildRetryBatchUsesBaseIDCounter(t *testing.T) {
-	sched := NewSwarmScheduler(retryDispatcherStub{}, SwarmConfig{
+	sched := newSwarmScheduler(retryDispatcherStub{}, SwarmConfig{
 		InitialConcurrency: 1,
 		MaxConcurrency:     2,
 		ScaleUpThreshold:   0.9,
@@ -380,7 +380,7 @@ func TestSwarmScheduler_RetryCapEnforcement(t *testing.T) {
 	}
 
 	tracker := &staleDispatcher{dispatched: make(map[string]bool)}
-	sched := NewSwarmScheduler(tracker, cfg)
+	sched := newSwarmScheduler(tracker, cfg)
 	statusPath := filepath.Join(t.TempDir(), "retry-cap.status.yaml")
 
 	tf := &TaskFile{
@@ -432,7 +432,7 @@ func TestSwarmScheduler_ContextCancellationBetweenLayers(t *testing.T) {
 
 	cfg := DefaultSwarmConfig()
 	cfg.StaleRetryMax = 0 // no retries to simplify
-	sched := NewSwarmScheduler(disp, cfg)
+	sched := newSwarmScheduler(disp, cfg)
 	statusPath := filepath.Join(t.TempDir(), "ctx-between-layers.status.yaml")
 
 	_, err := sched.ExecuteSwarm(ctx, tf, "cause-ctx", statusPath)

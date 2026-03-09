@@ -38,8 +38,8 @@ func (r *Registry) Register(desc *ProviderDescriptor) {
 	r.providers[strings.TrimSpace(strings.ToLower(desc.Name))] = desc
 }
 
-// RegisterAlias maps an alternative name to a canonical provider name.
-func (r *Registry) RegisterAlias(alias, canonical string) {
+// registerAlias maps an alternative name to a canonical provider name.
+func (r *Registry) registerAlias(alias, canonical string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.aliases[strings.TrimSpace(strings.ToLower(alias))] = strings.TrimSpace(strings.ToLower(canonical))
@@ -136,8 +136,8 @@ func registerBuiltinProviders(r *Registry) {
 	})
 
 	// Aliases
-	r.RegisterAlias("responses", "openai-responses")
-	r.RegisterAlias("claude", "anthropic")
-	r.RegisterAlias("llama-cpp", "llama.cpp")
-	r.RegisterAlias("llamacpp", "llama.cpp")
+	r.registerAlias("responses", "openai-responses")
+	r.registerAlias("claude", "anthropic")
+	r.registerAlias("llama-cpp", "llama.cpp")
+	r.registerAlias("llamacpp", "llama.cpp")
 }

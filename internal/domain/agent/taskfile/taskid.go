@@ -2,10 +2,10 @@ package taskfile
 
 import "strings"
 
-// BaseTaskID strips all -retry-N suffixes from a task ID, returning the
+// baseTaskID strips all -retry-N suffixes from a task ID, returning the
 // original base identifier. For example, "slow-task-retry-1-retry-2"
 // returns "slow-task".
-func BaseTaskID(id string) string {
+func baseTaskID(id string) string {
 	base := id
 	for {
 		idx := strings.LastIndex(base, "-retry-")
@@ -35,7 +35,7 @@ func ExtractRoleID(id string) string {
 	}
 	result := strings.TrimPrefix(trimmed, "team-")
 	// Strip retry suffixes first, then debate suffix.
-	result = BaseTaskID(result)
+	result = baseTaskID(result)
 	result = strings.TrimSuffix(result, "-debate")
 	return strings.TrimSpace(result)
 }

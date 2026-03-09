@@ -13,22 +13,22 @@ type Gateway interface {
 	Status(ctx context.Context, taskID string) (TaskStatus, error)
 }
 
-// DefaultGateway routes requests to registered adapters.
-type DefaultGateway struct {
-	registry       *AdapterRegistry
+// defaultGateway routes requests to registered adapters.
+type defaultGateway struct {
+	registry       *adapterRegistry
 	defaultAdapter string
 }
 
-// NewGateway constructs a DefaultGateway.
-func NewGateway(registry *AdapterRegistry, defaultAdapter string) *DefaultGateway {
+// NewGateway constructs a defaultGateway.
+func NewGateway(registry *adapterRegistry, defaultAdapter string) *defaultGateway {
 	if registry == nil {
 		registry = NewAdapterRegistry()
 	}
-	return &DefaultGateway{registry: registry, defaultAdapter: defaultAdapter}
+	return &defaultGateway{registry: registry, defaultAdapter: defaultAdapter}
 }
 
 // Submit dispatches a task to the selected adapter.
-func (g *DefaultGateway) Submit(ctx context.Context, req TaskRequest) (*TaskResult, error) {
+func (g *defaultGateway) Submit(ctx context.Context, req TaskRequest) (*TaskResult, error) {
 	adapter, err := g.selectAdapter(req)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func (g *DefaultGateway) Submit(ctx context.Context, req TaskRequest) (*TaskResu
 }
 
 // Stream dispatches a task with progress callback.
-func (g *DefaultGateway) Stream(ctx context.Context, req TaskRequest, cb ProgressCallback) (*TaskResult, error) {
+func (g *defaultGateway) Stream(ctx context.Context, req TaskRequest, cb ProgressCallback) (*TaskResult, error) {
 	adapter, err := g.selectAdapter(req)
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (g *DefaultGateway) Stream(ctx context.Context, req TaskRequest, cb Progres
 }
 
 // Cancel forwards cancellation to the adapter if supported.
-func (g *DefaultGateway) Cancel(ctx context.Context, taskID string) error {
+func (g *defaultGateway) Cancel(ctx context.Context, taskID string) error {
 	adapter, err := g.defaultAdapterForCancel()
 	if err != nil {
 		return err
@@ -58,7 +58,7 @@ func (g *DefaultGateway) Cancel(ctx context.Context, taskID string) error {
 }
 
 // Status returns the status from the adapter if supported.
-func (g *DefaultGateway) Status(ctx context.Context, taskID string) (TaskStatus, error) {
+func (g *defaultGateway) Status(ctx context.Context, taskID string) (TaskStatus, error) {
 	adapter, err := g.defaultAdapterForCancel()
 	if err != nil {
 		return TaskStatus{}, err
@@ -66,7 +66,7 @@ func (g *DefaultGateway) Status(ctx context.Context, taskID string) (TaskStatus,
 	return adapter.Status(ctx, taskID)
 }
 
-func (g *DefaultGateway) selectAdapter(req TaskRequest) (Adapter, error) {
+func (g *defaultGateway) selectAdapter(req TaskRequest) (Adapter, error) {
 	if g == nil || g.registry == nil {
 		return nil, fmt.Errorf("coding gateway not initialized")
 	}
@@ -86,7 +86,7 @@ func (g *DefaultGateway) selectAdapter(req TaskRequest) (Adapter, error) {
 	return nil, fmt.Errorf("multiple adapters available; agent_type required")
 }
 
-func (g *DefaultGateway) defaultAdapterForCancel() (Adapter, error) {
+func (g *defaultGateway) defaultAdapterForCancel() (Adapter, error) {
 	if g == nil || g.registry == nil {
 		return nil, fmt.Errorf("coding gateway not initialized")
 	}

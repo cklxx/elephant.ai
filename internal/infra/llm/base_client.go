@@ -31,9 +31,9 @@ type baseClient struct {
 	usageCallback func(usage ports.TokenUsage, model string, provider string)
 }
 
-// APIKeyUpdatable is implemented by LLM clients that support hot-swapping
+// apiKeyUpdatable is implemented by LLM clients that support hot-swapping
 // the API key at runtime (e.g. after an OAuth token refresh).
-type APIKeyUpdatable interface {
+type apiKeyUpdatable interface {
 	SetAPIKey(key string)
 }
 

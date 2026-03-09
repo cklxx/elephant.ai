@@ -32,7 +32,7 @@ type Factory struct {
 	kimiRateBurst        int
 	kimiLimiter          *rate.Limiter
 	toolCallParser       agent.FunctionCallParser
-	HealthRegistry       *HealthRegistry
+	healthRegistry       *healthRegistry
 	registry             *Registry
 }
 
@@ -162,7 +162,7 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	userRateLimit := f.userRateLimit
 	userRateBurst := f.userRateBurst
 	kimiLimiter := f.kimiLimiter
-	healthRegistry := f.HealthRegistry
+	healthRegistry := f.healthRegistry
 	registry := f.registry
 	f.mu.RUnlock()
 
@@ -268,9 +268,9 @@ func isKimiTarget(provider, model, baseURL string) bool {
 	return strings.Contains(baseURL, "kimi.com") || strings.Contains(baseURL, "moonshot")
 }
 
-// claudeOAuthTokenRefresher returns a TokenRefresher that forces a Claude OAuth
+// claudeOAuthTokenRefresher returns a tokenRefresher that forces a Claude OAuth
 // token refresh via the Keychain and returns the new access token.
-func claudeOAuthTokenRefresher() TokenRefresher {
+func claudeOAuthTokenRefresher() tokenRefresher {
 	return func() (string, error) {
 		return config.ForceRefreshClaudeOAuth()
 	}

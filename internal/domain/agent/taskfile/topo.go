@@ -21,9 +21,9 @@ func buildTopoGraph(tasks []TaskSpec) topoGraph {
 	return graph
 }
 
-// TopologicalOrder returns task IDs in dependency-respecting execution order
+// topologicalOrder returns task IDs in dependency-respecting execution order
 // using Kahn's algorithm. Returns an error if a cycle is detected.
-func TopologicalOrder(tasks []TaskSpec) ([]string, error) {
+func topologicalOrder(tasks []TaskSpec) ([]string, error) {
 	graph := buildTopoGraph(tasks)
 
 	queue := make([]string, 0, len(tasks))
@@ -53,11 +53,11 @@ func TopologicalOrder(tasks []TaskSpec) ([]string, error) {
 	return order, nil
 }
 
-// TopologicalLayers groups tasks into dependency layers using Kahn's algorithm.
+// topologicalLayers groups tasks into dependency layers using Kahn's algorithm.
 // Layer 0 contains tasks with no dependencies, layer N contains tasks whose
 // dependencies all resolve within layers 0..N-1. Returns an error if a cycle
 // is detected.
-func TopologicalLayers(tasks []TaskSpec) ([][]string, error) {
+func topologicalLayers(tasks []TaskSpec) ([][]string, error) {
 	graph := buildTopoGraph(tasks)
 
 	var current []string

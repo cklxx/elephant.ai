@@ -16,19 +16,19 @@ const (
 	ModeAuto ExecutionMode = "auto"
 )
 
-// maxSwarmDepth is the maximum DAG layer depth before AnalyzeMode prefers team
+// maxSwarmDepth is the maximum DAG layer depth before analyzeMode prefers team
 // execution. Deeply-layered graphs imply tightly-coupled sequential work where
 // the overhead of swarm stage-batching outweighs parallelism benefits.
 const maxSwarmDepth = 3
 
-// AnalyzeMode inspects a TaskFile's dependency graph and context flags to
+// analyzeMode inspects a TaskFile's dependency graph and context flags to
 // recommend team or swarm execution.
 //
 // Decision rules (evaluated in order):
 //  1. Any task with InheritContext → team (requires shared state)
 //  2. Max chain depth > maxSwarmDepth → team (deeply coupled work)
 //  3. Default → swarm (prefer parallelism when ambiguous)
-func AnalyzeMode(tf *TaskFile) ExecutionMode {
+func analyzeMode(tf *TaskFile) ExecutionMode {
 	if len(tf.Tasks) == 0 {
 		return ModeSwarm
 	}
@@ -39,7 +39,7 @@ func AnalyzeMode(tf *TaskFile) ExecutionMode {
 		}
 	}
 
-	layers, err := TopologicalLayers(tf.Tasks)
+	layers, err := topologicalLayers(tf.Tasks)
 	if err != nil {
 		return ModeTeam // cycle or broken DAG → play it safe
 	}

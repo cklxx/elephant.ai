@@ -210,7 +210,7 @@ func TestDispatchTeamRun_TaskIDFilter(t *testing.T) {
 }
 
 func TestDispatchStateFromStatus_UnknownOnError(t *testing.T) {
-	state := DispatchStateFromStatus("/nonexistent/path.yaml")
+	state := dispatchStateFromStatus("/nonexistent/path.yaml")
 	if state != "unknown" {
 		t.Fatalf("expected 'unknown', got %q", state)
 	}

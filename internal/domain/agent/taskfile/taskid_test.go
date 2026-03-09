@@ -16,9 +16,9 @@ func TestBaseTaskID(t *testing.T) {
 		{input: "-retry-1", want: "-retry-1"},
 	}
 	for _, tc := range cases {
-		got := BaseTaskID(tc.input)
+		got := baseTaskID(tc.input)
 		if got != tc.want {
-			t.Errorf("BaseTaskID(%q) = %q, want %q", tc.input, got, tc.want)
+			t.Errorf("baseTaskID(%q) = %q, want %q", tc.input, got, tc.want)
 		}
 	}
 }

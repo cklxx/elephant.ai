@@ -22,7 +22,7 @@ func TestResolveDefaults_MergesFileDefaults(t *testing.T) {
 		},
 	}
 
-	resolved := ResolveDefaults(tf)
+	resolved := resolveDefaults(tf)
 
 	if resolved[0].AgentType != "codex" {
 		t.Errorf("task a agent_type: got %q, want %q", resolved[0].AgentType, "codex")
@@ -49,7 +49,7 @@ func TestResolveDefaults_CodingDefaultsApplied(t *testing.T) {
 		},
 	}
 
-	resolved := ResolveDefaults(tf)
+	resolved := resolveDefaults(tf)
 
 	if resolved[0].Config["task_kind"] != "coding" {
 		t.Errorf("expected task_kind=coding, got %q", resolved[0].Config["task_kind"])
@@ -82,7 +82,7 @@ func TestResolveDefaults_PlanMode(t *testing.T) {
 		},
 	}
 
-	resolved := ResolveDefaults(tf)
+	resolved := resolveDefaults(tf)
 
 	if resolved[0].Config["verify"] != "false" {
 		t.Errorf("expected verify=false for plan mode, got %q", resolved[0].Config["verify"])
@@ -112,7 +112,7 @@ func TestResolveDefaults_ControlledToFull(t *testing.T) {
 		},
 	}
 
-	resolved := ResolveDefaults(tf)
+	resolved := resolveDefaults(tf)
 
 	if resolved[0].AutonomyLevel != "full" {
 		t.Errorf("expected autonomy_level=full, got %q", resolved[0].AutonomyLevel)
@@ -138,7 +138,7 @@ func TestResolveDefaults_ExplicitOverridesDefaults(t *testing.T) {
 		},
 	}
 
-	resolved := ResolveDefaults(tf)
+	resolved := resolveDefaults(tf)
 
 	if resolved[0].Config["verify"] != "false" {
 		t.Errorf("explicit verify=false should be preserved, got %q", resolved[0].Config["verify"])
@@ -165,7 +165,7 @@ func TestSpecToDispatchRequest(t *testing.T) {
 		Config:        map[string]string{"task_kind": "coding"},
 	}
 
-	req := SpecToDispatchRequest(spec, "cause-123")
+	req := specToDispatchRequest(spec, "cause-123")
 
 	if req.TaskID != "t1" {
 		t.Errorf("TaskID: got %q, want %q", req.TaskID, "t1")
@@ -191,7 +191,7 @@ func TestContextPreamblePrependedInDispatch(t *testing.T) {
 		Prompt:          "do something",
 		ContextPreamble: preamble,
 	}
-	req := SpecToDispatchRequest(spec, "")
+	req := specToDispatchRequest(spec, "")
 	if !strings.HasPrefix(req.Prompt, preamble) {
 		t.Errorf("prompt should start with preamble, got: %q", req.Prompt)
 	}
@@ -205,7 +205,7 @@ func TestContextPreamblePrependedInDispatch(t *testing.T) {
 		Description: "task",
 		Prompt:      "bare prompt",
 	}
-	req2 := SpecToDispatchRequest(spec2, "")
+	req2 := specToDispatchRequest(spec2, "")
 	if req2.Prompt != "bare prompt" {
 		t.Errorf("no preamble: prompt should be unchanged, got %q", req2.Prompt)
 	}
@@ -225,7 +225,7 @@ func TestContextPreambleInheritedFromDefaults(t *testing.T) {
 		},
 	}
 
-	resolved := ResolveDefaults(tf)
+	resolved := resolveDefaults(tf)
 
 	// Task a inherits default preamble.
 	if resolved[0].ContextPreamble != preamble {
@@ -251,7 +251,7 @@ func TestMaxBudgetPropagatedToConfig(t *testing.T) {
 		},
 	}
 
-	resolved := ResolveDefaults(tf)
+	resolved := resolveDefaults(tf)
 
 	if resolved[0].Config["max_budget_usd"] != "2.5" {
 		t.Errorf("max_budget_usd: got %q, want %q", resolved[0].Config["max_budget_usd"], "2.5")
@@ -271,7 +271,7 @@ func TestMaxBudgetInheritedFromDefaults(t *testing.T) {
 		},
 	}
 
-	resolved := ResolveDefaults(tf)
+	resolved := resolveDefaults(tf)
 
 	// Task a inherits default.
 	if resolved[0].Config["max_budget_usd"] != "5" {
@@ -311,7 +311,7 @@ func TestResolveDefaults_ConfigMergeConflict_TaskWins(t *testing.T) {
 		},
 	}
 
-	resolved := ResolveDefaults(tf)
+	resolved := resolveDefaults(tf)
 
 	// Task-level values must override defaults.
 	if resolved[0].Config["env"] != "staging" {
@@ -338,7 +338,7 @@ func TestResolveDefaults_ConfigMergeConflict_TaskWins(t *testing.T) {
 
 	// Verify the original TaskFile was not modified.
 	if tf.Tasks[0].Config["default_only"] != "" {
-		t.Error("original task should not have been modified by ResolveDefaults")
+		t.Error("original task should not have been modified by resolveDefaults")
 	}
 }
 

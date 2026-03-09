@@ -8,31 +8,31 @@ import (
 	alexerrors "alex/internal/shared/errors"
 )
 
-// HealthState represents the health status of a provider.
-type HealthState string
+// healthState represents the health status of a provider.
+type healthState string
 
 const (
-	HealthStateHealthy  HealthState = "healthy"
-	HealthStateDegraded HealthState = "degraded" // circuit half-open or high error rate
-	HealthStateDown     HealthState = "down"     // circuit open
+	HealthStateHealthy  healthState = "healthy"
+	HealthStateDegraded healthState = "degraded" // circuit half-open or high error rate
+	HealthStateDown     healthState = "down"     // circuit open
 )
 
-// LatencyStats holds percentile and average latency measurements.
-type LatencyStats struct {
+// latencyStats holds percentile and average latency measurements.
+type latencyStats struct {
 	P50 time.Duration `json:"p50"`
 	P95 time.Duration `json:"p95"`
 	Avg time.Duration `json:"avg"`
 }
 
-// ProviderHealth is a point-in-time snapshot of a provider's health.
-type ProviderHealth struct {
+// providerHealth is a point-in-time snapshot of a provider's health.
+type providerHealth struct {
 	Provider     string       `json:"provider"`
 	Model        string       `json:"model"`
-	State        HealthState  `json:"state"`
+	State        healthState  `json:"state"`
 	LastError    string       `json:"last_error,omitempty"`
 	FailureCount int          `json:"failure_count"`
 	LastChecked  time.Time    `json:"last_checked"`
-	Latency      LatencyStats `json:"latency"`
+	Latency      latencyStats `json:"latency"`
 }
 
 const (
@@ -62,15 +62,15 @@ type providerEntry struct {
 	failureCount int
 }
 
-// HealthRegistry tracks per-provider health via circuit breakers and latency/error metrics.
-type HealthRegistry struct {
+// healthRegistry tracks per-provider health via circuit breakers and latency/error metrics.
+type healthRegistry struct {
 	mu      sync.RWMutex
 	entries map[string]*providerEntry // key = "provider:model"
 }
 
-// NewHealthRegistry creates a new HealthRegistry.
-func NewHealthRegistry() *HealthRegistry {
-	return &HealthRegistry{
+// newHealthRegistry creates a new healthRegistry.
+func newHealthRegistry() *healthRegistry {
+	return &healthRegistry{
 		entries: make(map[string]*providerEntry),
 	}
 }
@@ -81,7 +81,7 @@ func providerKey(provider, model string) string {
 
 // Register registers a circuit breaker for the given provider/model pair.
 // If breaker is nil the entry is still created and health will be derived from error rate.
-func (hr *HealthRegistry) Register(provider, model string, breaker *alexerrors.CircuitBreaker) {
+func (hr *healthRegistry) register(provider, model string, breaker *alexerrors.CircuitBreaker) {
 	hr.mu.Lock()
 	defer hr.mu.Unlock()
 
@@ -98,8 +98,8 @@ func (hr *HealthRegistry) Register(provider, model string, breaker *alexerrors.C
 	}
 }
 
-// RecordLatency records a successful call latency for the given provider/model.
-func (hr *HealthRegistry) RecordLatency(provider, model string, d time.Duration) {
+// recordLatency records a successful call latency for the given provider/model.
+func (hr *healthRegistry) recordLatency(provider, model string, d time.Duration) {
 	hr.mu.Lock()
 	defer hr.mu.Unlock()
 
@@ -118,8 +118,8 @@ func (hr *HealthRegistry) RecordLatency(provider, model string, d time.Duration)
 	}
 }
 
-// RecordError records a failed call for the given provider/model.
-func (hr *HealthRegistry) RecordError(provider, model string, err error) {
+// recordError records a failed call for the given provider/model.
+func (hr *healthRegistry) recordError(provider, model string, err error) {
 	hr.mu.Lock()
 	defer hr.mu.Unlock()
 
@@ -137,15 +137,15 @@ func (hr *HealthRegistry) RecordError(provider, model string, err error) {
 	}
 }
 
-// GetHealth returns a health snapshot for the given provider/model.
-func (hr *HealthRegistry) GetHealth(provider, model string) ProviderHealth {
+// getHealth returns a health snapshot for the given provider/model.
+func (hr *healthRegistry) getHealth(provider, model string) providerHealth {
 	hr.mu.RLock()
 	defer hr.mu.RUnlock()
 
 	key := providerKey(provider, model)
 	e, ok := hr.entries[key]
 	if !ok {
-		return ProviderHealth{
+		return providerHealth{
 			Provider:    provider,
 			Model:       model,
 			State:       HealthStateHealthy,
@@ -155,12 +155,12 @@ func (hr *HealthRegistry) GetHealth(provider, model string) ProviderHealth {
 	return hr.buildHealth(e)
 }
 
-// GetAllHealth returns health snapshots for all registered providers, sorted by key.
-func (hr *HealthRegistry) GetAllHealth() []ProviderHealth {
+// getAllHealth returns health snapshots for all registered providers, sorted by key.
+func (hr *healthRegistry) getAllHealth() []providerHealth {
 	hr.mu.RLock()
 	defer hr.mu.RUnlock()
 
-	result := make([]ProviderHealth, 0, len(hr.entries))
+	result := make([]providerHealth, 0, len(hr.entries))
 	for _, e := range hr.entries {
 		result = append(result, hr.buildHealth(e))
 	}
@@ -172,9 +172,9 @@ func (hr *HealthRegistry) GetAllHealth() []ProviderHealth {
 	return result
 }
 
-// buildHealth constructs a ProviderHealth from a providerEntry. Caller must hold at least RLock.
-func (hr *HealthRegistry) buildHealth(e *providerEntry) ProviderHealth {
-	return ProviderHealth{
+// buildHealth constructs a providerHealth from a providerEntry. Caller must hold at least RLock.
+func (hr *healthRegistry) buildHealth(e *providerEntry) providerHealth {
+	return providerHealth{
 		Provider:     e.provider,
 		Model:        e.model,
 		State:        hr.deriveState(e),
@@ -185,8 +185,8 @@ func (hr *HealthRegistry) buildHealth(e *providerEntry) ProviderHealth {
 	}
 }
 
-// deriveState determines the HealthState from circuit breaker state or error rate.
-func (hr *HealthRegistry) deriveState(e *providerEntry) HealthState {
+// deriveState determines the healthState from circuit breaker state or error rate.
+func (hr *healthRegistry) deriveState(e *providerEntry) healthState {
 	if e.breaker != nil {
 		switch e.breaker.State() {
 		case alexerrors.StateClosed:
@@ -220,9 +220,9 @@ func (hr *HealthRegistry) deriveState(e *providerEntry) HealthState {
 }
 
 // computeLatency calculates P50, P95, and Avg from the latency ring buffer.
-func (hr *HealthRegistry) computeLatency(e *providerEntry) LatencyStats {
+func (hr *healthRegistry) computeLatency(e *providerEntry) latencyStats {
 	if e.latCount == 0 {
-		return LatencyStats{}
+		return latencyStats{}
 	}
 
 	// Copy filled portion and sort.
@@ -235,7 +235,7 @@ func (hr *HealthRegistry) computeLatency(e *providerEntry) LatencyStats {
 		sum += d
 	}
 
-	return LatencyStats{
+	return latencyStats{
 		P50: percentile(buf, 0.50),
 		P95: percentile(buf, 0.95),
 		Avg: sum / time.Duration(len(buf)),
@@ -255,7 +255,7 @@ func percentile(sorted []time.Duration, p float64) time.Duration {
 }
 
 // getOrCreate returns the entry for the key, creating it if necessary. Caller must hold Lock.
-func (hr *HealthRegistry) getOrCreate(provider, model string) *providerEntry {
+func (hr *healthRegistry) getOrCreate(provider, model string) *providerEntry {
 	key := providerKey(provider, model)
 	if e, ok := hr.entries[key]; ok {
 		return e

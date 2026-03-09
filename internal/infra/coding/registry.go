@@ -2,18 +2,18 @@ package coding
 
 import "fmt"
 
-// AdapterRegistry stores available coding adapters.
-type AdapterRegistry struct {
+// adapterRegistry stores available coding adapters.
+type adapterRegistry struct {
 	adapters map[string]Adapter
 }
 
 // NewAdapterRegistry constructs a registry.
-func NewAdapterRegistry() *AdapterRegistry {
-	return &AdapterRegistry{adapters: make(map[string]Adapter)}
+func NewAdapterRegistry() *adapterRegistry {
+	return &adapterRegistry{adapters: make(map[string]Adapter)}
 }
 
 // Register adds an adapter.
-func (r *AdapterRegistry) Register(adapter Adapter) error {
+func (r *adapterRegistry) Register(adapter Adapter) error {
 	if r == nil {
 		return fmt.Errorf("adapter registry is nil")
 	}
@@ -32,7 +32,7 @@ func (r *AdapterRegistry) Register(adapter Adapter) error {
 }
 
 // Get returns an adapter by name.
-func (r *AdapterRegistry) Get(name string) (Adapter, error) {
+func (r *adapterRegistry) Get(name string) (Adapter, error) {
 	if r == nil {
 		return nil, fmt.Errorf("adapter registry is nil")
 	}
@@ -43,7 +43,7 @@ func (r *AdapterRegistry) Get(name string) (Adapter, error) {
 }
 
 // List returns all adapters.
-func (r *AdapterRegistry) List() []Adapter {
+func (r *adapterRegistry) List() []Adapter {
 	if r == nil {
 		return nil
 	}
@@ -55,7 +55,7 @@ func (r *AdapterRegistry) List() []Adapter {
 }
 
 // Count returns number of registered adapters.
-func (r *AdapterRegistry) Count() int {
+func (r *adapterRegistry) Count() int {
 	if r == nil {
 		return 0
 	}

@@ -7,10 +7,10 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 )
 
-// ResolveDefaults merges TaskFile-level defaults into each TaskSpec,
+// resolveDefaults merges TaskFile-level defaults into each TaskSpec,
 // applying task-level values over defaults. Returns a new slice; the
 // original TaskFile is not modified.
-func ResolveDefaults(tf *TaskFile) []TaskSpec {
+func resolveDefaults(tf *TaskFile) []TaskSpec {
 	out := make([]TaskSpec, len(tf.Tasks))
 	for i, t := range tf.Tasks {
 		out[i] = mergeDefaults(t, tf.Defaults)
@@ -120,8 +120,8 @@ func applyCodingDefaults(t *TaskSpec) {
 	t.Config["workspace_mode"] = t.WorkspaceMode
 }
 
-// SpecToDispatchRequest converts a resolved TaskSpec into a BackgroundDispatchRequest.
-func SpecToDispatchRequest(spec TaskSpec, causationID string) agent.BackgroundDispatchRequest {
+// specToDispatchRequest converts a resolved TaskSpec into a BackgroundDispatchRequest.
+func specToDispatchRequest(spec TaskSpec, causationID string) agent.BackgroundDispatchRequest {
 	prompt := spec.Prompt
 	if spec.ContextPreamble != "" {
 		prompt = spec.ContextPreamble + "\n\n---\n\n" + prompt

@@ -15,11 +15,11 @@ import (
 func TestHealthRegistry_Register(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
+	hr := newHealthRegistry()
 	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
-	hr.Register("openai", "gpt-4", breaker)
+	hr.register("openai", "gpt-4", breaker)
 
-	h := hr.GetHealth("openai", "gpt-4")
+	h := hr.getHealth("openai", "gpt-4")
 	assert.Equal(t, "openai", h.Provider)
 	assert.Equal(t, "gpt-4", h.Model)
 	assert.Equal(t, HealthStateHealthy, h.State)
@@ -30,9 +30,9 @@ func TestHealthRegistry_Register(t *testing.T) {
 func TestHealthRegistry_RegisterUnknownProvider(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
+	hr := newHealthRegistry()
 	// Getting health for an unregistered provider returns a default healthy snapshot.
-	h := hr.GetHealth("unknown", "model")
+	h := hr.getHealth("unknown", "model")
 	assert.Equal(t, "unknown", h.Provider)
 	assert.Equal(t, "model", h.Model)
 	assert.Equal(t, HealthStateHealthy, h.State)
@@ -41,17 +41,17 @@ func TestHealthRegistry_RegisterUnknownProvider(t *testing.T) {
 func TestHealthRegistry_RecordLatency(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
+	hr := newHealthRegistry()
 	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
-	hr.Register("openai", "gpt-4", breaker)
+	hr.register("openai", "gpt-4", breaker)
 
 	// Record deterministic latencies for P50/P95 verification.
 	// 20 samples: 1ms, 2ms, ..., 20ms
 	for i := 1; i <= 20; i++ {
-		hr.RecordLatency("openai", "gpt-4", time.Duration(i)*time.Millisecond)
+		hr.recordLatency("openai", "gpt-4", time.Duration(i)*time.Millisecond)
 	}
 
-	h := hr.GetHealth("openai", "gpt-4")
+	h := hr.getHealth("openai", "gpt-4")
 
 	// P50 of 1..20 sorted: index = int(0.50 * 19) = 9 -> 10ms
 	assert.Equal(t, 10*time.Millisecond, h.Latency.P50)
@@ -66,14 +66,14 @@ func TestHealthRegistry_RecordLatency(t *testing.T) {
 func TestHealthRegistry_RecordError(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
+	hr := newHealthRegistry()
 	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
-	hr.Register("anthropic", "claude-3", breaker)
+	hr.register("anthropic", "claude-3", breaker)
 
-	hr.RecordError("anthropic", "claude-3", fmt.Errorf("rate limit exceeded"))
-	hr.RecordError("anthropic", "claude-3", fmt.Errorf("server error 500"))
+	hr.recordError("anthropic", "claude-3", fmt.Errorf("rate limit exceeded"))
+	hr.recordError("anthropic", "claude-3", fmt.Errorf("server error 500"))
 
-	h := hr.GetHealth("anthropic", "claude-3")
+	h := hr.getHealth("anthropic", "claude-3")
 	assert.Equal(t, 2, h.FailureCount)
 	assert.Equal(t, "server error 500", h.LastError)
 }
@@ -81,16 +81,16 @@ func TestHealthRegistry_RecordError(t *testing.T) {
 func TestHealthRegistry_HealthyState(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
+	hr := newHealthRegistry()
 	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
-	hr.Register("openai", "gpt-4", breaker)
+	hr.register("openai", "gpt-4", breaker)
 
 	// Only successes.
 	for i := 0; i < 10; i++ {
-		hr.RecordLatency("openai", "gpt-4", 50*time.Millisecond)
+		hr.recordLatency("openai", "gpt-4", 50*time.Millisecond)
 	}
 
-	h := hr.GetHealth("openai", "gpt-4")
+	h := hr.getHealth("openai", "gpt-4")
 	assert.Equal(t, HealthStateHealthy, h.State)
 }
 
@@ -105,8 +105,8 @@ func TestHealthRegistry_DegradedState(t *testing.T) {
 	}
 	breaker := alexerrors.NewCircuitBreaker("test", cfg)
 
-	hr := NewHealthRegistry()
-	hr.Register("openai", "gpt-4", breaker)
+	hr := newHealthRegistry()
+	hr.register("openai", "gpt-4", breaker)
 
 	// Drive breaker to open: 2 failures.
 	breaker.Mark(fmt.Errorf("fail"))
@@ -121,26 +121,26 @@ func TestHealthRegistry_DegradedState(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, alexerrors.StateHalfOpen, breaker.State())
 
-	h := hr.GetHealth("openai", "gpt-4")
+	h := hr.getHealth("openai", "gpt-4")
 	assert.Equal(t, HealthStateDegraded, h.State)
 }
 
 func TestHealthRegistry_DegradedStateFromErrorRate(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
+	hr := newHealthRegistry()
 	// No circuit breaker — derive state from error rate.
-	hr.Register("deepseek", "chat", nil)
+	hr.register("deepseek", "chat", nil)
 
 	// 90 successes + 10 errors = 10% error rate -> degraded (5-20%).
 	for i := 0; i < 90; i++ {
-		hr.RecordLatency("deepseek", "chat", 10*time.Millisecond)
+		hr.recordLatency("deepseek", "chat", 10*time.Millisecond)
 	}
 	for i := 0; i < 10; i++ {
-		hr.RecordError("deepseek", "chat", fmt.Errorf("error"))
+		hr.recordError("deepseek", "chat", fmt.Errorf("error"))
 	}
 
-	h := hr.GetHealth("deepseek", "chat")
+	h := hr.getHealth("deepseek", "chat")
 	assert.Equal(t, HealthStateDegraded, h.State)
 }
 
@@ -154,42 +154,42 @@ func TestHealthRegistry_DownState(t *testing.T) {
 	}
 	breaker := alexerrors.NewCircuitBreaker("test", cfg)
 
-	hr := NewHealthRegistry()
-	hr.Register("openai", "gpt-4", breaker)
+	hr := newHealthRegistry()
+	hr.register("openai", "gpt-4", breaker)
 
 	// Drive breaker to open.
 	breaker.Mark(fmt.Errorf("fail"))
 	breaker.Mark(fmt.Errorf("fail"))
 	assert.Equal(t, alexerrors.StateOpen, breaker.State())
 
-	h := hr.GetHealth("openai", "gpt-4")
+	h := hr.getHealth("openai", "gpt-4")
 	assert.Equal(t, HealthStateDown, h.State)
 }
 
 func TestHealthRegistry_DownStateFromErrorRate(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
-	hr.Register("deepseek", "chat", nil)
+	hr := newHealthRegistry()
+	hr.register("deepseek", "chat", nil)
 
 	// 70 successes + 30 errors = 30% error rate -> down (>20%).
 	for i := 0; i < 70; i++ {
-		hr.RecordLatency("deepseek", "chat", 10*time.Millisecond)
+		hr.recordLatency("deepseek", "chat", 10*time.Millisecond)
 	}
 	for i := 0; i < 30; i++ {
-		hr.RecordError("deepseek", "chat", fmt.Errorf("error"))
+		hr.recordError("deepseek", "chat", fmt.Errorf("error"))
 	}
 
-	h := hr.GetHealth("deepseek", "chat")
+	h := hr.getHealth("deepseek", "chat")
 	assert.Equal(t, HealthStateDown, h.State)
 }
 
 func TestHealthRegistry_Concurrent(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
+	hr := newHealthRegistry()
 	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
-	hr.Register("openai", "gpt-4", breaker)
+	hr.register("openai", "gpt-4", breaker)
 
 	var wg sync.WaitGroup
 	const goroutines = 50
@@ -201,7 +201,7 @@ func TestHealthRegistry_Concurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < opsPerGoroutine; j++ {
-				hr.RecordLatency("openai", "gpt-4", time.Duration(j)*time.Microsecond)
+				hr.recordLatency("openai", "gpt-4", time.Duration(j)*time.Microsecond)
 			}
 		}()
 	}
@@ -212,7 +212,7 @@ func TestHealthRegistry_Concurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < opsPerGoroutine; j++ {
-				hr.RecordError("openai", "gpt-4", fmt.Errorf("err %d", j))
+				hr.recordError("openai", "gpt-4", fmt.Errorf("err %d", j))
 			}
 		}()
 	}
@@ -223,7 +223,7 @@ func TestHealthRegistry_Concurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < opsPerGoroutine; j++ {
-				_ = hr.GetHealth("openai", "gpt-4")
+				_ = hr.getHealth("openai", "gpt-4")
 			}
 		}()
 	}
@@ -234,7 +234,7 @@ func TestHealthRegistry_Concurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < opsPerGoroutine; j++ {
-				_ = hr.GetAllHealth()
+				_ = hr.getAllHealth()
 			}
 		}()
 	}
@@ -242,31 +242,31 @@ func TestHealthRegistry_Concurrent(t *testing.T) {
 	wg.Wait()
 
 	// Should not panic; just verify we get a result.
-	h := hr.GetHealth("openai", "gpt-4")
+	h := hr.getHealth("openai", "gpt-4")
 	assert.NotEmpty(t, h.Provider)
 }
 
 func TestHealthRegistry_RollingWindow(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
+	hr := newHealthRegistry()
 	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
-	hr.Register("openai", "gpt-4", breaker)
+	hr.register("openai", "gpt-4", breaker)
 
 	// Fill the latency window completely with 10ms values.
 	for i := 0; i < latencyWindowSize; i++ {
-		hr.RecordLatency("openai", "gpt-4", 10*time.Millisecond)
+		hr.recordLatency("openai", "gpt-4", 10*time.Millisecond)
 	}
 
-	h1 := hr.GetHealth("openai", "gpt-4")
+	h1 := hr.getHealth("openai", "gpt-4")
 	assert.Equal(t, 10*time.Millisecond, h1.Latency.Avg)
 
 	// Now overwrite entire window with 20ms values. Old 10ms entries should be gone.
 	for i := 0; i < latencyWindowSize; i++ {
-		hr.RecordLatency("openai", "gpt-4", 20*time.Millisecond)
+		hr.recordLatency("openai", "gpt-4", 20*time.Millisecond)
 	}
 
-	h2 := hr.GetHealth("openai", "gpt-4")
+	h2 := hr.getHealth("openai", "gpt-4")
 	assert.Equal(t, 20*time.Millisecond, h2.Latency.Avg)
 	assert.Equal(t, 20*time.Millisecond, h2.Latency.P50)
 	assert.Equal(t, 20*time.Millisecond, h2.Latency.P95)
@@ -275,13 +275,13 @@ func TestHealthRegistry_RollingWindow(t *testing.T) {
 func TestHealthRegistry_GetAllHealth(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
+	hr := newHealthRegistry()
 	b1 := alexerrors.NewCircuitBreaker("test-a", alexerrors.DefaultCircuitBreakerConfig())
 	b2 := alexerrors.NewCircuitBreaker("test-b", alexerrors.DefaultCircuitBreakerConfig())
-	hr.Register("anthropic", "claude-3", b1)
-	hr.Register("openai", "gpt-4", b2)
+	hr.register("anthropic", "claude-3", b1)
+	hr.register("openai", "gpt-4", b2)
 
-	all := hr.GetAllHealth()
+	all := hr.getAllHealth()
 	require.Len(t, all, 2)
 	// Sorted by key: "anthropic:claude-3" < "openai:gpt-4"
 	assert.Equal(t, "anthropic", all[0].Provider)
@@ -291,16 +291,16 @@ func TestHealthRegistry_GetAllHealth(t *testing.T) {
 func TestHealthRegistry_ReRegister(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
+	hr := newHealthRegistry()
 	b1 := alexerrors.NewCircuitBreaker("test-old", alexerrors.DefaultCircuitBreakerConfig())
-	hr.Register("openai", "gpt-4", b1)
-	hr.RecordError("openai", "gpt-4", fmt.Errorf("old error"))
+	hr.register("openai", "gpt-4", b1)
+	hr.recordError("openai", "gpt-4", fmt.Errorf("old error"))
 
 	// Re-register with a new breaker; failure count should be preserved.
 	b2 := alexerrors.NewCircuitBreaker("test-new", alexerrors.DefaultCircuitBreakerConfig())
-	hr.Register("openai", "gpt-4", b2)
+	hr.register("openai", "gpt-4", b2)
 
-	h := hr.GetHealth("openai", "gpt-4")
+	h := hr.getHealth("openai", "gpt-4")
 	assert.Equal(t, 1, h.FailureCount)
 	assert.Equal(t, "old error", h.LastError)
 }
@@ -308,13 +308,13 @@ func TestHealthRegistry_ReRegister(t *testing.T) {
 func TestHealthRegistry_RecordWithoutRegister(t *testing.T) {
 	t.Parallel()
 
-	hr := NewHealthRegistry()
+	hr := newHealthRegistry()
 
 	// Recording without explicit registration should auto-create the entry.
-	hr.RecordLatency("deepseek", "deepseek-chat", 5*time.Millisecond)
-	hr.RecordError("deepseek", "deepseek-chat", fmt.Errorf("connection refused"))
+	hr.recordLatency("deepseek", "deepseek-chat", 5*time.Millisecond)
+	hr.recordError("deepseek", "deepseek-chat", fmt.Errorf("connection refused"))
 
-	h := hr.GetHealth("deepseek", "deepseek-chat")
+	h := hr.getHealth("deepseek", "deepseek-chat")
 	assert.Equal(t, "deepseek", h.Provider)
 	assert.Equal(t, 1, h.FailureCount)
 	assert.Equal(t, "connection refused", h.LastError)

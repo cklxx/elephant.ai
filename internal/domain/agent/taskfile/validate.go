@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-// Validate checks a TaskFile for structural correctness:
+// validate checks a TaskFile for structural correctness:
 // required fields, valid dependency references, self-dependencies, and cycles.
-func Validate(tf *TaskFile) error {
+func validate(tf *TaskFile) error {
 	if tf == nil {
 		return fmt.Errorf("taskfile is nil")
 	}
@@ -44,7 +44,7 @@ func Validate(tf *TaskFile) error {
 		}
 	}
 
-	if _, err := TopologicalOrder(tf.Tasks); err != nil {
+	if _, err := topologicalOrder(tf.Tasks); err != nil {
 		return err
 	}
 

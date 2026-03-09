@@ -39,7 +39,7 @@ func NewExecutor(dispatcher agent.BackgroundTaskDispatcher, mode ExecutionMode, 
 // resolveMode returns the concrete mode (team or swarm) for the given TaskFile.
 func (e *Executor) resolveMode(tf *TaskFile) ExecutionMode {
 	if e.mode == ModeAuto {
-		return AnalyzeMode(tf)
+		return analyzeMode(tf)
 	}
 	return e.mode
 }
@@ -48,11 +48,11 @@ func (e *Executor) resolveMode(tf *TaskFile) ExecutionMode {
 // For swarm mode, it blocks until all stages complete (swarm is inherently
 // synchronous per-stage). For team mode, it returns immediately after dispatch.
 func (e *Executor) Execute(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
-	if err := Validate(tf); err != nil {
+	if err := validate(tf); err != nil {
 		return nil, fmt.Errorf("validate: %w", err)
 	}
 	if e.resolveMode(tf) == ModeSwarm {
-		sched := NewSwarmScheduler(e.dispatcher, e.swarmCfg)
+		sched := newSwarmScheduler(e.dispatcher, e.swarmCfg)
 		return sched.executeSwarmValidated(ctx, tf, causationID, statusPath)
 	}
 	return e.executeTeamValidated(ctx, tf, causationID, statusPath)
@@ -60,12 +60,12 @@ func (e *Executor) Execute(ctx context.Context, tf *TaskFile, causationID, statu
 
 // ExecuteAndWait dispatches tasks and blocks until all complete or the timeout elapses.
 func (e *Executor) ExecuteAndWait(ctx context.Context, tf *TaskFile, causationID, statusPath string, timeout time.Duration) (*ExecuteResult, error) {
-	if err := Validate(tf); err != nil {
+	if err := validate(tf); err != nil {
 		return nil, fmt.Errorf("validate: %w", err)
 	}
 	if e.resolveMode(tf) == ModeSwarm {
 		// Swarm execution is already synchronous (blocks per stage).
-		sched := NewSwarmScheduler(e.dispatcher, e.swarmCfg)
+		sched := newSwarmScheduler(e.dispatcher, e.swarmCfg)
 		return sched.executeSwarmValidated(ctx, tf, causationID, statusPath)
 	}
 
@@ -79,7 +79,7 @@ func (e *Executor) ExecuteAndWait(ctx context.Context, tf *TaskFile, causationID
 
 	// Final status sync. Rehydrate existing sidecar first so SyncOnce updates
 	// the initialized task rows instead of operating on an empty in-memory file.
-	sw := NewStatusWriter(statusPath, nil)
+	sw := newStatusWriter(statusPath, nil)
 	if existing, readErr := ReadStatusFile(statusPath); readErr == nil && existing != nil {
 		sw.RehydrateFrom(existing)
 	}
@@ -91,12 +91,12 @@ func (e *Executor) ExecuteAndWait(ctx context.Context, tf *TaskFile, causationID
 // executeTeamValidated dispatches all tasks in topological order, relying on
 // the dispatcher's dependency blocking. Caller must have validated tf already.
 func (e *Executor) executeTeamValidated(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
-	order, err := TopologicalOrder(tf.Tasks)
+	order, err := topologicalOrder(tf.Tasks)
 	if err != nil {
 		return nil, fmt.Errorf("topo sort: %w", err)
 	}
 
-	resolved := ResolveDefaults(tf)
+	resolved := resolveDefaults(tf)
 
 	// Build index for topo-ordered dispatch.
 	byID := make(map[string]TaskSpec, len(resolved))
@@ -105,7 +105,7 @@ func (e *Executor) executeTeamValidated(ctx context.Context, tf *TaskFile, causa
 	}
 
 	// Init status file.
-	sw := NewStatusWriter(statusPath, nil)
+	sw := newStatusWriter(statusPath, nil)
 	if err := sw.InitFromTaskFile(tf); err != nil {
 		return nil, fmt.Errorf("init status: %w", err)
 	}
@@ -118,7 +118,7 @@ func (e *Executor) executeTeamValidated(ctx context.Context, tf *TaskFile, causa
 			return nil, err
 		}
 		spec := byID[id]
-		req := SpecToDispatchRequest(spec, causationID)
+		req := specToDispatchRequest(spec, causationID)
 		if err := e.dispatcher.Dispatch(ctx, req); err != nil {
 			sw.Stop()
 			return nil, fmt.Errorf("dispatch task %q: %w", id, err)

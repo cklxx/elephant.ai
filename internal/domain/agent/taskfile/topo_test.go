@@ -11,7 +11,7 @@ func TestTopologicalOrder_Linear(t *testing.T) {
 		{ID: "b", DependsOn: []string{"a"}},
 		{ID: "a"},
 	}
-	order, err := TopologicalOrder(tasks)
+	order, err := topologicalOrder(tasks)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -26,7 +26,7 @@ func TestTopologicalOrder_Parallel(t *testing.T) {
 		{ID: "b"},
 		{ID: "c", DependsOn: []string{"a", "b"}},
 	}
-	order, err := TopologicalOrder(tasks)
+	order, err := topologicalOrder(tasks)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestTopologicalOrder_Diamond(t *testing.T) {
 		{ID: "c", DependsOn: []string{"a"}},
 		{ID: "d", DependsOn: []string{"b", "c"}},
 	}
-	order, err := TopologicalOrder(tasks)
+	order, err := topologicalOrder(tasks)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestTopologicalOrder_Cycle(t *testing.T) {
 		{ID: "b", DependsOn: []string{"a"}},
 		{ID: "c", DependsOn: []string{"b"}},
 	}
-	_, err := TopologicalOrder(tasks)
+	_, err := topologicalOrder(tasks)
 	if err == nil {
 		t.Fatal("expected cycle error")
 	}
@@ -72,7 +72,7 @@ func TestTopologicalOrder_Cycle(t *testing.T) {
 
 func TestTopologicalOrder_SingleTask(t *testing.T) {
 	tasks := []TaskSpec{{ID: "only"}}
-	order, err := TopologicalOrder(tasks)
+	order, err := topologicalOrder(tasks)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestTopologicalOrder_SingleTask(t *testing.T) {
 	}
 }
 
-// --- TopologicalLayers tests ---
+// --- topologicalLayers tests ---
 
 func TestTopologicalLayers_Flat(t *testing.T) {
 	tasks := []TaskSpec{
@@ -89,7 +89,7 @@ func TestTopologicalLayers_Flat(t *testing.T) {
 		{ID: "b"},
 		{ID: "c"},
 	}
-	layers, err := TopologicalLayers(tasks)
+	layers, err := topologicalLayers(tasks)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestTopologicalLayers_Chain(t *testing.T) {
 		{ID: "b", DependsOn: []string{"a"}},
 		{ID: "a"},
 	}
-	layers, err := TopologicalLayers(tasks)
+	layers, err := topologicalLayers(tasks)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestTopologicalLayers_Diamond(t *testing.T) {
 		{ID: "c", DependsOn: []string{"a"}},
 		{ID: "d", DependsOn: []string{"b", "c"}},
 	}
-	layers, err := TopologicalLayers(tasks)
+	layers, err := topologicalLayers(tasks)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestTopologicalLayers_Wide(t *testing.T) {
 		{ID: "a"}, {ID: "b"}, {ID: "c"}, {ID: "d"}, {ID: "e"},
 		{ID: "f", DependsOn: []string{"a", "b", "c", "d", "e"}},
 	}
-	layers, err := TopologicalLayers(tasks)
+	layers, err := topologicalLayers(tasks)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestTopologicalLayers_Cycle(t *testing.T) {
 		{ID: "b", DependsOn: []string{"a"}},
 		{ID: "c", DependsOn: []string{"b"}},
 	}
-	_, err := TopologicalLayers(tasks)
+	_, err := topologicalLayers(tasks)
 	if err == nil {
 		t.Fatal("expected cycle error")
 	}
@@ -185,7 +185,7 @@ func TestTopologicalLayers_Cycle(t *testing.T) {
 
 func TestTopologicalLayers_SingleTask(t *testing.T) {
 	tasks := []TaskSpec{{ID: "only"}}
-	layers, err := TopologicalLayers(tasks)
+	layers, err := topologicalLayers(tasks)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

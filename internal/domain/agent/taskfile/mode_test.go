@@ -13,7 +13,7 @@ func TestAnalyzeMode_AllIndependent(t *testing.T) {
 			{ID: "e", Prompt: "do E"},
 		},
 	}
-	mode := AnalyzeMode(tf)
+	mode := analyzeMode(tf)
 	if mode != ModeSwarm {
 		t.Errorf("all-independent DAG should select swarm, got %s", mode)
 	}
@@ -29,7 +29,7 @@ func TestAnalyzeMode_DeepChain(t *testing.T) {
 			{ID: "d", Prompt: "do D", DependsOn: []string{"c"}},
 		},
 	}
-	mode := AnalyzeMode(tf)
+	mode := analyzeMode(tf)
 	if mode != ModeTeam {
 		t.Errorf("deep chain (4 layers) should select team, got %s", mode)
 	}
@@ -43,7 +43,7 @@ func TestAnalyzeMode_InheritContext(t *testing.T) {
 			{ID: "b", Prompt: "do B", InheritContext: true},
 		},
 	}
-	mode := AnalyzeMode(tf)
+	mode := analyzeMode(tf)
 	if mode != ModeTeam {
 		t.Errorf("inherit_context should force team, got %s", mode)
 	}
@@ -63,7 +63,7 @@ func TestAnalyzeMode_WideDiamond(t *testing.T) {
 			{ID: "f", Prompt: "do F", DependsOn: []string{"b", "c", "d", "e"}},
 		},
 	}
-	mode := AnalyzeMode(tf)
+	mode := analyzeMode(tf)
 	if mode != ModeSwarm {
 		t.Errorf("wide diamond should select swarm, got %s", mode)
 	}
@@ -83,7 +83,7 @@ func TestAnalyzeMode_NarrowDAG(t *testing.T) {
 			{ID: "e", Prompt: "do E", DependsOn: []string{"c", "d"}},
 		},
 	}
-	mode := AnalyzeMode(tf)
+	mode := analyzeMode(tf)
 	if mode != ModeSwarm {
 		t.Errorf("narrow 3-layer DAG should default to swarm, got %s", mode)
 	}
@@ -91,7 +91,7 @@ func TestAnalyzeMode_NarrowDAG(t *testing.T) {
 
 func TestAnalyzeMode_Empty(t *testing.T) {
 	tf := &TaskFile{Version: "1"}
-	mode := AnalyzeMode(tf)
+	mode := analyzeMode(tf)
 	if mode != ModeSwarm {
 		t.Errorf("empty task list should default to swarm, got %s", mode)
 	}
@@ -105,7 +105,7 @@ func TestAnalyzeMode_CycleFallback(t *testing.T) {
 			{ID: "b", Prompt: "do B", DependsOn: []string{"a"}},
 		},
 	}
-	mode := AnalyzeMode(tf)
+	mode := analyzeMode(tf)
 	if mode != ModeTeam {
 		t.Errorf("cycle should fallback to team, got %s", mode)
 	}

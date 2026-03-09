@@ -29,8 +29,8 @@ type TeamRunRequest struct {
 	TaskIDs         []string // optional: filter to specific task IDs after render
 }
 
-// TeamRunResult captures the outcome of a team dispatch.
-type TeamRunResult struct {
+// teamRunResult captures the outcome of a team dispatch.
+type teamRunResult struct {
 	*ExecuteResult
 	Record agent.TeamRunRecord
 }
@@ -38,7 +38,7 @@ type TeamRunResult struct {
 // DispatchTeamRun is the shared entry point for team execution.
 // It renders a TaskFile from the team definition, applies optional bootstrap,
 // executes via the Executor, and builds an audit record.
-func DispatchTeamRun(ctx context.Context, req TeamRunRequest) (*TeamRunResult, error) {
+func DispatchTeamRun(ctx context.Context, req TeamRunRequest) (*teamRunResult, error) {
 	if req.TeamDef == nil {
 		return nil, fmt.Errorf("team definition is required")
 	}
@@ -86,19 +86,19 @@ func DispatchTeamRun(ctx context.Context, req TeamRunRequest) (*TeamRunResult, e
 		return nil, err
 	}
 
-	record := BuildTeamRunRecord(tf, req.TeamDef, req.TeamDef.Name, req.Goal, result, req.StatusPath, req.Wait)
+	record := buildTeamRunRecord(tf, req.TeamDef, req.TeamDef.Name, req.Goal, result, req.StatusPath, req.Wait)
 
-	return &TeamRunResult{
+	return &teamRunResult{
 		ExecuteResult: result,
 		Record:        record,
 	}, nil
 }
 
-// BuildTeamRunRecord constructs an audit record from a completed team dispatch.
-func BuildTeamRunRecord(tf *TaskFile, def *agent.TeamDefinition, templateName, goal string, result *ExecuteResult, statusPath string, waited bool) agent.TeamRunRecord {
+// buildTeamRunRecord constructs an audit record from a completed team dispatch.
+func buildTeamRunRecord(tf *TaskFile, def *agent.TeamDefinition, templateName, goal string, result *ExecuteResult, statusPath string, waited bool) agent.TeamRunRecord {
 	state := "dispatched"
 	if waited {
-		state = DispatchStateFromStatus(statusPath)
+		state = dispatchStateFromStatus(statusPath)
 	}
 	var stages []agent.TeamRunStageRecord
 	var roles []agent.TeamRunRoleRecord
@@ -173,8 +173,8 @@ func FilterTasks(tf *TaskFile, ids []string) *TaskFile {
 	return filtered
 }
 
-// DispatchStateFromStatus reads a task status sidecar and returns a summary state string.
-func DispatchStateFromStatus(statusPath string) string {
+// dispatchStateFromStatus reads a task status sidecar and returns a summary state string.
+func dispatchStateFromStatus(statusPath string) string {
 	sf, err := ReadStatusFile(statusPath)
 	if err != nil {
 		return "unknown"

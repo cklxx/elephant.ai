@@ -17,10 +17,10 @@ import (
 	id "alex/internal/shared/utils/id"
 )
 
-// TokenRefresher is called when a 401 is received for an OAuth token to
+// tokenRefresher is called when a 401 is received for an OAuth token to
 // obtain a fresh access token. Implementations should handle refresh-token
 // flows and credential persistence.
-type TokenRefresher func() (newToken string, err error)
+type tokenRefresher func() (newToken string, err error)
 
 // retryClient wraps an LLM client with retry logic and circuit breaker
 type retryClient struct {
@@ -29,11 +29,11 @@ type retryClient struct {
 	circuitBreaker *alexerrors.CircuitBreaker
 	logger         logging.Logger
 	llmLogger      logging.Logger // writes to alex-llm.log
-	healthRegistry *HealthRegistry
+	healthRegistry *healthRegistry
 	provider       string
 	model          string
 	sleepFn        func(context.Context, time.Duration) error
-	authRefresher  TokenRefresher
+	authRefresher  tokenRefresher
 	authRefreshMu  sync.Mutex
 	lastAuthRefresh time.Time
 }
@@ -52,7 +52,7 @@ func NewRetryClient(client portsllm.LLMClient, retryConfig alexerrors.RetryConfi
 }
 
 // newRetryClientWithHealth wraps an LLM client with retry, circuit breaker, and health recording.
-func newRetryClientWithHealth(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreaker *alexerrors.CircuitBreaker, hr *HealthRegistry, provider, model string) portsllm.LLMClient {
+func newRetryClientWithHealth(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreaker *alexerrors.CircuitBreaker, hr *healthRegistry, provider, model string) portsllm.LLMClient {
 	return &retryClient{
 		underlying:     client,
 		retryConfig:    retryConfig,
@@ -436,7 +436,7 @@ func (c *retryClient) tryAuthRefresh() bool {
 	}
 
 	// Update the underlying client's API key.
-	if updatable, ok := c.underlying.(APIKeyUpdatable); ok {
+	if updatable, ok := c.underlying.(apiKeyUpdatable); ok {
 		updatable.SetAPIKey(newToken)
 		c.lastAuthRefresh = time.Now()
 		c.logger.Info("Auth token refreshed successfully, updated API key")
@@ -535,17 +535,17 @@ func (c *retryClient) logFailureRequestEntry(
 	})
 }
 
-// recordHealthLatency records a successful call latency if a HealthRegistry is attached.
+// recordHealthLatency records a successful call latency if a healthRegistry is attached.
 func (c *retryClient) recordHealthLatency(d time.Duration) {
 	if c.healthRegistry != nil {
-		c.healthRegistry.RecordLatency(c.provider, c.model, d)
+		c.healthRegistry.recordLatency(c.provider, c.model, d)
 	}
 }
 
-// recordHealthError records a failed call if a HealthRegistry is attached.
+// recordHealthError records a failed call if a healthRegistry is attached.
 func (c *retryClient) recordHealthError(err error) {
 	if c.healthRegistry != nil {
-		c.healthRegistry.RecordError(c.provider, c.model, err)
+		c.healthRegistry.recordError(c.provider, c.model, err)
 	}
 }
 
@@ -576,15 +576,15 @@ func WrapWithRetryWithMeta(
 }
 
 // WrapWithRetryAndHealth wraps an LLM client with retry, circuit breaker, and health tracking.
-// The circuit breaker is automatically registered with the HealthRegistry.
-func WrapWithRetryAndHealth(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig, hr *HealthRegistry, provider, model string) portsllm.LLMClient {
+// The circuit breaker is automatically registered with the healthRegistry.
+func WrapWithRetryAndHealth(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig, hr *healthRegistry, provider, model string) portsllm.LLMClient {
 	circuitBreaker := alexerrors.NewCircuitBreaker(
 		fmt.Sprintf("llm-%s", client.Model()),
 		circuitBreakerConfig,
 	)
 
 	if hr != nil {
-		hr.Register(provider, model, circuitBreaker)
+		hr.register(provider, model, circuitBreaker)
 	}
 
 	return newRetryClientWithHealth(client, retryConfig, circuitBreaker, hr, provider, model)

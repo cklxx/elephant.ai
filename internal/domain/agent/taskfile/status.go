@@ -12,15 +12,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// StatusFile is the YAML structure written as a sidecar to a TaskFile.
-type StatusFile struct {
+// statusFile is the YAML structure written as a sidecar to a TaskFile.
+type statusFile struct {
 	PlanID    string       `yaml:"plan_id"`
 	UpdatedAt time.Time    `yaml:"updated_at"`
-	Tasks     []TaskStatus `yaml:"tasks"`
+	Tasks     []taskStatus `yaml:"tasks"`
 }
 
-// TaskStatus captures the current state of a single task.
-type TaskStatus struct {
+// taskStatus captures the current state of a single task.
+type taskStatus struct {
 	ID          string `yaml:"id"`
 	Description string `yaml:"description"`
 	Status      string `yaml:"status"`
@@ -31,40 +31,40 @@ type TaskStatus struct {
 }
 
 // ReadStatusFile reads and deserializes a status sidecar YAML file.
-func ReadStatusFile(path string) (*StatusFile, error) {
+func ReadStatusFile(path string) (*statusFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read status file: %w", err)
 	}
-	var sf StatusFile
+	var sf statusFile
 	if err := yaml.Unmarshal(data, &sf); err != nil {
 		return nil, fmt.Errorf("parse status file: %w", err)
 	}
 	return &sf, nil
 }
 
-// StatusWriter manages atomic writes of task status to a YAML sidecar file
+// statusWriter manages atomic writes of task status to a YAML sidecar file
 // and optionally polls the dispatcher for live updates.
-type StatusWriter struct {
+type statusWriter struct {
 	mu       sync.Mutex
 	path     string
-	file     StatusFile
+	file     statusFile
 	stopCh   chan struct{}
 	stopOnce sync.Once
 	logger   logging.Logger
 }
 
-// NewStatusWriter creates a StatusWriter that writes to the given path.
-func NewStatusWriter(path string, logger logging.Logger) *StatusWriter {
-	return &StatusWriter{
+// newStatusWriter creates a statusWriter that writes to the given path.
+func newStatusWriter(path string, logger logging.Logger) *statusWriter {
+	return &statusWriter{
 		path:   path,
 		stopCh: make(chan struct{}),
 		logger: logging.OrNop(logger),
 	}
 }
 
-// RehydrateFrom restores in-memory state from a previously persisted StatusFile.
-func (sw *StatusWriter) RehydrateFrom(sf *StatusFile) {
+// RehydrateFrom restores in-memory state from a previously persisted statusFile.
+func (sw *statusWriter) RehydrateFrom(sf *statusFile) {
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
 	sw.file = *sf
@@ -72,17 +72,17 @@ func (sw *StatusWriter) RehydrateFrom(sf *StatusFile) {
 
 // InitFromTaskFile initializes status entries from a TaskFile. Tasks with
 // dependencies start as "blocked"; others start as "pending".
-func (sw *StatusWriter) InitFromTaskFile(tf *TaskFile) error {
+func (sw *statusWriter) InitFromTaskFile(tf *TaskFile) error {
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
 
-	statuses := make([]TaskStatus, len(tf.Tasks))
+	statuses := make([]taskStatus, len(tf.Tasks))
 	for i, t := range tf.Tasks {
 		status := "pending"
 		if len(t.DependsOn) > 0 {
 			status = "blocked"
 		}
-		statuses[i] = TaskStatus{
+		statuses[i] = taskStatus{
 			ID:          t.ID,
 			Description: t.Description,
 			Status:      status,
@@ -90,7 +90,7 @@ func (sw *StatusWriter) InitFromTaskFile(tf *TaskFile) error {
 		}
 	}
 
-	sw.file = StatusFile{
+	sw.file = statusFile{
 		PlanID:    tf.PlanID,
 		UpdatedAt: time.Now(),
 		Tasks:     statuses,
@@ -99,7 +99,7 @@ func (sw *StatusWriter) InitFromTaskFile(tf *TaskFile) error {
 }
 
 // StartPolling begins periodic status syncing from the dispatcher.
-func (sw *StatusWriter) StartPolling(dispatcher agent.BackgroundTaskDispatcher, taskIDs []string, interval time.Duration) {
+func (sw *statusWriter) StartPolling(dispatcher agent.BackgroundTaskDispatcher, taskIDs []string, interval time.Duration) {
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
@@ -118,23 +118,23 @@ func (sw *StatusWriter) StartPolling(dispatcher agent.BackgroundTaskDispatcher, 
 }
 
 // Stop terminates the polling goroutine.
-func (sw *StatusWriter) Stop() {
+func (sw *statusWriter) Stop() {
 	sw.stopOnce.Do(func() {
 		close(sw.stopCh)
 	})
 }
 
 // SyncOnce performs a single status sync and writes to disk.
-func (sw *StatusWriter) SyncOnce(dispatcher agent.BackgroundTaskDispatcher, taskIDs []string) {
+func (sw *statusWriter) SyncOnce(dispatcher agent.BackgroundTaskDispatcher, taskIDs []string) {
 	sw.syncFromDispatcher(dispatcher, taskIDs)
 }
 
 // Path returns the status file path.
-func (sw *StatusWriter) Path() string {
+func (sw *statusWriter) Path() string {
 	return sw.path
 }
 
-func (sw *StatusWriter) syncFromDispatcher(dispatcher agent.BackgroundTaskDispatcher, taskIDs []string) bool {
+func (sw *statusWriter) syncFromDispatcher(dispatcher agent.BackgroundTaskDispatcher, taskIDs []string) bool {
 	summaries := dispatcher.Status(taskIDs)
 	if len(summaries) == 0 {
 		return false
@@ -184,7 +184,7 @@ func (sw *StatusWriter) syncFromDispatcher(dispatcher agent.BackgroundTaskDispat
 	return allTerminal
 }
 
-func (sw *StatusWriter) writeUnsafe() error {
+func (sw *statusWriter) writeUnsafe() error {
 	data, err := yaml.Marshal(&sw.file)
 	if err != nil {
 		return fmt.Errorf("marshal status: %w", err)

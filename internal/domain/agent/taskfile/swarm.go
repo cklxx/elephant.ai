@@ -36,9 +36,9 @@ func DefaultSwarmConfig() SwarmConfig {
 	}
 }
 
-// SwarmScheduler executes a TaskFile using stage-batched parallel execution
+// swarmScheduler executes a TaskFile using stage-batched parallel execution
 // with adaptive concurrency scaling.
-type SwarmScheduler struct {
+type swarmScheduler struct {
 	config     SwarmConfig
 	dispatcher agent.BackgroundTaskDispatcher
 	// current is the active concurrency limit, adjusted between layers.
@@ -47,8 +47,8 @@ type SwarmScheduler struct {
 	current int
 }
 
-// NewSwarmScheduler creates a scheduler backed by the given dispatcher.
-func NewSwarmScheduler(dispatcher agent.BackgroundTaskDispatcher, cfg SwarmConfig) *SwarmScheduler {
+// newSwarmScheduler creates a scheduler backed by the given dispatcher.
+func newSwarmScheduler(dispatcher agent.BackgroundTaskDispatcher, cfg SwarmConfig) *swarmScheduler {
 	current := cfg.InitialConcurrency
 	if current <= 0 {
 		current = DefaultSwarmConfig().InitialConcurrency
@@ -65,7 +65,7 @@ func NewSwarmScheduler(dispatcher agent.BackgroundTaskDispatcher, cfg SwarmConfi
 	if current > cfg.MaxConcurrency {
 		current = cfg.MaxConcurrency
 	}
-	return &SwarmScheduler{
+	return &swarmScheduler{
 		config:     cfg,
 		dispatcher: dispatcher,
 		current:    current,
@@ -73,8 +73,8 @@ func NewSwarmScheduler(dispatcher agent.BackgroundTaskDispatcher, cfg SwarmConfi
 }
 
 // ExecuteSwarm validates and executes tasks using stage-batched parallelism.
-func (s *SwarmScheduler) ExecuteSwarm(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
-	if err := Validate(tf); err != nil {
+func (s *swarmScheduler) ExecuteSwarm(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
+	if err := validate(tf); err != nil {
 		return nil, fmt.Errorf("validate: %w", err)
 	}
 	return s.executeSwarmValidated(ctx, tf, causationID, statusPath)
@@ -83,19 +83,19 @@ func (s *SwarmScheduler) ExecuteSwarm(ctx context.Context, tf *TaskFile, causati
 // executeSwarmValidated groups tasks into dependency layers, then runs each
 // layer as a parallel swarm batch with adaptive concurrency. Caller must have
 // validated tf already.
-func (s *SwarmScheduler) executeSwarmValidated(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
-	layers, err := TopologicalLayers(tf.Tasks)
+func (s *swarmScheduler) executeSwarmValidated(ctx context.Context, tf *TaskFile, causationID, statusPath string) (*ExecuteResult, error) {
+	layers, err := topologicalLayers(tf.Tasks)
 	if err != nil {
 		return nil, fmt.Errorf("topo layers: %w", err)
 	}
 
-	resolved := ResolveDefaults(tf)
+	resolved := resolveDefaults(tf)
 	byID := make(map[string]TaskSpec, len(resolved))
 	for _, t := range resolved {
 		byID[t.ID] = t
 	}
 
-	sw := NewStatusWriter(statusPath, nil)
+	sw := newStatusWriter(statusPath, nil)
 	if err := sw.InitFromTaskFile(tf); err != nil {
 		return nil, fmt.Errorf("init status: %w", err)
 	}
@@ -144,7 +144,7 @@ func (s *SwarmScheduler) executeSwarmValidated(ctx context.Context, tf *TaskFile
 // buildRetryBatch identifies stale or timed-out tasks from a completed layer
 // and returns a list of retry task IDs to dispatch in the next iteration.
 // It updates byID and retryCounts in place.
-func (s *SwarmScheduler) buildRetryBatch(
+func (s *swarmScheduler) buildRetryBatch(
 	ctx context.Context,
 	layerIDs []string,
 	results []agent.BackgroundTaskResult,
@@ -166,7 +166,7 @@ func (s *SwarmScheduler) buildRetryBatch(
 
 	var retryIDs []string
 	for _, origID := range layerIDs {
-		baseID := BaseTaskID(origID)
+		baseID := baseTaskID(origID)
 
 		// Skip if already terminal in collect results.
 		if r, ok := resultByID[origID]; ok {
@@ -227,7 +227,7 @@ func (s *SwarmScheduler) buildRetryBatch(
 // executeLayer dispatches all tasks in a layer concurrently, bounded by the
 // current concurrency limit. DependsOn fields are cleared since the layer
 // ordering already guarantees dependencies are satisfied.
-func (s *SwarmScheduler) executeLayer(ctx context.Context, layer []string, byID map[string]TaskSpec, causationID string) error {
+func (s *swarmScheduler) executeLayer(ctx context.Context, layer []string, byID map[string]TaskSpec, causationID string) error {
 	sem := make(chan struct{}, s.current)
 	var mu sync.Mutex
 	var errs []error
@@ -241,7 +241,7 @@ func (s *SwarmScheduler) executeLayer(ctx context.Context, layer []string, byID 
 			defer func() { <-sem }()
 
 			spec := byID[taskID]
-			req := SpecToDispatchRequest(spec, causationID)
+			req := specToDispatchRequest(spec, causationID)
 			// Clear DependsOn — layer ordering already handles deps, and the
 			// dispatcher would otherwise block on them.
 			req.DependsOn = nil
@@ -259,7 +259,7 @@ func (s *SwarmScheduler) executeLayer(ctx context.Context, layer []string, byID 
 
 // adjustConcurrency scales the concurrency limit up or down based on the
 // success rate of the completed layer.
-func (s *SwarmScheduler) adjustConcurrency(results []agent.BackgroundTaskResult) {
+func (s *swarmScheduler) adjustConcurrency(results []agent.BackgroundTaskResult) {
 	if len(results) == 0 {
 		return
 	}
