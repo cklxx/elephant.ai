@@ -6,8 +6,6 @@ import (
 )
 
 const (
-	// messageSplitMaxChunkChars is the target maximum characters per chunk.
-	messageSplitMaxChunkChars = 400
 	// messageSplitMaxChunks caps the number of chunks to avoid message spam.
 	messageSplitMaxChunks = 5
 	// messageSplitDelay is the pause between consecutive messages to
@@ -15,49 +13,31 @@ const (
 	messageSplitDelay = 500 * time.Millisecond
 )
 
-// splitMessage splits a long text into multiple chunks suitable for
-// sequential delivery as chat messages. The algorithm:
-//  1. Split by double-newline into paragraphs.
-//  2. Merge short paragraphs up to ~400 chars.
-//  3. Keep code fences (``` blocks) intact within a single chunk.
-//  4. Keep consecutive numbered list lines together.
-//  5. Merge trailing chunks when exceeding 5.
-//  6. Return a single chunk when total length < 400 chars.
+// splitMessage splits text into multiple chunks by semantic boundaries
+// (double-newline paragraphs, code fence blocks, numbered lists).
+// Each segment becomes its own message. If there are more than
+// messageSplitMaxChunks segments, trailing ones are merged into the last chunk.
+// Returns a single chunk when the text has no paragraph breaks.
 func splitMessage(text string) []string {
-	maxChars := messageSplitMaxChunkChars
-	maxC := messageSplitMaxChunks
-
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return []string{""}
 	}
 
-	// Short text — no split needed.
-	if len([]rune(text)) <= maxChars {
-		return []string{text}
-	}
-
-	// Split into semantic segments (paragraphs, code fences, numbered lists).
 	segments := splitIntoSegments(text)
-	if len(segments) == 0 {
+	if len(segments) <= 1 {
 		return []string{text}
 	}
 
-	// Merge short segments into chunks up to maxChars.
-	chunks := mergeSegments(segments, maxChars)
-
-	// Enforce maxChunks by merging trailing chunks.
-	if len(chunks) > maxC {
-		merged := make([]string, maxC)
-		copy(merged, chunks[:maxC-1])
-		merged[maxC-1] = strings.Join(chunks[maxC-1:], "\n\n")
-		chunks = merged
+	// Enforce maxChunks by merging trailing segments.
+	if len(segments) > messageSplitMaxChunks {
+		merged := make([]string, messageSplitMaxChunks)
+		copy(merged, segments[:messageSplitMaxChunks-1])
+		merged[messageSplitMaxChunks-1] = strings.Join(segments[messageSplitMaxChunks-1:], "\n\n")
+		segments = merged
 	}
 
-	if len(chunks) == 0 {
-		return []string{text}
-	}
-	return chunks
+	return segments
 }
 
 // splitIntoSegments splits text into semantic segments that should not be
@@ -123,38 +103,9 @@ func splitIntoSegments(text string) []string {
 		current = append(current, line)
 	}
 
-	// If we ended inside a code fence, flush whatever we have.
+	// Flush remaining (including unclosed code fences).
 	flushCurrent()
 	return segments
-}
-
-// mergeSegments combines small segments into chunks that don't exceed maxChars.
-func mergeSegments(segments []string, maxChars int) []string {
-	var chunks []string
-	var currentParts []string
-	currentLen := 0
-
-	for _, seg := range segments {
-		segLen := len([]rune(seg))
-
-		// If adding this segment would exceed the limit, flush.
-		if currentLen > 0 && currentLen+segLen+2 > maxChars { // +2 for "\n\n" separator
-			chunks = append(chunks, strings.Join(currentParts, "\n\n"))
-			currentParts = nil
-			currentLen = 0
-		}
-
-		currentParts = append(currentParts, seg)
-		if currentLen > 0 {
-			currentLen += 2 // "\n\n"
-		}
-		currentLen += segLen
-	}
-
-	if len(currentParts) > 0 {
-		chunks = append(chunks, strings.Join(currentParts, "\n\n"))
-	}
-	return chunks
 }
 
 // isNumberedListLine checks if a line starts with a numbered list pattern (e.g. "1.", "2.").

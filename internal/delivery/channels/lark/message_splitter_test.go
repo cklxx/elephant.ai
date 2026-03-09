@@ -29,86 +29,87 @@ func TestSplitMessageWhitespace(t *testing.T) {
 	}
 }
 
-func TestSplitMessageMultipleParagraphs(t *testing.T) {
-	// Create 3 paragraphs, each ~150 chars (Chinese chars).
-	para := strings.Repeat("测试文本内容。", 25) // ~150 chars
-	text := para + "\n\n" + para + "\n\n" + para
+func TestSplitMessageNoParagraphBreak(t *testing.T) {
+	// Single paragraph, no \n\n — should not split regardless of length.
+	text := strings.Repeat("很长的一段文字没有换行。", 100)
 	result := splitMessage(text)
-	if len(result) < 2 {
-		t.Fatalf("expected at least 2 chunks for 3 long paragraphs, got %d", len(result))
+	if len(result) != 1 {
+		t.Fatalf("expected 1 chunk for single paragraph, got %d", len(result))
 	}
-	// Verify no chunk exceeds ~500 chars (generous buffer over 400 target).
-	for i, chunk := range result {
-		if i < len(result)-1 && len([]rune(chunk)) > 500 {
-			t.Errorf("chunk %d exceeds limit: %d chars", i, len([]rune(chunk)))
-		}
+}
+
+func TestSplitMessageTwoParagraphs(t *testing.T) {
+	text := "第一段内容\n\n第二段内容"
+	result := splitMessage(text)
+	if len(result) != 2 {
+		t.Fatalf("expected 2 chunks, got %d: %v", len(result), result)
+	}
+	if result[0] != "第一段内容" {
+		t.Errorf("chunk 0: %q", result[0])
+	}
+	if result[1] != "第二段内容" {
+		t.Errorf("chunk 1: %q", result[1])
+	}
+}
+
+func TestSplitMessageThreeParagraphs(t *testing.T) {
+	text := "段落一\n\n段落二\n\n段落三"
+	result := splitMessage(text)
+	if len(result) != 3 {
+		t.Fatalf("expected 3 chunks, got %d", len(result))
 	}
 }
 
 func TestSplitMessageCodeFenceIntact(t *testing.T) {
-	text := "看下这段代码\n\n```\nfunc main() {\n\tfmt.Println(\"hello\")\n}\n```\n\n" + strings.Repeat("后续说明文字", 80)
+	text := "看下这段代码\n\n```\nfunc main() {\n\tfmt.Println(\"hello\")\n}\n```\n\n后续说明"
 	result := splitMessage(text)
-	// The code fence should be in a single chunk.
-	foundFence := false
-	for _, chunk := range result {
-		if strings.Contains(chunk, "```") {
-			if strings.Count(chunk, "```") < 2 {
-				if strings.Count(text, "```") >= 2 {
-					t.Errorf("code fence split across chunks: %q", chunk)
-				}
-			}
-			foundFence = true
-		}
+	if len(result) != 3 {
+		t.Fatalf("expected 3 chunks, got %d: %v", len(result), result)
 	}
-	if !foundFence && strings.Contains(text, "```") {
-		t.Error("code fence disappeared from output")
+	// Code fence should be entirely in chunk 1.
+	if !strings.HasPrefix(result[1], "```") {
+		t.Errorf("expected code fence in chunk 1, got %q", result[1])
+	}
+	if strings.Count(result[1], "```") < 2 {
+		t.Errorf("code fence split: %q", result[1])
 	}
 }
 
 func TestSplitMessageNumberedListIntact(t *testing.T) {
-	text := strings.Repeat("前面的内容。", 80) + "\n\n1. 第一点内容描述\n2. 第二点内容描述\n3. 第三点内容描述\n\n" + strings.Repeat("最后一段。", 80)
+	text := "总结如下\n\n1. 第一点\n2. 第二点\n3. 第三点\n\n最后一段"
 	result := splitMessage(text)
-	// Find the chunk with numbered list items.
-	for _, chunk := range result {
-		if strings.Contains(chunk, "1.") {
-			// All three items should be together.
-			if !strings.Contains(chunk, "2.") || !strings.Contains(chunk, "3.") {
-				t.Errorf("numbered list was split: %q", chunk)
-			}
-		}
+	if len(result) != 3 {
+		t.Fatalf("expected 3 chunks, got %d: %v", len(result), result)
+	}
+	// All list items should be in one chunk.
+	listChunk := result[1]
+	if !strings.Contains(listChunk, "1.") || !strings.Contains(listChunk, "2.") || !strings.Contains(listChunk, "3.") {
+		t.Errorf("numbered list was split: %q", listChunk)
 	}
 }
 
 func TestSplitMessageMaxChunks(t *testing.T) {
-	// Create 10 separate long paragraphs.
+	// Create 8 paragraphs — should be capped to 5 chunks.
 	var parts []string
-	for i := 0; i < 10; i++ {
-		parts = append(parts, strings.Repeat("段落内容。", 100))
+	for i := 0; i < 8; i++ {
+		parts = append(parts, "段落内容")
 	}
 	text := strings.Join(parts, "\n\n")
 	result := splitMessage(text)
 	if len(result) > messageSplitMaxChunks {
 		t.Fatalf("expected at most %d chunks, got %d", messageSplitMaxChunks, len(result))
 	}
+	// Last chunk should contain the merged trailing paragraphs.
+	if !strings.Contains(result[len(result)-1], "\n\n") {
+		t.Error("expected trailing paragraphs merged into last chunk")
+	}
 }
 
-func TestSplitMessageSingleLongParagraph(t *testing.T) {
-	// A single paragraph with no natural break points — should still return it.
-	text := strings.Repeat("长段落文字", 200)
+func TestSplitMessagePreservesContent(t *testing.T) {
+	text := "段落一\n\n段落二\n\n段落三"
 	result := splitMessage(text)
-	if len(result) != 1 {
-		t.Fatalf("expected 1 chunk for single unbreakable paragraph, got %d", len(result))
-	}
-	if result[0] != text {
-		t.Error("content was modified")
-	}
-}
-
-func TestSplitMessageConstants(t *testing.T) {
-	if messageSplitMaxChunkChars != 400 {
-		t.Errorf("expected maxChunkChars=400, got %d", messageSplitMaxChunkChars)
-	}
-	if messageSplitMaxChunks != 5 {
-		t.Errorf("expected maxChunks=5, got %d", messageSplitMaxChunks)
+	rejoined := strings.Join(result, "\n\n")
+	if rejoined != text {
+		t.Errorf("content changed after split+rejoin:\noriginal: %q\nrejoined: %q", text, rejoined)
 	}
 }
