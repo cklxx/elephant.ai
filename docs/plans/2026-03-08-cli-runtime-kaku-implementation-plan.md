@@ -97,12 +97,22 @@ type MemberAdapter interface {
 - `runtime session` 对象模型 + 状态机
 - session 生命周期：create / start / stop / resume / cancel / list / status
 - session 元数据持久化（文件系统 JSON）
-- `kaku panel` 统一命令执行面
+- `kaku panel` 统一命令执行面（基于 `kaku cli` 构建）
 
 建议模块：
 - `internal/runtime/session/` — session 对象、状态机
-- `internal/runtime/panel/` — 统一命令执行面
+- `internal/runtime/panel/` — 统一命令执行面，封装 `kaku cli` 操控
 - `internal/runtime/store/` — session 元数据持久化
+
+> **实测验证（2026-03-09）**：`kaku cli` 可完整控制 pane 生命周期：
+> - `split-pane` → 创建执行容器
+> - `send-text` → InjectInput
+> - `get-text` → CaptureOutput（轮询）
+> - `activate-pane` / `kill-pane` → session 控制
+>
+> P0 无需自己实现 pty 管理，直接调用 `kaku cli` 即可。用户实时可见。
+>
+> **关键约束**：启动 CC 时必须 `unset CLAUDECODE`，否则触发嵌套 session 保护报错。
 
 最小能力：
 - 一个 panel 可绑定一个 session

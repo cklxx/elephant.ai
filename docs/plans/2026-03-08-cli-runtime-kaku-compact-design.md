@@ -2,6 +2,7 @@
 
 Date: 2026-03-08
 Status: proposed
+Updated: 2026-03-09 (实测验证)
 
 ## 1. One-line definition
 
@@ -209,3 +210,73 @@ More members:
 > Codex / Claude Code / Kimi / AnyGen / Colab are pluggable members.
 > Agent schedules multiple sessions, watches hooks, and continues work automatically.
 
+
+---
+
+## 13. 实测验证结论（2026-03-09）
+
+### Kaku CLI 控制能力
+
+Kaku 是基于 WezTerm 的 GUI terminal emulator，暴露了完整的 `kaku cli` 控制接口：
+
+```bash
+# 查看当前所有 pane
+kaku cli list
+
+# 拆分 pane（右侧/底部）
+kaku cli split-pane --pane-id <ID> --right --percent 30 --cwd <DIR> -- bash -l
+kaku cli split-pane --pane-id <ID> --bottom --percent 60 --cwd <DIR> -- bash -l
+
+# 向 pane 发送命令（相当于 tmux send-keys）
+kaku cli send-text --pane-id <ID> "command\n"
+
+# 读取 pane 当前输出
+kaku cli get-text --pane-id <ID>
+
+# 激活/聚焦 pane
+kaku cli activate-pane --pane-id <ID>
+
+# 设置 tab 标题
+kaku cli set-tab-title --tab-id <ID> "Kaku Runtime"
+```
+
+### 全链路验证结果
+
+在 Kaku pane 内启动 CC（claude_code）并完成任务：
+
+✅ 可以通过 `kaku cli split-pane` 创建新 pane  
+✅ 可以通过 `kaku cli send-text` 向 pane 注入命令  
+✅ 可以通过 `kaku cli get-text` 读取 pane 输出  
+✅ CC 在独立 pane 中完整执行并返回结果  
+✅ 用户在 Kaku 界面中实时可见整个执行过程  
+
+### 关键约束：CLAUDECODE 环境变量
+
+CC 检测到 `CLAUDECODE` 环境变量时会拒绝启动（防嵌套保护）：
+
+```
+Error: Claude Code cannot be launched inside another Claude Code session.
+```
+
+**处理方式：** Kaku adapter 在启动 CC 时必须 unset 该环境变量：
+
+```bash
+unset CLAUDECODE && claude --dangerously-skip-permissions -p "..."
+```
+
+或在 MemberAdapter.StartSession() 中通过 `Env` 字段显式清除：
+
+```go
+proc.Env["CLAUDECODE"] = ""  // 或从 env 中删除
+```
+
+### 对 Runtime 设计的影响
+
+- **Kaku CLI 就是 Kaku runtime 的控制面** — `kaku cli` 替代了原始 tmux 操控
+- `split-pane` = 创建 session 的执行容器
+- `send-text` = InjectInput
+- `get-text` = CaptureOutput（轮询模式）
+- pane 进程状态 = session 生命周期
+- 用户直接在 Kaku GUI 看到所有 session 的实时输出，无需额外 UI
+
+这意味着 **P0 Runtime Skeleton 可以直接基于 `kaku cli` 构建**，无需自己实现 pty/terminal 管理。
