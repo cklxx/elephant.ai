@@ -120,12 +120,13 @@ func SanitizeErrorForUser(errText string) string {
 	}
 
 	// Unknown error: return cleaned text with model tag, capped at readable length.
+	const maxErrorLen = 150
 	result := errText
 	if modelLabel != "" {
 		result = modelLabel + " " + result
 	}
-	if len(result) > 150 {
-		return result[:150] + "…"
+	if len(result) > maxErrorLen {
+		return result[:maxErrorLen] + "…"
 	}
 	return result
 }

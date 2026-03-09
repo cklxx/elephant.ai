@@ -14,6 +14,9 @@ import (
 // DefaultMaxSkillSize is the default maximum file size for a custom skill (100KB).
 const DefaultMaxSkillSize int64 = 100 * 1024
 
+// maxSkillTokens is the upper bound for a skill's max_tokens setting.
+const maxSkillTokens = 100_000
+
 // namePattern validates skill names: alphanumeric, hyphens, and underscores.
 var namePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 
@@ -220,12 +223,12 @@ func ValidateSkill(skill Skill, config CustomSkillConfig) []ValidationError {
 		})
 	}
 
-	// MaxTokens: if set, must be <= 100000.
-	if skill.MaxTokens > 100000 {
+	// MaxTokens: if set, must be <= maxSkillTokens.
+	if skill.MaxTokens > maxSkillTokens {
 		errs = append(errs, ValidationError{
 			SkillName: name,
 			Field:     "max_tokens",
-			Message:   fmt.Sprintf("max_tokens %d exceeds limit 100000", skill.MaxTokens),
+			Message:   fmt.Sprintf("max_tokens %d exceeds limit %d", skill.MaxTokens, maxSkillTokens),
 		})
 	}
 
