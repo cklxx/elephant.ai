@@ -1,4 +1,4 @@
-status: merged
-branch: worktree-feat/kaku-runtime-p0
-task: P0 Runtime Skeleton — session/panel/store
+status: in_progress
+branch: feat/streaming-block
+task: Streaming block - natural multi-message IM replies
 created: 2026-03-09

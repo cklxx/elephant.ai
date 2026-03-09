@@ -234,9 +234,9 @@ func TestProgressListenerToolLifecycle(t *testing.T) {
 		t.Fatalf("expected 1 send after first tool start, got %d", sender.sendCount())
 	}
 	text := sender.lastSendText()
-	// New format: friendly phrase for web_search.
-	if !strings.Contains(text, "搜索") && !strings.Contains(text, "探索") && !strings.Contains(text, "挖掘") {
-		t.Fatalf("expected search-related phrase, got %q", text)
+	// Natural working phrase (no tool name or category exposed).
+	if !isNaturalWorkingPhrase(text) {
+		t.Fatalf("expected natural working phrase, got %q", text)
 	}
 
 	// Advance time past the rate limit.
@@ -252,9 +252,9 @@ func TestProgressListenerToolLifecycle(t *testing.T) {
 		t.Fatalf("expected 1 update after tool completion, got %d", sender.updateCount())
 	}
 	updateText := sender.lastUpdateText()
-	// After all tools done, should show summarizing phrase.
-	if !strings.Contains(updateText, "整理") && !strings.Contains(updateText, "总结") && !strings.Contains(updateText, "梳理") {
-		t.Fatalf("expected summarizing phrase after tool done, got %q", updateText)
+	// After all tools done, should show natural wrapping phrase.
+	if !isNaturalWrappingPhrase(updateText) {
+		t.Fatalf("expected natural wrapping phrase after tool done, got %q", updateText)
 	}
 
 	pl.Close()
@@ -280,10 +280,10 @@ func TestProgressListenerEnvelopeLifecycle(t *testing.T) {
 	if sender.updateCount() != 1 {
 		t.Fatalf("expected 1 update after tool completion, got %d", sender.updateCount())
 	}
-	// After completion, shows summarizing phrase.
+	// After completion, shows natural wrapping phrase.
 	text := sender.lastUpdateText()
-	if !strings.Contains(text, "整理") && !strings.Contains(text, "总结") && !strings.Contains(text, "梳理") {
-		t.Fatalf("expected summarizing phrase, got %q", text)
+	if !isNaturalWrappingPhrase(text) {
+		t.Fatalf("expected natural wrapping phrase, got %q", text)
 	}
 }
 
@@ -390,11 +390,10 @@ func TestProgressListenerBuildTextFormat(t *testing.T) {
 		toolIndex: make(map[string]*toolStatus),
 	}
 
-	// Empty tools → thinking phrase.
+	// Empty tools → natural thinking phrase.
 	text := pl.buildText()
-	if !strings.Contains(text, "思考") && !strings.Contains(text, "酝酿") &&
-		!strings.Contains(text, "构思") && !strings.Contains(text, "琢磨") {
-		t.Fatalf("expected thinking phrase for empty tools, got %q", text)
+	if !isNaturalThinkingPhrase(text) {
+		t.Fatalf("expected natural thinking phrase for empty tools, got %q", text)
 	}
 
 	now := clk.Now()
@@ -406,21 +405,21 @@ func TestProgressListenerBuildTextFormat(t *testing.T) {
 	}
 
 	text = pl.buildText()
-	// seedream is the latest non-done tool → should show image creation phrase.
-	if !strings.Contains(text, "创作") && !strings.Contains(text, "绘制") && !strings.Contains(text, "构图") {
-		t.Fatalf("expected image creation phrase for seedream, got %q", text)
+	// Has active tools → natural working phrase (no tool name/category).
+	if !isNaturalWorkingPhrase(text) {
+		t.Fatalf("expected natural working phrase for active tools, got %q", text)
 	}
 	// Should be a single line, no newlines.
 	if strings.Contains(text, "\n") {
 		t.Fatalf("expected single-line phrase, got multi-line: %q", text)
 	}
 
-	// All tools done → summarizing phrase.
+	// All tools done → natural wrapping phrase.
 	pl.tools[1].done = true
 	pl.tools[1].duration = 3 * time.Second
 	text = pl.buildText()
-	if !strings.Contains(text, "整理") && !strings.Contains(text, "总结") && !strings.Contains(text, "梳理") {
-		t.Fatalf("expected summarizing phrase when all tools done, got %q", text)
+	if !isNaturalWrappingPhrase(text) {
+		t.Fatalf("expected natural wrapping phrase when all tools done, got %q", text)
 	}
 }
 
@@ -466,9 +465,8 @@ func TestProgressListenerNodeStartedEvent(t *testing.T) {
 		t.Fatalf("expected 1 send after NodeStarted, got %d", sender.sendCount())
 	}
 	text := sender.lastSendText()
-	if !strings.Contains(text, "思考") && !strings.Contains(text, "酝酿") &&
-		!strings.Contains(text, "构思") && !strings.Contains(text, "琢磨") {
-		t.Fatalf("expected thinking phrase on NodeStarted, got %q", text)
+	if !isNaturalThinkingPhrase(text) {
+		t.Fatalf("expected natural thinking phrase on NodeStarted, got %q", text)
 	}
 
 	pl.Close()
@@ -488,9 +486,8 @@ func TestProgressListenerEnvelopeNodeStartedEvent(t *testing.T) {
 		t.Fatalf("expected 1 send after envelope NodeStarted, got %d", sender.sendCount())
 	}
 	text := sender.lastSendText()
-	if !strings.Contains(text, "思考") && !strings.Contains(text, "酝酿") &&
-		!strings.Contains(text, "构思") && !strings.Contains(text, "琢磨") {
-		t.Fatalf("expected thinking phrase, got %q", text)
+	if !isNaturalThinkingPhrase(text) {
+		t.Fatalf("expected natural thinking phrase, got %q", text)
 	}
 
 	pl.Close()
@@ -514,6 +511,35 @@ func TestProgressListenerMessageID(t *testing.T) {
 	}
 
 	pl.Close()
+}
+
+// --- natural phrase matchers for progress listener tests ---
+
+func isNaturalThinkingPhrase(text string) bool {
+	for _, p := range naturalThinkingPhrases {
+		if strings.Contains(text, strings.TrimSuffix(p, "…")) {
+			return true
+		}
+	}
+	return false
+}
+
+func isNaturalWorkingPhrase(text string) bool {
+	for _, p := range naturalWorkingPhrases {
+		if strings.Contains(text, strings.TrimSuffix(p, "…")) {
+			return true
+		}
+	}
+	return false
+}
+
+func isNaturalWrappingPhrase(text string) bool {
+	for _, p := range naturalWrappingPhrases {
+		if strings.Contains(text, strings.TrimSuffix(p, "…")) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestProgressListenerToolPhraseMapping(t *testing.T) {

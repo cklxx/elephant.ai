@@ -625,6 +625,14 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	}
 
 	if !skipReply {
+		// Try multi-message split for conversational delivery.
+		if g.cfg.MessageSplit != nil && g.cfg.MessageSplit.Enabled && replyMsgType == "text" {
+			chunks := splitMessage(reply, *g.cfg.MessageSplit)
+			if len(chunks) > 1 {
+				g.dispatchMultiMessageReply(execCtx, msg, result, execErr, progressMsgID, chunks)
+				return
+			}
+		}
 		intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, progressMsgID, replyMsgType, replyContent)
 		g.dispatchTerminalIntent(execCtx, intent)
 	}
@@ -748,6 +756,42 @@ func (g *Gateway) dispatchTerminalIntent(execCtx context.Context, intent Deliver
 
 	if err := g.deliverIntent(execCtx, intent); err != nil {
 		g.logger.Warn("Lark direct terminal delivery failed: %v", err)
+	}
+}
+
+// dispatchMultiMessageReply sends multiple chunks as separate messages,
+// editing the progress message in-place for the first chunk and sending
+// new reply messages for subsequent chunks with a delay between them.
+func (g *Gateway) dispatchMultiMessageReply(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, progressMsgID string, chunks []string) {
+	delay := time.Duration(0)
+	if g.cfg.MessageSplit != nil {
+		delay = g.cfg.MessageSplit.delayBetween()
+	}
+
+	for i, chunk := range chunks {
+		chunkMsgType, chunkContent := smartContent(chunk)
+		intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, "", chunkMsgType, chunkContent)
+		intent.Sequence = int64(i + 1)
+		intent.IdempotencyKey = buildTerminalDeliveryIdempotencyKey(intent)
+
+		if i == 0 && progressMsgID != "" {
+			// First chunk: edit progress message in-place.
+			intent.ProgressMessageID = progressMsgID
+		}
+
+		// Last chunk: attach any attachments.
+		if i == len(chunks)-1 && result != nil && len(result.Attachments) > 0 {
+			intent.Attachments = filterReferencedAttachments(result.Attachments, chunkContent)
+		} else {
+			intent.Attachments = nil
+		}
+
+		g.dispatchTerminalIntent(execCtx, intent)
+
+		// Delay between messages to simulate typing rhythm.
+		if i < len(chunks)-1 && delay > 0 {
+			time.Sleep(delay)
+		}
 	}
 }
 

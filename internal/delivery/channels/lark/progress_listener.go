@@ -395,30 +395,30 @@ func (p *progressListener) Close() {
 	p.doSend(text, messageID, "final ")
 }
 
-// buildText constructs the progress display string as a single friendly
-// Chinese phrase. Must be called with p.mu held.
+// Natural conversational progress phrases — no tool names or categories exposed.
+var (
+	naturalThinkingPhrases = []string{"让我想想…", "嗯，让我看看…", "稍等一下…", "我想想…"}
+	naturalWorkingPhrases  = []string{"稍等，在查…", "让我看看…", "在处理中…", "稍等哈…"}
+	naturalWrappingPhrases = []string{"快好了…", "差不多了…", "马上出结果…", "在整理了…"}
+)
+
+// buildText constructs the progress display string as a single natural
+// conversational phrase. Must be called with p.mu held.
 func (p *progressListener) buildText() string {
-	// Find the latest active (not done) tool.
-	var activeTool *toolStatus
+	// Has active (not done) tools → working phrase.
 	for i := len(p.tools) - 1; i >= 0; i-- {
 		if !p.tools[i].done {
-			activeTool = p.tools[i]
-			break
+			return pickPhrase(naturalWorkingPhrases, len(p.tools))
 		}
 	}
 
-	// If there's an active tool, show its phrase.
-	if activeTool != nil {
-		return toolPhrase(activeTool.toolName, len(p.tools))
-	}
-
-	// All tools done — if we have tools, show summarizing phrase.
+	// All tools done → wrapping up phrase.
 	if len(p.tools) > 0 {
-		return pickPhrase(summarizingPhrases, len(p.tools))
+		return pickPhrase(naturalWrappingPhrases, len(p.tools))
 	}
 
 	// No tools at all — pure thinking phase.
-	return pickPhrase(thinkingPhrases, p.iteration)
+	return pickPhrase(naturalThinkingPhrases, p.iteration)
 }
 
 func (p *progressListener) clock() time.Time {
