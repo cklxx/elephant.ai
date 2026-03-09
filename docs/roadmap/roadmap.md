@@ -37,11 +37,11 @@ The primary vertical slice: the assistant reads your calendar and tasks, reminds
 - **O4 (Shadow DevOps):** eval/baseline/reporting + human-gated release loop.
 - **OS (Shared Infra):** event bus + observability + config/auth/error handling.
 
-## Current State (2026-02-08)
+## Current State (2026-03-09)
 
-**M0 is complete. M1 (P2) is ~95% complete.** All historical M0 P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, SLA-profile routing, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex). **Evaluation automation + evaluation set construction are in progress** (baseline/challenge eval set scaffolding, rubric + auto/agent judgement pipeline), with remaining work in dataset expansion, judge integration, and reporting. **Coding Gateway foundation (abstraction/multi-adapter/CLI auto-detect) is reprioritized to Immediate P0 (2026-02-11).** P3 remains Shadow Agent + Deep Lark + expansion themes.
+**M0 is complete.** Active closure work is now centered on **CLI Runtime + Kaku** rather than the older Coding Gateway framing: runtime skeleton, `MemberAdapter` baseline, hooks/scheduler, and later panel/team recipe (`docs/plans/2026-03-08-cli-runtime-kaku-implementation-plan.md`). Active remaining gaps are memory restructuring D5, evaluation automation + evaluation set construction, session snapshot/context introspection, proactive scheduler/reminder default enablement, and kernel outreach enablement.
 
-**Steward AI foundation is complete (Phases 1-7, merged 2026-02-06).** Cross-turn structured state (StewardState), NEW_STATE output protocol, SYSTEM_REMINDER context injection, L1-L4 tool safety levels, three-tier context budget, steward persona/policy configs, and 40+ unit tests are all merged to main. Remaining gaps: activation enforcement loop, evidence ref enforcement, state compression on overflow, safety level approval UX, steward-specific eval scenarios.
+**Steward AI foundation remains complete (Phases 1-7, merged 2026-02-06), but its previously listed closure backlog is deleted from the active roadmap as of 2026-03-09.** The deletion record is kept below instead of silently dropping those items.
 
 **Runtime Snapshot (2026-02-08 13:14 +0800).**
 - `./dev.sh status`: backend running (`http://localhost:8080`), web stopped, sandbox ready (`http://localhost:18086`), ACP running.
@@ -63,6 +63,29 @@ Resolved conflicts in this consolidation round:
 - `Tool result caching` remains **Removed (de-scoped)**.
 - Track draft files are no longer used for status decisions.
 
+## Roadmap Update (2026-03-09)
+
+This update applies the focused feature-review decisions and replaces the older
+`Coding Gateway foundation` phrasing with the CLI Runtime + Kaku plan in
+`docs/plans/2026-03-08-cli-runtime-kaku-implementation-plan.md`.
+
+### Changed
+
+| Change | Decision | Reference |
+|--------|----------|-----------|
+| Runtime foundation | Replace `Coding Gateway foundation` with `CLI Runtime + Kaku`: runtime skeleton → member adapters → hooks/scheduler → panel/team recipe | `docs/plans/2026-03-08-cli-runtime-kaku-implementation-plan.md` |
+| Active closure focus | Keep memory D5, evaluation closure, session snapshot/context introspection, proactive scheduler defaults, and kernel outreach enablement in the active roadmap | This document |
+
+### Deleted From Active Roadmap
+
+| Item | Previous location | Deletion record |
+|------|-------------------|-----------------|
+| Steward reliability closure batch (activation enforcement / evidence ref enforcement / state compression / approval UX) | Priority queue, Batch A, P2 Agent Core | Deleted from active roadmap on 2026-03-09 |
+| Replan + sub-goal decomposition | Priority queue, Batch B, P2 Agent Core | Deleted from active roadmap on 2026-03-09 |
+| A2UI preview/render candidate | Feature-review candidate only | Explicitly not adopted into roadmap on 2026-03-09 |
+| Meeting preparation assistant wiring | Deep Lark ecosystem | Deleted from active roadmap on 2026-03-09 |
+| Calendar suggestions wiring | Deep Lark ecosystem | Deleted from active roadmap on 2026-03-09 |
+
 ## Priority Re-evaluation (Unfinished Items)
 
 Scoring dimensions:
@@ -73,51 +96,50 @@ Scoring dimensions:
 
 | Item | NSM impact | Unblock value | Delay risk | Effort | New priority |
 |------|------------|---------------|------------|--------|--------------|
-| Replan + sub-goal decomposition | High | High | High | M | **Now (P1)** |
+| CLI Runtime + Kaku foundation (runtime skeleton + member adapters) | High | High | High | M | **Immediate (P0)** |
+| Session snapshot / context introspection | Medium | High | Medium | S | **Now (P1)** |
 | Memory restructuring (D5) | High | High | High | M | **Now (P1)** |
-| Steward mode activation enforcement | High | High | High | S | **Now (P1)** |
-| Evidence ref enforcement loop | High | Medium | High | S | **Now (P1)** |
-| State compression on overflow | Medium | Medium | High | S | **Now (P1)** |
-| Safety level approval UX | High | Medium | High | M | **Now (P1)** |
 | Evaluation automation | Medium | High | Medium | M | **Now (P1)** |
 | Evaluation set construction | Medium | High | Medium | M | **Now (P1)** |
-| Coding Agent Gateway (foundation: abstraction + multi-adapter + CLI auto-detect) | High | High | High | M | **Immediate (P0)** |
+| Hooks + runtime scheduler | High | High | Medium | M | **Next (P2)** |
+| Proactive scheduler / reminder defaults | Medium | Medium | Medium | S | **Next (P2)** |
+| Kernel outreach executor enablement | Medium | Medium | Medium | S | **Next (P2)** |
+| Kaku panel / Team recipe | Medium | Medium | Low-Medium | M | **Later (P3)** |
 | Shadow Agent framework bootstrap | Low | Medium | Medium | L | **Later (P3)** |
 | Deep Lark / Platform / Data Processing / Self-Evolution large themes | Low (for current NSM) | Low | Low-Medium | L | **Hold (P3+)** |
 
-## Task Resplit (Execution Batches, 2026-02-08)
+## Task Resplit (Execution Batches, 2026-03-09)
 
 Detailed queue is tracked in `docs/roadmap/roadmap-pending-2026-02-08.md`. The milestone split is:
 
-### Batch 0 — Coding gateway foundation (Immediate P0)
-- Gateway abstraction (`Submit/Stream/Cancel/Status`) + adapter registration baseline.
-- Multi-adapter framework (pluggable adapters via shared contract).
-- Local CLI auto-detect (`which codex`/`which claude`) and availability exposure.
-- **Definition of Done:** coding gateway contract is stable with tests; at least one adapter can register; runtime can detect local coding CLI availability without manual wiring.
+### Batch 0 — CLI Runtime + Kaku foundation (Immediate P0)
+- Runtime skeleton (`session` / `tape` / `store` / `panel`) plus lifecycle: create/start/stop/resume/cancel/list/status.
+- `MemberAdapter` contract plus first CLI member adapters (`codex`, `claude_code`, `kimi`).
+- Local member discovery / availability exposure.
+- **Definition of Done:** runtime manages multiple sessions, persists tape/state, supports inject/stop/resume, and runs at least one member end-to-end through the shared runtime.
 
-### Batch A — Steward reliability closure (Now, week 1)
-- Steward mode activation enforcement.
-- Evidence ref enforcement loop.
-- State compression on overflow.
-- Safety level approval UX.
-- **Definition of Done:** steward sessions auto-activate correctly; missing evidence refs get corrective observe feedback; overflow compression preserves high-priority state; L3/L4 approvals expose rollback + alternatives in UX.
-
-### Batch B — Planning + memory core closure (Now, week 1-2)
-- Replan + sub-goal decomposition (minimal DAG usable in production paths).
+### Batch A — Runtime operability + memory/eval closure (Now, week 1-2)
+- Session snapshot / context introspection closure.
 - Memory restructuring D5 (layered FileStore, daily summary/long-term extraction, migration path).
-- **Definition of Done:** failed tool path can trigger deterministic replan branch; memory read/write/compaction remains stable after D5 migration with no data loss.
-
-### Batch C — Evaluation closure (Now, week 2)
 - Evaluation automation pipeline completion (judge integration + report artifact).
 - Evaluation set expansion for baseline + challenge suites aligned with North Star scenarios.
-- **Definition of Done:** PR/tag workflow can run quick eval and generate comparable report with pass/fail gate inputs.
+- **Definition of Done:** snapshot surfaces structured diff/world/feedback state instead of placeholder gaps; D5 migration stays stable with no data loss; quick eval generates comparable report artifacts with pass/fail gate inputs.
 
-### Batch D — Coding verification contract (Next)
-- Build/test/lint verification interface baseline (after Batch 0 contract is stable).
-- **Definition of Done:** verification API returns stable pass/fail + diagnostics payload for gateway-executed coding tasks.
+### Batch B — Hooks + scheduler closure (Next, week 2)
+- Hooks event model (`started`, `heartbeat`, `needs_input`, `completed`, `failed`, `stalled`).
+- Hook-driven runtime scheduler / dependency continuation.
+- Proactive scheduler / reminder default enablement.
+- Kernel outreach executor enablement or explicit removal of planner/runtime mismatch.
+- **Definition of Done:** runtime can advance from hook events without blind polling; proactive scheduler/reminder paths are no longer dark by default; kernel planner/runtime bucket set is consistent.
 
-### Batch E — Shadow + expansion tracks (Later/Hold)
-- Shadow Agent, deep Lark ecosystem expansion, platform/data/self-evolution bets remain queued after Batch 0 + Batch A-D metric validation.
+### Batch C — Panel / UX / Team recipe (Later)
+- Universal Kaku panel and compact live output surface.
+- Session list / recent events / intervention controls.
+- Team reduced to recipe/templates rather than runtime substrate.
+- **Definition of Done:** one interface makes running/stalled/completed sessions legible within seconds, and team no longer acts as a competing runtime abstraction.
+
+### Batch D — Shadow + expansion tracks (Later/Hold)
+- Shadow Agent, Deep Lark Docs/Sheets/Wiki expansion, platform/data/self-evolution bets remain queued after Batch 0-C metric validation.
 
 ## Implementation Audit Notes (2026-02-01)
 
@@ -144,13 +166,14 @@ Items that must ship before the calendar + tasks loop works end-to-end.
 | Tool registration for new Lark tools | All tools registered in registry | **Done** | Claude C7 | `internal/app/toolregistry/registry.go` |
 | E2E integration test | Full calendar flow E2E | **Done** | Codex X1 | `internal/app/scheduler/calendar_flow_e2e_test.go` |
 
-### Reprioritized P0 (2026-02-11): Coding Gateway Foundation
+### Reprioritized P0 (2026-03-09): CLI Runtime + Kaku Foundation
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Gateway abstraction | Unified interface: Submit / Stream / Cancel / Status | **Not started** | Codex X8 | `internal/coding/gateway.go` |
-| Multi-adapter framework | Codex CLI, Claude Code CLI, Kimi K2 — pluggable registration | **Not started** | Claude | `internal/coding/adapters/` |
-| Local CLI auto-detect | Detect installed coding agent CLIs (`which codex`/`which claude`), auto-register | **Not started** | Claude | `internal/coding/adapters/detect.go` |
+| Runtime skeleton | Unified multi-session runtime/panel with session lifecycle + tape persistence | **Not started** | Codex | `internal/runtime/{session,tape,panel,store}/` |
+| Member adapter contract | Common `MemberAdapter` interface for pluggable CLI workers | **Not started** | Claude | `internal/runtime/adapter.go` |
+| First CLI member adapters | Codex / Claude Code / Kimi share one runtime path | **Not started** | Claude | `internal/runtime/adapters/` |
+| Local member detection | Detect installed local members and expose availability | **Not started** | Claude | `internal/runtime/discovery/` |
 
 ## P1: M0 Quality
 
@@ -173,7 +196,7 @@ Enhancements after the core loop is stable.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Replan + sub-goal decomposition | Complex tasks need dynamic replanning (DAG) | **Not started** | Codex X6 | `internal/domain/agent/react/`, `internal/domain/agent/planner/` |
+| Session snapshot / context introspection | Expose diff/world/feedback state instead of snapshot TODO gaps | **Not started** | Codex | `cmd/alex/cli.go`, `internal/infra/session/` |
 | Memory restructuring (D5) | Layered FileStore (entries/daily/MEMORY.md) + daily summaries + long-term extraction + migration | **Not started** | Codex X4 | `internal/infra/memory/` |
 | Memory Flush-before-Compaction (D3) | Save context before compression — `AutoCompact` fires event, MemoryFlushHook extracts key info to disk | **Done** | Claude C28 | `internal/app/context/`, `internal/infra/memory/` |
 | Context priority sorting | Rank context fragments by relevance/freshness/importance instead of fixed layer order | **Done** | Claude C32 | `internal/app/context/priority.go` |
@@ -185,10 +208,6 @@ Enhancements after the core loop is stable.
 | Tool safety levels L1-L4 | 细粒度工具安全分级 | **Done** | Claude | `internal/infra/tools/policy.go` |
 | Steward context budget (3-tier) | 70%/85% 阈值 + STATE 字符上限 | **Done** | Claude | `internal/app/context/manager_compress.go` |
 | Steward persona + policy configs | steward.yaml persona + policy | **Done** | Claude | `configs/context/personas/steward.yaml`, `configs/context/policies/steward.yaml` |
-| Steward mode activation enforcement | 按 session/channel 自动启用 steward | **Not started** | Claude | `internal/app/agent/coordinator/coordinator.go` |
-| Evidence ref enforcement loop | observe 阶段检查 decisions 缺 ref 时注入反馈 | **Not started** | Claude | `internal/domain/agent/react/observe.go` |
-| State compression on overflow | STATE 超限时自动压缩低优先级条目 | **Not started** | Claude | `internal/domain/agent/react/steward_state_parser.go` |
-| Safety level approval UX | L3/L4 审批卡片展示回滚步骤和替代方案 | **Not started** | Claude | `internal/domain/agent/ports/tools/approval.go` |
 
 ### Tool Chain & Scheduler
 
@@ -201,6 +220,9 @@ Enhancements after the core loop is stable.
 | Tool SLA profile + dynamic routing | Build per-tool performance profiles; auto-select tool chain based on SLA | **Done** | Claude → Codex | `internal/infra/tools/sla_router.go`, `internal/app/toolregistry/degradation.go` |
 | Auto degradation chain | Cache hit → weaker tool → prompt user, try in sequence | **Done** | Claude C39 | `internal/app/toolregistry/degradation.go` |
 | Tool result caching | Semantic dedup — same query doesn't re-execute | **Removed (de-scoped)** | Claude C38 → Codex | Removed per performance decision (2026-02-07) |
+| Hooks + runtime scheduler | Hook-driven session orchestration for CLI runtime members | **Not started** | Claude | `internal/runtime/{hooks,scheduler}/` |
+| Proactive scheduler / reminder defaults | Turn scheduler/calendar reminder/heartbeat from dark defaults into usable runtime behavior | **Not started** | Claude | `internal/app/scheduler/`, `internal/shared/config/` |
+| Kernel outreach executor enablement | Align kernel planner bucket agents with runtime enabled set | **Not started** | Codex | `internal/app/agent/kernel/` |
 
 ### Calendar/Tasks & Lark
 
@@ -239,7 +261,7 @@ Enhancements after the core loop is stable.
 | Architecture CI gate (`make check-arch`) | 防止边界回归，保障后续分层迁移 | **Done** | Codex | `scripts/check-arch.sh`, `Makefile`, `.github/workflows/ci.yml` |
 | Layering migration (`delivery/app/domain/infra/shared`) + RAG deletion | 简化结构、清除无效 RAG 代码、降低飞线逻辑累积 | **Done** | Codex | `internal/{delivery,app,domain,infra,shared}/`, `scripts/arch/check-graph.sh`, `configs/arch/*.yaml` |
 
-### Coding Gateway Follow-up (post P0 foundation)
+### CLI Runtime Follow-up (post P0 foundation)
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
@@ -249,11 +271,11 @@ Enhancements after the core loop is stable.
 
 Larger bets that depend on M0+M1 foundations.
 
-### Coding Gateway Advanced Workflow
+### CLI Runtime Advanced Workflow
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Task translation | User natural language → coding agent structured instructions | **Not started** | Claude | `internal/coding/task.go` |
+| Task translation | User natural language → runtime/member structured instructions | **Not started** | Claude | `internal/coding/task.go` |
 | Fix loop | Verify fail → inject error → agent retry → re-verify, multi-round | **Not started** | Codex | `internal/coding/fix_loop.go` |
 | Auto commit + PR | On acceptance: auto commit + create PR + generate description | **Not started** | Claude | `internal/coding/deliver.go` |
 
@@ -262,7 +284,7 @@ Larger bets that depend on M0+M1 foundations.
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
 | Shadow Agent framework | Lifecycle (wake/execute/sleep), intake from issues/signals, task decomposition | **Not started** | Codex X9 | `internal/devops/shadow/` |
-| Coding Agent dispatch | Shadow calls Coding Gateway, injects project context + coding standards | **Not started** | Claude | `internal/devops/shadow/dispatcher.go` |
+| Shadow member dispatch | Shadow launches runtime/member sessions, injects project context + coding standards | **Not started** | Claude | `internal/devops/shadow/dispatcher.go` |
 | Verification orchestration | Shadow calls `coding/verify` for build/test/lint/diff review | **Not started** | Claude | `internal/devops/shadow/verify_orchestrator.go` |
 | Mandatory human approval | Publish + promotion gated by human approval (non-bypassable) | **Not started** | Claude | `internal/devops/shadow/approval.go` |
 | PR automation | Auto-create PR, generate description, monitor CI, fix CI failures | **Not started** | Claude | `internal/devops/merge/` |
@@ -288,9 +310,7 @@ Larger bets that depend on M0+M1 foundations.
 | Lark Docs read/write | Read doc content (Docx → Markdown), create/edit/comment, permission management | **Not started** | Claude | `internal/infra/lark/docs/` |
 | Lark Sheets/Bitable | Read/write cells/records, data analysis, chart generation | **Not started** | Claude | `internal/infra/lark/sheets/`, `internal/infra/lark/bitable/` |
 | Lark Wiki | Browse spaces, read/search/create/update pages, auto-knowledge sedimentation | **Not started** | Claude | `internal/infra/lark/wiki/` |
-| Meeting preparation assistant | Auto-summarize related docs, previous minutes, and TODOs before meetings | **Library done, wiring pending** | Claude | `internal/infra/lark/calendar/meetingprep/` |
 | Meeting notes auto-generation | Post-meeting: auto-generate and push minutes | **Skill done, automation pending** | Claude | `skills/meeting-notes/` |
-| Calendar suggestions | Suggest meeting times based on historical patterns | **Library done, wiring pending** | Claude | `internal/infra/lark/calendar/suggestions/` |
 
 ### Platform & Interaction
 

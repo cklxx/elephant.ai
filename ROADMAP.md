@@ -1,8 +1,8 @@
 # elephant.ai Roadmap
 
-Updated: 2026-02-27
+Updated: 2026-03-09
 
-Latest consolidated roadmap: `docs/roadmap/roadmap-2026-02-27.md` (authoritative)
+Latest consolidated roadmap: `docs/roadmap/roadmap.md` (authoritative)
 
 This roadmap is a **guided navigation + execution priority** for the current codebase.
 
@@ -43,9 +43,9 @@ Key entrypoints:
 - Harden cross-process task continuity and checkpoint recovery.
 - Scope: `internal/domain/agent/react`, `internal/app/agent/coordinator`, `internal/infra/session`.
 
-### P0: Coding gateway foundation (reprioritized)
-- Prioritize gateway contract and local coding-adapter bring-up for exploration speed.
-- Scope: `internal/coding/gateway.go`, `internal/coding/adapters/`, `internal/coding/adapters/detect.go`.
+### P0: CLI runtime + Kaku foundation (reprioritized)
+- Prioritize the unified multi-session CLI runtime/panel, member adapters, and local member discovery.
+- Scope target: `internal/runtime/{session,tape,panel,store}/`, `cmd/alex`, `docs/plans/2026-03-08-cli-runtime-kaku-implementation-plan.md`.
 
 ### P1: Tooling surface stability
 - Keep core tool inventory stable and explicitly versioned in docs/eval.
