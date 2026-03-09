@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	ccShellReadyDelay = 800 * time.Millisecond  // wait for bash login shell to initialise
+	ccShellReadyDelay = 800 * time.Millisecond  // wait for zsh login shell to initialise
 	ccWelcomeDelay    = 2500 * time.Millisecond // wait for CC welcome screen to render (❯ prompt)
 	ccPollInterval    = 3 * time.Second         // pane output poll interval
 	ccShellPrompt     = "$ "                    // bash prompt that signals CC exited
@@ -208,8 +208,8 @@ func (a *ClaudeCodeAdapter) Start(ctx context.Context, sessionID, goal, workDir 
 	// Activate the pane so the user can watch.
 	_ = pane.Activate(ctx)
 
-	// Wait for the bash login shell to finish initialising.
-	// spawn/split starts a fresh bash -l; sending commands before it's ready silently drops them.
+	// Wait for the zsh login shell to finish initialising.
+	// spawn/split starts a fresh zsh -l; sending commands before it's ready silently drops them.
 	time.Sleep(ccShellReadyDelay)
 
 	// Export runtime session env vars so CC hooks can call back.
@@ -241,7 +241,7 @@ func (a *ClaudeCodeAdapter) Start(ctx context.Context, sessionID, goal, workDir 
 		return fmt.Errorf("claude_code adapter: submit goal: %w", err)
 	}
 
-	// Background goroutine: poll pane output for bash $ prompt (CC exited).
+	// Background goroutine: poll pane output for zsh % or bash $ prompt (CC exited).
 	go a.watchForCompletion(ctx, sessionID, pane)
 
 	return nil
@@ -296,7 +296,7 @@ func (a *ClaudeCodeAdapter) watchForCompletion(ctx context.Context, sessionID st
 			return
 		}
 
-		// Look for bash $ prompt as the last non-empty line.
+		// Look for zsh % or bash $ prompt as the last non-empty line.
 		if hasBashPrompt(out) {
 			a.sink.OnCompleted(sessionID, "")
 			a.removePane(sessionID)
