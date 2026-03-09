@@ -127,6 +127,26 @@ func (f *Factory) SetFallbackRules(rules map[string]FallbackRule) {
 	f.fallbackRules = rules
 }
 
+// EnableHealth activates per-model health tracking.
+func (f *Factory) EnableHealth() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.healthRegistry == nil {
+		f.healthRegistry = newHealthRegistry()
+	}
+}
+
+// GetModelHealth returns health snapshots for all tracked models.
+func (f *Factory) GetModelHealth() []ProviderHealth {
+	f.mu.RLock()
+	hr := f.healthRegistry
+	f.mu.RUnlock()
+	if hr == nil {
+		return nil
+	}
+	return hr.getAllHealth()
+}
+
 // DisableRetry disables retry logic for all clients created by this factory
 func (f *Factory) DisableRetry() {
 	f.mu.Lock()

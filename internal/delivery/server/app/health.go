@@ -76,6 +76,46 @@ func (p *DegradedProbe) Check(ctx context.Context) ports.ComponentHealth {
 	}
 }
 
+// ModelHealthFunc returns per-model health data as an opaque slice for the Details field.
+type ModelHealthFunc func() interface{}
+
+// LLMModelHealthProbe reports per-model health via the health endpoint.
+type LLMModelHealthProbe struct {
+	fn ModelHealthFunc
+}
+
+// NewLLMModelHealthProbe creates a probe that exposes per-model health data.
+func NewLLMModelHealthProbe(fn ModelHealthFunc) *LLMModelHealthProbe {
+	return &LLMModelHealthProbe{fn: fn}
+}
+
+// Check returns per-model health snapshots in the Details field.
+func (p *LLMModelHealthProbe) Check(ctx context.Context) ports.ComponentHealth {
+	if p.fn == nil {
+		return ports.ComponentHealth{
+			Name:    "llm_models",
+			Status:  ports.HealthStatusDisabled,
+			Message: "Model health tracking not enabled",
+		}
+	}
+
+	details := p.fn()
+	if details == nil {
+		return ports.ComponentHealth{
+			Name:    "llm_models",
+			Status:  ports.HealthStatusReady,
+			Message: "No models tracked yet",
+		}
+	}
+
+	return ports.ComponentHealth{
+		Name:    "llm_models",
+		Status:  ports.HealthStatusReady,
+		Message: "Per-model health data",
+		Details: details,
+	}
+}
+
 // LLMFactoryProbe checks LLM factory health
 type LLMFactoryProbe struct {
 	container *di.Container

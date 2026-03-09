@@ -187,6 +187,15 @@ func (c *Container) LLMFactory() portsllm.LLMClientFactory {
 	return c.llmFactory
 }
 
+// GetModelHealth returns per-model health snapshots from the LLM factory.
+// Returns nil if the factory is not initialized or has no health data.
+func (c *Container) GetModelHealth() []llm.ProviderHealth {
+	if c.llmFactory == nil {
+		return nil
+	}
+	return c.llmFactory.GetModelHealth()
+}
+
 // DefaultLLMProfile returns the shared runtime LLM profile.
 func (c *Container) DefaultLLMProfile() runtimeconfig.LLMProfile {
 	return runtimeconfig.LLMProfile{

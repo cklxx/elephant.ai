@@ -21,7 +21,7 @@ func TestSanitizeErrorForUser(t *testing.T) {
 		{
 			name:  "rate limit",
 			input: "task execution failed: think step failed: LLM call failed: [openai/gpt-4o] Rate limit reached. The system will retry automatically. Retried 3 times over 10s.",
-			want:  "AI 服务请求频率超限（gpt-4o），请稍后重试",
+			want:  "AI 服务请求频率超限（gpt-4o），系统正在尝试备用模型，请稍后重试",
 		},
 		{
 			name:  "authentication failure",
@@ -71,7 +71,7 @@ func TestSanitizeErrorForUser(t *testing.T) {
 		{
 			name:  "rate limit exceeded for user",
 			input: "task execution failed: think step failed: LLM call failed: llm rate limit exceeded for user",
-			want:  "AI 服务请求频率超限，请稍后重试",
+			want:  "AI 服务请求频率超限，系统正在尝试备用模型，请稍后重试",
 		},
 		{
 			name:  "task execution with IDs stripped",
@@ -87,6 +87,82 @@ func TestSanitizeErrorForUser(t *testing.T) {
 			name:  "unknown error truncated",
 			input: "some completely unknown and very long error message that goes on and on and on and on and would be confusing to a user if shown verbatim so it should be truncated at a reasonable length to avoid overwhelming them",
 			want:  "some completely unknown and very long error message that goes on and on and on and on and would be confusing to a user if shown verbatim so it should …",
+		},
+		// --- Additional coverage ---
+		{
+			name:  "bad gateway",
+			input: "LLM call failed: [openai/kimi-for-coding] Bad gateway (502). Retried 3 times over 15s.",
+			want:  "AI 服务暂时不可用（kimi-for-coding），请稍后重试",
+		},
+		{
+			name:  "too many requests (429 variant)",
+			input: "[openai/gpt-4o] Too Many Requests",
+			want:  "AI 服务请求频率超限（gpt-4o），系统正在尝试备用模型，请稍后重试",
+		},
+		{
+			name:  "no such host",
+			input: "think step failed: LLM call failed: dial tcp: lookup api.example.com: no such host",
+			want:  "网络连接失败，请检查网络状态后重试",
+		},
+		{
+			name:  "dial tcp connection refused",
+			input: "LLM call failed: dial tcp 127.0.0.1:8082: connect: connection refused",
+			want:  "网络连接失败，请检查网络状态后重试",
+		},
+		{
+			name:  "not_found_error from API",
+			input: "LLM call failed: [anthropic/nonexistent-model] not_found_error: model not available",
+			want:  "AI 模型配置错误（nonexistent-model），请检查模型名称设置",
+		},
+		{
+			name:  "unauthorized standalone",
+			input: "think step failed: unauthorized",
+			want:  "AI 服务认证失败，请检查 API 密钥配置",
+		},
+		{
+			name:  "empty response",
+			input: "LLM call failed: empty response from model",
+			want:  "AI 服务返回空结果，请重试",
+		},
+		{
+			name:  "model tag with provider only (no slash)",
+			input: "[deepseek] Service unavailable",
+			want:  "AI 服务暂时不可用（deepseek），请稍后重试",
+		},
+		{
+			name:  "nested prefix stripping multiple layers",
+			input: "task execution failed: agent run failed: step failed: LLM call failed: [openai/gpt-4o] Authentication failed. Please verify your API key.",
+			want:  "AI 服务认证失败（gpt-4o），请检查 API 密钥配置",
+		},
+		{
+			name:  "timed out variant",
+			input: "LLM call failed: request timed out after 30s",
+			want:  "AI 服务请求超时，请稍后重试",
+		},
+		{
+			name:  "context_length_exceeded without model",
+			input: "context_length_exceeded: maximum context length is 8192 tokens",
+			want:  "输入内容超出 AI 模型上下文长度限制",
+		},
+		{
+			name:  "rate limit with fallback hint",
+			input: "think step failed: LLM call failed: Rate limit reached",
+			want:  "AI 服务请求频率超限，系统正在尝试备用模型，请稍后重试",
+		},
+		{
+			name:  "circuit breaker open triggers fallback hint",
+			input: "[openai/kimi-for-coding] Rate limit circuit open for 'kimi-for-coding'. Cooling down for 28s after 3 consecutive 429 errors.",
+			want:  "AI 服务请求频率超限（kimi-for-coding），系统正在尝试备用模型，请稍后重试",
+		},
+		{
+			name:  "short unknown error not truncated",
+			input: "something broke",
+			want:  "something broke",
+		},
+		{
+			name:  "unknown error with model tag",
+			input: "[openai/gpt-4o] some custom error",
+			want:  "（gpt-4o） some custom error",
 		},
 	}
 

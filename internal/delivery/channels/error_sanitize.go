@@ -81,7 +81,8 @@ func SanitizeErrorForUser(errText string) string {
 
 	case strings.Contains(lower, "rate limit") ||
 		strings.Contains(lower, "too many requests"):
-		return "AI 服务请求频率超限" + modelLabel + "，请稍后重试"
+		hint := "，系统正在尝试备用模型，请稍后重试"
+		return "AI 服务请求频率超限" + modelLabel + hint
 
 	case strings.Contains(lower, "context_length_exceeded") ||
 		strings.Contains(lower, "context window") ||

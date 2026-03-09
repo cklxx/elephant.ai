@@ -10,6 +10,7 @@ import (
 
 func (b *containerBuilder) buildLLMFactory() *llm.Factory {
 	llmFactory := llm.NewFactory()
+	llmFactory.EnableHealth()
 	llmFactory.SetCacheOptions(b.config.LLMCacheSize, b.config.LLMCacheTTL)
 	if b.config.UserRateLimitRPS > 0 {
 		llmFactory.EnableUserRateLimit(rate.Limit(b.config.UserRateLimitRPS), b.config.UserRateLimitBurst)
