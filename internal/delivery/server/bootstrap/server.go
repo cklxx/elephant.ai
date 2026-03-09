@@ -147,6 +147,7 @@ func RunServer(observabilityConfigPath string) error {
 		container.AgentCoordinator,
 		broadcaster,
 		serverApp.WithSnapshotStateStore(container.StateStore),
+		serverApp.WithSnapshotHistoryStore(container.HistoryStore),
 	)
 
 	if resumed, err := tasksSvc.ResumePendingTasks(context.Background()); err != nil {

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	sessionstate "alex/internal/infra/session/state_store"
@@ -97,6 +98,69 @@ func TestGetSnapshot(t *testing.T) {
 		_, err := svc.GetSnapshot(context.Background(), "s1", 1)
 		if !errors.Is(err, ErrUnavailable) {
 			t.Fatalf("expected ErrUnavailable, got %v", err)
+		}
+	})
+
+	t.Run("merges messages from history store when snapshot has none", func(t *testing.T) {
+		stateStore := sessionstate.NewInMemoryStore()
+		historyStore := sessionstate.NewInMemoryStore()
+
+		_ = stateStore.SaveSnapshot(context.Background(), sessionstate.Snapshot{
+			SessionID: "s1", TurnID: 5, Summary: "structural only",
+			CreatedAt: time.Now().UTC(),
+		})
+		_ = historyStore.SaveSnapshot(context.Background(), sessionstate.Snapshot{
+			SessionID: "s1", TurnID: 1,
+			Messages:  []ports.Message{{Role: "user", Content: "hello"}},
+			CreatedAt: time.Now().UTC(),
+		})
+		_ = historyStore.SaveSnapshot(context.Background(), sessionstate.Snapshot{
+			SessionID: "s1", TurnID: 2,
+			Messages:  []ports.Message{{Role: "assistant", Content: "hi"}},
+			CreatedAt: time.Now().UTC(),
+		})
+
+		svc := NewSnapshotService(nil, nil,
+			WithSnapshotStateStore(stateStore),
+			WithSnapshotHistoryStore(historyStore),
+		)
+		snap, err := svc.GetSnapshot(context.Background(), "s1", 5)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(snap.Messages) != 2 {
+			t.Fatalf("expected 2 messages from history, got %d", len(snap.Messages))
+		}
+		if snap.Messages[0].Content != "hello" || snap.Messages[1].Content != "hi" {
+			t.Fatalf("unexpected messages: %+v", snap.Messages)
+		}
+	})
+
+	t.Run("does not merge when snapshot already has messages", func(t *testing.T) {
+		stateStore := sessionstate.NewInMemoryStore()
+		historyStore := sessionstate.NewInMemoryStore()
+
+		_ = stateStore.SaveSnapshot(context.Background(), sessionstate.Snapshot{
+			SessionID: "s1", TurnID: 1,
+			Messages:  []ports.Message{{Role: "system", Content: "existing"}},
+			CreatedAt: time.Now().UTC(),
+		})
+		_ = historyStore.SaveSnapshot(context.Background(), sessionstate.Snapshot{
+			SessionID: "s1", TurnID: 1,
+			Messages:  []ports.Message{{Role: "user", Content: "from history"}},
+			CreatedAt: time.Now().UTC(),
+		})
+
+		svc := NewSnapshotService(nil, nil,
+			WithSnapshotStateStore(stateStore),
+			WithSnapshotHistoryStore(historyStore),
+		)
+		snap, err := svc.GetSnapshot(context.Background(), "s1", 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(snap.Messages) != 1 || snap.Messages[0].Content != "existing" {
+			t.Fatalf("expected original messages preserved, got %+v", snap.Messages)
 		}
 	})
 }
