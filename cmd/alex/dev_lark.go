@@ -143,10 +143,8 @@ func runLarkComponentCommand(component, action string) error {
 	switch component {
 	case "main":
 		scriptPath = filepath.Join(cfg.MainRoot, "scripts", "lark", "main.sh")
-	case "loop":
-		scriptPath = filepath.Join(cfg.MainRoot, "scripts", "lark", "loop-agent.sh")
 	default:
-		return fmt.Errorf("unknown lark component: %s", component)
+		return fmt.Errorf("unknown lark component: %s (loop was removed)", component)
 	}
 
 	cmd := exec.Command(scriptPath, action)
@@ -449,9 +447,7 @@ func larkLogs() error {
 	}
 
 	logFiles := []string{
-		filepath.Join(cfg.LogDir, "lark-supervisor.log"),
 		filepath.Join(cfg.MainRoot, "logs", "lark-main.log"),
-		filepath.Join(cfg.TestRoot, "logs", "lark-loop.log"),
 	}
 
 	// Touch files to ensure they exist
@@ -491,15 +487,14 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 
 	// Resolve main root via git worktree
 	mainRoot := resolveMainRoot(projectDir)
-	testRoot := filepath.Join(mainRoot, ".worktrees", "test")
 	mainConfig := resolveLarkMainConfigPath()
 
 	pidDir, err := resolveSharedLarkPIDDir(mainConfig)
 	if err != nil {
 		return supervisor.Config{}, err
 	}
-	logDir := filepath.Join(testRoot, "logs")
-	tmpDir := filepath.Join(testRoot, "tmp")
+	logDir := filepath.Join(mainRoot, "logs")
+	tmpDir := filepath.Join(mainRoot, "tmp")
 
 	// Ensure directories
 	if err := os.MkdirAll(pidDir, 0o755); err != nil {
@@ -518,7 +513,7 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 		RestartWindow:      envDuration("LARK_RESTART_WINDOW_SECONDS", 600*time.Second),
 		CooldownDuration:   envDuration("LARK_COOLDOWN_SECONDS", 300*time.Second),
 		MainRoot:           mainRoot,
-		TestRoot:           testRoot,
+		TestRoot:           "", // test worktree infrastructure removed
 		PIDDir:             pidDir,
 		LogDir:             logDir,
 		TmpDir:             tmpDir,
@@ -527,7 +522,6 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 
 func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 	mainSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "main.sh")
-	loopSH := filepath.Join(cfg.MainRoot, "scripts", "lark", "loop-agent.sh")
 
 	sup.RegisterComponent(&supervisor.Component{
 		Name: "main",
@@ -542,29 +536,6 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 		},
 		PIDFile: filepath.Join(cfg.PIDDir, "lark-main.pid"),
 		SHAFile: filepath.Join(cfg.PIDDir, "lark-main.sha"),
-	})
-
-	sup.RegisterComponent(&supervisor.Component{
-		Name: "loop",
-		StartFn: func(ctx context.Context) error {
-			return runLarkScript(ctx, cfg.MainRoot, loopSH, "restart")
-		},
-		StopFn: func(ctx context.Context) error {
-			return runLarkScript(ctx, cfg.MainRoot, loopSH, "stop")
-		},
-		HealthFn: func() string {
-			pidFile := filepath.Join(cfg.PIDDir, "lark-loop.pid")
-			data, err := os.ReadFile(pidFile)
-			if err != nil {
-				return "down"
-			}
-			pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-			if pid > 0 && syscall.Kill(pid, 0) == nil {
-				return "alive"
-			}
-			return "down"
-		},
-		PIDFile: filepath.Join(cfg.PIDDir, "lark-loop.pid"),
 	})
 }
 

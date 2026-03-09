@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"strings"
@@ -100,46 +99,3 @@ func TestPullSessionSnapshotsWithWriterFlagParseErrorIncludesBufferedUsage(t *te
 	}
 }
 
-func TestRunLarkScenarioRunFlagParseErrorUsesExitCode2(t *testing.T) {
-	t.Parallel()
-
-	err := runLarkScenarioRun([]string{"--unknown"})
-	if err == nil {
-		t.Fatalf("expected parse error")
-	}
-	var exitErr *ExitCodeError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("expected ExitCodeError, got %T: %v", err, err)
-	}
-	if exitErr.Code != 2 {
-		t.Fatalf("expected exit code 2, got %d", exitErr.Code)
-	}
-	if !strings.Contains(exitErr.Err.Error(), "flag provided but not defined: -unknown") {
-		t.Fatalf("expected unknown-flag message, got %q", exitErr.Err.Error())
-	}
-	if !strings.Contains(exitErr.Err.Error(), "Usage of alex lark scenario run:") {
-		t.Fatalf("expected scenario usage in error, got %q", exitErr.Err.Error())
-	}
-}
-
-func TestRunLarkInjectCommandFlagParseErrorUsesExitCode2(t *testing.T) {
-	t.Parallel()
-
-	err := runLarkInjectCommand([]string{"--unknown"})
-	if err == nil {
-		t.Fatalf("expected parse error")
-	}
-	var exitErr *ExitCodeError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("expected ExitCodeError, got %T: %v", err, err)
-	}
-	if exitErr.Code != 2 {
-		t.Fatalf("expected exit code 2, got %d", exitErr.Code)
-	}
-	if !strings.Contains(exitErr.Err.Error(), "flag provided but not defined: -unknown") {
-		t.Fatalf("expected unknown-flag message, got %q", exitErr.Err.Error())
-	}
-	if !strings.Contains(exitErr.Err.Error(), "Usage of alex lark inject:") {
-		t.Fatalf("expected inject usage in error, got %q", exitErr.Err.Error())
-	}
-}
