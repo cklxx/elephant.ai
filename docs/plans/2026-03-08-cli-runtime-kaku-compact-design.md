@@ -280,3 +280,5 @@ proc.Env["CLAUDECODE"] = ""  // 或从 env 中删除
 - 用户直接在 Kaku GUI 看到所有 session 的实时输出，无需额外 UI
 
 这意味着 **P0 Runtime Skeleton 可以直接基于 `kaku cli` 构建**，无需自己实现 pty/terminal 管理。
+
+完整操作手册见：[docs/guides/kaku-runtime-guide.md](../guides/kaku-runtime-guide.md)
