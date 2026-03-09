@@ -645,17 +645,13 @@ log "  parent pane     : ${KAKU_PARENT_PANE:-'(not set — TC-1/2/3/4/6 will ski
 echo ""
 
 run_case "TC-0" tc_0_health
-run_case "TC-1" tc_1_single_agent_task
-run_case "TC-2" tc_2_parallel_team
-run_case "TC-3" tc_3_sequential_dependency
-run_case "TC-4" tc_4_stall_and_leader_recovery
+run_case "TC-1" tc_1_single_agent_task;  cleanup_test_panes
+run_case "TC-2" tc_2_parallel_team;      cleanup_test_panes
+run_case "TC-3" tc_3_sequential_dependency; cleanup_test_panes
+run_case "TC-4" tc_4_stall_and_leader_recovery; cleanup_test_panes
 run_case "TC-5" tc_5_team_status_query
-run_case "TC-6" tc_6_full_team_workflow
-run_case "TC-7" tc_7_manual_stall_recovery
-
-echo ""
-log "=== Post-run cleanup ==="
-cleanup_test_panes
+run_case "TC-6" tc_6_full_team_workflow; cleanup_test_panes
+run_case "TC-7" tc_7_manual_stall_recovery; cleanup_test_panes
 
 echo ""
 echo "════════════════════════════════════════"
