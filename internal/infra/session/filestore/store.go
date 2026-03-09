@@ -249,6 +249,11 @@ func (s *store) listSessionEntries(ctx context.Context) ([]sessionEntry, error) 
 		if !strings.HasSuffix(name, ".json") || strings.HasSuffix(name, "_attachments.json") {
 			continue
 		}
+		// Skip ephemeral sessions created by internal subsystems (leader, scheduler, etc.)
+		// so they don't pollute the user-facing session list.
+		if isEphemeralSession(name) {
+			continue
+		}
 		info, err := entry.Info()
 		if err != nil {
 			continue
@@ -263,6 +268,22 @@ func (s *store) listSessionEntries(ctx context.Context) ([]sessionEntry, error) 
 		return sessions[i].modTime.After(sessions[j].modTime)
 	})
 	return sessions, nil
+}
+
+// ephemeralPrefixes lists session-ID prefixes that are created by internal
+// subsystems and should be hidden from the user-facing session list.
+var ephemeralPrefixes = []string{
+	"leader-stall-",
+	"leader-ephemeral-",
+}
+
+func isEphemeralSession(filename string) bool {
+	for _, prefix := range ephemeralPrefixes {
+		if strings.HasPrefix(filename, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *store) readSessionListItem(sessionID string) (storage.SessionListItem, error) {
