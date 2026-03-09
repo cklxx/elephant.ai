@@ -2,15 +2,11 @@ package coordinator
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	appconfig "alex/internal/app/agent/config"
-	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/cost"
 	"alex/internal/app/agent/hooks"
 	"alex/internal/app/agent/preparation"
@@ -21,17 +17,13 @@ import (
 	storage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	react "alex/internal/domain/agent/react"
-	"alex/internal/domain/agent/textutil"
 	"alex/internal/domain/agent/types"
 	materialports "alex/internal/domain/materialregistry/ports"
-	infraadapters "alex/internal/infra/adapters"
-	infraruntime "alex/internal/infra/runtime"
 	toolspolicy "alex/internal/infra/tools"
 	"alex/internal/infra/tools/builtin/shared"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 	utils "alex/internal/shared/utils"
-	"alex/internal/shared/utils/clilatency"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -205,380 +197,28 @@ func extractPlanSessionTitle(metadata map[string]any) string {
 	return ""
 }
 
-// ExecuteTask executes a task with optional event listener for streaming output
-func (c *AgentCoordinator) ExecuteTask(
-	ctx context.Context,
-	task string,
-	sessionID string,
-	listener agent.EventListener,
-) (*agent.TaskResult, error) {
-	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
-	logger := c.loggerFor(ctx)
-	prepareStarted := time.Now()
-	dispatcher := NewEventDispatcher(listener, c.toolSLACollector, EventDispatcherOptions{
-		EnablePlanTitle: !appcontext.IsSubagentContext(ctx),
-		OnPlanTitle: func(title string) {
-			c.persistSessionTitle(ctx, sessionID, title)
-		},
-	})
-	eventListener := dispatcher.Listener()
-
-	ctx = id.WithSessionID(ctx, sessionID)
-	if c.timerManager != nil {
-		ctx = shared.WithTimerManager(ctx, c.timerManager)
-	}
-	if c.schedulerService != nil {
-		ctx = shared.WithScheduler(ctx, c.schedulerService)
-	}
-	ctx, ensuredRunID := id.EnsureRunID(ctx, id.NewRunID)
-	if ensuredRunID == "" {
-		ensuredRunID = id.RunIDFromContext(ctx)
-	}
-	parentRunID := id.ParentRunIDFromContext(ctx)
-	if eventListener != nil {
-		defer func() {
-			flushCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			dispatcher.Flush(flushCtx, ensuredRunID)
-		}()
-	}
-
-	// Core run: set correlation_id = own run_id as root of the causal chain.
-	// Subagent runs inherit this via subagent.executeSubtask.
-	if id.CorrelationIDFromContext(ctx) == "" && ensuredRunID != "" {
-		ctx = id.WithCorrelationID(ctx, ensuredRunID)
-	}
-	outCtx := agent.GetOutputContext(ctx)
-	if outCtx == nil {
-		outCtx = &agent.OutputContext{Level: agent.LevelCore}
-	} else {
-		cloned := *outCtx
-		outCtx = &cloned
-	}
-	ids := id.IDsFromContext(ctx)
-	if outCtx.SessionID == "" {
-		outCtx.SessionID = ids.SessionID
-	}
-	if outCtx.TaskID == "" {
-		outCtx.TaskID = ids.RunID
-	}
-	if outCtx.ParentTaskID == "" {
-		outCtx.ParentTaskID = ids.ParentRunID
-	}
-	if outCtx.LogID == "" {
-		outCtx.LogID = ids.LogID
-	}
-	outCtx.TaskID = ensuredRunID
-	ctx = agent.WithOutputContext(ctx, outCtx)
-	logger.Info("ExecuteTask started: session=%s task_chars=%d", obfuscateSessionID(sessionID), len(strings.TrimSpace(task)))
-
-	wf := newAgentWorkflow(ensuredRunID, slog.Default(), eventListener, outCtx)
-	wf.start(stagePrepare)
-
-	attachWorkflow := func(result *agent.TaskResult, env *agent.ExecutionEnvironment) *agent.TaskResult {
-		session := sessionID
-		if env != nil && env.Session != nil && env.Session.ID != "" {
-			session = env.Session.ID
-		}
-		return attachWorkflowSnapshot(result, wf, session, ensuredRunID, parentRunID)
-	}
-
-	effectiveCfg := c.effectiveConfig(ctx)
-
-	// Prepare execution environment with event listener support
-	env, err := c.prepareExecutionWithListener(ctx, task, sessionID, eventListener, effectiveCfg)
-	if err != nil {
-		wf.fail(stagePrepare, err)
-		return attachWorkflow(nil, env), err
-	}
-	if sessionID == "" {
-		sessionID = env.Session.ID
-	}
-	// Propagate context user_id into session metadata so resolveUserID
-	// can find it for proactive hooks.
-	ensureSessionMetadata(env.Session, "user_id", id.UserIDFromContext(ctx))
-	// Propagate channel into session metadata for debug/diagnostic visibility.
-	ensureSessionMetadata(env.Session, "channel", appcontext.ChannelFromContext(ctx))
-	clilatency.PrintfWithContext(ctx,
-		"[latency] prepare_ms=%.2f session=%s\n",
-		float64(time.Since(prepareStarted))/float64(time.Millisecond),
-		env.Session.ID,
-	)
-	outCtx.SessionID = env.Session.ID
-	outCtx.TaskID = ensuredRunID
-	outCtx.ParentTaskID = parentRunID
-	wf.setContext(outCtx)
-	prepareOutput := map[string]any{
-		"session": env.Session.ID,
-		"task":    task,
-	}
-	if env.TaskAnalysis != nil {
-		if env.TaskAnalysis.ActionName != "" {
-			prepareOutput["action_name"] = env.TaskAnalysis.ActionName
-		}
-		if env.TaskAnalysis.Complexity != "" {
-			prepareOutput["complexity"] = env.TaskAnalysis.Complexity
-		}
-		if env.TaskAnalysis.Goal != "" {
-			prepareOutput["goal"] = env.TaskAnalysis.Goal
-		}
-		if env.TaskAnalysis.Approach != "" {
-			prepareOutput["approach"] = env.TaskAnalysis.Approach
-		}
-	}
-	wf.succeed(stagePrepare, prepareOutput)
-	ctx = id.WithSessionID(ctx, env.Session.ID)
-
-	// Run proactive hooks (pre-task OKR injections, etc.)
-	if c.hookRegistry != nil && !appcontext.IsSubagentContext(ctx) {
-		hookTask := hooks.TaskInfo{
-			TaskInput: task,
-			SessionID: env.Session.ID,
-			RunID:     ensuredRunID,
-			UserID:    c.resolveUserID(ctx, env.Session),
-		}
-		injections := c.hookRegistry.RunOnTaskStart(ctx, hookTask)
-		if len(injections) > 0 {
-			proactiveContext := hooks.FormatInjectionsAsContext(injections)
-			if proactiveContext != "" {
-				env.State.Messages = append(env.State.Messages, ports.Message{
-					Role:    "user",
-					Content: proactiveContext,
-					Source:  ports.MessageSourceProactive,
-				})
-				logger.Info("Injected %d proactive context items", len(injections))
-			}
-		}
-	}
-
-	// Create ReactEngine and configure listener
-	completionDefaults := buildCompletionDefaultsFromConfig(effectiveCfg)
-	idAdapter := infraruntime.IDsAdapter{}
-	latencyReporter := infraruntime.LatencyReporter
-	jsonCodec := infraruntime.JSONCodec
-	goRunner := infraruntime.GoRunner
-	workingDirResolver := infraruntime.WorkingDirResolver
-	workspaceMgrFactory := infraruntime.WorkspaceManagerFactory
-
-	backgroundExecutor := func(bgCtx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
-		bgCtx = appcontext.MarkSubagentContext(bgCtx)
-		return c.ExecuteTask(bgCtx, prompt, sessionID, listener)
-	}
-	var bgManager *react.BackgroundTaskManager
-	if c.bgRegistry != nil && env != nil && env.Session != nil {
-		bgManager = c.bgRegistry.Get(env.Session.ID, func() *react.BackgroundTaskManager {
-			return react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
-				RunContext:          ctx,
-				Logger:              logger,
-				Clock:               c.clock,
-				IDGenerator:         idAdapter,
-				IDContextReader:     idAdapter,
-				GoRunner:            goRunner,
-				WorkingDirResolver:  workingDirResolver,
-				WorkspaceMgrFactory: workspaceMgrFactory,
-				ExecuteTask:         backgroundExecutor,
-				ExternalExecutor:    c.externalExecutor,
-				SessionID:           env.Session.ID,
-				MaxConcurrentTasks:  effectiveCfg.MaxBackgroundTasks,
-				ContextPropagators: []agent.ContextPropagatorFunc{
-					appcontext.PropagateLLMSelection,
-				},
-				TmuxSender:    infraadapters.NewExecTmuxSender(),
-				EventAppender: infraadapters.NewFileEventAppender(),
-			})
-		})
-	}
-
-	reactEngine := react.NewReactEngine(react.ReactEngineConfig{
-		MaxIterations:       effectiveCfg.MaxIterations,
-		Logger:              logger,
-		Clock:               c.clock,
-		IDGenerator:         idAdapter,
-		IDContextReader:     idAdapter,
-		LatencyReporter:     latencyReporter,
-		JSONCodec:           jsonCodec,
-		GoRunner:            goRunner,
-		WorkingDirResolver:  workingDirResolver,
-		WorkspaceMgrFactory: workspaceMgrFactory,
-		CompletionDefaults:  completionDefaults,
-		AttachmentMigrator:  c.attachmentMigrator,
-		AttachmentPersister: c.attachmentPersister,
-		CheckpointStore:     c.checkpointStore,
-		Workflow:            wf,
-		IterationHook:       c.iterationHook,
-		SessionPersister: func(ctx context.Context, _ *storage.Session, state *agent.TaskState) {
-			// Async persist after each iteration for diagnostics visibility.
-			// Ignore the nil session param; we capture env.Session from closure.
-			c.asyncSaveSession(ctx, env.Session)
-		},
-		BackgroundExecutor: backgroundExecutor,
-		BackgroundManager:  bgManager,
-		ExternalExecutor:   c.externalExecutor,
-		TeamDefinitions:    c.teamDefinitions,
-		TeamRunRecorder:    c.teamRunRecorder,
-		AtomicFileWriter:   infraadapters.NewOSAtomicWriter(),
-	})
-
-	if eventListener != nil {
-		reactEngine.SetEventListener(eventListener)
-	}
-
-	wf.start(stageExecute)
-	result, executionErr := reactEngine.SolveTask(ctx, task, env.State, env.Services)
-	if result == nil {
-		result = &agent.TaskResult{
-			Answer:      "",
-			Messages:    env.State.Messages,
-			Iterations:  env.State.Iterations,
-			TokensUsed:  env.State.TokenCount,
-			StopReason:  "error",
-			SessionID:   env.State.SessionID,
-			RunID:       env.State.RunID,
-			ParentRunID: env.State.ParentRunID,
-		}
-	}
-
-	if ctx.Err() != nil {
-		logger.Debug("Task execution cancelled: %v", ctx.Err())
-		c.persistSessionSnapshot(ctx, env, ensuredRunID, parentRunID, "cancelled")
-		return attachWorkflow(result, env), ctx.Err()
-	}
-
-	if executionErr != nil {
-		wf.fail(stageExecute, executionErr)
-	} else {
-		wf.succeed(stageExecute, map[string]any{
-			"iterations": result.Iterations,
-			"stop":       result.StopReason,
-		})
-	}
-
-	wf.start(stageSummarize)
-	answerPreview := strings.TrimSpace(result.Answer)
-	if executionErr != nil {
-		answerPreview = ""
-	}
-	wf.succeed(stageSummarize, map[string]any{"answer_preview": answerPreview})
-
-	if executionErr != nil {
-		logger.Error("Task execution failed: %v", executionErr)
-	}
-
-	// Log session-level cost/token metrics
-	if c.costTracker != nil {
-		sessionStats, err := c.costTracker.GetSessionStats(ctx, env.Session.ID)
-		if err != nil {
-			logger.Warn("Failed to get session stats: %v", err)
-		} else {
-			logger.Info("Session summary: requests=%d, total_tokens=%d (input=%d, output=%d), cost=$%.6f, duration=%v",
-				sessionStats.RequestCount, sessionStats.TotalTokens,
-				sessionStats.InputTokens, sessionStats.OutputTokens,
-				sessionStats.TotalCost, sessionStats.Duration)
-		}
-	}
-
-	// Run proactive hooks (post-task processing, etc.)
-	if c.hookRegistry != nil && !appcontext.IsSubagentContext(ctx) && executionErr == nil {
-		hookResult := hooks.TaskResultInfo{
-			TaskInput:  task,
-			Answer:     result.Answer,
-			SessionID:  env.Session.ID,
-			RunID:      ensuredRunID,
-			UserID:     c.resolveUserID(ctx, env.Session),
-			Iterations: result.Iterations,
-			StopReason: result.StopReason,
-			ToolCalls:  extractToolCallInfo(result),
-		}
-		c.hookRegistry.RunOnTaskCompleted(ctx, hookResult)
-	}
-
-	// Stamp execution error into session metadata so it survives persistence.
-	if executionErr != nil {
-		metadata := storage.EnsureMetadata(env.Session)
-		metadata["last_error"] = executionErr.Error()
-		metadata["last_error_at"] = c.clock.Now().UTC().Format(time.RFC3339)
-	}
-
-	// Save session unless this is a delegated subagent run (which should not
-	// mutate the parent session state).
-	wf.start(stagePersist)
-	if appcontext.IsSubagentContext(ctx) {
-		logger.Debug("Skipping session persistence for subagent execution")
-		wf.succeed(stagePersist, "skipped (subagent context)")
-	} else {
-		if title := strings.TrimSpace(dispatcher.Title()); title != "" {
-			if env.Session.Metadata == nil {
-				env.Session.Metadata = make(map[string]string)
-			}
-			if utils.IsBlank(env.Session.Metadata["title"]) {
-				env.Session.Metadata["title"] = title
-			}
-		}
-		if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
-			wf.fail(stagePersist, err)
-			return attachWorkflow(result, env), err
-		}
-		wf.succeed(stagePersist, map[string]string{"session": env.Session.ID})
-	}
-
-	result.SessionID = env.Session.ID
-	result.RunID = defaultString(result.RunID, ensuredRunID)
-	result.ParentRunID = defaultString(result.ParentRunID, parentRunID)
-
-	if executionErr != nil {
-		return attachWorkflow(result, env), fmt.Errorf("task execution failed: %w", executionErr)
-	}
-
-	return attachWorkflow(result, env), nil
-}
-
-func buildCompletionDefaultsFromConfig(cfg appconfig.Config) react.CompletionDefaults {
-	defaults := react.CompletionDefaults{}
-
-	if cfg.TemperatureProvided {
-		temp := cfg.Temperature
-		defaults.Temperature = &temp
-	}
-	if cfg.MaxTokens > 0 {
-		maxTokens := cfg.MaxTokens
-		defaults.MaxTokens = &maxTokens
-	}
-	if cfg.TopP > 0 {
-		topP := cfg.TopP
-		defaults.TopP = &topP
-	}
-	if len(cfg.StopSequences) > 0 {
-		defaults.StopSequences = append([]string(nil), cfg.StopSequences...)
-	}
-
-	return defaults
-}
-
-func attachWorkflowSnapshot(result *agent.TaskResult, wf *agentWorkflow, sessionID, runID, parentRunID string) *agent.TaskResult {
-	if result == nil {
-		result = &agent.TaskResult{}
-	}
-	result.SessionID = defaultString(result.SessionID, sessionID)
-	result.RunID = defaultString(result.RunID, runID)
-	result.ParentRunID = defaultString(result.ParentRunID, parentRunID)
-
-	if wf != nil {
-		snapshot := wf.snapshot()
-		result.Workflow = &snapshot
-	}
-
-	return result
-}
-
-func defaultString(value, fallback string) string {
-	if value != "" {
-		return value
-	}
-	return fallback
-}
-
 func (c *AgentCoordinator) loggerFor(ctx context.Context) agent.Logger {
 	return logging.FromContext(ctx, c.logger)
+}
+
+// resolveUserID extracts a user identifier from the session metadata.
+func (c *AgentCoordinator) resolveUserID(ctx context.Context, session *storage.Session) string {
+	if ctx != nil {
+		if uid := id.UserIDFromContext(ctx); uid != "" {
+			return uid
+		}
+	}
+	if session == nil || session.Metadata == nil {
+		return ""
+	}
+	if uid := strings.TrimSpace(session.Metadata["user_id"]); uid != "" {
+		return uid
+	}
+	// Fallback: use session ID prefix for Lark sessions
+	if strings.HasPrefix(session.ID, "lark-") {
+		return session.ID
+	}
+	return ""
 }
 
 // PrepareExecution prepares the execution environment without running the task
@@ -613,89 +253,4 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 		ChannelHints:        c.channelHints,
 	})
 	return prepService.Prepare(ctx, task, sessionID)
-}
-
-// obfuscateSessionID masks session identifiers when logging to avoid leaking
-// potentially sensitive values. It retains a short prefix and suffix to keep
-// logs useful for correlation while hiding the majority of the identifier.
-func obfuscateSessionID(id string) string {
-	if id == "" {
-		return ""
-	}
-
-	if len(id) <= 8 {
-		return "****"
-	}
-
-	return fmt.Sprintf("%s...%s", id[:4], id[len(id)-4:])
-}
-
-// resolveUserID extracts a user identifier from the session metadata.
-func (c *AgentCoordinator) resolveUserID(ctx context.Context, session *storage.Session) string {
-	if ctx != nil {
-		if uid := id.UserIDFromContext(ctx); uid != "" {
-			return uid
-		}
-	}
-	if session == nil || session.Metadata == nil {
-		return ""
-	}
-	if uid := strings.TrimSpace(session.Metadata["user_id"]); uid != "" {
-		return uid
-	}
-	// Fallback: use session ID prefix for Lark sessions
-	if strings.HasPrefix(session.ID, "lark-") {
-		return session.ID
-	}
-	return ""
-}
-
-// extractToolCallInfo extracts tool call information from TaskResult messages.
-// It scans assistant messages for ToolCalls (which carry the tool name) and
-// matches them with subsequent tool result messages.
-func extractToolCallInfo(result *agent.TaskResult) []hooks.ToolResultInfo {
-	if result == nil {
-		return nil
-	}
-
-	// Build a map of call_id → tool name from assistant messages
-	callNames := make(map[string]string)
-	for _, msg := range result.Messages {
-		if msg.Role == "assistant" {
-			for _, tc := range msg.ToolCalls {
-				callNames[tc.ID] = tc.Name
-			}
-		}
-	}
-
-	// Collect tool results from ToolResult entries in messages
-	var calls []hooks.ToolResultInfo
-	for _, msg := range result.Messages {
-		for _, tr := range msg.ToolResults {
-			name := callNames[tr.CallID]
-			if name == "" {
-				name = "unknown"
-			}
-			calls = append(calls, hooks.ToolResultInfo{
-				ToolName: name,
-				Success:  tr.Error == nil,
-				Output:   textutil.TruncateWithEllipsis(tr.Content, 200),
-			})
-		}
-	}
-	return calls
-}
-
-// ensureSessionMetadata sets a session metadata key if the value is non-empty
-// and no existing value is present.
-func ensureSessionMetadata(session *storage.Session, key string, value string) {
-	if value == "" {
-		return
-	}
-	if session.Metadata == nil {
-		session.Metadata = make(map[string]string)
-	}
-	if session.Metadata[key] == "" {
-		session.Metadata[key] = value
-	}
 }
