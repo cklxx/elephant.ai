@@ -326,7 +326,7 @@ func (m *BackgroundTaskManager) Dispatch(
 		return fmt.Errorf("background task %q already exists", taskID)
 	}
 	if m.maxConcurrentTasks > 0 {
-		active := m.activeTaskCountLocked()
+		active := m.reconcileActiveTaskCountLocked()
 		if active >= m.maxConcurrentTasks {
 			m.mu.Unlock()
 			return fmt.Errorf("background task limit reached: %d active (max=%d)", active, m.maxConcurrentTasks)
@@ -426,7 +426,28 @@ func (m *BackgroundTaskManager) Dispatch(
 }
 
 func (m *BackgroundTaskManager) activeTaskCountLocked() int {
-	return int(m.activeTasks.Load())
+	count := 0
+	for _, bt := range m.tasks {
+		bt.mu.Lock()
+		status := bt.status
+		completed := !bt.completedAt.IsZero()
+		signaled := bt.completionSignaled
+		bt.mu.Unlock()
+		if completed || signaled {
+			continue
+		}
+		switch status {
+		case agent.BackgroundTaskStatusPending, agent.BackgroundTaskStatusBlocked, agent.BackgroundTaskStatusRunning:
+			count++
+		}
+	}
+	return count
+}
+
+func (m *BackgroundTaskManager) reconcileActiveTaskCountLocked() int {
+	actual := m.activeTaskCountLocked()
+	m.activeTasks.Store(int64(actual))
+	return actual
 }
 
 // runTask executes a background task, routing to internal or external executor.
