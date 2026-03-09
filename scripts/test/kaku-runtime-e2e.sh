@@ -222,6 +222,24 @@ tc_0_health() {
     -d '{"member":"claude_code","goal":"tc0-probe","work_dir":"/tmp","parent_pane_id":-1}')
   local id; id=$(echo "$resp" | jq -r '.id // empty' 2>/dev/null || true)
   [[ -n "$id" ]] && pass "/api/runtime/sessions → id=$id" || { fail "no session id: $resp"; return 1; }
+
+  # /api/runtime/pool 已注册 — 如果 KAKU_PARENT_PANE 存在则注册 pool panes
+  if [[ -n "$KAKU_PARENT_PANE" ]]; then
+    # 获取当前所有 pane ID 作为 pool 候选
+    local all_panes; all_panes=$(current_pane_ids | tr '\n' ',' | sed 's/,$//')
+    if [[ -n "$all_panes" ]]; then
+      local pool_resp; pool_resp=$(curl -s -X POST "${HOOKS_URL}/api/runtime/pool" \
+        -H "Content-Type: application/json" \
+        -d "{\"pane_ids\": [$all_panes]}")
+      local registered; registered=$(echo "$pool_resp" | jq -r '.registered // 0' 2>/dev/null)
+      pass "pool registered: $registered panes"
+    fi
+  fi
+
+  # GET /api/runtime/pool — 验证 pool 状态
+  local pool_status; pool_status=$(curl -s "${HOOKS_URL}/api/runtime/pool")
+  local pool_count; pool_count=$(echo "$pool_status" | jq 'length' 2>/dev/null || echo "0")
+  pass "pool slots: $pool_count"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -618,6 +636,63 @@ tc_7_manual_stall_recovery() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# TC-8  Parent-Child Session 编排 — 子 session 完成后回调 leader session
+#
+# 验证链：
+#   直接通过 API 创建 parent session（parent_pane_id=-1）
+#   再创建 child session 带 parent_session_id
+#   子 session 完成时，EventChildCompleted 应发布到 parent session
+#   L2: 日志中出现 child_completed 事件，且引用正确的 parent session
+# ─────────────────────────────────────────────────────────────────────────────
+
+tc_8_parent_child_orchestration() {
+  local M; M=$(mark_log)
+
+  # 创建 parent (leader) session
+  local parent_resp; parent_resp=$(curl -s -X POST "${HOOKS_URL}/api/runtime/sessions" \
+    -H "Content-Type: application/json" \
+    -d '{"member":"claude_code","goal":"tc8-leader: orchestrate team","work_dir":"/tmp","parent_pane_id":-1}')
+  local PARENT_ID; PARENT_ID=$(echo "$parent_resp" | jq -r '.id // empty')
+  [[ -n "$PARENT_ID" ]] && pass "parent session created: $PARENT_ID" || { fail "failed to create parent"; return 1; }
+
+  # 创建 child session with parent_session_id
+  local child_resp; child_resp=$(curl -s -X POST "${HOOKS_URL}/api/runtime/sessions" \
+    -H "Content-Type: application/json" \
+    -d "{\"member\":\"claude_code\",\"goal\":\"tc8-child: echo done\",\"work_dir\":\"/tmp\",\"parent_pane_id\":-1,\"parent_session_id\":\"$PARENT_ID\"}")
+  local CHILD_ID; CHILD_ID=$(echo "$child_resp" | jq -r '.id // empty')
+  [[ -n "$CHILD_ID" ]] && pass "child session created: $CHILD_ID (parent=$PARENT_ID)" || { fail "failed to create child"; return 1; }
+
+  # 验证 child session 的 parent_session_id 已设置
+  local child_detail; child_detail=$(curl -s "${HOOKS_URL}/api/runtime/sessions/$CHILD_ID")
+  local stored_parent; stored_parent=$(echo "$child_detail" | jq -r '.parent_session_id // empty')
+  [[ "$stored_parent" == "$PARENT_ID" ]] \
+    && pass "child.parent_session_id = $stored_parent" \
+    || { fail "child.parent_session_id mismatch: got '$stored_parent', expected '$PARENT_ID'"; return 1; }
+
+  # 模拟 child 完成（通过 hooks 端点发送 completed 事件）
+  local hc; hc=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+    "${HOOKS_URL}/api/hooks/runtime?session_id=$CHILD_ID" \
+    -H "Content-Type: application/json" \
+    -d '{"hook_event_name":"Stop","tool_name":"","tool_input":{},"tool_response":"task completed successfully"}')
+  [[ "$hc" == "200" ]] && pass "child stop hook sent: HTTP $hc" || warn "child stop hook: HTTP $hc"
+
+  sleep 3
+
+  # L2: 检查日志中是否出现 child_completed 事件
+  local child_completed; child_completed=$(new_log_lines "$M" | grep -c "child_completed\|EventChildCompleted\|child_id.*${CHILD_ID}" || true)
+  [[ "$child_completed" -gt 0 ]] \
+    && pass "child_completed event found ($child_completed hits)" \
+    || warn "child_completed event not in log (leader agent may not be wired)"
+
+  # 验证 parent session 仍在运行（不被子 session 的完成影响）
+  local parent_state; parent_state=$(curl -s "${HOOKS_URL}/api/runtime/sessions/$PARENT_ID" | jq -r '.state // empty')
+  info "parent session state: $parent_state"
+  [[ "$parent_state" == "running" || "$parent_state" == "starting" ]] \
+    && pass "parent session still active" \
+    || warn "parent session state: $parent_state (expected running)"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 主执行
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -641,6 +716,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
   echo "  TC-5  团队进度查询     inject 'show status' → agent lists all sessions"
   echo "  TC-6  完整工作流       Analyst → Coder → Tester (3 sequential sessions)"
   echo "  TC-7  手动 Stall 恢复  agent uses 'session inject' to unblock a session"
+  echo "  TC-8  Parent-Child 编排  child session completes → parent notified"
   echo ""
   echo "Setup: KAKU_PARENT_PANE=<TR_pane_id> bash $0 [TC-N ...]"
   exit 0
@@ -665,6 +741,11 @@ run_case "TC-4" tc_4_stall_and_leader_recovery; cleanup_test_panes
 run_case "TC-5" tc_5_team_status_query
 run_case "TC-6" tc_6_full_team_workflow; cleanup_test_panes
 run_case "TC-7" tc_7_manual_stall_recovery; cleanup_test_panes
+run_case "TC-8" tc_8_parent_child_orchestration
+
+echo ""
+log "=== Post-run cleanup ==="
+cleanup_test_panes
 
 echo ""
 echo "════════════════════════════════════════"

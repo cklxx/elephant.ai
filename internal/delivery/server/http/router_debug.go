@@ -28,6 +28,7 @@ type DebugRouterDeps struct {
 	LarkOAuthHandler       *LarkOAuthHandler // may be nil
 	RuntimeHooksBridge     http.Handler      // may be nil; POST /api/hooks/runtime
 	RuntimeAPI             http.Handler      // may be nil; POST+GET /api/runtime/sessions
+	RuntimePoolAPI         http.Handler      // may be nil; POST+GET /api/runtime/pool
 }
 
 // NewDebugRouter creates an HTTP handler exposing only debug / diagnostic
@@ -126,6 +127,12 @@ func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 		mux.Handle("POST /api/runtime/sessions", routeHandler("/api/runtime/sessions", deps.RuntimeAPI))
 		mux.Handle("GET /api/runtime/sessions", routeHandler("/api/runtime/sessions", deps.RuntimeAPI))
 		mux.Handle("GET /api/runtime/sessions/{id}", routeHandler("/api/runtime/sessions/:id", deps.RuntimeAPI))
+	}
+
+	// ── Runtime pane pool ──
+	if deps.RuntimePoolAPI != nil {
+		mux.Handle("POST /api/runtime/pool", routeHandler("/api/runtime/pool", deps.RuntimePoolAPI))
+		mux.Handle("GET /api/runtime/pool", routeHandler("/api/runtime/pool", deps.RuntimePoolAPI))
 	}
 
 	// ── Lark OAuth ──

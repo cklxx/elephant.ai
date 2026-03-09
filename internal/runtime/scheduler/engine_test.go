@@ -21,7 +21,7 @@ func newFakeRuntime() *fakeRuntime {
 	return &fakeRuntime{sessions: make(map[string]*session.Session)}
 }
 
-func (f *fakeRuntime) CreateSession(member session.MemberType, goal, workDir string) (*session.Session, error) {
+func (f *fakeRuntime) CreateSession(member session.MemberType, goal, workDir, _ string) (*session.Session, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	s := session.New("s-"+goal, member, goal, workDir)

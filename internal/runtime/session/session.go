@@ -35,20 +35,22 @@ const (
 // SessionData holds the serialisable fields of a session without any
 // synchronisation primitives. It is used for snapshots and JSON persistence.
 type SessionData struct {
-	ID            string     `json:"id"`
-	Member        MemberType `json:"member"`
-	Goal          string     `json:"goal"`
-	WorkDir       string     `json:"work_dir"`
-	State         State      `json:"state"`
-	PaneID        int        `json:"pane_id"`                // Kaku pane ID (-1 if not yet assigned)
-	TabID         int        `json:"tab_id"`                 // Kaku tab ID (-1 if not yet assigned)
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	StartedAt     *time.Time `json:"started_at,omitempty"`
-	EndedAt       *time.Time `json:"ended_at,omitempty"`
-	LastHeartbeat *time.Time `json:"last_heartbeat,omitempty"`
-	ErrorMsg      string     `json:"error_msg,omitempty"`
-	Answer        string     `json:"answer,omitempty"`
+	ID              string     `json:"id"`
+	Member          MemberType `json:"member"`
+	Goal            string     `json:"goal"`
+	WorkDir         string     `json:"work_dir"`
+	State           State      `json:"state"`
+	PaneID          int        `json:"pane_id"`                    // Kaku pane ID (-1 if not yet assigned)
+	TabID           int        `json:"tab_id"`                     // Kaku tab ID (-1 if not yet assigned)
+	PoolPane        bool       `json:"pool_pane,omitempty"`        // true if pane acquired from pool
+	ParentSessionID string     `json:"parent_session_id,omitempty"` // leader session that spawned this child
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+	StartedAt       *time.Time `json:"started_at,omitempty"`
+	EndedAt         *time.Time `json:"ended_at,omitempty"`
+	LastHeartbeat   *time.Time `json:"last_heartbeat,omitempty"`
+	ErrorMsg        string     `json:"error_msg,omitempty"`
+	Answer          string     `json:"answer,omitempty"`
 }
 
 // Session is the unit of execution in the Kaku runtime.
@@ -116,6 +118,22 @@ func (s *Session) SetPane(paneID, tabID int) {
 	defer s.mu.Unlock()
 	s.PaneID = paneID
 	s.TabID = tabID
+	s.UpdatedAt = time.Now()
+}
+
+// SetParentSession records the parent (leader) session ID.
+func (s *Session) SetParentSession(parentID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ParentSessionID = parentID
+	s.UpdatedAt = time.Now()
+}
+
+// SetPoolPane marks whether the pane was acquired from the pool.
+func (s *Session) SetPoolPane(pool bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.PoolPane = pool
 	s.UpdatedAt = time.Now()
 }
 

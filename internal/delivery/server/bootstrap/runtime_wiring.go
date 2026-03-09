@@ -12,11 +12,13 @@ import (
 	"alex/internal/runtime/hooks"
 	"alex/internal/runtime/leader"
 	"alex/internal/runtime/panel"
+	"alex/internal/runtime/pool"
 	"alex/internal/shared/logging"
 )
 
-// startRuntimeSubsystem wires the Runtime, AdapterFactory, StallDetector, and
-// LeaderAgent inside the Lark process and starts them as background goroutines.
+// startRuntimeSubsystem wires the Runtime, AdapterFactory, StallDetector,
+// LeaderAgent, and PanePool inside the Lark process and starts them as
+// background goroutines.
 // It returns the *runtime.Runtime so callers can attach HTTP handlers.
 func startRuntimeSubsystem(
 	ctx context.Context,
@@ -47,18 +49,23 @@ func startRuntimeSubsystem(
 		log.Info("runtime: adapter factory wired (CC pane launch enabled)")
 	}
 
+	// PanePool: create an empty pool; panes are registered via POST /api/runtime/pool.
+	panePool := pool.New()
+	rt.SetPool(panePool)
+
 	// StallDetector: scans every 10 s, stall threshold 60 s.
 	detector := hooks.NewStallDetector(rt, bus, 60*time.Second, 10*time.Second)
 	go detector.Run(ctx)
 
-	// LeaderAgent: handles stalled / needs-input events via LLM.
-	// The leader uses a dedicated ephemeral session ID per call to avoid
-	// accumulating unbounded history in a single "leader-agent" session.
+	// LeaderAgent: handles stalled / needs-input / child-completed events via LLM.
+	// The leader uses a dedicated ephemeral session ID per stall call to avoid
+	// accumulating unbounded history in a single session.
 	if container != nil && container.AgentCoordinator != nil {
 		coord := container.AgentCoordinator
-		executeFunc := func(ctx context.Context, prompt string) (string, error) {
-			// Use a fresh ephemeral session each time to avoid history accumulation.
-			sessionID := fmt.Sprintf("leader-ephemeral-%d", time.Now().UnixNano())
+		executeFunc := func(ctx context.Context, prompt, sessionID string) (string, error) {
+			if sessionID == "" {
+				sessionID = fmt.Sprintf("leader-ephemeral-%d", time.Now().UnixNano())
+			}
 			result, err := coord.ExecuteTask(ctx, prompt, sessionID, nil)
 			if err != nil {
 				return "", err

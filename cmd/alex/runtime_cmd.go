@@ -123,7 +123,7 @@ func runRuntimeStart(args []string) error {
 	fac := adapter.NewFactory(pm, rt, hooksURL, nil)
 	rt.SetFactory(fac)
 
-	s, err := rt.CreateSession(member, goalVal, dir)
+	s, err := rt.CreateSession(member, goalVal, dir, "")
 	if err != nil {
 		return &ExitCodeError{Code: 1, Err: err}
 	}

@@ -23,12 +23,10 @@ const (
 
 // ClaudeCodeAdapter launches Claude Code in interactive mode inside a Kaku pane.
 //
-// Start() flow:
-//  1. panel.Manager.Split() → new pane
-//  2. Inject: unset CLAUDECODE && claude --dangerously-skip-permissions
-//  3. Sleep 1.5 s for CC welcome screen
-//  4. InjectText(goal) + Submit()
-//  5. Background goroutine polls pane output for the bash prompt, signals completion.
+// Start() supports two modes:
+//
+//	ModeSplit (default): panel.Manager.Split() → new pane → launch CC
+//	ModeDirectPane (pool): reuse existing pane → clear → cd → launch CC
 type ClaudeCodeAdapter struct {
 	pm       panel.ManagerIface
 	sink     HookSink
@@ -203,25 +201,45 @@ func findNotifyScript(workDir string) string {
 	}
 }
 
-// Start creates a Kaku pane, launches Claude Code, and injects the goal.
-func (a *ClaudeCodeAdapter) Start(ctx context.Context, sessionID, goal, workDir string, parentPaneID int) error {
+// Start creates a Kaku pane (or reuses one), launches Claude Code, and injects the goal.
+func (a *ClaudeCodeAdapter) Start(ctx context.Context, opts StartOpts) error {
 	// Auto-register CC hooks. Walk up from workDir so /tmp doesn't register a wrong path.
-	if script := findNotifyScript(workDir); script != "" {
+	if script := findNotifyScript(opts.WorkDir); script != "" {
 		ensureCCHooks(script)
 	}
 
-	pane, err := a.pm.Split(ctx, panel.SplitOpts{
-		ParentPaneID: parentPaneID,
-		Direction:    "bottom",
-		Percent:      65,
-		WorkDir:      workDir,
-	})
-	if err != nil {
-		return fmt.Errorf("claude_code adapter: split pane: %w", err)
+	var pane *panel.Pane
+
+	switch opts.Mode {
+	case ModeDirectPane:
+		// Pool mode: reuse an existing pane — clear it and prepare for a new CC session.
+		pane = &panel.Pane{ID: opts.PaneID}
+
+		// Interrupt any residual process and clear the screen.
+		_ = pane.SendKey(ctx, "C-c")
+		time.Sleep(200 * time.Millisecond)
+		_ = pane.Send(ctx, "clear")
+		time.Sleep(200 * time.Millisecond)
+
+		// cd to workdir
+		_ = pane.Send(ctx, fmt.Sprintf("cd %s", shellQuote(opts.WorkDir)))
+		time.Sleep(200 * time.Millisecond)
+
+	default: // ModeSplit
+		var err error
+		pane, err = a.pm.Split(ctx, panel.SplitOpts{
+			ParentPaneID: opts.PaneID,
+			Direction:    "bottom",
+			Percent:      65,
+			WorkDir:      opts.WorkDir,
+		})
+		if err != nil {
+			return fmt.Errorf("claude_code adapter: split pane: %w", err)
+		}
 	}
 
 	a.mu.Lock()
-	a.panes[sessionID] = pane
+	a.panes[opts.SessionID] = pane
 	a.mu.Unlock()
 
 	// Activate the pane so the user can watch.
@@ -229,12 +247,14 @@ func (a *ClaudeCodeAdapter) Start(ctx context.Context, sessionID, goal, workDir 
 
 	// Wait for the zsh login shell to finish initialising.
 	// spawn/split starts a fresh zsh -l; sending commands before it's ready silently drops them.
-	time.Sleep(ccShellReadyDelay)
+	if opts.Mode == ModeSplit {
+		time.Sleep(ccShellReadyDelay)
+	}
 
 	// Export runtime session env vars so CC hooks can call back.
 	envLine := fmt.Sprintf(
 		"export RUNTIME_SESSION_ID=%s RUNTIME_HOOKS_URL=%s",
-		shellQuote(sessionID),
+		shellQuote(opts.SessionID),
 		shellQuote(a.hooksURL),
 	)
 	if err := pane.Send(ctx, envLine); err != nil {
@@ -252,7 +272,7 @@ func (a *ClaudeCodeAdapter) Start(ctx context.Context, sessionID, goal, workDir 
 	// Inject goal text then submit. A brief pause between inject and submit is
 	// required: CC renders the input buffer asynchronously; submitting too soon
 	// sends \r before CC's readline is ready, silently dropping the submission.
-	if err := pane.InjectText(ctx, goal); err != nil {
+	if err := pane.InjectText(ctx, opts.Goal); err != nil {
 		return fmt.Errorf("claude_code adapter: inject goal: %w", err)
 	}
 	time.Sleep(300 * time.Millisecond)
@@ -261,7 +281,7 @@ func (a *ClaudeCodeAdapter) Start(ctx context.Context, sessionID, goal, workDir 
 	}
 
 	// Background goroutine: poll pane output for zsh % or bash $ prompt (CC exited).
-	go a.watchForCompletion(ctx, sessionID, pane)
+	go a.watchForCompletion(ctx, opts.SessionID, pane)
 
 	return nil
 }
@@ -278,17 +298,25 @@ func (a *ClaudeCodeAdapter) Inject(ctx context.Context, sessionID, text string) 
 	return pane.Submit(ctx)
 }
 
-// Stop kills the CC pane and removes it from the registry.
-func (a *ClaudeCodeAdapter) Stop(ctx context.Context, sessionID string) error {
+// Stop terminates the CC session. If poolPane is true, only exits CC (sends
+// /exit) but keeps the pane alive for reuse. Otherwise kills the pane entirely.
+func (a *ClaudeCodeAdapter) Stop(ctx context.Context, sessionID string, poolPane bool) error {
 	pane := a.removePane(sessionID)
 	if pane == nil {
+		return nil
+	}
+	if poolPane {
+		// Gracefully exit CC but keep the pane for pool reuse.
+		_ = pane.Send(ctx, "/exit")
+		time.Sleep(500 * time.Millisecond)
+		_ = pane.SendKey(ctx, "C-c") // fallback interrupt
 		return nil
 	}
 	return pane.Kill(ctx)
 }
 
 // watchForCompletion polls the pane output every ccPollInterval until it
-// detects a bash prompt (indicating CC has exited), then calls OnCompleted
+// detects a shell prompt (indicating CC has exited), then calls OnCompleted
 // or OnFailed. This is a fallback — structured completion events arrive
 // via the runtime hooks handler (notify_runtime.sh).
 func (a *ClaudeCodeAdapter) watchForCompletion(ctx context.Context, sessionID string, pane *panel.Pane) {

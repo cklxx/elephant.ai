@@ -32,6 +32,11 @@ const (
 	// EventHandoffRequired is published when the leader agent decides to escalate
 	// a stalled session to a human operator.
 	EventHandoffRequired EventType = "handoff_required"
+
+	// EventChildCompleted is published when a child CC session completes and
+	// has a ParentSessionID set. The event is keyed to the parent session so
+	// the leader/orchestrator can continue orchestration.
+	EventChildCompleted EventType = "child_completed"
 )
 
 // Event carries data about a single lifecycle occurrence in a runtime session.

@@ -23,7 +23,7 @@ type SessionSpec struct {
 
 // RuntimeManager is the minimal interface the Engine needs from Runtime.
 type RuntimeManager interface {
-	CreateSession(member session.MemberType, goal, workDir string) (*session.Session, error)
+	CreateSession(member session.MemberType, goal, workDir, parentSessionID string) (*session.Session, error)
 	StartSession(ctx context.Context, id string, parentPaneID int) error
 }
 
@@ -65,7 +65,7 @@ func (e *Engine) Schedule(ctx context.Context, specs []SessionSpec) ([]string, e
 
 	ids := make([]string, 0, len(specs))
 	for _, sp := range specs {
-		s, err := e.rt.CreateSession(sp.Member, sp.Goal, sp.WorkDir)
+		s, err := e.rt.CreateSession(sp.Member, sp.Goal, sp.WorkDir, "")
 		if err != nil {
 			return nil, fmt.Errorf("scheduler: create session: %w", err)
 		}

@@ -88,7 +88,7 @@ func TestHandleStallDeduplication(t *testing.T) {
 		},
 	}
 	bus := newMockBus()
-	executeFn := func(ctx context.Context, prompt string) (string, error) {
+	executeFn := func(ctx context.Context, prompt, _ string) (string, error) {
 		callCount.Add(1)
 		time.Sleep(50 * time.Millisecond) // simulate LLM latency
 		return "INJECT keep going", nil
@@ -132,7 +132,7 @@ func TestHandleStallMultipleSessions(t *testing.T) {
 
 	rt := &mockRuntime{sessions: sessions}
 	bus := newMockBus()
-	executeFn := func(ctx context.Context, prompt string) (string, error) {
+	executeFn := func(ctx context.Context, prompt, _ string) (string, error) {
 		callCount.Add(1)
 		time.Sleep(20 * time.Millisecond)
 		return "INJECT ok", nil
@@ -188,7 +188,7 @@ func TestStallStress10000Events(t *testing.T) {
 
 	rt := &mockRuntime{sessions: sessions}
 	bus := newMockBus()
-	executeFn := func(ctx context.Context, prompt string) (string, error) {
+	executeFn := func(ctx context.Context, prompt, _ string) (string, error) {
 		callCount.Add(1)
 		current := activeCount.Add(1)
 		defer activeCount.Add(-1)

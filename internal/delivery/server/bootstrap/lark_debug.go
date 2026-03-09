@@ -71,11 +71,13 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 		startRuntimeCompletionNotifier(ctx, runtimeBus, container.LarkGateway, cfg.HooksBridge.DefaultChatID, logger)
 	}
 
-	// Runtime subsystem: Runtime + StallDetector + LeaderAgent.
-	// The returned *Runtime is wrapped as an HTTP handler for session management.
+	// Runtime subsystem: Runtime + StallDetector + LeaderAgent + PanePool.
+	// The returned *Runtime is wrapped as HTTP handlers for session and pool management.
 	var runtimeAPI http.Handler
+	var runtimePoolAPI http.Handler
 	if rt := startRuntimeSubsystem(ctx, runtimeBus, container, logger); rt != nil {
 		runtimeAPI = NewRuntimeSessionHandler(rt, logger)
+		runtimePoolAPI = NewRuntimePoolHandler(rt, logger)
 	}
 
 	router := serverHTTP.NewDebugRouter(serverHTTP.DebugRouterDeps{
@@ -92,6 +94,7 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 		LarkOAuthHandler:       larkOAuthHandler,
 		RuntimeHooksBridge:     runtimeHooksHandler,
 		RuntimeAPI:             runtimeAPI,
+		RuntimePoolAPI:         runtimePoolAPI,
 	})
 
 	port := cfg.DebugPort

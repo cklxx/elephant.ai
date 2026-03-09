@@ -8,17 +8,37 @@ package adapter
 
 import "context"
 
+// StartMode controls how the adapter obtains its Kaku pane.
+type StartMode int
+
+const (
+	// ModeSplit creates a new pane by splitting from an existing parent pane.
+	ModeSplit StartMode = iota
+	// ModeDirectPane reuses an existing pane (typically from the pane pool).
+	ModeDirectPane
+)
+
+// StartOpts bundles the parameters for Adapter.Start.
+type StartOpts struct {
+	SessionID string
+	Goal      string
+	WorkDir   string
+	PaneID    int       // ModeSplit: parent pane to split from; ModeDirectPane: pane to reuse
+	Mode      StartMode // how to obtain the pane
+}
+
 // Adapter controls one member CLI instance for a runtime session.
 type Adapter interface {
-	// Start creates a Kaku pane, launches the member CLI, and injects the session goal.
+	// Start launches the member CLI and injects the session goal.
 	// It returns as soon as the goal has been submitted; it does not wait for completion.
-	Start(ctx context.Context, sessionID, goal, workDir string, parentPaneID int) error
+	Start(ctx context.Context, opts StartOpts) error
 
 	// Inject sends additional text into the running CLI (e.g. to unblock a stalled session).
 	Inject(ctx context.Context, sessionID, text string) error
 
-	// Stop terminates the CLI and kills its Kaku pane.
-	Stop(ctx context.Context, sessionID string) error
+	// Stop terminates the CLI. If poolPane is true, the pane is kept alive
+	// (only the CLI process is exited); otherwise the pane is killed.
+	Stop(ctx context.Context, sessionID string, poolPane bool) error
 }
 
 // HookSink receives structured lifecycle callbacks from an adapter.

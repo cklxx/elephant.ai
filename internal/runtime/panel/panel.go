@@ -142,6 +142,16 @@ func (p *Pane) Send(ctx context.Context, text string) error {
 	return p.Submit(ctx)
 }
 
+// SendKey sends a special key sequence to the pane (e.g. "C-c" for Ctrl-C).
+// Uses kaku cli send-text --no-paste to bypass paste mode.
+func (p *Pane) SendKey(ctx context.Context, key string) error {
+	_, err := p.run(ctx, "cli", "send-text", "--no-paste", "--pane-id", strconv.Itoa(p.ID), key)
+	if err != nil {
+		return fmt.Errorf("panel: send-key %q to pane %d: %w", key, p.ID, err)
+	}
+	return nil
+}
+
 // CaptureOutput returns the current visible screen content of the pane.
 // This is a snapshot — long output is truncated to the visible terminal area.
 func (p *Pane) CaptureOutput(ctx context.Context) (string, error) {
