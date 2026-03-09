@@ -2,12 +2,15 @@ package bootstrap
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	serverApp "alex/internal/delivery/server/app"
+	"alex/internal/shared/logging"
 )
 
 func TestBuildDebugBroadcaster(t *testing.T) {
@@ -74,6 +77,54 @@ func TestBuildDebugHTTPServer_NilFoundation(t *testing.T) {
 	}
 	if server.ReadTimeout != 5*time.Minute {
 		t.Errorf("expected ReadTimeout 5m, got %v", server.ReadTimeout)
+	}
+}
+
+func TestListenDebugPort_Available(t *testing.T) {
+	logger := logging.NewComponentLogger("test")
+	ln, err := listenDebugPort("0", logger)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ln == nil {
+		t.Fatal("expected a listener, got nil")
+	}
+	ln.Close()
+}
+
+func TestListenDebugPort_FallbackOnBusy(t *testing.T) {
+	// Occupy a known port.
+	occupied, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	defer occupied.Close()
+	port := occupied.Addr().(*net.TCPAddr).Port
+
+	logger := logging.NewComponentLogger("test")
+	ln, err := listenDebugPort(fmt.Sprintf("%d", port), logger)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ln == nil {
+		t.Fatal("expected fallback listener, got nil")
+	}
+	defer ln.Close()
+
+	gotPort := ln.Addr().(*net.TCPAddr).Port
+	if gotPort == port {
+		t.Errorf("expected fallback to a different port, still got %d", port)
+	}
+	if gotPort < port+1 || gotPort > port+debugPortMaxRetries {
+		t.Errorf("fallback port %d outside expected range %d–%d", gotPort, port+1, port+debugPortMaxRetries)
+	}
+}
+
+func TestListenDebugPort_InvalidPort(t *testing.T) {
+	logger := logging.NewComponentLogger("test")
+	_, err := listenDebugPort("abc", logger)
+	if err == nil {
+		t.Fatal("expected error for non-numeric port")
 	}
 }
 

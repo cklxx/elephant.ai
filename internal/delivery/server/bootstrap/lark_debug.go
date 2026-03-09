@@ -2,8 +2,11 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"alex/internal/app/di"
@@ -112,6 +115,35 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 
 	logger.Info("Debug HTTP server configured on :%s", port)
 	return server, runtimeBus, nil
+}
+
+const debugPortMaxRetries = 5
+
+// listenDebugPort tries to bind a TCP listener starting at basePort, falling
+// back to basePort+1 … basePort+debugPortMaxRetries when the port is busy
+// (e.g. a previous process still holds it). Returns nil, nil when all ports
+// are unavailable — the caller should treat this as graceful degradation.
+func listenDebugPort(basePort string, logger logging.Logger) (net.Listener, error) {
+	port, err := strconv.Atoi(basePort)
+	if err != nil {
+		return nil, fmt.Errorf("invalid debug port %q: %w", basePort, err)
+	}
+
+	for i := 0; i <= debugPortMaxRetries; i++ {
+		addr := fmt.Sprintf(":%d", port+i)
+		ln, err := net.Listen("tcp", addr)
+		if err == nil {
+			if i > 0 {
+				logger.Warn("Debug port :%d busy, using fallback %s", port, addr)
+			}
+			logger.Info("Debug HTTP server bound to %s", addr)
+			return ln, nil
+		}
+		logger.Warn("Debug port %s unavailable: %v", addr, err)
+	}
+
+	logger.Warn("All debug ports :%d–:%d unavailable; debug HTTP server disabled", port, port+debugPortMaxRetries)
+	return nil, nil
 }
 
 // buildDebugBroadcaster creates the EventBroadcaster for Lark standalone mode.

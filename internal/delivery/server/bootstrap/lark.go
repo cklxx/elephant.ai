@@ -128,11 +128,25 @@ func RunLark(observabilityConfigPath string) error {
 		return fmt.Errorf("debug HTTP server: %w", err)
 	}
 
+	debugPort := config.DebugPort
+	if debugPort == "" {
+		debugPort = "9090"
+	}
+
 	debugErrCh := make(chan error, 1)
-	async.Go(logger, "debug.http", func() {
-		logger.Info("Debug HTTP server listening on %s", debugServer.Addr)
-		debugErrCh <- debugServer.ListenAndServe()
-	})
+	debugLn, err := listenDebugPort(debugPort, logger)
+	if err != nil {
+		return fmt.Errorf("debug HTTP server: %w", err)
+	}
+	if debugLn != nil {
+		debugServer.Addr = debugLn.Addr().String()
+		async.Go(logger, "debug.http", func() {
+			logger.Info("Debug HTTP server listening on %s", debugServer.Addr)
+			debugErrCh <- debugServer.Serve(debugLn)
+		})
+	} else {
+		logger.Warn("Continuing without debug HTTP server (port unavailable)")
+	}
 
 	// ── Phase 5: Block until signal ──
 
