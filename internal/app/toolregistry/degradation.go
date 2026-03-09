@@ -78,6 +78,11 @@ type degradationExecutor struct {
 	config   DegradationConfig
 }
 
+// Unwrap returns the inner executor (implements tools.Unwrappable).
+func (d *degradationExecutor) Unwrap() tools.ToolExecutor {
+	return d.delegate
+}
+
 // NewDegradationExecutor wraps delegate with automatic degradation logic.
 // lookup is used to resolve fallback tool names at execution time.
 func NewDegradationExecutor(delegate tools.ToolExecutor, lookup ToolLookup, config DegradationConfig) tools.ToolExecutor {

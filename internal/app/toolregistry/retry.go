@@ -12,7 +12,6 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	ports "alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
-	toolspolicy "alex/internal/infra/tools"
 	alexerrors "alex/internal/shared/errors"
 )
 
@@ -37,8 +36,13 @@ func normalizeCircuitBreakerConfig(cfg CircuitBreakerConfig) CircuitBreakerConfi
 
 type retryExecutor struct {
 	delegate tools.ToolExecutor
-	policy   toolspolicy.ToolPolicy
+	policy   tools.ToolPolicy
 	breaker  *alexerrors.CircuitBreaker
+}
+
+// Unwrap returns the inner executor (implements tools.Unwrappable).
+func (r *retryExecutor) Unwrap() tools.ToolExecutor {
+	return r.delegate
 }
 
 type circuitBreakerStore struct {
@@ -64,7 +68,7 @@ func (s *circuitBreakerStore) Get(name string) *alexerrors.CircuitBreaker {
 	return s.manager.Get(name)
 }
 
-func newRetryExecutor(delegate tools.ToolExecutor, policy toolspolicy.ToolPolicy, breakers *circuitBreakerStore) tools.ToolExecutor {
+func newRetryExecutor(delegate tools.ToolExecutor, policy tools.ToolPolicy, breakers *circuitBreakerStore) tools.ToolExecutor {
 	if delegate == nil {
 		return delegate
 	}
@@ -91,16 +95,9 @@ func (r *retryExecutor) Execute(ctx context.Context, call ports.ToolCall) (*port
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("tool executor missing")}, nil
 	}
 
+	// Resolve policy for timeout and retry config only.
+	// Access control (Enabled check) is handled by policyAwareRegistry.
 	resolved := r.resolvePolicy(ctx, call)
-	policyWarnAllow := false
-	if !resolved.Enabled {
-		if strings.EqualFold(resolved.EnforcementMode, "warn_allow") {
-			policyWarnAllow = true
-		} else {
-			return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("tool denied by policy: %s", call.Name)}, nil
-		}
-	}
-
 	retryCfg := normalizeRetryConfig(resolved.Retry)
 	var lastErr error
 	var lastResult *ports.ToolResult
@@ -113,9 +110,6 @@ func (r *retryExecutor) Execute(ctx context.Context, call ports.ToolCall) (*port
 
 		result, err := r.executeOnce(ctx, call, resolved.Timeout)
 		if err == nil {
-			if policyWarnAllow {
-				result = annotatePolicyWarnAllow(result, call)
-			}
 			return result, nil
 		}
 		lastResult = result
@@ -146,17 +140,10 @@ func (r *retryExecutor) Execute(ctx context.Context, call ports.ToolCall) (*port
 		lastErr = fmt.Errorf("tool execution failed")
 	}
 	if lastResult == nil {
-		result := &ports.ToolResult{CallID: call.ID, Error: lastErr}
-		if policyWarnAllow {
-			result = annotatePolicyWarnAllow(result, call)
-		}
-		return result, nil
+		return &ports.ToolResult{CallID: call.ID, Error: lastErr}, nil
 	}
 	if lastResult.Error == nil {
 		lastResult.Error = lastErr
-	}
-	if policyWarnAllow {
-		lastResult = annotatePolicyWarnAllow(lastResult, call)
 	}
 	return lastResult, nil
 }
@@ -205,9 +192,9 @@ func (r *retryExecutor) executeOnce(ctx context.Context, call ports.ToolCall, ti
 	return result, nil
 }
 
-func (r *retryExecutor) resolvePolicy(ctx context.Context, call ports.ToolCall) toolspolicy.ResolvedPolicy {
+func (r *retryExecutor) resolvePolicy(ctx context.Context, call ports.ToolCall) tools.ResolvedPolicy {
 	if r.policy == nil {
-		return toolspolicy.ResolvedPolicy{Enabled: true}
+		return tools.ResolvedPolicy{Enabled: true}
 	}
 	meta := r.delegate.Metadata()
 	name := strings.TrimSpace(meta.Name)
@@ -218,7 +205,7 @@ func (r *retryExecutor) resolvePolicy(ctx context.Context, call ports.ToolCall) 
 		name = strings.TrimSpace(r.delegate.Definition().Name)
 	}
 	channel := strings.TrimSpace(appcontext.ChannelFromContext(ctx))
-	return r.policy.Resolve(toolspolicy.ToolCallContext{
+	return r.policy.Resolve(tools.ToolCallContext{
 		ToolName:    name,
 		Category:    meta.Category,
 		Tags:        meta.Tags,
@@ -236,7 +223,7 @@ func (r *retryExecutor) Metadata() ports.ToolMetadata {
 	return r.delegate.Metadata()
 }
 
-func normalizeRetryConfig(cfg toolspolicy.ToolRetryConfig) toolspolicy.ToolRetryConfig {
+func normalizeRetryConfig(cfg tools.ToolRetryConfig) tools.ToolRetryConfig {
 	if cfg.MaxRetries < 0 {
 		cfg.MaxRetries = 0
 	}
@@ -252,7 +239,7 @@ func normalizeRetryConfig(cfg toolspolicy.ToolRetryConfig) toolspolicy.ToolRetry
 	return cfg
 }
 
-func calculateRetryBackoff(attempt int, cfg toolspolicy.ToolRetryConfig) time.Duration {
+func calculateRetryBackoff(attempt int, cfg tools.ToolRetryConfig) time.Duration {
 	if attempt < 0 {
 		attempt = 0
 	}
@@ -271,20 +258,6 @@ func calculateRetryBackoff(attempt int, cfg toolspolicy.ToolRetryConfig) time.Du
 		}
 	}
 	return time.Duration(delay)
-}
-
-func annotatePolicyWarnAllow(result *ports.ToolResult, call ports.ToolCall) *ports.ToolResult {
-	if result == nil {
-		result = &ports.ToolResult{}
-	}
-	if result.Metadata == nil {
-		result.Metadata = make(map[string]any)
-	}
-	result.Metadata["policy_enforcement"] = "warn_allow"
-	if _, exists := result.Metadata["policy_warning"]; !exists {
-		result.Metadata["policy_warning"] = fmt.Sprintf("tool policy denied %s but mode=warn_allow permitted execution", strings.TrimSpace(call.Name))
-	}
-	return result
 }
 
 var _ tools.ToolExecutor = (*retryExecutor)(nil)

@@ -21,7 +21,7 @@ type Registry struct {
 	mu           sync.RWMutex
 	cachedDefs   []ports.ToolDefinition
 	defsDirty    bool
-	policy       toolspolicy.ToolPolicy
+	policy       tools.ToolPolicy
 	breakers     *circuitBreakerStore
 	degradation  DegradationConfig
 	SLACollector *toolspolicy.SLACollector
@@ -35,7 +35,7 @@ type Config struct {
 	ArkAPIKey     string
 	MemoryEngine  memory.Engine
 	HTTPLimits    runtimeconfig.HTTPLimitsConfig
-	ToolPolicy    toolspolicy.ToolPolicy
+	ToolPolicy    tools.ToolPolicy
 	BreakerConfig CircuitBreakerConfig
 	SLACollector  *toolspolicy.SLACollector
 	// DegradationConfig, when provided, overrides the registry defaults.
@@ -98,7 +98,7 @@ func (r *Registry) Register(tool tools.ToolExecutor) error {
 	}
 
 	wrapped := wrapTool(tool, r.policy, r.breakers, r.SLACollector)
-	wrapped = r.wrapDegradation(name, wrapped)
+	wrapped = r.wrapDegradationLocked(name, wrapped)
 	r.dynamic[name] = wrapped
 	r.defsDirty = true
 	return nil
@@ -123,10 +123,10 @@ func (r *Registry) getRawLocked(name string) (tools.ToolExecutor, bool) {
 	return nil, false
 }
 
-// wrapTool ensures tools are wrapped with approval, retry, ID propagation,
-// and optional SLA measurement. The SLA executor is the outermost layer so
-// it measures total time including retries and approval.
-func wrapTool(tool tools.ToolExecutor, policy toolspolicy.ToolPolicy, breakers *circuitBreakerStore, sla *toolspolicy.SLACollector) tools.ToolExecutor {
+// wrapTool ensures tools are wrapped with validation, approval, retry, ID
+// propagation, and optional SLA measurement. The SLA executor is the outermost
+// layer so it measures total time including retries and approval.
+func wrapTool(tool tools.ToolExecutor, policy tools.ToolPolicy, breakers *circuitBreakerStore, sla *toolspolicy.SLACollector) tools.ToolExecutor {
 	if tool == nil {
 		return nil
 	}
@@ -141,28 +141,26 @@ func wrapTool(tool tools.ToolExecutor, policy toolspolicy.ToolPolicy, breakers *
 	return toolspolicy.NewSLAExecutor(id, sla)
 }
 
+// unwrapTool peels off all decorator layers to reach the base tool
+// implementation using the Unwrappable interface.
 func unwrapTool(tool tools.ToolExecutor) tools.ToolExecutor {
 	for {
-		switch typed := tool.(type) {
-		case *degradationExecutor:
-			tool = typed.delegate
-		case *toolspolicy.SLAExecutor:
-			tool = typed.Delegate()
-		case *idAwareExecutor:
-			tool = typed.delegate
-		case *retryExecutor:
-			tool = typed.delegate
-		case *toolspolicy.ApprovalExecutor:
-			tool = typed.Delegate()
-		case *validatingExecutor:
-			tool = typed.delegate
-		default:
+		u, ok := tool.(tools.Unwrappable)
+		if !ok {
 			return tool
 		}
+		inner := u.Unwrap()
+		if inner == nil {
+			return tool
+		}
+		tool = inner
 	}
 }
 
-func (r *Registry) wrapDegradation(toolName string, tool tools.ToolExecutor) tools.ToolExecutor {
+// wrapDegradationLocked wraps a tool with degradation logic. Caller must
+// hold r.mu (read or write). The lookup closure uses getRawLocked to avoid
+// re-acquiring the lock.
+func (r *Registry) wrapDegradationLocked(toolName string, tool tools.ToolExecutor) tools.ToolExecutor {
 	if tool == nil {
 		return nil
 	}
@@ -171,17 +169,19 @@ func (r *Registry) wrapDegradation(toolName string, tool tools.ToolExecutor) too
 		return tool
 	}
 	lookup := func(name string) (tools.ToolExecutor, bool) {
-		executor, err := r.Get(name)
-		if err != nil {
-			return nil, false
-		}
-		return executor, true
+		executor, ok := r.getRawLocked(name)
+		return executor, ok
 	}
 	return NewDegradationExecutor(tool, lookup, r.degradation)
 }
 
 type idAwareExecutor struct {
 	delegate tools.ToolExecutor
+}
+
+// Unwrap returns the inner executor (implements tools.Unwrappable).
+func (w *idAwareExecutor) Unwrap() tools.ToolExecutor {
+	return w.delegate
 }
 
 func (w *idAwareExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -212,8 +212,8 @@ func (w *idAwareExecutor) Metadata() ports.ToolMetadata {
 }
 
 // WithoutOrchestration returns the registry view used by subagents and other
-// delegated execution paths. Team orchestration now runs through CLI services,
-// so there are no orchestration tools to filter here.
+// delegated execution paths. Orchestration now runs through CLI services,
+// so this is intentionally a no-op that returns the full registry.
 func (r *Registry) WithoutOrchestration() tools.ToolRegistry {
 	return r
 }
@@ -277,7 +277,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 
 	for name, tool := range r.static {
 		wrapped := wrapTool(tool, r.policy, r.breakers, r.SLACollector)
-		r.static[name] = r.wrapDegradation(name, wrapped)
+		r.static[name] = r.wrapDegradationLocked(name, wrapped)
 	}
 	return nil
 }
@@ -321,3 +321,6 @@ func (r *Registry) pruneDisabledTools(disabled map[string]string) {
 		delete(r.static, name)
 	}
 }
+
+// Compile-time interface checks.
+var _ tools.ToolExecutor = (*idAwareExecutor)(nil)

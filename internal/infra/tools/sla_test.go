@@ -428,13 +428,13 @@ func TestSLACollector_ErrorClassification(t *testing.T) {
 
 // --- TestSLAExecutor_Delegate -----------------------------------------------
 
-func TestSLAExecutor_Delegate(t *testing.T) {
+func TestSLAExecutor_Unwrap(t *testing.T) {
 	stub := &stubToolExecutor{name: "inner"}
 	c := newTestCollector(t)
 	exec := NewSLAExecutor(stub, c)
 
-	if exec.Delegate() != stub {
-		t.Fatalf("expected Delegate() to return the inner executor")
+	if exec.Unwrap() != stub {
+		t.Fatalf("expected Unwrap() to return the inner executor")
 	}
 }
 

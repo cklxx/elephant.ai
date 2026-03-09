@@ -10,7 +10,6 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	storage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
-	toolspolicy "alex/internal/infra/tools"
 	"alex/internal/domain/agent/presets"
 )
 
@@ -88,7 +87,7 @@ func (s *ExecutionPreparationService) applyToolPolicy(ctx context.Context, regis
 		return registry
 	}
 	type policyWrapper interface {
-		WithPolicy(policy toolspolicy.ToolPolicy, channel string) tools.ToolRegistry
+		WithPolicy(policy tools.ToolPolicy, channel string) tools.ToolRegistry
 	}
 	if wrapper, ok := registry.(policyWrapper); ok {
 		channel := strings.TrimSpace(appcontext.ChannelFromContext(ctx))

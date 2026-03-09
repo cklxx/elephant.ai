@@ -33,6 +33,13 @@ type ToolRegistry interface {
 	Unregister(name string) error
 }
 
+// Unwrappable is implemented by decorator executors to expose the wrapped
+// inner executor. This replaces type-switch unwrapping with a uniform
+// interface-based approach.
+type Unwrappable interface {
+	Unwrap() ToolExecutor
+}
+
 // ToolExecutionLimiter gates tool execution concurrency.
 type ToolExecutionLimiter interface {
 	// Limit returns the maximum number of concurrent tool executions.

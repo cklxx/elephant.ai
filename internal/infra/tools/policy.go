@@ -3,26 +3,37 @@ package tools
 import (
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
 
+	toolports "alex/internal/domain/agent/ports/tools"
 	"alex/internal/shared/utils"
 
 	"gopkg.in/yaml.v3"
 )
 
 // ---------------------------------------------------------------------------
-// Core config types
+// Type aliases — canonical definitions now live in domain/agent/ports/tools.
+// Aliases preserve backward compatibility for all existing importers.
 // ---------------------------------------------------------------------------
 
-// ToolRetryConfig controls retry behavior for tool executions.
-type ToolRetryConfig struct {
-	MaxRetries     int           `yaml:"max_retries" json:"max_retries"`
-	InitialBackoff time.Duration `yaml:"initial_backoff" json:"initial_backoff"`
-	MaxBackoff     time.Duration `yaml:"max_backoff" json:"max_backoff"`
-	BackoffFactor  float64       `yaml:"backoff_factor" json:"backoff_factor"`
-}
+// ToolRetryConfig is an alias for the domain-defined retry config.
+type ToolRetryConfig = toolports.ToolRetryConfig
+
+// ToolCallContext is an alias for the domain-defined call context.
+type ToolCallContext = toolports.ToolCallContext
+
+// ResolvedPolicy is an alias for the domain-defined resolved policy.
+type ResolvedPolicy = toolports.ResolvedPolicy
+
+// ToolPolicy is an alias for the domain-defined policy interface.
+type ToolPolicy = toolports.ToolPolicy
+
+// ---------------------------------------------------------------------------
+// Core config types (implementation details, stay in infra)
+// ---------------------------------------------------------------------------
 
 // ToolTimeoutConfig controls per-tool timeout overrides.
 type ToolTimeoutConfig struct {
@@ -67,7 +78,7 @@ type PolicyRule struct {
 
 // PolicySelector determines whether a rule applies. All non-empty fields
 // must match (AND logic). Within a slice field (e.g. Tools), any match is
-// sufficient (OR logic). Glob patterns with '*' are supported in Tools.
+// sufficient (OR logic). Glob patterns (via path.Match) are supported in Tools.
 type PolicySelector struct {
 	Tools        []string `yaml:"tools,omitempty" json:"tools,omitempty"`                 // tool name globs
 	Categories   []string `yaml:"categories,omitempty" json:"categories,omitempty"`       // ToolMetadata.Category
@@ -75,17 +86,6 @@ type PolicySelector struct {
 	Channels     []string `yaml:"channels,omitempty" json:"channels,omitempty"`           // delivery channel (cli, web, lark, wechat)
 	Dangerous    *bool    `yaml:"dangerous,omitempty" json:"dangerous,omitempty"`         // ToolMetadata.Dangerous
 	SafetyLevels []int    `yaml:"safety_levels,omitempty" json:"safety_levels,omitempty"` // match by safety level (L1-L4)
-}
-
-// ToolCallContext carries runtime context about the current tool invocation
-// so the policy engine can evaluate per-context selectors.
-type ToolCallContext struct {
-	ToolName    string
-	Category    string
-	Tags        []string
-	Dangerous   bool
-	Channel     string // cli, web, lark, wechat
-	SafetyLevel int    // effective safety level (1-4; 0=unset)
 }
 
 // ---------------------------------------------------------------------------
@@ -272,32 +272,8 @@ func DefaultToolPolicyConfigWithRules() ToolPolicyConfig {
 }
 
 // ---------------------------------------------------------------------------
-// ToolPolicy interface + implementation
+// ToolPolicy implementation
 // ---------------------------------------------------------------------------
-
-// ToolPolicy determines timeout and retry behavior per tool.
-type ToolPolicy interface {
-	// TimeoutFor returns the execution timeout for the named tool.
-	TimeoutFor(toolName string) time.Duration
-
-	// RetryConfigFor returns the retry configuration for the named tool.
-	// When dangerous is true, retries are suppressed (MaxRetries = 0).
-	RetryConfigFor(toolName string, dangerous bool) ToolRetryConfig
-
-	// Resolve evaluates all rules against the full ToolCallContext and
-	// returns the merged policy result.
-	Resolve(ctx ToolCallContext) ResolvedPolicy
-}
-
-// ResolvedPolicy is the final, flattened result of evaluating all policy
-// rules for a specific tool call.
-type ResolvedPolicy struct {
-	Timeout         time.Duration
-	Retry           ToolRetryConfig
-	Enabled         bool // false = tool call blocked by policy
-	EnforcementMode string
-	SafetyLevel     int // effective safety level from context (1-4; 0=unset)
-}
 
 // configToolPolicy implements ToolPolicy backed by ToolPolicyConfig.
 type configToolPolicy struct {
@@ -407,17 +383,12 @@ func matchesSelector(sel PolicySelector, ctx ToolCallContext) bool {
 	return true
 }
 
-// matchesAnyGlob checks if name matches any pattern. Supports trailing '*'.
+// matchesAnyGlob checks if name matches any pattern using path.Match for
+// proper glob semantics (supports *, ?, [charset]).
 func matchesAnyGlob(patterns []string, name string) bool {
 	for _, p := range patterns {
-		if p == "*" || p == name {
+		if matched, err := path.Match(p, name); err == nil && matched {
 			return true
-		}
-		if strings.HasSuffix(p, "*") {
-			prefix := strings.TrimSuffix(p, "*")
-			if strings.HasPrefix(name, prefix) {
-				return true
-			}
 		}
 	}
 	return false

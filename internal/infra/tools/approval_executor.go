@@ -11,8 +11,9 @@ import (
 	"alex/internal/infra/tools/builtin/shared"
 )
 
-// ApprovalExecutor is a ToolExecutor decorator that gates dangerous tool
-// execution behind an approver. For non-dangerous tools it delegates directly.
+// ApprovalExecutor is a ToolExecutor decorator that gates tool execution
+// behind an approver based on safety level. L1 (read-only) tools pass
+// through; L2+ tools require approval when an approver is present.
 type ApprovalExecutor struct {
 	delegate tools.ToolExecutor
 }
@@ -22,8 +23,8 @@ func NewApprovalExecutor(delegate tools.ToolExecutor) tools.ToolExecutor {
 	return &ApprovalExecutor{delegate: delegate}
 }
 
-// Delegate returns the inner executor for unwrapping.
-func (a *ApprovalExecutor) Delegate() tools.ToolExecutor {
+// Unwrap returns the inner executor (implements tools.Unwrappable).
+func (a *ApprovalExecutor) Unwrap() tools.ToolExecutor {
 	return a.delegate
 }
 
@@ -32,7 +33,9 @@ func (a *ApprovalExecutor) Execute(ctx context.Context, call ports.ToolCall) (*p
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("tool executor missing")}, nil
 	}
 	meta := a.delegate.Metadata()
-	if !meta.Dangerous {
+	safetyLevel := meta.EffectiveSafetyLevel()
+	// L1 (read-only) tools never need approval.
+	if safetyLevel <= ports.SafetyLevelReadOnly {
 		return a.delegate.Execute(ctx, call)
 	}
 	approver := shared.GetApproverFromContext(ctx)

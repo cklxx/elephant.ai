@@ -6,11 +6,10 @@ import (
 
 	ports "alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
-	toolspolicy "alex/internal/infra/tools"
 )
 
 // WithPolicy returns a registry wrapper that enforces tool policy rules.
-func (r *Registry) WithPolicy(policy toolspolicy.ToolPolicy, channel string) tools.ToolRegistry {
+func (r *Registry) WithPolicy(policy tools.ToolPolicy, channel string) tools.ToolRegistry {
 	if policy == nil {
 		return r
 	}
@@ -19,12 +18,12 @@ func (r *Registry) WithPolicy(policy toolspolicy.ToolPolicy, channel string) too
 
 type policyAwareRegistry struct {
 	parent  tools.ToolRegistry
-	policy  toolspolicy.ToolPolicy
+	policy  tools.ToolPolicy
 	channel string
 }
 
 // WithPolicy replaces the policy wrapper with a new policy/channel.
-func (p *policyAwareRegistry) WithPolicy(policy toolspolicy.ToolPolicy, channel string) tools.ToolRegistry {
+func (p *policyAwareRegistry) WithPolicy(policy tools.ToolPolicy, channel string) tools.ToolRegistry {
 	if policy == nil {
 		return p.parent
 	}
@@ -88,7 +87,7 @@ func (p *policyAwareRegistry) isAllowed(tool tools.ToolExecutor) bool {
 	if name == "" {
 		name = tool.Definition().Name
 	}
-	ctx := toolspolicy.ToolCallContext{
+	ctx := tools.ToolCallContext{
 		ToolName:    name,
 		Category:    meta.Category,
 		Tags:        meta.Tags,

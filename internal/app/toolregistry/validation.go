@@ -17,6 +17,11 @@ type validatingExecutor struct {
 	delegate tools.ToolExecutor
 }
 
+// Unwrap returns the inner executor (implements tools.Unwrappable).
+func (v *validatingExecutor) Unwrap() tools.ToolExecutor {
+	return v.delegate
+}
+
 func (v *validatingExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	if v.delegate == nil {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("tool executor missing")}, nil

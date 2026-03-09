@@ -64,9 +64,8 @@ func (e *SLAExecutor) Metadata() ports.ToolMetadata {
 	return e.delegate.Metadata()
 }
 
-// Delegate returns the wrapped executor. This is used by unwrapTool in the
-// registry to peel off layers when re-wrapping a tool.
-func (e *SLAExecutor) Delegate() tools.ToolExecutor {
+// Unwrap returns the wrapped executor (implements tools.Unwrappable).
+func (e *SLAExecutor) Unwrap() tools.ToolExecutor {
 	return e.delegate
 }
 
