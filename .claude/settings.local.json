@@ -1,4 +1,11 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"cc.*subscription\" /Users/bytedance/code/elephant.ai --include=\"*.md\" --include=\"*.yaml\" --include=\"*.yml\" --include=\"*.sh\" --include=\"*.py\" 2>/dev/null | head -20)",
+      "Read(//Users/bytedance/.claude/**)",
+      "Bash(go run:*)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
