@@ -66,8 +66,10 @@ func larkTestServerWithObservedDocxConvertMock(t *testing.T, observe func(path, 
 	return larkTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost && isDocxBlocksConvertRoute(r.URL.Path) {
 			bodyBytes, _ := io.ReadAll(r.Body)
+			body := string(bodyBytes)
+			assertDocxConvertMarkdownRequest(t, body)
 			if observe != nil {
-				observe(r.URL.Path, string(bodyBytes))
+				observe(r.URL.Path, body)
 			}
 			writeDocxConvertSuccess(t, w, "tmp_blk_default", "doc_mock_parent")
 			return
@@ -101,6 +103,26 @@ func isDocxBlocksConvertRoute(path string) bool {
 	return normalized == "/open-apis/docx/v1/documents/blocks/convert" || normalized == "/docx/v1/documents/blocks/convert"
 }
 
+func isSupportedDocxConvertPath(path string) bool {
+	return isDocxBlocksConvertRoute(path)
+}
+
+func assertDocxConvertMarkdownRequest(t *testing.T, body string) {
+	t.Helper()
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+		t.Fatalf("expected valid convert request json, got err=%v body=%s", err, body)
+	}
+	contentType, _ := payload["content_type"].(string)
+	if contentType != "markdown" {
+		t.Fatalf("expected markdown content_type in convert body, got: %s", body)
+	}
+	content, _ := payload["content"].(string)
+	if strings.TrimSpace(content) == "" {
+		t.Fatalf("expected non-empty markdown content in convert body, got: %s", body)
+	}
+}
+
 func isDocxDescendantRoute(path, documentID, blockID string) bool {
 	openPath := fmt.Sprintf("/open-apis/docx/v1/documents/%s/blocks/%s/descendant", documentID, blockID)
 	plainPath := fmt.Sprintf("/docx/v1/documents/%s/blocks/%s/descendant", documentID, blockID)
@@ -109,7 +131,8 @@ func isDocxDescendantRoute(path, documentID, blockID string) bool {
 
 func writeDocxConvertSuccess(t *testing.T, w http.ResponseWriter, blockID, parentID string) {
 	t.Helper()
-	// Minimal valid convert response that DocxService.WriteMarkdown can consume.
+	// Minimal but structurally real convert response that DocxService.WriteMarkdown
+	// can consume through the SDK's ConvertDocumentRespData parser.
 	writeJSON(t, w, 0, "ok", map[string]any{
 		"first_level_block_ids": []string{blockID},
 		"blocks": []map[string]any{
@@ -125,6 +148,7 @@ func writeDocxConvertSuccess(t *testing.T, w http.ResponseWriter, blockID, paren
 				},
 			},
 		},
+		"block_id_to_image_urls": []map[string]any{},
 	})
 }
 
@@ -288,6 +312,9 @@ func TestDocxManage_CreateDoc_WithInitialContent(t *testing.T) {
 	if !strings.Contains(convertPath, "/documents/blocks/convert") {
 		t.Fatalf("expected convert API path, got %s", convertPath)
 	}
+	if !isSupportedDocxConvertPath(convertPath) {
+		t.Fatalf("expected supported convert route, got %s", convertPath)
+	}
 	if !createDescCalled {
 		t.Fatal("expected create descendant blocks call")
 	}
@@ -359,7 +386,9 @@ func TestLarkTestServerWithDocxConvertMock_HandlesConvertRoutes(t *testing.T) {
 
 	paths := []string{
 		"/open-apis/docx/v1/documents/blocks/convert",
+		"/open-apis/docx/v1/documents/blocks/convert/",
 		"/docx/v1/documents/blocks/convert",
+		"/docx/v1/documents/blocks/convert/",
 	}
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
@@ -388,6 +417,9 @@ func TestLarkTestServerWithDocxConvertMock_HandlesConvertRoutes(t *testing.T) {
 			}
 			if !strings.Contains(body, `"parent_id":"doc_mock_parent"`) {
 				t.Fatalf("expected default parent_id in body, got %s", body)
+			}
+			if !strings.Contains(body, `"block_id_to_image_urls":[]`) {
+				t.Fatalf("expected empty block_id_to_image_urls in body, got %s", body)
 			}
 		})
 	}
@@ -953,6 +985,9 @@ func TestChannel_CreateDoc_WithContent_E2E(t *testing.T) {
 	if !strings.Contains(convertPath, "/documents/blocks/convert") {
 		t.Fatalf("expected convert API path, got %s", convertPath)
 	}
+	if !isSupportedDocxConvertPath(convertPath) {
+		t.Fatalf("expected supported convert route, got %s", convertPath)
+	}
 	if !createDescCalled {
 		t.Fatal("expected create descendant blocks API call")
 	}
@@ -982,6 +1017,12 @@ func TestChannel_CreateDoc_WithContent_UsesDefaultConvertMockRoute(t *testing.T)
 			body := string(bodyBytes)
 			if !strings.Contains(body, "\"children_id\":[\"tmp_blk_default\"]") {
 				t.Fatalf("expected default converted children_id in descendant body, got: %s", body)
+			}
+			if !strings.Contains(body, "\"block_id\":\"tmp_blk_default\"") {
+				t.Fatalf("expected default converted block payload in descendant body, got: %s", body)
+			}
+			if !strings.Contains(body, "\"text_run\":{\"content\":\"converted markdown\"}") {
+				t.Fatalf("expected default converted markdown payload in descendant body, got: %s", body)
 			}
 			writeJSON(t, w, 0, "ok", map[string]any{
 				"document_revision_id": 2,
