@@ -38,6 +38,8 @@ done
 if [[ "$NEW_WINDOW" == "true" ]]; then
   # 在新独立窗口创建第一个 pane（不影响用户当前窗口）
   PARENT=$("$KAKU" cli spawn --new-window --cwd "$CWD" -- zsh -l)
+  # 激活新窗口使其可见
+  "$KAKU" cli activate-pane --pane-id "$PARENT"
 elif [[ "$NEW_TAB" == "true" ]]; then
   # 在当前窗口新 tab 创建第一个 pane
   PARENT=$("$KAKU" cli spawn --cwd "$CWD" -- zsh -l)
