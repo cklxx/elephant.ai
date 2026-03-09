@@ -26,6 +26,8 @@ type DebugRouterDeps struct {
 	HooksBridge            http.Handler      // may be nil
 	LarkInjectGateway      LarkInjectGateway // may be nil; set when Lark gateway is available
 	LarkOAuthHandler       *LarkOAuthHandler // may be nil
+	RuntimeHooksBridge     http.Handler      // may be nil; POST /api/hooks/runtime
+	RuntimeAPI             http.Handler      // may be nil; POST+GET /api/runtime/sessions
 }
 
 // NewDebugRouter creates an HTTP handler exposing only debug / diagnostic
@@ -112,6 +114,18 @@ func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 	// ── Claude Code hooks bridge ──
 	if deps.HooksBridge != nil {
 		mux.Handle("POST /api/hooks/claude-code", routeHandler("/api/hooks/claude-code", deps.HooksBridge))
+	}
+
+	// ── Runtime hooks bridge (Kaku runtime lifecycle events) ──
+	if deps.RuntimeHooksBridge != nil {
+		mux.Handle("POST /api/hooks/runtime", routeHandler("/api/hooks/runtime", deps.RuntimeHooksBridge))
+	}
+
+	// ── Runtime session management ──
+	if deps.RuntimeAPI != nil {
+		mux.Handle("POST /api/runtime/sessions", routeHandler("/api/runtime/sessions", deps.RuntimeAPI))
+		mux.Handle("GET /api/runtime/sessions", routeHandler("/api/runtime/sessions", deps.RuntimeAPI))
+		mux.Handle("GET /api/runtime/sessions/{id}", routeHandler("/api/runtime/sessions/:id", deps.RuntimeAPI))
 	}
 
 	// ── Lark OAuth ──

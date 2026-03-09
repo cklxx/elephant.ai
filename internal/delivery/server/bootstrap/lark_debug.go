@@ -12,15 +12,19 @@ import (
 	serverApp "alex/internal/delivery/server/app"
 	serverHTTP "alex/internal/delivery/server/http"
 	"alex/internal/infra/observability"
+	"alex/internal/runtime/hooks"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
 
 // BuildDebugHTTPServer creates a lightweight HTTP server for the Lark standalone
-// binary. It exposes health, SSE, dev/debug, config, and hooks-bridge endpoints
-// on cfg.DebugPort (default "9090") — no auth, no rate limiting.
-func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster, container *di.Container, cfg Config) (*http.Server, error) {
+// binary. It exposes health, SSE, dev/debug, config, hooks-bridge, and runtime
+// endpoints on cfg.DebugPort (default "9090") — no auth, no rate limiting.
+// It returns the server and the runtime event bus so the caller can wire
+// StallDetector, LeaderAgent, and other bus consumers.
+func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster, container *di.Container, cfg Config) (*http.Server, hooks.Bus, error) {
 	logger := logging.OrNop(f.Logger)
+	ctx := context.Background()
 
 	// Health checker — mirrors the probes from RunServer.
 	healthChecker := serverApp.NewHealthChecker()
@@ -60,6 +64,20 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 		memoryEngine = container.MemoryEngine
 	}
 
+	// Runtime hooks bridge — translates CC hook events into runtime bus events.
+	runtimeHooksHandler, runtimeBus := buildRuntimeHooksHandler(logger)
+	startRuntimeBusLogger(ctx, runtimeBus, logger)
+	if container != nil && container.LarkGateway != nil {
+		startRuntimeCompletionNotifier(ctx, runtimeBus, container.LarkGateway, cfg.HooksBridge.DefaultChatID, logger)
+	}
+
+	// Runtime subsystem: Runtime + StallDetector + LeaderAgent.
+	// The returned *Runtime is wrapped as an HTTP handler for session management.
+	var runtimeAPI http.Handler
+	if rt := startRuntimeSubsystem(ctx, runtimeBus, container, logger); rt != nil {
+		runtimeAPI = NewRuntimeSessionHandler(rt, logger)
+	}
+
 	router := serverHTTP.NewDebugRouter(serverHTTP.DebugRouterDeps{
 		Broadcaster:            broadcaster,
 		HealthChecker:          healthChecker,
@@ -72,6 +90,8 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 		HooksBridge:            hooksBridge,
 		LarkInjectGateway:      larkInjectGateway,
 		LarkOAuthHandler:       larkOAuthHandler,
+		RuntimeHooksBridge:     runtimeHooksHandler,
+		RuntimeAPI:             runtimeAPI,
 	})
 
 	port := cfg.DebugPort
@@ -88,7 +108,7 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 	}
 
 	logger.Info("Debug HTTP server configured on :%s", port)
-	return server, nil
+	return server, runtimeBus, nil
 }
 
 // buildDebugBroadcaster creates the EventBroadcaster for Lark standalone mode.

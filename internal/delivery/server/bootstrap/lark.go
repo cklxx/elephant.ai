@@ -106,7 +106,7 @@ func RunLark(observabilityConfigPath string) error {
 
 	// ── Phase 4: Debug HTTP server ──
 
-	debugServer, err := BuildDebugHTTPServer(f, broadcaster, container, config)
+	debugServer, _, err := BuildDebugHTTPServer(f, broadcaster, container, config)
 	if err != nil {
 		return fmt.Errorf("debug HTTP server: %w", err)
 	}

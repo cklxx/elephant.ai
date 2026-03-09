@@ -62,7 +62,7 @@ func TestBuildDebugHTTPServer_NilFoundation(t *testing.T) {
 	broadcaster := serverApp.NewEventBroadcaster()
 	cfg := Config{DebugPort: "0"}
 
-	server, err := BuildDebugHTTPServer(f, broadcaster, nil, cfg)
+	server, _, err := BuildDebugHTTPServer(f, broadcaster, nil, cfg)
 	if err != nil {
 		t.Fatalf("BuildDebugHTTPServer failed: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestBuildDebugHTTPServer_HealthWithNilContainer(t *testing.T) {
 	}
 
 	broadcaster := serverApp.NewEventBroadcaster()
-	server, err := BuildDebugHTTPServer(f, broadcaster, nil, Config{DebugPort: "0"})
+	server, _, err := BuildDebugHTTPServer(f, broadcaster, nil, Config{DebugPort: "0"})
 	if err != nil {
 		t.Fatalf("BuildDebugHTTPServer failed: %v", err)
 	}
