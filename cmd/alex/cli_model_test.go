@@ -14,6 +14,49 @@ import (
 	runtimeconfig "alex/internal/shared/config"
 )
 
+func TestModelListShowsCurrentSelection(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[{"id":"gpt-5.2-codex"}]}`))
+	}))
+	defer srv.Close()
+
+	tmp := t.TempDir()
+	overridesFile := filepath.Join(tmp, "overrides.yaml")
+	envLookup := func(key string) (string, bool) {
+		if key == "ALEX_CONFIG_PATH" {
+			return overridesFile, true
+		}
+		return "", false
+	}
+
+	// Set a selection first.
+	creds := runtimeconfig.CLICredentials{
+		Codex: runtimeconfig.CLICredential{
+			Provider: "codex",
+			APIKey:   "tok-abc",
+			BaseURL:  srv.URL,
+			Source:   runtimeconfig.SourceCodexCLI,
+		},
+	}
+	if err := useModelWith(&bytes.Buffer{}, "codex/gpt-5.2-codex", creds, envLookup); err != nil {
+		t.Fatalf("useModel error: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := listModelsFromWith(&buf, creds, srv.Client(), envLookup, func(context.Context) (subscription.LlamaServerTarget, bool) {
+		return subscription.LlamaServerTarget{}, false
+	}); err != nil {
+		t.Fatalf("listModels error: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "当前模型: codex/gpt-5.2-codex") {
+		t.Fatalf("expected current model in output, got:\n%s", out)
+	}
+}
+
 func TestModelListShowsProviders(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +73,7 @@ func TestModelListShowsProviders(t *testing.T) {
 			BaseURL:  srv.URL,
 			Source:   runtimeconfig.SourceCodexCLI,
 		},
-	}, srv.Client(), func(context.Context) (subscription.LlamaServerTarget, bool) {
+	}, srv.Client(), nil, func(context.Context) (subscription.LlamaServerTarget, bool) {
 		return subscription.LlamaServerTarget{}, false
 	}); err != nil {
 		t.Fatalf("listModels error: %v", err)
@@ -48,7 +91,7 @@ func TestModelListShowsProviders(t *testing.T) {
 func TestModelListShowsEmpty(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	if err := listModelsFromWith(&buf, runtimeconfig.CLICredentials{}, &http.Client{}, func(context.Context) (subscription.LlamaServerTarget, bool) {
+	if err := listModelsFromWith(&buf, runtimeconfig.CLICredentials{}, &http.Client{}, nil, func(context.Context) (subscription.LlamaServerTarget, bool) {
 		return subscription.LlamaServerTarget{}, false
 	}); err != nil {
 		t.Fatalf("listModels error: %v", err)
@@ -75,7 +118,7 @@ func TestModelListShowsErrors(t *testing.T) {
 			BaseURL:  srv.URL,
 			Source:   runtimeconfig.SourceEnv,
 		},
-	}, srv.Client(), func(context.Context) (subscription.LlamaServerTarget, bool) {
+	}, srv.Client(), nil, func(context.Context) (subscription.LlamaServerTarget, bool) {
 		return subscription.LlamaServerTarget{}, false
 	}); err != nil {
 		t.Fatalf("listModels error: %v", err)
@@ -102,7 +145,7 @@ func TestModelListIncludesLlamaServerWhenAvailable(t *testing.T) {
 	defer srv.Close()
 
 	var buf bytes.Buffer
-	if err := listModelsFromWith(&buf, runtimeconfig.CLICredentials{}, srv.Client(), func(context.Context) (subscription.LlamaServerTarget, bool) {
+	if err := listModelsFromWith(&buf, runtimeconfig.CLICredentials{}, srv.Client(), nil, func(context.Context) (subscription.LlamaServerTarget, bool) {
 		return subscription.LlamaServerTarget{
 			BaseURL: srv.URL,
 			Source:  "llama_server",

@@ -25,6 +25,7 @@ func executeModelCommand(args []string, out io.Writer) error {
 	case "", "list", "ls":
 		client := httpclient.New(20*time.Second, nil)
 		return listModelsFromWith(out, runtimeconfig.LoadCLICredentials(), client,
+			runtimeEnvLookup(),
 			func(context.Context) (subscription.LlamaServerTarget, bool) {
 				return resolveLlamaServerTarget()
 			},
@@ -49,6 +50,7 @@ func listModelsFromWith(
 	out io.Writer,
 	creds runtimeconfig.CLICredentials,
 	client *http.Client,
+	envLookup runtimeconfig.EnvLookup,
 	llamaResolver func(context.Context) (subscription.LlamaServerTarget, bool),
 ) error {
 	ctx, cancel := context.WithTimeout(cliBaseContext(), 30*time.Second)
@@ -65,6 +67,17 @@ func listModelsFromWith(
 		func() runtimeconfig.CLICredentials { return creds },
 		client, 0, opts...,
 	)
+
+	// Show current selection if any.
+	if envLookup != nil {
+		path := subscription.ResolveSelectionStorePath(envLookup, nil)
+		store := subscription.NewSelectionStore(path)
+		if sel, ok, err := store.Get(ctx, subscription.SelectionScope{Channel: "cli"}); err == nil && ok {
+			if _, werr := fmt.Fprintf(out, "当前模型: %s/%s\n\n", sel.Provider, sel.Model); werr != nil {
+				return werr
+			}
+		}
+	}
 
 	catalog := svc.Catalog(ctx)
 	providers := modelCommandProviders(catalog.Providers)
