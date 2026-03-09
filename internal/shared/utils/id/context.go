@@ -202,6 +202,20 @@ func IDsFromContext(ctx context.Context) IDs {
 	}
 }
 
+// unattendedCtxKey is the context key for unattended execution marking.
+type unattendedCtxKey struct{}
+
+// MarkUnattendedContext marks the context to indicate unattended execution.
+// Agents running in unattended mode must never ask for user confirmation.
+func MarkUnattendedContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, unattendedCtxKey{}, true)
+}
+
+// IsUnattendedContext checks if the context is marked as unattended execution.
+func IsUnattendedContext(ctx context.Context) bool {
+	return ctx.Value(unattendedCtxKey{}) != nil
+}
+
 // EnsureRunID guarantees a run identifier is present on the context.
 // It returns the updated context and the resulting identifier.
 func EnsureRunID(ctx context.Context, generator func() string) (context.Context, string) {
