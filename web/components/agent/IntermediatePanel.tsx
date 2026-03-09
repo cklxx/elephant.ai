@@ -16,7 +16,12 @@ import {
   WorkflowToolCompletedEvent,
   WorkflowToolStartedEvent,
 } from "@/lib/types";
-import { isEventType } from "@/lib/events/matching";
+import {
+  isWorkflowToolStartedEvent,
+  isWorkflowToolCompletedEvent,
+  isWorkflowNodeOutputDeltaEvent,
+  isWorkflowNodeOutputSummaryEvent,
+} from "@/lib/typeGuards";
 import { Loader2, X } from "lucide-react";
 import { LazyMarkdownRenderer } from "@/components/ui/markdown";
 import { ToolOutputCard } from "./ToolOutputCard";
@@ -49,25 +54,6 @@ const getThinkStreamKey = (
   return `${runIdentifier}:${iteration}`;
 };
 
-const isWorkflowToolStartedEvent = (
-  event: AnyAgentEvent,
-): event is WorkflowToolStartedEvent =>
-  isEventType(event, "workflow.tool.started");
-
-const isWorkflowToolCompletedEvent = (
-  event: AnyAgentEvent,
-): event is WorkflowToolCompletedEvent =>
-  isEventType(event, "workflow.tool.completed");
-
-const isWorkflowNodeOutputDeltaEvent = (
-  event: AnyAgentEvent,
-): event is WorkflowNodeOutputDeltaEvent =>
-  isEventType(event, "workflow.node.output.delta");
-
-const isWorkflowNodeOutputSummaryEvent = (
-  event: AnyAgentEvent,
-): event is WorkflowNodeOutputSummaryEvent =>
-  isEventType(event, "workflow.node.output.summary");
 
 export function IntermediatePanel({ events }: IntermediatePanelProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);

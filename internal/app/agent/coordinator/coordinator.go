@@ -296,23 +296,9 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 	// Propagate context user_id into session metadata so resolveUserID
 	// can find it for proactive hooks.
-	if ctxUserID := id.UserIDFromContext(ctx); ctxUserID != "" {
-		if env.Session.Metadata == nil {
-			env.Session.Metadata = make(map[string]string)
-		}
-		if env.Session.Metadata["user_id"] == "" {
-			env.Session.Metadata["user_id"] = ctxUserID
-		}
-	}
+	ensureSessionMetadata(env.Session, "user_id", id.UserIDFromContext(ctx))
 	// Propagate channel into session metadata for debug/diagnostic visibility.
-	if channel := appcontext.ChannelFromContext(ctx); channel != "" {
-		if env.Session.Metadata == nil {
-			env.Session.Metadata = make(map[string]string)
-		}
-		if env.Session.Metadata["channel"] == "" {
-			env.Session.Metadata["channel"] = channel
-		}
-	}
+	ensureSessionMetadata(env.Session, "channel", appcontext.ChannelFromContext(ctx))
 	clilatency.PrintfWithContext(ctx,
 		"[latency] prepare_ms=%.2f session=%s\n",
 		float64(time.Since(prepareStarted))/float64(time.Millisecond),
@@ -700,5 +686,16 @@ func extractToolCallInfo(result *agent.TaskResult) []hooks.ToolResultInfo {
 	return calls
 }
 
-// performTaskPreAnalysis performs quick task analysis using LLM
-// executeWithToolDisplay wraps ReactEngine execution with tool call display
+// ensureSessionMetadata sets a session metadata key if the value is non-empty
+// and no existing value is present.
+func ensureSessionMetadata(session *storage.Session, key string, value string) {
+	if value == "" {
+		return
+	}
+	if session.Metadata == nil {
+		session.Metadata = make(map[string]string)
+	}
+	if session.Metadata[key] == "" {
+		session.Metadata[key] = value
+	}
+}

@@ -465,7 +465,9 @@ func shouldDropPersistedSystemPrompt(msg ports.Message) bool {
 	if utils.TrimLower(msg.Role) != "system" {
 		return false
 	}
-	return strings.TrimSpace(string(msg.Source)) == ""
+	// Drop system-role messages that have no explicit source tag — these are
+	// orphan system prompts from previous runs that lack provenance.
+	return msg.Source == ""
 }
 
 func stripUserHistoryMessages(messages []ports.Message) []ports.Message {

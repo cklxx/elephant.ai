@@ -1,5 +1,5 @@
 ---
-name: moltbook
+name: moltbook-posting
 description: Interact with Moltbook (the AI agent social network) — post, browse, comment, vote, search — via shell curl.
 triggers:
   intent_patterns:

@@ -222,7 +222,7 @@ func (g *Gateway) resolveSessionForNewTask(ctx context.Context, chatID string, s
 }
 
 func (g *Gateway) loadPersistedChatSessionBinding(ctx context.Context, chatID string) string {
-	if g == nil || g.chatSessionStore == nil {
+	if g.chatSessionStore == nil {
 		return ""
 	}
 	chatID = strings.TrimSpace(chatID)
@@ -241,7 +241,7 @@ func (g *Gateway) loadPersistedChatSessionBinding(ctx context.Context, chatID st
 }
 
 func (g *Gateway) persistChatSessionBinding(ctx context.Context, chatID, sessionID string) {
-	if g == nil || g.chatSessionStore == nil {
+	if g.chatSessionStore == nil {
 		return
 	}
 	chatID = strings.TrimSpace(chatID)
@@ -783,7 +783,7 @@ func (g *Gateway) dispatchMultiMessageReply(execCtx context.Context, msg *incomi
 }
 
 func (g *Gateway) isIntentionalTaskCancellation(chatID string, taskToken uint64) bool {
-	if g == nil || taskToken == 0 {
+	if taskToken == 0 {
 		return false
 	}
 	raw, ok := g.activeSlots.Load(strings.TrimSpace(chatID))

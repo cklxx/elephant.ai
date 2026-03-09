@@ -269,11 +269,10 @@ func parseSkillFile(path string) (Skill, error) {
 		skill.GovernanceLevel = "medium"
 	}
 	switch skill.ActivationMode {
-	case "", "auto", "semi_auto", "manual":
-	default:
+	case "auto", "semi_auto", "manual":
+	case "":
 		skill.ActivationMode = "auto"
-	}
-	if skill.ActivationMode == "" {
+	default:
 		skill.ActivationMode = "auto"
 	}
 	return skill, nil

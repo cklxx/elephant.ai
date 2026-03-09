@@ -59,41 +59,50 @@ func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
 	return result
 }
 
-func convertTools(tools []ports.ToolDefinition) []map[string]any {
+// toolFormat controls whether tool definitions are nested under a "function"
+// key (OpenAI chat format) or flattened (Codex/Responses format).
+type toolFormat int
+
+const (
+	toolFormatChat    toolFormat = iota // {"type":"function","function":{...}}
+	toolFormatCodex                    // {"type":"function","name":...,"parameters":...}
+)
+
+func convertToolsWithFormat(tools []ports.ToolDefinition, format toolFormat) []map[string]any {
 	result := make([]map[string]any, 0, len(tools))
 	for _, tool := range tools {
 		if !isValidToolName(tool.Name) {
 			continue
 		}
 		schema := normalizeToolSchema(tool.Parameters)
-		// alex_material_capabilities is for renderers; it is not an OpenAI tool field.
-		entry := map[string]any{
-			"type": "function",
-			"function": map[string]any{
+		var entry map[string]any
+		switch format {
+		case toolFormatCodex:
+			entry = map[string]any{
+				"type":        "function",
 				"name":        tool.Name,
 				"description": tool.Description,
 				"parameters":  schema,
-			},
+			}
+		default:
+			entry = map[string]any{
+				"type": "function",
+				"function": map[string]any{
+					"name":        tool.Name,
+					"description": tool.Description,
+					"parameters":  schema,
+				},
+			}
 		}
 		result = append(result, entry)
 	}
 	return result
 }
 
+func convertTools(tools []ports.ToolDefinition) []map[string]any {
+	return convertToolsWithFormat(tools, toolFormatChat)
+}
+
 func convertCodexTools(tools []ports.ToolDefinition) []map[string]any {
-	result := make([]map[string]any, 0, len(tools))
-	for _, tool := range tools {
-		if !isValidToolName(tool.Name) {
-			continue
-		}
-		schema := normalizeToolSchema(tool.Parameters)
-		entry := map[string]any{
-			"type":        "function",
-			"name":        tool.Name,
-			"description": tool.Description,
-			"parameters":  schema,
-		}
-		result = append(result, entry)
-	}
-	return result
+	return convertToolsWithFormat(tools, toolFormatCodex)
 }

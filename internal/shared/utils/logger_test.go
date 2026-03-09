@@ -7,20 +7,6 @@ import (
 	"testing"
 )
 
-func TestSanitizeLogLineLeavesContentUnchanged(t *testing.T) {
-	lines := []string{
-		"2024-10-10 [INFO] [ALEX] sample.go:10 - apiKey=sk-test12345678901234567890\n",
-		"token Authorization: Bearer sk-secret-token-here",
-		"random ghp_abcd1234efgh5678ijkl9012mnop3456 value",
-	}
-
-	for _, line := range lines {
-		if got := sanitizeLogLine(line); got != line {
-			t.Fatalf("expected log line to pass through unchanged, got %q", got)
-		}
-	}
-}
-
 func TestResolveLogLevel_DefaultINFO(t *testing.T) {
 	t.Setenv(logLevelEnvVar, "")
 	if got := resolveLogLevel(); got != INFO {

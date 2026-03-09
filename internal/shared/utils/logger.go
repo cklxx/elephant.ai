@@ -275,12 +275,11 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 	if logID != "" {
 		logLine := fmt.Sprintf("%s [%s] [%s] [%s] [log_id=%s] %s:%d - %s\n",
 			timestamp, levelStr, category, component, logID, file, line, message)
-		sanitizedLine := sanitizeLogLine(logLine)
 		if l.logger != nil {
-			l.logger.Print(sanitizedLine)
+			l.logger.Print(logLine)
 		}
 		if os.Getenv("ALEX_SERVER_MODE") == "deploy" {
-			fmt.Print(sanitizedLine)
+			fmt.Print(logLine)
 		}
 		return
 	}
@@ -288,12 +287,11 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 	logLine := fmt.Sprintf("%s [%s] [%s] [%s] %s:%d - %s\n",
 		timestamp, levelStr, category, component, file, line, message)
 
-	sanitizedLine := sanitizeLogLine(logLine)
 	if l.logger != nil {
-		l.logger.Print(sanitizedLine)
+		l.logger.Print(logLine)
 	}
 	if os.Getenv("ALEX_SERVER_MODE") == "deploy" {
-		fmt.Print(sanitizedLine)
+		fmt.Print(logLine)
 	}
 }
 
@@ -333,23 +331,3 @@ func levelToString(level LogLevel) string {
 	}
 }
 
-// Helper functions for global logging
-func Debug(format string, args ...interface{}) {
-	getOrCreateCategoryLogger(LogCategoryService).Debug(format, args...)
-}
-
-func Info(format string, args ...interface{}) {
-	getOrCreateCategoryLogger(LogCategoryService).Info(format, args...)
-}
-
-func Warn(format string, args ...interface{}) {
-	getOrCreateCategoryLogger(LogCategoryService).Warn(format, args...)
-}
-
-func Error(format string, args ...interface{}) {
-	getOrCreateCategoryLogger(LogCategoryService).Error(format, args...)
-}
-
-func sanitizeLogLine(line string) string {
-	return line
-}

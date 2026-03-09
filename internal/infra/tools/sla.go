@@ -255,43 +255,33 @@ func averageCostUSD(calls int64, total float64) float64 {
 	return total / float64(calls)
 }
 
-func registerHistogramVec(registerer prometheus.Registerer, collector *prometheus.HistogramVec) (*prometheus.HistogramVec, error) {
+// registerCollectorVec registers a Prometheus collector, returning an existing
+// one if already registered with the same descriptor.
+func registerCollectorVec[T prometheus.Collector](registerer prometheus.Registerer, collector T, typeName string) (T, error) {
 	if err := registerer.Register(collector); err != nil {
 		if already, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			if existing, castOK := already.ExistingCollector.(*prometheus.HistogramVec); castOK {
+			if existing, castOK := already.ExistingCollector.(T); castOK {
 				return existing, nil
 			}
-			return nil, fmt.Errorf("histogram type mismatch: %w", err)
+			var zero T
+			return zero, fmt.Errorf("%s type mismatch: %w", typeName, err)
 		}
-		return nil, err
+		var zero T
+		return zero, err
 	}
 	return collector, nil
+}
+
+func registerHistogramVec(registerer prometheus.Registerer, collector *prometheus.HistogramVec) (*prometheus.HistogramVec, error) {
+	return registerCollectorVec(registerer, collector, "histogram")
 }
 
 func registerCounterVec(registerer prometheus.Registerer, collector *prometheus.CounterVec) (*prometheus.CounterVec, error) {
-	if err := registerer.Register(collector); err != nil {
-		if already, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			if existing, castOK := already.ExistingCollector.(*prometheus.CounterVec); castOK {
-				return existing, nil
-			}
-			return nil, fmt.Errorf("counter type mismatch: %w", err)
-		}
-		return nil, err
-	}
-	return collector, nil
+	return registerCollectorVec(registerer, collector, "counter")
 }
 
 func registerGaugeVec(registerer prometheus.Registerer, collector *prometheus.GaugeVec) (*prometheus.GaugeVec, error) {
-	if err := registerer.Register(collector); err != nil {
-		if already, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			if existing, castOK := already.ExistingCollector.(*prometheus.GaugeVec); castOK {
-				return existing, nil
-			}
-			return nil, fmt.Errorf("gauge type mismatch: %w", err)
-		}
-		return nil, err
-	}
-	return collector, nil
+	return registerCollectorVec(registerer, collector, "gauge")
 }
 
 // classifyError returns a short error-type label for Prometheus.
