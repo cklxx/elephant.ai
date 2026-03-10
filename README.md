@@ -5,8 +5,8 @@
 <h1 align="center">elephant.ai</h1>
 
 <p align="center">
-  <strong>Your AI teammate, always on.</strong><br/>
-  Proactive AI assistant that lives in Lark, remembers everything, and executes real work autonomously.
+  <strong>A leader agent for attention-heavy work.</strong><br/>
+  Lives in Lark. Tracks what's moving, surfaces what matters, follows up automatically, and only pulls you in when judgment is needed.
 </p>
 
 <p align="center">
@@ -20,23 +20,23 @@
 
 ## What is elephant.ai?
 
-elephant.ai lives inside your **Lark groups and DMs** as a first-class participant — not a bot you have to summon. It reads the room, remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. CLI and web dashboard are there when you need them, but Lark is home.
+elephant.ai is a **leader agent** that lives inside your Lark groups and DMs. It doesn't just answer questions — it takes ownership of work: tracking progress, following up on tasks, surfacing what needs your attention, and handling coordination so you don't have to.
 
-Think of it as a personal AI engineer that's always in the chat, always paying attention, always ready to ship.
+Behind the scenes it orchestrates specialist agents and tools. But to you, it feels like having one reliable operator who never drops the ball. CLI and web dashboard are there when you need them, but Lark is home.
 
 ---
 
-## ✨ Highlights
+## ✨ Why a leader agent?
 
 | | |
 |---|---|
-| 🧠 **Persistent memory** | Remembers conversations, decisions, and context across weeks and months. Never repeat yourself. |
-| ⚡ **Autonomous execution** | Full ReAct loop — Think → Act → Observe. Handles multi-step tasks without babysitting. |
-| 🔧 **15+ built-in skills** | Deep research, meeting notes, email drafts, slide decks, video scripts — triggered by natural language. |
-| 🔌 **MCP extensible** | Connect any external tool through the Model Context Protocol. Infinite integrations. |
-| 🌐 **8 LLM providers** | OpenAI, Claude, DeepSeek, Doubao, Kimi, Ollama, Codex, Qwen — auto-selects the best available. |
-| 👁️ **Full observability** | Real-time streaming, per-session cost tracking, OpenTelemetry traces, Prometheus metrics. |
+| 📌 **Continuous ownership** | Hand off a task and it stays tracked. No more "where did this go?" — the leader agent keeps working until it's done. |
+| 🔇 **Attention gating** | Compresses noise into what matters now, which risks are growing, and what needs your call. |
+| 🔄 **Proactive follow-up** | Chases status, summarizes results, escalates blockers. You don't ask "any updates?" ever again. |
+| 🤝 **Coordination absorbed** | The real work tax is track, ask, remind, align. The leader agent handles that overhead. |
+| 🧠 **Persistent memory** | Remembers conversations, decisions, and context across weeks and months. Context compounds over time. |
 | 🛡️ **Approval gates** | Knows when to ask before acting. Risky operations require explicit human sign-off in chat. |
+| 🔌 **MCP extensible** | Connect any external tool through the Model Context Protocol. Infinite integrations. |
 | 🏠 **Lark-native** | WebSocket gateway — always present in groups and DMs, no `/slash` commands needed. |
 
 ---
