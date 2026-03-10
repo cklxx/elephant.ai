@@ -30,9 +30,6 @@ func Wrap(raw *lark.Client) *Client {
 	return &Client{raw: raw}
 }
 
-// Raw returns the underlying SDK client for advanced use cases.
-func (c *Client) Raw() *lark.Client { return c.raw }
-
 // Calendar returns the calendar sub-service.
 func (c *Client) Calendar() *CalendarService {
 	return &CalendarService{client: c.raw}
@@ -86,11 +83,6 @@ func (c *Client) Mail() *MailService {
 // VC returns the video conference sub-service.
 func (c *Client) VC() *VCService {
 	return &VCService{client: c.raw}
-}
-
-// Permission returns the permission sub-service.
-func (c *Client) Permission() *PermissionService {
-	return &PermissionService{client: c.raw}
 }
 
 // --- Shared helpers ---

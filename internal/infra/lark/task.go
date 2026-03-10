@@ -80,11 +80,8 @@ func (s *TaskService) CreateTask(ctx context.Context, req CreateTaskRequest, opt
 	inputBuilder := larktask.NewInputTaskBuilder().
 		Summary(req.Summary)
 
-	if req.DueTime != nil {
-		inputBuilder.Due(larktask.NewDueBuilder().
-			Timestamp(fmt.Sprintf("%d", req.DueTime.Unix())).
-			IsAllDay(false).
-			Build())
+	if due := buildTaskDue(req.DueTime); due != nil {
+		inputBuilder.Due(due)
 	}
 
 	createReq := larktask.NewCreateTaskReqBuilder().
@@ -119,33 +116,15 @@ func (s *TaskService) PatchTask(ctx context.Context, req PatchTaskRequest, opts 
 		inputBuilder.Summary(*req.Summary)
 		updateFields = append(updateFields, "summary")
 	}
-	if req.DueTime != nil {
-		inputBuilder.Due(larktask.NewDueBuilder().
-			Timestamp(fmt.Sprintf("%d", req.DueTime.Unix())).
-			IsAllDay(false).
-			Build())
+	if due := buildTaskDue(req.DueTime); due != nil {
+		inputBuilder.Due(due)
 		updateFields = append(updateFields, "due")
 	}
-
-	body := larktask.NewPatchTaskReqBodyBuilder().
-		Task(inputBuilder.Build()).
-		UpdateFields(updateFields).
-		Build()
-
-	patchReq := larktask.NewPatchTaskReqBuilder().
-		TaskGuid(req.TaskID).
-		Body(body).
-		Build()
-
-	resp, err := s.client.Task.V2.Task.Patch(ctx, patchReq, buildOpts(opts)...)
+	task, err := s.patchTask(ctx, req.TaskID, inputBuilder.Build(), updateFields, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("patch task: %w", err)
+		return nil, err
 	}
-	if !resp.Success() {
-		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
-	}
-
-	t := parseLarkTask(resp.Data.Task)
+	t := parseLarkTask(task)
 	return &t, nil
 }
 
@@ -188,4 +167,35 @@ func parseLarkTask(item *larktask.Task) Task {
 		t.Creator = *item.Creator.Id
 	}
 	return t
+}
+
+func buildTaskDue(dueTime *time.Time) *larktask.Due {
+	if dueTime == nil {
+		return nil
+	}
+	return larktask.NewDueBuilder().
+		Timestamp(fmt.Sprintf("%d", dueTime.Unix())).
+		IsAllDay(false).
+		Build()
+}
+
+func (s *TaskService) patchTask(ctx context.Context, taskID string, task *larktask.InputTask, updateFields []string, opts ...CallOption) (*larktask.Task, error) {
+	body := larktask.NewPatchTaskReqBodyBuilder().
+		Task(task).
+		UpdateFields(updateFields).
+		Build()
+
+	patchReq := larktask.NewPatchTaskReqBuilder().
+		TaskGuid(taskID).
+		Body(body).
+		Build()
+
+	resp, err := s.client.Task.V2.Task.Patch(ctx, patchReq, buildOpts(opts)...)
+	if err != nil {
+		return nil, fmt.Errorf("patch task: %w", err)
+	}
+	if !resp.Success() {
+		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	return resp.Data.Task, nil
 }

@@ -138,61 +138,39 @@ func parseMailgroup(mg *larkmail.Mailgroup) Mailgroup {
 	if mg == nil {
 		return Mailgroup{}
 	}
-	m := Mailgroup{}
-	if mg.MailgroupId != nil {
-		m.MailgroupID = *mg.MailgroupId
-	}
-	if mg.Email != nil {
-		m.Email = *mg.Email
-	}
-	if mg.Name != nil {
-		m.Name = *mg.Name
-	}
-	if mg.Description != nil {
-		m.Description = *mg.Description
-	}
-	if mg.DirectMembersCount != nil {
-		m.DirectMembersCount, _ = strconv.ParseInt(*mg.DirectMembersCount, 10, 64)
-	}
-	return m
+	return buildMailgroup(mg.MailgroupId, mg.Email, mg.Name, mg.Description, mg.DirectMembersCount)
 }
 
 func parseGetMailgroupResp(data *larkmail.GetMailgroupRespData) Mailgroup {
-	m := Mailgroup{}
-	if data.MailgroupId != nil {
-		m.MailgroupID = *data.MailgroupId
+	if data == nil {
+		return Mailgroup{}
 	}
-	if data.Email != nil {
-		m.Email = *data.Email
-	}
-	if data.Name != nil {
-		m.Name = *data.Name
-	}
-	if data.Description != nil {
-		m.Description = *data.Description
-	}
-	if data.DirectMembersCount != nil {
-		m.DirectMembersCount, _ = strconv.ParseInt(*data.DirectMembersCount, 10, 64)
-	}
-	return m
+	return buildMailgroup(data.MailgroupId, data.Email, data.Name, data.Description, data.DirectMembersCount)
 }
 
 func parseCreateMailgroupResp(data *larkmail.CreateMailgroupRespData) Mailgroup {
+	if data == nil {
+		return Mailgroup{}
+	}
+	return buildMailgroup(data.MailgroupId, data.Email, data.Name, data.Description, data.DirectMembersCount)
+}
+
+func buildMailgroup(mailgroupID, email, name, description, directMembersCount *string) Mailgroup {
 	m := Mailgroup{}
-	if data.MailgroupId != nil {
-		m.MailgroupID = *data.MailgroupId
+	if mailgroupID != nil {
+		m.MailgroupID = *mailgroupID
 	}
-	if data.Email != nil {
-		m.Email = *data.Email
+	if email != nil {
+		m.Email = *email
 	}
-	if data.Name != nil {
-		m.Name = *data.Name
+	if name != nil {
+		m.Name = *name
 	}
-	if data.Description != nil {
-		m.Description = *data.Description
+	if description != nil {
+		m.Description = *description
 	}
-	if data.DirectMembersCount != nil {
-		m.DirectMembersCount, _ = strconv.ParseInt(*data.DirectMembersCount, 10, 64)
+	if directMembersCount != nil {
+		m.DirectMembersCount, _ = strconv.ParseInt(*directMembersCount, 10, 64)
 	}
 	return m
 }

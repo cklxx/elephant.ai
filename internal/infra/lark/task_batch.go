@@ -44,23 +44,8 @@ func (s *TaskService) BatchCompleteTasks(ctx context.Context, taskIDs []string, 
 func (s *TaskService) completeTask(ctx context.Context, taskID, completedAt string, opts ...CallOption) error {
 	inputBuilder := larktask.NewInputTaskBuilder().
 		CompletedAt(completedAt)
-
-	body := larktask.NewPatchTaskReqBodyBuilder().
-		Task(inputBuilder.Build()).
-		UpdateFields([]string{"completed_at"}).
-		Build()
-
-	patchReq := larktask.NewPatchTaskReqBuilder().
-		TaskGuid(taskID).
-		Body(body).
-		Build()
-
-	resp, err := s.client.Task.V2.Task.Patch(ctx, patchReq, buildOpts(opts)...)
-	if err != nil {
+	if _, err := s.patchTask(ctx, taskID, inputBuilder.Build(), []string{"completed_at"}, opts...); err != nil {
 		return fmt.Errorf("complete task: %w", err)
-	}
-	if !resp.Success() {
-		return &APIError{Code: resp.Code, Msg: resp.Msg}
 	}
 	return nil
 }

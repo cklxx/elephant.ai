@@ -43,11 +43,11 @@ type GroupSummary struct {
 
 // SummaryConfig controls summarization thresholds and output limits.
 type SummaryConfig struct {
-	MaxOutputChars int
-	MinMessages    int
+	MaxOutputChars  int
+	MinMessages     int
 	MinParticipants int
-	HighlightLimit int
-	TimeWindow     time.Duration
+	HighlightLimit  int
+	TimeWindow      time.Duration
 }
 
 // DefaultSummaryConfig returns sensible defaults for group summarization.
@@ -73,6 +73,17 @@ var actionKeywords = []string{
 
 var questionPrefixes = []string{
 	"how", "what", "why", "when", "where",
+}
+
+type highlightStyle struct {
+	icon  string
+	label string
+}
+
+var highlightStyles = map[string]highlightStyle{
+	"decision": {icon: "\U0001F3AF", label: "Decision"},
+	"action":   {icon: "\u2705", label: "Action"},
+	"question": {icon: "\u2753", label: "Question"},
 }
 
 // ---------- Public API ----------
@@ -285,37 +296,48 @@ func classifyMessage(m GroupMessage) (Highlight, bool) {
 func buildTextSummary(s *GroupSummary, maxChars int) string {
 	var sb strings.Builder
 
-	// Header.
-	durationStr := formatDuration(s.Duration)
-	sb.WriteString(fmt.Sprintf(
-		"**Group Discussion Summary** (%d messages, %d participants, %s)\n\n",
-		s.MessageCount, s.ActiveSpeakers, durationStr,
-	))
-
-	// Participants.
-	sb.WriteString("**Participants**: ")
-	sb.WriteString(strings.Join(s.Participants, ", "))
-	sb.WriteString("\n")
-
-	// Highlights.
-	if len(s.Highlights) > 0 {
-		sb.WriteString("\n**Key Highlights**:\n")
-		for _, h := range s.Highlights {
-			icon := highlightIcon(h.Type)
-			label := highlightLabel(h.Type)
-			sb.WriteString(fmt.Sprintf("- %s [%s] \"%s\" — %s\n", icon, label, h.Content, h.Author))
-		}
-	}
-
-	// Activity.
-	minutes := int(s.Duration.Minutes())
-	sb.WriteString(fmt.Sprintf("\n**Activity**: %d messages over %d minutes\n", s.MessageCount, minutes))
+	appendSummaryHeader(&sb, s)
+	appendParticipants(&sb, s.Participants)
+	appendHighlights(&sb, s.Highlights)
+	appendActivity(&sb, s)
 
 	result := sb.String()
 	if maxChars > 0 && len(result) > maxChars {
 		result = result[:maxChars-3] + "..."
 	}
 	return result
+}
+
+func appendSummaryHeader(sb *strings.Builder, s *GroupSummary) {
+	sb.WriteString(fmt.Sprintf(
+		"**Group Discussion Summary** (%d messages, %d participants, %s)\n\n",
+		s.MessageCount, s.ActiveSpeakers, formatDuration(s.Duration),
+	))
+}
+
+func appendParticipants(sb *strings.Builder, participants []string) {
+	sb.WriteString("**Participants**: ")
+	sb.WriteString(strings.Join(participants, ", "))
+	sb.WriteString("\n")
+}
+
+func appendHighlights(sb *strings.Builder, highlights []Highlight) {
+	if len(highlights) == 0 {
+		return
+	}
+	sb.WriteString("\n**Key Highlights**:\n")
+	for _, h := range highlights {
+		style := highlightStyleFor(h.Type)
+		sb.WriteString(fmt.Sprintf("- %s [%s] \"%s\" — %s\n", style.icon, style.label, h.Content, h.Author))
+	}
+}
+
+func appendActivity(sb *strings.Builder, s *GroupSummary) {
+	sb.WriteString(fmt.Sprintf(
+		"\n**Activity**: %d messages over %d minutes\n",
+		s.MessageCount,
+		int(s.Duration.Minutes()),
+	))
 }
 
 // formatDuration renders a duration as a human-readable string.
@@ -337,28 +359,17 @@ func formatDuration(d time.Duration) string {
 
 // highlightIcon returns the emoji prefix for a highlight type.
 func highlightIcon(t string) string {
-	switch t {
-	case "decision":
-		return "\U0001F3AF" // 🎯
-	case "action":
-		return "\u2705" // ✅
-	case "question":
-		return "\u2753" // ❓
-	default:
-		return "\u2139\uFE0F" // ℹ️
-	}
+	return highlightStyleFor(t).icon
 }
 
 // highlightLabel returns the display label for a highlight type.
 func highlightLabel(t string) string {
-	switch t {
-	case "decision":
-		return "Decision"
-	case "action":
-		return "Action"
-	case "question":
-		return "Question"
-	default:
-		return "Info"
+	return highlightStyleFor(t).label
+}
+
+func highlightStyleFor(t string) highlightStyle {
+	if style, ok := highlightStyles[t]; ok {
+		return style
 	}
+	return highlightStyle{icon: "\u2139\uFE0F", label: "Info"}
 }
