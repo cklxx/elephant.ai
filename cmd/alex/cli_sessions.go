@@ -197,7 +197,6 @@ func (c *CLI) outputSnapshot(out io.Writer, snapshot sessionstate.Snapshot, raw 
 		return err
 	}
 
-	// TODO(context): surface structured diff/plan output once the runtime populates these fields.
 	if worldKeys := sortedKeys(snapshot.World); len(worldKeys) > 0 {
 		if err := writeLine(out, "  World keys: %s\n", strings.Join(worldKeys, ", ")); err != nil {
 			return err

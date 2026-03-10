@@ -48,11 +48,11 @@ func (p *LarkCalendarProvider) ListUpcoming1on1s(ctx context.Context, memberID s
 
 	p.logger.Info("Lark calendar: listing upcoming 1:1s for %s (window=%s) [stub]", memberID, window)
 
-	// TODO: Implement Lark Calendar API call:
-	// 1. Get tenant access token using appID/appSecret
-	// 2. Call /open-apis/calendar/v4/calendars/{calendar_id}/events
-	// 3. Filter events with exactly 2 attendees (1:1)
-	// 4. Map to domain.Meeting
+	// Planned integration steps:
+	// 1. Get tenant access token using appID/appSecret.
+	// 2. Call /open-apis/calendar/v4/calendars/{calendar_id}/events.
+	// 3. Filter events with exactly 2 attendees (1:1).
+	// 4. Map to domain.Meeting.
 
 	return nil, nil
 }

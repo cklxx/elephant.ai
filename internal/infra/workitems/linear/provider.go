@@ -39,7 +39,6 @@ func (p *Provider) Provider() workitem.Provider {
 }
 
 // ListWorkItems queries Linear issues via GraphQL with team and updatedAt filters.
-// TODO: implement real GraphQL query with pagination.
 func (p *Provider) ListWorkItems(_ context.Context, q ports.IssueQuery) (ports.ProviderIssuePage, error) {
 	_ = q
 	// Stub: real implementation will execute GraphQL query:
@@ -49,7 +48,6 @@ func (p *Provider) ListWorkItems(_ context.Context, q ports.IssueQuery) (ports.P
 }
 
 // GetWorkItem fetches a single Linear issue by ID via GraphQL.
-// TODO: implement real GraphQL query.
 func (p *Provider) GetWorkItem(_ context.Context, workspaceID, workItemID string) (*workitem.WorkItem, error) {
 	_ = workspaceID
 	_ = workItemID
@@ -58,7 +56,6 @@ func (p *Provider) GetWorkItem(_ context.Context, workspaceID, workItemID string
 }
 
 // ListComments fetches comments for a Linear issue via GraphQL.
-// TODO: implement real GraphQL query with pagination.
 func (p *Provider) ListComments(_ context.Context, q ports.CommentQuery) (ports.ProviderCommentPage, error) {
 	_ = q
 	// Stub: real implementation will execute:
@@ -69,7 +66,6 @@ func (p *Provider) ListComments(_ context.Context, q ports.CommentQuery) (ports.
 // ListStatusChanges synthesizes status changes from Linear issue history.
 // Linear does not have a dedicated changelog API; status changes are derived
 // from webhook previous-value payloads or polling-diff comparisons.
-// TODO: implement status change tracking.
 func (p *Provider) ListStatusChanges(_ context.Context, q ports.StatusChangeQuery) (ports.ProviderStatusChangePage, error) {
 	_ = q
 	// Stub: Linear status changes are synthesized from:
@@ -80,7 +76,6 @@ func (p *Provider) ListStatusChanges(_ context.Context, q ports.StatusChangeQuer
 
 // ResolveWorkspaces returns the Linear organization visible to the
 // authenticated user.
-// TODO: implement real GraphQL query.
 func (p *Provider) ResolveWorkspaces(_ context.Context) ([]ports.WorkspaceRef, error) {
 	// Stub: real implementation will execute: query { organization { id name urlKey } }
 	return nil, fmt.Errorf("linear: ResolveWorkspaces not yet implemented")

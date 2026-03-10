@@ -41,7 +41,6 @@ func (p *Provider) Provider() workitem.Provider {
 }
 
 // ListWorkItems queries Jira issues via POST /rest/api/3/search/jql.
-// TODO: implement real API call with JQL query, field selection, and pagination.
 func (p *Provider) ListWorkItems(_ context.Context, q ports.IssueQuery) (ports.ProviderIssuePage, error) {
 	_ = q
 	// Stub: real implementation will POST to /rest/api/3/search/jql with:
@@ -53,7 +52,6 @@ func (p *Provider) ListWorkItems(_ context.Context, q ports.IssueQuery) (ports.P
 }
 
 // GetWorkItem fetches a single issue via GET /rest/api/3/issue/{idOrKey}.
-// TODO: implement real API call with field selection.
 func (p *Provider) GetWorkItem(_ context.Context, workspaceID, workItemID string) (*workitem.WorkItem, error) {
 	_ = workspaceID
 	_ = workItemID
@@ -63,7 +61,6 @@ func (p *Provider) GetWorkItem(_ context.Context, workspaceID, workItemID string
 }
 
 // ListComments fetches comments via GET /rest/api/3/issue/{idOrKey}/comment.
-// TODO: implement real API call with pagination.
 func (p *Provider) ListComments(_ context.Context, q ports.CommentQuery) (ports.ProviderCommentPage, error) {
 	_ = q
 	// Stub: real implementation will GET /rest/api/3/issue/{q.WorkItemID}/comment
@@ -72,7 +69,6 @@ func (p *Provider) ListComments(_ context.Context, q ports.CommentQuery) (ports.
 }
 
 // ListStatusChanges fetches changelog via POST /rest/api/3/changelog/bulkfetch.
-// TODO: implement real API call filtering for status field changes.
 func (p *Provider) ListStatusChanges(_ context.Context, q ports.StatusChangeQuery) (ports.ProviderStatusChangePage, error) {
 	_ = q
 	// Stub: real implementation will use the changelog API
@@ -82,7 +78,6 @@ func (p *Provider) ListStatusChanges(_ context.Context, q ports.StatusChangeQuer
 
 // ResolveWorkspaces returns accessible Jira Cloud sites via the
 // accessible-resources endpoint. Requires OAuth 2.0 3LO authentication.
-// TODO: implement real API call.
 func (p *Provider) ResolveWorkspaces(_ context.Context) ([]ports.WorkspaceRef, error) {
 	// Stub: real implementation will GET https://api.atlassian.com/oauth/token/accessible-resources
 	return nil, fmt.Errorf("jira: ResolveWorkspaces not yet implemented")
