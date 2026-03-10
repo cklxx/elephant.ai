@@ -4,7 +4,7 @@
 - [x] 审计 `internal/shared/json/` 和 `internal/shared/errors/` 实现、测试与调用点
 - [x] 删除 dead code、未使用错误分类并简化 JSON / error 逻辑
 - [x] 回归验证
-- [ ] review / commit / merge
+- [x] review / commit / merge
 
 ## Notes
 
