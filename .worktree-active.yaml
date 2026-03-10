@@ -1,4 +1,4 @@
-status: in_progress
+status: merged
 branch: docs/cleanup-deployment-incident
 created: 2026-03-10
 task: rewrite DEPLOYMENT.md and incident-response.md
