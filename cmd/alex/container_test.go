@@ -7,9 +7,20 @@ import (
 )
 
 func TestBuildContainer(t *testing.T) {
-	homeDir := t.TempDir()
+	// Use os.MkdirTemp instead of t.TempDir() because buildContainer spawns
+	// background goroutines (Go telemetry, file watchers) that write to $HOME
+	// after the test returns, causing t.TempDir()'s strict cleanup to fail
+	// with "directory not empty".
+	homeDir, err := os.MkdirTemp("", "TestBuildContainer")
+	if err != nil {
+		t.Fatalf("create temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(homeDir) })
+
 	t.Setenv("HOME", homeDir)
 	t.Setenv("GOTOOLCHAIN", "local")
+	t.Setenv("GOTELEMETRY", "off")
+
 	configPath := filepath.Join(homeDir, ".alex", "config.yaml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		t.Fatalf("mkdir config dir: %v", err)
@@ -22,12 +33,6 @@ func TestBuildContainer(t *testing.T) {
 		t.Fatalf("write config: %v", err)
 	}
 	t.Setenv("ALEX_CONFIG_PATH", configPath)
-
-	t.Cleanup(func() {
-		// Go telemetry may create files under $HOME asynchronously.
-		// Force-remove everything so t.TempDir() cleanup succeeds.
-		_ = os.RemoveAll(homeDir)
-	})
 
 	container, err := buildContainer()
 	if err != nil {
