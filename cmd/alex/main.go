@@ -116,6 +116,8 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 		return runStandaloneCommand(args[1:], runRuntimeCommand, exitCodeFromError)
 	case "health":
 		return runStandaloneCommand(args[1:], runHealthCommand, exitCodeFromError)
+	case "leader":
+		return runStandaloneCommand(args[1:], runLeaderCommand, exitCodeFromError)
 	}
 
 	return false, 0

@@ -106,6 +106,9 @@ Usage:
   alex llama-cpp pull <repo> <file>  Download GGUF weights from Hugging Face
   alex health                     Check server health (LLM, memory, components)
   alex health --json              Output health status as JSON
+  alex leader status              Show leader agent status (tasks, blockers, jobs)
+  alex leader dashboard           Compact terminal dashboard view
+  alex leader config show         Dump leader configuration as YAML
   alex cost                      Show cost tracking commands
   alex eval [options]            Run local agent evaluation against SWE-Bench datasets
   alex acp [--initial-message]        Run ACP (Agent Client Protocol) over stdio
