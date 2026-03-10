@@ -128,20 +128,22 @@ type Radar struct {
 	lastNotified map[string]time.Time    // "taskID:reason" → last notification time
 }
 
+// deriveDuration converts a seconds-based config value to time.Duration,
+// falling back to the provided default when both are zero.
+func deriveDuration(seconds int, existing, fallback time.Duration) time.Duration {
+	if seconds > 0 && existing == 0 {
+		existing = time.Duration(seconds) * time.Second
+	}
+	if existing == 0 {
+		return fallback
+	}
+	return existing
+}
+
 // NewRadar creates a Blocker Radar.
 func NewRadar(store task.Store, notifier notification.Notifier, cfg Config) *Radar {
-	if cfg.StaleThresholdSeconds > 0 && cfg.StaleThreshold == 0 {
-		cfg.StaleThreshold = time.Duration(cfg.StaleThresholdSeconds) * time.Second
-	}
-	if cfg.StaleThreshold == 0 {
-		cfg.StaleThreshold = 30 * time.Minute
-	}
-	if cfg.InputWaitSeconds > 0 && cfg.InputWaitThreshold == 0 {
-		cfg.InputWaitThreshold = time.Duration(cfg.InputWaitSeconds) * time.Second
-	}
-	if cfg.InputWaitThreshold == 0 {
-		cfg.InputWaitThreshold = 15 * time.Minute
-	}
+	cfg.StaleThreshold = deriveDuration(cfg.StaleThresholdSeconds, cfg.StaleThreshold, 30*time.Minute)
+	cfg.InputWaitThreshold = deriveDuration(cfg.InputWaitSeconds, cfg.InputWaitThreshold, 15*time.Minute)
 	return &Radar{
 		store:        store,
 		notifier:     notifier,
@@ -401,11 +403,7 @@ func (r *Radar) SendAlerts(ctx context.Context) (*ScanResult, error) {
 		return result, nil
 	}
 
-	target := notification.Target{
-		Channel: r.config.Channel,
-		ChatID:  r.config.ChatID,
-	}
-	if err := r.notifier.Send(ctx, target, content); err != nil {
+	if err := r.notifier.Send(ctx, r.notifyTarget(), content); err != nil {
 		return result, fmt.Errorf("send alerts: %w", err)
 	}
 
@@ -461,11 +459,7 @@ func (r *Radar) NotifyBlockedTasks(ctx context.Context) (*NotifyResult, error) {
 			continue
 		}
 
-		target := notification.Target{
-			Channel: r.config.Channel,
-			ChatID:  r.config.ChatID,
-		}
-		if err := r.notifier.Send(ctx, target, content); err != nil {
+		if err := r.notifier.Send(ctx, r.notifyTarget(), content); err != nil {
 			r.logger.Warn("NotifyBlockedTasks: send failed for task %s: %v", a.Task.TaskID, err)
 			continue
 		}
@@ -477,6 +471,10 @@ func (r *Radar) NotifyBlockedTasks(ctx context.Context) (*NotifyResult, error) {
 	r.logger.Info("NotifyBlockedTasks: detected=%d notified=%d suppressed=%d",
 		nr.Detected, nr.Notified, nr.Suppressed)
 	return nr, nil
+}
+
+func (r *Radar) notifyTarget() notification.Target {
+	return notification.Target{Channel: r.config.Channel, ChatID: r.config.ChatID}
 }
 
 func notifyKey(taskID string, reason BlockReason) string {

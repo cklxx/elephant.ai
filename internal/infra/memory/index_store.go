@@ -218,8 +218,9 @@ func (s *IndexStore) ReplaceChunks(ctx context.Context, path string, chunks []In
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback() //nolint:errcheck // rollback is no-op after commit
+
 	if err := deleteBySourcePathTx(ctx, tx, path); err != nil {
-		_ = tx.Rollback()
 		return err
 	}
 
@@ -232,28 +233,23 @@ func (s *IndexStore) ReplaceChunks(ctx context.Context, path string, chunks []In
 	for _, chunk := range chunks {
 		res, err := tx.ExecContext(ctx, insertChunk, path, chunk.StartLine, chunk.EndLine, chunk.Text, chunk.Hash)
 		if err != nil {
-			_ = tx.Rollback()
 			return err
 		}
 		id, err := res.LastInsertId()
 		if err != nil {
-			_ = tx.Rollback()
 			return err
 		}
 		embeddingBytes := float32sToBytes(chunk.Embedding)
 		if _, err := tx.ExecContext(ctx, insertVec, id, embeddingBytes); err != nil {
-			_ = tx.Rollback()
 			return err
 		}
 		if s.ftsEnabled {
 			if _, err := tx.ExecContext(ctx, insertFTS, id, chunk.Text); err != nil && !isMissingTable(err) {
-				_ = tx.Rollback()
 				return err
 			}
 		}
 		if chunk.Hash != "" && len(embeddingBytes) > 0 {
 			if _, err := tx.ExecContext(ctx, insertCache, chunk.Hash, embeddingBytes); err != nil {
-				_ = tx.Rollback()
 				return err
 			}
 		}
@@ -281,7 +277,6 @@ func (s *IndexStore) ReplaceChunks(ctx context.Context, path string, chunks []In
 				edgeType,
 				direction,
 			); err != nil {
-				_ = tx.Rollback()
 				return err
 			}
 		}
@@ -299,8 +294,8 @@ func (s *IndexStore) DeleteByPath(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback() //nolint:errcheck // rollback is no-op after commit
 	if err := deleteByPathTx(ctx, tx, path); err != nil {
-		_ = tx.Rollback()
 		return err
 	}
 	return tx.Commit()
@@ -539,17 +534,16 @@ func deleteByPathTx(ctx context.Context, tx *sql.Tx, path string) error {
 }
 
 func deleteBySourcePathTx(ctx context.Context, tx *sql.Tx, path string) error {
-	if _, err := tx.ExecContext(ctx, `DELETE FROM chunks_vec WHERE rowid IN (SELECT id FROM chunks WHERE path = ?);`, path); err != nil && !isMissingTable(err) {
-		return err
+	stmts := []string{
+		`DELETE FROM chunks_vec WHERE rowid IN (SELECT id FROM chunks WHERE path = ?);`,
+		`DELETE FROM chunks_fts WHERE rowid IN (SELECT id FROM chunks WHERE path = ?);`,
+		`DELETE FROM chunks WHERE path = ?;`,
+		`DELETE FROM memory_edges WHERE src_path = ?;`,
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM chunks_fts WHERE rowid IN (SELECT id FROM chunks WHERE path = ?);`, path); err != nil && !isMissingTable(err) {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM chunks WHERE path = ?;`, path); err != nil && !isMissingTable(err) {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM memory_edges WHERE src_path = ?;`, path); err != nil && !isMissingTable(err) {
-		return err
+	for _, q := range stmts {
+		if _, err := tx.ExecContext(ctx, q, path); err != nil && !isMissingTable(err) {
+			return err
+		}
 	}
 	return nil
 }
