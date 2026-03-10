@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -84,7 +83,7 @@ func loadClaudeFromFile(readFile func(string) ([]byte, error), path string) CLIC
 // Claude Code v2.1+ stores credentials under service "Claude Code-credentials".
 // A nil cmdRunner means external commands are disabled (e.g. in tests); returns empty.
 func loadClaudeFromKeychain(cmdRunner func(string, ...string) ([]byte, error)) CLICredential {
-	if cmdRunner == nil || runtime.GOOS != "darwin" {
+	if cmdRunner == nil {
 		return CLICredential{}
 	}
 
