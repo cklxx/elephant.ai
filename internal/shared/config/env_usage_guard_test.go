@@ -23,6 +23,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 		"internal/infra/external/claudecode/executor_sdk_integration_tool_test.go",
 		"internal/runtime/adapter/claude_code.go",
 		"internal/runtime/panel/panel.go",
+		"internal/runtime/panel/tmux_backend.go",
 		"internal/shared/utils/logger.go",
 	)
 

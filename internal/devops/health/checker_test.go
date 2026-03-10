@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -315,9 +316,9 @@ func TestWaitHealthy_ContextCancelled(t *testing.T) {
 
 func TestWaitHealthy_BecomesHealthy(t *testing.T) {
 	// Start with a failing server, then make it healthy.
-	healthy := false
+	var healthy atomic.Bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if healthy {
+		if healthy.Load() {
 			w.WriteHeader(http.StatusOK)
 		} else {
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -331,7 +332,7 @@ func TestWaitHealthy_BecomesHealthy(t *testing.T) {
 	// Make healthy after a short delay.
 	go func() {
 		time.Sleep(150 * time.Millisecond)
-		healthy = true
+		healthy.Store(true)
 	}()
 
 	err := c.WaitHealthy(context.Background(), "web", 2*time.Second)
