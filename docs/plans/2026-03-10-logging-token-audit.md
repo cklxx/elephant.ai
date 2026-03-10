@@ -31,3 +31,11 @@
 - 验证已通过：
   - `go test ./internal/shared/logging ./internal/shared/token`
   - `./scripts/run-golangci-lint.sh run ./internal/shared/logging/... ./internal/shared/token/...`
+
+## Revalidation
+
+- 2026-03-10 on current `main`: re-audited `internal/shared/logging/` and `internal/shared/token/`; current implementation still matches the plan notes above.
+- Re-ran:
+  - `go test ./internal/shared/logging ./internal/shared/token`
+  - `./scripts/run-golangci-lint.sh run ./internal/shared/logging/... ./internal/shared/token/...`
+- No additional code changes were required for this revalidation pass.
