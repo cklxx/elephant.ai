@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-go run ./scripts/eval-quick.go
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+exec "${REPO_ROOT}/scripts/go-with-toolchain.sh" run ./scripts/eval-quick.go

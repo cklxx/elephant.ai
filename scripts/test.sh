@@ -16,6 +16,7 @@ cd "$PROJECT_ROOT"
 
 CLI_BINARY="alex"
 CLI_PACKAGE="./cmd/alex"
+GO="${PROJECT_ROOT}/scripts/go-with-toolchain.sh"
 
 export GOMODCACHE="${PROJECT_ROOT}/.cache/go/pkg/mod"
 export GOCACHE="${PROJECT_ROOT}/.cache/go/build"
@@ -37,31 +38,29 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-ensure_go() {
-    if ! command -v go >/dev/null 2>&1; then
-        print_error "Go toolchain not installed"
+run_go() {
+    if [[ ! -x "${GO}" ]]; then
+        print_error "Go toolchain wrapper not found at ${GO}"
         exit 1
     fi
+    "${GO}" "$@"
 }
 
 build_cli() {
-    ensure_go
     print_status "Building alex CLI..."
-    go build -o "${CLI_BINARY}" "${CLI_PACKAGE}"
+    run_go build -o "${CLI_BINARY}" "${CLI_PACKAGE}"
     print_success "Built ./alex"
 }
 
 run_unit_tests() {
-    ensure_go
     print_status "Running unit tests..."
-    go test ./cmd/... ./internal/... ./tests/... -count=1
+    run_go test ./cmd/... ./internal/... ./tests/... -count=1
     print_success "Unit tests passed"
 }
 
 run_integration_tests() {
-    ensure_go
     print_status "Running integration tests..."
-    go test ./evaluation/... -count=1
+    run_go test ./evaluation/... -count=1
     print_success "Integration tests passed"
 }
 
