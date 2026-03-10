@@ -121,8 +121,7 @@ func (m *Manager) Merge(ctx context.Context, alloc *agent.WorkspaceAllocation, s
 		Strategy: strategy,
 	}
 
-	switch strategy {
-	case agent.MergeStrategyReview:
+	if strategy == agent.MergeStrategyReview {
 		return m.buildReviewResult(ctx, alloc, result), nil
 	}
 	if err := m.applyMergeStrategy(ctx, alloc, strategy); err != nil {

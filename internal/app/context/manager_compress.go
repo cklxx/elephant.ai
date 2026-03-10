@@ -250,9 +250,7 @@ func buildCompressionPlan(messages []ports.Message) compressionPlan {
 	shared := ports.BuildCompressionPlan(messages, ports.CompressionPlanOptions{
 		KeepRecentTurns: 1,
 		PreserveSource:  isCompressionPreservedSource,
-		IsSynthetic: func(msg ports.Message) bool {
-			return isContextCompressionSummary(msg)
-		},
+		IsSynthetic: isContextCompressionSummary,
 	})
 	return compressionPlan{
 		compressibleOriginalIndexes: shared.CompressibleIndexes,

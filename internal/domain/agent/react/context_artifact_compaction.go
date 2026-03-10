@@ -146,9 +146,7 @@ func buildContextCompactionPlan(messages []Message) contextCompactionPlan {
 	shared := ports.BuildCompressionPlan(messages, ports.CompressionPlanOptions{
 		KeepRecentTurns: 1,
 		PreserveSource:  isPreservedSource,
-		IsSynthetic: func(msg ports.Message) bool {
-			return isSyntheticCompactionMessage(msg)
-		},
+		IsSynthetic: isSyntheticCompactionMessage,
 	})
 	return contextCompactionPlan{
 		compressibleOriginalIndexes: shared.CompressibleIndexes,

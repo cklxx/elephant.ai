@@ -109,7 +109,7 @@ func (g *Gateway) formatCostSummary(ctx context.Context, now time.Time) string {
 	// Today
 	today, err := g.costTracker.GetDailyCost(ctx, now)
 	if err == nil && today != nil && today.RequestCount > 0 {
-		sb.WriteString(fmt.Sprintf("\u4eca\u65e5\u7528\u91cf:\n")) // "今日用量:"
+		sb.WriteString("\u4eca\u65e5\u7528\u91cf:\n") // "今日用量:"
 		sb.WriteString(formatCostSummaryBlock(today))
 	} else {
 		sb.WriteString("\u4eca\u65e5\u7528\u91cf: \u6682\u65e0\u8bb0\u5f55\n") // "今日用量: 暂无记录"
@@ -119,7 +119,7 @@ func (g *Gateway) formatCostSummary(ctx context.Context, now time.Time) string {
 	weekStart := startOfWeek(now)
 	weekly, err := g.costTracker.GetDateRangeCost(ctx, weekStart, now)
 	if err == nil && weekly != nil && weekly.RequestCount > 0 {
-		sb.WriteString(fmt.Sprintf("\n\u672c\u5468\u7d2f\u8ba1:\n")) // "本周累计:"
+		sb.WriteString("\n\u672c\u5468\u7d2f\u8ba1:\n") // "本周累计:"
 		sb.WriteString(formatCostSummaryBlock(weekly))
 	}
 

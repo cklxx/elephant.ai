@@ -85,11 +85,12 @@ func (a *cliApprover) RequestApproval(ctx context.Context, request *tools.Approv
 
 func approvalPrompt(request *tools.ApprovalRequest) string {
 	var b strings.Builder
-	if request.ToolName != "" {
+	switch {
+	case request.ToolName != "":
 		fmt.Fprintf(&b, "\nApproval required for %s", request.ToolName)
-	} else if request.Operation != "" {
+	case request.Operation != "":
 		fmt.Fprintf(&b, "\nApproval required for %s", request.Operation)
-	} else {
+	default:
 		b.WriteString("\nApproval required")
 	}
 	if request.FilePath != "" {

@@ -112,12 +112,8 @@ func RunServer(observabilityConfigPath string) error { //nolint:cyclop // multi-
 	if config.TaskExecution.LeaseTTL > 0 || config.TaskExecution.LeaseRenewInterval > 0 {
 		taskOpts = append(taskOpts, serverApp.WithTaskLeaseConfig(config.TaskExecution.LeaseTTL, config.TaskExecution.LeaseRenewInterval))
 	}
-	if config.TaskExecution.MaxInFlight > 0 {
-		taskOpts = append(taskOpts, serverApp.WithTaskAdmissionLimit(config.TaskExecution.MaxInFlight))
-	} else {
-		// MaxInFlight == 0 explicitly disables admission limiter.
-		taskOpts = append(taskOpts, serverApp.WithTaskAdmissionLimit(config.TaskExecution.MaxInFlight))
-	}
+	// MaxInFlight == 0 explicitly disables admission limiter.
+	taskOpts = append(taskOpts, serverApp.WithTaskAdmissionLimit(config.TaskExecution.MaxInFlight))
 	if config.TaskExecution.ResumeClaimBatchSize > 0 {
 		taskOpts = append(taskOpts, serverApp.WithResumeClaimBatchSize(config.TaskExecution.ResumeClaimBatchSize))
 	}

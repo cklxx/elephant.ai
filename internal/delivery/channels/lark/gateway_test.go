@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -417,7 +418,7 @@ func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 	// Initialize dedup cache.
 		gw.dedup = newEventDedup(nil)
@@ -470,7 +471,7 @@ func TestHandleMessageSessionHistoryEnabled(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -518,7 +519,7 @@ func TestHandleMessagePostContent(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -614,7 +615,7 @@ func TestHandleMessageSetsMemoryPolicy(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true, MemoryEnabled: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 
 		gw.dedup = newEventDedup(nil)
@@ -665,7 +666,7 @@ func TestHandleMessageReusesSessionAcrossTurns(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -747,7 +748,7 @@ func TestHandleMessageReusesAwaitingSession(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -822,7 +823,7 @@ func TestHandleMessageDropsInFlightFollowUpWhenRunCompletes(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -911,7 +912,7 @@ func TestHandleMessageDropsInFlightFollowUpForGroupChat(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowGroups: true, AllowDirect: false}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1000,7 +1001,7 @@ func TestHandleMessageReprocessesInFlightFollowUpWhenAwaitingInput(t *testing.T)
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1154,7 +1155,7 @@ func TestHandleMessageInjectsPlanFeedback(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", PlanReviewEnabled: true},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 	gw.SetPlanReviewStore(store)
 		gw.dedup = newEventDedup(nil)
@@ -1213,7 +1214,7 @@ func TestHandleMessageSavesPlanReviewPendingOnAwaitUserInput(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", PlanReviewEnabled: true},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 	gw.SetPlanReviewStore(store)
 		gw.dedup = newEventDedup(nil)
@@ -1277,7 +1278,7 @@ func TestHandleMessageAwaitUserInputRepliesWithQuestion(t *testing.T) {
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: recorder,
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1350,7 +1351,7 @@ func TestHandleMessageAwaitUserInputRepliesWithNumberedOptions(t *testing.T) {
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: recorder,
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1411,7 +1412,7 @@ func TestHandleMessageSeedsPendingUserInput(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1476,7 +1477,7 @@ func TestHandleMessageSendsPlanReviewTextWhenEnabled(t *testing.T) {
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: recorder,
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1541,7 +1542,7 @@ func TestHandleMessageSendsTextResultReply(t *testing.T) {
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: recorder,
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1614,7 +1615,7 @@ func TestHandleMessageSendsTextReplyWithAttachments(t *testing.T) {
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: recorder,
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1643,7 +1644,7 @@ func TestHandleMessageSendsTextReplyWithAttachments(t *testing.T) {
 	// Expect a text reply and no attachment upload because the reply text does not reference any attachment names.
 	replyCalls := recorder.CallsByMethod("ReplyMessage")
 	sendCalls := recorder.CallsByMethod("SendMessage")
-	allMsgCalls := append(replyCalls, sendCalls...)
+	allMsgCalls := slices.Concat(replyCalls, sendCalls)
 
 	foundTextReply := false
 	for _, call := range allMsgCalls {
@@ -1681,7 +1682,7 @@ func TestHandleMessageResetCommand(t *testing.T) {
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: recorder,
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1741,7 +1742,7 @@ func TestHandleMessageStopCommandCancelsInFlightTask(t *testing.T) {
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: recorder,
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1828,7 +1829,7 @@ func TestHandleMessageContextCanceledSendsFailureReplyWhenNotIntentional(t *test
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: recorder,
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1895,7 +1896,7 @@ func TestHandleMessageTimeoutStillSendsFailureReply(t *testing.T) {
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: &strictContextMessenger{inner: recorder},
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -1952,7 +1953,7 @@ func TestHandleMessageStopCommandWhenIdle(t *testing.T) {
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: recorder,
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -2007,7 +2008,7 @@ func TestHandleMessageNewCommandSwitchesSessionBinding(t *testing.T) {
 		logger:           logging.OrNop(nil),
 		messenger:        recorder,
 		chatSessionStore: store,
-		now:              func() time.Time { return time.Now() },
+		now:              time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 
@@ -2196,7 +2197,7 @@ func TestHandleMessageModelCommandPinsSelection(t *testing.T) {
 		cfg:           Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:         executor,
 		logger:        logging.OrNop(nil),
-		now:           func() time.Time { return time.Now() },
+		now:           time.Now,
 		llmSelections: subscription.NewSelectionStore(storePath),
 		llmResolver: subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
 			return runtimeconfig.CLICredentials{}
@@ -2280,7 +2281,7 @@ func TestHandleMessageModelListUsesTextReply(t *testing.T) {
 			AppSecret:  "secret",
 		},
 		logger:    logging.OrNop(nil),
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 		messenger: recorder,
 		cliCredsLoader: func() runtimeconfig.CLICredentials {
 			return runtimeconfig.CLICredentials{
@@ -2360,7 +2361,7 @@ func TestHandleMessageAIChatAdvancesSingleTurn(t *testing.T) {
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: recorder,
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 	if gw.aiCoordinator == nil {
@@ -3332,7 +3333,7 @@ func TestDrainAndReprocessPreservesOrdering(t *testing.T) {
 		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		now:    time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 

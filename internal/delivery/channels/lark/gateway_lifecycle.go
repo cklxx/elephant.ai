@@ -100,7 +100,7 @@ func (g *Gateway) wsConnectLoop(ctx context.Context, eventDispatcher *dispatcher
 		}
 
 		// Exponential backoff capped at wsReconnectMaxDelay.
-		delay = delay * 2
+		delay *= 2
 		if delay > wsReconnectMaxDelay {
 			delay = wsReconnectMaxDelay
 		}

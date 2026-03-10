@@ -3,7 +3,6 @@ package lark
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -148,7 +147,7 @@ func (a *AutoAuth) pollAndFinalize(
 			}
 
 			// Send a synthetic message to trigger the AI to retry.
-			syntheticContent := fmt.Sprintf(`{"text":"I have completed Feishu authorization, please continue the previous operation."}`)
+			syntheticContent := `{"text":"I have completed Feishu authorization, please continue the previous operation."}`
 			if _, sendErr := a.messenger.SendMessage(context.Background(), chatID, "text", syntheticContent); sendErr != nil {
 				a.logger.Warn("auto_auth: send synthetic message failed: %v", sendErr)
 			}

@@ -178,7 +178,7 @@ func TestHandleMessageNoticeCommandBypassesInFlightInjection(t *testing.T) {
 		logger:      logging.OrNop(nil),
 		messenger:   recorder,
 		noticeState: store,
-		now:         func() time.Time { return time.Now() },
+		now:         time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 

@@ -203,11 +203,12 @@ func (a *Agent) handleChildCompleted(ctx context.Context, ev hooks.Event) {
 	childError, _ := ev.Payload["child_error"].(string)
 
 	var resultSummary string
-	if childError != "" {
+	switch {
+	case childError != "":
 		resultSummary = fmt.Sprintf("FAILED with error: %s", childError)
-	} else if childAnswer != "" {
+	case childAnswer != "":
 		resultSummary = fmt.Sprintf("completed successfully. Result: %s", childAnswer)
-	} else {
+	default:
 		resultSummary = "completed (no explicit result)"
 	}
 

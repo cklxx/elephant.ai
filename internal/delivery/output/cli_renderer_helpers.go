@@ -71,22 +71,24 @@ func appendDurationSuffix(rendered string, duration time.Duration) string {
 		return rendered
 	}
 	formatted := ""
-	if duration < time.Second {
+	switch {
+	case duration < time.Second:
 		formatted = fmt.Sprintf("%dms", duration.Milliseconds())
-	} else if duration < time.Minute {
+	case duration < time.Minute:
 		seconds := duration.Seconds()
-		if seconds < 10 {
+		switch {
+		case seconds < 10:
 			formatted = fmt.Sprintf("%.2fs", seconds)
-		} else if seconds < 100 {
+		case seconds < 100:
 			formatted = fmt.Sprintf("%.1fs", seconds)
-		} else {
+		default:
 			formatted = fmt.Sprintf("%.0fs", seconds)
 		}
-	} else if duration < time.Hour {
+	case duration < time.Hour:
 		minutes := int(duration.Minutes())
 		seconds := int(duration.Seconds()) % 60
 		formatted = fmt.Sprintf("%dm%02ds", minutes, seconds)
-	} else {
+	default:
 		hours := int(duration.Hours())
 		minutes := int(duration.Minutes()) % 60
 		formatted = fmt.Sprintf("%dh%02dm", hours, minutes)

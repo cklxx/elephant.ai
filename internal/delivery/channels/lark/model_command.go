@@ -240,7 +240,7 @@ func formatModelListText(status string, catalog subscription.Catalog) string {
 		}
 		header := fmt.Sprintf("- %s (%s)", p.Provider, p.Source)
 		if utils.HasContent(p.Error) {
-			header = header + fmt.Sprintf(" — %s", strings.TrimSpace(p.Error))
+			header += fmt.Sprintf(" — %s", strings.TrimSpace(p.Error))
 		}
 		lines = append(lines, header)
 		models := p.Models

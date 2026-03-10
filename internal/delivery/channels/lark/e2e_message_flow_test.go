@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"slices"
+
 	"alex/internal/delivery/channels"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
@@ -53,24 +55,6 @@ func (e *e2eExecutor) getCapturedTask() string {
 	return e.capturedTask
 }
 
-// waitForCalls polls the recorder until at least minCount calls of the given method appear.
-func waitForCalls(t *testing.T, rec *RecordingMessenger, method string, minCount int, timeout time.Duration) []MessengerCall {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		calls := rec.CallsByMethod(method)
-		if len(calls) >= minCount {
-			return calls
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	calls := rec.CallsByMethod(method)
-	if len(calls) < minCount {
-		t.Fatalf("timeout waiting for %d %s calls, got %d", minCount, method, len(calls))
-	}
-	return calls
-}
-
 // TestE2E_NormalMessageFlow verifies the happy path: message → executor → reply.
 func TestE2E_NormalMessageFlow(t *testing.T) {
 	rec := NewRecordingMessenger()
@@ -100,7 +84,7 @@ func TestE2E_NormalMessageFlow(t *testing.T) {
 	// Check both ReplyMessage and SendMessage.
 	replies := rec.CallsByMethod(MethodReplyMessage)
 	sends := rec.CallsByMethod(MethodSendMessage)
-	allOutbound := append(replies, sends...)
+	allOutbound := slices.Concat(replies, sends)
 	if len(allOutbound) == 0 {
 		t.Fatal("expected at least one outbound message (ReplyMessage or SendMessage)")
 	}
@@ -153,7 +137,7 @@ func TestE2E_AttentionGate_LowUrgencyAutoAck(t *testing.T) {
 	// Auto-ack may be sent via ReplyMessage or SendMessage depending on messageID type.
 	replies := rec.CallsByMethod(MethodReplyMessage)
 	sends := rec.CallsByMethod(MethodSendMessage)
-	allOutbound := append(replies, sends...)
+	allOutbound := slices.Concat(replies, sends)
 	if len(allOutbound) == 0 {
 		t.Fatal("expected auto-ack reply")
 	}
@@ -206,7 +190,7 @@ func TestE2E_AttentionGate_HighUrgencyPassthrough(t *testing.T) {
 	// Should get a normal reply (not auto-ack).
 	replies := rec.CallsByMethod(MethodReplyMessage)
 	sends := rec.CallsByMethod(MethodSendMessage)
-	allOutbound := append(replies, sends...)
+	allOutbound := slices.Concat(replies, sends)
 	if len(allOutbound) == 0 {
 		t.Fatal("expected at least one reply for urgent message")
 	}
@@ -284,7 +268,7 @@ func TestE2E_ExecutorError_Degradation(t *testing.T) {
 
 	replies := rec.CallsByMethod(MethodReplyMessage)
 	sends := rec.CallsByMethod(MethodSendMessage)
-	allOutbound := append(replies, sends...)
+	allOutbound := slices.Concat(replies, sends)
 	if len(allOutbound) == 0 {
 		t.Fatal("expected an error reply to be sent")
 	}
@@ -350,7 +334,7 @@ func TestE2E_MultipleMessagesSequential(t *testing.T) {
 	// Both replies should be present.
 	replies := rec.CallsByMethod(MethodReplyMessage)
 	sends := rec.CallsByMethod(MethodSendMessage)
-	allOutbound := append(replies, sends...)
+	allOutbound := slices.Concat(replies, sends)
 	if len(allOutbound) < 2 {
 		t.Fatalf("expected at least 2 outbound messages, got %d", len(allOutbound))
 	}

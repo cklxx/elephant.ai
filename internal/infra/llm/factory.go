@@ -333,9 +333,7 @@ func isKimiTarget(provider, model, baseURL string) bool {
 // claudeOAuthTokenRefresher returns a tokenRefresher that forces a Claude OAuth
 // token refresh via the Keychain and returns the new access token.
 func claudeOAuthTokenRefresher() tokenRefresher {
-	return func() (string, error) {
-		return config.ForceRefreshClaudeOAuth()
-	}
+	return config.ForceRefreshClaudeOAuth
 }
 
 type Config struct {

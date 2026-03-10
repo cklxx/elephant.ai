@@ -235,7 +235,7 @@ func newTestGatewayWithMessenger(exec AgentExecutor, messenger LarkMessenger, ba
 		logger:      logging.OrNop(nil),
 		messenger:   wrapInjectCaptureHub(messenger),
 		dedup: newEventDedup(nil),
-		now:         func() time.Time { return time.Now() },
+		now:         time.Now,
 	}
 }
 

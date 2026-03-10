@@ -54,16 +54,17 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		}
 		attachmentSummary = buildAttachmentSummary(textOnlyAttachments)
 		if reply == "" && isAwait {
-			if hasAwaitPrompt && len(awaitPrompt.Options) > 0 {
+			switch {
+			case hasAwaitPrompt && len(awaitPrompt.Options) > 0:
 				reply = formatNumberedOptions(awaitPrompt.Question, awaitPrompt.Options)
 				// Store pending options so numeric replies can be resolved.
 				slot := g.getOrCreateSlot(msg.chatID)
 				slot.mu.Lock()
 				slot.pendingOptions = awaitPrompt.Options
 				slot.mu.Unlock()
-			} else if hasAwaitPrompt {
+			case hasAwaitPrompt:
 				reply = awaitPrompt.Question
-			} else {
+			default:
 				reply = "需要你补充信息后继续。"
 			}
 		}

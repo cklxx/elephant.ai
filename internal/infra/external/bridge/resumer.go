@@ -198,15 +198,16 @@ func (r *Resumer) harvestOrphan(ctx context.Context, orphan OrphanedBridge, task
 		}
 	}
 
-	if lastErr != nil {
+	switch {
+	case lastErr != nil:
 		_ = r.store.SetError(ctx, task.TaskID, lastErr.Error())
 		_ = r.store.SetStatus(ctx, task.TaskID, taskdomain.StatusFailed,
 			taskdomain.WithTransitionReason("harvested from completed orphan"))
-	} else if result.Answer != "" {
+	case result.Answer != "":
 		_ = r.store.SetResult(ctx, task.TaskID, result.Answer, nil, result.TokensUsed)
 		_ = r.store.SetStatus(ctx, task.TaskID, taskdomain.StatusCompleted,
 			taskdomain.WithTransitionReason("harvested from completed orphan"))
-	} else {
+	default:
 		// Done sentinel exists but no result — mark as failed.
 		_ = r.store.SetStatus(ctx, task.TaskID, taskdomain.StatusFailed,
 			taskdomain.WithTransitionReason("completed orphan produced no result"))

@@ -85,45 +85,35 @@ func NewDefaultRegistry() *Registry {
 
 func registerBuiltinProviders(r *Registry) {
 	// OpenAI-compatible family
-	openAIFactory := func(model string, cfg Config) (portsllm.LLMClient, error) {
-		return NewOpenAIClient(model, cfg)
-	}
 	for _, name := range []string{"openai", "openrouter", "deepseek", "kimi", "glm", "minimax"} {
 		r.Register(&ProviderDescriptor{
 			Name:          name,
 			Family:        "openai-compat",
-			ClientFactory: openAIFactory,
+			ClientFactory: NewOpenAIClient,
 		})
 	}
 
 	// Codex/Responses family
-	responsesFactory := func(model string, cfg Config) (portsllm.LLMClient, error) {
-		return NewOpenAIResponsesClient(model, cfg)
-	}
 	for _, name := range []string{"openai-responses", "codex"} {
 		r.Register(&ProviderDescriptor{
 			Name:          name,
 			Family:        "codex-compat",
-			ClientFactory: responsesFactory,
+			ClientFactory: NewOpenAIResponsesClient,
 		})
 	}
 
 	// Anthropic
 	r.Register(&ProviderDescriptor{
-		Name:   "anthropic",
-		Family: "anthropic",
-		ClientFactory: func(model string, cfg Config) (portsllm.LLMClient, error) {
-			return NewAnthropicClient(model, cfg)
-		},
+		Name:          "anthropic",
+		Family:        "anthropic",
+		ClientFactory: NewAnthropicClient,
 	})
 
 	// LlamaCpp
 	r.Register(&ProviderDescriptor{
-		Name:   "llama.cpp",
-		Family: "llamacpp",
-		ClientFactory: func(model string, cfg Config) (portsllm.LLMClient, error) {
-			return NewLlamaCppClient(model, cfg)
-		},
+		Name:          "llama.cpp",
+		Family:        "llamacpp",
+		ClientFactory: NewLlamaCppClient,
 	})
 
 	// Mock

@@ -1228,7 +1228,11 @@ func TestTruncateToolResultContentCutsAtLineBoundary(t *testing.T) {
 	got := truncateToolResultContent(content, 8000)
 
 	// Should cut at the end of line 2 (8000 chars), not mid-line 3.
-	lines := strings.Split(strings.TrimRight(got[:strings.Index(got, "[Content truncated:")], "\n"), "\n")
+	idx := strings.Index(got, "[Content truncated:")
+	if idx == -1 {
+		t.Fatal("expected truncation marker not found")
+	}
+	lines := strings.Split(strings.TrimRight(got[:idx], "\n"), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 lines before hint, got %d", len(lines))
 	}

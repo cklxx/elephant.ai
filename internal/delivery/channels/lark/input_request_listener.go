@@ -187,8 +187,7 @@ func (l *inputRequestListener) OnEvent(event agentports.AgentEvent) {
 		l.inner.OnEvent(event)
 	}
 
-	switch e := event.(type) {
-	case *domain.WorkflowEventEnvelope:
+	if e, ok := event.(*domain.WorkflowEventEnvelope); ok {
 		l.onEnvelope(e)
 	}
 }

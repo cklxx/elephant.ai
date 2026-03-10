@@ -114,11 +114,12 @@ func (m *ManagedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 
 		result, execErr := m.base.Execute(ctx, runReq)
 		lastResult = result
-		if execErr != nil {
+		switch {
+		case execErr != nil:
 			lastErr = fmt.Errorf("attempt %d/%d execution failed: %w", attempt, retries, execErr)
-		} else if result != nil && utils.HasContent(result.Error) {
+		case result != nil && utils.HasContent(result.Error):
 			lastErr = fmt.Errorf("attempt %d/%d execution failed: %s", attempt, retries, strings.TrimSpace(result.Error))
-		} else {
+		default:
 			workingDir := strings.TrimSpace(req.WorkingDir)
 			if workingDir == "" {
 				workingDir = "."

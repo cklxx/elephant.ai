@@ -316,11 +316,12 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 	bt.completedAt = m.clock.Now()
 	bt.result = result
 	bt.err = err
-	if ctx.Err() != nil {
+	switch {
+	case ctx.Err() != nil:
 		bt.status = agent.BackgroundTaskStatusCancelled
-	} else if err != nil {
+	case err != nil:
 		bt.status = agent.BackgroundTaskStatusFailed
-	} else {
+	default:
 		bt.status = agent.BackgroundTaskStatusCompleted
 	}
 	bt.mu.Unlock()

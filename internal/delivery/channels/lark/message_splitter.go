@@ -221,14 +221,15 @@ func groupByHeadings(blocks []topLevelBlock, sourceLines []string) []string {
 	}
 
 	for _, b := range blocks {
-		if b.kind == ast.KindHeading {
+		switch {
+		case b.kind == ast.KindHeading:
 			flush()
 			sectionStart = b.startLine
 			sectionEnd = b.endLine
 			inSection = true
-		} else if inSection {
+		case inSection:
 			sectionEnd = b.endLine
-		} else {
+		default:
 			// Content before first heading.
 			seg := extractLines(sourceLines, b.startLine, b.endLine)
 			if seg != "" {

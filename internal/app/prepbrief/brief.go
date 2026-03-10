@@ -159,9 +159,7 @@ func (s *Service) enrichGitSignals(ctx context.Context, brief *Brief, cutoff tim
 			s.logger.Warn("Failed to list open PRs for %s: %v", repo, err)
 			continue
 		}
-		for _, pr := range prs {
-			brief.OpenPRs = append(brief.OpenPRs, pr)
-		}
+		brief.OpenPRs = append(brief.OpenPRs, prs...)
 
 		events, err := s.GitSignalSource.ListRecentEvents(ctx, cutoff)
 		if err != nil {

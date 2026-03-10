@@ -139,8 +139,7 @@ func hasFilePrefix(name string) bool {
 
 // hasShellPrefix reports whether the tool name indicates a shell/exec operation.
 func hasShellPrefix(name string) bool {
-	switch name {
-	case "bash":
+	if name == "bash" {
 		return true
 	}
 	for _, p := range []string{"shell_exec", "run_command", "terminal", "exec_"} {

@@ -76,7 +76,7 @@ func TestHandleMessageToolFailureThresholdSendsAbortNotice(t *testing.T) {
 		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: &strictContextMessenger{inner: recorder},
-		now:       func() time.Time { return time.Now() },
+		now:       time.Now,
 	}
 		gw.dedup = newEventDedup(nil)
 

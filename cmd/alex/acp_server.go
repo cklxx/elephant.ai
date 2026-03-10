@@ -137,8 +137,7 @@ func (s *acpServer) handleNotification(_ context.Context, req *jsonrpc.Request, 
 	if req == nil {
 		return
 	}
-	switch req.Method {
-	case "session/cancel":
+	if req.Method == "session/cancel" {
 		s.handleSessionCancel(req.Params)
 	}
 }

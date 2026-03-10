@@ -24,22 +24,23 @@ func (tf *ToolFormatter) formatTodoResult(content string) string {
 		}
 
 		// Detect section headers (both text and markdown format)
-		if strings.HasPrefix(line, "In Progress:") || strings.HasPrefix(line, "## In Progress") {
+		switch {
+		case strings.HasPrefix(line, "In Progress:") || strings.HasPrefix(line, "## In Progress"):
 			currentSection = "progress"
 			output = append(output, "")
 			output = append(output, "  In Progress:")
 			continue
-		} else if strings.HasPrefix(line, "Pending:") || strings.HasPrefix(line, "## Pending") {
+		case strings.HasPrefix(line, "Pending:") || strings.HasPrefix(line, "## Pending"):
 			currentSection = "pending"
 			output = append(output, "")
 			output = append(output, "  Pending:")
 			continue
-		} else if strings.Contains(line, "Completed:") || strings.HasPrefix(line, "## Completed") {
+		case strings.Contains(line, "Completed:") || strings.HasPrefix(line, "## Completed"):
 			currentSection = "completed"
 			output = append(output, "")
 			output = append(output, "  Completed:")
 			continue
-		} else if strings.HasPrefix(line, "Updated:") || strings.HasPrefix(line, "Todo List:") {
+		case strings.HasPrefix(line, "Updated:") || strings.HasPrefix(line, "Todo List:"):
 			// Skip summary/header lines
 			continue
 		}

@@ -255,9 +255,10 @@ func (t *costTracker) getFilteredRecords(ctx context.Context, filter storage.Exp
 	var err error
 
 	// Priority: SessionID > DateRange > Model > All
-	if filter.SessionID != "" {
+	switch {
+	case filter.SessionID != "":
 		records, err = t.store.GetBySession(ctx, filter.SessionID)
-	} else if !filter.StartDate.IsZero() || !filter.EndDate.IsZero() {
+	case !filter.StartDate.IsZero() || !filter.EndDate.IsZero():
 		start := filter.StartDate
 		end := filter.EndDate
 		if start.IsZero() {
@@ -267,9 +268,9 @@ func (t *costTracker) getFilteredRecords(ctx context.Context, filter storage.Exp
 			end = time.Now() // Now
 		}
 		records, err = t.store.GetByDateRange(ctx, start, end)
-	} else if filter.Model != "" {
+	case filter.Model != "":
 		records, err = t.store.GetByModel(ctx, filter.Model)
-	} else {
+	default:
 		records, err = t.store.ListAll(ctx)
 	}
 
