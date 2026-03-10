@@ -9,23 +9,8 @@ import (
 
 	"alex/internal/domain/task"
 	"alex/internal/infra/taskstore"
-	"alex/internal/shared/notification"
+	"alex/internal/testutil"
 )
-
-// fakeNotifier records sent messages.
-type fakeNotifier struct {
-	sent []sentMsg
-}
-
-type sentMsg struct {
-	target  notification.Target
-	content string
-}
-
-func (f *fakeNotifier) Send(_ context.Context, target notification.Target, content string) error {
-	f.sent = append(f.sent, sentMsg{target: target, content: content})
-	return nil
-}
 
 func newTestStore(t *testing.T) task.Store {
 	t.Helper()
@@ -178,7 +163,7 @@ func TestSendCheckin(t *testing.T) {
 	tk.ChatID = "oc_test123"
 	_ = store.Create(ctx, tk)
 
-	notif := &fakeNotifier{}
+	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()
 	cfg.Channel = "lark"
 	cfg.ChatID = "oc_test123"
@@ -189,16 +174,16 @@ func TestSendCheckin(t *testing.T) {
 		t.Fatalf("SendCheckin: %v", err)
 	}
 
-	if len(notif.sent) != 1 {
-		t.Fatalf("sent = %d, want 1", len(notif.sent))
+	if len(notif.Sent) != 1 {
+		t.Fatalf("sent = %d, want 1", len(notif.Sent))
 	}
-	if notif.sent[0].target.Channel != "lark" {
-		t.Errorf("channel = %q, want lark", notif.sent[0].target.Channel)
+	if notif.Sent[0].Target.Channel != "lark" {
+		t.Errorf("channel = %q, want lark", notif.Sent[0].Target.Channel)
 	}
-	if notif.sent[0].target.ChatID != "oc_test123" {
-		t.Errorf("chatID = %q, want oc_test123", notif.sent[0].target.ChatID)
+	if notif.Sent[0].Target.ChatID != "oc_test123" {
+		t.Errorf("chatID = %q, want oc_test123", notif.Sent[0].Target.ChatID)
 	}
-	if !strings.Contains(notif.sent[0].content, "test task") {
+	if !strings.Contains(notif.Sent[0].Content, "test task") {
 		t.Errorf("content should contain task description")
 	}
 }

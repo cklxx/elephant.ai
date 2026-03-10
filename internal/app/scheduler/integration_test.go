@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"alex/internal/shared/config"
+	"alex/internal/testutil"
 
 	"gopkg.in/yaml.v3"
 )
@@ -125,7 +126,7 @@ func TestIntegration_LeaderConfigToScheduler(t *testing.T) {
 	milestoneSvc := &mockMilestoneCheckinService{}
 	prepSvc := &mockPrepBriefService{}
 	coord := &mockCoordinator{answer: "ok"}
-	notif := &mockNotifier{}
+	notif := &testutil.StubNotifier{}
 
 	// Build scheduler Config from LeaderConfig.
 	cfg := Config{
@@ -208,7 +209,7 @@ func TestIntegration_LeaderSchedulerExecution(t *testing.T) {
 	milestoneSvc := &mockMilestoneCheckinService{}
 	prepSvc := &mockPrepBriefService{}
 	coord := &mockCoordinator{answer: "ok"}
-	notif := &mockNotifier{}
+	notif := &testutil.StubNotifier{}
 
 	// Use every-minute schedules so the test completes quickly.
 	cfg := Config{

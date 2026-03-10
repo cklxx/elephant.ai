@@ -12,6 +12,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/shared/notification"
 	"alex/internal/shared/utils"
 )
 
@@ -153,6 +154,48 @@ func (l *RecordingEventListener) Events() []agent.AgentEvent {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return utils.CloneSlice(l.events)
+}
+
+// SentNotification records a single notification delivery.
+type SentNotification struct {
+	Target  notification.Target
+	Content string
+}
+
+// StubNotifier is a thread-safe notifier that records sent messages.
+// It implements notification.Notifier.
+type StubNotifier struct {
+	mu      sync.Mutex
+	Sent    []SentNotification
+	SendErr error
+}
+
+func (n *StubNotifier) Send(_ context.Context, target notification.Target, content string) error {
+	if n.SendErr != nil {
+		return n.SendErr
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.Sent = append(n.Sent, SentNotification{Target: target, Content: content})
+	return nil
+}
+
+// Count returns the number of sent notifications (thread-safe).
+func (n *StubNotifier) Count() int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return len(n.Sent)
+}
+
+// Contents returns just the content strings of sent notifications (thread-safe).
+func (n *StubNotifier) Contents() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	out := make([]string, len(n.Sent))
+	for i, s := range n.Sent {
+		out[i] = s.Content
+	}
+	return out
 }
 
 // StubHistoryManager is a no-op history manager for tests.

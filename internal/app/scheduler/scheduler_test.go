@@ -12,7 +12,7 @@ import (
 	"alex/internal/domain/calendar"
 	"alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/config"
-	"alex/internal/shared/notification"
+	"alex/internal/testutil"
 )
 
 // mockCoordinator records calls to ExecuteTask.
@@ -115,29 +115,6 @@ func (m *mockLeaderLock) stats() (acquireCalls int, releaseCalls int) {
 	return m.acquireCalls, m.releaseCalls
 }
 
-// mockNotifier records notification messages.
-type mockNotifier struct {
-	mu       sync.Mutex
-	messages []sentMessage
-}
-
-type sentMessage struct {
-	Target  notification.Target
-	Content string
-}
-
-func (m *mockNotifier) Send(_ context.Context, target notification.Target, content string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.messages = append(m.messages, sentMessage{Target: target, Content: content})
-	return nil
-}
-
-func (m *mockNotifier) messageCount() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return len(m.messages)
-}
 
 func TestScheduler_Disabled(t *testing.T) {
 	sched := New(Config{Enabled: false}, nil, nil, nil)
@@ -212,7 +189,7 @@ func TestScheduler_LeaderLockReleasedOnStop(t *testing.T) {
 
 func TestScheduler_StaticTriggerRegistration(t *testing.T) {
 	coord := &mockCoordinator{answer: "done"}
-	notifier := &mockNotifier{}
+	notifier := &testutil.StubNotifier{}
 
 	sched := New(Config{
 		Enabled: true,
@@ -338,7 +315,7 @@ key_results: {}
 	}
 
 	coord := &mockCoordinator{answer: "reviewed"}
-	notifier := &mockNotifier{}
+	notifier := &testutil.StubNotifier{}
 
 	sched := New(Config{
 		Enabled:      true,
@@ -486,7 +463,7 @@ func TestSchedulerExecuteTriggerAppliesTimeout(t *testing.T) {
 
 func TestScheduler_ExecuteTrigger(t *testing.T) {
 	coord := &mockCoordinator{answer: "task result"}
-	notifier := &mockNotifier{}
+	notifier := &testutil.StubNotifier{}
 
 	sched := New(Config{Enabled: true}, coord, notifier, nil)
 
@@ -506,13 +483,11 @@ func TestScheduler_ExecuteTrigger(t *testing.T) {
 		t.Errorf("expected 1 coordinator call, got %d", coord.callCount())
 	}
 
-	if notifier.messageCount() != 1 {
-		t.Fatalf("expected 1 Lark message, got %d", notifier.messageCount())
+	if notifier.Count() != 1 {
+		t.Fatalf("expected 1 Lark message, got %d", notifier.Count())
 	}
 
-	notifier.mu.Lock()
-	msg := notifier.messages[0]
-	notifier.mu.Unlock()
+	msg := notifier.Sent[0]
 
 	if msg.Target.ChatID != "oc_exec" {
 		t.Errorf("ChatID = %q, want oc_exec", msg.Target.ChatID)
@@ -524,7 +499,7 @@ func TestScheduler_ExecuteTrigger(t *testing.T) {
 
 func TestScheduler_ExecuteTrigger_LarkRequiresOpenID(t *testing.T) {
 	coord := &mockCoordinator{answer: "task result"}
-	notifier := &mockNotifier{}
+	notifier := &testutil.StubNotifier{}
 
 	sched := New(Config{Enabled: true}, coord, notifier, nil)
 
@@ -543,8 +518,8 @@ func TestScheduler_ExecuteTrigger_LarkRequiresOpenID(t *testing.T) {
 	if coord.callCount() != 0 {
 		t.Errorf("expected coordinator not called, got %d", coord.callCount())
 	}
-	if notifier.messageCount() != 0 {
-		t.Fatalf("expected no notifier messages, got %d", notifier.messageCount())
+	if notifier.Count() != 0 {
+		t.Fatalf("expected no notifier messages, got %d", notifier.Count())
 	}
 }
 
@@ -572,7 +547,7 @@ func TestScheduler_ExecuteTrigger_NoNotifier(t *testing.T) {
 
 func TestScheduler_ExecuteTrigger_SkipsWhenStopped(t *testing.T) {
 	coord := &mockCoordinator{answer: "done"}
-	notifier := &mockNotifier{}
+	notifier := &testutil.StubNotifier{}
 	sched := New(Config{Enabled: true}, coord, notifier, nil)
 
 	// Mark scheduler as stopped without requiring a full Start lifecycle.
@@ -593,8 +568,8 @@ func TestScheduler_ExecuteTrigger_SkipsWhenStopped(t *testing.T) {
 	if coord.callCount() != 0 {
 		t.Fatalf("expected coordinator not called, got %d", coord.callCount())
 	}
-	if notifier.messageCount() != 0 {
-		t.Fatalf("expected no notifications, got %d", notifier.messageCount())
+	if notifier.Count() != 0 {
+		t.Fatalf("expected no notifications, got %d", notifier.Count())
 	}
 }
 
@@ -662,7 +637,7 @@ func TestTrigger_GoalIDMarksOKRTrigger(t *testing.T) {
 
 func TestScheduler_RapidCronExecution(t *testing.T) {
 	coord := &mockCoordinator{answer: "tick"}
-	notifier := &mockNotifier{}
+	notifier := &testutil.StubNotifier{}
 
 	// Use every-minute cron to test actual execution
 	sched := New(Config{

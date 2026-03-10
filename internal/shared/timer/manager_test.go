@@ -8,7 +8,7 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/shared/notification"
+	"alex/internal/testutil"
 )
 
 // mockCoordinator records calls to ExecuteTask.
@@ -64,28 +64,11 @@ func (m *mockCoordinator) getCalls() []executedTask {
 	return cp
 }
 
-// mockNotifier records notifications.
-type mockNotifier struct {
-	mu   sync.Mutex
-	sent []sentNotification
-}
-
-type sentNotification struct {
-	Target  notification.Target
-	Content string
-}
-
-func (n *mockNotifier) Send(_ context.Context, target notification.Target, content string) error {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.sent = append(n.sent, sentNotification{Target: target, Content: content})
-	return nil
-}
 
 func TestManagerOneShotFires(t *testing.T) {
 	dir := t.TempDir()
 	coord := newMockCoordinator(&agent.TaskResult{Answer: "done"}, nil)
-	notifier := &mockNotifier{}
+	notifier := &testutil.StubNotifier{}
 
 	mgr, err := NewTimerManager(Config{
 		Enabled:     true,
@@ -157,7 +140,7 @@ func TestManagerRecurring(t *testing.T) {
 		StorePath:   dir,
 		MaxTimers:   10,
 		TaskTimeout: 10 * time.Second,
-	}, coord, &mockNotifier{}, nil)
+	}, coord, &testutil.StubNotifier{}, nil)
 	if err != nil {
 		t.Fatalf("NewTimerManager: %v", err)
 	}
@@ -212,7 +195,7 @@ func TestManagerCancel(t *testing.T) {
 		StorePath:   dir,
 		MaxTimers:   10,
 		TaskTimeout: 10 * time.Second,
-	}, coord, &mockNotifier{}, nil)
+	}, coord, &testutil.StubNotifier{}, nil)
 	if err != nil {
 		t.Fatalf("NewTimerManager: %v", err)
 	}
@@ -276,7 +259,7 @@ func TestManagerMaxTimerLimit(t *testing.T) {
 		StorePath:   dir,
 		MaxTimers:   2,
 		TaskTimeout: 10 * time.Second,
-	}, coord, &mockNotifier{}, nil)
+	}, coord, &testutil.StubNotifier{}, nil)
 	if err != nil {
 		t.Fatalf("NewTimerManager: %v", err)
 	}
@@ -376,7 +359,7 @@ func TestManagerRestartRecovery(t *testing.T) {
 		StorePath:   dir,
 		MaxTimers:   100,
 		TaskTimeout: 10 * time.Second,
-	}, coord, &mockNotifier{}, nil)
+	}, coord, &testutil.StubNotifier{}, nil)
 	if err != nil {
 		t.Fatalf("NewTimerManager: %v", err)
 	}
@@ -428,7 +411,7 @@ func TestManagerStopCleansUp(t *testing.T) {
 		StorePath:   dir,
 		MaxTimers:   10,
 		TaskTimeout: 10 * time.Second,
-	}, coord, &mockNotifier{}, nil)
+	}, coord, &testutil.StubNotifier{}, nil)
 	if err != nil {
 		t.Fatalf("NewTimerManager: %v", err)
 	}
@@ -479,7 +462,7 @@ func TestManagerSessionIDPassedThrough(t *testing.T) {
 		StorePath:   dir,
 		MaxTimers:   10,
 		TaskTimeout: 10 * time.Second,
-	}, coord, &mockNotifier{}, nil)
+	}, coord, &testutil.StubNotifier{}, nil)
 	if err != nil {
 		t.Fatalf("NewTimerManager: %v", err)
 	}
@@ -524,7 +507,7 @@ func TestManagerSessionIDPassedThrough(t *testing.T) {
 func TestManagerNotification(t *testing.T) {
 	dir := t.TempDir()
 	coord := newMockCoordinator(&agent.TaskResult{Answer: "timer result"}, nil)
-	notifier := &mockNotifier{}
+	notifier := &testutil.StubNotifier{}
 
 	mgr, err := NewTimerManager(Config{
 		Enabled:     true,
@@ -564,16 +547,14 @@ func TestManagerNotification(t *testing.T) {
 	coord.waitForCall(t, 5*time.Second)
 	time.Sleep(100 * time.Millisecond)
 
-	notifier.mu.Lock()
-	defer notifier.mu.Unlock()
-	if len(notifier.sent) == 0 {
+	if notifier.Count() == 0 {
 		t.Fatal("expected notification")
 	}
-	if notifier.sent[0].Target.ChatID != "oc_chat456" {
-		t.Errorf("chatID: got %q, want %q", notifier.sent[0].Target.ChatID, "oc_chat456")
+	if notifier.Sent[0].Target.ChatID != "oc_chat456" {
+		t.Errorf("chatID: got %q, want %q", notifier.Sent[0].Target.ChatID, "oc_chat456")
 	}
-	if notifier.sent[0].Content != "timer result" {
-		t.Errorf("content: got %q, want %q", notifier.sent[0].Content, "timer result")
+	if notifier.Sent[0].Content != "timer result" {
+		t.Errorf("content: got %q, want %q", notifier.Sent[0].Content, "timer result")
 	}
 }
 
@@ -586,7 +567,7 @@ func TestManagerList(t *testing.T) {
 		StorePath:   dir,
 		MaxTimers:   10,
 		TaskTimeout: 10 * time.Second,
-	}, coord, &mockNotifier{}, nil)
+	}, coord, &testutil.StubNotifier{}, nil)
 	if err != nil {
 		t.Fatalf("NewTimerManager: %v", err)
 	}
@@ -640,7 +621,7 @@ func TestManagerDisabled(t *testing.T) {
 	mgr, err := NewTimerManager(Config{
 		Enabled:   false,
 		StorePath: dir,
-	}, coord, &mockNotifier{}, nil)
+	}, coord, &testutil.StubNotifier{}, nil)
 	if err != nil {
 		t.Fatalf("NewTimerManager: %v", err)
 	}

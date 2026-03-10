@@ -11,17 +11,8 @@ import (
 	signalports "alex/internal/domain/signal/ports"
 	"alex/internal/domain/task"
 	"alex/internal/infra/taskstore"
-	"alex/internal/shared/notification"
+	"alex/internal/testutil"
 )
-
-type fakeNotifier struct {
-	sent []sentMsg
-}
-
-type sentMsg struct {
-	target  notification.Target
-	content string
-}
 
 type fakeGitSignalProvider struct {
 	bottlenecksByRepo map[string][]signal.SignalEvent
@@ -47,11 +38,6 @@ func historyTaskCount(r *Radar) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return len(r.history)
-}
-
-func (f *fakeNotifier) Send(_ context.Context, target notification.Target, content string) error {
-	f.sent = append(f.sent, sentMsg{target: target, content: content})
-	return nil
 }
 
 var _ signalports.GitSignalProvider = (*fakeGitSignalProvider)(nil)
@@ -465,7 +451,7 @@ func TestFormatAlerts_WithData(t *testing.T) {
 
 func TestSendAlerts_NoBlockers(t *testing.T) {
 	store := newTestStore(t)
-	notif := &fakeNotifier{}
+	notif := &testutil.StubNotifier{}
 	r := NewRadar(store, notif, DefaultConfig())
 
 	result, err := r.SendAlerts(context.Background())
@@ -475,7 +461,7 @@ func TestSendAlerts_NoBlockers(t *testing.T) {
 	if len(result.Alerts) != 0 {
 		t.Errorf("expected 0 alerts")
 	}
-	if len(notif.sent) != 0 {
+	if len(notif.Sent) != 0 {
 		t.Error("should not send notification when no blockers")
 	}
 }
@@ -487,7 +473,7 @@ func TestSendAlerts_WithBlockers(t *testing.T) {
 	tk := makeTask("t1", "stuck task", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 
-	notif := &fakeNotifier{}
+	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()
 	cfg.StaleThreshold = 1 * time.Minute
 	cfg.Channel = "lark"
@@ -502,16 +488,16 @@ func TestSendAlerts_WithBlockers(t *testing.T) {
 	if len(result.Alerts) == 0 {
 		t.Fatal("expected alerts")
 	}
-	if len(notif.sent) != 1 {
-		t.Fatalf("sent = %d, want 1", len(notif.sent))
+	if len(notif.Sent) != 1 {
+		t.Fatalf("sent = %d, want 1", len(notif.Sent))
 	}
-	if notif.sent[0].target.Channel != "lark" {
-		t.Errorf("channel = %q, want lark", notif.sent[0].target.Channel)
+	if notif.Sent[0].Target.Channel != "lark" {
+		t.Errorf("channel = %q, want lark", notif.Sent[0].Target.Channel)
 	}
-	if notif.sent[0].target.ChatID != "oc_test" {
-		t.Errorf("chatID = %q, want oc_test", notif.sent[0].target.ChatID)
+	if notif.Sent[0].Target.ChatID != "oc_test" {
+		t.Errorf("chatID = %q, want oc_test", notif.Sent[0].Target.ChatID)
 	}
-	if !strings.Contains(notif.sent[0].content, "stuck task") {
+	if !strings.Contains(notif.Sent[0].Content, "stuck task") {
 		t.Error("notification should contain task description")
 	}
 }
@@ -713,7 +699,7 @@ func TestReasonIcon(t *testing.T) {
 
 func TestNotifyBlockedTasks_NoAlerts(t *testing.T) {
 	store := newTestStore(t)
-	notif := &fakeNotifier{}
+	notif := &testutil.StubNotifier{}
 	r := NewRadar(store, notif, DefaultConfig())
 
 	nr, err := r.NotifyBlockedTasks(context.Background())
@@ -724,7 +710,7 @@ func TestNotifyBlockedTasks_NoAlerts(t *testing.T) {
 		t.Errorf("expected all zeros, got detected=%d notified=%d suppressed=%d",
 			nr.Detected, nr.Notified, nr.Suppressed)
 	}
-	if len(notif.sent) != 0 {
+	if len(notif.Sent) != 0 {
 		t.Error("should not send when no alerts")
 	}
 }
@@ -737,7 +723,7 @@ func TestNotifyBlockedTasks_SendsPerTaskNotification(t *testing.T) {
 	_ = store.Create(ctx, makeTask("t2", "flaky build", task.StatusRunning))
 	_ = store.SetError(ctx, "t2", "build timeout")
 
-	notif := &fakeNotifier{}
+	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()
 	cfg.StaleThreshold = 1 * time.Minute
 	cfg.Channel = "lark"
@@ -759,18 +745,18 @@ func TestNotifyBlockedTasks_SendsPerTaskNotification(t *testing.T) {
 	if nr.Suppressed != 0 {
 		t.Errorf("suppressed = %d, want 0", nr.Suppressed)
 	}
-	if len(notif.sent) != nr.Detected {
-		t.Errorf("sent = %d, want %d", len(notif.sent), nr.Detected)
+	if len(notif.Sent) != nr.Detected {
+		t.Errorf("sent = %d, want %d", len(notif.Sent), nr.Detected)
 	}
 	// Check notification content.
-	for _, msg := range notif.sent {
-		if msg.target.Channel != "lark" {
-			t.Errorf("channel = %q, want lark", msg.target.Channel)
+	for _, msg := range notif.Sent {
+		if msg.Target.Channel != "lark" {
+			t.Errorf("channel = %q, want lark", msg.Target.Channel)
 		}
-		if !strings.Contains(msg.content, "Blocked Task Alert") {
+		if !strings.Contains(msg.Content, "Blocked Task Alert") {
 			t.Error("notification should contain 'Blocked Task Alert'")
 		}
-		if !strings.Contains(msg.content, "Suggested action") {
+		if !strings.Contains(msg.Content, "Suggested action") {
 			t.Error("notification should contain 'Suggested action'")
 		}
 	}
@@ -782,7 +768,7 @@ func TestNotifyBlockedTasks_DeduplicatesWithin24h(t *testing.T) {
 
 	_ = store.Create(ctx, makeTask("t1", "stuck", task.StatusRunning))
 
-	notif := &fakeNotifier{}
+	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()
 	cfg.StaleThreshold = 1 * time.Minute
 	cfg.Channel = "lark"
@@ -801,7 +787,7 @@ func TestNotifyBlockedTasks_DeduplicatesWithin24h(t *testing.T) {
 		t.Errorf("first call suppressed = %d, want 0", nr1.Suppressed)
 	}
 
-	sentAfterFirst := len(notif.sent)
+	sentAfterFirst := len(notif.Sent)
 
 	// Second call at same time: should suppress.
 	nr2, _ := r.NotifyBlockedTasks(ctx)
@@ -811,7 +797,7 @@ func TestNotifyBlockedTasks_DeduplicatesWithin24h(t *testing.T) {
 	if nr2.Suppressed != nr2.Detected {
 		t.Errorf("second call suppressed = %d, want %d", nr2.Suppressed, nr2.Detected)
 	}
-	if len(notif.sent) != sentAfterFirst {
+	if len(notif.Sent) != sentAfterFirst {
 		t.Error("second call should not send additional notifications")
 	}
 }
@@ -822,7 +808,7 @@ func TestNotifyBlockedTasks_ResendAfter24h(t *testing.T) {
 
 	_ = store.Create(ctx, makeTask("t1", "stuck", task.StatusRunning))
 
-	notif := &fakeNotifier{}
+	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()
 	cfg.StaleThreshold = 1 * time.Minute
 	cfg.Channel = "lark"
@@ -837,7 +823,7 @@ func TestNotifyBlockedTasks_ResendAfter24h(t *testing.T) {
 	if nr1.Notified == 0 {
 		t.Fatal("first call should notify")
 	}
-	sentAfterFirst := len(notif.sent)
+	sentAfterFirst := len(notif.Sent)
 
 	// Advance 25 hours — past cooldown.
 	t1 := t0.Add(25 * time.Hour)
@@ -847,7 +833,7 @@ func TestNotifyBlockedTasks_ResendAfter24h(t *testing.T) {
 	if nr2.Notified == 0 {
 		t.Error("should re-notify after 24h cooldown")
 	}
-	if len(notif.sent) <= sentAfterFirst {
+	if len(notif.Sent) <= sentAfterFirst {
 		t.Error("should have sent additional notifications after cooldown")
 	}
 }
@@ -860,7 +846,7 @@ func TestNotifyBlockedTasks_DifferentReasonsNotDeduplicated(t *testing.T) {
 	_ = store.Create(ctx, tk)
 	_ = store.SetError(ctx, "t1", "connection timeout")
 
-	notif := &fakeNotifier{}
+	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()
 	cfg.StaleThreshold = 1 * time.Minute
 	cfg.Channel = "lark"
@@ -885,7 +871,7 @@ func TestNotifyBlockedTasks_MergesTaskAndGitAlerts(t *testing.T) {
 
 	_ = store.Create(ctx, makeTask("t1", "stuck deploy", task.StatusRunning))
 
-	notif := &fakeNotifier{}
+	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()
 	cfg.StaleThreshold = 1 * time.Minute
 	cfg.Channel = "lark"
@@ -911,20 +897,20 @@ func TestNotifyBlockedTasks_MergesTaskAndGitAlerts(t *testing.T) {
 	if nr.Notified != 2 {
 		t.Fatalf("notified = %d, want 2", nr.Notified)
 	}
-	if len(notif.sent) != 2 {
-		t.Fatalf("sent = %d, want 2", len(notif.sent))
+	if len(notif.Sent) != 2 {
+		t.Fatalf("sent = %d, want 2", len(notif.Sent))
 	}
 
 	var sawTaskAlert bool
 	var sawGitAlert bool
-	for _, msg := range notif.sent {
+	for _, msg := range notif.Sent {
 		switch {
-		case strings.Contains(msg.content, "stuck deploy"):
+		case strings.Contains(msg.Content, "stuck deploy"):
 			sawTaskAlert = true
-		case strings.Contains(msg.content, "org/repo PR #17 waiting for review"):
+		case strings.Contains(msg.Content, "org/repo PR #17 waiting for review"):
 			sawGitAlert = true
-			if !strings.Contains(msg.content, "reviewer-1") {
-				t.Fatalf("git alert missing reviewer context: %s", msg.content)
+			if !strings.Contains(msg.Content, "reviewer-1") {
+				t.Fatalf("git alert missing reviewer context: %s", msg.Content)
 			}
 		}
 	}
@@ -1022,7 +1008,7 @@ func TestReapStaleNotifications(t *testing.T) {
 
 	_ = store.Create(ctx, makeTask("t1", "stuck", task.StatusRunning))
 
-	notif := &fakeNotifier{}
+	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()
 	cfg.StaleThreshold = 1 * time.Minute
 	cfg.Channel = "lark"
