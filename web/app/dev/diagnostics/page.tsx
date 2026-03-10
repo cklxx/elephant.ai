@@ -740,22 +740,26 @@ function TurnMessagesViewer({
   }, [turnSnapshot.messages]);
 
   const tokenStats = useMemo(() => {
-    let cumulative = 0;
-    return messages.map((msg) => {
-      const content = typeof msg.content === "string" ? msg.content : "";
-      const toolCalls = Array.isArray(msg.tool_calls)
-        ? JSON.stringify(msg.tool_calls).length
-        : 0;
-      const toolResults = Array.isArray(msg.tool_results)
-        ? JSON.stringify(msg.tool_results).length
-        : 0;
-      const tokens =
-        estimateTokens(content) +
-        Math.ceil(toolCalls / 4) +
-        Math.ceil(toolResults / 4);
-      cumulative += tokens;
-      return { tokens, cumulative };
-    });
+    return messages.reduce<{ tokens: number; cumulative: number }[]>(
+      (acc, msg) => {
+        const content = typeof msg.content === "string" ? msg.content : "";
+        const toolCalls = Array.isArray(msg.tool_calls)
+          ? JSON.stringify(msg.tool_calls).length
+          : 0;
+        const toolResults = Array.isArray(msg.tool_results)
+          ? JSON.stringify(msg.tool_results).length
+          : 0;
+        const tokens =
+          estimateTokens(content) +
+          Math.ceil(toolCalls / 4) +
+          Math.ceil(toolResults / 4);
+        const cumulative =
+          (acc.length > 0 ? acc[acc.length - 1].cumulative : 0) + tokens;
+        acc.push({ tokens, cumulative });
+        return acc;
+      },
+      [],
+    );
   }, [messages]);
 
   const totalTokens =
