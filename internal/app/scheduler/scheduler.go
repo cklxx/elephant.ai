@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/domain/calendar"
 	"alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/config"
 	"alex/internal/shared/logging"
@@ -48,7 +49,8 @@ type Config struct {
 	BlockerRadar        config.BlockerRadarConfig
 	BlockerRadarService BlockerRadarService // optional; wired by bootstrap
 	PrepBrief           config.PrepBriefConfig
-	PrepBriefService    PrepBriefService // optional; wired by bootstrap
+	PrepBriefService    PrepBriefService    // optional; wired by bootstrap
+	CalendarPort        calendar.CalendarPort // optional; calendar-driven prep brief triggering
 	TriggerTimeout      time.Duration
 	ConcurrencyPolicy   string
 	JobStore            JobStore

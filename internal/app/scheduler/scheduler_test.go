@@ -9,6 +9,7 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/calendar"
 	"alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/config"
 	"alex/internal/shared/notification"
@@ -1399,6 +1400,192 @@ func TestScheduler_PrepBriefSkippedWhenNoService(t *testing.T) {
 		if name == prepBriefTriggerName {
 			t.Fatal("prep brief should not be registered when no service wired")
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Calendar-driven prep brief tests
+// ---------------------------------------------------------------------------
+
+// mockCalendarPort implements calendar.CalendarPort for tests.
+type mockCalendarPort struct {
+	mu       sync.Mutex
+	meetings []calendarMeeting
+	err      error
+	calls    int
+}
+
+type calendarMeeting struct {
+	id    string
+	title string
+	start time.Time
+}
+
+func (m *mockCalendarPort) ListUpcoming1on1s(_ context.Context, _ string, _ time.Duration) ([]calendar.Meeting, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	if m.err != nil {
+		return nil, m.err
+	}
+	result := make([]calendar.Meeting, len(m.meetings))
+	for i, mtg := range m.meetings {
+		result[i] = calendar.Meeting{
+			ID:        mtg.id,
+			Title:     mtg.title,
+			StartTime: mtg.start,
+			Is1on1:    true,
+		}
+	}
+	return result, nil
+}
+
+func (m *mockCalendarPort) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+func TestScheduler_PrepBriefCalendarDriven_SkipsWhenNoMeetings(t *testing.T) {
+	prepSvc := &mockPrepBriefService{}
+	calPort := &mockCalendarPort{} // returns empty meetings
+
+	sched := New(Config{
+		Enabled: true,
+		PrepBrief: config.PrepBriefConfig{
+			Enabled:  true,
+			Schedule: "30 8 * * 1-5",
+			MemberID: "alice",
+		},
+		PrepBriefService: prepSvc,
+		CalendarPort:     calPort,
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx := context.Background()
+
+	// Directly test handleCalendarDrivenPrepBrief
+	sched.handleCalendarDrivenPrepBrief(ctx, calPort, prepSvc, "alice", "30 8 * * 1-5")
+
+	if calPort.callCount() != 1 {
+		t.Errorf("calendar port should be called once, got %d", calPort.callCount())
+	}
+	if prepSvc.callCount() != 0 {
+		t.Error("prep brief should NOT be generated when no meetings found")
+	}
+}
+
+func TestScheduler_PrepBriefCalendarDriven_TriggersWhenMeetingFound(t *testing.T) {
+	prepSvc := &mockPrepBriefService{}
+	calPort := &mockCalendarPort{
+		meetings: []calendarMeeting{
+			{id: "evt_1", title: "1:1 with Bob", start: time.Now().Add(20 * time.Minute)},
+		},
+	}
+
+	sched := New(Config{
+		Enabled: true,
+		PrepBrief: config.PrepBriefConfig{
+			Enabled:  true,
+			Schedule: "30 8 * * 1-5",
+			MemberID: "alice",
+		},
+		PrepBriefService: prepSvc,
+		CalendarPort:     calPort,
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx := context.Background()
+	sched.handleCalendarDrivenPrepBrief(ctx, calPort, prepSvc, "alice", "30 8 * * 1-5")
+
+	if calPort.callCount() != 1 {
+		t.Errorf("calendar port should be called once, got %d", calPort.callCount())
+	}
+	if prepSvc.callCount() != 1 {
+		t.Errorf("prep brief should be generated when meeting found, got %d calls", prepSvc.callCount())
+	}
+}
+
+func TestScheduler_PrepBriefCalendarDriven_FallsBackOnError(t *testing.T) {
+	prepSvc := &mockPrepBriefService{}
+	calPort := &mockCalendarPort{
+		err: errors.New("calendar API unavailable"),
+	}
+
+	sched := New(Config{
+		Enabled: true,
+		PrepBrief: config.PrepBriefConfig{
+			Enabled:  true,
+			Schedule: "30 8 * * 1-5",
+			MemberID: "alice",
+		},
+		PrepBriefService: prepSvc,
+		CalendarPort:     calPort,
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx := context.Background()
+	sched.handleCalendarDrivenPrepBrief(ctx, calPort, prepSvc, "alice", "30 8 * * 1-5")
+
+	if calPort.callCount() != 1 {
+		t.Errorf("calendar port should be called once, got %d", calPort.callCount())
+	}
+	// On error, should fall back to generating the brief anyway
+	if prepSvc.callCount() != 1 {
+		t.Errorf("prep brief should fall back to fixed when calendar fails, got %d calls", prepSvc.callCount())
+	}
+}
+
+func TestScheduler_PrepBriefCalendarDriven_RegistersWithCalendarLabel(t *testing.T) {
+	prepSvc := &mockPrepBriefService{}
+	calPort := &mockCalendarPort{}
+
+	sched := New(Config{
+		Enabled: true,
+		PrepBrief: config.PrepBriefConfig{
+			Enabled:  true,
+			Schedule: "30 8 * * 1-5",
+		},
+		PrepBriefService: prepSvc,
+		CalendarPort:     calPort,
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	found := false
+	for _, name := range sched.TriggerNames() {
+		if name == prepBriefTriggerName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("prep brief trigger should be registered even with calendar port")
+	}
+}
+
+func TestScheduler_PrepBriefFixedFallback_WorksWithoutCalendar(t *testing.T) {
+	prepSvc := &mockPrepBriefService{}
+
+	sched := New(Config{
+		Enabled: true,
+		PrepBrief: config.PrepBriefConfig{
+			Enabled:  true,
+			Schedule: "30 8 * * 1-5",
+			MemberID: "bob",
+		},
+		PrepBriefService: prepSvc,
+		// CalendarPort intentionally nil — fixed mode
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx := context.Background()
+	sched.handleFixedPrepBrief(ctx, prepSvc, "bob", "30 8 * * 1-5")
+
+	if prepSvc.callCount() != 1 {
+		t.Errorf("fixed prep brief should always generate, got %d calls", prepSvc.callCount())
 	}
 }
 
