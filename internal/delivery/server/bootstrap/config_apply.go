@@ -18,6 +18,9 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if debugPort := strings.TrimSpace(file.Server.DebugPort); debugPort != "" {
 		cfg.DebugPort = debugPort
 	}
+	if debugBindHost := strings.TrimSpace(file.Server.DebugBindHost); debugBindHost != "" {
+		cfg.DebugBindHost = debugBindHost
+	}
 	if file.Server.MaxTaskBodyBytes != nil && *file.Server.MaxTaskBodyBytes > 0 {
 		cfg.MaxTaskBodyBytes = *file.Server.MaxTaskBodyBytes
 	}

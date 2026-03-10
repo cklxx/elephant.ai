@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -122,37 +123,40 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 	if port == "" {
 		port = "9090"
 	}
+	host := sanitizeDebugBindHost(cfg.DebugBindHost)
 
 	server := &http.Server{
-		Addr:         ":" + port,
+		Addr:         net.JoinHostPort(host, port),
 		Handler:      router,
 		ReadTimeout:  5 * time.Minute,
 		WriteTimeout: 10 * time.Minute, // Long timeout for inject endpoint (blocks until task completes)
 		IdleTimeout:  120 * time.Second,
 	}
 
-	logger.Info("Debug HTTP server configured on :%s", port)
+	logger.Info("Debug HTTP server configured on %s", server.Addr)
 	return server, runtimeBus, nil
 }
 
 const debugPortMaxRetries = 5
 
-// listenDebugPort tries to bind a TCP listener starting at basePort, falling
-// back to basePort+1 … basePort+debugPortMaxRetries when the port is busy
-// (e.g. a previous process still holds it). Returns nil, nil when all ports
-// are unavailable — the caller should treat this as graceful degradation.
-func listenDebugPort(basePort string, logger logging.Logger) (net.Listener, error) {
+// listenDebugPort tries to bind a TCP listener starting at host:basePort,
+// falling back to host:basePort+1 … host:basePort+debugPortMaxRetries when
+// the port is busy (e.g. a previous process still holds it). Returns nil, nil
+// when all ports are unavailable — the caller should treat this as graceful
+// degradation. host defaults to "127.0.0.1" via sanitizeDebugBindHost.
+func listenDebugPort(basePort, host string, logger logging.Logger) (net.Listener, error) {
 	port, err := strconv.Atoi(basePort)
 	if err != nil {
 		return nil, fmt.Errorf("invalid debug port %q: %w", basePort, err)
 	}
+	host = sanitizeDebugBindHost(host)
 
 	for i := 0; i <= debugPortMaxRetries; i++ {
-		addr := fmt.Sprintf(":%d", port+i)
+		addr := net.JoinHostPort(host, strconv.Itoa(port+i))
 		ln, err := net.Listen("tcp", addr)
 		if err == nil {
 			if i > 0 {
-				logger.Warn("Debug port :%d busy, using fallback %s", port, addr)
+				logger.Warn("Debug port %s:%d busy, using fallback %s", host, port, addr)
 			}
 			logger.Info("Debug HTTP server bound to %s", addr)
 			return ln, nil
@@ -160,8 +164,18 @@ func listenDebugPort(basePort string, logger logging.Logger) (net.Listener, erro
 		logger.Warn("Debug port %s unavailable: %v", addr, err)
 	}
 
-	logger.Warn("All debug ports :%d–:%d unavailable; debug HTTP server disabled", port, port+debugPortMaxRetries)
+	logger.Warn("All debug ports %s:%d–%d unavailable; debug HTTP server disabled", host, port, port+debugPortMaxRetries)
 	return nil, nil
+}
+
+// sanitizeDebugBindHost ensures the debug server bind host is safe.
+// Defaults to "127.0.0.1" (localhost-only) when empty or unset.
+func sanitizeDebugBindHost(host string) string {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return "127.0.0.1"
+	}
+	return host
 }
 
 // startupProfile records per-phase timing from RunLark. It is created before

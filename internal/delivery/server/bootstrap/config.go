@@ -17,6 +17,7 @@ type Config struct {
 	RuntimeMeta        runtimeconfig.Metadata
 	Port               string
 	DebugPort          string // Debug HTTP port for Lark standalone mode (default "9090")
+	DebugBindHost      string // Network interface for debug server (default "127.0.0.1")
 	LogDir             string // Structured log / watchdog dump directory (default "logs")
 	EnvironmentSummary string
 	Session            runtimeconfig.SessionConfig

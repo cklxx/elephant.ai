@@ -60,6 +60,7 @@ func LoadConfig() (ConfigResult, error) {
 		RuntimeMeta:    runtimeMeta,
 		Port:           "8080",
 		DebugPort:      "9090",
+		DebugBindHost:  "127.0.0.1",
 		LogDir:         "logs",
 		AllowedOrigins: append([]string(nil), defaultAllowedOrigins...),
 		StreamGuard: StreamGuardConfig{

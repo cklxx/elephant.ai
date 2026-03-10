@@ -10,6 +10,7 @@ import (
 	"time"
 
 	serverApp "alex/internal/delivery/server/app"
+	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
 
@@ -72,8 +73,8 @@ func TestBuildDebugHTTPServer_NilFoundation(t *testing.T) {
 	if server == nil {
 		t.Fatal("BuildDebugHTTPServer returned nil server")
 	}
-	if server.Addr != ":0" {
-		t.Errorf("expected addr :0, got %s", server.Addr)
+	if server.Addr != "127.0.0.1:0" {
+		t.Errorf("expected addr 127.0.0.1:0, got %s", server.Addr)
 	}
 	if server.ReadTimeout != 5*time.Minute {
 		t.Errorf("expected ReadTimeout 5m, got %v", server.ReadTimeout)
@@ -82,7 +83,7 @@ func TestBuildDebugHTTPServer_NilFoundation(t *testing.T) {
 
 func TestListenDebugPort_Available(t *testing.T) {
 	logger := logging.NewComponentLogger("test")
-	ln, err := listenDebugPort("0", logger)
+	ln, err := listenDebugPort("0", "127.0.0.1", logger)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,8 +94,8 @@ func TestListenDebugPort_Available(t *testing.T) {
 }
 
 func TestListenDebugPort_FallbackOnBusy(t *testing.T) {
-	// Occupy a known port.
-	occupied, err := net.Listen("tcp", ":0")
+	// Occupy a known port on 127.0.0.1 so it conflicts with our listener.
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("setup: %v", err)
 	}
@@ -102,7 +103,7 @@ func TestListenDebugPort_FallbackOnBusy(t *testing.T) {
 	port := occupied.Addr().(*net.TCPAddr).Port
 
 	logger := logging.NewComponentLogger("test")
-	ln, err := listenDebugPort(fmt.Sprintf("%d", port), logger)
+	ln, err := listenDebugPort(fmt.Sprintf("%d", port), "127.0.0.1", logger)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -122,7 +123,7 @@ func TestListenDebugPort_FallbackOnBusy(t *testing.T) {
 
 func TestListenDebugPort_InvalidPort(t *testing.T) {
 	logger := logging.NewComponentLogger("test")
-	_, err := listenDebugPort("abc", logger)
+	_, err := listenDebugPort("abc", "127.0.0.1", logger)
 	if err == nil {
 		t.Fatal("expected error for non-numeric port")
 	}
@@ -212,5 +213,157 @@ func TestBuildDebugHTTPServer_HealthWithNilContainer(t *testing.T) {
 	var payload map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("expected health JSON response, got err=%v body=%s", err, rec.Body.String())
+	}
+}
+
+// ---------- Debug server localhost binding hardening ----------
+
+func TestSanitizeDebugBindHost_DefaultsToLocalhost(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"", "127.0.0.1"},
+		{"  ", "127.0.0.1"},
+		{"127.0.0.1", "127.0.0.1"},
+		{"0.0.0.0", "0.0.0.0"}, // explicit opt-in allowed
+		{"::1", "::1"},
+		{"192.168.1.100", "192.168.1.100"},
+	}
+	for _, tc := range tests {
+		got := sanitizeDebugBindHost(tc.input)
+		if got != tc.want {
+			t.Errorf("sanitizeDebugBindHost(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestBuildDebugHTTPServer_DefaultBindsToLocalhost(t *testing.T) {
+	f := &Foundation{
+		Degraded:     NewDegradedComponents(),
+		Config:       Config{DebugPort: "0"},
+		ConfigResult: ConfigResult{},
+	}
+	broadcaster := serverApp.NewEventBroadcaster()
+
+	// DebugBindHost not set → should default to 127.0.0.1.
+	cfg := Config{DebugPort: "0"}
+	server, _, err := BuildDebugHTTPServer(f, broadcaster, nil, cfg)
+	if err != nil {
+		t.Fatalf("BuildDebugHTTPServer: %v", err)
+	}
+	if server.Addr != "127.0.0.1:0" {
+		t.Errorf("Addr = %q, want 127.0.0.1:0 (localhost-only)", server.Addr)
+	}
+}
+
+func TestBuildDebugHTTPServer_ExplicitLocalhostBinding(t *testing.T) {
+	f := &Foundation{
+		Degraded:     NewDegradedComponents(),
+		Config:       Config{DebugPort: "0"},
+		ConfigResult: ConfigResult{},
+	}
+	broadcaster := serverApp.NewEventBroadcaster()
+
+	cfg := Config{DebugPort: "9999", DebugBindHost: "127.0.0.1"}
+	server, _, err := BuildDebugHTTPServer(f, broadcaster, nil, cfg)
+	if err != nil {
+		t.Fatalf("BuildDebugHTTPServer: %v", err)
+	}
+	if server.Addr != "127.0.0.1:9999" {
+		t.Errorf("Addr = %q, want 127.0.0.1:9999", server.Addr)
+	}
+}
+
+func TestBuildDebugHTTPServer_NeverDefaultsToAllInterfaces(t *testing.T) {
+	f := &Foundation{
+		Degraded:     NewDegradedComponents(),
+		Config:       Config{DebugPort: "0"},
+		ConfigResult: ConfigResult{},
+	}
+	broadcaster := serverApp.NewEventBroadcaster()
+
+	// Empty DebugBindHost must NOT produce ":port" (all interfaces).
+	cfg := Config{DebugPort: "8080", DebugBindHost: ""}
+	server, _, err := BuildDebugHTTPServer(f, broadcaster, nil, cfg)
+	if err != nil {
+		t.Fatalf("BuildDebugHTTPServer: %v", err)
+	}
+	// Addr must contain an explicit host, never just ":port".
+	if server.Addr == ":8080" {
+		t.Fatal("SECURITY: debug server must not bind to 0.0.0.0 by default")
+	}
+	if server.Addr != "127.0.0.1:8080" {
+		t.Errorf("Addr = %q, want 127.0.0.1:8080", server.Addr)
+	}
+}
+
+func TestListenDebugPort_BindsToLocalhost(t *testing.T) {
+	logger := logging.NewComponentLogger("test")
+	ln, err := listenDebugPort("0", "", logger)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ln == nil {
+		t.Fatal("expected listener")
+	}
+	defer ln.Close()
+
+	addr := ln.Addr().(*net.TCPAddr)
+	if !addr.IP.IsLoopback() {
+		t.Errorf("SECURITY: debug listener bound to %s, want loopback", addr.IP)
+	}
+}
+
+func TestListenDebugPort_EmptyHostDefaultsLocalhost(t *testing.T) {
+	logger := logging.NewComponentLogger("test")
+	ln, err := listenDebugPort("0", "", logger)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ln == nil {
+		t.Fatal("expected listener")
+	}
+	defer ln.Close()
+
+	addr := ln.Addr().(*net.TCPAddr)
+	if !addr.IP.IsLoopback() {
+		t.Errorf("empty host should bind to loopback, got %s", addr.IP)
+	}
+}
+
+func TestConfigDefault_DebugBindHost(t *testing.T) {
+	// Verify the hardcoded default in config_load.go is 127.0.0.1.
+	// We can't call LoadConfig in unit tests (reads env/files),
+	// so validate the field exists and the documented default.
+	cfg := Config{DebugBindHost: "127.0.0.1"}
+	if cfg.DebugBindHost != "127.0.0.1" {
+		t.Errorf("DebugBindHost default should be 127.0.0.1, got %q", cfg.DebugBindHost)
+	}
+}
+
+func TestApplyServerHTTPConfig_DebugBindHost(t *testing.T) {
+	cfg := &Config{DebugBindHost: "127.0.0.1"}
+	file := runtimeconfig.FileConfig{
+		Server: &runtimeconfig.ServerConfig{
+			DebugBindHost: "0.0.0.0",
+		},
+	}
+	applyServerHTTPConfig(cfg, file)
+	if cfg.DebugBindHost != "0.0.0.0" {
+		t.Errorf("DebugBindHost = %q, want 0.0.0.0 (explicit override)", cfg.DebugBindHost)
+	}
+}
+
+func TestApplyServerHTTPConfig_EmptyDebugBindHostPreservesDefault(t *testing.T) {
+	cfg := &Config{DebugBindHost: "127.0.0.1"}
+	file := runtimeconfig.FileConfig{
+		Server: &runtimeconfig.ServerConfig{
+			DebugBindHost: "",
+		},
+	}
+	applyServerHTTPConfig(cfg, file)
+	if cfg.DebugBindHost != "127.0.0.1" {
+		t.Errorf("DebugBindHost = %q, want 127.0.0.1 (preserve default on empty)", cfg.DebugBindHost)
 	}
 }

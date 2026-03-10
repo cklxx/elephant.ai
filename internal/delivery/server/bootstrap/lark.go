@@ -146,7 +146,7 @@ func RunLark(observabilityConfigPath string) error {
 	}
 
 	debugErrCh := make(chan error, 1)
-	debugLn, err := listenDebugPort(debugPort, logger)
+	debugLn, err := listenDebugPort(debugPort, config.DebugBindHost, logger)
 	if err != nil {
 		return fmt.Errorf("debug HTTP server: %w", err)
 	}
