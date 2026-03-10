@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/shared/logging"
@@ -46,11 +47,11 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 	today, _ := m.memoryEngine.LoadDaily(ctx, userID, now)
 	yesterday, _ := m.memoryEngine.LoadDaily(ctx, userID, now.AddDate(0, 0, -1))
 
-	soul = truncateMemorySection(soul, maxMemorySectionChars)
-	user = truncateMemorySection(user, maxMemorySectionChars)
-	longTerm = truncateMemorySection(longTerm, maxMemorySectionChars)
-	today = truncateMemorySection(today, maxMemorySectionChars)
-	yesterday = truncateMemorySection(yesterday, maxMemorySectionChars)
+	soul = ports.TruncateRuneSnippet(soul, maxMemorySectionChars)
+	user = ports.TruncateRuneSnippet(user, maxMemorySectionChars)
+	longTerm = ports.TruncateRuneSnippet(longTerm, maxMemorySectionChars)
+	today = ports.TruncateRuneSnippet(today, maxMemorySectionChars)
+	yesterday = ports.TruncateRuneSnippet(yesterday, maxMemorySectionChars)
 
 	var sections []string
 	if soul != "" {
@@ -74,7 +75,7 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 		return ""
 	}
 
-	return truncateMemorySection(strings.Join(sections, "\n\n"), maxMemorySnapshotChars)
+	return ports.TruncateRuneSnippet(strings.Join(sections, "\n\n"), maxMemorySnapshotChars)
 }
 
 func (m *manager) loadIdentitySnapshot(userID string) (soul, user string) {
@@ -247,8 +248,4 @@ func resolveMemoryUserID(ctx context.Context, session *storage.Session) string {
 		return session.ID
 	}
 	return ""
-}
-
-func truncateMemorySection(content string, limit int) string {
-	return truncateWithEllipsis(content, limit)
 }

@@ -61,12 +61,12 @@ func extractFlushContent(messages []ports.Message) string {
 		role := utils.TrimLower(msg.Role)
 		switch role {
 		case "user":
-			snippet := truncateSnippet(msg.Content, 200)
+			snippet := ports.TruncateRuneSnippet(msg.Content, 200)
 			if snippet != "" {
 				userMsgs = append(userMsgs, snippet)
 			}
 		case "assistant":
-			snippet := truncateSnippet(msg.Content, 200)
+			snippet := ports.TruncateRuneSnippet(msg.Content, 200)
 			if snippet != "" {
 				assistantMsgs = append(assistantMsgs, snippet)
 			}
@@ -80,7 +80,7 @@ func extractFlushContent(messages []ports.Message) string {
 			if msg.ToolCallID != "" {
 				name = msg.ToolCallID
 			}
-			output := truncateSnippet(msg.Content, 100)
+			output := ports.TruncateRuneSnippet(msg.Content, 100)
 			toolSummaries = append(toolSummaries, fmt.Sprintf("%s -> %s", name, output))
 		}
 
@@ -90,7 +90,7 @@ func extractFlushContent(messages []ports.Message) string {
 			if name == "" {
 				name = "tool"
 			}
-			output := truncateSnippet(tr.Content, 100)
+			output := ports.TruncateRuneSnippet(tr.Content, 100)
 			toolSummaries = append(toolSummaries, fmt.Sprintf("%s -> %s", name, output))
 		}
 	}
@@ -106,12 +106,7 @@ func extractFlushContent(messages []ports.Message) string {
 	}
 
 	result := strings.Join(sections, "\n\n")
-	return truncateSnippet(result, flushMaxChars)
-}
-
-// truncateSnippet trims and truncates content to the given rune limit.
-func truncateSnippet(content string, limit int) string {
-	return truncateWithEllipsis(content, limit)
+	return ports.TruncateRuneSnippet(result, flushMaxChars)
 }
 
 // NoopFlushHook is the default hook when no flush handler is configured.

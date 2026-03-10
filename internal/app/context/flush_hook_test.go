@@ -83,8 +83,8 @@ func TestMemoryFlushHook_TruncatesOutput(t *testing.T) {
 	if len([]rune(savedContent)) > flushMaxChars+10 {
 		t.Fatalf("expected content to be capped near %d chars, got %d", flushMaxChars, len([]rune(savedContent)))
 	}
-	if !strings.HasSuffix(savedContent, "...") {
-		t.Fatalf("expected truncated content to end with '...', got suffix %q", savedContent[len(savedContent)-10:])
+	if !strings.HasSuffix(savedContent, "…") {
+		t.Fatalf("expected truncated content to end with '…', got suffix %q", savedContent[len(savedContent)-10:])
 	}
 }
 
