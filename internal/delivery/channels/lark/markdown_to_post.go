@@ -28,6 +28,8 @@ var (
 	mdLinkPattern    = regexp.MustCompile(`\[[^\]]+\]\([^)]+\)`)
 	mdCodeFence      = regexp.MustCompile("(?m)^```")
 	mdInlineCode     = regexp.MustCompile("`[^`]+`")
+	// mdTableSep matches a markdown table separator row: |---|---| or | --- | --- |
+	mdTableSep = regexp.MustCompile(`(?m)^\|[\s:]*-{3,}[\s:]*(\|[\s:]*-{3,}[\s:]*)+\|?\s*$`)
 )
 
 // hasMarkdownPatterns returns true if text contains any Markdown patterns
@@ -42,14 +44,77 @@ func hasMarkdownPatterns(text string) bool {
 	return false
 }
 
-// smartContent inspects text for residual Markdown. If detected, it converts
-// to a Lark "post" message; otherwise returns a plain "text" message.
+// hasTableSyntax returns true if text contains a Markdown table.
+// A valid table requires a separator row (|---|---|) not inside a code fence.
+func hasTableSyntax(text string) bool {
+	lines := strings.Split(text, "\n")
+	inCodeBlock := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			inCodeBlock = !inCodeBlock
+			continue
+		}
+		if inCodeBlock {
+			continue
+		}
+		if mdTableSep.MatchString(trimmed) {
+			return true
+		}
+	}
+	return false
+}
+
+// smartContent inspects text for residual Markdown. If a table is detected,
+// it returns an interactive card (Lark card markdown supports table syntax);
+// if other Markdown is found, it converts to a "post" message; otherwise
+// returns a plain "text" message.
 func smartContent(text string) (msgType string, content string) {
+	if hasTableSyntax(text) {
+		text = renderOutgoingMentions(text)
+		return "interactive", buildContentCard(text)
+	}
 	if !hasMarkdownPatterns(text) {
 		return "text", textContent(text)
 	}
 	text = renderOutgoingMentions(text)
 	return "post", buildPostContent(text)
+}
+
+// buildContentCard wraps markdown text in a Lark interactive card.
+// The card's markdown element renders tables natively.
+func buildContentCard(text string) string {
+	return buildLarkCard("", "blue", []any{
+		map[string]any{
+			"tag":     "markdown",
+			"content": text,
+		},
+	})
+}
+
+// extractCardMarkdown returns the markdown content from a card JSON built by
+// buildContentCard. Returns empty string if the JSON cannot be parsed.
+func extractCardMarkdown(cardJSON string) string {
+	var card map[string]any
+	if err := json.Unmarshal([]byte(cardJSON), &card); err != nil {
+		return ""
+	}
+	elements, ok := card["elements"].([]any)
+	if !ok || len(elements) == 0 {
+		return ""
+	}
+	for _, el := range elements {
+		elem, ok := el.(map[string]any)
+		if !ok {
+			continue
+		}
+		if tag, _ := elem["tag"].(string); tag == "markdown" {
+			if content, ok := elem["content"].(string); ok {
+				return content
+			}
+		}
+	}
+	return ""
 }
 
 // buildPostContent converts Markdown-flavored text into a Lark post JSON payload.

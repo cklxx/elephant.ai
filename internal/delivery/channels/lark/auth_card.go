@@ -9,16 +9,19 @@ import (
 )
 
 // buildLarkCard builds a Lark interactive card JSON with the given header and elements.
+// When title is empty the header is omitted entirely.
 func buildLarkCard(title, template string, elements []any) string {
 	card := map[string]any{
 		"config": map[string]any{
 			"wide_screen_mode": true,
 		},
-		"header": map[string]any{
+		"elements": elements,
+	}
+	if title != "" {
+		card["header"] = map[string]any{
 			"title":    map[string]any{"tag": "plain_text", "content": title},
 			"template": template,
-		},
-		"elements": elements,
+		}
 	}
 	data, _ := jsonx.Marshal(card)
 	return string(data)

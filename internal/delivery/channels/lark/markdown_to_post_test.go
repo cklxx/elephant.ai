@@ -248,6 +248,90 @@ func TestFlattenPostContentToText(t *testing.T) {
 	}
 }
 
+func TestHasTableSyntax(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		want bool
+	}{
+		{
+			name: "simple table",
+			text: "| Name | Age |\n|------|-----|\n| Alice | 30 |",
+			want: true,
+		},
+		{
+			name: "table with alignment",
+			text: "| Left | Center | Right |\n|:-----|:------:|------:|\n| a | b | c |",
+			want: true,
+		},
+		{
+			name: "table inside code block is ignored",
+			text: "```\n| Name | Age |\n|------|-----|\n| Alice | 30 |\n```",
+			want: false,
+		},
+		{
+			name: "pipe in plain text is not a table",
+			text: "this | is | not | a table",
+			want: false,
+		},
+		{
+			name: "single pipe line is not a table",
+			text: "| only one column",
+			want: false,
+		},
+		{
+			name: "table with surrounding text",
+			text: "## Results\n\n| Metric | Value |\n|--------|-------|\n| CPU | 80% |\n\nDone.",
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := hasTableSyntax(tt.text); got != tt.want {
+				t.Errorf("hasTableSyntax() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSmartContent_Table(t *testing.T) {
+	text := "## Report\n\n| Name | Score |\n|------|-------|\n| Alice | 95 |\n| Bob | 88 |"
+	msgType, content := smartContent(text)
+	if msgType != "interactive" {
+		t.Fatalf("expected msgType=interactive, got %s", msgType)
+	}
+	var card map[string]any
+	if err := json.Unmarshal([]byte(content), &card); err != nil {
+		t.Fatalf("failed to parse card JSON: %v", err)
+	}
+	elements, ok := card["elements"].([]any)
+	if !ok || len(elements) == 0 {
+		t.Fatal("card missing elements")
+	}
+	elem := elements[0].(map[string]any)
+	if elem["tag"] != "markdown" {
+		t.Errorf("expected markdown tag, got %v", elem["tag"])
+	}
+	md, _ := elem["content"].(string)
+	if !strings.Contains(md, "| Name") {
+		t.Errorf("card markdown should contain table: %q", md)
+	}
+	// Card should have no header when title is empty.
+	if _, hasHeader := card["header"]; hasHeader {
+		t.Error("content card should not have header when title is empty")
+	}
+}
+
+func TestExtractCardMarkdown(t *testing.T) {
+	original := "## Report\n\n| Name | Score |\n|------|-------|\n| Alice | 95 |"
+	cardJSON := buildContentCard(original)
+	extracted := extractCardMarkdown(cardJSON)
+	if extracted != original {
+		t.Errorf("extractCardMarkdown roundtrip failed: got %q, want %q", extracted, original)
+	}
+}
+
 func TestConvertInlineMarkdown(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -108,16 +108,41 @@ func (g *Gateway) dispatchMessage(ctx context.Context, chatID, replyToID, msgTyp
 	}
 
 	messageID, err := send(msgType, content)
-	if err == nil || !strings.EqualFold(strings.TrimSpace(msgType), "post") || !isPostPayloadInvalidError(err) {
-		return messageID, err
+	if err == nil {
+		return messageID, nil
 	}
 
-	fallbackText := flattenPostContentToText(content)
-	if strings.TrimSpace(fallbackText) == "" {
-		fallbackText = "本次富文本结果渲染失败，已回退为纯文本发送。"
+	normalizedType := strings.TrimSpace(strings.ToLower(msgType))
+
+	// Interactive card failed: fall back to post format.
+	if normalizedType == "interactive" {
+		g.logger.Warn("Lark interactive card dispatch failed, fallback to post: %v", err)
+		cardText := extractCardMarkdown(content)
+		if cardText != "" {
+			postMsgType, postContent := "post", buildPostContent(cardText)
+			if mid, postErr := send(postMsgType, postContent); postErr == nil {
+				return mid, nil
+			}
+			// Post also failed; fall through to text fallback below.
+			g.logger.Warn("Lark post fallback also failed, falling back to text")
+		}
+		if strings.TrimSpace(cardText) == "" {
+			cardText = "本次卡片消息渲染失败，已回退为纯文本发送。"
+		}
+		return send("text", textContent(cardText))
 	}
-	g.logger.Warn("Lark post dispatch fallback to text: %v", err)
-	return send("text", textContent(fallbackText))
+
+	// Post failed: fall back to text.
+	if normalizedType == "post" && isPostPayloadInvalidError(err) {
+		fallbackText := flattenPostContentToText(content)
+		if strings.TrimSpace(fallbackText) == "" {
+			fallbackText = "本次富文本结果渲染失败，已回退为纯文本发送。"
+		}
+		g.logger.Warn("Lark post dispatch fallback to text: %v", err)
+		return send("text", textContent(fallbackText))
+	}
+
+	return messageID, err
 }
 
 func isPostPayloadInvalidError(err error) bool {
