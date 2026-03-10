@@ -7,9 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
-	"time"
 
 	"alex/internal/shared/utils"
 )
@@ -88,350 +86,6 @@ func (e *MarkdownEngine) EnsureSchema(_ context.Context) error {
 	return nil
 }
 
-// AppendDaily appends a record to the daily memory log.
-func (e *MarkdownEngine) AppendDaily(_ context.Context, _ string, entry DailyEntry) (string, error) {
-	content := strings.TrimSpace(entry.Content)
-	if content == "" {
-		return "", fmt.Errorf("content is required")
-	}
-	createdAt := entry.CreatedAt
-	if createdAt.IsZero() {
-		createdAt = time.Now()
-	}
-	root, err := e.requireRoot()
-	if err != nil {
-		return "", err
-	}
-	dailyDir := filepath.Join(root, dailyDirName)
-	if err := os.MkdirAll(dailyDir, 0o755); err != nil {
-		return "", err
-	}
-
-	dateStr := createdAt.Format("2006-01-02")
-	path := filepath.Join(dailyDir, dateStr+".md")
-	if err := ensureDailyHeader(path, dateStr); err != nil {
-		return "", err
-	}
-
-	title := strings.TrimSpace(entry.Title)
-	if title == "" {
-		title = "Note"
-	}
-	timeStr := createdAt.Format("3:04 PM")
-
-	block := strings.Builder{}
-	if needsLeadingNewline(path) {
-		block.WriteString("\n")
-	}
-	block.WriteString(fmt.Sprintf("## %s - %s\n", timeStr, title))
-	block.WriteString(content)
-	block.WriteString("\n")
-
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	if _, err := f.WriteString(block.String()); err != nil {
-		return "", err
-	}
-
-	return path, nil
-}
-
-// Search scans MEMORY.md + daily logs for the query and returns ranked hits.
-func (e *MarkdownEngine) Search(ctx context.Context, _ string, query string, maxResults int, minScore float64) ([]SearchHit, error) {
-	query = strings.TrimSpace(query)
-	if query == "" {
-		return nil, fmt.Errorf("query is required")
-	}
-	if maxResults <= 0 {
-		maxResults = defaultSearchMax
-	}
-	if minScore <= 0 {
-		minScore = defaultSearchMinScore
-	}
-
-	root, err := e.requireRoot()
-	if err != nil {
-		return nil, err
-	}
-
-	if e.indexer != nil {
-		results, err := e.indexer.Search(ctx, "", query, maxResults, minScore)
-		if err == nil {
-			return results, nil
-		}
-	}
-	paths, err := collectMemoryFilesForRoot(root)
-	if err != nil {
-		return nil, err
-	}
-	if len(paths) == 0 {
-		return nil, nil
-	}
-
-	queryTerms := normalizeTerms(tokenize(query))
-	queryLower := strings.ToLower(query)
-	if len(queryTerms) == 0 && queryLower == "" {
-		return nil, nil
-	}
-
-	var hits []SearchHit
-	for _, file := range paths {
-		h, err := searchFile(file, root, queryTerms, queryLower, minScore, e.chunkTokens, e.chunkOverlap)
-		if err != nil {
-			continue
-		}
-		hits = append(hits, h...)
-	}
-
-	if len(hits) == 0 {
-		return nil, nil
-	}
-
-	return selectTopHits(hits, maxResults), nil
-}
-
-// Related returns graph-adjacent memory entries for a path/range.
-func (e *MarkdownEngine) Related(ctx context.Context, _ string, path string, fromLine, toLine, maxResults int) ([]RelatedHit, error) {
-	if utils.IsBlank(path) {
-		return nil, fmt.Errorf("path is required")
-	}
-	if maxResults <= 0 {
-		maxResults = defaultSearchMax
-	}
-
-	if e.indexer != nil {
-		results, err := e.indexer.Related(ctx, "", path, fromLine, toLine, maxResults)
-		if err == nil {
-			return results, nil
-		}
-	}
-
-	absPath, err := e.resolvePath(path)
-	if err != nil {
-		return nil, err
-	}
-	lines, err := readLines(absPath)
-	if err != nil {
-		return nil, err
-	}
-	if len(lines) == 0 {
-		return nil, nil
-	}
-	if fromLine <= 0 {
-		fromLine = 1
-	}
-	if toLine <= 0 || toLine < fromLine {
-		toLine = len(lines)
-	}
-	if fromLine > len(lines) {
-		return nil, nil
-	}
-	if toLine > len(lines) {
-		toLine = len(lines)
-	}
-	text := strings.Join(lines[fromLine-1:toLine], "\n")
-	edges := extractMemoryEdges(text)
-	if len(edges) == 0 {
-		return nil, nil
-	}
-
-	results := make([]RelatedHit, 0, len(edges))
-	for _, edge := range edges {
-		cleanPath := normalizeLinkedPath(edge.DstPath)
-		if cleanPath == "" {
-			continue
-		}
-		related := RelatedHit{
-			Path:         cleanPath,
-			StartLine:    1,
-			EndLine:      1,
-			Score:        1.0,
-			Snippet:      "",
-			RelationType: edge.EdgeType,
-			NodeID:       buildNodeID(cleanPath, 1, 1),
-		}
-		if relatedAbs, relErr := e.resolvePath(cleanPath); relErr == nil {
-			if relLines, readErr := readLines(relatedAbs); readErr == nil && len(relLines) > 0 {
-				related.EndLine = minInt(20, len(relLines))
-				related.Snippet = buildSnippet(strings.Join(relLines[:related.EndLine], "\n"))
-				related.NodeID = buildNodeID(cleanPath, related.StartLine, related.EndLine)
-			}
-		}
-		results = append(results, related)
-		if len(results) >= maxResults {
-			break
-		}
-	}
-	return results, nil
-}
-
-// GetLines returns a slice of lines from the given memory path.
-func (e *MarkdownEngine) GetLines(_ context.Context, _ string, path string, fromLine, lineCount int) (string, error) {
-	if _, err := e.requireRoot(); err != nil {
-		return "", err
-	}
-	absPath, err := e.resolvePath(path)
-	if err != nil {
-		return "", err
-	}
-	if fromLine <= 0 {
-		fromLine = 1
-	}
-	if lineCount <= 0 {
-		lineCount = 20
-	}
-
-	lines, err := readLines(absPath)
-	if err != nil {
-		return "", err
-	}
-	if len(lines) == 0 {
-		return "", nil
-	}
-	start := fromLine - 1
-	if start >= len(lines) {
-		return "", fmt.Errorf("start line out of range")
-	}
-	end := start + lineCount
-	if end > len(lines) {
-		end = len(lines)
-	}
-	return strings.Join(lines[start:end], "\n"), nil
-}
-
-// LoadDaily reads the daily log for the given day (local time).
-func (e *MarkdownEngine) LoadDaily(_ context.Context, _ string, day time.Time) (string, error) {
-	root, err := e.requireRoot()
-	if err != nil {
-		return "", err
-	}
-	if day.IsZero() {
-		day = time.Now()
-	}
-	dateStr := day.Format("2006-01-02")
-	path := filepath.Join(root, dailyDirName, dateStr+".md")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
-		}
-		return "", err
-	}
-	return strings.TrimSpace(string(data)), nil
-}
-
-// LoadIdentity returns the soul and user identity markdown content.
-// Missing files are bootstrapped from the provided defaults.
-func (e *MarkdownEngine) LoadIdentity(_ context.Context, _ string, defaultSoul, defaultUser string) (soul, user string, err error) {
-	root := strings.TrimSpace(e.rootDir)
-	if root == "" {
-		return "", "", nil
-	}
-	soulPath := filepath.Join(root, soulFileName)
-	userPath := filepath.Join(root, userFileName)
-
-	if err := ensureFileWithDefault(soulPath, defaultSoul); err != nil {
-		return "", "", fmt.Errorf("ensure soul identity: %w", err)
-	}
-	if err := ensureFileWithDefault(userPath, defaultUser); err != nil {
-		return "", "", fmt.Errorf("ensure user identity: %w", err)
-	}
-
-	soulBytes, err := os.ReadFile(soulPath)
-	if err != nil && !os.IsNotExist(err) {
-		return "", "", fmt.Errorf("read soul identity: %w", err)
-	}
-	userBytes, err := os.ReadFile(userPath)
-	if err != nil && !os.IsNotExist(err) {
-		return "", "", fmt.Errorf("read user identity: %w", err)
-	}
-	return strings.TrimSpace(string(soulBytes)), strings.TrimSpace(string(userBytes)), nil
-}
-
-// ListDailyEntries returns all daily memory entries sorted newest-first.
-func (e *MarkdownEngine) ListDailyEntries(_ context.Context, _ string) ([]DailySnapshot, error) {
-	root := strings.TrimSpace(e.rootDir)
-	if root == "" {
-		return nil, nil
-	}
-	dailyDir := filepath.Join(root, dailyDirName)
-	entries, err := os.ReadDir(dailyDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	files := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-			continue
-		}
-		files = append(files, entry.Name())
-	}
-
-	sort.Slice(files, func(i, j int) bool {
-		return files[i] > files[j]
-	})
-
-	snapshots := make([]DailySnapshot, 0, len(files))
-	for _, name := range files {
-		content, readErr := os.ReadFile(filepath.Join(dailyDir, name))
-		if readErr != nil {
-			return nil, readErr
-		}
-		date := strings.TrimSuffix(name, ".md")
-		relPath := filepath.ToSlash(filepath.Join(dailyDirName, name))
-		snapshots = append(snapshots, DailySnapshot{
-			Date:    date,
-			Path:    relPath,
-			Content: strings.TrimSpace(string(content)),
-		})
-	}
-	return snapshots, nil
-}
-
-// ensureFileWithDefault creates a file with the given default content if it doesn't exist.
-func ensureFileWithDefault(path, defaultContent string) error {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return nil
-	}
-	if _, err := os.Stat(path); err == nil {
-		return nil // already exists
-	}
-	defaultContent = strings.TrimSpace(defaultContent)
-	if defaultContent == "" {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("mkdir: %w", err)
-	}
-	return os.WriteFile(path, []byte(defaultContent+"\n"), 0o644)
-}
-
-// LoadLongTerm reads MEMORY.md for the user.
-func (e *MarkdownEngine) LoadLongTerm(_ context.Context, _ string) (string, error) {
-	root, err := e.requireRoot()
-	if err != nil {
-		return "", err
-	}
-	path := filepath.Join(root, memoryFileName)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
-		}
-		return "", err
-	}
-	return strings.TrimSpace(string(data)), nil
-}
-
 func (e *MarkdownEngine) userRoot() string {
 	return ResolveUserRoot(e.rootDir, "")
 }
@@ -488,6 +142,25 @@ func collectMemoryFilesForRoot(root string) ([]string, error) {
 	return paths, nil
 }
 
+// ensureFileWithDefault creates a file with the given default content if it doesn't exist.
+func ensureFileWithDefault(path, defaultContent string) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil
+	}
+	if _, err := os.Stat(path); err == nil {
+		return nil // already exists
+	}
+	defaultContent = strings.TrimSpace(defaultContent)
+	if defaultContent == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("mkdir: %w", err)
+	}
+	return os.WriteFile(path, []byte(defaultContent+"\n"), 0o644)
+}
+
 func ensureDailyHeader(path, dateStr string) error {
 	info, err := os.Stat(path)
 	if err == nil {
@@ -527,106 +200,6 @@ func needsLeadingNewline(path string) bool {
 		return false
 	}
 	return buf[0] != '\n'
-}
-
-func searchFile(path, root string, queryTerms map[string]struct{}, queryLower string, minScore float64, chunkTokens, chunkOverlap int) ([]SearchHit, error) {
-	lines, err := readLines(path)
-	if err != nil {
-		return nil, err
-	}
-	if len(lines) == 0 {
-		return nil, nil
-	}
-
-	lineTokens := make([][]string, len(lines))
-	lineCounts := make([]int, len(lines))
-	for i, line := range lines {
-		tokens := tokenize(line)
-		lineTokens[i] = tokens
-		lineCounts[i] = len(tokens)
-	}
-
-	var hits []SearchHit
-	if chunkTokens <= 0 {
-		chunkTokens = chunkTokenSize
-	}
-	if chunkOverlap < 0 {
-		chunkOverlap = 0
-	}
-	start := 0
-	for start < len(lines) {
-		end, _ := nextChunkEnd(start, lineCounts, chunkTokens)
-		if end <= start {
-			break
-		}
-		chunkText := strings.Join(lines[start:end], "\n")
-		chunkTokens := mergeTokens(lineTokens[start:end])
-		score := scoreChunk(queryTerms, queryLower, chunkTokens, chunkText)
-		if score >= minScore {
-			relPath := path
-			if rel, err := filepath.Rel(root, path); err == nil {
-				relPath = rel
-			}
-			snippet := buildSnippet(chunkText)
-			source := "memory"
-			if filepath.Base(path) == memoryFileName {
-				source = "long_term"
-			}
-			hits = append(hits, SearchHit{
-				Path:      relPath,
-				StartLine: start + 1,
-				EndLine:   end,
-				Score:     score,
-				Snippet:   snippet,
-				Source:    source,
-				NodeID:    buildNodeID(relPath, start+1, end),
-			})
-		}
-		start = nextChunkStart(start, end, lineCounts, chunkOverlap)
-		if start <= 0 {
-			break
-		}
-	}
-
-	return hits, nil
-}
-
-func selectTopHits(hits []SearchHit, limit int) []SearchHit {
-	if limit <= 0 || len(hits) <= limit {
-		return hits
-	}
-	// Partial selection: keep best `limit` hits by score, then stable sort them.
-	best := make([]SearchHit, 0, limit)
-	for _, hit := range hits {
-		if len(best) < limit {
-			best = append(best, hit)
-			continue
-		}
-		minIdx := 0
-		for i := 1; i < len(best); i++ {
-			if best[i].Score < best[minIdx].Score {
-				minIdx = i
-			}
-		}
-		if hit.Score > best[minIdx].Score {
-			best[minIdx] = hit
-		}
-	}
-	for i := 1; i < len(best); i++ {
-		j := i
-		for j > 0 {
-			swap := best[j].Score > best[j-1].Score
-			if !swap && best[j].Score == best[j-1].Score {
-				swap = best[j].Path < best[j-1].Path
-			}
-			if !swap {
-				break
-			}
-			best[j], best[j-1] = best[j-1], best[j]
-			j--
-		}
-	}
-	return best
 }
 
 func readLines(path string) ([]string, error) {
@@ -709,35 +282,6 @@ func normalizeTerms(terms []string) map[string]struct{} {
 		out[trimmed] = struct{}{}
 	}
 	return out
-}
-
-func scoreChunk(queryTerms map[string]struct{}, queryLower string, chunkTerms []string, chunkText string) float64 {
-	if len(queryTerms) == 0 {
-		return 0
-	}
-	chunkSet := make(map[string]struct{}, len(chunkTerms))
-	for _, term := range chunkTerms {
-		trimmed := utils.TrimLower(term)
-		if trimmed == "" {
-			continue
-		}
-		chunkSet[trimmed] = struct{}{}
-	}
-	matches := 0
-	for term := range queryTerms {
-		if _, ok := chunkSet[term]; ok {
-			matches++
-		}
-	}
-	termScore := float64(matches) / float64(len(queryTerms))
-	exactScore := 0.0
-	if queryLower != "" {
-		textLower := strings.ToLower(chunkText)
-		if len(queryLower) >= 3 && strings.Contains(textLower, queryLower) {
-			exactScore = 1.0
-		}
-	}
-	return (0.7 * termScore) + (0.3 * exactScore)
 }
 
 func buildSnippet(text string) string {
