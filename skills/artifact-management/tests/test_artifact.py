@@ -47,7 +47,7 @@ class TestListArtifacts:
         assert result["success"] is True
         assert result["count"] == 0
 
-    def test_lists_created(self, tmp_path):
+    def test_lists_created(self):
         create({"name": "a.md", "content": "A"})
         create({"name": "b.md", "content": "B"})
         result = list_artifacts({})

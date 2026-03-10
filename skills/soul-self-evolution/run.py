@@ -18,7 +18,6 @@ load_repo_dotenv(__file__)
 import hashlib
 import os
 import time
-from pathlib import Path
 from typing import Any
 
 _DEFAULT_IMMUTABLE_SECTIONS = ["## Safety Guardrails", "## Non-Negotiable Rules"]
@@ -50,7 +49,7 @@ def _checkpoint_dir() -> Path:
     return directory
 
 
-def _create_checkpoint(path: Path, content: str) -> Path:
+def _create_checkpoint(content: str) -> Path:
     digest = hashlib.sha1(content.encode("utf-8")).hexdigest()[:8]
     stamp = time.strftime("%Y%m%d-%H%M%S")
     checkpoint = _checkpoint_dir() / f"{stamp}-{digest}.md"
@@ -138,7 +137,7 @@ def apply(args: dict[str, Any]) -> dict[str, Any]:
             }
 
     original = path.read_text(encoding="utf-8")
-    checkpoint = _create_checkpoint(path, original)
+    checkpoint = _create_checkpoint(original)
 
     updated = original
     updated_sections = []

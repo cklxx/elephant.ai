@@ -55,6 +55,7 @@ class TestGenerate:
         captured = {"body": None}
 
         def _mock_urlopen(req, timeout=0):
+            _ = timeout
             if isinstance(req, _mod.urllib.request.Request):
                 captured["body"] = json.loads(req.data.decode())
             raise _mod.urllib.error.URLError("stop after capture")
@@ -103,6 +104,7 @@ class TestGenerate:
         output = str(tmp_path / "retry.mp4")
 
         def _mock_urlopen(req, timeout=0):
+            _ = timeout
             if isinstance(req, _mod.urllib.request.Request):
                 body = json.loads(req.data.decode()) if req.data else {}
                 model = body.get("model")
@@ -130,6 +132,7 @@ class TestGenerate:
         monkeypatch.setattr(_mod, "_discover_seedance_endpoints", lambda _k: [])
 
         def _mock_404(req, timeout=0):
+            _ = timeout
             if isinstance(req, _mod.urllib.request.Request):
                 raise urllib.error.HTTPError(
                     req.full_url,

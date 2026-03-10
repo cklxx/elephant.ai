@@ -21,7 +21,6 @@ load_repo_dotenv(__file__)
 import http.client
 import json
 import os
-import sys
 import urllib.error
 import urllib.parse
 import urllib.request

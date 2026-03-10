@@ -129,7 +129,7 @@ def navigate(a: dict) -> dict:
     return _call_single("browser_navigate", {"url": url})
 
 
-def snapshot(a: dict) -> dict:
+def snapshot(_args: dict) -> dict:
     return _call_single("browser_snapshot", {})
 
 

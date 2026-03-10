@@ -19,7 +19,6 @@ from skill_runner.cli_contract import parse_cli_args, render_result
 load_repo_dotenv(__file__)
 
 import subprocess
-import sys
 
 
 def run_script(args: dict) -> dict:

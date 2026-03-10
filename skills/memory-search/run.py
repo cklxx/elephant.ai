@@ -20,8 +20,6 @@ load_repo_dotenv(__file__)
 
 import os
 import subprocess
-import sys
-from pathlib import Path
 
 _MEMORY_DIR = Path(os.environ.get("ALEX_MEMORY_DIR", os.path.expanduser("~/.alex/memory")))
 
@@ -72,7 +70,7 @@ def get(args: dict) -> dict:
     return {"success": True, "file": filename, "content": content[:50000]}
 
 
-def list_memories(args: dict) -> dict:
+def list_memories(_args: dict) -> dict:
     if not _MEMORY_DIR.exists():
         return {"success": True, "memories": [], "count": 0}
     memories = []

@@ -62,7 +62,7 @@ class TestCreate:
         assert result["success"] is False
         assert "already exists" in result["error"]
 
-    def test_files_list_in_result(self, tmp_path):
+    def test_files_list_in_result(self):
         result = create({"name": "new-skill", "description": "test"})
         assert "SKILL.md" in result["files"]
         assert "run.py" in result["files"]

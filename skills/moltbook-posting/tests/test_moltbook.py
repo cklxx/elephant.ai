@@ -94,6 +94,7 @@ def test_search_fallback_to_alternate_domain(monkeypatch):
     resp = _mock_api_response({"data": [{"title": "Result 1"}]})
 
     def _mock_urlopen(req, timeout=0):
+        _ = timeout
         url = req.full_url if hasattr(req, "full_url") else str(req)
         if "www.moltbook.com" in url:
             raise urllib.error.URLError("timed out")

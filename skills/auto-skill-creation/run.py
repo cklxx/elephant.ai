@@ -10,7 +10,6 @@ from pathlib import Path
 import json
 import os
 import sys
-import time
 
 _SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:

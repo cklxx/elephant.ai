@@ -45,7 +45,7 @@ class TestSetConfig:
         result = set_config({})
         assert result["success"] is False
 
-    def test_sets_value(self, tmp_path):
+    def test_sets_value(self):
         result = set_config({"key": "llm.model", "value": "gpt-4o"})
         assert result["success"] is True
         config = get_config({})["config"]

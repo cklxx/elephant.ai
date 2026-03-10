@@ -20,8 +20,6 @@ load_repo_dotenv(__file__)
 
 import os
 import re
-import sys
-from pathlib import Path
 
 _CONFIG_PATH = Path(os.environ.get("ALEX_CONFIG_PATH", os.path.expanduser("~/.alex/config.yaml")))
 
@@ -71,7 +69,7 @@ def set_config(args: dict) -> dict:
     return {"success": True, "key": key, "value": value, "message": f"配置「{key}」已更新"}
 
 
-def list_config(args: dict) -> dict:
+def list_config(_args: dict) -> dict:
     config = _read_config()
     return {"success": True, "config": config, "count": len(config)}
 

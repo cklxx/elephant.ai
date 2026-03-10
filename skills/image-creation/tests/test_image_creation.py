@@ -5,11 +5,8 @@ from __future__ import annotations
 import base64
 import importlib.util
 import json
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 # Load run.py by absolute path to avoid collisions with other skills' run.py
 _RUN_PATH = Path(__file__).resolve().parent.parent / "run.py"
