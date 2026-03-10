@@ -18,7 +18,14 @@ Audit the effective session-management code paths, remove dead helpers, simplify
 
 ## Plan
 
-1. Introduce explicit session lifecycle helpers for create/reset at the storage boundary.
-2. Reuse the create helper across coordinator, preparation, and file-backed session store.
-3. Split `SaveSessionAfterExecution` into focused helpers for history, content, and metadata updates.
-4. Run focused tests/lint/review, then commit and fast-forward merge to `main` without pushing.
+- [x] Introduce explicit session lifecycle helpers for create/reset at the storage boundary.
+- [x] Reuse the create helper across coordinator, preparation, and file-backed session store.
+- [x] Split `SaveSessionAfterExecution` into focused helpers for history, content, and metadata updates. *(already done in prior work)*
+- [x] Run focused tests/lint/review, then commit and fast-forward merge to `main` without pushing.
+
+## Changes
+
+- `storage/session.go`: Added `ClearContent()` method and `GetOrCreate()` function.
+- `coordinator/session_manager.go`: Replaced `clearPersistedSessionContent` with `session.ClearContent()`, simplified `EnsureSession` to delegate to `GetOrCreate`.
+- `preparation/session.go`: Simplified `loadSession` to delegate to `GetOrCreate`, removed `errors`/`time` imports.
+- `storage/session_test.go`: Added 7 tests covering `ClearContent` and `GetOrCreate`.

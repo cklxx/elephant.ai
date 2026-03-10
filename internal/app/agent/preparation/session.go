@@ -2,7 +2,6 @@ package preparation
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -13,33 +12,15 @@ import (
 )
 
 func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string) (*storage.Session, error) {
-	if id == "" {
-		session, err := s.sessionStore.Create(ctx)
-		if err != nil {
-			s.logger.Error("Failed to create session: %v", err)
-		}
-		return session, err
-	}
-
-	session, err := s.sessionStore.Get(ctx, id)
-	if err == nil {
-		return session, nil
-	}
-	if !errors.Is(err, storage.ErrSessionNotFound) {
-		s.logger.Error("Failed to load session: %v", err)
-		return nil, err
-	}
-
 	now := time.Now()
 	if s.clock != nil {
 		now = s.clock.Now()
 	}
-	session = storage.NewSession(id, now)
-	if saveErr := s.sessionStore.Save(ctx, session); saveErr != nil {
-		s.logger.Error("Failed to create missing session %s: %v", id, saveErr)
-		return nil, saveErr
+	session, err := storage.GetOrCreate(ctx, s.sessionStore, id, now)
+	if err != nil {
+		s.logger.Error("Failed to load/create session: %v", err)
 	}
-	return session, nil
+	return session, err
 }
 
 func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, toolMode presets.ToolMode, resolvedToolPreset string) tools.ToolRegistry {

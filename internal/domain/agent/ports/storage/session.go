@@ -81,6 +81,38 @@ func (s *Session) Reset(now time.Time) {
 	s.UpdatedAt = now
 }
 
+// ClearContent removes persisted message content, attachments, and important
+// notes while leaving metadata and lifecycle timestamps intact.
+func (s *Session) ClearContent() {
+	if s == nil {
+		return
+	}
+	s.Messages = nil
+	s.Attachments = nil
+	s.Important = nil
+}
+
+// GetOrCreate retrieves an existing session by ID, or creates and persists a
+// new one when the session is not found. When id is empty it delegates to
+// store.Create which generates a fresh ID.
+func GetOrCreate(ctx context.Context, store SessionStore, id string, now time.Time) (*Session, error) {
+	if id == "" {
+		return store.Create(ctx)
+	}
+	session, err := store.Get(ctx, id)
+	if err == nil {
+		return session, nil
+	}
+	if !errors.Is(err, ErrSessionNotFound) {
+		return nil, err
+	}
+	session = NewSession(id, now)
+	if err := store.Save(ctx, session); err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
 // EnsureMetadata returns session metadata, initializing it when needed.
 func EnsureMetadata(session *Session) map[string]string {
 	if session == nil {

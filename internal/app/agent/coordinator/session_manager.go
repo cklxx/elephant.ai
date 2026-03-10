@@ -106,7 +106,7 @@ func (c *AgentCoordinator) applyExecutionResult(
 	if historyEnabled {
 		c.persistSessionContent(ctx, session, result, logger)
 	} else {
-		clearPersistedSessionContent(session)
+		session.ClearContent()
 	}
 	session.UpdatedAt = c.clock.Now()
 	applyTaskResultMetadata(session, result)
@@ -140,12 +140,6 @@ func (c *AgentCoordinator) persistSessionContent(
 		session.Important = ports.CloneImportantNotes(result.Important)
 		return
 	}
-	session.Important = nil
-}
-
-func clearPersistedSessionContent(session *storage.Session) {
-	session.Messages = nil
-	session.Attachments = nil
 	session.Important = nil
 }
 
@@ -342,23 +336,7 @@ func (c *AgentCoordinator) GetSession(ctx context.Context, id string) (*storage.
 
 // EnsureSession returns an existing session or creates one with the provided ID.
 func (c *AgentCoordinator) EnsureSession(ctx context.Context, id string) (*storage.Session, error) {
-	if id == "" {
-		return c.sessionStore.Create(ctx)
-	}
-	session, err := c.sessionStore.Get(ctx, id)
-	if err == nil {
-		return session, nil
-	}
-	if !errors.Is(err, storage.ErrSessionNotFound) {
-		return nil, err
-	}
-
-	now := c.clock.Now()
-	session = storage.NewSession(id, now)
-	if err := c.sessionStore.Save(ctx, session); err != nil {
-		return nil, err
-	}
-	return session, nil
+	return storage.GetOrCreate(ctx, c.sessionStore, id, c.clock.Now())
 }
 
 func (c *AgentCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
