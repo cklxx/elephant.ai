@@ -784,9 +784,28 @@ def _clamp_page_size(value: Any, *, default: int = 20, minimum: int = 1, maximum
 def _resolve_chat_id(args: dict[str, Any]) -> str:
     return (
         str(args.get("chat_id", "")).strip()
+        or str(args.get("open_id", "")).strip()
+        or str(args.get("user_id", "")).strip()
         or os.environ.get("LARK_CHAT_ID", "").strip()
         or os.environ.get("FEISHU_CHAT_ID", "").strip()
     )
+
+
+def _resolve_receive_id_type(receive_id: str, args: dict[str, Any]) -> str:
+    """Infer receive_id_type from the id prefix or explicit arg."""
+    explicit = str(args.get("receive_id_type", "")).strip()
+    if explicit:
+        return explicit
+    if receive_id.startswith("ou_"):
+        return "open_id"
+    if receive_id.startswith("on_"):
+        return "union_id"
+    if receive_id.startswith("oc_"):
+        return "chat_id"
+    if receive_id.startswith("ug_"):
+        return "chat_id"
+    # default
+    return "chat_id"
 
 
 def _resolve_reply_to_message_id(args: dict[str, Any]) -> str:
@@ -1474,7 +1493,7 @@ def _message_send(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, 
             "POST",
             "/im/v1/messages",
             {"receive_id": chat_id, "msg_type": msg_type, "content": payload},
-            query={"receive_id_type": "chat_id"},
+            query={"receive_id_type": _resolve_receive_id_type(chat_id, args)},
             auth_manager=auth_manager,
         )
     failure = _api_failure(result)
@@ -1602,7 +1621,7 @@ def _message_upload_file(args: dict[str, Any], auth_manager: AuthManager) -> dic
             "POST",
             "/im/v1/messages",
             {"receive_id": chat_id, "msg_type": msg_type, "content": msg_content},
-            query={"receive_id_type": "chat_id"},
+            query={"receive_id_type": _resolve_receive_id_type(chat_id, args)},
             auth_manager=auth_manager,
         )
     failure = _api_failure(send)
