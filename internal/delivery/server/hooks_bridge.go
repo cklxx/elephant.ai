@@ -3,19 +3,14 @@ package server
 import (
 	"context"
 	"crypto/subtle"
-	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"alex/internal/shared/logging"
-	"alex/internal/shared/utils"
-	"alex/internal/shared/uxphrases"
 )
 
 const (
@@ -35,6 +30,17 @@ type NoticeLoader interface {
 type NoticeLoaderFunc func() (string, bool, error)
 
 func (f NoticeLoaderFunc) Load() (string, bool, error) { return f() }
+
+// LarkNotifier is the subset of lark.Gateway used by the hooks bridge.
+type LarkNotifier interface {
+	SendNotification(ctx context.Context, chatID, text string) error
+}
+
+// toolEvent captures one PostToolUse for aggregation.
+type toolEvent struct {
+	chatID  string
+	message string
+}
 
 // HooksBridge receives Claude Code hook events and forwards them to Lark.
 // PostToolUse events are aggregated into periodic summaries; Stop events
@@ -59,17 +65,6 @@ type HooksBridge struct {
 }
 
 // NewHooksBridge constructs a hooks bridge.
-// LarkNotifier is the subset of lark.Gateway used by the hooks bridge.
-type LarkNotifier interface {
-	SendNotification(ctx context.Context, chatID, text string) error
-}
-
-// toolEvent captures one PostToolUse for aggregation.
-type toolEvent struct {
-	chatID  string
-	message string
-}
-
 func NewHooksBridge(gateway LarkNotifier, noticeLoader NoticeLoader, token, defaultChatID string, logger logging.Logger) *HooksBridge {
 	return &HooksBridge{
 		gateway:       gateway,
@@ -83,168 +78,6 @@ func NewHooksBridge(gateway LarkNotifier, noticeLoader NoticeLoader, token, defa
 	}
 }
 
-// hookPayload represents the JSON payload from a Claude Code hook event.
-type hookPayload struct {
-	Event     string          `json:"event"` // e.g. "PostToolUse", "Stop", "PreToolUse"
-	SessionID string          `json:"session_id"`
-	ToolName  string          `json:"tool_name"`
-	ToolInput json.RawMessage `json:"tool_input"`
-	Thinking  string          `json:"thinking,omitempty"`
-	Output    string          `json:"output"`
-	Error     string          `json:"error"`
-	// Stop event fields
-	StopReason string `json:"stop_reason"`
-	Answer     string `json:"answer"`
-}
-
-// decodeHookPayload parses hook payloads leniently so we can accept
-// null/variant field types from different hook emitters.
-func decodeHookPayload(body []byte) (hookPayload, error) {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return hookPayload{}, err
-	}
-
-	payload := hookPayload{
-		Event:      normalizeHookEvent(firstString(raw, "event", "hook_event_name", "event_name")),
-		SessionID:  firstString(raw, "session_id", "session", "sessionId"),
-		ToolName:   firstString(raw, "tool_name", "tool", "name"),
-		Output:     firstString(raw, "output", "tool_response", "result"),
-		Error:      firstString(raw, "error", "err"),
-		StopReason: firstString(raw, "stop_reason", "reason", "stop"),
-		Answer:     firstString(raw, "answer", "final_answer", "finalAnswer", "response"),
-	}
-	if payload.Answer == "" {
-		// Some emitters put terminal text in `output`.
-		payload.Answer = payload.Output
-	}
-	if toolInput, ok := firstValue(raw, "tool_input", "tool_args", "input", "arguments", "args"); ok {
-		if data, err := json.Marshal(toolInput); err == nil && string(data) != "null" {
-			payload.ToolInput = json.RawMessage(data)
-		}
-	}
-	payload.Thinking = extractHookThinking(raw)
-	return payload, nil
-}
-
-func normalizeHookEvent(raw string) string {
-	s := utils.TrimLower(raw)
-	s = strings.ReplaceAll(s, "-", "")
-	s = strings.ReplaceAll(s, "_", "")
-
-	switch s {
-	case "posttooluse", "tooluse", "tool":
-		return "PostToolUse"
-	case "pretooluse", "pretool":
-		return "PreToolUse"
-	case "stop", "complete", "completed", "taskcomplete", "taskcompleted":
-		return "Stop"
-	default:
-		return strings.TrimSpace(raw)
-	}
-}
-
-func firstValue(m map[string]interface{}, keys ...string) (interface{}, bool) {
-	for _, key := range keys {
-		if v, ok := m[key]; ok {
-			return v, true
-		}
-	}
-	return nil, false
-}
-
-func firstString(m map[string]interface{}, keys ...string) string {
-	for _, key := range keys {
-		if v, ok := m[key]; ok {
-			if s := coerceString(v); s != "" {
-				return s
-			}
-		}
-	}
-	return ""
-}
-
-func coerceString(v interface{}) string {
-	switch value := v.(type) {
-	case nil:
-		return ""
-	case string:
-		return strings.TrimSpace(value)
-	case json.Number:
-		return value.String()
-	case float64, float32, int, int32, int64, uint, uint32, uint64, bool:
-		return strings.TrimSpace(fmt.Sprint(value))
-	case map[string]interface{}:
-		// Support nested event objects like {"event":{"name":"Stop"}}.
-		if nested := firstString(value, "name", "type", "event", "value"); nested != "" {
-			return nested
-		}
-		data, err := json.Marshal(value)
-		if err != nil {
-			return ""
-		}
-		return strings.TrimSpace(string(data))
-	default:
-		data, err := json.Marshal(value)
-		if err == nil && string(data) != "null" {
-			return strings.TrimSpace(string(data))
-		}
-		return strings.TrimSpace(fmt.Sprint(value))
-	}
-}
-
-func extractHookThinking(raw map[string]interface{}) string {
-	if raw == nil {
-		return ""
-	}
-	for _, key := range []string{"thinking", "reasoning", "thought", "pre_tool_thinking"} {
-		if value, ok := raw[key]; ok {
-			if text := extractThinkingText(value); text != "" {
-				return text
-			}
-		}
-	}
-	if toolInput, ok := firstValue(raw, "tool_input", "tool_args", "input", "arguments", "args"); ok {
-		return extractThinkingText(toolInput)
-	}
-	return ""
-}
-
-func extractThinkingText(v interface{}) string {
-	switch value := v.(type) {
-	case nil:
-		return ""
-	case string:
-		return compactHookText(value)
-	case []interface{}:
-		parts := make([]string, 0, len(value))
-		for _, item := range value {
-			if text := extractThinkingText(item); text != "" {
-				parts = append(parts, text)
-			}
-		}
-		return compactHookText(strings.Join(parts, " "))
-	case map[string]interface{}:
-		for _, key := range []string{"thinking", "reasoning", "thought", "summary", "text", "content"} {
-			if nested, ok := value[key]; ok {
-				if text := extractThinkingText(nested); text != "" {
-					return text
-				}
-			}
-		}
-		for _, key := range []string{"parts", "segments", "items", "messages"} {
-			if nested, ok := value[key]; ok {
-				if text := extractThinkingText(nested); text != "" {
-					return text
-				}
-			}
-		}
-		return ""
-	default:
-		return ""
-	}
-}
-
 // ServeHTTP handles POST /api/hooks/claude-code.
 func (h *HooksBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -252,26 +85,14 @@ func (h *HooksBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify token
-	if h.token != "" {
-		auth := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(auth)), []byte(h.token)) != 1 {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-	}
-
-	defer r.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(r.Body, 64*1024))
-	if err != nil {
-		http.Error(w, "read body failed", http.StatusBadRequest)
+	if !h.verifyToken(r) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	payload, err := decodeHookPayload(body)
+	payload, err := h.readAndDecode(r)
 	if err != nil {
-		h.logger.Warn("Hooks bridge: invalid json payload (%v): %s", err, truncateHookText(string(body), 180))
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -291,179 +112,59 @@ func (h *HooksBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch payload.Event {
-	case "PostToolUse", "PreToolUse":
-		h.bufferToolEvent(r.Context(), chatID, message)
-	case "Stop":
-		// Flush any buffered tool events before the stop message.
-		h.flushToolBuffer(r.Context())
-		h.sendToLark(r.Context(), chatID, message)
-	default:
-		h.sendToLark(r.Context(), chatID, message)
-	}
+	h.dispatchEvent(r.Context(), chatID, message, payload.Event)
 	w.WriteHeader(http.StatusOK)
+}
+
+// verifyToken checks the Bearer token if one is configured.
+func (h *HooksBridge) verifyToken(r *http.Request) bool {
+	if h.token == "" {
+		return true
+	}
+	auth := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	return subtle.ConstantTimeCompare([]byte(strings.TrimSpace(auth)), []byte(h.token)) == 1
+}
+
+// readAndDecode reads the request body and decodes the hook payload.
+func (h *HooksBridge) readAndDecode(r *http.Request) (hookPayload, error) {
+	defer r.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64*1024))
+	if err != nil {
+		return hookPayload{}, fmt.Errorf("read body failed")
+	}
+	payload, err := decodeHookPayload(body)
+	if err != nil {
+		h.logger.Warn("Hooks bridge: invalid json payload (%v): %s", err, truncateHookText(string(body), 180))
+		return hookPayload{}, fmt.Errorf("invalid json")
+	}
+	return payload, nil
+}
+
+// dispatchEvent routes a formatted message based on event type.
+func (h *HooksBridge) dispatchEvent(ctx context.Context, chatID, message, event string) {
+	switch event {
+	case "PostToolUse", "PreToolUse":
+		h.bufferToolEvent(ctx, chatID, message)
+	case "Stop":
+		h.flushToolBuffer(ctx)
+		h.sendToLark(ctx, chatID, message)
+	default:
+		h.sendToLark(ctx, chatID, message)
+	}
 }
 
 // resolveChatID determines the target Lark chat for a hook event.
 // Priority: query param > notice binding > defaultChatID.
 func (h *HooksBridge) resolveChatID(r *http.Request) string {
-	// 1. Allow override via query parameter.
 	if chatID := strings.TrimSpace(r.URL.Query().Get("chat_id")); chatID != "" {
 		return chatID
 	}
-
-	// 2. Try notice binding.
 	if h.noticeLoader != nil {
 		if chatID, ok, err := h.noticeLoader.Load(); err == nil && ok && chatID != "" {
 			return chatID
 		}
 	}
-
-	// 3. Fall back to default.
 	return h.defaultChatID
-}
-
-// formatHookEvent formats a hook payload into a friendly Chinese Lark message.
-func (h *HooksBridge) formatHookEvent(p hookPayload) string {
-	switch p.Event {
-	case "PostToolUse":
-		return formatPostToolUse(p)
-	case "Stop":
-		return formatStop(p)
-	case "PreToolUse":
-		return formatPreToolUse(p)
-	default:
-		return ""
-	}
-}
-
-// formatPostToolUse creates a friendly message for a completed tool use.
-func formatPostToolUse(p hookPayload) string {
-	phrase := uxphrases.ToolPhrase(p.ToolName, 0)
-	detail := toolDetail(p.ToolName, p.ToolInput)
-	if detail != "" {
-		return fmt.Sprintf("%s\n%s", phrase, detail)
-	}
-	return phrase
-}
-
-// formatPreToolUse creates a friendly message for a tool about to be used.
-func formatPreToolUse(p hookPayload) string {
-	phrase := uxphrases.ToolPhrase(p.ToolName, 1)
-	thinking := extractPreToolThinkingLine(p.Thinking)
-	detail := toolDetail(p.ToolName, p.ToolInput)
-	lines := []string{phrase}
-	if thinking != "" {
-		lines = append(lines, "思路："+thinking)
-	}
-	if detail != "" {
-		lines = append(lines, detail)
-	}
-	return strings.Join(lines, "\n")
-}
-
-// formatStop creates a completion message.
-func formatStop(p hookPayload) string {
-	var sb strings.Builder
-	sb.WriteString("任务已完成")
-	answer := p.Answer
-	if utils.IsBlank(answer) {
-		// Some hook emitters place the final text in `output` for Stop events.
-		answer = p.Output
-	}
-	if utils.HasContent(answer) {
-		sb.WriteString("\n")
-		sb.WriteString(truncateHookText(answer, 800))
-	}
-	if p.Error != "" {
-		sb.WriteString("\n出错了：")
-		sb.WriteString(truncateHookText(p.Error, 400))
-	}
-	return sb.String()
-}
-
-// toolDetail extracts a brief context hint from tool input.
-func toolDetail(toolName string, input json.RawMessage) string {
-	if len(input) == 0 {
-		return ""
-	}
-	var m map[string]interface{}
-	if err := json.Unmarshal(input, &m); err != nil {
-		return ""
-	}
-
-	lower := strings.ToLower(toolName)
-
-	// File operations: show filename.
-	if hasFilePrefix(lower) {
-		if path := extractString(m, "path", "file_path", "filename"); path != "" {
-			return fmt.Sprintf("📄 %s", filepath.Base(path))
-		}
-	}
-
-	// Shell/exec: show command.
-	if hasShellPrefix(lower) {
-		if cmd := extractString(m, "command", "cmd"); cmd != "" {
-			return fmt.Sprintf("$ %s", truncateHookText(cmd, 120))
-		}
-	}
-
-	// Search: show query.
-	if hasSearchPrefix(lower) {
-		if q := extractString(m, "query", "search_query", "pattern"); q != "" {
-			return fmt.Sprintf("🔍 %s", truncateHookText(q, 120))
-		}
-	}
-
-	return ""
-}
-
-func hasFilePrefix(name string) bool {
-	// Exact matches for single-word tools, prefix matches for compound names.
-	switch name {
-	case "read", "write", "edit", "glob", "grep":
-		return true
-	}
-	for _, p := range []string{"read_", "write_", "edit_", "replace_in_file", "create_file",
-		"view_file", "patch_file", "list_dir", "list_files"} {
-		if strings.HasPrefix(name, p) {
-			return true
-		}
-	}
-	return false
-}
-
-func hasShellPrefix(name string) bool {
-	switch name {
-	case "bash":
-		return true
-	}
-	for _, p := range []string{"shell_exec", "run_command", "terminal", "exec_"} {
-		if strings.HasPrefix(name, p) {
-			return true
-		}
-	}
-	return false
-}
-
-func hasSearchPrefix(name string) bool {
-	for _, p := range []string{"web_search", "web_fetch", "tavily", "search_web", "search_file", "search_code"} {
-		if strings.HasPrefix(name, p) {
-			return true
-		}
-	}
-	return false
-}
-
-func extractString(m map[string]interface{}, keys ...string) string {
-	for _, k := range keys {
-		if v, ok := m[k]; ok {
-			if s, ok := v.(string); ok {
-				return strings.TrimSpace(s)
-			}
-		}
-	}
-	return ""
 }
 
 // sendToLark dispatches a text message to the specified Lark chat.
@@ -472,7 +173,6 @@ func (h *HooksBridge) sendToLark(ctx context.Context, chatID, message string) {
 		h.logger.Warn("Hooks bridge: gateway not set")
 		return
 	}
-
 	if err := h.gateway.SendNotification(ctx, chatID, message); err != nil {
 		h.logger.Warn("Hooks bridge send failed: %v", err)
 	}
@@ -485,7 +185,6 @@ func (h *HooksBridge) bufferToolEvent(ctx context.Context, chatID, message strin
 
 	h.toolBuffer = append(h.toolBuffer, toolEvent{chatID: chatID, message: message})
 
-	// Start flush timer on first buffered event.
 	if h.flushTimer == nil {
 		h.flushTimer = time.AfterFunc(h.aggWindow, func() {
 			h.flushToolBuffer(ctx)
@@ -508,133 +207,22 @@ func (h *HooksBridge) flushToolBuffer(ctx context.Context) {
 	}
 	h.mu.Unlock()
 
-	// Group by chatID (normally all same, but be safe).
+	grouped := groupEventsByChatID(events)
+	for chatID, messages := range grouped {
+		h.sendToLark(ctx, chatID, formatToolSummary(messages))
+	}
+}
+
+// groupEventsByChatID groups tool events by their target chat.
+func groupEventsByChatID(events []toolEvent) map[string][]string {
 	grouped := make(map[string][]string)
 	for _, e := range events {
 		grouped[e.chatID] = append(grouped[e.chatID], e.message)
 	}
-
-	for chatID, messages := range grouped {
-		text := formatToolSummary(messages)
-		h.sendToLark(ctx, chatID, text)
-	}
+	return grouped
 }
 
 // Close flushes remaining buffered events. Call on shutdown.
 func (h *HooksBridge) Close(ctx context.Context) {
 	h.flushToolBuffer(ctx)
-}
-
-// formatToolSummary compresses multiple tool messages into a single notification.
-func formatToolSummary(messages []string) string {
-	if len(messages) == 1 {
-		return messages[0]
-	}
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("执行了 %d 步操作：\n", len(messages)))
-	for _, m := range messages {
-		// Take first line of each message as a compact summary.
-		line := m
-		if idx := strings.IndexByte(m, '\n'); idx > 0 {
-			line = m[:idx]
-		}
-		sb.WriteString("  • ")
-		sb.WriteString(truncateHookText(line, 80))
-		sb.WriteByte('\n')
-	}
-	return strings.TrimRight(sb.String(), "\n")
-}
-
-func truncateHookText(s string, max int) string {
-	s = strings.TrimSpace(s)
-	runes := []rune(s)
-	if max <= 0 || len(runes) <= max {
-		return s
-	}
-	return string(runes[:max]) + "..."
-}
-
-func compactHookText(s string) string {
-	return strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
-}
-
-func extractPreToolThinkingLine(thinking string) string {
-	thinking = compactHookText(thinking)
-	if thinking == "" {
-		return ""
-	}
-	return truncateHookText(thinking, 240)
-}
-
-func (h *HooksBridge) isDuplicateEvent(chatID string, payload hookPayload) bool {
-	if h == nil || h.dedupeWindow <= 0 {
-		return false
-	}
-
-	now := h.now()
-	cutoff := now.Add(-h.dedupeWindow)
-	fingerprint := hookEventFingerprint(chatID, payload)
-
-	h.dedupeMu.Lock()
-	defer h.dedupeMu.Unlock()
-
-	if h.recentFingerprints == nil {
-		h.recentFingerprints = make(map[uint64]time.Time)
-	}
-
-	for key, ts := range h.recentFingerprints {
-		if ts.Before(cutoff) {
-			delete(h.recentFingerprints, key)
-		}
-	}
-
-	if ts, ok := h.recentFingerprints[fingerprint]; ok && now.Sub(ts) <= h.dedupeWindow {
-		return true
-	}
-	h.recentFingerprints[fingerprint] = now
-
-	if len(h.recentFingerprints) <= maxRecentHookFingerprints {
-		return false
-	}
-	oldestKey := uint64(0)
-	found := false
-	oldest := now
-	for key, ts := range h.recentFingerprints {
-		if !found || ts.Before(oldest) {
-			oldest = ts
-			oldestKey = key
-			found = true
-		}
-	}
-	if found {
-		delete(h.recentFingerprints, oldestKey)
-	}
-	return false
-}
-
-func hookEventFingerprint(chatID string, payload hookPayload) uint64 {
-	hasher := fnv.New64a()
-	write := func(s string) {
-		_, _ = hasher.Write([]byte(s))
-		_, _ = hasher.Write([]byte{0})
-	}
-
-	write(chatID)
-	write(payload.Event)
-	write(payload.SessionID)
-	write(payload.ToolName)
-	write(truncateHookText(payload.Output, 512))
-	write(truncateHookText(payload.Error, 512))
-	write(payload.StopReason)
-	write(truncateHookText(payload.Answer, 512))
-	write(truncateHookText(payload.Thinking, 512))
-	if len(payload.ToolInput) > 0 {
-		input := payload.ToolInput
-		if len(input) > maxFingerprintInputBytes {
-			input = input[:maxFingerprintInputBytes]
-		}
-		_, _ = hasher.Write(input)
-	}
-
-	return hasher.Sum64()
 }
