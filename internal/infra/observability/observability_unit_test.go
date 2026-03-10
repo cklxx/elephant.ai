@@ -150,11 +150,12 @@ func TestSanitizeToolArguments_RedactsAPIKeyLookingValues(t *testing.T) {
 // Metrics: nil collector safety
 // ---------------------------------------------------------------------------
 
-func TestMetricsCollector_NilSafe(t *testing.T) {
-	var collector *MetricsCollector
+func TestMetricsCollector_DisabledSafe(t *testing.T) {
+	// A disabled collector should not panic on any Record* call.
+	collector, err := NewMetricsCollector(MetricsConfig{Enabled: false})
+	require.NoError(t, err)
 	ctx := context.Background()
 
-	// All methods should be nil-safe (no panic).
 	collector.RecordLLMRequest(ctx, "model", "ok", time.Second, 100, 50, 0.01)
 	collector.RecordToolExecution(ctx, "tool", "ok", time.Millisecond)
 	collector.IncrementActiveSessions(ctx)
