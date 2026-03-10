@@ -46,6 +46,27 @@ func TestWrapTransportWithCircuitBreaker(t *testing.T) {
 	}
 }
 
+func TestIsBreakerFailureStatus(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		want   bool
+	}{
+		{name: "500 is failure", status: 500, want: true},
+		{name: "502 is failure", status: 502, want: true},
+		{name: "429 is failure", status: 429, want: true},
+		{name: "200 is not failure", status: 200, want: false},
+		{name: "404 is not failure", status: 404, want: false},
+		{name: "399 is not failure", status: 399, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isBreakerFailureStatus(tt.status)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestCircuitBreakerRoundTripNilRequest(t *testing.T) {
 	cfg := alexerrors.DefaultCircuitBreakerConfig()
 	rt := WrapTransportWithCircuitBreaker(http.DefaultTransport, "test", cfg)

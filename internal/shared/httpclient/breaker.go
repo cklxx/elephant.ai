@@ -18,13 +18,9 @@ type circuitBreakerRoundTripper struct {
 
 // NewWithCircuitBreaker builds an HTTP client guarded by a circuit breaker.
 func NewWithCircuitBreaker(timeout time.Duration, logger logging.Logger, name string) *http.Client {
-	return NewWithCircuitBreakerConfig(timeout, logger, name, alexerrors.DefaultCircuitBreakerConfig())
-}
-
-// NewWithCircuitBreakerConfig builds an HTTP client guarded by a custom circuit breaker config.
-func NewWithCircuitBreakerConfig(timeout time.Duration, logger logging.Logger, name string, config alexerrors.CircuitBreakerConfig) *http.Client {
+	cfg := alexerrors.DefaultCircuitBreakerConfig()
 	client := New(timeout, logger)
-	client.Transport = WrapTransportWithCircuitBreaker(client.Transport, name, config)
+	client.Transport = WrapTransportWithCircuitBreaker(client.Transport, name, cfg)
 	return client
 }
 

@@ -18,13 +18,13 @@ func New(timeout time.Duration, logger logging.Logger) *http.Client {
 
 	return &http.Client{
 		Timeout:   timeout,
-		Transport: Transport(logger),
+		Transport: newTransport(logger),
 	}
 }
 
-// Transport returns an http.Transport clone with a proxy policy suitable for
+// newTransport returns an http.Transport clone with a proxy policy suitable for
 // outbound calls.
-func Transport(logger logging.Logger) *http.Transport {
+func newTransport(logger logging.Logger) *http.Transport {
 	base, ok := http.DefaultTransport.(*http.Transport)
 	if !ok {
 		return &http.Transport{Proxy: proxyFunc(logger)}
