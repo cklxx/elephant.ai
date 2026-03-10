@@ -20,7 +20,7 @@ Also inspect `docs/memory/` files and simplify any that are still verbose or out
 - [x] Rewrite only the docs that need simplification.
 - [x] Run relevant validation.
 - [x] Run code review.
-- [ ] Commit, merge, and push.
+- [x] Commit, merge, and push.
 
 ## Notes
 
