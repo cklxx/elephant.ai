@@ -56,7 +56,7 @@ func TestListRecentEvents(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(events)
+		_ = json.NewEncoder(w).Encode(events)
 	}))
 	defer srv.Close()
 
@@ -99,7 +99,7 @@ func TestGetPRStatus(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(pr)
+		_ = json.NewEncoder(w).Encode(pr)
 	}))
 	defer srv.Close()
 
@@ -126,7 +126,7 @@ func TestListOpenPRs(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(prs)
+		_ = json.NewEncoder(w).Encode(prs)
 	}))
 	defer srv.Close()
 
@@ -146,7 +146,7 @@ func TestListCommitActivity(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(commits)
+		_ = json.NewEncoder(w).Encode(commits)
 	}))
 	defer srv.Close()
 
@@ -176,7 +176,7 @@ func TestDetectReviewBottlenecks(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(prs)
+		_ = json.NewEncoder(w).Encode(prs)
 	}))
 	defer srv.Close()
 
@@ -274,7 +274,7 @@ func TestExtractTicketID(t *testing.T) {
 func TestAPIGet_ErrorResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte("rate limited"))
+		_, _ = w.Write([]byte("rate limited"))
 	}))
 	defer srv.Close()
 
