@@ -7,6 +7,22 @@ import (
 	"unicode/utf8"
 )
 
+// AttentionRoute describes how a message should be handled after scoring.
+type AttentionRoute string
+
+const (
+	// AttentionRouteSuppress drops low-signal messages from immediate routing.
+	AttentionRouteSuppress AttentionRoute = "suppress"
+	// AttentionRouteSummarize batches medium-signal messages into summaries.
+	AttentionRouteSummarize AttentionRoute = "summarize"
+	// AttentionRouteQueue defers high-signal but non-urgent messages.
+	AttentionRouteQueue AttentionRoute = "queue"
+	// AttentionRouteNotifyNow dispatches urgent messages immediately.
+	AttentionRouteNotifyNow AttentionRoute = "notify_now"
+	// AttentionRouteEscalate dispatches critical messages immediately and flags them for escalation.
+	AttentionRouteEscalate AttentionRoute = "escalate"
+)
+
 // UrgencyLevel classifies how urgently a message needs human attention.
 type UrgencyLevel int
 
@@ -24,7 +40,7 @@ type AttentionGateConfig struct {
 	// Enabled activates the attention gate. When false, all messages pass through.
 	Enabled bool `yaml:"enabled"`
 	// UrgentKeywords are strings that elevate a message to UrgencyHigh.
-	// Matched case-insensitively against message content.
+	// Matched case-insensitively against message content and scored at 80+.
 	UrgentKeywords []string `yaml:"urgent_keywords"`
 	// AutoAckMessage is the reply sent for non-urgent messages.
 	// Default: "收到，已记录并跟踪中。"
@@ -43,9 +59,60 @@ type AttentionGateConfig struct {
 	// QuietHoursEnd is the hour (0-23) when quiet hours end (exclusive).
 	// Wraps around midnight: start=22, end=8 means 22:00-07:59.
 	QuietHoursEnd int `yaml:"quiet_hours_end"`
+	// SummarizeThreshold is the minimum score routed to summarize.
+	// Default: 40.
+	SummarizeThreshold int `yaml:"summarize_threshold"`
+	// QueueThreshold is the minimum score routed to queue.
+	// Default: 60.
+	QueueThreshold int `yaml:"queue_threshold"`
+	// NotifyNowThreshold is the minimum score routed to notify_now.
+	// Default: 80.
+	NotifyNowThreshold int `yaml:"notify_now_threshold"`
+	// EscalateThreshold is the minimum score routed to escalate.
+	// Default: 90.
+	EscalateThreshold int `yaml:"escalate_threshold"`
 }
 
 const defaultAutoAckMessage = "收到，已记录并跟踪中。"
+
+const (
+	minAttentionScore = 0
+	maxAttentionScore = 100
+
+	baseAttentionScore      = 20
+	summarizeAttentionScore = 40
+	queueAttentionScore     = 60
+	notifyNowAttentionScore = 80
+	escalateAttentionScore  = 90
+
+	defaultSummarizeThreshold = 40
+	defaultQueueThreshold     = 60
+	defaultNotifyNowThreshold = 80
+	defaultEscalateThreshold  = 90
+)
+
+var summarizeAttentionPatterns = []string{
+	"please", "pls", "review", "check", "look at", "take a look",
+	"can you", "could you", "help", "请", "帮忙", "看一下", "看看", "麻烦",
+}
+
+var queueAttentionPatterns = []string{
+	"today", "tonight", "this week", "before ", "follow up", "deadline",
+	"eod", "尽快", "今天", "今晚", "本周", "截止", "稍后",
+}
+
+var builtinUrgencyPatterns = []string{
+	"紧急", "urgent", "asap", "deadline",
+	"立刻", "马上", "immediately",
+	"出错", "报错", "error", "失败", "failed", "故障",
+	"挂了", "崩了", "down", "宕机",
+	"blocked", "阻塞",
+}
+
+var escalateAttentionPatterns = []string{
+	"p0", "sev0", "sev1", "incident", "outage",
+	"生产事故", "生产故障", "宕机", "崩了",
+}
 
 // FocusTimeChecker determines whether a user is in a focus time window.
 // When set on AttentionGate, non-urgent messages are suppressed for users
@@ -56,11 +123,19 @@ type FocusTimeChecker interface {
 
 // QueuedMessage is a non-urgent message held back during quiet hours.
 type QueuedMessage struct {
-	Content  string
-	ChatID   string
-	UserID   string
-	Urgency  UrgencyLevel
-	QueuedAt time.Time
+	Content        string
+	ChatID         string
+	UserID         string
+	AttentionScore int
+	Route          AttentionRoute
+	Urgency        UrgencyLevel
+	QueuedAt       time.Time
+}
+
+// AttentionAssessment captures the numeric score and threshold-derived route.
+type AttentionAssessment struct {
+	Score int
+	Route AttentionRoute
 }
 
 // AttentionGate filters messages based on urgency criteria and enforces
@@ -70,6 +145,7 @@ type AttentionGate struct {
 
 	// lowerKeywords is the pre-lowered keyword set for fast matching.
 	lowerKeywords []string
+	thresholds    attentionRoutingThresholds
 
 	// focusTime is an optional checker for focus time suppression.
 	// When non-nil, non-urgent messages are suppressed during focus time.
@@ -82,6 +158,13 @@ type AttentionGate struct {
 
 type chatBudget struct {
 	timestamps []time.Time
+}
+
+type attentionRoutingThresholds struct {
+	summarize int
+	queue     int
+	notifyNow int
+	escalate  int
 }
 
 // NewAttentionGate creates an AttentionGate with the given config.
@@ -103,61 +186,91 @@ func NewAttentionGate(cfg AttentionGateConfig) *AttentionGate {
 	return &AttentionGate{
 		cfg:           cfg,
 		lowerKeywords: lower,
+		thresholds:    normalizeAttentionRoutingThresholds(cfg),
 		budgets:       make(map[string]*chatBudget),
 	}
 }
 
-// ClassifyUrgency determines the urgency level of a message.
-// A message is UrgencyHigh if it contains any configured urgent keyword
-// or matches urgency patterns (deadline expressions, @mentions of specific
-// patterns). Returns UrgencyLow for routine messages when the gate is enabled,
-// or UrgencyNormal when disabled.
+// Assess returns the numeric attention score and route for a message.
+func (g *AttentionGate) Assess(content string) AttentionAssessment {
+	score := g.AttentionScore(content)
+	return AttentionAssessment{
+		Score: score,
+		Route: g.RouteForScore(score),
+	}
+}
+
+// AttentionScore determines the 0-100 attention score for a message.
+// The score is compatibility-oriented: messages that were previously
+// "urgent" always score at or above the notify_now threshold.
+func (g *AttentionGate) AttentionScore(content string) int {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return minAttentionScore
+	}
+
+	lower := strings.ToLower(trimmed)
+	score := baseAttentionScore
+
+	if containsAny(lower, summarizeAttentionPatterns) {
+		score = maxInt(score, summarizeAttentionScore)
+	}
+	if containsAny(lower, queueAttentionPatterns) {
+		score = maxInt(score, queueAttentionScore)
+	}
+
+	urgentSignals := countMatches(lower, g.lowerKeywords)
+	if urgentSignals > 0 {
+		score = maxInt(score, notifyNowAttentionScore)
+	}
+
+	builtinSignals := countMatches(lower, builtinUrgencyPatterns)
+	if builtinSignals > 0 {
+		score = maxInt(score, notifyNowAttentionScore)
+		urgentSignals += builtinSignals
+	}
+
+	if hasExclamationBurst(lower) {
+		score = maxInt(score, notifyNowAttentionScore)
+		urgentSignals++
+	}
+
+	escalateSignals := countMatches(lower, escalateAttentionPatterns)
+	if escalateSignals > 0 || urgentSignals >= 2 {
+		score = maxInt(score, escalateAttentionScore)
+	}
+	if escalateSignals+urgentSignals >= 3 {
+		score = maxAttentionScore
+	}
+
+	return clampAttentionScore(score)
+}
+
+// RouteForScore converts a numeric score into a routing outcome.
+func (g *AttentionGate) RouteForScore(score int) AttentionRoute {
+	score = clampAttentionScore(score)
+	switch {
+	case score >= g.thresholds.escalate:
+		return AttentionRouteEscalate
+	case score >= g.thresholds.notifyNow:
+		return AttentionRouteNotifyNow
+	case score >= g.thresholds.queue:
+		return AttentionRouteQueue
+	case score >= g.thresholds.summarize:
+		return AttentionRouteSummarize
+	default:
+		return AttentionRouteSuppress
+	}
+}
+
+// ClassifyUrgency maps numeric attention scoring back to the legacy urgency
+// API for callers that still depend on UrgencyLevel.
 func (g *AttentionGate) ClassifyUrgency(content string) UrgencyLevel {
 	if !g.cfg.Enabled {
 		return UrgencyNormal
 	}
-	if content == "" {
-		return UrgencyLow
-	}
 
-	lower := strings.ToLower(content)
-
-	// Check configured urgent keywords.
-	for _, kw := range g.lowerKeywords {
-		if strings.Contains(lower, kw) {
-			return UrgencyHigh
-		}
-	}
-
-	// Built-in urgency patterns.
-	if matchesBuiltinUrgencyPatterns(lower) {
-		return UrgencyHigh
-	}
-
-	return UrgencyLow
-}
-
-// matchesBuiltinUrgencyPatterns checks for common urgency signals:
-// deadline words, exclamation-heavy messages, and error/failure keywords.
-func matchesBuiltinUrgencyPatterns(lower string) bool {
-	urgentPatterns := []string{
-		"紧急", "urgent", "asap", "deadline",
-		"立刻", "马上", "immediately",
-		"出错", "报错", "error", "失败", "failed", "故障",
-		"挂了", "崩了", "down", "宕机",
-		"blocked", "阻塞",
-	}
-	for _, p := range urgentPatterns {
-		if strings.Contains(lower, p) {
-			return true
-		}
-	}
-	// Messages that are mostly exclamation marks signal urgency.
-	exclamations := strings.Count(lower, "!") + strings.Count(lower, "！")
-	if exclamations >= 3 && utf8.RuneCountInString(lower) < 50 {
-		return true
-	}
-	return false
+	return g.legacyUrgencyForScore(g.AttentionScore(content))
 }
 
 // RecordDispatch records an outgoing message for budget tracking.
@@ -261,15 +374,15 @@ func (g *AttentionGate) inQuietHours(hour int) bool {
 // always pass through, even during quiet hours.
 // Returns the urgency level and whether the message should be sent.
 func (g *AttentionGate) ShouldDispatch(content, chatID, userID string, now time.Time) (UrgencyLevel, bool) {
-	urgency := g.ClassifyUrgency(content)
+	if !g.cfg.Enabled {
+		return UrgencyNormal, true
+	}
+
+	assessment := g.Assess(content)
+	urgency := g.legacyUrgencyForScore(assessment.Score)
 
 	// Critical messages always pass through.
 	if urgency == UrgencyHigh {
-		return urgency, true
-	}
-
-	// Gate disabled → pass through.
-	if !g.cfg.Enabled {
 		return urgency, true
 	}
 
@@ -277,11 +390,13 @@ func (g *AttentionGate) ShouldDispatch(content, chatID, userID string, now time.
 	if g.inQuietHours(now.Hour()) {
 		g.mu.Lock()
 		g.queued = append(g.queued, QueuedMessage{
-			Content:  content,
-			ChatID:   chatID,
-			UserID:   userID,
-			Urgency:  urgency,
-			QueuedAt: now,
+			Content:        content,
+			ChatID:         chatID,
+			UserID:         userID,
+			AttentionScore: assessment.Score,
+			Route:          assessment.Route,
+			Urgency:        urgency,
+			QueuedAt:       now,
 		})
 		g.mu.Unlock()
 		return urgency, false
@@ -321,4 +436,69 @@ func (g *AttentionGate) QueueLen() int {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return len(g.queued)
+}
+
+func normalizeAttentionRoutingThresholds(cfg AttentionGateConfig) attentionRoutingThresholds {
+	thresholds := attentionRoutingThresholds{
+		summarize: cfg.SummarizeThreshold,
+		queue:     cfg.QueueThreshold,
+		notifyNow: cfg.NotifyNowThreshold,
+		escalate:  cfg.EscalateThreshold,
+	}
+	if thresholds.summarize == 0 {
+		thresholds.summarize = defaultSummarizeThreshold
+	}
+	if thresholds.queue == 0 {
+		thresholds.queue = defaultQueueThreshold
+	}
+	if thresholds.notifyNow == 0 {
+		thresholds.notifyNow = defaultNotifyNowThreshold
+	}
+	if thresholds.escalate == 0 {
+		thresholds.escalate = defaultEscalateThreshold
+	}
+	return thresholds
+}
+
+func (g *AttentionGate) legacyUrgencyForScore(score int) UrgencyLevel {
+	if score >= notifyNowAttentionScore {
+		return UrgencyHigh
+	}
+	return UrgencyLow
+}
+
+func containsAny(lower string, patterns []string) bool {
+	return countMatches(lower, patterns) > 0
+}
+
+func countMatches(lower string, patterns []string) int {
+	count := 0
+	for _, pattern := range patterns {
+		if strings.Contains(lower, pattern) {
+			count++
+		}
+	}
+	return count
+}
+
+func hasExclamationBurst(lower string) bool {
+	exclamations := strings.Count(lower, "!") + strings.Count(lower, "！")
+	return exclamations >= 3 && utf8.RuneCountInString(lower) < 50
+}
+
+func clampAttentionScore(score int) int {
+	if score < minAttentionScore {
+		return minAttentionScore
+	}
+	if score > maxAttentionScore {
+		return maxAttentionScore
+	}
+	return score
+}
+
+func maxInt(left, right int) int {
+	if right > left {
+		return right
+	}
+	return left
 }

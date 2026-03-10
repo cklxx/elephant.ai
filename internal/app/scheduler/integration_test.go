@@ -62,9 +62,12 @@ attention_gate:
   enabled: true
   budget_max: 20
   budget_window_seconds: 3600
-  priority_threshold: 0.6
   quiet_hours_start: 22
   quiet_hours_end: 8
+  summarize_threshold: 40
+  queue_threshold: 60
+  notify_now_threshold: 80
+  escalate_threshold: 90
 prep_brief:
   enabled: true
   schedule: "30 8 * * 1-5"
@@ -175,7 +178,7 @@ func TestIntegration_LeaderConfigToScheduler(t *testing.T) {
 	// Verify all four leader triggers are registered.
 	names := sched.TriggerNames()
 	expected := map[string]bool{
-		blockerRadarTriggerName:  false,
+		blockerRadarTriggerName: false,
 		weeklyPulseTriggerName:  false,
 		milestoneTriggerName:    false,
 		prepBriefTriggerName:    false,

@@ -5,10 +5,111 @@ import (
 	"time"
 )
 
+func TestAttentionGate_Assess_ScoreAndRoute(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:        true,
+		UrgentKeywords: []string{"P0", "hotfix"},
+	})
+
+	tests := []struct {
+		name      string
+		content   string
+		wantScore int
+		wantRoute AttentionRoute
+	}{
+		{name: "empty", content: "", wantScore: 0, wantRoute: AttentionRouteSuppress},
+		{name: "summarize", content: "can you review this PR", wantScore: 40, wantRoute: AttentionRouteSummarize},
+		{name: "queue", content: "can you review this PR today", wantScore: 60, wantRoute: AttentionRouteQueue},
+		{name: "notify now", content: "deploy the HOTFIX branch", wantScore: 80, wantRoute: AttentionRouteNotifyNow},
+		{name: "escalate", content: "P0 production outage asap!!!", wantScore: 100, wantRoute: AttentionRouteEscalate},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := gate.Assess(tt.content)
+			if got.Score != tt.wantScore {
+				t.Fatalf("Assess(%q).Score = %d, want %d", tt.content, got.Score, tt.wantScore)
+			}
+			if got.Route != tt.wantRoute {
+				t.Fatalf("Assess(%q).Route = %q, want %q", tt.content, got.Route, tt.wantRoute)
+			}
+		})
+	}
+}
+
+func TestAttentionGate_RouteForScore_DefaultThresholds(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{Enabled: true})
+	tests := []struct {
+		score int
+		want  AttentionRoute
+	}{
+		{0, AttentionRouteSuppress},
+		{39, AttentionRouteSuppress},
+		{40, AttentionRouteSummarize},
+		{59, AttentionRouteSummarize},
+		{60, AttentionRouteQueue},
+		{79, AttentionRouteQueue},
+		{80, AttentionRouteNotifyNow},
+		{89, AttentionRouteNotifyNow},
+		{90, AttentionRouteEscalate},
+		{100, AttentionRouteEscalate},
+	}
+
+	for _, tt := range tests {
+		if got := gate.RouteForScore(tt.score); got != tt.want {
+			t.Errorf("RouteForScore(%d) = %q, want %q", tt.score, got, tt.want)
+		}
+	}
+}
+
+func TestAttentionGate_RouteForScore_CustomThresholds(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:            true,
+		SummarizeThreshold: 25,
+		QueueThreshold:     50,
+		NotifyNowThreshold: 70,
+		EscalateThreshold:  95,
+	})
+
+	tests := []struct {
+		score int
+		want  AttentionRoute
+	}{
+		{24, AttentionRouteSuppress},
+		{25, AttentionRouteSummarize},
+		{50, AttentionRouteQueue},
+		{70, AttentionRouteNotifyNow},
+		{95, AttentionRouteEscalate},
+	}
+
+	for _, tt := range tests {
+		if got := gate.RouteForScore(tt.score); got != tt.want {
+			t.Errorf("RouteForScore(%d) = %q, want %q", tt.score, got, tt.want)
+		}
+	}
+}
+
 func TestAttentionGate_ClassifyUrgency_Disabled(t *testing.T) {
 	gate := NewAttentionGate(AttentionGateConfig{Enabled: false})
 	if got := gate.ClassifyUrgency("hello"); got != UrgencyNormal {
 		t.Errorf("disabled gate should return UrgencyNormal, got %d", got)
+	}
+}
+
+func TestAttentionGate_ClassifyUrgency_BackwardCompatibilityUses80Plus(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:            true,
+		SummarizeThreshold: 20,
+		QueueThreshold:     40,
+		NotifyNowThreshold: 60,
+		EscalateThreshold:  90,
+	})
+
+	if got := gate.ClassifyUrgency("can you review this PR today"); got != UrgencyLow {
+		t.Fatalf("score 60 should still map to UrgencyLow for legacy callers, got %d", got)
+	}
+	if got := gate.ClassifyUrgency("server is down"); got != UrgencyHigh {
+		t.Fatalf("score 80 should map to UrgencyHigh for legacy callers, got %d", got)
 	}
 }
 
@@ -497,6 +598,12 @@ func TestDrainQueue(t *testing.T) {
 	// Verify message fields.
 	if msgs[0].Content != "msg" || msgs[0].ChatID != "chat-1" || msgs[0].UserID != "alice" {
 		t.Errorf("unexpected message: %+v", msgs[0])
+	}
+	if msgs[0].AttentionScore != 20 {
+		t.Errorf("queued score = %d, want 20", msgs[0].AttentionScore)
+	}
+	if msgs[0].Route != AttentionRouteSuppress {
+		t.Errorf("queued route = %q, want %q", msgs[0].Route, AttentionRouteSuppress)
 	}
 	if msgs[0].Urgency != UrgencyLow {
 		t.Errorf("queued urgency = %d, want UrgencyLow", msgs[0].Urgency)

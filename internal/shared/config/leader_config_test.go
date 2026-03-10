@@ -56,7 +56,10 @@ func TestDefaultLeaderConfig_MatchesHardcodedDefaults(t *testing.T) {
 	assert.Equal(t, 600, cfg.AttentionGate.BudgetWindowSeconds)
 	assert.Equal(t, 22, cfg.AttentionGate.QuietHoursStart)
 	assert.Equal(t, 8, cfg.AttentionGate.QuietHoursEnd)
-	assert.InDelta(t, 0.6, cfg.AttentionGate.PriorityThreshold, 0.001)
+	assert.Equal(t, 40, cfg.AttentionGate.SummarizeThreshold)
+	assert.Equal(t, 60, cfg.AttentionGate.QueueThreshold)
+	assert.Equal(t, 80, cfg.AttentionGate.NotifyNowThreshold)
+	assert.Equal(t, 90, cfg.AttentionGate.EscalateThreshold)
 
 	// prep_brief
 	assert.Equal(t, "0 9 * * 5", cfg.PrepBrief.Schedule)
@@ -71,6 +74,15 @@ func TestDefaultLeaderConfig_MatchesHardcodedDefaults(t *testing.T) {
 func TestAttentionGateConfig_BudgetWindow(t *testing.T) {
 	cfg := DefaultLeaderConfig().AttentionGate
 	assert.Equal(t, 600_000_000_000, int(cfg.BudgetWindow().Nanoseconds())) // 10 min
+}
+
+func TestAttentionGateConfig_RoutingThresholds_Defaults(t *testing.T) {
+	cfg := LeaderAttentionGateConfig{}
+	summarize, queue, notifyNow, escalate := cfg.RoutingThresholds()
+	assert.Equal(t, 40, summarize)
+	assert.Equal(t, 60, queue)
+	assert.Equal(t, 80, notifyNow)
+	assert.Equal(t, 90, escalate)
 }
 
 // ---------------------------------------------------------------------------
@@ -257,27 +269,50 @@ func TestValidate_BudgetMaxWithoutWindow_IgnoredWhenDisabled(t *testing.T) {
 	assert.Empty(t, errs)
 }
 
-func TestValidate_PriorityThresholdOutOfRange(t *testing.T) {
+func TestValidate_AttentionRoutingThresholdOutOfRange(t *testing.T) {
 	cfg := DefaultLeaderConfig()
-	cfg.AttentionGate.PriorityThreshold = 1.5
+	cfg.AttentionGate.SummarizeThreshold = 101
 	errs := cfg.Validate()
 	require.NotEmpty(t, errs)
-	assert.Equal(t, "attention_gate.priority_threshold", errs[0].Field)
+	assert.Equal(t, "attention_gate.summarize_threshold", errs[0].Field)
 
 	cfg2 := DefaultLeaderConfig()
-	cfg2.AttentionGate.PriorityThreshold = -0.1
+	cfg2.AttentionGate.EscalateThreshold = -1
 	errs2 := cfg2.Validate()
 	require.NotEmpty(t, errs2)
-	assert.Equal(t, "attention_gate.priority_threshold", errs2[0].Field)
+	assert.Equal(t, "attention_gate.escalate_threshold", errs2[0].Field)
 }
 
-func TestValidate_PriorityThresholdBoundary(t *testing.T) {
-	for _, v := range []float64{0.0, 0.5, 1.0} {
+func TestValidate_AttentionRoutingThresholdBoundary(t *testing.T) {
+	for _, v := range []int{0, 40, 100} {
 		cfg := DefaultLeaderConfig()
-		cfg.AttentionGate.PriorityThreshold = v
+		cfg.AttentionGate.SummarizeThreshold = v
+		cfg.AttentionGate.QueueThreshold = v
+		cfg.AttentionGate.NotifyNowThreshold = v
+		cfg.AttentionGate.EscalateThreshold = v
 		errs := cfg.Validate()
-		assert.Empty(t, errs, "priority_threshold=%v should be valid", v)
+		assert.Empty(t, errs, "attention thresholds=%v should be valid", v)
 	}
+}
+
+func TestValidate_AttentionRoutingThresholdOrder(t *testing.T) {
+	cfg := DefaultLeaderConfig()
+	cfg.AttentionGate.SummarizeThreshold = 50
+	cfg.AttentionGate.QueueThreshold = 40
+	cfg.AttentionGate.NotifyNowThreshold = 30
+	cfg.AttentionGate.EscalateThreshold = 20
+
+	errs := cfg.Validate()
+	require.NotEmpty(t, errs)
+
+	fields := map[string]bool{}
+	for _, err := range errs {
+		fields[err.Field] = true
+	}
+
+	assert.True(t, fields["attention_gate.queue_threshold"])
+	assert.True(t, fields["attention_gate.notify_now_threshold"])
+	assert.True(t, fields["attention_gate.escalate_threshold"])
 }
 
 func TestValidate_QuietHoursOutOfRange(t *testing.T) {

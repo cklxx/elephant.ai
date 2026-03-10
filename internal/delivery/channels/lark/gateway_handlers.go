@@ -139,10 +139,16 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 
 	// Attention gate: auto-ack non-urgent messages without running a task.
 	if g.attentionGate != nil && g.attentionGate.IsEnabled() {
-		urgency := g.attentionGate.ClassifyUrgency(trimmedContent)
-		if urgency == UrgencyLow {
+		assessment := g.attentionGate.Assess(trimmedContent)
+		if assessment.Route != AttentionRouteNotifyNow && assessment.Route != AttentionRouteEscalate {
 			slot.mu.Unlock()
-			g.logger.Info("Attention gate: auto-ack low-urgency message chat=%s msg=%s", msg.chatID, msg.messageID)
+			g.logger.Info(
+				"Attention gate: auto-ack message chat=%s msg=%s score=%d route=%s",
+				msg.chatID,
+				msg.messageID,
+				assessment.Score,
+				assessment.Route,
+			)
 			if g.attentionGate.RecordDispatch(msg.chatID, g.currentTime()) {
 				g.dispatch(ctx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(g.attentionGate.AutoAckMessage()))
 			}

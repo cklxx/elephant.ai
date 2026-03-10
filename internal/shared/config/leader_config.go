@@ -39,11 +39,11 @@ type LeaderWeeklyPulseConfig struct {
 
 // LeaderDailySummaryConfig configures the daily activity digest.
 type LeaderDailySummaryConfig struct {
-	Enabled          bool   `json:"enabled" yaml:"enabled"`
-	Schedule         string `json:"schedule" yaml:"schedule"`
-	LookbackSeconds  int    `json:"lookback_seconds" yaml:"lookback_seconds"`
-	Channel          string `json:"channel" yaml:"channel"`
-	ChatID           string `json:"chat_id" yaml:"chat_id"`
+	Enabled         bool   `json:"enabled" yaml:"enabled"`
+	Schedule        string `json:"schedule" yaml:"schedule"`
+	LookbackSeconds int    `json:"lookback_seconds" yaml:"lookback_seconds"`
+	Channel         string `json:"channel" yaml:"channel"`
+	ChatID          string `json:"chat_id" yaml:"chat_id"`
 }
 
 // LeaderMilestoneConfig configures periodic progress check-ins.
@@ -57,19 +57,50 @@ type LeaderMilestoneConfig struct {
 	ChatID           string `json:"chat_id" yaml:"chat_id"`
 }
 
-// LeaderAttentionGateConfig configures notification throttling and urgency classification.
+const (
+	defaultAttentionGateSummarizeThreshold = 40
+	defaultAttentionGateQueueThreshold     = 60
+	defaultAttentionGateNotifyNowThreshold = 80
+	defaultAttentionGateEscalateThreshold  = 90
+)
+
+// LeaderAttentionGateConfig configures notification throttling and attention routing.
 type LeaderAttentionGateConfig struct {
-	Enabled            bool          `json:"enabled" yaml:"enabled"`
-	BudgetMax          int           `json:"budget_max" yaml:"budget_max"`
-	BudgetWindowSeconds int          `json:"budget_window_seconds" yaml:"budget_window_seconds"`
-	QuietHoursStart    int           `json:"quiet_hours_start" yaml:"quiet_hours_start"`
-	QuietHoursEnd      int           `json:"quiet_hours_end" yaml:"quiet_hours_end"`
-	PriorityThreshold  float64       `json:"priority_threshold" yaml:"priority_threshold"`
+	Enabled             bool `json:"enabled" yaml:"enabled"`
+	BudgetMax           int  `json:"budget_max" yaml:"budget_max"`
+	BudgetWindowSeconds int  `json:"budget_window_seconds" yaml:"budget_window_seconds"`
+	QuietHoursStart     int  `json:"quiet_hours_start" yaml:"quiet_hours_start"`
+	QuietHoursEnd       int  `json:"quiet_hours_end" yaml:"quiet_hours_end"`
+	SummarizeThreshold  int  `json:"summarize_threshold" yaml:"summarize_threshold"`
+	QueueThreshold      int  `json:"queue_threshold" yaml:"queue_threshold"`
+	NotifyNowThreshold  int  `json:"notify_now_threshold" yaml:"notify_now_threshold"`
+	EscalateThreshold   int  `json:"escalate_threshold" yaml:"escalate_threshold"`
 }
 
 // BudgetWindow returns the budget window as a time.Duration.
 func (c LeaderAttentionGateConfig) BudgetWindow() time.Duration {
 	return time.Duration(c.BudgetWindowSeconds) * time.Second
+}
+
+// RoutingThresholds returns the attention score thresholds with defaults applied.
+func (c LeaderAttentionGateConfig) RoutingThresholds() (summarize, queue, notifyNow, escalate int) {
+	summarize = c.SummarizeThreshold
+	if summarize == 0 {
+		summarize = defaultAttentionGateSummarizeThreshold
+	}
+	queue = c.QueueThreshold
+	if queue == 0 {
+		queue = defaultAttentionGateQueueThreshold
+	}
+	notifyNow = c.NotifyNowThreshold
+	if notifyNow == 0 {
+		notifyNow = defaultAttentionGateNotifyNowThreshold
+	}
+	escalate = c.EscalateThreshold
+	if escalate == 0 {
+		escalate = defaultAttentionGateEscalateThreshold
+	}
+	return summarize, queue, notifyNow, escalate
 }
 
 // LeaderPrepBriefConfig configures 1:1 meeting prep briefs.
@@ -114,7 +145,10 @@ func DefaultLeaderConfig() LeaderConfig {
 			BudgetWindowSeconds: 600, // 10 min
 			QuietHoursStart:     22,
 			QuietHoursEnd:       8,
-			PriorityThreshold:   0.6,
+			SummarizeThreshold:  defaultAttentionGateSummarizeThreshold,
+			QueueThreshold:      defaultAttentionGateQueueThreshold,
+			NotifyNowThreshold:  defaultAttentionGateNotifyNowThreshold,
+			EscalateThreshold:   defaultAttentionGateEscalateThreshold,
 		},
 		PrepBrief: LeaderPrepBriefConfig{
 			Enabled:         false,
@@ -209,14 +243,33 @@ func (c LeaderConfig) Validate() []LeaderConfigError {
 	if c.AttentionGate.Enabled && c.AttentionGate.BudgetMax > 0 && c.AttentionGate.BudgetWindowSeconds == 0 {
 		add("attention_gate.budget_window_seconds", "must be positive when budget_max is set")
 	}
-	if c.AttentionGate.PriorityThreshold < 0 || c.AttentionGate.PriorityThreshold > 1 {
-		add("attention_gate.priority_threshold", "must be between 0.0 and 1.0")
-	}
 	if c.AttentionGate.QuietHoursStart < 0 || c.AttentionGate.QuietHoursStart > 23 {
 		add("attention_gate.quiet_hours_start", "must be between 0 and 23")
 	}
 	if c.AttentionGate.QuietHoursEnd < 0 || c.AttentionGate.QuietHoursEnd > 23 {
 		add("attention_gate.quiet_hours_end", "must be between 0 and 23")
+	}
+	if c.AttentionGate.SummarizeThreshold < 0 || c.AttentionGate.SummarizeThreshold > 100 {
+		add("attention_gate.summarize_threshold", "must be between 0 and 100")
+	}
+	if c.AttentionGate.QueueThreshold < 0 || c.AttentionGate.QueueThreshold > 100 {
+		add("attention_gate.queue_threshold", "must be between 0 and 100")
+	}
+	if c.AttentionGate.NotifyNowThreshold < 0 || c.AttentionGate.NotifyNowThreshold > 100 {
+		add("attention_gate.notify_now_threshold", "must be between 0 and 100")
+	}
+	if c.AttentionGate.EscalateThreshold < 0 || c.AttentionGate.EscalateThreshold > 100 {
+		add("attention_gate.escalate_threshold", "must be between 0 and 100")
+	}
+	summarizeThreshold, queueThreshold, notifyNowThreshold, escalateThreshold := c.AttentionGate.RoutingThresholds()
+	if queueThreshold < summarizeThreshold {
+		add("attention_gate.queue_threshold", "must be greater than or equal to summarize_threshold")
+	}
+	if notifyNowThreshold < queueThreshold {
+		add("attention_gate.notify_now_threshold", "must be greater than or equal to queue_threshold")
+	}
+	if escalateThreshold < notifyNowThreshold {
+		add("attention_gate.escalate_threshold", "must be greater than or equal to notify_now_threshold")
 	}
 
 	// --- conflicting settings ---
