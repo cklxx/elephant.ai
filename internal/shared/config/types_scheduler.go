@@ -20,6 +20,7 @@ type SchedulerConfig struct {
 	WeeklyPulse                      WeeklyPulseConfig        `json:"weekly_pulse" yaml:"weekly_pulse"`
 	BlockerRadar                     BlockerRadarConfig       `json:"blocker_radar" yaml:"blocker_radar"`
 	PrepBrief                        PrepBriefConfig          `json:"prep_brief" yaml:"prep_brief"`
+	GitSignal                        GitSignalConfig          `json:"git_signal" yaml:"git_signal"`
 }
 
 // MilestoneCheckinConfig configures periodic progress summary check-ins.
@@ -102,6 +103,17 @@ type TimerConfig struct {
 	TaskTimeoutSeconds int    `json:"task_timeout_seconds" yaml:"task_timeout_seconds"` // default: 900
 	HeartbeatEnabled   bool   `json:"heartbeat_enabled" yaml:"heartbeat_enabled"`
 	HeartbeatMinutes   int    `json:"heartbeat_minutes" yaml:"heartbeat_minutes"`
+}
+
+// GitSignalConfig configures the git signal provider for PR/commit monitoring.
+type GitSignalConfig struct {
+	Enabled                    bool     `json:"enabled" yaml:"enabled"`
+	Provider                   string   `json:"provider" yaml:"provider"` // "github" (default)
+	Token                      string   `json:"token" yaml:"token"`
+	Repos                      []string `json:"repos" yaml:"repos"`
+	BaseURL                    string   `json:"base_url" yaml:"base_url"`
+	PollIntervalSeconds        int      `json:"poll_interval_seconds" yaml:"poll_interval_seconds"`
+	ReviewBottleneckThreshold  int      `json:"review_bottleneck_threshold" yaml:"review_bottleneck_threshold"`
 }
 
 // AttentionConfig throttles proactive notifications.
