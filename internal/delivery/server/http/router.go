@@ -161,6 +161,8 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 
 	if deps.LeaderDashboard != nil {
 		mux.Handle("GET /api/leader/dashboard", routeHandler("/api/leader/dashboard", leaderAuth(http.HandlerFunc(deps.LeaderDashboard.HandleGetDashboard))))
+		mux.Handle("GET /api/leader/tasks", routeHandler("/api/leader/tasks", leaderAuth(http.HandlerFunc(deps.LeaderDashboard.HandleListTasks))))
+		mux.Handle("POST /api/leader/tasks/{id}/unblock", routeHandler("/api/leader/tasks/{id}/unblock", leaderAuth(http.HandlerFunc(deps.LeaderDashboard.HandleUnblockTask))))
 	}
 	mux.Handle("GET /api/leader/openapi.json", routeHandler("/api/leader/openapi.json", leaderAuth(http.HandlerFunc(HandleLeaderOpenAPISpec))))
 

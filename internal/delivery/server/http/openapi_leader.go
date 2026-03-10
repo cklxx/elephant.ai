@@ -80,6 +80,24 @@ const LeaderOpenAPISpec = `{
         }
       }
     },
+    "/openapi.json": {
+      "get": {
+        "operationId": "getLeaderOpenAPISpec",
+        "summary": "Get leader API OpenAPI specification",
+        "description": "Returns this OpenAPI specification document as JSON.",
+        "tags": ["meta"],
+        "responses": {
+          "200": {
+            "description": "OpenAPI specification document",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tasks/{id}/unblock": {
       "post": {
         "operationId": "unblockTask",

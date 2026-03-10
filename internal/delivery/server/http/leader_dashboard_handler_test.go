@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -373,6 +374,207 @@ func TestDashboard_FullIntegration(t *testing.T) {
 	}
 	if len(resp.ScheduledJobs) != 1 {
 		t.Fatalf("jobs = %d, want 1", len(resp.ScheduledJobs))
+	}
+}
+
+// --- HandleListTasks tests ---
+
+func TestHandleListTasks_NoFilter(t *testing.T) {
+	store := newDashboardTestStore(t)
+	ctx := context.Background()
+
+	for i, status := range []task.Status{task.StatusPending, task.StatusRunning, task.StatusCompleted} {
+		id := "task-" + strconv.Itoa(i)
+		tk := makeDashboardTask(id, "task "+id, task.StatusPending)
+		_ = store.Create(ctx, tk)
+		if status != task.StatusPending {
+			_ = store.SetStatus(ctx, id, status)
+		}
+	}
+
+	h := NewLeaderDashboardHandler(store, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/leader/tasks?limit=10&offset=0", nil)
+	rr := httptest.NewRecorder()
+	h.HandleListTasks(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp TaskListResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if resp.Total != 3 {
+		t.Errorf("total = %d, want 3", resp.Total)
+	}
+	if len(resp.Tasks) != 3 {
+		t.Errorf("tasks len = %d, want 3", len(resp.Tasks))
+	}
+	if resp.Limit != 10 {
+		t.Errorf("limit = %d, want 10", resp.Limit)
+	}
+	if resp.Offset != 0 {
+		t.Errorf("offset = %d, want 0", resp.Offset)
+	}
+}
+
+func TestHandleListTasks_StatusFilter(t *testing.T) {
+	store := newDashboardTestStore(t)
+	ctx := context.Background()
+
+	_ = store.Create(ctx, makeDashboardTask("p1", "pending", task.StatusPending))
+	running := makeDashboardTask("r1", "running", task.StatusPending)
+	_ = store.Create(ctx, running)
+	_ = store.SetStatus(ctx, "r1", task.StatusRunning)
+
+	h := NewLeaderDashboardHandler(store, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/leader/tasks?status=running", nil)
+	rr := httptest.NewRecorder()
+	h.HandleListTasks(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp TaskListResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if resp.Total != 1 {
+		t.Errorf("total = %d, want 1", resp.Total)
+	}
+	if len(resp.Tasks) != 1 {
+		t.Errorf("tasks len = %d, want 1", len(resp.Tasks))
+	}
+	if resp.Tasks[0].Status != "running" {
+		t.Errorf("status = %q, want running", resp.Tasks[0].Status)
+	}
+}
+
+func TestHandleListTasks_DefaultLimits(t *testing.T) {
+	store := newDashboardTestStore(t)
+	h := NewLeaderDashboardHandler(store, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/leader/tasks", nil)
+	rr := httptest.NewRecorder()
+	h.HandleListTasks(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp TaskListResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if resp.Limit != 50 {
+		t.Errorf("default limit = %d, want 50", resp.Limit)
+	}
+	if resp.Offset != 0 {
+		t.Errorf("default offset = %d, want 0", resp.Offset)
+	}
+}
+
+func TestHandleListTasks_NilHandler(t *testing.T) {
+	var h *LeaderDashboardHandler
+	req := httptest.NewRequest(http.MethodGet, "/api/leader/tasks", nil)
+	rr := httptest.NewRecorder()
+	h.HandleListTasks(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+// --- HandleUnblockTask tests ---
+
+func TestHandleUnblockTask_Success(t *testing.T) {
+	store := newDashboardTestStore(t)
+	ctx := context.Background()
+
+	tk := makeDashboardTask("blocked1", "blocked task", task.StatusPending)
+	_ = store.Create(ctx, tk)
+	_ = store.SetStatus(ctx, "blocked1", task.StatusFailed)
+
+	h := NewLeaderDashboardHandler(store, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/leader/tasks/blocked1/unblock", nil)
+	req.SetPathValue("id", "blocked1")
+	rr := httptest.NewRecorder()
+	h.HandleUnblockTask(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp UnblockResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if resp.TaskID != "blocked1" {
+		t.Errorf("task_id = %q, want blocked1", resp.TaskID)
+	}
+	if resp.Action != "escalated" {
+		t.Errorf("action = %q, want escalated", resp.Action)
+	}
+}
+
+func TestHandleUnblockTask_NotBlocked(t *testing.T) {
+	store := newDashboardTestStore(t)
+	ctx := context.Background()
+
+	tk := makeDashboardTask("running1", "running task", task.StatusPending)
+	_ = store.Create(ctx, tk)
+	_ = store.SetStatus(ctx, "running1", task.StatusRunning)
+
+	h := NewLeaderDashboardHandler(store, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/leader/tasks/running1/unblock", nil)
+	req.SetPathValue("id", "running1")
+	rr := httptest.NewRecorder()
+	h.HandleUnblockTask(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp UnblockResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if resp.Action != "no_action" {
+		t.Errorf("action = %q, want no_action", resp.Action)
+	}
+}
+
+func TestHandleUnblockTask_NotFound(t *testing.T) {
+	store := newDashboardTestStore(t)
+	h := NewLeaderDashboardHandler(store, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/leader/tasks/nonexistent/unblock", nil)
+	req.SetPathValue("id", "nonexistent")
+	rr := httptest.NewRecorder()
+	h.HandleUnblockTask(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestHandleUnblockTask_EmptyID(t *testing.T) {
+	store := newDashboardTestStore(t)
+	h := NewLeaderDashboardHandler(store, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/leader/tasks//unblock", nil)
+	// PathValue("id") returns "" when not set
+	rr := httptest.NewRecorder()
+	h.HandleUnblockTask(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 }
 

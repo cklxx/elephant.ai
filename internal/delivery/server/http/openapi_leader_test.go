@@ -42,7 +42,7 @@ func TestLeaderOpenAPISpec_ContainsAllPaths(t *testing.T) {
 		t.Fatal("paths is not an object")
 	}
 
-	expected := []string{"/dashboard", "/tasks", "/tasks/{id}/unblock"}
+	expected := []string{"/dashboard", "/openapi.json", "/tasks", "/tasks/{id}/unblock"}
 	for _, p := range expected {
 		if _, ok := paths[p]; !ok {
 			t.Errorf("missing path %q", p)

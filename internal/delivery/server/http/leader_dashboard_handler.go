@@ -2,7 +2,9 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"alex/internal/app/blocker"
@@ -177,6 +179,177 @@ func (h *LeaderDashboardHandler) gatherDailySummary(ctx context.Context) *DailyS
 		Blocked:        len(s.Blocked),
 		CompletionRate: s.CompletionRate,
 	}
+}
+
+// TaskSummaryDTO is a lightweight task representation for list responses.
+type TaskSummaryDTO struct {
+	TaskID           string    `json:"task_id"`
+	Description      string    `json:"description"`
+	Status           string    `json:"status"`
+	UserID           string    `json:"user_id"`
+	CurrentIteration int       `json:"current_iteration"`
+	TokensUsed       int       `json:"tokens_used"`
+	Error            string    `json:"error,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// TaskListResponse is the JSON response for GET /api/leader/tasks.
+type TaskListResponse struct {
+	Tasks  []TaskSummaryDTO `json:"tasks"`
+	Total  int              `json:"total"`
+	Limit  int              `json:"limit"`
+	Offset int              `json:"offset"`
+}
+
+// UnblockRequest is the optional JSON body for POST /api/leader/tasks/{id}/unblock.
+type UnblockRequest struct {
+	Reason string `json:"reason"`
+}
+
+// UnblockResponse is the JSON response for POST /api/leader/tasks/{id}/unblock.
+type UnblockResponse struct {
+	TaskID string `json:"task_id"`
+	Action string `json:"action"`
+	Detail string `json:"detail"`
+}
+
+func taskToSummary(t *task.Task) TaskSummaryDTO {
+	return TaskSummaryDTO{
+		TaskID:           t.TaskID,
+		Description:      t.Description,
+		Status:           string(t.Status),
+		UserID:           t.UserID,
+		CurrentIteration: t.CurrentIteration,
+		TokensUsed:       t.TokensUsed,
+		Error:            t.Error,
+		CreatedAt:        t.CreatedAt,
+		UpdatedAt:        t.UpdatedAt,
+	}
+}
+
+// HandleListTasks handles GET /api/leader/tasks.
+func (h *LeaderDashboardHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
+	if h == nil {
+		http.NotFound(w, r)
+		return
+	}
+	ctx := r.Context()
+
+	// Parse query params.
+	statusFilter := r.URL.Query().Get("status")
+	limit := 50
+	offset := 0
+
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+
+	var resp TaskListResponse
+	resp.Limit = limit
+	resp.Offset = offset
+
+	if statusFilter != "" {
+		// Filter by status — store returns all matching, apply pagination in-memory.
+		tasks, err := h.taskStore.ListByStatus(ctx, task.Status(statusFilter))
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list tasks"})
+			return
+		}
+		resp.Total = len(tasks)
+
+		// Apply offset/limit.
+		if offset >= len(tasks) {
+			tasks = nil
+		} else {
+			end := offset + limit
+			if end > len(tasks) {
+				end = len(tasks)
+			}
+			tasks = tasks[offset:end]
+		}
+
+		resp.Tasks = make([]TaskSummaryDTO, 0, len(tasks))
+		for _, t := range tasks {
+			resp.Tasks = append(resp.Tasks, taskToSummary(t))
+		}
+	} else {
+		// No filter — use paginated List.
+		tasks, total, err := h.taskStore.List(ctx, limit, offset)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list tasks"})
+			return
+		}
+		resp.Total = total
+		resp.Tasks = make([]TaskSummaryDTO, 0, len(tasks))
+		for _, t := range tasks {
+			resp.Tasks = append(resp.Tasks, taskToSummary(t))
+		}
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// HandleUnblockTask handles POST /api/leader/tasks/{id}/unblock.
+func (h *LeaderDashboardHandler) HandleUnblockTask(w http.ResponseWriter, r *http.Request) {
+	if h == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing task ID"})
+		return
+	}
+
+	ctx := r.Context()
+
+	// Parse optional request body.
+	var body UnblockRequest
+	if r.Body != nil && r.ContentLength != 0 {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+	}
+
+	// Look up the task.
+	t, err := h.taskStore.Get(ctx, id)
+	if err != nil || t == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "task not found"})
+		return
+	}
+
+	// Determine if the task is actually blocked.
+	isBlocked := t.Status == task.StatusFailed || t.Status == task.StatusWaitingInput
+	if !isBlocked {
+		writeJSON(w, http.StatusOK, UnblockResponse{
+			TaskID: id,
+			Action: "no_action",
+			Detail: "task is not blocked (status: " + string(t.Status) + ")",
+		})
+		return
+	}
+
+	detail := "unblock request escalated for task " + id
+	if body.Reason != "" {
+		detail += "; reason: " + body.Reason
+	}
+
+	writeJSON(w, http.StatusOK, UnblockResponse{
+		TaskID: id,
+		Action: "escalated",
+		Detail: detail,
+	})
 }
 
 func (h *LeaderDashboardHandler) gatherScheduledJobs(ctx context.Context) []ScheduledJobDTO {
