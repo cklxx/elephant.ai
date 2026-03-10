@@ -6,7 +6,8 @@
 	server-test-integration dev-up dev-down dev-status dev-logs dev-restart dev-lint dev-test \
 	deploy deploy-docker deploy-test deploy-status \
 	deploy-down eval-server-build eval-server-run eval-server-test \
-	ci-local install-hooks
+	ci-local install-hooks \
+	leader-status leader-test leader-coverage
 
 GO ?= scripts/go-with-toolchain.sh
 
@@ -223,3 +224,32 @@ install-hooks: ## Install git hooks (pre-push CI gate)
 	@cp scripts/pre-push-hook.sh .git/hooks/pre-push 2>/dev/null || true
 	@chmod +x .git/hooks/pre-push
 	@echo "✓ Pre-push hook installed"
+
+## ========================================
+## Leader Agent
+## ========================================
+
+LEADER_PKGS = \
+	./internal/app/blocker/... \
+	./internal/app/pulse/... \
+	./internal/app/prepbrief/... \
+	./internal/app/milestone/... \
+	./internal/app/summary/... \
+	./internal/app/decision/... \
+	./internal/runtime/leader/... \
+	./internal/delivery/channels/lark/... \
+	./cmd/alex/...
+
+leader-status: build ## Show leader agent status (requires running server)
+	@./alex leader status
+
+leader-test: ## Run all leader-related tests with race detection
+	@echo "Running leader agent tests..."
+	@CGO_ENABLED=0 $(GO) test -race $(LEADER_PKGS) -v
+	@echo "✓ Leader tests complete"
+
+leader-coverage: ## Run leader tests with coverage report
+	@echo "Running leader agent tests with coverage..."
+	@CGO_ENABLED=0 $(GO) test -race -coverprofile=leader-coverage.out $(LEADER_PKGS) -v
+	@$(GO) tool cover -func=leader-coverage.out | grep total
+	@echo "✓ Coverage report: leader-coverage.out"
