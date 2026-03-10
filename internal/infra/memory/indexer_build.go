@@ -1,0 +1,275 @@
+package memory
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+func (i *Indexer) indexAll(ctx context.Context) error {
+	paths, err := collectAllMemoryFiles(i.rootDir)
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		if err := i.indexPath(ctx, path); err != nil {
+			i.logger.Warn("Memory index failed for %s: %v", path, err)
+		}
+	}
+	return nil
+}
+
+func (i *Indexer) indexPath(ctx context.Context, path string) error {
+	if !isMemoryFile(path) {
+		return nil
+	}
+	relPath, ok := resolveUserPath(i.rootDir, path)
+	if !ok {
+		return nil
+	}
+	store, err := i.storeForUser()
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return store.DeleteByPath(ctx, relPath)
+		}
+		return err
+	}
+
+	lines, err := readLines(path)
+	if err != nil {
+		return err
+	}
+	chunks := buildChunks(lines, i.cfg.ChunkTokens, i.cfg.ChunkOverlap)
+	if len(chunks) == 0 {
+		return store.DeleteByPath(ctx, relPath)
+	}
+
+	hashes := make([]string, 0, len(chunks))
+	for _, chunk := range chunks {
+		hashes = append(hashes, hashText(chunk.Text))
+	}
+	cache, err := store.LookupEmbeddings(ctx, hashes)
+	if err != nil {
+		return err
+	}
+
+	var missingTexts []string
+	var missingHashes []string
+	for idx, chunk := range chunks {
+		hash := hashes[idx]
+		if _, ok := cache[hash]; ok {
+			continue
+		}
+		missingTexts = append(missingTexts, chunk.Text)
+		missingHashes = append(missingHashes, hash)
+	}
+
+	if len(missingTexts) > 0 {
+		embeddings, err := i.embedder.Embed(ctx, missingTexts)
+		if err != nil {
+			return err
+		}
+		if len(embeddings) != len(missingTexts) {
+			return fmt.Errorf("embedding batch mismatch")
+		}
+		for idx, emb := range embeddings {
+			cache[missingHashes[idx]] = emb
+		}
+	}
+
+	dim := len(cache[hashes[0]])
+	if err := store.EnsureSchema(ctx, dim); err != nil {
+		return err
+	}
+
+	indexed := make([]IndexedChunk, 0, len(chunks))
+	for idx, chunk := range chunks {
+		hash := hashes[idx]
+		embedding := cache[hash]
+		if len(embedding) == 0 {
+			return fmt.Errorf("empty embedding for chunk %s", hash)
+		}
+		indexed = append(indexed, IndexedChunk{
+			Path:      relPath,
+			StartLine: chunk.StartLine,
+			EndLine:   chunk.EndLine,
+			Text:      chunk.Text,
+			Hash:      hash,
+			Embedding: embedding,
+			Edges:     extractMemoryEdges(chunk.Text),
+		})
+	}
+	return store.ReplaceChunks(ctx, relPath, indexed)
+}
+
+type chunkWindow struct {
+	StartLine int
+	EndLine   int
+	Text      string
+}
+
+func buildChunks(lines []string, chunkTokens, chunkOverlap int) []chunkWindow {
+	if len(lines) == 0 {
+		return nil
+	}
+	if chunkTokens <= 0 {
+		chunkTokens = chunkTokenSize
+	}
+	if chunkOverlap < 0 {
+		chunkOverlap = 0
+	}
+
+	lineCounts := make([]int, len(lines))
+	for i, line := range lines {
+		lineCounts[i] = len(tokenize(line))
+	}
+
+	var chunks []chunkWindow
+	start := 0
+	for start < len(lines) {
+		end, _ := nextChunkEnd(start, lineCounts, chunkTokens)
+		if end <= start {
+			break
+		}
+		chunks = append(chunks, chunkWindow{
+			StartLine: start + 1,
+			EndLine:   end,
+			Text:      strings.Join(lines[start:end], "\n"),
+		})
+		start = nextChunkStart(start, end, lineCounts, chunkOverlap)
+		if start <= 0 {
+			break
+		}
+	}
+	return chunks
+}
+
+func hashText(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:])
+}
+
+func isMemoryFile(path string) bool {
+	if !strings.HasSuffix(strings.ToLower(path), ".md") {
+		return false
+	}
+	base := filepath.Base(path)
+	if base == memoryFileName {
+		return true
+	}
+	needle := string(filepath.Separator) + dailyDirName + string(filepath.Separator)
+	return strings.Contains(path, needle)
+}
+
+func isUserDir(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	rel = filepath.Clean(rel)
+	if rel == "." || rel == "" {
+		return false
+	}
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) == 1 {
+		if parts[0] == legacyUserDirName || isReservedUserDirName(parts[0]) {
+			return false
+		}
+		return true
+	}
+	if len(parts) == 2 && parts[0] == legacyUserDirName {
+		return true
+	}
+	return false
+}
+
+func resolveUserPath(root, path string) (relPath string, ok bool) {
+	root = filepath.Clean(root)
+	path = filepath.Clean(path)
+	if !strings.HasPrefix(path, root+string(os.PathSeparator)) && path != root {
+		return "", false
+	}
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return "", false
+	}
+	parts := strings.Split(rel, string(os.PathSeparator))
+	if len(parts) >= 2 && parts[0] == legacyUserDirName {
+		return flattenLegacyRelativePath(parts[2:])
+	}
+	if len(parts) >= 2 && !isReservedUserDirName(parts[0]) {
+		return flattenLegacyRelativePath(parts[1:])
+	}
+	return filepath.Clean(rel), true
+}
+
+func flattenLegacyRelativePath(parts []string) (string, bool) {
+	if len(parts) == 1 && parts[0] == memoryFileName {
+		return memoryFileName, true
+	}
+	if len(parts) >= 2 && parts[0] == dailyDirName {
+		return filepath.Clean(filepath.Join(parts...)), true
+	}
+	return "", false
+}
+
+func collectAllMemoryFiles(root string) ([]string, error) {
+	var paths []string
+	base, err := collectMemoryFilesForRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	paths = append(paths, base...)
+
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return paths, nil
+		}
+		return nil, err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if name == legacyUserDirName {
+			legacyEntries, err := os.ReadDir(filepath.Join(root, legacyUserDirName))
+			if err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return nil, err
+			}
+			for _, legacyEntry := range legacyEntries {
+				if !legacyEntry.IsDir() {
+					continue
+				}
+				userRoot := filepath.Join(root, legacyUserDirName, legacyEntry.Name())
+				userPaths, err := collectMemoryFilesForRoot(userRoot)
+				if err != nil {
+					continue
+				}
+				paths = append(paths, userPaths...)
+			}
+			continue
+		}
+		if isReservedUserDirName(name) {
+			continue
+		}
+		userRoot := filepath.Join(root, name)
+		userPaths, err := collectMemoryFilesForRoot(userRoot)
+		if err != nil {
+			continue
+		}
+		paths = append(paths, userPaths...)
+	}
+	return paths, nil
+}
