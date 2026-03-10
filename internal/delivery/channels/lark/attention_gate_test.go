@@ -134,3 +134,128 @@ func TestAttentionGate_AutoAckMessage_Custom(t *testing.T) {
 		t.Errorf("custom auto-ack = %q, want %q", got, "Got it!")
 	}
 }
+
+// ---------- Bug fix: blank keyword filtering ----------
+
+func TestAttentionGate_BlankKeywordsFiltered(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:        true,
+		UrgentKeywords: []string{"P0", "", "  ", "\t", "hotfix", " "},
+	})
+	// Only "p0" and "hotfix" should survive.
+	if len(gate.lowerKeywords) != 2 {
+		t.Fatalf("lowerKeywords = %v, want 2 entries", gate.lowerKeywords)
+	}
+	if gate.lowerKeywords[0] != "p0" || gate.lowerKeywords[1] != "hotfix" {
+		t.Errorf("lowerKeywords = %v, want [p0 hotfix]", gate.lowerKeywords)
+	}
+}
+
+func TestAttentionGate_BlankKeywordDoesNotMatchEverything(t *testing.T) {
+	// Before fix: an empty keyword "" would match every message via
+	// strings.Contains(lower, ""), making everything UrgencyHigh.
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:        true,
+		UrgentKeywords: []string{"", "  "},
+	})
+	// A routine message must NOT be classified as UrgencyHigh.
+	if got := gate.ClassifyUrgency("just a normal message"); got != UrgencyLow {
+		t.Errorf("blank keywords should not match, got urgency %d", got)
+	}
+}
+
+func TestAttentionGate_KeywordTrimmedWhitespace(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:        true,
+		UrgentKeywords: []string{"  hotfix  "},
+	})
+	if got := gate.ClassifyUrgency("please apply the hotfix"); got != UrgencyHigh {
+		t.Errorf("trimmed keyword should match, got urgency %d", got)
+	}
+}
+
+// ---------- Bug fix: stale budget GC ----------
+
+func TestAttentionGate_BudgetGC_RemovesStaleChatIDs(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:      true,
+		BudgetWindow: 5 * time.Minute,
+		BudgetMax:    10,
+	})
+
+	t0 := time.Now()
+
+	// Populate more than budgetGCThreshold chat entries.
+	for i := 0; i < budgetGCThreshold+10; i++ {
+		chatID := "chat-" + time.Duration(i).String()
+		gate.RecordDispatch(chatID, t0)
+	}
+
+	if len(gate.budgets) != budgetGCThreshold+10 {
+		t.Fatalf("budgets = %d, want %d", len(gate.budgets), budgetGCThreshold+10)
+	}
+
+	// Advance time past the budget window so all entries are stale.
+	t1 := t0.Add(10 * time.Minute)
+
+	// A new dispatch triggers GC since we're above threshold.
+	gate.RecordDispatch("fresh-chat", t1)
+
+	// All old entries should be GC'd; only "fresh-chat" remains.
+	if len(gate.budgets) != 1 {
+		t.Errorf("after GC, budgets = %d, want 1 (only fresh-chat)", len(gate.budgets))
+	}
+	if _, ok := gate.budgets["fresh-chat"]; !ok {
+		t.Error("fresh-chat should survive GC")
+	}
+}
+
+func TestAttentionGate_BudgetGC_KeepsActiveChatIDs(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:      true,
+		BudgetWindow: 5 * time.Minute,
+		BudgetMax:    10,
+	})
+
+	t0 := time.Now()
+
+	// Populate entries above threshold.
+	for i := 0; i < budgetGCThreshold+5; i++ {
+		chatID := "chat-" + time.Duration(i).String()
+		gate.RecordDispatch(chatID, t0)
+	}
+
+	// Dispatch within the same window — entries are still active.
+	t1 := t0.Add(2 * time.Minute)
+	gate.RecordDispatch("trigger", t1)
+
+	// All chats still have recent activity, so none should be GC'd.
+	// We expect threshold+5 original + 1 trigger = threshold+6.
+	if len(gate.budgets) != budgetGCThreshold+6 {
+		t.Errorf("active entries should survive GC, budgets = %d, want %d",
+			len(gate.budgets), budgetGCThreshold+6)
+	}
+}
+
+func TestAttentionGate_BudgetGC_EmptyTimestamps(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:      true,
+		BudgetWindow: 5 * time.Minute,
+		BudgetMax:    10,
+	})
+
+	// Manually inject an entry with empty timestamps.
+	gate.mu.Lock()
+	for i := 0; i < budgetGCThreshold+1; i++ {
+		gate.budgets["empty-"+time.Duration(i).String()] = &chatBudget{}
+	}
+	gate.mu.Unlock()
+
+	now := time.Now()
+	gate.RecordDispatch("live", now)
+
+	// All empty entries should be GC'd.
+	if len(gate.budgets) != 1 {
+		t.Errorf("empty-timestamp entries should be GC'd, budgets = %d, want 1", len(gate.budgets))
+	}
+}

@@ -57,9 +57,13 @@ type chatBudget struct {
 
 // NewAttentionGate creates an AttentionGate with the given config.
 func NewAttentionGate(cfg AttentionGateConfig) *AttentionGate {
-	lower := make([]string, len(cfg.UrgentKeywords))
-	for i, kw := range cfg.UrgentKeywords {
-		lower[i] = strings.ToLower(kw)
+	lower := make([]string, 0, len(cfg.UrgentKeywords))
+	for _, kw := range cfg.UrgentKeywords {
+		trimmed := strings.TrimSpace(kw)
+		if trimmed == "" {
+			continue
+		}
+		lower = append(lower, strings.ToLower(trimmed))
 	}
 	if cfg.AutoAckMessage == "" {
 		cfg.AutoAckMessage = defaultAutoAckMessage
@@ -143,7 +147,7 @@ func (g *AttentionGate) RecordDispatch(chatID string, now time.Time) bool {
 		g.budgets[chatID] = b
 	}
 
-	// Trim expired entries.
+	// Trim expired entries for this chat.
 	cutoff := now.Add(-g.cfg.BudgetWindow)
 	trimmed := b.timestamps[:0]
 	for _, ts := range b.timestamps {
@@ -153,11 +157,40 @@ func (g *AttentionGate) RecordDispatch(chatID string, now time.Time) bool {
 	}
 	b.timestamps = trimmed
 
+	// Periodically GC stale budget entries for other chats to prevent
+	// unbounded map growth. Run when the map exceeds a reasonable size.
+	if len(g.budgets) > budgetGCThreshold {
+		g.gcStaleBudgets(cutoff, chatID)
+	}
+
 	if len(b.timestamps) >= g.cfg.BudgetMax {
 		return false
 	}
 	b.timestamps = append(b.timestamps, now)
 	return true
+}
+
+// budgetGCThreshold is the number of chatID entries before GC runs.
+const budgetGCThreshold = 50
+
+// gcStaleBudgets removes budget entries whose most recent timestamp is
+// older than cutoff. skipID is excluded from eviction (the caller's
+// current chat, whose new timestamp hasn't been appended yet).
+// Caller must hold g.mu.
+func (g *AttentionGate) gcStaleBudgets(cutoff time.Time, skipID string) {
+	for id, b := range g.budgets {
+		if id == skipID {
+			continue
+		}
+		if len(b.timestamps) == 0 {
+			delete(g.budgets, id)
+			continue
+		}
+		// timestamps are appended in order; last entry is the most recent.
+		if !b.timestamps[len(b.timestamps)-1].After(cutoff) {
+			delete(g.budgets, id)
+		}
+	}
 }
 
 // IsEnabled returns whether the attention gate is active.
