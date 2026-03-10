@@ -2033,6 +2033,9 @@ def _doc_write_markdown(args: dict[str, Any], auth_manager: AuthManager) -> dict
     if not document_id or not content:
         return {"success": False, "error": "document_id and content are required"}
 
+    # Fetch the page block to get its ID and current children count (for append-style insertion).
+    # block_type=1 is the Page block; its children list tells us the current child count so we
+    # can use index=len(children) to append rather than index=0 which always inserts at the top.
     blocks_result = api_request(
         "GET",
         f"/docx/v1/documents/{document_id}/blocks",
@@ -2043,6 +2046,7 @@ def _doc_write_markdown(args: dict[str, Any], auth_manager: AuthManager) -> dict
     if blocks_failure:
         return blocks_failure
     page_block_id = document_id
+    insert_index = 0  # fallback: prepend (shouldn't happen once page block is found)
     items = blocks_result.get("data", {}).get("items", [])
     if isinstance(items, list):
         for item in items:
@@ -2052,6 +2056,10 @@ def _doc_write_markdown(args: dict[str, Any], auth_manager: AuthManager) -> dict
                 block_id = str(item.get("block_id", "")).strip()
                 if block_id:
                     page_block_id = block_id
+                    # Use the number of existing children as the append index so that repeated
+                    # calls to write_markdown add content in order rather than reversing it.
+                    existing_children = item.get("children", [])
+                    insert_index = len(existing_children) if isinstance(existing_children, list) else 0
                     break
 
     convert = api_request(
@@ -2073,7 +2081,7 @@ def _doc_write_markdown(args: dict[str, Any], auth_manager: AuthManager) -> dict
     create = api_request(
         "POST",
         f"/docx/v1/documents/{document_id}/blocks/{page_block_id}/descendant",
-        {"children_id": children_ids, "descendants": descendants, "index": 0},
+        {"children_id": children_ids, "descendants": descendants, "index": insert_index},
         query={"document_revision_id": -1},
         auth_manager=auth_manager,
     )
