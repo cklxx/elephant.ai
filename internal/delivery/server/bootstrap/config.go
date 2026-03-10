@@ -54,6 +54,7 @@ type StreamGuardConfig struct {
 type RateLimitConfig struct {
 	RequestsPerMinute int
 	Burst             int
+	TrustedProxies    []string // CIDR ranges whose X-Forwarded-For is trusted
 }
 
 // TaskExecutionConfig captures task admission and lease settings.

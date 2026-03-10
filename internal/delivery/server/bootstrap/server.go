@@ -246,6 +246,7 @@ func RunServer(observabilityConfigPath string) error {
 			RateLimit: serverHTTP.RateLimitConfig{
 				RequestsPerMinute: config.RateLimit.RequestsPerMinute,
 				Burst:             config.RateLimit.Burst,
+				TrustedProxies:    config.RateLimit.TrustedProxies,
 			},
 			NonStreamTimeout: config.NonStreamTimeout,
 			LeaderAPIToken:   config.LeaderAPIToken,

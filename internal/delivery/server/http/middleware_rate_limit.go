@@ -1,6 +1,7 @@
 package http
 
 import (
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ type RateLimitConfig struct {
 	Burst             int
 	EntryTTL          time.Duration
 	CleanupInterval   time.Duration
+	TrustedProxies    []string // CIDR ranges whose X-Forwarded-For is trusted
 }
 
 type rateLimitEntry struct {
@@ -87,9 +89,10 @@ func RateLimitMiddleware(cfg RateLimitConfig) func(http.Handler) http.Handler {
 		return func(next http.Handler) http.Handler { return next }
 	}
 	limiter := newRateLimiter(cfg)
+	trustedNets := ParseTrustedProxies(cfg.TrustedProxies)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			key := rateLimitKey(r)
+			key := rateLimitKey(r, trustedNets)
 			if !limiter.allow(key) {
 				http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 				return
@@ -99,11 +102,11 @@ func RateLimitMiddleware(cfg RateLimitConfig) func(http.Handler) http.Handler {
 	}
 }
 
-func rateLimitKey(r *http.Request) string {
+func rateLimitKey(r *http.Request, trustedProxies []net.IPNet) string {
 	if r == nil {
 		return ""
 	}
-	if ip := clientIP(r); ip != "" {
+	if ip := clientIP(r, trustedProxies); ip != "" {
 		return "ip:" + ip
 	}
 	return "anonymous"

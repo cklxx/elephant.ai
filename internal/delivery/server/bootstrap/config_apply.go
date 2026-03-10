@@ -96,6 +96,9 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if file.Server.AllowedOrigins != nil {
 		cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)
 	}
+	if len(file.Server.TrustedProxies) > 0 {
+		cfg.RateLimit.TrustedProxies = append([]string(nil), file.Server.TrustedProxies...)
+	}
 }
 
 func applySessionConfig(cfg *Config, file runtimeconfig.FileConfig) {
