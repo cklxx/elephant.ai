@@ -7,6 +7,22 @@ import (
 	jsonx "alex/internal/shared/json"
 )
 
+// buildLarkCard builds a Lark interactive card JSON with the given header and elements.
+func buildLarkCard(title, template string, elements []any) string {
+	card := map[string]any{
+		"config": map[string]any{
+			"wide_screen_mode": true,
+		},
+		"header": map[string]any{
+			"title":    map[string]any{"tag": "plain_text", "content": title},
+			"template": template,
+		},
+		"elements": elements,
+	}
+	data, _ := jsonx.Marshal(card)
+	return string(data)
+}
+
 // buildAuthCard builds an interactive card JSON for in-message OAuth authorization.
 // The card shows a "Go to authorize" button that opens the verification URL
 // in Feishu's in-app webview for a seamless one-click auth experience.
@@ -28,65 +44,36 @@ func buildAuthCard(verificationURL string, userCode string, scopes []string, exp
 	// in-app webview rather than launching an external browser.
 	applinkURL := buildFeishuApplink(verificationURL)
 
-	card := map[string]any{
-		"config": map[string]any{
-			"wide_screen_mode": true,
+	return buildLarkCard("Feishu Authorization Required", "blue", []any{
+		map[string]any{
+			"tag": "markdown",
+			"content": fmt.Sprintf(
+				"Please click the button below to authorize access to your Feishu account.%s%s",
+				scopeText, expiryText,
+			),
 		},
-		"header": map[string]any{
-			"title": map[string]any{
-				"tag":     "plain_text",
-				"content": "Feishu Authorization Required",
-			},
-			"template": "blue",
-		},
-		"elements": []any{
-			map[string]any{
-				"tag": "markdown",
-				"content": fmt.Sprintf(
-					"Please click the button below to authorize access to your Feishu account.%s%s",
-					scopeText, expiryText,
-				),
-			},
-			map[string]any{
-				"tag": "action",
-				"actions": []any{
-					map[string]any{
-						"tag":  "button",
-						"text": map[string]any{"tag": "plain_text", "content": "Go to authorize"},
-						"type": "primary",
-						"url":  applinkURL,
-					},
+		map[string]any{
+			"tag": "action",
+			"actions": []any{
+				map[string]any{
+					"tag":  "button",
+					"text": map[string]any{"tag": "plain_text", "content": "Go to authorize"},
+					"type": "primary",
+					"url":  applinkURL,
 				},
 			},
 		},
-	}
-
-	data, _ := jsonx.Marshal(card)
-	return string(data)
+	})
 }
 
 // buildAuthSuccessCard builds a card indicating authorization was successful.
 func buildAuthSuccessCard() string {
-	card := map[string]any{
-		"config": map[string]any{
-			"wide_screen_mode": true,
+	return buildLarkCard("Authorization Successful", "green", []any{
+		map[string]any{
+			"tag":     "markdown",
+			"content": "Authorization completed successfully. Continuing with the previous operation...",
 		},
-		"header": map[string]any{
-			"title": map[string]any{
-				"tag":     "plain_text",
-				"content": "Authorization Successful",
-			},
-			"template": "green",
-		},
-		"elements": []any{
-			map[string]any{
-				"tag":     "markdown",
-				"content": "Authorization completed successfully. Continuing with the previous operation...",
-			},
-		},
-	}
-	data, _ := jsonx.Marshal(card)
-	return string(data)
+	})
 }
 
 // buildAuthFailedCard builds a card indicating authorization failed or expired.
@@ -94,26 +81,12 @@ func buildAuthFailedCard(reason string) string {
 	if reason == "" {
 		reason = "Authorization incomplete. Please try again."
 	}
-	card := map[string]any{
-		"config": map[string]any{
-			"wide_screen_mode": true,
+	return buildLarkCard("Authorization Incomplete", "yellow", []any{
+		map[string]any{
+			"tag":     "markdown",
+			"content": reason,
 		},
-		"header": map[string]any{
-			"title": map[string]any{
-				"tag":     "plain_text",
-				"content": "Authorization Incomplete",
-			},
-			"template": "yellow",
-		},
-		"elements": []any{
-			map[string]any{
-				"tag":     "markdown",
-				"content": reason,
-			},
-		},
-	}
-	data, _ := jsonx.Marshal(card)
-	return string(data)
+	})
 }
 
 // buildFeishuApplink wraps a URL in a Feishu applink so it opens in the

@@ -3,6 +3,7 @@ package lark
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	domain "alex/internal/domain/agent"
 	"alex/internal/domain/agent/types"
@@ -18,93 +19,113 @@ func isSlowSummaryTerminalEvent(eventType string) bool {
 	}
 }
 
-func signalFromEnvelope(e *domain.WorkflowEventEnvelope) (slowProgressSignal, bool) {
+// normalizedEvent holds the fields needed to build a slowProgressSignal,
+// extracted from either a WorkflowEventEnvelope or a unified Event.
+type normalizedEvent struct {
+	kind            string
+	at              time.Time
+	stepDescription string
+	nodeID          string
+	toolName        string
+	errText         string
+	content         string
+}
+
+func normalizeEnvelope(e *domain.WorkflowEventEnvelope) (normalizedEvent, bool) {
 	if e == nil {
+		return normalizedEvent{}, false
+	}
+	kind := strings.TrimSpace(e.Event)
+	if kind == "" {
+		return normalizedEvent{}, false
+	}
+	return normalizedEvent{
+		kind:            kind,
+		at:              e.Timestamp(),
+		stepDescription: asString(e.Payload["step_description"]),
+		nodeID:          e.NodeID,
+		toolName:        strings.TrimSpace(envelopeToolName(e)),
+		errText:         strings.TrimSpace(asString(e.Payload["error"])),
+		content:         asString(e.Payload["content"]),
+	}, true
+}
+
+func normalizeUnified(e *domain.Event) (normalizedEvent, bool) {
+	if e == nil {
+		return normalizedEvent{}, false
+	}
+	kind := strings.TrimSpace(e.Kind)
+	if kind == "" {
+		return normalizedEvent{}, false
+	}
+	var errText string
+	if e.Data.Error != nil {
+		errText = e.Data.Error.Error()
+	}
+	return normalizedEvent{
+		kind:            kind,
+		at:              e.Timestamp(),
+		stepDescription: e.Data.StepDescription,
+		nodeID:          "",
+		toolName:        strings.TrimSpace(e.Data.ToolName),
+		errText:         strings.TrimSpace(errText),
+		content:         e.Data.Content,
+	}, true
+}
+
+func signalFromEnvelope(e *domain.WorkflowEventEnvelope) (slowProgressSignal, bool) {
+	n, ok := normalizeEnvelope(e)
+	if !ok {
 		return slowProgressSignal{}, false
 	}
-	toolName := strings.TrimSpace(envelopeToolName(e))
-	switch strings.TrimSpace(e.Event) {
-	case types.EventNodeStarted:
-		step := resolveSlowProgressStepLabel(asString(e.Payload["step_description"]), e.NodeID)
-		if step == "" {
-			return slowProgressSignal{}, false
-		}
-		return slowProgressSignal{at: e.Timestamp(), text: "开始步骤：" + step}, true
-	case types.EventNodeCompleted:
-		step := resolveSlowProgressStepLabel(asString(e.Payload["step_description"]), e.NodeID)
-		if step == "" {
-			return slowProgressSignal{}, false
-		}
-		return slowProgressSignal{at: e.Timestamp(), text: "完成步骤：" + step}, true
-	case types.EventToolStarted:
-		if toolName == "" {
-			return slowProgressSignal{}, false
-		}
-		return slowProgressSignal{at: e.Timestamp(), text: "开始工具：" + toolName}, true
-	case types.EventToolCompleted:
-		if toolName == "" {
-			toolName = "tool"
-		}
-		errText := strings.TrimSpace(asString(e.Payload["error"]))
-		if errText != "" {
-			return slowProgressSignal{
-				at:   e.Timestamp(),
-				text: "工具失败：" + toolName + "（" + truncateForLark(errText, 80) + ")",
-			}, true
-		}
-		return slowProgressSignal{at: e.Timestamp(), text: "完成工具：" + toolName}, true
-	case types.EventNodeOutputSummary:
-		content := sanitizeSlowProgressContent(asString(e.Payload["content"]))
-		if content == "" {
-			return slowProgressSignal{}, false
-		}
-		return slowProgressSignal{at: e.Timestamp(), text: "阶段输出：" + content}, true
-	default:
-		return slowProgressSignal{}, false
-	}
+	return buildSignal(n)
 }
 
 func signalFromUnified(e *domain.Event) (slowProgressSignal, bool) {
-	if e == nil {
+	n, ok := normalizeUnified(e)
+	if !ok {
 		return slowProgressSignal{}, false
 	}
-	switch strings.TrimSpace(e.Kind) {
+	return buildSignal(n)
+}
+
+func buildSignal(n normalizedEvent) (slowProgressSignal, bool) {
+	switch n.kind {
 	case types.EventNodeStarted:
-		step := strings.TrimSpace(e.Data.StepDescription)
+		step := resolveSlowProgressStepLabel(n.stepDescription, n.nodeID)
 		if step == "" {
 			return slowProgressSignal{}, false
 		}
-		return slowProgressSignal{at: e.Timestamp(), text: "开始步骤：" + truncateForLark(step, 120)}, true
+		return slowProgressSignal{at: n.at, text: "开始步骤：" + step}, true
 	case types.EventNodeCompleted:
-		step := strings.TrimSpace(e.Data.StepDescription)
+		step := resolveSlowProgressStepLabel(n.stepDescription, n.nodeID)
 		if step == "" {
 			return slowProgressSignal{}, false
 		}
-		return slowProgressSignal{at: e.Timestamp(), text: "完成步骤：" + truncateForLark(step, 120)}, true
+		return slowProgressSignal{at: n.at, text: "完成步骤：" + step}, true
 	case types.EventToolStarted:
-		toolName := strings.TrimSpace(e.Data.ToolName)
-		if toolName == "" {
+		if n.toolName == "" {
 			return slowProgressSignal{}, false
 		}
-		return slowProgressSignal{at: e.Timestamp(), text: "开始工具：" + toolName}, true
+		return slowProgressSignal{at: n.at, text: "开始工具：" + n.toolName}, true
 	case types.EventToolCompleted:
-		toolName := strings.TrimSpace(e.Data.ToolName)
+		toolName := n.toolName
 		if toolName == "" {
 			toolName = "tool"
 		}
-		if e.Data.Error != nil {
+		if n.errText != "" {
 			return slowProgressSignal{
-				at:   e.Timestamp(),
-				text: "工具失败：" + toolName + "（" + truncateForLark(e.Data.Error.Error(), 80) + ")",
+				at:   n.at,
+				text: "工具失败：" + toolName + "（" + truncateForLark(n.errText, 80) + ")",
 			}, true
 		}
-		return slowProgressSignal{at: e.Timestamp(), text: "完成工具：" + toolName}, true
+		return slowProgressSignal{at: n.at, text: "完成工具：" + toolName}, true
 	case types.EventNodeOutputSummary:
-		content := sanitizeSlowProgressContent(e.Data.Content)
+		content := sanitizeSlowProgressContent(n.content)
 		if content == "" {
 			return slowProgressSignal{}, false
 		}
-		return slowProgressSignal{at: e.Timestamp(), text: "阶段输出：" + content}, true
+		return slowProgressSignal{at: n.at, text: "阶段输出：" + content}, true
 	default:
 		return slowProgressSignal{}, false
 	}

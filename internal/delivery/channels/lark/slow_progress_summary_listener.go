@@ -97,19 +97,27 @@ func (l *slowProgressSummaryListener) capture(event agent.AgentEvent) {
 	if event == nil {
 		return
 	}
+	var eventType string
+	var signal slowProgressSignal
+	var hasSignal bool
+
 	switch e := event.(type) {
 	case *domain.WorkflowEventEnvelope:
-		l.captureEnvelope(e)
+		if e == nil {
+			return
+		}
+		eventType = strings.TrimSpace(e.Event)
+		signal, hasSignal = signalFromEnvelope(e)
 	case *domain.Event:
-		l.captureUnified(e)
-	}
-}
-
-func (l *slowProgressSummaryListener) captureEnvelope(e *domain.WorkflowEventEnvelope) {
-	if e == nil {
+		if e == nil {
+			return
+		}
+		eventType = strings.TrimSpace(e.Kind)
+		signal, hasSignal = signalFromUnified(e)
+	default:
 		return
 	}
-	eventType := strings.TrimSpace(e.Event)
+
 	if eventType == "" {
 		return
 	}
@@ -122,29 +130,7 @@ func (l *slowProgressSummaryListener) captureEnvelope(e *domain.WorkflowEventEnv
 	if isSlowSummaryTerminalEvent(eventType) {
 		l.terminal = true
 	}
-	if signal, ok := signalFromEnvelope(e); ok {
-		l.appendSignal(signal)
-	}
-}
-
-func (l *slowProgressSummaryListener) captureUnified(e *domain.Event) {
-	if e == nil {
-		return
-	}
-	kind := strings.TrimSpace(e.Kind)
-	if kind == "" {
-		return
-	}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.closed {
-		return
-	}
-	if isSlowSummaryTerminalEvent(kind) {
-		l.terminal = true
-	}
-	if signal, ok := signalFromUnified(e); ok {
+	if hasSignal {
 		l.appendSignal(signal)
 	}
 }
