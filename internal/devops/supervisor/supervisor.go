@@ -35,12 +35,12 @@ type Component struct {
 
 // LoopState holds observed devops loop state from state files.
 type LoopState struct {
-	CyclePhase       string
-	CycleResult      string
-	LastError        string
-	MainSHA          string
-	LastProcessedSHA string
-	LastValidatedSHA string
+	CyclePhase       string `json:"cycle_phase"`
+	CycleResult      string `json:"cycle_result"`
+	LastError        string `json:"last_error"`
+	MainSHA          string `json:"-"`
+	LastProcessedSHA string `json:"-"`
+	LastValidatedSHA string `json:"-"`
 }
 
 // Supervisor manages multiple supervised components with restart policies.
@@ -118,31 +118,15 @@ func (s *Supervisor) RegisterComponent(comp *Component) {
 
 // Run starts the supervisor tick loop. Blocks until context is cancelled.
 func (s *Supervisor) Run(ctx context.Context) error {
-	// Ensure directories
-	if err := os.MkdirAll(filepath.Dir(s.pidFile), 0o755); err != nil {
-		return fmt.Errorf("create supervisor pid dir: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(s.logFile), 0o755); err != nil {
-		return fmt.Errorf("create supervisor log dir: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(s.lockDir), 0o755); err != nil {
-		return fmt.Errorf("create supervisor lock dir: %w", err)
+	if err := s.ensureDirs(); err != nil {
+		return err
 	}
 
-	// Acquire lock
-	if err := os.Mkdir(s.lockDir, 0o755); err != nil {
-		return fmt.Errorf("supervisor already running (lock: %s)", s.lockDir)
+	if err := s.acquireLock(); err != nil {
+		return err
 	}
-	// Write lock owner
-	ownerFile := filepath.Join(s.lockDir, "owner")
-	if err := os.WriteFile(ownerFile, []byte(fmt.Sprintf("pid=%d started_at=%s\n",
-		os.Getpid(), time.Now().UTC().Format(time.RFC3339))), 0o644); err != nil {
-		return fmt.Errorf("write supervisor lock owner: %w", err)
-	}
-
 	defer s.cleanup()
 
-	// Write PID file
 	if err := os.WriteFile(s.pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
 		return fmt.Errorf("write supervisor pid file: %w", err)
 	}
@@ -173,10 +157,20 @@ func (s *Supervisor) Run(ctx context.Context) error {
 //  3. SHA drift auto-upgrade
 //  4. Re-observe + write status
 func (s *Supervisor) tick(ctx context.Context) {
-	// 1. Observe
 	s.readLoopState()
+	s.healthCheckRestarts(ctx)
+	s.maybeUpgradeForSHADrift(ctx)
+	s.readLoopState()
+	s.writeStatus()
+}
 
-	// 2. Health-check restarts
+// minUpgradeInterval is the minimum time between SHA drift upgrades for a
+// component. This prevents rapid restart storms when multiple commits land
+// on main in quick succession (e.g. from the devops loop).
+const minUpgradeInterval = 5 * time.Minute
+
+// healthCheckRestarts checks each component and restarts unhealthy ones.
+func (s *Supervisor) healthCheckRestarts(ctx context.Context) {
 	now := time.Now()
 	for _, comp := range s.components {
 		healthState := comp.HealthFn()
@@ -192,7 +186,6 @@ func (s *Supervisor) tick(ctx context.Context) {
 			continue
 		}
 
-		// Exponential backoff
 		s.mu.Lock()
 		s.failCounts[comp.Name]++
 		delay := 1 << (s.failCounts[comp.Name] - 1)
@@ -227,27 +220,12 @@ func (s *Supervisor) tick(ctx context.Context) {
 
 		s.restartComponentAfterDelay(ctx, comp, mu, time.Duration(delay)*time.Second)
 	}
-
-	// 3. SHA drift auto-upgrade
-	s.maybeUpgradeForSHADrift(ctx)
-
-	// 4. Re-observe + write status
-	s.readLoopState()
-	s.writeStatus()
 }
 
-// minUpgradeInterval is the minimum time between SHA drift upgrades for a
-// component. This prevents rapid restart storms when multiple commits land
-// on main in quick succession (e.g. from the devops loop).
-const minUpgradeInterval = 5 * time.Minute
-
 // maybeUpgradeForSHADrift auto-restarts healthy components whose deployed
-// SHA differs from the latest main SHA. Corresponds to supervisor.sh
-// maybe_upgrade_for_sha_drift.
+// SHA differs from the latest main SHA.
 func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 	now := time.Now()
-
-	// Skip during global cooldown
 	if s.policy.InCooldown("", now) {
 		return
 	}
@@ -260,48 +238,21 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 	}
 
 	for _, comp := range s.components {
-		// Keep runtime components that should track main SHA aligned.
-		if comp.Name != "main" {
+		if comp.Name != "main" || comp.HealthFn() != "healthy" {
 			continue
 		}
-
-		health := comp.HealthFn()
-		if health != "healthy" {
-			continue
-		}
-
-		// Skip during per-component cooldown
 		if s.policy.InCooldown(comp.Name, now) {
 			continue
 		}
-
-		// Enforce minimum interval between SHA drift upgrades to avoid
-		// killing the process every time a new commit lands on main.
-		s.mu.Lock()
-		lastUpgrade, ok := s.lastUpgradeAt[comp.Name]
-		s.mu.Unlock()
-		if ok && now.Sub(lastUpgrade) < minUpgradeInterval {
+		if s.withinUpgradeInterval(comp.Name, now) {
 			continue
 		}
 
-		// Read deployed SHA
-		if comp.SHAFile == "" {
-			continue
-		}
-		shaData, err := os.ReadFile(comp.SHAFile)
-		if err != nil {
-			continue
-		}
-		deployedSHA := strings.TrimSpace(string(shaData))
-		if deployedSHA == "" || deployedSHA == "unknown" {
+		deployedSHA := readFileString(comp.SHAFile)
+		if deployedSHA == "" || deployedSHA == "unknown" || deployedSHA == mainSHA {
 			continue
 		}
 
-		if deployedSHA == mainSHA {
-			continue
-		}
-
-		// SHA differs — record restart and check limits
 		count := s.policy.RecordRestart(comp.Name)
 		if count >= s.policy.MaxInWindow {
 			s.policy.EnterCooldown(comp.Name)
@@ -384,63 +335,18 @@ func (s *Supervisor) stopAll(ctx context.Context) {
 	}
 }
 
-func (s *Supervisor) cleanup() {
-	os.RemoveAll(s.lockDir)
-	// Only remove PID file if it's ours
-	data, err := os.ReadFile(s.pidFile)
-	if err == nil {
-		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-		if pid == os.Getpid() {
-			os.Remove(s.pidFile)
-		}
-	}
-}
-
 // readLoopState reads devops loop state from files in tmpDir.
-// Corresponds to supervisor.sh observe_states (lines 482-502).
 // All reads are graceful — missing files leave fields at zero value.
 func (s *Supervisor) readLoopState() {
 	var ls LoopState
 
-	// Read loop state JSON (cycle_phase, cycle_result, last_error)
 	stateFile := filepath.Join(s.tmpDir, "lark-loop.state.json")
 	if data, err := os.ReadFile(stateFile); err == nil {
-		var raw map[string]json.RawMessage
-		if json.Unmarshal(data, &raw) == nil {
-			if v, ok := raw["cycle_phase"]; ok {
-				var s string
-				if json.Unmarshal(v, &s) == nil {
-					ls.CyclePhase = s
-				}
-			}
-			if v, ok := raw["cycle_result"]; ok {
-				var s string
-				if json.Unmarshal(v, &s) == nil {
-					ls.CycleResult = s
-				}
-			}
-			if v, ok := raw["last_error"]; ok {
-				var s string
-				if json.Unmarshal(v, &s) == nil {
-					ls.LastError = s
-				}
-			}
-		}
+		_ = json.Unmarshal(data, &ls)
 	}
 
-	// Read last processed SHA
-	lastFile := filepath.Join(s.tmpDir, "lark-loop.last")
-	if data, err := os.ReadFile(lastFile); err == nil {
-		ls.LastProcessedSHA = strings.TrimSpace(string(data))
-	}
-
-	// Read last validated SHA
-	validatedFile := filepath.Join(s.tmpDir, "lark-loop.last-validated")
-	if data, err := os.ReadFile(validatedFile); err == nil {
-		ls.LastValidatedSHA = strings.TrimSpace(string(data))
-	}
-
-	// Read main SHA from git
+	ls.LastProcessedSHA = readFileString(filepath.Join(s.tmpDir, "lark-loop.last"))
+	ls.LastValidatedSHA = readFileString(filepath.Join(s.tmpDir, "lark-loop.last-validated"))
 	ls.MainSHA = s.getMainSHA()
 
 	s.mu.Lock()
@@ -469,18 +375,10 @@ func (s *Supervisor) writeStatus() {
 	}
 
 	for _, comp := range s.components {
-		pid := 0
-		if pidData, err := os.ReadFile(comp.PIDFile); err == nil {
-			pid, _ = strconv.Atoi(strings.TrimSpace(string(pidData)))
-		}
-		sha := ""
-		if shaData, err := os.ReadFile(comp.SHAFile); err == nil {
-			sha = strings.TrimSpace(string(shaData))
-		}
 		status.Components[comp.Name] = ComponentStatus{
-			PID:         pid,
+			PID:         readFilePID(comp.PIDFile),
 			Health:      comp.HealthFn(),
-			DeployedSHA: sha,
+			DeployedSHA: readFileString(comp.SHAFile),
 			RunsWindow:  s.policy.RestartCount(comp.Name, now),
 		}
 	}
@@ -494,28 +392,16 @@ func (s *Supervisor) currentMode(now time.Time) string {
 	if s.policy.InCooldown("", now) {
 		return "cooldown"
 	}
-	allHealthy := true
 	for _, comp := range s.components {
-		health := comp.HealthFn()
-		if comp.Name == "loop" {
-			if health != "alive" {
-				allHealthy = false
-			}
-		} else {
-			if health != "healthy" {
-				allHealthy = false
-			}
+		if s.needsRestart(comp.Name, comp.HealthFn()) {
+			return "degraded"
 		}
 	}
-	if allHealthy {
-		return "healthy"
-	}
-	return "degraded"
+	return "healthy"
 }
 
 func (s *Supervisor) getMainSHA() string {
 	cmd := exec.Command("git", "-C", s.mainRoot, "rev-parse", "main")
-	// Prevent git from traversing above mainRoot to a parent repository.
 	cmd.Env = append(os.Environ(), "GIT_CEILING_DIRECTORIES="+filepath.Dir(s.mainRoot))
 	out, err := cmd.Output()
 	if err != nil {
@@ -524,43 +410,12 @@ func (s *Supervisor) getMainSHA() string {
 	return strings.TrimSpace(string(out))
 }
 
-// Start launches the supervisor in the background.
+// Start launches the supervisor, cleaning stale locks if needed.
 func (s *Supervisor) Start(ctx context.Context) error {
-	// Check if already running
-	if data, err := os.ReadFile(s.pidFile); err == nil {
-		pidStr := strings.TrimSpace(string(data))
-		if pid, err := strconv.Atoi(pidStr); err == nil {
-			if proc, err := os.FindProcess(pid); err == nil {
-				// kill -0 to check if process exists
-				if err := proc.Signal(os.Signal(nil)); err == nil {
-					return fmt.Errorf("supervisor already running (PID: %d)", pid)
-				}
-			}
-		}
+	if err := s.checkAlreadyRunning(); err != nil {
+		return err
 	}
-
-	// Clean stale lock
-	if info, err := os.Stat(s.lockDir); err == nil && info.IsDir() {
-		ownerFile := filepath.Join(s.lockDir, "owner")
-		if data, err := os.ReadFile(ownerFile); err == nil {
-			// Try to extract PID from owner file
-			for _, line := range strings.Split(string(data), "\n") {
-				if strings.HasPrefix(line, "pid=") {
-					pidStr := strings.TrimPrefix(line, "pid=")
-					pidStr = strings.Split(pidStr, " ")[0]
-					if pid, err := strconv.Atoi(pidStr); err == nil {
-						if proc, _ := os.FindProcess(pid); proc != nil {
-							if proc.Signal(os.Signal(nil)) != nil {
-								// Process not running, clean lock
-								os.RemoveAll(s.lockDir)
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
+	s.cleanStaleLock()
 	return s.Run(ctx)
 }
 
@@ -573,6 +428,108 @@ func (s *Supervisor) componentMu(name string) *sync.Mutex {
 // StatusReport returns the current status for display.
 func (s *Supervisor) StatusReport() (Status, error) {
 	return s.statusFile.Read()
+}
+
+// --- helpers ---
+
+func (s *Supervisor) ensureDirs() error {
+	for _, dir := range []string{
+		filepath.Dir(s.pidFile),
+		filepath.Dir(s.logFile),
+		filepath.Dir(s.lockDir),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create dir %s: %w", dir, err)
+		}
+	}
+	return nil
+}
+
+func (s *Supervisor) acquireLock() error {
+	if err := os.Mkdir(s.lockDir, 0o755); err != nil {
+		return fmt.Errorf("supervisor already running (lock: %s)", s.lockDir)
+	}
+	ownerFile := filepath.Join(s.lockDir, "owner")
+	return os.WriteFile(ownerFile, []byte(fmt.Sprintf("pid=%d started_at=%s\n",
+		os.Getpid(), time.Now().UTC().Format(time.RFC3339))), 0o644)
+}
+
+func (s *Supervisor) cleanup() {
+	os.RemoveAll(s.lockDir)
+	if pid := readFilePID(s.pidFile); pid == os.Getpid() {
+		os.Remove(s.pidFile)
+	}
+}
+
+func (s *Supervisor) checkAlreadyRunning() error {
+	pid := readFilePID(s.pidFile)
+	if pid == 0 {
+		return nil
+	}
+	if processAlive(pid) {
+		return fmt.Errorf("supervisor already running (PID: %d)", pid)
+	}
+	return nil
+}
+
+func (s *Supervisor) cleanStaleLock() {
+	ownerFile := filepath.Join(s.lockDir, "owner")
+	data, err := os.ReadFile(ownerFile)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.HasPrefix(line, "pid=") {
+			continue
+		}
+		pidStr := strings.Split(strings.TrimPrefix(line, "pid="), " ")[0]
+		pid, err := strconv.Atoi(pidStr)
+		if err != nil {
+			continue
+		}
+		if !processAlive(pid) {
+			os.RemoveAll(s.lockDir)
+		}
+		return
+	}
+}
+
+func (s *Supervisor) withinUpgradeInterval(name string, now time.Time) bool {
+	s.mu.Lock()
+	lastUpgrade, ok := s.lastUpgradeAt[name]
+	s.mu.Unlock()
+	return ok && now.Sub(lastUpgrade) < minUpgradeInterval
+}
+
+// readFileString reads a file and returns its trimmed content, or "" on error.
+func readFileString(path string) string {
+	if path == "" {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// readFilePID reads a PID from a file, returning 0 on error.
+func readFilePID(path string) int {
+	s := readFileString(path)
+	if s == "" {
+		return 0
+	}
+	pid, _ := strconv.Atoi(s)
+	return pid
+}
+
+// processAlive reports whether a process with the given PID is running.
+func processAlive(pid int) bool {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	return proc.Signal(os.Signal(nil)) == nil
 }
 
 func truncSHA(sha string) string {
