@@ -25,6 +25,7 @@ alex-server
 *.dll
 *.so
 *.dylib
+cmd/alex/alex
 build/
 dist/
 out/
@@ -92,6 +93,7 @@ vendor/
 .envrc
 .netlify/
 .vercel/
+.claude/scheduled_tasks.lock
 
 # Temporary files
 *.tmp

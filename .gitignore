@@ -23,6 +23,7 @@ result
 /eval-server
 /alex-web
 /alex-web.stamp
+cmd/alex/alex
 
 # Go build and test outputs
 *.exe
@@ -70,6 +71,7 @@ alex-exec-*/*
 .envrc
 .netlify/
 .vercel/
+.claude/scheduled_tasks.lock
 .deep-coding-config.json
 go.work
 .worktree-active.yaml
