@@ -75,7 +75,8 @@ type Summary struct {
 }
 
 // GenerateSummary queries the task store and builds a progress summary
-// covering the configured lookback window.
+// covering the configured lookback window. When ChatID is set, results
+// are scoped to that chat to prevent task leaks across sessions.
 func (s *Service) GenerateSummary(ctx context.Context) (*Summary, error) {
 	now := time.Now()
 	cutoff := now.Add(-s.config.LookbackDuration)
@@ -85,8 +86,16 @@ func (s *Service) GenerateSummary(ctx context.Context) (*Summary, error) {
 		GeneratedAt: now,
 	}
 
+	chatID := strings.TrimSpace(s.config.ChatID)
+
 	if s.config.IncludeActive {
-		active, err := s.store.ListActive(ctx)
+		var active []*task.Task
+		var err error
+		if chatID != "" {
+			active, err = s.store.ListByChat(ctx, chatID, true, 0)
+		} else {
+			active, err = s.store.ListActive(ctx)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("list active tasks: %w", err)
 		}
@@ -94,25 +103,41 @@ func (s *Service) GenerateSummary(ctx context.Context) (*Summary, error) {
 	}
 
 	if s.config.IncludeCompleted {
-		completed, err := s.store.ListByStatus(ctx, task.StatusCompleted)
-		if err != nil {
-			return nil, fmt.Errorf("list completed tasks: %w", err)
-		}
-		for _, t := range completed {
-			if t.CompletedAt != nil && t.CompletedAt.After(cutoff) {
-				sum.CompletedIn = append(sum.CompletedIn, t)
+		var completed, failed []*task.Task
+		if chatID != "" {
+			// ListByChat with activeOnly=false returns all tasks for the chat;
+			// filter by status and recency client-side.
+			all, err := s.store.ListByChat(ctx, chatID, false, 0)
+			if err != nil {
+				return nil, fmt.Errorf("list chat tasks: %w", err)
 			}
-		}
+			for _, t := range all {
+				if t.CompletedAt == nil || !t.CompletedAt.After(cutoff) {
+					continue
+				}
+				switch t.Status {
+				case task.StatusCompleted:
+					completed = append(completed, t)
+				case task.StatusFailed:
+					failed = append(failed, t)
+				}
+			}
+		} else {
+			var err error
+			completed, err = s.store.ListByStatus(ctx, task.StatusCompleted)
+			if err != nil {
+				return nil, fmt.Errorf("list completed tasks: %w", err)
+			}
+			completed = filterRecent(completed, cutoff)
 
-		failed, err := s.store.ListByStatus(ctx, task.StatusFailed)
-		if err != nil {
-			return nil, fmt.Errorf("list failed tasks: %w", err)
-		}
-		for _, t := range failed {
-			if t.CompletedAt != nil && t.CompletedAt.After(cutoff) {
-				sum.FailedIn = append(sum.FailedIn, t)
+			failed, err = s.store.ListByStatus(ctx, task.StatusFailed)
+			if err != nil {
+				return nil, fmt.Errorf("list failed tasks: %w", err)
 			}
+			failed = filterRecent(failed, cutoff)
 		}
+		sum.CompletedIn = completed
+		sum.FailedIn = failed
 	}
 
 	// Aggregate token/cost across all included tasks.
@@ -235,6 +260,16 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+func filterRecent(tasks []*task.Task, cutoff time.Time) []*task.Task {
+	var out []*task.Task
+	for _, t := range tasks {
+		if t.CompletedAt != nil && t.CompletedAt.After(cutoff) {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func formatDuration(d time.Duration) string {

@@ -174,7 +174,9 @@ func TestSendCheckin(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
-	_ = store.Create(ctx, makeTask("t1", "test task", task.StatusRunning))
+	tk := makeTask("t1", "test task", task.StatusRunning)
+	tk.ChatID = "oc_test123"
+	_ = store.Create(ctx, tk)
 
 	notif := &fakeNotifier{}
 	cfg := DefaultConfig()
@@ -244,5 +246,59 @@ func TestConfigLookbackDerivation(t *testing.T) {
 	svc := NewService(newTestStore(t), nil, cfg)
 	if svc.config.LookbackDuration != 2*time.Hour {
 		t.Errorf("LookbackDuration = %v, want 2h", svc.config.LookbackDuration)
+	}
+}
+
+func TestGenerateSummary_ScopedByChatID(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	// Create tasks in two different chats.
+	t1 := makeTask("t1", "chat-A task", task.StatusRunning)
+	t1.ChatID = "chat-A"
+	_ = store.Create(ctx, t1)
+
+	t2 := makeTask("t2", "chat-B task", task.StatusRunning)
+	t2.ChatID = "chat-B"
+	_ = store.Create(ctx, t2)
+
+	// Scoped to chat-A: should only see t1.
+	cfg := DefaultConfig()
+	cfg.ChatID = "chat-A"
+	svc := NewService(store, nil, cfg)
+	sum, err := svc.GenerateSummary(ctx)
+	if err != nil {
+		t.Fatalf("GenerateSummary: %v", err)
+	}
+	if len(sum.ActiveTasks) != 1 {
+		t.Errorf("scoped active = %d, want 1", len(sum.ActiveTasks))
+	}
+	if len(sum.ActiveTasks) == 1 && sum.ActiveTasks[0].TaskID != "t1" {
+		t.Errorf("scoped task = %q, want t1", sum.ActiveTasks[0].TaskID)
+	}
+}
+
+func TestGenerateSummary_GlobalWhenNoChatID(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	t1 := makeTask("t1", "task A", task.StatusRunning)
+	t1.ChatID = "chat-A"
+	_ = store.Create(ctx, t1)
+
+	t2 := makeTask("t2", "task B", task.StatusRunning)
+	t2.ChatID = "chat-B"
+	_ = store.Create(ctx, t2)
+
+	// No ChatID: should see both.
+	cfg := DefaultConfig()
+	cfg.ChatID = ""
+	svc := NewService(store, nil, cfg)
+	sum, err := svc.GenerateSummary(ctx)
+	if err != nil {
+		t.Fatalf("GenerateSummary: %v", err)
+	}
+	if len(sum.ActiveTasks) != 2 {
+		t.Errorf("global active = %d, want 2", len(sum.ActiveTasks))
 	}
 }

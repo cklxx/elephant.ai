@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"alex/internal/app/di"
+	"alex/internal/app/milestone"
 	"alex/internal/app/scheduler"
 	okrtools "alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/async"
@@ -40,12 +41,34 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 	recoveryMaxRetries := cfg.Runtime.Proactive.Scheduler.RecoveryMaxRetries
 	recoveryBackoff := time.Duration(cfg.Runtime.Proactive.Scheduler.RecoveryBackoffSeconds) * time.Second
 
+	milestoneCheckinCfg := cfg.Runtime.Proactive.Scheduler.MilestoneCheckin
+	var milestoneSvc scheduler.MilestoneCheckinService
+	if milestoneCheckinCfg.Enabled && container != nil && container.TaskStore != nil {
+		lookback := time.Duration(milestoneCheckinCfg.LookbackSeconds) * time.Second
+		if lookback <= 0 {
+			lookback = time.Hour
+		}
+		svc := milestone.NewService(container.TaskStore, notifier, milestone.Config{
+			Enabled:          true,
+			IntervalSeconds:  milestoneCheckinCfg.LookbackSeconds,
+			LookbackDuration: lookback,
+			Channel:          milestoneCheckinCfg.Channel,
+			ChatID:           milestoneCheckinCfg.ChatID,
+			IncludeActive:    milestoneCheckinCfg.IncludeActive,
+			IncludeCompleted: milestoneCheckinCfg.IncludeCompleted,
+		})
+		milestoneSvc = svc
+		logger.Info("Milestone check-in service created (channel=%s, chat_id=%s)", milestoneCheckinCfg.Channel, milestoneCheckinCfg.ChatID)
+	}
+
 	schedCfg := scheduler.Config{
 		Enabled:            true,
 		StaticTriggers:     cfg.Runtime.Proactive.Scheduler.Triggers,
 		OKRGoalsRoot:       goalsRoot,
 		CalendarReminder:   cfg.Runtime.Proactive.Scheduler.CalendarReminder,
 		Heartbeat:          cfg.Runtime.Proactive.Scheduler.Heartbeat,
+		MilestoneCheckin:   milestoneCheckinCfg,
+		MilestoneService:   milestoneSvc,
 		TriggerTimeout:     time.Duration(cfg.Runtime.Proactive.Scheduler.TriggerTimeoutSeconds) * time.Second,
 		ConcurrencyPolicy:  cfg.Runtime.Proactive.Scheduler.ConcurrencyPolicy,
 		JobStore:           jobStore,

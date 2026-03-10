@@ -14,6 +14,11 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+// MilestoneCheckinService is the interface for periodic progress check-ins.
+type MilestoneCheckinService interface {
+	SendCheckin(ctx context.Context) error
+}
+
 // Config holds scheduler configuration.
 type Config struct {
 	Enabled            bool
@@ -21,6 +26,8 @@ type Config struct {
 	OKRGoalsRoot       string // path to scan for OKR-derived triggers
 	CalendarReminder   config.CalendarReminderConfig
 	Heartbeat          config.HeartbeatConfig
+	MilestoneCheckin   config.MilestoneCheckinConfig
+	MilestoneService   MilestoneCheckinService // optional; wired by bootstrap
 	TriggerTimeout     time.Duration
 	ConcurrencyPolicy  string
 	JobStore           JobStore
@@ -161,6 +168,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 
 	// 3.1 Register heartbeat trigger
 	s.registerHeartbeatTrigger(ctx)
+
+	// 3.2 Register milestone check-in cron job
+	s.registerMilestoneCheckinJob(ctx)
 
 	// 4. Start periodic OKR trigger sync (every 5 min)
 	if s.goalStore != nil {
