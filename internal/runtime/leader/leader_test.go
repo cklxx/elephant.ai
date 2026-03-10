@@ -2,6 +2,7 @@ package leader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"strings"
@@ -12,12 +13,14 @@ import (
 
 	"alex/internal/runtime/hooks"
 	"alex/internal/runtime/session"
+	"alex/internal/shared/notification"
 )
 
 // --- mocks ---
 
 type mockRuntime struct {
-	sessions map[string]session.SessionData
+	sessions     map[string]session.SessionData
+	markFailedFn func(id, errMsg string) error
 }
 
 func (m *mockRuntime) GetSession(id string) (session.SessionData, bool) {
@@ -26,7 +29,30 @@ func (m *mockRuntime) GetSession(id string) (session.SessionData, bool) {
 }
 
 func (m *mockRuntime) InjectText(_ context.Context, _, _ string) error { return nil }
-func (m *mockRuntime) MarkFailed(_, _ string) error                    { return nil }
+func (m *mockRuntime) MarkFailed(id, errMsg string) error {
+	if m.markFailedFn != nil {
+		return m.markFailedFn(id, errMsg)
+	}
+	return nil
+}
+
+type mockNotifier struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (n *mockNotifier) Send(_ context.Context, _ notification.Target, content string) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.messages = append(n.messages, content)
+	return nil
+}
+
+func (n *mockNotifier) getMessages() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return append([]string(nil), n.messages...)
+}
 
 type mockBus struct {
 	mu      sync.Mutex
@@ -463,5 +489,142 @@ func TestBuildStallPrompt(t *testing.T) {
 		if !strings.Contains(prompt, expected) {
 			t.Errorf("prompt missing %q", expected)
 		}
+	}
+}
+
+func TestMarkFailedRetrySuccess(t *testing.T) {
+	// MarkFailed fails twice then succeeds on 3rd attempt.
+	var attempts atomic.Int32
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{},
+		markFailedFn: func(_, _ string) error {
+			n := attempts.Add(1)
+			if n < 3 {
+				return errors.New("transient db error")
+			}
+			return nil
+		},
+	}
+	bus := newMockBus()
+	notif := &mockNotifier{}
+	a := New(rt, bus, nil)
+	a.SetNotifier(notif)
+
+	a.markFailedWithRetry("sess-retry", "test reason")
+
+	if got := attempts.Load(); got != 3 {
+		t.Errorf("expected 3 attempts, got %d", got)
+	}
+	// No escalation event — it succeeded.
+	events := bus.publishedEvents()
+	for _, ev := range events {
+		if ev.Type == hooks.EventHandoffRequired {
+			t.Error("unexpected escalation event — MarkFailed eventually succeeded")
+		}
+	}
+	// No notification sent.
+	if msgs := notif.getMessages(); len(msgs) != 0 {
+		t.Errorf("expected no notifications, got %d", len(msgs))
+	}
+}
+
+func TestMarkFailedRetryExhaustedEscalates(t *testing.T) {
+	// MarkFailed always fails — should exhaust retries, escalate, and notify.
+	var attempts atomic.Int32
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{},
+		markFailedFn: func(_, _ string) error {
+			attempts.Add(1)
+			return errors.New("persistent error")
+		},
+	}
+	bus := newMockBus()
+	notif := &mockNotifier{}
+	a := New(rt, bus, nil)
+	a.SetNotifier(notif)
+
+	a.markFailedWithRetry("sess-fail", "session stuck")
+
+	// Should have attempted exactly markFailedRetries times.
+	if got := attempts.Load(); got != int32(markFailedRetries) {
+		t.Errorf("expected %d attempts, got %d", markFailedRetries, got)
+	}
+
+	// Should have published an escalation event.
+	events := bus.publishedEvents()
+	escalations := 0
+	for _, ev := range events {
+		if ev.Type == hooks.EventHandoffRequired {
+			escalations++
+			reason, _ := ev.Payload["reason"].(string)
+			if !strings.Contains(reason, "CRITICAL") || !strings.Contains(reason, "sess-fail") {
+				t.Errorf("escalation reason missing expected content: %q", reason)
+			}
+		}
+	}
+	if escalations != 1 {
+		t.Errorf("expected 1 escalation event, got %d", escalations)
+	}
+
+	// Should have sent a notification.
+	msgs := notif.getMessages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 notification, got %d", len(msgs))
+	}
+	if !strings.Contains(msgs[0], "CRITICAL") || !strings.Contains(msgs[0], "sess-fail") {
+		t.Errorf("notification message missing expected content: %q", msgs[0])
+	}
+}
+
+func TestMarkFailedRetryExhaustedNoNotifierNosPanic(t *testing.T) {
+	// MarkFailed always fails, no notifier set — should not panic.
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{},
+		markFailedFn: func(_, _ string) error {
+			return errors.New("fail")
+		},
+	}
+	bus := newMockBus()
+	a := New(rt, bus, nil)
+	// No notifier set — should still escalate via bus without panic.
+
+	a.markFailedWithRetry("sess-no-notifier", "reason")
+
+	events := bus.publishedEvents()
+	if len(events) != 1 || events[0].Type != hooks.EventHandoffRequired {
+		t.Errorf("expected 1 escalation event, got %d events", len(events))
+	}
+}
+
+func TestApplyDecisionFAILUsesRetry(t *testing.T) {
+	// Verify that applyDecision("FAIL ...") goes through markFailedWithRetry.
+	var attempts atomic.Int32
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{},
+		markFailedFn: func(_, _ string) error {
+			attempts.Add(1)
+			return errors.New("transient")
+		},
+	}
+	bus := newMockBus()
+	a := New(rt, bus, nil)
+
+	a.applyDecision(context.Background(), "sess-1", "FAIL something broke")
+
+	// Should have retried markFailedRetries times.
+	if got := attempts.Load(); got != int32(markFailedRetries) {
+		t.Errorf("expected %d MarkFailed attempts, got %d", markFailedRetries, got)
+	}
+
+	// Should have escalated after exhaustion.
+	events := bus.publishedEvents()
+	found := false
+	for _, ev := range events {
+		if ev.Type == hooks.EventHandoffRequired {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected escalation event after retry exhaustion")
 	}
 }

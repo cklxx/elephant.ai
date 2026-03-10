@@ -14,6 +14,7 @@ import (
 	"alex/internal/runtime/hooks"
 	"alex/internal/runtime/session"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/notification"
 )
 
 // RuntimeReader is the minimal interface the Agent needs from Runtime.
@@ -36,10 +37,11 @@ type ExecuteFunc func(ctx context.Context, prompt, sessionID string) (string, er
 //   - continue orchestration after child completion
 //   - log for human escalation (EventHandoffRequired published)
 type Agent struct {
-	rt      RuntimeReader
-	bus     hooks.Bus
-	execute ExecuteFunc
-	logger  logging.Logger
+	rt       RuntimeReader
+	bus      hooks.Bus
+	execute  ExecuteFunc
+	logger   logging.Logger
+	notifier notification.Notifier // optional — used for escalation alerts
 
 	// inflight tracks sessions currently being handled to prevent concurrent
 	// stall handling for the same session (which causes duplicate LLM calls).
@@ -56,6 +58,9 @@ type Agent struct {
 // session before the leader gives up and escalates to a human operator.
 const maxStallAttempts = 3
 
+// markFailedRetries is the number of retry attempts for MarkFailed calls.
+const markFailedRetries = 3
+
 // New creates a LeaderAgent.
 func New(rt RuntimeReader, bus hooks.Bus, execute ExecuteFunc) *Agent {
 	return &Agent{
@@ -66,6 +71,12 @@ func New(rt RuntimeReader, bus hooks.Bus, execute ExecuteFunc) *Agent {
 		inflight:    make(map[string]struct{}),
 		stallCounts: make(map[string]int),
 	}
+}
+
+// SetNotifier sets an optional notifier for escalation alerts when MarkFailed
+// retries are exhausted.
+func (a *Agent) SetNotifier(n notification.Notifier) {
+	a.notifier = n
 }
 
 // Run subscribes to the bus and processes stall/needs-input/child-completed events.
@@ -238,7 +249,7 @@ func (a *Agent) applyOrchestratorDecision(ctx context.Context, parentSessionID, 
 		if reason == "" {
 			reason = "leader agent: orchestration failed"
 		}
-		_ = a.rt.MarkFailed(parentSessionID, reason)
+		a.markFailedWithRetry(parentSessionID, reason)
 	default:
 		// The LLM produced a free-form response (orchestration action or summary).
 		// Publish as handoff with structured context so downstream consumers
@@ -271,10 +282,40 @@ func (a *Agent) applyDecision(ctx context.Context, sessionID, decision string) {
 		if reason == "" {
 			reason = "leader agent: session abandoned after stall"
 		}
-		_ = a.rt.MarkFailed(sessionID, reason)
+		a.markFailedWithRetry(sessionID, reason)
 	default:
 		// Unknown or ESCALATE.
 		a.escalate(sessionID, "leader agent: escalating to human operator")
+	}
+}
+
+// markFailedWithRetry calls MarkFailed with retries and exponential backoff.
+// If all retries fail, logs at ERROR level and escalates via the notifier.
+func (a *Agent) markFailedWithRetry(sessionID, reason string) {
+	var lastErr error
+	for attempt := 1; attempt <= markFailedRetries; attempt++ {
+		if err := a.rt.MarkFailed(sessionID, reason); err != nil {
+			lastErr = err
+			a.logger.Error("MarkFailed attempt %d/%d for session %s failed: %v", attempt, markFailedRetries, sessionID, err)
+			if attempt < markFailedRetries {
+				time.Sleep(time.Duration(attempt*100) * time.Millisecond)
+			}
+			continue
+		}
+		return // success
+	}
+	// All retries exhausted — escalate.
+	alertMsg := fmt.Sprintf("CRITICAL: MarkFailed exhausted %d retries for session %s (reason: %s): %v",
+		markFailedRetries, sessionID, reason, lastErr)
+	a.logger.Error("%s", alertMsg)
+	a.escalate(sessionID, alertMsg)
+	if a.notifier != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		target := notification.Target{Channel: notification.ChannelLark}
+		if err := a.notifier.Send(ctx, target, alertMsg); err != nil {
+			a.logger.Error("Failed to send MarkFailed escalation notification for session %s: %v", sessionID, err)
+		}
 	}
 }
 
