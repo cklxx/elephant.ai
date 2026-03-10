@@ -45,6 +45,9 @@ func (c *CLI) Run(args []string) error {
 	case "team":
 		return runTeamCommandWithContainer(cmdArgs, c.container)
 
+	case "health":
+		return runHealthCommand(cmdArgs)
+
 	case "cost", "costs":
 		return c.handleCostCommand(cmdArgs)
 
@@ -101,6 +104,8 @@ Usage:
   alex model use                 Select from an interactive picker
   alex model clear               Remove subscription selection
   alex llama-cpp pull <repo> <file>  Download GGUF weights from Hugging Face
+  alex health                     Check server health (LLM, memory, components)
+  alex health --json              Output health status as JSON
   alex cost                      Show cost tracking commands
   alex eval [options]            Run local agent evaluation against SWE-Bench datasets
   alex acp [--initial-message]        Run ACP (Agent Client Protocol) over stdio
