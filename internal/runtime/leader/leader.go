@@ -234,27 +234,46 @@ func (a *Agent) handleChildCompleted(ctx context.Context, ev hooks.Event) {
 	a.applyOrchestratorDecision(ctx, parentSessionID, strings.TrimSpace(result))
 }
 
-// applyOrchestratorDecision handles the leader's response after child completion.
-// The LLM may respond with orchestration actions or a final summary.
-func (a *Agent) applyOrchestratorDecision(ctx context.Context, parentSessionID, decision string) {
-	upper := strings.ToUpper(decision)
+// decisionAction classifies the LLM response into inject/fail/unknown.
+type decisionAction int
+
+const (
+	actionUnknown decisionAction = iota
+	actionInject
+	actionFail
+)
+
+// parseDecision extracts the action keyword and its argument from an LLM response.
+func parseDecision(raw string) (decisionAction, string) {
+	upper := strings.ToUpper(raw)
 	switch {
 	case strings.HasPrefix(upper, "INJECT"):
-		msg := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(decision, "INJECT"), "inject"))
+		msg := strings.TrimSpace(raw[len("INJECT"):])
 		if msg == "" {
 			msg = "Please continue with the task."
 		}
-		_ = a.rt.InjectText(ctx, parentSessionID, msg)
+		return actionInject, msg
 	case strings.HasPrefix(upper, "FAIL"):
-		reason := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(decision, "FAIL"), "fail"))
-		if reason == "" {
-			reason = "leader agent: orchestration failed"
-		}
-		a.markFailedWithRetry(parentSessionID, reason)
+		reason := strings.TrimSpace(raw[len("FAIL"):])
+		return actionFail, reason
 	default:
-		// The LLM produced a free-form response (orchestration action or summary).
-		// Publish as handoff with structured context so downstream consumers
-		// (e.g. Lark notifier) get actionable information via ParseHandoffContext.
+		return actionUnknown, raw
+	}
+}
+
+// applyOrchestratorDecision handles the leader's response after child completion.
+func (a *Agent) applyOrchestratorDecision(ctx context.Context, parentSessionID, decision string) {
+	action, arg := parseDecision(decision)
+	switch action {
+	case actionInject:
+		_ = a.rt.InjectText(ctx, parentSessionID, arg)
+	case actionFail:
+		if arg == "" {
+			arg = "leader agent: orchestration failed"
+		}
+		a.markFailedWithRetry(parentSessionID, arg)
+	default:
+		// Free-form response — publish as handoff for downstream consumers.
 		hctx := a.buildHandoffContext(parentSessionID, "orchestrator: free-form response")
 		payload := hctx.ToPayload()
 		payload["leader_response"] = decision
@@ -267,25 +286,18 @@ func (a *Agent) applyOrchestratorDecision(ctx context.Context, parentSessionID, 
 	}
 }
 
-// applyDecision executes the LLM's recommendation.
-// Expected first line keywords: INJECT <message>, FAIL <reason>, ESCALATE.
+// applyDecision executes the LLM's recommendation for stall handling.
 func (a *Agent) applyDecision(ctx context.Context, sessionID, decision string) {
-	upper := strings.ToUpper(decision)
-	switch {
-	case strings.HasPrefix(upper, "INJECT"):
-		msg := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(decision, "INJECT"), "inject"))
-		if msg == "" {
-			msg = "Please continue with the task."
+	action, arg := parseDecision(decision)
+	switch action {
+	case actionInject:
+		_ = a.rt.InjectText(ctx, sessionID, arg)
+	case actionFail:
+		if arg == "" {
+			arg = "leader agent: session abandoned after stall"
 		}
-		_ = a.rt.InjectText(ctx, sessionID, msg)
-	case strings.HasPrefix(upper, "FAIL"):
-		reason := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(decision, "FAIL"), "fail"))
-		if reason == "" {
-			reason = "leader agent: session abandoned after stall"
-		}
-		a.markFailedWithRetry(sessionID, reason)
+		a.markFailedWithRetry(sessionID, arg)
 	default:
-		// Unknown or ESCALATE.
 		a.escalate(sessionID, "leader agent: escalating to human operator")
 	}
 }
