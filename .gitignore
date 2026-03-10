@@ -141,6 +141,7 @@ pet_podcast_basic.png
 scripts/cc_bridge/.venv/
 
 # Local tooling
+bin/
 .bin/
 logs/*.png
 logs/*.gz
@@ -161,3 +162,5 @@ EOF
 __pycache__/
 elephant.ai.worktrees/
 .claude/worktrees/
+evaluation_results/
+logs/
