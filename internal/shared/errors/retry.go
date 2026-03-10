@@ -49,7 +49,7 @@ func RetryWithLog(ctx context.Context, config RetryConfig, fn RetryableFunc, log
 		select {
 		case <-ctx.Done():
 			logger.Debug("Context cancelled, stopping retries")
-			return fmt.Errorf("context cancelled: %w", ctx.Err())
+			return ctx.Err()
 		default:
 		}
 
@@ -95,7 +95,7 @@ func RetryWithLog(ctx context.Context, config RetryConfig, fn RetryableFunc, log
 			// Continue to next attempt
 		case <-ctx.Done():
 			logger.Debug("Context cancelled during backoff")
-			return fmt.Errorf("context cancelled during retry: %w", ctx.Err())
+			return ctx.Err()
 		}
 	}
 
@@ -121,7 +121,7 @@ func RetryWithResultAndLog[T any](ctx context.Context, config RetryConfig, fn fu
 		select {
 		case <-ctx.Done():
 			logger.Debug("Context cancelled, stopping retries")
-			return zeroValue, fmt.Errorf("context cancelled: %w", ctx.Err())
+			return zeroValue, ctx.Err()
 		default:
 		}
 
@@ -167,7 +167,7 @@ func RetryWithResultAndLog[T any](ctx context.Context, config RetryConfig, fn fu
 			// Continue to next attempt
 		case <-ctx.Done():
 			logger.Debug("Context cancelled during backoff")
-			return zeroValue, fmt.Errorf("context cancelled during retry: %w", ctx.Err())
+			return zeroValue, ctx.Err()
 		}
 	}
 
@@ -206,84 +206,4 @@ func calculateBackoff(attempt int, config RetryConfig) time.Duration {
 	}
 
 	return delay
-}
-
-// RetryStats tracks retry statistics
-type RetryStats struct {
-	TotalAttempts     int
-	SuccessfulRetries int
-	FailedRetries     int
-	TotalDelay        time.Duration
-}
-
-// RetryWithStats executes a function with retry logic and returns statistics
-func RetryWithStats(ctx context.Context, config RetryConfig, fn RetryableFunc) (RetryStats, error) {
-	stats := RetryStats{}
-	startTime := time.Now()
-
-	var lastErr error
-
-	for attempt := 0; attempt <= config.MaxAttempts; attempt++ {
-		stats.TotalAttempts++
-
-		// Check context cancellation
-		select {
-		case <-ctx.Done():
-			return stats, fmt.Errorf("context cancelled: %w", ctx.Err())
-		default:
-		}
-
-		// Execute function
-		err := fn(ctx)
-
-		// Success
-		if err == nil {
-			if attempt > 0 {
-				stats.SuccessfulRetries++
-			}
-			stats.TotalDelay = time.Since(startTime)
-			return stats, nil
-		}
-
-		lastErr = err
-
-		// Check if error is retryable
-		if !IsTransient(err) {
-			stats.FailedRetries++
-			stats.TotalDelay = time.Since(startTime)
-			return stats, err
-		}
-
-		// Don't sleep after last attempt
-		if attempt == config.MaxAttempts {
-			stats.FailedRetries++
-			break
-		}
-
-		// Calculate and wait for backoff
-		delay := calculateBackoff(attempt, config)
-		select {
-		case <-time.After(delay):
-			// Continue to next attempt
-		case <-ctx.Done():
-			stats.TotalDelay = time.Since(startTime)
-			return stats, fmt.Errorf("context cancelled during retry: %w", ctx.Err())
-		}
-	}
-
-	stats.TotalDelay = time.Since(startTime)
-	return stats, fmt.Errorf("max retries exceeded: %w", lastErr)
-}
-
-// ShouldRetry is a helper to check if an operation should be retried based on error
-func ShouldRetry(err error, attemptNumber int, maxAttempts int) bool {
-	if err == nil {
-		return false
-	}
-
-	if attemptNumber >= maxAttempts {
-		return false
-	}
-
-	return IsTransient(err)
 }

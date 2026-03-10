@@ -3,6 +3,7 @@ package jsonx
 import (
 	stdjson "encoding/json"
 	"fmt"
+	"io"
 
 	goccyjson "github.com/goccy/go-json"
 )
@@ -13,47 +14,49 @@ var (
 	marshalIndentImpl         = goccyjson.MarshalIndent
 	fallbackMarshalImpl       = stdjson.Marshal
 	fallbackMarshalIndentImpl = stdjson.MarshalIndent
-
-	Marshal       = marshal
-	MarshalIndent = marshalIndent
-	Unmarshal     = goccyjson.Unmarshal
-	NewDecoder    = goccyjson.NewDecoder
-	NewEncoder    = goccyjson.NewEncoder
 )
 
 type RawMessage = goccyjson.RawMessage
 type Number = goccyjson.Number
 
-func marshal(v any) ([]byte, error) {
-	data, err, recovered := safeMarshalCall(func() ([]byte, error) {
-		return marshalImpl(v)
-	})
-	if recovered == nil {
-		return data, err
-	}
-	data, err, fallbackRecovered := safeMarshalCall(func() ([]byte, error) {
-		return fallbackMarshalImpl(v)
-	})
-	if fallbackRecovered == nil {
-		return data, err
-	}
-	return nil, fmt.Errorf("json marshal panic: primary=%v fallback=%v", recovered, fallbackRecovered)
+func Marshal(v any) ([]byte, error) {
+	return marshalWithFallback(
+		"json marshal panic",
+		func() ([]byte, error) { return marshalImpl(v) },
+		func() ([]byte, error) { return fallbackMarshalImpl(v) },
+	)
 }
 
-func marshalIndent(v any, prefix, indent string) ([]byte, error) {
-	data, err, recovered := safeMarshalCall(func() ([]byte, error) {
-		return marshalIndentImpl(v, prefix, indent)
-	})
+func MarshalIndent(v any, prefix, indent string) ([]byte, error) {
+	return marshalWithFallback(
+		"json marshal indent panic",
+		func() ([]byte, error) { return marshalIndentImpl(v, prefix, indent) },
+		func() ([]byte, error) { return fallbackMarshalIndentImpl(v, prefix, indent) },
+	)
+}
+
+func Unmarshal(data []byte, v any) error {
+	return goccyjson.Unmarshal(data, v)
+}
+
+func NewDecoder(r io.Reader) *goccyjson.Decoder {
+	return goccyjson.NewDecoder(r)
+}
+
+func NewEncoder(w io.Writer) *goccyjson.Encoder {
+	return goccyjson.NewEncoder(w)
+}
+
+func marshalWithFallback(label string, primary func() ([]byte, error), fallback func() ([]byte, error)) ([]byte, error) {
+	data, err, recovered := safeMarshalCall(primary)
 	if recovered == nil {
 		return data, err
 	}
-	data, err, fallbackRecovered := safeMarshalCall(func() ([]byte, error) {
-		return fallbackMarshalIndentImpl(v, prefix, indent)
-	})
+	data, err, fallbackRecovered := safeMarshalCall(fallback)
 	if fallbackRecovered == nil {
 		return data, err
 	}
-	return nil, fmt.Errorf("json marshal indent panic: primary=%v fallback=%v", recovered, fallbackRecovered)
+	return nil, fmt.Errorf("%s: primary=%v fallback=%v", label, recovered, fallbackRecovered)
 }
 
 func safeMarshalCall(fn func() ([]byte, error)) (data []byte, err error, recovered any) {

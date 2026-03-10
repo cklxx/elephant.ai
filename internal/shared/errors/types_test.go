@@ -153,49 +153,6 @@ func TestIsPermanent(t *testing.T) {
 	}
 }
 
-func TestGetErrorType(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      error
-		expected ErrorType
-	}{
-		{
-			name:     "transient error",
-			err:      NewTransientError(errors.New("test"), "transient"),
-			expected: ErrorTypeTransient,
-		},
-		{
-			name:     "permanent error",
-			err:      NewPermanentError(errors.New("test"), "permanent"),
-			expected: ErrorTypePermanent,
-		},
-		{
-			name:     "degraded error",
-			err:      NewDegradedError(errors.New("test"), "degraded", "fallback"),
-			expected: ErrorTypeDegraded,
-		},
-		{
-			name:     "rate limit",
-			err:      fmt.Errorf("API error 429: rate limit"),
-			expected: ErrorTypeTransient,
-		},
-		{
-			name:     "unauthorized",
-			err:      fmt.Errorf("HTTP 401: unauthorized"),
-			expected: ErrorTypePermanent,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := GetErrorType(tt.err)
-			if result != tt.expected {
-				t.Errorf("GetErrorType(%v) = %v, want %v", tt.err, result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestFormatForLLM(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -9,18 +9,6 @@ import (
 	"syscall"
 )
 
-// ErrorType represents the classification of errors for retry logic
-type ErrorType int
-
-const (
-	// ErrorTypeTransient - retry-able errors
-	ErrorTypeTransient ErrorType = iota
-	// ErrorTypePermanent - non-retry-able errors
-	ErrorTypePermanent
-	// ErrorTypeDegraded - can continue with reduced functionality
-	ErrorTypeDegraded
-)
-
 // TransientError represents an error that can be retried
 type TransientError struct {
 	Err           error
@@ -31,14 +19,15 @@ type TransientError struct {
 }
 
 func (e *TransientError) Error() string {
-	if e.Message != "" {
-		return e.Message
-	}
-	return fmt.Sprintf("transient error: %v", e.Err)
+	return wrappedErrorMessage("transient", e.Message, e.Err)
 }
 
 func (e *TransientError) Unwrap() error {
 	return e.Err
+}
+
+func (e *TransientError) llmMessage() string {
+	return e.Message
 }
 
 // PermanentError represents an error that should not be retried
@@ -49,14 +38,15 @@ type PermanentError struct {
 }
 
 func (e *PermanentError) Error() string {
-	if e.Message != "" {
-		return e.Message
-	}
-	return fmt.Sprintf("permanent error: %v", e.Err)
+	return wrappedErrorMessage("permanent", e.Message, e.Err)
 }
 
 func (e *PermanentError) Unwrap() error {
 	return e.Err
+}
+
+func (e *PermanentError) llmMessage() string {
+	return e.Message
 }
 
 // DegradedError represents an error where service can continue with reduced functionality
@@ -67,14 +57,15 @@ type DegradedError struct {
 }
 
 func (e *DegradedError) Error() string {
-	if e.Message != "" {
-		return e.Message
-	}
-	return fmt.Sprintf("degraded error: %v", e.Err)
+	return wrappedErrorMessage("degraded", e.Message, e.Err)
 }
 
 func (e *DegradedError) Unwrap() error {
 	return e.Err
+}
+
+func (e *DegradedError) llmMessage() string {
+	return e.Message
 }
 
 // IsTransient checks if an error is retry-able
@@ -166,48 +157,14 @@ func IsDegraded(err error) bool {
 	return errors.As(err, &degradedErr)
 }
 
-// GetErrorType classifies an error
-func GetErrorType(err error) ErrorType {
-	if err == nil {
-		return ErrorTypePermanent // No error is not transient
-	}
-
-	if IsDegraded(err) {
-		return ErrorTypeDegraded
-	}
-
-	if IsTransient(err) {
-		return ErrorTypeTransient
-	}
-
-	if IsPermanent(err) {
-		return ErrorTypePermanent
-	}
-
-	// Default to permanent to avoid infinite retries
-	return ErrorTypePermanent
-}
-
 // FormatForLLM converts technical errors to LLM-friendly actionable messages
 func FormatForLLM(err error) string {
 	if err == nil {
 		return ""
 	}
 
-	// Check for custom formatted errors
-	var transientErr *TransientError
-	if errors.As(err, &transientErr) && transientErr.Message != "" {
-		return transientErr.Message
-	}
-
-	var permanentErr *PermanentError
-	if errors.As(err, &permanentErr) && permanentErr.Message != "" {
-		return permanentErr.Message
-	}
-
-	var degradedErr *DegradedError
-	if errors.As(err, &degradedErr) && degradedErr.Message != "" {
-		return degradedErr.Message
+	if msg := customLLMMessage(err); msg != "" {
+		return msg
 	}
 
 	errStr := err.Error()
@@ -422,6 +379,25 @@ func extractHTTPStatusCode(err error) int {
 	}
 
 	return 0
+}
+
+func wrappedErrorMessage(kind string, message string, err error) string {
+	if message != "" {
+		return message
+	}
+	return fmt.Sprintf("%s error: %v", kind, err)
+}
+
+type llmMessageCarrier interface {
+	llmMessage() string
+}
+
+func customLLMMessage(err error) string {
+	var carrier llmMessageCarrier
+	if errors.As(err, &carrier) {
+		return strings.TrimSpace(carrier.llmMessage())
+	}
+	return ""
 }
 
 // Helper constructors
