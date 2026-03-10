@@ -52,8 +52,9 @@ func TestAllocatorRelease(t *testing.T) {
 	}
 	a.Release("test-svc")
 
-	if !a.IsAvailable(18998) {
-		t.Error("port should be available after release")
+	// After release, the port should be re-reservable by another service.
+	if _, err := a.Reserve("other-svc", 18998); err != nil {
+		t.Errorf("port should be available after release: %v", err)
 	}
 }
 

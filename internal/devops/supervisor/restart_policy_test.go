@@ -9,39 +9,36 @@ func TestRestartPolicyBasic(t *testing.T) {
 	p := NewRestartPolicy(3, 10*time.Second, 5*time.Second)
 	now := time.Now()
 
-	// Should allow restarts initially
-	if !p.ShouldRestart("main", now) {
-		t.Error("should allow restart initially")
+	// Initially no restarts recorded.
+	if c := p.RestartCount("main", now); c != 0 {
+		t.Errorf("RestartCount = %d, want 0", c)
 	}
 
-	// Record 3 restarts
+	// Record 3 restarts — should reach the threshold.
 	for i := 0; i < 3; i++ {
 		p.RecordRestart("main")
 	}
-
-	// Should still allow (count == max)
-	if p.ShouldRestart("main", now) {
-		t.Error("should deny restart at max")
+	if c := p.RestartCount("main", now); c != 3 {
+		t.Errorf("RestartCount = %d, want 3", c)
 	}
 }
 
 func TestRestartPolicyWindowPruning(t *testing.T) {
 	p := NewRestartPolicy(3, 1*time.Second, 5*time.Second)
 
-	// Record restarts
 	p.RecordRestart("main")
 	p.RecordRestart("main")
 	p.RecordRestart("main")
 
 	now := time.Now()
-	if p.ShouldRestart("main", now) {
-		t.Error("should deny at max")
+	if c := p.RestartCount("main", now); c != 3 {
+		t.Errorf("RestartCount = %d, want 3", c)
 	}
 
-	// After window expires, should allow again
+	// After window expires, count should drop to 0.
 	future := now.Add(2 * time.Second)
-	if !p.ShouldRestart("main", future) {
-		t.Error("should allow after window expiry")
+	if c := p.RestartCount("main", future); c != 0 {
+		t.Errorf("RestartCount after window = %d, want 0", c)
 	}
 }
 
@@ -53,11 +50,8 @@ func TestRestartPolicyCooldown(t *testing.T) {
 	if !p.InCooldown("main", now) {
 		t.Error("should be in cooldown")
 	}
-	if p.ShouldRestart("main", now) {
-		t.Error("should deny during cooldown")
-	}
 
-	// After cooldown
+	// After cooldown duration
 	future := now.Add(3 * time.Second)
 	if p.InCooldown("main", future) {
 		t.Error("should not be in cooldown after duration")
@@ -87,4 +81,3 @@ func TestRestartPolicyTotalCount(t *testing.T) {
 		t.Errorf("TotalRestartCount = %d, want 3", total)
 	}
 }
-

@@ -13,26 +13,16 @@ import (
 
 // Manager handles log files for services.
 type Manager struct {
-	dir   string
-	files map[string]*os.File
-	mu    sync.RWMutex
+	dir string
 }
 
 // NewManager creates a new log manager.
 func NewManager(dir string) *Manager {
-	return &Manager{
-		dir:   dir,
-		files: make(map[string]*os.File),
-	}
+	return &Manager{dir: dir}
 }
 
-// EnsureDir creates the log directory.
-func (m *Manager) EnsureDir() error {
-	return os.MkdirAll(m.dir, 0o755)
-}
-
-// LogFile returns the log file path for a service.
-func (m *Manager) LogFile(service string) string {
+// logFile returns the log file path for a service.
+func (m *Manager) logFile(service string) string {
 	return filepath.Join(m.dir, service+".log")
 }
 
@@ -59,7 +49,7 @@ func (m *Manager) Tail(ctx context.Context, services []string, follow bool, w io
 	var wg sync.WaitGroup
 
 	for _, svc := range services {
-		path := m.LogFile(svc)
+		path := m.logFile(svc)
 		f, err := os.Open(path)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -115,22 +105,4 @@ func (m *Manager) tailFile(ctx context.Context, name string, f *os.File, follow,
 			}
 		}
 	}
-}
-
-// Rotate renames the current log file and creates a fresh one.
-func (m *Manager) Rotate(service string) error {
-	path := m.LogFile(service)
-
-	m.mu.Lock()
-	if f, ok := m.files[service]; ok {
-		f.Close()
-		delete(m.files, service)
-	}
-	m.mu.Unlock()
-
-	rotated := path + ".1"
-	if err := os.Rename(path, rotated); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("rotate %s: %w", path, err)
-	}
-	return nil
 }

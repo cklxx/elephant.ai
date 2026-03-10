@@ -101,10 +101,6 @@ func NewErrorResponse(id any, code int, message string, data any) *Response {
 	}
 }
 
-func Marshal(v any) ([]byte, error) {
-	return json.Marshal(v)
-}
-
 func UnmarshalResponse(data []byte) (*Response, error) {
 	var resp Response
 	if err := json.Unmarshal(data, &resp); err != nil {

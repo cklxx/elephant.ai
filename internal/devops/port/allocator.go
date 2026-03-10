@@ -69,16 +69,6 @@ func (a *Allocator) Release(name string) {
 	}
 }
 
-// IsAvailable checks if a port is currently free.
-func (a *Allocator) IsAvailable(port int) bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if _, taken := a.reserved[port]; taken {
-		return false
-	}
-	return a.isPortFree(port)
-}
-
 // FindListenerPIDs returns PIDs of processes listening on a port.
 func (a *Allocator) FindListenerPIDs(port int) ([]int, error) {
 	out, err := exec.Command("lsof", "-ti", fmt.Sprintf("tcp:%d", port), "-sTCP:LISTEN").Output()

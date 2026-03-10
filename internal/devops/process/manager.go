@@ -318,39 +318,7 @@ func (m *Manager) IsRunning(name string) (bool, int) {
 	return true, pid
 }
 
-// Recover attempts to recover process tracking from a PID file.
-func (m *Manager) Recover(name string) (*ManagedProcess, error) {
-	pidFile := filepath.Join(m.pidDir, name+".pid")
-	metaFile := pidMetaFile(pidFile)
-	pid, err := readPIDFile(pidFile)
-	if err != nil {
-		return nil, fmt.Errorf("read pid file for %s: %w", name, err)
-	}
-	if !proclive.IsAlive(pid) {
-		cleanupPIDState(pidFile, metaFile)
-		return nil, fmt.Errorf("process %s (pid %d) not running", name, pid)
-	}
-	if !identityMatches(metaFile, pid) {
-		cleanupPIDState(pidFile, metaFile)
-		return nil, fmt.Errorf("process %s (pid %d) identity mismatch", name, pid)
-	}
 
-	pgid, _ := syscall.Getpgid(pid)
-	mp := &ManagedProcess{
-		Name:     name,
-		PIDFile:  pidFile,
-		MetaFile: metaFile,
-		LogFile:  filepath.Join(m.logDir, name+".log"),
-		PID:      pid,
-		PGID:     pgid,
-	}
-
-	m.mu.Lock()
-	m.processes[name] = mp
-	m.mu.Unlock()
-
-	return mp, nil
-}
 
 func (m *Manager) killProcess(pgid, pid int, pidFile string) error {
 	metaFile := pidMetaFile(pidFile)

@@ -36,8 +36,8 @@ func Compute(root string) Fingerprint {
 	}
 }
 
-// ReadStamp reads a previously written fingerprint stamp file.
-func ReadStamp(path string) string {
+// readStamp reads a previously written fingerprint stamp file.
+func readStamp(path string) string {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
@@ -55,7 +55,7 @@ func WriteStamp(path, content string) error {
 
 // IsStale returns true if the current fingerprint differs from the stamp file.
 func IsStale(stampPath string, current Fingerprint) bool {
-	prev := ReadStamp(stampPath)
+	prev := readStamp(stampPath)
 	if prev == "" {
 		return true
 	}

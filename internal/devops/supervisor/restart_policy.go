@@ -39,26 +39,6 @@ func (p *RestartPolicy) RecordRestart(component string) int {
 	return len(p.history[component])
 }
 
-// ShouldRestart returns true if the component can be restarted without
-// exceeding the storm threshold.
-func (p *RestartPolicy) ShouldRestart(component string, now time.Time) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	// Check cooldown
-	if until, ok := p.cooldownUntil[component]; ok && now.Before(until) {
-		return false
-	}
-
-	// Check global cooldown (empty key)
-	if until, ok := p.cooldownUntil[""]; ok && now.Before(until) {
-		return false
-	}
-
-	p.pruneHistory(component, now)
-	return len(p.history[component]) < p.MaxInWindow
-}
-
 // InCooldown returns true if the component (or global) is in cooldown.
 func (p *RestartPolicy) InCooldown(component string, now time.Time) bool {
 	p.mu.Lock()

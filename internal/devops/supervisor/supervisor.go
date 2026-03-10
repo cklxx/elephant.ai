@@ -14,15 +14,6 @@ import (
 	"time"
 )
 
-// ComponentState represents the state of a supervised component.
-type ComponentState string
-
-const (
-	ComponentUp       ComponentState = "up"
-	ComponentDown     ComponentState = "down"
-	ComponentCooldown ComponentState = "cooldown"
-)
-
 // Component represents a supervised process.
 type Component struct {
 	Name     string
@@ -33,8 +24,8 @@ type Component struct {
 	SHAFile  string // file containing deployed SHA
 }
 
-// LoopState holds observed devops loop state from state files.
-type LoopState struct {
+// loopState holds observed devops loop state from state files.
+type loopState struct {
 	CyclePhase       string `json:"cycle_phase"`
 	CycleResult      string `json:"cycle_result"`
 	LastError        string `json:"last_error"`
@@ -59,7 +50,7 @@ type Supervisor struct {
 	mu           sync.Mutex     // protects failCounts, lastUpgradeAt, loopState
 	failCounts   map[string]int
 	restartLocks sync.Map // map[string]*sync.Mutex — per-component restart guard
-	loopState    LoopState
+	loopState    loopState
 	tmpDir       string
 
 	// lastUpgradeAt tracks the last SHA drift upgrade time per component to
@@ -338,7 +329,7 @@ func (s *Supervisor) stopAll(ctx context.Context) {
 // readLoopState reads devops loop state from files in tmpDir.
 // All reads are graceful — missing files leave fields at zero value.
 func (s *Supervisor) readLoopState() {
-	var ls LoopState
+	var ls loopState
 
 	stateFile := filepath.Join(s.tmpDir, "lark-loop.state.json")
 	if data, err := os.ReadFile(stateFile); err == nil {
