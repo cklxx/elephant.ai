@@ -155,13 +155,18 @@ func (m *HistoryManager) Replay(ctx context.Context, sessionID string, uptoTurn 
 	}
 
 	// Cap snapshot count to prevent unbounded memory usage.
-	// Keep only the most recent snapshots (they are sorted by TurnID ascending).
+	// Always keep the first snapshot (base context with system prompt/summary)
+	// plus the most recent snapshots to preserve history continuity.
 	if len(snapshots) > maxReplaySnapshots {
 		if m.logger != nil {
 			m.logger.Warn("Truncating replay for session %s: %d snapshots → %d (max)",
 				sessionID, len(snapshots), maxReplaySnapshots)
 		}
-		snapshots = snapshots[len(snapshots)-maxReplaySnapshots:]
+		tail := snapshots[len(snapshots)-(maxReplaySnapshots-1):]
+		truncated := make([]sessionstate.Snapshot, 0, maxReplaySnapshots)
+		truncated = append(truncated, snapshots[0])
+		truncated = append(truncated, tail...)
+		snapshots = truncated
 	}
 
 	if len(snapshots) == 0 {

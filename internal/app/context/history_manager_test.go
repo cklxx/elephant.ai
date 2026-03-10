@@ -183,12 +183,17 @@ func TestReplayMaxSnapshotCap(t *testing.T) {
 		t.Errorf("expected at most %d messages, got %d", maxReplaySnapshots, len(history))
 	}
 
-	// Should contain the MOST RECENT messages (turn 151..200).
+	// First snapshot (turn 1) is always preserved for base context,
+	// plus the most recent 49 snapshots (turns 152..200).
 	if len(history) > 0 {
 		first := history[0]
-		expected := fmt.Sprintf("turn %d", 200-maxReplaySnapshots+1)
-		if first.Content != expected {
-			t.Errorf("expected first message to be %q, got %q", expected, first.Content)
+		if first.Content != "turn 1" {
+			t.Errorf("expected first message to be %q, got %q", "turn 1", first.Content)
+		}
+		second := history[1]
+		expectedSecond := fmt.Sprintf("turn %d", 200-maxReplaySnapshots+2)
+		if second.Content != expectedSecond {
+			t.Errorf("expected second message to be %q, got %q", expectedSecond, second.Content)
 		}
 		last := history[len(history)-1]
 		if last.Content != "turn 200" {
