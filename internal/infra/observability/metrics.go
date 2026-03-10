@@ -72,8 +72,8 @@ type MetricsCollector struct {
 	leaderFocusSuppress     metric.Int64Counter
 
 	// Leader alert outcome metrics
-	leaderAlertOutcomes      metric.Int64Counter
-	leaderAlertSendLatency   metric.Float64Histogram
+	leaderAlertOutcomes    metric.Int64Counter
+	leaderAlertSendLatency metric.Float64Histogram
 
 	// Server for Prometheus scraping
 	prometheusServer *http.Server
@@ -85,14 +85,15 @@ type MetricsCollector struct {
 // MetricsTestHooks exposes callbacks that integration tests can use to assert
 // instrumentation without spinning up a full OTel stack.
 type MetricsTestHooks struct {
-	HTTPServerRequest    func(method, route string, status int, duration time.Duration, responseBytes int64)
-	SSEMessage           func(eventType, status string, sizeBytes int64)
-	TaskExecution        func(status string, duration time.Duration)
-	BlockerScan          func(detected, notified int)
-	PulseGeneration      func(taskCount int, duration time.Duration)
-	AttentionDecision    func(urgencyLevel string, suppressed bool)
-	FocusTimeSuppress    func(userID string)
-	AlertOutcome         func(feature, channel, outcome string, latencyMs float64)
+	LLMRequest        func(model, status string, latency time.Duration, inputTokens, outputTokens int, cost float64)
+	HTTPServerRequest func(method, route string, status int, duration time.Duration, responseBytes int64)
+	SSEMessage        func(eventType, status string, sizeBytes int64)
+	TaskExecution     func(status string, duration time.Duration)
+	BlockerScan       func(detected, notified int)
+	PulseGeneration   func(taskCount int, duration time.Duration)
+	AttentionDecision func(urgencyLevel string, suppressed bool)
+	FocusTimeSuppress func(userID string)
+	AlertOutcome      func(feature, channel, outcome string, latencyMs float64)
 }
 
 // SetTestHooks registers callbacks that are invoked whenever the matching
@@ -413,35 +414,35 @@ func NewMetricsCollector(config MetricsConfig) (*MetricsCollector, error) {
 	}
 
 	collector := &MetricsCollector{
-		meter:                 meter,
-		llmRequests:           llmRequests,
-		llmTokensInput:        llmTokensInput,
-		llmTokensOutput:       llmTokensOutput,
-		llmLatency:            llmLatency,
-		llmCost:               llmCost,
-		toolExecutions:        toolExecutions,
-		toolDuration:          toolDuration,
-		sessionsActive:        sessionsActive,
-		httpRequests:          httpRequests,
-		httpLatency:           httpLatency,
-		httpResponseSize:      httpResponseSize,
-		sseConnections:        sseConnections,
-		sseConnectionDuration: sseConnectionDuration,
-		sseMessages:           sseMessages,
-		sseMessageBytes:       sseMessageBytes,
-		taskExecutions:        taskExecutions,
-		taskDuration:          taskDuration,
-		webVital:              webVital,
-		nsmWTCR:                nsmWTCR,
-		nsmTimeSaved:           nsmTimeSaved,
-		nsmAccuracy:            nsmAccuracy,
-		leaderBlockerScans:     leaderBlockerScans,
-		leaderBlockerDetected:  leaderBlockerDetected,
-		leaderBlockerNotified:  leaderBlockerNotified,
-		leaderPulseGenerations: leaderPulseGenerations,
-		leaderPulseDuration:    leaderPulseDuration,
-		leaderPulseTaskCount:   leaderPulseTaskCount,
-		leaderAttentionDecision:  leaderAttentionDecision,
+		meter:                   meter,
+		llmRequests:             llmRequests,
+		llmTokensInput:          llmTokensInput,
+		llmTokensOutput:         llmTokensOutput,
+		llmLatency:              llmLatency,
+		llmCost:                 llmCost,
+		toolExecutions:          toolExecutions,
+		toolDuration:            toolDuration,
+		sessionsActive:          sessionsActive,
+		httpRequests:            httpRequests,
+		httpLatency:             httpLatency,
+		httpResponseSize:        httpResponseSize,
+		sseConnections:          sseConnections,
+		sseConnectionDuration:   sseConnectionDuration,
+		sseMessages:             sseMessages,
+		sseMessageBytes:         sseMessageBytes,
+		taskExecutions:          taskExecutions,
+		taskDuration:            taskDuration,
+		webVital:                webVital,
+		nsmWTCR:                 nsmWTCR,
+		nsmTimeSaved:            nsmTimeSaved,
+		nsmAccuracy:             nsmAccuracy,
+		leaderBlockerScans:      leaderBlockerScans,
+		leaderBlockerDetected:   leaderBlockerDetected,
+		leaderBlockerNotified:   leaderBlockerNotified,
+		leaderPulseGenerations:  leaderPulseGenerations,
+		leaderPulseDuration:     leaderPulseDuration,
+		leaderPulseTaskCount:    leaderPulseTaskCount,
+		leaderAttentionDecision: leaderAttentionDecision,
 		leaderFocusSuppress:     leaderFocusSuppress,
 		leaderAlertOutcomes:     leaderAlertOutcomes,
 		leaderAlertSendLatency:  leaderAlertSendLatency,
@@ -488,6 +489,12 @@ func (m *MetricsCollector) Shutdown(ctx context.Context) error {
 
 // RecordLLMRequest records an LLM request
 func (m *MetricsCollector) RecordLLMRequest(ctx context.Context, model string, status string, latency time.Duration, inputTokens, outputTokens int, cost float64) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.LLMRequest; hook != nil {
+		hook(model, status, latency, inputTokens, outputTokens, cost)
+	}
 	if m.llmRequests == nil {
 		return
 	}

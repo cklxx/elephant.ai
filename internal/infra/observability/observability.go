@@ -40,7 +40,7 @@ func New(configPath string) (*Observability, error) {
 	if err != nil {
 		logger.Error("Failed to initialize tracing", "error", err)
 		// Don't fail, use noop tracer
-		tracer = &TracerProvider{}
+		tracer, _ = NewTracerProvider(TracingConfig{})
 	}
 
 	logger.Info("Observability initialized",
