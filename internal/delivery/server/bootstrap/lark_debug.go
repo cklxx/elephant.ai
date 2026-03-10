@@ -38,7 +38,7 @@ func withStartupProfile(sp *startupProfile) debugServerOption {
 // endpoints on cfg.DebugPort (default "9090") — no auth, no rate limiting.
 // It returns the server and the runtime event bus so the caller can wire
 // StallDetector, LeaderAgent, and other bus consumers.
-func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster, container *di.Container, cfg Config, opts ...debugServerOption) (*http.Server, hooks.Bus, error) {
+func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster, container *di.Container, cfg Config, opts ...debugServerOption) (*http.Server, hooks.Bus, error) { //nolint:cyclop // wiring function
 	logger := logging.OrNop(f.Logger)
 	ctx := context.Background()
 

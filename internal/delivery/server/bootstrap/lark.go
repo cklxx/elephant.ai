@@ -19,7 +19,7 @@ import (
 // HTTP server and blocks until a shutdown signal is received.  The debug server
 // exposes health, SSE event streaming, and runtime config endpoints on
 // cfg.DebugPort (default :9090) — no auth, no rate limiting.
-func RunLark(observabilityConfigPath string) error {
+func RunLark(observabilityConfigPath string) error { //nolint:cyclop // multi-phase startup orchestration
 	logger := logging.NewComponentLogger("Main")
 	logger.Info("Starting elephant.ai Lark standalone mode...")
 

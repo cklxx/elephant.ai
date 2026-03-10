@@ -15,7 +15,7 @@ import (
 	"alex/internal/shared/utils"
 )
 
-func LoadConfig() (ConfigResult, error) {
+func LoadConfig() (ConfigResult, error) { //nolint:cyclop // sequential config loading pipeline
 	envLookup := runtimeconfig.DefaultEnvLookup
 
 	storePath := configadmin.ResolveStorePath(envLookup)

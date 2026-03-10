@@ -66,6 +66,33 @@ func startTelegramGateway(ctx context.Context, cfg Config, container *di.Contain
 		altCoord.AgentCoordinator.SetEnvironmentSummary(summary)
 	}
 
+	gatewayCfg := buildTelegramGatewayConfig(tgCfg, container)
+
+	gateway, err := telegram.NewGateway(gatewayCfg, altCoord.AgentCoordinator, logger)
+	if err != nil {
+		_ = altCoord.Shutdown()
+		return nil, err
+	}
+
+	wireTelegramGateway(ctx, gateway, gatewayCfg, container, broadcaster, logger)
+
+	async.Go(logger, "telegram.gateway", func() {
+		if err := gateway.Start(ctx); err != nil {
+			logger.Warn("Telegram gateway stopped: %v", err)
+		}
+	})
+
+	cleanup := func() {
+		gateway.Stop()
+		if err := altCoord.Shutdown(); err != nil {
+			logger.Warn("Telegram alternate coordinator shutdown failed: %v", err)
+		}
+	}
+
+	return cleanup, nil
+}
+
+func buildTelegramGatewayConfig(tgCfg TelegramGatewayConfig, container *di.Container) telegram.Config {
 	gatewayCfg := telegram.Config{
 		BaseConfig:                    tgCfg.BaseConfig,
 		Enabled:                       tgCfg.Enabled,
@@ -102,36 +129,27 @@ func startTelegramGateway(ctx context.Context, cfg Config, container *di.Contain
 	if strings.TrimSpace(gatewayCfg.PersistenceDir) == "" {
 		gatewayCfg.PersistenceDir = filepath.Join(container.SessionDir(), "telegram")
 	}
+	return gatewayCfg
+}
 
-	// Plan review store.
-	var planReviewStore telegram.PlanReviewStore
+func wireTelegramGateway(ctx context.Context, gateway *telegram.Gateway, gatewayCfg telegram.Config, container *di.Container, broadcaster *serverApp.EventBroadcaster, logger logging.Logger) {
+	if broadcaster != nil {
+		gateway.SetEventListener(broadcaster)
+	}
+
 	if gatewayCfg.PlanReviewEnabled {
 		store, err := buildTelegramPlanReviewStore(ctx, gatewayCfg)
 		if err != nil {
 			logger.Warn("Telegram plan review store init failed: %v", err)
-			gatewayCfg.PlanReviewEnabled = false
 		} else {
-			planReviewStore = store
+			gateway.SetPlanReviewStore(store)
 		}
 	}
 
-	gateway, err := telegram.NewGateway(gatewayCfg, altCoord.AgentCoordinator, logger)
-	if err != nil {
-		_ = altCoord.Shutdown()
-		return nil, err
-	}
-
-	if broadcaster != nil {
-		gateway.SetEventListener(broadcaster)
-	}
-	if planReviewStore != nil {
-		gateway.SetPlanReviewStore(planReviewStore)
-	}
 	if container.HasLLMFactory() {
 		gateway.SetLLMFactory(container.LLMFactory(), container.DefaultLLMProfile())
 	}
 
-	// Task store.
 	taskStore, err := buildTelegramTaskStore(ctx, gatewayCfg)
 	if err != nil {
 		logger.Warn("Telegram task store init failed: %v", err)
@@ -142,21 +160,6 @@ func startTelegramGateway(ctx context.Context, cfg Config, container *di.Contain
 		}
 		logger.Info("Telegram task store enabled (mode=%s)", utils.TrimLower(gatewayCfg.PersistenceMode))
 	}
-
-	async.Go(logger, "telegram.gateway", func() {
-		if err := gateway.Start(ctx); err != nil {
-			logger.Warn("Telegram gateway stopped: %v", err)
-		}
-	})
-
-	cleanup := func() {
-		gateway.Stop()
-		if err := altCoord.Shutdown(); err != nil {
-			logger.Warn("Telegram alternate coordinator shutdown failed: %v", err)
-		}
-	}
-
-	return cleanup, nil
 }
 
 func buildTelegramPlanReviewStore(ctx context.Context, cfg telegram.Config) (telegram.PlanReviewStore, error) {

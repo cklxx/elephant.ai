@@ -24,7 +24,7 @@ import (
 )
 
 // RunServer starts the HTTP API server and blocks until a shutdown signal is received.
-func RunServer(observabilityConfigPath string) error {
+func RunServer(observabilityConfigPath string) error { //nolint:cyclop // multi-phase startup orchestration
 	logger := logging.NewComponentLogger("Main")
 	logger.Info("Starting elephant.ai SSE Server...")
 

@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -40,31 +39,6 @@ func newTestRuntime(t *testing.T) *runtime.Runtime {
 		t.Fatalf("runtime.New: %v", err)
 	}
 	return rt
-}
-
-// bodyJSON decodes the response body as JSON into a map.
-func bodyJSON(t *testing.T, resp *http.Response) map[string]any {
-	t.Helper()
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("read body: %v", err)
-	}
-	var m map[string]any
-	if err := json.Unmarshal(data, &m); err != nil {
-		// might be an array; return nil to signal
-		return nil
-	}
-	return m
-}
-
-// bodyString returns the response body as a trimmed string.
-func bodyString(t *testing.T, resp *http.Response) string {
-	t.Helper()
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("read body: %v", err)
-	}
-	return strings.TrimSpace(string(data))
 }
 
 // ---------------------------------------------------------------------------

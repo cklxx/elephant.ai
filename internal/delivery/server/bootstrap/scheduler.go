@@ -53,78 +53,7 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, me
 		cooldown = 0
 	}
 
-	maxConcurrent := cfg.Runtime.Proactive.Scheduler.MaxConcurrent
-
-	recoveryMaxRetries := cfg.Runtime.Proactive.Scheduler.RecoveryMaxRetries
-	recoveryBackoff := time.Duration(cfg.Runtime.Proactive.Scheduler.RecoveryBackoffSeconds) * time.Second
-
-	milestoneCheckinCfg := cfg.Runtime.Proactive.Scheduler.MilestoneCheckin
-	var milestoneSvc scheduler.MilestoneCheckinService
-	if milestoneCheckinCfg.Enabled && container != nil && container.TaskStore != nil {
-		lookback := time.Duration(milestoneCheckinCfg.LookbackSeconds) * time.Second
-		if lookback <= 0 {
-			lookback = time.Hour
-		}
-		svc := milestone.NewService(container.TaskStore, instrumentedNotifier(notifier, metrics, "milestone_checkin"), milestone.Config{
-			Enabled:          true,
-			IntervalSeconds:  milestoneCheckinCfg.LookbackSeconds,
-			LookbackDuration: lookback,
-			Channel:          milestoneCheckinCfg.Channel,
-			ChatID:           milestoneCheckinCfg.ChatID,
-			IncludeActive:    milestoneCheckinCfg.IncludeActive,
-			IncludeCompleted: milestoneCheckinCfg.IncludeCompleted,
-		})
-		milestoneSvc = svc
-		logger.Info("Milestone check-in service created (channel=%s, chat_id=%s)", milestoneCheckinCfg.Channel, milestoneCheckinCfg.ChatID)
-	}
-
-	weeklyPulseCfg := cfg.Runtime.Proactive.Scheduler.WeeklyPulse
-	var weeklyPulseSvc scheduler.WeeklyPulseService
-	if weeklyPulseCfg.Enabled && container != nil && container.TaskStore != nil {
-		svc := pulse.NewService(container.TaskStore, instrumentedNotifier(notifier, metrics, "weekly_pulse"), weeklyPulseCfg.Channel, weeklyPulseCfg.ChatID)
-		svc.GitSignalSource = container.GitSignalProvider
-		weeklyPulseSvc = svc
-		logger.Info("Weekly pulse service created (channel=%s, chat_id=%s)", weeklyPulseCfg.Channel, weeklyPulseCfg.ChatID)
-	}
-
-	blockerRadarCfg := cfg.Runtime.Proactive.Scheduler.BlockerRadar
-	var blockerRadarSvc scheduler.BlockerRadarService
-	if blockerRadarCfg.Enabled && container != nil && container.TaskStore != nil {
-		gitSignalCfg := cfg.Runtime.Proactive.Scheduler.GitSignal
-		gitReviewThreshold := time.Duration(gitSignalCfg.ReviewBottleneckThreshold) * time.Second
-		radar := blocker.NewRadar(container.TaskStore, instrumentedNotifier(notifier, metrics, "blocker_radar"), blocker.Config{
-			Enabled:               true,
-			StaleThresholdSeconds: blockerRadarCfg.StaleThresholdSeconds,
-			InputWaitSeconds:      blockerRadarCfg.InputWaitSeconds,
-			Channel:               blockerRadarCfg.Channel,
-			ChatID:                blockerRadarCfg.ChatID,
-			GitRepos:              gitSignalCfg.Repos,
-			GitReviewThreshold:    gitReviewThreshold,
-		})
-		radar.GitSignalSource = container.GitSignalProvider
-		blockerRadarSvc = &blockerRadarAdapter{radar: radar}
-		logger.Info("Blocker radar service created (channel=%s, chat_id=%s)", blockerRadarCfg.Channel, blockerRadarCfg.ChatID)
-	}
-
-	prepBriefCfg := cfg.Runtime.Proactive.Scheduler.PrepBrief
-	var prepBriefSvc scheduler.PrepBriefService
-	if prepBriefCfg.Enabled && container != nil && container.TaskStore != nil {
-		lookback := time.Duration(prepBriefCfg.LookbackSeconds) * time.Second
-		if lookback <= 0 {
-			lookback = 7 * 24 * time.Hour
-		}
-		gitSignalCfg := cfg.Runtime.Proactive.Scheduler.GitSignal
-		svc := prepbrief.NewService(container.TaskStore, instrumentedNotifier(notifier, metrics, "prep_brief"), prepbrief.Config{
-			LookbackDuration:    lookback,
-			LookbackSeconds:     prepBriefCfg.LookbackSeconds,
-			Channel:             prepBriefCfg.Channel,
-			ChatID:              prepBriefCfg.ChatID,
-			GitRepos:            gitSignalCfg.Repos,
-		})
-		svc.GitSignalSource = container.GitSignalProvider
-		prepBriefSvc = &prepBriefAdapter{svc: svc}
-		logger.Info("Prep brief service created (channel=%s, chat_id=%s)", prepBriefCfg.Channel, prepBriefCfg.ChatID)
-	}
+	svcs := buildSchedulerServices(cfg, container, notifier, metrics, logger)
 
 	schedCfg := scheduler.Config{
 		Enabled:             true,
@@ -132,22 +61,22 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, me
 		OKRGoalsRoot:        goalsRoot,
 		CalendarReminder:    cfg.Runtime.Proactive.Scheduler.CalendarReminder,
 		Heartbeat:           cfg.Runtime.Proactive.Scheduler.Heartbeat,
-		MilestoneCheckin:    milestoneCheckinCfg,
-		MilestoneService:    milestoneSvc,
-		WeeklyPulse:         weeklyPulseCfg,
-		WeeklyPulseService:  weeklyPulseSvc,
-		BlockerRadar:        blockerRadarCfg,
-		BlockerRadarService: blockerRadarSvc,
-		PrepBrief:           prepBriefCfg,
-		PrepBriefService:    prepBriefSvc,
+		MilestoneCheckin:    cfg.Runtime.Proactive.Scheduler.MilestoneCheckin,
+		MilestoneService:    svcs.milestone,
+		WeeklyPulse:         cfg.Runtime.Proactive.Scheduler.WeeklyPulse,
+		WeeklyPulseService:  svcs.weeklyPulse,
+		BlockerRadar:        cfg.Runtime.Proactive.Scheduler.BlockerRadar,
+		BlockerRadarService: svcs.blockerRadar,
+		PrepBrief:           cfg.Runtime.Proactive.Scheduler.PrepBrief,
+		PrepBriefService:    svcs.prepBrief,
 		CalendarPort:        container.CalendarPort,
 		TriggerTimeout:      time.Duration(cfg.Runtime.Proactive.Scheduler.TriggerTimeoutSeconds) * time.Second,
 		ConcurrencyPolicy:   cfg.Runtime.Proactive.Scheduler.ConcurrencyPolicy,
 		JobStore:            jobStore,
 		Cooldown:            cooldown,
-		MaxConcurrent:       maxConcurrent,
-		RecoveryMaxRetries:  recoveryMaxRetries,
-		RecoveryBackoff:     recoveryBackoff,
+		MaxConcurrent:       cfg.Runtime.Proactive.Scheduler.MaxConcurrent,
+		RecoveryMaxRetries:  cfg.Runtime.Proactive.Scheduler.RecoveryMaxRetries,
+		RecoveryBackoff:     time.Duration(cfg.Runtime.Proactive.Scheduler.RecoveryBackoffSeconds) * time.Second,
 		LeaderLock:          buildLeaderLock(cfg, logger),
 	}
 
@@ -162,6 +91,83 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, me
 
 	logger.Info("Scheduler started (triggers=%d, okr_goals_root=%s)", len(schedCfg.StaticTriggers), goalsRoot)
 	return sched
+}
+
+type schedulerServices struct {
+	milestone    scheduler.MilestoneCheckinService
+	weeklyPulse  scheduler.WeeklyPulseService
+	blockerRadar scheduler.BlockerRadarService
+	prepBrief    scheduler.PrepBriefService
+}
+
+func buildSchedulerServices(cfg Config, container *di.Container, notifier notification.Notifier, metrics *observability.MetricsCollector, logger logging.Logger) schedulerServices {
+	var svcs schedulerServices
+	schedCfg := cfg.Runtime.Proactive.Scheduler
+	if container == nil || container.TaskStore == nil {
+		return svcs
+	}
+
+	if schedCfg.MilestoneCheckin.Enabled {
+		lookback := time.Duration(schedCfg.MilestoneCheckin.LookbackSeconds) * time.Second
+		if lookback <= 0 {
+			lookback = time.Hour
+		}
+		svc := milestone.NewService(container.TaskStore, instrumentedNotifier(notifier, metrics, "milestone_checkin"), milestone.Config{
+			Enabled:          true,
+			IntervalSeconds:  schedCfg.MilestoneCheckin.LookbackSeconds,
+			LookbackDuration: lookback,
+			Channel:          schedCfg.MilestoneCheckin.Channel,
+			ChatID:           schedCfg.MilestoneCheckin.ChatID,
+			IncludeActive:    schedCfg.MilestoneCheckin.IncludeActive,
+			IncludeCompleted: schedCfg.MilestoneCheckin.IncludeCompleted,
+		})
+		svcs.milestone = svc
+		logger.Info("Milestone check-in service created (channel=%s, chat_id=%s)", schedCfg.MilestoneCheckin.Channel, schedCfg.MilestoneCheckin.ChatID)
+	}
+
+	if schedCfg.WeeklyPulse.Enabled {
+		svc := pulse.NewService(container.TaskStore, instrumentedNotifier(notifier, metrics, "weekly_pulse"), schedCfg.WeeklyPulse.Channel, schedCfg.WeeklyPulse.ChatID)
+		svc.GitSignalSource = container.GitSignalProvider
+		svcs.weeklyPulse = svc
+		logger.Info("Weekly pulse service created (channel=%s, chat_id=%s)", schedCfg.WeeklyPulse.Channel, schedCfg.WeeklyPulse.ChatID)
+	}
+
+	if schedCfg.BlockerRadar.Enabled {
+		gitSignalCfg := schedCfg.GitSignal
+		gitReviewThreshold := time.Duration(gitSignalCfg.ReviewBottleneckThreshold) * time.Second
+		radar := blocker.NewRadar(container.TaskStore, instrumentedNotifier(notifier, metrics, "blocker_radar"), blocker.Config{
+			Enabled:               true,
+			StaleThresholdSeconds: schedCfg.BlockerRadar.StaleThresholdSeconds,
+			InputWaitSeconds:      schedCfg.BlockerRadar.InputWaitSeconds,
+			Channel:               schedCfg.BlockerRadar.Channel,
+			ChatID:                schedCfg.BlockerRadar.ChatID,
+			GitRepos:              gitSignalCfg.Repos,
+			GitReviewThreshold:    gitReviewThreshold,
+		})
+		radar.GitSignalSource = container.GitSignalProvider
+		svcs.blockerRadar = &blockerRadarAdapter{radar: radar}
+		logger.Info("Blocker radar service created (channel=%s, chat_id=%s)", schedCfg.BlockerRadar.Channel, schedCfg.BlockerRadar.ChatID)
+	}
+
+	if schedCfg.PrepBrief.Enabled {
+		lookback := time.Duration(schedCfg.PrepBrief.LookbackSeconds) * time.Second
+		if lookback <= 0 {
+			lookback = 7 * 24 * time.Hour
+		}
+		gitSignalCfg := schedCfg.GitSignal
+		svc := prepbrief.NewService(container.TaskStore, instrumentedNotifier(notifier, metrics, "prep_brief"), prepbrief.Config{
+			LookbackDuration: lookback,
+			LookbackSeconds:  schedCfg.PrepBrief.LookbackSeconds,
+			Channel:          schedCfg.PrepBrief.Channel,
+			ChatID:           schedCfg.PrepBrief.ChatID,
+			GitRepos:         gitSignalCfg.Repos,
+		})
+		svc.GitSignalSource = container.GitSignalProvider
+		svcs.prepBrief = &prepBriefAdapter{svc: svc}
+		logger.Info("Prep brief service created (channel=%s, chat_id=%s)", schedCfg.PrepBrief.Channel, schedCfg.PrepBrief.ChatID)
+	}
+
+	return svcs
 }
 
 // resolveGoalsRoot determines the OKR goals directory path.

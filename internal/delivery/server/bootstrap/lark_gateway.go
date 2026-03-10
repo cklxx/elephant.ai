@@ -36,7 +36,7 @@ func registerLarkChannel(cfg Config, registry *ChannelRegistry, container *di.Co
 	})
 }
 
-func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) (func(), error) {
+func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) (func(), error) { //nolint:cyclop // gateway startup with validation
 	logger = logging.OrNop(logger)
 	larkCfg := cfg.Channels.LarkConfig()
 	if !larkCfg.Enabled {
@@ -76,6 +76,55 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		altCoord.AgentCoordinator.SetEnvironmentSummary(summary)
 	}
 
+	gatewayCfg := buildLarkGatewayConfig(larkCfg, cfg)
+
+	stores, err := initLarkStores(ctx, &gatewayCfg, container, logger)
+	if err != nil {
+		_ = altCoord.Shutdown()
+		return nil, err
+	}
+
+	gateway, err := lark.NewGateway(gatewayCfg, altCoord.AgentCoordinator, logger)
+	if err != nil {
+		_ = altCoord.Shutdown()
+		return nil, err
+	}
+	container.LarkGateway = gateway
+
+	wireLarkGateway(ctx, gateway, cfg, container, broadcaster, stores, logger)
+
+	async.Go(logger, "lark.gateway", func() {
+		if err := gateway.Start(ctx); err != nil {
+			logger.Warn("Lark gateway stopped: %v", err)
+		}
+	})
+
+	cleanup := func() {
+		interrupted := gateway.NotifyRunningTaskInterruptions("系统正在维护中，您的任务将在服务恢复后自动重新执行。")
+		if interrupted > 0 {
+			logger.Info("Lark gateway sent interruption notice to %d running chats", interrupted)
+		}
+		gateway.Stop()
+		if container.LarkGateway == gateway {
+			container.LarkGateway = nil
+		}
+		if err := altCoord.Shutdown(); err != nil {
+			logger.Warn("Lark alternate coordinator shutdown failed: %v", err)
+		}
+	}
+
+	return cleanup, nil
+}
+
+// larkStores holds optional stores initialized during gateway setup.
+type larkStores struct {
+	planReview      lark.PlanReviewStore
+	chatSession     lark.ChatSessionBindingStore
+	deliveryOutbox  lark.DeliveryOutboxStore
+	task            lark.TaskStore
+}
+
+func buildLarkGatewayConfig(larkCfg LarkGatewayConfig, cfg Config) lark.Config {
 	gatewayCfg := lark.Config{
 		BaseConfig:                    larkCfg.BaseConfig,
 		Enabled:                       larkCfg.Enabled,
@@ -115,8 +164,6 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		AttentionGate:                 larkCfg.AttentionGate,
 	}
 
-	// Hooks bridge endpoint lives on the debug HTTP server (DebugPort),
-	// not on the web API server (Port).
 	hooksPort := strings.TrimPrefix(cfg.DebugPort, ":")
 	if hooksPort == "" {
 		hooksPort = "9090"
@@ -134,7 +181,10 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 			gatewayCfg.PlanReviewRequireConfirmation = true
 		}
 	}
+	return gatewayCfg
+}
 
+func initLarkStores(ctx context.Context, gatewayCfg *lark.Config, container *di.Container, logger logging.Logger) (larkStores, error) {
 	if utils.IsBlank(gatewayCfg.PersistenceMode) {
 		gatewayCfg.PersistenceMode = larkPersistenceModeFile
 	}
@@ -142,52 +192,45 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		gatewayCfg.PersistenceDir = filepath.Join(container.SessionDir(), "lark")
 	}
 
-	var planReviewStore lark.PlanReviewStore
+	var s larkStores
+
 	if gatewayCfg.PlanReviewEnabled {
-		store, err := buildLarkPlanReviewStore(ctx, gatewayCfg)
+		store, err := buildLarkPlanReviewStore(ctx, *gatewayCfg)
 		if err != nil {
 			logger.Warn("Lark plan review store init failed: %v", err)
 			gatewayCfg.PlanReviewEnabled = false
 		} else {
-			planReviewStore = store
+			s.planReview = store
 		}
 	}
 
-	var chatSessionStore lark.ChatSessionBindingStore
-	store, err := buildLarkChatSessionStore(ctx, gatewayCfg)
+	chatStore, err := buildLarkChatSessionStore(ctx, *gatewayCfg)
 	if err != nil {
 		logger.Warn("Lark chat session binding store init failed: %v", err)
 	} else {
-		chatSessionStore = store
+		s.chatSession = chatStore
 	}
 
-	var deliveryOutboxStore lark.DeliveryOutboxStore
 	if mode := utils.TrimLower(gatewayCfg.DeliveryMode); mode != "direct" {
-		outboxStore, outboxErr := buildLarkDeliveryOutboxStore(ctx, gatewayCfg)
+		outboxStore, outboxErr := buildLarkDeliveryOutboxStore(ctx, *gatewayCfg)
 		if outboxErr != nil {
 			logger.Warn("Lark delivery outbox store init failed: %v", outboxErr)
 			gatewayCfg.DeliveryMode = "direct"
 		} else {
-			deliveryOutboxStore = outboxStore
+			s.deliveryOutbox = outboxStore
 		}
 	}
 
 	taskStore, err := larkTaskStoreForContainer(container)
 	if err != nil {
-		_ = altCoord.Shutdown()
-		return nil, fmt.Errorf("lark task store init failed: %w", err)
+		return larkStores{}, fmt.Errorf("lark task store init failed: %w", err)
 	}
+	s.task = taskStore
 
-	gateway, err := lark.NewGateway(gatewayCfg, altCoord.AgentCoordinator, logger)
-	if err != nil {
-		_ = altCoord.Shutdown()
-		return nil, err
-	}
-	container.LarkGateway = gateway
+	return s, nil
+}
 
-	// Lark calendar operations require user-scoped OAuth tokens to access a user's
-	// primary calendar. Provide an OAuth service to tools via the gateway context.
-	// Also set up AutoAuth for in-message device flow authorization.
+func wireLarkGateway(ctx context.Context, gateway *lark.Gateway, cfg Config, container *di.Container, broadcaster *serverApp.EventBroadcaster, stores larkStores, logger logging.Logger) {
 	if oauthSvc := buildLarkOAuthService(ctx, cfg, container, logger); oauthSvc != nil {
 		container.LarkOAuth = oauthSvc
 		gateway.SetOAuthService(oauthSvc)
@@ -197,14 +240,14 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	if broadcaster != nil {
 		gateway.SetEventListener(broadcaster)
 	}
-	if planReviewStore != nil {
-		gateway.SetPlanReviewStore(planReviewStore)
+	if stores.planReview != nil {
+		gateway.SetPlanReviewStore(stores.planReview)
 	}
-	if chatSessionStore != nil {
-		gateway.SetChatSessionBindingStore(chatSessionStore)
+	if stores.chatSession != nil {
+		gateway.SetChatSessionBindingStore(stores.chatSession)
 	}
-	if deliveryOutboxStore != nil {
-		gateway.SetDeliveryOutboxStore(deliveryOutboxStore)
+	if stores.deliveryOutbox != nil {
+		gateway.SetDeliveryOutboxStore(stores.deliveryOutbox)
 	}
 
 	if container.HasLLMFactory() {
@@ -214,33 +257,11 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		gateway.SetCostTracker(container.CostTracker)
 	}
 
-	gateway.SetTaskStore(taskStore)
-	if err := taskStore.MarkStaleRunning(ctx, "gateway restart"); err != nil {
+	gateway.SetTaskStore(stores.task)
+	if err := stores.task.MarkStaleRunning(ctx, "gateway restart"); err != nil {
 		logger.Warn("Lark task store stale cleanup failed: %v", err)
 	}
 	logger.Info("Lark task store enabled (mode=unified)")
-
-	async.Go(logger, "lark.gateway", func() {
-		if err := gateway.Start(ctx); err != nil {
-			logger.Warn("Lark gateway stopped: %v", err)
-		}
-	})
-
-	cleanup := func() {
-		interrupted := gateway.NotifyRunningTaskInterruptions("系统正在维护中，您的任务将在服务恢复后自动重新执行。")
-		if interrupted > 0 {
-			logger.Info("Lark gateway sent interruption notice to %d running chats", interrupted)
-		}
-		gateway.Stop()
-		if container.LarkGateway == gateway {
-			container.LarkGateway = nil
-		}
-		if err := altCoord.Shutdown(); err != nil {
-			logger.Warn("Lark alternate coordinator shutdown failed: %v", err)
-		}
-	}
-
-	return cleanup, nil
 }
 
 func buildLarkPlanReviewStore(ctx context.Context, cfg lark.Config) (lark.PlanReviewStore, error) {
@@ -312,7 +333,7 @@ func buildLarkDeliveryOutboxStore(ctx context.Context, cfg lark.Config) (lark.De
 	}
 }
 
-func buildLarkOAuthService(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger) *larkoauth.Service {
+func buildLarkOAuthService(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger) *larkoauth.Service { //nolint:cyclop // sequential setup with early returns
 	logger = logging.OrNop(logger)
 	if container == nil {
 		return nil

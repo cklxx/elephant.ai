@@ -12,93 +12,48 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if file.Server == nil {
 		return
 	}
-	if port := strings.TrimSpace(file.Server.Port); port != "" {
-		cfg.Port = port
-	}
-	if debugPort := strings.TrimSpace(file.Server.DebugPort); debugPort != "" {
-		cfg.DebugPort = debugPort
-	}
-	if debugBindHost := strings.TrimSpace(file.Server.DebugBindHost); debugBindHost != "" {
-		cfg.DebugBindHost = debugBindHost
-	}
-	if file.Server.MaxTaskBodyBytes != nil && *file.Server.MaxTaskBodyBytes > 0 {
-		cfg.MaxTaskBodyBytes = *file.Server.MaxTaskBodyBytes
-	}
-	if file.Server.StreamMaxDurationSeconds != nil && *file.Server.StreamMaxDurationSeconds > 0 {
-		cfg.StreamGuard.MaxDuration = time.Duration(*file.Server.StreamMaxDurationSeconds) * time.Second
-	}
-	if file.Server.StreamMaxBytes != nil && *file.Server.StreamMaxBytes > 0 {
-		cfg.StreamGuard.MaxBytes = *file.Server.StreamMaxBytes
-	}
-	if file.Server.StreamMaxConcurrent != nil && *file.Server.StreamMaxConcurrent > 0 {
-		cfg.StreamGuard.MaxConcurrent = *file.Server.StreamMaxConcurrent
-	}
-	if file.Server.RateLimitRequestsPerMinute != nil && *file.Server.RateLimitRequestsPerMinute > 0 {
-		cfg.RateLimit.RequestsPerMinute = *file.Server.RateLimitRequestsPerMinute
-	}
-	if file.Server.RateLimitBurst != nil && *file.Server.RateLimitBurst > 0 {
-		cfg.RateLimit.Burst = *file.Server.RateLimitBurst
-	}
-	if file.Server.NonStreamTimeoutSeconds != nil && *file.Server.NonStreamTimeoutSeconds > 0 {
-		cfg.NonStreamTimeout = time.Duration(*file.Server.NonStreamTimeoutSeconds) * time.Second
-	}
-	if token := strings.TrimSpace(file.Server.LeaderAPIToken); token != "" {
-		cfg.LeaderAPIToken = token
-	}
-	if ownerID := strings.TrimSpace(file.Server.TaskExecutionOwnerID); ownerID != "" {
-		cfg.TaskExecution.OwnerID = ownerID
-	}
-	if file.Server.TaskExecutionLeaseTTLSeconds != nil && *file.Server.TaskExecutionLeaseTTLSeconds > 0 {
-		cfg.TaskExecution.LeaseTTL = time.Duration(*file.Server.TaskExecutionLeaseTTLSeconds) * time.Second
-	}
-	if file.Server.TaskExecutionLeaseRenewIntervalSeconds != nil && *file.Server.TaskExecutionLeaseRenewIntervalSeconds > 0 {
-		cfg.TaskExecution.LeaseRenewInterval = time.Duration(*file.Server.TaskExecutionLeaseRenewIntervalSeconds) * time.Second
-	}
-	if file.Server.TaskExecutionMaxInFlight != nil {
-		if *file.Server.TaskExecutionMaxInFlight <= 0 {
-			cfg.TaskExecution.MaxInFlight = 0
-		} else {
-			cfg.TaskExecution.MaxInFlight = *file.Server.TaskExecutionMaxInFlight
-		}
-	}
-	if file.Server.TaskExecutionResumeClaimBatchSize != nil && *file.Server.TaskExecutionResumeClaimBatchSize > 0 {
-		cfg.TaskExecution.ResumeClaimBatchSize = *file.Server.TaskExecutionResumeClaimBatchSize
-	}
-	if file.Server.EventHistoryRetentionDays != nil {
-		days := *file.Server.EventHistoryRetentionDays
-		if days <= 0 {
-			cfg.EventHistory.Retention = 0
-		} else {
-			cfg.EventHistory.Retention = time.Duration(days) * 24 * time.Hour
-		}
-	}
-	if file.Server.EventHistoryMaxSessions != nil {
-		if *file.Server.EventHistoryMaxSessions <= 0 {
-			cfg.EventHistory.MaxSessions = 0
-		} else {
-			cfg.EventHistory.MaxSessions = *file.Server.EventHistoryMaxSessions
-		}
-	}
-	if file.Server.EventHistorySessionTTL != nil {
-		if *file.Server.EventHistorySessionTTL <= 0 {
-			cfg.EventHistory.SessionTTL = 0
-		} else {
-			cfg.EventHistory.SessionTTL = time.Duration(*file.Server.EventHistorySessionTTL) * time.Second
-		}
-	}
-	if file.Server.EventHistoryMaxEvents != nil {
-		if *file.Server.EventHistoryMaxEvents <= 0 {
-			cfg.EventHistory.MaxEvents = 0
-		} else {
-			cfg.EventHistory.MaxEvents = *file.Server.EventHistoryMaxEvents
-		}
-	}
+	applyTrimmedString(&cfg.Port, file.Server.Port)
+	applyTrimmedString(&cfg.DebugPort, file.Server.DebugPort)
+	applyTrimmedString(&cfg.DebugBindHost, file.Server.DebugBindHost)
+	applyPositiveInt64(&cfg.MaxTaskBodyBytes, file.Server.MaxTaskBodyBytes)
+	applyTrimmedString(&cfg.LeaderAPIToken, file.Server.LeaderAPIToken)
+	applyPositiveDurationSeconds(&cfg.NonStreamTimeout, file.Server.NonStreamTimeoutSeconds)
+	applyStreamGuardConfig(&cfg.StreamGuard, file.Server)
+	applyRateLimitConfig(&cfg.RateLimit, file.Server)
+	applyTaskExecutionConfig(&cfg.TaskExecution, file.Server)
+	applyEventHistoryConfig(&cfg.EventHistory, file.Server)
 	if file.Server.AllowedOrigins != nil {
 		cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)
 	}
 	if len(file.Server.TrustedProxies) > 0 {
 		cfg.RateLimit.TrustedProxies = append([]string(nil), file.Server.TrustedProxies...)
 	}
+}
+
+func applyStreamGuardConfig(dst *StreamGuardConfig, srv *runtimeconfig.ServerConfig) {
+	applyPositiveDurationSeconds(&dst.MaxDuration, srv.StreamMaxDurationSeconds)
+	applyPositiveInt64(&dst.MaxBytes, srv.StreamMaxBytes)
+	applyPositiveInt(&dst.MaxConcurrent, srv.StreamMaxConcurrent)
+}
+
+func applyRateLimitConfig(dst *RateLimitConfig, srv *runtimeconfig.ServerConfig) {
+	applyPositiveInt(&dst.RequestsPerMinute, srv.RateLimitRequestsPerMinute)
+	applyPositiveInt(&dst.Burst, srv.RateLimitBurst)
+}
+
+func applyTaskExecutionConfig(dst *TaskExecutionConfig, srv *runtimeconfig.ServerConfig) {
+	applyTrimmedString(&dst.OwnerID, srv.TaskExecutionOwnerID)
+	applyPositiveDurationSeconds(&dst.LeaseTTL, srv.TaskExecutionLeaseTTLSeconds)
+	applyPositiveDurationSeconds(&dst.LeaseRenewInterval, srv.TaskExecutionLeaseRenewIntervalSeconds)
+	applyNonNegativeInt(&dst.MaxInFlight, srv.TaskExecutionMaxInFlight)
+	applyPositiveInt(&dst.ResumeClaimBatchSize, srv.TaskExecutionResumeClaimBatchSize)
+}
+
+func applyEventHistoryConfig(dst *EventHistoryConfig, srv *runtimeconfig.ServerConfig) {
+	applyNonNegativeDurationDays(&dst.Retention, srv.EventHistoryRetentionDays)
+	applyNonNegativeInt(&dst.MaxSessions, srv.EventHistoryMaxSessions)
+	applyNonNegativeDurationSeconds(&dst.SessionTTL, srv.EventHistorySessionTTL)
+	applyNonNegativeInt(&dst.MaxEvents, srv.EventHistoryMaxEvents)
 }
 
 func applySessionConfig(cfg *Config, file runtimeconfig.FileConfig) {
@@ -124,31 +79,16 @@ func applyAttachmentConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if file.Attachments == nil {
 		return
 	}
-	if provider := strings.TrimSpace(file.Attachments.Provider); provider != "" {
-		cfg.Attachment.Provider = provider
-	}
-	if dir := strings.TrimSpace(file.Attachments.Dir); dir != "" {
-		cfg.Attachment.Dir = dir
-	}
-	if accountID := strings.TrimSpace(file.Attachments.CloudflareAccountID); accountID != "" {
-		cfg.Attachment.CloudflareAccountID = accountID
-	}
-	if accessKey := strings.TrimSpace(file.Attachments.CloudflareAccessKeyID); accessKey != "" {
-		cfg.Attachment.CloudflareAccessKeyID = accessKey
-	}
-	if secret := strings.TrimSpace(file.Attachments.CloudflareSecretAccessKey); secret != "" {
-		cfg.Attachment.CloudflareSecretAccessKey = secret
-	}
-	if bucket := strings.TrimSpace(file.Attachments.CloudflareBucket); bucket != "" {
-		cfg.Attachment.CloudflareBucket = bucket
-	}
-	if base := strings.TrimSpace(file.Attachments.CloudflarePublicBaseURL); base != "" {
-		cfg.Attachment.CloudflarePublicBaseURL = base
-	}
-	if prefix := strings.TrimSpace(file.Attachments.CloudflareKeyPrefix); prefix != "" {
-		cfg.Attachment.CloudflareKeyPrefix = prefix
-	}
-	if ttlRaw := strings.TrimSpace(file.Attachments.PresignTTL); ttlRaw != "" {
+	a := file.Attachments
+	applyTrimmedString(&cfg.Attachment.Provider, a.Provider)
+	applyTrimmedString(&cfg.Attachment.Dir, a.Dir)
+	applyTrimmedString(&cfg.Attachment.CloudflareAccountID, a.CloudflareAccountID)
+	applyTrimmedString(&cfg.Attachment.CloudflareAccessKeyID, a.CloudflareAccessKeyID)
+	applyTrimmedString(&cfg.Attachment.CloudflareSecretAccessKey, a.CloudflareSecretAccessKey)
+	applyTrimmedString(&cfg.Attachment.CloudflareBucket, a.CloudflareBucket)
+	applyTrimmedString(&cfg.Attachment.CloudflarePublicBaseURL, a.CloudflarePublicBaseURL)
+	applyTrimmedString(&cfg.Attachment.CloudflareKeyPrefix, a.CloudflareKeyPrefix)
+	if ttlRaw := strings.TrimSpace(a.PresignTTL); ttlRaw != "" {
 		if parsed, err := time.ParseDuration(ttlRaw); err == nil && parsed > 0 {
 			cfg.Attachment.PresignTTL = parsed
 		}
@@ -228,5 +168,44 @@ func applyPositiveDurationHours(dst *time.Duration, hours *int) {
 func applyPositiveDurationMilliseconds(dst *time.Duration, ms *int) {
 	if ms != nil && *ms > 0 {
 		*dst = time.Duration(*ms) * time.Millisecond
+	}
+}
+
+func applyPositiveInt64(dst *int64, value *int64) {
+	if value != nil && *value > 0 {
+		*dst = *value
+	}
+}
+
+func applyNonNegativeInt(dst *int, value *int) {
+	if value == nil {
+		return
+	}
+	if *value <= 0 {
+		*dst = 0
+	} else {
+		*dst = *value
+	}
+}
+
+func applyNonNegativeDurationSeconds(dst *time.Duration, seconds *int) {
+	if seconds == nil {
+		return
+	}
+	if *seconds <= 0 {
+		*dst = 0
+	} else {
+		*dst = time.Duration(*seconds) * time.Second
+	}
+}
+
+func applyNonNegativeDurationDays(dst *time.Duration, days *int) {
+	if days == nil {
+		return
+	}
+	if *days <= 0 {
+		*dst = 0
+	} else {
+		*dst = time.Duration(*days) * 24 * time.Hour
 	}
 }

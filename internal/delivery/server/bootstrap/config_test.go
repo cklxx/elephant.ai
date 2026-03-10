@@ -57,7 +57,7 @@ func TestNormalizeAllowedOrigins(t *testing.T) {
 	}
 }
 
-func TestLoadConfig_LarkPersistenceDefaults(t *testing.T) {
+func TestLoadConfig_LarkPersistenceDefaults(t *testing.T) { //nolint:cyclop // test assertions
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	t.Setenv("ALEX_CONFIG_PATH", configPath)
 	t.Setenv("LLM_PROVIDER", "mock")
@@ -156,7 +156,7 @@ channels:
 	}
 }
 
-func TestLoadConfig_LarkRuntimeStateLimits(t *testing.T) {
+func TestLoadConfig_LarkRuntimeStateLimits(t *testing.T) { //nolint:cyclop // test assertions
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	configContent := []byte(`
 runtime:
@@ -209,7 +209,7 @@ channels:
 	}
 }
 
-func TestLoadConfig_LarkDeliveryOverrides(t *testing.T) {
+func TestLoadConfig_LarkDeliveryOverrides(t *testing.T) { //nolint:cyclop // test assertions
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	configContent := []byte(`
 runtime:

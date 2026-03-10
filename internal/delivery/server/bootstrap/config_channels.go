@@ -127,23 +127,8 @@ func validateLarkPersistenceConfig(cfg *Config) error {
 		return nil
 	}
 	larkCfg := cfg.Channels.LarkConfig()
-	mode := utils.TrimLower(larkCfg.PersistenceMode)
-	if mode == "" {
-		mode = larkPersistenceModeFile
-	}
-	switch mode {
-	case larkPersistenceModeFile, larkPersistenceModeMemory:
-	default:
-		return fmt.Errorf("channels.lark.persistence.mode must be one of [file,memory], got %q", mode)
-	}
-	larkCfg.PersistenceMode = mode
-
-	if mode == larkPersistenceModeFile {
-		dir := strings.TrimSpace(larkCfg.PersistenceDir)
-		if dir == "" {
-			return fmt.Errorf("channels.lark.persistence.dir is required when persistence.mode=file")
-		}
-		larkCfg.PersistenceDir = expandHome(dir)
+	if err := validatePersistenceMode(&larkCfg.PersistenceMode, &larkCfg.PersistenceDir, "channels.lark"); err != nil {
+		return err
 	}
 	if larkCfg.PersistenceRetention <= 0 {
 		larkCfg.PersistenceRetention = 7 * 24 * time.Hour
@@ -171,7 +156,14 @@ func validateLarkDeliveryConfig(cfg *Config) error {
 	}
 	larkCfg.DeliveryMode = mode
 
-	worker := &larkCfg.DeliveryWorker
+	if err := applyDeliveryWorkerDefaults(&larkCfg.DeliveryWorker); err != nil {
+		return err
+	}
+	cfg.Channels.SetLarkConfig(larkCfg)
+	return nil
+}
+
+func applyDeliveryWorkerDefaults(worker *lark.DeliveryWorkerConfig) error {
 	if worker.PollInterval <= 0 {
 		worker.PollInterval = 500 * time.Millisecond
 	}
@@ -196,7 +188,6 @@ func validateLarkDeliveryConfig(cfg *Config) error {
 	if worker.JitterRatio > 1 {
 		return fmt.Errorf("channels.lark.delivery.worker.jitter_ratio must be <= 1, got %v", worker.JitterRatio)
 	}
-	cfg.Channels.SetLarkConfig(larkCfg)
 	return nil
 }
 
@@ -261,23 +252,8 @@ func validateTelegramPersistenceConfig(cfg *Config) error {
 	if !tgCfg.Enabled {
 		return nil
 	}
-	mode := utils.TrimLower(tgCfg.PersistenceMode)
-	if mode == "" {
-		mode = telegramPersistenceModeFile
-	}
-	switch mode {
-	case telegramPersistenceModeFile, telegramPersistenceModeMemory:
-	default:
-		return fmt.Errorf("channels.telegram.persistence.mode must be one of [file,memory], got %q", mode)
-	}
-	tgCfg.PersistenceMode = mode
-
-	if mode == telegramPersistenceModeFile {
-		dir := strings.TrimSpace(tgCfg.PersistenceDir)
-		if dir == "" {
-			return fmt.Errorf("channels.telegram.persistence.dir is required when persistence.mode=file")
-		}
-		tgCfg.PersistenceDir = expandHome(dir)
+	if err := validatePersistenceMode(&tgCfg.PersistenceMode, &tgCfg.PersistenceDir, "channels.telegram"); err != nil {
+		return err
 	}
 	if tgCfg.PersistenceRetention <= 0 {
 		tgCfg.PersistenceRetention = 7 * 24 * time.Hour
@@ -286,5 +262,29 @@ func validateTelegramPersistenceConfig(cfg *Config) error {
 		tgCfg.PersistenceMaxTasksPerChat = 200
 	}
 	cfg.Channels.SetTelegramConfig(tgCfg)
+	return nil
+}
+
+// validatePersistenceMode validates and normalizes the persistence mode and
+// directory for a channel configuration. prefix is used for error messages
+// (e.g. "channels.lark").
+func validatePersistenceMode(mode *string, dir *string, prefix string) error {
+	m := utils.TrimLower(*mode)
+	if m == "" {
+		m = "file"
+	}
+	switch m {
+	case "file", "memory":
+	default:
+		return fmt.Errorf("%s.persistence.mode must be one of [file,memory], got %q", prefix, m)
+	}
+	*mode = m
+	if m == "file" {
+		d := strings.TrimSpace(*dir)
+		if d == "" {
+			return fmt.Errorf("%s.persistence.dir is required when persistence.mode=file", prefix)
+		}
+		*dir = expandHome(d)
+	}
 	return nil
 }
