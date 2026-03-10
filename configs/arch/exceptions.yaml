@@ -626,6 +626,11 @@ imports:
     owner: "cklxx"
     reason: "Telegram channel uses filestore for plan review and task store (mirrors lark exception)"
     expires_at: "2026-03-31"
+  - from: "alex/internal/delivery/server/bootstrap"
+    to: "alex/internal/infra/gitsignal"
+    owner: "cklxx"
+    reason: "Bootstrap wires git signal provider during startup"
+    expires_at: "2026-03-31"
 fanout:
   - package: "alex/internal/delivery/server/bootstrap"
     owner: "cklxx"
