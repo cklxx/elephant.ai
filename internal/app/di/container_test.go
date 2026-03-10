@@ -215,8 +215,6 @@ func TestBuildContainer(t *testing.T) {
 			MaxIterations: 20,
 			SessionDir:    "/tmp/alex-test-sessions",
 			CostDir:       "/tmp/alex-test-costs",
-			Environment:   "development",
-			Verbose:       false,
 		}
 
 		container, err := BuildContainer(config)

@@ -61,54 +61,37 @@ type Container struct {
 	bgCancel     context.CancelFunc // cancels background goroutines (e.g. memory cleanup)
 }
 
-// Config holds the dependency injection configuration
+// Config holds the dependency injection configuration.
+// Only fields consumed by container builders or Container methods belong here.
+// Pass-through fields (ACP executor, Seedream, Moltbook, UI flags) stay in
+// shared/config.RuntimeConfig and are read directly by their consumers.
 type Config struct {
 	// LLM Configuration
-	LLMProvider                string
-	LLMModel                   string
-	LLMVisionModel             string
-	APIKey                     string
-	ArkAPIKey                  string
-	BaseURL                    string
-	ACPExecutorAddr            string
-	ACPExecutorCWD             string
-	ACPExecutorMode            string
-	ACPExecutorAutoApprove     bool
-	ACPExecutorMaxCLICalls     int
-	ACPExecutorMaxDuration     int
-	ACPExecutorRequireManifest bool
-	TavilyAPIKey               string
-	MoltbookAPIKey             string
-	MoltbookBaseURL            string
-	SeedreamTextEndpointID     string
-	SeedreamImageEndpointID    string
-	SeedreamTextModel          string
-	SeedreamImageModel         string
-	SeedreamVisionModel        string
-	SeedreamVideoModel         string
-	MaxTokens                  int
-	MaxIterations              int
-	ToolMaxConcurrent          int
-	LLMCacheSize               int
-	LLMCacheTTL                time.Duration
-	UserRateLimitRPS           float64
-	UserRateLimitBurst         int
-	KimiRateLimitRPS           float64
-	KimiRateLimitBurst         int
-	Temperature                float64
-	TemperatureProvided        bool
-	TopP                       float64
-	StopSequences              []string
-	AgentPreset                string
-	ToolPreset                 string
-	ToolMode                   string
-	Toolset                    toolregistry.Toolset
-	Profile                    string
-	Environment                string
-	Verbose                    bool
-	DisableTUI                 bool
-	FollowTranscript           bool
-	FollowStream               bool
+	LLMProvider        string
+	LLMModel           string
+	LLMVisionModel     string
+	APIKey             string
+	ArkAPIKey          string
+	BaseURL            string
+	TavilyAPIKey       string
+	MaxTokens          int
+	MaxIterations      int
+	ToolMaxConcurrent  int
+	LLMCacheSize       int
+	LLMCacheTTL        time.Duration
+	UserRateLimitRPS   float64
+	UserRateLimitBurst int
+	KimiRateLimitRPS   float64
+	KimiRateLimitBurst int
+	Temperature        float64
+	TemperatureProvided bool
+	TopP               float64
+	StopSequences      []string
+	AgentPreset        string
+	ToolPreset         string
+	ToolMode           string
+	Toolset            toolregistry.Toolset
+	Profile            string
 
 	EnvironmentSummary         string
 	EnvironmentSummaryProvider func() string // lazy; overrides EnvironmentSummary when set
@@ -129,9 +112,6 @@ type Config struct {
 
 // Start initializes container lifecycle hooks.
 func (c *Container) Start() error {
-	logger := logging.NewComponentLogger("DI")
-	logger.Info("Starting container lifecycle...")
-	logger.Info("Container lifecycle started")
 	return nil
 }
 
