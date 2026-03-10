@@ -35,6 +35,14 @@ type AttentionGateConfig struct {
 	// BudgetMax is the maximum outgoing messages per budget window per chat.
 	// 0 disables budget limiting.
 	BudgetMax int `yaml:"budget_max"`
+	// QuietHoursStart is the hour (0-23) when quiet hours begin.
+	// During quiet hours only UrgencyHigh messages pass through;
+	// all others are queued until quiet hours end.
+	// Set QuietHoursStart == QuietHoursEnd to disable quiet hours.
+	QuietHoursStart int `yaml:"quiet_hours_start"`
+	// QuietHoursEnd is the hour (0-23) when quiet hours end (exclusive).
+	// Wraps around midnight: start=22, end=8 means 22:00-07:59.
+	QuietHoursEnd int `yaml:"quiet_hours_end"`
 }
 
 const defaultAutoAckMessage = "收到，已记录并跟踪中。"
@@ -44,6 +52,15 @@ const defaultAutoAckMessage = "收到，已记录并跟踪中。"
 // currently in focus time.
 type FocusTimeChecker interface {
 	ShouldSuppress(userID string, now time.Time) bool
+}
+
+// QueuedMessage is a non-urgent message held back during quiet hours.
+type QueuedMessage struct {
+	Content  string
+	ChatID   string
+	UserID   string
+	Urgency  UrgencyLevel
+	QueuedAt time.Time
 }
 
 // AttentionGate filters messages based on urgency criteria and enforces
@@ -60,6 +77,7 @@ type AttentionGate struct {
 
 	mu      sync.Mutex
 	budgets map[string]*chatBudget // chatID → budget tracker
+	queued  []QueuedMessage        // messages held during quiet hours
 }
 
 type chatBudget struct {
@@ -221,9 +239,26 @@ func (g *AttentionGate) SetFocusTimeChecker(ftc FocusTimeChecker) {
 	g.focusTime = ftc
 }
 
+// inQuietHours returns true if the given hour falls within the configured
+// quiet hours window. Returns false when quiet hours are disabled
+// (start == end).
+func (g *AttentionGate) inQuietHours(hour int) bool {
+	start := g.cfg.QuietHoursStart
+	end := g.cfg.QuietHoursEnd
+	if start == end {
+		return false // disabled
+	}
+	if start < end {
+		return hour >= start && hour < end
+	}
+	// Wraps midnight: e.g. 22-8 means hours 22,23,0,1,...,7.
+	return hour >= start || hour < end
+}
+
 // ShouldDispatch decides whether a message should be dispatched to a user.
-// It combines urgency classification, focus time suppression, and budget
-// enforcement. Critical/P0 (UrgencyHigh) messages always pass through.
+// It combines urgency classification, quiet hours enforcement, focus time
+// suppression, and budget enforcement. Critical/P0 (UrgencyHigh) messages
+// always pass through, even during quiet hours.
 // Returns the urgency level and whether the message should be sent.
 func (g *AttentionGate) ShouldDispatch(content, chatID, userID string, now time.Time) (UrgencyLevel, bool) {
 	urgency := g.ClassifyUrgency(content)
@@ -238,6 +273,20 @@ func (g *AttentionGate) ShouldDispatch(content, chatID, userID string, now time.
 		return urgency, true
 	}
 
+	// Quiet hours enforcement: queue non-urgent messages.
+	if g.inQuietHours(now.Hour()) {
+		g.mu.Lock()
+		g.queued = append(g.queued, QueuedMessage{
+			Content:  content,
+			ChatID:   chatID,
+			UserID:   userID,
+			Urgency:  urgency,
+			QueuedAt: now,
+		})
+		g.mu.Unlock()
+		return urgency, false
+	}
+
 	// Check focus time suppression for non-urgent messages.
 	if g.focusTime != nil && g.focusTime.ShouldSuppress(userID, now) {
 		return urgency, false
@@ -249,4 +298,27 @@ func (g *AttentionGate) ShouldDispatch(content, chatID, userID string, now time.
 	}
 
 	return urgency, true
+}
+
+// DrainQueue returns all messages queued during quiet hours and clears
+// the queue. Callers should invoke this when quiet hours end (e.g. at
+// the first tick after QuietHoursEnd) to dispatch the held messages.
+// Returns nil if the queue is empty.
+func (g *AttentionGate) DrainQueue() []QueuedMessage {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if len(g.queued) == 0 {
+		return nil
+	}
+	out := g.queued
+	g.queued = nil
+	return out
+}
+
+// QueueLen returns the number of messages currently held in the quiet
+// hours queue.
+func (g *AttentionGate) QueueLen() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return len(g.queued)
 }

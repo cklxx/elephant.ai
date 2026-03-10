@@ -330,6 +330,264 @@ func TestShouldDispatch_BudgetEnforcedAfterFocusCheck(t *testing.T) {
 	}
 }
 
+// ---------- Quiet hours enforcement ----------
+
+func timeAtHour(hour int) time.Time {
+	return time.Date(2026, 3, 10, hour, 30, 0, 0, time.UTC)
+}
+
+func TestInQuietHours_NormalRange(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+	tests := []struct {
+		hour int
+		want bool
+	}{
+		{21, false},
+		{22, true},
+		{23, true},
+		{0, true},
+		{7, true},
+		{8, false},
+		{12, false},
+	}
+	for _, tc := range tests {
+		if got := gate.inQuietHours(tc.hour); got != tc.want {
+			t.Errorf("inQuietHours(%d) with 22-8 = %v, want %v", tc.hour, got, tc.want)
+		}
+	}
+}
+
+func TestInQuietHours_NoWrap(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 1,
+		QuietHoursEnd:   6,
+	})
+	tests := []struct {
+		hour int
+		want bool
+	}{
+		{0, false},
+		{1, true},
+		{5, true},
+		{6, false},
+		{12, false},
+		{23, false},
+	}
+	for _, tc := range tests {
+		if got := gate.inQuietHours(tc.hour); got != tc.want {
+			t.Errorf("inQuietHours(%d) with 1-6 = %v, want %v", tc.hour, got, tc.want)
+		}
+	}
+}
+
+func TestInQuietHours_Disabled(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 0,
+		QuietHoursEnd:   0,
+	})
+	for h := 0; h < 24; h++ {
+		if gate.inQuietHours(h) {
+			t.Errorf("inQuietHours(%d) should be false when start==end", h)
+		}
+	}
+}
+
+func TestShouldDispatch_QuietHoursBlocksNonUrgent(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+
+	// At 23:30 (quiet hours) — routine message should be queued.
+	urgency, ok := gate.ShouldDispatch("routine update", "chat-1", "alice", timeAtHour(23))
+	if urgency != UrgencyLow {
+		t.Errorf("urgency = %d, want UrgencyLow", urgency)
+	}
+	if ok {
+		t.Error("non-urgent message during quiet hours should be suppressed")
+	}
+	if gate.QueueLen() != 1 {
+		t.Errorf("QueueLen = %d, want 1", gate.QueueLen())
+	}
+}
+
+func TestShouldDispatch_QuietHoursAllowsUrgent(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+		UrgentKeywords:  []string{"P0"},
+	})
+
+	// At 23:30 (quiet hours) — urgent message should pass through.
+	urgency, ok := gate.ShouldDispatch("P0 production outage", "chat-1", "alice", timeAtHour(23))
+	if urgency != UrgencyHigh {
+		t.Errorf("urgency = %d, want UrgencyHigh", urgency)
+	}
+	if !ok {
+		t.Error("urgent message during quiet hours should pass through")
+	}
+	// Nothing should be queued for urgent messages.
+	if gate.QueueLen() != 0 {
+		t.Errorf("QueueLen = %d, want 0 (urgent messages not queued)", gate.QueueLen())
+	}
+}
+
+func TestShouldDispatch_OutsideQuietHoursPassesThrough(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+
+	// At 12:30 (not quiet hours) — routine message passes normally.
+	_, ok := gate.ShouldDispatch("routine update", "chat-1", "alice", timeAtHour(12))
+	if !ok {
+		t.Error("message outside quiet hours should pass through")
+	}
+	if gate.QueueLen() != 0 {
+		t.Errorf("QueueLen = %d, want 0", gate.QueueLen())
+	}
+}
+
+func TestShouldDispatch_QuietHoursDisabledPassesThrough(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 0,
+		QuietHoursEnd:   0,
+	})
+
+	// Quiet hours disabled — message at any hour passes.
+	_, ok := gate.ShouldDispatch("routine", "chat-1", "alice", timeAtHour(3))
+	if !ok {
+		t.Error("message should pass when quiet hours disabled")
+	}
+}
+
+func TestDrainQueue(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+
+	// Queue 3 messages during quiet hours.
+	for i := 0; i < 3; i++ {
+		gate.ShouldDispatch("msg", "chat-1", "alice", timeAtHour(23))
+	}
+	if gate.QueueLen() != 3 {
+		t.Fatalf("QueueLen = %d, want 3", gate.QueueLen())
+	}
+
+	// Drain returns all and clears.
+	msgs := gate.DrainQueue()
+	if len(msgs) != 3 {
+		t.Fatalf("DrainQueue returned %d, want 3", len(msgs))
+	}
+	if gate.QueueLen() != 0 {
+		t.Errorf("QueueLen after drain = %d, want 0", gate.QueueLen())
+	}
+	// Verify message fields.
+	if msgs[0].Content != "msg" || msgs[0].ChatID != "chat-1" || msgs[0].UserID != "alice" {
+		t.Errorf("unexpected message: %+v", msgs[0])
+	}
+	if msgs[0].Urgency != UrgencyLow {
+		t.Errorf("queued urgency = %d, want UrgencyLow", msgs[0].Urgency)
+	}
+}
+
+func TestDrainQueue_EmptyReturnsNil(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{Enabled: true})
+	if msgs := gate.DrainQueue(); msgs != nil {
+		t.Errorf("DrainQueue on empty should return nil, got %d", len(msgs))
+	}
+}
+
+func TestShouldDispatch_QuietHoursThenFocusTime(t *testing.T) {
+	// Quiet hours take precedence over focus time check (earlier in pipeline).
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+	gate.SetFocusTimeChecker(&mockFocusChecker{suppressed: map[string]bool{"alice": true}})
+
+	// During quiet hours: should be queued (quiet hours path), not just suppressed.
+	gate.ShouldDispatch("msg", "chat-1", "alice", timeAtHour(23))
+	if gate.QueueLen() != 1 {
+		t.Errorf("expected message to be queued during quiet hours, not just focus-suppressed")
+	}
+}
+
+func TestShouldDispatch_QuietHoursBuiltinUrgencyBypass(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+
+	// "server is down" matches built-in urgency → should bypass quiet hours.
+	urgency, ok := gate.ShouldDispatch("server is down", "chat-1", "ops", timeAtHour(2))
+	if urgency != UrgencyHigh {
+		t.Errorf("urgency = %d, want UrgencyHigh", urgency)
+	}
+	if !ok {
+		t.Error("built-in urgent patterns should bypass quiet hours")
+	}
+}
+
+func TestShouldDispatch_QuietHoursBudgetNotConsumed(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+		BudgetWindow:    10 * time.Minute,
+		BudgetMax:       1,
+	})
+
+	// During quiet hours, message is queued (not dispatched), so budget
+	// should NOT be consumed.
+	gate.ShouldDispatch("msg1", "chat-1", "alice", timeAtHour(23))
+	if gate.QueueLen() != 1 {
+		t.Fatal("expected message queued")
+	}
+
+	// After quiet hours end, a fresh message should still be within budget.
+	_, ok := gate.ShouldDispatch("msg2", "chat-1", "alice", timeAtHour(9))
+	if !ok {
+		t.Error("budget should not have been consumed by queued message")
+	}
+}
+
+func TestShouldDispatch_QuietHoursMidnightEdge(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+
+	// Exactly at midnight (hour 0) → quiet hours.
+	midnight := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
+	_, ok := gate.ShouldDispatch("test", "chat-1", "u", midnight)
+	if ok {
+		t.Error("midnight should be in quiet hours (22-8)")
+	}
+
+	// Exactly at 8:00 → NOT quiet hours (end is exclusive).
+	eightAM := time.Date(2026, 3, 10, 8, 0, 0, 0, time.UTC)
+	_, ok = gate.ShouldDispatch("test", "chat-1", "u", eightAM)
+	if !ok {
+		t.Error("8:00 should be outside quiet hours (end exclusive)")
+	}
+}
+
 func TestAttentionGate_BudgetGC_EmptyTimestamps(t *testing.T) {
 	gate := NewAttentionGate(AttentionGateConfig{
 		Enabled:      true,
