@@ -19,7 +19,7 @@ func NewCLI(container *Container) *CLI {
 
 func (c *CLI) Run(args []string) error {
 	if len(args) == 0 {
-		c.showUsage()
+		printUsage()
 		return nil
 	}
 
@@ -29,7 +29,7 @@ func (c *CLI) Run(args []string) error {
 
 	switch cmd {
 	case "help", "-h", "--help":
-		c.showUsage()
+		printUsage()
 		return nil
 
 	case "version", "-v", "--version":
@@ -71,10 +71,6 @@ func (c *CLI) Run(args []string) error {
 		task := strings.Join(args, " ")
 		return RunTaskWithStreamOutput(c.container, task, "")
 	}
-}
-
-func (c *CLI) showUsage() {
-	printUsage()
 }
 
 func printUsage() {
@@ -141,7 +137,7 @@ Documentation: AGENTS.md + docs/reference/ARCHITECTURE.md + docs/reference/CONFI
 }
 
 func (c *CLI) handleResume(args []string) error {
-	if c == nil || c.container == nil {
+	if c.container == nil {
 		return fmt.Errorf("container not initialized")
 	}
 	if len(args) == 0 || utils.IsBlank(args[0]) {
