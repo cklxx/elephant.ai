@@ -256,8 +256,9 @@ type SkillsFeedbackFileConfig struct {
 type SchedulerFileConfig struct {
 	Enabled                          *bool                        `yaml:"enabled"`
 	Triggers                         []SchedulerTriggerFileConfig `yaml:"triggers"`
-	CalendarReminder                 *CalendarReminderFileConfig  `yaml:"calendar_reminder"`
-	Heartbeat                        *HeartbeatFileConfig         `yaml:"heartbeat"`
+	CalendarReminder                 *CalendarReminderFileConfig      `yaml:"calendar_reminder"`
+	Heartbeat                        *HeartbeatFileConfig             `yaml:"heartbeat"`
+	MilestoneCheckin                 *MilestoneCheckinFileConfig      `yaml:"milestone_checkin"`
 	TriggerTimeoutSeconds            *int                         `yaml:"trigger_timeout_seconds"`
 	ConcurrencyPolicy                string                       `yaml:"concurrency_policy"`
 	LeaderLockEnabled                *bool                        `yaml:"leader_lock_enabled"`
@@ -299,6 +300,16 @@ type HeartbeatFileConfig struct {
 	ChatID           string `yaml:"chat_id"`
 	QuietHours       []int  `yaml:"quiet_hours"`
 	WindowLookbackHr *int   `yaml:"window_lookback_hours"`
+}
+
+type MilestoneCheckinFileConfig struct {
+	Enabled          *bool  `yaml:"enabled"`
+	Schedule         string `yaml:"schedule"`
+	LookbackSeconds  *int   `yaml:"lookback_seconds"`
+	Channel          string `yaml:"channel"`
+	ChatID           string `yaml:"chat_id"`
+	IncludeActive    *bool  `yaml:"include_active"`
+	IncludeCompleted *bool  `yaml:"include_completed"`
 }
 
 type TimerFileConfig struct {

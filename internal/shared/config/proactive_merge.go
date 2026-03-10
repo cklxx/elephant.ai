@@ -222,6 +222,9 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 	if file.Heartbeat != nil {
 		mergeHeartbeatConfig(&target.Heartbeat, file.Heartbeat)
 	}
+	if file.MilestoneCheckin != nil {
+		mergeMilestoneCheckinConfig(&target.MilestoneCheckin, file.MilestoneCheckin)
+	}
 	if len(file.Triggers) > 0 {
 		triggers := make([]SchedulerTriggerConfig, 0, len(file.Triggers))
 		for _, trigger := range file.Triggers {
@@ -321,6 +324,33 @@ func mergeCalendarReminderConfig(target *CalendarReminderConfig, file *CalendarR
 	}
 }
 
+func mergeMilestoneCheckinConfig(target *MilestoneCheckinConfig, file *MilestoneCheckinFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.Enabled != nil {
+		target.Enabled = *file.Enabled
+	}
+	if utils.HasContent(file.Schedule) {
+		target.Schedule = strings.TrimSpace(file.Schedule)
+	}
+	if file.LookbackSeconds != nil {
+		target.LookbackSeconds = *file.LookbackSeconds
+	}
+	if utils.HasContent(file.Channel) {
+		target.Channel = strings.TrimSpace(file.Channel)
+	}
+	if utils.HasContent(file.ChatID) {
+		target.ChatID = strings.TrimSpace(file.ChatID)
+	}
+	if file.IncludeActive != nil {
+		target.IncludeActive = *file.IncludeActive
+	}
+	if file.IncludeCompleted != nil {
+		target.IncludeCompleted = *file.IncludeCompleted
+	}
+}
+
 func mergeAttentionConfig(target *AttentionConfig, file *AttentionFileConfig) {
 	if target == nil || file == nil {
 		return
@@ -400,6 +430,11 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 			file.Scheduler.CalendarReminder.Channel = expandEnvValue(lookup, file.Scheduler.CalendarReminder.Channel)
 			file.Scheduler.CalendarReminder.UserID = expandEnvValue(lookup, file.Scheduler.CalendarReminder.UserID)
 			file.Scheduler.CalendarReminder.ChatID = expandEnvValue(lookup, file.Scheduler.CalendarReminder.ChatID)
+		}
+		if file.Scheduler.MilestoneCheckin != nil {
+			file.Scheduler.MilestoneCheckin.Schedule = expandEnvValue(lookup, file.Scheduler.MilestoneCheckin.Schedule)
+			file.Scheduler.MilestoneCheckin.Channel = expandEnvValue(lookup, file.Scheduler.MilestoneCheckin.Channel)
+			file.Scheduler.MilestoneCheckin.ChatID = expandEnvValue(lookup, file.Scheduler.MilestoneCheckin.ChatID)
 		}
 	}
 	if file.Timer != nil {
