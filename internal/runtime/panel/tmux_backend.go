@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const defaultTmuxBin = "tmux"
@@ -62,11 +61,7 @@ func (p *TmuxPane) Submit(ctx context.Context) error {
 
 // Send injects text and immediately submits, with a small delay between.
 func (p *TmuxPane) Send(ctx context.Context, text string) error {
-	if err := p.InjectText(ctx, text); err != nil {
-		return err
-	}
-	time.Sleep(50 * time.Millisecond)
-	return p.Submit(ctx)
+	return sendViaPane(ctx, p, text)
 }
 
 // SendKey sends a special key sequence to the pane (e.g. "C-c" for Ctrl-C).

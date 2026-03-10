@@ -160,12 +160,7 @@ func (p *Pane) Submit(ctx context.Context) error {
 // Use this for single-line shell commands. Do NOT use for interactive UIs
 // that need to render the input before submit (use InjectText + Submit separately).
 func (p *Pane) Send(ctx context.Context, text string) error {
-	if err := p.InjectText(ctx, text); err != nil {
-		return err
-	}
-	// Small delay so the pane processes the paste before the carriage return.
-	time.Sleep(50 * time.Millisecond)
-	return p.Submit(ctx)
+	return sendViaPane(ctx, p, text)
 }
 
 // SendKey sends a special key sequence to the pane (e.g. "C-c" for Ctrl-C).
@@ -221,4 +216,14 @@ func (m *Manager) run(ctx context.Context, args ...string) (string, error) {
 func (p *Pane) run(ctx context.Context, args ...string) (string, error) {
 	mgr := &Manager{binary: p.binary}
 	return mgr.run(ctx, args...)
+}
+
+// sendViaPane is the shared implementation for Send across all PaneIface backends.
+// It injects text, waits briefly for the paste to be processed, then submits.
+func sendViaPane(ctx context.Context, p PaneIface, text string) error {
+	if err := p.InjectText(ctx, text); err != nil {
+		return err
+	}
+	time.Sleep(50 * time.Millisecond)
+	return p.Submit(ctx)
 }

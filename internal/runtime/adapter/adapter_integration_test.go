@@ -133,35 +133,6 @@ func (m *recordingManager) List(_ context.Context) (string, error) { return "", 
 
 var _ panel.ManagerIface = (*recordingManager)(nil)
 
-// recordingSink records lifecycle callbacks with thread safety.
-type recordingSink struct {
-	mu         sync.Mutex
-	heartbeats []string
-	completed  []struct{ id, answer string }
-	failed     []struct{ id, err string }
-}
-
-func (s *recordingSink) OnHeartbeat(sessionID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.heartbeats = append(s.heartbeats, sessionID)
-}
-
-func (s *recordingSink) OnCompleted(sessionID, answer string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.completed = append(s.completed, struct{ id, answer string }{sessionID, answer})
-}
-
-func (s *recordingSink) OnFailed(sessionID, errMsg string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.failed = append(s.failed, struct{ id, err string }{sessionID, errMsg})
-}
-
-func (s *recordingSink) OnNeedsInput(sessionID, prompt string) {}
-
-var _ adapter.HookSink = (*recordingSink)(nil)
 
 // ---------------------------------------------------------------------------
 // Test 1: ClaudeCodeAdapter Start sequence verification
@@ -172,7 +143,7 @@ func TestClaudeCodeAdapter_StartSequence(t *testing.T) {
 
 	rp := newRecordingPane(100)
 	rm := &recordingManager{nextPane: rp}
-	sink := &recordingSink{}
+	sink := &mockHookSink{}
 	cc := adapter.NewClaudeCodeAdapter(rm, sink, "http://localhost:8888")
 
 	ctx := context.Background()
@@ -276,7 +247,7 @@ func TestClaudeCodeAdapter_CompletionDetection(t *testing.T) {
 	// Initially no prompt — CC is still running.
 	rp.captureText = "Working on task...\n❯ "
 	rm := &recordingManager{nextPane: rp}
-	sink := &recordingSink{}
+	sink := &mockHookSink{}
 	cc := adapter.NewClaudeCodeAdapter(rm, sink, "http://localhost:8888")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -335,7 +306,7 @@ func TestClaudeCodeAdapter_PoolMode(t *testing.T) {
 
 	rp := newRecordingPane(300)
 	rm := &recordingManager{nextPane: rp}
-	sink := &recordingSink{}
+	sink := &mockHookSink{}
 	cc := adapter.NewClaudeCodeAdapter(rm, sink, "http://localhost:8888")
 
 	ctx := context.Background()
@@ -449,7 +420,7 @@ func TestCodexAdapter_ExecuteAndReport(t *testing.T) {
 
 	rp := newRecordingPane(400)
 	rm := &recordingManager{nextPane: rp}
-	sink := &recordingSink{}
+	sink := &mockHookSink{}
 	exec := &recordingCodexExecutor{answer: "all tests pass"}
 	ca := adapter.NewCodexAdapter(rm, exec, sink)
 
@@ -538,7 +509,7 @@ func TestAdapterFactory_MemberRouting(t *testing.T) {
 
 	rp := newRecordingPane(500)
 	rm := &recordingManager{nextPane: rp}
-	sink := &recordingSink{}
+	sink := &mockHookSink{}
 	exec := &recordingCodexExecutor{answer: "ok"}
 	f := adapter.NewFactory(rm, sink, "http://localhost:8888", exec)
 

@@ -101,26 +101,6 @@ func (s *StubSessionStore) SessionTitle() string {
 	return s.Session.Metadata["title"]
 }
 
-// StubContextManager is a no-op context manager for tests.
-type StubContextManager struct{}
-
-func (StubContextManager) EstimateTokens(messages []ports.Message) int { return len(messages) * 10 }
-func (StubContextManager) Compress(messages []ports.Message, targetTokens int) ([]ports.Message, error) {
-	return messages, nil
-}
-func (StubContextManager) AutoCompact(messages []ports.Message, limit int) ([]ports.Message, bool) {
-	return messages, false
-}
-func (StubContextManager) ShouldCompress(messages []ports.Message, limit int) bool { return false }
-func (StubContextManager) Preload(context.Context) error                           { return nil }
-func (StubContextManager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
-	if session == nil {
-		return agent.ContextWindow{}, fmt.Errorf("session required")
-	}
-	return agent.ContextWindow{SessionID: session.ID, Messages: session.Messages}, nil
-}
-func (StubContextManager) RecordTurn(context.Context, agent.ContextTurnRecord) error { return nil }
-
 // StubToolRegistry is a no-op tool registry for tests.
 type StubToolRegistry struct{}
 

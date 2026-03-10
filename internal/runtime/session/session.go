@@ -29,7 +29,6 @@ const (
 	MemberClaudeCode MemberType = "claude_code"
 	MemberCodex      MemberType = "codex"
 	MemberKimi       MemberType = "kimi"
-	MemberShell      MemberType = "shell"
 )
 
 // SessionData holds the serialisable fields of a session without any
