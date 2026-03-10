@@ -38,15 +38,20 @@ type Runtime struct {
 	panel   panel.ManagerIface
 	store   *store.Store
 	bus     hooks.Bus
-	factory *adapter.Factory
+	factory AdapterFactory
 	pool    *pool.Pool // optional; nil disables pool mode
+}
+
+// AdapterFactory creates runtime adapters for member types.
+type AdapterFactory interface {
+	New(member session.MemberType) (adapter.Adapter, error)
 }
 
 // Config holds optional wiring for the Runtime.
 type Config struct {
 	// Factory is the adapter factory for launching member CLIs.
 	// If nil, StartSession will fail for any member type.
-	Factory *adapter.Factory
+	Factory AdapterFactory
 
 	// Bus is the event bus. If nil, an in-process bus is created.
 	Bus hooks.Bus
@@ -95,7 +100,7 @@ func (rt *Runtime) Bus() hooks.Bus { return rt.bus }
 
 // SetFactory wires an adapter factory after construction.
 // Useful when the factory needs the runtime as its HookSink (circular init).
-func (rt *Runtime) SetFactory(f *adapter.Factory) {
+func (rt *Runtime) SetFactory(f AdapterFactory) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 	rt.factory = f
@@ -418,9 +423,9 @@ func (rt *Runtime) MarkFailed(id, errMsg string) error {
 			SessionID: snap.ParentSessionID,
 			At:        time.Now(),
 			Payload: map[string]any{
-				"child_id":     id,
-				"child_goal":   snap.Goal,
-				"child_error":  errMsg,
+				"child_id":    id,
+				"child_goal":  snap.Goal,
+				"child_error": errMsg,
 			},
 		})
 	}
