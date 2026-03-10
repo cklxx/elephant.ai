@@ -21,6 +21,7 @@ type Config struct {
 	RuntimeMeta        runtimeconfig.Metadata
 	Port               string
 	DebugPort          string // Debug HTTP port for Lark standalone mode (default "9090")
+	LogDir             string // Structured log / watchdog dump directory (default "logs")
 	EnvironmentSummary string
 	Session            runtimeconfig.SessionConfig
 	Analytics          runtimeconfig.AnalyticsConfig
@@ -254,6 +255,7 @@ func LoadConfig() (ConfigResult, error) {
 		RuntimeMeta:    runtimeMeta,
 		Port:           "8080",
 		DebugPort:      "9090",
+		LogDir:         "logs",
 		AllowedOrigins: append([]string(nil), defaultAllowedOrigins...),
 		StreamGuard: StreamGuardConfig{
 			MaxDuration:   2 * time.Hour,
@@ -412,6 +414,9 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 func applyLarkEnvFallback(cfg *Config, lookup runtimeconfig.EnvLookup) {
 	if debugPort := lookupFirstNonEmptyEnv(lookup, "ALEX_DEBUG_PORT"); debugPort != "" {
 		cfg.DebugPort = debugPort
+	}
+	if logDir := lookupFirstNonEmptyEnv(lookup, "ALEX_LOG_DIR"); logDir != "" {
+		cfg.LogDir = logDir
 	}
 }
 

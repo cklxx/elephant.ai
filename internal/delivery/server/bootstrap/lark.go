@@ -122,12 +122,8 @@ func RunLark(observabilityConfigPath string) error {
 	defer watchdogCancel()
 
 	watchdogLogger := logging.NewComponentLogger("Watchdog")
-	dumpDir := os.Getenv("ALEX_LOG_DIR")
-	if dumpDir == "" {
-		dumpDir = "logs"
-	}
 	watchdog := diagnostics.NewWatchdog(diagnostics.WatchdogConfig{
-		DumpDir: dumpDir,
+		DumpDir: config.LogDir,
 	}, watchdogLogger)
 	async.Go(logger, "watchdog", func() {
 		watchdog.Run(watchdogCtx)
