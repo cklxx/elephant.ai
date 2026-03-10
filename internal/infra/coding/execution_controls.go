@@ -20,14 +20,6 @@ const (
 	claudeSemiAllowedTools = "Read,Glob,Grep,WebSearch,Write,Edit,Bash"
 )
 
-func normalizeExecutionMode(raw string) string {
-	return executioncontrol.NormalizeExecutionMode(raw)
-}
-
-func normalizeAutonomyLevel(raw string) string {
-	return executioncontrol.NormalizeAutonomyLevel(raw)
-}
-
 // applyExecutionControls normalizes cross-agent controls into agent-specific config keys.
 func applyExecutionControls(agentType, mode, level string, config map[string]string) map[string]string {
 	cfg := core.CloneStringMap(config)
@@ -47,8 +39,8 @@ func applyExecutionControls(agentType, mode, level string, config map[string]str
 		return cfg
 	}
 
-	normalizedMode := normalizeExecutionMode(modeRaw)
-	normalizedLevel := normalizeAutonomyLevel(levelRaw)
+	normalizedMode := executioncontrol.NormalizeExecutionMode(modeRaw)
+	normalizedLevel := executioncontrol.NormalizeAutonomyLevel(levelRaw)
 	cfg["execution_mode"] = normalizedMode
 	cfg["autonomy_level"] = normalizedLevel
 

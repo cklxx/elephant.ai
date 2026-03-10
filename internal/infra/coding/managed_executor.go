@@ -8,6 +8,7 @@ import (
 
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/executioncontrol"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
 )
@@ -76,8 +77,8 @@ func (m *ManagedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 	}
 
 	cfg := applyExecutionControls(req.AgentType, req.ExecutionMode, req.AutonomyLevel, req.Config)
-	effectiveMode := normalizeExecutionMode(req.ExecutionMode)
-	effectiveAutonomy := normalizeAutonomyLevel(req.AutonomyLevel)
+	effectiveMode := executioncontrol.NormalizeExecutionMode(req.ExecutionMode)
+	effectiveAutonomy := executioncontrol.NormalizeAutonomyLevel(req.AutonomyLevel)
 	if effectiveMode == executionModePlan {
 		req.Prompt = buildPlanOnlyPrompt(req.Prompt)
 	}
