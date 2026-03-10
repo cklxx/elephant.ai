@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -151,5 +152,55 @@ func TestHandleLeaderOpenAPISpec_BodyMatchesConstant(t *testing.T) {
 	body := rec.Body.String()
 	if body != LeaderOpenAPISpec {
 		t.Error("response body does not match LeaderOpenAPISpec constant")
+	}
+}
+
+// TestLeaderOpenAPISpec_NoSpecDrift ensures every path in the OpenAPI spec
+// corresponds to a route registered by NewRouter under /api/leader/, and
+// vice versa. This prevents the spec from advertising unimplemented endpoints
+// or live routes from being undocumented.
+func TestLeaderOpenAPISpec_NoSpecDrift(t *testing.T) {
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(LeaderOpenAPISpec), &parsed); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	paths, ok := parsed["paths"].(map[string]any)
+	if !ok {
+		t.Fatal("paths is not an object")
+	}
+
+	// Authoritative set of leader routes registered in NewRouter.
+	// The spec uses paths relative to the /api/leader server base.
+	// Update this list whenever a leader route is added or removed.
+	liveRoutes := map[string]string{
+		"/dashboard":           "GET",
+		"/tasks":               "GET",
+		"/tasks/{id}/unblock":  "POST",
+		"/openapi.json":        "GET",
+	}
+
+	// Every spec path must be a live route.
+	for specPath, methods := range paths {
+		expectedMethod, ok := liveRoutes[specPath]
+		if !ok {
+			t.Errorf("OpenAPI spec documents %q but no matching leader route is registered", specPath)
+			continue
+		}
+		methodMap, ok := methods.(map[string]any)
+		if !ok {
+			continue
+		}
+		lowerMethod := strings.ToLower(expectedMethod)
+		if _, ok := methodMap[lowerMethod]; !ok {
+			t.Errorf("OpenAPI spec for %q missing %s operation (route is %s)", specPath, lowerMethod, expectedMethod)
+		}
+	}
+
+	// Every live route must be in the spec.
+	for route := range liveRoutes {
+		if _, ok := paths[route]; !ok {
+			t.Errorf("live leader route %q is not documented in the OpenAPI spec", route)
+		}
 	}
 }
