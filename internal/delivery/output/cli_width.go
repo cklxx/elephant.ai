@@ -8,10 +8,10 @@ import (
 )
 
 func ConstrainOutputWidth(text string, w io.Writer) string {
-	return ConstrainWidth(text, detectOutputWidth(w))
+	return constrainWidth(text, detectOutputWidth(w))
 }
 
-func ConstrainWidth(text string, width int) string {
+func constrainWidth(text string, width int) string {
 	if text == "" || width <= 0 {
 		return text
 	}

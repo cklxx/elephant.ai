@@ -31,11 +31,10 @@ type CLIRenderer struct {
 // verbose=true enables detailed output (full args, more content preview)
 // verbose=false shows compact output (tool name + brief summary)
 func NewCLIRenderer(verbose bool) *CLIRenderer {
-	return NewCLIRendererWithMarkdown(verbose, nil)
+	return newCLIRendererWithMarkdown(verbose, nil)
 }
 
-// NewCLIRendererWithMarkdown allows tests to supply a lightweight markdown renderer.
-func NewCLIRendererWithMarkdown(verbose bool, md MarkdownRenderer) *CLIRenderer {
+func newCLIRendererWithMarkdown(verbose bool, md MarkdownRenderer) *CLIRenderer {
 	renderer := &CLIRenderer{
 		verbose:    verbose,
 		formatter:  formatter.NewToolFormatter(),
@@ -201,5 +200,5 @@ func (r *CLIRenderer) RenderSubagentComplete(ctx *types.OutputContext, total, su
 }
 
 func (r *CLIRenderer) constrainWidth(rendered string) string {
-	return ConstrainWidth(rendered, r.maxWidth)
+	return constrainWidth(rendered, r.maxWidth)
 }

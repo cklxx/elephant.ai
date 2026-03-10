@@ -32,7 +32,7 @@ func (paddedMarkdownRenderer) Render(_ string) (string, error) {
 }
 
 func newTestRenderer(verbose bool) *CLIRenderer {
-	return NewCLIRendererWithMarkdown(verbose, stubMarkdownRenderer{})
+	return newCLIRendererWithMarkdown(verbose, stubMarkdownRenderer{})
 }
 
 func TestRenderToolCallStartShowsArgsInCompactMode(t *testing.T) {
@@ -137,7 +137,7 @@ func TestRenderMarkdownStreamChunkMaintainsTrailingNewline(t *testing.T) {
 }
 
 func TestRenderMarkdownStreamChunkTrimsWhitespaceEdges(t *testing.T) {
-	renderer := NewCLIRendererWithMarkdown(false, paddedMarkdownRenderer{})
+	renderer := newCLIRendererWithMarkdown(false, paddedMarkdownRenderer{})
 	chunk := renderer.RenderMarkdownStreamChunk("ignored", true)
 	if chunk != "Hello\n" {
 		t.Fatalf("expected trimmed output, got %q", chunk)

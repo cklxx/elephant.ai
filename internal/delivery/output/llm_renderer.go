@@ -8,29 +8,28 @@ import (
 	"time"
 )
 
-// LLMRenderer renders output for LLM consumption
+// llmRenderer renders output for LLM consumption.
 // Output is complete, structured, and optimized for LLM reasoning
 // Focus: Organize tool information with hierarchical context
-type LLMRenderer struct{}
+type llmRenderer struct{}
 
-// NewLLMRenderer creates a new LLM renderer
-func NewLLMRenderer() *LLMRenderer {
-	return &LLMRenderer{}
+func newLLMRenderer() *llmRenderer {
+	return &llmRenderer{}
 }
 
 // Target returns the output target
-func (r *LLMRenderer) Target() OutputTarget {
+func (r *llmRenderer) Target() OutputTarget {
 	return TargetLLM
 }
 
 // RenderToolCallStart renders tool call start (not needed for LLM)
-func (r *LLMRenderer) RenderToolCallStart(ctx *types.OutputContext, toolName string, args map[string]interface{}) string {
+func (r *llmRenderer) RenderToolCallStart(ctx *types.OutputContext, toolName string, args map[string]interface{}) string {
 	// Tool call visualization is for user only
 	return ""
 }
 
 // RenderToolCallComplete renders tool result for LLM with hierarchical context
-func (r *LLMRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName string, result string, err error, duration time.Duration) string {
+func (r *llmRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName string, result string, err error, duration time.Duration) string {
 	if err != nil {
 		return r.formatToolError(ctx, toolName, err)
 	}
@@ -38,7 +37,7 @@ func (r *LLMRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 }
 
 // formatToolResult organizes tool output with hierarchical context
-func (r *LLMRenderer) formatToolResult(ctx *types.OutputContext, result string) string {
+func (r *llmRenderer) formatToolResult(ctx *types.OutputContext, result string) string {
 	// For LLM: raw result with minimal context markers
 	var parts []string
 
@@ -53,7 +52,7 @@ func (r *LLMRenderer) formatToolResult(ctx *types.OutputContext, result string) 
 }
 
 // formatToolError formats tool errors with context
-func (r *LLMRenderer) formatToolError(ctx *types.OutputContext, toolName string, err error) string {
+func (r *llmRenderer) formatToolError(ctx *types.OutputContext, toolName string, err error) string {
 	if ctx.Level == types.LevelSubagent {
 		return fmt.Sprintf("[Subagent %s] Error executing %s: %v", ctx.AgentID, toolName, err)
 	}
@@ -61,13 +60,13 @@ func (r *LLMRenderer) formatToolError(ctx *types.OutputContext, toolName string,
 }
 
 // RenderTaskComplete renders task completion for LLM
-func (r *LLMRenderer) RenderTaskComplete(ctx *types.OutputContext, result *domain.TaskResult) string {
+func (r *llmRenderer) RenderTaskComplete(ctx *types.OutputContext, result *domain.TaskResult) string {
 	// LLM only needs the final answer
 	return result.Answer
 }
 
 // RenderError renders error for LLM
-func (r *LLMRenderer) RenderError(ctx *types.OutputContext, phase string, err error) string {
+func (r *llmRenderer) RenderError(ctx *types.OutputContext, phase string, err error) string {
 	if ctx.Level == types.LevelSubagent {
 		return fmt.Sprintf("[Subagent %s] Error in %s: %v", ctx.AgentID, phase, err)
 	}
@@ -75,13 +74,13 @@ func (r *LLMRenderer) RenderError(ctx *types.OutputContext, phase string, err er
 }
 
 // RenderSubagentProgress renders subagent progress (not needed for LLM)
-func (r *LLMRenderer) RenderSubagentProgress(ctx *types.OutputContext, completed, total int, tokens, toolCalls int) string {
+func (r *llmRenderer) RenderSubagentProgress(ctx *types.OutputContext, completed, total int, tokens, toolCalls int) string {
 	// Progress is for user display only
 	return ""
 }
 
 // RenderSubagentComplete renders subagent results for LLM
-func (r *LLMRenderer) RenderSubagentComplete(ctx *types.OutputContext, total, success, failed int, tokens, toolCalls int) string {
+func (r *llmRenderer) RenderSubagentComplete(ctx *types.OutputContext, total, success, failed int, tokens, toolCalls int) string {
 	// LLM only cares about success/failure counts, not visual formatting
 	return fmt.Sprintf("Subagent completed %d/%d tasks (%d failed)", success, total, failed)
 }

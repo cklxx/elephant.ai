@@ -41,30 +41,29 @@ type Renderer interface {
 	RenderSubagentComplete(ctx *types.OutputContext, total, success, failed int, tokens, toolCalls int) string
 }
 
-// OutputManager manages different renderers for different targets
-type OutputManager struct {
+// outputManager manages different renderers for different targets.
+type outputManager struct {
 	renderers map[OutputTarget]Renderer
 }
 
-// NewOutputManager creates a new output manager
-func NewOutputManager() *OutputManager {
-	return &OutputManager{
+func newOutputManager() *outputManager {
+	return &outputManager{
 		renderers: make(map[OutputTarget]Renderer),
 	}
 }
 
 // RegisterRenderer registers a renderer for a target
-func (m *OutputManager) RegisterRenderer(renderer Renderer) {
+func (m *outputManager) RegisterRenderer(renderer Renderer) {
 	m.renderers[renderer.Target()] = renderer
 }
 
 // GetRenderer gets a renderer for a target
-func (m *OutputManager) GetRenderer(target OutputTarget) Renderer {
+func (m *outputManager) GetRenderer(target OutputTarget) Renderer {
 	return m.renderers[target]
 }
 
 // RenderFor renders content for a specific target
-func (m *OutputManager) RenderFor(target OutputTarget, renderFunc func(Renderer) string) string {
+func (m *outputManager) RenderFor(target OutputTarget, renderFunc func(Renderer) string) string {
 	renderer := m.GetRenderer(target)
 	if renderer == nil {
 		return ""

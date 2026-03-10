@@ -28,7 +28,7 @@ func decodeSSEPayload(t *testing.T, raw string) SSEEvent {
 }
 
 func TestSSERendererIncludesFormattedArguments(t *testing.T) {
-	renderer := NewSSERenderer()
+	renderer := newSSERenderer()
 	ctx := &types.OutputContext{Level: types.LevelCore}
 	args := map[string]any{"command": "ls -al"}
 
@@ -53,7 +53,7 @@ func TestSSERendererIncludesFormattedArguments(t *testing.T) {
 }
 
 func TestSSERendererTruncatesLongArgumentsPreview(t *testing.T) {
-	renderer := NewSSERenderer()
+	renderer := newSSERenderer()
 	ctx := &types.OutputContext{Level: types.LevelCore}
 	longCommand := strings.Repeat("abc", 200)
 	args := map[string]any{"command": longCommand}

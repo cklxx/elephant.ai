@@ -18,8 +18,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestOutputManager_RegisterAndGet(t *testing.T) {
-	mgr := NewOutputManager()
-	r := NewLLMRenderer()
+	mgr := newOutputManager()
+	r := newLLMRenderer()
 	mgr.RegisterRenderer(r)
 
 	got := mgr.GetRenderer(TargetLLM)
@@ -27,13 +27,13 @@ func TestOutputManager_RegisterAndGet(t *testing.T) {
 }
 
 func TestOutputManager_GetUnregistered(t *testing.T) {
-	mgr := NewOutputManager()
+	mgr := newOutputManager()
 	assert.Nil(t, mgr.GetRenderer(TargetCLI))
 }
 
 func TestOutputManager_RenderFor(t *testing.T) {
-	mgr := NewOutputManager()
-	mgr.RegisterRenderer(NewLLMRenderer())
+	mgr := newOutputManager()
+	mgr.RegisterRenderer(newLLMRenderer())
 
 	result := mgr.RenderFor(TargetLLM, func(r Renderer) string {
 		return "rendered"
@@ -42,7 +42,7 @@ func TestOutputManager_RenderFor(t *testing.T) {
 }
 
 func TestOutputManager_RenderForMissing(t *testing.T) {
-	mgr := NewOutputManager()
+	mgr := newOutputManager()
 	result := mgr.RenderFor(TargetCLI, func(r Renderer) string {
 		return "should not reach"
 	})
@@ -50,9 +50,9 @@ func TestOutputManager_RenderForMissing(t *testing.T) {
 }
 
 func TestOutputManager_RegisterOverwrites(t *testing.T) {
-	mgr := NewOutputManager()
-	mgr.RegisterRenderer(NewLLMRenderer())
-	mgr.RegisterRenderer(NewLLMRenderer()) // overwrite
+	mgr := newOutputManager()
+	mgr.RegisterRenderer(newLLMRenderer())
+	mgr.RegisterRenderer(newLLMRenderer()) // overwrite
 	assert.NotNil(t, mgr.GetRenderer(TargetLLM))
 }
 
@@ -86,19 +86,19 @@ func TestCategorizeToolName(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLLMRenderer_Target(t *testing.T) {
-	r := NewLLMRenderer()
+	r := newLLMRenderer()
 	assert.Equal(t, TargetLLM, r.Target())
 }
 
 func TestLLMRenderer_ToolCallStartReturnsEmpty(t *testing.T) {
-	r := NewLLMRenderer()
+	r := newLLMRenderer()
 	ctx := &types.OutputContext{Level: types.LevelCore}
 	result := r.RenderToolCallStart(ctx, "shell_exec", map[string]interface{}{"cmd": "ls"})
 	assert.Equal(t, "", result)
 }
 
 func TestLLMRenderer_ToolCallComplete_Success(t *testing.T) {
-	r := NewLLMRenderer()
+	r := newLLMRenderer()
 
 	t.Run("core level", func(t *testing.T) {
 		ctx := &types.OutputContext{Level: types.LevelCore}
@@ -115,7 +115,7 @@ func TestLLMRenderer_ToolCallComplete_Success(t *testing.T) {
 }
 
 func TestLLMRenderer_ToolCallComplete_Error(t *testing.T) {
-	r := NewLLMRenderer()
+	r := newLLMRenderer()
 
 	t.Run("core level", func(t *testing.T) {
 		ctx := &types.OutputContext{Level: types.LevelCore}
@@ -132,7 +132,7 @@ func TestLLMRenderer_ToolCallComplete_Error(t *testing.T) {
 }
 
 func TestLLMRenderer_TaskComplete(t *testing.T) {
-	r := NewLLMRenderer()
+	r := newLLMRenderer()
 	ctx := &types.OutputContext{Level: types.LevelCore}
 	taskResult := &domain.TaskResult{Answer: "The answer is 42"}
 	result := r.RenderTaskComplete(ctx, taskResult)
@@ -140,7 +140,7 @@ func TestLLMRenderer_TaskComplete(t *testing.T) {
 }
 
 func TestLLMRenderer_RenderError(t *testing.T) {
-	r := NewLLMRenderer()
+	r := newLLMRenderer()
 
 	t.Run("core level", func(t *testing.T) {
 		ctx := &types.OutputContext{Level: types.LevelCore}
@@ -157,14 +157,14 @@ func TestLLMRenderer_RenderError(t *testing.T) {
 }
 
 func TestLLMRenderer_SubagentProgressReturnsEmpty(t *testing.T) {
-	r := NewLLMRenderer()
+	r := newLLMRenderer()
 	ctx := &types.OutputContext{Level: types.LevelCore}
 	result := r.RenderSubagentProgress(ctx, 3, 5, 1000, 10)
 	assert.Equal(t, "", result)
 }
 
 func TestLLMRenderer_SubagentComplete(t *testing.T) {
-	r := NewLLMRenderer()
+	r := newLLMRenderer()
 	ctx := &types.OutputContext{Level: types.LevelCore}
 	result := r.RenderSubagentComplete(ctx, 5, 4, 1, 2000, 20)
 	require.NotEmpty(t, result)

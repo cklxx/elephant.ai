@@ -10,21 +10,20 @@ import (
 	"alex/internal/domain/agent/types"
 )
 
-// SSERenderer renders output for SSE (Server-Sent Events) streaming
+// sseRenderer renders output for SSE (Server-Sent Events) streaming.
 // Output is JSON-formatted events suitable for web clients
-type SSERenderer struct {
+type sseRenderer struct {
 	formatter *formatter.ToolFormatter
 }
 
-// NewSSERenderer creates a new SSE renderer
-func NewSSERenderer() *SSERenderer {
-	return &SSERenderer{
+func newSSERenderer() *sseRenderer {
+	return &sseRenderer{
 		formatter: formatter.NewToolFormatter(),
 	}
 }
 
 // Target returns the output target
-func (r *SSERenderer) Target() OutputTarget {
+func (r *sseRenderer) Target() OutputTarget {
 	return TargetSSE
 }
 
@@ -47,7 +46,7 @@ func contextData(ctx *types.OutputContext) map[string]interface{} {
 }
 
 // RenderToolCallStart renders tool call start as SSE event with hierarchy
-func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName string, args map[string]interface{}) string {
+func (r *sseRenderer) RenderToolCallStart(ctx *types.OutputContext, toolName string, args map[string]interface{}) string {
 	presentation := r.formatter.PrepareArgs(toolName, args)
 	data := contextData(ctx)
 	data["tool"] = toolName
@@ -63,7 +62,7 @@ func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 }
 
 // RenderToolCallComplete renders tool call completion as SSE event with hierarchy
-func (r *SSERenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName string, result string, err error, duration time.Duration) string {
+func (r *sseRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName string, result string, err error, duration time.Duration) string {
 	data := contextData(ctx)
 	data["tool"] = toolName
 	data["category"] = string(CategorizeToolName(toolName))
@@ -77,7 +76,7 @@ func (r *SSERenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 }
 
 // RenderTaskComplete renders task completion as SSE event
-func (r *SSERenderer) RenderTaskComplete(ctx *types.OutputContext, result *domain.TaskResult) string {
+func (r *sseRenderer) RenderTaskComplete(ctx *types.OutputContext, result *domain.TaskResult) string {
 	data := contextData(ctx)
 	data["answer"] = result.Answer
 	data["iterations"] = result.Iterations
@@ -87,7 +86,7 @@ func (r *SSERenderer) RenderTaskComplete(ctx *types.OutputContext, result *domai
 }
 
 // RenderError renders error as SSE event with hierarchy
-func (r *SSERenderer) RenderError(ctx *types.OutputContext, phase string, err error) string {
+func (r *sseRenderer) RenderError(ctx *types.OutputContext, phase string, err error) string {
 	data := contextData(ctx)
 	data["phase"] = phase
 	data["error"] = err.Error()
@@ -95,7 +94,7 @@ func (r *SSERenderer) RenderError(ctx *types.OutputContext, phase string, err er
 }
 
 // RenderSubagentProgress renders subagent progress as SSE event
-func (r *SSERenderer) RenderSubagentProgress(ctx *types.OutputContext, completed, total int, tokens, toolCalls int) string {
+func (r *sseRenderer) RenderSubagentProgress(ctx *types.OutputContext, completed, total int, tokens, toolCalls int) string {
 	data := contextData(ctx)
 	data["completed"] = completed
 	data["total"] = total
@@ -105,7 +104,7 @@ func (r *SSERenderer) RenderSubagentProgress(ctx *types.OutputContext, completed
 }
 
 // RenderSubagentComplete renders subagent completion as SSE event
-func (r *SSERenderer) RenderSubagentComplete(ctx *types.OutputContext, total, success, failed int, tokens, toolCalls int) string {
+func (r *sseRenderer) RenderSubagentComplete(ctx *types.OutputContext, total, success, failed int, tokens, toolCalls int) string {
 	data := contextData(ctx)
 	data["total"] = total
 	data["success"] = success
@@ -116,7 +115,7 @@ func (r *SSERenderer) RenderSubagentComplete(ctx *types.OutputContext, total, su
 }
 
 // toSSE converts an SSEEvent to SSE format
-func (r *SSERenderer) toSSE(event SSEEvent) string {
+func (r *sseRenderer) toSSE(event SSEEvent) string {
 	jsonData, err := json.Marshal(event)
 	if err != nil {
 		return ""
