@@ -1,15 +1,13 @@
-# Team Orchestration（CLI-first）
+# Team Orchestration (CLI-first)
 
-## Overview
+CLI commands for multi-agent team workflows:
 
-Team orchestration now uses **CLI + skill** as the primary path:
-
-- Dispatch: `alex team run`
-- Observe runtime: `alex team status`
-- Send follow-up input: `alex team inject`
-- Inspect terminal output: `alex team terminal`
-
-Legacy `run_tasks/reply_agent` remains internal implementation detail and should not be used as user-facing contract.
+```bash
+alex team run       # dispatch workflow
+alex team status    # observe runtime
+alex team inject    # send follow-up input
+alex team terminal  # inspect terminal output
+```
 
 ## Task File Format
 
@@ -31,33 +29,23 @@ tasks:
     inherit_context: true
 ```
 
-## CLI Commands
-
-### 1) Run
+## CLI Examples
 
 ```bash
+# Run from template, file, or prompt
 alex team run --template claude_research --goal "Compare A vs B"
 alex team run --template list
 alex team run --file /tmp/team-task.yaml
 alex team run --prompt "Audit current branch and list top 3 risks"
-```
 
-### 2) Status
-
-```bash
+# Status
 alex team status --json
 alex team status --all --tail 50 --json
-```
 
-### 3) Inject
-
-```bash
+# Inject message to running task
 alex team inject --task-id analyst_a-1 --message "continue with stricter evidence"
-```
 
-### 4) Terminal View
-
-```bash
+# Terminal view
 alex team terminal --mode attach
 alex team terminal --mode capture --lines 200
 alex team terminal --task-id team-researcher --mode capture
@@ -65,6 +53,6 @@ alex team terminal --task-id team-researcher --mode capture
 
 ## Notes
 
-- Runtime artifacts are under `.elephant/tasks/_team_runtime` (or worktree runtime roots).
-- Prefer `skills/team-cli` for LLM-facing instructions so prompts stay aligned with CLI contract.
-
+- Artifacts stored under `.elephant/tasks/_team_runtime`.
+- Use `skills/team-cli` for LLM-facing prompts to stay aligned with CLI contract.
+- Legacy `run_tasks/reply_agent` are internal implementation details.

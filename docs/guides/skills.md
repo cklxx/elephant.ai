@@ -1,11 +1,12 @@
-# Skills integration
-> Last updated: 2026-03-05
+# Skills Integration
 
-This guide explains how `alex` discovers and serves skills (Markdown playbooks) following the [Agent Skills specification](https://agentskills.io/integrate-skills).
+> Last updated: 2026-03-10
 
-## Skill layout
-- Each skill lives in its own folder with a `SKILL.md` (or `SKILL.mdx`) file.
-- YAML frontmatter must include `name` and `description`:
+How `alex` discovers and serves skills (Markdown playbooks).
+
+## Skill Layout
+
+Each skill lives in its own folder with a `SKILL.md` file. YAML frontmatter must include `name` and `description`:
 
 ```md
 ---
@@ -16,65 +17,33 @@ description: Extract text and tables from PDFs.
 ...body...
 ```
 
-Optional frontmatter for meta orchestration:
-- `capabilities`: declarative capability tags (for example `lark_chat`, `self_schedule`, `self_evolve_soul`)
-- `governance_level`: `low|medium|high|critical`
-- `activation_mode`: `auto|semi_auto|manual`
-- `depends_on_skills`: activation dependencies by skill name
-- `produces_events`: declared event names emitted by the skill
-- `requires_approval`: whether policy should gate auto activation
+Optional frontmatter for orchestration: `capabilities`, `governance_level` (`low|medium|high|critical`), `activation_mode` (`auto|semi_auto|manual`), `depends_on_skills`, `produces_events`, `requires_approval`.
 
 ## Discovery
-`alex` searches for skills in this order:
-1) `ALEX_SKILLS_DIR` (absolute or relative path)
-2) `~/.alex/skills`
 
-When `ALEX_SKILLS_DIR` is not set, runtime and web catalog generation both use `~/.alex/skills` and run a one-way sync from repository `skills/`:
-- copy only missing skill directories to `~/.alex/skills`
-- never overwrite existing user skills with the same name
-- never delete files from `~/.alex/skills`
+Search order:
+1. `ALEX_SKILLS_DIR` (if set)
+2. `~/.alex/skills` (default)
 
-Only folder-based `SKILL.md` layouts are supported. Skills with missing frontmatter are rejected; duplicate names are rejected.
+When `ALEX_SKILLS_DIR` is unset, runtime syncs from repository `skills/` — copies missing skills only, never overwrites or deletes existing user skills.
 
-## Product-level dedup policy
-- Evaluate skill redundancy by **user-visible capability coverage**, not implementation differences.
-- Prefer **one canonical entrypoint per product capability domain** (for example, keep `feishu-cli` as the single Feishu operations skill).
-- Remove thin wrapper skills when the canonical entrypoint already supports the same user job-to-be-done.
-- Keep domain workflow skills only if they provide clear product value beyond generic model behavior (for example, stronger SOP, governance, or artifacts).
-- For capability review docs and decisions, list overlaps in terms of user intents, expected outcomes, and operating surface area.
-- When two skills overlap, merge the more specific/derived variant into the canonical product-facing skill name (for example, `anygen-task-creator -> anygen`), not the reverse.
+Only folder-based `SKILL.md` layouts are supported. Missing frontmatter or duplicate names are rejected.
 
-## Prompt metadata
-At startup we parse frontmatter to build a compact catalog for prompts and the `skills` tool. The system prompt injects the metadata using the Agent Skills `<available_skills>` XML format. A Claude-style example based on the Agent Skills guide:
+## Using the `skills` Tool
 
-```xml
-<available_skills>
-  <skill>
-    <name>pdf_processing</name>
-    <description>Extracts text and tables from PDF files.</description>
-    <location>/path/to/skills/pdf-processing/SKILL.md</location>
-  </skill>
-  <skill>
-    <name>data_analysis</name>
-    <description>Analyzes datasets, generates charts, and creates summary reports.</description>
-    <location>/path/to/skills/data-analysis/SKILL.md</location>
-  </skill>
-</available_skills>
-```
+- `action=list` — catalog (names + descriptions)
+- `action=show` — skill body
+- `action=search` — ranked matches by name/description/body
 
-## Using the `skills` tool
-- `action=list` renders the catalog (names + descriptions).
-- `action=show` returns a specific skill body.
-- `action=search` ranks matches by name/description/body.
+## Dedup Policy
 
-## Meta orchestration policy
-- Runtime can apply additional activation and linkage rules from `configs/skills/meta-orchestrator.yaml`.
-- Policy controls activation defaults, governance gates, immutable SOUL sections, and skill linkage edges.
-- Prompt injection includes a compact orchestration summary (`Meta Skill Orchestration`) when enabled.
+- One canonical entrypoint per capability domain.
+- Remove thin wrappers when the canonical skill already covers the same user job.
+- When skills overlap, merge the derived variant into the canonical name (e.g., `anygen-task-creator → anygen`).
 
-## Security considerations
-Running skill-bundled scripts can be risky. Prefer:
-- **Sandboxing**: execute scripts in isolated environments.
-- **Allowlisting**: load only trusted skills.
-- **Confirmation**: prompt before potentially destructive actions.
-- **Logging**: record executions for auditability.
+## Security
+
+- Prefer sandboxing for skill scripts.
+- Only load trusted skills.
+- Prompt before destructive actions.
+- Log all executions.
