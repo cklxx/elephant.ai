@@ -257,3 +257,130 @@ func TestTaskExecutionService_ResumePendingTasks_RespectsClaimBatchSize(t *testi
 
 	t.Fatalf("expected 2 resumed executions, got %d", agentExecutor.executionCount())
 }
+
+func TestTaskExecutionService_PrepareGracefulShutdown(t *testing.T) {
+	ctx := context.Background()
+	taskStore := NewInMemoryTaskStore()
+	defer taskStore.Close()
+
+	// Create two running tasks and one completed task.
+	runCtx1 := id.WithRunID(ctx, "run-shutdown-1")
+	task1, err := taskStore.Create(runCtx1, "session-1", "analyze data", "planner", "safe")
+	if err != nil {
+		t.Fatalf("create task1: %v", err)
+	}
+	if err := taskStore.SetStatus(ctx, task1.ID, serverPorts.TaskStatusRunning); err != nil {
+		t.Fatalf("set running status for task1: %v", err)
+	}
+
+	runCtx2 := id.WithRunID(ctx, "run-shutdown-2")
+	task2, err := taskStore.Create(runCtx2, "session-2", "generate report", "planner", "safe")
+	if err != nil {
+		t.Fatalf("create task2: %v", err)
+	}
+	if err := taskStore.SetStatus(ctx, task2.ID, serverPorts.TaskStatusRunning); err != nil {
+		t.Fatalf("set running status for task2: %v", err)
+	}
+
+	runCtx3 := id.WithRunID(ctx, "run-shutdown-completed")
+	task3, err := taskStore.Create(runCtx3, "session-3", "already done", "planner", "safe")
+	if err != nil {
+		t.Fatalf("create task3: %v", err)
+	}
+	if err := taskStore.SetStatus(ctx, task3.ID, serverPorts.TaskStatusCompleted); err != nil {
+		t.Fatalf("set completed status for task3: %v", err)
+	}
+
+	sessionStore := NewMockSessionStore()
+	agentExecutor := &resumeAgentExecutor{sessionStore: sessionStore}
+	svc := NewTaskExecutionService(
+		agentExecutor,
+		NewEventBroadcaster(),
+		taskStore,
+	)
+
+	// Simulate in-flight tasks by registering cancel funcs.
+	canceled := make(map[string]bool)
+	var cancelMu sync.Mutex
+	for _, taskID := range []string{task1.ID, task2.ID, task3.ID} {
+		tid := taskID
+		_, cancelFn := context.WithCancelCause(ctx)
+		svc.cancelMu.Lock()
+		svc.cancelFuncs[tid] = func(cause error) {
+			cancelMu.Lock()
+			canceled[tid] = true
+			cancelMu.Unlock()
+			cancelFn(cause)
+		}
+		svc.cancelMu.Unlock()
+	}
+
+	interrupted := svc.PrepareGracefulShutdown(ctx)
+
+	// All three cancel funcs should have been invoked.
+	cancelMu.Lock()
+	if len(canceled) != 3 {
+		cancelMu.Unlock()
+		t.Fatalf("expected 3 cancelled tasks, got %d", len(canceled))
+	}
+	cancelMu.Unlock()
+
+	// Only the two running tasks should be in the interrupted list.
+	if len(interrupted) != 2 {
+		t.Fatalf("expected 2 interrupted tasks, got %d", len(interrupted))
+	}
+
+	interruptedIDs := map[string]string{}
+	for _, it := range interrupted {
+		interruptedIDs[it.ID] = it.Description
+	}
+	if interruptedIDs[task1.ID] != "analyze data" {
+		t.Fatalf("expected task1 description 'analyze data', got %q", interruptedIDs[task1.ID])
+	}
+	if interruptedIDs[task2.ID] != "generate report" {
+		t.Fatalf("expected task2 description 'generate report', got %q", interruptedIDs[task2.ID])
+	}
+
+	// Running tasks should now be pending.
+	got1, _ := taskStore.Get(ctx, task1.ID)
+	if got1.Status != serverPorts.TaskStatusPending {
+		t.Fatalf("expected task1 status pending, got %s", got1.Status)
+	}
+	got2, _ := taskStore.Get(ctx, task2.ID)
+	if got2.Status != serverPorts.TaskStatusPending {
+		t.Fatalf("expected task2 status pending, got %s", got2.Status)
+	}
+
+	// Completed task should remain completed.
+	got3, _ := taskStore.Get(ctx, task3.ID)
+	if got3.Status != serverPorts.TaskStatusCompleted {
+		t.Fatalf("expected task3 status completed, got %s", got3.Status)
+	}
+
+	// Cancel funcs map should be cleared.
+	svc.cancelMu.RLock()
+	if len(svc.cancelFuncs) != 0 {
+		svc.cancelMu.RUnlock()
+		t.Fatalf("expected cancel funcs to be cleared, got %d", len(svc.cancelFuncs))
+	}
+	svc.cancelMu.RUnlock()
+}
+
+func TestTaskExecutionService_PrepareGracefulShutdown_NoRunningTasks(t *testing.T) {
+	ctx := context.Background()
+	taskStore := NewInMemoryTaskStore()
+	defer taskStore.Close()
+
+	sessionStore := NewMockSessionStore()
+	agentExecutor := &resumeAgentExecutor{sessionStore: sessionStore}
+	svc := NewTaskExecutionService(
+		agentExecutor,
+		NewEventBroadcaster(),
+		taskStore,
+	)
+
+	interrupted := svc.PrepareGracefulShutdown(ctx)
+	if interrupted != nil {
+		t.Fatalf("expected nil interrupted list, got %v", interrupted)
+	}
+}

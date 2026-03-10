@@ -222,7 +222,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	})
 
 	cleanup := func() {
-		interrupted := gateway.NotifyRunningTaskInterruptions("服务重启中，当前执行已中断。请稍后重试。")
+		interrupted := gateway.NotifyRunningTaskInterruptions("系统正在维护中，您的任务将在服务恢复后自动重新执行。")
 		if interrupted > 0 {
 			logger.Info("Lark gateway sent interruption notice to %d running chats", interrupted)
 		}

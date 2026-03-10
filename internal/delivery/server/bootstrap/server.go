@@ -134,6 +134,13 @@ func RunServer(observabilityConfigPath string) error {
 		taskStore,
 		taskOpts...,
 	)
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if interrupted := tasksSvc.PrepareGracefulShutdown(shutdownCtx); len(interrupted) > 0 {
+			logger.Info("[Shutdown] Reset %d running task(s) to pending for auto-resume", len(interrupted))
+		}
+	}()
 
 	sessionsSvc := serverApp.NewSessionService(
 		container.AgentCoordinator,

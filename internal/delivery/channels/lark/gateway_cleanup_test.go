@@ -1,6 +1,7 @@
 package lark
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -123,4 +124,132 @@ func TestGatewayNotifyRunningTaskInterruptionsCancelsAndNotifies(t *testing.T) {
 		t.Fatalf("expected intentional cancel token=%d, got %d", running.taskToken, running.intentionalCancelToken)
 	}
 	running.mu.Unlock()
+}
+
+func TestNotifyRunningTaskInterruptionsDefaultAutoResumeMessage(t *testing.T) {
+	rec := NewRecordingMessenger()
+	running := &sessionSlot{
+		phase:     slotRunning,
+		taskToken: 1,
+		taskCancel: func() {
+			// no-op cancel
+		},
+	}
+	gw := &Gateway{
+		messenger: rec,
+		logger:    logging.OrNop(nil),
+	}
+	gw.activeSlots.Store("chat-1", running)
+
+	// Use empty notice to trigger default message.
+	gw.NotifyRunningTaskInterruptions("")
+
+	calls := rec.CallsByMethod(MethodSendMessage)
+	if len(calls) != 1 {
+		t.Fatalf("expected one message, got %d", len(calls))
+	}
+	text := extractTextContent(calls[0].Content, nil)
+	if !strings.Contains(text, "自动重新执行") {
+		t.Fatalf("expected auto-resume default message, got %q", text)
+	}
+}
+
+func TestNotifyRunningTaskInterruptionsIncludesTaskDescription(t *testing.T) {
+	rec := NewRecordingMessenger()
+	running := &sessionSlot{
+		phase:     slotRunning,
+		taskToken: 1,
+		taskCancel: func() {},
+	}
+
+	// Set up a task store with a running task description.
+	taskStore := NewTaskMemoryStore(time.Hour, 100)
+	_ = taskStore.EnsureSchema(context.Background())
+	_ = taskStore.SaveTask(context.Background(), TaskRecord{
+		ChatID:      "chat-with-task",
+		TaskID:      "task-123",
+		Description: "分析上周的用户反馈数据",
+		Status:      "running",
+		CreatedAt:   time.Now(),
+	})
+
+	gw := &Gateway{
+		messenger: rec,
+		logger:    logging.OrNop(nil),
+		taskStore: taskStore,
+	}
+	gw.activeSlots.Store("chat-with-task", running)
+
+	gw.NotifyRunningTaskInterruptions("")
+
+	calls := rec.CallsByMethod(MethodSendMessage)
+	if len(calls) != 1 {
+		t.Fatalf("expected one message, got %d", len(calls))
+	}
+	text := extractTextContent(calls[0].Content, nil)
+	if !strings.Contains(text, "分析上周的用户反馈数据") {
+		t.Fatalf("expected task description in message, got %q", text)
+	}
+	if !strings.Contains(text, "自动重新执行") {
+		t.Fatalf("expected auto-resume promise in message, got %q", text)
+	}
+}
+
+func TestNotifyRunningTaskInterruptionsWithoutTaskStore(t *testing.T) {
+	rec := NewRecordingMessenger()
+	running := &sessionSlot{
+		phase:     slotRunning,
+		taskToken: 1,
+		taskCancel: func() {},
+	}
+
+	gw := &Gateway{
+		messenger: rec,
+		logger:    logging.OrNop(nil),
+		// No taskStore set — should still send the fallback message.
+	}
+	gw.activeSlots.Store("chat-1", running)
+
+	gw.NotifyRunningTaskInterruptions("")
+
+	calls := rec.CallsByMethod(MethodSendMessage)
+	if len(calls) != 1 {
+		t.Fatalf("expected one message, got %d", len(calls))
+	}
+	text := extractTextContent(calls[0].Content, nil)
+	if !strings.Contains(text, "自动重新执行") {
+		t.Fatalf("expected auto-resume fallback message, got %q", text)
+	}
+}
+
+func TestBuildShutdownNoticesTruncatesLongDescriptions(t *testing.T) {
+	taskStore := NewTaskMemoryStore(time.Hour, 100)
+	_ = taskStore.EnsureSchema(context.Background())
+
+	longDesc := strings.Repeat("很长的任务描述", 20) // way over 80 chars
+	_ = taskStore.SaveTask(context.Background(), TaskRecord{
+		ChatID:      "chat-long",
+		TaskID:      "task-long",
+		Description: longDesc,
+		Status:      "running",
+		CreatedAt:   time.Now(),
+	})
+
+	gw := &Gateway{
+		logger:    logging.OrNop(nil),
+		taskStore: taskStore,
+	}
+
+	notices := gw.buildShutdownNotices([]string{"chat-long"})
+	notice, ok := notices["chat-long"]
+	if !ok {
+		t.Fatal("expected notice for chat-long")
+	}
+	// The description portion should be truncated.
+	if !strings.Contains(notice, "...") {
+		t.Fatalf("expected truncated description, got %q", notice)
+	}
+	if !strings.Contains(notice, "自动重新执行") {
+		t.Fatalf("expected auto-resume promise, got %q", notice)
+	}
 }

@@ -126,14 +126,15 @@ func (g *Gateway) Stop() {
 }
 
 // NotifyRunningTaskInterruptions cancels in-flight foreground tasks and sends
-// a visible interruption notice to each affected chat.
+// a visible interruption notice to each affected chat. When the TaskStore is
+// available, the notice includes the task description and promises auto-resume.
 func (g *Gateway) NotifyRunningTaskInterruptions(notice string) int {
 	if g == nil {
 		return 0
 	}
 	notice = strings.TrimSpace(notice)
 	if notice == "" {
-		notice = "服务正在重启，当前执行已中断。请稍后重试。"
+		notice = "系统正在维护中，您的任务将在服务恢复后自动重新执行。"
 	}
 
 	type runningTarget struct {
@@ -169,13 +170,53 @@ func (g *Gateway) NotifyRunningTaskInterruptions(notice string) int {
 		return 0
 	}
 
+	// Build per-chat messages with task descriptions when TaskStore is available.
+	chatIDs := make([]string, len(targets))
+	for i, t := range targets {
+		chatIDs[i] = t.chatID
+	}
+	chatNotices := g.buildShutdownNotices(chatIDs)
+
 	notifyCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for _, target := range targets {
 		target.cancel()
-		g.dispatch(notifyCtx, target.chatID, "", "text", textContent(notice))
+		msg := chatNotices[target.chatID]
+		if msg == "" {
+			msg = notice
+		}
+		g.dispatch(notifyCtx, target.chatID, "", "text", textContent(msg))
 	}
 	return len(targets)
+}
+
+// buildShutdownNotices looks up active task descriptions for each affected chat
+// and returns a per-chat notice that includes the task name.
+func (g *Gateway) buildShutdownNotices(chatIDs []string) map[string]string {
+	notices := make(map[string]string, len(chatIDs))
+	if g.taskStore == nil {
+		return notices
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	for _, chatID := range chatIDs {
+		tasks, err := g.taskStore.ListByChat(ctx, chatID, true, 1)
+		if err != nil || len(tasks) == 0 {
+			continue
+		}
+		desc := strings.TrimSpace(tasks[0].Description)
+		if desc == "" {
+			continue
+		}
+		// Truncate long descriptions for readability.
+		if len(desc) > 80 {
+			desc = desc[:80] + "..."
+		}
+		notices[chatID] = "系统正在维护中，您的任务「" + desc + "」将在服务恢复后自动重新执行。"
+	}
+	return notices
 }
 
 // WaitForTasks blocks until all in-flight task goroutines complete.

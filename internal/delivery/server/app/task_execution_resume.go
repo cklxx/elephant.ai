@@ -151,6 +151,64 @@ func (svc *TaskExecutionService) resumeOrphanedBridges(ctx context.Context, logg
 	logger.Info("Resume orphan bridge scan: adopted=%d harvested=%d failed=%d", adopted, harvested, failed)
 }
 
+// InterruptedTask describes a task that was interrupted during graceful shutdown.
+type InterruptedTask struct {
+	ID          string
+	Description string
+	SessionID   string
+}
+
+// PrepareGracefulShutdown cancels all in-flight tasks and resets their status to
+// pending so they will be automatically resumed on the next startup. Returns the
+// list of interrupted tasks for notification purposes.
+func (svc *TaskExecutionService) PrepareGracefulShutdown(ctx context.Context) []InterruptedTask {
+	logger := logging.FromContext(ctx, svc.logger)
+
+	// Snapshot and cancel all running tasks.
+	svc.cancelMu.Lock()
+	taskIDs := make([]string, 0, len(svc.cancelFuncs))
+	for taskID, cancelFn := range svc.cancelFuncs {
+		taskIDs = append(taskIDs, taskID)
+		cancelFn(fmt.Errorf("graceful shutdown"))
+	}
+	svc.cancelFuncs = make(map[string]context.CancelCauseFunc)
+	svc.cancelMu.Unlock()
+
+	if len(taskIDs) == 0 {
+		return nil
+	}
+
+	// Reset each running task to pending and release its lease so the next
+	// process picks it up via ResumePendingTasks.
+	interrupted := make([]InterruptedTask, 0, len(taskIDs))
+	for _, taskID := range taskIDs {
+		task, err := svc.taskStore.Get(ctx, taskID)
+		if err != nil {
+			logger.Warn("Graceful shutdown: cannot read task %s: %v", taskID, err)
+			continue
+		}
+		// Only reset non-terminal tasks.
+		if task.Status == serverPorts.TaskStatusCompleted ||
+			task.Status == serverPorts.TaskStatusFailed ||
+			task.Status == serverPorts.TaskStatusCancelled {
+			continue
+		}
+		if err := svc.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusPending); err != nil {
+			logger.Warn("Graceful shutdown: cannot reset task %s to pending: %v", taskID, err)
+			continue
+		}
+		_ = svc.taskStore.ReleaseTaskLease(ctx, taskID, svc.ownerID)
+		interrupted = append(interrupted, InterruptedTask{
+			ID:          taskID,
+			Description: task.Description,
+			SessionID:   task.SessionID,
+		})
+		logger.Info("Graceful shutdown: task %s reset to pending for auto-resume", taskID)
+	}
+
+	return interrupted
+}
+
 func defaultTaskOwnerID() string {
 	host, err := os.Hostname()
 	if err != nil || utils.IsBlank(host) {
