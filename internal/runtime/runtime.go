@@ -205,7 +205,7 @@ func (rt *Runtime) StartSession(ctx context.Context, id string, parentPaneID int
 			_ = rt.store.Save(s)
 			return fmt.Errorf("runtime: create pane: %w", err)
 		}
-		s.SetPane(pane.ID, pane.ID)
+		s.SetPane(pane.PaneID(), pane.PaneID())
 		_ = pane.Activate(ctx)
 	}
 

@@ -17,10 +17,24 @@ import (
 	"time"
 )
 
+// PaneIface is the interface for a terminal pane.
+// Adapters depend on this interface, not the concrete *Pane type,
+// enabling alternative backends (tmux, screen, headless stub).
+type PaneIface interface {
+	PaneID() int
+	InjectText(ctx context.Context, text string) error
+	Submit(ctx context.Context) error
+	Send(ctx context.Context, text string) error
+	SendKey(ctx context.Context, key string) error
+	CaptureOutput(ctx context.Context) (string, error)
+	Activate(ctx context.Context) error
+	Kill(ctx context.Context) error
+}
+
 // ManagerIface is the interface satisfied by Manager.
 // It allows adapters to accept a mock in tests without requiring a real Kaku binary.
 type ManagerIface interface {
-	Split(ctx context.Context, opts SplitOpts) (*Pane, error)
+	Split(ctx context.Context, opts SplitOpts) (PaneIface, error)
 	List(ctx context.Context) (string, error)
 }
 
@@ -37,9 +51,12 @@ type Pane struct {
 	binary string
 }
 
+// PaneID returns the pane's numeric identifier.
+func (p *Pane) PaneID() int { return p.ID }
+
 // NewPane creates a Pane with the given ID and the default kaku binary path.
 // Use this when you have a pane ID but no Manager reference (e.g. pool mode).
-func NewPane(id int) *Pane {
+func NewPane(id int) PaneIface {
 	bin := os.Getenv("KAKU_BIN")
 	if bin == "" {
 		bin = defaultKakuBin
@@ -74,7 +91,7 @@ type SplitOpts struct {
 
 // Split creates a new pane by splitting an existing one.
 // Returns the new Pane. The pane starts a login shell (zsh -l).
-func (m *Manager) Split(ctx context.Context, opts SplitOpts) (*Pane, error) {
+func (m *Manager) Split(ctx context.Context, opts SplitOpts) (PaneIface, error) {
 	dir := opts.Direction
 	if dir == "" {
 		dir = defaultSplitBottom

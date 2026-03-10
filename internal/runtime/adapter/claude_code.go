@@ -33,7 +33,7 @@ type ClaudeCodeAdapter struct {
 	hooksURL string // RUNTIME_HOOKS_URL to pass to CC
 
 	mu    sync.Mutex
-	panes map[string]*panel.Pane // sessionID → pane
+	panes map[string]panel.PaneIface // sessionID → pane
 }
 
 // NewClaudeCodeAdapter creates an adapter for Claude Code sessions.
@@ -44,7 +44,7 @@ func NewClaudeCodeAdapter(pm panel.ManagerIface, sink HookSink, hooksURL string)
 		pm:       pm,
 		sink:     sink,
 		hooksURL: hooksURL,
-		panes:    make(map[string]*panel.Pane),
+		panes:    make(map[string]panel.PaneIface),
 	}
 }
 
@@ -208,7 +208,7 @@ func (a *ClaudeCodeAdapter) Start(ctx context.Context, opts StartOpts) error {
 		ensureCCHooks(script)
 	}
 
-	var pane *panel.Pane
+	var pane panel.PaneIface
 
 	switch opts.Mode {
 	case ModeDirectPane:
@@ -319,7 +319,7 @@ func (a *ClaudeCodeAdapter) Stop(ctx context.Context, sessionID string, poolPane
 // detects a shell prompt (indicating CC has exited), then calls OnCompleted
 // or OnFailed. This is a fallback — structured completion events arrive
 // via the runtime hooks handler (notify_runtime.sh).
-func (a *ClaudeCodeAdapter) watchForCompletion(ctx context.Context, sessionID string, pane *panel.Pane) {
+func (a *ClaudeCodeAdapter) watchForCompletion(ctx context.Context, sessionID string, pane panel.PaneIface) {
 	ticker := time.NewTicker(ccPollInterval)
 	defer ticker.Stop()
 
@@ -373,13 +373,13 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
-func (a *ClaudeCodeAdapter) getPane(sessionID string) *panel.Pane {
+func (a *ClaudeCodeAdapter) getPane(sessionID string) panel.PaneIface {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.panes[sessionID]
 }
 
-func (a *ClaudeCodeAdapter) removePane(sessionID string) *panel.Pane {
+func (a *ClaudeCodeAdapter) removePane(sessionID string) panel.PaneIface {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	p := a.panes[sessionID]
