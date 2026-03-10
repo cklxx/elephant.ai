@@ -1,17 +1,20 @@
-# ALEX 部署指南
+# Deployment Guide
 
-Updated: 2026-02-10
+Updated: 2026-03-10
 
-本文档基于当前仓库实现，覆盖本地开发、Docker Compose 部署与自定义 Kubernetes 部署要点。
+How to deploy elephant.ai locally, with Docker Compose, or on Kubernetes. Includes leader agent deployment.
 
-## 1. 本地开发部署（推荐）
+---
 
-前置要求：
+## 1. Prerequisites
+
 - Go 1.24+
 - Node.js 20+
-- Docker（可选，但建议用于 sandbox 与本地服务依赖）
+- Docker (optional, recommended for sandbox and service dependencies)
 
-快速启动：
+---
+
+## 2. Local Development
 
 ```bash
 make build
@@ -19,27 +22,30 @@ alex setup
 alex dev up
 ```
 
-常用运维命令：
-
-```bash
-alex dev status
-alex dev logs server
-alex dev logs web
-alex dev down
-```
-
-默认访问地址：
-- Web: `http://localhost:3000`
+Default endpoints:
+- Web UI: `http://localhost:3000`
 - API/SSE: `http://localhost:8080`
 - Health: `http://localhost:8080/health`
 
-## 2. Docker Compose 部署
+Common commands:
 
-仓库内置 Compose 文件：
-- `deploy/docker/docker-compose.dev.yml`
-- `deploy/docker/docker-compose.yml`
+| Task | Command |
+|------|---------|
+| Check status | `alex dev status` |
+| View server logs | `alex dev logs server` |
+| View web logs | `alex dev logs web` |
+| Stop all | `alex dev down` |
+| Restart backend only | `alex dev restart backend` |
 
-启动（开发版）：
+---
+
+## 3. Docker Compose
+
+Two compose files ship in `deploy/docker/`:
+- `docker-compose.dev.yml` — hot-reload, local volumes
+- `docker-compose.yml` — production-like build
+
+### Dev mode
 
 ```bash
 export LLM_API_KEY="sk-..."
@@ -47,46 +53,51 @@ cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 docker compose -f deploy/docker/docker-compose.dev.yml up -d
 ```
 
-启动（标准版）：
+### Production mode
 
 ```bash
 docker compose -f deploy/docker/docker-compose.yml build
 docker compose -f deploy/docker/docker-compose.yml up -d
 ```
 
-查看日志与停止：
+### Logs and teardown
 
 ```bash
 docker compose -f deploy/docker/docker-compose.yml logs -f
 docker compose -f deploy/docker/docker-compose.yml down
 ```
 
-## 3. Kubernetes 部署（自定义清单）
+---
 
-仓库当前不再维护内置 K8s manifests。建议流程：
-1. 构建并推送镜像（server + web）。
-2. 使用 Secret 注入敏感配置（API keys、JWT secret、DB URL 等）。
-3. 通过 ConfigMap 挂载 `config.yaml`（或设置 `ALEX_CONFIG_PATH`）。
-4. 自定义 Deployment/Service/Ingress/HPA 并按环境治理资源。
+## 4. Kubernetes
 
-示例镜像构建：
+No built-in K8s manifests are maintained. Build your own:
 
-```bash
-docker build -f deploy/docker/Dockerfile.server -t your-registry/alex-server:latest .
-docker build -f web/Dockerfile -t your-registry/alex-web:latest ./web
-```
+1. Build and push images:
+   ```bash
+   docker build -f deploy/docker/Dockerfile.server -t your-registry/alex-server:latest .
+   docker build -f web/Dockerfile -t your-registry/alex-web:latest ./web
+   ```
+2. Store secrets (API keys, JWT secret, DB URLs) in a Secret resource.
+3. Mount `config.yaml` via ConfigMap, or set `ALEX_CONFIG_PATH`.
+4. Create Deployment, Service, Ingress, and HPA as needed.
 
-## 4. 配置与密钥
+---
 
-主配置文件：`~/.alex/config.yaml`（或 `ALEX_CONFIG_PATH` 指向的路径）。
+## 5. Configuration
 
-建议通过环境变量做 YAML 插值，例如：
-- `LLM_API_KEY`
-- `AUTH_JWT_SECRET`
-- `AUTH_DATABASE_URL`
-- `ALEX_SESSION_DATABASE_URL`
+Main config: `~/.alex/config.yaml` (or path in `ALEX_CONFIG_PATH`).
 
-示例（节选）：
+Required environment variables:
+
+| Variable | Purpose |
+|----------|---------|
+| `LLM_API_KEY` | LLM provider API key |
+| `AUTH_JWT_SECRET` | JWT signing secret |
+| `AUTH_DATABASE_URL` | Auth database connection |
+| `ALEX_SESSION_DATABASE_URL` | Session database connection |
+
+Example config snippet:
 
 ```yaml
 runtime:
@@ -101,19 +112,109 @@ session:
   database_url: "${ALEX_SESSION_DATABASE_URL}"
 ```
 
-完整字段见：`docs/reference/CONFIG.md`。
+Full field reference: `docs/reference/CONFIG.md`.
 
-## 5. 运行观测与排障
+---
 
-结构化运行日志：
-- `alex-service.log`
-- `alex-llm.log`
-- `alex-latency.log`
+## 6. Leader Agent Deployment
 
-默认目录：
-- `ALEX_LOG_DIR`（默认 `$HOME`）
-- `ALEX_REQUEST_LOG_DIR`（默认 `${PWD}/logs/requests`）
+The leader agent runs proactive features (blocker radar, weekly pulse, milestone check-in, prep brief). It runs inside the server process — no separate binary needed.
 
-开发进程日志（`alex dev`）：默认写到 `logs/`（如 `logs/server.log`, `logs/web.log`）。
+### Enable leader features
 
-更多说明见：`docs/reference/LOG_FILES.md`。
+Add to `~/.alex/config.yaml`:
+
+```yaml
+proactive:
+  scheduler:
+    enabled: true
+
+    blocker_radar:
+      enabled: true
+      schedule: "*/10 * * * *"
+      stale_threshold_seconds: 1800
+      channel: lark
+      chat_id: oc_YOUR_CHAT_ID
+
+    weekly_pulse:
+      enabled: true
+      schedule: "0 9 * * 1"
+      channel: lark
+      chat_id: oc_YOUR_CHAT_ID
+
+    milestone_checkin:
+      enabled: true
+      schedule: "0 */1 * * *"
+      channel: lark
+      chat_id: oc_YOUR_CHAT_ID
+
+    prep_brief:
+      enabled: true
+      schedule: "30 8 * * 1-5"
+      member_id: ou_TARGET_MEMBER
+      channel: lark
+      chat_id: oc_YOUR_CHAT_ID
+```
+
+### Required Lark credentials
+
+Set these env vars before starting the server:
+
+```bash
+export LARK_APP_ID="cli_xxx"
+export LARK_APP_SECRET="yyy"
+```
+
+The Lark bot must be added to each target chat group.
+
+### Attention gate and rate limiter
+
+Control notification volume separately:
+
+```yaml
+channels:
+  lark:
+    attention_gate:
+      enabled: true
+      budget_max: 10
+      budget_window_seconds: 600
+      quiet_hours_start: 22
+      quiet_hours_end: 8
+    rate_limiter:
+      enabled: true
+      chat_hourly_limit: 10
+      user_daily_limit: 50
+```
+
+### Multi-instance warning
+
+The scheduler has no distributed lock by default. Run only one server instance with `proactive.scheduler.enabled: true` to avoid duplicate notifications.
+
+### Verify leader health
+
+```bash
+curl -s http://localhost:8080/health | jq '.components[] | select(.name == "scheduler")'
+```
+
+Each job shows `registered`, `healthy`, `last_run`, and `next_run`.
+
+---
+
+## 7. Logs and Observability
+
+Structured log files:
+
+| Log file | Content |
+|----------|---------|
+| `alex-service.log` | Service-level events |
+| `alex-llm.log` | LLM request/response traces |
+| `alex-latency.log` | Latency measurements |
+
+Log directories:
+- `ALEX_LOG_DIR` (default: `$HOME`)
+- `ALEX_REQUEST_LOG_DIR` (default: `${PWD}/logs/requests`)
+- Dev process logs: `logs/server.log`, `logs/web.log`
+
+Full details: `docs/reference/LOG_FILES.md`.
+
+Leader-specific metrics are exported at `localhost:<prometheus_port>/metrics` (prefix `alex_leader_`). See `docs/runbooks/leader-agent-runbook.md` for alert rules.
