@@ -112,11 +112,6 @@ type BackgroundTaskSessionInjector interface {
 	InjectBackgroundInput(ctx context.Context, taskID string, input string) error
 }
 
-// ExternalWorkspaceMerger allows tools to merge external agent workspaces.
-type ExternalWorkspaceMerger interface {
-	MergeExternalWorkspace(ctx context.Context, taskID string, strategy MergeStrategy) (*MergeResult, error)
-}
-
 // BackgroundCompletionNotifier receives direct completion notifications from
 // BackgroundTaskManager, bypassing the event listener chain. This ensures
 // TaskStore is updated even when the SerializingEventListener queue times out.

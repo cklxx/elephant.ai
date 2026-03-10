@@ -7,7 +7,7 @@ Server-Sent Events (SSE) backend for ALEX, enabling real-time streaming of agent
 Follows hexagonal architecture pattern:
 
 ```
-ports/              # Interfaces (SSEBroadcaster, ServerSessionManager)
+ports/              # Interfaces (TaskStore, HealthChecker)
   ↑
 app/                # Application logic (EventBroadcaster, ServerCoordinator)
   ↑
