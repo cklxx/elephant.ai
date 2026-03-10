@@ -13,6 +13,7 @@ import (
 	"alex/internal/app/prepbrief"
 	"alex/internal/app/pulse"
 	"alex/internal/app/scheduler"
+	"alex/internal/infra/leaderlock"
 	infranotify "alex/internal/infra/notification"
 	"alex/internal/infra/observability"
 	okrtools "alex/internal/infra/tools/builtin/okr"
@@ -147,7 +148,7 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, me
 		MaxConcurrent:       maxConcurrent,
 		RecoveryMaxRetries:  recoveryMaxRetries,
 		RecoveryBackoff:     recoveryBackoff,
-		LeaderLock:          nil, // distributed lock removed (local single-process)
+		LeaderLock:          buildLeaderLock(cfg, logger),
 	}
 
 	sched := scheduler.New(schedCfg, container.AgentCoordinator, notifier, logger)
@@ -205,4 +206,42 @@ type prepBriefAdapter struct {
 func (a *prepBriefAdapter) GenerateAndSend(ctx context.Context, memberID string) error {
 	_, err := a.svc.SendBrief(ctx, memberID)
 	return err
+}
+
+// buildLeaderLock creates a file-based leader lock if enabled in config.
+// The lock file is placed next to the job store file, or in ~/.alex/ as fallback.
+func buildLeaderLock(cfg Config, logger logging.Logger) scheduler.LeaderLock {
+	schedCfg := cfg.Runtime.Proactive.Scheduler
+	if !schedCfg.LeaderLockEnabled {
+		return nil
+	}
+
+	name := schedCfg.LeaderLockName
+	if name == "" {
+		name = "proactive_scheduler"
+	}
+
+	// Derive lock file path from job store path or home dir.
+	lockDir := ""
+	if p := strings.TrimSpace(schedCfg.JobStorePath); p != "" {
+		lockDir = filepath.Dir(expandHome(p))
+	}
+	if lockDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			logger.Warn("Scheduler: cannot determine home dir for leader lock: %v", err)
+			return nil
+		}
+		lockDir = filepath.Join(home, ".alex")
+	}
+
+	lockPath := filepath.Join(lockDir, name+".lock")
+	lock, err := leaderlock.NewFileLock(lockPath, name)
+	if err != nil {
+		logger.Warn("Scheduler: failed to create leader lock at %s: %v", lockPath, err)
+		return nil
+	}
+
+	logger.Info("Scheduler: leader lock configured at %s (name=%s)", lockPath, name)
+	return lock
 }
