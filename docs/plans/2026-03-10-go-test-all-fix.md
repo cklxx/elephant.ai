@@ -19,7 +19,7 @@
 - [x] 首次全量测试
 - [x] 修复失败
 - [x] 回归验证
-- [ ] review / commit / merge
+- [x] review / commit / merge
 
 ## Notes
 
