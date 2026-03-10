@@ -61,13 +61,15 @@ func BenchmarkSchedulerTriggerEvaluation(b *testing.B) {
 			sched, jobIDs := benchmarkSchedulerWithJobs(b, jobCount, Config{Enabled: true}, &benchmarkCoordinator{})
 
 			b.ReportAllocs()
+			b.ReportMetric(float64(len(jobIDs)), "jobs/op")
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				jobID := jobIDs[i%len(jobIDs)]
-				if _, _, ok := sched.startJob(jobID, jobRunOptions{bypassCooldown: true}); !ok {
-					b.Fatalf("startJob(%s) unexpectedly skipped", jobID)
+				for _, jobID := range jobIDs {
+					if _, _, ok := sched.startJob(jobID, jobRunOptions{bypassCooldown: true}); !ok {
+						b.Fatalf("startJob(%s) unexpectedly skipped", jobID)
+					}
+					sched.finishJob(jobID, nil)
 				}
-				sched.finishJob(jobID, nil)
 			}
 		})
 	}
