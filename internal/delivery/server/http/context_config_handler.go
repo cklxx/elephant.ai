@@ -70,21 +70,6 @@ func NewContextConfigHandler(root string) *ContextConfigHandler {
 	return &ContextConfigHandler{root: root}
 }
 
-func (h *ContextConfigHandler) HandleContextConfig(w http.ResponseWriter, r *http.Request) {
-	if h == nil {
-		http.NotFound(w, r)
-		return
-	}
-	switch r.Method {
-	case http.MethodGet:
-		h.HandleGetContextConfig(w, r)
-	case http.MethodPut:
-		h.HandleUpdateContextConfig(w, r)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
 func (h *ContextConfigHandler) HandleContextPreview(w http.ResponseWriter, r *http.Request) {
 	if h == nil {
 		http.NotFound(w, r)

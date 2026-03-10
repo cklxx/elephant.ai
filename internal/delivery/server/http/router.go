@@ -56,128 +56,73 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 		WithMemoryEngine(deps.MemoryEngine),
 	)
 
-	// Identity function — auth middleware removed.
-	wrap := func(handler http.Handler) http.Handler { return handler }
-
 	// Create mux using Go 1.22+ method-specific patterns.
 	mux := http.NewServeMux()
 
 	// ── Internal / dev endpoints ──
 
-	mux.Handle("GET /api/internal/sessions/{session_id}/context", routeHandler("/api/internal/sessions/:session_id/context", http.HandlerFunc(apiHandler.HandleGetContextSnapshots)))
+	registerHandler(mux, "GET /api/internal/sessions/{session_id}/context", "/api/internal/sessions/:session_id/context", apiHandler.HandleGetContextSnapshots)
 
 	if devMode {
-		mux.Handle("GET /api/dev/sessions/{session_id}/context-window", routeHandler("/api/dev/sessions/:session_id/context-window", wrap(http.HandlerFunc(apiHandler.HandleGetContextWindowPreview))))
+		registerHandler(mux, "GET /api/dev/sessions/{session_id}/context-window", "/api/dev/sessions/:session_id/context-window", apiHandler.HandleGetContextWindowPreview)
 		// Keep local logs-ui usable without account login in development mode.
-		mux.Handle("GET /api/dev/logs", routeHandler("/api/dev/logs", http.HandlerFunc(apiHandler.HandleDevLogTrace)))
-		mux.Handle("GET /api/dev/logs/structured", routeHandler("/api/dev/logs/structured", http.HandlerFunc(apiHandler.HandleDevLogStructured)))
-		mux.Handle("GET /api/dev/logs/index", routeHandler("/api/dev/logs/index", http.HandlerFunc(apiHandler.HandleDevLogIndex)))
-		mux.Handle("GET /api/dev/memory", routeHandler("/api/dev/memory", wrap(http.HandlerFunc(apiHandler.HandleGetMemorySnapshot))))
-
-		contextConfigHandler := NewContextConfigHandler("")
-		if contextConfigHandler != nil {
-			mux.Handle("GET /api/dev/context-config", routeHandler("/api/dev/context-config", wrap(http.HandlerFunc(contextConfigHandler.HandleGetContextConfig))))
-			mux.Handle("PUT /api/dev/context-config", routeHandler("/api/dev/context-config", wrap(http.HandlerFunc(contextConfigHandler.HandleUpdateContextConfig))))
-			mux.Handle("GET /api/dev/context-config/preview", routeHandler("/api/dev/context-config/preview", wrap(http.HandlerFunc(contextConfigHandler.HandleContextPreview))))
-		}
+		registerHandler(mux, "GET /api/dev/logs", "/api/dev/logs", apiHandler.HandleDevLogTrace)
+		registerHandler(mux, "GET /api/dev/logs/structured", "/api/dev/logs/structured", apiHandler.HandleDevLogStructured)
+		registerHandler(mux, "GET /api/dev/logs/index", "/api/dev/logs/index", apiHandler.HandleDevLogIndex)
+		registerHandler(mux, "GET /api/dev/memory", "/api/dev/memory", apiHandler.HandleGetMemorySnapshot)
+		registerContextConfigRoutes(mux, NewContextConfigHandler(""))
 	}
 
-	if (internalMode || devMode) && deps.ConfigHandler != nil {
-		mux.Handle("GET /api/internal/config/runtime", routeHandler("/api/internal/config/runtime", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetRuntimeConfig))))
-		mux.Handle("PUT /api/internal/config/runtime", routeHandler("/api/internal/config/runtime", wrap(http.HandlerFunc(deps.ConfigHandler.HandleUpdateRuntimeConfig))))
-		mux.Handle("GET /api/internal/config/runtime/stream", routeHandler("/api/internal/config/runtime/stream", wrap(http.HandlerFunc(deps.ConfigHandler.HandleRuntimeStream))))
-		mux.Handle("GET /api/internal/config/runtime/models", routeHandler("/api/internal/config/runtime/models", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetRuntimeModels))))
-		mux.Handle("GET /api/internal/subscription/catalog", routeHandler("/api/internal/subscription/catalog", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetSubscriptionCatalog))))
+	if internalMode || devMode {
+		registerRuntimeConfigRoutes(mux, deps.ConfigHandler)
 	}
-	if (internalMode || devMode) && deps.OnboardingStateHandler != nil {
-		mux.Handle("GET /api/internal/onboarding/state", routeHandler("/api/internal/onboarding/state", wrap(http.HandlerFunc(deps.OnboardingStateHandler.HandleGetOnboardingState))))
-		mux.Handle("PUT /api/internal/onboarding/state", routeHandler("/api/internal/onboarding/state", wrap(http.HandlerFunc(deps.OnboardingStateHandler.HandleUpdateOnboardingState))))
+	if internalMode || devMode {
+		registerOnboardingStateRoutes(mux, deps.OnboardingStateHandler)
 	}
 	if internalMode {
 		appsConfigHandler := NewAppsConfigHandler(config.LoadAppsConfig, config.SaveAppsConfig)
 		if appsConfigHandler != nil {
-			mux.Handle("GET /api/internal/config/apps", routeHandler("/api/internal/config/apps", wrap(http.HandlerFunc(appsConfigHandler.HandleGetAppsConfig))))
-			mux.Handle("PUT /api/internal/config/apps", routeHandler("/api/internal/config/apps", wrap(http.HandlerFunc(appsConfigHandler.HandleUpdateAppsConfig))))
+			registerHandler(mux, "GET /api/internal/config/apps", "/api/internal/config/apps", appsConfigHandler.HandleGetAppsConfig)
+			registerHandler(mux, "PUT /api/internal/config/apps", "/api/internal/config/apps", appsConfigHandler.HandleUpdateAppsConfig)
 		}
 	}
 
 	// ── SSE / streaming ──
 
-	if deps.LarkOAuthHandler != nil {
-		mux.Handle("GET /api/lark/oauth/start", routeHandler("/api/lark/oauth/start", http.HandlerFunc(deps.LarkOAuthHandler.HandleStart)))
-		mux.Handle("GET /api/lark/oauth/callback", routeHandler("/api/lark/oauth/callback", http.HandlerFunc(deps.LarkOAuthHandler.HandleCallback)))
-	}
-
-	mux.Handle("GET /api/sse", routeHandler("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream))))
-	mux.Handle("GET /api/share/sessions/{session_id}", routeHandler("/api/share/sessions/:session_id", http.HandlerFunc(shareHandler.HandleSharedSession)))
+	registerLarkOAuthRoutes(mux, deps.LarkOAuthHandler)
+	registerHandler(mux, "GET /api/sse", "/api/sse", sseHandler.HandleSSEStream)
+	registerHandler(mux, "GET /api/share/sessions/{session_id}", "/api/share/sessions/:session_id", shareHandler.HandleSharedSession)
 	if attachmentStore != nil {
-		mux.Handle("/api/attachments/", routeHandler("/api/attachments", attachmentStore.Handler()))
+		registerRoute(mux, "/api/attachments/", "/api/attachments", attachmentStore.Handler())
 	}
 	if dataCache != nil {
-		mux.Handle("/api/data/", routeHandler("/api/data", dataCache.Handler()))
+		registerRoute(mux, "/api/data/", "/api/data", dataCache.Handler())
 	}
-	mux.Handle("POST /api/metrics/web-vitals", routeHandler("/api/metrics/web-vitals", http.HandlerFunc(apiHandler.HandleWebVitals)))
+	registerHandler(mux, "POST /api/metrics/web-vitals", "/api/metrics/web-vitals", apiHandler.HandleWebVitals)
 
 	// ── Task endpoints ──
 
-	mux.Handle("POST /api/tasks", routeHandler("/api/tasks", wrap(http.HandlerFunc(apiHandler.HandleCreateTask))))
-	mux.Handle("GET /api/tasks", routeHandler("/api/tasks", wrap(http.HandlerFunc(apiHandler.HandleListTasks))))
-	mux.Handle("GET /api/tasks/active", routeHandler("/api/tasks/active", wrap(http.HandlerFunc(apiHandler.HandleListActiveTasks))))
-	mux.Handle("GET /api/tasks/stats", routeHandler("/api/tasks/stats", wrap(http.HandlerFunc(apiHandler.HandleGetTaskStats))))
-	mux.Handle("GET /api/tasks/{task_id}", routeHandler("/api/tasks/:task_id", wrap(http.HandlerFunc(apiHandler.HandleGetTask))))
-	mux.Handle("GET /api/tasks/{task_id}/events", routeHandler("/api/tasks/:task_id/events", wrap(http.HandlerFunc(sseHandler.HandleTaskSSEStream))))
-	mux.Handle("POST /api/tasks/{task_id}/cancel", routeHandler("/api/tasks/:task_id/cancel", wrap(http.HandlerFunc(apiHandler.HandleCancelTask))))
+	registerTaskRoutes(mux, apiHandler, sseHandler)
 
 	// ── Evaluation endpoints ──
 
-	mux.Handle("GET /api/evaluations", routeHandler("/api/evaluations", wrap(http.HandlerFunc(apiHandler.HandleListEvaluations))))
-	mux.Handle("POST /api/evaluations", routeHandler("/api/evaluations", wrap(http.HandlerFunc(apiHandler.HandleStartEvaluation))))
-	mux.Handle("GET /api/evaluations/{evaluation_id}", routeHandler("/api/evaluations/:evaluation_id", wrap(http.HandlerFunc(apiHandler.HandleGetEvaluation))))
-	mux.Handle("DELETE /api/evaluations/{evaluation_id}", routeHandler("/api/evaluations/:evaluation_id", wrap(http.HandlerFunc(apiHandler.HandleDeleteEvaluation))))
-
-	// ── Agent catalog endpoints ──
-
-	mux.Handle("GET /api/agents", routeHandler("/api/agents", wrap(http.HandlerFunc(apiHandler.HandleListAgents))))
-	mux.Handle("GET /api/agents/{agent_id}", routeHandler("/api/agents/:agent_id", wrap(http.HandlerFunc(apiHandler.HandleGetAgent))))
-	mux.Handle("GET /api/agents/{agent_id}/evaluations", routeHandler("/api/agents/:agent_id/evaluations", wrap(http.HandlerFunc(apiHandler.HandleListAgentEvaluations))))
+	registerEvaluationRoutes(mux, apiHandler)
 
 	// ── Session endpoints ──
 
-	mux.Handle("GET /api/sessions", routeHandler("/api/sessions", wrap(http.HandlerFunc(apiHandler.HandleListSessions))))
-	mux.Handle("POST /api/sessions", routeHandler("/api/sessions", wrap(http.HandlerFunc(apiHandler.HandleCreateSession))))
-	mux.Handle("GET /api/sessions/{session_id}", routeHandler("/api/sessions/:session_id", wrap(http.HandlerFunc(apiHandler.HandleGetSession))))
-	mux.Handle("DELETE /api/sessions/{session_id}", routeHandler("/api/sessions/:session_id", wrap(http.HandlerFunc(apiHandler.HandleDeleteSession))))
-	mux.Handle("GET /api/sessions/{session_id}/persona", routeHandler("/api/sessions/:session_id/persona", wrap(http.HandlerFunc(apiHandler.HandleGetSessionPersona))))
-	mux.Handle("PUT /api/sessions/{session_id}/persona", routeHandler("/api/sessions/:session_id/persona", wrap(http.HandlerFunc(apiHandler.HandleUpdateSessionPersona))))
-	mux.Handle("GET /api/sessions/{session_id}/snapshots", routeHandler("/api/sessions/:session_id/snapshots", wrap(http.HandlerFunc(apiHandler.HandleListSnapshots))))
-	mux.Handle("GET /api/sessions/{session_id}/turns/{turn_id}", routeHandler("/api/sessions/:session_id/turns/:turn_id", wrap(http.HandlerFunc(apiHandler.HandleGetTurnSnapshot))))
-	mux.Handle("POST /api/sessions/{session_id}/share", routeHandler("/api/sessions/:session_id/share", wrap(http.HandlerFunc(apiHandler.HandleCreateSessionShare))))
-	mux.Handle("POST /api/sessions/{session_id}/fork", routeHandler("/api/sessions/:session_id/fork", wrap(http.HandlerFunc(apiHandler.HandleForkSession))))
+	registerSessionRoutes(mux, apiHandler)
 
 	// ── Leader dashboard ──
 
-	// Auth middleware for leader endpoints.
-	leaderAuth := BearerAuthMiddleware(cfg.LeaderAPIToken)
-
-	if deps.LeaderDashboard != nil {
-		mux.Handle("GET /api/leader/dashboard", routeHandler("/api/leader/dashboard", leaderAuth(http.HandlerFunc(deps.LeaderDashboard.HandleGetDashboard))))
-		mux.Handle("GET /api/leader/tasks", routeHandler("/api/leader/tasks", leaderAuth(http.HandlerFunc(deps.LeaderDashboard.HandleListTasks))))
-		mux.Handle("POST /api/leader/tasks/{id}/unblock", routeHandler("/api/leader/tasks/{id}/unblock", leaderAuth(http.HandlerFunc(deps.LeaderDashboard.HandleUnblockTask))))
-	}
-	mux.Handle("GET /api/leader/openapi.json", routeHandler("/api/leader/openapi.json", leaderAuth(http.HandlerFunc(HandleLeaderOpenAPISpec))))
+	registerLeaderRoutes(mux, deps.LeaderDashboard, cfg.LeaderAPIToken)
 
 	// ── Claude Code hooks bridge ──
 
-	if deps.HooksBridge != nil {
-		mux.Handle("POST /api/hooks/claude-code", routeHandler("/api/hooks/claude-code", deps.HooksBridge))
-	}
-	if deps.RuntimeHooksBridge != nil {
-		mux.Handle("POST /api/hooks/runtime", routeHandler("/api/hooks/runtime", deps.RuntimeHooksBridge))
-	}
+	registerHookRoutes(mux, deps.HooksBridge, deps.RuntimeHooksBridge)
 
 	// ── Health check ──
 
-	mux.Handle("GET /health", routeHandler("/health", http.HandlerFunc(apiHandler.HandleHealthCheck)))
+	registerHandler(mux, "GET /health", "/health", apiHandler.HandleHealthCheck)
 
 	// ── Middleware stack ──
 

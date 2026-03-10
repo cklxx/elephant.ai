@@ -40,22 +40,6 @@ func (h *AppsConfigHandler) snapshot() (appsConfigResponse, error) {
 	return appsConfigResponse{Apps: apps, Path: path}, nil
 }
 
-// HandleAppsConfig routes app config requests.
-func (h *AppsConfigHandler) HandleAppsConfig(w http.ResponseWriter, r *http.Request) {
-	if h == nil {
-		http.NotFound(w, r)
-		return
-	}
-	switch r.Method {
-	case http.MethodGet:
-		h.HandleGetAppsConfig(w, r)
-	case http.MethodPut:
-		h.HandleUpdateAppsConfig(w, r)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
 // HandleGetAppsConfig returns the current apps configuration snapshot.
 func (h *AppsConfigHandler) HandleGetAppsConfig(w http.ResponseWriter, r *http.Request) {
 	if h == nil {

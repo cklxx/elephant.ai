@@ -70,86 +70,61 @@ func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 	mux := http.NewServeMux()
 
 	// ── Health ──
-	mux.Handle("GET /health", routeHandler("/health", http.HandlerFunc(apiHandler.HandleHealthCheck)))
-	mux.Handle("GET /api/debug/health/models", routeHandler("/api/debug/health/models", http.HandlerFunc(apiHandler.HandleModelHealthDebug)))
+	registerHandler(mux, "GET /health", "/health", apiHandler.HandleHealthCheck)
+	registerHandler(mux, "GET /api/debug/health/models", "/api/debug/health/models", apiHandler.HandleModelHealthDebug)
 	if deps.StartupProfileHandler != nil {
-		mux.Handle("GET /api/health/startup-profile", routeHandler("/api/health/startup-profile", deps.StartupProfileHandler))
+		registerRoute(mux, "GET /api/health/startup-profile", "/api/health/startup-profile", deps.StartupProfileHandler)
 	}
 
 	// ── SSE event stream ──
-	mux.Handle("GET /api/sse", routeHandler("/api/sse", http.HandlerFunc(sseHandler.HandleSSEStream)))
+	registerHandler(mux, "GET /api/sse", "/api/sse", sseHandler.HandleSSEStream)
 
 	// ── Dev / debug endpoints ──
-	mux.Handle("GET /api/dev/logs", routeHandler("/api/dev/logs", http.HandlerFunc(apiHandler.HandleDevLogTrace)))
-	mux.Handle("GET /api/dev/logs/structured", routeHandler("/api/dev/logs/structured", http.HandlerFunc(apiHandler.HandleDevLogStructured)))
-	mux.Handle("GET /api/dev/logs/index", routeHandler("/api/dev/logs/index", http.HandlerFunc(apiHandler.HandleDevLogIndex)))
-	mux.Handle("GET /api/dev/memory", routeHandler("/api/dev/memory", http.HandlerFunc(apiHandler.HandleGetMemorySnapshot)))
-	mux.Handle("/debug/pprof/", routeHandler("/debug/pprof", http.HandlerFunc(pprof.Index)))
-	mux.Handle("GET /debug/pprof/cmdline", routeHandler("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline)))
-	mux.Handle("GET /debug/pprof/profile", routeHandler("/debug/pprof/profile", http.HandlerFunc(pprof.Profile)))
-	mux.Handle("GET /debug/pprof/symbol", routeHandler("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol)))
-	mux.Handle("POST /debug/pprof/symbol", routeHandler("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol)))
-	mux.Handle("GET /debug/pprof/trace", routeHandler("/debug/pprof/trace", http.HandlerFunc(pprof.Trace)))
-	mux.Handle("GET /metrics", routeHandler("/metrics", promclient.Handler()))
-
-	contextConfigHandler := NewContextConfigHandler("")
-	if contextConfigHandler != nil {
-		mux.Handle("GET /api/dev/context-config", routeHandler("/api/dev/context-config", http.HandlerFunc(contextConfigHandler.HandleGetContextConfig)))
-		mux.Handle("PUT /api/dev/context-config", routeHandler("/api/dev/context-config", http.HandlerFunc(contextConfigHandler.HandleUpdateContextConfig)))
-		mux.Handle("GET /api/dev/context-config/preview", routeHandler("/api/dev/context-config/preview", http.HandlerFunc(contextConfigHandler.HandleContextPreview)))
-	}
+	registerHandler(mux, "GET /api/dev/logs", "/api/dev/logs", apiHandler.HandleDevLogTrace)
+	registerHandler(mux, "GET /api/dev/logs/structured", "/api/dev/logs/structured", apiHandler.HandleDevLogStructured)
+	registerHandler(mux, "GET /api/dev/logs/index", "/api/dev/logs/index", apiHandler.HandleDevLogIndex)
+	registerHandler(mux, "GET /api/dev/memory", "/api/dev/memory", apiHandler.HandleGetMemorySnapshot)
+	registerRoute(mux, "/debug/pprof/", "/debug/pprof", http.HandlerFunc(pprof.Index))
+	registerHandler(mux, "GET /debug/pprof/cmdline", "/debug/pprof/cmdline", pprof.Cmdline)
+	registerHandler(mux, "GET /debug/pprof/profile", "/debug/pprof/profile", pprof.Profile)
+	registerHandler(mux, "GET /debug/pprof/symbol", "/debug/pprof/symbol", pprof.Symbol)
+	registerHandler(mux, "POST /debug/pprof/symbol", "/debug/pprof/symbol", pprof.Symbol)
+	registerHandler(mux, "GET /debug/pprof/trace", "/debug/pprof/trace", pprof.Trace)
+	registerRoute(mux, "GET /metrics", "/metrics", promclient.Handler())
+	registerContextConfigRoutes(mux, NewContextConfigHandler(""))
 
 	// context-window: returns 503 when coordinator is nil (debug mode).
-	mux.Handle("GET /api/dev/sessions/{session_id}/context-window", routeHandler("/api/dev/sessions/:session_id/context-window", http.HandlerFunc(apiHandler.HandleGetContextWindowPreview)))
+	registerHandler(mux, "GET /api/dev/sessions/{session_id}/context-window", "/api/dev/sessions/:session_id/context-window", apiHandler.HandleGetContextWindowPreview)
 
 	// ── Internal config / onboarding / subscription ──
-	mux.Handle("GET /api/internal/sessions/{session_id}/context", routeHandler("/api/internal/sessions/:session_id/context", http.HandlerFunc(apiHandler.HandleGetContextSnapshots)))
+	registerHandler(mux, "GET /api/internal/sessions/{session_id}/context", "/api/internal/sessions/:session_id/context", apiHandler.HandleGetContextSnapshots)
 
-	if deps.ConfigHandler != nil {
-		mux.Handle("GET /api/internal/config/runtime", routeHandler("/api/internal/config/runtime", http.HandlerFunc(deps.ConfigHandler.HandleGetRuntimeConfig)))
-		mux.Handle("PUT /api/internal/config/runtime", routeHandler("/api/internal/config/runtime", http.HandlerFunc(deps.ConfigHandler.HandleUpdateRuntimeConfig)))
-		mux.Handle("GET /api/internal/config/runtime/stream", routeHandler("/api/internal/config/runtime/stream", http.HandlerFunc(deps.ConfigHandler.HandleRuntimeStream)))
-		mux.Handle("GET /api/internal/config/runtime/models", routeHandler("/api/internal/config/runtime/models", http.HandlerFunc(deps.ConfigHandler.HandleGetRuntimeModels)))
-		mux.Handle("GET /api/internal/subscription/catalog", routeHandler("/api/internal/subscription/catalog", http.HandlerFunc(deps.ConfigHandler.HandleGetSubscriptionCatalog)))
-	}
-	if deps.OnboardingStateHandler != nil {
-		mux.Handle("GET /api/internal/onboarding/state", routeHandler("/api/internal/onboarding/state", http.HandlerFunc(deps.OnboardingStateHandler.HandleGetOnboardingState)))
-		mux.Handle("PUT /api/internal/onboarding/state", routeHandler("/api/internal/onboarding/state", http.HandlerFunc(deps.OnboardingStateHandler.HandleUpdateOnboardingState)))
-	}
+	registerRuntimeConfigRoutes(mux, deps.ConfigHandler)
+	registerOnboardingStateRoutes(mux, deps.OnboardingStateHandler)
 
 	// ── Claude Code hooks bridge ──
-	if deps.HooksBridge != nil {
-		mux.Handle("POST /api/hooks/claude-code", routeHandler("/api/hooks/claude-code", deps.HooksBridge))
-	}
-
-	// ── Runtime hooks bridge (Kaku runtime lifecycle events) ──
-	if deps.RuntimeHooksBridge != nil {
-		mux.Handle("POST /api/hooks/runtime", routeHandler("/api/hooks/runtime", deps.RuntimeHooksBridge))
-	}
+	registerHookRoutes(mux, deps.HooksBridge, deps.RuntimeHooksBridge)
 
 	// ── Runtime session management ──
 	if deps.RuntimeAPI != nil {
-		mux.Handle("POST /api/runtime/sessions", routeHandler("/api/runtime/sessions", deps.RuntimeAPI))
-		mux.Handle("GET /api/runtime/sessions", routeHandler("/api/runtime/sessions", deps.RuntimeAPI))
-		mux.Handle("GET /api/runtime/sessions/{id}", routeHandler("/api/runtime/sessions/:id", deps.RuntimeAPI))
+		registerRoute(mux, "POST /api/runtime/sessions", "/api/runtime/sessions", deps.RuntimeAPI)
+		registerRoute(mux, "GET /api/runtime/sessions", "/api/runtime/sessions", deps.RuntimeAPI)
+		registerRoute(mux, "GET /api/runtime/sessions/{id}", "/api/runtime/sessions/:id", deps.RuntimeAPI)
 	}
 
 	// ── Runtime pane pool ──
 	if deps.RuntimePoolAPI != nil {
-		mux.Handle("POST /api/runtime/pool", routeHandler("/api/runtime/pool", deps.RuntimePoolAPI))
-		mux.Handle("GET /api/runtime/pool", routeHandler("/api/runtime/pool", deps.RuntimePoolAPI))
+		registerRoute(mux, "POST /api/runtime/pool", "/api/runtime/pool", deps.RuntimePoolAPI)
+		registerRoute(mux, "GET /api/runtime/pool", "/api/runtime/pool", deps.RuntimePoolAPI)
 	}
 
 	// ── Lark OAuth ──
-	if deps.LarkOAuthHandler != nil {
-		mux.Handle("GET /api/lark/oauth/start", routeHandler("/api/lark/oauth/start", http.HandlerFunc(deps.LarkOAuthHandler.HandleStart)))
-		mux.Handle("GET /api/lark/oauth/callback", routeHandler("/api/lark/oauth/callback", http.HandlerFunc(deps.LarkOAuthHandler.HandleCallback)))
-	}
+	registerLarkOAuthRoutes(mux, deps.LarkOAuthHandler)
 
 	// ── Lark inject (local e2e testing) ──
 	if deps.LarkInjectGateway != nil {
 		injectHandler := NewLarkInjectHandler(deps.LarkInjectGateway)
-		mux.Handle("POST /api/dev/inject", routeHandler("/api/dev/inject", http.HandlerFunc(injectHandler.Handle)))
+		registerHandler(mux, "POST /api/dev/inject", "/api/dev/inject", injectHandler.Handle)
 	}
 
 	// ── Minimal middleware stack (CORS only, no rate-limit / auth) ──

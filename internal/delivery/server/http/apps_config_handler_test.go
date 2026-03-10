@@ -24,7 +24,7 @@ func TestAppsConfigHandlerGet(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/internal/config/apps", nil)
 	rr := httptest.NewRecorder()
-	handler.HandleAppsConfig(rr, req)
+	handler.HandleGetAppsConfig(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rr.Code)
@@ -60,7 +60,7 @@ func TestAppsConfigHandlerUpdateRejectsEmptyID(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPut, "/api/internal/config/apps", bytes.NewReader(data))
 	rr := httptest.NewRecorder()
-	handler.HandleAppsConfig(rr, req)
+	handler.HandleUpdateAppsConfig(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", rr.Code)
@@ -100,7 +100,7 @@ func TestAppsConfigHandlerUpdateSavesNormalizedPlugins(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPut, "/api/internal/config/apps", bytes.NewReader(data))
 	rr := httptest.NewRecorder()
-	handler.HandleAppsConfig(rr, req)
+	handler.HandleUpdateAppsConfig(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rr.Code)
