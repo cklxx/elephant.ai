@@ -20,7 +20,6 @@ load_repo_dotenv(__file__)
 
 import json
 import subprocess
-import sys
 import time
 
 

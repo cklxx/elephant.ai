@@ -38,6 +38,7 @@ class TestCollect:
         call_count = {"n": 0}
 
         def mock_sh(cmd, cwd=None):
+            _ = cwd
             call_count["n"] += 1
             if "diff" in cmd and "--name-only" in cmd:
                 return "file.py"
@@ -61,6 +62,7 @@ class TestCollect:
 
     def test_with_paths_filter(self):
         def mock_sh(cmd, cwd=None):
+            _ = cwd
             if "--name-only" in cmd:
                 return "src/main.py"
             if "--stat" in cmd:
@@ -79,6 +81,7 @@ class TestCollect:
         call_count = {"n": 0}
 
         def mock_sh(cmd, cwd=None):
+            _ = cwd
             call_count["n"] += 1
             if "--cached" in cmd:
                 return "+staged change"
@@ -100,6 +103,7 @@ class TestCollect:
         (tmp_path / "small.py").write_text("print('hello')")
 
         def mock_sh(cmd, cwd=None):
+            _ = cwd
             if "--name-only" in cmd:
                 return "small.py"
             if "--stat" in cmd:

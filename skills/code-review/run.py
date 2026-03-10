@@ -19,8 +19,6 @@ from skill_runner.cli_contract import parse_cli_args, render_result
 load_repo_dotenv(__file__)
 
 import subprocess
-import sys
-from pathlib import Path
 
 
 def _sh(cmd: str, cwd: str | None = None) -> str:

@@ -29,16 +29,8 @@ from skill_runner.cli_contract import parse_cli_args, render_result
 
 load_repo_dotenv(__file__)
 
-import os
-import sys
 import urllib.error
-import urllib.parse
 import urllib.request
-from pathlib import Path
-
-# Add scripts/ to path for CLI imports
-_SCRIPTS = Path(__file__).resolve().parent.parent.parent / "scripts"
-sys.path.insert(0, str(_SCRIPTS))
 
 from cli.tavily.tavily_search import tavily_search
 

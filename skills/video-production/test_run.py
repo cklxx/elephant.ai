@@ -47,6 +47,7 @@ class VideoProductionRunTests(unittest.TestCase):
                 return self._payload
 
         def _mock_urlopen(req, timeout=0):
+            _ = timeout
             if isinstance(req, urllib.request.Request):
                 payload = json.dumps({"data": [{"url": "https://example.com/video.mp4"}]}).encode()
                 return _Resp(payload)

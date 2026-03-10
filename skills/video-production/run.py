@@ -20,7 +20,6 @@ load_repo_dotenv(__file__)
 
 import json
 import os
-import sys
 import time
 import urllib.error
 import urllib.request

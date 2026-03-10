@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 # Load run.py by absolute path to avoid module name collisions
 _RUN_PATH = Path(__file__).resolve().parent.parent / "run.py"

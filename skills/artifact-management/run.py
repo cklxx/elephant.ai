@@ -19,9 +19,7 @@ from skill_runner.cli_contract import parse_cli_args, render_result
 load_repo_dotenv(__file__)
 
 import os
-import sys
 import time
-from pathlib import Path
 
 _ARTIFACTS_DIR = Path(os.environ.get("ALEX_ARTIFACTS_DIR", os.path.expanduser("~/.alex/artifacts")))
 
@@ -49,7 +47,7 @@ def create(args: dict) -> dict:
     }
 
 
-def list_artifacts(args: dict) -> dict:
+def list_artifacts(_args: dict) -> dict:
     _ensure_dir()
     artifacts = []
     for f in sorted(_ARTIFACTS_DIR.rglob("*")):

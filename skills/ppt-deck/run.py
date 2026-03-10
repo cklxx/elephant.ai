@@ -18,8 +18,6 @@ from skill_runner.cli_contract import parse_cli_args, render_result
 
 load_repo_dotenv(__file__)
 
-import sys
-
 _STORY_TEMPLATES = {
     "scqa": ["Situation", "Complication", "Question", "Answer"],
     "pyramid": ["Conclusion", "Supporting 1", "Supporting 2", "Supporting 3", "Details"],
@@ -77,7 +75,7 @@ def outline(args: dict) -> dict:
     }
 
 
-def list_templates(args: dict) -> dict:
+def list_templates(_args: dict) -> dict:
     return {
         "success": True,
         "story_templates": {k: v for k, v in _STORY_TEMPLATES.items()},

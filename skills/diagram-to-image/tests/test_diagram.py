@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
-import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 _RUN_PATH = Path(__file__).resolve().parent.parent / "run.py"
 _spec = importlib.util.spec_from_file_location("diagram_to_image_run", _RUN_PATH)
@@ -52,7 +49,7 @@ class TestRenderMermaid:
         mock_result = MagicMock()
         mock_result.returncode = 0
 
-        def fake_run(*args, **kwargs):
+        def fake_run(*_args, **_kwargs):
             Path(output_path).write_bytes(b"PNG")
             return mock_result
 
@@ -67,7 +64,7 @@ class TestRenderMermaid:
         mock_result = MagicMock()
         mock_result.returncode = 0
 
-        def fake_run(*args, **kwargs):
+        def fake_run(*_args, **_kwargs):
             Path(output_path).write_text("<svg></svg>")
             return mock_result
 

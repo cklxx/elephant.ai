@@ -20,10 +20,8 @@ load_repo_dotenv(__file__)
 
 import json
 import os
-import sys
 import time
 import uuid
-from pathlib import Path
 
 _TASKS_DIR = Path(os.environ.get("ALEX_TASKS_DIR", os.path.expanduser("~/.alex/tasks")))
 
@@ -69,7 +67,7 @@ def dispatch(args: dict) -> dict:
     }
 
 
-def list_tasks(args: dict) -> dict:
+def list_tasks(_args: dict) -> dict:
     if not _TASKS_DIR.exists():
         return {"success": True, "tasks": [], "count": 0}
     tasks = []
