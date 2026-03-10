@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,13 +24,9 @@ func TestBuildContainer(t *testing.T) {
 	t.Setenv("ALEX_CONFIG_PATH", configPath)
 
 	t.Cleanup(func() {
-		_ = filepath.Walk(homeDir, func(path string, info fs.FileInfo, err error) error {
-			if err != nil {
-				return nil
-			}
-			_ = os.Chmod(path, 0o700)
-			return nil
-		})
+		// Go telemetry may create files under $HOME asynchronously.
+		// Force-remove everything so t.TempDir() cleanup succeeds.
+		_ = os.RemoveAll(homeDir)
 	})
 
 	container, err := buildContainer()
