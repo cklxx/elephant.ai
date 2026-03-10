@@ -282,7 +282,7 @@ func TestWithUserAttachments_RoundTrip(t *testing.T) {
 		t.Fatalf("got %d attachments, want 2", len(got))
 	}
 	if got[0].Name != "file.txt" || got[1].Name != "image.png" {
-		t.Errorf("attachment Names = %q, %q, want file.txt, image.png", got[0].Name, got[1].Name)
+		t.Errorf("attachment names = %q, %q, want file.txt, image.png", got[0].Name, got[1].Name)
 	}
 }
 
