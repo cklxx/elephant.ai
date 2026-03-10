@@ -425,6 +425,148 @@ func TestConfigDerivation(t *testing.T) {
 	}
 }
 
+func TestHistory_EvictsOldestAtCapacity(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	tk := makeTask("t1", "stuck task", task.StatusRunning)
+	_ = store.Create(ctx, tk)
+
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	r := NewRadar(store, nil, cfg)
+
+	// Run maxHistoryPerTask+20 scans so history exceeds the cap.
+	for i := 0; i < maxHistoryPerTask+20; i++ {
+		r.nowFunc = func() time.Time { return time.Now().Add(time.Duration(i+1) * 10 * time.Minute) }
+		_, err := r.Scan(ctx)
+		if err != nil {
+			t.Fatalf("Scan %d: %v", i, err)
+		}
+	}
+
+	histLen := r.HistoryLen("t1")
+	if histLen != maxHistoryPerTask {
+		t.Errorf("history len = %d, want %d (cap)", histLen, maxHistoryPerTask)
+	}
+}
+
+func TestHistory_RecordedOnScan(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	tk := makeTask("t1", "stuck", task.StatusRunning)
+	_ = store.Create(ctx, tk)
+
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	r := NewRadar(store, nil, cfg)
+	r.nowFunc = func() time.Time { return time.Now().Add(5 * time.Minute) }
+
+	_, _ = r.Scan(ctx)
+
+	if r.HistoryLen("t1") == 0 {
+		t.Error("expected history to be recorded after scan with alerts")
+	}
+	if r.HistoryTaskCount() != 1 {
+		t.Errorf("task count = %d, want 1", r.HistoryTaskCount())
+	}
+}
+
+func TestHistory_NoRecordWithoutAlerts(t *testing.T) {
+	store := newTestStore(t)
+	r := NewRadar(store, nil, DefaultConfig())
+
+	_, _ = r.Scan(context.Background())
+
+	if r.HistoryTaskCount() != 0 {
+		t.Errorf("expected 0 history entries for scan with no alerts, got %d", r.HistoryTaskCount())
+	}
+}
+
+func TestReapStale_RemovesOldEntries(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	tk := makeTask("t1", "old task", task.StatusRunning)
+	_ = store.Create(ctx, tk)
+
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	r := NewRadar(store, nil, cfg)
+
+	// Scan at t=5min (creates alert history for t1).
+	r.nowFunc = func() time.Time { return time.Now().Add(5 * time.Minute) }
+	_, _ = r.Scan(ctx)
+	if r.HistoryTaskCount() != 1 {
+		t.Fatalf("pre-reap task count = %d, want 1", r.HistoryTaskCount())
+	}
+
+	// Reap with 31-day age — t1 was just seen, should survive.
+	r.nowFunc = func() time.Time { return time.Now().Add(5 * time.Minute) }
+	reaped := r.ReapStale(31 * 24 * time.Hour)
+	if reaped != 0 {
+		t.Errorf("reaped = %d, want 0 (recent entry)", reaped)
+	}
+
+	// Move time forward 40 days — now t1 is stale.
+	r.nowFunc = func() time.Time { return time.Now().Add(40 * 24 * time.Hour) }
+	reaped = r.ReapStale(30 * 24 * time.Hour)
+	if reaped != 1 {
+		t.Errorf("reaped = %d, want 1 (stale entry)", reaped)
+	}
+	if r.HistoryTaskCount() != 0 {
+		t.Errorf("post-reap task count = %d, want 0", r.HistoryTaskCount())
+	}
+}
+
+func TestReapStale_PreservesRecentEntries(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	// Create two tasks that will trigger alerts.
+	tk1 := makeTask("t1", "old task", task.StatusRunning)
+	_ = store.Create(ctx, tk1)
+	tk2 := makeTask("t2", "new task", task.StatusRunning)
+	_ = store.Create(ctx, tk2)
+
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	r := NewRadar(store, nil, cfg)
+
+	// Scan at t=5min — both tasks get alerts.
+	r.nowFunc = func() time.Time { return time.Now().Add(5 * time.Minute) }
+	_, _ = r.Scan(ctx)
+
+	// Scan again at t=35days — only t2 gets a new alert (t1 removed from store).
+	_ = store.SetStatus(ctx, "t1", task.StatusCompleted) // t1 becomes terminal
+	r.nowFunc = func() time.Time { return time.Now().Add(35 * 24 * time.Hour) }
+	_, _ = r.Scan(ctx)
+
+	// Reap at t=35days with 30-day threshold — t1 is stale, t2 is recent.
+	reaped := r.ReapStale(30 * 24 * time.Hour)
+	if reaped != 1 {
+		t.Errorf("reaped = %d, want 1 (only t1 stale)", reaped)
+	}
+	if r.HistoryLen("t1") != 0 {
+		t.Errorf("t1 history should be gone after reap")
+	}
+	if r.HistoryLen("t2") == 0 {
+		t.Errorf("t2 history should be preserved (recent)")
+	}
+}
+
+func TestReapStale_DefaultAge(t *testing.T) {
+	store := newTestStore(t)
+	r := NewRadar(store, nil, DefaultConfig())
+
+	// Verify default age is used when 0 is passed.
+	reaped := r.ReapStale(0)
+	if reaped != 0 {
+		t.Errorf("reaped = %d on empty history", reaped)
+	}
+}
+
 func TestReasonIcon(t *testing.T) {
 	tests := []struct {
 		reason BlockReason

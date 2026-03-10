@@ -10,11 +10,22 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"alex/internal/domain/task"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/notification"
+)
+
+const (
+	// maxHistoryPerTask is the maximum number of alert records kept per task.
+	// Oldest entries are evicted when this limit is exceeded.
+	maxHistoryPerTask = 100
+
+	// defaultStaleEntryAge is the default duration after which a task entry
+	// with no recent alerts is considered stale and eligible for cleanup.
+	defaultStaleEntryAge = 30 * 24 * time.Hour // 30 days
 )
 
 // BlockReason classifies why a task is considered blocked.
@@ -65,6 +76,36 @@ type ScanResult struct {
 	TasksScanned int
 }
 
+// alertRecord is one historical alert entry for a task.
+type alertRecord struct {
+	Reason BlockReason
+	At     time.Time
+}
+
+// taskHistory holds bounded alert history for a single task.
+type taskHistory struct {
+	records []alertRecord
+}
+
+// append adds a record, evicting the oldest if at capacity.
+func (h *taskHistory) append(r alertRecord) {
+	if len(h.records) >= maxHistoryPerTask {
+		// Shift left by 1 to drop oldest.
+		copy(h.records, h.records[1:])
+		h.records[len(h.records)-1] = r
+	} else {
+		h.records = append(h.records, r)
+	}
+}
+
+// lastSeen returns the timestamp of the most recent record, or zero.
+func (h *taskHistory) lastSeen() time.Time {
+	if len(h.records) == 0 {
+		return time.Time{}
+	}
+	return h.records[len(h.records)-1].At
+}
+
 // Radar scans active tasks for blocker conditions.
 type Radar struct {
 	store    task.Store
@@ -72,6 +113,9 @@ type Radar struct {
 	config   Config
 	logger   logging.Logger
 	nowFunc  func() time.Time // for testing
+
+	mu      sync.Mutex
+	history map[string]*taskHistory // taskID → bounded alert history
 }
 
 // NewRadar creates a Blocker Radar.
@@ -94,6 +138,7 @@ func NewRadar(store task.Store, notifier notification.Notifier, cfg Config) *Rad
 		config:   cfg,
 		logger:   logging.NewComponentLogger("blocker_radar"),
 		nowFunc:  time.Now,
+		history:  make(map[string]*taskHistory),
 	}
 }
 
@@ -121,6 +166,18 @@ func (r *Radar) Scan(ctx context.Context) (*ScanResult, error) {
 		r.checkError(t, &result.Alerts)
 		r.checkDependencies(ctx, t, allIDs, terminalIDs, &result.Alerts)
 	}
+
+	// Record alerts into bounded per-task history.
+	r.mu.Lock()
+	for _, a := range result.Alerts {
+		h := r.history[a.Task.TaskID]
+		if h == nil {
+			h = &taskHistory{}
+			r.history[a.Task.TaskID] = h
+		}
+		h.append(alertRecord{Reason: a.Reason, At: now})
+	}
+	r.mu.Unlock()
 
 	return result, nil
 }
@@ -266,6 +323,50 @@ func (r *Radar) SendAlerts(ctx context.Context) (*ScanResult, error) {
 
 	r.logger.Info("Blocker Radar: sent %d alert(s) to %s/%s", len(result.Alerts), r.config.Channel, r.config.ChatID)
 	return result, nil
+}
+
+// ReapStale removes per-task history entries that have had no alert activity
+// for longer than the given duration. This prevents unbounded growth of the
+// history map for tasks that have long since completed or been abandoned.
+func (r *Radar) ReapStale(maxAge time.Duration) int {
+	if maxAge <= 0 {
+		maxAge = defaultStaleEntryAge
+	}
+	now := r.nowFunc()
+	cutoff := now.Add(-maxAge)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	reaped := 0
+	for taskID, h := range r.history {
+		if h.lastSeen().Before(cutoff) {
+			delete(r.history, taskID)
+			reaped++
+		}
+	}
+	if reaped > 0 {
+		r.logger.Info("Blocker Radar: reaped %d stale task history entries (cutoff=%s)", reaped, maxAge)
+	}
+	return reaped
+}
+
+// HistoryLen returns the number of alert records stored for a task.
+// Returns 0 if no history exists for the task.
+func (r *Radar) HistoryLen(taskID string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if h, ok := r.history[taskID]; ok {
+		return len(h.records)
+	}
+	return 0
+}
+
+// HistoryTaskCount returns the number of tasks with alert history.
+func (r *Radar) HistoryTaskCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.history)
 }
 
 func taskLabel(t *task.Task) string {
