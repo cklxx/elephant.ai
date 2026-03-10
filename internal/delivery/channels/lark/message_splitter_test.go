@@ -90,7 +90,7 @@ func TestSplitMessageNumberedListIntact(t *testing.T) {
 
 func TestSplitMessageMaxChunks(t *testing.T) {
 	var parts []string
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 12; i++ {
 		parts = append(parts, "段落内容")
 	}
 	text := strings.Join(parts, "\n\n")

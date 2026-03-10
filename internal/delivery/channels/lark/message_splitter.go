@@ -11,7 +11,7 @@ import (
 
 const (
 	// messageSplitMaxChunks caps the number of chunks to avoid message spam.
-	messageSplitMaxChunks = 5
+	messageSplitMaxChunks = 8
 	// messageSplitDelay is the pause between consecutive messages to
 	// simulate a natural typing rhythm.
 	messageSplitDelay = 500 * time.Millisecond
