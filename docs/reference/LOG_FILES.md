@@ -1,62 +1,35 @@
-# Log Files and Writers
+# Log Files
 
-Updated: 2026-02-10
+Updated: 2026-03-10
 
-This document lists runtime log files, default locations, and correlation strategy.
+## Base Directories
 
-## 1) Base directories
+| Env var | Purpose | Default |
+|---------|---------|---------|
+| `ALEX_LOG_DIR` | Service/LLM/latency logs | `$HOME` |
+| `ALEX_REQUEST_LOG_DIR` | Request payload logs | `${PWD}/logs/requests` |
 
-- `ALEX_LOG_DIR`
-  - Purpose: service/LLM/latency logs.
-  - Default: `$HOME`.
-- `ALEX_REQUEST_LOG_DIR`
-  - Purpose: request payload logs (`llm.jsonl`).
-  - Default: `${PWD}/logs/requests`.
+## Runtime Logs
 
-## 2) Structured runtime logs
+| File | Category | Writer | Content |
+|------|----------|--------|---------|
+| `alex-service.log` | SERVICE | `internal/shared/logging.NewComponentLogger` | Bootstrap, routing, tool/runtime errors |
+| `alex-llm.log` | LLM | `internal/infra/llm/*` | Request metadata, provider responses, retries |
+| `alex-latency.log` | LATENCY | `internal/delivery/server/http` | Per-request latency, route, status |
+| `llm.jsonl` | — | `internal/shared/utils/request_log.go` | Streaming request/response payloads (JSONL) |
 
-### `alex-service.log`
-- Category: `SERVICE`.
-- Writer: `internal/shared/utils/logger.go` via `internal/shared/logging.NewComponentLogger`.
-- Content: bootstrap, coordinator, routing, tool/runtime errors.
+## Dev Process Logs
 
-### `alex-llm.log`
-- Category: `LLM`.
-- Writer: LLM clients in `internal/infra/llm/*`.
-- Content: request metadata, provider response summaries, retry/failure traces.
+`alex dev` writes per-service stdout/stderr under `logs/`: `server.log`, `web.log`, `sandbox.log`, `lark-supervisor.log`.
 
-### `alex-latency.log`
-- Category: `LATENCY`.
-- Writer: server middleware in `internal/delivery/server/http`.
-- Content: per-request latency, route, status, payload-size stats.
+## Correlation Keys
 
-## 3) Request payload logs
+1. `log_id` — service-wide correlation
+2. `request_id` — LLM/vendor call (often embeds `log_id`)
+3. `task_id` / `parent_task_id` — execution tree
+4. `run_id` / `parent_run_id` — workflow event lineage
 
-### `${ALEX_REQUEST_LOG_DIR}/llm.jsonl`
-- Writer: `internal/shared/utils/request_log.go`.
-- Content: serialized streaming request/response payload entries.
-- Format: JSONL with `request_id`, optional `log_id`, and payload body.
+## Retrieval
 
-## 4) Dev process logs (`alex dev`)
-
-`alex dev` process manager writes per-service stdout/stderr files under configured `log_dir` (default `logs/`), e.g.:
-- `logs/server.log`
-- `logs/web.log`
-- `logs/sandbox.log`
-- `logs/lark-supervisor.log`
-
-These are process-level logs, complementary to structured runtime category logs above.
-
-## 5) Correlation keys
-
-Primary key order:
-1. `log_id` (service-wide correlation)
-2. `request_id` (LLM/vendor call correlation; often embeds `log_id`)
-3. `task_id` / `parent_task_id` (execution tree)
-4. `run_id` / `parent_run_id` (workflow event lineage)
-
-## 6) Retrieval helpers
-
-For API-side retrieval and filtering logic, see:
 - `internal/shared/logging/log_fetch.go`
 - `internal/shared/logging/log_structured.go`
