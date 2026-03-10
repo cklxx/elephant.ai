@@ -1,7 +1,6 @@
 package http
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -61,8 +60,7 @@ func (h *AppsConfigHandler) HandleUpdateAppsConfig(w http.ResponseWriter, r *htt
 		return
 	}
 	var body appsConfigResponse
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
+	if !decodeJSONRequest(w, r, &body, "invalid JSON payload") {
 		return
 	}
 	apps := normalizeAppsConfig(body.Apps)

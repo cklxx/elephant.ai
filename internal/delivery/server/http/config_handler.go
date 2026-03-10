@@ -91,8 +91,7 @@ func (h *ConfigHandler) HandleUpdateRuntimeConfig(w http.ResponseWriter, r *http
 	var body struct {
 		Overrides runtimeconfig.Overrides `json:"overrides"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
+	if !decodeJSONRequest(w, r, &body, "invalid JSON payload") {
 		return
 	}
 	if err := h.manager.UpdateOverrides(r.Context(), body.Overrides); err != nil {

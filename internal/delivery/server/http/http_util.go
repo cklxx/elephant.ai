@@ -16,6 +16,19 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	}
 }
 
+// decodeJSONRequest decodes a single JSON value from the request body and
+// writes a stable 400 response when decoding fails.
+func decodeJSONRequest(w http.ResponseWriter, r *http.Request, v any, invalidMessage string) bool {
+	if invalidMessage == "" {
+		invalidMessage = "invalid JSON payload"
+	}
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		http.Error(w, invalidMessage, http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
 // ParseTrustedProxies parses a list of CIDR strings into net.IPNet values.
 // Invalid CIDRs are silently skipped.
 func ParseTrustedProxies(cidrs []string) []net.IPNet {

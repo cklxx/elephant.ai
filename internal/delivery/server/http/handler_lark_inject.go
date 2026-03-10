@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -57,8 +56,7 @@ func (h *LarkInjectHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req injectRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body: "+err.Error(), http.StatusBadRequest)
+	if !decodeJSONRequest(w, r, &req, "invalid request body") {
 		return
 	}
 	if req.Text == "" {
@@ -101,10 +99,9 @@ func (h *LarkInjectHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		Error:       resp.Error,
 		AutoReplies: resp.AutoReplies,
 	}
-
-	w.Header().Set("Content-Type", "application/json")
+	status := http.StatusOK
 	if resp.Error != "" {
-		w.WriteHeader(http.StatusInternalServerError)
+		status = http.StatusInternalServerError
 	}
-	_ = json.NewEncoder(w).Encode(body)
+	writeJSON(w, status, body)
 }

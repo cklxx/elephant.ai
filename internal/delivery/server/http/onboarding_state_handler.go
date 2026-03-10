@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -71,8 +70,7 @@ func (h *OnboardingStateHandler) HandleUpdateOnboardingState(w http.ResponseWrit
 		return
 	}
 	var body onboardingStateUpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
+	if !decodeJSONRequest(w, r, &body, "invalid JSON payload") {
 		return
 	}
 	state := subscription.NormalizeOnboardingState(body.State)

@@ -1,7 +1,6 @@
 package http
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -158,8 +157,7 @@ func (h *ContextConfigHandler) HandleUpdateContextConfig(w http.ResponseWriter, 
 		return
 	}
 	var body ContextConfigUpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
+	if !decodeJSONRequest(w, r, &body, "invalid JSON payload") {
 		return
 	}
 	if len(body.Files) == 0 {
