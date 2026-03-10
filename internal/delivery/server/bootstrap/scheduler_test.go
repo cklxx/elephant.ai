@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"testing"
 
+	larkpkg "alex/internal/delivery/channels/lark"
 	runtimeconfig "alex/internal/shared/config"
 )
 
@@ -85,6 +86,59 @@ func TestBuildNotifiers_LarkDisabled(t *testing.T) {
 	notifier := BuildNotifiers(cfg, "Test", nil)
 	if notifier == nil {
 		t.Fatal("expected NopNotifier, got nil")
+	}
+}
+
+func TestBuildNotifiers_LarkWithRateLimiter(t *testing.T) {
+	reg := NewChannelRegistry()
+	reg.SetConfig("lark", LarkGatewayConfig{
+		Enabled:                    true,
+		AppID:                      "cli_test",
+		AppSecret:                  "secret_test",
+		RateLimiterEnabled:         true,
+		RateLimiterChatHourlyLimit: 5,
+		RateLimiterUserDailyLimit:  20,
+	})
+	cfg := Config{}
+	cfg.Channels.Registry = reg
+
+	notifier := BuildNotifiers(cfg, "Test", nil)
+	if notifier == nil {
+		t.Fatal("expected non-nil notifier")
+	}
+
+	rln, ok := notifier.(*larkpkg.RateLimitedNotifier)
+	if !ok {
+		t.Fatalf("expected *lark.RateLimitedNotifier, got %T", notifier)
+	}
+
+	limiterCfg := rln.Limiter().Config()
+	if limiterCfg.ChatHourlyLimit != 5 {
+		t.Errorf("ChatHourlyLimit = %d, want 5", limiterCfg.ChatHourlyLimit)
+	}
+	if limiterCfg.UserDailyLimit != 20 {
+		t.Errorf("UserDailyLimit = %d, want 20", limiterCfg.UserDailyLimit)
+	}
+}
+
+func TestBuildNotifiers_LarkWithoutRateLimiter(t *testing.T) {
+	reg := NewChannelRegistry()
+	reg.SetConfig("lark", LarkGatewayConfig{
+		Enabled:            true,
+		AppID:              "cli_test",
+		AppSecret:          "secret_test",
+		RateLimiterEnabled: false,
+	})
+	cfg := Config{}
+	cfg.Channels.Registry = reg
+
+	notifier := BuildNotifiers(cfg, "Test", nil)
+	if notifier == nil {
+		t.Fatal("expected non-nil notifier")
+	}
+
+	if _, ok := notifier.(*larkpkg.RateLimitedNotifier); ok {
+		t.Fatal("expected plain notifier when rate limiter is disabled, got RateLimitedNotifier")
 	}
 }
 
