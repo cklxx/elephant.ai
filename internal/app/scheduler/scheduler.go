@@ -19,6 +19,11 @@ type MilestoneCheckinService interface {
 	SendCheckin(ctx context.Context) error
 }
 
+// WeeklyPulseService is the interface for weekly digest generation and delivery.
+type WeeklyPulseService interface {
+	GenerateAndSend(ctx context.Context) error
+}
+
 // Config holds scheduler configuration.
 type Config struct {
 	Enabled            bool
@@ -28,6 +33,8 @@ type Config struct {
 	Heartbeat          config.HeartbeatConfig
 	MilestoneCheckin   config.MilestoneCheckinConfig
 	MilestoneService   MilestoneCheckinService // optional; wired by bootstrap
+	WeeklyPulse        config.WeeklyPulseConfig
+	WeeklyPulseService WeeklyPulseService // optional; wired by bootstrap
 	TriggerTimeout     time.Duration
 	ConcurrencyPolicy  string
 	JobStore           JobStore
@@ -171,6 +178,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 
 	// 3.2 Register milestone check-in cron job
 	s.registerMilestoneCheckinJob(ctx)
+
+	// 3.3 Register weekly pulse digest job
+	s.registerWeeklyPulseJob(ctx)
 
 	// 4. Start periodic OKR trigger sync (every 5 min)
 	if s.goalStore != nil {

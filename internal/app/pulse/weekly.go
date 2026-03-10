@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"alex/internal/domain/task"
+	"alex/internal/shared/notification"
 )
 
 // WeeklyPulse holds the aggregated digest data for a 7-day window.
@@ -250,4 +251,46 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dh", hours)
 	}
 	return fmt.Sprintf("%dh%dm", hours, mins)
+}
+
+// Service wraps a Generator with notification delivery for scheduler integration.
+type Service struct {
+	gen      *Generator
+	notifier notification.Notifier
+	channel  string
+	chatID   string
+}
+
+// NewService creates a pulse Service that generates and optionally sends digests.
+func NewService(store task.Store, notifier notification.Notifier, channel, chatID string) *Service {
+	return &Service{
+		gen:      NewGenerator(store),
+		notifier: notifier,
+		channel:  channel,
+		chatID:   chatID,
+	}
+}
+
+// GenerateAndSend produces a weekly pulse digest and delivers it via the notifier.
+// If no notifier is configured, it returns the formatted markdown without sending.
+func (s *Service) GenerateAndSend(ctx context.Context) error {
+	pulse, err := s.gen.Generate(ctx)
+	if err != nil {
+		return fmt.Errorf("generate pulse: %w", err)
+	}
+
+	content := FormatMarkdown(pulse)
+
+	if s.notifier == nil {
+		return nil
+	}
+
+	target := notification.Target{
+		Channel: s.channel,
+		ChatID:  s.chatID,
+	}
+	if err := s.notifier.Send(ctx, target, content); err != nil {
+		return fmt.Errorf("send pulse: %w", err)
+	}
+	return nil
 }

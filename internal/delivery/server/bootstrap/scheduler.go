@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/app/di"
 	"alex/internal/app/milestone"
+	"alex/internal/app/pulse"
 	"alex/internal/app/scheduler"
 	okrtools "alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/async"
@@ -61,6 +62,14 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 		logger.Info("Milestone check-in service created (channel=%s, chat_id=%s)", milestoneCheckinCfg.Channel, milestoneCheckinCfg.ChatID)
 	}
 
+	weeklyPulseCfg := cfg.Runtime.Proactive.Scheduler.WeeklyPulse
+	var weeklyPulseSvc scheduler.WeeklyPulseService
+	if weeklyPulseCfg.Enabled && container != nil && container.TaskStore != nil {
+		svc := pulse.NewService(container.TaskStore, notifier, weeklyPulseCfg.Channel, weeklyPulseCfg.ChatID)
+		weeklyPulseSvc = svc
+		logger.Info("Weekly pulse service created (channel=%s, chat_id=%s)", weeklyPulseCfg.Channel, weeklyPulseCfg.ChatID)
+	}
+
 	schedCfg := scheduler.Config{
 		Enabled:            true,
 		StaticTriggers:     cfg.Runtime.Proactive.Scheduler.Triggers,
@@ -69,6 +78,8 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 		Heartbeat:          cfg.Runtime.Proactive.Scheduler.Heartbeat,
 		MilestoneCheckin:   milestoneCheckinCfg,
 		MilestoneService:   milestoneSvc,
+		WeeklyPulse:        weeklyPulseCfg,
+		WeeklyPulseService: weeklyPulseSvc,
 		TriggerTimeout:     time.Duration(cfg.Runtime.Proactive.Scheduler.TriggerTimeoutSeconds) * time.Second,
 		ConcurrencyPolicy:  cfg.Runtime.Proactive.Scheduler.ConcurrencyPolicy,
 		JobStore:           jobStore,

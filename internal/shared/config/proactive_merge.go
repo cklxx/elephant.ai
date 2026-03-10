@@ -225,6 +225,9 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 	if file.MilestoneCheckin != nil {
 		mergeMilestoneCheckinConfig(&target.MilestoneCheckin, file.MilestoneCheckin)
 	}
+	if file.WeeklyPulse != nil {
+		mergeWeeklyPulseConfig(&target.WeeklyPulse, file.WeeklyPulse)
+	}
 	if file.BlockerRadar != nil {
 		mergeBlockerRadarConfig(&target.BlockerRadar, file.BlockerRadar)
 	}
@@ -354,6 +357,24 @@ func mergeMilestoneCheckinConfig(target *MilestoneCheckinConfig, file *Milestone
 	}
 }
 
+func mergeWeeklyPulseConfig(target *WeeklyPulseConfig, file *WeeklyPulseFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.Enabled != nil {
+		target.Enabled = *file.Enabled
+	}
+	if utils.HasContent(file.Schedule) {
+		target.Schedule = strings.TrimSpace(file.Schedule)
+	}
+	if utils.HasContent(file.Channel) {
+		target.Channel = strings.TrimSpace(file.Channel)
+	}
+	if utils.HasContent(file.ChatID) {
+		target.ChatID = strings.TrimSpace(file.ChatID)
+	}
+}
+
 func mergeBlockerRadarConfig(target *BlockerRadarConfig, file *BlockerRadarFileConfig) {
 	if target == nil || file == nil {
 		return
@@ -462,6 +483,11 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 			file.Scheduler.MilestoneCheckin.Schedule = expandEnvValue(lookup, file.Scheduler.MilestoneCheckin.Schedule)
 			file.Scheduler.MilestoneCheckin.Channel = expandEnvValue(lookup, file.Scheduler.MilestoneCheckin.Channel)
 			file.Scheduler.MilestoneCheckin.ChatID = expandEnvValue(lookup, file.Scheduler.MilestoneCheckin.ChatID)
+		}
+		if file.Scheduler.WeeklyPulse != nil {
+			file.Scheduler.WeeklyPulse.Schedule = expandEnvValue(lookup, file.Scheduler.WeeklyPulse.Schedule)
+			file.Scheduler.WeeklyPulse.Channel = expandEnvValue(lookup, file.Scheduler.WeeklyPulse.Channel)
+			file.Scheduler.WeeklyPulse.ChatID = expandEnvValue(lookup, file.Scheduler.WeeklyPulse.ChatID)
 		}
 		if file.Scheduler.BlockerRadar != nil {
 			file.Scheduler.BlockerRadar.Schedule = expandEnvValue(lookup, file.Scheduler.BlockerRadar.Schedule)

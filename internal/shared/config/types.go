@@ -357,6 +357,7 @@ type SchedulerConfig struct {
 	CalendarReminder                 CalendarReminderConfig   `json:"calendar_reminder" yaml:"calendar_reminder"`
 	Heartbeat                        HeartbeatConfig          `json:"heartbeat" yaml:"heartbeat"`
 	MilestoneCheckin                 MilestoneCheckinConfig   `json:"milestone_checkin" yaml:"milestone_checkin"`
+	WeeklyPulse                      WeeklyPulseConfig        `json:"weekly_pulse" yaml:"weekly_pulse"`
 	BlockerRadar                     BlockerRadarConfig       `json:"blocker_radar" yaml:"blocker_radar"`
 }
 
@@ -369,6 +370,14 @@ type MilestoneCheckinConfig struct {
 	ChatID           string `json:"chat_id" yaml:"chat_id"`
 	IncludeActive    bool   `json:"include_active" yaml:"include_active"`         // include in-flight tasks (default true)
 	IncludeCompleted bool   `json:"include_completed" yaml:"include_completed"`   // include recently finished tasks (default true)
+}
+
+// WeeklyPulseConfig configures the weekly pulse digest for the leader agent.
+type WeeklyPulseConfig struct {
+	Enabled  bool   `json:"enabled" yaml:"enabled"`
+	Schedule string `json:"schedule" yaml:"schedule"` // cron expression, default "0 9 * * 1" (Monday 9am)
+	Channel  string `json:"channel" yaml:"channel"`   // delivery channel: lark | moltbook
+	ChatID   string `json:"chat_id" yaml:"chat_id"`
 }
 
 // BlockerRadarConfig configures proactive detection of stuck or blocked tasks.
@@ -513,6 +522,10 @@ func DefaultProactiveConfig() ProactiveConfig {
 				LookbackSeconds:  3600,
 				IncludeActive:    true,
 				IncludeCompleted: true,
+			},
+			WeeklyPulse: WeeklyPulseConfig{
+				Enabled:  false,
+				Schedule: "0 9 * * 1", // Monday 9am
 			},
 			BlockerRadar: BlockerRadarConfig{
 				Enabled:               false,

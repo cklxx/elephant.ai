@@ -988,6 +988,140 @@ func TestRecoveryDelay_ExponentialBackoff(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Weekly pulse trigger tests
+// ---------------------------------------------------------------------------
+
+type mockWeeklyPulseService struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (m *mockWeeklyPulseService) GenerateAndSend(_ context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	return nil
+}
+
+func (m *mockWeeklyPulseService) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+func TestScheduler_WeeklyPulseTriggerRegistration(t *testing.T) {
+	pulseSvc := &mockWeeklyPulseService{}
+	sched := New(Config{
+		Enabled: true,
+		WeeklyPulse: config.WeeklyPulseConfig{
+			Enabled:  true,
+			Schedule: "0 9 * * 1",
+		},
+		WeeklyPulseService: pulseSvc,
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	names := sched.TriggerNames()
+	found := false
+	for _, name := range names {
+		if name == weeklyPulseTriggerName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected weekly pulse trigger %q to be registered, got %v", weeklyPulseTriggerName, names)
+	}
+}
+
+func TestScheduler_WeeklyPulseDefaultSchedule(t *testing.T) {
+	pulseSvc := &mockWeeklyPulseService{}
+	sched := New(Config{
+		Enabled: true,
+		WeeklyPulse: config.WeeklyPulseConfig{
+			Enabled: true,
+			// Schedule intentionally empty — should default to "0 9 * * 1"
+		},
+		WeeklyPulseService: pulseSvc,
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	names := sched.TriggerNames()
+	found := false
+	for _, name := range names {
+		if name == weeklyPulseTriggerName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected weekly pulse trigger registered with default schedule, got %v", names)
+	}
+}
+
+func TestScheduler_WeeklyPulseSkippedWhenDisabled(t *testing.T) {
+	sched := New(Config{
+		Enabled: true,
+		WeeklyPulse: config.WeeklyPulseConfig{
+			Enabled: false,
+		},
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	for _, name := range sched.TriggerNames() {
+		if name == weeklyPulseTriggerName {
+			t.Fatal("weekly pulse should not be registered when disabled")
+		}
+	}
+}
+
+func TestScheduler_WeeklyPulseSkippedWhenNoService(t *testing.T) {
+	sched := New(Config{
+		Enabled: true,
+		WeeklyPulse: config.WeeklyPulseConfig{
+			Enabled:  true,
+			Schedule: "0 9 * * 1",
+		},
+		// WeeklyPulseService intentionally nil
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	for _, name := range sched.TriggerNames() {
+		if name == weeklyPulseTriggerName {
+			t.Fatal("weekly pulse should not be registered when no service wired")
+		}
+	}
+}
+
 // TestRecoveryDelay_DefaultBackoff confirms the 1-minute default kicks in when
 // RecoveryBackoff is zero.
 func TestRecoveryDelay_DefaultBackoff(t *testing.T) {
