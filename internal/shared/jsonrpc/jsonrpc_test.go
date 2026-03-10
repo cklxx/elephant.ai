@@ -1,6 +1,9 @@
 package jsonrpc
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestRequestIDGenerator(t *testing.T) {
 	gen := NewRequestIDGenerator()
@@ -24,7 +27,7 @@ func TestNewErrorResponse(t *testing.T) {
 
 func TestMarshalUnmarshalRequest(t *testing.T) {
 	req := NewRequest(42, "m", map[string]any{"k": "v"})
-	payload, err := Marshal(req)
+	payload, err := json.Marshal(req)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}

@@ -405,7 +405,7 @@ func TestMarshal_Roundtrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			data, err := Marshal(tt.input)
+			data, err := json.Marshal(tt.input)
 			require.NoError(t, err)
 
 			var raw map[string]json.RawMessage
