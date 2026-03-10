@@ -2,12 +2,11 @@ package main
 
 import (
 	"context"
-	"strings"
 	"time"
 
-	"alex/internal/shared/utils"
 	"alex/internal/app/subscription"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/utils"
 )
 
 type onboardingSetupSelection struct {
@@ -16,57 +15,43 @@ type onboardingSetupSelection struct {
 	LarkConfigured  bool
 }
 
-func markOnboardingCompleteFromSelection(ctx context.Context, envLookup runtimeconfig.EnvLookup, selection subscription.Selection) error {
+func resolveOnboardingStore(envLookup runtimeconfig.EnvLookup) *subscription.OnboardingStateStore {
 	if envLookup == nil {
 		envLookup = runtimeconfig.DefaultEnvLookup
 	}
-	store := subscription.NewOnboardingStateStore(
+	return subscription.NewOnboardingStateStore(
 		subscription.ResolveOnboardingStatePath(envLookup, nil),
 	)
-	state := subscription.OnboardingState{
+}
+
+func markOnboardingCompleteFromSelection(ctx context.Context, envLookup runtimeconfig.EnvLookup, selection subscription.Selection) error {
+	// NormalizeOnboardingState (called by Set) handles TrimSpace/ToLower.
+	return resolveOnboardingStore(envLookup).Set(ctx, subscription.OnboardingState{
 		CompletedAt:      time.Now().UTC().Format(time.RFC3339),
-		SelectedProvider: strings.ToLower(strings.TrimSpace(selection.Provider)),
-		SelectedModel:    strings.TrimSpace(selection.Model),
-		UsedSource:       strings.TrimSpace(selection.Source),
-	}
-	return store.Set(ctx, state)
+		SelectedProvider: selection.Provider,
+		SelectedModel:    selection.Model,
+		UsedSource:       selection.Source,
+	})
 }
 
 func markOnboardingCompleteWithYAML(ctx context.Context, envLookup runtimeconfig.EnvLookup) error {
-	if envLookup == nil {
-		envLookup = runtimeconfig.DefaultEnvLookup
-	}
-	store := subscription.NewOnboardingStateStore(
-		subscription.ResolveOnboardingStatePath(envLookup, nil),
-	)
-	state := subscription.OnboardingState{
+	return resolveOnboardingStore(envLookup).Set(ctx, subscription.OnboardingState{
 		CompletedAt:           time.Now().UTC().Format(time.RFC3339),
 		UsedSource:            "yaml",
 		AdvancedOverridesUsed: true,
-	}
-	return store.Set(ctx, state)
+	})
 }
 
 func markOnboardingSetupSelections(ctx context.Context, envLookup runtimeconfig.EnvLookup, selection onboardingSetupSelection) error {
-	if envLookup == nil {
-		envLookup = runtimeconfig.DefaultEnvLookup
-	}
-	store := subscription.NewOnboardingStateStore(
-		subscription.ResolveOnboardingStatePath(envLookup, nil),
-	)
-	state, ok, err := store.Get(ctx)
+	store := resolveOnboardingStore(envLookup)
+	state, _, err := store.Get(ctx)
 	if err != nil {
 		return err
 	}
-	if !ok {
-		state = subscription.OnboardingState{}
-	}
 
-	runtimeMode := strings.ToLower(strings.TrimSpace(selection.RuntimeMode))
-	persistenceMode := strings.ToLower(strings.TrimSpace(selection.PersistenceMode))
-	state.SelectedRuntimeMode = runtimeMode
-	if persistenceMode != "" {
-		state.PersistenceMode = persistenceMode
+	state.SelectedRuntimeMode = selection.RuntimeMode
+	if selection.PersistenceMode != "" {
+		state.PersistenceMode = selection.PersistenceMode
 	}
 	state.LarkConfigured = selection.LarkConfigured
 	if utils.IsBlank(state.CompletedAt) {

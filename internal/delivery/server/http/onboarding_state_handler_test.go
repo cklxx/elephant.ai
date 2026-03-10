@@ -26,6 +26,10 @@ func (s *memoryOnboardingStore) Get(context.Context) (subscription.OnboardingSta
 }
 
 func (s *memoryOnboardingStore) Set(_ context.Context, state subscription.OnboardingState) error {
+	state = subscription.NormalizeOnboardingState(state)
+	if state.CompletedAt == "" && state.SelectedProvider != "" && state.SelectedModel != "" {
+		state.CompletedAt = time.Now().UTC().Format(time.RFC3339)
+	}
 	s.state = state
 	s.ok = true
 	return nil
@@ -63,9 +67,6 @@ func TestOnboardingStateHandlerUpdateAndGet(t *testing.T) {
 
 	store := &memoryOnboardingStore{}
 	handler := NewOnboardingStateHandler(store)
-	handler.now = func() time.Time {
-		return time.Date(2026, 2, 8, 14, 0, 0, 0, time.UTC)
-	}
 
 	body := onboardingStateUpdateRequest{
 		State: subscription.OnboardingState{

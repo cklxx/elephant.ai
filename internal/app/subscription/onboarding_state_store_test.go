@@ -71,14 +71,14 @@ func TestNormalizeOnboardingState(t *testing.T) {
 	}
 }
 
-func TestIsOnboardingStateEmpty(t *testing.T) {
+func TestOnboardingState_IsZero(t *testing.T) {
 	t.Parallel()
 
-	if !IsOnboardingStateEmpty(OnboardingState{}) {
+	if !(OnboardingState{}).IsZero() {
 		t.Fatal("expected zero-value state to be empty")
 	}
 
-	if IsOnboardingStateEmpty(OnboardingState{SelectedProvider: "codex"}) {
+	if (OnboardingState{SelectedProvider: "codex"}).IsZero() {
 		t.Fatal("expected provider-only state to be non-empty")
 	}
 }

@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -19,17 +20,13 @@ type onboardingStateStore interface {
 // OnboardingStateHandler serves internal onboarding state APIs.
 type OnboardingStateHandler struct {
 	store onboardingStateStore
-	now   func() time.Time
 }
 
 func NewOnboardingStateHandler(store onboardingStateStore) *OnboardingStateHandler {
 	if store == nil {
 		return nil
 	}
-	return &OnboardingStateHandler{
-		store: store,
-		now:   time.Now,
-	}
+	return &OnboardingStateHandler{store: store}
 }
 
 type onboardingStateResponse struct {
@@ -79,7 +76,7 @@ func (h *OnboardingStateHandler) HandleUpdateOnboardingState(w http.ResponseWrit
 		return
 	}
 
-	if subscription.IsOnboardingStateEmpty(state) {
+	if state.IsZero() {
 		if err := h.store.Clear(r.Context()); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -90,20 +87,19 @@ func (h *OnboardingStateHandler) HandleUpdateOnboardingState(w http.ResponseWrit
 		})
 		return
 	}
-	if utils.IsBlank(state.CompletedAt) && state.SelectedProvider != "" && state.SelectedModel != "" {
-		now := h.now
-		if now == nil {
-			now = time.Now
-		}
-		state.CompletedAt = now().UTC().Format(time.RFC3339)
-	}
+	// CompletedAt auto-populate is handled by the store's Set method.
 	if err := h.store.Set(r.Context(), state); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Re-read from store to get the canonical state (with auto-populated CompletedAt).
+	stored, ok, _ := h.store.Get(r.Context())
+	if !ok {
+		stored = state
+	}
 	writeJSON(w, http.StatusOK, onboardingStateResponse{
-		State:     state,
-		Completed: utils.HasContent(state.CompletedAt),
+		State:     stored,
+		Completed: utils.HasContent(stored.CompletedAt),
 	})
 }
 
@@ -112,40 +108,28 @@ func validateOnboardingState(state subscription.OnboardingState) error {
 	model := strings.TrimSpace(state.SelectedModel)
 	switch {
 	case provider == "" && model != "":
-		return httpError("state.selected_provider is required when selected_model is set")
+		return fmt.Errorf("state.selected_provider is required when selected_model is set")
 	case provider != "" && model == "":
-		return httpError("state.selected_model is required when selected_provider is set")
+		return fmt.Errorf("state.selected_model is required when selected_provider is set")
 	}
 	if utils.HasContent(state.CompletedAt) {
 		if _, err := time.Parse(time.RFC3339, state.CompletedAt); err != nil {
-			return httpError("state.completed_at must be RFC3339 timestamp")
+			return fmt.Errorf("state.completed_at must be RFC3339 timestamp")
 		}
 	}
 	if state.SelectedRuntimeMode != "" {
 		switch state.SelectedRuntimeMode {
 		case "cli", "lark", "full-dev":
 		default:
-			return httpError("state.selected_runtime_mode must be one of cli|lark|full-dev")
+			return fmt.Errorf("state.selected_runtime_mode must be one of cli|lark|full-dev")
 		}
 	}
 	if state.PersistenceMode != "" {
 		switch state.PersistenceMode {
 		case "file", "memory":
 		default:
-			return httpError("state.persistence_mode must be one of file|memory")
+			return fmt.Errorf("state.persistence_mode must be one of file|memory")
 		}
 	}
 	return nil
-}
-
-type validationErr struct {
-	msg string
-}
-
-func (e validationErr) Error() string {
-	return e.msg
-}
-
-func httpError(msg string) error {
-	return validationErr{msg: msg}
 }

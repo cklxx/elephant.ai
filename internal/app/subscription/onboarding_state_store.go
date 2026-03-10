@@ -45,12 +45,8 @@ func NormalizeOnboardingState(state OnboardingState) OnboardingState {
 	return state
 }
 
-// IsOnboardingStateEmpty reports whether state has no meaningful onboarding values.
-func IsOnboardingStateEmpty(state OnboardingState) bool {
-	return state.isZero()
-}
-
-func (s OnboardingState) isZero() bool {
+// IsZero reports whether state has no meaningful onboarding values.
+func (s OnboardingState) IsZero() bool {
 	return utils.IsBlank(s.CompletedAt) &&
 		utils.IsBlank(s.SelectedProvider) &&
 		utils.IsBlank(s.SelectedModel) &&
@@ -108,7 +104,7 @@ func (s *OnboardingStateStore) Get(ctx context.Context) (OnboardingState, bool, 
 	if err != nil {
 		return OnboardingState{}, false, err
 	}
-	if !exists || doc.State.isZero() {
+	if !exists || doc.State.IsZero() {
 		return OnboardingState{}, false, nil
 	}
 	return doc.State, true, nil
@@ -204,7 +200,7 @@ func (s *OnboardingStateStore) saveDocLocked(ctx context.Context, doc onboarding
 
 	doc.Version = onboardingStateVersion
 	doc.State = NormalizeOnboardingState(doc.State)
-	if doc.State.isZero() {
+	if doc.State.IsZero() {
 		if err := os.Remove(s.path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("remove onboarding state: %w", err)
 		}
