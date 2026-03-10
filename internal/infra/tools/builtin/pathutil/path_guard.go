@@ -5,27 +5,28 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 )
 
 // ResolveLocalPath resolves a local path to an absolute local path.
 func ResolveLocalPath(ctx context.Context, raw string) (string, error) {
-	return resolveAbsolutePath(ctx, raw)
+	return resolveAbsolutePath(ctx, raw, false)
 }
 
 // ResolveLocalPathOrTemp resolves a local path to an absolute local path.
 // It is kept for compatibility with existing callers that use temp files.
 func ResolveLocalPathOrTemp(ctx context.Context, raw string) (string, error) {
-	return resolveAbsolutePath(ctx, raw)
+	return resolveAbsolutePath(ctx, raw, true)
 }
 
 // SanitizePathWithinBase resolves a path to an absolute local path.
 func SanitizePathWithinBase(ctx context.Context, raw string) (string, error) {
-	return resolveAbsolutePath(ctx, raw)
+	return resolveAbsolutePath(ctx, raw, false)
 }
 
-func resolveAbsolutePath(ctx context.Context, raw string) (string, error) {
+func resolveAbsolutePath(ctx context.Context, raw string, allowTemp bool) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return "", fmt.Errorf("path cannot be empty")
@@ -38,7 +39,23 @@ func resolveAbsolutePath(ctx context.Context, raw string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve path: %w", err)
 	}
-	return candidateAbs, nil
+
+	workspaceRoot, err := filepath.Abs(filepath.Clean(resolver.ResolvePath(".")))
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve workspace root: %w", err)
+	}
+	if pathWithinBase(workspaceRoot, candidateAbs) {
+		return candidateAbs, nil
+	}
+
+	if allowTemp {
+		tempDir := strings.TrimSpace(os.TempDir())
+		if tempDir != "" && pathWithinBase(tempDir, candidateAbs) {
+			return candidateAbs, nil
+		}
+	}
+
+	return "", fmt.Errorf("path %q escapes workspace root %q", trimmed, workspaceRoot)
 }
 
 // PathWithinBase reports whether target is contained within base after resolving symlinks.

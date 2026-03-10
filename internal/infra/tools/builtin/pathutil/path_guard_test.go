@@ -30,33 +30,17 @@ func TestResolveLocalPath(t *testing.T) {
 		t.Fatalf("expected resolved path %q to stay within base %q", resolved, base)
 	}
 
-	escaped, err := ResolveLocalPath(ctx, "../escape.txt")
-	if err != nil {
-		t.Fatalf("expected traversal path to resolve, got error: %v", err)
-	}
-	expectedEscaped, err := filepath.Abs(filepath.Clean(filepath.Join(base, "..", "escape.txt")))
-	if err != nil {
-		t.Fatalf("failed to normalize expected escaped path: %v", err)
-	}
-	if escaped != expectedEscaped {
-		t.Fatalf("expected traversal path %q, got %q", expectedEscaped, escaped)
+	if _, err := ResolveLocalPath(ctx, "../escape.txt"); err == nil {
+		t.Fatal("expected traversal path to be rejected")
 	}
 
 	outside := filepath.Dir(base)
-	outsideResolved, err := ResolveLocalPath(ctx, outside)
-	if err != nil {
-		t.Fatalf("expected absolute path outside base to resolve, got error: %v", err)
-	}
-	expectedOutside, err := filepath.Abs(filepath.Clean(outside))
-	if err != nil {
-		t.Fatalf("failed to normalize expected outside path: %v", err)
-	}
-	if outsideResolved != expectedOutside {
-		t.Fatalf("expected outside path %q, got %q", expectedOutside, outsideResolved)
+	if _, err := ResolveLocalPath(ctx, outside); err == nil {
+		t.Fatal("expected absolute path outside base to be rejected")
 	}
 }
 
-func TestResolveLocalPathAllowsSymlinkPath(t *testing.T) {
+func TestResolveLocalPathRejectsSymlinkEscape(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
@@ -76,20 +60,12 @@ func TestResolveLocalPathAllowsSymlinkPath(t *testing.T) {
 	}
 
 	ctx := WithWorkingDir(context.Background(), base)
-	resolved, err := ResolveLocalPath(ctx, filepath.Join("logs", "secret.txt"))
-	if err != nil {
-		t.Fatalf("expected symlink path to resolve, got error: %v", err)
-	}
-	expected, err := filepath.Abs(filepath.Join(base, "logs", "secret.txt"))
-	if err != nil {
-		t.Fatalf("failed to normalize expected symlink path: %v", err)
-	}
-	if resolved != expected {
-		t.Fatalf("expected symlink path %q, got %q", expected, resolved)
+	if _, err := ResolveLocalPath(ctx, filepath.Join("logs", "secret.txt")); err == nil {
+		t.Fatal("expected symlink escape path to be rejected")
 	}
 }
 
-func TestResolveLocalPathAllowsMemoryRoot(t *testing.T) {
+func TestResolveLocalPathRejectsOutsideAbsolutePath(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
@@ -102,19 +78,10 @@ func TestResolveLocalPathAllowsMemoryRoot(t *testing.T) {
 		_ = os.RemoveAll(base)
 	})
 
-	home, err := os.UserHomeDir()
-	if err != nil || strings.TrimSpace(home) == "" {
-		t.Skip("user home dir unavailable")
-	}
-	memoryRoot := filepath.Join(home, ".alex", "memory")
-
 	ctx := WithWorkingDir(context.Background(), base)
-	resolved, err := ResolveLocalPath(ctx, memoryRoot)
-	if err != nil {
-		t.Fatalf("expected memory root to resolve, got error: %v", err)
-	}
-	if resolved != filepath.Clean(memoryRoot) {
-		t.Fatalf("expected resolved path %q, got %q", filepath.Clean(memoryRoot), resolved)
+	outside := t.TempDir()
+	if _, err := ResolveLocalPath(ctx, outside); err == nil {
+		t.Fatal("expected outside absolute path to be rejected")
 	}
 }
 
@@ -159,7 +126,7 @@ func TestResolveLocalPathOrTemp_AllowsOsTempDirFile(t *testing.T) {
 	}
 }
 
-func TestResolveLocalPathOrTemp_AllowsNonTempOutsideBase(t *testing.T) {
+func TestResolveLocalPathOrTemp_RejectsNonTempOutsideBase(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
@@ -174,15 +141,7 @@ func TestResolveLocalPathOrTemp_AllowsNonTempOutsideBase(t *testing.T) {
 	ctx := WithWorkingDir(context.Background(), base)
 
 	outside := filepath.Dir(base)
-	resolved, err := ResolveLocalPathOrTemp(ctx, outside)
-	if err != nil {
-		t.Fatalf("expected outside path to resolve, got error: %v", err)
-	}
-	expected, err := filepath.Abs(filepath.Clean(outside))
-	if err != nil {
-		t.Fatalf("failed to normalize expected outside path: %v", err)
-	}
-	if resolved != expected {
-		t.Fatalf("expected outside path %q, got %q", expected, resolved)
+	if _, err := ResolveLocalPathOrTemp(ctx, outside); err == nil {
+		t.Fatal("expected non-temp path outside base to be rejected")
 	}
 }

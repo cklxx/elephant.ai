@@ -70,7 +70,7 @@ func (t *writeFile) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	leadingNewline, _ := boolArgOptional(call.Arguments, "leading_newline")
 	trailingNewline, _ := boolArgOptional(call.Arguments, "trailing_newline")
 
-	payload := []byte(content)
+	var payload []byte
 	if strings.EqualFold(encoding, "base64") {
 		decoded, err := base64.StdEncoding.DecodeString(content)
 		if err != nil {
