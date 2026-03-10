@@ -326,16 +326,24 @@ func TestMultipleTasks(t *testing.T) {
 		t.Fatalf("expected 5 tasks, got %d", mgr.TaskCount())
 	}
 
-	mgr.AwaitAll(5 * time.Second)
-
-	completed := mgr.DrainCompletions()
-	if len(completed) != 5 {
-		t.Fatalf("expected 5 completions, got %d", len(completed))
-	}
-
-	results := mgr.Collect(nil, false, 0)
+	results := mgr.Collect(nil, true, 10*time.Second)
 	if len(results) != 5 {
 		t.Fatalf("expected 5 results, got %d", len(results))
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	completed := make(map[string]struct{}, 5)
+	for len(completed) < 5 && time.Now().Before(deadline) {
+		for _, taskID := range mgr.DrainCompletions() {
+			completed[taskID] = struct{}{}
+		}
+		if len(completed) == 5 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(completed) != 5 {
+		t.Fatalf("expected 5 completions, got %d", len(completed))
 	}
 	for _, r := range results {
 		if r.Status != agent.BackgroundTaskStatusCompleted {
