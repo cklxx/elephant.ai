@@ -745,8 +745,8 @@ func TestRuntime_ListSessions(t *testing.T) {
 	t.Parallel()
 	rt := newTestRuntime(t)
 
-	rt.CreateSession(session.MemberClaudeCode, "goal-1", "/tmp", "")
-	rt.CreateSession(session.MemberCodex, "goal-2", "/tmp", "")
+	_, _ = rt.CreateSession(session.MemberClaudeCode, "goal-1", "/tmp", "")
+	_, _ = rt.CreateSession(session.MemberCodex, "goal-2", "/tmp", "")
 
 	list := rt.ListSessions()
 	if len(list) != 2 {
