@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { parseJsonRenderPayload } from "../json-render-model";
 import { renderJsonRenderHtml } from "../json-render-ssr";
 

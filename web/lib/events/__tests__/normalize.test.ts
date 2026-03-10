@@ -21,9 +21,9 @@ describe('normalizeAgentEvent', () => {
     const result = normalizeAgentEvent(raw);
 
     expect(result.status).toBe('valid');
-    expect(result.event?.tool_name).toBe('bash');
-    expect(result.event?.call_id).toBe('call-1');
-    expect(result.event?.duration).toBe(123);
+    expect((result.event as any)?.tool_name).toBe('bash');
+    expect((result.event as any)?.call_id).toBe('call-1');
+    expect((result.event as any)?.duration).toBe(123);
   });
 
   it('returns valid status when the event already matches schema', () => {
@@ -41,7 +41,7 @@ describe('normalizeAgentEvent', () => {
     const result = normalizeAgentEvent(raw);
 
     expect(result.status).toBe('valid');
-    expect(result.event.tool_name).toBe('web_search');
+    expect((result.event as any).tool_name).toBe('web_search');
   });
 
   it('accepts workflow.tool.completed events with tool_sla payload', () => {
@@ -70,7 +70,7 @@ describe('normalizeAgentEvent', () => {
     const result = normalizeAgentEvent(raw);
 
     expect(result.status).toBe('valid');
-    expect(result.event?.tool_sla?.tool_name).toBe('bash');
+    expect((result.event as any)?.tool_sla?.tool_name).toBe('bash');
   });
 
   it('flags invalid events when event_type is missing', () => {
@@ -114,6 +114,6 @@ describe('normalizeAgentEvent', () => {
 
     const finalEvents = normalized.filter((evt) => evt.event_type === 'workflow.result.final');
     expect(finalEvents).toHaveLength(1);
-    expect(finalEvents[0].final_answer).toBe('second');
+    expect((finalEvents[0] as any).final_answer).toBe('second');
   });
 });

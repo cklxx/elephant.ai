@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createLogger } from "../logger";
 import * as debugMode from "../debugMode";
 

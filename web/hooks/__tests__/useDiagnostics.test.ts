@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { handleEnvironmentSnapshot, resetDiagnostics, useDiagnostics } from '../useDiagnostics';
 import { WorkflowDiagnosticEnvironmentSnapshotEvent } from '@/lib/types';
@@ -13,13 +14,13 @@ describe('useDiagnostics', () => {
   });
 
   it('updates environments when snapshot event is handled', () => {
-    const event: WorkflowDiagnosticEnvironmentSnapshotEvent = {
+    const event = {
       event_type: 'workflow.diagnostic.environment_snapshot',
       timestamp: new Date().toISOString(),
       agent_level: 'core',
       captured: new Date().toISOString(),
       host: { HOSTNAME: 'host.local', USER: 'cli' },
-    };
+    } as WorkflowDiagnosticEnvironmentSnapshotEvent;
 
     const { result } = renderHook(() => useDiagnostics());
 

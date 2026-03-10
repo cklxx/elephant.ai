@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import { EnvironmentStrip } from '../EnvironmentStrip';
 import { handleEnvironmentSnapshot, resetDiagnostics } from '@/hooks/useDiagnostics';
@@ -15,7 +16,7 @@ describe('EnvironmentStrip', () => {
         agent_level: 'core',
         captured: new Date().toISOString(),
         host: { HOSTNAME: 'host.local', USER: 'operator' },
-      });
+      } as any);
     });
 
     render(<EnvironmentStrip />);

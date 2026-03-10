@@ -1,1 +1,4 @@
 status: in_progress
+branch: fix/web-lint
+created: 2026-03-10
+task: fix web frontend lint issues

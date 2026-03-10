@@ -172,7 +172,7 @@ describe('useSessionStore', () => {
       });
 
       const { result } = renderHook(() => useSessionStore());
-      expect((result.current as Record<string, unknown>).pinnedSessions).toBeUndefined();
+      expect((result.current as unknown as Record<string, unknown>).pinnedSessions).toBeUndefined();
 
       act(() => {
         result.current.addToHistory('legacy-session');

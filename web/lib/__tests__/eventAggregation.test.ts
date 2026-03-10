@@ -147,7 +147,7 @@ describe('EventLRUCache', () => {
 
       smallCache.addMany([makeEvent(1), makeEvent(2), makeEvent(3), makeEvent(4)]);
       const replaced = smallCache.replaceLastIf(
-        (event) => event.iteration === 4,
+        (event) => (event as any).iteration === 4,
         makeEvent(40),
       );
 

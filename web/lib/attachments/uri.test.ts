@@ -24,11 +24,11 @@ describe('attachments uri cache', () => {
       globalThis.URL = {
         createObjectURL,
         revokeObjectURL,
-      } as typeof URL;
+      } as unknown as typeof URL;
     }
     globalThis.Blob = class {
       constructor(_parts: unknown[], _opts?: BlobPropertyBag) {}
-    } as typeof Blob;
+    } as unknown as typeof Blob;
   });
 
   afterEach(() => {
@@ -37,14 +37,12 @@ describe('attachments uri cache', () => {
       if (originalCreateObjectURL) {
         originalURL.createObjectURL = originalCreateObjectURL;
       } else {
-        delete (originalURL as typeof URL & { createObjectURL?: typeof URL.createObjectURL })
-          .createObjectURL;
+        delete (originalURL as any).createObjectURL;
       }
       if (originalRevokeObjectURL) {
         originalURL.revokeObjectURL = originalRevokeObjectURL;
       } else {
-        delete (originalURL as typeof URL & { revokeObjectURL?: typeof URL.revokeObjectURL })
-          .revokeObjectURL;
+        delete (originalURL as any).revokeObjectURL;
       }
       globalThis.URL = originalURL;
     }

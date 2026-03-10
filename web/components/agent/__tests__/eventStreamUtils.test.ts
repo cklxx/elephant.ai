@@ -9,7 +9,7 @@ import {
 } from '../eventStreamUtils';
 import type { AnyAgentEvent } from '@/lib/types';
 
-function makeEvent(overrides: Partial<AnyAgentEvent> & { event_type: string }): AnyAgentEvent {
+function makeEvent(overrides: Record<string, unknown> & { event_type: string }): AnyAgentEvent {
   return {
     session_id: 'session-1',
     run_id: 'run-1',

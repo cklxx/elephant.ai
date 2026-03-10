@@ -124,7 +124,7 @@ describe('SmartErrorBoundary', () => {
     const user = userEvent.setup();
 
     // Always throws a retryable error
-    function AlwaysNetworkError() {
+    function AlwaysNetworkError(): JSX.Element {
       throw new Error('Network fetch failed');
     }
 

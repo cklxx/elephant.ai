@@ -64,8 +64,8 @@ describe('Memory Usage Tests', () => {
     expect(rawEvents.length).toBe(1000);
 
     // First event should be from iteration 500 (oldest 500 evicted)
-    expect(rawEvents[0].iteration).toBe(500);
-    expect(rawEvents[rawEvents.length - 1].iteration).toBe(1499);
+    expect((rawEvents[0] as any).iteration).toBe(500);
+    expect((rawEvents[rawEvents.length - 1] as any).iteration).toBe(1499);
   });
 
   it('should handle large tool outputs efficiently', () => {

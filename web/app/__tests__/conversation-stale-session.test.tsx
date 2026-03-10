@@ -142,10 +142,12 @@ describe('ConversationPageContent - stale session handling', () => {
       events: [],
       isConnected: true,
       isReconnecting: false,
+      isSlowRetry: false,
+      activeRunId: null,
       error: null,
       reconnectAttempts: 0,
       clearEvents: clearEventsMock,
-      reconnect: vi.fn(),
+      reconnect: vi.fn() as unknown as () => void,
       addEvent: vi.fn(),
     });
 

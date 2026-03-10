@@ -11,7 +11,7 @@ class MockFileReader {
 
   readAsDataURL(_: Blob) {
     if (typeof this.onload === 'function') {
-      this.onload(new ProgressEvent('load'));
+      this.onload(new ProgressEvent('load') as ProgressEvent<FileReader>);
     }
   }
 }

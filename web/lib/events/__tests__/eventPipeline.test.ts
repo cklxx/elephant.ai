@@ -71,7 +71,7 @@ describe('EventPipeline deduplication', () => {
     pipeline.process({ ...envelope });
 
     expect(received).toHaveLength(1);
-    expect(received[0].attachments).toBeNull();
+    expect((received[0] as any).attachments).toBeNull();
   });
 
   it('allows streaming updates with new content to flow through', () => {
@@ -94,8 +94,8 @@ describe('EventPipeline deduplication', () => {
     pipeline.process(second);
 
     expect(received).toHaveLength(2);
-    expect(received[0].final_answer).toBe('partial');
-    expect(received[1].final_answer).toBe('partial + next');
+    expect((received[0] as any).final_answer).toBe('partial');
+    expect((received[1] as any).final_answer).toBe('partial + next');
   });
 
   it('emits terminal results after streaming even when the content is unchanged', () => {
@@ -119,7 +119,7 @@ describe('EventPipeline deduplication', () => {
     pipeline.process(final);
 
     expect(received).toHaveLength(2);
-    expect(received[1].stream_finished).toBe(true);
+    expect((received[1] as any).stream_finished).toBe(true);
   });
 
   it('clears dedupe state on reset', () => {
@@ -174,7 +174,7 @@ describe('EventPipeline deduplication', () => {
     pipeline.process(buildFinalEnvelope(DEDUPE_MAX_ENTRIES));
 
     expect(received).toHaveLength(DEDUPE_MAX_ENTRIES + 2);
-    expect(received.at(-1)?.final_answer).toBe('answer-0');
+    expect((received.at(-1) as any)?.final_answer).toBe('answer-0');
   });
 
   it('keeps duplicate suppression correct after ring wrap-around', () => {
@@ -188,6 +188,6 @@ describe('EventPipeline deduplication', () => {
     pipeline.process(buildFinalEnvelope(DEDUPE_MAX_ENTRIES + 4));
 
     expect(received).toHaveLength(totalUniqueEvents + 1);
-    expect(received.at(-1)?.final_answer).toBe(`answer-${DEDUPE_MAX_ENTRIES + 4}`);
+    expect((received.at(-1) as any)?.final_answer).toBe(`answer-${DEDUPE_MAX_ENTRIES + 4}`);
   });
 });

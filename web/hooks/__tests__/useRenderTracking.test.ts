@@ -6,24 +6,21 @@ import { useRenderTracking } from "../useRenderTracking";
 // The hook is dev-only (process.env.NODE_ENV === 'development').
 // We test both paths by temporarily patching NODE_ENV at runtime.
 
-let originalNodeEnv: string | undefined;
-
 describe("useRenderTracking", () => {
   let trackRenderSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    originalNodeEnv = process.env.NODE_ENV;
     trackRenderSpy = vi.spyOn(performanceMonitor, "trackRenderTime");
     performanceMonitor.clear();
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = originalNodeEnv;
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
   it("calls trackRenderTime in development mode", () => {
-    process.env.NODE_ENV = "development";
+    vi.stubEnv("NODE_ENV", "development");
 
     renderHook(() => useRenderTracking("TestComponent"));
 
@@ -34,7 +31,7 @@ describe("useRenderTracking", () => {
   });
 
   it("reports non-negative duration", () => {
-    process.env.NODE_ENV = "development";
+    vi.stubEnv("NODE_ENV", "development");
 
     renderHook(() => useRenderTracking("TestComponent"));
 
@@ -43,7 +40,7 @@ describe("useRenderTracking", () => {
   });
 
   it("does not call trackRenderTime in production mode", () => {
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
 
     renderHook(() => useRenderTracking("TestComponent"));
 
@@ -51,7 +48,7 @@ describe("useRenderTracking", () => {
   });
 
   it("does not call trackRenderTime in test mode", () => {
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
 
     renderHook(() => useRenderTracking("TestComponent"));
 
@@ -59,7 +56,7 @@ describe("useRenderTracking", () => {
   });
 
   it("tracks subsequent re-renders", () => {
-    process.env.NODE_ENV = "development";
+    vi.stubEnv("NODE_ENV", "development");
 
     const { rerender } = renderHook(() => useRenderTracking("TestComponent"));
 
