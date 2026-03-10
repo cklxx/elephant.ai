@@ -1,8 +1,8 @@
-package channels
+package errsanitize
 
 import "testing"
 
-func TestSanitizeErrorForUser(t *testing.T) {
+func TestForUser(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -88,7 +88,6 @@ func TestSanitizeErrorForUser(t *testing.T) {
 			input: "some completely unknown and very long error message that goes on and on and on and on and would be confusing to a user if shown verbatim so it should be truncated at a reasonable length to avoid overwhelming them",
 			want:  "some completely unknown and very long error message that goes on and on and on and on and would be confusing to a user if shown verbatim so it should …",
 		},
-		// --- Additional coverage ---
 		{
 			name:  "bad gateway",
 			input: "LLM call failed: [openai/kimi-for-coding] Bad gateway (502). Retried 3 times over 15s.",
@@ -168,9 +167,9 @@ func TestSanitizeErrorForUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := SanitizeErrorForUser(tt.input)
+			got := ForUser(tt.input)
 			if got != tt.want {
-				t.Errorf("SanitizeErrorForUser(%q)\n  got  = %q\n  want = %q", tt.input, got, tt.want)
+				t.Errorf("ForUser(%q)\n  got  = %q\n  want = %q", tt.input, got, tt.want)
 			}
 		})
 	}

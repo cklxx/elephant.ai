@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	appcontext "alex/internal/app/agent/context"
-	"alex/internal/delivery/channels"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/errsanitize"
 	"alex/internal/shared/notification"
 	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
@@ -86,7 +86,7 @@ func (s *Scheduler) executeTrigger(trigger Trigger) error {
 // formatResult produces a human-readable summary of the trigger execution.
 func formatResult(trigger Trigger, result *agent.TaskResult, err error) string {
 	if err != nil {
-		return fmt.Sprintf("定时任务「%s」执行失败：%s", trigger.Name, channels.SanitizeErrorForUser(err.Error()))
+		return fmt.Sprintf("定时任务「%s」执行失败：%s", trigger.Name, errsanitize.ForUser(err.Error()))
 	}
 	if result == nil {
 		return fmt.Sprintf("定时任务「%s」已完成。", trigger.Name)

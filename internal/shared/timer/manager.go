@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	appcontext "alex/internal/app/agent/context"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/notification"
@@ -299,7 +298,7 @@ func (m *TimerManager) scheduleRecurringLocked(t *Timer) error {
 // fireTimer executes the timer's task within the originating session context.
 func (m *TimerManager) fireTimer(t *Timer) {
 	ctx := context.Background()
-	ctx = appcontext.MarkUnattendedContext(ctx)
+	ctx = id.MarkUnattendedContext(ctx)
 	if t.UserID != "" {
 		ctx = id.WithUserID(ctx, t.UserID)
 	}
