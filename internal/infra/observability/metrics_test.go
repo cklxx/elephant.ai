@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"alex/internal/shared/notification"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -286,6 +288,8 @@ func TestMetricsCollector_LeaderMetrics_NilSafe(t *testing.T) {
 	collector.RecordPulseGeneration(ctx, 1, time.Second)
 	collector.RecordAttentionDecision(ctx, "low", false)
 	collector.RecordFocusTimeSuppress(ctx, "user")
+	collector.RecordAlertOutcome(ctx, "blocker_radar", "lark", "sent")
+	collector.RecordAlertSendLatency(ctx, "blocker_radar", "lark", 42.0)
 }
 
 func TestMetricsCollector_LeaderMetrics_DisabledNoPanic(t *testing.T) {
@@ -296,6 +300,92 @@ func TestMetricsCollector_LeaderMetrics_DisabledNoPanic(t *testing.T) {
 	collector.RecordPulseGeneration(ctx, 1, time.Second)
 	collector.RecordAttentionDecision(ctx, "low", false)
 	collector.RecordFocusTimeSuppress(ctx, "user")
+	collector.RecordAlertOutcome(ctx, "blocker_radar", "lark", "sent")
+	collector.RecordAlertSendLatency(ctx, "weekly_pulse", "lark", 10.0)
+}
+
+// --- Alert outcome metrics ---
+
+func TestMetricsCollector_RecordAlertOutcome(t *testing.T) {
+	collector, err := NewMetricsCollector(MetricsConfig{Enabled: true, PrometheusPort: 0})
+	require.NoError(t, err)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = collector.Shutdown(ctx)
+	}()
+
+	ctx := context.Background()
+	collector.RecordAlertOutcome(ctx, "blocker_radar", "lark", "sent")
+	collector.RecordAlertOutcome(ctx, "blocker_radar", "lark", "delivered")
+	collector.RecordAlertOutcome(ctx, "weekly_pulse", "lark", "failed")
+	collector.RecordAlertOutcome(ctx, "prep_brief", "lark", "opened")
+	collector.RecordAlertOutcome(ctx, "milestone_checkin", "lark", "dismissed")
+	collector.RecordAlertOutcome(ctx, "blocker_radar", "lark", "acted_on")
+}
+
+func TestMetricsCollector_RecordAlertOutcome_TestHook(t *testing.T) {
+	collector := &MetricsCollector{}
+	var gotFeature, gotChannel, gotOutcome string
+	collector.SetTestHooks(MetricsTestHooks{
+		AlertOutcome: func(feature, channel, outcome string, latencyMs float64) {
+			gotFeature = feature
+			gotChannel = channel
+			gotOutcome = outcome
+		},
+	})
+	collector.RecordAlertOutcome(context.Background(), "blocker_radar", "lark", "delivered")
+	assert.Equal(t, "blocker_radar", gotFeature)
+	assert.Equal(t, "lark", gotChannel)
+	assert.Equal(t, "delivered", gotOutcome)
+}
+
+func TestMetricsCollector_RecordAlertSendLatency(t *testing.T) {
+	collector, err := NewMetricsCollector(MetricsConfig{Enabled: true, PrometheusPort: 0})
+	require.NoError(t, err)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = collector.Shutdown(ctx)
+	}()
+
+	collector.RecordAlertSendLatency(context.Background(), "blocker_radar", "lark", 42.5)
+}
+
+func TestMetricsCollector_RecordAlertSendLatency_TestHook(t *testing.T) {
+	collector := &MetricsCollector{}
+	var gotLatency float64
+	collector.SetTestHooks(MetricsTestHooks{
+		AlertOutcome: func(feature, channel, outcome string, latencyMs float64) {
+			gotLatency = latencyMs
+		},
+	})
+	collector.RecordAlertSendLatency(context.Background(), "weekly_pulse", "lark", 99.5)
+	assert.InDelta(t, 99.5, gotLatency, 0.01)
+}
+
+func TestMetricsOutcomeRecorder(t *testing.T) {
+	collector := &MetricsCollector{}
+	var gotFeature, gotChannel, gotOutcome string
+	collector.SetTestHooks(MetricsTestHooks{
+		AlertOutcome: func(feature, channel, outcome string, latencyMs float64) {
+			gotFeature = feature
+			gotChannel = channel
+			gotOutcome = outcome
+		},
+	})
+
+	recorder := &MetricsOutcomeRecorder{Metrics: collector}
+	recorder.RecordAlertOutcome(context.Background(), "prep_brief", "lark", notification.OutcomeOpened)
+	assert.Equal(t, "prep_brief", gotFeature)
+	assert.Equal(t, "lark", gotChannel)
+	assert.Equal(t, "opened", gotOutcome)
+}
+
+func TestMetricsOutcomeRecorder_NilMetrics(t *testing.T) {
+	recorder := &MetricsOutcomeRecorder{Metrics: nil}
+	// Should not panic.
+	recorder.RecordAlertOutcome(context.Background(), "blocker_radar", "lark", notification.OutcomeSent)
 }
 
 func TestMetricsCollector_DisabledMetrics(t *testing.T) {

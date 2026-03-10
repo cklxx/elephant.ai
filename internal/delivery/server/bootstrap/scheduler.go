@@ -13,14 +13,27 @@ import (
 	"alex/internal/app/prepbrief"
 	"alex/internal/app/pulse"
 	"alex/internal/app/scheduler"
+	infranotify "alex/internal/infra/notification"
+	"alex/internal/infra/observability"
 	okrtools "alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/notification"
 )
+
+// instrumentedNotifier returns a notifier wrapped with alert outcome telemetry
+// if metrics are available, otherwise returns the base notifier unchanged.
+func instrumentedNotifier(base notification.Notifier, metrics *observability.MetricsCollector, feature string) notification.Notifier {
+	if metrics == nil {
+		return base
+	}
+	recorder := &observability.MetricsOutcomeRecorder{Metrics: metrics}
+	return infranotify.NewInstrumentedNotifier(base, recorder, metrics, feature)
+}
 
 // startScheduler creates and starts the proactive scheduler.
 // Returns the scheduler instance or nil if initialization fails.
-func startScheduler(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger) *scheduler.Scheduler {
+func startScheduler(ctx context.Context, cfg Config, container *di.Container, metrics *observability.MetricsCollector, logger logging.Logger) *scheduler.Scheduler {
 	logger = logging.OrNop(logger)
 
 	goalsRoot := resolveGoalsRoot(cfg)
@@ -51,7 +64,7 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 		if lookback <= 0 {
 			lookback = time.Hour
 		}
-		svc := milestone.NewService(container.TaskStore, notifier, milestone.Config{
+		svc := milestone.NewService(container.TaskStore, instrumentedNotifier(notifier, metrics, "milestone_checkin"), milestone.Config{
 			Enabled:          true,
 			IntervalSeconds:  milestoneCheckinCfg.LookbackSeconds,
 			LookbackDuration: lookback,
@@ -67,7 +80,7 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 	weeklyPulseCfg := cfg.Runtime.Proactive.Scheduler.WeeklyPulse
 	var weeklyPulseSvc scheduler.WeeklyPulseService
 	if weeklyPulseCfg.Enabled && container != nil && container.TaskStore != nil {
-		svc := pulse.NewService(container.TaskStore, notifier, weeklyPulseCfg.Channel, weeklyPulseCfg.ChatID)
+		svc := pulse.NewService(container.TaskStore, instrumentedNotifier(notifier, metrics, "weekly_pulse"), weeklyPulseCfg.Channel, weeklyPulseCfg.ChatID)
 		weeklyPulseSvc = svc
 		logger.Info("Weekly pulse service created (channel=%s, chat_id=%s)", weeklyPulseCfg.Channel, weeklyPulseCfg.ChatID)
 	}
@@ -75,7 +88,7 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 	blockerRadarCfg := cfg.Runtime.Proactive.Scheduler.BlockerRadar
 	var blockerRadarSvc scheduler.BlockerRadarService
 	if blockerRadarCfg.Enabled && container != nil && container.TaskStore != nil {
-		radar := blocker.NewRadar(container.TaskStore, notifier, blocker.Config{
+		radar := blocker.NewRadar(container.TaskStore, instrumentedNotifier(notifier, metrics, "blocker_radar"), blocker.Config{
 			Enabled:               true,
 			StaleThresholdSeconds: blockerRadarCfg.StaleThresholdSeconds,
 			InputWaitSeconds:      blockerRadarCfg.InputWaitSeconds,
@@ -93,7 +106,7 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 		if lookback <= 0 {
 			lookback = 7 * 24 * time.Hour
 		}
-		svc := prepbrief.NewService(container.TaskStore, notifier, prepbrief.Config{
+		svc := prepbrief.NewService(container.TaskStore, instrumentedNotifier(notifier, metrics, "prep_brief"), prepbrief.Config{
 			LookbackDuration: lookback,
 			LookbackSeconds:  prepBriefCfg.LookbackSeconds,
 			Channel:          prepBriefCfg.Channel,

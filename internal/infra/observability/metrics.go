@@ -10,6 +10,7 @@ import (
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/modelregistry"
+	"alex/internal/shared/notification"
 
 	promclient "github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
@@ -70,6 +71,10 @@ type MetricsCollector struct {
 	leaderAttentionDecision metric.Int64Counter
 	leaderFocusSuppress     metric.Int64Counter
 
+	// Leader alert outcome metrics
+	leaderAlertOutcomes      metric.Int64Counter
+	leaderAlertSendLatency   metric.Float64Histogram
+
 	// Server for Prometheus scraping
 	prometheusServer *http.Server
 
@@ -87,6 +92,7 @@ type MetricsTestHooks struct {
 	PulseGeneration      func(taskCount int, duration time.Duration)
 	AttentionDecision    func(urgencyLevel string, suppressed bool)
 	FocusTimeSuppress    func(userID string)
+	AlertOutcome         func(feature, channel, outcome string, latencyMs float64)
 }
 
 // SetTestHooks registers callbacks that are invoked whenever the matching
@@ -388,6 +394,24 @@ func NewMetricsCollector(config MetricsConfig) (*MetricsCollector, error) {
 		return nil, fmt.Errorf("failed to create leader_focus_suppress counter: %w", err)
 	}
 
+	leaderAlertOutcomes, err := meter.Int64Counter(
+		"alex.leader.alert.outcomes.total",
+		metric.WithDescription("Leader notification lifecycle outcomes (sent, delivered, failed, opened, dismissed, acted_on)"),
+		metric.WithUnit("{outcome}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader_alert_outcomes counter: %w", err)
+	}
+
+	leaderAlertSendLatency, err := meter.Float64Histogram(
+		"alex.leader.alert.send.latency",
+		metric.WithDescription("Leader alert send latency in milliseconds"),
+		metric.WithUnit("ms"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader_alert_send_latency histogram: %w", err)
+	}
+
 	collector := &MetricsCollector{
 		meter:                 meter,
 		llmRequests:           llmRequests,
@@ -417,8 +441,10 @@ func NewMetricsCollector(config MetricsConfig) (*MetricsCollector, error) {
 		leaderPulseGenerations: leaderPulseGenerations,
 		leaderPulseDuration:    leaderPulseDuration,
 		leaderPulseTaskCount:   leaderPulseTaskCount,
-		leaderAttentionDecision: leaderAttentionDecision,
-		leaderFocusSuppress:    leaderFocusSuppress,
+		leaderAttentionDecision:  leaderAttentionDecision,
+		leaderFocusSuppress:     leaderFocusSuppress,
+		leaderAlertOutcomes:     leaderAlertOutcomes,
+		leaderAlertSendLatency:  leaderAlertSendLatency,
 	}
 
 	// Start Prometheus HTTP server
@@ -723,6 +749,57 @@ func (m *MetricsCollector) RecordFocusTimeSuppress(ctx context.Context, userID s
 	m.leaderFocusSuppress.Add(ctx, 1, metric.WithAttributes(
 		attribute.String("user_id", userID),
 	))
+}
+
+// RecordAlertOutcome records a leader notification lifecycle outcome.
+// feature is the leader service name (e.g. "blocker_radar", "weekly_pulse").
+// This method satisfies notification.OutcomeRecorder when wrapped with
+// MetricsOutcomeRecorder.
+func (m *MetricsCollector) RecordAlertOutcome(ctx context.Context, feature, channel, outcome string) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.AlertOutcome; hook != nil {
+		hook(feature, channel, outcome, 0)
+	}
+	if m.leaderAlertOutcomes == nil {
+		return
+	}
+	attrs := []attribute.KeyValue{
+		attribute.String("feature", feature),
+		attribute.String("channel", channel),
+		attribute.String("outcome", outcome),
+	}
+	m.leaderAlertOutcomes.Add(ctx, 1, metric.WithAttributes(attrs...))
+}
+
+// RecordAlertSendLatency records the send latency for a leader notification.
+func (m *MetricsCollector) RecordAlertSendLatency(ctx context.Context, feature, channel string, latencyMs float64) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.AlertOutcome; hook != nil {
+		hook(feature, channel, "", latencyMs)
+	}
+	if m.leaderAlertSendLatency == nil {
+		return
+	}
+	m.leaderAlertSendLatency.Record(ctx, latencyMs, metric.WithAttributes(
+		attribute.String("feature", feature),
+		attribute.String("channel", channel),
+	))
+}
+
+// MetricsOutcomeRecorder adapts MetricsCollector to notification.OutcomeRecorder.
+type MetricsOutcomeRecorder struct {
+	Metrics *MetricsCollector
+}
+
+// RecordAlertOutcome implements notification.OutcomeRecorder.
+func (r *MetricsOutcomeRecorder) RecordAlertOutcome(ctx context.Context, feature, channel string, outcome notification.AlertOutcome) {
+	if r.Metrics != nil {
+		r.Metrics.RecordAlertOutcome(ctx, feature, channel, string(outcome))
+	}
 }
 
 // EstimateCost returns the USD cost for a single LLM request.

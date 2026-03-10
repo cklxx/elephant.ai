@@ -10,6 +10,18 @@ const (
 	ChannelMoltbook = "moltbook"
 )
 
+// AlertOutcome describes the lifecycle state of a leader notification.
+type AlertOutcome string
+
+const (
+	OutcomeSent      AlertOutcome = "sent"
+	OutcomeDelivered AlertOutcome = "delivered"
+	OutcomeFailed    AlertOutcome = "failed"
+	OutcomeOpened    AlertOutcome = "opened"
+	OutcomeDismissed AlertOutcome = "dismissed"
+	OutcomeActedOn   AlertOutcome = "acted_on"
+)
+
 // Target identifies where to send a notification.
 type Target struct {
 	Channel string // ChannelLark, ChannelMoltbook
@@ -19,4 +31,9 @@ type Target struct {
 // Notifier routes messages to external channels.
 type Notifier interface {
 	Send(ctx context.Context, target Target, content string) error
+}
+
+// OutcomeRecorder records alert lifecycle outcomes for telemetry.
+type OutcomeRecorder interface {
+	RecordAlertOutcome(ctx context.Context, feature, channel string, outcome AlertOutcome)
 }

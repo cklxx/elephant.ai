@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"alex/internal/infra/moltbook"
 	"alex/internal/shared/logging"
@@ -139,6 +140,56 @@ func (c *CompositeNotifier) Send(ctx context.Context, target notification.Target
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// LatencyRecorder records send latency for leader notifications.
+type LatencyRecorder interface {
+	RecordAlertSendLatency(ctx context.Context, feature, channel string, latencyMs float64)
+}
+
+// InstrumentedNotifier wraps a Notifier and records alert outcomes via an
+// OutcomeRecorder. It tracks sent/delivered/failed outcomes on every Send call
+// and exposes RecordOutcome for downstream lifecycle events (opened,
+// dismissed, acted_on).
+type InstrumentedNotifier struct {
+	inner    notification.Notifier
+	recorder notification.OutcomeRecorder
+	latency  LatencyRecorder
+	feature  string // leader feature name, e.g. "blocker_radar"
+}
+
+// NewInstrumentedNotifier wraps inner with outcome telemetry for the given feature.
+// latency may be nil if send latency tracking is not needed.
+func NewInstrumentedNotifier(inner notification.Notifier, recorder notification.OutcomeRecorder, latency LatencyRecorder, feature string) *InstrumentedNotifier {
+	return &InstrumentedNotifier{inner: inner, recorder: recorder, latency: latency, feature: feature}
+}
+
+// Send delegates to the inner notifier and records sent/delivered/failed outcomes.
+func (n *InstrumentedNotifier) Send(ctx context.Context, target notification.Target, content string) error {
+	if n.recorder != nil {
+		n.recorder.RecordAlertOutcome(ctx, n.feature, target.Channel, notification.OutcomeSent)
+	}
+	start := time.Now()
+	err := n.inner.Send(ctx, target, content)
+	elapsed := time.Since(start)
+	if n.recorder != nil {
+		if err != nil {
+			n.recorder.RecordAlertOutcome(ctx, n.feature, target.Channel, notification.OutcomeFailed)
+		} else {
+			n.recorder.RecordAlertOutcome(ctx, n.feature, target.Channel, notification.OutcomeDelivered)
+		}
+	}
+	if n.latency != nil {
+		n.latency.RecordAlertSendLatency(ctx, n.feature, target.Channel, float64(elapsed.Milliseconds()))
+	}
+	return err
+}
+
+// RecordOutcome records a downstream lifecycle event (opened, dismissed, acted_on).
+func (n *InstrumentedNotifier) RecordOutcome(ctx context.Context, channel string, outcome notification.AlertOutcome) {
+	if n.recorder != nil {
+		n.recorder.RecordAlertOutcome(ctx, n.feature, channel, outcome)
+	}
 }
 
 // splitTitleBody splits content into a title (first line) and body (rest).

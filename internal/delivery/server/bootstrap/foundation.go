@@ -184,7 +184,11 @@ func (f *Foundation) SchedulerStage(sm *SubsystemManager) BootstrapStage {
 			return sm.Start(context.Background(), &gatewaySubsystem{
 				name: "scheduler",
 				startFn: func(ctx context.Context) (func(), error) {
-					sched := startScheduler(ctx, f.Config, f.Container, f.Logger)
+					var metrics *observability.MetricsCollector
+				if f.Obs != nil {
+					metrics = f.Obs.Metrics
+				}
+				sched := startScheduler(ctx, f.Config, f.Container, metrics, f.Logger)
 					if sched == nil {
 						return nil, fmt.Errorf("scheduler init returned nil")
 					}
