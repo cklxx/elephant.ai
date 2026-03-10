@@ -70,11 +70,6 @@ type DraftBuilder struct {
 	Now func() time.Time
 }
 
-// NewDraftBuilder creates a DraftBuilder using the real clock.
-func NewDraftBuilder() *DraftBuilder {
-	return &DraftBuilder{Now: time.Now}
-}
-
 // Build generates a ReminderDraft from the given intent.
 func (b *DraftBuilder) Build(intent ReminderIntent) ReminderDraft {
 	now := b.Now()

@@ -142,8 +142,8 @@ func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 	prompt := window.SystemPrompt
 	expectations := []string{
 		"Perfect Subordinate — System Prompt",
-		"Primary Principle: Intent Over Instruction",
-		"Conclusion First, Details On Demand",
+		"Optimize for intent, not literal wording.",
+		"Lead with the bottom line.",
 		"Never execute destructive shell commands",
 		"alex team run",
 	}

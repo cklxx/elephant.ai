@@ -253,7 +253,7 @@ func TestPipeline_ConfirmationError(t *testing.T) {
 }
 
 func TestNewPipeline(t *testing.T) {
-	builder := NewDraftBuilder()
+	builder := &DraftBuilder{Now: time.Now}
 	gate := AutoApproveGate{}
 	pipeline := NewPipeline(builder, gate)
 

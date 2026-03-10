@@ -34,6 +34,21 @@ type gitSignalCall struct {
 	threshold time.Duration
 }
 
+func historyLen(r *Radar, taskID string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if h, ok := r.history[taskID]; ok {
+		return len(h.records)
+	}
+	return 0
+}
+
+func historyTaskCount(r *Radar) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.history)
+}
+
 func (f *fakeNotifier) Send(_ context.Context, target notification.Target, content string) error {
 	f.sent = append(f.sent, sentMsg{target: target, content: content})
 	return nil
@@ -553,7 +568,7 @@ func TestHistory_EvictsOldestAtCapacity(t *testing.T) {
 		}
 	}
 
-	histLen := r.HistoryLen("t1")
+	histLen := historyLen(r, "t1")
 	if histLen != maxHistoryPerTask {
 		t.Errorf("history len = %d, want %d (cap)", histLen, maxHistoryPerTask)
 	}
@@ -573,11 +588,11 @@ func TestHistory_RecordedOnScan(t *testing.T) {
 
 	_, _ = r.Scan(ctx)
 
-	if r.HistoryLen("t1") == 0 {
+	if historyLen(r, "t1") == 0 {
 		t.Error("expected history to be recorded after scan with alerts")
 	}
-	if r.HistoryTaskCount() != 1 {
-		t.Errorf("task count = %d, want 1", r.HistoryTaskCount())
+	if historyTaskCount(r) != 1 {
+		t.Errorf("task count = %d, want 1", historyTaskCount(r))
 	}
 }
 
@@ -587,8 +602,8 @@ func TestHistory_NoRecordWithoutAlerts(t *testing.T) {
 
 	_, _ = r.Scan(context.Background())
 
-	if r.HistoryTaskCount() != 0 {
-		t.Errorf("expected 0 history entries for scan with no alerts, got %d", r.HistoryTaskCount())
+	if historyTaskCount(r) != 0 {
+		t.Errorf("expected 0 history entries for scan with no alerts, got %d", historyTaskCount(r))
 	}
 }
 
@@ -606,8 +621,8 @@ func TestReapStale_RemovesOldEntries(t *testing.T) {
 	// Scan at t=5min (creates alert history for t1).
 	r.nowFunc = func() time.Time { return time.Now().Add(5 * time.Minute) }
 	_, _ = r.Scan(ctx)
-	if r.HistoryTaskCount() != 1 {
-		t.Fatalf("pre-reap task count = %d, want 1", r.HistoryTaskCount())
+	if historyTaskCount(r) != 1 {
+		t.Fatalf("pre-reap task count = %d, want 1", historyTaskCount(r))
 	}
 
 	// Reap with 31-day age — t1 was just seen, should survive.
@@ -623,8 +638,8 @@ func TestReapStale_RemovesOldEntries(t *testing.T) {
 	if reaped != 1 {
 		t.Errorf("reaped = %d, want 1 (stale entry)", reaped)
 	}
-	if r.HistoryTaskCount() != 0 {
-		t.Errorf("post-reap task count = %d, want 0", r.HistoryTaskCount())
+	if historyTaskCount(r) != 0 {
+		t.Errorf("post-reap task count = %d, want 0", historyTaskCount(r))
 	}
 }
 
@@ -656,10 +671,10 @@ func TestReapStale_PreservesRecentEntries(t *testing.T) {
 	if reaped != 1 {
 		t.Errorf("reaped = %d, want 1 (only t1 stale)", reaped)
 	}
-	if r.HistoryLen("t1") != 0 {
+	if historyLen(r, "t1") != 0 {
 		t.Errorf("t1 history should be gone after reap")
 	}
-	if r.HistoryLen("t2") == 0 {
+	if historyLen(r, "t2") == 0 {
 		t.Errorf("t2 history should be preserved (recent)")
 	}
 }

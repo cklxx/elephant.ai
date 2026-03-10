@@ -10,8 +10,3 @@ type Trigger struct {
 	ChatID   string // channel-specific chat_id for notifications
 	GoalID   string // non-empty for OKR-derived triggers
 }
-
-// IsOKRTrigger returns true if the trigger was derived from an OKR goal.
-func (t Trigger) IsOKRTrigger() bool {
-	return t.GoalID != ""
-}

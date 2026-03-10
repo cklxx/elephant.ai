@@ -6,8 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"time"
-
-	"github.com/robfig/cron/v3"
 )
 
 // Compile-time check that *Scheduler satisfies Service.
@@ -44,6 +42,4 @@ type Service interface {
 	ListJobs(ctx context.Context) ([]JobDTO, error)
 	// LoadJob loads a single job by ID.
 	LoadJob(ctx context.Context, id string) (*JobDTO, error)
-	// CronParser returns the parser for validating cron expressions.
-	CronParser() cron.Parser
 }

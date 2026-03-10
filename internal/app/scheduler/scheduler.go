@@ -49,7 +49,7 @@ type Config struct {
 	BlockerRadar        config.BlockerRadarConfig
 	BlockerRadarService BlockerRadarService // optional; wired by bootstrap
 	PrepBrief           config.PrepBriefConfig
-	PrepBriefService    PrepBriefService    // optional; wired by bootstrap
+	PrepBriefService    PrepBriefService      // optional; wired by bootstrap
 	CalendarPort        calendar.CalendarPort // optional; calendar-driven prep brief triggering
 	ScopeWatch          config.ScopeWatchConfig
 	ScopeWatchService   ScopeWatchService // optional; wired by bootstrap
@@ -515,11 +515,6 @@ func (s *Scheduler) LoadJob(ctx context.Context, id string) (*JobDTO, error) {
 		return nil, err
 	}
 	return jobToDTO(job), nil
-}
-
-// CronParser returns the scheduler's cron parser for external validation.
-func (s *Scheduler) CronParser() cron.Parser {
-	return s.parser
 }
 
 // jobToDTO converts an internal Job to a JobDTO.

@@ -648,15 +648,15 @@ func TestFormatResult_NilResult(t *testing.T) {
 	}
 }
 
-func TestTrigger_IsOKRTrigger(t *testing.T) {
+func TestTrigger_GoalIDMarksOKRTrigger(t *testing.T) {
 	okrTrigger := Trigger{GoalID: "q1-2026"}
-	if !okrTrigger.IsOKRTrigger() {
-		t.Error("expected IsOKRTrigger=true for trigger with GoalID")
+	if okrTrigger.GoalID == "" {
+		t.Error("expected GoalID to mark trigger as OKR-derived")
 	}
 
 	staticTrigger := Trigger{Name: "daily"}
-	if staticTrigger.IsOKRTrigger() {
-		t.Error("expected IsOKRTrigger=false for trigger without GoalID")
+	if staticTrigger.GoalID != "" {
+		t.Error("expected empty GoalID for non-OKR trigger")
 	}
 }
 
@@ -932,7 +932,7 @@ func TestScheduler_StaleRecoveryGuard_FiresWhenFailureIsRecent(t *testing.T) {
 		Status:       JobStatusActive,
 		FailureCount: 1,
 		LastFailure:  now.Add(-50 * time.Millisecond), // very recent failure
-		LastRun:      now.Add(-5 * time.Minute),        // last run was before failure
+		LastRun:      now.Add(-5 * time.Minute),       // last run was before failure
 		CreatedAt:    now.Add(-1 * time.Hour),
 		UpdatedAt:    now,
 	}
@@ -973,12 +973,12 @@ func TestRecoveryDelay_ExponentialBackoff(t *testing.T) {
 		wantMin  time.Duration
 		wantMax  time.Duration
 	}{
-		{1, 1 * time.Minute, 1*time.Minute + 1},  // 1 * 2^0 = 1 min
-		{2, 2 * time.Minute, 2*time.Minute + 1},  // 1 * 2^1 = 2 min
-		{3, 4 * time.Minute, 4*time.Minute + 1},  // 1 * 2^2 = 4 min
-		{4, 8 * time.Minute, 8*time.Minute + 1},  // 1 * 2^3 = 8 min
-		{11, time.Hour, time.Hour + 1},            // capped at 1 hour
-		{100, time.Hour, time.Hour + 1},           // well above exponent cap
+		{1, 1 * time.Minute, 1*time.Minute + 1}, // 1 * 2^0 = 1 min
+		{2, 2 * time.Minute, 2*time.Minute + 1}, // 1 * 2^1 = 2 min
+		{3, 4 * time.Minute, 4*time.Minute + 1}, // 1 * 2^2 = 4 min
+		{4, 8 * time.Minute, 8*time.Minute + 1}, // 1 * 2^3 = 8 min
+		{11, time.Hour, time.Hour + 1},          // capped at 1 hour
+		{100, time.Hour, time.Hour + 1},         // well above exponent cap
 	}
 
 	for _, tc := range cases {
@@ -1595,15 +1595,15 @@ func TestScheduler_PrepBriefFixedFallback_WorksWithoutCalendar(t *testing.T) {
 
 func TestScheduler_LeaderJobsHealth_AllRegistered(t *testing.T) {
 	sched := New(Config{
-		Enabled: true,
-		MilestoneCheckin: config.MilestoneCheckinConfig{Enabled: true, Schedule: "0 */1 * * *"},
-		MilestoneService: &mockMilestoneService{},
-		WeeklyPulse:      config.WeeklyPulseConfig{Enabled: true, Schedule: "0 9 * * 1"},
-		WeeklyPulseService: &mockWeeklyPulseService{},
-		BlockerRadar:     config.BlockerRadarConfig{Enabled: true, Schedule: "0 */4 * * *"},
+		Enabled:             true,
+		MilestoneCheckin:    config.MilestoneCheckinConfig{Enabled: true, Schedule: "0 */1 * * *"},
+		MilestoneService:    &mockMilestoneService{},
+		WeeklyPulse:         config.WeeklyPulseConfig{Enabled: true, Schedule: "0 9 * * 1"},
+		WeeklyPulseService:  &mockWeeklyPulseService{},
+		BlockerRadar:        config.BlockerRadarConfig{Enabled: true, Schedule: "0 */4 * * *"},
 		BlockerRadarService: &mockBlockerRadarService{},
-		PrepBrief:        config.PrepBriefConfig{Enabled: true, Schedule: "30 8 * * 1-5"},
-		PrepBriefService: &mockPrepBriefService{},
+		PrepBrief:           config.PrepBriefConfig{Enabled: true, Schedule: "30 8 * * 1-5"},
+		PrepBriefService:    &mockPrepBriefService{},
 	}, &mockCoordinator{answer: "ok"}, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())

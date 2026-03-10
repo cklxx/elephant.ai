@@ -579,24 +579,6 @@ func (r *Radar) ReapStale(maxAge time.Duration) int {
 	return reaped
 }
 
-// HistoryLen returns the number of alert records stored for a task.
-// Returns 0 if no history exists for the task.
-func (r *Radar) HistoryLen(taskID string) int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if h, ok := r.history[taskID]; ok {
-		return len(h.records)
-	}
-	return 0
-}
-
-// HistoryTaskCount returns the number of tasks with alert history.
-func (r *Radar) HistoryTaskCount() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return len(r.history)
-}
-
 func taskLabel(t *task.Task) string {
 	if t.Description != "" {
 		return t.Description

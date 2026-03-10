@@ -50,9 +50,9 @@ func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, boo
 	creds := r.loadCreds()
 
 	// matchProvider checks both the dynamic credential provider name and the
-	// hardcoded known name. When credentials are empty (e.g. expired token),
-	// creds.XXX.Provider is "", so the dynamic match fails. The hardcoded
-	// fallback ensures the stored selection is still recognised.
+	// hardcoded known name. When credentials are empty (for example after an
+	// expired token), the dynamic provider field is blank and the hardcoded
+	// fallback keeps the stored selection recognisable.
 	matchProvider := func(credProvider, knownName string) bool {
 		return provider == credProvider || (credProvider == "" && provider == knownName)
 	}
