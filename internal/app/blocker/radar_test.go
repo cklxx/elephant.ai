@@ -851,7 +851,7 @@ func TestReapStaleNotifications(t *testing.T) {
 	r.nowFunc = func() time.Time { return t0 }
 
 	// Trigger notification to populate lastNotified.
-	r.NotifyBlockedTasks(ctx)
+	_, _ = r.NotifyBlockedTasks(ctx)
 
 	// Reap with short age — nothing old yet.
 	reaped := r.ReapStaleNotifications(1 * time.Hour)

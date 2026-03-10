@@ -247,7 +247,7 @@ func BenchmarkCircuitBreakerRecovery(b *testing.B) {
 
 		// Phase 3: Succeed to close circuit.
 		for j := 0; j < 3; j++ {
-			rc.Complete(ctx, req)
+			_, _ = rc.Complete(ctx, req)
 		}
 	}
 }
