@@ -51,6 +51,7 @@ type Container struct {
 	config       Config
 	toolRegistry *toolregistry.Registry
 	llmFactory   *llm.Factory
+	bgCancel     context.CancelFunc // cancels background goroutines (e.g. memory cleanup)
 }
 
 // Config holds the dependency injection configuration
@@ -151,6 +152,10 @@ func (c *Container) Drain(ctx context.Context) error {
 func (c *Container) Shutdown() error {
 	logger := logging.NewComponentLogger("DI")
 	logger.Info("Shutting down container...")
+
+	if c.bgCancel != nil {
+		c.bgCancel()
+	}
 
 	if c.AgentCoordinator != nil {
 		if err := c.AgentCoordinator.Close(); err != nil {

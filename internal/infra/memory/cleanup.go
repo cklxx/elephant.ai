@@ -15,6 +15,7 @@ import (
 type CleanupConfig struct {
 	ArchiveAfterDays int           // move entries older than N days (0 disables)
 	CleanupInterval  time.Duration // how often to scan
+	InitialDelay     time.Duration // delay before first run (default 5s)
 }
 
 // CleanupResult reports what a single cleanup pass did.
@@ -100,12 +101,19 @@ func (e *MarkdownEngine) StartCleanupLoop(ctx context.Context, cfg CleanupConfig
 
 	logger := logging.NewComponentLogger("MemoryCleanup")
 
+	initialDelay := cfg.InitialDelay
+	if initialDelay <= 0 {
+		initialDelay = 5 * time.Second
+	}
+
 	go func() {
+		defer logger.Info("memory cleanup goroutine stopped")
+
 		// Run once at startup after a short delay.
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(5 * time.Second):
+		case <-time.After(initialDelay):
 		}
 		e.runCleanup(logger, cfg.ArchiveAfterDays)
 
