@@ -7,8 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"alex/internal/domain/signal"
+	signalports "alex/internal/domain/signal/ports"
 	"alex/internal/domain/task"
 	"alex/internal/infra/taskstore"
+	"alex/internal/shared/notification"
 )
 
 func newTestStore(t *testing.T) task.Store {
@@ -31,6 +34,96 @@ func makeTask(id, desc string, status task.Status) *task.Task {
 		UpdatedAt:   now,
 	}
 }
+
+func makeReviewEvent(repo string, number int, createdAt, reviewedAt time.Time, kind signal.SignalKind) signal.SignalEvent {
+	return signal.SignalEvent{
+		ID:        repo + "-review",
+		Kind:      kind,
+		Provider:  "github",
+		Repo:      repo,
+		Timestamp: reviewedAt,
+		PR: &signal.PRContext{
+			Number:    number,
+			Title:     "stabilize background jobs",
+			Author:    "alice",
+			State:     "open",
+			CreatedAt: createdAt,
+		},
+	}
+}
+
+func makeMergeEvent(repo string, number int, at time.Time) signal.SignalEvent {
+	return signal.SignalEvent{
+		ID:        repo + "-merge",
+		Kind:      signal.SignalPRMerged,
+		Provider:  "github",
+		Repo:      repo,
+		Timestamp: at,
+		PR: &signal.PRContext{
+			Number: number,
+			Title:  "ship scheduler hardening",
+			Author: "bob",
+			State:  "merged",
+		},
+	}
+}
+
+func makeCommitEvent(repo, author string, at time.Time) signal.SignalEvent {
+	return signal.SignalEvent{
+		ID:        repo + "-commit-" + author,
+		Kind:      signal.SignalCommitPushed,
+		Provider:  "github",
+		Repo:      repo,
+		Timestamp: at,
+		Commit: &signal.CommitContext{
+			SHA:     "abc123",
+			Message: "refine pulse formatting",
+			Author:  author,
+			Branch:  "main",
+		},
+	}
+}
+
+type fakeNotifier struct {
+	sent []string
+}
+
+func (f *fakeNotifier) Send(_ context.Context, _ notification.Target, content string) error {
+	f.sent = append(f.sent, content)
+	return nil
+}
+
+type fakeGitSignalProvider struct {
+	events []signal.SignalEvent
+	err    error
+}
+
+var _ signalports.GitSignalProvider = (*fakeGitSignalProvider)(nil)
+
+func (f *fakeGitSignalProvider) ListRecentEvents(context.Context, time.Time) ([]signal.SignalEvent, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.events, nil
+}
+
+func (f *fakeGitSignalProvider) GetPRStatus(context.Context, string, int) (*signal.PRContext, error) {
+	return nil, nil
+}
+
+func (f *fakeGitSignalProvider) ListOpenPRs(context.Context, string) ([]signal.PRContext, error) {
+	return nil, nil
+}
+
+func (f *fakeGitSignalProvider) DetectReviewBottlenecks(context.Context, string, time.Duration) ([]signal.SignalEvent, error) {
+	return nil, nil
+}
+
+func (f *fakeGitSignalProvider) ListCommitActivity(context.Context, string, string, time.Time) ([]signal.SignalEvent, error) {
+	return nil, nil
+}
+
+func (f *fakeGitSignalProvider) Provider() string { return "github" }
 
 // --- Generation tests ---
 
@@ -272,6 +365,40 @@ func TestFormatMarkdown_WithData(t *testing.T) {
 	}
 }
 
+func TestFormatMarkdown_WithGitMetrics(t *testing.T) {
+	now := time.Now()
+	pulse := &WeeklyPulse{
+		From: now.Add(-7 * 24 * time.Hour),
+		To:   now,
+		GitMetrics: &GitActivityMetrics{
+			PRsMerged:     4,
+			ReviewCount:   6,
+			CommitsPushed: 9,
+			AvgReviewTime: 18 * time.Hour,
+			TopContributors: []GitContributor{
+				{Author: "alice", Commits: 5},
+				{Author: "bob", Commits: 3},
+			},
+		},
+	}
+
+	out := FormatMarkdown(pulse)
+	checks := []string{
+		"## Git Activity",
+		"PRs merged:** 4",
+		"Reviews submitted:** 6",
+		"Commits pushed:** 9",
+		"Avg review time:** 18h",
+		"alice (5 commits)",
+		"bob (3 commits)",
+	}
+	for _, check := range checks {
+		if !strings.Contains(out, check) {
+			t.Fatalf("missing %q in output:\n%s", check, out)
+		}
+	}
+}
+
 func TestFormatMarkdown_Sections(t *testing.T) {
 	pulse := &WeeklyPulse{
 		From: time.Date(2026, 3, 3, 0, 0, 0, 0, time.UTC),
@@ -359,6 +486,49 @@ func TestGenerate_ZeroTokensAndCost(t *testing.T) {
 	}
 	if pulse.SuccessRate != 0 {
 		t.Errorf("SuccessRate = %f, want 0", pulse.SuccessRate)
+	}
+}
+
+func TestGenerateAndSend_EnrichesPulseWithGitMetrics(t *testing.T) {
+	store := newTestStore(t)
+	notifier := &fakeNotifier{}
+	svc := NewService(store, notifier, "lark", "test-chat")
+
+	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+	svc.gen.now = func() time.Time { return now }
+	svc.GitSignalSource = &fakeGitSignalProvider{
+		events: []signal.SignalEvent{
+			makeMergeEvent("org/repo", 101, now.Add(-48*time.Hour)),
+			makeMergeEvent("org/repo", 102, now.Add(-24*time.Hour)),
+			makeReviewEvent("org/repo", 101, now.Add(-72*time.Hour), now.Add(-48*time.Hour), signal.SignalPRApproved),
+			makeReviewEvent("org/repo", 102, now.Add(-36*time.Hour), now.Add(-24*time.Hour), signal.SignalPRReviewSubmitted),
+			makeCommitEvent("org/repo", "alice", now.Add(-5*time.Hour)),
+			makeCommitEvent("org/repo", "alice", now.Add(-4*time.Hour)),
+			makeCommitEvent("org/repo", "bob", now.Add(-3*time.Hour)),
+		},
+	}
+
+	if err := svc.GenerateAndSend(context.Background()); err != nil {
+		t.Fatalf("GenerateAndSend: %v", err)
+	}
+	if len(notifier.sent) != 1 {
+		t.Fatalf("sent = %d, want 1", len(notifier.sent))
+	}
+
+	out := notifier.sent[0]
+	checks := []string{
+		"## Git Activity",
+		"PRs merged:** 2",
+		"Reviews submitted:** 2",
+		"Commits pushed:** 3",
+		"Avg review time:** 18h",
+		"alice (2 commits)",
+		"bob (1 commit)",
+	}
+	for _, check := range checks {
+		if !strings.Contains(out, check) {
+			t.Fatalf("missing %q in output:\n%s", check, out)
+		}
 	}
 }
 

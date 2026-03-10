@@ -81,6 +81,7 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, me
 	var weeklyPulseSvc scheduler.WeeklyPulseService
 	if weeklyPulseCfg.Enabled && container != nil && container.TaskStore != nil {
 		svc := pulse.NewService(container.TaskStore, instrumentedNotifier(notifier, metrics, "weekly_pulse"), weeklyPulseCfg.Channel, weeklyPulseCfg.ChatID)
+		svc.GitSignalSource = container.GitSignalProvider
 		weeklyPulseSvc = svc
 		logger.Info("Weekly pulse service created (channel=%s, chat_id=%s)", weeklyPulseCfg.Channel, weeklyPulseCfg.ChatID)
 	}

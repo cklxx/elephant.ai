@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/domain/signal"
+	signalports "alex/internal/domain/signal/ports"
 	"alex/internal/domain/task"
 	"alex/internal/shared/notification"
 )
@@ -33,6 +35,23 @@ type WeeklyPulse struct {
 	TotalTokens       int
 	TotalCostUSD      float64
 	SuccessRate       float64 // 0..1
+
+	GitMetrics *GitActivityMetrics
+}
+
+// GitActivityMetrics holds the Git activity summary for the same 7-day window.
+type GitActivityMetrics struct {
+	PRsMerged       int
+	ReviewCount     int
+	CommitsPushed   int
+	AvgReviewTime   time.Duration
+	TopContributors []GitContributor
+}
+
+// GitContributor captures commit activity by author.
+type GitContributor struct {
+	Author  string
+	Commits int
 }
 
 // Generator produces weekly pulse digests from a task store.
@@ -158,6 +177,27 @@ func FormatMarkdown(p *WeeklyPulse) string {
 		b.WriteString(fmt.Sprintf("- **Success rate:** %.0f%%\n", p.SuccessRate*100))
 	}
 
+	if p.GitMetrics != nil {
+		b.WriteString("\n## Git Activity\n\n")
+		b.WriteString(fmt.Sprintf("- **PRs merged:** %d\n", p.GitMetrics.PRsMerged))
+		b.WriteString(fmt.Sprintf("- **Reviews submitted:** %d\n", p.GitMetrics.ReviewCount))
+		b.WriteString(fmt.Sprintf("- **Commits pushed:** %d\n", p.GitMetrics.CommitsPushed))
+		if p.GitMetrics.AvgReviewTime > 0 {
+			b.WriteString(fmt.Sprintf("- **Avg review time:** %s\n", formatDuration(p.GitMetrics.AvgReviewTime)))
+		} else {
+			b.WriteString("- **Avg review time:** n/a\n")
+		}
+		if len(p.GitMetrics.TopContributors) == 0 {
+			b.WriteString("- **Top contributors:** none\n")
+		} else {
+			var contributors []string
+			for _, contributor := range p.GitMetrics.TopContributors {
+				contributors = append(contributors, fmt.Sprintf("%s (%s)", contributor.Author, formatCommitCount(contributor.Commits)))
+			}
+			b.WriteString(fmt.Sprintf("- **Top contributors:** %s\n", strings.Join(contributors, ", ")))
+		}
+	}
+
 	// Completed
 	b.WriteString("\n## Completed\n\n")
 	if len(p.Completed) == 0 {
@@ -253,12 +293,21 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dh%dm", hours, mins)
 }
 
+func formatCommitCount(count int) string {
+	if count == 1 {
+		return "1 commit"
+	}
+	return fmt.Sprintf("%d commits", count)
+}
+
 // Service wraps a Generator with notification delivery for scheduler integration.
 type Service struct {
 	gen      *Generator
 	notifier notification.Notifier
 	channel  string
 	chatID   string
+
+	GitSignalSource signalports.GitSignalProvider
 }
 
 // NewService creates a pulse Service that generates and optionally sends digests.
@@ -278,6 +327,13 @@ func (s *Service) GenerateAndSend(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("generate pulse: %w", err)
 	}
+	if s.GitSignalSource != nil {
+		gitMetrics, err := s.generateGitMetrics(ctx, pulse.From)
+		if err != nil {
+			return fmt.Errorf("generate git metrics: %w", err)
+		}
+		pulse.GitMetrics = gitMetrics
+	}
 
 	content := FormatMarkdown(pulse)
 
@@ -293,4 +349,92 @@ func (s *Service) GenerateAndSend(ctx context.Context) error {
 		return fmt.Errorf("send pulse: %w", err)
 	}
 	return nil
+}
+
+func (s *Service) generateGitMetrics(ctx context.Context, from time.Time) (*GitActivityMetrics, error) {
+	events, err := s.GitSignalSource.ListRecentEvents(ctx, from)
+	if err != nil {
+		return nil, err
+	}
+	return summarizeGitActivity(events), nil
+}
+
+func summarizeGitActivity(events []signal.SignalEvent) *GitActivityMetrics {
+	metrics := &GitActivityMetrics{}
+	if len(events) == 0 {
+		return metrics
+	}
+
+	type contributorCount struct {
+		author  string
+		commits int
+	}
+
+	firstReviewLatencyByPR := make(map[string]time.Duration)
+	commitCounts := make(map[string]int)
+
+	for _, evt := range events {
+		switch evt.Kind {
+		case signal.SignalPRMerged:
+			metrics.PRsMerged++
+		case signal.SignalPRReviewSubmitted, signal.SignalPRApproved, signal.SignalPRChangesRequired:
+			metrics.ReviewCount++
+			if evt.PR == nil || evt.PR.CreatedAt.IsZero() {
+				continue
+			}
+			latency := evt.Timestamp.Sub(evt.PR.CreatedAt)
+			if latency < 0 {
+				continue
+			}
+			key := gitPRKey(evt.Repo, evt.PR.Number)
+			existing, ok := firstReviewLatencyByPR[key]
+			if !ok || latency < existing {
+				firstReviewLatencyByPR[key] = latency
+			}
+		case signal.SignalCommitPushed:
+			metrics.CommitsPushed++
+			if evt.Commit == nil {
+				continue
+			}
+			author := strings.TrimSpace(evt.Commit.Author)
+			if author == "" {
+				continue
+			}
+			commitCounts[author]++
+		}
+	}
+
+	var totalLatency time.Duration
+	for _, latency := range firstReviewLatencyByPR {
+		totalLatency += latency
+	}
+	if len(firstReviewLatencyByPR) > 0 {
+		metrics.AvgReviewTime = totalLatency / time.Duration(len(firstReviewLatencyByPR))
+	}
+
+	contributors := make([]contributorCount, 0, len(commitCounts))
+	for author, commits := range commitCounts {
+		contributors = append(contributors, contributorCount{author: author, commits: commits})
+	}
+	sort.Slice(contributors, func(i, j int) bool {
+		if contributors[i].commits == contributors[j].commits {
+			return contributors[i].author < contributors[j].author
+		}
+		return contributors[i].commits > contributors[j].commits
+	})
+	for i, contributor := range contributors {
+		if i >= 3 {
+			break
+		}
+		metrics.TopContributors = append(metrics.TopContributors, GitContributor{
+			Author:  contributor.author,
+			Commits: contributor.commits,
+		})
+	}
+
+	return metrics
+}
+
+func gitPRKey(repo string, number int) string {
+	return fmt.Sprintf("%s#%d", repo, number)
 }
