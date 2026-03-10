@@ -269,11 +269,20 @@ func FormatForLLM(err error) string {
 // Helper functions
 
 func isNetworkError(err error) bool {
-	// net.Error with Timeout or Temporary
+	// net.Error timeout path
 	var netErr net.Error
 	if errors.As(err, &netErr) {
-		//nolint:staticcheck // SA1019: Temporary() is deprecated but still used by some legacy code
-		return netErr.Timeout() || netErr.Temporary()
+		if netErr.Timeout() {
+			return true
+		}
+	}
+
+	// Some legacy callers still signal retryability via Temporary() without
+	// implementing a timeout. Keep honoring that contract without depending on
+	// the deprecated net.Error.Temporary method.
+	var tempErr interface{ Temporary() bool }
+	if errors.As(err, &tempErr) && tempErr.Temporary() {
+		return true
 	}
 
 	// Connection errors
@@ -285,7 +294,7 @@ func isNetworkError(err error) bool {
 	// DNS errors
 	var dnsErr *net.DNSError
 	if errors.As(err, &dnsErr) {
-		return dnsErr.Temporary()
+		return true
 	}
 
 	// Check error strings for common network error patterns

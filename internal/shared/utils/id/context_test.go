@@ -198,8 +198,8 @@ func TestCorrelationCausationContext(t *testing.T) {
 	if got := CorrelationIDFromContext(context.Background()); got != "" {
 		t.Fatalf("expected empty correlation, got %s", got)
 	}
-	//nolint:staticcheck // nil context is intentional to verify nil-safe accessors.
-	if got := CausationIDFromContext(nil); got != "" {
+	var nilCtx context.Context
+	if got := CausationIDFromContext(nilCtx); got != "" {
 		t.Fatalf("expected empty causation for nil ctx, got %s", got)
 	}
 }

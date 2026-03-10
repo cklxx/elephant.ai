@@ -350,23 +350,6 @@ func resolveHTTPFlusher(w http.ResponseWriter) (http.Flusher, bool) {
 	return nil, false
 }
 
-func normalizedToolName(payload map[string]any) string {
-	if len(payload) == 0 {
-		return ""
-	}
-	for _, key := range []string{"tool_name", "tool"} {
-		if raw, ok := payload[key]; ok {
-			if name, ok := raw.(string); ok {
-				normalized := utils.TrimLower(name)
-				if normalized != "" {
-					return normalized
-				}
-			}
-		}
-	}
-	return ""
-}
-
 // HandleTaskSSEStream handles SSE connection scoped to a single task (run_id).
 // It subscribes to the session's event stream and filters for events matching
 // the requested task_id.

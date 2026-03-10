@@ -2,12 +2,6 @@ package lark
 
 import "alex/internal/shared/uxphrases"
 
-// Package-level aliases so existing callers within this package keep working.
-var (
-	thinkingPhrases    = uxphrases.ThinkingPhrases
-	summarizingPhrases = uxphrases.SummarizingPhrases
-)
-
 // toolPhrase returns a friendly Chinese status phrase for the given tool name.
 func toolPhrase(toolName string, selector int) string {
 	return uxphrases.ToolPhrase(toolName, selector)

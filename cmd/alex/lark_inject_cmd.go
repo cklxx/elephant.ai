@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	larkgw "alex/internal/delivery/channels/lark"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/httpclient"
 	"alex/internal/shared/utils"
@@ -163,19 +162,6 @@ func runLarkInjectCommand(args []string) error {
 		return &ExitCodeError{Code: 1, Err: fmt.Errorf("inject completed with error: %s", resp.Body.Error)}
 	}
 	return nil
-}
-
-func injectRepliesToMessengerCalls(replies []larkInjectReply) []larkgw.MessengerCall {
-	calls := make([]larkgw.MessengerCall, 0, len(replies))
-	for _, reply := range replies {
-		calls = append(calls, larkgw.MessengerCall{
-			Method:  reply.Method,
-			Content: reply.Content,
-			MsgType: reply.MsgType,
-			Emoji:   reply.Emoji,
-		})
-	}
-	return calls
 }
 
 func larkInjectEndpoint(baseURL, port string) string {

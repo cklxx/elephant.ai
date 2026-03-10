@@ -153,14 +153,12 @@ func TestReplayMaxSnapshotCap(t *testing.T) {
 	sessionID := "session-cap"
 
 	// Write 200 snapshots (well above maxReplaySnapshots=50).
-	var allMessages []ports.Message
 	for i := 1; i <= 200; i++ {
 		msg := ports.Message{
 			Role:    "user",
 			Content: fmt.Sprintf("turn %d", i),
 			Source:  ports.MessageSourceUserInput,
 		}
-		allMessages = append(allMessages, msg)
 
 		snapshot := sessionstate.Snapshot{
 			SessionID: sessionID,

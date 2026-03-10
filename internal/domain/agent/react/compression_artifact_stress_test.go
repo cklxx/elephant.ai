@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -78,7 +77,6 @@ func fastEstimate(msgs []ports.Message) int {
 // stressContextManager uses fast estimation and real compression plan logic.
 type stressContextManager struct {
 	threshold float64
-	mu        sync.Mutex
 }
 
 func (m *stressContextManager) EstimateTokens(msgs []ports.Message) int {
@@ -200,11 +198,11 @@ func TestCompressionArtifactStress10KRounds(t *testing.T) {
 	}
 
 	var (
-		artifactPaths       []string
-		placeholderCount    int
-		compressionEvents   int
-		maxMessageCount     int
-		peakMemMB           uint64
+		artifactPaths     []string
+		placeholderCount  int
+		compressionEvents int
+		maxMessageCount   int
+		peakMemMB         uint64
 	)
 
 	t.Logf("Starting artifact stress: %d rounds, context_limit=%d, tokens/call=%d",

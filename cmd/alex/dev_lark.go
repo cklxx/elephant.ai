@@ -622,20 +622,6 @@ func envString(key, def string) string {
 	return def
 }
 
-func envBool(key string, def bool) bool {
-	v, ok := os.LookupEnv(key)
-	if !ok || v == "" {
-		return def
-	}
-	switch strings.ToLower(v) {
-	case "1", "true", "yes":
-		return true
-	case "0", "false", "no":
-		return false
-	}
-	return def
-}
-
 func resolveLarkMainConfigPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
