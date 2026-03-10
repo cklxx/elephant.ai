@@ -15,7 +15,6 @@ import (
 	"alex/internal/app/subscription"
 	serverApp "alex/internal/delivery/server/app"
 	serverHTTP "alex/internal/delivery/server/http"
-	"alex/internal/delivery/server/ports"
 	agentdomain "alex/internal/domain/agent"
 	"alex/internal/infra/analytics"
 	"alex/internal/infra/diagnostics"
@@ -90,15 +89,10 @@ func RunServer(observabilityConfigPath string) error {
 	}
 	broadcaster := serverApp.NewEventBroadcaster(broadcasterOpts...)
 
-	// Task store: in-memory with file persistence.
-	var taskStore ports.TaskStore
-	taskStoreOpts := []serverApp.TaskStoreOption{}
-	if sessionDir := strings.TrimSpace(container.SessionDir()); sessionDir != "" {
-		taskStoreOpts = append(taskStoreOpts, serverApp.WithTaskPersistenceFile(filepath.Join(sessionDir, "_server", "tasks.json")))
+	taskStore, err := serverTaskStoreForContainer(container)
+	if err != nil {
+		return err
 	}
-	memStore := serverApp.NewInMemoryTaskStore(taskStoreOpts...)
-	taskStore = memStore
-	defer memStore.Close()
 	progressTracker := serverApp.NewTaskProgressTracker(taskStore)
 
 	cleanupDiagnostics := subscribeDiagnostics(broadcaster)

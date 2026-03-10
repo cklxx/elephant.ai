@@ -1,9 +1,12 @@
 package di
 
 import (
+	"context"
 	"os"
 	"testing"
+	"time"
 
+	taskdomain "alex/internal/domain/task"
 	codinginfra "alex/internal/infra/coding"
 	runtimeconfig "alex/internal/shared/config"
 )
@@ -235,6 +238,23 @@ func TestBuildContainer(t *testing.T) {
 
 		if container.CostTracker == nil {
 			t.Error("CostTracker is nil")
+		}
+		if container.TaskStore == nil {
+			t.Error("TaskStore is nil")
+		}
+		if container.TaskStore != nil {
+			task := &taskdomain.Task{
+				TaskID:      t.Name() + "-" + time.Now().Format("150405.000000000"),
+				SessionID:   "session-1",
+				Channel:     "web",
+				Description: "task store wiring",
+				Status:      taskdomain.StatusPending,
+				CreatedAt:   time.Now(),
+				UpdatedAt:   time.Now(),
+			}
+			if err := container.TaskStore.Create(context.Background(), task); err != nil {
+				t.Errorf("TaskStore.Create() error = %v", err)
+			}
 		}
 
 		// Cleanup

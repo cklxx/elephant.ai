@@ -547,6 +547,98 @@ func TestLarkAdapter_UpdateStatusWithOptions(t *testing.T) {
 	}
 }
 
+func TestLarkAdapter_MarkStaleRunning_OnlyTouchesLarkTasks(t *testing.T) {
+	store := newMockStore()
+	adapter := NewLarkAdapter(store)
+	ctx := context.Background()
+
+	if err := store.Create(ctx, &taskdomain.Task{
+		TaskID:      "lark-active",
+		Channel:     "lark",
+		ChatID:      "chat-1",
+		Description: "lark task",
+		Status:      taskdomain.StatusRunning,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}); err != nil {
+		t.Fatalf("Create(lark) error = %v", err)
+	}
+	if err := store.Create(ctx, &taskdomain.Task{
+		TaskID:      "web-active",
+		Channel:     "web",
+		Description: "web task",
+		Status:      taskdomain.StatusRunning,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}); err != nil {
+		t.Fatalf("Create(web) error = %v", err)
+	}
+
+	if err := adapter.MarkStaleRunning(ctx, "gateway restart"); err != nil {
+		t.Fatalf("MarkStaleRunning() error = %v", err)
+	}
+
+	larkTask, _, err := adapter.GetTask(ctx, "lark-active")
+	if err != nil {
+		t.Fatalf("GetTask(lark-active) error = %v", err)
+	}
+	if larkTask.Status != "failed" {
+		t.Fatalf("lark task status = %q, want failed", larkTask.Status)
+	}
+
+	webTask, err := store.Get(ctx, "web-active")
+	if err != nil {
+		t.Fatalf("Get(web-active) error = %v", err)
+	}
+	if webTask.Status != taskdomain.StatusRunning {
+		t.Fatalf("web task status = %q, want running", webTask.Status)
+	}
+}
+
+func TestLarkAdapter_DeleteExpired_OnlyTouchesLarkTasks(t *testing.T) {
+	store := newMockStore()
+	adapter := NewLarkAdapter(store)
+	ctx := context.Background()
+	expiredAt := time.Now().Add(-2 * time.Hour)
+
+	if err := store.Create(ctx, &taskdomain.Task{
+		TaskID:      "lark-expired",
+		Channel:     "lark",
+		Description: "lark expired",
+		Status:      taskdomain.StatusCompleted,
+		CreatedAt:   expiredAt,
+		UpdatedAt:   expiredAt,
+		CompletedAt: &expiredAt,
+	}); err != nil {
+		t.Fatalf("Create(lark-expired) error = %v", err)
+	}
+	if err := store.Create(ctx, &taskdomain.Task{
+		TaskID:      "web-expired",
+		Channel:     "web",
+		Description: "web expired",
+		Status:      taskdomain.StatusCompleted,
+		CreatedAt:   expiredAt,
+		UpdatedAt:   expiredAt,
+		CompletedAt: &expiredAt,
+	}); err != nil {
+		t.Fatalf("Create(web-expired) error = %v", err)
+	}
+
+	if err := adapter.DeleteExpired(ctx, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatalf("DeleteExpired() error = %v", err)
+	}
+
+	if _, found, err := adapter.GetTask(ctx, "lark-expired"); err != nil {
+		t.Fatalf("GetTask(lark-expired) error = %v", err)
+	} else if found {
+		t.Fatal("GetTask(lark-expired) found = true, want false")
+	}
+
+	if _, err := store.Get(ctx, "web-expired"); err != nil {
+		t.Fatalf("Get(web-expired) error = %v, want task retained", err)
+	}
+}
+
 func TestLarkAdapter_ListByChat(t *testing.T) {
 	store := newMockStore()
 	adapter := NewLarkAdapter(store)

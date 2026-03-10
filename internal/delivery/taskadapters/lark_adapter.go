@@ -3,6 +3,7 @@ package taskadapters
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"alex/internal/delivery/channels/lark"
@@ -108,12 +109,50 @@ func (a *LarkAdapter) ListByChat(ctx context.Context, chatID string, activeOnly 
 
 // DeleteExpired removes task records older than the given time.
 func (a *LarkAdapter) DeleteExpired(ctx context.Context, before time.Time) error {
-	return a.store.DeleteExpired(ctx, before)
+	tasks, err := a.store.ListByStatus(
+		ctx,
+		taskdomain.StatusCompleted,
+		taskdomain.StatusFailed,
+		taskdomain.StatusCancelled,
+	)
+	if err != nil {
+		return err
+	}
+	for _, task := range tasks {
+		if task == nil || task.Channel != "lark" || task.CompletedAt == nil {
+			continue
+		}
+		if task.CompletedAt.Before(before) {
+			if err := a.store.Delete(ctx, task.TaskID); err != nil && !isNotFound(err) {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // MarkStaleRunning marks all running/pending tasks as failed.
 func (a *LarkAdapter) MarkStaleRunning(ctx context.Context, reason string) error {
-	return a.store.MarkStaleRunning(ctx, reason)
+	activeTasks, err := a.store.ListActive(ctx)
+	if err != nil {
+		return err
+	}
+	reason = strings.TrimSpace(reason)
+	for _, task := range activeTasks {
+		if task == nil || task.Channel != "lark" {
+			continue
+		}
+		if err := a.store.SetStatus(
+			ctx,
+			task.TaskID,
+			taskdomain.StatusFailed,
+			taskdomain.WithTransitionReason(reason),
+			taskdomain.WithTransitionError(reason),
+		); err != nil && !isNotFound(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 // SetBridgeMeta persists bridge subprocess metadata for resilience.

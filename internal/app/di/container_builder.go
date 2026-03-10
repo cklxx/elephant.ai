@@ -76,6 +76,10 @@ func (b *containerBuilder) Build() (*Container, error) {
 	if err != nil {
 		return nil, err
 	}
+	taskStore, err := b.buildTaskStore()
+	if err != nil {
+		return nil, fmt.Errorf("build task store: %w", err)
+	}
 
 	// Collect CLI detection results (should be ready by now).
 	detectedCLIs := <-cliCh
@@ -165,6 +169,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		CostTracker:      costTracker,
 		MemoryEngine:     memoryEngine,
 		CheckpointStore:  checkpointStore,
+		TaskStore:        taskStore,
 		config:           b.config,
 		toolRegistry:     toolRegistry,
 		llmFactory:       llmFactory,
@@ -172,6 +177,12 @@ func (b *containerBuilder) Build() (*Container, error) {
 	}
 	if drainable, ok := memoryEngine.(lifecycle.Drainable); ok {
 		container.Drainables = append(container.Drainables, drainable)
+	}
+	if taskStoreCloser, ok := taskStore.(interface{ Close() }); ok {
+		container.Drainables = append(container.Drainables, lifecycle.DrainFunc{
+			DrainName: "task-store",
+			Fn:        func(context.Context) { taskStoreCloser.Close() },
+		})
 	}
 
 	buildOK = true

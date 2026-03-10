@@ -171,6 +171,12 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		}
 	}
 
+	taskStore, err := larkTaskStoreForContainer(container)
+	if err != nil {
+		_ = altCoord.Shutdown()
+		return nil, fmt.Errorf("lark task store init failed: %w", err)
+	}
+
 	gateway, err := lark.NewGateway(gatewayCfg, altCoord.AgentCoordinator, logger)
 	if err != nil {
 		_ = altCoord.Shutdown()
@@ -207,16 +213,11 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		gateway.SetCostTracker(container.CostTracker)
 	}
 
-	taskStore, err := buildLarkTaskStore(ctx, gatewayCfg)
-	if err != nil {
-		logger.Warn("Lark task store init failed: %v", err)
-	} else {
-		gateway.SetTaskStore(taskStore)
-		if err := taskStore.MarkStaleRunning(ctx, "gateway restart"); err != nil {
-			logger.Warn("Lark task store stale cleanup failed: %v", err)
-		}
-		logger.Info("Lark task store enabled (mode=%s)", utils.TrimLower(gatewayCfg.PersistenceMode))
+	gateway.SetTaskStore(taskStore)
+	if err := taskStore.MarkStaleRunning(ctx, "gateway restart"); err != nil {
+		logger.Warn("Lark task store stale cleanup failed: %v", err)
 	}
+	logger.Info("Lark task store enabled (mode=unified)")
 
 	async.Go(logger, "lark.gateway", func() {
 		if err := gateway.Start(ctx); err != nil {
@@ -275,29 +276,6 @@ func buildLarkChatSessionStore(ctx context.Context, cfg lark.Config) (lark.ChatS
 		return store, nil
 	case larkPersistenceModeFile:
 		store, err := lark.NewChatSessionBindingFileStore(cfg.PersistenceDir)
-		if err != nil {
-			return nil, err
-		}
-		if err := store.EnsureSchema(ctx); err != nil {
-			return nil, err
-		}
-		return store, nil
-	default:
-		return nil, fmt.Errorf("unsupported lark persistence mode %q", cfg.PersistenceMode)
-	}
-}
-
-func buildLarkTaskStore(ctx context.Context, cfg lark.Config) (lark.TaskStore, error) {
-	mode := utils.TrimLower(cfg.PersistenceMode)
-	switch mode {
-	case larkPersistenceModeMemory:
-		store := lark.NewTaskMemoryStore(cfg.PersistenceRetention, cfg.PersistenceMaxTasksPerChat)
-		if err := store.EnsureSchema(ctx); err != nil {
-			return nil, err
-		}
-		return store, nil
-	case larkPersistenceModeFile:
-		store, err := lark.NewTaskFileStore(cfg.PersistenceDir, cfg.PersistenceRetention, cfg.PersistenceMaxTasksPerChat)
 		if err != nil {
 			return nil, err
 		}
