@@ -209,3 +209,18 @@ func TestParseRequestLogJSONInvalid(t *testing.T) {
 		t.Fatal("expected parse failure for whitespace")
 	}
 }
+
+func TestParseRequestLogLineSharesDerivedLogID(t *testing.T) {
+	raw := `{"timestamp":"2026-02-08T01:11:57Z","request_id":"log-shared-001:llm-2","entry_type":"error","error_class":"transient","body_bytes":20}`
+
+	entry := parseRequestLogLine(raw)
+	if entry.LogID != "log-shared-001" {
+		t.Fatalf("expected derived log_id, got %q", entry.LogID)
+	}
+	if entry.EntryType != "error" {
+		t.Fatalf("expected entry_type=error, got %q", entry.EntryType)
+	}
+	if entry.ErrorClass != "transient" {
+		t.Fatalf("expected error_class=transient, got %q", entry.ErrorClass)
+	}
+}

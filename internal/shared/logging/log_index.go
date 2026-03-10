@@ -2,7 +2,6 @@ package logging
 
 import (
 	"bufio"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -165,21 +164,12 @@ func scanRequestLogIndex(path string, opts LogIndexOptions, aggregates map[strin
 }
 
 func parseRequestLogLine(line string) requestLogIndexEntry {
-	var entry struct {
-		LogID      string `json:"log_id"`
-		RequestID  string `json:"request_id"`
-		Timestamp  string `json:"timestamp"`
-		EntryType  string `json:"entry_type"`
-		ErrorClass string `json:"error_class"`
-	}
-	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+	_, entry, ok := decodeRequestLogLine(line)
+	if !ok {
 		return requestLogIndexEntry{}
 	}
 
-	logID := strings.TrimSpace(entry.LogID)
-	if logID == "" {
-		logID = deriveLogIDFromRequestID(entry.RequestID)
-	}
+	logID := requestLogLineLogID(entry)
 	if logID == "" {
 		return requestLogIndexEntry{}
 	}

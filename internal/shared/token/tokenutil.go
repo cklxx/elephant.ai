@@ -1,36 +1,29 @@
 // Package tokenutil provides a centralized token counting utility backed by
-// tiktoken-go. It lazily initializes the cl100k_base encoding (GPT-3.5/4 and
-// Claude compatible) on first use and falls back to a character-based heuristic
-// if initialization fails.
+// tiktoken-go. It initializes the cl100k_base encoding once at package load
+// time and falls back to a character-based heuristic if initialization fails.
 package tokenutil
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/pkoukk/tiktoken-go"
 )
 
-var (
-	once     sync.Once
-	encoding *tiktoken.Tiktoken
-)
+var encoding = loadEncoding()
 
-func init() {
-	// Eager initialization so the first call doesn't pay the latency.
-	once.Do(func() {
-		enc, err := tiktoken.GetEncoding("cl100k_base")
-		if err == nil {
-			encoding = enc
-		}
-	})
+func loadEncoding() *tiktoken.Tiktoken {
+	enc, err := tiktoken.GetEncoding("cl100k_base")
+	if err != nil {
+		return nil
+	}
+	return enc
 }
 
 // CountTokens returns an accurate token count using cl100k_base encoding.
 // If tiktoken is unavailable, it falls back to EstimateFast.
 func CountTokens(text string) int {
-	if encoding != nil {
-		return len(encoding.Encode(text, nil, nil))
+	if tokens, ok := encodedTokens(text); ok {
+		return len(tokens)
 	}
 	return EstimateFast(text)
 }
@@ -61,14 +54,23 @@ func TruncateToTokens(text string, maxTokens int) string {
 	if maxTokens <= 0 {
 		return text
 	}
-	if encoding != nil {
-		tokens := encoding.Encode(text, nil, nil)
+	if tokens, ok := encodedTokens(text); ok {
 		if len(tokens) <= maxTokens {
 			return text
 		}
 		return encoding.Decode(tokens[:maxTokens]) + "..."
 	}
-	// Fallback: character-based heuristic
+	return truncateRunesApprox(text, maxTokens)
+}
+
+func encodedTokens(text string) ([]int, bool) {
+	if encoding == nil {
+		return nil, false
+	}
+	return encoding.Encode(text, nil, nil), true
+}
+
+func truncateRunesApprox(text string, maxTokens int) string {
 	runes := []rune(text)
 	limit := maxTokens * 4
 	if limit >= len(runes) {

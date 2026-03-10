@@ -66,14 +66,6 @@ func NewLLMLogger(component string) Logger {
 	return utils.NewCategorizedLogger(utils.LogCategoryLLM, component)
 }
 
-// FromUtils adapts the legacy utils logger to the Logger interface.
-func FromUtils(logger *utils.Logger) Logger {
-	if logger == nil {
-		return Nop()
-	}
-	return logger
-}
-
 type multiLogger struct {
 	loggers []Logger
 }
@@ -122,4 +114,15 @@ func (l *multiLogger) Error(format string, args ...any) {
 	for _, logger := range l.loggers {
 		logger.Error(format, args...)
 	}
+}
+
+func (l *multiLogger) WithLogID(logID string) Logger {
+	if l == nil {
+		return Nop()
+	}
+	tagged := make([]Logger, 0, len(l.loggers))
+	for _, logger := range l.loggers {
+		tagged = append(tagged, WithLogID(logger, logID))
+	}
+	return Multi(tagged...)
 }

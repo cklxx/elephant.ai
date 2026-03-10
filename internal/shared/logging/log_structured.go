@@ -66,6 +66,24 @@ type StructuredLogBundle struct {
 	Errors   StructuredRequestSnippet `json:"errors"`
 }
 
+type rawRequestLogLine struct {
+	Timestamp   string          `json:"timestamp"`
+	RequestID   string          `json:"request_id"`
+	LogID       string          `json:"log_id"`
+	EntryType   string          `json:"entry_type"`
+	BodyBytes   int             `json:"body_bytes"`
+	Mode        string          `json:"mode"`
+	Provider    string          `json:"provider"`
+	Model       string          `json:"model"`
+	Intent      string          `json:"intent"`
+	Stage       string          `json:"stage"`
+	ErrorClass  string          `json:"error_class"`
+	Error       string          `json:"error"`
+	LatencyMS   int64           `json:"latency_ms"`
+	Payload     json.RawMessage `json:"payload"`
+	PayloadText string          `json:"payload_text"`
+}
+
 // textLogLineRegexp matches the log format produced by logger.go log() method.
 //
 // Format with log_id:
@@ -117,43 +135,16 @@ func parseTextLogLine(line string) ParsedTextEntry {
 // parseRequestLogJSON parses a JSONL request/response log line.
 // Returns the parsed entry and true on success, or zero value and false on failure.
 func parseRequestLogJSON(line string) (ParsedRequestEntry, bool) {
-	line = strings.TrimSpace(line)
-	if line == "" {
+	line, raw, ok := decodeRequestLogLine(line)
+	if !ok {
 		return ParsedRequestEntry{}, false
-	}
-
-	var raw struct {
-		Timestamp   string          `json:"timestamp"`
-		RequestID   string          `json:"request_id"`
-		LogID       string          `json:"log_id"`
-		EntryType   string          `json:"entry_type"`
-		BodyBytes   int             `json:"body_bytes"`
-		Mode        string          `json:"mode"`
-		Provider    string          `json:"provider"`
-		Model       string          `json:"model"`
-		Intent      string          `json:"intent"`
-		Stage       string          `json:"stage"`
-		ErrorClass  string          `json:"error_class"`
-		Error       string          `json:"error"`
-		LatencyMS   int64           `json:"latency_ms"`
-		Payload     json.RawMessage `json:"payload"`
-		PayloadText string          `json:"payload_text"`
-	}
-
-	if err := json.Unmarshal([]byte(line), &raw); err != nil {
-		return ParsedRequestEntry{}, false
-	}
-
-	logID := strings.TrimSpace(raw.LogID)
-	if logID == "" {
-		logID = deriveLogIDFromRequestID(raw.RequestID)
 	}
 
 	entry := ParsedRequestEntry{
 		Raw:         line,
 		Timestamp:   raw.Timestamp,
 		RequestID:   raw.RequestID,
-		LogID:       logID,
+		LogID:       requestLogLineLogID(raw),
 		EntryType:   raw.EntryType,
 		BodyBytes:   raw.BodyBytes,
 		Mode:        strings.TrimSpace(raw.Mode),
@@ -172,4 +163,26 @@ func parseRequestLogJSON(line string) (ParsedRequestEntry, bool) {
 	}
 
 	return entry, true
+}
+
+func decodeRequestLogLine(line string) (string, rawRequestLogLine, bool) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return "", rawRequestLogLine{}, false
+	}
+
+	var raw rawRequestLogLine
+	if err := json.Unmarshal([]byte(line), &raw); err != nil {
+		return "", rawRequestLogLine{}, false
+	}
+
+	return line, raw, true
+}
+
+func requestLogLineLogID(raw rawRequestLogLine) string {
+	logID := strings.TrimSpace(raw.LogID)
+	if logID != "" {
+		return logID
+	}
+	return deriveLogIDFromRequestID(raw.RequestID)
 }

@@ -50,11 +50,7 @@ func FetchLogBundle(logID string, opts LogFetchOptions) LogBundle {
 	logID = strings.TrimSpace(logID)
 	bundle := LogBundle{LogID: logID}
 	if logID == "" {
-		errMsg := "log_id is required"
-		bundle.Service.Error = errMsg
-		bundle.LLM.Error = errMsg
-		bundle.Latency.Error = errMsg
-		bundle.Requests.Error = errMsg
+		fillLogBundleError(&bundle, "log_id is required")
 		return bundle
 	}
 
@@ -65,7 +61,7 @@ func FetchLogBundle(logID string, opts LogFetchOptions) LogBundle {
 	bundle.Service = readLogMatches(filepath.Join(logDir, serviceLogFileName), logID, opts)
 	bundle.LLM = readLogMatches(filepath.Join(logDir, llmLogFileName), logID, opts)
 	bundle.Latency = readLogMatches(filepath.Join(logDir, latencyLogFileName), logID, opts)
-	bundle.Requests = readRequestLogMatches(filepath.Join(requestDir, requestLogFileName), logID, opts)
+	bundle.Requests = readLogMatches(filepath.Join(requestDir, requestLogFileName), logID, opts)
 
 	return bundle
 }
@@ -185,20 +181,12 @@ func readLineString(reader *bufio.Reader, maxBytes int) (string, error) {
 	}
 }
 
-func readRequestLogMatches(path, logID string, opts LogFetchOptions) LogFileSnippet {
-	return readLogMatches(path, logID, opts)
-}
-
 // FetchStructuredLogBundle returns parsed, structured log entries matching the provided log id.
 func FetchStructuredLogBundle(logID string, opts LogFetchOptions) StructuredLogBundle {
 	logID = strings.TrimSpace(logID)
 	bundle := StructuredLogBundle{LogID: logID}
 	if logID == "" {
-		errMsg := "log_id is required"
-		bundle.Service.Error = errMsg
-		bundle.LLM.Error = errMsg
-		bundle.Latency.Error = errMsg
-		bundle.Requests.Error = errMsg
+		fillStructuredLogBundleError(&bundle, "log_id is required")
 		return bundle
 	}
 
@@ -331,4 +319,24 @@ func filterStructuredErrors(requests StructuredRequestSnippet) StructuredRequest
 		}
 	}
 	return errorsSnippet
+}
+
+func fillLogBundleError(bundle *LogBundle, errMsg string) {
+	if bundle == nil {
+		return
+	}
+	bundle.Service.Error = errMsg
+	bundle.LLM.Error = errMsg
+	bundle.Latency.Error = errMsg
+	bundle.Requests.Error = errMsg
+}
+
+func fillStructuredLogBundleError(bundle *StructuredLogBundle, errMsg string) {
+	if bundle == nil {
+		return
+	}
+	bundle.Service.Error = errMsg
+	bundle.LLM.Error = errMsg
+	bundle.Latency.Error = errMsg
+	bundle.Requests.Error = errMsg
 }
