@@ -3,7 +3,6 @@ package state_store
 import (
 	"context"
 	"sort"
-	"strconv"
 	"sync"
 )
 
@@ -78,33 +77,12 @@ func (s *InMemoryStore) ListSnapshots(_ context.Context, sessionID string, curso
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	turns := s.turnsLocked(sessionID)
-	if len(turns) == 0 {
+	window, nextCursor := paginateAsc(turns, cursor, limit)
+	if len(window) == 0 {
 		return nil, "", nil
 	}
-	startIdx := 0
-	if cursor != "" {
-		if cursorID, err := strconv.Atoi(cursor); err == nil {
-			startIdx = len(turns)
-			for idx, turn := range turns {
-				if turn > cursorID {
-					startIdx = idx
-					break
-				}
-			}
-		}
-	}
-	if startIdx >= len(turns) {
-		return nil, "", nil
-	}
-	if limit <= 0 {
-		limit = 20
-	}
-	end := startIdx + limit
-	if end > len(turns) {
-		end = len(turns)
-	}
-	var metas []SnapshotMetadata
-	for _, turnID := range turns[startIdx:end] {
+	metas := make([]SnapshotMetadata, 0, len(window))
+	for _, turnID := range window {
 		snap := s.snapshots[sessionID][turnID]
 		metas = append(metas, SnapshotMetadata{
 			SessionID:  snap.SessionID,
@@ -114,10 +92,6 @@ func (s *InMemoryStore) ListSnapshots(_ context.Context, sessionID string, curso
 			CreatedAt:  snap.CreatedAt,
 		})
 	}
-	var nextCursor string
-	if end < len(turns) {
-		nextCursor = strconv.Itoa(turns[end-1])
-	}
 	return metas, nextCursor, nil
 }
 
@@ -126,38 +100,13 @@ func (s *InMemoryStore) ListSnapshotPayloads(_ context.Context, sessionID string
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	turns := s.turnsLocked(sessionID)
-	if len(turns) == 0 {
+	window, nextCursor := paginateAsc(turns, cursor, limit)
+	if len(window) == 0 {
 		return nil, "", nil
 	}
-	startIdx := 0
-	if cursor != "" {
-		if cursorID, err := strconv.Atoi(cursor); err == nil {
-			startIdx = len(turns)
-			for idx, turn := range turns {
-				if turn > cursorID {
-					startIdx = idx
-					break
-				}
-			}
-		}
-	}
-	if startIdx >= len(turns) {
-		return nil, "", nil
-	}
-	if limit <= 0 {
-		limit = 20
-	}
-	end := startIdx + limit
-	if end > len(turns) {
-		end = len(turns)
-	}
-	snapshots := make([]Snapshot, 0, end-startIdx)
-	for _, turnID := range turns[startIdx:end] {
+	snapshots := make([]Snapshot, 0, len(window))
+	for _, turnID := range window {
 		snapshots = append(snapshots, s.snapshots[sessionID][turnID])
-	}
-	var nextCursor string
-	if end < len(turns) {
-		nextCursor = strconv.Itoa(turns[end-1])
 	}
 	return snapshots, nextCursor, nil
 }

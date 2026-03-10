@@ -78,14 +78,17 @@ func (s *FileStore) SaveSnapshot(ctx context.Context, snapshot Snapshot) error {
 
 // LatestSnapshot returns the most recent snapshot if available.
 func (s *FileStore) LatestSnapshot(ctx context.Context, sessionID string) (Snapshot, error) {
-	metas, _, err := s.ListSnapshots(ctx, sessionID, "", 1)
+	if sessionID == "" {
+		return Snapshot{}, fmt.Errorf("session id required")
+	}
+	turnIDs, err := s.listTurnIDs(sessionID)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	if len(metas) == 0 {
+	if len(turnIDs) == 0 {
 		return Snapshot{}, ErrSnapshotNotFound
 	}
-	return s.GetSnapshot(ctx, sessionID, metas[0].TurnID)
+	return s.GetSnapshot(ctx, sessionID, turnIDs[0])
 }
 
 // GetSnapshot returns the snapshot for a given turn.
@@ -124,34 +127,13 @@ func (s *FileStore) ListSnapshots(ctx context.Context, sessionID string, cursor 
 	if err != nil {
 		return nil, "", err
 	}
-
-	startIdx := 0
-	if cursor != "" {
-		if cursorID, err := strconv.Atoi(cursor); err == nil {
-			startIdx = len(turnIDs)
-			for i, id := range turnIDs {
-				if id < cursorID {
-					startIdx = i
-					break
-				}
-			}
-		}
-	}
-	if startIdx >= len(turnIDs) {
+	window, nextCursor := paginateDesc(turnIDs, cursor, limit)
+	if len(window) == 0 {
 		return nil, "", nil
 	}
 
-	if limit <= 0 {
-		limit = 20
-	}
-
-	end := startIdx + limit
-	if end > len(turnIDs) {
-		end = len(turnIDs)
-	}
-
-	metas := make([]SnapshotMetadata, 0, end-startIdx)
-	for _, turnID := range turnIDs[startIdx:end] {
+	metas := make([]SnapshotMetadata, 0, len(window))
+	for _, turnID := range window {
 		if ctx != nil && ctx.Err() != nil {
 			return nil, "", ctx.Err()
 		}
@@ -160,11 +142,6 @@ func (s *FileStore) ListSnapshots(ctx context.Context, sessionID string, cursor 
 			return nil, "", err
 		}
 		metas = append(metas, meta)
-	}
-
-	var nextCursor string
-	if end < len(turnIDs) {
-		nextCursor = strconv.Itoa(turnIDs[end-1])
 	}
 	return metas, nextCursor, nil
 }
@@ -181,33 +158,13 @@ func (s *FileStore) ListSnapshotPayloads(ctx context.Context, sessionID string, 
 	if err != nil {
 		return nil, "", err
 	}
-
-	startIdx := 0
-	if cursor != "" {
-		if cursorID, err := strconv.Atoi(cursor); err == nil {
-			startIdx = len(turnIDs)
-			for i, id := range turnIDs {
-				if id < cursorID {
-					startIdx = i
-					break
-				}
-			}
-		}
-	}
-	if startIdx >= len(turnIDs) {
+	window, nextCursor := paginateDesc(turnIDs, cursor, limit)
+	if len(window) == 0 {
 		return nil, "", nil
 	}
 
-	if limit <= 0 {
-		limit = 20
-	}
-
-	var snapshots []Snapshot
-	end := startIdx + limit
-	if end > len(turnIDs) {
-		end = len(turnIDs)
-	}
-	for _, turnID := range turnIDs[startIdx:end] {
+	snapshots := make([]Snapshot, 0, len(window))
+	for _, turnID := range window {
 		if ctx != nil && ctx.Err() != nil {
 			return nil, "", ctx.Err()
 		}
@@ -216,10 +173,6 @@ func (s *FileStore) ListSnapshotPayloads(ctx context.Context, sessionID string, 
 			return nil, "", err
 		}
 		snapshots = append(snapshots, snapshot)
-	}
-	var nextCursor string
-	if end < len(turnIDs) {
-		nextCursor = strconv.Itoa(turnIDs[end-1])
 	}
 	return snapshots, nextCursor, nil
 }
@@ -275,29 +228,15 @@ func (s *FileStore) readSnapshotMetadata(sessionID string, turnID int) (Snapshot
 	}
 	defer func() { _ = file.Close() }()
 
-	var payload struct {
-		SessionID  string    `json:"session_id"`
-		TurnID     int       `json:"turn_id"`
-		LLMTurnSeq int       `json:"llm_turn_seq"`
-		Summary    string    `json:"summary"`
-		CreatedAt  time.Time `json:"created_at"`
-	}
-	if err := jsonx.NewDecoder(file).Decode(&payload); err != nil {
+	var meta SnapshotMetadata
+	if err := jsonx.NewDecoder(file).Decode(&meta); err != nil {
 		return SnapshotMetadata{}, fmt.Errorf("decode snapshot metadata: %w", err)
 	}
-
-	if payload.SessionID == "" {
-		payload.SessionID = sessionID
+	if meta.SessionID == "" {
+		meta.SessionID = sessionID
 	}
-	if payload.TurnID == 0 {
-		payload.TurnID = turnID
+	if meta.TurnID == 0 {
+		meta.TurnID = turnID
 	}
-
-	return SnapshotMetadata{
-		SessionID:  payload.SessionID,
-		TurnID:     payload.TurnID,
-		LLMTurnSeq: payload.LLMTurnSeq,
-		Summary:    payload.Summary,
-		CreatedAt:  payload.CreatedAt,
-	}, nil
+	return meta, nil
 }
