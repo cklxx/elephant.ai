@@ -111,6 +111,7 @@ func (h *MemoryCaptureHook) OnTaskCompleted(ctx context.Context, result TaskResu
 	})
 	if err != nil {
 		h.logger.Warn("Memory capture append failed: %v", err)
+		return fmt.Errorf("memory capture append: %w", err)
 	}
 	return nil
 }

@@ -80,6 +80,10 @@ func (b *containerBuilder) Build() (*Container, error) {
 	if err != nil {
 		return nil, fmt.Errorf("build task store: %w", err)
 	}
+	decisionStore, err := b.buildDecisionStore()
+	if err != nil {
+		return nil, fmt.Errorf("build decision store: %w", err)
+	}
 
 	// Collect CLI detection results (should be ready by now).
 	detectedCLIs := <-cliCh
@@ -128,8 +132,9 @@ func (b *containerBuilder) Build() (*Container, error) {
 		externalExecutor = codinginfra.NewManagedExternalExecutor(externalRegistry, b.logger)
 	}
 
-	hookRegistry := b.buildHookRegistry(memoryEngine, llmFactory)
-	okrContextProvider := b.buildOKRContextProvider()
+	okrStore := b.buildOKRGoalStore()
+	hookRegistry := b.buildHookRegistry(memoryEngine, llmFactory, okrStore)
+	okrContextProvider := b.buildOKRContextProvider(okrStore)
 	checkpointStore := checkpointinfra.NewFileCheckpointStore(filepath.Join(b.sessionDir, "checkpoints"))
 	teamRunRecorder, err := teamrun.NewFileRecorder(filepath.Join(b.sessionDir, "_team_runs"), b.logger)
 	if err != nil {
@@ -170,6 +175,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		MemoryEngine:     memoryEngine,
 		CheckpointStore:  checkpointStore,
 		TaskStore:        taskStore,
+		DecisionStore:    decisionStore,
 		config:           b.config,
 		toolRegistry:     toolRegistry,
 		llmFactory:       llmFactory,

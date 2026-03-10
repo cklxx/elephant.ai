@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode"
 
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
@@ -230,22 +229,7 @@ func summarizeUnattendedDailyLog(content string) string {
 	if snippet == "" {
 		return "daily memory entry available"
 	}
-	if containsNonASCII(snippet) {
-		return "non-English daily memory available (open via memory_search)."
-	}
 	return snippet
-}
-
-func containsNonASCII(value string) bool {
-	for _, r := range value {
-		if r == '\n' || r == '\r' || r == '\t' {
-			continue
-		}
-		if unicode.IsPrint(r) && r > unicode.MaxASCII {
-			return true
-		}
-	}
-	return false
 }
 
 func resolveMemoryUserID(ctx context.Context, session *storage.Session) string {

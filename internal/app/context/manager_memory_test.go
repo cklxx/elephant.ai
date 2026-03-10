@@ -124,11 +124,14 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 	}
 }
 
-func TestUnattendedDailyDigestMasksNonEnglishRawContent(t *testing.T) {
+func TestUnattendedDailyDigestIncludesNonEnglishContent(t *testing.T) {
 	now := time.Date(2026, time.February, 24, 9, 0, 0, 0, time.UTC)
 	digest := buildUnattendedDailyLogPromptChunk(now, "你是 elephant.ai 的 unattended 自主代理", "yesterday note")
-	if !strings.Contains(digest, "non-English daily memory available (open via memory_search).") {
-		t.Fatalf("expected non-English daily content to be masked into English summary, got: %s", digest)
+	if strings.Contains(digest, "non-English daily memory available") {
+		t.Fatalf("non-English content should be included directly, not masked: %s", digest)
+	}
+	if !strings.Contains(digest, "elephant.ai") {
+		t.Fatalf("expected Chinese content to appear in digest, got: %s", digest)
 	}
 }
 

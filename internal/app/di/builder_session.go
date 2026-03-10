@@ -7,6 +7,7 @@ import (
 	"time"
 
 	agentcost "alex/internal/app/agent/cost"
+	"alex/internal/app/decision"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/infra/memory"
 	"alex/internal/infra/session/filestore"
@@ -49,6 +50,11 @@ func (b *containerBuilder) buildMemoryEngine(ctx context.Context) (memory.Engine
 	}
 
 	return engine, nil
+}
+
+func (b *containerBuilder) buildDecisionStore() (*decision.Store, error) {
+	path := filepath.Join(b.sessionDir, "_decisions", "decisions.json")
+	return decision.NewStore(path)
 }
 
 func (b *containerBuilder) buildCostTracker() (agentstorage.CostTracker, error) {

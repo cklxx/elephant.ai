@@ -28,19 +28,25 @@ import (
 	"alex/internal/shared/parser"
 )
 
-func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFactory portsllm.LLMClientFactory) *hooks.Registry {
+func (b *containerBuilder) buildOKRGoalStore() *okrtools.GoalStore {
+	if !b.config.Proactive.Enabled || !b.config.Proactive.OKR.Enabled {
+		return nil
+	}
+	okrCfg := okrtools.DefaultOKRConfig()
+	if goalsRoot := b.config.Proactive.OKR.GoalsRoot; goalsRoot != "" {
+		okrCfg.GoalsRoot = resolveStorageDir(goalsRoot, okrCfg.GoalsRoot)
+	}
+	return okrtools.NewGoalStore(okrCfg)
+}
+
+func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFactory portsllm.LLMClientFactory, okrStore *okrtools.GoalStore) *hooks.Registry {
 	registry := hooks.NewRegistry(b.logger)
 	if !b.config.Proactive.Enabled {
 		b.logger.Info("Non-memory proactive hooks disabled by config")
 	}
 
 	// Register OKR context hook (pre-task OKR injection)
-	if b.config.Proactive.Enabled && b.config.Proactive.OKR.Enabled {
-		okrCfg := okrtools.DefaultOKRConfig()
-		if goalsRoot := b.config.Proactive.OKR.GoalsRoot; goalsRoot != "" {
-			okrCfg.GoalsRoot = resolveStorageDir(goalsRoot, okrCfg.GoalsRoot)
-		}
-		okrStore := okrtools.NewGoalStore(okrCfg)
+	if okrStore != nil {
 		okrHook := hooks.NewOKRContextHook(okrStore, b.logger, hooks.OKRContextConfig{
 			Enabled:    b.config.Proactive.OKR.Enabled,
 			AutoInject: b.config.Proactive.OKR.AutoInject,
@@ -78,16 +84,11 @@ func (b *containerBuilder) buildToolRegistry(_ *llm.Factory, memoryEngine memory
 	return toolRegistry, nil
 }
 
-func (b *containerBuilder) buildOKRContextProvider() preparation.OKRContextProvider {
-	if !b.config.Proactive.Enabled || !b.config.Proactive.OKR.Enabled {
+func (b *containerBuilder) buildOKRContextProvider(store *okrtools.GoalStore) preparation.OKRContextProvider {
+	if store == nil {
 		return nil
 	}
-	okrCfg := okrtools.DefaultOKRConfig()
-	if goalsRoot := b.config.Proactive.OKR.GoalsRoot; goalsRoot != "" {
-		okrCfg.GoalsRoot = resolveStorageDir(goalsRoot, okrCfg.GoalsRoot)
-	}
-	store := okrtools.NewGoalStore(okrCfg)
-	b.logger.Info("OKR context provider enabled (goals_root=%s)", okrCfg.GoalsRoot)
+	b.logger.Info("OKR context provider enabled")
 	return preparation.NewOKRContextProvider(store)
 }
 
@@ -109,8 +110,9 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 		return nil, fmt.Errorf("failed to create alternate tool registry: %w", err)
 	}
 
-	hookRegistry := b.buildHookRegistry(parent.MemoryEngine, parent.llmFactory)
-	okrContextProvider := b.buildOKRContextProvider()
+	okrStore := b.buildOKRGoalStore()
+	hookRegistry := b.buildHookRegistry(parent.MemoryEngine, parent.llmFactory, okrStore)
+	okrContextProvider := b.buildOKRContextProvider(okrStore)
 	teamRunRecorder, err := teamrun.NewFileRecorder(filepath.Join(b.sessionDir, "_team_runs"), b.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize team run recorder: %w", err)

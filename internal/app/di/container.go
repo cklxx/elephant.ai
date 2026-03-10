@@ -18,6 +18,7 @@ import (
 	"alex/internal/infra/filestore"
 	larkoauth "alex/internal/infra/lark/oauth"
 	"alex/internal/infra/llm"
+	"alex/internal/app/decision"
 	"alex/internal/infra/memory"
 	sessionstate "alex/internal/infra/session/state_store"
 	toolspolicy "alex/internal/infra/tools"
@@ -42,7 +43,8 @@ type Container struct {
 	CostTracker      agentstorage.CostTracker
 	MemoryEngine     memory.Engine
 	CheckpointStore  react.CheckpointStore
-	TaskStore        taskdomain.Store // Unified durable task store (nil when unavailable)
+	TaskStore        taskdomain.Store     // Unified durable task store (nil when unavailable)
+	DecisionStore    *decision.Store      // Team decision memory (nil when unavailable)
 	LarkGateway      LarkGateway
 	LarkOAuth         *larkoauth.Service
 	GitSignalProvider signalports.GitSignalProvider
