@@ -27,10 +27,7 @@ func New() agent.FunctionCallParser {
 }
 
 func (p *parser) Parse(content string) ([]ports.ToolCall, error) {
-	// Clean content first: remove incomplete tool call markers
-	cleaned := p.cleanLeakedMarkers(content)
-
-	// Parse XML-style tool calls: <tool_call>{...}</tool_call>
+	cleaned := cleanLeakedMarkers(content)
 	matches := toolCallRe.FindAllStringSubmatch(cleaned, -1)
 
 	var calls []ports.ToolCall
@@ -42,8 +39,6 @@ func (p *parser) Parse(content string) ([]ports.ToolCall, error) {
 		if err := json.Unmarshal([]byte(match[1]), &call); err != nil {
 			continue
 		}
-
-		// Validate tool name (must be alphanumeric + underscore)
 		if !isValidToolName(call.Name) {
 			continue
 		}
@@ -59,7 +54,8 @@ func (p *parser) Parse(content string) ([]ports.ToolCall, error) {
 }
 
 // cleanLeakedMarkers removes incomplete or malformed tool call markers
-func (p *parser) cleanLeakedMarkers(content string) string {
+// that would interfere with XML-style <tool_call> extraction.
+func cleanLeakedMarkers(content string) string {
 	cleaned := content
 	for _, re := range cleanPatterns {
 		cleaned = re.ReplaceAllString(cleaned, "")
@@ -67,16 +63,6 @@ func (p *parser) cleanLeakedMarkers(content string) string {
 	return cleaned
 }
 
-// isValidToolName checks if tool name is valid (alphanumeric + underscore only)
 func isValidToolName(name string) bool {
 	return toolNameRe.MatchString(name)
-}
-
-func (p *parser) Validate(call ports.ToolCall, definition ports.ToolDefinition) error {
-	for _, required := range definition.Parameters.Required {
-		if _, ok := call.Arguments[required]; !ok {
-			return fmt.Errorf("missing required parameter: %s", required)
-		}
-	}
-	return nil
 }

@@ -480,11 +480,6 @@ imports:
     owner: "cklxx"
     reason: "Filestore consolidation — AtomicWrite for admin config"
     expires_at: "2026-03-31"
-  - from: "alex/internal/shared/markdown"
-    to: "alex/internal/infra/filestore"
-    owner: "cklxx"
-    reason: "Filestore consolidation — AtomicWrite for versioned store"
-    expires_at: "2026-03-31"
   # New violations added 2026-02-12 (web/lark binary split + task runtime refactor)
   - from: "alex/internal/app/agent/coordinator"
     to: "alex/internal/infra/tools"

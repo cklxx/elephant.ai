@@ -12,10 +12,8 @@ import (
 )
 
 // FunctionCallParser extracts tool calls from LLM responses.
-// Moved from ports/tools to consolidate single-impl port interfaces.
 type FunctionCallParser interface {
 	Parse(content string) ([]core.ToolCall, error)
-	Validate(call core.ToolCall, definition core.ToolDefinition) error
 }
 
 // ServiceBundle contains all dependencies required by the domain engine.

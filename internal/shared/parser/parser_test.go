@@ -2,8 +2,6 @@ package parser
 
 import (
 	"testing"
-
-	"alex/internal/domain/agent/ports"
 )
 
 func TestNew(t *testing.T) {
@@ -207,75 +205,5 @@ func TestIsValidToolName(t *testing.T) {
 		if got != tt.valid {
 			t.Errorf("isValidToolName(%q) = %v, want %v", tt.name, got, tt.valid)
 		}
-	}
-}
-
-func TestValidate_AllRequiredPresent(t *testing.T) {
-	p := New()
-	call := ports.ToolCall{
-		Name:      "test_tool",
-		Arguments: map[string]any{"path": "/tmp", "content": "hello"},
-	}
-	def := ports.ToolDefinition{
-		Name: "test_tool",
-		Parameters: ports.ParameterSchema{
-			Required: []string{"path", "content"},
-		},
-	}
-	err := p.Validate(call, def)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestValidate_MissingRequired(t *testing.T) {
-	p := New()
-	call := ports.ToolCall{
-		Name:      "test_tool",
-		Arguments: map[string]any{"path": "/tmp"},
-	}
-	def := ports.ToolDefinition{
-		Name: "test_tool",
-		Parameters: ports.ParameterSchema{
-			Required: []string{"path", "content"},
-		},
-	}
-	err := p.Validate(call, def)
-	if err == nil {
-		t.Fatal("expected error for missing required param")
-	}
-}
-
-func TestValidate_NoRequired(t *testing.T) {
-	p := New()
-	call := ports.ToolCall{
-		Name:      "test_tool",
-		Arguments: map[string]any{},
-	}
-	def := ports.ToolDefinition{
-		Name:       "test_tool",
-		Parameters: ports.ParameterSchema{},
-	}
-	err := p.Validate(call, def)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestValidate_ExtraArgsOK(t *testing.T) {
-	p := New()
-	call := ports.ToolCall{
-		Name:      "test_tool",
-		Arguments: map[string]any{"path": "/tmp", "extra": "ignored"},
-	}
-	def := ports.ToolDefinition{
-		Name: "test_tool",
-		Parameters: ports.ParameterSchema{
-			Required: []string{"path"},
-		},
-	}
-	err := p.Validate(call, def)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
 	}
 }
