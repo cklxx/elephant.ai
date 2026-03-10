@@ -241,10 +241,6 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 				Channel:  strings.TrimSpace(trigger.Channel),
 				UserID:   strings.TrimSpace(trigger.UserID),
 				ChatID:   strings.TrimSpace(trigger.ChatID),
-				Risk:     strings.TrimSpace(trigger.Risk),
-			}
-			if trigger.ApprovalRequired != nil {
-				cfg.ApprovalRequired = *trigger.ApprovalRequired
 			}
 			triggers = append(triggers, cfg)
 		}

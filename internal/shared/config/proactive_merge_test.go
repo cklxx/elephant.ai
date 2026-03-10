@@ -153,14 +153,12 @@ func TestMergeSchedulerConfig_IncludesChatIDAndCalendarReminder(t *testing.T) {
 	file := &SchedulerFileConfig{
 		Triggers: []SchedulerTriggerFileConfig{
 			{
-				Name:             "standup",
-				Schedule:         "0 9 * * *",
-				Task:             "send standup",
-				Channel:          "lark",
-				UserID:           "ou_trigger",
-				ChatID:           "oc_trigger",
-				ApprovalRequired: boolPtr(true),
-				Risk:             "medium",
+				Name:     "standup",
+				Schedule: "0 9 * * *",
+				Task:     "send standup",
+				Channel:  "lark",
+				UserID:   "ou_trigger",
+				ChatID:   "oc_trigger",
 			},
 		},
 		CalendarReminder: &CalendarReminderFileConfig{
@@ -181,9 +179,6 @@ func TestMergeSchedulerConfig_IncludesChatIDAndCalendarReminder(t *testing.T) {
 	trigger := target.Triggers[0]
 	if trigger.ChatID != "oc_trigger" {
 		t.Fatalf("expected trigger chat_id to merge, got %q", trigger.ChatID)
-	}
-	if !trigger.ApprovalRequired {
-		t.Fatalf("expected trigger approval_required=true")
 	}
 
 	if !target.CalendarReminder.Enabled {

@@ -174,9 +174,7 @@
         "task":              { "type": "string" },
         "channel":           { "type": "string" },
         "user_id":           { "type": "string" },
-        "chat_id":           { "type": "string" },
-        "approval_required": { "type": "boolean" },
-        "risk":              { "type": "string" }
+        "chat_id":           { "type": "string" }
       },
       "additionalProperties": false
     },

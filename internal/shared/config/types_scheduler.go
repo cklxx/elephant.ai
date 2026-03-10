@@ -26,12 +26,12 @@ type SchedulerConfig struct {
 // MilestoneCheckinConfig configures periodic progress summary check-ins.
 type MilestoneCheckinConfig struct {
 	Enabled          bool   `json:"enabled" yaml:"enabled"`
-	Schedule         string `json:"schedule" yaml:"schedule"`                     // cron expression, default "0 */1 * * *" (hourly)
-	LookbackSeconds  int    `json:"lookback_seconds" yaml:"lookback_seconds"`     // default 3600 (1 hour)
-	Channel          string `json:"channel" yaml:"channel"`                       // delivery channel: lark | moltbook
+	Schedule         string `json:"schedule" yaml:"schedule"`                 // cron expression, default "0 */1 * * *" (hourly)
+	LookbackSeconds  int    `json:"lookback_seconds" yaml:"lookback_seconds"` // default 3600 (1 hour)
+	Channel          string `json:"channel" yaml:"channel"`                   // delivery channel: lark | moltbook
 	ChatID           string `json:"chat_id" yaml:"chat_id"`
-	IncludeActive    bool   `json:"include_active" yaml:"include_active"`         // include in-flight tasks (default true)
-	IncludeCompleted bool   `json:"include_completed" yaml:"include_completed"`   // include recently finished tasks (default true)
+	IncludeActive    bool   `json:"include_active" yaml:"include_active"`       // include in-flight tasks (default true)
+	IncludeCompleted bool   `json:"include_completed" yaml:"include_completed"` // include recently finished tasks (default true)
 }
 
 // WeeklyPulseConfig configures the weekly pulse digest for the leader agent.
@@ -65,9 +65,9 @@ type PrepBriefConfig struct {
 // ScopeWatchConfig configures periodic scope change detection for external work items.
 type ScopeWatchConfig struct {
 	Enabled             bool   `json:"enabled" yaml:"enabled"`
-	Schedule            string `json:"schedule" yaml:"schedule"`                             // cron expression, default "*/30 * * * *" (every 30 min)
-	LookbackSeconds     int    `json:"lookback_seconds" yaml:"lookback_seconds"`             // default 3600 (1 hour)
-	MinDescriptionDelta int    `json:"min_description_delta" yaml:"min_description_delta"`   // minimum char diff to flag, default 50
+	Schedule            string `json:"schedule" yaml:"schedule"`                           // cron expression, default "*/30 * * * *" (every 30 min)
+	LookbackSeconds     int    `json:"lookback_seconds" yaml:"lookback_seconds"`           // default 3600 (1 hour)
+	MinDescriptionDelta int    `json:"min_description_delta" yaml:"min_description_delta"` // minimum char diff to flag, default 50
 	Channel             string `json:"channel" yaml:"channel"`
 	ChatID              string `json:"chat_id" yaml:"chat_id"`
 }
@@ -83,14 +83,12 @@ type CalendarReminderConfig struct {
 }
 
 type SchedulerTriggerConfig struct {
-	Name             string `json:"name" yaml:"name"`
-	Schedule         string `json:"schedule" yaml:"schedule"`
-	Task             string `json:"task" yaml:"task"`
-	Channel          string `json:"channel" yaml:"channel"`
-	UserID           string `json:"user_id" yaml:"user_id"` // for channel=lark, this must be Lark open_id (ou_*)
-	ChatID           string `json:"chat_id" yaml:"chat_id"` // channel-specific chat ID for notifications
-	ApprovalRequired bool   `json:"approval_required" yaml:"approval_required"`
-	Risk             string `json:"risk" yaml:"risk"`
+	Name     string `json:"name" yaml:"name"`
+	Schedule string `json:"schedule" yaml:"schedule"`
+	Task     string `json:"task" yaml:"task"`
+	Channel  string `json:"channel" yaml:"channel"`
+	UserID   string `json:"user_id" yaml:"user_id"` // for channel=lark, this must be Lark open_id (ou_*)
+	ChatID   string `json:"chat_id" yaml:"chat_id"` // channel-specific chat ID for notifications
 }
 
 // HeartbeatConfig configures periodic heartbeat checks driven by scheduler or timers.
@@ -117,13 +115,13 @@ type TimerConfig struct {
 
 // GitSignalConfig configures the git signal provider for PR/commit monitoring.
 type GitSignalConfig struct {
-	Enabled                    bool     `json:"enabled" yaml:"enabled"`
-	Provider                   string   `json:"provider" yaml:"provider"` // "github" (default)
-	Token                      string   `json:"token" yaml:"token"`
-	Repos                      []string `json:"repos" yaml:"repos"`
-	BaseURL                    string   `json:"base_url" yaml:"base_url"`
-	PollIntervalSeconds        int      `json:"poll_interval_seconds" yaml:"poll_interval_seconds"`
-	ReviewBottleneckThreshold  int      `json:"review_bottleneck_threshold" yaml:"review_bottleneck_threshold"`
+	Enabled                   bool     `json:"enabled" yaml:"enabled"`
+	Provider                  string   `json:"provider" yaml:"provider"` // "github" (default)
+	Token                     string   `json:"token" yaml:"token"`
+	Repos                     []string `json:"repos" yaml:"repos"`
+	BaseURL                   string   `json:"base_url" yaml:"base_url"`
+	PollIntervalSeconds       int      `json:"poll_interval_seconds" yaml:"poll_interval_seconds"`
+	ReviewBottleneckThreshold int      `json:"review_bottleneck_threshold" yaml:"review_bottleneck_threshold"`
 }
 
 // AttentionConfig throttles proactive notifications.

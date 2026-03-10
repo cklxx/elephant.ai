@@ -48,6 +48,35 @@ func (s *Scheduler) ensureJobForTriggerLocked(ctx context.Context, trigger Trigg
 	return &job, nil
 }
 
+func validateTrigger(trigger Trigger) error {
+	if trigger.Name == "" {
+		return fmt.Errorf("trigger has no name")
+	}
+	if trigger.Schedule == "" {
+		return fmt.Errorf("trigger %q has no schedule", trigger.Name)
+	}
+	return nil
+}
+
+func (s *Scheduler) scheduleTriggerLocked(ctx context.Context, trigger Trigger) (*Job, error) {
+	if err := validateTrigger(trigger); err != nil {
+		return nil, err
+	}
+
+	job, err := s.ensureJobForTriggerLocked(ctx, trigger)
+	if err != nil {
+		return nil, err
+	}
+	if job.Status == JobStatusPaused || job.Status == JobStatusCompleted {
+		s.logger.Info("Scheduler: job %q is %s, not scheduling", job.ID, job.Status)
+		return job, nil
+	}
+	if err := s.registerJobLocked(ctx, job); err != nil {
+		return nil, err
+	}
+	return job, nil
+}
+
 func (s *Scheduler) buildJobFromTrigger(trigger Trigger) (Job, error) {
 	payload, err := payloadFromTrigger(trigger)
 	if err != nil {

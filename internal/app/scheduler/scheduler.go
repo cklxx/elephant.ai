@@ -172,58 +172,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		}
 	}
 
-	// 1. Register static triggers from config
-	for _, t := range s.config.StaticTriggers {
-		trigger := Trigger{
-			Name:     t.Name,
-			Schedule: t.Schedule,
-			Task:     t.Task,
-			Channel:  t.Channel,
-			UserID:   t.UserID,
-			ChatID:   t.ChatID,
-		}
-		if err := s.registerTriggerLocked(ctx, trigger); err != nil {
-			s.logger.Warn("Scheduler: failed to register static trigger %q: %v", t.Name, err)
-		}
-	}
+	s.registerConfiguredJobsLocked(ctx)
+	s.registerOKRSyncJobLocked()
 
-	// 2. Scan OKR goals and register dynamic triggers
-	s.syncOKRTriggersLocked(ctx)
-
-	// 3. Register calendar reminder trigger
-	s.registerCalendarTrigger(ctx)
-
-	// 3.1 Register heartbeat trigger
-	s.registerHeartbeatTrigger(ctx)
-
-	// 3.2 Register milestone check-in cron job
-	s.registerMilestoneCheckinJob(ctx)
-
-	// 3.3 Register weekly pulse digest job
-	s.registerWeeklyPulseJob(ctx)
-
-	// 3.4 Register blocker radar job
-	s.registerBlockerRadarJob(ctx)
-
-	// 3.5 Register prep brief job
-	s.registerPrepBriefJob(ctx)
-
-	// 3.6 Register scope watch job
-	s.registerScopeWatchJob(ctx)
-
-	// 4. Start periodic OKR trigger sync (every 5 min)
-	if s.goalStore != nil {
-		syncEntryID, err := s.cron.AddFunc("*/5 * * * *", func() {
-			s.syncOKRTriggers()
-		})
-		if err != nil {
-			s.logger.Warn("Scheduler: failed to register OKR sync job: %v", err)
-		} else {
-			s.entryIDs["_okr_sync"] = syncEntryID
-		}
-	}
-
-	// 5. Start cron
 	s.cron.Start()
 	s.logger.Info("Scheduler started with %d triggers", len(s.entryIDs))
 
@@ -234,6 +185,50 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+func (s *Scheduler) registerConfiguredJobsLocked(ctx context.Context) {
+	for _, triggerCfg := range s.config.StaticTriggers {
+		trigger := Trigger{
+			Name:     triggerCfg.Name,
+			Schedule: triggerCfg.Schedule,
+			Task:     triggerCfg.Task,
+			Channel:  triggerCfg.Channel,
+			UserID:   triggerCfg.UserID,
+			ChatID:   triggerCfg.ChatID,
+		}
+		if err := s.registerTriggerLocked(ctx, trigger); err != nil {
+			s.logger.Warn("Scheduler: failed to register static trigger %q: %v", triggerCfg.Name, err)
+		}
+	}
+
+	s.syncOKRTriggersLocked(ctx)
+
+	for _, register := range []func(context.Context){
+		s.registerCalendarTrigger,
+		s.registerHeartbeatTrigger,
+		s.registerMilestoneCheckinJob,
+		s.registerWeeklyPulseJob,
+		s.registerBlockerRadarJob,
+		s.registerPrepBriefJob,
+		s.registerScopeWatchJob,
+	} {
+		register(ctx)
+	}
+}
+
+func (s *Scheduler) registerOKRSyncJobLocked() {
+	if s.goalStore == nil {
+		return
+	}
+	syncEntryID, err := s.cron.AddFunc("*/5 * * * *", func() {
+		s.syncOKRTriggers()
+	})
+	if err != nil {
+		s.logger.Warn("Scheduler: failed to register OKR sync job: %v", err)
+		return
+	}
+	s.entryIDs["_okr_sync"] = syncEntryID
 }
 
 // Stop gracefully stops the scheduler. Safe to call multiple times.
@@ -315,23 +310,8 @@ func (s *Scheduler) releaseLeaderLock() {
 // registerTriggerLocked adds a single trigger to the cron scheduler.
 // Must be called with s.mu held.
 func (s *Scheduler) registerTriggerLocked(ctx context.Context, trigger Trigger) error {
-	if trigger.Name == "" {
-		return fmt.Errorf("trigger has no name")
-	}
-	if trigger.Schedule == "" {
-		return fmt.Errorf("trigger %q has no schedule", trigger.Name)
-	}
-
-	job, err := s.ensureJobForTriggerLocked(ctx, trigger)
-	if err != nil {
-		return err
-	}
-	if job.Status == JobStatusPaused || job.Status == JobStatusCompleted {
-		s.logger.Info("Scheduler: job %q is %s, not scheduling", job.ID, job.Status)
-		return nil
-	}
-
-	return s.registerJobLocked(ctx, job)
+	_, err := s.scheduleTriggerLocked(ctx, trigger)
+	return err
 }
 
 // syncOKRTriggers scans OKR goals and registers/prunes triggers.
@@ -437,18 +417,8 @@ func (s *Scheduler) RegisterDynamicTrigger(ctx context.Context, name, schedule, 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if trigger.Name == "" {
-		return nil, fmt.Errorf("trigger has no name")
-	}
-	if trigger.Schedule == "" {
-		return nil, fmt.Errorf("trigger %q has no schedule", trigger.Name)
-	}
-
-	job, err := s.ensureJobForTriggerLocked(ctx, trigger)
+	job, err := s.scheduleTriggerLocked(ctx, trigger)
 	if err != nil {
-		return nil, err
-	}
-	if err := s.registerJobLocked(ctx, job); err != nil {
 		return nil, err
 	}
 	return jobToDTO(job), nil

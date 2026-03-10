@@ -256,11 +256,11 @@ type SkillsFeedbackFileConfig struct {
 type SchedulerFileConfig struct {
 	Enabled                          *bool                        `yaml:"enabled"`
 	Triggers                         []SchedulerTriggerFileConfig `yaml:"triggers"`
-	CalendarReminder                 *CalendarReminderFileConfig      `yaml:"calendar_reminder"`
-	Heartbeat                        *HeartbeatFileConfig             `yaml:"heartbeat"`
-	MilestoneCheckin                 *MilestoneCheckinFileConfig      `yaml:"milestone_checkin"`
-	WeeklyPulse                      *WeeklyPulseFileConfig           `yaml:"weekly_pulse"`
-	BlockerRadar                     *BlockerRadarFileConfig          `yaml:"blocker_radar"`
+	CalendarReminder                 *CalendarReminderFileConfig  `yaml:"calendar_reminder"`
+	Heartbeat                        *HeartbeatFileConfig         `yaml:"heartbeat"`
+	MilestoneCheckin                 *MilestoneCheckinFileConfig  `yaml:"milestone_checkin"`
+	WeeklyPulse                      *WeeklyPulseFileConfig       `yaml:"weekly_pulse"`
+	BlockerRadar                     *BlockerRadarFileConfig      `yaml:"blocker_radar"`
 	TriggerTimeoutSeconds            *int                         `yaml:"trigger_timeout_seconds"`
 	ConcurrencyPolicy                string                       `yaml:"concurrency_policy"`
 	LeaderLockEnabled                *bool                        `yaml:"leader_lock_enabled"`
@@ -274,14 +274,12 @@ type SchedulerFileConfig struct {
 }
 
 type SchedulerTriggerFileConfig struct {
-	Name             string `yaml:"name"`
-	Schedule         string `yaml:"schedule"`
-	Task             string `yaml:"task"`
-	Channel          string `yaml:"channel"`
-	UserID           string `yaml:"user_id"`
-	ChatID           string `yaml:"chat_id"`
-	ApprovalRequired *bool  `yaml:"approval_required"`
-	Risk             string `yaml:"risk"`
+	Name     string `yaml:"name"`
+	Schedule string `yaml:"schedule"`
+	Task     string `yaml:"task"`
+	Channel  string `yaml:"channel"`
+	UserID   string `yaml:"user_id"`
+	ChatID   string `yaml:"chat_id"`
 }
 
 type CalendarReminderFileConfig struct {
@@ -426,10 +424,10 @@ type LarkChannelConfig struct {
 	PendingInputRelayMaxChats   *int                   `json:"pending_input_relay_max_chats" yaml:"pending_input_relay_max_chats"`
 	PendingInputRelayMaxPerChat *int                   `json:"pending_input_relay_max_per_chat" yaml:"pending_input_relay_max_per_chat"`
 	AIChatSessionTTLMinutes     *int                   `json:"ai_chat_session_ttl_minutes" yaml:"ai_chat_session_ttl_minutes"`
-	Persistence                 *LarkPersistenceConfig    `json:"persistence" yaml:"persistence"`
-	Delivery                    *LarkDeliveryConfig       `json:"delivery" yaml:"delivery"`
-	RateLimiter                 *LarkRateLimiterConfig    `json:"rate_limiter" yaml:"rate_limiter"`
-	DefaultPlanMode             *string                   `json:"default_plan_mode" yaml:"default_plan_mode"`
+	Persistence                 *LarkPersistenceConfig `json:"persistence" yaml:"persistence"`
+	Delivery                    *LarkDeliveryConfig    `json:"delivery" yaml:"delivery"`
+	RateLimiter                 *LarkRateLimiterConfig `json:"rate_limiter" yaml:"rate_limiter"`
+	DefaultPlanMode             *string                `json:"default_plan_mode" yaml:"default_plan_mode"`
 	BaseChannelConfig           `json:",inline" yaml:",inline"`
 }
 

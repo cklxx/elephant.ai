@@ -13,10 +13,9 @@ import (
 type injectionType string
 
 const (
-	injectionSkillActivation injectionType = "skill_activation"
-	injectionSuggestion      injectionType = "suggestion"
-	injectionWarning         injectionType = "warning"
-	injectionOKRContext      injectionType = "okr_context"
+	injectionSuggestion injectionType = "suggestion"
+	injectionWarning    injectionType = "warning"
+	injectionOKRContext injectionType = "okr_context"
 )
 
 // Injection describes content to be injected into the agent context.

@@ -41,24 +41,12 @@ func (s *Scheduler) executeTrigger(trigger Trigger) error {
 
 	s.logger.Info("Scheduler: executing trigger %q (schedule=%s)", trigger.Name, trigger.Schedule)
 
-	taskCtx := ctx
-	if s.config.TriggerTimeout > 0 {
-		var cancel context.CancelFunc
-		taskCtx, cancel = context.WithTimeout(ctx, s.config.TriggerTimeout)
-		defer cancel()
-	}
-
+	taskCtx, cancel := s.withTriggerTimeout(ctx)
+	defer cancel()
 	sessionID := id.SessionIDFromContext(ctx)
 	result, err := s.coordinator.ExecuteTask(taskCtx, trigger.Task, sessionID, nil)
 
-	content := formatResult(trigger, result, err)
-
-	if s.notifier != nil && trigger.Channel != "" {
-		target := notification.Target{Channel: trigger.Channel, ChatID: trigger.ChatID}
-		if sendErr := s.notifier.Send(ctx, target, content); sendErr != nil {
-			s.logger.Warn("Scheduler: failed to send notification for %q: %v", trigger.Name, sendErr)
-		}
-	}
+	s.notifyTriggerResult(ctx, trigger, formatResult(trigger, result, err))
 
 	return err
 }
@@ -94,6 +82,23 @@ func (s *Scheduler) buildTriggerContext(trigger Trigger) context.Context {
 	ctx = id.WithSessionID(ctx, sessionID)
 	ctx = id.WithRunID(ctx, runID)
 	return ctx
+}
+
+func (s *Scheduler) withTriggerTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if s.config.TriggerTimeout <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, s.config.TriggerTimeout)
+}
+
+func (s *Scheduler) notifyTriggerResult(ctx context.Context, trigger Trigger, content string) {
+	if s.notifier == nil || trigger.Channel == "" {
+		return
+	}
+	target := notification.Target{Channel: trigger.Channel, ChatID: trigger.ChatID}
+	if err := s.notifier.Send(ctx, target, content); err != nil {
+		s.logger.Warn("Scheduler: failed to send notification for %q: %v", trigger.Name, err)
+	}
 }
 
 // formatResult produces a human-readable summary of the trigger execution.
