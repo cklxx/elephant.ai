@@ -7,9 +7,16 @@ Scope:
 - cover event bus delivery and stall detector integration behavior
 
 Plan:
-1. Inspect the hook event types, bus implementation, and stall detector contracts.
-2. Reuse existing runtime integration-test patterns where they already exist.
-3. Add integration tests for per-session and wildcard pub/sub delivery.
-4. Add integration tests for multi-subscriber fan-out and unsubscribe behavior.
-5. Add an integration test that runs the stall detector against a runtime-scanner stub and verifies `EventStalled` delivery through the bus.
-6. Run focused integration tests and lint, then mandatory review, commit, merge, and remove the worktree.
+- [x] Inspect the hook event types, bus implementation, and stall detector contracts.
+- [x] Reuse existing runtime integration-test patterns where they already exist.
+- [x] Add integration tests for per-session and wildcard pub/sub delivery.
+- [x] Add integration tests for multi-subscriber fan-out and unsubscribe behavior.
+- [x] Add an integration test that runs the stall detector against a runtime-scanner stub and verifies `EventStalled` delivery through the bus.
+- [x] Run focused integration tests and lint, then mandatory review, commit, merge, and remove the worktree.
+
+## Added tests (6 new, extending existing 4)
+- `TestEventBus_SessionIsolation` — publish to session-A does NOT reach session-B subscriber
+- `TestEventBus_WildcardUnsubscribe` — SubscribeAll cancel prevents delivery
+- `TestEventBus_MultipleWildcardSubscribers` — fan-out to 2 wildcard subscribers
+- `TestEventBus_PayloadDelivery` — event payload round-trips correctly
+- `TestStallDetector_MultipleStalledSessions` — detector emits EventStalled for 2 concurrent stalled sessions

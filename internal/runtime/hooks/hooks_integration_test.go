@@ -236,3 +236,121 @@ func TestEventBus_Unsubscribe(t *testing.T) {
 
 	waitNoEvent(t, ch)
 }
+
+func TestEventBus_SessionIsolation(t *testing.T) {
+	bus := hooks.NewInProcessBus()
+
+	chA, cancelA := bus.Subscribe("session-A")
+	defer cancelA()
+	chB, cancelB := bus.Subscribe("session-B")
+	defer cancelB()
+
+	bus.Publish("session-A", hooks.Event{
+		Type:      hooks.EventCompleted,
+		SessionID: "session-A",
+		At:        time.Now(),
+	})
+
+	waitForEvent(t, chA, hooks.EventCompleted)
+	waitNoEvent(t, chB)
+}
+
+func TestEventBus_WildcardUnsubscribe(t *testing.T) {
+	bus := hooks.NewInProcessBus()
+
+	ch, cancel := bus.SubscribeAll()
+	cancel()
+
+	bus.Publish("any-session", hooks.Event{
+		Type:      hooks.EventFailed,
+		SessionID: "any-session",
+		At:        time.Now(),
+	})
+
+	waitNoEvent(t, ch)
+}
+
+func TestEventBus_MultipleWildcardSubscribers(t *testing.T) {
+	bus := hooks.NewInProcessBus()
+
+	ch1, cancel1 := bus.SubscribeAll()
+	defer cancel1()
+	ch2, cancel2 := bus.SubscribeAll()
+	defer cancel2()
+
+	bus.Publish("session-x", hooks.Event{
+		Type:      hooks.EventNeedsInput,
+		SessionID: "session-x",
+		At:        time.Now(),
+	})
+
+	for idx, ch := range []<-chan hooks.Event{ch1, ch2} {
+		got := waitForEvent(t, ch, hooks.EventNeedsInput)
+		if got.SessionID != "session-x" {
+			t.Fatalf("wildcard subscriber %d got session %q, want session-x", idx+1, got.SessionID)
+		}
+	}
+}
+
+func TestEventBus_PayloadDelivery(t *testing.T) {
+	bus := hooks.NewInProcessBus()
+
+	ch, cancel := bus.Subscribe("session-1")
+	defer cancel()
+
+	bus.Publish("session-1", hooks.Event{
+		Type:      hooks.EventChildCompleted,
+		SessionID: "session-1",
+		At:        time.Now(),
+		Payload: map[string]any{
+			"child_id":     "child-42",
+			"child_goal":   "run tests",
+			"child_answer": "all passed",
+		},
+	})
+
+	got := waitForEvent(t, ch, hooks.EventChildCompleted)
+	if got.Payload["child_id"] != "child-42" {
+		t.Fatalf("payload child_id = %v, want child-42", got.Payload["child_id"])
+	}
+	if got.Payload["child_goal"] != "run tests" {
+		t.Fatalf("payload child_goal = %v, want run tests", got.Payload["child_goal"])
+	}
+	if got.Payload["child_answer"] != "all passed" {
+		t.Fatalf("payload child_answer = %v, want all passed", got.Payload["child_answer"])
+	}
+}
+
+func TestStallDetector_MultipleStalledSessions(t *testing.T) {
+	bus := hooks.NewInProcessBus()
+	rt := newIntegrationRuntime()
+
+	staleTime := time.Now().Add(-5 * time.Second)
+	rt.startSession("s1", "task-1", staleTime)
+	rt.startSession("s2", "task-2", staleTime)
+
+	ch, cancel := bus.SubscribeAll()
+	defer cancel()
+
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+
+	go hooks.NewStallDetector(rt, bus, 2*time.Second, 10*time.Millisecond).Run(ctx)
+
+	seen := make(map[string]bool)
+	deadline := time.After(time.Second)
+	for len(seen) < 2 {
+		select {
+		case ev := <-ch:
+			if ev.Type == hooks.EventStalled {
+				seen[ev.SessionID] = true
+			}
+		case <-deadline:
+			t.Fatalf("timed out: only saw stall events for %v", seen)
+		}
+	}
+
+	if !seen["s1"] || !seen["s2"] {
+		t.Fatalf("expected stall events for s1 and s2, got %v", seen)
+	}
+}
