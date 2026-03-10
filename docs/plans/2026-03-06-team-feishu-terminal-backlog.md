@@ -1,6 +1,6 @@
 # Team / Feishu CLI Integration Backlog
 
-Updated: 2026-03-06
+Updated: 2026-03-11
 Owner: eli
 Worktree: /Users/bytedance/code/elephant-ai-team-integration
 
@@ -10,10 +10,10 @@ Worktree: /Users/bytedance/code/elephant-ai-team-integration
 ## Task Board
 
 ### P0 — Contract unification
-- [in_progress] Audit product-facing docs that still describe `run_tasks` / `reply_agent` as user-facing
-- [todo] Update canonical docs to state `alex team ...` is the only user-facing Team entrypoint
-- [todo] Update reference docs so orchestration tools are marked internal-only
-- [todo] Add explicit migration note: Team CLI-first, orchestration tools internal detail
+- [done] Audit product-facing docs that still describe `run_tasks` / `reply_agent` as user-facing
+- [done] Update canonical docs to state `alex team ...` is the only user-facing Team entrypoint
+- [done] Update reference docs so orchestration tools are marked internal-only
+- [done] Add explicit migration note: Team CLI-first, orchestration tools internal detail
 
 ### P1 — Feishu CLI product surface
 - [todo] Define canonical `feishu-cli` skill contract

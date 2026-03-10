@@ -123,12 +123,17 @@ Builtins: `internal/infra/tools/builtin/*`.
 
 ### Team orchestration (CLI-first)
 
+`alex team` is the **only user-facing entrypoint** for multi-agent workflows.
+
 ```bash
 alex team run       # dispatch team workflow
 alex team status    # inspect runtime status
 alex team inject    # send input to running role
 alex team terminal  # attach to role terminal
 ```
+
+Internal orchestration tools (`run_tasks`, `reply_agent`) are runtime
+implementation details and must not appear in user-facing docs or skills.
 
 ---
 

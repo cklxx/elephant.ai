@@ -1,6 +1,6 @@
 # External Agents: Codex, Claude Code, Kimi
 
-Updated: 2026-02-24
+Updated: 2026-03-11
 
 ## Scope
 - Run Codex / Claude Code / Kimi as **external agents** (background delegated execution).
@@ -102,10 +102,27 @@ runtime:
 
 ## 3) Dispatch + collect flow
 
-1. Write a YAML task file via `write_file`, then call `run_tasks(file=...)`.
-2. Monitor progress by reading the `.status.yaml` sidecar file via `read_file`.
-3. For interactive input requests, respond via `reply_agent`.
-4. For team workflows, call `run_tasks(template=..., goal=...)`.
+Use the CLI-first contract to dispatch and observe team workflows:
+
+```bash
+# Dispatch from file or template
+alex team run --file /tmp/team-task.yaml
+alex team run --template execute_review_report --goal "Implement feature X"
+
+# Monitor progress
+alex team status --json
+
+# Send follow-up input to a running role
+alex team inject --task-id <id> --message "continue"
+
+# Inspect terminal output
+alex team terminal --task-id <id> --mode capture
+```
+
+> **Internal only:** The orchestration tools `run_tasks` and `reply_agent` are
+> implementation details used by the agent runtime. They are not part of the
+> user-facing product contract and should not appear in user documentation or
+> LLM skill prompts.
 
 ## 4) Per-task override keys
 

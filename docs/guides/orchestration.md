@@ -1,6 +1,6 @@
 # Team Orchestration (CLI-first)
 
-CLI commands for multi-agent team workflows:
+`alex team` is the **only user-facing entrypoint** for multi-agent team workflows.
 
 ```bash
 alex team run       # dispatch workflow
@@ -55,4 +55,4 @@ alex team terminal --task-id team-researcher --mode capture
 
 - Artifacts stored under `.elephant/tasks/_team_runtime`.
 - Use `skills/team-cli` for LLM-facing prompts to stay aligned with CLI contract.
-- Legacy `run_tasks/reply_agent` are internal implementation details.
+- `run_tasks` / `reply_agent` are **internal-only** runtime implementation details. Do not reference them in user docs, skill prompts, or product materials.
