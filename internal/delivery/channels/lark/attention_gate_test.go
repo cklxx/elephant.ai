@@ -1,6 +1,9 @@
 package lark
 
 import (
+	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -716,4 +719,216 @@ func TestAttentionGate_BudgetGC_EmptyTimestamps(t *testing.T) {
 	if len(gate.budgets) != 1 {
 		t.Errorf("empty-timestamp entries should be GC'd, budgets = %d, want 1", len(gate.budgets))
 	}
+}
+
+// ---------- DrainQueue timer tests ----------
+
+func TestDrainTimer_AutoDeliversWhenQuietHoursEnd(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+	gate.drainInterval = 50 * time.Millisecond
+
+	// Start in quiet hours (hour 23).
+	var currentHour atomic.Int32
+	currentHour.Store(23)
+	gate.nowFn = func() time.Time {
+		h := int(currentHour.Load())
+		return time.Date(2026, 3, 10, h, 30, 0, 0, time.UTC)
+	}
+
+	// Queue messages during quiet hours.
+	gate.ShouldDispatch("msg-1", "chat-a", "alice", gate.now())
+	gate.ShouldDispatch("msg-2", "chat-b", "bob", gate.now())
+	if gate.QueueLen() != 2 {
+		t.Fatalf("QueueLen = %d, want 2", gate.QueueLen())
+	}
+
+	// Track delivered messages via callback.
+	var mu sync.Mutex
+	var delivered []QueuedMessage
+	cb := func(msgs []QueuedMessage) {
+		mu.Lock()
+		delivered = append(delivered, msgs...)
+		mu.Unlock()
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	gate.StartDrainTimer(ctx, cb)
+
+	// Give the goroutine time to start and read wasQuiet before we change the clock.
+	time.Sleep(100 * time.Millisecond)
+
+	// Simulate quiet hours ending: advance clock to hour 9.
+	currentHour.Store(9)
+
+	// Wait for the drain timer to fire.
+	deadline := time.After(3 * time.Second)
+	for {
+		mu.Lock()
+		n := len(delivered)
+		mu.Unlock()
+		if n == 2 {
+			break
+		}
+		select {
+		case <-deadline:
+			mu.Lock()
+			t.Fatalf("timed out waiting for drain; delivered %d messages", len(delivered))
+			mu.Unlock()
+		default:
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+
+	gate.StopDrainTimer()
+
+	// Verify all messages were delivered.
+	mu.Lock()
+	defer mu.Unlock()
+	if len(delivered) != 2 {
+		t.Fatalf("delivered %d messages, want 2", len(delivered))
+	}
+	if delivered[0].Content != "msg-1" || delivered[0].ChatID != "chat-a" {
+		t.Errorf("unexpected first message: %+v", delivered[0])
+	}
+	if delivered[1].Content != "msg-2" || delivered[1].ChatID != "chat-b" {
+		t.Errorf("unexpected second message: %+v", delivered[1])
+	}
+	// Queue should be empty after drain.
+	if gate.QueueLen() != 0 {
+		t.Errorf("QueueLen after drain = %d, want 0", gate.QueueLen())
+	}
+}
+
+func TestDrainTimer_StopsCleanlyOnShutdown(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+	gate.drainInterval = 50 * time.Millisecond
+
+	// Stay in quiet hours throughout.
+	gate.nowFn = func() time.Time {
+		return time.Date(2026, 3, 10, 23, 0, 0, 0, time.UTC)
+	}
+
+	var callCount atomic.Int32
+	cb := func(msgs []QueuedMessage) {
+		callCount.Add(1)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	gate.StartDrainTimer(ctx, cb)
+
+	// Let the ticker run a few cycles.
+	time.Sleep(200 * time.Millisecond)
+
+	// Cancel and stop — should not hang.
+	cancel()
+	done := make(chan struct{})
+	go func() {
+		gate.StopDrainTimer()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Good — stopped cleanly.
+	case <-time.After(2 * time.Second):
+		t.Fatal("StopDrainTimer did not return within 2 seconds")
+	}
+
+	// Callback should not have been called (still in quiet hours, no transition).
+	if c := callCount.Load(); c != 0 {
+		t.Errorf("callback called %d times, want 0 (no quiet→active transition)", c)
+	}
+}
+
+func TestDrainTimer_NoDrainWhenQueueEmpty(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+	gate.drainInterval = 50 * time.Millisecond
+
+	var currentHour atomic.Int32
+	currentHour.Store(23)
+	gate.nowFn = func() time.Time {
+		return time.Date(2026, 3, 10, int(currentHour.Load()), 30, 0, 0, time.UTC)
+	}
+
+	// Don't queue any messages — just transition out of quiet hours.
+	var callCount atomic.Int32
+	cb := func(msgs []QueuedMessage) {
+		callCount.Add(1)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	gate.StartDrainTimer(ctx, cb)
+
+	// Let goroutine start, then transition out of quiet hours.
+	time.Sleep(100 * time.Millisecond)
+	currentHour.Store(9)
+	time.Sleep(200 * time.Millisecond)
+
+	gate.StopDrainTimer()
+
+	// Callback should not be called with empty queue.
+	if c := callCount.Load(); c != 0 {
+		t.Errorf("callback called %d times, want 0 (queue was empty)", c)
+	}
+}
+
+func TestDrainTimer_NoopWhenQuietHoursDisabled(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 0,
+		QuietHoursEnd:   0, // disabled
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	gate.StartDrainTimer(ctx, func(msgs []QueuedMessage) {
+		t.Fatal("callback should never be called when quiet hours disabled")
+	})
+
+	// drainCancel should be nil since StartDrainTimer is a no-op.
+	if gate.drainCancel != nil {
+		t.Error("drainCancel should be nil when quiet hours disabled")
+	}
+}
+
+func TestDrainTimer_DoubleStartIsNoop(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+	gate.drainInterval = 50 * time.Millisecond
+	gate.nowFn = func() time.Time {
+		return time.Date(2026, 3, 10, 23, 0, 0, 0, time.UTC)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cb := func(msgs []QueuedMessage) {}
+
+	gate.StartDrainTimer(ctx, cb)
+	if gate.drainCancel == nil {
+		t.Fatal("drainCancel should be set after first start")
+	}
+
+	// Second call should be a no-op (drainCancel stays non-nil, no panic).
+	gate.StartDrainTimer(ctx, cb)
+
+	gate.StopDrainTimer()
 }

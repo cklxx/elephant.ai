@@ -1,6 +1,7 @@
 package lark
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -151,9 +152,19 @@ type AttentionGate struct {
 	// When non-nil, non-urgent messages are suppressed during focus time.
 	focusTime FocusTimeChecker
 
+	// nowFn overrides time.Now for testing. Nil means use time.Now.
+	nowFn func() time.Time
+
 	mu      sync.Mutex
 	budgets map[string]*chatBudget // chatID → budget tracker
 	queued  []QueuedMessage        // messages held during quiet hours
+
+	// drainInterval overrides the default 1-minute drain check interval (for tests).
+	drainInterval time.Duration
+
+	// drainCancel stops the drain timer goroutine; drainWG tracks its exit.
+	drainCancel context.CancelFunc
+	drainWG     sync.WaitGroup
 }
 
 type chatBudget struct {
@@ -501,4 +512,80 @@ func maxInt(left, right int) int {
 		return right
 	}
 	return left
+}
+
+// defaultDrainInterval is how often the drain timer checks whether quiet
+// hours have ended.
+const defaultDrainInterval = 1 * time.Minute
+
+// DrainCallback is called by the drain timer when quiet hours end and
+// there are queued messages to deliver.
+type DrainCallback func(msgs []QueuedMessage)
+
+// StartDrainTimer launches a background goroutine that checks every
+// tick whether quiet hours have ended. When the transition from quiet
+// to non-quiet is detected and the queue is non-empty, it drains the
+// queue and invokes cb with the held messages.
+// It is safe to call multiple times; subsequent calls are no-ops until
+// StopDrainTimer is called.
+func (g *AttentionGate) StartDrainTimer(ctx context.Context, cb DrainCallback) {
+	if g.drainCancel != nil {
+		return // already running
+	}
+	if g.cfg.QuietHoursStart == g.cfg.QuietHoursEnd {
+		return // quiet hours disabled, nothing to drain
+	}
+
+	drainCtx, cancel := context.WithCancel(ctx)
+	g.drainCancel = cancel
+
+	g.drainWG.Add(1)
+	go g.drainLoop(drainCtx, cb)
+}
+
+// StopDrainTimer stops the drain timer goroutine and blocks until it exits.
+func (g *AttentionGate) StopDrainTimer() {
+	if g.drainCancel != nil {
+		g.drainCancel()
+	}
+	g.drainWG.Wait()
+	g.drainCancel = nil
+}
+
+// drainLoop is the background ticker that watches for quiet-hours transitions.
+func (g *AttentionGate) drainLoop(ctx context.Context, cb DrainCallback) {
+	defer g.drainWG.Done()
+
+	interval := g.drainInterval
+	if interval <= 0 {
+		interval = defaultDrainInterval
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	wasQuiet := g.inQuietHours(g.now().Hour())
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			isQuiet := g.inQuietHours(g.now().Hour())
+			// Detect transition: was quiet → no longer quiet.
+			if wasQuiet && !isQuiet {
+				if msgs := g.DrainQueue(); len(msgs) > 0 {
+					cb(msgs)
+				}
+			}
+			wasQuiet = isQuiet
+		}
+	}
+}
+
+// now returns the current time, using nowFn if set (for testing).
+func (g *AttentionGate) now() time.Time {
+	if g.nowFn != nil {
+		return g.nowFn()
+	}
+	return time.Now()
 }

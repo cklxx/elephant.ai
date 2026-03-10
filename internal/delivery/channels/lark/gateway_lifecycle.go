@@ -44,6 +44,7 @@ func (g *Gateway) Start(ctx context.Context) error {
 	}
 	g.messenger = wrapInjectCaptureHub(g.messenger)
 	g.startDeliveryWorker(runCtx)
+	g.startDrainQueueTimer(runCtx)
 
 	// Build the event dispatcher (shared across reconnections).
 	eventDispatcher := g.buildEventDispatcher()
@@ -122,6 +123,9 @@ func (g *Gateway) newWSClient(eventDispatcher *dispatcher.EventDispatcher) *lark
 // Stop releases resources. The WebSocket client does not expose a Stop method;
 // cancelling the context passed to Start is the primary shutdown mechanism.
 func (g *Gateway) Stop() {
+	if g.attentionGate != nil {
+		g.attentionGate.StopDrainTimer()
+	}
 	g.stopStateCleanupLoop()
 }
 
@@ -253,6 +257,25 @@ func (g *Gateway) stopStateCleanupLoop() {
 		cancel()
 	}
 	g.cleanupWG.Wait()
+}
+
+// startDrainQueueTimer wires the attention gate drain timer into the gateway.
+// When quiet hours end, all queued messages are dispatched to their chats.
+func (g *Gateway) startDrainQueueTimer(ctx context.Context) {
+	if g.attentionGate == nil || !g.attentionGate.IsEnabled() {
+		return
+	}
+	// Share the gateway's time function with the attention gate.
+	g.attentionGate.nowFn = g.now
+
+	g.attentionGate.StartDrainTimer(ctx, func(msgs []QueuedMessage) {
+		g.logger.Info("Attention gate: draining %d queued messages after quiet hours", len(msgs))
+		drainCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		for _, msg := range msgs {
+			g.dispatch(drainCtx, msg.ChatID, "", "text", textContent(msg.Content))
+		}
+	})
 }
 
 func (g *Gateway) startStateCleanupLoop(ctx context.Context) {
