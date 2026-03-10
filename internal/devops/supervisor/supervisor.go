@@ -56,6 +56,7 @@ type Supervisor struct {
 	mainRoot     string
 	testRoot     string
 	logger       *slog.Logger
+	mu           sync.Mutex     // protects failCounts, lastUpgradeAt, loopState
 	failCounts   map[string]int
 	restartLocks sync.Map // map[string]*sync.Mutex — per-component restart guard
 	loopState    LoopState
@@ -108,7 +109,10 @@ func New(cfg Config) *Supervisor {
 }
 
 // RegisterComponent adds a component to be supervised.
+// Must be called before Run starts the tick loop.
 func (s *Supervisor) RegisterComponent(comp *Component) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.components = append(s.components, comp)
 }
 
@@ -178,7 +182,9 @@ func (s *Supervisor) tick(ctx context.Context) {
 		healthState := comp.HealthFn()
 
 		if !s.needsRestart(comp.Name, healthState) {
+			s.mu.Lock()
 			s.failCounts[comp.Name] = 0
+			s.mu.Unlock()
 			continue
 		}
 
@@ -187,11 +193,14 @@ func (s *Supervisor) tick(ctx context.Context) {
 		}
 
 		// Exponential backoff
+		s.mu.Lock()
 		s.failCounts[comp.Name]++
 		delay := 1 << (s.failCounts[comp.Name] - 1)
 		if delay > 60 {
 			delay = 60
 		}
+		attempt := s.failCounts[comp.Name]
+		s.mu.Unlock()
 
 		count := s.policy.RecordRestart(comp.Name)
 		if count >= s.policy.MaxInWindow {
@@ -213,7 +222,7 @@ func (s *Supervisor) tick(ctx context.Context) {
 			"component", comp.Name,
 			"health", healthState,
 			"delay", delay,
-			"attempt", s.failCounts[comp.Name],
+			"attempt", attempt,
 			"window_count", count)
 
 		s.restartComponentAfterDelay(ctx, comp, mu, time.Duration(delay)*time.Second)
@@ -243,7 +252,9 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 		return
 	}
 
+	s.mu.Lock()
 	mainSHA := s.loopState.MainSHA
+	s.mu.Unlock()
 	if mainSHA == "" || mainSHA == "unknown" {
 		return
 	}
@@ -266,7 +277,10 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 
 		// Enforce minimum interval between SHA drift upgrades to avoid
 		// killing the process every time a new commit lands on main.
-		if lastUpgrade, ok := s.lastUpgradeAt[comp.Name]; ok && now.Sub(lastUpgrade) < minUpgradeInterval {
+		s.mu.Lock()
+		lastUpgrade, ok := s.lastUpgradeAt[comp.Name]
+		s.mu.Unlock()
+		if ok && now.Sub(lastUpgrade) < minUpgradeInterval {
 			continue
 		}
 
@@ -312,7 +326,9 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 				"component", comp.Name,
 				"error", err)
 		} else {
+			s.mu.Lock()
 			s.lastUpgradeAt[comp.Name] = now
+			s.mu.Unlock()
 			s.logger.Info("upgrade restart succeeded", "component", comp.Name)
 		}
 		mu.Unlock()
@@ -427,22 +443,29 @@ func (s *Supervisor) readLoopState() {
 	// Read main SHA from git
 	ls.MainSHA = s.getMainSHA()
 
+	s.mu.Lock()
 	s.loopState = ls
+	s.mu.Unlock()
 }
 
 func (s *Supervisor) writeStatus() {
 	now := time.Now()
+
+	s.mu.Lock()
+	ls := s.loopState
+	s.mu.Unlock()
+
 	status := Status{
 		Timestamp:          now.UTC().Format(time.RFC3339),
 		Mode:               s.currentMode(now),
 		Components:         make(map[string]ComponentStatus),
 		RestartCountWindow: s.policy.TotalRestartCount(now),
-		CyclePhase:         s.loopState.CyclePhase,
-		CycleResult:        s.loopState.CycleResult,
-		LastError:          s.loopState.LastError,
-		MainSHA:            s.loopState.MainSHA,
-		LastProcessedSHA:   s.loopState.LastProcessedSHA,
-		LastValidatedSHA:   s.loopState.LastValidatedSHA,
+		CyclePhase:         ls.CyclePhase,
+		CycleResult:        ls.CycleResult,
+		LastError:          ls.LastError,
+		MainSHA:            ls.MainSHA,
+		LastProcessedSHA:   ls.LastProcessedSHA,
+		LastValidatedSHA:   ls.LastValidatedSHA,
 	}
 
 	for _, comp := range s.components {

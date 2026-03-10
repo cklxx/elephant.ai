@@ -315,11 +315,7 @@ func (m *Manager) IsRunning(name string) (bool, int) {
 		cleanupPIDState(pidFile, metaFile)
 		return false, 0
 	}
-	if proclive.IsAlive(pid) {
-		return true, pid
-	}
-	cleanupPIDState(pidFile, metaFile)
-	return false, 0
+	return true, pid
 }
 
 // Recover attempts to recover process tracking from a PID file.
