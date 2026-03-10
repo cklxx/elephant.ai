@@ -248,6 +248,7 @@ func RunServer(observabilityConfigPath string) error {
 				Burst:             config.RateLimit.Burst,
 			},
 			NonStreamTimeout: config.NonStreamTimeout,
+			LeaderAPIToken:   config.LeaderAPIToken,
 		},
 	)
 

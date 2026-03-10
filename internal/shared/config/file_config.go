@@ -487,6 +487,7 @@ type ServerConfig struct {
 	EventHistoryMaxSessions                *int     `yaml:"event_history_max_sessions"`
 	EventHistorySessionTTL                 *int     `yaml:"event_history_session_ttl_seconds"`
 	EventHistoryMaxEvents                  *int     `yaml:"event_history_max_events"`
+	LeaderAPIToken                         string   `yaml:"leader_api_token"`
 }
 
 // AgentConfig captures agent-level behavioral settings.

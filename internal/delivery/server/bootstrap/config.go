@@ -28,6 +28,7 @@ type Config struct {
 	StreamGuard        StreamGuardConfig
 	RateLimit          RateLimitConfig
 	NonStreamTimeout   time.Duration
+	LeaderAPIToken     string
 	TaskExecution      TaskExecutionConfig
 	EventHistory       EventHistoryConfig
 	Attachment         attachments.StoreConfig

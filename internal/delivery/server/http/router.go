@@ -156,10 +156,13 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 
 	// ── Leader dashboard ──
 
+	// Auth middleware for leader endpoints.
+	leaderAuth := BearerAuthMiddleware(cfg.LeaderAPIToken)
+
 	if deps.LeaderDashboard != nil {
-		mux.Handle("GET /api/leader/dashboard", routeHandler("/api/leader/dashboard", wrap(http.HandlerFunc(deps.LeaderDashboard.HandleGetDashboard))))
+		mux.Handle("GET /api/leader/dashboard", routeHandler("/api/leader/dashboard", leaderAuth(http.HandlerFunc(deps.LeaderDashboard.HandleGetDashboard))))
 	}
-	mux.Handle("GET /api/leader/openapi.json", routeHandler("/api/leader/openapi.json", http.HandlerFunc(HandleLeaderOpenAPISpec)))
+	mux.Handle("GET /api/leader/openapi.json", routeHandler("/api/leader/openapi.json", leaderAuth(http.HandlerFunc(HandleLeaderOpenAPISpec))))
 
 	// ── Claude Code hooks bridge ──
 

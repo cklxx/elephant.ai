@@ -39,6 +39,9 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if file.Server.NonStreamTimeoutSeconds != nil && *file.Server.NonStreamTimeoutSeconds > 0 {
 		cfg.NonStreamTimeout = time.Duration(*file.Server.NonStreamTimeoutSeconds) * time.Second
 	}
+	if token := strings.TrimSpace(file.Server.LeaderAPIToken); token != "" {
+		cfg.LeaderAPIToken = token
+	}
 	if ownerID := strings.TrimSpace(file.Server.TaskExecutionOwnerID); ownerID != "" {
 		cfg.TaskExecution.OwnerID = ownerID
 	}

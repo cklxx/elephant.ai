@@ -1,4 +1,1 @@
 status: in_progress
-branch: worktree-runtime-tests
-task: add unit tests for runtime lifecycle and adapter management
-created: 2026-03-10
