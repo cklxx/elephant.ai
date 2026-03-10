@@ -1,6 +1,7 @@
 package modelregistry
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -53,81 +54,28 @@ func newTestServer(t *testing.T, payload any) *httptest.Server {
 	}))
 }
 
-// loadRegistryFromFakeData populates a Registry with fake API data directly.
+// loadRegistryFromFakeData populates a Registry via the real fetchFromAPI path.
 func loadRegistryFromFakeData(t *testing.T) *Registry {
 	t.Helper()
 	srv := newTestServer(t, fakeAPIResponse())
 	t.Cleanup(srv.Close)
 
-	// Override apiURL isn't possible (const), so call fetchFromAPI directly.
-	client := srv.Client()
-	origURL := apiURL
-
-	// Use a custom transport to redirect requests to the test server.
-	client.Transport = &rewriteTransport{
-		base:    http.DefaultTransport,
-		fromURL: origURL,
-		toURL:   srv.URL,
+	client := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			req.URL.Scheme = "http"
+			req.URL.Host = srv.Listener.Addr().String()
+			return http.DefaultTransport.RoundTrip(req)
+		}),
 	}
 
-	reg := &Registry{client: client}
-	// Manually load via fetchAndStore-like logic using fetchFromAPI with test server.
-	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
+	data, byProvider, err := fetchFromAPI(context.Background(), client)
 	require.NoError(t, err)
 
-	resp, err := srv.Client().Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	var raw map[string]providerPayload
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&raw))
-
-	// Manually populate using the same logic as fetchFromAPI.
-	data, byProvider, err := parseFakeData(raw)
-	require.NoError(t, err)
-
-	reg.data = data
-	reg.byProvider = byProvider
-	reg.fetchedAt = time.Now()
-	return reg
-}
-
-// rewriteTransport is unused but kept for potential future use.
-type rewriteTransport struct {
-	base    http.RoundTripper
-	fromURL string
-	toURL   string
-}
-
-func (t *rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	return t.base.RoundTrip(req)
-}
-
-// parseFakeData replicates the core logic of fetchFromAPI without network calls.
-func parseFakeData(raw map[string]providerPayload) (map[string]ModelInfo, map[string][]string, error) {
-	data := make(map[string]ModelInfo)
-	byProvider := make(map[string][]string)
-
-	for providerID, pPayload := range raw {
-		pid := providerID
-		for modelID, mData := range pPayload.Models {
-			info := ModelInfo{
-				ID:             modelID,
-				Provider:       pid,
-				ContextWindow:  mData.Limit.Context,
-				InputPer1M:     mData.Cost.Input,
-				OutputPer1M:    mData.Cost.Output,
-				SupportsTools:  mData.ToolCall,
-				SupportsVision: mData.supportsVision(),
-			}
-			data[pid+"/"+modelID] = info
-			if existing, exists := data[modelID]; !exists || (existing.InputPer1M == 0 && info.InputPer1M > 0) {
-				data[modelID] = info
-			}
-			byProvider[pid] = append(byProvider[pid], modelID)
-		}
+	return &Registry{
+		data:       data,
+		byProvider: byProvider,
+		fetchedAt:  time.Now(),
 	}
-	return data, byProvider, nil
 }
 
 // --- Lookup tests ---
@@ -251,62 +199,6 @@ func TestSupportsVisionImageOnly(t *testing.T) {
 	assert.True(t, m.supportsVision())
 }
 
-// --- fetchFromAPI tests with test server ---
-
-func TestFetchFromAPISuccess(t *testing.T) {
-	srv := newTestServer(t, fakeAPIResponse())
-	defer srv.Close()
-
-	// Patch the request to point to test server.
-	client := srv.Client()
-	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
-	require.NoError(t, err)
-
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-}
-
-func TestFetchFromAPIBadStatus(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer srv.Close()
-
-	ctx := t
-	_ = ctx
-	// Call the internal function with redirected URL by creating a custom request.
-	client := srv.Client()
-	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
-	require.NoError(t, err)
-
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-}
-
-func TestFetchFromAPIInvalidJSON(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte("not valid json"))
-	}))
-	defer srv.Close()
-
-	client := srv.Client()
-	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
-	require.NoError(t, err)
-
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	var raw map[string]providerPayload
-	err = json.NewDecoder(resp.Body).Decode(&raw)
-	assert.Error(t, err)
-}
-
 // --- ModelInfo field tests ---
 
 func TestModelInfoFields(t *testing.T) {
@@ -362,7 +254,7 @@ func TestWaitUntilReadyTimeout(t *testing.T) {
 
 func TestBareKeyPrefersNonZeroPricing(t *testing.T) {
 	// When two providers have the same model, the one with non-zero pricing wins.
-	raw := map[string]providerPayload{
+	srv := newTestServer(t, map[string]providerPayload{
 		"reseller": {
 			Models: map[string]modelPayload{
 				"shared-model": {
@@ -379,9 +271,18 @@ func TestBareKeyPrefersNonZeroPricing(t *testing.T) {
 				},
 			},
 		},
+	})
+	defer srv.Close()
+
+	client := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			req.URL.Scheme = "http"
+			req.URL.Host = srv.Listener.Addr().String()
+			return http.DefaultTransport.RoundTrip(req)
+		}),
 	}
 
-	data, _, err := parseFakeData(raw)
+	data, _, err := fetchFromAPI(context.Background(), client)
 	require.NoError(t, err)
 
 	info, ok := data["shared-model"]
