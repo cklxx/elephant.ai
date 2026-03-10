@@ -21,10 +21,7 @@ var homeSupportScriptDirs = []string{"skill_runner", "cli"}
 
 // LocateDefaultDir resolves the runtime skills root.
 func LocateDefaultDir() string {
-	root, err := ResolveSkillsRoot()
-	if err != nil {
-		return root
-	}
+	root, _ := ResolveSkillsRoot()
 	return root
 }
 
@@ -78,7 +75,7 @@ func EnsureHomeSkills(homeRoot string) error {
 			return err
 		}
 	} else {
-		if err := copyMissingSkills(repoRoot, homeRoot); err != nil {
+		if err := copyRepoSkills(repoRoot, homeRoot, false); err != nil {
 			return err
 		}
 	}
@@ -168,10 +165,6 @@ func hasSkillFiles(dir string) bool {
 	return err == nil && len(paths) > 0
 }
 
-func copyMissingSkills(sourceRoot, targetRoot string) error {
-	return copyRepoSkills(sourceRoot, targetRoot, false)
-}
-
 func copyRepoSkills(sourceRoot, targetRoot string, overwriteExisting bool) error {
 	entries, err := os.ReadDir(sourceRoot)
 	if err != nil {
@@ -184,7 +177,7 @@ func copyRepoSkills(sourceRoot, targetRoot string, overwriteExisting bool) error
 		}
 
 		sourceSkillDir := filepath.Join(sourceRoot, entry.Name())
-		if !hasSkillDefinition(sourceSkillDir) {
+		if path, _ := findSkillFile(sourceSkillDir); path == "" {
 			continue
 		}
 
@@ -301,17 +294,6 @@ func isHomeSupportScriptsVersionApplied(alexRoot string) (bool, error) {
 func writeHomeSupportScriptsVersion(alexRoot string) error {
 	markerPath := filepath.Join(alexRoot, homeSkillsSupportScriptsMarkerName)
 	return os.WriteFile(markerPath, []byte(homeSkillsSupportScriptsVersion+"\n"), 0o644)
-}
-
-func hasSkillDefinition(dir string) bool {
-	for _, candidate := range []string{"SKILL.md", "SKILL.mdx"} {
-		path := filepath.Join(dir, candidate)
-		info, err := os.Stat(path)
-		if err == nil && !info.IsDir() {
-			return true
-		}
-	}
-	return false
 }
 
 func copyDirectory(sourceDir, targetDir string) error {

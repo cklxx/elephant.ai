@@ -1,13 +1,10 @@
 package skills
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -94,33 +91,8 @@ func LoadCustomSkills(config CustomSkillConfig) (Library, []ValidationError) {
 		}
 
 		skillDir := filepath.Join(dir, entry.Name())
-		var path string
-		var info fs.FileInfo
-		var statErr error
-		for _, candidate := range []string{"SKILL.md", "SKILL.mdx"} {
-			candidatePath := filepath.Join(skillDir, candidate)
-			fi, err := os.Stat(candidatePath)
-			if err != nil {
-				if !errors.Is(err, fs.ErrNotExist) {
-					statErr = err
-				}
-				continue
-			}
-			if fi.IsDir() {
-				continue
-			}
-			path = candidatePath
-			info = fi
-			break
-		}
+		path, info := findSkillFile(skillDir)
 		if path == "" {
-			if statErr != nil {
-				allErrors = append(allErrors, ValidationError{
-					SkillName: entry.Name(),
-					Field:     "file",
-					Message:   fmt.Sprintf("cannot stat skill file: %v", statErr),
-				})
-			}
 			continue
 		}
 
@@ -170,9 +142,7 @@ func LoadCustomSkills(config CustomSkillConfig) (Library, []ValidationError) {
 		validSkills = append(validSkills, skill)
 	}
 
-	sort.Slice(validSkills, func(i, j int) bool {
-		return validSkills[i].Name < validSkills[j].Name
-	})
+	sortSkillsByName(validSkills)
 
 	return Library{skills: validSkills, byName: byName, root: dir}, allErrors
 }
@@ -337,9 +307,7 @@ func MergeLibraries(builtin Library, custom Library, allowOverride bool) Library
 		byName[key] = s
 	}
 
-	sort.Slice(skills, func(i, j int) bool {
-		return skills[i].Name < skills[j].Name
-	})
+	sortSkillsByName(skills)
 
 	// Use the built-in root if available, otherwise custom root.
 	root := builtin.root

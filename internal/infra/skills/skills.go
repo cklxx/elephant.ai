@@ -160,9 +160,36 @@ func Load(dir string) (Library, error) {
 		skills = append(skills, skill)
 	}
 
-	sort.Slice(skills, func(i, j int) bool { return skills[i].Name < skills[j].Name })
+	sortSkillsByName(skills)
 
 	return Library{skills: skills, byName: byName, root: trimmed}, nil
+}
+
+// skillFileCandidates are the recognized filenames for a skill definition.
+var skillFileCandidates = []string{"SKILL.md", "SKILL.mdx"}
+
+// findSkillFile returns the path and FileInfo of the first skill definition
+// file found in dir, or empty string if none exists.
+func findSkillFile(dir string) (string, fs.FileInfo) {
+	for _, candidate := range skillFileCandidates {
+		path := filepath.Join(dir, candidate)
+		info, err := os.Stat(path)
+		if err == nil && !info.IsDir() {
+			return path, info
+		}
+	}
+	return "", nil
+}
+
+// hasFile reports whether path exists as a regular file.
+func hasFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+// sortSkillsByName sorts a skill slice by name in ascending order.
+func sortSkillsByName(skills []Skill) {
+	sort.Slice(skills, func(i, j int) bool { return skills[i].Name < skills[j].Name })
 }
 
 func discoverSkillFiles(root string) ([]string, error) {
@@ -173,42 +200,16 @@ func discoverSkillFiles(root string) ([]string, error) {
 
 	var paths []string
 	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() {
-			for _, candidate := range []string{"SKILL.md", "SKILL.mdx"} {
-				path := filepath.Join(root, name, candidate)
-				info, err := os.Stat(path)
-				if err == nil && !info.IsDir() {
-					paths = append(paths, path)
-					break
-				}
-			}
+		if !entry.IsDir() {
 			continue
+		}
+		if path, _ := findSkillFile(filepath.Join(root, entry.Name())); path != "" {
+			paths = append(paths, path)
 		}
 	}
 
 	sort.Strings(paths)
 	return paths, nil
-}
-
-type skillFrontMatter struct {
-	Name             string         `yaml:"name"`
-	Description      string         `yaml:"description"`
-	Triggers         *SkillTriggers `yaml:"triggers,omitempty"`
-	Priority         int            `yaml:"priority,omitempty"`
-	ExclusiveGroup   string         `yaml:"exclusive_group,omitempty"`
-	Prerequisites    []string       `yaml:"prerequisites,omitempty"`
-	RequiresTools    []string       `yaml:"requires_tools,omitempty"`
-	MaxTokens        int            `yaml:"max_tokens,omitempty"`
-	Cooldown         int            `yaml:"cooldown,omitempty"`
-	Output           *SkillOutput   `yaml:"output,omitempty"`
-	Chain            []ChainStep    `yaml:"chain,omitempty"`
-	Capabilities     []string       `yaml:"capabilities,omitempty"`
-	GovernanceLevel  string         `yaml:"governance_level,omitempty"`
-	ActivationMode   string         `yaml:"activation_mode,omitempty"`
-	DependsOnSkills  []string       `yaml:"depends_on_skills,omitempty"`
-	ProducesEvents   []string       `yaml:"produces_events,omitempty"`
-	RequiresApproval bool           `yaml:"requires_approval,omitempty"`
 }
 
 func parseSkillFile(path string) (Skill, error) {
@@ -219,46 +220,25 @@ func parseSkillFile(path string) (Skill, error) {
 	content := strings.ReplaceAll(string(data), "\r\n", "\n")
 
 	metaText, bodyText, hasFrontMatter := splitFrontMatter(content)
-	var meta skillFrontMatter
+	var skill Skill
 	if hasFrontMatter {
-		if err := yaml.Unmarshal([]byte(metaText), &meta); err != nil {
+		if err := yaml.Unmarshal([]byte(metaText), &skill); err != nil {
 			return Skill{}, fmt.Errorf("parse skill front matter %s: %w", path, err)
 		}
 	}
 
-	body := strings.TrimSpace(bodyText)
-	title := extractMarkdownTitle(body)
-	if title == "" {
-		title = meta.Name
+	skill.Name = strings.TrimSpace(skill.Name)
+	skill.Description = strings.TrimSpace(skill.Description)
+	skill.Body = strings.TrimSpace(bodyText)
+	skill.SourcePath = path
+	skill.Title = extractMarkdownTitle(skill.Body)
+	if skill.Title == "" {
+		skill.Title = skill.Name
 	}
+	skill.GovernanceLevel = utils.TrimLower(skill.GovernanceLevel)
+	skill.ActivationMode = normalizeActivationMode(skill.ActivationMode)
+	skill.HasRunScript = hasFile(filepath.Join(filepath.Dir(path), "run.py"))
 
-	// Detect run.py alongside SKILL.md
-	runScript := filepath.Join(filepath.Dir(path), "run.py")
-	_, hasRunScript := os.Stat(runScript)
-
-	skill := Skill{
-		Name:             strings.TrimSpace(meta.Name),
-		Description:      strings.TrimSpace(meta.Description),
-		Title:            title,
-		Body:             body,
-		SourcePath:       path,
-		Triggers:         meta.Triggers,
-		Priority:         meta.Priority,
-		ExclusiveGroup:   meta.ExclusiveGroup,
-		Prerequisites:    meta.Prerequisites,
-		RequiresTools:    meta.RequiresTools,
-		MaxTokens:        meta.MaxTokens,
-		Cooldown:         meta.Cooldown,
-		Output:           meta.Output,
-		Chain:            meta.Chain,
-		Capabilities:     meta.Capabilities,
-		GovernanceLevel:  utils.TrimLower(meta.GovernanceLevel),
-		ActivationMode:   utils.TrimLower(meta.ActivationMode),
-		DependsOnSkills:  meta.DependsOnSkills,
-		ProducesEvents:   meta.ProducesEvents,
-		RequiresApproval: meta.RequiresApproval,
-		HasRunScript:     hasRunScript == nil,
-	}
 	if skill.Priority == 0 {
 		skill.Priority = 5
 	}
@@ -267,13 +247,6 @@ func parseSkillFile(path string) (Skill, error) {
 	}
 	if skill.GovernanceLevel == "" {
 		skill.GovernanceLevel = "medium"
-	}
-	switch skill.ActivationMode {
-	case "auto", "semi_auto", "manual":
-	case "":
-		skill.ActivationMode = "auto"
-	default:
-		skill.ActivationMode = "auto"
 	}
 	return skill, nil
 }
