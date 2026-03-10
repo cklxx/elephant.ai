@@ -1,52 +1,30 @@
-# Lark Mentions（@）使用说明
+# Lark Mentions
 
-## 1) 群聊里“@ 机器人”才能被收到（常见原因）
+Updated: 2026-03-10
 
-在 Lark 群聊里，机器人是否能收到**所有群消息**取决于应用权限/订阅能力：
+This doc covers how the repo reads and writes `@` mentions in Lark.
 
-- 只开通“获取用户在群组中@机器人的消息”：机器人**只能收到被 @ 的消息**。
-- 开通“获取群组中所有消息”：机器人才能收到**群内所有消息**。
+## Incoming Mentions
 
-如果你在群里打字里出现了类似 `@cli_xxx` 的字符串，但没有从 Lark 客户端的 @ 选择器里真正选择机器人，那么平台通常不会把它当作“@ 机器人”，机器人也就收不到（或收不到你期望的那类消息）。
+- Real mentions arrive either as placeholder keys such as `@_user_n` plus `event.message.mentions[]`, or as `<at ...>` tags inside message payloads.
+- The gateway converts them into readable text like `@Alice(ou_xxx)` before passing them to the model.
+- Hand-typed `@_user_n` or `@cli_xxx` is plain text, not a real mention.
 
-## 2) `@_user_n` 是接收侧占位符，不是发送侧协议
+## Outgoing Mentions
 
-当群聊里发生真实的 @（你在客户端用 @ 选择器选了某个用户/机器人）时，**平台投递的消息文本**里可能会出现：
+- Write mentions in readable form: `@Alice(ou_xxx)`.
+- Use `@所有人(all)` for `@all`.
+- The sender converts that format into real Lark `<at user_id="...">...</at>` tags.
 
-- `@_user_1` / `@_user_2` 这类占位符（mention key）
-- 同时在事件 payload 的 `event.message.mentions[]` 里带上映射（key → 被 @ 的对象 open_id / name 等）
+## Group And Multi-Bot Use
 
-因此：
+1. In the Lark client, do a real `@` once through the picker.
+2. The incoming event gives the repo the target `open_id`.
+3. Later replies can reuse `@Name(ou_xxx)` and the gateway will render a real mention.
 
-- 你**不能**靠手打 `@_user_2` 来实现 @；那只会是普通文本。
-- 你也**不能**靠手打 `@cli_xxx` 来 @ 机器人；`cli_...` 是 app_id，不是可用于 mention 的 user_id/open_id。
+If no real mention has ever arrived, the repo cannot infer the target `ou_...` by itself.
 
-本项目会把接收侧的 `@_user_n` 占位符解析成 `@Name(ou_...)` 的可读文本，供模型理解与复用。
+## Rule Of Thumb
 
-## 3) 机器人在群里 @ 人 / @all（发送侧）
-
-对 Lark **text** 类型消息，`content.text` 支持插入 `<at ...>` 标签：
-
-- @ 某个用户（`user_id` 一般是 open_id，形如 `ou_...`）：
-  - `你好 <at user_id="ou_xxx">张三</at>`
-- @ 所有人：
-  - `<at user_id="all">所有人</at> 重要通知...`
-
-> 注意：这里需要的是 **用户标识（open_id/user_id）**，不是 app_id / 机器人实例名。
-
-为了让模型更容易写对，本项目也支持一种“可读格式”并在发送时自动转换：
-
-- 你可以在回复里写：`@张三(ou_xxx)` / `@另一个机器人(ou_yyy)`
-- 发送到 Lark 时会被自动渲染为：`<at user_id="ou_xxx">张三</at>`（在客户端表现为真实 @）
-
-## 4) “@ 另一个机器人”怎么做（可操作步骤）
-
-1. 在群里用客户端的 @ 选择器**真实 @ 一次**目标机器人（不要手打 `@cli_...`）。
-2. 本项目接收侧会把占位符解析成 `@机器人名(ou_...)` 放进模型输入。
-3. 模型在回复里复用 `@机器人名(ou_...)`，发送侧会自动渲染成真实 `<at ...>`，从而 @ 到目标机器人。
-
-如果第 1 步从来没真实 @ 过目标机器人，事件里就没有 `mentions[]` 映射，本项目也就无法凭空知道对方的 `ou_...`。
-
-## 5) 接收侧解析（本项目现状）
-
-本项目会把收到的 text 里 `<at user_id="...">Name</at>` 渲染成 `@Name(user_id)` 的可读文本，便于模型理解与引用。
+- Incoming: Lark mention payload -> readable `@Name(ou_xxx)`
+- Outgoing: readable `@Name(ou_xxx)` -> real Lark mention

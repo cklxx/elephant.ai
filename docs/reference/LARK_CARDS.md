@@ -1,40 +1,39 @@
-# Lark Interactive Cards
+# Lark Cards
 
-This document describes interactive card behavior used by elephant.ai in Lark.
+Updated: 2026-03-10
 
-## What we send
+This repo uses a small set of Lark cards.
 
-- **Plan review card**: triggered when the agent stops with `await_user_input`.
-- **Result card**: sent on successful task completion when card rendering succeeds.
-- **Error card**: sent on failures.
-- **Model selection card**: sent by `/model` / `/model list` when supported by the current flow.
+## Used Today
 
-## Callback endpoint
+- Auth cards for in-chat OAuth authorization.
+- Leader notification cards for blocker alerts, weekly pulse, daily summary, and milestone updates.
 
-Cards are interactive; button clicks invoke:
+## Plan Review
+
+- `await_user_input` plan review is resumed through plain-text replies.
+- Pending review state is stored locally and restored from session state when needed.
+- Old action-tag lists are not part of the current contract.
+
+## Callback Setup
+
+If interactive card callbacks are enabled, configure:
 
 - `POST /api/lark/card/callback`
 
-## Configuration note
+Message/event callbacks still use:
 
-Card callback and card-toggle fields were removed from `channels.lark` runtime config.
-Current Lark setup only requires:
+- `POST /api/lark/callback`
+
+## Required Config
 
 - `channels.lark.enabled`
 - `channels.lark.app_id`
 - `channels.lark.app_secret`
-- `channels.lark.persistence.*` (for task/plan/session local persistence)
-
-## Action tags and behavior
-
-- `plan_review_approve` → injects `OK` as user input.
-- `plan_review_request_changes` → injects `plan_feedback` when provided, else `需要修改`.
-- `confirm_yes` → injects `OK`.
-- `confirm_no` → injects `取消`.
-- `model_use` → injects `/model use <provider>/<model>` from `action.value.text`.
+- `channels.lark.persistence.*`
 
 ## Notes
 
-- Card callbacks are handled asynchronously.
-- If callback verification is not configured on the Lark platform side, card actions may not be delivered.
-- If callback delivery is unavailable, users can always continue via plain text replies.
+- Auth cards open a verification URL.
+- Leader cards are notification-oriented; they are not the control surface for normal task continuation.
+- Plain-text replies remain the fallback when card interaction is unavailable.

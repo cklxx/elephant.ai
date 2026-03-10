@@ -1,27 +1,24 @@
-# Index: memory
+# Memory Index
 
 Updated: 2026-03-10
 
 ## Core
 
-- [long-term.md](long-term.md) — Durable cross-task knowledge (main file)
+- [long-term.md](long-term.md) — durable cross-task rules
 
-## Topic files
+## Topic Files
 
-- [eval-routing.md](eval-routing.md) — Eval suite design, heuristic routing rules
-- [lark-devops.md](lark-devops.md) — Lark local ops, PID management, auth infra
-- [runtime-events.md](runtime-events.md) — Event partitioning, streaming perf, subagent rules
+- [eval-routing.md](eval-routing.md) — eval structure and routing heuristics
+- [lark-devops.md](lark-devops.md) — Lark local ops, process handling, auth rules
+- [runtime-events.md](runtime-events.md) — event partitioning, streaming, subagent rules
+- [user-patterns.md](user-patterns.md) — durable user preferences
 
-## Graph artifacts
+## Graph Artifacts
 
 - [edges.yaml](edges.yaml)
 - [index.yaml](index.yaml)
 - [tags.yaml](tags.yaml)
 
-## Other
-
-- [user-patterns.md](user-patterns.md)
-
-## Subdirectories
+## Networked Docs
 
 - [networked/README.md](networked/README.md)

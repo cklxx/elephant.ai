@@ -1,4 +1,4 @@
-status: merged
-branch: docs/cleanup-ops-reference
+status: in_progress
+branch: docs/audit-lark-memory-reference
 created: 2026-03-10
-task: remove stale files from docs/operations and docs/reference
+task: audit lark reference and memory docs

@@ -1,30 +1,35 @@
 # Long-Term Memory
 
-Updated: 2026-03-09 12:00
+Updated: 2026-03-10 18:00
 
-## Criteria
-- Only keep durable knowledge that should persist across tasks.
-- Prefer short, actionable statements with a clear remediation or rule.
+## Keep Here
+
+- Only durable rules that should survive across tasks.
+- Prefer short statements with a clear rule or remediation.
 
 ## Topic Files
-- **Eval & Routing** → see [eval-routing.md](eval-routing.md) (suite design, heuristic rules, routing patterns)
-- **Lark & DevOps** → see [lark-devops.md](lark-devops.md) (local ops, PID management, auth infra)
-- **Runtime & Events** → see [runtime-events.md](runtime-events.md) (event partitioning, streaming perf, subagent rules)
+
+- [eval-routing.md](eval-routing.md) — eval structure and routing patterns
+- [lark-devops.md](lark-devops.md) — Lark local ops, PID handling, auth rules
+- [runtime-events.md](runtime-events.md) — event partitioning, streaming, subagent rules
 
 ## Active Rules
-- Keep `agent/ports` free of memory/RAG deps; inject memory at engine/app layers.
-- Config: YAML-only. Plans in `docs/plans/`. Experience entries/summaries in their respective dirs; index files are index-only.
-- TDD when touching logic; `alex dev lint` + `alex dev test` before delivery.
-- `CGO_ENABLED=0` for `go test -race` on darwin CLT.
-- Prefer `internal/shared/json` (`jsonx`) over `encoding/json` on hot paths.
-- Keep `make check-arch` green for domain import boundaries.
-- `scripts/pre-push.sh` mirrors CI fast-fail; always before `git push`. Skip: `SKIP_PRE_PUSH=1`.
-- Skills resolution: `ALEX_SKILLS_DIR` overrides all; default `~/.alex/skills` with repo `skills/` missing-only sync.
-- Memory system: Markdown-only (`~/.alex/memory/MEMORY.md` + daily files).
-- Bash `set -u`: guard array expansions to avoid unbound variable errors.
-- Subscription model selection: request-scoped, no mutating managed overrides YAML.
 
-## Architecture
-- Context engineering over prompt hacking; typed events over unstructured logs.
-- Clean port/adapter boundaries; multi-provider LLM support.
-- Improvement plan: `docs/plans/architecture-review-2026-02-16.md` — decouple → split god structs → unify events/storage → test coverage.
+- Keep `agent/ports` free of memory and RAG dependencies; inject memory above the domain layer.
+- Config examples are YAML-only. Plans live in `docs/plans/`. Experience indexes stay index-only.
+- For logic changes, prefer TDD and run relevant lint and tests before delivery.
+- On Darwin, use `CGO_ENABLED=0` for `go test -race` unless cgo is required.
+- Prefer `internal/shared/json` (`jsonx`) on hot JSON paths.
+- Keep architecture boundary checks green.
+- Run `scripts/pre-push.sh` before `git push`.
+- Skills resolution: `ALEX_SKILLS_DIR` overrides defaults; otherwise prefer user skills dir with repo fallback.
+- Memory storage stays Markdown-first.
+- Guard Bash array expansions under `set -u`.
+- Subscription model selection is request-scoped; do not mutate managed override YAML in place.
+
+## Architecture Defaults
+
+- Prefer context engineering over prompt hacking.
+- Prefer typed events over unstructured logs.
+- Keep port and adapter boundaries clean.
+- New LLM behavior should not hardcode a single provider path.
