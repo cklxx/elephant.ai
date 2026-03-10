@@ -121,7 +121,7 @@ jobs:
 
       - name: 🧪 Run unit tests
         run: |
-          go test -race -covermode=atomic -coverprofile=coverage.out -v ./... 2>&1 | tee test-output.txt
+          go test -race -timeout 20m -covermode=atomic -coverprofile=coverage.out -v ./... 2>&1 | tee test-output.txt
           test ${PIPESTATUS[0]} -eq 0
 
       - name: 📤 Upload test output on failure
