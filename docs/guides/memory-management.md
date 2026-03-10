@@ -83,6 +83,6 @@ Do not put narrative content in these files:
 | File | Use |
 |------|-----|
 | `docs/memory/long-term.md` | Stable cross-session rules |
-| `docs/memory/kernel-ops.md` | Kernel operations patterns |
+| `docs/memory/runtime-events.md` | Runtime events, streaming, subagent rules |
 | `docs/memory/lark-devops.md` | Lark and DevOps decisions |
 | `docs/memory/eval-routing.md` | Eval and routing decisions |

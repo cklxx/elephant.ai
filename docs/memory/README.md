@@ -1,6 +1,6 @@
 # Index: memory
 
-Updated: 2026-03-04
+Updated: 2026-03-10
 
 ## Core
 
@@ -9,8 +9,8 @@ Updated: 2026-03-04
 ## Topic files
 
 - [eval-routing.md](eval-routing.md) — Eval suite design, heuristic routing rules
-- [kernel-ops.md](kernel-ops.md) — Kernel execution rules, supervisor, process management
 - [lark-devops.md](lark-devops.md) — Lark local ops, PID management, auth infra
+- [runtime-events.md](runtime-events.md) — Event partitioning, streaming perf, subagent rules
 
 ## Graph artifacts
 
@@ -20,7 +20,6 @@ Updated: 2026-03-04
 
 ## Other
 
-- [migration.md](migration.md)
 - [user-patterns.md](user-patterns.md)
 
 ## Subdirectories

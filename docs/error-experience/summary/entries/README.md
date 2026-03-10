@@ -1,9 +1,24 @@
 # Index: error-experience/summary/entries
 
-Updated: 2026-02-25
+Updated: 2026-03-10
 
 ## Files
 
+- [2026-03-05-user-correction-team-cli-skill-no-runpy.md](2026-03-05-user-correction-team-cli-skill-no-runpy.md)
+- [2026-03-05-user-correction-team-cli-and-artifacts-should-be-first-class.md](2026-03-05-user-correction-team-cli-and-artifacts-should-be-first-class.md)
+- [2026-03-05-user-correction-skill-vs-command-scope.md](2026-03-05-user-correction-skill-vs-command-scope.md)
+- [2026-03-05-user-correction-no-json-params.md](2026-03-05-user-correction-no-json-params.md)
+- [2026-03-05-user-correction-logs-require-confirmation-before-cleanup.md](2026-03-05-user-correction-logs-require-confirmation-before-cleanup.md)
+- [2026-03-05-user-correction-commit-all-dirty-main-diff.md](2026-03-05-user-correction-commit-all-dirty-main-diff.md)
+- [2026-03-05-git-worktree-push-context-mixup.md](2026-03-05-git-worktree-push-context-mixup.md)
+- [2026-03-04-session-system-prompt-multi-call-misread.md](2026-03-04-session-system-prompt-multi-call-misread.md)
+- [2026-03-04-lark-oauth-redirect-uri-precheck.md](2026-03-04-lark-oauth-redirect-uri-precheck.md)
+- [2026-03-03-user-scope-correction-task-only.md](2026-03-03-user-scope-correction-task-only.md)
+- [2026-03-03-tool-domain-misread-lark-doc-vs-task.md](2026-03-03-tool-domain-misread-lark-doc-vs-task.md)
+- [2026-03-03-service-readiness-claim-without-verification.md](2026-03-03-service-readiness-claim-without-verification.md)
+- [2026-03-03-race-react-testmultipletasks-flake.md](2026-03-03-race-react-testmultipletasks-flake.md)
+- [2026-03-03-prepush-race-flake-lint-timeout.md](2026-03-03-prepush-race-flake-lint-timeout.md)
+- [2026-02-26-main-branch-dirty-workspace-quality-gate-noise.md](2026-02-26-main-branch-dirty-workspace-quality-gate-noise.md)
 - [2026-02-12-lark-test-config-provider-key-mismatch-blocks-start.md](2026-02-12-lark-test-config-provider-key-mismatch-blocks-start.md)
 - [2026-02-10-tool-optimization-caused-eval-tool-availability-collapse.md](2026-02-10-tool-optimization-caused-eval-tool-availability-collapse.md)
 - [2026-02-10-broadcaster-unbounded-session-metrics.md](2026-02-10-broadcaster-unbounded-session-metrics.md)
@@ -28,28 +43,6 @@ Updated: 2026-02-25
 - [2026-01-27-dev-test-rag-invalid-openai-key.md](2026-01-27-dev-test-rag-invalid-openai-key.md)
 - [2026-01-27-dev-test-orchestration-explore-failure.md](2026-01-27-dev-test-orchestration-explore-failure.md)
 - [2026-01-27-dev-lint-test-cmd-alex-context.md](2026-01-27-dev-lint-test-cmd-alex-context.md)
-- [2026-01-26-tui-macos-input-failure.md](2026-01-26-tui-macos-input-failure.md)
-- [2026-01-25-golangci-lint-import-cycle.md](2026-01-25-golangci-lint-import-cycle.md)
-- [2026-01-24-playwright-e2e-missing-ui.md](2026-01-24-playwright-e2e-missing-ui.md)
-- [2026-01-23-web-next-build-hang.md](2026-01-23-web-next-build-hang.md)
-- [2026-01-22-workflow-events-missing-session.md](2026-01-22-workflow-events-missing-session.md)
-- [2026-01-22-cli-sandbox-shell-connection-refused.md](2026-01-22-cli-sandbox-shell-connection-refused.md)
-- [2026-01-22-attachments-mime-persist.md](2026-01-22-attachments-mime-persist.md)
-- [2026-01-22-attachment-uri-pptx-timeout.md](2026-01-22-attachment-uri-pptx-timeout.md)
-- [2026-01-21-acp-executor-missing-events.md](2026-01-21-acp-executor-missing-events.md)
-- [2026-01-21-acp-executor-host-path-operation-rejected.md](2026-01-21-acp-executor-host-path-operation-rejected.md)
-- [2026-01-21-acp-executor-cwd-switch-failed.md](2026-01-21-acp-executor-cwd-switch-failed.md)
-- [2026-01-09-zsh-ic-oh-my-zsh-hang.md](2026-01-09-zsh-ic-oh-my-zsh-hang.md)
-- [2026-01-09-mock-llm-fallback-missing-api-key-or-overrides.md](2026-01-09-mock-llm-fallback-missing-api-key-or-overrides.md)
-- [2026-01-09-gopls-install-missing-go-path.md](2026-01-09-gopls-install-missing-go-path.md)
-- [2026-01-09-github-api-rate-limit-package-version-server.md](2026-01-09-github-api-rate-limit-package-version-server.md)
-- [2026-01-09-git-merge-unrelated-histories.md](2026-01-09-git-merge-unrelated-histories.md)
-- [2026-01-09-git-fetch-timeout.md](2026-01-09-git-fetch-timeout.md)
-- [2026-01-09-dev-sh-auth-db-psql-gate.md](2026-01-09-dev-sh-auth-db-psql-gate.md)
-- [2026-01-09-auth-module-not-configured-local-postgres.md](2026-01-09-auth-module-not-configured-local-postgres.md)
-- [2026-01-09-auth-db-migration-file-not-in-container.md](2026-01-09-auth-db-migration-file-not-in-container.md)
-- [2026-01-08-sum-golang-502.md](2026-01-08-sum-golang-502.md)
-- [2026-01-08-git-index-lock-stale.md](2026-01-08-git-index-lock-stale.md)
 
 ## Authoring
 - Summary entries should add a `## Metadata` block with `id`, `tags`, and `derived_from` links.

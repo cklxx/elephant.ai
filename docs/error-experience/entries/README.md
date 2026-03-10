@@ -1,9 +1,25 @@
 # Index: error-experience/entries
 
-Updated: 2026-02-25
+Updated: 2026-03-10
 
 ## Files
 
+- [2026-03-09-user-correction-delete-feature-must-delete-config-surface.md](2026-03-09-user-correction-delete-feature-must-delete-config-surface.md)
+- [2026-03-05-user-correction-team-cli-skill-no-runpy.md](2026-03-05-user-correction-team-cli-skill-no-runpy.md)
+- [2026-03-05-user-correction-team-cli-and-artifacts-should-be-first-class.md](2026-03-05-user-correction-team-cli-and-artifacts-should-be-first-class.md)
+- [2026-03-05-user-correction-skill-vs-command-scope.md](2026-03-05-user-correction-skill-vs-command-scope.md)
+- [2026-03-05-user-correction-no-json-params.md](2026-03-05-user-correction-no-json-params.md)
+- [2026-03-05-user-correction-logs-require-confirmation-before-cleanup.md](2026-03-05-user-correction-logs-require-confirmation-before-cleanup.md)
+- [2026-03-05-user-correction-commit-all-dirty-main-diff.md](2026-03-05-user-correction-commit-all-dirty-main-diff.md)
+- [2026-03-05-git-worktree-push-context-mixup.md](2026-03-05-git-worktree-push-context-mixup.md)
+- [2026-03-04-session-system-prompt-multi-call-misread.md](2026-03-04-session-system-prompt-multi-call-misread.md)
+- [2026-03-04-lark-oauth-redirect-uri-precheck.md](2026-03-04-lark-oauth-redirect-uri-precheck.md)
+- [2026-03-03-user-scope-correction-task-only.md](2026-03-03-user-scope-correction-task-only.md)
+- [2026-03-03-tool-domain-misread-lark-doc-vs-task.md](2026-03-03-tool-domain-misread-lark-doc-vs-task.md)
+- [2026-03-03-service-readiness-claim-without-verification.md](2026-03-03-service-readiness-claim-without-verification.md)
+- [2026-03-03-race-react-testmultipletasks-flake.md](2026-03-03-race-react-testmultipletasks-flake.md)
+- [2026-03-03-prepush-race-flake-lint-timeout.md](2026-03-03-prepush-race-flake-lint-timeout.md)
+- [2026-02-26-main-branch-dirty-workspace-quality-gate-noise.md](2026-02-26-main-branch-dirty-workspace-quality-gate-noise.md)
 - [2026-02-12-lark-test-config-provider-key-mismatch-blocks-start.md](2026-02-12-lark-test-config-provider-key-mismatch-blocks-start.md)
 - [2026-02-12-go-sum-stale-ci-failure-no-prepush-gate.md](2026-02-12-go-sum-stale-ci-failure-no-prepush-gate.md)
 - [2026-02-10-tool-optimization-caused-eval-tool-availability-collapse.md](2026-02-10-tool-optimization-caused-eval-tool-availability-collapse.md)
@@ -34,10 +50,6 @@ Updated: 2026-02-25
 - [2026-01-27-dev-test-rag-invalid-openai-key.md](2026-01-27-dev-test-rag-invalid-openai-key.md)
 - [2026-01-27-dev-test-orchestration-explore-failure.md](2026-01-27-dev-test-orchestration-explore-failure.md)
 - [2026-01-27-dev-lint-test-cmd-alex-context.md](2026-01-27-dev-lint-test-cmd-alex-context.md)
-- [2026-01-26-make-fmt-test-sse-render-redeclared.md](2026-01-26-make-fmt-test-sse-render-redeclared.md)
-- [2026-01-26-make-fmt-test-builtin-typecheck.md](2026-01-26-make-fmt-test-builtin-typecheck.md)
-- [2026-01-26-dev-test-mcp-race.md](2026-01-26-dev-test-mcp-race.md)
-- [2026-01-26-dev-lint-test-tui-typecheck.md](2026-01-26-dev-lint-test-tui-typecheck.md)
 
 ## Authoring
 - New entries should add a `## Metadata` block with `id`, `tags`, and `links`.

@@ -1,4 +1,4 @@
-status: merged
-branch: docs/simplify-eng-guides
+status: in_progress
+branch: docs/cleanup-experience-memory
 created: 2026-03-10
-task: simplify engineering docs
+task: clean up error-experience, good-experience, and memory directories
