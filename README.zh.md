@@ -41,6 +41,48 @@ elephant.ai 是常驻飞书的 **leader agent**。它不只是回答问题——
 
 ---
 
+## 🎯 Leader Agent 功能
+
+Leader Agent 作为后台调度器与飞书会话并行运行。它持续监控任务健康状况，生成周期性汇总，在问题恶化之前主动暴露决策和卡点——让团队保持对齐，无需人工催进度。
+
+- 🔴 **卡点雷达 (Blocker Radar)** — 每 10 分钟扫描停滞任务（>30 分钟无更新）和等待输入的工作，自动通知并带冷却机制。
+- 📊 **周报脉搏 (Weekly Pulse)** — 每周一早 9 点推送：完成任务数、平均周期、Token 消耗、成功率。
+- 📋 **日报汇总 (Daily Summary)** — 每日结束时的活动回顾，包含 Top Agent 和关键成果。
+- 🤝 **1:1 准备简报 (Prep Brief)** — 会前自动生成讨论要点：近期成果、进行中事项、卡点、建议话题。
+- 🏁 **里程碑签到 (Milestone Check-ins)** — 每小时进度快照，覆盖活跃和近期完成的任务。
+- 🔇 **注意力守门 (Attention Gate)** — 按群维度的消息预算 + 紧急分级。安静时段和优先级阈值控制打扰频率。
+- 🧠 **决策记忆 (Decision Memory)** — 记录团队决策及其上下文、备选方案和结果。支持按话题、标签、日期、参与者搜索。
+
+### 快速启用
+
+在 `~/.alex/config.yaml` 中添加：
+
+```yaml
+proactive:
+  scheduler:
+    enabled: true
+    blocker_radar:
+      enabled: true
+      channel: lark
+      chat_id: oc_你的群聊ID
+    weekly_pulse:
+      enabled: true
+      channel: lark
+      chat_id: oc_你的群聊ID
+```
+
+### 数据流
+
+```
+任务 ──→ 任务存储 ──→ ┌─ 卡点雷达   ──→ 预警
+                      ├─ 周报脉搏   ──→ 摘要
+                      ├─ 日报汇总   ──→ 回顾     ──→ 调度器 ──→ 飞书通知
+                      ├─ 里程碑签到 ──→ 快照
+                      └─ 1:1 简报 ◄── 决策存储
+```
+
+---
+
 ## 🚀 快速开始
 
 **前置条件：** Go 1.24+、Node.js 20+、飞书机器人 token、LLM API Key。

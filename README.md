@@ -41,6 +41,48 @@ Behind the scenes it orchestrates specialist agents and tools. But to you, it fe
 
 ---
 
+## 🎯 Leader Agent Features
+
+The leader agent runs as a background scheduler alongside your Lark conversations. It continuously monitors task health, generates periodic digests, and surfaces decisions and blockers before they become problems — so the team stays aligned without manual follow-up.
+
+- 🔴 **Blocker Radar** — Scans every 10 min for stale tasks (>30 min no update) and input-blocked work. Auto-notifies with cooldown.
+- 📊 **Weekly Pulse** — Monday 9am digest: tasks completed, avg cycle time, token spend, success rate.
+- 📋 **Daily Summary** — End-of-day activity recap with top agents and key outcomes.
+- 🤝 **1:1 Prep Brief** — Auto-generated talking points before meetings: recent wins, open items, blockers, suggested discussion topics.
+- 🏁 **Milestone Check-ins** — Hourly progress snapshots of active and recently completed tasks.
+- 🔇 **Attention Gate** — Per-chat message budget with urgency classification. Quiet hours and priority thresholds keep noise low.
+- 🧠 **Decision Memory** — Records team decisions with context, alternatives, and outcomes. Searchable by topic, tag, date, or participant.
+
+### Quick enable
+
+Add to your `~/.alex/config.yaml`:
+
+```yaml
+proactive:
+  scheduler:
+    enabled: true
+    blocker_radar:
+      enabled: true
+      channel: lark
+      chat_id: oc_your_chat_id
+    weekly_pulse:
+      enabled: true
+      channel: lark
+      chat_id: oc_your_chat_id
+```
+
+### Data flow
+
+```
+Tasks ──→ Task Store ──→ ┌─ Blocker Radar ──→ Alert
+                         ├─ Weekly Pulse  ──→ Digest
+                         ├─ Daily Summary ──→ Recap      ──→ Scheduler ──→ Lark
+                         ├─ Milestone     ──→ Snapshot              Notifications
+                         └─ Prep Brief ◄── Decision Store
+```
+
+---
+
 ## 🚀 Quick Start
 
 **Prerequisites:** Go 1.24+, Node.js 20+, a Lark bot token, and an LLM API key.
