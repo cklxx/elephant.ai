@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -72,6 +73,64 @@ type AttentionGateConfig struct {
 	// EscalateThreshold is the minimum score routed to escalate.
 	// Default: 90.
 	EscalateThreshold int `yaml:"escalate_threshold"`
+}
+
+// Validate checks that threshold values are within [0,100] and in ascending
+// order (summarize < queue < notifyNow < escalate). Zero values are treated
+// as "use default" and are not validated — they will be filled by
+// normalizeAttentionRoutingThresholds at construction time.
+// Validate also checks that quiet hours values are in [0,23].
+func (c AttentionGateConfig) Validate() error {
+	thresholds := [4]struct {
+		name string
+		val  int
+	}{
+		{"summarize_threshold", c.SummarizeThreshold},
+		{"queue_threshold", c.QueueThreshold},
+		{"notify_now_threshold", c.NotifyNowThreshold},
+		{"escalate_threshold", c.EscalateThreshold},
+	}
+	for _, t := range thresholds {
+		if t.val != 0 && (t.val < minAttentionScore || t.val > maxAttentionScore) {
+			return fmt.Errorf("attention gate: %s=%d out of range [%d,%d]",
+				t.name, t.val, minAttentionScore, maxAttentionScore)
+		}
+	}
+
+	// Fill defaults for zero values before checking order.
+	s := c.SummarizeThreshold
+	if s == 0 {
+		s = defaultSummarizeThreshold
+	}
+	q := c.QueueThreshold
+	if q == 0 {
+		q = defaultQueueThreshold
+	}
+	n := c.NotifyNowThreshold
+	if n == 0 {
+		n = defaultNotifyNowThreshold
+	}
+	e := c.EscalateThreshold
+	if e == 0 {
+		e = defaultEscalateThreshold
+	}
+	if s >= q {
+		return fmt.Errorf("attention gate: summarize_threshold (%d) must be < queue_threshold (%d)", s, q)
+	}
+	if q >= n {
+		return fmt.Errorf("attention gate: queue_threshold (%d) must be < notify_now_threshold (%d)", q, n)
+	}
+	if n >= e {
+		return fmt.Errorf("attention gate: notify_now_threshold (%d) must be < escalate_threshold (%d)", n, e)
+	}
+
+	if c.QuietHoursStart < 0 || c.QuietHoursStart > 23 {
+		return fmt.Errorf("attention gate: quiet_hours_start=%d out of range [0,23]", c.QuietHoursStart)
+	}
+	if c.QuietHoursEnd < 0 || c.QuietHoursEnd > 23 {
+		return fmt.Errorf("attention gate: quiet_hours_end=%d out of range [0,23]", c.QuietHoursEnd)
+	}
+	return nil
 }
 
 const defaultAutoAckMessage = "收到，已记录并跟踪中。"

@@ -1,7 +1,7 @@
 # Attention Gate Score Refactor
 
 **Date:** 2026-03-10
-**Status:** In Progress
+**Status:** Done
 
 ## Goal
 

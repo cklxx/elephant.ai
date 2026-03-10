@@ -932,3 +932,126 @@ func TestDrainTimer_DoubleStartIsNoop(t *testing.T) {
 
 	gate.StopDrainTimer()
 }
+
+// ---------- Config validation ----------
+
+func TestAttentionGateConfig_Validate_DefaultsAreValid(t *testing.T) {
+	cfg := AttentionGateConfig{Enabled: true}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("default config should be valid: %v", err)
+	}
+}
+
+func TestAttentionGateConfig_Validate_ExplicitValidThresholds(t *testing.T) {
+	cfg := AttentionGateConfig{
+		Enabled:            true,
+		SummarizeThreshold: 20,
+		QueueThreshold:     50,
+		NotifyNowThreshold: 70,
+		EscalateThreshold:  95,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid thresholds should pass: %v", err)
+	}
+}
+
+func TestAttentionGateConfig_Validate_ThresholdsOutOfOrder(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  AttentionGateConfig
+	}{
+		{
+			name: "summarize >= queue",
+			cfg: AttentionGateConfig{
+				SummarizeThreshold: 60,
+				QueueThreshold:     60,
+				NotifyNowThreshold: 80,
+				EscalateThreshold:  90,
+			},
+		},
+		{
+			name: "queue >= notifyNow",
+			cfg: AttentionGateConfig{
+				SummarizeThreshold: 30,
+				QueueThreshold:     80,
+				NotifyNowThreshold: 70,
+				EscalateThreshold:  90,
+			},
+		},
+		{
+			name: "notifyNow >= escalate",
+			cfg: AttentionGateConfig{
+				SummarizeThreshold: 30,
+				QueueThreshold:     50,
+				NotifyNowThreshold: 90,
+				EscalateThreshold:  85,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.cfg.Validate(); err == nil {
+				t.Error("expected validation error for out-of-order thresholds")
+			}
+		})
+	}
+}
+
+func TestAttentionGateConfig_Validate_ThresholdOutOfRange(t *testing.T) {
+	cfg := AttentionGateConfig{
+		SummarizeThreshold: 101,
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Error("expected validation error for threshold > 100")
+	}
+
+	cfg = AttentionGateConfig{
+		QueueThreshold: -1,
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Error("expected validation error for threshold < 0")
+	}
+}
+
+func TestAttentionGateConfig_Validate_QuietHoursRange(t *testing.T) {
+	cfg := AttentionGateConfig{QuietHoursStart: 24}
+	if err := cfg.Validate(); err == nil {
+		t.Error("expected validation error for quiet_hours_start=24")
+	}
+	cfg = AttentionGateConfig{QuietHoursEnd: -1}
+	if err := cfg.Validate(); err == nil {
+		t.Error("expected validation error for quiet_hours_end=-1")
+	}
+}
+
+func TestAttentionGateConfig_Validate_QuietHoursWrapAroundValid(t *testing.T) {
+	cfg := AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("wrap-around quiet hours should be valid: %v", err)
+	}
+}
+
+func TestAttentionGateConfig_Validate_PartialDefaultsFillCorrectly(t *testing.T) {
+	// Only set summarize; rest default. Should be valid since defaults
+	// keep ascending order.
+	cfg := AttentionGateConfig{
+		SummarizeThreshold: 30,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("partial thresholds with defaults should be valid: %v", err)
+	}
+}
+
+func TestAttentionGateConfig_Validate_PartialDefaultsConflict(t *testing.T) {
+	// Set summarize higher than the default queue (60) — should fail.
+	cfg := AttentionGateConfig{
+		SummarizeThreshold: 65,
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Error("summarize=65 should conflict with default queue=60")
+	}
+}
