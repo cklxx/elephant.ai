@@ -169,8 +169,8 @@ func (n *Node) snapshotLocked() NodeSnapshot {
 	// Apply output size governance: truncate large outputs in the snapshot
 	// and set OutputRef so consumers know the full output is available.
 	if snapshot.Output != nil {
-		if _, inline, err := ClassifyOutput(snapshot.Output); err == nil && !inline {
-			snapshot.Output = TruncateOutputForSnapshot(snapshot.Output)
+		if data, inline, err := ClassifyOutput(snapshot.Output); err == nil && !inline {
+			snapshot.Output = truncateOutputData(data)
 			snapshot.OutputRef = fmt.Sprintf("node:%s:output", n.id)
 		}
 	}
@@ -195,6 +195,10 @@ func TruncateOutputForSnapshot(output any) string {
 	if err != nil {
 		return "[marshal error]"
 	}
+	return truncateOutputData(data)
+}
+
+func truncateOutputData(data []byte) string {
 	if len(data) <= MaxInlineOutputBytes {
 		return string(data)
 	}

@@ -174,14 +174,11 @@ func ApplyTransitionOptions(opts []TransitionOption) TransitionParams {
 	return p
 }
 
-// TaskSchemaStore manages schema creation and migrations.
-type TaskSchemaStore interface {
+// Store is the unified task persistence port.
+type Store interface {
 	// EnsureSchema creates or migrates the schema.
 	EnsureSchema(ctx context.Context) error
-}
 
-// TaskLifecycleStore manages core task lifecycle persistence.
-type TaskLifecycleStore interface {
 	// Create persists a new task.
 	Create(ctx context.Context, task *Task) error
 
@@ -205,10 +202,7 @@ type TaskLifecycleStore interface {
 
 	// Delete removes a task.
 	Delete(ctx context.Context, taskID string) error
-}
 
-// TaskLeaseStore manages ownership leasing for task execution.
-type TaskLeaseStore interface {
 	// TryClaimTask tries to claim task ownership for execution. Returns true when
 	// the claim succeeds, false when the task is owned by another live worker.
 	TryClaimTask(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error)
@@ -222,10 +216,7 @@ type TaskLeaseStore interface {
 
 	// ReleaseTaskLease releases ownership for a task when execution exits.
 	ReleaseTaskLease(ctx context.Context, taskID, ownerID string) error
-}
 
-// TaskQueryStore provides read models over task collections.
-type TaskQueryStore interface {
 	// ListBySession returns tasks for a session, newest first.
 	ListBySession(ctx context.Context, sessionID string, limit int) ([]*Task, error)
 
@@ -240,10 +231,7 @@ type TaskQueryStore interface {
 
 	// List returns paginated tasks, newest first.
 	List(ctx context.Context, limit int, offset int) ([]*Task, int, error)
-}
 
-// TaskAuditStore provides transition and retention operations.
-type TaskAuditStore interface {
 	// Transitions returns the audit trail for a task.
 	Transitions(ctx context.Context, taskID string) ([]Transition, error)
 
@@ -252,13 +240,4 @@ type TaskAuditStore interface {
 
 	// DeleteExpired removes tasks completed before the given time.
 	DeleteExpired(ctx context.Context, before time.Time) error
-}
-
-// Store is the unified task persistence port.
-type Store interface {
-	TaskSchemaStore
-	TaskLifecycleStore
-	TaskLeaseStore
-	TaskQueryStore
-	TaskAuditStore
 }

@@ -41,12 +41,7 @@ func (m *AttachmentStoreMigrator) Normalize(ctx context.Context, req materialpor
 
 	result := make(map[string]ports.Attachment, len(req.Attachments))
 	for key, att := range req.Attachments {
-		hosted := m.isHosted(att.URI)
-		if hosted && att.Data == "" {
-			result[key] = att
-			continue
-		}
-		if hosted && att.Data != "" {
+		if m.isHosted(att.URI) {
 			att.Data = ""
 			result[key] = att
 			continue
