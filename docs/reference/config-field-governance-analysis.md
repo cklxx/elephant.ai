@@ -14,7 +14,7 @@ Last updated: 2026-02-25
 
 ### 2.1 配置模型与默认值
 
-- `internal/shared/config/types.go`
+- `internal/shared/config/types_*.go` (split by domain: core, llm, agents, proactive, scheduler, overrides)
 - `internal/shared/config/load.go`
 - `internal/shared/config/file_config.go`
 - `internal/shared/config/runtime_env_loader.go`
