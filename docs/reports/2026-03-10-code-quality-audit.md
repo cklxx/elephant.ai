@@ -320,3 +320,78 @@ Full leader agent system: blocker radar, attention gate, prep briefs, weekly pul
 | `go build ./...` | PASS |
 | `npm run build` (web) | PASS |
 | `npm run lint` (web) | PASS |
+
+---
+
+## Follow-Up Audit — Evening Session
+
+After the initial report (`86272e26`), an additional **21 commits** landed, all focused on code quality improvement.
+
+### Updated Totals
+
+| Metric | Before | After | Delta |
+|--------|--------|-------|-------|
+| Total commits | 247 | 268 | +21 |
+| Lines added | 76,778 | 78,477 | +1,699 |
+| Lines deleted | 77,522 | 81,974 | +4,452 |
+| Net delta | −744 lines | −3,497 lines | −2,753 |
+
+### New Commits (21)
+
+| Category | Count |
+|----------|------:|
+| refactor | 19 |
+| fix | 1 |
+| chore | 1 |
+
+#### refactor (19)
+
+- `9375adb0` refactor(lark): prune dead sdk wrappers and DRY builders
+- `96fb7f2c` refactor(lark): remove passthrough wrappers, fix hand-rolled URL encoder, deduplicate Logger
+- `8fa597c7` refactor(leader): DRY decision parsing and relocate misplaced stress tests
+- `3b6787de` refactor(skills): delete dead code and extract shared helpers
+- `9a897dc1` refactor(state_store): extract shared pagination, simplify snapshot stores
+- `c4d39bac` refactor(runtime): DRY MarkCompleted/MarkFailed, hoist transition map, remove dead assignment
+- `eb45f152` refactor(blocker,milestone): extract shared helpers, fix naming, simplify aggregation
+- `8f8dd91c` refactor(bootstrap): consolidate duration helpers and persistence constants
+- `954c80bd` refactor(onboarding): DRY store creation, remove duplicated state logic, export IsZero
+- `5d762fc1` refactor: DRY radar config + defer-rollback in index_store
+- `18709c52` refactor(shared,devops): remove dead exports and unused code across 7 packages
+- `2f2efbe2` refactor(audit): remove dead code, extract shared helpers, fix unused param
+- `2e5c88f5` refactor(app): consolidate duplicate helpers, extract shared patterns, remove dead code
+- `a4128c81` refactor(infra): audit code quality across 13 infra packages
+- `a7d34c76` refactor(infra): delete dead packages and fix lint in small infra packages
+- `9436ca99` refactor(infra): delete dead analytics/journal subpackage
+- `894e21aa` refactor(runtime): remove dead code, extract shared Send helper, consolidate test mocks
+- `a832ab35` refactor(infra): audit code quality across 7 medium infra packages
+- `8071782f` refactor(web): extract duplicate formatTokens into shared AgentCard utils
+
+#### fix (1)
+
+- `c066ac01` fix(jsonrpc): replace removed Marshal with json.Marshal in tests
+
+#### chore (1)
+
+- `7298c52b` chore(plan): close lark sdk audit record
+
+### Packages Covered (Evening Session)
+
+125 files across 50+ packages, including:
+
+- **infra**: acp, analytics/journal, attachments, backoff, backup, coding, diagnostics, environment, external/bridge, gitsignal, lark, llamacpp, llm, memory, moltbook, process, session/state_store, skills, taskstore, tools/builtin/shared, devops/shadow
+- **app**: blocker, context, milestone, prepbrief, pulse, scopewatch, summary, taskfmt, toolregistry, subscription
+- **runtime**: adapter, leader, panel, session, core
+- **delivery**: channels/lark, output, server/bootstrap, server/http
+- **devops**: buildinfo, log, port, process, supervisor
+- **shared**: jsonrpc, utils
+- **web**: components/agent/AgentCard
+- **cmd**: alex (onboarding)
+- **domain**: workflow
+- **testutil**
+
+### Key Patterns
+
+- **DRY extraction**: shared helpers pulled from blocker/milestone, runtime state transitions, decision parsing, store creation, radar config.
+- **Dead code removal**: analytics/journal subpackage deleted, dead SDK wrappers pruned, unused exports removed across 7+ packages.
+- **Lint fixes**: replaced removed `Marshal` references, fixed hand-rolled URL encoder in lark SDK.
+- **Net reduction**: −2,753 lines from 125 files, deepening the codebase shrinkage trend.
