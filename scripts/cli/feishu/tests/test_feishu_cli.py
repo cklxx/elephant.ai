@@ -103,3 +103,158 @@ def test_tool_dispatch(monkeypatch: pytest.MonkeyPatch):
     )
     assert result["success"] is True
     assert result["echo"]["start"] == "2026-03-06"
+
+
+# ---- Domain subcommand tests ----
+
+
+def test_domain_communicate_send(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setitem(
+        feishu_cli.TOOL_HANDLERS["message"],
+        "send_message",
+        lambda args, _auth: {"success": True, "echo": args},
+    )
+    result = feishu_cli.execute(
+        {
+            "command": "domain",
+            "domain": "communicate",
+            "domain_action": "send",
+            "args": {"content": "hello"},
+        }
+    )
+    assert result["success"] is True
+    assert result["echo"]["content"] == "hello"
+
+
+def test_domain_schedule_query(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setitem(
+        feishu_cli.TOOL_HANDLERS["calendar"],
+        "query",
+        lambda args, _auth: {"success": True, "echo": args},
+    )
+    result = feishu_cli.execute(
+        {
+            "command": "domain",
+            "domain": "schedule",
+            "domain_action": "query",
+            "args": {"start": "2026-03-11"},
+        }
+    )
+    assert result["success"] is True
+    assert result["echo"]["start"] == "2026-03-11"
+
+
+def test_domain_task_create(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setitem(
+        feishu_cli.TOOL_HANDLERS["task"],
+        "create",
+        lambda args, _auth: {"success": True, "echo": args},
+    )
+    result = feishu_cli.execute(
+        {
+            "command": "domain",
+            "domain": "task",
+            "domain_action": "create",
+            "args": {"summary": "Review PR"},
+        }
+    )
+    assert result["success"] is True
+    assert result["echo"]["summary"] == "Review PR"
+
+
+def test_domain_document_write_markdown(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setitem(
+        feishu_cli.TOOL_HANDLERS["doc"],
+        "write_markdown",
+        lambda args, _auth: {"success": True, "echo": args},
+    )
+    result = feishu_cli.execute(
+        {
+            "command": "domain",
+            "domain": "document",
+            "domain_action": "write-markdown",
+            "args": {"document_id": "doccnxxxx", "content": "# Title"},
+        }
+    )
+    assert result["success"] is True
+    assert result["echo"]["document_id"] == "doccnxxxx"
+
+
+def test_domain_knowledge_list_spaces(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setitem(
+        feishu_cli.TOOL_HANDLERS["wiki"],
+        "list_spaces",
+        lambda args, _auth: {"success": True, "echo": args},
+    )
+    result = feishu_cli.execute(
+        {
+            "command": "domain",
+            "domain": "knowledge",
+            "domain_action": "list-spaces",
+            "args": {},
+        }
+    )
+    assert result["success"] is True
+
+
+def test_domain_unknown_domain():
+    result = feishu_cli.execute(
+        {
+            "command": "domain",
+            "domain": "nonexistent",
+            "domain_action": "foo",
+            "args": {},
+        }
+    )
+    assert result["success"] is False
+    assert "unknown domain" in result["error"]
+    assert "available_domains" in result
+
+
+def test_domain_unknown_action():
+    result = feishu_cli.execute(
+        {
+            "command": "domain",
+            "domain": "communicate",
+            "domain_action": "nonexistent",
+            "args": {},
+        }
+    )
+    assert result["success"] is False
+    assert "unknown action" in result["error"]
+    assert "available_actions" in result
+
+
+def test_domain_cli_parsing():
+    """Test that CLI argv parsing routes domain subcommands correctly."""
+    request = feishu_cli._build_request_from_cli(["communicate", "send", '{"content": "hi"}'])
+    assert request["command"] == "domain"
+    assert request["domain"] == "communicate"
+    assert request["domain_action"] == "send"
+    assert request["args"]["content"] == "hi"
+
+
+def test_domain_cli_parsing_schedule():
+    request = feishu_cli._build_request_from_cli(["schedule", "query", '{"start": "today"}'])
+    assert request["command"] == "domain"
+    assert request["domain"] == "schedule"
+    assert request["domain_action"] == "query"
+
+
+def test_help_overview_includes_domains():
+    result = feishu_cli.execute({"command": "help"})
+    assert result["success"] is True
+    assert "domains" in result
+    domain_names = [d["domain"] for d in result["domains"]]
+    for expected in ("communicate", "schedule", "task", "document", "knowledge"):
+        assert expected in domain_names
+
+
+def test_domain_commands_completeness():
+    """Every DOMAIN_COMMANDS target must exist in TOOL_HANDLERS."""
+    for domain, actions in feishu_cli.DOMAIN_COMMANDS.items():
+        for action_name, (module, canonical) in actions.items():
+            assert module in feishu_cli.TOOL_HANDLERS, f"{domain}.{action_name} -> missing module {module}"
+            assert canonical in feishu_cli.TOOL_HANDLERS[module], (
+                f"{domain}.{action_name} -> missing handler {module}.{canonical}"
+            )

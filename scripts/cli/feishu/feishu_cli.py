@@ -2930,6 +2930,85 @@ TOOL_ACTION_ALIASES: dict[str, dict[str, str]] = {
     },
 }
 
+# ---- Domain subcommands (job-to-be-done surface) ----------------------------
+# Each domain maps action names to (module, canonical_action) pairs that
+# delegate to existing TOOL_HANDLERS.  This is the "alex feishu <domain> <action>"
+# entrypoint described in the canonical-surface plan.
+
+DomainAction = tuple[str, str]  # (module, action)
+
+DOMAIN_COMMANDS: dict[str, dict[str, DomainAction]] = {
+    "communicate": {
+        "send": ("message", "send_message"),
+        "upload": ("message", "upload_file"),
+        "history": ("message", "history"),
+    },
+    "schedule": {
+        "query": ("calendar", "query"),
+        "create": ("calendar", "create"),
+        "update": ("calendar", "update"),
+        "delete": ("calendar", "delete"),
+        "list-calendars": ("calendar", "list_calendars"),
+        "list-meetings": ("meeting", "list_meetings"),
+        "get-meeting": ("meeting", "get_meeting"),
+        "list-rooms": ("meeting", "list_rooms"),
+    },
+    "task": {
+        "list": ("task", "list"),
+        "create": ("task", "create"),
+        "create-subtask": ("task", "create_subtask"),
+        "list-subtasks": ("task", "list_subtasks"),
+        "update": ("task", "update"),
+        "delete": ("task", "delete"),
+    },
+    "document": {
+        "create": ("doc", "create"),
+        "read": ("doc", "read"),
+        "read-content": ("doc", "read_content"),
+        "list-blocks": ("doc", "list_blocks"),
+        "update-block": ("doc", "update_block_text"),
+        "write-markdown": ("doc", "write_markdown"),
+    },
+    "knowledge": {
+        "list-spaces": ("wiki", "list_spaces"),
+        "list-nodes": ("wiki", "list_nodes"),
+        "create-node": ("wiki", "create_node"),
+        "get-node": ("wiki", "get_node"),
+    },
+}
+
+
+def _run_domain(request: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
+    """Route a domain subcommand to its underlying tool handler."""
+    domain = str(request.get("domain", "")).strip().lower()
+    action = str(request.get("domain_action", "")).strip().lower()
+    args = request.get("args", {})
+    if not isinstance(args, dict):
+        return {"success": False, "error": "domain args must be an object"}
+
+    domain_actions = DOMAIN_COMMANDS.get(domain)
+    if not domain_actions:
+        return {
+            "success": False,
+            "error": f"unknown domain: {domain}",
+            "available_domains": sorted(DOMAIN_COMMANDS.keys()),
+        }
+
+    target = domain_actions.get(action)
+    if target is None:
+        return {
+            "success": False,
+            "error": f"unknown action: {domain} {action}",
+            "available_actions": sorted(domain_actions.keys()),
+        }
+
+    module, canonical_action = target
+    handler = TOOL_HANDLERS.get(module, {}).get(canonical_action)
+    if handler is None:
+        return {"success": False, "error": f"internal: handler not found for {module}.{canonical_action}"}
+
+    return handler(copy.deepcopy(args), auth_manager)
+
 
 def _help_overview() -> dict[str, Any]:
     modules = []
@@ -2943,21 +3022,33 @@ def _help_overview() -> dict[str, Any]:
             }
         )
 
+    domains = []
+    for domain, actions in DOMAIN_COMMANDS.items():
+        domains.append(
+            {
+                "domain": domain,
+                "actions": sorted(actions.keys()),
+                "example": f"python3 scripts/cli/feishu/feishu_cli.py {domain} {sorted(actions.keys())[0]} '{{}}'",
+            }
+        )
+
     return {
         "success": True,
         "help_level": "overview",
-        "description": "Unified Feishu CLI (auth/tool/api/help)",
+        "description": "Unified Feishu CLI (auth/tool/api/domain/help)",
         "commands": {
             "help": "Discover usage progressively",
             "auth": "Tenant + OAuth authorization flows",
             "tool": "High-level tool actions by module",
             "api": "Raw Feishu Open API call",
+            "<domain>": "Job-to-be-done subcommands: communicate, schedule, task, document, knowledge",
         },
         "modules": modules,
+        "domains": domains,
         "next_steps": [
             "python3 scripts/cli/feishu/feishu_cli.py help auth",
             "python3 scripts/cli/feishu/feishu_cli.py help module --module calendar",
-            "python3 scripts/cli/feishu/feishu_cli.py help action --module calendar --action create",
+            "python3 scripts/cli/feishu/feishu_cli.py communicate send '{\"content\": \"hello\"}'",
         ],
     }
 
@@ -3219,11 +3310,13 @@ def execute(request: dict[str, Any]) -> dict[str, Any]:
         return _run_tool(request, auth_manager)
     if command == "api":
         return _run_api(request, auth_manager)
+    if command == "domain":
+        return _run_domain(request, auth_manager)
 
     return {
         "success": False,
         "error": f"unknown command: {command}",
-        "available": ["help", "auth", "tool", "api"],
+        "available": ["help", "auth", "tool", "api", "<domain>"],
     }
 
 
@@ -3266,6 +3359,12 @@ def _build_request_from_cli(argv: list[str]) -> dict[str, Any]:
     api_parser.add_argument("--auth", default="tenant", choices=["tenant", "user"])
     api_parser.add_argument("--user-key", default="")
 
+    # Domain subcommands: communicate, schedule, task, document, knowledge
+    for domain_name, domain_actions in DOMAIN_COMMANDS.items():
+        dp = subparsers.add_parser(domain_name, help=f"{domain_name} domain commands")
+        dp.add_argument("domain_action", choices=sorted(domain_actions.keys()))
+        dp.add_argument("args", nargs="?", default="{}")
+
     parsed = parser.parse_args(argv)
     command = getattr(parsed, "command", None)
     if not command:
@@ -3291,6 +3390,14 @@ def _build_request_from_cli(argv: list[str]) -> dict[str, Any]:
             "command": "tool",
             "module": parsed.module,
             "tool_action": parsed.tool_action,
+            "args": _parse_json_arg(parsed.args),
+        }
+
+    if command in DOMAIN_COMMANDS:
+        return {
+            "command": "domain",
+            "domain": command,
+            "domain_action": parsed.domain_action,
             "args": _parse_json_arg(parsed.args),
         }
 
