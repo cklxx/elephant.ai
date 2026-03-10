@@ -1,189 +1,197 @@
 # Architecture
 
-Updated: 2026-03-04
+Updated: 2026-03-10
 
-Practical map of elephant.ai runtime architecture for implementation and debugging.
+Runtime architecture of elephant.ai — for implementation and debugging.
 
 ---
 
-## 1. Runtime Surfaces
+## Layer Model
 
-| Surface | Entry point | Notes |
-|---------|-------------|-------|
-| CLI/TUI | `cmd/alex/main.go` | |
-| Web/API/SSE | `cmd/alex-web/main.go` | Full HTTP API + SSE + web backend |
-| Lark gateway | `cmd/alex-server/main.go` | Lark-first runtime + debug HTTP |
-| Eval server | `cmd/eval-server` | `internal/delivery/eval` |
-| Web UI | `web/` | Next.js dashboard, consumes SSE |
+```
+Delivery         CLI · Web/API/SSE · Lark gateway
+    ↓
+Application      Coordination · Context · Tools · DI
+    ↓
+Domain           ReAct loop · Events · Approval gates
+    ↓
+Infrastructure   LLM clients · Memory · MCP · Storage · Observability
+    ↓
+Shared           Config · Logging · IDs · Utilities
+```
 
-External integrations: LLM providers (`internal/infra/llm`), MCP servers (`internal/infra/mcp`), external agents (`internal/infra/external`), session persistence (`internal/infra/session`), memory engine (`internal/infra/memory`), observability (`internal/infra/observability`, `internal/shared/logging`).
+| Layer | Packages | Responsibility |
+|-------|----------|----------------|
+| Delivery | `internal/delivery/*`, `cmd/*`, `web/` | Inbound/outbound adapters |
+| Application | `internal/app/*` | Orchestration, context building, tool registry, DI |
+| Domain | `internal/domain/*` | ReAct loop, workflow model, domain events, ports |
+| Infrastructure | `internal/infra/*` | LLM, tools, memory, MCP, storage, observability |
+| Shared | `internal/shared/*` | Config, logging, IDs, utilities |
 
-## 2. Layer Model
+---
 
-| Layer | Responsibility | Packages |
-|-------|---------------|----------|
-| Delivery | Inbound/outbound adapters (CLI, HTTP/SSE, Lark, web) | `internal/delivery/*`, `cmd/*`, `web/` |
-| Application | Orchestration, coordination, context building, tool registry, DI | `internal/app/*` |
-| Domain | ReAct loop, workflow model, domain events, ports | `internal/domain/*` |
-| Infrastructure | LLM clients, tools, memory, MCP, storage, observability | `internal/infra/*` |
-| Shared | Config, logging, IDs, utilities | `internal/shared/*` |
+## Runtime Surfaces
 
-## 3. Bootstrap and Dependency Wiring
+| Surface | Entry point |
+|---------|-------------|
+| CLI/TUI | `cmd/alex/main.go` |
+| Web/API/SSE | `cmd/alex-web/main.go` |
+| Lark gateway | `cmd/alex-server/main.go` |
+| Eval server | `cmd/eval-server` |
+| Web UI | `web/` (Next.js) |
+
+---
+
+## Bootstrap Sequence
 
 Managed by `internal/delivery/server/bootstrap/foundation.go` and `internal/app/di/container_builder.go`.
 
-Sequence:
-1. Load runtime config (`internal/shared/config`).
-2. Initialize observability.
-3. Build DI container (`internal/app/di`).
-4. Build coordinator, tool registry, session, memory, checkpoint dependencies.
-5. Start optional subsystems (MCP, scheduler, timer depending on mode/config).
+1. Load runtime config (`internal/shared/config`)
+2. Initialize observability
+3. Build DI container (`internal/app/di`)
+4. Wire coordinator, tool registry, session, memory, checkpoint
+5. Start optional subsystems (MCP, scheduler, timer)
 
 ```mermaid
 flowchart TD
-    A[cmd/alex or cmd/alex-server] --> B[internal/shared/config]
-    B --> C[internal/app/di]
-    C --> D[internal/app/agent/coordinator]
-    C --> E[internal/app/toolregistry]
-    C --> F[internal/infra/llm + internal/infra/memory + internal/infra/session]
-    C --> G[internal/infra/mcp + internal/infra/external]
-    D --> H[internal/domain/agent/react]
-    H --> I[internal/delivery/output or server/http or channels/lark]
+    A[cmd/alex or cmd/alex-server] --> B[config]
+    B --> C[DI container]
+    C --> D[coordinator]
+    C --> E[tool registry]
+    C --> F[LLM + memory + session]
+    C --> G[MCP + external agents]
+    D --> H[ReAct engine]
+    H --> I[delivery adapter]
     I --> J[CLI / SSE / Lark / Web]
 ```
 
-## 4. Agent Execution Chain
+---
 
-Entry point: `internal/app/agent/coordinator/coordinator.go` (`ExecuteTask`).
+## Agent Execution
+
+Entry: `internal/app/agent/coordinator/coordinator.go` → `ExecuteTask`
 
 ### Phases
 
 1. **Prepare** (`internal/app/agent/preparation/service.go`)
-   - Session loading, history replay, context window, system prompt, tool preset, model resolution.
+   - Load session, replay history, build context window, resolve system prompt, select model.
 
-2. **Execute -- ReAct loop** (`internal/domain/agent/react/engine.go`, `runtime.go`)
-   - Think -> plan tools -> execute tools -> observe -> checkpoint.
-   - Dispatches tool calls via domain tool registry ports.
-   - Handles approvals, retries, context updates, finalization.
+2. **Execute — ReAct loop** (`internal/domain/agent/react/engine.go`, `runtime.go`)
+   - Think → plan tools → execute tools → observe → checkpoint.
+   - Dispatches tool calls via domain ports.
+   - Handles approvals, retries, context updates.
 
-3. **Summarize + Persist**
-   - Session/history persistence, workflow snapshot, cost logging.
+3. **Persist**
+   - Save session/history, workflow snapshot, cost log.
 
-### Context and Memory
+### Context Assembly
 
-Context window and system prompt assembly:
-- `internal/app/context/manager_window.go`
-- `internal/app/context/manager_prompt.go`
+| Concern | Package |
+|---------|---------|
+| Context window | `internal/app/context/manager_window.go` |
+| System prompt | `internal/app/context/manager_prompt.go` |
+| Compression | `internal/app/context/manager_compress.go` |
 
-Compression and budget control:
-- `internal/app/context/manager_compress.go`
+### Memory
 
-Memory engine (Markdown-first):
-- `internal/infra/memory/md_store.go`, `engine.go`
-- Optional indexing: `indexer.go`, `index_store.go`
+Markdown-first: `internal/infra/memory/md_store.go`, `engine.go`.
+Optional vector index: `indexer.go`, `index_store.go`.
 
-## 5. Tool Architecture
+---
+
+## Tool Architecture
 
 Registry: `internal/app/toolregistry/registry.go`, `registry_builtins.go`.
 
-Execution wrapper chain (outer to inner): SLA measurement -> ID propagation -> retry/circuit breaker -> approval executor -> argument validation -> concrete tool executor.
+**Execution chain** (outer → inner): SLA measurement → ID propagation → retry/circuit breaker → approval → argument validation → concrete executor.
 
 Builtins: `internal/infra/tools/builtin/*`.
 
-### Always-on core tools
+### Core tools (always on)
 
 `plan`, `clarify`, `request_user`, `memory_search`, `memory_get`, `skills`, `web_search`, `browser_action`, `read_file`, `write_file`, `replace_in_file`, `shell_exec`, `execute_code`, `channel`.
 
-### Team orchestration contract
+### Dynamic tools
 
-Product-facing multi-agent orchestration is **CLI-first**:
-- `alex team run` — dispatch a team workflow from template/file/prompt
-- `alex team status` — inspect runtime status, roles, events, artifacts
-- `alex team inject` — send follow-up input to a running role
-- `alex team terminal` — inspect or attach to a role terminal
+- **Subagent/delegation**: `subagent`, `explore`, `bg_*`, `ext_*` — registered after coordinator creation.
+- **MCP**: registered at runtime with `mcp__` prefix.
 
-Notes:
-- Legacy `run_tasks` / `reply_agent` remain internal implementation details and are intentionally excluded from the default tool registry.
-- LLM-facing guidance should prefer the `team-cli` skill so prompts align with the stable CLI contract.
+### Toolset modes
 
-### Subagent/delegation tools
+- `default` — sandbox-backed implementations.
+- `local` / `lark-local` — local browser/file/shell implementations.
 
-`subagent`, `explore`, `bg_*`, `ext_*` -- dynamically registered after coordinator creation.
+### Team orchestration (CLI-first)
 
-### MCP tools
+```bash
+alex team run       # dispatch team workflow
+alex team status    # inspect runtime status
+alex team inject    # send input to running role
+alex team terminal  # attach to role terminal
+```
 
-Dynamically registered at runtime with `mcp__` prefix.
+---
 
-### Toolset switching
-
-- `toolset: default` -- sandbox-backed implementations.
-- `toolset: local` / `lark-local` -- local browser/file/shell implementations.
-
-## 6. Event Model and Propagation
+## Event Model
 
 Domain events: `internal/domain/agent/events.go`.
 
-Application translation to workflow envelope: `internal/app/agent/coordinator/workflow_event_translator.go`.
+Translation to workflow envelope: `internal/app/agent/coordinator/workflow_event_translator.go`.
 
-Downstream delivery:
-- CLI/TUI: `internal/delivery/output/*`
-- HTTP/SSE: `internal/delivery/server/http/*`, broadcaster at `internal/delivery/server/app/event_broadcaster.go`
-- Lark: `internal/delivery/channels/lark/*`
-- Web: SSE consumption via `web/hooks/useSSE/`, event pipeline at `web/lib/events/eventPipeline.ts`
+**Delivery adapters:**
 
-## 7. Delivery Channels
+| Channel | Package |
+|---------|---------|
+| CLI/TUI | `internal/delivery/output/*` |
+| HTTP/SSE | `internal/delivery/server/http/*`, broadcaster at `server/app/event_broadcaster.go` |
+| Lark | `internal/delivery/channels/lark/*` |
+| Web | `web/hooks/useSSE/`, pipeline at `web/lib/events/eventPipeline.ts` |
 
-### Web / HTTP / SSE
+---
 
-- Router: `internal/delivery/server/http/router.go`
-- Async task execution: `internal/delivery/server/app/task_execution_service.go`
-- Event broadcaster: `internal/delivery/server/app/event_broadcaster.go`
-- SSE handler: `internal/delivery/server/http/sse_handler.go`
-- Frontend: `web/hooks/useSSE/useSSE.ts`, `useSSEConnection.ts`; event types at `web/lib/types/events/*`
+## Session / State
 
-### Lark
+| Concern | Package |
+|---------|---------|
+| Session store | `internal/infra/session/filestore/store.go` |
+| State snapshots | `internal/infra/session/state_store/file_store.go` |
+| ReAct checkpoint | `internal/domain/agent/react/checkpoint.go` |
+| Cost storage | `internal/infra/storage/cost_store.go` |
 
-- Gateway: `internal/delivery/channels/lark/gateway.go`
-- Bootstrap wiring: `internal/delivery/server/bootstrap/lark_gateway.go`
-- Progress listeners: `progress_listener.go`, `background_progress_listener.go`, `plan_clarify_listener.go`
+---
 
-## 8. Session / State Persistence
-
-- Session store: `internal/infra/session/filestore/store.go`
-- State snapshots / turn history: `internal/infra/session/state_store/file_store.go`
-- ReAct checkpoint: `internal/domain/agent/react/checkpoint.go`
-- Cost storage: `internal/infra/storage/cost_store.go`
-
-## 9. Proactivity Subsystems
+## Proactivity
 
 Scheduler: `internal/app/scheduler/scheduler.go`, `executor.go`, `notifier.go`.
 
-## 10. IDs and Correlation
+---
 
-Key IDs carried end-to-end:
+## IDs and Correlation
 
 | ID | Scope |
 |----|-------|
-| `session_id` | Conversation scope |
+| `session_id` | Conversation |
 | `task_id` / `parent_task_id` | Execution tree |
 | `run_id` / `parent_run_id` | Workflow-event correlation |
-| `log_id` | Log correlation across service/LLM/request |
+| `log_id` | Cross-service log correlation |
 | `correlation_id` / `causation_id` | Event causality chain |
 
-Debugging: start with `log_id` + `task_id`; use `parent_*` fields for subagent fan-out tracing.
+**Debugging**: start with `log_id` + `task_id`; use `parent_*` for subagent tracing.
 
-References: `docs/reference/DOMAIN_LAYERS_AND_IDS.md`, `internal/shared/utils/id/*`.
+See: `docs/reference/DOMAIN_LAYERS_AND_IDS.md`, `internal/shared/utils/id/*`.
 
-## 11. Architecture Guardrails
+---
 
-- Keep domain ports (`internal/domain/agent/ports`) free of memory/RAG concrete dependencies.
-- Keep tool/preset policy enforcement in app+infra layers, not domain.
-- Keep event correlation fields unchanged across translation and delivery.
+## Guardrails
+
+- Domain ports (`internal/domain/agent/ports`) must stay free of memory/RAG concrete dependencies.
+- Tool/preset policy enforcement belongs in app+infra layers, not domain.
+- Event correlation fields must be preserved across translation and delivery.
 - Config in YAML only.
 
-## 12. Legacy Path Mapping
+---
 
-Some older docs reference pre-refactor paths:
+## Legacy Path Mapping
 
 | Old | Current |
 |-----|---------|

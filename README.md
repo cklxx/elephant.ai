@@ -20,70 +20,24 @@
 
 ## What is elephant.ai?
 
-elephant.ai is a **leader agent** that lives inside your Lark groups and DMs. It doesn't just answer questions — it takes ownership of work: tracking progress, following up on tasks, surfacing what needs your attention, and handling coordination so you don't have to.
-
-Behind the scenes it orchestrates specialist agents and tools. But to you, it feels like having one reliable operator who never drops the ball. CLI and web dashboard are there when you need them, but Lark is home.
+A **leader agent** that lives in your Lark groups and DMs. It takes ownership of work — tracking progress, following up on tasks, surfacing what needs attention, and handling coordination. Behind the scenes it orchestrates specialist agents and tools. To you, it's one reliable operator who never drops the ball.
 
 ---
 
-## ✨ Why a leader agent?
+## Why a leader agent?
 
-| | |
-|---|---|
-| 📌 **Continuous ownership** | Hand off a task and it stays tracked. No more "where did this go?" — the leader agent keeps working until it's done. |
-| 🔇 **Attention gating** | Compresses noise into what matters now, which risks are growing, and what needs your call. |
-| 🔄 **Proactive follow-up** | Chases status, summarizes results, escalates blockers. You don't ask "any updates?" ever again. |
-| 🤝 **Coordination absorbed** | The real work tax is track, ask, remind, align. The leader agent handles that overhead. |
-| 🧠 **Persistent memory** | Remembers conversations, decisions, and context across weeks and months. Context compounds over time. |
-| 🛡️ **Approval gates** | Knows when to ask before acting. Risky operations require explicit human sign-off in chat. |
-| 🔌 **MCP extensible** | Connect any external tool through the Model Context Protocol. Infinite integrations. |
-| 🏠 **Lark-native** | WebSocket gateway — always present in groups and DMs, no `/slash` commands needed. |
+- **Continuous ownership** — Hand off a task and it stays tracked until done.
+- **Attention gating** — Compresses noise into what matters, what's at risk, and what needs your call.
+- **Proactive follow-up** — Chases status, summarizes results, escalates blockers automatically.
+- **Coordination absorbed** — Handles the track/ask/remind/align overhead.
+- **Persistent memory** — Remembers conversations, decisions, and context across weeks and months.
+- **Approval gates** — Knows when to ask before acting. Risky operations require explicit sign-off.
+- **MCP extensible** — Connect any external tool through the Model Context Protocol.
+- **Lark-native** — WebSocket gateway, always present in groups and DMs.
 
 ---
 
-## 🎯 Leader Agent Features
-
-The leader agent runs as a background scheduler alongside your Lark conversations. It continuously monitors task health, generates periodic digests, and surfaces decisions and blockers before they become problems — so the team stays aligned without manual follow-up.
-
-- 🔴 **Blocker Radar** — Scans every 10 min for stale tasks (>30 min no update) and input-blocked work. Auto-notifies with cooldown.
-- 📊 **Weekly Pulse** — Monday 9am digest: tasks completed, avg cycle time, token spend, success rate.
-- 📋 **Daily Summary** — End-of-day activity recap with top agents and key outcomes.
-- 🤝 **1:1 Prep Brief** — Auto-generated talking points before meetings: recent wins, open items, blockers, suggested discussion topics.
-- 🏁 **Milestone Check-ins** — Hourly progress snapshots of active and recently completed tasks.
-- 🔇 **Attention Gate** — Per-chat message budget with urgency classification. Quiet hours and priority thresholds keep noise low.
-- 🧠 **Decision Memory** — Records team decisions with context, alternatives, and outcomes. Searchable by topic, tag, date, or participant.
-
-### Quick enable
-
-Add to your `~/.alex/config.yaml`:
-
-```yaml
-proactive:
-  scheduler:
-    enabled: true
-    blocker_radar:
-      enabled: true
-      channel: lark
-      chat_id: oc_your_chat_id
-    weekly_pulse:
-      enabled: true
-      channel: lark
-      chat_id: oc_your_chat_id
-```
-
-### Data flow
-
-```
-Tasks ──→ Task Store ──→ ┌─ Blocker Radar ──→ Alert
-                         ├─ Weekly Pulse  ──→ Digest
-                         ├─ Daily Summary ──→ Recap      ──→ Scheduler ──→ Lark
-                         ├─ Milestone     ──→ Snapshot              Notifications
-                         └─ Prep Brief ◄── Decision Store
-```
-
----
-
-## 🚀 Quick Start
+## Quick Start
 
 **Prerequisites:** Go 1.24+, Node.js 20+, a Lark bot token, and an LLM API key.
 
@@ -124,19 +78,51 @@ You (Lark group or DM)
 
 ---
 
+## Leader Agent Features
+
+The leader agent runs a background scheduler alongside Lark conversations. It monitors task health, generates digests, and surfaces decisions and blockers before they become problems.
+
+| Feature | Description |
+|---|---|
+| **Blocker Radar** | Scans every 10 min for stale/blocked tasks. Auto-notifies with cooldown. |
+| **Weekly Pulse** | Monday 9am digest: tasks completed, cycle time, token spend, success rate. |
+| **Daily Summary** | End-of-day activity recap with top agents and key outcomes. |
+| **1:1 Prep Brief** | Auto-generated talking points before meetings: wins, open items, blockers. |
+| **Milestone Check-ins** | Hourly progress snapshots of active tasks. |
+| **Attention Gate** | Per-chat message budget with urgency classification and quiet hours. |
+| **Decision Memory** | Records team decisions with context. Searchable by topic, tag, date, or participant. |
+
+Enable in `~/.alex/config.yaml`:
+
+```yaml
+proactive:
+  scheduler:
+    enabled: true
+    blocker_radar:
+      enabled: true
+      channel: lark
+      chat_id: oc_your_chat_id
+    weekly_pulse:
+      enabled: true
+      channel: lark
+      chat_id: oc_your_chat_id
+```
+
+---
+
 ## Delivery Surfaces
 
 | Surface | Description |
 |---|---|
-| **Lark** *(primary)* | WebSocket gateway. Always present in groups/DMs. Real-time tool progress, emoji reactions, approval flows. |
-| **Web Console** | Next.js dashboard with SSE streaming, artifact rendering, cost tracking, session history. |
-| **CLI / TUI** | Interactive terminal with streaming output. Useful for developers and local workflows. |
+| **Lark** *(primary)* | WebSocket gateway. Real-time progress, emoji reactions, approval flows. |
+| **Web Console** | Next.js dashboard with SSE streaming, artifact rendering, cost tracking. |
+| **CLI / TUI** | Interactive terminal with streaming output for local workflows. |
 
 ---
 
 ## Built-in Skills
 
-Skills are markdown-driven workflows triggered by natural language — just describe what you need:
+Skills are markdown-driven workflows triggered by natural language:
 
 | Skill | What it does |
 |---|---|
@@ -145,7 +131,7 @@ Skills are markdown-driven workflows triggered by natural language — just desc
 | `email-drafting` | Context-aware email composition |
 | `ppt-deck` | Slide deck generation |
 | `video-production` | Video script and production planning |
-| `research-briefing` | Concise briefing documents from research |
+| `research-briefing` | Concise briefing documents |
 | `best-practice-search` | Engineering best practice lookup |
 
 ---
@@ -157,7 +143,7 @@ OpenAI · Anthropic (Claude) · DeepSeek · ByteDance ARK (Doubao)
 OpenRouter · Ollama (local) · Kimi · Qwen
 ```
 
-Set `llm_provider: auto` — the runtime picks the best available subscription from your environment keys automatically.
+Set `llm_provider: auto` — the runtime picks the best available provider from your environment keys.
 
 ---
 
@@ -185,7 +171,7 @@ Infra         Multi-LLM · Memory Store · Tool Registry · Observability
 
 ---
 
-## 📖 Documentation
+## Documentation
 
 | | |
 |---|---|
@@ -197,7 +183,7 @@ Infra         Multi-LLM · Memory Store · Tool Registry · Observability
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for development setup, code standards, and PR workflow. First time? Look for issues labeled [`good first issue`](https://github.com/cklxx/elephant.ai/issues?q=label%3A%22good+first+issue%22).
 
