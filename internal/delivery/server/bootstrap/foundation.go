@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"alex/internal/app/di"
@@ -56,6 +57,9 @@ func BootstrapFoundation(observabilityConfigPath string, logger logging.Logger) 
 	}
 	f.ConfigResult = cr
 	f.Config = cr.Config
+
+	// Validate config YAML against JSON Schema (warn-only, non-blocking).
+	validateConfigSchema(logger)
 
 	LogServerConfiguration(logger, f.Config)
 
@@ -230,4 +234,22 @@ func (f *Foundation) ConfigManager() *configadmin.Manager {
 // Resolver returns the runtime config resolver function.
 func (f *Foundation) Resolver() func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
 	return f.ConfigResult.Resolver
+}
+
+// validateConfigSchema reads the config YAML file and validates it against the
+// embedded JSON Schema. Warnings are logged but never block startup.
+func validateConfigSchema(logger logging.Logger) {
+	configPath, _ := runtimeconfig.ResolveConfigPath(runtimeconfig.DefaultEnvLookup, os.UserHomeDir)
+	if configPath == "" {
+		return
+	}
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		logger.Warn("Config schema validation skipped: %v", err)
+		return
+	}
+	warnings := runtimeconfig.ValidateConfigSchema(data)
+	for _, w := range warnings {
+		logger.Warn("[ConfigSchema] %s", w)
+	}
 }
