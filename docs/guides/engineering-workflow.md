@@ -1,164 +1,133 @@
 # Engineering Workflow
 
-Updated: 2026-03-09
+Updated: 2026-03-10
 
-End-to-end engineering standards. Every contributor (human and AI agent) follows this flow.
+Use this flow for every engineering task.
 
 See also: [Code Simplification](code-simplification.md) | [Code Review](code-review-guide.md) | [Memory Management](memory-management.md)
 
----
+## Core Rules
 
-## 1. Principles
+- Priority order: safety > correctness > maintainability > speed.
+- Trust caller and type invariants. Do not add defensive code without a real gap.
+- Delete dead code. Do not leave deprecated branches, `_unused` names, or commented-out code.
+- When requirements change, redesign cleanly. Do not add compatibility shims.
+- Follow local patterns before introducing a new one.
+- Change only files that matter to the task.
 
-- Trust invariants guaranteed by types or caller contracts -- no unnecessary defensive code.
-- Delete dead code completely -- no `// deprecated`, `_unused` prefixes, or commented-out code.
-- Redesign interfaces when requirements change -- no adapter shims or backward-compat wrappers.
-- Use existing project patterns -- survey neighboring files before inventing new patterns.
-- Only modify files relevant to the task.
+## Session Start
 
-### Architecture
+1. Greet `ckl`.
+2. Load the [always-load set](memory-management.md#always-load-set).
+3. If you are on `main`, run:
 
-- **Context engineering over prompt hacking** -- modify context assembly (`internal/context/`) first.
-- **Typed events over unstructured logs** -- use typed event structs (`internal/agent/domain/events/`).
-- **Clean port/adapter boundaries** -- cross-layer imports go through port interfaces. Enforce with `make check-arch`.
-- **Multi-provider LLM support** -- new LLM features must work across all providers in `internal/llm/`.
-- **Skills and memory over one-shot answers** -- persist learnings; encode reusable workflows as skills.
+```bash
+git diff --stat
+git log --oneline -10
+```
 
-### Proactive Behavior Constraints
+4. If the diff or recent history looks suspicious, stop and report it before editing.
+5. Use a worktree for any code or doc change. Skip the `main` pre-check once you are inside the worktree.
 
-When modifying proactive behavior code (`internal/agent/`, skill triggers, context injection):
-- Minimum-effective intervention: `clarify` -> `plan` -> reminder/schedule/task execution.
-- Every proactive suggestion must remain user-overridable; never remove opt-out paths.
-- No manipulative framing (fear, guilt, urgency) in LLM prompt construction.
-- External messages or irreversible operations must pass approval gates.
-- Honor stop signals immediately.
+## Planning
 
----
+- Simple task: inspect the target files and implement directly.
+- Non-trivial task: create `docs/plans/YYYY-MM-DD-short-slug.md` and keep it updated.
+- Ask for missing information only when it changes correctness.
 
-## 2. Session Start
+Decision order:
+1. Explicit rules and hard constraints.
+2. Reversibility and safe ordering.
+3. Missing information that affects correctness.
+4. User preference within the rules.
 
-1. Greet **ckl**.
-2. Load the [always-load memory set](memory-management.md#always-load-set).
-3. On `main`, execute **pre-work checklist** before any code change:
-   - `git diff --stat` + `git log --oneline -10`
-   - Flag suspicious changes to ckl before proceeding.
-   - Applies to every new task, including mid-conversation topic switches.
-
-Skip pre-work checklist when inside a worktree.
-
----
-
-## 3. Planning
-
-- **Simple tasks**: implement directly.
-- **Non-trivial tasks**: plan under `docs/plans/YYYY-MM-DD-short-slug.md`. Update as work progresses.
-- For governance tasks, specify deterministic file-type-to-directory mapping; include explicit first-level namespace routing for `internal/**`.
-
-### Decision Priorities
-
-1. Hard constraints and explicit rules.
-2. Reversibility / order of operations.
-3. Missing info only if it changes correctness.
-4. User preferences within constraints.
-
----
-
-## 4. Worktree Workflow
-
-Use worktrees for isolation. See CLAUDE.md for worktree preferences (auto-merge, `.worktree-active.yaml`).
+## Worktree Flow
 
 ```bash
 git worktree add -b <branch> ../<dir> main
 cp .env ../<dir>/
-# develop in the worktree
-git checkout main && git merge --ff-only <branch>
+```
+
+Create `../<dir>/.worktree-active.yaml`:
+
+```yaml
+status: in_progress
+```
+
+Finish with:
+
+```bash
+git checkout main
+git merge --ff-only <branch>
+```
+
+Update the marker to `status: merged`, then remove the worktree:
+
+```bash
 git worktree remove ../<dir>
 ```
 
-Branch delete fallback: `git update-ref -d refs/heads/<branch>` then `git worktree prune`.
+## Implementation Rules
 
----
+- Keep naming and file structure consistent with nearby code.
+- Prefer simpler APIs such as struct/options over long parameter lists.
+- Follow [Code Simplification](code-simplification.md).
+- If the user selects multiple numbered options, implement all of them in one delivery.
 
-## 5. Code Style
+For `internal/**` work:
+- Keep delivery -> application -> domain -> infra boundaries clean.
+- Cross-layer dependencies go through ports/interfaces.
+- Prefer typed events over unstructured logs.
 
-- Keep naming consistent; follow local naming guidelines.
-- Prefer struct/options pattern over long parameter lists.
-- Prefer `internal/shared/json` (`jsonx`) for hot-path JSON.
-- Follow [Code Simplification Rules](code-simplification.md).
-- When users choose multiple numbered options, implement all in the same delivery.
+For proactive behavior changes (`internal/agent/`, triggers, context injection):
+- Use the minimum effective action: `clarify` -> `plan` -> reminder/schedule/task execution.
+- Keep every suggestion user-overridable.
+- No manipulative framing.
+- Require approvals for external messages and irreversible actions.
+- Honor stop signals immediately.
 
-### Go + OSS
+## Validation
 
-- `gofmt` + `goimports`. Package names lowercase, no underscores.
-- Exported identifiers: full-sentence doc comments starting with identifier name.
-- `context.Context` as first param; never store in structs.
-- Check/handle errors; wrap with context. No `panic` for normal flow.
-- Avoid fire-and-forget goroutines; prefer table-driven tests.
+- For logic changes, prefer TDD and cover edge cases.
+- Use mocks only in unit tests. Integration and E2E tests should use real dependencies.
+- Run relevant lint and tests before delivery. Default full gate:
 
----
+```bash
+alex dev lint
+alex dev test
+```
 
-## 6. Testing
+- On macOS, use `CGO_ENABLED=0` for `go test -race` unless cgo is required.
 
-- **TDD** when touching logic; cover edge cases.
-- Mocking: only in unit tests. Integration/E2E use real dependencies.
-- Run `alex dev lint` + `alex dev test` before delivery.
-- macOS: `CGO_ENABLED=0` for `go test -race`; `CGO_ENABLED=1` only when cgo required.
+## Review And Commit
 
----
+- Before every commit, run:
 
-## 7. Code Review
+```bash
+python3 skills/code-review/run.py review
+```
 
-**Mandatory before every commit.** After lint + tests: `python3 skills/code-review/run.py review`
+- Fix P0 and P1 findings before commit.
+- Create a follow-up for P2 findings.
+- Commit after the task is complete. Keep commits small and scoped.
+- Commit only your own changes. Surface unrelated diffs instead of sweeping them in.
 
-- **P0/P1**: must fix before commit.
-- **P2**: create follow-up task.
-- **P3**: optional.
+## Delivery Rules
 
----
-
-## 8. Commit & Delivery
-
-- Always commit after completing changes. Prefer small, incremental commits.
-- Only commit your own code. Surface unrelated modified files; exclude unless asked.
-- Restart only the changed service: `alex dev restart backend` / `alex dev restart web`.
-
-### Pre-Push Gate
-
-`scripts/pre-push.sh` mirrors CI. Always before `git push`. Skip: `SKIP_PRE_PUSH=1`.
-Push only from primary workspace or its managed worktrees.
-
----
-
-## 9. Safety
-
+- Run `scripts/pre-push.sh` before `git push`. It mirrors CI.
+- Push only from the primary repo or its managed worktrees.
+- Restart only the service you changed.
 - Avoid destructive operations or history rewrites unless explicitly requested.
-- Prefer reversible steps and explain risks when needed.
-- For OAuth: return provider's official authorization URL; keep `/api/*` routes as internal relay.
 
----
-
-## 10. Experience Records
+## Experience Records
 
 | Type | Entry path | Summary path |
-|------|-----------|--------------|
+|------|------------|--------------|
 | Error | `docs/error-experience/entries/YYYY-MM-DD-slug.md` | `docs/error-experience/summary/entries/YYYY-MM-DD-slug.md` |
 | Win | `docs/good-experience/entries/YYYY-MM-DD-slug.md` | `docs/good-experience/summary/entries/YYYY-MM-DD-slug.md` |
 
-Index files are **index-only**. See [Memory Management](memory-management.md) for authoring rules.
+Index files stay index-only. See [Memory Management](memory-management.md) for loading and authoring rules.
 
----
+## Codex Worker Protocol
 
-## 11. Codex Worker Protocol
-
-See [Orchestration](orchestration.md) for full protocol. Summary: Brain (Claude Code) + Hands (Codex) pattern — EXPLORE → PLAN → EXECUTE → REVIEW. Every Codex prompt must be self-contained. Max 2 retries per task.
-
----
-
-## Quick Reference
-
-```
-Session Start -> Pre-work Checklist -> Plan (if non-trivial)
-  -> Worktree -> Implement -> Test -> Code Review
-  -> Fix P0/P1 -> Commit -> Pre-push Gate -> Push
-  -> Record Experience -> Update Memory
-```
+Use EXPLORE -> PLAN -> EXECUTE -> REVIEW. Keep worker prompts self-contained. Limit retries to 2 per task.

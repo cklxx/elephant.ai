@@ -1,4 +1,4 @@
-status: merged
-branch: docs/cleanup-deployment-incident
+status: in_progress
+branch: docs/simplify-eng-guides
 created: 2026-03-10
-task: rewrite DEPLOYMENT.md and incident-response.md
+task: simplify engineering docs

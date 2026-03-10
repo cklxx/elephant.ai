@@ -1,59 +1,54 @@
 # Memory Management
 
-Updated: 2026-03-04
+Updated: 2026-03-10
 
-Operational policy for loading, authoring, and maintaining project memory.
+Load memory in layers. Start small. Expand only when the current task needs it.
 
-See [MEMORY_SYSTEM.md](../reference/MEMORY_SYSTEM.md) for storage layout and writing rules.
-See [MEMORY_INDEXING.md](../reference/MEMORY_INDEXING.md) for graph artifacts, link semantics, and indexing internals.
-
----
+See [MEMORY_SYSTEM.md](../reference/MEMORY_SYSTEM.md) for storage layout and [MEMORY_INDEXING.md](../reference/MEMORY_INDEXING.md) for indexing internals.
 
 ## Always-Load Set
 
-Load at every conversation start (~8 KB total):
+Load these at the start of every conversation:
 
-1. `docs/memory/long-term.md` -- stable cross-session rules.
-2. `docs/guides/engineering-workflow.md` -- engineering standards and development cycle.
-3. Latest 3 error summaries from `docs/error-experience/summary/entries/` (by filename date DESC).
-4. Latest 3 good summaries from `docs/good-experience/summary/entries/` (by filename date DESC).
+1. `docs/memory/long-term.md`
+2. `docs/guides/engineering-workflow.md`
+3. Latest 3 error summaries from `docs/error-experience/summary/entries/`
+4. Latest 3 good summaries from `docs/good-experience/summary/entries/`
 
-Filenames are date-sorted; read the most recent.
+Use filename date order. Newest first.
 
----
+## Load On Demand
 
-## On-Demand Loading
+Load more only when the task needs it:
 
-| Source | Trigger |
-|--------|---------|
-| Full error/good entry | Summary lacks detail for the current task |
-| `docs/memory/index.yaml` + `edges.yaml` | Need to search history by topic or find related entries |
-| `docs/memory/tags.yaml` | Need tag-based filtering |
-| `docs/postmortems/incidents/` | Task touches a component with a known incident |
-| `docs/plans/` | Entering planning phase; need prior design references |
-| 1-hop graph expansion | Already found a relevant entry; need its neighbors |
-
----
+| Source | When to load |
+|--------|--------------|
+| Full error or good entry | The summary is not enough |
+| `docs/memory/index.yaml` and `docs/memory/edges.yaml` | You need topic search or related history |
+| `docs/memory/tags.yaml` | You need tag filtering |
+| `docs/postmortems/incidents/` | The task touches a component with a known incident |
+| `docs/plans/` | The task is in planning and past design work may matter |
+| One-hop related entries | You already found one relevant memory and need nearby context |
 
 ## Retrieval Rules
 
-- Summaries first; expand to full entry only when summary is insufficient.
-- Prefer most recent item when multiple entries cover the same topic.
-- Lark context: `memory_search` then `memory_get` then `memory_related` then `lark_chat_history`.
+- Read summaries before full entries.
+- Prefer the most recent relevant item.
+- Stop loading once you have enough context to act.
+- For Lark context, use this order: `memory_search` -> `memory_get` -> `memory_related` -> `lark_chat_history`.
 
----
+## Writing Rules
 
-## Authoring Rules
+### Long-Term Memory
 
-### Long-Term Memory (`docs/memory/long-term.md`)
+Use `docs/memory/long-term.md` only for durable rules that will matter across sessions.
 
-- Durable, long-lived lessons only.
-- Update `Updated:` timestamp to hour precision (`YYYY-MM-DD HH:00`).
-- Keep concise -- this file is loaded every session.
+- Keep it short.
+- Update `Updated:` to hour precision: `YYYY-MM-DD HH:00`.
 
 ### Experience Entries
 
-New entries must include a `## Metadata` block:
+Every new entry needs this `## Metadata` block:
 
 ```yaml
 id: <type>-YYYY-MM-DD-<short-slug>
@@ -68,23 +63,26 @@ links:
   derived_from: []
 ```
 
-After editing memory docs, run: `go run ./scripts/memory/backfill_networked.go`.
+After editing memory docs, run:
+
+```bash
+go run ./scripts/memory/backfill_networked.go
+```
 
 ### Index-Only Files
 
-These files are indexes -- never put content in them:
+Do not put narrative content in these files:
+
 - `docs/error-experience.md`
 - `docs/error-experience/summary.md`
 - `docs/good-experience.md`
 - `docs/good-experience/summary.md`
 
----
+## Topic Files
 
-## Topic Memory Files
-
-| File | Domain |
-|------|--------|
-| `docs/memory/long-term.md` | Cross-session stable rules |
+| File | Use |
+|------|-----|
+| `docs/memory/long-term.md` | Stable cross-session rules |
 | `docs/memory/kernel-ops.md` | Kernel operations patterns |
-| `docs/memory/lark-devops.md` | Lark integration and DevOps |
+| `docs/memory/lark-devops.md` | Lark and DevOps decisions |
 | `docs/memory/eval-routing.md` | Eval and routing decisions |

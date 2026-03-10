@@ -1,76 +1,63 @@
 # Code Review Guide
 
-Updated: 2026-03-03
+Updated: 2026-03-10
 
-Mandatory code review process before every commit. Covers SOLID architecture, security, code quality, and boundary conditions.
-
----
-
-## When to Run
-
-After lint + tests pass, **before any commit or merge**. No exceptions.
+Run code review after lint and tests, and before every commit or merge.
 
 ```bash
 python3 skills/code-review/run.py review
 ```
 
----
-
-## Blocking Rules
+## Severity
 
 | Severity | Action |
 |----------|--------|
-| **P0** | Must fix before commit. Security vulnerabilities, data loss, correctness bugs. |
-| **P1** | Must fix before commit. Significant quality or architecture issues. |
-| **P2** | Create follow-up task. Non-critical improvements. |
-| **P3** | Optional. Style preferences, minor suggestions. |
+| `P0` | Fix before commit. Security, data loss, or clear correctness failure. |
+| `P1` | Fix before commit. Significant architecture, reliability, or maintainability issue. |
+| `P2` | Do not block the commit, but create a follow-up task. |
+| `P3` | Optional. |
 
----
+## Review Checklist
 
-## Review Dimensions
+### Architecture
 
-### SOLID Architecture
+- Responsibilities are not mixed across files, types, or layers.
+- `internal/**` keeps delivery -> application -> domain -> infra boundaries clean.
+- Business logic depends on interfaces or ports, not concrete adapters.
+- New behavior extends existing design cleanly instead of growing switch chains and special cases.
 
-| Principle | Checklist |
-|-----------|-----------|
-| **SRP** | One file/struct per responsibility. Functions under 50 lines. |
-| **OCP** | New behavior via new types/interfaces, not expanding switch chains. |
-| **LSP** | Subtypes can genuinely replace base types. |
-| **ISP** | Go interfaces prefer 3-5 methods max. Split fat interfaces by consumer use case. |
-| **DIP** | Business logic depends on interfaces, not concrete implementations. |
+### Correctness
 
-### Code Quality
+- Errors are handled and wrapped with useful context.
+- Edge cases are covered: zero values, empty inputs, nil, overflow, Unicode, and partial failure.
+- Concurrency is safe: no races, leaks, or missing cancellation.
+- Tests prove the changed behavior.
 
-- **Error handling**: never swallow errors; use `%w` wrapping; include context in error messages.
-- **Performance**: no N+1 queries; cache static computations; no unbounded collections; use `strings.Builder` in concat loops.
-- **Boundary conditions**: nil/zero-value checks; empty collection guards; integer overflow; Unicode correctness.
-- **Observability**: structured logs on key operations; request ID in error logs; latency/throughput metrics on critical paths; trace context propagation.
+### Security And Data Safety
 
-### Security
+- Queries are parameterized.
+- File and network inputs are validated for traversal and SSRF risks.
+- Auth and permission checks exist where data or actions are sensitive.
+- Secrets and PII are not hardcoded or logged.
 
-- **Input/output safety**: parameterized SQL/queries; path traversal validation (`filepath.Clean` + prefix check); SSRF prevention.
-- **Auth/authz**: IDOR checks; permission validation on sensitive operations; JWT algorithm validation.
-- **Sensitive data**: no hardcoded secrets; no PII in logs; `.env` in `.gitignore`.
-- **Race conditions**: shared maps require `sync.Map` or `sync.RWMutex`; read-modify-write in transactions; TOCTOU awareness.
-- **Go-specific**: goroutine exit mechanisms (context cancel, done channel); goroutine leak prevention; `context.Background()` not used where request context should be passed.
+### Performance And Operations
 
----
+- No obvious N+1 work, unbounded memory growth, or accidental hot-path allocations.
+- Critical paths keep logs, metrics, and trace context useful.
+- Background work has a clear lifecycle and shutdown path.
 
-## Review Workflow
+## Workflow
 
-1. Run `alex dev lint` + `alex dev test` — all must pass.
+1. Run relevant lint and tests.
 2. Run `python3 skills/code-review/run.py review`.
-3. Read the generated report.
-4. Fix all P0/P1 findings.
-5. Re-run lint + test after fixes.
-6. Create follow-up tasks for P2 findings.
-7. Commit only when clean.
-
----
+3. Fix every `P0` and `P1`.
+4. Re-run validation after fixes.
+5. Create follow-up work for every `P2`.
+6. Commit only when the remaining findings are acceptable.
 
 ## References
 
-- Skill definition: `skills/code-review/SKILL.md`
-- SOLID checklist: `skills/code-review/references/solid-checklist.md`
-- Quality checklist: `skills/code-review/references/code-quality-checklist.md`
-- Security checklist: `skills/code-review/references/security-checklist.md`
+- `skills/code-review/SKILL.md`
+- `skills/code-review/references/solid-checklist.md`
+- `skills/code-review/references/code-quality-checklist.md`
+- `skills/code-review/references/security-checklist.md`
