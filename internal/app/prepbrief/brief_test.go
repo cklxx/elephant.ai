@@ -2,12 +2,16 @@ package prepbrief
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"alex/internal/domain/signal"
 	"alex/internal/domain/task"
+	"alex/internal/domain/workitem"
+	workitemports "alex/internal/domain/workitem/ports"
 	"alex/internal/infra/taskstore"
 	"alex/internal/shared/notification"
 )
@@ -475,5 +479,365 @@ func TestFormatDuration(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("formatDuration(%v) = %q, want %q", tt.d, got, tt.want)
 		}
+	}
+}
+
+// ---------- Mock GitSignalProvider ----------
+
+type fakeGitSignalProvider struct {
+	openPRs      map[string][]signal.PRContext          // repo -> PRs
+	recentEvents []signal.SignalEvent
+	listOpenErr  error
+	listEventErr error
+}
+
+func (f *fakeGitSignalProvider) ListRecentEvents(_ context.Context, _ time.Time) ([]signal.SignalEvent, error) {
+	return f.recentEvents, f.listEventErr
+}
+
+func (f *fakeGitSignalProvider) GetPRStatus(_ context.Context, _ string, _ int) (*signal.PRContext, error) {
+	return nil, nil
+}
+
+func (f *fakeGitSignalProvider) ListOpenPRs(_ context.Context, repo string) ([]signal.PRContext, error) {
+	if f.listOpenErr != nil {
+		return nil, f.listOpenErr
+	}
+	return f.openPRs[repo], nil
+}
+
+func (f *fakeGitSignalProvider) DetectReviewBottlenecks(_ context.Context, _ string, _ time.Duration) ([]signal.SignalEvent, error) {
+	return nil, nil
+}
+
+func (f *fakeGitSignalProvider) ListCommitActivity(_ context.Context, _, _ string, _ time.Time) ([]signal.SignalEvent, error) {
+	return nil, nil
+}
+
+func (f *fakeGitSignalProvider) Provider() string { return "github" }
+
+// ---------- Mock WorkItemReader ----------
+
+type fakeWorkItemReader struct {
+	items   []*workitem.WorkItem
+	listErr error
+}
+
+func (f *fakeWorkItemReader) Provider() workitem.Provider { return workitem.ProviderJira }
+
+func (f *fakeWorkItemReader) ListWorkItems(_ context.Context, _ workitemports.IssueQuery) (workitemports.ProviderIssuePage, error) {
+	if f.listErr != nil {
+		return workitemports.ProviderIssuePage{}, f.listErr
+	}
+	return workitemports.ProviderIssuePage{Items: f.items, Total: len(f.items)}, nil
+}
+
+func (f *fakeWorkItemReader) GetWorkItem(_ context.Context, _, _ string) (*workitem.WorkItem, error) {
+	return nil, nil
+}
+
+func (f *fakeWorkItemReader) ListComments(_ context.Context, _ workitemports.CommentQuery) (workitemports.ProviderCommentPage, error) {
+	return workitemports.ProviderCommentPage{}, nil
+}
+
+func (f *fakeWorkItemReader) ListStatusChanges(_ context.Context, _ workitemports.StatusChangeQuery) (workitemports.ProviderStatusChangePage, error) {
+	return workitemports.ProviderStatusChangePage{}, nil
+}
+
+func (f *fakeWorkItemReader) ResolveWorkspaces(_ context.Context) ([]workitemports.WorkspaceRef, error) {
+	return nil, nil
+}
+
+// ---------- Enrichment tests ----------
+
+func TestGenerate_WithGitSignalOpenPRs(t *testing.T) {
+	store := newTestStore(t)
+	cfg := DefaultConfig()
+	cfg.GitRepos = []string{"org/repo"}
+
+	svc := NewService(store, nil, cfg)
+	svc.GitSignalSource = &fakeGitSignalProvider{
+		openPRs: map[string][]signal.PRContext{
+			"org/repo": {
+				{Number: 42, Title: "Add feature X", Author: "alice", State: "open", ReviewState: signal.ReviewPending, URL: "https://github.com/org/repo/pull/42"},
+				{Number: 43, Title: "Fix bug Y", Author: "bob", State: "open", ReviewState: signal.ReviewApproved, URL: "https://github.com/org/repo/pull/43"},
+			},
+		},
+	}
+
+	brief, err := svc.Generate(context.Background(), "alice")
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(brief.OpenPRs) != 2 {
+		t.Fatalf("OpenPRs = %d, want 2", len(brief.OpenPRs))
+	}
+	if brief.OpenPRs[0].Number != 42 {
+		t.Errorf("first PR number = %d, want 42", brief.OpenPRs[0].Number)
+	}
+}
+
+func TestGenerate_WithGitSignalMergedPRs(t *testing.T) {
+	store := newTestStore(t)
+	cfg := DefaultConfig()
+	cfg.GitRepos = []string{"org/repo"}
+
+	now := time.Now()
+	svc := NewService(store, nil, cfg)
+	svc.nowFunc = func() time.Time { return now }
+	svc.GitSignalSource = &fakeGitSignalProvider{
+		openPRs: map[string][]signal.PRContext{},
+		recentEvents: []signal.SignalEvent{
+			{
+				Kind: signal.SignalPRMerged,
+				Repo: "org/repo",
+				PR:   &signal.PRContext{Number: 40, Title: "Shipped auth", State: "merged", Author: "alice"},
+			},
+			{
+				Kind: signal.SignalPROpened,
+				Repo: "org/repo",
+				PR:   &signal.PRContext{Number: 41, Title: "WIP", State: "open"},
+			},
+		},
+	}
+
+	brief, err := svc.Generate(context.Background(), "")
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(brief.RecentlyMergedPRs) != 1 {
+		t.Fatalf("RecentlyMergedPRs = %d, want 1", len(brief.RecentlyMergedPRs))
+	}
+	if brief.RecentlyMergedPRs[0].Number != 40 {
+		t.Errorf("merged PR number = %d, want 40", brief.RecentlyMergedPRs[0].Number)
+	}
+}
+
+func TestGenerate_GitSignalErrorIsNonFatal(t *testing.T) {
+	store := newTestStore(t)
+	cfg := DefaultConfig()
+	cfg.GitRepos = []string{"org/repo"}
+
+	svc := NewService(store, nil, cfg)
+	svc.GitSignalSource = &fakeGitSignalProvider{
+		listOpenErr:  fmt.Errorf("network error"),
+		listEventErr: fmt.Errorf("network error"),
+	}
+
+	brief, err := svc.Generate(context.Background(), "alice")
+	if err != nil {
+		t.Fatalf("Generate should succeed despite git signal error: %v", err)
+	}
+	if len(brief.OpenPRs) != 0 {
+		t.Errorf("OpenPRs = %d, want 0 on error", len(brief.OpenPRs))
+	}
+}
+
+func TestGenerate_NoGitSignalSourceSkipsEnrichment(t *testing.T) {
+	store := newTestStore(t)
+	cfg := DefaultConfig()
+	cfg.GitRepos = []string{"org/repo"}
+
+	svc := NewService(store, nil, cfg)
+	// GitSignalSource intentionally nil
+
+	brief, err := svc.Generate(context.Background(), "alice")
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(brief.OpenPRs) != 0 || len(brief.RecentlyMergedPRs) != 0 {
+		t.Error("expected no git signal data when source is nil")
+	}
+}
+
+func TestGenerate_NoGitReposSkipsEnrichment(t *testing.T) {
+	store := newTestStore(t)
+	cfg := DefaultConfig()
+	// GitRepos intentionally empty
+
+	svc := NewService(store, nil, cfg)
+	svc.GitSignalSource = &fakeGitSignalProvider{
+		openPRs: map[string][]signal.PRContext{
+			"org/repo": {{Number: 1, Title: "should not appear"}},
+		},
+	}
+
+	brief, err := svc.Generate(context.Background(), "alice")
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(brief.OpenPRs) != 0 {
+		t.Error("expected no PRs when GitRepos is empty")
+	}
+}
+
+func TestGenerate_WithBlockedTickets(t *testing.T) {
+	store := newTestStore(t)
+	cfg := DefaultConfig()
+	cfg.WorkItemWorkspaceID = "ws-1"
+
+	svc := NewService(store, nil, cfg)
+	svc.WorkItemSource = &fakeWorkItemReader{
+		items: []*workitem.WorkItem{
+			{ID: "1", Key: "PROJ-10", Title: "Blocked migration", StatusClass: workitem.StatusBlocked, IsBlocked: true, BlockedReason: "waiting on DBA"},
+			{ID: "2", Key: "PROJ-11", Title: "In progress", StatusClass: workitem.StatusInProgress},
+			{ID: "3", Key: "PROJ-12", Title: "Also blocked", IsBlocked: true},
+		},
+	}
+
+	brief, err := svc.Generate(context.Background(), "alice")
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(brief.BlockedTickets) != 2 {
+		t.Fatalf("BlockedTickets = %d, want 2", len(brief.BlockedTickets))
+	}
+	if brief.BlockedTickets[0].Key != "PROJ-10" {
+		t.Errorf("first blocked ticket key = %q, want PROJ-10", brief.BlockedTickets[0].Key)
+	}
+}
+
+func TestGenerate_WorkItemErrorIsNonFatal(t *testing.T) {
+	store := newTestStore(t)
+	cfg := DefaultConfig()
+	cfg.WorkItemWorkspaceID = "ws-1"
+
+	svc := NewService(store, nil, cfg)
+	svc.WorkItemSource = &fakeWorkItemReader{
+		listErr: fmt.Errorf("jira down"),
+	}
+
+	brief, err := svc.Generate(context.Background(), "alice")
+	if err != nil {
+		t.Fatalf("Generate should succeed despite work item error: %v", err)
+	}
+	if len(brief.BlockedTickets) != 0 {
+		t.Errorf("BlockedTickets = %d, want 0 on error", len(brief.BlockedTickets))
+	}
+}
+
+func TestGenerate_NoWorkItemSourceSkipsEnrichment(t *testing.T) {
+	store := newTestStore(t)
+	cfg := DefaultConfig()
+	cfg.WorkItemWorkspaceID = "ws-1"
+
+	svc := NewService(store, nil, cfg)
+	// WorkItemSource intentionally nil
+
+	brief, err := svc.Generate(context.Background(), "alice")
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(brief.BlockedTickets) != 0 {
+		t.Error("expected no blocked tickets when source is nil")
+	}
+}
+
+func TestGenerate_NoWorkspaceIDSkipsEnrichment(t *testing.T) {
+	store := newTestStore(t)
+	cfg := DefaultConfig()
+	// WorkItemWorkspaceID intentionally empty
+
+	svc := NewService(store, nil, cfg)
+	svc.WorkItemSource = &fakeWorkItemReader{
+		items: []*workitem.WorkItem{
+			{ID: "1", Key: "PROJ-1", StatusClass: workitem.StatusBlocked},
+		},
+	}
+
+	brief, err := svc.Generate(context.Background(), "alice")
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(brief.BlockedTickets) != 0 {
+		t.Error("expected no blocked tickets when workspace ID is empty")
+	}
+}
+
+// ---------- Format enrichment tests ----------
+
+func TestFormatBrief_WithOpenPRs(t *testing.T) {
+	brief := &Brief{
+		MemberID:    "alice",
+		GeneratedAt: time.Now(),
+		Lookback:    7 * 24 * time.Hour,
+		OpenPRs: []signal.PRContext{
+			{Number: 42, Title: "Add feature X", ReviewState: signal.ReviewPending, Additions: 150, Deletions: 30, URL: "https://example.com/pr/42"},
+		},
+	}
+	out := FormatBrief(brief)
+	checks := []string{"Open PRs", "#42", "Add feature X", "pending", "+150/-30"}
+	for _, c := range checks {
+		if !strings.Contains(out, c) {
+			t.Errorf("missing %q in output:\n%s", c, out)
+		}
+	}
+}
+
+func TestFormatBrief_WithMergedPRs(t *testing.T) {
+	brief := &Brief{
+		MemberID:    "alice",
+		GeneratedAt: time.Now(),
+		Lookback:    7 * 24 * time.Hour,
+		RecentlyMergedPRs: []signal.PRContext{
+			{Number: 40, Title: "Shipped auth", Additions: 200, Deletions: 50, URL: "https://example.com/pr/40"},
+		},
+	}
+	out := FormatBrief(brief)
+	checks := []string{"Recently Merged PRs", "#40", "Shipped auth", "+200/-50"}
+	for _, c := range checks {
+		if !strings.Contains(out, c) {
+			t.Errorf("missing %q in output:\n%s", c, out)
+		}
+	}
+}
+
+func TestFormatBrief_WithBlockedTickets(t *testing.T) {
+	brief := &Brief{
+		MemberID:    "alice",
+		GeneratedAt: time.Now(),
+		Lookback:    7 * 24 * time.Hour,
+		BlockedTickets: []*workitem.WorkItem{
+			{Key: "PROJ-10", Title: "Blocked migration", BlockedReason: "waiting on DBA", URL: "https://jira.example.com/PROJ-10"},
+		},
+	}
+	out := FormatBrief(brief)
+	checks := []string{"Blocked Tickets", "PROJ-10", "Blocked migration", "waiting on DBA"}
+	for _, c := range checks {
+		if !strings.Contains(out, c) {
+			t.Errorf("missing %q in output:\n%s", c, out)
+		}
+	}
+}
+
+func TestSuggestDiscussionPoints_OpenPRs(t *testing.T) {
+	b := &Brief{
+		OpenPRs: []signal.PRContext{{Number: 1}},
+	}
+	pts := suggestDiscussionPoints(b)
+	found := false
+	for _, p := range pts {
+		if strings.Contains(p, "open PR") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected open PR discussion point, got %v", pts)
+	}
+}
+
+func TestSuggestDiscussionPoints_BlockedTickets(t *testing.T) {
+	b := &Brief{
+		BlockedTickets: []*workitem.WorkItem{{Key: "X-1"}},
+	}
+	pts := suggestDiscussionPoints(b)
+	found := false
+	for _, p := range pts {
+		if strings.Contains(p, "blocked ticket") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected blocked ticket discussion point, got %v", pts)
 	}
 }

@@ -114,12 +114,15 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, me
 		if lookback <= 0 {
 			lookback = 7 * 24 * time.Hour
 		}
+		gitSignalCfg := cfg.Runtime.Proactive.Scheduler.GitSignal
 		svc := prepbrief.NewService(container.TaskStore, instrumentedNotifier(notifier, metrics, "prep_brief"), prepbrief.Config{
-			LookbackDuration: lookback,
-			LookbackSeconds:  prepBriefCfg.LookbackSeconds,
-			Channel:          prepBriefCfg.Channel,
-			ChatID:           prepBriefCfg.ChatID,
+			LookbackDuration:    lookback,
+			LookbackSeconds:     prepBriefCfg.LookbackSeconds,
+			Channel:             prepBriefCfg.Channel,
+			ChatID:              prepBriefCfg.ChatID,
+			GitRepos:            gitSignalCfg.Repos,
 		})
+		svc.GitSignalSource = container.GitSignalProvider
 		prepBriefSvc = &prepBriefAdapter{svc: svc}
 		logger.Info("Prep brief service created (channel=%s, chat_id=%s)", prepBriefCfg.Channel, prepBriefCfg.ChatID)
 	}

@@ -11,17 +11,23 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/domain/signal"
+	signalports "alex/internal/domain/signal/ports"
 	"alex/internal/domain/task"
+	"alex/internal/domain/workitem"
+	workitemports "alex/internal/domain/workitem/ports"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/notification"
 )
 
 // Config controls prep-brief generation.
 type Config struct {
-	LookbackDuration time.Duration `json:"-" yaml:"-"`
-	LookbackSeconds  int           `json:"lookback_seconds" yaml:"lookback_seconds"` // default 604800 (7 days)
-	Channel          string        `json:"channel" yaml:"channel"`
-	ChatID           string        `json:"chat_id" yaml:"chat_id"`
+	LookbackDuration     time.Duration `json:"-" yaml:"-"`
+	LookbackSeconds      int           `json:"lookback_seconds" yaml:"lookback_seconds"` // default 604800 (7 days)
+	Channel              string        `json:"channel" yaml:"channel"`
+	ChatID               string        `json:"chat_id" yaml:"chat_id"`
+	GitRepos             []string      `json:"git_repos,omitempty" yaml:"git_repos,omitempty"`
+	WorkItemWorkspaceID  string        `json:"work_item_workspace_id,omitempty" yaml:"work_item_workspace_id,omitempty"`
 }
 
 // DefaultConfig returns sensible defaults (7-day lookback).
@@ -43,6 +49,13 @@ type Brief struct {
 	OpenItems  []*task.Task // running or pending
 	Blockers   []Blocker    // tasks with errors, stale progress, or unresolved deps
 	Pending    []*task.Task // waiting_input or pending
+
+	// Git signal enrichment
+	OpenPRs          []signal.PRContext    // open PRs needing review
+	RecentlyMergedPRs []signal.PRContext   // PRs merged within lookback
+
+	// Work item enrichment
+	BlockedTickets []*workitem.WorkItem // tickets with blocked status
 }
 
 // Blocker describes a single blocked task and the reason.
@@ -58,6 +71,9 @@ type Service struct {
 	config   Config
 	logger   logging.Logger
 	nowFunc  func() time.Time // for testing
+
+	GitSignalSource signalports.GitSignalProvider
+	WorkItemSource  workitemports.WorkItemReader
 }
 
 // NewService creates a prep-brief service.
@@ -123,7 +139,61 @@ func (s *Service) Generate(ctx context.Context, memberID string) (*Brief, error)
 		}
 	}
 
+	// Enrich with git signals (best-effort).
+	s.enrichGitSignals(ctx, brief, cutoff)
+
+	// Enrich with work item data (best-effort).
+	s.enrichWorkItems(ctx, brief)
+
 	return brief, nil
+}
+
+// enrichGitSignals queries the git signal provider for open and recently merged PRs.
+func (s *Service) enrichGitSignals(ctx context.Context, brief *Brief, cutoff time.Time) {
+	if s.GitSignalSource == nil || len(s.config.GitRepos) == 0 {
+		return
+	}
+	for _, repo := range s.config.GitRepos {
+		prs, err := s.GitSignalSource.ListOpenPRs(ctx, repo)
+		if err != nil {
+			s.logger.Warn("Failed to list open PRs for %s: %v", repo, err)
+			continue
+		}
+		for _, pr := range prs {
+			brief.OpenPRs = append(brief.OpenPRs, pr)
+		}
+
+		events, err := s.GitSignalSource.ListRecentEvents(ctx, cutoff)
+		if err != nil {
+			s.logger.Warn("Failed to list recent events for %s: %v", repo, err)
+			continue
+		}
+		for _, ev := range events {
+			if ev.Kind == signal.SignalPRMerged && ev.PR != nil && ev.Repo == repo {
+				brief.RecentlyMergedPRs = append(brief.RecentlyMergedPRs, *ev.PR)
+			}
+		}
+	}
+}
+
+// enrichWorkItems queries the work item source for blocked tickets.
+func (s *Service) enrichWorkItems(ctx context.Context, brief *Brief) {
+	if s.WorkItemSource == nil || s.config.WorkItemWorkspaceID == "" {
+		return
+	}
+	page, err := s.WorkItemSource.ListWorkItems(ctx, workitemports.IssueQuery{
+		WorkspaceID: s.config.WorkItemWorkspaceID,
+		Limit:       50,
+	})
+	if err != nil {
+		s.logger.Warn("Failed to list work items: %v", err)
+		return
+	}
+	for _, item := range page.Items {
+		if item.StatusClass == workitem.StatusBlocked || item.IsBlocked {
+			brief.BlockedTickets = append(brief.BlockedTickets, item)
+		}
+	}
 }
 
 // detectBlocker checks whether a task qualifies as blocked and appends
@@ -253,6 +323,46 @@ func FormatBrief(b *Brief) string {
 		out.WriteString("\n")
 	}
 
+	// Open PRs.
+	if len(b.OpenPRs) > 0 {
+		out.WriteString("### Open PRs\n\n")
+		for _, pr := range b.OpenPRs {
+			review := string(pr.ReviewState)
+			if review == "" {
+				review = "pending"
+			}
+			out.WriteString(fmt.Sprintf("- #%d %s (%s, +%d/-%d) %s\n",
+				pr.Number, truncate(pr.Title, 60), review, pr.Additions, pr.Deletions, pr.URL))
+		}
+		out.WriteString("\n")
+	}
+
+	// Recently Merged PRs.
+	if len(b.RecentlyMergedPRs) > 0 {
+		out.WriteString("### Recently Merged PRs\n\n")
+		for _, pr := range b.RecentlyMergedPRs {
+			out.WriteString(fmt.Sprintf("- #%d %s (+%d/-%d) %s\n",
+				pr.Number, truncate(pr.Title, 60), pr.Additions, pr.Deletions, pr.URL))
+		}
+		out.WriteString("\n")
+	}
+
+	// Blocked Tickets.
+	if len(b.BlockedTickets) > 0 {
+		out.WriteString("### Blocked Tickets\n\n")
+		for _, item := range b.BlockedTickets {
+			line := fmt.Sprintf("- [%s] %s", item.Key, truncate(item.Title, 60))
+			if item.BlockedReason != "" {
+				line += fmt.Sprintf(" — %s", truncate(item.BlockedReason, 80))
+			}
+			if item.URL != "" {
+				line += fmt.Sprintf(" %s", item.URL)
+			}
+			out.WriteString(line + "\n")
+		}
+		out.WriteString("\n")
+	}
+
 	// Suggested Discussion Points.
 	out.WriteString("### Suggested Discussion Points\n\n")
 	points := suggestDiscussionPoints(b)
@@ -282,6 +392,12 @@ func suggestDiscussionPoints(b *Brief) []string {
 	}
 	if len(b.OpenItems) > 3 {
 		points = append(points, fmt.Sprintf("High WIP (%d open items) — consider reducing work-in-progress", len(b.OpenItems)))
+	}
+	if len(b.OpenPRs) > 0 {
+		points = append(points, fmt.Sprintf("Review %d open PR(s) — check review status and unblock if needed", len(b.OpenPRs)))
+	}
+	if len(b.BlockedTickets) > 0 {
+		points = append(points, fmt.Sprintf("Address %d blocked ticket(s) in project tracker", len(b.BlockedTickets)))
 	}
 	if len(b.RecentWins) == 0 && len(b.OpenItems) == 0 && len(b.Blockers) == 0 {
 		points = append(points, "No recent activity — check in on priorities and capacity")
