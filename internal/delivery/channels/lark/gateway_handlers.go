@@ -86,6 +86,11 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		g.handleNoticeCommand(msg)
 		return nil
 	}
+	if g.isUsageCommand(trimmedContent) {
+		slot.mu.Unlock()
+		g.handleUsageCommand(msg)
+		return nil
+	}
 	if g.isStopCommand(trimmedContent) {
 		g.handleStopCommand(slot, msg) // releases slot.mu
 		return nil

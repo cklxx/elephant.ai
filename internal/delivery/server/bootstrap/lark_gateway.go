@@ -203,6 +203,9 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	if container.HasLLMFactory() {
 		gateway.SetLLMFactory(container.LLMFactory(), container.DefaultLLMProfile())
 	}
+	if container.CostTracker != nil {
+		gateway.SetCostTracker(container.CostTracker)
+	}
 
 	taskStore, err := buildLarkTaskStore(ctx, gatewayCfg)
 	if err != nil {

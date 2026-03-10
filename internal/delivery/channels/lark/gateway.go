@@ -86,6 +86,7 @@ type Gateway struct {
 	llmFactory          portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
 	llmProfile          runtimeconfig.LLMProfile  // shared runtime LLM profile for auto-reply
 	taskStore           TaskStore
+	costTracker         CostTrackerReader // optional; for /usage dashboard
 	chatSessionStore    ChatSessionBindingStore
 	deliveryOutboxStore DeliveryOutboxStore
 	noticeState         *noticeStateStore
@@ -232,6 +233,9 @@ func (g *Gateway) SetMessenger(m LarkMessenger) { g.messenger = wrapInjectCaptur
 
 // SetTaskStore configures the task persistence store.
 func (g *Gateway) SetTaskStore(store TaskStore) { g.taskStore = store }
+
+// SetCostTracker configures the cost tracker for the /usage dashboard.
+func (g *Gateway) SetCostTracker(ct CostTrackerReader) { g.costTracker = ct }
 
 // SetLLMFactory configures an optional LLM client factory and shared profile
 // for lightweight calls such as auto-reply generation during InjectMessageSync.
