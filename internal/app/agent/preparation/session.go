@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/domain/agent/ports"
 	appcontext "alex/internal/app/agent/context"
 	storage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
@@ -35,14 +34,7 @@ func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string
 	if s.clock != nil {
 		now = s.clock.Now()
 	}
-	session = &storage.Session{
-		ID:        id,
-		Messages:  []ports.Message{},
-		Todos:     []storage.Todo{},
-		Metadata:  map[string]string{},
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
+	session = storage.NewSession(id, now)
 	if saveErr := s.sessionStore.Save(ctx, session); saveErr != nil {
 		s.logger.Error("Failed to create missing session %s: %v", id, saveErr)
 		return nil, saveErr

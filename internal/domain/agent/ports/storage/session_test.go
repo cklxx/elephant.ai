@@ -1,6 +1,55 @@
 package storage
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	core "alex/internal/domain/agent/ports"
+)
+
+func TestNewSessionInitializesLifecycleFields(t *testing.T) {
+	now := time.Date(2026, time.March, 11, 8, 0, 0, 0, time.UTC)
+
+	session := NewSession("session-1", now)
+
+	if session.ID != "session-1" {
+		t.Fatalf("expected session id to be set, got %q", session.ID)
+	}
+	if session.CreatedAt != now || session.UpdatedAt != now {
+		t.Fatalf("expected timestamps to equal %v, got created=%v updated=%v", now, session.CreatedAt, session.UpdatedAt)
+	}
+	if session.Metadata == nil {
+		t.Fatal("expected metadata initialized")
+	}
+	if len(session.Messages) != 0 || len(session.Todos) != 0 {
+		t.Fatalf("expected empty messages/todos, got %d/%d", len(session.Messages), len(session.Todos))
+	}
+}
+
+func TestSessionResetClearsPersistedState(t *testing.T) {
+	now := time.Date(2026, time.March, 11, 9, 0, 0, 0, time.UTC)
+	session := &Session{
+		ID:          "session-1",
+		Messages:    []core.Message{{Role: "user", Content: "hello"}},
+		Todos:       []Todo{{Description: "todo"}},
+		Metadata:    map[string]string{"title": "hello"},
+		Attachments: map[string]core.Attachment{"a": {Name: "a"}},
+		Important:   map[string]core.ImportantNote{"note": {Content: "remember"}},
+		UserPersona: &core.UserPersonaProfile{DecisionStyle: "direct"},
+	}
+
+	session.Reset(now)
+
+	if session.Messages != nil || session.Todos != nil || session.Metadata != nil {
+		t.Fatalf("expected core session state cleared, got %+v", session)
+	}
+	if session.Attachments != nil || session.Important != nil || session.UserPersona != nil {
+		t.Fatalf("expected optional persisted state cleared, got %+v", session)
+	}
+	if session.UpdatedAt != now {
+		t.Fatalf("expected updated_at=%v, got %v", now, session.UpdatedAt)
+	}
+}
 
 func TestEnsureMetadataNilSession(t *testing.T) {
 	if got := EnsureMetadata(nil); got != nil {

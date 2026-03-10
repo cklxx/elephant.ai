@@ -59,74 +59,12 @@ func (c *AgentCoordinator) persistSessionTitle(ctx context.Context, sessionID st
 func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, session *storage.Session, result *agent.TaskResult) error {
 	logger := c.loggerFor(ctx)
 	historyEnabled := appcontext.SessionHistoryEnabled(ctx)
-	if historyEnabled && c.historyMgr != nil && session != nil && result != nil {
-		// Only load previous history if appending (not for ephemeral sessions).
-		// Use the optimized AppendTurnWithExisting path when available to avoid
-		// a full Replay just to pass existing messages.
-		incoming := stripUserHistoryMessages(result.Messages)
-		if err := c.appendHistoryTurn(ctx, session.ID, nil, incoming); err != nil && logger != nil {
-			logger.Warn("Failed to append turn history: %v", err)
-		}
-	}
+	c.appendExecutionHistory(ctx, session, result, historyEnabled, logger)
 
 	c.sessionSaveMu.Lock()
 	defer c.sessionSaveMu.Unlock()
 
-	// Update session with results
-	if historyEnabled {
-		sanitizedMessages, attachmentStore := sanitizeMessagesForPersistence(result.Messages)
-		if c.attachmentMigrator != nil && len(attachmentStore) > 0 {
-			normalized, err := c.attachmentMigrator.Normalize(ctx, materialports.MigrationRequest{
-				Attachments: attachmentStore,
-				Origin:      "session_persist",
-			})
-			if err != nil && logger != nil {
-				logger.Warn("Failed to migrate attachments for session persistence: %v", err)
-			} else if normalized != nil {
-				attachmentStore = normalized
-			}
-		}
-		session.Messages = sanitizedMessages
-		if len(attachmentStore) > 0 {
-			session.Attachments = attachmentStore
-		} else {
-			session.Attachments = nil
-		}
-		if len(result.Important) > 0 {
-			session.Important = ports.CloneImportantNotes(result.Important)
-		} else {
-			session.Important = nil
-		}
-	} else {
-		session.Messages = nil
-		session.Attachments = nil
-		session.Important = nil
-	}
-	session.UpdatedAt = c.clock.Now()
-
-	metadata := storage.EnsureMetadata(session)
-	updateAwaitUserInputMetadata(session, result)
-	if stopReason := strings.TrimSpace(result.StopReason); stopReason != "" {
-		metadata["stop_reason"] = stopReason
-	} else {
-		delete(metadata, "stop_reason")
-	}
-	// Clear transient error metadata on successful execution.
-	if result.StopReason != "error" {
-		delete(metadata, "last_error")
-		delete(metadata, "last_error_at")
-	}
-	if result.SessionID != "" {
-		metadata["session_id"] = result.SessionID
-	}
-	if result.RunID != "" {
-		metadata["last_task_id"] = result.RunID
-	}
-	if result.ParentRunID != "" {
-		metadata["last_parent_task_id"] = result.ParentRunID
-	} else {
-		delete(metadata, "last_parent_task_id")
-	}
+	c.applyExecutionResult(ctx, session, result, historyEnabled, logger)
 
 	if err := c.sessionStore.Save(ctx, session); err != nil {
 		logger.Error("Failed to save session: %v", err)
@@ -140,6 +78,100 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	c.pendingSessionSave.Store(nil)
 
 	return nil
+}
+
+func (c *AgentCoordinator) appendExecutionHistory(
+	ctx context.Context,
+	session *storage.Session,
+	result *agent.TaskResult,
+	historyEnabled bool,
+	logger agent.Logger,
+) {
+	if !historyEnabled || c.historyMgr == nil || session == nil || result == nil {
+		return
+	}
+	incoming := stripUserHistoryMessages(result.Messages)
+	if err := c.appendHistoryTurn(ctx, session.ID, nil, incoming); err != nil && logger != nil {
+		logger.Warn("Failed to append turn history: %v", err)
+	}
+}
+
+func (c *AgentCoordinator) applyExecutionResult(
+	ctx context.Context,
+	session *storage.Session,
+	result *agent.TaskResult,
+	historyEnabled bool,
+	logger agent.Logger,
+) {
+	if historyEnabled {
+		c.persistSessionContent(ctx, session, result, logger)
+	} else {
+		clearPersistedSessionContent(session)
+	}
+	session.UpdatedAt = c.clock.Now()
+	applyTaskResultMetadata(session, result)
+}
+
+func (c *AgentCoordinator) persistSessionContent(
+	ctx context.Context,
+	session *storage.Session,
+	result *agent.TaskResult,
+	logger agent.Logger,
+) {
+	sanitizedMessages, attachmentStore := sanitizeMessagesForPersistence(result.Messages)
+	if c.attachmentMigrator != nil && len(attachmentStore) > 0 {
+		normalized, err := c.attachmentMigrator.Normalize(ctx, materialports.MigrationRequest{
+			Attachments: attachmentStore,
+			Origin:      "session_persist",
+		})
+		if err != nil && logger != nil {
+			logger.Warn("Failed to migrate attachments for session persistence: %v", err)
+		} else if normalized != nil {
+			attachmentStore = normalized
+		}
+	}
+	session.Messages = sanitizedMessages
+	if len(attachmentStore) > 0 {
+		session.Attachments = attachmentStore
+	} else {
+		session.Attachments = nil
+	}
+	if len(result.Important) > 0 {
+		session.Important = ports.CloneImportantNotes(result.Important)
+		return
+	}
+	session.Important = nil
+}
+
+func clearPersistedSessionContent(session *storage.Session) {
+	session.Messages = nil
+	session.Attachments = nil
+	session.Important = nil
+}
+
+func applyTaskResultMetadata(session *storage.Session, result *agent.TaskResult) {
+	metadata := storage.EnsureMetadata(session)
+	updateAwaitUserInputMetadata(session, result)
+	if stopReason := strings.TrimSpace(result.StopReason); stopReason != "" {
+		metadata["stop_reason"] = stopReason
+	} else {
+		delete(metadata, "stop_reason")
+	}
+	if result.StopReason != "error" {
+		delete(metadata, "last_error")
+		delete(metadata, "last_error_at")
+	}
+	if result.SessionID != "" {
+		metadata["session_id"] = result.SessionID
+	}
+	if result.RunID != "" {
+		metadata["last_task_id"] = result.RunID
+	}
+	if result.ParentRunID != "" {
+		metadata["last_parent_task_id"] = result.ParentRunID
+		return
+	}
+	delete(metadata, "last_parent_task_id")
 }
 
 func (c *AgentCoordinator) appendHistoryTurn(
@@ -287,13 +319,7 @@ func (c *AgentCoordinator) ResetSession(ctx context.Context, sessionID string) e
 		return err
 	}
 
-	session.Messages = nil
-	session.Metadata = nil
-	session.Attachments = nil
-	session.Important = nil
-	session.Todos = nil
-	session.UserPersona = nil
-	session.UpdatedAt = c.clock.Now()
+	session.Reset(c.clock.Now())
 
 	if err := c.sessionStore.Save(ctx, session); err != nil {
 		return err
@@ -308,7 +334,10 @@ func (c *AgentCoordinator) ResetSession(ctx context.Context, sessionID string) e
 
 // GetSession retrieves or creates a session (public method)
 func (c *AgentCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
-	return c.getSession(ctx, id)
+	if id == "" {
+		return c.sessionStore.Create(ctx)
+	}
+	return c.sessionStore.Get(ctx, id)
 }
 
 // EnsureSession returns an existing session or creates one with the provided ID.
@@ -325,25 +354,11 @@ func (c *AgentCoordinator) EnsureSession(ctx context.Context, id string) (*stora
 	}
 
 	now := c.clock.Now()
-	session = &storage.Session{
-		ID:        id,
-		Messages:  []ports.Message{},
-		Todos:     []storage.Todo{},
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-	storage.EnsureMetadata(session)
+	session = storage.NewSession(id, now)
 	if err := c.sessionStore.Save(ctx, session); err != nil {
 		return nil, err
 	}
 	return session, nil
-}
-
-func (c *AgentCoordinator) getSession(ctx context.Context, id string) (*storage.Session, error) {
-	if id == "" {
-		return c.sessionStore.Create(ctx)
-	}
-	return c.sessionStore.Get(ctx, id)
 }
 
 func (c *AgentCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {

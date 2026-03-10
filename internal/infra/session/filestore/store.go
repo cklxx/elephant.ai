@@ -52,14 +52,7 @@ func (s *store) Create(ctx context.Context) (*storage.Session, error) {
 		return nil, fmt.Errorf("invalid session ID")
 	}
 
-	session := &storage.Session{
-		ID:        sessionID,
-		Messages:  []ports.Message{},
-		Todos:     []storage.Todo{},
-		Metadata:  make(map[string]string),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
+	session := storage.NewSession(sessionID, time.Now())
 
 	// Save with O_CREATE|O_EXCL to prevent overwrites
 	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", session.ID))

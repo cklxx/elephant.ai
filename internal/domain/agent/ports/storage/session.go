@@ -55,6 +55,32 @@ type Session struct {
 	UpdatedAt   time.Time                     `json:"updated_at"`
 }
 
+// NewSession initializes an empty persisted session with the provided ID.
+func NewSession(id string, now time.Time) *Session {
+	return &Session{
+		ID:        id,
+		Messages:  []core.Message{},
+		Todos:     []Todo{},
+		Metadata:  map[string]string{},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+}
+
+// Reset clears persisted session state and updates the modification time.
+func (s *Session) Reset(now time.Time) {
+	if s == nil {
+		return
+	}
+	s.Messages = nil
+	s.Metadata = nil
+	s.Attachments = nil
+	s.Important = nil
+	s.Todos = nil
+	s.UserPersona = nil
+	s.UpdatedAt = now
+}
+
 // EnsureMetadata returns session metadata, initializing it when needed.
 func EnsureMetadata(session *Session) map[string]string {
 	if session == nil {
