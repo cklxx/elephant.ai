@@ -2,6 +2,7 @@ package di
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -199,6 +200,40 @@ func (c *Container) GetModelHealth() []llm.ProviderHealth {
 		return nil
 	}
 	return c.llmFactory.GetModelHealth()
+}
+
+// AggregateModelHealth returns (healthy, message) summarising all tracked models.
+// Satisfies delivery/server/ports.ModelHealthProvider structurally.
+func (c *Container) AggregateModelHealth() (bool, string) {
+	healths := c.GetModelHealth()
+	if len(healths) == 0 {
+		return true, "No models tracked yet"
+	}
+	var totalScore float64
+	var downCount, degradedCount int
+	for _, h := range healths {
+		totalScore += h.HealthScore
+		switch string(h.State) {
+		case "down":
+			downCount++
+		case "degraded":
+			degradedCount++
+		}
+	}
+	avgScore := totalScore / float64(len(healths))
+	healthy := downCount == 0 && degradedCount == 0
+	msg := fmt.Sprintf("%d models tracked, avg health score %.0f", len(healths), avgScore)
+	return healthy, msg
+}
+
+// SanitizedModelHealth returns per-model data safe for external exposure.
+// Satisfies delivery/server/ports.ModelHealthProvider structurally.
+func (c *Container) SanitizedModelHealth() interface{} {
+	healths := c.GetModelHealth()
+	if len(healths) == 0 {
+		return nil
+	}
+	return llm.SanitizeAll(healths)
 }
 
 // DefaultLLMProfile returns the shared runtime LLM profile.

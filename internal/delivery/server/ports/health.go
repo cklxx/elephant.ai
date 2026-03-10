@@ -34,3 +34,15 @@ type HealthChecker interface {
 	// RegisterProbe adds a health probe
 	RegisterProbe(probe HealthProbe)
 }
+
+// ModelHealthProvider supplies pre-processed model health data.
+// Methods use only builtin types so implementers (e.g. app/di.Container) satisfy
+// the interface structurally without importing this package.
+type ModelHealthProvider interface {
+	// AggregateModelHealth returns (healthy, message).
+	// healthy is false when any model is degraded or down.
+	AggregateModelHealth() (bool, string)
+	// SanitizedModelHealth returns per-model data safe for external exposure.
+	// Returns nil when no models are tracked.
+	SanitizedModelHealth() interface{}
+}

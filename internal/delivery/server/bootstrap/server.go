@@ -179,9 +179,7 @@ func RunServer(observabilityConfigPath string) error {
 	healthChecker := serverApp.NewHealthChecker()
 	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
 	healthChecker.RegisterProbe(serverApp.NewDegradedProbe(f.Degraded))
-	healthChecker.RegisterProbe(serverApp.NewLLMModelHealthProbe(func() interface{} {
-		return container.GetModelHealth()
-	}))
+	healthChecker.RegisterProbe(serverApp.NewLLMModelHealthProbe(container))
 
 	runtimeUpdates, runtimeReloader := f.RuntimeCacheUpdates()
 	configHandler := serverHTTP.NewConfigHandler(f.ConfigManager(), f.Resolver(), runtimeUpdates, runtimeReloader)
