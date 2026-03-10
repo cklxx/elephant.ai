@@ -1,0 +1,236 @@
+package lark
+
+import (
+	"context"
+	"strings"
+	"time"
+
+	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
+	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
+	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
+)
+
+const (
+	wsReconnectBaseDelay = 2 * time.Second
+	wsReconnectMaxDelay  = 60 * time.Second
+)
+
+// Start creates the Lark SDK client, event dispatcher, and WebSocket client, then blocks.
+// It automatically reconnects with exponential backoff when the WebSocket connection drops.
+func (g *Gateway) Start(ctx context.Context) error {
+	if !g.cfg.Enabled {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	g.setCleanupCancel(cancel)
+	g.dedup.startCleanup(runCtx, &g.cleanupWG)
+	g.startStateCleanupLoop(runCtx)
+
+	// Build the REST client for sending replies.
+	var clientOpts []lark.ClientOptionFunc
+	if domain := strings.TrimSpace(g.cfg.BaseDomain); domain != "" {
+		clientOpts = append(clientOpts, lark.WithOpenBaseUrl(domain))
+	}
+	g.client = lark.NewClient(g.cfg.AppID, g.cfg.AppSecret, clientOpts...)
+
+	// Initialize the messenger if not already set (e.g. by tests).
+	if g.messenger == nil {
+		g.messenger = newSDKMessenger(g.client)
+	}
+	g.messenger = wrapInjectCaptureHub(g.messenger)
+	g.startDeliveryWorker(runCtx)
+
+	// Build the event dispatcher (shared across reconnections).
+	eventDispatcher := g.buildEventDispatcher()
+
+	g.logger.Info("Lark gateway connecting (app_id=%s)...", g.cfg.AppID)
+	err := g.wsConnectLoop(runCtx, eventDispatcher)
+	g.stopStateCleanupLoop()
+	return err
+}
+
+// buildEventDispatcher creates the Lark event dispatcher with all registered handlers.
+func (g *Gateway) buildEventDispatcher() *dispatcher.EventDispatcher {
+	eventDispatcher := dispatcher.NewEventDispatcher("", "")
+	eventDispatcher.OnP2MessageReceiveV1(g.handleMessage)
+	eventDispatcher.OnP2MessageReactionCreatedV1(func(_ context.Context, _ *larkim.P2MessageReactionCreatedV1) error {
+		return nil
+	})
+	eventDispatcher.OnP2MessageReactionDeletedV1(func(_ context.Context, _ *larkim.P2MessageReactionDeletedV1) error {
+		return nil
+	})
+	eventDispatcher.OnP2ChatAccessEventBotP2pChatEnteredV1(func(_ context.Context, _ *larkim.P2ChatAccessEventBotP2pChatEnteredV1) error {
+		return nil
+	})
+	eventDispatcher.OnP2MessageReadV1(func(_ context.Context, _ *larkim.P2MessageReadV1) error {
+		return nil
+	})
+	return eventDispatcher
+}
+
+// wsConnectLoop connects the WebSocket client and automatically reconnects
+// with exponential backoff when the connection drops. It blocks until the
+// context is cancelled.
+func (g *Gateway) wsConnectLoop(ctx context.Context, eventDispatcher *dispatcher.EventDispatcher) error {
+	delay := wsReconnectBaseDelay
+	for {
+		wsClient := g.newWSClient(eventDispatcher)
+		g.wsClient = wsClient
+
+		err := wsClient.Start(ctx)
+
+		// Context cancelled — intentional shutdown, exit cleanly.
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		// Unexpected disconnect — log and reconnect with backoff.
+		g.logger.Warn("Lark WebSocket disconnected (err=%v), reconnecting in %v...", err, delay)
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+
+		// Exponential backoff capped at wsReconnectMaxDelay.
+		delay = delay * 2
+		if delay > wsReconnectMaxDelay {
+			delay = wsReconnectMaxDelay
+		}
+
+		g.logger.Info("Lark gateway reconnecting (app_id=%s)...", g.cfg.AppID)
+	}
+}
+
+// newWSClient creates a fresh larkws.Client for a (re)connection attempt.
+func (g *Gateway) newWSClient(eventDispatcher *dispatcher.EventDispatcher) *larkws.Client {
+	var wsOpts []larkws.ClientOption
+	wsOpts = append(wsOpts, larkws.WithEventHandler(eventDispatcher))
+	wsOpts = append(wsOpts, larkws.WithLogLevel(larkcore.LogLevelInfo))
+	if domain := strings.TrimSpace(g.cfg.BaseDomain); domain != "" {
+		wsOpts = append(wsOpts, larkws.WithDomain(domain))
+	}
+	return larkws.NewClient(g.cfg.AppID, g.cfg.AppSecret, wsOpts...)
+}
+
+// Stop releases resources. The WebSocket client does not expose a Stop method;
+// cancelling the context passed to Start is the primary shutdown mechanism.
+func (g *Gateway) Stop() {
+	g.stopStateCleanupLoop()
+}
+
+// NotifyRunningTaskInterruptions cancels in-flight foreground tasks and sends
+// a visible interruption notice to each affected chat.
+func (g *Gateway) NotifyRunningTaskInterruptions(notice string) int {
+	if g == nil {
+		return 0
+	}
+	notice = strings.TrimSpace(notice)
+	if notice == "" {
+		notice = "服务正在重启，当前执行已中断。请稍后重试。"
+	}
+
+	type runningTarget struct {
+		chatID string
+		cancel context.CancelFunc
+	}
+	targets := make([]runningTarget, 0, 4)
+
+	g.activeSlots.Range(func(key, value any) bool {
+		chatID, ok := key.(string)
+		if !ok {
+			return true
+		}
+		slot, ok := value.(*sessionSlot)
+		if !ok || slot == nil {
+			return true
+		}
+
+		slot.mu.Lock()
+		running := slot.phase == slotRunning && slot.taskCancel != nil
+		if running {
+			slot.intentionalCancelToken = slot.taskToken
+			targets = append(targets, runningTarget{
+				chatID: chatID,
+				cancel: slot.taskCancel,
+			})
+		}
+		slot.mu.Unlock()
+		return true
+	})
+
+	if len(targets) == 0 {
+		return 0
+	}
+
+	notifyCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for _, target := range targets {
+		target.cancel()
+		g.dispatch(notifyCtx, target.chatID, "", "text", textContent(notice))
+	}
+	return len(targets)
+}
+
+// WaitForTasks blocks until all in-flight task goroutines complete.
+// Intended for test synchronization only.
+func (g *Gateway) WaitForTasks() {
+	g.taskWG.Wait()
+}
+
+func wrapInjectCaptureHub(m LarkMessenger) LarkMessenger {
+	if m == nil {
+		return nil
+	}
+	if _, ok := m.(*injectCaptureHub); ok {
+		return m
+	}
+	return newInjectCaptureHub(m)
+}
+
+func (g *Gateway) setCleanupCancel(cancel context.CancelFunc) {
+	g.cleanupMu.Lock()
+	if g.cleanupCancel != nil {
+		g.cleanupCancel()
+	}
+	g.cleanupCancel = cancel
+	g.cleanupMu.Unlock()
+}
+
+func (g *Gateway) stopStateCleanupLoop() {
+	g.cleanupMu.Lock()
+	cancel := g.cleanupCancel
+	g.cleanupCancel = nil
+	g.cleanupMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	g.cleanupWG.Wait()
+}
+
+func (g *Gateway) startStateCleanupLoop(ctx context.Context) {
+	interval := g.cfg.StateCleanupInterval
+	if interval <= 0 {
+		return
+	}
+	g.cleanupWG.Add(1)
+	go func() {
+		defer g.cleanupWG.Done()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				g.cleanupRuntimeState()
+			}
+		}
+	}()
+}
