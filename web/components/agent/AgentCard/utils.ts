@@ -114,6 +114,13 @@ function parseStats(statsStr?: string): {
   return result;
 }
 
+export function formatTokens(tokens: number): string {
+  if (tokens >= 1000) {
+    return `${(tokens / 1000).toFixed(1)}K`;
+  }
+  return tokens.toString();
+}
+
 function parseConcurrency(
   concurrencyStr?: string,
   subtaskIndex?: number,

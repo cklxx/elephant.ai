@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AgentCardState } from "./types";
+import { formatTokens } from "./utils";
 import {
   getStateLabel,
   getStateIconContainerStyle,
@@ -104,9 +105,3 @@ export function CardHeader({
   return content;
 }
 
-function formatTokens(tokens: number): string {
-  if (tokens >= 1000) {
-    return `${(tokens / 1000).toFixed(1)}K`;
-  }
-  return tokens.toString();
-}

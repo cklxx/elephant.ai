@@ -1,6 +1,7 @@
 import React from "react";
 import { cn, formatDuration } from "@/lib/utils";
 import { AgentCardProgress, AgentCardStats } from "./types";
+import { formatTokens } from "./utils";
 
 interface CardStatsProps {
   progress?: AgentCardProgress;
@@ -78,12 +79,6 @@ function StatsRow({
   );
 }
 
-function formatTokens(tokens: number): string {
-  if (tokens >= 1000) {
-    return `${(tokens / 1000).toFixed(1)}K`;
-  }
-  return tokens.toString();
-}
 
 function formatStatsDuration(ms: number): string {
   if (ms < 60000) {
