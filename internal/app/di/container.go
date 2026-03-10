@@ -13,6 +13,7 @@ import (
 	portsllm "alex/internal/domain/agent/ports/llm"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	react "alex/internal/domain/agent/react"
+	signalports "alex/internal/domain/signal/ports"
 	taskdomain "alex/internal/domain/task"
 	"alex/internal/infra/filestore"
 	larkoauth "alex/internal/infra/lark/oauth"
@@ -43,7 +44,8 @@ type Container struct {
 	CheckpointStore  react.CheckpointStore
 	TaskStore        taskdomain.Store // Unified durable task store (nil when unavailable)
 	LarkGateway      LarkGateway
-	LarkOAuth        *larkoauth.Service
+	LarkOAuth         *larkoauth.Service
+	GitSignalProvider signalports.GitSignalProvider
 
 	// Drainables holds subsystems that support graceful drain.
 	Drainables []lifecycle.Drainable

@@ -360,6 +360,18 @@ type SchedulerConfig struct {
 	WeeklyPulse                      WeeklyPulseConfig        `json:"weekly_pulse" yaml:"weekly_pulse"`
 	BlockerRadar                     BlockerRadarConfig       `json:"blocker_radar" yaml:"blocker_radar"`
 	PrepBrief                        PrepBriefConfig          `json:"prep_brief" yaml:"prep_brief"`
+	GitSignal                        GitSignalConfig          `json:"git_signal" yaml:"git_signal"`
+}
+
+// GitSignalConfig configures the git signal connector for GitHub/GitLab integration.
+type GitSignalConfig struct {
+	Enabled                   bool     `json:"enabled" yaml:"enabled"`
+	Provider                  string   `json:"provider" yaml:"provider"`                                       // "github" or "gitlab"
+	Token                     string   `json:"token" yaml:"token"`                                             // API token
+	Repos                     []string `json:"repos" yaml:"repos"`                                             // owner/repo list
+	BaseURL                   string   `json:"base_url" yaml:"base_url"`                                       // override for enterprise instances
+	PollIntervalSeconds       int      `json:"poll_interval_seconds" yaml:"poll_interval_seconds"`              // default 300 (5 min)
+	ReviewBottleneckThreshold int      `json:"review_bottleneck_threshold_seconds" yaml:"review_bottleneck_threshold_seconds"` // default 86400 (24h)
 }
 
 // MilestoneCheckinConfig configures periodic progress summary check-ins.
