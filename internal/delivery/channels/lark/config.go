@@ -52,6 +52,7 @@ type Config struct {
 	DefaultPlanMode                 PlanMode      // Global default plan mode strategy. Default "auto".
 	DeliveryMode                    string        // Terminal delivery strategy: direct|shadow|outbox.
 	DeliveryWorker                  DeliveryWorkerConfig
+	AttentionGate                   AttentionGateConfig // Attention gate for message urgency filtering.
 	// AIChatBotIDs is a list of bot IDs that participate in coordinated multi-bot chats.
 	// When multiple bots from this list are mentioned in a group message, they will
 	// take turns responding instead of all responding simultaneously.

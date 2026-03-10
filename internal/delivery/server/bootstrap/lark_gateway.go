@@ -112,6 +112,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		DefaultPlanMode:               lark.PlanMode(larkCfg.DefaultPlanMode),
 		DeliveryMode:                  larkCfg.DeliveryMode,
 		DeliveryWorker:                larkCfg.DeliveryWorker,
+		AttentionGate:                 larkCfg.AttentionGate,
 	}
 
 	// Hooks bridge endpoint lives on the debug HTTP server (DebugPort),

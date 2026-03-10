@@ -175,6 +175,7 @@ type LarkGatewayConfig struct {
 	DefaultPlanMode               string
 	DeliveryMode                  string
 	DeliveryWorker                lark.DeliveryWorkerConfig
+	AttentionGate                 lark.AttentionGateConfig
 }
 
 // HooksBridgeConfig controls the Claude Code hooks → Lark bridge endpoint.

@@ -94,6 +94,7 @@ type Gateway struct {
 	pendingInputRelays  sync.Map           // chatID → *pendingRelayQueue
 	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
 	autoAuth            *AutoAuth          // in-message OAuth device flow
+	attentionGate       *AttentionGate     // optional urgency filter for incoming messages
 	taskWG              sync.WaitGroup     // tracks running task goroutines (for tests)
 	cleanupMu           sync.Mutex
 	cleanupCancel       context.CancelFunc
@@ -206,6 +207,7 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 			return resolveLlamaServerTarget(runtimeconfig.DefaultEnvLookup)
 		},
 		aiCoordinator: aiCoordinator,
+		attentionGate: NewAttentionGate(cfg.AttentionGate),
 	}, nil
 }
 
