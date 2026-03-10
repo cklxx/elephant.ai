@@ -1,12 +1,10 @@
 # Index: operations
 
-Updated: 2026-02-26
+Updated: 2026-03-10
 
 ## Files
 
-- [CHROME_EXTENSION_BRIDGE.md](CHROME_EXTENSION_BRIDGE.md)
-- [DEPLOYMENT.md](DEPLOYMENT.md)
-- [LOCAL_BROWSER_CDP.md](LOCAL_BROWSER_CDP.md)
-- [event_migration_playbook.md](event_migration_playbook.md)
-- [lark_e2e_report_format.md](lark_e2e_report_format.md)
-- [evaluation_set.md](evaluation_set.md)
+- [DEPLOYMENT.md](DEPLOYMENT.md) — Deployment guide (local, Docker, K8s, leader agent)
+- [evaluation_set.md](evaluation_set.md) — Evaluation set architecture
+- [CHROME_EXTENSION_BRIDGE.md](CHROME_EXTENSION_BRIDGE.md) — Chrome extension browser bridge (experimental)
+- [LOCAL_BROWSER_CDP.md](LOCAL_BROWSER_CDP.md) — Local browser CDP automation
