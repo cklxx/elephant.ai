@@ -12,7 +12,7 @@ func TestSanitizeToolArgumentsRecursive(t *testing.T) {
 		"safe": "value",
 		"nested": map[string]any{
 			"headers": map[string]any{
-				"Authorization": "Bearer top-secret-token",
+				"Authorization": "Bearer REDACTED_TEST_TOKEN",
 				"X-Request-ID":  "request-1",
 				"x-api-key":     "abc1234567890abcdefghijklmnop",
 			},
@@ -62,7 +62,7 @@ func TestSanitizeToolArgumentsPreservesOriginalInput(t *testing.T) {
 	args := map[string]any{
 		"token": "keep-original",
 		"nested": map[string]any{
-			"authorization": "Bearer keep-original-too",
+			"authorization": "Bearer REDACTED_TEST_TOKEN_2",
 		},
 	}
 
@@ -71,5 +71,5 @@ func TestSanitizeToolArgumentsPreservesOriginalInput(t *testing.T) {
 	assert.Equal(t, "keep-original", args["token"])
 	nested, ok := args["nested"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "Bearer keep-original-too", nested["authorization"])
+	assert.Equal(t, "Bearer REDACTED_TEST_TOKEN_2", nested["authorization"])
 }

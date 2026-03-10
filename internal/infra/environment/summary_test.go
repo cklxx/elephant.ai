@@ -53,7 +53,7 @@ func TestCollectEnvironmentHintsFromMapRedactsSecrets(t *testing.T) {
 	input := map[string]string{
 		"SHELL":             "/bin/zsh",
 		"LANG":              "en_US.UTF-8",
-		"OPENAI_API_KEY":    "sk-live-secret",
+		"OPENAI_API_KEY":    "test-openai-env-key-000",
 		"AWS_SECRET_ACCESS": "top-secret",
 		"ALEX_DEBUG_DUMP":   "internal-only",
 		"PATH":              "/usr/local/bin:/usr/bin:/bin",

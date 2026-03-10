@@ -30,8 +30,8 @@ func TestPrepareEvalRuntimeEnvironmentUsesWorkspaceDirFromConfig(t *testing.T) {
 	if got := mustLookupEnv(t, "ALEX_CONTEXT_CONFIG_DIR"); got != filepath.Join(repoRoot, "configs", "context") {
 		t.Fatalf("ALEX_CONTEXT_CONFIG_DIR = %q, want %q", got, filepath.Join(repoRoot, "configs", "context"))
 	}
-	if got := mustLookupEnv(t, "OPENAI_API_KEY"); got != "sk-live-e2e" {
-		t.Fatalf("OPENAI_API_KEY = %q, want %q", got, "sk-live-e2e")
+	if got := mustLookupEnv(t, "OPENAI_API_KEY"); got != "test-openai-e2e-key-000" {
+		t.Fatalf("OPENAI_API_KEY = %q, want %q", got, "test-openai-e2e-key-000")
 	}
 
 	if datasetPath == "" {
@@ -79,8 +79,8 @@ func TestPrepareEvalRuntimeEnvironmentFindsRootFromAbsoluteDatasetPath(t *testin
 	if got := mustLookupEnv(t, "ALEX_CONTEXT_CONFIG_DIR"); got != filepath.Join(repoRoot, "configs", "context") {
 		t.Fatalf("ALEX_CONTEXT_CONFIG_DIR = %q, want %q", got, filepath.Join(repoRoot, "configs", "context"))
 	}
-	if got := mustLookupEnv(t, "OPENAI_API_KEY"); got != "sk-live-e2e" {
-		t.Fatalf("OPENAI_API_KEY = %q, want %q", got, "sk-live-e2e")
+	if got := mustLookupEnv(t, "OPENAI_API_KEY"); got != "test-openai-e2e-key-000" {
+		t.Fatalf("OPENAI_API_KEY = %q, want %q", got, "test-openai-e2e-key-000")
 	}
 }
 
@@ -89,7 +89,7 @@ func makeEvalRepoFixture(t *testing.T) (string, string) {
 
 	repoRoot := t.TempDir()
 	writeEvalTestFile(t, filepath.Join(repoRoot, "go.mod"), "module alex\n\ngo 1.24.0\n")
-	writeEvalTestFile(t, filepath.Join(repoRoot, ".env"), "OPENAI_API_KEY=sk-live-e2e\n")
+	writeEvalTestFile(t, filepath.Join(repoRoot, ".env"), "OPENAI_API_KEY=test-openai-e2e-key-000\n")
 	writeEvalTestFile(t, filepath.Join(repoRoot, "configs", "context", "personas", "default.yaml"), "id: default\nvoice: test\n")
 	datasetPath := filepath.Join(repoRoot, "evaluation", "swe_bench", "real_instances.json")
 	writeEvalTestFile(t, datasetPath, "[]\n")

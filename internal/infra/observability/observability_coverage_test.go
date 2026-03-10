@@ -250,7 +250,7 @@ func TestSanitizeToolArguments_RedactsNestedCompositeAndHeuristicValues(t *testi
 	args := map[string]any{
 		"safe": "value",
 		"nested_map_string": map[string]string{
-			"Authorization": "Bearer super-secret-token",
+			"Authorization": "Bearer REDACTED_TEST_TOKEN",
 			"request_id":    "req-123",
 		},
 		"nested_list": []any{
@@ -259,12 +259,12 @@ func TestSanitizeToolArguments_RedactsNestedCompositeAndHeuristicValues(t *testi
 			},
 			map[string]any{
 				"payload": map[string]any{
-					"api_hint": "fake_key_XXXXXXXXXXXXXXXXXXXXXXXX",
+					"api_hint": "testfixturekeyabcdefghijklmnop",
 				},
 			},
 		},
 		"samples": []string{
-			"ghp_1234567890abcdefghijklmnopqrstuv",
+			"testgithubfixturetokenabcdefghij",
 			"short-value",
 		},
 	}

@@ -298,7 +298,7 @@ func TestMatchCredentialFindsProviders(t *testing.T) {
 		},
 		Claude: runtimeconfig.CLICredential{
 			Provider: "anthropic",
-			APIKey:   "sk-abc",
+			APIKey:   "test-anthropic-cli-key-000",
 		},
 	}
 
@@ -335,7 +335,7 @@ func TestMatchCredentialProviderPrecedence(t *testing.T) {
 		},
 		Claude: runtimeconfig.CLICredential{
 			Provider: "anthropic",
-			APIKey:   "sk-abc",
+			APIKey:   "test-anthropic-cli-key-000",
 		},
 	}
 

@@ -47,7 +47,7 @@ func TestSubscribeEnvironmentsReceivesUpdates(t *testing.T) {
 func TestPublishEnvironmentsPreservesValues(t *testing.T) {
 	payload := EnvironmentPayload{
 		Host: map[string]string{
-			"API_KEY": "sk-secret-value",
+			"API_KEY": "test-env-api-key-000",
 			"PATH":    "/usr/bin",
 		},
 		Captured: time.Now(),
@@ -63,7 +63,7 @@ func TestPublishEnvironmentsPreservesValues(t *testing.T) {
 
 	select {
 	case received := <-ch:
-		if received.Host["API_KEY"] != "sk-secret-value" {
+		if received.Host["API_KEY"] != "test-env-api-key-000" {
 			t.Fatalf("expected host API_KEY to be preserved, got %q", received.Host["API_KEY"])
 		}
 		if received.Host["PATH"] != "/usr/bin" {
@@ -78,7 +78,7 @@ func TestPublishEnvironmentsPreservesValues(t *testing.T) {
 		t.Fatal("expected payload to be stored")
 	}
 
-	if latest.Host["API_KEY"] != "sk-secret-value" {
+	if latest.Host["API_KEY"] != "test-env-api-key-000" {
 		t.Fatalf("expected stored host API_KEY to be preserved, got %q", latest.Host["API_KEY"])
 	}
 }

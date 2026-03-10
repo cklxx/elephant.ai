@@ -95,7 +95,7 @@ func TestExecuteSetupCommandWithProviderAPIKeyDefaults(t *testing.T) {
 
 	var out bytes.Buffer
 	err := executeSetupCommandWith(
-		[]string{"--provider", "openai", "--api-key", "sk-test-openai"},
+		[]string{"--provider", "openai", "--api-key", "test-openai-cli-key-000"},
 		strings.NewReader(""),
 		&out,
 		runtimeconfig.CLICredentials{},
@@ -115,7 +115,7 @@ func TestExecuteSetupCommandWithProviderAPIKeyDefaults(t *testing.T) {
 	if overrides.LLMModel == nil || *overrides.LLMModel == "" {
 		t.Fatalf("expected default llm_model, got %#v", overrides.LLMModel)
 	}
-	if overrides.APIKey == nil || *overrides.APIKey != "sk-test-openai" {
+	if overrides.APIKey == nil || *overrides.APIKey != "test-openai-cli-key-000" {
 		t.Fatalf("expected api_key override, got %#v", overrides.APIKey)
 	}
 	if overrides.BaseURL == nil || *overrides.BaseURL == "" {
