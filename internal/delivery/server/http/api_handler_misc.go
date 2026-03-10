@@ -168,3 +168,15 @@ func (h *APIHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 
 	h.writeJSON(w, httpStatus, response)
 }
+
+// HandleModelHealthDebug handles GET /api/debug/health/models — returns per-model
+// sanitized telemetry (error rates, health scores, state). Only exposed on the
+// debug server, never on the public /health endpoint.
+func (h *APIHandler) HandleModelHealthDebug(w http.ResponseWriter, r *http.Request) {
+	if h.healthChecker == nil {
+		h.writeJSON(w, http.StatusOK, map[string]interface{}{"models": nil})
+		return
+	}
+	details := h.healthChecker.ModelHealthDetails()
+	h.writeJSON(w, http.StatusOK, map[string]interface{}{"models": details})
+}

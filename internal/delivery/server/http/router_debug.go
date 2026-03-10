@@ -71,6 +71,7 @@ func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 
 	// ── Health ──
 	mux.Handle("GET /health", routeHandler("/health", http.HandlerFunc(apiHandler.HandleHealthCheck)))
+	mux.Handle("GET /api/debug/health/models", routeHandler("/api/debug/health/models", http.HandlerFunc(apiHandler.HandleModelHealthDebug)))
 	if deps.StartupProfileHandler != nil {
 		mux.Handle("GET /api/health/startup-profile", routeHandler("/api/health/startup-profile", deps.StartupProfileHandler))
 	}

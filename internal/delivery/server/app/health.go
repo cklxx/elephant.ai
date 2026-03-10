@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"alex/internal/app/di"
@@ -39,6 +40,19 @@ func (h *HealthCheckerImpl) CheckAll(ctx context.Context) []ports.ComponentHealt
 		results = append(results, probe.Check(ctx))
 	}
 	return results
+}
+
+// ModelHealthDetails returns per-model sanitized health data for the debug endpoint.
+// Returns nil if no LLMModelHealthProbe is registered.
+func (h *HealthCheckerImpl) ModelHealthDetails() interface{} {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for _, probe := range h.probes {
+		if mp, ok := probe.(*LLMModelHealthProbe); ok {
+			return mp.DetailedHealth()
+		}
+	}
+	return nil
 }
 
 // DegradedComponentsSource provides a snapshot of degraded components.
@@ -80,19 +94,20 @@ func (p *DegradedProbe) Check(ctx context.Context) ports.ComponentHealth {
 // ModelHealthFunc returns per-model health data as an opaque slice for the Details field.
 type ModelHealthFunc func() interface{}
 
-// LLMModelHealthProbe reports per-model health via the health endpoint.
+// LLMModelHealthProbe reports aggregate LLM health via the public /health endpoint.
+// Per-model telemetry (error rates, latency percentiles) is only available through
+// the debug endpoint /api/debug/health/models.
 type LLMModelHealthProbe struct {
 	fn ModelHealthFunc
 }
 
-// NewLLMModelHealthProbe creates a probe that exposes per-model health data.
+// NewLLMModelHealthProbe creates a probe that exposes aggregate model health.
 func NewLLMModelHealthProbe(fn ModelHealthFunc) *LLMModelHealthProbe {
 	return &LLMModelHealthProbe{fn: fn}
 }
 
-// Check returns per-model health snapshots in the Details field.
-// Sensitive information (raw errors, provider names, endpoint URLs) is stripped;
-// only model name, health score, error rate/class, and state are exposed.
+// Check returns an aggregate health summary without per-model telemetry.
+// Only the model count and overall state are exposed on the public /health endpoint.
 func (p *LLMModelHealthProbe) Check(ctx context.Context) ports.ComponentHealth {
 	if p.fn == nil {
 		return ports.ComponentHealth{
@@ -111,15 +126,62 @@ func (p *LLMModelHealthProbe) Check(ctx context.Context) ports.ComponentHealth {
 		}
 	}
 
-	// Sanitize before exposing to the HTTP layer:
-	// strip raw error messages, provider names, endpoint URLs, latency internals.
-	sanitized := sanitizeModelHealth(details)
-
+	aggregate := aggregateModelHealth(details)
 	return ports.ComponentHealth{
 		Name:    "llm_models",
-		Status:  ports.HealthStatusReady,
-		Message: "Per-model health data",
-		Details: sanitized,
+		Status:  aggregate.status,
+		Message: aggregate.message,
+	}
+}
+
+// DetailedHealth returns per-model sanitized health data for the debug endpoint.
+func (p *LLMModelHealthProbe) DetailedHealth() interface{} {
+	if p.fn == nil {
+		return nil
+	}
+	raw := p.fn()
+	return sanitizeModelHealth(raw)
+}
+
+// modelAggregate holds the computed aggregate across all tracked models.
+type modelAggregate struct {
+	status  ports.HealthStatus
+	message string
+}
+
+// aggregateModelHealth reduces per-model data to a single aggregate status.
+func aggregateModelHealth(raw interface{}) modelAggregate {
+	healths, ok := raw.([]llm.ProviderHealth)
+	if !ok || len(healths) == 0 {
+		return modelAggregate{
+			status:  ports.HealthStatusReady,
+			message: "No models tracked yet",
+		}
+	}
+
+	var totalScore float64
+	var downCount, degradedCount int
+	for _, h := range healths {
+		totalScore += h.HealthScore
+		switch string(h.State) {
+		case "down":
+			downCount++
+		case "degraded":
+			degradedCount++
+		}
+	}
+	avgScore := totalScore / float64(len(healths))
+
+	status := ports.HealthStatusReady
+	if downCount > 0 {
+		status = ports.HealthStatusNotReady
+	} else if degradedCount > 0 {
+		status = ports.HealthStatusNotReady
+	}
+
+	return modelAggregate{
+		status:  status,
+		message: fmt.Sprintf("%d models tracked, avg health score %.0f", len(healths), avgScore),
 	}
 }
 

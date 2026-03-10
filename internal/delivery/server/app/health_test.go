@@ -161,7 +161,7 @@ func TestDegradedProbe(t *testing.T) {
 	})
 }
 
-func TestLLMModelHealthProbe_SanitizesOutput(t *testing.T) {
+func TestLLMModelHealthProbe_PublicEndpointShowsAggregateOnly(t *testing.T) {
 	sensitiveError := "POST https://api.openai.com/v1/chat: 429 rate limit (key=sk-proj-SECRET123)"
 	internalProvider := "my-internal-openai-proxy"
 
@@ -185,28 +185,88 @@ func TestLLMModelHealthProbe_SanitizesOutput(t *testing.T) {
 		t.Fatalf("expected name llm_models, got %s", health.Name)
 	}
 
-	// Serialize to JSON — this is what the HTTP handler sends.
-	data, err := json.Marshal(health.Details)
+	// Public endpoint must NOT expose per-model details.
+	if health.Details != nil {
+		t.Fatalf("expected nil Details on public health check, got %v", health.Details)
+	}
+
+	// Serialize to JSON — this is what the public /health handler sends.
+	data, err := json.Marshal(health)
 	if err != nil {
 		t.Fatalf("json marshal: %v", err)
 	}
 	output := string(data)
 
-	// Must NOT contain sensitive data.
+	// Must NOT contain any model-level telemetry.
 	for _, needle := range []string{
 		"api.openai.com",
 		"sk-proj-SECRET123",
-		"rate limit (key=",
 		internalProvider,
-		"POST https://",
+		"gpt-4",
+		"error_rate",
+		"health_score",
+		"latency",
 		"failure_count",
 	} {
 		if strings.Contains(output, needle) {
-			t.Errorf("sanitized output contains %q:\n%s", needle, output)
+			t.Errorf("public health output contains %q:\n%s", needle, output)
 		}
 	}
 
-	// Must contain safe fields.
+	// Message should contain aggregate info.
+	if !strings.Contains(health.Message, "1 models tracked") {
+		t.Errorf("expected aggregate message, got %q", health.Message)
+	}
+
+	// Degraded model → status should reflect degradation.
+	if health.Status != ports.HealthStatusNotReady {
+		t.Errorf("expected not_ready for degraded model, got %s", health.Status)
+	}
+}
+
+func TestLLMModelHealthProbe_DebugEndpointShowsPerModelDetails(t *testing.T) {
+	sensitiveError := "POST https://api.openai.com/v1/chat: 429 rate limit (key=sk-proj-SECRET123)"
+	internalProvider := "my-internal-openai-proxy"
+
+	probe := NewLLMModelHealthProbe(func() interface{} {
+		return []llm.ProviderHealth{
+			{
+				Provider:     internalProvider,
+				Model:        "gpt-4",
+				State:        "degraded",
+				LastError:    sensitiveError,
+				FailureCount: 10,
+				ErrorRate:    0.15,
+				HealthScore:  44.0,
+				LastChecked:  time.Now(),
+			},
+		}
+	})
+
+	details := probe.DetailedHealth()
+	if details == nil {
+		t.Fatal("expected non-nil detailed health")
+	}
+
+	data, err := json.Marshal(details)
+	if err != nil {
+		t.Fatalf("json marshal: %v", err)
+	}
+	output := string(data)
+
+	// Debug endpoint must NOT contain raw sensitive data (still sanitized).
+	for _, needle := range []string{
+		"api.openai.com",
+		"sk-proj-SECRET123",
+		internalProvider,
+		"failure_count",
+	} {
+		if strings.Contains(output, needle) {
+			t.Errorf("debug output contains raw sensitive data %q:\n%s", needle, output)
+		}
+	}
+
+	// Debug endpoint SHOULD contain per-model telemetry.
 	for _, needle := range []string{
 		"gpt-4",
 		"degraded",
@@ -215,7 +275,7 @@ func TestLLMModelHealthProbe_SanitizesOutput(t *testing.T) {
 		"health_score",
 	} {
 		if !strings.Contains(output, needle) {
-			t.Errorf("sanitized output missing %q:\n%s", needle, output)
+			t.Errorf("debug output missing expected field %q:\n%s", needle, output)
 		}
 	}
 }
@@ -234,19 +294,70 @@ func TestLLMModelHealthProbe_NilDetails(t *testing.T) {
 	if health.Status != ports.HealthStatusReady {
 		t.Errorf("expected ready, got %s", health.Status)
 	}
-	if health.Details != nil {
-		t.Errorf("expected nil details, got %v", health.Details)
+	if health.Message != "No models tracked yet" {
+		t.Errorf("expected 'No models tracked yet' message, got %q", health.Message)
 	}
 }
 
 func TestLLMModelHealthProbe_UnknownType(t *testing.T) {
-	// If ModelHealthFunc returns an unexpected type, sanitize returns nil.
+	// If ModelHealthFunc returns an unexpected type, aggregation returns "no models".
 	probe := NewLLMModelHealthProbe(func() interface{} {
 		return "unexpected string"
 	})
 	health := probe.Check(context.Background())
-	if health.Details != nil {
-		t.Errorf("expected nil details for unknown type, got %v", health.Details)
+	if health.Status != ports.HealthStatusReady {
+		t.Errorf("expected ready for unknown type, got %s", health.Status)
+	}
+}
+
+func TestModelHealthDetails_ReturnsNilForNilFunction(t *testing.T) {
+	probe := NewLLMModelHealthProbe(nil)
+	details := probe.DetailedHealth()
+	if details != nil {
+		t.Errorf("expected nil details for nil function, got %v", details)
+	}
+}
+
+func TestHealthCheckerImpl_ModelHealthDetails(t *testing.T) {
+	checker := NewHealthChecker()
+	probe := NewLLMModelHealthProbe(func() interface{} {
+		return []llm.ProviderHealth{
+			{
+				Provider:    "openai",
+				Model:       "gpt-4",
+				State:       "healthy",
+				HealthScore: 100,
+			},
+		}
+	})
+	checker.RegisterProbe(probe)
+
+	details := checker.ModelHealthDetails()
+	if details == nil {
+		t.Fatal("expected non-nil model health details")
+	}
+
+	sanitized, ok := details.([]llm.SanitizedHealth)
+	if !ok {
+		t.Fatalf("expected []SanitizedHealth, got %T", details)
+	}
+	if len(sanitized) != 1 {
+		t.Fatalf("expected 1 model, got %d", len(sanitized))
+	}
+	if sanitized[0].Model != "gpt-4" {
+		t.Errorf("expected gpt-4, got %s", sanitized[0].Model)
+	}
+}
+
+func TestHealthCheckerImpl_ModelHealthDetails_NoProbe(t *testing.T) {
+	checker := NewHealthChecker()
+	// Register a non-model probe.
+	checker.RegisterProbe(&mockHealthProbe{
+		health: ports.ComponentHealth{Name: "test", Status: ports.HealthStatusReady},
+	})
+	details := checker.ModelHealthDetails()
+	if details != nil {
+		t.Errorf("expected nil when no model health probe, got %v", details)
 	}
 }
 
