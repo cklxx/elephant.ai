@@ -114,8 +114,9 @@ type Radar struct {
 	logger   logging.Logger
 	nowFunc  func() time.Time // for testing
 
-	mu      sync.Mutex
-	history map[string]*taskHistory // taskID → bounded alert history
+	mu           sync.Mutex
+	history      map[string]*taskHistory // taskID → bounded alert history
+	lastNotified map[string]time.Time    // "taskID:reason" → last notification time
 }
 
 // NewRadar creates a Blocker Radar.
@@ -138,7 +139,8 @@ func NewRadar(store task.Store, notifier notification.Notifier, cfg Config) *Rad
 		config:   cfg,
 		logger:   logging.NewComponentLogger("blocker_radar"),
 		nowFunc:  time.Now,
-		history:  make(map[string]*taskHistory),
+		history:      make(map[string]*taskHistory),
+		lastNotified: make(map[string]time.Time),
 	}
 }
 
@@ -323,6 +325,145 @@ func (r *Radar) SendAlerts(ctx context.Context) (*ScanResult, error) {
 
 	r.logger.Info("Blocker Radar: sent %d alert(s) to %s/%s", len(result.Alerts), r.config.Channel, r.config.ChatID)
 	return result, nil
+}
+
+// notifyCooldown is the minimum interval between notifications for the same
+// task+reason pair. Alerts within this window are suppressed.
+const notifyCooldown = 24 * time.Hour
+
+// NotifyResult holds the outcome of a NotifyBlockedTasks call.
+type NotifyResult struct {
+	Scanned    int
+	Detected   int
+	Notified   int
+	Suppressed int
+}
+
+// NotifyBlockedTasks runs a scan, then sends a per-task Lark notification
+// for each blocked task that hasn't been notified in the last 24 hours.
+// Each notification includes task details and a suggested action.
+func (r *Radar) NotifyBlockedTasks(ctx context.Context) (*NotifyResult, error) {
+	result, err := r.Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("scan: %w", err)
+	}
+
+	nr := &NotifyResult{
+		Scanned:  result.TasksScanned,
+		Detected: len(result.Alerts),
+	}
+
+	if len(result.Alerts) == 0 {
+		return nr, nil
+	}
+
+	now := r.nowFunc()
+
+	for _, a := range result.Alerts {
+		key := notifyKey(a.Task.TaskID, a.Reason)
+		if r.isRecentlyNotified(key, now) {
+			nr.Suppressed++
+			continue
+		}
+
+		content := FormatTaskNotification(a)
+
+		if r.notifier == nil {
+			r.logger.Info("NotifyBlockedTasks (no notifier): %s — %s", a.Task.TaskID, a.Reason)
+			r.recordNotified(key, now)
+			nr.Notified++
+			continue
+		}
+
+		target := notification.Target{
+			Channel: r.config.Channel,
+			ChatID:  r.config.ChatID,
+		}
+		if err := r.notifier.Send(ctx, target, content); err != nil {
+			r.logger.Warn("NotifyBlockedTasks: send failed for task %s: %v", a.Task.TaskID, err)
+			continue
+		}
+
+		r.recordNotified(key, now)
+		nr.Notified++
+	}
+
+	r.logger.Info("NotifyBlockedTasks: detected=%d notified=%d suppressed=%d",
+		nr.Detected, nr.Notified, nr.Suppressed)
+	return nr, nil
+}
+
+func notifyKey(taskID string, reason BlockReason) string {
+	return taskID + ":" + string(reason)
+}
+
+func (r *Radar) isRecentlyNotified(key string, now time.Time) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ts, ok := r.lastNotified[key]
+	return ok && now.Sub(ts) < notifyCooldown
+}
+
+func (r *Radar) recordNotified(key string, now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lastNotified[key] = now
+}
+
+// FormatTaskNotification renders a single blocked-task notification with
+// task details and a suggested action.
+func FormatTaskNotification(a Alert) string {
+	var b strings.Builder
+	icon := reasonIcon(a.Reason)
+	desc := truncate(taskLabel(a.Task), 80)
+
+	b.WriteString(fmt.Sprintf("%s **Blocked Task Alert**\n\n", icon))
+	b.WriteString(fmt.Sprintf("**Task:** %s\n", desc))
+	b.WriteString(fmt.Sprintf("**ID:** %s\n", a.Task.TaskID))
+	b.WriteString(fmt.Sprintf("**Status:** %s\n", a.Task.Status))
+	b.WriteString(fmt.Sprintf("**Reason:** %s\n", a.Detail))
+	if a.Age > 0 {
+		b.WriteString(fmt.Sprintf("**Duration:** %s\n", formatDuration(a.Age)))
+	}
+	b.WriteString(fmt.Sprintf("\n**Suggested action:** %s\n", suggestAction(a.Reason)))
+
+	return b.String()
+}
+
+func suggestAction(reason BlockReason) string {
+	switch reason {
+	case ReasonStaleProgress:
+		return "Check if the task is stuck or waiting on an external resource. Consider restarting or reassigning."
+	case ReasonHasError:
+		return "Review the error details and fix the root cause, then retry the task."
+	case ReasonWaitingInput:
+		return "Provide the requested input or clarification so the task can proceed."
+	case ReasonDepBlocked:
+		return "Unblock or complete the dependency tasks, or remove the dependency if no longer needed."
+	default:
+		return "Investigate the task and take appropriate action."
+	}
+}
+
+// ReapStaleNotifications removes dedup entries older than the given duration.
+func (r *Radar) ReapStaleNotifications(maxAge time.Duration) int {
+	if maxAge <= 0 {
+		maxAge = 7 * 24 * time.Hour
+	}
+	now := r.nowFunc()
+	cutoff := now.Add(-maxAge)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	reaped := 0
+	for key, ts := range r.lastNotified {
+		if ts.Before(cutoff) {
+			delete(r.lastNotified, key)
+			reaped++
+		}
+	}
+	return reaped
 }
 
 // ReapStale removes per-task history entries that have had no alert activity

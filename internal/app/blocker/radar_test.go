@@ -584,3 +584,292 @@ func TestReasonIcon(t *testing.T) {
 		}
 	}
 }
+
+// ---------- NotifyBlockedTasks tests ----------
+
+func TestNotifyBlockedTasks_NoAlerts(t *testing.T) {
+	store := newTestStore(t)
+	notif := &fakeNotifier{}
+	r := NewRadar(store, notif, DefaultConfig())
+
+	nr, err := r.NotifyBlockedTasks(context.Background())
+	if err != nil {
+		t.Fatalf("NotifyBlockedTasks: %v", err)
+	}
+	if nr.Detected != 0 || nr.Notified != 0 || nr.Suppressed != 0 {
+		t.Errorf("expected all zeros, got detected=%d notified=%d suppressed=%d",
+			nr.Detected, nr.Notified, nr.Suppressed)
+	}
+	if len(notif.sent) != 0 {
+		t.Error("should not send when no alerts")
+	}
+}
+
+func TestNotifyBlockedTasks_SendsPerTaskNotification(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.Create(ctx, makeTask("t1", "stuck deploy", task.StatusRunning))
+	_ = store.Create(ctx, makeTask("t2", "flaky build", task.StatusRunning))
+	_ = store.SetError(ctx, "t2", "build timeout")
+
+	notif := &fakeNotifier{}
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	cfg.Channel = "lark"
+	cfg.ChatID = "oc_test"
+	r := NewRadar(store, notif, cfg)
+	r.nowFunc = func() time.Time { return time.Now().Add(10 * time.Minute) }
+
+	nr, err := r.NotifyBlockedTasks(ctx)
+	if err != nil {
+		t.Fatalf("NotifyBlockedTasks: %v", err)
+	}
+	// t1: stale_progress, t2: stale_progress + has_error = 3 alerts
+	if nr.Detected < 3 {
+		t.Errorf("detected = %d, want >= 3", nr.Detected)
+	}
+	if nr.Notified != nr.Detected {
+		t.Errorf("notified = %d, want %d (first call, no dedup)", nr.Notified, nr.Detected)
+	}
+	if nr.Suppressed != 0 {
+		t.Errorf("suppressed = %d, want 0", nr.Suppressed)
+	}
+	if len(notif.sent) != nr.Detected {
+		t.Errorf("sent = %d, want %d", len(notif.sent), nr.Detected)
+	}
+	// Check notification content.
+	for _, msg := range notif.sent {
+		if msg.target.Channel != "lark" {
+			t.Errorf("channel = %q, want lark", msg.target.Channel)
+		}
+		if !strings.Contains(msg.content, "Blocked Task Alert") {
+			t.Error("notification should contain 'Blocked Task Alert'")
+		}
+		if !strings.Contains(msg.content, "Suggested action") {
+			t.Error("notification should contain 'Suggested action'")
+		}
+	}
+}
+
+func TestNotifyBlockedTasks_DeduplicatesWithin24h(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.Create(ctx, makeTask("t1", "stuck", task.StatusRunning))
+
+	notif := &fakeNotifier{}
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	cfg.Channel = "lark"
+	cfg.ChatID = "oc_test"
+	r := NewRadar(store, notif, cfg)
+
+	baseTime := time.Now().Add(10 * time.Minute)
+	r.nowFunc = func() time.Time { return baseTime }
+
+	// First call: should send.
+	nr1, _ := r.NotifyBlockedTasks(ctx)
+	if nr1.Notified == 0 {
+		t.Fatal("first call should send notifications")
+	}
+	if nr1.Suppressed != 0 {
+		t.Errorf("first call suppressed = %d, want 0", nr1.Suppressed)
+	}
+
+	sentAfterFirst := len(notif.sent)
+
+	// Second call at same time: should suppress.
+	nr2, _ := r.NotifyBlockedTasks(ctx)
+	if nr2.Notified != 0 {
+		t.Errorf("second call notified = %d, want 0 (dedup)", nr2.Notified)
+	}
+	if nr2.Suppressed != nr2.Detected {
+		t.Errorf("second call suppressed = %d, want %d", nr2.Suppressed, nr2.Detected)
+	}
+	if len(notif.sent) != sentAfterFirst {
+		t.Error("second call should not send additional notifications")
+	}
+}
+
+func TestNotifyBlockedTasks_ResendAfter24h(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.Create(ctx, makeTask("t1", "stuck", task.StatusRunning))
+
+	notif := &fakeNotifier{}
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	cfg.Channel = "lark"
+	cfg.ChatID = "oc_test"
+	r := NewRadar(store, notif, cfg)
+
+	t0 := time.Now().Add(10 * time.Minute)
+	r.nowFunc = func() time.Time { return t0 }
+
+	// First call.
+	nr1, _ := r.NotifyBlockedTasks(ctx)
+	if nr1.Notified == 0 {
+		t.Fatal("first call should notify")
+	}
+	sentAfterFirst := len(notif.sent)
+
+	// Advance 25 hours — past cooldown.
+	t1 := t0.Add(25 * time.Hour)
+	r.nowFunc = func() time.Time { return t1 }
+
+	nr2, _ := r.NotifyBlockedTasks(ctx)
+	if nr2.Notified == 0 {
+		t.Error("should re-notify after 24h cooldown")
+	}
+	if len(notif.sent) <= sentAfterFirst {
+		t.Error("should have sent additional notifications after cooldown")
+	}
+}
+
+func TestNotifyBlockedTasks_DifferentReasonsNotDeduplicated(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	tk := makeTask("t1", "stuck with error", task.StatusRunning)
+	_ = store.Create(ctx, tk)
+	_ = store.SetError(ctx, "t1", "connection timeout")
+
+	notif := &fakeNotifier{}
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	cfg.Channel = "lark"
+	cfg.ChatID = "oc_test"
+	r := NewRadar(store, notif, cfg)
+	r.nowFunc = func() time.Time { return time.Now().Add(10 * time.Minute) }
+
+	nr, _ := r.NotifyBlockedTasks(ctx)
+	// t1 should have stale_progress + has_error = 2 distinct alerts.
+	if nr.Detected < 2 {
+		t.Fatalf("detected = %d, want >= 2", nr.Detected)
+	}
+	// Both are first-time, so both should be notified.
+	if nr.Notified != nr.Detected {
+		t.Errorf("notified = %d, want %d (different reasons)", nr.Notified, nr.Detected)
+	}
+}
+
+func TestNotifyBlockedTasks_NoNotifier(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.Create(ctx, makeTask("t1", "stuck", task.StatusRunning))
+
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	r := NewRadar(store, nil, cfg)
+	r.nowFunc = func() time.Time { return time.Now().Add(10 * time.Minute) }
+
+	nr, err := r.NotifyBlockedTasks(ctx)
+	if err != nil {
+		t.Fatalf("NotifyBlockedTasks: %v", err)
+	}
+	if nr.Notified == 0 {
+		t.Error("should count as notified even without notifier")
+	}
+}
+
+func TestFormatTaskNotification_Content(t *testing.T) {
+	a := Alert{
+		Task:   &task.Task{TaskID: "t1", Description: "deploy service", Status: task.StatusRunning},
+		Reason: ReasonStaleProgress,
+		Detail: "no progress for 2 hours",
+		Age:    2 * time.Hour,
+	}
+	out := FormatTaskNotification(a)
+	checks := []string{
+		"Blocked Task Alert",
+		"deploy service",
+		"t1",
+		"running",
+		"no progress for 2 hours",
+		"2 hours",
+		"Suggested action",
+		"restarting",
+	}
+	for _, c := range checks {
+		if !strings.Contains(out, c) {
+			t.Errorf("missing %q in output:\n%s", c, out)
+		}
+	}
+}
+
+func TestFormatTaskNotification_AllReasons(t *testing.T) {
+	reasons := []BlockReason{ReasonStaleProgress, ReasonHasError, ReasonWaitingInput, ReasonDepBlocked}
+	for _, reason := range reasons {
+		a := Alert{
+			Task:   &task.Task{TaskID: "t1", Description: "test", Status: task.StatusRunning},
+			Reason: reason,
+			Detail: "test detail",
+		}
+		out := FormatTaskNotification(a)
+		if !strings.Contains(out, "Suggested action") {
+			t.Errorf("reason %s: missing suggested action in output", reason)
+		}
+	}
+}
+
+func TestSuggestAction_AllReasons(t *testing.T) {
+	tests := []struct {
+		reason BlockReason
+		substr string
+	}{
+		{ReasonStaleProgress, "restarting"},
+		{ReasonHasError, "Review the error"},
+		{ReasonWaitingInput, "Provide the requested input"},
+		{ReasonDepBlocked, "Unblock"},
+		{BlockReason("unknown"), "Investigate"},
+	}
+	for _, tt := range tests {
+		got := suggestAction(tt.reason)
+		if !strings.Contains(got, tt.substr) {
+			t.Errorf("suggestAction(%s) = %q, want substring %q", tt.reason, got, tt.substr)
+		}
+	}
+}
+
+func TestReapStaleNotifications(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.Create(ctx, makeTask("t1", "stuck", task.StatusRunning))
+
+	notif := &fakeNotifier{}
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	cfg.Channel = "lark"
+	cfg.ChatID = "oc_test"
+	r := NewRadar(store, notif, cfg)
+
+	t0 := time.Now().Add(10 * time.Minute)
+	r.nowFunc = func() time.Time { return t0 }
+
+	// Trigger notification to populate lastNotified.
+	r.NotifyBlockedTasks(ctx)
+
+	// Reap with short age — nothing old yet.
+	reaped := r.ReapStaleNotifications(1 * time.Hour)
+	if reaped != 0 {
+		t.Errorf("reaped = %d, want 0 (recent entries)", reaped)
+	}
+
+	// Advance 8 days and reap with 7-day threshold.
+	r.nowFunc = func() time.Time { return t0.Add(8 * 24 * time.Hour) }
+	reaped = r.ReapStaleNotifications(7 * 24 * time.Hour)
+	if reaped == 0 {
+		t.Error("expected stale notification entries to be reaped")
+	}
+
+	// After reap, same task should be notified again (dedup cleared).
+	r.nowFunc = func() time.Time { return t0.Add(8 * 24 * time.Hour) }
+	nr, _ := r.NotifyBlockedTasks(ctx)
+	if nr.Notified == 0 {
+		t.Error("after reap, should be able to re-notify")
+	}
+}
