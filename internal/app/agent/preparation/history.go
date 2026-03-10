@@ -128,27 +128,7 @@ func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context,
 	}
 	summaryCtx, cancel := context.WithTimeout(ctx, historySummaryLLMTimeout)
 	defer cancel()
-	streaming, ok := llm.EnsureStreamingClient(client).(llm.StreamingLLMClient)
-	if !ok {
-		resp, err := client.Complete(summaryCtx, req)
-		if err != nil {
-			s.logger.Warn("History summary composition failed (request_id=%s): %v", requestID, err)
-			return nil
-		}
-		if resp == nil || utils.IsBlank(resp.Content) {
-			s.logger.Warn("History summary composition returned empty response (request_id=%s)", requestID)
-			return nil
-		}
-		summary := strings.TrimSpace(resp.Content)
-		return []ports.Message{{
-			Role:    "system",
-			Content: summary,
-			Source:  ports.MessageSourceUserHistory,
-		}}
-	}
-	resp, err := streaming.StreamComplete(summaryCtx, req, ports.CompletionStreamCallbacks{
-		OnContentDelta: func(ports.ContentDelta) {},
-	})
+	resp, err := completeWithStreaming(summaryCtx, client, req)
 	if err != nil {
 		s.logger.Warn("History summary composition failed (request_id=%s): %v", requestID, err)
 		return nil
@@ -157,10 +137,9 @@ func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context,
 		s.logger.Warn("History summary composition returned empty response (request_id=%s)", requestID)
 		return nil
 	}
-	summary := strings.TrimSpace(resp.Content)
 	return []ports.Message{{
 		Role:    "system",
-		Content: summary,
+		Content: strings.TrimSpace(resp.Content),
 		Source:  ports.MessageSourceUserHistory,
 	}}
 }

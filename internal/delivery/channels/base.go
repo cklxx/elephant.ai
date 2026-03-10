@@ -38,7 +38,7 @@ func (g *BaseGateway) SessionLock(sessionID string) *sync.Mutex {
 }
 
 // BuildBaseContext assembles the context keys common to every channel gateway
-// (session ID, user ID, log ID, channel name, chat ID, group flag, memory policy).
+// (session ID, user ID, log ID, channel name, chat ID, memory policy).
 func BuildBaseContext(cfg BaseConfig, channel, sessionID, userID, chatID string, isGroup bool) context.Context {
 	ctx := context.Background()
 	ctx = id.WithSessionID(ctx, sessionID)
@@ -46,7 +46,6 @@ func BuildBaseContext(cfg BaseConfig, channel, sessionID, userID, chatID string,
 	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
 	ctx = appcontext.WithChannel(ctx, channel)
 	ctx = appcontext.WithChatID(ctx, chatID)
-	ctx = appcontext.WithIsGroup(ctx, isGroup)
 	if cfg.MemoryEnabled {
 		ctx = appcontext.WithMemoryPolicy(ctx, appcontext.MemoryPolicy{
 			Enabled:         true,

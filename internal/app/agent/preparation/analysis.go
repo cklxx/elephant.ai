@@ -80,28 +80,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	preanalysisStarted := time.Now()
 	analysisCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
-	streaming, ok := llm.EnsureStreamingClient(client).(llm.StreamingLLMClient)
-	if !ok {
-		resp, err := client.Complete(analysisCtx, req)
-		clilatency.PrintfWithContext(ctx,
-			"[latency] preanalysis_ms=%.2f model=%s\n",
-			float64(time.Since(preanalysisStarted))/float64(time.Millisecond),
-			strings.TrimSpace(profile.Model),
-		)
-		if err != nil || resp == nil {
-			s.logger.Warn("Task pre-analysis failed: %v", err)
-			return nil
-		}
-		analysis := parseTaskAnalysis(resp.Content)
-		if analysis == nil {
-			s.logger.Warn("Task pre-analysis returned unparsable output")
-			return nil
-		}
-		return analysis
-	}
-	resp, err := streaming.StreamComplete(analysisCtx, req, ports.CompletionStreamCallbacks{
-		OnContentDelta: func(ports.ContentDelta) {},
-	})
+	resp, err := completeWithStreaming(analysisCtx, client, req)
 	clilatency.PrintfWithContext(ctx,
 		"[latency] preanalysis_ms=%.2f model=%s\n",
 		float64(time.Since(preanalysisStarted))/float64(time.Millisecond),
@@ -117,6 +96,19 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		return nil
 	}
 	return analysis
+}
+
+// completeWithStreaming executes a completion request, preferring the streaming
+// path when the client supports it. This eliminates the duplicated
+// streaming-vs-non-streaming branching that was previously copy-pasted across
+// preAnalyzeTask and composeHistorySummary.
+func completeWithStreaming(ctx context.Context, client llm.LLMClient, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	if streaming, ok := llm.EnsureStreamingClient(client).(llm.StreamingLLMClient); ok {
+		return streaming.StreamComplete(ctx, req, ports.CompletionStreamCallbacks{
+			OnContentDelta: func(ports.ContentDelta) {},
+		})
+	}
+	return client.Complete(ctx, req)
 }
 
 func quickTriageTask(task string) (*agent.TaskAnalysis, bool) {

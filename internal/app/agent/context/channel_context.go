@@ -4,7 +4,6 @@ import "context"
 
 type channelKey struct{}
 type chatIDKey struct{}
-type isGroupKey struct{}
 
 // WithChannel annotates the request context with its channel identifier
 // (e.g., lark/cli/web).
@@ -39,8 +38,4 @@ func ChatIDFromContext(ctx context.Context) string {
 	return ""
 }
 
-// WithIsGroup annotates whether the request originates from a group chat.
-func WithIsGroup(ctx context.Context, isGroup bool) context.Context {
-	return context.WithValue(ctx, isGroupKey{}, isGroup)
-}
 

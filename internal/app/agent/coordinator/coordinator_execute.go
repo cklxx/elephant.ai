@@ -17,7 +17,6 @@ import (
 	infraadapters "alex/internal/infra/adapters"
 	infraruntime "alex/internal/infra/runtime"
 	"alex/internal/infra/tools/builtin/shared"
-	utils "alex/internal/shared/utils"
 	"alex/internal/shared/utils/clilatency"
 	id "alex/internal/shared/utils/id"
 )
@@ -380,54 +379,22 @@ func (c *AgentCoordinator) finalizeExecution(
 		logger.Error("Task execution failed: %v", executionErr)
 	}
 
-	// Log session-level cost/token metrics
-	if c.costTracker != nil {
-		sessionStats, err := c.costTracker.GetSessionStats(ctx, env.Session.ID)
-		if err != nil {
-			logger.Warn("Failed to get session stats: %v", err)
-		} else {
-			logger.Info("Session summary: requests=%d, total_tokens=%d (input=%d, output=%d), cost=$%.6f, duration=%v",
-				sessionStats.RequestCount, sessionStats.TotalTokens,
-				sessionStats.InputTokens, sessionStats.OutputTokens,
-				sessionStats.TotalCost, sessionStats.Duration)
-		}
-	}
+	c.logSessionCost(ctx, env.Session.ID, logger)
+	c.runPostTaskHooks(ctx, task, env, result, executionErr, ensuredRunID, logger)
 
-	// Run proactive hooks (post-task processing, etc.)
-	if c.hookRegistry != nil && !appcontext.IsSubagentContext(ctx) && executionErr == nil {
-		hookResult := hooks.TaskResultInfo{
-			TaskInput:  task,
-			Answer:     result.Answer,
-			SessionID:  env.Session.ID,
-			RunID:      ensuredRunID,
-			UserID:     c.resolveUserID(ctx, env.Session),
-			Iterations: result.Iterations,
-			StopReason: result.StopReason,
-			ToolCalls:  extractToolCallInfo(result),
-		}
-		c.hookRegistry.RunOnTaskCompleted(ctx, hookResult)
-	}
-
-	// Stamp execution error into session metadata so it survives persistence.
 	if executionErr != nil {
 		metadata := storage.EnsureMetadata(env.Session)
 		metadata["last_error"] = executionErr.Error()
 		metadata["last_error_at"] = c.clock.Now().UTC().Format(time.RFC3339)
 	}
 
-	// Save session unless this is a delegated subagent run.
 	wf.start(stagePersist)
 	if appcontext.IsSubagentContext(ctx) {
 		logger.Debug("Skipping session persistence for subagent execution")
 		wf.succeed(stagePersist, "skipped (subagent context)")
 	} else {
 		if title := strings.TrimSpace(dispatcher.Title()); title != "" {
-			if env.Session.Metadata == nil {
-				env.Session.Metadata = make(map[string]string)
-			}
-			if utils.IsBlank(env.Session.Metadata["title"]) {
-				env.Session.Metadata["title"] = title
-			}
+			ensureSessionMetadata(env.Session, "title", title)
 		}
 		if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
 			wf.fail(stagePersist, err)
@@ -445,4 +412,46 @@ func (c *AgentCoordinator) finalizeExecution(
 	}
 
 	return attachWorkflow(result, env), nil
+}
+
+// logSessionCost logs session-level cost/token metrics.
+func (c *AgentCoordinator) logSessionCost(ctx context.Context, sessionID string, logger agent.Logger) {
+	if c.costTracker == nil {
+		return
+	}
+	sessionStats, err := c.costTracker.GetSessionStats(ctx, sessionID)
+	if err != nil {
+		logger.Warn("Failed to get session stats: %v", err)
+		return
+	}
+	logger.Info("Session summary: requests=%d, total_tokens=%d (input=%d, output=%d), cost=$%.6f, duration=%v",
+		sessionStats.RequestCount, sessionStats.TotalTokens,
+		sessionStats.InputTokens, sessionStats.OutputTokens,
+		sessionStats.TotalCost, sessionStats.Duration)
+}
+
+// runPostTaskHooks runs proactive hooks (memory capture, etc.) after task completion.
+func (c *AgentCoordinator) runPostTaskHooks(
+	ctx context.Context,
+	task string,
+	env *agent.ExecutionEnvironment,
+	result *agent.TaskResult,
+	executionErr error,
+	ensuredRunID string,
+	logger agent.Logger,
+) {
+	if c.hookRegistry == nil || appcontext.IsSubagentContext(ctx) || executionErr != nil {
+		return
+	}
+	hookResult := hooks.TaskResultInfo{
+		TaskInput:  task,
+		Answer:     result.Answer,
+		SessionID:  env.Session.ID,
+		RunID:      ensuredRunID,
+		UserID:     c.resolveUserID(ctx, env.Session),
+		Iterations: result.Iterations,
+		StopReason: result.StopReason,
+		ToolCalls:  extractToolCallInfo(result),
+	}
+	c.hookRegistry.RunOnTaskCompleted(ctx, hookResult)
 }

@@ -44,14 +44,6 @@ func TestChatIDFromContext_Nil(t *testing.T) {
 	}
 }
 
-func TestWithIsGroup(t *testing.T) {
-	ctx := WithIsGroup(context.Background(), true)
-	// WithIsGroup sets the value but has no getter — verify it doesn't panic.
-	if ctx == nil {
-		t.Fatal("WithIsGroup returned nil")
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Session history
 // ---------------------------------------------------------------------------
@@ -394,29 +386,6 @@ func TestChatIDFromContext_Overwrite(t *testing.T) {
 	ctx = WithChatID(ctx, "oc_second")
 	if got := ChatIDFromContext(ctx); got != "oc_second" {
 		t.Errorf("ChatIDFromContext after overwrite = %q, want oc_second", got)
-	}
-}
-
-func TestWithIsGroup_False(t *testing.T) {
-	ctx := WithIsGroup(context.Background(), false)
-	// No public getter — verify the value is stored correctly via raw access.
-	val, ok := ctx.Value(isGroupKey{}).(bool)
-	if !ok {
-		t.Fatal("isGroupKey should be retrievable")
-	}
-	if val {
-		t.Error("expected isGroup=false")
-	}
-}
-
-func TestWithIsGroup_True_RawAccess(t *testing.T) {
-	ctx := WithIsGroup(context.Background(), true)
-	val, ok := ctx.Value(isGroupKey{}).(bool)
-	if !ok {
-		t.Fatal("isGroupKey should be retrievable")
-	}
-	if !val {
-		t.Error("expected isGroup=true")
 	}
 }
 
@@ -779,7 +748,6 @@ func TestFullContextStacking(t *testing.T) {
 	ctx := context.Background()
 	ctx = WithChannel(ctx, "web")
 	ctx = WithChatID(ctx, "oc_123")
-	ctx = WithIsGroup(ctx, true)
 	ctx = WithSessionHistory(ctx, true)
 	ctx = MarkSubagentContext(ctx)
 	ctx = MarkUnattendedContext(ctx)
