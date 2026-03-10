@@ -113,13 +113,15 @@ func (g *GitHubProvider) DetectReviewBottlenecks(ctx context.Context, repo strin
 		if pr.ReviewState != signal.ReviewPending {
 			continue
 		}
+		waitSince := reviewWaitStart(pr)
+		if waitSince.IsZero() {
+			continue
+		}
+		waitDuration := now.Sub(waitSince)
+		if waitDuration < threshold {
+			continue
+		}
 		for _, reviewer := range pr.Reviewers {
-			// We approximate waiting time from PR creation. A full
-			// implementation would use the review_requested event timestamp.
-			waitDuration := now.Sub(time.Time{}) // placeholder — will be refined with event data
-			if waitDuration < threshold {
-				continue
-			}
 			bottlenecks = append(bottlenecks, signal.SignalEvent{
 				ID:        fmt.Sprintf("bottleneck-%s-%d-%s", repo, pr.Number, reviewer),
 				Kind:      signal.SignalReviewBottleneck,
@@ -130,7 +132,7 @@ func (g *GitHubProvider) DetectReviewBottlenecks(ctx context.Context, repo strin
 				Bottleneck: &signal.BottleneckContext{
 					PRURL:             pr.URL,
 					PRNumber:          pr.Number,
-					WaitingSince:      now.Add(-waitDuration),
+					WaitingSince:      waitSince,
 					WaitDuration:      waitDuration,
 					RequestedReviewer: reviewer,
 					Author:            pr.Author,
@@ -252,6 +254,8 @@ type ghPull struct {
 	State     string    `json:"state"`
 	Merged    bool      `json:"merged"`
 	HTMLURL   string    `json:"html_url"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 	User      ghActor   `json:"user"`
 	Head      ghRef     `json:"head"`
 	Base      ghRef     `json:"base"`
@@ -399,10 +403,22 @@ func ghPullToPRContext(gh ghPull) signal.PRContext {
 		Additions:   gh.Additions,
 		Deletions:   gh.Deletions,
 		URL:         gh.HTMLURL,
+		CreatedAt:   gh.CreatedAt,
+		UpdatedAt:   gh.UpdatedAt,
 	}
 }
 
 func ptrPRContext(pr signal.PRContext) *signal.PRContext { return &pr }
+
+func reviewWaitStart(pr signal.PRContext) time.Time {
+	if !pr.CreatedAt.IsZero() {
+		return pr.CreatedAt
+	}
+	if !pr.UpdatedAt.IsZero() {
+		return pr.UpdatedAt
+	}
+	return time.Time{}
+}
 
 // ticketPattern matches common ticket IDs like PROJ-123, ABC-1, etc.
 var ticketPattern = regexp.MustCompile(`(?i)([A-Z]{2,10}-\d+)`)

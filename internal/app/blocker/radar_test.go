@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"alex/internal/domain/signal"
+	signalports "alex/internal/domain/signal/ports"
 	"alex/internal/domain/task"
 	"alex/internal/infra/taskstore"
 	"alex/internal/shared/notification"
@@ -21,10 +23,49 @@ type sentMsg struct {
 	content string
 }
 
+type fakeGitSignalProvider struct {
+	bottlenecksByRepo map[string][]signal.SignalEvent
+	errByRepo         map[string]error
+	calls             []gitSignalCall
+}
+
+type gitSignalCall struct {
+	repo      string
+	threshold time.Duration
+}
+
 func (f *fakeNotifier) Send(_ context.Context, target notification.Target, content string) error {
 	f.sent = append(f.sent, sentMsg{target: target, content: content})
 	return nil
 }
+
+var _ signalports.GitSignalProvider = (*fakeGitSignalProvider)(nil)
+
+func (f *fakeGitSignalProvider) ListRecentEvents(context.Context, time.Time) ([]signal.SignalEvent, error) {
+	return nil, nil
+}
+
+func (f *fakeGitSignalProvider) GetPRStatus(context.Context, string, int) (*signal.PRContext, error) {
+	return nil, nil
+}
+
+func (f *fakeGitSignalProvider) ListOpenPRs(context.Context, string) ([]signal.PRContext, error) {
+	return nil, nil
+}
+
+func (f *fakeGitSignalProvider) DetectReviewBottlenecks(_ context.Context, repo string, threshold time.Duration) ([]signal.SignalEvent, error) {
+	f.calls = append(f.calls, gitSignalCall{repo: repo, threshold: threshold})
+	if err := f.errByRepo[repo]; err != nil {
+		return nil, err
+	}
+	return f.bottlenecksByRepo[repo], nil
+}
+
+func (f *fakeGitSignalProvider) ListCommitActivity(context.Context, string, string, time.Time) ([]signal.SignalEvent, error) {
+	return nil, nil
+}
+
+func (f *fakeGitSignalProvider) Provider() string { return "github" }
 
 func newTestStore(t *testing.T) task.Store {
 	t.Helper()
@@ -41,6 +82,35 @@ func makeTask(id, desc string, status task.Status) *task.Task {
 		Description: desc,
 		Status:      status,
 		Channel:     "test",
+	}
+}
+
+func makeReviewBottleneck(repo string, prNumber int, reviewer string, wait time.Duration) signal.SignalEvent {
+	now := time.Now()
+	return signal.SignalEvent{
+		ID:        "bottleneck-" + repo,
+		Kind:      signal.SignalReviewBottleneck,
+		Provider:  "github",
+		Repo:      repo,
+		Timestamp: now,
+		PR: &signal.PRContext{
+			Number:    prNumber,
+			Title:     "tighten retry path",
+			Author:    "alice",
+			State:     "open",
+			Branch:    "feat/PROJ-321-tighten-retries",
+			URL:       "https://github.com/" + repo + "/pull/12",
+			CreatedAt: now.Add(-wait),
+		},
+		Bottleneck: &signal.BottleneckContext{
+			PRURL:             "https://github.com/" + repo + "/pull/12",
+			PRNumber:          prNumber,
+			WaitingSince:      now.Add(-wait),
+			WaitDuration:      wait,
+			RequestedReviewer: reviewer,
+			Author:            "alice",
+		},
+		LinkedTicketID: "PROJ-321",
 	}
 }
 
@@ -292,6 +362,44 @@ func TestScan_MultipleAlerts(t *testing.T) {
 	// t1: stale + error = 2 alerts; t2: waiting_input = 1 alert.
 	if len(result.Alerts) < 3 {
 		t.Errorf("expected >= 3 alerts, got %d", len(result.Alerts))
+	}
+}
+
+func TestScan_IncludesGitReviewBottlenecks(t *testing.T) {
+	store := newTestStore(t)
+	cfg := DefaultConfig()
+	cfg.GitRepos = []string{"org/repo"}
+	cfg.GitReviewThreshold = 24 * time.Hour
+
+	r := NewRadar(store, nil, cfg)
+	r.GitSignalSource = &fakeGitSignalProvider{
+		bottlenecksByRepo: map[string][]signal.SignalEvent{
+			"org/repo": {makeReviewBottleneck("org/repo", 12, "bob", 26*time.Hour)},
+		},
+	}
+
+	result, err := r.Scan(context.Background())
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Alerts) != 1 {
+		t.Fatalf("expected 1 git alert, got %d", len(result.Alerts))
+	}
+	alert := result.Alerts[0]
+	if alert.Reason != ReasonGitReviewBlock {
+		t.Fatalf("reason = %q, want %q", alert.Reason, ReasonGitReviewBlock)
+	}
+	if alert.Task == nil {
+		t.Fatal("expected synthetic task for git blocker")
+	}
+	if !strings.Contains(alert.Task.Description, "org/repo PR #12 waiting for review") {
+		t.Fatalf("description = %q, want repo/pr context", alert.Task.Description)
+	}
+	if !strings.Contains(alert.Detail, "review from bob") {
+		t.Fatalf("detail = %q, want reviewer context", alert.Detail)
+	}
+	if alert.Age < 24*time.Hour {
+		t.Fatalf("age = %v, want >= 24h", alert.Age)
 	}
 }
 
@@ -576,6 +684,7 @@ func TestReasonIcon(t *testing.T) {
 		{ReasonHasError, "⚠"},
 		{ReasonWaitingInput, "⏳"},
 		{ReasonDepBlocked, "🔗"},
+		{ReasonGitReviewBlock, "👀"},
 		{BlockReason("unknown"), "!"},
 	}
 	for _, tt := range tests {
@@ -755,6 +864,63 @@ func TestNotifyBlockedTasks_DifferentReasonsNotDeduplicated(t *testing.T) {
 	}
 }
 
+func TestNotifyBlockedTasks_MergesTaskAndGitAlerts(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.Create(ctx, makeTask("t1", "stuck deploy", task.StatusRunning))
+
+	notif := &fakeNotifier{}
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	cfg.Channel = "lark"
+	cfg.ChatID = "oc_test"
+	cfg.GitRepos = []string{"org/repo"}
+	cfg.GitReviewThreshold = 24 * time.Hour
+
+	r := NewRadar(store, notif, cfg)
+	r.GitSignalSource = &fakeGitSignalProvider{
+		bottlenecksByRepo: map[string][]signal.SignalEvent{
+			"org/repo": {makeReviewBottleneck("org/repo", 17, "reviewer-1", 30*time.Hour)},
+		},
+	}
+	r.nowFunc = func() time.Time { return time.Now().Add(10 * time.Minute) }
+
+	nr, err := r.NotifyBlockedTasks(ctx)
+	if err != nil {
+		t.Fatalf("NotifyBlockedTasks: %v", err)
+	}
+	if nr.Detected != 2 {
+		t.Fatalf("detected = %d, want 2", nr.Detected)
+	}
+	if nr.Notified != 2 {
+		t.Fatalf("notified = %d, want 2", nr.Notified)
+	}
+	if len(notif.sent) != 2 {
+		t.Fatalf("sent = %d, want 2", len(notif.sent))
+	}
+
+	var sawTaskAlert bool
+	var sawGitAlert bool
+	for _, msg := range notif.sent {
+		switch {
+		case strings.Contains(msg.content, "stuck deploy"):
+			sawTaskAlert = true
+		case strings.Contains(msg.content, "org/repo PR #17 waiting for review"):
+			sawGitAlert = true
+			if !strings.Contains(msg.content, "reviewer-1") {
+				t.Fatalf("git alert missing reviewer context: %s", msg.content)
+			}
+		}
+	}
+	if !sawTaskAlert {
+		t.Fatal("expected task-based blocker notification")
+	}
+	if !sawGitAlert {
+		t.Fatal("expected git-based blocker notification")
+	}
+}
+
 func TestNotifyBlockedTasks_NoNotifier(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
@@ -801,7 +967,7 @@ func TestFormatTaskNotification_Content(t *testing.T) {
 }
 
 func TestFormatTaskNotification_AllReasons(t *testing.T) {
-	reasons := []BlockReason{ReasonStaleProgress, ReasonHasError, ReasonWaitingInput, ReasonDepBlocked}
+	reasons := []BlockReason{ReasonStaleProgress, ReasonHasError, ReasonWaitingInput, ReasonDepBlocked, ReasonGitReviewBlock}
 	for _, reason := range reasons {
 		a := Alert{
 			Task:   &task.Task{TaskID: "t1", Description: "test", Status: task.StatusRunning},
@@ -824,6 +990,7 @@ func TestSuggestAction_AllReasons(t *testing.T) {
 		{ReasonHasError, "Review the error"},
 		{ReasonWaitingInput, "Provide the requested input"},
 		{ReasonDepBlocked, "Unblock"},
+		{ReasonGitReviewBlock, "reassign the PR"},
 		{BlockReason("unknown"), "Investigate"},
 	}
 	for _, tt := range tests {

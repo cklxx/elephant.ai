@@ -9,10 +9,13 @@ package blocker
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"alex/internal/domain/signal"
+	signalports "alex/internal/domain/signal/ports"
 	"alex/internal/domain/task"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/notification"
@@ -36,17 +39,20 @@ const (
 	ReasonHasError       BlockReason = "has_error"
 	ReasonWaitingInput   BlockReason = "waiting_input"
 	ReasonDepBlocked     BlockReason = "dependency_blocked"
+	ReasonGitReviewBlock BlockReason = "git_review_blocked"
 )
 
 // Config controls Blocker Radar behavior.
 type Config struct {
-	Enabled              bool          `json:"enabled" yaml:"enabled"`
-	StaleThreshold       time.Duration `json:"-" yaml:"-"`                                         // derived from StaleThresholdSeconds
-	StaleThresholdSeconds int          `json:"stale_threshold_seconds" yaml:"stale_threshold_seconds"` // default 1800 (30 min)
-	InputWaitThreshold    time.Duration `json:"-" yaml:"-"`                                         // derived
-	InputWaitSeconds      int          `json:"input_wait_seconds" yaml:"input_wait_seconds"`         // default 900 (15 min)
-	Channel              string        `json:"channel" yaml:"channel"`
-	ChatID               string        `json:"chat_id" yaml:"chat_id"`
+	Enabled               bool          `json:"enabled" yaml:"enabled"`
+	StaleThreshold        time.Duration `json:"-" yaml:"-"`                                             // derived from StaleThresholdSeconds
+	StaleThresholdSeconds int           `json:"stale_threshold_seconds" yaml:"stale_threshold_seconds"` // default 1800 (30 min)
+	InputWaitThreshold    time.Duration `json:"-" yaml:"-"`                                             // derived
+	InputWaitSeconds      int           `json:"input_wait_seconds" yaml:"input_wait_seconds"`           // default 900 (15 min)
+	Channel               string        `json:"channel" yaml:"channel"`
+	ChatID                string        `json:"chat_id" yaml:"chat_id"`
+	GitRepos              []string      `json:"-" yaml:"-"`
+	GitReviewThreshold    time.Duration `json:"-" yaml:"-"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -71,8 +77,8 @@ type Alert struct {
 
 // ScanResult holds all detected blockers from a single scan.
 type ScanResult struct {
-	Alerts      []Alert
-	ScannedAt   time.Time
+	Alerts       []Alert
+	ScannedAt    time.Time
 	TasksScanned int
 }
 
@@ -114,6 +120,8 @@ type Radar struct {
 	logger   logging.Logger
 	nowFunc  func() time.Time // for testing
 
+	GitSignalSource signalports.GitSignalProvider
+
 	mu           sync.Mutex
 	history      map[string]*taskHistory // taskID → bounded alert history
 	lastNotified map[string]time.Time    // "taskID:reason" → last notification time
@@ -134,11 +142,11 @@ func NewRadar(store task.Store, notifier notification.Notifier, cfg Config) *Rad
 		cfg.InputWaitThreshold = 15 * time.Minute
 	}
 	return &Radar{
-		store:    store,
-		notifier: notifier,
-		config:   cfg,
-		logger:   logging.NewComponentLogger("blocker_radar"),
-		nowFunc:  time.Now,
+		store:        store,
+		notifier:     notifier,
+		config:       cfg,
+		logger:       logging.NewComponentLogger("blocker_radar"),
+		nowFunc:      time.Now,
 		history:      make(map[string]*taskHistory),
 		lastNotified: make(map[string]time.Time),
 	}
@@ -168,6 +176,7 @@ func (r *Radar) Scan(ctx context.Context) (*ScanResult, error) {
 		r.checkError(t, &result.Alerts)
 		r.checkDependencies(ctx, t, allIDs, terminalIDs, &result.Alerts)
 	}
+	r.checkGitReviewBottlenecks(ctx, &result.Alerts)
 
 	// Record alerts into bounded per-task history.
 	r.mu.Lock()
@@ -182,6 +191,82 @@ func (r *Radar) Scan(ctx context.Context) (*ScanResult, error) {
 	r.mu.Unlock()
 
 	return result, nil
+}
+
+func (r *Radar) checkGitReviewBottlenecks(ctx context.Context, alerts *[]Alert) {
+	if r.GitSignalSource == nil || len(r.config.GitRepos) == 0 {
+		return
+	}
+
+	threshold := r.config.GitReviewThreshold
+	if threshold <= 0 {
+		threshold = 24 * time.Hour
+	}
+
+	for _, repo := range r.config.GitRepos {
+		events, err := r.GitSignalSource.DetectReviewBottlenecks(ctx, repo, threshold)
+		if err != nil {
+			r.logger.Warn("Blocker Radar: git review bottleneck fetch failed for %s: %v", repo, err)
+			continue
+		}
+		for _, evt := range events {
+			alert, ok := alertFromReviewBottleneck(evt)
+			if !ok {
+				continue
+			}
+			*alerts = append(*alerts, alert)
+		}
+	}
+}
+
+func alertFromReviewBottleneck(evt signal.SignalEvent) (Alert, bool) {
+	if evt.Kind != signal.SignalReviewBottleneck || evt.Bottleneck == nil || evt.PR == nil {
+		return Alert{}, false
+	}
+
+	reviewer := strings.TrimSpace(evt.Bottleneck.RequestedReviewer)
+	if reviewer == "" {
+		reviewer = "unassigned-reviewer"
+	}
+
+	description := fmt.Sprintf("%s PR #%d waiting for review", evt.Repo, evt.Bottleneck.PRNumber)
+	if title := strings.TrimSpace(evt.PR.Title); title != "" {
+		description += ": " + title
+	}
+
+	detail := fmt.Sprintf(
+		"PR #%d in %s has been waiting %s for review from %s",
+		evt.Bottleneck.PRNumber,
+		evt.Repo,
+		formatDuration(evt.Bottleneck.WaitDuration),
+		reviewer,
+	)
+	if url := strings.TrimSpace(evt.Bottleneck.PRURL); url != "" {
+		detail += " (" + url + ")"
+	}
+
+	metadata := map[string]string{
+		"provider":           evt.Provider,
+		"repo":               evt.Repo,
+		"pr_number":          strconv.Itoa(evt.Bottleneck.PRNumber),
+		"requested_reviewer": reviewer,
+	}
+	if evt.LinkedTicketID != "" {
+		metadata["ticket_id"] = evt.LinkedTicketID
+	}
+
+	return Alert{
+		Task: &task.Task{
+			TaskID:      fmt.Sprintf("git:%s:%s:pr:%d:%s", evt.Provider, evt.Repo, evt.Bottleneck.PRNumber, reviewer),
+			Description: description,
+			Status:      task.StatusPending,
+			Channel:     evt.Provider,
+			Metadata:    metadata,
+		},
+		Reason: ReasonGitReviewBlock,
+		Detail: detail,
+		Age:    evt.Bottleneck.WaitDuration,
+	}, true
 }
 
 func (r *Radar) checkStaleProgress(t *task.Task, now time.Time, alerts *[]Alert) {
@@ -440,6 +525,8 @@ func suggestAction(reason BlockReason) string {
 		return "Provide the requested input or clarification so the task can proceed."
 	case ReasonDepBlocked:
 		return "Unblock or complete the dependency tasks, or remove the dependency if no longer needed."
+	case ReasonGitReviewBlock:
+		return "Nudge the reviewer, re-request review, or reassign the PR to another reviewer."
 	default:
 		return "Investigate the task and take appropriate action."
 	}
@@ -557,6 +644,8 @@ func reasonIcon(r BlockReason) string {
 		return "⏳"
 	case ReasonDepBlocked:
 		return "🔗"
+	case ReasonGitReviewBlock:
+		return "👀"
 	default:
 		return "!"
 	}

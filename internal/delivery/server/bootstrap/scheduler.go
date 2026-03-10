@@ -88,13 +88,18 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, me
 	blockerRadarCfg := cfg.Runtime.Proactive.Scheduler.BlockerRadar
 	var blockerRadarSvc scheduler.BlockerRadarService
 	if blockerRadarCfg.Enabled && container != nil && container.TaskStore != nil {
+		gitSignalCfg := cfg.Runtime.Proactive.Scheduler.GitSignal
+		gitReviewThreshold := time.Duration(gitSignalCfg.ReviewBottleneckThreshold) * time.Second
 		radar := blocker.NewRadar(container.TaskStore, instrumentedNotifier(notifier, metrics, "blocker_radar"), blocker.Config{
 			Enabled:               true,
 			StaleThresholdSeconds: blockerRadarCfg.StaleThresholdSeconds,
 			InputWaitSeconds:      blockerRadarCfg.InputWaitSeconds,
 			Channel:               blockerRadarCfg.Channel,
 			ChatID:                blockerRadarCfg.ChatID,
+			GitRepos:              gitSignalCfg.Repos,
+			GitReviewThreshold:    gitReviewThreshold,
 		})
+		radar.GitSignalSource = container.GitSignalProvider
 		blockerRadarSvc = &blockerRadarAdapter{radar: radar}
 		logger.Info("Blocker radar service created (channel=%s, chat_id=%s)", blockerRadarCfg.Channel, blockerRadarCfg.ChatID)
 	}

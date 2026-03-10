@@ -88,13 +88,13 @@ func TestListRecentEvents(t *testing.T) {
 
 func TestGetPRStatus(t *testing.T) {
 	pr := ghPull{
-		Number:  10,
-		Title:   "feat: new feature",
-		State:   "open",
-		HTMLURL: "https://github.com/org/repo/pull/10",
-		User:    ghActor{Login: "alice"},
-		Head:    ghRef{Ref: "feat/new-feature"},
-		Base:    ghRef{Ref: "main"},
+		Number:    10,
+		Title:     "feat: new feature",
+		State:     "open",
+		HTMLURL:   "https://github.com/org/repo/pull/10",
+		User:      ghActor{Login: "alice"},
+		Head:      ghRef{Ref: "feat/new-feature"},
+		Base:      ghRef{Ref: "main"},
 		Reviewers: []ghActor{{Login: "bob"}},
 	}
 
@@ -164,14 +164,25 @@ func TestListCommitActivity(t *testing.T) {
 }
 
 func TestDetectReviewBottlenecks(t *testing.T) {
+	now := time.Now().UTC()
 	prs := []ghPull{
 		{
 			Number:    5,
 			Title:     "waiting PR",
 			State:     "open",
 			HTMLURL:   "https://github.com/org/repo/pull/5",
+			CreatedAt: now.Add(-26 * time.Hour),
 			User:      ghActor{Login: "alice"},
 			Reviewers: []ghActor{{Login: "bob"}},
+		},
+		{
+			Number:    6,
+			Title:     "fresh PR",
+			State:     "open",
+			HTMLURL:   "https://github.com/org/repo/pull/6",
+			CreatedAt: now.Add(-2 * time.Hour),
+			User:      ghActor{Login: "charlie"},
+			Reviewers: []ghActor{{Login: "dana"}},
 		},
 	}
 
@@ -182,10 +193,10 @@ func TestDetectReviewBottlenecks(t *testing.T) {
 
 	p := NewGitHubProvider(GitHubConfig{
 		BaseURL:                   srv.URL,
-		ReviewBottleneckThreshold: 1 * time.Nanosecond, // very small threshold to trigger
+		ReviewBottleneckThreshold: 24 * time.Hour,
 	}, srv.Client(), nil)
 
-	got, err := p.DetectReviewBottlenecks(context.Background(), "org/repo", 1*time.Nanosecond)
+	got, err := p.DetectReviewBottlenecks(context.Background(), "org/repo", 24*time.Hour)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -197,6 +208,12 @@ func TestDetectReviewBottlenecks(t *testing.T) {
 	}
 	if got[0].Bottleneck.RequestedReviewer != "bob" {
 		t.Errorf("expected reviewer=bob, got %q", got[0].Bottleneck.RequestedReviewer)
+	}
+	if got[0].Bottleneck.WaitDuration < 24*time.Hour {
+		t.Errorf("expected wait duration >= 24h, got %v", got[0].Bottleneck.WaitDuration)
+	}
+	if got[0].Bottleneck.PRNumber != 5 {
+		t.Errorf("expected PR #5 bottleneck, got #%d", got[0].Bottleneck.PRNumber)
 	}
 }
 
@@ -287,12 +304,12 @@ func TestAPIGet_ErrorResponse(t *testing.T) {
 
 func TestGhPullToPRContext_MergedState(t *testing.T) {
 	pr := ghPull{
-		Number:  1,
-		State:   "closed",
-		Merged:  true,
-		User:    ghActor{Login: "alice"},
-		Head:    ghRef{Ref: "feat/x"},
-		Base:    ghRef{Ref: "main"},
+		Number: 1,
+		State:  "closed",
+		Merged: true,
+		User:   ghActor{Login: "alice"},
+		Head:   ghRef{Ref: "feat/x"},
+		Base:   ghRef{Ref: "main"},
 	}
 	ctx := ghPullToPRContext(pr)
 	if ctx.State != "merged" {

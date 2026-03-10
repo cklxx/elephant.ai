@@ -73,6 +73,8 @@ type PRContext struct {
 	Additions   int         `json:"additions"`
 	Deletions   int         `json:"deletions"`
 	URL         string      `json:"url"`
+	CreatedAt   time.Time   `json:"created_at,omitempty"`
+	UpdatedAt   time.Time   `json:"updated_at,omitempty"`
 }
 
 // CommitContext carries commit details.
@@ -85,10 +87,10 @@ type CommitContext struct {
 
 // BottleneckContext describes a review bottleneck condition.
 type BottleneckContext struct {
-	PRURL            string        `json:"pr_url"`
-	PRNumber         int           `json:"pr_number"`
-	WaitingSince     time.Time     `json:"waiting_since"`
-	WaitDuration     time.Duration `json:"wait_duration"`
-	RequestedReviewer string       `json:"requested_reviewer"`
-	Author           string        `json:"author"`
+	PRURL             string        `json:"pr_url"`
+	PRNumber          int           `json:"pr_number"`
+	WaitingSince      time.Time     `json:"waiting_since"`
+	WaitDuration      time.Duration `json:"wait_duration"`
+	RequestedReviewer string        `json:"requested_reviewer"`
+	Author            string        `json:"author"`
 }
