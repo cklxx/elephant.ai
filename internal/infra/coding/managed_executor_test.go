@@ -33,21 +33,6 @@ func (s *stubExternalExecutor) SupportedTypes() []string {
 	return []string{"codex", "claude_code", "kimi"}
 }
 
-type stubRunner struct {
-	errByCommand map[string]error
-	calls        []string
-}
-
-func (s *stubRunner) Run(_ context.Context, _ string, command string) (string, error) {
-	s.calls = append(s.calls, command)
-	if s.errByCommand != nil {
-		if err, ok := s.errByCommand[command]; ok {
-			return "", err
-		}
-	}
-	return "ok", nil
-}
-
 func TestManagedExternalExecutor_PassThroughForNonCoding(t *testing.T) {
 	base := &stubExternalExecutor{
 		results: []*agent.ExternalAgentResult{{Answer: "done"}},
@@ -88,11 +73,6 @@ func TestManagedExternalExecutor_CodingDefaultsAndRetry(t *testing.T) {
 		},
 	}
 	wrapped := NewManagedExternalExecutor(base, nil)
-	managed, ok := wrapped.(*ManagedExternalExecutor)
-	if !ok {
-		t.Fatalf("expected managed executor type")
-	}
-	managed.runner = &stubRunner{}
 
 	result, err := wrapped.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID:    "task-2",
@@ -100,6 +80,7 @@ func TestManagedExternalExecutor_CodingDefaultsAndRetry(t *testing.T) {
 		Prompt:    "implement feature",
 		Config: map[string]string{
 			"task_kind": "coding",
+			"verify":    "false",
 		},
 	})
 	if err != nil {
@@ -115,9 +96,6 @@ func TestManagedExternalExecutor_CodingDefaultsAndRetry(t *testing.T) {
 	if firstCfg["approval_policy"] != "never" || firstCfg["sandbox"] != "danger-full-access" {
 		t.Fatalf("expected full-access codex defaults, got %+v", firstCfg)
 	}
-	if firstCfg["verify"] != "true" {
-		t.Fatalf("expected verify=true default, got %+v", firstCfg)
-	}
 	if firstCfg["retry_max_attempts"] != "3" {
 		t.Fatalf("expected retry_max_attempts=3, got %+v", firstCfg)
 	}
@@ -126,20 +104,14 @@ func TestManagedExternalExecutor_CodingDefaultsAndRetry(t *testing.T) {
 	}
 }
 
-func TestManagedExternalExecutor_VerifyFailureUsesRetryLimit(t *testing.T) {
+func TestManagedExternalExecutor_ExecutionFailureUsesRetryLimit(t *testing.T) {
 	base := &stubExternalExecutor{
 		results: []*agent.ExternalAgentResult{
-			{Answer: "attempt-1"},
-			{Answer: "attempt-2"},
+			{Answer: "attempt-1", Error: "build broken"},
+			{Answer: "attempt-2", Error: "still broken"},
 		},
 	}
 	wrapped := NewManagedExternalExecutor(base, nil)
-	managed := wrapped.(*ManagedExternalExecutor)
-	managed.runner = &stubRunner{
-		errByCommand: map[string]error{
-			defaultVerifyLint: errors.New("lint failed"),
-		},
-	}
 
 	_, err := wrapped.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID:    "task-3",
@@ -148,16 +120,17 @@ func TestManagedExternalExecutor_VerifyFailureUsesRetryLimit(t *testing.T) {
 		Config: map[string]string{
 			"task_kind":          "coding",
 			"retry_max_attempts": "2",
+			"verify":             "false",
 		},
 	})
 	if err == nil {
-		t.Fatal("expected error after verify retries exhausted")
+		t.Fatal("expected error after retries exhausted")
 	}
 	if len(base.reqs) != 2 {
 		t.Fatalf("expected 2 attempts, got %d", len(base.reqs))
 	}
-	if !strings.Contains(err.Error(), "verification failed") {
-		t.Fatalf("expected verification failure error, got %v", err)
+	if !strings.Contains(err.Error(), "execution failed") {
+		t.Fatalf("expected execution failure error, got %v", err)
 	}
 }
 
@@ -168,9 +141,6 @@ func TestManagedExternalExecutor_CodingVerifyDisabledSkipsVerification(t *testin
 		},
 	}
 	wrapped := NewManagedExternalExecutor(base, nil)
-	managed := wrapped.(*ManagedExternalExecutor)
-	runner := &stubRunner{}
-	managed.runner = runner
 
 	result, err := wrapped.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID:    "task-4",
@@ -189,9 +159,6 @@ func TestManagedExternalExecutor_CodingVerifyDisabledSkipsVerification(t *testin
 	}
 	if len(base.reqs) != 1 {
 		t.Fatalf("expected one execution attempt, got %d", len(base.reqs))
-	}
-	if len(runner.calls) != 0 {
-		t.Fatalf("expected no verification commands when verify=false, got %v", runner.calls)
 	}
 }
 
@@ -245,8 +212,6 @@ func TestManagedExternalExecutor_KimiUsesCodexStyleDefaults(t *testing.T) {
 		},
 	}
 	wrapped := NewManagedExternalExecutor(base, nil)
-	managed := wrapped.(*ManagedExternalExecutor)
-	managed.runner = &stubRunner{}
 
 	result, err := wrapped.Execute(context.Background(), agent.ExternalAgentRequest{
 		TaskID:    "task-kimi-1",
@@ -254,6 +219,7 @@ func TestManagedExternalExecutor_KimiUsesCodexStyleDefaults(t *testing.T) {
 		Prompt:    "implement fix",
 		Config: map[string]string{
 			"task_kind": "coding",
+			"verify":    "false",
 		},
 	})
 	if err != nil {

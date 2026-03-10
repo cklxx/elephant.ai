@@ -357,16 +357,6 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dh%dm", hours, rem)
 }
 
-// highlightIcon returns the emoji prefix for a highlight type.
-func highlightIcon(t string) string {
-	return highlightStyleFor(t).icon
-}
-
-// highlightLabel returns the display label for a highlight type.
-func highlightLabel(t string) string {
-	return highlightStyleFor(t).label
-}
-
 func highlightStyleFor(t string) highlightStyle {
 	if style, ok := highlightStyles[t]; ok {
 		return style

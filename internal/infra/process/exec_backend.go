@@ -88,35 +88,7 @@ func (b *ExecBackend) startAttached(ctx context.Context, cfg ProcessConfig) (Pip
 		done:       make(chan struct{}),
 	}
 
-	stderrDone := make(chan struct{})
-	go func() {
-		if stderrR != nil {
-			_, _ = io.Copy(h.stderrTail, stderrR)
-			_ = stderrR.Close()
-		}
-		close(stderrDone)
-	}()
-
-	go func() {
-		<-stderrDone
-		err := cmd.Wait()
-		h.mu.Lock()
-		h.err = err
-		close(h.done)
-		h.mu.Unlock()
-	}()
-
-	if cfg.Timeout > 0 {
-		go func() {
-			timer := time.NewTimer(cfg.Timeout)
-			defer timer.Stop()
-			select {
-			case <-timer.C:
-				_ = h.Stop()
-			case <-h.done:
-			}
-		}()
-	}
+	b.monitorProcess(h, stderrR, true, nil)
 
 	if cmd.Process != nil {
 		h.pgid, _ = syscall.Getpgid(cmd.Process.Pid)
@@ -178,27 +150,46 @@ func (b *ExecBackend) startDetached(ctx context.Context, cfg ProcessConfig) (Pip
 		writeStatusFile(cfg.StatusFile, cmd.Process.Pid)
 	}
 
+	b.monitorProcess(h, stderrPipe, false, outFile)
+
+	if cmd.Process != nil {
+		h.pgid = cmd.Process.Pid // session leader — use PID directly
+	}
+
+	return h, nil
+}
+
+// monitorProcess starts goroutines that drain stderr, wait for the process to
+// finish, and enforce the configured timeout. When closeStderr is true the
+// stderrReader is closed after draining (attached mode). When outFile is
+// non-nil it is closed after cmd.Wait returns (detached mode).
+func (b *ExecBackend) monitorProcess(h *execHandle, stderrReader io.ReadCloser, closeStderr bool, outFile *os.File) {
 	stderrDone := make(chan struct{})
 	go func() {
-		if stderrPipe != nil {
-			_, _ = io.Copy(h.stderrTail, stderrPipe)
+		if stderrReader != nil {
+			_, _ = io.Copy(h.stderrTail, stderrReader)
+			if closeStderr {
+				_ = stderrReader.Close()
+			}
 		}
 		close(stderrDone)
 	}()
 
 	go func() {
 		<-stderrDone
-		err := cmd.Wait()
-		outFile.Close()
+		err := h.cmd.Wait()
+		if outFile != nil {
+			outFile.Close()
+		}
 		h.mu.Lock()
 		h.err = err
 		close(h.done)
 		h.mu.Unlock()
 	}()
 
-	if cfg.Timeout > 0 {
+	if h.cfg.Timeout > 0 {
 		go func() {
-			timer := time.NewTimer(cfg.Timeout)
+			timer := time.NewTimer(h.cfg.Timeout)
 			defer timer.Stop()
 			select {
 			case <-timer.C:
@@ -207,12 +198,6 @@ func (b *ExecBackend) startDetached(ctx context.Context, cfg ProcessConfig) (Pip
 			}
 		}()
 	}
-
-	if cmd.Process != nil {
-		h.pgid = cmd.Process.Pid // session leader — use PID directly
-	}
-
-	return h, nil
 }
 
 func writeStatusFile(path string, pid int) {

@@ -166,6 +166,36 @@ func scanPATHExecutableNames() []string {
 	return out
 }
 
+// probeVersionString tries --version, -V, version flags in order and returns the first successful output.
+func probeVersionString(ctx context.Context, timeout time.Duration, binary string) (string, error) {
+	out, err := runProbeCommand(ctx, timeout, binary, "--version")
+	if err == nil {
+		return out, nil
+	}
+	altOut, altErr := runProbeCommand(ctx, timeout, binary, "-V")
+	if altErr == nil && strings.TrimSpace(altOut) != "" {
+		return altOut, nil
+	}
+	altOut, altErr = runProbeCommand(ctx, timeout, binary, "version")
+	if altErr == nil {
+		return altOut, nil
+	}
+	return out, err
+}
+
+// probeHelpString tries --help, -h flags in order and returns the first successful output.
+func probeHelpString(ctx context.Context, timeout time.Duration, binary string) (string, error) {
+	out, err := runProbeCommand(ctx, timeout, binary, "--help")
+	if err == nil {
+		return out, nil
+	}
+	altOut, altErr := runProbeCommand(ctx, timeout, binary, "-h")
+	if altErr == nil {
+		return altOut, nil
+	}
+	return out, err
+}
+
 func probeSingleCLI(ctx context.Context, binary string, timeout time.Duration) DiscoveredCLICapability {
 	id := normalizeCLIID(binary)
 	now := discoveryNow()
@@ -185,20 +215,7 @@ func probeSingleCLI(ctx context.Context, binary string, timeout time.Duration) D
 	out.Path = resolved
 	out.Executable = true
 
-	versionOut, versionErr := runProbeCommand(ctx, timeout, resolved, "--version")
-	if versionErr != nil {
-		altOut, altErr := runProbeCommand(ctx, timeout, resolved, "-V")
-		if altErr == nil && strings.TrimSpace(altOut) != "" {
-			versionOut = altOut
-			versionErr = nil
-		} else {
-			altOut, altErr = runProbeCommand(ctx, timeout, resolved, "version")
-			if altErr == nil {
-				versionOut = altOut
-				versionErr = nil
-			}
-		}
-	}
+	versionOut, versionErr := probeVersionString(ctx, timeout, resolved)
 	if versionErr != nil {
 		out.ProbeStderr = compactProbeText(versionErr.Error())
 		if errors.Is(versionErr, context.DeadlineExceeded) {
@@ -207,14 +224,7 @@ func probeSingleCLI(ctx context.Context, binary string, timeout time.Duration) D
 	}
 	out.Version = compactProbeText(versionOut)
 
-	helpOut, helpErr := runProbeCommand(ctx, timeout, resolved, "--help")
-	if helpErr != nil {
-		altOut, altErr := runProbeCommand(ctx, timeout, resolved, "-h")
-		if altErr == nil {
-			helpOut = altOut
-			helpErr = nil
-		}
-	}
+	helpOut, helpErr := probeHelpString(ctx, timeout, resolved)
 	if helpErr != nil && out.FailureReason == "" {
 		if errors.Is(helpErr, context.DeadlineExceeded) {
 			out.FailureReason = "probe_timeout"

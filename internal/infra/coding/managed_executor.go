@@ -28,7 +28,6 @@ type ManagedExternalExecutor struct {
 	base   agent.ExternalAgentExecutor
 	inter  agent.InteractiveExternalExecutor
 	logger logging.Logger
-	runner CommandRunner
 }
 
 // NewManagedExternalExecutor wraps an external executor with coding-task policy.
@@ -125,7 +124,7 @@ func (m *ManagedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 			if workingDir == "" {
 				workingDir = "."
 			}
-			lastVerify = VerifyAll(ctx, workingDir, m.runner, verifyPlan)
+			lastVerify = VerifyAll(ctx, workingDir, nil, verifyPlan)
 			if verifyErr := VerifyError(lastVerify); verifyErr == nil {
 				if result == nil {
 					result = &agent.ExternalAgentResult{}

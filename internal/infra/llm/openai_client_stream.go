@@ -8,8 +8,58 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	jsonx "alex/internal/shared/json"
+	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
 )
+
+// openaiToolCallDelta represents a single tool-call fragment inside a streamed
+// SSE chunk from the OpenAI-compatible API.
+type openaiToolCallDelta struct {
+	Index    int    `json:"index"`
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	} `json:"function"`
+}
+
+// openaiStreamChunk is the top-level JSON structure for one SSE data payload.
+type openaiStreamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content          string                `json:"content"`
+			Reasoning        string                `json:"reasoning"`
+			ReasoningContent string                `json:"reasoning_content"`
+			Role             string                `json:"role"`
+			ToolCalls        []openaiToolCallDelta `json:"tool_calls"`
+		} `json:"delta"`
+		FinishReason *string `json:"finish_reason"`
+	} `json:"choices"`
+	Usage *struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage"`
+}
+
+// openaiToolAccumulator collects incremental fragments of a single tool call.
+type openaiToolAccumulator struct {
+	id        string
+	name      string
+	arguments strings.Builder
+}
+
+// streamProcessResult holds everything accumulated while scanning SSE chunks.
+type streamProcessResult struct {
+	content          string
+	reasoning        string
+	reasoningContent string
+	usage            ports.TokenUsage
+	finishReason     string
+	toolAccumulators map[int]*openaiToolAccumulator
+	toolOrder        []int
+}
 
 // StreamComplete streams incremental completion deltas while constructing the
 // final aggregated response.
@@ -60,41 +110,44 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 
 	scanner := newStreamScanner(resp.Body)
 
-	type toolCallDelta struct {
-		Index    int    `json:"index"`
-		ID       string `json:"id"`
-		Type     string `json:"type"`
-		Function struct {
-			Name      string `json:"name"`
-			Arguments string `json:"arguments"`
-		} `json:"function"`
+	sr, err := c.processStreamChunks(scanner, callbacks, prefix, requestID, provider, requestStarted)
+	if err != nil {
+		c.logProcessingFailure(prefix, requestID, "stream", provider, endpoint, "read_stream", req, err)
+		return nil, err
 	}
 
-	type streamChunk struct {
-		Choices []struct {
-			Delta struct {
-				Content          string          `json:"content"`
-				Reasoning        string          `json:"reasoning"`
-				ReasoningContent string          `json:"reasoning_content"`
-				Role             string          `json:"role"`
-				ToolCalls        []toolCallDelta `json:"tool_calls"`
-			} `json:"delta"`
-			FinishReason *string `json:"finish_reason"`
-		} `json:"choices"`
-		Usage *struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
-			TotalTokens      int `json:"total_tokens"`
-		} `json:"usage"`
+	if callbacks.OnContentDelta != nil {
+		callbacks.OnContentDelta(ports.ContentDelta{Final: true})
 	}
 
-	type toolAccumulator struct {
-		id        string
-		name      string
-		arguments strings.Builder
+	result := assembleStreamResponse(sr, requestID, prefix, c.logger)
+
+	c.fireUsageCallback(result.Usage, provider)
+
+	if respPayload, err := jsonx.Marshal(map[string]any{
+		"content":     result.Content,
+		"stop_reason": result.StopReason,
+		"tool_calls":  result.ToolCalls,
+		"usage":       result.Usage,
+	}); err != nil {
+		c.logger.Debug("%sFailed to marshal streaming response payload: %v", prefix, err)
+	} else {
+		utils.LogStreamingResponsePayload(requestID, respPayload)
 	}
 
-	toolAccumulators := make(map[int]*toolAccumulator)
+	c.logResponseSummary(prefix, result)
+	return result, nil
+}
+
+// processStreamChunks reads SSE events from scanner, invokes callbacks for
+// content deltas, and returns the accumulated state.
+func (c *openaiClient) processStreamChunks(
+	scanner *streamScanner,
+	callbacks ports.CompletionStreamCallbacks,
+	prefix, requestID, provider string,
+	requestStarted time.Time,
+) (*streamProcessResult, error) {
+	toolAccumulators := make(map[int]*openaiToolAccumulator)
 	var toolOrder []int
 
 	var contentBuilder strings.Builder
@@ -104,10 +157,10 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	finishReason := ""
 	loggedTTFB := false
 
-	appendToolCall := func(idx int) *toolAccumulator {
+	appendToolCall := func(idx int) *openaiToolAccumulator {
 		acc, ok := toolAccumulators[idx]
 		if !ok {
-			acc = &toolAccumulator{}
+			acc = &openaiToolAccumulator{}
 			toolAccumulators[idx] = acc
 			toolOrder = append(toolOrder, idx)
 		}
@@ -142,7 +195,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 			)
 		}
 
-		var chunk streamChunk
+		var chunk openaiStreamChunk
 		if err := jsonx.Unmarshal([]byte(payload), &chunk); err != nil {
 			c.logger.Debug("%sFailed to decode stream chunk: %v", prefix, err)
 			continue
@@ -192,43 +245,51 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 
 	if err := scanner.Err(); err != nil {
 		c.logger.Debug("%sStream read error: %v", prefix, err)
-		streamErr := fmt.Errorf("read response stream: %w", err)
-		c.logProcessingFailure(prefix, requestID, "stream", provider, endpoint, "read_stream", req, streamErr)
-		return nil, streamErr
+		return nil, fmt.Errorf("read response stream: %w", err)
 	}
 
-	if callbacks.OnContentDelta != nil {
-		callbacks.OnContentDelta(ports.ContentDelta{Final: true})
-	}
+	return &streamProcessResult{
+		content:          contentBuilder.String(),
+		reasoning:        reasoningBuilder.String(),
+		reasoningContent: reasoningContentBuilder.String(),
+		usage:            usage,
+		finishReason:     finishReason,
+		toolAccumulators: toolAccumulators,
+		toolOrder:        toolOrder,
+	}, nil
+}
 
+// assembleStreamResponse builds a CompletionResponse from the accumulated
+// stream processing result.
+func assembleStreamResponse(sr *streamProcessResult, requestID, prefix string, logger logging.Logger) *ports.CompletionResponse {
 	result := &ports.CompletionResponse{
-		Content:    contentBuilder.String(),
-		StopReason: finishReason,
-		Usage:      usage,
+		Content:    sr.content,
+		StopReason: sr.finishReason,
+		Usage:      sr.usage,
 		Metadata: map[string]any{
 			"request_id": requestID,
 		},
 	}
 	thinking := ports.Thinking{}
-	if reasoningBuilder.Len() > 0 {
-		appendThinkingText(&thinking, "reasoning", reasoningBuilder.String())
+	if sr.reasoning != "" {
+		appendThinkingText(&thinking, "reasoning", sr.reasoning)
 	}
-	if reasoningContentBuilder.Len() > 0 {
-		appendThinkingText(&thinking, "reasoning_content", reasoningContentBuilder.String())
+	if sr.reasoningContent != "" {
+		appendThinkingText(&thinking, "reasoning_content", sr.reasoningContent)
 	}
 	if len(thinking.Parts) > 0 {
 		result.Thinking = thinking
 	}
 
-	for _, idx := range toolOrder {
-		acc := toolAccumulators[idx]
+	for _, idx := range sr.toolOrder {
+		acc := sr.toolAccumulators[idx]
 		if acc == nil {
 			continue
 		}
 		var args map[string]any
 		if acc.arguments.Len() > 0 {
 			if err := jsonx.Unmarshal([]byte(acc.arguments.String()), &args); err != nil {
-				c.logger.Debug("%sFailed to parse tool call arguments: %v", prefix, err)
+				logger.Debug("%sFailed to parse tool call arguments: %v", prefix, err)
 			}
 		}
 		result.ToolCalls = append(result.ToolCalls, ports.ToolCall{
@@ -238,19 +299,5 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		})
 	}
 
-	c.fireUsageCallback(result.Usage, provider)
-
-	if respPayload, err := jsonx.Marshal(map[string]any{
-		"content":     result.Content,
-		"stop_reason": result.StopReason,
-		"tool_calls":  result.ToolCalls,
-		"usage":       result.Usage,
-	}); err != nil {
-		c.logger.Debug("%sFailed to marshal streaming response payload: %v", prefix, err)
-	} else {
-		utils.LogStreamingResponsePayload(requestID, respPayload)
-	}
-
-	c.logResponseSummary(prefix, result)
-	return result, nil
+	return result
 }

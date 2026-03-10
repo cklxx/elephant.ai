@@ -222,9 +222,44 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 		return nil, fmt.Errorf("unknown provider: %s", provider)
 	}
 
-	// Apply provider-specific config mutations.
+	applyProviderDefaults(desc, provider, model, &config)
+
+	client, err := desc.ClientFactory(model, config)
+	if err != nil {
+		return nil, err
+	}
+
+	client = f.applyMiddleware(client, provider, model, config, middlewareOpts{
+		enableRetry:          enableRetry,
+		retryConfig:          retryConfig,
+		circuitBreakerConfig: circuitBreakerConfig,
+		toolCallParser:       toolCallParser,
+		userRateLimit:        userRateLimit,
+		userRateBurst:        userRateBurst,
+		kimiLimiter:          kimiLimiter,
+		healthRegistry:       healthRegistry,
+		fallbackRules:        fallbackRules,
+	})
+
+	// Cache only if requested
+	if useCache {
+		if cache != nil {
+			var expiresAt time.Time
+			if cacheTTL > 0 {
+				expiresAt = now.Add(cacheTTL)
+			}
+			cache.Add(cacheKey, cacheEntry{client: client, expiresAt: expiresAt})
+		}
+	}
+
+	return client, nil
+}
+
+// applyProviderDefaults applies registry-level config mutations and
+// provider-specific defaults (Kimi compatibility, Codex endpoint detection).
+func applyProviderDefaults(desc *ProviderDescriptor, provider, model string, config *Config) {
 	if desc.ConfigMutator != nil {
-		desc.ConfigMutator(&config)
+		desc.ConfigMutator(config)
 	}
 
 	// Kimi-compat behaviors for any Kimi target (URL/model detection preserves existing behavior).
@@ -242,24 +277,36 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	if strings.Contains(strings.ToLower(strings.TrimSpace(config.BaseURL)), "/backend-api/codex") {
 		config.CodexEndpoint = true
 	}
+}
 
-	client, err := desc.ClientFactory(model, config)
-	if err != nil {
-		return nil, err
-	}
+// middlewareOpts captures the snapshot of factory settings needed by applyMiddleware.
+type middlewareOpts struct {
+	enableRetry          bool
+	retryConfig          alexerrors.RetryConfig
+	circuitBreakerConfig alexerrors.CircuitBreakerConfig
+	toolCallParser       agent.FunctionCallParser
+	userRateLimit        rate.Limit
+	userRateBurst        int
+	kimiLimiter          *rate.Limiter
+	healthRegistry       *healthRegistry
+	fallbackRules        map[string]FallbackRule
+}
 
+// applyMiddleware wraps a base client with the standard middleware pipeline:
+// streaming → shared rate limit → retry/health → user rate limit → tool call parsing.
+func (f *Factory) applyMiddleware(client portsllm.LLMClient, provider, model string, config Config, opts middlewareOpts) portsllm.LLMClient {
 	client = EnsureStreamingClient(client)
 
-	if kimiLimiter != nil && isKimiTarget(provider, model, config.BaseURL) {
-		client = WrapWithSharedRateLimit(client, kimiLimiter)
+	if opts.kimiLimiter != nil && isKimiTarget(provider, model, config.BaseURL) {
+		client = WrapWithSharedRateLimit(client, opts.kimiLimiter)
 	}
 
 	// Wrap with retry logic if enabled
-	if enableRetry {
-		if healthRegistry != nil {
-			client = WrapWithRetryAndHealth(client, retryConfig, circuitBreakerConfig, healthRegistry, provider, model)
+	if opts.enableRetry {
+		if opts.healthRegistry != nil {
+			client = WrapWithRetryAndHealth(client, opts.retryConfig, opts.circuitBreakerConfig, opts.healthRegistry, provider, model)
 		} else {
-			client = WrapWithRetryWithMeta(client, retryConfig, circuitBreakerConfig, provider, model)
+			client = WrapWithRetryWithMeta(client, opts.retryConfig, opts.circuitBreakerConfig, provider, model)
 		}
 
 		// Wire auth refresher for Anthropic OAuth tokens so 401s trigger
@@ -271,7 +318,7 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 		}
 
 		// Wire model-level fallback for transient failures.
-		if rule, ok := fallbackRules[model]; ok && rule.Provider != "" && rule.Model != "" {
+		if rule, ok := opts.fallbackRules[model]; ok && rule.Provider != "" && rule.Model != "" {
 			if rc, ok := client.(*retryClient); ok {
 				fbProvider := rule.Provider
 				fbModel := rule.Model
@@ -294,26 +341,15 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 		}
 	}
 
-	if userRateLimit > 0 {
-		client = WrapWithUserRateLimit(client, userRateLimit, userRateBurst)
+	if opts.userRateLimit > 0 {
+		client = WrapWithUserRateLimit(client, opts.userRateLimit, opts.userRateBurst)
 	}
 
-	if toolCallParser != nil {
-		client = WrapWithToolCallParsing(client, toolCallParser)
+	if opts.toolCallParser != nil {
+		client = WrapWithToolCallParsing(client, opts.toolCallParser)
 	}
 
-	// Cache only if requested
-	if useCache {
-		if cache != nil {
-			var expiresAt time.Time
-			if cacheTTL > 0 {
-				expiresAt = now.Add(cacheTTL)
-			}
-			cache.Add(cacheKey, cacheEntry{client: client, expiresAt: expiresAt})
-		}
-	}
-
-	return client, nil
+	return client
 }
 
 func isKimiTarget(provider, model, baseURL string) bool {

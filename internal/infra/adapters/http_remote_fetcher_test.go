@@ -84,7 +84,7 @@ func TestHTTPRemoteFetcher_Fetch_NilContext(t *testing.T) {
 	defer srv.Close()
 
 	f := NewHTTPRemoteFetcher(srv.Client(), 1024, true)
-	data, _, err := f.Fetch(nil, srv.URL, "")
+	data, _, err := f.Fetch(context.Background(), srv.URL, "")
 	if err != nil {
 		t.Fatal(err)
 	}
