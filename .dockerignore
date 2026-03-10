@@ -1,26 +1,73 @@
 # Git
 .git
 .gitignore
+.github/
+
+# Local agent and worktree state
+.claude/
+.elephant/
+.worktrees/
+.worktrees-*/
+elephant.ai.worktrees/
+.worktree-active.yaml
 
 # Documentation
 *.md
 !skills/
 !skills/*.md
 docs/
-changelog/
 evaluation/
 
-# Build artifacts
+# Build and runtime artifacts
 alex
 alex-server
 *.exe
 *.dll
 *.so
 *.dylib
+build/
+dist/
+out/
+output/
+coverage/
+coverage.tmp
+coverage.out
+coverage.html
+artifacts/
+logs/
+debug-logs/
+test-output.txt
+tmp/
+temp/
+.tmp/
+.bin/
+bin/
+/batch_results/
+/baseline_results/
+/evaluation_results/
+/experiment_results/
+/real_test_results/
+/test_results/
+/ultra_think_results/
+/ultra_think_test_results/
+/verified_evaluation_results/
+/verified_results/
+*.log
+*.pid
 
-# Test files
+# Test and local tooling caches
 *_test.go
 testdata/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+scripts/cc_bridge/.venv/
+.cache/
+.eslintcache
+.nyc_output/
+web/playwright-report/
+web/test-results/
 
 # IDE
 .vscode/
@@ -28,9 +75,6 @@ testdata/
 *.swp
 *.swo
 *~
-
-# Logs
-*.log
 
 # OS
 .DS_Store
@@ -44,17 +88,18 @@ vendor/
 .env
 .env.local
 .env.*.local
+.direnv/
+.envrc
+.netlify/
+.vercel/
 
 # Temporary files
-tmp/
-temp/
 *.tmp
 
-# Coverage
-coverage/
+# Coverage and profiling
 *.out
 
-# Web build
+# Web build outputs
 web/.next/
 web/out/
 web/build/

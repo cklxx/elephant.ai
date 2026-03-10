@@ -1,91 +1,30 @@
-.wt/*
-# deps
-# Node.js dependencies
+# Dependencies
 node_modules
-.pnpm-store
-.pnpm-debug.log
+.pnpm-store/
+pnpm-debug.log*
 
-# Keep pnpm-lock.yaml
+# Keep pnpm lockfile
 !pnpm-lock.yaml
 
-# build
+# Build outputs
 dist/
 build/
 out/
 output/
 storybook-static/
-
-# ignore Nix derivation results
+.next/
 result
 
-# editor
-.vscode/
-.idea/
-.history/
-.zed/
-*.swp
-*~
+# Root-local binaries
+/bin/
+/.bin/
+/alex
+/alex-server
+/eval-server
+/alex-web
+/alex-web.stamp
 
-# caches
-.cache/
-.turbo/
-.parcel-cache/
-.eslintcache
-.nyc_output/
-.jest/
-*.tsbuildinfo
-.gocache/
-
-# logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-logs/server.log.old
-logs/lark-scenarios.json
-logs/lark-scenarios.md
-logs/lark-loop.fail.txt
-
-# env
-.env*
-!.env.example
-
-# package
-*.tgz
-
-# ci
-.vercel/
-.netlify/
-
-# patches
-apply_patch/
-
-# coverage
-coverage/
-artifacts/
-!internal/infra/tools/builtin/artifacts/
-!internal/infra/tools/builtin/artifacts/**
-
-# os
-.DS_Store
-Thumbs.db
-Icon?
-.Spotlight-V100/
-
-# Unwanted package managers
-.yarn/
-yarn.lock
-
-# release
-package.json-e
-session.ts-e
-CHANGELOG.ignore.md
-
-# nix related
-.direnv
-.envrc
-
-# Go binaries and build outputs
+# Go build and test outputs
 *.exe
 *.exe~
 *.dll
@@ -93,74 +32,101 @@ CHANGELOG.ignore.md
 *.dylib
 *.test
 *.out
-build/
-/alex
-/alex-server
-/eval-server
-/alex-web
-/alex-web.stamp
+coverage/
+coverage.tmp
+coverage.html
+artifacts/
+!internal/infra/tools/builtin/artifacts/
+!internal/infra/tools/builtin/artifacts/**
+/batch_results/
+/baseline_results/
+/evaluation_results/
+/experiment_results/
+/real_test_results/
+/test_results/
+/ultra_think_results/
+/ultra_think_test_results/
+/verified_evaluation_results/
+/verified_results/
 
-# Go workspace files
-go.work
+# Web test outputs
+web/playwright-report/
+web/test-results/
 
-# Project local binaries
-npm/*/bin/alex
-npm/*/bin/alex.exe
+# Logs and runtime artifacts
+*.log
+logs/
+debug-logs/
+*.pid
+.pids/
+internal/llm/logs/requests/llm.jsonl
+internal/infra/llm/logs/requests/llm.jsonl
+alex-exec-*/*
 
-# Local configuration and runtime artifacts
+# Environment and local config
+.env*
+!.env.example
+.direnv/
+.envrc
+.netlify/
+.vercel/
 .deep-coding-config.json
+go.work
+.worktree-active.yaml
 .worktrees/
 .worktrees-*/
 .elephant/
-.env.local
-.env*.local
-*.pid
-.bin/
+elephant.ai.worktrees/
+.claude/worktrees/
+apply_patch/
+
+# Temporary files
 tmp/
 temp/
+.tmp/
 /memory/
 test_results/
 verified_test_results/
-debug-logs
-*.backup
 .toolchains/
-
-# Legacy files
-legacy-sample.js
-old_cmd/
-old_internal/
-
-# Backup and tooling remnants
-.git-backup-*
-ast_viewr
+*.tgz
+*.backup
 *.old
-pet_podcast_basic.png
 
-# Python venvs
+# Python caches and virtualenvs
 .venv/
 scripts/cc_bridge/.venv/
-
-# Local tooling
-bin/
-.bin/
-logs/*.png
-logs/*.gz
-.pids/acp.port
-web/playwright-report/*
-web/test-results/*
-.pids/*
-cmd/alex/alex
-internal/llm/logs/requests/llm.jsonl
-internal/infra/llm/logs/requests/llm.jsonl
-logs/requests/llm.jsonl
-logs/requests/t.json
-alex-exec-*/*
-alex-bash-*.sh
-EOF
-.next/
-.tmp/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
 __pycache__/
-elephant.ai.worktrees/
-.claude/worktrees/
-evaluation_results/
-logs/
+
+# Editor and tool caches
+.cache/
+.turbo/
+.parcel-cache/
+.eslintcache
+.nyc_output/
+.jest/
+.gocache/
+.history/
+.vscode/
+.idea/
+.zed/
+*.tsbuildinfo
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+Icon?
+.Spotlight-V100/
+
+# Package managers
+.yarn/
+yarn.lock
+
+# Local test outputs
+test-output.txt
