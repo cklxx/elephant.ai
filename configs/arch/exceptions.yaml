@@ -648,3 +648,7 @@ package_size:
     owner: "cklxx"
     reason: "HTTP handler layer has many endpoints"
     expires_at: "2026-03-31"
+  - package: "alex/internal/infra/llm"
+    owner: "cklxx"
+    reason: "LLM package includes multi-provider clients, retry, circuit breaker, and benchmarks"
+    expires_at: "2026-03-31"
