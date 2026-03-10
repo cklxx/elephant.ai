@@ -30,6 +30,13 @@ func Wrap(raw *lark.Client) *Client {
 	return &Client{raw: raw}
 }
 
+// NewTestClient creates a Client pointing at the given base URL.
+// Intended for use in tests outside the lark package.
+func NewTestClient(baseURL string) *Client {
+	return &Client{raw: lark.NewClient("test-app-id", "test-app-secret",
+		lark.WithOpenBaseUrl(baseURL))}
+}
+
 // Calendar returns the calendar sub-service.
 func (c *Client) Calendar() *CalendarService {
 	return &CalendarService{client: c.raw}

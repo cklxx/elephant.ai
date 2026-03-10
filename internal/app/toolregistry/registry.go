@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
+	larkclient "alex/internal/infra/lark"
 	"alex/internal/infra/memory"
 	toolspolicy "alex/internal/infra/tools"
 	runtimeconfig "alex/internal/shared/config"
@@ -42,6 +43,8 @@ type Config struct {
 	DegradationConfig *DegradationConfig
 	Toolset           Toolset
 	BrowserConfig     BrowserConfig
+	// LarkClient, when set, enables Lark document tools (channel).
+	LarkClient *larkclient.Client
 	// DisabledTools allows callers to explicitly suppress specific tools by name.
 	// When nil, registry derives quickstart gating from runtime config.
 	DisabledTools map[string]string
@@ -269,6 +272,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.registerUITools(config)
 	r.registerWebTools(config)
 	r.registerSessionTools()
+	r.registerLarkTools(config)
 	if err := r.registerPlatformTools(config); err != nil {
 		return err
 	}
