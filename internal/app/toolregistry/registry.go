@@ -32,8 +32,7 @@ type Config struct {
 
 	TavilyAPIKey string
 
-	ArkAPIKey     string
-	MemoryEngine  memory.Engine
+	MemoryEngine memory.Engine
 	HTTPLimits    runtimeconfig.HTTPLimitsConfig
 	ToolPolicy    tools.ToolPolicy
 	BreakerConfig CircuitBreakerConfig
@@ -295,22 +294,12 @@ func resolveDisabledTools(config Config) map[string]string {
 		return nil
 	}
 
-	disabled := map[string]string{}
 	if utils.IsBlank(config.TavilyAPIKey) {
-		disabled["web_search"] = "missing TAVILY_API_KEY in quickstart profile"
+		return map[string]string{
+			"web_search": "missing TAVILY_API_KEY in quickstart profile",
+		}
 	}
-	if utils.IsBlank(config.ArkAPIKey) {
-		disabled["text_to_image"] = "missing ARK_API_KEY in quickstart profile"
-		disabled["image_to_image"] = "missing ARK_API_KEY in quickstart profile"
-		disabled["vision_analyze"] = "missing ARK_API_KEY in quickstart profile"
-		disabled["video_generate"] = "missing ARK_API_KEY in quickstart profile"
-	}
-
-	if len(disabled) == 0 {
-		return nil
-	}
-
-	return disabled
+	return nil
 }
 
 func (r *Registry) pruneDisabledTools(disabled map[string]string) {

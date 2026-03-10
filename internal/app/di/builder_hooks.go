@@ -70,7 +70,6 @@ func (b *containerBuilder) buildToolRegistry(_ *llm.Factory, memoryEngine memory
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
 		Profile:       b.config.Profile,
 		TavilyAPIKey:  b.config.TavilyAPIKey,
-		ArkAPIKey:     b.config.ArkAPIKey,
 		MemoryEngine:  memoryEngine,
 		HTTPLimits:    b.config.HTTPLimits,
 		ToolPolicy:    toolspolicy.NewToolPolicy(b.config.ToolPolicy),
