@@ -13,6 +13,7 @@ import (
 	portsllm "alex/internal/domain/agent/ports/llm"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	react "alex/internal/domain/agent/react"
+	"alex/internal/domain/calendar"
 	signalports "alex/internal/domain/signal/ports"
 	taskdomain "alex/internal/domain/task"
 	"alex/internal/infra/filestore"
@@ -48,6 +49,7 @@ type Container struct {
 	LarkGateway      LarkGateway
 	LarkOAuth         *larkoauth.Service
 	GitSignalProvider signalports.GitSignalProvider
+	CalendarPort      calendar.CalendarPort
 
 	// Drainables holds subsystems that support graceful drain.
 	Drainables []lifecycle.Drainable

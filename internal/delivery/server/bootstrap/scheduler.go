@@ -13,8 +13,6 @@ import (
 	"alex/internal/app/prepbrief"
 	"alex/internal/app/pulse"
 	"alex/internal/app/scheduler"
-	"alex/internal/domain/calendar"
-	infracal "alex/internal/infra/calendar"
 	infranotify "alex/internal/infra/notification"
 	"alex/internal/infra/observability"
 	okrtools "alex/internal/infra/tools/builtin/okr"
@@ -127,17 +125,6 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, me
 		logger.Info("Prep brief service created (channel=%s, chat_id=%s)", prepBriefCfg.Channel, prepBriefCfg.ChatID)
 	}
 
-	var calPort calendar.CalendarPort
-	larkCfg := cfg.Channels.LarkConfig()
-	if larkCfg.AppID != "" && larkCfg.AppSecret != "" {
-		calPort = infracal.NewLarkCalendarProvider(infracal.LarkCalendarConfig{
-			AppID:      larkCfg.AppID,
-			AppSecret:  larkCfg.AppSecret,
-			BaseDomain: larkCfg.BaseDomain,
-		}, logger)
-		logger.Info("Calendar port created (lark, app_id=%s)", larkCfg.AppID)
-	}
-
 	schedCfg := scheduler.Config{
 		Enabled:             true,
 		StaticTriggers:      cfg.Runtime.Proactive.Scheduler.Triggers,
@@ -152,7 +139,7 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, me
 		BlockerRadarService: blockerRadarSvc,
 		PrepBrief:           prepBriefCfg,
 		PrepBriefService:    prepBriefSvc,
-		CalendarPort:        calPort,
+		CalendarPort:        container.CalendarPort,
 		TriggerTimeout:      time.Duration(cfg.Runtime.Proactive.Scheduler.TriggerTimeoutSeconds) * time.Second,
 		ConcurrencyPolicy:   cfg.Runtime.Proactive.Scheduler.ConcurrencyPolicy,
 		JobStore:            jobStore,

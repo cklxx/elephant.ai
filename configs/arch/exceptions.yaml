@@ -631,6 +631,11 @@ imports:
     owner: "cklxx"
     reason: "Bootstrap wires git signal provider during startup"
     expires_at: "2026-03-31"
+  - from: "alex/internal/delivery/server/bootstrap"
+    to: "alex/internal/infra/calendar"
+    owner: "cklxx"
+    reason: "Bootstrap wires calendar provider during startup"
+    expires_at: "2026-03-31"
 fanout:
   - package: "alex/internal/delivery/server/bootstrap"
     owner: "cklxx"
