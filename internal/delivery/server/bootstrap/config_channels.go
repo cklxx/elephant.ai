@@ -66,6 +66,7 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyPositiveDurationSeconds(&target.StateCleanupInterval, larkCfg.StateCleanupIntervalSeconds)
 	applyLarkPersistenceConfig(&target, larkCfg.Persistence)
 	applyLarkDeliveryConfig(&target, larkCfg.Delivery)
+	applyLarkRateLimiterConfig(&target, larkCfg.RateLimiter)
 	applyPositiveInt(&target.MaxConcurrentTasks, larkCfg.MaxConcurrentTasks)
 	applyOptionalTrimmedString(&target.DefaultPlanMode, larkCfg.DefaultPlanMode)
 	cfg.Channels.SetLarkConfig(target)
@@ -110,6 +111,15 @@ func applyLarkDeliveryConfig(dst *LarkGatewayConfig, delivery *runtimeconfig.Lar
 	if worker.JitterRatio != nil && *worker.JitterRatio > 0 {
 		dst.DeliveryWorker.JitterRatio = *worker.JitterRatio
 	}
+}
+
+func applyLarkRateLimiterConfig(dst *LarkGatewayConfig, rl *runtimeconfig.LarkRateLimiterConfig) {
+	if dst == nil || rl == nil {
+		return
+	}
+	applyOptionalBool(&dst.RateLimiterEnabled, rl.Enabled)
+	applyPositiveInt(&dst.RateLimiterChatHourlyLimit, rl.ChatHourlyLimit)
+	applyPositiveInt(&dst.RateLimiterUserDailyLimit, rl.UserDailyLimit)
 }
 
 func validateLarkPersistenceConfig(cfg *Config) error {

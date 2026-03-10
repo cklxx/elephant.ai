@@ -177,6 +177,9 @@ type LarkGatewayConfig struct {
 	DeliveryMode                  string
 	DeliveryWorker                lark.DeliveryWorkerConfig
 	AttentionGate                 lark.AttentionGateConfig
+	RateLimiterEnabled            bool
+	RateLimiterChatHourlyLimit    int
+	RateLimiterUserDailyLimit     int
 }
 
 // HooksBridgeConfig controls the Claude Code hooks → Lark bridge endpoint.

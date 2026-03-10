@@ -426,9 +426,10 @@ type LarkChannelConfig struct {
 	PendingInputRelayMaxChats   *int                   `json:"pending_input_relay_max_chats" yaml:"pending_input_relay_max_chats"`
 	PendingInputRelayMaxPerChat *int                   `json:"pending_input_relay_max_per_chat" yaml:"pending_input_relay_max_per_chat"`
 	AIChatSessionTTLMinutes     *int                   `json:"ai_chat_session_ttl_minutes" yaml:"ai_chat_session_ttl_minutes"`
-	Persistence                 *LarkPersistenceConfig `json:"persistence" yaml:"persistence"`
-	Delivery                    *LarkDeliveryConfig    `json:"delivery" yaml:"delivery"`
-	DefaultPlanMode             *string                `json:"default_plan_mode" yaml:"default_plan_mode"`
+	Persistence                 *LarkPersistenceConfig    `json:"persistence" yaml:"persistence"`
+	Delivery                    *LarkDeliveryConfig       `json:"delivery" yaml:"delivery"`
+	RateLimiter                 *LarkRateLimiterConfig    `json:"rate_limiter" yaml:"rate_limiter"`
+	DefaultPlanMode             *string                   `json:"default_plan_mode" yaml:"default_plan_mode"`
 	BaseChannelConfig           `json:",inline" yaml:",inline"`
 }
 
@@ -455,6 +456,13 @@ type LarkDeliveryWorkerConfig struct {
 	BaseBackoffMs  *int     `json:"base_backoff_ms" yaml:"base_backoff_ms"`
 	MaxBackoffMs   *int     `json:"max_backoff_ms" yaml:"max_backoff_ms"`
 	JitterRatio    *float64 `json:"jitter_ratio" yaml:"jitter_ratio"`
+}
+
+// LarkRateLimiterConfig captures per-chat and per-user notification rate limits.
+type LarkRateLimiterConfig struct {
+	Enabled         *bool `json:"enabled" yaml:"enabled"`
+	ChatHourlyLimit *int  `json:"chat_hourly_limit" yaml:"chat_hourly_limit"`
+	UserDailyLimit  *int  `json:"user_daily_limit" yaml:"user_daily_limit"`
 }
 
 // LarkBrowserConfig captures local browser settings for the Lark channel.

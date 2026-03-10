@@ -103,6 +103,11 @@ func NewRateLimiter(cfg RateLimiterConfig) *RateLimiter {
 	}
 }
 
+// Config returns the effective rate limiter configuration.
+func (r *RateLimiter) Config() RateLimiterConfig {
+	return r.config
+}
+
 // now returns the current time, using the injected nowFunc if set.
 func (r *RateLimiter) now() time.Time {
 	return r.nowFunc()

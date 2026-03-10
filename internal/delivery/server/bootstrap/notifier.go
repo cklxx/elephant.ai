@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	larkpkg "alex/internal/delivery/channels/lark"
 	"alex/internal/infra/moltbook"
 	infranotify "alex/internal/infra/notification"
 	"alex/internal/shared/logging"
@@ -15,7 +16,19 @@ func BuildNotifiers(cfg Config, label string, logger logging.Logger) notificatio
 
 	larkCfg := cfg.Channels.LarkConfig()
 	if larkCfg.Enabled && larkCfg.AppID != "" && larkCfg.AppSecret != "" {
-		notifiers = append(notifiers, infranotify.NewLarkSender(larkCfg.AppID, larkCfg.AppSecret, logger))
+		var sender notification.Notifier = infranotify.NewLarkSender(larkCfg.AppID, larkCfg.AppSecret, logger)
+
+		if larkCfg.RateLimiterEnabled {
+			limiter := larkpkg.NewRateLimiter(larkpkg.RateLimiterConfig{
+				ChatHourlyLimit: larkCfg.RateLimiterChatHourlyLimit,
+				UserDailyLimit:  larkCfg.RateLimiterUserDailyLimit,
+			})
+			sender = larkpkg.NewRateLimitedNotifier(sender, limiter, logger)
+			logger.Info("%s: Lark rate limiter enabled (chat_hourly=%d, user_daily=%d)",
+				label, limiter.Config().ChatHourlyLimit, limiter.Config().UserDailyLimit)
+		}
+
+		notifiers = append(notifiers, sender)
 		logger.Info("%s: Lark notifier initialized", label)
 	}
 
