@@ -231,6 +231,12 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 	if file.BlockerRadar != nil {
 		mergeBlockerRadarConfig(&target.BlockerRadar, file.BlockerRadar)
 	}
+	if file.PrepBrief != nil {
+		mergePrepBriefConfig(&target.PrepBrief, file.PrepBrief)
+	}
+	if file.ScopeWatch != nil {
+		mergeScopeWatchConfig(&target.ScopeWatch, file.ScopeWatch)
+	}
 	if len(file.Triggers) > 0 {
 		triggers := make([]SchedulerTriggerConfig, 0, len(file.Triggers))
 		for _, trigger := range file.Triggers {
@@ -395,6 +401,54 @@ func mergeBlockerRadarConfig(target *BlockerRadarConfig, file *BlockerRadarFileC
 	}
 }
 
+func mergePrepBriefConfig(target *PrepBriefConfig, file *PrepBriefFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.Enabled != nil {
+		target.Enabled = *file.Enabled
+	}
+	if utils.HasContent(file.Schedule) {
+		target.Schedule = strings.TrimSpace(file.Schedule)
+	}
+	if file.LookbackSeconds != nil {
+		target.LookbackSeconds = *file.LookbackSeconds
+	}
+	if utils.HasContent(file.MemberID) {
+		target.MemberID = strings.TrimSpace(file.MemberID)
+	}
+	if utils.HasContent(file.Channel) {
+		target.Channel = strings.TrimSpace(file.Channel)
+	}
+	if utils.HasContent(file.ChatID) {
+		target.ChatID = strings.TrimSpace(file.ChatID)
+	}
+}
+
+func mergeScopeWatchConfig(target *ScopeWatchConfig, file *ScopeWatchFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.Enabled != nil {
+		target.Enabled = *file.Enabled
+	}
+	if utils.HasContent(file.Schedule) {
+		target.Schedule = strings.TrimSpace(file.Schedule)
+	}
+	if file.LookbackSeconds != nil {
+		target.LookbackSeconds = *file.LookbackSeconds
+	}
+	if file.MinDescriptionDelta != nil {
+		target.MinDescriptionDelta = *file.MinDescriptionDelta
+	}
+	if utils.HasContent(file.Channel) {
+		target.Channel = strings.TrimSpace(file.Channel)
+	}
+	if utils.HasContent(file.ChatID) {
+		target.ChatID = strings.TrimSpace(file.ChatID)
+	}
+}
+
 func mergeAttentionConfig(target *AttentionConfig, file *AttentionFileConfig) {
 	if target == nil || file == nil {
 		return
@@ -489,6 +543,17 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 			file.Scheduler.BlockerRadar.Schedule = expandEnvValue(lookup, file.Scheduler.BlockerRadar.Schedule)
 			file.Scheduler.BlockerRadar.Channel = expandEnvValue(lookup, file.Scheduler.BlockerRadar.Channel)
 			file.Scheduler.BlockerRadar.ChatID = expandEnvValue(lookup, file.Scheduler.BlockerRadar.ChatID)
+		}
+		if file.Scheduler.PrepBrief != nil {
+			file.Scheduler.PrepBrief.Schedule = expandEnvValue(lookup, file.Scheduler.PrepBrief.Schedule)
+			file.Scheduler.PrepBrief.MemberID = expandEnvValue(lookup, file.Scheduler.PrepBrief.MemberID)
+			file.Scheduler.PrepBrief.Channel = expandEnvValue(lookup, file.Scheduler.PrepBrief.Channel)
+			file.Scheduler.PrepBrief.ChatID = expandEnvValue(lookup, file.Scheduler.PrepBrief.ChatID)
+		}
+		if file.Scheduler.ScopeWatch != nil {
+			file.Scheduler.ScopeWatch.Schedule = expandEnvValue(lookup, file.Scheduler.ScopeWatch.Schedule)
+			file.Scheduler.ScopeWatch.Channel = expandEnvValue(lookup, file.Scheduler.ScopeWatch.Channel)
+			file.Scheduler.ScopeWatch.ChatID = expandEnvValue(lookup, file.Scheduler.ScopeWatch.ChatID)
 		}
 	}
 	if file.Timer != nil {

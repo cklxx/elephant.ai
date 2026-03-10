@@ -20,6 +20,7 @@ type SchedulerConfig struct {
 	WeeklyPulse                      WeeklyPulseConfig        `json:"weekly_pulse" yaml:"weekly_pulse"`
 	BlockerRadar                     BlockerRadarConfig       `json:"blocker_radar" yaml:"blocker_radar"`
 	PrepBrief                        PrepBriefConfig          `json:"prep_brief" yaml:"prep_brief"`
+	ScopeWatch                       ScopeWatchConfig         `json:"scope_watch" yaml:"scope_watch"`
 	GitSignal                        GitSignalConfig          `json:"git_signal" yaml:"git_signal"`
 }
 

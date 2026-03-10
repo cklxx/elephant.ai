@@ -247,6 +247,8 @@ type SchedulerFileConfig struct {
 	MilestoneCheckin                 *MilestoneCheckinFileConfig  `yaml:"milestone_checkin"`
 	WeeklyPulse                      *WeeklyPulseFileConfig       `yaml:"weekly_pulse"`
 	BlockerRadar                     *BlockerRadarFileConfig      `yaml:"blocker_radar"`
+	PrepBrief                        *PrepBriefFileConfig         `yaml:"prep_brief"`
+	ScopeWatch                       *ScopeWatchFileConfig        `yaml:"scope_watch"`
 	TriggerTimeoutSeconds            *int                         `yaml:"trigger_timeout_seconds"`
 	ConcurrencyPolicy                string                       `yaml:"concurrency_policy"`
 	LeaderLockEnabled                *bool                        `yaml:"leader_lock_enabled"`
@@ -312,6 +314,24 @@ type BlockerRadarFileConfig struct {
 	InputWaitSeconds      *int   `yaml:"input_wait_seconds"`
 	Channel               string `yaml:"channel"`
 	ChatID                string `yaml:"chat_id"`
+}
+
+type PrepBriefFileConfig struct {
+	Enabled         *bool  `yaml:"enabled"`
+	Schedule        string `yaml:"schedule"`
+	LookbackSeconds *int   `yaml:"lookback_seconds"`
+	MemberID        string `yaml:"member_id"`
+	Channel         string `yaml:"channel"`
+	ChatID          string `yaml:"chat_id"`
+}
+
+type ScopeWatchFileConfig struct {
+	Enabled             *bool  `yaml:"enabled"`
+	Schedule            string `yaml:"schedule"`
+	LookbackSeconds     *int   `yaml:"lookback_seconds"`
+	MinDescriptionDelta *int   `yaml:"min_description_delta"`
+	Channel             string `yaml:"channel"`
+	ChatID              string `yaml:"chat_id"`
 }
 
 type TimerFileConfig struct {

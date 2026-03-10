@@ -70,6 +70,8 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, me
 		PrepBrief:           cfg.Runtime.Proactive.Scheduler.PrepBrief,
 		PrepBriefService:    svcs.prepBrief,
 		CalendarPort:        container.CalendarPort,
+		ScopeWatch:          cfg.Runtime.Proactive.Scheduler.ScopeWatch,
+		ScopeWatchService:   svcs.scopeWatch,
 		TriggerTimeout:      time.Duration(cfg.Runtime.Proactive.Scheduler.TriggerTimeoutSeconds) * time.Second,
 		ConcurrencyPolicy:   cfg.Runtime.Proactive.Scheduler.ConcurrencyPolicy,
 		JobStore:            jobStore,
@@ -98,6 +100,7 @@ type schedulerServices struct {
 	weeklyPulse  scheduler.WeeklyPulseService
 	blockerRadar scheduler.BlockerRadarService
 	prepBrief    scheduler.PrepBriefService
+	scopeWatch   scheduler.ScopeWatchService
 }
 
 func buildSchedulerServices(cfg Config, container *di.Container, notifier notification.Notifier, metrics *observability.MetricsCollector, logger logging.Logger) schedulerServices {

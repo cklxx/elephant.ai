@@ -12,6 +12,7 @@ var leaderJobNames = []string{
 	weeklyPulseTriggerName,
 	milestoneTriggerName,
 	prepBriefTriggerName,
+	scopeWatchTriggerName,
 }
 
 // leaderJobResult tracks the outcome of the most recent execution of a leader job.
@@ -97,6 +98,8 @@ func DisplayName(name string) string {
 		return "milestone_checkin"
 	case prepBriefTriggerName:
 		return "prep_brief"
+	case scopeWatchTriggerName:
+		return "scope_watch"
 	default:
 		return name
 	}

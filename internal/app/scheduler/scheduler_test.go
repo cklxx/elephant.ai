@@ -1579,6 +1579,8 @@ func TestScheduler_LeaderJobsHealth_AllRegistered(t *testing.T) {
 		BlockerRadarService: &mockBlockerRadarService{},
 		PrepBrief:           config.PrepBriefConfig{Enabled: true, Schedule: "30 8 * * 1-5"},
 		PrepBriefService:    &mockPrepBriefService{},
+		ScopeWatch:          config.ScopeWatchConfig{Enabled: true, Schedule: "*/30 * * * *"},
+		ScopeWatchService:   &stubScopeWatchService{},
 	}, &mockCoordinator{answer: "ok"}, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1589,8 +1591,8 @@ func TestScheduler_LeaderJobsHealth_AllRegistered(t *testing.T) {
 	defer sched.Stop()
 
 	statuses := sched.LeaderJobsHealth()
-	if len(statuses) != 4 {
-		t.Fatalf("expected 4 leader jobs, got %d", len(statuses))
+	if len(statuses) != 5 {
+		t.Fatalf("expected 5 leader jobs, got %d", len(statuses))
 	}
 	for _, s := range statuses {
 		if !s.Registered {
@@ -1613,8 +1615,8 @@ func TestScheduler_LeaderJobsHealth_NoneRegistered(t *testing.T) {
 	defer sched.Stop()
 
 	statuses := sched.LeaderJobsHealth()
-	if len(statuses) != 4 {
-		t.Fatalf("expected 4 leader jobs (all unregistered), got %d", len(statuses))
+	if len(statuses) != 5 {
+		t.Fatalf("expected 5 leader jobs (all unregistered), got %d", len(statuses))
 	}
 	for _, s := range statuses {
 		if s.Registered {
