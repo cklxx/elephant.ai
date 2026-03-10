@@ -69,11 +69,9 @@ func (a *CodexAdapter) Inject(_ context.Context, sessionID, _ string) error {
 	return fmt.Errorf("codex adapter: inject not supported for session %s", sessionID)
 }
 
-// Stop cancels the executor goroutine (via ctx) and kills the visual pane.
-// The caller is responsible for cancelling the context passed to Start.
-func (a *CodexAdapter) Stop(ctx context.Context, _ string, _ bool) error {
-	// Context cancellation propagates to the executor goroutine.
-	// There is no pane handle stored because the pane is fire-and-forget.
-	_ = ctx
+// Stop is a no-op: context cancellation (by the caller) propagates to the
+// executor goroutine. There is no pane handle to kill because the pane is
+// fire-and-forget.
+func (a *CodexAdapter) Stop(_ context.Context, _ string, _ bool) error {
 	return nil
 }

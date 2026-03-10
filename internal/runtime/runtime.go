@@ -349,41 +349,10 @@ func (rt *Runtime) MarkCompleted(id, answer string) error {
 		return fmt.Errorf("runtime: session %s not found", id)
 	}
 	s.SetResult(answer)
-	if err := s.Transition(session.StateCompleted); err != nil {
-		return err
-	}
-
-	snap := s.Snapshot()
-
-	if saveErr := rt.store.Save(s); saveErr != nil {
-		return saveErr
-	}
-
-	// Release pool pane back to the pool.
-	rt.releasePoolPane(snap)
-
-	rt.bus.Publish(id, hooks.Event{
-		Type:      hooks.EventCompleted,
-		SessionID: id,
-		At:        time.Now(),
-		Payload:   map[string]any{"answer": answer},
-	})
-
-	// If this session has a parent, notify the parent via EventChildCompleted.
-	if snap.ParentSessionID != "" {
-		rt.bus.Publish(snap.ParentSessionID, hooks.Event{
-			Type:      hooks.EventChildCompleted,
-			SessionID: snap.ParentSessionID,
-			At:        time.Now(),
-			Payload: map[string]any{
-				"child_id":     id,
-				"child_goal":   snap.Goal,
-				"child_answer": answer,
-			},
-		})
-	}
-
-	return nil
+	return rt.markTerminal(s, id, session.StateCompleted, hooks.EventCompleted,
+		map[string]any{"answer": answer},
+		map[string]any{"child_answer": answer},
+	)
 }
 
 // MarkFailed moves the session to failed and records the error.
@@ -393,7 +362,23 @@ func (rt *Runtime) MarkFailed(id, errMsg string) error {
 		return fmt.Errorf("runtime: session %s not found", id)
 	}
 	s.SetError(errMsg)
-	if err := s.Transition(session.StateFailed); err != nil {
+	return rt.markTerminal(s, id, session.StateFailed, hooks.EventFailed,
+		map[string]any{"error": errMsg},
+		map[string]any{"child_error": errMsg},
+	)
+}
+
+// markTerminal is the shared path for MarkCompleted and MarkFailed:
+// transition state → save → release pane → publish event → notify parent.
+func (rt *Runtime) markTerminal(
+	s *session.Session,
+	id string,
+	state session.State,
+	eventType hooks.EventType,
+	payload map[string]any,
+	childPayload map[string]any,
+) error {
+	if err := s.Transition(state); err != nil {
 		return err
 	}
 
@@ -403,28 +388,29 @@ func (rt *Runtime) MarkFailed(id, errMsg string) error {
 		return saveErr
 	}
 
-	// Release pool pane back to the pool.
 	rt.releasePoolPane(snap)
 
 	rt.bus.Publish(id, hooks.Event{
-		Type:      hooks.EventFailed,
+		Type:      eventType,
 		SessionID: id,
 		At:        time.Now(),
-		Payload:   map[string]any{"error": errMsg},
+		Payload:   payload,
 	})
 
-	// If this session has a parent, notify the parent via EventChildCompleted
-	// (even on failure, so the leader can decide what to do).
+	// Notify parent via EventChildCompleted (even on failure).
 	if snap.ParentSessionID != "" {
+		cp := map[string]any{
+			"child_id":   id,
+			"child_goal": snap.Goal,
+		}
+		for k, v := range childPayload {
+			cp[k] = v
+		}
 		rt.bus.Publish(snap.ParentSessionID, hooks.Event{
 			Type:      hooks.EventChildCompleted,
 			SessionID: snap.ParentSessionID,
 			At:        time.Now(),
-			Payload: map[string]any{
-				"child_id":    id,
-				"child_goal":  snap.Goal,
-				"child_error": errMsg,
-			},
+			Payload:   cp,
 		})
 	}
 

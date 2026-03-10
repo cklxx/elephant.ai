@@ -160,20 +160,23 @@ func (s *Session) Snapshot() SessionData {
 	return s.SessionData
 }
 
-// isValidTransition defines the allowed state machine edges.
+// validTransitions defines the allowed state machine edges.
+// Hoisted to package level to avoid re-allocating the map on every call.
+var validTransitions = map[State][]State{
+	StateCreated:    {StateStarting, StateCancelled},
+	StateStarting:   {StateRunning, StateFailed, StateCancelled},
+	StateRunning:    {StateNeedsInput, StateStalled, StateCompleted, StateFailed, StateCancelled},
+	StateNeedsInput: {StateRunning, StateStalled, StateCancelled},
+	StateStalled:    {StateRunning, StateCancelled, StateFailed},
+	// terminal states — no further transitions
+	StateCompleted: {},
+	StateFailed:    {},
+	StateCancelled: {},
+}
+
+// isValidTransition checks whether from→to is an allowed state machine edge.
 func isValidTransition(from, to State) bool {
-	allowed := map[State][]State{
-		StateCreated:    {StateStarting, StateCancelled},
-		StateStarting:   {StateRunning, StateFailed, StateCancelled},
-		StateRunning:    {StateNeedsInput, StateStalled, StateCompleted, StateFailed, StateCancelled},
-		StateNeedsInput: {StateRunning, StateStalled, StateCancelled},
-		StateStalled:    {StateRunning, StateCancelled, StateFailed},
-		// terminal states — no further transitions
-		StateCompleted: {},
-		StateFailed:    {},
-		StateCancelled: {},
-	}
-	for _, t := range allowed[from] {
+	for _, t := range validTransitions[from] {
 		if t == to {
 			return true
 		}
