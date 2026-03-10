@@ -11,6 +11,22 @@ func IsBlank(s string) bool { return strings.TrimSpace(s) == "" }
 // HasContent returns true when s contains at least one non-whitespace character.
 func HasContent(s string) bool { return strings.TrimSpace(s) != "" }
 
+// CountLines returns the number of lines in content. Returns 0 for empty strings.
+func CountLines(content string) int {
+	if content == "" {
+		return 0
+	}
+	return strings.Count(content, "\n") + 1
+}
+
+// Pluralize appends "s" to word when count != 1.
+func Pluralize(word string, count int) string {
+	if count == 1 {
+		return word
+	}
+	return word + "s"
+}
+
 // NormalizeSessionTitle trims and truncates session titles for storage/display.
 func NormalizeSessionTitle(value string) string {
 	trimmed := strings.TrimSpace(value)

@@ -122,20 +122,6 @@ func truncateWithEllipsis(preview string, limit int) string {
 	return string(runes[:limit-len(ellipsis)]) + ellipsis
 }
 
-func countLines(content string) int {
-	if content == "" {
-		return 0
-	}
-	return strings.Count(content, "\n") + 1
-}
-
-func pluralize(word string, count int) string {
-	if count == 1 {
-		return word
-	}
-	return word + "s"
-}
-
 func formatBytes(bytes int64) string {
 	if bytes < 1024 {
 		return fmt.Sprintf("%d B", bytes)

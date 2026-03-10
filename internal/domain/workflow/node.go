@@ -169,7 +169,7 @@ func (n *Node) snapshotLocked() NodeSnapshot {
 	// Apply output size governance: truncate large outputs in the snapshot
 	// and set OutputRef so consumers know the full output is available.
 	if snapshot.Output != nil {
-		if data, inline, err := ClassifyOutput(snapshot.Output); err == nil && !inline {
+		if data, inline, err := classifyOutput(snapshot.Output); err == nil && !inline {
 			snapshot.Output = truncateOutputData(data)
 			snapshot.OutputRef = fmt.Sprintf("node:%s:output", n.id)
 		}
@@ -177,25 +177,15 @@ func (n *Node) snapshotLocked() NodeSnapshot {
 	return snapshot
 }
 
-// ClassifyOutput determines whether output should be inlined or referenced.
+// classifyOutput determines whether output should be inlined or referenced.
 // It returns the serialized bytes, whether the output fits inline, and any
 // marshal error.
-func ClassifyOutput(output any) (data []byte, inline bool, err error) {
+func classifyOutput(output any) (data []byte, inline bool, err error) {
 	data, err = jsonx.Marshal(output)
 	if err != nil {
 		return nil, false, err
 	}
 	return data, len(data) <= MaxInlineOutputBytes, nil
-}
-
-// TruncateOutputForSnapshot returns a truncated string representation of
-// large outputs, suitable for inline snapshot display.
-func TruncateOutputForSnapshot(output any) string {
-	data, err := jsonx.Marshal(output)
-	if err != nil {
-		return "[marshal error]"
-	}
-	return truncateOutputData(data)
 }
 
 func truncateOutputData(data []byte) string {

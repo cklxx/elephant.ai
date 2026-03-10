@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"alex/internal/shared/utils"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -135,7 +137,7 @@ func TestCountLines(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expect, countLines(tc.input))
+			assert.Equal(t, tc.expect, utils.CountLines(tc.input))
 		})
 	}
 }
@@ -154,7 +156,7 @@ func TestPluralize(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expect, pluralize(tc.word, tc.count))
+			assert.Equal(t, tc.expect, utils.Pluralize(tc.word, tc.count))
 		})
 	}
 }

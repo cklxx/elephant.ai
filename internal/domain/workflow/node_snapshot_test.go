@@ -9,7 +9,7 @@ import (
 
 func TestClassifyOutputInline(t *testing.T) {
 	small := map[string]string{"result": "ok"}
-	data, inline, err := ClassifyOutput(small)
+	data, inline, err := classifyOutput(small)
 	require.NoError(t, err)
 	require.True(t, inline)
 	require.NotEmpty(t, data)
@@ -17,7 +17,7 @@ func TestClassifyOutputInline(t *testing.T) {
 
 func TestClassifyOutputLarge(t *testing.T) {
 	large := strings.Repeat("x", MaxInlineOutputBytes+1)
-	data, inline, err := ClassifyOutput(large)
+	data, inline, err := classifyOutput(large)
 	require.NoError(t, err)
 	require.False(t, inline)
 	require.Greater(t, len(data), MaxInlineOutputBytes)
@@ -27,7 +27,7 @@ func TestClassifyOutputExactThreshold(t *testing.T) {
 	// A string of exactly MaxInlineOutputBytes-2 characters will serialize to
 	// MaxInlineOutputBytes bytes (2 bytes for JSON quotes).
 	exact := strings.Repeat("a", MaxInlineOutputBytes-2)
-	data, inline, err := ClassifyOutput(exact)
+	data, inline, err := classifyOutput(exact)
 	require.NoError(t, err)
 	require.True(t, inline)
 	require.Equal(t, MaxInlineOutputBytes, len(data))
@@ -36,29 +36,23 @@ func TestClassifyOutputExactThreshold(t *testing.T) {
 func TestClassifyOutputMarshalError(t *testing.T) {
 	// Channels cannot be marshaled to JSON.
 	ch := make(chan int)
-	_, _, err := ClassifyOutput(ch)
+	_, _, err := classifyOutput(ch)
 	require.Error(t, err)
 }
 
 func TestTruncateOutputSmall(t *testing.T) {
 	small := map[string]string{"ok": "true"}
-	result := TruncateOutputForSnapshot(small)
+	result := truncateOutputData([]byte(`{"ok":"true"}`))
 	require.NotContains(t, result, "...[truncated]")
+	_ = small // original test used TruncateOutputForSnapshot; now tests truncateOutputData directly
 }
 
 func TestTruncateOutputLarge(t *testing.T) {
-	large := strings.Repeat("x", MaxInlineOutputBytes+500)
-	result := TruncateOutputForSnapshot(large)
+	large := `"` + strings.Repeat("x", MaxInlineOutputBytes+500) + `"`
+	result := truncateOutputData([]byte(large))
 	require.Contains(t, result, "...[truncated]")
-	// The prefix before the truncation marker must be exactly MaxInlineOutputBytes.
 	idx := strings.Index(result, "...[truncated]")
 	require.Equal(t, MaxInlineOutputBytes, idx)
-}
-
-func TestTruncateOutputMarshalError(t *testing.T) {
-	ch := make(chan int)
-	result := TruncateOutputForSnapshot(ch)
-	require.Equal(t, "[marshal error]", result)
 }
 
 func TestSnapshotGovernanceTruncatesLargeOutput(t *testing.T) {

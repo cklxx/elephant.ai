@@ -3,21 +3,15 @@ package formatter
 import (
 	"fmt"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
-func countLines(value string) int {
-	if value == "" {
-		return 0
-	}
-	return strings.Count(value, "\n") + 1
-}
-
-func pluralize(word string, count int) string {
-	if count == 1 {
-		return word
-	}
-	return word + "s"
-}
+// Aliases for shared helpers used throughout this package.
+var (
+	countLines = utils.CountLines
+	pluralize  = utils.Pluralize
+)
 
 // Helper functions to extract typed arguments
 func (tf *ToolFormatter) getStringArg(args map[string]any, key, defaultVal string) string {

@@ -12,8 +12,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// formatToolOutput formats tool output based on tool category and hierarchy
-func (r *CLIRenderer) formatToolOutput(_ *types.OutputContext, toolName, result string, indent string) string {
+// formatToolOutput formats tool output based on tool category and hierarchy.
+func (r *CLIRenderer) formatToolOutput(toolName, result string, indent string) string {
 	// Use brighter gray (#808080) that works on both light and dark backgrounds
 	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
 	normalizedTool := strings.TrimSpace(toolName)
@@ -95,11 +95,11 @@ func (r *CLIRenderer) formatBashExecutionOutput(result, indent string, style lip
 
 	trimmedStdout := strings.TrimSpace(stdout)
 	if trimmedStdout != "" {
-		stdoutLines := countLines(trimmedStdout)
+		stdoutLines := utils.CountLines(trimmedStdout)
 		if stdoutLines == 1 && utf8.RuneCountInString(trimmedStdout) <= 80 {
 			summaryParts = append(summaryParts, trimmedStdout)
 		} else {
-			summaryParts = append(summaryParts, fmt.Sprintf("stdout %d %s", stdoutLines, pluralize("line", stdoutLines)))
+			summaryParts = append(summaryParts, fmt.Sprintf("stdout %d %s", stdoutLines, utils.Pluralize("line", stdoutLines)))
 		}
 	} else {
 		summaryParts = append(summaryParts, "stdout empty")
@@ -107,11 +107,11 @@ func (r *CLIRenderer) formatBashExecutionOutput(result, indent string, style lip
 
 	trimmedStderr := strings.TrimSpace(stderr)
 	if trimmedStderr != "" {
-		stderrLines := countLines(trimmedStderr)
+		stderrLines := utils.CountLines(trimmedStderr)
 		if stderrLines == 1 && utf8.RuneCountInString(trimmedStderr) <= 80 {
 			summaryParts = append(summaryParts, fmt.Sprintf("stderr: %s", trimmedStderr))
 		} else {
-			summaryParts = append(summaryParts, fmt.Sprintf("stderr %d %s", stderrLines, pluralize("line", stderrLines)))
+			summaryParts = append(summaryParts, fmt.Sprintf("stderr %d %s", stderrLines, utils.Pluralize("line", stderrLines)))
 		}
 	}
 
@@ -214,7 +214,7 @@ func (r *CLIRenderer) formatSandboxFileOutput(toolName, result, indent string, s
 	cleaned := filterSystemReminders(result)
 	switch toolName {
 	case "read_file":
-		lines := countLines(cleaned)
+		lines := utils.CountLines(cleaned)
 		return fmt.Sprintf("%s  %s\n", indent, style.Render(fmt.Sprintf("→ %d lines read", lines)))
 	case "write_file", "replace_in_file":
 		if summary, ok := summarizeFileOperation(cleaned); ok {

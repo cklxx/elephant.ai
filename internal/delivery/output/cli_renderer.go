@@ -129,7 +129,7 @@ func (r *CLIRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 	}
 
 	// Smart display based on tool category and hierarchy
-	formatted := r.formatToolOutput(ctx, toolName, result, indent)
+	formatted := r.formatToolOutput(toolName, result, indent)
 	formatted = appendDurationSuffix(formatted, duration)
 	return r.constrainWidth(formatted)
 }
