@@ -176,7 +176,10 @@ func (r *Registry) InputRequests() <-chan agent.InputRequest {
 func (r *Registry) Reply(ctx context.Context, resp agent.InputResponse) error {
 	key := requestKey(resp.TaskID, resp.RequestID)
 	if execVal, ok := r.pending.Load(key); ok {
-		exec := execVal.(agent.InteractiveExternalExecutor)
+		exec, _ := execVal.(agent.InteractiveExternalExecutor)
+		if exec == nil {
+			return fmt.Errorf("invalid pending executor for request_id: %s", resp.RequestID)
+		}
 		err := exec.Reply(ctx, resp)
 		if err == nil {
 			r.pending.Delete(key)

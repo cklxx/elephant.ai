@@ -274,15 +274,18 @@ func (m *Manager) saveMetadata(info *BackupInfo) error {
 	// Create directory if needed
 	dir := filepath.Dir(metadataPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+		return fmt.Errorf("mkdir metadata dir: %w", err)
 	}
 
 	data, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal metadata: %w", err)
 	}
 
-	return os.WriteFile(metadataPath, data, 0644)
+	if err := os.WriteFile(metadataPath, data, 0644); err != nil {
+		return fmt.Errorf("write metadata: %w", err)
+	}
+	return nil
 }
 
 // loadMetadata loads backup metadata from disk
@@ -291,12 +294,12 @@ func (m *Manager) loadMetadata(backupID string) (*BackupInfo, error) {
 
 	data, err := os.ReadFile(metadataPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read metadata: %w", err)
 	}
 
 	var info BackupInfo
 	if err := json.Unmarshal(data, &info); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unmarshal metadata: %w", err)
 	}
 
 	return &info, nil

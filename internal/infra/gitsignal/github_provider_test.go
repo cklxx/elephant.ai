@@ -35,22 +35,19 @@ func TestListRecentEvents(t *testing.T) {
 		{
 			ID:        "1",
 			Type:      "PullRequestEvent",
-			Actor:     ghActor{Login: "alice"},
-			CreatedAt: now.Add(-1 * time.Minute),
+				CreatedAt: now.Add(-1 * time.Minute),
 			Payload:   mustJSON(ghPREventPayload{Action: "opened", Number: 42, PR: ghPull{Number: 42, Title: "feat: something", User: ghActor{Login: "alice"}, Head: ghRef{Ref: "feat/PROJ-123-something"}, HTMLURL: "https://github.com/org/repo/pull/42"}}),
 		},
 		{
 			ID:        "2",
 			Type:      "PushEvent",
-			Actor:     ghActor{Login: "bob"},
-			CreatedAt: now.Add(-30 * time.Second),
+				CreatedAt: now.Add(-30 * time.Second),
 			Payload:   mustJSON(ghPushPayload{Ref: "refs/heads/feat/PROJ-456-fix", Commits: []ghCommit{{SHA: "abc123", Commit: ghCommitData{Message: "fix bug", Author: ghCommitAuthor{Name: "bob", Date: now}}}}}),
 		},
 		{
 			ID:        "old",
 			Type:      "PushEvent",
-			Actor:     ghActor{Login: "charlie"},
-			CreatedAt: now.Add(-2 * time.Hour),
+				CreatedAt: now.Add(-2 * time.Hour),
 			Payload:   mustJSON(ghPushPayload{Ref: "refs/heads/main"}),
 		},
 	}
@@ -243,7 +240,7 @@ func TestNormalizeGHEvent_PRMerged(t *testing.T) {
 func TestNormalizeGHEvent_ReviewApproved(t *testing.T) {
 	payload := ghPRReviewPayload{
 		Action: "submitted",
-		Review: ghReview{State: "approved", User: ghActor{Login: "reviewer"}},
+		Review: ghReview{State: "approved"},
 		PR:     ghPull{Number: 8},
 	}
 	e := ghEvent{

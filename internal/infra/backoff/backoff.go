@@ -26,7 +26,7 @@ func ExponentialClamp(base, max time.Duration, attempt int) time.Duration {
 		delay *= 2
 	}
 
-	if max > 0 && delay > max {
+	if max > 0 && delay >= max {
 		return max
 	}
 	return delay

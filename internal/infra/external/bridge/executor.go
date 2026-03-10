@@ -139,7 +139,10 @@ func (e *Executor) InputRequests() <-chan agent.InputRequest {
 func (e *Executor) Reply(ctx context.Context, resp agent.InputResponse) error {
 	key := requestKey(resp.TaskID, resp.RequestID)
 	if chVal, ok := e.pending.Load(key); ok {
-		ch := chVal.(chan agent.InputResponse)
+		ch, _ := chVal.(chan agent.InputResponse)
+		if ch == nil {
+			return fmt.Errorf("invalid pending channel for request_id: %s", resp.RequestID)
+		}
 		select {
 		case ch <- resp:
 			return nil

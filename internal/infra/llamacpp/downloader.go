@@ -106,7 +106,11 @@ func DownloadGGUF(ctx context.Context, ref GGUFRef, opts DownloadOptions) (strin
 
 	dest := filepath.Join(expanded, "hf", filepath.FromSlash(ref.Repo), ref.Revision, filepath.FromSlash(ref.File))
 
-	if info, err := os.Stat(dest); err == nil && info.Mode().IsRegular() && info.Size() > 0 {
+	info, err := os.Stat(dest)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("stat dest: %w", err)
+	}
+	if err == nil && info.Mode().IsRegular() && info.Size() > 0 {
 		if ref.SHA256 == "" {
 			return dest, nil
 		}
@@ -118,8 +122,6 @@ func DownloadGGUF(ctx context.Context, ref GGUFRef, opts DownloadOptions) (strin
 			return dest, nil
 		}
 		return "", fmt.Errorf("existing file sha256 mismatch: %s", dest)
-	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("stat dest: %w", err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {

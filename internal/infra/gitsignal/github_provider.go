@@ -234,18 +234,12 @@ func (g *GitHubProvider) fetchRepoEvents(ctx context.Context, repo string, since
 type ghEvent struct {
 	ID        string          `json:"id"`
 	Type      string          `json:"type"`
-	Actor     ghActor         `json:"actor"`
-	Repo      ghRepo          `json:"repo"`
 	Payload   json.RawMessage `json:"payload"`
 	CreatedAt time.Time       `json:"created_at"`
 }
 
 type ghActor struct {
 	Login string `json:"login"`
-}
-
-type ghRepo struct {
-	Name string `json:"name"`
 }
 
 type ghPull struct {
@@ -301,8 +295,7 @@ type ghPRReviewPayload struct {
 }
 
 type ghReview struct {
-	State string  `json:"state"`
-	User  ghActor `json:"user"`
+	State string `json:"state"`
 }
 
 // --- Normalization ---
