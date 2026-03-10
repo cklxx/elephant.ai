@@ -113,6 +113,9 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 	toolPreset string,
 	releaseAdmission func(),
 ) {
+	svc.taskWg.Add(1)
+	defer svc.taskWg.Done()
+
 	logger := logging.FromContext(ctx, svc.logger)
 	stopLeaseRenew := svc.startTaskLeaseRenewer(ctx, taskID)
 

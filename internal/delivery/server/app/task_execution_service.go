@@ -53,6 +53,7 @@ type TaskExecutionService struct {
 
 	cancelFuncs map[string]context.CancelCauseFunc
 	cancelMu    sync.RWMutex
+	taskWg      sync.WaitGroup // tracks in-flight executeTaskInBackground goroutines
 
 	ownerID              string
 	leaseTTL             time.Duration

@@ -178,8 +178,15 @@ func (svc *TaskExecutionService) PrepareGracefulShutdown(ctx context.Context) []
 		return nil
 	}
 
-	// Reset each running task to pending and release its lease so the next
-	// process picks it up via ResumePendingTasks.
+	// Wait for all in-flight task goroutines to finish so their status
+	// updates are complete before we read and reset them.
+	logger.Info("Graceful shutdown: waiting for %d task goroutine(s) to drain", len(taskIDs))
+	svc.taskWg.Wait()
+
+	// Reset each interrupted task to pending and release its lease so the
+	// next process picks it up via ResumePendingTasks.
+	// After draining, tasks cancelled by our graceful-shutdown signal will
+	// be in "cancelled" status — reset those too (they are not user-initiated).
 	interrupted := make([]InterruptedTask, 0, len(taskIDs))
 	for _, taskID := range taskIDs {
 		task, err := svc.taskStore.Get(ctx, taskID)
@@ -187,10 +194,10 @@ func (svc *TaskExecutionService) PrepareGracefulShutdown(ctx context.Context) []
 			logger.Warn("Graceful shutdown: cannot read task %s: %v", taskID, err)
 			continue
 		}
-		// Only reset non-terminal tasks.
+		// Skip tasks that genuinely completed or failed before cancellation
+		// took effect — only completed and failed are truly terminal here.
 		if task.Status == serverPorts.TaskStatusCompleted ||
-			task.Status == serverPorts.TaskStatusFailed ||
-			task.Status == serverPorts.TaskStatusCancelled {
+			task.Status == serverPorts.TaskStatusFailed {
 			continue
 		}
 		if err := svc.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusPending); err != nil {

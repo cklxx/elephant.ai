@@ -241,12 +241,16 @@ func (a *Agent) applyOrchestratorDecision(ctx context.Context, parentSessionID, 
 		_ = a.rt.MarkFailed(parentSessionID, reason)
 	default:
 		// The LLM produced a free-form response (orchestration action or summary).
-		// Publish as handoff so downstream consumers (e.g. Lark notifier) can act.
+		// Publish as handoff with structured context so downstream consumers
+		// (e.g. Lark notifier) get actionable information via ParseHandoffContext.
+		hctx := a.buildHandoffContext(parentSessionID, "orchestrator: free-form response")
+		payload := hctx.ToPayload()
+		payload["leader_response"] = decision
 		a.bus.Publish(parentSessionID, hooks.Event{
 			Type:      hooks.EventHandoffRequired,
 			SessionID: parentSessionID,
 			At:        time.Now(),
-			Payload:   map[string]any{"leader_response": decision},
+			Payload:   payload,
 		})
 	}
 }
