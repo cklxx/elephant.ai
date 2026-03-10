@@ -159,6 +159,7 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	if deps.LeaderDashboard != nil {
 		mux.Handle("GET /api/leader/dashboard", routeHandler("/api/leader/dashboard", wrap(http.HandlerFunc(deps.LeaderDashboard.HandleGetDashboard))))
 	}
+	mux.Handle("GET /api/leader/openapi.json", routeHandler("/api/leader/openapi.json", http.HandlerFunc(HandleLeaderOpenAPISpec)))
 
 	// ── Claude Code hooks bridge ──
 
