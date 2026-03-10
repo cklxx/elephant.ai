@@ -447,6 +447,351 @@ func TestServerAdapter_NotFound(t *testing.T) {
 	}
 }
 
+func TestServerAdapter_Update(t *testing.T) {
+	store := newMockStore()
+	adapter := NewServerAdapter(store)
+	ctx := context.Background()
+
+	task, _ := adapter.Create(ctx, "s1", "task", "", "")
+	task.Status = ports.TaskStatusRunning
+	if err := adapter.Update(ctx, task); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	got, _ := adapter.Get(ctx, task.ID)
+	if got.Status != ports.TaskStatusRunning {
+		t.Errorf("Status = %q, want %q", got.Status, ports.TaskStatusRunning)
+	}
+}
+
+func TestServerAdapter_List(t *testing.T) {
+	store := newMockStore()
+	adapter := NewServerAdapter(store)
+	ctx := context.Background()
+
+	for i := 0; i < 5; i++ {
+		_, _ = adapter.Create(ctx, "s1", fmt.Sprintf("task-%d", i), "", "")
+	}
+
+	tasks, total, err := adapter.List(ctx, 3, 0)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if total != 5 {
+		t.Errorf("total = %d, want 5", total)
+	}
+	if len(tasks) != 3 {
+		t.Errorf("len(tasks) = %d, want 3", len(tasks))
+	}
+
+	// Second page.
+	tasks2, _, err := adapter.List(ctx, 3, 3)
+	if err != nil {
+		t.Fatalf("List(offset=3) error = %v", err)
+	}
+	if len(tasks2) != 2 {
+		t.Errorf("len(tasks2) = %d, want 2", len(tasks2))
+	}
+}
+
+func TestServerAdapter_ListByStatus(t *testing.T) {
+	store := newMockStore()
+	adapter := NewServerAdapter(store)
+	ctx := context.Background()
+
+	t1, _ := adapter.Create(ctx, "s1", "pending task", "", "")
+	t2, _ := adapter.Create(ctx, "s1", "running task", "", "")
+	_ = adapter.SetStatus(ctx, t2.ID, ports.TaskStatusRunning)
+
+	pending, err := adapter.ListByStatus(ctx, ports.TaskStatusPending)
+	if err != nil {
+		t.Fatalf("ListByStatus(pending) error = %v", err)
+	}
+	if len(pending) != 1 || pending[0].ID != t1.ID {
+		t.Errorf("expected 1 pending task, got %d", len(pending))
+	}
+
+	running, err := adapter.ListByStatus(ctx, ports.TaskStatusRunning)
+	if err != nil {
+		t.Fatalf("ListByStatus(running) error = %v", err)
+	}
+	if len(running) != 1 || running[0].ID != t2.ID {
+		t.Errorf("expected 1 running task, got %d", len(running))
+	}
+
+	// Multiple statuses.
+	all, err := adapter.ListByStatus(ctx, ports.TaskStatusPending, ports.TaskStatusRunning)
+	if err != nil {
+		t.Fatalf("ListByStatus(multi) error = %v", err)
+	}
+	if len(all) != 2 {
+		t.Errorf("expected 2 tasks, got %d", len(all))
+	}
+}
+
+func TestServerAdapter_UpdateProgress(t *testing.T) {
+	store := newMockStore()
+	adapter := NewServerAdapter(store)
+	ctx := context.Background()
+
+	task, _ := adapter.Create(ctx, "s1", "task", "", "")
+	if err := adapter.UpdateProgress(ctx, task.ID, 3, 500); err != nil {
+		t.Fatalf("UpdateProgress() error = %v", err)
+	}
+
+	// Verify via underlying store.
+	raw := store.tasks[task.ID]
+	if raw.CurrentIteration != 3 {
+		t.Errorf("CurrentIteration = %d, want 3", raw.CurrentIteration)
+	}
+	if raw.TokensUsed != 500 {
+		t.Errorf("TokensUsed = %d, want 500", raw.TokensUsed)
+	}
+}
+
+func TestServerAdapter_SetTerminationReason(t *testing.T) {
+	store := newMockStore()
+	adapter := NewServerAdapter(store)
+	ctx := context.Background()
+
+	tests := []struct {
+		reason ports.TerminationReason
+		want   taskdomain.Status
+	}{
+		{ports.TerminationReasonCompleted, taskdomain.StatusCompleted},
+		{ports.TerminationReasonCancelled, taskdomain.StatusCancelled},
+		{ports.TerminationReasonTimeout, taskdomain.StatusFailed},
+		{ports.TerminationReasonError, taskdomain.StatusFailed},
+		{ports.TerminationReasonNone, taskdomain.StatusPending},
+	}
+
+	for _, tt := range tests {
+		task, _ := adapter.Create(ctx, "s1", "task", "", "")
+		if err := adapter.SetTerminationReason(ctx, task.ID, tt.reason); err != nil {
+			t.Fatalf("SetTerminationReason(%s) error = %v", tt.reason, err)
+		}
+		raw := store.tasks[task.ID]
+		if raw.Status != tt.want {
+			t.Errorf("reason=%s: status = %q, want %q", tt.reason, raw.Status, tt.want)
+		}
+	}
+}
+
+func TestServerAdapter_TryClaimTask(t *testing.T) {
+	store := newMockStore()
+	adapter := NewServerAdapter(store)
+	ctx := context.Background()
+
+	task, _ := adapter.Create(ctx, "s1", "task", "", "")
+	lease := time.Now().Add(5 * time.Minute)
+
+	// First claim should succeed.
+	ok, err := adapter.TryClaimTask(ctx, task.ID, "worker-1", lease)
+	if err != nil {
+		t.Fatalf("TryClaimTask() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("first claim should succeed")
+	}
+
+	// Different worker should fail (lease active).
+	ok2, err := adapter.TryClaimTask(ctx, task.ID, "worker-2", lease)
+	if err != nil {
+		t.Fatalf("TryClaimTask() error = %v", err)
+	}
+	if ok2 {
+		t.Fatal("second worker should not claim while lease active")
+	}
+}
+
+func TestServerAdapter_ClaimResumableTasks(t *testing.T) {
+	store := newMockStore()
+	adapter := NewServerAdapter(store)
+	ctx := context.Background()
+
+	// Create tasks in various states.
+	t1, _ := adapter.Create(ctx, "s1", "pending-1", "", "")
+	t2, _ := adapter.Create(ctx, "s1", "pending-2", "", "")
+	t3, _ := adapter.Create(ctx, "s1", "running-1", "", "")
+	_ = adapter.SetStatus(ctx, t3.ID, ports.TaskStatusRunning)
+
+	lease := time.Now().Add(5 * time.Minute)
+	claimed, err := adapter.ClaimResumableTasks(ctx, "worker-1", lease, 10, ports.TaskStatusPending)
+	if err != nil {
+		t.Fatalf("ClaimResumableTasks() error = %v", err)
+	}
+	if len(claimed) != 2 {
+		t.Errorf("expected 2 pending claimed, got %d", len(claimed))
+	}
+
+	// Verify IDs.
+	ids := map[string]bool{}
+	for _, c := range claimed {
+		ids[c.ID] = true
+	}
+	if !ids[t1.ID] || !ids[t2.ID] {
+		t.Errorf("expected tasks %s and %s in claimed", t1.ID, t2.ID)
+	}
+}
+
+func TestServerAdapter_RenewAndReleaseLease(t *testing.T) {
+	store := newMockStore()
+	adapter := NewServerAdapter(store)
+	ctx := context.Background()
+
+	task, _ := adapter.Create(ctx, "s1", "task", "", "")
+	lease := time.Now().Add(5 * time.Minute)
+	_, _ = adapter.TryClaimTask(ctx, task.ID, "worker-1", lease)
+
+	// Renew should succeed for same owner.
+	newLease := time.Now().Add(10 * time.Minute)
+	ok, err := adapter.RenewTaskLease(ctx, task.ID, "worker-1", newLease)
+	if err != nil {
+		t.Fatalf("RenewTaskLease() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("renew should succeed for same owner")
+	}
+
+	// Renew should fail for different owner.
+	ok2, err := adapter.RenewTaskLease(ctx, task.ID, "worker-2", newLease)
+	if err != nil {
+		t.Fatalf("RenewTaskLease() error = %v", err)
+	}
+	if ok2 {
+		t.Fatal("renew should fail for different owner")
+	}
+
+	// Release.
+	if err := adapter.ReleaseTaskLease(ctx, task.ID, "worker-1"); err != nil {
+		t.Fatalf("ReleaseTaskLease() error = %v", err)
+	}
+
+	// After release, another worker should be able to claim.
+	ok3, err := adapter.TryClaimTask(ctx, task.ID, "worker-2", lease)
+	if err != nil {
+		t.Fatalf("TryClaimTask() error = %v", err)
+	}
+	if !ok3 {
+		t.Fatal("should be able to claim after release")
+	}
+}
+
+func TestServerAdapter_Close(t *testing.T) {
+	store := newMockStore()
+	adapter := NewServerAdapter(store)
+	// Close is a no-op; just verify it doesn't panic.
+	adapter.Close()
+}
+
+func TestStatusConversions_RoundTrip(t *testing.T) {
+	statuses := []struct {
+		server ports.TaskStatus
+		domain taskdomain.Status
+	}{
+		{ports.TaskStatusPending, taskdomain.StatusPending},
+		{ports.TaskStatusRunning, taskdomain.StatusRunning},
+		{ports.TaskStatusWaitingInput, taskdomain.StatusWaitingInput},
+		{ports.TaskStatusCompleted, taskdomain.StatusCompleted},
+		{ports.TaskStatusFailed, taskdomain.StatusFailed},
+		{ports.TaskStatusCancelled, taskdomain.StatusCancelled},
+	}
+
+	for _, tt := range statuses {
+		got := serverStatusToDomain(tt.server)
+		if got != tt.domain {
+			t.Errorf("serverStatusToDomain(%s) = %s, want %s", tt.server, got, tt.domain)
+		}
+		back := domainStatusToServer(tt.domain)
+		if back != tt.server {
+			t.Errorf("domainStatusToServer(%s) = %s, want %s", tt.domain, back, tt.server)
+		}
+	}
+}
+
+func TestTerminationConversions_RoundTrip(t *testing.T) {
+	reasons := []struct {
+		server ports.TerminationReason
+		domain taskdomain.TerminationReason
+	}{
+		{ports.TerminationReasonCompleted, taskdomain.TerminationCompleted},
+		{ports.TerminationReasonCancelled, taskdomain.TerminationCancelled},
+		{ports.TerminationReasonTimeout, taskdomain.TerminationTimeout},
+		{ports.TerminationReasonError, taskdomain.TerminationError},
+		{ports.TerminationReasonNone, taskdomain.TerminationNone},
+	}
+
+	for _, tt := range reasons {
+		got := serverTermToDomain(tt.server)
+		if got != tt.domain {
+			t.Errorf("serverTermToDomain(%s) = %s, want %s", tt.server, got, tt.domain)
+		}
+		back := domainTermToServer(tt.domain)
+		if back != tt.server {
+			t.Errorf("domainTermToServer(%s) = %s, want %s", tt.domain, back, tt.server)
+		}
+	}
+}
+
+func TestTerminationToStatus(t *testing.T) {
+	tests := []struct {
+		reason taskdomain.TerminationReason
+		want   taskdomain.Status
+	}{
+		{taskdomain.TerminationCompleted, taskdomain.StatusCompleted},
+		{taskdomain.TerminationCancelled, taskdomain.StatusCancelled},
+		{taskdomain.TerminationTimeout, taskdomain.StatusFailed},
+		{taskdomain.TerminationError, taskdomain.StatusFailed},
+		{taskdomain.TerminationNone, taskdomain.StatusPending},
+	}
+
+	for _, tt := range tests {
+		got := terminationToStatus(tt.reason)
+		if got != tt.want {
+			t.Errorf("terminationToStatus(%s) = %s, want %s", tt.reason, got, tt.want)
+		}
+	}
+}
+
+func TestServerAdapter_DomainToServerTask_ResultJSON(t *testing.T) {
+	result := &agent.TaskResult{
+		Answer:     "result text",
+		TokensUsed: 500,
+		Iterations: 3,
+	}
+	resultJSON, _ := json.Marshal(result)
+
+	dt := &taskdomain.Task{
+		TaskID:       "t1",
+		SessionID:    "s1",
+		Status:       taskdomain.StatusCompleted,
+		Description:  "task desc",
+		TokensUsed:   500,
+		ResultJSON:   resultJSON,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	pt := domainToServerTask(dt)
+	if pt.Result == nil {
+		t.Fatal("expected Result to be populated")
+	}
+	if pt.Result.Answer != "result text" {
+		t.Errorf("Result.Answer = %q, want 'result text'", pt.Result.Answer)
+	}
+	if pt.Result.TokensUsed != 500 {
+		t.Errorf("Result.TokensUsed = %d, want 500", pt.Result.TokensUsed)
+	}
+}
+
+func TestLarkAdapter_EnsureSchema(t *testing.T) {
+	store := newMockStore()
+	adapter := NewLarkAdapter(store)
+	if err := adapter.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("EnsureSchema() error = %v", err)
+	}
+}
+
 // ── Lark Adapter Tests ──────────────────────────────────────────────────────
 
 func TestLarkAdapter_SaveAndGet(t *testing.T) {
