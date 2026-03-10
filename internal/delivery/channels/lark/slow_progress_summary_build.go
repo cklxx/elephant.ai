@@ -11,6 +11,7 @@ import (
 	ports "alex/internal/domain/agent/ports"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/utils"
+	"alex/internal/shared/uxphrases"
 )
 
 func (l *slowProgressSummaryListener) buildSummary(signals []slowProgressSignal, elapsed time.Duration) string {
@@ -196,7 +197,7 @@ func buildHumanToolSignalLines(signals []slowProgressSignal, max int) []string {
 			continue
 		}
 		selector := len(lines) + int(tail[i].at.Unix()%7)
-		phrase := toolPhraseForBackground(name, selector)
+		phrase := uxphrases.ToolPhrase(name, selector)
 		name = strings.TrimSpace(name)
 		switch state {
 		case "started":

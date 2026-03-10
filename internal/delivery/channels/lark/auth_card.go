@@ -2,6 +2,7 @@ package lark
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	jsonx "alex/internal/shared/json"
@@ -94,21 +95,6 @@ func buildAuthFailedCard(reason string) string {
 func buildFeishuApplink(rawURL string) string {
 	return fmt.Sprintf(
 		"https://applink.feishu.cn/client/web_url/open?url=%s&mode=sidebar-semi",
-		urlEncode(rawURL),
+		url.QueryEscape(rawURL),
 	)
-}
-
-// urlEncode applies percent-encoding to a URL string.
-func urlEncode(s string) string {
-	// Use a simple replacer for the most common characters that need encoding.
-	// For production, use net/url.QueryEscape but it encodes spaces as +.
-	replacer := strings.NewReplacer(
-		":", "%3A",
-		"/", "%2F",
-		"?", "%3F",
-		"=", "%3D",
-		"&", "%26",
-		"#", "%23",
-	)
-	return replacer.Replace(s)
 }

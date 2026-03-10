@@ -11,6 +11,7 @@ import (
 	"alex/internal/domain/agent/types"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
+	"alex/internal/shared/uxphrases"
 )
 
 const (
@@ -408,17 +409,17 @@ func (p *progressListener) buildText() string {
 	// Has active (not done) tools → working phrase.
 	for i := len(p.tools) - 1; i >= 0; i-- {
 		if !p.tools[i].done {
-			return pickPhrase(naturalWorkingPhrases, len(p.tools))
+			return uxphrases.PickPhrase(naturalWorkingPhrases, len(p.tools))
 		}
 	}
 
 	// All tools done → wrapping up phrase.
 	if len(p.tools) > 0 {
-		return pickPhrase(naturalWrappingPhrases, len(p.tools))
+		return uxphrases.PickPhrase(naturalWrappingPhrases, len(p.tools))
 	}
 
 	// No tools at all — pure thinking phase.
-	return pickPhrase(naturalThinkingPhrases, p.iteration)
+	return uxphrases.PickPhrase(naturalThinkingPhrases, p.iteration)
 }
 
 func (p *progressListener) clock() time.Time {

@@ -59,6 +59,10 @@ func (g *Gateway) Start(ctx context.Context) error {
 func (g *Gateway) buildEventDispatcher() *dispatcher.EventDispatcher {
 	eventDispatcher := dispatcher.NewEventDispatcher("", "")
 	eventDispatcher.OnP2MessageReceiveV1(g.handleMessage)
+
+	// Register no-op handlers for events we intentionally ignore.
+	// Without these, the SDK logs "unhandled event" warnings on every
+	// reaction, read receipt, and bot-entered notification.
 	eventDispatcher.OnP2MessageReactionCreatedV1(func(_ context.Context, _ *larkim.P2MessageReactionCreatedV1) error {
 		return nil
 	})

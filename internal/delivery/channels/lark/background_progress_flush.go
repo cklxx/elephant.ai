@@ -7,6 +7,7 @@ import (
 
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/shared/utils"
+	"alex/internal/shared/uxphrases"
 )
 
 func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
@@ -87,7 +88,7 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 			b.WriteString(fmt.Sprintf("后台任务处理中，已进行 %s", formatElapsed(elapsed)))
 		}
 		if last.currentTool != "" {
-			phrase := toolPhraseForBackground(last.currentTool, int(elapsed.Seconds()))
+			phrase := uxphrases.ToolPhrase(last.currentTool, int(elapsed.Seconds()))
 			b.WriteString(fmt.Sprintf("，目前%s", phrase))
 		}
 	}

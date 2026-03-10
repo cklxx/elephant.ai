@@ -11,6 +11,7 @@ import (
 	"alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
+	"alex/internal/shared/uxphrases"
 )
 
 // --- test helpers ---
@@ -561,7 +562,7 @@ func TestProgressListenerToolPhraseMapping(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.toolName, func(t *testing.T) {
-			phrase := toolPhrase(tc.toolName, 0)
+			phrase := uxphrases.ToolPhrase(tc.toolName, 0)
 			found := false
 			for _, kw := range tc.keywords {
 				if strings.Contains(phrase, kw) {
@@ -570,7 +571,7 @@ func TestProgressListenerToolPhraseMapping(t *testing.T) {
 				}
 			}
 			if !found {
-				t.Errorf("toolPhrase(%q) = %q, expected one of keywords %v", tc.toolName, phrase, tc.keywords)
+				t.Errorf("uxphrases.ToolPhrase(%q) = %q, expected one of keywords %v", tc.toolName, phrase, tc.keywords)
 			}
 		})
 	}

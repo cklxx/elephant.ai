@@ -7,6 +7,7 @@ import (
 	"time"
 
 	oauth "alex/internal/infra/lark/oauth"
+	"alex/internal/shared/logging"
 )
 
 // AutoAuth manages automatic in-message OAuth authorization when tool calls
@@ -21,7 +22,7 @@ import (
 type AutoAuth struct {
 	oauthService *oauth.Service
 	messenger    LarkMessenger
-	logger       Logger
+	logger       logging.Logger
 
 	mu           sync.Mutex
 	pendingFlows map[string]pendingFlow // key: "appId:openId"
@@ -34,15 +35,8 @@ type pendingFlow struct {
 	cancel     context.CancelFunc
 }
 
-// Logger is the minimal logging interface needed by AutoAuth.
-type Logger interface {
-	Info(format string, args ...any)
-	Warn(format string, args ...any)
-	Error(format string, args ...any)
-}
-
 // NewAutoAuth creates an AutoAuth instance.
-func NewAutoAuth(oauthService *oauth.Service, messenger LarkMessenger, logger Logger) *AutoAuth {
+func NewAutoAuth(oauthService *oauth.Service, messenger LarkMessenger, logger logging.Logger) *AutoAuth {
 	return &AutoAuth{
 		oauthService: oauthService,
 		messenger:    messenger,
