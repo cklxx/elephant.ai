@@ -99,7 +99,6 @@ func (f *failRunner) Done() <-chan struct{}                          { return ni
 // parameterised implementation.
 type Executor struct {
 	cfg               BridgeConfig
-	ctrl              *process.Controller
 	inputCh           chan agent.InputRequest
 	pending           sync.Map
 	logger            logging.Logger
@@ -111,7 +110,6 @@ type Executor struct {
 func New(cfg BridgeConfig, ctrl *process.Controller) *Executor {
 	e := &Executor{
 		cfg:     cfg,
-		ctrl:    ctrl,
 		inputCh: make(chan agent.InputRequest, 32),
 		logger:  logging.NewComponentLogger("BridgeExecutor/" + cfg.AgentType),
 	}
