@@ -1,3 +1,5 @@
+**Status:** Done
+
 ## Goal
 
 Audit proactive application code under the effective runtime locations for proactive behavior, remove dead paths, trim stale trigger configuration, and simplify scheduler trigger dispatch.
@@ -17,7 +19,8 @@ Audit proactive application code under the effective runtime locations for proac
 
 ## Plan
 
-1. Remove stale scheduler trigger config fields from runtime types, file config, merge logic, tests, and schema.
-2. Simplify scheduler trigger registration and execution with shared helpers while preserving behavior.
-3. Delete dead proactive hook constant and keep tests aligned with current runtime behavior.
-4. Run focused tests/lint/review, commit in worktree, and fast-forward merge to `main` without pushing.
+1. Remove stale scheduler trigger config fields from runtime types, file config, merge logic, tests, and schema. — **Done** (fields already removed in prior sessions)
+2. Simplify scheduler trigger registration and execution with shared helpers while preserving behavior. — **Done** (`registerLeaderJob` already extracted; scope watch added to `leaderJobNames` and `DisplayName`)
+3. Delete dead proactive hook constant and keep tests aligned with current runtime behavior. — **Done** (`skill_activation` already removed in prior sessions)
+4. Wire ScopeWatch and PrepBrief through config pipeline (SchedulerConfig, SchedulerFileConfig, merge, env expansion, bootstrap). — **Done**
+5. Run focused tests/lint/review, commit in worktree, and fast-forward merge to `main` without pushing. — **Done**
