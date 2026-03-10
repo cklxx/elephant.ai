@@ -259,6 +259,7 @@ type SchedulerFileConfig struct {
 	CalendarReminder                 *CalendarReminderFileConfig      `yaml:"calendar_reminder"`
 	Heartbeat                        *HeartbeatFileConfig             `yaml:"heartbeat"`
 	MilestoneCheckin                 *MilestoneCheckinFileConfig      `yaml:"milestone_checkin"`
+	BlockerRadar                     *BlockerRadarFileConfig          `yaml:"blocker_radar"`
 	TriggerTimeoutSeconds            *int                         `yaml:"trigger_timeout_seconds"`
 	ConcurrencyPolicy                string                       `yaml:"concurrency_policy"`
 	LeaderLockEnabled                *bool                        `yaml:"leader_lock_enabled"`
@@ -310,6 +311,15 @@ type MilestoneCheckinFileConfig struct {
 	ChatID           string `yaml:"chat_id"`
 	IncludeActive    *bool  `yaml:"include_active"`
 	IncludeCompleted *bool  `yaml:"include_completed"`
+}
+
+type BlockerRadarFileConfig struct {
+	Enabled               *bool  `yaml:"enabled"`
+	Schedule              string `yaml:"schedule"`
+	StaleThresholdSeconds *int   `yaml:"stale_threshold_seconds"`
+	InputWaitSeconds      *int   `yaml:"input_wait_seconds"`
+	Channel               string `yaml:"channel"`
+	ChatID                string `yaml:"chat_id"`
 }
 
 type TimerFileConfig struct {

@@ -225,6 +225,9 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 	if file.MilestoneCheckin != nil {
 		mergeMilestoneCheckinConfig(&target.MilestoneCheckin, file.MilestoneCheckin)
 	}
+	if file.BlockerRadar != nil {
+		mergeBlockerRadarConfig(&target.BlockerRadar, file.BlockerRadar)
+	}
 	if len(file.Triggers) > 0 {
 		triggers := make([]SchedulerTriggerConfig, 0, len(file.Triggers))
 		for _, trigger := range file.Triggers {
@@ -351,6 +354,30 @@ func mergeMilestoneCheckinConfig(target *MilestoneCheckinConfig, file *Milestone
 	}
 }
 
+func mergeBlockerRadarConfig(target *BlockerRadarConfig, file *BlockerRadarFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.Enabled != nil {
+		target.Enabled = *file.Enabled
+	}
+	if utils.HasContent(file.Schedule) {
+		target.Schedule = strings.TrimSpace(file.Schedule)
+	}
+	if file.StaleThresholdSeconds != nil {
+		target.StaleThresholdSeconds = *file.StaleThresholdSeconds
+	}
+	if file.InputWaitSeconds != nil {
+		target.InputWaitSeconds = *file.InputWaitSeconds
+	}
+	if utils.HasContent(file.Channel) {
+		target.Channel = strings.TrimSpace(file.Channel)
+	}
+	if utils.HasContent(file.ChatID) {
+		target.ChatID = strings.TrimSpace(file.ChatID)
+	}
+}
+
 func mergeAttentionConfig(target *AttentionConfig, file *AttentionFileConfig) {
 	if target == nil || file == nil {
 		return
@@ -435,6 +462,11 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 			file.Scheduler.MilestoneCheckin.Schedule = expandEnvValue(lookup, file.Scheduler.MilestoneCheckin.Schedule)
 			file.Scheduler.MilestoneCheckin.Channel = expandEnvValue(lookup, file.Scheduler.MilestoneCheckin.Channel)
 			file.Scheduler.MilestoneCheckin.ChatID = expandEnvValue(lookup, file.Scheduler.MilestoneCheckin.ChatID)
+		}
+		if file.Scheduler.BlockerRadar != nil {
+			file.Scheduler.BlockerRadar.Schedule = expandEnvValue(lookup, file.Scheduler.BlockerRadar.Schedule)
+			file.Scheduler.BlockerRadar.Channel = expandEnvValue(lookup, file.Scheduler.BlockerRadar.Channel)
+			file.Scheduler.BlockerRadar.ChatID = expandEnvValue(lookup, file.Scheduler.BlockerRadar.ChatID)
 		}
 	}
 	if file.Timer != nil {

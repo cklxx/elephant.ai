@@ -357,6 +357,7 @@ type SchedulerConfig struct {
 	CalendarReminder                 CalendarReminderConfig   `json:"calendar_reminder" yaml:"calendar_reminder"`
 	Heartbeat                        HeartbeatConfig          `json:"heartbeat" yaml:"heartbeat"`
 	MilestoneCheckin                 MilestoneCheckinConfig   `json:"milestone_checkin" yaml:"milestone_checkin"`
+	BlockerRadar                     BlockerRadarConfig       `json:"blocker_radar" yaml:"blocker_radar"`
 }
 
 // MilestoneCheckinConfig configures periodic progress summary check-ins.
@@ -368,6 +369,16 @@ type MilestoneCheckinConfig struct {
 	ChatID           string `json:"chat_id" yaml:"chat_id"`
 	IncludeActive    bool   `json:"include_active" yaml:"include_active"`         // include in-flight tasks (default true)
 	IncludeCompleted bool   `json:"include_completed" yaml:"include_completed"`   // include recently finished tasks (default true)
+}
+
+// BlockerRadarConfig configures proactive detection of stuck or blocked tasks.
+type BlockerRadarConfig struct {
+	Enabled               bool   `json:"enabled" yaml:"enabled"`
+	Schedule              string `json:"schedule" yaml:"schedule"`                               // cron expression, default "*/10 * * * *" (every 10 min)
+	StaleThresholdSeconds int    `json:"stale_threshold_seconds" yaml:"stale_threshold_seconds"` // default 1800 (30 min)
+	InputWaitSeconds      int    `json:"input_wait_seconds" yaml:"input_wait_seconds"`           // default 900 (15 min)
+	Channel               string `json:"channel" yaml:"channel"`                                 // delivery channel: lark | moltbook
+	ChatID                string `json:"chat_id" yaml:"chat_id"`
 }
 
 // CalendarReminderConfig configures the periodic calendar reminder trigger.
@@ -502,6 +513,12 @@ func DefaultProactiveConfig() ProactiveConfig {
 				LookbackSeconds:  3600,
 				IncludeActive:    true,
 				IncludeCompleted: true,
+			},
+			BlockerRadar: BlockerRadarConfig{
+				Enabled:               false,
+				Schedule:              "*/10 * * * *",
+				StaleThresholdSeconds: 1800,
+				InputWaitSeconds:      900,
 			},
 		},
 		Timer: TimerConfig{
