@@ -21,7 +21,7 @@ Rewrite these guides for faster scanning and lower ambiguity:
 - [x] Rewrite the three guides.
 - [x] Run relevant validation.
 - [x] Run code review.
-- [ ] Commit and merge to `main`.
+- [x] Commit and merge to `main`.
 
 ## Notes
 
