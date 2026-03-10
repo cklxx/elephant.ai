@@ -123,52 +123,13 @@ func (m *Manager) Merge(ctx context.Context, alloc *agent.WorkspaceAllocation, s
 
 	switch strategy {
 	case agent.MergeStrategyReview:
-		files, _ := m.gitOutput(ctx, "diff", "--name-only", alloc.BaseBranch+".."+taskBranch)
-		result.FilesChanged = splitLines(files)
-		stats, _ := m.gitOutput(ctx, "diff", "--stat", alloc.BaseBranch+".."+taskBranch)
-		result.DiffSummary = strings.TrimSpace(stats)
-		result.Success = true
-		return result, nil
-	case agent.MergeStrategySquash:
-		if err := m.git(ctx, "merge", "--squash", taskBranch); err != nil {
-			result.Success = false
-			result.Conflicts = m.mergeConflicts(ctx)
-			result.ConflictDiff = m.mergeConflictDiff(ctx)
-			return result, err
-		}
-		if err := m.git(ctx, "commit", "-m", fmt.Sprintf("Merge external task %s", taskBranch)); err != nil {
-			return nil, err
-		}
-	case agent.MergeStrategyRebase:
-		if err := m.git(ctx, "checkout", taskBranch); err != nil {
-			return nil, err
-		}
-		if err := m.git(ctx, "rebase", alloc.BaseBranch); err != nil {
-			return nil, err
-		}
-		if err := m.git(ctx, "checkout", alloc.BaseBranch); err != nil {
-			return nil, err
-		}
-		if err := m.git(ctx, "merge", taskBranch); err != nil {
-			result.Success = false
-			result.Conflicts = m.mergeConflicts(ctx)
-			result.ConflictDiff = m.mergeConflictDiff(ctx)
-			return result, err
-		}
-	default:
-		if err := m.git(ctx, "merge", "--no-edit", taskBranch); err != nil {
-			result.Success = false
-			result.Conflicts = m.mergeConflicts(ctx)
-			result.ConflictDiff = m.mergeConflictDiff(ctx)
-			return result, err
-		}
+		return m.buildReviewResult(ctx, alloc, result), nil
+	}
+	if err := m.applyMergeStrategy(ctx, alloc, strategy); err != nil {
+		return m.buildMergeFailureResult(ctx, result, err)
 	}
 
-	result.Success = true
-	result.CommitHash = strings.TrimSpace(m.gitOutputOrEmpty(ctx, "rev-parse", "HEAD"))
-	result.FilesChanged = splitLines(m.gitOutputOrEmpty(ctx, "diff", "--name-only", "HEAD~1..HEAD"))
-	result.DiffSummary = strings.TrimSpace(m.gitOutputOrEmpty(ctx, "diff", "--stat", "HEAD~1..HEAD"))
-	return result, nil
+	return m.finalizeMergeResult(ctx, result), nil
 }
 
 // Cleanup removes a worktree and optionally deletes the branch.
@@ -231,6 +192,61 @@ func (m *Manager) CheckScopeOverlap(newScope []string, running []agent.Backgroun
 type ScopeConflict struct {
 	TaskID       string
 	OverlapPaths []string
+}
+
+func (m *Manager) buildReviewResult(ctx context.Context, alloc *agent.WorkspaceAllocation, result *agent.MergeResult) *agent.MergeResult {
+	files, _ := m.gitOutput(ctx, "diff", "--name-only", alloc.BaseBranch+".."+alloc.Branch)
+	result.FilesChanged = splitLines(files)
+	stats, _ := m.gitOutput(ctx, "diff", "--stat", alloc.BaseBranch+".."+alloc.Branch)
+	result.DiffSummary = strings.TrimSpace(stats)
+	result.Success = true
+	return result
+}
+
+func (m *Manager) applyMergeStrategy(ctx context.Context, alloc *agent.WorkspaceAllocation, strategy agent.MergeStrategy) error {
+	switch strategy {
+	case agent.MergeStrategySquash:
+		return m.mergeSquash(ctx, alloc.Branch)
+	case agent.MergeStrategyRebase:
+		return m.mergeRebase(ctx, alloc.BaseBranch, alloc.Branch)
+	default:
+		return m.git(ctx, "merge", "--no-edit", alloc.Branch)
+	}
+}
+
+func (m *Manager) mergeSquash(ctx context.Context, taskBranch string) error {
+	if err := m.git(ctx, "merge", "--squash", taskBranch); err != nil {
+		return err
+	}
+	return m.git(ctx, "commit", "-m", fmt.Sprintf("Merge external task %s", taskBranch))
+}
+
+func (m *Manager) mergeRebase(ctx context.Context, baseBranch, taskBranch string) error {
+	if err := m.git(ctx, "checkout", taskBranch); err != nil {
+		return err
+	}
+	if err := m.git(ctx, "rebase", baseBranch); err != nil {
+		return err
+	}
+	if err := m.git(ctx, "checkout", baseBranch); err != nil {
+		return err
+	}
+	return m.git(ctx, "merge", taskBranch)
+}
+
+func (m *Manager) buildMergeFailureResult(ctx context.Context, result *agent.MergeResult, err error) (*agent.MergeResult, error) {
+	result.Success = false
+	result.Conflicts = m.mergeConflicts(ctx)
+	result.ConflictDiff = m.mergeConflictDiff(ctx)
+	return result, err
+}
+
+func (m *Manager) finalizeMergeResult(ctx context.Context, result *agent.MergeResult) *agent.MergeResult {
+	result.Success = true
+	result.CommitHash = strings.TrimSpace(m.gitOutputOrEmpty(ctx, "rev-parse", "HEAD"))
+	result.FilesChanged = splitLines(m.gitOutputOrEmpty(ctx, "diff", "--name-only", "HEAD~1..HEAD"))
+	result.DiffSummary = strings.TrimSpace(m.gitOutputOrEmpty(ctx, "diff", "--stat", "HEAD~1..HEAD"))
+	return result
 }
 
 func (m *Manager) currentBranch(ctx context.Context) (string, error) {

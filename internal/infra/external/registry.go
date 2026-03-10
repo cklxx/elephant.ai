@@ -22,7 +22,6 @@ type Registry struct {
 	inputCh   chan agent.InputRequest
 	pending   sync.Map
 	logger    logging.Logger
-	ctrl      *process.Controller
 }
 
 // NewRegistry constructs a registry from runtime external agent config.
@@ -30,57 +29,19 @@ func NewRegistry(cfg config.ExternalAgentsConfig, ctrl *process.Controller, logg
 	registry := &Registry{
 		executors: make(map[string]agent.ExternalAgentExecutor),
 		logger:    logging.OrNop(logger),
-		ctrl:      ctrl,
 	}
 
 	if cfg.ClaudeCode.Enabled {
-		exec := bridge.New(bridge.BridgeConfig{
-			AgentType:              "claude_code",
-			Binary:                 cfg.ClaudeCode.Binary,
-			APIKey:                 cfg.ClaudeCode.Env["ANTHROPIC_API_KEY"],
-			DefaultModel:           cfg.ClaudeCode.DefaultModel,
-			DefaultMode:            cfg.ClaudeCode.DefaultMode,
-			AutonomousAllowedTools: cfg.ClaudeCode.AutonomousAllowedTools,
-			PlanAllowedTools:       cfg.ClaudeCode.PlanAllowedTools,
-			MaxBudgetUSD:           cfg.ClaudeCode.MaxBudgetUSD,
-			MaxTurns:               cfg.ClaudeCode.MaxTurns,
-			Timeout:                cfg.ClaudeCode.Timeout,
-			ResumeEnabled:          cfg.ClaudeCode.ResumeEnabled,
-			Env:                    cfg.ClaudeCode.Env,
-		}, ctrl)
-		registry.register(exec)
+		registry.register(bridge.New(newClaudeCodeBridgeConfig(cfg.ClaudeCode), ctrl))
 	}
 	if cfg.Codex.Enabled {
-		exec := bridge.New(bridge.BridgeConfig{
-			AgentType:          "codex",
-			Binary:             cfg.Codex.Binary,
-			APIKey:             cfg.Codex.Env["OPENAI_API_KEY"],
-			DefaultModel:       cfg.Codex.DefaultModel,
-			ApprovalPolicy:     cfg.Codex.ApprovalPolicy,
-			Sandbox:            cfg.Codex.Sandbox,
-			PlanApprovalPolicy: cfg.Codex.PlanApprovalPolicy,
-			PlanSandbox:        cfg.Codex.PlanSandbox,
-			Timeout:            cfg.Codex.Timeout,
-			ResumeEnabled:      cfg.Codex.ResumeEnabled,
-			Env:                cfg.Codex.Env,
-		}, ctrl)
-		registry.register(exec)
+		registry.register(bridge.New(newCLIBridgeConfig("codex", cfg.Codex, cfg.Codex.Env["OPENAI_API_KEY"]), ctrl))
 	}
 	if cfg.Kimi.Enabled {
-		exec := bridge.New(bridge.BridgeConfig{
-			AgentType:          "kimi",
-			Binary:             cfg.Kimi.Binary,
-			APIKey:             pickFirstNonEmpty(cfg.Kimi.Env["KIMI_API_KEY"], cfg.Kimi.Env["OPENAI_API_KEY"]),
-			DefaultModel:       cfg.Kimi.DefaultModel,
-			ApprovalPolicy:     cfg.Kimi.ApprovalPolicy,
-			Sandbox:            cfg.Kimi.Sandbox,
-			PlanApprovalPolicy: cfg.Kimi.PlanApprovalPolicy,
-			PlanSandbox:        cfg.Kimi.PlanSandbox,
-			Timeout:            cfg.Kimi.Timeout,
-			ResumeEnabled:      cfg.Kimi.ResumeEnabled,
-			Env:                cfg.Kimi.Env,
-		}, ctrl)
-		registry.register(exec)
+		registry.register(bridge.New(
+			newCLIBridgeConfig("kimi", cfg.Kimi, pickFirstNonEmpty(cfg.Kimi.Env["KIMI_API_KEY"], cfg.Kimi.Env["OPENAI_API_KEY"])),
+			ctrl,
+		))
 	}
 
 	// Always register a generic CLI bridge so dynamically selected CLIs can be
@@ -92,6 +53,39 @@ func NewRegistry(cfg config.ExternalAgentsConfig, ctrl *process.Controller, logg
 	}, ctrl))
 
 	return registry
+}
+
+func newClaudeCodeBridgeConfig(cfg config.ClaudeCodeConfig) bridge.BridgeConfig {
+	return bridge.BridgeConfig{
+		AgentType:              "claude_code",
+		Binary:                 cfg.Binary,
+		APIKey:                 cfg.Env["ANTHROPIC_API_KEY"],
+		DefaultModel:           cfg.DefaultModel,
+		DefaultMode:            cfg.DefaultMode,
+		AutonomousAllowedTools: cfg.AutonomousAllowedTools,
+		PlanAllowedTools:       cfg.PlanAllowedTools,
+		MaxBudgetUSD:           cfg.MaxBudgetUSD,
+		MaxTurns:               cfg.MaxTurns,
+		Timeout:                cfg.Timeout,
+		ResumeEnabled:          cfg.ResumeEnabled,
+		Env:                    cfg.Env,
+	}
+}
+
+func newCLIBridgeConfig(agentType string, cfg config.CLIAgentConfig, apiKey string) bridge.BridgeConfig {
+	return bridge.BridgeConfig{
+		AgentType:          agentType,
+		Binary:             cfg.Binary,
+		APIKey:             apiKey,
+		DefaultModel:       cfg.DefaultModel,
+		ApprovalPolicy:     cfg.ApprovalPolicy,
+		Sandbox:            cfg.Sandbox,
+		PlanApprovalPolicy: cfg.PlanApprovalPolicy,
+		PlanSandbox:        cfg.PlanSandbox,
+		Timeout:            cfg.Timeout,
+		ResumeEnabled:      cfg.ResumeEnabled,
+		Env:                cfg.Env,
+	}
 }
 
 func pickGenericTimeout(cfg config.ExternalAgentsConfig) time.Duration {
