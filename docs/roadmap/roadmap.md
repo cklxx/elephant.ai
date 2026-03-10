@@ -61,6 +61,86 @@ The primary vertical slice: the leader agent tracks your calendar, tasks, and in
 - `./dev.sh status`: backend running (`http://localhost:8080`), web stopped, sandbox ready (`http://localhost:18086`), ACP running.
 - `./lark.sh status`: supervisor running in `degraded` mode, `main` down, `test` down, `loop` alive (`cycle_phase=slow_gate`, `cycle_result=running`).
 
+## Leader Agent Feature Roadmap (2026-03)
+
+Based on user needs research (`output/research/user-needs-analysis.md`) and competitive strategy analysis (`output/research/leader-agent-strategy-synthesis.md`). Target persona: individual engineering manager ("Maya"), 6-10 reports, Lark-native.
+
+**Positioning:** "The AI chief of staff that reads your Lark, Git, and Jira — and tells you what needs your attention before you have to ask."
+
+**Four pillars** (from 2026 refresh vision):
+- **P-Attn:** Save human attention through concise, high-signal progress loops.
+- **P-Ctx:** Use context compression to keep long-running quality stable.
+- **P-Para:** Maximize single-user throughput via controlled subagent parallelism.
+- **P-Ctrl:** Preserve explicit user override authority for risky or sensitive actions.
+
+### Phase 1 — MVP: Read-Only Signal Synthesis (S-sized, 1-2 weeks)
+
+All outputs are Lark messages. No writes to external tools. Builds trust before earning write access.
+
+| Feature | Description | Input signals | Pillar | Effort | Code path |
+|---------|-------------|---------------|--------|--------|-----------|
+| **Blocker Radar** | Proactive DM to manager when an engineer appears stuck. Detects "blocked/waiting/stuck" keywords + stale ticket patterns in Lark messages. | Lark messages (keyword + sentiment) | P-Attn | S | `internal/app/leader/blocker_radar.go` |
+| **Weekly Pulse** | Auto-generated team status digest delivered Monday AM or Friday PM (configurable). Aggregates Lark thread summaries + calendar event outcomes. | Lark threads, calendar events, memory | P-Attn, P-Ctx | S | `internal/app/leader/weekly_pulse.go` |
+| **1:1 Prep Brief** | Delivered 30 min before a calendar 1:1. Combines previous 1:1 notes from memory, recent Lark mentions of the person, and calendar context. | Calendar (1:1 pattern), Lark messages, persistent memory | P-Attn, P-Ctx | S | `internal/app/leader/prep_brief.go` |
+| **Leader scheduler wiring** | Hook leader agent features into the existing proactive scheduler so Blocker Radar runs continuously and Prep Brief fires on calendar triggers. | Scheduler events, calendar triggers | P-Para | S | `internal/app/leader/scheduler.go` |
+
+**Definition of Done (Phase 1):** Manager receives at least one Blocker Radar alert, one Weekly Pulse digest, and one 1:1 Prep Brief within the first week. All outputs are Lark DMs only — zero writes to external systems.
+
+**Integration dependencies:** All existing (Lark WebSocket, `lark_send_message`, calendar read, persistent memory). No new integrations required.
+
+### Phase 2 — Differentiation: Multi-Source Signal Fusion (M-sized, 3-4 weeks)
+
+Add Git and Jira/Linear read access. Cross-reference signals across tools. This is the moat that competitors (Fellow, Motion, Reclaim) cannot match.
+
+| Feature | Description | Input signals | Pillar | Effort | Code path |
+|---------|-------------|---------------|--------|--------|-----------|
+| **Jira/Linear read connector** | MCP server or API tool for reading ticket status, assignees, transitions, and comments. Read-only. | Jira/Linear API | P-Attn | M | `internal/infra/tools/builtin/jira/` |
+| **Git/GitHub signal connector** | Standardize existing MCP into a reliable connector for PRs, commits, review status, and deploy events. | GitHub API / MCP | P-Attn | S | `internal/infra/tools/builtin/git/` |
+| **Enhanced Blocker Radar** | Cross-reference Lark "stuck" signals with Jira ticket staleness (no activity > 2 days) and PR review bottlenecks (review pending > 24h). | Lark + Jira + Git (fused) | P-Attn, P-Para | M | `internal/app/leader/blocker_radar.go` |
+| **Enhanced Weekly Pulse** | Add Git metrics (PRs merged, deploy count) and Jira metrics (tickets closed, sprint burndown delta) to the digest. | Lark + Jira + Git + Calendar | P-Attn, P-Ctx | S | `internal/app/leader/weekly_pulse.go` |
+| **Enhanced 1:1 Prep Brief** | Add person's recent PRs, Jira ticket activity, and code review load to the prep brief alongside Lark/memory signals. | Calendar + Lark + Git + Jira + Memory | P-Attn, P-Ctx | S | `internal/app/leader/prep_brief.go` |
+| **Scope change detection** | Detect when a Jira ticket's description/scope changes silently or when PR implementation diverges significantly from ticket spec. Alert PM + manager. | Jira (field change webhooks), Git (PR diff vs ticket) | P-Attn, P-Ctrl | M | `internal/app/leader/scope_watch.go` |
+
+**Definition of Done (Phase 2):** Blocker Radar fires on Jira-stale + Lark-signal conjunction (not just keywords). Weekly Pulse includes Git/Jira metrics. 1:1 Prep Brief includes PR and ticket data for each report.
+
+**Integration dependencies:** Jira/Linear read (new, medium effort), Git/GitHub read (existing MCP, needs hardening).
+
+### Phase 3 — Moat: Memory-Powered Leadership Intelligence (L-sized, 5-8 weeks)
+
+Features that require accumulated memory and multi-manager context. These create switching costs that competitors cannot replicate.
+
+| Feature | Description | Input signals | Pillar | Effort | Code path |
+|---------|-------------|---------------|--------|--------|-----------|
+| **Focus time protection** | Analyze calendar for meeting creep. Proactively suggest cancellations for low-value recurring meetings. Defend focus blocks by auto-declining conflicting invites (with manager approval). | Calendar (pattern analysis), memory (meeting outcome history) | P-Attn, P-Ctrl | M | `internal/app/leader/focus_guard.go` |
+| **Cross-team dependency tracker** | Detect inter-team dependencies from Jira linked issues + Lark cross-group mentions. Surface timeline risks and suggest escalation paths. | Jira (linked issues), Lark (cross-group threads), Git (cross-repo PRs) | P-Attn, P-Para | L | `internal/app/leader/dependency_tracker.go` |
+| **Meeting necessity scoring** | Score recurring meetings by signal strength: are action items being generated? Are attendees engaged? Has the meeting's purpose been handled async? Suggest skip/cancel. | Calendar, Lark (post-meeting threads), memory (action item follow-through) | P-Attn, P-Ctrl | M | `internal/app/leader/meeting_scorer.go` |
+| **Decision memory** | Record key leadership decisions (what + why + context + outcome) from 1:1s and team discussions. Surface relevant past decisions when similar situations arise. | Lark threads, 1:1 notes, memory | P-Ctx, P-Ctrl | M | `internal/infra/memory/decision.go` |
+| **Cross-org health view** | Multi-manager rollup for Directors: aggregate Weekly Pulse data across teams, surface systemic patterns (e.g., three teams blocked on same infra issue). Requires opt-in from multiple EMs. | Multiple Weekly Pulse outputs, Jira cross-team, Git cross-repo | P-Attn, P-Para | L | `internal/app/leader/org_health.go` |
+| **Standup auto-posting** | Draft standup answers for engineers from their Git + Jira activity. Post to team Lark group with engineer's approval. Requires team-wide opt-in. | Git (commits, PRs), Jira (ticket transitions) | P-Attn, P-Ctrl | M | `internal/app/leader/standup_draft.go` |
+
+**Definition of Done (Phase 3):** Focus time protection saves measurable calendar hours. Decision memory surfaces relevant past decisions at least once per week. Cross-org health view is usable by at least one Director with 3+ EM reports.
+
+**Integration dependencies:** Calendar write (existing but needs approval gate hardening), multi-manager memory isolation (new), team-wide opt-in UX (new).
+
+### Competitive Moat Summary
+
+| Phase | What we build | What competitors can't match |
+|-------|---------------|------------------------------|
+| Phase 1 | Lark-native signal synthesis | Lives where work happens (chat), not a separate app |
+| Phase 2 | Multi-source fusion (Chat + Git + Jira + Calendar) | No competitor synthesizes all four signal sources |
+| Phase 3 | Memory-powered intelligence + cross-org view | Persistent memory creates compounding value over time |
+
+### Risk Register
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Jira/Linear integration delay | Phase 2 blocked; Blocker Radar quality stays at Phase 1 level | Ship Phase 1 Lark-only first; pursue Jira MCP server in parallel |
+| False positive blocker alerts erode trust | Manager disables Blocker Radar in week 1 | Start conservative (high-confidence signals only); add tuning knobs; track dismiss rate |
+| Privacy concerns (manager sees engineer's Lark messages) | Adoption blocked by team pushback | Blocker Radar shows only signal classification + ticket reference, never raw message content |
+| Calendar 1:1 pattern detection misclassifies meetings | Prep Brief fires for wrong meetings | Allow manager to tag/untag 1:1s manually; learn from corrections via memory |
+
+---
+
 ## Roadmap Consolidation (2026-02-08)
 
 To avoid status drift across files, roadmap document roles are normalized as follows:
