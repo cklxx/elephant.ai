@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"alex/internal/app/di"
+	"alex/internal/delivery/channels/lark"
 	"alex/internal/delivery/server"
 	"alex/internal/runtime/hooks"
 	"alex/internal/shared/logging"
@@ -64,6 +65,23 @@ func startRuntimeBusLogger(ctx context.Context, bus hooks.Bus, logger logging.Lo
 			}
 		}
 	}()
+}
+
+// startHandoffNotifier wires the Lark HandoffNotifier to the runtime bus.
+// When the leader agent publishes EventHandoffRequired, the notifier sends
+// a structured Lark message to the affected chat with goal, reason, and
+// recommended action.
+func startHandoffNotifier(ctx context.Context, bus hooks.Bus, gateway interface{}, defaultChatID string, logger logging.Logger) {
+	if gateway == nil || bus == nil {
+		return
+	}
+	gw, ok := gateway.(*lark.Gateway)
+	if !ok {
+		return
+	}
+	notifier := lark.NewHandoffNotifier(gw, bus, defaultChatID)
+	go notifier.Run(ctx)
+	logger.Info("Handoff notifier started (default_chat_id=%s)", defaultChatID)
 }
 
 // startRuntimeCompletionNotifier subscribes to all runtime events and sends a

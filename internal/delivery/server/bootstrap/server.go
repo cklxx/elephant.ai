@@ -212,6 +212,7 @@ func RunServer(observabilityConfigPath string) error {
 	startRuntimeBusLogger(context.Background(), runtimeBus, logger)
 	if container.LarkGateway != nil {
 		startRuntimeCompletionNotifier(context.Background(), runtimeBus, container.LarkGateway, config.HooksBridge.DefaultChatID, logger)
+		startHandoffNotifier(context.Background(), runtimeBus, container.LarkGateway, config.HooksBridge.DefaultChatID, logger)
 	}
 
 	router := serverHTTP.NewRouter(

@@ -274,13 +274,15 @@ func (a *Agent) applyDecision(ctx context.Context, sessionID, decision string) {
 	}
 }
 
-// escalate publishes an EventHandoffRequired so operators can be notified.
+// escalate publishes an EventHandoffRequired with structured context
+// so operators can be notified with actionable information.
 func (a *Agent) escalate(sessionID, reason string) {
+	ctx := a.buildHandoffContext(sessionID, reason)
 	a.bus.Publish(sessionID, hooks.Event{
 		Type:      hooks.EventHandoffRequired,
 		SessionID: sessionID,
 		At:        time.Now(),
-		Payload:   map[string]any{"reason": reason},
+		Payload:   ctx.ToPayload(),
 	})
 }
 

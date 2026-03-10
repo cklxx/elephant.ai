@@ -84,6 +84,7 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 	startRuntimeBusLogger(ctx, runtimeBus, logger)
 	if container != nil && container.LarkGateway != nil {
 		startRuntimeCompletionNotifier(ctx, runtimeBus, container.LarkGateway, cfg.HooksBridge.DefaultChatID, logger)
+		startHandoffNotifier(ctx, runtimeBus, container.LarkGateway, cfg.HooksBridge.DefaultChatID, logger)
 	}
 
 	// Runtime subsystem: Runtime + StallDetector + LeaderAgent + PanePool.
