@@ -53,15 +53,6 @@ func newTestServer(t *testing.T, payload any) *httptest.Server {
 	}))
 }
 
-func newTestRegistry(t *testing.T, serverURL string) *Registry {
-	t.Helper()
-	// Directly parse fake data to avoid network dependencies.
-	// For tests that need the full fetch path, use fetchFromAPI with a test server.
-	return &Registry{
-		client: &http.Client{Timeout: 5 * time.Second},
-	}
-}
-
 // loadRegistryFromFakeData populates a Registry with fake API data directly.
 func loadRegistryFromFakeData(t *testing.T) *Registry {
 	t.Helper()

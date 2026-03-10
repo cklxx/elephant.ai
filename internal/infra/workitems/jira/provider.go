@@ -87,12 +87,3 @@ func (p *Provider) ResolveWorkspaces(_ context.Context) ([]ports.WorkspaceRef, e
 	// Stub: real implementation will GET https://api.atlassian.com/oauth/token/accessible-resources
 	return nil, fmt.Errorf("jira: ResolveWorkspaces not yet implemented")
 }
-
-// apiURL builds a full API URL for the configured Jira Cloud instance.
-func (p *Provider) apiURL(path string) string {
-	base := p.cfg.BaseURL
-	if base == "" {
-		base = "https://api.atlassian.com"
-	}
-	return base + path
-}

@@ -12,9 +12,6 @@ import (
 	"alex/internal/domain/workitem/ports"
 )
 
-// graphQLEndpoint is the Linear GraphQL API endpoint.
-const graphQLEndpoint = "https://api.linear.app/graphql"
-
 // Config holds Linear connection settings.
 type Config struct {
 	APIKey  string   `yaml:"api_key"`

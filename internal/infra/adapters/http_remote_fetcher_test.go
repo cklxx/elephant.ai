@@ -11,7 +11,7 @@ import (
 func TestHTTPRemoteFetcher_Fetch_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write([]byte("hello"))
+		_, _ = w.Write([]byte("hello"))
 	}))
 	defer srv.Close()
 
@@ -31,7 +31,7 @@ func TestHTTPRemoteFetcher_Fetch_Success(t *testing.T) {
 func TestHTTPRemoteFetcher_Fetch_ExpectedMediaType(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Write([]byte("data"))
+		_, _ = w.Write([]byte("data"))
 	}))
 	defer srv.Close()
 
@@ -47,7 +47,7 @@ func TestHTTPRemoteFetcher_Fetch_ExpectedMediaType(t *testing.T) {
 
 func TestHTTPRemoteFetcher_Fetch_SizeLimit(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("12345678901")) // 11 bytes
+		_, _ = w.Write([]byte("12345678901")) // 11 bytes
 	}))
 	defer srv.Close()
 
@@ -79,7 +79,7 @@ func TestHTTPRemoteFetcher_Fetch_HTTPError(t *testing.T) {
 
 func TestHTTPRemoteFetcher_Fetch_NilContext(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	}))
 	defer srv.Close()
 
@@ -96,7 +96,7 @@ func TestHTTPRemoteFetcher_Fetch_NilContext(t *testing.T) {
 func TestHTTPRemoteFetcher_Fetch_FallbackContentType(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// No Content-Type header
-		w.Write([]byte("binary"))
+		_, _ = w.Write([]byte("binary"))
 	}))
 	defer srv.Close()
 
