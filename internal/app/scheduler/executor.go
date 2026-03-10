@@ -10,7 +10,6 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/shared/errsanitize"
 	"alex/internal/shared/notification"
-	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -33,19 +32,54 @@ func (s *Scheduler) executeTrigger(trigger Trigger) error {
 	default:
 	}
 
-	if strings.EqualFold(trigger.Channel, "lark") {
-		if utils.IsBlank(trigger.UserID) {
-			err := fmt.Errorf("lark trigger requires user_id as open_id")
-			s.logger.Warn("Scheduler: %v (trigger=%q)", err, trigger.Name)
-			return err
-		}
-		if !strings.HasPrefix(strings.TrimSpace(trigger.UserID), "ou_") {
-			err := fmt.Errorf("lark trigger user_id must be open_id (ou_ prefix), got %q", trigger.UserID)
-			s.logger.Warn("Scheduler: %v (trigger=%q)", err, trigger.Name)
-			return err
+	if err := validateLarkTrigger(trigger); err != nil {
+		s.logger.Warn("Scheduler: %v (trigger=%q)", err, trigger.Name)
+		return err
+	}
+
+	ctx := s.buildTriggerContext(trigger)
+
+	s.logger.Info("Scheduler: executing trigger %q (schedule=%s)", trigger.Name, trigger.Schedule)
+
+	taskCtx := ctx
+	if s.config.TriggerTimeout > 0 {
+		var cancel context.CancelFunc
+		taskCtx, cancel = context.WithTimeout(ctx, s.config.TriggerTimeout)
+		defer cancel()
+	}
+
+	sessionID := id.SessionIDFromContext(ctx)
+	result, err := s.coordinator.ExecuteTask(taskCtx, trigger.Task, sessionID, nil)
+
+	content := formatResult(trigger, result, err)
+
+	if s.notifier != nil && trigger.Channel != "" {
+		target := notification.Target{Channel: trigger.Channel, ChatID: trigger.ChatID}
+		if sendErr := s.notifier.Send(ctx, target, content); sendErr != nil {
+			s.logger.Warn("Scheduler: failed to send notification for %q: %v", trigger.Name, sendErr)
 		}
 	}
 
+	return err
+}
+
+// validateLarkTrigger checks Lark-specific preconditions.
+func validateLarkTrigger(trigger Trigger) error {
+	if !strings.EqualFold(trigger.Channel, "lark") {
+		return nil
+	}
+	uid := strings.TrimSpace(trigger.UserID)
+	if uid == "" {
+		return fmt.Errorf("lark trigger requires user_id as open_id")
+	}
+	if !strings.HasPrefix(uid, "ou_") {
+		return fmt.Errorf("lark trigger user_id must be open_id (ou_ prefix), got %q", trigger.UserID)
+	}
+	return nil
+}
+
+// buildTriggerContext constructs the execution context for a trigger.
+func (s *Scheduler) buildTriggerContext(trigger Trigger) context.Context {
 	ctx := s.runCtx
 	if ctx == nil {
 		ctx = context.Background()
@@ -59,28 +93,7 @@ func (s *Scheduler) executeTrigger(trigger Trigger) error {
 	sessionID := fmt.Sprintf("scheduler-%s-%s", trigger.Name, runID)
 	ctx = id.WithSessionID(ctx, sessionID)
 	ctx = id.WithRunID(ctx, runID)
-
-	s.logger.Info("Scheduler: executing trigger %q (schedule=%s)", trigger.Name, trigger.Schedule)
-
-	taskCtx := ctx
-	if s.config.TriggerTimeout > 0 {
-		var cancel context.CancelFunc
-		taskCtx, cancel = context.WithTimeout(ctx, s.config.TriggerTimeout)
-		defer cancel()
-	}
-
-	result, err := s.coordinator.ExecuteTask(taskCtx, trigger.Task, sessionID, nil)
-
-	content := formatResult(trigger, result, err)
-
-	if s.notifier != nil && trigger.Channel != "" {
-		target := notification.Target{Channel: trigger.Channel, ChatID: trigger.ChatID}
-		if sendErr := s.notifier.Send(ctx, target, content); sendErr != nil {
-			s.logger.Warn("Scheduler: failed to send notification for %q: %v", trigger.Name, sendErr)
-		}
-	}
-
-	return err
+	return ctx
 }
 
 // formatResult produces a human-readable summary of the trigger execution.

@@ -342,10 +342,6 @@ func (s *Scheduler) syncOKRTriggers() {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	s.syncOKRTriggersWithContext(ctx)
-}
-
-func (s *Scheduler) syncOKRTriggersWithContext(ctx context.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.syncOKRTriggersLocked(ctx)

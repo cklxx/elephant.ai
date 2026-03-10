@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -99,6 +100,49 @@ func DisplayName(name string) string {
 	default:
 		return name
 	}
+}
+
+// registerLeaderJob is the shared pattern for registering a leader cron job.
+// It gates on enabled + service != nil, applies a default schedule, and wires
+// the standard log-record-error closure. Must be called with s.mu held.
+func (s *Scheduler) registerLeaderJob(ctx context.Context, def leaderJobDef) {
+	if !def.enabled {
+		return
+	}
+	if def.service == nil {
+		s.logger.Warn("Scheduler: %s enabled but no service wired; skipping", def.serviceLabel)
+		return
+	}
+
+	schedule := def.schedule
+	name := def.name
+	label := def.serviceLabel
+	run := def.run
+
+	entryID, err := s.cron.AddFunc(schedule, func() {
+		s.logger.Info("%s triggered (schedule=%s)", label, schedule)
+		err := run(ctx)
+		s.recordLeaderResult(name, err)
+		if err != nil {
+			s.logger.Warn("%s failed: %v", label, err)
+		}
+	})
+	if err != nil {
+		s.logger.Warn("Scheduler: failed to register %s: %v", label, err)
+		return
+	}
+	s.entryIDs[name] = entryID
+	s.logger.Info("%s registered (schedule=%s)", label, schedule)
+}
+
+// leaderJobDef describes a leader cron job for registerLeaderJob.
+type leaderJobDef struct {
+	name         string
+	enabled      bool
+	service      any // non-nil check only
+	serviceLabel string
+	schedule     string
+	run          func(ctx context.Context) error
 }
 
 // HealthSummary returns a single-line summary of leader job health.
