@@ -87,7 +87,7 @@ func TestFileLock_CreatesParentDir(t *testing.T) {
 	if !acquired {
 		t.Fatal("expected lock to be acquired")
 	}
-	defer lock.Release(context.Background())
+	defer func() { _ = lock.Release(context.Background()) }()
 
 	if _, err := os.Stat(nested); err != nil {
 		t.Errorf("lock file should exist: %v", err)
@@ -119,7 +119,7 @@ func TestFileLock_ReacquireAfterRelease(t *testing.T) {
 	if !acquired {
 		t.Fatal("expected re-acquire to succeed after release")
 	}
-	lock.Release(context.Background())
+	_ = lock.Release(context.Background())
 }
 
 func TestFileLock_ContendedViaSubprocess(t *testing.T) {
@@ -138,7 +138,7 @@ func TestFileLock_ContendedViaSubprocess(t *testing.T) {
 		// Signal parent via file, then block on stdin until parent closes it.
 		_ = os.WriteFile(signalFile, []byte("LOCKED"), 0o644)
 		buf := make([]byte, 1)
-		os.Stdin.Read(buf) // blocks until parent kills us or closes stdin
+		_, _ = os.Stdin.Read(buf) // blocks until parent kills us or closes stdin
 		os.Exit(0)
 	}
 
@@ -164,8 +164,8 @@ func TestFileLock_ContendedViaSubprocess(t *testing.T) {
 	}
 	defer func() {
 		stdinPipe.Close()
-		cmd.Process.Kill()
-		cmd.Wait()
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
 	}()
 
 	// Poll for signal file (child acquired lock).
@@ -189,7 +189,7 @@ func TestFileLock_ContendedViaSubprocess(t *testing.T) {
 		t.Fatalf("Acquire: %v", err)
 	}
 	if acquired {
-		lock.Release(context.Background())
+		_ = lock.Release(context.Background())
 		t.Fatal("expected lock NOT to be acquired while child holds it")
 	}
 }
