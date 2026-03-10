@@ -50,7 +50,7 @@ func TestExternalAgentDispatch_HasSingleRuntimeExecuteEntryPoint(t *testing.T) {
 	if len(sites) != 1 {
 		t.Fatalf("expected exactly one externalExecutor.Execute runtime call site, got %d: %v", len(sites), formatSites(sites))
 	}
-	if sites[0].Path != "internal/domain/agent/react/background.go" {
+	if sites[0].Path != "internal/domain/agent/react/background_dispatch.go" {
 		t.Fatalf("unexpected call site %q:%d", sites[0].Path, sites[0].Line)
 	}
 }
