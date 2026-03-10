@@ -60,6 +60,16 @@ type MetricsCollector struct {
 	nsmTimeSaved metric.Float64Histogram // Estimated seconds saved per interaction
 	nsmAccuracy  metric.Float64Histogram // Correctness score (0-1) per action
 
+	// Leader agent metrics
+	leaderBlockerScans      metric.Int64Counter
+	leaderBlockerDetected   metric.Int64Counter
+	leaderBlockerNotified   metric.Int64Counter
+	leaderPulseGenerations  metric.Int64Counter
+	leaderPulseDuration     metric.Float64Histogram
+	leaderPulseTaskCount    metric.Int64Histogram
+	leaderAttentionDecision metric.Int64Counter
+	leaderFocusSuppress     metric.Int64Counter
+
 	// Server for Prometheus scraping
 	prometheusServer *http.Server
 
@@ -70,9 +80,13 @@ type MetricsCollector struct {
 // MetricsTestHooks exposes callbacks that integration tests can use to assert
 // instrumentation without spinning up a full OTel stack.
 type MetricsTestHooks struct {
-	HTTPServerRequest func(method, route string, status int, duration time.Duration, responseBytes int64)
-	SSEMessage        func(eventType, status string, sizeBytes int64)
-	TaskExecution     func(status string, duration time.Duration)
+	HTTPServerRequest    func(method, route string, status int, duration time.Duration, responseBytes int64)
+	SSEMessage           func(eventType, status string, sizeBytes int64)
+	TaskExecution        func(status string, duration time.Duration)
+	BlockerScan          func(detected, notified int)
+	PulseGeneration      func(taskCount int, duration time.Duration)
+	AttentionDecision    func(urgencyLevel string, suppressed bool)
+	FocusTimeSuppress    func(userID string)
 }
 
 // SetTestHooks registers callbacks that are invoked whenever the matching
@@ -301,6 +315,79 @@ func NewMetricsCollector(config MetricsConfig) (*MetricsCollector, error) {
 		return nil, fmt.Errorf("failed to create nsm_accuracy histogram: %w", err)
 	}
 
+	// Leader agent metrics
+	leaderBlockerScans, err := meter.Int64Counter(
+		"alex.leader.blocker.scans.total",
+		metric.WithDescription("Total blocker radar scans"),
+		metric.WithUnit("{scan}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader_blocker_scans counter: %w", err)
+	}
+
+	leaderBlockerDetected, err := meter.Int64Counter(
+		"alex.leader.blocker.detected.total",
+		metric.WithDescription("Total blocked tasks detected"),
+		metric.WithUnit("{task}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader_blocker_detected counter: %w", err)
+	}
+
+	leaderBlockerNotified, err := meter.Int64Counter(
+		"alex.leader.blocker.notified.total",
+		metric.WithDescription("Total blocker notifications sent"),
+		metric.WithUnit("{notification}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader_blocker_notified counter: %w", err)
+	}
+
+	leaderPulseGenerations, err := meter.Int64Counter(
+		"alex.leader.pulse.generations.total",
+		metric.WithDescription("Total weekly pulse generations"),
+		metric.WithUnit("{generation}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader_pulse_generations counter: %w", err)
+	}
+
+	leaderPulseDuration, err := meter.Float64Histogram(
+		"alex.leader.pulse.duration",
+		metric.WithDescription("Pulse generation duration in seconds"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader_pulse_duration histogram: %w", err)
+	}
+
+	leaderPulseTaskCount, err := meter.Int64Histogram(
+		"alex.leader.pulse.task_count",
+		metric.WithDescription("Number of tasks included in pulse digest"),
+		metric.WithUnit("{task}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader_pulse_task_count histogram: %w", err)
+	}
+
+	leaderAttentionDecision, err := meter.Int64Counter(
+		"alex.leader.attention.decisions.total",
+		metric.WithDescription("Total attention gate dispatch decisions"),
+		metric.WithUnit("{decision}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader_attention_decision counter: %w", err)
+	}
+
+	leaderFocusSuppress, err := meter.Int64Counter(
+		"alex.leader.focus.suppressions.total",
+		metric.WithDescription("Total messages suppressed during focus time"),
+		metric.WithUnit("{suppression}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader_focus_suppress counter: %w", err)
+	}
+
 	collector := &MetricsCollector{
 		meter:                 meter,
 		llmRequests:           llmRequests,
@@ -321,9 +408,17 @@ func NewMetricsCollector(config MetricsConfig) (*MetricsCollector, error) {
 		taskExecutions:        taskExecutions,
 		taskDuration:          taskDuration,
 		webVital:              webVital,
-		nsmWTCR:               nsmWTCR,
-		nsmTimeSaved:          nsmTimeSaved,
-		nsmAccuracy:           nsmAccuracy,
+		nsmWTCR:                nsmWTCR,
+		nsmTimeSaved:           nsmTimeSaved,
+		nsmAccuracy:            nsmAccuracy,
+		leaderBlockerScans:     leaderBlockerScans,
+		leaderBlockerDetected:  leaderBlockerDetected,
+		leaderBlockerNotified:  leaderBlockerNotified,
+		leaderPulseGenerations: leaderPulseGenerations,
+		leaderPulseDuration:    leaderPulseDuration,
+		leaderPulseTaskCount:   leaderPulseTaskCount,
+		leaderAttentionDecision: leaderAttentionDecision,
+		leaderFocusSuppress:    leaderFocusSuppress,
 	}
 
 	// Start Prometheus HTTP server
@@ -558,6 +653,75 @@ func (m *MetricsCollector) RecordNSMAccuracy(ctx context.Context, toolName strin
 	}
 	m.nsmAccuracy.Record(ctx, value, metric.WithAttributes(
 		attribute.String("tool_name", toolName),
+	))
+}
+
+// RecordBlockerScan records a blocker radar scan with detected/notified counts.
+func (m *MetricsCollector) RecordBlockerScan(ctx context.Context, detected, notified int) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.BlockerScan; hook != nil {
+		hook(detected, notified)
+	}
+	if m.leaderBlockerScans == nil {
+		return
+	}
+	m.leaderBlockerScans.Add(ctx, 1)
+	m.leaderBlockerDetected.Add(ctx, int64(detected))
+	m.leaderBlockerNotified.Add(ctx, int64(notified))
+}
+
+// RecordPulseGeneration records a weekly pulse generation with task count and duration.
+func (m *MetricsCollector) RecordPulseGeneration(ctx context.Context, taskCount int, duration time.Duration) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.PulseGeneration; hook != nil {
+		hook(taskCount, duration)
+	}
+	if m.leaderPulseGenerations == nil {
+		return
+	}
+	m.leaderPulseGenerations.Add(ctx, 1)
+	m.leaderPulseDuration.Record(ctx, duration.Seconds())
+	m.leaderPulseTaskCount.Record(ctx, int64(taskCount))
+}
+
+// RecordAttentionDecision records an attention gate dispatch decision.
+func (m *MetricsCollector) RecordAttentionDecision(ctx context.Context, urgencyLevel string, suppressed bool) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.AttentionDecision; hook != nil {
+		hook(urgencyLevel, suppressed)
+	}
+	if m.leaderAttentionDecision == nil {
+		return
+	}
+	suppressedStr := "false"
+	if suppressed {
+		suppressedStr = "true"
+	}
+	m.leaderAttentionDecision.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("urgency", urgencyLevel),
+		attribute.String("suppressed", suppressedStr),
+	))
+}
+
+// RecordFocusTimeSuppress records a message suppressed due to focus time.
+func (m *MetricsCollector) RecordFocusTimeSuppress(ctx context.Context, userID string) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.FocusTimeSuppress; hook != nil {
+		hook(userID)
+	}
+	if m.leaderFocusSuppress == nil {
+		return
+	}
+	m.leaderFocusSuppress.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("user_id", userID),
 	))
 }
 

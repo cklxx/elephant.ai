@@ -170,6 +170,134 @@ func TestEstimateCost(t *testing.T) {
 	}
 }
 
+// --- Leader agent metrics ---
+
+func TestMetricsCollector_RecordBlockerScan(t *testing.T) {
+	collector, err := NewMetricsCollector(MetricsConfig{Enabled: true, PrometheusPort: 0})
+	require.NoError(t, err)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = collector.Shutdown(ctx)
+	}()
+
+	// No panic with real OTel metrics.
+	collector.RecordBlockerScan(context.Background(), 3, 2)
+}
+
+func TestMetricsCollector_RecordBlockerScan_TestHook(t *testing.T) {
+	collector := &MetricsCollector{}
+	var gotDetected, gotNotified int
+	collector.SetTestHooks(MetricsTestHooks{
+		BlockerScan: func(detected, notified int) {
+			gotDetected = detected
+			gotNotified = notified
+		},
+	})
+	collector.RecordBlockerScan(context.Background(), 5, 3)
+	assert.Equal(t, 5, gotDetected)
+	assert.Equal(t, 3, gotNotified)
+}
+
+func TestMetricsCollector_RecordPulseGeneration(t *testing.T) {
+	collector, err := NewMetricsCollector(MetricsConfig{Enabled: true, PrometheusPort: 0})
+	require.NoError(t, err)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = collector.Shutdown(ctx)
+	}()
+
+	collector.RecordPulseGeneration(context.Background(), 7, 2*time.Second)
+}
+
+func TestMetricsCollector_RecordPulseGeneration_TestHook(t *testing.T) {
+	collector := &MetricsCollector{}
+	var gotCount int
+	var gotDuration time.Duration
+	collector.SetTestHooks(MetricsTestHooks{
+		PulseGeneration: func(taskCount int, duration time.Duration) {
+			gotCount = taskCount
+			gotDuration = duration
+		},
+	})
+	collector.RecordPulseGeneration(context.Background(), 10, 500*time.Millisecond)
+	assert.Equal(t, 10, gotCount)
+	assert.Equal(t, 500*time.Millisecond, gotDuration)
+}
+
+func TestMetricsCollector_RecordAttentionDecision(t *testing.T) {
+	collector, err := NewMetricsCollector(MetricsConfig{Enabled: true, PrometheusPort: 0})
+	require.NoError(t, err)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = collector.Shutdown(ctx)
+	}()
+
+	collector.RecordAttentionDecision(context.Background(), "high", false)
+	collector.RecordAttentionDecision(context.Background(), "low", true)
+}
+
+func TestMetricsCollector_RecordAttentionDecision_TestHook(t *testing.T) {
+	collector := &MetricsCollector{}
+	var gotLevel string
+	var gotSuppressed bool
+	collector.SetTestHooks(MetricsTestHooks{
+		AttentionDecision: func(urgencyLevel string, suppressed bool) {
+			gotLevel = urgencyLevel
+			gotSuppressed = suppressed
+		},
+	})
+	collector.RecordAttentionDecision(context.Background(), "high", true)
+	assert.Equal(t, "high", gotLevel)
+	assert.True(t, gotSuppressed)
+}
+
+func TestMetricsCollector_RecordFocusTimeSuppress(t *testing.T) {
+	collector, err := NewMetricsCollector(MetricsConfig{Enabled: true, PrometheusPort: 0})
+	require.NoError(t, err)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = collector.Shutdown(ctx)
+	}()
+
+	collector.RecordFocusTimeSuppress(context.Background(), "alice")
+}
+
+func TestMetricsCollector_RecordFocusTimeSuppress_TestHook(t *testing.T) {
+	collector := &MetricsCollector{}
+	var gotUserID string
+	collector.SetTestHooks(MetricsTestHooks{
+		FocusTimeSuppress: func(userID string) {
+			gotUserID = userID
+		},
+	})
+	collector.RecordFocusTimeSuppress(context.Background(), "bob")
+	assert.Equal(t, "bob", gotUserID)
+}
+
+func TestMetricsCollector_LeaderMetrics_NilSafe(t *testing.T) {
+	var collector *MetricsCollector
+	ctx := context.Background()
+	// All should be no-ops on nil receiver.
+	collector.RecordBlockerScan(ctx, 1, 1)
+	collector.RecordPulseGeneration(ctx, 1, time.Second)
+	collector.RecordAttentionDecision(ctx, "low", false)
+	collector.RecordFocusTimeSuppress(ctx, "user")
+}
+
+func TestMetricsCollector_LeaderMetrics_DisabledNoPanic(t *testing.T) {
+	collector, err := NewMetricsCollector(MetricsConfig{Enabled: false})
+	require.NoError(t, err)
+	ctx := context.Background()
+	collector.RecordBlockerScan(ctx, 1, 1)
+	collector.RecordPulseGeneration(ctx, 1, time.Second)
+	collector.RecordAttentionDecision(ctx, "low", false)
+	collector.RecordFocusTimeSuppress(ctx, "user")
+}
+
 func TestMetricsCollector_DisabledMetrics(t *testing.T) {
 	collector, err := NewMetricsCollector(MetricsConfig{
 		Enabled: false,
