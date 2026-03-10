@@ -101,7 +101,7 @@ func (s *InMemoryTaskStore) evictExpired() {
 
 	changed := false
 	for taskID, task := range s.tasks {
-		if !isTerminalStatus(task.Status) {
+		if !task.Status.IsTerminal() {
 			continue
 		}
 		if task.CompletedAt != nil && now.Sub(*task.CompletedAt) > s.retention {
@@ -130,7 +130,7 @@ func (s *InMemoryTaskStore) evictOldestTerminalLocked() {
 	}
 	var candidates []candidate
 	for taskID, task := range s.tasks {
-		if isTerminalStatus(task.Status) && task.CompletedAt != nil {
+		if task.Status.IsTerminal() && task.CompletedAt != nil {
 			candidates = append(candidates, candidate{id: taskID, completedAt: *task.CompletedAt})
 		}
 	}
@@ -145,11 +145,3 @@ func (s *InMemoryTaskStore) evictOldestTerminalLocked() {
 	}
 }
 
-func isTerminalStatus(status ports.TaskStatus) bool {
-	switch status {
-	case ports.TaskStatusCompleted, ports.TaskStatusFailed, ports.TaskStatusCancelled:
-		return true
-	default:
-		return false
-	}
-}

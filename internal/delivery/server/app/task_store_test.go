@@ -832,7 +832,7 @@ func TestInMemoryTaskStore_ClaimResumableTasks(t *testing.T) {
 	}
 }
 
-func TestIsTerminalStatus(t *testing.T) {
+func TestTaskStatus_IsTerminal(t *testing.T) {
 	tests := []struct {
 		status   serverPorts.TaskStatus
 		terminal bool
@@ -844,8 +844,8 @@ func TestIsTerminalStatus(t *testing.T) {
 		{serverPorts.TaskStatusCancelled, true},
 	}
 	for _, tt := range tests {
-		if got := isTerminalStatus(tt.status); got != tt.terminal {
-			t.Errorf("isTerminalStatus(%q) = %v, want %v", tt.status, got, tt.terminal)
+		if got := tt.status.IsTerminal(); got != tt.terminal {
+			t.Errorf("TaskStatus(%q).IsTerminal() = %v, want %v", tt.status, got, tt.terminal)
 		}
 	}
 }

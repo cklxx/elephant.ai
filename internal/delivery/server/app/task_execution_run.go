@@ -103,6 +103,37 @@ func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task stri
 	return &taskCopy, nil
 }
 
+// taskExecContext holds the immutable context for a single background task execution,
+// avoiding long parameter lists and enabling shared helpers.
+type taskExecContext struct {
+	taskID      string
+	sessionID   string
+	agentPreset string
+	toolPreset  string
+	parentRunID string
+	startTime   time.Time
+}
+
+// baseProps returns the common analytics properties shared across all task
+// outcome events (cancelled, failed, completed).
+func (tc *taskExecContext) baseProps() map[string]any {
+	props := map[string]any{
+		"run_id":      tc.taskID,
+		"session_id":  tc.sessionID,
+		"duration_ms": time.Since(tc.startTime).Milliseconds(),
+	}
+	if tc.parentRunID != "" {
+		props["parent_run_id"] = tc.parentRunID
+	}
+	if tc.agentPreset != "" {
+		props["agent_preset"] = tc.agentPreset
+	}
+	if tc.toolPreset != "" {
+		props["tool_preset"] = tc.toolPreset
+	}
+	return props
+}
+
 // executeTaskInBackground runs the actual task execution in a background goroutine.
 func (svc *TaskExecutionService) executeTaskInBackground(
 	ctx context.Context,
@@ -156,8 +187,15 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 
 	logger.Debug("Starting task execution: task_id=%s session_id=%s", taskID, sessionID)
 
-	parentRunID := id.ParentRunIDFromContext(ctx)
-	startTime := time.Now()
+	tc := taskExecContext{
+		taskID:      taskID,
+		sessionID:   sessionID,
+		agentPreset: agentPreset,
+		toolPreset:  toolPreset,
+		parentRunID: id.ParentRunIDFromContext(ctx),
+		startTime:   time.Now(),
+	}
+
 	status := "success"
 	var spanErr error
 	if svc.obs != nil {
@@ -176,7 +214,7 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 		svc.obs.Metrics.IncrementActiveSessions(ctx)
 		defer svc.obs.Metrics.DecrementActiveSessions(ctx)
 		defer func() {
-			svc.obs.Metrics.RecordTaskExecution(ctx, status, time.Since(startTime))
+			svc.obs.Metrics.RecordTaskExecution(ctx, status, time.Since(tc.startTime))
 		}()
 	}
 
@@ -217,95 +255,64 @@ func (svc *TaskExecutionService) executeTaskInBackground(
 	result, err := svc.agentCoordinator.ExecuteTask(ctx, task, sessionID, listener)
 
 	if ctx.Err() != nil {
-		logger.Info("Task cancelled: task_id=%s session_id=%s reason=%v", taskID, sessionID, context.Cause(ctx))
-		status = "cancelled"
-		if cause := context.Cause(ctx); cause != nil {
-			spanErr = cause
-		}
-
-		cause := context.Cause(ctx)
-		var terminationReason serverPorts.TerminationReason
-		if cause != nil {
-			switch cause {
-			case context.DeadlineExceeded:
-				terminationReason = serverPorts.TerminationReasonTimeout
-			case context.Canceled:
-				terminationReason = serverPorts.TerminationReasonCancelled
-			default:
-				terminationReason = serverPorts.TerminationReasonCancelled
-			}
-		} else {
-			terminationReason = serverPorts.TerminationReasonCancelled
-		}
-
-		_ = svc.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusCancelled)
-		_ = svc.taskStore.SetTerminationReason(context.Background(), taskID, terminationReason)
-		props := map[string]any{
-			"run_id":             taskID,
-			"session_id":         sessionID,
-			"termination_reason": string(terminationReason),
-			"duration_ms":        time.Since(startTime).Milliseconds(),
-		}
-		if parentRunID != "" {
-			props["parent_run_id"] = parentRunID
-		}
-		if agentPreset != "" {
-			props["agent_preset"] = agentPreset
-		}
-		if toolPreset != "" {
-			props["tool_preset"] = toolPreset
-		}
-		svc.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionCancelled, props)
+		svc.handleTaskCancelled(ctx, tc, logger, &status, &spanErr)
 		return
 	}
 
 	if err != nil {
-		errMsg := fmt.Sprintf("task execution failed (task_id=%s, session_id=%s): %v", taskID, sessionID, err)
-		status = "error"
-		spanErr = err
-		logger.Error("%s", errMsg)
-		fmt.Fprintf(os.Stderr, "ERROR: %s\n", errMsg)
-		_ = svc.taskStore.SetError(ctx, taskID, err)
-		props := map[string]any{
-			"run_id":      taskID,
-			"session_id":  sessionID,
-			"duration_ms": time.Since(startTime).Milliseconds(),
-			"error":       err.Error(),
-		}
-		if parentRunID != "" {
-			props["parent_run_id"] = parentRunID
-		}
-		if agentPreset != "" {
-			props["agent_preset"] = agentPreset
-		}
-		if toolPreset != "" {
-			props["tool_preset"] = toolPreset
-		}
-		svc.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionFailed, props)
+		svc.handleTaskFailed(ctx, tc, err, logger, &status, &spanErr)
 		return
 	}
 
-	_ = svc.taskStore.SetResult(ctx, taskID, result)
+	svc.handleTaskCompleted(ctx, tc, result, logger)
+}
 
-	logger.Info("Task execution completed: task_id=%s", taskID)
+// handleTaskCancelled processes context cancellation for a task.
+func (svc *TaskExecutionService) handleTaskCancelled(ctx context.Context, tc taskExecContext, logger logging.Logger, status *string, spanErr *error) {
+	logger.Info("Task cancelled: task_id=%s session_id=%s reason=%v", tc.taskID, tc.sessionID, context.Cause(ctx))
+	*status = "cancelled"
 
-	props := map[string]any{
-		"run_id":      taskID,
-		"session_id":  sessionID,
-		"duration_ms": time.Since(startTime).Milliseconds(),
-		"iterations":  result.Iterations,
+	cause := context.Cause(ctx)
+	if cause != nil {
+		*spanErr = cause
 	}
-	if parentRunID != "" {
-		props["parent_run_id"] = parentRunID
+
+	terminationReason := serverPorts.TerminationReasonCancelled
+	if cause == context.DeadlineExceeded {
+		terminationReason = serverPorts.TerminationReasonTimeout
 	}
-	if agentPreset != "" {
-		props["agent_preset"] = agentPreset
-	}
-	if toolPreset != "" {
-		props["tool_preset"] = toolPreset
-	}
+
+	_ = svc.taskStore.SetStatus(ctx, tc.taskID, serverPorts.TaskStatusCancelled)
+	_ = svc.taskStore.SetTerminationReason(context.Background(), tc.taskID, terminationReason)
+
+	props := tc.baseProps()
+	props["termination_reason"] = string(terminationReason)
+	svc.captureAnalytics(ctx, tc.sessionID, analytics.EventTaskExecutionCancelled, props)
+}
+
+// handleTaskFailed processes an execution error for a task.
+func (svc *TaskExecutionService) handleTaskFailed(ctx context.Context, tc taskExecContext, err error, logger logging.Logger, status *string, spanErr *error) {
+	errMsg := fmt.Sprintf("task execution failed (task_id=%s, session_id=%s): %v", tc.taskID, tc.sessionID, err)
+	*status = "error"
+	*spanErr = err
+	logger.Error("%s", errMsg)
+	fmt.Fprintf(os.Stderr, "ERROR: %s\n", errMsg)
+	_ = svc.taskStore.SetError(ctx, tc.taskID, err)
+
+	props := tc.baseProps()
+	props["error"] = err.Error()
+	svc.captureAnalytics(ctx, tc.sessionID, analytics.EventTaskExecutionFailed, props)
+}
+
+// handleTaskCompleted processes successful task completion.
+func (svc *TaskExecutionService) handleTaskCompleted(ctx context.Context, tc taskExecContext, result *agent.TaskResult, logger logging.Logger) {
+	_ = svc.taskStore.SetResult(ctx, tc.taskID, result)
+	logger.Info("Task execution completed: task_id=%s", tc.taskID)
+
+	props := tc.baseProps()
+	props["iterations"] = result.Iterations
 	if result.StopReason != "" {
 		props["stop_reason"] = result.StopReason
 	}
-	svc.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionCompleted, props)
+	svc.captureAnalytics(ctx, tc.sessionID, analytics.EventTaskExecutionCompleted, props)
 }

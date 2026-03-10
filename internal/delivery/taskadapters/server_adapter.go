@@ -67,13 +67,6 @@ func (a *ServerAdapter) Get(ctx context.Context, taskID string) (*ports.Task, er
 	return domainToServerTask(t), nil
 }
 
-// Update updates task state.
-func (a *ServerAdapter) Update(ctx context.Context, task *ports.Task) error {
-	return a.store.SetStatus(ctx, task.ID, serverStatusToDomain(task.Status),
-		taskdomain.WithTransitionReason("update"),
-	)
-}
-
 // List returns tasks with pagination.
 func (a *ServerAdapter) List(ctx context.Context, limit int, offset int) ([]*ports.Task, int, error) {
 	tasks, total, err := a.store.List(ctx, limit, offset)

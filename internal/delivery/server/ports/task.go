@@ -66,9 +66,6 @@ type TaskStore interface {
 	// Get retrieves a task by ID
 	Get(ctx context.Context, taskID string) (*Task, error)
 
-	// Update updates task state
-	Update(ctx context.Context, task *Task) error
-
 	// List returns tasks with pagination
 	List(ctx context.Context, limit int, offset int) ([]*Task, int, error)
 
@@ -109,10 +106,12 @@ type TaskStore interface {
 	ReleaseTaskLease(ctx context.Context, taskID, ownerID string) error
 }
 
-// TaskListParams represents pagination and filtering parameters
-type TaskListParams struct {
-	Limit     int
-	Offset    int
-	SessionID string
-	Status    TaskStatus
+// IsTerminal reports whether the status is a final state.
+func (s TaskStatus) IsTerminal() bool {
+	switch s {
+	case TaskStatusCompleted, TaskStatusFailed, TaskStatusCancelled:
+		return true
+	default:
+		return false
+	}
 }

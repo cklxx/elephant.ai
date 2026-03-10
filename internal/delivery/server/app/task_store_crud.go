@@ -61,20 +61,6 @@ func (s *InMemoryTaskStore) Get(ctx context.Context, taskID string) (*ports.Task
 	return &taskCopy, nil
 }
 
-// Update updates task state
-func (s *InMemoryTaskStore) Update(ctx context.Context, task *ports.Task) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, exists := s.tasks[task.ID]; !exists {
-		return NotFoundError(fmt.Sprintf("task %s", task.ID))
-	}
-
-	s.tasks[task.ID] = task
-	s.persistLocked()
-	return nil
-}
-
 // List returns tasks with pagination
 func (s *InMemoryTaskStore) List(ctx context.Context, limit int, offset int) ([]*ports.Task, int, error) {
 	s.mu.RLock()

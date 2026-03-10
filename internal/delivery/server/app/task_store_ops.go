@@ -9,6 +9,28 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 )
 
+// releaseOwnershipLocked clears ownership bookkeeping for a task.
+// Caller must hold s.mu.
+func (s *InMemoryTaskStore) releaseOwnershipLocked(taskID string) {
+	delete(s.owners, taskID)
+	delete(s.leases, taskID)
+}
+
+// defaultTerminationReason returns the canonical termination reason for a
+// terminal status when one has not been explicitly set.
+func defaultTerminationReason(status ports.TaskStatus) ports.TerminationReason {
+	switch status {
+	case ports.TaskStatusCompleted:
+		return ports.TerminationReasonCompleted
+	case ports.TaskStatusCancelled:
+		return ports.TerminationReasonCancelled
+	case ports.TaskStatusFailed:
+		return ports.TerminationReasonError
+	default:
+		return ports.TerminationReasonNone
+	}
+}
+
 // SetStatus updates task status
 func (s *InMemoryTaskStore) SetStatus(ctx context.Context, taskID string, status ports.TaskStatus) error {
 	s.mu.Lock()
@@ -20,41 +42,21 @@ func (s *InMemoryTaskStore) SetStatus(ctx context.Context, taskID string, status
 	}
 
 	task.Status = status
-
-	// Update timestamps and termination reason based on status
 	now := time.Now()
-	switch status {
-	case ports.TaskStatusRunning:
+
+	switch {
+	case status == ports.TaskStatusRunning:
 		if task.StartedAt == nil {
 			task.StartedAt = &now
 		}
-	case ports.TaskStatusCompleted:
+	case status.IsTerminal():
 		if task.CompletedAt == nil {
 			task.CompletedAt = &now
 		}
 		if task.TerminationReason == ports.TerminationReasonNone {
-			task.TerminationReason = ports.TerminationReasonCompleted
+			task.TerminationReason = defaultTerminationReason(status)
 		}
-		delete(s.owners, taskID)
-		delete(s.leases, taskID)
-	case ports.TaskStatusCancelled:
-		if task.CompletedAt == nil {
-			task.CompletedAt = &now
-		}
-		if task.TerminationReason == ports.TerminationReasonNone {
-			task.TerminationReason = ports.TerminationReasonCancelled
-		}
-		delete(s.owners, taskID)
-		delete(s.leases, taskID)
-	case ports.TaskStatusFailed:
-		if task.CompletedAt == nil {
-			task.CompletedAt = &now
-		}
-		if task.TerminationReason == ports.TerminationReasonNone {
-			task.TerminationReason = ports.TerminationReasonError
-		}
-		delete(s.owners, taskID)
-		delete(s.leases, taskID)
+		s.releaseOwnershipLocked(taskID)
 	}
 
 	s.persistLocked()
@@ -76,8 +78,7 @@ func (s *InMemoryTaskStore) SetError(ctx context.Context, taskID string, err err
 	task.TerminationReason = ports.TerminationReasonError
 	now := time.Now()
 	task.CompletedAt = &now
-	delete(s.owners, taskID)
-	delete(s.leases, taskID)
+	s.releaseOwnershipLocked(taskID)
 
 	s.persistLocked()
 	return nil
@@ -98,11 +99,10 @@ func (s *InMemoryTaskStore) SetResult(ctx context.Context, taskID string, result
 	task.TerminationReason = ports.TerminationReasonCompleted
 	now := time.Now()
 	task.CompletedAt = &now
-	delete(s.owners, taskID)
-	delete(s.leases, taskID)
+	s.releaseOwnershipLocked(taskID)
 	task.TotalIterations = result.Iterations
 	task.TokensUsed = result.TokensUsed
-	task.TotalTokens = result.TokensUsed // Total tokens = final tokens used
+	task.TotalTokens = result.TokensUsed
 
 	task.SessionID = result.SessionID
 
@@ -156,7 +156,7 @@ func (s *InMemoryTaskStore) TryClaimTask(ctx context.Context, taskID, ownerID st
 	if !exists {
 		return false, NotFoundError(fmt.Sprintf("task %s", taskID))
 	}
-	if isTerminalStatus(task.Status) {
+	if task.Status.IsTerminal() {
 		return false, nil
 	}
 	if !s.isTaskClaimableLocked(taskID, ownerID, time.Now()) {
@@ -234,8 +234,7 @@ func (s *InMemoryTaskStore) ReleaseTaskLease(ctx context.Context, taskID, ownerI
 	if s.owners[taskID] != ownerID {
 		return nil
 	}
-	delete(s.owners, taskID)
-	delete(s.leases, taskID)
+	s.releaseOwnershipLocked(taskID)
 	s.persistLocked()
 	return nil
 }

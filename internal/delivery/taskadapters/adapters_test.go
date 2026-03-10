@@ -447,23 +447,6 @@ func TestServerAdapter_NotFound(t *testing.T) {
 	}
 }
 
-func TestServerAdapter_Update(t *testing.T) {
-	store := newMockStore()
-	adapter := NewServerAdapter(store)
-	ctx := context.Background()
-
-	task, _ := adapter.Create(ctx, "s1", "task", "", "")
-	task.Status = ports.TaskStatusRunning
-	if err := adapter.Update(ctx, task); err != nil {
-		t.Fatalf("Update() error = %v", err)
-	}
-
-	got, _ := adapter.Get(ctx, task.ID)
-	if got.Status != ports.TaskStatusRunning {
-		t.Errorf("Status = %q, want %q", got.Status, ports.TaskStatusRunning)
-	}
-}
-
 func TestServerAdapter_List(t *testing.T) {
 	store := newMockStore()
 	adapter := NewServerAdapter(store)
