@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -318,4 +319,149 @@ func TestHealthRegistry_RecordWithoutRegister(t *testing.T) {
 	assert.Equal(t, "deepseek", h.Provider)
 	assert.Equal(t, 1, h.FailureCount)
 	assert.Equal(t, "connection refused", h.LastError)
+}
+
+func TestProviderHealth_Sanitize_StripsRawError(t *testing.T) {
+	t.Parallel()
+
+	h := ProviderHealth{
+		Provider:     "openai",
+		Model:        "gpt-4",
+		State:        HealthStateDegraded,
+		LastError:    "POST https://api.openai.com/v1/chat: 429 rate limit exceeded (key=sk-proj-abc123...)",
+		FailureCount: 5,
+		ErrorRate:    0.15,
+		HealthScore:  44.0,
+		LastChecked:  time.Now(),
+		Latency:      latencyStats{P50: 100 * time.Millisecond, P95: 500 * time.Millisecond, Avg: 150 * time.Millisecond},
+	}
+
+	s := h.Sanitize()
+
+	// Preserved fields.
+	assert.Equal(t, "gpt-4", s.Model)
+	assert.Equal(t, HealthStateDegraded, s.State)
+	assert.Equal(t, 0.15, s.ErrorRate)
+	assert.Equal(t, 44.0, s.HealthScore)
+	assert.False(t, s.LastChecked.IsZero())
+	assert.Equal(t, "transient", s.ErrorClass)
+
+	// Sensitive fields must be absent.
+	assert.Empty(t, sanitizedJSON(t, s, "api.openai.com"), "endpoint URL leaked")
+	assert.Empty(t, sanitizedJSON(t, s, "sk-proj"), "API key leaked")
+	assert.Empty(t, sanitizedJSON(t, s, "429 rate limit"), "raw error leaked")
+	assert.Empty(t, sanitizedJSON(t, s, "openai"), "provider name leaked")
+}
+
+func TestProviderHealth_Sanitize_NoError(t *testing.T) {
+	t.Parallel()
+
+	h := ProviderHealth{
+		Provider:    "anthropic",
+		Model:       "claude-3-opus",
+		State:       HealthStateHealthy,
+		ErrorRate:   0,
+		HealthScore: 100,
+		LastChecked: time.Now(),
+	}
+
+	s := h.Sanitize()
+	assert.Equal(t, "claude-3-opus", s.Model)
+	assert.Equal(t, HealthStateHealthy, s.State)
+	assert.Empty(t, s.ErrorClass)
+}
+
+func TestProviderHealth_Sanitize_PermanentError(t *testing.T) {
+	t.Parallel()
+
+	h := ProviderHealth{
+		Provider:  "my-internal-provider",
+		Model:     "gpt-4",
+		State:     HealthStateDown,
+		LastError: "authentication failed: invalid API key sk-abc123",
+	}
+
+	s := h.Sanitize()
+	assert.Equal(t, "permanent", s.ErrorClass)
+	assert.Empty(t, sanitizedJSON(t, s, "invalid API key"), "raw error leaked")
+	assert.Empty(t, sanitizedJSON(t, s, "sk-abc123"), "API key leaked")
+	assert.Empty(t, sanitizedJSON(t, s, "my-internal-provider"), "provider name leaked")
+}
+
+func TestSanitizeAll(t *testing.T) {
+	t.Parallel()
+
+	healths := []ProviderHealth{
+		{Provider: "openai", Model: "gpt-4", LastError: "timeout after 30s to https://internal.proxy:8443/v1/chat", ErrorRate: 0.1, HealthScore: 90},
+		{Provider: "anthropic", Model: "claude-3", LastError: "", ErrorRate: 0, HealthScore: 100},
+	}
+
+	sanitized := SanitizeAll(healths)
+	require.Len(t, sanitized, 2)
+
+	// First entry: error was present.
+	assert.Equal(t, "gpt-4", sanitized[0].Model)
+	assert.Equal(t, "transient", sanitized[0].ErrorClass)
+	assert.Empty(t, sanitizedJSON(t, sanitized[0], "internal.proxy"), "internal URL leaked")
+	assert.Empty(t, sanitizedJSON(t, sanitized[0], "8443"), "internal port leaked")
+
+	// Second entry: no error.
+	assert.Equal(t, "claude-3", sanitized[1].Model)
+	assert.Empty(t, sanitized[1].ErrorClass)
+}
+
+func TestSanitizeAll_Nil(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, SanitizeAll(nil))
+}
+
+func TestClassifyError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg  string
+		want string
+	}{
+		{"rate limit exceeded", "transient"},
+		{"HTTP 429 Too Many Requests", "transient"},
+		{"connection refused", "transient"},
+		{"context deadline exceeded", "transient"},
+		{"timeout after 30s", "transient"},
+		{"502 Bad Gateway", "transient"},
+		{"503 Service Unavailable", "transient"},
+		{"server error 500", "transient"},
+		{"circuit breaker open", "transient"},
+		{"service overloaded", "transient"},
+		{"authentication failed: invalid API key", "permanent"},
+		{"model not found: gpt-5-turbo", "permanent"},
+		{"invalid request: max_tokens exceeds limit", "permanent"},
+		{"billing quota exceeded", "permanent"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.msg, func(t *testing.T) {
+			assert.Equal(t, tt.want, classifyError(tt.msg))
+		})
+	}
+}
+
+// sanitizedJSON marshals v to JSON and returns any occurrence of needle, or empty string if clean.
+func sanitizedJSON(t *testing.T, v interface{}, needle string) string {
+	t.Helper()
+	data, err := json.Marshal(v)
+	require.NoError(t, err)
+	s := string(data)
+	if idx := indexOf(s, needle); idx >= 0 {
+		return s
+	}
+	return ""
+}
+
+func indexOf(s, sub string) int {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
 }

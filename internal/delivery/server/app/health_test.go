@@ -2,10 +2,14 @@ package app
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"alex/internal/app/di"
 	"alex/internal/delivery/server/ports"
+	"alex/internal/infra/llm"
 )
 
 func TestHealthChecker(t *testing.T) {
@@ -155,6 +159,95 @@ func TestDegradedProbe(t *testing.T) {
 			t.Errorf("Expected 'ready' for nil source, got '%s'", health.Status)
 		}
 	})
+}
+
+func TestLLMModelHealthProbe_SanitizesOutput(t *testing.T) {
+	sensitiveError := "POST https://api.openai.com/v1/chat: 429 rate limit (key=sk-proj-SECRET123)"
+	internalProvider := "my-internal-openai-proxy"
+
+	probe := NewLLMModelHealthProbe(func() interface{} {
+		return []llm.ProviderHealth{
+			{
+				Provider:     internalProvider,
+				Model:        "gpt-4",
+				State:        "degraded",
+				LastError:    sensitiveError,
+				FailureCount: 10,
+				ErrorRate:    0.15,
+				HealthScore:  44.0,
+				LastChecked:  time.Now(),
+			},
+		}
+	})
+
+	health := probe.Check(context.Background())
+	if health.Name != "llm_models" {
+		t.Fatalf("expected name llm_models, got %s", health.Name)
+	}
+
+	// Serialize to JSON — this is what the HTTP handler sends.
+	data, err := json.Marshal(health.Details)
+	if err != nil {
+		t.Fatalf("json marshal: %v", err)
+	}
+	output := string(data)
+
+	// Must NOT contain sensitive data.
+	for _, needle := range []string{
+		"api.openai.com",
+		"sk-proj-SECRET123",
+		"rate limit (key=",
+		internalProvider,
+		"POST https://",
+		"failure_count",
+	} {
+		if strings.Contains(output, needle) {
+			t.Errorf("sanitized output contains %q:\n%s", needle, output)
+		}
+	}
+
+	// Must contain safe fields.
+	for _, needle := range []string{
+		"gpt-4",
+		"degraded",
+		"transient",
+		"error_rate",
+		"health_score",
+	} {
+		if !strings.Contains(output, needle) {
+			t.Errorf("sanitized output missing %q:\n%s", needle, output)
+		}
+	}
+}
+
+func TestLLMModelHealthProbe_NilFunction(t *testing.T) {
+	probe := NewLLMModelHealthProbe(nil)
+	health := probe.Check(context.Background())
+	if health.Status != ports.HealthStatusDisabled {
+		t.Errorf("expected disabled, got %s", health.Status)
+	}
+}
+
+func TestLLMModelHealthProbe_NilDetails(t *testing.T) {
+	probe := NewLLMModelHealthProbe(func() interface{} { return nil })
+	health := probe.Check(context.Background())
+	if health.Status != ports.HealthStatusReady {
+		t.Errorf("expected ready, got %s", health.Status)
+	}
+	if health.Details != nil {
+		t.Errorf("expected nil details, got %v", health.Details)
+	}
+}
+
+func TestLLMModelHealthProbe_UnknownType(t *testing.T) {
+	// If ModelHealthFunc returns an unexpected type, sanitize returns nil.
+	probe := NewLLMModelHealthProbe(func() interface{} {
+		return "unexpected string"
+	})
+	health := probe.Check(context.Background())
+	if health.Details != nil {
+		t.Errorf("expected nil details for unknown type, got %v", health.Details)
+	}
 }
 
 // --- test doubles ---

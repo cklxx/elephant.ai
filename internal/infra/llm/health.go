@@ -2,6 +2,7 @@ package llm
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,9 @@ type latencyStats struct {
 }
 
 // ProviderHealth is a point-in-time snapshot of a provider's health.
+// This struct contains internal details (raw error messages, provider names)
+// and should NOT be serialized directly to external-facing endpoints.
+// Use Sanitize() to produce an external-safe view.
 type ProviderHealth struct {
 	Provider     string       `json:"provider"`
 	Model        string       `json:"model"`
@@ -35,6 +39,45 @@ type ProviderHealth struct {
 	HealthScore  float64      `json:"health_score"`
 	LastChecked  time.Time    `json:"last_checked"`
 	Latency      latencyStats `json:"latency"`
+}
+
+// SanitizedHealth is the external-safe view of per-model health data.
+// It omits raw error messages, endpoint URLs, and API key details.
+type SanitizedHealth struct {
+	Model       string      `json:"model"`
+	State       healthState `json:"state"`
+	ErrorClass  string      `json:"error_class,omitempty"` // "transient" or "permanent"
+	ErrorRate   float64     `json:"error_rate"`
+	HealthScore float64     `json:"health_score"`
+	LastChecked time.Time   `json:"last_checked"`
+}
+
+// Sanitize returns an external-safe view that hides raw error messages,
+// provider names, endpoint URLs, and other internal details.
+func (h ProviderHealth) Sanitize() SanitizedHealth {
+	s := SanitizedHealth{
+		Model:       h.Model,
+		State:       h.State,
+		ErrorRate:   h.ErrorRate,
+		HealthScore: h.HealthScore,
+		LastChecked: h.LastChecked,
+	}
+	if h.LastError != "" {
+		s.ErrorClass = classifyError(h.LastError)
+	}
+	return s
+}
+
+// SanitizeAll returns sanitized views for a slice of ProviderHealth.
+func SanitizeAll(healths []ProviderHealth) []SanitizedHealth {
+	if healths == nil {
+		return nil
+	}
+	result := make([]SanitizedHealth, len(healths))
+	for i, h := range healths {
+		result[i] = h.Sanitize()
+	}
+	return result
 }
 
 const (
@@ -317,4 +360,23 @@ func (hr *healthRegistry) getOrCreate(provider, model string) *providerEntry {
 	}
 	hr.entries[key] = e
 	return e
+}
+
+// classifyError categorizes a raw error message as "transient" or "permanent"
+// without exposing the original text.
+func classifyError(msg string) string {
+	lower := strings.ToLower(msg)
+	transientPatterns := []string{
+		"rate limit", "429", "timeout", "deadline exceeded",
+		"connection refused", "connection reset", "eof",
+		"temporary", "unavailable", "503", "502", "500",
+		"server error", "bad gateway", "circuit",
+		"retry", "overloaded",
+	}
+	for _, p := range transientPatterns {
+		if strings.Contains(lower, p) {
+			return "transient"
+		}
+	}
+	return "permanent"
 }

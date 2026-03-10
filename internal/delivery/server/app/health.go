@@ -6,6 +6,7 @@ import (
 
 	"alex/internal/app/di"
 	"alex/internal/delivery/server/ports"
+	"alex/internal/infra/llm"
 )
 
 // HealthCheckerImpl aggregates health probes for all components
@@ -90,6 +91,8 @@ func NewLLMModelHealthProbe(fn ModelHealthFunc) *LLMModelHealthProbe {
 }
 
 // Check returns per-model health snapshots in the Details field.
+// Sensitive information (raw errors, provider names, endpoint URLs) is stripped;
+// only model name, health score, error rate/class, and state are exposed.
 func (p *LLMModelHealthProbe) Check(ctx context.Context) ports.ComponentHealth {
 	if p.fn == nil {
 		return ports.ComponentHealth{
@@ -108,11 +111,26 @@ func (p *LLMModelHealthProbe) Check(ctx context.Context) ports.ComponentHealth {
 		}
 	}
 
+	// Sanitize before exposing to the HTTP layer:
+	// strip raw error messages, provider names, endpoint URLs, latency internals.
+	sanitized := sanitizeModelHealth(details)
+
 	return ports.ComponentHealth{
 		Name:    "llm_models",
 		Status:  ports.HealthStatusReady,
 		Message: "Per-model health data",
-		Details: details,
+		Details: sanitized,
+	}
+}
+
+// sanitizeModelHealth converts internal ProviderHealth data to the external-safe
+// SanitizedHealth form. Handles both []ProviderHealth and unknown types gracefully.
+func sanitizeModelHealth(raw interface{}) interface{} {
+	switch v := raw.(type) {
+	case []llm.ProviderHealth:
+		return llm.SanitizeAll(v)
+	default:
+		return nil
 	}
 }
 
