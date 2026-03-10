@@ -16,7 +16,7 @@ Audit `internal/delivery/` for:
 - [x] Remove dead code and simplify functions.
 - [x] Run relevant validation.
 - [x] Run code review.
-- [ ] Commit, merge, and push.
+- [x] Commit, merge, and push.
 
 ## Notes
 
@@ -25,3 +25,4 @@ Audit `internal/delivery/` for:
 - `git diff --check` passed.
 - `go test ./internal/delivery/server/http ./internal/delivery/server/bootstrap -count=1` passed.
 - `python3 skills/code-review/run.py review` ran successfully but returned raw diff payload instead of structured findings.
+- `scripts/pre-push.sh` passed.
