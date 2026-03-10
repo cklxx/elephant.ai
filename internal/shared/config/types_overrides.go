@@ -44,22 +44,9 @@ type Overrides struct {
 	APIKey                     *string              `json:"api_key,omitempty" yaml:"api_key,omitempty"`
 	ArkAPIKey                  *string              `json:"ark_api_key,omitempty" yaml:"ark_api_key,omitempty"`
 	BaseURL                    *string              `json:"base_url,omitempty" yaml:"base_url,omitempty"`
-	ACPExecutorAddr            *string              `json:"acp_executor_addr,omitempty" yaml:"acp_executor_addr,omitempty"`
-	ACPExecutorCWD             *string              `json:"acp_executor_cwd,omitempty" yaml:"acp_executor_cwd,omitempty"`
-	ACPExecutorMode            *string              `json:"acp_executor_mode,omitempty" yaml:"acp_executor_mode,omitempty"`
-	ACPExecutorAutoApprove     *bool                `json:"acp_executor_auto_approve,omitempty" yaml:"acp_executor_auto_approve,omitempty"`
-	ACPExecutorMaxCLICalls     *int                 `json:"acp_executor_max_cli_calls,omitempty" yaml:"acp_executor_max_cli_calls,omitempty"`
-	ACPExecutorMaxDuration     *int                 `json:"acp_executor_max_duration_seconds,omitempty" yaml:"acp_executor_max_duration_seconds,omitempty"`
-	ACPExecutorRequireManifest *bool                `json:"acp_executor_require_manifest,omitempty" yaml:"acp_executor_require_manifest,omitempty"`
 	TavilyAPIKey               *string              `json:"tavily_api_key,omitempty" yaml:"tavily_api_key,omitempty"`
 	MoltbookAPIKey             *string              `json:"moltbook_api_key,omitempty" yaml:"moltbook_api_key,omitempty"`
 	MoltbookBaseURL            *string              `json:"moltbook_base_url,omitempty" yaml:"moltbook_base_url,omitempty"`
-	SeedreamTextEndpointID     *string              `json:"seedream_text_endpoint_id,omitempty" yaml:"seedream_text_endpoint_id,omitempty"`
-	SeedreamImageEndpointID    *string              `json:"seedream_image_endpoint_id,omitempty" yaml:"seedream_image_endpoint_id,omitempty"`
-	SeedreamTextModel          *string              `json:"seedream_text_model,omitempty" yaml:"seedream_text_model,omitempty"`
-	SeedreamImageModel         *string              `json:"seedream_image_model,omitempty" yaml:"seedream_image_model,omitempty"`
-	SeedreamVisionModel        *string              `json:"seedream_vision_model,omitempty" yaml:"seedream_vision_model,omitempty"`
-	SeedreamVideoModel         *string              `json:"seedream_video_model,omitempty" yaml:"seedream_video_model,omitempty"`
 	Profile                    *string              `json:"profile,omitempty" yaml:"profile,omitempty"`
 	Environment                *string              `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Verbose                    *bool                `json:"verbose,omitempty" yaml:"verbose,omitempty"`
@@ -105,7 +92,6 @@ type BrowserOverrides struct {
 type HTTPLimitsOverrides struct {
 	DefaultMaxResponseBytes     *int `json:"default_max_response_bytes,omitempty" yaml:"default_max_response_bytes,omitempty"`
 	WebFetchMaxResponseBytes    *int `json:"web_fetch_max_response_bytes,omitempty" yaml:"web_fetch_max_response_bytes,omitempty"`
-	WebSearchMaxResponseBytes   *int `json:"web_search_max_response_bytes,omitempty" yaml:"web_search_max_response_bytes,omitempty"`
-	MusicSearchMaxResponseBytes *int `json:"music_search_max_response_bytes,omitempty" yaml:"music_search_max_response_bytes,omitempty"`
-	ModelListMaxResponseBytes   *int `json:"model_list_max_response_bytes,omitempty" yaml:"model_list_max_response_bytes,omitempty"`
+	WebSearchMaxResponseBytes *int `json:"web_search_max_response_bytes,omitempty" yaml:"web_search_max_response_bytes,omitempty"`
+	ModelListMaxResponseBytes *int `json:"model_list_max_response_bytes,omitempty" yaml:"model_list_max_response_bytes,omitempty"`
 }

@@ -85,18 +85,9 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		{parsed.LLMModel, &cfg.LLMModel, "llm_model"},
 		{parsed.LLMVisionModel, &cfg.LLMVisionModel, "llm_vision_model"},
 		{parsed.BaseURL, &cfg.BaseURL, "base_url"},
-		{parsed.ACPExecutorAddr, &cfg.ACPExecutorAddr, "acp_executor_addr"},
-		{parsed.ACPExecutorCWD, &cfg.ACPExecutorCWD, "acp_executor_cwd"},
-		{parsed.ACPExecutorMode, &cfg.ACPExecutorMode, "acp_executor_mode"},
 		{parsed.TavilyAPIKey, &cfg.TavilyAPIKey, "tavily_api_key"},
 		{parsed.MoltbookAPIKey, &cfg.MoltbookAPIKey, "moltbook_api_key"},
 		{parsed.MoltbookBaseURL, &cfg.MoltbookBaseURL, "moltbook_base_url"},
-		{parsed.SeedreamTextEndpointID, &cfg.SeedreamTextEndpointID, "seedream_text_endpoint_id"},
-		{parsed.SeedreamImageEndpointID, &cfg.SeedreamImageEndpointID, "seedream_image_endpoint_id"},
-		{parsed.SeedreamTextModel, &cfg.SeedreamTextModel, "seedream_text_model"},
-		{parsed.SeedreamImageModel, &cfg.SeedreamImageModel, "seedream_image_model"},
-		{parsed.SeedreamVisionModel, &cfg.SeedreamVisionModel, "seedream_vision_model"},
-		{parsed.SeedreamVideoModel, &cfg.SeedreamVideoModel, "seedream_video_model"},
 		{parsed.Profile, &cfg.Profile, "profile"},
 		{parsed.Environment, &cfg.Environment, "environment"},
 		{parsed.SessionDir, &cfg.SessionDir, "session_dir"},
@@ -113,8 +104,6 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		target *bool
 		key    string
 	}{
-		{parsed.ACPExecutorAutoApprove, &cfg.ACPExecutorAutoApprove, "acp_executor_auto_approve"},
-		{parsed.ACPExecutorRequireManifest, &cfg.ACPExecutorRequireManifest, "acp_executor_require_manifest"},
 		{parsed.Verbose, &cfg.Verbose, "verbose"},
 		{parsed.DisableTUI, &cfg.DisableTUI, "disable_tui"},
 		{parsed.FollowTranscript, &cfg.FollowTranscript, "follow_transcript"},
@@ -128,8 +117,6 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		target *int
 		key    string
 	}{
-		{parsed.ACPExecutorMaxCLICalls, &cfg.ACPExecutorMaxCLICalls, "acp_executor_max_cli_calls"},
-		{parsed.ACPExecutorMaxDuration, &cfg.ACPExecutorMaxDuration, "acp_executor_max_duration_seconds"},
 		{parsed.MaxIterations, &cfg.MaxIterations, "max_iterations"},
 		{parsed.MaxTokens, &cfg.MaxTokens, "max_tokens"},
 		{parsed.ToolMaxConcurrent, &cfg.ToolMaxConcurrent, "tool_max_concurrent"},

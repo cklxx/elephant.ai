@@ -41,18 +41,9 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		{overrides.APIKey, &cfg.APIKey, "api_key"},
 		{overrides.ArkAPIKey, &cfg.ArkAPIKey, "ark_api_key"},
 		{overrides.BaseURL, &cfg.BaseURL, "base_url"},
-		{overrides.ACPExecutorAddr, &cfg.ACPExecutorAddr, "acp_executor_addr"},
-		{overrides.ACPExecutorCWD, &cfg.ACPExecutorCWD, "acp_executor_cwd"},
-		{overrides.ACPExecutorMode, &cfg.ACPExecutorMode, "acp_executor_mode"},
 		{overrides.TavilyAPIKey, &cfg.TavilyAPIKey, "tavily_api_key"},
 		{overrides.MoltbookAPIKey, &cfg.MoltbookAPIKey, "moltbook_api_key"},
 		{overrides.MoltbookBaseURL, &cfg.MoltbookBaseURL, "moltbook_base_url"},
-		{overrides.SeedreamTextEndpointID, &cfg.SeedreamTextEndpointID, "seedream_text_endpoint_id"},
-		{overrides.SeedreamImageEndpointID, &cfg.SeedreamImageEndpointID, "seedream_image_endpoint_id"},
-		{overrides.SeedreamTextModel, &cfg.SeedreamTextModel, "seedream_text_model"},
-		{overrides.SeedreamImageModel, &cfg.SeedreamImageModel, "seedream_image_model"},
-		{overrides.SeedreamVisionModel, &cfg.SeedreamVisionModel, "seedream_vision_model"},
-		{overrides.SeedreamVideoModel, &cfg.SeedreamVideoModel, "seedream_video_model"},
 		{overrides.Profile, &cfg.Profile, "profile"},
 		{overrides.Environment, &cfg.Environment, "environment"},
 		{overrides.SessionDir, &cfg.SessionDir, "session_dir"},
@@ -69,8 +60,6 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		target *bool
 		key    string
 	}{
-		{overrides.ACPExecutorAutoApprove, &cfg.ACPExecutorAutoApprove, "acp_executor_auto_approve"},
-		{overrides.ACPExecutorRequireManifest, &cfg.ACPExecutorRequireManifest, "acp_executor_require_manifest"},
 		{overrides.Verbose, &cfg.Verbose, "verbose"},
 		{overrides.DisableTUI, &cfg.DisableTUI, "disable_tui"},
 		{overrides.FollowTranscript, &cfg.FollowTranscript, "follow_transcript"},
@@ -84,8 +73,6 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		target *int
 		key    string
 	}{
-		{overrides.ACPExecutorMaxCLICalls, &cfg.ACPExecutorMaxCLICalls, "acp_executor_max_cli_calls"},
-		{overrides.ACPExecutorMaxDuration, &cfg.ACPExecutorMaxDuration, "acp_executor_max_duration_seconds"},
 		{overrides.MaxIterations, &cfg.MaxIterations, "max_iterations"},
 		{overrides.MaxTokens, &cfg.MaxTokens, "max_tokens"},
 		{overrides.ToolMaxConcurrent, &cfg.ToolMaxConcurrent, "tool_max_concurrent"},

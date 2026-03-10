@@ -33,9 +33,8 @@ type BrowserConfig struct {
 type HTTPLimitsConfig struct {
 	DefaultMaxResponseBytes     int `json:"default_max_response_bytes" yaml:"default_max_response_bytes"`
 	WebFetchMaxResponseBytes    int `json:"web_fetch_max_response_bytes" yaml:"web_fetch_max_response_bytes"`
-	WebSearchMaxResponseBytes   int `json:"web_search_max_response_bytes" yaml:"web_search_max_response_bytes"`
-	MusicSearchMaxResponseBytes int `json:"music_search_max_response_bytes" yaml:"music_search_max_response_bytes"`
-	ModelListMaxResponseBytes   int `json:"model_list_max_response_bytes" yaml:"model_list_max_response_bytes"`
+	WebSearchMaxResponseBytes int `json:"web_search_max_response_bytes" yaml:"web_search_max_response_bytes"`
+	ModelListMaxResponseBytes int `json:"model_list_max_response_bytes" yaml:"model_list_max_response_bytes"`
 }
 
 // DefaultHTTPLimitsConfig provides baseline HTTP response size limits.
@@ -43,8 +42,7 @@ func DefaultHTTPLimitsConfig() HTTPLimitsConfig {
 	return HTTPLimitsConfig{
 		DefaultMaxResponseBytes:     DefaultHTTPMaxResponse,
 		WebFetchMaxResponseBytes:    2 * DefaultHTTPMaxResponse,
-		WebSearchMaxResponseBytes:   DefaultHTTPMaxResponse,
-		MusicSearchMaxResponseBytes: DefaultHTTPMaxResponse,
-		ModelListMaxResponseBytes:   512 * 1024,
+		WebSearchMaxResponseBytes: DefaultHTTPMaxResponse,
+		ModelListMaxResponseBytes: 512 * 1024,
 	}
 }

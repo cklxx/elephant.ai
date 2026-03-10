@@ -28,22 +28,9 @@ type RuntimeFileConfig struct {
 	APIKey                     string                    `yaml:"api_key"`
 	ArkAPIKey                  string                    `yaml:"ark_api_key"`
 	BaseURL                    string                    `yaml:"base_url"`
-	ACPExecutorAddr            string                    `yaml:"acp_executor_addr"`
-	ACPExecutorCWD             string                    `yaml:"acp_executor_cwd"`
-	ACPExecutorMode            string                    `yaml:"acp_executor_mode"`
-	ACPExecutorAutoApprove     *bool                     `yaml:"acp_executor_auto_approve"`
-	ACPExecutorMaxCLICalls     *int                      `yaml:"acp_executor_max_cli_calls"`
-	ACPExecutorMaxDuration     *int                      `yaml:"acp_executor_max_duration_seconds"`
-	ACPExecutorRequireManifest *bool                     `yaml:"acp_executor_require_manifest"`
 	TavilyAPIKey               string                    `yaml:"tavily_api_key"`
 	MoltbookAPIKey             string                    `yaml:"moltbook_api_key"`
 	MoltbookBaseURL            string                    `yaml:"moltbook_base_url"`
-	SeedreamTextEndpointID     string                    `yaml:"seedream_text_endpoint_id"`
-	SeedreamImageEndpointID    string                    `yaml:"seedream_image_endpoint_id"`
-	SeedreamTextModel          string                    `yaml:"seedream_text_model"`
-	SeedreamImageModel         string                    `yaml:"seedream_image_model"`
-	SeedreamVisionModel        string                    `yaml:"seedream_vision_model"`
-	SeedreamVideoModel         string                    `yaml:"seedream_video_model"`
 	Profile                    string                    `yaml:"profile"`
 	Environment                string                    `yaml:"environment"`
 	Verbose                    *bool                     `yaml:"verbose"`
@@ -114,9 +101,8 @@ type ToolRetryFileConfig struct {
 type HTTPLimitsFileConfig struct {
 	DefaultMaxResponseBytes     *int `yaml:"default_max_response_bytes"`
 	WebFetchMaxResponseBytes    *int `yaml:"web_fetch_max_response_bytes"`
-	WebSearchMaxResponseBytes   *int `yaml:"web_search_max_response_bytes"`
-	MusicSearchMaxResponseBytes *int `yaml:"music_search_max_response_bytes"`
-	ModelListMaxResponseBytes   *int `yaml:"model_list_max_response_bytes"`
+	WebSearchMaxResponseBytes *int `yaml:"web_search_max_response_bytes"`
+	ModelListMaxResponseBytes *int `yaml:"model_list_max_response_bytes"`
 }
 
 // ExternalAgentsFileConfig mirrors ExternalAgentsConfig for YAML decoding.

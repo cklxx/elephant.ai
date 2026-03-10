@@ -20,15 +20,7 @@ var overrideFieldHandlers = map[string]overrideFieldHandler{
 	"api_key":                   stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.APIKey = v }),
 	"ark_api_key":               stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.ArkAPIKey = v }),
 	"base_url":                  stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.BaseURL = v }),
-	"tavily_api_key":            stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.TavilyAPIKey = v }),
-	"seedream_text_endpoint_id": stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.SeedreamTextEndpointID = v }),
-	"seedream_image_endpoint_id": stringOverrideField(func(o *runtimeconfig.Overrides, v *string) {
-		o.SeedreamImageEndpointID = v
-	}),
-	"seedream_text_model":   stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.SeedreamTextModel = v }),
-	"seedream_image_model":  stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.SeedreamImageModel = v }),
-	"seedream_vision_model": stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.SeedreamVisionModel = v }),
-	"seedream_video_model":  stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.SeedreamVideoModel = v }),
+	"tavily_api_key": stringOverrideField(func(o *runtimeconfig.Overrides, v *string) { o.TavilyAPIKey = v }),
 	"profile": normalizedStringOverrideField(
 		runtimeconfig.NormalizeRuntimeProfile,
 		func(o *runtimeconfig.Overrides, v *string) { o.Profile = v },

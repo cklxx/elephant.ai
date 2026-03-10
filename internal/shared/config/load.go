@@ -26,17 +26,6 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		LLMProvider:                DefaultLLMProvider,
 		LLMModel:                   DefaultLLMModel,
 		BaseURL:                    DefaultLLMBaseURL,
-		ACPExecutorAddr:            defaultACPExecutorAddr(options.envLookup),
-		ACPExecutorCWD:             defaultACPExecutorCWD(),
-		ACPExecutorMode:            "full",
-		ACPExecutorAutoApprove:     true,
-		ACPExecutorMaxCLICalls:     12,
-		ACPExecutorMaxDuration:     900,
-		ACPExecutorRequireManifest: true,
-		SeedreamTextModel:          DefaultSeedreamTextModel,
-		SeedreamImageModel:         DefaultSeedreamImageModel,
-		SeedreamVisionModel:        DefaultSeedreamVisionModel,
-		SeedreamVideoModel:         DefaultSeedreamVideoModel,
 		Profile:                    DefaultRuntimeProfile,
 		Environment:                "development",
 		FollowTranscript:           true,
@@ -183,18 +172,9 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
 	cfg.ArkAPIKey = strings.TrimSpace(cfg.ArkAPIKey)
 	cfg.BaseURL = strings.TrimSpace(cfg.BaseURL)
-	cfg.ACPExecutorAddr = strings.TrimSpace(cfg.ACPExecutorAddr)
-	cfg.ACPExecutorCWD = strings.TrimSpace(cfg.ACPExecutorCWD)
-	cfg.ACPExecutorMode = strings.TrimSpace(cfg.ACPExecutorMode)
 	cfg.TavilyAPIKey = strings.TrimSpace(cfg.TavilyAPIKey)
 	cfg.MoltbookAPIKey = strings.TrimSpace(cfg.MoltbookAPIKey)
 	cfg.MoltbookBaseURL = strings.TrimSpace(cfg.MoltbookBaseURL)
-	cfg.SeedreamTextEndpointID = strings.TrimSpace(cfg.SeedreamTextEndpointID)
-	cfg.SeedreamImageEndpointID = strings.TrimSpace(cfg.SeedreamImageEndpointID)
-	cfg.SeedreamTextModel = strings.TrimSpace(cfg.SeedreamTextModel)
-	cfg.SeedreamImageModel = strings.TrimSpace(cfg.SeedreamImageModel)
-	cfg.SeedreamVisionModel = strings.TrimSpace(cfg.SeedreamVisionModel)
-	cfg.SeedreamVideoModel = strings.TrimSpace(cfg.SeedreamVideoModel)
 	cfg.Profile = NormalizeRuntimeProfile(cfg.Profile)
 	cfg.Environment = strings.TrimSpace(cfg.Environment)
 	cfg.SessionDir = strings.TrimSpace(cfg.SessionDir)
@@ -338,9 +318,6 @@ func normalizeHTTPLimits(cfg *HTTPLimitsConfig) {
 	}
 	if cfg.WebSearchMaxResponseBytes <= 0 {
 		cfg.WebSearchMaxResponseBytes = DefaultHTTPMaxResponse
-	}
-	if cfg.MusicSearchMaxResponseBytes <= 0 {
-		cfg.MusicSearchMaxResponseBytes = DefaultHTTPMaxResponse
 	}
 	if cfg.ModelListMaxResponseBytes <= 0 {
 		cfg.ModelListMaxResponseBytes = 512 * 1024

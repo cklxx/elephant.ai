@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -56,44 +55,6 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.KimiRateLimitRPS != 1.0 || cfg.KimiRateLimitBurst != 1 {
 		t.Fatalf("expected kimi rate limit defaults 1.0/1, got %v/%d", cfg.KimiRateLimitRPS, cfg.KimiRateLimitBurst)
 	}
-	if cfg.ACPExecutorAddr == "" {
-		t.Fatalf("expected default ACP executor addr to be set")
-	}
-	if cfg.ACPExecutorCWD != "/workspace" {
-		t.Fatalf("expected default ACP executor cwd to be /workspace, got %q", cfg.ACPExecutorCWD)
-	}
-	if cfg.ACPExecutorMode != "full" {
-		t.Fatalf("expected default ACP executor mode to be full, got %q", cfg.ACPExecutorMode)
-	}
-	if !cfg.ACPExecutorAutoApprove {
-		t.Fatalf("expected default ACP executor auto approve to be true")
-	}
-}
-
-func TestLoadDefaultsUsesACPPortFile(t *testing.T) {
-	tmp := t.TempDir()
-	configPath := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(configPath, []byte("runtime: {}\n"), 0o600); err != nil {
-		t.Fatalf("write config file: %v", err)
-	}
-	if err := os.Mkdir(filepath.Join(tmp, "pids"), 0o755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tmp, "pids", "acp.port"), []byte("19077\n"), 0o600); err != nil {
-		t.Fatalf("write port file: %v", err)
-	}
-	t.Setenv("ALEX_CONFIG_PATH", configPath)
-
-	cfg, _, err := Load(
-		WithEnv(envMap{}.Lookup),
-		WithFileReader(func(string) ([]byte, error) { return nil, os.ErrNotExist }),
-	)
-	if err != nil {
-		t.Fatalf("Load returned error: %v", err)
-	}
-	if cfg.ACPExecutorAddr != "http://127.0.0.1:19077" {
-		t.Fatalf("expected ACP executor addr to use port file, got %q", cfg.ACPExecutorAddr)
-	}
 }
 
 func TestLoadKeepsLlamaCppProviderWithoutAPIKey(t *testing.T) {
@@ -121,21 +82,8 @@ runtime:
   llm_model: "gpt-4o"
   llm_vision_model: "gpt-4o-mini"
   api_key: "sk-test"
-  acp_executor_addr: "127.0.0.1:18088"
-  acp_executor_cwd: "/workspace/project"
-  acp_executor_mode: "safe"
-  acp_executor_auto_approve: true
-  acp_executor_max_cli_calls: 9
-  acp_executor_max_duration_seconds: 120
-  acp_executor_require_manifest: false
   tavily_api_key: "file-tavily"
   ark_api_key: "file-ark"
-  seedream_text_endpoint_id: "file-text-id"
-  seedream_image_endpoint_id: "file-image-id"
-  seedream_text_model: "file-text-model"
-  seedream_image_model: "file-image-model"
-  seedream_vision_model: "file-vision-model"
-  seedream_video_model: "file-video-model"
   environment: "staging"
   verbose: true
   disable_tui: true
@@ -215,20 +163,8 @@ runtime:
 	if cfg.TavilyAPIKey != "file-tavily" {
 		t.Fatalf("expected tavily key from file, got %q", cfg.TavilyAPIKey)
 	}
-	if cfg.SeedreamTextEndpointID != "file-text-id" || cfg.SeedreamImageEndpointID != "file-image-id" {
-		t.Fatalf("expected seedream endpoints from file, got %q/%q", cfg.SeedreamTextEndpointID, cfg.SeedreamImageEndpointID)
-	}
 	if cfg.ArkAPIKey != "file-ark" {
 		t.Fatalf("expected ark API key from file, got %q", cfg.ArkAPIKey)
-	}
-	if cfg.SeedreamTextModel != "file-text-model" || cfg.SeedreamImageModel != "file-image-model" || cfg.SeedreamVisionModel != "file-vision-model" || cfg.SeedreamVideoModel != "file-video-model" {
-		t.Fatalf("expected seedream models from file, got %q/%q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel, cfg.SeedreamVideoModel)
-	}
-	if cfg.ACPExecutorAddr != "127.0.0.1:18088" || cfg.ACPExecutorCWD != "/workspace/project" || cfg.ACPExecutorMode != "safe" {
-		t.Fatalf("expected acp executor config from file, got %q/%q/%q", cfg.ACPExecutorAddr, cfg.ACPExecutorCWD, cfg.ACPExecutorMode)
-	}
-	if !cfg.ACPExecutorAutoApprove || cfg.ACPExecutorMaxCLICalls != 9 || cfg.ACPExecutorMaxDuration != 120 || cfg.ACPExecutorRequireManifest {
-		t.Fatalf("unexpected acp executor config values: %+v", cfg)
 	}
 	if cfg.Environment != "staging" {
 		t.Fatalf("expected environment from file, got %q", cfg.Environment)
@@ -292,12 +228,6 @@ runtime:
 	}
 	if meta.Source("llm_vision_model") != SourceFile {
 		t.Fatalf("expected vision model source from file, got %s", meta.Source("llm_vision_model"))
-	}
-	if meta.Source("seedream_text_endpoint_id") != SourceFile || meta.Source("seedream_image_endpoint_id") != SourceFile {
-		t.Fatalf("expected seedream endpoints source from file")
-	}
-	if meta.Source("seedream_video_model") != SourceFile {
-		t.Fatalf("expected seedream video model source from file")
 	}
 	if meta.Source("agent_preset") != SourceFile || meta.Source("tool_preset") != SourceFile {
 		t.Fatalf("expected preset sources from file")
@@ -818,21 +748,8 @@ runtime:
 			"LLM_VISION_MODEL":                  "env-vision-model",
 			"TAVILY_API_KEY":                    "env-tavily",
 			"ARK_API_KEY":                       "env-ark",
-			"ACP_EXECUTOR_ADDR":                 "10.0.0.2:19000",
-			"ACP_EXECUTOR_CWD":                  "/srv/workspace",
-			"ACP_EXECUTOR_MODE":                 "read-only",
-			"ACP_EXECUTOR_AUTO_APPROVE":         "true",
-			"ACP_EXECUTOR_MAX_CLI_CALLS":        "5",
-			"ACP_EXECUTOR_MAX_DURATION_SECONDS": "600",
-			"ACP_EXECUTOR_REQUIRE_MANIFEST":     "false",
 			"KIMI_LLM_RPS":                      "3.5",
 			"KIMI_LLM_BURST":                    "6",
-			"SEEDREAM_TEXT_ENDPOINT_ID":         "env-text",
-			"SEEDREAM_IMAGE_ENDPOINT_ID":        "env-image",
-			"SEEDREAM_TEXT_MODEL":               "env-text-model",
-			"SEEDREAM_IMAGE_MODEL":              "env-image-model",
-			"SEEDREAM_VISION_MODEL":             "env-vision-model",
-			"SEEDREAM_VIDEO_MODEL":              "env-video-model",
 			"ALEX_ENV":                          "production",
 			"ALEX_VERBOSE":                      "yes",
 			"ALEX_NO_TUI":                       "true",
@@ -867,23 +784,11 @@ runtime:
 	if cfg.TavilyAPIKey != "env-tavily" {
 		t.Fatalf("expected tavily key from env, got %q", cfg.TavilyAPIKey)
 	}
-	if cfg.SeedreamTextEndpointID != "env-text" || cfg.SeedreamImageEndpointID != "env-image" {
-		t.Fatalf("expected seedream endpoints from env, got %q/%q", cfg.SeedreamTextEndpointID, cfg.SeedreamImageEndpointID)
-	}
 	if cfg.ArkAPIKey != "env-ark" {
 		t.Fatalf("expected ark api key from env, got %q", cfg.ArkAPIKey)
 	}
-	if cfg.ACPExecutorAddr != "10.0.0.2:19000" || cfg.ACPExecutorCWD != "/srv/workspace" || cfg.ACPExecutorMode != "read-only" {
-		t.Fatalf("expected acp executor config from env, got %q/%q/%q", cfg.ACPExecutorAddr, cfg.ACPExecutorCWD, cfg.ACPExecutorMode)
-	}
 	if cfg.KimiRateLimitRPS != 3.5 || cfg.KimiRateLimitBurst != 6 {
 		t.Fatalf("expected kimi rate limit from env 3.5/6, got %v/%d", cfg.KimiRateLimitRPS, cfg.KimiRateLimitBurst)
-	}
-	if !cfg.ACPExecutorAutoApprove || cfg.ACPExecutorMaxCLICalls != 5 || cfg.ACPExecutorMaxDuration != 600 || cfg.ACPExecutorRequireManifest {
-		t.Fatalf("unexpected acp executor config from env: %+v", cfg)
-	}
-	if cfg.SeedreamTextModel != "env-text-model" || cfg.SeedreamImageModel != "env-image-model" || cfg.SeedreamVisionModel != "env-vision-model" || cfg.SeedreamVideoModel != "env-video-model" {
-		t.Fatalf("expected seedream models from env, got %q/%q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel, cfg.SeedreamVideoModel)
 	}
 	if cfg.Environment != "production" {
 		t.Fatalf("expected environment from env, got %q", cfg.Environment)
@@ -935,15 +840,6 @@ runtime:
 	}
 	if meta.Source("ark_api_key") != SourceEnv {
 		t.Fatalf("expected env source for ark api key")
-	}
-	if meta.Source("seedream_text_endpoint_id") != SourceEnv || meta.Source("seedream_image_endpoint_id") != SourceEnv {
-		t.Fatalf("expected env source for seedream endpoints")
-	}
-	if meta.Source("seedream_text_model") != SourceEnv || meta.Source("seedream_image_model") != SourceEnv || meta.Source("seedream_vision_model") != SourceEnv || meta.Source("seedream_video_model") != SourceEnv {
-		t.Fatalf("expected env source for seedream models")
-	}
-	if meta.Source("acp_executor_addr") != SourceEnv || meta.Source("acp_executor_cwd") != SourceEnv || meta.Source("acp_executor_mode") != SourceEnv || meta.Source("acp_executor_auto_approve") != SourceEnv || meta.Source("acp_executor_max_cli_calls") != SourceEnv || meta.Source("acp_executor_max_duration_seconds") != SourceEnv || meta.Source("acp_executor_require_manifest") != SourceEnv {
-		t.Fatalf("expected env source for acp executor config")
 	}
 	if meta.Source("kimi_rate_limit_rps") != SourceEnv || meta.Source("kimi_rate_limit_burst") != SourceEnv {
 		t.Fatalf("expected env source for kimi rate limit")
@@ -1056,12 +952,6 @@ func TestOverridesTakePriority(t *testing.T) {
 	overrideVisionModel := "override-vision-model"
 	overrideTavily := "override-tavily"
 	overrideArk := "override-ark"
-	overrideSeedreamText := "override-text"
-	overrideSeedreamImage := "override-image"
-	overrideSeedreamTextModel := "override-text-model"
-	overrideSeedreamImageModel := "override-image-model"
-	overrideSeedreamVisionModel := "override-vision-model"
-	overrideSeedreamVideoModel := "override-video-model"
 	overrideEnv := "qa"
 	overrideVerbose := true
 	overrideFollowTranscript := false
@@ -1083,14 +973,8 @@ func TestOverridesTakePriority(t *testing.T) {
 			LLMVisionModel:          &overrideVisionModel,
 			Temperature:             &overrideTemp,
 			TavilyAPIKey:            &overrideTavily,
-			ArkAPIKey:               &overrideArk,
-			SeedreamTextEndpointID:  &overrideSeedreamText,
-			SeedreamImageEndpointID: &overrideSeedreamImage,
-			SeedreamTextModel:       &overrideSeedreamTextModel,
-			SeedreamImageModel:      &overrideSeedreamImageModel,
-			SeedreamVisionModel:     &overrideSeedreamVisionModel,
-			SeedreamVideoModel:      &overrideSeedreamVideoModel,
-			Environment:             &overrideEnv,
+			ArkAPIKey:   &overrideArk,
+			Environment: &overrideEnv,
 			Verbose:                 &overrideVerbose,
 			FollowTranscript:        &overrideFollowTranscript,
 			FollowStream:            &overrideFollowStream,
@@ -1125,12 +1009,6 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if cfg.ArkAPIKey != overrideArk {
 		t.Fatalf("expected override ark api key, got %q", cfg.ArkAPIKey)
-	}
-	if cfg.SeedreamTextEndpointID != overrideSeedreamText || cfg.SeedreamImageEndpointID != overrideSeedreamImage {
-		t.Fatalf("expected override seedream endpoints, got %q/%q", cfg.SeedreamTextEndpointID, cfg.SeedreamImageEndpointID)
-	}
-	if cfg.SeedreamTextModel != overrideSeedreamTextModel || cfg.SeedreamImageModel != overrideSeedreamImageModel || cfg.SeedreamVisionModel != overrideSeedreamVisionModel || cfg.SeedreamVideoModel != overrideSeedreamVideoModel {
-		t.Fatalf("expected override seedream models, got %q/%q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel, cfg.SeedreamVideoModel)
 	}
 	if cfg.Environment != "qa" {
 		t.Fatalf("expected override environment, got %q", cfg.Environment)
@@ -1200,12 +1078,6 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if meta.Source("ark_api_key") != SourceOverride {
 		t.Fatalf("expected override source for ark api key")
-	}
-	if meta.Source("seedream_text_endpoint_id") != SourceOverride || meta.Source("seedream_image_endpoint_id") != SourceOverride {
-		t.Fatalf("expected override source for seedream endpoints")
-	}
-	if meta.Source("seedream_text_model") != SourceOverride || meta.Source("seedream_image_model") != SourceOverride || meta.Source("seedream_vision_model") != SourceOverride {
-		t.Fatalf("expected override source for seedream models")
 	}
 	if meta.Source("agent_preset") != SourceOverride || meta.Source("tool_preset") != SourceOverride {
 		t.Fatalf("expected override source for presets")

@@ -167,7 +167,7 @@ func printConfigUsage(out io.Writer) {
 		"  alex config validate [--profile]  Validate runtime configuration",
 		"  alex config path                  Print the runtime config file location",
 		"",
-		"Supported fields: llm_provider, llm_model, llm_vision_model, base_url, api_key, ark_api_key, tavily_api_key, profile, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset, and Seedream model/endpoints.",
+		"Supported fields: llm_provider, llm_model, llm_vision_model, base_url, api_key, ark_api_key, tavily_api_key, profile, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset.",
 	}
 
 	for _, line := range lines {

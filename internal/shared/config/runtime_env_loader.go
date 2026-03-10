@@ -17,30 +17,9 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	setEnvString(lookup, meta, "LLM_MODEL", "llm_model", func(value string) { cfg.LLMModel = value })
 	setEnvString(lookup, meta, "LLM_VISION_MODEL", "llm_vision_model", func(value string) { cfg.LLMVisionModel = value })
 	setEnvString(lookup, meta, "LLM_BASE_URL", "base_url", func(value string) { cfg.BaseURL = value })
-	setEnvString(lookup, meta, "ACP_EXECUTOR_ADDR", "acp_executor_addr", func(value string) { cfg.ACPExecutorAddr = value })
-	setEnvString(lookup, meta, "ACP_EXECUTOR_CWD", "acp_executor_cwd", func(value string) { cfg.ACPExecutorCWD = value })
-	setEnvString(lookup, meta, "ACP_EXECUTOR_MODE", "acp_executor_mode", func(value string) { cfg.ACPExecutorMode = value })
-	if err := setEnvBool(lookup, meta, "ACP_EXECUTOR_AUTO_APPROVE", "acp_executor_auto_approve", func(value bool) { cfg.ACPExecutorAutoApprove = value }); err != nil {
-		return err
-	}
-	if err := setEnvInt(lookup, meta, "ACP_EXECUTOR_MAX_CLI_CALLS", "acp_executor_max_cli_calls", func(value int) { cfg.ACPExecutorMaxCLICalls = value }); err != nil {
-		return err
-	}
-	if err := setEnvInt(lookup, meta, "ACP_EXECUTOR_MAX_DURATION_SECONDS", "acp_executor_max_duration_seconds", func(value int) { cfg.ACPExecutorMaxDuration = value }); err != nil {
-		return err
-	}
-	if err := setEnvBool(lookup, meta, "ACP_EXECUTOR_REQUIRE_MANIFEST", "acp_executor_require_manifest", func(value bool) { cfg.ACPExecutorRequireManifest = value }); err != nil {
-		return err
-	}
 	setEnvString(lookup, meta, "TAVILY_API_KEY", "tavily_api_key", func(value string) { cfg.TavilyAPIKey = value })
 	setEnvString(lookup, meta, "MOLTBOOK_API_KEY", "moltbook_api_key", func(value string) { cfg.MoltbookAPIKey = value })
 	setEnvString(lookup, meta, "MOLTBOOK_BASE_URL", "moltbook_base_url", func(value string) { cfg.MoltbookBaseURL = value })
-	setEnvString(lookup, meta, "SEEDREAM_TEXT_ENDPOINT_ID", "seedream_text_endpoint_id", func(value string) { cfg.SeedreamTextEndpointID = value })
-	setEnvString(lookup, meta, "SEEDREAM_IMAGE_ENDPOINT_ID", "seedream_image_endpoint_id", func(value string) { cfg.SeedreamImageEndpointID = value })
-	setEnvString(lookup, meta, "SEEDREAM_TEXT_MODEL", "seedream_text_model", func(value string) { cfg.SeedreamTextModel = value })
-	setEnvString(lookup, meta, "SEEDREAM_IMAGE_MODEL", "seedream_image_model", func(value string) { cfg.SeedreamImageModel = value })
-	setEnvString(lookup, meta, "SEEDREAM_VISION_MODEL", "seedream_vision_model", func(value string) { cfg.SeedreamVisionModel = value })
-	setEnvString(lookup, meta, "SEEDREAM_VIDEO_MODEL", "seedream_video_model", func(value string) { cfg.SeedreamVideoModel = value })
 	setEnvString(lookup, meta, "AGENT_PRESET", "agent_preset", func(value string) { cfg.AgentPreset = value })
 	setEnvString(lookup, meta, "TOOL_PRESET", "tool_preset", func(value string) { cfg.ToolPreset = value })
 	setEnvString(lookup, meta, "ALEX_TOOLSET", "toolset", func(value string) { cfg.Toolset = value })
