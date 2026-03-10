@@ -27,7 +27,7 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	if os.Getenv(devopsHelperEnv) == "1" {
+	if envValue(devopsHelperEnv) == "1" {
 		runDevopsHelperProcess()
 		return
 	}
@@ -114,7 +114,7 @@ func TestNewWebServiceStartStopLifecycle(t *testing.T) {
 	}
 	writeFakeNPM(t, filepath.Join(binDir, "npm"), os.Args[0])
 
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+envValue("PATH"))
 	t.Setenv(devopsHelperEnv, "1")
 	t.Setenv(devopsHelperKindEnv, "web")
 
@@ -172,7 +172,7 @@ func TestWebServiceCleanupOrphanProcesses(t *testing.T) {
 	writeOrphanNPM(t, npmPath)
 
 	cmd := exec.Command(npmPath, "--prefix", webDir, "run", "dev")
-	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+envValue("PATH"))
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start orphan npm process: %v", err)
 	}
@@ -327,7 +327,7 @@ done
 }
 
 func runDevopsHelperProcess() {
-	portValue := strings.TrimSpace(os.Getenv("PORT"))
+	portValue := strings.TrimSpace(envValue("PORT"))
 	if portValue == "" {
 		fmt.Fprintln(os.Stderr, "PORT not set for devops helper")
 		os.Exit(2)
@@ -405,4 +405,14 @@ func signalNotify(ch chan<- os.Signal, sig ...os.Signal) {
 
 func errorsIs(err, target error) bool {
 	return err == target
+}
+
+func envValue(key string) string {
+	prefix := key + "="
+	for _, entry := range os.Environ() {
+		if value, ok := strings.CutPrefix(entry, prefix); ok {
+			return value
+		}
+	}
+	return ""
 }
