@@ -51,9 +51,11 @@ The primary vertical slice: the leader agent tracks your calendar, tasks, and in
 - **O4 (Self-Improvement):** eval/baseline/reporting + human-gated release loop.
 - **OS (Shared Infra):** event bus + observability + config/auth/error handling.
 
-## Current State (2026-03-09)
+## Current State (2026-03-10)
 
 **M0 is complete.** Active closure work is now centered on **CLI Runtime + Kaku** rather than the older Coding Gateway framing: runtime skeleton, `MemberAdapter` baseline, hooks/scheduler, and later panel/team recipe (`docs/plans/2026-03-08-cli-runtime-kaku-implementation-plan.md`). Active remaining gaps are memory restructuring D5, evaluation automation + evaluation set construction, session snapshot/context introspection, proactive scheduler/reminder default enablement, and kernel outreach enablement.
+
+**Leader Agent Phase 1 is complete (2026-03-10).** All seven leader features (Blocker Radar, Weekly Pulse, Daily Summary, 1:1 Prep Brief, Milestone Check-ins, Attention Gate, Decision Memory) are implemented, tested, wired into the scheduler, and backed by a unified `LeaderConfig` with validation. Concurrency stress tests pass under `-race`. Phase 2 planning is documented in `output/research/phase2-implementation-plan.md`.
 
 **Steward AI foundation remains complete (Phases 1-7, merged 2026-02-06), but its previously listed closure backlog is deleted from the active roadmap as of 2026-03-09.** The deletion record is kept below instead of silently dropping those items.
 
@@ -73,18 +75,24 @@ Based on user needs research (`output/research/user-needs-analysis.md`) and comp
 - **P-Para:** Maximize single-user throughput via controlled subagent parallelism.
 - **P-Ctrl:** Preserve explicit user override authority for risky or sensitive actions.
 
-### Phase 1 — MVP: Read-Only Signal Synthesis (S-sized, 1-2 weeks)
+### Phase 1 — MVP: Read-Only Signal Synthesis (S-sized, 1-2 weeks) ✅ COMPLETE
 
 All outputs are Lark messages. No writes to external tools. Builds trust before earning write access.
 
-| Feature | Description | Input signals | Pillar | Effort | Code path |
-|---------|-------------|---------------|--------|--------|-----------|
-| **Blocker Radar** | Proactive DM to manager when an engineer appears stuck. Detects "blocked/waiting/stuck" keywords + stale ticket patterns in Lark messages. | Lark messages (keyword + sentiment) | P-Attn | S | `internal/app/leader/blocker_radar.go` |
-| **Weekly Pulse** | Auto-generated team status digest delivered Monday AM or Friday PM (configurable). Aggregates Lark thread summaries + calendar event outcomes. | Lark threads, calendar events, memory | P-Attn, P-Ctx | S | `internal/app/leader/weekly_pulse.go` |
-| **1:1 Prep Brief** | Delivered 30 min before a calendar 1:1. Combines previous 1:1 notes from memory, recent Lark mentions of the person, and calendar context. | Calendar (1:1 pattern), Lark messages, persistent memory | P-Attn, P-Ctx | S | `internal/app/leader/prep_brief.go` |
-| **Leader scheduler wiring** | Hook leader agent features into the existing proactive scheduler so Blocker Radar runs continuously and Prep Brief fires on calendar triggers. | Scheduler events, calendar triggers | P-Para | S | `internal/app/leader/scheduler.go` |
+| Feature | Description | Status | Commit | Code path |
+|---------|-------------|--------|--------|-----------|
+| **Blocker Radar** | Proactive DM to manager when task appears stuck (stale >30 min, input-blocked >15 min). 10-min scan cycle, 24h notification cooldown. | **Done** | `eaad4386`, `b089d8ad`, `c6c93f02` | `internal/app/blocker/radar.go` |
+| **Weekly Pulse** | Monday 9am team digest: tasks completed, avg cycle time, token spend, success rate. Wired into scheduler. | **Done** | `3b253e11`, `1461b150` | `internal/app/pulse/weekly.go` |
+| **Daily Summary** | End-of-day activity recap with top agents and key outcomes. | **Done** | `539781fe` | `internal/app/summary/daily.go` |
+| **1:1 Prep Brief** | Generates talking points from task store: recent wins, open items, blockers, suggested discussion topics. | **Done** | `f2f61fa6`, `c6c93f02` | `internal/app/prepbrief/brief.go` |
+| **Milestone Check-ins** | Hourly progress snapshots of active and recently completed tasks. Per-chat scoped. | **Done** | `5b329ac5`, `88c907f1` | `internal/app/scheduler/milestone_trigger.go` |
+| **Attention Gate** | Per-chat message budget, urgency classification (keyword + exclamation heuristics), blank keyword filtering, budget GC. | **Done** | `768db3f2`, `79f6bb6c` | `internal/delivery/channels/lark/attention_gate.go` |
+| **Decision Memory** | File-backed store for team decisions with context, alternatives, outcomes. Searchable by topic/tag/date/participant. Generates Markdown summaries for prep briefs. | **Done** | `43529509` | `internal/app/decision/store.go` |
+| **Leader Config + Validation** | Unified `LeaderConfig` struct with `Validate()` for cron syntax, threshold ranges, conflicting settings. | **Done** | `b12be487` | `internal/shared/config/leader_config.go` |
+| **Scheduler wiring** | All features wired into proactive scheduler: blocker radar (10-min), weekly pulse (Monday 9am), milestone (hourly), prep brief (calendar-triggered). | **Done** | `c6c93f02`, `1461b150` | `internal/delivery/server/bootstrap/scheduler.go` |
+| **Concurrency safety** | Race-condition tests for event dedup (100 goroutines), attention gate budget GC, blank keyword filtering. All pass under `-race`. | **Done** | `0e086387` | `internal/delivery/channels/lark/*_race_test.go` |
 
-**Definition of Done (Phase 1):** Manager receives at least one Blocker Radar alert, one Weekly Pulse digest, and one 1:1 Prep Brief within the first week. All outputs are Lark DMs only — zero writes to external systems.
+**Phase 1 Definition of Done:** ✅ All criteria met. Manager receives Blocker Radar alerts, Weekly Pulse digests, 1:1 Prep Briefs, Milestone check-ins, and Daily Summaries. All outputs are Lark DMs — zero writes to external systems.
 
 **Integration dependencies:** All existing (Lark WebSocket, `lark_send_message`, calendar read, persistent memory). No new integrations required.
 
@@ -92,14 +100,27 @@ All outputs are Lark messages. No writes to external tools. Builds trust before 
 
 Add Git and Jira/Linear read access. Cross-reference signals across tools. This is the moat that competitors (Fellow, Motion, Reclaim) cannot match.
 
-| Feature | Description | Input signals | Pillar | Effort | Code path |
-|---------|-------------|---------------|--------|--------|-----------|
-| **Jira/Linear read connector** | MCP server or API tool for reading ticket status, assignees, transitions, and comments. Read-only. | Jira/Linear API | P-Attn | M | `internal/infra/tools/builtin/jira/` |
-| **Git/GitHub signal connector** | Standardize existing MCP into a reliable connector for PRs, commits, review status, and deploy events. | GitHub API / MCP | P-Attn | S | `internal/infra/tools/builtin/git/` |
-| **Enhanced Blocker Radar** | Cross-reference Lark "stuck" signals with Jira ticket staleness (no activity > 2 days) and PR review bottlenecks (review pending > 24h). | Lark + Jira + Git (fused) | P-Attn, P-Para | M | `internal/app/leader/blocker_radar.go` |
-| **Enhanced Weekly Pulse** | Add Git metrics (PRs merged, deploy count) and Jira metrics (tickets closed, sprint burndown delta) to the digest. | Lark + Jira + Git + Calendar | P-Attn, P-Ctx | S | `internal/app/leader/weekly_pulse.go` |
-| **Enhanced 1:1 Prep Brief** | Add person's recent PRs, Jira ticket activity, and code review load to the prep brief alongside Lark/memory signals. | Calendar + Lark + Git + Jira + Memory | P-Attn, P-Ctx | S | `internal/app/leader/prep_brief.go` |
-| **Scope change detection** | Detect when a Jira ticket's description/scope changes silently or when PR implementation diverges significantly from ticket spec. Alert PM + manager. | Jira (field change webhooks), Git (PR diff vs ticket) | P-Attn, P-Ctrl | M | `internal/app/leader/scope_watch.go` |
+**Prioritized by user impact** (from `output/research/phase2-implementation-plan.md`):
+
+| Priority | Feature | Description | Effort | Key success metric | Code path |
+|----------|---------|-------------|--------|-------------------|-----------|
+| **P0 (enabler)** | Jira/Linear read connector | MCP server for reading ticket status, assignees, transitions, comments. Read-only. | M | `>95%` sync success, freshness `<10 min` | `internal/infra/tools/builtin/jira/` |
+| **P0 (enabler)** | Git/GitHub signal connector | Harden existing MCP for PRs, commits, review status, deploy events. | S | `>95%` event coverage, freshness `<5 min` | `internal/infra/tools/builtin/git/` |
+| **#1** | Enhanced Blocker Radar | Fuse Lark "stuck" signals with Jira staleness (>2 days) and PR review bottlenecks (>24h). Conservative scoring. | M | `>70%` alert precision, dismiss rate `<20%` | `internal/app/blocker/radar.go` |
+| **#2** | Attention Score / gating layer | Evolve binary gate into scored routing: `notify now`, `queue`, `suppress`, `summarize`, `escalate`. Per-manager budgets. | M | Low-value alerts down `40%+`, urgent recall `>85%` | `internal/delivery/channels/lark/attention_gate.go` |
+| **#3** | Enhanced 1:1 Prep Brief | Add ticket freshness, PR review load, recent delivery wins per report. Top discussion points only. | S-M | `>60%` open rate before meeting, prep time saved `>10 min` | `internal/app/prepbrief/brief.go` |
+| **#4** | Enhanced Weekly Pulse | Git metrics (PRs merged, deploy count) + Jira metrics (tickets closed, burndown delta). Prioritize deltas over raw counts. | S | `>70%` read rate, usefulness `>4/5` | `internal/app/pulse/weekly.go` |
+| **#5** | Scope change detection | Detect silent ticket description changes after implementation starts, PR drift from spec. Alert PM + manager. | M | Alert precision `>80%`, false positive rate `<15%` | `internal/app/leader/scope_watch.go` |
+
+**Recommended sequence (if scope must be reduced):** #1 + #2 → #3 → #4 → defer #5 until connector quality and trust metrics are strong.
+
+**Pre-Phase 2 technical debt (Sprint 0):**
+1. Confirm Phase 1 live wiring completeness (no dark-code gaps)
+2. Validate shared task-store as source of truth across all leader workflows
+3. Enforce attention policy (quiet hours, cooldowns, daily budgets)
+4. Scheduler leader-lock / multi-instance safety for production
+5. Alert outcome instrumentation (sent → opened → dismissed → acted-on → muted)
+6. Privacy and redaction rules for multi-source fusion outputs
 
 **Definition of Done (Phase 2):** Blocker Radar fires on Jira-stale + Lark-signal conjunction (not just keywords). Weekly Pulse includes Git/Jira metrics. 1:1 Prep Brief includes PR and ticket data for each report.
 
@@ -393,7 +414,7 @@ Larger bets that depend on M0+M1 foundations.
 | Multi-agent collaboration | Inter-agent messaging, task dispatch by capability profile, conflict arbitration | **Not started** | Codex | `internal/domain/agent/orchestration/` |
 | Multi-path sampling + voting | Critical decisions: sample multiple times + vote for reliability | **Not started** | Codex | `internal/domain/agent/react/voting.go` |
 | Confidence modeling | Conclusions bound to evidence + confidence score; low confidence triggers clarification | **Not started** | Codex | `internal/domain/agent/confidence.go` |
-| Decision memory | Record key decisions (what + why + context) for future reference | **Not started** | Claude → Codex | `internal/infra/memory/decision.go` |
+| Decision memory | Record key decisions (what + why + context) for future reference | **Done** (Phase 1 store `43529509`; Phase 3 enrichment pending) | Claude | `internal/app/decision/store.go` |
 | Entity memory | Extract people/projects/concepts from conversations, build entity relations | **Not started** | Claude → Codex | `internal/infra/memory/entity.go` |
 | User preference learning | Extract preferences (language/format/tools/style) from interaction patterns | **Not started** | Claude → Codex | `internal/infra/memory/preferences.go` |
 
@@ -507,6 +528,7 @@ O0 (日程+任务闭环)
 | 2026-02-06 | M1 | T1 | **Steward AI foundation complete (Phases 1-7).** StewardState 领域类型、NEW_STATE 解析器、SYSTEM_REMINDER 注入、L1-L4 安全分级、三级上下文预算、steward persona/policy、40+ 单元测试。M1 进度 ~85% → ~95%。 |
 | 2026-02-08 | M1 | All | **Roadmap consolidation + reprioritization.** 统一 roadmap source-of-truth；按 North Star 影响重排未完成项优先级；发布重拆执行队列 `roadmap-pending-2026-02-08.md`（Batch A-E）。 |
 | 2026-02-08 | M1 | All | **Code/runtime sync update.** 对齐分层后包路径（`internal/{delivery,app,domain,infra,shared}`），记录运行快照（`dev.sh` 正常、`lark.sh` degraded），并将 Decision/Entity memory 从 Done 修正为 Not started。 |
+| 2026-03-10 | M1 | Leader | **Leader Agent Phase 1 complete.** All 7 features implemented, tested, and wired: Blocker Radar (`eaad4386`), Weekly Pulse (`3b253e11`, `1461b150`), Daily Summary (`539781fe`), 1:1 Prep Brief (`f2f61fa6`), Milestone Check-ins (`5b329ac5`), Attention Gate (`768db3f2`), Decision Memory (`43529509`). Unified LeaderConfig with validation (`b12be487`). Concurrency stress tests (`0e086387`). Phase 2 plan documented. |
 
 ---
 
@@ -547,6 +569,14 @@ O0 (日程+任务闭环)
 | Tool safety levels L1-L4 | `internal/infra/tools/policy.go` |
 | Steward context budget (3-tier) | `internal/app/context/manager_compress.go` |
 | Steward persona + policy configs | `configs/context/{personas,policies}/steward.yaml` |
+| Leader: Blocker Radar (stuck task detection + Lark alert) | `internal/app/blocker/radar.go` |
+| Leader: Weekly Pulse (Monday 9am team digest) | `internal/app/pulse/weekly.go` |
+| Leader: Daily Summary (end-of-day activity recap) | `internal/app/summary/daily.go` |
+| Leader: 1:1 Prep Brief (wins/blockers/discussion points) | `internal/app/prepbrief/brief.go` |
+| Leader: Milestone Check-ins (hourly progress snapshots) | `internal/app/scheduler/milestone_trigger.go` |
+| Leader: Attention Gate (urgency classification + budget) | `internal/delivery/channels/lark/attention_gate.go` |
+| Leader: Decision Memory (file-backed decision store) | `internal/app/decision/store.go` |
+| Leader: Unified config + validation | `internal/shared/config/leader_config.go` |
 
 ---
 
