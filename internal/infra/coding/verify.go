@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const (
@@ -27,7 +29,11 @@ type CommandRunner interface {
 type shellCommandRunner struct{}
 
 func (shellCommandRunner) Run(ctx context.Context, workingDir string, command string) (string, error) {
-	cmd := exec.CommandContext(ctx, "bash", "-lc", command)
+	args, err := parseVerifyCommand(command)
+	if err != nil {
+		return "", err
+	}
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	cmd.Dir = strings.TrimSpace(workingDir)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
@@ -155,4 +161,155 @@ func VerifyError(result *VerifyResult) error {
 		return fmt.Errorf("%s failed", check.Name)
 	}
 	return fmt.Errorf("verification failed")
+}
+
+func parseVerifyCommand(command string) ([]string, error) {
+	trimmed := strings.TrimSpace(command)
+	if trimmed == "" {
+		return nil, fmt.Errorf("verification command cannot be empty")
+	}
+	if hasUnsupportedShellSyntax(trimmed) {
+		return nil, fmt.Errorf("verification command contains unsupported shell syntax")
+	}
+
+	args, err := splitCommandArgs(trimmed)
+	if err != nil {
+		return nil, err
+	}
+	if len(args) == 0 {
+		return nil, fmt.Errorf("verification command cannot be empty")
+	}
+	if isShellExecutable(args[0]) {
+		return nil, fmt.Errorf("verification command cannot invoke a shell interpreter")
+	}
+	return args, nil
+}
+
+func hasUnsupportedShellSyntax(command string) bool {
+	inSingleQuote := false
+	inDoubleQuote := false
+	escaping := false
+
+	for i := 0; i < len(command); i++ {
+		ch := command[i]
+		if escaping {
+			escaping = false
+			continue
+		}
+
+		switch {
+		case inSingleQuote:
+			if ch == '\'' {
+				inSingleQuote = false
+			}
+		case inDoubleQuote:
+			switch ch {
+			case '"':
+				inDoubleQuote = false
+			case '\\':
+				escaping = true
+			}
+		default:
+			switch ch {
+			case '\'':
+				inSingleQuote = true
+			case '"':
+				inDoubleQuote = true
+			case '\\':
+				escaping = true
+			case ';', '&', '|', '<', '>', '`', '\n', '\r':
+				return true
+			case '$':
+				if i+1 < len(command) && (command[i+1] == '(' || command[i+1] == '{') {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func isShellExecutable(command string) bool {
+	base := strings.ToLower(filepath.Base(strings.TrimSpace(command)))
+	switch base {
+	case "sh", "bash", "zsh", "fish", "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe":
+		return true
+	default:
+		return false
+	}
+}
+
+func splitCommandArgs(command string) ([]string, error) {
+	var (
+		args          []string
+		current       strings.Builder
+		inSingleQuote bool
+		inDoubleQuote bool
+		escaping      bool
+		hadQuotedPart bool
+	)
+
+	flush := func() {
+		if current.Len() == 0 && !hadQuotedPart {
+			return
+		}
+		args = append(args, current.String())
+		current.Reset()
+		hadQuotedPart = false
+	}
+
+	for _, r := range command {
+		if escaping {
+			current.WriteRune(r)
+			escaping = false
+			continue
+		}
+
+		switch {
+		case inSingleQuote:
+			if r == '\'' {
+				inSingleQuote = false
+				hadQuotedPart = true
+				continue
+			}
+			current.WriteRune(r)
+		case inDoubleQuote:
+			switch r {
+			case '"':
+				inDoubleQuote = false
+				hadQuotedPart = true
+			case '\\':
+				escaping = true
+			default:
+				current.WriteRune(r)
+			}
+		default:
+			switch {
+			case unicode.IsSpace(r):
+				flush()
+			case r == '\'':
+				inSingleQuote = true
+			case r == '"':
+				inDoubleQuote = true
+			case r == '\\':
+				escaping = true
+			default:
+				current.WriteRune(r)
+			}
+		}
+	}
+
+	if escaping {
+		return nil, fmt.Errorf("verification command ends with an unfinished escape")
+	}
+	if inSingleQuote || inDoubleQuote {
+		return nil, fmt.Errorf("verification command has an unterminated quote")
+	}
+
+	flush()
+	if len(args) == 0 {
+		return nil, fmt.Errorf("verification command cannot be empty")
+	}
+	return args, nil
 }

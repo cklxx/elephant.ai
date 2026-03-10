@@ -3,6 +3,10 @@ package coding
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -89,5 +93,70 @@ func TestVerifyAll_SkipsEmptyCommands(t *testing.T) {
 	}
 	if !result.Checks[0].Skipped || result.Checks[1].Skipped || !result.Checks[2].Skipped {
 		t.Fatalf("unexpected skipped flags: %+v", result.Checks)
+	}
+}
+
+func TestShellCommandRunnerRunsWithoutShellInterpretation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("command expectations in this test are unix-specific")
+	}
+
+	runner := shellCommandRunner{}
+	dir := t.TempDir()
+	out, err := runner.Run(context.Background(), dir, `python3 -c "print('verify-ok')"`)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if strings.TrimSpace(out) != "verify-ok" {
+		t.Fatalf("expected verify-ok output, got %q", out)
+	}
+}
+
+func TestShellCommandRunnerRejectsShellSyntaxInjection(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("path assumptions in this test are unix-specific")
+	}
+
+	runner := shellCommandRunner{}
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "marker.txt")
+	command := `python3 -c "print('verify-ok')"; touch ` + marker
+
+	_, err := runner.Run(context.Background(), dir, command)
+	if err == nil {
+		t.Fatal("expected shell syntax injection to be rejected")
+	}
+	if !strings.Contains(err.Error(), "unsupported shell syntax") {
+		t.Fatalf("expected unsupported shell syntax error, got %v", err)
+	}
+	if _, statErr := os.Stat(marker); !os.IsNotExist(statErr) {
+		t.Fatalf("expected marker to not be created, stat err=%v", statErr)
+	}
+}
+
+func TestShellCommandRunnerRejectsShellExecutable(t *testing.T) {
+	runner := shellCommandRunner{}
+	_, err := runner.Run(context.Background(), t.TempDir(), `bash -lc "echo owned"`)
+	if err == nil {
+		t.Fatal("expected shell executable to be rejected")
+	}
+	if !strings.Contains(err.Error(), "shell interpreter") {
+		t.Fatalf("expected shell interpreter rejection, got %v", err)
+	}
+}
+
+func TestSplitCommandArgsPreservesQuotedArguments(t *testing.T) {
+	args, err := splitCommandArgs(`go test -run "Test Verify" ./...`)
+	if err != nil {
+		t.Fatalf("splitCommandArgs() error = %v", err)
+	}
+	want := []string{"go", "test", "-run", "Test Verify", "./..."}
+	if len(args) != len(want) {
+		t.Fatalf("splitCommandArgs() len=%d, want %d (%v)", len(args), len(want), args)
+	}
+	for i := range want {
+		if args[i] != want[i] {
+			t.Fatalf("splitCommandArgs()[%d] = %q, want %q", i, args[i], want[i])
+		}
 	}
 }
