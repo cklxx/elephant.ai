@@ -24,25 +24,39 @@ type WeeklyPulseService interface {
 	GenerateAndSend(ctx context.Context) error
 }
 
+// BlockerRadarService is the interface for proactive stuck-task detection and notification.
+type BlockerRadarService interface {
+	NotifyBlockedTasks(ctx context.Context) error
+}
+
+// PrepBriefService is the interface for 1:1 meeting prep brief generation and delivery.
+type PrepBriefService interface {
+	GenerateAndSend(ctx context.Context, memberID string) error
+}
+
 // Config holds scheduler configuration.
 type Config struct {
-	Enabled            bool
-	StaticTriggers     []config.SchedulerTriggerConfig
-	OKRGoalsRoot       string // path to scan for OKR-derived triggers
-	CalendarReminder   config.CalendarReminderConfig
-	Heartbeat          config.HeartbeatConfig
-	MilestoneCheckin   config.MilestoneCheckinConfig
-	MilestoneService   MilestoneCheckinService // optional; wired by bootstrap
-	WeeklyPulse        config.WeeklyPulseConfig
-	WeeklyPulseService WeeklyPulseService // optional; wired by bootstrap
-	TriggerTimeout     time.Duration
-	ConcurrencyPolicy  string
-	JobStore           JobStore
-	Cooldown           time.Duration
-	MaxConcurrent      int
-	RecoveryMaxRetries int
-	RecoveryBackoff    time.Duration
-	LeaderLock         LeaderLock
+	Enabled             bool
+	StaticTriggers      []config.SchedulerTriggerConfig
+	OKRGoalsRoot        string // path to scan for OKR-derived triggers
+	CalendarReminder    config.CalendarReminderConfig
+	Heartbeat           config.HeartbeatConfig
+	MilestoneCheckin    config.MilestoneCheckinConfig
+	MilestoneService    MilestoneCheckinService // optional; wired by bootstrap
+	WeeklyPulse         config.WeeklyPulseConfig
+	WeeklyPulseService  WeeklyPulseService // optional; wired by bootstrap
+	BlockerRadar        config.BlockerRadarConfig
+	BlockerRadarService BlockerRadarService // optional; wired by bootstrap
+	PrepBrief           config.PrepBriefConfig
+	PrepBriefService    PrepBriefService // optional; wired by bootstrap
+	TriggerTimeout      time.Duration
+	ConcurrencyPolicy   string
+	JobStore            JobStore
+	Cooldown            time.Duration
+	MaxConcurrent       int
+	RecoveryMaxRetries  int
+	RecoveryBackoff     time.Duration
+	LeaderLock          LeaderLock
 }
 
 // LeaderLock coordinates single-leader scheduler execution across processes.
@@ -181,6 +195,12 @@ func (s *Scheduler) Start(ctx context.Context) error {
 
 	// 3.3 Register weekly pulse digest job
 	s.registerWeeklyPulseJob(ctx)
+
+	// 3.4 Register blocker radar job
+	s.registerBlockerRadarJob(ctx)
+
+	// 3.5 Register prep brief job
+	s.registerPrepBriefJob(ctx)
 
 	// 4. Start periodic OKR trigger sync (every 5 min)
 	if s.goalStore != nil {

@@ -1131,3 +1131,273 @@ func TestRecoveryDelay_DefaultBackoff(t *testing.T) {
 		t.Fatalf("expected default backoff 1m, got %v", got)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Blocker radar trigger tests
+// ---------------------------------------------------------------------------
+
+type mockBlockerRadarService struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (m *mockBlockerRadarService) NotifyBlockedTasks(_ context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	return nil
+}
+
+func (m *mockBlockerRadarService) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+func TestScheduler_BlockerRadarTriggerRegistration(t *testing.T) {
+	blockerSvc := &mockBlockerRadarService{}
+	sched := New(Config{
+		Enabled: true,
+		BlockerRadar: config.BlockerRadarConfig{
+			Enabled:  true,
+			Schedule: "0 */4 * * *",
+		},
+		BlockerRadarService: blockerSvc,
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	names := sched.TriggerNames()
+	found := false
+	for _, name := range names {
+		if name == blockerRadarTriggerName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected blocker radar trigger %q to be registered, got %v", blockerRadarTriggerName, names)
+	}
+}
+
+func TestScheduler_BlockerRadarDefaultSchedule(t *testing.T) {
+	blockerSvc := &mockBlockerRadarService{}
+	sched := New(Config{
+		Enabled: true,
+		BlockerRadar: config.BlockerRadarConfig{
+			Enabled: true,
+			// Schedule intentionally empty — should default to "0 */4 * * *"
+		},
+		BlockerRadarService: blockerSvc,
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	names := sched.TriggerNames()
+	found := false
+	for _, name := range names {
+		if name == blockerRadarTriggerName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected blocker radar trigger registered with default schedule, got %v", names)
+	}
+}
+
+func TestScheduler_BlockerRadarSkippedWhenDisabled(t *testing.T) {
+	sched := New(Config{
+		Enabled: true,
+		BlockerRadar: config.BlockerRadarConfig{
+			Enabled: false,
+		},
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	for _, name := range sched.TriggerNames() {
+		if name == blockerRadarTriggerName {
+			t.Fatal("blocker radar should not be registered when disabled")
+		}
+	}
+}
+
+func TestScheduler_BlockerRadarSkippedWhenNoService(t *testing.T) {
+	sched := New(Config{
+		Enabled: true,
+		BlockerRadar: config.BlockerRadarConfig{
+			Enabled:  true,
+			Schedule: "0 */4 * * *",
+		},
+		// BlockerRadarService intentionally nil
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	for _, name := range sched.TriggerNames() {
+		if name == blockerRadarTriggerName {
+			t.Fatal("blocker radar should not be registered when no service wired")
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Prep brief trigger tests
+// ---------------------------------------------------------------------------
+
+type mockPrepBriefService struct {
+	mu       sync.Mutex
+	calls    int
+	memberID string
+}
+
+func (m *mockPrepBriefService) GenerateAndSend(_ context.Context, memberID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	m.memberID = memberID
+	return nil
+}
+
+func (m *mockPrepBriefService) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+func TestScheduler_PrepBriefTriggerRegistration(t *testing.T) {
+	prepSvc := &mockPrepBriefService{}
+	sched := New(Config{
+		Enabled: true,
+		PrepBrief: config.PrepBriefConfig{
+			Enabled:  true,
+			Schedule: "30 8 * * 1-5",
+		},
+		PrepBriefService: prepSvc,
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	names := sched.TriggerNames()
+	found := false
+	for _, name := range names {
+		if name == prepBriefTriggerName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected prep brief trigger %q to be registered, got %v", prepBriefTriggerName, names)
+	}
+}
+
+func TestScheduler_PrepBriefDefaultSchedule(t *testing.T) {
+	prepSvc := &mockPrepBriefService{}
+	sched := New(Config{
+		Enabled: true,
+		PrepBrief: config.PrepBriefConfig{
+			Enabled: true,
+			// Schedule intentionally empty — should default to "30 8 * * 1-5"
+		},
+		PrepBriefService: prepSvc,
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	names := sched.TriggerNames()
+	found := false
+	for _, name := range names {
+		if name == prepBriefTriggerName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected prep brief trigger registered with default schedule, got %v", names)
+	}
+}
+
+func TestScheduler_PrepBriefSkippedWhenDisabled(t *testing.T) {
+	sched := New(Config{
+		Enabled: true,
+		PrepBrief: config.PrepBriefConfig{
+			Enabled: false,
+		},
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	for _, name := range sched.TriggerNames() {
+		if name == prepBriefTriggerName {
+			t.Fatal("prep brief should not be registered when disabled")
+		}
+	}
+}
+
+func TestScheduler_PrepBriefSkippedWhenNoService(t *testing.T) {
+	sched := New(Config{
+		Enabled: true,
+		PrepBrief: config.PrepBriefConfig{
+			Enabled:  true,
+			Schedule: "30 8 * * 1-5",
+		},
+		// PrepBriefService intentionally nil
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	for _, name := range sched.TriggerNames() {
+		if name == prepBriefTriggerName {
+			t.Fatal("prep brief should not be registered when no service wired")
+		}
+	}
+}

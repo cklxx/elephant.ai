@@ -359,6 +359,7 @@ type SchedulerConfig struct {
 	MilestoneCheckin                 MilestoneCheckinConfig   `json:"milestone_checkin" yaml:"milestone_checkin"`
 	WeeklyPulse                      WeeklyPulseConfig        `json:"weekly_pulse" yaml:"weekly_pulse"`
 	BlockerRadar                     BlockerRadarConfig       `json:"blocker_radar" yaml:"blocker_radar"`
+	PrepBrief                        PrepBriefConfig          `json:"prep_brief" yaml:"prep_brief"`
 }
 
 // MilestoneCheckinConfig configures periodic progress summary check-ins.
@@ -388,6 +389,16 @@ type BlockerRadarConfig struct {
 	InputWaitSeconds      int    `json:"input_wait_seconds" yaml:"input_wait_seconds"`           // default 900 (15 min)
 	Channel               string `json:"channel" yaml:"channel"`                                 // delivery channel: lark | moltbook
 	ChatID                string `json:"chat_id" yaml:"chat_id"`
+}
+
+// PrepBriefConfig configures scheduled 1:1 meeting prep briefs.
+type PrepBriefConfig struct {
+	Enabled         bool   `json:"enabled" yaml:"enabled"`
+	Schedule        string `json:"schedule" yaml:"schedule"`                 // cron expression, default "30 8 * * 1-5" (weekdays 8:30am)
+	LookbackSeconds int    `json:"lookback_seconds" yaml:"lookback_seconds"` // default 604800 (7 days)
+	MemberID        string `json:"member_id" yaml:"member_id"`               // target member for the brief
+	Channel         string `json:"channel" yaml:"channel"`
+	ChatID          string `json:"chat_id" yaml:"chat_id"`
 }
 
 // CalendarReminderConfig configures the periodic calendar reminder trigger.
@@ -532,6 +543,11 @@ func DefaultProactiveConfig() ProactiveConfig {
 				Schedule:              "*/10 * * * *",
 				StaleThresholdSeconds: 1800,
 				InputWaitSeconds:      900,
+			},
+			PrepBrief: PrepBriefConfig{
+				Enabled:         false,
+				Schedule:        "30 8 * * 1-5", // weekdays 8:30am
+				LookbackSeconds: 604800,          // 7 days
 			},
 		},
 		Timer: TimerConfig{

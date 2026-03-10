@@ -7,8 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/app/blocker"
 	"alex/internal/app/di"
 	"alex/internal/app/milestone"
+	"alex/internal/app/prepbrief"
 	"alex/internal/app/pulse"
 	"alex/internal/app/scheduler"
 	okrtools "alex/internal/infra/tools/builtin/okr"
@@ -70,24 +72,59 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 		logger.Info("Weekly pulse service created (channel=%s, chat_id=%s)", weeklyPulseCfg.Channel, weeklyPulseCfg.ChatID)
 	}
 
+	blockerRadarCfg := cfg.Runtime.Proactive.Scheduler.BlockerRadar
+	var blockerRadarSvc scheduler.BlockerRadarService
+	if blockerRadarCfg.Enabled && container != nil && container.TaskStore != nil {
+		radar := blocker.NewRadar(container.TaskStore, notifier, blocker.Config{
+			Enabled:               true,
+			StaleThresholdSeconds: blockerRadarCfg.StaleThresholdSeconds,
+			InputWaitSeconds:      blockerRadarCfg.InputWaitSeconds,
+			Channel:               blockerRadarCfg.Channel,
+			ChatID:                blockerRadarCfg.ChatID,
+		})
+		blockerRadarSvc = &blockerRadarAdapter{radar: radar}
+		logger.Info("Blocker radar service created (channel=%s, chat_id=%s)", blockerRadarCfg.Channel, blockerRadarCfg.ChatID)
+	}
+
+	prepBriefCfg := cfg.Runtime.Proactive.Scheduler.PrepBrief
+	var prepBriefSvc scheduler.PrepBriefService
+	if prepBriefCfg.Enabled && container != nil && container.TaskStore != nil {
+		lookback := time.Duration(prepBriefCfg.LookbackSeconds) * time.Second
+		if lookback <= 0 {
+			lookback = 7 * 24 * time.Hour
+		}
+		svc := prepbrief.NewService(container.TaskStore, notifier, prepbrief.Config{
+			LookbackDuration: lookback,
+			LookbackSeconds:  prepBriefCfg.LookbackSeconds,
+			Channel:          prepBriefCfg.Channel,
+			ChatID:           prepBriefCfg.ChatID,
+		})
+		prepBriefSvc = &prepBriefAdapter{svc: svc}
+		logger.Info("Prep brief service created (channel=%s, chat_id=%s)", prepBriefCfg.Channel, prepBriefCfg.ChatID)
+	}
+
 	schedCfg := scheduler.Config{
-		Enabled:            true,
-		StaticTriggers:     cfg.Runtime.Proactive.Scheduler.Triggers,
-		OKRGoalsRoot:       goalsRoot,
-		CalendarReminder:   cfg.Runtime.Proactive.Scheduler.CalendarReminder,
-		Heartbeat:          cfg.Runtime.Proactive.Scheduler.Heartbeat,
-		MilestoneCheckin:   milestoneCheckinCfg,
-		MilestoneService:   milestoneSvc,
-		WeeklyPulse:        weeklyPulseCfg,
-		WeeklyPulseService: weeklyPulseSvc,
-		TriggerTimeout:     time.Duration(cfg.Runtime.Proactive.Scheduler.TriggerTimeoutSeconds) * time.Second,
-		ConcurrencyPolicy:  cfg.Runtime.Proactive.Scheduler.ConcurrencyPolicy,
-		JobStore:           jobStore,
-		Cooldown:           cooldown,
-		MaxConcurrent:      maxConcurrent,
-		RecoveryMaxRetries: recoveryMaxRetries,
-		RecoveryBackoff:    recoveryBackoff,
-		LeaderLock:         nil, // distributed lock removed (local single-process)
+		Enabled:             true,
+		StaticTriggers:      cfg.Runtime.Proactive.Scheduler.Triggers,
+		OKRGoalsRoot:        goalsRoot,
+		CalendarReminder:    cfg.Runtime.Proactive.Scheduler.CalendarReminder,
+		Heartbeat:           cfg.Runtime.Proactive.Scheduler.Heartbeat,
+		MilestoneCheckin:    milestoneCheckinCfg,
+		MilestoneService:    milestoneSvc,
+		WeeklyPulse:         weeklyPulseCfg,
+		WeeklyPulseService:  weeklyPulseSvc,
+		BlockerRadar:        blockerRadarCfg,
+		BlockerRadarService: blockerRadarSvc,
+		PrepBrief:           prepBriefCfg,
+		PrepBriefService:    prepBriefSvc,
+		TriggerTimeout:      time.Duration(cfg.Runtime.Proactive.Scheduler.TriggerTimeoutSeconds) * time.Second,
+		ConcurrencyPolicy:   cfg.Runtime.Proactive.Scheduler.ConcurrencyPolicy,
+		JobStore:            jobStore,
+		Cooldown:            cooldown,
+		MaxConcurrent:       maxConcurrent,
+		RecoveryMaxRetries:  recoveryMaxRetries,
+		RecoveryBackoff:     recoveryBackoff,
+		LeaderLock:          nil, // distributed lock removed (local single-process)
 	}
 
 	sched := scheduler.New(schedCfg, container.AgentCoordinator, notifier, logger)
@@ -125,4 +162,24 @@ func expandHome(path string) string {
 		return home
 	}
 	return path
+}
+
+// blockerRadarAdapter adapts blocker.Radar to scheduler.BlockerRadarService.
+type blockerRadarAdapter struct {
+	radar *blocker.Radar
+}
+
+func (a *blockerRadarAdapter) NotifyBlockedTasks(ctx context.Context) error {
+	_, err := a.radar.NotifyBlockedTasks(ctx)
+	return err
+}
+
+// prepBriefAdapter adapts prepbrief.Service to scheduler.PrepBriefService.
+type prepBriefAdapter struct {
+	svc *prepbrief.Service
+}
+
+func (a *prepBriefAdapter) GenerateAndSend(ctx context.Context, memberID string) error {
+	_, err := a.svc.SendBrief(ctx, memberID)
+	return err
 }
