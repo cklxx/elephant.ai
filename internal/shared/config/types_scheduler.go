@@ -62,6 +62,16 @@ type PrepBriefConfig struct {
 	ChatID          string `json:"chat_id" yaml:"chat_id"`
 }
 
+// ScopeWatchConfig configures periodic scope change detection for external work items.
+type ScopeWatchConfig struct {
+	Enabled             bool   `json:"enabled" yaml:"enabled"`
+	Schedule            string `json:"schedule" yaml:"schedule"`                             // cron expression, default "*/30 * * * *" (every 30 min)
+	LookbackSeconds     int    `json:"lookback_seconds" yaml:"lookback_seconds"`             // default 3600 (1 hour)
+	MinDescriptionDelta int    `json:"min_description_delta" yaml:"min_description_delta"`   // minimum char diff to flag, default 50
+	Channel             string `json:"channel" yaml:"channel"`
+	ChatID              string `json:"chat_id" yaml:"chat_id"`
+}
+
 // CalendarReminderConfig configures the periodic calendar reminder trigger.
 type CalendarReminderConfig struct {
 	Enabled          bool   `json:"enabled" yaml:"enabled"`

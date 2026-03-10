@@ -51,6 +51,8 @@ type Config struct {
 	PrepBrief           config.PrepBriefConfig
 	PrepBriefService    PrepBriefService    // optional; wired by bootstrap
 	CalendarPort        calendar.CalendarPort // optional; calendar-driven prep brief triggering
+	ScopeWatch          config.ScopeWatchConfig
+	ScopeWatchService   ScopeWatchService // optional; wired by bootstrap
 	TriggerTimeout      time.Duration
 	ConcurrencyPolicy   string
 	JobStore            JobStore
@@ -205,6 +207,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 
 	// 3.5 Register prep brief job
 	s.registerPrepBriefJob(ctx)
+
+	// 3.6 Register scope watch job
+	s.registerScopeWatchJob(ctx)
 
 	// 4. Start periodic OKR trigger sync (every 5 min)
 	if s.goalStore != nil {

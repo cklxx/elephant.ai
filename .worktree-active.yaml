@@ -1,3 +1,4 @@
 status: in_progress
-task: "Phase 2 #3: Enhanced 1:1 Prep Brief"
-created: "2026-03-10"
+branch: worktree-scopewatch
+task: implement scope change detection service
+created_at: "2026-03-10"
