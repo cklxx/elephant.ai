@@ -8,6 +8,13 @@ import (
 	"alex/internal/shared/utils"
 )
 
+// sortedJoin returns a sorted, separator-joined copy of items.
+func sortedJoin(items []string, sep string) string {
+	cpy := append([]string(nil), items...)
+	sort.Strings(cpy)
+	return strings.Join(cpy, sep)
+}
+
 // Summary captures high-level details about an execution environment.
 type Summary struct {
 	WorkingDirectory string
@@ -43,9 +50,7 @@ func FormatSummary(summary Summary) string {
 	}
 
 	if len(summary.FileEntries) > 0 {
-		entries := append([]string(nil), summary.FileEntries...)
-		sort.Strings(entries)
-		builder.WriteString(fmt.Sprintf("- Project files: %s", strings.Join(entries, ", ")))
+		builder.WriteString(fmt.Sprintf("- Project files: %s", sortedJoin(summary.FileEntries, ", ")))
 		if summary.HasMoreFiles {
 			builder.WriteString(" …")
 		}
@@ -61,14 +66,10 @@ func FormatSummary(summary Summary) string {
 	}
 
 	if len(summary.Capabilities) > 0 {
-		capabilities := append([]string(nil), summary.Capabilities...)
-		sort.Strings(capabilities)
-		builder.WriteString(fmt.Sprintf("- Capabilities: %s\n", strings.Join(capabilities, ", ")))
+		builder.WriteString(fmt.Sprintf("- Capabilities: %s\n", sortedJoin(summary.Capabilities, ", ")))
 	}
 	if len(summary.EnvironmentHints) > 0 {
-		envHints := append([]string(nil), summary.EnvironmentHints...)
-		sort.Strings(envHints)
-		builder.WriteString(fmt.Sprintf("- Runtime environment: %s\n", strings.Join(envHints, ", ")))
+		builder.WriteString(fmt.Sprintf("- Runtime environment: %s\n", sortedJoin(summary.EnvironmentHints, ", ")))
 	}
 
 	return strings.TrimSpace(builder.String())
@@ -88,9 +89,7 @@ func SummaryMap(summary Summary) map[string]string {
 		result["working_directory"] = summary.WorkingDirectory
 	}
 	if len(summary.FileEntries) > 0 {
-		entries := append([]string(nil), summary.FileEntries...)
-		sort.Strings(entries)
-		result["project_files"] = strings.Join(entries, ", ")
+		result["project_files"] = sortedJoin(summary.FileEntries, ", ")
 		if summary.HasMoreFiles {
 			result["project_files_more"] = "true"
 		}
@@ -102,14 +101,10 @@ func SummaryMap(summary Summary) map[string]string {
 		result["kernel"] = summary.Kernel
 	}
 	if len(summary.Capabilities) > 0 {
-		capabilities := append([]string(nil), summary.Capabilities...)
-		sort.Strings(capabilities)
-		result["capabilities"] = strings.Join(capabilities, ", ")
+		result["capabilities"] = sortedJoin(summary.Capabilities, ", ")
 	}
 	if len(summary.EnvironmentHints) > 0 {
-		envHints := append([]string(nil), summary.EnvironmentHints...)
-		sort.Strings(envHints)
-		result["runtime_environment"] = strings.Join(envHints, ", ")
+		result["runtime_environment"] = sortedJoin(summary.EnvironmentHints, ", ")
 	}
 
 	return result

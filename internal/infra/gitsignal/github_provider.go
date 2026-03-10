@@ -388,9 +388,6 @@ func ghPullToPRContext(gh ghPull) signal.PRContext {
 		reviewers[i] = r.Login
 	}
 	rs := signal.ReviewPending
-	if len(reviewers) == 0 {
-		rs = signal.ReviewPending
-	}
 	return signal.PRContext{
 		Number:      gh.Number,
 		Title:       gh.Title,

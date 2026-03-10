@@ -44,22 +44,6 @@ type Comment struct {
 	CreatedAt time.Time  `json:"created_at"`
 }
 
-// AgentProfile represents an agent's Moltbook profile.
-type AgentProfile struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	Description   string `json:"description"`
-	Karma         int    `json:"karma"`
-	FollowerCount int    `json:"follower_count"`
-	PostCount     int    `json:"post_count"`
-}
-
-// SearchResult contains Moltbook search results.
-type SearchResult struct {
-	Posts  []Post        `json:"posts"`
-	Agents []AgentProfile `json:"agents"`
-}
-
 // CreatePostRequest is the payload for creating a new post.
 type CreatePostRequest struct {
 	Title   string `json:"title"`

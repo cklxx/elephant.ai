@@ -24,8 +24,7 @@ var (
 
 // PublishEnvironments stores the latest environment payload and notifies subscribers.
 func PublishEnvironments(payload EnvironmentPayload) {
-	sanitized := sanitizeEnvironmentPayload(payload)
-	clone := clonePayload(sanitized)
+	clone := clonePayload(payload)
 
 	envMu.Lock()
 	latestEnv = clone
@@ -78,9 +77,3 @@ func clonePayload(payload EnvironmentPayload) EnvironmentPayload {
 	}
 }
 
-func sanitizeEnvironmentPayload(payload EnvironmentPayload) EnvironmentPayload {
-	return EnvironmentPayload{
-		Host:     utils.CloneMap(payload.Host),
-		Captured: payload.Captured,
-	}
-}

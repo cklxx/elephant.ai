@@ -69,30 +69,14 @@ func (e *apiEnvelope) err() error {
 	return fmt.Errorf("moltbook: API error: %s", msg)
 }
 
-type feedResponse struct {
-	apiEnvelope
-	Posts []Post `json:"posts"`
-}
-
 type createPostResponse struct {
 	apiEnvelope
 	Post Post `json:"post"`
 }
 
-type profileResponse struct {
-	apiEnvelope
-	Agent AgentProfile `json:"agent"`
-}
-
 type commentResponse struct {
 	apiEnvelope
 	Comment Comment `json:"comment"`
-}
-
-type searchResponse struct {
-	apiEnvelope
-	Posts  []Post         `json:"posts"`
-	Agents []AgentProfile `json:"agents"`
 }
 
 // CreatePost publishes a new post.
@@ -107,22 +91,6 @@ func (c *Client) CreatePost(ctx context.Context, req CreatePostRequest) (*Post, 
 	return &resp.Post, nil
 }
 
-// GetFeed retrieves the feed for a given page.
-func (c *Client) GetFeed(ctx context.Context, page int) ([]Post, error) {
-	if page < 1 {
-		page = 1
-	}
-	path := fmt.Sprintf("/api/v1/feed?page=%d", page)
-	var resp feedResponse
-	if err := c.do(ctx, http.MethodGet, path, nil, &resp); err != nil {
-		return nil, err
-	}
-	if err := resp.err(); err != nil {
-		return nil, err
-	}
-	return resp.Posts, nil
-}
-
 // CreateComment adds a comment to a post.
 func (c *Client) CreateComment(ctx context.Context, postID string, req CreateCommentRequest) (*Comment, error) {
 	path := fmt.Sprintf("/api/v1/posts/%s/comments", url.PathEscape(postID))
@@ -134,49 +102,6 @@ func (c *Client) CreateComment(ctx context.Context, postID string, req CreateCom
 		return nil, err
 	}
 	return &resp.Comment, nil
-}
-
-// Upvote upvotes a post.
-func (c *Client) Upvote(ctx context.Context, postID string) error {
-	path := fmt.Sprintf("/api/v1/posts/%s/upvote", url.PathEscape(postID))
-	return c.do(ctx, http.MethodPost, path, nil, nil)
-}
-
-// Downvote downvotes a post.
-func (c *Client) Downvote(ctx context.Context, postID string) error {
-	path := fmt.Sprintf("/api/v1/posts/%s/downvote", url.PathEscape(postID))
-	return c.do(ctx, http.MethodPost, path, nil, nil)
-}
-
-// Search searches Moltbook for the given query.
-func (c *Client) Search(ctx context.Context, query string) (*SearchResult, error) {
-	path := fmt.Sprintf("/api/v1/search?q=%s", url.QueryEscape(query))
-	var resp searchResponse
-	if err := c.do(ctx, http.MethodGet, path, nil, &resp); err != nil {
-		return nil, err
-	}
-	if err := resp.err(); err != nil {
-		return nil, err
-	}
-	return &SearchResult{Posts: resp.Posts, Agents: resp.Agents}, nil
-}
-
-// GetProfile retrieves the authenticated agent's profile.
-func (c *Client) GetProfile(ctx context.Context) (*AgentProfile, error) {
-	var resp profileResponse
-	if err := c.do(ctx, http.MethodGet, "/api/v1/agents/me", nil, &resp); err != nil {
-		return nil, err
-	}
-	if err := resp.err(); err != nil {
-		return nil, err
-	}
-	return &resp.Agent, nil
-}
-
-// UpdateProfile updates the authenticated agent's description.
-func (c *Client) UpdateProfile(ctx context.Context, description string) error {
-	body := map[string]string{"description": description}
-	return c.do(ctx, http.MethodPut, "/api/v1/agents/me", body, nil)
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body any, result any) error {

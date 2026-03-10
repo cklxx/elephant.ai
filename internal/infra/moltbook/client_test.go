@@ -70,44 +70,6 @@ func TestCreatePost(t *testing.T) {
 	}
 }
 
-func TestGetFeed(t *testing.T) {
-	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			t.Errorf("expected GET, got %s", r.Method)
-		}
-		if r.URL.Path != "/api/v1/feed" {
-			t.Errorf("unexpected path: %s", r.URL.Path)
-		}
-		page := r.URL.Query().Get("page")
-		if page != "2" {
-			t.Errorf("expected page=2, got %s", page)
-		}
-
-		resp := map[string]any{
-			"success": true,
-			"posts": []Post{
-				{ID: "p1", Title: "First"},
-				{ID: "p2", Title: "Second"},
-			},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			t.Errorf("encode response: %v", err)
-		}
-	})
-
-	posts, err := client.GetFeed(context.Background(), 2)
-	if err != nil {
-		t.Fatalf("GetFeed: %v", err)
-	}
-	if len(posts) != 2 {
-		t.Fatalf("expected 2 posts, got %d", len(posts))
-	}
-	if posts[0].ID != "p1" {
-		t.Errorf("expected first post ID p1, got %s", posts[0].ID)
-	}
-}
-
 func TestCreateComment(t *testing.T) {
 	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -143,98 +105,6 @@ func TestCreateComment(t *testing.T) {
 	}
 }
 
-func TestUpvote(t *testing.T) {
-	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			t.Errorf("expected POST, got %s", r.Method)
-		}
-		if r.URL.Path != "/api/v1/posts/post-42/upvote" {
-			t.Errorf("unexpected path: %s", r.URL.Path)
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	if err := client.Upvote(context.Background(), "post-42"); err != nil {
-		t.Fatalf("Upvote: %v", err)
-	}
-}
-
-func TestDownvote(t *testing.T) {
-	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			t.Errorf("expected POST, got %s", r.Method)
-		}
-		if r.URL.Path != "/api/v1/posts/post-42/downvote" {
-			t.Errorf("unexpected path: %s", r.URL.Path)
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	if err := client.Downvote(context.Background(), "post-42"); err != nil {
-		t.Fatalf("Downvote: %v", err)
-	}
-}
-
-func TestSearch(t *testing.T) {
-	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			t.Errorf("expected GET, got %s", r.Method)
-		}
-		if r.URL.Path != "/api/v1/search" {
-			t.Errorf("unexpected path: %s", r.URL.Path)
-		}
-		q := r.URL.Query().Get("q")
-		if q != "AI agents" {
-			t.Errorf("expected query 'AI agents', got %s", q)
-		}
-
-		resp := map[string]any{
-			"success": true,
-			"posts":   []Post{{ID: "s1", Title: "AI Agents Rock"}},
-			"agents":  []AgentProfile{{Name: "agent-x"}},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			t.Errorf("encode response: %v", err)
-		}
-	})
-
-	result, err := client.Search(context.Background(), "AI agents")
-	if err != nil {
-		t.Fatalf("Search: %v", err)
-	}
-	if len(result.Posts) != 1 {
-		t.Errorf("expected 1 post, got %d", len(result.Posts))
-	}
-	if len(result.Agents) != 1 {
-		t.Errorf("expected 1 agent, got %d", len(result.Agents))
-	}
-}
-
-func TestGetProfile(t *testing.T) {
-	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/agents/me" {
-			t.Errorf("unexpected path: %s", r.URL.Path)
-		}
-		resp := map[string]any{
-			"success": true,
-			"agent":   AgentProfile{Name: "elephant", PostCount: 42},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			t.Errorf("encode response: %v", err)
-		}
-	})
-
-	profile, err := client.GetProfile(context.Background())
-	if err != nil {
-		t.Fatalf("GetProfile: %v", err)
-	}
-	if profile.Name != "elephant" {
-		t.Errorf("expected name 'elephant', got %s", profile.Name)
-	}
-}
-
 func TestAPIError(t *testing.T) {
 	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -244,7 +114,7 @@ func TestAPIError(t *testing.T) {
 		}
 	})
 
-	_, err := client.GetFeed(context.Background(), 1)
+	_, err := client.CreatePost(context.Background(), CreatePostRequest{Title: "t", Content: "c"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -328,28 +198,6 @@ func TestRateLimitedClient_CommentCooldown(t *testing.T) {
 	}
 }
 
-func TestGetFeed_DefaultPage(t *testing.T) {
-	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		page := r.URL.Query().Get("page")
-		if page != "1" {
-			t.Errorf("expected page=1 for negative input, got %s", page)
-		}
-		resp := map[string]any{
-			"success": true,
-			"posts":   []Post{},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			t.Errorf("encode response: %v", err)
-		}
-	})
-
-	_, err := client.GetFeed(context.Background(), -1)
-	if err != nil {
-		t.Fatalf("GetFeed: %v", err)
-	}
-}
-
 func TestEnvelope_SuccessFalse(t *testing.T) {
 	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -361,7 +209,7 @@ func TestEnvelope_SuccessFalse(t *testing.T) {
 		}
 	})
 
-	_, err := client.GetFeed(context.Background(), 1)
+	_, err := client.CreatePost(context.Background(), CreatePostRequest{Title: "t", Content: "c"})
 	if err == nil {
 		t.Fatal("expected error for success=false")
 	}
