@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/app/taskfmt"
 	"alex/internal/domain/signal"
 	signalports "alex/internal/domain/signal/ports"
 	"alex/internal/domain/task"
@@ -164,17 +165,17 @@ func (r *Radar) Scan(ctx context.Context) (*ScanResult, error) {
 	result.TasksScanned = len(active)
 
 	// Build a lookup of active task IDs for dependency checking.
-	terminalIDs := make(map[string]bool)
-	allIDs := make(map[string]*task.Task, len(active))
+	activeByID := make(map[string]*task.Task, len(active))
 	for _, t := range active {
-		allIDs[t.TaskID] = t
+		activeByID[t.TaskID] = t
 	}
 
+	terminalCache := make(map[string]bool)
 	for _, t := range active {
 		r.checkStaleProgress(t, now, &result.Alerts)
 		r.checkWaitingInput(t, now, &result.Alerts)
 		r.checkError(t, &result.Alerts)
-		r.checkDependencies(ctx, t, allIDs, terminalIDs, &result.Alerts)
+		r.checkDependencies(ctx, t, activeByID, terminalCache, &result.Alerts)
 	}
 	r.checkGitReviewBottlenecks(ctx, &result.Alerts)
 
@@ -238,7 +239,7 @@ func alertFromReviewBottleneck(evt signal.SignalEvent) (Alert, bool) {
 		"PR #%d in %s has been waiting %s for review from %s",
 		evt.Bottleneck.PRNumber,
 		evt.Repo,
-		formatDuration(evt.Bottleneck.WaitDuration),
+		taskfmt.FormatDuration(evt.Bottleneck.WaitDuration),
 		reviewer,
 	)
 	if url := strings.TrimSpace(evt.Bottleneck.PRURL); url != "" {
@@ -280,7 +281,7 @@ func (r *Radar) checkStaleProgress(t *task.Task, now time.Time, alerts *[]Alert)
 	*alerts = append(*alerts, Alert{
 		Task:   t,
 		Reason: ReasonStaleProgress,
-		Detail: fmt.Sprintf("no progress update for %s (last updated %s ago)", formatDuration(r.config.StaleThreshold), formatDuration(age)),
+		Detail: fmt.Sprintf("no progress update for %s (last updated %s ago)", taskfmt.FormatDuration(r.config.StaleThreshold), taskfmt.FormatDuration(age)),
 		Age:    age,
 	})
 }
@@ -296,7 +297,7 @@ func (r *Radar) checkWaitingInput(t *task.Task, now time.Time, alerts *[]Alert) 
 	*alerts = append(*alerts, Alert{
 		Task:   t,
 		Reason: ReasonWaitingInput,
-		Detail: fmt.Sprintf("waiting for user input for %s", formatDuration(age)),
+		Detail: fmt.Sprintf("waiting for user input for %s", taskfmt.FormatDuration(age)),
 		Age:    age,
 	})
 }
@@ -312,7 +313,7 @@ func (r *Radar) checkError(t *task.Task, alerts *[]Alert) {
 	*alerts = append(*alerts, Alert{
 		Task:   t,
 		Reason: ReasonHasError,
-		Detail: fmt.Sprintf("task has error: %s", truncate(t.Error, 150)),
+		Detail: fmt.Sprintf("task has error: %s", taskfmt.Truncate(t.Error, 150)),
 	})
 }
 
@@ -371,7 +372,7 @@ func FormatAlerts(result *ScanResult) string {
 	b.WriteString(fmt.Sprintf("Scanned %d active task(s).\n\n", result.TasksScanned))
 
 	for i, a := range result.Alerts {
-		desc := truncate(taskLabel(a.Task), 80)
+		desc := taskfmt.Truncate(taskfmt.TaskLabel(a.Task), 80)
 		icon := reasonIcon(a.Reason)
 		b.WriteString(fmt.Sprintf("%d. %s **%s** [%s]\n", i+1, icon, desc, a.Task.Status))
 		b.WriteString(fmt.Sprintf("   %s\n", a.Detail))
@@ -500,7 +501,7 @@ func (r *Radar) recordNotified(key string, now time.Time) {
 func FormatTaskNotification(a Alert) string {
 	var b strings.Builder
 	icon := reasonIcon(a.Reason)
-	desc := truncate(taskLabel(a.Task), 80)
+	desc := taskfmt.Truncate(taskfmt.TaskLabel(a.Task), 80)
 
 	b.WriteString(fmt.Sprintf("%s **Blocked Task Alert**\n\n", icon))
 	b.WriteString(fmt.Sprintf("**Task:** %s\n", desc))
@@ -508,7 +509,7 @@ func FormatTaskNotification(a Alert) string {
 	b.WriteString(fmt.Sprintf("**Status:** %s\n", a.Task.Status))
 	b.WriteString(fmt.Sprintf("**Reason:** %s\n", a.Detail))
 	if a.Age > 0 {
-		b.WriteString(fmt.Sprintf("**Duration:** %s\n", formatDuration(a.Age)))
+		b.WriteString(fmt.Sprintf("**Duration:** %s\n", taskfmt.FormatDuration(a.Age)))
 	}
 	b.WriteString(fmt.Sprintf("\n**Suggested action:** %s\n", suggestAction(a.Reason)))
 
@@ -577,43 +578,6 @@ func (r *Radar) ReapStale(maxAge time.Duration) int {
 		r.logger.Info("Blocker Radar: reaped %d stale task history entries (cutoff=%s)", reaped, maxAge)
 	}
 	return reaped
-}
-
-func taskLabel(t *task.Task) string {
-	if t.Description != "" {
-		return t.Description
-	}
-	return t.TaskID
-}
-
-func truncate(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}
-
-func formatDuration(d time.Duration) string {
-	if d >= 24*time.Hour {
-		days := int(d.Hours() / 24)
-		if days == 1 {
-			return "1 day"
-		}
-		return fmt.Sprintf("%d days", days)
-	}
-	if d >= time.Hour {
-		hours := int(d.Hours())
-		if hours == 1 {
-			return "1 hour"
-		}
-		return fmt.Sprintf("%d hours", hours)
-	}
-	mins := int(d.Minutes())
-	if mins <= 1 {
-		return "1 minute"
-	}
-	return fmt.Sprintf("%d minutes", mins)
 }
 
 func reasonIcon(r BlockReason) string {

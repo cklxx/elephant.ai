@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/app/taskfmt"
 	"alex/internal/domain/task"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/notification"
@@ -141,17 +142,11 @@ func (s *Service) GenerateSummary(ctx context.Context) (*Summary, error) {
 	}
 
 	// Aggregate token/cost across all included tasks.
-	for _, t := range sum.ActiveTasks {
-		sum.TotalTokens += t.TokensUsed
-		sum.TotalCostUSD += t.CostUSD
-	}
-	for _, t := range sum.CompletedIn {
-		sum.TotalTokens += t.TokensUsed
-		sum.TotalCostUSD += t.CostUSD
-	}
-	for _, t := range sum.FailedIn {
-		sum.TotalTokens += t.TokensUsed
-		sum.TotalCostUSD += t.CostUSD
+	for _, tasks := range [][]*task.Task{sum.ActiveTasks, sum.CompletedIn, sum.FailedIn} {
+		for _, t := range tasks {
+			sum.TotalTokens += t.TokensUsed
+			sum.TotalCostUSD += t.CostUSD
+		}
 	}
 
 	return sum, nil
@@ -161,7 +156,7 @@ func (s *Service) GenerateSummary(ctx context.Context) (*Summary, error) {
 func FormatSummary(sum *Summary) string {
 	var b strings.Builder
 
-	windowLabel := formatDuration(sum.Window)
+	windowLabel := taskfmt.FormatDuration(sum.Window)
 	b.WriteString(fmt.Sprintf("## Milestone Check-in (%s window)\n\n", windowLabel))
 
 	totalCompleted := len(sum.CompletedIn)
@@ -183,7 +178,7 @@ func FormatSummary(sum *Summary) string {
 	if totalActive > 0 {
 		b.WriteString("\n### In Progress\n")
 		for _, t := range sum.ActiveTasks {
-			desc := truncate(taskLabel(t), 80)
+			desc := taskfmt.Truncate(taskfmt.TaskLabel(t), 80)
 			b.WriteString(fmt.Sprintf("- [%s] %s (iter %d, %d tokens)\n", t.Status, desc, t.CurrentIteration, t.TokensUsed))
 		}
 	}
@@ -191,8 +186,8 @@ func FormatSummary(sum *Summary) string {
 	if totalCompleted > 0 {
 		b.WriteString("\n### Completed\n")
 		for _, t := range sum.CompletedIn {
-			desc := truncate(taskLabel(t), 80)
-			preview := truncate(t.AnswerPreview, 120)
+			desc := taskfmt.Truncate(taskfmt.TaskLabel(t), 80)
+			preview := taskfmt.Truncate(t.AnswerPreview, 120)
 			line := fmt.Sprintf("- %s", desc)
 			if preview != "" {
 				line += fmt.Sprintf(" — %s", preview)
@@ -204,8 +199,8 @@ func FormatSummary(sum *Summary) string {
 	if totalFailed > 0 {
 		b.WriteString("\n### Failed\n")
 		for _, t := range sum.FailedIn {
-			desc := truncate(taskLabel(t), 80)
-			errMsg := truncate(t.Error, 120)
+			desc := taskfmt.Truncate(taskfmt.TaskLabel(t), 80)
+			errMsg := taskfmt.Truncate(t.Error, 120)
 			line := fmt.Sprintf("- %s", desc)
 			if errMsg != "" {
 				line += fmt.Sprintf(" — error: %s", errMsg)
@@ -247,21 +242,6 @@ func (s *Service) SendCheckin(ctx context.Context) error {
 	return nil
 }
 
-func taskLabel(t *task.Task) string {
-	if t.Description != "" {
-		return t.Description
-	}
-	return t.TaskID
-}
-
-func truncate(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}
-
 func filterRecent(tasks []*task.Task, cutoff time.Time) []*task.Task {
 	var out []*task.Task
 	for _, t := range tasks {
@@ -272,24 +252,3 @@ func filterRecent(tasks []*task.Task, cutoff time.Time) []*task.Task {
 	return out
 }
 
-func formatDuration(d time.Duration) string {
-	if d >= 24*time.Hour {
-		days := int(d.Hours() / 24)
-		if days == 1 {
-			return "1 day"
-		}
-		return fmt.Sprintf("%d days", days)
-	}
-	if d >= time.Hour {
-		hours := int(d.Hours())
-		if hours == 1 {
-			return "1 hour"
-		}
-		return fmt.Sprintf("%d hours", hours)
-	}
-	mins := int(d.Minutes())
-	if mins == 1 {
-		return "1 minute"
-	}
-	return fmt.Sprintf("%d minutes", mins)
-}

@@ -2,7 +2,6 @@ package blocker
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"alex/internal/domain/signal"
 	signalports "alex/internal/domain/signal/ports"
 	"alex/internal/domain/task"
-	"alex/internal/infra/taskstore"
 	"alex/internal/testutil"
 )
 
@@ -68,24 +66,6 @@ func (f *fakeGitSignalProvider) ListCommitActivity(context.Context, string, stri
 
 func (f *fakeGitSignalProvider) Provider() string { return "github" }
 
-func newTestStore(t *testing.T) task.Store {
-	t.Helper()
-	fp := filepath.Join(t.TempDir(), "tasks.json")
-	s := taskstore.New(taskstore.WithFilePath(fp))
-	t.Cleanup(func() { s.Close() })
-	return s
-}
-
-func makeTask(id, desc string, status task.Status) *task.Task {
-	return &task.Task{
-		TaskID:      id,
-		SessionID:   "s1",
-		Description: desc,
-		Status:      status,
-		Channel:     "test",
-	}
-}
-
 func makeReviewBottleneck(repo string, prNumber int, reviewer string, wait time.Duration) signal.SignalEvent {
 	now := time.Now()
 	return signal.SignalEvent{
@@ -116,7 +96,7 @@ func makeReviewBottleneck(repo string, prNumber int, reviewer string, wait time.
 }
 
 func TestScan_NoActiveTasks(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	r := NewRadar(store, nil, DefaultConfig())
 
 	result, err := r.Scan(context.Background())
@@ -132,10 +112,10 @@ func TestScan_NoActiveTasks(t *testing.T) {
 }
 
 func TestScan_StaleProgress(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "deploy service", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "deploy service", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 
 	cfg := DefaultConfig()
@@ -160,10 +140,10 @@ func TestScan_StaleProgress(t *testing.T) {
 }
 
 func TestScan_StaleProgress_NotTriggeredWhenFresh(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "deploy service", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "deploy service", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 
 	cfg := DefaultConfig()
@@ -177,10 +157,10 @@ func TestScan_StaleProgress_NotTriggeredWhenFresh(t *testing.T) {
 }
 
 func TestScan_WaitingInput(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "needs approval", task.StatusPending)
+	tk := testutil.MakeTask("t1", "needs approval", task.StatusPending)
 	_ = store.Create(ctx, tk)
 	_ = store.SetStatus(ctx, "t1", task.StatusWaitingInput)
 
@@ -205,10 +185,10 @@ func TestScan_WaitingInput(t *testing.T) {
 }
 
 func TestScan_HasError(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "flaky job", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "flaky job", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 	_ = store.SetError(ctx, "t1", "connection timeout")
 
@@ -235,10 +215,10 @@ func TestScan_HasError(t *testing.T) {
 }
 
 func TestScan_HasError_NotTriggeredForTerminal(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "done job", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "done job", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 	_ = store.SetError(ctx, "t1", "oops")
 	_ = store.SetStatus(ctx, "t1", task.StatusFailed)
@@ -252,13 +232,13 @@ func TestScan_HasError_NotTriggeredForTerminal(t *testing.T) {
 }
 
 func TestScan_DependencyBlocked(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	dep := makeTask("dep1", "prerequisite", task.StatusRunning)
+	dep := testutil.MakeTask("dep1", "prerequisite", task.StatusRunning)
 	_ = store.Create(ctx, dep)
 
-	tk := makeTask("t1", "waiting on dep", task.StatusPending)
+	tk := testutil.MakeTask("t1", "waiting on dep", task.StatusPending)
 	tk.DependsOn = []string{"dep1"}
 	_ = store.Create(ctx, tk)
 
@@ -286,14 +266,14 @@ func TestScan_DependencyBlocked(t *testing.T) {
 }
 
 func TestScan_DependencyResolved(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	dep := makeTask("dep1", "prerequisite", task.StatusRunning)
+	dep := testutil.MakeTask("dep1", "prerequisite", task.StatusRunning)
 	_ = store.Create(ctx, dep)
 	_ = store.SetStatus(ctx, "dep1", task.StatusCompleted)
 
-	tk := makeTask("t1", "waiting on dep", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "waiting on dep", task.StatusRunning)
 	tk.DependsOn = []string{"dep1"}
 	_ = store.Create(ctx, tk)
 
@@ -310,10 +290,10 @@ func TestScan_DependencyResolved(t *testing.T) {
 }
 
 func TestScan_DependencyMissing(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "waiting on nonexistent", task.StatusPending)
+	tk := testutil.MakeTask("t1", "waiting on nonexistent", task.StatusPending)
 	tk.DependsOn = []string{"nonexistent"}
 	_ = store.Create(ctx, tk)
 
@@ -334,16 +314,16 @@ func TestScan_DependencyMissing(t *testing.T) {
 }
 
 func TestScan_MultipleAlerts(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
 	// Stale running task with error.
-	tk := makeTask("t1", "stuck job", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "stuck job", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 	_ = store.SetError(ctx, "t1", "timeout")
 
 	// Waiting-input task.
-	tk2 := makeTask("t2", "approval needed", task.StatusPending)
+	tk2 := testutil.MakeTask("t2", "approval needed", task.StatusPending)
 	_ = store.Create(ctx, tk2)
 	_ = store.SetStatus(ctx, "t2", task.StatusWaitingInput)
 
@@ -367,7 +347,7 @@ func TestScan_MultipleAlerts(t *testing.T) {
 }
 
 func TestScan_IncludesGitReviewBottlenecks(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	cfg := DefaultConfig()
 	cfg.GitRepos = []string{"org/repo"}
 	cfg.GitReviewThreshold = 24 * time.Hour
@@ -450,7 +430,7 @@ func TestFormatAlerts_WithData(t *testing.T) {
 }
 
 func TestSendAlerts_NoBlockers(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	notif := &testutil.StubNotifier{}
 	r := NewRadar(store, notif, DefaultConfig())
 
@@ -467,10 +447,10 @@ func TestSendAlerts_NoBlockers(t *testing.T) {
 }
 
 func TestSendAlerts_WithBlockers(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "stuck task", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "stuck task", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 
 	notif := &testutil.StubNotifier{}
@@ -503,10 +483,10 @@ func TestSendAlerts_WithBlockers(t *testing.T) {
 }
 
 func TestSendAlerts_NoNotifier(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "stuck", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "stuck", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 
 	cfg := DefaultConfig()
@@ -525,7 +505,7 @@ func TestSendAlerts_NoNotifier(t *testing.T) {
 
 func TestConfigDerivation(t *testing.T) {
 	cfg := Config{StaleThresholdSeconds: 600, InputWaitSeconds: 300}
-	r := NewRadar(newTestStore(t), nil, cfg)
+	r := NewRadar(testutil.NewTestTaskStore(t), nil, cfg)
 	if r.config.StaleThreshold != 10*time.Minute {
 		t.Errorf("StaleThreshold = %v, want 10m", r.config.StaleThreshold)
 	}
@@ -535,10 +515,10 @@ func TestConfigDerivation(t *testing.T) {
 }
 
 func TestHistory_EvictsOldestAtCapacity(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "stuck task", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "stuck task", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 
 	cfg := DefaultConfig()
@@ -561,10 +541,10 @@ func TestHistory_EvictsOldestAtCapacity(t *testing.T) {
 }
 
 func TestHistory_RecordedOnScan(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "stuck", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "stuck", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 
 	cfg := DefaultConfig()
@@ -583,7 +563,7 @@ func TestHistory_RecordedOnScan(t *testing.T) {
 }
 
 func TestHistory_NoRecordWithoutAlerts(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	r := NewRadar(store, nil, DefaultConfig())
 
 	_, _ = r.Scan(context.Background())
@@ -594,10 +574,10 @@ func TestHistory_NoRecordWithoutAlerts(t *testing.T) {
 }
 
 func TestReapStale_RemovesOldEntries(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "old task", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "old task", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 
 	cfg := DefaultConfig()
@@ -630,13 +610,13 @@ func TestReapStale_RemovesOldEntries(t *testing.T) {
 }
 
 func TestReapStale_PreservesRecentEntries(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
 	// Create two tasks that will trigger alerts.
-	tk1 := makeTask("t1", "old task", task.StatusRunning)
+	tk1 := testutil.MakeTask("t1", "old task", task.StatusRunning)
 	_ = store.Create(ctx, tk1)
-	tk2 := makeTask("t2", "new task", task.StatusRunning)
+	tk2 := testutil.MakeTask("t2", "new task", task.StatusRunning)
 	_ = store.Create(ctx, tk2)
 
 	cfg := DefaultConfig()
@@ -666,7 +646,7 @@ func TestReapStale_PreservesRecentEntries(t *testing.T) {
 }
 
 func TestReapStale_DefaultAge(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	r := NewRadar(store, nil, DefaultConfig())
 
 	// Verify default age is used when 0 is passed.
@@ -698,7 +678,7 @@ func TestReasonIcon(t *testing.T) {
 // ---------- NotifyBlockedTasks tests ----------
 
 func TestNotifyBlockedTasks_NoAlerts(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	notif := &testutil.StubNotifier{}
 	r := NewRadar(store, notif, DefaultConfig())
 
@@ -716,11 +696,11 @@ func TestNotifyBlockedTasks_NoAlerts(t *testing.T) {
 }
 
 func TestNotifyBlockedTasks_SendsPerTaskNotification(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	_ = store.Create(ctx, makeTask("t1", "stuck deploy", task.StatusRunning))
-	_ = store.Create(ctx, makeTask("t2", "flaky build", task.StatusRunning))
+	_ = store.Create(ctx, testutil.MakeTask("t1", "stuck deploy", task.StatusRunning))
+	_ = store.Create(ctx, testutil.MakeTask("t2", "flaky build", task.StatusRunning))
 	_ = store.SetError(ctx, "t2", "build timeout")
 
 	notif := &testutil.StubNotifier{}
@@ -763,10 +743,10 @@ func TestNotifyBlockedTasks_SendsPerTaskNotification(t *testing.T) {
 }
 
 func TestNotifyBlockedTasks_DeduplicatesWithin24h(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	_ = store.Create(ctx, makeTask("t1", "stuck", task.StatusRunning))
+	_ = store.Create(ctx, testutil.MakeTask("t1", "stuck", task.StatusRunning))
 
 	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()
@@ -803,10 +783,10 @@ func TestNotifyBlockedTasks_DeduplicatesWithin24h(t *testing.T) {
 }
 
 func TestNotifyBlockedTasks_ResendAfter24h(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	_ = store.Create(ctx, makeTask("t1", "stuck", task.StatusRunning))
+	_ = store.Create(ctx, testutil.MakeTask("t1", "stuck", task.StatusRunning))
 
 	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()
@@ -839,10 +819,10 @@ func TestNotifyBlockedTasks_ResendAfter24h(t *testing.T) {
 }
 
 func TestNotifyBlockedTasks_DifferentReasonsNotDeduplicated(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "stuck with error", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "stuck with error", task.StatusRunning)
 	_ = store.Create(ctx, tk)
 	_ = store.SetError(ctx, "t1", "connection timeout")
 
@@ -866,10 +846,10 @@ func TestNotifyBlockedTasks_DifferentReasonsNotDeduplicated(t *testing.T) {
 }
 
 func TestNotifyBlockedTasks_MergesTaskAndGitAlerts(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	_ = store.Create(ctx, makeTask("t1", "stuck deploy", task.StatusRunning))
+	_ = store.Create(ctx, testutil.MakeTask("t1", "stuck deploy", task.StatusRunning))
 
 	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()
@@ -923,10 +903,10 @@ func TestNotifyBlockedTasks_MergesTaskAndGitAlerts(t *testing.T) {
 }
 
 func TestNotifyBlockedTasks_NoNotifier(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	_ = store.Create(ctx, makeTask("t1", "stuck", task.StatusRunning))
+	_ = store.Create(ctx, testutil.MakeTask("t1", "stuck", task.StatusRunning))
 
 	cfg := DefaultConfig()
 	cfg.StaleThreshold = 1 * time.Minute
@@ -1003,10 +983,10 @@ func TestSuggestAction_AllReasons(t *testing.T) {
 }
 
 func TestReapStaleNotifications(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	_ = store.Create(ctx, makeTask("t1", "stuck", task.StatusRunning))
+	_ = store.Create(ctx, testutil.MakeTask("t1", "stuck", task.StatusRunning))
 
 	notif := &testutil.StubNotifier{}
 	cfg := DefaultConfig()

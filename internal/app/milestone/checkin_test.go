@@ -2,36 +2,17 @@ package milestone
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"alex/internal/app/taskfmt"
 	"alex/internal/domain/task"
-	"alex/internal/infra/taskstore"
 	"alex/internal/testutil"
 )
 
-func newTestStore(t *testing.T) task.Store {
-	t.Helper()
-	fp := filepath.Join(t.TempDir(), "tasks.json")
-	s := taskstore.New(taskstore.WithFilePath(fp))
-	t.Cleanup(func() { s.Close() })
-	return s
-}
-
-func makeTask(id, desc string, status task.Status) *task.Task {
-	return &task.Task{
-		TaskID:      id,
-		SessionID:   "s1",
-		Description: desc,
-		Status:      status,
-		Channel:     "test",
-	}
-}
-
 func TestGenerateSummary_Empty(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	svc := NewService(store, nil, DefaultConfig())
 
 	sum, err := svc.GenerateSummary(context.Background())
@@ -44,17 +25,17 @@ func TestGenerateSummary_Empty(t *testing.T) {
 }
 
 func TestGenerateSummary_WithTasks(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
 	// Create active tasks.
-	active1 := makeTask("t1", "deploy service", task.StatusRunning)
+	active1 := testutil.MakeTask("t1", "deploy service", task.StatusRunning)
 	active1.TokensUsed = 500
 	active1.CostUSD = 0.01
 	_ = store.Create(ctx, active1)
 
 	// Create completed task with CompletedAt in window.
-	done := makeTask("t2", "fix bug", task.StatusCompleted)
+	done := testutil.MakeTask("t2", "fix bug", task.StatusCompleted)
 	done.TokensUsed = 200
 	done.AnswerPreview = "Fixed the null pointer"
 	_ = store.Create(ctx, done)
@@ -63,7 +44,7 @@ func TestGenerateSummary_WithTasks(t *testing.T) {
 	_ = store.SetStatus(ctx, "t2", task.StatusCompleted)
 
 	// Create failed task with CompletedAt in window.
-	failed := makeTask("t3", "migrate database", task.StatusFailed)
+	failed := testutil.MakeTask("t3", "migrate database", task.StatusFailed)
 	failed.Error = "connection refused"
 	_ = store.Create(ctx, failed)
 	_ = store.SetStatus(ctx, "t3", task.StatusFailed)
@@ -156,10 +137,10 @@ func TestFormatSummary_LargeWindow(t *testing.T) {
 }
 
 func TestSendCheckin(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	tk := makeTask("t1", "test task", task.StatusRunning)
+	tk := testutil.MakeTask("t1", "test task", task.StatusRunning)
 	tk.ChatID = "oc_test123"
 	_ = store.Create(ctx, tk)
 
@@ -189,7 +170,7 @@ func TestSendCheckin(t *testing.T) {
 }
 
 func TestSendCheckin_NoNotifier(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	svc := NewService(store, nil, DefaultConfig())
 	err := svc.SendCheckin(context.Background())
 	if err != nil {
@@ -210,40 +191,40 @@ func TestFormatDuration(t *testing.T) {
 		{72 * time.Hour, "3 days"},
 	}
 	for _, tt := range tests {
-		got := formatDuration(tt.d)
+		got := taskfmt.FormatDuration(tt.d)
 		if got != tt.want {
-			t.Errorf("formatDuration(%v) = %q, want %q", tt.d, got, tt.want)
+			t.Errorf("taskfmt.FormatDuration(%v) = %q, want %q", tt.d, got, tt.want)
 		}
 	}
 }
 
 func TestTruncate(t *testing.T) {
-	if got := truncate("hello world", 5); got != "he..." {
+	if got := taskfmt.Truncate("hello world", 5); got != "he..." {
 		t.Errorf("truncate = %q, want he...", got)
 	}
-	if got := truncate("hi", 10); got != "hi" {
+	if got := taskfmt.Truncate("hi", 10); got != "hi" {
 		t.Errorf("truncate short = %q, want hi", got)
 	}
 }
 
 func TestConfigLookbackDerivation(t *testing.T) {
 	cfg := Config{IntervalSeconds: 7200}
-	svc := NewService(newTestStore(t), nil, cfg)
+	svc := NewService(testutil.NewTestTaskStore(t), nil, cfg)
 	if svc.config.LookbackDuration != 2*time.Hour {
 		t.Errorf("LookbackDuration = %v, want 2h", svc.config.LookbackDuration)
 	}
 }
 
 func TestGenerateSummary_ScopedByChatID(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
 	// Create tasks in two different chats.
-	t1 := makeTask("t1", "chat-A task", task.StatusRunning)
+	t1 := testutil.MakeTask("t1", "chat-A task", task.StatusRunning)
 	t1.ChatID = "chat-A"
 	_ = store.Create(ctx, t1)
 
-	t2 := makeTask("t2", "chat-B task", task.StatusRunning)
+	t2 := testutil.MakeTask("t2", "chat-B task", task.StatusRunning)
 	t2.ChatID = "chat-B"
 	_ = store.Create(ctx, t2)
 
@@ -264,14 +245,14 @@ func TestGenerateSummary_ScopedByChatID(t *testing.T) {
 }
 
 func TestGenerateSummary_GlobalWhenNoChatID(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestTaskStore(t)
 	ctx := context.Background()
 
-	t1 := makeTask("t1", "task A", task.StatusRunning)
+	t1 := testutil.MakeTask("t1", "task A", task.StatusRunning)
 	t1.ChatID = "chat-A"
 	_ = store.Create(ctx, t1)
 
-	t2 := makeTask("t2", "task B", task.StatusRunning)
+	t2 := testutil.MakeTask("t2", "task B", task.StatusRunning)
 	t2.ChatID = "chat-B"
 	_ = store.Create(ctx, t2)
 
