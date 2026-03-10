@@ -17,7 +17,7 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyTrimmedString(&cfg.DebugBindHost, file.Server.DebugBindHost)
 	applyPositiveInt64(&cfg.MaxTaskBodyBytes, file.Server.MaxTaskBodyBytes)
 	applyTrimmedString(&cfg.LeaderAPIToken, file.Server.LeaderAPIToken)
-	applyPositiveDurationSeconds(&cfg.NonStreamTimeout, file.Server.NonStreamTimeoutSeconds)
+	applyPositiveDuration(&cfg.NonStreamTimeout, file.Server.NonStreamTimeoutSeconds, time.Second)
 	applyStreamGuardConfig(&cfg.StreamGuard, file.Server)
 	applyRateLimitConfig(&cfg.RateLimit, file.Server)
 	applyTaskExecutionConfig(&cfg.TaskExecution, file.Server)
@@ -31,7 +31,7 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 }
 
 func applyStreamGuardConfig(dst *StreamGuardConfig, srv *runtimeconfig.ServerConfig) {
-	applyPositiveDurationSeconds(&dst.MaxDuration, srv.StreamMaxDurationSeconds)
+	applyPositiveDuration(&dst.MaxDuration, srv.StreamMaxDurationSeconds, time.Second)
 	applyPositiveInt64(&dst.MaxBytes, srv.StreamMaxBytes)
 	applyPositiveInt(&dst.MaxConcurrent, srv.StreamMaxConcurrent)
 }
@@ -43,16 +43,16 @@ func applyRateLimitConfig(dst *RateLimitConfig, srv *runtimeconfig.ServerConfig)
 
 func applyTaskExecutionConfig(dst *TaskExecutionConfig, srv *runtimeconfig.ServerConfig) {
 	applyTrimmedString(&dst.OwnerID, srv.TaskExecutionOwnerID)
-	applyPositiveDurationSeconds(&dst.LeaseTTL, srv.TaskExecutionLeaseTTLSeconds)
-	applyPositiveDurationSeconds(&dst.LeaseRenewInterval, srv.TaskExecutionLeaseRenewIntervalSeconds)
+	applyPositiveDuration(&dst.LeaseTTL, srv.TaskExecutionLeaseTTLSeconds, time.Second)
+	applyPositiveDuration(&dst.LeaseRenewInterval, srv.TaskExecutionLeaseRenewIntervalSeconds, time.Second)
 	applyNonNegativeInt(&dst.MaxInFlight, srv.TaskExecutionMaxInFlight)
 	applyPositiveInt(&dst.ResumeClaimBatchSize, srv.TaskExecutionResumeClaimBatchSize)
 }
 
 func applyEventHistoryConfig(dst *EventHistoryConfig, srv *runtimeconfig.ServerConfig) {
-	applyNonNegativeDurationDays(&dst.Retention, srv.EventHistoryRetentionDays)
+	applyNonNegativeDuration(&dst.Retention, srv.EventHistoryRetentionDays, 24*time.Hour)
 	applyNonNegativeInt(&dst.MaxSessions, srv.EventHistoryMaxSessions)
-	applyNonNegativeDurationSeconds(&dst.SessionTTL, srv.EventHistorySessionTTL)
+	applyNonNegativeDuration(&dst.SessionTTL, srv.EventHistorySessionTTL, time.Second)
 	applyNonNegativeInt(&dst.MaxEvents, srv.EventHistoryMaxEvents)
 }
 
@@ -147,27 +147,9 @@ func applyPositiveInt(dst *int, value *int) {
 	}
 }
 
-func applyPositiveDurationSeconds(dst *time.Duration, seconds *int) {
-	if seconds != nil && *seconds > 0 {
-		*dst = time.Duration(*seconds) * time.Second
-	}
-}
-
-func applyPositiveDurationMinutes(dst *time.Duration, minutes *int) {
-	if minutes != nil && *minutes > 0 {
-		*dst = time.Duration(*minutes) * time.Minute
-	}
-}
-
-func applyPositiveDurationHours(dst *time.Duration, hours *int) {
-	if hours != nil && *hours > 0 {
-		*dst = time.Duration(*hours) * time.Hour
-	}
-}
-
-func applyPositiveDurationMilliseconds(dst *time.Duration, ms *int) {
-	if ms != nil && *ms > 0 {
-		*dst = time.Duration(*ms) * time.Millisecond
+func applyPositiveDuration(dst *time.Duration, value *int, unit time.Duration) {
+	if value != nil && *value > 0 {
+		*dst = time.Duration(*value) * unit
 	}
 }
 
@@ -188,24 +170,13 @@ func applyNonNegativeInt(dst *int, value *int) {
 	}
 }
 
-func applyNonNegativeDurationSeconds(dst *time.Duration, seconds *int) {
-	if seconds == nil {
+func applyNonNegativeDuration(dst *time.Duration, value *int, unit time.Duration) {
+	if value == nil {
 		return
 	}
-	if *seconds <= 0 {
+	if *value <= 0 {
 		*dst = 0
 	} else {
-		*dst = time.Duration(*seconds) * time.Second
-	}
-}
-
-func applyNonNegativeDurationDays(dst *time.Duration, days *int) {
-	if days == nil {
-		return
-	}
-	if *days <= 0 {
-		*dst = 0
-	} else {
-		*dst = time.Duration(*days) * 24 * time.Hour
+		*dst = time.Duration(*value) * unit
 	}
 }

@@ -124,7 +124,7 @@ func buildTelegramGatewayConfig(tgCfg TelegramGatewayConfig, container *di.Conta
 	}
 
 	if strings.TrimSpace(gatewayCfg.PersistenceMode) == "" {
-		gatewayCfg.PersistenceMode = telegramPersistenceModeFile
+		gatewayCfg.PersistenceMode = persistenceModeFile
 	}
 	if strings.TrimSpace(gatewayCfg.PersistenceDir) == "" {
 		gatewayCfg.PersistenceDir = filepath.Join(container.SessionDir(), "telegram")
@@ -165,13 +165,13 @@ func wireTelegramGateway(ctx context.Context, gateway *telegram.Gateway, gateway
 func buildTelegramPlanReviewStore(ctx context.Context, cfg telegram.Config) (telegram.PlanReviewStore, error) {
 	mode := utils.TrimLower(cfg.PersistenceMode)
 	switch mode {
-	case telegramPersistenceModeMemory:
+	case persistenceModeMemory:
 		store := telegram.NewPlanReviewMemoryStore(cfg.PlanReviewPendingTTL)
 		if err := store.EnsureSchema(ctx); err != nil {
 			return nil, err
 		}
 		return store, nil
-	case telegramPersistenceModeFile:
+	case persistenceModeFile:
 		store, err := telegram.NewPlanReviewFileStore(cfg.PersistenceDir, cfg.PlanReviewPendingTTL)
 		if err != nil {
 			return nil, err
@@ -188,13 +188,13 @@ func buildTelegramPlanReviewStore(ctx context.Context, cfg telegram.Config) (tel
 func buildTelegramTaskStore(ctx context.Context, cfg telegram.Config) (telegram.TaskStore, error) {
 	mode := utils.TrimLower(cfg.PersistenceMode)
 	switch mode {
-	case telegramPersistenceModeMemory:
+	case persistenceModeMemory:
 		store := telegram.NewTaskMemoryStore(cfg.PersistenceRetention, cfg.PersistenceMaxTasksPerChat)
 		if err := store.EnsureSchema(ctx); err != nil {
 			return nil, err
 		}
 		return store, nil
-	case telegramPersistenceModeFile:
+	case persistenceModeFile:
 		store, err := telegram.NewTaskFileStore(cfg.PersistenceDir, cfg.PersistenceRetention, cfg.PersistenceMaxTasksPerChat)
 		if err != nil {
 			return nil, err

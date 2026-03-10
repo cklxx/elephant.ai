@@ -206,9 +206,6 @@ var defaultAllowedOrigins = []string{
 }
 
 const (
-	larkPersistenceModeFile   = "file"
-	larkPersistenceModeMemory = "memory"
-
-	telegramPersistenceModeFile   = "file"
-	telegramPersistenceModeMemory = "memory"
+	persistenceModeFile   = "file"
+	persistenceModeMemory = "memory"
 )

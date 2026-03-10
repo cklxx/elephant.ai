@@ -186,7 +186,7 @@ func buildLarkGatewayConfig(larkCfg LarkGatewayConfig, cfg Config) lark.Config {
 
 func initLarkStores(ctx context.Context, gatewayCfg *lark.Config, container *di.Container, logger logging.Logger) (larkStores, error) {
 	if utils.IsBlank(gatewayCfg.PersistenceMode) {
-		gatewayCfg.PersistenceMode = larkPersistenceModeFile
+		gatewayCfg.PersistenceMode = persistenceModeFile
 	}
 	if utils.IsBlank(gatewayCfg.PersistenceDir) {
 		gatewayCfg.PersistenceDir = filepath.Join(container.SessionDir(), "lark")
@@ -267,13 +267,13 @@ func wireLarkGateway(ctx context.Context, gateway *lark.Gateway, cfg Config, con
 func buildLarkPlanReviewStore(ctx context.Context, cfg lark.Config) (lark.PlanReviewStore, error) {
 	mode := utils.TrimLower(cfg.PersistenceMode)
 	switch mode {
-	case larkPersistenceModeMemory:
+	case persistenceModeMemory:
 		store := lark.NewPlanReviewMemoryStore(cfg.PlanReviewPendingTTL)
 		if err := store.EnsureSchema(ctx); err != nil {
 			return nil, err
 		}
 		return store, nil
-	case larkPersistenceModeFile:
+	case persistenceModeFile:
 		store, err := lark.NewPlanReviewFileStore(cfg.PersistenceDir, cfg.PlanReviewPendingTTL)
 		if err != nil {
 			return nil, err
@@ -290,13 +290,13 @@ func buildLarkPlanReviewStore(ctx context.Context, cfg lark.Config) (lark.PlanRe
 func buildLarkChatSessionStore(ctx context.Context, cfg lark.Config) (lark.ChatSessionBindingStore, error) {
 	mode := utils.TrimLower(cfg.PersistenceMode)
 	switch mode {
-	case larkPersistenceModeMemory:
+	case persistenceModeMemory:
 		store := lark.NewChatSessionBindingMemoryStore()
 		if err := store.EnsureSchema(ctx); err != nil {
 			return nil, err
 		}
 		return store, nil
-	case larkPersistenceModeFile:
+	case persistenceModeFile:
 		store, err := lark.NewChatSessionBindingFileStore(cfg.PersistenceDir)
 		if err != nil {
 			return nil, err
@@ -313,13 +313,13 @@ func buildLarkChatSessionStore(ctx context.Context, cfg lark.Config) (lark.ChatS
 func buildLarkDeliveryOutboxStore(ctx context.Context, cfg lark.Config) (lark.DeliveryOutboxStore, error) {
 	mode := utils.TrimLower(cfg.PersistenceMode)
 	switch mode {
-	case larkPersistenceModeMemory:
+	case persistenceModeMemory:
 		store := lark.NewDeliveryOutboxMemoryStore()
 		if err := store.EnsureSchema(ctx); err != nil {
 			return nil, err
 		}
 		return store, nil
-	case larkPersistenceModeFile:
+	case persistenceModeFile:
 		store, err := lark.NewDeliveryOutboxFileStore(cfg.PersistenceDir)
 		if err != nil {
 			return nil, err

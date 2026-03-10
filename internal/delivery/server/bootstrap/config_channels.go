@@ -45,25 +45,25 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyTrimmedString(&target.AgentPreset, larkCfg.AgentPreset)
 	applyTrimmedString(&target.ToolPreset, larkCfg.ToolPreset)
 	applyTrimmedString(&target.ToolMode, larkCfg.ToolMode)
-	applyPositiveDurationSeconds(&target.ReplyTimeout, larkCfg.ReplyTimeoutSeconds)
+	applyPositiveDuration(&target.ReplyTimeout, larkCfg.ReplyTimeoutSeconds, time.Second)
 	applyTrimmedString(&target.InjectionAckReactEmoji, larkCfg.InjectionAckReactEmoji)
 	applyOptionalBool(&target.MemoryEnabled, larkCfg.MemoryEnabled)
 	applyOptionalBool(&target.ShowToolProgress, larkCfg.ShowToolProgress)
 	applyOptionalBool(&target.SlowProgressSummaryEnabled, larkCfg.SlowProgressSummaryEnabled)
-	applyPositiveDurationSeconds(&target.SlowProgressSummaryDelay, larkCfg.SlowProgressSummaryDelaySecs)
+	applyPositiveDuration(&target.SlowProgressSummaryDelay, larkCfg.SlowProgressSummaryDelaySecs, time.Second)
 	applyOptionalBool(&target.ShowPlanClarifyMessages, larkCfg.ShowPlanClarifyMessages)
 	applyPositiveInt(&target.ToolFailureAbortThreshold, larkCfg.ToolFailureAbortThreshold)
 	applyPositiveInt(&target.AutoChatContextSize, larkCfg.AutoChatContextSize)
 	applyOptionalBool(&target.PlanReviewEnabled, larkCfg.PlanReviewEnabled)
 	applyOptionalBool(&target.PlanReviewRequireConfirmation, larkCfg.PlanReviewRequireConfirmation)
-	applyPositiveDurationMinutes(&target.PlanReviewPendingTTL, larkCfg.PlanReviewPendingTTLMinutes)
-	applyPositiveDurationMinutes(&target.ActiveSlotTTL, larkCfg.ActiveSlotTTLMinutes)
+	applyPositiveDuration(&target.PlanReviewPendingTTL, larkCfg.PlanReviewPendingTTLMinutes, time.Minute)
+	applyPositiveDuration(&target.ActiveSlotTTL, larkCfg.ActiveSlotTTLMinutes, time.Minute)
 	applyPositiveInt(&target.ActiveSlotMaxEntries, larkCfg.ActiveSlotMaxEntries)
-	applyPositiveDurationMinutes(&target.PendingInputRelayTTL, larkCfg.PendingInputRelayTTLMinutes)
+	applyPositiveDuration(&target.PendingInputRelayTTL, larkCfg.PendingInputRelayTTLMinutes, time.Minute)
 	applyPositiveInt(&target.PendingInputRelayMaxChats, larkCfg.PendingInputRelayMaxChats)
 	applyPositiveInt(&target.PendingInputRelayMaxPerChat, larkCfg.PendingInputRelayMaxPerChat)
-	applyPositiveDurationMinutes(&target.AIChatSessionTTL, larkCfg.AIChatSessionTTLMinutes)
-	applyPositiveDurationSeconds(&target.StateCleanupInterval, larkCfg.StateCleanupIntervalSeconds)
+	applyPositiveDuration(&target.AIChatSessionTTL, larkCfg.AIChatSessionTTLMinutes, time.Minute)
+	applyPositiveDuration(&target.StateCleanupInterval, larkCfg.StateCleanupIntervalSeconds, time.Second)
 	applyLarkPersistenceConfig(&target, larkCfg.Persistence)
 	applyLarkDeliveryConfig(&target, larkCfg.Delivery)
 	applyLarkRateLimiterConfig(&target, larkCfg.RateLimiter)
@@ -80,7 +80,7 @@ func applyBrowserConfig(dst *lark.BrowserConfig, browser *runtimeconfig.LarkBrow
 	applyTrimmedString(&dst.ChromePath, browser.ChromePath)
 	applyOptionalBool(&dst.Headless, browser.Headless)
 	applyTrimmedString(&dst.UserDataDir, browser.UserDataDir)
-	applyPositiveDurationSeconds(&dst.Timeout, browser.TimeoutSeconds)
+	applyPositiveDuration(&dst.Timeout, browser.TimeoutSeconds, time.Second)
 }
 
 func applyLarkPersistenceConfig(dst *LarkGatewayConfig, persistence *runtimeconfig.LarkPersistenceConfig) {
@@ -89,7 +89,7 @@ func applyLarkPersistenceConfig(dst *LarkGatewayConfig, persistence *runtimeconf
 	}
 	applyTrimmedLowerString(&dst.PersistenceMode, persistence.Mode)
 	applyTrimmedString(&dst.PersistenceDir, persistence.Dir)
-	applyPositiveDurationHours(&dst.PersistenceRetention, persistence.RetentionHours)
+	applyPositiveDuration(&dst.PersistenceRetention, persistence.RetentionHours, time.Hour)
 	applyPositiveInt(&dst.PersistenceMaxTasksPerChat, persistence.MaxTasksPerChat)
 }
 
@@ -103,11 +103,11 @@ func applyLarkDeliveryConfig(dst *LarkGatewayConfig, delivery *runtimeconfig.Lar
 	}
 	worker := delivery.Worker
 	applyOptionalBool(&dst.DeliveryWorker.Enabled, worker.Enabled)
-	applyPositiveDurationMilliseconds(&dst.DeliveryWorker.PollInterval, worker.PollIntervalMs)
+	applyPositiveDuration(&dst.DeliveryWorker.PollInterval, worker.PollIntervalMs, time.Millisecond)
 	applyPositiveInt(&dst.DeliveryWorker.BatchSize, worker.BatchSize)
 	applyPositiveInt(&dst.DeliveryWorker.MaxAttempts, worker.MaxAttempts)
-	applyPositiveDurationMilliseconds(&dst.DeliveryWorker.BaseBackoff, worker.BaseBackoffMs)
-	applyPositiveDurationMilliseconds(&dst.DeliveryWorker.MaxBackoff, worker.MaxBackoffMs)
+	applyPositiveDuration(&dst.DeliveryWorker.BaseBackoff, worker.BaseBackoffMs, time.Millisecond)
+	applyPositiveDuration(&dst.DeliveryWorker.MaxBackoff, worker.MaxBackoffMs, time.Millisecond)
 	if worker.JitterRatio != nil && *worker.JitterRatio > 0 {
 		dst.DeliveryWorker.JitterRatio = *worker.JitterRatio
 	}
@@ -205,20 +205,20 @@ func applyTelegramConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyOptionalBool(&target.AllowDirect, tgCfg.AllowDirect)
 	applyTrimmedString(&target.AgentPreset, tgCfg.AgentPreset)
 	applyTrimmedString(&target.ToolPreset, tgCfg.ToolPreset)
-	applyPositiveDurationSeconds(&target.ReplyTimeout, tgCfg.ReplyTimeoutSeconds)
+	applyPositiveDuration(&target.ReplyTimeout, tgCfg.ReplyTimeoutSeconds, time.Second)
 	applyOptionalBool(&target.MemoryEnabled, tgCfg.MemoryEnabled)
 	if len(tgCfg.AllowedGroups) > 0 {
 		target.AllowedGroups = append([]int64(nil), tgCfg.AllowedGroups...)
 	}
 	applyOptionalBool(&target.ShowToolProgress, tgCfg.ShowToolProgress)
 	applyOptionalBool(&target.SlowProgressSummaryEnabled, tgCfg.SlowProgressSummaryEnabled)
-	applyPositiveDurationSeconds(&target.SlowProgressSummaryDelay, tgCfg.SlowProgressSummaryDelaySecs)
+	applyPositiveDuration(&target.SlowProgressSummaryDelay, tgCfg.SlowProgressSummaryDelaySecs, time.Second)
 	applyOptionalBool(&target.PlanReviewEnabled, tgCfg.PlanReviewEnabled)
 	applyOptionalBool(&target.PlanReviewRequireConfirmation, tgCfg.PlanReviewRequireConfirmation)
-	applyPositiveDurationMinutes(&target.PlanReviewPendingTTL, tgCfg.PlanReviewPendingTTLMinutes)
-	applyPositiveDurationMinutes(&target.ActiveSlotTTL, tgCfg.ActiveSlotTTLMinutes)
+	applyPositiveDuration(&target.PlanReviewPendingTTL, tgCfg.PlanReviewPendingTTLMinutes, time.Minute)
+	applyPositiveDuration(&target.ActiveSlotTTL, tgCfg.ActiveSlotTTLMinutes, time.Minute)
 	applyPositiveInt(&target.ActiveSlotMaxEntries, tgCfg.ActiveSlotMaxEntries)
-	applyPositiveDurationSeconds(&target.StateCleanupInterval, tgCfg.StateCleanupIntervalSeconds)
+	applyPositiveDuration(&target.StateCleanupInterval, tgCfg.StateCleanupIntervalSeconds, time.Second)
 	applyTelegramPersistenceConfig(&target, tgCfg.Persistence)
 	applyPositiveInt(&target.MaxConcurrentTasks, tgCfg.MaxConcurrentTasks)
 	cfg.Channels.SetTelegramConfig(target)
@@ -230,7 +230,7 @@ func applyTelegramPersistenceConfig(dst *TelegramGatewayConfig, persistence *run
 	}
 	applyTrimmedLowerString(&dst.PersistenceMode, persistence.Mode)
 	applyTrimmedString(&dst.PersistenceDir, persistence.Dir)
-	applyPositiveDurationHours(&dst.PersistenceRetention, persistence.RetentionHours)
+	applyPositiveDuration(&dst.PersistenceRetention, persistence.RetentionHours, time.Hour)
 	applyPositiveInt(&dst.PersistenceMaxTasksPerChat, persistence.MaxTasksPerChat)
 }
 
