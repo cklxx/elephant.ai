@@ -25,8 +25,9 @@ type RouterDeps struct {
 	DataCache              *DataCache
 	LarkOAuthHandler       *LarkOAuthHandler
 	MemoryEngine           MemoryEngine
-	HooksBridge            http.Handler // optional: Claude Code hooks → Lark bridge
-	RuntimeHooksBridge     http.Handler // optional: Claude Code hooks → runtime event bus
+	HooksBridge            http.Handler             // optional: Claude Code hooks → Lark bridge
+	RuntimeHooksBridge     http.Handler             // optional: Claude Code hooks → runtime event bus
+	LeaderDashboard        *LeaderDashboardHandler  // optional: leader agent dashboard
 }
 
 // RouterConfig holds configuration values for the HTTP router.

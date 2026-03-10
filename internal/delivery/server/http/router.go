@@ -154,6 +154,12 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	mux.Handle("POST /api/sessions/{session_id}/share", routeHandler("/api/sessions/:session_id/share", wrap(http.HandlerFunc(apiHandler.HandleCreateSessionShare))))
 	mux.Handle("POST /api/sessions/{session_id}/fork", routeHandler("/api/sessions/:session_id/fork", wrap(http.HandlerFunc(apiHandler.HandleForkSession))))
 
+	// ── Leader dashboard ──
+
+	if deps.LeaderDashboard != nil {
+		mux.Handle("GET /api/leader/dashboard", routeHandler("/api/leader/dashboard", wrap(http.HandlerFunc(deps.LeaderDashboard.HandleGetDashboard))))
+	}
+
 	// ── Claude Code hooks bridge ──
 
 	if deps.HooksBridge != nil {
