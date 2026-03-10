@@ -39,6 +39,13 @@ type AttentionGateConfig struct {
 
 const defaultAutoAckMessage = "收到，已记录并跟踪中。"
 
+// FocusTimeChecker determines whether a user is in a focus time window.
+// When set on AttentionGate, non-urgent messages are suppressed for users
+// currently in focus time.
+type FocusTimeChecker interface {
+	ShouldSuppress(userID string, now time.Time) bool
+}
+
 // AttentionGate filters messages based on urgency criteria and enforces
 // a per-chat notification budget.
 type AttentionGate struct {
@@ -46,6 +53,10 @@ type AttentionGate struct {
 
 	// lowerKeywords is the pre-lowered keyword set for fast matching.
 	lowerKeywords []string
+
+	// focusTime is an optional checker for focus time suppression.
+	// When non-nil, non-urgent messages are suppressed during focus time.
+	focusTime FocusTimeChecker
 
 	mu      sync.Mutex
 	budgets map[string]*chatBudget // chatID → budget tracker
@@ -201,4 +212,41 @@ func (g *AttentionGate) IsEnabled() bool {
 // AutoAckMessage returns the configured auto-acknowledgement message.
 func (g *AttentionGate) AutoAckMessage() string {
 	return g.cfg.AutoAckMessage
+}
+
+// SetFocusTimeChecker attaches a FocusTimeChecker to the gate.
+// When set, ShouldDispatch will suppress non-urgent messages for users
+// currently in focus time.
+func (g *AttentionGate) SetFocusTimeChecker(ftc FocusTimeChecker) {
+	g.focusTime = ftc
+}
+
+// ShouldDispatch decides whether a message should be dispatched to a user.
+// It combines urgency classification, focus time suppression, and budget
+// enforcement. Critical/P0 (UrgencyHigh) messages always pass through.
+// Returns the urgency level and whether the message should be sent.
+func (g *AttentionGate) ShouldDispatch(content, chatID, userID string, now time.Time) (UrgencyLevel, bool) {
+	urgency := g.ClassifyUrgency(content)
+
+	// Critical messages always pass through.
+	if urgency == UrgencyHigh {
+		return urgency, true
+	}
+
+	// Gate disabled → pass through.
+	if !g.cfg.Enabled {
+		return urgency, true
+	}
+
+	// Check focus time suppression for non-urgent messages.
+	if g.focusTime != nil && g.focusTime.ShouldSuppress(userID, now) {
+		return urgency, false
+	}
+
+	// Check budget.
+	if !g.RecordDispatch(chatID, now) {
+		return urgency, false
+	}
+
+	return urgency, true
 }

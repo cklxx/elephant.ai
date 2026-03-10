@@ -237,6 +237,99 @@ func TestAttentionGate_BudgetGC_KeepsActiveChatIDs(t *testing.T) {
 	}
 }
 
+// ---------- ShouldDispatch with FocusTimeChecker ----------
+
+type mockFocusChecker struct {
+	suppressed map[string]bool
+}
+
+func (m *mockFocusChecker) ShouldSuppress(userID string, _ time.Time) bool {
+	return m.suppressed[userID]
+}
+
+func TestShouldDispatch_UrgentBypassesFocusTime(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:        true,
+		UrgentKeywords: []string{"P0"},
+	})
+	gate.SetFocusTimeChecker(&mockFocusChecker{suppressed: map[string]bool{"alice": true}})
+
+	urgency, ok := gate.ShouldDispatch("P0 incident", "chat-1", "alice", time.Now())
+	if urgency != UrgencyHigh {
+		t.Errorf("urgency = %d, want UrgencyHigh", urgency)
+	}
+	if !ok {
+		t.Error("P0 messages should bypass focus time")
+	}
+}
+
+func TestShouldDispatch_SuppressedDuringFocusTime(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{Enabled: true})
+	gate.SetFocusTimeChecker(&mockFocusChecker{suppressed: map[string]bool{"alice": true}})
+
+	urgency, ok := gate.ShouldDispatch("routine update", "chat-1", "alice", time.Now())
+	if urgency != UrgencyLow {
+		t.Errorf("urgency = %d, want UrgencyLow", urgency)
+	}
+	if ok {
+		t.Error("routine message should be suppressed during focus time")
+	}
+}
+
+func TestShouldDispatch_NotSuppressedOutsideFocusTime(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{Enabled: true})
+	gate.SetFocusTimeChecker(&mockFocusChecker{suppressed: map[string]bool{"alice": false}})
+
+	_, ok := gate.ShouldDispatch("routine update", "chat-1", "alice", time.Now())
+	if !ok {
+		t.Error("message should pass through when user is not in focus time")
+	}
+}
+
+func TestShouldDispatch_NoFocusCheckerPassesThrough(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{Enabled: true})
+	// No focus checker set.
+
+	_, ok := gate.ShouldDispatch("routine update", "chat-1", "alice", time.Now())
+	if !ok {
+		t.Error("message should pass through when no focus checker is set")
+	}
+}
+
+func TestShouldDispatch_GateDisabledPassesThrough(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{Enabled: false})
+	gate.SetFocusTimeChecker(&mockFocusChecker{suppressed: map[string]bool{"alice": true}})
+
+	urgency, ok := gate.ShouldDispatch("hello", "chat-1", "alice", time.Now())
+	if urgency != UrgencyNormal {
+		t.Errorf("urgency = %d, want UrgencyNormal when gate disabled", urgency)
+	}
+	if !ok {
+		t.Error("disabled gate should pass through all messages")
+	}
+}
+
+func TestShouldDispatch_BudgetEnforcedAfterFocusCheck(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:      true,
+		BudgetWindow: 10 * time.Minute,
+		BudgetMax:    1,
+	})
+	// No focus time suppression.
+	gate.SetFocusTimeChecker(&mockFocusChecker{suppressed: map[string]bool{}})
+
+	now := time.Now()
+	_, ok1 := gate.ShouldDispatch("msg1", "chat-1", "bob", now)
+	_, ok2 := gate.ShouldDispatch("msg2", "chat-1", "bob", now)
+
+	if !ok1 {
+		t.Error("first message should be within budget")
+	}
+	if ok2 {
+		t.Error("second message should be over budget")
+	}
+}
+
 func TestAttentionGate_BudgetGC_EmptyTimestamps(t *testing.T) {
 	gate := NewAttentionGate(AttentionGateConfig{
 		Enabled:      true,
