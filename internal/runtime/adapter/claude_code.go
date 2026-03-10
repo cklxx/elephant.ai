@@ -73,7 +73,7 @@ func ensureCCHooks(hooksScriptPath string) {
 	}
 
 	// Retrieve or initialise the hooks map.
-	hooksRaw, _ := settings["hooks"]
+	hooksRaw := settings["hooks"]
 	hooksMap, ok := hooksRaw.(map[string]any)
 	if !ok {
 		hooksMap = make(map[string]any)

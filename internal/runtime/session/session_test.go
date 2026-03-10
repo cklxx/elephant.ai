@@ -57,9 +57,6 @@ func TestIsStalled(t *testing.T) {
 
 	// Record a heartbeat, then check stall with very short threshold.
 	s.RecordHeartbeat()
-	if s.IsStalled(1 * time.Millisecond) {
-		// After sleep it should stall.
-	}
 	time.Sleep(10 * time.Millisecond)
 	if !s.IsStalled(1 * time.Millisecond) {
 		t.Fatal("expected stalled after heartbeat timeout")
