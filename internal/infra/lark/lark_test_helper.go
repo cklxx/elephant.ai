@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larktask "github.com/larksuite/oapi-sdk-go/v3/service/task/v2"
 )
 
 // testServer creates an httptest server whose handler dispatches based on URL path.
@@ -101,12 +102,33 @@ func calendarEventJSON(eventID, summary string, startUnix, endUnix int64) map[st
 
 // taskJSON returns a Lark task JSON fragment for test use.
 func taskJSON(guid, summary, completedAt string) map[string]interface{} {
+	return taskJSONFull(guid, summary, "", completedAt)
+}
+
+// taskJSONFull returns a Lark task JSON fragment with optional description.
+func taskJSONFull(guid, summary, description, completedAt string) map[string]interface{} {
 	t := map[string]interface{}{
 		"guid":    guid,
 		"summary": summary,
 	}
+	if description != "" {
+		t["description"] = description
+	}
 	if completedAt != "" {
 		t["completed_at"] = completedAt
+	}
+	return t
+}
+
+// mockTask creates a larktask.Task with the given fields for unit-testing
+// parseLarkTask without going through JSON round-trips.
+func mockTask(guid, summary, description string) *larktask.Task {
+	t := &larktask.Task{
+		Guid:    &guid,
+		Summary: &summary,
+	}
+	if description != "" {
+		t.Description = &description
 	}
 	return t
 }

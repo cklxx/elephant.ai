@@ -15,12 +15,15 @@ type TaskService struct {
 }
 
 // Task is a simplified view of a Lark task.
+// Summary maps to the Feishu `summary` field (task title).
+// Description maps to `description` (task body / details).
 type Task struct {
-	TaskID    string
-	Summary   string
-	DueTime   time.Time
-	Completed bool
-	Creator   string
+	TaskID      string
+	Summary     string
+	Description string
+	DueTime     time.Time
+	Completed   bool
+	Creator     string
 }
 
 // ListTasksRequest defines parameters for listing tasks.
@@ -70,15 +73,22 @@ func (s *TaskService) ListTasks(ctx context.Context, req ListTasksRequest, opts 
 }
 
 // CreateTaskRequest defines parameters for creating a task.
+// Summary is the task title (Feishu `summary`, required).
+// Description is the task body (Feishu `description`, optional).
 type CreateTaskRequest struct {
-	Summary string
-	DueTime *time.Time
+	Summary     string
+	Description string
+	DueTime     *time.Time
 }
 
 // CreateTask creates a new task.
 func (s *TaskService) CreateTask(ctx context.Context, req CreateTaskRequest, opts ...CallOption) (*Task, error) {
 	inputBuilder := larktask.NewInputTaskBuilder().
 		Summary(req.Summary)
+
+	if req.Description != "" {
+		inputBuilder.Description(req.Description)
+	}
 
 	if due := buildTaskDue(req.DueTime); due != nil {
 		inputBuilder.Due(due)
@@ -102,9 +112,10 @@ func (s *TaskService) CreateTask(ctx context.Context, req CreateTaskRequest, opt
 
 // PatchTaskRequest defines parameters for updating a task.
 type PatchTaskRequest struct {
-	TaskID  string
-	Summary *string
-	DueTime *time.Time
+	TaskID      string
+	Summary     *string
+	Description *string
+	DueTime     *time.Time
 }
 
 // PatchTask updates an existing task. Only non-nil fields are patched.
@@ -115,6 +126,10 @@ func (s *TaskService) PatchTask(ctx context.Context, req PatchTaskRequest, opts 
 	if req.Summary != nil {
 		inputBuilder.Summary(*req.Summary)
 		updateFields = append(updateFields, "summary")
+	}
+	if req.Description != nil {
+		inputBuilder.Description(*req.Description)
+		updateFields = append(updateFields, "description")
 	}
 	if due := buildTaskDue(req.DueTime); due != nil {
 		inputBuilder.Due(due)
@@ -156,6 +171,9 @@ func parseLarkTask(item *larktask.Task) Task {
 	}
 	if item.Summary != nil {
 		t.Summary = *item.Summary
+	}
+	if item.Description != nil {
+		t.Description = *item.Description
 	}
 	if item.Due != nil && item.Due.Timestamp != nil {
 		t.DueTime = parseTimestamp(*item.Due.Timestamp)
