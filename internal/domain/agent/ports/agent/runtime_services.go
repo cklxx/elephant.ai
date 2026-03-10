@@ -22,18 +22,29 @@ type IDGenerator interface {
 	NewUUIDv7() string
 }
 
-// IDContextReader reads and writes correlation identifiers from context.
-type IDContextReader interface {
+// IDContextGetter extracts correlation identifiers from context.
+type IDContextGetter interface {
 	LogIDFromContext(ctx context.Context) string
 	CorrelationIDFromContext(ctx context.Context) string
 	CausationIDFromContext(ctx context.Context) string
 	IDsFromContext(ctx context.Context) IDContextValues
+}
+
+// IDContextSetter enriches context with correlation identifiers.
+type IDContextSetter interface {
 	WithSessionID(ctx context.Context, sessionID string) context.Context
 	WithRunID(ctx context.Context, runID string) context.Context
 	WithParentRunID(ctx context.Context, parentRunID string) context.Context
 	WithCorrelationID(ctx context.Context, correlationID string) context.Context
 	WithCausationID(ctx context.Context, causationID string) context.Context
 	WithLogID(ctx context.Context, logID string) context.Context
+}
+
+// IDContextReader reads and writes correlation identifiers from context.
+// It composes IDContextGetter and IDContextSetter.
+type IDContextReader interface {
+	IDContextGetter
+	IDContextSetter
 }
 
 // LatencyReporterFunc emits runtime latency diagnostics.

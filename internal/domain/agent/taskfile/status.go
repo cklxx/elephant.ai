@@ -2,8 +2,6 @@ package taskfile
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -11,6 +9,13 @@ import (
 	"alex/internal/shared/logging"
 	"gopkg.in/yaml.v3"
 )
+
+// StatusFileIO abstracts filesystem operations for status file persistence.
+// Implementations live in the infrastructure layer.
+type StatusFileIO interface {
+	ReadFile(path string) ([]byte, error)
+	WriteFileAtomic(path string, data []byte) error
+}
 
 // statusFile is the YAML structure written as a sidecar to a TaskFile.
 type statusFile struct {
@@ -31,8 +36,8 @@ type taskStatus struct {
 }
 
 // ReadStatusFile reads and deserializes a status sidecar YAML file.
-func ReadStatusFile(path string) (*statusFile, error) {
-	data, err := os.ReadFile(path)
+func ReadStatusFile(path string, io StatusFileIO) (*statusFile, error) {
+	data, err := io.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read status file: %w", err)
 	}
@@ -49,15 +54,17 @@ type statusWriter struct {
 	mu       sync.Mutex
 	path     string
 	file     statusFile
+	io       StatusFileIO
 	stopCh   chan struct{}
 	stopOnce sync.Once
 	logger   logging.Logger
 }
 
 // newStatusWriter creates a statusWriter that writes to the given path.
-func newStatusWriter(path string, logger logging.Logger) *statusWriter {
+func newStatusWriter(path string, io StatusFileIO, logger logging.Logger) *statusWriter {
 	return &statusWriter{
 		path:   path,
+		io:     io,
 		stopCh: make(chan struct{}),
 		logger: logging.OrNop(logger),
 	}
@@ -185,22 +192,12 @@ func (sw *statusWriter) syncFromDispatcher(dispatcher agent.BackgroundTaskDispat
 }
 
 func (sw *statusWriter) writeUnsafe() error {
+	if sw.io == nil {
+		return nil
+	}
 	data, err := yaml.Marshal(&sw.file)
 	if err != nil {
 		return fmt.Errorf("marshal status: %w", err)
 	}
-
-	dir := filepath.Dir(sw.path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("create status dir: %w", err)
-	}
-
-	tmp := sw.path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("write status tmp: %w", err)
-	}
-	if err := os.Rename(tmp, sw.path); err != nil {
-		return fmt.Errorf("rename status: %w", err)
-	}
-	return nil
+	return sw.io.WriteFileAtomic(sw.path, data)
 }

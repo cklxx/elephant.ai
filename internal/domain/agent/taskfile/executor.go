@@ -23,6 +23,7 @@ type Executor struct {
 	dispatcher agent.BackgroundTaskDispatcher
 	mode       ExecutionMode
 	swarmCfg   SwarmConfig
+	io         StatusFileIO
 }
 
 // NewExecutor creates an Executor backed by the given dispatcher. The mode
@@ -35,6 +36,10 @@ func NewExecutor(dispatcher agent.BackgroundTaskDispatcher, mode ExecutionMode, 
 		swarmCfg:   swarmCfg,
 	}
 }
+
+// SetIO sets the StatusFileIO implementation used for status file persistence.
+// If not set, the executor cannot write status files and will silently skip persistence.
+func (e *Executor) SetIO(io StatusFileIO) { e.io = io }
 
 // resolveMode returns the concrete mode (team or swarm) for the given TaskFile.
 func (e *Executor) resolveMode(tf *TaskFile) ExecutionMode {
@@ -52,7 +57,7 @@ func (e *Executor) Execute(ctx context.Context, tf *TaskFile, causationID, statu
 		return nil, fmt.Errorf("validate: %w", err)
 	}
 	if e.resolveMode(tf) == ModeSwarm {
-		sched := newSwarmScheduler(e.dispatcher, e.swarmCfg)
+		sched := newSwarmScheduler(e.dispatcher, e.swarmCfg, e.io)
 		return sched.executeSwarmValidated(ctx, tf, causationID, statusPath)
 	}
 	return e.executeTeamValidated(ctx, tf, causationID, statusPath)
@@ -65,7 +70,7 @@ func (e *Executor) ExecuteAndWait(ctx context.Context, tf *TaskFile, causationID
 	}
 	if e.resolveMode(tf) == ModeSwarm {
 		// Swarm execution is already synchronous (blocks per stage).
-		sched := newSwarmScheduler(e.dispatcher, e.swarmCfg)
+		sched := newSwarmScheduler(e.dispatcher, e.swarmCfg, e.io)
 		return sched.executeSwarmValidated(ctx, tf, causationID, statusPath)
 	}
 
@@ -79,11 +84,13 @@ func (e *Executor) ExecuteAndWait(ctx context.Context, tf *TaskFile, causationID
 
 	// Final status sync. Rehydrate existing sidecar first so SyncOnce updates
 	// the initialized task rows instead of operating on an empty in-memory file.
-	sw := newStatusWriter(statusPath, nil)
-	if existing, readErr := ReadStatusFile(statusPath); readErr == nil && existing != nil {
-		sw.RehydrateFrom(existing)
+	if e.io != nil {
+		sw := newStatusWriter(statusPath, e.io, nil)
+		if existing, readErr := ReadStatusFile(statusPath, e.io); readErr == nil && existing != nil {
+			sw.RehydrateFrom(existing)
+		}
+		sw.SyncOnce(e.dispatcher, result.TaskIDs)
 	}
-	sw.SyncOnce(e.dispatcher, result.TaskIDs)
 
 	return result, nil
 }
@@ -105,7 +112,7 @@ func (e *Executor) executeTeamValidated(ctx context.Context, tf *TaskFile, causa
 	}
 
 	// Init status file.
-	sw := newStatusWriter(statusPath, nil)
+	sw := newStatusWriter(statusPath, e.io, nil)
 	if err := sw.InitFromTaskFile(tf); err != nil {
 		return nil, fmt.Errorf("init status: %w", err)
 	}

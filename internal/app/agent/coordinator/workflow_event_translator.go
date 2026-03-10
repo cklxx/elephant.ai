@@ -75,57 +75,60 @@ func (t *workflowEventTranslator) translate(evt agent.AgentEvent) []*domain.Work
 	return nil
 }
 
-func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *domain.Event) []*domain.WorkflowEventEnvelope {
-	d := &e.Data
-	switch e.Kind {
-	case types.EventLifecycleUpdated:
+// unifiedEventHandler translates a single event kind.
+type unifiedEventHandler func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope
+
+// unifiedHandlers maps event kinds to their translation handlers.
+// New event types are added here instead of extending a switch statement.
+var unifiedHandlers = map[string]unifiedEventHandler{
+	types.EventLifecycleUpdated: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.translateLifecycle(evt, d)
-
-	case types.EventNodeStarted:
+	},
+	types.EventNodeStarted: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.translateNodeStarted(evt, d)
-
-	case types.EventNodeCompleted:
+	},
+	types.EventNodeCompleted: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.translateNodeCompleted(evt, d)
-
-	case types.EventNodeOutputSummary:
+	},
+	types.EventNodeOutputSummary: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.translateNodeOutputSummary(evt, d)
-
-	case types.EventNodeOutputDelta:
+	},
+	types.EventNodeOutputDelta: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.translateNodeOutputDelta(evt, d)
-
-	case types.EventToolStarted:
+	},
+	types.EventToolStarted: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.toolEnvelope(evt, types.EventToolStarted, d.CallID, map[string]any{
 			"tool_name": d.ToolName,
 			"arguments": d.Arguments,
 			"iteration": d.Iteration,
 		})
-
-	case types.EventToolProgress:
+	},
+	types.EventToolProgress: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.toolEnvelope(evt, types.EventToolProgress, d.CallID, map[string]any{
 			"chunk":       d.Chunk,
 			"is_complete": d.IsComplete,
 		})
-
-	case types.EventToolCompleted:
+	},
+	types.EventToolCompleted: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.translateToolComplete(evt, d)
-
-	case types.EventResultFinal:
+	},
+	types.EventResultFinal: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.translateResultFinal(evt, d)
-
-	case types.EventResultCancelled:
+	},
+	types.EventResultCancelled: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.translateResultCancelled(evt, d)
-
-	case types.EventNodeFailed:
+	},
+	types.EventNodeFailed: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.translateNodeFailure(evt, d)
-
-	case types.EventDiagnosticContextCompression:
+	},
+	types.EventDiagnosticContextCompression: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.diagnosticEnvelope(evt, types.EventDiagnosticContextCompression, map[string]any{
 			"original_count":   d.OriginalCount,
 			"compressed_count": d.CompressedCount,
 			"compression_rate": d.CompressionRate,
 		})
-
-	case types.EventDiagnosticToolFiltering:
+	},
+	types.EventDiagnosticToolFiltering: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.diagnosticEnvelope(evt, types.EventDiagnosticToolFiltering, map[string]any{
 			"preset_name":       d.PresetName,
 			"original_count":    d.OriginalCount,
@@ -133,34 +136,34 @@ func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *doma
 			"filtered_tools":    d.FilteredTools,
 			"tool_filter_ratio": d.ToolFilterRatio,
 		})
-
-	case types.EventDiagnosticEnvironmentSnapshot:
+	},
+	types.EventDiagnosticEnvironmentSnapshot: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.diagnosticEnvelope(evt, types.EventDiagnosticEnvironmentSnapshot, map[string]any{
 			"host":     d.Host,
 			"captured": d.Captured,
 		})
-
-	case types.EventInputReceived:
+	},
+	types.EventInputReceived: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.singleEnvelope(evt, types.EventInputReceived, "input", "", map[string]any{
 			"task":        d.Task,
 			"attachments": d.Attachments,
 		})
-
-	case types.EventProactiveContextRefresh:
+	},
+	types.EventProactiveContextRefresh: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.singleEnvelope(evt, types.EventProactiveContextRefresh, "diagnostic", "", map[string]any{
 			"iteration":         d.Iteration,
 			"memories_injected": d.MemoriesInjected,
 		})
-
-	case types.EventBackgroundTaskDispatched:
+	},
+	types.EventBackgroundTaskDispatched: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.singleEnvelope(evt, types.EventBackgroundTaskDispatched, "background", d.TaskID, map[string]any{
 			"task_id":     d.TaskID,
 			"description": d.Description,
 			"prompt":      d.Prompt,
 			"agent_type":  d.AgentType,
 		})
-
-	case types.EventBackgroundTaskCompleted:
+	},
+	types.EventBackgroundTaskCompleted: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.singleEnvelope(evt, types.EventBackgroundTaskCompleted, "background", d.TaskID, map[string]any{
 			"task_id":      d.TaskID,
 			"description":  d.Description,
@@ -172,8 +175,8 @@ func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *doma
 			"iterations":   d.Iterations,
 			"tokens_used":  d.TokensUsed,
 		})
-
-	case types.EventExternalAgentProgress:
+	},
+	types.EventExternalAgentProgress: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.singleEnvelope(evt, types.EventExternalAgentProgress, "external_agent", d.TaskID, map[string]any{
 			"task_id":       d.TaskID,
 			"agent_type":    d.AgentType,
@@ -187,8 +190,8 @@ func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *doma
 			"last_activity": d.LastActivity,
 			"elapsed":       d.Elapsed.Milliseconds(),
 		})
-
-	case types.EventExternalInputRequested:
+	},
+	types.EventExternalInputRequested: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.singleEnvelope(evt, types.EventExternalInputRequested, "external_input", d.TaskID, map[string]any{
 			"task_id":    d.TaskID,
 			"agent_type": d.AgentType,
@@ -196,8 +199,8 @@ func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *doma
 			"type":       d.Type,
 			"summary":    d.Summary,
 		})
-
-	case types.EventExternalInputResponded:
+	},
+	types.EventExternalInputResponded: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
 		return t.singleEnvelope(evt, types.EventExternalInputResponded, "external_input", d.TaskID, map[string]any{
 			"task_id":    d.TaskID,
 			"request_id": d.RequestID,
@@ -205,10 +208,15 @@ func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *doma
 			"option_id":  d.OptionID,
 			"message":    d.Message,
 		})
+	},
+}
 
-	default:
-		return nil
+func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *domain.Event) []*domain.WorkflowEventEnvelope {
+	d := &e.Data
+	if handler, ok := unifiedHandlers[e.Kind]; ok {
+		return handler(t, evt, d)
 	}
+	return nil
 }
 
 type nodeEventMeta struct {

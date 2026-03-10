@@ -7,29 +7,32 @@ import (
 	"alex/internal/shared/modelregistry"
 )
 
-// CostTracker tracks token usage and costs across LLM interactions
-type CostTracker interface {
-	// RecordUsage records a single LLM API call usage
+// CostRecorder records LLM usage events.
+type CostRecorder interface {
 	RecordUsage(ctx context.Context, usage UsageRecord) error
+}
 
-	// GetSessionCost returns total cost for a specific session
+// CostQuerier provides read access to aggregated cost data.
+type CostQuerier interface {
 	GetSessionCost(ctx context.Context, sessionID string) (*CostSummary, error)
-
-	// GetSessionStats returns detailed statistics for a specific session
-	// This includes total tokens, costs, and request counts
 	GetSessionStats(ctx context.Context, sessionID string) (*SessionStats, error)
-
-	// GetDailyCost returns aggregated cost for a specific day
 	GetDailyCost(ctx context.Context, date time.Time) (*CostSummary, error)
-
-	// GetMonthlyCost returns aggregated cost for a specific month
 	GetMonthlyCost(ctx context.Context, year int, month int) (*CostSummary, error)
-
-	// GetDateRangeCost returns cost for a date range
 	GetDateRangeCost(ctx context.Context, start, end time.Time) (*CostSummary, error)
+}
 
-	// Export exports usage records in specified format
+// CostExporter exports usage records in various formats.
+type CostExporter interface {
 	Export(ctx context.Context, format ExportFormat, filter ExportFilter) ([]byte, error)
+}
+
+// CostTracker tracks token usage and costs across LLM interactions.
+// It composes CostRecorder, CostQuerier, and CostExporter.
+// Prefer depending on the narrower interface that matches your actual usage.
+type CostTracker interface {
+	CostRecorder
+	CostQuerier
+	CostExporter
 }
 
 // UsageRecord represents a single LLM usage event

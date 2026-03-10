@@ -18,6 +18,12 @@ import (
 	"alex/internal/domain/agent/taskfile"
 )
 
+// testStatusIO is a minimal StatusFileIO for tests in this package.
+type testStatusIO struct{}
+
+func (testStatusIO) ReadFile(path string) ([]byte, error)           { return os.ReadFile(path) }
+func (testStatusIO) WriteFileAtomic(path string, data []byte) error { return os.WriteFile(path, data, 0o644) }
+
 // --- Helpers ---
 
 // scenarioExecutor routes prompts to different behaviors based on content.
@@ -118,6 +124,7 @@ func TestIntegration_FullDAGOrchestration(t *testing.T) {
 
 	statusPath := t.TempDir() + "/dag.status.yaml"
 	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
+	exec.SetIO(testStatusIO{})
 
 	result, err := exec.ExecuteAndWait(context.Background(), tf, "cause-dag", statusPath, 10*time.Second)
 	if err != nil {
@@ -638,6 +645,7 @@ func TestIntegration_StatusFileReflectsLifecycle(t *testing.T) {
 
 	statusPath := t.TempDir() + "/lifecycle.status.yaml"
 	exec := taskfile.NewExecutor(mgr, taskfile.ModeTeam, taskfile.DefaultSwarmConfig())
+	exec.SetIO(testStatusIO{})
 
 	_, err := exec.Execute(context.Background(), tf, "", statusPath)
 	if err != nil {

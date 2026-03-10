@@ -10,18 +10,19 @@ import (
 	"alex/internal/shared/uxphrases"
 )
 
+// hookFormatters maps hook event names to their formatting functions.
+var hookFormatters = map[string]func(hookPayload) string{
+	"PostToolUse": formatPostToolUse,
+	"Stop":        formatStop,
+	"PreToolUse":  formatPreToolUse,
+}
+
 // formatHookEvent formats a hook payload into a friendly Chinese Lark message.
 func (h *HooksBridge) formatHookEvent(p hookPayload) string {
-	switch p.Event {
-	case "PostToolUse":
-		return formatPostToolUse(p)
-	case "Stop":
-		return formatStop(p)
-	case "PreToolUse":
-		return formatPreToolUse(p)
-	default:
-		return ""
+	if fn, ok := hookFormatters[p.Event]; ok {
+		return fn(p)
 	}
+	return ""
 }
 
 // formatPostToolUse creates a friendly message for a completed tool use.

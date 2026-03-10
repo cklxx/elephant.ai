@@ -289,25 +289,21 @@ func defaultManualCatalogProviders() []string {
 	}
 }
 
+var providerRankMap = map[string]int{
+	"openai":     0,
+	"openrouter": 1,
+	"anthropic":  2,
+	"kimi":       3,
+	"glm":        4,
+	"minimax":    5,
+	"codex":      6,
+}
+
 func catalogProviderRank(provider string) int {
-	switch provider {
-	case "openai":
-		return 0
-	case "openrouter":
-		return 1
-	case "anthropic":
-		return 2
-	case "kimi":
-		return 3
-	case "glm":
-		return 4
-	case "minimax":
-		return 5
-	case "codex":
-		return 6
-	default:
-		return 50
+	if rank, ok := providerRankMap[provider]; ok {
+		return rank
 	}
+	return 50
 }
 
 func codexFallbackModels(cliModel string) []string {

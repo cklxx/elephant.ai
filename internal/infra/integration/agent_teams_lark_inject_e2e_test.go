@@ -19,6 +19,7 @@ import (
 	"alex/internal/domain/agent/ports/storage"
 	"alex/internal/domain/agent/react"
 	"alex/internal/domain/agent/taskfile"
+	"alex/internal/infra/adapters"
 	"alex/internal/infra/external/bridge"
 	"alex/internal/infra/process"
 	"alex/internal/shared/logging"
@@ -697,7 +698,7 @@ func TestLarkInject_StatusFile(t *testing.T) {
 
 	// Verify status file was written.
 	statusPath := filepath.Join(workspace, ".elephant", "tasks", "team-"+teamName+".status.yaml")
-	sf, err := taskfile.ReadStatusFile(statusPath)
+	sf, err := taskfile.ReadStatusFile(statusPath, adapters.NewOSStatusFileIO())
 	if err != nil {
 		t.Fatalf("ReadStatusFile: %v", err)
 	}

@@ -71,6 +71,7 @@ func TestExecutor_DispatchesInTopoOrder(t *testing.T) {
 	mock := &mockDispatcher{}
 	statusPath := filepath.Join(t.TempDir(), "test.status.yaml")
 	exec := NewExecutor(mock, ModeTeam, DefaultSwarmConfig())
+	exec.SetIO(osTestIO{})
 
 	result, err := exec.Execute(context.Background(), tf, "cause-1", statusPath)
 	if err != nil {
@@ -366,13 +367,14 @@ func TestExecutor_ExecuteAndWait_FinalSyncRehydratesStatusFile(t *testing.T) {
 	}
 	statusPath := filepath.Join(t.TempDir(), "rehydrate.status.yaml")
 	exec := NewExecutor(mock, ModeTeam, DefaultSwarmConfig())
+	exec.SetIO(osTestIO{})
 
 	_, err := exec.ExecuteAndWait(context.Background(), tf, "cause-rehydrate", statusPath, 2*time.Second)
 	if err != nil {
 		t.Fatalf("ExecuteAndWait: %v", err)
 	}
 
-	sf, err := ReadStatusFile(statusPath)
+	sf, err := ReadStatusFile(statusPath, osTestIO{})
 	if err != nil {
 		t.Fatalf("ReadStatusFile: %v", err)
 	}

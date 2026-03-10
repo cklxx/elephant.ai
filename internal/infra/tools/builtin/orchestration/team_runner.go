@@ -10,6 +10,7 @@ import (
 
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/taskfile"
+	"alex/internal/infra/adapters"
 	"alex/internal/infra/teamruntime"
 	toolshared "alex/internal/infra/tools/builtin/shared"
 	id "alex/internal/shared/utils/id"
@@ -158,6 +159,7 @@ func (r *TeamRunner) executeFromTemplate(ctx context.Context, req RunRequest) (*
 		Wait:            req.Wait,
 		Timeout:         req.Timeout,
 		TaskIDs:         req.TaskIDs,
+		IO:              adapters.NewOSStatusFileIO(),
 		BootstrapFn: func(ctx context.Context, tf *taskfile.TaskFile) error {
 			bootstrap, err := r.ensureTeamBootstrap(ctx, statusPath, req.TemplateName, req.Goal, *teamDef, req.SessionID)
 			if err != nil {
@@ -185,6 +187,7 @@ func (r *TeamRunner) executeFromTemplate(ctx context.Context, req RunRequest) (*
 
 func (r *TeamRunner) executeTasks(ctx context.Context, req RunRequest, tf *taskfile.TaskFile, statusPath string) (*taskfile.ExecuteResult, error) {
 	executor := taskfile.NewExecutor(req.Dispatcher, req.Mode, taskfile.DefaultSwarmConfig())
+	executor.SetIO(adapters.NewOSStatusFileIO())
 	if req.Wait {
 		return executor.ExecuteAndWait(ctx, tf, req.CausationID, statusPath, req.Timeout)
 	}

@@ -41,6 +41,7 @@ func DefaultSwarmConfig() SwarmConfig {
 type swarmScheduler struct {
 	config     SwarmConfig
 	dispatcher agent.BackgroundTaskDispatcher
+	io         StatusFileIO
 	// current is the active concurrency limit, adjusted between layers.
 	// Not goroutine-safe: only read/written from the single-threaded
 	// executeSwarmValidated loop (between layers, never during dispatch).
@@ -48,7 +49,7 @@ type swarmScheduler struct {
 }
 
 // newSwarmScheduler creates a scheduler backed by the given dispatcher.
-func newSwarmScheduler(dispatcher agent.BackgroundTaskDispatcher, cfg SwarmConfig) *swarmScheduler {
+func newSwarmScheduler(dispatcher agent.BackgroundTaskDispatcher, cfg SwarmConfig, io StatusFileIO) *swarmScheduler {
 	current := cfg.InitialConcurrency
 	if current <= 0 {
 		current = DefaultSwarmConfig().InitialConcurrency
@@ -68,6 +69,7 @@ func newSwarmScheduler(dispatcher agent.BackgroundTaskDispatcher, cfg SwarmConfi
 	return &swarmScheduler{
 		config:     cfg,
 		dispatcher: dispatcher,
+		io:         io,
 		current:    current,
 	}
 }
@@ -95,7 +97,7 @@ func (s *swarmScheduler) executeSwarmValidated(ctx context.Context, tf *TaskFile
 		byID[t.ID] = t
 	}
 
-	sw := newStatusWriter(statusPath, nil)
+	sw := newStatusWriter(statusPath, s.io, nil)
 	if err := sw.InitFromTaskFile(tf); err != nil {
 		return nil, fmt.Errorf("init status: %w", err)
 	}

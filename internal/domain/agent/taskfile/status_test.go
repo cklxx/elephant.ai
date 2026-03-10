@@ -6,6 +6,12 @@ import (
 	"testing"
 )
 
+// osTestIO is a minimal StatusFileIO backed by the real filesystem, used only in tests.
+type osTestIO struct{}
+
+func (osTestIO) ReadFile(path string) ([]byte, error)              { return os.ReadFile(path) }
+func (osTestIO) WriteFileAtomic(path string, data []byte) error    { return os.WriteFile(path, data, 0o644) }
+
 func TestReadStatusFile_HappyPath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "team-test.status.yaml")
@@ -28,7 +34,7 @@ tasks:
 		t.Fatalf("write: %v", err)
 	}
 
-	sf, err := ReadStatusFile(path)
+	sf, err := ReadStatusFile(path, osTestIO{})
 	if err != nil {
 		t.Fatalf("ReadStatusFile: %v", err)
 	}
@@ -50,7 +56,7 @@ tasks:
 }
 
 func TestReadStatusFile_FileNotFound(t *testing.T) {
-	_, err := ReadStatusFile("/nonexistent/status.yaml")
+	_, err := ReadStatusFile("/nonexistent/status.yaml", osTestIO{})
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}
@@ -62,7 +68,7 @@ func TestReadStatusFile_MalformedYAML(t *testing.T) {
 	if err := os.WriteFile(path, []byte("tasks:\n  - [broken: {nesting"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	_, err := ReadStatusFile(path)
+	_, err := ReadStatusFile(path, osTestIO{})
 	if err == nil {
 		t.Fatal("expected error for malformed YAML")
 	}

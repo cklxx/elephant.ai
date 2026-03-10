@@ -58,52 +58,40 @@ type Task struct {
 	ToolPreset  string `json:"tool_preset,omitempty"`  // Tool access preset used
 }
 
-// TaskStore manages task lifecycle and persistence
-type TaskStore interface {
-	// Create creates a new task with optional presets
-	Create(ctx context.Context, sessionID string, description string, agentPreset string, toolPreset string) (*Task, error)
-
-	// Get retrieves a task by ID
+// TaskReader provides read-only access to tasks.
+type TaskReader interface {
 	Get(ctx context.Context, taskID string) (*Task, error)
-
-	// List returns tasks with pagination
 	List(ctx context.Context, limit int, offset int) ([]*Task, int, error)
-
-	// ListBySession returns tasks for a specific session
 	ListBySession(ctx context.Context, sessionID string) ([]*Task, error)
-
-	// ListByStatus returns tasks filtered by one or more statuses
 	ListByStatus(ctx context.Context, statuses ...TaskStatus) ([]*Task, error)
+}
 
-	// Delete removes a task
+// TaskWriter provides task mutation operations.
+type TaskWriter interface {
+	Create(ctx context.Context, sessionID string, description string, agentPreset string, toolPreset string) (*Task, error)
 	Delete(ctx context.Context, taskID string) error
-
-	// SetStatus updates task status
 	SetStatus(ctx context.Context, taskID string, status TaskStatus) error
-
-	// SetError records task failure
 	SetError(ctx context.Context, taskID string, err error) error
-
-	// SetResult stores task completion result
 	SetResult(ctx context.Context, taskID string, result *agent.TaskResult) error
-
-	// UpdateProgress updates task execution progress
 	UpdateProgress(ctx context.Context, taskID string, iteration int, tokensUsed int) error
-
-	// SetTerminationReason sets the termination reason for a task
 	SetTerminationReason(ctx context.Context, taskID string, reason TerminationReason) error
+}
 
-	// TryClaimTask attempts to claim ownership for task execution.
+// TaskClaimer provides distributed task ownership operations.
+type TaskClaimer interface {
 	TryClaimTask(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error)
-
-	// ClaimResumableTasks atomically claims tasks in statuses and returns claimed tasks.
 	ClaimResumableTasks(ctx context.Context, ownerID string, leaseUntil time.Time, limit int, statuses ...TaskStatus) ([]*Task, error)
-
-	// RenewTaskLease refreshes the lease for an owned task.
 	RenewTaskLease(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error)
-
-	// ReleaseTaskLease releases ownership for a task.
 	ReleaseTaskLease(ctx context.Context, taskID, ownerID string) error
+}
+
+// TaskStore manages task lifecycle and persistence.
+// It composes TaskReader, TaskWriter, and TaskClaimer for callers that need full access.
+// Prefer depending on the narrower interface that matches your actual usage.
+type TaskStore interface {
+	TaskReader
+	TaskWriter
+	TaskClaimer
 }
 
 // IsTerminal reports whether the status is a final state.

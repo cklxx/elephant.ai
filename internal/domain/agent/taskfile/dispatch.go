@@ -26,7 +26,8 @@ type TeamRunRequest struct {
 	Timeout         time.Duration
 	SwarmConfig     SwarmConfig
 	BootstrapFn     BootstrapFn
-	TaskIDs         []string // optional: filter to specific task IDs after render
+	TaskIDs         []string     // optional: filter to specific task IDs after render
+	IO              StatusFileIO // optional: status file persistence
 }
 
 // teamRunResult captures the outcome of a team dispatch.
@@ -70,6 +71,7 @@ func DispatchTeamRun(ctx context.Context, req TeamRunRequest) (*teamRunResult, e
 	}
 
 	executor := NewExecutor(req.Dispatcher, req.Mode, swarmCfg)
+	executor.SetIO(req.IO)
 	var result *ExecuteResult
 	var err error
 
@@ -86,7 +88,7 @@ func DispatchTeamRun(ctx context.Context, req TeamRunRequest) (*teamRunResult, e
 		return nil, err
 	}
 
-	record := buildTeamRunRecord(tf, req.TeamDef, req.TeamDef.Name, req.Goal, result, req.StatusPath, req.Wait)
+	record := buildTeamRunRecord(tf, req.TeamDef, req.TeamDef.Name, req.Goal, result, req.StatusPath, req.Wait, req.IO)
 
 	return &teamRunResult{
 		ExecuteResult: result,
@@ -95,10 +97,10 @@ func DispatchTeamRun(ctx context.Context, req TeamRunRequest) (*teamRunResult, e
 }
 
 // buildTeamRunRecord constructs an audit record from a completed team dispatch.
-func buildTeamRunRecord(tf *TaskFile, def *agent.TeamDefinition, templateName, goal string, result *ExecuteResult, statusPath string, waited bool) agent.TeamRunRecord {
+func buildTeamRunRecord(tf *TaskFile, def *agent.TeamDefinition, templateName, goal string, result *ExecuteResult, statusPath string, waited bool, io StatusFileIO) agent.TeamRunRecord {
 	state := "dispatched"
 	if waited {
-		state = dispatchStateFromStatus(statusPath)
+		state = dispatchStateFromStatus(statusPath, io)
 	}
 	var stages []agent.TeamRunStageRecord
 	var roles []agent.TeamRunRoleRecord
@@ -174,8 +176,11 @@ func FilterTasks(tf *TaskFile, ids []string) *TaskFile {
 }
 
 // dispatchStateFromStatus reads a task status sidecar and returns a summary state string.
-func dispatchStateFromStatus(statusPath string) string {
-	sf, err := ReadStatusFile(statusPath)
+func dispatchStateFromStatus(statusPath string, io StatusFileIO) string {
+	if io == nil {
+		return "unknown"
+	}
+	sf, err := ReadStatusFile(statusPath, io)
 	if err != nil {
 		return "unknown"
 	}

@@ -2,9 +2,22 @@ package ports
 
 import (
 	"alex/internal/shared/utils"
-	"path/filepath"
 	"strings"
 )
+
+// fileExt returns the file extension including the dot (e.g. ".png").
+// It replaces filepath.Ext to avoid importing path/filepath in the domain layer.
+func fileExt(name string) string {
+	for i := len(name) - 1; i >= 0; i-- {
+		if name[i] == '.' {
+			return name[i:]
+		}
+		if name[i] == '/' || name[i] == '\\' {
+			break
+		}
+	}
+	return ""
+}
 
 // MergeAttachmentMaps merges src into dst using normalized attachment names.
 // When override is false, existing dst entries win.
@@ -49,7 +62,7 @@ func IsImageAttachment(att Attachment, fallbackName string) bool {
 		return false
 	}
 
-	switch strings.ToLower(filepath.Ext(name)) {
+	switch strings.ToLower(fileExt(name)) {
 	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff":
 		return true
 	default:

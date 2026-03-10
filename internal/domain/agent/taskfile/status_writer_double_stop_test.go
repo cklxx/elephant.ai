@@ -9,7 +9,7 @@ import (
 // TestStatusWriter_ConcurrentStop verifies that calling Stop() concurrently
 // from multiple goroutines does NOT panic (K-04/BL-04 regression guard).
 func TestStatusWriter_ConcurrentStop(t *testing.T) {
-	sw := newStatusWriter(t.TempDir()+"/status_writer_concurrent_test.yaml", nil)
+	sw := newStatusWriter(t.TempDir()+"/status_writer_concurrent_test.yaml", nil, nil)
 
 	const goroutines = 20
 	var wg sync.WaitGroup
@@ -35,7 +35,7 @@ func TestStatusWriter_StopSafeWithPolling(t *testing.T) {
 			{ID: "a", Prompt: "do a"},
 		},
 	}
-	sw := newStatusWriter(statusPath, nil)
+	sw := newStatusWriter(statusPath, nil, nil)
 	if err := sw.InitFromTaskFile(tf); err != nil {
 		t.Fatalf("InitFromTaskFile: %v", err)
 	}
