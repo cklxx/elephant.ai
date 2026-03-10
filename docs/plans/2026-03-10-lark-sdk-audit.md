@@ -4,7 +4,7 @@
 - [x] 审计 `internal/infra/lark/` 实现、测试与调用点
 - [x] 删除 dead code、简化卡片/消息构建逻辑
 - [x] 回归验证
-- [ ] review / commit / merge
+- [x] review / commit / merge
 
 ## Notes
 
