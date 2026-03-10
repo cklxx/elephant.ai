@@ -3,6 +3,7 @@ package lark
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -114,6 +115,41 @@ func TestEventDedup_ConcurrencySafety(t *testing.T) {
 	// Verify shared ID is now a duplicate.
 	if !d.isDuplicate("shared-msg", "shared-evt") {
 		t.Fatal("shared ID should be duplicate after concurrent writes")
+	}
+}
+
+// TestEventDedup_ConcurrentFirstDeliveryRace verifies that when N goroutines
+// simultaneously attempt to deliver the same event for the first time, exactly
+// one of them wins (isDuplicate returns false) and all others are rejected
+// (isDuplicate returns true). This is the TOCTOU race that LoadOrStore fixes.
+func TestEventDedup_ConcurrentFirstDeliveryRace(t *testing.T) {
+	const attempts = 100
+
+	for trial := 0; trial < 50; trial++ {
+		d := newEventDedup(nil)
+		var passed int64
+		var wg sync.WaitGroup
+
+		// Use a barrier so all goroutines call isDuplicate at the same instant.
+		barrier := make(chan struct{})
+
+		for i := 0; i < attempts; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-barrier
+				if !d.isDuplicate("msg-race", "evt-race") {
+					atomic.AddInt64(&passed, 1)
+				}
+			}()
+		}
+
+		close(barrier)
+		wg.Wait()
+
+		if passed != 1 {
+			t.Fatalf("trial %d: expected exactly 1 goroutine to pass dedup, got %d", trial, passed)
+		}
 	}
 }
 
