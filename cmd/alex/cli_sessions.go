@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	sessionstate "alex/internal/infra/session/state_store"
@@ -19,16 +20,22 @@ func (c *CLI) handleSessions(args []string) error {
 	ctx := cliBaseContext()
 
 	if len(args) == 0 || args[0] == "list" {
-		return c.listSessions(ctx)
+		listArgs := args
+		if len(args) > 0 {
+			listArgs = args[1:]
+		}
+		return c.listSessionsCommand(ctx, listArgs)
 	}
 
 	switch args[0] {
 	case "cleanup", "clean", "prune":
 		return c.cleanupSessions(ctx, args[1:])
+	case "inspect", "show", "detail":
+		return c.inspectSessionCommand(ctx, args[1:])
 	case "pull":
 		return c.pullSessionSnapshotsWithWriter(ctx, args[1:], os.Stdout)
 	default:
-		return fmt.Errorf("unknown sessions subcommand: %s", args[0])
+		return fmt.Errorf("unknown sessions subcommand: %s\nUsage: alex sessions [list|inspect|clean|pull]", args[0])
 	}
 }
 
@@ -267,59 +274,264 @@ func summarizeSnapshotGaps(snapshot sessionstate.Snapshot) string {
 	return fmt.Sprintf("snapshots currently omit %s; see docs/status/context_framework_status.md", strings.Join(missing, ", "))
 }
 
-func (c *CLI) listSessions(ctx context.Context) error {
+// sessionListRow is the structured data for one session in list output.
+type sessionListRow struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Messages  int    `json:"messages"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	Age       string `json:"age"`
+}
+
+func (c *CLI) listSessionsCommand(ctx context.Context, args []string) error {
+	fs, flagBuf := newBufferedFlagSet("alex sessions list")
+	jsonOut := fs.Bool("json", false, "Output as JSON array")
+	if err := fs.Parse(args); err != nil {
+		return formatBufferedFlagParseError(err, flagBuf)
+	}
+	return c.listSessionsWithWriter(ctx, os.Stdout, *jsonOut)
+}
+
+func (c *CLI) listSessionsWithWriter(ctx context.Context, out io.Writer, jsonOut bool) error {
 	sessionIDs, err := c.listAllSessions(ctx)
 	if err != nil {
 		return err
 	}
-
 	if len(sessionIDs) == 0 {
-		fmt.Println("No sessions found")
+		if jsonOut {
+			_, _ = fmt.Fprintln(out, "[]")
+			return nil
+		}
+		_, _ = fmt.Fprintln(out, "No sessions found")
 		return nil
 	}
 
-	fmt.Printf("Found %d session(s):\n\n", len(sessionIDs))
-
-	// Fetch and display detailed metadata for each session
-	for i, sid := range sessionIDs {
+	now := time.Now()
+	rows := make([]sessionListRow, 0, len(sessionIDs))
+	for _, sid := range sessionIDs {
 		session, err := c.container.Container.SessionStore.Get(ctx, sid)
 		if err != nil {
-			fmt.Printf("  %d. %s (error loading metadata: %v)\n", i+1, sid, err)
+			rows = append(rows, sessionListRow{ID: sid, Title: "(error)"})
 			continue
 		}
-
-		// Calculate stats
-		messageCount := len(session.Messages)
-		todoCount := len(session.Todos)
-
-		// Format timestamps
-		created := session.CreatedAt.Format("2006-01-02 15:04:05")
-		updated := session.UpdatedAt.Format("2006-01-02 15:04:05")
-
-		// Display session info
-		fmt.Printf("  %d. %s\n", i+1, sid)
-		fmt.Printf("     Created:  %s\n", created)
-		fmt.Printf("     Updated:  %s\n", updated)
-		fmt.Printf("     Messages: %d\n", messageCount)
-		fmt.Printf("     Todos:    %d\n", todoCount)
-
-		// Show metadata if present
-		if len(session.Metadata) > 0 {
-			fmt.Printf("     Metadata: ")
-			first := true
-			for key, value := range session.Metadata {
-				if !first {
-					fmt.Printf(", ")
-				}
-				fmt.Printf("%s=%s", key, value)
-				first = false
-			}
-			fmt.Println()
+		title := session.Metadata["title"]
+		if title == "" {
+			title = "-"
 		}
-		fmt.Println()
+		rows = append(rows, sessionListRow{
+			ID:        sid,
+			Title:     truncateStr(title, 40),
+			Messages:  len(session.Messages),
+			CreatedAt: session.CreatedAt.Format("2006-01-02 15:04"),
+			UpdatedAt: session.UpdatedAt.Format("2006-01-02 15:04"),
+			Age:       formatAge(now.Sub(session.UpdatedAt)),
+		})
+	}
+
+	if jsonOut {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(rows)
+	}
+
+	_, _ = fmt.Fprintf(out, "Sessions: %d\n\n", len(rows))
+	tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "ID\tTITLE\tMSGS\tCREATED\tLAST ACTIVE\tAGE")
+	for _, r := range rows {
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%s\t%s\n",
+			r.ID, r.Title, r.Messages, r.CreatedAt, r.UpdatedAt, r.Age)
+	}
+	return tw.Flush()
+}
+
+func truncateStr(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max-3] + "..."
+}
+
+func formatAge(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	}
+}
+
+// sessionInspectResult is the structured output for inspect.
+type sessionInspectResult struct {
+	ID           string            `json:"id"`
+	Title        string            `json:"title"`
+	CreatedAt    string            `json:"created_at"`
+	UpdatedAt    string            `json:"updated_at"`
+	MessageCount int               `json:"message_count"`
+	TodoCount    int               `json:"todo_count"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+	Roles        map[string]int    `json:"roles"`
+	Cost         *inspectCostInfo  `json:"cost,omitempty"`
+}
+
+type inspectCostInfo struct {
+	TotalTokens  int     `json:"total_tokens"`
+	InputTokens  int     `json:"input_tokens"`
+	OutputTokens int     `json:"output_tokens"`
+	TotalCost    float64 `json:"total_cost"`
+	RequestCount int     `json:"request_count"`
+	Model        string  `json:"model,omitempty"`
+}
+
+func (c *CLI) inspectSessionCommand(ctx context.Context, args []string) error {
+	fs, flagBuf := newBufferedFlagSet("alex sessions inspect")
+	jsonOut := fs.Bool("json", false, "Output as JSON")
+
+	var positionalID string
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		positionalID = strings.TrimSpace(args[0])
+		args = args[1:]
+	}
+	if err := fs.Parse(args); err != nil {
+		return formatBufferedFlagParseError(err, flagBuf)
+	}
+	sessionID := positionalID
+	if sessionID == "" {
+		if rest := fs.Args(); len(rest) > 0 {
+			sessionID = strings.TrimSpace(rest[0])
+		}
+	}
+	if sessionID == "" {
+		return fmt.Errorf("usage: alex sessions inspect <session-id> [--json]")
+	}
+	return c.inspectSessionWithWriter(ctx, sessionID, os.Stdout, *jsonOut)
+}
+
+func (c *CLI) inspectSessionWithWriter(ctx context.Context, sessionID string, out io.Writer, jsonOut bool) error {
+	if c == nil || c.container == nil || c.container.Container == nil {
+		return fmt.Errorf("container not initialized")
+	}
+	store := c.container.Container.SessionStore
+	if store == nil {
+		return fmt.Errorf("session store not configured")
+	}
+
+	session, err := store.Get(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("get session %s: %w", sessionID, err)
+	}
+
+	title := session.Metadata["title"]
+	if title == "" {
+		title = "(untitled)"
+	}
+
+	// Count messages by role
+	roles := make(map[string]int)
+	for _, msg := range session.Messages {
+		roles[msg.Role]++
+	}
+
+	result := sessionInspectResult{
+		ID:           session.ID,
+		Title:        title,
+		CreatedAt:    session.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:    session.UpdatedAt.Format(time.RFC3339),
+		MessageCount: len(session.Messages),
+		TodoCount:    len(session.Todos),
+		Metadata:     session.Metadata,
+		Roles:        roles,
+	}
+
+	// Try to fetch cost data if CostTracker is available
+	if ct := c.container.Container.CostTracker; ct != nil {
+		if summary, err := ct.GetSessionCost(ctx, sessionID); err == nil && summary != nil {
+			model := topModel(summary.ByModel)
+			result.Cost = &inspectCostInfo{
+				TotalTokens:  summary.TotalTokens,
+				InputTokens:  summary.InputTokens,
+				OutputTokens: summary.OutputTokens,
+				TotalCost:    summary.TotalCost,
+				RequestCount: summary.RequestCount,
+				Model:        model,
+			}
+		}
+	}
+
+	if jsonOut {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(result)
+	}
+
+	return printSessionInspect(out, result)
+}
+
+func printSessionInspect(out io.Writer, r sessionInspectResult) error {
+	_, _ = fmt.Fprintf(out, "Session: %s\n", r.ID)
+	_, _ = fmt.Fprintf(out, "Title:   %s\n", r.Title)
+	_, _ = fmt.Fprintf(out, "Created: %s\n", r.CreatedAt)
+	_, _ = fmt.Fprintf(out, "Updated: %s\n", r.UpdatedAt)
+	_, _ = fmt.Fprintf(out, "\nMessages: %d\n", r.MessageCount)
+
+	if len(r.Roles) > 0 {
+		parts := make([]string, 0, len(r.Roles))
+		for role, count := range r.Roles {
+			parts = append(parts, fmt.Sprintf("%s=%d", role, count))
+		}
+		sort.Strings(parts)
+		_, _ = fmt.Fprintf(out, "  Breakdown: %s\n", strings.Join(parts, ", "))
+	}
+
+	_, _ = fmt.Fprintf(out, "Todos:    %d\n", r.TodoCount)
+
+	if r.Cost != nil {
+		_, _ = fmt.Fprintf(out, "\nToken Usage:\n")
+		_, _ = fmt.Fprintf(out, "  Total:    %d (in: %d, out: %d)\n",
+			r.Cost.TotalTokens, r.Cost.InputTokens, r.Cost.OutputTokens)
+		_, _ = fmt.Fprintf(out, "  Cost:     $%.4f\n", r.Cost.TotalCost)
+		_, _ = fmt.Fprintf(out, "  Requests: %d\n", r.Cost.RequestCount)
+		if r.Cost.Model != "" {
+			_, _ = fmt.Fprintf(out, "  Model:    %s\n", r.Cost.Model)
+		}
+	}
+
+	if len(r.Metadata) > 0 {
+		_, _ = fmt.Fprintf(out, "\nMetadata:\n")
+		keys := make([]string, 0, len(r.Metadata))
+		for k := range r.Metadata {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			_, _ = fmt.Fprintf(out, "  %s: %s\n", k, r.Metadata[k])
+		}
 	}
 
 	return nil
+}
+
+// topModel returns the model with the highest cost from a ByModel map.
+func topModel(byModel map[string]float64) string {
+	if len(byModel) == 0 {
+		return ""
+	}
+	best := ""
+	bestCost := 0.0
+	for model, cost := range byModel {
+		if cost > bestCost || best == "" {
+			best = model
+			bestCost = cost
+		}
+	}
+	return best
 }
 
 func (c *CLI) listAllSessions(ctx context.Context) ([]string, error) {
