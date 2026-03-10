@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"alex/internal/app/di"
+	"alex/internal/app/scheduler"
 	"alex/internal/delivery/server/ports"
 )
 
@@ -366,4 +368,143 @@ func (m *mockModelHealthProvider) AggregateModelHealth() (bool, string) {
 
 func (m *mockModelHealthProvider) SanitizedModelHealth() interface{} {
 	return m.details
+}
+
+// ---------------------------------------------------------------------------
+// Scheduler probe tests
+// ---------------------------------------------------------------------------
+
+type mockSchedulerHealthProvider struct {
+	running  bool
+	statuses []scheduler.LeaderJobStatus
+}
+
+func (m *mockSchedulerHealthProvider) Running() bool {
+	return m.running
+}
+
+func (m *mockSchedulerHealthProvider) LeaderJobsHealth() []scheduler.LeaderJobStatus {
+	return m.statuses
+}
+
+func TestSchedulerProbe_NilProvider(t *testing.T) {
+	probe := NewSchedulerProbe(nil, 0)
+	health := probe.Check(context.Background())
+	if health.Name != "scheduler" {
+		t.Errorf("expected name 'scheduler', got %q", health.Name)
+	}
+	if health.Status != ports.HealthStatusDisabled {
+		t.Errorf("expected disabled, got %s", health.Status)
+	}
+}
+
+func TestSchedulerProbe_NotRunning(t *testing.T) {
+	provider := &mockSchedulerHealthProvider{running: false}
+	probe := NewSchedulerProbe(provider, 0)
+	health := probe.Check(context.Background())
+	if health.Status != ports.HealthStatusNotReady {
+		t.Errorf("expected not_ready, got %s", health.Status)
+	}
+	if !strings.Contains(health.Message, "not running") {
+		t.Errorf("expected 'not running' in message, got %q", health.Message)
+	}
+}
+
+func TestSchedulerProbe_AllHealthy(t *testing.T) {
+	provider := &mockSchedulerHealthProvider{
+		running: true,
+		statuses: []scheduler.LeaderJobStatus{
+			{Name: "__blocker_radar__", Registered: true, Healthy: true},
+			{Name: "__weekly_pulse__", Registered: true, Healthy: true},
+			{Name: "__milestone_checkin__", Registered: true, Healthy: true},
+			{Name: "__prep_brief__", Registered: true, Healthy: true},
+		},
+	}
+	probe := NewSchedulerProbe(provider, 0)
+	health := probe.Check(context.Background())
+	if health.Status != ports.HealthStatusReady {
+		t.Errorf("expected ready, got %s", health.Status)
+	}
+	if !strings.Contains(health.Message, "4/4 leader jobs healthy") {
+		t.Errorf("unexpected message: %q", health.Message)
+	}
+	details, ok := health.Details.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map details, got %T", health.Details)
+	}
+	if _, ok := details["blocker_radar"]; !ok {
+		t.Error("expected blocker_radar in details")
+	}
+	if _, ok := details["weekly_pulse"]; !ok {
+		t.Error("expected weekly_pulse in details")
+	}
+}
+
+func TestSchedulerProbe_WithError(t *testing.T) {
+	provider := &mockSchedulerHealthProvider{
+		running: true,
+		statuses: []scheduler.LeaderJobStatus{
+			{Name: "__blocker_radar__", Registered: true, Healthy: false, LastError: "timeout"},
+			{Name: "__weekly_pulse__", Registered: true, Healthy: true},
+			{Name: "__milestone_checkin__", Registered: false, Healthy: false},
+			{Name: "__prep_brief__", Registered: false, Healthy: false},
+		},
+	}
+	probe := NewSchedulerProbe(provider, 0)
+	health := probe.Check(context.Background())
+	if health.Status != ports.HealthStatusNotReady {
+		t.Errorf("expected not_ready when a job has errors, got %s", health.Status)
+	}
+	details := health.Details.(map[string]interface{})
+	blockerDetail := details["blocker_radar"].(map[string]interface{})
+	if blockerDetail["last_error"] != "timeout" {
+		t.Errorf("expected last_error=timeout, got %v", blockerDetail["last_error"])
+	}
+	if blockerDetail["healthy"] != false {
+		t.Error("expected blocker_radar healthy=false")
+	}
+}
+
+func TestSchedulerProbe_Overdue(t *testing.T) {
+	past := time.Now().Add(-30 * time.Minute) // 30 min ago
+	provider := &mockSchedulerHealthProvider{
+		running: true,
+		statuses: []scheduler.LeaderJobStatus{
+			{Name: "__blocker_radar__", Registered: true, Healthy: true, NextRun: past},
+			{Name: "__weekly_pulse__", Registered: false, Healthy: false},
+			{Name: "__milestone_checkin__", Registered: false, Healthy: false},
+			{Name: "__prep_brief__", Registered: false, Healthy: false},
+		},
+	}
+	// Use a 5-minute grace — 30 min ago is well past that.
+	probe := NewSchedulerProbe(provider, 5*time.Minute)
+	health := probe.Check(context.Background())
+	if health.Status != ports.HealthStatusNotReady {
+		t.Errorf("expected not_ready for overdue job, got %s", health.Status)
+	}
+	details := health.Details.(map[string]interface{})
+	blockerDetail := details["blocker_radar"].(map[string]interface{})
+	if blockerDetail["overdue"] != true {
+		t.Error("expected blocker_radar overdue=true")
+	}
+}
+
+func TestSchedulerProbe_NotOverdueWithinGrace(t *testing.T) {
+	future := time.Now().Add(5 * time.Minute) // 5 min from now
+	provider := &mockSchedulerHealthProvider{
+		running: true,
+		statuses: []scheduler.LeaderJobStatus{
+			{Name: "__blocker_radar__", Registered: true, Healthy: true, NextRun: future},
+			{Name: "__weekly_pulse__", Registered: false, Healthy: false},
+			{Name: "__milestone_checkin__", Registered: false, Healthy: false},
+			{Name: "__prep_brief__", Registered: false, Healthy: false},
+		},
+	}
+	probe := NewSchedulerProbe(provider, 10*time.Minute)
+	health := probe.Check(context.Background())
+	details := health.Details.(map[string]interface{})
+	blockerDetail := details["blocker_radar"].(map[string]interface{})
+	if _, hasOverdue := blockerDetail["overdue"]; hasOverdue {
+		t.Error("expected no overdue flag for future NextRun")
+	}
 }

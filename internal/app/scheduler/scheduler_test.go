@@ -1401,3 +1401,175 @@ func TestScheduler_PrepBriefSkippedWhenNoService(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Leader jobs health tests
+// ---------------------------------------------------------------------------
+
+func TestScheduler_LeaderJobsHealth_AllRegistered(t *testing.T) {
+	sched := New(Config{
+		Enabled: true,
+		MilestoneCheckin: config.MilestoneCheckinConfig{Enabled: true, Schedule: "0 */1 * * *"},
+		MilestoneService: &mockMilestoneService{},
+		WeeklyPulse:      config.WeeklyPulseConfig{Enabled: true, Schedule: "0 9 * * 1"},
+		WeeklyPulseService: &mockWeeklyPulseService{},
+		BlockerRadar:     config.BlockerRadarConfig{Enabled: true, Schedule: "0 */4 * * *"},
+		BlockerRadarService: &mockBlockerRadarService{},
+		PrepBrief:        config.PrepBriefConfig{Enabled: true, Schedule: "30 8 * * 1-5"},
+		PrepBriefService: &mockPrepBriefService{},
+	}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	statuses := sched.LeaderJobsHealth()
+	if len(statuses) != 4 {
+		t.Fatalf("expected 4 leader jobs, got %d", len(statuses))
+	}
+	for _, s := range statuses {
+		if !s.Registered {
+			t.Errorf("expected %s to be registered", s.Name)
+		}
+		if !s.Healthy {
+			t.Errorf("expected %s to be healthy", s.Name)
+		}
+	}
+}
+
+func TestScheduler_LeaderJobsHealth_NoneRegistered(t *testing.T) {
+	sched := New(Config{Enabled: true}, &mockCoordinator{answer: "ok"}, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	statuses := sched.LeaderJobsHealth()
+	if len(statuses) != 4 {
+		t.Fatalf("expected 4 leader jobs (all unregistered), got %d", len(statuses))
+	}
+	for _, s := range statuses {
+		if s.Registered {
+			t.Errorf("expected %s to not be registered", s.Name)
+		}
+		if s.Healthy {
+			t.Errorf("expected %s to not be healthy (unregistered)", s.Name)
+		}
+	}
+}
+
+func TestScheduler_LeaderJobsHealth_RecordsError(t *testing.T) {
+	sched := New(Config{Enabled: true}, &mockCoordinator{answer: "ok"}, nil, nil)
+	// Simulate a recorded error for blocker radar.
+	sched.recordLeaderResult(blockerRadarTriggerName, errors.New("connection refused"))
+
+	statuses := sched.LeaderJobsHealth()
+	var blockerStatus *LeaderJobStatus
+	for i, s := range statuses {
+		if s.Name == blockerRadarTriggerName {
+			blockerStatus = &statuses[i]
+			break
+		}
+	}
+	if blockerStatus == nil {
+		t.Fatal("blocker_radar status not found")
+	}
+	if blockerStatus.LastError != "connection refused" {
+		t.Errorf("expected last_error 'connection refused', got %q", blockerStatus.LastError)
+	}
+	if blockerStatus.Healthy {
+		t.Error("expected blocker_radar to be unhealthy after error")
+	}
+}
+
+func TestScheduler_LeaderJobsHealth_RecordsSuccess(t *testing.T) {
+	sched := New(Config{Enabled: true}, &mockCoordinator{answer: "ok"}, nil, nil)
+	// Simulate success followed by recording.
+	sched.recordLeaderResult(weeklyPulseTriggerName, nil)
+
+	statuses := sched.LeaderJobsHealth()
+	var pulseStatus *LeaderJobStatus
+	for i, s := range statuses {
+		if s.Name == weeklyPulseTriggerName {
+			pulseStatus = &statuses[i]
+			break
+		}
+	}
+	if pulseStatus == nil {
+		t.Fatal("weekly_pulse status not found")
+	}
+	if pulseStatus.LastError != "" {
+		t.Errorf("expected no last_error, got %q", pulseStatus.LastError)
+	}
+	if pulseStatus.LastRun.IsZero() {
+		t.Error("expected last_run to be set after recording")
+	}
+}
+
+func TestScheduler_Running(t *testing.T) {
+	sched := New(Config{Enabled: true}, &mockCoordinator{answer: "ok"}, nil, nil)
+	if !sched.Running() {
+		t.Fatal("expected Running()=true for enabled scheduler before Stop")
+	}
+	sched.Stop()
+	if sched.Running() {
+		t.Fatal("expected Running()=false after Stop")
+	}
+}
+
+func TestScheduler_Running_Disabled(t *testing.T) {
+	sched := New(Config{Enabled: false}, nil, nil, nil)
+	if sched.Running() {
+		t.Fatal("expected Running()=false for disabled scheduler")
+	}
+}
+
+func TestDisplayName(t *testing.T) {
+	cases := []struct {
+		input, want string
+	}{
+		{blockerRadarTriggerName, "blocker_radar"},
+		{weeklyPulseTriggerName, "weekly_pulse"},
+		{milestoneTriggerName, "milestone_checkin"},
+		{prepBriefTriggerName, "prep_brief"},
+		{"unknown", "unknown"},
+	}
+	for _, tc := range cases {
+		if got := DisplayName(tc.input); got != tc.want {
+			t.Errorf("DisplayName(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestHealthSummary(t *testing.T) {
+	statuses := []LeaderJobStatus{
+		{Name: "a", Registered: true, Healthy: true},
+		{Name: "b", Registered: true, Healthy: false},
+		{Name: "c", Registered: false, Healthy: false},
+	}
+	got := HealthSummary(statuses)
+	if !strings.Contains(got, "1/3 leader jobs healthy") {
+		t.Errorf("unexpected summary: %s", got)
+	}
+	if !strings.Contains(got, "2 registered") {
+		t.Errorf("unexpected summary: %s", got)
+	}
+}
+
+type mockMilestoneService struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (m *mockMilestoneService) SendCheckin(_ context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	return nil
+}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"alex/internal/app/di"
+	"alex/internal/app/scheduler"
 	materials "alex/internal/domain/materialregistry"
 	"alex/internal/infra/adapters"
 	"alex/internal/infra/attachments"
@@ -30,7 +31,8 @@ type Foundation struct {
 	HostEnv       map[string]string
 	EnvCapturedAt time.Time
 
-	cleanups []func() // cleanup functions in reverse order
+	Scheduler *scheduler.Scheduler // set by SchedulerStage for health probes
+	cleanups  []func()             // cleanup functions in reverse order
 }
 
 // BootstrapFoundation performs the shared Phase 1 initialization:
@@ -186,6 +188,7 @@ func (f *Foundation) SchedulerStage(sm *SubsystemManager) BootstrapStage {
 					if sched == nil {
 						return nil, fmt.Errorf("scheduler init returned nil")
 					}
+					f.Scheduler = sched
 					f.Container.Drainables = append(f.Container.Drainables, sched)
 					return sched.Stop, nil
 				},

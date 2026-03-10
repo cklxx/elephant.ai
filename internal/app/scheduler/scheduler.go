@@ -82,6 +82,7 @@ type Scheduler struct {
 	jobs           map[string]*Job
 	inFlight       map[string]int
 	recoveryTimers map[string]*time.Timer
+	leaderResults  map[string]*leaderJobResult // leader job execution tracking
 	stopped        chan struct{}
 	stopOnce       sync.Once
 	lockHeld       bool
@@ -111,6 +112,7 @@ func New(cfg Config, coordinator AgentCoordinator, notifier Notifier, logger log
 		jobs:           make(map[string]*Job),
 		inFlight:       make(map[string]int),
 		recoveryTimers: make(map[string]*time.Timer),
+		leaderResults:  make(map[string]*leaderJobResult),
 		stopped:        make(chan struct{}),
 	}
 }

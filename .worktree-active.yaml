@@ -1,1 +1,4 @@
 status: in_progress
+branch: worktree-scheduler-health
+task: add scheduler health probe for leader agent jobs
+created: "2026-03-10"

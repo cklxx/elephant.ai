@@ -30,7 +30,9 @@ func (s *Scheduler) registerMilestoneCheckinJob(ctx context.Context) {
 
 	entryID, err := s.cron.AddFunc(schedule, func() {
 		s.logger.Info("Milestone check-in triggered (schedule=%s)", schedule)
-		if err := svc.SendCheckin(ctx); err != nil {
+		err := svc.SendCheckin(ctx)
+		s.recordLeaderResult(milestoneTriggerName, err)
+		if err != nil {
 			s.logger.Warn("Milestone check-in failed: %v", err)
 		}
 	})

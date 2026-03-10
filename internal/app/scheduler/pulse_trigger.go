@@ -29,7 +29,9 @@ func (s *Scheduler) registerWeeklyPulseJob(ctx context.Context) {
 
 	entryID, err := s.cron.AddFunc(schedule, func() {
 		s.logger.Info("Weekly pulse triggered (schedule=%s)", schedule)
-		if err := svc.GenerateAndSend(ctx); err != nil {
+		err := svc.GenerateAndSend(ctx)
+		s.recordLeaderResult(weeklyPulseTriggerName, err)
+		if err != nil {
 			s.logger.Warn("Weekly pulse failed: %v", err)
 		}
 	})

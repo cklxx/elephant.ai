@@ -30,7 +30,9 @@ func (s *Scheduler) registerBlockerRadarJob(ctx context.Context) {
 
 	entryID, err := s.cron.AddFunc(schedule, func() {
 		s.logger.Info("Blocker radar triggered (schedule=%s)", schedule)
-		if err := svc.NotifyBlockedTasks(ctx); err != nil {
+		err := svc.NotifyBlockedTasks(ctx)
+		s.recordLeaderResult(blockerRadarTriggerName, err)
+		if err != nil {
 			s.logger.Warn("Blocker radar failed: %v", err)
 		}
 	})

@@ -31,7 +31,9 @@ func (s *Scheduler) registerPrepBriefJob(ctx context.Context) {
 
 	entryID, err := s.cron.AddFunc(schedule, func() {
 		s.logger.Info("Prep brief triggered (schedule=%s, member=%s)", schedule, memberID)
-		if err := svc.GenerateAndSend(ctx, memberID); err != nil {
+		err := svc.GenerateAndSend(ctx, memberID)
+		s.recordLeaderResult(prepBriefTriggerName, err)
+		if err != nil {
 			s.logger.Warn("Prep brief failed: %v", err)
 		}
 	})

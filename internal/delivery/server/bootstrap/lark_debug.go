@@ -47,6 +47,7 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 		healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
 	}
 	healthChecker.RegisterProbe(serverApp.NewDegradedProbe(f.Degraded))
+	healthChecker.RegisterProbe(serverApp.NewSchedulerProbeFromScheduler(f.Scheduler, 0))
 
 	// Config handler for runtime config inspection/mutation.
 	runtimeUpdates, runtimeReloader := f.RuntimeCacheUpdates()
