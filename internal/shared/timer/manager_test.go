@@ -64,7 +64,6 @@ func (m *mockCoordinator) getCalls() []executedTask {
 	return cp
 }
 
-
 func TestManagerOneShotFires(t *testing.T) {
 	dir := t.TempDir()
 	coord := newMockCoordinator(&agent.TaskResult{Answer: "done"}, nil)
@@ -450,6 +449,88 @@ func TestManagerStopCleansUp(t *testing.T) {
 	// No calls should have been made.
 	if len(coord.getCalls()) > 0 {
 		t.Error("timer should not fire after Stop")
+	}
+}
+
+func TestManagerFireTimerSkipsCancelledTimer(t *testing.T) {
+	dir := t.TempDir()
+	coord := newMockCoordinator(nil, nil)
+
+	mgr, err := NewTimerManager(Config{
+		Enabled:     true,
+		StorePath:   dir,
+		MaxTimers:   10,
+		TaskTimeout: 10 * time.Second,
+	}, coord, &testutil.StubNotifier{}, nil)
+	if err != nil {
+		t.Fatalf("NewTimerManager: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := mgr.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer mgr.Stop()
+
+	tmr := &Timer{
+		ID:        NewTimerID(),
+		Name:      "cancelled",
+		Type:      TimerTypeOnce,
+		FireAt:    time.Now().Add(time.Minute),
+		Task:      "should not run",
+		SessionID: "session-cancelled",
+		CreatedAt: time.Now().UTC(),
+		Status:    StatusActive,
+	}
+	if err := mgr.Add(tmr); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if err := mgr.Cancel(tmr.ID); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+
+	mgr.fireTimer(tmr.ID)
+
+	if got := len(coord.getCalls()); got != 0 {
+		t.Fatalf("expected cancelled timer not to execute, got %d calls", got)
+	}
+}
+
+func TestManagerAddAfterStopFails(t *testing.T) {
+	dir := t.TempDir()
+	coord := newMockCoordinator(nil, nil)
+
+	mgr, err := NewTimerManager(Config{
+		Enabled:     true,
+		StorePath:   dir,
+		MaxTimers:   10,
+		TaskTimeout: 10 * time.Second,
+	}, coord, &testutil.StubNotifier{}, nil)
+	if err != nil {
+		t.Fatalf("NewTimerManager: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := mgr.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	mgr.Stop()
+
+	err = mgr.Add(&Timer{
+		ID:        NewTimerID(),
+		Name:      "stopped",
+		Type:      TimerTypeOnce,
+		FireAt:    time.Now().Add(time.Minute),
+		Task:      "should fail",
+		SessionID: "session-stop",
+		CreatedAt: time.Now().UTC(),
+		Status:    StatusActive,
+	})
+	if err == nil {
+		t.Fatal("expected Add after Stop to fail")
 	}
 }
 

@@ -57,15 +57,29 @@ func TestGoRecoversPanic(t *testing.T) {
 	}
 }
 
-func TestRecoverHandlesNilLogger(t *testing.T) {
+func TestGoHandlesNilLogger(t *testing.T) {
+	done := make(chan struct{})
+
+	Go(nil, "nil-logger", func() {
+		defer close(done)
+		panic("boom")
+	})
+
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("timeout waiting for goroutine")
+	}
+}
+
+func TestRunHandlesNilLogger(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatalf("unexpected panic: %v", r)
 		}
 	}()
 
-	func() {
-		defer Recover(nil, "nil-logger")
+	Run(nil, "nil-logger", func() {
 		panic("boom")
-	}()
+	})
 }

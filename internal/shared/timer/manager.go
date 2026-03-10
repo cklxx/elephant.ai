@@ -7,6 +7,7 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/notification"
 	id "alex/internal/shared/utils/id"
@@ -40,12 +41,14 @@ type TimerManager struct {
 	logger      logging.Logger
 	cron        *cron.Cron
 
-	mu       sync.Mutex
-	timers   map[string]*Timer
-	cronIDs  map[string]cron.EntryID
-	goTimers map[string]*time.Timer
-	stopped  chan struct{}
-	stopOnce sync.Once
+	mu        sync.Mutex
+	timers    map[string]*Timer
+	cronIDs   map[string]cron.EntryID
+	goTimers  map[string]*time.Timer
+	stopWatch func() bool
+	isStopped bool
+	stopped   chan struct{}
+	stopOnce  sync.Once
 }
 
 // ToolTimerManagerServiceMarker lets TimerManager cross the tool context
@@ -99,39 +102,20 @@ func (m *TimerManager) Start(ctx context.Context) error {
 
 	now := time.Now()
 	for i := range timers {
-		t := timers[i]
-		if !t.IsActive() {
+		timer := timers[i]
+		if !timer.IsActive() {
 			continue
 		}
-
-		m.timers[t.ID] = &t
-
-		switch t.Type {
-		case TimerTypeOnce:
-			remaining := time.Until(t.FireAt)
-			if remaining <= 0 {
-				// Past due — fire immediately in background.
-				m.logger.Info("TimerManager: timer %q past due, firing immediately", t.Name)
-				timer := &t
-				go m.fireTimer(timer)
-			} else {
-				m.scheduleOneShotLocked(&t, remaining)
-			}
-		case TimerTypeRecurring:
-			if err := m.scheduleRecurringLocked(&t); err != nil {
-				m.logger.Warn("TimerManager: failed to re-schedule recurring timer %q: %v", t.Name, err)
-			}
+		m.timers[timer.ID] = &timer
+		if err := m.scheduleLocked(m.timers[timer.ID]); err != nil {
+			m.logger.Warn("TimerManager: failed to re-schedule timer %q: %v", timer.Name, err)
 		}
 	}
 
+	m.stopWatch = context.AfterFunc(ctx, m.Stop)
 	m.cron.Start()
 
 	m.logger.Info("TimerManager started with %d active timers (recovered at %s)", len(m.timers), now.Format(time.RFC3339))
-
-	go func() {
-		<-ctx.Done()
-		m.Stop()
-	}()
 
 	return nil
 }
@@ -142,6 +126,11 @@ func (m *TimerManager) Stop() {
 		m.logger.Info("TimerManager stopping...")
 
 		m.mu.Lock()
+		m.isStopped = true
+		if m.stopWatch != nil {
+			m.stopWatch()
+			m.stopWatch = nil
+		}
 		// Cancel all pending one-shot timers.
 		for timerID, goTimer := range m.goTimers {
 			goTimer.Stop()
@@ -171,6 +160,9 @@ func (m *TimerManager) Add(t *Timer) error {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.isStopped {
+		return fmt.Errorf("timer manager stopped")
+	}
 
 	// Enforce max timer limit (count only active timers).
 	// Fast path: if total entries (including inactive) are below the limit,
@@ -194,18 +186,8 @@ func (m *TimerManager) Add(t *Timer) error {
 
 	m.timers[t.ID] = t
 
-	switch t.Type {
-	case TimerTypeOnce:
-		remaining := time.Until(t.FireAt)
-		if remaining <= 0 {
-			go m.fireTimer(t)
-		} else {
-			m.scheduleOneShotLocked(t, remaining)
-		}
-	case TimerTypeRecurring:
-		if err := m.scheduleRecurringLocked(t); err != nil {
-			return fmt.Errorf("schedule recurring timer: %w", err)
-		}
+	if err := m.scheduleLocked(t); err != nil {
+		return fmt.Errorf("schedule timer: %w", err)
 	}
 
 	m.logger.Info("TimerManager: added timer %q (%s)", t.Name, t.ID)
@@ -225,16 +207,7 @@ func (m *TimerManager) Cancel(timerID string) error {
 		return fmt.Errorf("timer %s is not active (status=%s)", timerID, t.Status)
 	}
 
-	// Stop scheduling.
-	if goTimer, ok := m.goTimers[timerID]; ok {
-		goTimer.Stop()
-		delete(m.goTimers, timerID)
-	}
-	if cronID, ok := m.cronIDs[timerID]; ok {
-		m.cron.Remove(cronID)
-		delete(m.cronIDs, timerID)
-	}
-
+	m.unscheduleLocked(timerID)
 	t.Status = StatusCancelled
 	if err := m.store.Save(*t); err != nil {
 		m.logger.Warn("TimerManager: failed to persist cancellation for %s: %v", timerID, err)
@@ -274,9 +247,10 @@ func (m *TimerManager) Get(timerID string) (Timer, bool) {
 // scheduleOneShotLocked creates a Go timer that fires after the given duration.
 // Must be called with m.mu held.
 func (m *TimerManager) scheduleOneShotLocked(t *Timer, delay time.Duration) {
-	timer := t
 	goTimer := time.AfterFunc(delay, func() {
-		m.fireTimer(timer)
+		async.Run(m.logger, "timer.fire", func() {
+			m.fireTimer(t.ID)
+		})
 	})
 	m.goTimers[t.ID] = goTimer
 }
@@ -284,9 +258,10 @@ func (m *TimerManager) scheduleOneShotLocked(t *Timer, delay time.Duration) {
 // scheduleRecurringLocked registers a timer with the cron engine.
 // Must be called with m.mu held.
 func (m *TimerManager) scheduleRecurringLocked(t *Timer) error {
-	timer := t
 	entryID, err := m.cron.AddFunc(t.Schedule, func() {
-		m.fireTimer(timer)
+		async.Run(m.logger, "timer.fire", func() {
+			m.fireTimer(t.ID)
+		})
 	})
 	if err != nil {
 		return fmt.Errorf("invalid cron expression for %q: %w", t.Name, err)
@@ -295,8 +270,65 @@ func (m *TimerManager) scheduleRecurringLocked(t *Timer) error {
 	return nil
 }
 
+func (m *TimerManager) scheduleLocked(t *Timer) error {
+	switch t.Type {
+	case TimerTypeOnce:
+		if delay := time.Until(t.FireAt); delay <= 0 {
+			m.logger.Info("TimerManager: timer %q past due, firing immediately", t.Name)
+			m.fireAsync(t.ID)
+			return nil
+		} else {
+			m.scheduleOneShotLocked(t, delay)
+			return nil
+		}
+	case TimerTypeRecurring:
+		return m.scheduleRecurringLocked(t)
+	default:
+		return fmt.Errorf("invalid timer type: %q", t.Type)
+	}
+}
+
+func (m *TimerManager) unscheduleLocked(timerID string) {
+	if goTimer, ok := m.goTimers[timerID]; ok {
+		goTimer.Stop()
+		delete(m.goTimers, timerID)
+	}
+	if cronID, ok := m.cronIDs[timerID]; ok {
+		m.cron.Remove(cronID)
+		delete(m.cronIDs, timerID)
+	}
+}
+
+func (m *TimerManager) fireAsync(timerID string) {
+	async.Go(m.logger, "timer.fire", func() {
+		m.fireTimer(timerID)
+	})
+}
+
+func (m *TimerManager) timerForFire(timerID string) (*Timer, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.isStopped {
+		return nil, false
+	}
+	t, ok := m.timers[timerID]
+	if !ok || !t.IsActive() {
+		return nil, false
+	}
+	if t.Type == TimerTypeOnce {
+		delete(m.goTimers, timerID)
+	}
+	return t, true
+}
+
 // fireTimer executes the timer's task within the originating session context.
-func (m *TimerManager) fireTimer(t *Timer) {
+func (m *TimerManager) fireTimer(timerID string) {
+	t, ok := m.timerForFire(timerID)
+	if !ok {
+		return
+	}
+
 	ctx := context.Background()
 	ctx = id.MarkUnattendedContext(ctx)
 	if t.UserID != "" {
@@ -330,8 +362,9 @@ func (m *TimerManager) fireTimer(t *Timer) {
 	// Mark one-shot as fired.
 	if t.Type == TimerTypeOnce {
 		m.mu.Lock()
-		t.Status = StatusFired
-		delete(m.goTimers, t.ID)
+		if t.IsActive() {
+			t.Status = StatusFired
+		}
 		m.mu.Unlock()
 		if saveErr := m.store.Save(*t); saveErr != nil {
 			m.logger.Warn("TimerManager: failed to persist fired status for %s: %v", t.ID, saveErr)

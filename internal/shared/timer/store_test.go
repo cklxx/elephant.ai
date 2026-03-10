@@ -18,7 +18,6 @@ func TestStoreSaveAndGet(t *testing.T) {
 		ID:        "tmr-test1",
 		Name:      "test timer",
 		Type:      TimerTypeOnce,
-		Delay:     "5m",
 		FireAt:    time.Now().Add(5 * time.Minute).UTC().Truncate(time.Second),
 		Task:      "check the weather",
 		SessionID: "session-abc",

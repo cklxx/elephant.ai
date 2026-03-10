@@ -36,7 +36,6 @@ type Timer struct {
 	Name      string      `yaml:"name"`
 	Type      TimerType   `yaml:"type"`
 	Schedule  string      `yaml:"schedule,omitempty"`
-	Delay     string      `yaml:"delay,omitempty"`
 	FireAt    time.Time   `yaml:"fire_at"`
 	Task      string      `yaml:"task"`
 	SessionID string      `yaml:"session_id"`

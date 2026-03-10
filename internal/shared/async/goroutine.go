@@ -7,16 +7,18 @@ type PanicLogger interface {
 	Error(format string, args ...any)
 }
 
-// Go runs fn in a goroutine guarded by panic recovery.
-func Go(logger PanicLogger, name string, fn func()) {
-	go func() {
-		defer Recover(logger, name)
-		fn()
-	}()
+// Run executes fn guarded by panic recovery.
+func Run(logger PanicLogger, name string, fn func()) {
+	defer recoverAndLog(logger, name)
+	fn()
 }
 
-// Recover logs panic details without crashing the process.
-func Recover(logger PanicLogger, name string) {
+// Go runs fn in a goroutine guarded by panic recovery.
+func Go(logger PanicLogger, name string, fn func()) {
+	go Run(logger, name, fn)
+}
+
+func recoverAndLog(logger PanicLogger, name string) {
 	if r := recover(); r != nil {
 		if logger == nil {
 			return
