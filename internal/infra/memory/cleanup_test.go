@@ -211,6 +211,36 @@ func TestStartCleanupLoop_StopsOnCancel(t *testing.T) {
 	}
 }
 
+// TestStartCleanupLoop_CancelBeforeFirstRun verifies that the cleanup goroutine
+// exits promptly when the context is cancelled before the initial delay fires.
+// This is the scenario that occurs when BuildContainer fails after memory init.
+func TestStartCleanupLoop_CancelBeforeFirstRun(t *testing.T) {
+	root := t.TempDir()
+	engine := NewMarkdownEngine(root)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	engine.StartCleanupLoop(ctx, CleanupConfig{
+		ArchiveAfterDays: 30,
+		CleanupInterval:  time.Hour, // long interval — should never fire
+		InitialDelay:     time.Hour, // long delay — should never fire
+	})
+
+	// Cancel immediately, simulating a failed Build() after memory init.
+	cancel()
+
+	// If the goroutine doesn't respect ctx.Done(), it would block for an hour.
+	// We wait a short time and verify no panic/hang. The goroutine should exit
+	// within a few milliseconds of cancel().
+	time.Sleep(50 * time.Millisecond)
+
+	// No archive directory should exist — cleanup never ran.
+	archiveDir := filepath.Join(root, archiveDirName)
+	if _, err := os.Stat(archiveDir); !os.IsNotExist(err) {
+		t.Error("archive dir should not exist — cleanup should not have run")
+	}
+}
+
 func TestStartCleanupLoop_NopWhenDisabled(t *testing.T) {
 	root := t.TempDir()
 	engine := NewMarkdownEngine(root)

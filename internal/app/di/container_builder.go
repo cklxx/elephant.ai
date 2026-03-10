@@ -83,9 +83,14 @@ func (b *containerBuilder) Build() (*Container, error) {
 	b.logLocalCodingCLIDetection(detectedCLIs)
 
 	bgCtx, bgCancel := context.WithCancel(context.Background())
+	buildOK := false
+	defer func() {
+		if !buildOK {
+			bgCancel()
+		}
+	}()
 	memoryEngine, err := b.buildMemoryEngine(bgCtx)
 	if err != nil {
-		bgCancel()
 		return nil, err
 	}
 	contextOptions := []ctxmgr.Option{
@@ -169,6 +174,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		container.Drainables = append(container.Drainables, drainable)
 	}
 
+	buildOK = true
 	return container, nil
 }
 
