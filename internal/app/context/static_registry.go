@@ -105,19 +105,21 @@ func (r *staticRegistry) load(_ context.Context) (staticSnapshot, error) {
 	if err != nil {
 		return staticSnapshot{}, err
 	}
-	goals, err := loadGoals(filepath.Join(r.root, "goals"))
+	defaultGoal := agent.GoalProfile{ID: "default"}
+	goals, err := loadYAMLMap(filepath.Join(r.root, "goals"), "goal", &defaultGoal)
 	if err != nil {
 		return staticSnapshot{}, err
 	}
-	policies, err := loadPolicies(filepath.Join(r.root, "policies"))
+	policies, err := loadYAMLMap[agent.PolicyRule](filepath.Join(r.root, "policies"), "policy", nil)
 	if err != nil {
 		return staticSnapshot{}, err
 	}
-	knowledge, err := loadKnowledge(filepath.Join(r.root, "knowledge"))
+	knowledge, err := loadYAMLMap[agent.KnowledgeReference](filepath.Join(r.root, "knowledge"), "knowledge pack", nil)
 	if err != nil {
 		return staticSnapshot{}, err
 	}
-	worlds, err := loadWorlds(filepath.Join(r.root, "worlds"))
+	defaultWorld := agent.WorldProfile{ID: "default"}
+	worlds, err := loadYAMLMap(filepath.Join(r.root, "worlds"), "world profile", &defaultWorld)
 	if err != nil {
 		return staticSnapshot{}, err
 	}
@@ -176,86 +178,66 @@ func loadPersonas(dir string, repoRoot string) (map[string]agent.PersonaProfile,
 	return personas, nil
 }
 
-func loadGoals(dir string) (map[string]agent.GoalProfile, error) {
-	entries, err := readYAMLDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	goals := make(map[string]agent.GoalProfile, len(entries))
-	for _, content := range entries {
-		var profile agent.GoalProfile
-		if err := yaml.Unmarshal(content, &profile); err != nil {
-			return nil, fmt.Errorf("decode goal: %w", err)
-		}
-		if profile.ID == "" {
-			profile.ID = filepath.Base(dir)
-		}
-		goals[profile.ID] = profile
-	}
-	if len(goals) == 0 {
-		goals["default"] = agent.GoalProfile{ID: "default"}
-	}
-	return goals, nil
+// identifiable is satisfied by domain types that carry an ID field.
+type identifiable interface {
+	agent.GoalProfile | agent.PolicyRule | agent.KnowledgeReference | agent.WorldProfile
 }
 
-func loadPolicies(dir string) (map[string]agent.PolicyRule, error) {
+// loadYAMLMap reads all YAML files from dir, unmarshals each into T, and
+// keys the result map by the item's ID field. When the ID is empty it falls
+// back to the directory base name.
+func loadYAMLMap[T identifiable](dir, label string, fallback *T) (map[string]T, error) {
 	entries, err := readYAMLDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	policies := make(map[string]agent.PolicyRule, len(entries))
+	result := make(map[string]T, len(entries))
 	for _, content := range entries {
-		var policy agent.PolicyRule
-		if err := yaml.Unmarshal(content, &policy); err != nil {
-			return nil, fmt.Errorf("decode policy: %w", err)
+		var item T
+		if err := yaml.Unmarshal(content, &item); err != nil {
+			return nil, fmt.Errorf("decode %s: %w", label, err)
 		}
-		if policy.ID == "" {
-			policy.ID = filepath.Base(dir)
+		id := idOf(&item)
+		if id == "" {
+			id = filepath.Base(dir)
+			setID(&item, id)
 		}
-		policies[policy.ID] = policy
+		result[id] = item
 	}
-	return policies, nil
+	if len(result) == 0 && fallback != nil {
+		id := idOf(fallback)
+		result[id] = *fallback
+	}
+	return result, nil
 }
 
-func loadKnowledge(dir string) (map[string]agent.KnowledgeReference, error) {
-	entries, err := readYAMLDir(dir)
-	if err != nil {
-		return nil, err
+// idOf returns the ID field from any identifiable type.
+func idOf[T identifiable](v *T) string {
+	switch p := any(v).(type) {
+	case *agent.GoalProfile:
+		return p.ID
+	case *agent.PolicyRule:
+		return p.ID
+	case *agent.KnowledgeReference:
+		return p.ID
+	case *agent.WorldProfile:
+		return p.ID
 	}
-	knowledge := make(map[string]agent.KnowledgeReference, len(entries))
-	for _, content := range entries {
-		var ref agent.KnowledgeReference
-		if err := yaml.Unmarshal(content, &ref); err != nil {
-			return nil, fmt.Errorf("decode knowledge pack: %w", err)
-		}
-		if ref.ID == "" {
-			ref.ID = filepath.Base(dir)
-		}
-		knowledge[ref.ID] = ref
-	}
-	return knowledge, nil
+	return ""
 }
 
-func loadWorlds(dir string) (map[string]agent.WorldProfile, error) {
-	entries, err := readYAMLDir(dir)
-	if err != nil {
-		return nil, err
+// setID assigns the ID field on any identifiable type.
+func setID[T identifiable](v *T, id string) {
+	switch p := any(v).(type) {
+	case *agent.GoalProfile:
+		p.ID = id
+	case *agent.PolicyRule:
+		p.ID = id
+	case *agent.KnowledgeReference:
+		p.ID = id
+	case *agent.WorldProfile:
+		p.ID = id
 	}
-	worlds := make(map[string]agent.WorldProfile, len(entries))
-	for _, content := range entries {
-		var profile agent.WorldProfile
-		if err := yaml.Unmarshal(content, &profile); err != nil {
-			return nil, fmt.Errorf("decode world profile: %w", err)
-		}
-		if profile.ID == "" {
-			profile.ID = filepath.Base(dir)
-		}
-		worlds[profile.ID] = profile
-	}
-	if len(worlds) == 0 {
-		worlds["default"] = agent.WorldProfile{ID: "default"}
-	}
-	return worlds, nil
 }
 
 func readYAMLDir(dir string) ([][]byte, error) {

@@ -17,6 +17,17 @@ import (
 
 const retryJitterFactor = 0.25
 
+// resolveToolName extracts the best available name from tool metadata, falling
+// back through call name and definition name. Returns "tool" when all are empty.
+func resolveToolName(candidates ...string) string {
+	for _, c := range candidates {
+		if s := strings.TrimSpace(c); s != "" {
+			return s
+		}
+	}
+	return "tool"
+}
+
 // CircuitBreakerConfig configures circuit breaker behavior for tool execution.
 type CircuitBreakerConfig = alexerrors.CircuitBreakerConfig
 
@@ -72,13 +83,7 @@ func newRetryExecutor(delegate tools.ToolExecutor, policy tools.ToolPolicy, brea
 	if delegate == nil {
 		return delegate
 	}
-	name := strings.TrimSpace(delegate.Metadata().Name)
-	if name == "" {
-		name = strings.TrimSpace(delegate.Definition().Name)
-	}
-	if name == "" {
-		name = "tool"
-	}
+	name := resolveToolName(delegate.Metadata().Name, delegate.Definition().Name)
 	var breaker *alexerrors.CircuitBreaker
 	if breakers != nil {
 		breaker = breakers.Get("tool-" + name)
@@ -197,13 +202,7 @@ func (r *retryExecutor) resolvePolicy(ctx context.Context, call ports.ToolCall) 
 		return tools.ResolvedPolicy{Enabled: true}
 	}
 	meta := r.delegate.Metadata()
-	name := strings.TrimSpace(meta.Name)
-	if name == "" {
-		name = strings.TrimSpace(call.Name)
-	}
-	if name == "" {
-		name = strings.TrimSpace(r.delegate.Definition().Name)
-	}
+	name := resolveToolName(meta.Name, call.Name, r.delegate.Definition().Name)
 	channel := strings.TrimSpace(appcontext.ChannelFromContext(ctx))
 	return r.policy.Resolve(tools.ToolCallContext{
 		ToolName:    name,

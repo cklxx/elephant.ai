@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/app/taskfmt"
 	"alex/internal/domain/signal"
 	signalports "alex/internal/domain/signal/ports"
 	"alex/internal/domain/task"
@@ -201,7 +202,7 @@ func (s *Service) detectBlocker(ctx context.Context, t *task.Task, now time.Time
 	if t.Error != "" {
 		brief.Blockers = append(brief.Blockers, Blocker{
 			Task:   t,
-			Reason: fmt.Sprintf("has error: %s", truncate(t.Error, 120)),
+			Reason: fmt.Sprintf("has error: %s", taskfmt.Truncate(t.Error, 120)),
 		})
 		return
 	}
@@ -211,7 +212,7 @@ func (s *Service) detectBlocker(ctx context.Context, t *task.Task, now time.Time
 		age := now.Sub(t.UpdatedAt)
 		brief.Blockers = append(brief.Blockers, Blocker{
 			Task:   t,
-			Reason: fmt.Sprintf("waiting for input (%s)", formatDuration(age)),
+			Reason: fmt.Sprintf("waiting for input (%s)", taskfmt.FormatDuration(age)),
 		})
 		return
 	}
@@ -222,7 +223,7 @@ func (s *Service) detectBlocker(ctx context.Context, t *task.Task, now time.Time
 		if age > 30*time.Minute {
 			brief.Blockers = append(brief.Blockers, Blocker{
 				Task:   t,
-				Reason: fmt.Sprintf("no progress for %s", formatDuration(age)),
+				Reason: fmt.Sprintf("no progress for %s", taskfmt.FormatDuration(age)),
 			})
 			return
 		}
@@ -275,7 +276,7 @@ func FormatBrief(b *Brief) string {
 	var out strings.Builder
 
 	out.WriteString(fmt.Sprintf("## 1:1 Prep Brief — %s\n\n", b.MemberID))
-	out.WriteString(fmt.Sprintf("_Generated %s · %s lookback_\n\n", b.GeneratedAt.Format("2006-01-02 15:04"), formatDuration(b.Lookback)))
+	out.WriteString(fmt.Sprintf("_Generated %s · %s lookback_\n\n", b.GeneratedAt.Format("2006-01-02 15:04"), taskfmt.FormatDuration(b.Lookback)))
 
 	// Recent Wins.
 	out.WriteString("### Recent Wins\n\n")
@@ -283,10 +284,10 @@ func FormatBrief(b *Brief) string {
 		out.WriteString("No completed tasks in this period.\n\n")
 	} else {
 		for _, t := range b.RecentWins {
-			desc := truncate(taskLabel(t), 80)
+			desc := taskfmt.Truncate(taskfmt.TaskLabel(t), 80)
 			line := fmt.Sprintf("- %s", desc)
 			if t.AnswerPreview != "" {
-				line += fmt.Sprintf(" — %s", truncate(t.AnswerPreview, 100))
+				line += fmt.Sprintf(" — %s", taskfmt.Truncate(t.AnswerPreview, 100))
 			}
 			out.WriteString(line + "\n")
 		}
@@ -299,7 +300,7 @@ func FormatBrief(b *Brief) string {
 		out.WriteString("No active tasks.\n\n")
 	} else {
 		for _, t := range b.OpenItems {
-			desc := truncate(taskLabel(t), 80)
+			desc := taskfmt.Truncate(taskfmt.TaskLabel(t), 80)
 			out.WriteString(fmt.Sprintf("- [%s] %s", t.Status, desc))
 			if t.CurrentIteration > 0 {
 				out.WriteString(fmt.Sprintf(" (iter %d)", t.CurrentIteration))
@@ -315,7 +316,7 @@ func FormatBrief(b *Brief) string {
 		out.WriteString("No blockers detected.\n\n")
 	} else {
 		for _, bl := range b.Blockers {
-			desc := truncate(taskLabel(bl.Task), 80)
+			desc := taskfmt.Truncate(taskfmt.TaskLabel(bl.Task), 80)
 			out.WriteString(fmt.Sprintf("- **%s** — %s\n", desc, bl.Reason))
 		}
 		out.WriteString("\n")
@@ -330,7 +331,7 @@ func FormatBrief(b *Brief) string {
 				review = "pending"
 			}
 			out.WriteString(fmt.Sprintf("- #%d %s (%s, +%d/-%d) %s\n",
-				pr.Number, truncate(pr.Title, 60), review, pr.Additions, pr.Deletions, pr.URL))
+				pr.Number, taskfmt.Truncate(pr.Title, 60), review, pr.Additions, pr.Deletions, pr.URL))
 		}
 		out.WriteString("\n")
 	}
@@ -340,7 +341,7 @@ func FormatBrief(b *Brief) string {
 		out.WriteString("### Recently Merged PRs\n\n")
 		for _, pr := range b.RecentlyMergedPRs {
 			out.WriteString(fmt.Sprintf("- #%d %s (+%d/-%d) %s\n",
-				pr.Number, truncate(pr.Title, 60), pr.Additions, pr.Deletions, pr.URL))
+				pr.Number, taskfmt.Truncate(pr.Title, 60), pr.Additions, pr.Deletions, pr.URL))
 		}
 		out.WriteString("\n")
 	}
@@ -349,9 +350,9 @@ func FormatBrief(b *Brief) string {
 	if len(b.BlockedTickets) > 0 {
 		out.WriteString("### Blocked Tickets\n\n")
 		for _, item := range b.BlockedTickets {
-			line := fmt.Sprintf("- [%s] %s", item.Key, truncate(item.Title, 60))
+			line := fmt.Sprintf("- [%s] %s", item.Key, taskfmt.Truncate(item.Title, 60))
 			if item.BlockedReason != "" {
-				line += fmt.Sprintf(" — %s", truncate(item.BlockedReason, 80))
+				line += fmt.Sprintf(" — %s", taskfmt.Truncate(item.BlockedReason, 80))
 			}
 			if item.URL != "" {
 				line += fmt.Sprintf(" %s", item.URL)
@@ -430,39 +431,3 @@ func (s *Service) SendBrief(ctx context.Context, memberID string) (*Brief, error
 	return brief, nil
 }
 
-func taskLabel(t *task.Task) string {
-	if t.Description != "" {
-		return t.Description
-	}
-	return t.TaskID
-}
-
-func truncate(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}
-
-func formatDuration(d time.Duration) string {
-	if d >= 24*time.Hour {
-		days := int(d.Hours() / 24)
-		if days == 1 {
-			return "1 day"
-		}
-		return fmt.Sprintf("%d days", days)
-	}
-	if d >= time.Hour {
-		hours := int(d.Hours())
-		if hours == 1 {
-			return "1 hour"
-		}
-		return fmt.Sprintf("%d hours", hours)
-	}
-	mins := int(d.Minutes())
-	if mins <= 1 {
-		return "1 minute"
-	}
-	return fmt.Sprintf("%d minutes", mins)
-}

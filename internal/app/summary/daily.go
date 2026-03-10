@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/app/taskfmt"
 	"alex/internal/domain/task"
 	"alex/internal/shared/notification"
 )
@@ -191,7 +192,7 @@ func FormatMarkdown(s *DailySummary) string {
 		b.WriteString("- **Completion rate:** N/A\n")
 	}
 	if s.AvgBlockerResolveTime > 0 {
-		b.WriteString(fmt.Sprintf("- **Avg time-to-resolve:** %s\n", formatDuration(s.AvgBlockerResolveTime)))
+		b.WriteString(fmt.Sprintf("- **Avg time-to-resolve:** %s\n", taskfmt.FormatDurationCompact(s.AvgBlockerResolveTime)))
 	} else {
 		b.WriteString("- **Avg time-to-resolve:** N/A\n")
 	}
@@ -208,14 +209,14 @@ func FormatMarkdown(s *DailySummary) string {
 		b.WriteString("No action items — all clear.\n")
 	} else {
 		for _, t := range s.Blocked {
-			desc := taskLabel(t)
+			desc := taskfmt.TaskLabel(t)
 			reason := ""
 			if t.Status == task.StatusFailed && t.Error != "" {
-				reason = fmt.Sprintf(" — error: %s", truncate(t.Error, 100))
+				reason = fmt.Sprintf(" — error: %s", taskfmt.Truncate(t.Error, 100))
 			} else if t.Status == task.StatusWaitingInput {
 				reason = " — waiting for input"
 			}
-			b.WriteString(fmt.Sprintf("- [%s] %s%s\n", t.Status, truncate(desc, 80), reason))
+			b.WriteString(fmt.Sprintf("- [%s] %s%s\n", t.Status, taskfmt.Truncate(desc, 80), reason))
 		}
 	}
 
@@ -283,32 +284,3 @@ func countFailed(tasks []*task.Task) int {
 	return n
 }
 
-func taskLabel(t *task.Task) string {
-	if t.Description != "" {
-		return t.Description
-	}
-	return t.TaskID
-}
-
-func truncate(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}
-
-func formatDuration(d time.Duration) string {
-	if d < time.Minute {
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	}
-	if d < time.Hour {
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	}
-	hours := int(d.Hours())
-	mins := int(d.Minutes()) % 60
-	if mins == 0 {
-		return fmt.Sprintf("%dh", hours)
-	}
-	return fmt.Sprintf("%dh%dm", hours, mins)
-}

@@ -83,10 +83,7 @@ func (p *policyAwareRegistry) isAllowed(tool tools.ToolExecutor) bool {
 		return true
 	}
 	meta := tool.Metadata()
-	name := meta.Name
-	if name == "" {
-		name = tool.Definition().Name
-	}
+	name := resolveToolName(meta.Name, tool.Definition().Name)
 	ctx := tools.ToolCallContext{
 		ToolName:    name,
 		Category:    meta.Category,

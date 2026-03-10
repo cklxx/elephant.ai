@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/app/taskfmt"
 	"alex/internal/domain/signal"
 	signalports "alex/internal/domain/signal/ports"
 	"alex/internal/domain/task"
@@ -169,7 +170,7 @@ func FormatMarkdown(p *WeeklyPulse) string {
 	b.WriteString("## Key Metrics\n\n")
 	b.WriteString(fmt.Sprintf("- **Tasks completed:** %d\n", p.TasksCompleted))
 	if p.AvgCompletionTime > 0 {
-		b.WriteString(fmt.Sprintf("- **Avg completion time:** %s\n", formatDuration(p.AvgCompletionTime)))
+		b.WriteString(fmt.Sprintf("- **Avg completion time:** %s\n", taskfmt.FormatDurationCompact(p.AvgCompletionTime)))
 	}
 	b.WriteString(fmt.Sprintf("- **Tokens used:** %d\n", p.TotalTokens))
 	b.WriteString(fmt.Sprintf("- **Cost:** $%.4f\n", p.TotalCostUSD))
@@ -183,7 +184,7 @@ func FormatMarkdown(p *WeeklyPulse) string {
 		b.WriteString(fmt.Sprintf("- **Reviews submitted:** %d\n", p.GitMetrics.ReviewCount))
 		b.WriteString(fmt.Sprintf("- **Commits pushed:** %d\n", p.GitMetrics.CommitsPushed))
 		if p.GitMetrics.AvgReviewTime > 0 {
-			b.WriteString(fmt.Sprintf("- **Avg review time:** %s\n", formatDuration(p.GitMetrics.AvgReviewTime)))
+			b.WriteString(fmt.Sprintf("- **Avg review time:** %s\n", taskfmt.FormatDurationCompact(p.GitMetrics.AvgReviewTime)))
 		} else {
 			b.WriteString("- **Avg review time:** n/a\n")
 		}
@@ -204,12 +205,12 @@ func FormatMarkdown(p *WeeklyPulse) string {
 		b.WriteString("No tasks completed this week.\n")
 	} else {
 		for _, t := range p.Completed {
-			desc := taskLabel(t)
+			desc := taskfmt.TaskLabel(t)
 			dur := ""
 			if t.StartedAt != nil && t.CompletedAt != nil {
-				dur = fmt.Sprintf(" (%s)", formatDuration(t.CompletedAt.Sub(*t.StartedAt)))
+				dur = fmt.Sprintf(" (%s)", taskfmt.FormatDurationCompact(t.CompletedAt.Sub(*t.StartedAt)))
 			}
-			b.WriteString(fmt.Sprintf("- %s%s\n", truncate(desc, 100), dur))
+			b.WriteString(fmt.Sprintf("- %s%s\n", taskfmt.Truncate(desc, 100), dur))
 		}
 	}
 
@@ -219,8 +220,8 @@ func FormatMarkdown(p *WeeklyPulse) string {
 		b.WriteString("No tasks in progress.\n")
 	} else {
 		for _, t := range p.InProgress {
-			desc := taskLabel(t)
-			b.WriteString(fmt.Sprintf("- [%s] %s (%d tokens)\n", t.Status, truncate(desc, 80), t.TokensUsed))
+			desc := taskfmt.TaskLabel(t)
+			b.WriteString(fmt.Sprintf("- [%s] %s (%d tokens)\n", t.Status, taskfmt.Truncate(desc, 80), t.TokensUsed))
 		}
 	}
 
@@ -230,14 +231,14 @@ func FormatMarkdown(p *WeeklyPulse) string {
 		b.WriteString("No blocked tasks.\n")
 	} else {
 		for _, t := range p.Blocked {
-			desc := taskLabel(t)
+			desc := taskfmt.TaskLabel(t)
 			reason := ""
 			if t.Status == task.StatusFailed && t.Error != "" {
-				reason = fmt.Sprintf(" - error: %s", truncate(t.Error, 100))
+				reason = fmt.Sprintf(" - error: %s", taskfmt.Truncate(t.Error, 100))
 			} else if t.Status == task.StatusWaitingInput {
 				reason = " - waiting for input"
 			}
-			b.WriteString(fmt.Sprintf("- [%s] %s%s\n", t.Status, truncate(desc, 80), reason))
+			b.WriteString(fmt.Sprintf("- [%s] %s%s\n", t.Status, taskfmt.Truncate(desc, 80), reason))
 		}
 	}
 
@@ -263,35 +264,6 @@ func countFailed(tasks []*task.Task) int {
 	return n
 }
 
-func taskLabel(t *task.Task) string {
-	if t.Description != "" {
-		return t.Description
-	}
-	return t.TaskID
-}
-
-func truncate(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}
-
-func formatDuration(d time.Duration) string {
-	if d < time.Minute {
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	}
-	if d < time.Hour {
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	}
-	hours := int(d.Hours())
-	mins := int(d.Minutes()) % 60
-	if mins == 0 {
-		return fmt.Sprintf("%dh", hours)
-	}
-	return fmt.Sprintf("%dh%dm", hours, mins)
-}
 
 func formatCommitCount(count int) string {
 	if count == 1 {

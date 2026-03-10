@@ -100,10 +100,7 @@ func NewDegradationExecutor(delegate tools.ToolExecutor, lookup ToolLookup, conf
 }
 
 func (d *degradationExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	toolName := strings.TrimSpace(d.delegate.Metadata().Name)
-	if toolName == "" {
-		toolName = strings.TrimSpace(call.Name)
-	}
+	toolName := resolveToolName(d.delegate.Metadata().Name, call.Name)
 	fallbacks := d.orderedFallbacks(toolName)
 	fallbackTried := false
 

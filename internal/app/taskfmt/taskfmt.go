@@ -54,3 +54,20 @@ func FormatDuration(d time.Duration) string {
 	}
 	return fmt.Sprintf("%d minutes", mins)
 }
+
+// FormatDurationCompact renders a duration in short notation
+// (e.g. "45s", "5m", "2h30m").
+func FormatDurationCompact(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	hours := int(d.Hours())
+	mins := int(d.Minutes()) % 60
+	if mins == 0 {
+		return fmt.Sprintf("%dh", hours)
+	}
+	return fmt.Sprintf("%dh%dm", hours, mins)
+}

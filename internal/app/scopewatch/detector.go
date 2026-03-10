@@ -171,71 +171,42 @@ func (d *Detector) diffSnapshots(item *workitem.WorkItem, prev, curr *itemSnapsh
 	now := d.nowFunc()
 	var events []ScopeChangeEvent
 
-	// Description change — only flag if the item has started
+	// Description change — only flag if the item has started.
+	// Hash comparison is used as a proxy; callers with raw text can
+	// apply their own delta threshold.
 	if prev.DescHash != curr.DescHash && item.StartedAt != nil {
-		minDelta := d.config.MinDescriptionDelta
-		if minDelta <= 0 {
-			minDelta = 50
-		}
-		// Use hash difference as proxy; the actual text length delta is
-		// checked by the caller if they have the raw text. For hash-only
-		// comparison, always flag once hash differs.
-		_ = minDelta
-		events = append(events, ScopeChangeEvent{
-			ItemID:     item.ID,
-			ItemKey:    item.Key,
-			ItemTitle:  item.Title,
-			ItemURL:    item.URL,
-			ChangeType: ChangeDescriptionChanged,
-			OldValue:   "hash:" + prev.DescHash[:8],
-			NewValue:   "hash:" + curr.DescHash[:8],
-			DetectedAt: now,
-		})
+		events = append(events, newChangeEvent(item, ChangeDescriptionChanged, "hash:"+prev.DescHash[:8], "hash:"+curr.DescHash[:8], now))
 	}
 
 	// Story points changed
 	if prev.Points != curr.Points && prev.Points != "" {
-		events = append(events, ScopeChangeEvent{
-			ItemID:     item.ID,
-			ItemKey:    item.Key,
-			ItemTitle:  item.Title,
-			ItemURL:    item.URL,
-			ChangeType: ChangePointsChanged,
-			OldValue:   prev.Points,
-			NewValue:   curr.Points,
-			DetectedAt: now,
-		})
+		events = append(events, newChangeEvent(item, ChangePointsChanged, prev.Points, curr.Points, now))
 	}
 
 	// Assignee changed after work started
 	if prev.AssigneeID != curr.AssigneeID && prev.AssigneeID != "" && item.StartedAt != nil {
-		events = append(events, ScopeChangeEvent{
-			ItemID:     item.ID,
-			ItemKey:    item.Key,
-			ItemTitle:  item.Title,
-			ItemURL:    item.URL,
-			ChangeType: ChangeAssigneeChanged,
-			OldValue:   prev.AssigneeID,
-			NewValue:   curr.AssigneeID,
-			DetectedAt: now,
-		})
+		events = append(events, newChangeEvent(item, ChangeAssigneeChanged, prev.AssigneeID, curr.AssigneeID, now))
 	}
 
 	// Deadline moved
 	if prev.Deadline != curr.Deadline && prev.Deadline != "" {
-		events = append(events, ScopeChangeEvent{
-			ItemID:     item.ID,
-			ItemKey:    item.Key,
-			ItemTitle:  item.Title,
-			ItemURL:    item.URL,
-			ChangeType: ChangeDeadlineMoved,
-			OldValue:   prev.Deadline,
-			NewValue:   curr.Deadline,
-			DetectedAt: now,
-		})
+		events = append(events, newChangeEvent(item, ChangeDeadlineMoved, prev.Deadline, curr.Deadline, now))
 	}
 
 	return events
+}
+
+func newChangeEvent(item *workitem.WorkItem, ct ChangeType, oldVal, newVal string, at time.Time) ScopeChangeEvent {
+	return ScopeChangeEvent{
+		ItemID:     item.ID,
+		ItemKey:    item.Key,
+		ItemTitle:  item.Title,
+		ItemURL:    item.URL,
+		ChangeType: ct,
+		OldValue:   oldVal,
+		NewValue:   newVal,
+		DetectedAt: at,
+	}
 }
 
 func snapshotKey(item *workitem.WorkItem) string {

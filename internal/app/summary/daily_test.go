@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"alex/internal/app/taskfmt"
 	"alex/internal/domain/task"
 	"alex/internal/infra/taskstore"
 	"alex/internal/shared/notification"
@@ -378,15 +379,15 @@ func TestService_GenerateAndSend_SendError(t *testing.T) {
 // --- Helper tests ---
 
 func TestTruncate(t *testing.T) {
-	if got := truncate("hello world", 5); got != "he..." {
+	if got := taskfmt.Truncate("hello world", 5); got != "he..." {
 		t.Errorf("truncate = %q, want he...", got)
 	}
-	if got := truncate("hi", 10); got != "hi" {
+	if got := taskfmt.Truncate("hi", 10); got != "hi" {
 		t.Errorf("truncate short = %q, want hi", got)
 	}
 }
 
-func TestFormatDuration(t *testing.T) {
+func TestFormatDurationCompact(t *testing.T) {
 	tests := []struct {
 		d    time.Duration
 		want string
@@ -397,16 +398,16 @@ func TestFormatDuration(t *testing.T) {
 		{90 * time.Minute, "1h30m"},
 	}
 	for _, tt := range tests {
-		got := formatDuration(tt.d)
+		got := taskfmt.FormatDurationCompact(tt.d)
 		if got != tt.want {
-			t.Errorf("formatDuration(%v) = %q, want %q", tt.d, got, tt.want)
+			t.Errorf("FormatDurationCompact(%v) = %q, want %q", tt.d, got, tt.want)
 		}
 	}
 }
 
 func TestTaskLabel_FallbackToID(t *testing.T) {
 	tk := &task.Task{TaskID: "abc123"}
-	if got := taskLabel(tk); got != "abc123" {
-		t.Errorf("taskLabel = %q, want abc123", got)
+	if got := taskfmt.TaskLabel(tk); got != "abc123" {
+		t.Errorf("TaskLabel = %q, want abc123", got)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"alex/internal/app/taskfmt"
 	"alex/internal/domain/signal"
 	"alex/internal/domain/task"
 	"alex/internal/domain/workitem"
@@ -440,10 +441,10 @@ func TestMatchesMember(t *testing.T) {
 }
 
 func TestTruncate(t *testing.T) {
-	if got := truncate("hello world", 5); got != "he..." {
+	if got := taskfmt.Truncate("hello world", 5); got != "he..." {
 		t.Errorf("truncate = %q, want he...", got)
 	}
-	if got := truncate("hi", 10); got != "hi" {
+	if got := taskfmt.Truncate("hi", 10); got != "hi" {
 		t.Errorf("truncate short = %q, want hi", got)
 	}
 }
@@ -461,7 +462,7 @@ func TestFormatDuration(t *testing.T) {
 		{7 * 24 * time.Hour, "7 days"},
 	}
 	for _, tt := range tests {
-		got := formatDuration(tt.d)
+		got := taskfmt.FormatDuration(tt.d)
 		if got != tt.want {
 			t.Errorf("formatDuration(%v) = %q, want %q", tt.d, got, tt.want)
 		}
