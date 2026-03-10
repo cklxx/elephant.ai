@@ -12,6 +12,7 @@ node_modules
 dist/
 build/
 out/
+output/
 storybook-static/
 
 # ignore Nix derivation results
