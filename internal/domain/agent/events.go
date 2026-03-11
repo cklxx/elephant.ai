@@ -15,16 +15,12 @@ type EventListener = agent.EventListener
 // Unified Event — replaces 25+ concrete event structs
 // ---------------------------------------------------------------------------
 
-// EventKind identifies the type of domain event.
-// Values correspond to the string constants in types/events.go.
-type EventKind = string
-
 // Event is the single domain event type.
 // It embeds BaseEvent for identity/metadata and carries a Kind discriminator
 // plus a flat EventData payload that covers every event variant.
 type Event struct {
 	BaseEvent
-	Kind EventKind
+	Kind string
 	Data EventData
 }
 
@@ -169,7 +165,7 @@ type EventData struct {
 }
 
 // NewEvent constructs an Event with the given kind and base.
-func NewEvent(kind EventKind, base BaseEvent) *Event {
+func NewEvent(kind string, base BaseEvent) *Event {
 	return &Event{BaseEvent: base, Kind: kind}
 }
 
@@ -184,7 +180,7 @@ func percentageOf(value, total int) float64 {
 	return float64(value) / float64(total) * 100.0
 }
 
-// EventListenerFunc is a function adapter for EventListener
+// EventListenerFunc is a function adapter for EventListener.
 type EventListenerFunc func(AgentEvent)
 
 func (f EventListenerFunc) OnEvent(event AgentEvent) {

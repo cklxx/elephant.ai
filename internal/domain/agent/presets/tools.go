@@ -121,27 +121,27 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 	}
 }
 
-// FilteredToolRegistry wraps a tool registry with preset-based filtering
-type FilteredToolRegistry struct {
+// filteredToolRegistry wraps a tool registry with preset-based filtering.
+type filteredToolRegistry struct {
 	parent tools.ToolRegistry
 	config *ToolConfig
 }
 
 // NewFilteredToolRegistry creates a filtered registry based on tool mode and preset.
-func NewFilteredToolRegistry(parent tools.ToolRegistry, mode ToolMode, preset ToolPreset) (*FilteredToolRegistry, error) {
+func NewFilteredToolRegistry(parent tools.ToolRegistry, mode ToolMode, preset ToolPreset) (tools.ToolRegistry, error) {
 	config, err := GetToolConfig(mode, preset)
 	if err != nil {
 		return nil, err
 	}
 
-	return &FilteredToolRegistry{
+	return &filteredToolRegistry{
 		parent: parent,
 		config: config,
 	}, nil
 }
 
 // Get retrieves a tool if allowed by the preset
-func (f *FilteredToolRegistry) Get(name string) (tools.ToolExecutor, error) {
+func (f *filteredToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 	// Check if tool is denied
 	if f.config.DeniedTools[name] {
 		return nil, fmt.Errorf("tool not available in %s preset: %s", f.config.Name, name)
@@ -161,7 +161,7 @@ func (f *FilteredToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 }
 
 // List returns only tools allowed by the preset
-func (f *FilteredToolRegistry) List() []ports.ToolDefinition {
+func (f *filteredToolRegistry) List() []ports.ToolDefinition {
 	allTools := f.parent.List()
 	filtered := make([]ports.ToolDefinition, 0)
 
@@ -187,12 +187,12 @@ func (f *FilteredToolRegistry) List() []ports.ToolDefinition {
 }
 
 // Register delegates to parent registry
-func (f *FilteredToolRegistry) Register(tool tools.ToolExecutor) error {
+func (f *filteredToolRegistry) Register(tool tools.ToolExecutor) error {
 	return f.parent.Register(tool)
 }
 
 // Unregister delegates to parent registry
-func (f *FilteredToolRegistry) Unregister(name string) error {
+func (f *filteredToolRegistry) Unregister(name string) error {
 	return f.parent.Unregister(name)
 }
 

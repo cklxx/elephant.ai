@@ -332,5 +332,3 @@ func TestWorkflowDiagnosticToolFilteringEventImplementation(t *testing.T) {
 		t.Errorf("Expected 5 filtered tools, got %d", len(event.Data.FilteredTools))
 	}
 }
-
-var _ tools.ToolRegistry = (*presets.FilteredToolRegistry)(nil)

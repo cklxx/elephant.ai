@@ -6,8 +6,8 @@ import (
 	"alex/internal/domain/agent/ports"
 )
 
-// ContextBudgetStatus captures the current token budget state for LLM self-awareness.
-type ContextBudgetStatus struct {
+// contextBudgetStatus captures the current token budget state for LLM self-awareness.
+type contextBudgetStatus struct {
 	TokensUsed          int
 	TokenLimit          int
 	UsagePercent        float64
@@ -50,7 +50,7 @@ func buildContextBudgetStatus(
 	tokensUsed, tokenLimit int,
 	state *TaskState,
 	compressionOccurred bool,
-) ContextBudgetStatus {
+) contextBudgetStatus {
 	ratio := 0.0
 	if tokenLimit > 0 {
 		ratio = float64(tokensUsed) / float64(tokenLimit)
@@ -61,7 +61,7 @@ func buildContextBudgetStatus(
 		compactionSeq = state.ContextCompactionSeq
 	}
 
-	return ContextBudgetStatus{
+	return contextBudgetStatus{
 		TokensUsed:          tokensUsed,
 		TokenLimit:          tokenLimit,
 		UsagePercent:        ratio * 100,
@@ -73,14 +73,14 @@ func buildContextBudgetStatus(
 // shouldInjectContextStatus returns true when the phase carries actionable
 // information for the model. Phase "ok" is the default — injecting it every
 // turn wastes tokens for zero behavioral change.
-func shouldInjectContextStatus(status ContextBudgetStatus) bool {
+func shouldInjectContextStatus(status contextBudgetStatus) bool {
 	return status.Phase != contextPhaseOK
 }
 
 // buildContextStatusMessage produces a minimal system message only for non-ok
 // phases. Format: `<ctx usage="75%" phase="warning"/>` + directive.
 // Token cost: ~20–30 tokens (only when injected).
-func buildContextStatusMessage(status ContextBudgetStatus) ports.Message {
+func buildContextStatusMessage(status contextBudgetStatus) ports.Message {
 	tag := fmt.Sprintf(`<ctx usage="%.0f%%" phase="%s"/>`, status.UsagePercent, status.Phase)
 
 	content := tag + "\n" + phaseDirective(status.Phase)

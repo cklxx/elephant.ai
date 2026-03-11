@@ -1,8 +1,8 @@
 package ports
 
-// CompressionPlan describes which messages should be compacted and which
+// compressionPlan describes which messages should be compacted and which
 // messages should be summarized for synthetic replacement.
-type CompressionPlan struct {
+type compressionPlan struct {
 	CompressibleIndexes map[int]struct{}
 	SummarySource       []Message
 }
@@ -16,8 +16,8 @@ type CompressionPlanOptions struct {
 
 // BuildCompressionPlan computes a deterministic compaction plan shared by
 // context manager and react runtime.
-func BuildCompressionPlan(messages []Message, opts CompressionPlanOptions) CompressionPlan {
-	plan := CompressionPlan{CompressibleIndexes: map[int]struct{}{}}
+func BuildCompressionPlan(messages []Message, opts CompressionPlanOptions) compressionPlan {
+	plan := compressionPlan{CompressibleIndexes: map[int]struct{}{}}
 	if len(messages) == 0 {
 		return plan
 	}

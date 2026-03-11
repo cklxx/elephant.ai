@@ -50,7 +50,7 @@ func TestShouldInjectContextStatus(t *testing.T) {
 		{contextPhaseTrimmed, true},
 	}
 	for _, tc := range cases {
-		got := shouldInjectContextStatus(ContextBudgetStatus{Phase: tc.phase})
+		got := shouldInjectContextStatus(contextBudgetStatus{Phase: tc.phase})
 		if got != tc.want {
 			t.Fatalf("shouldInjectContextStatus(phase=%q) = %v, want %v", tc.phase, got, tc.want)
 		}
@@ -58,7 +58,7 @@ func TestShouldInjectContextStatus(t *testing.T) {
 }
 
 func TestBuildContextStatusMessage_Warning(t *testing.T) {
-	status := ContextBudgetStatus{Phase: contextPhaseWarning, UsagePercent: 75}
+	status := contextBudgetStatus{Phase: contextPhaseWarning, UsagePercent: 75}
 	msg := buildContextStatusMessage(status)
 
 	if !strings.Contains(msg.Content, `phase="warning"`) {
@@ -73,7 +73,7 @@ func TestBuildContextStatusMessage_Warning(t *testing.T) {
 }
 
 func TestBuildContextStatusMessage_Compressed(t *testing.T) {
-	status := ContextBudgetStatus{Phase: contextPhaseCompressed, UsagePercent: 88}
+	status := contextBudgetStatus{Phase: contextPhaseCompressed, UsagePercent: 88}
 	msg := buildContextStatusMessage(status)
 
 	if !strings.Contains(msg.Content, `phase="compressed"`) {
@@ -85,7 +85,7 @@ func TestBuildContextStatusMessage_Compressed(t *testing.T) {
 }
 
 func TestBuildContextStatusMessage_Trimmed(t *testing.T) {
-	status := ContextBudgetStatus{Phase: contextPhaseTrimmed, UsagePercent: 94}
+	status := contextBudgetStatus{Phase: contextPhaseTrimmed, UsagePercent: 94}
 	msg := buildContextStatusMessage(status)
 
 	if !strings.Contains(msg.Content, `phase="trimmed"`) {
@@ -98,7 +98,7 @@ func TestBuildContextStatusMessage_Trimmed(t *testing.T) {
 
 func TestContextStatusMessageTokenCost(t *testing.T) {
 	// Worst case: trimmed phase with directive.
-	status := ContextBudgetStatus{UsagePercent: 94, Phase: contextPhaseTrimmed}
+	status := contextBudgetStatus{UsagePercent: 94, Phase: contextPhaseTrimmed}
 	msg := buildContextStatusMessage(status)
 	tokens := tokenutil.CountTokens(msg.Content)
 	t.Logf("worst-case: %d tokens, content: %s", tokens, msg.Content)
