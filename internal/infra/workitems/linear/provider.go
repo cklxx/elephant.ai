@@ -41,9 +41,6 @@ func (p *Provider) Provider() workitem.Provider {
 // ListWorkItems queries Linear issues via GraphQL with team and updatedAt filters.
 func (p *Provider) ListWorkItems(_ context.Context, q ports.IssueQuery) (ports.ProviderIssuePage, error) {
 	_ = q
-	// Stub: real implementation will execute GraphQL query:
-	//   query { issues(filter: { team: { id: { in: [...] } }, updatedAt: { gte: "..." } },
-	//     first: N, after: cursor) { nodes { id title description state { name type } ... } pageInfo { ... } } }
 	return ports.ProviderIssuePage{}, nil
 }
 
@@ -51,15 +48,12 @@ func (p *Provider) ListWorkItems(_ context.Context, q ports.IssueQuery) (ports.P
 func (p *Provider) GetWorkItem(_ context.Context, workspaceID, workItemID string) (*workitem.WorkItem, error) {
 	_ = workspaceID
 	_ = workItemID
-	// Stub: real implementation will execute: query { issue(id: "...") { ... } }
 	return nil, fmt.Errorf("linear: GetWorkItem not yet implemented")
 }
 
 // ListComments fetches comments for a Linear issue via GraphQL.
 func (p *Provider) ListComments(_ context.Context, q ports.CommentQuery) (ports.ProviderCommentPage, error) {
 	_ = q
-	// Stub: real implementation will execute:
-	//   query { issue(id: "...") { comments(first: N, after: cursor) { nodes { ... } pageInfo { ... } } } }
 	return ports.ProviderCommentPage{}, nil
 }
 
@@ -68,15 +62,11 @@ func (p *Provider) ListComments(_ context.Context, q ports.CommentQuery) (ports.
 // from webhook previous-value payloads or polling-diff comparisons.
 func (p *Provider) ListStatusChanges(_ context.Context, q ports.StatusChangeQuery) (ports.ProviderStatusChangePage, error) {
 	_ = q
-	// Stub: Linear status changes are synthesized from:
-	// 1. Webhook payloads with "previous" values for state changes
-	// 2. Polling-diff comparison of cached vs current state
 	return ports.ProviderStatusChangePage{}, nil
 }
 
 // ResolveWorkspaces returns the Linear organization visible to the
 // authenticated user.
 func (p *Provider) ResolveWorkspaces(_ context.Context) ([]ports.WorkspaceRef, error) {
-	// Stub: real implementation will execute: query { organization { id name urlKey } }
 	return nil, fmt.Errorf("linear: ResolveWorkspaces not yet implemented")
 }

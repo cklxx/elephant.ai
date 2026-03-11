@@ -243,7 +243,7 @@ func (c *CLI) printSnapshotGaps(out io.Writer, snapshot sessionstate.Snapshot) e
 	if note == "" {
 		return nil
 	}
-	return writeLine(out, "  TODO: %s\n", note)
+	return writeLine(out, "  Gap: %s\n", note)
 }
 
 func writeLine(out io.Writer, format string, args ...any) error {
