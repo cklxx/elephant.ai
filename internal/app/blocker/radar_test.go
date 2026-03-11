@@ -10,6 +10,7 @@ import (
 	"alex/internal/domain/signal"
 	signalports "alex/internal/domain/signal/ports"
 	"alex/internal/domain/task"
+	"alex/internal/shared/notification"
 	"alex/internal/testutil"
 )
 
@@ -17,6 +18,14 @@ type fakeGitSignalProvider struct {
 	bottlenecksByRepo map[string][]signal.SignalEvent
 	errByRepo         map[string]error
 	calls             []gitSignalCall
+}
+
+type failingNotifier struct {
+	err error
+}
+
+func (f *failingNotifier) Send(context.Context, notification.Target, string) error {
+	return f.err
 }
 
 type gitSignalCall struct {
@@ -501,6 +510,30 @@ func TestSendAlerts_NoNotifier(t *testing.T) {
 	}
 	if len(result.Alerts) == 0 {
 		t.Error("expected alerts even without notifier")
+	}
+}
+
+func TestSendAlerts_NotifierError(t *testing.T) {
+	store := testutil.NewTestTaskStore(t)
+	ctx := context.Background()
+
+	tk := testutil.MakeTask("t1", "stuck task", task.StatusRunning)
+	_ = store.Create(ctx, tk)
+
+	cfg := DefaultConfig()
+	cfg.StaleThreshold = 1 * time.Minute
+	r := NewRadar(store, &failingNotifier{err: fmt.Errorf("network down")}, cfg)
+	r.nowFunc = func() time.Time { return time.Now().Add(10 * time.Minute) }
+
+	result, err := r.SendAlerts(ctx)
+	if err == nil {
+		t.Fatal("expected SendAlerts to return notifier error")
+	}
+	if result == nil || len(result.Alerts) == 0 {
+		t.Fatalf("result = %#v, want scan result with alerts", result)
+	}
+	if !strings.Contains(err.Error(), "send alerts") {
+		t.Fatalf("error = %q, want wrapped send error", err)
 	}
 }
 

@@ -87,9 +87,13 @@ func makeCommitEvent(repo, author string, at time.Time) signal.SignalEvent {
 
 type fakeNotifier struct {
 	sent []string
+	err  error
 }
 
 func (f *fakeNotifier) Send(_ context.Context, _ notification.Target, content string) error {
+	if f.err != nil {
+		return f.err
+	}
 	f.sent = append(f.sent, content)
 	return nil
 }
@@ -400,6 +404,25 @@ func TestFormatMarkdown_WithGitMetrics(t *testing.T) {
 	}
 }
 
+func TestFormatMarkdown_WithEmptyGitMetrics(t *testing.T) {
+	now := time.Now()
+	out := FormatMarkdown(&WeeklyPulse{
+		From: now.Add(-7 * 24 * time.Hour),
+		To:   now,
+		GitMetrics: &GitActivityMetrics{
+			PRsMerged:     0,
+			ReviewCount:   0,
+			CommitsPushed: 0,
+		},
+	})
+	if !strings.Contains(out, "Avg review time:** n/a") {
+		t.Fatalf("expected n/a avg review time in output:\n%s", out)
+	}
+	if !strings.Contains(out, "Top contributors:** none") {
+		t.Fatalf("expected empty contributors summary in output:\n%s", out)
+	}
+}
+
 func TestFormatMarkdown_Sections(t *testing.T) {
 	pulse := &WeeklyPulse{
 		From: time.Date(2026, 3, 3, 0, 0, 0, 0, time.UTC),
@@ -530,6 +553,81 @@ func TestGenerateAndSend_EnrichesPulseWithGitMetrics(t *testing.T) {
 		if !strings.Contains(out, check) {
 			t.Fatalf("missing %q in output:\n%s", check, out)
 		}
+	}
+}
+
+func TestGenerateAndSend_NoNotifierStillGenerates(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewService(store, nil, "lark", "test-chat")
+	if err := svc.GenerateAndSend(context.Background()); err != nil {
+		t.Fatalf("GenerateAndSend() error = %v", err)
+	}
+}
+
+func TestGenerateAndSend_NotifierError(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewService(store, &fakeNotifier{err: context.DeadlineExceeded}, "lark", "test-chat")
+	err := svc.GenerateAndSend(context.Background())
+	if err == nil {
+		t.Fatal("expected GenerateAndSend to return send error")
+	}
+	if !strings.Contains(err.Error(), "send pulse") {
+		t.Fatalf("error = %q, want wrapped send error", err)
+	}
+}
+
+func TestGenerateAndSend_GitMetricsError(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewService(store, &fakeNotifier{}, "lark", "test-chat")
+	svc.GitSignalSource = &fakeGitSignalProvider{err: context.Canceled}
+
+	err := svc.GenerateAndSend(context.Background())
+	if err == nil {
+		t.Fatal("expected GenerateAndSend to return git metrics error")
+	}
+	if !strings.Contains(err.Error(), "generate git metrics") {
+		t.Fatalf("error = %q, want wrapped git metrics error", err)
+	}
+}
+
+func TestSummarizeGitActivity_EarliestReviewAndContributorLimits(t *testing.T) {
+	createdAt := time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC)
+	events := []signal.SignalEvent{
+		makeReviewEvent("org/repo", 1, createdAt, createdAt.Add(8*time.Hour), signal.SignalPRReviewSubmitted),
+		makeReviewEvent("org/repo", 1, createdAt, createdAt.Add(4*time.Hour), signal.SignalPRApproved),
+		makeReviewEvent("org/repo", 2, createdAt, createdAt.Add(-time.Hour), signal.SignalPRApproved),
+		{Kind: signal.SignalPRReviewSubmitted, Repo: "org/repo", Timestamp: createdAt.Add(2 * time.Hour)},
+		makeCommitEvent("org/repo", "dave", createdAt.Add(time.Hour)),
+		makeCommitEvent("org/repo", "carol", createdAt.Add(2*time.Hour)),
+		makeCommitEvent("org/repo", "carol", createdAt.Add(3*time.Hour)),
+		makeCommitEvent("org/repo", "bob", createdAt.Add(4*time.Hour)),
+		makeCommitEvent("org/repo", "alice", createdAt.Add(5*time.Hour)),
+		{
+			Kind:      signal.SignalCommitPushed,
+			Repo:      "org/repo",
+			Timestamp: createdAt.Add(6 * time.Hour),
+			Commit:    &signal.CommitContext{Author: "   "},
+		},
+	}
+
+	metrics := summarizeGitActivity(events)
+	if metrics.ReviewCount != 4 {
+		t.Fatalf("ReviewCount = %d, want 4", metrics.ReviewCount)
+	}
+	if metrics.AvgReviewTime != 4*time.Hour {
+		t.Fatalf("AvgReviewTime = %v, want 4h earliest valid review latency", metrics.AvgReviewTime)
+	}
+	if metrics.CommitsPushed != 6 {
+		t.Fatalf("CommitsPushed = %d, want 6 commit events including blank-author entries", metrics.CommitsPushed)
+	}
+	if len(metrics.TopContributors) != 3 {
+		t.Fatalf("TopContributors len = %d, want 3", len(metrics.TopContributors))
+	}
+	if metrics.TopContributors[0].Author != "carol" || metrics.TopContributors[0].Commits != 2 {
+		t.Fatalf("top contributor = %#v, want carol with 2 commits", metrics.TopContributors[0])
+	}
+	if metrics.TopContributors[1].Author != "alice" || metrics.TopContributors[2].Author != "bob" {
+		t.Fatalf("contributors = %#v, want alphabetical tie-break after top count", metrics.TopContributors)
 	}
 }
 
