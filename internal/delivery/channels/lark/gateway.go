@@ -61,6 +61,7 @@ type sessionSlot struct {
 	intentionalCancelToken uint64
 	sessionID              string
 	lastSessionID          string
+	taskDesc               string // first message content of the running task; used by intent router
 	pendingOptions         []string // options awaiting numeric reply
 	lastTouched            time.Time
 }
@@ -92,6 +93,7 @@ type Gateway struct {
 	noticeState         *noticeStateStore
 	activeSlots         sync.Map           // chatID → *sessionSlot
 	pendingInputRelays  sync.Map           // chatID → *pendingRelayQueue
+	forkSlots           forkSlotMap        // childSessionID → *forkSlot
 	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
 	autoAuth            *AutoAuth          // in-message OAuth device flow
 	attentionGate       *AttentionGate     // optional urgency filter for incoming messages

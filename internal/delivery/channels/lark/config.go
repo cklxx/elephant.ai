@@ -57,6 +57,27 @@ type Config struct {
 	// When multiple bots from this list are mentioned in a group message, they will
 	// take turns responding instead of all responding simultaneously.
 	AIChatBotIDs []string
+	// BtwEnabled enables the fork (btw) mode: when a task is running and a new
+	// message arrives, a child session is spawned to handle it independently.
+	// When false (default), the new message is injected directly into the parent
+	// session's input channel. Must be true for the intent router to have effect.
+	BtwEnabled bool
+	// BtwIntentRouterEnabled uses an LLM to classify whether a message received
+	// while a task is running should be injected into the parent session (INJECT)
+	// or handled as an independent side-question fork (BTW). Default: false
+	// (always fork, preserving the legacy behaviour). Only evaluated when
+	// BtwEnabled is true.
+	BtwIntentRouterEnabled *bool
+	// BtwIntentRouterModel overrides the default llmProfile model for intent
+	// classification. Empty string means use the gateway's llmProfile as-is.
+	BtwIntentRouterModel string
+	// BtwAutoInjectResult injects the child session's answer as a synthetic user
+	// message into the parent session after the child completes. This lets the
+	// parent agent decide whether to act on it. Default: false.
+	BtwAutoInjectResult *bool
+	// BtwResultPrefix is prepended to the child answer when injecting it into
+	// the parent session. Default: "[btw result]".
+	BtwResultPrefix string
 	// CCHooksAutoConfig enables automatic Claude Code hooks configuration
 	// (direct file write to .claude/settings.local.json) after /notice bind.
 	CCHooksAutoConfig *CCHooksAutoConfig

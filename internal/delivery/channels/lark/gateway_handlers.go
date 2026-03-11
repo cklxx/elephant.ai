@@ -108,16 +108,46 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		return nil
 	}
 
-	// If a task is already running for this chat, inject the new message
-	// into the running ReAct loop instead of starting a new task.
+	// If a task is already running for this chat, either inject the new message
+	// into the running ReAct loop or fork a child session (btw mode).
 	if slot.phase == slotRunning {
 		ch := slot.inputCh
 		activeSessionID := slot.sessionID
+		taskDesc := slot.taskDesc
 		slot.mu.Unlock()
 		if g.tryResolveInputReply(ctx, msg.chatID, strings.TrimSpace(msg.content)) {
 			return nil
 		}
-		g.injectUserInput(ch, activeSessionID, msg)
+		// When btw fork mode is disabled, fall back to the legacy behaviour:
+		// inject the message directly into the running task's input channel.
+		if !g.cfg.BtwEnabled {
+			select {
+			case ch <- agent.UserInput{Content: msg.content, SenderID: msg.senderID, MessageID: msg.messageID}:
+				g.logger.Info("btw disabled: injecting message into running session %s", activeSessionID)
+			default:
+				g.logger.Warn("btw disabled: inputCh full, dropping message for session %s", activeSessionID)
+			}
+			return nil
+		}
+		// Use the LLM intent router when enabled to decide whether to inject
+		// the message into the running task or fork it as a side-question.
+		intent := intentBTW
+		if g.btwIntentRouterEnabled() {
+			intent = g.classifyBtwIntent(ctx, taskDesc, msg.content)
+		}
+		if intent == intentInject {
+			select {
+			case ch <- agent.UserInput{Content: msg.content, SenderID: msg.senderID, MessageID: msg.messageID}:
+				g.logger.Info("intent router: INJECT message into running session %s", activeSessionID)
+			default:
+				g.logger.Warn("intent router: inputCh full, falling back to fork for session %s", activeSessionID)
+				g.launchForkSession(activeSessionID, ch, msg)
+			}
+		} else {
+			// Fork a child session to handle the side-question independently.
+			// The parent session continues uninterrupted.
+			g.launchForkSession(activeSessionID, ch, msg)
+		}
 		return nil
 	}
 
@@ -167,6 +197,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	taskToken := slot.taskToken
 	slot.sessionID = sessionID
 	slot.lastSessionID = sessionID
+	slot.taskDesc = strings.TrimSpace(msg.content)
 	slot.lastTouched = g.currentTime()
 	slot.mu.Unlock()
 
