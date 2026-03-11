@@ -6,6 +6,37 @@ import (
 	"testing"
 )
 
+func extractCardPlainText(cardJSON string) []string {
+	var card map[string]any
+	if err := json.Unmarshal([]byte(cardJSON), &card); err != nil {
+		return nil
+	}
+	elements, ok := card["elements"].([]any)
+	if !ok || len(elements) == 0 {
+		return nil
+	}
+	texts := make([]string, 0, len(elements))
+	for _, el := range elements {
+		elem, ok := el.(map[string]any)
+		if !ok {
+			continue
+		}
+		if tag, _ := elem["tag"].(string); tag != "div" {
+			continue
+		}
+		textNode, ok := elem["text"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if nodeTag, _ := textNode["tag"].(string); nodeTag != "plain_text" {
+			continue
+		}
+		content, _ := textNode["content"].(string)
+		texts = append(texts, content)
+	}
+	return texts
+}
+
 func TestHasMarkdownPatterns(t *testing.T) {
 	tests := []struct {
 		name string
@@ -310,12 +341,18 @@ func TestSmartContent_Table(t *testing.T) {
 		t.Fatal("card missing elements")
 	}
 	elem := elements[0].(map[string]any)
-	if elem["tag"] != "markdown" {
-		t.Errorf("expected markdown tag, got %v", elem["tag"])
+	if elem["tag"] != "div" {
+		t.Errorf("expected div tag, got %v", elem["tag"])
 	}
-	md, _ := elem["content"].(string)
-	if !strings.Contains(md, "| Name") {
-		t.Errorf("card markdown should contain table: %q", md)
+	textBlocks := extractCardPlainText(content)
+	if len(textBlocks) != 2 {
+		t.Fatalf("expected 2 card text blocks, got %d: %+v", len(textBlocks), textBlocks)
+	}
+	if textBlocks[0] != "Report" {
+		t.Fatalf("expected heading block to be normalized, got %q", textBlocks[0])
+	}
+	if got, want := textBlocks[1], "Name | Score\nAlice | 95\nBob | 88"; got != want {
+		t.Fatalf("unexpected table block:\n got: %q\nwant: %q", got, want)
 	}
 	// Card should have no header when title is empty.
 	if _, hasHeader := card["header"]; hasHeader {
@@ -323,12 +360,56 @@ func TestSmartContent_Table(t *testing.T) {
 	}
 }
 
-func TestExtractCardMarkdown(t *testing.T) {
-	original := "## Report\n\n| Name | Score |\n|------|-------|\n| Alice | 95 |"
-	cardJSON := buildContentCard(original)
-	extracted := extractCardMarkdown(cardJSON)
-	if extracted != original {
-		t.Errorf("extractCardMarkdown roundtrip failed: got %q, want %q", extracted, original)
+func TestBuildTableSafeCard_NormalizesMentionsAndTableSyntax(t *testing.T) {
+	text := "通知 @Alice(ou_123)\n\n| Owner | Status |\n|-------|--------|\n| @Alice(ou_123) | done |"
+	cardJSON := buildTableSafeCard(text)
+	blocks := extractCardPlainText(cardJSON)
+	if len(blocks) != 2 {
+		t.Fatalf("expected 2 text blocks, got %d: %+v", len(blocks), blocks)
+	}
+	if blocks[0] != "通知 @Alice" {
+		t.Fatalf("unexpected prose block: %q", blocks[0])
+	}
+	if got, want := blocks[1], "Owner | Status\n@Alice | done"; got != want {
+		t.Fatalf("unexpected table block:\n got: %q\nwant: %q", got, want)
+	}
+}
+
+func TestBuildTableSafeCard_PreservesMarkdownAroundTable(t *testing.T) {
+	text := "## Summary\n\n| Name | Score |\n|------|-------|\n| Alice | 95 |\n\n- done"
+	cardJSON := buildTableSafeCard(text)
+	blocks := extractCardPlainText(cardJSON)
+	if len(blocks) != 3 {
+		t.Fatalf("expected 3 text blocks, got %d: %+v", len(blocks), blocks)
+	}
+	if blocks[0] != "Summary" {
+		t.Fatalf("unexpected first block: %q", blocks[0])
+	}
+	if blocks[1] != "Name | Score\nAlice | 95" {
+		t.Fatalf("unexpected table block: %q", blocks[1])
+	}
+	if blocks[2] != "• done" {
+		t.Fatalf("unexpected trailing block: %q", blocks[2])
+	}
+}
+
+func TestExtractCardText_TableSafeCard(t *testing.T) {
+	cardJSON := buildTableSafeCard("## Report\n\n| Name | Score |\n|------|-------|\n| Alice | 95 |")
+	if got, want := extractCardText(cardJSON), "Report\n\nName | Score\nAlice | 95"; got != want {
+		t.Fatalf("unexpected extracted card text:\n got: %q\nwant: %q", got, want)
+	}
+}
+
+func TestSplitMarkdownTableCells_EscapedPipe(t *testing.T) {
+	cells := splitMarkdownTableCells(`name \| alias|value`)
+	if len(cells) != 2 {
+		t.Fatalf("expected 2 cells, got %d: %+v", len(cells), cells)
+	}
+	if cells[0] != `name | alias` {
+		t.Fatalf("unexpected first cell: %q", cells[0])
+	}
+	if cells[1] != "value" {
+		t.Fatalf("unexpected second cell: %q", cells[1])
 	}
 }
 

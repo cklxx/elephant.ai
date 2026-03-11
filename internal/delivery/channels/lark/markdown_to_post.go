@@ -21,6 +21,11 @@ type postPayload struct {
 	} `json:"zh_cn"`
 }
 
+type replyCardBlock struct {
+	text    string
+	isTable bool
+}
+
 // Markdown detection patterns.
 var (
 	mdBoldPattern    = regexp.MustCompile(`\*\*[^*]+\*\*`)
@@ -66,13 +71,12 @@ func hasTableSyntax(text string) bool {
 }
 
 // smartContent inspects text for residual Markdown. If a table is detected,
-// it returns an interactive card (Lark card markdown supports table syntax);
-// if other Markdown is found, it converts to a "post" message; otherwise
-// returns a plain "text" message.
+// it returns an interactive card with plain-text table blocks so Feishu does
+// not need to interpret pipe-table markdown; if other Markdown is found, it
+// converts to a "post" message; otherwise returns a plain "text" message.
 func smartContent(text string) (msgType string, content string) {
 	if hasTableSyntax(text) {
-		text = renderOutgoingMentions(text)
-		return "interactive", buildContentCard(text)
+		return "interactive", buildTableSafeCard(text)
 	}
 	if !hasMarkdownPatterns(text) {
 		return "text", textContent(text)
@@ -81,20 +85,182 @@ func smartContent(text string) (msgType string, content string) {
 	return "post", buildPostContent(text)
 }
 
-// buildContentCard wraps markdown text in a Lark interactive card.
-// The card's markdown element renders tables natively.
-func buildContentCard(text string) string {
-	return buildLarkCard("", "blue", []any{
-		map[string]any{
-			"tag":     "markdown",
-			"content": text,
-		},
+func buildTableSafeCard(text string) string {
+	blocks := splitReplyCardBlocks(normalizeOutgoingMentionsForCardText(text))
+	elements := make([]any, 0, len(blocks))
+	for _, block := range blocks {
+		rendered := renderReplyCardBlock(block)
+		if strings.TrimSpace(rendered) == "" {
+			continue
+		}
+		elements = append(elements, map[string]any{
+			"tag": "div",
+			"text": map[string]any{
+				"tag":     "plain_text",
+				"content": rendered,
+			},
+		})
+	}
+	if len(elements) == 0 {
+		elements = append(elements, map[string]any{
+			"tag": "div",
+			"text": map[string]any{
+				"tag":     "plain_text",
+				"content": "",
+			},
+		})
+	}
+	return buildLarkCard("", "blue", elements)
+}
+
+func renderReplyCardBlock(block replyCardBlock) string {
+	if block.isTable {
+		return renderMarkdownTableAsPlainText(block.text)
+	}
+	return flattenPostContentToText(buildPostContent(block.text))
+}
+
+func splitReplyCardBlocks(text string) []replyCardBlock {
+	lines := strings.Split(text, "\n")
+	blocks := make([]replyCardBlock, 0)
+	proseLines := make([]string, 0)
+	inCodeBlock := false
+
+	flushProse := func() {
+		if len(proseLines) == 0 {
+			return
+		}
+		blockText := strings.TrimSpace(strings.Join(proseLines, "\n"))
+		if blockText != "" {
+			blocks = append(blocks, replyCardBlock{text: blockText})
+		}
+		proseLines = proseLines[:0]
+	}
+
+	for i := 0; i < len(lines); {
+		line := lines[i]
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			inCodeBlock = !inCodeBlock
+			proseLines = append(proseLines, line)
+			i++
+			continue
+		}
+		if !inCodeBlock && isMarkdownTableStart(lines, i) {
+			flushProse()
+			start := i
+			i += 2
+			for i < len(lines) && isMarkdownTableRow(lines[i]) {
+				i++
+			}
+			tableText := strings.TrimSpace(strings.Join(lines[start:i], "\n"))
+			if tableText != "" {
+				blocks = append(blocks, replyCardBlock{text: tableText, isTable: true})
+			}
+			continue
+		}
+		proseLines = append(proseLines, line)
+		i++
+	}
+	flushProse()
+	return blocks
+}
+
+func isMarkdownTableStart(lines []string, idx int) bool {
+	if idx+1 >= len(lines) {
+		return false
+	}
+	header := strings.TrimSpace(lines[idx])
+	separator := strings.TrimSpace(lines[idx+1])
+	return strings.Contains(header, "|") && mdTableSep.MatchString(separator)
+}
+
+func isMarkdownTableRow(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return trimmed != "" && strings.Contains(trimmed, "|")
+}
+
+func renderMarkdownTableAsPlainText(table string) string {
+	lines := strings.Split(strings.TrimSpace(table), "\n")
+	if len(lines) < 2 {
+		return strings.TrimSpace(table)
+	}
+	rendered := make([]string, 0, len(lines)-1)
+	for idx, line := range lines {
+		if idx == 1 {
+			continue
+		}
+		cells := parseMarkdownTableRow(line)
+		if len(cells) == 0 {
+			continue
+		}
+		rendered = append(rendered, strings.Join(cells, " | "))
+	}
+	return strings.Join(rendered, "\n")
+}
+
+func parseMarkdownTableRow(line string) []string {
+	trimmed := strings.TrimSpace(line)
+	trimmed = strings.TrimPrefix(trimmed, "|")
+	trimmed = strings.TrimSuffix(trimmed, "|")
+	if strings.TrimSpace(trimmed) == "" {
+		return nil
+	}
+	rawCells := splitMarkdownTableCells(trimmed)
+	cells := make([]string, 0, len(rawCells))
+	for _, cell := range rawCells {
+		cells = append(cells, strings.TrimSpace(cell))
+	}
+	return cells
+}
+
+func splitMarkdownTableCells(row string) []string {
+	var (
+		cells   []string
+		current strings.Builder
+		escaped bool
+	)
+	for _, r := range row {
+		switch {
+		case escaped:
+			current.WriteRune(r)
+			escaped = false
+		case r == '\\':
+			escaped = true
+		case r == '|':
+			cells = append(cells, current.String())
+			current.Reset()
+		default:
+			current.WriteRune(r)
+		}
+	}
+	cells = append(cells, current.String())
+	return cells
+}
+
+func normalizeOutgoingMentionsForCardText(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return text
+	}
+	return outgoingMentionPattern.ReplaceAllStringFunc(text, func(raw string) string {
+		sub := outgoingMentionPattern.FindStringSubmatch(raw)
+		if len(sub) != 3 {
+			return raw
+		}
+		name := strings.TrimSpace(sub[1])
+		userID := strings.TrimSpace(sub[2])
+		switch {
+		case userID == "all" && (name == "" || strings.EqualFold(name, "all")):
+			return "@所有人"
+		case name != "":
+			return "@" + name
+		default:
+			return raw
+		}
 	})
 }
 
-// extractCardMarkdown returns the markdown content from a card JSON built by
-// buildContentCard. Returns empty string if the JSON cannot be parsed.
-func extractCardMarkdown(cardJSON string) string {
+func extractCardText(cardJSON string) string {
 	var card map[string]any
 	if err := json.Unmarshal([]byte(cardJSON), &card); err != nil {
 		return ""
@@ -103,18 +269,28 @@ func extractCardMarkdown(cardJSON string) string {
 	if !ok || len(elements) == 0 {
 		return ""
 	}
+	parts := make([]string, 0, len(elements))
 	for _, el := range elements {
 		elem, ok := el.(map[string]any)
 		if !ok {
 			continue
 		}
-		if tag, _ := elem["tag"].(string); tag == "markdown" {
-			if content, ok := elem["content"].(string); ok {
-				return content
+		switch tag, _ := elem["tag"].(string); tag {
+		case "markdown":
+			if content, _ := elem["content"].(string); strings.TrimSpace(content) != "" {
+				parts = append(parts, content)
+			}
+		case "div":
+			textNode, ok := elem["text"].(map[string]any)
+			if !ok {
+				continue
+			}
+			if content, _ := textNode["content"].(string); strings.TrimSpace(content) != "" {
+				parts = append(parts, content)
 			}
 		}
 	}
-	return ""
+	return strings.TrimSpace(strings.Join(parts, "\n\n"))
 }
 
 // buildPostContent converts Markdown-flavored text into a Lark post JSON payload.

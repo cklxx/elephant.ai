@@ -117,7 +117,7 @@ func (g *Gateway) dispatchMessage(ctx context.Context, chatID, replyToID, msgTyp
 	// Interactive card failed: fall back to post format.
 	if normalizedType == "interactive" {
 		g.logger.Warn("Lark interactive card dispatch failed, fallback to post: %v", err)
-		cardText := extractCardMarkdown(content)
+		cardText := extractCardText(content)
 		if cardText != "" {
 			postMsgType, postContent := "post", buildPostContent(cardText)
 			if mid, postErr := send(postMsgType, postContent); postErr == nil {
