@@ -25,7 +25,7 @@ func (r *Registry) registerSessionTools() {
 }
 
 // registerPlatformTools registers the essential platform tools (local only).
-func (r *Registry) registerPlatformTools(config Config) error {
+func (r *Registry) registerPlatformTools() {
 	fileConfig := shared.FileToolConfig{}
 	shellConfig := shared.ShellToolConfig{}
 
@@ -33,7 +33,6 @@ func (r *Registry) registerPlatformTools(config Config) error {
 	r.static["write_file"] = aliases.NewWriteFile(fileConfig)
 	r.static["replace_in_file"] = aliases.NewReplaceInFile(fileConfig)
 	r.static["shell_exec"] = aliases.NewShellExec(shellConfig)
-	return nil
 }
 
 func (r *Registry) registerLarkTools(config Config) {

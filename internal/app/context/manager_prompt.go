@@ -59,7 +59,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildWorkspaceFilesSection(input.BootstrapRecords),
 		buildTimezoneSection(input.PromptTimezone),
 		buildReplyTagsSection(input.ReplyTagsEnabled),
-		buildRuntimeSection(input.Static.Tools, input.ToolMode),
+		buildRuntimeSection(input.ToolMode),
 		buildReasoningSection(),
 		buildChannelFormattingSection(input.ChannelHint),
 	}
@@ -80,7 +80,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildPoliciesSection(input.Static.Policies),
 		buildWorkspaceSection(),
 		buildTimezoneSection(input.PromptTimezone),
-		buildRuntimeSection(input.Static.Tools, input.ToolMode),
+		buildRuntimeSection(input.ToolMode),
 		buildReasoningSection(),
 		buildChannelFormattingSection(input.ChannelHint),
 	}

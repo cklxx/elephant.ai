@@ -15,15 +15,15 @@ import (
 	"alex/internal/infra/storage"
 )
 
-func (b *containerBuilder) buildSessionResources() (sessionResources, error) {
+func (b *containerBuilder) buildSessionResources() sessionResources {
 	return sessionResources{
 		sessionStore: filestore.New(b.sessionDir),
 		stateStore:   sessionstate.NewFileStore(filepath.Join(b.sessionDir, "snapshots")),
 		historyStore: sessionstate.NewFileStore(filepath.Join(b.sessionDir, "turns")),
-	}, nil
+	}
 }
 
-func (b *containerBuilder) buildMemoryEngine(ctx context.Context) (memory.Engine, error) {
+func (b *containerBuilder) buildMemoryEngine(ctx context.Context) memory.Engine {
 	root := resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")
 	engine := memory.NewMarkdownEngine(root)
 	indexCfg := b.config.Proactive.Memory.Index
@@ -49,7 +49,7 @@ func (b *containerBuilder) buildMemoryEngine(ctx context.Context) (memory.Engine
 		})
 	}
 
-	return engine, nil
+	return engine
 }
 
 func (b *containerBuilder) buildDecisionStore() (*decision.Store, error) {

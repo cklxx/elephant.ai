@@ -83,9 +83,7 @@ func NewRegistry(config Config) (*Registry, error) {
 		return nil, fmt.Errorf("memory engine is required")
 	}
 
-	if err := r.registerBuiltins(config); err != nil {
-		return nil, err
-	}
+	r.registerBuiltins(config)
 
 	return r, nil
 }
@@ -265,23 +263,20 @@ func (r *Registry) Unregister(name string) error {
 	return nil
 }
 
-func (r *Registry) registerBuiltins(config Config) error {
+func (r *Registry) registerBuiltins(config Config) {
 	disabled := resolveDisabledTools(config)
 
 	r.registerUITools(config)
 	r.registerWebTools(config)
 	r.registerSessionTools()
 	r.registerLarkTools(config)
-	if err := r.registerPlatformTools(config); err != nil {
-		return err
-	}
+	r.registerPlatformTools()
 	r.pruneDisabledTools(disabled)
 
 	for name, tool := range r.static {
 		wrapped := wrapTool(tool, r.policy, r.breakers, r.SLACollector)
 		r.static[name] = r.wrapDegradationLocked(name, wrapped)
 	}
-	return nil
 }
 
 func resolveDisabledTools(config Config) map[string]string {

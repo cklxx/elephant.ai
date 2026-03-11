@@ -130,7 +130,7 @@ func TestAsyncSaveSessionLoop_StopsWhenIdleAndRestarts(t *testing.T) {
 	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
 	coordinator.sessionSaveInterval = 10 * time.Millisecond
 
-	coordinator.asyncSaveSession(context.Background(), &storage.Session{ID: "s1"})
+	coordinator.asyncSaveSession(&storage.Session{ID: "s1"})
 
 	select {
 	case got := <-store.saveCh:
@@ -143,7 +143,7 @@ func TestAsyncSaveSessionLoop_StopsWhenIdleAndRestarts(t *testing.T) {
 
 	waitForAsyncSaveLoopToStop(t, coordinator)
 
-	coordinator.asyncSaveSession(context.Background(), &storage.Session{ID: "s2"})
+	coordinator.asyncSaveSession(&storage.Session{ID: "s2"})
 
 	select {
 	case got := <-store.saveCh:

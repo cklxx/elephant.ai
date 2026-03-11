@@ -41,7 +41,7 @@ func buildToolRoutingSection() string {
 	})
 }
 
-func buildRuntimeSection(toolHints []string, mode string) string {
+func buildRuntimeSection(mode string) string {
 	return formatSection("# Runtime", []string{
 		fmt.Sprintf("Tool mode: %s", fallbackString(strings.TrimSpace(mode), "cli")),
 		"A <ctx/> tag per turn reports token budget and phase; adapt verbosity accordingly.",

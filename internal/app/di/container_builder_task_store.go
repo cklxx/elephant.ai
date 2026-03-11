@@ -7,7 +7,7 @@ import (
 	taskstoreinfra "alex/internal/infra/taskstore"
 )
 
-func (b *containerBuilder) buildTaskStore() (taskdomain.Store, error) {
+func (b *containerBuilder) buildTaskStore() taskdomain.Store {
 	path := filepath.Join(b.sessionDir, "_tasks", "tasks.json")
-	return taskstoreinfra.New(taskstoreinfra.WithFilePath(path)), nil
+	return taskstoreinfra.New(taskstoreinfra.WithFilePath(path))
 }

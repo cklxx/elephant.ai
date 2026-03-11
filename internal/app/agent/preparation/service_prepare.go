@@ -372,7 +372,6 @@ func (s *ExecutionPreparationService) initLLMClient(prepareCtx context.Context, 
 	}
 
 	client = s.wrapPinnedRateLimitFallback(
-		prepareCtx,
 		pc.selectionPinned,
 		pc.task,
 		pc.preloadedAttachments,

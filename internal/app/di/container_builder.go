@@ -72,14 +72,8 @@ func (b *containerBuilder) Build() (*Container, error) {
 	go func() { cliCh <- codinginfra.DetectLocalCLIs() }()
 
 	llmFactory := b.buildLLMFactory()
-	resources, err := b.buildSessionResources()
-	if err != nil {
-		return nil, err
-	}
-	taskStore, err := b.buildTaskStore()
-	if err != nil {
-		return nil, fmt.Errorf("build task store: %w", err)
-	}
+	resources := b.buildSessionResources()
+	taskStore := b.buildTaskStore()
 	decisionStore, err := b.buildDecisionStore()
 	if err != nil {
 		return nil, fmt.Errorf("build decision store: %w", err)
@@ -97,10 +91,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 			bgCancel()
 		}
 	}()
-	memoryEngine, err := b.buildMemoryEngine(bgCtx)
-	if err != nil {
-		return nil, err
-	}
+	memoryEngine := b.buildMemoryEngine(bgCtx)
 	contextOptions := []ctxmgr.Option{
 		ctxmgr.WithStateStore(resources.stateStore),
 	}

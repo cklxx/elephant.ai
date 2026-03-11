@@ -187,7 +187,7 @@ func (c *AgentCoordinator) appendHistoryTurn(
 // Instead of spawning a goroutine per iteration (which creates O(N) goroutines
 // that serialize on sessionSaveMu), this stores the latest snapshot in an
 // atomic pointer. A single loop is started on demand and exits once idle.
-func (c *AgentCoordinator) asyncSaveSession(ctx context.Context, session *storage.Session) {
+func (c *AgentCoordinator) asyncSaveSession(session *storage.Session) {
 	snapshot := cloneSessionForSave(session)
 	if snapshot == nil {
 		return

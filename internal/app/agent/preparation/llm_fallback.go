@@ -86,7 +86,6 @@ func (c *pinnedRateLimitFallbackClient) activateFallback(err error) {
 }
 
 func (s *ExecutionPreparationService) wrapPinnedRateLimitFallback(
-	ctx context.Context,
 	selectionPinned bool,
 	task string,
 	preloadedAttachments map[string]ports.Attachment,

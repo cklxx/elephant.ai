@@ -71,7 +71,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	timer.logStep(logger, ensuredRunID, timer.records[len(timer.records)-1])
 
 	execStart := time.Now()
-	result, executionErr := c.buildAndRunReactEngine(ctx, task, env, wf, eventListener, effectiveCfg, ensuredRunID, parentRunID, logger)
+	result, executionErr := c.buildAndRunReactEngine(ctx, task, env, wf, eventListener, effectiveCfg, logger)
 	timer.track("execute", execStart)
 	timer.logStep(logger, ensuredRunID, timer.records[len(timer.records)-1])
 
@@ -249,7 +249,6 @@ func (c *AgentCoordinator) buildAndRunReactEngine(
 	wf *agentWorkflow,
 	eventListener agent.EventListener,
 	effectiveCfg appconfig.Config,
-	ensuredRunID, parentRunID string,
 	logger agent.Logger,
 ) (*agent.TaskResult, error) {
 	completionDefaults := buildCompletionDefaultsFromConfig(effectiveCfg)
@@ -307,7 +306,7 @@ func (c *AgentCoordinator) buildAndRunReactEngine(
 		Workflow:            wf,
 		IterationHook:       c.iterationHook,
 		SessionPersister: func(ctx context.Context, _ *storage.Session, state *agent.TaskState) {
-			c.asyncSaveSession(ctx, env.Session)
+			c.asyncSaveSession(env.Session)
 		},
 		BackgroundExecutor: backgroundExecutor,
 		BackgroundManager:  bgManager,
@@ -380,7 +379,7 @@ func (c *AgentCoordinator) finalizeExecution(
 	}
 
 	c.logSessionCost(ctx, env.Session.ID, logger)
-	c.runPostTaskHooks(ctx, task, env, result, executionErr, ensuredRunID, logger)
+	c.runPostTaskHooks(ctx, task, env, result, executionErr, ensuredRunID)
 
 	if executionErr != nil {
 		metadata := storage.EnsureMetadata(env.Session)
@@ -438,7 +437,6 @@ func (c *AgentCoordinator) runPostTaskHooks(
 	result *agent.TaskResult,
 	executionErr error,
 	ensuredRunID string,
-	logger agent.Logger,
 ) {
 	if c.hookRegistry == nil || appcontext.IsSubagentContext(ctx) || executionErr != nil {
 		return
