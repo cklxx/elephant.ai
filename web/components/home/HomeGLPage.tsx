@@ -354,7 +354,7 @@ export function HomeGLPage({ lang }: { lang: HomeLang }) {
           </article>
 
           <article
-            className="rounded-3xl border bg-white/90 p-3 shadow-sm"
+            className="overflow-hidden rounded-3xl border bg-white/90 shadow-sm"
             style={{ borderColor: "#e2e8f0", boxShadow: "0 16px 40px rgba(15,23,42,0.08)" }}
           >
             <video
@@ -362,19 +362,10 @@ export function HomeGLPage({ lang }: { lang: HomeLang }) {
               playsInline
               preload="metadata"
               poster={withBasePath("/media/home-banner.png")}
-              className="w-full rounded-2xl border"
-              style={{ borderColor: "#e2e8f0" }}
+              className="block h-full w-full object-cover"
             >
               <source src={withBasePath("/media/elephant-home-demo.mp4")} type="video/mp4" />
             </video>
-            <div className="px-1 pb-1 pt-3">
-              <h3 className="text-sm font-bold" style={{ color: "#0f172a" }}>
-                {t.showcase.videoTitle}
-              </h3>
-              <p className="mt-1 text-sm leading-relaxed" style={{ color: "#64748b" }}>
-                {t.showcase.videoDesc}
-              </p>
-            </div>
           </article>
         </div>
       </section>
