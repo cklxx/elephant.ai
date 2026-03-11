@@ -114,12 +114,12 @@ export function createInlineMarkdownLink(
         matchedAttachment.description ||
         (typeof children === "string" ? children : undefined) ||
         matchedAttachment.key;
-      return <InlineMarkdownImage src={safeHref} alt={altText} />;
+      return <InlineMarkdownImage src={safeHref ?? ""} alt={altText} />;
     }
     if (matchedAttachment?.type === "video") {
       return (
         <VideoPreview
-          src={safeHref}
+          src={safeHref ?? ""}
           mimeType={matchedAttachment.mime || "video/mp4"}
           description={
             matchedAttachment.description ||
@@ -132,7 +132,7 @@ export function createInlineMarkdownLink(
       );
     }
     return (
-      <a className="break-words whitespace-normal" href={safeHref} {...props}>
+      <a className="break-words whitespace-normal" href={safeHref ?? undefined} {...props}>
         {children}
       </a>
     );

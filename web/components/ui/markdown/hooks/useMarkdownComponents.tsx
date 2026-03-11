@@ -143,7 +143,7 @@ export function useMarkdownComponents({
         return (
           <a
             className={cn("break-words whitespace-normal", linkClassName)}
-            href={safeHref}
+            href={safeHref ?? undefined}
             {...props}
           >
             {children}
