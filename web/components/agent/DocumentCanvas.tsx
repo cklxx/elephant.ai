@@ -375,7 +375,7 @@ function DocumentRenderer({
         matchedAttachment.key;
       return (
         <ImagePreview
-          src={safeHref}
+          src={safeHref ?? ""}
           alt={altText}
           className="my-2"
           minHeight="8rem"
@@ -387,7 +387,7 @@ function DocumentRenderer({
     if (matchedAttachment?.type === "video") {
       return (
         <VideoPreview
-          src={safeHref}
+          src={safeHref ?? ""}
           mimeType={matchedAttachment.mime || "video/mp4"}
           description={
             matchedAttachment.description ||
