@@ -33,7 +33,7 @@ def execute(args: dict) -> dict:
     try:
         result = subprocess.run(
             cmd, shell=True, capture_output=True, text=True,
-            timeout=180, cwd=cwd,
+            timeout=180, cwd=cwd, check=False,
         )
     except subprocess.TimeoutExpired:
         return {"success": False, "error": "test execution timeout (180s)"}

@@ -1,6 +1,7 @@
 """audio-tts skill — macOS say -> m4a"""
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 import sys
@@ -15,7 +16,7 @@ from skill_runner.cli_contract import parse_cli_args, render_result
 
 
 def _run(cmd: list[str]) -> tuple[int, str, str]:
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     return result.returncode, result.stdout, result.stderr
 
 
@@ -25,7 +26,7 @@ def speak(args: dict) -> dict:
         return {"success": False, "error": "text is required"}
 
     voice = str(args.get("voice", "")).strip()
-    rate = args.get("rate", None)
+    rate = args.get("rate")
     output = str(args.get("output", "")) or f"/tmp/tts_{int(time.time())}.m4a"
 
     tmp_aiff = f"/tmp/tts_{int(time.time())}.aiff"
@@ -46,10 +47,8 @@ def speak(args: dict) -> dict:
     # convert to m4a
     Path(output).parent.mkdir(parents=True, exist_ok=True)
     code, _, err = _run(["afconvert", "-f", "m4af", "-d", "aac", tmp_aiff, output])
-    try:
+    with contextlib.suppress(Exception):
         os.remove(tmp_aiff)
-    except Exception:
-        pass
     if code != 0:
         return {"success": False, "error": f"afconvert failed: {err.strip()}"}
     if not Path(output).exists() or Path(output).stat().st_size == 0:

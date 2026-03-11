@@ -70,14 +70,16 @@ class TestRun:
         mock_search = {"source": "tavily", "query": "t", "answer": "", "results": [], "results_count": 0}
         mock_page = {"url": "https://example.com", "title": "Test", "content": "Hello"}
 
-        with patch.object(_mod, "tavily_search", return_value=mock_search):
-            with patch.object(_mod, "_fetch_page", return_value=mock_page):
-                result = run({
-                    "topic": "test",
-                    "queries": ["q1"],
-                    "fetch_urls": ["https://example.com"],
-                })
-                assert len(result["fetched_pages"]) == 1
+        with (
+            patch.object(_mod, "tavily_search", return_value=mock_search),
+            patch.object(_mod, "_fetch_page", return_value=mock_page),
+        ):
+            result = run({
+                "topic": "test",
+                "queries": ["q1"],
+                "fetch_urls": ["https://example.com"],
+            })
+            assert len(result["fetched_pages"]) == 1
 
     def test_summary_prompt_included(self):
         mock_search = {"source": "tavily", "query": "t", "answer": "", "results": [], "results_count": 0}

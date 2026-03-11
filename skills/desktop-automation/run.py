@@ -29,7 +29,7 @@ def run_script(args: dict) -> dict:
     try:
         result = subprocess.run(
             ["osascript", "-e", script],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=30, check=False,
         )
         if result.returncode != 0:
             return {"success": False, "error": result.stderr.strip()}

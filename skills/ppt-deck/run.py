@@ -78,7 +78,7 @@ def outline(args: dict) -> dict:
 def list_templates(_args: dict) -> dict:
     return {
         "success": True,
-        "story_templates": {k: v for k, v in _STORY_TEMPLATES.items()},
+        "story_templates": dict(_STORY_TEMPLATES),
         "page_types": _PAGE_TYPES,
     }
 

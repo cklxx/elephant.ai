@@ -41,7 +41,7 @@ def render_mermaid(args: dict) -> dict:
         cmd = ["mmdc", "-i", input_path, "-o", output, "-t", theme, "-b", "transparent"]
         if fmt == "svg":
             cmd.extend(["-e", "svg"])
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
         if result.returncode != 0:
             return {"success": False, "error": f"mmdc failed: {result.stderr.strip()}"}
         if not Path(output).exists():

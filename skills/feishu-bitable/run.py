@@ -11,7 +11,7 @@ from pathlib import Path
 _SKILL_DIR = Path(__file__).resolve().parents[1] / "feishu-cli"
 sys.path.insert(0, str(_SKILL_DIR))
 
-from run import run as feishu_run  # noqa: E402
+from run import run as feishu_run
 
 
 def run(args: dict) -> dict:

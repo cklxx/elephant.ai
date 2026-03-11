@@ -35,7 +35,7 @@ def search(args: dict) -> dict:
     try:
         result = subprocess.run(
             ["grep", "-rl", "-i", query, str(_MEMORY_DIR)],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=10, check=False,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return {"success": True, "results": [], "count": 0}

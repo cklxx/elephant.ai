@@ -22,7 +22,7 @@ import subprocess
 
 
 def _sh(cmd: str, cwd: str | None = None) -> str:
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, cwd=cwd)
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, cwd=cwd, check=False)
     return r.stdout.strip()
 
 

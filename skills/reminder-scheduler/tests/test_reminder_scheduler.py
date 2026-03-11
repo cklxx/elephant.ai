@@ -27,80 +27,103 @@ def _plan_store(tmp_path, monkeypatch):
 class TestMainRouting:
     def test_set_once_action(self):
         mock_result = {"success": True, "timer_id": "abc"}
-        with patch.object(_mod, "set_timer", return_value=mock_result) as mock:
-            with patch("sys.argv", ["run.py", "set_once", "--delay", "5m", "--task", "test"]):
-                with patch("sys.stdout", new=io.StringIO()):
-                    with pytest.raises(SystemExit) as exc:
-                        _mod.main()
-                    assert exc.value.code == 0
-                    mock.assert_called_once()
+        with (
+            patch.object(_mod, "set_timer", return_value=mock_result) as mock,
+            patch("sys.argv", ["run.py", "set_once", "--delay", "5m", "--task", "test"]),
+            patch("sys.stdout", new=io.StringIO()),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                _mod.main()
+            assert exc.value.code == 0
+            mock.assert_called_once()
 
     def test_list_once_action(self):
         mock_result = {"success": True, "timers": []}
-        with patch.object(_mod, "list_timers", return_value=mock_result) as mock:
-            with patch("sys.argv", ["run.py", "list_once"]):
-                with patch("sys.stdout", new=io.StringIO()) as stdout:
-                    with pytest.raises(SystemExit) as exc:
-                        _mod.main()
-                    assert exc.value.code == 0
-                    mock.assert_called_once()
-                    assert "timers:" in stdout.getvalue()
+        with (
+            patch.object(_mod, "list_timers", return_value=mock_result) as mock,
+            patch("sys.argv", ["run.py", "list_once"]),
+            patch("sys.stdout", new=io.StringIO()) as stdout,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                _mod.main()
+            assert exc.value.code == 0
+            mock.assert_called_once()
+            assert "timers:" in stdout.getvalue()
 
     def test_cancel_once_action(self):
         mock_result = {"success": True, "message": "cancelled"}
-        with patch.object(_mod, "cancel_timer", return_value=mock_result) as mock:
-            with patch("sys.argv", ["run.py", "cancel_once", "--id", "timer-1"]):
-                with patch("sys.stdout", new=io.StringIO()):
-                    with pytest.raises(SystemExit) as exc:
-                        _mod.main()
-                    assert exc.value.code == 0
-                    mock.assert_called_once()
+        with (
+            patch.object(_mod, "cancel_timer", return_value=mock_result) as mock,
+            patch("sys.argv", ["run.py", "cancel_once", "--id", "timer-1"]),
+            patch("sys.stdout", new=io.StringIO()),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                _mod.main()
+            assert exc.value.code == 0
+            mock.assert_called_once()
 
     def test_unknown_action(self):
-        with patch("sys.argv", ["run.py", "invalid"]):
-            with patch("sys.stdout", new=io.StringIO()), patch("sys.stderr", new=io.StringIO()) as stderr:
-                with pytest.raises(SystemExit) as exc:
-                    _mod.main()
-                assert exc.value.code == 1
-                assert "unknown action: invalid" in stderr.getvalue()
+        with (
+            patch("sys.argv", ["run.py", "invalid"]),
+            patch("sys.stdout", new=io.StringIO()),
+            patch("sys.stderr", new=io.StringIO()) as stderr,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                _mod.main()
+            assert exc.value.code == 1
+            assert "unknown action: invalid" in stderr.getvalue()
 
     def test_empty_stdin_defaults_to_list_once(self):
         mock_result = {"success": True, "timers": []}
-        with patch.object(_mod, "list_timers", return_value=mock_result) as mock:
-            with patch("sys.argv", ["run.py"]), patch("sys.stdin", new=io.StringIO("")):
-                with patch("sys.stdout", new=io.StringIO()) as stdout:
-                    with pytest.raises(SystemExit) as exc:
-                        _mod.main()
-                    assert exc.value.code == 0
-                    mock.assert_called_once()
-                    assert "timers:" in stdout.getvalue()
+        with (
+            patch.object(_mod, "list_timers", return_value=mock_result) as mock,
+            patch("sys.argv", ["run.py"]),
+            patch("sys.stdin", new=io.StringIO("")),
+            patch("sys.stdout", new=io.StringIO()) as stdout,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                _mod.main()
+            assert exc.value.code == 0
+            mock.assert_called_once()
+            assert "timers:" in stdout.getvalue()
 
     def test_malformed_stdin_returns_structured_error(self):
-        with patch("sys.argv", ["run.py"]), patch("sys.stdin", new=io.StringIO("{")):
-            with patch("sys.stdout", new=io.StringIO()), patch("sys.stderr", new=io.StringIO()) as stderr:
-                with pytest.raises(SystemExit) as exc:
-                    _mod.main()
-                assert exc.value.code == 1
-                assert "invalid stdin JSON payload" in stderr.getvalue()
+        with (
+            patch("sys.argv", ["run.py"]),
+            patch("sys.stdin", new=io.StringIO("{")),
+            patch("sys.stdout", new=io.StringIO()),
+            patch("sys.stderr", new=io.StringIO()) as stderr,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                _mod.main()
+            assert exc.value.code == 1
+            assert "invalid stdin JSON payload" in stderr.getvalue()
 
     def test_non_object_stdin_returns_structured_error(self):
-        with patch("sys.argv", ["run.py"]), patch("sys.stdin", new=io.StringIO('["oops"]')):
-            with patch("sys.stdout", new=io.StringIO()), patch("sys.stderr", new=io.StringIO()) as stderr:
-                with pytest.raises(SystemExit) as exc:
-                    _mod.main()
-                assert exc.value.code == 1
-                assert "stdin JSON payload must be an object" in stderr.getvalue()
+        with (
+            patch("sys.argv", ["run.py"]),
+            patch("sys.stdin", new=io.StringIO('["oops"]')),
+            patch("sys.stdout", new=io.StringIO()),
+            patch("sys.stderr", new=io.StringIO()) as stderr,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                _mod.main()
+            assert exc.value.code == 1
+            assert "stdin JSON payload must be an object" in stderr.getvalue()
 
     def test_json_object_stdin_dispatches_action(self):
         mock_result = {"success": True, "count": 0, "plans": []}
-        with patch.object(_mod, "list_plans", return_value=mock_result) as mock:
-            with patch("sys.argv", ["run.py"]), patch("sys.stdin", new=io.StringIO('{"action":"list_plans"}')):
-                with patch("sys.stdout", new=io.StringIO()) as stdout:
-                    with pytest.raises(SystemExit) as exc:
-                        _mod.main()
-                    assert exc.value.code == 0
-                    mock.assert_called_once_with({})
-                    assert "count: 0" in stdout.getvalue()
+        with (
+            patch.object(_mod, "list_plans", return_value=mock_result) as mock,
+            patch("sys.argv", ["run.py"]),
+            patch("sys.stdin", new=io.StringIO('{"action":"list_plans"}')),
+            patch("sys.stdout", new=io.StringIO()) as stdout,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                _mod.main()
+            assert exc.value.code == 0
+            mock.assert_called_once_with({})
+            assert "count: 0" in stdout.getvalue()
 
 
 class TestPlanLifecycle:

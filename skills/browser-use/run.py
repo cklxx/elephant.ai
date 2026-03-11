@@ -9,6 +9,7 @@ actions: navigate, snapshot, click, type, screenshot, tabs, evaluate, run_code, 
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -79,10 +80,8 @@ def _call_mcp_tools(tool_calls: list[tuple[str, dict]], timeout: int = _CALL_TIM
 
     t.join(timeout=timeout + len(tool_calls) * 5)
 
-    try:
+    with contextlib.suppress(Exception):
         proc.stdin.close()
-    except Exception:
-        pass
     try:
         proc.terminate()
         proc.wait(timeout=3)

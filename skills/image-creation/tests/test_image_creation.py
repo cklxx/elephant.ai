@@ -26,16 +26,20 @@ class TestGenerate:
         assert "prompt" in result["error"]
 
     def test_endpoint_falls_back_to_text_model_env(self):
-        with patch.dict("os.environ", {"SEEDREAM_TEXT_MODEL": "model-env"}, clear=True):
-            with patch.object(_mod, "_ark_request", return_value={"data": []}) as mock_call:
-                generate({"prompt": "a cat"})
-                assert mock_call.call_args.args[0] == "model-env"
+        with (
+            patch.dict("os.environ", {"SEEDREAM_TEXT_MODEL": "model-env"}, clear=True),
+            patch.object(_mod, "_ark_request", return_value={"data": []}) as mock_call,
+        ):
+            generate({"prompt": "a cat"})
+            assert mock_call.call_args.args[0] == "model-env"
 
     def test_endpoint_falls_back_to_builtin_default(self):
-        with patch.dict("os.environ", {}, clear=True):
-            with patch.object(_mod, "_ark_request", return_value={"data": []}) as mock_call:
-                generate({"prompt": "a cat"})
-                assert mock_call.call_args.args[0] == _mod._DEFAULT_SEEDREAM_TEXT_ENDPOINT_ID
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch.object(_mod, "_ark_request", return_value={"data": []}) as mock_call,
+        ):
+            generate({"prompt": "a cat"})
+            assert mock_call.call_args.args[0] == _mod._DEFAULT_SEEDREAM_TEXT_ENDPOINT_ID
 
     def test_watermark_defaults_to_false(self):
         fake_img = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100).decode()
@@ -59,27 +63,31 @@ class TestGenerate:
         mock_resp.__exit__ = MagicMock(return_value=False)
 
         output = str(tmp_path / "test.png")
-        with patch.dict("os.environ", {
-            "ARK_API_KEY": "test-key",
-            "SEEDREAM_TEXT_ENDPOINT_ID": "ep-test",
-        }):
-            with patch("urllib.request.urlopen", return_value=mock_resp):
-                result = generate({"prompt": "a cat", "output": output})
-                assert result["success"] is True
-                assert result["image_path"] == output
-                assert result["style"] == "realistic"
-                assert Path(output).exists()
+        with (
+            patch.dict("os.environ", {
+                "ARK_API_KEY": "test-key",
+                "SEEDREAM_TEXT_ENDPOINT_ID": "ep-test",
+            }),
+            patch("urllib.request.urlopen", return_value=mock_resp),
+        ):
+            result = generate({"prompt": "a cat", "output": output})
+            assert result["success"] is True
+            assert result["image_path"] == output
+            assert result["style"] == "realistic"
+            assert Path(output).exists()
 
     def test_api_error(self):
         import urllib.error
 
-        with patch.dict("os.environ", {
-            "ARK_API_KEY": "test-key",
-            "SEEDREAM_TEXT_ENDPOINT_ID": "ep-test",
-        }):
-            with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")):
-                result = generate({"prompt": "a cat"})
-                assert result["success"] is False
+        with (
+            patch.dict("os.environ", {
+                "ARK_API_KEY": "test-key",
+                "SEEDREAM_TEXT_ENDPOINT_ID": "ep-test",
+            }),
+            patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")),
+        ):
+            result = generate({"prompt": "a cat"})
+            assert result["success"] is False
 
     def test_no_image_returned(self):
         mock_resp = MagicMock()
@@ -87,14 +95,16 @@ class TestGenerate:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch.dict("os.environ", {
-            "ARK_API_KEY": "test-key",
-            "SEEDREAM_TEXT_ENDPOINT_ID": "ep-test",
-        }):
-            with patch("urllib.request.urlopen", return_value=mock_resp):
-                result = generate({"prompt": "a cat"})
-                assert result["success"] is False
-                assert "no image" in result["error"]
+        with (
+            patch.dict("os.environ", {
+                "ARK_API_KEY": "test-key",
+                "SEEDREAM_TEXT_ENDPOINT_ID": "ep-test",
+            }),
+            patch("urllib.request.urlopen", return_value=mock_resp),
+        ):
+            result = generate({"prompt": "a cat"})
+            assert result["success"] is False
+            assert "no image" in result["error"]
 
 
 class TestRefine:

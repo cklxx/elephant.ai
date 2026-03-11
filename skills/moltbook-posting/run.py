@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 import sys
 
@@ -260,10 +261,8 @@ def _retry_as_legacy(req: urllib.request.Request, timeout: int) -> dict:
     except Exception as exc:
         return {"error": str(exc)}
     finally:
-        try:
+        with contextlib.suppress(Exception):
             conn.close()
-        except Exception:
-            pass
 
 
 def post(args: dict) -> dict:
