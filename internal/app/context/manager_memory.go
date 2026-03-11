@@ -226,7 +226,7 @@ func buildUnattendedDailyLogPromptChunk(now time.Time, today, yesterday string) 
 }
 
 func summarizeUnattendedDailyLog(content string) string {
-	snippet := buildCompressionSnippet(content, historyTimelineSummaryChars)
+	snippet := ports.TruncateRuneSnippet(content, historyTimelineSummaryChars)
 	if snippet == "" {
 		return "daily memory entry available"
 	}

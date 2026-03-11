@@ -1,6 +1,10 @@
 package ports
 
-import "strings"
+import (
+	"strings"
+
+	"alex/internal/shared/utils"
+)
 
 // KeepRecentTurns returns the last N user-initiated turns from a conversation
 // slice. A turn starts with a user message and includes all following
@@ -63,15 +67,16 @@ func IsSyntheticSummary(content string) bool {
 }
 
 // TruncateRuneSnippet returns the first `limit` runes of a trimmed string,
-// appending "…" if truncated.
+// appending "…" if truncated. Delegates to utils.Truncate for the rune-aware
+// truncation primitive.
 func TruncateRuneSnippet(content string, limit int) string {
 	trimmed := strings.TrimSpace(content)
 	if trimmed == "" || limit <= 0 {
 		return trimmed
 	}
-	runes := []rune(trimmed)
-	if len(runes) <= limit {
-		return trimmed
+	truncated := utils.Truncate(content, limit)
+	if truncated != trimmed {
+		return truncated + "…"
 	}
-	return strings.TrimSpace(string(runes[:limit])) + "…"
+	return trimmed
 }

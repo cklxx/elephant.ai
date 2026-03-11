@@ -193,7 +193,7 @@ func buildCompressionSummary(messages []ports.Message) string {
 		}
 		summarizedCount++
 		role := utils.TrimLower(msg.Role)
-		snippet := buildCompressionSnippet(msg.Content, 140)
+		snippet := ports.TruncateRuneSnippet(msg.Content, 140)
 		switch role {
 		case "user":
 			userCount++
@@ -257,8 +257,6 @@ func buildCompressionPlan(messages []ports.Message) compressionPlan {
 		summarySource:               shared.SummarySource,
 	}
 }
-
-var buildCompressionSnippet = ports.TruncateRuneSnippet
 
 // ---------------------------------------------------------------------------
 // Budget helpers

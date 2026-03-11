@@ -230,15 +230,15 @@ func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) age
 		role := utils.TrimLower(msg.Role)
 		switch role {
 		case "user":
-			if snippet := buildCompressionSnippet(msg.Content, historyTimelineSummaryChars); snippet != "" {
+			if snippet := ports.TruncateRuneSnippet(msg.Content, historyTimelineSummaryChars); snippet != "" {
 				lastUserSnippet = snippet
 			}
 		case "assistant":
-			if snippet := buildCompressionSnippet(msg.Content, historyTimelineSummaryChars); snippet != "" {
+			if snippet := ports.TruncateRuneSnippet(msg.Content, historyTimelineSummaryChars); snippet != "" {
 				lastAssistantSnippet = snippet
 			}
 		case "tool":
-			if snippet := buildCompressionSnippet(msg.Content, historyTimelineSummaryChars); snippet != "" {
+			if snippet := ports.TruncateRuneSnippet(msg.Content, historyTimelineSummaryChars); snippet != "" {
 				lastToolSnippet = snippet
 			}
 		}
@@ -280,7 +280,7 @@ func buildHistoryTimeline(messages []ports.Message, limit int) []string {
 		if shouldSkipHistoryTimelineMessage(msg) {
 			continue
 		}
-		snippet := buildCompressionSnippet(msg.Content, historyTimelineSummaryChars)
+		snippet := ports.TruncateRuneSnippet(msg.Content, historyTimelineSummaryChars)
 		if snippet == "" {
 			snippet = "(no visible content)"
 		}

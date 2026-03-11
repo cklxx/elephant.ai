@@ -213,7 +213,7 @@ func extractToolNameFromMetadata(metadata map[string]any) string {
 }
 
 func truncateSkillPromptText(content string, maxChars int) string {
-	trimmed := truncateSkillInlineText(content, maxChars)
+	trimmed := ports.TruncateRuneSnippet(content, maxChars)
 	if trimmed == "" {
 		return ""
 	}
@@ -237,7 +237,7 @@ func renderCompactAvailableSkills(library skills.Library, maxEntries int) string
 	sb.WriteString("runner=py -> shell_exec python3 skills/<name>/run.py (see SKILL.md)\n")
 	for _, skill := range skillList[:maxEntries] {
 		name := compactSkillField(skill.Name, "(unnamed)")
-		desc := compactSkillField(truncateSkillInlineText(skill.Description, maxSkillDescriptionChars), "-")
+		desc := compactSkillField(ports.TruncateRuneSnippet(skill.Description, maxSkillDescriptionChars), "-")
 		runner := "md"
 		if skill.HasRunScript {
 			runner = "py"
@@ -249,8 +249,6 @@ func renderCompactAvailableSkills(library skills.Library, maxEntries int) string
 	}
 	return strings.TrimSpace(sb.String())
 }
-
-var truncateSkillInlineText = ports.TruncateRuneSnippet
 
 func compactSkillField(value string, fallback string) string {
 	normalized := strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
