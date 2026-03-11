@@ -3,6 +3,8 @@ package runtime
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -264,6 +266,40 @@ func TestRuntime_CreateSession(t *testing.T) {
 	}
 }
 
+func TestRuntime_New_PropagatesPanelError(t *testing.T) {
+	t.Setenv("KAKU_BIN", "/nonexistent/kaku-binary")
+
+	_, err := New(t.TempDir(), Config{})
+	if err == nil {
+		t.Fatal("expected panel init error")
+	}
+	if !strings.Contains(err.Error(), "panel: kaku binary not found") {
+		t.Fatalf("expected panel error, got %v", err)
+	}
+	if strings.Contains(err.Error(), "runtime:") {
+		t.Fatalf("expected no runtime wrapper, got %v", err)
+	}
+}
+
+func TestRuntime_New_PropagatesStoreError(t *testing.T) {
+	storePath := filepath.Join(t.TempDir(), "store-file")
+	if err := os.WriteFile(storePath, []byte("not a dir"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	t.Setenv("KAKU_BIN", "/bin/sh")
+
+	_, err := New(storePath, Config{})
+	if err == nil {
+		t.Fatal("expected store init error")
+	}
+	if !strings.Contains(err.Error(), "store: create dir") {
+		t.Fatalf("expected store error, got %v", err)
+	}
+	if strings.Contains(err.Error(), "runtime:") {
+		t.Fatalf("expected no runtime wrapper, got %v", err)
+	}
+}
+
 func TestRuntime_CreateSession_WithParent(t *testing.T) {
 	t.Parallel()
 	rt := newTestRuntime(t)
@@ -453,6 +489,47 @@ func TestRuntime_StopSession_NotFound(t *testing.T) {
 	err := rt.StopSession(context.Background(), "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for nonexistent session")
+	}
+}
+
+func TestRuntime_StartSession_TransitionErrorPassthrough(t *testing.T) {
+	t.Parallel()
+	rt := newTestRuntime(t)
+
+	s, err := rt.CreateSession(session.MemberClaudeCode, "transition-test", "/tmp", "")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	_ = s.Transition(session.StateStarting)
+	_ = s.Transition(session.StateRunning)
+
+	err = rt.StartSession(context.Background(), s.Snapshot().ID, -1)
+	if err == nil {
+		t.Fatal("expected transition error")
+	}
+	if err.Error() != "invalid state transition: running → starting" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRuntime_StopSession_TransitionErrorPassthrough(t *testing.T) {
+	t.Parallel()
+	rt := newTestRuntime(t)
+
+	s, err := rt.CreateSession(session.MemberClaudeCode, "transition-test", "/tmp", "")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	_ = s.Transition(session.StateStarting)
+	_ = s.Transition(session.StateRunning)
+	_ = s.Transition(session.StateCompleted)
+
+	err = rt.StopSession(context.Background(), s.Snapshot().ID)
+	if err == nil {
+		t.Fatal("expected transition error")
+	}
+	if err.Error() != "invalid state transition: completed → cancelled" {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

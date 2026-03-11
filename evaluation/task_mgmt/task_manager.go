@@ -109,9 +109,8 @@ func (m *TaskManager) Delete(id string) error {
 
 // RecordRun creates a batch run record for a task.
 func (m *TaskManager) RecordRun(taskID, evalJobID string) (*BatchRun, error) {
-	_, err := m.store.GetTask(taskID)
-	if err != nil {
-		return nil, fmt.Errorf("task %s not found: %w", taskID, err)
+	if _, err := m.store.GetTask(taskID); err != nil {
+		return nil, err
 	}
 
 	now := time.Now()

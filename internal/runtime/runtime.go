@@ -62,12 +62,12 @@ type Config struct {
 func New(storeDir string, cfg Config) (*Runtime, error) {
 	pm, err := panel.NewManager()
 	if err != nil {
-		return nil, fmt.Errorf("runtime: %w", err)
+		return nil, err
 	}
 
 	st, err := store.New(storeDir)
 	if err != nil {
-		return nil, fmt.Errorf("runtime: %w", err)
+		return nil, err
 	}
 
 	bus := cfg.Bus
@@ -151,7 +151,7 @@ func (rt *Runtime) StartSession(ctx context.Context, id string, parentPaneID int
 	}
 
 	if err := s.Transition(session.StateStarting); err != nil {
-		return fmt.Errorf("runtime: %w", err)
+		return err
 	}
 	_ = rt.store.Save(s)
 
@@ -217,7 +217,7 @@ func (rt *Runtime) StartSession(ctx context.Context, id string, parentPaneID int
 	}
 
 	if err := s.Transition(session.StateRunning); err != nil {
-		return fmt.Errorf("runtime: %w", err)
+		return err
 	}
 	_ = rt.store.Save(s)
 	rt.bus.Publish(id, hooks.Event{Type: hooks.EventStarted, SessionID: id, At: time.Now()})
@@ -267,7 +267,7 @@ func (rt *Runtime) startWithAdapter(ctx context.Context, s *session.Session, id 
 	}
 
 	if err := s.Transition(session.StateRunning); err != nil {
-		return fmt.Errorf("runtime: %w", err)
+		return err
 	}
 	_ = rt.store.Save(s)
 	rt.bus.Publish(id, hooks.Event{Type: hooks.EventStarted, SessionID: id, At: time.Now()})
@@ -305,7 +305,7 @@ func (rt *Runtime) StopSession(ctx context.Context, id string) error {
 	rt.releasePoolPane(snap)
 
 	if err := s.Transition(session.StateCancelled); err != nil {
-		return fmt.Errorf("runtime: %w", err)
+		return err
 	}
 	return rt.store.Save(s)
 }

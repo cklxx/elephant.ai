@@ -171,6 +171,9 @@ func TestTaskManager_RecordRunNonexistentTask(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nonexistent task")
 	}
+	if err.Error() != "task nonexistent not found" {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 func TestTaskManager_UpdateMetadataMerge(t *testing.T) {
