@@ -21,8 +21,8 @@ const copy = {
     },
     showcase: {
       label: "Project showcase",
-      title: "One unified brand surface.",
-      desc: "Homepage banner and promo video generated from this repository and deployed directly on GitHub Pages.",
+      title: "See it in action.",
+      desc: "From task tracking to risk alerts — a 20-second look at how elephant.ai keeps you in control.",
       bannerAlt: "elephant.ai project banner",
       videoTitle: "Project promo video",
       videoDesc: "20-second overview of product value and architecture.",
@@ -89,8 +89,8 @@ const copy = {
     },
     showcase: {
       label: "项目展示",
-      title: "统一风格的一体化主页素材。",
-      desc: "首页 Banner 与宣传视频都来自本仓库，直接用于 GitHub Pages 部署首页。",
+      title: "看看它怎么工作。",
+      desc: "从任务跟进到风险预警，20 秒了解 elephant.ai 如何帮你掌控全局。",
       bannerAlt: "elephant.ai 项目横幅",
       videoTitle: "项目宣传视频",
       videoDesc: "20 秒展示产品价值和分层架构。",
