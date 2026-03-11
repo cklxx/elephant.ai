@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	ports "alex/internal/domain/agent/ports"
 )
 
 func ptr[T any](v T) *T { return &v }
@@ -27,6 +29,17 @@ func TestTimeoutFor_PerTool(t *testing.T) {
 	}
 	if got := p.TimeoutFor("fast_tool"); got != 120*time.Second {
 		t.Errorf("TimeoutFor(fast_tool) = %v, want 120s", got)
+	}
+}
+
+func TestTimeoutFor_FallsBackWhenConfigNonPositive(t *testing.T) {
+	cfg := DefaultToolPolicyConfig()
+	cfg.Timeout.Default = 0
+	cfg.Timeout.PerTool["broken_tool"] = -5 * time.Second
+	p := NewToolPolicy(cfg)
+
+	if got := p.TimeoutFor("broken_tool"); got != 120*time.Second {
+		t.Fatalf("TimeoutFor(broken_tool) = %v, want 120s fallback", got)
 	}
 }
 
@@ -523,6 +536,46 @@ func TestMatchesAnyGlob(t *testing.T) {
 		if got := matchesAnyGlob(tt.patterns, tt.name); got != tt.want {
 			t.Errorf("matchesAnyGlob(%v, %q) = %v, want %v", tt.patterns, tt.name, got, tt.want)
 		}
+	}
+}
+
+func TestMatchesAnyGlob_InvalidPatternIgnored(t *testing.T) {
+	if matchesAnyGlob([]string{"["}, "anything") {
+		t.Fatal("expected invalid glob pattern to be ignored")
+	}
+}
+
+func TestMatchesSelector_DangerousAndSafetyMismatch(t *testing.T) {
+	selector := PolicySelector{
+		Tools:        []string{"file_*"},
+		Categories:   []string{"files"},
+		Tags:         []string{"write"},
+		Channels:     []string{"cli"},
+		Dangerous:    ptr(true),
+		SafetyLevels: []int{ports.SafetyLevelHighImpact},
+	}
+	ctx := ToolCallContext{
+		ToolName:    "file_write",
+		Category:    "files",
+		Tags:        []string{"write"},
+		Channel:     "cli",
+		Dangerous:   false,
+		SafetyLevel: ports.SafetyLevelHighImpact,
+	}
+	if matchesSelector(selector, ctx) {
+		t.Fatal("expected dangerous mismatch to fail selector")
+	}
+
+	ctx.Dangerous = true
+	ctx.SafetyLevel = ports.SafetyLevelReversible
+	if matchesSelector(selector, ctx) {
+		t.Fatal("expected safety mismatch to fail selector")
+	}
+}
+
+func TestIntersectsCI_EmptyActual(t *testing.T) {
+	if intersectsCI([]string{"write"}, nil) {
+		t.Fatal("expected nil actual tags to not intersect")
 	}
 }
 

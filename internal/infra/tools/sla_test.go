@@ -2,8 +2,10 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +15,20 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+type errRegisterer struct {
+	err error
+}
+
+func (r errRegisterer) Register(prometheus.Collector) error {
+	return r.err
+}
+
+func (r errRegisterer) MustRegister(...prometheus.Collector) {}
+
+func (r errRegisterer) Unregister(prometheus.Collector) bool {
+	return false
+}
 
 // --- helpers ----------------------------------------------------------------
 
@@ -491,5 +507,56 @@ func TestNewSLACollector_RepeatedRegisterSameRegistryReusesExisting(t *testing.T
 	}
 	if second == nil {
 		t.Fatal("expected second collector to be created")
+	}
+}
+
+func TestSlidingWindow_EmptyAndPercentileBounds(t *testing.T) {
+	w := newSlidingWindow(3)
+
+	if got := w.successRate(); got != 0 {
+		t.Fatalf("successRate() = %f, want 0", got)
+	}
+	if got := w.percentile(50); got != 0 {
+		t.Fatalf("percentile(50) on empty window = %v, want 0", got)
+	}
+
+	w.record(true, 10*time.Millisecond, 0)
+	w.record(true, 20*time.Millisecond, 0)
+	w.record(false, 30*time.Millisecond, 0)
+
+	if got := w.percentile(0); got != 10*time.Millisecond {
+		t.Fatalf("percentile(0) = %v, want 10ms lower clamp", got)
+	}
+	if got := w.percentile(150); got != 30*time.Millisecond {
+		t.Fatalf("percentile(150) = %v, want 30ms upper clamp", got)
+	}
+}
+
+func TestAverageCostUSD_ZeroCalls(t *testing.T) {
+	if got := averageCostUSD(0, 99); got != 0 {
+		t.Fatalf("averageCostUSD(0, 99) = %f, want 0", got)
+	}
+}
+
+func TestRegisterCollectorVec_TypeMismatchReturnsError(t *testing.T) {
+	hist := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_hist", Help: "test"}, []string{"tool"})
+	existing := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_counter", Help: "test"}, []string{"tool"})
+	registerer := errRegisterer{
+		err: prometheus.AlreadyRegisteredError{
+			ExistingCollector: existing,
+			NewCollector:      hist,
+		},
+	}
+
+	_, err := registerCollectorVec[*prometheus.HistogramVec](registerer, hist, "histogram")
+	if err == nil || !strings.Contains(err.Error(), "type mismatch") {
+		t.Fatalf("expected type mismatch error, got %v", err)
+	}
+}
+
+func TestNewSLACollector_RegisterError(t *testing.T) {
+	_, err := NewSLACollector(errRegisterer{err: errors.New("register failed")})
+	if err == nil || !strings.Contains(err.Error(), "register tool_sla latency") {
+		t.Fatalf("expected wrapped register error, got %v", err)
 	}
 }
