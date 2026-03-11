@@ -49,9 +49,10 @@ check_package_exists_safe() {
 publish_package_smart() {
     local pkg_dir=$1
     local pkg_name=$2
-    
+    local version
+
     cd "$pkg_dir"
-    local version=$(node -p "require('./package.json').version")
+    version=$(node -p "require('./package.json').version")
     
     echo -e "${BLUE}📦 Processing $pkg_name@$version${NC}"
     

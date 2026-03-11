@@ -9,7 +9,7 @@ hash_stdin() {
 build_untracked_hash() {
   local root="$1"
   (
-    cd "${root}"
+    cd "${root}" || return 1
     git ls-files --others --exclude-standard -z \
       | grep -zv -e '^logs/' -e '^\.pids/' -e '^pids/' -e '^eval-server/' -e '^\.worktrees/' \
       | xargs -0 cksum 2>/dev/null

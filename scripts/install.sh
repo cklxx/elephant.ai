@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck shell=bash
 
 # Alex CLI Tool Installation Script
 # This script detects the OS and architecture, downloads the appropriate binary,
@@ -32,6 +33,7 @@ LOGGING_HELPER_LOADED=0
 if [ -n "${BASH_VERSION:-}" ]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" >/dev/null 2>&1 && pwd)"
     LOGGING_HELPER_PATH="${SCRIPT_DIR}/lib/common/logging.sh"
+    # shellcheck source=/dev/null
     if [ -f "$LOGGING_HELPER_PATH" ] && . "$LOGGING_HELPER_PATH"; then
         LOGGING_HELPER_LOADED=1
     fi
@@ -334,8 +336,9 @@ verify_release_checksum() {
     checksum_file="$TMP_DIR/${CHECKSUM_ASSET_NAME##*/}"
 
     if ! download_file_optional "$checksum_url" "$checksum_file"; then
-        log_warning "Checksum file unavailable at $checksum_url; continuing without checksum verification"
-        return 0
+        log_error "Checksum file unavailable at $checksum_url"
+        log_info "Refusing insecure install. Override intentionally with: ALEX_INSTALL_SKIP_CHECKSUM=1"
+        return 1
     fi
 
     expected_checksum=$(awk -v target="$binary_name" '
@@ -350,11 +353,12 @@ verify_release_checksum() {
     ' "$checksum_file")
 
     if [ -z "$expected_checksum" ]; then
-        log_warning "No checksum entry for $binary_name in $checksum_url; continuing without checksum verification"
-        return 0
+        log_error "No checksum entry for $binary_name in $checksum_url"
+        log_info "Refusing insecure install. Override intentionally with: ALEX_INSTALL_SKIP_CHECKSUM=1"
+        return 1
     fi
 
-    verify_sha256_checksum "$binary_path" "$expected_checksum" "$binary_name" 0
+    verify_sha256_checksum "$binary_path" "$expected_checksum" "$binary_name" 1
 }
 
 # 验证下载的文件
@@ -599,6 +603,9 @@ while [ $# -gt 0 ]; do
             echo "  $0 --version v1.0.0         # Install specific version"
             echo "  $0 --install-dir /usr/local/bin  # Install to custom directory"
             echo "  $0 --test                   # Test installation with v1.0.0"
+            echo ""
+            echo "Advanced:"
+            echo "  ALEX_INSTALL_SKIP_CHECKSUM=1 $0   # Allow insecure install without checksum verification"
             exit 0
             ;;
         *)

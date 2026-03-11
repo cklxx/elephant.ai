@@ -49,11 +49,12 @@ CHANGED_GO_PKGS=()
 
 # Determine which files changed vs remote
 changed_files() {
-  local remote="$1" url="$2"
+  local remote="$1"
+  local url="$2"
   local remote_sha
   remote_sha=$(git ls-remote "$url" "refs/heads/$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null | cut -f1)
   if [[ -z "$remote_sha" ]]; then
-    git diff --name-only "$(git merge-base HEAD origin/main)" HEAD 2>/dev/null || git diff --name-only HEAD~10 HEAD 2>/dev/null || echo ""
+    git diff --name-only "$(git merge-base HEAD "${remote}/main")" HEAD 2>/dev/null || git diff --name-only HEAD~10 HEAD 2>/dev/null || echo ""
   else
     git diff --name-only "$remote_sha" HEAD 2>/dev/null || echo ""
   fi
@@ -234,7 +235,7 @@ job_web_build() {
 main() {
   local start_time=$SECONDS
   echo ""
-  printf "${BOLD}🔍 Pre-push CI checks (parallel)${RESET}\n"
+  printf '%b\n' "${BOLD}🔍 Pre-push CI checks (parallel)${RESET}"
   echo "─────────────────────────────────────"
   echo "mode: PRE_PUSH_MODE=${PRE_PUSH_MODE}, PRE_PUSH_HEAVY_MODE=${HEAVY_MODE}"
 
@@ -281,7 +282,11 @@ main() {
   # Phase 2: lightweight checks in parallel
   if $go_changed; then
     run_job "go vet" job_go_vet
-    [[ "${SKIP_BUILD:-}" != "1" ]] && run_job "go build" job_go_build || warn "Skipping build (SKIP_BUILD=1)"
+    if [[ "${SKIP_BUILD:-}" != "1" ]]; then
+      run_job "go build" job_go_build
+    else
+      warn "Skipping build (SKIP_BUILD=1)"
+    fi
     run_job "arch boundaries" job_arch
     run_job "arch policy" job_arch_policy
   else

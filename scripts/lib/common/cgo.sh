@@ -97,9 +97,13 @@ cgo_ensure_real_cc() {
       if [[ -x /usr/bin/clang ]]; then
         export CC=/usr/bin/clang
       elif command_exists clang; then
-        export CC="$(command -v clang)"
+        local cc_candidate
+        cc_candidate="$(command -v clang)"
+        export CC="${cc_candidate}"
       elif command_exists gcc; then
-        export CC="$(command -v gcc)"
+        local cc_candidate
+        cc_candidate="$(command -v gcc)"
+        export CC="${cc_candidate}"
       fi
     fi
   fi

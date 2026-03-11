@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# shellcheck source=lib/common/logging.sh
+# shellcheck source=/dev/null
 source "${SCRIPT_DIR}/lib/common/logging.sh"
 
 MAIN_TEMPLATE="${ROOT}/examples/config/runtime-config.yaml"
@@ -75,7 +75,7 @@ expand_home_path() {
     "~")
       printf '%s\n' "${HOME}"
       ;;
-    "~/"*)
+    [~]/*)
       printf '%s/%s\n' "${HOME}" "${path#~/}"
       ;;
     *)
