@@ -6,6 +6,12 @@ import { LanguageProvider } from '@/lib/i18n';
 import { ConversationPageContent } from '../conversation/ConversationPageContent';
 import type { AnyAgentEvent } from '@/lib/types';
 
+type MockCreateTaskResponse = {
+  session_id: string;
+  run_id: string;
+  parent_run_id: string | null;
+};
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
@@ -40,7 +46,7 @@ vi.mock('@/hooks/useTaskExecution', () => ({
     isPending: false,
     mutate: (
       _payload: unknown,
-      opts: { onSuccess?: (data: any) => void },
+      opts: { onSuccess?: (data: MockCreateTaskResponse) => void },
     ) => {
       opts.onSuccess?.({
         session_id: 'test-session',
@@ -152,4 +158,3 @@ describe('ConversationPageContent - stop freezes running timeline', () => {
     expect(streamPropsRef.current?.isRunning).toBe(false);
   });
 });
-

@@ -4,6 +4,13 @@ import { registerListener, getRecentEvents, type VisualizerEvent } from '../even
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+type VisualizerHeartbeatEvent = {
+  type: 'connected' | 'heartbeat';
+  timestamp: string;
+};
+
+type VisualizerStreamEvent = VisualizerEvent | VisualizerHeartbeatEvent;
+
 export async function GET(request: NextRequest) {
   // Create SSE stream
   const stream = new ReadableStream({
@@ -11,7 +18,7 @@ export async function GET(request: NextRequest) {
       const encoder = new TextEncoder();
 
       // Send initial connection message
-      const sendMessage = (data: any) => {
+      const sendMessage = (data: VisualizerStreamEvent) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
 

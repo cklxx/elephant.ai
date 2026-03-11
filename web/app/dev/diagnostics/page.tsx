@@ -38,7 +38,7 @@ import {
 } from "@/lib/api";
 import { createRequestGate } from "@/lib/requestGate";
 import { type LogTraceBundle, type WorkflowEventType } from "@/lib/types";
-import { cn, formatDuration, formatTraceDuration } from "@/lib/utils";
+import { cn, formatTraceDuration } from "@/lib/utils";
 
 const LazyStructuredLogWorkbench = dynamic(
   () =>

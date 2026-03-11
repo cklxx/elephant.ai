@@ -117,7 +117,7 @@ export function ToolResultPanel({
   metadata,
 }: {
   toolName?: string | null;
-  result: any;
+  result: unknown;
   error?: string | null;
   resultTitle: string;
   errorTitle: string;
@@ -125,7 +125,7 @@ export function ToolResultPanel({
   copyErrorLabel: string;
   copiedLabel: string;
   attachments?: Record<string, AttachmentPayload>;
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }) {
   const normalizedTool = (toolName ?? "").toLowerCase().trim();
   const hideAttachments = normalizedTool.startsWith("mcp__playwright__browser_");

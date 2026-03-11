@@ -1,7 +1,5 @@
 "use client";
 
-import React from "react";
-
 function renderScalar(value: unknown) {
   if (value === null) {
     return <span className="text-rose-600">null</span>;

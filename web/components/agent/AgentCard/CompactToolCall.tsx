@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Check, X, ChevronDown } from "lucide-react";
 import { cn, formatDuration } from "@/lib/utils";
 

@@ -1,4 +1,3 @@
-import React from "react";
 import { AnyAgentEvent, WorkflowToolStartedEvent } from "@/lib/types";
 import { EventLine } from "../EventLine";
 import { cn } from "@/lib/utils";

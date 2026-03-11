@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useMemo, useState } from 'react';
+import { Children, memo, useMemo, useState } from 'react';
 import { WorkflowToolStartedEvent, WorkflowToolCompletedEvent } from '@/lib/types';
 import { isWorkflowToolStartedEvent } from '@/lib/typeGuards';
 import { getToolIcon, formatDuration } from '@/lib/utils';
@@ -142,6 +142,7 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
       metadataTitle: t('conversation.tool.timeline.metadata'),
     },
   });
+  const panelItems = Children.toArray(panels);
 
   return (
     <div
@@ -247,11 +248,7 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
             )}
 
             <div className="space-y-2">
-              {panels.map((panel, i) => (
-                <div key={i}>
-                  {panel}
-                </div>
-              ))}
+              {panelItems}
             </div>
           </div>
         </div>

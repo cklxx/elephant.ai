@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+import { memo } from "react";
 
-export const HighlightText = React.memo(function HighlightText({
+export const HighlightText = memo(function HighlightText({
   text,
   search,
 }: {
@@ -33,15 +33,16 @@ export const HighlightText = React.memo(function HighlightText({
 
   return (
     <>
-      {parts.map((part, idx) =>
-        part.highlight ? (
-          <mark key={idx} className="rounded-sm bg-yellow-200 px-0.5">
+      {parts.map((part, idx) => {
+        const partKey = `${idx}:${part.highlight ? "hit" : "text"}:${part.text}`;
+        return part.highlight ? (
+          <mark key={partKey} className="rounded-sm bg-yellow-200 px-0.5">
             {part.text}
           </mark>
         ) : (
-          <span key={idx}>{part.text}</span>
-        ),
-      )}
+          <span key={partKey}>{part.text}</span>
+        );
+      })}
     </>
   );
 });

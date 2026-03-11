@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { AgentCardProps } from "./types";
 import { CardHeader } from "./CardHeader";

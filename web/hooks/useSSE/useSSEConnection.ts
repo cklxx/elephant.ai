@@ -3,7 +3,7 @@
  * Handles connection establishment, error handling, and reconnection logic.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 import { SSEClient } from "@/lib/events/sseClient";
 import { EventPipeline } from "@/lib/events/eventPipeline";
