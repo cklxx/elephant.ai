@@ -21,7 +21,6 @@ type TaskResult struct {
 	TokensUsed int
 	Error      string
 	Metadata   map[string]any
-	Verify     *VerifyResult
 }
 
 // TaskState tracks the current lifecycle state.
@@ -57,8 +56,7 @@ type TaskProgress struct {
 // ProgressCallback receives progress updates.
 type ProgressCallback func(TaskProgress)
 
-// VerifyCheck captures a single verification command execution.
-type VerifyCheck struct {
+type verifyCheck struct {
 	Name     string
 	Command  string
 	Passed   bool
@@ -68,14 +66,12 @@ type VerifyCheck struct {
 	Duration time.Duration
 }
 
-// VerifyResult aggregates verification checks (build/test/lint).
-type VerifyResult struct {
+type verifyResult struct {
 	Passed bool
-	Checks []VerifyCheck
+	Checks []verifyCheck
 }
 
-// VerificationPlan describes whether and how verification should run.
-type VerificationPlan struct {
+type verificationPlan struct {
 	Enabled bool
 	Build   string
 	Test    string

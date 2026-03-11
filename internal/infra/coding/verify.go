@@ -39,18 +39,17 @@ func (shellCommandRunner) Run(ctx context.Context, workingDir string, command st
 	return string(out), err
 }
 
-// ResolveVerificationPlan parses verification settings from task config.
 // Verification is opt-in via verify=true/on/1/yes.
-func ResolveVerificationPlan(config map[string]string) VerificationPlan {
+func resolveVerificationPlan(config map[string]string) verificationPlan {
 	if len(config) == 0 {
-		return VerificationPlan{}
+		return verificationPlan{}
 	}
 
 	if !isTruthy(config[verifyKeyEnabled]) {
-		return VerificationPlan{}
+		return verificationPlan{}
 	}
 
-	plan := VerificationPlan{
+	plan := verificationPlan{
 		Enabled: true,
 		Build:   strings.TrimSpace(config[verifyKeyBuildCmd]),
 		Test:    strings.TrimSpace(config[verifyKeyTestCmd]),
@@ -65,23 +64,19 @@ func ResolveVerificationPlan(config map[string]string) VerificationPlan {
 	return plan
 }
 
-// VerifyBuild runs the build verification command.
-func VerifyBuild(ctx context.Context, workingDir string, runner CommandRunner, command string) VerifyCheck {
+func verifyBuild(ctx context.Context, workingDir string, runner CommandRunner, command string) verifyCheck {
 	return runVerifyCheck(ctx, workingDir, runner, "build", command)
 }
 
-// VerifyTest runs the test verification command.
-func VerifyTest(ctx context.Context, workingDir string, runner CommandRunner, command string) VerifyCheck {
+func verifyTest(ctx context.Context, workingDir string, runner CommandRunner, command string) verifyCheck {
 	return runVerifyCheck(ctx, workingDir, runner, "test", command)
 }
 
-// VerifyLint runs the lint verification command.
-func VerifyLint(ctx context.Context, workingDir string, runner CommandRunner, command string) VerifyCheck {
+func verifyLint(ctx context.Context, workingDir string, runner CommandRunner, command string) verifyCheck {
 	return runVerifyCheck(ctx, workingDir, runner, "lint", command)
 }
 
-// VerifyAll runs build/test/lint verification checks in sequence.
-func VerifyAll(ctx context.Context, workingDir string, runner CommandRunner, plan VerificationPlan) *VerifyResult {
+func verifyAll(ctx context.Context, workingDir string, runner CommandRunner, plan verificationPlan) *verifyResult {
 	if !plan.Enabled {
 		return nil
 	}
@@ -89,12 +84,12 @@ func VerifyAll(ctx context.Context, workingDir string, runner CommandRunner, pla
 		runner = shellCommandRunner{}
 	}
 
-	result := &VerifyResult{
+	result := &verifyResult{
 		Passed: true,
-		Checks: []VerifyCheck{
-			VerifyBuild(ctx, workingDir, runner, plan.Build),
-			VerifyTest(ctx, workingDir, runner, plan.Test),
-			VerifyLint(ctx, workingDir, runner, plan.Lint),
+		Checks: []verifyCheck{
+			verifyBuild(ctx, workingDir, runner, plan.Build),
+			verifyTest(ctx, workingDir, runner, plan.Test),
+			verifyLint(ctx, workingDir, runner, plan.Lint),
 		},
 	}
 
@@ -110,8 +105,8 @@ func VerifyAll(ctx context.Context, workingDir string, runner CommandRunner, pla
 	return result
 }
 
-func runVerifyCheck(ctx context.Context, workingDir string, runner CommandRunner, name string, command string) VerifyCheck {
-	check := VerifyCheck{
+func runVerifyCheck(ctx context.Context, workingDir string, runner CommandRunner, name string, command string) verifyCheck {
+	check := verifyCheck{
 		Name:    name,
 		Command: strings.TrimSpace(command),
 	}
@@ -146,8 +141,7 @@ func isTruthy(value string) bool {
 	}
 }
 
-// VerifyError returns a compact error message for failed verification.
-func VerifyError(result *VerifyResult) error {
+func verifyError(result *verifyResult) error {
 	if result == nil || result.Passed {
 		return nil
 	}

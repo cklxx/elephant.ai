@@ -11,7 +11,7 @@ func TestSelectRoleBinding_TargetCLITakesPrecedence(t *testing.T) {
 		{ID: "codex", Path: "/x/codex", Executable: true, AdapterSupport: true, AgentType: "codex"},
 		{ID: "claude_code", Path: "/x/claude", Executable: true, AdapterSupport: true, AgentType: "claude_code"},
 	}
-	binding := SelectRoleBinding("executor", "planning", "codex", caps, "/tmp/executor.log")
+	binding := selectRoleBinding("executor", "planning", "codex", caps, "/tmp/executor.log")
 	if binding.SelectedCLI != "codex" {
 		t.Fatalf("expected target cli codex, got %q", binding.SelectedCLI)
 	}
@@ -25,7 +25,7 @@ func TestSelectRoleBinding_ProfileFallback(t *testing.T) {
 		{ID: "gemini", Path: "/x/gemini", Executable: true},
 		{ID: "codex", Path: "/x/codex", Executable: true, AdapterSupport: true, AgentType: "codex"},
 	}
-	binding := SelectRoleBinding("long", "long_context", "", caps, "")
+	binding := selectRoleBinding("long", "long_context", "", caps, "")
 	if binding.SelectedCLI != "gemini" {
 		t.Fatalf("expected long_context to prefer gemini, got %q", binding.SelectedCLI)
 	}

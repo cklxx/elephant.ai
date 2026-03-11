@@ -86,7 +86,7 @@ func (m *BootstrapManager) Ensure(ctx context.Context, req EnsureRequest) (*Ensu
 			continue
 		}
 		logPath := filepath.Join(logsDir, trimmed+".log")
-		binding := SelectRoleBinding(
+		binding := selectRoleBinding(
 			trimmed,
 			req.Profiles[trimmed],
 			req.Targets[trimmed],

@@ -21,9 +21,7 @@ var profilePreference = map[string][]string{
 	},
 }
 
-// SelectRoleBinding chooses the best available CLI for a role and constructs
-// a deterministic fallback chain.
-func SelectRoleBinding(
+func selectRoleBinding(
 	roleID string,
 	profile string,
 	targetCLI string,

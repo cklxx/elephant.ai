@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+func base() time.Time {
+	return time.Date(2025, 3, 10, 9, 0, 0, 0, time.UTC)
+}
+
 func TestBatchCreateEvents_AllSuccess(t *testing.T) {
 	cnt := &counter{}
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {

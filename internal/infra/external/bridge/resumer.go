@@ -27,8 +27,7 @@ const (
 	ResumeMarkFailed ResumeAction = "mark_failed"
 )
 
-// ClassifyOrphan determines the appropriate resume action for an orphaned bridge.
-func ClassifyOrphan(orphan OrphanedBridge, task *taskdomain.Task) ResumeAction {
+func classifyOrphan(orphan OrphanedBridge, task *taskdomain.Task) ResumeAction {
 	if orphan.IsRunning && !orphan.HasDone {
 		return ResumeAdopt
 	}
@@ -113,7 +112,7 @@ func (r *Resumer) processOrphan(ctx context.Context, orphan OrphanedBridge, work
 		return ResumeResult{TaskID: orphan.TaskID, Action: ResumeHarvest}
 	}
 
-	action := ClassifyOrphan(orphan, task)
+	action := classifyOrphan(orphan, task)
 	r.logger.Info("[BridgeResumer] Orphan %s: action=%s running=%v done=%v pid=%d",
 		orphan.TaskID, action, orphan.IsRunning, orphan.HasDone, orphan.PID)
 

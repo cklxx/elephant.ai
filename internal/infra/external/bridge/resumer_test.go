@@ -14,7 +14,7 @@ import (
 
 func TestClassifyOrphan_Running(t *testing.T) {
 	t.Parallel()
-	action := ClassifyOrphan(OrphanedBridge{IsRunning: true, HasDone: false}, nil)
+	action := classifyOrphan(OrphanedBridge{IsRunning: true, HasDone: false}, nil)
 	if action != ResumeAdopt {
 		t.Errorf("expected adopt, got %s", action)
 	}
@@ -22,7 +22,7 @@ func TestClassifyOrphan_Running(t *testing.T) {
 
 func TestClassifyOrphan_Done(t *testing.T) {
 	t.Parallel()
-	action := ClassifyOrphan(OrphanedBridge{IsRunning: false, HasDone: true}, nil)
+	action := classifyOrphan(OrphanedBridge{IsRunning: false, HasDone: true}, nil)
 	if action != ResumeHarvest {
 		t.Errorf("expected harvest, got %s", action)
 	}
@@ -36,7 +36,7 @@ func TestClassifyOrphan_DeadWithFiles(t *testing.T) {
 			FilesTouched: []string{"/a.go"},
 		},
 	}
-	action := ClassifyOrphan(OrphanedBridge{IsRunning: false, HasDone: false}, task)
+	action := classifyOrphan(OrphanedBridge{IsRunning: false, HasDone: false}, task)
 	if action != ResumeRetryWithContext {
 		t.Errorf("expected retry_with_context, got %s", action)
 	}
@@ -45,7 +45,7 @@ func TestClassifyOrphan_DeadWithFiles(t *testing.T) {
 func TestClassifyOrphan_DeadNoProgress(t *testing.T) {
 	t.Parallel()
 	task := &taskdomain.Task{Prompt: "test"}
-	action := ClassifyOrphan(OrphanedBridge{IsRunning: false, HasDone: false}, task)
+	action := classifyOrphan(OrphanedBridge{IsRunning: false, HasDone: false}, task)
 	if action != ResumeRetryFresh {
 		t.Errorf("expected retry_fresh, got %s", action)
 	}
@@ -53,7 +53,7 @@ func TestClassifyOrphan_DeadNoProgress(t *testing.T) {
 
 func TestClassifyOrphan_DeadNoTask(t *testing.T) {
 	t.Parallel()
-	action := ClassifyOrphan(OrphanedBridge{IsRunning: false, HasDone: false}, nil)
+	action := classifyOrphan(OrphanedBridge{IsRunning: false, HasDone: false}, nil)
 	if action != ResumeMarkFailed {
 		t.Errorf("expected mark_failed, got %s", action)
 	}

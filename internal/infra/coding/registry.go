@@ -7,8 +7,7 @@ type adapterRegistry struct {
 	adapters map[string]Adapter
 }
 
-// NewAdapterRegistry constructs a registry.
-func NewAdapterRegistry() *adapterRegistry {
+func newAdapterRegistry() *adapterRegistry {
 	return &adapterRegistry{adapters: make(map[string]Adapter)}
 }
 

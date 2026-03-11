@@ -97,7 +97,7 @@ func (m *ManagedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 	cfg = applyCodingDefaults(req.AgentType, cfg)
 
 	retries := boundedRetryAttempts(cfg[configRetryMaxAttempt], defaultRetryAttempts)
-	verifyPlan := ResolveVerificationPlan(cfg)
+	verifyPlan := resolveVerificationPlan(cfg)
 
 	basePrompt := strings.TrimSpace(req.Prompt)
 	prompt := basePrompt
@@ -105,7 +105,7 @@ func (m *ManagedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 	var (
 		lastErr    error
 		lastResult *agent.ExternalAgentResult
-		lastVerify *VerifyResult
+		lastVerify *verifyResult
 	)
 	for attempt := 1; attempt <= retries; attempt++ {
 		runReq := req
@@ -124,8 +124,8 @@ func (m *ManagedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 			if workingDir == "" {
 				workingDir = "."
 			}
-			lastVerify = VerifyAll(ctx, workingDir, nil, verifyPlan)
-			if verifyErr := VerifyError(lastVerify); verifyErr == nil {
+			lastVerify = verifyAll(ctx, workingDir, nil, verifyPlan)
+			if verifyErr := verifyError(lastVerify); verifyErr == nil {
 				if result == nil {
 					result = &agent.ExternalAgentResult{}
 				}

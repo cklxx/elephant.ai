@@ -33,7 +33,7 @@ func (s *stubAdapter) Status(_ context.Context, _ string) (TaskStatus, error) {
 }
 
 func TestGatewaySelectsDefaultAdapter(t *testing.T) {
-	registry := NewAdapterRegistry()
+	registry := newAdapterRegistry()
 	adapter := &stubAdapter{name: "codex"}
 	if err := registry.Register(adapter); err != nil {
 		t.Fatalf("register: %v", err)
@@ -53,7 +53,7 @@ func TestGatewaySelectsDefaultAdapter(t *testing.T) {
 }
 
 func TestGatewayRequiresAgentTypeWhenMultiple(t *testing.T) {
-	registry := NewAdapterRegistry()
+	registry := newAdapterRegistry()
 	if err := registry.Register(&stubAdapter{name: "codex"}); err != nil {
 		t.Fatalf("register codex: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestGatewayRequiresAgentTypeWhenMultiple(t *testing.T) {
 }
 
 func TestGatewayStreamUsesAdapterStream(t *testing.T) {
-	registry := NewAdapterRegistry()
+	registry := newAdapterRegistry()
 	adapter := &stubAdapter{name: "codex"}
 	if err := registry.Register(adapter); err != nil {
 		t.Fatalf("register: %v", err)
@@ -86,7 +86,7 @@ func TestGatewayStreamUsesAdapterStream(t *testing.T) {
 }
 
 func TestAdapterRegistryErrors(t *testing.T) {
-	registry := NewAdapterRegistry()
+	registry := newAdapterRegistry()
 	if err := registry.Register(nil); err == nil {
 		t.Fatal("expected error for nil adapter")
 	}
@@ -106,7 +106,7 @@ func TestAdapterRegistryErrors(t *testing.T) {
 }
 
 func TestGatewayNoAdapters(t *testing.T) {
-	gw := NewGateway(NewAdapterRegistry(), "")
+	gw := NewGateway(newAdapterRegistry(), "")
 	_, err := gw.Submit(context.Background(), TaskRequest{TaskID: "t1"})
 	if err == nil {
 		t.Fatal("expected error when no adapters")

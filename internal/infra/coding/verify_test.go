@@ -25,11 +25,11 @@ func (s *stubCommandRunner) Run(_ context.Context, _ string, command string) (st
 }
 
 func TestResolveVerificationPlan(t *testing.T) {
-	if plan := ResolveVerificationPlan(nil); plan.Enabled {
+	if plan := resolveVerificationPlan(nil); plan.Enabled {
 		t.Fatalf("expected disabled plan for nil config, got %+v", plan)
 	}
 
-	plan := ResolveVerificationPlan(map[string]string{"verify": "true"})
+	plan := resolveVerificationPlan(map[string]string{"verify": "true"})
 	if !plan.Enabled {
 		t.Fatal("expected verification enabled")
 	}
@@ -37,7 +37,7 @@ func TestResolveVerificationPlan(t *testing.T) {
 		t.Fatalf("expected default commands, got %+v", plan)
 	}
 
-	plan = ResolveVerificationPlan(map[string]string{
+	plan = resolveVerificationPlan(map[string]string{
 		"verify":           "yes",
 		"verify_build_cmd": "make build",
 		"verify_test_cmd":  "make test",
@@ -59,7 +59,7 @@ func TestVerifyAll(t *testing.T) {
 		},
 	}
 
-	result := VerifyAll(context.Background(), ".", runner, VerificationPlan{
+	result := verifyAll(context.Background(), ".", runner, verificationPlan{
 		Enabled: true,
 		Build:   "make build",
 		Test:    "make test",
@@ -74,14 +74,14 @@ func TestVerifyAll(t *testing.T) {
 	if len(result.Checks) != 3 {
 		t.Fatalf("expected 3 checks, got %d", len(result.Checks))
 	}
-	if err := VerifyError(result); err == nil {
+	if err := verifyError(result); err == nil {
 		t.Fatal("expected verify error for failed checks")
 	}
 }
 
 func TestVerifyAll_SkipsEmptyCommands(t *testing.T) {
 	runner := &stubCommandRunner{outputs: map[string]string{}}
-	result := VerifyAll(context.Background(), ".", runner, VerificationPlan{
+	result := verifyAll(context.Background(), ".", runner, verificationPlan{
 		Enabled: true,
 		Test:    "go test ./...",
 	})

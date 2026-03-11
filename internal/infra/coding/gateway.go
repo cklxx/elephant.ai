@@ -22,7 +22,7 @@ type defaultGateway struct {
 // NewGateway constructs a defaultGateway.
 func NewGateway(registry *adapterRegistry, defaultAdapter string) *defaultGateway {
 	if registry == nil {
-		registry = NewAdapterRegistry()
+		registry = newAdapterRegistry()
 	}
 	return &defaultGateway{registry: registry, defaultAdapter: defaultAdapter}
 }
