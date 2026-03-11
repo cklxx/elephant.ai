@@ -127,3 +127,95 @@ func TestCreateLLMJudgeReturnsWrappedErrorForUnknownProvider(t *testing.T) {
 		t.Fatalf("error = %q, want wrapped factory error", err)
 	}
 }
+
+func TestRunEvalServerReturnsConfigLoadError(t *testing.T) {
+	err := RunEvalServer(filepath.Join(t.TempDir(), "missing.yaml"))
+	if err == nil {
+		t.Fatal("RunEvalServer() error = nil, want config load error")
+	}
+	if !strings.Contains(err.Error(), "load config") {
+		t.Fatalf("error = %q, want load config prefix", err)
+	}
+}
+
+func TestRunEvalServerReturnsRLStorageInitError(t *testing.T) {
+	dir := t.TempDir()
+	rlFile := filepath.Join(dir, "rl-output-file")
+	if err := os.WriteFile(rlFile, []byte("not-a-directory"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	configPath := writeEvalServerConfig(t, dir, `
+eval_output_dir: ./eval-output
+rl_output_dir: ./rl-output-file
+`)
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Chdir() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(wd)
+	})
+
+	err = RunEvalServer(configPath)
+	if err == nil {
+		t.Fatal("RunEvalServer() error = nil, want RL storage init error")
+	}
+	if !strings.Contains(err.Error(), "init rl storage") {
+		t.Fatalf("error = %q, want RL storage init error", err)
+	}
+}
+
+func TestRunEvalServerReturnsTaskStoreInitError(t *testing.T) {
+	dir := t.TempDir()
+	evalOutputDir := filepath.Join(dir, "eval-output")
+	if err := os.MkdirAll(evalOutputDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	taskMgmtFile := filepath.Join(evalOutputDir, "task_mgmt")
+	if err := os.WriteFile(taskMgmtFile, []byte("not-a-directory"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	configPath := writeEvalServerConfig(t, dir, `
+eval_output_dir: ./eval-output
+rl_output_dir: ./rl-output
+`)
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Chdir() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(wd)
+	})
+
+	err = RunEvalServer(configPath)
+	if err == nil {
+		t.Fatal("RunEvalServer() error = nil, want task store init error")
+	}
+	if !strings.Contains(err.Error(), "init task store") {
+		t.Fatalf("error = %q, want task store init error", err)
+	}
+}
+
+func writeEvalServerConfig(t *testing.T, dir, body string) string {
+	t.Helper()
+
+	configPath := filepath.Join(dir, "eval-server.yaml")
+	content := "port: \"8081\"\n" +
+		"environment: evaluation\n" +
+		strings.TrimSpace(body) +
+		"\n"
+	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return configPath
+}

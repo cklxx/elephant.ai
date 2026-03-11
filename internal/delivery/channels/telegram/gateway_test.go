@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"alex/internal/delivery/channels"
+	domain "alex/internal/domain/agent"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/domain/agent/types"
 	"alex/internal/shared/logging"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -61,10 +63,10 @@ func (c *capturingExecutor) ExecuteTask(ctx context.Context, task string, sessio
 }
 
 type recordingMessenger struct {
-	mu       sync.Mutex
-	sent     []sentMessage
-	edited   []editedMessage
-	nextID   int
+	mu     sync.Mutex
+	sent   []sentMessage
+	edited []editedMessage
+	nextID int
 }
 
 type sentMessage struct {
@@ -677,6 +679,157 @@ func (m *mockProgressSender) SendProgress(ctx context.Context, text string) (int
 
 func (m *mockProgressSender) UpdateProgress(ctx context.Context, messageID int, text string) error {
 	return m.updateFn(ctx, messageID, text)
+}
+
+type countingListener struct {
+	mu    sync.Mutex
+	count int
+}
+
+func (l *countingListener) OnEvent(agent.AgentEvent) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.count++
+}
+
+func (l *countingListener) Count() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.count
+}
+
+func TestProgressListenerTracksLifecycleAndFinalFlush(t *testing.T) {
+	var mu sync.Mutex
+	sends := 0
+	lastText := ""
+	inner := &countingListener{}
+	sender := &mockProgressSender{
+		sendFn: func(_ context.Context, text string) (int, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			sends++
+			lastText = text
+			return 101, nil
+		},
+		updateFn: func(_ context.Context, _ int, text string) error {
+			mu.Lock()
+			defer mu.Unlock()
+			lastText = text
+			return nil
+		},
+	}
+
+	base := domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now())
+	pl := newProgressListener(context.Background(), inner, sender, nil)
+
+	pl.OnEvent(domain.NewNodeStartedEvent(base, 2, 0, 0, "", nil, nil))
+	pl.OnEvent(domain.NewToolStartedEvent(base, 2, "call-1", "web_search", nil))
+	pl.Close()
+
+	if inner.Count() != 2 {
+		t.Fatalf("forwarded events = %d, want 2", inner.Count())
+	}
+	if pl.MessageID() != 101 {
+		t.Fatalf("MessageID() = %d, want 101", pl.MessageID())
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if sends != 1 {
+		t.Fatalf("send count = %d, want 1", sends)
+	}
+	if strings.TrimSpace(lastText) == "" {
+		t.Fatal("final progress text is empty")
+	}
+}
+
+func TestProgressListenerEnvelopeCompletionUpdatesExistingMessage(t *testing.T) {
+	var mu sync.Mutex
+	updates := 0
+	lastText := ""
+	sender := &mockProgressSender{
+		sendFn: func(_ context.Context, text string) (int, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			lastText = text
+			return 1, nil
+		},
+		updateFn: func(_ context.Context, msgID int, text string) error {
+			mu.Lock()
+			defer mu.Unlock()
+			updates++
+			lastText = text
+			if msgID != 55 {
+				t.Fatalf("messageID = %d, want 55", msgID)
+			}
+			return nil
+		},
+	}
+
+	startedAt := time.Date(2026, time.March, 11, 10, 0, 0, 0, time.UTC)
+	pl := newProgressListener(context.Background(), nil, sender, nil)
+	pl.now = func() time.Time { return startedAt.Add(3 * time.Second) }
+	pl.messageID = 55
+	pl.tools = []*toolStatus{{
+		callID:   "call-1",
+		toolName: "read_file",
+		started:  startedAt,
+	}}
+	pl.toolIndex["call-1"] = pl.tools[0]
+	pl.timer = time.NewTimer(time.Hour)
+	defer pl.timer.Stop()
+
+	pl.onEnvelope(&domain.WorkflowEventEnvelope{
+		Event:  types.EventToolCompleted,
+		NodeID: "call-1",
+		Payload: map[string]any{
+			"call_id": "call-1",
+			"error":   "boom",
+		},
+	})
+	pl.flush()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if updates != 1 {
+		t.Fatalf("update count = %d, want 1", updates)
+	}
+	if strings.TrimSpace(lastText) == "" {
+		t.Fatal("updated progress text is empty")
+	}
+	if !pl.tools[0].done || !pl.tools[0].errored {
+		t.Fatalf("tool state = %#v, want completed errored", pl.tools[0])
+	}
+	if pl.tools[0].duration != 3*time.Second {
+		t.Fatalf("duration = %v, want 3s", pl.tools[0].duration)
+	}
+}
+
+func TestProgressListenerHelpersAndSenderNoops(t *testing.T) {
+	env := &domain.WorkflowEventEnvelope{
+		Payload: map[string]any{
+			"call_id":   " call-9 ",
+			"iteration": float64(4),
+		},
+	}
+	if got := envelopeStr(env, "call_id"); got != "call-9" {
+		t.Fatalf("envelopeStr() = %q, want trimmed value", got)
+	}
+	if got := envelopeInt(env, "iteration"); got != 4 {
+		t.Fatalf("envelopeInt() = %d, want 4", got)
+	}
+
+	sender := &telegramProgressSender{gateway: &Gateway{}, chatID: 123}
+	msgID, err := sender.SendProgress(context.Background(), "working")
+	if err != nil {
+		t.Fatalf("SendProgress() error = %v", err)
+	}
+	if msgID != 0 {
+		t.Fatalf("messageID = %d, want 0 when messenger is nil", msgID)
+	}
+	if err := sender.UpdateProgress(context.Background(), 1, "updated"); err != nil {
+		t.Fatalf("UpdateProgress() error = %v", err)
+	}
 }
 
 // ── Bootstrap config tests ────────────────────────────────────────────────
