@@ -55,6 +55,8 @@ describe('ArtifactPreviewCard', () => {
 
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
       text: vi.fn().mockResolvedValue(
         [
           '# Table Preview',
