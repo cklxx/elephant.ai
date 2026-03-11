@@ -2,7 +2,6 @@ package toolregistry
 
 import (
 	"alex/internal/infra/tools/builtin/aliases"
-	"alex/internal/infra/tools/builtin/larktools"
 	sessiontools "alex/internal/infra/tools/builtin/session"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/infra/tools/builtin/ui"
@@ -38,8 +37,8 @@ func (r *Registry) registerPlatformTools(config Config) error {
 }
 
 func (r *Registry) registerLarkTools(config Config) {
-	if config.LarkClient == nil {
+	if config.LarkTool == nil {
 		return
 	}
-	r.static["channel"] = larktools.NewChannel(config.LarkClient)
+	r.static["channel"] = config.LarkTool
 }
