@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
@@ -200,16 +201,35 @@ func (m *HistoryManager) listSnapshots(ctx context.Context, sessionID string) ([
 		if len(metas) == 0 {
 			break
 		}
-		for _, meta := range metas {
-			snap, err := m.store.GetSnapshot(ctx, sessionID, meta.TurnID)
-			if err != nil {
-				if errors.Is(err, sessionstate.ErrSnapshotNotFound) {
+
+		// Load all snapshots within this page in parallel — each
+		// GetSnapshot is an independent IO operation.
+		type result struct {
+			snap sessionstate.Snapshot
+			err  error
+		}
+		results := make([]result, len(metas))
+		var wg sync.WaitGroup
+		wg.Add(len(metas))
+		for i, meta := range metas {
+			go func(i int, turnID int) {
+				defer wg.Done()
+				snap, err := m.store.GetSnapshot(ctx, sessionID, turnID)
+				results[i] = result{snap: snap, err: err}
+			}(i, meta.TurnID)
+		}
+		wg.Wait()
+
+		for _, r := range results {
+			if r.err != nil {
+				if errors.Is(r.err, sessionstate.ErrSnapshotNotFound) {
 					continue
 				}
-				return nil, err
+				return nil, r.err
 			}
-			snapshots = append(snapshots, snap)
+			snapshots = append(snapshots, r.snap)
 		}
+
 		if next == "" {
 			break
 		}

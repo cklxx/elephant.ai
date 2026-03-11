@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"alex/internal/domain/agent/ports"
@@ -52,25 +53,47 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		}
 	}
 
-	dyn := agent.DynamicContext{}
-	if m.stateStore != nil {
-		snap, err := m.stateStore.LatestSnapshot(ctx, session.ID)
-		if err == nil {
-			dyn = convertSnapshotToDynamic(snap)
-		} else if !errors.Is(err, sessionstate.ErrSnapshotNotFound) && m.logger != nil {
-			m.logger.Warn("State snapshot read failed: %v", err)
-		}
-	}
-
-	meta := deriveHistoryAwareMeta(messages, persona.ID)
-	runtimeHistoryChunk := buildRuntimeHistoryChunk(meta)
-	memorySnapshot := m.loadMemorySnapshot(ctx, session)
+	// Run independent IO operations in parallel: state snapshot, memory
+	// snapshot, and bootstrap file reads are all independent of each other.
 	promptMode := strings.TrimSpace(cfg.PromptMode)
 	includeBootstrap := shouldInjectBootstrap(session, promptMode)
-	bootstrapRecords := []bootstrapRecord(nil)
+
+	var (
+		dyn              agent.DynamicContext
+		memorySnapshot   string
+		bootstrapRecords []bootstrapRecord
+		wg               sync.WaitGroup
+	)
+
+	wg.Add(2) // state snapshot + memory snapshot
+	go func() {
+		defer wg.Done()
+		if m.stateStore != nil {
+			snap, err := m.stateStore.LatestSnapshot(ctx, session.ID)
+			if err == nil {
+				dyn = convertSnapshotToDynamic(snap)
+			} else if !errors.Is(err, sessionstate.ErrSnapshotNotFound) && m.logger != nil {
+				m.logger.Warn("State snapshot read failed: %v", err)
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		memorySnapshot = m.loadMemorySnapshot(ctx, session)
+	}()
 	if includeBootstrap {
-		bootstrapRecords = loadBootstrapRecords(deriveRepoRoot(m.configRoot), cfg.BootstrapFiles, cfg.BootstrapMaxChars)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			bootstrapRecords = loadBootstrapRecords(deriveRepoRoot(m.configRoot), cfg.BootstrapFiles, cfg.BootstrapMaxChars)
+		}()
 	}
+
+	// CPU-bound work runs on the main goroutine while IO completes.
+	meta := deriveHistoryAwareMeta(messages, persona.ID)
+	runtimeHistoryChunk := buildRuntimeHistoryChunk(meta)
+
+	wg.Wait()
 
 	window := agent.ContextWindow{
 		SessionID: session.ID,

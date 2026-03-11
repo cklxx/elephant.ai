@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"alex/internal/domain/agent/ports"
@@ -43,9 +44,24 @@ func (m *manager) loadMemorySnapshot(ctx context.Context, session *storage.Sessi
 	now := time.Now()
 	soul, user := m.loadIdentitySnapshot(userID)
 
-	longTerm, _ := m.memoryEngine.LoadLongTerm(ctx, userID)
-	today, _ := m.memoryEngine.LoadDaily(ctx, userID, now)
-	yesterday, _ := m.memoryEngine.LoadDaily(ctx, userID, now.AddDate(0, 0, -1))
+	// Load long-term, today, and yesterday memories in parallel — they are
+	// independent IO operations against the same engine.
+	var longTerm, today, yesterday string
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		longTerm, _ = m.memoryEngine.LoadLongTerm(ctx, userID)
+	}()
+	go func() {
+		defer wg.Done()
+		today, _ = m.memoryEngine.LoadDaily(ctx, userID, now)
+	}()
+	go func() {
+		defer wg.Done()
+		yesterday, _ = m.memoryEngine.LoadDaily(ctx, userID, now.AddDate(0, 0, -1))
+	}()
+	wg.Wait()
 
 	soul = ports.TruncateRuneSnippet(soul, maxMemorySectionChars)
 	user = ports.TruncateRuneSnippet(user, maxMemorySectionChars)
