@@ -84,12 +84,10 @@ func TestSmartContent_Markdown(t *testing.T) {
 	if msgType != "post" {
 		t.Errorf("expected msgType=post, got %s", msgType)
 	}
-	// Verify it's valid JSON.
 	var payload map[string]interface{}
 	if err := json.Unmarshal([]byte(content), &payload); err != nil {
 		t.Fatalf("failed to parse post content: %v", err)
 	}
-	// Should have zh_cn key.
 	if _, ok := payload["zh_cn"]; !ok {
 		t.Error("post payload missing zh_cn key")
 	}
@@ -109,7 +107,6 @@ func TestBuildPostContent_HeadingAndBold(t *testing.T) {
 		t.Fatal("expected non-empty content")
 	}
 
-	// First line should be bold heading.
 	if lines[0][0].Tag != "text" || len(lines[0][0].Style) == 0 || lines[0][0].Style[0] != "bold" {
 		t.Errorf("expected bold heading, got %+v", lines[0][0])
 	}
@@ -127,7 +124,6 @@ func TestBuildPostContent_Link(t *testing.T) {
 		t.Fatalf("failed to parse: %v", err)
 	}
 
-	// Find the link element.
 	found := false
 	for _, line := range payload.ZhCN.Content {
 		for _, el := range line {
@@ -172,7 +168,6 @@ func TestBuildPostContent_CodeBlock(t *testing.T) {
 		t.Fatalf("failed to parse: %v", err)
 	}
 
-	// Should contain the code line as text element.
 	found := false
 	for _, line := range payload.ZhCN.Content {
 		for _, el := range line {
@@ -305,19 +300,27 @@ func TestSmartContent_Table(t *testing.T) {
 	if err := json.Unmarshal([]byte(content), &card); err != nil {
 		t.Fatalf("failed to parse card JSON: %v", err)
 	}
+
 	elements, ok := card["elements"].([]any)
-	if !ok || len(elements) == 0 {
-		t.Fatal("card missing elements")
+	if !ok || len(elements) < 2 {
+		t.Fatalf("card missing expected elements: %+v", card["elements"])
 	}
-	elem := elements[0].(map[string]any)
-	if elem["tag"] != "markdown" {
-		t.Errorf("expected markdown tag, got %v", elem["tag"])
+	first := elements[0].(map[string]any)
+	if first["tag"] != "markdown" {
+		t.Fatalf("expected first element markdown, got %v", first["tag"])
 	}
-	md, _ := elem["content"].(string)
-	if !strings.Contains(md, "| Name") {
-		t.Errorf("card markdown should contain table: %q", md)
+	second := elements[1].(map[string]any)
+	if second["tag"] != "table" {
+		t.Fatalf("expected second element table, got %v", second["tag"])
 	}
-	// Card should have no header when title is empty.
+	columns := second["columns"].([]any)
+	rows := second["rows"].([]any)
+	if len(columns) != 2 {
+		t.Fatalf("expected 2 columns, got %d", len(columns))
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 data rows, got %d", len(rows))
+	}
 	if _, hasHeader := card["header"]; hasHeader {
 		t.Error("content card should not have header when title is empty")
 	}
@@ -327,8 +330,31 @@ func TestExtractCardMarkdown(t *testing.T) {
 	original := "## Report\n\n| Name | Score |\n|------|-------|\n| Alice | 95 |"
 	cardJSON := buildContentCard(original)
 	extracted := extractCardMarkdown(cardJSON)
-	if extracted != original {
-		t.Errorf("extractCardMarkdown roundtrip failed: got %q, want %q", extracted, original)
+	if !strings.Contains(extracted, "## Report") {
+		t.Fatalf("extractCardMarkdown missing heading: %q", extracted)
+	}
+	if !hasTableSyntax(extracted) {
+		t.Fatalf("extractCardMarkdown should preserve table semantics: %q", extracted)
+	}
+	if !strings.Contains(extracted, "| Alice | 95 |") {
+		t.Fatalf("extractCardMarkdown missing table row: %q", extracted)
+	}
+}
+
+func TestBuildContentCard_NoTableFallsBackToMarkdownOnly(t *testing.T) {
+	original := "## Report\n\n正文"
+	cardJSON := buildContentCard(original)
+	var card map[string]any
+	if err := json.Unmarshal([]byte(cardJSON), &card); err != nil {
+		t.Fatalf("failed to parse card JSON: %v", err)
+	}
+	elements := card["elements"].([]any)
+	if len(elements) != 1 {
+		t.Fatalf("expected one markdown element, got %d", len(elements))
+	}
+	elem := elements[0].(map[string]any)
+	if elem["tag"] != "markdown" {
+		t.Fatalf("expected markdown tag, got %v", elem["tag"])
 	}
 }
 

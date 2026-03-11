@@ -2,22 +2,18 @@
 # launch-cc.sh — 一步启动 Claude Code 到 Kaku pane
 #
 # 用法:
+#   # 模式 A: split 新 pane
 #   bash scripts/kaku/launch-cc.sh \
 #     --parent-pane <id> \
 #     --goal "你的任务" \
-#     [--work-dir /path/to/dir] \
-#     [--session-id rs-xxx] \
-#     [--hooks-url http://localhost:9090]
+#     [--work-dir /path/to/dir]
 #
-# 功能（全自动，无需手动分步）：
-#   1. 确保 notify_runtime.sh 已注册到 ~/.claude/settings.json
-#   2. split-pane（zsh -l）
-#   3. 导出 RUNTIME_SESSION_ID / RUNTIME_HOOKS_URL（如提供）
-#   4. unset CLAUDECODE && claude --dangerously-skip-permissions
-#   5. 等待 CC 欢迎界面
-#   6. 注入 goal + Enter
+#   # 模式 B: 复用已有 pane（不 split，适配 layout.sh 预创建的 pane）
+#   bash scripts/kaku/launch-cc.sh \
+#     --pane-id <id> \
+#     --goal "你的任务"
 #
-# 输出: 新 pane 的 ID（供调用方记录）
+# 输出: pane ID
 set -euo pipefail
 
 KAKU="${KAKU_BIN:-/Applications/Kaku.app/Contents/MacOS/kaku}"
@@ -25,6 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 PARENT_PANE=""
+PANE_ID=""
 GOAL=""
 WORK_DIR="$(pwd)"
 SESSION_ID=""
@@ -33,6 +30,7 @@ HOOKS_URL="${RUNTIME_HOOKS_URL:-http://localhost:9090}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --parent-pane)  PARENT_PANE="$2"; shift 2 ;;
+    --pane-id)      PANE_ID="$2";     shift 2 ;;
     --goal)         GOAL="$2";        shift 2 ;;
     --work-dir)     WORK_DIR="$2";    shift 2 ;;
     --session-id)   SESSION_ID="$2";  shift 2 ;;
@@ -41,8 +39,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$PARENT_PANE" ]]; then
-  echo "ERROR: --parent-pane required" >&2; exit 1
+if [[ -z "$PARENT_PANE" && -z "$PANE_ID" ]]; then
+  echo "ERROR: --parent-pane or --pane-id required" >&2; exit 1
 fi
 if [[ -z "$GOAL" ]]; then
   echo "ERROR: --goal required" >&2; exit 1
@@ -51,13 +49,17 @@ fi
 # Step 1: 确保 notify_runtime.sh 已注册
 bash "$SCRIPT_DIR/../cc_hooks/notify_runtime.sh" --ensure-registered >&2
 
-# Step 2: 创建新 pane（zsh 登录 shell，无 bash 弃用提示）
-PANE=$("$KAKU" cli split-pane \
-  --pane-id "$PARENT_PANE" \
-  --bottom \
-  --percent 65 \
-  --cwd "$WORK_DIR" \
-  -- zsh -l)
+# Step 2: 获取目标 pane（split 新的或复用已有的）
+if [[ -n "$PANE_ID" ]]; then
+  PANE="$PANE_ID"
+else
+  PANE=$("$KAKU" cli split-pane \
+    --pane-id "$PARENT_PANE" \
+    --bottom \
+    --percent 65 \
+    --cwd "$WORK_DIR" \
+    -- zsh -l)
+fi
 
 # Step 3: 导出环境变量（给 notify_runtime.sh 用）
 ENV_LINE="export RUNTIME_HOOKS_URL='${HOOKS_URL}'"
