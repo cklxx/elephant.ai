@@ -8,8 +8,9 @@ const (
 	AgentTypeClaudeCode = "claude_code"
 	AgentTypeKimi       = "kimi"
 	AgentTypeGenericCLI = "generic_cli"
-	AgentTypeInternal   = "internal"
 )
+
+const agentTypeInternal = "internal"
 
 // IsCodingExternalAgent returns true for agent types representing external
 // coding CLIs that benefit from coding-specific defaults (verify, merge,
@@ -30,7 +31,7 @@ func CanonicalAgentType(raw string) string {
 	case "":
 		return ""
 	case "internal":
-		return AgentTypeInternal
+		return agentTypeInternal
 	case "generic_cli", "generic-cli", "generic":
 		return AgentTypeGenericCLI
 	case "codex":

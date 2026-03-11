@@ -18,8 +18,7 @@ type ExternalAgentExecutor interface {
 type InputRequestType string
 
 const (
-	InputRequestPermission    InputRequestType = "permission"
-	InputRequestClarification InputRequestType = "clarification"
+	InputRequestPermission InputRequestType = "permission"
 )
 
 // ExternalAgentRequest contains the parameters for an external agent invocation.
@@ -151,12 +150,6 @@ type MergeResult struct {
 	// ConflictDiff contains the raw output of git diff --diff-filter=U when
 	// conflicts are present. Populated by the workspace manager on conflict.
 	ConflictDiff string
-}
-
-// TaskDependency defines ordering between tasks.
-type TaskDependency struct {
-	DependsOn      []string
-	InheritContext bool
 }
 
 // InteractiveExternalExecutor extends ExternalAgentExecutor with input handling.

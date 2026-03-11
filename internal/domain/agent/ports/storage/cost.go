@@ -7,32 +7,14 @@ import (
 	"alex/internal/shared/modelregistry"
 )
 
-// CostRecorder records LLM usage events.
-type CostRecorder interface {
+type CostTracker interface {
 	RecordUsage(ctx context.Context, usage UsageRecord) error
-}
-
-// CostQuerier provides read access to aggregated cost data.
-type CostQuerier interface {
 	GetSessionCost(ctx context.Context, sessionID string) (*CostSummary, error)
 	GetSessionStats(ctx context.Context, sessionID string) (*SessionStats, error)
 	GetDailyCost(ctx context.Context, date time.Time) (*CostSummary, error)
 	GetMonthlyCost(ctx context.Context, year int, month int) (*CostSummary, error)
 	GetDateRangeCost(ctx context.Context, start, end time.Time) (*CostSummary, error)
-}
-
-// CostExporter exports usage records in various formats.
-type CostExporter interface {
 	Export(ctx context.Context, format ExportFormat, filter ExportFilter) ([]byte, error)
-}
-
-// CostTracker tracks token usage and costs across LLM interactions.
-// It composes CostRecorder, CostQuerier, and CostExporter.
-// Prefer depending on the narrower interface that matches your actual usage.
-type CostTracker interface {
-	CostRecorder
-	CostQuerier
-	CostExporter
 }
 
 // UsageRecord represents a single LLM usage event
@@ -122,8 +104,8 @@ func GetModelPricing(model string) ModelPricing {
 		"gpt-5":       {InputPer1K: 0.015, OutputPer1K: 0.06},
 		"gpt-5-mini":  {InputPer1K: 0.00150, OutputPer1K: 0.006},
 		// Anthropic
-		"claude-sonnet-4-6":        {InputPer1K: 0.003, OutputPer1K: 0.015},
-		"claude-opus-4-6":          {InputPer1K: 0.015, OutputPer1K: 0.075},
+		"claude-sonnet-4-6":         {InputPer1K: 0.003, OutputPer1K: 0.015},
+		"claude-opus-4-6":           {InputPer1K: 0.015, OutputPer1K: 0.075},
 		"claude-haiku-4-5-20251001": {InputPer1K: 0.00025, OutputPer1K: 0.00125},
 		// DeepSeek
 		"deepseek-chat":     {InputPer1K: 0.00014, OutputPer1K: 0.00028},

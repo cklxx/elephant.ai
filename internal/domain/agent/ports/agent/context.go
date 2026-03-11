@@ -8,56 +8,15 @@ import (
 	"alex/internal/domain/agent/ports/storage"
 )
 
-// TokenEstimator estimates token counts for messages.
-type TokenEstimator interface {
-	// EstimateTokens estimates token count for messages.
-	EstimateTokens(messages []core.Message) int
-}
-
-// ContextCompressor handles message compression and compaction.
-type ContextCompressor interface {
-	TokenEstimator
-
-	// Compress reduces message size when limit approached.
-	Compress(messages []core.Message, targetTokens int) ([]core.Message, error)
-
-	// AutoCompact applies compression automatically when the configured
-	// threshold is exceeded. It returns the possibly compacted slice and a flag
-	// indicating whether compaction occurred.
-	AutoCompact(messages []core.Message, limit int) ([]core.Message, bool)
-
-	// ShouldCompress checks if compression needed.
-	ShouldCompress(messages []core.Message, limit int) bool
-
-	// BuildSummaryOnly generates a compression summary for older messages
-	// without replacing them. Used for delayed summary replacement.
-	BuildSummaryOnly(messages []core.Message) (string, int)
-}
-
-// ContextWindowBuilder composes context windows for LLM invocations.
-type ContextWindowBuilder interface {
-	// Preload ensures the manager has cached static context/configuration before
-	// first use.
-	Preload(ctx context.Context) error
-
-	// BuildWindow composes the full context window for the given session and
-	// configuration.
-	BuildWindow(ctx context.Context, session *storage.Session, cfg ContextWindowConfig) (ContextWindow, error)
-}
-
-// ContextTurnRecorder persists turn records for session replay.
-type ContextTurnRecorder interface {
-	// RecordTurn writes the supplied turn record to the dynamic state store so
-	// that UI/API consumers can replay the session.
-	RecordTurn(ctx context.Context, record ContextTurnRecord) error
-}
-
-// ContextManager composes all context sub-interfaces. Consumers should depend
-// on the narrowest sub-interface that covers their needs.
 type ContextManager interface {
-	ContextCompressor
-	ContextWindowBuilder
-	ContextTurnRecorder
+	EstimateTokens(messages []core.Message) int
+	Compress(messages []core.Message, targetTokens int) ([]core.Message, error)
+	AutoCompact(messages []core.Message, limit int) ([]core.Message, bool)
+	ShouldCompress(messages []core.Message, limit int) bool
+	BuildSummaryOnly(messages []core.Message) (string, int)
+	Preload(ctx context.Context) error
+	BuildWindow(ctx context.Context, session *storage.Session, cfg ContextWindowConfig) (ContextWindow, error)
+	RecordTurn(ctx context.Context, record ContextTurnRecord) error
 }
 
 // ContextWindowConfig drives context composition behaviour.

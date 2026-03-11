@@ -14,18 +14,18 @@ import (
 	"alex/internal/shared/utils"
 )
 
-type AttachmentStorer interface {
+type attachmentStorer interface {
 	StoreBytes(name, mediaType string, data []byte) (string, error)
 }
 
 type AttachmentStoreMigrator struct {
-	store   AttachmentStorer
+	store   attachmentStorer
 	fetcher materialports.RemoteFetcher
 	logger  logging.Logger
 	cdnBase string
 }
 
-func NewAttachmentStoreMigrator(store AttachmentStorer, fetcher materialports.RemoteFetcher, cdnBase string, logger logging.Logger) *AttachmentStoreMigrator {
+func NewAttachmentStoreMigrator(store attachmentStorer, fetcher materialports.RemoteFetcher, cdnBase string, logger logging.Logger) *AttachmentStoreMigrator {
 	return &AttachmentStoreMigrator{
 		store:   store,
 		fetcher: fetcher,

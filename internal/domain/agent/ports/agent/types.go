@@ -82,16 +82,16 @@ type TaskRetrievalPlan struct {
 // the ReAct loop. Only the think phase issues LLM calls, so Act and Observe
 // are reserved for future per-phase attribution (e.g. tool-internal LLM calls).
 type LLMTokenBreakdown struct {
-	ThinkPromptTokens      int `json:"think_prompt_tokens"`
-	ThinkCompletionTokens  int `json:"think_completion_tokens"`
-	ActPromptTokens        int `json:"act_prompt_tokens"`
-	ActCompletionTokens    int `json:"act_completion_tokens"`
-	ObservePromptTokens    int `json:"observe_prompt_tokens"`
+	ThinkPromptTokens       int `json:"think_prompt_tokens"`
+	ThinkCompletionTokens   int `json:"think_completion_tokens"`
+	ActPromptTokens         int `json:"act_prompt_tokens"`
+	ActCompletionTokens     int `json:"act_completion_tokens"`
+	ObservePromptTokens     int `json:"observe_prompt_tokens"`
 	ObserveCompletionTokens int `json:"observe_completion_tokens"`
-	TotalPromptTokens      int `json:"total_prompt_tokens"`
-	TotalCompletionTokens  int `json:"total_completion_tokens"`
-	TotalTokens            int `json:"total_tokens"`
-	LLMCalls               int `json:"llm_calls"`
+	TotalPromptTokens       int `json:"total_prompt_tokens"`
+	TotalCompletionTokens   int `json:"total_completion_tokens"`
+	TotalTokens             int `json:"total_tokens"`
+	LLMCalls                int `json:"llm_calls"`
 }
 
 // AccumulateThink adds a single think-phase LLM call's token usage.
@@ -163,17 +163,4 @@ type TaskResult struct {
 	Important      map[string]core.ImportantNote
 	Workflow       *workflow.WorkflowSnapshot
 	Attachments    map[string]core.Attachment // Resolved attachments for the final answer
-}
-
-// StreamCallback is called during task execution to stream events.
-type StreamCallback func(event StreamEvent)
-
-// StreamEvent represents different types of events during execution.
-type StreamEvent struct {
-	Type    string // "tool_start", "tool_end", "thought", "error"
-	Tool    string
-	Args    map[string]any
-	Result  string
-	Error   error
-	Content string
 }

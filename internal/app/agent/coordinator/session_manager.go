@@ -122,7 +122,6 @@ func (c *AgentCoordinator) persistSessionContent(
 	if c.attachmentMigrator != nil && len(attachmentStore) > 0 {
 		normalized, err := c.attachmentMigrator.Normalize(ctx, materialports.MigrationRequest{
 			Attachments: attachmentStore,
-			Origin:      "session_persist",
 		})
 		if err != nil && logger != nil {
 			logger.Warn("Failed to migrate attachments for session persistence: %v", err)
