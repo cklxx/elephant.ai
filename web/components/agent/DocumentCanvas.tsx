@@ -402,7 +402,7 @@ function DocumentRenderer({
     return (
       <a
         className="break-words whitespace-normal"
-        href={safeHref}
+        href={safeHref ?? undefined}
         {...props}
       >
         {children}
