@@ -63,6 +63,50 @@ class TestPlan:
         assert result["success"] is True
         assert result["selected_skills"] == ["parent", "child"]
 
+    def test_detects_kaku_dispatch_mode(self):
+        result = plan(
+            {
+                "skills": [{"name": "meta-orchestrator", "score": 0.8}],
+                "context": "bash scripts/kaku/dispatch.sh --config /tmp/tasks.yaml",
+            }
+        )
+        assert result["success"] is True
+        assert len(result["scheduling_advice"]) == 1
+        advice = result["scheduling_advice"][0]
+        assert advice["mode"] == "kaku_dispatch"
+        assert "dispatch_script" in advice["matched_patterns"]
+        assert any("launch wrappers" in item for item in advice["recommendations"])
+
+    def test_detects_kaku_observe_mode(self):
+        result = plan(
+            {
+                "skills": [{"name": "meta-orchestrator", "score": 0.8}],
+                "commands": ["kaku cli get-text --pane-id 12 | tail -20"],
+            }
+        )
+        assert result["success"] is True
+        assert len(result["scheduling_advice"]) == 1
+        advice = result["scheduling_advice"][0]
+        assert advice["mode"] == "kaku_observe"
+        assert "kaku_get_text" in advice["matched_patterns"]
+        assert any("Read pane output before injecting new work" in item for item in advice["recommendations"])
+
+    def test_detects_dispatch_and_observe_modes_together(self):
+        result = plan(
+            {
+                "skills": [{"name": "meta-orchestrator", "score": 0.8}],
+                "context": [
+                    "alex runtime session start --member codex --goal fix",
+                    "kaku cli get-text --pane-id 15",
+                ],
+            }
+        )
+        assert result["success"] is True
+        assert [item["mode"] for item in result["scheduling_advice"]] == [
+            "kaku_dispatch",
+            "kaku_observe",
+        ]
+
 
 class TestSummarize:
     def test_returns_summary(self):

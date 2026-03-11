@@ -16,6 +16,23 @@ from skill_runner.cli_contract import parse_cli_args, render_result
 load_repo_dotenv(__file__)
 
 from typing import Any
+import re
+
+
+_KAKU_DISPATCH_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("kaku_cli_dispatch", re.compile(r"\bkaku\s+cli\s+dispatch\b", re.IGNORECASE)),
+    ("dispatch_script", re.compile(r"\bscripts/kaku/dispatch\.sh\b", re.IGNORECASE)),
+    ("launch_script", re.compile(r"\bscripts/kaku/launch-(?:codex|cc)\.sh\b", re.IGNORECASE)),
+    (
+        "runtime_session_start",
+        re.compile(r"\balex\s+runtime\s+session\s+start\b", re.IGNORECASE),
+    ),
+)
+
+_KAKU_OBSERVE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("kaku_get_text", re.compile(r"\bkaku\s+cli\s+get-text\b", re.IGNORECASE)),
+    ("monitor_script", re.compile(r"\bscripts/kaku/monitor\.sh\b", re.IGNORECASE)),
+)
 
 
 def _normalize_governance(level: str) -> str:
@@ -78,6 +95,73 @@ def _order_by_dependency(skills: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if name:
             visit(name)
     return ordered
+
+
+def _collect_text_fragments(value: Any) -> list[str]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return [stripped] if stripped else []
+    if isinstance(value, list):
+        fragments: list[str] = []
+        for item in value:
+            fragments.extend(_collect_text_fragments(item))
+        return fragments
+    if isinstance(value, dict):
+        fragments = []
+        for item in value.values():
+            fragments.extend(_collect_text_fragments(item))
+        return fragments
+    return []
+
+
+def _extract_command_context(args: dict[str, Any]) -> list[str]:
+    fragments: list[str] = []
+    for key, value in args.items():
+        if key in {"skills", "links", "plan", "action"}:
+            continue
+        fragments.extend(_collect_text_fragments(value))
+    return fragments
+
+
+def _detect_kaku_modes(context_fragments: list[str]) -> list[dict[str, Any]]:
+    joined = "\n".join(context_fragments)
+    detections: list[dict[str, Any]] = []
+
+    dispatch_matches = [
+        name for name, pattern in _KAKU_DISPATCH_PATTERNS if pattern.search(joined)
+    ]
+    if dispatch_matches:
+        detections.append(
+            {
+                "mode": "kaku_dispatch",
+                "matched_patterns": dispatch_matches,
+                "scheduler_goal": "fan out tasks into dedicated panes with launch wrappers and explicit ownership",
+                "recommendations": [
+                    "Prefer launch wrappers or runtime session start over raw pane injection so readiness and environment setup stay consistent.",
+                    "Assign one pane per agent goal and keep a separate monitor path for status collection before dispatching follow-up work.",
+                    "Sequence dependent work explicitly: dispatch implementation panes first, then gate review or follow-up panes on observed completion signals.",
+                ],
+            }
+        )
+
+    observe_matches = [
+        name for name, pattern in _KAKU_OBSERVE_PATTERNS if pattern.search(joined)
+    ]
+    if observe_matches:
+        detections.append(
+            {
+                "mode": "kaku_observe",
+                "matched_patterns": observe_matches,
+                "scheduler_goal": "treat pane output capture as a scheduling checkpoint, not a fire-and-forget log read",
+                "recommendations": [
+                    "Read pane output before injecting new work so the scheduler can distinguish idle, working, and done states.",
+                    "Use get-text and monitor output to decide whether to continue, wait, or rebalance work to another pane.",
+                    "When observation shows completion or shell return, promote downstream tasks or collect artifacts instead of redispatching the same goal.",
+                ],
+            }
+        )
+
+    return detections
 
 
 def plan(args: dict[str, Any]) -> dict[str, Any]:
@@ -157,6 +241,9 @@ def plan(args: dict[str, Any]) -> dict[str, Any]:
             if evt:
                 event_set.add(evt)
 
+    context_fragments = _extract_command_context(args)
+    scheduling_advice = _detect_kaku_modes(context_fragments)
+
     return {
         "success": True,
         "selected_skills": [s["name"] for s in selected],
@@ -165,6 +252,7 @@ def plan(args: dict[str, Any]) -> dict[str, Any]:
         "risk_level": _highest_risk(selected),
         "proactive_level": proactive_level,
         "events": sorted(event_set),
+        "scheduling_advice": scheduling_advice,
     }
 
 
