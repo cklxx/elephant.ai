@@ -2,23 +2,23 @@ package async
 
 import "runtime/debug"
 
-// PanicLogger captures panic reports from background goroutines.
-type PanicLogger interface {
+// panicLogger captures panic reports from background goroutines.
+type panicLogger interface {
 	Error(format string, args ...any)
 }
 
 // Run executes fn guarded by panic recovery.
-func Run(logger PanicLogger, name string, fn func()) {
+func Run(logger panicLogger, name string, fn func()) {
 	defer recoverAndLog(logger, name)
 	fn()
 }
 
 // Go runs fn in a goroutine guarded by panic recovery.
-func Go(logger PanicLogger, name string, fn func()) {
+func Go(logger panicLogger, name string, fn func()) {
 	go Run(logger, name, fn)
 }
 
-func recoverAndLog(logger PanicLogger, name string) {
+func recoverAndLog(logger panicLogger, name string) {
 	if r := recover(); r != nil {
 		if logger == nil {
 			return

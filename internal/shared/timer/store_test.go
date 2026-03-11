@@ -9,9 +9,9 @@ import (
 
 func TestStoreSaveAndGet(t *testing.T) {
 	dir := t.TempDir()
-	store, err := NewStore(dir)
+	store, err := newStore(dir)
 	if err != nil {
-		t.Fatalf("NewStore: %v", err)
+		t.Fatalf("newStore: %v", err)
 	}
 
 	tmr := Timer{
@@ -64,9 +64,9 @@ func TestStoreSaveAndGet(t *testing.T) {
 
 func TestStoreGetNotFound(t *testing.T) {
 	dir := t.TempDir()
-	store, err := NewStore(dir)
+	store, err := newStore(dir)
 	if err != nil {
-		t.Fatalf("NewStore: %v", err)
+		t.Fatalf("newStore: %v", err)
 	}
 
 	_, err = store.Get("tmr-nonexistent")
@@ -77,9 +77,9 @@ func TestStoreGetNotFound(t *testing.T) {
 
 func TestStoreDelete(t *testing.T) {
 	dir := t.TempDir()
-	store, err := NewStore(dir)
+	store, err := newStore(dir)
 	if err != nil {
-		t.Fatalf("NewStore: %v", err)
+		t.Fatalf("newStore: %v", err)
 	}
 
 	tmr := Timer{
@@ -107,9 +107,9 @@ func TestStoreDelete(t *testing.T) {
 
 func TestStoreDeleteNonexistent(t *testing.T) {
 	dir := t.TempDir()
-	store, err := NewStore(dir)
+	store, err := newStore(dir)
 	if err != nil {
-		t.Fatalf("NewStore: %v", err)
+		t.Fatalf("newStore: %v", err)
 	}
 
 	// Deleting a non-existent timer should not error.
@@ -120,9 +120,9 @@ func TestStoreDeleteNonexistent(t *testing.T) {
 
 func TestStoreLoadAll(t *testing.T) {
 	dir := t.TempDir()
-	store, err := NewStore(dir)
+	store, err := newStore(dir)
 	if err != nil {
-		t.Fatalf("NewStore: %v", err)
+		t.Fatalf("newStore: %v", err)
 	}
 
 	now := time.Now().UTC().Truncate(time.Second)
@@ -161,9 +161,9 @@ func TestStoreLoadAll(t *testing.T) {
 
 func TestStoreLoadAllEmpty(t *testing.T) {
 	dir := t.TempDir()
-	store, err := NewStore(dir)
+	store, err := newStore(dir)
 	if err != nil {
-		t.Fatalf("NewStore: %v", err)
+		t.Fatalf("newStore: %v", err)
 	}
 
 	loaded, err := store.LoadAll()
@@ -177,9 +177,9 @@ func TestStoreLoadAllEmpty(t *testing.T) {
 
 func TestStoreSaveOverwrite(t *testing.T) {
 	dir := t.TempDir()
-	store, err := NewStore(dir)
+	store, err := newStore(dir)
 	if err != nil {
-		t.Fatalf("NewStore: %v", err)
+		t.Fatalf("newStore: %v", err)
 	}
 
 	tmr := Timer{

@@ -309,9 +309,9 @@ func TestManagerRestartRecovery(t *testing.T) {
 	dir := t.TempDir()
 
 	// Phase 1: create a timer and persist it.
-	store, err := NewStore(dir)
+	store, err := newStore(dir)
 	if err != nil {
-		t.Fatalf("NewStore: %v", err)
+		t.Fatalf("newStore: %v", err)
 	}
 
 	pastTimer := Timer{

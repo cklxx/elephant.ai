@@ -8,13 +8,14 @@ Audit `internal/shared/async/` and `internal/shared/timer/` for dead code, gorou
 - [x] Remove dead code and collapse redundant abstractions where callers already guarantee invariants.
 - [x] Add focused tests for cancellation, stopped-manager behavior, and panic-safe async execution.
 - [x] Run relevant lint/tests and perform code review.
-- [ ] Commit and fast-forward merge to `main`.
+- [x] Commit and fast-forward merge to `main`.
 
 ## Notes
 
 - `internal/shared/async` exported more surface than callers used. The panic-safe execution path now has a single implementation: `Run`, and `Go` is just the async wrapper.
 - `internal/shared/timer` had duplicated scheduling branches and allowed stale callbacks to keep executing after `Cancel` or `Stop`. Scheduling now resolves by `timerID`, checks active state at fire time, and uses `context.AfterFunc` instead of a dedicated stop-watcher goroutine.
 - The unused `Timer.Delay` field was removed from the Go runtime model.
+- The remaining package-private cleanup shrinks unused exports: `async.PanicLogger`, `timer.AgentCoordinator`, `timer.Notifier`, and the timer store constructor/type are now internal.
 
 ## Validation
 

@@ -15,13 +15,13 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-// AgentCoordinator is the subset of the coordinator interface needed by the timer manager.
-type AgentCoordinator interface {
+// agentCoordinator is the subset of the coordinator interface needed by the timer manager.
+type agentCoordinator interface {
 	ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
 }
 
-// Notifier routes timer results to external channels.
-type Notifier = notification.Notifier
+// notifier routes timer results to external channels.
+type notifier = notification.Notifier
 
 // Config holds TimerManager runtime configuration.
 type Config struct {
@@ -34,9 +34,9 @@ type Config struct {
 // TimerManager manages the lifecycle of agent-initiated timers.
 // It handles scheduling, persistence, firing, and restart recovery.
 type TimerManager struct {
-	coordinator AgentCoordinator
-	notifier    Notifier
-	store       *Store
+	coordinator agentCoordinator
+	notifier    notifier
+	store       *store
 	config      Config
 	logger      logging.Logger
 	cron        *cron.Cron
@@ -56,10 +56,10 @@ type TimerManager struct {
 func (*TimerManager) ToolTimerManagerServiceMarker() {}
 
 // NewTimerManager creates a new TimerManager.
-func NewTimerManager(cfg Config, coordinator AgentCoordinator, notifier Notifier, logger logging.Logger) (*TimerManager, error) {
+func NewTimerManager(cfg Config, coordinator agentCoordinator, notifier notifier, logger logging.Logger) (*TimerManager, error) {
 	logger = logging.OrNop(logger)
 
-	store, err := NewStore(cfg.StorePath)
+	store, err := newStore(cfg.StorePath)
 	if err != nil {
 		return nil, fmt.Errorf("create timer store: %w", err)
 	}

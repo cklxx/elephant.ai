@@ -10,24 +10,24 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Store persists timers as individual YAML files in a directory.
+// store persists timers as individual YAML files in a directory.
 // Each timer is stored as {id}.yaml.
-type Store struct {
+type store struct {
 	dir string
 	mu  sync.Mutex
 }
 
-// NewStore creates a Store backed by the given directory.
+// newStore creates a store backed by the given directory.
 // The directory is created if it does not exist.
-func NewStore(dir string) (*Store, error) {
+func newStore(dir string) (*store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create timer store dir: %w", err)
 	}
-	return &Store{dir: dir}, nil
+	return &store{dir: dir}, nil
 }
 
 // Save persists a timer to disk, creating or overwriting the file.
-func (s *Store) Save(t Timer) error {
+func (s *store) Save(t Timer) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -43,7 +43,7 @@ func (s *Store) Save(t Timer) error {
 }
 
 // Get loads a single timer by ID. Returns os.ErrNotExist if not found.
-func (s *Store) Get(id string) (Timer, error) {
+func (s *store) Get(id string) (Timer, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -51,7 +51,7 @@ func (s *Store) Get(id string) (Timer, error) {
 }
 
 // Delete removes a timer file from disk.
-func (s *Store) Delete(id string) error {
+func (s *store) Delete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -63,7 +63,7 @@ func (s *Store) Delete(id string) error {
 }
 
 // LoadAll reads all timer files from the store directory.
-func (s *Store) LoadAll() ([]Timer, error) {
+func (s *store) LoadAll() ([]Timer, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -89,7 +89,7 @@ func (s *Store) LoadAll() ([]Timer, error) {
 	return timers, nil
 }
 
-func (s *Store) readFile(path string) (Timer, error) {
+func (s *store) readFile(path string) (Timer, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Timer{}, err
@@ -101,6 +101,6 @@ func (s *Store) readFile(path string) (Timer, error) {
 	return t, nil
 }
 
-func (s *Store) filePath(id string) string {
+func (s *store) filePath(id string) string {
 	return filepath.Join(s.dir, id+".yaml")
 }
