@@ -523,10 +523,7 @@ func runTeamTerminal(args []string) error {
 		return nil
 	}
 
-	if resolvedRoleID == "" && len(entry.Roles) != 1 {
-		return &ExitCodeError{Code: 2, Err: fmt.Errorf("--role-id is required when team has multiple roles")}
-	}
-	binding, err := resolveInjectRole(entry, resolvedRoleID)
+	binding, autoSelected, err := selectPreferredTerminalRole(entry, resolvedRoleID)
 	if err != nil {
 		return &ExitCodeError{Code: 1, Err: err}
 	}
@@ -536,16 +533,13 @@ func runTeamTerminal(args []string) error {
 	}
 
 	var cmd *exec.Cmd
-	target := "-L elephant"
 	switch resolvedMode {
 	case "capture":
 		start := fmt.Sprintf("-%d", *lines)
 		cmd = exec.Command("tmux", "-L", "elephant", "capture-pane", "-pt", pane, "-S", start)
-		fmt.Fprintf(os.Stdout, "Capturing pane %s (%s role=%s)\n", pane, target, nonEmpty(binding.RoleID, "(unknown)"))
 	case "stream":
 		start := fmt.Sprintf("-%d", *lines)
 		cmd = exec.Command("tmux", "-L", "elephant", "capture-pane", "-pet", pane, "-S", start)
-		fmt.Fprintf(os.Stdout, "Streaming pane snapshot %s (%s role=%s)\n", pane, target, nonEmpty(binding.RoleID, "(unknown)"))
 	default:
 		return &ExitCodeError{Code: 2, Err: fmt.Errorf("invalid --mode %q", resolvedMode)}
 	}
@@ -553,12 +547,11 @@ func runTeamTerminal(args []string) error {
 	if err != nil {
 		return &ExitCodeError{Code: 1, Err: fmt.Errorf("tmux %s pane %s: %s", resolvedMode, pane, strings.TrimSpace(string(out)))}
 	}
-	if len(out) > 0 {
-		fmt.Fprintln(os.Stdout, string(out))
+	view := buildTerminalSnapshotView(entry, binding, resolvedMode, *lines, string(out), opts.runtimeRoot)
+	if autoSelected {
+		fmt.Fprintf(os.Stdout, "Auto-selected role %s based on current team activity.\n\n", nonEmpty(binding.RoleID, "(unknown)"))
 	}
-	if resolvedMode == "stream" {
-		fmt.Fprintln(os.Stdout, "Tip: run again to refresh, or use --mode attach for interactive view.")
-	}
+	fmt.Fprintln(os.Stdout, renderTerminalSnapshotView(view))
 	return nil
 }
 

@@ -1,7 +1,7 @@
 # Team Terminal UX Model (Draft)
 
 日期：2026-03-06  
-状态：Draft / implementation-ready
+状态：Core implemented
 
 ## 目标
 
@@ -106,3 +106,12 @@
 - 用户无需理解 tmux、runtime root、sidecar 等内部概念。
 - Lark/Web/CLI 三端展示复用同一套 view model。
 
+## Core Implementation
+
+- `alex team status` now maps runtime artifacts into a user-facing TeamRun view:
+  - header with goal / status / session / timing
+  - role cards with focused sorting, short summaries, and follow-up / terminal actions
+  - activity timeline with user-facing event summaries
+  - artifact list from runtime logs and discovered artifact directories
+- `alex team status --json` now includes the derived `view` payload alongside raw runtime fields.
+- `alex team terminal --mode capture|stream` now renders a terminal snapshot view instead of exposing pane-centric wording, and auto-focuses the most important role when multiple roles exist.

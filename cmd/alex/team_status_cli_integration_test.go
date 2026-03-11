@@ -31,6 +31,10 @@ func TestTeamStatusCLIRealInvocation(t *testing.T) {
 			SessionID    string `json:"session_id"`
 			TeamID       string `json:"team_id"`
 			RecentEvents []any  `json:"recent_events"`
+			View         struct {
+				OverallStatus string `json:"overall_status"`
+				FocusRoleID   string `json:"focus_role_id"`
+			} `json:"view"`
 		} `json:"entries"`
 	}
 	if err := json.Unmarshal(output, &report); err != nil {
@@ -47,5 +51,8 @@ func TestTeamStatusCLIRealInvocation(t *testing.T) {
 	}
 	if len(report.Entries[0].RecentEvents) != 2 {
 		t.Fatalf("expected tail=2 events, got %d", len(report.Entries[0].RecentEvents))
+	}
+	if report.Entries[0].View.OverallStatus != "completed" || report.Entries[0].View.FocusRoleID != "executor" {
+		t.Fatalf("unexpected view payload: %+v", report.Entries[0].View)
 	}
 }

@@ -51,6 +51,7 @@ type teamRuntimeStatus struct {
 	Roles                   []teamruntime.RoleBinding        `json:"roles,omitempty"`
 	RuntimeState            teamruntime.RuntimeState         `json:"runtime_state"`
 	RecentEvents            []map[string]any                 `json:"recent_events,omitempty"`
+	View                    teamRunView                      `json:"view"`
 }
 
 func runTeamStatus(args []string) error {
@@ -339,6 +340,7 @@ func loadSingleTeamRuntime(teamDir string, eventsTail int) (teamRuntimeStatus, e
 	events, _ := readJSONLinesTail(eventLogPath, eventsTail)
 	status.RecentEvents = events
 	status.RuntimeState = overlayRuntimeState(status.RuntimeState, status.Roles, events)
+	status.View = buildTeamRunView(status)
 	return status, nil
 }
 
@@ -349,58 +351,23 @@ func renderTeamStatusReport(report teamStatusReport) string {
 		if idx > 0 {
 			b.WriteString("\n")
 		}
-		fmt.Fprintf(&b, "[%d] team=%s session=%s template=%s initialized=%s\n",
-			idx+1,
-			nonEmpty(entry.TeamID, "(unknown)"),
-			nonEmpty(entry.SessionID, "(unknown)"),
-			nonEmpty(entry.Template, "(unknown)"),
-			formatStatusTime(entry.InitializedAt),
-		)
-		fmt.Fprintf(&b, "  dir: %s\n", entry.BaseDir)
+		fmt.Fprintf(&b, "[%d] %s\n", idx+1, renderTeamRunView(entry.View))
+		fmt.Fprintf(&b, "\nRuntime artifacts: %s", entry.BaseDir)
 		if entry.TmuxSession != "" {
-			fmt.Fprintf(&b, "  tmux_session: %s\n", entry.TmuxSession)
+			fmt.Fprintf(&b, "\nTmux session: %s", entry.TmuxSession)
 		}
-		fmt.Fprintf(&b, "  capabilities: generated_at=%s ttl=%ds count=%d\n",
-			formatStatusTime(entry.CapabilitiesGeneratedAt),
-			entry.CapabilitiesTTLSeconds,
-			len(entry.Capabilities),
-		)
-		for _, cap := range entry.Capabilities {
-			fmt.Fprintf(&b, "    - %s path=%s auth_ready=%t plan=%t exec=%t stream=%t fs=%t net=%t",
-				nonEmpty(cap.ID, cap.Binary),
-				nonEmpty(cap.Path, cap.Binary),
-				cap.AuthReady,
-				cap.SupportsPlan,
-				cap.SupportsExecute,
-				cap.SupportsStream,
-				cap.SupportsFilesystem,
-				cap.SupportsNetwork,
-			)
-			if cap.Version != "" {
-				fmt.Fprintf(&b, " version=%s", cap.Version)
-			}
-			if cap.FailureReason != "" {
-				fmt.Fprintf(&b, " failure=%s", cap.FailureReason)
-			}
-			b.WriteString("\n")
-		}
-		fmt.Fprintf(&b, "  roles: %d\n", len(entry.Roles))
-		for _, role := range entry.Roles {
-			fmt.Fprintf(&b, "    - %s target=%s selected=%s agent=%s pane=%s fallback=%s\n",
-				nonEmpty(role.RoleID, "(unknown)"),
-				nonEmpty(role.TargetCLI, "-"),
-				nonEmpty(role.SelectedCLI, "-"),
-				nonEmpty(role.SelectedAgentType, "-"),
-				nonEmpty(role.TmuxPane, "-"),
-				nonEmpty(strings.Join(role.FallbackCLIs, ","), "-"),
-			)
-		}
-		if len(entry.RecentEvents) > 0 {
-			fmt.Fprintf(&b, "  recent_events (%d):\n", len(entry.RecentEvents))
-			for _, ev := range entry.RecentEvents {
-				fmt.Fprintf(&b, "    - %s\n", formatRuntimeEventSummary(ev))
+		if len(entry.Capabilities) > 0 {
+			fmt.Fprintf(&b, "\nCLI capabilities (%d):", len(entry.Capabilities))
+			for _, cap := range entry.Capabilities {
+				fmt.Fprintf(&b, "\n  - %s path=%s auth_ready=%t stream=%t",
+					nonEmpty(cap.ID, cap.Binary),
+					nonEmpty(cap.Path, cap.Binary),
+					cap.AuthReady,
+					cap.SupportsStream,
+				)
 			}
 		}
+		b.WriteString("\n")
 	}
 	return b.String()
 }
@@ -624,5 +591,16 @@ func stringValue(v any) string {
 		return strings.TrimSpace(val.String())
 	default:
 		return ""
+	}
+}
+
+func boolValue(v any) bool {
+	switch val := v.(type) {
+	case bool:
+		return val
+	case string:
+		return strings.EqualFold(strings.TrimSpace(val), "true")
+	default:
+		return false
 	}
 }

@@ -47,6 +47,12 @@ func TestLoadTeamRuntimeStatus_SortsAndLoads(t *testing.T) {
 	if got := statuses[0].RuntimeState.Roles["executor"].Status; got != "completed" {
 		t.Fatalf("expected derived role status completed, got %q", got)
 	}
+	if statuses[0].View.FocusRoleID != "executor" {
+		t.Fatalf("expected executor focus role, got %+v", statuses[0].View)
+	}
+	if len(statuses[0].View.Artifacts) < 2 {
+		t.Fatalf("expected runtime artifacts in view, got %+v", statuses[0].View.Artifacts)
+	}
 }
 
 func TestLoadTeamRuntimeStatus_FiltersSessionAndTeam(t *testing.T) {
