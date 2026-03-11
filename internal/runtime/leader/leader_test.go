@@ -480,7 +480,7 @@ func TestApplyDecisionESCALATE(t *testing.T) {
 }
 
 func TestBuildStallPrompt(t *testing.T) {
-	prompt := buildStallPrompt("s1", "backend", "fix the bug", 90*time.Second, hooks.EventStalled, 2)
+	prompt := buildStallPrompt("s1", "backend", "fix the bug", 90*time.Second, hooks.EventStalled, 2, nil)
 	if prompt == "" {
 		t.Fatal("expected non-empty prompt")
 	}

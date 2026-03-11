@@ -52,6 +52,10 @@ type Agent struct {
 	// for stall events, used to escalate after repeated failures.
 	stallCounts   map[string]int
 	stallCountsMu sync.Mutex
+
+	// decisions stores per-session decision history so the LLM can see
+	// what was tried before and avoid repeating ineffective strategies.
+	decisions *decisionHistoryStore
 }
 
 // maxStallAttempts is the maximum number of stall handling attempts per runtime
@@ -70,6 +74,7 @@ func New(rt RuntimeReader, bus hooks.Bus, execute ExecuteFunc) *Agent {
 		logger:      logging.NewComponentLogger("LeaderAgent"),
 		inflight:    make(map[string]struct{}),
 		stallCounts: make(map[string]int),
+		decisions:   newDecisionHistoryStore(),
 	}
 }
 
@@ -137,11 +142,18 @@ func (a *Agent) incrementStallCount(sessionID string) int {
 	return a.stallCounts[sessionID]
 }
 
-// resetStallCount resets the stall counter when a session recovers.
+// resetStallCount resets the stall counter and decision history when a session recovers.
 func (a *Agent) resetStallCount(sessionID string) {
 	a.stallCountsMu.Lock()
 	defer a.stallCountsMu.Unlock()
 	delete(a.stallCounts, sessionID)
+
+	// Mark the last decision as successful before clearing.
+	h := a.decisions.Get(sessionID)
+	if h.Len() > 0 {
+		h.RecordOutcome("recovered")
+	}
+	a.decisions.Delete(sessionID)
 }
 
 // stallSessionID returns a stable, deterministic session ID for leader stall
@@ -174,7 +186,11 @@ func (a *Agent) handleStall(ctx context.Context, ev hooks.Event) {
 		elapsed = time.Since(*snap.StartedAt).Round(time.Second)
 	}
 
-	prompt := buildStallPrompt(snap.ID, string(snap.Member), snap.Goal, elapsed, ev.Type, count)
+	// Mark the previous decision as still_stalled (if any).
+	history := a.decisions.Get(ev.SessionID)
+	history.RecordOutcome("still_stalled")
+
+	prompt := buildStallPrompt(snap.ID, string(snap.Member), snap.Goal, elapsed, ev.Type, count, history)
 
 	// Disable session history for stall decisions — the prompt is self-contained
 	// and loading full history is the primary cause of memory explosion.
@@ -189,7 +205,25 @@ func (a *Agent) handleStall(ctx context.Context, ev hooks.Event) {
 		return
 	}
 
-	a.applyDecision(ctx, ev.SessionID, strings.TrimSpace(decision))
+	trimmed := strings.TrimSpace(decision)
+	action, arg := parseDecision(trimmed)
+
+	// Record the decision for future prompts.
+	actionName := "ESCALATE"
+	switch action {
+	case actionInject:
+		actionName = "INJECT"
+	case actionFail:
+		actionName = "FAIL"
+	}
+	history.Add(DecisionRecord{
+		Attempt:   count,
+		Action:    actionName,
+		Argument:  arg,
+		Timestamp: time.Now(),
+	})
+
+	a.applyDecision(ctx, ev.SessionID, trimmed)
 }
 
 // handleChildCompleted processes a child session completion event.
@@ -344,34 +378,42 @@ func (a *Agent) escalate(sessionID, reason string) {
 	})
 }
 
-// buildStallPrompt constructs the short decision prompt for the LLM.
-func buildStallPrompt(id, member, goal string, elapsed time.Duration, eventType hooks.EventType, attempt int) string {
+// buildStallPrompt constructs the decision prompt for the LLM, including
+// any previous decision history so the LLM can avoid repeating failed strategies.
+func buildStallPrompt(id, member, goal string, elapsed time.Duration, eventType hooks.EventType, attempt int, history *DecisionHistory) string {
 	kind := "stalled"
 	if eventType == hooks.EventNeedsInput {
 		kind = "waiting for input"
 	}
-	return fmt.Sprintf(`You are a leader agent managing an AI coding session.
+
+	historySummary := ""
+	if history != nil {
+		historySummary = history.SummaryForPrompt(maxStallAttempts)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, `You are a leader agent managing an AI coding session.
 
 Session ID: %s
 Member:     %s
 Goal:       %s
 Status:     %s for %s
 Attempt:    %d of %d
+`, id, member, goal, kind, elapsed, attempt, maxStallAttempts)
 
+	if historySummary != "" {
+		fmt.Fprintf(&b, "\n%s", historySummary)
+	}
+
+	fmt.Fprintf(&b, `
 The session has been %s. Decide what to do next. Reply with EXACTLY one of:
 
 INJECT <a short message to send to the session to unblock it>
 FAIL <reason — give up on this session>
 ESCALATE
 
-Reply only with one of the above. No explanation.`,
-		id,
-		member,
-		goal,
-		kind,
-		elapsed,
-		attempt,
-		maxStallAttempts,
-		kind,
-	)
+If previous INJECT attempts failed, try a different message or consider FAIL/ESCALATE.
+Reply only with one of the above. No explanation.`, kind)
+
+	return b.String()
 }
