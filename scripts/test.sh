@@ -66,20 +66,14 @@ run_integration_tests() {
 
 run_lint() {
     print_status "Running golangci-lint..."
-    ./scripts/run-golangci-lint.sh run ./...
+    ./scripts/ci-check.sh lint
     print_success "Lint checks passed"
 }
 
 run_cli_smoke() {
-    build_cli
     print_status "Running alex CLI smoke checks..."
-    ./alex --help >/dev/null
-    ./alex version >/dev/null
-    if ./alex sessions >/dev/null 2>&1; then
-        print_status "Sessions command executed"
-    else
-        print_warning "Sessions command failed (likely no persistent storage configured)"
-    fi
+    build_cli
+    CI_CLI_BIN="./alex" ./scripts/ci-check.sh cli-smoke
     print_success "CLI smoke test completed"
 }
 

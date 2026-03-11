@@ -216,8 +216,8 @@ eval-server-test: ## Run eval-server + RL + task_mgmt tests
 ## Local CI
 ## ========================================
 
-ci-local: ## Run the same checks CI runs (mod tidy, lint, build, web)
-	@./scripts/pre-push.sh
+ci-local: ## Run the local CI gate through the unified CI script
+	@./scripts/ci-check.sh pre-push
 
 install-hooks: ## Install git hooks (pre-push CI gate)
 	@echo "Installing pre-push hook..."

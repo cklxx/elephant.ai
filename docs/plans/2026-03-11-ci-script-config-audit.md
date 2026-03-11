@@ -20,9 +20,14 @@
 - `scripts/install.sh` previously allowed binary installation to continue when the release checksum manifest was missing or lacked the requested artifact entry. That was a fail-open supply-chain verification path.
 - `configs/config-schema.json` was stale duplicate data. Runtime schema validation only consumes `internal/shared/config/schema/config-schema.json`.
 - Repository-wide `shellcheck` still reports 76 findings, concentrated in older E2E/helper scripts. The touched audit files are now clean under `shellcheck -x`.
+- CI command definitions are now centralized in `scripts/ci-check.sh`; `scripts/pre-push.sh`, `Makefile`, `scripts/test.sh`, and `.github/workflows/ci.yml` delegate to that script instead of carrying their own command lists.
 
 ## Validation
 
 - `shellcheck -x scripts/install.sh scripts/pre-push.sh scripts/lib/common/build.sh scripts/setup_local_runtime.sh scripts/publish-npm.sh scripts/lib/common/cgo.sh`
+- `shellcheck -x scripts/ci-check.sh scripts/pre-push.sh scripts/test.sh`
+- `./scripts/ci-check.sh arch`
+- `./scripts/ci-check.sh arch-policy`
+- `./scripts/ci-check.sh go-build-check`
 - `go test ./...`
 - `python3 skills/code-review/run.py review`

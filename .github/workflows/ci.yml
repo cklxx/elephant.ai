@@ -43,10 +43,10 @@ jobs:
           cache: true
 
       - name: 🧱 Check architecture boundaries
-        run: make check-arch
+        run: ./scripts/ci-check.sh arch
 
       - name: 🧭 Check architecture policy
-        run: make check-arch-policy
+        run: ./scripts/ci-check.sh arch-policy
 
       - name: 📦 Upload architecture report
         if: always()
@@ -57,11 +57,7 @@ jobs:
           if-no-files-found: warn
 
       - name: 🚦 Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.64.8
-          install-mode: goinstall
-          args: --timeout=5m --out-format=colored-line-number
+        run: CI_LINT_MODE=full CI_LINT_TIMEOUT=5m ./scripts/ci-check.sh lint
 
   web:
     name: 🌐 Web
@@ -79,19 +75,19 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: 📦 Install dependencies
-        run: npm --prefix web ci
+        run: ./scripts/ci-check.sh web-install
 
       - name: 🔍 Web lint
-        run: npm --prefix web run lint
+        run: ./scripts/ci-check.sh web-lint
 
       - name: 🧪 Web tests
-        run: npm --prefix web run test
+        run: ./scripts/ci-check.sh web-test
 
       - name: 🏗️ Web build
-        run: npm --prefix web run build
+        run: ./scripts/ci-check.sh web-build
 
       - name: 📊 Bundle analyze
-        run: npm --prefix web run analyze
+        run: ./scripts/ci-check.sh web-analyze
 
       - name: 📦 Upload bundle report
         uses: actions/upload-artifact@v4
@@ -117,12 +113,10 @@ jobs:
           cache: true
 
       - name: 📦 Download dependencies
-        run: go mod download
+        run: ./scripts/ci-check.sh go-mod-download
 
       - name: 🧪 Run unit tests
-        run: |
-          go test -race -timeout 20m -covermode=atomic -coverprofile=coverage.out -v ./... 2>&1 | tee test-output.txt
-          test ${PIPESTATUS[0]} -eq 0
+        run: ./scripts/ci-check.sh go-test-coverage
 
       - name: 📤 Upload test output on failure
         if: failure()
@@ -132,7 +126,7 @@ jobs:
           path: test-output.txt
 
       - name: 📝 Generate coverage report
-        run: go tool cover -html=coverage.out -o coverage.html
+        run: ./scripts/ci-check.sh coverage-html
 
       - name: ☁️ Upload coverage artifact
         uses: actions/upload-artifact@v4
@@ -181,9 +175,8 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: |
-          mkdir -p build
-          go build -trimpath -ldflags="-w -s" -o "build/alex-${{ matrix.goos }}-${{ matrix.goarch }}" ./cmd/alex
+          CI_BUILD_OUTPUT: build/alex-${{ matrix.goos }}-${{ matrix.goarch }}
+        run: ./scripts/ci-check.sh build-matrix
 
       - name: 📦 Upload artifact
         uses: actions/upload-artifact@v4
@@ -222,10 +215,8 @@ jobs:
       - name: 🧭 Test CLI commands
         env:
           LLM_PROVIDER: mock
-        run: |
-          ./alex --help
-          ./alex config show
-          echo "exit" | ./alex -i
+          CI_CLI_BIN: ./alex
+        run: ./scripts/ci-check.sh cli-smoke
 
   performance-test:
     name: ⚡ Performance Smoke
