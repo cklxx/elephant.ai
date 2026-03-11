@@ -20,9 +20,12 @@ var (
 )
 
 const (
-	requestLogEnvVar    = "ALEX_REQUEST_LOG_DIR"
-	requestLogSubfolder = "logs/requests"
-	requestLogFileName  = "llm.jsonl"
+	// RequestLogEnvVar is the environment variable for the request log directory.
+	RequestLogEnvVar = "ALEX_REQUEST_LOG_DIR"
+	// RequestLogSubfolder is the default subdirectory for request logs.
+	RequestLogSubfolder = "logs/requests"
+	// RequestLogFileName is the default filename for request logs.
+	RequestLogFileName = "llm.jsonl"
 )
 
 const (
@@ -96,9 +99,11 @@ func logStreamingPayload(requestID string, payload []byte, entryType string) {
 	writeRequestLogEntryWithPayload(entry, payload)
 }
 
-func resolveRequestLogDir() string {
+// ResolveRequestLogDir returns the directory for request log files.
+// It checks ALEX_REQUEST_LOG_DIR first, then falls back to cwd/logs/requests.
+func ResolveRequestLogDir() string {
 	var dir string
-	if value, ok := os.LookupEnv(requestLogEnvVar); ok {
+	if value, ok := os.LookupEnv(RequestLogEnvVar); ok {
 		dir = strings.TrimSpace(value)
 	}
 	if dir == "" {
@@ -106,7 +111,7 @@ func resolveRequestLogDir() string {
 		if err != nil {
 			base = "."
 		}
-		dir = filepath.Join(base, requestLogSubfolder)
+		dir = filepath.Join(base, RequestLogSubfolder)
 	}
 	return dir
 }
@@ -175,7 +180,7 @@ func buildRequestLogEntry(requestID string, entryType string) requestLogEntry {
 	return requestLogEntry{
 		Timestamp: time.Now().Format(time.RFC3339Nano),
 		RequestID: trimmedID,
-		LogID:     logIDFromRequestID(trimmedID),
+		LogID:     LogIDFromRequestID(trimmedID),
 		EntryType: entryLabel,
 	}
 }
@@ -185,7 +190,7 @@ func buildRequestLogEntry(requestID string, entryType string) requestLogEntry {
 // full payload follows on the next line so that json.Marshal never needs to
 // re-encode the (potentially multi-MB) body.
 func writeRequestLogEntryWithPayload(entry requestLogEntry, payload []byte) {
-	dir := resolveRequestLogDir()
+	dir := ResolveRequestLogDir()
 	if IsBlank(dir) {
 		log.Printf("request log: resolved log directory empty")
 		return
@@ -221,10 +226,12 @@ func writeRequestLogEntryWithPayload(entry requestLogEntry, payload []byte) {
 		buf = append(buf, '\n')
 	}
 
-	enqueueRequestLogWrite(filepath.Join(dir, requestLogFileName), buf)
+	enqueueRequestLogWrite(filepath.Join(dir, RequestLogFileName), buf)
 }
 
-func logIDFromRequestID(requestID string) string {
+// LogIDFromRequestID extracts the log ID prefix from a request ID.
+// A request ID like "abc123:llm-7" yields "abc123".
+func LogIDFromRequestID(requestID string) string {
 	requestID = strings.TrimSpace(requestID)
 	if requestID == "" {
 		return ""

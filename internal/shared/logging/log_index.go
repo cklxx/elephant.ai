@@ -187,14 +187,7 @@ func parseRequestLogLine(line string) requestLogIndexEntry {
 }
 
 func deriveLogIDFromRequestID(requestID string) string {
-	requestID = strings.TrimSpace(requestID)
-	if requestID == "" {
-		return ""
-	}
-	if idx := strings.LastIndex(requestID, ":llm-"); idx > 0 {
-		return requestID[:idx]
-	}
-	return ""
+	return utils.LogIDFromRequestID(requestID)
 }
 
 func extractLogIDFromTextLine(line string) string {

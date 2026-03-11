@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"alex/internal/shared/utils"
 )
 
 func TestFetchRecentLogIndexAggregatesAndSorts(t *testing.T) {
@@ -33,7 +35,7 @@ func TestFetchRecentLogIndexAggregatesAndSorts(t *testing.T) {
 	}, "\n")+"\n")
 
 	t.Setenv(logDirEnvVar, logDir)
-	t.Setenv(requestLogEnvVar, requestDir)
+	t.Setenv(utils.RequestLogEnvVar, requestDir)
 
 	entries := FetchRecentLogIndex(LogIndexOptions{Limit: 10})
 	if len(entries) != 3 {
@@ -90,7 +92,7 @@ func TestFetchRecentLogIndexLimit(t *testing.T) {
 	}, "\n")+"\n")
 
 	t.Setenv(logDirEnvVar, logDir)
-	t.Setenv(requestLogEnvVar, requestDir)
+	t.Setenv(utils.RequestLogEnvVar, requestDir)
 
 	entries := FetchRecentLogIndex(LogIndexOptions{Limit: 2})
 	if len(entries) != 2 {
@@ -127,7 +129,7 @@ func TestFetchRecentLogIndexOffset(t *testing.T) {
 	}, "\n")+"\n")
 
 	t.Setenv(logDirEnvVar, logDir)
-	t.Setenv(requestLogEnvVar, requestDir)
+	t.Setenv(utils.RequestLogEnvVar, requestDir)
 
 	// Sorted desc: log-5, log-4, log-3, log-2, log-1
 
@@ -195,7 +197,7 @@ func TestFetchRecentLogIndexFiltersNoise(t *testing.T) {
 		"2026-02-07 12:00:01 [INFO] [LLM] [OpenAI] [log_id=log-llm] completion\n")
 
 	t.Setenv(logDirEnvVar, logDir)
-	t.Setenv(requestLogEnvVar, requestDir)
+	t.Setenv(utils.RequestLogEnvVar, requestDir)
 
 	entries := FetchRecentLogIndex(LogIndexOptions{Limit: 10})
 	if len(entries) != 2 {

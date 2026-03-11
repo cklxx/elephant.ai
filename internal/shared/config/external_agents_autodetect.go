@@ -101,7 +101,7 @@ func preferredBinaryCandidates(preferred string, fallbacks ...string) []string {
 	return out
 }
 
-func detectFirstAvailableBinary(candidates []string) (binary string, resolved string, ok bool) {
+func detectFirstAvailableBinary(candidates []string) (_ string, resolved string, ok bool) {
 	for _, candidate := range candidates {
 		trimmed := strings.TrimSpace(candidate)
 		if trimmed == "" {

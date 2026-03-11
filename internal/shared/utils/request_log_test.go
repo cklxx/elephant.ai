@@ -16,7 +16,7 @@ func resetStreamingLogDeduperForTest() {
 
 func TestLogStreamingPayload_WritesSequentialEntries(t *testing.T) {
 	logDir := t.TempDir()
-	t.Setenv(requestLogEnvVar, logDir)
+	t.Setenv(RequestLogEnvVar, logDir)
 	resetStreamingLogDeduperForTest()
 
 	reqPayload := []byte("{\"task\":\"demo\"}")
@@ -24,7 +24,7 @@ func TestLogStreamingPayload_WritesSequentialEntries(t *testing.T) {
 	LogStreamingRequestPayload("req-123", reqPayload)
 	LogStreamingResponsePayload("req-123", respPayload)
 
-	logPath := filepath.Join(logDir, requestLogFileName)
+	logPath := filepath.Join(logDir, RequestLogFileName)
 	entries := readRequestLogEntries(t, logPath)
 	if len(entries) != 2 {
 		t.Fatalf("expected 2 log entries, got %d", len(entries))
@@ -46,7 +46,7 @@ func TestLogStreamingPayload_WritesSequentialEntries(t *testing.T) {
 
 func TestLogStreamingPayload_DeduplicatesByEntryType(t *testing.T) {
 	logDir := t.TempDir()
-	t.Setenv(requestLogEnvVar, logDir)
+	t.Setenv(RequestLogEnvVar, logDir)
 	resetStreamingLogDeduperForTest()
 
 	payload := []byte("{\"task\":\"demo\"}")
@@ -55,7 +55,7 @@ func TestLogStreamingPayload_DeduplicatesByEntryType(t *testing.T) {
 	LogStreamingResponsePayload("req-dup", payload)
 	LogStreamingResponsePayload("req-dup", payload)
 
-	logPath := filepath.Join(logDir, requestLogFileName)
+	logPath := filepath.Join(logDir, RequestLogFileName)
 	entries := readRequestLogEntries(t, logPath)
 
 	if len(entries) != 2 {
@@ -68,7 +68,7 @@ func TestLogStreamingPayload_DeduplicatesByEntryType(t *testing.T) {
 
 func TestLogStreamingErrorPayload_WritesErrorEntry(t *testing.T) {
 	logDir := t.TempDir()
-	t.Setenv(requestLogEnvVar, logDir)
+	t.Setenv(RequestLogEnvVar, logDir)
 	resetStreamingLogDeduperForTest()
 
 	LogStreamingErrorPayload("log-err-001:llm-1", LLMErrorLogDetails{
@@ -82,7 +82,7 @@ func TestLogStreamingErrorPayload_WritesErrorEntry(t *testing.T) {
 		LatencyMS:  60000,
 	})
 
-	logPath := filepath.Join(logDir, requestLogFileName)
+	logPath := filepath.Join(logDir, RequestLogFileName)
 	entries := readRequestLogEntries(t, logPath)
 	if len(entries) != 1 {
 		t.Fatalf("expected 1 error entry, got %d", len(entries))

@@ -10,15 +10,16 @@ import (
 )
 
 const (
-	logDirEnvVar        = "ALEX_LOG_DIR"
-	requestLogEnvVar    = "ALEX_REQUEST_LOG_DIR"
-	requestLogSubfolder = "logs/requests"
-	requestLogFileName  = "llm.jsonl"
+	logDirEnvVar = "ALEX_LOG_DIR"
 
 	serviceLogFileName = "alex-service.log"
 	llmLogFileName     = "alex-llm.log"
 	latencyLogFileName = "alex-latency.log"
 )
+
+// Request log constants are canonical in utils package:
+//   utils.RequestLogEnvVar, utils.RequestLogSubfolder, utils.RequestLogFileName
+var requestLogFileName = utils.RequestLogFileName
 
 // LogFileSnippet captures matched log lines for a single file.
 type LogFileSnippet struct {
@@ -93,16 +94,7 @@ func resolveLogDirectory() string {
 }
 
 func resolveRequestLogDirectory() string {
-	if value, ok := os.LookupEnv(requestLogEnvVar); ok {
-		if override := strings.TrimSpace(value); override != "" {
-			return override
-		}
-	}
-	base, err := os.Getwd()
-	if err != nil || utils.IsBlank(base) {
-		base = "."
-	}
-	return filepath.Join(base, requestLogSubfolder)
+	return utils.ResolveRequestLogDir()
 }
 
 func readLogMatches(path, logID string, opts LogFetchOptions) LogFileSnippet {
