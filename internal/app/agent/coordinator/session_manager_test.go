@@ -126,12 +126,9 @@ func (s *asyncSaveSessionStore) List(context.Context, int, int) ([]string, error
 func (s *asyncSaveSessionStore) Delete(context.Context, string) error             { return nil }
 
 func TestAsyncSaveSessionLoop_StopsWhenIdleAndRestarts(t *testing.T) {
-	originalInterval := sessionSaveDebounceInterval
-	sessionSaveDebounceInterval = 10 * time.Millisecond
-	defer func() { sessionSaveDebounceInterval = originalInterval }()
-
 	store := &asyncSaveSessionStore{saveCh: make(chan string, 2)}
 	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+	coordinator.sessionSaveInterval = 10 * time.Millisecond
 
 	coordinator.asyncSaveSession(context.Background(), &storage.Session{ID: "s1"})
 

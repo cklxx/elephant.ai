@@ -203,11 +203,11 @@ func (c *AgentCoordinator) ensureSessionSaveLoop() {
 	}
 }
 
-var sessionSaveDebounceInterval = 2 * time.Second
+const defaultSessionSaveInterval = 2 * time.Second
 
 func (c *AgentCoordinator) sessionSaveLoop() {
 	for {
-		timer := time.NewTimer(sessionSaveDebounceInterval)
+		timer := time.NewTimer(c.sessionSaveInterval)
 		<-timer.C
 		c.flushPendingSessionSave(context.Background())
 

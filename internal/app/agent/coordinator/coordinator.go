@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	appconfig "alex/internal/app/agent/config"
 	"alex/internal/app/agent/cost"
@@ -62,9 +63,10 @@ type AgentCoordinator struct {
 	schedulerService    any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
 	toolSLACollector    *toolspolicy.SLACollector
 
-	sessionSaveMu      sync.Mutex                      // Protects concurrent session saves
-	pendingSessionSave atomic.Pointer[storage.Session] // latest snapshot awaiting save
-	sessionSaveActive  atomic.Bool                     // Tracks whether the async save loop is running
+	sessionSaveMu       sync.Mutex                      // Protects concurrent session saves
+	pendingSessionSave  atomic.Pointer[storage.Session] // latest snapshot awaiting save
+	sessionSaveActive   atomic.Bool                     // Tracks whether the async save loop is running
+	sessionSaveInterval time.Duration                   // Debounce interval for async save loop
 }
 
 type preparationService interface {
@@ -91,17 +93,18 @@ func NewAgentCoordinator(
 	config.LLMProfile = config.DefaultLLMProfile()
 
 	coordinator := &AgentCoordinator{
-		llmFactory:   llmFactory,
-		toolRegistry: toolRegistry,
-		sessionStore: sessionStore,
-		contextMgr:   contextMgr,
-		historyMgr:   historyManager,
-		parser:       parser,
-		costTracker:  costTracker,
-		config:       config,
-		logger:       logging.NewComponentLogger("Coordinator"),
-		clock:        agent.SystemClock{},
-		bgRegistry:   newBackgroundTaskRegistry(),
+		llmFactory:          llmFactory,
+		toolRegistry:        toolRegistry,
+		sessionStore:        sessionStore,
+		contextMgr:          contextMgr,
+		historyMgr:          historyManager,
+		parser:              parser,
+		costTracker:         costTracker,
+		config:              config,
+		logger:              logging.NewComponentLogger("Coordinator"),
+		clock:               agent.SystemClock{},
+		bgRegistry:          newBackgroundTaskRegistry(),
+		sessionSaveInterval: defaultSessionSaveInterval,
 	}
 
 	for _, opt := range opts {
