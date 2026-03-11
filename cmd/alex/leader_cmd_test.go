@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -121,6 +122,28 @@ func TestRunLeaderDashboard_MockServer(t *testing.T) {
 	err := runLeaderDashboard([]string{"--url", srv.URL})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestRunLeaderStatus_RejectsUnknownFlag(t *testing.T) {
+	err := runLeaderStatus([]string{"--bogus"})
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	var exitErr *ExitCodeError
+	if !errors.As(err, &exitErr) || exitErr.Code != 2 {
+		t.Fatalf("expected exit code 2, got %v", err)
+	}
+}
+
+func TestRunLeaderDashboard_RejectsUnexpectedArgs(t *testing.T) {
+	err := runLeaderDashboard([]string{"extra"})
+	if err == nil {
+		t.Fatal("expected error for unexpected args")
+	}
+	var exitErr *ExitCodeError
+	if !errors.As(err, &exitErr) || exitErr.Code != 2 {
+		t.Fatalf("expected exit code 2, got %v", err)
 	}
 }
 

@@ -98,26 +98,13 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 		return true, 0
 	}
 
-	switch args[0] {
-	case "version", "-v", "--version":
-		fmt.Println(appVersion())
+	cli := NewCLI(nil)
+	if handled, err := cli.runRegisteredCommand(args); handled {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return true, exitCodeFromError(err)
+		}
 		return true, 0
-	case "config":
-		return runStandaloneCommand(args[1:], func(subArgs []string) error {
-			return executeConfigCommand(subArgs, os.Stdout)
-		}, func(error) int { return 1 })
-	case "dev":
-		return runStandaloneCommand(args[1:], runDevCommand, exitCodeFromError)
-	case "lark":
-		return runStandaloneCommand(args[1:], runLarkCommand, exitCodeFromError)
-	case "team":
-		return runStandaloneCommand(args[1:], runTeamCommand, exitCodeFromError)
-	case "runtime":
-		return runStandaloneCommand(args[1:], runRuntimeCommand, exitCodeFromError)
-	case "health":
-		return runStandaloneCommand(args[1:], runHealthCommand, exitCodeFromError)
-	case "leader":
-		return runStandaloneCommand(args[1:], runLeaderCommand, exitCodeFromError)
 	}
 
 	return false, 0
@@ -133,14 +120,6 @@ func isTopLevelHelp(args []string) bool {
 	default:
 		return false
 	}
-}
-
-func runStandaloneCommand(args []string, runner func([]string) error, resolveExitCode func(error) int) (handled bool, exitCode int) {
-	if err := runner(args); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return true, resolveExitCode(err)
-	}
-	return true, 0
 }
 
 func exitCodeFromError(err error) int {

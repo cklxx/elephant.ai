@@ -18,58 +18,85 @@ func NewCLI(container *Container) *CLI {
 }
 
 func (c *CLI) Run(args []string) error {
-	if len(args) == 0 {
-		printUsage()
-		return nil
+	if handled, err := c.runRegisteredCommand(args); handled {
+		return err
 	}
 
-	// Parse command
+	// Default: treat as task and run with stream output.
+	task := strings.Join(args, " ")
+	return RunTaskWithStreamOutput(c.container, task, "")
+}
+
+func (c *CLI) runRegisteredCommand(args []string) (handled bool, err error) {
+	if len(args) == 0 {
+		printUsage()
+		return true, nil
+	}
+
 	cmd := args[0]
 	cmdArgs := args[1:]
 
 	switch cmd {
 	case "help", "-h", "--help":
 		printUsage()
-		return nil
+		return true, nil
 
 	case "version", "-v", "--version":
 		fmt.Println(appVersion())
-		return nil
+		return true, nil
 
 	case "session", "sessions":
-		return c.handleSessions(cmdArgs)
+		if c.container == nil {
+			return false, nil
+		}
+		return true, c.handleSessions(cmdArgs)
 
 	case "config":
-		return executeConfigCommand(cmdArgs, os.Stdout)
+		return true, executeConfigCommand(cmdArgs, os.Stdout)
 
 	case "team":
-		return runTeamCommandWithContainer(cmdArgs, c.container)
+		return true, runTeamCommandWithContainer(cmdArgs, c.container)
 
 	case "health":
-		return runHealthCommand(cmdArgs)
+		return true, runHealthCommand(cmdArgs)
 
 	case "cost", "costs":
-		return c.handleCostCommand(cmdArgs)
+		if c.container == nil {
+			return false, nil
+		}
+		return true, c.handleCostCommand(cmdArgs)
 
 	case "model", "models":
-		return executeModelCommand(cmdArgs, os.Stdout)
+		return true, executeModelCommand(cmdArgs, os.Stdout)
 	case "setup":
-		return executeSetupCommandWith(cmdArgs, os.Stdin, os.Stdout, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
+		return true, executeSetupCommandWith(cmdArgs, os.Stdin, os.Stdout, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
 
 	case "llama-cpp", "llamacpp":
-		return executeLlamaCppCommand(cmdArgs, os.Stdout, runtimeEnvLookup())
+		return true, executeLlamaCppCommand(cmdArgs, os.Stdout, runtimeEnvLookup())
 
 	case "eval", "evaluation":
-		return c.handleEval(cmdArgs)
+		return true, c.handleEval(cmdArgs)
 	case "acp":
-		return c.handleACP(cmdArgs)
+		if c.container == nil {
+			return false, nil
+		}
+		return true, c.handleACP(cmdArgs)
 	case "resume":
-		return c.handleResume(cmdArgs)
+		if c.container == nil {
+			return false, nil
+		}
+		return true, c.handleResume(cmdArgs)
+	case "dev":
+		return true, runDevCommand(cmdArgs)
+	case "lark":
+		return true, runLarkCommand(cmdArgs)
+	case "runtime":
+		return true, runRuntimeCommand(cmdArgs)
+	case "leader":
+		return true, runLeaderCommand(cmdArgs)
 
 	default:
-		// Default: treat as task and run with stream output
-		task := strings.Join(args, " ")
-		return RunTaskWithStreamOutput(c.container, task, "")
+		return false, nil
 	}
 }
 
@@ -89,6 +116,9 @@ Usage:
   alex team [status] [...]       Show latest team-runtime status (CLI capabilities/tmux/events)
   alex team run [...]            Execute team workflow via CLI (template/file/prompt)
   alex team inject [...]         Inject input into a team role tmux pane
+  alex runtime session [...]     Manage local runtime sessions
+  alex dev <command>             Manage local development services
+  alex lark inject [...]         Inject a message into the local Lark gateway
   alex config                    Show current configuration
   alex config set <field> <value> Persist a managed override
   alex config clear <field>       Remove a managed override

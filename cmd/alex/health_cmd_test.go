@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -118,6 +119,28 @@ func TestRunHealthCommand_UnreachableJSON(t *testing.T) {
 	// --json unreachable still returns nil (prints JSON to stdout) but the JSON has status "unreachable"
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunHealthCommand_RejectsUnknownFlag(t *testing.T) {
+	err := runHealthCommand([]string{"--bogus"})
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	var exitErr *ExitCodeError
+	if !errors.As(err, &exitErr) || exitErr.Code != 2 {
+		t.Fatalf("expected exit code 2, got %v", err)
+	}
+}
+
+func TestRunHealthCommand_RejectsUnexpectedArgs(t *testing.T) {
+	err := runHealthCommand([]string{"extra"})
+	if err == nil {
+		t.Fatal("expected error for unexpected args")
+	}
+	var exitErr *ExitCodeError
+	if !errors.As(err, &exitErr) || exitErr.Code != 2 {
+		t.Fatalf("expected exit code 2, got %v", err)
 	}
 }
 

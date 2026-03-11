@@ -69,30 +69,28 @@ func TestCLIExitBehaviorFromError(t *testing.T) {
 	}
 }
 
-func TestRunStandaloneCommand(t *testing.T) {
+func TestRunRegisteredCommand_AllowsContainerlessCommands(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		runner   func([]string) error
-		resolve  func(error) int
-		wantCode int
+		name string
+		args []string
 	}{
 		{
-			name: "runner success",
-			runner: func([]string) error {
-				return nil
-			},
-			resolve:  func(error) int { return 1 },
-			wantCode: 0,
+			name: "leader help",
+			args: []string{"leader", "help"},
 		},
 		{
-			name: "runner error uses mapped exit code",
-			runner: func([]string) error {
-				return errors.New("boom")
-			},
-			resolve:  func(error) int { return 7 },
-			wantCode: 7,
+			name: "runtime help",
+			args: []string{"runtime", "help"},
+		},
+		{
+			name: "dev help",
+			args: []string{"dev", "help"},
+		},
+		{
+			name: "model help",
+			args: []string{"model", "help"},
 		},
 	}
 
@@ -101,14 +99,33 @@ func TestRunStandaloneCommand(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			handled, code := runStandaloneCommand(nil, tc.runner, tc.resolve)
+			handled, err := NewCLI(nil).runRegisteredCommand(tc.args)
 			if !handled {
 				t.Fatal("expected command to be handled")
 			}
-			if code != tc.wantCode {
-				t.Fatalf("exit code = %d, want %d", code, tc.wantCode)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+func TestRunRegisteredCommand_LeavesContainerCommandsForMainPath(t *testing.T) {
+	t.Parallel()
+
+	for _, args := range [][]string{
+		{"sessions"},
+		{"cost", "show"},
+		{"resume", "session-123"},
+		{"acp"},
+	} {
+		handled, err := NewCLI(nil).runRegisteredCommand(args)
+		if handled {
+			t.Fatalf("expected %v to be deferred for container initialization", args)
+		}
+		if err != nil {
+			t.Fatalf("expected nil error for deferred command %v, got %v", args, err)
+		}
 	}
 }
 

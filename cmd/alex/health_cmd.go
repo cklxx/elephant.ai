@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +14,7 @@ import (
 )
 
 const (
+	healthUsage          = "usage: alex health [--json] [--url <server-url>]"
 	defaultHealthURL     = "http://localhost:8080/health"
 	healthRequestTimeout = 5 * time.Second
 )
@@ -29,26 +32,24 @@ type healthComponent struct {
 	Details interface{} `json:"details,omitempty"`
 }
 
+type healthFlags struct {
+	jsonOutput bool
+	url        string
+}
+
 func runHealthCommand(args []string) error {
-	jsonOutput := false
-	url := defaultHealthURL
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--json":
-			jsonOutput = true
-		case "--url":
-			if i+1 < len(args) {
-				i++
-				url = args[i]
-			} else {
-				return fmt.Errorf("--url requires a value")
-			}
-		}
+	flags, showUsage, err := parseHealthFlags(args)
+	if showUsage {
+		fmt.Fprintln(os.Stdout, healthUsage)
+		return nil
+	}
+	if err != nil {
+		return &ExitCodeError{Code: 2, Err: err}
 	}
 
-	resp, err := fetchHealth(url)
+	resp, err := fetchHealth(flags.url)
 	if err != nil {
-		if jsonOutput {
+		if flags.jsonOutput {
 			return printHealthJSON(os.Stdout, &healthResponse{
 				Status: "unreachable",
 				Components: []healthComponent{{
@@ -57,17 +58,38 @@ func runHealthCommand(args []string) error {
 			})
 		}
 		fmt.Fprintf(os.Stdout, "Service Status:  DOWN\n")
-		fmt.Fprintf(os.Stdout, "  Server at %s is not reachable.\n", url)
+		fmt.Fprintf(os.Stdout, "  Server at %s is not reachable.\n", flags.url)
 		fmt.Fprintf(os.Stdout, "  %v\n", err)
 		fmt.Fprintf(os.Stdout, "\nHint: is the server running? Try: alex dev start\n")
 		return &ExitCodeError{Code: 1, Err: fmt.Errorf("server unreachable")}
 	}
 
-	if jsonOutput {
+	if flags.jsonOutput {
 		return printHealthJSON(os.Stdout, resp)
 	}
 	printHealthHuman(os.Stdout, resp)
 	return nil
+}
+
+func parseHealthFlags(args []string) (healthFlags, bool, error) {
+	fs, flagBuf := newBufferedFlagSet("alex health")
+	jsonOutput := fs.Bool("json", false, "Output health status as JSON")
+	url := fs.String("url", defaultHealthURL, "Health endpoint URL")
+
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return healthFlags{}, true, nil
+		}
+		return healthFlags{}, false, formatBufferedFlagParseError(err, flagBuf)
+	}
+	if len(fs.Args()) > 0 {
+		return healthFlags{}, false, fmt.Errorf("unexpected arguments: %s; %s", strings.Join(fs.Args(), " "), healthUsage)
+	}
+
+	return healthFlags{
+		jsonOutput: *jsonOutput,
+		url:        strings.TrimSpace(*url),
+	}, false, nil
 }
 
 func fetchHealth(url string) (*healthResponse, error) {

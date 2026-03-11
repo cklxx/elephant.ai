@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,13 +18,13 @@ import (
 )
 
 const (
-	leaderUsage        = "usage: alex leader {status|dashboard|config} [options]"
-	leaderStatusUsage  = "usage: alex leader status [--json] [--url <server-url>]"
-	leaderDashUsage    = "usage: alex leader dashboard [--json] [--url <server-url>]"
-	leaderConfigUsage  = "usage: alex leader config {show}"
+	leaderUsage       = "usage: alex leader {status|dashboard|config} [options]"
+	leaderStatusUsage = "usage: alex leader status [--json] [--url <server-url>]"
+	leaderDashUsage   = "usage: alex leader dashboard [--json] [--url <server-url>]"
+	leaderConfigUsage = "usage: alex leader config {show}"
 
-	defaultDashboardURL     = "http://localhost:8080/api/leader/dashboard"
-	leaderRequestTimeout    = 5 * time.Second
+	defaultDashboardURL  = "http://localhost:8080/api/leader/dashboard"
+	leaderRequestTimeout = 5 * time.Second
 )
 
 // ---------- local DTO types (mirroring server response, no import coupling) ----------
@@ -59,7 +61,7 @@ type leaderDailySummary struct {
 
 type leaderScheduledJob struct {
 	Name     string    `json:"name"`
-	CronExpr string   `json:"cron_expr"`
+	CronExpr string    `json:"cron_expr"`
 	Status   string    `json:"status"`
 	NextRun  time.Time `json:"next_run,omitempty"`
 	LastRun  time.Time `json:"last_run,omitempty"`
@@ -93,21 +95,20 @@ type leaderFlags struct {
 }
 
 func parseLeaderFlags(args []string) (leaderFlags, error) {
-	f := leaderFlags{url: defaultDashboardURL}
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--json":
-			f.jsonOutput = true
-		case "--url":
-			if i+1 < len(args) {
-				i++
-				f.url = args[i]
-			} else {
-				return f, fmt.Errorf("--url requires a value")
-			}
+	fs, flagBuf := newBufferedFlagSet("alex leader")
+	jsonOutput := fs.Bool("json", false, "Output leader status as JSON")
+	url := fs.String("url", defaultDashboardURL, "Leader dashboard URL")
+
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return leaderFlags{}, flag.ErrHelp
 		}
+		return leaderFlags{}, formatBufferedFlagParseError(err, flagBuf)
 	}
-	return f, nil
+	if len(fs.Args()) > 0 {
+		return leaderFlags{}, fmt.Errorf("unexpected arguments: %s", strings.Join(fs.Args(), " "))
+	}
+	return leaderFlags{jsonOutput: *jsonOutput, url: strings.TrimSpace(*url)}, nil
 }
 
 // ---------- status subcommand ----------
@@ -115,6 +116,10 @@ func parseLeaderFlags(args []string) (leaderFlags, error) {
 func runLeaderStatus(args []string) error {
 	flags, err := parseLeaderFlags(args)
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Fprintln(os.Stdout, leaderStatusUsage)
+			return nil
+		}
 		return &ExitCodeError{Code: 2, Err: err}
 	}
 
@@ -142,6 +147,10 @@ func runLeaderStatus(args []string) error {
 func runLeaderDashboard(args []string) error {
 	flags, err := parseLeaderFlags(args)
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Fprintln(os.Stdout, leaderDashUsage)
+			return nil
+		}
 		return &ExitCodeError{Code: 2, Err: err}
 	}
 
