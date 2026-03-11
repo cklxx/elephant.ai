@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -182,7 +183,7 @@ func RunLark(observabilityConfigPath string) error { //nolint:cyclop // multi-ph
 
 	select {
 	case err := <-debugErrCh:
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("debug HTTP server error: %w", err)
 		}
 	case sig := <-quit:

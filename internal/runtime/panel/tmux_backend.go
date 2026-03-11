@@ -110,9 +110,9 @@ type TmuxManager struct {
 	runner runFunc
 }
 
-// NewTmuxManager creates a TmuxManager. Uses TMUX_BIN env var or looks for
+// newTmuxManager creates a TmuxManager. Uses TMUX_BIN env var or looks for
 // tmux on PATH.
-func NewTmuxManager() (*TmuxManager, error) {
+func newTmuxManager() (*TmuxManager, error) {
 	bin := os.Getenv("TMUX_BIN")
 	if bin == "" {
 		bin = defaultTmuxBin
@@ -183,13 +183,13 @@ func parseTmuxPaneID(s string) (int, error) {
 	return strconv.Atoi(s[1:])
 }
 
-// NewAutoManager tries Kaku first, then falls back to tmux.
+// newAutoManager tries Kaku first, then falls back to tmux.
 // Returns an error if neither backend is available.
-func NewAutoManager() (ManagerIface, error) {
+func newAutoManager() (ManagerIface, error) {
 	if mgr, err := NewManager(); err == nil {
 		return mgr, nil
 	}
-	if mgr, err := NewTmuxManager(); err == nil {
+	if mgr, err := newTmuxManager(); err == nil {
 		return mgr, nil
 	}
 	return nil, fmt.Errorf("panel: no backend available (neither kaku nor tmux found)")

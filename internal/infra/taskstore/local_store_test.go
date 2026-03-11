@@ -2,6 +2,7 @@ package taskstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -67,6 +68,9 @@ func TestGetNotFound(t *testing.T) {
 	_, err := s.Get(context.Background(), "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for nonexistent task")
+	}
+	if !errors.Is(err, task.ErrTaskNotFound) {
+		t.Fatalf("expected ErrTaskNotFound, got %v", err)
 	}
 }
 

@@ -80,9 +80,7 @@ func (c ChannelsConfig) LarkConfig() LarkGatewayConfig {
 		return LarkGatewayConfig{}
 	}
 	if v, ok := c.Registry.Config("lark"); ok {
-		if cfg, ok := v.(LarkGatewayConfig); ok {
-			return cfg
-		}
+		return v.(LarkGatewayConfig)
 	}
 	return LarkGatewayConfig{}
 }
@@ -102,9 +100,7 @@ func (c ChannelsConfig) TelegramConfig() TelegramGatewayConfig {
 		return TelegramGatewayConfig{}
 	}
 	if v, ok := c.Registry.Config("telegram"); ok {
-		if cfg, ok := v.(TelegramGatewayConfig); ok {
-			return cfg
-		}
+		return v.(TelegramGatewayConfig)
 	}
 	return TelegramGatewayConfig{}
 }

@@ -2,7 +2,6 @@ package taskstore
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"alex/internal/domain/task"
@@ -15,7 +14,7 @@ func (s *LocalStore) TryClaimTask(_ context.Context, taskID, ownerID string, lea
 
 	t, ok := s.tasks[taskID]
 	if !ok {
-		return false, fmt.Errorf("task %s not found", taskID)
+		return false, task.NotFoundError(taskID)
 	}
 
 	// If already owned by another live lease, reject.
@@ -75,7 +74,7 @@ func (s *LocalStore) RenewTaskLease(_ context.Context, taskID, ownerID string, l
 	defer s.mu.Unlock()
 
 	if _, ok := s.tasks[taskID]; !ok {
-		return false, fmt.Errorf("task %s not found", taskID)
+		return false, task.NotFoundError(taskID)
 	}
 
 	existing, ok := s.owners[taskID]
@@ -94,7 +93,7 @@ func (s *LocalStore) ReleaseTaskLease(_ context.Context, taskID, ownerID string)
 	defer s.mu.Unlock()
 
 	if _, ok := s.tasks[taskID]; !ok {
-		return fmt.Errorf("task %s not found", taskID)
+		return task.NotFoundError(taskID)
 	}
 
 	existing, ok := s.owners[taskID]
@@ -114,7 +113,7 @@ func (s *LocalStore) Transitions(_ context.Context, taskID string) ([]task.Trans
 	defer s.mu.RUnlock()
 
 	if _, ok := s.tasks[taskID]; !ok {
-		return nil, fmt.Errorf("task %s not found", taskID)
+		return nil, task.NotFoundError(taskID)
 	}
 
 	trs := s.transitions[taskID]

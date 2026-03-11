@@ -39,7 +39,7 @@ func (s *LocalStore) Get(_ context.Context, taskID string) (*task.Task, error) {
 
 	t, ok := s.tasks[taskID]
 	if !ok {
-		return nil, fmt.Errorf("task %s not found", taskID)
+		return nil, task.NotFoundError(taskID)
 	}
 	return s.copyTask(t), nil
 }
@@ -53,7 +53,7 @@ func (s *LocalStore) SetStatus(_ context.Context, taskID string, status task.Sta
 
 	t, ok := s.tasks[taskID]
 	if !ok {
-		return fmt.Errorf("task %s not found", taskID)
+		return task.NotFoundError(taskID)
 	}
 
 	from := t.Status
@@ -106,7 +106,7 @@ func (s *LocalStore) UpdateProgress(_ context.Context, taskID string, iteration 
 
 	t, ok := s.tasks[taskID]
 	if !ok {
-		return fmt.Errorf("task %s not found", taskID)
+		return task.NotFoundError(taskID)
 	}
 	t.CurrentIteration = iteration
 	t.TokensUsed = tokensUsed
@@ -123,7 +123,7 @@ func (s *LocalStore) SetResult(_ context.Context, taskID string, answer string, 
 
 	t, ok := s.tasks[taskID]
 	if !ok {
-		return fmt.Errorf("task %s not found", taskID)
+		return task.NotFoundError(taskID)
 	}
 	t.AnswerPreview = answer
 	t.ResultJSON = resultJSON
@@ -140,7 +140,7 @@ func (s *LocalStore) SetError(_ context.Context, taskID string, errText string) 
 
 	t, ok := s.tasks[taskID]
 	if !ok {
-		return fmt.Errorf("task %s not found", taskID)
+		return task.NotFoundError(taskID)
 	}
 	t.Error = errText
 	t.UpdatedAt = time.Now()
@@ -155,7 +155,7 @@ func (s *LocalStore) SetBridgeMeta(_ context.Context, taskID string, meta task.B
 
 	t, ok := s.tasks[taskID]
 	if !ok {
-		return fmt.Errorf("task %s not found", taskID)
+		return task.NotFoundError(taskID)
 	}
 	t.BridgeMeta = &meta
 	t.UpdatedAt = time.Now()
@@ -169,7 +169,7 @@ func (s *LocalStore) Delete(_ context.Context, taskID string) error {
 	defer s.mu.Unlock()
 
 	if _, ok := s.tasks[taskID]; !ok {
-		return fmt.Errorf("task %s not found", taskID)
+		return task.NotFoundError(taskID)
 	}
 	delete(s.tasks, taskID)
 	delete(s.owners, taskID)

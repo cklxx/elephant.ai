@@ -2,16 +2,17 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
-	builtinshared "alex/internal/infra/tools/builtin/shared"
 	serverPorts "alex/internal/delivery/server/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/infra/analytics"
 	"alex/internal/infra/observability"
+	builtinshared "alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
@@ -278,7 +279,7 @@ func (svc *TaskExecutionService) handleTaskCancelled(ctx context.Context, tc tas
 	}
 
 	terminationReason := serverPorts.TerminationReasonCancelled
-	if cause == context.DeadlineExceeded {
+	if errors.Is(cause, context.DeadlineExceeded) {
 		terminationReason = serverPorts.TerminationReasonTimeout
 	}
 

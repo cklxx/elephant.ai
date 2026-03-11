@@ -2,19 +2,20 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"alex/evaluation/rl"
 	"alex/evaluation/task_mgmt"
-	serverApp "alex/internal/delivery/server/app"
 	evalHTTP "alex/internal/delivery/eval/http"
+	serverApp "alex/internal/delivery/server/app"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	llminfra "alex/internal/infra/llm"
 )
@@ -96,7 +97,7 @@ func RunEvalServer(configPath string) error {
 	errCh := make(chan error, 1)
 	go func() {
 		log.Printf("[eval-server] listening on :%s", cfg.Port)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 		close(errCh)

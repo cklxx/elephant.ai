@@ -3,8 +3,8 @@ package taskadapters
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"alex/internal/delivery/server/ports"
@@ -59,8 +59,8 @@ func (a *ServerAdapter) Create(ctx context.Context, sessionID string, descriptio
 func (a *ServerAdapter) Get(ctx context.Context, taskID string) (*ports.Task, error) {
 	t, err := a.store.Get(ctx, taskID)
 	if err != nil {
-		if isNotFound(err) {
-			return nil, fmt.Errorf("task %s: not found", taskID)
+		if errors.Is(err, taskdomain.ErrTaskNotFound) {
+			return nil, fmt.Errorf("task %s: %w", taskID, taskdomain.ErrTaskNotFound)
 		}
 		return nil, err
 	}
@@ -295,8 +295,4 @@ func terminationToStatus(r taskdomain.TerminationReason) taskdomain.Status {
 	default:
 		return taskdomain.StatusPending
 	}
-}
-
-func isNotFound(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "not found")
 }

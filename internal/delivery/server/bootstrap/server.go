@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -321,7 +322,7 @@ func serveUntilSignal(server *http.Server, logger logging.Logger) error {
 
 	select {
 	case err := <-errCh:
-		if err == nil || err == http.ErrServerClosed {
+		if err == nil || errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
 		return fmt.Errorf("server error: %w", err)
@@ -332,7 +333,7 @@ func serveUntilSignal(server *http.Server, logger logging.Logger) error {
 		shutdownErr := server.Shutdown(ctx)
 
 		serveErr := <-errCh
-		if serveErr == http.ErrServerClosed {
+		if errors.Is(serveErr, http.ErrServerClosed) {
 			serveErr = nil
 		}
 

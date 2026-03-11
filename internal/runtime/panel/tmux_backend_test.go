@@ -18,8 +18,8 @@ type commandRecord struct {
 type commandRecorder struct {
 	mu      sync.Mutex
 	calls   []commandRecord
-	output  string // default output to return
-	err     error  // default error to return
+	output  string   // default output to return
+	err     error    // default error to return
 	outputs []string // per-call outputs (used in order, falls back to output)
 }
 
@@ -344,13 +344,13 @@ func TestParseTmuxPaneID(t *testing.T) {
 	}
 }
 
-// --- NewAutoManager tests ---
+// --- newAutoManager tests ---
 
 func TestNewAutoManager_NoBackend(t *testing.T) {
-	// If this test runs in CI without kaku or tmux, NewAutoManager should return an error.
+	// If this test runs in CI without kaku or tmux, newAutoManager should return an error.
 	// We can't reliably mock binary resolution without more infrastructure,
 	// so we just verify the function signature works and returns a sensible type.
-	mgr, err := NewAutoManager()
+	mgr, err := newAutoManager()
 	if err != nil {
 		// Expected in most test environments.
 		if !strings.Contains(err.Error(), "no backend available") {
@@ -360,7 +360,7 @@ func TestNewAutoManager_NoBackend(t *testing.T) {
 	}
 	// If it succeeded (tmux or kaku is installed), verify it returns a valid manager.
 	if mgr == nil {
-		t.Fatal("NewAutoManager returned nil manager without error")
+		t.Fatal("newAutoManager returned nil manager without error")
 	}
 }
 

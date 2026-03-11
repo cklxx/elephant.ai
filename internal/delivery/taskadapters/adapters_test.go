@@ -49,7 +49,7 @@ func (m *mockStore) Create(_ context.Context, t *taskdomain.Task) error {
 func (m *mockStore) Get(_ context.Context, taskID string) (*taskdomain.Task, error) {
 	t, ok := m.tasks[taskID]
 	if !ok {
-		return nil, fmt.Errorf("task %s: not found", taskID)
+		return nil, taskdomain.NotFoundError(taskID)
 	}
 	copy := *t
 	return &copy, nil
@@ -58,7 +58,7 @@ func (m *mockStore) Get(_ context.Context, taskID string) (*taskdomain.Task, err
 func (m *mockStore) SetStatus(_ context.Context, taskID string, status taskdomain.Status, opts ...taskdomain.TransitionOption) error {
 	t, ok := m.tasks[taskID]
 	if !ok {
-		return fmt.Errorf("task %s: not found", taskID)
+		return taskdomain.NotFoundError(taskID)
 	}
 	p := taskdomain.ApplyTransitionOptions(opts)
 	t.Status = status
@@ -95,7 +95,7 @@ func (m *mockStore) SetStatus(_ context.Context, taskID string, status taskdomai
 func (m *mockStore) UpdateProgress(_ context.Context, taskID string, iteration int, tokensUsed int, costUSD float64) error {
 	t, ok := m.tasks[taskID]
 	if !ok {
-		return fmt.Errorf("task %s: not found", taskID)
+		return taskdomain.NotFoundError(taskID)
 	}
 	t.CurrentIteration = iteration
 	t.TokensUsed = tokensUsed
@@ -106,7 +106,7 @@ func (m *mockStore) UpdateProgress(_ context.Context, taskID string, iteration i
 func (m *mockStore) SetResult(_ context.Context, taskID string, answer string, resultJSON json.RawMessage, tokensUsed int) error {
 	t, ok := m.tasks[taskID]
 	if !ok {
-		return fmt.Errorf("task %s: not found", taskID)
+		return taskdomain.NotFoundError(taskID)
 	}
 	t.Status = taskdomain.StatusCompleted
 	t.AnswerPreview = answer
@@ -123,7 +123,7 @@ func (m *mockStore) SetResult(_ context.Context, taskID string, answer string, r
 func (m *mockStore) SetError(_ context.Context, taskID string, errText string) error {
 	t, ok := m.tasks[taskID]
 	if !ok {
-		return fmt.Errorf("task %s: not found", taskID)
+		return taskdomain.NotFoundError(taskID)
 	}
 	t.Status = taskdomain.StatusFailed
 	t.Error = errText
@@ -135,7 +135,7 @@ func (m *mockStore) SetError(_ context.Context, taskID string, errText string) e
 func (m *mockStore) SetBridgeMeta(_ context.Context, taskID string, meta taskdomain.BridgeMeta) error {
 	t, ok := m.tasks[taskID]
 	if !ok {
-		return fmt.Errorf("task %s: not found", taskID)
+		return taskdomain.NotFoundError(taskID)
 	}
 	t.BridgeMeta = &meta
 	return nil
@@ -143,7 +143,7 @@ func (m *mockStore) SetBridgeMeta(_ context.Context, taskID string, meta taskdom
 
 func (m *mockStore) TryClaimTask(_ context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
 	if _, ok := m.tasks[taskID]; !ok {
-		return false, fmt.Errorf("task %s: not found", taskID)
+		return false, taskdomain.NotFoundError(taskID)
 	}
 	now := time.Now()
 	currentOwner := m.owners[taskID]
@@ -191,7 +191,7 @@ func (m *mockStore) ClaimResumableTasks(_ context.Context, ownerID string, lease
 
 func (m *mockStore) RenewTaskLease(_ context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
 	if _, ok := m.tasks[taskID]; !ok {
-		return false, fmt.Errorf("task %s: not found", taskID)
+		return false, taskdomain.NotFoundError(taskID)
 	}
 	if m.owners[taskID] != ownerID {
 		return false, nil
@@ -282,7 +282,7 @@ func (m *mockStore) List(_ context.Context, limit int, offset int) ([]*taskdomai
 
 func (m *mockStore) Delete(_ context.Context, taskID string) error {
 	if _, ok := m.tasks[taskID]; !ok {
-		return fmt.Errorf("task %s: not found", taskID)
+		return taskdomain.NotFoundError(taskID)
 	}
 	delete(m.tasks, taskID)
 	return nil
@@ -444,6 +444,9 @@ func TestServerAdapter_NotFound(t *testing.T) {
 	_, err := adapter.Get(ctx, "nonexistent")
 	if err == nil {
 		t.Fatal("Get() should return error for nonexistent task")
+	}
+	if !errors.Is(err, taskdomain.ErrTaskNotFound) {
+		t.Fatalf("expected ErrTaskNotFound, got %v", err)
 	}
 }
 
@@ -745,14 +748,14 @@ func TestServerAdapter_DomainToServerTask_ResultJSON(t *testing.T) {
 	resultJSON, _ := json.Marshal(result)
 
 	dt := &taskdomain.Task{
-		TaskID:       "t1",
-		SessionID:    "s1",
-		Status:       taskdomain.StatusCompleted,
-		Description:  "task desc",
-		TokensUsed:   500,
-		ResultJSON:   resultJSON,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		TaskID:      "t1",
+		SessionID:   "s1",
+		Status:      taskdomain.StatusCompleted,
+		Description: "task desc",
+		TokensUsed:  500,
+		ResultJSON:  resultJSON,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 
 	pt := domainToServerTask(dt)

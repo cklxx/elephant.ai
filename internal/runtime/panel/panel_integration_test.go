@@ -190,7 +190,7 @@ func TestAutoManager_Fallback(t *testing.T) {
 
 	// If tmux is available on this machine, AutoManager should fall back to it.
 	// If neither is available, it should return a clear error.
-	mgr, err := NewAutoManager()
+	mgr, err := newAutoManager()
 	if err != nil {
 		// Both unavailable — verify error mentions "no backend available".
 		if !strings.Contains(err.Error(), "no backend available") {

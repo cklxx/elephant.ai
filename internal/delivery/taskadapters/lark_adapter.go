@@ -3,6 +3,7 @@ package taskadapters
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -86,7 +87,7 @@ func (a *LarkAdapter) UpdateStatus(ctx context.Context, taskID, status string, o
 func (a *LarkAdapter) GetTask(ctx context.Context, taskID string) (lark.TaskRecord, bool, error) {
 	t, err := a.store.Get(ctx, taskID)
 	if err != nil {
-		if isNotFound(err) {
+		if errors.Is(err, taskdomain.ErrTaskNotFound) {
 			return lark.TaskRecord{}, false, nil
 		}
 		return lark.TaskRecord{}, false, err
@@ -123,7 +124,7 @@ func (a *LarkAdapter) DeleteExpired(ctx context.Context, before time.Time) error
 			continue
 		}
 		if task.CompletedAt.Before(before) {
-			if err := a.store.Delete(ctx, task.TaskID); err != nil && !isNotFound(err) {
+			if err := a.store.Delete(ctx, task.TaskID); err != nil && !errors.Is(err, taskdomain.ErrTaskNotFound) {
 				return err
 			}
 		}
@@ -148,7 +149,7 @@ func (a *LarkAdapter) MarkStaleRunning(ctx context.Context, reason string) error
 			taskdomain.StatusFailed,
 			taskdomain.WithTransitionReason(reason),
 			taskdomain.WithTransitionError(reason),
-		); err != nil && !isNotFound(err) {
+		); err != nil && !errors.Is(err, taskdomain.ErrTaskNotFound) {
 			return err
 		}
 	}
