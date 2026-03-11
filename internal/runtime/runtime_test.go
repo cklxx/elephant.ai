@@ -147,6 +147,23 @@ func (m *mockAdapter) Stop(_ context.Context, sessionID string, poolPane bool) e
 
 var _ adapter.Adapter = (*mockAdapter)(nil)
 
+type stubFactory struct {
+	mu      sync.Mutex
+	adapter adapter.Adapter
+	err     error
+	members []session.MemberType
+}
+
+func (f *stubFactory) New(member session.MemberType) (adapter.Adapter, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.members = append(f.members, member)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.adapter, nil
+}
+
 // mockFactory is a Factory replacement that returns a mockAdapter.
 // Since adapter.Factory is a concrete struct with an unexported New method,
 // we can't directly mock it. Instead, we create a real Factory with a mock
@@ -201,7 +218,7 @@ var _ adapter.CodexExecutor = (*mockCodexExecutor)(nil)
 // The store directory is created with os.MkdirTemp and cleaned up via
 // t.Cleanup with a short delay to allow in-flight goroutines (e.g. Codex
 // executor) to finish writing before removal.
-func newTestRuntime(t *testing.T) *Runtime {
+func newTestRuntimeWithStoreDir(t *testing.T) (*Runtime, string) {
 	t.Helper()
 
 	storeDir, err := os.MkdirTemp("", "runtime-test-*")
@@ -230,6 +247,12 @@ func newTestRuntime(t *testing.T) *Runtime {
 		store:    st,
 		bus:      bus,
 	}
+	return rt, storeDir
+}
+
+func newTestRuntime(t *testing.T) *Runtime {
+	t.Helper()
+	rt, _ := newTestRuntimeWithStoreDir(t)
 	return rt
 }
 
@@ -400,6 +423,82 @@ func TestRuntime_StartSession_WithFactory(t *testing.T) {
 	}
 	if err := <-exec.done; err != context.Canceled {
 		t.Fatalf("executor exit = %v, want %v", err, context.Canceled)
+	}
+}
+
+func TestRuntime_StartSession_FactoryErrorMarksFailed(t *testing.T) {
+	t.Parallel()
+	rt := newTestRuntime(t)
+	rt.SetFactory(&stubFactory{err: os.ErrNotExist})
+
+	s, err := rt.CreateSession(session.MemberCodex, "factory-fail", "/tmp", "")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	err = rt.StartSession(context.Background(), s.Snapshot().ID, 1)
+	if err == nil {
+		t.Fatal("expected factory error")
+	}
+	if !strings.Contains(err.Error(), "runtime: create adapter") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	snap := s.Snapshot()
+	if snap.State != session.StateFailed {
+		t.Errorf("State = %q, want 'failed'", snap.State)
+	}
+	if !strings.Contains(snap.ErrorMsg, "file does not exist") {
+		t.Errorf("ErrorMsg = %q, want factory error", snap.ErrorMsg)
+	}
+}
+
+func TestRuntime_StartSession_AdapterStartErrorReleasesPoolPane(t *testing.T) {
+	t.Parallel()
+	rt := newTestRuntime(t)
+
+	p := pool.New()
+	p.Register([]int{400})
+	rt.SetPool(p)
+	rt.SetFactory(&stubFactory{
+		adapter: &mockAdapter{startErr: os.ErrPermission},
+	})
+
+	s, err := rt.CreateSession(session.MemberCodex, "pool-start-fail", "/tmp", "")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	err = rt.StartSession(context.Background(), s.Snapshot().ID, -1)
+	if err == nil {
+		t.Fatal("expected adapter start error")
+	}
+	if !strings.Contains(err.Error(), "runtime: start adapter") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	snap := s.Snapshot()
+	if snap.State != session.StateFailed {
+		t.Errorf("State = %q, want 'failed'", snap.State)
+	}
+	if !strings.Contains(snap.ErrorMsg, "permission denied") {
+		t.Errorf("ErrorMsg = %q, want start error", snap.ErrorMsg)
+	}
+
+	rt.mu.RLock()
+	_, hasAdapter := rt.adapters[snap.ID]
+	_, hasCancel := rt.cancels[snap.ID]
+	rt.mu.RUnlock()
+	if hasAdapter || hasCancel {
+		t.Fatalf("runtime state should be cleared after start failure: adapter=%v cancel=%v", hasAdapter, hasCancel)
+	}
+
+	slots := p.Slots()
+	if len(slots) != 1 {
+		t.Fatalf("expected 1 pool slot, got %d", len(slots))
+	}
+	if slots[0].State != pool.SlotIdle {
+		t.Errorf("slot state = %q, want 'idle'", slots[0].State)
 	}
 }
 
@@ -736,6 +835,40 @@ func TestRuntime_MarkCompleted_ReleasesPoolPane(t *testing.T) {
 	}
 }
 
+func TestRuntime_MarkCompleted_ClearsRuntimeState(t *testing.T) {
+	t.Parallel()
+	rt := newTestRuntime(t)
+
+	s, _ := rt.CreateSession(session.MemberClaudeCode, "cleanup", "/tmp", "")
+	id := s.Snapshot().ID
+	_ = s.Transition(session.StateStarting)
+	_ = s.Transition(session.StateRunning)
+
+	cancelled := make(chan struct{}, 1)
+	rt.mu.Lock()
+	rt.adapters[id] = &mockAdapter{}
+	rt.cancels[id] = func() { cancelled <- struct{}{} }
+	rt.mu.Unlock()
+
+	if err := rt.MarkCompleted(id, "done"); err != nil {
+		t.Fatalf("MarkCompleted: %v", err)
+	}
+
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("expected session cancel to be invoked")
+	}
+
+	rt.mu.RLock()
+	_, hasAdapter := rt.adapters[id]
+	_, hasCancel := rt.cancels[id]
+	rt.mu.RUnlock()
+	if hasAdapter || hasCancel {
+		t.Fatalf("runtime state should be cleared after completion: adapter=%v cancel=%v", hasAdapter, hasCancel)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // HookSink implementation tests
 // ---------------------------------------------------------------------------
@@ -982,6 +1115,31 @@ func TestRuntime_InjectText_WithAdapter(t *testing.T) {
 	defer ma.mu.Unlock()
 	if len(ma.injected) != 1 || ma.injected[0].text != "hello" {
 		t.Errorf("expected inject('hello'), got %v", ma.injected)
+	}
+}
+
+func TestRuntime_RecordEvent_AppendsEventLog(t *testing.T) {
+	t.Parallel()
+	rt, storeDir := newTestRuntimeWithStoreDir(t)
+
+	s, _ := rt.CreateSession(session.MemberClaudeCode, "record-event", "/tmp", "")
+	id := s.Snapshot().ID
+
+	rt.RecordEvent(id, "heartbeat", map[string]any{"step": "compile"})
+
+	data, err := os.ReadFile(filepath.Join(storeDir, id+".events.jsonl"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	text := string(data)
+	if !strings.Contains(text, `"session_id":"`+id+`"`) {
+		t.Fatalf("event log missing session id: %s", text)
+	}
+	if !strings.Contains(text, `"type":"heartbeat"`) {
+		t.Fatalf("event log missing type: %s", text)
+	}
+	if !strings.Contains(text, `"step":"compile"`) {
+		t.Fatalf("event log missing payload: %s", text)
 	}
 }
 
