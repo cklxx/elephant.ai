@@ -311,54 +311,23 @@ pre_push() {
   local files
   files="$(changed_files "${remote}" "${url}" 2>/dev/null || echo "")"
   local go_changed=true
-  local web_changed=true
-  local -a changed_go_pkgs=()
 
   if [[ -n "${files}" ]]; then
     has_go_changes "${files}" && go_changed=true || go_changed=false
-    has_web_changes "${files}" && web_changed=true || web_changed=false
-    while IFS= read -r pkg; do
-      [[ -n "${pkg}" ]] && changed_go_pkgs+=("${pkg}")
-    done < <(collect_changed_go_packages "${files}")
-    if [[ "${pre_push_mode}" != "full" ]] && ${go_changed}; then
-      echo "go changed packages for race: ${#changed_go_pkgs[@]}"
-    fi
   fi
 
-  local phase1_errors=0
-  if [[ "${SKIP_MOD_TIDY:-}" == "1" ]]; then
-    warn "Skipping go mod tidy (SKIP_MOD_TIDY=1)"
-  else
-    run_job "go mod tidy" go_mod_tidy_check
-    collect_results || phase1_errors=$?
-  fi
-  if [[ ${phase1_errors} -gt 0 ]]; then
-    echo "─────────────────────────────────────"
-    fail "mod tidy failed — push aborted"
-    echo "  To skip: SKIP_PRE_PUSH=1 git push"
-    exit 1
-  fi
-
+  # Lean pre-push: only go build + go test + arch policy.
+  # Full lint / vet / web build deferred to GitHub CI.
   local total_errors=0
   if ${go_changed}; then
-    run_job "go vet" go_vet
     if [[ "${SKIP_BUILD:-}" != "1" ]]; then
       run_job "go build" go_build_check
     else
       warn "Skipping build (SKIP_BUILD=1)"
     fi
-    run_job "arch boundaries" arch_check
     run_job "arch policy" arch_policy_check
   else
     warn "No Go changes — skipping Go checks"
-  fi
-
-  if ${web_changed} && [[ "${SKIP_WEB:-}" != "1" ]] && [[ -d "${REPO_ROOT}/web" ]]; then
-    run_job "web lint" web_lint
-  elif [[ "${SKIP_WEB:-}" == "1" ]]; then
-    warn "Skipping web (SKIP_WEB=1)"
-  elif ! ${web_changed}; then
-    warn "No web/ changes — skipping web checks"
   fi
 
   collect_results || total_errors=$?
@@ -367,61 +336,22 @@ pre_push() {
     fail "${total_errors} check(s) failed — push aborted (${SECONDS}s)"
     echo ""
     echo "  To skip: SKIP_PRE_PUSH=1 git push"
-    echo "  To skip one: SKIP_MOD_TIDY=1 / SKIP_LINT=1 / SKIP_WEB=1 / SKIP_BUILD=1 / SKIP_TEST=1"
     exit 1
   fi
 
   local heavy_errors=0
   if [[ "${heavy_mode}" == "parallel" ]]; then
-    if ${go_changed}; then
-      if [[ "${SKIP_TEST:-}" != "1" ]]; then
-        if [[ "${pre_push_mode}" == "full" ]]; then
-          run_job "go test -race" go_test_full_race
-        else
-          run_job "go test" go_test_quick
-          if ((${#changed_go_pkgs[@]} > 0)); then
-            run_job "go test -race (changed)" go_test_changed_race "${changed_go_pkgs[@]}"
-          fi
-        fi
-      else
-        warn "Skipping test (SKIP_TEST=1)"
-      fi
-      if [[ "${SKIP_LINT:-}" != "1" ]] && [[ -x "${REPO_ROOT}/scripts/run-golangci-lint.sh" ]]; then
-        run_job "golangci-lint" go_lint
-      elif [[ "${SKIP_LINT:-}" == "1" ]]; then
-        warn "Skipping lint (SKIP_LINT=1)"
-      fi
-    fi
-    if ${web_changed} && [[ "${SKIP_WEB:-}" != "1" ]] && [[ -d "${REPO_ROOT}/web" ]]; then
-      run_job "web build" web_build
+    if ${go_changed} && [[ "${SKIP_TEST:-}" != "1" ]]; then
+      run_job "go test" go_test_quick
+    elif [[ "${SKIP_TEST:-}" == "1" ]]; then
+      warn "Skipping test (SKIP_TEST=1)"
     fi
     collect_results || heavy_errors=$?
   else
-    if ${go_changed}; then
-      if [[ "${SKIP_TEST:-}" != "1" ]]; then
-        if [[ "${pre_push_mode}" == "full" ]]; then
-          run_job_sync "go test -race" go_test_full_race || heavy_errors=$((heavy_errors + 1))
-        else
-          run_job_sync "go test" go_test_quick || heavy_errors=$((heavy_errors + 1))
-          if ((${#changed_go_pkgs[@]} > 0)); then
-            run_job_sync "go test -race (changed)" go_test_changed_race "${changed_go_pkgs[@]}" || heavy_errors=$((heavy_errors + 1))
-          else
-            warn "No changed Go packages — skipping changed-pkgs race"
-          fi
-        fi
-      else
-        warn "Skipping test (SKIP_TEST=1)"
-      fi
-
-      if [[ "${SKIP_LINT:-}" != "1" ]] && [[ -x "${REPO_ROOT}/scripts/run-golangci-lint.sh" ]]; then
-        run_job_sync "golangci-lint" go_lint || heavy_errors=$((heavy_errors + 1))
-      elif [[ "${SKIP_LINT:-}" == "1" ]]; then
-        warn "Skipping lint (SKIP_LINT=1)"
-      fi
-    fi
-
-    if ${web_changed} && [[ "${SKIP_WEB:-}" != "1" ]] && [[ -d "${REPO_ROOT}/web" ]]; then
-      run_job_sync "web build" web_build || heavy_errors=$((heavy_errors + 1))
+    if ${go_changed} && [[ "${SKIP_TEST:-}" != "1" ]]; then
+      run_job_sync "go test" go_test_quick || heavy_errors=$((heavy_errors + 1))
+    elif [[ "${SKIP_TEST:-}" == "1" ]]; then
+      warn "Skipping test (SKIP_TEST=1)"
     fi
   fi
 
