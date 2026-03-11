@@ -61,8 +61,8 @@ type evalRunner interface {
 	RunEvaluation(ctx context.Context, opts *agent_eval.EvaluationOptions) (*agent_eval.EvaluationJob, error)
 }
 
-// NewEvalGate creates a new EvalGate with the default manager factory.
-func NewEvalGate() *EvalGate {
+// newEvalGate creates a new EvalGate with the default manager factory.
+func newEvalGate() *EvalGate {
 	return &EvalGate{
 		managerFactory: func(outputDir string) (evalRunner, error) {
 			return agent_eval.NewCLIManager(outputDir)
@@ -70,8 +70,8 @@ func NewEvalGate() *EvalGate {
 	}
 }
 
-// DefaultQuickGateConfig returns a GateConfig tuned for fast PR gates.
-func DefaultQuickGateConfig() GateConfig {
+// defaultQuickGateConfig returns a GateConfig tuned for fast PR gates.
+func defaultQuickGateConfig() GateConfig {
 	return GateConfig{
 		MinScore:        0.80,
 		MinGrade:        "B",
@@ -82,8 +82,8 @@ func DefaultQuickGateConfig() GateConfig {
 	}
 }
 
-// DefaultFullGateConfig returns a GateConfig for comprehensive evaluation.
-func DefaultFullGateConfig() GateConfig {
+// defaultFullGateConfig returns a GateConfig for comprehensive evaluation.
+func defaultFullGateConfig() GateConfig {
 	return GateConfig{
 		MinScore:        0.70,
 		MinGrade:        "C",
@@ -109,7 +109,7 @@ func (g *EvalGate) Evaluate(ctx context.Context, config GateConfig) (*GateResult
 	outputDir := "evaluation_results"
 	manager, err := g.managerFactory(outputDir)
 	if err != nil {
-		return nil, fmt.Errorf("gate: failed to create evaluation manager: %w", err)
+		return nil, fmt.Errorf("create evaluation manager: %w", err)
 	}
 
 	opts := agent_eval.DefaultEvaluationOptions()
@@ -121,7 +121,7 @@ func (g *EvalGate) Evaluate(ctx context.Context, config GateConfig) (*GateResult
 
 	job, err := manager.RunEvaluation(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("gate: evaluation run failed: %w", err)
+		return nil, fmt.Errorf("run evaluation: %w", err)
 	}
 
 	duration := time.Since(start)
@@ -171,11 +171,11 @@ func (g *EvalGate) CheckThresholds(score float64, grade string, config GateConfi
 func (g *EvalGate) FormatSummary(result *GateResult) string {
 	var sb strings.Builder
 
+	status := "FAILED"
 	if result.Passed {
-		sb.WriteString("## Eval Gate: PASSED\n\n")
-	} else {
-		sb.WriteString("## Eval Gate: FAILED\n\n")
+		status = "PASSED"
 	}
+	sb.WriteString("## Eval Gate: " + status + "\n\n")
 
 	sb.WriteString("| Metric | Value |\n")
 	sb.WriteString("|--------|-------|\n")

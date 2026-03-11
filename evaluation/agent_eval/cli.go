@@ -144,19 +144,20 @@ func (cm *CLIManager) waitForCompletion(ctx context.Context, job *EvaluationJob)
 				results, err := cm.evaluationManager.GetJobResults(job.ID)
 				if err != nil {
 					log.Printf("Warning: Failed to get job results: %v", err)
-				} else {
-					totalTasks := results.Metrics.TotalTasks
-					if totalTasks == 0 {
-						totalTasks = len(results.Results)
-					}
-					if results.Analysis != nil {
-						log.Printf("Results summary: %d total tasks, overall score: %.1f%%",
-							totalTasks,
-							results.Analysis.Summary.OverallScore*100)
-					} else {
-						log.Printf("Results summary: %d total tasks", totalTasks)
-					}
+					return job, nil
 				}
+
+				totalTasks := results.Metrics.TotalTasks
+				if totalTasks == 0 {
+					totalTasks = len(results.Results)
+				}
+				if results.Analysis == nil {
+					log.Printf("Results summary: %d total tasks", totalTasks)
+					return job, nil
+				}
+				log.Printf("Results summary: %d total tasks, overall score: %.1f%%",
+					totalTasks,
+					results.Analysis.Summary.OverallScore*100)
 
 				return job, nil
 

@@ -10,7 +10,7 @@ import (
 )
 
 func TestCheckThresholds_PassesWhenAboveMinimums(t *testing.T) {
-	g := NewEvalGate()
+	g := newEvalGate()
 	config := GateConfig{MinScore: 0.80, MinGrade: "B"}
 
 	result := g.CheckThresholds(0.90, "A", config)
@@ -22,7 +22,7 @@ func TestCheckThresholds_PassesWhenAboveMinimums(t *testing.T) {
 }
 
 func TestCheckThresholds_PassesAtExactMinimum(t *testing.T) {
-	g := NewEvalGate()
+	g := newEvalGate()
 	config := GateConfig{MinScore: 0.80, MinGrade: "B"}
 
 	result := g.CheckThresholds(0.80, "B", config)
@@ -32,7 +32,7 @@ func TestCheckThresholds_PassesAtExactMinimum(t *testing.T) {
 }
 
 func TestCheckThresholds_FailsOnLowScore(t *testing.T) {
-	g := NewEvalGate()
+	g := newEvalGate()
 	config := GateConfig{MinScore: 0.80, MinGrade: "B"}
 
 	result := g.CheckThresholds(0.50, "A", config)
@@ -45,7 +45,7 @@ func TestCheckThresholds_FailsOnLowScore(t *testing.T) {
 }
 
 func TestCheckThresholds_FailsOnLowGrade(t *testing.T) {
-	g := NewEvalGate()
+	g := newEvalGate()
 	config := GateConfig{MinScore: 0.50, MinGrade: "B"}
 
 	result := g.CheckThresholds(0.90, "C", config)
@@ -57,7 +57,7 @@ func TestCheckThresholds_FailsOnLowGrade(t *testing.T) {
 }
 
 func TestCheckThresholds_CollectsMultipleFailureReasons(t *testing.T) {
-	g := NewEvalGate()
+	g := newEvalGate()
 	config := GateConfig{MinScore: 0.80, MinGrade: "B"}
 
 	result := g.CheckThresholds(0.50, "D", config)
@@ -105,7 +105,7 @@ func TestGradeComparison_UnknownGrade(t *testing.T) {
 }
 
 func TestFormatSummary_PassedContainsKeyFields(t *testing.T) {
-	g := NewEvalGate()
+	g := newEvalGate()
 	result := &GateResult{
 		Passed:   true,
 		Score:    0.92,
@@ -123,7 +123,7 @@ func TestFormatSummary_PassedContainsKeyFields(t *testing.T) {
 }
 
 func TestFormatSummary_FailedContainsReasons(t *testing.T) {
-	g := NewEvalGate()
+	g := newEvalGate()
 	result := &GateResult{
 		Passed:         false,
 		Score:          0.50,
@@ -143,7 +143,7 @@ func TestFormatSummary_FailedContainsReasons(t *testing.T) {
 }
 
 func TestFormatSummary_NoDurationOmitsRow(t *testing.T) {
-	g := NewEvalGate()
+	g := newEvalGate()
 	result := &GateResult{
 		Passed: true,
 		Score:  0.85,
@@ -156,7 +156,7 @@ func TestFormatSummary_NoDurationOmitsRow(t *testing.T) {
 }
 
 func TestFormatSummary_IsValidMarkdown(t *testing.T) {
-	g := NewEvalGate()
+	g := newEvalGate()
 	result := &GateResult{
 		Passed:         false,
 		Score:          0.60,
@@ -175,7 +175,7 @@ func TestFormatSummary_IsValidMarkdown(t *testing.T) {
 }
 
 func TestDefaultQuickGateConfig(t *testing.T) {
-	config := DefaultQuickGateConfig()
+	config := defaultQuickGateConfig()
 
 	assert.Equal(t, 0.80, config.MinScore)
 	assert.Equal(t, "B", config.MinGrade)
@@ -186,7 +186,7 @@ func TestDefaultQuickGateConfig(t *testing.T) {
 }
 
 func TestDefaultFullGateConfig(t *testing.T) {
-	config := DefaultFullGateConfig()
+	config := defaultFullGateConfig()
 
 	assert.Equal(t, 0.70, config.MinScore)
 	assert.Equal(t, "C", config.MinGrade)
@@ -197,8 +197,8 @@ func TestDefaultFullGateConfig(t *testing.T) {
 }
 
 func TestDefaultFullGateConfig_IsLessStrictThanQuick(t *testing.T) {
-	quick := DefaultQuickGateConfig()
-	full := DefaultFullGateConfig()
+	quick := defaultQuickGateConfig()
+	full := defaultFullGateConfig()
 
 	assert.Greater(t, quick.MinScore, full.MinScore,
 		"quick gate should require a higher minimum score")
@@ -218,7 +218,7 @@ func TestGradeOrder_Transitivity(t *testing.T) {
 }
 
 func TestCheckThresholds_ZeroScoreAndGradeF(t *testing.T) {
-	g := NewEvalGate()
+	g := newEvalGate()
 	config := GateConfig{MinScore: 0.80, MinGrade: "B"}
 
 	result := g.CheckThresholds(0.0, "F", config)
@@ -228,7 +228,7 @@ func TestCheckThresholds_ZeroScoreAndGradeF(t *testing.T) {
 }
 
 func TestCheckThresholds_PerfectScoreAndGrade(t *testing.T) {
-	g := NewEvalGate()
+	g := newEvalGate()
 	config := GateConfig{MinScore: 0.80, MinGrade: "A"}
 
 	result := g.CheckThresholds(1.0, "A", config)

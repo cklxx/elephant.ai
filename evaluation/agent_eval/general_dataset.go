@@ -106,16 +106,20 @@ func loadGeneralAgentTasks(path string, limit int) ([]GeneralAgentTask, error) {
 		if err := decodeGeneralDataset(bytes.NewReader(embeddedGeneralDataset), &tasks); err != nil {
 			return nil, fmt.Errorf("decode embedded general agent dataset: %w", err)
 		}
-	} else {
-		file, err := os.Open(path)
-		if err != nil {
-			return nil, fmt.Errorf("open general agent dataset: %w", err)
+		if limit > 0 && limit < len(tasks) {
+			tasks = tasks[:limit]
 		}
-		defer file.Close()
+		return tasks, nil
+	}
 
-		if err := decodeGeneralDataset(file, &tasks); err != nil {
-			return nil, err
-		}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open general agent dataset: %w", err)
+	}
+	defer file.Close()
+
+	if err := decodeGeneralDataset(file, &tasks); err != nil {
+		return nil, err
 	}
 
 	if limit > 0 && limit < len(tasks) {

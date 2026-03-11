@@ -36,11 +36,11 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 	if tokens := batchConfig.Agent.Model.MaxTokens; tokens > 0 {
 		overrides.MaxTokens = ptr(tokens)
 	}
-	if turns := batchConfig.Agent.MaxTurns; turns > 0 {
-		overrides.MaxIterations = ptr(turns)
-	} else {
-		overrides.MaxIterations = ptr(10)
+	maxTurns := batchConfig.Agent.MaxTurns
+	if maxTurns <= 0 {
+		maxTurns = 10
 	}
+	overrides.MaxIterations = ptr(maxTurns)
 	if temp := batchConfig.Agent.Model.Temperature; temp != 0 {
 		overrides.Temperature = ptr(temp)
 	}
