@@ -50,10 +50,11 @@ type Config struct {
 	StaleThresholdSeconds int           `json:"stale_threshold_seconds" yaml:"stale_threshold_seconds"` // default 1800 (30 min)
 	InputWaitThreshold    time.Duration `json:"-" yaml:"-"`                                             // derived
 	InputWaitSeconds      int           `json:"input_wait_seconds" yaml:"input_wait_seconds"`           // default 900 (15 min)
-	Channel               string        `json:"channel" yaml:"channel"`
-	ChatID                string        `json:"chat_id" yaml:"chat_id"`
-	GitRepos              []string      `json:"-" yaml:"-"`
-	GitReviewThreshold    time.Duration `json:"-" yaml:"-"`
+	Channel                   string        `json:"channel" yaml:"channel"`
+	ChatID                    string        `json:"chat_id" yaml:"chat_id"`
+	GitRepos                  []string      `json:"git_repos" yaml:"git_repos"`
+	GitReviewThreshold        time.Duration `json:"-" yaml:"-"`                                                       // derived
+	GitReviewThresholdSeconds int           `json:"git_review_threshold_seconds" yaml:"git_review_threshold_seconds"` // default 86400 (24h)
 }
 
 // DefaultConfig returns sensible defaults.
@@ -144,6 +145,7 @@ func deriveDuration(seconds int, existing, fallback time.Duration) time.Duration
 func NewRadar(store task.Store, notifier notification.Notifier, cfg Config) *Radar {
 	cfg.StaleThreshold = deriveDuration(cfg.StaleThresholdSeconds, cfg.StaleThreshold, 30*time.Minute)
 	cfg.InputWaitThreshold = deriveDuration(cfg.InputWaitSeconds, cfg.InputWaitThreshold, 15*time.Minute)
+	cfg.GitReviewThreshold = deriveDuration(cfg.GitReviewThresholdSeconds, cfg.GitReviewThreshold, 24*time.Hour)
 	return &Radar{
 		store:        store,
 		notifier:     notifier,
@@ -201,13 +203,8 @@ func (r *Radar) checkGitReviewBottlenecks(ctx context.Context, alerts *[]Alert) 
 		return
 	}
 
-	threshold := r.config.GitReviewThreshold
-	if threshold <= 0 {
-		threshold = 24 * time.Hour
-	}
-
 	for _, repo := range r.config.GitRepos {
-		events, err := r.GitSignalSource.DetectReviewBottlenecks(ctx, repo, threshold)
+		events, err := r.GitSignalSource.DetectReviewBottlenecks(ctx, repo, r.config.GitReviewThreshold)
 		if err != nil {
 			r.logger.Warn("Blocker Radar: git review bottleneck fetch failed for %s: %v", repo, err)
 			continue

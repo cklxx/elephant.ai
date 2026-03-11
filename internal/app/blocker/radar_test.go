@@ -2,6 +2,7 @@ package blocker
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -899,6 +900,168 @@ func TestNotifyBlockedTasks_MergesTaskAndGitAlerts(t *testing.T) {
 	}
 	if !sawGitAlert {
 		t.Fatal("expected git-based blocker notification")
+	}
+}
+
+func TestNotifyBlockedTasks_GitOnly(t *testing.T) {
+	store := testutil.NewTestTaskStore(t)
+
+	notif := &testutil.StubNotifier{}
+	cfg := DefaultConfig()
+	cfg.Channel = "lark"
+	cfg.ChatID = "oc_test"
+	cfg.GitRepos = []string{"org/repo"}
+
+	r := NewRadar(store, notif, cfg)
+	r.GitSignalSource = &fakeGitSignalProvider{
+		bottlenecksByRepo: map[string][]signal.SignalEvent{
+			"org/repo": {makeReviewBottleneck("org/repo", 42, "carol", 36*time.Hour)},
+		},
+	}
+
+	nr, err := r.NotifyBlockedTasks(context.Background())
+	if err != nil {
+		t.Fatalf("NotifyBlockedTasks: %v", err)
+	}
+	if nr.Scanned != 0 {
+		t.Errorf("scanned = %d, want 0 (no tasks)", nr.Scanned)
+	}
+	if nr.Detected != 1 {
+		t.Fatalf("detected = %d, want 1 (git-only)", nr.Detected)
+	}
+	if nr.Notified != 1 {
+		t.Fatalf("notified = %d, want 1", nr.Notified)
+	}
+	if len(notif.Sent) != 1 {
+		t.Fatalf("sent = %d, want 1", len(notif.Sent))
+	}
+	if !strings.Contains(notif.Sent[0].Content, "PR #42") {
+		t.Errorf("notification should mention PR #42, got: %s", notif.Sent[0].Content)
+	}
+	if !strings.Contains(notif.Sent[0].Content, "carol") {
+		t.Errorf("notification should mention reviewer carol, got: %s", notif.Sent[0].Content)
+	}
+}
+
+func TestScan_GitReviewBottleneck_ProviderError(t *testing.T) {
+	store := testutil.NewTestTaskStore(t)
+	cfg := DefaultConfig()
+	cfg.GitRepos = []string{"org/good", "org/bad"}
+
+	r := NewRadar(store, nil, cfg)
+	r.GitSignalSource = &fakeGitSignalProvider{
+		bottlenecksByRepo: map[string][]signal.SignalEvent{
+			"org/good": {makeReviewBottleneck("org/good", 1, "alice", 30*time.Hour)},
+		},
+		errByRepo: map[string]error{
+			"org/bad": fmt.Errorf("API rate limited"),
+		},
+	}
+
+	result, err := r.Scan(context.Background())
+	if err != nil {
+		t.Fatalf("Scan should not fail on provider error: %v", err)
+	}
+	// org/good should still produce an alert despite org/bad failing.
+	if len(result.Alerts) != 1 {
+		t.Fatalf("expected 1 alert from healthy repo, got %d", len(result.Alerts))
+	}
+	if result.Alerts[0].Reason != ReasonGitReviewBlock {
+		t.Errorf("reason = %q, want git_review_blocked", result.Alerts[0].Reason)
+	}
+}
+
+func TestScan_GitReviewBottleneck_MultipleRepos(t *testing.T) {
+	store := testutil.NewTestTaskStore(t)
+	cfg := DefaultConfig()
+	cfg.GitRepos = []string{"org/alpha", "org/beta"}
+
+	r := NewRadar(store, nil, cfg)
+	r.GitSignalSource = &fakeGitSignalProvider{
+		bottlenecksByRepo: map[string][]signal.SignalEvent{
+			"org/alpha": {makeReviewBottleneck("org/alpha", 10, "alice", 28*time.Hour)},
+			"org/beta": {
+				makeReviewBottleneck("org/beta", 20, "bob", 48*time.Hour),
+				makeReviewBottleneck("org/beta", 21, "carol", 25*time.Hour),
+			},
+		},
+	}
+
+	result, err := r.Scan(context.Background())
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Alerts) != 3 {
+		t.Fatalf("expected 3 alerts across repos, got %d", len(result.Alerts))
+	}
+	repos := make(map[string]int)
+	for _, a := range result.Alerts {
+		repos[a.Task.Metadata["repo"]]++
+	}
+	if repos["org/alpha"] != 1 {
+		t.Errorf("org/alpha alerts = %d, want 1", repos["org/alpha"])
+	}
+	if repos["org/beta"] != 2 {
+		t.Errorf("org/beta alerts = %d, want 2", repos["org/beta"])
+	}
+}
+
+func TestScan_GitReviewBottleneck_EmptyReviewer(t *testing.T) {
+	store := testutil.NewTestTaskStore(t)
+	cfg := DefaultConfig()
+	cfg.GitRepos = []string{"org/repo"}
+
+	r := NewRadar(store, nil, cfg)
+	r.GitSignalSource = &fakeGitSignalProvider{
+		bottlenecksByRepo: map[string][]signal.SignalEvent{
+			"org/repo": {makeReviewBottleneck("org/repo", 5, "", 30*time.Hour)},
+		},
+	}
+
+	result, err := r.Scan(context.Background())
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Alerts) != 1 {
+		t.Fatalf("expected 1 alert, got %d", len(result.Alerts))
+	}
+	if !strings.Contains(result.Alerts[0].Detail, "unassigned-reviewer") {
+		t.Errorf("expected unassigned-reviewer fallback, got: %s", result.Alerts[0].Detail)
+	}
+	if !strings.Contains(result.Alerts[0].Task.TaskID, "unassigned-reviewer") {
+		t.Errorf("task ID should use unassigned-reviewer fallback, got: %s", result.Alerts[0].Task.TaskID)
+	}
+}
+
+func TestScan_GitReviewBottleneck_NilSourceSkipped(t *testing.T) {
+	store := testutil.NewTestTaskStore(t)
+	cfg := DefaultConfig()
+	cfg.GitRepos = []string{"org/repo"}
+
+	r := NewRadar(store, nil, cfg)
+	// GitSignalSource is nil — should not panic.
+	result, err := r.Scan(context.Background())
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Alerts) != 0 {
+		t.Errorf("expected 0 alerts with nil source, got %d", len(result.Alerts))
+	}
+}
+
+func TestConfigDerivation_GitReviewThreshold(t *testing.T) {
+	cfg := Config{GitReviewThresholdSeconds: 3600}
+	r := NewRadar(testutil.NewTestTaskStore(t), nil, cfg)
+	if r.config.GitReviewThreshold != 1*time.Hour {
+		t.Errorf("GitReviewThreshold = %v, want 1h", r.config.GitReviewThreshold)
+	}
+}
+
+func TestConfigDerivation_GitReviewThresholdDefault(t *testing.T) {
+	cfg := Config{}
+	r := NewRadar(testutil.NewTestTaskStore(t), nil, cfg)
+	if r.config.GitReviewThreshold != 24*time.Hour {
+		t.Errorf("GitReviewThreshold = %v, want 24h", r.config.GitReviewThreshold)
 	}
 }
 
