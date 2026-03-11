@@ -153,12 +153,20 @@ var _ adapter.Adapter = (*mockAdapter)(nil)
 //
 // For faster tests (avoiding CC sleep), we use codex adapters.
 type mockCodexExecutor struct {
-	answer string
-	err    error
-	block  chan struct{} // if non-nil, Execute blocks until this channel is closed
+	answer  string
+	err     error
+	block   chan struct{} // if non-nil, Execute blocks until this channel is closed
+	started chan struct{}
+	done    chan error
 }
 
 func (m *mockCodexExecutor) Execute(ctx context.Context, _, _ string, onProgress func()) (string, error) {
+	if m.started != nil {
+		select {
+		case m.started <- struct{}{}:
+		default:
+		}
+	}
 	if onProgress != nil {
 		onProgress()
 	}
@@ -166,8 +174,14 @@ func (m *mockCodexExecutor) Execute(ctx context.Context, _, _ string, onProgress
 		select {
 		case <-m.block:
 		case <-ctx.Done():
+			if m.done != nil {
+				m.done <- ctx.Err()
+			}
 			return "", ctx.Err()
 		}
+	}
+	if m.done != nil {
+		m.done <- m.err
 	}
 	return m.answer, m.err
 }
@@ -209,6 +223,7 @@ func newTestRuntime(t *testing.T) *Runtime {
 	rt := &Runtime{
 		sessions: make(map[string]*session.Session),
 		adapters: make(map[string]adapter.Adapter),
+		cancels:  make(map[string]context.CancelFunc),
 		panel:    pm,
 		store:    st,
 		bus:      bus,
@@ -307,14 +322,18 @@ func TestRuntime_StartSession_WithFactory(t *testing.T) {
 
 	mm := &mockManager{nextPane: newMockPane(55)}
 
-	// Use a blocking executor so the goroutine doesn't outlive the test.
 	block := make(chan struct{})
-	exec := &mockCodexExecutor{answer: "done", block: block}
+	exec := &mockCodexExecutor{
+		answer:  "done",
+		block:   block,
+		started: make(chan struct{}, 1),
+		done:    make(chan error, 1),
+	}
 	f := adapter.NewFactory(mm, rt, "http://localhost:9999", exec)
 	rt.SetFactory(f)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, cancelStart := context.WithCancel(context.Background())
+	defer cancelStart()
 
 	s, err := rt.CreateSession(session.MemberCodex, "fix bug", "/tmp", "")
 	if err != nil {
@@ -331,8 +350,21 @@ func TestRuntime_StartSession_WithFactory(t *testing.T) {
 		t.Errorf("State = %q, want 'running'", snap.State)
 	}
 
-	// Cancel to unblock the executor goroutine so it doesn't outlive the test.
-	cancel()
+	<-exec.started
+	cancelStart()
+
+	select {
+	case err := <-exec.done:
+		t.Fatalf("executor stopped when start context was cancelled: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	if err := rt.StopSession(context.Background(), s.Snapshot().ID); err != nil {
+		t.Fatalf("StopSession: %v", err)
+	}
+	if err := <-exec.done; err != context.Canceled {
+		t.Fatalf("executor exit = %v, want %v", err, context.Canceled)
+	}
 }
 
 func TestRuntime_StartSession_PoolMode(t *testing.T) {
@@ -341,7 +373,7 @@ func TestRuntime_StartSession_PoolMode(t *testing.T) {
 
 	mm := &mockManager{nextPane: newMockPane(70)}
 	block := make(chan struct{})
-	exec := &mockCodexExecutor{answer: "pool-done", block: block}
+	exec := &mockCodexExecutor{answer: "pool-done", block: block, done: make(chan error, 1)}
 	f := adapter.NewFactory(mm, rt, "http://localhost:9999", exec)
 	rt.SetFactory(f)
 
@@ -349,16 +381,13 @@ func TestRuntime_StartSession_PoolMode(t *testing.T) {
 	p.Register([]int{200, 201})
 	rt.SetPool(p)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	s, err := rt.CreateSession(session.MemberCodex, "pool task", "/tmp", "")
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
 
 	// parentPaneID = -1 triggers pool mode.
-	err = rt.StartSession(ctx, s.Snapshot().ID, -1)
+	err = rt.StartSession(context.Background(), s.Snapshot().ID, -1)
 	if err != nil {
 		t.Fatalf("StartSession: %v", err)
 	}
@@ -374,8 +403,12 @@ func TestRuntime_StartSession_PoolMode(t *testing.T) {
 		t.Errorf("PaneID = %d, expected >= 0 (from pool)", snap.PaneID)
 	}
 
-	// Cancel to unblock the executor goroutine.
-	cancel()
+	if err := rt.StopSession(context.Background(), s.Snapshot().ID); err != nil {
+		t.Fatalf("StopSession: %v", err)
+	}
+	if err := <-exec.done; err != context.Canceled {
+		t.Fatalf("executor exit = %v, want %v", err, context.Canceled)
+	}
 }
 
 func TestRuntime_StopSession(t *testing.T) {
@@ -384,24 +417,21 @@ func TestRuntime_StopSession(t *testing.T) {
 
 	mm := &mockManager{nextPane: newMockPane(80)}
 	block := make(chan struct{})
-	exec := &mockCodexExecutor{answer: "done", block: block}
+	exec := &mockCodexExecutor{answer: "done", block: block, done: make(chan error, 1)}
 	f := adapter.NewFactory(mm, rt, "http://localhost:9999", exec)
 	rt.SetFactory(f)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	s, err := rt.CreateSession(session.MemberCodex, "stop-test", "/tmp", "")
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
 
-	err = rt.StartSession(ctx, s.Snapshot().ID, 1)
+	err = rt.StartSession(context.Background(), s.Snapshot().ID, 1)
 	if err != nil {
 		t.Fatalf("StartSession: %v", err)
 	}
 
-	err = rt.StopSession(ctx, s.Snapshot().ID)
+	err = rt.StopSession(context.Background(), s.Snapshot().ID)
 	if err != nil {
 		t.Fatalf("StopSession: %v", err)
 	}
@@ -411,8 +441,9 @@ func TestRuntime_StopSession(t *testing.T) {
 		t.Errorf("State = %q, want 'cancelled'", snap.State)
 	}
 
-	// Cancel to unblock executor goroutine.
-	cancel()
+	if err := <-exec.done; err != context.Canceled {
+		t.Fatalf("executor exit = %v, want %v", err, context.Canceled)
+	}
 }
 
 func TestRuntime_StopSession_NotFound(t *testing.T) {

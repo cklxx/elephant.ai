@@ -11,10 +11,10 @@ const busChannelBuffer = 64
 // It uses buffered channels and a fan-out model: each published event is sent
 // to all matching per-session subscribers and all wildcard (SubscribeAll) subscribers.
 type InProcessBus struct {
-	mu      sync.RWMutex
-	subs    map[string]map[uint64]chan Event // sessionID → subID → ch
-	wilds   map[uint64]chan Event            // wildcard subs (SubscribeAll)
-	nextID  atomic.Uint64
+	mu     sync.RWMutex
+	subs   map[string]map[uint64]chan Event // sessionID → subID → ch
+	wilds  map[uint64]chan Event            // wildcard subs (SubscribeAll)
+	nextID atomic.Uint64
 }
 
 // NewInProcessBus creates a ready-to-use in-process event bus.
@@ -54,6 +54,7 @@ func (b *InProcessBus) Publish(sessionID string, ev Event) {
 func (b *InProcessBus) Subscribe(sessionID string) (<-chan Event, func()) {
 	id := b.nextID.Add(1)
 	ch := make(chan Event, busChannelBuffer)
+	var once sync.Once
 
 	b.mu.Lock()
 	if b.subs[sessionID] == nil {
@@ -63,14 +64,17 @@ func (b *InProcessBus) Subscribe(sessionID string) (<-chan Event, func()) {
 	b.mu.Unlock()
 
 	cancel := func() {
-		b.mu.Lock()
-		if m := b.subs[sessionID]; m != nil {
-			delete(m, id)
-			if len(m) == 0 {
-				delete(b.subs, sessionID)
+		once.Do(func() {
+			b.mu.Lock()
+			if m := b.subs[sessionID]; m != nil {
+				delete(m, id)
+				if len(m) == 0 {
+					delete(b.subs, sessionID)
+				}
 			}
-		}
-		b.mu.Unlock()
+			close(ch)
+			b.mu.Unlock()
+		})
 	}
 	return ch, cancel
 }
@@ -80,15 +84,19 @@ func (b *InProcessBus) Subscribe(sessionID string) (<-chan Event, func()) {
 func (b *InProcessBus) SubscribeAll() (<-chan Event, func()) {
 	id := b.nextID.Add(1)
 	ch := make(chan Event, busChannelBuffer)
+	var once sync.Once
 
 	b.mu.Lock()
 	b.wilds[id] = ch
 	b.mu.Unlock()
 
 	cancel := func() {
-		b.mu.Lock()
-		delete(b.wilds, id)
-		b.mu.Unlock()
+		once.Do(func() {
+			b.mu.Lock()
+			delete(b.wilds, id)
+			close(ch)
+			b.mu.Unlock()
+		})
 	}
 	return ch, cancel
 }

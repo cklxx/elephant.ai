@@ -72,13 +72,40 @@ func TestInProcessBus_Cancel(t *testing.T) {
 	ch, cancel := bus.Subscribe("s")
 	cancel() // unsubscribe immediately
 
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Fatal("expected subscription channel to be closed on cancel")
+		}
+	default:
+		t.Fatal("expected closed channel to be observable immediately")
+	}
+
 	bus.Publish("s", Event{Type: EventHeartbeat, SessionID: "s", At: time.Now()})
 
 	select {
-	case ev := <-ch:
-		t.Fatalf("should not receive event after cancel: %+v", ev)
+	case _, ok := <-ch:
+		if ok {
+			t.Fatal("should not receive event after cancel")
+		}
 	case <-time.After(50 * time.Millisecond):
-		// expected
+		t.Fatal("expected closed channel after cancel")
+	}
+}
+
+func TestInProcessBus_SubscribeAllCancelClosesChannel(t *testing.T) {
+	bus := NewInProcessBus()
+
+	ch, cancel := bus.SubscribeAll()
+	cancel()
+
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Fatal("expected wildcard subscription channel to be closed on cancel")
+		}
+	default:
+		t.Fatal("expected closed wildcard channel to be observable immediately")
 	}
 }
 

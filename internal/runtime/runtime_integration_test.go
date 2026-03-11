@@ -161,6 +161,7 @@ func newIntegrationRuntime(t *testing.T) (*Runtime, *mockManager, *integrationFa
 	rt := &Runtime{
 		sessions: make(map[string]*session.Session),
 		adapters: make(map[string]adapter.Adapter),
+		cancels:  make(map[string]context.CancelFunc),
 		panel:    manager,
 		store:    st,
 		bus:      bus,

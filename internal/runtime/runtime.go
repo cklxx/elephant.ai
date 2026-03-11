@@ -34,6 +34,7 @@ type Runtime struct {
 	mu       sync.RWMutex
 	sessions map[string]*session.Session
 	adapters map[string]adapter.Adapter
+	cancels  map[string]context.CancelFunc
 
 	panel   panel.ManagerIface
 	store   *store.Store
@@ -77,6 +78,7 @@ func New(storeDir string, cfg Config) (*Runtime, error) {
 	rt := &Runtime{
 		sessions: make(map[string]*session.Session),
 		adapters: make(map[string]adapter.Adapter),
+		cancels:  make(map[string]context.CancelFunc),
 		panel:    pm,
 		store:    st,
 		bus:      bus,
@@ -232,14 +234,21 @@ func (rt *Runtime) startWithAdapter(ctx context.Context, s *session.Session, id 
 		return fmt.Errorf("runtime: create adapter: %w", err)
 	}
 
+	sessionCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	rt.mu.Lock()
+	if prevCancel := rt.cancels[id]; prevCancel != nil {
+		prevCancel()
+	}
 	rt.adapters[id] = adp
+	rt.cancels[id] = cancel
 	rt.mu.Unlock()
 
-	if err := adp.Start(ctx, opts); err != nil {
+	if err := adp.Start(sessionCtx, opts); err != nil {
 		rt.mu.Lock()
 		delete(rt.adapters, id)
+		delete(rt.cancels, id)
 		rt.mu.Unlock()
+		cancel()
 
 		_ = s.Transition(session.StateFailed)
 		s.SetError(err.Error())
@@ -277,7 +286,9 @@ func (rt *Runtime) StopSession(ctx context.Context, id string) error {
 	// Stop the adapter if one is running.
 	rt.mu.Lock()
 	adp := rt.adapters[id]
+	cancel := rt.cancels[id]
 	delete(rt.adapters, id)
+	delete(rt.cancels, id)
 	rt.mu.Unlock()
 
 	if adp != nil {
@@ -285,6 +296,9 @@ func (rt *Runtime) StopSession(ctx context.Context, id string) error {
 	} else if snap.PaneID >= 0 && !snap.PoolPane {
 		p := panel.NewPane(snap.PaneID)
 		_ = p.Kill(ctx)
+	}
+	if cancel != nil {
+		cancel()
 	}
 
 	// Release pool pane if applicable.
@@ -388,6 +402,7 @@ func (rt *Runtime) markTerminal(
 		return saveErr
 	}
 
+	rt.clearSessionRuntime(id)
 	rt.releasePoolPane(snap)
 
 	rt.bus.Publish(id, hooks.Event{
@@ -489,6 +504,17 @@ func (rt *Runtime) get(id string) *session.Session {
 	rt.mu.RLock()
 	defer rt.mu.RUnlock()
 	return rt.sessions[id]
+}
+
+func (rt *Runtime) clearSessionRuntime(id string) {
+	rt.mu.Lock()
+	cancel := rt.cancels[id]
+	delete(rt.cancels, id)
+	delete(rt.adapters, id)
+	rt.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
 
 // newSessionID generates a short random session identifier.

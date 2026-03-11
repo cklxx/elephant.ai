@@ -2,6 +2,7 @@ package adapter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"alex/internal/runtime/panel"
@@ -53,6 +54,9 @@ func (a *CodexAdapter) Start(ctx context.Context, opts StartOpts) error {
 			a.sink.OnHeartbeat(opts.SessionID)
 		})
 		if execErr != nil {
+			if errors.Is(execErr, context.Canceled) && ctx.Err() != nil {
+				return
+			}
 			_ = pane.Send(ctx, fmt.Sprintf("echo '[Codex] FAILED: %s'", execErr.Error()))
 			a.sink.OnFailed(opts.SessionID, execErr.Error())
 			return

@@ -186,36 +186,37 @@ func (c *AgentCoordinator) appendHistoryTurn(
 // asyncSaveSession saves session asynchronously with debounce.
 // Instead of spawning a goroutine per iteration (which creates O(N) goroutines
 // that serialize on sessionSaveMu), this stores the latest snapshot in an
-// atomic pointer. A single background goroutine drains the pointer every 2s.
+// atomic pointer. A single loop is started on demand and exits once idle.
 func (c *AgentCoordinator) asyncSaveSession(ctx context.Context, session *storage.Session) {
 	snapshot := cloneSessionForSave(session)
 	if snapshot == nil {
 		return
 	}
 	c.pendingSessionSave.Store(snapshot)
-	c.ensureSessionSaveLoop(ctx)
+	c.ensureSessionSaveLoop()
 }
 
-// ensureSessionSaveLoop starts the debounce goroutine exactly once.
-func (c *AgentCoordinator) ensureSessionSaveLoop(ctx context.Context) {
-	loopCtx := context.WithoutCancel(ctx)
-	c.sessionSaveOnce.Do(func() {
-		go c.sessionSaveLoop(loopCtx)
-	})
+// ensureSessionSaveLoop starts the debounce goroutine when there is pending work.
+func (c *AgentCoordinator) ensureSessionSaveLoop() {
+	if c.sessionSaveActive.CompareAndSwap(false, true) {
+		go c.sessionSaveLoop()
+	}
 }
 
-const sessionSaveDebounceInterval = 2 * time.Second
+var sessionSaveDebounceInterval = 2 * time.Second
 
-func (c *AgentCoordinator) sessionSaveLoop(ctx context.Context) {
-	ticker := time.NewTicker(sessionSaveDebounceInterval)
-	defer ticker.Stop()
+func (c *AgentCoordinator) sessionSaveLoop() {
 	for {
-		select {
-		case <-ticker.C:
-			c.flushPendingSessionSave(ctx)
-		case <-ctx.Done():
-			// Final flush on shutdown.
-			c.flushPendingSessionSave(context.Background())
+		timer := time.NewTimer(sessionSaveDebounceInterval)
+		<-timer.C
+		c.flushPendingSessionSave(context.Background())
+
+		if c.pendingSessionSave.Load() != nil {
+			continue
+		}
+
+		c.sessionSaveActive.Store(false)
+		if c.pendingSessionSave.Load() == nil || !c.sessionSaveActive.CompareAndSwap(false, true) {
 			return
 		}
 	}

@@ -110,6 +110,69 @@ func TestFlushPendingSessionSave_DrainsAndClearsPendingSnapshot(t *testing.T) {
 	}
 }
 
+type asyncSaveSessionStore struct {
+	saveCh chan string
+}
+
+func (s *asyncSaveSessionStore) Create(context.Context) (*storage.Session, error) { return nil, nil }
+func (s *asyncSaveSessionStore) Get(context.Context, string) (*storage.Session, error) {
+	return nil, storage.ErrSessionNotFound
+}
+func (s *asyncSaveSessionStore) Save(_ context.Context, session *storage.Session) error {
+	s.saveCh <- session.ID
+	return nil
+}
+func (s *asyncSaveSessionStore) List(context.Context, int, int) ([]string, error) { return nil, nil }
+func (s *asyncSaveSessionStore) Delete(context.Context, string) error             { return nil }
+
+func TestAsyncSaveSessionLoop_StopsWhenIdleAndRestarts(t *testing.T) {
+	originalInterval := sessionSaveDebounceInterval
+	sessionSaveDebounceInterval = 10 * time.Millisecond
+	defer func() { sessionSaveDebounceInterval = originalInterval }()
+
+	store := &asyncSaveSessionStore{saveCh: make(chan string, 2)}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+
+	coordinator.asyncSaveSession(context.Background(), &storage.Session{ID: "s1"})
+
+	select {
+	case got := <-store.saveCh:
+		if got != "s1" {
+			t.Fatalf("first async save id = %q, want s1", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first async save")
+	}
+
+	waitForAsyncSaveLoopToStop(t, coordinator)
+
+	coordinator.asyncSaveSession(context.Background(), &storage.Session{ID: "s2"})
+
+	select {
+	case got := <-store.saveCh:
+		if got != "s2" {
+			t.Fatalf("second async save id = %q, want s2", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for restarted async save")
+	}
+
+	waitForAsyncSaveLoopToStop(t, coordinator)
+}
+
+func waitForAsyncSaveLoopToStop(t *testing.T, coordinator *AgentCoordinator) {
+	t.Helper()
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if !coordinator.sessionSaveActive.Load() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("async session save loop did not stop")
+}
+
 // --- sanitizeAttachmentForPersistence ---
 
 func TestSanitizeAttachmentForPersistence_ClearsDataWhenURI(t *testing.T) {

@@ -64,7 +64,7 @@ type AgentCoordinator struct {
 
 	sessionSaveMu      sync.Mutex                      // Protects concurrent session saves
 	pendingSessionSave atomic.Pointer[storage.Session] // latest snapshot awaiting save
-	sessionSaveOnce    sync.Once                       // Ensures single save loop goroutine
+	sessionSaveActive  atomic.Bool                     // Tracks whether the async save loop is running
 }
 
 type preparationService interface {
