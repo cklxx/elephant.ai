@@ -8,8 +8,8 @@ import (
 	domain "alex/internal/domain/calendar"
 )
 
-// Compile-time check that LarkCalendarProvider implements CalendarPort.
-var _ domain.CalendarPort = (*LarkCalendarProvider)(nil)
+// Compile-time check that larkCalendarProvider implements CalendarPort.
+var _ domain.CalendarPort = (*larkCalendarProvider)(nil)
 
 func TestLarkCalendarProvider_MissingCredentials(t *testing.T) {
 	provider := NewLarkCalendarProvider(LarkCalendarConfig{}, nil)

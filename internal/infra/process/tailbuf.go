@@ -2,27 +2,25 @@ package process
 
 import "sync"
 
-// DefaultStderrTail is the default tail buffer size (8 KB).
-const DefaultStderrTail = 8 * 1024
+const defaultStderrTail = 8 * 1024
 
-// TailBuffer is a thread-safe circular buffer that retains the last N bytes
+// tailBuffer is a thread-safe circular buffer that retains the last N bytes
 // written to it. It implements io.Writer.
-type TailBuffer struct {
+type tailBuffer struct {
 	mu  sync.Mutex
 	max int
 	buf []byte
 }
 
-// NewTailBuffer creates a TailBuffer capped at max bytes.
-// If max <= 0, DefaultStderrTail is used.
-func NewTailBuffer(max int) *TailBuffer {
+// newTailBuffer creates a tailBuffer capped at max bytes.
+func newTailBuffer(max int) *tailBuffer {
 	if max <= 0 {
-		max = DefaultStderrTail
+		max = defaultStderrTail
 	}
-	return &TailBuffer{max: max}
+	return &tailBuffer{max: max}
 }
 
-func (t *TailBuffer) Write(p []byte) (int, error) {
+func (t *tailBuffer) Write(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -43,7 +41,7 @@ func (t *TailBuffer) Write(p []byte) (int, error) {
 }
 
 // String returns a copy of the buffered content.
-func (t *TailBuffer) String() string {
+func (t *tailBuffer) String() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if len(t.buf) == 0 {

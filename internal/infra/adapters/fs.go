@@ -9,18 +9,18 @@ import (
 	"alex/internal/domain/agent/taskfile"
 )
 
-// FileEventAppender implements agent.EventAppender using OS file operations.
-type FileEventAppender struct{}
+// fileEventAppender implements agent.EventAppender using OS file operations.
+type fileEventAppender struct{}
 
-var _ agent.EventAppender = (*FileEventAppender)(nil)
+var _ agent.EventAppender = (*fileEventAppender)(nil)
 
-// NewFileEventAppender creates a new FileEventAppender.
-func NewFileEventAppender() *FileEventAppender {
-	return &FileEventAppender{}
+// NewFileEventAppender creates a new file-backed event appender.
+func NewFileEventAppender() *fileEventAppender {
+	return &fileEventAppender{}
 }
 
 // AppendLine appends a line to the given file path, creating directories as needed.
-func (a *FileEventAppender) AppendLine(path string, line string) {
+func (a *fileEventAppender) AppendLine(path string, line string) {
 	trimmedPath := strings.TrimSpace(path)
 	if trimmedPath == "" {
 		return
@@ -36,18 +36,18 @@ func (a *FileEventAppender) AppendLine(path string, line string) {
 	_, _ = f.WriteString(strings.TrimSpace(line) + "\n")
 }
 
-// OSAtomicWriter implements agent.AtomicFileWriter using OS file operations.
-type OSAtomicWriter struct{}
+// osAtomicWriter implements agent.AtomicFileWriter using OS file operations.
+type osAtomicWriter struct{}
 
-var _ agent.AtomicFileWriter = (*OSAtomicWriter)(nil)
+var _ agent.AtomicFileWriter = (*osAtomicWriter)(nil)
 
-// NewOSAtomicWriter creates a new OSAtomicWriter.
-func NewOSAtomicWriter() *OSAtomicWriter {
-	return &OSAtomicWriter{}
+// NewOSAtomicWriter creates a new atomic file writer backed by the OS filesystem.
+func NewOSAtomicWriter() *osAtomicWriter {
+	return &osAtomicWriter{}
 }
 
 // WriteFileAtomically writes data to a temporary file and renames it to the target path.
-func (w *OSAtomicWriter) WriteFileAtomically(path string, data []byte, perm os.FileMode) error {
+func (w *osAtomicWriter) WriteFileAtomically(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -78,19 +78,19 @@ func (w *OSAtomicWriter) WriteFileAtomically(path string, data []byte, perm os.F
 	return os.Rename(tmpPath, path)
 }
 
-// OSStatusFileIO implements taskfile.StatusFileIO using OS file operations.
-type OSStatusFileIO struct{}
+// osStatusFileIO implements taskfile.StatusFileIO using OS file operations.
+type osStatusFileIO struct{}
 
-var _ taskfile.StatusFileIO = (*OSStatusFileIO)(nil)
+var _ taskfile.StatusFileIO = (*osStatusFileIO)(nil)
 
-// NewOSStatusFileIO creates a new OSStatusFileIO.
-func NewOSStatusFileIO() *OSStatusFileIO { return &OSStatusFileIO{} }
+// NewOSStatusFileIO creates a new status file IO implementation backed by the OS filesystem.
+func NewOSStatusFileIO() *osStatusFileIO { return &osStatusFileIO{} }
 
-func (o *OSStatusFileIO) ReadFile(path string) ([]byte, error) {
+func (o *osStatusFileIO) ReadFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-func (o *OSStatusFileIO) WriteFileAtomic(path string, data []byte) error {
+func (o *osStatusFileIO) WriteFileAtomic(path string, data []byte) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err

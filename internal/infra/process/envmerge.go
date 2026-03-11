@@ -6,13 +6,13 @@ import (
 	"strings"
 )
 
-// MergeEnv merges overrides into the current process environment.
+// mergeEnv merges overrides into the current process environment.
 //
 // Semantics:
 //   - A key mapped to "" removes (unsets) that variable from the inherited env.
 //   - A key mapped to a non-empty value overrides any inherited value.
 //   - Inherited variables not mentioned in overrides pass through unchanged.
-func MergeEnv(overrides map[string]string) []string {
+func mergeEnv(overrides map[string]string) []string {
 	inherited := os.Environ()
 	env := make([]string, 0, len(inherited)+len(overrides))
 	for _, entry := range inherited {

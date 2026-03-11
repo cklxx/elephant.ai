@@ -12,7 +12,7 @@ func TestMergeEnv_Override(t *testing.T) {
 	os.Setenv(key, "old")
 	defer os.Unsetenv(key)
 
-	env := MergeEnv(map[string]string{key: "new"})
+	env := mergeEnv(map[string]string{key: "new"})
 
 	found := false
 	for _, e := range env {
@@ -33,7 +33,7 @@ func TestMergeEnv_Unset(t *testing.T) {
 	os.Setenv(key, "value")
 	defer os.Unsetenv(key)
 
-	env := MergeEnv(map[string]string{key: ""})
+	env := mergeEnv(map[string]string{key: ""})
 
 	for _, e := range env {
 		if strings.HasPrefix(e, key+"=") {
@@ -46,7 +46,7 @@ func TestMergeEnv_Add(t *testing.T) {
 	const key = "PROCESS_TEST_MERGE_ADD_UNIQUE"
 	os.Unsetenv(key) // ensure not inherited
 
-	env := MergeEnv(map[string]string{key: "added"})
+	env := mergeEnv(map[string]string{key: "added"})
 
 	found := false
 	for _, e := range env {
@@ -60,7 +60,7 @@ func TestMergeEnv_Add(t *testing.T) {
 }
 
 func TestMergeEnv_Nil(t *testing.T) {
-	env := MergeEnv(nil)
+	env := mergeEnv(nil)
 	if len(env) == 0 {
 		t.Fatal("expected inherited env, got empty")
 	}

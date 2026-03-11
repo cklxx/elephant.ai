@@ -7,14 +7,14 @@ import (
 )
 
 func TestTailBuffer_Empty(t *testing.T) {
-	tb := NewTailBuffer(64)
+	tb := newTailBuffer(64)
 	if s := tb.String(); s != "" {
 		t.Fatalf("expected empty, got %q", s)
 	}
 }
 
 func TestTailBuffer_SmallWrite(t *testing.T) {
-	tb := NewTailBuffer(64)
+	tb := newTailBuffer(64)
 	_, _ = tb.Write([]byte("hello"))
 	if s := tb.String(); s != "hello" {
 		t.Fatalf("got %q", s)
@@ -22,7 +22,7 @@ func TestTailBuffer_SmallWrite(t *testing.T) {
 }
 
 func TestTailBuffer_ExactMax(t *testing.T) {
-	tb := NewTailBuffer(5)
+	tb := newTailBuffer(5)
 	_, _ = tb.Write([]byte("abcde"))
 	if s := tb.String(); s != "abcde" {
 		t.Fatalf("got %q", s)
@@ -30,7 +30,7 @@ func TestTailBuffer_ExactMax(t *testing.T) {
 }
 
 func TestTailBuffer_OverflowSingleWrite(t *testing.T) {
-	tb := NewTailBuffer(5)
+	tb := newTailBuffer(5)
 	_, _ = tb.Write([]byte("abcdefgh"))
 	if s := tb.String(); s != "defgh" {
 		t.Fatalf("got %q, want %q", s, "defgh")
@@ -38,7 +38,7 @@ func TestTailBuffer_OverflowSingleWrite(t *testing.T) {
 }
 
 func TestTailBuffer_OverflowMultipleWrites(t *testing.T) {
-	tb := NewTailBuffer(8)
+	tb := newTailBuffer(8)
 	_, _ = tb.Write([]byte("aaaa"))
 	_, _ = tb.Write([]byte("bbbb"))
 	_, _ = tb.Write([]byte("cc"))
@@ -53,7 +53,7 @@ func TestTailBuffer_OverflowMultipleWrites(t *testing.T) {
 }
 
 func TestTailBuffer_ZeroWrite(t *testing.T) {
-	tb := NewTailBuffer(64)
+	tb := newTailBuffer(64)
 	n, err := tb.Write(nil)
 	if n != 0 || err != nil {
 		t.Fatalf("n=%d err=%v", n, err)
@@ -64,14 +64,14 @@ func TestTailBuffer_ZeroWrite(t *testing.T) {
 }
 
 func TestTailBuffer_DefaultSize(t *testing.T) {
-	tb := NewTailBuffer(0)
-	if tb.max != DefaultStderrTail {
-		t.Fatalf("expected default %d, got %d", DefaultStderrTail, tb.max)
+	tb := newTailBuffer(0)
+	if tb.max != defaultStderrTail {
+		t.Fatalf("expected default %d, got %d", defaultStderrTail, tb.max)
 	}
 }
 
 func TestTailBuffer_Concurrent(t *testing.T) {
-	tb := NewTailBuffer(1024)
+	tb := newTailBuffer(1024)
 	var wg sync.WaitGroup
 	for i := range 10 {
 		wg.Add(1)

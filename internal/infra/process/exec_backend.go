@@ -19,7 +19,7 @@ type execHandle struct {
 	stdin      io.WriteCloser
 	stdout     io.ReadCloser
 	stderr     io.ReadCloser
-	stderrTail *TailBuffer
+	stderrTail *tailBuffer
 	done       chan struct{}
 	err        error
 	pgid       int
@@ -44,7 +44,7 @@ func (b *ExecBackend) startAttached(ctx context.Context, cfg ProcessConfig) (Pip
 		cmd.Dir = cfg.WorkingDir
 	}
 	if len(cfg.Env) > 0 {
-		cmd.Env = MergeEnv(cfg.Env)
+		cmd.Env = mergeEnv(cfg.Env)
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -84,7 +84,7 @@ func (b *ExecBackend) startAttached(ctx context.Context, cfg ProcessConfig) (Pip
 		stdin:      stdin,
 		stdout:     stdoutR,
 		stderr:     stderrR,
-		stderrTail: NewTailBuffer(DefaultStderrTail),
+		stderrTail: newTailBuffer(defaultStderrTail),
 		done:       make(chan struct{}),
 	}
 
@@ -107,7 +107,7 @@ func (b *ExecBackend) startDetached(ctx context.Context, cfg ProcessConfig) (Pip
 		cmd.Dir = cfg.WorkingDir
 	}
 	if len(cfg.Env) > 0 {
-		cmd.Env = MergeEnv(cfg.Env)
+		cmd.Env = mergeEnv(cfg.Env)
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
@@ -141,7 +141,7 @@ func (b *ExecBackend) startDetached(ctx context.Context, cfg ProcessConfig) (Pip
 		stdin:      stdin,
 		stdout:     nil, // output goes to file
 		stderr:     stderrPipe,
-		stderrTail: NewTailBuffer(DefaultStderrTail),
+		stderrTail: newTailBuffer(defaultStderrTail),
 		done:       make(chan struct{}),
 		outFile:    outFile,
 	}

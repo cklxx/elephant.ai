@@ -9,7 +9,7 @@ type ProcessConfig struct {
 
 	Command    string
 	Args       []string
-	Env        map[string]string // merged via MergeEnv
+	Env        map[string]string // merged with inherited environment before spawn
 	WorkingDir string
 	Timeout    time.Duration // 0 = no timeout
 

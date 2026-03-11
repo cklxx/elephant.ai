@@ -10,10 +10,10 @@ import (
 	"alex/internal/shared/logging"
 )
 
-// LarkCalendarProvider implements CalendarPort using the Lark Calendar API.
+// larkCalendarProvider implements CalendarPort using the Lark Calendar API.
 // This is a stub implementation — the actual Lark API integration will be
 // added when API credentials and SDK bindings are available.
-type LarkCalendarProvider struct {
+type larkCalendarProvider struct {
 	appID      string
 	appSecret  string
 	baseDomain string
@@ -28,8 +28,8 @@ type LarkCalendarConfig struct {
 }
 
 // NewLarkCalendarProvider creates a new Lark calendar provider.
-func NewLarkCalendarProvider(cfg LarkCalendarConfig, logger logging.Logger) *LarkCalendarProvider {
-	return &LarkCalendarProvider{
+func NewLarkCalendarProvider(cfg LarkCalendarConfig, logger logging.Logger) *larkCalendarProvider {
+	return &larkCalendarProvider{
 		appID:      cfg.AppID,
 		appSecret:  cfg.AppSecret,
 		baseDomain: cfg.BaseDomain,
@@ -39,7 +39,7 @@ func NewLarkCalendarProvider(cfg LarkCalendarConfig, logger logging.Logger) *Lar
 
 // ListUpcoming1on1s queries the Lark Calendar API for 1:1 meetings within
 // the given window for the specified member.
-func (p *LarkCalendarProvider) ListUpcoming1on1s(ctx context.Context, memberID string, window time.Duration) ([]domain.Meeting, error) {
+func (p *larkCalendarProvider) ListUpcoming1on1s(ctx context.Context, memberID string, window time.Duration) ([]domain.Meeting, error) {
 	if p.appID == "" || p.appSecret == "" {
 		return nil, fmt.Errorf("lark calendar: missing app credentials")
 	}
