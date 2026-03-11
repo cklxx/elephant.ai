@@ -11,6 +11,33 @@ func IsBlank(s string) bool { return strings.TrimSpace(s) == "" }
 // HasContent returns true when s contains at least one non-whitespace character.
 func HasContent(s string) bool { return strings.TrimSpace(s) != "" }
 
+// Truncate returns the first maxRunes runes of the trimmed input. No suffix is added.
+func Truncate(s string, maxRunes int) string {
+	s = strings.TrimSpace(s)
+	if maxRunes <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes])
+}
+
+// TruncateWithEllipsis returns the first maxRunes runes of the trimmed input,
+// appending "..." when truncation occurs.
+func TruncateWithEllipsis(s string, maxRunes int) string {
+	s = strings.TrimSpace(s)
+	if maxRunes <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes]) + "..."
+}
+
 // CountLines returns the number of lines in content. Returns 0 for empty strings.
 func CountLines(content string) int {
 	if content == "" {

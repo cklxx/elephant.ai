@@ -9,7 +9,7 @@ import (
 	"alex/internal/domain/agent/react"
 )
 
-func TestBackgroundTaskRegistryCleanupReclaimsIdleTerminalManagers(t *testing.T) {
+func TestBackgroundTaskRegistryCleanupReclaimsTerminalManagers(t *testing.T) {
 	now := time.Date(2026, 3, 3, 10, 0, 0, 0, time.UTC)
 	registry := newBackgroundTaskRegistry()
 	registry.cleanupInterval = time.Minute
@@ -27,15 +27,59 @@ func TestBackgroundTaskRegistryCleanupReclaimsIdleTerminalManagers(t *testing.T)
 		})
 	})
 
-	now = now.Add(3 * time.Minute)
+	// Terminal managers are immediately reclaimed on the next cleanup sweep,
+	// regardless of idle TTL.
+	now = now.Add(cleanupIntervalForTest(registry))
 	_ = registry.Get("session-b", nil) // trigger cleanup
 
 	if _, ok := registry.managers["session-a"]; ok {
-		t.Fatalf("expected idle terminal manager to be reclaimed")
+		t.Fatalf("expected terminal manager to be reclaimed immediately")
 	}
 	if shutdownCalls != 1 {
 		t.Fatalf("expected shutdown called once, got %d", shutdownCalls)
 	}
+}
+
+func TestBackgroundTaskRegistryRemoveExplicit(t *testing.T) {
+	registry := newBackgroundTaskRegistry()
+
+	shutdownCalls := 0
+	registry.shutdownFn = func(_ *react.BackgroundTaskManager) {
+		shutdownCalls++
+	}
+
+	unblock := make(chan struct{})
+	mgr := newTestBackgroundManager(
+		"session-x",
+		func(ctx context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-unblock:
+				return &agent.TaskResult{Answer: "done"}, nil
+			}
+		},
+	)
+	t.Cleanup(func() {
+		close(unblock)
+		mgr.Shutdown()
+	})
+
+	registry.Get("session-x", func() *react.BackgroundTaskManager { return mgr })
+	if _, ok := registry.managers["session-x"]; !ok {
+		t.Fatalf("expected session-x to be registered")
+	}
+
+	registry.Remove("session-x")
+	if _, ok := registry.managers["session-x"]; ok {
+		t.Fatalf("expected session-x to be removed after explicit Remove")
+	}
+	if shutdownCalls != 1 {
+		t.Fatalf("expected shutdown called once, got %d", shutdownCalls)
+	}
+
+	// Remove of unknown session is a no-op.
+	registry.Remove("session-unknown")
 }
 
 func TestBackgroundTaskRegistryCleanupKeepsNonTerminalManagers(t *testing.T) {
@@ -172,6 +216,13 @@ func TestManagerTasksTerminal(t *testing.T) {
 	if !managerTasksTerminal(mgr) {
 		t.Fatalf("expected manager with completed tasks to be terminal")
 	}
+}
+
+func cleanupIntervalForTest(r *backgroundTaskRegistry) time.Duration {
+	if r.cleanupInterval > 0 {
+		return r.cleanupInterval + time.Second
+	}
+	return time.Minute
 }
 
 func newTestBackgroundManager(

@@ -117,6 +117,22 @@ func (r *backgroundTaskRegistry) CancelTask(ctx context.Context, taskID string) 
 	return fmt.Errorf("task %q not found in any session", taskID)
 }
 
+// Remove explicitly removes and shuts down the manager for sessionID.
+func (r *backgroundTaskRegistry) Remove(sessionID string) {
+	if r == nil || sessionID == "" {
+		return
+	}
+	r.mu.Lock()
+	entry, ok := r.managers[sessionID]
+	if ok {
+		delete(r.managers, sessionID)
+	}
+	r.mu.Unlock()
+	if ok && entry.manager != nil {
+		r.shutdown(entry.manager)
+	}
+}
+
 func (r *backgroundTaskRegistry) cleanupLocked(now time.Time) {
 	if r.cleanupInterval > 0 && !r.lastCleanup.IsZero() && now.Sub(r.lastCleanup) < r.cleanupInterval {
 		return
@@ -135,14 +151,15 @@ func (r *backgroundTaskRegistry) cleanupLocked(now time.Time) {
 			delete(r.managers, sessionID)
 			continue
 		}
-		if r.idleTTL > 0 && now.Sub(entry.lastAccess) < r.idleTTL {
+		// Immediately reclaim entries where all tasks have reached a terminal
+		// state (completed/failed/cancelled), regardless of idle TTL. This
+		// prevents unbounded growth when tasks finish but no further Get/Cancel
+		// calls arrive for the session.
+		if managerTasksTerminal(entry.manager) {
+			r.shutdown(entry.manager)
+			delete(r.managers, sessionID)
 			continue
 		}
-		if !managerTasksTerminal(entry.manager) {
-			continue
-		}
-		r.shutdown(entry.manager)
-		delete(r.managers, sessionID)
 	}
 }
 

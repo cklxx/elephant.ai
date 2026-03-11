@@ -11,6 +11,7 @@ import (
 
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 var capabilityChecks = []struct {
@@ -338,16 +339,5 @@ func summarizePATH(value string) string {
 }
 
 func truncateEnvironmentValue(value string, maxRunes int) string {
-	if maxRunes <= 0 {
-		return ""
-	}
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-	runes := []rune(value)
-	if len(runes) <= maxRunes {
-		return value
-	}
-	return string(runes[:maxRunes]) + "..."
+	return utils.TruncateWithEllipsis(value, maxRunes)
 }

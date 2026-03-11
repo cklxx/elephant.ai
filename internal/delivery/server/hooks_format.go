@@ -175,12 +175,7 @@ func extractString(m map[string]interface{}, keys ...string) string {
 
 // truncateHookText trims and truncates a string to max runes, adding ellipsis.
 func truncateHookText(s string, max int) string {
-	s = strings.TrimSpace(s)
-	runes := []rune(s)
-	if max <= 0 || len(runes) <= max {
-		return s
-	}
-	return string(runes[:max]) + "..."
+	return utils.TruncateWithEllipsis(s, max)
 }
 
 // compactHookText normalizes whitespace in a string.

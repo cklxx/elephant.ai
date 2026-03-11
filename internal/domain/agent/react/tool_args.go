@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 // formatToolArgumentsForLog renders tool arguments into a log-friendly JSON
@@ -108,11 +110,7 @@ func summarizeLongPlainString(value string) string {
 }
 
 func truncateWithEllipsis(value string, limit int) string {
-	preview := truncateStringForLog(value, limit)
-	if len(value) > len(preview) {
-		return preview + "..."
-	}
-	return preview
+	return utils.TruncateWithEllipsis(value, limit)
 }
 
 func looksLikeBinaryString(value string) bool {
@@ -134,17 +132,7 @@ func looksLikeBinaryString(value string) bool {
 }
 
 func truncateStringForLog(value string, limit int) string {
-	if limit <= 0 {
-		return ""
-	}
-	runeCount := 0
-	for idx := range value {
-		if runeCount == limit {
-			return value[:idx]
-		}
-		runeCount++
-	}
-	return value
+	return utils.Truncate(value, limit)
 }
 
 func compactToolCallArguments(call ToolCall, result ToolResult) (map[string]any, bool) {

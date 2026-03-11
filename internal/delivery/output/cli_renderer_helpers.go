@@ -1,11 +1,11 @@
 package output
 
 import (
-	"alex/internal/shared/utils"
 	"fmt"
 	"strings"
 	"time"
-	"unicode/utf8"
+
+	"alex/internal/shared/utils"
 )
 
 const nonVerbosePreviewLimit = 80
@@ -23,21 +23,14 @@ func truncateInlinePreview(preview string, limit int) string {
 	if limit <= 0 {
 		return preview
 	}
-
-	if utf8.RuneCountInString(preview) <= limit {
-		return preview
-	}
-
 	runes := []rune(preview)
 	if len(runes) <= limit {
 		return preview
 	}
-
-	if limit == 1 {
-		return string(runes[0])
+	if limit <= 1 {
+		return utils.Truncate(preview, limit)
 	}
-
-	return string(runes[:limit-1]) + "…"
+	return utils.Truncate(preview, limit-1) + "…"
 }
 
 func nextSpinnerFrame() string {
@@ -108,18 +101,14 @@ func truncateWithEllipsis(preview string, limit int) string {
 	if limit <= 0 {
 		return preview
 	}
-
 	runes := []rune(preview)
 	if len(runes) <= limit {
 		return preview
 	}
-
-	ellipsis := "..."
-	if limit <= len(ellipsis) {
-		return string(runes[:limit])
+	if limit <= 3 {
+		return utils.Truncate(preview, limit)
 	}
-
-	return string(runes[:limit-len(ellipsis)]) + ellipsis
+	return utils.Truncate(preview, limit-3) + "..."
 }
 
 func formatBytes(bytes int64) string {
