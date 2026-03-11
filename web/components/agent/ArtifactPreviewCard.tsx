@@ -226,6 +226,9 @@ export const ArtifactPreviewCard = memo(function ArtifactPreviewCard({
     async function fetchMd() {
       try {
         const res = await fetch(markdownUri);
+        if (!res.ok) {
+          throw new Error(`Failed to load markdown (${res.status})`);
+        }
         const text = await res.text();
         if (!cancelled) setMarkdownPreview(text);
       } catch (e) {

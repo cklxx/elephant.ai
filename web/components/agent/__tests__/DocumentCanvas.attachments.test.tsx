@@ -39,4 +39,23 @@ describe('DocumentCanvas attachments', () => {
       'grid-cols-[repeat(auto-fit,minmax(220px,1fr))]',
     );
   });
+
+  it('does not render unsafe javascript links from markdown', () => {
+    render(
+      <LanguageProvider>
+        <DocumentCanvas
+          document={{
+            id: 'doc-unsafe-link',
+            title: 'Unsafe link',
+            content: '[open](javascript:alert(1))',
+            type: 'markdown',
+          }}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.queryByRole('link', { name: /open/i })).toBeNull();
+    expect(screen.getByText(/open/i)).toHaveTextContent('open');
+    expect(screen.getByText(/open/i)).toHaveTextContent('[blocked]');
+  });
 });

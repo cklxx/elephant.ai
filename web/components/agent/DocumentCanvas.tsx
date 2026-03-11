@@ -26,6 +26,7 @@ import { AttachmentPayload } from "@/lib/types";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
+import { sanitizeLinkHref } from "@/lib/safe-url";
 
 export type ViewMode = "default" | "reading" | "compare";
 
@@ -345,10 +346,14 @@ function DocumentRenderer({
     children?: ReactNode;
   }) => {
     const resolvedHref = href?.trim() ?? "";
-    if (!resolvedHref) {
+    const matchedAttachment = attachmentLinkMap.get(resolvedHref);
+    const safeHref =
+      matchedAttachment || !resolvedHref
+        ? resolvedHref || null
+        : sanitizeLinkHref(resolvedHref);
+    if (!resolvedHref || (!matchedAttachment && !safeHref)) {
       return <span {...props}>{children}</span>;
     }
-    const matchedAttachment = attachmentLinkMap.get(resolvedHref);
     if (
       matchedAttachment &&
       (matchedAttachment.type === "document" ||
@@ -370,7 +375,7 @@ function DocumentRenderer({
         matchedAttachment.key;
       return (
         <ImagePreview
-          src={resolvedHref}
+          src={safeHref}
           alt={altText}
           className="my-2"
           minHeight="8rem"
@@ -382,7 +387,7 @@ function DocumentRenderer({
     if (matchedAttachment?.type === "video") {
       return (
         <VideoPreview
-          src={resolvedHref}
+          src={safeHref}
           mimeType={matchedAttachment.mime || "video/mp4"}
           description={
             matchedAttachment.description ||
@@ -397,7 +402,7 @@ function DocumentRenderer({
     return (
       <a
         className="break-words whitespace-normal"
-        href={resolvedHref}
+        href={safeHref}
         {...props}
       >
         {children}

@@ -2,8 +2,6 @@ import { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-type ResponsiveLayout = "auto" | "two" | "three" | "split";
-
 export function PageShell({
   children,
   className,
@@ -45,27 +43,6 @@ export function SectionBlock({
   className?: string;
 }) {
   return <section className={cn("flex flex-col gap-4", className)}>{children}</section>;
-}
-
-export function ResponsiveGrid({
-  children,
-  variant = "auto",
-  className,
-}: {
-  children: ReactNode;
-  variant?: ResponsiveLayout;
-  className?: string;
-}) {
-  const presets: Record<ResponsiveLayout, string> = {
-    auto: "",
-    two: "sm:grid-cols-2",
-    three: "lg:grid-cols-3",
-    split: "lg:grid-cols-[2fr,1fr]",
-  };
-
-  return (
-    <div className={cn("grid gap-4", presets[variant], className)}>{children}</div>
-  );
 }
 
 export function SectionHeader({

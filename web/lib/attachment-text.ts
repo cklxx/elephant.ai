@@ -26,6 +26,9 @@ export async function loadAttachmentText(
   }
 
   const response = await fetch(uri, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to load attachment text (${response.status})`);
+  }
   return await response.text();
 }
 

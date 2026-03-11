@@ -4,6 +4,7 @@ import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "@/components/agent/ArtifactPreviewCard";
 import { buildAttachmentUri, type ContentSegment } from "@/lib/attachments";
+import { sanitizeLinkHref } from "@/lib/safe-url";
 import type { AttachmentPayload } from "@/lib/types";
 
 export interface InlineAttachmentEntry {
@@ -89,10 +90,14 @@ export function createInlineMarkdownLink(
     children?: ReactNode;
   }) {
     const resolvedHref = href?.trim() ?? "";
-    if (!resolvedHref) {
+    const matchedAttachment = inlineAttachmentMap.get(resolvedHref);
+    const safeHref =
+      matchedAttachment || !resolvedHref
+        ? resolvedHref || null
+        : sanitizeLinkHref(resolvedHref);
+    if (!resolvedHref || (!matchedAttachment && !safeHref)) {
       return <span {...props}>{children}</span>;
     }
-    const matchedAttachment = inlineAttachmentMap.get(resolvedHref);
     if (
       matchedAttachment &&
       (matchedAttachment.type === "document" ||
@@ -109,12 +114,12 @@ export function createInlineMarkdownLink(
         matchedAttachment.description ||
         (typeof children === "string" ? children : undefined) ||
         matchedAttachment.key;
-      return <InlineMarkdownImage src={resolvedHref} alt={altText} />;
+      return <InlineMarkdownImage src={safeHref} alt={altText} />;
     }
     if (matchedAttachment?.type === "video") {
       return (
         <VideoPreview
-          src={resolvedHref}
+          src={safeHref}
           mimeType={matchedAttachment.mime || "video/mp4"}
           description={
             matchedAttachment.description ||
@@ -127,7 +132,7 @@ export function createInlineMarkdownLink(
       );
     }
     return (
-      <a className="break-words whitespace-normal" href={resolvedHref} {...props}>
+      <a className="break-words whitespace-normal" href={safeHref} {...props}>
         {children}
       </a>
     );

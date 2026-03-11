@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { ChartLayout, ChartSpec } from "@/lib/json-render-chart";
 import { buildChartLayout } from "@/lib/json-render-chart";
+import { sanitizeLinkHref, sanitizeMediaUrl } from "@/lib/safe-url";
 import { cn } from "@/lib/utils";
 import { JsonRenderElement, JsonRenderTree } from "@/lib/json-render-model";
 
@@ -155,7 +156,7 @@ function renderElement(
       return <hr key={key} className="my-2 border-border" />;
     }
     case "image": {
-      const url = String(props.url ?? props.src ?? "");
+      const url = sanitizeMediaUrl(String(props.url ?? props.src ?? ""));
       return url ? (
         <Image
           key={key}
@@ -287,26 +288,35 @@ function renderElement(
       const items = Array.isArray(props.items) ? props.items : [];
       return (
         <div key={key} className="flex flex-wrap gap-3">
-          {items.map((item: any, index: number) => (
-            <div
-              key={`${key}-gallery-${index}`}
-              className="w-full max-w-[220px] space-y-2"
-            >
-              <div className="overflow-hidden rounded-lg border border-border/60">
-                <Image
-                  src={String(item.url ?? "")}
-                  alt=""
-                  width={220}
-                  height={140}
-                  unoptimized
-                  className="h-[140px] w-full object-cover"
-                />
+          {items.map((item: any, index: number) => {
+            const imageUrl = sanitizeMediaUrl(String(item.url ?? ""));
+            return (
+              <div
+                key={`${key}-gallery-${index}`}
+                className="w-full max-w-[220px] space-y-2"
+              >
+                <div className="overflow-hidden rounded-lg border border-border/60">
+                  {imageUrl ? (
+                    <Image
+                      src={imageUrl}
+                      alt=""
+                      width={220}
+                      height={140}
+                      unoptimized
+                      className="h-[140px] w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-[140px] items-center justify-center bg-muted/30 px-3 text-center text-xs text-muted-foreground">
+                      Image unavailable.
+                    </div>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {String(item.caption ?? "")}
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                {String(item.caption ?? "")}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       );
     }
@@ -446,9 +456,17 @@ function renderElement(
       );
     }
     case "link": {
-      const href = String(props.href ?? props.url ?? "");
-      const text = String(props.text ?? props.label ?? href);
+      const rawHref = String(props.href ?? props.url ?? "");
+      const href = sanitizeLinkHref(rawHref);
+      const text = String(props.text ?? props.label ?? rawHref);
       const target = String(props.target ?? "_blank");
+      if (!href) {
+        return (
+          <span key={key} className="text-sm text-muted-foreground">
+            {text}
+          </span>
+        );
+      }
       return (
         <a
           key={key}

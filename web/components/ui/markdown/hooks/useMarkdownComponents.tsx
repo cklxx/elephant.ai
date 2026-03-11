@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { VideoPreview } from "@/components/ui/video-preview";
+import { sanitizeLinkHref } from "@/lib/safe-url";
 import { cn } from "@/lib/utils";
 import { isTaskListClass, splitTaskListChildren } from "../utils/taskList";
 
@@ -110,14 +111,19 @@ export function useMarkdownComponents({
       ),
       hr: (props: HtmlDivProps) => <hr className={cn("my-6", props.className)} {...props} />,
       a: ({ className: linkClassName, href, children, ...props }: HtmlAnchorProps) => {
-        const matchedAttachment = href
-          ? inlineAttachmentMap.get(href)
+        const resolvedHref = typeof href === "string" ? href.trim() : "";
+        const matchedAttachment = resolvedHref
+          ? inlineAttachmentMap.get(resolvedHref)
           : undefined;
+        const safeHref =
+          matchedAttachment || !resolvedHref
+            ? resolvedHref || null
+            : sanitizeLinkHref(resolvedHref);
 
         if (matchedAttachment?.type === "video") {
           return (
             <VideoPreview
-              src={href!}
+              src={resolvedHref}
               mimeType={matchedAttachment.mime || "video/mp4"}
               description={
                 matchedAttachment.description ||
@@ -130,10 +136,14 @@ export function useMarkdownComponents({
           );
         }
 
+        if (!safeHref) {
+          return <span className={cn("break-words whitespace-normal", linkClassName)}>{children}</span>;
+        }
+
         return (
           <a
             className={cn("break-words whitespace-normal", linkClassName)}
-            href={href}
+            href={safeHref}
             {...props}
           >
             {children}

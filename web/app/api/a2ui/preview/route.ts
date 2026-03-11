@@ -104,7 +104,12 @@ async function loadPayloadFromUri(
     return null;
   }
 
-  const response = await fetch(target.toString(), { cache: "no-store" });
+  let response: Response;
+  try {
+    response = await fetch(target.toString(), { cache: "no-store" });
+  } catch {
+    return null;
+  }
   if (!response.ok) {
     return null;
   }
