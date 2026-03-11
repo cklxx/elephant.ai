@@ -20,12 +20,12 @@ const (
 	cacheTTL = 24 * time.Hour
 )
 
-// Registry caches model metadata fetched from models.dev.
+// registry caches model metadata fetched from models.dev.
 // The first call to Lookup or ProviderModels triggers a non-blocking background
 // fetch; callers receive (ModelInfo{}, false) until the fetch completes, and
 // then fall through to their hardcoded fallbacks. This avoids any test or
 // startup latency caused by the HTTP round-trip.
-type Registry struct {
+type registry struct {
 	mu         sync.RWMutex
 	data       map[string]ModelInfo // keyed by "provider/modelID" and bare "modelID"
 	byProvider map[string][]string  // provider -> model IDs
@@ -34,27 +34,26 @@ type Registry struct {
 	client     *http.Client // nil = use built-in default
 }
 
-// Default is the package-level singleton registry.
-var Default = &Registry{}
+var defaultRegistry = &registry{}
 
 // Lookup looks up a model in the default registry.
 func Lookup(modelID string) (ModelInfo, bool) {
-	return Default.Lookup(modelID)
+	return defaultRegistry.Lookup(modelID)
 }
 
 // ProviderModels returns all known model IDs for provider from the default registry.
 func ProviderModels(provider string) []string {
-	return Default.ProviderModels(provider)
+	return defaultRegistry.ProviderModels(provider)
 }
 
 // WaitUntilReady blocks until the default registry has data or timeout elapses.
 // Returns true if data is available. Useful for warm-up in catalog loading or tests.
 func WaitUntilReady(timeout time.Duration) bool {
-	return Default.WaitUntilReady(timeout)
+	return defaultRegistry.WaitUntilReady(timeout)
 }
 
 // WaitUntilReady blocks until the registry has data or timeout elapses.
-func (r *Registry) WaitUntilReady(timeout time.Duration) bool {
+func (r *registry) WaitUntilReady(timeout time.Duration) bool {
 	r.triggerLoad()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -76,7 +75,7 @@ func (r *Registry) WaitUntilReady(timeout time.Duration) bool {
 //
 // Returns (ModelInfo{}, false) while the background fetch is in flight or on
 // miss. Callers must have their own fallbacks.
-func (r *Registry) Lookup(modelID string) (ModelInfo, bool) {
+func (r *registry) Lookup(modelID string) (ModelInfo, bool) {
 	r.triggerLoad()
 
 	r.mu.RLock()
@@ -102,7 +101,7 @@ func (r *Registry) Lookup(modelID string) (ModelInfo, bool) {
 }
 
 // ProviderModels returns all model IDs known for a provider.
-func (r *Registry) ProviderModels(provider string) []string {
+func (r *registry) ProviderModels(provider string) []string {
 	r.triggerLoad()
 
 	r.mu.RLock()
@@ -120,7 +119,7 @@ func (r *Registry) ProviderModels(provider string) []string {
 
 // triggerLoad starts a background fetch if the cache is empty or stale and
 // no fetch is already in flight. It returns immediately without blocking.
-func (r *Registry) triggerLoad() {
+func (r *registry) triggerLoad() {
 	r.mu.RLock()
 	fresh := !r.fetchedAt.IsZero() && time.Since(r.fetchedAt) < cacheTTL
 	loading := r.loading
@@ -144,7 +143,7 @@ func (r *Registry) triggerLoad() {
 
 // fetchAndStore performs the HTTP fetch, parses the response, and stores the
 // result. It clears the loading flag on completion.
-func (r *Registry) fetchAndStore() {
+func (r *registry) fetchAndStore() {
 	defer func() {
 		r.mu.Lock()
 		r.loading = false

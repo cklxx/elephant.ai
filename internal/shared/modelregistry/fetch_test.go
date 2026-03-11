@@ -140,7 +140,7 @@ func TestFetchAndStore_PopulatesRegistryViaTestServer(t *testing.T) {
 	srv := newTestServer(t, fakeAPIResponse())
 	defer srv.Close()
 
-	reg := &Registry{
+	reg := &registry{
 		client: &http.Client{
 			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 				req.URL.Scheme = "http"
@@ -167,7 +167,7 @@ func TestFetchAndStore_ErrorStillAdvancesFetchedAt(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	reg := &Registry{
+	reg := &registry{
 		client: &http.Client{
 			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 				req.URL.Scheme = "http"
@@ -195,7 +195,7 @@ func TestTriggerLoad_SpawnsGoroutineWhenStale(t *testing.T) {
 	srv := newTestServer(t, fakeAPIResponse())
 	defer srv.Close()
 
-	reg := &Registry{
+	reg := &registry{
 		client: &http.Client{
 			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 				req.URL.Scheme = "http"
@@ -218,7 +218,7 @@ func TestTriggerLoad_SpawnsGoroutineWhenStale(t *testing.T) {
 
 func TestTriggerLoad_DoubleCheckPreventsSecondFetch(t *testing.T) {
 	// Simulate a race: fetchedAt becomes fresh between RLock and Lock.
-	reg := &Registry{
+	reg := &registry{
 		fetchedAt: time.Now(),
 		data:      map[string]ModelInfo{"m": {}},
 	}

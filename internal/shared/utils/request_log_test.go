@@ -120,7 +120,7 @@ type parsedEntry struct {
 
 func readRequestLogEntries(t *testing.T, path string) []parsedEntry {
 	t.Helper()
-	if !WaitForRequestLogQueueDrain(2 * time.Second) {
+	if !waitForRequestLogQueueDrain(2 * time.Second) {
 		t.Fatalf("timed out waiting for request log queue to drain")
 	}
 	data, err := os.ReadFile(path)

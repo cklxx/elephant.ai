@@ -278,9 +278,9 @@ func appendRequestLogEntry(path string, entry []byte) error {
 	return nil
 }
 
-// WaitForRequestLogQueueDrain waits for async request log writes to finish or timeout.
+// waitForRequestLogQueueDrain waits for async request log writes to finish or timeout.
 // Intended for tests that need to read log files after logging.
-func WaitForRequestLogQueueDrain(timeout time.Duration) bool {
+func waitForRequestLogQueueDrain(timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if requestLogPending.Load() == 0 {

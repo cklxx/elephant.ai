@@ -9,7 +9,7 @@ func TrimLower(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
 func IsBlank(s string) bool { return strings.TrimSpace(s) == "" }
 
 // HasContent returns true when s contains at least one non-whitespace character.
-func HasContent(s string) bool { return strings.TrimSpace(s) != "" }
+func HasContent(s string) bool { return !IsBlank(s) }
 
 // Truncate returns the first maxRunes runes of the trimmed input. No suffix is added.
 func Truncate(s string, maxRunes int) string {

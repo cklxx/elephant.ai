@@ -44,14 +44,14 @@ var knownOpenAIModels = []string{
 	"o3-mini",
 }
 
-// TestRegistryFetch_RealAPI verifies that a fresh Registry can fetch and parse
+// TestRegistryFetch_RealAPI verifies that a fresh registry can fetch and parse
 // real data from models.dev/api.json.
 func TestRegistryFetch_RealAPI(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping real network test in short mode")
 	}
 
-	reg := &Registry{client: &http.Client{Timeout: 15 * time.Second}}
+	reg := &registry{client: &http.Client{Timeout: 15 * time.Second}}
 
 	if !reg.WaitUntilReady(20 * time.Second) {
 		t.Fatal("models.dev did not respond within 20 s — check network connectivity")
@@ -75,7 +75,7 @@ func TestRegistryLookup_AnthropicModels(t *testing.T) {
 		t.Skip("skipping real network test in short mode")
 	}
 
-	reg := &Registry{client: &http.Client{Timeout: 15 * time.Second}}
+	reg := &registry{client: &http.Client{Timeout: 15 * time.Second}}
 	if !reg.WaitUntilReady(20 * time.Second) {
 		t.Fatal("models.dev did not respond within 20 s")
 	}
@@ -117,7 +117,7 @@ func TestRegistryLookup_OpenAIModels(t *testing.T) {
 		t.Skip("skipping real network test in short mode")
 	}
 
-	reg := &Registry{client: &http.Client{Timeout: 15 * time.Second}}
+	reg := &registry{client: &http.Client{Timeout: 15 * time.Second}}
 	if !reg.WaitUntilReady(20 * time.Second) {
 		t.Fatal("models.dev did not respond within 20 s")
 	}
@@ -153,7 +153,7 @@ func TestRegistryCompoundKey_E2E(t *testing.T) {
 		t.Skip("skipping real network test in short mode")
 	}
 
-	reg := &Registry{client: &http.Client{Timeout: 15 * time.Second}}
+	reg := &registry{client: &http.Client{Timeout: 15 * time.Second}}
 	if !reg.WaitUntilReady(20 * time.Second) {
 		t.Fatal("models.dev did not respond within 20 s")
 	}
@@ -191,7 +191,7 @@ func TestRegistryProviderModels_E2E(t *testing.T) {
 		t.Skip("skipping real network test in short mode")
 	}
 
-	reg := &Registry{client: &http.Client{Timeout: 15 * time.Second}}
+	reg := &registry{client: &http.Client{Timeout: 15 * time.Second}}
 	if !reg.WaitUntilReady(20 * time.Second) {
 		t.Fatal("models.dev did not respond within 20 s")
 	}
@@ -217,7 +217,7 @@ func TestRegistryContextWindowRanges_E2E(t *testing.T) {
 		t.Skip("skipping real network test in short mode")
 	}
 
-	reg := &Registry{client: &http.Client{Timeout: 15 * time.Second}}
+	reg := &registry{client: &http.Client{Timeout: 15 * time.Second}}
 	if !reg.WaitUntilReady(20 * time.Second) {
 		t.Fatal("models.dev did not respond within 20 s")
 	}

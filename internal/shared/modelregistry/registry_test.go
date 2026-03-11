@@ -54,8 +54,8 @@ func newTestServer(t *testing.T, payload any) *httptest.Server {
 	}))
 }
 
-// loadRegistryFromFakeData populates a Registry via the real fetchFromAPI path.
-func loadRegistryFromFakeData(t *testing.T) *Registry {
+// loadRegistryFromFakeData populates a registry via the real fetchFromAPI path.
+func loadRegistryFromFakeData(t *testing.T) *registry {
 	t.Helper()
 	srv := newTestServer(t, fakeAPIResponse())
 	t.Cleanup(srv.Close)
@@ -71,7 +71,7 @@ func loadRegistryFromFakeData(t *testing.T) *Registry {
 	data, byProvider, err := fetchFromAPI(context.Background(), client)
 	require.NoError(t, err)
 
-	return &Registry{
+	return &registry{
 		data:       data,
 		byProvider: byProvider,
 		fetchedAt:  time.Now(),
@@ -117,7 +117,7 @@ func TestLookupMissReturnsZero(t *testing.T) {
 }
 
 func TestLookupEmptyRegistry(t *testing.T) {
-	reg := &Registry{}
+	reg := &registry{}
 	// Prevent triggerLoad from starting a real fetch.
 	reg.fetchedAt = time.Now()
 	reg.data = nil
@@ -128,7 +128,7 @@ func TestLookupEmptyRegistry(t *testing.T) {
 }
 
 func TestLookupWithEmptyData(t *testing.T) {
-	reg := &Registry{
+	reg := &registry{
 		data:      make(map[string]ModelInfo),
 		fetchedAt: time.Now(),
 	}
@@ -241,7 +241,7 @@ func TestWaitUntilReadyAlreadyLoaded(t *testing.T) {
 }
 
 func TestWaitUntilReadyTimeout(t *testing.T) {
-	reg := &Registry{
+	reg := &registry{
 		fetchedAt: time.Now(), // prevent triggerLoad from fetching
 		data:      nil,        // but no data
 	}
@@ -295,7 +295,7 @@ func TestBareKeyPrefersNonZeroPricing(t *testing.T) {
 // --- triggerLoad tests ---
 
 func TestTriggerLoadSkipsWhenFresh(t *testing.T) {
-	reg := &Registry{
+	reg := &registry{
 		fetchedAt: time.Now(),
 		data:      map[string]ModelInfo{"m": {}},
 	}
@@ -307,7 +307,7 @@ func TestTriggerLoadSkipsWhenFresh(t *testing.T) {
 }
 
 func TestTriggerLoadSkipsWhenAlreadyLoading(t *testing.T) {
-	reg := &Registry{loading: true}
+	reg := &registry{loading: true}
 	reg.triggerLoad()
 	// Should still be loading (didn't start another).
 	reg.mu.RLock()
