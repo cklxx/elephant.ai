@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
+	materialports "alex/internal/domain/materialregistry/ports"
 )
 
 // --- cloneSessionForSave ---
@@ -110,8 +112,94 @@ func TestFlushPendingSessionSave_DrainsAndClearsPendingSnapshot(t *testing.T) {
 	}
 }
 
+func TestAppendHistoryTurn_UsesOptimizedHistoryManager(t *testing.T) {
+	history := &optimizedHistoryManager{}
+	coordinator := NewAgentCoordinator(nil, nil, &ensureSessionStore{sessions: map[string]*storage.Session{}}, nil, history, nil, nil, appconfig.Config{})
+
+	previous := []ports.Message{{Role: "user", Content: "before"}}
+	incoming := []ports.Message{{Role: "assistant", Content: "after"}}
+	if err := coordinator.appendHistoryTurn(context.Background(), "session-1", previous, incoming); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !history.appendWithExistingCalled {
+		t.Fatal("expected AppendTurnWithExisting to be used")
+	}
+	if history.appendCalled {
+		t.Fatal("expected AppendTurn fallback to be skipped")
+	}
+	if history.sessionID != "session-1" {
+		t.Fatalf("expected session id propagated, got %q", history.sessionID)
+	}
+	if len(history.existing) != 1 || history.existing[0].Content != "before" {
+		t.Fatalf("expected previous messages propagated, got %+v", history.existing)
+	}
+	if len(history.incoming) != 1 || history.incoming[0].Content != "after" {
+		t.Fatalf("expected incoming messages propagated, got %+v", history.incoming)
+	}
+}
+
 type asyncSaveSessionStore struct {
 	saveCh chan string
+}
+
+type optimizedHistoryManager struct {
+	appendCalled             bool
+	appendWithExistingCalled bool
+	sessionID                string
+	existing                 []ports.Message
+	incoming                 []ports.Message
+	appendErr                error
+	clearErr                 error
+}
+
+func (m *optimizedHistoryManager) AppendTurn(context.Context, string, []ports.Message) error {
+	m.appendCalled = true
+	return m.appendErr
+}
+
+func (m *optimizedHistoryManager) AppendTurnWithExisting(_ context.Context, sessionID string, existing []ports.Message, incoming []ports.Message) error {
+	m.appendWithExistingCalled = true
+	m.sessionID = sessionID
+	m.existing = append([]ports.Message(nil), existing...)
+	m.incoming = append([]ports.Message(nil), incoming...)
+	return m.appendErr
+}
+
+func (m *optimizedHistoryManager) Replay(context.Context, string, int) ([]ports.Message, error) {
+	return nil, nil
+}
+
+func (m *optimizedHistoryManager) ClearSession(context.Context, string) error {
+	return m.clearErr
+}
+
+type resetHistoryManager struct {
+	clearedSessionID string
+	clearErr         error
+}
+
+func (m *resetHistoryManager) AppendTurn(context.Context, string, []ports.Message) error {
+	return nil
+}
+
+func (m *resetHistoryManager) Replay(context.Context, string, int) ([]ports.Message, error) {
+	return nil, nil
+}
+
+func (m *resetHistoryManager) ClearSession(_ context.Context, sessionID string) error {
+	m.clearedSessionID = sessionID
+	return m.clearErr
+}
+
+type failingAttachmentMigrator struct {
+	called bool
+	err    error
+}
+
+func (m *failingAttachmentMigrator) Normalize(_ context.Context, req materialports.MigrationRequest) (map[string]ports.Attachment, error) {
+	m.called = true
+	return req.Attachments, m.err
 }
 
 func (s *asyncSaveSessionStore) Create(context.Context) (*storage.Session, error) { return nil, nil }
@@ -428,10 +516,14 @@ func TestResetSession_EmptyID(t *testing.T) {
 
 func TestResetSession_NotFound(t *testing.T) {
 	store := &ensureSessionStore{}
-	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+	history := &resetHistoryManager{}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, history, nil, nil, appconfig.Config{})
 	err := coordinator.ResetSession(context.Background(), "missing")
 	if err != nil {
 		t.Fatalf("expected no error for missing session, got %v", err)
+	}
+	if history.clearedSessionID != "missing" {
+		t.Fatalf("expected history cleared for missing session, got %q", history.clearedSessionID)
 	}
 }
 
@@ -461,6 +553,43 @@ func TestResetSession_ClearsSession(t *testing.T) {
 	}
 	if !session.UpdatedAt.Equal(fixedTime) {
 		t.Fatalf("expected UpdatedAt set to clock time, got %v", session.UpdatedAt)
+	}
+}
+
+func TestResetSession_ReturnsSaveErrorWithoutClearingHistory(t *testing.T) {
+	store := &ensureSessionStore{
+		sessions: map[string]*storage.Session{
+			"s1": {ID: "s1"},
+		},
+		saveErr: errors.New("save failed"),
+	}
+	history := &resetHistoryManager{}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, history, nil, nil, appconfig.Config{})
+
+	err := coordinator.ResetSession(context.Background(), "s1")
+	if err == nil || err.Error() != "save failed" {
+		t.Fatalf("expected save failure, got %v", err)
+	}
+	if history.clearedSessionID != "" {
+		t.Fatalf("expected history clear skipped on save failure, got %q", history.clearedSessionID)
+	}
+}
+
+func TestResetSession_ReturnsHistoryClearErrorAfterSave(t *testing.T) {
+	store := &ensureSessionStore{
+		sessions: map[string]*storage.Session{
+			"s1": {ID: "s1"},
+		},
+	}
+	history := &resetHistoryManager{clearErr: errors.New("history clear failed")}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, history, nil, nil, appconfig.Config{})
+
+	err := coordinator.ResetSession(context.Background(), "s1")
+	if err == nil || err.Error() != "history clear failed" {
+		t.Fatalf("expected history clear failure, got %v", err)
+	}
+	if store.saveCalls != 1 {
+		t.Fatalf("expected session reset to be persisted before clear error, got %d saves", store.saveCalls)
 	}
 }
 
@@ -608,6 +737,60 @@ func TestSaveSessionAfterExecution_PreservesErrorMetadataOnError(t *testing.T) {
 	}
 	if session.Metadata["stop_reason"] != "error" {
 		t.Fatalf("expected stop_reason=error, got %q", session.Metadata["stop_reason"])
+	}
+}
+
+func TestSaveSessionAfterExecution_ReturnsStoreError(t *testing.T) {
+	store := &ensureSessionStore{
+		sessions: map[string]*storage.Session{},
+		saveErr:  errors.New("store unavailable"),
+	}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+
+	session := &storage.Session{ID: "s1"}
+	result := &agent.TaskResult{SessionID: "s1"}
+
+	err := coordinator.SaveSessionAfterExecution(context.Background(), session, result)
+	if err == nil || err.Error() != "failed to save session: store unavailable" {
+		t.Fatalf("expected wrapped save error, got %v", err)
+	}
+	if store.saveCalls != 1 {
+		t.Fatalf("expected one save attempt, got %d", store.saveCalls)
+	}
+}
+
+func TestSaveSessionAfterExecution_FallsBackWhenAttachmentMigrationFails(t *testing.T) {
+	store := &ensureSessionStore{sessions: map[string]*storage.Session{}}
+	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
+	migrator := &failingAttachmentMigrator{err: errors.New("migrate failed")}
+	coordinator.SetAttachmentMigrator(migrator)
+
+	session := &storage.Session{ID: "s1"}
+	result := &agent.TaskResult{
+		SessionID: "s1",
+		Messages: []ports.Message{{
+			Role: "tool",
+			Attachments: map[string]ports.Attachment{
+				"img.png": {Name: "img.png", URI: "https://cdn.example.com/img.png", Data: "raw"},
+			},
+		}},
+	}
+
+	if err := coordinator.SaveSessionAfterExecution(context.Background(), session, result); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !migrator.called {
+		t.Fatal("expected migrator to be called")
+	}
+	if session.Attachments == nil {
+		t.Fatal("expected sanitized attachments to be kept on migration failure")
+	}
+	att := session.Attachments["img.png"]
+	if att.Data != "" {
+		t.Fatalf("expected URI-backed attachment data cleared, got %q", att.Data)
+	}
+	if att.URI != "https://cdn.example.com/img.png" {
+		t.Fatalf("expected attachment URI preserved, got %q", att.URI)
 	}
 }
 
