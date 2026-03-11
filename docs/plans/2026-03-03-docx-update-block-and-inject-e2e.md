@@ -30,16 +30,16 @@ User feedback indicates Feishu doc editing is still not working. Current `channe
 
 ## Work Plan
 
-1. [ ] Extend `internal/infra/lark/docx.go` with typed `UpdateDocumentBlockText` method.
-2. [ ] Extend `internal/infra/tools/builtin/larktools/docx_manage.go` with `update_block_text` action handler.
-3. [ ] Extend `internal/infra/tools/builtin/larktools/channel.go` action enum/description/routing/safety mapping for `update_doc_block`.
-4. [ ] Add/extend unit tests in:
+1. [x] Extend `internal/infra/lark/docx.go` with typed `UpdateDocumentBlockText` method. *(f801fe90)*
+2. [x] Extend `internal/infra/tools/builtin/larktools/docx_manage.go` with `update_block_text` action handler. *(f801fe90)*
+3. [x] Extend `internal/infra/tools/builtin/larktools/channel.go` action enum/description/routing/safety mapping for `update_doc_block`. *(f801fe90)*
+4. [x] Add/extend unit tests in: *(f801fe90)*
    - `internal/infra/lark/docx_test.go`
    - `internal/infra/tools/builtin/larktools/docx_manage_test.go`
-5. [ ] Enhance `scripts/e2e/lark_doc_tools_e2e.sh` with docx edit verification step.
-6. [ ] Run targeted tests + script static check.
-7. [ ] Run mandatory code review skill and fix P0/P1 if any.
-8. [ ] Commit with clear message.
+5. [x] Enhance `scripts/e2e/lark_doc_tools_e2e.sh` with docx edit verification step. *(2026-03-11)*
+6. [x] Run targeted tests + script static check. *(2026-03-11)*
+7. [x] Run mandatory code review skill and fix P0/P1 if any. *(2026-03-11)*
+8. [x] Commit with clear message.
 
 ## Verification
 

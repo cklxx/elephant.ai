@@ -375,6 +375,21 @@ if should_run "docx"; then
     "把刚才这个文档里第一个可编辑文本块更新为'E2E更新内容-${TIMESTAMP}'，并返回更新后的块内容" \
     "更新" "成功" "block" "E2E更新内容" || true
 
+  # Read-back verification: confirm the edit actually persisted
+  inject_and_check "docx/verify_edit" "$DOCX_CHAT" \
+    "重新读取刚才那个文档的正文内容，确认里面包含'E2E更新内容-${TIMESTAMP}'" \
+    "E2E更新内容" "更新内容" "内容" || true
+
+  # Write markdown content into the document
+  inject_and_check "docx/write_doc_markdown" "$DOCX_CHAT" \
+    "用write_doc_markdown功能，往刚才那个文档的根block写入以下markdown内容：'## E2E标题\n这是E2E写入测试-${TIMESTAMP}'" \
+    "写入" "成功" "Markdown" "markdown" || true
+
+  # Verify markdown was written by reading back
+  inject_and_check "docx/verify_markdown" "$DOCX_CHAT" \
+    "再次读取那个文档的正文内容，确认包含'E2E标题'或'E2E写入测试'" \
+    "E2E标题" "E2E写入测试" "标题" "写入" || true
+
   echo ""
 fi
 
