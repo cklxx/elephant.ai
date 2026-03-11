@@ -252,6 +252,64 @@ func TestDeliverIntent_PostInvalidPayloadFallbacksToText(t *testing.T) {
 	}
 }
 
+func TestDeliverIntent_InteractiveSendsStandaloneMessage(t *testing.T) {
+	t.Parallel()
+
+	rec := NewRecordingMessenger()
+	gw := &Gateway{messenger: rec, logger: logging.Nop()}
+	intent := DeliveryIntent{
+		ChatID:           "chat-1",
+		ReplyToMessageID: "om-parent",
+		MsgType:          "interactive",
+		Content:          buildContentCard("## 报告\n\n| Name | Score |\n|---|---|\n| Alice | 95 |"),
+	}
+	if err := gw.deliverIntent(context.Background(), intent); err != nil {
+		t.Fatalf("deliverIntent() error = %v", err)
+	}
+	if got := len(rec.CallsByMethod(MethodReplyMessage)); got != 0 {
+		t.Fatalf("interactive intent should not use reply API, got %d reply calls", got)
+	}
+	sends := rec.CallsByMethod(MethodSendMessage)
+	if len(sends) != 1 {
+		t.Fatalf("expected 1 send call, got %d", len(sends))
+	}
+	if sends[0].MsgType != "interactive" {
+		t.Fatalf("expected interactive send, got %s", sends[0].MsgType)
+	}
+}
+
+func TestDeliverIntent_InteractiveProgressEditFallsBackToStandaloneMessage(t *testing.T) {
+	t.Parallel()
+
+	rec := NewRecordingMessenger()
+	rec.NextError = errors.New("400 cannot update interactive progress message")
+	gw := &Gateway{messenger: rec, logger: logging.Nop()}
+	intent := DeliveryIntent{
+		ChatID:             "chat-1",
+		ReplyToMessageID:   "om-parent",
+		ProgressMessageID:  "om-progress",
+		MsgType:            "interactive",
+		Content:            buildContentCard("## 报告\n\n| Name | Score |\n|---|---|\n| Alice | 95 |"),
+	}
+	if err := gw.deliverIntent(context.Background(), intent); err != nil {
+		t.Fatalf("deliverIntent() error = %v", err)
+	}
+	updates := rec.CallsByMethod(MethodUpdateMessage)
+	if len(updates) != 1 {
+		t.Fatalf("expected 1 update attempt, got %d", len(updates))
+	}
+	if got := len(rec.CallsByMethod(MethodReplyMessage)); got != 0 {
+		t.Fatalf("interactive fallback should not use reply API, got %d reply calls", got)
+	}
+	sends := rec.CallsByMethod(MethodSendMessage)
+	if len(sends) != 1 {
+		t.Fatalf("expected 1 send fallback, got %d", len(sends))
+	}
+	if sends[0].MsgType != "interactive" {
+		t.Fatalf("expected interactive send fallback, got %s", sends[0].MsgType)
+	}
+}
+
 func TestBuildTerminalDeliveryIntent_OnlyKeepsReferencedAttachments(t *testing.T) {
 	t.Parallel()
 

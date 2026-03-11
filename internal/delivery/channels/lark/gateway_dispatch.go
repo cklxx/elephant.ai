@@ -101,6 +101,9 @@ func (g *Gateway) dispatchMessage(ctx context.Context, chatID, replyToID, msgTyp
 	}
 
 	send := func(currentType, currentContent string) (string, error) {
+		if prefersStandaloneLarkMessage(currentType) {
+			return g.messenger.SendMessage(ctx, chatID, currentType, currentContent)
+		}
 		if replyToID != "" {
 			return g.messenger.ReplyMessage(ctx, replyToID, currentType, currentContent)
 		}
@@ -143,6 +146,10 @@ func (g *Gateway) dispatchMessage(ctx context.Context, chatID, replyToID, msgTyp
 	}
 
 	return messageID, err
+}
+
+func prefersStandaloneLarkMessage(msgType string) bool {
+	return strings.EqualFold(strings.TrimSpace(msgType), "interactive")
 }
 
 func isPostPayloadInvalidError(err error) bool {
