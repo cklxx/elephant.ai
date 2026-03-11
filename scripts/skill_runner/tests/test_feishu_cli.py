@@ -1,6 +1,12 @@
+from __future__ import annotations
+
 """Tests for skill_runner.feishu_cli adapter."""
 
-from __future__ import annotations
+import pathlib as _pathlib
+import sys as _sys
+
+# Ensure scripts/ is on path so skill_runner and cli packages resolve
+_sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent.parent.parent))
 
 from unittest.mock import patch
 

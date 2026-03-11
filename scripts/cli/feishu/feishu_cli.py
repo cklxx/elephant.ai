@@ -828,6 +828,99 @@ def _message_post_payload(content: str) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
+def _has_markdown_table(content: str) -> bool:
+    """Return True if content contains at least one markdown table row (| … |)."""
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("|") and stripped.endswith("|") and "|" in stripped[1:-1]:
+            return True
+    return False
+
+
+def _markdown_table_to_card(content: str) -> str:
+    """Convert markdown content (possibly with tables) into a Feishu interactive card JSON.
+
+    Non-table blocks → markdown elements.
+    Table blocks → header row as bold markdown + hr + data rows.
+    """
+    import re
+
+    elements: list[dict] = []
+
+    def _parse_md_table(lines: list[str]) -> list[list[str]]:
+        rows = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped.startswith("|"):
+                continue
+            if re.match(r"^\|[\s\-:|]+\|", stripped):
+                continue
+            cells = [c.strip() for c in stripped.strip("|").split("|")]
+            rows.append(cells)
+        return rows
+
+    def _table_to_elements(rows: list[list[str]]) -> list[dict]:
+        if not rows:
+            return []
+        result: list[dict] = []
+        header = rows[0]
+        header_md = " | ".join(f"**{h}**" for h in header)
+        result.append({"tag": "markdown", "content": header_md})
+        result.append({"tag": "hr"})
+        for row in rows[1:]:
+            cells = (row + [""] * len(header))[: len(header)]
+            result.append({"tag": "markdown", "content": " | ".join(cells)})
+        return result
+
+    lines = content.splitlines()
+    buf_other: list[str] = []
+    buf_table: list[str] = []
+    in_table = False
+
+    def _flush_other() -> None:
+        nonlocal buf_other
+        text = "\n".join(buf_other).strip()
+        if text:
+            elements.append({"tag": "markdown", "content": text})
+        buf_other = []
+
+    def _flush_table() -> None:
+        nonlocal buf_table
+        for el in _table_to_elements(_parse_md_table(buf_table)):
+            elements.append(el)
+        buf_table = []
+
+    for line in lines:
+        stripped = line.strip()
+        is_table_line = stripped.startswith("|") and stripped.endswith("|") and "|" in stripped[1:-1]
+        is_sep = bool(re.match(r"^\|[\s\-:|]+\|", stripped))
+        if is_table_line or is_sep:
+            if not in_table:
+                _flush_other()
+                in_table = True
+            buf_table.append(line)
+        else:
+            if in_table:
+                _flush_table()
+                in_table = False
+            buf_other.append(line)
+
+    if in_table:
+        _flush_table()
+    else:
+        _flush_other()
+
+    card = {
+        "schema": "2.0",
+        "body": {"elements": elements},
+        "header": {
+            "title": {"tag": "plain_text", "content": " "},
+            "template": "blue",
+        },
+    }
+    return json.dumps(card, ensure_ascii=False)
+
+
 def _select_im_file_type(file_name: str) -> str:
     extension = Path(file_name).suffix.lower().lstrip(".")
     if extension in {"opus", "mp4", "pdf", "doc", "xls", "ppt"}:
@@ -1477,8 +1570,15 @@ def _message_send(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, 
         return {"success": False, "error": "content is required"}
 
     content_format = str(args.get("content_format", "text")).strip().lower() or "text"
-    msg_type = "post" if content_format in {"post", "richtext", "rich_text"} else "text"
-    payload = _message_post_payload(content) if msg_type == "post" else _message_text_payload(content)
+    if content_format == "card" or _has_markdown_table(content):
+        msg_type = "interactive"
+        payload = _markdown_table_to_card(content)
+    elif content_format in {"post", "richtext", "rich_text"}:
+        msg_type = "post"
+        payload = _message_post_payload(content)
+    else:
+        msg_type = "text"
+        payload = _message_text_payload(content)
     reply_to_message_id = _resolve_reply_to_message_id(args)
 
     if reply_to_message_id:

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import pathlib as _pathlib
+import sys as _sys
 from typing import Any
 
+_sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent.parent))
 from cli.feishu.feishu_cli import execute
 
 
