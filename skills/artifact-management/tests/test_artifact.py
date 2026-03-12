@@ -95,3 +95,19 @@ class TestRun:
     def test_unknown_action(self):
         result = run({"action": "invalid"})
         assert result["success"] is False
+
+
+def test_module_has_run_and_main():
+    """run.py exposes both run() and main() entry points."""
+    assert callable(getattr(_mod, "run", None))
+    assert callable(getattr(_mod, "main", None))
+
+
+def test_main_exit_code_zero(tmp_path, monkeypatch):
+    """main() exits 0 when run() returns success (list action, no args)."""
+    monkeypatch.setattr(_mod, "_ARTIFACTS_DIR", tmp_path)
+    monkeypatch.setattr("sys.argv", ["run.py"])
+    try:
+        _mod.main()
+    except SystemExit as exc:
+        assert exc.code == 0

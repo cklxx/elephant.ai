@@ -183,3 +183,18 @@ def test_help_schema_returns_structured_commands():
     assert result["success"] is True
     assert "notebook" in result["schema"]
     assert "source" in result["schema"]
+
+
+def test_module_has_run_and_main():
+    """run.py exposes both run() and main() entry points."""
+    assert callable(getattr(_MOD, "run", None))
+    assert callable(getattr(_MOD, "main", None))
+
+
+def test_main_exit_code_zero(monkeypatch, capsys):
+    """main() exits 0 when run() returns success via help command."""
+    monkeypatch.setattr("sys.argv", ["run.py", "help"])
+    try:
+        _MOD.main()
+    except SystemExit as exc:
+        assert exc.code == 0
