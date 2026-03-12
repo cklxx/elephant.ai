@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/app/subscription"
 	"alex/internal/delivery/channels"
+	"alex/internal/runtime/hooks"
 	agent "alex/internal/domain/agent/ports/agent"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	larkoauth "alex/internal/infra/lark/oauth"
@@ -97,6 +98,7 @@ type Gateway struct {
 	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
 	autoAuth            *AutoAuth          // in-message OAuth device flow
 	attentionGate       *AttentionGate     // optional urgency filter for incoming messages
+	runtimeBus          hooks.Bus          // optional; for handoff action callbacks
 	taskWG              sync.WaitGroup     // tracks running task goroutines (for tests)
 	cleanupMu           sync.Mutex
 	cleanupCancel       context.CancelFunc
@@ -286,3 +288,6 @@ func (g *Gateway) NoticeLoader() func() (string, bool, error) {
 
 // SetAIChatCoordinator configures the AI chat coordinator for multi-bot conversations.
 func (g *Gateway) SetAIChatCoordinator(coordinator *AIChatCoordinator) { g.aiCoordinator = coordinator }
+
+// SetRuntimeBus configures the runtime event bus used for handoff action callbacks.
+func (g *Gateway) SetRuntimeBus(bus hooks.Bus) { g.runtimeBus = bus }

@@ -57,7 +57,7 @@ func (n *HandoffNotifier) handleHandoff(ctx context.Context, ev hooks.Event) {
 	if hctx.SessionID == "" {
 		hctx.SessionID = ev.SessionID
 	}
-	msg := FormatHandoffMessage(hctx)
+	card := FormatHandoffCard(hctx)
 
 	chatID := n.resolveChatID(hctx.SessionID)
 	if chatID == "" {
@@ -67,7 +67,7 @@ func (n *HandoffNotifier) handleHandoff(ctx context.Context, ev hooks.Event) {
 
 	sendCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	n.gateway.dispatch(sendCtx, chatID, "", "text", textContent(msg))
+	n.gateway.dispatch(sendCtx, chatID, "", "interactive", card)
 }
 
 // resolveChatID finds the Lark chat ID associated with a runtime session.
@@ -102,7 +102,91 @@ func (n *HandoffNotifier) resolveChatID(sessionID string) string {
 	return n.defaultChatID
 }
 
-// FormatHandoffMessage formats a HandoffContext into a human-readable Lark message.
+// handoffActionRetry is the action value for the retry button.
+const handoffActionRetry = "handoff_retry"
+
+// handoffActionAbort is the action value for the abort button.
+const handoffActionAbort = "handoff_abort"
+
+// handoffActionProvideInput is the action value for the provide input button.
+const handoffActionProvideInput = "handoff_provide_input"
+
+// FormatHandoffCard builds a Lark interactive card JSON for a handoff notification.
+// The card includes diagnostic fields and action buttons for retry/abort/provide_input.
+func FormatHandoffCard(ctx leader.HandoffContext) string {
+	headerColor := "yellow"
+	if ctx.RecommendedAction == "abort" {
+		headerColor = "red"
+	}
+
+	elements := buildHandoffCardElements(ctx)
+
+	// Action buttons with session_id in the value for callback routing.
+	actions := []any{
+		handoffButton("🔄 重试", "primary", handoffActionRetry, ctx.SessionID),
+		handoffButton("⛔ 终止", "danger", handoffActionAbort, ctx.SessionID),
+		handoffButton("💬 提供输入", "default", handoffActionProvideInput, ctx.SessionID),
+	}
+	elements = append(elements, map[string]any{
+		"tag":     "action",
+		"actions": actions,
+	})
+
+	return buildLarkCard("⚠️ Leader Agent 需要你的帮助", headerColor, elements)
+}
+
+// buildHandoffCardElements constructs the markdown content elements for the card.
+func buildHandoffCardElements(ctx leader.HandoffContext) []any {
+	var b strings.Builder
+	if ctx.Goal != "" {
+		b.WriteString(fmt.Sprintf("**目标:** %s\n", ctx.Goal))
+	}
+	if ctx.Member != "" {
+		b.WriteString(fmt.Sprintf("**成员:** %s\n", ctx.Member))
+	}
+	if ctx.Reason != "" {
+		b.WriteString(fmt.Sprintf("**原因:** %s\n", ctx.Reason))
+	}
+	if ctx.StallCount > 0 {
+		b.WriteString(fmt.Sprintf("**已尝试:** %d 次\n", ctx.StallCount))
+	}
+	if ctx.Elapsed != "" {
+		b.WriteString(fmt.Sprintf("**运行时长:** %s\n", ctx.Elapsed))
+	}
+	if ctx.LastToolCall != "" {
+		b.WriteString(fmt.Sprintf("**最后工具调用:** %s\n", ctx.LastToolCall))
+	}
+	if ctx.LastError != "" {
+		b.WriteString(fmt.Sprintf("**最后错误:** %s\n", ctx.LastError))
+	}
+	if len(ctx.SessionTail) > 0 {
+		b.WriteString("**最近消息:**\n")
+		for _, msg := range ctx.SessionTail {
+			b.WriteString(fmt.Sprintf("- %s\n", msg))
+		}
+	}
+
+	elements := []any{
+		map[string]any{"tag": "markdown", "content": b.String()},
+	}
+	return elements
+}
+
+// handoffButton builds a Lark card button element with an action value.
+func handoffButton(text, btnType, action, sessionID string) map[string]any {
+	return map[string]any{
+		"tag":  "button",
+		"text": map[string]any{"tag": "plain_text", "content": text},
+		"type": btnType,
+		"value": map[string]any{
+			"action":     action,
+			"session_id": sessionID,
+		},
+	}
+}
+
+// FormatHandoffMessage formats a HandoffContext into a plain-text message.
+// Retained for fallback rendering when interactive cards are unavailable.
 func FormatHandoffMessage(ctx leader.HandoffContext) string {
 	var b strings.Builder
 	b.WriteString("⚠️ Leader Agent 需要你的帮助\n\n")
