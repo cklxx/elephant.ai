@@ -14,6 +14,7 @@ import copy
 import json
 import mimetypes
 import os
+import re
 import secrets
 import sys
 import time
@@ -640,6 +641,19 @@ def _build_url(base: str, path: str, query: dict[str, Any] | str | None) -> str:
     return f"{url}?{encoded}"
 
 
+def _doc_url(document_id: str) -> str:
+    base = os.getenv("FEISHU_DOC_BASE_URL", "https://feishu.cn/docx").strip().rstrip("/")
+    return f"{base}/{document_id}"
+
+
+def _with_doc_url(document: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(document)
+    document_id = str(enriched.get("document_id", "")).strip()
+    if document_id and not enriched.get("url"):
+        enriched["url"] = _doc_url(document_id)
+    return enriched
+
+
 def _is_auth_error(payload: dict[str, Any]) -> bool:
     status = int(payload.get("http_status", 0) or 0)
     if status == 401:
@@ -789,6 +803,94 @@ def _resolve_chat_id(args: dict[str, Any]) -> str:
         or os.environ.get("LARK_CHAT_ID", "").strip()
         or os.environ.get("FEISHU_CHAT_ID", "").strip()
     )
+
+
+def _extract_latest_open_id_from_logs() -> str:
+    candidates = [
+        Path("logs/alex-service.log"),
+        Path.cwd() / "logs" / "alex-service.log",
+    ]
+    pattern = re.compile(r"sender=(ou_[A-Za-z0-9]+)")
+    for path in candidates:
+        try:
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        matches = pattern.findall(text)
+        if matches:
+            return matches[-1]
+    return ""
+
+
+def _resolve_default_doc_manager_open_id() -> tuple[str, str]:
+    for key in (
+        "LARK_DOC_DEFAULT_MANAGER_OPEN_ID",
+        "FEISHU_DOC_DEFAULT_MANAGER_OPEN_ID",
+        "LARK_DEFAULT_MANAGER_OPEN_ID",
+        "FEISHU_DEFAULT_MANAGER_OPEN_ID",
+        "LARK_OPEN_ID",
+        "FEISHU_OPEN_ID",
+    ):
+        value = os.environ.get(key, "").strip()
+        if value.startswith("ou_"):
+            return value, "env"
+    value = _extract_latest_open_id_from_logs()
+    return (value, "logs") if value else ("", "")
+
+
+def _ensure_default_doc_manager_permission(document_id: str, auth_manager: AuthManager) -> dict[str, Any]:
+    open_id, source = _resolve_default_doc_manager_open_id()
+    if not document_id or not open_id:
+        return {"success": True, "skipped": True, "reason": "no_default_manager_open_id"}
+
+    query = {"type": "docx"}
+    list_result = api_request(
+        "GET",
+        f"/drive/v1/permissions/{document_id}/members",
+        query=query,
+        auth_manager=auth_manager,
+    )
+    failure = _api_failure(list_result)
+    if failure:
+        return failure
+
+    existing_items = list_result.get("data", {}).get("items", [])
+    existing_member = next(
+        (
+            item
+            for item in existing_items
+            if str(item.get("member_id", "")).strip() == open_id and str(item.get("member_type", "openid")).strip() == "openid"
+        ),
+        None,
+    )
+
+    body = {"member_id": open_id, "member_type": "openid", "perm": "full_access"}
+    if existing_member is not None:
+        current_perm = str(existing_member.get("perm", "")).strip().lower()
+        if current_perm == "full_access":
+            return {"success": True, "member_id": open_id, "perm": "full_access", "changed": False, "source": source}
+        result = api_request(
+            "PUT",
+            f"/drive/v1/permissions/{document_id}/members/{open_id}",
+            body,
+            query=query,
+            auth_manager=auth_manager,
+        )
+    else:
+        result = api_request(
+            "POST",
+            f"/drive/v1/permissions/{document_id}/members",
+            body,
+            query=query,
+            auth_manager=auth_manager,
+        )
+
+    failure = _api_failure(result)
+    if failure:
+        return failure
+    return {"success": True, "member_id": open_id, "perm": "full_access", "changed": True, "source": source}
 
 
 def _resolve_receive_id_type(receive_id: str, args: dict[str, Any]) -> str:
@@ -1306,8 +1408,8 @@ ACTION_SPECS: dict[str, dict[str, ActionSpec]] = {
         "create": ActionSpec(
             summary="Create docx document",
             required=(),
-            optional=("title", "folder_token", "content", "description"),
-            example={"title": "Project Notes"},
+            optional=("title", "folder_token", "content", "markdown", "description"),
+            example={"title": "Project Notes", "content": "# Notes"},
         ),
         "read": ActionSpec(
             summary="Read document metadata",
@@ -1336,7 +1438,7 @@ ACTION_SPECS: dict[str, dict[str, ActionSpec]] = {
         "write_markdown": ActionSpec(
             summary="Convert markdown and append to document",
             required=("document_id", "content"),
-            optional=(),
+            optional=("markdown",),
             example={"document_id": "doccnxxxx", "content": "# Heading\nBody"},
         ),
     },
@@ -2010,11 +2112,32 @@ def _contact_list_departments(args: dict[str, Any], auth_manager: AuthManager) -
     return {"success": True, "departments": data.get("items", []), "has_more": data.get("has_more", False)}
 
 
+def _feishu_doc_url(document_id: str) -> str:
+    return f"https://feishu.cn/docx/{document_id}"
+
+
+def _attach_doc_urls(document: dict[str, Any]) -> dict[str, Any]:
+    doc = dict(document)
+    document_id = str(doc.get("document_id", "")).strip()
+    if document_id:
+        doc.setdefault("url", _feishu_doc_url(document_id))
+        doc.setdefault("applink_url", f"https://applink.feishu.cn/client/docs/{document_id}")
+    return doc
+
+
+def _coalesce_markdown_content(args: dict[str, Any]) -> str:
+    for key in ("content", "markdown", "description"):
+        value = str(args.get(key, "")).strip()
+        if value:
+            return value
+    return ""
+
+
 def _doc_create(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:
     body: dict[str, Any] = {}
     title = str(args.get("title", "")).strip()
     folder_token = str(args.get("folder_token", "")).strip()
-    initial_content = str(args.get("content", "")).strip() or str(args.get("description", "")).strip()
+    initial_content = _coalesce_markdown_content(args)
     if title:
         body["title"] = title
     if folder_token:
@@ -2025,14 +2148,24 @@ def _doc_create(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, An
     if failure:
         return failure
     doc = result.get("data", {}).get("document", {})
-    response: dict[str, Any] = {"success": True, "document": doc, "message": f"文档「{title}」已创建" if title else "文档已创建"}
-    if initial_content:
-        document_id = str(doc.get("document_id", "")).strip()
-        if document_id:
-            write_result = _doc_write_markdown({"document_id": document_id, "content": initial_content}, auth_manager)
-            if not write_result.get("success"):
-                return write_result
-            response["content_written"] = True
+    document_id = str(doc.get("document_id", "")).strip()
+    permission_result: dict[str, Any] | None = None
+    if document_id:
+        permission_result = _ensure_default_doc_manager_permission(document_id, auth_manager)
+        if permission_result and not permission_result.get("success") and permission_result.get("required"):
+            return permission_result
+    response: dict[str, Any] = {
+        "success": True,
+        "document": _attach_doc_urls(doc),
+        "message": f"文档「{title}」已创建" if title else "文档已创建",
+    }
+    if permission_result:
+        response["default_manager_permission"] = permission_result
+    if initial_content and document_id:
+        write_result = _doc_write_markdown({"document_id": document_id, "content": initial_content}, auth_manager)
+        if not write_result.get("success"):
+            return write_result
+        response["content_written"] = True
     return response
 
 
@@ -2045,7 +2178,8 @@ def _doc_read(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]
     failure = _api_failure(result)
     if failure:
         return failure
-    return {"success": True, "document": result.get("data", {}).get("document", {})}
+    document = result.get("data", {}).get("document", {})
+    return {"success": True, "document": _attach_doc_urls(document)}
 
 
 def _doc_read_content(args: dict[str, Any], auth_manager: AuthManager) -> dict[str, Any]:

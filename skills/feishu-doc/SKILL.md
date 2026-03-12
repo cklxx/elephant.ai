@@ -30,10 +30,10 @@ cooldown: 15
 
 | 用户意图 | module | tool_action | 必填参数 |
 |---------|--------|-------------|---------|
-| 创建文档 | doc | create | title |
+| 创建文档 | doc | create | 可空（建议 title） |
 | 读取文档 | doc | read | document_id |
 | 读取文档内容 | doc | read_content | document_id |
-| 写入 Markdown | doc | write_markdown | document_id, content |
+| 写入 Markdown | doc | write_markdown | document_id, content（或 markdown） |
 | 列出文档块 | doc | list_blocks | document_id |
 | 更新文本块 | doc | update_block_text | document_id, block_id, content |
 
@@ -112,8 +112,10 @@ python3 skills/feishu-cli/run.py '{"action":"tool","module":"wiki","tool_action"
 - **引用**: 使用 `> ` 前缀
 - **特殊块**: 支持 `callout`、`grid`、`mermaid`、`plantuml` 等
 
-### 权限
+### 权限与默认行为
 
 - 读取需要 `docx:document:readonly` scope
 - 写入需要 `docx:document` scope
 - Wiki 操作需要 `wiki:wiki` 相关 scope
+- 通过 CLI 创建文档时，会自动返回 `url` 与 `applink_url`
+- 创建文档后，CLI 会尝试默认给当前用户开启 **管理权限（full_access）**，无需额外参数；若当前调用身份无法修改协作者权限，则会在返回中给出 `manage_permission_warning`

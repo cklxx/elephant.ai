@@ -105,6 +105,89 @@ def test_tool_dispatch(monkeypatch: pytest.MonkeyPatch):
     assert result["echo"]["start"] == "2026-03-06"
 
 
+def test_doc_read_includes_urls(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        feishu_cli,
+        "api_request",
+        lambda *_, **__: {"data": {"document": {"document_id": "doccnxxxx", "title": "T"}}},
+    )
+    result = feishu_cli.execute(
+        {
+            "command": "tool",
+            "module": "doc",
+            "tool_action": "read",
+            "args": {"document_id": "doccnxxxx"},
+        }
+    )
+    assert result["success"] is True
+    assert result["document"]["url"] == "https://feishu.cn/docx/doccnxxxx"
+    assert result["document"]["applink_url"] == "https://applink.feishu.cn/client/docs/doccnxxxx"
+
+
+def test_doc_create_accepts_markdown_alias(monkeypatch: pytest.MonkeyPatch):
+    calls: list[tuple[str, str, dict | None]] = []
+
+    def fake_api_request(method, path, body=None, **kwargs):
+        calls.append((method, path, body))
+        if path == "/docx/v1/documents":
+            return {"data": {"document": {"document_id": "doccncreate", "title": "Alias"}}}
+        raise AssertionError(f"unexpected path: {path}")
+
+    monkeypatch.setattr(feishu_cli, "api_request", fake_api_request)
+    monkeypatch.setattr(
+        feishu_cli,
+        "_doc_write_markdown",
+        lambda args, _auth: {"success": True, "echo": args},
+    )
+    monkeypatch.setattr(
+        feishu_cli,
+        "_ensure_default_doc_manager_permission",
+        lambda *_: {"success": True, "member_id": "ou_xxx", "perm": "full_access", "source": "env"},
+    )
+
+    result = feishu_cli.execute(
+        {
+            "command": "tool",
+            "module": "doc",
+            "tool_action": "create",
+            "args": {"title": "Alias", "markdown": "# hello"},
+        }
+    )
+    assert result["success"] is True
+    assert result["document"]["url"] == "https://feishu.cn/docx/doccncreate"
+    assert result["content_written"] is True
+    assert result["default_manager_permission"]["perm"] == "full_access"
+
+
+def test_resolve_default_doc_manager_open_id_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("FEISHU_DOC_DEFAULT_MANAGER_OPEN_ID", "ou_env")
+    monkeypatch.delenv("LARK_DOC_DEFAULT_MANAGER_OPEN_ID", raising=False)
+    assert feishu_cli._resolve_default_doc_manager_open_id() == ("ou_env", "env")
+
+
+def test_ensure_default_doc_manager_permission_updates_existing_member(monkeypatch: pytest.MonkeyPatch):
+    calls: list[tuple[str, str, dict | None, object]] = []
+
+    def fake_api_request(method, path, body=None, *, query=None, **kwargs):
+        calls.append((method, path, body, query))
+        if method == "GET" and path == "/drive/v1/permissions/doccncreate/members":
+            return {
+                "code": 0,
+                "data": {"items": [{"member_id": "ou_env", "member_type": "openid", "perm": "view"}]},
+            }
+        if method == "PUT" and path == "/drive/v1/permissions/doccncreate/members/ou_env":
+            return {"code": 0, "data": {"member": {"member_id": "ou_env", "perm": "full_access"}}}
+        raise AssertionError(f"unexpected call: {(method, path, body, query)}")
+
+    monkeypatch.setattr(feishu_cli, "api_request", fake_api_request)
+    monkeypatch.setattr(feishu_cli, "_resolve_default_doc_manager_open_id", lambda: ("ou_env", "env"))
+
+    result = feishu_cli._ensure_default_doc_manager_permission("doccncreate", auth_manager=None)
+    assert result["success"] is True
+    assert result["perm"] == "full_access"
+    assert any(call[0] == "PUT" for call in calls)
+
+
 # ---- Domain subcommand tests ----
 
 
