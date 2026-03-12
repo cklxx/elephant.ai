@@ -683,13 +683,16 @@ func TestRuntime_MarkCompleted_WithParent(t *testing.T) {
 	parent, _ := rt.CreateSession(session.MemberClaudeCode, "leader", "/tmp", "")
 	parentID := parent.Snapshot().ID
 
-	// Create child session with parent.
+	// Create sibling sessions with the same parent.
 	child, _ := rt.CreateSession(session.MemberCodex, "child-task", "/tmp", parentID)
 	childID := child.Snapshot().ID
+	otherChild, _ := rt.CreateSession(session.MemberCodex, "child-task-2", "/tmp", parentID)
 
 	// Move child to running.
 	_ = child.Transition(session.StateStarting)
 	_ = child.Transition(session.StateRunning)
+	_ = otherChild.Transition(session.StateStarting)
+	_ = otherChild.Transition(session.StateRunning)
 
 	// Subscribe to parent events.
 	parentCh, cancel := rt.bus.Subscribe(parentID)
@@ -711,6 +714,12 @@ func TestRuntime_MarkCompleted_WithParent(t *testing.T) {
 		}
 		if ev.Payload["child_answer"] != "child answer" {
 			t.Errorf("child_answer = %v, want 'child answer'", ev.Payload["child_answer"])
+		}
+		if ev.Payload["sibling_total"] != 2 {
+			t.Errorf("sibling_total = %v, want 2", ev.Payload["sibling_total"])
+		}
+		if ev.Payload["sibling_completed"] != 1 {
+			t.Errorf("sibling_completed = %v, want 1", ev.Payload["sibling_completed"])
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for child_completed event on parent")
@@ -760,6 +769,13 @@ func TestRuntime_MarkFailed_WithParent(t *testing.T) {
 	parent, _ := rt.CreateSession(session.MemberClaudeCode, "leader", "/tmp", "")
 	parentID := parent.Snapshot().ID
 
+	completedSibling, _ := rt.CreateSession(session.MemberCodex, "child-done", "/tmp", parentID)
+	_ = completedSibling.Transition(session.StateStarting)
+	_ = completedSibling.Transition(session.StateRunning)
+	if err := rt.MarkCompleted(completedSibling.Snapshot().ID, "done"); err != nil {
+		t.Fatalf("MarkCompleted sibling: %v", err)
+	}
+
 	child, _ := rt.CreateSession(session.MemberCodex, "child-fail", "/tmp", parentID)
 	childID := child.Snapshot().ID
 
@@ -778,6 +794,12 @@ func TestRuntime_MarkFailed_WithParent(t *testing.T) {
 		}
 		if ev.Payload["child_error"] != "child error" {
 			t.Errorf("child_error = %v, want 'child error'", ev.Payload["child_error"])
+		}
+		if ev.Payload["sibling_total"] != 2 {
+			t.Errorf("sibling_total = %v, want 2", ev.Payload["sibling_total"])
+		}
+		if ev.Payload["sibling_completed"] != 2 {
+			t.Errorf("sibling_completed = %v, want 2", ev.Payload["sibling_completed"])
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for child_completed event on parent")

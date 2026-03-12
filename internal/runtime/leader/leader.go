@@ -255,6 +255,8 @@ func (a *Agent) handleChildCompleted(ctx context.Context, ev hooks.Event) {
 	childGoal, _ := ev.Payload["child_goal"].(string)
 	childAnswer, _ := ev.Payload["child_answer"].(string)
 	childError, _ := ev.Payload["child_error"].(string)
+	siblingTotal, hasSiblingTotal := payloadInt(ev.Payload, "sibling_total")
+	siblingCompleted, hasSiblingCompleted := payloadInt(ev.Payload, "sibling_completed")
 
 	var resultSummary string
 	switch {
@@ -266,17 +268,27 @@ func (a *Agent) handleChildCompleted(ctx context.Context, ev hooks.Event) {
 		resultSummary = "completed (no explicit result)"
 	}
 
+	progressLine := ""
+	allCompletedHint := ""
+	if hasSiblingTotal && hasSiblingCompleted && siblingTotal > 0 {
+		progressLine = fmt.Sprintf("\n子任务进度: %d/%d 已完成\n", siblingCompleted, siblingTotal)
+		if siblingCompleted == siblingTotal {
+			allCompletedHint = "\n所有子任务已完成，请汇总结果。\n"
+		}
+	}
+
 	prompt := fmt.Sprintf(`你是编程团队的 leader。
 你之前派发的子任务已完成：
 
 子任务 ID: %s
 子任务目标: %s
 子任务结果: %s
+%s%s
 
 请决定下一步：
 1. 如果还有后续任务 → 调用 POST /api/runtime/sessions 派发（记得设置 parent_session_id）
 2. 如果所有任务完成 → 汇总结果并通知用户
-3. 如果结果有问题 → 派发修复任务`, childID, childGoal, resultSummary)
+3. 如果结果有问题 → 派发修复任务`, childID, childGoal, resultSummary, progressLine, allCompletedHint)
 
 	// Use the parent session ID for orchestration continuity.
 	result, err := a.execute(ctx, prompt, parentSessionID)
@@ -286,6 +298,21 @@ func (a *Agent) handleChildCompleted(ctx context.Context, ev hooks.Event) {
 	}
 
 	a.applyOrchestratorDecision(ctx, parentSessionID, strings.TrimSpace(result))
+}
+
+func payloadInt(payload map[string]any, key string) (int, bool) {
+	switch v := payload[key].(type) {
+	case int:
+		return v, true
+	case int32:
+		return int(v), true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	default:
+		return 0, false
+	}
 }
 
 // decisionAction classifies the LLM response into inject/fail/unknown.

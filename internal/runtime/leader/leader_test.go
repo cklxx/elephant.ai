@@ -544,6 +544,73 @@ func TestBuildStallPrompt(t *testing.T) {
 	}
 }
 
+func TestHandleChildCompletedWithSiblingProgress(t *testing.T) {
+	rt := &mockRuntime{sessions: map[string]session.SessionData{}}
+	bus := newMockBus()
+
+	var gotPrompt string
+	var gotSessionID string
+	a := New(rt, bus, func(_ context.Context, prompt, sessionID string) (string, error) {
+		gotPrompt = prompt
+		gotSessionID = sessionID
+		return "summary ready", nil
+	})
+
+	a.handleChildCompleted(context.Background(), hooks.Event{
+		Type:      hooks.EventChildCompleted,
+		SessionID: "leader-1",
+		At:        time.Now(),
+		Payload: map[string]any{
+			"child_id":          "child-2",
+			"child_goal":        "run unit tests",
+			"child_answer":      "all green",
+			"sibling_total":     5,
+			"sibling_completed": 2,
+		},
+	})
+
+	if gotSessionID != "leader-1" {
+		t.Fatalf("session ID = %q, want leader-1", gotSessionID)
+	}
+	if !strings.Contains(gotPrompt, "子任务进度: 2/5 已完成") {
+		t.Fatalf("prompt missing sibling progress: %s", gotPrompt)
+	}
+	if strings.Contains(gotPrompt, "所有子任务已完成，请汇总结果") {
+		t.Fatalf("prompt should not include all-complete hint: %s", gotPrompt)
+	}
+}
+
+func TestHandleChildCompletedWithAllSiblingsComplete(t *testing.T) {
+	rt := &mockRuntime{sessions: map[string]session.SessionData{}}
+	bus := newMockBus()
+
+	var gotPrompt string
+	a := New(rt, bus, func(_ context.Context, prompt, _ string) (string, error) {
+		gotPrompt = prompt
+		return "summary ready", nil
+	})
+
+	a.handleChildCompleted(context.Background(), hooks.Event{
+		Type:      hooks.EventChildCompleted,
+		SessionID: "leader-1",
+		At:        time.Now(),
+		Payload: map[string]any{
+			"child_id":          "child-5",
+			"child_goal":        "merge results",
+			"child_answer":      "done",
+			"sibling_total":     5,
+			"sibling_completed": 5,
+		},
+	})
+
+	if !strings.Contains(gotPrompt, "子任务进度: 5/5 已完成") {
+		t.Fatalf("prompt missing sibling progress: %s", gotPrompt)
+	}
+	if !strings.Contains(gotPrompt, "所有子任务已完成，请汇总结果") {
+		t.Fatalf("prompt missing all-complete hint: %s", gotPrompt)
+	}
+}
+
 func TestMarkFailedRetrySuccess(t *testing.T) {
 	// MarkFailed fails twice then succeeds on 3rd attempt.
 	var attempts atomic.Int32

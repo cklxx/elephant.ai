@@ -419,9 +419,12 @@ func (rt *Runtime) markTerminal(
 
 	// Notify parent via EventChildCompleted (even on failure).
 	if snap.ParentSessionID != "" {
+		siblingTotal, siblingCompleted := rt.siblingProgress(snap.ParentSessionID)
 		cp := map[string]any{
-			"child_id":   id,
-			"child_goal": snap.Goal,
+			"child_id":          id,
+			"child_goal":        snap.Goal,
+			"sibling_total":     siblingTotal,
+			"sibling_completed": siblingCompleted,
 		}
 		for k, v := range childPayload {
 			cp[k] = v
@@ -435,6 +438,25 @@ func (rt *Runtime) markTerminal(
 	}
 
 	return nil
+}
+
+func (rt *Runtime) siblingProgress(parentSessionID string) (int, int) {
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+
+	total := 0
+	completed := 0
+	for _, child := range rt.sessions {
+		snap := child.Snapshot()
+		if snap.ParentSessionID != parentSessionID {
+			continue
+		}
+		total++
+		if snap.State == session.StateCompleted || snap.State == session.StateFailed {
+			completed++
+		}
+	}
+	return total, completed
 }
 
 // ScanStalled checks all running sessions against the stall threshold and
