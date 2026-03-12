@@ -71,6 +71,39 @@ func (h *DecisionHistory) RecordOutcome(outcome string) {
 	}
 }
 
+// RecordOutcomeForAttempt updates the outcome for a specific attempt if it is still pending.
+func (h *DecisionHistory) RecordOutcomeForAttempt(attempt int, outcome string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for i := len(h.records) - 1; i >= 0; i-- {
+		record := &h.records[i]
+		if record.Attempt != attempt {
+			continue
+		}
+		if record.Outcome == "" {
+			record.Outcome = outcome
+			record.OutcomeAt = time.Now()
+		}
+		return
+	}
+}
+
+// InjectSuccessRate returns the success rate for evaluated INJECT decisions.
+// Pending INJECT outcomes are ignored.
+func (h *DecisionHistory) InjectSuccessRate() float64 {
+	successes, total := h.injectStats()
+	if total == 0 {
+		return 0
+	}
+	return float64(successes) / float64(total)
+}
+
+// InjectEvaluatedCount returns the number of INJECT decisions with a final outcome.
+func (h *DecisionHistory) InjectEvaluatedCount() int {
+	_, total := h.injectStats()
+	return total
+}
+
 // SummaryForPrompt formats the last n decisions as a text block suitable for
 // inclusion in a stall prompt. Returns empty string if no history exists.
 func (h *DecisionHistory) SummaryForPrompt(n int) string {
@@ -89,6 +122,24 @@ func (h *DecisionHistory) SummaryForPrompt(n int) string {
 		b.WriteString(fmt.Sprintf("  Attempt %d: %s %s → %s\n", r.Attempt, r.Action, r.Argument, outcome))
 	}
 	return b.String()
+}
+
+func (h *DecisionHistory) injectStats() (int, int) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	successes := 0
+	total := 0
+	for _, record := range h.records {
+		if record.Action != "INJECT" || record.Outcome == "" {
+			continue
+		}
+		total++
+		if record.Outcome == "recovered" {
+			successes++
+		}
+	}
+	return successes, total
 }
 
 // decisionHistoryStore manages per-session decision histories.

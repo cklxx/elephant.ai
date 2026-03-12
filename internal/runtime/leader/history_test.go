@@ -68,6 +68,27 @@ func TestDecisionHistoryRecordOutcome(t *testing.T) {
 	}
 }
 
+func TestDecisionHistoryRecordOutcomeForAttempt(t *testing.T) {
+	h := &DecisionHistory{}
+	h.Add(DecisionRecord{Attempt: 1, Action: "INJECT", Argument: "first"})
+	h.Add(DecisionRecord{Attempt: 2, Action: "INJECT", Argument: "second"})
+
+	h.RecordOutcomeForAttempt(1, "recovered")
+	records := h.Last(2)
+	if records[0].Outcome != "recovered" {
+		t.Fatalf("attempt 1 outcome = %q, want recovered", records[0].Outcome)
+	}
+	if records[1].Outcome != "" {
+		t.Fatalf("attempt 2 outcome = %q, want empty", records[1].Outcome)
+	}
+
+	h.RecordOutcomeForAttempt(1, "still_stalled")
+	records = h.Last(2)
+	if records[0].Outcome != "recovered" {
+		t.Fatalf("attempt 1 outcome overwritten to %q", records[0].Outcome)
+	}
+}
+
 func TestDecisionHistoryRecordOutcomeEmpty(t *testing.T) {
 	h := &DecisionHistory{}
 	// Should not panic on empty history.
@@ -94,6 +115,21 @@ func TestDecisionHistorySummaryForPrompt(t *testing.T) {
 	}
 	if !strings.Contains(summary, "Attempt 2: INJECT try different → pending") {
 		t.Errorf("summary missing attempt 2 detail: %s", summary)
+	}
+}
+
+func TestDecisionHistoryInjectSuccessRate(t *testing.T) {
+	h := &DecisionHistory{}
+	h.Add(DecisionRecord{Attempt: 1, Action: "INJECT", Outcome: "recovered"})
+	h.Add(DecisionRecord{Attempt: 2, Action: "INJECT", Outcome: "still_stalled"})
+	h.Add(DecisionRecord{Attempt: 3, Action: "FAIL", Outcome: "still_stalled"})
+	h.Add(DecisionRecord{Attempt: 4, Action: "INJECT"})
+
+	if got := h.InjectEvaluatedCount(); got != 2 {
+		t.Fatalf("InjectEvaluatedCount = %d, want 2", got)
+	}
+	if got := h.InjectSuccessRate(); got != 0.5 {
+		t.Fatalf("InjectSuccessRate = %.2f, want 0.50", got)
 	}
 }
 

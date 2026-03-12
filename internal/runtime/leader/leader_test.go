@@ -150,6 +150,18 @@ func (b *mockBus) publishedEvents() []hooks.Event {
 	return append([]hooks.Event(nil), b.events...)
 }
 
+func waitForCondition(t *testing.T, timeout time.Duration, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("timeout waiting for condition")
+}
+
 // --- tests ---
 
 func TestHandleStallDeduplication(t *testing.T) {
@@ -497,6 +509,111 @@ func TestHeartbeatResetsStallCount(t *testing.T) {
 	expected := int32(maxStallAttempts-1) + int32(maxStallAttempts)
 	if calls != expected {
 		t.Errorf("expected %d execute calls after heartbeat reset, got %d", expected, calls)
+	}
+}
+
+func TestRecoveryEvaluation_Success(t *testing.T) {
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{
+			"sess-1": {ID: "sess-1", Goal: "recover me"},
+		},
+	}
+	bus := newMockBus()
+	a := New(rt, bus, func(_ context.Context, _, _ string) (string, error) {
+		return "INJECT keep going", nil
+	})
+	a.recoveryEvaluationDelay = 20 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.Run(ctx)
+	time.Sleep(10 * time.Millisecond)
+
+	bus.send(hooks.Event{Type: hooks.EventStalled, SessionID: "sess-1", At: time.Now()})
+	waitForCondition(t, time.Second, func() bool {
+		return len(rt.getInjectedMsgs()) == 1
+	})
+
+	bus.send(hooks.Event{Type: hooks.EventHeartbeat, SessionID: "sess-1", At: time.Now()})
+
+	waitForCondition(t, time.Second, func() bool {
+		records := a.decisions.Get("sess-1").Last(1)
+		return len(records) == 1 && records[0].Outcome == "recovered"
+	})
+}
+
+func TestRecoveryEvaluation_Failure(t *testing.T) {
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{
+			"sess-1": {ID: "sess-1", Goal: "stay stalled"},
+		},
+	}
+	bus := newMockBus()
+	a := New(rt, bus, func(_ context.Context, _, _ string) (string, error) {
+		return "INJECT keep going", nil
+	})
+	a.recoveryEvaluationDelay = 20 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.Run(ctx)
+	time.Sleep(10 * time.Millisecond)
+
+	bus.send(hooks.Event{Type: hooks.EventStalled, SessionID: "sess-1", At: time.Now()})
+
+	waitForCondition(t, time.Second, func() bool {
+		records := a.decisions.Get("sess-1").Last(1)
+		return len(records) == 1 && records[0].Outcome == "still_stalled"
+	})
+}
+
+func TestAutoEscalateOnLowSuccessRate(t *testing.T) {
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{
+			"sess-1": {ID: "sess-1", Goal: "recover me"},
+		},
+	}
+	bus := newMockBus()
+
+	var executeCalls atomic.Int32
+	a := New(rt, bus, func(_ context.Context, _, _ string) (string, error) {
+		executeCalls.Add(1)
+		return "INJECT keep going", nil
+	})
+	a.recoveryEvaluationDelay = 20 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.Run(ctx)
+	time.Sleep(10 * time.Millisecond)
+
+	for attempt := 1; attempt <= 3; attempt++ {
+		bus.send(hooks.Event{Type: hooks.EventStalled, SessionID: "sess-1", At: time.Now()})
+		waitForCondition(t, time.Second, func() bool {
+			records := a.decisions.Get("sess-1").Last(attempt)
+			if len(records) < attempt {
+				return false
+			}
+			return records[attempt-1].Outcome == "still_stalled"
+		})
+	}
+
+	bus.send(hooks.Event{Type: hooks.EventStalled, SessionID: "sess-1", At: time.Now()})
+
+	waitForCondition(t, time.Second, func() bool {
+		events := bus.publishedEvents()
+		for _, ev := range events {
+			if ev.Type != hooks.EventHandoffRequired {
+				continue
+			}
+			reason, _ := ev.Payload["reason"].(string)
+			return strings.Contains(reason, "inject success rate")
+		}
+		return false
+	})
+
+	if got := executeCalls.Load(); got != 3 {
+		t.Fatalf("execute calls = %d, want 3", got)
 	}
 }
 

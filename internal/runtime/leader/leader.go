@@ -38,6 +38,8 @@ type ToolCallReader interface {
 // without creating unbounded new sessions.
 type ExecuteFunc func(ctx context.Context, prompt, sessionID string) (string, error)
 
+type afterFunc func(time.Duration, func()) *time.Timer
+
 // Agent subscribes to EventStalled, EventNeedsInput, and EventChildCompleted
 // on the bus and calls the LLM to decide how to proceed:
 //   - inject a nudge message (stall/needs-input)
@@ -64,6 +66,9 @@ type Agent struct {
 	// decisions stores per-session decision history so the LLM can see
 	// what was tried before and avoid repeating ineffective strategies.
 	decisions *decisionHistoryStore
+
+	recoveryEvaluationDelay time.Duration
+	afterFunc               afterFunc
 }
 
 // maxStallAttempts is the maximum number of stall handling attempts per runtime
@@ -73,16 +78,24 @@ const maxStallAttempts = 3
 // markFailedRetries is the number of retry attempts for MarkFailed calls.
 const markFailedRetries = 3
 
+const (
+	recoveryEvaluationDelayDefault = 30 * time.Second
+	injectSuccessRateThreshold     = 0.3
+	injectSuccessRateMinRecords    = 3
+)
+
 // New creates a LeaderAgent.
 func New(rt RuntimeReader, bus hooks.Bus, execute ExecuteFunc) *Agent {
 	return &Agent{
-		rt:          rt,
-		bus:         bus,
-		execute:     execute,
-		logger:      logging.NewComponentLogger("LeaderAgent"),
-		inflight:    make(map[string]struct{}),
-		stallCounts: make(map[string]int),
-		decisions:   newDecisionHistoryStore(),
+		rt:                      rt,
+		bus:                     bus,
+		execute:                 execute,
+		logger:                  logging.NewComponentLogger("LeaderAgent"),
+		inflight:                make(map[string]struct{}),
+		stallCounts:             make(map[string]int),
+		decisions:               newDecisionHistoryStore(),
+		recoveryEvaluationDelay: recoveryEvaluationDelayDefault,
+		afterFunc:               time.AfterFunc,
 	}
 }
 
@@ -150,18 +163,11 @@ func (a *Agent) incrementStallCount(sessionID string) int {
 	return a.stallCounts[sessionID]
 }
 
-// resetStallCount resets the stall counter and decision history when a session recovers.
+// resetStallCount resets the stall counter when a session recovers.
 func (a *Agent) resetStallCount(sessionID string) {
 	a.stallCountsMu.Lock()
 	defer a.stallCountsMu.Unlock()
 	delete(a.stallCounts, sessionID)
-
-	// Mark the last decision as successful before clearing.
-	h := a.decisions.Get(sessionID)
-	if h.Len() > 0 {
-		h.RecordOutcome("recovered")
-	}
-	a.decisions.Delete(sessionID)
 }
 
 // stallSessionID returns a stable, deterministic session ID for leader stall
@@ -181,8 +187,27 @@ func (a *Agent) handleStall(ctx context.Context, ev hooks.Event) {
 		return
 	}
 
+	history := a.decisions.Get(ev.SessionID)
+
 	// Check stall count — escalate after maxStallAttempts.
 	count := a.incrementStallCount(ev.SessionID)
+	injectSuccessRate := history.InjectSuccessRate()
+	if history.InjectEvaluatedCount() >= injectSuccessRateMinRecords && injectSuccessRate < injectSuccessRateThreshold {
+		reason := fmt.Sprintf("leader agent: inject success rate %.0f%% below %.0f%%, escalating to human",
+			injectSuccessRate*100, injectSuccessRateThreshold*100)
+		a.logger.Info("Session %s inject recovery success rate %.2f below threshold %.2f — escalating",
+			ev.SessionID, injectSuccessRate, injectSuccessRateThreshold)
+		history.Add(DecisionRecord{
+			Attempt:   count,
+			Action:    "ESCALATE",
+			Argument:  reason,
+			Timestamp: time.Now(),
+			Outcome:   "still_stalled",
+			OutcomeAt: time.Now(),
+		})
+		a.escalate(ev.SessionID, reason)
+		return
+	}
 	if count > maxStallAttempts {
 		a.logger.Info("Session %s stalled %d times (max %d) — escalating", ev.SessionID, count, maxStallAttempts)
 		a.escalate(ev.SessionID, fmt.Sprintf("leader agent: session stalled %d times, escalating to human", count))
@@ -201,10 +226,6 @@ func (a *Agent) handleStall(ctx context.Context, ev hooks.Event) {
 		toolName, toolArgs, toolErr, _ = tcr.GetRecentToolCall(ev.SessionID)
 		iterationCount = tcr.GetIterationCount(ev.SessionID)
 	}
-
-	// Mark the previous decision as still_stalled (if any).
-	history := a.decisions.Get(ev.SessionID)
-	history.RecordOutcome("still_stalled")
 
 	prompt := buildStallPrompt(snap.ID, string(snap.Member), snap.Goal, elapsed, ev.Type, count, history, toolName, toolArgs, toolErr, iterationCount)
 
@@ -244,6 +265,7 @@ func (a *Agent) handleStall(ctx context.Context, ev hooks.Event) {
 	})
 
 	a.applyDecision(ctx, ev.SessionID, trimmed)
+	a.scheduleRecoveryEvaluation(ev.SessionID, count, history)
 }
 
 // handleChildCompleted processes a child session completion event.
@@ -313,6 +335,33 @@ func payloadInt(payload map[string]any, key string) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func (a *Agent) currentStallCount(sessionID string) (int, bool) {
+	a.stallCountsMu.Lock()
+	defer a.stallCountsMu.Unlock()
+	count, ok := a.stallCounts[sessionID]
+	return count, ok
+}
+
+func (a *Agent) scheduleRecoveryEvaluation(sessionID string, attempt int, history *DecisionHistory) {
+	if history == nil || a.afterFunc == nil {
+		return
+	}
+	a.afterFunc(a.recoveryEvaluationDelay, func() {
+		outcome := "still_stalled"
+		count, ok := a.currentStallCount(sessionID)
+		if !ok || count < attempt {
+			outcome = "recovered"
+		}
+		history.RecordOutcomeForAttempt(attempt, outcome)
+		switch outcome {
+		case "recovered":
+			a.logger.Info("alex.leader.stall.recovery.success session=%s attempt=%d", sessionID, attempt)
+		default:
+			a.logger.Info("alex.leader.stall.recovery.failure session=%s attempt=%d", sessionID, attempt)
+		}
+	})
 }
 
 // decisionAction classifies the LLM response into inject/fail/unknown.
