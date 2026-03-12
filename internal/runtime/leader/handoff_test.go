@@ -225,19 +225,19 @@ func TestBuildHandoffContext_WithRecentEvents(t *testing.T) {
 
 func TestBuildHandoffContext_WithToolCallReader(t *testing.T) {
 	started := time.Now().Add(-1 * time.Minute)
-	rt := &mockRuntimeWithToolCall{
-		mockRuntime: mockRuntime{
-			sessions: map[string]session.SessionData{
-				"sess-1": {
-					ID:        "sess-1",
-					Member:    session.MemberClaudeCode,
-					Goal:      "deploy",
-					StartedAt: &started,
-				},
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{
+			"sess-1": {
+				ID:        "sess-1",
+				Member:    session.MemberClaudeCode,
+				Goal:      "deploy",
+				StartedAt: &started,
 			},
 		},
-		toolCall:  "bash: make build",
-		lastError: "compilation failed",
+		recentToolName: "bash",
+		recentToolArgs: "make build",
+		recentToolErr:  "compilation failed",
+		recentToolOK:   true,
 	}
 	bus := newMockBus()
 	a := New(rt, bus, nil)

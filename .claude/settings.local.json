@@ -32,5 +32,9 @@
       }
     ]
   },
-  "prefersReducedMotion": true
+  "prefersReducedMotion": true,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  }
 }

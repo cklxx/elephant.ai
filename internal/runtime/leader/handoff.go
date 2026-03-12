@@ -115,7 +115,15 @@ func (a *Agent) buildHandoffContext(sessionID, reason string) HandoffContext {
 
 	// Optionally enrich with last tool call info (type-assert, not required).
 	if tcr, ok := a.rt.(ToolCallReader); ok {
-		ctx.LastToolCall, ctx.LastError = tcr.GetRecentToolCall(sessionID)
+		name, args, errStr, found := tcr.GetRecentToolCall(sessionID)
+		if found {
+			if args != "" {
+				ctx.LastToolCall = name + ": " + args
+			} else {
+				ctx.LastToolCall = name
+			}
+			ctx.LastError = errStr
+		}
 	}
 
 	ctx.RecommendedAction = recommendAction(ctx)

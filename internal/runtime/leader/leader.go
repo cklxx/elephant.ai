@@ -25,11 +25,11 @@ type RuntimeReader interface {
 	GetRecentEvents(sessionID string, n int) []string
 }
 
-// ToolCallReader is an optional interface that provides the last tool call
-// and error for a session. Implementations that also track tool calls can
-// implement this to enrich handoff diagnostics.
+// ToolCallReader provides optional tool-call context for stall decisions
+// and handoff diagnostics.
 type ToolCallReader interface {
-	GetRecentToolCall(sessionID string) (toolCall string, lastError string)
+	GetRecentToolCall(sessionID string) (name, args, errStr string, ok bool)
+	GetIterationCount(sessionID string) int
 }
 
 // ExecuteFunc sends a prompt to the LLM and returns the answer.
@@ -194,11 +194,19 @@ func (a *Agent) handleStall(ctx context.Context, ev hooks.Event) {
 		elapsed = time.Since(*snap.StartedAt).Round(time.Second)
 	}
 
+	// Gather optional tool-call context.
+	var toolName, toolArgs, toolErr string
+	var iterationCount int
+	if tcr, ok := a.rt.(ToolCallReader); ok {
+		toolName, toolArgs, toolErr, _ = tcr.GetRecentToolCall(ev.SessionID)
+		iterationCount = tcr.GetIterationCount(ev.SessionID)
+	}
+
 	// Mark the previous decision as still_stalled (if any).
 	history := a.decisions.Get(ev.SessionID)
 	history.RecordOutcome("still_stalled")
 
-	prompt := buildStallPrompt(snap.ID, string(snap.Member), snap.Goal, elapsed, ev.Type, count, history)
+	prompt := buildStallPrompt(snap.ID, string(snap.Member), snap.Goal, elapsed, ev.Type, count, history, toolName, toolArgs, toolErr, iterationCount)
 
 	// Disable session history for stall decisions — the prompt is self-contained
 	// and loading full history is the primary cause of memory explosion.
@@ -223,6 +231,10 @@ func (a *Agent) handleStall(ctx context.Context, ev hooks.Event) {
 		actionName = "INJECT"
 	case actionFail:
 		actionName = "FAIL"
+	case actionRetryTool:
+		actionName = "RETRY_TOOL"
+	case actionSwitchStrategy:
+		actionName = "SWITCH_STRATEGY"
 	}
 	history.Add(DecisionRecord{
 		Attempt:   count,
@@ -283,12 +295,20 @@ const (
 	actionUnknown decisionAction = iota
 	actionInject
 	actionFail
+	actionRetryTool
+	actionSwitchStrategy
 )
 
 // parseDecision extracts the action keyword and its argument from an LLM response.
 func parseDecision(raw string) (decisionAction, string) {
 	upper := strings.ToUpper(raw)
 	switch {
+	case strings.HasPrefix(upper, "RETRY_TOOL"):
+		toolName := strings.TrimSpace(raw[len("RETRY_TOOL"):])
+		return actionRetryTool, toolName
+	case strings.HasPrefix(upper, "SWITCH_STRATEGY"):
+		hint := strings.TrimSpace(raw[len("SWITCH_STRATEGY"):])
+		return actionSwitchStrategy, hint
 	case strings.HasPrefix(upper, "INJECT"):
 		msg := strings.TrimSpace(raw[len("INJECT"):])
 		if msg == "" {
@@ -339,6 +359,16 @@ func (a *Agent) applyDecision(ctx context.Context, sessionID, decision string) {
 			arg = "leader agent: session abandoned after stall"
 		}
 		a.markFailedWithRetry(sessionID, arg)
+	case actionRetryTool:
+		var errStr string
+		if tcr, ok := a.rt.(ToolCallReader); ok {
+			_, _, errStr, _ = tcr.GetRecentToolCall(sessionID)
+		}
+		msg := fmt.Sprintf("请重试工具 %s，上次错误: %s", arg, errStr)
+		_ = a.rt.InjectText(ctx, sessionID, msg)
+	case actionSwitchStrategy:
+		msg := fmt.Sprintf("请换一种方式完成任务: %s", arg)
+		_ = a.rt.InjectText(ctx, sessionID, msg)
 	default:
 		a.escalate(sessionID, "leader agent: escalating to human operator")
 	}
@@ -388,7 +418,7 @@ func (a *Agent) escalate(sessionID, reason string) {
 
 // buildStallPrompt constructs the decision prompt for the LLM, including
 // any previous decision history so the LLM can avoid repeating failed strategies.
-func buildStallPrompt(id, member, goal string, elapsed time.Duration, eventType hooks.EventType, attempt int, history *DecisionHistory) string {
+func buildStallPrompt(id, member, goal string, elapsed time.Duration, eventType hooks.EventType, attempt int, history *DecisionHistory, toolName, toolArgs, toolErr string, iterationCount int) string {
 	kind := "stalled"
 	if eventType == hooks.EventNeedsInput {
 		kind = "waiting for input"
@@ -409,6 +439,16 @@ Status:     %s for %s
 Attempt:    %d of %d
 `, id, member, goal, kind, elapsed, attempt, maxStallAttempts)
 
+	if toolName != "" {
+		fmt.Fprintf(&b, "Last tool call: %s(%s)\n", toolName, toolArgs)
+	}
+	if toolErr != "" {
+		fmt.Fprintf(&b, "Last error:     %s\n", toolErr)
+	}
+	if iterationCount > 0 {
+		fmt.Fprintf(&b, "Iteration:      %d tool calls so far\n", iterationCount)
+	}
+
 	if historySummary != "" {
 		fmt.Fprintf(&b, "\n%s", historySummary)
 	}
@@ -419,6 +459,8 @@ The session has been %s. Decide what to do next. Reply with EXACTLY one of:
 INJECT <a short message to send to the session to unblock it>
 FAIL <reason — give up on this session>
 ESCALATE
+RETRY_TOOL <tool_name> — retry the last failed tool
+SWITCH_STRATEGY <hint> — try a different approach
 
 If previous INJECT attempts failed, try a different message or consider FAIL/ESCALATE.
 Reply only with one of the above. No explanation.`, kind)

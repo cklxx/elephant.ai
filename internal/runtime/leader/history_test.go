@@ -135,7 +135,7 @@ func TestBuildStallPromptWithHistory(t *testing.T) {
 	h := &DecisionHistory{}
 	h.Add(DecisionRecord{Attempt: 1, Action: "INJECT", Argument: "keep going", Outcome: "still_stalled"})
 
-	prompt := buildStallPrompt("s1", "backend", "fix bug", 90*time.Second, "stalled", 2, h)
+	prompt := buildStallPrompt("s1", "backend", "fix bug", 90*time.Second, "stalled", 2, h, "", "", "", 0)
 
 	// Should contain basic fields.
 	for _, expected := range []string{"s1", "backend", "fix bug", "stalled", "1m30s", "2 of 3"} {
@@ -159,7 +159,7 @@ func TestBuildStallPromptWithHistory(t *testing.T) {
 }
 
 func TestBuildStallPromptNilHistory(t *testing.T) {
-	prompt := buildStallPrompt("s1", "backend", "fix bug", 90*time.Second, "stalled", 1, nil)
+	prompt := buildStallPrompt("s1", "backend", "fix bug", 90*time.Second, "stalled", 1, nil, "", "", "", 0)
 	if !strings.Contains(prompt, "s1") {
 		t.Error("prompt should still work with nil history")
 	}
@@ -170,7 +170,7 @@ func TestBuildStallPromptNilHistory(t *testing.T) {
 
 func TestBuildStallPromptEmptyHistory(t *testing.T) {
 	h := &DecisionHistory{}
-	prompt := buildStallPrompt("s1", "backend", "fix bug", 90*time.Second, "stalled", 1, h)
+	prompt := buildStallPrompt("s1", "backend", "fix bug", 90*time.Second, "stalled", 1, h, "", "", "", 0)
 	if strings.Contains(prompt, "Previous decisions") {
 		t.Error("prompt should not contain history section when empty")
 	}

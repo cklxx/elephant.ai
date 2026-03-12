@@ -22,6 +22,22 @@ type mockRuntime struct {
 	sessions     map[string]session.SessionData
 	markFailedFn func(id, errMsg string) error
 	recentEvents map[string][]string
+
+	// ToolCallReader fields
+	recentToolName string
+	recentToolArgs string
+	recentToolErr  string
+	recentToolOK   bool
+	iterationCount int
+
+	// Track InjectText calls for assertions.
+	mu           sync.Mutex
+	injectedMsgs []injectedMsg
+}
+
+type injectedMsg struct {
+	sessionID string
+	text      string
 }
 
 func (m *mockRuntime) GetSession(id string) (session.SessionData, bool) {
@@ -29,7 +45,13 @@ func (m *mockRuntime) GetSession(id string) (session.SessionData, bool) {
 	return s, ok
 }
 
-func (m *mockRuntime) InjectText(_ context.Context, _, _ string) error { return nil }
+func (m *mockRuntime) InjectText(_ context.Context, id, text string) error {
+	m.mu.Lock()
+	m.injectedMsgs = append(m.injectedMsgs, injectedMsg{sessionID: id, text: text})
+	m.mu.Unlock()
+	return nil
+}
+
 func (m *mockRuntime) MarkFailed(id, errMsg string) error {
 	if m.markFailedFn != nil {
 		return m.markFailedFn(id, errMsg)
@@ -44,15 +66,19 @@ func (m *mockRuntime) GetRecentEvents(sessionID string, n int) []string {
 	return events[len(events)-n:]
 }
 
-// mockRuntimeWithToolCall extends mockRuntime with ToolCallReader support.
-type mockRuntimeWithToolCall struct {
-	mockRuntime
-	toolCall  string
-	lastError string
+// ToolCallReader implementation.
+func (m *mockRuntime) GetRecentToolCall(_ string) (name, args, errStr string, ok bool) {
+	return m.recentToolName, m.recentToolArgs, m.recentToolErr, m.recentToolOK
 }
 
-func (m *mockRuntimeWithToolCall) GetRecentToolCall(_ string) (string, string) {
-	return m.toolCall, m.lastError
+func (m *mockRuntime) GetIterationCount(_ string) int {
+	return m.iterationCount
+}
+
+func (m *mockRuntime) getInjectedMsgs() []injectedMsg {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]injectedMsg(nil), m.injectedMsgs...)
 }
 
 type mockNotifier struct {
@@ -499,7 +525,7 @@ func TestApplyDecisionESCALATE(t *testing.T) {
 }
 
 func TestBuildStallPrompt(t *testing.T) {
-	prompt := buildStallPrompt("s1", "backend", "fix the bug", 90*time.Second, hooks.EventStalled, 2, nil)
+	prompt := buildStallPrompt("s1", "backend", "fix the bug", 90*time.Second, hooks.EventStalled, 2, nil, "", "", "", 0)
 	if prompt == "" {
 		t.Fatal("expected non-empty prompt")
 	}
@@ -507,6 +533,12 @@ func TestBuildStallPrompt(t *testing.T) {
 	for _, expected := range []string{"s1", "backend", "fix the bug", "stalled", "1m30s", "2 of 3"} {
 		if !strings.Contains(prompt, expected) {
 			t.Errorf("prompt missing %q", expected)
+		}
+	}
+	// Should contain new decision options.
+	for _, expected := range []string{"RETRY_TOOL", "SWITCH_STRATEGY"} {
+		if !strings.Contains(prompt, expected) {
+			t.Errorf("prompt missing decision option %q", expected)
 		}
 	}
 }
@@ -645,5 +677,95 @@ func TestApplyDecisionFAILUsesRetry(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected escalation event after retry exhaustion")
+	}
+}
+
+func TestParseDecisionRetryTool(t *testing.T) {
+	action, arg := parseDecision("RETRY_TOOL read_file")
+	if action != actionRetryTool {
+		t.Errorf("expected actionRetryTool, got %d", action)
+	}
+	if arg != "read_file" {
+		t.Errorf("expected tool name %q, got %q", "read_file", arg)
+	}
+}
+
+func TestParseDecisionSwitchStrategy(t *testing.T) {
+	action, arg := parseDecision("SWITCH_STRATEGY use grep instead of find")
+	if action != actionSwitchStrategy {
+		t.Errorf("expected actionSwitchStrategy, got %d", action)
+	}
+	if arg != "use grep instead of find" {
+		t.Errorf("expected hint %q, got %q", "use grep instead of find", arg)
+	}
+}
+
+func TestBuildStallPromptWithToolContext(t *testing.T) {
+	prompt := buildStallPrompt(
+		"s1", "backend", "fix the bug",
+		90*time.Second, hooks.EventStalled, 2, nil,
+		"read_file", "main.go", "file not found", 5,
+	)
+	for _, expected := range []string{
+		"Last tool call: read_file(main.go)",
+		"Last error:     file not found",
+		"Iteration:      5 tool calls so far",
+	} {
+		if !strings.Contains(prompt, expected) {
+			t.Errorf("prompt missing %q", expected)
+		}
+	}
+
+	// Without tool context, those lines should not appear.
+	prompt2 := buildStallPrompt(
+		"s1", "backend", "fix the bug",
+		90*time.Second, hooks.EventStalled, 2, nil,
+		"", "", "", 0,
+	)
+	for _, absent := range []string{"Last tool call:", "Last error:", "Iteration:"} {
+		if strings.Contains(prompt2, absent) {
+			t.Errorf("prompt should not contain %q when tool context is empty", absent)
+		}
+	}
+}
+
+func TestApplyDecisionRetryTool(t *testing.T) {
+	rt := &mockRuntime{
+		sessions:       map[string]session.SessionData{},
+		recentToolName: "exec_cmd",
+		recentToolArgs: "ls -la",
+		recentToolErr:  "permission denied",
+		recentToolOK:   true,
+	}
+	bus := newMockBus()
+	a := New(rt, bus, nil)
+
+	a.applyDecision(context.Background(), "sess-1", "RETRY_TOOL exec_cmd")
+
+	msgs := rt.getInjectedMsgs()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 injected message, got %d", len(msgs))
+	}
+	if !strings.Contains(msgs[0].text, "请重试工具 exec_cmd") {
+		t.Errorf("injected text missing tool name: %q", msgs[0].text)
+	}
+	if !strings.Contains(msgs[0].text, "permission denied") {
+		t.Errorf("injected text missing error: %q", msgs[0].text)
+	}
+}
+
+func TestApplyDecisionSwitchStrategy(t *testing.T) {
+	rt := &mockRuntime{sessions: map[string]session.SessionData{}}
+	bus := newMockBus()
+	a := New(rt, bus, nil)
+
+	a.applyDecision(context.Background(), "sess-1", "SWITCH_STRATEGY try using the API directly")
+
+	msgs := rt.getInjectedMsgs()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 injected message, got %d", len(msgs))
+	}
+	if !strings.Contains(msgs[0].text, "请换一种方式完成任务: try using the API directly") {
+		t.Errorf("unexpected injected text: %q", msgs[0].text)
 	}
 }

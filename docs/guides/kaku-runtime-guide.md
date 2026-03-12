@@ -86,12 +86,17 @@ kaku cli send-text --pane-id $PANE \
 kaku cli send-text --no-paste --pane-id $PANE $'\r'
 ```
 
-### Codex
+### Codex (Interactive, 推荐)
 
 ```bash
-kaku cli send-text --pane-id $PANE 'codex exec --full-auto -- "任务"'
+kaku cli send-text --pane-id $PANE 'codex --dangerously-bypass-approvals-and-sandbox'
+kaku cli send-text --no-paste --pane-id $PANE $'\r'
+sleep 3  # 等待就绪
+kaku cli send-text --pane-id $PANE "任务描述"
 kaku cli send-text --no-paste --pane-id $PANE $'\r'
 ```
+
+> **不推荐** `codex exec --full-auto`：沙箱限制导致无法操作 `.git`。
 
 ## 布局预置
 
