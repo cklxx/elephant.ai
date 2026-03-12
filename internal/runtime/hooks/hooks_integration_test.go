@@ -85,6 +85,8 @@ func (r *integrationRuntime) GetSession(id string) (session.SessionData, bool) {
 	return s.Snapshot(), true
 }
 
+func (r *integrationRuntime) GetRecentEvents(_ string, _ int) []string { return nil }
+
 func (r *integrationRuntime) InjectText(_ context.Context, id, text string) error {
 	r.pane.record(id + "|" + text)
 	return nil

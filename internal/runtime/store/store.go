@@ -154,3 +154,47 @@ func (s *Store) path(id string) string {
 func (s *Store) eventsPath(id string) string {
 	return filepath.Join(s.dir, id+".events.jsonl")
 }
+
+// RecentEvents returns the last n event summaries for a session.
+// Each summary is formatted as "type: detail" where detail comes from
+// the event payload. Returns nil if no events exist.
+func (s *Store) RecentEvents(sessionID string, n int) []string {
+	if sessionID == "" || n <= 0 {
+		return nil
+	}
+	path := s.eventsPath(sessionID)
+	s.mu.Lock()
+	data, err := os.ReadFile(path)
+	s.mu.Unlock()
+	if err != nil {
+		return nil
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	// Take last n lines.
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+
+	result := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+		eventType, _ := entry["type"].(string)
+		summary := eventType
+		if answer, ok := entry["answer"].(string); ok {
+			summary += ": " + answer
+		} else if errMsg, ok := entry["error"].(string); ok {
+			summary += ": " + errMsg
+		} else if prompt, ok := entry["prompt"].(string); ok {
+			summary += ": " + prompt
+		}
+		result = append(result, summary)
+	}
+	return result
+}

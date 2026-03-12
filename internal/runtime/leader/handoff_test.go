@@ -125,6 +125,132 @@ func TestHandoffContext_PayloadRoundTrip(t *testing.T) {
 	}
 }
 
+func TestToPayloadWithNewFields(t *testing.T) {
+	ctx := HandoffContext{
+		SessionID:    "sess-1",
+		Reason:       "stalled",
+		LastToolCall: "bash: ls -la",
+		LastError:    "exit code 1",
+		SessionTail:  []string{"user: fix it", "assistant: running tests", "tool: bash failed"},
+	}
+	payload := ctx.ToPayload()
+
+	if v, ok := payload["last_tool_call"].(string); !ok || v != "bash: ls -la" {
+		t.Errorf("last_tool_call: got %v", payload["last_tool_call"])
+	}
+	if v, ok := payload["last_error"].(string); !ok || v != "exit code 1" {
+		t.Errorf("last_error: got %v", payload["last_error"])
+	}
+	tail, ok := payload["session_tail"].([]string)
+	if !ok || len(tail) != 3 {
+		t.Fatalf("session_tail: got %v", payload["session_tail"])
+	}
+	if tail[2] != "tool: bash failed" {
+		t.Errorf("session_tail[2]: got %q", tail[2])
+	}
+}
+
+func TestToPayload_OmitsEmptyNewFields(t *testing.T) {
+	ctx := HandoffContext{SessionID: "sess-1", Reason: "test"}
+	payload := ctx.ToPayload()
+
+	if _, ok := payload["last_tool_call"]; ok {
+		t.Error("expected last_tool_call to be omitted")
+	}
+	if _, ok := payload["last_error"]; ok {
+		t.Error("expected last_error to be omitted")
+	}
+	if _, ok := payload["session_tail"]; ok {
+		t.Error("expected session_tail to be omitted")
+	}
+}
+
+func TestParseHandoffContextWithNewFields(t *testing.T) {
+	payload := map[string]any{
+		"session_id":    "sess-1",
+		"reason":        "stalled",
+		"last_tool_call": "bash: deploy.sh",
+		"last_error":    "timeout",
+		"session_tail":  []any{"msg1", "msg2", "msg3"},
+	}
+	ctx := ParseHandoffContext(payload)
+
+	if ctx.LastToolCall != "bash: deploy.sh" {
+		t.Errorf("last_tool_call: got %q", ctx.LastToolCall)
+	}
+	if ctx.LastError != "timeout" {
+		t.Errorf("last_error: got %q", ctx.LastError)
+	}
+	if len(ctx.SessionTail) != 3 || ctx.SessionTail[0] != "msg1" {
+		t.Errorf("session_tail: got %v", ctx.SessionTail)
+	}
+}
+
+func TestParseHandoffContext_NativeStringSlice(t *testing.T) {
+	payload := map[string]any{
+		"session_tail": []string{"a", "b"},
+	}
+	ctx := ParseHandoffContext(payload)
+	if len(ctx.SessionTail) != 2 || ctx.SessionTail[0] != "a" {
+		t.Errorf("session_tail from []string: got %v", ctx.SessionTail)
+	}
+}
+
+func TestBuildHandoffContext_WithRecentEvents(t *testing.T) {
+	started := time.Now().Add(-1 * time.Minute)
+	rt := &mockRuntime{
+		sessions: map[string]session.SessionData{
+			"sess-1": {
+				ID:        "sess-1",
+				Member:    session.MemberClaudeCode,
+				Goal:      "run tests",
+				StartedAt: &started,
+			},
+		},
+		recentEvents: map[string][]string{
+			"sess-1": {"event-a", "event-b", "event-c"},
+		},
+	}
+	bus := newMockBus()
+	a := New(rt, bus, nil)
+
+	ctx := a.buildHandoffContext("sess-1", "stalled")
+	if len(ctx.SessionTail) != 3 {
+		t.Fatalf("expected 3 session_tail entries, got %d", len(ctx.SessionTail))
+	}
+	if ctx.SessionTail[0] != "event-a" {
+		t.Errorf("session_tail[0]: got %q", ctx.SessionTail[0])
+	}
+}
+
+func TestBuildHandoffContext_WithToolCallReader(t *testing.T) {
+	started := time.Now().Add(-1 * time.Minute)
+	rt := &mockRuntimeWithToolCall{
+		mockRuntime: mockRuntime{
+			sessions: map[string]session.SessionData{
+				"sess-1": {
+					ID:        "sess-1",
+					Member:    session.MemberClaudeCode,
+					Goal:      "deploy",
+					StartedAt: &started,
+				},
+			},
+		},
+		toolCall:  "bash: make build",
+		lastError: "compilation failed",
+	}
+	bus := newMockBus()
+	a := New(rt, bus, nil)
+
+	ctx := a.buildHandoffContext("sess-1", "stalled")
+	if ctx.LastToolCall != "bash: make build" {
+		t.Errorf("last_tool_call: got %q", ctx.LastToolCall)
+	}
+	if ctx.LastError != "compilation failed" {
+		t.Errorf("last_error: got %q", ctx.LastError)
+	}
+}
+
 func TestParseHandoffContext_NilPayload(t *testing.T) {
 	ctx := ParseHandoffContext(nil)
 	if ctx.SessionID != "" || ctx.Member != "" || ctx.Goal != "" {

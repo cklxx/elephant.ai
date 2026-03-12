@@ -22,6 +22,14 @@ type RuntimeReader interface {
 	GetSession(id string) (session.SessionData, bool)
 	InjectText(ctx context.Context, id, text string) error
 	MarkFailed(id, errMsg string) error
+	GetRecentEvents(sessionID string, n int) []string
+}
+
+// ToolCallReader is an optional interface that provides the last tool call
+// and error for a session. Implementations that also track tool calls can
+// implement this to enrich handoff diagnostics.
+type ToolCallReader interface {
+	GetRecentToolCall(sessionID string) (toolCall string, lastError string)
 }
 
 // ExecuteFunc sends a prompt to the LLM and returns the answer.

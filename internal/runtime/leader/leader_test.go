@@ -21,6 +21,7 @@ import (
 type mockRuntime struct {
 	sessions     map[string]session.SessionData
 	markFailedFn func(id, errMsg string) error
+	recentEvents map[string][]string
 }
 
 func (m *mockRuntime) GetSession(id string) (session.SessionData, bool) {
@@ -34,6 +35,24 @@ func (m *mockRuntime) MarkFailed(id, errMsg string) error {
 		return m.markFailedFn(id, errMsg)
 	}
 	return nil
+}
+func (m *mockRuntime) GetRecentEvents(sessionID string, n int) []string {
+	events := m.recentEvents[sessionID]
+	if len(events) <= n {
+		return events
+	}
+	return events[len(events)-n:]
+}
+
+// mockRuntimeWithToolCall extends mockRuntime with ToolCallReader support.
+type mockRuntimeWithToolCall struct {
+	mockRuntime
+	toolCall  string
+	lastError string
+}
+
+func (m *mockRuntimeWithToolCall) GetRecentToolCall(_ string) (string, string) {
+	return m.toolCall, m.lastError
 }
 
 type mockNotifier struct {

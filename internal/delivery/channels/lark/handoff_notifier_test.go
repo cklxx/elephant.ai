@@ -68,6 +68,52 @@ func TestFormatHandoffMessage_RetryRecommendation(t *testing.T) {
 	}
 }
 
+func TestFormatHandoffMessage_WithDiagnostics(t *testing.T) {
+	ctx := leader.HandoffContext{
+		SessionID:         "sess-99",
+		Member:            "claude_code",
+		Goal:              "deploy to production",
+		Reason:            "session stalled",
+		StallCount:        2,
+		Elapsed:           "3m10s",
+		RecommendedAction: "provide_input",
+		LastToolCall:      "bash: make deploy",
+		LastError:         "connection refused",
+		SessionTail:       []string{"user: deploy it", "assistant: running deploy", "tool: bash failed"},
+	}
+	msg := FormatHandoffMessage(ctx)
+
+	for _, expected := range []string{
+		"最后工具调用: bash: make deploy",
+		"最后错误: connection refused",
+		"最近消息:",
+		"user: deploy it",
+		"assistant: running deploy",
+		"tool: bash failed",
+	} {
+		if !strings.Contains(msg, expected) {
+			t.Errorf("message missing %q:\n%s", expected, msg)
+		}
+	}
+}
+
+func TestFormatHandoffMessage_NoDiagnostics(t *testing.T) {
+	ctx := leader.HandoffContext{
+		Goal:   "test task",
+		Reason: "stalled",
+	}
+	msg := FormatHandoffMessage(ctx)
+	if strings.Contains(msg, "最后工具调用") {
+		t.Errorf("should not contain tool call section when empty:\n%s", msg)
+	}
+	if strings.Contains(msg, "最后错误") {
+		t.Errorf("should not contain error section when empty:\n%s", msg)
+	}
+	if strings.Contains(msg, "最近消息") {
+		t.Errorf("should not contain session tail when empty:\n%s", msg)
+	}
+}
+
 func TestHandoffNotifier_HandleHandoff_DispatchesMessage(t *testing.T) {
 	rec := NewRecordingMessenger()
 	gw := &Gateway{

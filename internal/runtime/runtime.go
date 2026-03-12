@@ -348,6 +348,11 @@ func (rt *Runtime) GetSession(id string) (session.SessionData, bool) {
 	return s.Snapshot(), true
 }
 
+// GetRecentEvents returns the last n event summaries for a session.
+func (rt *Runtime) GetRecentEvents(sessionID string, n int) []string {
+	return rt.store.RecentEvents(sessionID, n)
+}
+
 // RecordHeartbeat updates the session's last-active timestamp.
 func (rt *Runtime) RecordHeartbeat(id string) {
 	if s := rt.get(id); s != nil {

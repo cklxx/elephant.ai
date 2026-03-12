@@ -5,19 +5,22 @@ import "time"
 // HandoffContext carries structured information about why a session
 // is being escalated to a human operator.
 type HandoffContext struct {
-	SessionID         string   `json:"session_id"`
-	Member            string   `json:"member"`
-	Goal              string   `json:"goal"`
-	Reason            string   `json:"reason"`
-	StallCount        int      `json:"stall_count"`
-	Elapsed           string   `json:"elapsed"`
-	RecommendedAction string   `json:"recommended_action"` // "provide_input", "retry", "abort"
+	SessionID         string    `json:"session_id"`
+	Member            string    `json:"member"`
+	Goal              string    `json:"goal"`
+	Reason            string    `json:"reason"`
+	StallCount        int       `json:"stall_count"`
+	Elapsed           string    `json:"elapsed"`
+	RecommendedAction string    `json:"recommended_action"` // "provide_input", "retry", "abort"
 	CreatedAt         time.Time `json:"created_at"`
+	LastToolCall      string    `json:"last_tool_call,omitempty"`
+	LastError         string    `json:"last_error,omitempty"`
+	SessionTail       []string  `json:"session_tail,omitempty"` // last N message summaries
 }
 
 // ToPayload converts the HandoffContext to a map suitable for hooks.Event.Payload.
 func (c HandoffContext) ToPayload() map[string]any {
-	return map[string]any{
+	m := map[string]any{
 		"reason":             c.Reason,
 		"session_id":         c.SessionID,
 		"member":             c.Member,
@@ -27,6 +30,16 @@ func (c HandoffContext) ToPayload() map[string]any {
 		"recommended_action": c.RecommendedAction,
 		"created_at":         c.CreatedAt,
 	}
+	if c.LastToolCall != "" {
+		m["last_tool_call"] = c.LastToolCall
+	}
+	if c.LastError != "" {
+		m["last_error"] = c.LastError
+	}
+	if len(c.SessionTail) > 0 {
+		m["session_tail"] = c.SessionTail
+	}
+	return m
 }
 
 // ParseHandoffContext extracts a HandoffContext from an event payload
@@ -60,6 +73,21 @@ func ParseHandoffContext(payload map[string]any) HandoffContext {
 	if v, ok := payload["created_at"].(time.Time); ok {
 		ctx.CreatedAt = v
 	}
+	if v, ok := payload["last_tool_call"].(string); ok {
+		ctx.LastToolCall = v
+	}
+	if v, ok := payload["last_error"].(string); ok {
+		ctx.LastError = v
+	}
+	if v, ok := payload["session_tail"].([]string); ok {
+		ctx.SessionTail = v
+	} else if raw, ok := payload["session_tail"].([]any); ok {
+		for _, item := range raw {
+			if s, ok := item.(string); ok {
+				ctx.SessionTail = append(ctx.SessionTail, s)
+			}
+		}
+	}
 	return ctx
 }
 
@@ -81,6 +109,14 @@ func (a *Agent) buildHandoffContext(sessionID, reason string) HandoffContext {
 	a.stallCountsMu.Lock()
 	ctx.StallCount = a.stallCounts[sessionID]
 	a.stallCountsMu.Unlock()
+
+	// Enrich with recent events.
+	ctx.SessionTail = a.rt.GetRecentEvents(sessionID, 3)
+
+	// Optionally enrich with last tool call info (type-assert, not required).
+	if tcr, ok := a.rt.(ToolCallReader); ok {
+		ctx.LastToolCall, ctx.LastError = tcr.GetRecentToolCall(sessionID)
+	}
 
 	ctx.RecommendedAction = recommendAction(ctx)
 	return ctx

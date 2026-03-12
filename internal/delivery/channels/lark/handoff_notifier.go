@@ -122,6 +122,18 @@ func FormatHandoffMessage(ctx leader.HandoffContext) string {
 	if ctx.Elapsed != "" {
 		b.WriteString(fmt.Sprintf("运行时长: %s\n", ctx.Elapsed))
 	}
+	if ctx.LastToolCall != "" {
+		b.WriteString(fmt.Sprintf("最后工具调用: %s\n", ctx.LastToolCall))
+	}
+	if ctx.LastError != "" {
+		b.WriteString(fmt.Sprintf("最后错误: %s\n", ctx.LastError))
+	}
+	if len(ctx.SessionTail) > 0 {
+		b.WriteString("最近消息:\n")
+		for _, msg := range ctx.SessionTail {
+			b.WriteString(fmt.Sprintf("  - %s\n", msg))
+		}
+	}
 
 	switch ctx.RecommendedAction {
 	case "provide_input":
