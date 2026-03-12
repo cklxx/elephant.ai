@@ -58,6 +58,7 @@ func (m *mockRuntime) MarkFailed(id, errMsg string) error {
 	}
 	return nil
 }
+
 func (m *mockRuntime) GetRecentEvents(sessionID string, n int) []string {
 	events := m.recentEvents[sessionID]
 	if len(events) <= n {
