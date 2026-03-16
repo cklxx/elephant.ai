@@ -80,6 +80,20 @@ func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, c
 	candidates := []autoProviderCandidate{
 		{
 			Provider:    "anthropic",
+			APIKeyEnv:   "CLAUDE_TOKEN",
+			BaseURLEnv:  "ANTHROPIC_BASE_URL",
+			DefaultBase: "https://api.anthropic.com/v1",
+			Source:      SourceClaudeCLI,
+		},
+		{
+			Provider:    "anthropic",
+			APIKeyEnv:   "CLAUDE_CODE_SETUP_TOKEN",
+			BaseURLEnv:  "ANTHROPIC_BASE_URL",
+			DefaultBase: "https://api.anthropic.com/v1",
+			Source:      SourceClaudeCLI,
+		},
+		{
+			Provider:    "anthropic",
 			APIKeyEnv:   "CLAUDE_CODE_OAUTH_TOKEN",
 			BaseURLEnv:  "ANTHROPIC_BASE_URL",
 			DefaultBase: "https://api.anthropic.com/v1",

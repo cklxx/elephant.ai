@@ -156,14 +156,16 @@ func lookupClaudeOAuthToken(envLookup EnvLookup) string {
 	if envLookup == nil {
 		envLookup = DefaultEnvLookup
 	}
-	if value, ok := envLookup("CLAUDE_CODE_OAUTH_TOKEN"); ok {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	if value, ok := envLookup("ANTHROPIC_AUTH_TOKEN"); ok {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
+	for _, key := range []string{
+		"CLAUDE_TOKEN",
+		"CLAUDE_CODE_SETUP_TOKEN",
+		"CLAUDE_CODE_OAUTH_TOKEN",
+		"ANTHROPIC_AUTH_TOKEN",
+	} {
+		if value, ok := envLookup(key); ok {
+			if trimmed := strings.TrimSpace(value); trimmed != "" {
+				return trimmed
+			}
 		}
 	}
 	return ""

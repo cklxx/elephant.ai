@@ -76,7 +76,7 @@ var providerPresets = map[string]providerPreset{
 			{ID: "claude-3-7-sonnet-20250219", Tier: "quality"},
 		},
 		KeyCreateURL: "https://console.anthropic.com/settings/keys",
-		SetupHint:    "Sign in with Claude CLI or set CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY.",
+		SetupHint:    "Set CLAUDE_TOKEN (from `claude setup-token`) or ANTHROPIC_API_KEY.",
 	},
 	"claude": {
 		DisplayName:    "Anthropic",
@@ -89,7 +89,7 @@ var providerPresets = map[string]providerPreset{
 			{ID: "claude-3-7-sonnet-20250219", Tier: "quality"},
 		},
 		KeyCreateURL: "https://console.anthropic.com/settings/keys",
-		SetupHint:    "Sign in with Claude CLI or set CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY.",
+		SetupHint:    "Set CLAUDE_TOKEN (from `claude setup-token`) or ANTHROPIC_API_KEY.",
 	},
 	"kimi": {
 		DisplayName:    "Kimi (Moonshot)",

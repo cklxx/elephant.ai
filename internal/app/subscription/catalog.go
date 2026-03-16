@@ -240,7 +240,11 @@ func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, clie
 			targets = append(targets, target)
 			continue
 		}
-		if auth.apiKey != "" && utils.HasContent(target.BaseURL) {
+		// For anthropic/claude, use registry models directly (setup-token mode)
+		// instead of probing the /v1/models API which requires an active subscription.
+		if target.Provider == "anthropic" || target.Provider == "claude" {
+			target.Models = enrichWithRegistryModels(target.Provider, recommendationIDs(target.RecommendedModels))
+		} else if auth.apiKey != "" && utils.HasContent(target.BaseURL) {
 			models, err := fetchProviderModels(ctx, client, fetchTarget{
 				provider:  target.Provider,
 				baseURL:   target.BaseURL,
