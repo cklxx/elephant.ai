@@ -118,7 +118,7 @@ func (p *progressListener) onEventNodeStarted(e *domain.Event) {
 
 	p.iteration = e.Data.Iteration
 	p.nodeActive = true
-	// Only flush for first iteration (initial thinking indicator).
+	// Only send initial thinking indicator (first iteration, no tools yet).
 	if p.iteration <= 1 && len(p.tools) == 0 {
 		p.dirty = true
 		p.scheduleFlush()
@@ -146,7 +146,7 @@ func (p *progressListener) onEventToolStarted(e *domain.Event) {
 	p.toolIndex[e.Data.CallID] = ts
 	p.nodeActive = false
 
-	// Only trigger progress update for key tools.
+	// Only update progress message for key tools.
 	if uxphrases.IsKeyTool(e.Data.ToolName) {
 		p.dirty = true
 		p.scheduleFlush()
@@ -170,7 +170,6 @@ func (p *progressListener) onEventToolCompleted(e *domain.Event) {
 	ts.errored = e.Data.Error != nil
 	ts.duration = e.Data.Duration
 
-	// Only trigger progress update for key tools.
 	if uxphrases.IsKeyTool(ts.toolName) {
 		p.dirty = true
 		p.scheduleFlush()
@@ -202,7 +201,6 @@ func (p *progressListener) onEnvelopeNodeStarted(e *domain.WorkflowEventEnvelope
 	iteration := asInt(e.Payload["iteration"])
 	p.iteration = iteration
 	p.nodeActive = true
-	// Only flush for first iteration (initial thinking indicator).
 	if p.iteration <= 1 && len(p.tools) == 0 {
 		p.dirty = true
 		p.scheduleFlush()
@@ -237,7 +235,6 @@ func (p *progressListener) onEnvelopeToolStarted(e *domain.WorkflowEventEnvelope
 	p.toolIndex[callID] = ts
 	p.nodeActive = false
 
-	// Only trigger progress update for key tools.
 	if uxphrases.IsKeyTool(toolName) {
 		p.dirty = true
 		p.scheduleFlush()
@@ -268,7 +265,6 @@ func (p *progressListener) onEnvelopeToolCompleted(e *domain.WorkflowEventEnvelo
 		ts.duration = p.clock().Sub(ts.started)
 	}
 
-	// Only trigger progress update for key tools.
 	if uxphrases.IsKeyTool(ts.toolName) {
 		p.dirty = true
 		p.scheduleFlush()
@@ -418,31 +414,33 @@ func (p *progressListener) Close() {
 	p.doSend(text, messageID, "final ")
 }
 
-// Natural conversational progress phrases — no tool names or categories exposed.
+// Natural conversational progress phrases — spoken like a helpful colleague.
 var (
 	naturalThinkingPhrases = []string{"让我想想…", "嗯，让我看看…", "稍等一下…", "我想想…"}
-	naturalWorkingPhrases  = []string{"稍等，在查…", "让我看看…", "在处理中…", "稍等哈…"}
 	naturalWrappingPhrases = []string{"快好了…", "差不多了…", "马上出结果…", "在整理了…"}
+	naturalFallbackPhrases = []string{"稍等哈…", "让我看看…", "在弄了…"}
 )
 
-// buildText constructs the progress display string. For key tools it shows a
-// descriptive action phrase (e.g. "正在搜索相关信息…"); for non-key states it
-// falls back to natural conversational phrases. Must be called with p.mu held.
+// buildText constructs the progress display string as natural first-person
+// conversational text. For key tools it picks a context-appropriate phrase
+// (e.g. "让我查查看…" for search); for non-key or mixed states it uses
+// generic friendly phrases. Must be called with p.mu held.
 func (p *progressListener) buildText() string {
-	// Find the last active (not done) key tool and show its action.
+	// Find the last active (not done) tool.
 	for i := len(p.tools) - 1; i >= 0; i-- {
 		ts := p.tools[i]
 		if ts.done {
 			continue
 		}
-		if action := uxphrases.KeyToolAction(ts.toolName); action != "" {
-			return action + "…"
+		// Key tool → use its natural conversational phrase.
+		if phrase := uxphrases.KeyToolPhrase(ts.toolName, len(p.tools)); phrase != "" {
+			return phrase
 		}
-		// Active non-key tool — use generic working phrase.
-		return uxphrases.PickPhrase(naturalWorkingPhrases, len(p.tools))
+		// Non-key active tool → generic friendly phrase.
+		return uxphrases.PickPhrase(naturalFallbackPhrases, len(p.tools))
 	}
 
-	// All tools done → wrapping up phrase.
+	// All tools done → wrapping up.
 	if len(p.tools) > 0 {
 		return uxphrases.PickPhrase(naturalWrappingPhrases, len(p.tools))
 	}

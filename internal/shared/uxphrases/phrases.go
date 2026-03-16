@@ -170,23 +170,23 @@ func hasAnyPrefix(name string, prefixes ...string) bool {
 	return false
 }
 
-// keyToolAction maps a key tool category to a descriptive action phrase shown
-// in Lark progress messages. Only tools whose activity is meaningful to the
-// user are considered "key" — internal read/memory/clarify tools are excluded.
-type keyToolAction struct {
-	action  string
+// keyToolGroup pairs a matcher with conversational phrases spoken as a
+// first-person narrator — the way a helpful colleague would talk, never
+// mentioning tool names or technical jargon.
+type keyToolGroup struct {
+	phrases []string
 	matchFn func(name string) bool
 }
 
-var keyToolActions = []keyToolAction{
+var keyToolGroups = []keyToolGroup{
 	{
-		action: "正在搜索相关信息",
+		phrases: []string{"让我查查看…", "我去找找看…", "稍等，我翻翻资料…"},
 		matchFn: func(n string) bool {
 			return hasAnyPrefix(n, "web_search", "web_fetch", "tavily", "search_web")
 		},
 	},
 	{
-		action: "正在执行命令",
+		phrases: []string{"我试一下…", "让我跑一下看看…", "稍等，我验证一下…"},
 		matchFn: func(n string) bool {
 			return matchAny(n,
 				exactMatch("bash"),
@@ -195,7 +195,7 @@ var keyToolActions = []keyToolAction{
 		},
 	},
 	{
-		action: "正在写入文件",
+		phrases: []string{"我来改一下…", "让我调整一下…", "稍等，在写了…"},
 		matchFn: func(n string) bool {
 			return matchAny(n,
 				exactMatch("write", "edit"),
@@ -205,33 +205,33 @@ var keyToolActions = []keyToolAction{
 		},
 	},
 	{
-		action: "正在浏览网页",
+		phrases: []string{"我去网上看看…", "让我打开看一下…", "稍等，在浏览了…"},
 		matchFn: func(n string) bool {
 			return hasAnyPrefix(n, "browser_", "navigate", "screenshot",
 				"click", "scroll", "type_text")
 		},
 	},
 	{
-		action: "正在生成图片",
+		phrases: []string{"让我画一个…", "在创作中，稍等…", "在画了…"},
 		matchFn: func(n string) bool {
 			return hasAnyPrefix(n, "text_to_image", "seedream", "generate_image",
 				"image_gen", "dall_e", "dalle")
 		},
 	},
 	{
-		action: "正在发送消息",
+		phrases: []string{"我帮你发一下…", "让我联系一下…", "稍等，在沟通了…"},
 		matchFn: func(n string) bool {
 			return hasAnyPrefix(n, "lark_", "feishu_", "send_lark", "get_lark", "channel")
 		},
 	},
 	{
-		action: "正在制定计划",
+		phrases: []string{"让我想想怎么做…", "我理一下思路…", "我先捋一捋…"},
 		matchFn: func(n string) bool {
 			return matchAny(n, exactMatch("plan"), prefixMatch("plan_"))
 		},
 	},
 	{
-		action: "正在分配子任务",
+		phrases: []string{"我安排一下…", "让我分头处理…", "先拆开来做…"},
 		matchFn: func(n string) bool {
 			return matchAny(n,
 				exactMatch("task", "subagent"),
@@ -242,25 +242,25 @@ var keyToolActions = []keyToolAction{
 }
 
 // IsKeyTool returns true if the tool represents a user-visible action that
-// warrants a progress update in Lark. Internal tools (read, memory, clarify)
-// are excluded.
+// warrants a conversational progress update. Internal tools (read, memory,
+// clarify) are excluded — they are invisible housekeeping.
 func IsKeyTool(toolName string) bool {
 	lower := utils.TrimLower(toolName)
-	for _, k := range keyToolActions {
-		if k.matchFn(lower) {
+	for _, g := range keyToolGroups {
+		if g.matchFn(lower) {
 			return true
 		}
 	}
 	return false
 }
 
-// KeyToolAction returns a descriptive Chinese action phrase for a key tool.
-// Returns empty string for non-key tools.
-func KeyToolAction(toolName string) string {
+// KeyToolPhrase returns a natural first-person Chinese phrase for the given
+// key tool, rotating through a phrase pool. Returns empty for non-key tools.
+func KeyToolPhrase(toolName string, selector int) string {
 	lower := utils.TrimLower(toolName)
-	for _, k := range keyToolActions {
-		if k.matchFn(lower) {
-			return k.action
+	for _, g := range keyToolGroups {
+		if g.matchFn(lower) {
+			return PickPhrase(g.phrases, selector)
 		}
 	}
 	return ""

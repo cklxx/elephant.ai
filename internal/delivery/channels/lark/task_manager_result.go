@@ -39,7 +39,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	attachmentSummary := ""
 
 	if isAwait && g.cfg.PlanReviewEnabled {
-		reply, replyMsgType, replyContent = g.buildPlanReviewReplyContent(execCtx, msg, result)
+		reply, _, replyContent = g.buildPlanReviewReplyContent(execCtx, msg, result)
 	}
 
 	skipReply := isAwait && awaitTracker.Sent()
@@ -77,23 +77,18 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 				reply = attachmentSummary
 				attachmentSummary = ""
 			case execErr != nil:
-				// Use error card with actionable guidance.
 				sanitized := channels.SanitizeErrorForUser(execErr.Error())
-				replyMsgType = "interactive"
-				replyContent = buildErrorCard(sanitized)
+				reply = "不好意思，这次没弄好：" + sanitized + "\n你可以再跟我说一次，或者换个方式描述一下？"
 			case isAwait:
-				reply = "还需要你补充信息后继续。请直接回复你的补充内容。"
+				reply = "还需要你补充点信息我才能继续，直接回复就好。"
 			default:
-				reply = "这次没有生成可展示的文本结果。请告诉我你希望我输出：总结、下一步计划，或重试后的关键过程。"
+				reply = "这次没有生成文本结果。你可以告诉我希望看到什么：总结、下一步计划，或者让我重试？"
 			}
 		}
 		if attachmentSummary != "" {
 			reply += "\n\n" + attachmentSummary
 		}
-		// Build content if not already set (e.g. by error card path above).
-		if replyContent == "" {
-			replyMsgType, replyContent = smartResultContent(reply, execErr, isAwait)
-		}
+		replyMsgType, replyContent = smartContent(reply)
 	}
 
 	if !skipReply {
@@ -145,7 +140,7 @@ func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *inco
 		return "", "", ""
 	}
 
-	msgType, content = buildPlanReviewReply(marker, g.cfg.PlanReviewRequireConfirmation)
+	reply = buildPlanReviewReply(marker, g.cfg.PlanReviewRequireConfirmation)
 
 	if g.planReviewStore != nil {
 		if err := g.planReviewStore.SavePending(execCtx, PlanReviewPending{
@@ -159,7 +154,7 @@ func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *inco
 		}
 	}
 
-	return "", msgType, content
+	return reply, "text", ""
 }
 
 // buildReply constructs the reply string from the agent result, then rephrases
@@ -168,7 +163,8 @@ func (g *Gateway) buildReply(ctx context.Context, result *agent.TaskResult, exec
 	reply := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
 	if result == nil {
 		if execErr != nil {
-			return channels.SanitizeErrorForUser(execErr.Error())
+			sanitized := channels.SanitizeErrorForUser(execErr.Error())
+			reply = "不好意思，这次没弄好：" + sanitized + "\n你可以再跟我说一次，或者换个方式描述一下？"
 		}
 		return channels.ShapeReply7C(reply)
 	}

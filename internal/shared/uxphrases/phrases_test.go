@@ -1,6 +1,7 @@
 package uxphrases
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -230,26 +231,43 @@ func TestIsKeyTool(t *testing.T) {
 	}
 }
 
-func TestKeyToolAction(t *testing.T) {
+func TestKeyToolPhrase_Conversational(t *testing.T) {
 	tests := []struct {
-		tool   string
-		expect string
+		tool     string
+		wantAny  bool   // should return non-empty
+		wantLike string // substring that should NOT appear (tool jargon)
 	}{
-		{"web_search", "正在搜索相关信息"},
-		{"shell_exec", "正在执行命令"},
-		{"write_file", "正在写入文件"},
-		{"browser_navigate", "正在浏览网页"},
-		{"seedream", "正在生成图片"},
-		{"lark_send_msg", "正在发送消息"},
-		{"plan", "正在制定计划"},
-		{"task", "正在分配子任务"},
-		{"read_file", ""},
-		{"unknown", ""},
+		{"web_search", true, ""},
+		{"shell_exec", true, ""},
+		{"write_file", true, ""},
+		{"plan", true, ""},
+		{"read_file", false, ""}, // non-key → empty
 	}
 	for _, tc := range tests {
-		got := KeyToolAction(tc.tool)
-		if got != tc.expect {
-			t.Errorf("KeyToolAction(%q) = %q, want %q", tc.tool, got, tc.expect)
+		phrase := KeyToolPhrase(tc.tool, 0)
+		if tc.wantAny && phrase == "" {
+			t.Errorf("KeyToolPhrase(%q) = empty, want non-empty", tc.tool)
 		}
+		if !tc.wantAny && phrase != "" {
+			t.Errorf("KeyToolPhrase(%q) = %q, want empty", tc.tool, phrase)
+		}
+		// Phrases must never mention tool names.
+		if phrase != "" {
+			for _, jargon := range []string{"search", "shell", "write", "read", "exec", "tool"} {
+				if strings.Contains(strings.ToLower(phrase), jargon) {
+					t.Errorf("KeyToolPhrase(%q) = %q contains jargon %q", tc.tool, phrase, jargon)
+				}
+			}
+		}
+	}
+}
+
+func TestKeyToolPhrase_Rotates(t *testing.T) {
+	phrases := make(map[string]bool)
+	for i := 0; i < 3; i++ {
+		phrases[KeyToolPhrase("web_search", i)] = true
+	}
+	if len(phrases) < 2 {
+		t.Errorf("expected rotation, got %d distinct phrases", len(phrases))
 	}
 }

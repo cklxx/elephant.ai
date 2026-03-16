@@ -105,18 +105,26 @@ func parsePlanReviewMarker(content string) (planReviewMarker, bool) {
 	return marker, true
 }
 
-// buildPlanReviewReply returns (msgType, content) for a plan review message.
-// Uses an interactive card for structured presentation.
-func buildPlanReviewReply(marker planReviewMarker, requireConfirmation bool) (string, string) {
-	planText := ""
-	if marker.InternalPlan != nil {
-		if data, err := jsonx.MarshalIndent(marker.InternalPlan, "", "  "); err == nil {
-			planText = string(data)
-		} else {
-			planText = fmt.Sprintf("%v", marker.InternalPlan)
-		}
+func buildPlanReviewReply(marker planReviewMarker, requireConfirmation bool) string {
+	var sb strings.Builder
+	if marker.OverallGoalUI != "" {
+		sb.WriteString("我打算这样做：")
+		sb.WriteString(marker.OverallGoalUI)
+		sb.WriteString("\n")
 	}
-	return "interactive", buildPlanReviewCard(marker.OverallGoalUI, planText, requireConfirmation)
+	if marker.InternalPlan != nil {
+		sb.WriteString("\n具体步骤：\n")
+		if data, err := jsonx.MarshalIndent(marker.InternalPlan, "", "  "); err == nil {
+			sb.WriteString(string(data))
+		} else {
+			sb.WriteString(fmt.Sprintf("%v", marker.InternalPlan))
+		}
+		sb.WriteString("\n")
+	}
+	if requireConfirmation {
+		sb.WriteString("\n可以的话回复 OK，想调整就直接说。")
+	}
+	return strings.TrimSpace(sb.String())
 }
 
 func buildPlanFeedbackBlock(pending PlanReviewPending, userFeedback string) string {
