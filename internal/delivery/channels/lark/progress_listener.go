@@ -118,8 +118,11 @@ func (p *progressListener) onEventNodeStarted(e *domain.Event) {
 
 	p.iteration = e.Data.Iteration
 	p.nodeActive = true
-	p.dirty = true
-	p.scheduleFlush()
+	// Only flush for first iteration (initial thinking indicator).
+	if p.iteration <= 1 && len(p.tools) == 0 {
+		p.dirty = true
+		p.scheduleFlush()
+	}
 }
 
 func (p *progressListener) onEventToolStarted(e *domain.Event) {
@@ -142,8 +145,12 @@ func (p *progressListener) onEventToolStarted(e *domain.Event) {
 	p.tools = append(p.tools, ts)
 	p.toolIndex[e.Data.CallID] = ts
 	p.nodeActive = false
-	p.dirty = true
-	p.scheduleFlush()
+
+	// Only trigger progress update for key tools.
+	if uxphrases.IsKeyTool(e.Data.ToolName) {
+		p.dirty = true
+		p.scheduleFlush()
+	}
 }
 
 func (p *progressListener) onEventToolCompleted(e *domain.Event) {
@@ -162,8 +169,12 @@ func (p *progressListener) onEventToolCompleted(e *domain.Event) {
 	ts.done = true
 	ts.errored = e.Data.Error != nil
 	ts.duration = e.Data.Duration
-	p.dirty = true
-	p.scheduleFlush()
+
+	// Only trigger progress update for key tools.
+	if uxphrases.IsKeyTool(ts.toolName) {
+		p.dirty = true
+		p.scheduleFlush()
+	}
 }
 
 func (p *progressListener) onEnvelope(e *domain.WorkflowEventEnvelope) {
@@ -191,8 +202,11 @@ func (p *progressListener) onEnvelopeNodeStarted(e *domain.WorkflowEventEnvelope
 	iteration := asInt(e.Payload["iteration"])
 	p.iteration = iteration
 	p.nodeActive = true
-	p.dirty = true
-	p.scheduleFlush()
+	// Only flush for first iteration (initial thinking indicator).
+	if p.iteration <= 1 && len(p.tools) == 0 {
+		p.dirty = true
+		p.scheduleFlush()
+	}
 }
 
 func (p *progressListener) onEnvelopeToolStarted(e *domain.WorkflowEventEnvelope) {
@@ -222,8 +236,12 @@ func (p *progressListener) onEnvelopeToolStarted(e *domain.WorkflowEventEnvelope
 	p.tools = append(p.tools, ts)
 	p.toolIndex[callID] = ts
 	p.nodeActive = false
-	p.dirty = true
-	p.scheduleFlush()
+
+	// Only trigger progress update for key tools.
+	if uxphrases.IsKeyTool(toolName) {
+		p.dirty = true
+		p.scheduleFlush()
+	}
 }
 
 func (p *progressListener) onEnvelopeToolCompleted(e *domain.WorkflowEventEnvelope) {
@@ -249,8 +267,12 @@ func (p *progressListener) onEnvelopeToolCompleted(e *domain.WorkflowEventEnvelo
 	} else {
 		ts.duration = p.clock().Sub(ts.started)
 	}
-	p.dirty = true
-	p.scheduleFlush()
+
+	// Only trigger progress update for key tools.
+	if uxphrases.IsKeyTool(ts.toolName) {
+		p.dirty = true
+		p.scheduleFlush()
+	}
 }
 
 func payloadString(e *domain.WorkflowEventEnvelope, key string) string {
@@ -403,14 +425,21 @@ var (
 	naturalWrappingPhrases = []string{"快好了…", "差不多了…", "马上出结果…", "在整理了…"}
 )
 
-// buildText constructs the progress display string as a single natural
-// conversational phrase. Must be called with p.mu held.
+// buildText constructs the progress display string. For key tools it shows a
+// descriptive action phrase (e.g. "正在搜索相关信息…"); for non-key states it
+// falls back to natural conversational phrases. Must be called with p.mu held.
 func (p *progressListener) buildText() string {
-	// Has active (not done) tools → working phrase.
+	// Find the last active (not done) key tool and show its action.
 	for i := len(p.tools) - 1; i >= 0; i-- {
-		if !p.tools[i].done {
-			return uxphrases.PickPhrase(naturalWorkingPhrases, len(p.tools))
+		ts := p.tools[i]
+		if ts.done {
+			continue
 		}
+		if action := uxphrases.KeyToolAction(ts.toolName); action != "" {
+			return action + "…"
+		}
+		// Active non-key tool — use generic working phrase.
+		return uxphrases.PickPhrase(naturalWorkingPhrases, len(p.tools))
 	}
 
 	// All tools done → wrapping up phrase.

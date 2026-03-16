@@ -39,7 +39,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	attachmentSummary := ""
 
 	if isAwait && g.cfg.PlanReviewEnabled {
-		reply, _, replyContent = g.buildPlanReviewReplyContent(execCtx, msg, result)
+		reply, replyMsgType, replyContent = g.buildPlanReviewReplyContent(execCtx, msg, result)
 	}
 
 	skipReply := isAwait && awaitTracker.Sent()
@@ -77,7 +77,10 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 				reply = attachmentSummary
 				attachmentSummary = ""
 			case execErr != nil:
-				reply = "执行失败：" + channels.SanitizeErrorForUser(execErr.Error())
+				// Use error card with actionable guidance.
+				sanitized := channels.SanitizeErrorForUser(execErr.Error())
+				replyMsgType = "interactive"
+				replyContent = buildErrorCard(sanitized)
 			case isAwait:
 				reply = "还需要你补充信息后继续。请直接回复你的补充内容。"
 			default:
@@ -87,7 +90,10 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		if attachmentSummary != "" {
 			reply += "\n\n" + attachmentSummary
 		}
-		replyMsgType, replyContent = smartContent(reply)
+		// Build content if not already set (e.g. by error card path above).
+		if replyContent == "" {
+			replyMsgType, replyContent = smartResultContent(reply, execErr, isAwait)
+		}
 	}
 
 	if !skipReply {
@@ -139,7 +145,7 @@ func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *inco
 		return "", "", ""
 	}
 
-	reply = buildPlanReviewReply(marker, g.cfg.PlanReviewRequireConfirmation)
+	msgType, content = buildPlanReviewReply(marker, g.cfg.PlanReviewRequireConfirmation)
 
 	if g.planReviewStore != nil {
 		if err := g.planReviewStore.SavePending(execCtx, PlanReviewPending{
@@ -153,7 +159,7 @@ func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *inco
 		}
 	}
 
-	return reply, "text", ""
+	return "", msgType, content
 }
 
 // buildReply constructs the reply string from the agent result, then rephrases
@@ -161,10 +167,8 @@ func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *inco
 func (g *Gateway) buildReply(ctx context.Context, result *agent.TaskResult, execErr error) string {
 	reply := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
 	if result == nil {
-		// No result — task failed before producing output. Sanitize the raw
-		// error deterministically so Go chain prefixes are never shown to users.
 		if execErr != nil {
-			reply = "执行失败：" + channels.SanitizeErrorForUser(execErr.Error())
+			return channels.SanitizeErrorForUser(execErr.Error())
 		}
 		return channels.ShapeReply7C(reply)
 	}
