@@ -83,12 +83,6 @@ type Config struct {
 	// messages, replying instantly and optionally dispatching a background
 	// worker via its dispatch_worker tool. Default: false (disabled).
 	ConversationProcessEnabled *bool
-	// ConversationModel overrides the LLM model for the conversation
-	// process. Empty string uses the gateway's llmProfile.
-	ConversationModel string
-	// ConversationTimeout is the max duration for the conversation LLM call.
-	// Default: 8s.
-	ConversationTimeout time.Duration
 	// CCHooksAutoConfig enables automatic Claude Code hooks configuration
 	// (direct file write to .claude/settings.local.json) after /notice bind.
 	CCHooksAutoConfig *CCHooksAutoConfig

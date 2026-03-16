@@ -8,12 +8,7 @@ import (
 	"alex/internal/app/agent/llmclient"
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
-	runtimeconfig "alex/internal/shared/config"
 )
-
-// ---------------------------------------------------------------------------
-// Constants & tool definition
-// ---------------------------------------------------------------------------
 
 const (
 	defaultConversationTimeout = 8 * time.Second
@@ -23,8 +18,6 @@ const (
 	dispatchWorkerToolName = "dispatch_worker"
 )
 
-// dispatchWorkerTool is the single tool available to the conversation process.
-// When the LLM calls it, a background worker (existing runTask) is spawned.
 var dispatchWorkerTool = ports.ToolDefinition{
 	Name:        dispatchWorkerToolName,
 	Description: "启动一个后台 Agent 来执行需要工具操作的任务（读写文件、执行命令、搜索等）。调用后 Agent 会在后台异步工作，完成后自动通知用户。",
@@ -51,37 +44,25 @@ var conversationSystemPrompt = strings.TrimSpace(`
 5. 如果有任务正在执行中，用户发来与当前任务相关的补充/修正，调用 dispatch_worker 把补充信息传达（后台会注入到运行中的任务）
 `)
 
-// ---------------------------------------------------------------------------
-// Core entry point
-// ---------------------------------------------------------------------------
-
-// handleViaConversationProcess is the entry point when the conversation
-// process feature flag is enabled. It sends the user message to a lightweight
-// LLM with a single tool (dispatch_worker). The LLM's text reply is sent
-// to the user immediately; if it calls dispatch_worker, a background worker
-// is spawned via the existing runTask path.
-//
-// Always returns true — when enabled, the conversation process fully owns
-// the message lifecycle.
+// handleViaConversationProcess sends the user message to the gateway's LLM
+// with a single tool (dispatch_worker). The text reply goes to the user
+// immediately; a dispatch_worker call spawns a background worker.
+// Always returns true — fully owns the message lifecycle when enabled.
 func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomingMessage, slot *sessionSlot) bool {
 	snap := g.snapshotWorker(msg.chatID)
-
 	reply, toolCalls := g.conversationLLM(ctx, msg.content, snap)
 
-	// Send the text reply to the user (even if empty, the LLM should always
-	// produce one, but guard against edge cases).
 	if reply != "" {
 		g.dispatch(ctx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
 	}
 
-	// Process tool calls — only dispatch_worker is recognized.
 	for _, tc := range toolCalls {
 		if tc.Name != dispatchWorkerToolName {
 			continue
 		}
 		taskArg, _ := tc.Arguments["task"].(string)
 		if taskArg == "" {
-			taskArg = msg.content // fallback to original message
+			taskArg = msg.content
 		}
 		g.spawnWorker(ctx, msg, slot, snap, taskArg)
 	}
@@ -89,41 +70,28 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	return true
 }
 
-// ---------------------------------------------------------------------------
-// LLM call
-// ---------------------------------------------------------------------------
-
-// conversationLLM calls the lightweight LLM with the conversation system
-// prompt, worker status context, and the user's message. Returns the text
-// reply and any tool calls.
+// conversationLLM calls the gateway's shared LLM with the conversation
+// system prompt, worker status, and user message. Returns text reply
+// and any tool calls.
 func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap workerSnapshot) (string, []ports.ToolCall) {
 	if g.llmFactory == nil {
-		// No LLM factory — can't run conversation process, fall back to a
-		// generic acknowledgement that will trigger the old path.
 		return "", nil
 	}
 
-	profile := g.resolveConversationProfile()
-	client, _, err := llmclient.GetClientFromProfile(g.llmFactory, profile, nil, false)
+	client, _, err := llmclient.GetClientFromProfile(g.llmFactory, g.llmProfile, nil, false)
 	if err != nil {
 		g.logger.Warn("conversation LLM: failed to get client: %v", err)
 		return "", nil
 	}
 
-	timeout := g.cfg.ConversationTimeout
-	if timeout <= 0 {
-		timeout = defaultConversationTimeout
-	}
+	llmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultConversationTimeout)
+	defer cancel()
 
-	// Build user prompt with worker state context.
 	var sb strings.Builder
 	sb.WriteString("当前 Worker 状态：")
 	sb.WriteString(snap.StatusSummary())
 	sb.WriteString("\n\n用户消息：")
 	sb.WriteString(strings.TrimSpace(userMsg))
-
-	llmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
-	defer cancel()
 
 	resp, err := client.Complete(llmCtx, ports.CompletionRequest{
 		Messages: []ports.Message{
@@ -135,7 +103,7 @@ func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap work
 		MaxTokens:   conversationMaxTok,
 	})
 	if err != nil {
-		g.logger.Warn("conversation LLM: call failed: %v; falling back", err)
+		g.logger.Warn("conversation LLM: call failed: %v", err)
 		return "", nil
 	}
 
@@ -143,15 +111,9 @@ func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap work
 	return strings.TrimSpace(resp.Content), resp.ToolCalls
 }
 
-// ---------------------------------------------------------------------------
-// Worker spawning
-// ---------------------------------------------------------------------------
-
-// spawnWorker launches a background worker using the existing runTask path.
-// If a worker is already running, the task description is injected into the
-// running worker's inputCh instead of spawning a new one.
+// spawnWorker launches a background worker via the existing runTask path.
+// If a worker is already running, injects into its inputCh instead.
 func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *sessionSlot, snap workerSnapshot, taskContent string) {
-	// If a worker is already running, inject into it.
 	if snap.IsRunning() {
 		slot.mu.Lock()
 		ch := slot.inputCh
@@ -168,7 +130,6 @@ func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *s
 		return
 	}
 
-	// No worker running — spawn a new one via the existing task launch path.
 	slot.mu.Lock()
 	sessionID, isResume := g.resolveSessionForNewTask(ctx, msg.chatID, slot)
 	inputCh := make(chan agent.UserInput, 16)
@@ -184,9 +145,7 @@ func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *s
 	slot.lastTouched = g.currentTime()
 	slot.mu.Unlock()
 
-	// Build a synthetic message with the dispatched task content so
-	// runTask sees the right content instead of the original chat message.
-	workerMsg := *msg // shallow copy
+	workerMsg := *msg
 	workerMsg.content = taskContent
 
 	g.taskWG.Add(1)
@@ -221,33 +180,13 @@ func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *s
 	}(taskCtx, taskCancel, taskToken)
 }
 
-// ---------------------------------------------------------------------------
-// Config helpers
-// ---------------------------------------------------------------------------
-
-// conversationProcessEnabled reports whether the conversation process
-// feature flag is on.
+// conversationProcessEnabled reports whether the conversation process is on.
 func (g *Gateway) conversationProcessEnabled() bool {
 	if g.cfg.ConversationProcessEnabled == nil {
 		return false
 	}
 	return *g.cfg.ConversationProcessEnabled
 }
-
-// resolveConversationProfile returns the LLM profile for the conversation
-// process.
-func (g *Gateway) resolveConversationProfile() runtimeconfig.LLMProfile {
-	if g.cfg.ConversationModel != "" {
-		p := g.llmProfile
-		p.Model = g.cfg.ConversationModel
-		return p
-	}
-	return g.llmProfile
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 func truncateLog(s string, maxRunes int) string {
 	runes := []rune(s)
@@ -256,4 +195,3 @@ func truncateLog(s string, maxRunes int) string {
 	}
 	return string(runes[:maxRunes]) + "…"
 }
-

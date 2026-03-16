@@ -406,29 +406,6 @@ func TestConversationProcessEnabled_True(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Tests for resolveConversationProfile
-// ---------------------------------------------------------------------------
-
-func TestResolveConversationProfile_NoOverride(t *testing.T) {
-	g := &Gateway{llmProfile: config.LLMProfile{Provider: "openai", Model: "gpt-4o"}}
-	p := g.resolveConversationProfile()
-	if p.Model != "gpt-4o" {
-		t.Fatalf("expected gpt-4o, got %q", p.Model)
-	}
-}
-
-func TestResolveConversationProfile_WithOverride(t *testing.T) {
-	g := &Gateway{
-		cfg:        Config{ConversationModel: "gpt-4o-mini"},
-		llmProfile: config.LLMProfile{Provider: "openai", Model: "gpt-4o"},
-	}
-	p := g.resolveConversationProfile()
-	if p.Model != "gpt-4o-mini" {
-		t.Fatalf("expected gpt-4o-mini, got %q", p.Model)
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Tests for workerSnapshot
 // ---------------------------------------------------------------------------
 
