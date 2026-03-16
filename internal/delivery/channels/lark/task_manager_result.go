@@ -89,18 +89,19 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 			reply += "\n\n" + attachmentSummary
 		}
 
-		// Enforce 200-rune cap: if reply is still long after rephrase,
-		// upload the full text as a document and keep the chat reply short.
-		if !isAwait && len([]rune(reply)) > 200 {
-			reply = g.truncateWithDoc(execCtx, msg.chatID, msg.messageID, reply)
-		}
-
 		replyMsgType, replyContent = smartContent(reply)
 	}
 
 	if !skipReply {
-		intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, progressMsgID, replyMsgType, replyContent)
-		g.dispatchTerminalIntent(execCtx, intent)
+		// For await prompts, keep the reply as a single message so numbered
+		// options are never split across separate messages.
+		chunks := splitMessage(reply)
+		if !isAwait && len(chunks) > 1 {
+			g.dispatchMultiMessageReply(execCtx, msg, result, execErr, progressMsgID, chunks)
+		} else {
+			intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, progressMsgID, replyMsgType, replyContent)
+			g.dispatchTerminalIntent(execCtx, intent)
+		}
 	}
 }
 
