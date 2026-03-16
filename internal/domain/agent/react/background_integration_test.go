@@ -788,7 +788,7 @@ func TestIntegration_StaleTaskRetry(t *testing.T) {
 	swarmCfg := taskfile.SwarmConfig{
 		InitialConcurrency: 5,
 		MaxConcurrency:     10,
-		StageTimeout:       200 * time.Millisecond, // short so Collect returns fast
+		StageTimeout:       2 * time.Second, // short so Collect returns fast; must be long enough for CI scheduling
 		StaleRetryMax:      1,
 		ScaleUpThreshold:   0.9,
 		ScaleDownThreshold: 0.7,

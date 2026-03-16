@@ -191,11 +191,15 @@ func (m *BackgroundTaskManager) resolveTargets(ids []string) []*backgroundTask {
 // awaitTasks blocks until the specified tasks (or all tasks when ids is empty)
 // are no longer pending/running, or timeout elapses. Returns true if all
 // tasks completed, false if the timeout was reached first.
+//
+// The timeout is measured against wall-clock time (time.Now) so that callers
+// get a deterministic upper bound regardless of any injectable clock used for
+// business logic (e.g. staleness detection).
 func (m *BackgroundTaskManager) awaitTasks(ids []string, timeout time.Duration) bool {
-	deadline := m.clock.Now().Add(timeout)
+	deadline := time.Now().Add(timeout)
 
 	for {
-		if m.clock.Now().After(deadline) {
+		if time.Now().After(deadline) {
 			return false
 		}
 
@@ -226,7 +230,7 @@ func (m *BackgroundTaskManager) awaitTasks(ids []string, timeout time.Duration) 
 			return true
 		}
 
-		remaining := deadline.Sub(m.clock.Now())
+		remaining := time.Until(deadline)
 		if remaining <= 0 {
 			return false
 		}
