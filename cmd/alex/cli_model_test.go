@@ -110,10 +110,12 @@ func TestModelListShowsErrors(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	// Anthropic uses registry models (setup-token mode) and never calls the API,
+	// so use a non-anthropic provider to test error display.
 	var buf bytes.Buffer
 	if err := listModelsFromWith(&buf, runtimeconfig.CLICredentials{
-		Claude: runtimeconfig.CLICredential{
-			Provider: "anthropic",
+		Codex: runtimeconfig.CLICredential{
+			Provider: "openai",
 			APIKey:   "expired-token",
 			BaseURL:  srv.URL,
 			Source:   runtimeconfig.SourceEnv,
@@ -125,8 +127,8 @@ func TestModelListShowsErrors(t *testing.T) {
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, "anthropic") {
-		t.Fatalf("expected anthropic provider in output, got:\n%s", out)
+	if !strings.Contains(out, "openai") {
+		t.Fatalf("expected openai provider in output, got:\n%s", out)
 	}
 	if !strings.Contains(out, "Error:") {
 		t.Fatalf("expected error in output, got:\n%s", out)
