@@ -155,8 +155,8 @@ func TestBuildReply(t *testing.T) {
 
 	t.Run("with error", func(t *testing.T) {
 		reply := gw.buildReply(ctx, nil, errTest)
-		if !strings.Contains(reply, "执行失败") {
-			t.Fatalf("expected error reply, got %q", reply)
+		if !strings.Contains(reply, "没弄好") {
+			t.Fatalf("expected conversational error reply, got %q", reply)
 		}
 	})
 
@@ -1805,7 +1805,7 @@ func TestHandleMessageStopCommandCancelsInFlightTask(t *testing.T) {
 		if strings.Contains(call.Content, "已停止当前调用") {
 			foundStopped = true
 		}
-		if strings.Contains(call.Content, "执行失败") {
+		if strings.Contains(call.Content, "没弄好") {
 			t.Fatalf("did not expect failure reply after /stop, got %q", call.Content)
 		}
 	}
@@ -1861,7 +1861,7 @@ func TestHandleMessageContextCanceledSendsFailureReplyWhenNotIntentional(t *test
 	}
 	foundFailure := false
 	for _, call := range replies {
-		if strings.Contains(call.Content, "执行失败") || strings.Contains(call.Content, "失败") {
+		if strings.Contains(call.Content, "没弄好") || strings.Contains(call.Content, "失败") {
 			foundFailure = true
 			break
 		}
@@ -1928,7 +1928,7 @@ func TestHandleMessageTimeoutStillSendsFailureReply(t *testing.T) {
 	}
 	foundFailure := false
 	for _, call := range replies {
-		if strings.Contains(call.Content, "执行失败") || strings.Contains(call.Content, "失败") {
+		if strings.Contains(call.Content, "没弄好") || strings.Contains(call.Content, "失败") {
 			foundFailure = true
 			break
 		}

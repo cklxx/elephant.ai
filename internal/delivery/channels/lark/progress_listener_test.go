@@ -225,39 +225,29 @@ func TestProgressListenerToolLifecycle(t *testing.T) {
 	pl := newProgressListener(context.Background(), nil, sender, nil)
 	pl.now = clk.Now
 
-	// Start a tool.
+	// Start a key tool (web_search).
 	pl.OnEvent(makeToolStarted("call-1", "web_search"))
-
-	// Wait for flush (immediate since no prior flush).
 	time.Sleep(100 * time.Millisecond)
 
 	if sender.sendCount() != 1 {
-		t.Fatalf("expected 1 send after first tool start, got %d", sender.sendCount())
+		t.Fatalf("expected 1 send after key tool start, got %d", sender.sendCount())
 	}
 	text := sender.lastSendText()
-	// Natural working phrase (no tool name or category exposed).
-	if !isNaturalWorkingPhrase(text) {
-		t.Fatalf("expected natural working phrase, got %q", text)
+	// Conversational phrase — must not contain tool names.
+	if isJargon(text) {
+		t.Fatalf("expected conversational phrase, got jargon: %q", text)
 	}
 
-	// Advance time past the rate limit.
 	clk.Advance(3 * time.Second)
-
-	// Complete the tool.
 	pl.OnEvent(makeToolCompleted("call-1", "web_search", 1200*time.Millisecond, nil))
-
-	// Wait for the flush.
 	time.Sleep(100 * time.Millisecond)
 
 	if sender.updateCount() != 1 {
 		t.Fatalf("expected 1 update after tool completion, got %d", sender.updateCount())
 	}
-	updateText := sender.lastUpdateText()
-	// After all tools done, should show natural wrapping phrase.
-	if !isNaturalWrappingPhrase(updateText) {
-		t.Fatalf("expected natural wrapping phrase after tool done, got %q", updateText)
+	if !isNaturalWrappingPhrase(sender.lastUpdateText()) {
+		t.Fatalf("expected wrapping phrase, got %q", sender.lastUpdateText())
 	}
-
 	pl.Close()
 }
 
@@ -269,46 +259,34 @@ func TestProgressListenerEnvelopeLifecycle(t *testing.T) {
 
 	pl.OnEvent(makeEnvelopeToolStarted("call-1", "web_search"))
 	time.Sleep(100 * time.Millisecond)
-
 	if sender.sendCount() != 1 {
-		t.Fatalf("expected 1 send after tool start, got %d", sender.sendCount())
+		t.Fatalf("expected 1 send, got %d", sender.sendCount())
 	}
 
 	clk.Advance(3 * time.Second)
 	pl.OnEvent(makeEnvelopeToolCompleted("call-1", "web_search", 1200*time.Millisecond, nil))
 	time.Sleep(100 * time.Millisecond)
-
-	if sender.updateCount() != 1 {
-		t.Fatalf("expected 1 update after tool completion, got %d", sender.updateCount())
-	}
-	// After completion, shows natural wrapping phrase.
-	text := sender.lastUpdateText()
-	if !isNaturalWrappingPhrase(text) {
-		t.Fatalf("expected natural wrapping phrase, got %q", text)
+	if !isNaturalWrappingPhrase(sender.lastUpdateText()) {
+		t.Fatalf("expected wrapping phrase, got %q", sender.lastUpdateText())
 	}
 }
 
-func TestProgressListenerErroredTool(t *testing.T) {
-	clk := newTestClock(time.Date(2026, 1, 29, 12, 0, 0, 0, time.UTC))
-	sender := &spySender{nextID: "om_err"}
+func TestProgressListenerNonKeyToolNoProgress(t *testing.T) {
+	sender := &spySender{nextID: "om_nonkey"}
 	pl := newProgressListener(context.Background(), nil, sender, nil)
-	pl.now = clk.Now
 
-	pl.OnEvent(makeToolStarted("call-err", "bad_tool"))
+	// Non-key tool (read_file) should not trigger progress.
+	pl.OnEvent(makeToolStarted("call-1", "read_file"))
 	time.Sleep(100 * time.Millisecond)
-
-	clk.Advance(3 * time.Second)
-	pl.OnEvent(makeToolCompleted("call-err", "bad_tool", 500*time.Millisecond, fmt.Errorf("failed")))
-	time.Sleep(100 * time.Millisecond)
-
-	// After errored tool completes, shows summarizing phrase (same as normal completion).
-	text := sender.lastUpdateText()
-	if text == "" {
-		t.Fatal("expected an update after errored tool completion")
+	if sender.sendCount() != 0 {
+		t.Fatalf("expected 0 sends for non-key tool, got %d", sender.sendCount())
 	}
-	// Should be a valid phrase, not raw technical text.
-	if strings.Contains(text, "[error") || strings.Contains(text, "bad_tool") {
-		t.Fatalf("expected friendly phrase, got raw technical text: %q", text)
+
+	// Non-key errored tool also should not trigger.
+	pl.OnEvent(makeToolCompleted("call-1", "read_file", 500*time.Millisecond, fmt.Errorf("failed")))
+	time.Sleep(100 * time.Millisecond)
+	if sender.updateCount() != 0 {
+		t.Fatalf("expected 0 updates for non-key tool, got %d", sender.updateCount())
 	}
 	pl.Close()
 }
@@ -319,16 +297,16 @@ func TestProgressListenerRateLimiting(t *testing.T) {
 	pl := newProgressListener(context.Background(), nil, sender, nil)
 	pl.now = clk.Now
 
-	// First tool starts: should trigger immediate flush.
-	pl.OnEvent(makeToolStarted("call-1", "tool_a"))
+	// First key tool starts: should trigger immediate flush.
+	pl.OnEvent(makeToolStarted("call-1", "web_search"))
 	time.Sleep(100 * time.Millisecond)
 	if sender.sendCount() != 1 {
 		t.Fatalf("expected 1 send, got %d", sender.sendCount())
 	}
 
-	// Second tool starts within rate limit window: should NOT flush immediately.
+	// Second key tool starts within rate limit window: should NOT flush immediately.
 	clk.Advance(500 * time.Millisecond)
-	pl.OnEvent(makeToolStarted("call-2", "tool_b"))
+	pl.OnEvent(makeToolStarted("call-2", "shell_exec"))
 	time.Sleep(100 * time.Millisecond)
 	if sender.updateCount() != 0 {
 		t.Fatalf("expected 0 updates within rate limit, got %d", sender.updateCount())
@@ -340,7 +318,6 @@ func TestProgressListenerRateLimiting(t *testing.T) {
 	if sender.updateCount() < 1 {
 		t.Fatalf("expected at least 1 update after rate limit, got %d", sender.updateCount())
 	}
-
 	pl.Close()
 }
 
@@ -350,20 +327,17 @@ func TestProgressListenerCloseFlush(t *testing.T) {
 	pl := newProgressListener(context.Background(), nil, sender, nil)
 	pl.now = clk.Now
 
-	// Start two tools rapidly.
-	pl.OnEvent(makeToolStarted("call-1", "tool_a"))
-	time.Sleep(100 * time.Millisecond) // Let first flush happen.
+	// Start two key tools rapidly.
+	pl.OnEvent(makeToolStarted("call-1", "web_search"))
+	time.Sleep(100 * time.Millisecond)
 
 	clk.Advance(100 * time.Millisecond)
-	pl.OnEvent(makeToolStarted("call-2", "tool_b"))
-	// Don't wait for the timer to fire; Close should do a synchronous flush.
+	pl.OnEvent(makeToolStarted("call-2", "shell_exec"))
 
 	pl.Close()
-
-	// After Close, the update for tool_b should have been sent.
 	totalOps := sender.sendCount() + sender.updateCount()
 	if totalOps < 2 {
-		t.Fatalf("expected at least 2 total operations (send+updates), got %d", totalOps)
+		t.Fatalf("expected at least 2 total operations, got %d", totalOps)
 	}
 }
 
@@ -398,29 +372,28 @@ func TestProgressListenerBuildTextFormat(t *testing.T) {
 	}
 
 	now := clk.Now()
-	// Add tools: one done, one running, one errored.
+	// Add tools: one done (key), one running (key), one done non-key.
 	pl.tools = []*toolStatus{
 		{callID: "c1", toolName: "web_search", started: now.Add(-2 * time.Second), done: true, duration: 1200 * time.Millisecond},
 		{callID: "c2", toolName: "seedream", started: now.Add(-3 * time.Second)},
-		{callID: "c3", toolName: "bad_tool", started: now.Add(-1 * time.Second), done: true, errored: true, duration: 500 * time.Millisecond},
+		{callID: "c3", toolName: "read_file", started: now.Add(-1 * time.Second), done: true, duration: 500 * time.Millisecond},
 	}
 
 	text = pl.buildText()
-	// Has active tools → natural working phrase (no tool name/category).
-	if !isNaturalWorkingPhrase(text) {
-		t.Fatalf("expected natural working phrase for active tools, got %q", text)
+	// Has active key tool → conversational phrase, no jargon.
+	if isJargon(text) {
+		t.Fatalf("expected conversational phrase, got jargon: %q", text)
 	}
-	// Should be a single line, no newlines.
 	if strings.Contains(text, "\n") {
 		t.Fatalf("expected single-line phrase, got multi-line: %q", text)
 	}
 
-	// All tools done → natural wrapping phrase.
+	// All tools done → wrapping phrase.
 	pl.tools[1].done = true
 	pl.tools[1].duration = 3 * time.Second
 	text = pl.buildText()
 	if !isNaturalWrappingPhrase(text) {
-		t.Fatalf("expected natural wrapping phrase when all tools done, got %q", text)
+		t.Fatalf("expected wrapping phrase when all done, got %q", text)
 	}
 }
 
@@ -525,9 +498,12 @@ func isNaturalThinkingPhrase(text string) bool {
 	return false
 }
 
-func isNaturalWorkingPhrase(text string) bool {
-	for _, p := range naturalWorkingPhrases {
-		if strings.Contains(text, strings.TrimSuffix(p, "…")) {
+// isJargon returns true if the text contains English tool names or technical terms.
+func isJargon(text string) bool {
+	lower := strings.ToLower(text)
+	jargonTerms := []string{"search", "shell", "exec", "write", "read", "tool", "browser", "file", "command"}
+	for _, term := range jargonTerms {
+		if strings.Contains(lower, term) {
 			return true
 		}
 	}
