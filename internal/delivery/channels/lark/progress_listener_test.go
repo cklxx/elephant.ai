@@ -225,19 +225,19 @@ func TestProgressListenerToolLifecycle(t *testing.T) {
 	pl := newProgressListener(context.Background(), nil, sender, nil)
 	pl.now = clk.Now
 
-	// Start a tool.
+	// Start a key tool (web_search).
 	pl.OnEvent(makeToolStarted("call-1", "web_search"))
 
 	// Wait for flush (immediate since no prior flush).
 	time.Sleep(100 * time.Millisecond)
 
 	if sender.sendCount() != 1 {
-		t.Fatalf("expected 1 send after first tool start, got %d", sender.sendCount())
+		t.Fatalf("expected 1 send after first key tool start, got %d", sender.sendCount())
 	}
 	text := sender.lastSendText()
-	// Natural working phrase (no tool name or category exposed).
-	if !isNaturalWorkingPhrase(text) {
-		t.Fatalf("expected natural working phrase, got %q", text)
+	// Key tool shows descriptive action phrase.
+	if !strings.Contains(text, "搜索") {
+		t.Fatalf("expected search action phrase for web_search, got %q", text)
 	}
 
 	// Advance time past the rate limit.
@@ -288,27 +288,42 @@ func TestProgressListenerEnvelopeLifecycle(t *testing.T) {
 	}
 }
 
-func TestProgressListenerErroredTool(t *testing.T) {
+func TestProgressListenerErroredKeyTool(t *testing.T) {
 	clk := newTestClock(time.Date(2026, 1, 29, 12, 0, 0, 0, time.UTC))
 	sender := &spySender{nextID: "om_err"}
 	pl := newProgressListener(context.Background(), nil, sender, nil)
 	pl.now = clk.Now
 
-	pl.OnEvent(makeToolStarted("call-err", "bad_tool"))
+	// Use a key tool (shell_exec) so progress is actually sent.
+	pl.OnEvent(makeToolStarted("call-err", "shell_exec"))
 	time.Sleep(100 * time.Millisecond)
 
 	clk.Advance(3 * time.Second)
-	pl.OnEvent(makeToolCompleted("call-err", "bad_tool", 500*time.Millisecond, fmt.Errorf("failed")))
+	pl.OnEvent(makeToolCompleted("call-err", "shell_exec", 500*time.Millisecond, fmt.Errorf("failed")))
 	time.Sleep(100 * time.Millisecond)
 
-	// After errored tool completes, shows summarizing phrase (same as normal completion).
+	// After errored key tool completes, shows wrapping phrase.
 	text := sender.lastUpdateText()
 	if text == "" {
-		t.Fatal("expected an update after errored tool completion")
+		t.Fatal("expected an update after errored key tool completion")
 	}
 	// Should be a valid phrase, not raw technical text.
-	if strings.Contains(text, "[error") || strings.Contains(text, "bad_tool") {
+	if strings.Contains(text, "[error") || strings.Contains(text, "shell_exec") {
 		t.Fatalf("expected friendly phrase, got raw technical text: %q", text)
+	}
+	pl.Close()
+}
+
+func TestProgressListenerNonKeyToolNoProgress(t *testing.T) {
+	sender := &spySender{nextID: "om_nonkey"}
+	pl := newProgressListener(context.Background(), nil, sender, nil)
+
+	// Non-key tool (read_file) should not trigger progress.
+	pl.OnEvent(makeToolStarted("call-1", "read_file"))
+	time.Sleep(100 * time.Millisecond)
+
+	if sender.sendCount() != 0 {
+		t.Fatalf("expected 0 sends for non-key tool, got %d", sender.sendCount())
 	}
 	pl.Close()
 }
@@ -319,16 +334,16 @@ func TestProgressListenerRateLimiting(t *testing.T) {
 	pl := newProgressListener(context.Background(), nil, sender, nil)
 	pl.now = clk.Now
 
-	// First tool starts: should trigger immediate flush.
-	pl.OnEvent(makeToolStarted("call-1", "tool_a"))
+	// First key tool starts: should trigger immediate flush.
+	pl.OnEvent(makeToolStarted("call-1", "web_search"))
 	time.Sleep(100 * time.Millisecond)
 	if sender.sendCount() != 1 {
 		t.Fatalf("expected 1 send, got %d", sender.sendCount())
 	}
 
-	// Second tool starts within rate limit window: should NOT flush immediately.
+	// Second key tool starts within rate limit window: should NOT flush immediately.
 	clk.Advance(500 * time.Millisecond)
-	pl.OnEvent(makeToolStarted("call-2", "tool_b"))
+	pl.OnEvent(makeToolStarted("call-2", "shell_exec"))
 	time.Sleep(100 * time.Millisecond)
 	if sender.updateCount() != 0 {
 		t.Fatalf("expected 0 updates within rate limit, got %d", sender.updateCount())
@@ -350,17 +365,17 @@ func TestProgressListenerCloseFlush(t *testing.T) {
 	pl := newProgressListener(context.Background(), nil, sender, nil)
 	pl.now = clk.Now
 
-	// Start two tools rapidly.
-	pl.OnEvent(makeToolStarted("call-1", "tool_a"))
+	// Start two key tools rapidly.
+	pl.OnEvent(makeToolStarted("call-1", "web_search"))
 	time.Sleep(100 * time.Millisecond) // Let first flush happen.
 
 	clk.Advance(100 * time.Millisecond)
-	pl.OnEvent(makeToolStarted("call-2", "tool_b"))
+	pl.OnEvent(makeToolStarted("call-2", "shell_exec"))
 	// Don't wait for the timer to fire; Close should do a synchronous flush.
 
 	pl.Close()
 
-	// After Close, the update for tool_b should have been sent.
+	// After Close, the update for shell_exec should have been sent.
 	totalOps := sender.sendCount() + sender.updateCount()
 	if totalOps < 2 {
 		t.Fatalf("expected at least 2 total operations (send+updates), got %d", totalOps)
@@ -398,17 +413,17 @@ func TestProgressListenerBuildTextFormat(t *testing.T) {
 	}
 
 	now := clk.Now()
-	// Add tools: one done, one running, one errored.
+	// Add tools: one done (key), one running (key), one errored (non-key).
 	pl.tools = []*toolStatus{
 		{callID: "c1", toolName: "web_search", started: now.Add(-2 * time.Second), done: true, duration: 1200 * time.Millisecond},
 		{callID: "c2", toolName: "seedream", started: now.Add(-3 * time.Second)},
-		{callID: "c3", toolName: "bad_tool", started: now.Add(-1 * time.Second), done: true, errored: true, duration: 500 * time.Millisecond},
+		{callID: "c3", toolName: "read_file", started: now.Add(-1 * time.Second), done: true, errored: true, duration: 500 * time.Millisecond},
 	}
 
 	text = pl.buildText()
-	// Has active tools → natural working phrase (no tool name/category).
-	if !isNaturalWorkingPhrase(text) {
-		t.Fatalf("expected natural working phrase for active tools, got %q", text)
+	// Has active key tool (seedream) → shows descriptive action phrase.
+	if !strings.Contains(text, "生成图片") {
+		t.Fatalf("expected image generation action phrase for seedream, got %q", text)
 	}
 	// Should be a single line, no newlines.
 	if strings.Contains(text, "\n") {

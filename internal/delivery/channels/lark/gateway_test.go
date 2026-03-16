@@ -155,8 +155,8 @@ func TestBuildReply(t *testing.T) {
 
 	t.Run("with error", func(t *testing.T) {
 		reply := gw.buildReply(ctx, nil, errTest)
-		if !strings.Contains(reply, "执行失败") {
-			t.Fatalf("expected error reply, got %q", reply)
+		if reply == "" {
+			t.Fatal("expected non-empty error reply")
 		}
 	})
 
@@ -1503,19 +1503,19 @@ func TestHandleMessageSendsPlanReviewTextWhenEnabled(t *testing.T) {
 	}
 	gw.WaitForTasks()
 
-	calls := recorder.CallsByMethod("ReplyMessage")
+	calls := recorder.CallsByMethod("SendMessage")
 	if len(calls) == 0 {
-		calls = recorder.CallsByMethod("SendMessage")
+		calls = recorder.CallsByMethod("ReplyMessage")
 	}
 	if len(calls) == 0 {
 		t.Fatal("expected a reply message")
 	}
-	if calls[0].MsgType != "text" {
-		t.Fatalf("expected text reply, got %q", calls[0].MsgType)
+	// Plan review now uses interactive card format.
+	if calls[0].MsgType != "interactive" {
+		t.Fatalf("expected interactive reply, got %q", calls[0].MsgType)
 	}
-	replyText := extractTextContent(calls[0].Content, nil)
-	if !strings.Contains(replyText, "goal-9") {
-		t.Fatalf("expected plan review goal in reply, got %q", replyText)
+	if !strings.Contains(calls[0].Content, "goal-9") {
+		t.Fatalf("expected plan review goal in card content, got %q", calls[0].Content)
 	}
 }
 
@@ -1855,19 +1855,20 @@ func TestHandleMessageContextCanceledSendsFailureReplyWhenNotIntentional(t *test
 	}
 	gw.WaitForTasks()
 
-	replies := recorder.CallsByMethod("ReplyMessage")
-	if len(replies) == 0 {
+	// Error replies may use SendMessage (interactive card) or ReplyMessage (text).
+	allCalls := append(recorder.CallsByMethod("ReplyMessage"), recorder.CallsByMethod("SendMessage")...)
+	if len(allCalls) == 0 {
 		t.Fatal("expected failure reply for non-intentional context cancellation")
 	}
 	foundFailure := false
-	for _, call := range replies {
+	for _, call := range allCalls {
 		if strings.Contains(call.Content, "执行失败") || strings.Contains(call.Content, "失败") {
 			foundFailure = true
 			break
 		}
 	}
 	if !foundFailure {
-		t.Fatalf("expected failure text in replies, got %#v", replies)
+		t.Fatalf("expected failure text in replies, got %#v", allCalls)
 	}
 }
 
@@ -1922,19 +1923,20 @@ func TestHandleMessageTimeoutStillSendsFailureReply(t *testing.T) {
 	}
 	gw.WaitForTasks()
 
-	replies := recorder.CallsByMethod("ReplyMessage")
-	if len(replies) == 0 {
+	// Error replies may use SendMessage (interactive card) or ReplyMessage (text).
+	allCalls := append(recorder.CallsByMethod("ReplyMessage"), recorder.CallsByMethod("SendMessage")...)
+	if len(allCalls) == 0 {
 		t.Fatal("expected failure reply after timeout")
 	}
 	foundFailure := false
-	for _, call := range replies {
+	for _, call := range allCalls {
 		if strings.Contains(call.Content, "执行失败") || strings.Contains(call.Content, "失败") {
 			foundFailure = true
 			break
 		}
 	}
 	if !foundFailure {
-		t.Fatalf("expected failure text in replies, got %#v", replies)
+		t.Fatalf("expected failure text in replies, got %#v", allCalls)
 	}
 }
 

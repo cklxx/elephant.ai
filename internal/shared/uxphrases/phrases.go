@@ -169,3 +169,99 @@ func hasAnyPrefix(name string, prefixes ...string) bool {
 	}
 	return false
 }
+
+// keyToolAction maps a key tool category to a descriptive action phrase shown
+// in Lark progress messages. Only tools whose activity is meaningful to the
+// user are considered "key" — internal read/memory/clarify tools are excluded.
+type keyToolAction struct {
+	action  string
+	matchFn func(name string) bool
+}
+
+var keyToolActions = []keyToolAction{
+	{
+		action: "正在搜索相关信息",
+		matchFn: func(n string) bool {
+			return hasAnyPrefix(n, "web_search", "web_fetch", "tavily", "search_web")
+		},
+	},
+	{
+		action: "正在执行命令",
+		matchFn: func(n string) bool {
+			return matchAny(n,
+				exactMatch("bash"),
+				prefixMatch("shell_exec", "run_command", "execute_code", "terminal", "exec_"),
+			)
+		},
+	},
+	{
+		action: "正在写入文件",
+		matchFn: func(n string) bool {
+			return matchAny(n,
+				exactMatch("write", "edit"),
+				prefixMatch("write_file", "write_", "replace_in_file", "create_file",
+					"edit_", "insert_text", "apply_diff", "patch_file"),
+			)
+		},
+	},
+	{
+		action: "正在浏览网页",
+		matchFn: func(n string) bool {
+			return hasAnyPrefix(n, "browser_", "navigate", "screenshot",
+				"click", "scroll", "type_text")
+		},
+	},
+	{
+		action: "正在生成图片",
+		matchFn: func(n string) bool {
+			return hasAnyPrefix(n, "text_to_image", "seedream", "generate_image",
+				"image_gen", "dall_e", "dalle")
+		},
+	},
+	{
+		action: "正在发送消息",
+		matchFn: func(n string) bool {
+			return hasAnyPrefix(n, "lark_", "feishu_", "send_lark", "get_lark", "channel")
+		},
+	},
+	{
+		action: "正在制定计划",
+		matchFn: func(n string) bool {
+			return matchAny(n, exactMatch("plan"), prefixMatch("plan_"))
+		},
+	},
+	{
+		action: "正在分配子任务",
+		matchFn: func(n string) bool {
+			return matchAny(n,
+				exactMatch("task", "subagent"),
+				prefixMatch("task_", "delegate", "subagent_", "run_tasks"),
+			)
+		},
+	},
+}
+
+// IsKeyTool returns true if the tool represents a user-visible action that
+// warrants a progress update in Lark. Internal tools (read, memory, clarify)
+// are excluded.
+func IsKeyTool(toolName string) bool {
+	lower := utils.TrimLower(toolName)
+	for _, k := range keyToolActions {
+		if k.matchFn(lower) {
+			return true
+		}
+	}
+	return false
+}
+
+// KeyToolAction returns a descriptive Chinese action phrase for a key tool.
+// Returns empty string for non-key tools.
+func KeyToolAction(toolName string) string {
+	lower := utils.TrimLower(toolName)
+	for _, k := range keyToolActions {
+		if k.matchFn(lower) {
+			return k.action
+		}
+	}
+	return ""
+}

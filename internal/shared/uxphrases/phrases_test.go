@@ -206,3 +206,50 @@ func contains(pool []string, s string) bool {
 	}
 	return false
 }
+
+func TestIsKeyTool(t *testing.T) {
+	keyTools := []string{
+		"web_search", "shell_exec", "write_file", "browser_navigate",
+		"seedream", "lark_send_msg", "plan", "task", "bash",
+		"execute_code", "replace_in_file", "channel", "subagent",
+	}
+	for _, tool := range keyTools {
+		if !IsKeyTool(tool) {
+			t.Errorf("IsKeyTool(%q) = false, want true", tool)
+		}
+	}
+
+	nonKeyTools := []string{
+		"read_file", "read", "glob", "grep", "memory_save", "recall",
+		"clarify", "request_user", "ask_user", "skills", "list_dir",
+	}
+	for _, tool := range nonKeyTools {
+		if IsKeyTool(tool) {
+			t.Errorf("IsKeyTool(%q) = true, want false", tool)
+		}
+	}
+}
+
+func TestKeyToolAction(t *testing.T) {
+	tests := []struct {
+		tool   string
+		expect string
+	}{
+		{"web_search", "正在搜索相关信息"},
+		{"shell_exec", "正在执行命令"},
+		{"write_file", "正在写入文件"},
+		{"browser_navigate", "正在浏览网页"},
+		{"seedream", "正在生成图片"},
+		{"lark_send_msg", "正在发送消息"},
+		{"plan", "正在制定计划"},
+		{"task", "正在分配子任务"},
+		{"read_file", ""},
+		{"unknown", ""},
+	}
+	for _, tc := range tests {
+		got := KeyToolAction(tc.tool)
+		if got != tc.expect {
+			t.Errorf("KeyToolAction(%q) = %q, want %q", tc.tool, got, tc.expect)
+		}
+	}
+}
