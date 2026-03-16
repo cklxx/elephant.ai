@@ -17,6 +17,7 @@ import (
 	"alex/internal/infra/adapters"
 	checkpointinfra "alex/internal/infra/checkpoint"
 	codinginfra "alex/internal/infra/coding"
+	"alex/internal/infra/memory"
 	"alex/internal/infra/external"
 	"alex/internal/infra/external/teamrun"
 	"alex/internal/infra/process"
@@ -97,6 +98,14 @@ func (b *containerBuilder) Build() (*Container, error) {
 	}
 	contextOptions = append(contextOptions, ctxmgr.WithMemoryEngine(memoryEngine))
 	contextOptions = append(contextOptions, ctxmgr.WithMemoryGate(memoryGateFunc(b.config.Proactive.Memory.Enabled)))
+	predCfg := b.config.Proactive.Memory.Prediction
+	contextOptions = append(contextOptions, ctxmgr.WithPredictionConfig(predCfg))
+	if predCfg.Enabled {
+		memRoot := resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")
+		if memRoot != "" {
+			contextOptions = append(contextOptions, ctxmgr.WithQueryTracker(memory.NewQueryTracker(memRoot)))
+		}
+	}
 	contextMgr := ctxmgr.NewManager(contextOptions...)
 	historyMgr := ctxmgr.NewHistoryManager(resources.historyStore, b.logger, agent.SystemClock{})
 	parserImpl := parser.New()

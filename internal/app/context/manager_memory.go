@@ -20,9 +20,11 @@ import (
 )
 
 const (
-	maxMemorySnapshotChars = 10000
-	maxMemorySectionChars  = 4000
-	defaultPersonaConfig   = "configs/context/personas/default.yaml"
+	maxMemorySnapshotChars     = 10000
+	maxMemorySectionChars      = 4000
+	defaultActiveBufferChars   = 7000
+	defaultPredictiveBufferPct = 30
+	defaultPersonaConfig       = "configs/context/personas/default.yaml"
 )
 
 func (m *manager) memoryEnabled(ctx context.Context) bool {
@@ -264,4 +266,84 @@ func resolveMemoryUserID(ctx context.Context, session *storage.Session) string {
 		return session.ID
 	}
 	return ""
+}
+
+// loadPredictiveBuffer loads predictions from the last session and searches
+// memory for relevant context, returning a formatted string within budget.
+func (m *manager) loadPredictiveBuffer(ctx context.Context, session *storage.Session) string {
+	if !m.predictionCfg.Enabled || m.memoryEngine == nil {
+		return ""
+	}
+	if !m.memoryEnabled(ctx) {
+		return ""
+	}
+
+	userID := resolveMemoryUserID(ctx, session)
+	predictions, err := m.memoryEngine.LoadPredictions(ctx, userID)
+	if err != nil || len(predictions) == 0 {
+		return ""
+	}
+
+	bufferPct := m.predictionCfg.PredictiveBufferPct
+	if bufferPct <= 0 {
+		bufferPct = defaultPredictiveBufferPct
+	}
+	maxChars := maxMemorySnapshotChars * bufferPct / 100
+
+	// Search memory for each prediction and collect unique snippets.
+	type hitKey struct {
+		path      string
+		startLine int
+	}
+	seen := make(map[hitKey]bool)
+	var snippets []string
+	totalChars := 0
+
+	for _, prediction := range predictions {
+		hits, searchErr := m.memoryEngine.Search(ctx, userID, prediction, 2, 0.4)
+		if searchErr != nil {
+			continue
+		}
+		for _, hit := range hits {
+			key := hitKey{path: hit.Path, startLine: hit.StartLine}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			snippet := strings.TrimSpace(hit.Snippet)
+			if snippet == "" {
+				continue
+			}
+			if totalChars+len(snippet) > maxChars {
+				break
+			}
+			snippets = append(snippets, snippet)
+			totalChars += len(snippet)
+		}
+	}
+
+	if len(snippets) == 0 {
+		// Even without search hits, surface the predictions themselves.
+		var b strings.Builder
+		for _, p := range predictions {
+			b.WriteString("- ")
+			b.WriteString(p)
+			b.WriteString("\n")
+		}
+		return ports.TruncateRuneSnippet(b.String(), maxChars)
+	}
+
+	var b strings.Builder
+	b.WriteString("Predicted needs:\n")
+	for _, p := range predictions {
+		b.WriteString("- ")
+		b.WriteString(p)
+		b.WriteString("\n")
+	}
+	b.WriteString("\nRelevant context:\n")
+	for _, s := range snippets {
+		b.WriteString(s)
+		b.WriteString("\n\n")
+	}
+	return ports.TruncateRuneSnippet(strings.TrimSpace(b.String()), maxChars)
 }

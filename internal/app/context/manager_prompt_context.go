@@ -159,6 +159,17 @@ func buildMemorySection(snapshot string) string {
 	})
 }
 
+func buildPredictiveMemorySection(snapshot string) string {
+	trimmed := strings.TrimSpace(snapshot)
+	if trimmed == "" {
+		return ""
+	}
+	return formatSection("## Predictive Context", []string{
+		"Pre-loaded based on predicted session needs. Use as background context; active memory takes precedence.",
+		trimmed,
+	})
+}
+
 func buildOKRSection(okrContext string) string {
 	trimmed := strings.TrimSpace(okrContext)
 	if trimmed == "" {

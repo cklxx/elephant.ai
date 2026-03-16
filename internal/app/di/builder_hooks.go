@@ -54,12 +54,28 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 		registry.Register(okrHook)
 	}
 
-	if b.config.Proactive.Enabled && b.config.Proactive.Memory.Enabled && memoryEngine != nil && llmFactory != nil {
+	memEnabled := b.config.Proactive.Enabled && b.config.Proactive.Memory.Enabled && memoryEngine != nil && llmFactory != nil
+	if memEnabled {
+		profile := b.resolveSubscriptionOrDefaultProfile()
 		memHook := hooks.NewMemoryCaptureHook(memoryEngine, llmFactory, b.logger, hooks.MemoryCaptureConfig{
 			Enabled: b.config.Proactive.Memory.Enabled,
-			Profile: b.resolveSubscriptionOrDefaultProfile(),
+			Profile: profile,
 		})
 		registry.Register(memHook)
+
+		// Register prediction hook (post-task next-session predictions).
+		if b.config.Proactive.Memory.Prediction.Enabled {
+			var tracker *memory.QueryTracker
+			memRoot := resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")
+			if memRoot != "" {
+				tracker = memory.NewQueryTracker(memRoot)
+			}
+			predHook := hooks.NewPredictionHook(memoryEngine, llmFactory, tracker, b.logger, hooks.PredictionConfig{
+				Enabled: true,
+				Profile: profile,
+			})
+			registry.Register(predHook)
+		}
 	}
 
 	b.logger.Info("Hook registry built with %d hooks", registry.HookCount())
@@ -135,6 +151,7 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 			ctxmgr.WithStateStore(parent.StateStore),
 			ctxmgr.WithMemoryEngine(parent.MemoryEngine),
 			ctxmgr.WithMemoryGate(memoryGateFunc(b.config.Proactive.Memory.Enabled)),
+			ctxmgr.WithPredictionConfig(b.config.Proactive.Memory.Prediction),
 		),
 		parent.HistoryManager,
 		parser.New(),

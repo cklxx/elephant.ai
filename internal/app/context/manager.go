@@ -11,6 +11,7 @@ import (
 	"alex/internal/infra/memory"
 	"alex/internal/infra/observability"
 	sessionstate "alex/internal/infra/session/state_store"
+	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
 
@@ -26,6 +27,8 @@ type manager struct {
 	flushHook    FlushBeforeCompactionHook
 	memoryEngine memory.Engine
 	memoryGate   MemoryGate
+	queryTracker *memory.QueryTracker
+	predictionCfg runtimeconfig.PredictionConfig
 	preloadOnce  sync.Once
 	preloadErr   error
 }
@@ -115,6 +118,22 @@ func WithMemoryGate(gate MemoryGate) Option {
 		if gate != nil {
 			m.memoryGate = gate
 		}
+	}
+}
+
+// WithQueryTracker injects a query distribution tracker for predictive context.
+func WithQueryTracker(tracker *memory.QueryTracker) Option {
+	return func(m *manager) {
+		if tracker != nil {
+			m.queryTracker = tracker
+		}
+	}
+}
+
+// WithPredictionConfig sets the predictive memory configuration.
+func WithPredictionConfig(cfg runtimeconfig.PredictionConfig) Option {
+	return func(m *manager) {
+		m.predictionCfg = cfg
 	}
 }
 

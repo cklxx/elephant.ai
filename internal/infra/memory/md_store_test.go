@@ -114,3 +114,81 @@ func TestMarkdownEngineRelatedFallback(t *testing.T) {
 		t.Fatalf("unexpected related path: %+v", related[0])
 	}
 }
+
+func TestMarkdownEngineSaveLoadPredictions(t *testing.T) {
+	dir := t.TempDir()
+	eng := NewMarkdownEngine(dir)
+	if err := eng.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+
+	predictions := []string{
+		"User will review test coverage for the new hooks",
+		"User may ask about deploying memory optimization to staging",
+	}
+	if err := eng.SavePredictions(context.Background(), "user-1", predictions); err != nil {
+		t.Fatalf("SavePredictions: %v", err)
+	}
+
+	loaded, err := eng.LoadPredictions(context.Background(), "user-1")
+	if err != nil {
+		t.Fatalf("LoadPredictions: %v", err)
+	}
+	if len(loaded) != 2 {
+		t.Fatalf("expected 2 predictions, got %d", len(loaded))
+	}
+	if loaded[0] != predictions[0] {
+		t.Errorf("prediction[0] = %q, want %q", loaded[0], predictions[0])
+	}
+	if loaded[1] != predictions[1] {
+		t.Errorf("prediction[1] = %q, want %q", loaded[1], predictions[1])
+	}
+
+	// Verify file exists on disk.
+	path := filepath.Join(dir, predictionsFileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("predictions file missing: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "# Predictions") {
+		t.Error("expected Predictions header")
+	}
+	if !strings.Contains(content, "Updated:") {
+		t.Error("expected Updated timestamp")
+	}
+}
+
+func TestMarkdownEngineLoadPredictionsMissing(t *testing.T) {
+	dir := t.TempDir()
+	eng := NewMarkdownEngine(dir)
+	_ = eng.EnsureSchema(context.Background())
+
+	loaded, err := eng.LoadPredictions(context.Background(), "user-1")
+	if err != nil {
+		t.Fatalf("LoadPredictions on missing: %v", err)
+	}
+	if len(loaded) != 0 {
+		t.Errorf("expected empty, got %d", len(loaded))
+	}
+}
+
+func TestMarkdownEngineSavePredictionsOverwrites(t *testing.T) {
+	dir := t.TempDir()
+	eng := NewMarkdownEngine(dir)
+	_ = eng.EnsureSchema(context.Background())
+
+	_ = eng.SavePredictions(context.Background(), "", []string{"old prediction"})
+	_ = eng.SavePredictions(context.Background(), "", []string{"new prediction"})
+
+	loaded, err := eng.LoadPredictions(context.Background(), "")
+	if err != nil {
+		t.Fatalf("LoadPredictions: %v", err)
+	}
+	if len(loaded) != 1 {
+		t.Fatalf("expected 1 prediction after overwrite, got %d", len(loaded))
+	}
+	if loaded[0] != "new prediction" {
+		t.Errorf("expected 'new prediction', got %q", loaded[0])
+	}
+}

@@ -59,4 +59,10 @@ type Engine interface {
 
 	// ListDailyEntries returns all daily memory entries sorted newest-first.
 	ListDailyEntries(ctx context.Context, userID string) ([]DailySnapshot, error)
+
+	// SavePredictions stores predicted next-session needs for the user.
+	SavePredictions(ctx context.Context, userID string, predictions []string) error
+
+	// LoadPredictions returns the stored predictions for the user.
+	LoadPredictions(ctx context.Context, userID string) ([]string, error)
 }

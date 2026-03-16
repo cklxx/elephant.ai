@@ -32,8 +32,15 @@ type OKRProactiveConfig struct {
 type MemoryConfig struct {
 	Enabled          bool              `json:"enabled" yaml:"enabled"`
 	Index            MemoryIndexConfig `json:"index" yaml:"index"`
+	Prediction       PredictionConfig  `json:"prediction" yaml:"prediction"`
 	ArchiveAfterDays int               `json:"archive_after_days" yaml:"archive_after_days"` // move daily entries older than N days to archive/ (default 30, 0 disables)
 	CleanupInterval  string            `json:"cleanup_interval" yaml:"cleanup_interval"`     // how often to run cleanup (default "24h", Go duration)
+}
+
+// PredictionConfig controls predictive memory behavior.
+type PredictionConfig struct {
+	Enabled             bool `json:"enabled" yaml:"enabled"`
+	PredictiveBufferPct int  `json:"predictive_buffer_pct" yaml:"predictive_buffer_pct"` // percentage of memory budget for predictive context (default 30)
 }
 
 // MemoryIndexConfig controls local vector indexing for Markdown memory.
@@ -92,6 +99,10 @@ func DefaultProactiveConfig() ProactiveConfig {
 			Enabled:          true,
 			ArchiveAfterDays: 30,
 			CleanupInterval:  "24h",
+			Prediction: PredictionConfig{
+				Enabled:             true,
+				PredictiveBufferPct: 30,
+			},
 			Index: MemoryIndexConfig{
 				Enabled:            true,
 				DBPath:             "~/.alex/memory/index.sqlite",

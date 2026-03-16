@@ -15,6 +15,7 @@ type systemPromptInput struct {
 	Static           agent.StaticContext
 	Dynamic          agent.DynamicContext
 	Memory           string
+	PredictiveMemory string // Pre-computed predictive context from session predictions
 	OmitEnvironment  bool
 	TaskInput        string
 	Messages         []ports.Message
@@ -53,6 +54,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildPoliciesSection(input.Static.Policies),
 		buildKnowledgeSection(input.Static.Knowledge, input.SOPSummaryOnly),
 		buildMemorySection(input.Memory),
+		buildPredictiveMemorySection(input.PredictiveMemory),
 		buildOKRSection(input.OKRContext),
 		buildSkillsSection(input.Logger, input.TaskInput, input.Messages, input.SessionID, input.SkillsConfig),
 		buildWorkspaceSection(),

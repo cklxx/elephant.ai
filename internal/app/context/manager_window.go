@@ -61,11 +61,12 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 	var (
 		dyn              agent.DynamicContext
 		memorySnapshot   string
+		predictiveBuffer string
 		bootstrapRecords []bootstrapRecord
 		wg               sync.WaitGroup
 	)
 
-	wg.Add(2) // state snapshot + memory snapshot
+	wg.Add(3) // state snapshot + memory snapshot + predictive buffer
 	go func() {
 		defer wg.Done()
 		if m.stateStore != nil {
@@ -80,6 +81,10 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 	go func() {
 		defer wg.Done()
 		memorySnapshot = m.loadMemorySnapshot(ctx, session)
+	}()
+	go func() {
+		defer wg.Done()
+		predictiveBuffer = m.loadPredictiveBuffer(ctx, session)
 	}()
 	if includeBootstrap {
 		wg.Add(1)
@@ -122,6 +127,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		Static:           window.Static,
 		Dynamic:          window.Dynamic,
 		Memory:           memorySnapshot,
+		PredictiveMemory: predictiveBuffer,
 		OmitEnvironment:  omitEnvironment,
 		TaskInput:        cfg.TaskInput,
 		Messages:         window.Messages,

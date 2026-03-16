@@ -6,6 +6,8 @@ const (
 	memoryFileName    = "MEMORY.md"
 	soulFileName      = "SOUL.md"
 	userFileName      = "USER.md"
-	legacyUserDirName = "users"
-	indexFileName     = "index.sqlite"
+	legacyUserDirName   = "users"
+	indexFileName       = "index.sqlite"
+	predictionsFileName = "predictions.md"
+	queryStatsFileName  = "query_stats.md"
 )

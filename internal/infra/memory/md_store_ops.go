@@ -205,3 +205,56 @@ func (e *MarkdownEngine) LoadLongTerm(_ context.Context, _ string) (string, erro
 	}
 	return strings.TrimSpace(string(data)), nil
 }
+
+// SavePredictions overwrites predictions.md with the given prediction strings.
+func (e *MarkdownEngine) SavePredictions(_ context.Context, _ string, predictions []string) error {
+	root, err := e.requireRoot()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(root, predictionsFileName)
+
+	var b strings.Builder
+	b.WriteString("# Predictions\n")
+	b.WriteString(fmt.Sprintf("Updated: %s\n\n", time.Now().Format("2006-01-02 15:04")))
+	for _, p := range predictions {
+		line := strings.TrimSpace(p)
+		if line == "" {
+			continue
+		}
+		b.WriteString("- ")
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return os.WriteFile(path, []byte(b.String()), 0o644)
+}
+
+// LoadPredictions reads and parses bullet lines from predictions.md.
+func (e *MarkdownEngine) LoadPredictions(_ context.Context, _ string) ([]string, error) {
+	root, err := e.requireRoot()
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(root, predictionsFileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var predictions []string
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "- ") {
+			text := strings.TrimSpace(strings.TrimPrefix(trimmed, "- "))
+			if text != "" {
+				predictions = append(predictions, text)
+			}
+		}
+	}
+	return predictions, nil
+}
