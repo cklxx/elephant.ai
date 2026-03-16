@@ -254,7 +254,7 @@ func TestBtwDisabledFallsBackToInject(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	go gw.InjectMessage(ctx, "oc_chat2", "p2p", "ou_user1", "om_m1", "task")
+	go func() { _ = gw.InjectMessage(ctx, "oc_chat2", "p2p", "ou_user1", "om_m1", "task") }()
 
 	// Wait for parent to be running.
 	deadline := time.Now().Add(2 * time.Second)
