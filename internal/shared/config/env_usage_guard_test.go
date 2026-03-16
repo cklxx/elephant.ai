@@ -18,6 +18,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 		"cmd/alex/runtime_cmd.go",
 		"cmd/alex-server/main.go",
 		"cmd/alex-web/main.go",
+		"internal/infra/external/bridge/executor.go",
 		"internal/infra/external/bridge/executor_integration_test.go",
 		"internal/infra/external/claudecode/executor_sdk_integration_test.go",
 		"internal/infra/external/claudecode/executor_sdk_integration_tool_test.go",

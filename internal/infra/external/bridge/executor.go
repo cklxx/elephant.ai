@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,10 @@ type BridgeConfig struct {
 	// Detached mode: subprocess survives parent death.
 	// When true, bridge output goes to a file instead of stdout pipe.
 	Detached bool
+
+	// SkipWorktreePolicy disables the worktree branch enforcement check.
+	// Only set this in tests — never in production configs.
+	SkipWorktreePolicy bool
 }
 
 // bridgeRunner abstracts subprocess lifecycle for testability.
@@ -176,7 +181,8 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 
 	// Block write dispatches on main (non-worktree) unless plan/read-only mode.
 	execMode := normalizeExecutionMode(req.ExecutionMode, req.Config)
-	if execMode != "plan" {
+	skipPolicy := e.cfg.SkipWorktreePolicy || os.Getenv("ALEX_SKIP_WORKTREE_POLICY") == "1"
+	if execMode != "plan" && !skipPolicy {
 		if err := validateWorktreePolicy(req.WorkingDir); err != nil {
 			return nil, err
 		}

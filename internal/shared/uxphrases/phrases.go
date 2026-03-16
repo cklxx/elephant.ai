@@ -170,9 +170,7 @@ func hasAnyPrefix(name string, prefixes ...string) bool {
 	return false
 }
 
-// keyToolGroup pairs a matcher with conversational phrases spoken as a
-// first-person narrator — the way a helpful colleague would talk, never
-// mentioning tool names or technical jargon.
+// keyToolGroup pairs a matcher with conversational first-person phrases.
 type keyToolGroup struct {
 	phrases []string
 	matchFn func(name string) bool
@@ -241,9 +239,7 @@ var keyToolGroups = []keyToolGroup{
 	},
 }
 
-// IsKeyTool returns true if the tool represents a user-visible action that
-// warrants a conversational progress update. Internal tools (read, memory,
-// clarify) are excluded — they are invisible housekeeping.
+// IsKeyTool returns true if the tool represents a user-visible action.
 func IsKeyTool(toolName string) bool {
 	lower := utils.TrimLower(toolName)
 	for _, g := range keyToolGroups {
@@ -254,8 +250,8 @@ func IsKeyTool(toolName string) bool {
 	return false
 }
 
-// KeyToolPhrase returns a natural first-person Chinese phrase for the given
-// key tool, rotating through a phrase pool. Returns empty for non-key tools.
+// KeyToolPhrase returns a natural first-person phrase for a key tool.
+// Returns empty for non-key tools.
 func KeyToolPhrase(toolName string, selector int) string {
 	lower := utils.TrimLower(toolName)
 	for _, g := range keyToolGroups {

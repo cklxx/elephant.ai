@@ -156,7 +156,7 @@ func TestBuildReply(t *testing.T) {
 	t.Run("with error", func(t *testing.T) {
 		reply := gw.buildReply(ctx, nil, errTest)
 		if !strings.Contains(reply, "没弄好") {
-			t.Fatalf("expected conversational error reply, got %q", reply)
+			t.Fatalf("expected error reply, got %q", reply)
 		}
 	})
 

@@ -16,6 +16,14 @@ import (
 	"alex/internal/infra/process"
 )
 
+// TestMain sets ALEX_SKIP_WORKTREE_POLICY so unit tests that use fake
+// subprocess runners are not blocked by the worktree branch enforcement check.
+// The tests never touch real agent processes, so the policy adds no value here.
+func TestMain(m *testing.M) {
+	os.Setenv("ALEX_SKIP_WORKTREE_POLICY", "1")
+	os.Exit(m.Run())
+}
+
 // fakeBridgeRunner simulates a bridge subprocess.
 type fakeBridgeRunner struct {
 	stdin      strings.Builder

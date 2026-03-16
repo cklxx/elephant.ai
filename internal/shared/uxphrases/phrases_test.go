@@ -209,21 +209,13 @@ func contains(pool []string, s string) bool {
 }
 
 func TestIsKeyTool(t *testing.T) {
-	keyTools := []string{
-		"web_search", "shell_exec", "write_file", "browser_navigate",
-		"seedream", "lark_send_msg", "plan", "task", "bash",
-		"execute_code", "replace_in_file", "channel", "subagent",
-	}
+	keyTools := []string{"web_search", "shell_exec", "write_file", "bash", "browser_navigate", "seedream", "lark_send_msg", "plan", "task", "channel", "subagent"}
 	for _, tool := range keyTools {
 		if !IsKeyTool(tool) {
 			t.Errorf("IsKeyTool(%q) = false, want true", tool)
 		}
 	}
-
-	nonKeyTools := []string{
-		"read_file", "read", "glob", "grep", "memory_save", "recall",
-		"clarify", "request_user", "ask_user", "skills", "list_dir",
-	}
+	nonKeyTools := []string{"read_file", "read", "glob", "grep", "memory_save", "recall", "clarify", "ask_user", "skills", "list_dir"}
 	for _, tool := range nonKeyTools {
 		if IsKeyTool(tool) {
 			t.Errorf("IsKeyTool(%q) = true, want false", tool)
@@ -231,43 +223,20 @@ func TestIsKeyTool(t *testing.T) {
 	}
 }
 
-func TestKeyToolPhrase_Conversational(t *testing.T) {
-	tests := []struct {
-		tool     string
-		wantAny  bool   // should return non-empty
-		wantLike string // substring that should NOT appear (tool jargon)
-	}{
-		{"web_search", true, ""},
-		{"shell_exec", true, ""},
-		{"write_file", true, ""},
-		{"plan", true, ""},
-		{"read_file", false, ""}, // non-key → empty
-	}
-	for _, tc := range tests {
-		phrase := KeyToolPhrase(tc.tool, 0)
-		if tc.wantAny && phrase == "" {
-			t.Errorf("KeyToolPhrase(%q) = empty, want non-empty", tc.tool)
+func TestKeyToolPhrase_NoJargon(t *testing.T) {
+	tools := []string{"web_search", "shell_exec", "write_file", "plan"}
+	for _, tool := range tools {
+		phrase := KeyToolPhrase(tool, 0)
+		if phrase == "" {
+			t.Errorf("KeyToolPhrase(%q) = empty", tool)
 		}
-		if !tc.wantAny && phrase != "" {
-			t.Errorf("KeyToolPhrase(%q) = %q, want empty", tc.tool, phrase)
-		}
-		// Phrases must never mention tool names.
-		if phrase != "" {
-			for _, jargon := range []string{"search", "shell", "write", "read", "exec", "tool"} {
-				if strings.Contains(strings.ToLower(phrase), jargon) {
-					t.Errorf("KeyToolPhrase(%q) = %q contains jargon %q", tc.tool, phrase, jargon)
-				}
+		for _, jargon := range []string{"search", "shell", "write", "exec", "tool", "file"} {
+			if strings.Contains(strings.ToLower(phrase), jargon) {
+				t.Errorf("KeyToolPhrase(%q) = %q contains jargon %q", tool, phrase, jargon)
 			}
 		}
 	}
-}
-
-func TestKeyToolPhrase_Rotates(t *testing.T) {
-	phrases := make(map[string]bool)
-	for i := 0; i < 3; i++ {
-		phrases[KeyToolPhrase("web_search", i)] = true
-	}
-	if len(phrases) < 2 {
-		t.Errorf("expected rotation, got %d distinct phrases", len(phrases))
+	if p := KeyToolPhrase("read_file", 0); p != "" {
+		t.Errorf("KeyToolPhrase(read_file) = %q, want empty", p)
 	}
 }

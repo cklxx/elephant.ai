@@ -88,19 +88,17 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		if attachmentSummary != "" {
 			reply += "\n\n" + attachmentSummary
 		}
+
+		// Enforce 200-rune cap: if reply is still long after rephrase,
+		// upload the full text as a document and keep the chat reply short.
+		if !isAwait && len([]rune(reply)) > 200 {
+			reply = g.truncateWithDoc(execCtx, msg.chatID, msg.messageID, reply)
+		}
+
 		replyMsgType, replyContent = smartContent(reply)
 	}
 
 	if !skipReply {
-		// Split long replies into multiple short messages for conversational delivery.
-		// Skip splitting for await-input prompts: numbered option lists must stay
-		// together with the question so users see them as a single coherent message.
-		if !isAwait {
-			if chunks := splitMessage(reply); len(chunks) > 1 {
-				g.dispatchMultiMessageReply(execCtx, msg, result, execErr, progressMsgID, chunks)
-				return
-			}
-		}
 		intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, progressMsgID, replyMsgType, replyContent)
 		g.dispatchTerminalIntent(execCtx, intent)
 	}
@@ -155,6 +153,33 @@ func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *inco
 	}
 
 	return reply, "text", ""
+}
+
+// truncateWithDoc uploads the full reply as a text file and returns a short
+// summary. If the upload fails, it falls back to rune-level truncation.
+func (g *Gateway) truncateWithDoc(ctx context.Context, chatID, replyToID, fullText string) string {
+	// Try to upload the full content as a text file.
+	if g.messenger != nil {
+		fileKey, err := g.messenger.UploadFile(ctx, []byte(fullText), "详细内容.txt", "stream")
+		if err == nil && fileKey != "" {
+			// Send the file as a separate message.
+			fileContent := buildFileContent(fileKey, "详细内容.txt")
+			g.dispatch(ctx, chatID, replyTarget(replyToID, true), "file", fileContent)
+
+			// Return a short summary for the chat reply.
+			runes := []rune(fullText)
+			if len(runes) > 150 {
+				return string(runes[:150]) + "…\n\n详细内容见上方文档。"
+			}
+			return fullText
+		}
+	}
+	// Fallback: hard truncate.
+	return truncateForLark(fullText, 200)
+}
+
+func buildFileContent(fileKey, fileName string) string {
+	return `{"file_key":"` + fileKey + `","file_name":"` + fileName + `"}`
 }
 
 // buildReply constructs the reply string from the agent result, then rephrases
