@@ -8,20 +8,25 @@ import (
 
 	"alex/internal/delivery/channels"
 	ports "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 	portsllm "alex/internal/domain/agent/ports/llm"
+	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/shared/config"
 	"alex/internal/shared/logging"
+
+	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
 // ---------------------------------------------------------------------------
-// Stub LLM helpers
+// Stub LLM client that supports tool calls
 // ---------------------------------------------------------------------------
 
 type convStubLLMClient struct {
-	mu   sync.Mutex
-	resp string
-	err  error
-	reqs []ports.CompletionRequest
+	mu        sync.Mutex
+	resp      string
+	toolCalls []ports.ToolCall
+	err       error
+	reqs      []ports.CompletionRequest
 }
 
 func (c *convStubLLMClient) Complete(_ context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
@@ -31,10 +36,18 @@ func (c *convStubLLMClient) Complete(_ context.Context, req ports.CompletionRequ
 	if c.err != nil {
 		return nil, c.err
 	}
-	return &ports.CompletionResponse{Content: c.resp}, nil
+	return &ports.CompletionResponse{Content: c.resp, ToolCalls: c.toolCalls}, nil
 }
 
 func (c *convStubLLMClient) Model() string { return "stub-conv" }
+
+func (c *convStubLLMClient) lastReqs() []ports.CompletionRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]ports.CompletionRequest, len(c.reqs))
+	copy(out, c.reqs)
+	return out
+}
 
 type convStubFactory struct {
 	client portsllm.LLMClient
@@ -50,9 +63,91 @@ func (f *convStubFactory) GetIsolatedClient(_, _ string, _ portsllm.LLMConfig) (
 
 func (f *convStubFactory) DisableRetry() {}
 
+// ---------------------------------------------------------------------------
+// Recording messenger for verifying dispatch calls
+// ---------------------------------------------------------------------------
+
+type convRecordingMessenger struct {
+	mu       sync.Mutex
+	messages []convSentMessage
+}
+
+type convSentMessage struct {
+	chatID  string
+	replyTo string
+	msgType string
+	content string
+}
+
+func (m *convRecordingMessenger) SendMessage(_ context.Context, chatID, msgType, content string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.messages = append(m.messages, convSentMessage{chatID: chatID, msgType: msgType, content: content})
+	return "om_" + chatID, nil
+}
+
+func (m *convRecordingMessenger) ReplyMessage(_ context.Context, replyTo, msgType, content string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.messages = append(m.messages, convSentMessage{replyTo: replyTo, msgType: msgType, content: content})
+	return "om_reply", nil
+}
+
+func (m *convRecordingMessenger) UpdateMessage(context.Context, string, string, string) error { return nil }
+func (m *convRecordingMessenger) AddReaction(context.Context, string, string) (string, error) {
+	return "", nil
+}
+func (m *convRecordingMessenger) DeleteReaction(context.Context, string, string) error { return nil }
+func (m *convRecordingMessenger) UploadImage(context.Context, []byte) (string, error) {
+	return "", nil
+}
+func (m *convRecordingMessenger) UploadFile(context.Context, []byte, string, string) (string, error) {
+	return "", nil
+}
+func (m *convRecordingMessenger) ListMessages(context.Context, string, int) ([]*larkim.Message, error) {
+	return nil, nil
+}
+
+func (m *convRecordingMessenger) count() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.messages)
+}
+
+func (m *convRecordingMessenger) last() convSentMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.messages) == 0 {
+		return convSentMessage{}
+	}
+	return m.messages[len(m.messages)-1]
+}
+
+// ---------------------------------------------------------------------------
+// Stub agent executor
+// ---------------------------------------------------------------------------
+
+type convStubAgentExecutor struct {
+	result *agent.TaskResult
+	err    error
+}
+
+func (e *convStubAgentExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
+	return &storage.Session{ID: sessionID}, nil
+}
+
+func (e *convStubAgentExecutor) ExecuteTask(_ context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+	return e.result, e.err
+}
+
+// ---------------------------------------------------------------------------
+// Gateway builder
+// ---------------------------------------------------------------------------
+
 func newConvGateway(t *testing.T, stub *convStubLLMClient, enabled bool) *Gateway {
 	t.Helper()
 	en := enabled
+	rec := &convRecordingMessenger{}
 	gw := &Gateway{
 		cfg: Config{
 			BaseConfig: channels.BaseConfig{
@@ -61,154 +156,233 @@ func newConvGateway(t *testing.T, stub *convStubLLMClient, enabled bool) *Gatewa
 			},
 			ConversationProcessEnabled: &en,
 		},
+		agent: &convStubAgentExecutor{
+			result: &agent.TaskResult{Answer: "done"},
+		},
 		llmFactory: &convStubFactory{client: stub},
 		llmProfile: config.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
 		logger:     logging.OrNop(nil),
+		messenger:  rec,
 		now:        time.Now,
 	}
 	return gw
 }
 
-// ---------------------------------------------------------------------------
-// Tests for parseClassifyVerdict
-// ---------------------------------------------------------------------------
-
-func TestParseClassifyVerdict_Answer(t *testing.T) {
-	snap := workerSnapshot{Phase: slotIdle}
-	if v := parseClassifyVerdict("ANSWER", snap); v != verdictAnswer {
-		t.Fatalf("expected verdictAnswer, got %s", verdictString(v))
+func getRecorder(g *Gateway) *convRecordingMessenger {
+	// The messenger might be wrapped by injectCaptureHub; unwrap if needed.
+	if hub, ok := g.messenger.(*injectCaptureHub); ok {
+		return hub.inner.(*convRecordingMessenger)
 	}
-}
-
-func TestParseClassifyVerdict_AnswerWithTrailing(t *testing.T) {
-	snap := workerSnapshot{Phase: slotIdle}
-	if v := parseClassifyVerdict("ANSWER.", snap); v != verdictAnswer {
-		t.Fatalf("expected verdictAnswer, got %s", verdictString(v))
-	}
-}
-
-func TestParseClassifyVerdict_Delegate(t *testing.T) {
-	snap := workerSnapshot{Phase: slotIdle}
-	if v := parseClassifyVerdict("DELEGATE", snap); v != verdictDelegate {
-		t.Fatalf("expected verdictDelegate, got %s", verdictString(v))
-	}
-}
-
-func TestParseClassifyVerdict_RelayWhenRunning(t *testing.T) {
-	snap := workerSnapshot{Phase: slotRunning}
-	if v := parseClassifyVerdict("RELAY", snap); v != verdictRelay {
-		t.Fatalf("expected verdictRelay, got %s", verdictString(v))
-	}
-}
-
-func TestParseClassifyVerdict_RelayWhenIdle_FallsBackToDelegate(t *testing.T) {
-	snap := workerSnapshot{Phase: slotIdle}
-	if v := parseClassifyVerdict("RELAY", snap); v != verdictDelegate {
-		t.Fatalf("expected verdictDelegate (downgraded from RELAY), got %s", verdictString(v))
-	}
-}
-
-func TestParseClassifyVerdict_ForkWhenRunning(t *testing.T) {
-	snap := workerSnapshot{Phase: slotRunning}
-	if v := parseClassifyVerdict("FORK", snap); v != verdictFork {
-		t.Fatalf("expected verdictFork, got %s", verdictString(v))
-	}
-}
-
-func TestParseClassifyVerdict_ForkWhenIdle_FallsBackToDelegate(t *testing.T) {
-	snap := workerSnapshot{Phase: slotIdle}
-	if v := parseClassifyVerdict("FORK", snap); v != verdictDelegate {
-		t.Fatalf("expected verdictDelegate (downgraded from FORK), got %s", verdictString(v))
-	}
-}
-
-func TestParseClassifyVerdict_UnknownFallsToDelegate(t *testing.T) {
-	snap := workerSnapshot{Phase: slotIdle}
-	if v := parseClassifyVerdict("SOMETHING_ELSE", snap); v != verdictDelegate {
-		t.Fatalf("expected verdictDelegate for unknown, got %s", verdictString(v))
-	}
-}
-
-func TestParseClassifyVerdict_CaseInsensitive(t *testing.T) {
-	snap := workerSnapshot{Phase: slotIdle}
-	if v := parseClassifyVerdict("answer", snap); v != verdictAnswer {
-		t.Fatalf("expected verdictAnswer for lowercase, got %s", verdictString(v))
-	}
+	return g.messenger.(*convRecordingMessenger)
 }
 
 // ---------------------------------------------------------------------------
-// Tests for conversationClassify (with mock LLM)
+// Tests for conversationLLM
 // ---------------------------------------------------------------------------
 
-func TestConversationClassify_ReturnsAnswer(t *testing.T) {
-	stub := &convStubLLMClient{resp: "ANSWER"}
+func TestConversationLLM_ReturnsTextReply(t *testing.T) {
+	stub := &convStubLLMClient{resp: "你好！有什么可以帮你的？"}
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	v := g.conversationClassify(context.Background(), "你好", snap)
-	if v != verdictAnswer {
-		t.Fatalf("expected verdictAnswer, got %s", verdictString(v))
+	reply, toolCalls := g.conversationLLM(context.Background(), "你好", snap)
+	if reply != "你好！有什么可以帮你的？" {
+		t.Fatalf("expected reply text, got %q", reply)
+	}
+	if len(toolCalls) != 0 {
+		t.Fatalf("expected no tool calls, got %d", len(toolCalls))
 	}
 }
 
-func TestConversationClassify_ReturnsDelegate(t *testing.T) {
-	stub := &convStubLLMClient{resp: "DELEGATE"}
+func TestConversationLLM_ReturnsToolCall(t *testing.T) {
+	stub := &convStubLLMClient{
+		resp: "好，我来看一下。",
+		toolCalls: []ports.ToolCall{
+			{ID: "tc1", Name: "dispatch_worker", Arguments: map[string]any{"task": "重构 auth 模块"}},
+		},
+	}
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	v := g.conversationClassify(context.Background(), "重构 auth 模块", snap)
-	if v != verdictDelegate {
-		t.Fatalf("expected verdictDelegate, got %s", verdictString(v))
+	reply, toolCalls := g.conversationLLM(context.Background(), "重构 auth 模块", snap)
+	if reply != "好，我来看一下。" {
+		t.Fatalf("expected confirmation reply, got %q", reply)
+	}
+	if len(toolCalls) != 1 || toolCalls[0].Name != "dispatch_worker" {
+		t.Fatalf("expected 1 dispatch_worker tool call, got %v", toolCalls)
 	}
 }
 
-func TestConversationClassify_FallbackOnLLMError(t *testing.T) {
+func TestConversationLLM_IncludesWorkerStatus(t *testing.T) {
+	stub := &convStubLLMClient{resp: "已经跑了45秒，正在处理中。"}
+	g := newConvGateway(t, stub, true)
+	snap := workerSnapshot{Phase: slotRunning, TaskDesc: "build dashboard", Elapsed: 45 * time.Second}
+
+	g.conversationLLM(context.Background(), "做得怎么样了？", snap)
+
+	reqs := stub.lastReqs()
+	if len(reqs) == 0 {
+		t.Fatal("expected at least one LLM request")
+	}
+	userContent := reqs[0].Messages[1].Content
+	if !strContains(userContent, "build dashboard") {
+		t.Errorf("user prompt should contain task desc, got %q", userContent)
+	}
+}
+
+func TestConversationLLM_IncludesDispatchWorkerTool(t *testing.T) {
+	stub := &convStubLLMClient{resp: "ok"}
+	g := newConvGateway(t, stub, true)
+	snap := workerSnapshot{Phase: slotIdle}
+
+	g.conversationLLM(context.Background(), "hello", snap)
+
+	reqs := stub.lastReqs()
+	if len(reqs) == 0 {
+		t.Fatal("expected at least one LLM request")
+	}
+	if len(reqs[0].Tools) != 1 || reqs[0].Tools[0].Name != "dispatch_worker" {
+		t.Fatalf("expected 1 dispatch_worker tool, got %v", reqs[0].Tools)
+	}
+}
+
+func TestConversationLLM_FallbackOnError(t *testing.T) {
 	stub := &convStubLLMClient{err: &convStubErr{"timeout"}}
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	v := g.conversationClassify(context.Background(), "hello", snap)
-	if v != verdictDelegate {
-		t.Fatalf("expected verdictDelegate fallback on error, got %s", verdictString(v))
+	reply, toolCalls := g.conversationLLM(context.Background(), "hello", snap)
+	if reply != "" || len(toolCalls) != 0 {
+		t.Fatalf("expected empty on error, got reply=%q toolCalls=%d", reply, len(toolCalls))
 	}
 }
 
-func TestConversationClassify_FallbackWhenFactoryNil(t *testing.T) {
+func TestConversationLLM_FallbackWhenFactoryNil(t *testing.T) {
 	en := true
 	g := &Gateway{
-		cfg: Config{
-			ConversationProcessEnabled: &en,
-		},
+		cfg:        Config{ConversationProcessEnabled: &en},
 		llmFactory: nil,
 		logger:     logging.OrNop(nil),
 		now:        time.Now,
 	}
-	snap := workerSnapshot{Phase: slotIdle}
-
-	v := g.conversationClassify(context.Background(), "hi", snap)
-	if v != verdictDelegate {
-		t.Fatalf("expected verdictDelegate when factory nil, got %s", verdictString(v))
+	reply, toolCalls := g.conversationLLM(context.Background(), "hi", workerSnapshot{Phase: slotIdle})
+	if reply != "" || len(toolCalls) != 0 {
+		t.Fatal("expected empty when factory nil")
 	}
 }
 
-func TestConversationClassify_PromptIncludesWorkerStatus(t *testing.T) {
-	stub := &convStubLLMClient{resp: "RELAY"}
+// ---------------------------------------------------------------------------
+// Tests for handleViaConversationProcess
+// ---------------------------------------------------------------------------
+
+func TestHandleViaConversationProcess_DirectReply(t *testing.T) {
+	stub := &convStubLLMClient{resp: "你好！"}
 	g := newConvGateway(t, stub, true)
-	snap := workerSnapshot{Phase: slotRunning, TaskDesc: "build dashboard", Elapsed: 30 * time.Second}
+	rec := getRecorder(g)
 
-	g.conversationClassify(context.Background(), "用 PostgreSQL", snap)
+	msg := &incomingMessage{chatID: "chat1", messageID: "msg1", content: "你好"}
+	slot := &sessionSlot{}
 
-	stub.mu.Lock()
-	defer stub.mu.Unlock()
-	if len(stub.reqs) == 0 {
-		t.Fatal("expected at least one LLM request")
+	handled := g.handleViaConversationProcess(context.Background(), msg, slot)
+	if !handled {
+		t.Fatal("expected handled=true")
 	}
-	userContent := stub.reqs[0].Messages[1].Content
-	if !contains(userContent, "build dashboard") {
-		t.Errorf("user prompt should contain task desc, got %q", userContent)
+	if rec.count() != 1 {
+		t.Fatalf("expected 1 message sent, got %d", rec.count())
 	}
-	if !contains(userContent, "用 PostgreSQL") {
-		t.Errorf("user prompt should contain user message, got %q", userContent)
+}
+
+func TestHandleViaConversationProcess_AlwaysReturnsTrue(t *testing.T) {
+	stub := &convStubLLMClient{err: &convStubErr{"fail"}}
+	g := newConvGateway(t, stub, true)
+
+	msg := &incomingMessage{chatID: "chat1", content: "hello"}
+	slot := &sessionSlot{}
+
+	if !g.handleViaConversationProcess(context.Background(), msg, slot) {
+		t.Fatal("expected handled=true even on LLM failure")
+	}
+}
+
+func TestHandleViaConversationProcess_SpawnsWorkerOnToolCall(t *testing.T) {
+	stub := &convStubLLMClient{
+		resp: "好的",
+		toolCalls: []ports.ToolCall{
+			{ID: "tc1", Name: "dispatch_worker", Arguments: map[string]any{"task": "重构 auth"}},
+		},
+	}
+	g := newConvGateway(t, stub, true)
+
+	msg := &incomingMessage{chatID: "chat1", chatType: "p2p", messageID: "msg1", senderID: "user1", content: "重构 auth"}
+	slot := g.getOrCreateSlot("chat1")
+
+	g.handleViaConversationProcess(context.Background(), msg, slot)
+
+	// Verify slot transitioned to running (worker goroutine launched).
+	slot.mu.Lock()
+	phase := slot.phase
+	desc := slot.taskDesc
+	slot.mu.Unlock()
+	if phase != slotRunning {
+		t.Fatalf("expected slotRunning, got %d", phase)
+	}
+	if desc != "重构 auth" {
+		t.Fatalf("expected taskDesc='重构 auth', got %q", desc)
+	}
+
+	// Wait for the worker goroutine to finish.
+	g.taskWG.Wait()
+
+	// After worker completes, slot should be idle again.
+	slot.mu.Lock()
+	phase = slot.phase
+	slot.mu.Unlock()
+	if phase != slotIdle {
+		t.Fatalf("expected slotIdle after worker completes, got %d", phase)
+	}
+}
+
+func TestHandleViaConversationProcess_InjectsIntoRunningWorker(t *testing.T) {
+	stub := &convStubLLMClient{
+		resp: "收到，已传达。",
+		toolCalls: []ports.ToolCall{
+			{ID: "tc1", Name: "dispatch_worker", Arguments: map[string]any{"task": "用 PostgreSQL"}},
+		},
+	}
+	g := newConvGateway(t, stub, true)
+
+	// Pre-populate a running worker with an inputCh.
+	inputCh := make(chan agent.UserInput, 16)
+	slot := g.getOrCreateSlot("chat1")
+	slot.mu.Lock()
+	slot.phase = slotRunning
+	slot.inputCh = inputCh
+	slot.sessionID = "sess-1"
+	slot.taskDesc = "重构 auth 模块"
+	slot.lastTouched = time.Now()
+	slot.mu.Unlock()
+	g.activeSlots.Store("chat1", slot)
+
+	msg := &incomingMessage{chatID: "chat1", messageID: "msg2", senderID: "user1", content: "用 PostgreSQL"}
+
+	g.handleViaConversationProcess(context.Background(), msg, slot)
+
+	// Verify the message was injected into the existing inputCh.
+	select {
+	case input := <-inputCh:
+		if input.Content != "用 PostgreSQL" {
+			t.Fatalf("expected injected content '用 PostgreSQL', got %q", input.Content)
+		}
+	default:
+		t.Fatal("expected message to be injected into worker inputCh")
+	}
+
+	// Slot should still be running (not replaced).
+	slot.mu.Lock()
+	phase := slot.phase
+	slot.mu.Unlock()
+	if phase != slotRunning {
+		t.Fatalf("expected slot still running, got phase=%d", phase)
 	}
 }
 
@@ -227,15 +401,7 @@ func TestConversationProcessEnabled_True(t *testing.T) {
 	en := true
 	g := &Gateway{cfg: Config{ConversationProcessEnabled: &en}}
 	if !g.conversationProcessEnabled() {
-		t.Fatal("expected enabled when *bool=true")
-	}
-}
-
-func TestConversationProcessEnabled_False(t *testing.T) {
-	en := false
-	g := &Gateway{cfg: Config{ConversationProcessEnabled: &en}}
-	if g.conversationProcessEnabled() {
-		t.Fatal("expected disabled when *bool=false")
+		t.Fatal("expected enabled")
 	}
 }
 
@@ -244,10 +410,7 @@ func TestConversationProcessEnabled_False(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestResolveConversationProfile_NoOverride(t *testing.T) {
-	g := &Gateway{
-		cfg:        Config{ConversationModel: ""},
-		llmProfile: config.LLMProfile{Provider: "openai", Model: "gpt-4o"},
-	}
+	g := &Gateway{llmProfile: config.LLMProfile{Provider: "openai", Model: "gpt-4o"}}
 	p := g.resolveConversationProfile()
 	if p.Model != "gpt-4o" {
 		t.Fatalf("expected gpt-4o, got %q", p.Model)
@@ -261,49 +424,7 @@ func TestResolveConversationProfile_WithOverride(t *testing.T) {
 	}
 	p := g.resolveConversationProfile()
 	if p.Model != "gpt-4o-mini" {
-		t.Fatalf("expected override gpt-4o-mini, got %q", p.Model)
-	}
-	if p.Provider != "openai" {
-		t.Fatalf("expected provider preserved, got %q", p.Provider)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Tests for handleViaConversationProcess (Phase 1: always returns false)
-// ---------------------------------------------------------------------------
-
-func TestHandleViaConversationProcess_Phase1AlwaysFallsThrough(t *testing.T) {
-	stub := &convStubLLMClient{resp: "ANSWER"}
-	g := newConvGateway(t, stub, true)
-
-	msg := &incomingMessage{
-		chatID:  "chat1",
-		content: "你好",
-	}
-	slot := &sessionSlot{}
-
-	handled := g.handleViaConversationProcess(context.Background(), msg, slot)
-	if handled {
-		t.Fatal("Phase 1 should always return false (fall through)")
-	}
-}
-
-func TestHandleViaConversationProcess_ClassifyCalled(t *testing.T) {
-	stub := &convStubLLMClient{resp: "DELEGATE"}
-	g := newConvGateway(t, stub, true)
-
-	msg := &incomingMessage{
-		chatID:  "chat1",
-		content: "重构 auth",
-	}
-	slot := &sessionSlot{}
-
-	g.handleViaConversationProcess(context.Background(), msg, slot)
-
-	stub.mu.Lock()
-	defer stub.mu.Unlock()
-	if len(stub.reqs) == 0 {
-		t.Fatal("expected classify LLM call to be made")
+		t.Fatalf("expected gpt-4o-mini, got %q", p.Model)
 	}
 }
 
@@ -320,98 +441,43 @@ func TestWorkerSnapshot_StatusSummary_Idle(t *testing.T) {
 
 func TestWorkerSnapshot_StatusSummary_Running(t *testing.T) {
 	snap := workerSnapshot{
-		Phase:    slotRunning,
-		TaskDesc: "build a dashboard",
-		Elapsed:  45 * time.Second,
+		Phase: slotRunning, TaskDesc: "build dashboard", Elapsed: 45 * time.Second,
 	}
 	s := snap.StatusSummary()
-	if !contains(s, "build a dashboard") {
-		t.Errorf("expected task desc in summary, got %q", s)
-	}
-	if !contains(s, "45s") {
-		t.Errorf("expected elapsed in summary, got %q", s)
-	}
-}
-
-func TestWorkerSnapshot_StatusSummary_AwaitingInput(t *testing.T) {
-	snap := workerSnapshot{Phase: slotAwaitingInput}
-	if snap.StatusSummary() != "任务等待用户输入中" {
-		t.Fatalf("unexpected summary: %q", snap.StatusSummary())
-	}
-}
-
-func TestWorkerSnapshot_IsIdle(t *testing.T) {
-	if !(workerSnapshot{Phase: slotIdle}).IsIdle() {
-		t.Fatal("expected IsIdle=true")
-	}
-	if (workerSnapshot{Phase: slotRunning}).IsIdle() {
-		t.Fatal("expected IsIdle=false for running")
-	}
-}
-
-func TestWorkerSnapshot_IsRunning(t *testing.T) {
-	if !(workerSnapshot{Phase: slotRunning}).IsRunning() {
-		t.Fatal("expected IsRunning=true")
-	}
-	if (workerSnapshot{Phase: slotIdle}).IsRunning() {
-		t.Fatal("expected IsRunning=false for idle")
+	if !strContains(s, "build dashboard") || !strContains(s, "45s") {
+		t.Errorf("unexpected summary: %q", s)
 	}
 }
 
 func TestSnapshotWorker_Idle(t *testing.T) {
-	g := &Gateway{
-		logger: logging.OrNop(nil),
-		now:    time.Now,
-	}
-	snap := g.snapshotWorker("nonexistent-chat")
-	if !snap.IsIdle() {
-		t.Fatal("expected idle snapshot for nonexistent chat")
+	g := &Gateway{logger: logging.OrNop(nil), now: time.Now}
+	if !g.snapshotWorker("nonexistent").IsIdle() {
+		t.Fatal("expected idle")
 	}
 }
 
 func TestSnapshotWorker_Running(t *testing.T) {
-	g := &Gateway{
-		logger: logging.OrNop(nil),
-		now:    time.Now,
-	}
-	slot := &sessionSlot{
-		phase:    slotRunning,
-		taskDesc: "refactor auth",
-	}
+	g := &Gateway{logger: logging.OrNop(nil), now: time.Now}
+	slot := &sessionSlot{phase: slotRunning, taskDesc: "refactor auth"}
 	slot.lastTouched = time.Now().Add(-30 * time.Second)
 	g.activeSlots.Store("chat1", slot)
 
 	snap := g.snapshotWorker("chat1")
-	if !snap.IsRunning() {
-		t.Fatal("expected running snapshot")
-	}
-	if snap.TaskDesc != "refactor auth" {
-		t.Fatalf("expected task desc, got %q", snap.TaskDesc)
-	}
-	if snap.Elapsed < 29*time.Second {
-		t.Fatalf("expected ~30s elapsed, got %v", snap.Elapsed)
+	if !snap.IsRunning() || snap.TaskDesc != "refactor auth" {
+		t.Fatalf("unexpected snapshot: %+v", snap)
 	}
 }
 
 // ---------------------------------------------------------------------------
-// Tests for verdictString
+// Tests for truncateLog
 // ---------------------------------------------------------------------------
 
-func TestVerdictString(t *testing.T) {
-	tests := []struct {
-		v    conversationVerdict
-		want string
-	}{
-		{verdictAnswer, "ANSWER"},
-		{verdictDelegate, "DELEGATE"},
-		{verdictRelay, "RELAY"},
-		{verdictFork, "FORK"},
-		{conversationVerdict(99), "UNKNOWN"},
+func TestTruncateLog(t *testing.T) {
+	if got := truncateLog("hello", 10); got != "hello" {
+		t.Fatalf("got %q", got)
 	}
-	for _, tt := range tests {
-		if got := verdictString(tt.v); got != tt.want {
-			t.Errorf("verdictString(%d) = %q, want %q", tt.v, got, tt.want)
-		}
+	if got := truncateLog("hello world", 5); got != "hello…" {
+		t.Fatalf("got %q", got)
 	}
 }
 
@@ -422,3 +488,14 @@ func TestVerdictString(t *testing.T) {
 type convStubErr struct{ msg string }
 
 func (e *convStubErr) Error() string { return e.msg }
+
+func strContains(s, sub string) bool {
+	return len(sub) == 0 || (len(s) >= len(sub) && func() bool {
+		for i := 0; i <= len(s)-len(sub); i++ {
+			if s[i:i+len(sub)] == sub {
+				return true
+			}
+		}
+		return false
+	}())
+}

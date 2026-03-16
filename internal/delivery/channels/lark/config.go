@@ -78,20 +78,17 @@ type Config struct {
 	// BtwResultPrefix is prepended to the child answer when injecting it into
 	// the parent session. Default: "[btw result]".
 	BtwResultPrefix string
-	// ConversationProcessEnabled enables the dual-process architecture where
-	// a lightweight conversation process classifies incoming messages and can
-	// answer simple queries instantly, while delegating tool-heavy tasks to
-	// the existing Worker (runTask) path. Default: false (disabled).
+	// ConversationProcessEnabled enables the dual-process architecture:
+	// a lightweight LLM (conversation process) handles all non-command
+	// messages, replying instantly and optionally dispatching a background
+	// worker via its dispatch_worker tool. Default: false (disabled).
 	ConversationProcessEnabled *bool
-	// ConversationModel overrides the LLM model for conversation classification
-	// and direct answer generation. Empty string uses the gateway's llmProfile.
+	// ConversationModel overrides the LLM model for the conversation
+	// process. Empty string uses the gateway's llmProfile.
 	ConversationModel string
-	// ConversationClassifyTimeout is the max duration for the classify LLM call.
-	// Default: 3s.
-	ConversationClassifyTimeout time.Duration
-	// ConversationAnswerTimeout is the max duration for the direct answer LLM
-	// call (Phase 3). Default: 6s.
-	ConversationAnswerTimeout time.Duration
+	// ConversationTimeout is the max duration for the conversation LLM call.
+	// Default: 8s.
+	ConversationTimeout time.Duration
 	// CCHooksAutoConfig enables automatic Claude Code hooks configuration
 	// (direct file write to .claude/settings.local.json) after /notice bind.
 	CCHooksAutoConfig *CCHooksAutoConfig
