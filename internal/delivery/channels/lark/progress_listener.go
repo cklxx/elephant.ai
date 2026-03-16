@@ -49,7 +49,6 @@ type progressListener struct {
 	mu        sync.Mutex
 	tools     []*toolStatus          // ordered by arrival
 	toolIndex map[string]*toolStatus // callID → status
-	messageID string                 // set after first send
 	dirty     bool                   // pending changes since last flush
 	timer     *time.Timer            // rate-limit timer
 	lastFlush time.Time
@@ -71,12 +70,11 @@ func newProgressListener(ctx context.Context, inner agent.EventListener, sender 
 	}
 }
 
-// MessageID returns the Lark message ID of the progress message (if sent).
-// Returns empty string if no message has been sent yet.
+// MessageID always returns empty — progress messages are standalone
+// conversational messages, not edited in-place. The final reply is
+// always sent as a new message.
 func (p *progressListener) MessageID() string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.messageID
+	return ""
 }
 
 // OnEvent forwards the event to the inner listener and tracks tool lifecycle.
@@ -118,8 +116,10 @@ func (p *progressListener) onEventNodeStarted(e *domain.Event) {
 
 	p.iteration = e.Data.Iteration
 	p.nodeActive = true
-	p.dirty = true
-	p.scheduleFlush()
+	if p.iteration <= 1 && len(p.tools) == 0 {
+		p.dirty = true
+		p.scheduleFlush()
+	}
 }
 
 func (p *progressListener) onEventToolStarted(e *domain.Event) {
@@ -142,8 +142,11 @@ func (p *progressListener) onEventToolStarted(e *domain.Event) {
 	p.tools = append(p.tools, ts)
 	p.toolIndex[e.Data.CallID] = ts
 	p.nodeActive = false
-	p.dirty = true
-	p.scheduleFlush()
+
+	if uxphrases.IsKeyTool(e.Data.ToolName) {
+		p.dirty = true
+		p.scheduleFlush()
+	}
 }
 
 func (p *progressListener) onEventToolCompleted(e *domain.Event) {
@@ -162,8 +165,6 @@ func (p *progressListener) onEventToolCompleted(e *domain.Event) {
 	ts.done = true
 	ts.errored = e.Data.Error != nil
 	ts.duration = e.Data.Duration
-	p.dirty = true
-	p.scheduleFlush()
 }
 
 func (p *progressListener) onEnvelope(e *domain.WorkflowEventEnvelope) {
@@ -191,8 +192,10 @@ func (p *progressListener) onEnvelopeNodeStarted(e *domain.WorkflowEventEnvelope
 	iteration := asInt(e.Payload["iteration"])
 	p.iteration = iteration
 	p.nodeActive = true
-	p.dirty = true
-	p.scheduleFlush()
+	if p.iteration <= 1 && len(p.tools) == 0 {
+		p.dirty = true
+		p.scheduleFlush()
+	}
 }
 
 func (p *progressListener) onEnvelopeToolStarted(e *domain.WorkflowEventEnvelope) {
@@ -222,8 +225,11 @@ func (p *progressListener) onEnvelopeToolStarted(e *domain.WorkflowEventEnvelope
 	p.tools = append(p.tools, ts)
 	p.toolIndex[callID] = ts
 	p.nodeActive = false
-	p.dirty = true
-	p.scheduleFlush()
+
+	if uxphrases.IsKeyTool(toolName) {
+		p.dirty = true
+		p.scheduleFlush()
+	}
 }
 
 func (p *progressListener) onEnvelopeToolCompleted(e *domain.WorkflowEventEnvelope) {
@@ -249,8 +255,6 @@ func (p *progressListener) onEnvelopeToolCompleted(e *domain.WorkflowEventEnvelo
 	} else {
 		ts.duration = p.clock().Sub(ts.started)
 	}
-	p.dirty = true
-	p.scheduleFlush()
 }
 
 func payloadString(e *domain.WorkflowEventEnvelope, key string) string {
@@ -330,26 +334,17 @@ func (p *progressListener) scheduleFlush() {
 	}
 }
 
-// doSend sends a new message or updates the existing one.
+// doSend always sends a new message (never edits in-place).
+// Each progress update appears as a separate conversational message,
+// like a person texting short status notes.
 // Must be called WITHOUT p.mu held.
-func (p *progressListener) doSend(text, messageID, logPrefix string) {
-	if messageID == "" {
-		newID, err := p.sender.SendProgress(p.ctx, text)
-		if err != nil {
-			p.logger.Warn("Lark progress %ssend failed: %v", logPrefix, err)
-			return
-		}
-		p.mu.Lock()
-		p.messageID = newID
-		p.mu.Unlock()
-	} else {
-		if err := p.sender.UpdateProgress(p.ctx, messageID, text); err != nil {
-			p.logger.Warn("Lark progress %supdate failed: %v", logPrefix, err)
-		}
+func (p *progressListener) doSend(text, logPrefix string) {
+	if _, err := p.sender.SendProgress(p.ctx, text); err != nil {
+		p.logger.Warn("Lark progress %ssend failed: %v", logPrefix, err)
 	}
 }
 
-// flush sends or updates the progress message.
+// flush sends the progress message.
 func (p *progressListener) flush() {
 	p.mu.Lock()
 	if !p.dirty || p.closed {
@@ -359,16 +354,16 @@ func (p *progressListener) flush() {
 	}
 
 	text := p.buildText()
-	messageID := p.messageID
 	p.dirty = false
 	p.lastFlush = p.clock()
 	p.timer = nil
 	p.mu.Unlock()
 
-	p.doSend(text, messageID, "")
+	p.doSend(text, "")
 }
 
-// Close performs a final synchronous flush and cleans up timers.
+// Close cleans up timers. No final flush — the last progress message
+// is already sent; the final reply will follow as a separate message.
 func (p *progressListener) Close() {
 	p.mu.Lock()
 	if p.closed {
@@ -380,45 +375,33 @@ func (p *progressListener) Close() {
 		p.timer.Stop()
 		p.timer = nil
 	}
-	dirty := p.dirty
-	text := ""
-	if dirty {
-		text = p.buildText()
-	}
-	messageID := p.messageID
-	p.dirty = false
 	p.mu.Unlock()
-
-	if !dirty {
-		return
-	}
-
-	p.doSend(text, messageID, "final ")
 }
 
-// Natural conversational progress phrases — no tool names or categories exposed.
+// Natural conversational progress phrases — spoken like a helpful colleague.
 var (
 	naturalThinkingPhrases = []string{"让我想想…", "嗯，让我看看…", "稍等一下…", "我想想…"}
-	naturalWorkingPhrases  = []string{"稍等，在查…", "让我看看…", "在处理中…", "稍等哈…"}
-	naturalWrappingPhrases = []string{"快好了…", "差不多了…", "马上出结果…", "在整理了…"}
+	naturalFallbackPhrases = []string{"稍等哈…", "让我看看…", "在弄了…"}
 )
 
-// buildText constructs the progress display string as a single natural
-// conversational phrase. Must be called with p.mu held.
+// buildText constructs a natural first-person conversational phrase.
+// For key tools it picks a context-appropriate phrase from uxphrases;
+// for non-key states it uses generic friendly phrases.
+// Must be called with p.mu held.
 func (p *progressListener) buildText() string {
-	// Has active (not done) tools → working phrase.
+	// Find the last active (not done) tool.
 	for i := len(p.tools) - 1; i >= 0; i-- {
-		if !p.tools[i].done {
-			return uxphrases.PickPhrase(naturalWorkingPhrases, len(p.tools))
+		ts := p.tools[i]
+		if ts.done {
+			continue
 		}
+		if phrase := uxphrases.KeyToolPhrase(ts.toolName, len(p.tools)); phrase != "" {
+			return phrase
+		}
+		return uxphrases.PickPhrase(naturalFallbackPhrases, len(p.tools))
 	}
 
-	// All tools done → wrapping up phrase.
-	if len(p.tools) > 0 {
-		return uxphrases.PickPhrase(naturalWrappingPhrases, len(p.tools))
-	}
-
-	// No tools at all — pure thinking phase.
+	// No active tools — thinking phase.
 	return uxphrases.PickPhrase(naturalThinkingPhrases, p.iteration)
 }
 

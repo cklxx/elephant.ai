@@ -107,14 +107,13 @@ func parsePlanReviewMarker(content string) (planReviewMarker, bool) {
 
 func buildPlanReviewReply(marker planReviewMarker, requireConfirmation bool) string {
 	var sb strings.Builder
-	sb.WriteString("计划确认\n")
 	if marker.OverallGoalUI != "" {
-		sb.WriteString("目标: ")
+		sb.WriteString("我打算这样做：")
 		sb.WriteString(marker.OverallGoalUI)
 		sb.WriteString("\n")
 	}
 	if marker.InternalPlan != nil {
-		sb.WriteString("\n计划:\n")
+		sb.WriteString("\n具体步骤：\n")
 		if data, err := jsonx.MarshalIndent(marker.InternalPlan, "", "  "); err == nil {
 			sb.WriteString(string(data))
 		} else {
@@ -123,7 +122,7 @@ func buildPlanReviewReply(marker planReviewMarker, requireConfirmation bool) str
 		sb.WriteString("\n")
 	}
 	if requireConfirmation {
-		sb.WriteString("\n请回复 OK 继续，或直接回复修改意见。")
+		sb.WriteString("\n可以的话回复 OK，想调整就直接说。")
 	}
 	return strings.TrimSpace(sb.String())
 }

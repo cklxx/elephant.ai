@@ -93,7 +93,7 @@ func TestRephraseForUser_ForegroundPrompt(t *testing.T) {
 	if len(stub.reqs) != 1 {
 		t.Fatalf("expected 1 request, got %d", len(stub.reqs))
 	}
-	if !strings.Contains(stub.reqs[0].Messages[0].Content, "简洁易读") {
+	if !strings.Contains(stub.reqs[0].Messages[0].Content, "200") {
 		t.Fatalf("expected foreground system prompt, got %q", stub.reqs[0].Messages[0].Content)
 	}
 }

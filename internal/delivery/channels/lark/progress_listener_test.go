@@ -219,152 +219,67 @@ func TestProgressListenerForwardsNonToolEvents(t *testing.T) {
 	}
 }
 
-func TestProgressListenerToolLifecycle(t *testing.T) {
-	clk := newTestClock(time.Date(2026, 1, 29, 12, 0, 0, 0, time.UTC))
+func TestProgressListenerKeyToolSendsNewMessage(t *testing.T) {
 	sender := &spySender{nextID: "om_progress"}
 	pl := newProgressListener(context.Background(), nil, sender, nil)
-	pl.now = clk.Now
 
-	// Start a tool.
+	// Key tool → sends a new message (not edit-in-place).
 	pl.OnEvent(makeToolStarted("call-1", "web_search"))
-
-	// Wait for flush (immediate since no prior flush).
 	time.Sleep(100 * time.Millisecond)
 
 	if sender.sendCount() != 1 {
-		t.Fatalf("expected 1 send after first tool start, got %d", sender.sendCount())
+		t.Fatalf("expected 1 send, got %d", sender.sendCount())
 	}
-	text := sender.lastSendText()
-	// Natural working phrase (no tool name or category exposed).
-	if !isNaturalWorkingPhrase(text) {
-		t.Fatalf("expected natural working phrase, got %q", text)
+	// No updates — each progress is a separate new message.
+	if sender.updateCount() != 0 {
+		t.Fatalf("expected 0 updates (no edit-in-place), got %d", sender.updateCount())
 	}
-
-	// Advance time past the rate limit.
-	clk.Advance(3 * time.Second)
-
-	// Complete the tool.
-	pl.OnEvent(makeToolCompleted("call-1", "web_search", 1200*time.Millisecond, nil))
-
-	// Wait for the flush.
-	time.Sleep(100 * time.Millisecond)
-
-	if sender.updateCount() != 1 {
-		t.Fatalf("expected 1 update after tool completion, got %d", sender.updateCount())
-	}
-	updateText := sender.lastUpdateText()
-	// After all tools done, should show natural wrapping phrase.
-	if !isNaturalWrappingPhrase(updateText) {
-		t.Fatalf("expected natural wrapping phrase after tool done, got %q", updateText)
-	}
-
-	pl.Close()
-}
-
-func TestProgressListenerEnvelopeLifecycle(t *testing.T) {
-	clk := newTestClock(time.Date(2026, 1, 29, 12, 0, 0, 0, time.UTC))
-	sender := &spySender{nextID: "om_progress"}
-	pl := newProgressListener(context.Background(), nil, sender, nil)
-	pl.now = clk.Now
-
-	pl.OnEvent(makeEnvelopeToolStarted("call-1", "web_search"))
-	time.Sleep(100 * time.Millisecond)
-
-	if sender.sendCount() != 1 {
-		t.Fatalf("expected 1 send after tool start, got %d", sender.sendCount())
-	}
-
-	clk.Advance(3 * time.Second)
-	pl.OnEvent(makeEnvelopeToolCompleted("call-1", "web_search", 1200*time.Millisecond, nil))
-	time.Sleep(100 * time.Millisecond)
-
-	if sender.updateCount() != 1 {
-		t.Fatalf("expected 1 update after tool completion, got %d", sender.updateCount())
-	}
-	// After completion, shows natural wrapping phrase.
-	text := sender.lastUpdateText()
-	if !isNaturalWrappingPhrase(text) {
-		t.Fatalf("expected natural wrapping phrase, got %q", text)
-	}
-}
-
-func TestProgressListenerErroredTool(t *testing.T) {
-	clk := newTestClock(time.Date(2026, 1, 29, 12, 0, 0, 0, time.UTC))
-	sender := &spySender{nextID: "om_err"}
-	pl := newProgressListener(context.Background(), nil, sender, nil)
-	pl.now = clk.Now
-
-	pl.OnEvent(makeToolStarted("call-err", "bad_tool"))
-	time.Sleep(100 * time.Millisecond)
-
-	clk.Advance(3 * time.Second)
-	pl.OnEvent(makeToolCompleted("call-err", "bad_tool", 500*time.Millisecond, fmt.Errorf("failed")))
-	time.Sleep(100 * time.Millisecond)
-
-	// After errored tool completes, shows summarizing phrase (same as normal completion).
-	text := sender.lastUpdateText()
-	if text == "" {
-		t.Fatal("expected an update after errored tool completion")
-	}
-	// Should be a valid phrase, not raw technical text.
-	if strings.Contains(text, "[error") || strings.Contains(text, "bad_tool") {
-		t.Fatalf("expected friendly phrase, got raw technical text: %q", text)
+	// MessageID always returns empty (no edit-in-place).
+	if id := pl.MessageID(); id != "" {
+		t.Fatalf("expected empty MessageID, got %q", id)
 	}
 	pl.Close()
 }
 
-func TestProgressListenerRateLimiting(t *testing.T) {
+func TestProgressListenerNonKeyToolSilent(t *testing.T) {
+	sender := &spySender{nextID: "om_nonkey"}
+	pl := newProgressListener(context.Background(), nil, sender, nil)
+
+	// Non-key tool → no progress message.
+	pl.OnEvent(makeToolStarted("call-1", "read_file"))
+	time.Sleep(100 * time.Millisecond)
+	if sender.sendCount() != 0 {
+		t.Fatalf("expected 0 sends for non-key tool, got %d", sender.sendCount())
+	}
+	pl.Close()
+}
+
+func TestProgressListenerMultipleKeyToolsEachGetMessage(t *testing.T) {
 	clk := newTestClock(time.Date(2026, 1, 29, 12, 0, 0, 0, time.UTC))
-	sender := &spySender{nextID: "om_rl"}
+	sender := &spySender{nextID: "om_multi"}
 	pl := newProgressListener(context.Background(), nil, sender, nil)
 	pl.now = clk.Now
 
-	// First tool starts: should trigger immediate flush.
-	pl.OnEvent(makeToolStarted("call-1", "tool_a"))
+	// First key tool.
+	pl.OnEvent(makeToolStarted("call-1", "web_search"))
 	time.Sleep(100 * time.Millisecond)
 	if sender.sendCount() != 1 {
 		t.Fatalf("expected 1 send, got %d", sender.sendCount())
 	}
 
-	// Second tool starts within rate limit window: should NOT flush immediately.
-	clk.Advance(500 * time.Millisecond)
-	pl.OnEvent(makeToolStarted("call-2", "tool_b"))
+	// Second key tool after rate limit.
+	clk.Advance(3 * time.Second)
+	pl.OnEvent(makeToolStarted("call-2", "shell_exec"))
 	time.Sleep(100 * time.Millisecond)
+
+	// Should have 2 sends (each as a new message), 0 updates.
+	if sender.sendCount() != 2 {
+		t.Fatalf("expected 2 sends, got %d", sender.sendCount())
+	}
 	if sender.updateCount() != 0 {
-		t.Fatalf("expected 0 updates within rate limit, got %d", sender.updateCount())
+		t.Fatalf("expected 0 updates, got %d", sender.updateCount())
 	}
-
-	// After rate limit passes, the timer fires.
-	clk.Advance(2 * time.Second)
-	time.Sleep(2 * time.Second)
-	if sender.updateCount() < 1 {
-		t.Fatalf("expected at least 1 update after rate limit, got %d", sender.updateCount())
-	}
-
 	pl.Close()
-}
-
-func TestProgressListenerCloseFlush(t *testing.T) {
-	clk := newTestClock(time.Date(2026, 1, 29, 12, 0, 0, 0, time.UTC))
-	sender := &spySender{nextID: "om_close"}
-	pl := newProgressListener(context.Background(), nil, sender, nil)
-	pl.now = clk.Now
-
-	// Start two tools rapidly.
-	pl.OnEvent(makeToolStarted("call-1", "tool_a"))
-	time.Sleep(100 * time.Millisecond) // Let first flush happen.
-
-	clk.Advance(100 * time.Millisecond)
-	pl.OnEvent(makeToolStarted("call-2", "tool_b"))
-	// Don't wait for the timer to fire; Close should do a synchronous flush.
-
-	pl.Close()
-
-	// After Close, the update for tool_b should have been sent.
-	totalOps := sender.sendCount() + sender.updateCount()
-	if totalOps < 2 {
-		t.Fatalf("expected at least 2 total operations (send+updates), got %d", totalOps)
-	}
 }
 
 func TestProgressListenerDuplicateToolStart(t *testing.T) {
@@ -391,36 +306,25 @@ func TestProgressListenerBuildTextFormat(t *testing.T) {
 		toolIndex: make(map[string]*toolStatus),
 	}
 
-	// Empty tools → natural thinking phrase.
+	// Empty tools → thinking phrase.
 	text := pl.buildText()
 	if !isNaturalThinkingPhrase(text) {
-		t.Fatalf("expected natural thinking phrase for empty tools, got %q", text)
+		t.Fatalf("expected thinking phrase, got %q", text)
 	}
 
 	now := clk.Now()
-	// Add tools: one done, one running, one errored.
 	pl.tools = []*toolStatus{
-		{callID: "c1", toolName: "web_search", started: now.Add(-2 * time.Second), done: true, duration: 1200 * time.Millisecond},
-		{callID: "c2", toolName: "seedream", started: now.Add(-3 * time.Second)},
-		{callID: "c3", toolName: "bad_tool", started: now.Add(-1 * time.Second), done: true, errored: true, duration: 500 * time.Millisecond},
+		{callID: "c1", toolName: "web_search", started: now.Add(-2 * time.Second), done: true},
+		{callID: "c2", toolName: "seedream", started: now.Add(-3 * time.Second)}, // active key tool
 	}
 
 	text = pl.buildText()
-	// Has active tools → natural working phrase (no tool name/category).
-	if !isNaturalWorkingPhrase(text) {
-		t.Fatalf("expected natural working phrase for active tools, got %q", text)
+	// No jargon in phrase.
+	if strings.Contains(strings.ToLower(text), "search") || strings.Contains(strings.ToLower(text), "tool") {
+		t.Fatalf("expected conversational phrase, got jargon: %q", text)
 	}
-	// Should be a single line, no newlines.
 	if strings.Contains(text, "\n") {
-		t.Fatalf("expected single-line phrase, got multi-line: %q", text)
-	}
-
-	// All tools done → natural wrapping phrase.
-	pl.tools[1].done = true
-	pl.tools[1].duration = 3 * time.Second
-	text = pl.buildText()
-	if !isNaturalWrappingPhrase(text) {
-		t.Fatalf("expected natural wrapping phrase when all tools done, got %q", text)
+		t.Fatalf("expected single-line, got: %q", text)
 	}
 }
 
@@ -494,27 +398,20 @@ func TestProgressListenerEnvelopeNodeStartedEvent(t *testing.T) {
 	pl.Close()
 }
 
-func TestProgressListenerMessageID(t *testing.T) {
+func TestProgressListenerMessageIDAlwaysEmpty(t *testing.T) {
 	sender := &spySender{nextID: "om_msgid"}
 	pl := newProgressListener(context.Background(), nil, sender, nil)
 
-	// Before any send, MessageID should be empty.
-	if id := pl.MessageID(); id != "" {
-		t.Fatalf("expected empty MessageID before send, got %q", id)
-	}
-
+	// MessageID is always empty — no edit-in-place.
 	pl.OnEvent(makeToolStarted("call-1", "web_search"))
 	time.Sleep(100 * time.Millisecond)
-
-	// After send, MessageID should be set.
-	if id := pl.MessageID(); id != "om_msgid" {
-		t.Fatalf("expected MessageID=om_msgid, got %q", id)
+	if id := pl.MessageID(); id != "" {
+		t.Fatalf("expected empty MessageID (no edit-in-place), got %q", id)
 	}
-
 	pl.Close()
 }
 
-// --- natural phrase matchers for progress listener tests ---
+// --- helpers ---
 
 func isNaturalThinkingPhrase(text string) bool {
 	for _, p := range naturalThinkingPhrases {
@@ -525,28 +422,10 @@ func isNaturalThinkingPhrase(text string) bool {
 	return false
 }
 
-func isNaturalWorkingPhrase(text string) bool {
-	for _, p := range naturalWorkingPhrases {
-		if strings.Contains(text, strings.TrimSuffix(p, "…")) {
-			return true
-		}
-	}
-	return false
-}
-
-func isNaturalWrappingPhrase(text string) bool {
-	for _, p := range naturalWrappingPhrases {
-		if strings.Contains(text, strings.TrimSuffix(p, "…")) {
-			return true
-		}
-	}
-	return false
-}
-
 func TestProgressListenerToolPhraseMapping(t *testing.T) {
 	tests := []struct {
 		toolName string
-		keywords []string // at least one must appear in the phrase
+		keywords []string
 	}{
 		{"web_search", []string{"搜索", "探索", "挖掘"}},
 		{"read_file", []string{"翻阅", "研读", "查阅"}},

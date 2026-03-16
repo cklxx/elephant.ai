@@ -1,6 +1,7 @@
 package uxphrases
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -205,4 +206,37 @@ func contains(pool []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func TestIsKeyTool(t *testing.T) {
+	keyTools := []string{"web_search", "shell_exec", "write_file", "bash", "browser_navigate", "seedream", "lark_send_msg", "plan", "task", "channel", "subagent"}
+	for _, tool := range keyTools {
+		if !IsKeyTool(tool) {
+			t.Errorf("IsKeyTool(%q) = false, want true", tool)
+		}
+	}
+	nonKeyTools := []string{"read_file", "read", "glob", "grep", "memory_save", "recall", "clarify", "ask_user", "skills", "list_dir"}
+	for _, tool := range nonKeyTools {
+		if IsKeyTool(tool) {
+			t.Errorf("IsKeyTool(%q) = true, want false", tool)
+		}
+	}
+}
+
+func TestKeyToolPhrase_NoJargon(t *testing.T) {
+	tools := []string{"web_search", "shell_exec", "write_file", "plan"}
+	for _, tool := range tools {
+		phrase := KeyToolPhrase(tool, 0)
+		if phrase == "" {
+			t.Errorf("KeyToolPhrase(%q) = empty", tool)
+		}
+		for _, jargon := range []string{"search", "shell", "write", "exec", "tool", "file"} {
+			if strings.Contains(strings.ToLower(phrase), jargon) {
+				t.Errorf("KeyToolPhrase(%q) = %q contains jargon %q", tool, phrase, jargon)
+			}
+		}
+	}
+	if p := KeyToolPhrase("read_file", 0); p != "" {
+		t.Errorf("KeyToolPhrase(read_file) = %q, want empty", p)
+	}
 }
