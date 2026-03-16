@@ -108,6 +108,19 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		return nil
 	}
 
+	// Conversation process: when enabled, classify the message via a
+	// lightweight LLM and handle it if the verdict is fully resolved.
+	// Slash commands above are already handled, so only free-text reaches here.
+	if g.conversationProcessEnabled() {
+		slot.mu.Unlock()
+		if g.handleViaConversationProcess(ctx, msg, slot) {
+			return nil
+		}
+		// Verdict was not fully handled (Phase 1: always falls through).
+		// Re-acquire slot lock and continue with the existing code path.
+		slot.mu.Lock()
+	}
+
 	// If a task is already running for this chat, either inject the new message
 	// into the running ReAct loop or fork a child session (btw mode).
 	if slot.phase == slotRunning {
