@@ -1,108 +1,108 @@
-# elephant.ai — Agent Contract (Lean)
+# elephant.ai — Agent Contract
 
-Goal: minimize mandatory reading and enforce strict conditional progressive disclosure.
+Minimize mandatory reading. Expand context only when triggered.
 
-## 0. Read Policy (hard rule)
+## 0. Read Policy
 
-1. Read **Section 1** on every task (mandatory core only).
-2. Read **Section 2** only when a trigger matches.
-3. If no trigger matches, follow **Section 3 simplified route** and stop expanding context.
-4. Never bulk-load all referenced docs by default.
+1. Read **§1** on every task.
+2. Read **§2** only when a trigger matches.
+3. No trigger? Follow **§3** and stop expanding context.
 
 ---
 
-## 1. Mandatory Core (always read)
+## 1. Mandatory Core
 
 ### 1.1 Identity and priority
-- First greeting in each conversation: `ckl`.
-- Priority order: **safety > correctness > maintainability > speed**.
-- User profile: senior backend/database engineer; prefers deep reasoning and clean architecture.
+- Greet **ckl** at conversation start.
+- Priority: **safety > correctness > maintainability > speed**.
+- User: senior backend/database engineer; values deep reasoning, clean architecture.
 
-### 1.2 Non-negotiable coding standards
-- Trust type/caller invariants; avoid unnecessary defensive code.
-- No compatibility shims or adapter backfills when requirements change; redesign cleanly.
-- Delete dead code outright. No `// deprecated`, `_unused`, or commented-out legacy blocks.
+### 1.2 Code style (non-negotiable)
+- Max function body: **15 lines**. Extract or redesign if exceeded.
+- No comments that restate code. Only "why" comments for non-obvious decisions.
+- Prefer composition over inheritance. Prefer data transforms over mutation.
+- Every abstraction must justify itself: if used <2 places, inline it.
+- Delete dead code immediately. No TODOs in committed code.
+- Type signatures are documentation. Verbose names > comments.
+- Between two correct approaches, pick the one with fewer moving parts.
+- Trust type/caller invariants; no unnecessary defensive code.
+- No compatibility shims when requirements change; redesign cleanly.
 - Modify only relevant files.
-- Config examples must be YAML (`.yaml`), not JSON.
+- Config examples must be YAML.
 
-### 1.3 Branch and pre-work safety
-- Default: use worktree for code changes; do not edit directly on `main`.
-- If and only if working on `main`, run before any edit:
-  1. `git diff --stat`
-  2. `git log --oneline -10`
-  3. Check suspicious diffs (unrelated files, reverted intended logic, accidental deletions, style regressions).
-  4. If suspicious: report to ckl before continuing.
+Reference density:
+```ts
+const authenticate = (token: string, secret: string): Result<Claims, AuthError> =>
+  pipe(
+    decode(token),
+    chain(verify(secret)),
+    mapErr(toAuthError)
+  );
+```
+No wrapper classes. No builders. No config objects. Transform pipeline.
 
-### 1.4 Delivery baseline
-- For logic changes, prefer TDD and include edge cases.
+### 1.3 Branch safety
+- Use worktree for code changes; never edit directly on `main`.
+- On `main`, run before any edit:
+  1. `git diff --stat` + `git log --oneline -10`
+  2. If suspicious diffs: report to ckl before continuing.
+
+### 1.4 Delivery
+- Prefer TDD for logic changes; cover edge cases.
 - Run lint + tests before delivery.
-- Run code review before commit: `python3 skills/code-review/run.py review`.
-- Fix P0/P1 before commit; create follow-up for P2.
-- Commit after completing changes; prefer small incremental commits.
-- Warn before destructive operations; avoid history rewrites unless explicitly requested.
+- Code review before commit: `python3 skills/code-review/run.py review`.
+- Fix P0/P1 before commit; follow-up for P2.
+- Small, scoped commits. Warn before destructive ops.
 
 ---
 
-## 2. Conditional Progressive Disclosure (read only if triggered)
+## 2. Progressive Disclosure (trigger-gated)
 
-| Trigger | Read / Apply |
+| Trigger | Load |
 |---|---|
-| Task is non-trivial and needs staged execution | `docs/guides/engineering-workflow.md` Planning section; create/update `docs/plans/*` |
-| Task touches proactive behavior (`internal/agent/`, triggers, context injection) | Proactive constraints in `docs/guides/engineering-workflow.md` |
-| Task touches architecture boundaries (`internal/**`) | Architecture rules in `docs/guides/engineering-workflow.md` and `configs/arch/*` |
-| Task needs memory/history retrieval | `docs/guides/memory-management.md`; load summaries first, then full entries only if insufficient |
-| High-impact regression / leakage / safety incident | `docs/postmortems/templates/incident-postmortem-template.md` + checklist |
-| Large multi-file or mechanical edits | Codex worker protocol (explore/plan/execute/review), self-contained prompts, max 2 retries |
-| User gives correction | Immediately codify preventive rule in `docs/guides/` or `docs/error-experience/entries/` before continuing |
-| Ready to merge worktree | Worktree lifecycle in Section 4 |
+| Non-trivial staged execution | `docs/guides/engineering-workflow.md` Planning; create `docs/plans/*` |
+| Proactive behavior (`internal/agent/`, triggers, context) | Proactive constraints in engineering-workflow |
+| Architecture boundaries (`internal/**`) | Architecture rules + `configs/arch/*` |
+| Memory/history retrieval | `docs/guides/memory-management.md`; summaries first |
+| Safety incident / regression | `docs/postmortems/templates/incident-postmortem-template.md` |
+| Large mechanical edits | Codex worker: explore → plan → execute → review, max 2 retries |
+| User correction | Codify preventive rule before resuming |
+| Worktree merge | §4 |
 
-Rule: if trigger is not met, do not read that module.
+No trigger → do not load.
 
 ---
 
-## 3. Simplified Default Route (no trigger matched)
+## 3. Default Route
 
-1. Read Section 1 only.
+1. Read §1 only.
 2. Inspect target files and neighboring patterns.
 3. Implement minimal correct change.
-4. Run proportionate verification (tests/lint relevant to scope).
-5. Commit and report: changes + validation + known limits.
+4. Proportionate verification (scoped tests/lint).
+5. Commit and report.
 
 ---
 
-## 4. Worktree Lifecycle (compact)
+## 4. Worktree Lifecycle
 
-1. `git worktree add -b <branch> ../<dir> main`
-2. `cp .env ../<dir>/`
-3. Create `<worktree>/.worktree-active.yaml`:
-   ```yaml
-   status: in_progress
-   ```
-4. Develop and commit in worktree.
-5. Auto-merge when done: `git checkout main && git merge --ff-only <branch>`
-6. Update marker to `status: merged`.
-7. Remove worktree: `git worktree remove ../<dir>`
-8. Push only from primary repo or managed worktrees sharing the same `.git`.
+```bash
+git worktree add -b <branch> ../<dir> main
+cp .env ../<dir>/
+```
+Mark `<worktree>/.worktree-active.yaml` → `status: in_progress`.
+
+Finish: `git checkout main && git merge --ff-only <branch>` → update marker to `merged` → `git worktree remove ../<dir>`.
 
 ---
 
-## 5. Project Snapshot (minimal)
+## 5. Project Snapshot
 
-- Product: proactive AI assistant across Lark, WeChat, CLI, Web.
-- Architecture:
-  - Delivery layer -> Application layer -> Domain (ReAct/events/approvals) -> Infra adapters.
-- Key directories:
-  - `internal/agent/`, `internal/llm/`, `internal/memory/`, `internal/context/`, `internal/rag/`
-  - `internal/infra/tools/builtin/`, `internal/delivery/channels/`, `internal/infra/observability/`
-  - `web/`
+- Product: proactive AI assistant (Lark, WeChat, CLI, Web).
+- Layers: Delivery → Application → Domain (ReAct/events/approvals) → Infra adapters.
+- Key dirs: `internal/agent/`, `internal/llm/`, `internal/memory/`, `internal/context/`, `internal/rag/`, `internal/delivery/channels/`, `web/`
 
 ---
 
-## 6. Source of Truth for Details
+## 6. Detail Sources (trigger-gated only)
 
-Use these only when triggered by Section 2:
-- `docs/guides/engineering-workflow.md`
-- `docs/guides/code-simplification.md`
-- `docs/guides/code-review-guide.md`
-- `docs/guides/memory-management.md`
-- `docs/postmortems/**`
+`docs/guides/engineering-workflow.md` · `docs/guides/code-simplification.md` · `docs/guides/code-review-guide.md` · `docs/guides/memory-management.md` · `docs/postmortems/**`
