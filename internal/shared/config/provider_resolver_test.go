@@ -105,7 +105,7 @@ runtime:
 		WithFileReader(readFile),
 		WithHomeDir(func() (string, error) { return "/home/test", nil }),
 		WithEnv(envMap{}.Lookup),
-		WithOverrides(Overrides{APIKey: &overrideKey}),
+		WithOverrides(Overrides{LLMOverrides: LLMOverrides{APIKey: &overrideKey}}),
 	)
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
@@ -149,8 +149,10 @@ runtime:
 			"LLM_API_KEY": "ark-openai-key",
 		}.Lookup),
 		WithOverrides(Overrides{
-			LLMProvider: &overrideProvider,
-			LLMModel:    &overrideModel,
+			LLMOverrides: LLMOverrides{
+				LLMProvider: &overrideProvider,
+				LLMModel:    &overrideModel,
+			},
 		}),
 	)
 	if err != nil {

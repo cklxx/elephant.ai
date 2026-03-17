@@ -4,9 +4,8 @@ import "testing"
 
 func TestValidateRuntimeConfigProductionRequiresAPIKey(t *testing.T) {
 	report := ValidateRuntimeConfig(RuntimeConfig{
+		LLMSettings: LLMSettings{LLMProvider: "openai", LLMModel: "gpt-4o-mini"},
 		Profile:     RuntimeProfileProduction,
-		LLMProvider: "openai",
-		LLMModel:    "gpt-4o-mini",
 	})
 	if len(report.Errors) == 0 {
 		t.Fatalf("expected validation errors in production when API key is missing")
@@ -18,9 +17,8 @@ func TestValidateRuntimeConfigProductionRequiresAPIKey(t *testing.T) {
 
 func TestValidateRuntimeConfigQuickstartWarnsAndDisablesOptionalTools(t *testing.T) {
 	report := ValidateRuntimeConfig(RuntimeConfig{
+		LLMSettings: LLMSettings{LLMProvider: "openai", LLMModel: "gpt-4o-mini"},
 		Profile:     RuntimeProfileQuickstart,
-		LLMProvider: "openai",
-		LLMModel:    "gpt-4o-mini",
 	})
 	if len(report.Errors) != 0 {
 		t.Fatalf("expected no blocking errors in quickstart, got %d", len(report.Errors))
@@ -47,11 +45,8 @@ func TestNormalizeRuntimeProfileDefaultsToStandard(t *testing.T) {
 
 func TestValidateRuntimeConfigDetectsLLMProfileMismatch(t *testing.T) {
 	report := ValidateRuntimeConfig(RuntimeConfig{
+		LLMSettings: LLMSettings{LLMProvider: "codex", LLMModel: "gpt-5-codex", APIKey: "sk-kimi-abc", BaseURL: codexCLIBaseURL},
 		Profile:     RuntimeProfileStandard,
-		LLMProvider: "codex",
-		LLMModel:    "gpt-5-codex",
-		APIKey:      "sk-kimi-abc",
-		BaseURL:     codexCLIBaseURL,
 	})
 
 	found := false

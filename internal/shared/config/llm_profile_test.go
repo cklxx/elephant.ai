@@ -15,19 +15,13 @@ func TestResolveLLMProfile(t *testing.T) {
 		{
 			name: "valid codex profile",
 			cfg: RuntimeConfig{
-				LLMProvider: "codex",
-				LLMModel:    "gpt-5-codex",
-				APIKey:      "sk-proj-abc",
-				BaseURL:     codexCLIBaseURL,
+				LLMSettings: LLMSettings{LLMProvider: "codex", LLMModel: "gpt-5-codex", APIKey: "sk-proj-abc", BaseURL: codexCLIBaseURL},
 			},
 		},
 		{
 			name: "codex with kimi key and non-kimi endpoint fails",
 			cfg: RuntimeConfig{
-				LLMProvider: "codex",
-				LLMModel:    "gpt-5-codex",
-				APIKey:      "sk-kimi-abc",
-				BaseURL:     codexCLIBaseURL,
+				LLMSettings: LLMSettings{LLMProvider: "codex", LLMModel: "gpt-5-codex", APIKey: "sk-kimi-abc", BaseURL: codexCLIBaseURL},
 			},
 			wantErr:   true,
 			errSubstr: "moonshot",
@@ -35,19 +29,13 @@ func TestResolveLLMProfile(t *testing.T) {
 		{
 			name: "codex with kimi key and kimi endpoint passes",
 			cfg: RuntimeConfig{
-				LLMProvider: "codex",
-				LLMModel:    "gpt-5-codex",
-				APIKey:      "sk-kimi-abc",
-				BaseURL:     "https://api.moonshot.cn/v1",
+				LLMSettings: LLMSettings{LLMProvider: "codex", LLMModel: "gpt-5-codex", APIKey: "sk-kimi-abc", BaseURL: "https://api.moonshot.cn/v1"},
 			},
 		},
 		{
 			name: "anthropic with non-anthropic key fails",
 			cfg: RuntimeConfig{
-				LLMProvider: "anthropic",
-				LLMModel:    "claude-3-5-sonnet",
-				APIKey:      "sk-proj-abc",
-				BaseURL:     "https://api.anthropic.com/v1",
+				LLMSettings: LLMSettings{LLMProvider: "anthropic", LLMModel: "claude-3-5-sonnet", APIKey: "sk-proj-abc", BaseURL: "https://api.anthropic.com/v1"},
 			},
 			wantErr:   true,
 			errSubstr: "incompatible",
@@ -55,19 +43,13 @@ func TestResolveLLMProfile(t *testing.T) {
 		{
 			name: "openai with kimi key allowed for compatible endpoints",
 			cfg: RuntimeConfig{
-				LLMProvider: "openai",
-				LLMModel:    "kimi-k2",
-				APIKey:      "sk-kimi-abc",
-				BaseURL:     "https://api.moonshot.cn/v1",
+				LLMSettings: LLMSettings{LLMProvider: "openai", LLMModel: "kimi-k2", APIKey: "sk-kimi-abc", BaseURL: "https://api.moonshot.cn/v1"},
 			},
 		},
 		{
 			name: "openai with anthropic key fails",
 			cfg: RuntimeConfig{
-				LLMProvider: "openai",
-				LLMModel:    "gpt-4o-mini",
-				APIKey:      "sk-ant-abc",
-				BaseURL:     "https://api.openai.com/v1",
+				LLMSettings: LLMSettings{LLMProvider: "openai", LLMModel: "gpt-4o-mini", APIKey: "sk-ant-abc", BaseURL: "https://api.openai.com/v1"},
 			},
 			wantErr:   true,
 			errSubstr: "incompatible",
@@ -75,10 +57,7 @@ func TestResolveLLMProfile(t *testing.T) {
 		{
 			name: "kimi with anthropic key fails",
 			cfg: RuntimeConfig{
-				LLMProvider: "kimi",
-				LLMModel:    "kimi-k2-0711-preview",
-				APIKey:      "sk-ant-abc",
-				BaseURL:     "https://api.moonshot.cn/v1",
+				LLMSettings: LLMSettings{LLMProvider: "kimi", LLMModel: "kimi-k2-0711-preview", APIKey: "sk-ant-abc", BaseURL: "https://api.moonshot.cn/v1"},
 			},
 			wantErr:   true,
 			errSubstr: "incompatible",
@@ -86,10 +65,7 @@ func TestResolveLLMProfile(t *testing.T) {
 		{
 			name: "anthropic with openai endpoint fails",
 			cfg: RuntimeConfig{
-				LLMProvider: "anthropic",
-				LLMModel:    "claude-3-5-sonnet",
-				APIKey:      "sk-ant-abc",
-				BaseURL:     "https://api.openai.com/v1",
+				LLMSettings: LLMSettings{LLMProvider: "anthropic", LLMModel: "claude-3-5-sonnet", APIKey: "sk-ant-abc", BaseURL: "https://api.openai.com/v1"},
 			},
 			wantErr:   true,
 			errSubstr: "OpenAI",

@@ -37,12 +37,12 @@ func TestManagerCurrentOverridesUsesCacheUntilExpired(t *testing.T) {
 		loadFn: func(context.Context) (runtimeconfig.Overrides, error) {
 			loads.Add(1)
 			value := "store-provider"
-			return runtimeconfig.Overrides{LLMProvider: &value}, nil
+			return runtimeconfig.Overrides{LLMOverrides: runtimeconfig.LLMOverrides{LLMProvider: &value}}, nil
 		},
 	}
 
 	initialValue := "cached-provider"
-	manager := NewManager(store, runtimeconfig.Overrides{LLMProvider: &initialValue}, WithCacheTTL(time.Hour))
+	manager := NewManager(store, runtimeconfig.Overrides{LLMOverrides: runtimeconfig.LLMOverrides{LLMProvider: &initialValue}}, WithCacheTTL(time.Hour))
 
 	got, err := manager.CurrentOverrides(context.Background())
 	if err != nil {
@@ -88,7 +88,7 @@ func TestManagerUpdateOverridesPersistsAndNotifies(t *testing.T) {
 	defer unsubscribe()
 
 	llm := "new-provider"
-	overrides := runtimeconfig.Overrides{LLMProvider: &llm}
+	overrides := runtimeconfig.Overrides{LLMOverrides: runtimeconfig.LLMOverrides{LLMProvider: &llm}}
 	if err := manager.UpdateOverrides(context.Background(), overrides); err != nil {
 		t.Fatalf("UpdateOverrides returned error: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestManagerUpdateOverridesIgnoresUnsubscribedChannels(t *testing.T) {
 	unsubscribe()
 
 	llm := "unsubscribed"
-	overrides := runtimeconfig.Overrides{LLMProvider: &llm}
+	overrides := runtimeconfig.Overrides{LLMOverrides: runtimeconfig.LLMOverrides{LLMProvider: &llm}}
 
 	done := make(chan struct{})
 	go func() {
@@ -190,7 +190,7 @@ func TestManagerRefreshOverridesReloadsAndNotifies(t *testing.T) {
 		loadFn: func(context.Context) (runtimeconfig.Overrides, error) {
 			loads.Add(1)
 			value := "refreshed"
-			return runtimeconfig.Overrides{LLMProvider: &value}, nil
+			return runtimeconfig.Overrides{LLMOverrides: runtimeconfig.LLMOverrides{LLMProvider: &value}}, nil
 		},
 	}
 

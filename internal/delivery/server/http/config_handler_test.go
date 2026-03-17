@@ -35,7 +35,7 @@ func TestConfigHandlerHandleGetRuntimeConfig(t *testing.T) {
 	initial := runtimeconfig.Overrides{}
 	manager := configadmin.NewManager(&memoryStore{overrides: initial}, initial)
 	resolver := func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
-		cfg := runtimeconfig.RuntimeConfig{LLMProvider: "mock"}
+		cfg := runtimeconfig.RuntimeConfig{LLMSettings: runtimeconfig.LLMSettings{LLMProvider: "mock"}}
 		meta := runtimeconfig.Metadata{}
 		return cfg, meta, nil
 	}
@@ -69,14 +69,14 @@ func TestConfigHandlerHandleUpdateRuntimeConfig(t *testing.T) {
 	mem := &memoryStore{}
 	manager := configadmin.NewManager(mem, runtimeconfig.Overrides{})
 	resolver := func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
-		cfg := runtimeconfig.RuntimeConfig{LLMModel: "gpt-4"}
+		cfg := runtimeconfig.RuntimeConfig{LLMSettings: runtimeconfig.LLMSettings{LLMModel: "gpt-4"}}
 		meta := runtimeconfig.Metadata{}
 		return cfg, meta, nil
 	}
 
 	handler := NewConfigHandler(manager, resolver, nil, nil)
 
-	body := runtimeConfigOverridesPayload{Overrides: runtimeconfig.Overrides{LLMProvider: ptrString("openrouter")}}
+	body := runtimeConfigOverridesPayload{Overrides: runtimeconfig.Overrides{LLMOverrides: runtimeconfig.LLMOverrides{LLMProvider: ptrString("openrouter")}}}
 	data, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPut, "/api/internal/config/runtime", bytes.NewReader(data))
 	rr := httptest.NewRecorder()
@@ -110,7 +110,7 @@ func TestConfigHandlerHandleRuntimeStreamSendsSnapshots(t *testing.T) {
 	mem := &memoryStore{}
 	manager := configadmin.NewManager(mem, runtimeconfig.Overrides{})
 	resolver := func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
-		cfg := runtimeconfig.RuntimeConfig{LLMProvider: "initial"}
+		cfg := runtimeconfig.RuntimeConfig{LLMSettings: runtimeconfig.LLMSettings{LLMProvider: "initial"}}
 		meta := runtimeconfig.Metadata{}
 		return cfg, meta, nil
 	}
@@ -132,7 +132,7 @@ func TestConfigHandlerHandleRuntimeStreamSendsSnapshots(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	llm := "after"
-	if err := manager.UpdateOverrides(context.Background(), runtimeconfig.Overrides{LLMProvider: &llm}); err != nil {
+	if err := manager.UpdateOverrides(context.Background(), runtimeconfig.Overrides{LLMOverrides: runtimeconfig.LLMOverrides{LLMProvider: &llm}}); err != nil {
 		t.Fatalf("UpdateOverrides returned error: %v", err)
 	}
 
@@ -192,7 +192,7 @@ func TestConfigHandlerHandleRuntimeStreamHandlesRuntimeUpdates(t *testing.T) {
 	provider := atomic.Value{}
 	provider.Store("initial")
 	resolver := func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
-		cfg := runtimeconfig.RuntimeConfig{LLMProvider: provider.Load().(string)}
+		cfg := runtimeconfig.RuntimeConfig{LLMSettings: runtimeconfig.LLMSettings{LLMProvider: provider.Load().(string)}}
 		return cfg, runtimeconfig.Metadata{}, nil
 	}
 	updates := make(chan struct{}, 1)

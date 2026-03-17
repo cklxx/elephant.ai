@@ -48,7 +48,7 @@ func TestFileStoreSaveAndLoadRoundTrip(t *testing.T) {
 
 	provider := "anthropic"
 	iterations := 42
-	overrides := runtimeconfig.Overrides{LLMProvider: &provider, MaxIterations: &iterations}
+	overrides := runtimeconfig.Overrides{LLMOverrides: runtimeconfig.LLMOverrides{LLMProvider: &provider}, MaxIterations: &iterations}
 
 	if err := store.SaveOverrides(context.Background(), overrides); err != nil {
 		t.Fatalf("SaveOverrides returned error: %v", err)

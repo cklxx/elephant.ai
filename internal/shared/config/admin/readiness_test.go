@@ -16,9 +16,8 @@ func TestDeriveReadinessTasks(t *testing.T) {
 	}
 
 	cfg = runtimeconfig.RuntimeConfig{
-		LLMProvider:  "mock",
-		LLMModel:     "foo",
-		TavilyAPIKey: "tv",
+		LLMSettings:     runtimeconfig.LLMSettings{LLMProvider: "mock", LLMModel: "foo"},
+		IntegrationKeys: runtimeconfig.IntegrationKeys{TavilyAPIKey: "tv"},
 	}
 	tasks = DeriveReadinessTasks(cfg)
 	if len(tasks) != 0 {
@@ -26,8 +25,7 @@ func TestDeriveReadinessTasks(t *testing.T) {
 	}
 
 	cfg = runtimeconfig.RuntimeConfig{
-		LLMProvider: "openai",
-		LLMModel:    "gpt-4",
+		LLMSettings: runtimeconfig.LLMSettings{LLMProvider: "openai", LLMModel: "gpt-4"},
 	}
 	tasks = DeriveReadinessTasks(cfg)
 	if len(tasks) == 0 {
@@ -38,9 +36,8 @@ func TestDeriveReadinessTasks(t *testing.T) {
 	}
 
 	cfg = runtimeconfig.RuntimeConfig{
+		LLMSettings: runtimeconfig.LLMSettings{LLMProvider: "openai", LLMModel: "gpt-4"},
 		Profile:     runtimeconfig.RuntimeProfileQuickstart,
-		LLMProvider: "openai",
-		LLMModel:    "gpt-4",
 	}
 	tasks = DeriveReadinessTasks(cfg)
 	var keyTask *ReadinessTask
