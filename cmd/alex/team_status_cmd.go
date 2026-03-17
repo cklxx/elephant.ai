@@ -11,10 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"alex/internal/infra/coding"
 	"alex/internal/infra/teamruntime"
 	"alex/internal/shared/utils"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -418,10 +419,10 @@ func overlayRuntimeState(
 	}
 	for _, role := range roles {
 		current := state.Roles[role.RoleID]
-		if strings.TrimSpace(current.RoleID) == "" {
+		if utils.IsBlank(current.RoleID) {
 			current.RoleID = role.RoleID
 		}
-		if strings.TrimSpace(current.SelectedCLI) == "" {
+		if utils.IsBlank(current.SelectedCLI) {
 			current.SelectedCLI = role.SelectedCLI
 		}
 		if len(current.FallbackCLIs) == 0 && len(role.FallbackCLIs) > 0 {
@@ -430,7 +431,7 @@ func overlayRuntimeState(
 		if current.UpdatedAt.IsZero() {
 			current.UpdatedAt = state.UpdatedAt
 		}
-		if strings.TrimSpace(current.Status) == "" {
+		if utils.IsBlank(current.Status) {
 			current.Status = "initialized"
 		}
 		state.Roles[role.RoleID] = current
@@ -442,7 +443,7 @@ func overlayRuntimeState(
 			continue
 		}
 		current := state.Roles[roleID]
-		if strings.TrimSpace(current.RoleID) == "" {
+		if utils.IsBlank(current.RoleID) {
 			current.RoleID = roleID
 		}
 		if ts := parseEventTimestamp(stringValue(ev["timestamp"])); !ts.IsZero() {
@@ -470,7 +471,7 @@ func overlayRuntimeState(
 
 func aggregateTeamRuntimeStatus(state teamruntime.RuntimeState) string {
 	if len(state.Roles) == 0 {
-		if strings.TrimSpace(state.Status) == "" {
+		if utils.IsBlank(state.Status) {
 			return "initialized"
 		}
 		return state.Status
@@ -479,7 +480,7 @@ func aggregateTeamRuntimeStatus(state teamruntime.RuntimeState) string {
 	hasRunning := false
 	hasCompleted := false
 	for _, role := range state.Roles {
-		switch strings.ToLower(strings.TrimSpace(role.Status)) {
+		switch utils.TrimLower(role.Status) {
 		case "failed", "error":
 			return "failed"
 		case "running":
@@ -494,7 +495,7 @@ func aggregateTeamRuntimeStatus(state teamruntime.RuntimeState) string {
 	if hasCompleted {
 		return "completed"
 	}
-	if strings.TrimSpace(state.Status) == "" {
+	if utils.IsBlank(state.Status) {
 		return "initialized"
 	}
 	return state.Status

@@ -201,7 +201,7 @@ func extractOutgoingContentText(rawContent string) string {
 	if rawContent == "" {
 		return ""
 	}
-	if text, ok := parseLarkTextPayload(rawContent); ok && strings.TrimSpace(text) != "" {
+	if text, ok := parseLarkTextPayload(rawContent); ok && utils.HasContent(text) {
 		return text
 	}
 	return extractPostContent(rawContent, nil)

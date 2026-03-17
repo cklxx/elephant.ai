@@ -2,7 +2,6 @@ package lark
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/domain/agent/types"
+	"alex/internal/shared/utils"
 )
 
 // preanalysisEmojiExecutor emits a preanalysis emoji event through the real
@@ -21,7 +21,7 @@ type preanalysisEmojiExecutor struct {
 }
 
 func (e *preanalysisEmojiExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
-	if strings.TrimSpace(sessionID) == "" {
+	if utils.IsBlank(sessionID) {
 		sessionID = "lark-session"
 	}
 	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil
@@ -46,7 +46,7 @@ func (e *preanalysisEmojiExecutor) ExecuteTask(_ context.Context, _ string, sess
 type noEmojiExecutor struct{}
 
 func (e *noEmojiExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
-	if strings.TrimSpace(sessionID) == "" {
+	if utils.IsBlank(sessionID) {
 		sessionID = "lark-session"
 	}
 	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil

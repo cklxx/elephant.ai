@@ -274,7 +274,7 @@ func applyProviderDefaults(desc *ProviderDescriptor, provider, model string, con
 	}
 
 	// Codex endpoint behaviors.
-	if strings.Contains(strings.ToLower(strings.TrimSpace(config.BaseURL)), "/backend-api/codex") {
+	if strings.Contains(utils.TrimLower(config.BaseURL), "/backend-api/codex") {
 		config.CodexEndpoint = true
 	}
 }

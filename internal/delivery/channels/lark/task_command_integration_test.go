@@ -19,6 +19,7 @@ import (
 	externalinfra "alex/internal/infra/external"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 )
 
 func TestGatewayIntegration_TaskCommandsDispatchRealExternalAgents(t *testing.T) {
@@ -119,7 +120,7 @@ type integrationDispatchExecutor struct {
 }
 
 func (e *integrationDispatchExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
-	if strings.TrimSpace(sessionID) == "" {
+	if utils.IsBlank(sessionID) {
 		sessionID = fmt.Sprintf("itest-%d", time.Now().UnixNano())
 	}
 	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil

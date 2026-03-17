@@ -129,7 +129,7 @@ func (g *Gateway) dispatchMessage(ctx context.Context, chatID, replyToID, msgTyp
 			// Post also failed; fall through to text fallback below.
 			g.logger.Warn("Lark post fallback also failed, falling back to text")
 		}
-		if strings.TrimSpace(cardText) == "" {
+		if utils.IsBlank(cardText) {
 			cardText = "本次卡片消息渲染失败，已回退为纯文本发送。"
 		}
 		return send("text", textContent(cardText))
@@ -138,7 +138,7 @@ func (g *Gateway) dispatchMessage(ctx context.Context, chatID, replyToID, msgTyp
 	// Post failed: fall back to text.
 	if normalizedType == "post" && isPostPayloadInvalidError(err) {
 		fallbackText := flattenPostContentToText(content)
-		if strings.TrimSpace(fallbackText) == "" {
+		if utils.IsBlank(fallbackText) {
 			fallbackText = "本次富文本结果渲染失败，已回退为纯文本发送。"
 		}
 		g.logger.Warn("Lark post dispatch fallback to text: %v", err)

@@ -8,11 +8,13 @@ import (
 	"time"
 	"unicode"
 
+	"gopkg.in/yaml.v3"
+
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/infra/filestore"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -62,7 +64,7 @@ func (r *FileRecorder) RecordTeamRun(_ context.Context, record agent.TeamRunReco
 	if record.DispatchedAt.IsZero() {
 		record.DispatchedAt = recordedAt
 	}
-	if strings.TrimSpace(record.DispatchState) == "" {
+	if utils.IsBlank(record.DispatchState) {
 		record.DispatchState = "dispatched"
 	}
 	payload := persistedTeamRunRecord{
@@ -118,4 +120,3 @@ func sanitizeFileToken(raw string) string {
 	}
 	return out
 }
-

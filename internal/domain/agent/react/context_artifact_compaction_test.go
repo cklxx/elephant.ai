@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 // testAtomicWriter implements agent.AtomicFileWriter for tests using real filesystem.
@@ -80,7 +81,7 @@ func TestTryArtifactCompactionWritesFileAndPlaceholder(t *testing.T) {
 	if state.NextCompactionAllowed != 5 {
 		t.Fatalf("expected next allowed iteration 5, got %d", state.NextCompactionAllowed)
 	}
-	if strings.TrimSpace(state.LastCompactionArtifact) == "" {
+	if utils.IsBlank(state.LastCompactionArtifact) {
 		t.Fatal("expected artifact path to be recorded on state")
 	}
 

@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/domain/agent"
+	domain "alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -27,7 +28,7 @@ func (e *ReactEngine) SolveTask(
 
 // RecordUserInput appends the user input to the task state without running ReAct.
 func (e *ReactEngine) RecordUserInput(ctx context.Context, task string, state *TaskState) {
-	if state == nil || strings.TrimSpace(task) == "" {
+	if state == nil || utils.IsBlank(task) {
 		return
 	}
 	e.prepareUserTaskContext(ctx, task, state)

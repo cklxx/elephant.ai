@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 )
 
 // RenderTaskFile converts a TeamDefinition + goal into a TaskFile with
@@ -59,10 +60,10 @@ func RenderTaskFile(def *agent.TeamDefinition, goal string, overrides map[string
 		if spec.Config == nil {
 			spec.Config = make(map[string]string)
 		}
-		if strings.TrimSpace(r.CapabilityProfile) != "" {
+		if utils.HasContent(r.CapabilityProfile) {
 			spec.Config["capability_profile"] = strings.TrimSpace(r.CapabilityProfile)
 		}
-		if strings.TrimSpace(r.TargetCLI) != "" {
+		if utils.HasContent(r.TargetCLI) {
 			spec.Config["target_cli"] = strings.TrimSpace(r.TargetCLI)
 		}
 		tf.Tasks = append(tf.Tasks, spec)
@@ -141,10 +142,10 @@ func buildStageDeps(stages []agent.TeamStageDefinition, stageOutputIDs [][]strin
 }
 
 func renderTeamPrompt(template string, overrides map[string]string, roleName, teamName, goal string) string {
-	if override, ok := overrides[roleName]; ok && strings.TrimSpace(override) != "" {
+	if override, ok := overrides[roleName]; ok && utils.HasContent(override) {
 		return override
 	}
-	if strings.TrimSpace(template) == "" {
+	if utils.IsBlank(template) {
 		return goal
 	}
 	return strings.NewReplacer(

@@ -14,15 +14,16 @@ import (
 	"alex/internal/runtime/adapter"
 	"alex/internal/runtime/panel"
 	"alex/internal/runtime/session"
+	"alex/internal/shared/utils"
 )
 
 const (
-	runtimeUsage        = "usage: alex runtime session {start|list|status|inject|stop}"
-	runtimeStartUsage   = "usage: alex runtime session start --member <type> --goal <text> [--work-dir <dir>] [--parent-pane-id <N>] [--store-dir <dir>]"
-	runtimeListUsage    = "usage: alex runtime session list [--state running|all] [--store-dir <dir>]"
-	runtimeStatusUsage  = "usage: alex runtime session status <id> [--store-dir <dir>]"
-	runtimeInjectUsage  = "usage: alex runtime session inject --id <id> --message <text> [--store-dir <dir>]"
-	runtimeStopUsage    = "usage: alex runtime session stop --id <id> [--store-dir <dir>]"
+	runtimeUsage       = "usage: alex runtime session {start|list|status|inject|stop}"
+	runtimeStartUsage  = "usage: alex runtime session start --member <type> --goal <text> [--work-dir <dir>] [--parent-pane-id <N>] [--store-dir <dir>]"
+	runtimeListUsage   = "usage: alex runtime session list [--state running|all] [--store-dir <dir>]"
+	runtimeStatusUsage = "usage: alex runtime session status <id> [--store-dir <dir>]"
+	runtimeInjectUsage = "usage: alex runtime session inject --id <id> --message <text> [--store-dir <dir>]"
+	runtimeStopUsage   = "usage: alex runtime session stop --id <id> [--store-dir <dir>]"
 
 	defaultRuntimeStoreDir = "~/.kaku/sessions"
 )
@@ -154,7 +155,7 @@ func runRuntimeList(args []string) error {
 	}
 
 	sessions := rt.ListSessions()
-	filter := strings.ToLower(strings.TrimSpace(*stateFilter))
+	filter := utils.TrimLower(*stateFilter)
 
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tMEMBER\tSTATE\tGOAL\tAGE")

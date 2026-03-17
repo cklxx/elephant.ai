@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	appcontext "alex/internal/app/agent/context"
 	agentports "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/react"
@@ -25,8 +27,8 @@ import (
 	toolshared "alex/internal/infra/tools/builtin/shared"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -426,7 +428,7 @@ func parseRolePrompts(entries []string) (map[string]string, error) {
 }
 
 func parseTeamTerminalMode(raw string) string {
-	mode := strings.ToLower(strings.TrimSpace(raw))
+	mode := utils.TrimLower(raw)
 	switch mode {
 	case "", "stream":
 		return "stream"
@@ -694,7 +696,7 @@ func selectTeamRuntimeStatus(
 	if roleID != "" {
 		return teamRuntimeStatus{}, fmt.Errorf("role %q matched multiple team runtimes; %s", roleID, hint)
 	}
-	if strings.TrimSpace(opts.sessionID) != "" || strings.TrimSpace(opts.teamID) != "" {
+	if utils.HasContent(opts.sessionID) || utils.HasContent(opts.teamID) {
 		return teamRuntimeStatus{}, fmt.Errorf("multiple team runtimes matched the provided filters; %s", hint)
 	}
 	return teamRuntimeStatus{}, fmt.Errorf("multiple team runtimes found; %s", hint)
@@ -704,7 +706,7 @@ func resolveInjectRole(entry teamRuntimeStatus, roleID string) (teamruntime.Role
 	if len(entry.Roles) == 0 {
 		return teamruntime.RoleBinding{}, fmt.Errorf("no role bindings found in runtime")
 	}
-	if strings.TrimSpace(roleID) == "" {
+	if utils.IsBlank(roleID) {
 		return entry.Roles[0], nil
 	}
 	for _, role := range entry.Roles {

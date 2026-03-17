@@ -1,6 +1,6 @@
 package main
 
-import "strings"
+import "alex/internal/shared/utils"
 
 type approvalDecision struct {
 	Approved       bool
@@ -9,7 +9,7 @@ type approvalDecision struct {
 }
 
 func parseApprovalDecision(input string) (approvalDecision, bool) {
-	choice := strings.ToLower(strings.TrimSpace(input))
+	choice := utils.TrimLower(input)
 	switch choice {
 	case "", "y", "yes", "allow":
 		return approvalDecision{Approved: true, Action: "approve"}, true

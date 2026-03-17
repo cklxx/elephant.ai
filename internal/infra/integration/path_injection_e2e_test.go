@@ -27,6 +27,7 @@ import (
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
 	sharedparser "alex/internal/shared/parser"
+	"alex/internal/shared/utils"
 )
 
 func TestPathInjectionE2E_ReadsOutsideWorkspace(t *testing.T) {
@@ -299,10 +300,10 @@ func (l *toolCaptureListener) OnEvent(event agent.AgentEvent) {
 		l.mu.Lock()
 		defer l.mu.Unlock()
 		l.readFileCalls++
-		if result, ok := env.Payload["result"].(string); ok && strings.TrimSpace(result) != "" {
+		if result, ok := env.Payload["result"].(string); ok && utils.HasContent(result) {
 			l.readFileContent = result
 		}
-		if errText, ok := env.Payload["error"].(string); ok && strings.TrimSpace(errText) != "" {
+		if errText, ok := env.Payload["error"].(string); ok && utils.HasContent(errText) {
 			l.readFileError = errText
 		}
 		return
@@ -319,7 +320,7 @@ func (l *toolCaptureListener) OnEvent(event agent.AgentEvent) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.readFileCalls++
-	if strings.TrimSpace(e.Data.Result) != "" {
+	if utils.HasContent(e.Data.Result) {
 		l.readFileContent = e.Data.Result
 	}
 	if e.Data.Error != nil {

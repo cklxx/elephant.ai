@@ -141,7 +141,7 @@ func (r *Registry) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 	if !ok {
 		// Dynamic fallback: if task provides a concrete CLI binary, route through
 		// the generic bridge path instead of hard-failing by static type list.
-		if req.Config != nil && strings.TrimSpace(req.Config["binary"]) != "" {
+		if req.Config != nil && utils.HasContent(req.Config["binary"]) {
 			if generic, ok := r.get("generic_cli"); ok {
 				req.AgentType = "generic_cli"
 				return generic.Execute(ctx, req)

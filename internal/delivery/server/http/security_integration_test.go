@@ -27,6 +27,7 @@ import (
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
 	agenterrors "alex/internal/shared/errors"
+	"alex/internal/shared/utils"
 )
 
 func TestSecurity_PathTraversal(t *testing.T) {
@@ -244,7 +245,7 @@ func (s *securityIntegrationServer) createTask(t *testing.T, payload map[string]
 	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
 		t.Fatalf("decode create task response: %v", err)
 	}
-	if strings.TrimSpace(created.RunID) == "" {
+	if utils.IsBlank(created.RunID) {
 		t.Fatal("create task returned empty run_id")
 	}
 	return created
@@ -305,7 +306,7 @@ func (s *securitySessionSource) GetSession(_ context.Context, id string) (*stora
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if strings.TrimSpace(id) == "" {
+	if utils.IsBlank(id) {
 		id = fmt.Sprintf("security-session-%d", s.next.Add(1))
 	}
 	if existing := s.byID[id]; existing != nil {

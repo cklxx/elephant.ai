@@ -7,6 +7,7 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 )
 
 // BootstrapFn is called after RenderTaskFile to inject runtime bindings
@@ -43,7 +44,7 @@ func DispatchTeamRun(ctx context.Context, req TeamRunRequest) (*teamRunResult, e
 	if req.TeamDef == nil {
 		return nil, fmt.Errorf("team definition is required")
 	}
-	if strings.TrimSpace(req.Goal) == "" {
+	if utils.IsBlank(req.Goal) {
 		return nil, fmt.Errorf("goal is required")
 	}
 	if req.Dispatcher == nil {

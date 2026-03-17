@@ -4,8 +4,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"alex/internal/shared/utils"
 )
 
 func TestResolveLocalPath(t *testing.T) {
@@ -100,7 +101,7 @@ func TestResolveLocalPathOrTemp_AllowsOsTempDirFile(t *testing.T) {
 	ctx := WithWorkingDir(context.Background(), base)
 
 	tmpDir := os.TempDir()
-	if strings.TrimSpace(tmpDir) == "" {
+	if utils.IsBlank(tmpDir) {
 		t.Skip("os.TempDir is empty")
 	}
 	file, err := os.CreateTemp(tmpDir, "path-guard-*.txt")

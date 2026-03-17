@@ -12,6 +12,7 @@ import (
 	"alex/internal/domain/calendar"
 	"alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/config"
+	"alex/internal/shared/utils"
 	"alex/internal/testutil"
 )
 
@@ -103,7 +104,7 @@ func (m *mockLeaderLock) Release(_ context.Context) error {
 }
 
 func (m *mockLeaderLock) Name() string {
-	if strings.TrimSpace(m.name) == "" {
+	if utils.IsBlank(m.name) {
 		return "mock-leader-lock"
 	}
 	return m.name
@@ -114,7 +115,6 @@ func (m *mockLeaderLock) stats() (acquireCalls int, releaseCalls int) {
 	defer m.mu.Unlock()
 	return m.acquireCalls, m.releaseCalls
 }
-
 
 func TestScheduler_Disabled(t *testing.T) {
 	sched := New(Config{Enabled: false}, nil, nil, nil)

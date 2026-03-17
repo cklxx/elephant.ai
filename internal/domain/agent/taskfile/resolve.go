@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 )
 
 // resolveDefaults merges TaskFile-level defaults into each TaskSpec,
@@ -132,7 +133,7 @@ func specToDispatchRequest(spec TaskSpec, causationID string) agent.BackgroundDi
 
 	// Override AgentType from SelectedAgentType if set.
 	agentType := spec.AgentType
-	if strings.TrimSpace(spec.RuntimeMeta.SelectedAgentType) != "" {
+	if utils.HasContent(spec.RuntimeMeta.SelectedAgentType) {
 		agentType = strings.TrimSpace(spec.RuntimeMeta.SelectedAgentType)
 	}
 
@@ -181,4 +182,3 @@ func flattenRuntimeMeta(meta TeamRuntimeMeta, cfg map[string]string) {
 	setIfPresent(cfg, "tmux_pane", meta.TmuxPane)
 	setIfPresent(cfg, "selected_agent_type", meta.SelectedAgentType)
 }
-

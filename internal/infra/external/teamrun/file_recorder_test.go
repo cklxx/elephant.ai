@@ -4,11 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	agent "alex/internal/domain/agent/ports/agent"
 	"gopkg.in/yaml.v3"
+
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 )
 
 func TestFileRecorder_RecordTeamRunWritesYAMLFile(t *testing.T) {
@@ -26,7 +27,7 @@ func TestFileRecorder_RecordTeamRunWritesYAMLFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RecordTeamRun() error = %v", err)
 	}
-	if strings.TrimSpace(path) == "" {
+	if utils.IsBlank(path) {
 		t.Fatal("expected non-empty record path")
 	}
 	if filepath.Dir(path) != baseDir {

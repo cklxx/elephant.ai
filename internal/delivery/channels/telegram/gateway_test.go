@@ -14,6 +14,7 @@ import (
 	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/domain/agent/types"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/mymmrac/telego"
@@ -738,7 +739,7 @@ func TestProgressListenerTracksLifecycleAndFinalFlush(t *testing.T) {
 	if sends != 1 {
 		t.Fatalf("send count = %d, want 1", sends)
 	}
-	if strings.TrimSpace(lastText) == "" {
+	if utils.IsBlank(lastText) {
 		t.Fatal("final progress text is empty")
 	}
 }
@@ -794,7 +795,7 @@ func TestProgressListenerEnvelopeCompletionUpdatesExistingMessage(t *testing.T) 
 	if updates != 1 {
 		t.Fatalf("update count = %d, want 1", updates)
 	}
-	if strings.TrimSpace(lastText) == "" {
+	if utils.IsBlank(lastText) {
 		t.Fatal("updated progress text is empty")
 	}
 	if !pl.tools[0].done || !pl.tools[0].errored {

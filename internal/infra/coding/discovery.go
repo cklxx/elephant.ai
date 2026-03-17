@@ -173,7 +173,7 @@ func probeVersionString(ctx context.Context, timeout time.Duration, binary strin
 		return out, nil
 	}
 	altOut, altErr := runProbeCommand(ctx, timeout, binary, "-V")
-	if altErr == nil && strings.TrimSpace(altOut) != "" {
+	if altErr == nil && utils.HasContent(altOut) {
 		return altOut, nil
 	}
 	altOut, altErr = runProbeCommand(ctx, timeout, binary, "version")
@@ -236,7 +236,7 @@ func probeSingleCLI(ctx context.Context, binary string, timeout time.Duration) D
 		}
 	}
 
-	combined := strings.ToLower(strings.TrimSpace(versionOut + "\n" + helpOut))
+	combined := utils.TrimLower(versionOut + "\n" + helpOut)
 	if strings.Contains(combined, "not logged in") || strings.Contains(combined, "login required") {
 		out.AuthReady = false
 		out.FailureReason = "not_logged_in"
@@ -303,7 +303,7 @@ func runProbeCommand(ctx context.Context, timeout time.Duration, binary string, 
 }
 
 func inferCapability(text string, keywords []string) bool {
-	if strings.TrimSpace(text) == "" {
+	if utils.IsBlank(text) {
 		return false
 	}
 	for _, keyword := range keywords {

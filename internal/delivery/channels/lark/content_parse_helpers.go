@@ -3,6 +3,8 @@ package lark
 import (
 	"encoding/json"
 	"strings"
+
+	"alex/internal/shared/utils"
 )
 
 type larkTextPayload struct {
@@ -41,10 +43,10 @@ func parseLarkPostPayload(raw string) (larkPostPayload, bool) {
 	if len(parsed.Content) == 0 && len(parsed.ZhCN.Content) > 0 {
 		parsed.Content = parsed.ZhCN.Content
 	}
-	if strings.TrimSpace(parsed.Title) == "" && strings.TrimSpace(parsed.ZhCN.Title) != "" {
+	if utils.IsBlank(parsed.Title) && utils.HasContent(parsed.ZhCN.Title) {
 		parsed.Title = parsed.ZhCN.Title
 	}
-	return parsed, len(parsed.Content) > 0 || strings.TrimSpace(parsed.Title) != ""
+	return parsed, len(parsed.Content) > 0 || utils.HasContent(parsed.Title)
 }
 
 func flattenLarkPostPayload(parsed larkPostPayload, renderText func(larkPostElement) string, renderAt func(larkPostElement) string) string {

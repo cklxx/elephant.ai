@@ -79,7 +79,7 @@ func selectRoleBinding(
 }
 
 func selectedAgentType(cap coding.DiscoveredCLICapability) string {
-	if strings.TrimSpace(cap.AgentType) != "" {
+	if utils.HasContent(cap.AgentType) {
 		return cap.AgentType
 	}
 	return agent.AgentTypeGenericCLI

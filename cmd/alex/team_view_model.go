@@ -89,7 +89,7 @@ func buildTeamRunView(entry teamRuntimeStatus) teamRunView {
 	if !focusRole.LastActivityAt.IsZero() {
 		view.LastActivityAt = focusRole.LastActivityAt
 	}
-	if strings.TrimSpace(focusRole.RoleID) != "" {
+	if utils.HasContent(focusRole.RoleID) {
 		view.FocusRoleID = focusRole.RoleID
 	}
 	if view.UpdatedAt.IsZero() {
@@ -119,8 +119,8 @@ func buildRoleViews(entry teamRuntimeStatus) []teamRoleView {
 			Status:            status,
 			ShortSummary:      summary,
 			LastActivityAt:    lastActivity,
-			TerminalAvailable: strings.TrimSpace(role.TmuxPane) != "",
-			FollowUpAvailable: strings.TrimSpace(role.TmuxPane) != "",
+			TerminalAvailable: utils.HasContent(role.TmuxPane),
+			FollowUpAvailable: utils.HasContent(role.TmuxPane),
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool {
@@ -180,7 +180,7 @@ func selectPreferredRoleView(roles []teamRoleView) teamRoleView {
 }
 
 func selectPreferredTerminalRole(entry teamRuntimeStatus, requestedRoleID string) (teamruntime.RoleBinding, bool, error) {
-	if strings.TrimSpace(requestedRoleID) != "" {
+	if utils.HasContent(requestedRoleID) {
 		role, err := resolveInjectRole(entry, requestedRoleID)
 		return role, false, err
 	}
@@ -199,7 +199,7 @@ func selectPreferredTerminalRole(entry teamRuntimeStatus, requestedRoleID string
 		roleID := strings.TrimSpace(binding.RoleID)
 		roleView := viewByRole[roleID]
 		priority := rolePriority(roleView.Status)
-		if strings.TrimSpace(binding.TmuxPane) == "" {
+		if utils.IsBlank(binding.TmuxPane) {
 			priority += 10
 		}
 		if priority < bestPriority || (priority == bestPriority && roleView.LastActivityAt.After(bestActivity)) {
@@ -251,13 +251,13 @@ func renderTerminalSnapshotView(view teamTerminalSnapshotView) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n", nonEmpty(view.Title, "Live Terminal"))
 	fmt.Fprintf(&b, "Role: %s\n", nonEmpty(view.RoleID, "(unknown)"))
-	if strings.TrimSpace(view.SelectedAgent) != "" {
+	if utils.HasContent(view.SelectedAgent) {
 		fmt.Fprintf(&b, "Agent: %s\n", view.SelectedAgent)
 	}
-	if strings.TrimSpace(view.Status) != "" {
+	if utils.HasContent(view.Status) {
 		fmt.Fprintf(&b, "Status: %s\n", view.Status)
 	}
-	if strings.TrimSpace(view.Summary) != "" {
+	if utils.HasContent(view.Summary) {
 		fmt.Fprintf(&b, "Summary: %s\n", view.Summary)
 	}
 	if !view.LastActivityAt.IsZero() {
@@ -265,16 +265,16 @@ func renderTerminalSnapshotView(view teamTerminalSnapshotView) string {
 	}
 	fmt.Fprintf(&b, "Window: last %d lines (%s)\n", view.Lines, view.Mode)
 	b.WriteString("\n")
-	if strings.TrimSpace(view.Content) == "" {
+	if utils.IsBlank(view.Content) {
 		b.WriteString("(no terminal output captured)\n")
 	} else {
 		b.WriteString(view.Content)
 		b.WriteString("\n")
 	}
-	if strings.TrimSpace(view.OpenInteractiveHint) != "" {
+	if utils.HasContent(view.OpenInteractiveHint) {
 		fmt.Fprintf(&b, "\n%s: %s\n", nonEmpty(view.OpenInteractiveLabel, "Open Interactive View"), view.OpenInteractiveHint)
 	}
-	if strings.TrimSpace(view.FollowUpHint) != "" {
+	if utils.HasContent(view.FollowUpHint) {
 		fmt.Fprintf(&b, "Send Follow-up: %s\n", view.FollowUpHint)
 	}
 	return b.String()
@@ -288,7 +288,7 @@ func renderTeamRunView(view teamRunView) string {
 	fmt.Fprintf(&b, "Team ID: %s\n", nonEmpty(view.TeamID, "(unknown)"))
 	fmt.Fprintf(&b, "Start time: %s\n", formatStatusTime(view.StartedAt))
 	fmt.Fprintf(&b, "Updated: %s\n", formatStatusTime(view.UpdatedAt))
-	if strings.TrimSpace(view.FocusRoleID) != "" {
+	if utils.HasContent(view.FocusRoleID) {
 		fmt.Fprintf(&b, "Focus role: %s\n", view.FocusRoleID)
 	}
 	b.WriteString("\nRoles:\n")
@@ -301,7 +301,7 @@ func renderTeamRunView(view teamRunView) string {
 				nonEmpty(role.Status, "pending"),
 				nonEmpty(role.SelectedAgent, "-"),
 			)
-			if strings.TrimSpace(role.ShortSummary) != "" {
+			if utils.HasContent(role.ShortSummary) {
 				fmt.Fprintf(&b, "    Summary: %s\n", role.ShortSummary)
 			}
 			if !role.LastActivityAt.IsZero() {
@@ -326,7 +326,7 @@ func renderTeamRunView(view teamRunView) string {
 			if ts == "-" {
 				ts = "(time unknown)"
 			}
-			if strings.TrimSpace(event.RoleID) != "" {
+			if utils.HasContent(event.RoleID) {
 				fmt.Fprintf(&b, "  - %s | %s | %s\n", ts, event.RoleID, event.Summary)
 				continue
 			}
@@ -340,7 +340,7 @@ func renderTeamRunView(view teamRunView) string {
 	} else {
 		for _, artifact := range view.Artifacts {
 			label := nonEmpty(artifact.Label, artifact.Kind)
-			if strings.TrimSpace(artifact.RoleID) != "" {
+			if utils.HasContent(artifact.RoleID) {
 				fmt.Fprintf(&b, "  - %s | %s | %s\n", label, artifact.RoleID, artifact.Path)
 			} else {
 				fmt.Fprintf(&b, "  - %s | %s\n", label, artifact.Path)
