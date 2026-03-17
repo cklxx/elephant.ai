@@ -7,10 +7,11 @@ import "time"
 // sessionSlot under its mutex, so the conversation process never needs to
 // hold the slot lock beyond a single read.
 type workerSnapshot struct {
-	Phase    slotPhase
-	TaskDesc string
-	Elapsed  time.Duration
-	Signals  []string // recent user messages injected into the worker
+	Phase          slotPhase
+	TaskDesc       string
+	Elapsed        time.Duration
+	Signals        []string // recent user messages injected into the worker
+	RecentProgress []string // recent tool progress entries from the worker
 }
 
 // snapshotWorker reads the current sessionSlot state and returns a
@@ -34,6 +35,10 @@ func (g *Gateway) snapshotWorker(chatID string) workerSnapshot {
 	if slot.phase == slotRunning {
 		snap.Elapsed = g.currentTime().Sub(slot.lastTouched)
 	}
+	if len(slot.recentProgress) > 0 {
+		snap.RecentProgress = make([]string, len(slot.recentProgress))
+		copy(snap.RecentProgress, slot.recentProgress)
+	}
 	return snap
 }
 
@@ -52,7 +57,14 @@ func (s workerSnapshot) StatusSummary() string {
 		if len([]rune(desc)) > 80 {
 			desc = string([]rune(desc)[:80]) + "…"
 		}
-		return "有任务在执行中, 任务描述: " + desc + ", 已运行: " + s.Elapsed.Truncate(time.Second).String()
+		summary := "有任务在执行中, 任务描述: " + desc + ", 已运行: " + s.Elapsed.Truncate(time.Second).String()
+		if len(s.RecentProgress) > 0 {
+			summary += "\n最近进展："
+			for _, p := range s.RecentProgress {
+				summary += "\n- " + p
+			}
+		}
+		return summary
 	case slotAwaitingInput:
 		return "任务等待用户输入中"
 	default:

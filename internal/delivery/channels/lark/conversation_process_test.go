@@ -185,7 +185,7 @@ func TestConversationLLM_ReturnsTextReply(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	reply, toolCalls := g.conversationLLM(context.Background(), "你好", snap)
+	reply, toolCalls := g.conversationLLM(context.Background(), "你好", snap, "")
 	if reply != "你好！有什么可以帮你的？" {
 		t.Fatalf("expected reply text, got %q", reply)
 	}
@@ -204,7 +204,7 @@ func TestConversationLLM_ReturnsToolCall(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	reply, toolCalls := g.conversationLLM(context.Background(), "重构 auth 模块", snap)
+	reply, toolCalls := g.conversationLLM(context.Background(), "重构 auth 模块", snap, "")
 	if reply != "好，我来看一下。" {
 		t.Fatalf("expected confirmation reply, got %q", reply)
 	}
@@ -218,7 +218,7 @@ func TestConversationLLM_IncludesWorkerStatus(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotRunning, TaskDesc: "build dashboard", Elapsed: 45 * time.Second}
 
-	g.conversationLLM(context.Background(), "做得怎么样了？", snap)
+	g.conversationLLM(context.Background(), "做得怎么样了？", snap, "")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
@@ -230,19 +230,26 @@ func TestConversationLLM_IncludesWorkerStatus(t *testing.T) {
 	}
 }
 
-func TestConversationLLM_IncludesDispatchWorkerTool(t *testing.T) {
+func TestConversationLLM_IncludesTools(t *testing.T) {
 	stub := &convStubLLMClient{resp: "ok"}
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	g.conversationLLM(context.Background(), "hello", snap)
+	g.conversationLLM(context.Background(), "hello", snap, "")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
 		t.Fatal("expected at least one LLM request")
 	}
-	if len(reqs[0].Tools) != 1 || reqs[0].Tools[0].Name != "dispatch_worker" {
-		t.Fatalf("expected 1 dispatch_worker tool, got %v", reqs[0].Tools)
+	if len(reqs[0].Tools) != 2 {
+		t.Fatalf("expected 2 tools (dispatch_worker, stop_worker), got %d", len(reqs[0].Tools))
+	}
+	names := make(map[string]bool)
+	for _, tool := range reqs[0].Tools {
+		names[tool.Name] = true
+	}
+	if !names["dispatch_worker"] || !names["stop_worker"] {
+		t.Fatalf("expected dispatch_worker and stop_worker tools, got %v", reqs[0].Tools)
 	}
 }
 
@@ -251,7 +258,7 @@ func TestConversationLLM_FallbackOnError(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	reply, toolCalls := g.conversationLLM(context.Background(), "hello", snap)
+	reply, toolCalls := g.conversationLLM(context.Background(), "hello", snap, "")
 	if reply != "" || len(toolCalls) != 0 {
 		t.Fatalf("expected empty on error, got reply=%q toolCalls=%d", reply, len(toolCalls))
 	}
@@ -265,7 +272,7 @@ func TestConversationLLM_FallbackWhenFactoryNil(t *testing.T) {
 		logger:     logging.OrNop(nil),
 		now:        time.Now,
 	}
-	reply, toolCalls := g.conversationLLM(context.Background(), "hi", workerSnapshot{Phase: slotIdle})
+	reply, toolCalls := g.conversationLLM(context.Background(), "hi", workerSnapshot{Phase: slotIdle}, "")
 	if reply != "" || len(toolCalls) != 0 {
 		t.Fatal("expected empty when factory nil")
 	}
@@ -568,6 +575,153 @@ func TestHandleViaConversationProcess_UsesFormattedPipeline(t *testing.T) {
 type convStubErr struct{ msg string }
 
 func (e *convStubErr) Error() string { return e.msg }
+
+// ---------------------------------------------------------------------------
+// Tests for stop_worker
+// ---------------------------------------------------------------------------
+
+func TestHandleViaConversationProcess_StopsWorkerOnToolCall(t *testing.T) {
+	stub := &convStubLLMClient{
+		resp: "好的，已停止。",
+		toolCalls: []ports.ToolCall{
+			{ID: "tc1", Name: "stop_worker", Arguments: map[string]any{}},
+		},
+	}
+	g := newConvGateway(t, stub, true)
+
+	// Pre-populate a running worker with a cancel func.
+	cancelled := false
+	slot := g.getOrCreateSlot("chat1")
+	slot.mu.Lock()
+	slot.phase = slotRunning
+	slot.inputCh = make(chan agent.UserInput, 16)
+	slot.sessionID = "sess-1"
+	slot.taskToken = 1
+	slot.taskCancel = func() { cancelled = true }
+	slot.lastTouched = time.Now()
+	slot.mu.Unlock()
+	g.activeSlots.Store("chat1", slot)
+
+	msg := &incomingMessage{chatID: "chat1", messageID: "msg1", senderID: "user1", content: "停一下"}
+
+	g.handleViaConversationProcess(context.Background(), msg, slot)
+
+	if !cancelled {
+		t.Fatal("expected worker to be cancelled")
+	}
+
+	// Verify intentionalCancelToken was set.
+	slot.mu.Lock()
+	intentional := slot.intentionalCancelToken
+	slot.mu.Unlock()
+	if intentional != 1 {
+		t.Fatalf("expected intentionalCancelToken=1, got %d", intentional)
+	}
+}
+
+func TestStopWorkerFromConversation_NoopWhenIdle(t *testing.T) {
+	stub := &convStubLLMClient{resp: "ok"}
+	g := newConvGateway(t, stub, true)
+
+	slot := &sessionSlot{phase: slotIdle}
+	// Should not panic when no task is running.
+	g.stopWorkerFromConversation("chat1", slot)
+}
+
+// ---------------------------------------------------------------------------
+// Tests for chat history in conversationLLM
+// ---------------------------------------------------------------------------
+
+func TestConversationLLM_IncludesChatHistory(t *testing.T) {
+	stub := &convStubLLMClient{resp: "ok"}
+	g := newConvGateway(t, stub, true)
+	snap := workerSnapshot{Phase: slotIdle}
+
+	g.conversationLLM(context.Background(), "hello", snap, "user: 之前的消息\nassistant: 之前的回复")
+
+	reqs := stub.lastReqs()
+	if len(reqs) == 0 {
+		t.Fatal("expected at least one LLM request")
+	}
+	userContent := reqs[0].Messages[1].Content
+	if !strContains(userContent, "最近聊天记录") {
+		t.Errorf("expected chat history header in prompt, got %q", userContent)
+	}
+	if !strContains(userContent, "之前的消息") {
+		t.Errorf("expected chat history content in prompt, got %q", userContent)
+	}
+}
+
+func TestConversationLLM_NoChatHistoryWhenEmpty(t *testing.T) {
+	stub := &convStubLLMClient{resp: "ok"}
+	g := newConvGateway(t, stub, true)
+	snap := workerSnapshot{Phase: slotIdle}
+
+	g.conversationLLM(context.Background(), "hello", snap, "")
+
+	reqs := stub.lastReqs()
+	if len(reqs) == 0 {
+		t.Fatal("expected at least one LLM request")
+	}
+	userContent := reqs[0].Messages[1].Content
+	if strContains(userContent, "最近聊天记录") {
+		t.Errorf("should not include chat history header when empty, got %q", userContent)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests for workerSnapshot with RecentProgress
+// ---------------------------------------------------------------------------
+
+func TestWorkerSnapshot_StatusSummary_WithProgress(t *testing.T) {
+	snap := workerSnapshot{
+		Phase:          slotRunning,
+		TaskDesc:       "build dashboard",
+		Elapsed:        45 * time.Second,
+		RecentProgress: []string{"▶ read_file", "✓ read_file (100ms)"},
+	}
+	s := snap.StatusSummary()
+	if !strContains(s, "最近进展") {
+		t.Errorf("expected progress section, got %q", s)
+	}
+	if !strContains(s, "read_file") {
+		t.Errorf("expected progress entry, got %q", s)
+	}
+}
+
+func TestSessionSlot_AppendProgress_RingBuffer(t *testing.T) {
+	slot := &sessionSlot{}
+	for i := 0; i < maxSlotProgress+3; i++ {
+		slot.appendProgress("step")
+	}
+	slot.mu.Lock()
+	n := len(slot.recentProgress)
+	slot.mu.Unlock()
+	if n != maxSlotProgress {
+		t.Fatalf("expected max %d entries, got %d", maxSlotProgress, n)
+	}
+}
+
+func TestSnapshotWorker_CopiesRecentProgress(t *testing.T) {
+	g := &Gateway{logger: logging.OrNop(nil), now: time.Now}
+	slot := &sessionSlot{phase: slotRunning, taskDesc: "test", recentProgress: []string{"▶ bash"}}
+	slot.lastTouched = time.Now()
+	g.activeSlots.Store("chat1", slot)
+
+	snap := g.snapshotWorker("chat1")
+	if len(snap.RecentProgress) != 1 || snap.RecentProgress[0] != "▶ bash" {
+		t.Fatalf("expected copied progress, got %v", snap.RecentProgress)
+	}
+
+	// Mutating the snapshot should not affect the slot.
+	snap.RecentProgress[0] = "mutated"
+	slot.mu.Lock()
+	orig := slot.recentProgress[0]
+	slot.mu.Unlock()
+	if orig != "▶ bash" {
+		t.Fatal("snapshot mutation leaked to slot")
+	}
+}
 
 func strContains(s, sub string) bool {
 	return len(sub) == 0 || (len(s) >= len(sub) && func() bool {

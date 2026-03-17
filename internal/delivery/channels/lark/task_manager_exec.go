@@ -185,6 +185,14 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 		listener = agent.NoopEventListener{}
 	}
 
+	// Record tool progress into the session slot so the conversation process
+	// can report recent activity to the user.
+	if slot, ok := g.activeSlots.Load(msg.chatID); ok {
+		if s, ok := slot.(*sessionSlot); ok {
+			listener = newSlotProgressRecorder(s, listener)
+		}
+	}
+
 	var cleanups []func()
 	var progressLn *progressListener
 

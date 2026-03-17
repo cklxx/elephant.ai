@@ -62,9 +62,23 @@ type sessionSlot struct {
 	intentionalCancelToken uint64
 	sessionID              string
 	lastSessionID          string
-	taskDesc               string // first message content of the running task; used by intent router
+	taskDesc               string   // first message content of the running task; used by intent router
+	recentProgress         []string // ring buffer of recent tool progress entries (max 8)
 	pendingOptions         []string // options awaiting numeric reply
 	lastTouched            time.Time
+}
+
+const maxSlotProgress = 8
+
+// appendProgress appends a progress entry to the slot's ring buffer.
+// Must be called while holding slot.mu or from a single writer goroutine.
+func (s *sessionSlot) appendProgress(text string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.recentProgress) >= maxSlotProgress {
+		s.recentProgress = s.recentProgress[1:]
+	}
+	s.recentProgress = append(s.recentProgress, text)
 }
 
 // Gateway bridges Lark bot messages into the agent runtime.

@@ -204,13 +204,19 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	slot.sessionID = sessionID
 	slot.lastSessionID = sessionID
 	slot.taskDesc = strings.TrimSpace(msg.content)
+	slot.recentProgress = slot.recentProgress[:0]
 	slot.lastTouched = g.currentTime()
 	slot.mu.Unlock()
 
-	// Run the task asynchronously so the Lark SDK event handler returns
-	// immediately and can ACK the WS frame. Without this, long-running
-	// tasks delay the ACK, causing the Lark server to re-deliver the
-	// event and produce duplicate responses.
+	g.launchWorkerGoroutine(msg, slot, sessionID, inputCh, taskCancel, taskCtx, taskToken, isResume)
+
+	return nil
+}
+
+// launchWorkerGoroutine starts the background task goroutine that runs the
+// agent, then cleans up the slot when done. Used by both handleMessage and
+// spawnWorker to avoid duplicating the goroutine lifecycle logic.
+func (g *Gateway) launchWorkerGoroutine(msg *incomingMessage, slot *sessionSlot, sessionID string, inputCh chan agent.UserInput, taskCancel context.CancelFunc, taskCtx context.Context, taskToken uint64, isResume bool) {
 	g.taskWG.Add(1)
 	go func(taskCtx context.Context, taskCancel context.CancelFunc, taskToken uint64) {
 		defer g.taskWG.Done()
@@ -241,6 +247,4 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 			g.discardPendingInputs(inputCh, msg.chatID)
 		}
 	}(taskCtx, taskCancel, taskToken)
-
-	return nil
 }

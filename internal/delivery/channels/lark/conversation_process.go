@@ -16,6 +16,9 @@ const (
 	conversationTemp           = 0.3
 
 	dispatchWorkerToolName = "dispatch_worker"
+	stopWorkerToolName     = "stop_worker"
+
+	conversationChatHistoryMaxRounds = 5
 )
 
 var dispatchWorkerTool = ports.ToolDefinition{
@@ -33,6 +36,12 @@ var dispatchWorkerTool = ports.ToolDefinition{
 	},
 }
 
+var stopWorkerTool = ports.ToolDefinition{
+	Name:        stopWorkerToolName,
+	Description: "停止当前正在后台运行的 Agent 任务。",
+	Parameters:  ports.ParameterSchema{Type: "object", Properties: map[string]ports.Property{}},
+}
+
 var conversationSystemPrompt = strings.TrimSpace(`
 你是用户的 AI 助手。你可以直接回答用户的问题，也可以调用 dispatch_worker 工具把需要执行操作的任务交给后台 Agent。
 
@@ -42,6 +51,7 @@ var conversationSystemPrompt = strings.TrimSpace(`
 3. 回复简洁自然，像同事聊天，不超过 100 字
 4. 如果有任务正在执行中，用户问进度，根据提供的状态信息回答
 5. 如果有任务正在执行中，用户发来与当前任务相关的补充/修正，调用 dispatch_worker 把补充信息传达（后台会注入到运行中的任务）
+6. 如果用户要求停止/取消当前任务（如"停一下""算了""先别做了"），且有任务在执行中 → 调用 stop_worker
 `)
 
 // handleViaConversationProcess sends the user message to the gateway's LLM
@@ -51,8 +61,11 @@ var conversationSystemPrompt = strings.TrimSpace(`
 func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomingMessage, slot *sessionSlot) bool {
 	snap := g.snapshotWorker(msg.chatID)
 
+	// Fetch recent chat history for conversational context.
+	chatHistory := g.fetchConversationChatHistory(ctx, msg)
+
 	processingReactionID := g.addProcessingReaction(ctx, msg.messageID)
-	reply, toolCalls := g.conversationLLM(ctx, msg.content, snap)
+	reply, toolCalls := g.conversationLLM(ctx, msg.content, snap, chatHistory)
 	g.removeProcessingReaction(ctx, msg.messageID, processingReactionID)
 
 	if reply != "" {
@@ -60,14 +73,16 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	}
 
 	for _, tc := range toolCalls {
-		if tc.Name != dispatchWorkerToolName {
-			continue
+		switch tc.Name {
+		case dispatchWorkerToolName:
+			taskArg, _ := tc.Arguments["task"].(string)
+			if taskArg == "" {
+				taskArg = msg.content
+			}
+			g.spawnWorker(ctx, msg, slot, snap, taskArg)
+		case stopWorkerToolName:
+			g.stopWorkerFromConversation(msg.chatID, slot)
 		}
-		taskArg, _ := tc.Arguments["task"].(string)
-		if taskArg == "" {
-			taskArg = msg.content
-		}
-		g.spawnWorker(ctx, msg, slot, snap, taskArg)
 	}
 
 	return true
@@ -76,7 +91,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 // conversationLLM calls the gateway's shared LLM with the conversation
 // system prompt, worker status, and user message. Returns text reply
 // and any tool calls.
-func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap workerSnapshot) (string, []ports.ToolCall) {
+func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap workerSnapshot, chatHistory string) (string, []ports.ToolCall) {
 	if g.llmFactory == nil {
 		return "", nil
 	}
@@ -93,6 +108,10 @@ func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap work
 	var sb strings.Builder
 	sb.WriteString("当前 Worker 状态：")
 	sb.WriteString(snap.StatusSummary())
+	if chatHistory != "" {
+		sb.WriteString("\n\n最近聊天记录：\n")
+		sb.WriteString(chatHistory)
+	}
 	sb.WriteString("\n\n用户消息：")
 	sb.WriteString(strings.TrimSpace(userMsg))
 
@@ -101,7 +120,7 @@ func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap work
 			{Role: "system", Content: conversationSystemPrompt},
 			{Role: "user", Content: sb.String()},
 		},
-		Tools:       []ports.ToolDefinition{dispatchWorkerTool},
+		Tools:       []ports.ToolDefinition{dispatchWorkerTool, stopWorkerTool},
 		Temperature: conversationTemp,
 		MaxTokens:   conversationMaxTok,
 	})
@@ -145,42 +164,45 @@ func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *s
 	slot.sessionID = sessionID
 	slot.lastSessionID = sessionID
 	slot.taskDesc = strings.TrimSpace(taskContent)
+	slot.recentProgress = slot.recentProgress[:0]
 	slot.lastTouched = g.currentTime()
 	slot.mu.Unlock()
 
 	workerMsg := *msg
 	workerMsg.content = taskContent
 
-	g.taskWG.Add(1)
-	go func(taskCtx context.Context, taskCancel context.CancelFunc, taskToken uint64) {
-		defer g.taskWG.Done()
-		defer taskCancel()
+	g.launchWorkerGoroutine(&workerMsg, slot, sessionID, inputCh, taskCancel, taskCtx, taskToken, isResume)
+}
 
-		awaitingInput := g.runTask(taskCtx, &workerMsg, sessionID, inputCh, isResume, taskToken)
+// stopWorkerFromConversation cancels the currently running worker for the
+// given chat, replicating the /stop semantics used by handleStopCommand.
+func (g *Gateway) stopWorkerFromConversation(chatID string, slot *sessionSlot) {
+	slot.mu.Lock()
+	cancel := slot.taskCancel
+	running := slot.phase == slotRunning && cancel != nil
+	if running {
+		slot.intentionalCancelToken = slot.taskToken
+	}
+	slot.mu.Unlock()
 
-		slot.mu.Lock()
-		if slot.intentionalCancelToken == taskToken {
-			slot.intentionalCancelToken = 0
-		}
-		if slot.taskToken == taskToken {
-			slot.inputCh = nil
-			slot.taskCancel = nil
-			if awaitingInput {
-				slot.phase = slotAwaitingInput
-				slot.lastSessionID = slot.sessionID
-			} else {
-				slot.phase = slotIdle
-				slot.sessionID = ""
-			}
-			slot.lastTouched = g.currentTime()
-		}
-		slot.mu.Unlock()
-		if awaitingInput {
-			g.drainAndReprocess(inputCh, msg.chatID, msg.chatType)
-		} else {
-			g.discardPendingInputs(inputCh, msg.chatID)
-		}
-	}(taskCtx, taskCancel, taskToken)
+	if running {
+		cancel()
+		g.logger.Info("conversation: stopped worker for chat %s", chatID)
+	}
+}
+
+// fetchConversationChatHistory retrieves recent chat rounds for the
+// conversation process LLM context. Returns empty string on failure.
+func (g *Gateway) fetchConversationChatHistory(ctx context.Context, msg *incomingMessage) string {
+	if g.messenger == nil {
+		return ""
+	}
+	history, err := g.fetchRecentChatRounds(ctx, msg.chatID, msg.messageID, 50, conversationChatHistoryMaxRounds)
+	if err != nil {
+		g.logger.Warn("conversation: chat history fetch failed: %v", err)
+		return ""
+	}
+	return history
 }
 
 // conversationProcessEnabled reports whether the conversation process is on.
