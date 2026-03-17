@@ -10,6 +10,7 @@ import (
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/types"
 	"alex/internal/infra/tools/builtin/orchestration"
+	"alex/internal/shared/utils"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -221,7 +222,7 @@ func (d *SubagentDisplay) renderCompletionLine(index int, state *subagentTaskSta
 	concluded := d.completed + d.failed
 	preview := state.preview
 	if preview != "" {
-		preview = " – " + truncatePreview(preview)
+		preview = " – " + utils.TruncateWithEllipsis(preview, 60)
 	}
 
 	tokenLabel := "tokens"
@@ -246,7 +247,7 @@ func (d *SubagentDisplay) renderFailureLine(index int, state *subagentTaskState)
 	concluded := d.completed + d.failed
 	preview := state.preview
 	if preview != "" {
-		preview = " – " + truncatePreview(preview)
+		preview = " – " + utils.TruncateWithEllipsis(preview, 60)
 	}
 
 	errText := ""
@@ -291,7 +292,7 @@ func (d *SubagentDisplay) renderSummary() string {
 func (d *SubagentDisplay) renderStartLine(index int, state *subagentTaskState) string {
 	preview := state.preview
 	if preview != "" {
-		preview = " – " + truncatePreview(preview)
+		preview = " – " + utils.TruncateWithEllipsis(preview, 60)
 	}
 
 	arrow := "→"
@@ -312,17 +313,6 @@ func sanitizePreview(preview string) string {
 	return preview
 }
 
-func truncatePreview(preview string) string {
-	const maxRunes = 60
-	runes := []rune(preview)
-	if len(runes) <= maxRunes {
-		return preview
-	}
-	if maxRunes <= 3 {
-		return string(runes[:maxRunes])
-	}
-	return string(runes[:maxRunes-3]) + "..."
-}
 
 func pluralize(count int, singular, plural string) string {
 	if count == 1 {

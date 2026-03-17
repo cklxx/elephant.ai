@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"alex/internal/domain/task"
+	"alex/internal/shared/utils"
 )
 
 // TaskLabel returns a human-readable label for a task, preferring the
@@ -21,14 +22,10 @@ func TaskLabel(t *task.Task) string {
 	return t.TaskID
 }
 
-// Truncate trims whitespace and cuts s to maxLen characters, appending "..."
+// Truncate trims whitespace and cuts s to maxLen runes, appending "..."
 // when truncation occurs.
 func Truncate(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
+	return utils.TruncateWithEllipsis(strings.TrimSpace(s), maxLen)
 }
 
 // FormatDuration renders a duration as a human-friendly string

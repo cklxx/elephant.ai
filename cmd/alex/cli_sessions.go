@@ -320,7 +320,7 @@ func (c *CLI) listSessionsWithWriter(ctx context.Context, out io.Writer, jsonOut
 		}
 		rows = append(rows, sessionListRow{
 			ID:        sid,
-			Title:     truncateStr(title, 40),
+			Title:     utils.TruncateWithEllipsis(title, 40),
 			Messages:  len(session.Messages),
 			CreatedAt: session.CreatedAt.Format("2006-01-02 15:04"),
 			UpdatedAt: session.UpdatedAt.Format("2006-01-02 15:04"),
@@ -342,13 +342,6 @@ func (c *CLI) listSessionsWithWriter(ctx context.Context, out io.Writer, jsonOut
 			r.ID, r.Title, r.Messages, r.CreatedAt, r.UpdatedAt, r.Age)
 	}
 	return tw.Flush()
-}
-
-func truncateStr(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max-3] + "..."
 }
 
 func formatAge(d time.Duration) string {

@@ -11,31 +11,22 @@ func IsBlank(s string) bool { return strings.TrimSpace(s) == "" }
 // HasContent returns true when s contains at least one non-whitespace character.
 func HasContent(s string) bool { return !IsBlank(s) }
 
-// Truncate returns the first maxRunes runes of the trimmed input. No suffix is added.
-func Truncate(s string, maxRunes int) string {
-	s = strings.TrimSpace(s)
-	if maxRunes <= 0 {
-		return ""
-	}
+// Truncate returns s truncated to maxRunes runes. If truncated, the suffix is appended.
+// The returned string (including suffix) never exceeds maxRunes runes.
+func Truncate(s string, maxRunes int, suffix string) string {
 	runes := []rune(s)
 	if len(runes) <= maxRunes {
 		return s
 	}
-	return string(runes[:maxRunes])
+	if maxRunes <= len([]rune(suffix)) {
+		return suffix
+	}
+	return string(runes[:maxRunes-len([]rune(suffix))]) + suffix
 }
 
-// TruncateWithEllipsis returns the first maxRunes runes of the trimmed input,
-// appending "..." when truncation occurs.
+// TruncateWithEllipsis is a convenience wrapper that uses "..." as suffix.
 func TruncateWithEllipsis(s string, maxRunes int) string {
-	s = strings.TrimSpace(s)
-	if maxRunes <= 0 {
-		return ""
-	}
-	runes := []rune(s)
-	if len(runes) <= maxRunes {
-		return s
-	}
-	return string(runes[:maxRunes]) + "..."
+	return Truncate(s, maxRunes, "...")
 }
 
 // CountLines returns the number of lines in content. Returns 0 for empty strings.
@@ -64,10 +55,5 @@ func NormalizeSessionTitle(value string) string {
 		trimmed = strings.TrimSpace(trimmed[:idx])
 	}
 
-	runes := []rune(trimmed)
-	const maxRunes = 32
-	if len(runes) > maxRunes {
-		trimmed = string(runes[:maxRunes]) + "…"
-	}
-	return trimmed
+	return Truncate(trimmed, 32, "…")
 }

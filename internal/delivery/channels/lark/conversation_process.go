@@ -8,6 +8,7 @@ import (
 	"alex/internal/app/agent/llmclient"
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 )
 
 const (
@@ -107,7 +108,7 @@ func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap work
 		return "", nil
 	}
 
-	g.logger.Info("conversation LLM: reply=%q tool_calls=%d", truncateLog(resp.Content, 80), len(resp.ToolCalls))
+	g.logger.Info("conversation LLM: reply=%q tool_calls=%d", utils.Truncate(resp.Content, 80, "…"), len(resp.ToolCalls))
 	return strings.TrimSpace(resp.Content), resp.ToolCalls
 }
 
@@ -188,10 +189,3 @@ func (g *Gateway) conversationProcessEnabled() bool {
 	return *g.cfg.ConversationProcessEnabled
 }
 
-func truncateLog(s string, maxRunes int) string {
-	runes := []rune(s)
-	if len(runes) <= maxRunes {
-		return s
-	}
-	return string(runes[:maxRunes]) + "…"
-}

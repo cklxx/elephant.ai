@@ -23,14 +23,7 @@ func truncateInlinePreview(preview string, limit int) string {
 	if limit <= 0 {
 		return preview
 	}
-	runes := []rune(preview)
-	if len(runes) <= limit {
-		return preview
-	}
-	if limit <= 1 {
-		return utils.Truncate(preview, limit)
-	}
-	return utils.Truncate(preview, limit-1) + "…"
+	return utils.Truncate(preview, limit, "…")
 }
 
 func nextSpinnerFrame() string {
@@ -101,14 +94,7 @@ func truncateWithEllipsis(preview string, limit int) string {
 	if limit <= 0 {
 		return preview
 	}
-	runes := []rune(preview)
-	if len(runes) <= limit {
-		return preview
-	}
-	if limit <= 3 {
-		return utils.Truncate(preview, limit)
-	}
-	return utils.Truncate(preview, limit-3) + "..."
+	return utils.TruncateWithEllipsis(preview, limit)
 }
 
 func formatBytes(bytes int64) string {

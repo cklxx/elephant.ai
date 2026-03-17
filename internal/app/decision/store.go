@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"alex/internal/infra/filestore"
+	"alex/internal/shared/utils"
 	jsonx "alex/internal/shared/json"
 )
 
@@ -175,7 +176,7 @@ func (s *Store) FormatSummary(lookback time.Duration, participant string) string
 	for _, d := range decisions {
 		out.WriteString(fmt.Sprintf("- **%s** (%s)", d.Title, d.CreatedAt.Format("2006-01-02")))
 		if d.Outcome != "" {
-			out.WriteString(fmt.Sprintf(" — %s", truncate(d.Outcome, 120)))
+			out.WriteString(fmt.Sprintf(" — %s", utils.TruncateWithEllipsis(d.Outcome, 120)))
 		}
 		out.WriteString("\n")
 		if len(d.Tags) > 0 {
@@ -284,10 +285,3 @@ func containsTag(tags []string, topic string) bool {
 	return false
 }
 
-func truncate(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}

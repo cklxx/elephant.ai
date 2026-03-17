@@ -75,7 +75,7 @@ func sanitizeLogValue(value string, limit int) string {
 	if len(runes) <= limit {
 		return compact
 	}
-	return utils.Truncate(compact, limit-1) + "…"
+	return utils.Truncate(compact, limit, "…")
 }
 
 func normalizeLogField(value string) string {
