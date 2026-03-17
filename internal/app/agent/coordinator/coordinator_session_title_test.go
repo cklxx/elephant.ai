@@ -73,9 +73,9 @@ func (s *titleUpdateStore) Delete(ctx context.Context, id string) error {
 func TestPersistSessionTitleWritesOnce(t *testing.T) {
 	store := newTitleUpdateStore(&storage.Session{ID: "session-1", Metadata: map[string]string{}})
 	coordinator := &AgentCoordinator{
-		sessionStore: store,
-		logger:       agent.NoopLogger{},
-		clock:        agent.SystemClock{},
+		coordinatorPersistence: coordinatorPersistence{sessionStore: store},
+		logger:                 agent.NoopLogger{},
+		clock:                  agent.SystemClock{},
 	}
 
 	coordinator.persistSessionTitle(context.Background(), "session-1", "Early title")
@@ -110,9 +110,9 @@ func TestPersistSessionTitleWritesOnce(t *testing.T) {
 func TestPersistSessionTitleSkipsBlankTitle(t *testing.T) {
 	store := newTitleUpdateStore(&storage.Session{ID: "session-2", Metadata: map[string]string{}})
 	coordinator := &AgentCoordinator{
-		sessionStore: store,
-		logger:       agent.NoopLogger{},
-		clock:        agent.SystemClock{},
+		coordinatorPersistence: coordinatorPersistence{sessionStore: store},
+		logger:                 agent.NoopLogger{},
+		clock:                  agent.SystemClock{},
 	}
 
 	coordinator.persistSessionTitle(context.Background(), "session-2", "  ")

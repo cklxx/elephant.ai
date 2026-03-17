@@ -30,40 +30,59 @@ import (
 
 type RuntimeConfigResolver func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error)
 
-// AgentCoordinator manages session lifecycle and delegates to domain
-type AgentCoordinator struct {
-	llmFactory       llm.LLMClientFactory
-	toolRegistry     tools.ToolRegistry
-	sessionStore     storage.SessionStore
-	contextMgr       agent.ContextManager
-	historyMgr       storage.HistoryManager
-	parser           agent.FunctionCallParser
-	costTracker      storage.CostTracker
-	config           appconfig.Config
-	runtimeResolver  RuntimeConfigResolver
-	logger           agent.Logger
-	clock            agent.Clock
-	bgRegistry      *backgroundTaskRegistry
-	iterationHook   agent.IterationHook
+// coordinatorPersistence groups storage-related dependencies.
+type coordinatorPersistence struct {
+	sessionStore    storage.SessionStore
+	historyMgr      storage.HistoryManager
+	costTracker     storage.CostTracker
 	checkpointStore react.CheckpointStore
-	atomicWriter     agent.AtomicFileWriter
+	atomicWriter    agent.AtomicFileWriter
+}
 
-	prepService         preparationService
+// coordinatorExecution groups runtime execution dependencies.
+type coordinatorExecution struct {
+	llmFactory   llm.LLMClientFactory
+	toolRegistry tools.ToolRegistry
+	contextMgr   agent.ContextManager
+	parser       agent.FunctionCallParser
+	prepService  preparationService
+}
+
+// coordinatorIntegrations groups external integration dependencies.
+type coordinatorIntegrations struct {
 	costDecorator       *cost.CostTrackingDecorator
 	attachmentMigrator  materialports.Migrator
 	attachmentPersister ports.AttachmentPersister
 	hookRegistry        *hooks.Registry
 	okrContextProvider  preparation.OKRContextProvider
 	credentialRefresher preparation.CredentialRefresher
-	channelHints        map[string]string
 	timerManager        shared.TimerManagerService // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
 	schedulerService    any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
 	toolSLACollector    *toolspolicy.SLACollector
+}
 
+// coordinatorSessionSave groups the debounced session-save mechanism.
+type coordinatorSessionSave struct {
 	sessionSaveMu       sync.Mutex                      // Protects concurrent session saves
 	pendingSessionSave  atomic.Pointer[storage.Session] // latest snapshot awaiting save
 	sessionSaveActive   atomic.Bool                     // Tracks whether the async save loop is running
 	sessionSaveInterval time.Duration                   // Debounce interval for async save loop
+}
+
+// AgentCoordinator manages session lifecycle and delegates to domain
+type AgentCoordinator struct {
+	coordinatorPersistence
+	coordinatorExecution
+	coordinatorIntegrations
+	coordinatorSessionSave
+
+	config          appconfig.Config
+	runtimeResolver RuntimeConfigResolver
+	logger          agent.Logger
+	clock           agent.Clock
+	bgRegistry      *backgroundTaskRegistry
+	iterationHook   agent.IterationHook
+	channelHints    map[string]string
 }
 
 type preparationService interface {
@@ -90,18 +109,24 @@ func NewAgentCoordinator(
 	config.LLMProfile = config.DefaultLLMProfile()
 
 	coordinator := &AgentCoordinator{
-		llmFactory:          llmFactory,
-		toolRegistry:        toolRegistry,
-		sessionStore:        sessionStore,
-		contextMgr:          contextMgr,
-		historyMgr:          historyManager,
-		parser:              parser,
-		costTracker:         costTracker,
-		config:              config,
-		logger:              logging.NewComponentLogger("Coordinator"),
-		clock:               agent.SystemClock{},
-		bgRegistry:          newBackgroundTaskRegistry(),
-		sessionSaveInterval: defaultSessionSaveInterval,
+		coordinatorPersistence: coordinatorPersistence{
+			sessionStore: sessionStore,
+			historyMgr:   historyManager,
+			costTracker:  costTracker,
+		},
+		coordinatorExecution: coordinatorExecution{
+			llmFactory:   llmFactory,
+			toolRegistry: toolRegistry,
+			contextMgr:   contextMgr,
+			parser:       parser,
+		},
+		coordinatorSessionSave: coordinatorSessionSave{
+			sessionSaveInterval: defaultSessionSaveInterval,
+		},
+		config:     config,
+		logger:     logging.NewComponentLogger("Coordinator"),
+		clock:      agent.SystemClock{},
+		bgRegistry: newBackgroundTaskRegistry(),
 	}
 
 	for _, opt := range opts {

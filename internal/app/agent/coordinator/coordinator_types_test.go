@@ -416,9 +416,9 @@ func TestNewAgentCoordinatorHonorsZeroTemperature(t *testing.T) {
 func TestPersistSessionSnapshotPersistsMessagesWithFallbackIDs(t *testing.T) {
 	sessionStore := &stubSessionStore{}
 	coordinator := &AgentCoordinator{
-		sessionStore: sessionStore,
-		logger:       agent.NoopLogger{},
-		clock:        agent.SystemClock{},
+		coordinatorPersistence: coordinatorPersistence{sessionStore: sessionStore},
+		logger:                 agent.NoopLogger{},
+		clock:                  agent.SystemClock{},
 	}
 
 	env := &agent.ExecutionEnvironment{
@@ -458,9 +458,9 @@ func TestPersistSessionSnapshotPersistsMessagesWithFallbackIDs(t *testing.T) {
 func TestPersistSessionSnapshotSkipsWhenStateMissing(t *testing.T) {
 	sessionStore := &stubSessionStore{}
 	coordinator := &AgentCoordinator{
-		sessionStore: sessionStore,
-		logger:       agent.NoopLogger{},
-		clock:        agent.SystemClock{},
+		coordinatorPersistence: coordinatorPersistence{sessionStore: sessionStore},
+		logger:                 agent.NoopLogger{},
+		clock:                  agent.SystemClock{},
 	}
 
 	coordinator.persistSessionSnapshot(context.Background(), nil, "task-123", "parent-456", "error")
