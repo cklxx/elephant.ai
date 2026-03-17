@@ -69,6 +69,16 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyLarkRateLimiterConfig(&target, larkCfg.RateLimiter)
 	applyPositiveInt(&target.MaxConcurrentTasks, larkCfg.MaxConcurrentTasks)
 	applyOptionalTrimmedString(&target.DefaultPlanMode, larkCfg.DefaultPlanMode)
+	// Btw / fork mode
+	if larkCfg.BtwEnabled != nil {
+		target.BtwEnabled = *larkCfg.BtwEnabled
+	}
+	applyOptionalBool(&target.BtwIntentRouterEnabled, larkCfg.BtwIntentRouterEnabled)
+	applyOptionalTrimmedString(&target.BtwIntentRouterModel, larkCfg.BtwIntentRouterModel)
+	applyOptionalBool(&target.BtwAutoInjectResult, larkCfg.BtwAutoInjectResult)
+	applyOptionalTrimmedString(&target.BtwResultPrefix, larkCfg.BtwResultPrefix)
+	// Conversation process (dual-process architecture)
+	applyOptionalBool(&target.ConversationProcessEnabled, larkCfg.ConversationProcessEnabled)
 	cfg.Channels.SetLarkConfig(target)
 }
 

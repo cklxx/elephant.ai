@@ -162,6 +162,12 @@ func buildLarkGatewayConfig(larkCfg LarkGatewayConfig, cfg Config) lark.Config {
 		DeliveryMode:                  larkCfg.DeliveryMode,
 		DeliveryWorker:                larkCfg.DeliveryWorker,
 		AttentionGate:                 larkCfg.AttentionGate,
+		BtwEnabled:                    larkCfg.BtwEnabled,
+		BtwIntentRouterEnabled:        &larkCfg.BtwIntentRouterEnabled,
+		BtwIntentRouterModel:          larkCfg.BtwIntentRouterModel,
+		BtwAutoInjectResult:           &larkCfg.BtwAutoInjectResult,
+		BtwResultPrefix:               larkCfg.BtwResultPrefix,
+		ConversationProcessEnabled:    &larkCfg.ConversationProcessEnabled,
 	}
 
 	hooksPort := strings.TrimPrefix(cfg.DebugPort, ":")

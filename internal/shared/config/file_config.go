@@ -434,7 +434,15 @@ type LarkChannelConfig struct {
 	Delivery                    *LarkDeliveryConfig    `json:"delivery" yaml:"delivery"`
 	RateLimiter                 *LarkRateLimiterConfig `json:"rate_limiter" yaml:"rate_limiter"`
 	DefaultPlanMode             *string                `json:"default_plan_mode" yaml:"default_plan_mode"`
-	BaseChannelConfig           `json:",inline" yaml:",inline"`
+	// Btw / fork mode: spawn a child session for messages arriving while a task runs.
+	BtwEnabled             *bool   `json:"btw_enabled" yaml:"btw_enabled"`
+	BtwIntentRouterEnabled *bool   `json:"btw_intent_router_enabled" yaml:"btw_intent_router_enabled"`
+	BtwIntentRouterModel   *string `json:"btw_intent_router_model" yaml:"btw_intent_router_model"`
+	BtwAutoInjectResult    *bool   `json:"btw_auto_inject_result" yaml:"btw_auto_inject_result"`
+	BtwResultPrefix        *string `json:"btw_result_prefix" yaml:"btw_result_prefix"`
+	// ConversationProcessEnabled enables the dual-process (conversation-process) architecture.
+	ConversationProcessEnabled *bool `json:"conversation_process_enabled" yaml:"conversation_process_enabled"`
+	BaseChannelConfig          `json:",inline" yaml:",inline"`
 }
 
 // LarkPersistenceConfig captures Lark local persistence settings in YAML.

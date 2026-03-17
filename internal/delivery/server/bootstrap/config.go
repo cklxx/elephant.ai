@@ -178,6 +178,14 @@ type LarkGatewayConfig struct {
 	RateLimiterEnabled            bool
 	RateLimiterChatHourlyLimit    int
 	RateLimiterUserDailyLimit     int
+	// Btw / fork mode
+	BtwEnabled             bool
+	BtwIntentRouterEnabled bool
+	BtwIntentRouterModel   string
+	BtwAutoInjectResult    bool
+	BtwResultPrefix        string
+	// Conversation process (dual-process architecture)
+	ConversationProcessEnabled bool
 }
 
 // HooksBridgeConfig controls the Claude Code hooks → Lark bridge endpoint.
