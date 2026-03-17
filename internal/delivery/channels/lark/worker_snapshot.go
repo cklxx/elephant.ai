@@ -33,7 +33,11 @@ func (g *Gateway) snapshotWorker(chatID string) workerSnapshot {
 		TaskDesc: slot.taskDesc,
 	}
 	if slot.phase == slotRunning {
-		snap.Elapsed = g.currentTime().Sub(slot.lastTouched)
+		ref := slot.taskStartTime
+		if ref.IsZero() {
+			ref = slot.lastTouched
+		}
+		snap.Elapsed = g.currentTime().Sub(ref)
 	}
 	if len(slot.recentProgress) > 0 {
 		snap.RecentProgress = make([]string, len(slot.recentProgress))

@@ -225,6 +225,10 @@ func (g *Gateway) launchWorkerGoroutine(msg *incomingMessage, slot *sessionSlot,
 		defer g.taskWG.Done()
 		defer taskCancel()
 
+		slot.mu.Lock()
+		slot.taskStartTime = g.currentTime()
+		slot.mu.Unlock()
+
 		awaitingInput := g.runTask(taskCtx, msg, sessionID, inputCh, isResume, taskToken)
 
 		slot.mu.Lock()

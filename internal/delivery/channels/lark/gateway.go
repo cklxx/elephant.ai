@@ -66,6 +66,7 @@ type sessionSlot struct {
 	recentProgress         []string // ring buffer of recent tool progress entries (max 8)
 	pendingOptions         []string // options awaiting numeric reply
 	lastTouched            time.Time
+	taskStartTime          time.Time // set just before runTask begins; zero until then
 }
 
 const maxSlotProgress = 8
