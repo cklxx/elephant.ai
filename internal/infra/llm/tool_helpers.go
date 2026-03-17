@@ -23,15 +23,41 @@ func normalizeToolSchema(schema ports.ParameterSchema) ports.ParameterSchema {
 	if normalized.Properties == nil {
 		normalized.Properties = map[string]ports.Property{}
 	}
-	// Ensure array properties always have items — providers like Codex reject
-	// array schemas without an items field.
 	for name, prop := range normalized.Properties {
+		// Ensure array properties always have items — providers like Codex reject
+		// array schemas without an items field.
 		if prop.Type == "array" && prop.Items == nil {
 			prop.Items = &ports.Property{Type: "string"}
-			normalized.Properties[name] = prop
 		}
+		// Sanitize items: Anthropic rejects empty description strings and
+		// object items without a properties field.
+		if prop.Items != nil {
+			sanitizePropertyItems(prop.Items)
+		}
+		normalized.Properties[name] = prop
 	}
 	return normalized
+}
+
+// sanitizePropertyItems cleans up a nested Property to satisfy strict
+// provider schema validation (e.g. Anthropic rejects empty descriptions
+// and object items without properties).
+func sanitizePropertyItems(p *ports.Property) {
+	if p == nil {
+		return
+	}
+	// Empty description causes Anthropic invalid_request_error.
+	if p.Description == "" && p.Type != "" {
+		p.Description = "item"
+	}
+	// Object items must declare properties; fall back to string when none
+	// are available (Property struct cannot express nested properties).
+	if p.Type == "object" {
+		p.Type = "string"
+		if p.Description == "item" {
+			p.Description = "JSON object as string"
+		}
+	}
 }
 
 func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
