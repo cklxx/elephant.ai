@@ -24,7 +24,7 @@ const (
 	runtimeInjectUsage  = "usage: alex runtime session inject --id <id> --message <text> [--store-dir <dir>]"
 	runtimeStopUsage    = "usage: alex runtime session stop --id <id> [--store-dir <dir>]"
 
-	defaultRuntimeStoreDir = "~/.kaku/sessions"
+	defaultRuntimeStoreDir = "~/.alex/sessions"
 )
 
 func runRuntimeCommand(args []string) error {
@@ -68,8 +68,8 @@ func runRuntimeStart(args []string) error {
 	memberFlag := fs.String("member", "claude_code", "Member type: claude_code|codex|kimi|shell")
 	goal := fs.String("goal", "", "Session goal (required)")
 	workDir := fs.String("work-dir", "", "Working directory (defaults to current dir)")
-	parentPaneID := fs.Int("parent-pane-id", -1, "Kaku pane ID to split from (env: KAKU_PANE_ID)")
-	storeDir := fs.String("store-dir", "", "Session store directory (default: ~/.kaku/sessions)")
+	parentPaneID := fs.Int("parent-pane-id", -1, "Parent pane ID to split from (env: ALEX_PANE_ID)")
+	storeDir := fs.String("store-dir", "", "Session store directory (default: ~/.alex/sessions)")
 
 	if err := fs.Parse(args); err != nil {
 		return &ExitCodeError{Code: 2, Err: formatBufferedFlagParseError(err, flagBuf)}
@@ -97,10 +97,12 @@ func runRuntimeStart(args []string) error {
 		}
 	}
 
-	// Resolve parent pane ID: flag > env.
+	// Resolve parent pane ID: flag > env (ALEX_PANE_ID preferred, KAKU_PANE_ID for compat).
 	paneID := *parentPaneID
 	if paneID < 0 {
-		if env := strings.TrimSpace(os.Getenv("KAKU_PANE_ID")); env != "" {
+		if env := strings.TrimSpace(os.Getenv("ALEX_PANE_ID")); env != "" {
+			_, _ = fmt.Sscan(env, &paneID)
+		} else if env := strings.TrimSpace(os.Getenv("KAKU_PANE_ID")); env != "" {
 			_, _ = fmt.Sscan(env, &paneID)
 		}
 	}
@@ -306,6 +308,9 @@ func newRuntime(storeDir string) (*runtimepkg.Runtime, error) {
 // resolveStoreDir expands ~ and returns the effective store directory.
 func resolveStoreDir(flag string) string {
 	if d := strings.TrimSpace(flag); d != "" {
+		return expandHome(d)
+	}
+	if d := strings.TrimSpace(os.Getenv("ALEX_STORE_DIR")); d != "" {
 		return expandHome(d)
 	}
 	if d := strings.TrimSpace(os.Getenv("KAKU_STORE_DIR")); d != "" {
