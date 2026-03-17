@@ -149,7 +149,8 @@ func (l *slowProgressSummaryListener) appendSignal(signal slowProgressSignal) {
 	l.signals = append(l.signals, signal)
 	if len(l.signals) > defaultSlowProgressSummaryMaxSignals {
 		excess := len(l.signals) - defaultSlowProgressSummaryMaxSignals
-		l.signals = append([]slowProgressSignal(nil), l.signals[excess:]...)
+		copy(l.signals, l.signals[excess:])
+		l.signals = l.signals[:defaultSlowProgressSummaryMaxSignals]
 	}
 }
 
