@@ -104,8 +104,10 @@ func TestLoadConfigAppliesManagedOverrides(t *testing.T) {
 	model := "cli-managed"
 	maxTokens := 321
 	overrides := runtimeconfig.Overrides{
-		LLMModel:  &model,
-		MaxTokens: &maxTokens,
+		LLMOverrides: runtimeconfig.LLMOverrides{
+			LLMModel:  &model,
+			MaxTokens: &maxTokens,
+		},
 	}
 	if err := store.SaveOverrides(context.Background(), overrides); err != nil {
 		t.Fatalf("save overrides: %v", err)

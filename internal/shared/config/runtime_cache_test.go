@@ -12,7 +12,7 @@ func TestRuntimeConfigCacheReloadUpdatesSnapshot(t *testing.T) {
 	model := atomic.Value{}
 	model.Store("initial")
 	loader := func(context.Context) (RuntimeConfig, Metadata, error) {
-		cfg := RuntimeConfig{LLMModel: model.Load().(string)}
+		cfg := RuntimeConfig{LLMSettings: LLMSettings{LLMModel: model.Load().(string)}}
 		meta := Metadata{loadedAt: time.Now()}
 		return cfg, meta, nil
 	}
@@ -52,7 +52,7 @@ func TestRuntimeConfigCacheReloadKeepsLastOnError(t *testing.T) {
 	var calls atomic.Int64
 	loader := func(context.Context) (RuntimeConfig, Metadata, error) {
 		if calls.Add(1) == 1 {
-			cfg := RuntimeConfig{LLMProvider: "mock"}
+			cfg := RuntimeConfig{LLMSettings: LLMSettings{LLMProvider: "mock"}}
 			meta := Metadata{loadedAt: time.Now()}
 			return cfg, meta, nil
 		}
@@ -79,7 +79,7 @@ func TestRuntimeConfigCacheReloadKeepsLastOnError(t *testing.T) {
 
 func TestRuntimeConfigCacheUpdatesChannelNonBlocking(t *testing.T) {
 	loader := func(context.Context) (RuntimeConfig, Metadata, error) {
-		cfg := RuntimeConfig{LLMProvider: "mock"}
+		cfg := RuntimeConfig{LLMSettings: LLMSettings{LLMProvider: "mock"}}
 		meta := Metadata{loadedAt: time.Now()}
 		return cfg, meta, nil
 	}

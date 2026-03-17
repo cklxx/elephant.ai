@@ -20,47 +20,74 @@ type FileConfig struct {
 	Web         *WebConfig         `json:"web,omitempty" yaml:"web"`
 }
 
+// LLMFileSettings mirrors LLMSettings for YAML decoding with optional fields.
+type LLMFileSettings struct {
+	LLMProvider              string   `yaml:"llm_provider"`
+	LLMModel                 string   `yaml:"llm_model"`
+	LLMVisionModel           string   `yaml:"llm_vision_model"`
+	APIKey                   string   `yaml:"api_key"`
+	ArkAPIKey                string   `yaml:"ark_api_key"`
+	BaseURL                  string   `yaml:"base_url"`
+	MaxTokens                *int     `yaml:"max_tokens"`
+	LLMCacheSize             *int     `yaml:"llm_cache_size"`
+	LLMCacheTTLSeconds       *int     `yaml:"llm_cache_ttl_seconds"`
+	LLMRequestTimeoutSeconds *int     `yaml:"llm_request_timeout_seconds"`
+	Temperature              *float64 `yaml:"temperature"`
+	TopP                     *float64 `yaml:"top_p"`
+	StopSequences            []string `yaml:"stop_sequences"`
+}
+
+// RateLimitFileSettings mirrors RateLimitSettings for YAML decoding.
+type RateLimitFileSettings struct {
+	UserRateLimitRPS   *float64 `yaml:"user_rate_limit_rps"`
+	UserRateLimitBurst *int     `yaml:"user_rate_limit_burst"`
+	KimiRateLimitRPS   *float64 `yaml:"kimi_rate_limit_rps"`
+	KimiRateLimitBurst *int     `yaml:"kimi_rate_limit_burst"`
+}
+
+// IntegrationFileKeys mirrors IntegrationKeys for YAML decoding.
+type IntegrationFileKeys struct {
+	TavilyAPIKey    string `yaml:"tavily_api_key"`
+	MoltbookAPIKey  string `yaml:"moltbook_api_key"`
+	MoltbookBaseURL string `yaml:"moltbook_base_url"`
+}
+
+// StorageFileSettings mirrors StorageSettings for YAML decoding.
+type StorageFileSettings struct {
+	SessionDir        string `yaml:"session_dir"`
+	CostDir           string `yaml:"cost_dir"`
+	SessionStaleAfter string `yaml:"session_stale_after"`
+}
+
+// DisplayFileSettings mirrors DisplaySettings for YAML decoding.
+type DisplayFileSettings struct {
+	Verbose          *bool `yaml:"verbose"`
+	DisableTUI       *bool `yaml:"disable_tui"`
+	FollowTranscript *bool `yaml:"follow_transcript"`
+	FollowStream     *bool `yaml:"follow_stream"`
+}
+
 // RuntimeFileConfig mirrors RuntimeConfig for YAML decoding (runtime section).
 type RuntimeFileConfig struct {
-	LLMProvider                string                    `yaml:"llm_provider"`
-	LLMModel                   string                    `yaml:"llm_model"`
-	LLMVisionModel             string                    `yaml:"llm_vision_model"`
-	APIKey                     string                    `yaml:"api_key"`
-	ArkAPIKey                  string                    `yaml:"ark_api_key"`
-	BaseURL                    string                    `yaml:"base_url"`
-	TavilyAPIKey               string                    `yaml:"tavily_api_key"`
-	MoltbookAPIKey             string                    `yaml:"moltbook_api_key"`
-	MoltbookBaseURL            string                    `yaml:"moltbook_base_url"`
-	Profile                    string                    `yaml:"profile"`
-	Environment                string                    `yaml:"environment"`
-	Verbose                    *bool                     `yaml:"verbose"`
-	DisableTUI                 *bool                     `yaml:"disable_tui"`
-	FollowTranscript           *bool                     `yaml:"follow_transcript"`
-	FollowStream               *bool                     `yaml:"follow_stream"`
-	MaxIterations              *int                      `yaml:"max_iterations"`
-	MaxTokens                  *int                      `yaml:"max_tokens"`
-	ToolMaxConcurrent          *int                      `yaml:"tool_max_concurrent"`
-	LLMCacheSize               *int                      `yaml:"llm_cache_size"`
-	LLMCacheTTLSeconds         *int                      `yaml:"llm_cache_ttl_seconds"`
-	LLMRequestTimeoutSeconds   *int                      `yaml:"llm_request_timeout_seconds"`
-	UserRateLimitRPS           *float64                  `yaml:"user_rate_limit_rps"`
-	UserRateLimitBurst         *int                      `yaml:"user_rate_limit_burst"`
-	KimiRateLimitRPS           *float64                  `yaml:"kimi_rate_limit_rps"`
-	KimiRateLimitBurst         *int                      `yaml:"kimi_rate_limit_burst"`
-	Temperature                *float64                  `yaml:"temperature"`
-	TopP                       *float64                  `yaml:"top_p"`
-	StopSequences              []string                  `yaml:"stop_sequences"`
-	SessionDir                 string                    `yaml:"session_dir"`
-	CostDir                    string                    `yaml:"cost_dir"`
-	SessionStaleAfter          string                    `yaml:"session_stale_after"`
-	AgentPreset                string                    `yaml:"agent_preset"`
-	ToolPreset                 string                    `yaml:"tool_preset"`
-	Toolset                    string                    `yaml:"toolset"`
-	Browser                    *RuntimeBrowserConfig     `yaml:"browser"`
-	ToolPolicy                 *ToolPolicyFileConfig     `yaml:"tool_policy"`
-	HTTPLimits                 *HTTPLimitsFileConfig     `yaml:"http_limits"`
-	Proactive                  *ProactiveFileConfig      `yaml:"proactive"`
-	ExternalAgents             *ExternalAgentsFileConfig `yaml:"external_agents"`
+	LLMFileSettings       `yaml:",inline"`
+	RateLimitFileSettings `yaml:",inline"`
+	IntegrationFileKeys   `yaml:",inline"`
+	StorageFileSettings   `yaml:",inline"`
+	DisplayFileSettings   `yaml:",inline"`
+
+	Profile       string `yaml:"profile"`
+	Environment   string `yaml:"environment"`
+	MaxIterations *int   `yaml:"max_iterations"`
+	ToolMaxConcurrent *int `yaml:"tool_max_concurrent"`
+	AgentPreset   string `yaml:"agent_preset"`
+	ToolPreset    string `yaml:"tool_preset"`
+	Toolset       string `yaml:"toolset"`
+
+	Browser        *RuntimeBrowserConfig     `yaml:"browser"`
+	ToolPolicy     *ToolPolicyFileConfig     `yaml:"tool_policy"`
+	HTTPLimits     *HTTPLimitsFileConfig     `yaml:"http_limits"`
+	Proactive      *ProactiveFileConfig      `yaml:"proactive"`
+	ExternalAgents *ExternalAgentsFileConfig `yaml:"external_agents"`
 }
 
 // RuntimeBrowserConfig captures local browser settings in YAML (runtime section).

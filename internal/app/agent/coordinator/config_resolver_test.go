@@ -56,14 +56,16 @@ func TestEffectiveConfig_MergesRuntimeValues(t *testing.T) {
 	coordinator := NewAgentCoordinator(nil, nil, nil, nil, nil, nil, nil, cfg)
 	coordinator.SetRuntimeConfigResolver(func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
 		return runtimeconfig.RuntimeConfig{
-			LLMProvider:   "anthropic",
-			LLMModel:      "claude-3",
-			APIKey:        "sk-test",
-			MaxTokens:     8192,
+			LLMSettings: runtimeconfig.LLMSettings{
+				LLMProvider:   "anthropic",
+				LLMModel:      "claude-3",
+				APIKey:        "sk-test",
+				MaxTokens:     8192,
+				StopSequences: []string{"STOP"},
+			},
 			MaxIterations: 20,
 			AgentPreset:   "architect",
 			ToolPreset:    "safe",
-			StopSequences: []string{"STOP"},
 		}, runtimeconfig.Metadata{}, nil
 	})
 
@@ -104,8 +106,10 @@ func TestEffectiveConfig_EmptyPresetsNotOverridden(t *testing.T) {
 	coordinator := NewAgentCoordinator(nil, nil, nil, nil, nil, nil, nil, cfg)
 	coordinator.SetRuntimeConfigResolver(func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
 		return runtimeconfig.RuntimeConfig{
-			LLMProvider: "openai",
-			LLMModel:    "gpt-4",
+			LLMSettings: runtimeconfig.LLMSettings{
+				LLMProvider: "openai",
+				LLMModel:    "gpt-4",
+			},
 			AgentPreset: "", // empty → should keep static
 			ToolPreset:  "", // empty → should keep static
 		}, runtimeconfig.Metadata{}, nil
@@ -126,9 +130,11 @@ func TestEffectiveConfig_StopSequencesDeepCopied(t *testing.T) {
 	coordinator := NewAgentCoordinator(nil, nil, nil, nil, nil, nil, nil, cfg)
 	coordinator.SetRuntimeConfigResolver(func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
 		return runtimeconfig.RuntimeConfig{
-			LLMProvider:   "openai",
-			LLMModel:      "gpt-4",
-			StopSequences: original,
+			LLMSettings: runtimeconfig.LLMSettings{
+				LLMProvider:   "openai",
+				LLMModel:      "gpt-4",
+				StopSequences: original,
+			},
 		}, runtimeconfig.Metadata{}, nil
 	})
 

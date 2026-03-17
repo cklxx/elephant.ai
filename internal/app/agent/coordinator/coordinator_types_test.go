@@ -229,10 +229,12 @@ func TestPrepareExecutionUsesRuntimeConfigResolver(t *testing.T) {
 	coordinator.SetRuntimeConfigResolver(func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
 		_ = ctx
 		return runtimeconfig.RuntimeConfig{
-			LLMProvider:   "mock",
-			LLMModel:      "new-model",
+			LLMSettings: runtimeconfig.LLMSettings{
+				LLMProvider: "mock",
+				LLMModel:    "new-model",
+				MaxTokens:   2048,
+			},
 			MaxIterations: 5,
-			MaxTokens:     2048,
 		}, runtimeconfig.Metadata{}, nil
 	})
 

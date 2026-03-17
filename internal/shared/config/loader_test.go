@@ -712,9 +712,11 @@ runtime:
 		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
 		WithEnv(envMap{}.Lookup),
 		WithOverrides(Overrides{
-			LLMProvider: ptrString("codex"),
-			LLMModel:    ptrString("gpt-5.2-codex"),
-			BaseURL:     ptrString("https://chatgpt.com/backend-api/codex"),
+			LLMOverrides: LLMOverrides{
+				LLMProvider: ptrString("codex"),
+				LLMModel:    ptrString("gpt-5.2-codex"),
+				BaseURL:     ptrString("https://chatgpt.com/backend-api/codex"),
+			},
 		}),
 	)
 	if err != nil {
@@ -882,13 +884,15 @@ runtime:
 
 func TestLoadNormalizesRuntimeConfig(t *testing.T) {
 	overrides := Overrides{
-		LLMProvider:   ptrString(" openai "),
-		LLMModel:      ptrString(" gpt-4o "),
-		APIKey:        ptrString(" sk-test "),
-		StopSequences: ptrStringSlice([]string{" STOP ", "STOP", " ", "", "\nDONE\n", "DONE"}),
-		AgentPreset:   ptrString(" coder "),
-		ToolPreset:    ptrString(" safe "),
-		Toolset:       ptrString(" local "),
+		LLMOverrides: LLMOverrides{
+			LLMProvider:   ptrString(" openai "),
+			LLMModel:      ptrString(" gpt-4o "),
+			APIKey:        ptrString(" sk-test "),
+			StopSequences: ptrStringSlice([]string{" STOP ", "STOP", " ", "", "\nDONE\n", "DONE"}),
+		},
+		AgentPreset: ptrString(" coder "),
+		ToolPreset:  ptrString(" safe "),
+		Toolset:     ptrString(" local "),
 		Browser: &BrowserOverrides{
 			Connector:    ptrString(" chrome_extension "),
 			CDPURL:       ptrString(" http://127.0.0.1:9222 "),
@@ -969,20 +973,28 @@ func TestOverridesTakePriority(t *testing.T) {
 	cfg, meta, err := Load(
 		WithEnv(envMap{"LLM_MODEL": "env-model"}.Lookup),
 		WithOverrides(Overrides{
-			LLMModel:                &overrideModel,
-			LLMVisionModel:          &overrideVisionModel,
-			Temperature:             &overrideTemp,
-			TavilyAPIKey:            &overrideTavily,
-			ArkAPIKey:   &overrideArk,
+			LLMOverrides: LLMOverrides{
+				LLMModel:       &overrideModel,
+				LLMVisionModel: &overrideVisionModel,
+				Temperature:    &overrideTemp,
+				ArkAPIKey:      &overrideArk,
+			},
+			RateLimitOverrides: RateLimitOverrides{
+				KimiRateLimitRPS:   &overrideKimiRateLimitRPS,
+				KimiRateLimitBurst: &overrideKimiRateLimitBurst,
+			},
+			IntegrationOverrides: IntegrationOverrides{
+				TavilyAPIKey: &overrideTavily,
+			},
+			DisplayOverrides: DisplayOverrides{
+				Verbose:          &overrideVerbose,
+				FollowTranscript: &overrideFollowTranscript,
+				FollowStream:     &overrideFollowStream,
+			},
 			Environment: &overrideEnv,
-			Verbose:                 &overrideVerbose,
-			FollowTranscript:        &overrideFollowTranscript,
-			FollowStream:            &overrideFollowStream,
-			KimiRateLimitRPS:        &overrideKimiRateLimitRPS,
-			KimiRateLimitBurst:      &overrideKimiRateLimitBurst,
-			AgentPreset:             &overrideAgentPreset,
-			ToolPreset:              &overrideToolPreset,
-			Toolset:                 &overrideToolset,
+			AgentPreset: &overrideAgentPreset,
+			ToolPreset:  &overrideToolPreset,
+			Toolset:     &overrideToolset,
 			Browser: &BrowserOverrides{
 				Connector:    &overrideBrowserConnector,
 				CDPURL:       &overrideBrowserCDPURL,
