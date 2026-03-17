@@ -64,7 +64,7 @@ func (c *pinnedRateLimitFallbackClient) Complete(ctx context.Context, req ports.
 		return resp, err
 	}
 	c.activateFallback(err)
-	fbCtx, fbCancel := context.WithTimeout(context.WithoutCancel(ctx), pinnedFallbackDeadline)
+	fbCtx, fbCancel := utils.WithFreshDeadline(ctx, pinnedFallbackDeadline)
 	defer fbCancel()
 	return c.fallback.Complete(fbCtx, req)
 }
@@ -83,7 +83,7 @@ func (c *pinnedRateLimitFallbackClient) StreamComplete(
 		return resp, err
 	}
 	c.activateFallback(err)
-	fbCtx, fbCancel := context.WithTimeout(context.WithoutCancel(ctx), pinnedFallbackDeadline)
+	fbCtx, fbCancel := utils.WithFreshDeadline(ctx, pinnedFallbackDeadline)
 	defer fbCancel()
 	return llm.EnsureStreamingClient(c.fallback).(llm.StreamingLLMClient).StreamComplete(fbCtx, req, callbacks)
 }

@@ -8,6 +8,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/utils"
 )
 
 // StreamComplete proxies streaming requests to the underlying client when supported.
@@ -169,7 +170,7 @@ func (c *retryClient) tryFallbackStreamComplete(
 	}
 
 	const fallbackDeadline = 90 * time.Second
-	fallbackCtx, fallbackCancel := context.WithTimeout(context.WithoutCancel(ctx), fallbackDeadline)
+	fallbackCtx, fallbackCancel := utils.WithFreshDeadline(ctx, fallbackDeadline)
 	defer fallbackCancel()
 
 	resp, err := streamingFB.StreamComplete(fallbackCtx, req, callbacks)
