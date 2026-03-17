@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -164,40 +165,49 @@ func TestAnthropicClientUsesOAuthToken(t *testing.T) {
 	t.Parallel()
 
 	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("Authorization"); got != "Bearer oauth-token" {
+		if got := r.Header.Get("Authorization"); got != "Bearer sk-ant-oat01-test-token" {
 			t.Fatalf("expected oauth Authorization header, got %q", got)
 		}
 		if got := r.Header.Get(anthropicRequestHeaderKey); got != "" {
 			t.Fatalf("expected no api key header, got %q", got)
 		}
 		beta := r.Header.Get(anthropicBetaHeaderKey)
+		if !strings.Contains(beta, anthropicCodeBetaHeader) {
+			t.Fatalf("expected claude-code beta header, got %q", beta)
+		}
 		if !strings.Contains(beta, anthropicOAuthBetaHeader) {
 			t.Fatalf("expected oauth beta header, got %q", beta)
 		}
-		if !strings.Contains(beta, anthropicToolsBetaHeader) {
-			t.Fatalf("expected tools beta header, got %q", beta)
+		if got := r.Header.Get("User-Agent"); got != anthropicOAuthUserAgent {
+			t.Fatalf("expected oauth user-agent, got %q", got)
+		}
+		if got := r.Header.Get("X-App"); got != "cli" {
+			t.Fatalf("expected x-app=cli, got %q", got)
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		resp := map[string]any{
-			"id":          "msg-2",
-			"role":        "assistant",
-			"stop_reason": "end_turn",
-			"content": []any{
-				map[string]any{"type": "text", "text": "ok"},
-			},
-			"usage": map[string]any{
-				"input_tokens":  2,
-				"output_tokens": 3,
-			},
-		}
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			t.Fatalf("write response: %v", err)
-		}
+		// OAuth mode sends stream:true — respond with SSE events.
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprintln(w, `event: message_start`)
+		fmt.Fprintln(w, `data: {"type":"message_start","message":{"id":"msg-oauth","role":"assistant","content":[],"stop_reason":null,"usage":{"input_tokens":2}}}`)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, `event: content_block_start`)
+		fmt.Fprintln(w, `data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, `event: content_block_delta`)
+		fmt.Fprintln(w, `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ok"}}`)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, `event: content_block_stop`)
+		fmt.Fprintln(w, `data: {"type":"content_block_stop","index":0}`)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, `event: message_delta`)
+		fmt.Fprintln(w, `data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}`)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, `event: message_stop`)
+		fmt.Fprintln(w, `data: {"type":"message_stop"}`)
 	}))
 
 	client, err := NewAnthropicClient("claude-test", Config{
-		APIKey:  "oauth-token",
+		APIKey:  "sk-ant-oat01-test-token",
 		BaseURL: server.URL,
 	})
 	if err != nil {
@@ -216,6 +226,9 @@ func TestAnthropicClientUsesOAuthToken(t *testing.T) {
 	}
 	if resp.Content != "ok" {
 		t.Fatalf("unexpected content: %q", resp.Content)
+	}
+	if resp.Usage.PromptTokens != 2 || resp.Usage.CompletionTokens != 3 {
+		t.Fatalf("unexpected usage: %+v", resp.Usage)
 	}
 }
 
@@ -557,19 +570,26 @@ func TestAnthropicClientUsesClaudeSetupOAuthToken(t *testing.T) {
 			t.Fatalf("expected no x-api-key header for OAuth token, got %q", got)
 		}
 		beta := r.Header.Get(anthropicBetaHeaderKey)
-		if !strings.Contains(beta, anthropicOAuthBetaHeader) {
-			t.Fatalf("expected oauth beta header, got %q", beta)
+		if !strings.Contains(beta, anthropicCodeBetaHeader) {
+			t.Fatalf("expected claude-code beta header, got %q", beta)
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		resp := map[string]any{
-			"id":          "msg-setup",
-			"role":        "assistant",
-			"stop_reason": "end_turn",
-			"content":     []any{map[string]any{"type": "text", "text": "ok"}},
-			"usage":       map[string]any{"input_tokens": 1, "output_tokens": 1},
-		}
-		_ = json.NewEncoder(w).Encode(resp)
+		// OAuth mode sends stream:true — respond with SSE.
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprintln(w, `event: message_start`)
+		fmt.Fprintln(w, `data: {"type":"message_start","message":{"id":"msg-setup","role":"assistant","content":[],"stop_reason":null,"usage":{"input_tokens":1}}}`)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, `event: content_block_start`)
+		fmt.Fprintln(w, `data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, `event: content_block_delta`)
+		fmt.Fprintln(w, `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ok"}}`)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, `event: message_delta`)
+		fmt.Fprintln(w, `data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}`)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, `event: message_stop`)
+		fmt.Fprintln(w, `data: {"type":"message_stop"}`)
 	}))
 
 	client, err := NewAnthropicClient("claude-sonnet-4-6-20250514", Config{

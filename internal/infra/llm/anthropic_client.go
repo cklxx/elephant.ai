@@ -1,9 +1,11 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -21,11 +23,14 @@ const (
 	anthropicToolsBetaHeader    = "tools-2024-04-04"
 	anthropicOAuthBetaHeader    = "oauth-2025-04-20"
 	anthropicThinkingBetaHeader = "interleaved-thinking-2025-05-14"
+	anthropicCodeBetaHeader     = "claude-code-20250219"
+	anthropicStreamBetaHeader   = "fine-grained-tool-streaming-2025-05-14"
 	anthropicVersionHeaderKey   = "anthropic-version"
 	anthropicBetaHeaderKey      = "anthropic-beta"
 	anthropicRequestHeaderKey   = "x-api-key"
 	anthropicMessagesPath       = "/messages"
 	anthropicRequestContentType = "application/json"
+	anthropicOAuthUserAgent     = "claude-cli/2.1.75"
 )
 
 type anthropicClient struct {
@@ -46,28 +51,60 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
 	provider := "anthropic"
 
+	// Detect OAuth mode from API key.
+	usesOAuth := isAnthropicOAuthToken(c.getAPIKey())
+
 	messages, system := c.convertMessages(req.Messages)
 	payload := map[string]any{
 		"model":      c.model,
 		"max_tokens": req.MaxTokens,
 		"messages":   messages,
 	}
+
 	thinkingEnabled := false
 	if shouldSendAnthropicThinking(c.model, req.Thinking) {
-		if thinking := buildAnthropicThinkingConfig(req.Thinking); thinking != nil {
+		if usesOAuth {
+			// OAuth tokens require adaptive thinking (not manual "enabled" mode).
+			payload["thinking"] = map[string]any{"type": "adaptive"}
+			payload["output_config"] = map[string]any{"effort": "medium"}
+			thinkingEnabled = true
+		} else if thinking := buildAnthropicThinkingConfig(req.Thinking); thinking != nil {
 			payload["thinking"] = thinking
 			thinkingEnabled = true
 		}
 	}
+
+	// System prompt: OAuth requires list format with Claude Code identity prefix.
 	if system != "" {
-		payload["system"] = system
+		if usesOAuth {
+			payload["system"] = []map[string]any{
+				{"type": "text", "text": "You are Claude Code, Anthropic's official CLI for Claude."},
+				{"type": "text", "text": system},
+			}
+		} else {
+			payload["system"] = system
+		}
+	} else if usesOAuth {
+		payload["system"] = []map[string]any{
+			{"type": "text", "text": "You are Claude Code, Anthropic's official CLI for Claude."},
+		}
 	}
-	// Anthropic requires temperature=1 when extended thinking is enabled.
-	if thinkingEnabled {
+
+	// OAuth mode: omit temperature entirely (Anthropic rejects it with adaptive thinking).
+	// API key mode: force temperature=1 for manual thinking, otherwise use requested value.
+	if usesOAuth {
+		// temperature omitted
+	} else if thinkingEnabled {
 		payload["temperature"] = 1
 	} else {
 		payload["temperature"] = req.Temperature
 	}
+
+	// OAuth mode always streams.
+	if usesOAuth {
+		payload["stream"] = true
+	}
+
 	if len(req.StopSequences) > 0 {
 		payload["stop_sequences"] = append([]string(nil), req.StopSequences...)
 	}
@@ -84,8 +121,6 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	endpoint := c.baseURL + anthropicMessagesPath
 	c.logRequestMeta(prefix, "POST", endpoint)
 
-	// Anthropic uses custom auth (x-api-key or OAuth Bearer) instead of standard Bearer,
-	// so we build the request manually rather than using doPost.
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -99,33 +134,42 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		httpReq.Header.Set(k, v)
 	}
 
+	// Auth headers.
 	hasAuthorization := utils.HasContent(httpReq.Header.Get("Authorization"))
 	hasAPIKeyHeader := utils.HasContent(httpReq.Header.Get(anthropicRequestHeaderKey))
-	usesOAuth := hasAuthorization
 	if !hasAuthorization && !hasAPIKeyHeader {
 		if key := c.getAPIKey(); key != "" {
 			if isAnthropicOAuthToken(key) {
 				httpReq.Header.Set("Authorization", "Bearer "+key)
-				usesOAuth = true
 			} else {
 				httpReq.Header.Set(anthropicRequestHeaderKey, key)
 			}
 		}
 	}
 
+	// OAuth mode: impersonate Claude Code CLI (required by Anthropic for OAuth tokens).
+	if usesOAuth {
+		httpReq.Header.Set("User-Agent", anthropicOAuthUserAgent)
+		httpReq.Header.Set("X-App", "cli")
+		httpReq.Header.Set("Accept", "application/json")
+		httpReq.Header.Set("anthropic-dangerous-direct-browser-access", "true")
+	}
+
 	if httpReq.Header.Get(anthropicVersionHeaderKey) == "" {
 		httpReq.Header.Set(anthropicVersionHeaderKey, defaultAnthropicVersion)
 	}
 
+	// Beta headers.
 	var betaValues []string
 	if usesOAuth {
-		betaValues = append(betaValues, anthropicOAuthBetaHeader)
-	}
-	if len(req.Tools) > 0 {
-		betaValues = append(betaValues, anthropicToolsBetaHeader)
-	}
-	if thinkingEnabled {
-		betaValues = append(betaValues, anthropicThinkingBetaHeader)
+		betaValues = append(betaValues, anthropicCodeBetaHeader, anthropicOAuthBetaHeader, anthropicStreamBetaHeader, anthropicThinkingBetaHeader)
+	} else {
+		if len(req.Tools) > 0 {
+			betaValues = append(betaValues, anthropicToolsBetaHeader)
+		}
+		if thinkingEnabled {
+			betaValues = append(betaValues, anthropicThinkingBetaHeader)
+		}
 	}
 	if len(betaValues) > 0 {
 		httpReq.Header.Set(
@@ -149,6 +193,24 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	defer func() { _ = resp.Body.Close() }()
 
 	c.logResponseStatus(prefix, resp)
+
+	// OAuth mode uses streaming — consume SSE events and reconstruct the response.
+	if usesOAuth && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		result, sseErr := c.consumeAnthropicSSE(resp.Body)
+		if sseErr != nil {
+			c.logProcessingFailure(prefix, requestID, "complete", provider, endpoint, "sse_consume", req, sseErr)
+			return nil, sseErr
+		}
+		if result.Metadata == nil {
+			result.Metadata = map[string]any{}
+		}
+		result.Metadata["request_id"] = requestID
+		c.fireUsageCallback(result.Usage, "anthropic")
+		c.logger.Debug("%sResponse (SSE): content=%d bytes, tool_calls=%d", prefix, len(result.Content), len(result.ToolCalls))
+		utils.LogStreamingResponsePayload(requestID, []byte(result.Content))
+		c.logResponseSummary(prefix, result)
+		return result, nil
+	}
 
 	respBody, err := readResponseBody(resp.Body)
 	if err != nil {
@@ -211,6 +273,139 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 
 	c.logResponseSummary(prefix, result)
 	return result, nil
+}
+
+// consumeAnthropicSSE reads an SSE stream from the Anthropic Messages API and
+// reconstructs a CompletionResponse. Used when OAuth mode forces stream=true.
+func (c *anthropicClient) consumeAnthropicSSE(body io.Reader) (*ports.CompletionResponse, error) {
+	var (
+		contentBuilder strings.Builder
+		toolCalls      []ports.ToolCall
+		thinking       ports.Thinking
+		stopReason     string
+		usage          ports.TokenUsage
+		messageID      string
+		// Track in-flight tool_use blocks by index.
+		toolByIndex = map[int]*ports.ToolCall{}
+		argsByIndex = map[int]*strings.Builder{}
+	)
+
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, 0, 256*1024), 1024*1024)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := line[6:]
+		if data == "[DONE]" {
+			break
+		}
+
+		var event map[string]any
+		if err := jsonx.Unmarshal([]byte(data), &event); err != nil {
+			continue
+		}
+
+		switch event["type"] {
+		case "message_start":
+			if msg, ok := event["message"].(map[string]any); ok {
+				messageID, _ = msg["id"].(string)
+				if u, ok := msg["usage"].(map[string]any); ok {
+					if v, ok := u["input_tokens"].(float64); ok {
+						usage.PromptTokens = int(v)
+					}
+				}
+			}
+		case "content_block_start":
+			idx := int(getFloat(event, "index"))
+			if cb, ok := event["content_block"].(map[string]any); ok {
+				switch cb["type"] {
+				case "tool_use":
+					tc := &ports.ToolCall{
+						ID:        getString(cb, "id"),
+						Name:      getString(cb, "name"),
+						Arguments: map[string]any{},
+					}
+					toolByIndex[idx] = tc
+					argsByIndex[idx] = &strings.Builder{}
+				}
+			}
+		case "content_block_delta":
+			idx := int(getFloat(event, "index"))
+			if delta, ok := event["delta"].(map[string]any); ok {
+				switch delta["type"] {
+				case "text_delta":
+					contentBuilder.WriteString(getString(delta, "text"))
+				case "thinking_delta":
+					// Accumulate thinking text — will be assembled at message_stop.
+					appendThinkingText(&thinking, "thinking", getString(delta, "thinking"))
+				case "input_json_delta":
+					if ab, ok := argsByIndex[idx]; ok {
+						ab.WriteString(getString(delta, "partial_json"))
+					}
+				case "signature_delta":
+					if len(thinking.Parts) > 0 {
+						thinking.Parts[len(thinking.Parts)-1].Signature = getString(delta, "signature")
+					}
+				}
+			}
+		case "content_block_stop":
+			idx := int(getFloat(event, "index"))
+			if tc, ok := toolByIndex[idx]; ok {
+				if ab, ok := argsByIndex[idx]; ok {
+					raw := ab.String()
+					if raw != "" {
+						var args map[string]any
+						if err := jsonx.Unmarshal([]byte(raw), &args); err == nil {
+							tc.Arguments = args
+						}
+					}
+				}
+				toolCalls = append(toolCalls, *tc)
+				delete(toolByIndex, idx)
+				delete(argsByIndex, idx)
+			}
+		case "message_delta":
+			if delta, ok := event["delta"].(map[string]any); ok {
+				if sr, ok := delta["stop_reason"].(string); ok {
+					stopReason = sr
+				}
+			}
+			if u, ok := event["usage"].(map[string]any); ok {
+				if v, ok := u["output_tokens"].(float64); ok {
+					usage.CompletionTokens = int(v)
+				}
+			}
+		}
+	}
+
+	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+
+	result := &ports.CompletionResponse{
+		Content:    contentBuilder.String(),
+		StopReason: stopReason,
+		ToolCalls:  toolCalls,
+		Usage:      usage,
+		Metadata: map[string]any{
+			"message_id": strings.TrimSpace(messageID),
+		},
+	}
+	if len(thinking.Parts) > 0 {
+		result.Thinking = thinking
+	}
+	return result, scanner.Err()
+}
+
+func getString(m map[string]any, key string) string {
+	v, _ := m[key].(string)
+	return v
+}
+
+func getFloat(m map[string]any, key string) float64 {
+	v, _ := m[key].(float64)
+	return v
 }
 
 func (c *anthropicClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
