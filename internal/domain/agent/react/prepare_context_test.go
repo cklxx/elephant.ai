@@ -28,3 +28,25 @@ func TestPrepareUserTaskContextOffloadsThinking(t *testing.T) {
 		t.Fatalf("expected new user message appended, got role=%q", last.Role)
 	}
 }
+
+func TestOffloadMessageThinkingPreservesSignedParts(t *testing.T) {
+	state := &TaskState{
+		Messages: []Message{{
+			Role: "assistant",
+			Thinking: ports.Thinking{Parts: []ports.ThinkingPart{
+				{Kind: "thinking", Text: "unsigned reasoning"},
+				{Kind: "thinking", Text: "signed reasoning", Signature: "sig-abc"},
+			}},
+		}},
+	}
+
+	offloadMessageThinking(state)
+
+	parts := state.Messages[0].Thinking.Parts
+	if len(parts) != 1 {
+		t.Fatalf("expected 1 signed part preserved, got %d", len(parts))
+	}
+	if parts[0].Signature != "sig-abc" {
+		t.Fatalf("expected signed part preserved, got signature=%q", parts[0].Signature)
+	}
+}

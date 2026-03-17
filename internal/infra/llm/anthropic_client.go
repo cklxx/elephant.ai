@@ -20,6 +20,7 @@ const (
 	defaultAnthropicVersion     = "2023-06-01"
 	anthropicToolsBetaHeader    = "tools-2024-04-04"
 	anthropicOAuthBetaHeader    = "oauth-2025-04-20"
+	anthropicThinkingBetaHeader = "interleaved-thinking-2025-05-14"
 	anthropicVersionHeaderKey   = "anthropic-version"
 	anthropicBetaHeaderKey      = "anthropic-beta"
 	anthropicRequestHeaderKey   = "x-api-key"
@@ -123,6 +124,9 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	if len(req.Tools) > 0 {
 		betaValues = append(betaValues, anthropicToolsBetaHeader)
 	}
+	if thinkingEnabled {
+		betaValues = append(betaValues, anthropicThinkingBetaHeader)
+	}
 	if len(betaValues) > 0 {
 		httpReq.Header.Set(
 			anthropicBetaHeaderKey,
@@ -155,7 +159,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c.logger.Debug("%sError Response Body: %s", prefix, respBody)
+		c.logger.Warn("%sRequest rejected (HTTP %d): response=%s request=%s", prefix, resp.StatusCode, respBody, logBody)
 		mappedErr := mapHTTPError(resp.StatusCode, respBody, resp.Header)
 		c.logHTTPFailure(prefix, requestID, "complete", provider, endpoint, req, resp.StatusCode, resp.Header, respBody, mappedErr)
 		return nil, mappedErr
@@ -317,22 +321,32 @@ func normalizeAnthropicMessages(messages []anthropicMessage) []anthropicMessage 
 }
 
 func buildAnthropicMessageContent(msg ports.Message, embedAttachments bool) []anthropicContentBlock {
-	thinkingText := thinkingPromptText(msg.Thinking)
+	// Anthropic extended thinking: thinking parts with signatures must be
+	// emitted as proper "thinking" content blocks (not converted to text)
+	// so they round-trip correctly during multi-turn tool use.
+	thinkingBlocks, thinkingFallbackText := buildAnthropicThinkingBlocks(msg.Thinking)
+
+	hasThinking := len(thinkingBlocks) > 0 || thinkingFallbackText != ""
+
 	if len(msg.Attachments) == 0 || !embedAttachments {
-		if utils.IsBlank(msg.Content) && thinkingText == "" {
+		if utils.IsBlank(msg.Content) && !hasThinking {
 			return nil
 		}
-		blocks := make([]anthropicContentBlock, 0, 2)
+		var blocks []anthropicContentBlock
+		blocks = append(blocks, thinkingBlocks...)
 		if utils.HasContent(msg.Content) {
 			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: msg.Content})
 		}
-		if thinkingText != "" {
-			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: thinkingText})
+		if thinkingFallbackText != "" {
+			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: thinkingFallbackText})
 		}
 		return blocks
 	}
 
 	var parts []anthropicContentBlock
+	// Thinking blocks go first (Anthropic requires thinking before text/tool_use).
+	parts = append(parts, thinkingBlocks...)
+
 	hasImage := false
 
 	appendText := func(text string) {
@@ -371,24 +385,54 @@ func buildAnthropicMessageContent(msg ports.Message, embedAttachments bool) []an
 	)
 
 	if !hasImage {
-		if utils.IsBlank(msg.Content) && thinkingText == "" {
+		if utils.IsBlank(msg.Content) && !hasThinking {
 			return nil
 		}
-		blocks := make([]anthropicContentBlock, 0, 2)
+		var blocks []anthropicContentBlock
+		blocks = append(blocks, thinkingBlocks...)
 		if utils.HasContent(msg.Content) {
 			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: msg.Content})
 		}
-		if thinkingText != "" {
-			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: thinkingText})
+		if thinkingFallbackText != "" {
+			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: thinkingFallbackText})
 		}
 		return blocks
 	}
 
-	if thinkingText != "" {
-		parts = append(parts, anthropicContentBlock{Type: "text", Text: thinkingText})
+	if thinkingFallbackText != "" {
+		parts = append(parts, anthropicContentBlock{Type: "text", Text: thinkingFallbackText})
 	}
 
 	return parts
+}
+
+// buildAnthropicThinkingBlocks splits thinking parts into proper Anthropic
+// content blocks (for parts with signatures that must round-trip) and a
+// fallback text representation (for parts without signatures).
+func buildAnthropicThinkingBlocks(thinking ports.Thinking) (blocks []anthropicContentBlock, fallbackText string) {
+	if len(thinking.Parts) == 0 {
+		return nil, ""
+	}
+
+	var unsignedParts []ports.ThinkingPart
+	for _, part := range thinking.Parts {
+		if part.Signature != "" {
+			// Proper thinking block with signature — must be passed back
+			// unchanged for Anthropic extended thinking round-tripping.
+			blocks = append(blocks, anthropicContentBlock{
+				Type:      "thinking",
+				Thinking:  part.Text,
+				Signature: part.Signature,
+			})
+		} else {
+			unsignedParts = append(unsignedParts, part)
+		}
+	}
+
+	// Parts without signatures are converted to text prompt (non-Anthropic
+	// thinking or thinking from providers that don't use signatures).
+	fallbackText = thinkingPromptText(ports.Thinking{Parts: unsignedParts})
+	return blocks, fallbackText
 }
 
 func inferAttachmentMediaType(att ports.Attachment, placeholder string) string {

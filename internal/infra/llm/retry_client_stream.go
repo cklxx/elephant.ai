@@ -93,6 +93,25 @@ func (c *retryClient) StreamComplete(
 		}
 	}
 
+	// Thinking degradation: if the request had thinking enabled and we got
+	// a permanent error (e.g. 400 invalid_request), retry once without
+	// thinking on the same provider before escalating to fallback.
+	if err != nil && !observedStreamOutput && req.Thinking.Enabled && !alexerrors.IsTransient(err) {
+		c.logger.Warn("[THINKING_DEGRADE] Primary %s/%s rejected thinking request; retrying without thinking: %v",
+			c.provider, c.model, err)
+		degradedReq := req
+		degradedReq.Thinking.Enabled = false
+		degradedResp, degradedErr := streamingClient.StreamComplete(ctx, degradedReq, callbacks)
+		if degradedErr == nil {
+			duration := time.Since(startTime)
+			c.recordHealthLatency(duration)
+			c.logLLMCallSummary(ctx, "stream", degradedReq, duration, degradedResp, nil)
+			return degradedResp, nil
+		}
+		c.logger.Warn("[THINKING_DEGRADE] Degraded streaming also failed for %s/%s: %v", c.provider, c.model, degradedErr)
+		// Fall through to fallback logic below
+	}
+
 	// All retries exhausted — try streaming fallback if available, transient, and no output was emitted.
 	if err != nil && c.fallbackClientFn != nil && alexerrors.IsTransient(err) && !observedStreamOutput {
 		fbResp, fbErr := c.tryFallbackStreamComplete(ctx, req, callbacks, err)

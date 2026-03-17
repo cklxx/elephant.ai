@@ -87,6 +87,18 @@ func (c *retryClient) completeWithRetry(ctx context.Context, req ports.Completio
 		c.logger.Debug("Attempt %d failed: %v", attempt+1, err)
 
 		if !alexerrors.IsTransient(err) {
+			// Thinking degradation: retry without thinking before giving up.
+			if req.Thinking.Enabled {
+				c.logger.Warn("[THINKING_DEGRADE] Primary %s/%s rejected thinking request; retrying without thinking: %v",
+					c.provider, c.model, err)
+				degradedReq := req
+				degradedReq.Thinking.Enabled = false
+				degradedResp, degradedErr := c.underlying.Complete(ctx, degradedReq)
+				if degradedErr == nil {
+					return degradedResp, nil
+				}
+				c.logger.Warn("[THINKING_DEGRADE] Degraded request also failed for %s/%s: %v", c.provider, c.model, degradedErr)
+			}
 			c.logger.Debug("Error is not transient, stopping retries")
 			return nil, err
 		}

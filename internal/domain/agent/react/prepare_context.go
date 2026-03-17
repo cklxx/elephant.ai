@@ -67,6 +67,15 @@ func offloadMessageThinking(state *TaskState) {
 		if len(state.Messages[idx].Thinking.Parts) == 0 {
 			continue
 		}
-		state.Messages[idx].Thinking = ports.Thinking{}
+		// Preserve thinking parts that carry a signature — these must be
+		// passed back unchanged to providers that require thinking
+		// round-tripping (e.g. Anthropic extended thinking with tools).
+		var kept []ports.ThinkingPart
+		for _, p := range state.Messages[idx].Thinking.Parts {
+			if p.Signature != "" {
+				kept = append(kept, p)
+			}
+		}
+		state.Messages[idx].Thinking = ports.Thinking{Parts: kept}
 	}
 }

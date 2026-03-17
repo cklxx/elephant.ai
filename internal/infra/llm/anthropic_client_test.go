@@ -461,6 +461,91 @@ func TestParseAnthropicContentThinkingFallsBackToText(t *testing.T) {
 	}
 }
 
+func TestAnthropicClientThinkingBetaHeader(t *testing.T) {
+	t.Parallel()
+
+	t.Run("thinking enabled with tools includes both beta headers", func(t *testing.T) {
+		t.Parallel()
+
+		server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			beta := r.Header.Get(anthropicBetaHeaderKey)
+			if !strings.Contains(beta, anthropicToolsBetaHeader) {
+				t.Fatalf("expected tools beta header in %q", beta)
+			}
+			if !strings.Contains(beta, anthropicThinkingBetaHeader) {
+				t.Fatalf("expected thinking beta header in %q", beta)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"id":          "msg-think",
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content":     []any{map[string]any{"type": "text", "text": "ok"}},
+				"usage":       map[string]any{"input_tokens": 1, "output_tokens": 1},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+		}))
+
+		client, err := NewAnthropicClient("claude-sonnet-4-6-20250514", Config{
+			APIKey:  "sk-ant-test",
+			BaseURL: server.URL,
+		})
+		if err != nil {
+			t.Fatalf("NewAnthropicClient: %v", err)
+		}
+
+		_, err = client.Complete(context.Background(), ports.CompletionRequest{
+			Messages:  []ports.Message{{Role: "user", Content: "hi"}},
+			MaxTokens: 32,
+			Thinking:  ports.ThinkingConfig{Enabled: true, BudgetTokens: 1024},
+			Tools: []ports.ToolDefinition{
+				{Name: "toolName", Description: "desc", Parameters: ports.ParameterSchema{Type: "object"}},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Complete: %v", err)
+		}
+	})
+
+	t.Run("thinking disabled has no thinking beta header", func(t *testing.T) {
+		t.Parallel()
+
+		server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			beta := r.Header.Get(anthropicBetaHeaderKey)
+			if strings.Contains(beta, anthropicThinkingBetaHeader) {
+				t.Fatalf("expected no thinking beta header, got %q", beta)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"id":          "msg-nothink",
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content":     []any{map[string]any{"type": "text", "text": "ok"}},
+				"usage":       map[string]any{"input_tokens": 1, "output_tokens": 1},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+		}))
+
+		client, err := NewAnthropicClient("claude-sonnet-4-6-20250514", Config{
+			APIKey:  "sk-ant-test",
+			BaseURL: server.URL,
+		})
+		if err != nil {
+			t.Fatalf("NewAnthropicClient: %v", err)
+		}
+
+		_, err = client.Complete(context.Background(), ports.CompletionRequest{
+			Messages:  []ports.Message{{Role: "user", Content: "hi"}},
+			MaxTokens: 32,
+		})
+		if err != nil {
+			t.Fatalf("Complete: %v", err)
+		}
+	})
+}
+
 func TestAnthropicClientUsesClaudeSetupOAuthToken(t *testing.T) {
 	t.Parallel()
 

@@ -213,7 +213,7 @@ func (c *baseClient) logHTTPFailure(
 	}
 
 	c.logger.Warn(
-		"%sLLM request rejected: mode=%s provider=%s model=%s endpoint=%s request_id=%s intent=%s status=%d retry_after=%q retry_after_seconds=%d upstream_type=%s upstream_code=%s upstream_message=%q error_class=%s error=%v body_preview=%q",
+		"%sLLM request rejected: mode=%s provider=%s model=%s endpoint=%s request_id=%s intent=%s status=%d thinking=%t tools=%d max_tokens=%d retry_after=%q retry_after_seconds=%d upstream_type=%s upstream_code=%s upstream_message=%q error_class=%s error=%v body_preview=%q",
 		prefix,
 		normalizeLogField(mode),
 		normalizeLogField(provider),
@@ -222,6 +222,9 @@ func (c *baseClient) logHTTPFailure(
 		normalizeLogField(requestID),
 		normalizeLogField(extractRequestIntent(req.Metadata)),
 		status,
+		req.Thinking.Enabled,
+		len(req.Tools),
+		req.MaxTokens,
 		retryAfter,
 		retryAfterSeconds,
 		normalizeLogField(upstreamType),

@@ -704,6 +704,133 @@ func TestRetryClientRateLimitCircuitResetsOnSuccess(t *testing.T) {
 	rc.rlMu.Unlock()
 }
 
+// --- Thinking degradation tests ---
+
+// thinkingRejectStreamMock returns a permanent error when thinking is enabled,
+// succeeds when thinking is disabled.
+type thinkingRejectStreamMock struct {
+	calls int
+}
+
+func (m *thinkingRejectStreamMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	m.calls++
+	if req.Thinking.Enabled {
+		return nil, errors.New("HTTP 400: thinking is not supported for this model")
+	}
+	return &ports.CompletionResponse{Content: "degraded-ok"}, nil
+}
+
+func (m *thinkingRejectStreamMock) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
+	m.calls++
+	if req.Thinking.Enabled {
+		return nil, errors.New("HTTP 400: thinking is not supported for this model")
+	}
+	if callbacks.OnContentDelta != nil {
+		callbacks.OnContentDelta(ports.ContentDelta{Delta: "degraded-ok"})
+		callbacks.OnContentDelta(ports.ContentDelta{Final: true})
+	}
+	return &ports.CompletionResponse{Content: "degraded-ok"}, nil
+}
+
+func (m *thinkingRejectStreamMock) Model() string { return "mock" }
+
+func TestRetryClientStreamCompleteDegradesThinkingOnPermanentError(t *testing.T) {
+	mock := &thinkingRejectStreamMock{}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
+	client := NewRetryClient(mock, alexerrors.RetryConfig{
+		MaxAttempts: 0,
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    50 * time.Millisecond,
+	}, breaker)
+
+	rc, ok := client.(*retryClient)
+	require.True(t, ok)
+	rc.provider = "test-provider"
+	rc.model = "test-model"
+
+	streaming := portsllm.StreamingLLMClient(rc)
+
+	var deltas []ports.ContentDelta
+	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{
+		Thinking: ports.ThinkingConfig{Enabled: true},
+	}, ports.CompletionStreamCallbacks{
+		OnContentDelta: func(delta ports.ContentDelta) {
+			deltas = append(deltas, delta)
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "degraded-ok", resp.Content)
+	require.Equal(t, 2, mock.calls, "should call once with thinking (fail), once without (succeed)")
+	require.Equal(t, []ports.ContentDelta{{Delta: "degraded-ok"}, {Final: true}}, deltas)
+}
+
+func TestRetryClientCompleteDegradesThinkingOnPermanentError(t *testing.T) {
+	mock := &thinkingRejectStreamMock{}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
+	client := NewRetryClient(mock, alexerrors.RetryConfig{
+		MaxAttempts: 0,
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    50 * time.Millisecond,
+	}, breaker)
+
+	rc, ok := client.(*retryClient)
+	require.True(t, ok)
+	rc.provider = "test-provider"
+	rc.model = "test-model"
+
+	resp, err := rc.Complete(context.Background(), ports.CompletionRequest{
+		Thinking: ports.ThinkingConfig{Enabled: true},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "degraded-ok", resp.Content)
+	require.Equal(t, 2, mock.calls, "should call once with thinking (fail), once without (succeed)")
+}
+
+func TestRetryClientStreamCompleteNoDegradeWhenThinkingDisabled(t *testing.T) {
+	// When thinking is NOT enabled, a permanent error should just fail normally.
+	permanentMock := &permanentErrorStreamMock{}
+	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
+	client := NewRetryClient(permanentMock, alexerrors.RetryConfig{
+		MaxAttempts: 0,
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    50 * time.Millisecond,
+	}, breaker)
+
+	rc, ok := client.(*retryClient)
+	require.True(t, ok)
+	rc.provider = "test-provider"
+	rc.model = "test-model"
+
+	streaming := portsllm.StreamingLLMClient(rc)
+
+	// Thinking is NOT enabled — should not degrade, just fail.
+	_, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{
+		Thinking: ports.ThinkingConfig{Enabled: false},
+	}, ports.CompletionStreamCallbacks{})
+
+	require.Error(t, err)
+	require.Equal(t, 1, permanentMock.calls, "should only call once — no degradation attempt")
+}
+
+// permanentErrorStreamMock always returns a permanent (non-transient) error.
+type permanentErrorStreamMock struct {
+	calls int
+}
+
+func (m *permanentErrorStreamMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	m.calls++
+	return nil, errors.New("HTTP 400: bad request")
+}
+
+func (m *permanentErrorStreamMock) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
+	m.calls++
+	return nil, errors.New("HTTP 400: bad request")
+}
+
+func (m *permanentErrorStreamMock) Model() string { return "mock" }
+
 func TestRetryClientClassifyLLMErrorSets429StatusCode(t *testing.T) {
 	rc := &retryClient{
 		logger: logging.NewComponentLogger("test"),
