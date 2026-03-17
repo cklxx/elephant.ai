@@ -392,7 +392,7 @@ func formatTaskDetail(t TaskRecord) string {
 		sb.WriteString(fmt.Sprintf("完成: %s\n", t.CompletedAt.Format("15:04:05")))
 		sb.WriteString(fmt.Sprintf("耗时: %s\n", formatDuration(t.CompletedAt.Sub(t.CreatedAt))))
 	} else {
-		sb.WriteString(fmt.Sprintf("已运行: %s\n", formatDuration(time.Since(t.CreatedAt)))) // wall clock: used for display purposes only
+		sb.WriteString(fmt.Sprintf("已运行: %s\n", formatDuration(time.Since(t.CreatedAt)))) // wall clock: display-only, no testable clock available here
 	}
 	if t.TokensUsed > 0 {
 		sb.WriteString(fmt.Sprintf("Tokens: %s\n", formatTokens(t.TokensUsed)))

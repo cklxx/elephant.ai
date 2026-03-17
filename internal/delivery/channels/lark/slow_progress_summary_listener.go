@@ -61,6 +61,10 @@ func newSlowProgressSummaryListener(
 	if len(intervals) > 0 {
 		firstDelay = intervals[0]
 	}
+	nowFn := time.Now
+	if gateway != nil && gateway.now != nil {
+		nowFn = gateway.now
+	}
 	l := &slowProgressSummaryListener{
 		inner:     inner,
 		gateway:   gateway,
@@ -69,7 +73,7 @@ func newSlowProgressSummaryListener(
 		replyToID: strings.TrimSpace(replyToID),
 		delay:     delay,
 		intervals: intervals,
-		now:       time.Now,
+		now:       nowFn,
 	}
 	l.startedAt = l.now()
 	l.timer = time.AfterFunc(firstDelay, l.onDelayReached)
