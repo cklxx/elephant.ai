@@ -132,3 +132,4 @@ yarn.lock
 
 # Local test outputs
 test-output.txt
+.openmax/

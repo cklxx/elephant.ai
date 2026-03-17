@@ -1,4 +1,4 @@
-# Error Experience: Anthropic Overloaded SSE Error + Fallback Timeout
+# Error Experience: Anthropic Overloaded SSE Error + Pinned Fallback Bypass
 
 Date: 2026-03-17
 
@@ -10,41 +10,48 @@ Date: 2026-03-17
 Log evidence:
 ```
 [WARN] anthropic client: stage=sse_consume error=anthropic stream error: overloaded_error: Overloaded
-[WARN] llm-retry: LLM STREAM FAILED error_class=transient error=Server overloaded (529). Retrying request.
+[WARN] llm-retry: LLM STREAM FAILED error_class=unknown error=anthropic stream error: overloaded_error: Overloaded
 (×4 retries, ~21s total)
-[WARN] openai client: kimi-for-coding timeout: context deadline exceeded (6s)
-[WARN] llm-retry: LLM COMPLETE FAILED error_class=transient error=context cancelled during retry: context deadline exceeded
+[no [FALLBACK] entries — pinned fallback never triggered]
+[WARN] openai client: kimi-for-coding timeout: context deadline exceeded (6s)  ← Lark narration, NOT pinned fallback
 ```
+
+## Root Cause
+
+**`pinnedRateLimitFallbackClient` only recognized HTTP 429 as rate-limit trigger. `IsRateLimitError` did not match 429/overloaded, so the pinned fallback to `kimi-for-coding` was never activated.**
+
+The absence of `[FALLBACK]` log entries confirms the pinned fallback never ran. The kimi 6s timeout in logs is from the Lark narration service (`narrate.go` default 6s), which is unrelated.
 
 ## What Actually Happened
 
-Three compounding failures:
-
 ### 1. SSE-level overloaded_error bypasses HTTP error path
-Anthropic returns `overloaded_error: Overloaded` **inside the SSE stream body** (event.type=error), not as HTTP 5xx. So:
-- `mapHTTPError` is never called (HTTP status is 200)
-- `consumeAnthropicSSE` returns a plain `fmt.Errorf("anthropic stream error: overloaded_error: Overloaded")`
-- `classifyLLMError` correctly identifies "overloaded" → `TransientError`, retries fire ✓
-- BUT: failure logging classifies it as `error_class=unknown` (reads raw error before classification) ✗
-- BUT: `retryDelay` uses 1s base backoff (not `rateLimitBaseDelay=5s`) because `StatusCode=0` ✗
+Anthropic returns `overloaded_error: Overloaded` **inside the SSE stream body** (HTTP 200). `consumeAnthropicSSE` returned plain `fmt.Errorf` — no `StatusCode`. Downstream:
+- `classifyLLMError` correctly detects "overloaded" → `TransientError` (retries fire ✓)
+- `retryDelay` uses 1s base backoff instead of `rateLimitBaseDelay=5s` (StatusCode=0) ✗
+- `failure_logging` classifies as `error_class=unknown` ✗
 
-### 2. All 4 retries exhaust before service recovers
-~5s per attempt × 4 = ~20s. If Anthropic's overload lasts >20s, all retries fail.
+### 2. Pinned fallback blindly bypassed (TRUE ROOT CAUSE)
+After retries exhaust, `pinnedRateLimitFallbackClient.StreamComplete` checks `IsRateLimitError(err)`. Before the fix, `IsRateLimitError` only checked `StatusCode==429` — it did NOT match `StatusCode==529` or the "overloaded" string. Result: `IsRateLimitError` returns `false`, fallback never activates, error surfaces to user.
 
-### 3. Fallback runs on exhausted context
-After ~20s of retries, the fallback (`kimi-for-coding`) is invoked using the **same parent `ctx`**.
-For large context requests (~25k tokens), kimi-for-coding needs >6s. The remaining deadline is ~6s → always times out.
+### 3. Retry window too short
+`isRateLimitError` in `retry_client_classify.go` also only matched 429, so 529 overload errors used 1s base delay. 4 retries × ~5s = ~20s. Anthropic's overload window often exceeds 20s.
+
+## Fixes Applied
+
+| Commit | Fix |
+|--------|-----|
+| `6721249f` | **Root cause**: `IsRateLimitError` matches 529 + "overloaded"; pinned fallback uses fresh 90s context |
+| `3963c285` | SSE returns `TransientError{StatusCode:529}`; `tryFallbackStreamComplete` fresh ctx; `failure_logging` transient pattern |
+| `06efa5e0` | 529 → `rateLimitBaseDelay=5s` in retryClient (≈35s total retry window) |
+| `1ec631a4` | Fallback context propagates user cancellation |
 
 ## Code Locations
-- `internal/infra/llm/anthropic_client.go:377-386` — SSE error handler, returns plain `fmt.Errorf`
-- `internal/infra/llm/retry_client_classify.go:79-81` — 529/overloaded rule (correct), but `StatusCode` not set from SSE path
-- `internal/infra/llm/retry_client_stream.go:116-122` — fallback invocation passes caller's `ctx`
-- `internal/infra/llm/failure_logging.go` — `classifyFailureError` doesn't recognize SSE overloaded pattern
-
-## Fixes Needed (not yet applied)
-1. `consumeAnthropicSSE`: return `alexerrors.NewTransientError(...).WithStatusCode(529)` for `overloaded_error`
-2. `tryFallbackStreamComplete`: use `context.WithTimeout(ctx, min(remaining, 30s))` for fallback
-3. `failure_logging.go`: add "overloaded_error" to transient pattern list in `classifyFailureError`
+- `internal/app/agent/llmclient/rate_limit.go` — `IsRateLimitError` (pinned fallback gate)
+- `internal/app/agent/preparation/llm_fallback.go` — `pinnedRateLimitFallbackClient.StreamComplete`
+- `internal/infra/llm/anthropic_client.go` — SSE error handler
+- `internal/infra/llm/retry_client_classify.go` — `isRateLimitError`, `retryDelay`
+- `internal/infra/llm/retry_client_stream.go` — `tryFallbackStreamComplete`
+- `internal/delivery/channels/lark/narrate.go` — 6s narration timeout (unrelated to pinned fallback)
 
 ## References
 - Postmortem: docs/postmortems/incidents/2026-03-17-anthropic-overloaded-sse-fallback-timeout.md
