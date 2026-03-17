@@ -168,7 +168,11 @@ func (c *retryClient) tryFallbackStreamComplete(
 		return nil, fmt.Errorf("fallback client does not support streaming")
 	}
 
-	resp, err := streamingFB.StreamComplete(ctx, req, callbacks)
+	const fallbackDeadline = 90 * time.Second
+	fallbackCtx, fallbackCancel := context.WithTimeout(context.WithoutCancel(ctx), fallbackDeadline)
+	defer fallbackCancel()
+
+	resp, err := streamingFB.StreamComplete(fallbackCtx, req, callbacks)
 	if err != nil {
 		c.logger.Warn("[FALLBACK] Fallback streaming %s/%s also failed: %v", c.fallbackProvider, c.fallbackModel, err)
 		return nil, err

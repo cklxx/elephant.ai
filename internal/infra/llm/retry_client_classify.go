@@ -78,7 +78,7 @@ var llmErrorClassificationRules = []errorClassificationRule{
 	{patterns: []string{"502", "bad gateway"}, message: "Bad gateway (502). Retrying request."},
 	{patterns: []string{"503", "service unavailable"}, message: "Service unavailable (503). Retrying request."},
 	{patterns: []string{"504", "gateway timeout"}, message: "Gateway timeout (504). Retrying request."},
-	{patterns: []string{"529", "overloaded"}, message: "Server overloaded (529). Retrying request."},
+	{patterns: []string{"529", "overloaded", "overloaded_error"}, message: "Server overloaded (529). Retrying request."},
 	// Network / transport errors
 	{patterns: []string{"stream error", "received from peer", "internal_error", "read stream"}, message: "Streaming transport was interrupted. Retrying request."},
 	{patterns: []string{"connection refused"}, message: "Connection refused. Retrying request."},

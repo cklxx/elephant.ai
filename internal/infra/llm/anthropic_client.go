@@ -14,6 +14,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	"alex/internal/shared/json"
+	alexerrors "alex/internal/shared/errors"
 	"alex/internal/shared/utils"
 )
 
@@ -381,7 +382,13 @@ func (c *anthropicClient) consumeAnthropicSSE(body io.Reader) (*ports.Completion
 				if errMsg == "" {
 					errMsg = errType
 				}
-				return nil, fmt.Errorf("anthropic stream error: %s: %s", errType, errMsg)
+				rawErr := fmt.Errorf("anthropic stream error: %s: %s", errType, errMsg)
+				if errType == "overloaded_error" {
+					terr := alexerrors.NewTransientError(rawErr, "Server overloaded (529). Retrying request.")
+					terr.StatusCode = 529
+					return nil, terr
+				}
+				return nil, rawErr
 			}
 			return nil, fmt.Errorf("anthropic stream error: %s", data)
 		}
