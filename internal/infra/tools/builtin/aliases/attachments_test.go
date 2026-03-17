@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils"
 )
 
 func TestParseAttachmentSpecsRejectsLegacyOutputFiles(t *testing.T) {
@@ -39,7 +40,7 @@ func TestParseAttachmentSpecsRequiresPathField(t *testing.T) {
 
 func TestBuildAttachmentsFromSpecs_AllowsTempDir(t *testing.T) {
 	tmpDir := os.TempDir()
-	if strings.TrimSpace(tmpDir) == "" {
+	if utils.IsBlank(tmpDir) {
 		t.Skip("os.TempDir is empty")
 	}
 	file, err := os.CreateTemp(tmpDir, "aliases-attachments-*.txt")
@@ -78,7 +79,7 @@ func TestBuildAttachmentsFromSpecs_AllowsTempDir(t *testing.T) {
 	if att.Source != "lark_local" {
 		t.Fatalf("expected attachment source lark_local, got %q", att.Source)
 	}
-	if strings.TrimSpace(att.MediaType) == "" {
+	if utils.IsBlank(att.MediaType) {
 		t.Fatalf("expected media type to be populated")
 	}
 	if att.Data != base64.StdEncoding.EncodeToString([]byte("hello")) {
@@ -88,7 +89,7 @@ func TestBuildAttachmentsFromSpecs_AllowsTempDir(t *testing.T) {
 
 func TestBuildAttachmentsFromSpecs_RespectsMaxBytes(t *testing.T) {
 	tmpDir := os.TempDir()
-	if strings.TrimSpace(tmpDir) == "" {
+	if utils.IsBlank(tmpDir) {
 		t.Skip("os.TempDir is empty")
 	}
 	file, err := os.CreateTemp(tmpDir, "aliases-attachments-*.txt")

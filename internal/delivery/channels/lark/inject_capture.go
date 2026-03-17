@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/shared/utils"
+
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
@@ -164,7 +166,7 @@ func (h *injectCaptureHub) nextSyntheticMessageIDLocked(chatID string) string {
 }
 
 func (h *injectCaptureHub) appendSyntheticMessageLocked(chatID string, msg *larkim.Message) {
-	if strings.TrimSpace(chatID) == "" || msg == nil {
+	if utils.IsBlank(chatID) || msg == nil {
 		return
 	}
 	history := h.ensureChatHistoryLocked(chatID)
@@ -181,7 +183,7 @@ func (h *injectCaptureHub) recordInjectedIncoming(chatID, messageID, senderID, m
 	if chatID == "" || messageID == "" {
 		return
 	}
-	if strings.TrimSpace(senderID) == "" {
+	if utils.IsBlank(senderID) {
 		senderID = "ou_inject_user"
 	}
 	msg := buildInjectHistoryMessage(messageID, msgType, content, "user", senderID, ts)
@@ -204,7 +206,7 @@ func (h *injectCaptureHub) recordSyntheticSend(chatID, messageID, msgType, conte
 		h.mu.Unlock()
 		return
 	}
-	if strings.TrimSpace(messageID) == "" {
+	if utils.IsBlank(messageID) {
 		messageID = h.nextSyntheticMessageIDLocked(chatID)
 	}
 	msg := buildInjectHistoryMessage(messageID, msgType, content, "app", injectBotSenderID, ts)
@@ -223,7 +225,7 @@ func (h *injectCaptureHub) recordSyntheticReply(replyToID, messageID, msgType, c
 		h.mu.Unlock()
 		return
 	}
-	if strings.TrimSpace(messageID) == "" {
+	if utils.IsBlank(messageID) {
 		messageID = h.nextSyntheticMessageIDLocked(chatID)
 	}
 	msg := buildInjectHistoryMessage(messageID, msgType, content, "app", injectBotSenderID, ts)

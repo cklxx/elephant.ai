@@ -229,7 +229,7 @@ func isTransientInjectTransportError(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	msg := utils.TrimLower(err.Error())
 	return strings.Contains(msg, "connection refused") ||
 		strings.Contains(msg, "connection reset") ||
 		strings.HasSuffix(msg, ": eof") ||

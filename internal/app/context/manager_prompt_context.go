@@ -6,6 +6,7 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils"
 )
 
 const defaultPersonaVoice = "You are ALEX, an enterprise-grade assistant focused on secure, testable software delivery."
@@ -266,7 +267,7 @@ func buildReasoningSection() string {
 }
 
 func buildChannelFormattingSection(hint string) string {
-	if strings.TrimSpace(hint) == "" {
+	if utils.IsBlank(hint) {
 		return ""
 	}
 	return hint

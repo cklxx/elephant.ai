@@ -13,6 +13,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	sessionstate "alex/internal/infra/session/state_store"
+	"alex/internal/shared/utils"
 )
 
 func TestSelectWorldPrefersExplicitKey(t *testing.T) {
@@ -67,7 +68,7 @@ func TestBuildWindowPopulatesSystemPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildWindow returned error: %v", err)
 	}
-	if strings.TrimSpace(window.SystemPrompt) == "" {
+	if utils.IsBlank(window.SystemPrompt) {
 		t.Fatalf("expected system prompt to be populated")
 	}
 	if !strings.Contains(window.SystemPrompt, "CI lab") {

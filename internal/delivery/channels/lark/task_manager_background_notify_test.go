@@ -11,6 +11,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/domain/agent/types"
+	"alex/internal/shared/utils"
 )
 
 func TestRunTask_BackgroundCompletionNotifiedAfterForegroundReturn(t *testing.T) {
@@ -78,7 +79,7 @@ type delayedBackgroundCompletionExecutor struct {
 }
 
 func (e *delayedBackgroundCompletionExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
-	if strings.TrimSpace(sessionID) == "" {
+	if utils.IsBlank(sessionID) {
 		sessionID = "lark-session"
 	}
 	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil

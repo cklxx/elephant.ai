@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"alex/internal/app/di"
@@ -43,7 +42,7 @@ func startTelegramGateway(ctx context.Context, cfg Config, container *di.Contain
 	if container == nil {
 		return nil, fmt.Errorf("telegram gateway requires server container")
 	}
-	if strings.TrimSpace(tgCfg.BotToken) == "" {
+	if utils.IsBlank(tgCfg.BotToken) {
 		return nil, fmt.Errorf("telegram gateway requires channels.telegram.bot_token")
 	}
 	if ctx == nil {
@@ -123,10 +122,10 @@ func buildTelegramGatewayConfig(tgCfg TelegramGatewayConfig, container *di.Conta
 		}
 	}
 
-	if strings.TrimSpace(gatewayCfg.PersistenceMode) == "" {
+	if utils.IsBlank(gatewayCfg.PersistenceMode) {
 		gatewayCfg.PersistenceMode = persistenceModeFile
 	}
-	if strings.TrimSpace(gatewayCfg.PersistenceDir) == "" {
+	if utils.IsBlank(gatewayCfg.PersistenceDir) {
 		gatewayCfg.PersistenceDir = filepath.Join(container.SessionDir(), "telegram")
 	}
 	return gatewayCfg

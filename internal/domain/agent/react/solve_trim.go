@@ -5,6 +5,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	tokenutil "alex/internal/shared/token"
+	"alex/internal/shared/utils"
 )
 
 // aggressiveTrimMessages keeps system/important/checkpoint messages and the
@@ -50,8 +51,8 @@ func aggressiveTrimMessages(messages []ports.Message, maxTurns int) []ports.Mess
 }
 
 func isPrimarySystemPromptForTrim(msg ports.Message) bool {
-	role := strings.ToLower(strings.TrimSpace(msg.Role))
-	return role == "system" && strings.TrimSpace(msg.Content) != ""
+	role := utils.TrimLower(msg.Role)
+	return role == "system" && utils.HasContent(msg.Content)
 }
 
 const (

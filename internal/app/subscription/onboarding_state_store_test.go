@@ -4,11 +4,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	jsonx "alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 func TestResolveOnboardingStatePath(t *testing.T) {
@@ -108,7 +108,7 @@ func TestOnboardingStateStoreSetGetClear(t *testing.T) {
 	if got.SelectedProvider != "codex" || got.SelectedModel != "gpt-5.2-codex" {
 		t.Fatalf("unexpected state: %+v", got)
 	}
-	if strings.TrimSpace(got.CompletedAt) == "" {
+	if utils.IsBlank(got.CompletedAt) {
 		t.Fatalf("expected completed_at to be auto-populated")
 	}
 	if _, err := time.Parse(time.RFC3339, got.CompletedAt); err != nil {

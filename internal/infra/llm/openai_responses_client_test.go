@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 func TestOpenAIResponsesClientCompleteSuccess(t *testing.T) {
@@ -303,7 +304,7 @@ func TestOpenAIResponsesClientOmitsMaxOutputTokensForCodex(t *testing.T) {
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -360,7 +361,7 @@ func TestOpenAIResponsesClientOmitsTemperatureForCodex(t *testing.T) {
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -418,7 +419,7 @@ func TestOpenAIResponsesClientIncludesReasoningForCodexWhenThinkingEnabled(t *te
 	}))
 
 	client, err := NewOpenAIResponsesClient("gpt-5.3-codex-spark", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -491,7 +492,7 @@ func TestOpenAIResponsesClientUsesFlatToolsForCodex(t *testing.T) {
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -777,7 +778,7 @@ func TestOpenAIResponsesClientSetsInstructionsForCodex(t *testing.T) {
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -859,7 +860,7 @@ func TestOpenAIResponsesClientDeduplicatesInstructionsForCodex(t *testing.T) {
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -937,7 +938,7 @@ func TestOpenAIResponsesClientSynthesizesInputWhenCodexInputIsEmpty(t *testing.T
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -981,7 +982,7 @@ func TestOpenAIResponsesClientSynthesizesInputWhenCodexInputIsEmpty(t *testing.T
 		t.Fatalf("expected synthesized content type input_text, got %#v", part["type"])
 	}
 	text, _ := part["text"].(string)
-	if strings.TrimSpace(text) == "" {
+	if utils.IsBlank(text) {
 		t.Fatal("expected synthesized fallback input text to be non-empty")
 	}
 }
@@ -990,7 +991,7 @@ func TestOpenAIResponsesClientErrorsWhenInputEmptyAndNoFallback(t *testing.T) {
 	t.Parallel()
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       "http://127.0.0.1:65535/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -1055,7 +1056,7 @@ func TestOpenAIResponsesClientOmitsToolCallsForCodex(t *testing.T) {
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -1127,7 +1128,7 @@ func TestOpenAIResponsesClientConvertsToolMessagesToFunctionCallOutput(t *testin
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -1224,7 +1225,7 @@ func TestOpenAIResponsesClientDropsFunctionCallOutputWithoutFunctionCall(t *test
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -1317,7 +1318,7 @@ func TestOpenAIResponsesClientCompleteStreamsForCodex(t *testing.T) {
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -1380,7 +1381,7 @@ func TestOpenAIResponsesClientCompleteCollectsReasoningSummaryDeltas(t *testing.
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -1437,7 +1438,7 @@ func TestOpenAIResponsesClientCompleteDeduplicatesRepeatedReasoningBlocks(t *tes
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -1488,7 +1489,7 @@ func TestOpenAIResponsesClientCompleteParsesThinkingFromCompletedOutput(t *testi
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -1540,7 +1541,7 @@ func TestOpenAIResponsesClientCompleteParsesThinkingFromOutputItemDoneSummary(t 
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
@@ -1590,7 +1591,7 @@ func TestOpenAIResponsesClientCompleteParsesThinkingFromCompletedSummary(t *test
 	}))
 
 	client, err := NewOpenAIResponsesClient("test-model", Config{
-		APIKey:  "test-key",
+		APIKey:        "test-key",
 		BaseURL:       server.URL + "/backend-api/codex",
 		CodexEndpoint: true,
 	})
