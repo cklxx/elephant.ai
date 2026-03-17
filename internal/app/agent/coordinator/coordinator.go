@@ -43,12 +43,9 @@ type AgentCoordinator struct {
 	runtimeResolver  RuntimeConfigResolver
 	logger           agent.Logger
 	clock            agent.Clock
-	externalExecutor agent.ExternalAgentExecutor
-	bgRegistry       *backgroundTaskRegistry
-	iterationHook    agent.IterationHook
-	teamDefinitions  []agent.TeamDefinition
-	teamRunRecorder  agent.TeamRunRecorder
-	checkpointStore  react.CheckpointStore
+	bgRegistry      *backgroundTaskRegistry
+	iterationHook   agent.IterationHook
+	checkpointStore react.CheckpointStore
 	atomicWriter     agent.AtomicFileWriter
 
 	prepService         preparationService

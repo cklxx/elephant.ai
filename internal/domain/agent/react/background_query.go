@@ -53,10 +53,6 @@ func (m *BackgroundTaskManager) Status(ids []string) []agent.BackgroundTaskSumma
 		if bt.err != nil {
 			s.Error = bt.err.Error()
 		}
-		if bt.progress != nil {
-			progress := *bt.progress
-			s.Progress = &progress
-		}
 		if bt.pendingInput != nil {
 			pending := *bt.pendingInput
 			s.PendingInput = &pending

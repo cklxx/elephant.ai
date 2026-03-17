@@ -29,15 +29,6 @@ func WithHookRegistry(registry *hooks.Registry) CoordinatorOption {
 	}
 }
 
-// WithExternalExecutor provides the external agent executor registry.
-func WithExternalExecutor(executor agent.ExternalAgentExecutor) CoordinatorOption {
-	return func(c *AgentCoordinator) {
-		if executor != nil {
-			c.externalExecutor = executor
-		}
-	}
-}
-
 // WithCheckpointStore provides a checkpoint store for ReAct recovery.
 func WithCheckpointStore(store react.CheckpointStore) CoordinatorOption {
 	return func(c *AgentCoordinator) {
@@ -77,14 +68,6 @@ func WithToolSLACollector(collector *toolspolicy.SLACollector) CoordinatorOption
 	}
 }
 
-// WithTeamDefinitions provides pre-configured agent team definitions for
-// structured team dispatch.
-func WithTeamDefinitions(teams []agent.TeamDefinition) CoordinatorOption {
-	return func(c *AgentCoordinator) {
-		c.teamDefinitions = teams
-	}
-}
-
 // WithChannelHints provides the channel-name to formatting-hint mapping.
 // The preparation service uses this to resolve a pre-rendered hint for the
 // active delivery channel, removing hardcoded channel checks from prompt
@@ -93,16 +76,6 @@ func WithChannelHints(hints map[string]string) CoordinatorOption {
 	return func(c *AgentCoordinator) {
 		if hints != nil {
 			c.channelHints = hints
-		}
-	}
-}
-
-// WithTeamRunRecorder provides a recorder used to persist file-based
-// team run records.
-func WithTeamRunRecorder(recorder agent.TeamRunRecorder) CoordinatorOption {
-	return func(c *AgentCoordinator) {
-		if recorder != nil {
-			c.teamRunRecorder = recorder
 		}
 	}
 }

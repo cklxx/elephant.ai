@@ -19,7 +19,6 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
-	"alex/internal/infra/tools/builtin/orchestration"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
@@ -42,7 +41,6 @@ type StreamingOutputHandler struct {
 
 	// State
 	activeTools                     map[string]ToolInfo
-	subagentDisplay                 *SubagentDisplay
 	verbose                         bool
 	mu                              sync.Mutex
 	lastCompletion                  *domain.Event
@@ -164,13 +162,12 @@ func (b *markdownStreamBuffer) FlushAll() string {
 
 func NewStreamingOutputHandler(container *Container, verbose bool) *StreamingOutputHandler {
 	handler := &StreamingOutputHandler{
-		container:       container,
-		renderer:        output.NewCLIRenderer(verbose),
-		activeTools:     make(map[string]ToolInfo),
-		subagentDisplay: NewSubagentDisplay(),
-		verbose:         verbose,
-		out:             os.Stdout,
-		mdBuffer:        newMarkdownStreamBuffer(),
+		container:   container,
+		renderer:    output.NewCLIRenderer(verbose),
+		activeTools: make(map[string]ToolInfo),
+		verbose:     verbose,
+		out:         os.Stdout,
+		mdBuffer:    newMarkdownStreamBuffer(),
 	}
 	handler.streamWriter = newStreamWriter(handler.out)
 	return handler
@@ -310,13 +307,6 @@ func NewStreamEventBridge(handler *StreamingOutputHandler) *StreamEventBridge {
 
 // OnEvent implements agent.EventListener
 func (b *StreamEventBridge) OnEvent(event agent.AgentEvent) {
-	// Check if this is a wrapped subtask event
-	if subtaskEvent, ok := event.(*orchestration.SubtaskEvent); ok {
-		// Handle subtask-specific tracking
-		b.handler.handleSubtaskEvent(subtaskEvent)
-		return
-	}
-
 	// Handle normalized workflow envelopes (new event contract)
 	if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
 		b.handleEnvelopeEvent(env)
@@ -514,15 +504,6 @@ func (h *StreamingOutputHandler) consumeTaskCompletion() *domain.Event {
 	event := h.lastCompletion
 	h.lastCompletion = nil
 	return event
-}
-
-// handleSubtaskEvent handles events from subtasks with simple line-by-line output
-func (h *StreamingOutputHandler) handleSubtaskEvent(subtaskEvent *orchestration.SubtaskEvent) {
-	h.streamWriter.Flush()
-	lines := h.subagentDisplay.Handle(subtaskEvent)
-	for _, line := range lines {
-		h.write(line)
-	}
 }
 
 func (h *StreamingOutputHandler) write(rendered string) {

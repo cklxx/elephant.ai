@@ -275,8 +275,7 @@ func (c *AgentCoordinator) buildAndRunReactEngine(
 				GoRunner:            goRunner,
 				WorkingDirResolver:  workingDirResolver,
 				WorkspaceMgrFactory: workspaceMgrFactory,
-				ExecuteTask:         backgroundExecutor,
-				ExternalExecutor:    c.externalExecutor,
+				ExecuteTask: backgroundExecutor,
 				SessionID:           env.Session.ID,
 				MaxConcurrentTasks:  effectiveCfg.MaxBackgroundTasks,
 				ContextPropagators: []agent.ContextPropagatorFunc{
@@ -310,9 +309,6 @@ func (c *AgentCoordinator) buildAndRunReactEngine(
 		},
 		BackgroundExecutor: backgroundExecutor,
 		BackgroundManager:  bgManager,
-		ExternalExecutor:   c.externalExecutor,
-		TeamDefinitions:    c.teamDefinitions,
-		TeamRunRecorder:    c.teamRunRecorder,
 		AtomicFileWriter:   infraadapters.NewOSAtomicWriter(),
 	})
 

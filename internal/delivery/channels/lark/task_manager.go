@@ -21,59 +21,6 @@ func (g *Gateway) getOrCreateSlot(chatID string) *sessionSlot {
 	return s
 }
 
-// storePendingRelay adds a pending input relay to the per-chat queue.
-func (g *Gateway) storePendingRelay(chatID string, relay *pendingInputRelay) {
-	if relay == nil {
-		return
-	}
-	now := g.currentTime()
-	if g.cfg.PendingInputRelayTTL > 0 {
-		relay.expiresAt = now.Add(g.cfg.PendingInputRelayTTL).UnixNano()
-	}
-	raw, _ := g.pendingInputRelays.LoadOrStore(chatID, &pendingRelayQueue{})
-	queue := raw.(*pendingRelayQueue)
-	queue.Push(relay)
-	queue.PruneExpired(now)
-	if g.cfg.PendingInputRelayMaxPerChat > 0 {
-		queue.TrimToMax(g.cfg.PendingInputRelayMaxPerChat)
-	}
-	if g.cfg.PendingInputRelayMaxChats > 0 {
-		g.prunePendingInputRelays(now)
-	}
-}
-
-// tryResolveInputReply checks whether a pending input relay exists for the chat
-// and, if so, resolves the oldest one (FIFO) with the user's reply. Returns true
-// when the message was consumed as an input reply.
-func (g *Gateway) tryResolveInputReply(ctx context.Context, chatID, content string) bool {
-	raw, ok := g.pendingInputRelays.Load(chatID)
-	if !ok {
-		return false
-	}
-	queue := raw.(*pendingRelayQueue)
-	relay := queue.PopOldestUnexpired(g.currentTime())
-	if relay == nil {
-		g.pendingInputRelays.Delete(chatID)
-		return false
-	}
-	if queue.Len() == 0 {
-		g.pendingInputRelays.Delete(chatID)
-	}
-
-	resp := buildInputResponse(relay, content)
-
-	if responder, ok := g.agent.(agent.ExternalInputResponder); ok {
-		if err := responder.ReplyExternalInput(ctx, resp); err != nil {
-			g.logger.Warn("External input reply failed: %v", err)
-			return false
-		}
-		return true
-	}
-
-	g.logger.Warn("Agent does not support ExternalInputResponder interface")
-	return false
-}
-
 // injectUserInput forwards a message into a running task's input channel.
 func (g *Gateway) injectUserInput(ch chan agent.UserInput, activeSessionID string, msg *incomingMessage) {
 	if msg == nil {

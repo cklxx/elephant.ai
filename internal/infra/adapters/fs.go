@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/domain/agent/taskfile"
 )
 
 // fileEventAppender implements agent.EventAppender using OS file operations.
@@ -78,26 +77,3 @@ func (w *osAtomicWriter) WriteFileAtomically(path string, data []byte, perm os.F
 	return os.Rename(tmpPath, path)
 }
 
-// osStatusFileIO implements taskfile.StatusFileIO using OS file operations.
-type osStatusFileIO struct{}
-
-var _ taskfile.StatusFileIO = (*osStatusFileIO)(nil)
-
-// NewOSStatusFileIO creates a new status file IO implementation backed by the OS filesystem.
-func NewOSStatusFileIO() *osStatusFileIO { return &osStatusFileIO{} }
-
-func (o *osStatusFileIO) ReadFile(path string) ([]byte, error) {
-	return os.ReadFile(path)
-}
-
-func (o *osStatusFileIO) WriteFileAtomic(path string, data []byte) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
-}

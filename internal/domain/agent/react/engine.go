@@ -39,12 +39,6 @@ type ReactEngine struct {
 		listener agent.EventListener) (*agent.TaskResult, error)
 	// Optional shared background manager (e.g., per-session pool).
 	backgroundManager *BackgroundTaskManager
-	// Optional external agent executor for non-internal agent types.
-	externalExecutor agent.ExternalAgentExecutor
-	// Pre-configured team definitions for structured team dispatch.
-	teamDefinitions []agent.TeamDefinition
-	// Optional file-backed recorder for team dispatch run audit.
-	teamRunRecorder agent.TeamRunRecorder
 
 	toolTokenCache       toolDefinitionTokenCache
 	toolParameterMarshal func(v any) ([]byte, error)
@@ -131,13 +125,6 @@ type ReactEngineConfig struct {
 		listener agent.EventListener) (*agent.TaskResult, error)
 	// BackgroundManager optionally supplies a shared background task manager.
 	BackgroundManager *BackgroundTaskManager
-	// ExternalExecutor handles external code agents (e.g., Claude Code CLI).
-	// Optional; when nil only "internal" agent type is supported.
-	ExternalExecutor agent.ExternalAgentExecutor
-	// TeamDefinitions are pre-configured agent teams available to structured team dispatch.
-	TeamDefinitions []agent.TeamDefinition
-	// TeamRunRecorder persists team run records (typically file-based).
-	TeamRunRecorder agent.TeamRunRecorder
 	// AtomicFileWriter writes files atomically (for context compaction artifacts).
 	AtomicFileWriter agent.AtomicFileWriter
 }

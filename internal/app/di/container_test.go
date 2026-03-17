@@ -7,7 +7,6 @@ import (
 	"time"
 
 	taskdomain "alex/internal/domain/task"
-	codinginfra "alex/internal/infra/coding"
 	runtimeconfig "alex/internal/shared/config"
 )
 
@@ -145,60 +144,6 @@ func TestResolveStorageDir_DoesNotStripHomeIncorrectly(t *testing.T) {
 				t.Errorf("resolveStorageDir(%q) failed to expand tilde = %v", tc.input, result)
 			}
 		})
-	}
-}
-
-func TestApplyDetectedExternalAgents_AutoEnablesSupportedAgents(t *testing.T) {
-	builder := newContainerBuilder(Config{
-		ExternalAgents: runtimeconfig.DefaultExternalAgentsConfig(),
-	})
-
-	detected := []codinginfra.LocalCLIDetection{
-		{ID: "codex", Binary: "codex", Path: "/detected/codex", AgentType: "codex", AdapterSupport: true},
-		{ID: "claude", Binary: "claude-code", Path: "/detected/claude-code", AgentType: "claude_code", AdapterSupport: true},
-		{ID: "kimi", Binary: "kimi", Path: "/detected/kimi", AgentType: "kimi", AdapterSupport: true},
-	}
-
-	builder.applyDetectedExternalAgents(detected, false)
-
-	if !builder.config.ExternalAgents.Codex.Enabled {
-		t.Fatalf("expected codex to be auto-enabled")
-	}
-	if builder.config.ExternalAgents.Codex.Binary != "/detected/codex" {
-		t.Fatalf("expected codex binary to adopt detected path, got %q", builder.config.ExternalAgents.Codex.Binary)
-	}
-	if !builder.config.ExternalAgents.ClaudeCode.Enabled {
-		t.Fatalf("expected claude_code to be auto-enabled")
-	}
-	if builder.config.ExternalAgents.ClaudeCode.Binary != "/detected/claude-code" {
-		t.Fatalf("expected claude_code binary to adopt detected path, got %q", builder.config.ExternalAgents.ClaudeCode.Binary)
-	}
-	if !builder.config.ExternalAgents.Kimi.Enabled {
-		t.Fatalf("expected kimi to be auto-enabled")
-	}
-	if builder.config.ExternalAgents.Kimi.Binary != "/detected/kimi" {
-		t.Fatalf("expected kimi binary to adopt detected path, got %q", builder.config.ExternalAgents.Kimi.Binary)
-	}
-}
-
-func TestApplyDetectedExternalAgents_RespectsCustomBinaryPath(t *testing.T) {
-	cfg := Config{
-		ExternalAgents: runtimeconfig.DefaultExternalAgentsConfig(),
-	}
-	cfg.ExternalAgents.Codex.Binary = "/custom/codex-dev"
-	builder := newContainerBuilder(cfg)
-
-	detected := []codinginfra.LocalCLIDetection{
-		{ID: "codex", Binary: "codex", Path: "/detected/codex", AgentType: "codex", AdapterSupport: true},
-	}
-
-	builder.applyDetectedExternalAgents(detected, false)
-
-	if !builder.config.ExternalAgents.Codex.Enabled {
-		t.Fatalf("expected codex to be auto-enabled")
-	}
-	if builder.config.ExternalAgents.Codex.Binary != "/custom/codex-dev" {
-		t.Fatalf("expected custom codex binary to remain unchanged, got %q", builder.config.ExternalAgents.Codex.Binary)
 	}
 }
 

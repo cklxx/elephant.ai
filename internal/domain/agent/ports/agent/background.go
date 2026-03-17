@@ -45,6 +45,14 @@ type BackgroundDispatchRequest struct {
 	InheritContext bool
 }
 
+// InputRequestSummary is a lightweight view of a pending input request.
+type InputRequestSummary struct {
+	RequestID string
+	Type      string
+	Summary   string
+	Since     time.Time
+}
+
 // BackgroundTaskSummary provides a lightweight status view of a background task.
 type BackgroundTaskSummary struct {
 	ID             string
@@ -56,7 +64,6 @@ type BackgroundTaskSummary struct {
 	StartedAt      time.Time
 	CompletedAt    time.Time
 	Error          string
-	Progress       *ExternalAgentProgress
 	PendingInput   *InputRequestSummary
 	Elapsed        time.Duration
 	Workspace      *WorkspaceAllocation
@@ -101,28 +108,11 @@ type BackgroundTaskCanceller interface {
 	CancelBackgroundTask(ctx context.Context, taskID string) error
 }
 
-// ExternalInputResponder allows tools to reply to external agent input requests.
-type ExternalInputResponder interface {
-	ReplyExternalInput(ctx context.Context, resp InputResponse) error
-}
-
-// BackgroundTaskSessionInjector allows injecting free-form input into a running
-// role session (typically tmux-backed role panes).
-type BackgroundTaskSessionInjector interface {
-	InjectBackgroundInput(ctx context.Context, taskID string, input string) error
-}
-
 // BackgroundCompletionNotifier receives direct completion notifications from
 // BackgroundTaskManager, bypassing the event listener chain. This ensures
 // TaskStore is updated even when the SerializingEventListener queue times out.
 type BackgroundCompletionNotifier interface {
 	NotifyCompletion(ctx context.Context, taskID, status, answer, errText, mergeStatus string, tokensUsed int)
-}
-
-// BridgeMetaPersister is an optional extension of BackgroundCompletionNotifier
-// that can persist bridge subprocess metadata for resilience.
-type BridgeMetaPersister interface {
-	PersistBridgeMeta(ctx context.Context, taskID string, info any)
 }
 
 // completionNotifierKey is the context key for BackgroundCompletionNotifier.
@@ -151,14 +141,10 @@ func WithBackgroundDispatcher(ctx context.Context, d BackgroundTaskDispatcher) c
 }
 
 // GetBackgroundDispatcher retrieves the BackgroundTaskDispatcher from ctx.
-// Falls back to OrchestrationContext when no standalone value is found.
-// Returns nil when no dispatcher is available.
 func GetBackgroundDispatcher(ctx context.Context) BackgroundTaskDispatcher {
 	if ctx == nil {
 		return nil
 	}
-	if d, ok := ctx.Value(backgroundDispatcherKey{}).(BackgroundTaskDispatcher); ok {
-		return d
-	}
-	return GetOrchestrationContext(ctx).Dispatcher
+	d, _ := ctx.Value(backgroundDispatcherKey{}).(BackgroundTaskDispatcher)
+	return d
 }

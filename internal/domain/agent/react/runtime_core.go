@@ -45,10 +45,6 @@ type reactRuntime struct {
 	bgManagerOwned bool
 	// Track emitted completion events to avoid duplicates.
 	bgCompletionEmitted map[string]bool
-	// External input requests from interactive external agents.
-	externalInputCh      <-chan agent.InputRequest
-	externalInputEmitted map[string]bool
-
 	// User input channel for live message injection from chat gateways.
 	userInputCh <-chan agent.UserInput
 	// Consecutive non-recoverable tool failures used to prevent retry loops.
@@ -108,7 +104,6 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 				engine.workingDirResolver,
 				engine.workspaceMgrFactory,
 				engine.backgroundExecutor,
-				engine.externalExecutor,
 				engine.emitEvent,
 				func(ctx context.Context) domain.BaseEvent {
 					return engine.newBaseEvent(ctx, sessionID, runID, parentRunID)
@@ -128,8 +123,6 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 				},
 				parentListener: engine.eventListener,
 			})
-			runtime.externalInputCh = runtime.bgManager.InputRequests()
-			runtime.externalInputEmitted = make(map[string]bool)
 		}
 	}
 
@@ -148,23 +141,14 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 		r.prepareContext()
 	}
 
-	// Inject orchestration context (dispatcher + team defs + recorder) in a
-	// single context.WithValue call for tools.
-	{
-		oc := agent.OrchestrationContext{
-			TeamDefinitions: r.engine.teamDefinitions,
-			TeamRunRecorder: r.engine.teamRunRecorder,
-		}
-		if r.bgManager != nil {
-			oc.Dispatcher = newBackgroundDispatcherWithEvents(r, r.bgManager)
-		}
-		r.ctx = agent.WithOrchestrationContext(r.ctx, oc)
+	// Inject background dispatcher for tools when available.
+	if r.bgManager != nil {
+		r.ctx = agent.WithBackgroundDispatcher(r.ctx, newBackgroundDispatcherWithEvents(r, r.bgManager))
 	}
 
 	for r.state.Iterations < r.engine.maxIterations {
 		// Inject background completion notifications before each iteration.
 		r.injectBackgroundNotifications()
-		r.injectExternalInputRequests()
 		r.injectUserInput()
 
 		if result, stop, err := r.handleCancellation(); stop || err != nil {

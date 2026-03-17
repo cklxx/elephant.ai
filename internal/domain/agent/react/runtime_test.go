@@ -319,7 +319,6 @@ func TestSharedBackgroundManagerDoesNotCancelOnCleanup(t *testing.T) {
 		blockingExecutor(2*time.Second, "late"),
 		nil,
 		nil,
-		nil,
 		"s1",
 		nil,
 	)

@@ -81,12 +81,9 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		workflow:            cfg.Workflow,
 		iterationHook:       cfg.IterationHook,
 		sessionPersister:    cfg.SessionPersister,
-		backgroundExecutor:  cfg.BackgroundExecutor,
-		backgroundManager:   cfg.BackgroundManager,
-		externalExecutor:    cfg.ExternalExecutor,
-		teamDefinitions:     cfg.TeamDefinitions,
-		teamRunRecorder:     cfg.TeamRunRecorder,
-		atomicWriter:        cfg.AtomicFileWriter,
+		backgroundExecutor: cfg.BackgroundExecutor,
+		backgroundManager:  cfg.BackgroundManager,
+		atomicWriter:       cfg.AtomicFileWriter,
 	}
 }
 

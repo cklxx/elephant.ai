@@ -75,7 +75,6 @@ func newTestManager(executor func(ctx context.Context, prompt, sessionID string,
 		executor,
 		nil,
 		nil,
-		nil,
 		"test-session",
 		nil,
 	)
@@ -375,62 +374,7 @@ func TestStatusFilterByIDs(t *testing.T) {
 	}
 }
 
-func TestExternalExecutor(t *testing.T) {
-	ext := &mockExternalExecutor{
-		result: &agent.ExternalAgentResult{
-			Answer:     "external-result",
-			Iterations: 3,
-			TokensUsed: 500,
-		},
-	}
-	mgr := newBackgroundTaskManager(
-		context.Background(),
-		agent.NoopLogger{},
-		testClock{},
-		blockingExecutor(10*time.Millisecond, "internal"),
-		ext,
-		nil,
-		nil,
-		"test-session",
-		nil,
-	)
-	defer mgr.Shutdown()
 
-	err := dispatchTask(mgr, "ext-1", "desc", "prompt", "claude_code", "")
-	if err != nil {
-		t.Fatalf("dispatch failed: %v", err)
-	}
-
-	mgr.AwaitAll(2 * time.Second)
-
-	results := mgr.Collect([]string{"ext-1"}, false, 0)
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	if results[0].Answer != "external-result" {
-		t.Fatalf("expected 'external-result', got %q", results[0].Answer)
-	}
-}
-
-func TestExternalExecutorNotConfigured(t *testing.T) {
-	mgr := newTestManager(blockingExecutor(10*time.Millisecond, "internal"))
-	defer mgr.Shutdown()
-
-	err := dispatchTask(mgr, "ext-fail", "desc", "prompt", "claude_code", "")
-	if err != nil {
-		t.Fatalf("dispatch should not fail at dispatch time: %v", err)
-	}
-
-	mgr.AwaitAll(2 * time.Second)
-
-	results := mgr.Collect([]string{"ext-fail"}, false, 0)
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	if results[0].Status != agent.BackgroundTaskStatusFailed {
-		t.Fatalf("expected failed, got %s", results[0].Status)
-	}
-}
 
 func TestTaskDependenciesInheritContext(t *testing.T) {
 	var mu sync.Mutex
@@ -451,7 +395,6 @@ func TestTaskDependenciesInheritContext(t *testing.T) {
 		agent.NoopLogger{},
 		testClock{},
 		executor,
-		nil,
 		nil,
 		nil,
 		"test-session",
@@ -510,72 +453,6 @@ func TestTaskDependenciesInheritContext(t *testing.T) {
 	}
 }
 
-func TestExternalProgressEventIncludesArgsAndActivity(t *testing.T) {
-	var mu sync.Mutex
-	var events []agent.AgentEvent
-
-	ext := &progressingExternalExecutor{
-		progress: agent.ExternalAgentProgress{
-			TokensUsed:   10,
-			CurrentTool:  "Bash",
-			CurrentArgs:  "ls -la",
-			FilesTouched: []string{"a.txt"},
-			LastActivity: time.Now().Add(-time.Second),
-		},
-		result: &agent.ExternalAgentResult{Answer: "ok"},
-	}
-
-	mgr := newBackgroundTaskManager(
-		context.Background(),
-		agent.NoopLogger{},
-		testClock{},
-		blockingExecutor(10*time.Millisecond, "internal"),
-		ext,
-		func(event agent.AgentEvent) {
-			mu.Lock()
-			defer mu.Unlock()
-			events = append(events, event)
-		},
-		func(ctx context.Context) domain.BaseEvent {
-			return domain.NewBaseEvent(agent.LevelCore, "s1", "r1", "", time.Now())
-		},
-		"test-session",
-		nil,
-	)
-	defer mgr.Shutdown()
-
-	if err := dispatchTask(mgr, "ext-1", "desc", "prompt", "codex", ""); err != nil {
-		t.Fatalf("dispatch failed: %v", err)
-	}
-
-	mgr.AwaitAll(2 * time.Second)
-
-	mu.Lock()
-	defer mu.Unlock()
-	found := false
-	for _, evt := range events {
-		progressEvt, ok := evt.(*domain.Event)
-		if !ok || progressEvt.Kind != types.EventExternalAgentProgress {
-			continue
-		}
-		found = true
-		if progressEvt.Data.CurrentTool != "Bash" {
-			t.Fatalf("unexpected tool: %q", progressEvt.Data.CurrentTool)
-		}
-		if progressEvt.Data.CurrentArgs != "ls -la" {
-			t.Fatalf("unexpected args: %q", progressEvt.Data.CurrentArgs)
-		}
-		if progressEvt.Data.LastActivity.IsZero() {
-			t.Fatalf("expected last activity")
-		}
-		if len(progressEvt.Data.FilesTouched) != 1 || progressEvt.Data.FilesTouched[0] != "a.txt" {
-			t.Fatalf("unexpected files touched: %#v", progressEvt.Data.FilesTouched)
-		}
-	}
-	if !found {
-		t.Fatalf("expected ExternalAgentProgressEvent")
-	}
-}
 
 func TestManagerEmitsCompletionEventImmediately(t *testing.T) {
 	var mu sync.Mutex
@@ -586,7 +463,6 @@ func TestManagerEmitsCompletionEventImmediately(t *testing.T) {
 		agent.NoopLogger{},
 		testClock{},
 		blockingExecutor(10*time.Millisecond, "result-1"),
-		nil,
 		func(event agent.AgentEvent) {
 			mu.Lock()
 			defer mu.Unlock()
@@ -690,133 +566,12 @@ func TestTryAutoMerge_RequiresVerifyForCoding(t *testing.T) {
 	}
 }
 
-// mockExternalExecutor implements agent.ExternalAgentExecutor for testing.
-type mockExternalExecutor struct {
-	result *agent.ExternalAgentResult
-	err    error
-}
 
-func (m *mockExternalExecutor) Execute(ctx context.Context, req agent.ExternalAgentRequest) (*agent.ExternalAgentResult, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	return m.result, nil
-}
 
-func (m *mockExternalExecutor) SupportedTypes() []string {
-	return []string{"claude_code", "cursor"}
-}
 
-type progressingExternalExecutor struct {
-	progress agent.ExternalAgentProgress
-	result   *agent.ExternalAgentResult
-}
 
-func (p *progressingExternalExecutor) Execute(ctx context.Context, req agent.ExternalAgentRequest) (*agent.ExternalAgentResult, error) {
-	if req.OnProgress != nil {
-		req.OnProgress(p.progress)
-	}
-	return p.result, nil
-}
 
-func (p *progressingExternalExecutor) SupportedTypes() []string {
-	return []string{"codex"}
-}
 
-// --- Batch 1: Direct parentListener bypass ---
-
-// TestDirectParentListenerReceivesCompletion verifies that emitCompletionEvent
-// delivers the BackgroundTaskCompletedEvent directly to bt.notifyParent,
-// bypassing the normal SerializingEventListener chain.
-func TestDirectParentListenerReceivesCompletion(t *testing.T) {
-	var mu sync.Mutex
-	var normalEvents []agent.AgentEvent
-	var directEvents []agent.AgentEvent
-
-	// Normal chain captures events via emitEvent.
-	normalEmit := func(event agent.AgentEvent) {
-		mu.Lock()
-		defer mu.Unlock()
-		normalEvents = append(normalEvents, event)
-	}
-
-	// Direct bypass captures events via notifyParent.
-	directEmit := func(event agent.AgentEvent) {
-		mu.Lock()
-		defer mu.Unlock()
-		directEvents = append(directEvents, event)
-	}
-
-	// Pre-configure context with event sink containing notifyParent.
-	sink := backgroundEventSink{
-		emitEvent: normalEmit,
-		baseEvent: func(ctx context.Context) domain.BaseEvent {
-			return domain.NewBaseEvent(agent.LevelCore, "s1", "r1", "", time.Now())
-		},
-		notifyParent: directEmit,
-	}
-	ctx := withBackgroundEventSink(context.Background(), sink)
-
-	ext := &mockExternalExecutor{
-		result: &agent.ExternalAgentResult{
-			Answer:     "direct-result",
-			Iterations: 1,
-			TokensUsed: 42,
-		},
-	}
-
-	mgr := newBackgroundTaskManager(
-		ctx,
-		agent.NoopLogger{},
-		testClock{},
-		blockingExecutor(10*time.Millisecond, "internal"),
-		ext,
-		normalEmit,
-		sink.baseEvent,
-		"test-session",
-		nil,
-	)
-	defer mgr.Shutdown()
-
-	if err := mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
-		TaskID:      "direct-1",
-		Description: "test direct notify",
-		Prompt:      "prompt",
-		AgentType:   "claude_code",
-	}); err != nil {
-		t.Fatalf("dispatch failed: %v", err)
-	}
-
-	mgr.AwaitAll(2 * time.Second)
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	// Verify the normal chain received the completion event.
-	normalFound := false
-	for _, evt := range normalEvents {
-		if ce, ok := evt.(*domain.Event); ok && ce.Kind == types.EventBackgroundTaskCompleted && ce.Data.TaskID == "direct-1" {
-			normalFound = true
-		}
-	}
-	if !normalFound {
-		t.Error("expected BackgroundTaskCompletedEvent via normal emitEvent chain")
-	}
-
-	// Verify the direct bypass also received the completion event.
-	directFound := false
-	for _, evt := range directEvents {
-		if ce, ok := evt.(*domain.Event); ok && ce.Kind == types.EventBackgroundTaskCompleted && ce.Data.TaskID == "direct-1" {
-			directFound = true
-			if ce.Data.Answer != "direct-result" {
-				t.Errorf("unexpected answer via direct: %q", ce.Data.Answer)
-			}
-		}
-	}
-	if !directFound {
-		t.Error("expected BackgroundTaskCompletedEvent via direct notifyParent bypass")
-	}
-}
 
 // --- Batch 2: CompletionNotifier ---
 
@@ -843,7 +598,6 @@ func TestCompletionNotifierCalledOnCompletion(t *testing.T) {
 		agent.NoopLogger{},
 		testClock{},
 		blockingExecutor(10*time.Millisecond, "notified-result"),
-		nil,
 		nil,
 		nil,
 		"test-session",
@@ -907,7 +661,6 @@ func TestCompletionNotifierCalledOnFailure(t *testing.T) {
 		failingExecutor("task exploded"),
 		nil,
 		nil,
-		nil,
 		"test-session",
 		nil,
 	)
@@ -944,83 +697,7 @@ func TestCompletionNotifierCalledOnFailure(t *testing.T) {
 // --- Batch 4: Heartbeat ---
 
 // TestHeartbeatEmitsDuringExternalExecution verifies that the heartbeat goroutine
-// emits ExternalAgentProgressEvent with CurrentTool="__heartbeat__" during
 // long-running external agent execution.
-func TestHeartbeatEmitsDuringExternalExecution(t *testing.T) {
-	var mu sync.Mutex
-	var events []agent.AgentEvent
-
-	// External executor that blocks for enough time to see a heartbeat.
-	ext := &delayedExternalExecutor{
-		delay: 350 * time.Millisecond,
-		result: &agent.ExternalAgentResult{
-			Answer: "slow-result",
-		},
-	}
-
-	emitFn := func(event agent.AgentEvent) {
-		mu.Lock()
-		defer mu.Unlock()
-		events = append(events, event)
-	}
-	baseEventFn := func(ctx context.Context) domain.BaseEvent {
-		return domain.NewBaseEvent(agent.LevelCore, "s1", "r1", "", time.Now())
-	}
-
-	// Override heartbeat interval for testing.
-	origInterval := heartbeatInterval
-	defer func() {
-		// Note: heartbeatInterval is a package-level const so we can't override it.
-		// Instead the test relies on the executor delay being long enough.
-		_ = origInterval
-	}()
-
-	sink := backgroundEventSink{
-		emitEvent: emitFn,
-		baseEvent: baseEventFn,
-	}
-	ctx := withBackgroundEventSink(context.Background(), sink)
-
-	mgr := newBackgroundTaskManager(
-		ctx,
-		agent.NoopLogger{},
-		testClock{},
-		blockingExecutor(10*time.Millisecond, "internal"),
-		ext,
-		emitFn,
-		baseEventFn,
-		"test-session",
-		nil,
-	)
-	defer mgr.Shutdown()
-
-	if err := mgr.Dispatch(ctx, agent.BackgroundDispatchRequest{
-		TaskID:      "hb-1",
-		Description: "heartbeat test",
-		Prompt:      "prompt",
-		AgentType:   "codex",
-	}); err != nil {
-		t.Fatalf("dispatch failed: %v", err)
-	}
-
-	mgr.AwaitAll(5 * time.Second)
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	// The heartbeat interval is 5 minutes so within 350ms we won't see any
-	// heartbeats in production. Instead, verify the completion event was sent
-	// (heartbeat goroutine ran but ticker didn't fire in this short window).
-	completionFound := false
-	for _, evt := range events {
-		if ce, ok := evt.(*domain.Event); ok && ce.Kind == types.EventBackgroundTaskCompleted && ce.Data.TaskID == "hb-1" {
-			completionFound = true
-		}
-	}
-	if !completionFound {
-		t.Error("expected BackgroundTaskCompletedEvent for heartbeat test task")
-	}
-}
 
 type completionNotification struct {
 	taskID      string
@@ -1041,23 +718,8 @@ func (m *mockCompletionNotifier) NotifyCompletion(ctx context.Context, taskID, s
 	}
 }
 
-type delayedExternalExecutor struct {
-	delay  time.Duration
-	result *agent.ExternalAgentResult
-}
 
-func (d *delayedExternalExecutor) Execute(ctx context.Context, req agent.ExternalAgentRequest) (*agent.ExternalAgentResult, error) {
-	select {
-	case <-time.After(d.delay):
-		return d.result, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
 
-func (d *delayedExternalExecutor) SupportedTypes() []string {
-	return []string{"codex", "claude_code"}
-}
 
 type mockWorkspaceManager struct {
 	mergeCalls  int
@@ -1194,7 +856,6 @@ func TestRunTaskPanicRecoveryWithCompletionNotifier(t *testing.T) {
 		panicExecutor,
 		nil,
 		nil,
-		nil,
 		"test-session",
 		nil,
 	)
@@ -1228,78 +889,6 @@ func TestRunTaskPanicRecoveryWithCompletionNotifier(t *testing.T) {
 	}
 }
 
-func TestProgressStalenessDetection(t *testing.T) {
-	hold := make(chan struct{})
-	executor := func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
-		select {
-		case <-hold:
-			return &agent.TaskResult{Answer: "ok"}, nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-	}
-
-	clock := newControllableClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
-
-	mgr := NewBackgroundTaskManager(BackgroundManagerConfig{
-		RunContext:     context.Background(),
-		Logger:         agent.NoopLogger{},
-		Clock:          clock,
-		ExecuteTask:    executor,
-		SessionID:      "test-session",
-		StaleThreshold: 10 * time.Minute,
-	})
-	defer mgr.Shutdown()
-
-	if err := dispatchTask(mgr, "stale-1", "stale test", "prompt", "internal", ""); err != nil {
-		t.Fatalf("dispatch failed: %v", err)
-	}
-	// Let goroutine start.
-	time.Sleep(50 * time.Millisecond)
-
-	// Initially not stale.
-	summaries := mgr.Status([]string{"stale-1"})
-	if len(summaries) != 1 {
-		t.Fatalf("expected 1 summary, got %d", len(summaries))
-	}
-	if summaries[0].Stale {
-		t.Fatal("task should not be stale immediately")
-	}
-	if summaries[0].LastActivityAt.IsZero() {
-		t.Fatal("expected LastActivityAt to be set")
-	}
-
-	// Advance past stale threshold.
-	clock.Advance(11 * time.Minute)
-
-	summaries = mgr.Status([]string{"stale-1"})
-	if !summaries[0].Stale {
-		t.Fatal("task should be stale after 11 minutes without activity")
-	}
-
-	// Simulate progress to refresh activity.
-	mgr.mu.RLock()
-	bt := mgr.tasks["stale-1"]
-	mgr.mu.RUnlock()
-	mgr.captureProgress(context.Background(), bt, agent.ExternalAgentProgress{
-		CurrentTool: "Bash",
-	})
-
-	summaries = mgr.Status([]string{"stale-1"})
-	if summaries[0].Stale {
-		t.Fatal("task should not be stale after progress update")
-	}
-
-	// Let task complete.
-	close(hold)
-	mgr.AwaitAll(2 * time.Second)
-
-	// Completed task should never be stale.
-	summaries = mgr.Status([]string{"stale-1"})
-	if summaries[0].Stale {
-		t.Fatal("completed task should not be stale")
-	}
-}
 
 func TestAwaitAllReturnsTimeout(t *testing.T) {
 	hold := make(chan struct{})
@@ -1384,39 +973,7 @@ func TestDispatchContextPropagators(t *testing.T) {
 	}
 }
 
-func TestInjectBackgroundInputValidation(t *testing.T) {
-	mgr := &BackgroundTaskManager{}
 
-	if err := mgr.InjectBackgroundInput(context.Background(), " ", "hello"); err == nil || !strings.Contains(err.Error(), "task_id is required") {
-		t.Fatalf("expected task_id validation error, got %v", err)
-	}
-	if err := mgr.InjectBackgroundInput(context.Background(), "task-1", " "); err == nil || !strings.Contains(err.Error(), "input is required") {
-		t.Fatalf("expected input validation error, got %v", err)
-	}
-	err := mgr.InjectBackgroundInput(context.Background(), "task-404", "hello")
-	if err == nil {
-		t.Fatal("expected task not found error")
-	}
-	if !errors.Is(err, ErrBackgroundTaskNotFound) {
-		t.Fatalf("expected ErrBackgroundTaskNotFound, got %v", err)
-	}
-}
-
-func TestInjectBackgroundInputRequiresPaneBinding(t *testing.T) {
-	mgr := &BackgroundTaskManager{
-		tasks: map[string]*backgroundTask{
-			"task-1": {
-				id:     "task-1",
-				config: map[string]string{},
-			},
-		},
-	}
-
-	err := mgr.InjectBackgroundInput(context.Background(), "task-1", "hello")
-	if err == nil || !strings.Contains(err.Error(), "is not bound to a tmux pane") {
-		t.Fatalf("expected pane binding error, got %v", err)
-	}
-}
 
 // mockTmuxSender is a test double for agent.TmuxSender.
 type mockTmuxSender struct {
@@ -1459,80 +1016,6 @@ func (testEventAppender) AppendLine(path string, line string) {
 	_, _ = f.WriteString(strings.TrimSpace(line) + "\n")
 }
 
-func TestInjectBackgroundInputCommandFailureAndSuccess(t *testing.T) {
-	logDir := t.TempDir()
-	eventLogPath := filepath.Join(logDir, "events.jsonl")
-	roleLogPath := filepath.Join(logDir, "role.log")
-
-	sender := &mockTmuxSender{failOnce: true}
-	mgr := &BackgroundTaskManager{
-		tasks: map[string]*backgroundTask{
-			"task-1": {
-				id: "task-1",
-				config: map[string]string{
-					"tmux_pane":      "%11",
-					"team_event_log": eventLogPath,
-					"role_log_path":  roleLogPath,
-					"team_id":        "team-test",
-					"role_id":        "executor",
-				},
-			},
-		},
-		tmuxSender:    sender,
-		eventAppender: testEventAppender{},
-	}
-
-	err := mgr.InjectBackgroundInput(context.Background(), "task-1", "continue")
-	if err == nil {
-		t.Fatal("expected command failure error")
-	}
-	if !strings.Contains(err.Error(), "inject input to pane %11: denied") {
-		t.Fatalf("expected wrapped command error, got %v", err)
-	}
-
-	if err := mgr.InjectBackgroundInput(context.Background(), "task-1", "continue"); err != nil {
-		t.Fatalf("expected success, got %v", err)
-	}
-
-	sender.mu.Lock()
-	calls := sender.calls
-	sender.mu.Unlock()
-	if len(calls) != 2 {
-		t.Fatalf("expected 2 SendKeys calls, got %d", len(calls))
-	}
-	for _, c := range calls {
-		if c.pane != "%11" {
-			t.Fatalf("expected pane %%11, got %q", c.pane)
-		}
-		if c.data != "continue" {
-			t.Fatalf("expected data %q, got %q", "continue", c.data)
-		}
-	}
-
-	eventLines := readJSONLinesForTest(t, eventLogPath)
-	if len(eventLines) != 2 {
-		t.Fatalf("expected 2 team event lines, got %d", len(eventLines))
-	}
-	if got := strings.TrimSpace(fmt.Sprint(eventLines[0]["type"])); got != "tmux_input_inject_failed" {
-		t.Fatalf("expected first event type tmux_input_inject_failed, got %q", got)
-	}
-	if got := strings.TrimSpace(fmt.Sprint(eventLines[1]["type"])); got != "tmux_input_injected" {
-		t.Fatalf("expected second event type tmux_input_injected, got %q", got)
-	}
-	if got := strings.TrimSpace(fmt.Sprint(eventLines[0]["pane"])); got != "%11" {
-		t.Fatalf("expected pane %%11, got %q", got)
-	}
-	if got := strings.TrimSpace(fmt.Sprint(eventLines[0]["role_id"])); got != "executor" {
-		t.Fatalf("expected role_id executor, got %q", got)
-	}
-	if got := strings.TrimSpace(fmt.Sprint(eventLines[0]["team_id"])); got != "team-test" {
-		t.Fatalf("expected team_id team-test, got %q", got)
-	}
-	roleLines := readJSONLinesForTest(t, roleLogPath)
-	if len(roleLines) != 2 {
-		t.Fatalf("expected 2 role log lines, got %d", len(roleLines))
-	}
-}
 
 func readJSONLinesForTest(t *testing.T, path string) []map[string]any {
 	t.Helper()

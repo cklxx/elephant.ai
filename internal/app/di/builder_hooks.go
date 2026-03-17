@@ -3,7 +3,6 @@ package di
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	appcontext "alex/internal/app/agent/context"
@@ -13,15 +12,10 @@ import (
 	ctxmgr "alex/internal/app/context"
 	"alex/internal/app/subscription"
 	toolregistry "alex/internal/app/toolregistry"
-	agent "alex/internal/domain/agent/ports/agent"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	"alex/internal/infra/adapters"
-	codinginfra "alex/internal/infra/coding"
-	"alex/internal/infra/external"
-	"alex/internal/infra/external/teamrun"
 	"alex/internal/infra/llm"
 	"alex/internal/infra/memory"
-	"alex/internal/infra/process"
 	toolspolicy "alex/internal/infra/tools"
 	okrtools "alex/internal/infra/tools/builtin/okr"
 	runtimeconfig "alex/internal/shared/config"
@@ -128,20 +122,7 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 	okrStore := b.buildOKRGoalStore()
 	hookRegistry := b.buildHookRegistry(parent.MemoryEngine, parent.llmFactory, okrStore)
 	okrContextProvider := b.buildOKRContextProvider(okrStore)
-	teamRunRecorder, err := teamrun.NewFileRecorder(filepath.Join(b.sessionDir, "_team_runs"), b.logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize team run recorder: %w", err)
-	}
 	credentialRefresher := buildCredentialRefresher()
-
-	detectedCLIs := codinginfra.DetectLocalCLIs()
-	b.applyDetectedExternalAgents(detectedCLIs, false)
-
-	var externalExecutor agent.ExternalAgentExecutor
-	externalRegistry := external.NewRegistry(b.config.ExternalAgents, process.NewController(), b.logger)
-	if len(externalRegistry.SupportedTypes()) > 0 {
-		externalExecutor = codinginfra.NewManagedExternalExecutor(externalRegistry, b.logger)
-	}
 
 	coordinator := agentcoordinator.NewAgentCoordinator(
 		parent.llmFactory,
@@ -158,13 +139,10 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 		parent.CostTracker,
 		b.buildAgentAppConfig(),
 		agentcoordinator.WithHookRegistry(hookRegistry),
-		agentcoordinator.WithExternalExecutor(externalExecutor),
 		agentcoordinator.WithOKRContextProvider(okrContextProvider),
 		agentcoordinator.WithCheckpointStore(parent.CheckpointStore),
 		agentcoordinator.WithCredentialRefresher(credentialRefresher),
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
-		agentcoordinator.WithTeamDefinitions(convertTeamConfigs(b.config.ExternalAgents.Teams)),
-		agentcoordinator.WithTeamRunRecorder(teamRunRecorder),
 		agentcoordinator.WithAtomicWriter(adapters.NewOSAtomicWriter()),
 	)
 

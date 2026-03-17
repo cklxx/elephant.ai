@@ -124,9 +124,6 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		activeSessionID := slot.sessionID
 		taskDesc := slot.taskDesc
 		slot.mu.Unlock()
-		if g.tryResolveInputReply(ctx, msg.chatID, strings.TrimSpace(msg.content)) {
-			return nil
-		}
 		// When btw fork mode is disabled, fall back to the legacy behaviour:
 		// inject the message directly into the running task's input channel.
 		if !g.cfg.BtwEnabled {

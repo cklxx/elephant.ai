@@ -235,8 +235,9 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 	var result *agent.TaskResult
 	var err error
 
-	switch agentType {
-	case "", "internal":
+	if agentType != "" && agentType != "internal" {
+		err = fmt.Errorf("external agent type %q not supported; use CLI integration", agentType)
+	} else {
 		listener := bt.parentListener
 		if listener == nil {
 			listener = m.parentListener
@@ -249,61 +250,6 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 		}, func(ctx context.Context) (*agent.TaskResult, error) {
 			return m.executeTask(ctx, prompt, m.sessionID, listener)
 		}, m.logger)
-	default:
-		if m.externalExecutor == nil {
-			err = fmt.Errorf("external agent executor not configured for type %q", agentType)
-		} else {
-			workingDir := m.workingDir
-			if bt.workspace != nil && bt.workspace.WorkingDir != "" {
-				workingDir = bt.workspace.WorkingDir
-			}
-
-			// Heartbeat goroutine: emit lightweight progress events every 5 minutes
-			// to keep the SerializingEventListener queue alive during long idle periods.
-			heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
-			if bt.emitEvent != nil && bt.baseEvent != nil {
-				m.goRunner(m.logger, "bg-heartbeat:"+bt.id, func() {
-					m.runHeartbeat(heartbeatCtx, bt)
-				})
-			}
-
-			extResult, execErr := m.externalExecutor.Execute(ctx, agent.ExternalAgentRequest{
-				TaskID:        bt.id,
-				Prompt:        prompt,
-				AgentType:     agentType,
-				WorkingDir:    workingDir,
-				Config:        core.CloneStringMap(bt.config),
-				SessionID:     m.sessionID,
-				CausationID:   bt.causationID,
-				ExecutionMode: bt.executionMode,
-				AutonomyLevel: bt.autonomyLevel,
-				OnProgress: func(p agent.ExternalAgentProgress) {
-					m.captureProgress(ctx, bt, p)
-				},
-				OnBridgeStarted: func(info any) {
-					// Propagate bridge started info to completion notifier for persistence.
-					if notifier := agent.GetCompletionNotifier(ctx); notifier != nil {
-						if persister, ok := notifier.(agent.BridgeMetaPersister); ok {
-							persister.PersistBridgeMeta(ctx, bt.id, info)
-						}
-					}
-				},
-			})
-			heartbeatCancel()
-
-			if extResult != nil {
-				result = &agent.TaskResult{
-					Answer:     extResult.Answer,
-					Iterations: extResult.Iterations,
-					TokensUsed: extResult.TokensUsed,
-				}
-			}
-			if execErr != nil {
-				err = execErr
-			} else if extResult != nil && extResult.Error != "" {
-				err = fmt.Errorf("%s", extResult.Error)
-			}
-		}
 	}
 
 	if err == nil {

@@ -11,76 +11,6 @@ import (
 	"alex/internal/shared/utils"
 )
 
-func (m *BackgroundTaskManager) captureProgress(ctx context.Context, bt *backgroundTask, p agent.ExternalAgentProgress) {
-	now := m.clock.Now()
-	shouldEmit := false
-	bt.mu.Lock()
-	bt.progress = &p
-	bt.lastActivityAt = now
-	if bt.emitEvent != nil && bt.baseEvent != nil {
-		if bt.lastProgressEmit.IsZero() || now.Sub(bt.lastProgressEmit) >= 2*time.Second {
-			bt.lastProgressEmit = now
-			shouldEmit = true
-		}
-	}
-	bt.mu.Unlock()
-
-	if shouldEmit {
-		elapsed := time.Duration(0)
-		if !bt.startedAt.IsZero() {
-			elapsed = now.Sub(bt.startedAt)
-			if elapsed < 0 {
-				elapsed = 0
-			}
-		}
-		bt.emitEvent(domain.NewExternalAgentProgressEvent(
-			bt.baseEvent(ctx),
-			bt.id, bt.agentType, p.Iteration, p.MaxIter, p.TokensUsed, p.CostUSD,
-			p.CurrentTool, p.CurrentArgs, append([]string(nil), p.FilesTouched...), p.LastActivity, elapsed,
-		))
-	}
-}
-
-const heartbeatInterval = 5 * time.Minute
-
-// runHeartbeat emits lightweight progress events at heartbeatInterval to keep
-// the SerializingEventListener queue alive during long idle periods (e.g. a
-// bash command running for >10 minutes with no JSONL output).
-func (m *BackgroundTaskManager) runHeartbeat(ctx context.Context, bt *backgroundTask) {
-	// Snapshot immutable fields once to avoid reading bt fields without lock.
-	bt.mu.Lock()
-	taskID := bt.id
-	agentType := bt.agentType
-	startedAt := bt.startedAt
-	bt.mu.Unlock()
-
-	ticker := time.NewTicker(heartbeatInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			now := m.clock.Now()
-			bt.mu.Lock()
-			bt.lastActivityAt = now
-			bt.mu.Unlock()
-			elapsed := time.Duration(0)
-			if !startedAt.IsZero() {
-				elapsed = now.Sub(startedAt)
-				if elapsed < 0 {
-					elapsed = 0
-				}
-			}
-			bt.emitEvent(domain.NewExternalAgentProgressEvent(
-				bt.baseEvent(ctx),
-				taskID, agentType, 0, 0, 0, 0,
-				"__heartbeat__", "", nil, time.Time{}, elapsed,
-			))
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 func (m *BackgroundTaskManager) emitCompletionEvent(ctx context.Context, bt *backgroundTask) {
 	if bt.emitEvent == nil || bt.baseEvent == nil {
 		return
@@ -119,12 +49,7 @@ func (m *BackgroundTaskManager) emitCompletionEvent(ctx context.Context, bt *bac
 		bt.id, description, string(status), answer, errMsg, duration, iterations, tokensUsed,
 	)
 	completedEvent.Data.MergeStatus = mergeStatus
-
-	// 1. Normal chain (may fail if SerializingEventListener queue timed out).
 	bt.emitEvent(completedEvent)
-
-	// 2. Direct parent notification — bypasses SerializingEventListener so
-	//    completion is delivered even when the queue has been idle-closed.
 	if bt.notifyParent != nil {
 		bt.notifyParent(completedEvent)
 	}
@@ -148,7 +73,6 @@ func (m *BackgroundTaskManager) signalCompletion(taskID string) {
 	m.notifyDependencyWaiters()
 }
 
-// notifyDependencyWaiters wakes all goroutines blocked in awaitDependencies or awaitTasks.
 func (m *BackgroundTaskManager) notifyDependencyWaiters() {
 	m.depMu.Lock()
 	ch := m.depNotify
@@ -157,7 +81,6 @@ func (m *BackgroundTaskManager) notifyDependencyWaiters() {
 	close(ch)
 }
 
-// depWaitChan returns the current dependency notification channel.
 func (m *BackgroundTaskManager) depWaitChan() <-chan struct{} {
 	m.depMu.Lock()
 	ch := m.depNotify
@@ -214,7 +137,6 @@ func (m *BackgroundTaskManager) awaitDependencies(ctx context.Context, bt *backg
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-
 		allDone := true
 		for _, depID := range bt.dependsOn {
 			m.mu.RLock()
@@ -233,7 +155,6 @@ func (m *BackgroundTaskManager) awaitDependencies(ctx context.Context, bt *backg
 
 			switch status {
 			case agent.BackgroundTaskStatusCompleted:
-				// ok
 			case agent.BackgroundTaskStatusFailed, agent.BackgroundTaskStatusCancelled:
 				if errMsg == "" {
 					errMsg = "dependency failed"

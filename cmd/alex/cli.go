@@ -54,9 +54,6 @@ func (c *CLI) runRegisteredCommand(args []string) (handled bool, err error) {
 	case "config":
 		return true, executeConfigCommand(cmdArgs, os.Stdout)
 
-	case "team":
-		return true, runTeamCommandWithContainer(cmdArgs, c.container)
-
 	case "health":
 		return true, runHealthCommand(cmdArgs)
 

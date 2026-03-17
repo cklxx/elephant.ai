@@ -2,10 +2,8 @@ package runtime
 
 import (
 	"context"
-	"strings"
 
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/infra/external/workspace"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/shared/async"
 	"alex/internal/shared/json"
@@ -67,10 +65,6 @@ var (
 	GoRunner             agent.GoRunnerFunc              = func(logger agent.Logger, name string, fn func()) { async.Go(logger, name, fn) }
 	WorkingDirResolver   agent.WorkingDirResolverFunc    = func(ctx context.Context) string { return pathutil.GetPathResolverFromContext(ctx).ResolvePath(".") }
 	WorkspaceManagerFactory agent.WorkspaceManagerFactoryFunc = func(workingDir string, logger agent.Logger) agent.WorkspaceManager {
-		workingDir = strings.TrimSpace(workingDir)
-		if workingDir == "" {
-			return nil
-		}
-		return workspace.NewManager(workingDir, logger)
+		return nil
 	}
 )

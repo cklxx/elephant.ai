@@ -37,7 +37,6 @@ type backgroundTask struct {
 	parentListener agent.EventListener
 	notifyParent   func(event agent.AgentEvent) // direct bypass for completion events
 
-	progress         *agent.ExternalAgentProgress
 	pendingInput     *agent.InputRequestSummary
 	lastProgressEmit time.Time
 	lastActivityAt   time.Time
@@ -74,12 +73,7 @@ type BackgroundTaskManager struct {
 	executeTask func(ctx context.Context, prompt, sessionID string,
 		listener agent.EventListener) (*agent.TaskResult, error)
 
-	// externalExecutor handles external code agents (can be nil).
-	externalExecutor agent.ExternalAgentExecutor
-	inputExecutor    agent.InteractiveExternalExecutor
-	externalInputCh  chan agent.InputRequest
-	closeInputOnce   sync.Once
-	emitEvent        func(event agent.AgentEvent)
+	emitEvent func(event agent.AgentEvent)
 	baseEvent        func(ctx context.Context) domain.BaseEvent
 
 	sessionID          string
@@ -108,9 +102,8 @@ type BackgroundManagerConfig struct {
 	GoRunner            agent.GoRunnerFunc
 	WorkingDirResolver  agent.WorkingDirResolverFunc
 	WorkspaceMgrFactory agent.WorkspaceManagerFactoryFunc
-	ExecuteTask         func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
-	ExternalExecutor    agent.ExternalAgentExecutor
-	SessionID           string
+	ExecuteTask func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
+	SessionID   string
 	MaxConcurrentTasks  int
 	StaleThreshold      time.Duration
 
@@ -129,7 +122,6 @@ func newBackgroundTaskManager(
 	clock agent.Clock,
 	executeTask func(ctx context.Context, prompt, sessionID string,
 		listener agent.EventListener) (*agent.TaskResult, error),
-	externalExecutor agent.ExternalAgentExecutor,
 	emitEvent func(event agent.AgentEvent),
 	baseEvent func(ctx context.Context) domain.BaseEvent,
 	sessionID string,
@@ -145,7 +137,6 @@ func newBackgroundTaskManager(
 		nil,
 		nil,
 		executeTask,
-		externalExecutor,
 		emitEvent,
 		baseEvent,
 		sessionID,
@@ -165,7 +156,6 @@ func newBackgroundTaskManagerWithDeps(
 	workspaceMgrFactory agent.WorkspaceManagerFactoryFunc,
 	executeTask func(ctx context.Context, prompt, sessionID string,
 		listener agent.EventListener) (*agent.TaskResult, error),
-	externalExecutor agent.ExternalAgentExecutor,
 	emitEvent func(event agent.AgentEvent),
 	baseEvent func(ctx context.Context) domain.BaseEvent,
 	sessionID string,
@@ -202,17 +192,6 @@ func newBackgroundTaskManagerWithDeps(
 		workspaceMgr = workspaceMgrFactory(workingDir, logger)
 	}
 
-	var inputExecutor agent.InteractiveExternalExecutor
-	var externalInputCh chan agent.InputRequest
-	if externalExecutor != nil {
-		if interactive, ok := externalExecutor.(agent.InteractiveExternalExecutor); ok {
-			if interactive.InputRequests() != nil {
-				inputExecutor = interactive
-				externalInputCh = make(chan agent.InputRequest, 32)
-			}
-		}
-	}
-
 	manager := &BackgroundTaskManager{
 		tasks:              make(map[string]*backgroundTask),
 		depNotify:          make(chan struct{}),
@@ -227,21 +206,12 @@ func newBackgroundTaskManagerWithDeps(
 		idContext:          idContextReader,
 		goRunner:           goRunner,
 		executeTask:        executeTask,
-		externalExecutor:   externalExecutor,
-		inputExecutor:      inputExecutor,
-		externalInputCh:    externalInputCh,
 		emitEvent:          emitEvent,
 		baseEvent:          baseEvent,
 		sessionID:          sessionID,
 		parentListener:     parentListener,
 		maxConcurrentTasks: maxConcurrentTasks,
 		staleThreshold:     defaultStaleThreshold,
-	}
-
-	if inputExecutor != nil && externalInputCh != nil {
-		goRunner(logger, "bg.externalInput", func() {
-			manager.forwardExternalInputRequests()
-		})
 	}
 
 	return manager
@@ -259,7 +229,6 @@ func NewBackgroundTaskManager(cfg BackgroundManagerConfig) *BackgroundTaskManage
 		cfg.WorkingDirResolver,
 		cfg.WorkspaceMgrFactory,
 		cfg.ExecuteTask,
-		cfg.ExternalExecutor,
 		nil,
 		nil,
 		cfg.SessionID,

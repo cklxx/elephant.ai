@@ -133,37 +133,7 @@ func TestConfigFromRuntimeConfig(t *testing.T) {
 	}
 }
 
-func TestConvertTeamConfigsAndBuildAgentAppConfig(t *testing.T) {
-	teams := convertTeamConfigs([]runtimeconfig.TeamConfig{
-		{
-			Name:        "incident",
-			Description: "Incident response team",
-			Roles: []runtimeconfig.TeamRoleConfig{
-				{
-					Name:              "investigator",
-					AgentType:         "codex",
-					CapabilityProfile: "debug",
-					TargetCLI:         "codex",
-					PromptTemplate:    "Investigate",
-					ExecutionMode:     "autonomous",
-					AutonomyLevel:     "high",
-					WorkspaceMode:     "shared",
-					Config:            map[string]string{"key": "value"},
-					InheritContext:    true,
-				},
-			},
-			Stages: []runtimeconfig.TeamStageConfig{
-				{Name: "investigate", Roles: []string{"investigator"}},
-			},
-		},
-	})
-	if len(teams) != 1 || len(teams[0].Roles) != 1 || len(teams[0].Stages) != 1 {
-		t.Fatalf("convertTeamConfigs() = %#v, want one team with one role and stage", teams)
-	}
-	if teams[0].Roles[0].Name != "investigator" || teams[0].Roles[0].Config["key"] != "value" {
-		t.Fatalf("converted roles = %#v, want copied role fields", teams[0].Roles)
-	}
-
+func TestBuildAgentAppConfig(t *testing.T) {
 	builder := newContainerBuilder(Config{
 		LLMProvider:                "openai",
 		LLMModel:                   "gpt-5",

@@ -76,7 +76,6 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	applyOverrides(&cfg, &meta, options.overrides)
 
 	normalizeRuntimeConfig(&cfg)
-	autoEnableExternalAgents(&cfg, &meta)
 	cliCreds := CLICredentials{}
 	if shouldLoadCLICredentials(cfg) {
 		cmdRunner := options.cmdRunner
@@ -231,80 +230,7 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.StopSequences = filtered
 }
 
-func normalizeExternalAgentsConfig(cfg *ExternalAgentsConfig) {
-	if cfg == nil {
-		return
-	}
-	cfg.ClaudeCode.Binary = strings.TrimSpace(cfg.ClaudeCode.Binary)
-	cfg.ClaudeCode.DefaultModel = strings.TrimSpace(cfg.ClaudeCode.DefaultModel)
-	cfg.ClaudeCode.DefaultMode = strings.TrimSpace(cfg.ClaudeCode.DefaultMode)
-	filtered := cfg.ClaudeCode.AutonomousAllowedTools[:0]
-	seen := make(map[string]struct{}, len(cfg.ClaudeCode.AutonomousAllowedTools))
-	for _, tool := range cfg.ClaudeCode.AutonomousAllowedTools {
-		trimmed := strings.TrimSpace(tool)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		filtered = append(filtered, trimmed)
-	}
-	cfg.ClaudeCode.AutonomousAllowedTools = filtered
-	cfg.Codex.Binary = strings.TrimSpace(cfg.Codex.Binary)
-	cfg.Codex.DefaultModel = strings.TrimSpace(cfg.Codex.DefaultModel)
-	cfg.Codex.ApprovalPolicy = strings.TrimSpace(cfg.Codex.ApprovalPolicy)
-	cfg.Codex.Sandbox = strings.TrimSpace(cfg.Codex.Sandbox)
-	cfg.Codex.PlanApprovalPolicy = strings.TrimSpace(cfg.Codex.PlanApprovalPolicy)
-	cfg.Codex.PlanSandbox = strings.TrimSpace(cfg.Codex.PlanSandbox)
-	cfg.Kimi.Binary = strings.TrimSpace(cfg.Kimi.Binary)
-	cfg.Kimi.DefaultModel = strings.TrimSpace(cfg.Kimi.DefaultModel)
-	cfg.Kimi.ApprovalPolicy = strings.TrimSpace(cfg.Kimi.ApprovalPolicy)
-	cfg.Kimi.Sandbox = strings.TrimSpace(cfg.Kimi.Sandbox)
-	cfg.Kimi.PlanApprovalPolicy = strings.TrimSpace(cfg.Kimi.PlanApprovalPolicy)
-	cfg.Kimi.PlanSandbox = strings.TrimSpace(cfg.Kimi.PlanSandbox)
-	for i := range cfg.Teams {
-		cfg.Teams[i].Name = strings.TrimSpace(cfg.Teams[i].Name)
-		cfg.Teams[i].Description = strings.TrimSpace(cfg.Teams[i].Description)
-		for j := range cfg.Teams[i].Roles {
-			role := &cfg.Teams[i].Roles[j]
-			role.Name = strings.TrimSpace(role.Name)
-			role.AgentType = strings.TrimSpace(role.AgentType)
-			role.CapabilityProfile = strings.TrimSpace(role.CapabilityProfile)
-			role.TargetCLI = strings.TrimSpace(role.TargetCLI)
-			role.PromptTemplate = strings.TrimSpace(role.PromptTemplate)
-			role.ExecutionMode = strings.TrimSpace(role.ExecutionMode)
-			role.AutonomyLevel = strings.TrimSpace(role.AutonomyLevel)
-			role.WorkspaceMode = strings.TrimSpace(role.WorkspaceMode)
-			if len(role.Config) > 0 {
-				normalized := make(map[string]string, len(role.Config))
-				for key, value := range role.Config {
-					trimmedKey := strings.TrimSpace(key)
-					if trimmedKey == "" {
-						continue
-					}
-					normalized[trimmedKey] = strings.TrimSpace(value)
-				}
-				role.Config = normalized
-			}
-		}
-		for j := range cfg.Teams[i].Stages {
-			stage := &cfg.Teams[i].Stages[j]
-			stage.Name = strings.TrimSpace(stage.Name)
-			if len(stage.Roles) == 0 {
-				continue
-			}
-			trimmedRoles := make([]string, 0, len(stage.Roles))
-			for _, roleName := range stage.Roles {
-				if trimmed := strings.TrimSpace(roleName); trimmed != "" {
-					trimmedRoles = append(trimmedRoles, trimmed)
-				}
-			}
-			stage.Roles = trimmedRoles
-		}
-	}
-}
+func normalizeExternalAgentsConfig(_ *ExternalAgentsConfig) {}
 
 func normalizeHTTPLimits(cfg *HTTPLimitsConfig) {
 	if cfg == nil {

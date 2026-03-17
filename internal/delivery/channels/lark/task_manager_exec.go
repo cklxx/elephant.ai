@@ -206,12 +206,6 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 		cleanups = append(cleanups, bgLn.Release)
 		listener = bgLn
 	}
-	// Input request listener bridges external agent permission/input requests to Lark.
-	{
-		irLn := newInputRequestListener(execCtx, listener, g, msg.chatID, replyTarget(msg.messageID, true), g.logger)
-		cleanups = append(cleanups, irLn.Close)
-		listener = irLn
-	}
 	if g.cfg.ShowPlanClarifyMessages {
 		listener = newPlanClarifyListener(execCtx, listener, g, msg.chatID, replyTarget(msg.messageID, true), awaitTracker)
 	}

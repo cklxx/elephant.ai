@@ -92,8 +92,7 @@ type Gateway struct {
 	chatSessionStore    ChatSessionBindingStore
 	deliveryOutboxStore DeliveryOutboxStore
 	noticeState         *noticeStateStore
-	activeSlots         sync.Map           // chatID → *sessionSlot
-	pendingInputRelays  sync.Map           // chatID → *pendingRelayQueue
+	activeSlots sync.Map // chatID → *sessionSlot
 	forkSlots           forkSlotMap        // childSessionID → *forkSlot
 	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
 	autoAuth            *AutoAuth          // in-message OAuth device flow
