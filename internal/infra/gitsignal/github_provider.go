@@ -17,6 +17,7 @@ import (
 
 	"alex/internal/domain/signal"
 	signalports "alex/internal/domain/signal/ports"
+	"alex/internal/shared/httpclient"
 	"alex/internal/shared/logging"
 )
 
@@ -32,7 +33,7 @@ var _ signalports.GitSignalProvider = (*GitHubProvider)(nil)
 // NewGitHubProvider creates a GitHubProvider with the given config.
 func NewGitHubProvider(config GitHubConfig, client *http.Client, logger logging.Logger) *GitHubProvider {
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = httpclient.New(30*time.Second, logger)
 	}
 	return &GitHubProvider{
 		config: config,

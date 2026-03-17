@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/domain/workitem"
 	"alex/internal/domain/workitem/ports"
+	"alex/internal/shared/httpclient"
 )
 
 // Config holds Linear connection settings.
@@ -28,7 +29,7 @@ type Provider struct {
 // The client should have appropriate timeouts configured.
 func NewProvider(cfg Config, client *http.Client) *Provider {
 	if client == nil {
-		client = &http.Client{}
+		client = httpclient.New(0, nil)
 	}
 	return &Provider{cfg: cfg, client: client}
 }

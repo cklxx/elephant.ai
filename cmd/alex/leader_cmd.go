@@ -13,6 +13,7 @@ import (
 	"time"
 
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/httpclient"
 
 	"gopkg.in/yaml.v3"
 )
@@ -216,7 +217,7 @@ func fetchLeaderDashboard(url string) (*leaderDashboardResponse, error) {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
 
-	client := &http.Client{Timeout: leaderRequestTimeout}
+	client := httpclient.New(leaderRequestTimeout, nil)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("connect to server: %w", err)
