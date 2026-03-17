@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"alex/internal/app/agent/llmclient"
 	"alex/internal/domain/agent/ports"
@@ -50,6 +51,10 @@ func (c *pinnedRateLimitFallbackClient) Model() string {
 	return c.primary.Model()
 }
 
+// pinnedFallbackDeadline is the fresh timeout given to fallback calls so they
+// never inherit the primary's exhausted context budget.
+const pinnedFallbackDeadline = 90 * time.Second
+
 func (c *pinnedRateLimitFallbackClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	if c.useFallback.Load() {
 		return c.fallback.Complete(ctx, req)
@@ -59,7 +64,9 @@ func (c *pinnedRateLimitFallbackClient) Complete(ctx context.Context, req ports.
 		return resp, err
 	}
 	c.activateFallback(err)
-	return c.fallback.Complete(ctx, req)
+	fbCtx, fbCancel := context.WithTimeout(context.WithoutCancel(ctx), pinnedFallbackDeadline)
+	defer fbCancel()
+	return c.fallback.Complete(fbCtx, req)
 }
 
 func (c *pinnedRateLimitFallbackClient) StreamComplete(
@@ -76,7 +83,9 @@ func (c *pinnedRateLimitFallbackClient) StreamComplete(
 		return resp, err
 	}
 	c.activateFallback(err)
-	return llm.EnsureStreamingClient(c.fallback).(llm.StreamingLLMClient).StreamComplete(ctx, req, callbacks)
+	fbCtx, fbCancel := context.WithTimeout(context.WithoutCancel(ctx), pinnedFallbackDeadline)
+	defer fbCancel()
+	return llm.EnsureStreamingClient(c.fallback).(llm.StreamingLLMClient).StreamComplete(fbCtx, req, callbacks)
 }
 
 func (c *pinnedRateLimitFallbackClient) activateFallback(err error) {

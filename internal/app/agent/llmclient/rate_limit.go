@@ -14,12 +14,15 @@ func IsRateLimitError(err error) bool {
 		return false
 	}
 	var transient *alexerrors.TransientError
-	if errors.As(err, &transient) && transient.StatusCode == http.StatusTooManyRequests {
-		return true
+	if errors.As(err, &transient) {
+		if transient.StatusCode == http.StatusTooManyRequests || transient.StatusCode == 529 {
+			return true
+		}
 	}
 	lower := strings.ToLower(err.Error())
 	return strings.Contains(lower, "usage_limit_reached") ||
 		strings.Contains(lower, "rate limit") ||
 		strings.Contains(lower, "too many requests") ||
-		strings.Contains(lower, "429")
+		strings.Contains(lower, "429") ||
+		strings.Contains(lower, "overloaded")
 }
