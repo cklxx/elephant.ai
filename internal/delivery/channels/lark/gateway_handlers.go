@@ -3,6 +3,7 @@ package lark
 import (
 	"context"
 	"strings"
+	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
 
@@ -238,6 +239,7 @@ func (g *Gateway) launchWorkerGoroutine(msg *incomingMessage, slot *sessionSlot,
 		if slot.taskToken == taskToken {
 			slot.inputCh = nil
 			slot.taskCancel = nil
+			slot.taskStartTime = time.Time{}
 			if awaitingInput {
 				slot.phase = slotAwaitingInput
 				slot.lastSessionID = slot.sessionID

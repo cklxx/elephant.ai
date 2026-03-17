@@ -17,6 +17,7 @@ type AIChatCoordinator struct {
 	logger   logging.Logger
 	// Bot IDs that should participate in coordinated chats
 	botIDs map[string]bool
+	now    func() time.Time
 }
 
 // aiChatSession tracks the state of a multi-bot chat
@@ -42,6 +43,7 @@ func NewAIChatCoordinator(logger logging.Logger, botIDs []string) *AIChatCoordin
 		sessions: make(map[string]*aiChatSession),
 		logger:   logging.OrNop(logger),
 		botIDs:   botIDMap,
+		now:      time.Now,
 	}
 }
 
@@ -86,7 +88,7 @@ func (c *AIChatCoordinator) DetectAndStartSession(chatID, messageID, senderID st
 		chatID:        chatID,
 		participants:  participants,
 		currentTurn:   0,
-		lastActivity:  time.Now(),
+		lastActivity:  c.now(),
 		userMessageID: messageID,
 		userSenderID:  senderID,
 		messageCount:  0,
@@ -134,7 +136,7 @@ func (c *AIChatCoordinator) AdvanceTurn(chatID, botID string) (nextBotID string,
 	}
 
 	session.messageCount++
-	session.lastActivity = time.Now()
+	session.lastActivity = c.now()
 
 	// Check if we've reached the message limit
 	if session.messageCount >= session.maxMessages {
@@ -202,7 +204,7 @@ func (c *AIChatCoordinator) CleanupExpiredSessions(maxAge time.Duration) int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	now := time.Now()
+	now := c.now()
 	removed := 0
 	for chatID, session := range c.sessions {
 		if now.Sub(session.lastActivity) > maxAge {

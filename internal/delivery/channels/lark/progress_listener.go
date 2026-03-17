@@ -406,10 +406,7 @@ func (p *progressListener) buildText() string {
 }
 
 func (p *progressListener) clock() time.Time {
-	if p.now != nil {
-		return p.now()
-	}
-	return time.Now()
+	return p.now()
 }
 
 // larkProgressSender is the concrete progressSender backed by the Gateway.

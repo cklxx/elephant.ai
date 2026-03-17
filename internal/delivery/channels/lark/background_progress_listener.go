@@ -237,10 +237,7 @@ func (l *backgroundProgressListener) buildHumanHeader(t *bgTaskTracker, title st
 }
 
 func (l *backgroundProgressListener) clock() time.Time {
-	if l.now != nil {
-		return l.now()
-	}
-	return time.Now()
+	return l.now()
 }
 
 func (l *backgroundProgressListener) taskInterval(agentType string) time.Duration {

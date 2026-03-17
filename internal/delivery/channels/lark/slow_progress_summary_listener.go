@@ -241,8 +241,5 @@ func (l *slowProgressSummaryListener) dispatchContextBase() context.Context {
 }
 
 func (l *slowProgressSummaryListener) clock() time.Time {
-	if l.now != nil {
-		return l.now()
-	}
-	return time.Now()
+	return l.now()
 }
