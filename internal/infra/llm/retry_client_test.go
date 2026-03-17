@@ -613,6 +613,23 @@ func TestRetryClient429UsesAggressiveBackoff(t *testing.T) {
 	require.LessOrEqual(t, waits[0], 6250*time.Millisecond, "429 backoff should be <= 5s * 1.25 (jitter)")
 }
 
+func TestRetryClient529UsesAggressiveBackoff(t *testing.T) {
+	// 529 overloaded should use the same rateLimitBaseDelay (5s) as 429.
+	rc := &retryClient{
+		retryConfig: alexerrors.RetryConfig{
+			BaseDelay: 100 * time.Millisecond, // low default — 529 should override
+			MaxDelay:  30 * time.Second,
+		},
+	}
+	delay := rc.retryDelay(0, &alexerrors.TransientError{
+		Err:        errors.New("HTTP 529: overloaded"),
+		StatusCode: 529,
+		Message:    "Server overloaded (529). Retrying request.",
+	})
+	require.GreaterOrEqual(t, delay, 3750*time.Millisecond, "529 backoff should be >= 5s * 0.75 (jitter)")
+	require.LessOrEqual(t, delay, 6250*time.Millisecond, "529 backoff should be <= 5s * 1.25 (jitter)")
+}
+
 func TestRetryClient429RespectsRetryAfterUncapped(t *testing.T) {
 	// Verify that Retry-After for 429 is NOT capped by MaxDelay.
 	rc := &retryClient{

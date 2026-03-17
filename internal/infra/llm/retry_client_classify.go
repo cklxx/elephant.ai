@@ -13,11 +13,13 @@ import (
 	id "alex/internal/shared/utils/id"
 )
 
-// isRateLimitError returns true if the error represents an HTTP 429 rate limit.
+// isRateLimitError returns true if the error represents a provider-side rate
+// limit (429) or server overload (529). Both warrant the slower rate-limit
+// backoff cadence so retries have time for the provider to recover.
 func isRateLimitError(err error) bool {
 	var transientErr *alexerrors.TransientError
-	if errors.As(err, &transientErr) && transientErr.StatusCode == 429 {
-		return true
+	if errors.As(err, &transientErr) {
+		return transientErr.StatusCode == 429 || transientErr.StatusCode == 529
 	}
 	return false
 }
