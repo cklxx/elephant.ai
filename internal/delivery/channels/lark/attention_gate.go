@@ -419,7 +419,16 @@ func (g *AttentionGate) AutoAckMessage() string {
 // When set, ShouldDispatch will suppress non-urgent messages for users
 // currently in focus time.
 func (g *AttentionGate) SetFocusTimeChecker(ftc FocusTimeChecker) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.focusTime = ftc
+}
+
+// SetNowFn overrides time.Now for testing. Pass nil to restore default.
+func (g *AttentionGate) SetNowFn(fn func() time.Time) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.nowFn = fn
 }
 
 // inQuietHours returns true if the given hour falls within the configured
@@ -473,7 +482,12 @@ func (g *AttentionGate) ShouldDispatch(content, chatID, userID string, now time.
 	}
 
 	// Check focus time suppression for non-urgent messages.
-	if g.focusTime != nil && g.focusTime.ShouldSuppress(userID, now) {
+	// Read focusTime under lock, then call ShouldSuppress outside the lock
+	// to avoid holding mu during an arbitrary interface call.
+	g.mu.Lock()
+	ftc := g.focusTime
+	g.mu.Unlock()
+	if ftc != nil && ftc.ShouldSuppress(userID, now) {
 		return urgency, false
 	}
 
@@ -643,8 +657,11 @@ func (g *AttentionGate) drainLoop(ctx context.Context, cb DrainCallback) {
 
 // now returns the current time, using nowFn if set (for testing).
 func (g *AttentionGate) now() time.Time {
-	if g.nowFn != nil {
-		return g.nowFn()
+	g.mu.Lock()
+	fn := g.nowFn
+	g.mu.Unlock()
+	if fn != nil {
+		return fn()
 	}
 	return time.Now()
 }

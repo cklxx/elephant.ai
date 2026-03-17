@@ -734,10 +734,10 @@ func TestDrainTimer_AutoDeliversWhenQuietHoursEnd(t *testing.T) {
 	// Start in quiet hours (hour 23).
 	var currentHour atomic.Int32
 	currentHour.Store(23)
-	gate.nowFn = func() time.Time {
+	gate.SetNowFn(func() time.Time {
 		h := int(currentHour.Load())
 		return time.Date(2026, 3, 10, h, 30, 0, 0, time.UTC)
-	}
+	})
 
 	// Queue messages during quiet hours.
 	gate.ShouldDispatch("msg-1", "chat-a", "alice", gate.now())
@@ -813,9 +813,9 @@ func TestDrainTimer_StopsCleanlyOnShutdown(t *testing.T) {
 	gate.drainInterval = 50 * time.Millisecond
 
 	// Stay in quiet hours throughout.
-	gate.nowFn = func() time.Time {
+	gate.SetNowFn(func() time.Time {
 		return time.Date(2026, 3, 10, 23, 0, 0, 0, time.UTC)
-	}
+	})
 
 	var callCount atomic.Int32
 	cb := func(msgs []QueuedMessage) {
@@ -859,9 +859,9 @@ func TestDrainTimer_NoDrainWhenQueueEmpty(t *testing.T) {
 
 	var currentHour atomic.Int32
 	currentHour.Store(23)
-	gate.nowFn = func() time.Time {
+	gate.SetNowFn(func() time.Time {
 		return time.Date(2026, 3, 10, int(currentHour.Load()), 30, 0, 0, time.UTC)
-	}
+	})
 
 	// Don't queue any messages — just transition out of quiet hours.
 	var callCount atomic.Int32
@@ -913,9 +913,9 @@ func TestDrainTimer_DoubleStartIsNoop(t *testing.T) {
 		QuietHoursEnd:   8,
 	})
 	gate.drainInterval = 50 * time.Millisecond
-	gate.nowFn = func() time.Time {
+	gate.SetNowFn(func() time.Time {
 		return time.Date(2026, 3, 10, 23, 0, 0, 0, time.UTC)
-	}
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1054,4 +1054,70 @@ func TestAttentionGateConfig_Validate_PartialDefaultsConflict(t *testing.T) {
 	if err := cfg.Validate(); err == nil {
 		t.Error("summarize=65 should conflict with default queue=60")
 	}
+}
+
+// ---------- Race condition regression tests ----------
+
+func TestAttentionGate_ConcurrentSetFocusTimeAndDispatch(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{Enabled: true})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Goroutine 1: repeatedly set the focus time checker.
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			gate.SetFocusTimeChecker(&mockFocusChecker{suppressed: map[string]bool{"alice": i%2 == 0}})
+		}
+	}()
+
+	// Goroutine 2: repeatedly call ShouldDispatch.
+	go func() {
+		defer wg.Done()
+		now := time.Now()
+		for i := 0; i < 200; i++ {
+			gate.ShouldDispatch("routine update", "chat-1", "alice", now)
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestAttentionGate_ConcurrentSetNowFnAndDrainLoop(t *testing.T) {
+	gate := NewAttentionGate(AttentionGateConfig{
+		Enabled:         true,
+		QuietHoursStart: 22,
+		QuietHoursEnd:   8,
+	})
+	gate.drainInterval = 10 * time.Millisecond
+
+	// Start with quiet hours active.
+	gate.SetNowFn(func() time.Time {
+		return time.Date(2026, 3, 10, 23, 0, 0, 0, time.UTC)
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	gate.StartDrainTimer(ctx, func(msgs []QueuedMessage) {})
+
+	// Concurrently swap nowFn while drainLoop is reading it.
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			h := 23
+			if i%2 == 0 {
+				h = 9
+			}
+			hour := h
+			gate.SetNowFn(func() time.Time {
+				return time.Date(2026, 3, 10, hour, 0, 0, 0, time.UTC)
+			})
+		}
+	}()
+
+	wg.Wait()
+	gate.StopDrainTimer()
 }
