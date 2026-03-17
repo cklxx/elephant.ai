@@ -192,7 +192,7 @@ func (g *Gateway) persistChatSessionBinding(ctx context.Context, chatID, session
 		Channel:   chatSessionBindingChannel,
 		ChatID:    chatID,
 		SessionID: sessionID,
-		UpdatedAt: time.Now(),
+		UpdatedAt: g.currentTime(),
 	})
 	if err != nil {
 		g.logger.Warn("Persist chat session binding failed: chat=%s session=%s err=%v", chatID, sessionID, err)
