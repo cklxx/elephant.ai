@@ -19,10 +19,7 @@ func (l *backgroundProgressListener) onBackgroundDispatched(env *domain.Workflow
 
 	description := asString(env.Payload["description"])
 	agentType := asString(env.Payload["agent_type"])
-	startedAt := env.Timestamp()
-	if startedAt.IsZero() {
-		startedAt = l.clock()
-	}
+	startedAt := l.clock()
 
 	l.mu.Lock()
 	if l.closed || l.released {
