@@ -108,6 +108,14 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		return nil
 	}
 
+	// /model command must be handled before conversation process so it works
+	// in dual-process mode without being routed through the chat LLM.
+	if strings.HasPrefix(trimmedContent, "/model") {
+		slot.mu.Unlock()
+		g.handleModelCommand(msg)
+		return nil
+	}
+
 	// Conversation process: when enabled, a lightweight LLM handles ALL
 	// non-command messages. It replies instantly and optionally dispatches
 	// a background worker via its dispatch_worker tool.
@@ -157,11 +165,6 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		return nil
 	}
 
-	if strings.HasPrefix(trimmedContent, "/model") || strings.HasPrefix(trimmedContent, "/models") {
-		slot.mu.Unlock()
-		g.handleModelCommand(msg)
-		return nil
-	}
 	isPlan := g.isPlanCommand(trimmedContent)
 	if g.isTaskCommand(trimmedContent) || isPlan {
 		slot.mu.Unlock()

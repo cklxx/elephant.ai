@@ -136,9 +136,14 @@ func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap work
 
 // spawnWorker launches a background worker via the existing runTask path.
 // If a worker is already running, injects into its inputCh instead.
-func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *sessionSlot, snap workerSnapshot, taskContent string) {
-	if snap.IsRunning() {
-		slot.mu.Lock()
+//
+// The running check is done under slot.mu using the live slot.phase — NOT the
+// stale snapshot — so that concurrent calls for different messages cannot both
+// bypass the guard and spawn a second worker.
+func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *sessionSlot, _ workerSnapshot, taskContent string) {
+	// Single lock: check current state and either inject or claim the slot.
+	slot.mu.Lock()
+	if slot.phase == slotRunning {
 		ch := slot.inputCh
 		sessionID := slot.sessionID
 		slot.mu.Unlock()
@@ -153,7 +158,6 @@ func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *s
 		return
 	}
 
-	slot.mu.Lock()
 	sessionID, isResume := g.resolveSessionForNewTask(ctx, msg.chatID, slot)
 	inputCh := make(chan agent.UserInput, 16)
 	taskCtx, taskCancel := context.WithCancel(context.Background())
