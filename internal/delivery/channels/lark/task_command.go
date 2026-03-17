@@ -365,7 +365,7 @@ func (g *Gateway) formatActiveTaskList(tasks []TaskRecord) string {
 	sb.WriteString(fmt.Sprintf("活跃任务 (%d/%d)\n", activeCount, max))
 
 	for i, t := range tasks {
-		elapsed := time.Since(t.CreatedAt)
+		elapsed := g.currentTime().Sub(t.CreatedAt)
 		statusIcon := taskStatusLabel(t.Status)
 		sb.WriteString(fmt.Sprintf("\n[%d] %s · %s · %s · %s",
 			i+1, shortID(t.TaskID), t.AgentType, statusIcon, formatDuration(elapsed)))
@@ -392,7 +392,7 @@ func formatTaskDetail(t TaskRecord) string {
 		sb.WriteString(fmt.Sprintf("完成: %s\n", t.CompletedAt.Format("15:04:05")))
 		sb.WriteString(fmt.Sprintf("耗时: %s\n", formatDuration(t.CompletedAt.Sub(t.CreatedAt))))
 	} else {
-		sb.WriteString(fmt.Sprintf("已运行: %s\n", formatDuration(time.Since(t.CreatedAt))))
+		sb.WriteString(fmt.Sprintf("已运行: %s\n", formatDuration(time.Since(t.CreatedAt)))) // wall clock: used for display purposes only
 	}
 	if t.TokensUsed > 0 {
 		sb.WriteString(fmt.Sprintf("Tokens: %s\n", formatTokens(t.TokensUsed)))

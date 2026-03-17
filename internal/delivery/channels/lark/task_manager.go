@@ -13,11 +13,13 @@ const larkHistoryChunkHeader = "[Lark History Chunk]\nIndexed summaries (latest 
 
 // getOrCreateSlot returns the session slot for the given chat, creating one if needed.
 func (g *Gateway) getOrCreateSlot(chatID string) *sessionSlot {
-	slot, _ := g.activeSlots.LoadOrStore(chatID, &sessionSlot{})
+	slot, loaded := g.activeSlots.LoadOrStore(chatID, &sessionSlot{})
 	s := slot.(*sessionSlot)
-	s.mu.Lock()
-	s.lastTouched = g.currentTime()
-	s.mu.Unlock()
+	if !loaded {
+		s.mu.Lock()
+		s.lastTouched = g.currentTime()
+		s.mu.Unlock()
+	}
 	return s
 }
 

@@ -70,8 +70,8 @@ func newSlowProgressSummaryListener(
 		delay:     delay,
 		intervals: intervals,
 		now:       time.Now,
-		startedAt: time.Now(),
 	}
+	l.startedAt = l.now()
 	l.timer = time.AfterFunc(firstDelay, l.onDelayReached)
 	return l
 }
