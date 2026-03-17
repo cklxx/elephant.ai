@@ -50,10 +50,13 @@ var conversationSystemPrompt = strings.TrimSpace(`
 // Always returns true — fully owns the message lifecycle when enabled.
 func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomingMessage, slot *sessionSlot) bool {
 	snap := g.snapshotWorker(msg.chatID)
+
+	processingReactionID := g.addProcessingReaction(ctx, msg.messageID)
 	reply, toolCalls := g.conversationLLM(ctx, msg.content, snap)
+	g.removeProcessingReaction(ctx, msg.messageID, processingReactionID)
 
 	if reply != "" {
-		g.dispatch(ctx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
+		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply)
 	}
 
 	for _, tc := range toolCalls {

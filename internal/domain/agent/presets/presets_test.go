@@ -227,7 +227,6 @@ func TestDefaultPromptIncludesRoutingGuardrails(t *testing.T) {
 		"NEVER repeat information already stated",
 		"NEVER silently drop requirements",
 		// Response style forbidden patterns
-		"NEVER use emojis unless",
 		"NEVER start responses with filler",
 		// Tool routing reinforcement (slimmed to 3 key rules)
 		"ONLY when critical input is missing after all viable tool attempts fail",

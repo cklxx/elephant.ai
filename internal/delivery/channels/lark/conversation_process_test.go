@@ -459,6 +459,109 @@ func TestTruncateLog(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Tests for dispatchFormattedReply
+// ---------------------------------------------------------------------------
+
+func TestDispatchFormattedReply_PlainText(t *testing.T) {
+	stub := &convStubLLMClient{resp: "ok"}
+	g := newConvGateway(t, stub, true)
+	rec := getRecorder(g)
+
+	g.dispatchFormattedReply(context.Background(), "chat1", "msg1", "你好")
+
+	if rec.count() != 1 {
+		t.Fatalf("expected 1 message, got %d", rec.count())
+	}
+	m := rec.last()
+	if m.msgType != "text" {
+		t.Fatalf("expected text, got %q", m.msgType)
+	}
+}
+
+func TestDispatchFormattedReply_Markdown(t *testing.T) {
+	stub := &convStubLLMClient{resp: "ok"}
+	g := newConvGateway(t, stub, true)
+	rec := getRecorder(g)
+
+	g.dispatchFormattedReply(context.Background(), "chat1", "msg1", "**bold** text")
+
+	if rec.count() != 1 {
+		t.Fatalf("expected 1 message, got %d", rec.count())
+	}
+	m := rec.last()
+	if m.msgType != "post" {
+		t.Fatalf("expected post for markdown, got %q", m.msgType)
+	}
+}
+
+func TestDispatchFormattedReply_EmptyAfterShape(t *testing.T) {
+	stub := &convStubLLMClient{resp: "ok"}
+	g := newConvGateway(t, stub, true)
+	rec := getRecorder(g)
+
+	g.dispatchFormattedReply(context.Background(), "chat1", "msg1", "")
+
+	if rec.count() != 0 {
+		t.Fatalf("expected 0 messages for empty text, got %d", rec.count())
+	}
+}
+
+func TestDispatchFormattedReply_SplitsLongMessage(t *testing.T) {
+	stub := &convStubLLMClient{resp: "ok"}
+	g := newConvGateway(t, stub, true)
+	rec := getRecorder(g)
+
+	// Two heading sections should produce 2 chunks.
+	long := "## Section 1\n\nContent one.\n\n## Section 2\n\nContent two."
+	g.dispatchFormattedReply(context.Background(), "chat1", "msg1", long)
+
+	if rec.count() < 2 {
+		t.Fatalf("expected >=2 messages for multi-section content, got %d", rec.count())
+	}
+}
+
+func TestDispatchFormattedReply_ShapeReply7CApplied(t *testing.T) {
+	stub := &convStubLLMClient{resp: "ok"}
+	g := newConvGateway(t, stub, true)
+	rec := getRecorder(g)
+
+	// ShapeReply7C strips horizontal rules (---) — verify it runs.
+	g.dispatchFormattedReply(context.Background(), "chat1", "msg1", "Hello\n\n---\n\nWorld")
+
+	if rec.count() == 0 {
+		t.Fatal("expected at least 1 message")
+	}
+	// Verify no dispatched message contains a horizontal rule.
+	rec.mu.Lock()
+	for _, m := range rec.messages {
+		if strContains(m.content, "---") {
+			t.Errorf("ShapeReply7C should strip horizontal rules, got content containing '---'")
+		}
+	}
+	rec.mu.Unlock()
+}
+
+func TestHandleViaConversationProcess_UsesFormattedPipeline(t *testing.T) {
+	stub := &convStubLLMClient{resp: "**重点说明**：结果已就绪"}
+	g := newConvGateway(t, stub, true)
+	rec := getRecorder(g)
+
+	msg := &incomingMessage{chatID: "chat1", messageID: "msg1", content: "结果呢？"}
+	slot := &sessionSlot{}
+
+	g.handleViaConversationProcess(context.Background(), msg, slot)
+
+	if rec.count() != 1 {
+		t.Fatalf("expected 1 message, got %d", rec.count())
+	}
+	m := rec.last()
+	// Markdown content should be sent as post, not text.
+	if m.msgType != "post" {
+		t.Fatalf("expected post for markdown reply, got %q", m.msgType)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

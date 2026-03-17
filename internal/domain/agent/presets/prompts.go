@@ -33,7 +33,6 @@ const sevenCResponseSection = `
 // at runtime. These 3 rules reinforce the most-violated constraints.
 const commonSystemPromptSuffix = `
 ## Response Style
-- NEVER use emojis unless the user explicitly requests them.
 - NEVER start responses with filler ("Sure!", "Of course!", "Absolutely!", "Great question!").
 ` + sevenCResponseSection + `
 ## Tool Routing (see system-level guardrails for full decision tree)

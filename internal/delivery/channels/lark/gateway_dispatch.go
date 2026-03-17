@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"alex/internal/delivery/channels"
 	"alex/internal/shared/utils"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
@@ -163,6 +165,29 @@ func isPostPayloadInvalidError(err error) bool {
 	return strings.Contains(lower, "message_content_text_tag") ||
 		strings.Contains(lower, "invalid message content") ||
 		strings.Contains(lower, "text field can't be nil")
+}
+
+// dispatchFormattedReply applies the shared outbound pipeline (ShapeReply7C →
+// smartContent → splitMessage) and dispatches the result. This is the standard
+// path for any LLM-generated text that should be rendered for the user.
+func (g *Gateway) dispatchFormattedReply(ctx context.Context, chatID, replyToID, rawText string) {
+	text := channels.ShapeReply7C(rawText)
+	if text == "" {
+		return
+	}
+	chunks := splitMessage(text)
+	if len(chunks) <= 1 {
+		msgType, content := smartContent(text)
+		g.dispatch(ctx, chatID, replyToID, msgType, content)
+		return
+	}
+	for i, chunk := range chunks {
+		msgType, content := smartContent(chunk)
+		g.dispatch(ctx, chatID, replyToID, msgType, content)
+		if i < len(chunks)-1 {
+			time.Sleep(messageSplitDelay)
+		}
+	}
 }
 
 // dispatch is a fire-and-forget wrapper around dispatchMessage that logs errors.
