@@ -33,7 +33,7 @@ func TestConvertAnthropicToolsNormalizesSchema(t *testing.T) {
 		Name:       "vision_analyze",
 		Parameters: ports.ParameterSchema{Type: "object"},
 	}}
-	converted := convertAnthropicTools(tools)
+	converted := convertAnthropicToolsDef(tools)
 	schema := extractAnthropicToolSchema(t, converted)
 	assertObjectSchema(t, schema)
 }

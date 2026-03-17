@@ -109,7 +109,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		payload["stop_sequences"] = append([]string(nil), req.StopSequences...)
 	}
 	if len(req.Tools) > 0 {
-		payload["tools"] = convertAnthropicTools(req.Tools)
+		payload["tools"] = convertAnthropicToolsDef(req.Tools)
 	}
 
 	body, err := jsonx.Marshal(payload)
@@ -667,21 +667,7 @@ func normalizeToolArguments(args map[string]any) map[string]any {
 	return args
 }
 
-func convertAnthropicTools(tools []ports.ToolDefinition) []map[string]any {
-	result := make([]map[string]any, 0, len(tools))
-	for _, tool := range tools {
-		if !isValidToolName(tool.Name) {
-			continue
-		}
-		schema := normalizeToolSchema(tool.Parameters)
-		result = append(result, map[string]any{
-			"name":         tool.Name,
-			"description":  tool.Description,
-			"input_schema": schema,
-		})
-	}
-	return result
-}
+
 
 type anthropicMessage struct {
 	Role    string                  `json:"role"`

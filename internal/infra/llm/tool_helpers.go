@@ -90,8 +90,9 @@ func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
 type toolFormat int
 
 const (
-	toolFormatChat    toolFormat = iota // {"type":"function","function":{...}}
-	toolFormatCodex                    // {"type":"function","name":...,"parameters":...}
+	toolFormatChat      toolFormat = iota // {"type":"function","function":{...}}
+	toolFormatCodex                       // {"type":"function","name":...,"parameters":...}
+	toolFormatAnthropic                   // {"name":...,"description":...,"input_schema":...}
 )
 
 func convertToolsWithFormat(tools []ports.ToolDefinition, format toolFormat) []map[string]any {
@@ -109,6 +110,12 @@ func convertToolsWithFormat(tools []ports.ToolDefinition, format toolFormat) []m
 				"name":        tool.Name,
 				"description": tool.Description,
 				"parameters":  schema,
+			}
+		case toolFormatAnthropic:
+			entry = map[string]any{
+				"name":         tool.Name,
+				"description":  tool.Description,
+				"input_schema": schema,
 			}
 		default:
 			entry = map[string]any{
@@ -131,4 +138,8 @@ func convertTools(tools []ports.ToolDefinition) []map[string]any {
 
 func convertCodexTools(tools []ports.ToolDefinition) []map[string]any {
 	return convertToolsWithFormat(tools, toolFormatCodex)
+}
+
+func convertAnthropicToolsDef(tools []ports.ToolDefinition) []map[string]any {
+	return convertToolsWithFormat(tools, toolFormatAnthropic)
 }
