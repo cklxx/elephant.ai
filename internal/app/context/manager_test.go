@@ -337,8 +337,8 @@ func TestBuildHistoryTimelineUses50CharSummaries(t *testing.T) {
 	if len(timeline) != 1 {
 		t.Fatalf("expected one timeline entry, got %d", len(timeline))
 	}
-	if !strings.Contains(timeline[0], "summary="+strings.Repeat("a", 50)+"…") {
-		t.Fatalf("expected summary to be capped at 50 chars, got %q", timeline[0])
+	if !strings.Contains(timeline[0], "summary="+strings.Repeat("a", 49)+"…") {
+		t.Fatalf("expected summary to be capped at 50 runes (49 content + ellipsis), got %q", timeline[0])
 	}
 }
 

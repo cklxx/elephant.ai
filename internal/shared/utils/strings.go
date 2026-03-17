@@ -15,13 +15,15 @@ func HasContent(s string) bool { return !IsBlank(s) }
 // The returned string (including suffix) never exceeds maxRunes runes.
 func Truncate(s string, maxRunes int, suffix string) string {
 	runes := []rune(s)
-	if len(runes) <= maxRunes {
+	if maxRunes <= 0 || len(runes) <= maxRunes {
 		return s
 	}
-	if maxRunes <= len([]rune(suffix)) {
-		return suffix
+	suffixLen := len([]rune(suffix))
+	if maxRunes <= suffixLen {
+		// No room for content + suffix; hard-truncate without suffix.
+		return string(runes[:maxRunes])
 	}
-	return string(runes[:maxRunes-len([]rune(suffix))]) + suffix
+	return string(runes[:maxRunes-suffixLen]) + suffix
 }
 
 // TruncateWithEllipsis is a convenience wrapper that uses "..." as suffix.

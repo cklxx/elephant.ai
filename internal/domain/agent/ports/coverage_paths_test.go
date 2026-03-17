@@ -211,7 +211,7 @@ func TestCloneImportantNotesAndTruncateRuneSnippet(t *testing.T) {
 		t.Fatalf("expected nil notes clone, got %+v", got)
 	}
 
-	if got := TruncateRuneSnippet("  你好世界  ", 2); got != "你好…" {
+	if got := TruncateRuneSnippet("  你好世界  ", 3); got != "你好…" {
 		t.Fatalf("expected rune-aware truncation, got %q", got)
 	}
 	if got := TruncateRuneSnippet("  keep full text  ", 0); got != "keep full text" {
