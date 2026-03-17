@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -15,6 +16,8 @@ import (
 	"strings"
 
 	"alex/internal/shared/utils"
+
+	sqlite3 "github.com/mattn/go-sqlite3"
 )
 
 // StoredChunk represents a chunk stored in the index.
@@ -549,17 +552,19 @@ func deleteBySourcePathTx(ctx context.Context, tx *sql.Tx, path string) error {
 }
 
 func isMissingTable(err error) bool {
-	if err == nil {
-		return false
+	var sqliteErr sqlite3.Error
+	if errors.As(err, &sqliteErr) && sqliteErr.Code == sqlite3.ErrError {
+		return strings.Contains(sqliteErr.Error(), "no such table")
 	}
-	return strings.Contains(err.Error(), "no such table")
+	return false
 }
 
 func isMissingModule(err error) bool {
-	if err == nil {
-		return false
+	var sqliteErr sqlite3.Error
+	if errors.As(err, &sqliteErr) && sqliteErr.Code == sqlite3.ErrError {
+		return strings.Contains(sqliteErr.Error(), "no such module: fts5")
 	}
-	return strings.Contains(err.Error(), "no such module: fts5")
+	return false
 }
 
 func float32sToBytes(values []float32) []byte {
