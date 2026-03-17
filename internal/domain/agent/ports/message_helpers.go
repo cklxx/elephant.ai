@@ -74,9 +74,5 @@ func TruncateRuneSnippet(content string, limit int) string {
 	if trimmed == "" || limit <= 0 {
 		return trimmed
 	}
-	truncated := utils.Truncate(content, limit)
-	if truncated != trimmed {
-		return truncated + "…"
-	}
-	return trimmed
+	return utils.Truncate(trimmed, limit, "…")
 }

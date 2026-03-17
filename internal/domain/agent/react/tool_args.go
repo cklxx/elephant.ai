@@ -110,7 +110,7 @@ func summarizeLongPlainString(value string) string {
 }
 
 func truncateWithEllipsis(value string, limit int) string {
-	return utils.TruncateWithEllipsis(value, limit)
+	return utils.Truncate(value, limit, "...")
 }
 
 func looksLikeBinaryString(value string) bool {
@@ -132,7 +132,7 @@ func looksLikeBinaryString(value string) bool {
 }
 
 func truncateStringForLog(value string, limit int) string {
-	return utils.Truncate(value, limit)
+	return utils.Truncate(value, limit, "")
 }
 
 func compactToolCallArguments(call ToolCall, result ToolResult) (map[string]any, bool) {

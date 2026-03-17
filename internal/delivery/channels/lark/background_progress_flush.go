@@ -199,7 +199,7 @@ func normalizeMergeStatus(status string) string {
 }
 
 func truncateForLark(s string, max int) string {
-	return utils.Truncate(s, max)
+	return utils.Truncate(s, max, "")
 }
 
 func minDuration(a, b time.Duration) time.Duration {

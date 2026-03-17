@@ -14,6 +14,7 @@ import (
 	core "alex/internal/domain/agent/ports"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/infra/session/filestore"
+	"alex/internal/shared/utils"
 )
 
 // newTestCLI creates a CLI with a file-based session store seeded with the given sessions.
@@ -245,11 +246,11 @@ func TestFormatAge(t *testing.T) {
 }
 
 func TestTruncateStr(t *testing.T) {
-	if got := truncateStr("short", 10); got != "short" {
-		t.Errorf("truncateStr('short', 10) = %q", got)
+	if got := utils.TruncateWithEllipsis("short", 10); got != "short" {
+		t.Errorf("TruncateWithEllipsis('short', 10) = %q", got)
 	}
-	if got := truncateStr("a very long title that exceeds limit", 20); got != "a very long title..." {
-		t.Errorf("truncateStr long = %q", got)
+	if got := utils.TruncateWithEllipsis("a very long title that exceeds limit", 20); got != "a very long title..." {
+		t.Errorf("TruncateWithEllipsis long = %q", got)
 	}
 }
 

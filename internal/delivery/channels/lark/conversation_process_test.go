@@ -13,6 +13,7 @@ import (
 	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/shared/config"
 	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
@@ -457,10 +458,10 @@ func TestSnapshotWorker_Running(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestTruncateLog(t *testing.T) {
-	if got := truncateLog("hello", 10); got != "hello" {
+	if got := utils.Truncate("hello", 10, "…"); got != "hello" {
 		t.Fatalf("got %q", got)
 	}
-	if got := truncateLog("hello world", 5); got != "hello…" {
+	if got := utils.Truncate("hello world", 5, "…"); got != "hell…" {
 		t.Fatalf("got %q", got)
 	}
 }

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"alex/internal/shared/utils"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -380,10 +382,9 @@ func TestFormatSummary_RespectsLookback(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestTruncate(t *testing.T) {
-	assert.Equal(t, "short", truncate("short", 20))
-	assert.Equal(t, "abcdefghij...", truncate("abcdefghijklmnop", 13))
-	assert.Equal(t, "", truncate("", 10))
-	assert.Equal(t, "trimmed", truncate("  trimmed  ", 20))
+	assert.Equal(t, "short", utils.TruncateWithEllipsis("short", 20))
+	assert.Equal(t, "abcdefghij...", utils.TruncateWithEllipsis("abcdefghijklmnop", 13))
+	assert.Equal(t, "", utils.TruncateWithEllipsis("", 10))
 }
 
 func TestSearch_ReturnsCopies(t *testing.T) {

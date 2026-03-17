@@ -38,11 +38,5 @@ func splitForTelegram(text string, limit int) []string {
 // truncateWithEllipsis truncates text so the total length (including "...")
 // does not exceed limit runes.
 func truncateWithEllipsis(text string, limit int) string {
-	if len([]rune(text)) <= limit {
-		return text
-	}
-	if limit <= 3 {
-		return utils.Truncate(text, limit)
-	}
-	return utils.Truncate(text, limit-3) + "..."
+	return utils.TruncateWithEllipsis(text, limit)
 }
