@@ -1,11 +1,11 @@
 package bootstrap
 
 import (
-	"net/http"
 	"time"
 
 	"alex/internal/infra/gitsignal"
 	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/httpclient"
 )
 
 // GitSignalStage returns a BootstrapStage that initializes the git signal
@@ -52,7 +52,7 @@ func (f *Foundation) initGitHubSignal(cfg gitSignalConfig) error {
 		ReviewBottleneckThreshold: bottleneckThreshold,
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := httpclient.New(30*time.Second, f.Logger)
 	provider := gitsignal.NewGitHubProvider(ghCfg, client, f.Logger)
 	f.Container.GitSignalProvider = provider
 
