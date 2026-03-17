@@ -1,6 +1,6 @@
 # Architecture
 
-Updated: 2026-03-10
+Updated: 2026-03-17
 
 Runtime architecture of elephant.ai — for implementation and debugging.
 
@@ -134,6 +134,26 @@ alex team terminal  # attach to role terminal
 
 Internal orchestration tools (`run_tasks`, `reply_agent`) are runtime
 implementation details and must not appear in user-facing docs or skills.
+
+---
+
+## Lark Gateway — Dual-Process Model
+
+When `ConversationProcessEnabled=true`, the Lark gateway splits message handling into two concurrent roles:
+
+```
+User ──▶ Chat Process (lightweight LLM, ~1-3s)
+              │
+              ├── dispatch_worker ──▶ Worker Process (ReAct Agent, background)
+              ├── stop_worker     ──▶ cancel Worker
+              └── direct reply    ──▶ instant text response
+```
+
+- **Chat Process** (`handleViaConversationProcess`): fast LLM (8s timeout, 300 tokens) with `dispatch_worker` and `stop_worker` tools. Reads worker status via `workerSnapshot` (phase, task desc, elapsed, recent tool progress). Includes last 5 chat rounds for context.
+- **Worker Process** (`spawnWorker` → `launchWorkerGoroutine` → `runTask`): full ReAct Agent with tool execution. Receives injected messages via `inputCh`. Tool events recorded to `sessionSlot.recentProgress` ring buffer via `slotProgressRecorder`.
+- **Slot state machine**: `idle → running → idle` (or `→ awaitingInput → running`). Chat can stop Worker via `intentionalCancelToken` + `cancel()`.
+
+See: [`internal/delivery/channels/lark/README.md`](../../internal/delivery/channels/lark/README.md) for full details.
 
 ---
 
