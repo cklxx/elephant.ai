@@ -14,8 +14,8 @@ func TestTruncate(t *testing.T) {
 		{"exact limit", "hello", 5, "...", "hello"},
 		{"over limit", "hello world", 8, "...", "hello..."},
 		{"no suffix", "hello world", 5, "", "hello"},
-		{"zero limit", "hello", 0, "...", "..."},
-		{"max equals suffix len", "hello", 3, "...", "..."},
+		{"zero limit", "hello", 0, "...", "hello"},
+		{"max equals suffix len", "hello", 3, "...", "hel"},
 		{"rune aware", "你好世界再见", 5, "...", "你好..."},
 		{"single char suffix", "hello world", 6, "…", "hello…"},
 	}
@@ -39,7 +39,7 @@ func TestTruncateWithEllipsis(t *testing.T) {
 		{"within limit", "hello", 10, "hello"},
 		{"exact limit", "hello", 5, "hello"},
 		{"over limit", "hello world", 8, "hello..."},
-		{"max equals 3", "hello", 3, "..."},
+		{"max equals 3", "hello", 3, "hel"},
 		{"rune aware", "你好世界再见", 5, "你好..."},
 	}
 	for _, tc := range tests {

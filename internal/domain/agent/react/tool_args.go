@@ -132,6 +132,9 @@ func looksLikeBinaryString(value string) bool {
 }
 
 func truncateStringForLog(value string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
 	return utils.Truncate(value, limit, "")
 }
 
