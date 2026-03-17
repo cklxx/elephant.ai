@@ -281,7 +281,6 @@ func (c *anthropicClient) consumeAnthropicSSE(body io.Reader) (*ports.Completion
 	var (
 		contentBuilder strings.Builder
 		toolCalls      []ports.ToolCall
-		thinking       ports.Thinking
 		stopReason     string
 		usage          ports.TokenUsage
 		messageID      string
@@ -339,16 +338,13 @@ func (c *anthropicClient) consumeAnthropicSSE(body io.Reader) (*ports.Completion
 				case "text_delta":
 					contentBuilder.WriteString(getString(delta, "text"))
 				case "thinking_delta":
-					// Accumulate thinking text — will be assembled at message_stop.
-					appendThinkingText(&thinking, "thinking", getString(delta, "thinking"))
+					// Thinking is not returned to the caller; skip.
 				case "input_json_delta":
 					if ab, ok := argsByIndex[idx]; ok {
 						ab.WriteString(getString(delta, "partial_json"))
 					}
 				case "signature_delta":
-					if len(thinking.Parts) > 0 {
-						thinking.Parts[len(thinking.Parts)-1].Signature = getString(delta, "signature")
-					}
+					// Thinking is not returned; skip signature.
 				}
 			}
 		case "content_block_stop":
@@ -378,6 +374,16 @@ func (c *anthropicClient) consumeAnthropicSSE(body io.Reader) (*ports.Completion
 					usage.CompletionTokens = int(v)
 				}
 			}
+		case "error":
+			if errObj, ok := event["error"].(map[string]any); ok {
+				errType, _ := errObj["type"].(string)
+				errMsg, _ := errObj["message"].(string)
+				if errMsg == "" {
+					errMsg = errType
+				}
+				return nil, fmt.Errorf("anthropic stream error: %s: %s", errType, errMsg)
+			}
+			return nil, fmt.Errorf("anthropic stream error: %s", data)
 		}
 	}
 
@@ -391,9 +397,6 @@ func (c *anthropicClient) consumeAnthropicSSE(body io.Reader) (*ports.Completion
 		Metadata: map[string]any{
 			"message_id": strings.TrimSpace(messageID),
 		},
-	}
-	if len(thinking.Parts) > 0 {
-		result.Thinking = thinking
 	}
 	return result, scanner.Err()
 }
