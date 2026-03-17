@@ -515,7 +515,7 @@ func TestWorkflowEventTranslator_EnvelopesBackgroundTaskEvents(t *testing.T) {
 	}
 }
 
-func TestWorkflowEventTranslator_EnvelopesExternalAgentEvents(t *testing.T) {
+func TestWorkflowEventTranslator_ExternalAgentEventsDropped(t *testing.T) {
 	sink := &recordingAgentListener{}
 	translator := wrapWithWorkflowEnvelope(sink)
 
@@ -526,21 +526,7 @@ func TestWorkflowEventTranslator_EnvelopesExternalAgentEvents(t *testing.T) {
 	))
 
 	events := sink.snapshot()
-	if got := len(events); got != 1 {
-		t.Fatalf("expected 1 event, got %d", got)
-	}
-
-	env, ok := events[0].(*domain.WorkflowEventEnvelope)
-	if !ok {
-		t.Fatalf("expected workflow envelope, got %T", events[0])
-	}
-	if env.Event != types.EventExternalAgentProgress {
-		t.Fatalf("unexpected event type %q", env.Event)
-	}
-	if env.NodeKind != "external_agent" || env.NodeID != "bg-1" {
-		t.Fatalf("unexpected node metadata: kind=%q id=%q", env.NodeKind, env.NodeID)
-	}
-	if env.Payload["current_args"] != "hello" {
-		t.Fatalf("unexpected payload args: %#v", env.Payload["current_args"])
+	if got := len(events); got != 0 {
+		t.Fatalf("expected 0 events (handler removed), got %d", got)
 	}
 }

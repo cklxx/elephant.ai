@@ -369,6 +369,7 @@ func TestRunRuntimeStop_InvalidFlag(t *testing.T) {
 
 func TestResolveStoreDir(t *testing.T) {
 	// Cannot use t.Parallel — t.Setenv is used.
+	t.Setenv("ALEX_STORE_DIR", "")
 	t.Setenv("KAKU_STORE_DIR", "")
 	tests := []struct {
 		name     string
@@ -393,9 +394,17 @@ func TestResolveStoreDir(t *testing.T) {
 }
 
 func TestResolveStoreDir_EnvOverride(t *testing.T) {
-	t.Setenv("KAKU_STORE_DIR", "/tmp/env-store")
+	t.Setenv("ALEX_STORE_DIR", "/tmp/env-store")
+	t.Setenv("KAKU_STORE_DIR", "")
 	got := resolveStoreDir("")
 	require.Equal(t, "/tmp/env-store", got)
+}
+
+func TestResolveStoreDir_KakuEnvCompat(t *testing.T) {
+	t.Setenv("ALEX_STORE_DIR", "")
+	t.Setenv("KAKU_STORE_DIR", "/tmp/kaku-compat")
+	got := resolveStoreDir("")
+	require.Equal(t, "/tmp/kaku-compat", got)
 }
 
 func TestExpandHome(t *testing.T) {

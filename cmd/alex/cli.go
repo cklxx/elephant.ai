@@ -110,9 +110,6 @@ Usage:
   alex sessions                  List all sessions
   alex sessions pull <id> [...]  Inspect or export context snapshots
   alex sessions cleanup [...]    Remove historical sessions (see options below)
-  alex team [status] [...]       Show latest team-runtime status (CLI capabilities/tmux/events)
-  alex team run [...]            Execute team workflow via CLI (template/file/prompt)
-  alex team inject [...]         Inject input into a team role tmux pane
   alex runtime session [...]     Manage local runtime sessions
   alex dev <command>             Manage local development services
   alex lark inject [...]         Inject a message into the local Lark gateway

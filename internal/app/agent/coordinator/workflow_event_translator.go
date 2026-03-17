@@ -176,39 +176,6 @@ var unifiedHandlers = map[string]unifiedEventHandler{
 			"tokens_used":  d.TokensUsed,
 		})
 	},
-	types.EventExternalAgentProgress: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
-		return t.singleEnvelope(evt, types.EventExternalAgentProgress, "external_agent", d.TaskID, map[string]any{
-			"task_id":       d.TaskID,
-			"agent_type":    d.AgentType,
-			"iteration":     d.Iteration,
-			"max_iter":      d.MaxIter,
-			"tokens_used":   d.TokensUsed,
-			"cost_usd":      d.CostUSD,
-			"current_tool":  d.CurrentTool,
-			"current_args":  d.CurrentArgs,
-			"files_touched": d.FilesTouched,
-			"last_activity": d.LastActivity,
-			"elapsed":       d.Elapsed.Milliseconds(),
-		})
-	},
-	types.EventExternalInputRequested: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
-		return t.singleEnvelope(evt, types.EventExternalInputRequested, "external_input", d.TaskID, map[string]any{
-			"task_id":    d.TaskID,
-			"agent_type": d.AgentType,
-			"request_id": d.RequestID,
-			"type":       d.Type,
-			"summary":    d.Summary,
-		})
-	},
-	types.EventExternalInputResponded: func(t *workflowEventTranslator, evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
-		return t.singleEnvelope(evt, types.EventExternalInputResponded, "external_input", d.TaskID, map[string]any{
-			"task_id":    d.TaskID,
-			"request_id": d.RequestID,
-			"approved":   d.Approved,
-			"option_id":  d.OptionID,
-			"message":    d.Message,
-		})
-	},
 }
 
 func (t *workflowEventTranslator) translateUnified(evt agent.AgentEvent, e *domain.Event) []*domain.WorkflowEventEnvelope {
