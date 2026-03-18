@@ -130,27 +130,31 @@ func TestDualThread_ConversationProcessSingleReply(t *testing.T) {
 	_ = gw.InjectMessage(context.Background(), "oc_single_reply", "p2p", "ou_user", "om_1", "do the thing")
 	gw.WaitForTasks()
 
-	// The bug was that both the LLM ack AND the worker result would be sent
-	// as replies to om_1 — a double reply. With the fix, the conversation
-	// process suppresses the ack text when dispatch_worker is present, so
-	// only the worker result reply should appear.
+	// When dispatch_worker is called, we expect TWO replies to om_1:
+	//   1. The conversation LLM's quick ack (e.g. "收到，马上处理") — sent
+	//      immediately so the user knows the task was accepted.
+	//   2. The worker's final result — sent when the background task completes.
 	//
-	// Note: the rephrase path in buildReply also calls the stub LLM, but
-	// the key invariant is that there should be exactly 1 reply to om_1
-	// (the worker result), not 2 (ack + worker result).
+	// The original double-reply bug was two full answers; the ack is
+	// intentionally a short confirmation, not a duplicate answer.
 	rec.mu.Lock()
 	allMsgs := make([]convSentMessage, len(rec.messages))
 	copy(allMsgs, rec.messages)
 	rec.mu.Unlock()
 
-	replyToOM1Count := 0
+	var repliesToOM1 []convSentMessage
 	for _, m := range allMsgs {
 		if m.replyTo == "om_1" {
-			replyToOM1Count++
+			repliesToOM1 = append(repliesToOM1, m)
 		}
 	}
-	if replyToOM1Count > 1 {
-		t.Fatalf("expected at most 1 reply to om_1 (worker result only), got %d — LLM ack was not suppressed", replyToOM1Count)
+	// Expect exactly 2: ack + worker result.
+	if len(repliesToOM1) < 2 {
+		t.Fatalf("expected 2 replies to om_1 (ack + worker result), got %d", len(repliesToOM1))
+	}
+	// First reply should be the ack text from the conversation LLM.
+	if !dtContains(repliesToOM1[0].content, ackText) {
+		t.Fatalf("first reply to om_1 should be the ack %q, got %q", ackText, repliesToOM1[0].content)
 	}
 }
 

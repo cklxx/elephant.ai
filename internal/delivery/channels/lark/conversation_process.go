@@ -90,9 +90,12 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	}
 
 	logger := logging.FromContext(ctx, g.logger)
-	logger.Info("conversation: decision msg=%s hasDispatchWorker=%t reply_suppressed=%t reply_len=%d tool_calls=%d",
-		msg.messageID, hasDispatchWorker, hasDispatchWorker && reply != "", len(reply), len(toolCalls))
+	logger.Info("conversation: decision msg=%s hasDispatchWorker=%t reply_len=%d tool_calls=%d",
+		msg.messageID, hasDispatchWorker, len(reply), len(toolCalls))
 
+	// When no worker is dispatched, send the reply directly.
+	// When a worker IS dispatched, the reply is held and sent as a quick
+	// acknowledgment after we know whether we spawned or injected.
 	if reply != "" && !hasDispatchWorker {
 		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply)
 	}
@@ -107,13 +110,16 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			injected := g.spawnWorker(ctx, msg, slot, snap, taskArg)
 			if injected {
 				logger.Info("conversation: INJECTED msg=%s into running worker", msg.messageID)
-				if reply != "" {
-					// Notify user that their message was merged into the running task
-					// instead of starting a new one.
-					g.dispatchFormattedReply(ctx, msg.chatID, "", "你的消息已加入当前任务")
-				}
+				// Notify user that their message was merged into the running task.
+				g.dispatchFormattedReply(ctx, msg.chatID, "", "你的消息已加入当前任务")
 			} else {
 				logger.Info("conversation: SPAWNED new worker msg=%s task=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."))
+				// Send the conversation LLM's quick acknowledgment (e.g. "好，我来看一下").
+				// This is NOT a duplicate of the worker's final result — it's an
+				// instant ack so the user knows the task was accepted.
+				if reply != "" {
+					g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply)
+				}
 			}
 		case stopWorkerToolName:
 			g.stopWorkerFromConversation(msg.chatID, slot)
