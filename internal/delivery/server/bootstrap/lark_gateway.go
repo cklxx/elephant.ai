@@ -268,6 +268,10 @@ func wireLarkGateway(ctx context.Context, gateway *lark.Gateway, cfg Config, con
 		logger.Warn("Lark task store stale cleanup failed: %v", err)
 	}
 	logger.Info("Lark task store enabled (mode=unified)")
+
+	if container.MemoryEngine != nil {
+		gateway.SetConversationPromptLoader(buildConversationPromptLoader(container))
+	}
 }
 
 func buildLarkPlanReviewStore(ctx context.Context, cfg lark.Config) (lark.PlanReviewStore, error) {
@@ -386,4 +390,35 @@ func buildLarkOAuthService(ctx context.Context, cfg Config, container *di.Contai
 		return nil
 	}
 	return svc
+}
+
+// buildConversationPromptLoader creates a function that loads memory context
+// (SOUL.md, USER.md, long-term memory) for the conversation router prompt.
+func buildConversationPromptLoader(container *di.Container) func(ctx context.Context, userID string) string {
+	engine := container.MemoryEngine
+	return func(ctx context.Context, userID string) string {
+		if engine == nil {
+			return ""
+		}
+		soul, user, err := engine.LoadIdentity(ctx, userID, "", "")
+		if err != nil {
+			return ""
+		}
+		longTerm, _ := engine.LoadLongTerm(ctx, userID)
+
+		var sections []string
+		if s := strings.TrimSpace(soul); s != "" {
+			sections = append(sections, "## Identity (SOUL.md)\n"+s)
+		}
+		if u := strings.TrimSpace(user); u != "" {
+			sections = append(sections, "## Identity (USER.md)\n"+u)
+		}
+		if lt := strings.TrimSpace(longTerm); lt != "" {
+			sections = append(sections, "## Long-term Memory\n"+lt)
+		}
+		if len(sections) == 0 {
+			return ""
+		}
+		return "# Persistent Memory\n\n" + strings.Join(sections, "\n\n")
+	}
 }

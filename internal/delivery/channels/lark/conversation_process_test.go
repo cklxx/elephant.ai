@@ -186,7 +186,7 @@ func TestConversationLLM_ReturnsTextReply(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	reply, toolCalls := g.conversationLLM(context.Background(), "你好", snap, "")
+	reply, toolCalls := g.conversationLLM(context.Background(), "u1", "你好", snap, "")
 	if reply != "你好！有什么可以帮你的？" {
 		t.Fatalf("expected reply text, got %q", reply)
 	}
@@ -205,7 +205,7 @@ func TestConversationLLM_ReturnsToolCall(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	reply, toolCalls := g.conversationLLM(context.Background(), "重构 auth 模块", snap, "")
+	reply, toolCalls := g.conversationLLM(context.Background(), "u1", "重构 auth 模块", snap, "")
 	if reply != "好，我来看一下。" {
 		t.Fatalf("expected confirmation reply, got %q", reply)
 	}
@@ -219,7 +219,7 @@ func TestConversationLLM_IncludesWorkerStatus(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotRunning, TaskDesc: "build dashboard", Elapsed: 45 * time.Second}
 
-	g.conversationLLM(context.Background(), "做得怎么样了？", snap, "")
+	g.conversationLLM(context.Background(), "u1", "做得怎么样了？", snap, "")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
@@ -236,7 +236,7 @@ func TestConversationLLM_IncludesTools(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	g.conversationLLM(context.Background(), "hello", snap, "")
+	g.conversationLLM(context.Background(), "u1", "hello", snap, "")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
@@ -259,7 +259,7 @@ func TestConversationLLM_FallbackOnError(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	reply, toolCalls := g.conversationLLM(context.Background(), "hello", snap, "")
+	reply, toolCalls := g.conversationLLM(context.Background(), "u1", "hello", snap, "")
 	if reply != "" || len(toolCalls) != 0 {
 		t.Fatalf("expected empty on error, got reply=%q toolCalls=%d", reply, len(toolCalls))
 	}
@@ -273,7 +273,7 @@ func TestConversationLLM_FallbackWhenFactoryNil(t *testing.T) {
 		logger:     logging.OrNop(nil),
 		now:        time.Now,
 	}
-	reply, toolCalls := g.conversationLLM(context.Background(), "hi", workerSnapshot{Phase: slotIdle}, "")
+	reply, toolCalls := g.conversationLLM(context.Background(), "u1", "hi", workerSnapshot{Phase: slotIdle}, "")
 	if reply != "" || len(toolCalls) != 0 {
 		t.Fatal("expected empty when factory nil")
 	}
@@ -638,14 +638,14 @@ func TestConversationLLM_IncludesChatHistory(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	g.conversationLLM(context.Background(), "hello", snap, "user: 之前的消息\nassistant: 之前的回复")
+	g.conversationLLM(context.Background(), "u1", "hello", snap, "user: 之前的消息\nassistant: 之前的回复")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
 		t.Fatal("expected at least one LLM request")
 	}
 	userContent := reqs[0].Messages[1].Content
-	if !strContains(userContent, "最近聊天记录") {
+	if !strContains(userContent, "Recent chat") {
 		t.Errorf("expected chat history header in prompt, got %q", userContent)
 	}
 	if !strContains(userContent, "之前的消息") {
@@ -658,14 +658,14 @@ func TestConversationLLM_NoChatHistoryWhenEmpty(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	snap := workerSnapshot{Phase: slotIdle}
 
-	g.conversationLLM(context.Background(), "hello", snap, "")
+	g.conversationLLM(context.Background(), "u1", "hello", snap, "")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
 		t.Fatal("expected at least one LLM request")
 	}
 	userContent := reqs[0].Messages[1].Content
-	if strContains(userContent, "最近聊天记录") {
+	if strContains(userContent, "Recent chat") {
 		t.Errorf("should not include chat history header when empty, got %q", userContent)
 	}
 }

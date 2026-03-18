@@ -111,9 +111,10 @@ type Gateway struct {
 	forkSlots           forkSlotMap        // childSessionID → *forkSlot
 	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
 	autoAuth            *AutoAuth          // in-message OAuth device flow
-	attentionGate       *AttentionGate     // optional urgency filter for incoming messages
-	runtimeBus          hooks.Bus          // optional; for handoff action callbacks
-	taskWG              sync.WaitGroup     // tracks running task goroutines (for tests)
+	attentionGate            *AttentionGate     // optional urgency filter for incoming messages
+	runtimeBus               hooks.Bus          // optional; for handoff action callbacks
+	conversationPromptLoader func(ctx context.Context, userID string) string // optional; loads memory for conversation router
+	taskWG                   sync.WaitGroup     // tracks running task goroutines (for tests)
 	cleanupMu           sync.Mutex
 	cleanupCancel       context.CancelFunc
 	cleanupWG           sync.WaitGroup
@@ -305,3 +306,9 @@ func (g *Gateway) SetAIChatCoordinator(coordinator *AIChatCoordinator) { g.aiCoo
 
 // SetRuntimeBus configures the runtime event bus used for handoff action callbacks.
 func (g *Gateway) SetRuntimeBus(bus hooks.Bus) { g.runtimeBus = bus }
+
+// SetConversationPromptLoader configures an optional loader that returns
+// memory context (SOUL.md, USER.md, long-term) for the conversation router.
+func (g *Gateway) SetConversationPromptLoader(loader func(ctx context.Context, userID string) string) {
+	g.conversationPromptLoader = loader
+}

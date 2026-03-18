@@ -25,13 +25,13 @@ const (
 
 var dispatchWorkerTool = ports.ToolDefinition{
 	Name:        dispatchWorkerToolName,
-	Description: "启动一个后台 Agent 来执行需要工具操作的任务（读写文件、执行命令、搜索等）。调用后 Agent 会在后台异步工作，完成后自动通知用户。",
+	Description: "Launch a background agent to execute a task asynchronously. The agent will notify the user when done.",
 	Parameters: ports.ParameterSchema{
 		Type: "object",
 		Properties: map[string]ports.Property{
 			"task": {
 				Type:        "string",
-				Description: "要交给 Agent 执行的任务描述，保留用户原文意图",
+				Description: "Task description preserving the user's original intent",
 			},
 		},
 		Required: []string{"task"},
@@ -40,7 +40,7 @@ var dispatchWorkerTool = ports.ToolDefinition{
 
 var stopWorkerTool = ports.ToolDefinition{
 	Name:        stopWorkerToolName,
-	Description: "停止当前正在后台运行的 Agent 任务。",
+	Description: "Stop the currently running background agent task.",
 	Parameters:  ports.ParameterSchema{Type: "object", Properties: map[string]ports.Property{}},
 }
 
@@ -70,7 +70,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	chatHistory := g.fetchConversationChatHistory(ctx, msg)
 
 	processingReactionID := g.addProcessingReaction(ctx, msg.messageID)
-	reply, toolCalls := g.conversationLLM(ctx, msg.content, snap, chatHistory)
+	reply, toolCalls := g.conversationLLM(ctx, msg.senderID, msg.content, snap, chatHistory)
 	g.removeProcessingReaction(ctx, msg.messageID, processingReactionID)
 
 	// Check if any tool call is dispatch_worker — if so, the worker will
@@ -121,7 +121,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 // conversationLLM calls the gateway's shared LLM with the conversation
 // system prompt, worker status, and user message. Returns text reply
 // and any tool calls.
-func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap workerSnapshot, chatHistory string) (string, []ports.ToolCall) {
+func (g *Gateway) conversationLLM(ctx context.Context, senderID, userMsg string, snap workerSnapshot, chatHistory string) (string, []ports.ToolCall) {
 	if g.llmFactory == nil {
 		return "", nil
 	}
@@ -135,19 +135,21 @@ func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap work
 	llmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultConversationTimeout)
 	defer cancel()
 
+	systemPrompt := g.buildConversationSystemPrompt(ctx, senderID)
+
 	var sb strings.Builder
-	sb.WriteString("当前 Worker 状态：")
+	sb.WriteString("Worker status: ")
 	sb.WriteString(snap.StatusSummary())
 	if chatHistory != "" {
-		sb.WriteString("\n\n最近聊天记录：\n")
+		sb.WriteString("\n\nRecent chat:\n")
 		sb.WriteString(chatHistory)
 	}
-	sb.WriteString("\n\n用户消息：")
+	sb.WriteString("\n\nUser message: ")
 	sb.WriteString(strings.TrimSpace(userMsg))
 
 	resp, err := client.Complete(llmCtx, ports.CompletionRequest{
 		Messages: []ports.Message{
-			{Role: "system", Content: conversationSystemPrompt},
+			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: sb.String()},
 		},
 		Tools:       []ports.ToolDefinition{dispatchWorkerTool, stopWorkerTool},
@@ -161,6 +163,20 @@ func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap work
 
 	g.logger.Info("conversation LLM: reply=%q tool_calls=%d", utils.Truncate(resp.Content, 80, "…"), len(resp.ToolCalls))
 	return strings.TrimSpace(resp.Content), resp.ToolCalls
+}
+
+// buildConversationSystemPrompt composes the conversation router's system
+// prompt by prepending memory context (SOUL.md, USER.md, long-term) when
+// a conversationPromptLoader is configured.
+func (g *Gateway) buildConversationSystemPrompt(ctx context.Context, senderID string) string {
+	if g.conversationPromptLoader == nil {
+		return conversationSystemPrompt
+	}
+	memoryCtx := g.conversationPromptLoader(ctx, senderID)
+	if memoryCtx == "" {
+		return conversationSystemPrompt
+	}
+	return memoryCtx + "\n\n" + conversationSystemPrompt
 }
 
 // spawnWorker launches a background worker via the existing runTask path.
