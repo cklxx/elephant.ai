@@ -210,6 +210,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	slot.taskDesc = strings.TrimSpace(msg.content)
 	slot.recentProgress = slot.recentProgress[:0]
 	slot.lastTouched = g.currentTime()
+	slot.taskStartTime = g.currentTime()
 	slot.mu.Unlock()
 
 	g.launchWorkerGoroutine(msg, slot, sessionID, inputCh, taskCancel, taskCtx, taskToken, isResume)
@@ -226,17 +227,13 @@ func (g *Gateway) launchWorkerGoroutine(msg *incomingMessage, slot *sessionSlot,
 		defer g.taskWG.Done()
 		defer taskCancel()
 
-		slot.mu.Lock()
-		slot.taskStartTime = g.currentTime()
-		slot.mu.Unlock()
-
 		awaitingInput := g.runTask(taskCtx, msg, sessionID, inputCh, isResume, taskToken)
 
 		slot.mu.Lock()
-		if slot.intentionalCancelToken == taskToken {
-			slot.intentionalCancelToken = 0
-		}
 		if slot.taskToken == taskToken {
+			if slot.intentionalCancelToken == taskToken {
+				slot.intentionalCancelToken = 0
+			}
 			slot.inputCh = nil
 			slot.taskCancel = nil
 			slot.taskStartTime = time.Time{}
@@ -251,7 +248,7 @@ func (g *Gateway) launchWorkerGoroutine(msg *incomingMessage, slot *sessionSlot,
 		}
 		slot.mu.Unlock()
 		if awaitingInput {
-			g.drainAndReprocess(inputCh, msg.chatID, msg.chatType)
+			g.drainAndReprocess(inputCh, msg.chatID, msg.chatType, taskToken)
 		} else {
 			g.discardPendingInputs(inputCh, msg.chatID)
 		}

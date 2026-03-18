@@ -3343,7 +3343,7 @@ func TestDrainAndReprocessPreservesOrdering(t *testing.T) {
 		ch <- agent.UserInput{Content: m, SenderID: "ou_test", MessageID: id.NewKSUID()}
 	}
 
-	gw.drainAndReprocess(ch, "oc_drain_order_test", "p2p")
+	gw.drainAndReprocess(ch, "oc_drain_order_test", "p2p", 0)
 	gw.WaitForTasks()
 
 	// The first reprocess creates a task; when it finishes (non-await), subsequent

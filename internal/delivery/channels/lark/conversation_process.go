@@ -69,7 +69,18 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	reply, toolCalls := g.conversationLLM(ctx, msg.content, snap, chatHistory)
 	g.removeProcessingReaction(ctx, msg.messageID, processingReactionID)
 
-	if reply != "" {
+	// Check if any tool call is dispatch_worker — if so, the worker will
+	// produce the final reply, so we suppress the LLM's text reply to
+	// avoid sending a duplicate response for the same message.
+	hasDispatchWorker := false
+	for _, tc := range toolCalls {
+		if tc.Name == dispatchWorkerToolName {
+			hasDispatchWorker = true
+			break
+		}
+	}
+
+	if reply != "" && !hasDispatchWorker {
 		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply)
 	}
 
@@ -80,7 +91,12 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			if taskArg == "" {
 				taskArg = msg.content
 			}
-			g.spawnWorker(ctx, msg, slot, snap, taskArg)
+			injected := g.spawnWorker(ctx, msg, slot, snap, taskArg)
+			if injected && reply != "" {
+				// Notify user that their message was merged into the running task
+				// instead of starting a new one.
+				g.dispatchFormattedReply(ctx, msg.chatID, "", "你的消息已加入当前任务")
+			}
 		case stopWorkerToolName:
 			g.stopWorkerFromConversation(msg.chatID, slot)
 		}
@@ -140,7 +156,10 @@ func (g *Gateway) conversationLLM(ctx context.Context, userMsg string, snap work
 // The running check is done under slot.mu using the live slot.phase — NOT the
 // stale snapshot — so that concurrent calls for different messages cannot both
 // bypass the guard and spawn a second worker.
-func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *sessionSlot, _ workerSnapshot, taskContent string) {
+// spawnWorker launches a background worker or injects into a running one.
+// Returns true if the message was injected into an existing worker, false if
+// a new worker was spawned.
+func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *sessionSlot, _ workerSnapshot, taskContent string) bool {
 	// Single lock: check current state and either inject or claim the slot.
 	slot.mu.Lock()
 	if slot.phase == slotRunning {
@@ -155,7 +174,7 @@ func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *s
 				g.logger.Warn("conversation: worker inputCh full for session %s", sessionID)
 			}
 		}
-		return
+		return true
 	}
 
 	sessionID, isResume := g.resolveSessionForNewTask(ctx, msg.chatID, slot)
@@ -171,12 +190,14 @@ func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *s
 	slot.taskDesc = strings.TrimSpace(taskContent)
 	slot.recentProgress = slot.recentProgress[:0]
 	slot.lastTouched = g.currentTime()
+	slot.taskStartTime = g.currentTime()
 	slot.mu.Unlock()
 
 	workerMsg := *msg
 	workerMsg.content = taskContent
 
 	g.launchWorkerGoroutine(&workerMsg, slot, sessionID, inputCh, taskCancel, taskCtx, taskToken, isResume)
+	return false
 }
 
 // stopWorkerFromConversation cancels the currently running worker for the

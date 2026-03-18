@@ -161,7 +161,7 @@ func (g *Gateway) dispatchMultiMessageReply(execCtx context.Context, msg *incomi
 // a task finishes and reprocesses each as a new task. This handles messages that
 // arrived between the last ReAct iteration drain and the task completion.
 // Messages are processed sequentially in a single goroutine to preserve ordering.
-func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID, chatType string) {
+func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID, chatType string, drainToken uint64) {
 	var remaining []agent.UserInput
 	for {
 		select {
@@ -179,7 +179,7 @@ done:
 	go func() {
 		defer g.taskWG.Done()
 		for _, msg := range remaining {
-			g.reprocessMessage(chatID, chatType, msg)
+			g.reprocessMessage(chatID, chatType, msg, drainToken)
 		}
 	}()
 }
@@ -205,7 +205,22 @@ func (g *Gateway) discardPendingInputs(ch chan agent.UserInput, chatID string) {
 // reprocessMessage re-injects a drained user input as if it were a fresh Lark
 // message. This creates a synthetic P2MessageReceiveV1 event and feeds it back
 // through handleMessage so the full pipeline (dedup, session, execution) runs.
-func (g *Gateway) reprocessMessage(chatID, chatType string, input agent.UserInput) {
+func (g *Gateway) reprocessMessage(chatID, chatType string, input agent.UserInput, drainToken uint64) {
+	// Guard: if the slot has been claimed by a newer task since we drained,
+	// drop the message to avoid injecting stale content into the new task.
+	if raw, ok := g.activeSlots.Load(chatID); ok {
+		if slot, ok := raw.(*sessionSlot); ok {
+			slot.mu.Lock()
+			currentToken := slot.taskToken
+			slot.mu.Unlock()
+			if currentToken != drainToken {
+				g.logger.Info("Dropping drained message for chat %s: slot claimed by newer task (drain=%d current=%d)",
+					chatID, drainToken, currentToken)
+				return
+			}
+		}
+	}
+
 	msgID := input.MessageID
 	content := input.Content
 
