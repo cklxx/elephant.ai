@@ -1,6 +1,6 @@
 # Architecture
 
-Updated: 2026-03-17
+Updated: 2026-03-18
 
 Runtime architecture of elephant.ai — for implementation and debugging.
 
@@ -11,11 +11,13 @@ Runtime architecture of elephant.ai — for implementation and debugging.
 ```
 Delivery         CLI · Web/API/SSE · Lark gateway
     ↓
-Application      Coordination · Context · Tools · DI
+Application      Signal Graph · Decision Engine · Digest Service
+                 Morning Brief · Self-Report · Coordination · Context · Tools · DI
     ↓
 Domain           ReAct loop · Events · Approval gates
     ↓
-Infrastructure   LLM clients · Memory · MCP · Storage · Observability
+Infrastructure   Unified Session · Memory + Distillation
+                 LLM clients · MCP · Storage · Observability
     ↓
 Shared           Config · Logging · IDs · Utilities
 ```
@@ -188,6 +190,79 @@ Translation to workflow envelope: `internal/app/agent/coordinator/workflow_event
 ## Proactivity
 
 Scheduler: `internal/app/scheduler/scheduler.go`, `executor.go`, `notifier.go`.
+
+---
+
+## Signal Graph (Strategic Expansion 2026-03-18)
+
+```
+  Lark WS ──┐
+  Git Hook ──┼──▶ Source ──▶ RingBuffer ──▶ Scorer ──▶ Router ──▶ Handlers
+  Calendar ──┘              (backpressure)  (2-tier)   (policy)
+                                            kw → LLM   budget
+                                            fast  slow  quiet hrs
+```
+
+| Component | Package |
+|-----------|---------|
+| Signal Graph | `internal/app/signals/graph.go` |
+| Two-tier Scorer | `internal/app/signals/scorer.go` |
+| Policy Router | `internal/app/signals/router.go` |
+| Ring Buffer | `internal/app/signals/ringbuffer.go` |
+| DigestService | `internal/app/digest/` |
+| Morning Brief | `internal/app/morningbrief/` |
+| Self-Report | `internal/app/selfreport/` |
+
+---
+
+## Decision Learning Engine
+
+```
+  Observe decision ──▶ Pattern match ──▶ Confidence check
+       │                    │                   │
+       ▼                    ▼                   ▼
+  Store in history    Update pattern      ≥90%: auto-act
+                      confidence          <90%: escalate
+```
+
+| Component | Package |
+|-----------|---------|
+| Decision Engine | `internal/app/decision/engine.go` |
+| Pattern Store | `internal/app/decision/pattern_store.go` |
+| Audit Log | `internal/app/decision/audit.go` |
+
+---
+
+## Memory Distillation
+
+```
+  Daily conversations ──▶ LLM extract ──▶ Facts
+  Weekly facts ──────────▶ LLM analyze ──▶ Patterns
+  Monthly patterns ──────▶ Personality model
+```
+
+| Component | Package |
+|-----------|---------|
+| Distillation Service | `internal/infra/memory/distillation/service.go` |
+| Fact Extractor | `internal/infra/memory/distillation/extractor.go` |
+| Pattern Analyzer | `internal/infra/memory/distillation/pattern_analyzer.go` |
+| Distillation Store | `internal/infra/memory/distillation/store.go` |
+
+---
+
+## Unified Session Store
+
+```
+  CLI ──┐                  ┌── Session Store (file-per-session)
+  Lark ──┼── Unified Store ─┤
+  Web ──┘                  └── Surface Index (surface:id → session_id)
+```
+
+| Component | Package |
+|-----------|---------|
+| Unified Store | `internal/infra/session/unified/store.go` |
+| Surface Index | `internal/infra/session/unified/index.go` |
+| Dual-Write Migration | `internal/infra/session/unified/dualwrite.go` |
 
 ---
 
