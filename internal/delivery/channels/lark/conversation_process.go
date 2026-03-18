@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -52,11 +53,15 @@ Decision (pick one):
 - dispatch_worker: everything else — whenever the user wants something done, dispatch it.
 
 When dispatching, add a brief acknowledgment (e.g. "On it").
-Keep all replies short and natural.
+Keep all replies short and natural. Match the user's language.
 
 Task control:
 - User sends a follow-up or correction for a running task → dispatch_worker (it injects into the running task).
 - User asks to stop ("stop", "cancel", "never mind") and a task is running → stop_worker.
+
+Safety:
+- Never fabricate information, tool outputs, or task status.
+- Never include secrets, API keys, or credentials in replies.
 `)
 
 // handleViaConversationProcess sends the user message to the gateway's LLM
@@ -166,17 +171,23 @@ func (g *Gateway) conversationLLM(ctx context.Context, senderID, userMsg string,
 }
 
 // buildConversationSystemPrompt composes the conversation router's system
-// prompt by prepending memory context (SOUL.md, USER.md, long-term) when
-// a conversationPromptLoader is configured.
+// prompt by prepending memory context (SOUL.md, USER.md, long-term) and
+// appending date/timezone when available.
 func (g *Gateway) buildConversationSystemPrompt(ctx context.Context, senderID string) string {
-	if g.conversationPromptLoader == nil {
-		return conversationSystemPrompt
+	var sections []string
+
+	if g.conversationPromptLoader != nil {
+		if memoryCtx := g.conversationPromptLoader(ctx, senderID); memoryCtx != "" {
+			sections = append(sections, memoryCtx)
+		}
 	}
-	memoryCtx := g.conversationPromptLoader(ctx, senderID)
-	if memoryCtx == "" {
-		return conversationSystemPrompt
-	}
-	return memoryCtx + "\n\n" + conversationSystemPrompt
+
+	sections = append(sections, conversationSystemPrompt)
+
+	now := g.currentTime()
+	sections = append(sections, fmt.Sprintf("Current date: %s (%s)", now.Format("2006-01-02"), now.Location().String()))
+
+	return strings.Join(sections, "\n\n")
 }
 
 // spawnWorker launches a background worker via the existing runTask path.
