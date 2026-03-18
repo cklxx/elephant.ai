@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 	"time"
-
-	"alex/internal/infra/memory/distillation"
 )
 
 func newTestEngine(t *testing.T) (*Engine, func() time.Time) {
@@ -126,9 +124,9 @@ func TestEngineRecordCorrectionNotFound(t *testing.T) {
 func TestEngineLearnPatterns(t *testing.T) {
 	eng, _ := newTestEngine(t)
 
-	weeklyPatterns := []distillation.WeeklyPattern{
-		{ID: "wp1", Description: "prefers Go", Category: "preference", Confidence: 0.85},
-		{ID: "wp2", Description: "reviews before merge", Category: "process", Confidence: 0.92},
+	weeklyPatterns := []LearnablePattern{
+		{Description: "prefers Go", Category: "preference", Confidence: 0.85},
+		{Description: "reviews before merge", Category: "process", Confidence: 0.92},
 	}
 
 	err := eng.LearnPatterns(context.Background(), weeklyPatterns)

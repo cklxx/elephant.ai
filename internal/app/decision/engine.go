@@ -6,9 +6,17 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/infra/memory/distillation"
 	"alex/internal/shared/utils/id"
 )
+
+// LearnablePattern is the input type for LearnPatterns.
+// Decouples the decision engine from the infra/memory/distillation package.
+type LearnablePattern struct {
+	Category    string
+	Description string
+	Confidence  float64
+	Evidence    []string
+}
 
 // Engine observes decisions, learns patterns, and can auto-act.
 type Engine struct {
@@ -87,7 +95,7 @@ func (e *Engine) RecordCorrection(_ context.Context, patternID string, correctio
 }
 
 // LearnPatterns creates or updates patterns from distillation output.
-func (e *Engine) LearnPatterns(_ context.Context, weeklyPatterns []distillation.WeeklyPattern) error {
+func (e *Engine) LearnPatterns(_ context.Context, weeklyPatterns []LearnablePattern) error {
 	now := e.nowFn()
 	for _, wp := range weeklyPatterns {
 		p := &Pattern{
