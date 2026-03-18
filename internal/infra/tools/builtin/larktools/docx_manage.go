@@ -22,6 +22,9 @@ func executeCreateDoc(ctx context.Context, client *larkclient.Client, call ports
 		return shared.ToolError(call.ID, "create_doc failed: %v", err)
 	}
 
+	// Best-effort: default to org-editable via link.
+	_ = client.Drive().SetLinkShareEdit(ctx, doc.DocumentID, "docx")
+
 	content := fmt.Sprintf("文档创建成功\ndocument_id: %s\ntitle: %s\nrevision_id: %d",
 		doc.DocumentID, doc.Title, doc.RevisionID)
 

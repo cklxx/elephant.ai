@@ -226,11 +226,12 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 	t.mu.Lock()
 	t.status = normalizedStatus
 	t.mergeStatus = mergeStatus
-	// Stash result in pendingSummary so flush can format without racing payload.
+	// Stash full result in pendingSummary so flush can create a doc if needed.
+	// WithAnswerPreview (DB field) is still truncated below.
 	if errText != "" {
-		t.pendingSummary = truncateForLark(errText, 1500)
+		t.pendingSummary = errText
 	} else {
-		t.pendingSummary = truncateForLark(answer, 1500)
+		t.pendingSummary = answer
 	}
 	t.mu.Unlock()
 

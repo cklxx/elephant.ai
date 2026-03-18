@@ -35,6 +35,11 @@ const commonSystemPromptSuffix = `
 ## Response Style
 - NEVER start responses with filler ("Sure!", "Of course!", "Absolutely!", "Great question!").
 ` + sevenCResponseSection + `
+## Output Length
+- Chat replies MUST stay under ~500 Chinese characters.
+- When your answer would exceed this, create a Feishu doc with the full content using lark tools, then reply with a 2-3 sentence summary and doc link.
+- NEVER dump large output directly into chat.
+
 ## Tool Routing (see system-level guardrails for full decision tree)
 - ` + "`ask_user`" + ` (action=clarify): ONLY when critical input is missing after all viable tool attempts fail. ONE minimal question.
 - ` + "`ask_user`" + ` (action=request): ONLY for explicit human gates (login, 2FA, CAPTCHA, external confirmation).

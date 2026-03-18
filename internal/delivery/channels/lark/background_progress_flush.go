@@ -49,6 +49,10 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 			b.WriteString(pending)
 		}
 	case taskStatusCompleted:
+		// Overflow long results to a Feishu doc before building the factual block.
+		if utils.HasContent(pending) {
+			pending = l.g.overflowToDoc(l.ctx, l.chatID, l.replyToID, pending, truncateForLark(desc, 60)+" 结果")
+		}
 		// Build factual block, then let LLM narrate.
 		var raw strings.Builder
 		raw.WriteString("状态：完成\n")
@@ -61,6 +65,10 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 		}
 		b.WriteString(l.g.rephraseForUser(l.ctx, raw.String(), rephraseBackground))
 	case taskStatusFailed:
+		// Overflow long errors to a Feishu doc before building the factual block.
+		if utils.HasContent(pending) {
+			pending = l.g.overflowToDoc(l.ctx, l.chatID, l.replyToID, pending, truncateForLark(desc, 60)+" 错误详情")
+		}
 		// Build factual block, then let LLM narrate.
 		var raw strings.Builder
 		raw.WriteString("状态：失败\n")

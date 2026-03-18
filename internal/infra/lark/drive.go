@@ -255,6 +255,31 @@ func (s *DriveService) DownloadFile(ctx context.Context, fileToken string, opts 
 	return resp.File, resp.FileName, nil
 }
 
+// --- Permissions ---
+
+// SetLinkShareEdit sets the document's link-sharing permission to
+// "tenant_editable" so that anyone in the org with the link can edit.
+func (s *DriveService) SetLinkShareEdit(ctx context.Context, token, fileType string, opts ...CallOption) error {
+	permReq := larkdrive.NewPermissionPublicRequestBuilder().
+		LinkShareEntity("tenant_editable").
+		Build()
+
+	req := larkdrive.NewPatchPermissionPublicReqBuilder().
+		Token(token).
+		Type(fileType).
+		PermissionPublicRequest(permReq).
+		Build()
+
+	resp, err := s.client.Drive.V1.PermissionPublic.Patch(ctx, req, buildOpts(opts)...)
+	if err != nil {
+		return fmt.Errorf("set link share edit: %w", err)
+	}
+	if !resp.Success() {
+		return &APIError{Code: resp.Code, Msg: resp.Msg}
+	}
+	return nil
+}
+
 // --- helpers ---
 
 func parseDriveFile(file *larkdrive.File) DriveFile {

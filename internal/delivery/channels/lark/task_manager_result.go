@@ -9,6 +9,7 @@ import (
 	"alex/internal/delivery/channels"
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	larkclient "alex/internal/infra/lark"
 	builtinshared "alex/internal/infra/tools/builtin/shared"
 )
 
@@ -70,6 +71,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		}
 		if reply == "" {
 			reply = g.buildReply(execCtx, result, execErr)
+			reply = g.overflowToDoc(execCtx, msg.chatID, msg.messageID, reply, "ALEX 回复详情")
 		}
 		if reply == "" {
 			switch {
@@ -181,6 +183,50 @@ func (g *Gateway) truncateWithDoc(ctx context.Context, chatID, replyToID, fullTe
 
 func buildFileContent(fileKey, fileName string) string {
 	return `{"file_key":"` + fileKey + `","file_name":"` + fileName + `"}`
+}
+
+// docOverflowThreshold is the rune count above which delivery-layer output is
+// converted to a Feishu doc (or uploaded as a file) instead of sent inline.
+const docOverflowThreshold = 800
+
+// overflowToDoc creates a Feishu document when fullText exceeds the overflow
+// threshold, returning a short summary with a doc link. Falls back to file
+// upload, then hard truncation.
+func (g *Gateway) overflowToDoc(ctx context.Context, chatID, replyToID, fullText, title string) string {
+	if len([]rune(fullText)) <= docOverflowThreshold {
+		return fullText
+	}
+
+	// Try creating a Feishu doc with the full content.
+	if g.client != nil {
+		lc := larkclient.Wrap(g.client)
+		doc, err := lc.Docx().CreateDocument(ctx, larkclient.CreateDocumentRequest{
+			Title: title,
+		})
+		if err == nil {
+			// Best-effort: make the doc editable via link for org members.
+			if permErr := lc.Drive().SetLinkShareEdit(ctx, doc.DocumentID, "docx"); permErr != nil {
+				g.logger.Warn("Lark overflowToDoc set edit permission failed: %v", permErr)
+			}
+			// Get the page block to write content into.
+			blocks, _, _, listErr := lc.Docx().ListDocumentBlocks(ctx, doc.DocumentID, 1, "")
+			if listErr == nil && len(blocks) > 0 {
+				writeErr := lc.Docx().WriteMarkdown(ctx, doc.DocumentID, blocks[0].BlockID, fullText)
+				if writeErr == nil {
+					docURL := larkclient.BuildDocumentURL(g.cfg.BaseDomain, doc.DocumentID)
+					summary := []rune(fullText)
+					if len(summary) > 150 {
+						summary = summary[:150]
+					}
+					return string(summary) + "…\n\n详细内容见文档: " + docURL
+				}
+			}
+		}
+		g.logger.Warn("Lark overflowToDoc doc creation failed, falling back to file upload: %v", err)
+	}
+
+	// Fallback: upload as .txt file.
+	return g.truncateWithDoc(ctx, chatID, replyToID, fullText)
 }
 
 // buildReply constructs the reply string from the agent result, then rephrases

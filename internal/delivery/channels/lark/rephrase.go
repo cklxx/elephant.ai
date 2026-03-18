@@ -25,6 +25,7 @@ const rephraseForegroundSystemPrompt = `你是一个说话简洁的同事，把 
 - 总长度不超过 200 字。超过的细节用一句"详细内容我整理成文档发给你"代替。
 - 结论/结果放第一句，像跟朋友说话一样自然。
 - 保留关键文件路径和数据，去掉推理过程。
+- 如果原文包含文档链接，保留链接并在结尾提及。
 - 不使用标题（## ）、不使用 emoji。`
 
 func (g *Gateway) rephraseForUser(ctx context.Context, rawText string, kind rephraseKind) string {

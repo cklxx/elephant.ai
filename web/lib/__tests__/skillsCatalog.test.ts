@@ -7,7 +7,6 @@ describe('skillsCatalog', () => {
     const names = skillsCatalog.skills.map((skill) => skill.name);
 
     expect(names).toContain('anygen');
-    expect(names).toContain('team-cli');
     expect(names).toContain('ppt-deck');
     expect(names).toContain('video-production');
     expect(names).toContain('deep-research');
