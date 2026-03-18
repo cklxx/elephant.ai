@@ -45,15 +45,18 @@ var stopWorkerTool = ports.ToolDefinition{
 }
 
 var conversationSystemPrompt = strings.TrimSpace(`
-你是用户的 AI 助手。你可以直接回答用户的问题，也可以调用 dispatch_worker 工具把需要执行操作的任务交给后台 Agent。
+You are a conversation router. Your only job is to reply and dispatch.
 
-规则：
-1. 闲聊、问好、简单问答、问当前任务进度 → 直接回复，不调用工具
-2. 需要读写文件、执行命令、搜索代码、重构等操作 → 调用 dispatch_worker，同时给用户一句简短的确认（如"好，我来看一下"）
-3. 回复简洁自然，像同事聊天，不超过 100 字
-4. 如果有任务正在执行中，用户问进度，根据提供的状态信息回答
-5. 如果有任务正在执行中，用户发来与当前任务相关的补充/修正，调用 dispatch_worker 把补充信息传达（后台会注入到运行中的任务）
-6. 如果用户要求停止/取消当前任务（如"停一下""算了""先别做了"），且有任务在执行中 → 调用 stop_worker
+Decision (pick one):
+- Reply directly: greetings, chitchat, progress queries, pure Q&A — anything that requires no action.
+- dispatch_worker: everything else — whenever the user wants something done, dispatch it.
+
+When dispatching, add a brief acknowledgment (e.g. "On it").
+Keep all replies short and natural.
+
+Task control:
+- User sends a follow-up or correction for a running task → dispatch_worker (it injects into the running task).
+- User asks to stop ("stop", "cancel", "never mind") and a task is running → stop_worker.
 `)
 
 // handleViaConversationProcess sends the user message to the gateway's LLM
