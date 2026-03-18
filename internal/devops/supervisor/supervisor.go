@@ -314,10 +314,15 @@ func (s *Supervisor) restartComponentAfterDelay(ctx context.Context, comp *Compo
 	}()
 }
 
-func (s *Supervisor) stopAll(ctx context.Context) {
+func (s *Supervisor) stopAll(_ context.Context) {
+	// Use a fresh context with a shutdown timeout. The incoming context is
+	// typically already cancelled (SIGTERM → signal.NotifyContext), which
+	// would cause exec.CommandContext to kill the stop script immediately.
+	stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	for _, comp := range s.components {
 		if comp.StopFn != nil {
-			if err := comp.StopFn(ctx); err != nil {
+			if err := comp.StopFn(stopCtx); err != nil {
 				s.logger.Error("failed to stop component",
 					"component", comp.Name,
 					"error", err)

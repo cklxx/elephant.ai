@@ -313,6 +313,27 @@ func larkStop() error {
 	os.Remove(pidFile)
 	stopCaffeinateGuard(cfg.PIDDir)
 	fmt.Println("Supervisor stopped")
+
+	// Belt-and-suspenders: stop the main process if the supervisor's stopAll
+	// didn't get to it (e.g. SIGKILL, or the stop script was too slow).
+	mainPIDFile := filepath.Join(cfg.PIDDir, "lark-main.pid")
+	if mainPID, _, mainAlive := readLivePIDFile(mainPIDFile, false); mainAlive {
+		fmt.Printf("Stopping main process (PID: %d)...\n", mainPID)
+		_ = syscall.Kill(mainPID, syscall.SIGTERM)
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			if syscall.Kill(mainPID, 0) != nil {
+				break
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+		if syscall.Kill(mainPID, 0) == nil {
+			_ = syscall.Kill(mainPID, syscall.SIGKILL)
+		}
+		os.Remove(mainPIDFile)
+		fmt.Println("Main process stopped")
+	}
+
 	return nil
 }
 
