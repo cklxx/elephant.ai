@@ -8,6 +8,7 @@ import (
 	"alex/internal/app/agent/llmclient"
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
 )
 
@@ -80,6 +81,10 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		}
 	}
 
+	logger := logging.FromContext(ctx, g.logger)
+	logger.Info("conversation: decision msg=%s hasDispatchWorker=%t reply_suppressed=%t reply_len=%d tool_calls=%d",
+		msg.messageID, hasDispatchWorker, hasDispatchWorker && reply != "", len(reply), len(toolCalls))
+
 	if reply != "" && !hasDispatchWorker {
 		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply)
 	}
@@ -92,10 +97,15 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 				taskArg = msg.content
 			}
 			injected := g.spawnWorker(ctx, msg, slot, snap, taskArg)
-			if injected && reply != "" {
-				// Notify user that their message was merged into the running task
-				// instead of starting a new one.
-				g.dispatchFormattedReply(ctx, msg.chatID, "", "你的消息已加入当前任务")
+			if injected {
+				logger.Info("conversation: INJECTED msg=%s into running worker", msg.messageID)
+				if reply != "" {
+					// Notify user that their message was merged into the running task
+					// instead of starting a new one.
+					g.dispatchFormattedReply(ctx, msg.chatID, "", "你的消息已加入当前任务")
+				}
+			} else {
+				logger.Info("conversation: SPAWNED new worker msg=%s task=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."))
 			}
 		case stopWorkerToolName:
 			g.stopWorkerFromConversation(msg.chatID, slot)

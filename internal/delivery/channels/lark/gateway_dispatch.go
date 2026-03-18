@@ -190,11 +190,15 @@ func (g *Gateway) dispatchFormattedReply(ctx context.Context, chatID, replyToID,
 	}
 }
 
-// dispatch is a fire-and-forget wrapper around dispatchMessage that logs errors.
+// dispatch is a fire-and-forget wrapper around dispatchMessage that logs
+// both successes and failures for outbound message auditing.
 func (g *Gateway) dispatch(ctx context.Context, chatID, replyToID, msgType, content string) {
-	if _, err := g.dispatchMessage(ctx, chatID, replyToID, msgType, content); err != nil {
-		g.logger.Warn("Lark dispatch message failed: %v", err)
+	mid, err := g.dispatchMessage(ctx, chatID, replyToID, msgType, content)
+	if err != nil {
+		g.logger.Warn("dispatch: FAILED chat=%s reply_to=%s type=%s err=%v", chatID, replyToID, msgType, err)
+		return
 	}
+	g.logger.Info("dispatch: SENT chat=%s reply_to=%s type=%s sent_msg=%s preview=%s", chatID, replyToID, msgType, mid, truncateForLark(content, 80))
 }
 
 // replyTarget returns the message ID to reply to when allowed.

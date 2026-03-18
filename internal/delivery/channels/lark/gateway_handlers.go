@@ -6,6 +6,8 @@ import (
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/logging"
+	"alex/internal/shared/utils/id"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
@@ -42,7 +44,11 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	if msg == nil {
 		return nil
 	}
-	g.logger.Info("Lark message received: chat_id=%s msg_id=%s sender=%s group=%t len=%d", msg.chatID, msg.messageID, msg.senderID, msg.isGroup, len(msg.content))
+
+	logID := id.NewLogID()
+	ctx = id.WithLogID(ctx, logID)
+	msgLogger := logging.WithLogID(g.logger, logID)
+	msgLogger.Info("Lark message received: chat_id=%s msg_id=%s sender=%s group=%t len=%d", msg.chatID, msg.messageID, msg.senderID, msg.isGroup, len(msg.content))
 
 	// AI Chat Coordination: Check if this is a multi-bot chat scenario
 	if g.aiCoordinator != nil && msg.isGroup {
@@ -122,6 +128,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	// a background worker via its dispatch_worker tool.
 	if g.conversationProcessEnabled() {
 		slot.mu.Unlock()
+		msgLogger.Info("message routed: conversation_process=true msg=%s", msg.messageID)
 		g.handleViaConversationProcess(ctx, msg, slot)
 		return nil
 	}

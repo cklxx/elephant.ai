@@ -136,6 +136,7 @@ func (g *Gateway) deliverIntent(parentCtx context.Context, intent DeliveryIntent
 			return err
 		}
 	}
+	g.logger.Info("deliverIntent: SENT chat=%s reply_to=%s event=%s run=%s intent=%s", intent.ChatID, intent.ReplyToMessageID, intent.EventType, intent.RunID, intent.IntentID)
 	if len(intent.Attachments) > 0 {
 		g.sendAttachments(dispatchCtx, intent.ChatID, intent.ReplyToMessageID, &agent.TaskResult{Attachments: intent.Attachments})
 	}
