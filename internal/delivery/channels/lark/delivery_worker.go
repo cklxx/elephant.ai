@@ -123,20 +123,26 @@ func (g *Gateway) deliverIntent(parentCtx context.Context, intent DeliveryIntent
 	defer cancel()
 
 	edited := false
+	sentMsgID := ""
 	if intent.ProgressMessageID != "" {
 		if err := g.updateMessage(dispatchCtx, intent.ProgressMessageID, intent.MsgType, intent.Content); err != nil {
 			g.logger.Warn("Lark outbox progress→reply edit failed, fallback to new message: intent=%s err=%v", intent.IntentID, err)
 		} else {
 			edited = true
+			sentMsgID = intent.ProgressMessageID
 		}
 	}
 	if !edited {
 		replyTo := replyTarget(intent.ReplyToMessageID, true)
-		if _, err := g.dispatchMessage(dispatchCtx, intent.ChatID, replyTo, intent.MsgType, intent.Content); err != nil {
+		mid, err := g.dispatchMessage(dispatchCtx, intent.ChatID, replyTo, intent.MsgType, intent.Content)
+		if err != nil {
 			return err
 		}
+		sentMsgID = mid
 	}
-	g.logger.Info("deliverIntent: SENT chat=%s reply_to=%s event=%s run=%s intent=%s", intent.ChatID, intent.ReplyToMessageID, intent.EventType, intent.RunID, intent.IntentID)
+	g.logger.Info("deliverIntent: SENT chat=%s reply_to=%s event=%s run=%s intent=%s seq=%d sent_msg=%s preview=%s",
+		intent.ChatID, intent.ReplyToMessageID, intent.EventType, intent.RunID, intent.IntentID,
+		intent.Sequence, sentMsgID, truncateForLark(intent.Content, 80))
 	if len(intent.Attachments) > 0 {
 		g.sendAttachments(dispatchCtx, intent.ChatID, intent.ReplyToMessageID, &agent.TaskResult{Attachments: intent.Attachments})
 	}
