@@ -705,6 +705,9 @@ func printLarkSummary(sec *devlog.SectionWriter) {
 
 	for name, comp := range status.Components {
 		label := comp.Health
+		if comp.PID > 0 {
+			label += fmt.Sprintf("  pid=%d", comp.PID)
+		}
 		if comp.DeployedSHA != "" {
 			sha := shortSHA(comp.DeployedSHA)
 			aligned := ""
