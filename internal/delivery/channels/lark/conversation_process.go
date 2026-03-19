@@ -503,8 +503,9 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	}
 
 	logger := logging.FromContext(ctx, g.logger)
-	logger.Info("conversation: decision msg=%s hasDispatchWorker=%t reply_len=%d tool_calls=%d",
-		msg.messageID, hasDispatchWorker, len(reply), len(toolCalls))
+	fragments := splitIMFragments(naturalizeReply(reply, level))
+	logger.Info("conversation: decision msg=%s hasDispatchWorker=%t reply_len=%d fragments=%d tool_calls=%d",
+		msg.messageID, hasDispatchWorker, len(reply), len(fragments), len(toolCalls))
 
 	// Fallback: LLM returned empty reply with no tool calls — treat as dispatch.
 	if reply == "" && len(toolCalls) == 0 {
