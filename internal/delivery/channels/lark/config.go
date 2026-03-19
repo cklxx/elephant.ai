@@ -83,6 +83,12 @@ type Config struct {
 	// instantly and optionally dispatching a background worker via its
 	// dispatch_worker tool. Default: false (disabled).
 	ConversationProcessEnabled *bool
+	// MaxConcurrentWorkers is the max simultaneous background workers per chat
+	// in conversation-process mode. Default 5.
+	MaxConcurrentWorkers int `yaml:"max_concurrent_workers"`
+	// StuckWorkerTimeout is how long a worker can go without progress before
+	// the stuck detector notifies the user. Default 5m.
+	StuckWorkerTimeout time.Duration `yaml:"stuck_worker_timeout"`
 	// CCHooksAutoConfig enables automatic Claude Code hooks configuration
 	// (direct file write to .claude/settings.local.json) after /notice bind.
 	CCHooksAutoConfig *CCHooksAutoConfig

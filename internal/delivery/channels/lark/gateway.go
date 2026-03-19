@@ -67,6 +67,8 @@ type sessionSlot struct {
 	pendingOptions         []string // options awaiting numeric reply
 	lastTouched            time.Time
 	taskStartTime          time.Time // set just before runTask begins; zero until then
+	taskID                 string    // "#1", "#2", etc. — set when allocated from chatSlotMap
+	lastProgressAt         time.Time // updated on every tool event; used for stuck detection
 }
 
 const maxSlotProgress = 8
@@ -80,6 +82,7 @@ func (s *sessionSlot) appendProgress(text string) {
 		s.recentProgress = s.recentProgress[1:]
 	}
 	s.recentProgress = append(s.recentProgress, text)
+	s.lastProgressAt = time.Now() // update heartbeat
 }
 
 // Gateway bridges Lark bot messages into the agent runtime.
@@ -107,8 +110,10 @@ type Gateway struct {
 	chatSessionStore    ChatSessionBindingStore
 	deliveryOutboxStore DeliveryOutboxStore
 	noticeState         *noticeStateStore
-	activeSlots sync.Map // chatID → *sessionSlot
-	forkSlots           forkSlotMap        // childSessionID → *forkSlot
+	activeSlots             sync.Map  // chatID → *sessionSlot
+	activeChatSlots         sync.Map  // chatID → *chatSlotMap (conversation-process path only)
+	conversationPromptCache sync.Map  // senderID → *memoryCacheEntry
+	forkSlots               forkSlotMap        // childSessionID → *forkSlot
 	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions
 	autoAuth            *AutoAuth          // in-message OAuth device flow
 	attentionGate            *AttentionGate     // optional urgency filter for incoming messages
@@ -197,6 +202,12 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	}
 	if cfg.ToolFailureAbortThreshold <= 0 {
 		cfg.ToolFailureAbortThreshold = defaultToolFailureAbortN
+	}
+	if cfg.MaxConcurrentWorkers <= 0 {
+		cfg.MaxConcurrentWorkers = 5
+	}
+	if cfg.StuckWorkerTimeout <= 0 {
+		cfg.StuckWorkerTimeout = 5 * time.Minute
 	}
 	cfg.DeliveryMode = string(normalizeDeliveryMode(cfg.DeliveryMode))
 	logger = logging.OrNop(logger)
