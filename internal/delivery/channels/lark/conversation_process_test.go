@@ -289,9 +289,8 @@ func TestHandleViaConversationProcess_DirectReply(t *testing.T) {
 	rec := getRecorder(g)
 
 	msg := &incomingMessage{chatID: "chat1", messageID: "msg1", content: "你好"}
-	slot := &sessionSlot{}
 
-	handled := g.handleViaConversationProcess(context.Background(), msg, slot)
+	handled := g.handleViaConversationProcess(context.Background(), msg)
 	if !handled {
 		t.Fatal("expected handled=true")
 	}
@@ -305,9 +304,8 @@ func TestHandleViaConversationProcess_AlwaysReturnsTrue(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 
 	msg := &incomingMessage{chatID: "chat1", content: "hello"}
-	slot := &sessionSlot{}
 
-	if !g.handleViaConversationProcess(context.Background(), msg, slot) {
+	if !g.handleViaConversationProcess(context.Background(), msg) {
 		t.Fatal("expected handled=true even on LLM failure")
 	}
 }
@@ -322,31 +320,42 @@ func TestHandleViaConversationProcess_SpawnsWorkerOnToolCall(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 
 	msg := &incomingMessage{chatID: "chat1", chatType: "p2p", messageID: "msg1", senderID: "user1", content: "重构 auth"}
-	slot := g.getOrCreateSlot("chat1")
 
-	g.handleViaConversationProcess(context.Background(), msg, slot)
+	g.handleViaConversationProcess(context.Background(), msg)
 
-	// Verify slot transitioned to running (worker goroutine launched).
-	slot.mu.Lock()
-	phase := slot.phase
-	desc := slot.taskDesc
-	slot.mu.Unlock()
-	if phase != slotRunning {
-		t.Fatalf("expected slotRunning, got %d", phase)
+	// Verify a slot was allocated in the chatSlotMap and is running.
+	slotMap := g.getOrCreateSlotMap("chat1")
+	var foundRunning bool
+	var foundDesc string
+	slotMap.forEachSlot(func(taskID string, s *sessionSlot) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.phase == slotRunning {
+			foundRunning = true
+			foundDesc = s.taskDesc
+		}
+	})
+	if !foundRunning {
+		t.Fatal("expected a slot in slotRunning phase")
 	}
-	if desc != "重构 auth" {
-		t.Fatalf("expected taskDesc='重构 auth', got %q", desc)
+	if foundDesc != "重构 auth" {
+		t.Fatalf("expected taskDesc='重构 auth', got %q", foundDesc)
 	}
 
 	// Wait for the worker goroutine to finish.
 	g.taskWG.Wait()
 
 	// After worker completes, slot should be idle again.
-	slot.mu.Lock()
-	phase = slot.phase
-	slot.mu.Unlock()
-	if phase != slotIdle {
-		t.Fatalf("expected slotIdle after worker completes, got %d", phase)
+	var stillRunning bool
+	slotMap.forEachSlot(func(taskID string, s *sessionSlot) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.phase == slotRunning {
+			stillRunning = true
+		}
+	})
+	if stillRunning {
+		t.Fatal("expected no slots still running after worker completes")
 	}
 }
 
@@ -359,9 +368,13 @@ func TestHandleViaConversationProcess_InjectsIntoRunningWorker(t *testing.T) {
 	}
 	g := newConvGateway(t, stub, true)
 
-	// Pre-populate a running worker with an inputCh.
+	// Pre-populate a running worker in the chatSlotMap.
 	inputCh := make(chan agent.UserInput, 16)
-	slot := g.getOrCreateSlot("chat1")
+	slotMap := g.getOrCreateSlotMap("chat1")
+	slot, _, _ := slotMap.allocateSlotIfCapacity(5, time.Now())
+	if slot == nil {
+		t.Fatal("failed to allocate slot")
+	}
 	slot.mu.Lock()
 	slot.phase = slotRunning
 	slot.inputCh = inputCh
@@ -369,11 +382,10 @@ func TestHandleViaConversationProcess_InjectsIntoRunningWorker(t *testing.T) {
 	slot.taskDesc = "重构 auth 模块"
 	slot.lastTouched = time.Now()
 	slot.mu.Unlock()
-	g.activeSlots.Store("chat1", slot)
 
 	msg := &incomingMessage{chatID: "chat1", messageID: "msg2", senderID: "user1", content: "用 PostgreSQL"}
 
-	g.handleViaConversationProcess(context.Background(), msg, slot)
+	g.handleViaConversationProcess(context.Background(), msg)
 
 	// Verify the message was injected into the existing inputCh.
 	select {
@@ -419,8 +431,8 @@ func TestConversationProcessEnabled_True(t *testing.T) {
 
 func TestWorkerSnapshot_StatusSummary_Idle(t *testing.T) {
 	snap := workerSnapshot{Phase: slotIdle}
-	if snap.StatusSummary() != "idle" {
-		t.Fatalf("expected 'idle', got %q", snap.StatusSummary())
+	if snap.StatusSummary("zh") != "idle" {
+		t.Fatalf("expected 'idle', got %q", snap.StatusSummary("zh"))
 	}
 }
 
@@ -428,7 +440,7 @@ func TestWorkerSnapshot_StatusSummary_Running(t *testing.T) {
 	snap := workerSnapshot{
 		Phase: slotRunning, TaskDesc: "build dashboard", Elapsed: 45 * time.Second,
 	}
-	s := snap.StatusSummary()
+	s := snap.StatusSummary("zh")
 	if !strContains(s, "build dashboard") || !strContains(s, "45s") {
 		t.Errorf("unexpected summary: %q", s)
 	}
@@ -555,9 +567,8 @@ func TestHandleViaConversationProcess_UsesFormattedPipeline(t *testing.T) {
 	rec := getRecorder(g)
 
 	msg := &incomingMessage{chatID: "chat1", messageID: "msg1", content: "结果呢？"}
-	slot := &sessionSlot{}
 
-	g.handleViaConversationProcess(context.Background(), msg, slot)
+	g.handleViaConversationProcess(context.Background(), msg)
 
 	if rec.count() != 1 {
 		t.Fatalf("expected 1 message, got %d", rec.count())
@@ -585,14 +596,18 @@ func TestHandleViaConversationProcess_StopsWorkerOnToolCall(t *testing.T) {
 	stub := &convStubLLMClient{
 		resp: "好的，已停止。",
 		toolCalls: []ports.ToolCall{
-			{ID: "tc1", Name: "stop_worker", Arguments: map[string]any{}},
+			{ID: "tc1", Name: "stop_worker", Arguments: map[string]any{"task_id": ""}},
 		},
 	}
 	g := newConvGateway(t, stub, true)
 
-	// Pre-populate a running worker with a cancel func.
+	// Pre-populate a running worker in the chatSlotMap with a cancel func.
 	cancelled := false
-	slot := g.getOrCreateSlot("chat1")
+	slotMap := g.getOrCreateSlotMap("chat1")
+	slot, _, _ := slotMap.allocateSlotIfCapacity(5, time.Now())
+	if slot == nil {
+		t.Fatal("failed to allocate slot")
+	}
 	slot.mu.Lock()
 	slot.phase = slotRunning
 	slot.inputCh = make(chan agent.UserInput, 16)
@@ -601,11 +616,10 @@ func TestHandleViaConversationProcess_StopsWorkerOnToolCall(t *testing.T) {
 	slot.taskCancel = func() { cancelled = true }
 	slot.lastTouched = time.Now()
 	slot.mu.Unlock()
-	g.activeSlots.Store("chat1", slot)
 
 	msg := &incomingMessage{chatID: "chat1", messageID: "msg1", senderID: "user1", content: "停一下"}
 
-	g.handleViaConversationProcess(context.Background(), msg, slot)
+	g.handleViaConversationProcess(context.Background(), msg)
 
 	if !cancelled {
 		t.Fatal("expected worker to be cancelled")
@@ -681,7 +695,7 @@ func TestWorkerSnapshot_StatusSummary_WithProgress(t *testing.T) {
 		Elapsed:        45 * time.Second,
 		RecentProgress: []string{"▶ read_file", "✓ read_file (100ms)"},
 	}
-	s := snap.StatusSummary()
+	s := snap.StatusSummary("zh")
 	if !strContains(s, "最近进展") {
 		t.Errorf("expected progress section, got %q", s)
 	}
