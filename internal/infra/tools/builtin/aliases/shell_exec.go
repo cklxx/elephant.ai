@@ -30,11 +30,12 @@ func NewShellExec(cfg shared.ShellToolConfig) tools.ToolExecutor {
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
-						"command":    {Type: "string", Description: "Shell command to execute"},
-						"exec_dir":   {Type: "string", Description: "Absolute working directory"},
-						"timeout":    {Type: "number", Description: "Timeout in seconds"},
-						"async_mode": {Type: "boolean", Description: "Run asynchronously"},
-						"session_id": {Type: "string", Description: "Optional shell session id"},
+						"command":     {Type: "string", Description: "Shell command to execute"},
+						"description": {Type: "string", Description: "Brief description of what this command does and why"},
+						"exec_dir":    {Type: "string", Description: "Absolute working directory"},
+						"timeout":     {Type: "number", Description: "Timeout in seconds"},
+						"async_mode":  {Type: "boolean", Description: "Run asynchronously"},
+						"session_id":  {Type: "string", Description: "Optional shell session id"},
 						"attachments": {
 							Type:        "array",
 							Description: "Optional list of file paths or attachment specs to fetch after execution.",
@@ -148,12 +149,15 @@ func (t *shellExec) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		content = fmt.Sprintf("%s\n\n%s", content, output)
 	}
 
+	description := strings.TrimSpace(shared.StringArg(call.Arguments, "description"))
+
 	metadata := map[string]any{
-		"session_id": call.SessionID,
-		"status":     status,
-		"exit_code":  exitCode,
-		"output":     output,
-		"command":    command,
+		"session_id":  call.SessionID,
+		"status":      status,
+		"exit_code":   exitCode,
+		"output":      output,
+		"command":     command,
+		"description": description,
 	}
 
 	specs, err := parseAttachmentSpecs(call.Arguments)
