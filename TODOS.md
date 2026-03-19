@@ -35,12 +35,8 @@ Items deferred from CEO Plan Reviews (2026-03-18 strategic expansion, 2026-03-19
 - **Depends on:** Task ID tracking (N concurrent workers plan — scheduled next sprint). Requires task result storage: a per-slot result field populated on worker completion.
 - **Code path:** `internal/delivery/channels/lark/` — slot result store + Chat system prompt update + `dispatch_worker` tool param `depends_on: ["#1"]`.
 
-### Memory-wired formality level
-- **What:** Extend `detectFormalityLevel` in `conversation_process.go` to scan USER.md/SOUL.md for relationship signals: keywords like "外部客户" or "client" → level=0 (neutral), "同事" or "colleague" → level=1 (casual). Currently uses chat type as a proxy (p2p=casual, group=neutral).
-- **Why:** The p2p heuristic is correct most of the time but misses group chats with known colleagues. Memory-wired detection would make the formality dial genuinely per-relationship.
-- **Effort:** S (human: ~2 days / CC: ~10 min)
-- **Depends on:** Memory engine identity loading — already wired via `conversationPromptLoader`.
-- **Code path:** `internal/delivery/channels/lark/conversation_process.go` — `detectFormalityLevel` + `handleViaConversationProcess`.
+### ~~Memory-wired formality level~~ ✓ Done
+- Completed 2026-03-19. `detectFormalityLevel` now scans cached memory context for relationship keywords (外部客户/client → neutral, 同事/colleague → casual) before falling back to chat type heuristic.
 
 ## P2 — Should do before next milestone
 

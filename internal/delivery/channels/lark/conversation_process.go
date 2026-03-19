@@ -240,18 +240,37 @@ func (g *Gateway) dispatchAckReply(ctx context.Context, msg *incomingMessage, la
 	g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
 }
 
-// detectFormalityLevel returns 0 (neutral) or 1 (casual) based on chat context.
-// p2p chats are almost always with known colleagues → casual.
-// Group chats may include external users → neutral by default.
+// detectFormalityLevel returns 0 (neutral) or 1 (casual) based on chat context
+// and optional memory context from SOUL.md/USER.md.
 //
-// TODO: extend to read SOUL.md/USER.md memory context for per-user relationship
-// signals, e.g. "外部客户" → level=0, "同事/朋友" → level=1.
-func detectFormalityLevel(chatType string) int {
+// Priority: memory relationship keywords > chat type heuristic.
+// Memory keywords (case-insensitive):
+//   - neutral (0): "外部客户", "client", "external", "合作方", "partner"
+//   - casual  (1): "同事", "colleague", "朋友", "friend", "teammate", "队友"
+func detectFormalityLevel(chatType string, memoryCtx string) int {
+	if memoryCtx != "" {
+		lower := strings.ToLower(memoryCtx)
+		for _, kw := range formalityNeutralKeywords {
+			if strings.Contains(lower, kw) {
+				return 0
+			}
+		}
+		for _, kw := range formalityCasualKeywords {
+			if strings.Contains(lower, kw) {
+				return 1
+			}
+		}
+	}
 	if chatType == "p2p" {
 		return 1
 	}
 	return 0
 }
+
+var (
+	formalityNeutralKeywords = []string{"外部客户", "client", "external", "合作方", "partner"}
+	formalityCasualKeywords  = []string{"同事", "colleague", "朋友", "friend", "teammate", "队友"}
+)
 
 // naturalizeReply post-processes LLM output to match IM casual register.
 // level 0 = neutral (base rules only); level 1 = casual (base + aggressive).
@@ -435,7 +454,13 @@ func classifyFastPath(content string) fastPathIntent {
 // Always returns true — fully owns the message lifecycle when enabled.
 func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomingMessage) bool {
 	lang := detectLang(msg.content)
-	level := detectFormalityLevel(msg.chatType)
+
+	var memoryCtx string
+	if g.conversationPromptLoader != nil {
+		memoryCtx = g.loadCachedConversationPrompt(ctx, msg.senderID)
+	}
+	level := detectFormalityLevel(msg.chatType, memoryCtx)
+
 	slotMap := g.getOrCreateSlotMap(msg.chatID)
 
 	// Fast-path classifier: bypass Chat LLM for common patterns.

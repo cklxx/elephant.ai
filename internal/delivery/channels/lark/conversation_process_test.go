@@ -657,20 +657,53 @@ func TestNaturalizeReply_EnglishPeriodUntouched(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestDetectFormalityLevel_P2P(t *testing.T) {
-	if detectFormalityLevel("p2p") != 1 {
+	if detectFormalityLevel("p2p", "") != 1 {
 		t.Error("p2p chat should return casual level 1")
 	}
 }
 
 func TestDetectFormalityLevel_Group(t *testing.T) {
-	if detectFormalityLevel("group") != 0 {
+	if detectFormalityLevel("group", "") != 0 {
 		t.Error("group chat should return neutral level 0")
 	}
 }
 
 func TestDetectFormalityLevel_Unknown(t *testing.T) {
-	if detectFormalityLevel("") != 0 {
+	if detectFormalityLevel("", "") != 0 {
 		t.Error("unknown chat type should return neutral level 0")
+	}
+}
+
+func TestDetectFormalityLevel_MemoryNeutral(t *testing.T) {
+	// Memory keyword "外部客户" should override p2p → neutral.
+	if detectFormalityLevel("p2p", "这是外部客户的群") != 0 {
+		t.Error("memory with 外部客户 should override p2p to neutral level 0")
+	}
+	if detectFormalityLevel("p2p", "This is a client chat") != 0 {
+		t.Error("memory with 'client' should override p2p to neutral level 0")
+	}
+	if detectFormalityLevel("group", "external partner channel") != 0 {
+		t.Error("memory with 'external' should return neutral level 0")
+	}
+}
+
+func TestDetectFormalityLevel_MemoryCasual(t *testing.T) {
+	// Memory keyword "同事" should override group → casual.
+	if detectFormalityLevel("group", "都是同事") != 1 {
+		t.Error("memory with 同事 should override group to casual level 1")
+	}
+	if detectFormalityLevel("group", "Colleague chat") != 1 {
+		t.Error("memory with 'colleague' should override group to casual level 1")
+	}
+	if detectFormalityLevel("group", "teammate daily standup") != 1 {
+		t.Error("memory with 'teammate' should override group to casual level 1")
+	}
+}
+
+func TestDetectFormalityLevel_MemoryNeutralTakesPrecedence(t *testing.T) {
+	// When both neutral and casual keywords appear, neutral wins (scanned first).
+	if detectFormalityLevel("p2p", "同事 but also 外部客户") != 0 {
+		t.Error("neutral keywords should take precedence over casual")
 	}
 }
 
