@@ -8,6 +8,8 @@ import (
 func (g *Gateway) cleanupRuntimeState() {
 	now := g.currentTime()
 	trimmedSlots := g.pruneActiveSlots(now)
+	g.pruneActiveChatSlots()
+	g.evictExpiredPromptCache()
 	trimmedAISessions := 0
 	if g.aiCoordinator != nil && g.cfg.AIChatSessionTTL > 0 {
 		trimmedAISessions = g.aiCoordinator.CleanupExpiredSessions(g.cfg.AIChatSessionTTL)
@@ -91,4 +93,22 @@ func (g *Gateway) currentTime() time.Time {
 		nowFn = time.Now
 	}
 	return nowFn()
+}
+
+func (g *Gateway) pruneActiveChatSlots() {
+	g.activeChatSlots.Range(func(k, v any) bool {
+		m, ok := v.(*chatSlotMap)
+		if !ok || m == nil {
+			g.activeChatSlots.Delete(k)
+			return true
+		}
+		m.removeIdle()
+		m.mu.Lock()
+		empty := len(m.slots) == 0
+		m.mu.Unlock()
+		if empty {
+			g.activeChatSlots.Delete(k)
+		}
+		return true
+	})
 }
