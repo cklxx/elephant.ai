@@ -67,13 +67,17 @@ Full setup guide → [`docs/guides/quickstart.md`](docs/guides/quickstart.md)
 ```
 You (Lark group or DM)
         ↓
-  Context Assembly          — chat history + memory + policies
-        ↓
-  ReAct Agent Loop          — Think → Act → Observe
-        ↓
-  Tool Execution            — search · code · browser · files · MCP
-        ↓
-  Reply delivered to Lark   — with live progress and emoji reactions
+  Chat (lightweight LLM, ~1-3s)      — instant reply, routing, ack
+        │
+        ├── direct reply ──────────▶ back to you immediately
+        │
+        └── dispatch ──▶ Worker (ReAct Agent, background, minutes)
+                              ↓
+                        Context Assembly · Memory · Policies
+                              ↓
+                        Think → Act → Observe → Tool Execution
+                              ↓
+                        Reply delivered to Lark (with progress updates)
 ```
 
 ---

@@ -467,7 +467,7 @@ type LarkChannelConfig struct {
 	BtwIntentRouterModel   *string `json:"btw_intent_router_model" yaml:"btw_intent_router_model"`
 	BtwAutoInjectResult    *bool   `json:"btw_auto_inject_result" yaml:"btw_auto_inject_result"`
 	BtwResultPrefix        *string `json:"btw_result_prefix" yaml:"btw_result_prefix"`
-	// ConversationProcessEnabled enables the dual-process (conversation-process) architecture.
+	// ConversationProcessEnabled enables the chat+worker (conversation-process) architecture.
 	ConversationProcessEnabled *bool `json:"conversation_process_enabled" yaml:"conversation_process_enabled"`
 	BaseChannelConfig          `json:",inline" yaml:",inline"`
 }

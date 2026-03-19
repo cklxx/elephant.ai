@@ -184,7 +184,7 @@ type LarkGatewayConfig struct {
 	BtwIntentRouterModel   string
 	BtwAutoInjectResult    bool
 	BtwResultPrefix        string
-	// Conversation process (dual-process architecture)
+	// Conversation process (chat+worker architecture)
 	ConversationProcessEnabled bool
 }
 

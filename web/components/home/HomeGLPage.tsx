@@ -32,8 +32,8 @@ const copy = {
       title: "Hand it off. Stay in flow.",
       steps: [
         { num: "01", title: "Add to Lark", desc: "Invite elephant.ai into any group chat or DM. It becomes a persistent member — always listening, always ready." },
-        { num: "02", title: "Delegate", desc: "Describe what you need. It breaks down the work, picks the right tools, and starts executing." },
-        { num: "03", title: "Stay informed", desc: "Get progress updates, summaries, and escalations — only when they matter. Everything else runs in the background." },
+        { num: "02", title: "Delegate", desc: "Send your request. The chat layer replies instantly (~1-3s) and dispatches a background worker to execute the task." },
+        { num: "03", title: "Stay informed", desc: "The worker runs the full ReAct loop in the background. You get progress updates and results when they matter — without waiting." },
       ],
     },
     features: {
@@ -57,9 +57,9 @@ const copy = {
     arch: {
       label: "Architecture",
       title: "Built for production.",
-      desc: "Clean layered architecture — delivery surfaces on top, domain logic in the middle, infrastructure adapters at the bottom. Every component is testable, swappable, and observable.",
+      desc: "Clean layered architecture. In Lark, messages split into Chat (instant LLM, ~1-3s) and Worker (full ReAct Agent, background). Every component is testable, swappable, and observable.",
       layers: [
-        { title: "Delivery", items: ["CLI", "Lark", "WeChat", "Web Dashboard", "API Server"] },
+        { title: "Delivery", items: ["Chat (instant)", "Worker (ReAct)", "CLI", "Web Dashboard", "API Server"] },
         { title: "Application", items: ["Coordination", "Context Assembly", "Cost Control", "Preparation"] },
         { title: "Domain", items: ["ReAct Loop", "Typed Events", "Approval Gates", "Workflow Engine"] },
         { title: "Infrastructure", items: ["Multi-LLM", "Memory Store", "Tool Registry", "Observability"] },
@@ -100,8 +100,8 @@ const copy = {
       title: "交出去，继续专注。",
       steps: [
         { num: "01", title: "加入飞书", desc: "把 elephant.ai 邀请到任何群聊或私信。它成为常驻成员——持续在线，随时待命。" },
-        { num: "02", title: "委派任务", desc: "描述你的需求。它拆解工作、选择工具、开始执行。" },
-        { num: "03", title: "按需关注", desc: "收到进展汇总、风险预警、需要拍板的决策——其余一切在后台运行。" },
+        { num: "02", title: "委派任务", desc: "发出请求。Chat 层即时回复（~1-3s）并派发后台 Worker 执行任务。" },
+        { num: "03", title: "按需关注", desc: "Worker 在后台运行完整的 ReAct 循环。进展和结果在需要时推给你——无需等待。" },
       ],
     },
     features: {
@@ -125,9 +125,9 @@ const copy = {
     arch: {
       label: "架构",
       title: "为生产环境而生。",
-      desc: "清晰的分层架构——交付层在上，领域逻辑在中，基础设施适配器在下。每个组件可测试、可替换、可观测。",
+      desc: "清晰分层架构。飞书侧消息拆分为 Chat（即时 LLM，~1-3s）和 Worker（完整 ReAct Agent，后台）两个角色。每个组件可测试、可替换、可观测。",
       layers: [
-        { title: "交付层", items: ["CLI", "飞书", "微信", "Web 控制台", "API 服务器"] },
+        { title: "交付层", items: ["Chat（即时）", "Worker（ReAct）", "CLI", "Web 控制台", "API 服务器"] },
         { title: "应用层", items: ["协调", "上下文组装", "成本控制", "预处理"] },
         { title: "领域层", items: ["ReAct 循环", "类型化事件", "审批门控", "工作流引擎"] },
         { title: "基础设施", items: ["多 LLM", "记忆存储", "工具注册表", "可观测性"] },

@@ -77,7 +77,7 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyOptionalTrimmedString(&target.BtwIntentRouterModel, larkCfg.BtwIntentRouterModel)
 	applyOptionalBool(&target.BtwAutoInjectResult, larkCfg.BtwAutoInjectResult)
 	applyOptionalTrimmedString(&target.BtwResultPrefix, larkCfg.BtwResultPrefix)
-	// Conversation process (dual-process architecture)
+	// Conversation process (chat+worker architecture)
 	applyOptionalBool(&target.ConversationProcessEnabled, larkCfg.ConversationProcessEnabled)
 	cfg.Channels.SetLarkConfig(target)
 }

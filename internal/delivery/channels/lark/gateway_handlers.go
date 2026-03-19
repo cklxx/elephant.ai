@@ -116,7 +116,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	}
 
 	// /model command must be handled before conversation process so it works
-	// in dual-process mode without being routed through the chat LLM.
+	// in chat+worker mode without being routed through the chat LLM.
 	if strings.HasPrefix(trimmedContent, "/model") {
 		slot.mu.Unlock()
 		g.handleModelCommand(msg)

@@ -78,10 +78,10 @@ type Config struct {
 	// BtwResultPrefix is prepended to the child answer when injecting it into
 	// the parent session. Default: "[btw result]".
 	BtwResultPrefix string
-	// ConversationProcessEnabled enables the dual-process architecture:
-	// a lightweight LLM (conversation process) handles all non-command
-	// messages, replying instantly and optionally dispatching a background
-	// worker via its dispatch_worker tool. Default: false (disabled).
+	// ConversationProcessEnabled enables the chat+worker architecture:
+	// a lightweight LLM (chat) handles all non-command messages, replying
+	// instantly and optionally dispatching a background worker via its
+	// dispatch_worker tool. Default: false (disabled).
 	ConversationProcessEnabled *bool
 	// CCHooksAutoConfig enables automatic Claude Code hooks configuration
 	// (direct file write to .claude/settings.local.json) after /notice bind.

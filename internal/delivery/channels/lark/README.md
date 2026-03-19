@@ -16,7 +16,7 @@ Lark WS event
   ├── natural status query ("做到哪了")              →  handleNaturalTaskStatusQuery
   │
   ├── ConversationProcessEnabled?
-  │     YES → handleViaConversationProcess  (dual-process mode, see below)
+  │     YES → handleViaConversationProcess  (chat+worker mode, see below)
   │     NO  → legacy single-process mode:
   │             ├── slotRunning? → inject inputCh / btw fork
   │             └── slotIdle?    → launchWorkerGoroutine (foreground task)
@@ -26,7 +26,7 @@ Lark WS event
 
 ---
 
-## Dual-Process Mode (`ConversationProcessEnabled=true`)
+## Chat + Worker Mode (`ConversationProcessEnabled=true`)
 
 Two concurrent goroutine roles per chat:
 
@@ -130,7 +130,7 @@ base eventListener (gateway-level)
 
 | Config | Default | Description |
 |--------|---------|-------------|
-| `ConversationProcessEnabled` | `false` | Enable dual-process mode |
+| `ConversationProcessEnabled` | `false` | Enable chat+worker mode |
 | `BtwEnabled` | `false` | Enable btw fork mode (legacy path, non-conversation) |
 | `ShowToolProgress` | `false` | Show per-tool progress messages in chat |
 | `BackgroundProgressEnabled` | `true` | Periodic background progress notifications |
