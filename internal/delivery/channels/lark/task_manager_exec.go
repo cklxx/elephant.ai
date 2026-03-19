@@ -54,7 +54,7 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 	defer cancelTimeout()
 
 	awaitTracker := &awaitQuestionTracker{}
-	listener, cleanupListeners, progressLn := g.setupListeners(execCtx, msg, awaitTracker)
+	listener, cleanupListeners, progressLn := g.setupListeners(execCtx, msg, nil, awaitTracker)
 	defer cleanupListeners()
 	guardListener, guardState := newToolFailureGuardListener(listener, g.cfg.ToolFailureAbortThreshold, cancelExec)
 	listener = guardListener
@@ -179,7 +179,7 @@ func sessionHasAwaitFlag(session *storage.Session) bool {
 // listener (nil when progress is disabled). The caller uses the progress
 // listener to retrieve the message ID for editing the progress message
 // into the final reply.
-func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, awaitTracker *awaitQuestionTracker) (agent.EventListener, func(), *progressListener) {
+func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, slot *sessionSlot, awaitTracker *awaitQuestionTracker) (agent.EventListener, func(), *progressListener) {
 	listener := g.eventListener
 	if listener == nil {
 		listener = agent.NoopEventListener{}
@@ -187,8 +187,11 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 
 	// Record tool progress into the session slot so the conversation process
 	// can report recent activity to the user.
-	if slot, ok := g.activeSlots.Load(msg.chatID); ok {
-		if s, ok := slot.(*sessionSlot); ok {
+	// Use explicitly passed slot when available, fall back to activeSlots lookup.
+	if slot != nil {
+		listener = newSlotProgressRecorder(slot, listener)
+	} else if raw, ok := g.activeSlots.Load(msg.chatID); ok {
+		if s, ok := raw.(*sessionSlot); ok {
 			listener = newSlotProgressRecorder(s, listener)
 		}
 	}

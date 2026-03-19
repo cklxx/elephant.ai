@@ -33,7 +33,7 @@ func TestSetupListeners_DoesNotAttachSlowProgressSummary(t *testing.T) {
 		isGroup:   true,
 	}
 
-	listener, cleanup, _ := gw.setupListeners(context.Background(), msg, &awaitQuestionTracker{})
+	listener, cleanup, _ := gw.setupListeners(context.Background(), msg, nil, &awaitQuestionTracker{})
 	defer cleanup()
 
 	listener.OnEvent(&domain.WorkflowEventEnvelope{
