@@ -3,7 +3,7 @@ package lark
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -154,7 +154,18 @@ var fastPathStopAcksEN = []string{"Stopped", "Done, stopped", "Got it, stopped"}
 
 // pickAck selects a random ack from the given pool.
 func pickAck(pool []string) string {
-	return pool[rand.Intn(len(pool))] //nolint:gosec // non-crypto randomness is fine for ack variety
+	return pool[rand.IntN(len(pool))] //nolint:gosec // non-crypto randomness is fine for ack variety
+}
+
+// dispatchAckReply builds a randomized dispatch ack and sends it.
+func (g *Gateway) dispatchAckReply(ctx context.Context, msg *incomingMessage, lang, taskID string) {
+	var ack string
+	if lang == "en" {
+		ack = fmt.Sprintf(pickAck(fastPathDispatchAcksEN), taskID)
+	} else {
+		ack = fmt.Sprintf(pickAck(fastPathDispatchAcksZH), taskID)
+	}
+	g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
 }
 
 // detectFormalityLevel returns 0 (neutral) or 1 (casual) based on chat context.
@@ -247,13 +258,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		if taskID == "" {
 			return true // slot-busy notice already sent by spawnWorkerInSlotMap
 		}
-		var ack string
-		if lang == "en" {
-			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksEN), taskID)
-		} else {
-			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksZH), taskID)
-		}
-		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
+		g.dispatchAckReply(ctx, msg, lang, taskID)
 		return true
 	case fastPathStatus:
 		g.handleNaturalTaskStatusQuery(msg)
@@ -297,13 +302,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		if taskID == "" {
 			return true // slot-busy notice already sent
 		}
-		var ack string
-		if lang == "en" {
-			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksEN), taskID)
-		} else {
-			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksZH), taskID)
-		}
-		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
+		g.dispatchAckReply(ctx, msg, lang, taskID)
 		return true
 	}
 
