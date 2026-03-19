@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/app/digest"
 	"alex/internal/app/taskfmt"
 	"alex/internal/domain/signal"
 	signalports "alex/internal/domain/signal/ports"
@@ -272,63 +273,68 @@ func formatCommitCount(count int) string {
 	return fmt.Sprintf("%d commits", count)
 }
 
-// Service wraps a Generator with notification delivery for scheduler integration.
-type Service struct {
-	gen      *Generator
-	notifier notification.Notifier
-	channel  string
-	chatID   string
+// WeeklyPulseSpec implements digest.DigestSpec for the weekly pulse.
+// It wraps the Generator and optional git signal enrichment.
+type WeeklyPulseSpec struct {
+	gen    *Generator
+	gitSrc signalports.GitSignalProvider
+	pulse  *WeeklyPulse // stashed by Generate for Format
+}
 
+func (s *WeeklyPulseSpec) Name() string { return "Weekly Pulse" }
+
+func (s *WeeklyPulseSpec) Generate(ctx context.Context) (*digest.Content, error) {
+	pulse, err := s.gen.Generate(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if s.gitSrc != nil {
+		events, gErr := s.gitSrc.ListRecentEvents(ctx, pulse.From)
+		if gErr != nil {
+			return nil, fmt.Errorf("git metrics: %w", gErr)
+		}
+		pulse.GitMetrics = summarizeGitActivity(events)
+	}
+	s.pulse = pulse
+	return &digest.Content{Title: "Weekly Pulse"}, nil
+}
+
+func (s *WeeklyPulseSpec) Format(_ *digest.Content) string {
+	return FormatMarkdown(s.pulse)
+}
+
+// Service wraps a DigestSpec with digest.Service for scheduler integration.
+type Service struct {
+	digestSvc *digest.Service
+	spec      *WeeklyPulseSpec
+
+	// GitSignalSource enriches the pulse with git activity.
+	// Set after construction by bootstrap.
 	GitSignalSource signalports.GitSignalProvider
 }
 
 // NewService creates a pulse Service that generates and optionally sends digests.
 func NewService(store task.Store, notifier notification.Notifier, channel, chatID string) *Service {
+	var dsvc *digest.Service
+	if notifier != nil {
+		dsvc = digest.NewService(notifier, notification.Target{Channel: channel, ChatID: chatID}, nil, nil)
+	}
 	return &Service{
-		gen:      NewGenerator(store),
-		notifier: notifier,
-		channel:  channel,
-		chatID:   chatID,
+		digestSvc: dsvc,
+		spec:      &WeeklyPulseSpec{gen: NewGenerator(store)},
 	}
 }
 
 // GenerateAndSend produces a weekly pulse digest and delivers it via the notifier.
-// If no notifier is configured, it returns the formatted markdown without sending.
+// If no notifier was configured, it generates but does not send.
 func (s *Service) GenerateAndSend(ctx context.Context) error {
-	pulse, err := s.gen.Generate(ctx)
-	if err != nil {
-		return fmt.Errorf("generate pulse: %w", err)
+	s.spec.gitSrc = s.GitSignalSource
+	if s.digestSvc == nil {
+		// Generate-only mode: validate data without sending.
+		_, err := s.spec.Generate(ctx)
+		return err
 	}
-	if s.GitSignalSource != nil {
-		gitMetrics, err := s.generateGitMetrics(ctx, pulse.From)
-		if err != nil {
-			return fmt.Errorf("generate git metrics: %w", err)
-		}
-		pulse.GitMetrics = gitMetrics
-	}
-
-	content := FormatMarkdown(pulse)
-
-	if s.notifier == nil {
-		return nil
-	}
-
-	target := notification.Target{
-		Channel: s.channel,
-		ChatID:  s.chatID,
-	}
-	if err := s.notifier.Send(ctx, target, content); err != nil {
-		return fmt.Errorf("send pulse: %w", err)
-	}
-	return nil
-}
-
-func (s *Service) generateGitMetrics(ctx context.Context, from time.Time) (*GitActivityMetrics, error) {
-	events, err := s.GitSignalSource.ListRecentEvents(ctx, from)
-	if err != nil {
-		return nil, err
-	}
-	return summarizeGitActivity(events), nil
+	return s.digestSvc.Run(ctx, s.spec)
 }
 
 func summarizeGitActivity(events []signal.SignalEvent) *GitActivityMetrics {

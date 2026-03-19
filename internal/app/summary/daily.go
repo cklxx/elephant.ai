@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/app/digest"
 	"alex/internal/app/taskfmt"
 	"alex/internal/domain/task"
 	"alex/internal/shared/notification"
@@ -223,46 +224,53 @@ func FormatMarkdown(s *DailySummary) string {
 	return b.String()
 }
 
-// Service wraps a Generator with notification delivery for scheduler integration.
+// DailySummarySpec implements digest.DigestSpec for the daily summary.
+type DailySummarySpec struct {
+	gen     *Generator
+	summary *DailySummary // stashed by Generate for Format
+}
+
+func (s *DailySummarySpec) Name() string { return "Daily Summary" }
+
+func (s *DailySummarySpec) Generate(ctx context.Context) (*digest.Content, error) {
+	summary, err := s.gen.Generate(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s.summary = summary
+	return &digest.Content{Title: "Daily Summary"}, nil
+}
+
+func (s *DailySummarySpec) Format(_ *digest.Content) string {
+	return FormatMarkdown(s.summary)
+}
+
+// Service wraps a DigestSpec with digest.Service for scheduler integration.
 type Service struct {
-	gen      *Generator
-	notifier notification.Notifier
-	channel  string
-	chatID   string
+	digestSvc *digest.Service
+	spec      *DailySummarySpec
 }
 
 // NewService creates a daily summary Service that generates and sends digests.
 func NewService(store task.Store, notifier notification.Notifier, channel, chatID string) *Service {
+	var dsvc *digest.Service
+	if notifier != nil {
+		dsvc = digest.NewService(notifier, notification.Target{Channel: channel, ChatID: chatID}, nil, nil)
+	}
 	return &Service{
-		gen:      NewGenerator(store),
-		notifier: notifier,
-		channel:  channel,
-		chatID:   chatID,
+		digestSvc: dsvc,
+		spec:      &DailySummarySpec{gen: NewGenerator(store)},
 	}
 }
 
 // GenerateAndSend produces a daily summary digest and delivers it via the notifier.
-// If no notifier is configured, it returns without sending.
+// If no notifier was configured, it generates but does not send.
 func (svc *Service) GenerateAndSend(ctx context.Context) error {
-	summary, err := svc.gen.Generate(ctx)
-	if err != nil {
-		return fmt.Errorf("generate daily summary: %w", err)
+	if svc.digestSvc == nil {
+		_, err := svc.spec.Generate(ctx)
+		return err
 	}
-
-	content := FormatMarkdown(summary)
-
-	if svc.notifier == nil {
-		return nil
-	}
-
-	target := notification.Target{
-		Channel: svc.channel,
-		ChatID:  svc.chatID,
-	}
-	if err := svc.notifier.Send(ctx, target, content); err != nil {
-		return fmt.Errorf("send daily summary: %w", err)
-	}
-	return nil
+	return svc.digestSvc.Run(ctx, svc.spec)
 }
 
 // inWindow returns true if the task was updated or completed within the window.

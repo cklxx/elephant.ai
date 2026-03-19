@@ -519,7 +519,7 @@ func TestGenerateAndSend_EnrichesPulseWithGitMetrics(t *testing.T) {
 	svc := NewService(store, notifier, "lark", "test-chat")
 
 	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
-	svc.gen.now = func() time.Time { return now }
+	svc.spec.gen.now = func() time.Time { return now }
 	svc.GitSignalSource = &fakeGitSignalProvider{
 		events: []signal.SignalEvent{
 			makeMergeEvent("org/repo", 101, now.Add(-48*time.Hour)),
@@ -571,7 +571,7 @@ func TestGenerateAndSend_NotifierError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected GenerateAndSend to return send error")
 	}
-	if !strings.Contains(err.Error(), "send pulse") {
+	if !strings.Contains(err.Error(), "send") {
 		t.Fatalf("error = %q, want wrapped send error", err)
 	}
 }
@@ -585,7 +585,7 @@ func TestGenerateAndSend_GitMetricsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected GenerateAndSend to return git metrics error")
 	}
-	if !strings.Contains(err.Error(), "generate git metrics") {
+	if !strings.Contains(err.Error(), "git metrics") {
 		t.Fatalf("error = %q, want wrapped git metrics error", err)
 	}
 }

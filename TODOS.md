@@ -49,9 +49,5 @@ Items deferred from CEO Plan Reviews (2026-03-18 strategic expansion, 2026-03-19
 - **Effort:** S (human: ~2h / CC: ~10 min)
 - **Depends on:** IM fragmented replies PR shipping and running for 2 weeks.
 
-### Migrate existing digest services to DigestService
-- **What:** Refactor Weekly Pulse (`internal/app/pulse/weekly.go`), Daily Summary (`internal/app/summary/daily.go`), and Prep Brief (`internal/app/prepbrief/brief.go`) to use the shared DigestService abstraction.
-- **Why:** All 3 follow the same gather→format→deliver pattern. After DigestService is built for Morning Brief + Self-Report, migrating the existing 3 eliminates duplicated scaffolding.
-- **Effort:** S (human: ~2 days / CC: ~20 min)
-- **Depends on:** DigestService abstraction being built. **Done — `internal/app/digest/`**
-- **Code path:** `internal/app/{pulse,summary,prepbrief}/` → use `internal/app/digest/`.
+### ~~Migrate existing digest services to DigestService~~ ✓ Done
+- Completed 2026-03-19. All three services (Weekly Pulse, Daily Summary, Prep Brief) now implement `digest.DigestSpec` and use `digest.Service.Run()` for the generate→format→deliver lifecycle.

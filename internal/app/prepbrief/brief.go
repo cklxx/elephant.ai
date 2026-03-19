@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/app/digest"
 	"alex/internal/app/taskfmt"
 	"alex/internal/domain/signal"
 	signalports "alex/internal/domain/signal/ports"
@@ -405,29 +406,50 @@ func suggestDiscussionPoints(b *Brief) []string {
 	return points
 }
 
+// prepBriefSpec implements digest.DigestSpec for a single prep brief invocation.
+type prepBriefSpec struct {
+	svc      *Service
+	memberID string
+	brief    *Brief // stashed by Generate for Format and caller retrieval
+}
+
+func (s *prepBriefSpec) Name() string { return "Prep Brief" }
+
+func (s *prepBriefSpec) Generate(ctx context.Context) (*digest.Content, error) {
+	brief, err := s.svc.Generate(ctx, s.memberID)
+	if err != nil {
+		return nil, err
+	}
+	s.brief = brief
+	return &digest.Content{Title: "Prep Brief"}, nil
+}
+
+func (s *prepBriefSpec) Format(_ *digest.Content) string {
+	return FormatBrief(s.brief)
+}
+
 // SendBrief generates a brief and delivers it via the configured notifier.
 func (s *Service) SendBrief(ctx context.Context, memberID string) (*Brief, error) {
-	brief, err := s.Generate(ctx, memberID)
-	if err != nil {
-		return nil, fmt.Errorf("generate brief: %w", err)
-	}
-
-	content := FormatBrief(brief)
+	spec := &prepBriefSpec{svc: s, memberID: memberID}
 
 	if s.notifier == nil {
-		s.logger.Info("Prep brief for %s (no notifier):\n%s", memberID, content)
-		return brief, nil
+		if _, err := spec.Generate(ctx); err != nil {
+			return nil, fmt.Errorf("generate brief: %w", err)
+		}
+		s.logger.Info("Prep brief for %s (no notifier)", memberID)
+		return spec.brief, nil
 	}
 
-	target := notification.Target{
+	dsvc := digest.NewService(s.notifier, notification.Target{
 		Channel: s.config.Channel,
 		ChatID:  s.config.ChatID,
-	}
-	if err := s.notifier.Send(ctx, target, content); err != nil {
-		return brief, fmt.Errorf("send brief: %w", err)
+	}, nil, nil)
+
+	if err := dsvc.Run(ctx, spec); err != nil {
+		return spec.brief, err
 	}
 
 	s.logger.Info("Prep brief for %s sent to %s/%s", memberID, s.config.Channel, s.config.ChatID)
-	return brief, nil
+	return spec.brief, nil
 }
 
