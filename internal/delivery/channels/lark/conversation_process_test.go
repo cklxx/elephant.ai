@@ -581,6 +581,133 @@ func TestHandleViaConversationProcess_UsesFormattedPipeline(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Tests for naturalizeReply
+// ---------------------------------------------------------------------------
+
+func TestNaturalizeReply_StripsTrailingPeriod(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"已完成。", "已完成"},
+		{"好的。", "好"},       // base trailing period, then casual "好的"→"好"
+		{"没问题", "没问题"},    // no period, no change
+		{"", ""},              // empty passthrough
+		{"Done.", "Done."},    // ASCII period untouched (only Chinese period removed)
+	}
+	for _, tc := range cases {
+		got := naturalizeReply(tc.in, 1)
+		if got != tc.want {
+			t.Errorf("naturalizeReply(%q, 1) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestNaturalizeReply_BaseTierSubstitutions(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"请稍等", "等下"},
+		{"您好，我是助手", "你好，我是助手"},
+		{"非常感谢", "谢了"},
+		{"非常抱歉打扰", "抱歉打扰"},
+		{"好的，来看看", "好，来看看"},
+		{"可以的", "行"},
+		{"收到了", "收到"},
+		{"没有问题", "没问题"},
+	}
+	for _, tc := range cases {
+		got := naturalizeReply(tc.in, 0)
+		if got != tc.want {
+			t.Errorf("naturalizeReply(%q, 0) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestNaturalizeReply_CasualTierApplied(t *testing.T) {
+	// level=1 applies casual rules on top of base rules.
+	if got := naturalizeReply("好的", 1); got != "好" {
+		t.Errorf("casual: naturalizeReply(\"好的\", 1) = %q, want \"好\"", got)
+	}
+	if got := naturalizeReply("知道了", 1); got != "知道" {
+		t.Errorf("casual: naturalizeReply(\"知道了\", 1) = %q, want \"知道\"", got)
+	}
+}
+
+func TestNaturalizeReply_CasualTierNotAppliedAtLevel0(t *testing.T) {
+	// level=0 should leave casual-only patterns unchanged.
+	if got := naturalizeReply("好的", 0); got != "好的" {
+		t.Errorf("neutral: naturalizeReply(\"好的\", 0) = %q, want \"好的\"", got)
+	}
+}
+
+func TestNaturalizeReply_EnglishPeriodUntouched(t *testing.T) {
+	// ASCII "." should NOT be stripped — only Chinese "。".
+	if got := naturalizeReply("Stopped.", 0); got != "Stopped." {
+		t.Errorf("naturalizeReply(\"Stopped.\", 0) = %q, want \"Stopped.\"", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests for detectFormalityLevel
+// ---------------------------------------------------------------------------
+
+func TestDetectFormalityLevel_P2P(t *testing.T) {
+	if detectFormalityLevel("p2p") != 1 {
+		t.Error("p2p chat should return casual level 1")
+	}
+}
+
+func TestDetectFormalityLevel_Group(t *testing.T) {
+	if detectFormalityLevel("group") != 0 {
+		t.Error("group chat should return neutral level 0")
+	}
+}
+
+func TestDetectFormalityLevel_Unknown(t *testing.T) {
+	if detectFormalityLevel("") != 0 {
+		t.Error("unknown chat type should return neutral level 0")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Integration: naturalizeReply is applied in handleViaConversationProcess
+// ---------------------------------------------------------------------------
+
+func TestHandleViaConversationProcess_NaturalizeApplied(t *testing.T) {
+	// LLM returns a reply with a trailing Chinese period — it should be stripped.
+	stub := &convStubLLMClient{resp: "已完成分析。"}
+	g := newConvGateway(t, stub, true)
+	rec := getRecorder(g)
+
+	msg := &incomingMessage{chatID: "chat1", messageID: "msg1", chatType: "p2p", content: "帮我分析"}
+	g.handleViaConversationProcess(context.Background(), msg)
+
+	if rec.count() == 0 {
+		t.Fatal("expected a reply")
+	}
+	m := rec.last()
+	if strContains(m.content, "。") {
+		t.Errorf("naturalizeReply should strip trailing 。, got content: %q", m.content)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests for ack pool (pickAck)
+// ---------------------------------------------------------------------------
+
+func TestPickAck_AlwaysInPool(t *testing.T) {
+	pool := []string{"a", "b", "c"}
+	seen := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		got := pickAck(pool)
+		seen[got] = true
+		if !strContains("abc", got) {
+			t.Errorf("pickAck returned value not in pool: %q", got)
+		}
+	}
+	// With 100 draws from 3 options, expect to see all 3.
+	if len(seen) < 2 {
+		t.Errorf("expected variety from ack pool, only saw: %v", seen)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

@@ -3,6 +3,7 @@ package lark
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -105,26 +106,83 @@ Safety:
 - Never include secrets, API keys, or credentials in replies.
 `)
 
+// imBaseReplacer covers formal→casual substitutions that are always safe to apply.
+var imBaseReplacer = strings.NewReplacer(
+	"请稍等", "等下",
+	"您好", "你好",
+	"您", "你",
+	"非常感谢", "谢了",
+	"非常抱歉", "抱歉",
+	"不好意思", "抱歉",
+	"好的，", "好，",
+	"可以的", "行",
+	"收到了", "收到",
+	"没有问题", "没问题",
+	"需要我帮", "要我帮",
+)
+
+// imCasualReplacer covers additional aggressive substitutions used when
+// the sender relationship is known to be informal (level >= 1).
+var imCasualReplacer = strings.NewReplacer(
+	"好的", "好",
+	"是的，", "对，",
+	"知道了", "知道",
+	"正在处理中", "处理中",
+	"需要的话", "要的话",
+)
+
+// fastPathDispatchAcksZH is a small pool of Chinese dispatch acknowledgements.
+// Rotating through the pool avoids the robotic "同一句话" feel.
+var fastPathDispatchAcksZH = []string{
+	"好，开始 %s",
+	"收到，开始 %s",
+	"好的，%s 出发",
+}
+
+// fastPathDispatchAcksEN is the English pool equivalent.
+var fastPathDispatchAcksEN = []string{
+	"On it, starting %s",
+	"Starting %s",
+	"Got it, launching %s",
+}
+
+// fastPathStopAcksZH is the Chinese stop acknowledgement pool.
+var fastPathStopAcksZH = []string{"已停止", "好，停了", "收到，停了"}
+
+// fastPathStopAcksEN is the English stop acknowledgement pool.
+var fastPathStopAcksEN = []string{"Stopped", "Done, stopped", "Got it, stopped"}
+
+// pickAck selects a random ack from the given pool.
+func pickAck(pool []string) string {
+	return pool[rand.Intn(len(pool))] //nolint:gosec // non-crypto randomness is fine for ack variety
+}
+
+// detectFormalityLevel returns 0 (neutral) or 1 (casual) based on chat context.
+// p2p chats are almost always with known colleagues → casual.
+// Group chats may include external users → neutral by default.
+//
+// TODO: extend to read SOUL.md/USER.md memory context for per-user relationship
+// signals, e.g. "外部客户" → level=0, "同事/朋友" → level=1.
+func detectFormalityLevel(chatType string) int {
+	if chatType == "p2p" {
+		return 1
+	}
+	return 0
+}
+
 // naturalizeReply post-processes LLM output to match IM casual register.
-// Removes formal markers that stand out in instant-messaging contexts.
-func naturalizeReply(s string) string {
+// level 0 = neutral (base rules only); level 1 = casual (base + aggressive).
+func naturalizeReply(s string, level int) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return s
 	}
 	// Remove sentence-ending Chinese full-stop — IM almost never uses it.
 	s = strings.TrimSuffix(s, "。")
-	// High-frequency formal→casual substitutions.
-	s = strings.NewReplacer(
-		"请稍等", "等下",
-		"您好", "你好",
-		"您", "你",
-		"非常感谢", "谢了",
-		"非常抱歉", "抱歉",
-		"好的，", "好，",
-		"可以的", "行",
-		"收到了", "收到",
-	).Replace(s)
+	s = imBaseReplacer.Replace(s)
+	if level >= 1 {
+		s = imCasualReplacer.Replace(s)
+	}
 	return s
 }
 
@@ -179,17 +237,21 @@ func classifyFastPath(content string) fastPathIntent {
 // Always returns true — fully owns the message lifecycle when enabled.
 func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomingMessage) bool {
 	lang := detectLang(msg.content)
+	level := detectFormalityLevel(msg.chatType)
 	slotMap := g.getOrCreateSlotMap(msg.chatID)
 
 	// Fast-path classifier: bypass Chat LLM for common patterns.
 	switch classifyFastPath(msg.content) {
 	case fastPathDispatch:
 		taskID := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
+		if taskID == "" {
+			return true // slot-busy notice already sent by spawnWorkerInSlotMap
+		}
 		var ack string
 		if lang == "en" {
-			ack = fmt.Sprintf("On it, starting %s", taskID)
+			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksEN), taskID)
 		} else {
-			ack = fmt.Sprintf("好，开始 %s", taskID)
+			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksZH), taskID)
 		}
 		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
 		return true
@@ -200,9 +262,9 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		slotMap.stopAll(true)
 		var ack string
 		if lang == "en" {
-			ack = "Stopped"
+			ack = pickAck(fastPathStopAcksEN)
 		} else {
-			ack = "已停止"
+			ack = pickAck(fastPathStopAcksZH)
 		}
 		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
 		return true
@@ -232,11 +294,14 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	if llmErr != nil {
 		g.logger.Warn("conversationLLM failed, falling back to direct dispatch: %v", llmErr)
 		taskID := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
+		if taskID == "" {
+			return true // slot-busy notice already sent
+		}
 		var ack string
 		if lang == "en" {
-			ack = fmt.Sprintf("Starting %s", taskID)
+			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksEN), taskID)
 		} else {
-			ack = fmt.Sprintf("好，开始 %s", taskID)
+			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksZH), taskID)
 		}
 		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
 		return true
@@ -257,7 +322,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 
 	// When no worker is dispatched, send the reply directly.
 	if reply != "" && !hasDispatchWorker {
-		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), naturalizeReply(reply))
+		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), naturalizeReply(reply, level))
 	}
 
 	for _, tc := range toolCalls {
@@ -274,7 +339,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			} else {
 				logger.Info("conversation: SPAWNED new worker msg=%s task=%s taskID=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."), taskID)
 				if reply != "" {
-					g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), naturalizeReply(reply))
+					g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), naturalizeReply(reply, level))
 				}
 			}
 		case stopWorkerToolName:
