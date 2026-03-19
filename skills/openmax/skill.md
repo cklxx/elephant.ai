@@ -1,6 +1,6 @@
 ---
 name: openmax
-description: 多 worker 并行编排 — 将目标拆分为 N 个任务，在隔离 worktree 中并行运行 CC worker，汇总报告。
+description: 任务量大到一个 worker 搞不定，需要拆成多个子任务并行跑（全仓 review、批量分析、多模块重构）时使用。
 triggers:
   intent_patterns:
     - "openmax|parallel review|并行|多worker|多任务|code review|批量"
@@ -11,6 +11,8 @@ priority: 9
 requires_tools: [bash]
 max_tokens: 300
 cooldown: 30
+capabilities: ["code_edit", "code_review", "research", "analysis", "parallel"]
+activation_mode: explicit
 output:
   format: markdown
   artifacts: true

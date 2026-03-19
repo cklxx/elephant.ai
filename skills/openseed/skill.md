@@ -1,6 +1,6 @@
 ---
 name: openseed
-description: 启动单个后台 CC worker 执行独立任务（代码修改、调研、review 等），在隔离 worktree 中运行。
+description: 用户交代了一个明确的独立任务（修 bug、写功能、review 某模块、调研某个问题），需要后台单独跑不阻塞当前对话时使用。
 triggers:
   intent_patterns:
     - "openseed|seed.*task|单任务|单worker|启动.*worker|spawn.*worker"

@@ -1,9 +1,9 @@
 ---
 name: openbench
-description: Eval 基准测试 — 运行 agent_eval 评估套件，输出结构化指标报告。
+description: 改了 prompt、工具或 agent 逻辑后，想验证有没有回归或提升时跑一轮 eval 基准测试。
 triggers:
   intent_patterns:
-    - "openbench|eval|benchmark|基准|评估|测试套件"
+    - "openbench|eval|benchmark|基准|评估|测试套件|跑个评测"
   context_signals:
     keywords: ["openbench", "eval", "benchmark", "evaluation", "评估"]
   confidence_threshold: 0.7
@@ -11,6 +11,8 @@ priority: 8
 requires_tools: [bash]
 max_tokens: 200
 cooldown: 60
+capabilities: ["evaluation", "benchmark"]
+activation_mode: explicit
 output:
   format: markdown
   artifacts: true
