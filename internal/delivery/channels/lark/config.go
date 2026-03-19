@@ -89,6 +89,11 @@ type Config struct {
 	// StuckWorkerTimeout is how long a worker can go without progress before
 	// the stuck detector notifies the user. Default 5m.
 	StuckWorkerTimeout time.Duration `yaml:"stuck_worker_timeout"`
+	// ConversationWorkerCapabilities is an optional description of what the
+	// background worker agent can do. When set, it is injected into the
+	// conversation router's system prompt so the chat LLM can accurately
+	// represent worker capabilities and guide dispatch decisions.
+	ConversationWorkerCapabilities string `yaml:"conversation_worker_capabilities"`
 	// CCHooksAutoConfig enables automatic Claude Code hooks configuration
 	// (direct file write to .claude/settings.local.json) after /notice bind.
 	CCHooksAutoConfig *CCHooksAutoConfig

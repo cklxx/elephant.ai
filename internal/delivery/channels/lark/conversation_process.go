@@ -323,6 +323,10 @@ func (g *Gateway) buildConversationSystemPrompt(ctx context.Context, senderID st
 
 	sections = append(sections, conversationSystemPrompt)
 
+	if g.cfg.ConversationWorkerCapabilities != "" {
+		sections = append(sections, "Worker capabilities:\n"+g.cfg.ConversationWorkerCapabilities)
+	}
+
 	now := g.currentTime()
 	sections = append(sections, fmt.Sprintf("Current date: %s (%s)", now.Format("2006-01-02"), now.Location().String()))
 
