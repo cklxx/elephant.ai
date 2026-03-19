@@ -74,6 +74,13 @@ func (g *Gateway) handleNewSessionCommand(slot *sessionSlot, msg *incomingMessag
 		g.logger.Info("Lark /new: cancelled running session %s and switched to %s", oldSessionID, newSessionID)
 	}
 
+	// Also stop conversation-process workers if in that mode.
+	if g.conversationProcessEnabled() {
+		if slotMap := g.getOrCreateSlotMap(msg.chatID); slotMap != nil {
+			slotMap.stopAll(true)
+		}
+	}
+
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", newSessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = g.withLarkContext(execCtx, msg.chatID, msg.messageID)
 	g.persistChatSessionBinding(execCtx, msg.chatID, newSessionID)
@@ -104,7 +111,8 @@ func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
 }
 
 func (g *Gateway) isStopCommand(trimmed string) bool {
-	return strings.EqualFold(strings.TrimSpace(trimmed), "/stop")
+	lower := strings.ToLower(strings.TrimSpace(trimmed))
+	return lower == "/stop" || strings.HasPrefix(lower, "/stop #")
 }
 
 // handleStopCommand processes /stop message. It cancels an in-flight foreground
@@ -128,6 +136,23 @@ func (g *Gateway) handleStopCommand(slot *sessionSlot, msg *incomingMessage) {
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = g.withLarkContext(execCtx, msg.chatID, msg.messageID)
+
+	// Also stop conversation-process workers if in that mode.
+	if g.conversationProcessEnabled() {
+		if slotMap := g.getOrCreateSlotMap(msg.chatID); slotMap != nil {
+			trimmedContent := strings.TrimSpace(msg.content)
+			fields := strings.Fields(trimmedContent)
+			taskIDArg := ""
+			if len(fields) >= 2 {
+				taskIDArg = fields[1]
+			}
+			if taskIDArg != "" {
+				slotMap.stopByTaskID(taskIDArg)
+			} else {
+				slotMap.stopAll(true)
+			}
+		}
+	}
 
 	if !running {
 		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("当前没有正在执行的调用。"))
