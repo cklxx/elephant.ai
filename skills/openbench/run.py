@@ -6,11 +6,10 @@ Runs the agent_eval evaluation suite and reports results.
 
 from __future__ import annotations
 
-import os
 import subprocess
+import sys
 import time
 from pathlib import Path
-import sys
 
 _SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
@@ -18,30 +17,22 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 from skill_runner.env import load_repo_dotenv
 from skill_runner.cli_contract import parse_cli_args, render_result
+from skill_runner.openmax_utils import repo_root, run_skill_main
 
 load_repo_dotenv(__file__)
-
-
-def _repo_root() -> Path:
-    try:
-        out = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"], text=True
-        ).strip()
-        return Path(out)
-    except subprocess.CalledProcessError:
-        return Path.cwd()
 
 
 # ---------------------------------------------------------------------------
 # Actions
 # ---------------------------------------------------------------------------
 
+
 def run_bench(args: dict) -> dict:
     suite = str(args.get("suite", "quick"))
     timeout = int(args.get("timeout", 300))
     output_dir = args.get("output_dir", "")
 
-    root = _repo_root()
+    root = repo_root()
     bench_dir = Path(output_dir) if output_dir else root / ".openmax" / "bench"
     bench_dir.mkdir(parents=True, exist_ok=True)
 
@@ -69,7 +60,6 @@ def run_bench(args: dict) -> dict:
     elapsed = time.time() - start
     success = result.returncode == 0
 
-    # Save output.
     ts = time.strftime("%Y%m%d-%H%M%S")
     out_file = bench_dir / f"{suite}-{ts}.txt"
     out_file.write_text(result.stdout + "\n" + result.stderr, encoding="utf-8")
@@ -89,7 +79,7 @@ def run_bench(args: dict) -> dict:
 
 
 def list_suites(_args: dict) -> dict:
-    root = _repo_root()
+    root = repo_root()
     datasets_dir = root / "evaluation" / "agent_eval" / "datasets"
 
     suites = [
@@ -100,13 +90,17 @@ def list_suites(_args: dict) -> dict:
     if datasets_dir.exists():
         for d in sorted(datasets_dir.iterdir()):
             if d.is_dir():
-                suites.append({"name": d.name, "command": f"alex dev test (dataset: {d.name})", "description": "Dataset-based eval"})
+                suites.append({
+                    "name": d.name,
+                    "command": f"alex dev test (dataset: {d.name})",
+                    "description": "Dataset-based eval",
+                })
 
     return {"success": True, "suites": suites}
 
 
 def last_result(args: dict) -> dict:
-    root = _repo_root()
+    root = repo_root()
     bench_dir = Path(args.get("output_dir", root / ".openmax" / "bench"))
 
     if not bench_dir.exists():
@@ -142,18 +136,7 @@ def run(args: dict) -> dict:
 
 
 def main() -> None:
-    args = parse_cli_args(sys.argv[1:])
-    result = run(args)
-    stdout_text, stderr_text, exit_code = render_result(result)
-    if stdout_text:
-        sys.stdout.write(stdout_text)
-        if not stdout_text.endswith("\n"):
-            sys.stdout.write("\n")
-    if stderr_text:
-        sys.stderr.write(stderr_text)
-        if not stderr_text.endswith("\n"):
-            sys.stderr.write("\n")
-    sys.exit(exit_code)
+    run_skill_main(run)
 
 
 if __name__ == "__main__":

@@ -105,6 +105,29 @@ Safety:
 - Never include secrets, API keys, or credentials in replies.
 `)
 
+// naturalizeReply post-processes LLM output to match IM casual register.
+// Removes formal markers that stand out in instant-messaging contexts.
+func naturalizeReply(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+	// Remove sentence-ending Chinese full-stop — IM almost never uses it.
+	s = strings.TrimSuffix(s, "。")
+	// High-frequency formal→casual substitutions.
+	s = strings.NewReplacer(
+		"请稍等", "等下",
+		"您好", "你好",
+		"您", "你",
+		"非常感谢", "谢了",
+		"非常抱歉", "抱歉",
+		"好的，", "好，",
+		"可以的", "行",
+		"收到了", "收到",
+	).Replace(s)
+	return s
+}
+
 // classifyFastPath returns a fastPathIntent for the given message content.
 // This runs before the Chat LLM call and can bypass it for common patterns,
 // saving ~40-60% of LLM calls.
@@ -164,9 +187,9 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		taskID := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
 		var ack string
 		if lang == "en" {
-			ack = fmt.Sprintf("On it, starting %s.", taskID)
+			ack = fmt.Sprintf("On it, starting %s", taskID)
 		} else {
-			ack = fmt.Sprintf("好，开始执行 %s。", taskID)
+			ack = fmt.Sprintf("好，开始 %s", taskID)
 		}
 		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
 		return true
@@ -177,9 +200,9 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		slotMap.stopAll(true)
 		var ack string
 		if lang == "en" {
-			ack = "Stopped all running tasks."
+			ack = "Stopped"
 		} else {
-			ack = "已停止所有运行中的任务。"
+			ack = "已停止"
 		}
 		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
 		return true
@@ -211,9 +234,9 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 		taskID := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
 		var ack string
 		if lang == "en" {
-			ack = fmt.Sprintf("Starting %s.", taskID)
+			ack = fmt.Sprintf("Starting %s", taskID)
 		} else {
-			ack = fmt.Sprintf("好，开始执行 %s。", taskID)
+			ack = fmt.Sprintf("好，开始 %s", taskID)
 		}
 		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
 		return true
@@ -234,7 +257,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 
 	// When no worker is dispatched, send the reply directly.
 	if reply != "" && !hasDispatchWorker {
-		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply)
+		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), naturalizeReply(reply))
 	}
 
 	for _, tc := range toolCalls {
@@ -251,7 +274,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			} else {
 				logger.Info("conversation: SPAWNED new worker msg=%s task=%s taskID=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."), taskID)
 				if reply != "" {
-					g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply)
+					g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), naturalizeReply(reply))
 				}
 			}
 		case stopWorkerToolName:

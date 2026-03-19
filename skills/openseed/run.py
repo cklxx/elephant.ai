@@ -6,11 +6,9 @@ Seed a single CC worker in an isolated git worktree.
 
 from __future__ import annotations
 
-import os
-import shutil
 import subprocess
-from pathlib import Path
 import sys
+from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
@@ -18,57 +16,32 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 from skill_runner.env import load_repo_dotenv
 from skill_runner.cli_contract import parse_cli_args, render_result
+from skill_runner.openmax_utils import (
+    inject_brief_context,
+    inject_claude_md,
+    launch_worker,
+    repo_root,
+    run_skill_main,
+    validate_task_name,
+)
 
 load_repo_dotenv(__file__)
 
-_TASK_REPORT_TEMPLATE = """\
 
-# openMax Task: {task}
-
-When you complete your task, write a completion report to `.openmax/reports/{task}.md`:
-
-```markdown
-## Status
-done | error | partial
-
-## Summary
-<What was accomplished in 1-2 sentences>
-
-## Changes
-- <file>: <what changed>
-
-## Test Results
-<pass/fail details>
-```
-
-This report is read by the orchestrator — always write it before finishing.
-"""
-
-_BRIEF_CONTEXT_TEMPLATE = """\
-
-## Context (auto-injected by openMax — use only if relevant)
-
-Working directory: {worktree_path}
-You are already in the correct directory. Do NOT run `cd`.
-
-Branch: openmax/{task} (isolated worktree — commit here, do not switch branches)
-"""
-
-
-def _repo_root() -> Path:
-    try:
-        out = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"], text=True
-        ).strip()
-        return Path(out)
-    except subprocess.CalledProcessError:
-        return Path.cwd()
+# ---------------------------------------------------------------------------
+# Actions
+# ---------------------------------------------------------------------------
 
 
 def seed(args: dict) -> dict:
     task = str(args.get("task", "")).strip()
     if not task:
         return {"success": False, "error": "--task is required"}
+
+    try:
+        validate_task_name(task)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
 
     brief_content = str(args.get("brief", "")).strip()
     brief_file = args.get("brief_file", "")
@@ -84,10 +57,11 @@ def seed(args: dict) -> dict:
     dry_run = bool(args.get("dry_run", False))
     base_branch = str(args.get("base_branch", "main"))
 
-    root = _repo_root()
+    root = repo_root()
     brief_dir = root / ".openmax" / "briefs"
     worktree_base = root / ".openmax-worktrees"
     report_dir = root / ".openmax" / "reports"
+    pid_dir = root / ".openmax" / "pids"
 
     brief_path = brief_dir / f"{task}.md"
     worktree_path = worktree_base / f"openmax_{task}"
@@ -100,7 +74,7 @@ def seed(args: dict) -> dict:
                 "brief": str(brief_path),
                 "worktree": str(worktree_path),
                 "branch": f"openmax/{task}",
-                "command": f"claude --dangerously-skip-permissions --print <brief>",
+                "command": "claude --dangerously-skip-permissions --print < <brief>",
             },
         }
 
@@ -111,9 +85,7 @@ def seed(args: dict) -> dict:
 
     # Create worktree (skip if already exists).
     created = False
-    if worktree_path.exists() and (worktree_path / ".git").exists():
-        pass  # Already exists — reuse.
-    else:
+    if not (worktree_path.exists() and (worktree_path / ".git").exists()):
         worktree_base.mkdir(parents=True, exist_ok=True)
         try:
             subprocess.run(
@@ -127,46 +99,22 @@ def seed(args: dict) -> dict:
         except subprocess.CalledProcessError as exc:
             return {"success": False, "error": f"git worktree add failed: {exc.stderr or exc}"}
 
-    # Copy .env.
-    env_src = root / ".env"
-    if env_src.is_file():
-        shutil.copy(env_src, worktree_path / ".env")
+    inject_claude_md(worktree_path, task)
+    inject_brief_context(brief_path, task, worktree_path)
 
-    # Inject task template into CLAUDE.md.
-    claude_md = worktree_path / "CLAUDE.md"
-    if claude_md.exists():
-        existing = claude_md.read_text(encoding="utf-8")
-        marker = f"# openMax Task: {task}"
-        if marker not in existing:
-            claude_md.write_text(
-                existing + "\n" + _TASK_REPORT_TEMPLATE.format(task=task),
-                encoding="utf-8",
-            )
+    try:
+        pid = launch_worker(worktree_path, brief_path, pid_dir, task, dry_run=False)
+    except RuntimeError as exc:
+        return {"success": False, "error": str(exc)}
 
-    # Inject context into brief.
-    context_block = _BRIEF_CONTEXT_TEMPLATE.format(task=task, worktree_path=worktree_path)
-    brief_with_ctx = brief_content
-    if "## Context (auto-injected by openMax" not in brief_with_ctx:
-        brief_with_ctx = brief_with_ctx + context_block
-        brief_path.write_text(brief_with_ctx, encoding="utf-8")
-
-    # Launch worker.
     log_path = worktree_path / ".openmax_worker.log"
-    proc = subprocess.Popen(
-        ["claude", "--dangerously-skip-permissions", "--print", brief_with_ctx],
-        cwd=worktree_path,
-        stdout=open(log_path, "w"),
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
-    )
-
     return {
         "success": True,
-        "message": f"Worker launched for task '{task}' (PID {proc.pid}).",
+        "message": f"Worker launched for task '{task}' (PID {pid}).",
         "task": task,
         "worktree": str(worktree_path),
         "brief": str(brief_path),
-        "pid": proc.pid,
+        "pid": pid,
         "created_worktree": created,
         "log": str(log_path),
     }
@@ -182,18 +130,7 @@ def run(args: dict) -> dict:
 
 
 def main() -> None:
-    args = parse_cli_args(sys.argv[1:])
-    result = run(args)
-    stdout_text, stderr_text, exit_code = render_result(result)
-    if stdout_text:
-        sys.stdout.write(stdout_text)
-        if not stdout_text.endswith("\n"):
-            sys.stdout.write("\n")
-    if stderr_text:
-        sys.stderr.write(stderr_text)
-        if not stderr_text.endswith("\n"):
-            sys.stderr.write("\n")
-    sys.exit(exit_code)
+    run_skill_main(run)
 
 
 if __name__ == "__main__":
