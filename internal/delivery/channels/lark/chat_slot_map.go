@@ -17,10 +17,11 @@ type chatSlotMap struct {
 }
 
 // allocateSlotIfCapacity atomically checks capacity and claims a new slot.
-// Returns (slot, taskID, true) on success, or (nil, "", false) if at capacity.
+// Returns (slot, taskID, activeCount, true) on success, or (nil, "", 0, false) if at capacity.
+// activeCount includes the newly allocated slot.
 // The returned slot's taskID field is already set; the caller must further
 // initialize phase/inputCh/taskCancel before launching the goroutine.
-func (m *chatSlotMap) allocateSlotIfCapacity(max int, now time.Time) (*sessionSlot, string, bool) {
+func (m *chatSlotMap) allocateSlotIfCapacity(max int, now time.Time) (*sessionSlot, string, int, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -34,7 +35,7 @@ func (m *chatSlotMap) allocateSlotIfCapacity(max int, now time.Time) (*sessionSl
 		s.mu.Unlock()
 	}
 	if active >= max {
-		return nil, "", false
+		return nil, "", 0, false
 	}
 
 	m.nextID++
@@ -43,7 +44,7 @@ func (m *chatSlotMap) allocateSlotIfCapacity(max int, now time.Time) (*sessionSl
 	slot.taskID = taskID
 	slot.lastTouched = now
 	m.slots[taskID] = slot
-	return slot, taskID, true
+	return slot, taskID, active + 1, true
 }
 
 // stopAll cancels all running workers. Pass intentional=true for user-initiated

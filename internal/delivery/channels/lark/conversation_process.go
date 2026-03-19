@@ -180,6 +180,7 @@ var imCasualReplacer = strings.NewReplacer(
 
 // fastPathDispatchAcksZH is a small pool of Chinese dispatch acknowledgements.
 // Rotating through the pool avoids the robotic "同一句话" feel.
+// Solo variants (no task ID) are used when only one task is active.
 var fastPathDispatchAcksZH = []string{
 	"好 开始%s",
 	"收到 %s",
@@ -187,11 +188,24 @@ var fastPathDispatchAcksZH = []string{
 	"好 去%s",
 }
 
+var fastPathDispatchAcksSoloZH = []string{
+	"好 开始",
+	"收到",
+	"行 走起",
+	"好的",
+}
+
 // fastPathDispatchAcksEN is the English pool equivalent.
 var fastPathDispatchAcksEN = []string{
 	"on it %s",
 	"starting %s",
 	"got it %s",
+}
+
+var fastPathDispatchAcksSoloEN = []string{
+	"on it",
+	"starting",
+	"got it",
 }
 
 // fastPathStopAcksZH is the Chinese stop acknowledgement pool.
@@ -206,12 +220,22 @@ func pickAck(pool []string) string {
 }
 
 // dispatchAckReply builds a randomized dispatch ack and sends it.
-func (g *Gateway) dispatchAckReply(ctx context.Context, msg *incomingMessage, lang, taskID string) {
+// When activeCount <= 1 the task ID is omitted for a more natural feel.
+func (g *Gateway) dispatchAckReply(ctx context.Context, msg *incomingMessage, lang, taskID string, activeCount int) {
 	var ack string
-	if lang == "en" {
-		ack = fmt.Sprintf(pickAck(fastPathDispatchAcksEN), taskID)
+	if activeCount <= 1 {
+		// Solo task — no need to show the slot number.
+		if lang == "en" {
+			ack = pickAck(fastPathDispatchAcksSoloEN)
+		} else {
+			ack = pickAck(fastPathDispatchAcksSoloZH)
+		}
 	} else {
-		ack = fmt.Sprintf(pickAck(fastPathDispatchAcksZH), taskID)
+		if lang == "en" {
+			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksEN), taskID)
+		} else {
+			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksZH), taskID)
+		}
 	}
 	g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
 }
@@ -417,11 +441,11 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	// Fast-path classifier: bypass Chat LLM for common patterns.
 	switch classifyFastPath(msg.content) {
 	case fastPathDispatch:
-		taskID := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
+		taskID, activeCount := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
 		if taskID == "" {
 			return true // slot-busy notice already sent by spawnWorkerInSlotMap
 		}
-		g.dispatchAckReply(ctx, msg, lang, taskID)
+		g.dispatchAckReply(ctx, msg, lang, taskID, activeCount)
 		return true
 	case fastPathStatus:
 		g.handleNaturalTaskStatusQuery(msg)
@@ -461,11 +485,11 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	// Fallback: if LLM failed, dispatch a worker directly.
 	if llmErr != nil {
 		g.logger.Warn("conversationLLM failed, falling back to direct dispatch: %v", llmErr)
-		taskID := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
+		taskID, activeCount := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
 		if taskID == "" {
 			return true // slot-busy notice already sent
 		}
-		g.dispatchAckReply(ctx, msg, lang, taskID)
+		g.dispatchAckReply(ctx, msg, lang, taskID, activeCount)
 		return true
 	}
 
@@ -485,11 +509,11 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	// Fallback: LLM returned empty reply with no tool calls — treat as dispatch.
 	if reply == "" && len(toolCalls) == 0 {
 		logger.Warn("conversation: empty LLM response, falling back to dispatch for msg=%s", msg.messageID)
-		taskID := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
+		taskID, activeCount := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
 		if taskID == "" {
 			return true
 		}
-		g.dispatchAckReply(ctx, msg, lang, taskID)
+		g.dispatchAckReply(ctx, msg, lang, taskID, activeCount)
 		return true
 	}
 
@@ -647,13 +671,14 @@ func (g *Gateway) getOrCreateSlotMap(chatID string) *chatSlotMap {
 }
 
 // spawnWorkerInSlotMap allocates a new slot in slotMap and launches a worker.
-// Returns the assigned task ID (e.g. "#1").
-func (g *Gateway) spawnWorkerInSlotMap(ctx context.Context, msg *incomingMessage, slotMap *chatSlotMap, taskContent string) string {
+// Returns the assigned task ID (e.g. "#1") and the number of active tasks
+// (including this one). taskID is empty when at capacity.
+func (g *Gateway) spawnWorkerInSlotMap(ctx context.Context, msg *incomingMessage, slotMap *chatSlotMap, taskContent string) (string, int) {
 	max := g.cfg.MaxConcurrentWorkers
 	if max <= 0 {
 		max = 5
 	}
-	slot, taskID, ok := slotMap.allocateSlotIfCapacity(max, g.currentTime())
+	slot, taskID, activeCount, ok := slotMap.allocateSlotIfCapacity(max, g.currentTime())
 	if !ok {
 		lang := detectLang(msg.content)
 		var notice string
@@ -663,7 +688,7 @@ func (g *Gateway) spawnWorkerInSlotMap(ctx context.Context, msg *incomingMessage
 			notice = fmt.Sprintf("当前已有 %d 个任务在运行，请等待任务完成后再启动新任务。", max)
 		}
 		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), notice)
-		return ""
+		return "", 0
 	}
 
 	sessionID, isResume := g.resolveSessionForNewTask(ctx, msg.chatID, slot)
@@ -689,7 +714,7 @@ func (g *Gateway) spawnWorkerInSlotMap(ctx context.Context, msg *incomingMessage
 	workerMsg.content = taskContent
 
 	g.launchWorkerGoroutineForSlotMap(&workerMsg, slot, slotMap, sessionID, inputCh, taskCancel, taskCtx, taskToken, isResume)
-	return taskID
+	return taskID, activeCount
 }
 
 // spawnOrInjectWorker tries to inject into the most recently active worker in
@@ -724,7 +749,7 @@ func (g *Gateway) spawnOrInjectWorker(ctx context.Context, msg *incomingMessage,
 		return injectedTaskID, true
 	}
 
-	taskID := g.spawnWorkerInSlotMap(ctx, msg, slotMap, taskContent)
+	taskID, _ := g.spawnWorkerInSlotMap(ctx, msg, slotMap, taskContent)
 	return taskID, false
 }
 

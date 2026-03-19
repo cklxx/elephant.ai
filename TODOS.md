@@ -47,6 +47,12 @@ Items deferred from CEO Plan Reviews (2026-03-18 strategic expansion, 2026-03-19
 ### ~~ARCHITECTURE.md diagram update~~ ✓ Done
 - Completed 2026-03-18. New components documented: Signal Graph, Decision Engine, Memory Distillation, Unified Session Store.
 
+### Evaluate IM fragment quality (2-week post-ship)
+- **What:** After 2 weeks of server-side splitting, evaluate whether mechanical clause-boundary splitting feels natural enough or whether JSON structured output (LLM-controlled fragment boundaries) is worth the added complexity.
+- **Why:** Server-side splitting is a hypothesis — real user conversations may reveal that the LLM should control where breaks go, not a regex scanner.
+- **Effort:** S (human: ~2h / CC: ~10 min)
+- **Depends on:** IM fragmented replies PR shipping and running for 2 weeks.
+
 ### Migrate existing digest services to DigestService
 - **What:** Refactor Weekly Pulse (`internal/app/pulse/weekly.go`), Daily Summary (`internal/app/summary/daily.go`), and Prep Brief (`internal/app/prepbrief/brief.go`) to use the shared DigestService abstraction.
 - **Why:** All 3 follow the same gather→format→deliver pattern. After DigestService is built for Morning Brief + Self-Report, migrating the existing 3 eliminates duplicated scaffolding.

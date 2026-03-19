@@ -380,7 +380,7 @@ func TestHandleViaConversationProcess_InjectsIntoRunningWorker(t *testing.T) {
 	// Pre-populate a running worker in the chatSlotMap.
 	inputCh := make(chan agent.UserInput, 16)
 	slotMap := g.getOrCreateSlotMap("chat1")
-	slot, _, _ := slotMap.allocateSlotIfCapacity(5, time.Now())
+	slot, _, _, _ := slotMap.allocateSlotIfCapacity(5, time.Now())
 	if slot == nil {
 		t.Fatal("failed to allocate slot")
 	}
@@ -742,7 +742,7 @@ func TestHandleViaConversationProcess_StopsWorkerOnToolCall(t *testing.T) {
 	// Pre-populate a running worker in the chatSlotMap with a cancel func.
 	cancelled := false
 	slotMap := g.getOrCreateSlotMap("chat1")
-	slot, _, _ := slotMap.allocateSlotIfCapacity(5, time.Now())
+	slot, _, _, _ := slotMap.allocateSlotIfCapacity(5, time.Now())
 	if slot == nil {
 		t.Fatal("failed to allocate slot")
 	}
