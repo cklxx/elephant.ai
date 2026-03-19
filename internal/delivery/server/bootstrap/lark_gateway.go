@@ -14,6 +14,7 @@ import (
 	serverApp "alex/internal/delivery/server/app"
 	"alex/internal/domain/agent/presets"
 	larkoauth "alex/internal/infra/lark/oauth"
+	infra_skills "alex/internal/infra/skills"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/utils"
@@ -77,6 +78,12 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 
 	gatewayCfg := buildLarkGatewayConfig(larkCfg, cfg)
+	// Auto-populate skills catalog so the conversation router knows what the worker can do.
+	if gatewayCfg.ConversationWorkerCapabilities == "" {
+		if catalog := buildSkillsCatalogSummary(); catalog != "" {
+			gatewayCfg.ConversationWorkerCapabilities = catalog
+		}
+	}
 
 	stores, err := initLarkStores(ctx, &gatewayCfg, container, logger)
 	if err != nil {
@@ -167,7 +174,10 @@ func buildLarkGatewayConfig(larkCfg LarkGatewayConfig, cfg Config) lark.Config {
 		BtwIntentRouterModel:          larkCfg.BtwIntentRouterModel,
 		BtwAutoInjectResult:           &larkCfg.BtwAutoInjectResult,
 		BtwResultPrefix:               larkCfg.BtwResultPrefix,
-		ConversationProcessEnabled:    &larkCfg.ConversationProcessEnabled,
+		ConversationProcessEnabled:     &larkCfg.ConversationProcessEnabled,
+		MaxConcurrentWorkers:           larkCfg.MaxConcurrentWorkers,
+		StuckWorkerTimeout:             larkCfg.StuckWorkerTimeout,
+		ConversationWorkerCapabilities: larkCfg.ConversationWorkerCapabilities,
 	}
 
 	hooksPort := strings.TrimPrefix(cfg.DebugPort, ":")
@@ -421,4 +431,15 @@ func buildConversationPromptLoader(container *di.Container) func(ctx context.Con
 		}
 		return "# Persistent Memory\n\n" + strings.Join(sections, "\n\n")
 	}
+}
+
+// buildSkillsCatalogSummary loads the skills library and returns a compact
+// markdown catalog for injection into the conversation router's system prompt.
+// Returns empty string when no skills are available or the library fails to load.
+func buildSkillsCatalogSummary() string {
+	lib, err := infra_skills.DefaultLibrary()
+	if err != nil || len(lib.List()) == 0 {
+		return ""
+	}
+	return infra_skills.IndexMarkdown(lib)
 }

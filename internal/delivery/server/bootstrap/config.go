@@ -185,7 +185,10 @@ type LarkGatewayConfig struct {
 	BtwAutoInjectResult    bool
 	BtwResultPrefix        string
 	// Conversation process (chat+worker architecture)
-	ConversationProcessEnabled bool
+	ConversationProcessEnabled     bool
+	MaxConcurrentWorkers           int
+	StuckWorkerTimeout             time.Duration
+	ConversationWorkerCapabilities string
 }
 
 // HooksBridgeConfig controls the Claude Code hooks → Lark bridge endpoint.

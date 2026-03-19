@@ -79,6 +79,9 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyOptionalTrimmedString(&target.BtwResultPrefix, larkCfg.BtwResultPrefix)
 	// Conversation process (chat+worker architecture)
 	applyOptionalBool(&target.ConversationProcessEnabled, larkCfg.ConversationProcessEnabled)
+	applyPositiveInt(&target.MaxConcurrentWorkers, larkCfg.MaxConcurrentWorkers)
+	applyPositiveDuration(&target.StuckWorkerTimeout, larkCfg.StuckWorkerTimeoutSeconds, time.Second)
+	applyOptionalTrimmedString(&target.ConversationWorkerCapabilities, larkCfg.ConversationWorkerCapabilities)
 	cfg.Channels.SetLarkConfig(target)
 }
 
