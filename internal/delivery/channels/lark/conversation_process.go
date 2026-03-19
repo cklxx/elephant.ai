@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"alex/internal/app/agent/llmclient"
@@ -25,6 +26,8 @@ const (
 
 	conversationChatHistoryMaxRounds = 5
 	conversationPromptCacheTTL       = 60 * time.Second
+
+	imMaxRunes = 20
 )
 
 // memoryCacheEntry holds a cached memory context string with an expiry.
@@ -245,14 +248,116 @@ func naturalizeReply(s string, level int) string {
 	return s
 }
 
-// sendNaturalizedReply applies casual-register normalization and dispatches.
-// Length is controlled entirely by the system prompt, not code-level truncation.
-func (g *Gateway) sendNaturalizedReply(ctx context.Context, chatID, replyToID, reply string, level int) {
+// splitIMFragments splits a reply into IM-sized fragments at clause boundaries.
+// Max 3 fragments. Each fragment capped at imMaxRunes. Tail merged into last.
+// Empty/punctuation-only shards are filtered.
+func splitIMFragments(s string) []string {
+	if s == "" {
+		return nil
+	}
+	if utf8.RuneCountInString(s) <= imMaxRunes {
+		return []string{s}
+	}
+
+	// Split on clause boundaries.
+	var segments []string
+	start := 0
+	for i, r := range s {
+		if i > 0 && isClauseBoundary(r) {
+			seg := strings.TrimSpace(s[start:i])
+			if seg != "" && !isPunctOnly(seg) {
+				segments = append(segments, seg)
+			}
+			start = i + utf8.RuneLen(r)
+		}
+	}
+	// Remaining tail.
+	tail := strings.TrimSpace(s[start:])
+	if tail != "" && !isPunctOnly(tail) {
+		segments = append(segments, tail)
+	}
+
+	if len(segments) == 0 {
+		return []string{capFragment(s)} // no valid segments — return capped original
+	}
+	if len(segments) == 1 {
+		return []string{capFragment(segments[0])}
+	}
+
+	// Cap at 3: merge remaining into last fragment.
+	const maxFragments = 3
+	if len(segments) > maxFragments {
+		merged := make([]string, maxFragments)
+		copy(merged, segments[:maxFragments-1])
+		merged[maxFragments-1] = strings.Join(segments[maxFragments-1:], "，")
+		segments = merged
+	}
+
+	// Per-fragment length cap.
+	for i, seg := range segments {
+		segments[i] = capFragment(seg)
+	}
+	return segments
+}
+
+func isClauseBoundary(r rune) bool {
+	return r == '，' || r == '、' || r == '！' || r == '？' || r == '；' || r == '\n' || r == ','
+}
+
+func isPunctOnly(s string) bool {
+	for _, r := range s {
+		if !unicode.IsPunct(r) && !unicode.IsSpace(r) && !unicode.IsSymbol(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func capFragment(s string) string {
+	if utf8.RuneCountInString(s) <= imMaxRunes {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:imMaxRunes])
+}
+
+// defaultIMDelay is the production delay function used between IM fragments.
+func defaultIMDelay(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(d):
+		return true
+	}
+}
+
+// sendFragmentedReply naturalizes the reply, splits into IM fragments, and
+// dispatches each with a delay between them to simulate natural typing rhythm.
+// NOTE: dispatchFormattedReply has its own inner splitMessage for markdown-based
+// splitting, but short IM fragments (≤20 runes) never trigger it. No delay stacking.
+func (g *Gateway) sendFragmentedReply(ctx context.Context, chatID, replyToID, reply string, level int) {
 	text := naturalizeReply(reply, level)
 	if text == "" {
 		return
 	}
-	g.dispatchFormattedReply(ctx, chatID, replyToID, text)
+	fragments := splitIMFragments(text)
+	if len(fragments) == 0 {
+		return
+	}
+	for i, frag := range fragments {
+		if i > 0 {
+			delay := randomIMDelay()
+			if !g.imDelayFn(ctx, delay) {
+				return // context cancelled
+			}
+		}
+		g.dispatchFormattedReply(ctx, chatID, replyToID, frag)
+	}
+}
+
+// randomIMDelay returns a random duration between 400ms and 800ms.
+func randomIMDelay() time.Duration {
+	return time.Duration(400+rand.IntN(401)) * time.Millisecond
 }
 
 // classifyFastPath returns a fastPathIntent for the given message content.
@@ -377,9 +482,20 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	logger.Info("conversation: decision msg=%s hasDispatchWorker=%t reply_len=%d tool_calls=%d",
 		msg.messageID, hasDispatchWorker, len(reply), len(toolCalls))
 
-	// When no worker is dispatched, send the reply directly.
+	// Fallback: LLM returned empty reply with no tool calls — treat as dispatch.
+	if reply == "" && len(toolCalls) == 0 {
+		logger.Warn("conversation: empty LLM response, falling back to dispatch for msg=%s", msg.messageID)
+		taskID := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
+		if taskID == "" {
+			return true
+		}
+		g.dispatchAckReply(ctx, msg, lang, taskID)
+		return true
+	}
+
+	// When no worker is dispatched, send the reply as fragmented IM messages.
 	if reply != "" && !hasDispatchWorker {
-		g.sendNaturalizedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
+		g.sendFragmentedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
 	}
 
 	for _, tc := range toolCalls {
@@ -396,7 +512,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			} else {
 				logger.Info("conversation: SPAWNED new worker msg=%s task=%s taskID=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."), taskID)
 				if reply != "" {
-					g.sendNaturalizedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
+					g.sendFragmentedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
 				}
 			}
 		case stopWorkerToolName:
@@ -484,7 +600,7 @@ func (g *Gateway) buildConversationSystemPrompt(ctx context.Context, senderID st
 	sections = append(sections, conversationSystemPrompt)
 
 	if g.cfg.ConversationWorkerCapabilities != "" {
-		sections = append(sections, "Worker capabilities:\n"+g.cfg.ConversationWorkerCapabilities)
+		sections = append(sections, "## Worker capabilities (NOT yours — do NOT execute these yourself)\nThe background worker can handle the tasks below. When a user request matches, use dispatch_worker to hand it off.\n\n"+g.cfg.ConversationWorkerCapabilities)
 	}
 
 	now := g.currentTime()
