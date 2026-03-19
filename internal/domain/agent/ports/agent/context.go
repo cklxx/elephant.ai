@@ -39,6 +39,7 @@ type ContextWindowConfig struct {
 	Unattended         bool   // If true, agent runs autonomously without user interaction
 	Channel            string // Delivery channel (e.g. "lark", "cli", "web") for format-aware prompts
 	ChannelHint        string // Pre-rendered channel-specific formatting hint (replaces hardcoded channel checks)
+	ChatID             string // Chat/conversation ID — injected into system prompt so the LLM can reference it
 }
 
 // ContextWindow exposes the layered context returned by the manager.

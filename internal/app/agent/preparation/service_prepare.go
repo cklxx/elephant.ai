@@ -310,6 +310,7 @@ func (s *ExecutionPreparationService) buildContextWindow(prepareCtx context.Cont
 		Unattended:         unattended,
 		Channel:            channel,
 		ChannelHint:        channelHint,
+		ChatID:             appcontext.ChatIDFromContext(prepareCtx),
 	})
 	if err != nil {
 		errs <- fmt.Errorf("build context window: %w", err)

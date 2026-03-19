@@ -248,6 +248,15 @@ func buildTimezoneSection(tz string) string {
 	})
 }
 
+func buildChatIDSection(chatID string) string {
+	if utils.IsBlank(chatID) {
+		return ""
+	}
+	return formatSection("# Chat Context", []string{
+		fmt.Sprintf("chat_id: %s", chatID),
+	})
+}
+
 func buildReplyTagsSection(enabled bool) string {
 	if !enabled {
 		return ""

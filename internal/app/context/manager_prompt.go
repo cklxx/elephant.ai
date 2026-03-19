@@ -30,6 +30,7 @@ type systemPromptInput struct {
 	SOPSummaryOnly   bool   // If true, only show SOP references without full content
 	Unattended       bool   // If true, inject autonomous behavior override (no user interaction)
 	ChannelHint      string // Pre-rendered channel-specific formatting hint
+	ChatID           string // Chat/conversation ID exposed to the LLM
 }
 
 const (
@@ -60,6 +61,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildWorkspaceSection(),
 		buildWorkspaceFilesSection(input.BootstrapRecords),
 		buildTimezoneSection(input.PromptTimezone),
+		buildChatIDSection(input.ChatID),
 		buildReplyTagsSection(input.ReplyTagsEnabled),
 		buildRuntimeSection(input.ToolMode),
 		buildReasoningSection(),
@@ -82,6 +84,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildPoliciesSection(input.Static.Policies),
 		buildWorkspaceSection(),
 		buildTimezoneSection(input.PromptTimezone),
+		buildChatIDSection(input.ChatID),
 		buildRuntimeSection(input.ToolMode),
 		buildReasoningSection(),
 		buildChannelFormattingSection(input.ChannelHint),

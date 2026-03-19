@@ -114,6 +114,7 @@ func (t *shellExec) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	if workingDir != "" {
 		cmd.Dir = workingDir
 	}
+	cmd.Env = buildShellEnv(ctx)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -189,4 +190,17 @@ func (t *shellExec) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		Attachments: attachments,
 		Error:       runErr,
 	}, nil
+}
+
+// buildShellEnv returns os.Environ() plus runtime context variables
+// so that child processes (e.g. Python skill scripts) can access them.
+func buildShellEnv(ctx context.Context) []string {
+	env := os.Environ()
+	if chatID := shared.LarkChatIDFromContext(ctx); chatID != "" {
+		env = append(env, "ALEX_CHAT_ID="+chatID)
+	}
+	if sessionID := shared.GetToolSessionIDFromContext(ctx); sessionID != "" {
+		env = append(env, "ALEX_SESSION_ID="+sessionID)
+	}
+	return env
 }
