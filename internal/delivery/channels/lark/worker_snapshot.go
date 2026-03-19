@@ -19,6 +19,7 @@ type workerSnapshot struct {
 	Signals        []string // recent user messages injected into the worker
 	RecentProgress []string // recent tool progress entries from the worker
 	Lang           string   // "zh" or "en", populated from msg.content
+	ResultPreview  string   // truncated answer from completed task; empty when running
 }
 
 // workerSnapshotList holds snapshots of all workers in a chat (multi-worker mode).
@@ -99,14 +100,16 @@ func (g *Gateway) snapshotAllWorkers(chatID string, lang string) workerSnapshotL
 	m.forEachSlot(func(taskID string, s *sessionSlot) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		if s.phase == slotIdle {
+		// Include idle slots only if they have a result preview (for cross-task references).
+		if s.phase == slotIdle && s.lastResultPreview == "" {
 			return
 		}
 		snap := workerSnapshot{
-			Phase:    s.phase,
-			TaskID:   taskID,
-			TaskDesc: s.taskDesc,
-			Lang:     lang,
+			Phase:         s.phase,
+			TaskID:        taskID,
+			TaskDesc:      s.taskDesc,
+			Lang:          lang,
+			ResultPreview: s.lastResultPreview,
 		}
 		if s.phase == slotRunning {
 			ref := s.taskStartTime
@@ -136,6 +139,10 @@ func (s workerSnapshot) StatusSummary(lang string) string {
 	if lang == "" {
 		lang = "zh"
 	}
+	taskLabel := s.TaskID
+	if taskLabel == "" {
+		taskLabel = "task"
+	}
 	switch s.Phase {
 	case slotRunning:
 		desc := s.TaskDesc
@@ -143,10 +150,6 @@ func (s workerSnapshot) StatusSummary(lang string) string {
 			desc = string([]rune(desc)[:80]) + "…"
 		}
 		var summary string
-		taskLabel := s.TaskID
-		if taskLabel == "" {
-			taskLabel = "task"
-		}
 		elapsed := s.Elapsed.Truncate(time.Second).String()
 		if lang == "en" {
 			summary = fmt.Sprintf("%s running (%s): %s", taskLabel, elapsed, desc)
@@ -166,10 +169,17 @@ func (s workerSnapshot) StatusSummary(lang string) string {
 		return summary
 	case slotAwaitingInput:
 		if lang == "en" {
-			return "task waiting for user input"
+			return fmt.Sprintf("%s waiting for user input", taskLabel)
 		}
-		return "任务等待用户输入中"
+		return fmt.Sprintf("%s 等待用户输入中", taskLabel)
 	default:
+		// Idle with result preview — show completed task output for cross-task references.
+		if s.ResultPreview != "" {
+			if lang == "en" {
+				return fmt.Sprintf("%s done: %s\nResult: %s", taskLabel, s.TaskDesc, s.ResultPreview)
+			}
+			return fmt.Sprintf("%s 已完成：%s\n结果：%s", taskLabel, s.TaskDesc, s.ResultPreview)
+		}
 		return "idle"
 	}
 }
@@ -184,13 +194,37 @@ func (l workerSnapshotList) StatusSummary() string {
 		lang = "zh"
 	}
 
+	var active, completed int
 	var parts []string
 	for _, s := range l.Snapshots {
 		parts = append(parts, s.StatusSummary(lang))
+		if s.Phase == slotIdle {
+			completed++
+		} else {
+			active++
+		}
 	}
 
-	if lang == "en" {
-		return fmt.Sprintf("%d task(s) active:\n%s", len(l.Snapshots), strings.Join(parts, "\n"))
+	var header string
+	switch {
+	case active > 0 && completed > 0:
+		if lang == "en" {
+			header = fmt.Sprintf("%d task(s) active, %d completed:", active, completed)
+		} else {
+			header = fmt.Sprintf("%d 个任务执行中，%d 个已完成：", active, completed)
+		}
+	case active > 0:
+		if lang == "en" {
+			header = fmt.Sprintf("%d task(s) active:", active)
+		} else {
+			header = fmt.Sprintf("%d 个任务执行中：", active)
+		}
+	default:
+		if lang == "en" {
+			header = fmt.Sprintf("%d completed task(s):", completed)
+		} else {
+			header = fmt.Sprintf("%d 个任务已完成：", completed)
+		}
 	}
-	return fmt.Sprintf("%d 个任务执行中：\n%s", len(l.Snapshots), strings.Join(parts, "\n"))
+	return header + "\n" + strings.Join(parts, "\n")
 }

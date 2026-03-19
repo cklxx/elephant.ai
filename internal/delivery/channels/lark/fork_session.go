@@ -135,7 +135,7 @@ func (g *Gateway) runForkTask(
 	// runTask internally calls dispatchResult which sends the reply to Lark.
 	// For fork sessions we still want the child's reply visible in chat so
 	// the user knows their side-question was handled. isResume=false, taskToken=0.
-	awaitingInput := g.runTask(ctx, msg, childSessionID, inputCh, false, 0)
+	awaitingInput, _ := g.runTask(ctx, msg, childSessionID, inputCh, false, 0)
 	if awaitingInput {
 		// Fork sessions should not enter await_user_input; log and continue.
 		g.logger.Warn("btw fork child session %s returned await_user_input; treating as complete", childSessionID)

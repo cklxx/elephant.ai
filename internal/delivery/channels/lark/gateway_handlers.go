@@ -258,7 +258,7 @@ func (g *Gateway) launchWorkerGoroutine(msg *incomingMessage, slot *sessionSlot,
 			}
 		}()
 
-		awaitingInput := g.runTask(taskCtx, msg, sessionID, inputCh, isResume, taskToken)
+		awaitingInput, _ := g.runTask(taskCtx, msg, sessionID, inputCh, isResume, taskToken)
 
 		slot.mu.Lock()
 		if slot.taskToken == taskToken {

@@ -28,12 +28,8 @@ Items deferred from CEO Plan Reviews (2026-03-18 strategic expansion, 2026-03-19
 - **Depends on:** Signal Graph architecture being in place. **Done — `internal/app/signals/`**
 - **Code path:** `internal/infra/tools/builtin/git/` + signal source adapter.
 
-### Cross-task awareness (Chat + Worker phase 3)
-- **What:** Allow a dispatched task to reference the output of a previous task by ID — "use what task #1 found as input for task #2."
-- **Why:** Unlocked by task IDs from the 2026-03-19 multi-worker plan. Without this, multi-worker is parallel but not coordinated. With it, elephant.ai can run sequential pipelines expressed in natural language.
-- **Effort:** M (human: ~1 week / CC: ~30 min)
-- **Depends on:** Task ID tracking (N concurrent workers plan — scheduled next sprint). Requires task result storage: a per-slot result field populated on worker completion.
-- **Code path:** `internal/delivery/channels/lark/` — slot result store + Chat system prompt update + `dispatch_worker` tool param `depends_on: ["#1"]`.
+### ~~Cross-task awareness (Chat + Worker phase 3)~~ ✓ Done
+- Completed 2026-03-19. `lastResultPreview` stored in sessionSlot on task completion (≤200 runes). `resolveTaskReferences` scans dispatch task descriptions for `#N` patterns and prepends referenced results as context. Worker snapshots expose completed task results to the conversation LLM.
 
 ### ~~Memory-wired formality level~~ ✓ Done
 - Completed 2026-03-19. `detectFormalityLevel` now scans cached memory context for relationship keywords (外部客户/client → neutral, 同事/colleague → casual) before falling back to chat type heuristic.

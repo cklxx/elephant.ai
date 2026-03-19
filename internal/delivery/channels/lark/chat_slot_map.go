@@ -118,6 +118,19 @@ func (m *chatSlotMap) forEachSlot(fn func(taskID string, s *sessionSlot)) {
 	}
 }
 
+// resultPreview returns the last result preview for the given task ID, or empty string.
+func (m *chatSlotMap) resultPreview(taskID string) string {
+	m.mu.Lock()
+	s, ok := m.slots[taskID]
+	m.mu.Unlock()
+	if !ok {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastResultPreview
+}
+
 // removeIdle deletes idle slots from the map to reclaim memory.
 func (m *chatSlotMap) removeIdle() {
 	m.mu.Lock()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -133,6 +134,7 @@ reply: "行"
 ## Task control
 - Follow-up for running task → dispatch_worker (inject).
 - Stop intent → stop_worker.
+- Cross-task: when user says "use #1's result" or "based on what #1 found", include "#1" reference in the dispatch task description. The worker will receive the referenced result as context.
 
 ## Safety
 - Never fabricate info or status.
@@ -401,6 +403,35 @@ func (g *Gateway) sendFragmentedReply(ctx context.Context, chatID, replyToID, re
 // randomIMDelay returns a random duration between 400ms and 800ms.
 func randomIMDelay() time.Duration {
 	return time.Duration(400+rand.IntN(401)) * time.Millisecond
+}
+
+// taskRefPattern matches cross-task references like #1, #2, #12.
+var taskRefPattern = regexp.MustCompile(`#(\d+)`)
+
+// resolveTaskReferences scans taskContent for #N references and prepends
+// the referenced task results as context. Returns the enriched content.
+func resolveTaskReferences(taskContent string, slotMap *chatSlotMap) string {
+	matches := taskRefPattern.FindAllString(taskContent, -1)
+	if len(matches) == 0 {
+		return taskContent
+	}
+	seen := make(map[string]bool)
+	var refs []string
+	for _, ref := range matches {
+		if seen[ref] {
+			continue
+		}
+		seen[ref] = true
+		preview := slotMap.resultPreview(ref)
+		if preview == "" {
+			continue
+		}
+		refs = append(refs, fmt.Sprintf("[%s result]: %s", ref, preview))
+	}
+	if len(refs) == 0 {
+		return taskContent
+	}
+	return strings.Join(refs, "\n") + "\n\n" + taskContent
 }
 
 // classifyFastPath returns a fastPathIntent for the given message content.
@@ -717,6 +748,9 @@ func (g *Gateway) spawnWorkerInSlotMap(ctx context.Context, msg *incomingMessage
 		return "", 0
 	}
 
+	// Resolve cross-task references (#1, #2, …) in the task content.
+	enrichedContent := resolveTaskReferences(taskContent, slotMap)
+
 	sessionID, isResume := g.resolveSessionForNewTask(ctx, msg.chatID, slot)
 	inputCh := make(chan agent.UserInput, 16)
 	taskCtx, taskCancel := context.WithCancel(context.Background())
@@ -729,7 +763,7 @@ func (g *Gateway) spawnWorkerInSlotMap(ctx context.Context, msg *incomingMessage
 	taskToken := slot.taskToken
 	slot.sessionID = sessionID
 	slot.lastSessionID = sessionID
-	slot.taskDesc = strings.TrimSpace(taskContent)
+	slot.taskDesc = strings.TrimSpace(taskContent) // store original desc (without context injection)
 	slot.recentProgress = slot.recentProgress[:0]
 	slot.lastTouched = g.currentTime()
 	slot.taskStartTime = g.currentTime()
@@ -737,7 +771,7 @@ func (g *Gateway) spawnWorkerInSlotMap(ctx context.Context, msg *incomingMessage
 	slot.mu.Unlock()
 
 	workerMsg := *msg
-	workerMsg.content = taskContent
+	workerMsg.content = enrichedContent
 
 	g.launchWorkerGoroutineForSlotMap(&workerMsg, slot, slotMap, sessionID, inputCh, taskCancel, taskCtx, taskToken, isResume)
 	return taskID, activeCount
@@ -787,7 +821,7 @@ func (g *Gateway) launchWorkerGoroutineForSlotMap(msg *incomingMessage, slot *se
 		defer g.taskWG.Done()
 		defer taskCancel()
 
-		awaitingInput := g.runTask(taskCtx, msg, sessionID, inputCh, isResume, taskToken)
+		awaitingInput, answerPreview := g.runTask(taskCtx, msg, sessionID, inputCh, isResume, taskToken)
 
 		slot.mu.Lock()
 		if slot.taskToken == taskToken {
@@ -797,6 +831,9 @@ func (g *Gateway) launchWorkerGoroutineForSlotMap(msg *incomingMessage, slot *se
 			slot.inputCh = nil
 			slot.taskCancel = nil
 			slot.taskStartTime = time.Time{}
+			if answerPreview != "" {
+				slot.lastResultPreview = answerPreview
+			}
 			if awaitingInput {
 				slot.phase = slotAwaitingInput
 				slot.lastSessionID = slot.sessionID

@@ -17,8 +17,9 @@ import (
 // runTask executes a full task lifecycle: context setup, session ensure,
 // listener wiring, content preparation, execution, and reply dispatch.
 // isResume indicates this task resumes from a prior await_user_input stop.
-// Returns true if the result indicates await_user_input.
-func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, sessionID string, inputCh chan agent.UserInput, isResume bool, taskToken uint64) bool {
+// Returns (awaitingInput, answerPreview). answerPreview is a truncated copy
+// of the task answer (≤200 runes) for cross-task reference by later workers.
+func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, sessionID string, inputCh chan agent.UserInput, isResume bool, taskToken uint64) (bool, string) {
 	execCtx, cancelExec := g.buildExecContext(taskCtx, msg, sessionID, inputCh)
 	defer cancelExec()
 
@@ -33,7 +34,7 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 			reply = "会话初始化失败，请稍后重试，或回复\u201c诊断\u201d让我输出可定位信息。"
 		}
 		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
-		return false
+		return false, ""
 	}
 	if session != nil && session.ID != "" && session.ID != sessionID {
 		sessionID = session.ID
@@ -103,7 +104,11 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 		}
 	}
 
-	return execErr == nil && isResultAwaitingInput(result)
+	var preview string
+	if result != nil && result.Answer != "" {
+		preview = truncateRunes(result.Answer, 200)
+	}
+	return execErr == nil && isResultAwaitingInput(result), preview
 }
 
 // buildExecContext constructs the fully-configured execution context for a task.
@@ -162,6 +167,15 @@ func withCancellationForward(baseCtx, upstream context.Context) (context.Context
 		}
 	}()
 	return ctx, cancel
+}
+
+// truncateRunes returns up to maxRunes runes from s, appending "…" if truncated.
+func truncateRunes(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes]) + "…"
 }
 
 // sessionHasAwaitFlag checks whether a session's metadata indicates a pending

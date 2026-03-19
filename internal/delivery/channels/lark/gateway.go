@@ -69,6 +69,7 @@ type sessionSlot struct {
 	taskStartTime          time.Time // set just before runTask begins; zero until then
 	taskID                 string    // "#1", "#2", etc. — set when allocated from chatSlotMap
 	lastProgressAt         time.Time // updated on every tool event; used for stuck detection
+	lastResultPreview      string    // truncated answer from most recent completed task; used for cross-task references
 }
 
 const maxSlotProgress = 8

@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1062,6 +1063,133 @@ func TestSendFragmentedReply_EmptyReply(t *testing.T) {
 
 	if rec.count() != 0 {
 		t.Fatalf("expected 0 messages for empty reply, got %d", rec.count())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests for resolveTaskReferences (cross-task awareness)
+// ---------------------------------------------------------------------------
+
+func TestResolveTaskReferences_NoRefs(t *testing.T) {
+	slotMap := &chatSlotMap{slots: make(map[string]*sessionSlot)}
+	got := resolveTaskReferences("do something", slotMap)
+	if got != "do something" {
+		t.Fatalf("expected unchanged, got %q", got)
+	}
+}
+
+func TestResolveTaskReferences_WithResult(t *testing.T) {
+	slotMap := &chatSlotMap{slots: map[string]*sessionSlot{
+		"#1": {lastResultPreview: "found 3 bugs in auth module"},
+	}}
+	got := resolveTaskReferences("fix the bugs #1 found", slotMap)
+	if !strContains(got, "[#1 result]: found 3 bugs in auth module") {
+		t.Errorf("expected #1 result injected, got %q", got)
+	}
+	if !strContains(got, "fix the bugs #1 found") {
+		t.Errorf("original content should be preserved, got %q", got)
+	}
+}
+
+func TestResolveTaskReferences_MissingResult(t *testing.T) {
+	slotMap := &chatSlotMap{slots: map[string]*sessionSlot{
+		"#1": {lastResultPreview: ""}, // no result yet
+	}}
+	got := resolveTaskReferences("use #1 output", slotMap)
+	if got != "use #1 output" {
+		t.Fatalf("expected unchanged when no result, got %q", got)
+	}
+}
+
+func TestResolveTaskReferences_MultipleRefs(t *testing.T) {
+	slotMap := &chatSlotMap{slots: map[string]*sessionSlot{
+		"#1": {lastResultPreview: "result A"},
+		"#2": {lastResultPreview: "result B"},
+	}}
+	got := resolveTaskReferences("combine #1 and #2", slotMap)
+	if !strContains(got, "[#1 result]: result A") || !strContains(got, "[#2 result]: result B") {
+		t.Errorf("expected both results, got %q", got)
+	}
+}
+
+func TestResolveTaskReferences_DuplicateRef(t *testing.T) {
+	slotMap := &chatSlotMap{slots: map[string]*sessionSlot{
+		"#1": {lastResultPreview: "result A"},
+	}}
+	got := resolveTaskReferences("#1 and also #1", slotMap)
+	// Should only include #1 result once.
+	count := strings.Count(got, "[#1 result]")
+	if count != 1 {
+		t.Errorf("expected 1 occurrence of #1 result, got %d in %q", count, got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests for workerSnapshot with ResultPreview (cross-task awareness)
+// ---------------------------------------------------------------------------
+
+func TestWorkerSnapshot_StatusSummary_CompletedWithResult(t *testing.T) {
+	snap := workerSnapshot{
+		Phase:         slotIdle,
+		TaskID:        "#1",
+		TaskDesc:      "analyze code",
+		ResultPreview: "found 3 issues",
+	}
+	s := snap.StatusSummary("zh")
+	if !strContains(s, "#1 已完成") || !strContains(s, "found 3 issues") {
+		t.Errorf("expected completed summary with result, got %q", s)
+	}
+	sEn := snap.StatusSummary("en")
+	if !strContains(sEn, "#1 done") || !strContains(sEn, "found 3 issues") {
+		t.Errorf("expected completed summary with result (en), got %q", sEn)
+	}
+}
+
+func TestSnapshotAllWorkers_IncludesCompletedWithResult(t *testing.T) {
+	g := &Gateway{logger: logging.OrNop(nil), now: time.Now}
+	slotMap := &chatSlotMap{slots: map[string]*sessionSlot{
+		"#1": {phase: slotIdle, taskDesc: "task one", lastResultPreview: "result one"},
+		"#2": {phase: slotIdle, taskDesc: "task two", lastResultPreview: ""},
+	}}
+	g.activeChatSlots.Store("chat1", slotMap)
+
+	list := g.snapshotAllWorkers("chat1", "zh")
+	// #1 has result → included; #2 has no result → excluded.
+	if len(list.Snapshots) != 1 {
+		t.Fatalf("expected 1 snapshot (completed with result), got %d", len(list.Snapshots))
+	}
+	if list.Snapshots[0].TaskID != "#1" {
+		t.Errorf("expected #1, got %q", list.Snapshots[0].TaskID)
+	}
+}
+
+func TestWorkerSnapshotList_StatusSummary_MixedActiveAndCompleted(t *testing.T) {
+	list := workerSnapshotList{
+		Snapshots: []workerSnapshot{
+			{Phase: slotRunning, TaskID: "#1", TaskDesc: "running task", Elapsed: 10 * time.Second},
+			{Phase: slotIdle, TaskID: "#2", TaskDesc: "done task", ResultPreview: "some result"},
+		},
+		Lang: "zh",
+	}
+	s := list.StatusSummary()
+	if !strContains(s, "1 个任务执行中") || !strContains(s, "1 个已完成") {
+		t.Errorf("expected mixed summary, got %q", s)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests for chatSlotMap.resultPreview
+// ---------------------------------------------------------------------------
+
+func TestChatSlotMap_ResultPreview(t *testing.T) {
+	slotMap := &chatSlotMap{slots: map[string]*sessionSlot{
+		"#1": {lastResultPreview: "hello"},
+	}}
+	if got := slotMap.resultPreview("#1"); got != "hello" {
+		t.Errorf("expected 'hello', got %q", got)
+	}
+	if got := slotMap.resultPreview("#99"); got != "" {
+		t.Errorf("expected empty for missing slot, got %q", got)
 	}
 }
 
