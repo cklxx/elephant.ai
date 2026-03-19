@@ -124,6 +124,14 @@ func (m *convRecordingMessenger) last() convSentMessage {
 	return m.messages[len(m.messages)-1]
 }
 
+func (m *convRecordingMessenger) all() []convSentMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]convSentMessage, len(m.messages))
+	copy(out, m.messages)
+	return out
+}
+
 // ---------------------------------------------------------------------------
 // Stub agent executor
 // ---------------------------------------------------------------------------
@@ -162,9 +170,9 @@ func newConvGateway(t *testing.T, stub *convStubLLMClient, enabled bool) *Gatewa
 		},
 		llmFactory: &convStubFactory{client: stub},
 		llmProfile: config.LLMProfile{Provider: "openai", Model: "gpt-4o-mini"},
-		logger:     logging.OrNop(nil),
-		messenger:  rec,
-		now:        time.Now,
+		logger:    logging.OrNop(nil),
+		messenger: rec,
+		now:       time.Now,
 	}
 	return gw
 }
@@ -681,9 +689,11 @@ func TestHandleViaConversationProcess_NaturalizeApplied(t *testing.T) {
 	if rec.count() == 0 {
 		t.Fatal("expected a reply")
 	}
-	m := rec.last()
-	if strContains(m.content, "。") {
-		t.Errorf("naturalizeReply should strip trailing 。, got content: %q", m.content)
+	// Check all sent messages — with fragmented replies there may be multiple.
+	for _, m := range rec.all() {
+		if strContains(m.content, "。") {
+			t.Errorf("naturalizeReply should strip trailing 。, got content: %q", m.content)
+		}
 	}
 }
 

@@ -228,7 +228,7 @@ func detectFormalityLevel(chatType string) int {
 
 // naturalizeReply post-processes LLM output to match IM casual register.
 // level 0 = neutral (base rules only); level 1 = casual (base + aggressive).
-// Includes hard length enforcement as a safety net against verbose LLM output.
+// Length is controlled via the system prompt, not code-level truncation.
 func naturalizeReply(s string, level int) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -242,35 +242,17 @@ func naturalizeReply(s string, level int) string {
 	if level >= 1 {
 		s = imCasualReplacer.Replace(s)
 	}
-	// Hard length enforcement: truncate to first clause if too long.
-	s = enforceIMLength(s)
 	return s
 }
 
-// enforceIMLength truncates a reply to IM-appropriate length.
-// If the text exceeds ~20 CJK chars / 40 bytes, it splits on the first
-// clause boundary (，、！？；\n) and keeps only the first segment.
-const imMaxRunes = 20
-
-func enforceIMLength(s string) string {
-	if utf8.RuneCountInString(s) <= imMaxRunes {
-		return s
+// sendNaturalizedReply applies casual-register normalization and dispatches.
+// Length is controlled entirely by the system prompt, not code-level truncation.
+func (g *Gateway) sendNaturalizedReply(ctx context.Context, chatID, replyToID, reply string, level int) {
+	text := naturalizeReply(reply, level)
+	if text == "" {
+		return
 	}
-	// Try to split at a natural clause boundary.
-	for i, r := range s {
-		if i > 0 && (r == '，' || r == '、' || r == '！' || r == '？' || r == '；' || r == '\n' || r == ',') {
-			candidate := strings.TrimSpace(s[:i])
-			if utf8.RuneCountInString(candidate) >= 3 {
-				return candidate
-			}
-		}
-	}
-	// No good boundary — hard truncate at rune limit.
-	runes := []rune(s)
-	if len(runes) > imMaxRunes {
-		return string(runes[:imMaxRunes])
-	}
-	return s
+	g.dispatchFormattedReply(ctx, chatID, replyToID, text)
 }
 
 // classifyFastPath returns a fastPathIntent for the given message content.
@@ -397,7 +379,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 
 	// When no worker is dispatched, send the reply directly.
 	if reply != "" && !hasDispatchWorker {
-		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), naturalizeReply(reply, level))
+		g.sendNaturalizedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
 	}
 
 	for _, tc := range toolCalls {
@@ -414,7 +396,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			} else {
 				logger.Info("conversation: SPAWNED new worker msg=%s task=%s taskID=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."), taskID)
 				if reply != "" {
-					g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), naturalizeReply(reply, level))
+					g.sendNaturalizedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
 				}
 			}
 		case stopWorkerToolName:

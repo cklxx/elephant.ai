@@ -1,6 +1,6 @@
 ---
 name: openseed
-description: 想查论文、搜学术资料、对比方法论、生成实验代码时使用 — AI 驱动的论文调研 CLI（ArXiv 检索、PDF 提取、Claude 摘要/评审/问答）。
+description: AI-powered paper research CLI — search ArXiv, extract PDFs, summarize/review/Q&A with Claude, generate experiment code.
 triggers:
   intent_patterns:
     - "openseed|论文|paper|arxiv|学术|research.*paper|文献|调研.*论文|survey"

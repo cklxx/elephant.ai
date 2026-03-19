@@ -1,6 +1,6 @@
 ---
 name: openmax
-description: 任务量大到一个 worker 搞不定，需要拆成多个子任务并行跑（全仓 review、批量分析、多模块重构）时使用。
+description: Parallel multi-worker dispatch — splits a large task into subtasks running in isolated git worktrees (bulk review, multi-module refactor, batch analysis).
 triggers:
   intent_patterns:
     - "openmax|parallel review|并行|多worker|多任务|code review|批量"

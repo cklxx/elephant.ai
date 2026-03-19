@@ -1,6 +1,6 @@
 ---
 name: openbench
-description: 改了 prompt、工具或 agent 逻辑后，想验证有没有回归或提升时跑一轮 eval 基准测试。
+description: Run eval benchmarks after prompt, tool, or agent logic changes to detect regressions or improvements.
 triggers:
   intent_patterns:
     - "openbench|eval|benchmark|基准|评估|测试套件|跑个评测"
