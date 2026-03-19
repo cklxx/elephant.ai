@@ -1,16 +1,18 @@
 ---
 name: openseed
-description: 单任务 openMax 种子 — 写入 brief、创建 worktree、启动单个 CC worker。
+description: 启动单个后台 CC worker 执行独立任务（代码修改、调研、review 等），在隔离 worktree 中运行。
 triggers:
   intent_patterns:
-    - "openseed|seed.*task|单任务|单worker|create.*worktree"
+    - "openseed|seed.*task|单任务|单worker|启动.*worker|spawn.*worker"
   context_signals:
-    keywords: ["openseed", "seed", "brief", "worktree"]
+    keywords: ["openseed", "seed", "单任务", "worker", "worktree"]
   confidence_threshold: 0.7
 priority: 9
 requires_tools: [bash]
 max_tokens: 200
 cooldown: 30
+capabilities: ["code_edit", "code_review", "research", "analysis"]
+activation_mode: explicit
 output:
   format: markdown
   artifacts: false

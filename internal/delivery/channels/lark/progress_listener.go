@@ -17,7 +17,8 @@ import (
 const (
 	// progressFlushInterval is the minimum time between Lark API calls
 	// to avoid rate-limiting (Lark imposes 5 QPS on message updates).
-	progressFlushInterval = 2 * time.Second
+	// 800ms keeps updates snappy while staying well within the 5 QPS limit.
+	progressFlushInterval = 800 * time.Millisecond
 )
 
 // progressSender abstracts send/update for testability.

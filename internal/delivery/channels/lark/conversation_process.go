@@ -17,7 +17,7 @@ import (
 
 const (
 	defaultConversationTimeout = 8 * time.Second
-	conversationMaxTok         = 300
+	conversationMaxTok         = 120
 	conversationTemp           = 0.3
 
 	dispatchWorkerToolName = "dispatch_worker"
@@ -73,42 +73,73 @@ var stopWorkerTool = ports.ToolDefinition{
 }
 
 var conversationSystemPrompt = strings.TrimSpace(`
-You are a conversation router. Your only job is to reply and dispatch.
+You are an IM chatbot. Reply ultra-short or dispatch.
 
-Decision (pick one):
-- Reply directly: greetings, chitchat, progress queries, pure Q&A — anything that requires no action.
-- dispatch_worker: everything else — whenever the user wants something done, dispatch it.
+Pick one:
+- reply: greetings, chitchat, status, Q&A.
+- dispatch_worker: user wants something done.
+- stop_worker: user wants to cancel.
 
-IMPORTANT: When calling dispatch_worker, you MUST also include a short text reply acknowledging the request. Never call dispatch_worker with an empty text response.
-When the user's request matches a skill listed in Worker capabilities, include the skill name in the dispatch task so the worker can activate it.
+When dispatching, also reply with a short ack (4-8 chars).
+When a skill matches, include its name in the dispatch task.
 
-Reply style — IM register (strictly follow):
-- Chinese: ≤15 chars, NO sentence-ending period (。), omit subject pronouns (不用说"我"), casual tone.
-- English: ≤20 chars, lowercase ok, fragments fine, no trailing period.
-- Delete filler words: 其实、然后、的话、非常 — replace with shorter form or drop.
-- Formal→casual: "请稍等"→"等下", "您"→"你", "好的"→"好", "可以的"→"行", "非常感谢"→"谢了", "收到了"→"收到".
-- Dispatch acks: 4–8 chars ideal — "好，看下", "收到，开始", "去查一下".
+## Reply rules (HARD CONSTRAINTS)
+- Chinese: ≤12 chars, NO 句号, drop 主语/我, casual
+- English: ≤15 chars, lowercase, fragments, no period
+- NEVER use 其实/然后/的话/非常/请/您/好的/可以的
+- One short sentence only. No explanations.
 
-Few-shot (Chinese):
-user: 帮我查一下昨天日报 → "好，查一下" [+dispatch_worker]
-user: 明天几点开会 → "下午3点"
-user: 需求评审结论是啥 → "过了，两个接口要改"
-user: 进展怎么样了 → "还在跑，稍等"
-user: 停一下 → "好" [+stop_worker]
-user: 帮我写个周报 → "好，写一下" [+dispatch_worker]
+## Examples (COPY THIS STYLE EXACTLY)
 
-Task control:
-- User sends a follow-up or correction for a running task → dispatch_worker (injects into running task).
-- User asks to stop ("stop", "cancel", "never mind") and a task is running → stop_worker.
+user: 帮我查一下昨天日报
+reply: "好 查一下" +dispatch_worker
 
-Safety:
-- Never fabricate information, tool outputs, or task status.
-- Never include secrets, API keys, or credentials in replies.
+user: 明天几点开会
+reply: "下午3点"
+
+user: 需求评审结论是啥
+reply: "过了 两个接口要改"
+
+user: 进展怎么样了
+reply: "还在跑"
+
+user: 停一下
+reply: "好" +stop_worker
+
+user: 帮我写个周报
+reply: "好 写一下" +dispatch_worker
+
+user: 帮我看下这个bug
+reply: "发下截图"
+
+user: 谢谢
+reply: "不客气"
+
+user: hi
+reply: "hey"
+
+user: help me review this PR
+reply: "on it" +dispatch_worker
+
+user: what's the status?
+reply: "still running"
+
+user: 这个方案行不行
+reply: "行"
+
+## Task control
+- Follow-up for running task → dispatch_worker (inject).
+- Stop intent → stop_worker.
+
+## Safety
+- Never fabricate info or status.
+- Never include secrets.
 `)
 
 // imBaseReplacer covers formal→casual substitutions that are always safe to apply.
 var imBaseReplacer = strings.NewReplacer(
 	"请稍等", "等下",
+	"请稍等一下", "等下",
 	"您好", "你好",
 	"您", "你",
 	"非常感谢", "谢了",
@@ -119,6 +150,14 @@ var imBaseReplacer = strings.NewReplacer(
 	"收到了", "收到",
 	"没有问题", "没问题",
 	"需要我帮", "要我帮",
+	"我已经", "",
+	"因为", "",
+	"所以", "",
+	"其实", "",
+	"然后", "",
+	"的话", "",
+	"非常", "很",
+	"可以", "行",
 )
 
 // imCasualReplacer covers additional aggressive substitutions used when
@@ -126,24 +165,30 @@ var imBaseReplacer = strings.NewReplacer(
 var imCasualReplacer = strings.NewReplacer(
 	"好的", "好",
 	"是的，", "对，",
+	"是的", "对",
 	"知道了", "知道",
 	"正在处理中", "处理中",
 	"需要的话", "要的话",
+	"请稍等", "稍等",
+	"等一下", "等下",
+	"没问题的", "没问题",
+	"当然可以", "行",
 )
 
 // fastPathDispatchAcksZH is a small pool of Chinese dispatch acknowledgements.
 // Rotating through the pool avoids the robotic "同一句话" feel.
 var fastPathDispatchAcksZH = []string{
-	"好，开始 %s",
-	"收到，开始 %s",
-	"好的，%s 出发",
+	"好 开始%s",
+	"收到 %s",
+	"行 %s走起",
+	"好 去%s",
 }
 
 // fastPathDispatchAcksEN is the English pool equivalent.
 var fastPathDispatchAcksEN = []string{
-	"On it, starting %s",
-	"Starting %s",
-	"Got it, launching %s",
+	"on it %s",
+	"starting %s",
+	"got it %s",
 }
 
 // fastPathStopAcksZH is the Chinese stop acknowledgement pool.
@@ -183,6 +228,7 @@ func detectFormalityLevel(chatType string) int {
 
 // naturalizeReply post-processes LLM output to match IM casual register.
 // level 0 = neutral (base rules only); level 1 = casual (base + aggressive).
+// Includes hard length enforcement as a safety net against verbose LLM output.
 func naturalizeReply(s string, level int) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -190,9 +236,39 @@ func naturalizeReply(s string, level int) string {
 	}
 	// Remove sentence-ending Chinese full-stop — IM almost never uses it.
 	s = strings.TrimSuffix(s, "。")
+	// Remove surrounding quotes that LLM sometimes adds.
+	s = strings.Trim(s, "\"")
 	s = imBaseReplacer.Replace(s)
 	if level >= 1 {
 		s = imCasualReplacer.Replace(s)
+	}
+	// Hard length enforcement: truncate to first clause if too long.
+	s = enforceIMLength(s)
+	return s
+}
+
+// enforceIMLength truncates a reply to IM-appropriate length.
+// If the text exceeds ~20 CJK chars / 40 bytes, it splits on the first
+// clause boundary (，、！？；\n) and keeps only the first segment.
+const imMaxRunes = 20
+
+func enforceIMLength(s string) string {
+	if utf8.RuneCountInString(s) <= imMaxRunes {
+		return s
+	}
+	// Try to split at a natural clause boundary.
+	for i, r := range s {
+		if i > 0 && (r == '，' || r == '、' || r == '！' || r == '？' || r == '；' || r == '\n' || r == ',') {
+			candidate := strings.TrimSpace(s[:i])
+			if utf8.RuneCountInString(candidate) >= 3 {
+				return candidate
+			}
+		}
+	}
+	// No good boundary — hard truncate at rune limit.
+	runes := []rune(s)
+	if len(runes) > imMaxRunes {
+		return string(runes[:imMaxRunes])
 	}
 	return s
 }
