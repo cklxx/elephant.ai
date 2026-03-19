@@ -2,6 +2,8 @@ package lark
 
 import (
 	"context"
+	"fmt"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -129,7 +131,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	if g.conversationProcessEnabled() {
 		slot.mu.Unlock()
 		msgLogger.Info("message routed: conversation_process=true msg=%s", msg.messageID)
-		g.handleViaConversationProcess(ctx, msg, slot)
+		g.handleViaConversationProcess(ctx, msg)
 		return nil
 	}
 
@@ -233,6 +235,28 @@ func (g *Gateway) launchWorkerGoroutine(msg *incomingMessage, slot *sessionSlot,
 	go func(taskCtx context.Context, taskCancel context.CancelFunc, taskToken uint64) {
 		defer g.taskWG.Done()
 		defer taskCancel()
+
+		// Panic recovery: reset slot to idle and apologize to user so the
+		// slot is never stuck in slotRunning after an unexpected panic.
+		defer func() {
+			if r := recover(); r != nil {
+				stack := debug.Stack()
+				g.logger.Warn("CRITICAL: worker goroutine panicked: %v\n%s", r, stack)
+				slot.mu.Lock()
+				if slot.taskToken == taskToken {
+					slot.phase = slotIdle
+					slot.inputCh = nil
+					slot.taskCancel = nil
+					slot.taskStartTime = time.Time{}
+					slot.lastTouched = g.currentTime()
+				}
+				slot.mu.Unlock()
+				apologyCtx, apologyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer apologyCancel()
+				g.dispatch(apologyCtx, msg.chatID, replyTarget(msg.messageID, true), "text",
+					textContent(fmt.Sprintf("抱歉，任务执行时遇到了意外错误。请重试，或联系管理员。(panic: %v)", r)))
+			}
+		}()
 
 		awaitingInput := g.runTask(taskCtx, msg, sessionID, inputCh, isResume, taskToken)
 
