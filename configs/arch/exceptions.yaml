@@ -461,6 +461,11 @@ imports:
     owner: "cklxx"
     reason: "Bootstrap wires file-based leader lock for scheduler"
     expires_at: "2026-03-31"
+  - from: "alex/internal/delivery/server/bootstrap"
+    to: "alex/internal/infra/skills"
+    owner: "cklxx"
+    reason: "Bootstrap auto-populates conversation router skills catalog at startup"
+    expires_at: "2026-06-30"
 fanout:
   - package: "alex/internal/delivery/server/bootstrap"
     owner: "cklxx"
