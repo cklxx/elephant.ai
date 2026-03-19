@@ -1,58 +1,57 @@
 ---
 name: openseed
-description: 用户交代了一个明确的独立任务（修 bug、写功能、review 某模块、调研某个问题），需要后台单独跑不阻塞当前对话时使用。
+description: 想查论文、搜学术资料、对比方法论、生成实验代码时使用 — AI 驱动的论文调研 CLI（ArXiv 检索、PDF 提取、Claude 摘要/评审/问答）。
 triggers:
   intent_patterns:
-    - "openseed|seed.*task|单任务|单worker|启动.*worker|spawn.*worker"
+    - "openseed|论文|paper|arxiv|学术|research.*paper|文献|调研.*论文|survey"
   context_signals:
-    keywords: ["openseed", "seed", "单任务", "worker", "worktree"]
+    keywords: ["openseed", "paper", "arxiv", "论文", "文献", "survey", "research"]
   confidence_threshold: 0.7
 priority: 9
 requires_tools: [bash]
 max_tokens: 200
 cooldown: 30
-capabilities: ["code_edit", "code_review", "research", "analysis"]
+capabilities: ["research", "paper_search", "summarization", "analysis"]
 activation_mode: explicit
 output:
   format: markdown
   artifacts: false
 ---
 
-# openSeed — 单任务种子
+# OpenSeed — AI 论文调研
 
-创建一个隔离 worktree 并启动单个 CC worker 执行任务。
+AI-powered research CLI — 论文检索、摘要、评审、问答、实验代码生成。
 
-## 快速前置
+## 典型场景
 
-- 需要 `claude` CLI 在 PATH 中
-- 工作目录必须是 git 仓库根目录
+- 搜索某方向的论文：`openseed paper search "diffusion models"`
+- 深度调研 + 趋势分析：`openseed agent search "multi-agent systems"`
+- 一键流水线（搜→选→分析→入库）：`openseed agent pipeline "ViT image classification"`
+- 论文摘要/评审：`openseed agent summarize <id>` / `openseed agent review <id>`
+- 自由研究问答：`openseed agent ask "What is RLHF?"`
+- 生成实验代码：`openseed agent codegen <id>`
 
 ## 命令
 
 ```bash
-# 用 brief 文件启动
-python3 skills/openseed/run.py seed --task fix-race-condition --brief-file .openmax/briefs/fix-race.md
+# 搜索论文（按引用数排序）
+openseed paper search "attention" --count 20
 
-# 用内联 brief 启动
-python3 skills/openseed/run.py seed --task "review-auth" --brief "Review internal/app/auth/ for security issues. Write findings to .openmax/reports/review-auth.md"
+# 添加论文到本地库
+openseed paper add https://arxiv.org/abs/1706.03762
 
-# Dry run（只输出计划）
-python3 skills/openseed/run.py seed --task "review-auth" --brief "..." --dry-run
+# AI 摘要（支持 --cn 中文）
+openseed agent summarize <id>
+
+# 研究问答
+openseed agent ask "What is RLHF?"
+
+# 一键调研流水线
+openseed agent pipeline "ViT image classification"
 ```
 
-## 参数
+## 前置
 
-| 参数 | 说明 |
-|------|------|
-| `--task` | 任务名（字母数字+连字符，会成为 branch/worktree 名的一部分）|
-| `--brief` | brief 内容（内联字符串）|
-| `--brief-file` | brief 文件路径（与 `--brief` 二选一）|
-| `--base-branch` | 基准分支，默认 `main` |
-| `--dry-run` | 只输出计划，不创建 worktree 或启动 worker |
-
-## 流程
-
-1. 写入 `.openmax/briefs/<task>.md`
-2. `git worktree add -b openmax/<task> .openmax-worktrees/openmax_<task> <base>`
-3. 向 worktree 的 CLAUDE.md 追加任务报告模板
-4. 后台执行 `claude --dangerously-skip-permissions --print <brief>`
+- Python 3.11+，`pip install openseed`
+- `ANTHROPIC_API_KEY` 或 `claude setup-token`
+- `openseed doctor` 检查环境，`openseed setup` 配置认证
