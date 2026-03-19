@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ func (g *Gateway) Start(ctx context.Context) error {
 	g.setCleanupCancel(cancel)
 	g.dedup.startCleanup(runCtx, &g.cleanupWG)
 	g.startStateCleanupLoop(runCtx)
+	go g.startSlotHealthLoop(runCtx)
 
 	// Build the REST client for sending replies.
 	var clientOpts []lark.ClientOptionFunc
@@ -280,6 +282,66 @@ func (g *Gateway) startDrainQueueTimer(ctx context.Context) {
 			g.dispatch(drainCtx, msg.ChatID, "", "text", textContent(msg.Content))
 		}
 	})
+}
+
+func (g *Gateway) startSlotHealthLoop(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			g.checkStuckWorkers()
+		}
+	}
+}
+
+func (g *Gateway) checkStuckWorkers() {
+	threshold := g.cfg.StuckWorkerTimeout
+	if threshold <= 0 {
+		threshold = 5 * time.Minute
+	}
+	now := g.currentTime()
+	g.activeChatSlots.Range(func(k, v any) bool {
+		chatID, ok := k.(string)
+		if !ok {
+			return true
+		}
+		m, ok := v.(*chatSlotMap)
+		if !ok || m == nil {
+			return true
+		}
+		m.forEachSlot(func(taskID string, s *sessionSlot) {
+			s.mu.Lock()
+			phase := s.phase
+			lastProgress := s.lastProgressAt
+			s.mu.Unlock()
+			if phase != slotRunning {
+				return
+			}
+			if lastProgress.IsZero() {
+				return
+			}
+			if now.Sub(lastProgress) > threshold {
+				stuckDur := now.Sub(lastProgress).Round(time.Second)
+				noticeMsg := fmt.Sprintf("任务 %s 已 %s 无进展，可能卡住了。输入 /stop %s 取消。",
+					taskID, stuckDur, taskID)
+				g.logger.Warn("stuck worker detected: chat=%s task=%s duration=%s", chatID, taskID, stuckDur)
+				g.replyTextToChat(chatID, noticeMsg)
+			}
+		})
+		return true
+	})
+}
+
+func (g *Gateway) replyTextToChat(chatID, text string) {
+	if g.messenger == nil {
+		return
+	}
+	notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	g.dispatch(notifyCtx, chatID, "", "text", textContent(text))
 }
 
 func (g *Gateway) startStateCleanupLoop(ctx context.Context) {
