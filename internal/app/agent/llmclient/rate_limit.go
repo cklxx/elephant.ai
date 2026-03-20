@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	alexerrors "alex/internal/shared/errors"
+	alexerrors "alex/internal/core/errors"
 )
 
 // IsRateLimitError reports whether err indicates provider-side rate limiting.

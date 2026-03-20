@@ -8,7 +8,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
-	alexerrors "alex/internal/shared/errors"
+	alexerrors "alex/internal/core/errors"
 	jsonx "alex/internal/shared/json"
 	"alex/internal/shared/utils"
 )

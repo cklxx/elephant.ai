@@ -4,11 +4,9 @@ import (
 	"fmt"
 
 	appconfig "alex/internal/app/agent/config"
-	"alex/internal/app/agent/hooks"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	react "alex/internal/domain/agent/react"
-	"alex/internal/domain/agent/textutil"
 )
 
 func buildCompletionDefaultsFromConfig(cfg appconfig.Config) react.CompletionDefaults {
@@ -69,42 +67,6 @@ func obfuscateSessionID(id string) string {
 	}
 
 	return fmt.Sprintf("%s...%s", id[:4], id[len(id)-4:])
-}
-
-// extractToolCallInfo extracts tool call information from TaskResult messages.
-// It scans assistant messages for ToolCalls (which carry the tool name) and
-// matches them with subsequent tool result messages.
-func extractToolCallInfo(result *agent.TaskResult) []hooks.ToolResultInfo {
-	if result == nil {
-		return nil
-	}
-
-	// Build a map of call_id → tool name from assistant messages
-	callNames := make(map[string]string)
-	for _, msg := range result.Messages {
-		if msg.Role == "assistant" {
-			for _, tc := range msg.ToolCalls {
-				callNames[tc.ID] = tc.Name
-			}
-		}
-	}
-
-	// Collect tool results from ToolResult entries in messages
-	var calls []hooks.ToolResultInfo
-	for _, msg := range result.Messages {
-		for _, tr := range msg.ToolResults {
-			name := callNames[tr.CallID]
-			if name == "" {
-				name = "unknown"
-			}
-			calls = append(calls, hooks.ToolResultInfo{
-				ToolName: name,
-				Success:  tr.Error == nil,
-				Output:   textutil.TruncateWithEllipsis(tr.Content, 200),
-			})
-		}
-	}
-	return calls
 }
 
 // ensureSessionMetadata sets a session metadata key if the value is non-empty

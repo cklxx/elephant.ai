@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"time"
 
+	coreerrors "alex/internal/core/errors"
 	"alex/internal/shared/logging"
 )
 
@@ -74,7 +75,7 @@ func RetryWithLog(ctx context.Context, config RetryConfig, fn RetryableFunc, log
 		logger.Debug("Attempt %d failed: %v", attempt+1, err)
 
 		// Check if error is retryable
-		if !IsTransient(err) {
+		if !coreerrors.IsTransient(err) {
 			logger.Debug("Error is not transient, stopping retries")
 			return err
 		}
@@ -146,7 +147,7 @@ func RetryWithResultAndLog[T any](ctx context.Context, config RetryConfig, fn fu
 		logger.Debug("Attempt %d failed: %v", attempt+1, err)
 
 		// Check if error is retryable
-		if !IsTransient(err) {
+		if !coreerrors.IsTransient(err) {
 			logger.Debug("Error is not transient, stopping retries")
 			return zeroValue, err
 		}

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	coreerrors "alex/internal/core/errors"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 )
@@ -144,7 +145,7 @@ func (cb *CircuitBreaker) beforeRequest() error {
 			return nil
 		}
 		// Circuit is open, reject request
-		return NewDegradedError(
+		return coreerrors.NewDegradedError(
 			fmt.Errorf("circuit breaker open for %s", cb.name),
 			fmt.Sprintf("Service '%s' is temporarily unavailable due to repeated failures. Circuit breaker will retry in %v.",
 				cb.name, cb.config.Timeout-time.Since(cb.lastFailureTime)),

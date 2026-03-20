@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"alex/internal/domain/agent/ports"
-	alexerrors "alex/internal/shared/errors"
+	alexerrors "alex/internal/core/errors"
 	"alex/internal/shared/json"
 	"alex/internal/shared/utils"
 )

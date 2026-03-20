@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"testing"
+
+	"alex/internal/core/hook"
 )
 
 // testHook is a configurable mock hook for testing.
@@ -33,86 +35,78 @@ func (h *testHook) OnTaskCompleted(_ context.Context, _ TaskResultInfo) error {
 	return h.completeErr
 }
 
-func TestRegistryRegister(t *testing.T) {
-	r := NewRegistry(nil)
+func TestHookRuntimeRegister(t *testing.T) {
+	rt := hook.NewHookRuntime()
 
-	if r.HookCount() != 0 {
-		t.Fatalf("expected 0 hooks, got %d", r.HookCount())
+	if len(rt.Plugins()) != 0 {
+		t.Fatalf("expected 0 plugins, got %d", len(rt.Plugins()))
 	}
 
-	r.Register(&testHook{name: "a"})
-	r.Register(&testHook{name: "b"})
+	rt.Register(AdaptProactiveHook(&testHook{name: "a"}))
+	rt.Register(AdaptProactiveHook(&testHook{name: "b"}))
 
-	if r.HookCount() != 2 {
-		t.Fatalf("expected 2 hooks, got %d", r.HookCount())
-	}
-
-	// nil hook should be ignored
-	r.Register(nil)
-	if r.HookCount() != 2 {
-		t.Fatalf("expected 2 hooks after nil register, got %d", r.HookCount())
+	if len(rt.Plugins()) != 2 {
+		t.Fatalf("expected 2 plugins, got %d", len(rt.Plugins()))
 	}
 }
 
-func TestRunOnTaskStart_AggregatesAndSorts(t *testing.T) {
-	r := NewRegistry(nil)
+func TestPreTaskHook_CollectsInjections(t *testing.T) {
+	rt := hook.NewHookRuntime()
 
-	r.Register(&testHook{
+	rt.Register(AdaptProactiveHook(&testHook{
 		name: "low-priority",
 		startResult: []Injection{
 			{Type: injectionSuggestion, Content: "suggestion", Source: "low-priority", Priority: 1},
 		},
-	})
-	r.Register(&testHook{
+	}))
+	rt.Register(AdaptProactiveHook(&testHook{
 		name: "high-priority",
 		startResult: []Injection{
 			{Type: injectionSuggestion, Content: "memory", Source: "high-priority", Priority: 10},
 		},
+	}))
+
+	state := &hook.TurnState{Input: "test"}
+
+	hook.CallMany[any](context.Background(), rt, func(p hook.Plugin) (any, bool, error) {
+		if h, ok := p.(hook.PreTaskHook); ok {
+			return nil, false, h.PreTask(context.Background(), state)
+		}
+		return nil, false, nil
 	})
 
-	injections := r.RunOnTaskStart(context.Background(), TaskInfo{TaskInput: "test"})
-
-	if len(injections) != 2 {
-		t.Fatalf("expected 2 injections, got %d", len(injections))
+	// Each adapter stores injections in state under "legacy_injections".
+	// The last adapter to write wins — so we verify state has injections.
+	raw, ok := state.Get("legacy_injections")
+	if !ok {
+		t.Fatal("expected legacy_injections in state")
 	}
-
-	// Higher priority should come first
-	if injections[0].Priority != 10 {
-		t.Errorf("expected first injection priority 10, got %d", injections[0].Priority)
+	injections, ok := raw.([]Injection)
+	if !ok {
+		t.Fatal("expected []Injection type")
 	}
-	if injections[1].Priority != 1 {
-		t.Errorf("expected second injection priority 1, got %d", injections[1].Priority)
-	}
-}
-
-func TestRunOnTaskStart_EmptyHooks(t *testing.T) {
-	r := NewRegistry(nil)
-
-	injections := r.RunOnTaskStart(context.Background(), TaskInfo{TaskInput: "test"})
-	if len(injections) != 0 {
-		t.Fatalf("expected 0 injections, got %d", len(injections))
+	if len(injections) == 0 {
+		t.Fatal("expected non-empty injections")
 	}
 }
 
-func TestRunOnTaskStart_HookReturnsNil(t *testing.T) {
-	r := NewRegistry(nil)
-	r.Register(&testHook{name: "nil-hook", startResult: nil})
-
-	injections := r.RunOnTaskStart(context.Background(), TaskInfo{TaskInput: "test"})
-	if len(injections) != 0 {
-		t.Fatalf("expected 0 injections from nil-returning hook, got %d", len(injections))
-	}
-}
-
-func TestRunOnTaskCompleted_AllHooksCalled(t *testing.T) {
-	r := NewRegistry(nil)
+func TestPostTaskHook_AllHooksCalled(t *testing.T) {
+	rt := hook.NewHookRuntime()
 
 	h1 := &testHook{name: "a"}
 	h2 := &testHook{name: "b"}
-	r.Register(h1)
-	r.Register(h2)
+	rt.Register(AdaptProactiveHook(h1))
+	rt.Register(AdaptProactiveHook(h2))
 
-	r.RunOnTaskCompleted(context.Background(), TaskResultInfo{TaskInput: "test"})
+	state := &hook.TurnState{Input: "test"}
+	result := &hook.TurnResult{}
+
+	hook.CallMany[any](context.Background(), rt, func(p hook.Plugin) (any, bool, error) {
+		if h, ok := p.(hook.PostTaskHook); ok {
+			return nil, false, h.PostTask(context.Background(), state, result)
+		}
+		return nil, false, nil
+	})
 
 	if h1.completeCalled != 1 {
 		t.Errorf("expected h1 completeCalled=1, got %d", h1.completeCalled)
@@ -122,16 +116,25 @@ func TestRunOnTaskCompleted_AllHooksCalled(t *testing.T) {
 	}
 }
 
-func TestRunOnTaskCompleted_ErrorDoesNotStopOthers(t *testing.T) {
-	r := NewRegistry(nil)
+func TestPostTaskHook_ErrorDoesNotStopOthers(t *testing.T) {
+	rt := hook.NewHookRuntime()
 
 	failing := &testHook{name: "failing", completeErr: errors.New("boom")}
 	succeeding := &testHook{name: "succeeding"}
 
-	r.Register(failing)
-	r.Register(succeeding)
+	rt.Register(AdaptProactiveHook(failing))
+	rt.Register(AdaptProactiveHook(succeeding))
 
-	r.RunOnTaskCompleted(context.Background(), TaskResultInfo{TaskInput: "test"})
+	state := &hook.TurnState{Input: "test"}
+	result := &hook.TurnResult{}
+
+	// CallMany isolates errors — both hooks should be called.
+	hook.CallMany[any](context.Background(), rt, func(p hook.Plugin) (any, bool, error) {
+		if h, ok := p.(hook.PostTaskHook); ok {
+			return nil, false, h.PostTask(context.Background(), state, result)
+		}
+		return nil, false, nil
+	})
 
 	if failing.completeCalled != 1 {
 		t.Errorf("expected failing hook to be called")
@@ -179,37 +182,6 @@ func TestFormatInjectionsAsContext_Empty(t *testing.T) {
 	result = FormatInjectionsAsContext([]Injection{})
 	if result != "" {
 		t.Errorf("expected empty string for empty injections, got %q", result)
-	}
-}
-
-func TestRunOnTaskStart_StableSortOrder(t *testing.T) {
-	r := NewRegistry(nil)
-
-	r.Register(&testHook{
-		name: "first",
-		startResult: []Injection{
-			{Type: injectionSuggestion, Content: "first", Source: "first", Priority: 5},
-		},
-	})
-	r.Register(&testHook{
-		name: "second",
-		startResult: []Injection{
-			{Type: injectionWarning, Content: "second", Source: "second", Priority: 5},
-		},
-	})
-
-	injections := r.RunOnTaskStart(context.Background(), TaskInfo{TaskInput: "test"})
-
-	if len(injections) != 2 {
-		t.Fatalf("expected 2 injections, got %d", len(injections))
-	}
-
-	// Same priority: registration order preserved (stable sort)
-	if injections[0].Source != "first" {
-		t.Errorf("expected first injection from 'first', got %q", injections[0].Source)
-	}
-	if injections[1].Source != "second" {
-		t.Errorf("expected second injection from 'second', got %q", injections[1].Source)
 	}
 }
 

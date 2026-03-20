@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	coreerrors "alex/internal/core/errors"
 )
 
 func TestRetry_Success(t *testing.T) {
@@ -44,7 +46,7 @@ func TestRetry_SuccessAfterRetries(t *testing.T) {
 	fn := func(ctx context.Context) error {
 		attempts++
 		if attempts < 3 {
-			return NewTransientError(errors.New("temporary failure"), "retry me")
+			return coreerrors.NewTransientError(errors.New("temporary failure"), "retry me")
 		}
 		return nil // Success on 3rd attempt
 	}
@@ -68,7 +70,7 @@ func TestRetry_PermanentError(t *testing.T) {
 	}
 
 	attempts := 0
-	permanentErr := NewPermanentError(errors.New("permanent"), "don't retry")
+	permanentErr := coreerrors.NewPermanentError(errors.New("permanent"), "don't retry")
 
 	fn := func(ctx context.Context) error {
 		attempts++
@@ -98,7 +100,7 @@ func TestRetry_MaxRetriesExceeded(t *testing.T) {
 	}
 
 	attempts := 0
-	transientErr := NewTransientError(errors.New("always fails"), "transient")
+	transientErr := coreerrors.NewTransientError(errors.New("always fails"), "transient")
 
 	fn := func(ctx context.Context) error {
 		attempts++
@@ -133,7 +135,7 @@ func TestRetry_ContextCancellation(t *testing.T) {
 		if attempts == 2 {
 			cancel() // Cancel after second attempt
 		}
-		return NewTransientError(errors.New("transient"), "keep trying")
+		return coreerrors.NewTransientError(errors.New("transient"), "keep trying")
 	}
 
 	err := Retry(ctx, config, fn)
@@ -163,7 +165,7 @@ func TestRetryWithResult_Success(t *testing.T) {
 	fn := func(ctx context.Context) (int, error) {
 		attempts++
 		if attempts < 3 {
-			return 0, NewTransientError(errors.New("transient"), "retry")
+			return 0, coreerrors.NewTransientError(errors.New("transient"), "retry")
 		}
 		return 42, nil
 	}
@@ -193,7 +195,7 @@ func TestRetryWithResult_Failure(t *testing.T) {
 	attempts := 0
 	fn := func(ctx context.Context) (string, error) {
 		attempts++
-		return "", NewTransientError(errors.New("always fails"), "transient")
+		return "", coreerrors.NewTransientError(errors.New("always fails"), "transient")
 	}
 
 	result, err := RetryWithResult(context.Background(), config, fn)
@@ -325,7 +327,7 @@ func BenchmarkRetry_WithRetries(b *testing.B) {
 		fn := func(ctx context.Context) error {
 			attempts++
 			if attempts < 3 {
-				return NewTransientError(errors.New("transient"), "retry")
+				return coreerrors.NewTransientError(errors.New("transient"), "retry")
 			}
 			return nil
 		}

@@ -2,11 +2,6 @@ package hooks
 
 import (
 	"context"
-	"sort"
-	"sync"
-
-	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/shared/logging"
 )
 
 // injectionType classifies the kind of content being injected into context.
@@ -69,78 +64,6 @@ type ProactiveHook interface {
 	OnTaskCompleted(ctx context.Context, result TaskResultInfo) error
 }
 
-// Registry manages registered hooks and dispatches lifecycle events.
-type Registry struct {
-	mu     sync.RWMutex
-	hooks  []ProactiveHook
-	logger logging.Logger
-}
-
-// NewRegistry creates a new hook registry.
-func NewRegistry(logger logging.Logger) *Registry {
-	return &Registry{
-		logger: logging.OrNop(logger),
-	}
-}
-
-// Register adds a hook to the registry. Hooks are called in registration order
-// within the same priority level.
-func (r *Registry) Register(hook ProactiveHook) {
-	if hook == nil {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.hooks = append(r.hooks, hook)
-	r.logger.Info("Registered proactive hook: %s", hook.Name())
-}
-
-// RunOnTaskStart executes all hooks' OnTaskStart methods and returns
-// aggregated injections sorted by priority (highest first).
-func (r *Registry) RunOnTaskStart(ctx context.Context, task TaskInfo) []Injection {
-	r.mu.RLock()
-	hooks := make([]ProactiveHook, len(r.hooks))
-	copy(hooks, r.hooks)
-	r.mu.RUnlock()
-
-	var all []Injection
-	for _, hook := range hooks {
-		injections := hook.OnTaskStart(ctx, task)
-		if len(injections) > 0 {
-			r.logger.Debug("Hook %s produced %d injections on task start", hook.Name(), len(injections))
-			all = append(all, injections...)
-		}
-	}
-
-	sort.SliceStable(all, func(i, j int) bool {
-		return all[i].Priority > all[j].Priority
-	})
-
-	return all
-}
-
-// RunOnTaskCompleted executes all hooks' OnTaskCompleted methods.
-// Errors are logged but do not stop subsequent hooks from running.
-func (r *Registry) RunOnTaskCompleted(ctx context.Context, result TaskResultInfo) {
-	r.mu.RLock()
-	hooks := make([]ProactiveHook, len(r.hooks))
-	copy(hooks, r.hooks)
-	r.mu.RUnlock()
-
-	for _, hook := range hooks {
-		if err := hook.OnTaskCompleted(ctx, result); err != nil {
-			r.logger.Warn("Hook %s OnTaskCompleted failed: %v", hook.Name(), err)
-		}
-	}
-}
-
-// HookCount returns the number of registered hooks.
-func (r *Registry) HookCount() int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return len(r.hooks)
-}
-
 // FormatInjectionsAsContext formats injections into a text block suitable
 // for injection into the agent system prompt or as a user message.
 func FormatInjectionsAsContext(injections []Injection) string {
@@ -161,6 +84,3 @@ func FormatInjectionsAsContext(injections []Injection) string {
 	}
 	return string(buf)
 }
-
-// Ensure NoopEventListener compatibility for embedding.
-var _ agent.EventListener = agent.NoopEventListener{}

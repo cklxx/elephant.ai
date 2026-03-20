@@ -63,6 +63,15 @@ func (b *containerBuilder) buildMemoryEngine(ctx context.Context) memory.Engine 
 	return engine
 }
 
+func (b *containerBuilder) buildCheckpointStore() *tape.CheckpointStore {
+	tapeStore, err := tape.NewFileStore(filepath.Join(b.sessionDir, "tapes"))
+	if err != nil {
+		b.logger.Error("Failed to create tape store for checkpoints: %v; falling back to in-memory", err)
+		return tape.NewCheckpointStore(tape.NewMemoryStore(), filepath.Join(b.sessionDir, "checkpoints"))
+	}
+	return tape.NewCheckpointStore(tapeStore, filepath.Join(b.sessionDir, "checkpoints"))
+}
+
 func (b *containerBuilder) buildDecisionStore() (*decision.Store, error) {
 	path := filepath.Join(b.sessionDir, "_decisions", "decisions.json")
 	return decision.NewStore(path)

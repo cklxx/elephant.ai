@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	alexerrors "alex/internal/shared/errors"
+	coreerrors "alex/internal/core/errors"
 )
 
 // Complete executes LLM completion with retry logic
@@ -23,9 +24,9 @@ func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest)
 		c.logLLMCallSummary(ctx, "complete", req, duration, nil, err)
 
 		// Check if it's a degraded error (circuit breaker open)
-		if alexerrors.IsDegraded(err) {
+		if coreerrors.IsDegraded(err) {
 			// Return formatted error for LLM
-			return nil, fmt.Errorf("%s", alexerrors.FormatForLLM(err))
+			return nil, fmt.Errorf("%s", coreerrors.FormatForLLM(err))
 		}
 
 		// Format error for LLM with retry context
@@ -86,7 +87,7 @@ func (c *retryClient) completeWithRetry(ctx context.Context, req ports.Completio
 		lastErr = err
 		c.logger.Debug("Attempt %d failed: %v", attempt+1, err)
 
-		if !alexerrors.IsTransient(err) {
+		if !coreerrors.IsTransient(err) {
 			// Thinking degradation: retry without thinking before giving up.
 			if req.Thinking.Enabled {
 				c.logger.Warn("[THINKING_DEGRADE] Primary %s/%s rejected thinking request; retrying without thinking: %v",
@@ -116,7 +117,7 @@ func (c *retryClient) completeWithRetry(ctx context.Context, req ports.Completio
 	}
 
 	// All retries exhausted — try fallback if available and error is transient.
-	if c.fallbackClientFn != nil && alexerrors.IsTransient(lastErr) {
+	if c.fallbackClientFn != nil && coreerrors.IsTransient(lastErr) {
 		return c.tryFallbackComplete(ctx, req, lastErr)
 	}
 

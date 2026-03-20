@@ -10,6 +10,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	alexerrors "alex/internal/shared/errors"
+	coreerrors "alex/internal/core/errors"
 )
 
 // ---------- Mock clients for benchmarks ----------
@@ -31,7 +32,7 @@ type rateLimitNMock struct {
 func (m *rateLimitNMock) Complete(_ context.Context, _ ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	n := m.calls.Add(1)
 	if int(n) <= m.failCount {
-		return nil, &alexerrors.TransientError{
+		return nil, &coreerrors.TransientError{
 			Err:        errors.New("429 Too Many Requests"),
 			StatusCode: 429,
 			Message:    "rate limit",
@@ -45,7 +46,7 @@ func (m *rateLimitNMock) Model() string { return "bench-mock" }
 type overloaded529Mock struct{}
 
 func (m *overloaded529Mock) Complete(_ context.Context, _ ports.CompletionRequest) (*ports.CompletionResponse, error) {
-	return nil, &alexerrors.TransientError{
+	return nil, &coreerrors.TransientError{
 		Err:        errors.New("HTTP 529: overloaded"),
 		StatusCode: 529,
 		Message:    "Server overloaded",
@@ -261,7 +262,7 @@ type failThenSucceedMock struct {
 func (m *failThenSucceedMock) Complete(_ context.Context, _ ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	m.calls++
 	if m.calls <= m.failUntil {
-		return nil, &alexerrors.TransientError{
+		return nil, &coreerrors.TransientError{
 			Err:        errors.New("HTTP 500: internal server error"),
 			StatusCode: 500,
 		}
@@ -296,7 +297,7 @@ func BenchmarkRetryDelay_429WithRetryAfter(b *testing.B) {
 			MaxDelay:  30 * time.Second,
 		},
 	}
-	err429 := &alexerrors.TransientError{
+	err429 := &coreerrors.TransientError{
 		Err:        errors.New("429"),
 		StatusCode: 429,
 		RetryAfter: 10,
@@ -375,7 +376,7 @@ func BenchmarkClassifyLLMError_AlreadyTyped(b *testing.B) {
 		logger:    &noopLogger{},
 		llmLogger: &noopLogger{},
 	}
-	typed := &alexerrors.TransientError{Err: errors.New("500"), StatusCode: 500}
+	typed := &coreerrors.TransientError{Err: errors.New("500"), StatusCode: 500}
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {

@@ -11,7 +11,7 @@ import (
 	ports "alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
 	toolspolicy "alex/internal/infra/tools"
-	alexerrors "alex/internal/shared/errors"
+	alexerrors "alex/internal/core/errors"
 )
 
 type retryStubTool struct {

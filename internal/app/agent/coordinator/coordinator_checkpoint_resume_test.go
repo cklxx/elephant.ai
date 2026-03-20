@@ -13,14 +13,14 @@ import (
 	"alex/internal/domain/agent/ports/mocks"
 	tools "alex/internal/domain/agent/ports/tools"
 	react "alex/internal/domain/agent/react"
-	checkpointinfra "alex/internal/infra/checkpoint"
+	"alex/internal/infra/tape"
 )
 
 func TestCoordinatorResumeFromCheckpoint(t *testing.T) {
 	t.Helper()
 
 	sessionID := "session-resume"
-	store := checkpointinfra.NewFileCheckpointStore(t.TempDir())
+	store := tape.NewCheckpointStore(tape.NewMemoryStore(), t.TempDir())
 	checkpoint := &react.Checkpoint{
 		ID:            "checkpoint-1",
 		SessionID:     sessionID,

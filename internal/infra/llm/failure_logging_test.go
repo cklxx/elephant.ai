@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	alexerrors "alex/internal/shared/errors"
+	alexerrors "alex/internal/core/errors"
 )
 
 func TestExtractRequestIntent(t *testing.T) {

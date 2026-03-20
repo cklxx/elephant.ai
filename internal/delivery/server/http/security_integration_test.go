@@ -26,7 +26,7 @@ import (
 	"alex/internal/infra/tools/builtin/aliases"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
-	agenterrors "alex/internal/shared/errors"
+	agenterrors "alex/internal/core/errors"
 	"alex/internal/shared/utils"
 )
 

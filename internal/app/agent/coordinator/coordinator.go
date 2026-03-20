@@ -9,8 +9,8 @@ import (
 
 	appconfig "alex/internal/app/agent/config"
 	"alex/internal/app/agent/cost"
-	"alex/internal/app/agent/hooks"
 	"alex/internal/app/agent/preparation"
+	corehook "alex/internal/core/hook"
 	domain "alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
@@ -53,7 +53,7 @@ type coordinatorIntegrations struct {
 	costDecorator       *cost.CostTrackingDecorator
 	attachmentMigrator  materialports.Migrator
 	attachmentPersister ports.AttachmentPersister
-	hookRegistry        *hooks.Registry
+	hookRuntime         *corehook.HookRuntime
 	okrContextProvider  preparation.OKRContextProvider
 	credentialRefresher preparation.CredentialRefresher
 	timerManager        shared.TimerManagerService // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext

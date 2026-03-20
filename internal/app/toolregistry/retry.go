@@ -13,6 +13,7 @@ import (
 	ports "alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
 	alexerrors "alex/internal/shared/errors"
+	coreerrors "alex/internal/core/errors"
 )
 
 const retryJitterFactor = 0.25
@@ -120,7 +121,7 @@ func (r *retryExecutor) Execute(ctx context.Context, call ports.ToolCall) (*port
 		lastResult = result
 		lastErr = err
 
-		if !alexerrors.IsTransient(err) {
+		if !coreerrors.IsTransient(err) {
 			break
 		}
 		if attempt >= retryCfg.MaxRetries {

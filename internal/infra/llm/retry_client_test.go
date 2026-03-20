@@ -9,6 +9,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	alexerrors "alex/internal/shared/errors"
+	coreerrors "alex/internal/core/errors"
 	"alex/internal/shared/logging"
 	"github.com/stretchr/testify/require"
 )
@@ -97,7 +98,7 @@ type retryAfterCompleteMock struct {
 func (m *retryAfterCompleteMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	m.calls++
 	if m.calls == 1 {
-		return nil, &alexerrors.TransientError{
+		return nil, &coreerrors.TransientError{
 			Err:        errors.New("429 rate limit"),
 			RetryAfter: 7,
 			StatusCode: 429,
@@ -144,7 +145,7 @@ func (m *retryAfterStreamingMock) Complete(ctx context.Context, req ports.Comple
 func (m *retryAfterStreamingMock) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
 	m.calls++
 	if m.calls == 1 {
-		return nil, &alexerrors.TransientError{
+		return nil, &coreerrors.TransientError{
 			Err:        errors.New("429 rate limit"),
 			RetryAfter: 3,
 			StatusCode: 429,
@@ -272,7 +273,7 @@ func TestRetryClientRetryAfterRespectsMaxDelay(t *testing.T) {
 			MaxDelay:  2 * time.Second,
 		},
 	}
-	delay := rc.retryDelay(0, &alexerrors.TransientError{Err: errors.New("429"), RetryAfter: 9})
+	delay := rc.retryDelay(0, &coreerrors.TransientError{Err: errors.New("429"), RetryAfter: 9})
 	require.Equal(t, 2*time.Second, delay)
 }
 
@@ -348,7 +349,7 @@ type overloadedCompleteMock struct {
 
 func (m *overloadedCompleteMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	m.calls++
-	return nil, &alexerrors.TransientError{
+	return nil, &coreerrors.TransientError{
 		Err:        errors.New("HTTP 529: overloaded"),
 		StatusCode: 529,
 		Message:    "Server overloaded (529). Retrying request.",
@@ -466,12 +467,12 @@ type overloadedStreamMock struct {
 }
 
 func (m *overloadedStreamMock) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
-	return nil, &alexerrors.TransientError{Err: errors.New("529 overloaded"), StatusCode: 529}
+	return nil, &coreerrors.TransientError{Err: errors.New("529 overloaded"), StatusCode: 529}
 }
 
 func (m *overloadedStreamMock) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
 	m.calls++
-	return nil, &alexerrors.TransientError{
+	return nil, &coreerrors.TransientError{
 		Err:        errors.New("HTTP 529: overloaded"),
 		StatusCode: 529,
 		Message:    "Server overloaded (529). Retrying request.",
@@ -510,7 +511,7 @@ func TestRetryClientClassify529AsTransient(t *testing.T) {
 	}
 
 	err := rc.classifyLLMError(errors.New("HTTP 529: overloaded"))
-	require.True(t, alexerrors.IsTransient(err), "529/overloaded should be classified as transient")
+	require.True(t, coreerrors.IsTransient(err), "529/overloaded should be classified as transient")
 }
 
 type noopLogger struct{}
@@ -555,7 +556,7 @@ type rateLimitMock struct {
 
 func (m *rateLimitMock) Complete(_ context.Context, _ ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	m.calls++
-	return nil, &alexerrors.TransientError{
+	return nil, &coreerrors.TransientError{
 		Err:        errors.New("429 Too Many Requests"),
 		StatusCode: 429,
 		Message:    "rate limit",
@@ -573,7 +574,7 @@ type rateLimitThenOKMock struct {
 func (m *rateLimitThenOKMock) Complete(_ context.Context, _ ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	m.calls++
 	if m.calls <= m.failCount {
-		return nil, &alexerrors.TransientError{
+		return nil, &coreerrors.TransientError{
 			Err:        errors.New("429 Too Many Requests"),
 			StatusCode: 429,
 			Message:    "rate limit",
@@ -621,7 +622,7 @@ func TestRetryClient529UsesAggressiveBackoff(t *testing.T) {
 			MaxDelay:  30 * time.Second,
 		},
 	}
-	delay := rc.retryDelay(0, &alexerrors.TransientError{
+	delay := rc.retryDelay(0, &coreerrors.TransientError{
 		Err:        errors.New("HTTP 529: overloaded"),
 		StatusCode: 529,
 		Message:    "Server overloaded (529). Retrying request.",
@@ -639,7 +640,7 @@ func TestRetryClient429RespectsRetryAfterUncapped(t *testing.T) {
 		},
 	}
 	// 429 with Retry-After=60s — should NOT be capped to 2s.
-	delay := rc.retryDelay(0, &alexerrors.TransientError{
+	delay := rc.retryDelay(0, &coreerrors.TransientError{
 		Err:        errors.New("429"),
 		StatusCode: 429,
 		RetryAfter: 60,
@@ -655,7 +656,7 @@ func TestRetryClientNon429RetryAfterStillCapped(t *testing.T) {
 			MaxDelay:  2 * time.Second,
 		},
 	}
-	delay := rc.retryDelay(0, &alexerrors.TransientError{
+	delay := rc.retryDelay(0, &coreerrors.TransientError{
 		Err:        errors.New("503"),
 		StatusCode: 503,
 		RetryAfter: 60,
@@ -854,7 +855,7 @@ func TestRetryClientClassifyLLMErrorSets429StatusCode(t *testing.T) {
 	}
 	// An error containing "429" that is not already a TransientError.
 	classified := rc.classifyLLMError(errors.New("API error 429: rate limit exceeded"))
-	var terr *alexerrors.TransientError
+	var terr *coreerrors.TransientError
 	require.True(t, errors.As(classified, &terr))
 	require.Equal(t, 429, terr.StatusCode, "classifyLLMError should set StatusCode=429 for rate limit errors")
 }

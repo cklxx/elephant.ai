@@ -12,6 +12,7 @@ import (
 	portsllm "alex/internal/domain/agent/ports/llm"
 	"alex/internal/infra/backoff"
 	alexerrors "alex/internal/shared/errors"
+	coreerrors "alex/internal/core/errors"
 	"alex/internal/shared/logging"
 )
 
@@ -179,7 +180,7 @@ func (c *retryClient) waitForRetry(ctx context.Context, delay time.Duration) err
 }
 
 func retryAfterDuration(err error) time.Duration {
-	var transientErr *alexerrors.TransientError
+	var transientErr *coreerrors.TransientError
 	if errors.As(err, &transientErr) && transientErr.RetryAfter > 0 {
 		return time.Duration(transientErr.RetryAfter) * time.Second
 	}

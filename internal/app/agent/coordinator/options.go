@@ -1,8 +1,8 @@
 package coordinator
 
 import (
-	"alex/internal/app/agent/hooks"
 	"alex/internal/app/agent/preparation"
+	corehook "alex/internal/core/hook"
 	agent "alex/internal/domain/agent/ports/agent"
 	react "alex/internal/domain/agent/react"
 	toolspolicy "alex/internal/infra/tools"
@@ -20,11 +20,11 @@ func WithLogger(logger agent.Logger) CoordinatorOption {
 	}
 }
 
-// WithHookRegistry sets the proactive hook registry for pre/post-task processing.
-func WithHookRegistry(registry *hooks.Registry) CoordinatorOption {
+// WithHookRuntime sets the hook runtime for pre/post-task processing.
+func WithHookRuntime(rt *corehook.HookRuntime) CoordinatorOption {
 	return func(c *AgentCoordinator) {
-		if registry != nil {
-			c.hookRegistry = registry
+		if rt != nil {
+			c.hookRuntime = rt
 		}
 	}
 }

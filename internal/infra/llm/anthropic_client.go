@@ -14,7 +14,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	"alex/internal/shared/json"
-	alexerrors "alex/internal/shared/errors"
+	alexerrors "alex/internal/core/errors"
 	"alex/internal/shared/utils"
 )
 

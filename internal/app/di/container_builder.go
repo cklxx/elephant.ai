@@ -4,7 +4,6 @@ import (
 	"alex/internal/shared/utils"
 	"context"
 	"fmt"
-	"path/filepath"
 
 	agentcoordinator "alex/internal/app/agent/coordinator"
 	ctxmgr "alex/internal/app/context"
@@ -14,7 +13,6 @@ import (
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/domain/agent/presets"
 	"alex/internal/infra/adapters"
-	checkpointinfra "alex/internal/infra/checkpoint"
 	"alex/internal/infra/memory"
 	sessionstate "alex/internal/infra/session/state_store"
 	toolspolicy "alex/internal/infra/tools"
@@ -112,9 +110,9 @@ func (b *containerBuilder) Build() (*Container, error) {
 	}
 
 	okrStore := b.buildOKRGoalStore()
-	hookRegistry := b.buildHookRegistry(memoryEngine, llmFactory, okrStore)
+	hookRuntime := b.buildHookRuntime(memoryEngine, llmFactory, okrStore)
 	okrContextProvider := b.buildOKRContextProvider(okrStore)
-	checkpointStore := checkpointinfra.NewFileCheckpointStore(filepath.Join(b.sessionDir, "checkpoints"))
+	checkpointStore := b.buildCheckpointStore()
 	credentialRefresher := buildCredentialRefresher()
 
 	coordinator := agentcoordinator.NewAgentCoordinator(
@@ -126,7 +124,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		parserImpl,
 		costTracker,
 		b.buildAgentAppConfig(),
-		agentcoordinator.WithHookRegistry(hookRegistry),
+		agentcoordinator.WithHookRuntime(hookRuntime),
 		agentcoordinator.WithOKRContextProvider(okrContextProvider),
 		agentcoordinator.WithCheckpointStore(checkpointStore),
 		agentcoordinator.WithCredentialRefresher(credentialRefresher),

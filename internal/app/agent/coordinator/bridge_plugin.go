@@ -2,15 +2,20 @@ package coordinator
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/hooks"
-	"alex/internal/core/hook"
+	corehook "alex/internal/core/hook"
+	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
+	react "alex/internal/domain/agent/react"
+	infraadapters "alex/internal/infra/adapters"
+	infraruntime "alex/internal/infra/runtime"
 	"alex/internal/shared/utils/clilatency"
 	id "alex/internal/shared/utils/id"
 )
@@ -62,7 +67,7 @@ func (p *bridgePlugin) Name() string  { return "coordinator-bridge" }
 func (p *bridgePlugin) Priority() int { return 100 }
 
 // ResolveSession resolves session IDs from envelope metadata into TurnState.
-func (p *bridgePlugin) ResolveSession(_ context.Context, state *hook.TurnState) error {
+func (p *bridgePlugin) ResolveSession(_ context.Context, state *corehook.TurnState) error {
 	if sid, ok := state.Metadata["session_id"]; ok {
 		if s, ok := sid.(string); ok {
 			state.SessionID = s
@@ -85,8 +90,8 @@ func (p *bridgePlugin) ResolveSession(_ context.Context, state *hook.TurnState) 
 }
 
 // LoadState prepares the execution environment. This maps to the old
-// "prepare" workflow stage.
-func (p *bridgePlugin) LoadState(ctx context.Context, state *hook.TurnState) error {
+// "prepare" workflow stage. Inlined from the old finishPrepareStage method.
+func (p *bridgePlugin) LoadState(ctx context.Context, state *corehook.TurnState) error {
 	c := p.coordinator
 	effectiveCfg := c.effectiveConfig(ctx)
 	prepareStarted := time.Now()
@@ -108,18 +113,40 @@ func (p *bridgePlugin) LoadState(ctx context.Context, state *hook.TurnState) err
 		state.SessionID = env.Session.ID
 	}
 
-	// Finish prepare stage (metadata, latency, workflow events)
+	// Finish prepare stage — metadata, latency, workflow events.
+	ensureSessionMetadata(env.Session, "user_id", id.UserIDFromContext(ctx))
+	ensureSessionMetadata(env.Session, "channel", appcontext.ChannelFromContext(ctx))
+	clilatency.PrintfWithContext(ctx,
+		"[latency] prepare_ms=%.2f session=%s\n",
+		float64(time.Since(prepareStarted))/float64(time.Millisecond),
+		env.Session.ID,
+	)
+
 	if p.wf != nil {
-		c.finishPrepareStage(ctx, state.Input, env, p.wf, p.outCtx, p.ensuredRunID, p.parentRunID, prepareStarted)
-	} else {
-		// Even without workflow, ensure metadata is set
-		ensureSessionMetadata(env.Session, "user_id", id.UserIDFromContext(ctx))
-		ensureSessionMetadata(env.Session, "channel", appcontext.ChannelFromContext(ctx))
-		clilatency.PrintfWithContext(ctx,
-			"[latency] prepare_ms=%.2f session=%s\n",
-			float64(time.Since(prepareStarted))/float64(time.Millisecond),
-			env.Session.ID,
-		)
+		p.outCtx.SessionID = env.Session.ID
+		p.outCtx.TaskID = p.ensuredRunID
+		p.outCtx.ParentTaskID = p.parentRunID
+		p.wf.setContext(p.outCtx)
+
+		prepareOutput := map[string]any{
+			"session": env.Session.ID,
+			"task":    state.Input,
+		}
+		if env.TaskAnalysis != nil {
+			if env.TaskAnalysis.ActionName != "" {
+				prepareOutput["action_name"] = env.TaskAnalysis.ActionName
+			}
+			if env.TaskAnalysis.Complexity != "" {
+				prepareOutput["complexity"] = env.TaskAnalysis.Complexity
+			}
+			if env.TaskAnalysis.Goal != "" {
+				prepareOutput["goal"] = env.TaskAnalysis.Goal
+			}
+			if env.TaskAnalysis.Approach != "" {
+				prepareOutput["approach"] = env.TaskAnalysis.Approach
+			}
+		}
+		p.wf.succeed(stagePrepare, prepareOutput)
 	}
 
 	return nil
@@ -127,27 +154,61 @@ func (p *bridgePlugin) LoadState(ctx context.Context, state *hook.TurnState) err
 
 // BuildPrompt returns a pass-through prompt; the ReAct engine builds the
 // real prompt internally.
-func (p *bridgePlugin) BuildPrompt(_ context.Context, state *hook.TurnState) (*hook.Prompt, error) {
-	return &hook.Prompt{
+func (p *bridgePlugin) BuildPrompt(_ context.Context, state *corehook.TurnState) (*corehook.Prompt, error) {
+	return &corehook.Prompt{
 		System:   "",
 		Messages: state.Messages,
 	}, nil
 }
 
 // PreTask runs proactive hooks (OKR injection, etc.) before model execution.
-func (p *bridgePlugin) PreTask(ctx context.Context, state *hook.TurnState) error {
+// Inlined from the old runPreTaskHooks coordinator method.
+func (p *bridgePlugin) PreTask(ctx context.Context, state *corehook.TurnState) error {
 	if p.lastEnv == nil {
 		return nil
 	}
 	c := p.coordinator
 	logger := c.loggerFor(ctx)
-	c.runPreTaskHooks(ctx, state.Input, p.lastEnv, p.ensuredRunID, logger)
+
+	if c.hookRuntime == nil || appcontext.IsSubagentContext(ctx) {
+		return nil
+	}
+
+	hookState := &corehook.TurnState{
+		Input:     state.Input,
+		SessionID: p.lastEnv.Session.ID,
+		RunID:     p.ensuredRunID,
+		UserID:    c.resolveUserID(ctx, p.lastEnv.Session),
+	}
+
+	corehook.CallMany[any](ctx, c.hookRuntime, func(pl corehook.Plugin) (any, bool, error) {
+		if h, ok := pl.(corehook.PreTaskHook); ok {
+			return nil, false, h.PreTask(ctx, hookState)
+		}
+		return nil, false, nil
+	})
+
+	// Collect legacy injections stored by adapted ProactiveHooks.
+	if raw, ok := hookState.Get("legacy_injections"); ok {
+		if injections, ok := raw.([]hooks.Injection); ok && len(injections) > 0 {
+			proactiveContext := hooks.FormatInjectionsAsContext(injections)
+			if proactiveContext != "" {
+				p.lastEnv.State.Messages = append(p.lastEnv.State.Messages, ports.Message{
+					Role:    "user",
+					Content: proactiveContext,
+					Source:  ports.MessageSourceProactive,
+				})
+				logger.Info("Injected %d proactive context items", len(injections))
+			}
+		}
+	}
 	return nil
 }
 
-// RunModel is the key method: it wraps buildAndRunReactEngine.
+// RunModel constructs the ReactEngine and runs SolveTask.
 // Preparation and pre-task hooks have already run in LoadState and PreTask.
-func (p *bridgePlugin) RunModel(ctx context.Context, state *hook.TurnState, _ *hook.Prompt) (*hook.ModelOutput, error) {
+// Inlined from the old buildAndRunReactEngine coordinator method.
+func (p *bridgePlugin) RunModel(ctx context.Context, state *corehook.TurnState, _ *corehook.Prompt) (*corehook.ModelOutput, error) {
 	if p.lastEnv == nil {
 		return nil, nil
 	}
@@ -156,14 +217,96 @@ func (p *bridgePlugin) RunModel(ctx context.Context, state *hook.TurnState, _ *h
 	effectiveCfg := c.effectiveConfig(ctx)
 	logger := c.loggerFor(ctx)
 
-	// Use the workflow created by the caller — buildAndRunReactEngine will
+	// Use the workflow created by the caller — the ReactEngine will
 	// manage the stageExecute transitions on this workflow.
 	wf := p.wf
 	if wf == nil {
 		wf = newAgentWorkflow(p.ensuredRunID, slog.Default(), p.eventListener, nil)
 	}
 
-	result, execErr := c.buildAndRunReactEngine(ctx, state.Input, p.lastEnv, wf, p.eventListener, effectiveCfg, logger)
+	// Build and run the ReAct engine.
+	env := p.lastEnv
+	task := state.Input
+
+	completionDefaults := buildCompletionDefaultsFromConfig(effectiveCfg)
+	idAdapter := infraruntime.IDsAdapter{}
+	latencyReporter := infraruntime.LatencyReporter
+	jsonCodec := infraruntime.JSONCodec
+	goRunner := infraruntime.GoRunner
+	workingDirResolver := infraruntime.WorkingDirResolver
+	workspaceMgrFactory := infraruntime.WorkspaceManagerFactory
+
+	backgroundExecutor := func(bgCtx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+		bgCtx = appcontext.MarkSubagentContext(bgCtx)
+		return c.ExecuteTask(bgCtx, prompt, sessionID, listener)
+	}
+	var bgManager *react.BackgroundTaskManager
+	if c.bgRegistry != nil && env != nil && env.Session != nil {
+		bgManager = c.bgRegistry.Get(env.Session.ID, func() *react.BackgroundTaskManager {
+			return react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
+				RunContext:          ctx,
+				Logger:              logger,
+				Clock:               c.clock,
+				IDGenerator:         idAdapter,
+				IDContextReader:     idAdapter,
+				GoRunner:            goRunner,
+				WorkingDirResolver:  workingDirResolver,
+				WorkspaceMgrFactory: workspaceMgrFactory,
+				ExecuteTask:         backgroundExecutor,
+				SessionID:           env.Session.ID,
+				MaxConcurrentTasks:  effectiveCfg.MaxBackgroundTasks,
+				ContextPropagators: []agent.ContextPropagatorFunc{
+					appcontext.PropagateLLMSelection,
+				},
+				TmuxSender:    infraadapters.NewExecTmuxSender(),
+				EventAppender: infraadapters.NewFileEventAppender(),
+			})
+		})
+	}
+
+	reactEngine := react.NewReactEngine(react.ReactEngineConfig{
+		MaxIterations:       effectiveCfg.MaxIterations,
+		Logger:              logger,
+		Clock:               c.clock,
+		IDGenerator:         idAdapter,
+		IDContextReader:     idAdapter,
+		LatencyReporter:     latencyReporter,
+		JSONCodec:           jsonCodec,
+		GoRunner:            goRunner,
+		WorkingDirResolver:  workingDirResolver,
+		WorkspaceMgrFactory: workspaceMgrFactory,
+		CompletionDefaults:  completionDefaults,
+		AttachmentMigrator:  c.attachmentMigrator,
+		AttachmentPersister: c.attachmentPersister,
+		CheckpointStore:     c.checkpointStore,
+		Workflow:            wf,
+		IterationHook:       c.iterationHook,
+		SessionPersister: func(ctx context.Context, _ *storage.Session, state *agent.TaskState) {
+			c.asyncSaveSession(env.Session)
+		},
+		BackgroundExecutor: backgroundExecutor,
+		BackgroundManager:  bgManager,
+		AtomicFileWriter:   infraadapters.NewOSAtomicWriter(),
+	})
+
+	if p.eventListener != nil {
+		reactEngine.SetEventListener(p.eventListener)
+	}
+
+	wf.start(stageExecute)
+	result, execErr := reactEngine.SolveTask(ctx, task, env.State, env.Services)
+	if result == nil {
+		result = &agent.TaskResult{
+			Answer:      "",
+			Messages:    env.State.Messages,
+			Iterations:  env.State.Iterations,
+			TokensUsed:  env.State.TokenCount,
+			StopReason:  "error",
+			SessionID:   env.State.SessionID,
+			RunID:       env.State.RunID,
+			ParentRunID: env.State.ParentRunID,
+		}
+	}
 
 	p.lastResult = result
 	p.lastExecErr = execErr
@@ -173,7 +316,7 @@ func (p *bridgePlugin) RunModel(ctx context.Context, state *hook.TurnState, _ *h
 	state.Set("execution_env", p.lastEnv)
 	state.Set("execution_error", execErr)
 
-	// Record summarize stage (mirrors old finalizeExecution)
+	// Record execute/summarize stages
 	if wf != nil {
 		if execErr != nil {
 			wf.fail(stageExecute, execErr)
@@ -197,23 +340,23 @@ func (p *bridgePlugin) RunModel(ctx context.Context, state *hook.TurnState, _ *h
 		// Don't return error here — let SaveState and PostTask still run.
 		// The error is captured in lastExecErr and will be returned via
 		// the framework's TurnResult.
-		return &hook.ModelOutput{
+		return &corehook.ModelOutput{
 			Text:       "",
 			StopReason: "error",
 		}, nil
 	}
 
-	return &hook.ModelOutput{
+	return &corehook.ModelOutput{
 		Text:       result.Answer,
 		StopReason: result.StopReason,
-		Usage: hook.Usage{
+		Usage: corehook.Usage{
 			TotalTokens: result.TokensUsed,
 		},
 	}, nil
 }
 
 // SaveState persists the session after execution.
-func (p *bridgePlugin) SaveState(ctx context.Context, _ *hook.TurnState) error {
+func (p *bridgePlugin) SaveState(ctx context.Context, _ *corehook.TurnState) error {
 	if p.lastEnv == nil || p.lastResult == nil {
 		return nil
 	}
@@ -254,11 +397,11 @@ func (p *bridgePlugin) SaveState(ctx context.Context, _ *hook.TurnState) error {
 }
 
 // RenderOutbound returns basic text rendering of the model output.
-func (p *bridgePlugin) RenderOutbound(_ context.Context, state *hook.TurnState, output *hook.ModelOutput) ([]hook.Outbound, error) {
+func (p *bridgePlugin) RenderOutbound(_ context.Context, state *corehook.TurnState, output *corehook.ModelOutput) ([]corehook.Outbound, error) {
 	if output == nil || output.Text == "" {
 		return nil, nil
 	}
-	return []hook.Outbound{{
+	return []corehook.Outbound{{
 		Channel:   state.Channel,
 		SessionID: state.SessionID,
 		Content:   output.Text,
@@ -266,19 +409,61 @@ func (p *bridgePlugin) RenderOutbound(_ context.Context, state *hook.TurnState, 
 }
 
 // DispatchOutbound is a no-op; outbound dispatch is handled by existing callers.
-func (p *bridgePlugin) DispatchOutbound(_ context.Context, _ []hook.Outbound) error {
+func (p *bridgePlugin) DispatchOutbound(_ context.Context, _ []corehook.Outbound) error {
 	return nil
 }
 
 // PostTask runs post-task hooks (memory capture, predictions, etc.) and logs costs.
-func (p *bridgePlugin) PostTask(ctx context.Context, state *hook.TurnState, _ *hook.TurnResult) error {
+// Inlined from the old logSessionCost and runPostTaskHooks coordinator methods.
+func (p *bridgePlugin) PostTask(ctx context.Context, state *corehook.TurnState, _ *corehook.TurnResult) error {
 	if p.lastEnv == nil || p.lastResult == nil {
 		return nil
 	}
 
 	c := p.coordinator
-	c.logSessionCost(ctx, p.sessionID, c.loggerFor(ctx))
-	c.runPostTaskHooks(ctx, state.Input, p.lastEnv, p.lastResult, p.lastExecErr, p.ensuredRunID)
+	logger := c.loggerFor(ctx)
+
+	// Log session cost — inlined from logSessionCost.
+	if c.costTracker != nil {
+		sessionStats, err := c.costTracker.GetSessionStats(ctx, p.sessionID)
+		if err != nil {
+			logger.Warn("Failed to get session stats: %v", err)
+		} else {
+			logger.Info("Session summary: requests=%d, total_tokens=%d (input=%d, output=%d), cost=$%.6f, duration=%v",
+				sessionStats.RequestCount, sessionStats.TotalTokens,
+				sessionStats.InputTokens, sessionStats.OutputTokens,
+				sessionStats.TotalCost, sessionStats.Duration)
+		}
+	}
+
+	// Run post-task hooks — inlined from runPostTaskHooks.
+	if c.hookRuntime != nil && !appcontext.IsSubagentContext(ctx) && p.lastExecErr == nil {
+		hookState := &corehook.TurnState{
+			Input:     state.Input,
+			SessionID: p.lastEnv.Session.ID,
+			RunID:     p.ensuredRunID,
+			UserID:    c.resolveUserID(ctx, p.lastEnv.Session),
+		}
+
+		turnResult := &corehook.TurnResult{
+			SessionID: p.lastEnv.Session.ID,
+			RunID:     p.ensuredRunID,
+			Input:     state.Input,
+		}
+		if p.lastResult != nil {
+			turnResult.ModelOutput = &corehook.ModelOutput{
+				Text:       p.lastResult.Answer,
+				StopReason: p.lastResult.StopReason,
+			}
+		}
+
+		corehook.CallMany[any](ctx, c.hookRuntime, func(pl corehook.Plugin) (any, bool, error) {
+			if h, ok := pl.(corehook.PostTaskHook); ok {
+				return nil, false, h.PostTask(ctx, hookState, turnResult)
+			}
+			return nil, false, nil
+		})
+	}
 
 	// Store error metadata in session if execution failed
 	if p.lastExecErr != nil {
@@ -292,55 +477,130 @@ func (p *bridgePlugin) PostTask(ctx context.Context, state *hook.TurnState, _ *h
 
 // Compile-time interface assertions.
 var (
-	_ hook.Plugin             = (*bridgePlugin)(nil)
-	_ hook.SessionResolver    = (*bridgePlugin)(nil)
-	_ hook.StateLoader        = (*bridgePlugin)(nil)
-	_ hook.PromptBuilder      = (*bridgePlugin)(nil)
-	_ hook.PreTaskHook        = (*bridgePlugin)(nil)
-	_ hook.ModelRunner        = (*bridgePlugin)(nil)
-	_ hook.StateSaver         = (*bridgePlugin)(nil)
-	_ hook.OutboundRenderer   = (*bridgePlugin)(nil)
-	_ hook.OutboundDispatcher = (*bridgePlugin)(nil)
-	_ hook.PostTaskHook       = (*bridgePlugin)(nil)
+	_ corehook.Plugin             = (*bridgePlugin)(nil)
+	_ corehook.SessionResolver    = (*bridgePlugin)(nil)
+	_ corehook.StateLoader        = (*bridgePlugin)(nil)
+	_ corehook.PromptBuilder      = (*bridgePlugin)(nil)
+	_ corehook.PreTaskHook        = (*bridgePlugin)(nil)
+	_ corehook.ModelRunner        = (*bridgePlugin)(nil)
+	_ corehook.StateSaver         = (*bridgePlugin)(nil)
+	_ corehook.OutboundRenderer   = (*bridgePlugin)(nil)
+	_ corehook.OutboundDispatcher = (*bridgePlugin)(nil)
+	_ corehook.PostTaskHook       = (*bridgePlugin)(nil)
 )
 
-// proactiveHookAdapter wraps a legacy hooks.ProactiveHook as a core/hook Plugin
-// that implements PreTaskHook and PostTaskHook.
-type proactiveHookAdapter struct {
-	legacy hooks.ProactiveHook
-}
-
-func (a *proactiveHookAdapter) Name() string  { return a.legacy.Name() }
-func (a *proactiveHookAdapter) Priority() int { return 50 }
-
-func (a *proactiveHookAdapter) PreTask(ctx context.Context, state *hook.TurnState) error {
-	task := hooks.TaskInfo{
-		TaskInput: state.Input,
-		SessionID: state.SessionID,
-		RunID:     state.RunID,
-		UserID:    state.UserID,
+// finalizeExecution handles post-execution: cancellation, cost logging,
+// post-task hooks, error stamping, and session persistence.
+// NOTE: This method is retained for backward compatibility with tests
+// that invoke it directly. The Framework/bridge path does not use it.
+func (c *AgentCoordinator) finalizeExecution(
+	ctx context.Context,
+	task string,
+	env *agent.ExecutionEnvironment,
+	wf *agentWorkflow,
+	dispatcher EventDispatcher,
+	result *agent.TaskResult,
+	executionErr error,
+	ensuredRunID, parentRunID string,
+	logger agent.Logger,
+	attachWorkflow func(*agent.TaskResult, *agent.ExecutionEnvironment) *agent.TaskResult,
+) (*agent.TaskResult, error) {
+	if ctx.Err() != nil {
+		logger.Debug("Task execution cancelled: %v", ctx.Err())
+		c.persistSessionSnapshot(ctx, env, ensuredRunID, parentRunID, "cancelled")
+		return attachWorkflow(result, env), ctx.Err()
 	}
-	// Injections are returned but not applied here — the bridge plugin's
-	// PreTask handles injection via the old registry path. This adapter
-	// exists for future direct-registration scenarios.
-	_ = a.legacy.OnTaskStart(ctx, task)
-	return nil
-}
 
-func (a *proactiveHookAdapter) PostTask(ctx context.Context, state *hook.TurnState, result *hook.TurnResult) error {
-	ri := hooks.TaskResultInfo{
-		TaskInput: state.Input,
-		SessionID: state.SessionID,
-		RunID:     state.RunID,
-		UserID:    state.UserID,
+	if executionErr != nil {
+		wf.fail(stageExecute, executionErr)
+	} else {
+		wf.succeed(stageExecute, map[string]any{
+			"iterations": result.Iterations,
+			"stop":       result.StopReason,
+		})
 	}
-	if result != nil && result.ModelOutput != nil {
-		ri.Answer = result.ModelOutput.Text
-	}
-	return a.legacy.OnTaskCompleted(ctx, ri)
-}
 
-// AdaptProactiveHook wraps a legacy ProactiveHook as a core/hook Plugin.
-func AdaptProactiveHook(h hooks.ProactiveHook) hook.Plugin {
-	return &proactiveHookAdapter{legacy: h}
+	wf.start(stageSummarize)
+	answerPreview := strings.TrimSpace(result.Answer)
+	if executionErr != nil {
+		answerPreview = ""
+	}
+	wf.succeed(stageSummarize, map[string]any{"answer_preview": answerPreview})
+
+	if executionErr != nil {
+		logger.Error("Task execution failed: %v", executionErr)
+	}
+
+	// Log session cost.
+	if c.costTracker != nil {
+		sessionStats, err := c.costTracker.GetSessionStats(ctx, env.Session.ID)
+		if err != nil {
+			logger.Warn("Failed to get session stats: %v", err)
+		} else {
+			logger.Info("Session summary: requests=%d, total_tokens=%d (input=%d, output=%d), cost=$%.6f, duration=%v",
+				sessionStats.RequestCount, sessionStats.TotalTokens,
+				sessionStats.InputTokens, sessionStats.OutputTokens,
+				sessionStats.TotalCost, sessionStats.Duration)
+		}
+	}
+
+	// Run post-task hooks.
+	if c.hookRuntime != nil && !appcontext.IsSubagentContext(ctx) && executionErr == nil {
+		hookState := &corehook.TurnState{
+			Input:     task,
+			SessionID: env.Session.ID,
+			RunID:     ensuredRunID,
+			UserID:    c.resolveUserID(ctx, env.Session),
+		}
+
+		turnResult := &corehook.TurnResult{
+			SessionID: env.Session.ID,
+			RunID:     ensuredRunID,
+			Input:     task,
+		}
+		if result != nil {
+			turnResult.ModelOutput = &corehook.ModelOutput{
+				Text:       result.Answer,
+				StopReason: result.StopReason,
+			}
+		}
+
+		corehook.CallMany[any](ctx, c.hookRuntime, func(p corehook.Plugin) (any, bool, error) {
+			if h, ok := p.(corehook.PostTaskHook); ok {
+				return nil, false, h.PostTask(ctx, hookState, turnResult)
+			}
+			return nil, false, nil
+		})
+	}
+
+	if executionErr != nil {
+		metadata := storage.EnsureMetadata(env.Session)
+		metadata["last_error"] = executionErr.Error()
+		metadata["last_error_at"] = c.clock.Now().UTC().Format(time.RFC3339)
+	}
+
+	wf.start(stagePersist)
+	if appcontext.IsSubagentContext(ctx) {
+		logger.Debug("Skipping session persistence for subagent execution")
+		wf.succeed(stagePersist, "skipped (subagent context)")
+	} else {
+		if title := strings.TrimSpace(dispatcher.Title()); title != "" {
+			ensureSessionMetadata(env.Session, "title", title)
+		}
+		if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
+			wf.fail(stagePersist, err)
+			return attachWorkflow(result, env), err
+		}
+		wf.succeed(stagePersist, map[string]string{"session": env.Session.ID})
+	}
+
+	result.SessionID = env.Session.ID
+	result.RunID = defaultString(result.RunID, ensuredRunID)
+	result.ParentRunID = defaultString(result.ParentRunID, parentRunID)
+
+	if executionErr != nil {
+		return attachWorkflow(result, env), fmt.Errorf("task execution failed: %w", executionErr)
+	}
+
+	return attachWorkflow(result, env), nil
 }

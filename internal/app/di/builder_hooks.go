@@ -34,8 +34,8 @@ func (b *containerBuilder) buildOKRGoalStore() *okrtools.GoalStore {
 	return okrtools.NewGoalStore(okrCfg)
 }
 
-func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFactory portsllm.LLMClientFactory, okrStore *okrtools.GoalStore) *hooks.Registry {
-	registry := hooks.NewRegistry(b.logger)
+func (b *containerBuilder) buildHookRuntime(memoryEngine memory.Engine, llmFactory portsllm.LLMClientFactory, okrStore *okrtools.GoalStore) *corehook.HookRuntime {
+	rt := corehook.NewHookRuntime()
 	if !b.config.Proactive.Enabled {
 		b.logger.Info("Non-memory proactive hooks disabled by config")
 	}
@@ -46,7 +46,7 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 			Enabled:    b.config.Proactive.OKR.Enabled,
 			AutoInject: b.config.Proactive.OKR.AutoInject,
 		})
-		registry.Register(okrHook)
+		rt.Register(hooks.AdaptProactiveHook(okrHook))
 	}
 
 	memEnabled := b.config.Proactive.Enabled && b.config.Proactive.Memory.Enabled && memoryEngine != nil && llmFactory != nil
@@ -56,7 +56,7 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 			Enabled: b.config.Proactive.Memory.Enabled,
 			Profile: profile,
 		})
-		registry.Register(memHook)
+		rt.Register(hooks.AdaptProactiveHook(memHook))
 
 		// Register prediction hook (post-task next-session predictions).
 		if b.config.Proactive.Memory.Prediction.Enabled {
@@ -69,31 +69,11 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 				Enabled: true,
 				Profile: profile,
 			})
-			registry.Register(predHook)
+			rt.Register(hooks.AdaptProactiveHook(predHook))
 		}
 	}
 
-	b.logger.Info("Hook registry built with %d hooks", registry.HookCount())
-	return registry
-}
-
-// buildHookRuntime creates a core/hook.HookRuntime from an existing hooks.Registry.
-// Each legacy ProactiveHook is wrapped via AdaptProactiveHook so it implements
-// the new Plugin/PreTaskHook/PostTaskHook interfaces.
-func (b *containerBuilder) buildHookRuntime(registry *hooks.Registry) *corehook.HookRuntime {
-	rt := corehook.NewHookRuntime()
-	if registry == nil {
-		return rt
-	}
-
-	// Iterate registered hooks via the registry's RunOnTaskStart/RunOnTaskCompleted
-	// interface. Since Registry doesn't expose the hooks slice directly, we build
-	// adapters from the same sources used to populate the registry.
-	//
-	// For now this is a companion to buildHookRegistry — the same hooks are
-	// registered in both the old Registry (for backward compat) and the new
-	// HookRuntime (for Framework path).
-	b.logger.Info("HookRuntime built (companion to legacy Registry)")
+	b.logger.Info("HookRuntime built with %d plugins", len(rt.Plugins()))
 	return rt
 }
 
@@ -153,7 +133,7 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 	}
 
 	okrStore := b.buildOKRGoalStore()
-	hookRegistry := b.buildHookRegistry(parent.MemoryEngine, parent.llmFactory, okrStore)
+	hookRuntime := b.buildHookRuntime(parent.MemoryEngine, parent.llmFactory, okrStore)
 	okrContextProvider := b.buildOKRContextProvider(okrStore)
 	credentialRefresher := buildCredentialRefresher()
 
@@ -171,7 +151,7 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 		parser.New(),
 		parent.CostTracker,
 		b.buildAgentAppConfig(),
-		agentcoordinator.WithHookRegistry(hookRegistry),
+		agentcoordinator.WithHookRuntime(hookRuntime),
 		agentcoordinator.WithOKRContextProvider(okrContextProvider),
 		agentcoordinator.WithCheckpointStore(parent.CheckpointStore),
 		agentcoordinator.WithCredentialRefresher(credentialRefresher),

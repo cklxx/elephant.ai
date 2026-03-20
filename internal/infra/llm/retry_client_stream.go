@@ -8,6 +8,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	alexerrors "alex/internal/shared/errors"
+	coreerrors "alex/internal/core/errors"
 	"alex/internal/shared/utils"
 )
 
@@ -81,7 +82,7 @@ func (c *retryClient) StreamComplete(
 		}
 
 		// Only retry transient transport issues that occur before output is sent.
-		if !alexerrors.IsTransient(err) || observedStreamOutput {
+		if !coreerrors.IsTransient(err) || observedStreamOutput {
 			break
 		}
 
@@ -97,7 +98,7 @@ func (c *retryClient) StreamComplete(
 	// Thinking degradation: if the request had thinking enabled and we got
 	// a permanent error (e.g. 400 invalid_request), retry once without
 	// thinking on the same provider before escalating to fallback.
-	if err != nil && !observedStreamOutput && req.Thinking.Enabled && !alexerrors.IsTransient(err) {
+	if err != nil && !observedStreamOutput && req.Thinking.Enabled && !coreerrors.IsTransient(err) {
 		c.logger.Warn("[THINKING_DEGRADE] Primary %s/%s rejected thinking request; retrying without thinking: %v",
 			c.provider, c.model, err)
 		degradedReq := req
@@ -114,7 +115,7 @@ func (c *retryClient) StreamComplete(
 	}
 
 	// All retries exhausted — try streaming fallback if available, transient, and no output was emitted.
-	if err != nil && c.fallbackClientFn != nil && alexerrors.IsTransient(err) && !observedStreamOutput {
+	if err != nil && c.fallbackClientFn != nil && coreerrors.IsTransient(err) && !observedStreamOutput {
 		fbResp, fbErr := c.tryFallbackStreamComplete(ctx, req, callbacks, err)
 		if fbErr == nil {
 			return fbResp, nil
@@ -127,12 +128,12 @@ func (c *retryClient) StreamComplete(
 	if err != nil {
 		c.recordHealthError(err)
 		c.logLLMCallSummary(ctx, "stream", req, duration, nil, err)
-		if alexerrors.IsDegraded(err) {
-			return nil, fmt.Errorf("%s", alexerrors.FormatForLLM(err))
+		if coreerrors.IsDegraded(err) {
+			return nil, fmt.Errorf("%s", coreerrors.FormatForLLM(err))
 		}
 		formattedErr := c.formatStreamingError(err, duration)
-		if alexerrors.IsTransient(err) {
-			return nil, alexerrors.NewTransientError(err, formattedErr)
+		if coreerrors.IsTransient(err) {
+			return nil, coreerrors.NewTransientError(err, formattedErr)
 		}
 		return nil, fmt.Errorf("%s", formattedErr)
 	}

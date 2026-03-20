@@ -67,7 +67,7 @@ type ToolCallState struct {
 
 // ---------------------------------------------------------------------------
 // CheckpointStore defines the persistence contract for engine checkpoints.
-// Implementations live in infrastructure packages (e.g. infra/checkpoint).
+// Implementations live in infrastructure packages (e.g. infra/tape).
 // ---------------------------------------------------------------------------
 
 // CheckpointStore is the port through which the ReAct engine persists and

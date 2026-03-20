@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	alexerrors "alex/internal/shared/errors"
+	alexerrors "alex/internal/core/errors"
 	"alex/internal/shared/utils"
 )
 

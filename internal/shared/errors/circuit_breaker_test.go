@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	coreerrors "alex/internal/core/errors"
 )
 
 func TestCircuitBreaker_ClosedState(t *testing.T) {
@@ -69,7 +71,7 @@ func TestCircuitBreaker_OpenAfterFailures(t *testing.T) {
 		t.Error("Execute() should return error when circuit is open")
 	}
 
-	if !IsDegraded(err) {
+	if !coreerrors.IsDegraded(err) {
 		t.Errorf("Error should be degraded error, got: %v", err)
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"alex/internal/domain/agent/ports"
-	alexerrors "alex/internal/shared/errors"
+	alexerrors "alex/internal/core/errors"
 )
 
 // --- wrapRequestError ---

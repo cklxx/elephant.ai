@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"alex/internal/domain/agent/ports"
-	alexerrors "alex/internal/shared/errors"
+	alexerrors "alex/internal/core/errors"
 	"alex/internal/shared/utils"
 	id "alex/internal/shared/utils/id"
 )

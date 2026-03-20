@@ -9,8 +9,8 @@ import (
 )
 
 // testFileCheckpointStore is a minimal filesystem-backed CheckpointStore used
-// exclusively by tests within this package. It avoids importing infra/checkpoint
-// which would create an import cycle (react ↔ infra/checkpoint).
+// exclusively by tests within this package. It avoids importing infra/tape
+// which would create an import cycle (react ↔ infra/tape).
 type testFileCheckpointStore struct {
 	Dir string
 }
