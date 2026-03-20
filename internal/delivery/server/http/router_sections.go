@@ -54,6 +54,13 @@ func registerHookRoutes(mux *http.ServeMux, hooksBridge, runtimeHooksBridge http
 	registerRoute(mux, "POST /api/hooks/runtime", "/api/hooks/runtime", runtimeHooksBridge)
 }
 
+func registerWebhookRoutes(mux *http.ServeMux, githubWebhook http.Handler) {
+	if githubWebhook == nil {
+		return
+	}
+	registerRoute(mux, "POST /api/webhooks/github", "/api/webhooks/github", githubWebhook)
+}
+
 func registerTaskRoutes(mux *http.ServeMux, apiHandler *APIHandler, sseHandler *SSEHandler) {
 	registerHandler(mux, "POST /api/tasks", "/api/tasks", apiHandler.HandleCreateTask)
 	registerHandler(mux, "GET /api/tasks", "/api/tasks", apiHandler.HandleListTasks)

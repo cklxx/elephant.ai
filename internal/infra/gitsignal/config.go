@@ -21,6 +21,10 @@ type GitHubConfig struct {
 	// ReviewBottleneckThreshold is the duration after which a pending
 	// review is flagged as a bottleneck. Defaults to 24 hours if zero.
 	ReviewBottleneckThreshold time.Duration `json:"review_bottleneck_threshold" yaml:"review_bottleneck_threshold"`
+
+	// WebhookSecret is the HMAC-SHA256 secret used to verify GitHub webhook
+	// payloads. Leave empty to disable webhook signature verification.
+	WebhookSecret string `json:"webhook_secret" yaml:"webhook_secret"`
 }
 
 // DefaultGitHubConfig returns a GitHubConfig with sensible defaults.

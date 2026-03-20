@@ -18,12 +18,8 @@ Items deferred from CEO Plan Reviews (2026-03-18 strategic expansion, 2026-03-19
 - **Depends on:** Signal Graph architecture being in place. **Done — `internal/app/signals/`**
 - **Code path:** `internal/infra/tools/builtin/jira/` + signal source adapter.
 
-### Git/GitHub signal hardening
-- **What:** Harden existing Git MCP for PRs, commits, review status, deploy events. Add webhook receiver for Signal Graph integration.
-- **Why:** Phase 2 P0 enabler. Existing MCP needs webhook endpoint for real-time events vs polling.
-- **Effort:** S (human: ~3 days / CC: ~20 min)
-- **Depends on:** Signal Graph architecture being in place. **Done — `internal/app/signals/`**
-- **Code path:** `internal/infra/tools/builtin/git/` + signal source adapter.
+### ~~Git/GitHub signal hardening~~ ✓ Done
+- Completed 2026-03-20. Added GitHub webhook receiver (`POST /api/webhooks/github`) with HMAC-SHA256 verification and event sink. Extended event normalization: `review_requested` action, `CreateEvent`/`DeleteEvent` for branches, `ReviewState` properly propagated from review events. Webhook secret configurable via `GitHubConfig.WebhookSecret`.
 
 ### ~~Cross-task awareness (Chat + Worker phase 3)~~ ✓ Done
 - Completed 2026-03-19. `lastResultPreview` stored in sessionSlot on task completion (≤200 runes). `resolveTaskReferences` scans dispatch task descriptions for `#N` patterns and prepends referenced results as context. Worker snapshots expose completed task results to the conversation LLM.

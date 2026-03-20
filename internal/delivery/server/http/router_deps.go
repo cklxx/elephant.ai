@@ -28,6 +28,7 @@ type RouterDeps struct {
 	HooksBridge            http.Handler             // optional: Claude Code hooks → Lark bridge
 	RuntimeHooksBridge     http.Handler             // optional: Claude Code hooks → runtime event bus
 	LeaderDashboard        *LeaderDashboardHandler  // optional: leader agent dashboard
+	GitHubWebhook          http.Handler             // optional: GitHub webhook → Signal Graph
 }
 
 // RouterConfig holds configuration values for the HTTP router.

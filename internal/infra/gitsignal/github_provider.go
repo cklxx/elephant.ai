@@ -299,6 +299,11 @@ type ghReview struct {
 	State string `json:"state"`
 }
 
+type ghCreateDeletePayload struct {
+	Ref     string `json:"ref"`
+	RefType string `json:"ref_type"` // "branch" or "tag"
+}
+
 // --- Normalization ---
 
 func normalizeGHEvent(e ghEvent, repo string) (signal.SignalEvent, bool) {
@@ -326,6 +331,8 @@ func normalizeGHEvent(e ghEvent, repo string) (signal.SignalEvent, bool) {
 			} else {
 				base.Kind = signal.SignalPRClosed
 			}
+		case "review_requested":
+			base.Kind = signal.SignalPRReviewRequested
 		default:
 			return base, false
 		}
@@ -336,7 +343,9 @@ func normalizeGHEvent(e ghEvent, repo string) (signal.SignalEvent, bool) {
 		if err := json.Unmarshal(e.Payload, &p); err != nil {
 			return base, false
 		}
-		base.PR = ptrPRContext(ghPullToPRContext(p.PR))
+		pr := ghPullToPRContext(p.PR)
+		pr.ReviewState = reviewStateFromGH(p.Review.State)
+		base.PR = ptrPRContext(pr)
 		base.LinkedTicketID = extractTicketID(p.PR.Head.Ref)
 		switch strings.ToLower(p.Review.State) {
 		case "approved":
@@ -367,8 +376,44 @@ func normalizeGHEvent(e ghEvent, repo string) (signal.SignalEvent, bool) {
 		}
 		return base, true
 
+	case "CreateEvent":
+		var p ghCreateDeletePayload
+		if err := json.Unmarshal(e.Payload, &p); err != nil || p.RefType != "branch" {
+			return base, false
+		}
+		base.Kind = signal.SignalBranchCreated
+		base.LinkedTicketID = extractTicketID(p.Ref)
+		base.Metadata = map[string]string{"branch": p.Ref}
+		return base, true
+
+	case "DeleteEvent":
+		var p ghCreateDeletePayload
+		if err := json.Unmarshal(e.Payload, &p); err != nil || p.RefType != "branch" {
+			return base, false
+		}
+		base.Kind = signal.SignalBranchDeleted
+		base.LinkedTicketID = extractTicketID(p.Ref)
+		base.Metadata = map[string]string{"branch": p.Ref}
+		return base, true
+
 	default:
 		return base, false
+	}
+}
+
+// reviewStateFromGH maps GitHub review state strings to domain ReviewState.
+func reviewStateFromGH(state string) signal.ReviewState {
+	switch strings.ToLower(state) {
+	case "approved":
+		return signal.ReviewApproved
+	case "changes_requested":
+		return signal.ReviewChangesRequested
+	case "commented":
+		return signal.ReviewCommented
+	case "dismissed":
+		return signal.ReviewDismissed
+	default:
+		return signal.ReviewPending
 	}
 }
 

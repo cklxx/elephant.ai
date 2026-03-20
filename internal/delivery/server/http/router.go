@@ -120,6 +120,10 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 
 	registerHookRoutes(mux, deps.HooksBridge, deps.RuntimeHooksBridge)
 
+	// ── GitHub webhook ──
+
+	registerWebhookRoutes(mux, deps.GitHubWebhook)
+
 	// ── Health check ──
 
 	registerHandler(mux, "GET /health", "/health", apiHandler.HandleHealthCheck)

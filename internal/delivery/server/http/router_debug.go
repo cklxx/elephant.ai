@@ -27,6 +27,7 @@ type DebugRouterDeps struct {
 	LarkInjectGateway      LarkInjectGateway // may be nil; set when Lark gateway is available
 	LarkOAuthHandler       *LarkOAuthHandler // may be nil
 	RuntimeHooksBridge     http.Handler      // may be nil; POST /api/hooks/runtime
+	GitHubWebhook          http.Handler      // may be nil; POST /api/webhooks/github
 	RuntimeAPI             http.Handler      // may be nil; POST+GET /api/runtime/sessions
 	RuntimePoolAPI         http.Handler      // may be nil; POST+GET /api/runtime/pool
 	StartupProfileHandler  http.Handler      // may be nil; GET /api/health/startup-profile
@@ -104,6 +105,9 @@ func NewDebugRouter(deps DebugRouterDeps) http.Handler {
 
 	// ── Claude Code hooks bridge ──
 	registerHookRoutes(mux, deps.HooksBridge, deps.RuntimeHooksBridge)
+
+	// ── GitHub webhook ──
+	registerWebhookRoutes(mux, deps.GitHubWebhook)
 
 	// ── Runtime session management ──
 	if deps.RuntimeAPI != nil {
