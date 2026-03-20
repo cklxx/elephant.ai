@@ -31,6 +31,8 @@ readonly DOCKER_COMPOSE_BIN="${BIN_DIR}/docker-compose"
 readonly ALEX_CONFIG_PATH="${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}"
 
 source "${SCRIPT_DIR}/scripts/lib/common/logging.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/dotenv.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/env.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/process.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/ports.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/http.sh"
@@ -72,98 +74,11 @@ banner() {
 
 ###############################################################################
 # Environment Setup
+# generate_auth_secret, ensure_private_file_mode, append_env_var_if_missing
+#   → sourced from scripts/lib/common/env.sh
+# load_dotenv_file
+#   → sourced from scripts/lib/common/dotenv.sh
 ###############################################################################
-
-generate_auth_secret() {
-    if command_exists python3; then
-        python3 - <<'PY'
-import secrets
-print(secrets.token_hex(32))
-PY
-        return
-    fi
-
-    if command_exists python; then
-        python - <<'PY'
-import secrets
-print(secrets.token_hex(32))
-PY
-        return
-    fi
-
-    if command_exists openssl; then
-        openssl rand -hex 32
-        return
-    fi
-
-    head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'
-}
-
-trim_whitespace() {
-    local value="$1"
-    value="${value#"${value%%[![:space:]]*}"}"
-    value="${value%"${value##*[![:space:]]}"}"
-    printf '%s' "$value"
-}
-
-ensure_private_file_mode() {
-    local file_path="$1"
-    if [[ -f "$file_path" ]]; then
-        chmod 600 "$file_path" 2>/dev/null || log_warn "Unable to set 600 permissions on ${file_path}"
-    fi
-}
-
-load_dotenv_file() {
-    local dotenv_file="$1"
-    local raw_line line key value
-    local line_number=0
-
-    [[ -f "$dotenv_file" ]] || return 0
-
-    while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
-        line_number=$((line_number + 1))
-        line="${raw_line%$'\r'}"
-        line="$(trim_whitespace "$line")"
-
-        [[ -z "$line" ]] && continue
-        [[ "${line:0:1}" == "#" ]] && continue
-
-        if [[ "$line" =~ ^export[[:space:]]+ ]]; then
-            line="${line#export}"
-            line="$(trim_whitespace "$line")"
-        fi
-
-        if [[ ! "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
-            log_warn "Skipping unsupported .env entry at ${dotenv_file}:${line_number}"
-            continue
-        fi
-
-        key="${BASH_REMATCH[1]}"
-        value="${BASH_REMATCH[2]}"
-        value="$(trim_whitespace "$value")"
-
-        if [[ "$value" =~ ^\"(.*)\"$ ]]; then
-            value="${BASH_REMATCH[1]}"
-        elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
-            value="${BASH_REMATCH[1]}"
-        else
-            value="${value%%[[:space:]]#*}"
-            value="${value%"${value##*[![:space:]]}"}"
-        fi
-
-        export "$key=$value"
-    done < "$dotenv_file"
-}
-
-append_env_var_if_missing() {
-    local key=$1
-    local value=$2
-    if ! grep -q "^${key}=" .env 2>/dev/null; then
-        printf "\n%s=%s\n" "$key" "$value" >> .env
-        ensure_private_file_mode ".env"
-        log_warn "Appended default ${key} to .env"
-    fi
-}
 
 hydrate_env_from_config() {
     deploy_config::resolve_var OPENAI_API_KEY '.runtime.api_key' >/dev/null || true

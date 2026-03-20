@@ -1,7 +1,8 @@
 .PHONY: \
-	help build clean fmt vet dev demo run install test test-domain test-app \
+	help setup doctor build clean fmt vet dev demo run install test test-domain test-app \
 	check-deps check-arch check-arch-policy bench docs npm-copy-binaries npm-publish npm-test-install \
-	build-all release-npm server-build server-run server-test \
+	build-all build-linux-amd64 build-linux-arm64 build-darwin-amd64 build-darwin-arm64 build-windows-amd64 \
+	release-npm server-build server-run server-test \
 	web-build web-run \
 	server-test-integration dev-up dev-down dev-status dev-logs dev-restart dev-lint dev-test \
 	deploy deploy-docker deploy-test deploy-status \
@@ -14,6 +15,12 @@ GO ?= scripts/go-with-toolchain.sh
 help: ## Show this help
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+
+setup: ## First-time project setup (deps, .env, build, hooks)
+	@./scripts/setup.sh
+
+doctor: ## Check all development prerequisites
+	@./scripts/doctor.sh
 
 build: ## Build alex binary
 	@echo "Building alex..."
@@ -102,20 +109,24 @@ npm-test-install: ## Test npm package installation locally
 	@cd npm/alex-code && npm pack
 	@echo "Package created. Test with: npm install -g npm/alex-code/alex-code-*.tgz"
 
-# Multi-platform builds
-build-all: ## Build binaries for all platforms
-	@echo "Building binaries for all platforms..."
-	@mkdir -p build
-	@echo "Building Linux AMD64..."
-	@GOOS=linux GOARCH=amd64 $(GO) build -ldflags="-w -s" -o build/alex-linux-amd64 ./cmd/alex
-	@echo "Building Linux ARM64..."
-	@GOOS=linux GOARCH=arm64 $(GO) build -ldflags="-w -s" -o build/alex-linux-arm64 ./cmd/alex
-	@echo "Building macOS AMD64..."
-	@GOOS=darwin GOARCH=amd64 $(GO) build -ldflags="-w -s" -o build/alex-darwin-amd64 ./cmd/alex
-	@echo "Building macOS ARM64..."
-	@GOOS=darwin GOARCH=arm64 $(GO) build -ldflags="-w -s" -o build/alex-darwin-arm64 ./cmd/alex
-	@echo "Building Windows AMD64..."
-	@GOOS=windows GOARCH=amd64 $(GO) build -ldflags="-w -s" -o build/alex-windows-amd64.exe ./cmd/alex
+# Multi-platform builds (parallel-capable: make -j5 build-all)
+BUILD_LDFLAGS := -w -s
+
+build/alex-linux-amd64: ; @mkdir -p build && echo "Building Linux AMD64..." && GOOS=linux GOARCH=amd64 $(GO) build -ldflags="$(BUILD_LDFLAGS)" -o $@ ./cmd/alex
+build/alex-linux-arm64: ; @mkdir -p build && echo "Building Linux ARM64..." && GOOS=linux GOARCH=arm64 $(GO) build -ldflags="$(BUILD_LDFLAGS)" -o $@ ./cmd/alex
+build/alex-darwin-amd64: ; @mkdir -p build && echo "Building macOS AMD64..." && GOOS=darwin GOARCH=amd64 $(GO) build -ldflags="$(BUILD_LDFLAGS)" -o $@ ./cmd/alex
+build/alex-darwin-arm64: ; @mkdir -p build && echo "Building macOS ARM64..." && GOOS=darwin GOARCH=arm64 $(GO) build -ldflags="$(BUILD_LDFLAGS)" -o $@ ./cmd/alex
+build/alex-windows-amd64.exe: ; @mkdir -p build && echo "Building Windows AMD64..." && GOOS=windows GOARCH=amd64 $(GO) build -ldflags="$(BUILD_LDFLAGS)" -o $@ ./cmd/alex
+
+BUILD_TARGETS := build/alex-linux-amd64 build/alex-linux-arm64 build/alex-darwin-amd64 build/alex-darwin-arm64 build/alex-windows-amd64.exe
+
+build-linux-amd64: build/alex-linux-amd64 ## Build Linux AMD64 binary
+build-linux-arm64: build/alex-linux-arm64 ## Build Linux ARM64 binary
+build-darwin-amd64: build/alex-darwin-amd64 ## Build macOS AMD64 binary
+build-darwin-arm64: build/alex-darwin-arm64 ## Build macOS ARM64 binary
+build-windows-amd64: build/alex-windows-amd64.exe ## Build Windows AMD64 binary
+
+build-all: $(BUILD_TARGETS) ## Build binaries for all platforms (parallel: make -j5 build-all)
 	@echo "✓ All builds complete"
 	@ls -lh build/
 
