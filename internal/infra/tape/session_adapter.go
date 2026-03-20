@@ -60,7 +60,7 @@ func (a *SessionAdapter) Get(ctx context.Context, id string) (*storage.Session, 
 			sess.Messages = append(sess.Messages, msg)
 
 		case coretape.KindAnchor:
-			// Anchor entries carry session metadata if present.
+			// Anchor entries carry session metadata and todos if present.
 			if meta, ok := e.Payload["metadata"]; ok {
 				if m, ok := meta.(map[string]any); ok {
 					if sess.Metadata == nil {
@@ -70,6 +70,15 @@ func (a *SessionAdapter) Get(ctx context.Context, id string) (*storage.Session, 
 						if s, ok := v.(string); ok {
 							sess.Metadata[k] = s
 						}
+					}
+				}
+			}
+			if todosRaw, ok := e.Payload["todos"]; ok {
+				d, err := json.Marshal(todosRaw)
+				if err == nil {
+					var todos []storage.Todo
+					if json.Unmarshal(d, &todos) == nil {
+						sess.Todos = todos
 					}
 				}
 			}
@@ -108,6 +117,35 @@ func (a *SessionAdapter) Save(ctx context.Context, session *storage.Session) err
 			return fmt.Errorf("save session message %d: %w", i, err)
 		}
 	}
+
+	// Persist metadata and todos so Get can reconstruct them.
+	if len(session.Metadata) > 0 || len(session.Todos) > 0 {
+		payload := map[string]any{"label": "session_metadata"}
+		if len(session.Metadata) > 0 {
+			m := make(map[string]any, len(session.Metadata))
+			for k, v := range session.Metadata {
+				m[k] = v
+			}
+			payload["metadata"] = m
+		}
+		if len(session.Todos) > 0 {
+			d, _ := json.Marshal(session.Todos)
+			var raw any
+			_ = json.Unmarshal(d, &raw)
+			payload["todos"] = raw
+		}
+		metaEntry := coretape.TapeEntry{
+			ID:      fmt.Sprintf("meta_%d", time.Now().UnixNano()),
+			Kind:    coretape.KindAnchor,
+			Payload: payload,
+			Meta:    coretape.EntryMeta{SessionID: session.ID},
+			Date:    time.Now(),
+		}
+		if err := a.store.Append(ctx, session.ID, metaEntry); err != nil {
+			return fmt.Errorf("save session metadata: %w", err)
+		}
+	}
+
 	return nil
 }
 
