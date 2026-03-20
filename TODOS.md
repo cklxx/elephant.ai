@@ -8,11 +8,8 @@ Items deferred from CEO Plan Reviews (2026-03-18 strategic expansion, 2026-03-19
 
 ## P1 — Should do soon
 
-### Stash cleanup
-- **What:** Audit and clean up 39 git stashes, many >2 months old.
-- **Why:** Stale stashes accumulate confusion and suggest unfinished work streams. Some may contain useful WIP that should be branches or discarded.
-- **Effort:** S (human: ~1 hour / CC: ~15 min)
-- **Depends on:** Nothing.
+### ~~Stash cleanup~~ ✓ Done
+- Completed 2026-03-20. Audited 40 stashes (32 merged, 8 orphan). All orphan stashes contained trivial changes (worktree markers, stale docs, old config). Cleared all.
 
 ### Jira/Linear read connector (Signal Graph plugin)
 - **What:** MCP server for reading ticket status, assignees, transitions, comments.
