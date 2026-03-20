@@ -20,9 +20,9 @@ import (
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/llm"
-	"alex/internal/infra/session/filestore"
 	sessionstate "alex/internal/infra/session/state_store"
 	"alex/internal/infra/storage"
+	"alex/internal/infra/tape"
 )
 
 // TestConcurrentCostIsolation verifies that cost tracking is properly isolated
@@ -34,7 +34,7 @@ func TestConcurrentCostIsolation(t *testing.T) {
 
 	// Setup: Create real components (not all mocks)
 	llmFactory := llm.NewFactory()
-	sessionStore := filestore.New(t.TempDir())
+	sessionStore := tape.NewSessionAdapter(tape.NewMemoryStore())
 
 	costStore, err := storage.NewFileCostStore(t.TempDir() + "/costs")
 	if err != nil {
@@ -157,7 +157,7 @@ func TestTaskCancellation(t *testing.T) {
 
 	// Setup: Create real components with slow tool
 	llmFactory := llm.NewFactory()
-	sessionStore := filestore.New(t.TempDir())
+	sessionStore := tape.NewSessionAdapter(tape.NewMemoryStore())
 
 	costStore, err := storage.NewFileCostStore(t.TempDir() + "/costs")
 	if err != nil {
@@ -245,7 +245,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 
 	// Setup: Create real components with slow tool
 	llmFactory := llm.NewFactory()
-	sessionStore := filestore.New(t.TempDir())
+	sessionStore := tape.NewSessionAdapter(tape.NewMemoryStore())
 
 	costStore, err := storage.NewFileCostStore(t.TempDir() + "/costs")
 	if err != nil {

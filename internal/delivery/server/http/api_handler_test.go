@@ -22,8 +22,8 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/infra/memory"
-	"alex/internal/infra/session/filestore"
 	sessionstate "alex/internal/infra/session/state_store"
+	"alex/internal/infra/tape"
 	runtimeconfig "alex/internal/shared/config"
 )
 
@@ -282,7 +282,7 @@ func TestHandleCreateTaskHonorsBodyLimit(t *testing.T) {
 }
 
 func TestSnapshotHandlers(t *testing.T) {
-	sessionStore := filestore.New(t.TempDir())
+	sessionStore := tape.NewSessionAdapter(tape.NewMemoryStore())
 	stateStore := sessionstate.NewInMemoryStore()
 	broadcaster := app.NewEventBroadcaster()
 	taskStore := app.NewInMemoryTaskStore()
@@ -341,7 +341,7 @@ func TestSnapshotHandlers(t *testing.T) {
 }
 
 func TestHandleCreateSession(t *testing.T) {
-	sessionStore := filestore.New(t.TempDir())
+	sessionStore := tape.NewSessionAdapter(tape.NewMemoryStore())
 	stateStore := sessionstate.NewInMemoryStore()
 	broadcaster := app.NewEventBroadcaster()
 	taskStore := app.NewInMemoryTaskStore()
@@ -377,7 +377,7 @@ func TestHandleCreateSession(t *testing.T) {
 }
 
 func TestHandleListSessionsIncludesTaskSummaryFields(t *testing.T) {
-	sessionStore := filestore.New(t.TempDir())
+	sessionStore := tape.NewSessionAdapter(tape.NewMemoryStore())
 	stateStore := sessionstate.NewInMemoryStore()
 	broadcaster := app.NewEventBroadcaster()
 	taskStore := app.NewInMemoryTaskStore()
@@ -487,7 +487,7 @@ func TestHandleGetContextSnapshotsReturnsLightweightSummary(t *testing.T) {
 	tasks, sessions, snapshots := buildTestServices(
 		&stubAgentCoordinator{},
 		broadcaster,
-		filestore.New(t.TempDir()),
+		tape.NewSessionAdapter(tape.NewMemoryStore()),
 		app.NewInMemoryTaskStore(),
 		sessionstate.NewInMemoryStore(),
 	)
@@ -630,7 +630,7 @@ func TestHandleGetMemorySnapshot(t *testing.T) {
 		t.Fatalf("append daily: %v", err)
 	}
 
-	sessionStore := filestore.New(t.TempDir())
+	sessionStore := tape.NewSessionAdapter(tape.NewMemoryStore())
 	session := &storage.Session{
 		ID:        "sess-1",
 		Messages:  []core.Message{},

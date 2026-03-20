@@ -10,10 +10,12 @@ import (
 	appconfig "alex/internal/app/agent/config"
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/agent/hooks"
+	"alex/internal/core/envelope"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	react "alex/internal/domain/agent/react"
+	"alex/internal/framework"
 	infraadapters "alex/internal/infra/adapters"
 	infraruntime "alex/internal/infra/runtime"
 	"alex/internal/infra/tools/builtin/shared"
@@ -21,7 +23,10 @@ import (
 	id "alex/internal/shared/utils/id"
 )
 
-// ExecuteTask executes a task with optional event listener for streaming output
+// ExecuteTask executes a task with optional event listener for streaming output.
+// It delegates to Framework.ProcessInbound via the bridgePlugin, which
+// encapsulates preparation, hook execution, ReAct engine invocation,
+// session persistence, and post-task hooks into the 7-step turn lifecycle.
 func (c *AgentCoordinator) ExecuteTask(
 	ctx context.Context,
 	task string,
@@ -36,53 +41,79 @@ func (c *AgentCoordinator) ExecuteTask(
 
 	timer := newStepTimer()
 
+	// Create the workflow that tracks prepare/execute/summarize/persist stages.
+	// Start prepare stage immediately — must be tracked even on early cancellation.
 	wf := newAgentWorkflow(ensuredRunID, slog.Default(), eventListener, outCtx)
 	wf.start(stagePrepare)
 
-	attachWorkflow := func(result *agent.TaskResult, env *agent.ExecutionEnvironment) *agent.TaskResult {
-		session := sessionID
-		if env != nil && env.Session != nil && env.Session.ID != "" {
-			session = env.Session.ID
-		}
-		return attachWorkflowSnapshot(result, wf, session, ensuredRunID, parentRunID)
-	}
+	// Create Framework with bridge plugin
+	fw := framework.New(framework.Config{})
+	bridge := newBridgePlugin(c)
+	bridge.sessionID = sessionID
+	bridge.ensuredRunID = ensuredRunID
+	bridge.parentRunID = parentRunID
+	bridge.dispatcher = dispatcher
+	bridge.eventListener = eventListener
+	bridge.wf = wf
+	bridge.outCtx = outCtx
+	fw.RegisterPlugin(bridge)
 
-	effectiveCfg := c.effectiveConfig(ctx)
-	prepareStarted := time.Now()
+	// Build envelope from task input
+	env := envelope.New(map[string]any{
+		"content":       task,
+		"session_id":    sessionID,
+		"run_id":        ensuredRunID,
+		"parent_run_id": parentRunID,
+		"channel":       appcontext.ChannelFromContext(ctx),
+	})
 
-	// Prepare execution environment with event listener support
-	env, err := c.prepareExecutionWithListener(ctx, task, sessionID, eventListener, effectiveCfg)
-	if err != nil {
-		wf.fail(stagePrepare, err)
-		return attachWorkflow(nil, env), err
-	}
-	if sessionID == "" {
-		sessionID = env.Session.ID
-	}
-
-	c.finishPrepareStage(ctx, task, env, wf, outCtx, ensuredRunID, parentRunID, prepareStarted)
-	timer.track("prepare_context", prepareStarted)
-	timer.logStep(logger, ensuredRunID, timer.records[len(timer.records)-1])
-	ctx = id.WithSessionID(ctx, env.Session.ID)
-
-	hookStart := time.Now()
-	c.runPreTaskHooks(ctx, task, env, ensuredRunID, logger)
-	timer.track("pre_hooks", hookStart)
-	timer.logStep(logger, ensuredRunID, timer.records[len(timer.records)-1])
-
-	execStart := time.Now()
-	result, executionErr := c.buildAndRunReactEngine(ctx, task, env, wf, eventListener, effectiveCfg, logger)
-	timer.track("execute", execStart)
-	timer.logStep(logger, ensuredRunID, timer.records[len(timer.records)-1])
-
-	finalizeStart := time.Now()
-	finalResult, finalErr := c.finalizeExecution(ctx, task, env, wf, dispatcher, result, executionErr,
-		ensuredRunID, parentRunID, logger, attachWorkflow)
-	timer.track("finalize", finalizeStart)
-	timer.logStep(logger, ensuredRunID, timer.records[len(timer.records)-1])
-
+	// Process through framework — the bridge plugin drives all lifecycle stages
+	processStart := time.Now()
+	_, fwErr := fw.ProcessInbound(ctx, env)
+	timer.track("framework_process", processStart)
 	timer.logSummary(logger, ensuredRunID)
-	return finalResult, finalErr
+
+	// Handle context cancellation
+	if ctx.Err() != nil && bridge.lastEnv != nil {
+		logger.Debug("Task execution cancelled: %v", ctx.Err())
+		c.persistSessionSnapshot(ctx, bridge.lastEnv, ensuredRunID, parentRunID, "cancelled")
+	}
+
+	// If preparation never completed (e.g., context cancelled before LoadState),
+	// mark prepare stage as failed so the workflow snapshot reflects failure.
+	if bridge.lastEnv == nil && fwErr != nil {
+		wf.fail(stagePrepare, fwErr)
+	}
+
+	// Extract the TaskResult from the bridge plugin
+	result := bridge.lastResult
+	if result == nil {
+		result = &agent.TaskResult{
+			Answer:    "",
+			SessionID: sessionID,
+			RunID:     ensuredRunID,
+		}
+	}
+
+	// Attach workflow snapshot
+	resolvedSession := sessionID
+	if bridge.lastEnv != nil && bridge.lastEnv.Session != nil && bridge.lastEnv.Session.ID != "" {
+		resolvedSession = bridge.lastEnv.Session.ID
+	}
+	result = attachWorkflowSnapshot(result, wf, resolvedSession, ensuredRunID, parentRunID)
+
+	result.SessionID = defaultString(result.SessionID, resolvedSession)
+	result.RunID = defaultString(result.RunID, ensuredRunID)
+	result.ParentRunID = defaultString(result.ParentRunID, parentRunID)
+
+	if bridge.lastExecErr != nil {
+		return result, fmt.Errorf("task execution failed: %w", bridge.lastExecErr)
+	}
+	if fwErr != nil {
+		return result, fwErr
+	}
+
+	return result, nil
 }
 
 // setupExecutionContext initialises IDs, dispatcher, output context and returns
@@ -275,7 +306,7 @@ func (c *AgentCoordinator) buildAndRunReactEngine(
 				GoRunner:            goRunner,
 				WorkingDirResolver:  workingDirResolver,
 				WorkspaceMgrFactory: workspaceMgrFactory,
-				ExecuteTask: backgroundExecutor,
+				ExecuteTask:         backgroundExecutor,
 				SessionID:           env.Session.ID,
 				MaxConcurrentTasks:  effectiveCfg.MaxBackgroundTasks,
 				ContextPropagators: []agent.ContextPropagatorFunc{
@@ -336,6 +367,8 @@ func (c *AgentCoordinator) buildAndRunReactEngine(
 
 // finalizeExecution handles post-execution: cancellation, cost logging,
 // post-task hooks, error stamping, and session persistence.
+// NOTE: This method is retained for backward compatibility with any callers
+// that invoke the old direct path. The Framework/bridge path does not use it.
 func (c *AgentCoordinator) finalizeExecution(
 	ctx context.Context,
 	task string,

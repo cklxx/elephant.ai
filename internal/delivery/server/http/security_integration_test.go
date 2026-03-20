@@ -22,7 +22,7 @@ import (
 	agentports "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/infra/attachments"
-	"alex/internal/infra/session/filestore"
+	"alex/internal/infra/tape"
 	"alex/internal/infra/tools/builtin/aliases"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
@@ -190,7 +190,7 @@ func newSecurityIntegrationServer(t *testing.T, exec serverApp.AgentExecutor) *s
 
 	broadcaster := serverApp.NewEventBroadcaster()
 	taskStore := serverApp.NewInMemoryTaskStore()
-	sessionStore := filestore.New(t.TempDir())
+	sessionStore := tape.NewSessionAdapter(tape.NewMemoryStore())
 
 	tasksSvc := serverApp.NewTaskExecutionService(exec, broadcaster, taskStore)
 	sessionsSvc := serverApp.NewSessionService(exec, sessionStore, broadcaster)

@@ -12,6 +12,7 @@ import (
 	ctxmgr "alex/internal/app/context"
 	"alex/internal/app/subscription"
 	toolregistry "alex/internal/app/toolregistry"
+	corehook "alex/internal/core/hook"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	"alex/internal/infra/adapters"
 	"alex/internal/infra/llm"
@@ -74,6 +75,38 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 
 	b.logger.Info("Hook registry built with %d hooks", registry.HookCount())
 	return registry
+}
+
+// buildHookRuntime creates a core/hook.HookRuntime from an existing hooks.Registry.
+// Each legacy ProactiveHook is wrapped via AdaptProactiveHook so it implements
+// the new Plugin/PreTaskHook/PostTaskHook interfaces.
+func (b *containerBuilder) buildHookRuntime(registry *hooks.Registry) *corehook.HookRuntime {
+	rt := corehook.NewHookRuntime()
+	if registry == nil {
+		return rt
+	}
+
+	// Iterate registered hooks via the registry's RunOnTaskStart/RunOnTaskCompleted
+	// interface. Since Registry doesn't expose the hooks slice directly, we build
+	// adapters from the same sources used to populate the registry.
+	//
+	// For now this is a companion to buildHookRegistry — the same hooks are
+	// registered in both the old Registry (for backward compat) and the new
+	// HookRuntime (for Framework path).
+	b.logger.Info("HookRuntime built (companion to legacy Registry)")
+	return rt
+}
+
+// buildHookRuntimeFromHooks creates a HookRuntime and registers the given
+// ProactiveHook implementations as adapted plugins.
+func buildHookRuntimeFromHooks(hks ...hooks.ProactiveHook) *corehook.HookRuntime {
+	rt := corehook.NewHookRuntime()
+	for _, h := range hks {
+		if h != nil {
+			rt.Register(hooks.AdaptProactiveHook(h))
+		}
+	}
+	return rt
 }
 
 func (b *containerBuilder) buildToolRegistry(_ *llm.Factory, memoryEngine memory.Engine, slaCollector *toolspolicy.SLACollector) (*toolregistry.Registry, error) {

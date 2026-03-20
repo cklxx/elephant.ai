@@ -21,8 +21,8 @@ import (
 	portsllm "alex/internal/domain/agent/ports/llm"
 	toolports "alex/internal/domain/agent/ports/tools"
 	types "alex/internal/domain/agent/types"
-	"alex/internal/infra/session/filestore"
 	"alex/internal/infra/storage"
+	"alex/internal/infra/tape"
 	"alex/internal/infra/tools/builtin/aliases"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
@@ -51,7 +51,7 @@ func TestPathInjectionE2E_ReadsOutsideWorkspace(t *testing.T) {
 		t.Fatalf("failed to register read_file tool: %v", err)
 	}
 
-	sessionStore := filestore.New(t.TempDir())
+	sessionStore := tape.NewSessionAdapter(tape.NewMemoryStore())
 	costStore, err := storage.NewFileCostStore(filepath.Join(t.TempDir(), "costs"))
 	if err != nil {
 		t.Fatalf("failed to create cost store: %v", err)

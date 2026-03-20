@@ -10,14 +10,25 @@ import (
 	"alex/internal/app/decision"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/infra/memory"
-	"alex/internal/infra/session/filestore"
 	sessionstate "alex/internal/infra/session/state_store"
 	"alex/internal/infra/storage"
+	"alex/internal/infra/tape"
 )
 
 func (b *containerBuilder) buildSessionResources() sessionResources {
+	tapeStore, err := tape.NewFileStore(filepath.Join(b.sessionDir, "tapes"))
+	if err != nil {
+		b.logger.Error("Failed to create tape store: %v; falling back to in-memory", err)
+		tapeStore = nil
+	}
+	var sessionStore agentstorage.SessionStore
+	if tapeStore != nil {
+		sessionStore = tape.NewSessionAdapter(tapeStore)
+	} else {
+		sessionStore = tape.NewSessionAdapter(tape.NewMemoryStore())
+	}
 	return sessionResources{
-		sessionStore: filestore.New(b.sessionDir),
+		sessionStore: sessionStore,
 		stateStore:   sessionstate.NewFileStore(filepath.Join(b.sessionDir, "snapshots")),
 		historyStore: sessionstate.NewFileStore(filepath.Join(b.sessionDir, "turns")),
 	}

@@ -13,15 +13,14 @@ import (
 	"alex/internal/app/di"
 	core "alex/internal/domain/agent/ports"
 	agentstorage "alex/internal/domain/agent/ports/storage"
-	"alex/internal/infra/session/filestore"
+	"alex/internal/infra/tape"
 	"alex/internal/shared/utils"
 )
 
 // newTestCLI creates a CLI with a file-based session store seeded with the given sessions.
 func newTestCLI(t *testing.T, sessions []*agentstorage.Session) *CLI {
 	t.Helper()
-	dir := t.TempDir()
-	store := filestore.New(dir)
+	store := tape.NewSessionAdapter(tape.NewMemoryStore())
 	ctx := context.Background()
 
 	for _, sess := range sessions {
