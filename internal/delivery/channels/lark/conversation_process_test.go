@@ -562,17 +562,17 @@ func TestDispatchFormattedReply_EmptyAfterShape(t *testing.T) {
 	}
 }
 
-func TestDispatchFormattedReply_SplitsLongMessage(t *testing.T) {
+func TestDispatchFormattedReply_LongMessageSingleDispatch(t *testing.T) {
 	stub := &convStubLLMClient{resp: "ok"}
 	g := newConvGateway(t, stub, true)
 	rec := getRecorder(g)
 
-	// Two heading sections should produce 2 chunks.
+	// Multi-section content is always sent as a single message.
 	long := "## Section 1\n\nContent one.\n\n## Section 2\n\nContent two."
 	g.dispatchFormattedReply(context.Background(), "chat1", "msg1", long)
 
-	if rec.count() < 2 {
-		t.Fatalf("expected >=2 messages for multi-section content, got %d", rec.count())
+	if rec.count() != 1 {
+		t.Fatalf("expected 1 message, got %d", rec.count())
 	}
 }
 
@@ -942,39 +942,39 @@ func TestSnapshotWorker_CopiesRecentProgress(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Tests for sendFragmentedReply (no longer splits — single message)
+// Tests for sendReply
 // ---------------------------------------------------------------------------
 
-func TestSendFragmentedReply_SingleMessage(t *testing.T) {
+func TestSendReply_SingleMessage(t *testing.T) {
 	stub := &convStubLLMClient{resp: "ok"}
 	g := newConvGateway(t, stub, true)
 	rec := getRecorder(g)
 
-	g.sendFragmentedReply(context.Background(), "chat1", "msg1", "好", 0)
+	g.sendReply(context.Background(), "chat1", "msg1", "好", 0)
 
 	if rec.count() != 1 {
 		t.Fatalf("expected 1 message, got %d", rec.count())
 	}
 }
 
-func TestSendFragmentedReply_LongReplyStaysSingle(t *testing.T) {
+func TestSendReply_LongReplyStaysSingle(t *testing.T) {
 	stub := &convStubLLMClient{resp: "ok"}
 	g := newConvGateway(t, stub, true)
 	rec := getRecorder(g)
 
-	g.sendFragmentedReply(context.Background(), "chat1", "msg1", "还在跑还在跑还在跑还在跑呢，明天出结果给你", 0)
+	g.sendReply(context.Background(), "chat1", "msg1", "还在跑还在跑还在跑还在跑呢，明天出结果给你", 0)
 
 	if rec.count() != 1 {
-		t.Fatalf("expected 1 message (no splitting), got %d", rec.count())
+		t.Fatalf("expected 1 message, got %d", rec.count())
 	}
 }
 
-func TestSendFragmentedReply_EmptyReply(t *testing.T) {
+func TestSendReply_EmptyReply(t *testing.T) {
 	stub := &convStubLLMClient{resp: "ok"}
 	g := newConvGateway(t, stub, true)
 	rec := getRecorder(g)
 
-	g.sendFragmentedReply(context.Background(), "chat1", "msg1", "", 0)
+	g.sendReply(context.Background(), "chat1", "msg1", "", 0)
 
 	if rec.count() != 0 {
 		t.Fatalf("expected 0 messages for empty reply, got %d", rec.count())

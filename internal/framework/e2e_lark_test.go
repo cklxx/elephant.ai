@@ -198,7 +198,7 @@ func (p *larkTestPlugin) RenderOutbound(_ context.Context, state *hook.TurnState
 		return nil, nil
 	}
 
-	// Simulate Lark reply shaping (splitMessage, smartContent)
+	// Simulate Lark reply shaping (smartContent)
 	content := output.Text
 
 	// Lark messages must be ≤800 chars — simulate chunking

@@ -215,11 +215,8 @@ func naturalizeReply(s string, level int) string {
 }
 
 
-// sendFragmentedReply naturalizes the reply, splits into IM fragments, and
-// dispatches each with a delay between them to simulate natural typing rhythm.
-// NOTE: dispatchFormattedReply has its own inner splitMessage for markdown-based
-// splitting, but short IM fragments (≤20 runes) never trigger it. No delay stacking.
-func (g *Gateway) sendFragmentedReply(ctx context.Context, chatID, replyToID, reply string, level int) {
+// sendReply naturalizes the reply and dispatches it as a single message.
+func (g *Gateway) sendReply(ctx context.Context, chatID, replyToID, reply string, level int) {
 	text := naturalizeReply(reply, level)
 	if text == "" {
 		return
@@ -434,7 +431,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 
 	// When no worker is dispatched, send the reply as fragmented IM messages.
 	if reply != "" && !hasDispatchWorker {
-		g.sendFragmentedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
+		g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
 	}
 
 	for _, tc := range toolCalls {
@@ -451,12 +448,12 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			if injected {
 				logger.Info("conversation: INJECTED msg=%s into running worker", msg.messageID)
 				if reply != "" {
-					g.sendFragmentedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
+					g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
 				}
 			} else {
 				logger.Info("conversation: SPAWNED new worker msg=%s task=%s taskID=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."), taskID)
 				if reply != "" {
-					g.sendFragmentedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
+					g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
 				}
 			}
 		case stopWorkerToolName:

@@ -139,12 +139,14 @@ func TestTieredDelivery_DocFails_SplitMessageFallback(t *testing.T) {
 
 	reply := gw.tieredDelivery(context.Background(), "chat1", "msg1", result, nil)
 
-	// When both doc and file fail, overflowToDoc returns truncated text (200 runes).
-	// tieredDelivery detects this mismatch and returns the full shaped text
-	// so the caller can use splitMessage.
+	// When both doc and file fail, tieredDelivery returns truncated text
+	// (≤800 runes) with a notice instead of dumping the full content.
+	if !strings.Contains(reply, "已截断显示") {
+		t.Fatalf("expected truncation notice, got: %s", reply[:min(len(reply), 200)])
+	}
 	runeLen := len([]rune(reply))
-	if runeLen < 500 {
-		t.Fatalf("expected full shaped reply for splitMessage fallback, got %d runes", runeLen)
+	if runeLen > 850 {
+		t.Fatalf("expected truncated reply (≤~850 runes with notice), got %d runes", runeLen)
 	}
 }
 

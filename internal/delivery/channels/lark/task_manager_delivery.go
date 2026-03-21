@@ -126,37 +126,6 @@ func (g *Gateway) dispatchTerminalIntent(execCtx context.Context, intent Deliver
 	}
 }
 
-// dispatchMultiMessageReply sends multiple chunks as separate messages,
-// editing the progress message in-place for the first chunk and sending
-// new reply messages for subsequent chunks with a delay between them.
-func (g *Gateway) dispatchMultiMessageReply(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, progressMsgID string, chunks []string) {
-	for i, chunk := range chunks {
-		chunkMsgType, chunkContent := smartContent(chunk)
-		intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, "", chunkMsgType, chunkContent)
-		intent.Sequence = int64(i + 1)
-		intent.IdempotencyKey = buildTerminalDeliveryIdempotencyKey(intent)
-
-		if i == 0 && progressMsgID != "" {
-			// First chunk: edit progress message in-place.
-			intent.ProgressMessageID = progressMsgID
-		}
-
-		// Last chunk: attach any attachments.
-		if i == len(chunks)-1 && result != nil && len(result.Attachments) > 0 {
-			intent.Attachments = filterReferencedAttachments(result.Attachments, chunkContent)
-		} else {
-			intent.Attachments = nil
-		}
-
-		g.dispatchTerminalIntent(execCtx, intent)
-
-		// Delay between messages to simulate typing rhythm.
-		if i < len(chunks)-1 {
-			time.Sleep(messageSplitDelay)
-		}
-	}
-}
-
 // drainAndReprocess drains any remaining messages from the input channel after
 // a task finishes and reprocesses each as a new task. This handles messages that
 // arrived between the last ReAct iteration drain and the task completion.

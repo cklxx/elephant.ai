@@ -95,15 +95,8 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	}
 
 	if !skipReply {
-		// For await prompts, keep the reply as a single message so numbered
-		// options are never split across separate messages.
-		chunks := splitMessage(reply)
-		if !isAwait && len(chunks) > 1 {
-			g.dispatchMultiMessageReply(execCtx, msg, result, execErr, progressMsgID, chunks)
-		} else {
-			intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, progressMsgID, replyMsgType, replyContent)
-			g.dispatchTerminalIntent(execCtx, intent)
-		}
+		intent := g.buildTerminalDeliveryIntent(execCtx, msg, result, execErr, progressMsgID, replyMsgType, replyContent)
+		g.dispatchTerminalIntent(execCtx, intent)
 	}
 }
 
@@ -235,7 +228,7 @@ func (g *Gateway) overflowToDoc(ctx context.Context, chatID, replyToID, fullText
 //   - long (> DeliveryDocThreshold): create doc with full content, rephrase summary + doc link
 //
 // When doc creation fails (both doc and file upload), falls back to the full
-// shaped reply so splitMessage can chunk it in the caller.
+// shaped reply so the caller can deliver it as a single message.
 func (g *Gateway) tieredDelivery(ctx context.Context, chatID, replyToID string, result *agent.TaskResult, execErr error) string {
 	raw := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
 	if result == nil {
@@ -270,12 +263,12 @@ func (g *Gateway) tieredDelivery(ctx context.Context, chatID, replyToID string, 
 		g.logger.Info("delivery: tier=long runes=%d", runeCount)
 		docResult := g.overflowToDoc(ctx, chatID, replyToID, shaped, "ALEX 回复详情")
 		// If overflowToDoc truncated without creating a doc or uploading a
-		// file (i.e. the result is shorter than the input and contains no doc
-		// link or file reference), return the full shaped text so the
-		// caller's splitMessage path can chunk it instead of losing content.
+		// file, return a clean truncated preview with a notice rather than
+		// dumping the full text as a wall of text.
 		docRunes := len([]rune(docResult))
 		if docRunes < runeCount && !strings.Contains(docResult, "详细内容见") {
-			return shaped
+			g.logger.Warn("delivery: doc+file upload failed, truncating reply runes=%d", runeCount)
+			return truncateForLark(shaped, 800) + "\n\n（内容较长，文档上传失败，已截断显示）"
 		}
 		return g.rephraseForUser(ctx, docResult, rephraseForeground)
 	}

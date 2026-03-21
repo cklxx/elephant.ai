@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"alex/internal/delivery/channels"
 	"alex/internal/shared/utils"
@@ -168,26 +167,15 @@ func isPostPayloadInvalidError(err error) bool {
 }
 
 // dispatchFormattedReply applies the shared outbound pipeline (ShapeReply7C →
-// smartContent → splitMessage) and dispatches the result. This is the standard
-// path for any LLM-generated text that should be rendered for the user.
+// smartContent) and dispatches a single message. This is the standard path for
+// any LLM-generated text that should be rendered for the user.
 func (g *Gateway) dispatchFormattedReply(ctx context.Context, chatID, replyToID, rawText string) {
 	text := channels.ShapeReply7C(rawText)
 	if text == "" {
 		return
 	}
-	chunks := splitMessage(text)
-	if len(chunks) <= 1 {
-		msgType, content := smartContent(text)
-		g.dispatch(ctx, chatID, replyToID, msgType, content)
-		return
-	}
-	for i, chunk := range chunks {
-		msgType, content := smartContent(chunk)
-		g.dispatch(ctx, chatID, replyToID, msgType, content)
-		if i < len(chunks)-1 {
-			time.Sleep(messageSplitDelay)
-		}
-	}
+	msgType, content := smartContent(text)
+	g.dispatch(ctx, chatID, replyToID, msgType, content)
 }
 
 // dispatch is a fire-and-forget wrapper around dispatchMessage that logs
