@@ -1,6 +1,6 @@
 ---
 name: artifact-management
-description: 工件管理 — 创建/查询/删除持久化文件工件（报告、文档、证据）。
+description: When you need to persist files (reports, docs, evidence) beyond the session → create/query/delete durable artifacts.
 triggers:
   intent_patterns:
     - "artifact|工件|产物|报告保存|deliverable|attachment"

@@ -91,6 +91,10 @@ type Config struct {
 	// conversation router's system prompt so the chat LLM can accurately
 	// represent worker capabilities and guide dispatch decisions.
 	ConversationWorkerCapabilities string `yaml:"conversation_worker_capabilities"`
+	// ConversationReplyRules overrides the hardcoded reply-style constraints
+	// in the conversation router system prompt. When empty, sensible defaults
+	// are used (Chinese ≤12 chars, English ≤15 chars, casual register, etc.).
+	ConversationReplyRules string `yaml:"conversation_reply_rules"`
 	// CCHooksAutoConfig enables automatic Claude Code hooks configuration
 	// (direct file write to .claude/settings.local.json) after /notice bind.
 	CCHooksAutoConfig *CCHooksAutoConfig

@@ -1,6 +1,6 @@
 ---
 name: auto-skill-creation
-description: 自动创建技能并将重复流程沉淀为技能，支持使用 Codex/Claude 等外部代理执行任务并生成技能文件。
+description: When a repeated workflow should be codified as a reusable skill → auto-create skill files, optionally using Codex/Claude.
 triggers:
   intent_patterns:
     - "create skill|创建技能|新技能|auto skill|沉淀技能|skill creation"

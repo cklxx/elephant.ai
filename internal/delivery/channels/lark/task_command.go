@@ -95,6 +95,7 @@ func (g *Gateway) handleTaskCommand(msg *incomingMessage) {
 		reply = taskCommandUsage()
 	}
 
+	reply = g.naturalizeCommandReply(execCtx, reply)
 	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
 }
 
@@ -104,6 +105,7 @@ func (g *Gateway) handleNaturalTaskStatusQuery(msg *incomingMessage) {
 	}
 	execCtx := g.buildTaskCommandContext(msg)
 	reply := g.handleTaskList(execCtx, msg)
+	reply = g.naturalizeCommandReply(execCtx, reply)
 	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
 }
 

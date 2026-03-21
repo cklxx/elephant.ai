@@ -1,6 +1,6 @@
 ---
 name: memory-search
-description: 记忆检索 — 搜索和读取对话记忆（存储为 Markdown 文件）。
+description: When you need to recall past conversation context → search and read conversation memories (stored as Markdown).
 triggers:
   intent_patterns:
     - "记忆|memory|回忆|之前说过|历史|上次"

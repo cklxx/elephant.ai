@@ -1,6 +1,6 @@
 ---
 name: diagram-to-image
-description: Render Mermaid diagrams to PNG/SVG for sharing.
+description: When a Mermaid diagram needs to be shared as an image → render to PNG/SVG.
 triggers:
   intent_patterns:
     - "mermaid|流程图|架构图|时序图|sequence diagram|flowchart"

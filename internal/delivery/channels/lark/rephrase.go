@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"strings"
 
 	"alex/internal/shared/utils"
 )
@@ -27,6 +28,21 @@ const rephraseForegroundSystemPrompt = `你是一个说话简洁的同事，把 
 - 保留关键文件路径和数据，去掉推理过程。
 - 如果原文包含文档链接，保留链接并在结尾提及。
 - 不使用标题（## ）、不使用 emoji。`
+
+// naturalizeCommandReply passes multi-line engineering-formatted command
+// output through LLM rephrasing to produce natural conversational text.
+// Short single-line confirmations (≤50 runes) are returned as-is to avoid
+// unnecessary latency.
+func (g *Gateway) naturalizeCommandReply(ctx context.Context, reply string) string {
+	if reply == "" {
+		return reply
+	}
+	lines := strings.Count(reply, "\n")
+	if lines <= 1 && len([]rune(reply)) <= 50 {
+		return reply
+	}
+	return g.rephraseForUser(ctx, reply, rephraseForeground)
+}
 
 func (g *Gateway) rephraseForUser(ctx context.Context, rawText string, kind rephraseKind) string {
 	if g == nil || g.llmFactory == nil {

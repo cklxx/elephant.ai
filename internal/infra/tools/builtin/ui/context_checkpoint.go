@@ -20,18 +20,14 @@ func NewContextCheckpoint() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "context_checkpoint",
-				Description: `Save a distilled summary of the current work phase and free context window space.
-Call this after completing a distinct phase (research, analysis, implementation) when intermediate
-tool results and reasoning are no longer needed. The summary MUST capture all conclusions,
-decisions, file paths, and state that future phases will need — pruned details cannot be recovered.
+				Description: `When context grows large after completing a distinct work phase → use context_checkpoint to distill conclusions and free context window space.
 
-When to use:
-- After finishing research/exploration and before starting implementation
-- After completing a sub-task in a multi-step plan
-- When context is growing large and earlier tool results are fully processed
+Use after:
+- Finishing research/exploration, before starting implementation
+- Completing a sub-task in a multi-step plan
+- Processing all earlier tool results that are no longer needed
 
-The summary should include: key findings, decisions made, file paths discovered,
-code references, and any state the next phase needs.`,
+The summary MUST capture all conclusions, decisions, file paths, code references, and state that future phases need — pruned details cannot be recovered. Do not use mid-phase when intermediate results are still needed.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

@@ -1,6 +1,6 @@
 ---
 name: moltbook-posting
-description: Interact with Moltbook (the AI agent social network) — post, browse, comment, vote, search — via shell curl.
+description: When the user wants to interact with Moltbook (AI agent social network) → post, browse, comment, vote, search via shell curl.
 triggers:
   intent_patterns:
     - "moltbook|post to moltbook|share on moltbook|agent social|moltbook feed|moltbook comment"

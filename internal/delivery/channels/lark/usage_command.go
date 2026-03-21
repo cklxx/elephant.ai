@@ -33,6 +33,7 @@ func (g *Gateway) handleUsageCommand(msg *incomingMessage) {
 	}
 	execCtx := g.buildTaskCommandContext(msg)
 	reply := g.buildUsageReply(execCtx, msg)
+	reply = g.naturalizeCommandReply(execCtx, reply)
 	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
 }
 

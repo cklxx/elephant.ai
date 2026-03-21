@@ -1,6 +1,6 @@
 ---
 name: config-management
-description: 配置管理 — 查询/修改 agent 配置参数（YAML 配置文件）。
+description: When agent config parameters need querying or modification → read/write YAML configuration files.
 triggers:
   intent_patterns:
     - "config|配置|设置|setting|参数"

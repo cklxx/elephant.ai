@@ -191,14 +191,12 @@ func getRecorder(g *Gateway) *convRecordingMessenger {
 // Tests for conversationLLMWithList
 // ---------------------------------------------------------------------------
 
-// idleWorkers returns an empty workerSnapshotList for tests with no active workers.
-func idleWorkers() workerSnapshotList { return workerSnapshotList{} }
-
 func TestConversationLLMWithList_ReturnsTextReply(t *testing.T) {
 	stub := &convStubLLMClient{resp: "你好！有什么可以帮你的？"}
 	g := newConvGateway(t, stub, true)
+	workers := workerSnapshotList{}
 
-	reply, toolCalls, err := g.conversationLLMWithList(context.Background(), "u1", "你好", idleWorkers(), "")
+	reply, toolCalls, err := g.conversationLLMWithList(context.Background(), "u1", "你好", workers, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -218,8 +216,9 @@ func TestConversationLLMWithList_ReturnsToolCall(t *testing.T) {
 		},
 	}
 	g := newConvGateway(t, stub, true)
+	workers := workerSnapshotList{}
 
-	reply, toolCalls, err := g.conversationLLMWithList(context.Background(), "u1", "重构 auth 模块", idleWorkers(), "")
+	reply, toolCalls, err := g.conversationLLMWithList(context.Background(), "u1", "重构 auth 模块", workers, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -236,7 +235,6 @@ func TestConversationLLMWithList_IncludesWorkerStatus(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	workers := workerSnapshotList{
 		Snapshots: []workerSnapshot{{Phase: slotRunning, TaskDesc: "build dashboard", Elapsed: 45 * time.Second}},
-		Lang:      "zh",
 	}
 
 	g.conversationLLMWithList(context.Background(), "u1", "做得怎么样了？", workers, "")
@@ -254,8 +252,9 @@ func TestConversationLLMWithList_IncludesWorkerStatus(t *testing.T) {
 func TestConversationLLMWithList_IncludesTools(t *testing.T) {
 	stub := &convStubLLMClient{resp: "ok"}
 	g := newConvGateway(t, stub, true)
+	workers := workerSnapshotList{}
 
-	g.conversationLLMWithList(context.Background(), "u1", "hello", idleWorkers(), "")
+	g.conversationLLMWithList(context.Background(), "u1", "hello", workers, "")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
@@ -273,11 +272,12 @@ func TestConversationLLMWithList_IncludesTools(t *testing.T) {
 	}
 }
 
-func TestConversationLLMWithList_ErrorReturned(t *testing.T) {
+func TestConversationLLMWithList_FallbackOnError(t *testing.T) {
 	stub := &convStubLLMClient{err: &convStubErr{"timeout"}}
 	g := newConvGateway(t, stub, true)
+	workers := workerSnapshotList{}
 
-	reply, toolCalls, err := g.conversationLLMWithList(context.Background(), "u1", "hello", idleWorkers(), "")
+	reply, toolCalls, err := g.conversationLLMWithList(context.Background(), "u1", "hello", workers, "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -286,7 +286,7 @@ func TestConversationLLMWithList_ErrorReturned(t *testing.T) {
 	}
 }
 
-func TestConversationLLMWithList_ErrorWhenFactoryNil(t *testing.T) {
+func TestConversationLLMWithList_FallbackWhenFactoryNil(t *testing.T) {
 	en := true
 	g := &Gateway{
 		cfg:        Config{ConversationProcessEnabled: &en},
@@ -294,7 +294,7 @@ func TestConversationLLMWithList_ErrorWhenFactoryNil(t *testing.T) {
 		logger:     logging.OrNop(nil),
 		now:        time.Now,
 	}
-	_, _, err := g.conversationLLMWithList(context.Background(), "u1", "hi", idleWorkers(), "")
+	_, _, err := g.conversationLLMWithList(context.Background(), "u1", "hi", workerSnapshotList{}, "")
 	if err == nil {
 		t.Fatal("expected error when factory nil")
 	}
@@ -822,6 +822,15 @@ func TestHandleViaConversationProcess_StopsWorkerOnToolCall(t *testing.T) {
 	}
 }
 
+func TestStopWorkerFromConversation_NoopWhenIdle(t *testing.T) {
+	stub := &convStubLLMClient{resp: "ok"}
+	g := newConvGateway(t, stub, true)
+
+	slot := &sessionSlot{phase: slotIdle}
+	// Should not panic when no task is running.
+	g.stopWorkerFromConversation("chat1", slot)
+}
+
 // ---------------------------------------------------------------------------
 // Tests for chat history in conversationLLMWithList
 // ---------------------------------------------------------------------------
@@ -829,8 +838,9 @@ func TestHandleViaConversationProcess_StopsWorkerOnToolCall(t *testing.T) {
 func TestConversationLLMWithList_IncludesChatHistory(t *testing.T) {
 	stub := &convStubLLMClient{resp: "ok"}
 	g := newConvGateway(t, stub, true)
+	workers := workerSnapshotList{}
 
-	g.conversationLLMWithList(context.Background(), "u1", "hello", idleWorkers(), "user: 之前的消息\nassistant: 之前的回复")
+	g.conversationLLMWithList(context.Background(), "u1", "hello", workers, "user: 之前的消息\nassistant: 之前的回复")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
@@ -848,8 +858,9 @@ func TestConversationLLMWithList_IncludesChatHistory(t *testing.T) {
 func TestConversationLLMWithList_NoChatHistoryWhenEmpty(t *testing.T) {
 	stub := &convStubLLMClient{resp: "ok"}
 	g := newConvGateway(t, stub, true)
+	workers := workerSnapshotList{}
 
-	g.conversationLLMWithList(context.Background(), "u1", "hello", idleWorkers(), "")
+	g.conversationLLMWithList(context.Background(), "u1", "hello", workers, "")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {

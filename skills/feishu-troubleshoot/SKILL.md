@@ -1,9 +1,6 @@
 ---
 name: feishu-troubleshoot
-description: |
-  飞书插件问题排查工具。包含常见问题 FAQ 和授权诊断。
-
-  常见问题可随时查阅。用于排查复杂问题（多次授权仍失败、权限不足等）。
+description: When 飞书 plugin errors or auth failures occur → troubleshoot with FAQ and authorization diagnostics.
 triggers:
   intent_patterns:
     - "飞书问题|feishu error|授权失败|权限不足"

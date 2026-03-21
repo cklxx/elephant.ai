@@ -10,6 +10,7 @@ func (g *Gateway) cleanupRuntimeState() {
 	trimmedSlots := g.pruneActiveSlots(now)
 	g.pruneActiveChatSlots()
 	g.evictExpiredPromptCache()
+	g.evictExpiredChatContexts()
 	trimmedAISessions := 0
 	if g.aiCoordinator != nil && g.cfg.AIChatSessionTTL > 0 {
 		trimmedAISessions = g.aiCoordinator.CleanupExpiredSessions(g.cfg.AIChatSessionTTL)

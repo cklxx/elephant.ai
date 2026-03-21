@@ -1,6 +1,6 @@
 ---
 name: openbench
-description: Run eval benchmarks after prompt, tool, or agent logic changes to detect regressions or improvements.
+description: When prompt, tool, or agent logic changes need regression testing → run eval benchmarks to detect regressions or improvements.
 triggers:
   intent_patterns:
     - "openbench|eval|benchmark|基准|评估|测试套件|跑个评测"

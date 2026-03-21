@@ -1,6 +1,6 @@
 ---
 name: deep-research
-description: 深度调研技能，多源检索 + 证据汇编 + 结构化报告。
+description: When a topic needs thorough investigation from multiple sources → multi-source search + evidence assembly + structured report.
 triggers:
   intent_patterns:
     - "research|调研|调查|分析|analysis|market"

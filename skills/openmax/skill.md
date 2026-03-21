@@ -1,6 +1,6 @@
 ---
 name: openmax
-description: Parallel multi-worker dispatch — splits a large task into subtasks running in isolated git worktrees (bulk review, multi-module refactor, batch analysis).
+description: When a task can be parallelized (bulk code review, multi-module refactor, batch analysis) → split into subtasks running in isolated git worktrees via multiple workers.
 triggers:
   intent_patterns:
     - "openmax|parallel review|并行|多worker|多任务|code review|批量"

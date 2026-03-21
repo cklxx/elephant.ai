@@ -1,6 +1,6 @@
 ---
 name: desktop-automation
-description: 桌面自动化 — 通过 AppleScript 控制 macOS 应用（Atlas、Chrome、Finder 等）。
+description: When you need to control macOS desktop apps (Atlas, Chrome, Finder) → automate via AppleScript.
 triggers:
   intent_patterns:
     - "applescript|桌面自动化|desktop|macos|打开应用|切换窗口"

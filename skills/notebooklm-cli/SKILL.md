@@ -1,6 +1,6 @@
 ---
 name: notebooklm-cli
-description: NotebookLM 独立 CLI skill：本地直接调 `nlm`，统一 `command/op`，返回结构化结果。
+description: When the user needs NotebookLM operations → unified CLI (command/op) returning structured results.
 triggers:
   intent_patterns:
     - "notebooklm|notebook lm|nlm|音频概览|podcast|research notebook"

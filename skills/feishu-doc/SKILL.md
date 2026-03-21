@@ -1,13 +1,6 @@
 ---
 name: feishu-doc
-description: |
-  飞书云文档工具。支持文档的创建、读取和更新，包含 Lark 风味 Markdown 语法。
-
-  **当以下情况时使用此 Skill**：
-  (1) 需要创建飞书云文档
-  (2) 需要读取/获取文档内容
-  (3) 需要更新已有文档内容
-  (4) 用户提到"文档"、"doc"、"document"、"wiki"
+description: When 飞书云文档 needs creating, reading, or updating → CRUD docs with Lark-flavored Markdown syntax.
 triggers:
   intent_patterns:
     - "云文档|document|docx|创建文档|读取文档|更新文档"

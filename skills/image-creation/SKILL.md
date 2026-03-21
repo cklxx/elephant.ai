@@ -1,6 +1,6 @@
 ---
 name: image-creation
-description: Generate or refine images with Seedream (text-to-image + image-to-image).
+description: When the user wants to create or edit images → generate with Seedream (text-to-image + image-to-image).
 triggers:
   intent_patterns:
     - "生成图片|画|draw|image|图片|插图|illustration|设计图|海报"

@@ -1,6 +1,6 @@
 ---
 name: anygen
-description: 封装 AnyGenIO/anygen-skills 为统一 CLI（help/task），支持渐进式披露与任务执行（task-manager）。
+description: When user needs AnyGenIO content generation → unified CLI for task execution with progressive disclosure.
 triggers:
   intent_patterns:
     - "anygen|ppt|slides|生成文档|docx|storyboard|website|data analysis|smart_draw|diagram"

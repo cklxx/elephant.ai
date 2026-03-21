@@ -1,6 +1,6 @@
 ---
 name: video-production
-description: Generate short videos with Seedance and save validated output files.
+description: When the user wants to create a short video → generate with Seedance, validate and save output files.
 ---
 
 # video-production
