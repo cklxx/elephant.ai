@@ -16,8 +16,7 @@ import (
 
 const (
 	defaultConversationTimeout = 8 * time.Second
-	conversationMaxTok         = 120
-	conversationMaxTokQuery    = 400
+	conversationMaxTok = 10240
 	conversationTemp           = 0.3
 
 	dispatchWorkerToolName = "dispatch_worker"
@@ -224,6 +223,14 @@ func (g *Gateway) sendReply(ctx context.Context, chatID, replyToID, reply string
 	g.dispatchFormattedReply(ctx, chatID, replyToID, text)
 }
 
+// fallbackAck returns a short default ack when the LLM did not produce one.
+func fallbackAck(lang string) string {
+	if lang == "en" {
+		return "on it"
+	}
+	return "收到，处理中"
+}
+
 // taskRefPattern matches cross-task references like #1, #2, #12.
 var taskRefPattern = regexp.MustCompile(`#(\d+)`)
 
@@ -328,7 +335,7 @@ func (g *Gateway) prefetchQueryContext(ctx context.Context, msg *incomingMessage
 		go func() {
 			tasks, err := g.taskStore.ListByChat(ctx, msg.chatID, true, 10)
 			if err != nil || len(tasks) == 0 {
-				ch <- result{"tasks", "No active tasks."}
+				ch <- result{"tasks", ""}
 				return
 			}
 			ch <- result{"tasks", g.formatActiveTaskList(tasks)}
@@ -338,31 +345,33 @@ func (g *Gateway) prefetchQueryContext(ctx context.Context, msg *incomingMessage
 		go func() {
 			now := g.currentTime()
 			today, err := g.costTracker.GetDailyCost(ctx, now)
-			if err != nil || today == nil || today.RequestCount == 0 {
-				ch <- result{"usage", "No usage data for today."}
+			if err == nil && today != nil && today.RequestCount > 0 {
+				ch <- result{"usage", formatCostSummaryBlock(today)}
 				return
 			}
-			ch <- result{"usage", formatCostSummaryBlock(today)}
+			ch <- result{"usage", ""}
 		}()
 	}
 
 	var extraParts []string
+collect:
 	for range pending {
 		select {
 		case r := <-ch:
-			extraParts = append(extraParts, fmt.Sprintf("[Pre-fetched %s data]\n%s", r.label, r.data))
+			if r.data != "" {
+				extraParts = append(extraParts, fmt.Sprintf("[Pre-fetched %s data]\n%s", r.label, r.data))
+			}
 		case <-ctx.Done():
-			return prefetchResult{tools: tools, maxTokens: conversationMaxTokQuery}
+			break collect // use whatever was collected so far
 		}
 	}
 
 	return prefetchResult{
 		extraContext: strings.Join(extraParts, "\n\n"),
 		tools:       tools,
-		maxTokens:   conversationMaxTokQuery,
+		maxTokens:   conversationMaxTok,
 	}
 }
-
 
 // handleViaConversationProcess sends the user message to the gateway's LLM
 // with a single tool (dispatch_worker). The text reply goes to the user
@@ -402,9 +411,11 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	<-reactionDone
 	g.removeProcessingReaction(ctx, msg.messageID, processingReactionID)
 
-	// Fallback: if LLM failed, dispatch a worker directly (no hardcoded ack).
+	// Fallback: if LLM failed, dispatch a worker directly with a short ack.
 	if llmErr != nil {
 		g.logger.Warn("conversationLLM failed, falling back to direct dispatch: %v", llmErr)
+		ack := fallbackAck(lang)
+		g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
 		g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
 		return true
 	}
@@ -425,6 +436,8 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	// Fallback: LLM returned empty reply with no tool calls — treat as dispatch.
 	if reply == "" && len(toolCalls) == 0 {
 		logger.Warn("conversation: empty LLM response, falling back to dispatch for msg=%s", msg.messageID)
+		ack := fallbackAck(lang)
+		g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
 		g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
 		return true
 	}
@@ -447,15 +460,14 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			taskID, injected := g.spawnOrInjectWorker(ctx, msg, slotMap, taskArg)
 			if injected {
 				logger.Info("conversation: INJECTED msg=%s into running worker", msg.messageID)
-				if reply != "" {
-					g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
-				}
 			} else {
 				logger.Info("conversation: SPAWNED new worker msg=%s task=%s taskID=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."), taskID)
-				if reply != "" {
-					g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
-				}
 			}
+			ack := reply
+			if ack == "" {
+				ack = fallbackAck(lang)
+			}
+			g.sendReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack, level)
 		case stopWorkerToolName:
 			taskIDArg, _ := tc.Arguments["task_id"].(string)
 			g.executeStopWorkerExtended(ctx, slotMap, taskIDArg)

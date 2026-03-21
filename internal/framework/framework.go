@@ -14,7 +14,6 @@ type Framework struct {
 	hooks    *hook.HookRuntime
 	tapes    *tape.TapeManager
 	channels *channel.Manager
-	plugins  *PluginManager
 }
 
 // Config holds Framework configuration.
@@ -29,7 +28,6 @@ func New(cfg Config) *Framework {
 		hooks:    hook.NewHookRuntime(),
 		tapes:    cfg.TapeManager,
 		channels: cfg.ChannelManager,
-		plugins:  &PluginManager{},
 	}
 }
 
@@ -51,5 +49,4 @@ func (f *Framework) Hooks() *hook.HookRuntime {
 // RegisterPlugin adds a plugin to the framework.
 func (f *Framework) RegisterPlugin(p hook.Plugin) {
 	f.hooks.Register(p)
-	f.plugins.Add(p)
 }
