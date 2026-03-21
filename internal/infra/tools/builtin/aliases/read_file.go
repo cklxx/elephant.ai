@@ -39,7 +39,7 @@ func NewReadFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "read_file",
-				Description: "Open repository/workspace source/config files from an absolute path, including exact context windows around suspect code, interface contracts, or proof transitions. Use when the task is read-only inspection/extraction over known files. Do not use for in-place edits (use replace_in_file).",
+				Description: "When you need to inspect file contents (source, config, contracts) from an absolute path → read with optional line range. For edits use replace_in_file.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

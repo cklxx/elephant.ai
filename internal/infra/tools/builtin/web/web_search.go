@@ -53,14 +53,7 @@ func newWebSearch(apiKey string, client *http.Client, cfg WebSearchConfig) *webS
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "web_search",
-				Description: `Discover authoritative web sources when no trusted/fixed URL is provided yet (search-first step).
-
-Returns relevant results with summaries and URLs. After selecting one approved URL, use web_fetch for page retrieval.
-Do not use web_search for manual browser interactions/click flows.
-
-Setup:
-1. Get API key from https://app.tavily.com/
-2. Set runtime.tavily_api_key in ~/.alex/config.yaml (you can reference ${TAVILY_API_KEY})`,
+				Description: `When you need to find web sources and no trusted URL is available yet → search and get results with summaries and URLs. Then use web_fetch to retrieve a selected page. Not for browser interactions/click flows.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

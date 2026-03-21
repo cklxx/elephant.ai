@@ -26,7 +26,7 @@ func NewShellExec(cfg shared.ShellToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "shell_exec",
-				Description: "Execute shell/CLI commands in the environment (process checks, logs, grep, runtime snapshots, git/test runs). Use this for terminal evidence collection, command-driven diagnostics, and deterministic code snippets/calculations/recalculations.",
+				Description: "When you need to run shell commands (process checks, logs, grep, git/test runs, diagnostics, calculations) → execute in the environment and return output.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

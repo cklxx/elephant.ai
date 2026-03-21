@@ -22,7 +22,7 @@ func NewReplaceInFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "replace_in_file",
-				Description: "Apply an exact in-place patch/hotfix to an existing file (absolute paths only). Use only for surgical code/text edits when target text is already known (requires old_str and new_str). Do not use for read-only inspection/extraction (use read_file), search/investigation, creating new files, artifact deletion/cleanup, listing/inventory, or clarification questions.",
+				Description: "When you need to make a surgical edit to an existing file (absolute paths only) → replace old_str with new_str in place. Not for read-only inspection (use read_file) or creating new files (use write_file).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

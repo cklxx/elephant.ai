@@ -24,7 +24,7 @@ func NewWriteFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "write_file",
-				Description: "Write/create a new file with provided content (absolute paths only). Suitable for markdown reports, briefs, runbooks, decision records, and durable handoff artifacts. Use encoding=base64 for binary data. For in-place edits to existing text use replace_in_file.",
+				Description: "When you need to create a new file or overwrite an existing one (absolute paths only) → write content (reports, briefs, runbooks, artifacts). Use encoding=base64 for binary data. For surgical edits use replace_in_file.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

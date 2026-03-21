@@ -1,7 +1,6 @@
 ---
 name: feishu-bitable
 description: When 飞书多维表格 (Bitable) needs CRUD or management → create/query/edit apps, records, fields, views with advanced filtering and batch ops.
-  (5) 需要批量导入数据或批量更新多维表格
 triggers:
   intent_patterns:
     - "多维表格|bitable|数据表|表格记录"

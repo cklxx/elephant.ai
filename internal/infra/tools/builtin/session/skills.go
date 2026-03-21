@@ -24,9 +24,7 @@ func NewSkills() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "skills",
-				Description: `Query reusable skill playbooks (Markdown guides and workflow templates).
-
-Use this to list available skills, search by keyword, or show a specific skill by name.`,
+				Description: `When you need to find or review a skill playbook → list available skills, search by keyword, or show a specific skill by name.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

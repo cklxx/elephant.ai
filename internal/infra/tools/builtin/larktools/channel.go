@@ -53,9 +53,8 @@ func NewChannel(client *larkclient.Client) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "channel",
-				Description: `Feishu/Lark document management tool. Use this tool to create, read, update, and write Feishu documents.
+				Description: `When you need to create, read, or update 飞书/Lark documents → use channel to manage doc content and blocks.
 
-Actions:
 - action="create_doc": Create a new document. Params: title (optional), folder_id (optional).
 - action="read_doc": Get document metadata. Params: document_id (required).
 - action="read_doc_content": Get document raw text content. Params: document_id (required).
