@@ -471,8 +471,6 @@ type LarkChannelConfig struct {
 	ConversationProcessEnabled *bool `json:"conversation_process_enabled" yaml:"conversation_process_enabled"`
 	// MaxConcurrentWorkers is the max simultaneous background workers per chat in conversation-process mode.
 	MaxConcurrentWorkers *int `json:"max_concurrent_workers,omitempty" yaml:"max_concurrent_workers"`
-	// StuckWorkerTimeoutSeconds is how long (in seconds) a worker can go without progress before notifying the user.
-	StuckWorkerTimeoutSeconds *int `json:"stuck_worker_timeout_seconds,omitempty" yaml:"stuck_worker_timeout_seconds"`
 	// ConversationWorkerCapabilities overrides the auto-detected skills catalog injected into the conversation router prompt.
 	ConversationWorkerCapabilities *string `json:"conversation_worker_capabilities,omitempty" yaml:"conversation_worker_capabilities"`
 	BaseChannelConfig              `json:",inline" yaml:",inline"`

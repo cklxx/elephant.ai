@@ -208,9 +208,6 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if cfg.MaxConcurrentWorkers <= 0 {
 		cfg.MaxConcurrentWorkers = 5
 	}
-	if cfg.StuckWorkerTimeout <= 0 {
-		cfg.StuckWorkerTimeout = 5 * time.Minute
-	}
 	cfg.DeliveryMode = string(normalizeDeliveryMode(cfg.DeliveryMode))
 	logger = logging.OrNop(logger)
 

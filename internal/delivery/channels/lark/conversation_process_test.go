@@ -733,23 +733,28 @@ func TestHandleViaConversationProcess_NaturalizeApplied(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Tests for ack pool (pickAck)
+// Tests: previously fast-pathed messages now go through LLM
 // ---------------------------------------------------------------------------
 
-func TestPickAck_AlwaysInPool(t *testing.T) {
-	pool := []string{"a", "b", "c"}
-	seen := make(map[string]bool)
-	for i := 0; i < 100; i++ {
-		got := pickAck(pool)
-		seen[got] = true
-		if !strContains("abc", got) {
-			t.Errorf("pickAck returned value not in pool: %q", got)
-		}
+func TestHandleViaConversationProcess_NoFastPath_DispatchGoesToLLM(t *testing.T) {
+	stub := &convStubLLMClient{
+		resp: "好 查一下",
+		toolCalls: []ports.ToolCall{
+			{ID: "tc1", Name: "dispatch_worker", Arguments: map[string]any{"task": "查一下昨天日报"}},
+		},
 	}
-	// With 100 draws from 3 options, expect to see all 3.
-	if len(seen) < 2 {
-		t.Errorf("expected variety from ack pool, only saw: %v", seen)
+	g := newConvGateway(t, stub, true)
+
+	msg := &incomingMessage{chatID: "chat1", chatType: "p2p", messageID: "msg1", senderID: "user1", content: "帮我查一下昨天日报"}
+	g.handleViaConversationProcess(context.Background(), msg)
+
+	// Verify the LLM was actually called (not bypassed by fast-path).
+	reqs := stub.lastReqs()
+	if len(reqs) == 0 {
+		t.Fatal("expected LLM call, but none recorded — message was fast-pathed")
 	}
+
+	g.taskWG.Wait()
 }
 
 // ---------------------------------------------------------------------------

@@ -39,15 +39,16 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 
 	switch status {
 	case taskStatusWaitingInput:
+		var raw strings.Builder
+		raw.WriteString("状态：等待确认\n")
 		if desc != "" {
-			b.WriteString(fmt.Sprintf("「%s」需要你确认，已等待 %s", truncateForLark(desc, 80), formatElapsed(elapsed)))
-		} else {
-			b.WriteString(fmt.Sprintf("后台任务需要你确认，已等待 %s", formatElapsed(elapsed)))
+			raw.WriteString(fmt.Sprintf("任务：%s\n", truncateForLark(desc, 120)))
 		}
+		raw.WriteString(fmt.Sprintf("已等待：%s\n", formatElapsed(elapsed)))
 		if utils.HasContent(pending) {
-			b.WriteString("\n\n")
-			b.WriteString(pending)
+			raw.WriteString(fmt.Sprintf("详情：%s\n", pending))
 		}
+		b.WriteString(l.g.rephraseForUser(l.ctx, raw.String(), rephraseBackground))
 	case taskStatusCompleted:
 		// Overflow long results to a Feishu doc before building the factual block.
 		if utils.HasContent(pending) {
@@ -89,16 +90,18 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 		raw.WriteString(fmt.Sprintf("已进行：%s\n", formatElapsed(elapsed)))
 		b.WriteString(l.g.rephraseForUser(l.ctx, raw.String(), rephraseBackground))
 	default:
-		// Running state — updated frequently, use template directly.
+		// Running state — build factual block, then let LLM rephrase.
+		var raw strings.Builder
+		raw.WriteString("状态：执行中\n")
 		if desc != "" {
-			b.WriteString(fmt.Sprintf("正在处理「%s」，已进行 %s", truncateForLark(desc, 80), formatElapsed(elapsed)))
-		} else {
-			b.WriteString(fmt.Sprintf("后台任务处理中，已进行 %s", formatElapsed(elapsed)))
+			raw.WriteString(fmt.Sprintf("任务：%s\n", truncateForLark(desc, 120)))
 		}
+		raw.WriteString(fmt.Sprintf("已进行：%s\n", formatElapsed(elapsed)))
 		if last.currentTool != "" {
 			phrase := uxphrases.ToolPhrase(last.currentTool, int(elapsed.Seconds()))
-			b.WriteString(fmt.Sprintf("，目前%s", phrase))
+			raw.WriteString(fmt.Sprintf("当前：%s\n", phrase))
 		}
+		b.WriteString(l.g.rephraseForUser(l.ctx, raw.String(), rephraseBackground))
 	}
 
 	text := strings.TrimRight(b.String(), "\n")

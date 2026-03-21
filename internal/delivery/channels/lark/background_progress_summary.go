@@ -113,57 +113,15 @@ func (l *backgroundProgressListener) buildTeamLLMPrompt(tasks []completedTaskRec
 }
 
 func (l *backgroundProgressListener) buildTeamSummaryFallback(tasks []completedTaskRecord) string {
-	var succeeded, failed, cancelled int
-	for _, t := range tasks {
-		switch t.status {
-		case taskStatusCompleted:
-			succeeded++
-		case taskStatusFailed:
-			failed++
-		case taskStatusCancelled:
-			cancelled++
-		default:
-			succeeded++ // treat unknown terminal as success
-		}
-	}
-
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("分配的 %d 个后台任务全部结束了。", len(tasks)))
-	if failed == 0 && cancelled == 0 {
-		b.WriteString("全部成功完成")
-	} else {
-		parts := []string{fmt.Sprintf("%d 个成功", succeeded)}
-		if failed > 0 {
-			parts = append(parts, fmt.Sprintf("%d 个失败", failed))
-		}
-		if cancelled > 0 {
-			parts = append(parts, fmt.Sprintf("%d 个取消", cancelled))
-		}
-		b.WriteString(strings.Join(parts, "，"))
-	}
-	b.WriteString(fmt.Sprintf("，总耗时约 %s。\n\n", formatElapsed(maxDuration(tasks))))
-
+	b.WriteString(fmt.Sprintf("%d tasks done, ~%s total.\n", len(tasks), formatElapsed(maxDuration(tasks))))
 	for _, t := range tasks {
 		desc := strings.TrimSpace(t.description)
 		if desc == "" {
 			desc = t.taskID
 		}
-		switch t.status {
-		case taskStatusCompleted:
-			if t.answer != "" {
-				b.WriteString(fmt.Sprintf("%s：%s\n", truncateForLark(desc, 80), truncateForLark(t.answer, 100)))
-			} else {
-				b.WriteString(fmt.Sprintf("%s：已完成\n", truncateForLark(desc, 80)))
-			}
-		case taskStatusFailed:
-			b.WriteString(fmt.Sprintf("%s：失败（%s）\n", truncateForLark(desc, 80), truncateForLark(t.errText, 100)))
-		case taskStatusCancelled:
-			b.WriteString(fmt.Sprintf("%s：已取消\n", truncateForLark(desc, 80)))
-		default:
-			b.WriteString(fmt.Sprintf("%s：已完成\n", truncateForLark(desc, 80)))
-		}
+		b.WriteString(fmt.Sprintf("- %s: %s\n", truncateForLark(desc, 80), t.status))
 	}
-
 	return truncateForLark(strings.TrimRight(b.String(), "\n"), teamCompletionSummaryMaxReplyChars)
 }
 

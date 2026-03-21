@@ -37,29 +37,28 @@ type memoryCacheEntry struct {
 	expiresAt time.Time
 }
 
-// fastPathIntent classifies a user message for the fast-path router.
-type fastPathIntent int
-
-const (
-	fastPathNone     fastPathIntent = iota // route to Chat LLM
-	fastPathDispatch                        // clearly a task — skip LLM, spawn worker
-	fastPathStatus                          // status query — skip LLM
-	fastPathStop                            // stop intent — skip LLM
-)
-
-var dispatchWorkerTool = ports.ToolDefinition{
-	Name:        dispatchWorkerToolName,
-	Description: "Launch a background agent to execute a task asynchronously. The agent will notify the user when done. Returns task_id of the spawned worker.",
-	Parameters: ports.ParameterSchema{
-		Type: "object",
-		Properties: map[string]ports.Property{
-			"task": {
-				Type:        "string",
-				Description: "Task description preserving the user's original intent",
+// buildDispatchWorkerTool constructs the dispatch_worker tool definition,
+// embedding the skills catalog in the tool description so the LLM can
+// accurately match user requests to worker capabilities.
+func (g *Gateway) buildDispatchWorkerTool() ports.ToolDefinition {
+	desc := "Launch a background agent to execute a task asynchronously. The agent will notify the user when done. Returns task_id of the spawned worker."
+	if g.cfg.ConversationWorkerCapabilities != "" {
+		desc += "\n\nScenario → skill mapping:\n" + g.cfg.ConversationWorkerCapabilities
+	}
+	return ports.ToolDefinition{
+		Name:        dispatchWorkerToolName,
+		Description: desc,
+		Parameters: ports.ParameterSchema{
+			Type: "object",
+			Properties: map[string]ports.Property{
+				"task": {
+					Type:        "string",
+					Description: "Task description preserving the user's original intent. When a skill matches, include 'skill:<name>' in the task.",
+				},
 			},
+			Required: []string{"task"},
 		},
-		Required: []string{"task"},
-	},
+	}
 }
 
 var stopWorkerTool = ports.ToolDefinition{
@@ -92,44 +91,6 @@ When a skill matches, include its name in the dispatch task.
 - English: ≤15 chars, lowercase, fragments, no period
 - NEVER use 其实/然后/的话/非常/请/您/好的/可以的
 - One short sentence only. No explanations.
-
-## Examples (COPY THIS STYLE EXACTLY)
-
-user: 帮我查一下昨天日报
-reply: "好 查一下" +dispatch_worker
-
-user: 明天几点开会
-reply: "下午3点"
-
-user: 需求评审结论是啥
-reply: "过了 两个接口要改"
-
-user: 进展怎么样了
-reply: "还在跑"
-
-user: 停一下
-reply: "好" +stop_worker
-
-user: 帮我写个周报
-reply: "好 写一下" +dispatch_worker
-
-user: 帮我看下这个bug
-reply: "发下截图"
-
-user: 谢谢
-reply: "不客气"
-
-user: hi
-reply: "hey"
-
-user: help me review this PR
-reply: "on it" +dispatch_worker
-
-user: what's the status?
-reply: "still running"
-
-user: 这个方案行不行
-reply: "行"
 
 ## Task control
 - Follow-up for running task → dispatch_worker (inject).
@@ -179,68 +140,6 @@ var imCasualReplacer = strings.NewReplacer(
 	"没问题的", "没问题",
 	"当然可以", "行",
 )
-
-// fastPathDispatchAcksZH is a small pool of Chinese dispatch acknowledgements.
-// Rotating through the pool avoids the robotic "同一句话" feel.
-// Solo variants (no task ID) are used when only one task is active.
-var fastPathDispatchAcksZH = []string{
-	"好 开始%s",
-	"收到 %s",
-	"行 %s走起",
-	"好 去%s",
-}
-
-var fastPathDispatchAcksSoloZH = []string{
-	"好 开始",
-	"收到",
-	"行 走起",
-	"好的",
-}
-
-// fastPathDispatchAcksEN is the English pool equivalent.
-var fastPathDispatchAcksEN = []string{
-	"on it %s",
-	"starting %s",
-	"got it %s",
-}
-
-var fastPathDispatchAcksSoloEN = []string{
-	"on it",
-	"starting",
-	"got it",
-}
-
-// fastPathStopAcksZH is the Chinese stop acknowledgement pool.
-var fastPathStopAcksZH = []string{"已停止", "好，停了", "收到，停了"}
-
-// fastPathStopAcksEN is the English stop acknowledgement pool.
-var fastPathStopAcksEN = []string{"Stopped", "Done, stopped", "Got it, stopped"}
-
-// pickAck selects a random ack from the given pool.
-func pickAck(pool []string) string {
-	return pool[rand.IntN(len(pool))] //nolint:gosec // non-crypto randomness is fine for ack variety
-}
-
-// dispatchAckReply builds a randomized dispatch ack and sends it.
-// When activeCount <= 1 the task ID is omitted for a more natural feel.
-func (g *Gateway) dispatchAckReply(ctx context.Context, msg *incomingMessage, lang, taskID string, activeCount int) {
-	var ack string
-	if activeCount <= 1 {
-		// Solo task — no need to show the slot number.
-		if lang == "en" {
-			ack = pickAck(fastPathDispatchAcksSoloEN)
-		} else {
-			ack = pickAck(fastPathDispatchAcksSoloZH)
-		}
-	} else {
-		if lang == "en" {
-			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksEN), taskID)
-		} else {
-			ack = fmt.Sprintf(pickAck(fastPathDispatchAcksZH), taskID)
-		}
-	}
-	g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
-}
 
 // detectFormalityLevel returns 0 (neutral) or 1 (casual) based on chat context
 // and optional memory context from SOUL.md/USER.md.
@@ -434,51 +333,6 @@ func resolveTaskReferences(taskContent string, slotMap *chatSlotMap) string {
 	return strings.Join(refs, "\n") + "\n\n" + taskContent
 }
 
-// classifyFastPath returns a fastPathIntent for the given message content.
-// This runs before the Chat LLM call and can bypass it for common patterns,
-// saving ~40-60% of LLM calls.
-func classifyFastPath(content string) fastPathIntent {
-	lower := strings.ToLower(strings.TrimSpace(content))
-	if lower == "" {
-		return fastPathNone
-	}
-
-	// Stop intent keywords — must be a standalone intent, not embedded in another word.
-	// "/stop" commands are handled before reaching this function; these catch natural-language stops.
-	stopKws := []string{"取消任务", "停止任务", "/stop"}
-	for _, kw := range stopKws {
-		if strings.Contains(lower, kw) {
-			return fastPathStop
-		}
-	}
-
-	// Status query keywords — must be specific enough not to match dispatch messages.
-	// Bare words like "task" and "status" are intentionally excluded because they
-	// appear frequently in dispatch requests (e.g. "task one", "check status of PR").
-	statusKws := []string{"任务状态", "任务进展", "#1", "#2", "#3", "#4", "#5", "task status", "怎么样了"}
-	for _, kw := range statusKws {
-		if strings.Contains(lower, kw) {
-			return fastPathStatus
-		}
-	}
-
-	// Dispatch keywords — message clearly wants something done.
-	dispatchKws := []string{
-		"帮我", "research", "分析", "写", "draft", "find", "搜索", "查", "做", "生成", "创建",
-		"translate", "翻译", "summarize", "总结", "run", "execute", "fix", "repair",
-	}
-	// Only fast-path dispatch if the message is substantive (>5 runes).
-	if utf8.RuneCountInString(content) > 5 {
-		for _, kw := range dispatchKws {
-			if strings.Contains(lower, kw) {
-				return fastPathDispatch
-			}
-		}
-	}
-
-	return fastPathNone
-}
-
 // handleViaConversationProcess sends the user message to the gateway's LLM
 // with a single tool (dispatch_worker). The text reply goes to the user
 // immediately; a dispatch_worker call spawns a background worker.
@@ -493,30 +347,6 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	level := detectFormalityLevel(msg.chatType, memoryCtx)
 
 	slotMap := g.getOrCreateSlotMap(msg.chatID)
-
-	// Fast-path classifier: bypass Chat LLM for common patterns.
-	switch classifyFastPath(msg.content) {
-	case fastPathDispatch:
-		taskID, activeCount := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
-		if taskID == "" {
-			return true // slot-busy notice already sent by spawnWorkerInSlotMap
-		}
-		g.dispatchAckReply(ctx, msg, lang, taskID, activeCount)
-		return true
-	case fastPathStatus:
-		g.handleNaturalTaskStatusQuery(msg)
-		return true
-	case fastPathStop:
-		slotMap.stopAll(true)
-		var ack string
-		if lang == "en" {
-			ack = pickAck(fastPathStopAcksEN)
-		} else {
-			ack = pickAck(fastPathStopAcksZH)
-		}
-		g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), ack)
-		return true
-	}
 
 	// Snapshot all active workers for LLM context.
 	allWorkers := g.snapshotAllWorkers(msg.chatID, lang)
@@ -538,14 +368,10 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	<-reactionDone
 	g.removeProcessingReaction(ctx, msg.messageID, processingReactionID)
 
-	// Fallback: if LLM failed, dispatch a worker directly.
+	// Fallback: if LLM failed, dispatch a worker directly (no hardcoded ack).
 	if llmErr != nil {
 		g.logger.Warn("conversationLLM failed, falling back to direct dispatch: %v", llmErr)
-		taskID, activeCount := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
-		if taskID == "" {
-			return true // slot-busy notice already sent
-		}
-		g.dispatchAckReply(ctx, msg, lang, taskID, activeCount)
+		g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
 		return true
 	}
 
@@ -566,11 +392,7 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	// Fallback: LLM returned empty reply with no tool calls — treat as dispatch.
 	if reply == "" && len(toolCalls) == 0 {
 		logger.Warn("conversation: empty LLM response, falling back to dispatch for msg=%s", msg.messageID)
-		taskID, activeCount := g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
-		if taskID == "" {
-			return true
-		}
-		g.dispatchAckReply(ctx, msg, lang, taskID, activeCount)
+		g.spawnWorkerInSlotMap(ctx, msg, slotMap, msg.content)
 		return true
 	}
 
@@ -589,7 +411,9 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 			taskID, injected := g.spawnOrInjectWorker(ctx, msg, slotMap, taskArg)
 			if injected {
 				logger.Info("conversation: INJECTED msg=%s into running worker", msg.messageID)
-				g.dispatchFormattedReply(ctx, msg.chatID, "", "你的消息已加入当前任务")
+				if reply != "" {
+					g.sendFragmentedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), reply, level)
+				}
 			} else {
 				logger.Info("conversation: SPAWNED new worker msg=%s task=%s taskID=%s", msg.messageID, utils.Truncate(taskArg, 60, "..."), taskID)
 				if reply != "" {
@@ -642,7 +466,7 @@ func (g *Gateway) conversationLLMWithList(ctx context.Context, senderID, userMsg
 			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: sb.String()},
 		},
-		Tools:       []ports.ToolDefinition{dispatchWorkerTool, stopWorkerTool},
+		Tools:       []ports.ToolDefinition{g.buildDispatchWorkerTool(), stopWorkerTool},
 		Temperature: conversationTemp,
 		MaxTokens:   conversationMaxTok,
 	})
@@ -679,10 +503,6 @@ func (g *Gateway) buildConversationSystemPrompt(ctx context.Context, senderID st
 	}
 
 	sections = append(sections, conversationSystemPrompt)
-
-	if g.cfg.ConversationWorkerCapabilities != "" {
-		sections = append(sections, "## Worker capabilities (NOT yours — do NOT execute these yourself)\nThe background worker can handle the tasks below. When a user request matches, use dispatch_worker to hand it off.\n\n"+g.cfg.ConversationWorkerCapabilities)
-	}
 
 	now := g.currentTime()
 	sections = append(sections, fmt.Sprintf("Current date: %s (%s)", now.Format("2006-01-02"), now.Location().String()))

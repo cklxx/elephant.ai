@@ -266,7 +266,7 @@ func TestSlowProgressSummaryListener_FallbackIncludesHumanToolSummary(t *testing
 		{at: time.Now(), text: "完成工具：web_search"},
 	}, 35*time.Second)
 
-	if !containsAll(text, "最近工具调用（人话）", "read_file", "web_search") {
+	if !containsAll(text, "read_file", "web_search") {
 		t.Fatalf("expected humanized tool summary in fallback text, got %q", text)
 	}
 }

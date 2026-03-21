@@ -110,7 +110,6 @@ func (l *slowProgressSummaryListener) buildLLMPrompt(signals []slowProgressSigna
 	}
 	toolLines := buildHumanToolSignalLines(signals, 3)
 	if len(toolLines) > 0 {
-		b.WriteString("最近工具调用（人话）：\n")
 		for i, line := range toolLines {
 			b.WriteString(fmt.Sprintf("%d. %s\n", i+1, line))
 		}
@@ -125,21 +124,15 @@ func (l *slowProgressSummaryListener) buildLLMPrompt(signals []slowProgressSigna
 
 func (l *slowProgressSummaryListener) buildFallbackSummary(signals []slowProgressSignal, elapsed time.Duration) string {
 	var b strings.Builder
-	b.WriteString("任务已运行 ")
 	b.WriteString(formatDuration(elapsed))
-	b.WriteString("，仍在执行中。\n")
-	if len(signals) == 0 {
-		b.WriteString("最近进展：正在准备上下文或等待工具返回。\n")
-	} else {
-		b.WriteString("最近进展：")
-		parts := make([]string, 0, 3)
+	b.WriteString(" elapsed, still running.\n")
+	if len(signals) > 0 {
 		for _, signal := range tailSignals(signals, 3) {
-			parts = append(parts, signal.text)
+			b.WriteString("- ")
+			b.WriteString(signal.text)
+			b.WriteString("\n")
 		}
-		b.WriteString(strings.Join(parts, "；"))
-		b.WriteString("\n")
 	}
-	b.WriteString("我会在完成后继续给你最终结果。")
 	return truncateForLark(appendHumanToolSection(b.String(), buildHumanToolSignalLines(signals, 3)), slowProgressSummaryMaxReplyChars)
 }
 
@@ -176,7 +169,7 @@ func appendHumanToolSection(base string, lines []string) string {
 	}
 	var b strings.Builder
 	b.WriteString(base)
-	b.WriteString("\n\n最近工具调用（人话）：\n")
+	b.WriteString("\n\n")
 	for _, line := range lines {
 		b.WriteString("- ")
 		b.WriteString(line)

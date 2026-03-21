@@ -74,9 +74,9 @@ func TestBackgroundProgressListener_DispatchAndTickUpdate(t *testing.T) {
 		updates := recorder.CallsByMethod("UpdateMessage")
 		if len(updates) > 0 {
 			lastContent := updates[len(updates)-1].Content
-			// Running state shows "正在处理「desc」" or "后台任务处理中".
-			if !strings.Contains(lastContent, "正在处理") && !strings.Contains(lastContent, "后台任务处理中") {
-				t.Fatalf("expected human-friendly progress header, got %q", lastContent)
+			// Running state shows factual block with "执行中".
+			if !strings.Contains(lastContent, "执行中") && !strings.Contains(lastContent, "已进行") {
+				t.Fatalf("expected progress status block, got %q", lastContent)
 			}
 			break
 		}
@@ -1016,7 +1016,7 @@ func TestTeamCompletionSummary_SentWhenMultipleTasksComplete(t *testing.T) {
 		replies := recorder.CallsByMethod("ReplyMessage")
 		found := false
 		for _, r := range replies {
-			if strings.Contains(r.Content, "全部结束") {
+			if strings.Contains(r.Content, "tasks done") || strings.Contains(r.Content, "全部结束") {
 				found = true
 				break
 			}
@@ -1034,7 +1034,7 @@ func TestTeamCompletionSummary_SentWhenMultipleTasksComplete(t *testing.T) {
 	replies := recorder.CallsByMethod("ReplyMessage")
 	var summaryContent string
 	for _, r := range replies {
-		if strings.Contains(r.Content, "全部结束") {
+		if strings.Contains(r.Content, "tasks done") || strings.Contains(r.Content, "全部结束") {
 			summaryContent = r.Content
 			break
 		}
@@ -1042,14 +1042,14 @@ func TestTeamCompletionSummary_SentWhenMultipleTasksComplete(t *testing.T) {
 	if summaryContent == "" {
 		t.Fatal("team summary message not found")
 	}
-	if !strings.Contains(summaryContent, "1 个成功") {
-		t.Fatalf("expected '1 个成功' in summary, got %q", summaryContent)
+	if !strings.Contains(summaryContent, "completed") {
+		t.Fatalf("expected 'completed' in summary, got %q", summaryContent)
 	}
-	if !strings.Contains(summaryContent, "1 个失败") {
-		t.Fatalf("expected '1 个失败' in summary, got %q", summaryContent)
+	if !strings.Contains(summaryContent, "failed") {
+		t.Fatalf("expected 'failed' in summary, got %q", summaryContent)
 	}
-	if !strings.Contains(summaryContent, "2 个后台任务") {
-		t.Fatalf("expected '2 个后台任务' in summary, got %q", summaryContent)
+	if !strings.Contains(summaryContent, "2 tasks done") {
+		t.Fatalf("expected '2 tasks done' in summary, got %q", summaryContent)
 	}
 }
 
@@ -1185,26 +1185,14 @@ func TestTeamCompletionSummary_FallbackFormat(t *testing.T) {
 
 	summary := ln.buildTeamSummaryFallback(tasks)
 
-	if !strings.Contains(summary, "3 个后台任务全部结束") {
+	if !strings.Contains(summary, "3 tasks done") {
 		t.Fatalf("expected header in fallback, got %q", summary)
-	}
-	if !strings.Contains(summary, "2 个成功") {
-		t.Fatalf("expected success count, got %q", summary)
-	}
-	if !strings.Contains(summary, "1 个失败") {
-		t.Fatalf("expected failure count, got %q", summary)
-	}
-	if !strings.Contains(summary, "5 分钟") {
-		t.Fatalf("expected max duration (5 min), got %q", summary)
 	}
 	if !strings.Contains(summary, "Research task A") {
 		t.Fatalf("expected completed task description, got %q", summary)
 	}
 	if !strings.Contains(summary, "Coding task B") {
 		t.Fatalf("expected failed task description, got %q", summary)
-	}
-	if !strings.Contains(summary, "Build failed") {
-		t.Fatalf("expected error text, got %q", summary)
 	}
 }
 

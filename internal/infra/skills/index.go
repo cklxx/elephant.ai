@@ -48,6 +48,24 @@ func IndexMarkdown(library Library) string {
 	return strings.TrimSpace(builder.String())
 }
 
+// ScenarioIndex renders a compact scenario→skill mapping suitable for embedding
+// in a tool description. Format: "- when user wants X → include 'skill:<name>' in task"
+func ScenarioIndex(library Library) string {
+	skills := library.List()
+	if len(skills) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, skill := range skills {
+		desc := strings.TrimSpace(skill.Description)
+		if desc == "" {
+			continue
+		}
+		b.WriteString(fmt.Sprintf("- %s → include 'skill:%s' in task\n", desc, skill.Name))
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
 // AvailableSkillsXML renders skills metadata in the Agent Skills XML format.
 func AvailableSkillsXML(library Library) string {
 	skills := library.List()

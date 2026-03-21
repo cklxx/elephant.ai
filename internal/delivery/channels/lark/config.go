@@ -86,9 +86,6 @@ type Config struct {
 	// MaxConcurrentWorkers is the max simultaneous background workers per chat
 	// in conversation-process mode. Default 5.
 	MaxConcurrentWorkers int `yaml:"max_concurrent_workers"`
-	// StuckWorkerTimeout is how long a worker can go without progress before
-	// the stuck detector notifies the user. Default 5m.
-	StuckWorkerTimeout time.Duration `yaml:"stuck_worker_timeout"`
 	// ConversationWorkerCapabilities is an optional description of what the
 	// background worker agent can do. When set, it is injected into the
 	// conversation router's system prompt so the chat LLM can accurately

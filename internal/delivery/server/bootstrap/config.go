@@ -187,7 +187,6 @@ type LarkGatewayConfig struct {
 	// Conversation process (chat+worker architecture)
 	ConversationProcessEnabled     bool
 	MaxConcurrentWorkers           int
-	StuckWorkerTimeout             time.Duration
 	ConversationWorkerCapabilities string
 }
 

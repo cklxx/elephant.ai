@@ -66,7 +66,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 			case hasAwaitPrompt:
 				reply = awaitPrompt.Question
 			default:
-				reply = "需要你补充信息后继续。"
+				reply = g.rephraseForUser(execCtx, "状态：等待输入\n需要用户补充信息后继续。", rephraseForeground)
 			}
 		}
 		if reply == "" {
@@ -80,11 +80,11 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 				attachmentSummary = ""
 			case execErr != nil:
 				sanitized := channels.SanitizeErrorForUser(execErr.Error())
-				reply = "不好意思，这次没弄好：" + sanitized + "\n你可以再跟我说一次，或者换个方式描述一下？"
+				reply = g.rephraseForUser(execCtx, "状态：失败\n原因："+sanitized, rephraseForeground)
 			case isAwait:
-				reply = "还需要你补充点信息我才能继续，直接回复就好。"
+				reply = g.rephraseForUser(execCtx, "状态：等待输入\n需要用户补充信息后继续。", rephraseForeground)
 			default:
-				reply = "这次没有生成文本结果。你可以告诉我希望看到什么：总结、下一步计划，或者让我重试？"
+				reply = g.rephraseForUser(execCtx, "状态：完成\n未生成文本结果。用户可以选择：总结、下一步计划，或重试。", rephraseForeground)
 			}
 		}
 		if attachmentSummary != "" {

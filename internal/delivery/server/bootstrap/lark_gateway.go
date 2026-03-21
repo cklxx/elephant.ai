@@ -176,7 +176,6 @@ func buildLarkGatewayConfig(larkCfg LarkGatewayConfig, cfg Config) lark.Config {
 		BtwResultPrefix:               larkCfg.BtwResultPrefix,
 		ConversationProcessEnabled:     &larkCfg.ConversationProcessEnabled,
 		MaxConcurrentWorkers:           larkCfg.MaxConcurrentWorkers,
-		StuckWorkerTimeout:             larkCfg.StuckWorkerTimeout,
 		ConversationWorkerCapabilities: larkCfg.ConversationWorkerCapabilities,
 	}
 
@@ -433,13 +432,13 @@ func buildConversationPromptLoader(container *di.Container) func(ctx context.Con
 	}
 }
 
-// buildSkillsCatalogSummary loads the skills library and returns a compact
-// markdown catalog for injection into the conversation router's system prompt.
+// buildSkillsCatalogSummary loads the skills library and returns a scenario-based
+// mapping for embedding in the dispatch_worker tool description.
 // Returns empty string when no skills are available or the library fails to load.
 func buildSkillsCatalogSummary() string {
 	lib, err := infra_skills.DefaultLibrary()
 	if err != nil || len(lib.List()) == 0 {
 		return ""
 	}
-	return infra_skills.IndexMarkdown(lib)
+	return infra_skills.ScenarioIndex(lib)
 }

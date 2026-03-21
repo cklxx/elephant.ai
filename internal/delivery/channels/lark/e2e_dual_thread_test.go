@@ -204,6 +204,7 @@ func TestDualThread_ConcurrentConversationInject(t *testing.T) {
 		logger:     logging.OrNop(nil),
 		messenger:  rec,
 		now:        time.Now,
+		imDelayFn:  func(_ context.Context, _ time.Duration) bool { return true },
 	}
 	gw.dedup = newEventDedup(nil)
 
@@ -234,17 +235,17 @@ func TestDualThread_ConcurrentConversationInject(t *testing.T) {
 		t.Fatalf("expected 1 ExecuteTask call, got %d", c)
 	}
 
-	// Check that the inject notification was sent.
+	// Check that the LLM reply was sent as inject notification (no hardcoded text).
 	rec.mu.Lock()
 	found := false
 	for _, m := range rec.messages {
-		if dtContains(m.content, "你的消息已加入当前任务") {
+		if dtContains(m.content, "on it") {
 			found = true
 		}
 	}
 	rec.mu.Unlock()
 	if !found {
-		t.Fatal("expected inject notification '你的消息已加入当前任务' to be sent")
+		t.Fatal("expected LLM reply 'on it' to be sent as inject notification")
 	}
 }
 
