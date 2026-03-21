@@ -421,7 +421,7 @@ func (c *testChannel) getSent() []channel.Outbound {
 
 // dispatchPlugin dispatches outbounds to a ChannelManager
 type dispatchPlugin struct {
-	recordingPlugin
+	*recordingPlugin
 	channelMgr *channel.Manager
 }
 
@@ -454,10 +454,10 @@ func TestE2E_ChannelDispatch(t *testing.T) {
 	if err := chMgr.Start(context.Background()); err != nil {
 		t.Fatalf("channel start: %v", err)
 	}
-	defer chMgr.Stop(context.Background())
+	defer func() { _ = chMgr.Stop(context.Background()) }()
 
 	base := newRecordingPlugin("dispatch-test", 100)
-	plugin := &dispatchPlugin{recordingPlugin: *base, channelMgr: chMgr}
+	plugin := &dispatchPlugin{recordingPlugin: base, channelMgr: chMgr}
 
 	fw := New(Config{ChannelManager: chMgr})
 	fw.RegisterPlugin(plugin)

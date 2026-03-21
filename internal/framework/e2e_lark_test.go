@@ -499,8 +499,8 @@ func TestE2E_LarkChannelManagerDispatch(t *testing.T) {
 	chMgr := channel.NewManager(channel.DefaultDebounceConfig())
 	chMgr.Register(larkCh)
 	chMgr.Register(cliCh)
-	chMgr.Start(context.Background())
-	defer chMgr.Stop(context.Background())
+	_ = chMgr.Start(context.Background())
+	defer func() { _ = chMgr.Stop(context.Background()) }()
 
 	// Test channel manager routing directly
 	ctx := context.Background()

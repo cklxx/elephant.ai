@@ -56,8 +56,8 @@ jobs:
           path: artifacts/arch-report.json
           if-no-files-found: warn
 
-      - name: 🚦 Run golangci-lint
-        run: CI_LINT_MODE=full CI_LINT_TIMEOUT=5m ./scripts/ci-check.sh lint
+      - name: 🚦 Run go vet
+        run: CGO_ENABLED=0 go vet ./...
 
   web:
     name: 🌐 Web

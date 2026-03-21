@@ -96,7 +96,7 @@ func parseFrontmatter(content string) (description string, metadata map[string]s
 	}
 
 	// Handle empty frontmatter (--- immediately follows opening ---)
-	endIdx := -1
+	var endIdx int
 	if strings.HasPrefix(rest, "---") {
 		endIdx = 0
 	} else {

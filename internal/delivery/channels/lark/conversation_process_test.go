@@ -237,7 +237,10 @@ func TestConversationLLMWithList_IncludesWorkerStatus(t *testing.T) {
 		Snapshots: []workerSnapshot{{Phase: slotRunning, TaskDesc: "build dashboard", Elapsed: 45 * time.Second}},
 	}
 
-	g.conversationLLMWithList(context.Background(), "u1", "做得怎么样了？", workers, "")
+	_, _, err := g.conversationLLMWithList(context.Background(), "u1", "做得怎么样了？", workers, "")
+	if err != nil {
+		t.Fatalf("conversationLLMWithList: %v", err)
+	}
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
@@ -254,7 +257,7 @@ func TestConversationLLMWithList_IncludesTools(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	workers := workerSnapshotList{}
 
-	g.conversationLLMWithList(context.Background(), "u1", "hello", workers, "")
+	_, _, _ = g.conversationLLMWithList(context.Background(), "u1", "hello", workers, "")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
@@ -840,7 +843,7 @@ func TestConversationLLMWithList_IncludesChatHistory(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	workers := workerSnapshotList{}
 
-	g.conversationLLMWithList(context.Background(), "u1", "hello", workers, "user: 之前的消息\nassistant: 之前的回复")
+	_, _, _ = g.conversationLLMWithList(context.Background(), "u1", "hello", workers, "user: 之前的消息\nassistant: 之前的回复")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
@@ -860,7 +863,7 @@ func TestConversationLLMWithList_NoChatHistoryWhenEmpty(t *testing.T) {
 	g := newConvGateway(t, stub, true)
 	workers := workerSnapshotList{}
 
-	g.conversationLLMWithList(context.Background(), "u1", "hello", workers, "")
+	_, _, _ = g.conversationLLMWithList(context.Background(), "u1", "hello", workers, "")
 
 	reqs := stub.lastReqs()
 	if len(reqs) == 0 {
