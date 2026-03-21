@@ -209,6 +209,12 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if cfg.MaxConcurrentWorkers <= 0 {
 		cfg.MaxConcurrentWorkers = 5
 	}
+	if cfg.DeliveryShortThreshold <= 0 {
+		cfg.DeliveryShortThreshold = defaultDeliveryShortThreshold
+	}
+	if cfg.DeliveryDocThreshold <= 0 {
+		cfg.DeliveryDocThreshold = defaultDeliveryDocThreshold
+	}
 	cfg.DeliveryMode = string(normalizeDeliveryMode(cfg.DeliveryMode))
 	logger = logging.OrNop(logger)
 

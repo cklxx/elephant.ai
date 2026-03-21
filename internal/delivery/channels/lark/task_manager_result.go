@@ -71,8 +71,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 			}
 		}
 		if reply == "" {
-			reply = g.buildReply(execCtx, result, execErr)
-			reply = g.overflowToDoc(execCtx, msg.chatID, msg.messageID, reply, "ALEX 回复详情")
+			reply = g.tieredDelivery(execCtx, msg.chatID, msg.messageID, result, execErr)
 		}
 		if reply == "" {
 			switch {
@@ -230,17 +229,54 @@ func (g *Gateway) overflowToDoc(ctx context.Context, chatID, replyToID, fullText
 	return g.truncateWithDoc(ctx, chatID, replyToID, fullText)
 }
 
-// buildReply constructs the reply string from the agent result, then rephrases
-// it into natural conversational Chinese via LLM when available.
-func (g *Gateway) buildReply(ctx context.Context, result *agent.TaskResult, execErr error) string {
-	reply := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
+// tieredDelivery builds the reply using a three-tier strategy based on rune length:
+//   - short (≤ DeliveryShortThreshold): send directly, no LLM rephrase
+//   - medium (≤ DeliveryDocThreshold): rephrase with maxTok=400
+//   - long (> DeliveryDocThreshold): create doc with full content, rephrase summary + doc link
+//
+// When doc creation fails (both doc and file upload), falls back to the full
+// shaped reply so splitMessage can chunk it in the caller.
+func (g *Gateway) tieredDelivery(ctx context.Context, chatID, replyToID string, result *agent.TaskResult, execErr error) string {
+	raw := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
 	if result == nil {
 		if execErr != nil {
 			sanitized := errsanitize.ForUser(execErr.Error())
-			reply = "不好意思，这次没弄好：" + sanitized + "\n你可以再跟我说一次，或者换个方式描述一下？"
+			raw = "不好意思，这次没弄好：" + sanitized + "\n你可以再跟我说一次，或者换个方式描述一下？"
 		}
-		return channels.ShapeReply7C(reply)
+		return channels.ShapeReply7C(raw)
 	}
-	reply = channels.ShapeReply7C(reply)
-	return g.rephraseForUser(ctx, reply, rephraseForeground)
+	shaped := channels.ShapeReply7C(raw)
+	runeCount := len([]rune(shaped))
+
+	shortThreshold := g.cfg.DeliveryShortThreshold
+	if shortThreshold <= 0 {
+		shortThreshold = defaultDeliveryShortThreshold
+	}
+	docThreshold := g.cfg.DeliveryDocThreshold
+	if docThreshold <= 0 {
+		docThreshold = defaultDeliveryDocThreshold
+	}
+
+	switch {
+	case runeCount <= shortThreshold:
+		g.logger.Info("delivery: tier=short runes=%d", runeCount)
+		return shaped
+
+	case runeCount <= docThreshold:
+		g.logger.Info("delivery: tier=medium runes=%d", runeCount)
+		return g.rephraseForUser(ctx, shaped, rephraseForeground)
+
+	default:
+		g.logger.Info("delivery: tier=long runes=%d", runeCount)
+		docResult := g.overflowToDoc(ctx, chatID, replyToID, shaped, "ALEX 回复详情")
+		// If overflowToDoc truncated without creating a doc or uploading a
+		// file (i.e. the result is shorter than the input and contains no doc
+		// link or file reference), return the full shaped text so the
+		// caller's splitMessage path can chunk it instead of losing content.
+		docRunes := len([]rune(docResult))
+		if docRunes < runeCount && !strings.Contains(docResult, "详细内容见") {
+			return shaped
+		}
+		return g.rephraseForUser(ctx, docResult, rephraseForeground)
+	}
 }

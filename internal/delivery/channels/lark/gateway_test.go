@@ -154,14 +154,14 @@ func TestBuildReply(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("with error", func(t *testing.T) {
-		reply := gw.buildReply(ctx, nil, errTest)
+		reply := gw.tieredDelivery(ctx, "chat", "msg", nil, errTest)
 		if !strings.Contains(reply, "没弄好") {
 			t.Fatalf("expected error reply, got %q", reply)
 		}
 	})
 
 	t.Run("with empty answer", func(t *testing.T) {
-		reply := gw.buildReply(ctx, nil, nil)
+		reply := gw.tieredDelivery(ctx, "chat", "msg", nil, nil)
 		if reply != "" {
 			t.Fatalf("expected empty reply, got %q", reply)
 		}
@@ -170,7 +170,7 @@ func TestBuildReply(t *testing.T) {
 	t.Run("with prefix", func(t *testing.T) {
 		gwPrefix := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", ReplyPrefix: "[Bot] "}}, logger: logging.OrNop(nil)}
 		result := &agent.TaskResult{Answer: "hello"}
-		reply := gwPrefix.buildReply(ctx, result, nil)
+		reply := gwPrefix.tieredDelivery(ctx, "chat", "msg", result, nil)
 		if !strings.HasPrefix(reply, "[Bot] ") {
 			t.Fatalf("expected prefixed reply, got %q", reply)
 		}
@@ -2977,7 +2977,7 @@ func TestBuildReplyThinkingNotLeaked(t *testing.T) {
 				},
 			},
 		}
-		reply := gw.buildReply(ctx, result, nil)
+		reply := gw.tieredDelivery(ctx, "chat", "msg", result, nil)
 		if reply != "" {
 			t.Fatalf("expected empty reply (thinking must not leak), got %q", reply)
 		}
@@ -2997,7 +2997,7 @@ func TestBuildReplyThinkingNotLeaked(t *testing.T) {
 				},
 			},
 		}
-		reply := gw.buildReply(ctx, result, nil)
+		reply := gw.tieredDelivery(ctx, "chat", "msg", result, nil)
 		if reply != "Hello!" {
 			t.Fatalf("expected answer only without thinking, got %q", reply)
 		}
@@ -3008,7 +3008,7 @@ func TestBuildReplyThinkingNotLeaked(t *testing.T) {
 			Answer:   "",
 			Messages: []ports.Message{{Role: "assistant"}},
 		}
-		reply := gw.buildReply(ctx, result, nil)
+		reply := gw.tieredDelivery(ctx, "chat", "msg", result, nil)
 		if reply != "" {
 			t.Fatalf("expected empty reply, got %q", reply)
 		}
@@ -3037,7 +3037,7 @@ func TestBuildReplyThinkingNotLeaked(t *testing.T) {
 				},
 			},
 		}
-		reply := gw.buildReply(ctx, result, nil)
+		reply := gw.tieredDelivery(ctx, "chat", "msg", result, nil)
 		if reply != "" {
 			t.Fatalf("expected empty reply (thinking must not leak), got %q", reply)
 		}

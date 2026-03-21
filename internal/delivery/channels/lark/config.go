@@ -50,6 +50,8 @@ type Config struct {
 	TeamCompletionSummaryEnabled    *bool         // Send summary when all background tasks finish. Default true.
 	TeamCompletionSummaryLLMTimeout time.Duration // LLM timeout for team summary generation. Default 10s.
 	DefaultPlanMode                 PlanMode      // Global default plan mode strategy. Default "auto".
+	DeliveryShortThreshold          int           `yaml:"delivery_short_threshold" json:"delivery_short_threshold"` // Rune count below which replies are sent directly without rephrase. Default 300.
+	DeliveryDocThreshold            int           `yaml:"delivery_doc_threshold" json:"delivery_doc_threshold"`     // Rune count above which replies overflow to a Feishu doc. Default 800.
 	DeliveryMode                    string        // Terminal delivery strategy: direct|shadow|outbox.
 	DeliveryWorker                  DeliveryWorkerConfig
 	AttentionGate                   AttentionGateConfig // Attention gate for message urgency filtering.

@@ -58,6 +58,9 @@ type RecordingMessenger struct {
 	// ListMessagesResult is returned by ListMessages.
 	ListMessagesResult []*larkim.Message
 
+	// updateMessageError, when set, is always returned by UpdateMessage.
+	updateMessageError error
+
 	sendCount int
 }
 
@@ -113,6 +116,9 @@ func (r *RecordingMessenger) UpdateMessage(_ context.Context, messageID, msgType
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.record(MessengerCall{Method: MethodUpdateMessage, MsgID: messageID, MsgType: msgType, Content: content})
+	if r.updateMessageError != nil {
+		return r.updateMessageError
+	}
 	return r.popError()
 }
 
@@ -193,6 +199,23 @@ func (r *RecordingMessenger) CallsByMethod(method string) []MessengerCall {
 		}
 	}
 	return out
+}
+
+// SetUploadFileResult configures the file key and error returned by UploadFile.
+func (r *RecordingMessenger) SetUploadFileResult(fileKey string, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.NextFileKey = fileKey
+	if err != nil {
+		r.NextError = err
+	}
+}
+
+// SetUpdateMessageError configures a persistent error for all UpdateMessage calls.
+func (r *RecordingMessenger) SetUpdateMessageError(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.updateMessageError = err
 }
 
 // Reset clears all recorded calls.

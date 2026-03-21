@@ -29,7 +29,7 @@ func (g *Gateway) runTask(taskCtx context.Context, msg *incomingMessage, session
 	session, err := g.agent.EnsureSession(execCtx, sessionID)
 	if err != nil {
 		g.logger.Warn("Lark ensure session failed: %v", err)
-		reply := g.buildReply(execCtx, nil, fmt.Errorf("ensure session: %w", err))
+		reply := channels.ShapeReply7C(channels.BuildReplyCore(g.cfg.BaseConfig, nil, fmt.Errorf("ensure session: %w", err)))
 		if reply == "" {
 			reply = "会话初始化失败，请稍后重试，或回复\u201c诊断\u201d让我输出可定位信息。"
 		}

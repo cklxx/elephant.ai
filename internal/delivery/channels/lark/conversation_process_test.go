@@ -822,13 +822,13 @@ func TestHandleViaConversationProcess_StopsWorkerOnToolCall(t *testing.T) {
 	}
 }
 
-func TestStopWorkerFromConversation_NoopWhenIdle(t *testing.T) {
+func TestStopWorkerExtended_NoopWhenEmpty(t *testing.T) {
 	stub := &convStubLLMClient{resp: "ok"}
 	g := newConvGateway(t, stub, true)
 
-	slot := &sessionSlot{phase: slotIdle}
-	// Should not panic when no task is running.
-	g.stopWorkerFromConversation("chat1", slot)
+	slotMap := &chatSlotMap{}
+	// Should not panic when no workers exist.
+	g.executeStopWorkerExtended(context.Background(), slotMap, "")
 }
 
 // ---------------------------------------------------------------------------

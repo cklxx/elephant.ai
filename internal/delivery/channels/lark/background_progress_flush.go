@@ -106,9 +106,10 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 
 	text := strings.TrimRight(b.String(), "\n")
 
-	if err := l.g.updateMessage(l.ctx, messageID, "text", textContent(text)); err != nil {
+	msgType, msgContent := smartContent(text)
+	if err := l.g.updateMessage(l.ctx, messageID, msgType, msgContent); err != nil {
 		// If updating fails (some chats restrict updates for replies), fall back to sending a new reply.
-		newID, sendErr := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(text))
+		newID, sendErr := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, msgType, msgContent)
 		if sendErr != nil {
 			l.logger.Warn("Lark background progress update failed: %v", err)
 			return

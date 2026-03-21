@@ -13,7 +13,11 @@ const (
 	rephraseBackground rephraseKind = iota
 	rephraseForeground
 
-	rephraseMaxInput = 2000
+	rephraseMaxInput = 4000
+
+	// Tiered delivery thresholds (rune counts).
+	defaultDeliveryShortThreshold = 300 // below this, no rephrase — send directly
+	defaultDeliveryDocThreshold   = 800 // above this, create doc + summary
 )
 
 const rephraseBackgroundSystemPrompt = `把后台任务完成结果改写为简洁自然的中文消息。
@@ -71,9 +75,6 @@ func (g *Gateway) rephraseForUser(ctx context.Context, rawText string, kind reph
 	}
 
 	maxTok := 400
-	if kind == rephraseForeground {
-		maxTok = 200 // enforce concise output (~200 Chinese chars)
-	}
 	result, err := g.narrateWithLLM(ctx, systemPrompt, input, narrateOpts{
 		temperature: 0.3,
 		maxTokens:   maxTok,

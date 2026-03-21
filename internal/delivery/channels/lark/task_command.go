@@ -217,7 +217,8 @@ func (g *Gateway) dispatchViaForegroundTask(msg *incomingMessage, agentType, des
 		return fmt.Sprintf("任务派发失败: %v", execErr)
 	}
 
-	reply := g.buildReply(execCtx, result, execErr)
+	reply := channels.ShapeReply7C(channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr))
+	reply = g.rephraseForUser(execCtx, reply, rephraseForeground)
 	if reply == "" {
 		reply = "任务已派发，使用 /tasks 查看状态。"
 	}
