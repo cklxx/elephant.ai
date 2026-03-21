@@ -138,8 +138,9 @@ func (m *convRecordingMessenger) all() []convSentMessage {
 // ---------------------------------------------------------------------------
 
 type convStubAgentExecutor struct {
-	result *agent.TaskResult
-	err    error
+	result  *agent.TaskResult
+	err     error
+	startCh chan struct{} // if non-nil, ExecuteTask blocks until closed
 }
 
 func (e *convStubAgentExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
@@ -147,6 +148,9 @@ func (e *convStubAgentExecutor) EnsureSession(_ context.Context, sessionID strin
 }
 
 func (e *convStubAgentExecutor) ExecuteTask(_ context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+	if e.startCh != nil {
+		<-e.startCh
+	}
 	return e.result, e.err
 }
 
@@ -340,7 +344,15 @@ func TestHandleViaConversationProcess_SpawnsWorkerOnToolCall(t *testing.T) {
 			{ID: "tc1", Name: "dispatch_worker", Arguments: map[string]any{"task": "重构 auth"}},
 		},
 	}
+	// Use a blocking executor so the worker goroutine stays in slotRunning
+	// until we explicitly release it — avoids a race where the goroutine
+	// completes before the test checks slot phase.
+	blockCh := make(chan struct{})
 	g := newConvGateway(t, stub, true)
+	g.agent = &convStubAgentExecutor{
+		result:  &agent.TaskResult{Answer: "done"},
+		startCh: blockCh,
+	}
 
 	msg := &incomingMessage{chatID: "chat1", chatType: "p2p", messageID: "msg1", senderID: "user1", content: "重构 auth"}
 
@@ -365,7 +377,8 @@ func TestHandleViaConversationProcess_SpawnsWorkerOnToolCall(t *testing.T) {
 		t.Fatalf("expected taskDesc='重构 auth', got %q", foundDesc)
 	}
 
-	// Wait for the worker goroutine to finish.
+	// Release the worker goroutine and wait for it to finish.
+	close(blockCh)
 	g.taskWG.Wait()
 
 	// After worker completes, slot should be idle again.

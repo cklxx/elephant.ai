@@ -14,7 +14,7 @@ describe('SkillsPanel', () => {
     expect(screen.getAllByText('video-production').length).toBeGreaterThanOrEqual(1);
 
     // Click the ppt-deck skill description to expand its markdown body
-    const descEl = screen.getByText(/PPT 产出/);
+    const descEl = screen.getByText(/PPT playbook/);
     await user.click(descEl);
     // Expanded content should show markdown rendered from the skill catalog
     expect(screen.getByText(/presentation decks/i)).toBeInTheDocument();
