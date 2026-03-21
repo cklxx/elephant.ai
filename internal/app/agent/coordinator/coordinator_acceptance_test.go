@@ -63,20 +63,16 @@ func TestAgentCoordinatorEndToEndExecutionPerformance(t *testing.T) {
 		if result.Workflow.Phase != workflow.PhaseSucceeded {
 			t.Fatalf("run %d unexpected workflow phase: %s", i+1, result.Workflow.Phase)
 		}
+		// Verify ReactEngine nodes are present (react:context and react:finalize at minimum).
 		statusByNode := make(map[string]workflow.NodeStatus)
 		for _, node := range result.Workflow.Nodes {
 			statusByNode[node.ID] = node.Status
 		}
-		expected := map[string]workflow.NodeStatus{
-			"prepare":   workflow.NodeStatusSucceeded,
-			"execute":   workflow.NodeStatusSucceeded,
-			"summarize": workflow.NodeStatusSucceeded,
-			"persist":   workflow.NodeStatusSucceeded,
+		if statusByNode["react:context"] != workflow.NodeStatusSucceeded {
+			t.Fatalf("run %d react:context expected succeeded got %s", i+1, statusByNode["react:context"])
 		}
-		for node, status := range expected {
-			if statusByNode[node] != status {
-				t.Fatalf("run %d node %s expected %s got %s", i+1, node, status, statusByNode[node])
-			}
+		if statusByNode["react:finalize"] != workflow.NodeStatusSucceeded {
+			t.Fatalf("run %d react:finalize expected succeeded got %s", i+1, statusByNode["react:finalize"])
 		}
 
 		if got := strings.TrimSpace(result.Answer); got != "Mock LLM response" {

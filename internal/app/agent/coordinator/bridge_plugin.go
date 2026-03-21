@@ -35,9 +35,9 @@ type bridgePlugin struct {
 	// lastExecErr captures any execution error from RunModel for PostTask.
 	lastExecErr error
 
-	// wf is the agent workflow tracking prepare/execute/summarize/persist stages.
+	// wf is the workflow tracker for ReactEngine node tracking and event emission.
 	// Created by the caller (ExecuteTask) and passed in.
-	wf *agentWorkflow
+	wf *turnWorkflow
 
 	// outCtx is the output context for workflow event emission.
 	outCtx *agent.OutputContext
@@ -88,20 +88,14 @@ func (p *bridgePlugin) ResolveSession(_ context.Context, state *corehook.TurnSta
 	return nil
 }
 
-// LoadState prepares the execution environment. This maps to the old
-// "prepare" workflow stage. Inlined from the old finishPrepareStage method.
+// LoadState prepares the execution environment.
 func (p *bridgePlugin) LoadState(ctx context.Context, state *corehook.TurnState) error {
 	c := p.coordinator
 	effectiveCfg := c.effectiveConfig(ctx)
 	prepareStarted := time.Now()
 
-	// stagePrepare was started by ExecuteTask before ProcessInbound.
-
 	env, err := c.prepareExecutionWithListener(ctx, state.Input, p.sessionID, p.eventListener, effectiveCfg)
 	if err != nil {
-		if p.wf != nil {
-			p.wf.fail(stagePrepare, err)
-		}
 		return err
 	}
 	p.lastEnv = env
@@ -112,7 +106,6 @@ func (p *bridgePlugin) LoadState(ctx context.Context, state *corehook.TurnState)
 		state.SessionID = env.Session.ID
 	}
 
-	// Finish prepare stage — metadata, latency, workflow events.
 	ensureSessionMetadata(env.Session, "user_id", id.UserIDFromContext(ctx))
 	ensureSessionMetadata(env.Session, "channel", appcontext.ChannelFromContext(ctx))
 	clilatency.PrintfWithContext(ctx,
@@ -121,31 +114,12 @@ func (p *bridgePlugin) LoadState(ctx context.Context, state *corehook.TurnState)
 		env.Session.ID,
 	)
 
+	// Update event bridge context with resolved session/run IDs.
 	if p.wf != nil {
 		p.outCtx.SessionID = env.Session.ID
 		p.outCtx.TaskID = p.ensuredRunID
 		p.outCtx.ParentTaskID = p.parentRunID
 		p.wf.setContext(p.outCtx)
-
-		prepareOutput := map[string]any{
-			"session": env.Session.ID,
-			"task":    state.Input,
-		}
-		if env.TaskAnalysis != nil {
-			if env.TaskAnalysis.ActionName != "" {
-				prepareOutput["action_name"] = env.TaskAnalysis.ActionName
-			}
-			if env.TaskAnalysis.Complexity != "" {
-				prepareOutput["complexity"] = env.TaskAnalysis.Complexity
-			}
-			if env.TaskAnalysis.Goal != "" {
-				prepareOutput["goal"] = env.TaskAnalysis.Goal
-			}
-			if env.TaskAnalysis.Approach != "" {
-				prepareOutput["approach"] = env.TaskAnalysis.Approach
-			}
-		}
-		p.wf.succeed(stagePrepare, prepareOutput)
 	}
 
 	return nil
@@ -216,11 +190,10 @@ func (p *bridgePlugin) RunModel(ctx context.Context, state *corehook.TurnState, 
 	effectiveCfg := c.effectiveConfig(ctx)
 	logger := c.loggerFor(ctx)
 
-	// Use the workflow created by the caller — the ReactEngine will
-	// manage the stageExecute transitions on this workflow.
+	// Use the workflow tracker for ReactEngine node tracking.
 	wf := p.wf
 	if wf == nil {
-		wf = newAgentWorkflow(p.ensuredRunID, slog.Default(), p.eventListener, nil)
+		wf = newTurnWorkflow(p.ensuredRunID, slog.Default(), p.eventListener, nil)
 	}
 
 	// Build and run the ReAct engine.
@@ -292,7 +265,6 @@ func (p *bridgePlugin) RunModel(ctx context.Context, state *corehook.TurnState, 
 		reactEngine.SetEventListener(p.eventListener)
 	}
 
-	wf.start(stageExecute)
 	result, execErr := reactEngine.SolveTask(ctx, task, env.State, env.Services)
 	if result == nil {
 		result = &agent.TaskResult{
@@ -314,25 +286,6 @@ func (p *bridgePlugin) RunModel(ctx context.Context, state *corehook.TurnState, 
 	state.Set("task_result", result)
 	state.Set("execution_env", p.lastEnv)
 	state.Set("execution_error", execErr)
-
-	// Record execute/summarize stages
-	if wf != nil {
-		if execErr != nil {
-			wf.fail(stageExecute, execErr)
-		} else if result != nil {
-			wf.succeed(stageExecute, map[string]any{
-				"iterations": result.Iterations,
-				"stop":       result.StopReason,
-			})
-		}
-
-		wf.start(stageSummarize)
-		answerPreview := ""
-		if result != nil && execErr == nil {
-			answerPreview = strings.TrimSpace(result.Answer)
-		}
-		wf.succeed(stageSummarize, map[string]any{"answer_preview": answerPreview})
-	}
 
 	if execErr != nil {
 		logger.Error("Task execution failed: %v", execErr)
@@ -363,36 +316,18 @@ func (p *bridgePlugin) SaveState(ctx context.Context, _ *corehook.TurnState) err
 	c := p.coordinator
 	logger := c.loggerFor(ctx)
 
-	if p.wf != nil {
-		p.wf.start(stagePersist)
-	}
-
 	if appcontext.IsSubagentContext(ctx) {
 		logger.Debug("Skipping session persistence for subagent execution")
-		if p.wf != nil {
-			p.wf.succeed(stagePersist, "skipped (subagent context)")
-		}
 		return nil
 	}
 
-	// Set title from dispatcher if available
 	if p.dispatcher != nil {
 		if title := strings.TrimSpace(p.dispatcher.Title()); title != "" {
 			ensureSessionMetadata(p.lastEnv.Session, "title", title)
 		}
 	}
 
-	if err := c.SaveSessionAfterExecution(ctx, p.lastEnv.Session, p.lastResult); err != nil {
-		if p.wf != nil {
-			p.wf.fail(stagePersist, err)
-		}
-		return err
-	}
-
-	if p.wf != nil {
-		p.wf.succeed(stagePersist, map[string]string{"session": p.lastEnv.Session.ID})
-	}
-	return nil
+	return c.SaveSessionAfterExecution(ctx, p.lastEnv.Session, p.lastResult)
 }
 
 // RenderOutbound returns basic text rendering of the model output.

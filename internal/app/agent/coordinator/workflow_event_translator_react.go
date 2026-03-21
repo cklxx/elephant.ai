@@ -119,7 +119,7 @@ func (t *workflowEventTranslator) translateNodeOutputDelta(evt agent.AgentEvent,
 }
 
 func (t *workflowEventTranslator) translateResultFinal(evt agent.AgentEvent, d *domain.EventData) []*domain.WorkflowEventEnvelope {
-	return t.singleEnvelope(evt, types.EventResultFinal, "result", stageSummarize, map[string]any{
+	return t.singleEnvelope(evt, types.EventResultFinal, "result", "react:finalize", map[string]any{
 		"final_answer":     d.FinalAnswer,
 		"total_iterations": d.TotalIterations,
 		"total_tokens":     d.TotalTokens,

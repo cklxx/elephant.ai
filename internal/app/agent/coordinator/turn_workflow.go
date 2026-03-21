@@ -10,136 +10,118 @@ import (
 	"alex/internal/domain/workflow"
 )
 
-const (
-	stagePrepare   = "prepare"
-	stageExecute   = "execute"
-	stageSummarize = "summarize"
-	stagePersist   = "persist"
-)
-
-// agentWorkflow wraps the generic workflow primitives with the fixed stages used by
-// agent executions. It centralizes transitions so the coordinator can emit
-// consistent snapshots for debugging without duplicating state management logic
-// across multiple call sites.
-type agentWorkflow struct {
+// turnWorkflow wraps workflow.Workflow as a pure WorkflowTracker for
+// the ReactEngine. No pre-registered stages — only ReactEngine creates nodes.
+type turnWorkflow struct {
 	wf        *workflow.Workflow
 	logger    *slog.Logger
-	stages    map[string]*workflow.Node
+	nodes     map[string]*workflow.Node
 	mu        sync.Mutex
 	eventSink *workflowEventBridge
 }
 
-func newAgentWorkflow(id string, logger *slog.Logger, listener agent.EventListener, outCtx *agent.OutputContext) *agentWorkflow {
+func newTurnWorkflow(id string, logger *slog.Logger, listener agent.EventListener, outCtx *agent.OutputContext) *turnWorkflow {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	wf := workflow.New(id, logger)
-	aw := &agentWorkflow{wf: wf, logger: logger, stages: make(map[string]*workflow.Node)}
-
-	aw.register(stagePrepare, map[string]string{"stage": "prepare"})
-	aw.register(stageExecute, map[string]string{"stage": "execute"})
-	aw.register(stageSummarize, map[string]string{"stage": "summarize"})
-	aw.register(stagePersist, map[string]string{"stage": "persist"})
+	tw := &turnWorkflow{wf: wf, logger: logger, nodes: make(map[string]*workflow.Node)}
 
 	if listener != nil {
 		if outCtx == nil {
 			outCtx = &agent.OutputContext{Level: agent.LevelCore}
 		}
-		aw.eventSink = newWorkflowEventBridge(id, listener, logger, outCtx)
-		wf.AddListener(aw.eventSink)
+		tw.eventSink = newWorkflowEventBridge(id, listener, logger, outCtx)
+		wf.AddListener(tw.eventSink)
 	}
 
-	return aw
+	return tw
 }
 
-func (aw *agentWorkflow) register(id string, input any) {
-	aw.ensureNode(id, input)
-}
-
-func (aw *agentWorkflow) start(stage string) {
-	aw.transition(stage, "start", nil, func(nodeID string) error {
-		_, _, err := aw.wf.StartNode(nodeID)
+func (tw *turnWorkflow) start(id string) {
+	tw.transition(id, "start", nil, func(nodeID string) error {
+		_, _, err := tw.wf.StartNode(nodeID)
 		return err
 	})
 }
 
-func (aw *agentWorkflow) succeed(stage string, output any) {
-	aw.transition(stage, "success", nil, func(nodeID string) error {
-		_, _, err := aw.wf.CompleteNodeSuccess(nodeID, output)
+func (tw *turnWorkflow) succeed(id string, output any) {
+	tw.transition(id, "success", nil, func(nodeID string) error {
+		_, _, err := tw.wf.CompleteNodeSuccess(nodeID, output)
 		return err
 	})
 }
 
-func (aw *agentWorkflow) fail(stage string, err error) {
-	aw.transition(stage, "failure", nil, func(nodeID string) error {
-		_, _, transErr := aw.wf.CompleteNodeFailure(nodeID, err)
+func (tw *turnWorkflow) fail(id string, err error) {
+	tw.transition(id, "failure", nil, func(nodeID string) error {
+		_, _, transErr := tw.wf.CompleteNodeFailure(nodeID, err)
 		return transErr
 	})
 }
 
-func (aw *agentWorkflow) snapshot() workflow.WorkflowSnapshot {
-	return aw.wf.Snapshot()
+func (tw *turnWorkflow) snapshot() workflow.WorkflowSnapshot {
+	return tw.wf.Snapshot()
 }
 
-func (aw *agentWorkflow) transition(stage, action string, input any, fn func(string) error) {
-	node := aw.ensureNode(stage, input)
+func (tw *turnWorkflow) transition(id, action string, input any, fn func(string) error) {
+	node := tw.ensureNode(id, input)
 	if node == nil {
 		return
 	}
 
-	if err := fn(node.ID()); err != nil && aw.logger != nil {
-		aw.logger.Warn("agent workflow "+action+" failed", slog.String("stage", stage), slog.String("error", err.Error()))
+	if err := fn(node.ID()); err != nil && tw.logger != nil {
+		tw.logger.Warn("turn workflow "+action+" failed", slog.String("node", id), slog.String("error", err.Error()))
 	}
 }
 
-func (aw *agentWorkflow) ensureNode(id string, input any) *workflow.Node {
+func (tw *turnWorkflow) ensureNode(id string, input any) *workflow.Node {
 	if id == "" {
 		return nil
 	}
 
-	aw.mu.Lock()
-	if node, exists := aw.stages[id]; exists {
-		aw.mu.Unlock()
+	tw.mu.Lock()
+	if node, exists := tw.nodes[id]; exists {
+		tw.mu.Unlock()
 		return node
 	}
 
-	node := workflow.NewNode(id, input, aw.logger)
-	aw.stages[id] = node
-	aw.mu.Unlock()
+	node := workflow.NewNode(id, input, tw.logger)
+	tw.nodes[id] = node
+	tw.mu.Unlock()
 
-	if err := aw.wf.AddNode(node); err != nil && aw.logger != nil {
-		aw.logger.Warn("agent workflow add node failed", slog.String("stage", id), slog.String("error", err.Error()))
+	if err := tw.wf.AddNode(node); err != nil && tw.logger != nil {
+		tw.logger.Warn("turn workflow add node failed", slog.String("node", id), slog.String("error", err.Error()))
 	}
 
 	return node
 }
 
-func (aw *agentWorkflow) setContext(outCtx *agent.OutputContext) {
-	if aw.eventSink == nil {
+func (tw *turnWorkflow) setContext(outCtx *agent.OutputContext) {
+	if tw.eventSink == nil {
 		return
 	}
-	aw.eventSink.updateContext(outCtx)
+	tw.eventSink.updateContext(outCtx)
 }
 
-// EnsureNode satisfies the domain.WorkflowTracker interface.
-func (aw *agentWorkflow) EnsureNode(id string, input any) {
-	aw.ensureNode(id, input)
+// EnsureNode satisfies the react.WorkflowTracker interface.
+func (tw *turnWorkflow) EnsureNode(id string, input any) {
+	tw.ensureNode(id, input)
 }
 
-// StartNode satisfies the domain.WorkflowTracker interface.
-func (aw *agentWorkflow) StartNode(id string) {
-	aw.start(id)
+// StartNode satisfies the react.WorkflowTracker interface.
+func (tw *turnWorkflow) StartNode(id string) {
+	tw.start(id)
 }
 
-// CompleteNodeSuccess satisfies the domain.WorkflowTracker interface.
-func (aw *agentWorkflow) CompleteNodeSuccess(id string, output any) {
-	aw.succeed(id, output)
+// CompleteNodeSuccess satisfies the react.WorkflowTracker interface.
+func (tw *turnWorkflow) CompleteNodeSuccess(id string, output any) {
+	tw.succeed(id, output)
 }
 
-// CompleteNodeFailure satisfies the domain.WorkflowTracker interface.
-func (aw *agentWorkflow) CompleteNodeFailure(id string, err error) {
-	aw.fail(id, err)
+// CompleteNodeFailure satisfies the react.WorkflowTracker interface.
+func (tw *turnWorkflow) CompleteNodeFailure(id string, err error) {
+	tw.fail(id, err)
 }
 
 type workflowEventBridge struct {

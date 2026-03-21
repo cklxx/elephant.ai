@@ -147,7 +147,7 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		nodes[node.ID] = node
 	}
 
-	for _, id := range []string{"prepare", "execute", "react:context", "react:iter:1:think", "react:iter:1:tools", "react:iter:1:tool:call-1", "react:finalize"} {
+	for _, id := range []string{"react:context", "react:iter:1:think", "react:iter:1:tools", "react:iter:1:tool:call-1", "react:finalize"} {
 		if node, ok := nodes[id]; !ok || node.Status != workflow.NodeStatusSucceeded {
 			t.Fatalf("expected node %s to succeed (found=%v, status=%s)", id, ok, node.Status)
 		}
@@ -313,19 +313,19 @@ func TestExecuteTaskPropagatesSessionIDToWorkflowEnvelope(t *testing.T) {
 		t.Fatalf("expected workflow.node.started envelopes to be emitted")
 	}
 
-	foundPrepare := false
+	foundContext := false
 	for _, env := range started {
-		if env.NodeID != "prepare" {
+		if env.NodeID != "react:context" {
 			continue
 		}
-		foundPrepare = true
+		foundContext = true
 		if env.GetSessionID() != "session-e2e" {
-			t.Fatalf("expected prepare step session_id=session-e2e, got %q", env.GetSessionID())
+			t.Fatalf("expected react:context step session_id=session-e2e, got %q", env.GetSessionID())
 		}
 		break
 	}
-	if !foundPrepare {
-		t.Fatalf("expected prepare step envelope to be emitted")
+	if !foundContext {
+		t.Fatalf("expected react:context step envelope to be emitted")
 	}
 }
 
@@ -382,21 +382,21 @@ func TestExecuteTaskUsesEnsuredTaskIDForPrepareEnvelope(t *testing.T) {
 		t.Fatalf("expected workflow.node.started envelopes to be emitted")
 	}
 
-	var prepare *domain.WorkflowEventEnvelope
+	var contextNode *domain.WorkflowEventEnvelope
 	for _, env := range started {
-		if env.NodeID == "prepare" {
-			prepare = env
+		if env.NodeID == "react:context" {
+			contextNode = env
 			break
 		}
 	}
-	if prepare == nil {
-		t.Fatalf("expected prepare step envelope to be emitted")
+	if contextNode == nil {
+		t.Fatalf("expected react:context step envelope to be emitted")
 	}
-	if prepare.GetRunID() != result.RunID {
-		t.Fatalf("expected prepare step run_id=%q, got %q", result.RunID, prepare.GetRunID())
+	if contextNode.GetRunID() != result.RunID {
+		t.Fatalf("expected react:context step run_id=%q, got %q", result.RunID, contextNode.GetRunID())
 	}
-	if prepare.GetParentRunID() != "task-parent" {
-		t.Fatalf("expected prepare step parent_run_id=task-parent, got %q", prepare.GetParentRunID())
+	if contextNode.GetParentRunID() != "task-parent" {
+		t.Fatalf("expected react:context step parent_run_id=task-parent, got %q", contextNode.GetParentRunID())
 	}
 }
 

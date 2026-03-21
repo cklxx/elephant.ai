@@ -33,10 +33,8 @@ func (c *AgentCoordinator) ExecuteTask(
 
 	timer := newStepTimer()
 
-	// Create the workflow that tracks prepare/execute/summarize/persist stages.
-	// Start prepare stage immediately — must be tracked even on early cancellation.
-	wf := newAgentWorkflow(ensuredRunID, slog.Default(), eventListener, outCtx)
-	wf.start(stagePrepare)
+	// Create the workflow tracker for ReactEngine node tracking.
+	wf := newTurnWorkflow(ensuredRunID, slog.Default(), eventListener, outCtx)
 
 	// Create Framework with bridge plugin
 	fw := framework.New(framework.Config{
@@ -71,12 +69,6 @@ func (c *AgentCoordinator) ExecuteTask(
 	if ctx.Err() != nil && bridge.lastEnv != nil {
 		logger.Debug("Task execution cancelled: %v", ctx.Err())
 		c.persistSessionSnapshot(ctx, bridge.lastEnv, ensuredRunID, parentRunID, "cancelled")
-	}
-
-	// If preparation never completed (e.g., context cancelled before LoadState),
-	// mark prepare stage as failed so the workflow snapshot reflects failure.
-	if bridge.lastEnv == nil && fwErr != nil {
-		wf.fail(stagePrepare, fwErr)
 	}
 
 	// Extract the TaskResult from the bridge plugin

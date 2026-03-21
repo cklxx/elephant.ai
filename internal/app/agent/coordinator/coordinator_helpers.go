@@ -31,7 +31,7 @@ func buildCompletionDefaultsFromConfig(cfg appconfig.Config) react.CompletionDef
 	return defaults
 }
 
-func attachWorkflowSnapshot(result *agent.TaskResult, wf *agentWorkflow, sessionID, runID, parentRunID string) *agent.TaskResult {
+func attachWorkflowSnapshot(result *agent.TaskResult, wf *turnWorkflow, sessionID, runID, parentRunID string) *agent.TaskResult {
 	if result == nil {
 		result = &agent.TaskResult{}
 	}
