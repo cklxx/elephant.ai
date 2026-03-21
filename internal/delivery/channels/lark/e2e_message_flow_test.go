@@ -339,3 +339,73 @@ func TestE2E_MultipleMessagesSequential(t *testing.T) {
 		t.Fatalf("expected at least 2 outbound messages, got %d", len(allOutbound))
 	}
 }
+
+// TestE2E_TieredDelivery_ShortAnswer verifies a short answer goes through
+// the injection path without rephrase (tier=short, ≤300 runes).
+func TestE2E_TieredDelivery_ShortAnswer(t *testing.T) {
+	rec := NewRecordingMessenger()
+	exec := &e2eExecutor{
+		result: &agent.TaskResult{Answer: "搞定了"},
+	}
+	gw := newTestGatewayWithMessenger(exec, rec, channels.BaseConfig{
+		SessionPrefix: "e2e",
+		AllowDirect:   true,
+	})
+
+	err := gw.InjectMessage(context.Background(), "oc_chat", "p2p", "ou_sender", "om_msg_short", "做个简单任务")
+	if err != nil {
+		t.Fatalf("InjectMessage failed: %v", err)
+	}
+	gw.WaitForTasks()
+
+	allOutbound := slices.Concat(rec.CallsByMethod(MethodReplyMessage), rec.CallsByMethod(MethodSendMessage))
+	found := false
+	for _, c := range allOutbound {
+		if strings.Contains(c.Content, "搞定了") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected short answer '搞定了' in reply, got %+v", allOutbound)
+	}
+}
+
+// TestE2E_TieredDelivery_LongAnswer verifies a long answer (>800 runes)
+// triggers file upload via the injection path.
+func TestE2E_TieredDelivery_LongAnswer(t *testing.T) {
+	rec := NewRecordingMessenger()
+	longAnswer := strings.Repeat("详", 1000)
+	exec := &e2eExecutor{
+		result: &agent.TaskResult{Answer: longAnswer},
+	}
+	gw := newTestGatewayWithMessenger(exec, rec, channels.BaseConfig{
+		SessionPrefix: "e2e",
+		AllowDirect:   true,
+	})
+
+	err := gw.InjectMessage(context.Background(), "oc_chat", "p2p", "ou_sender", "om_msg_long", "详细报告")
+	if err != nil {
+		t.Fatalf("InjectMessage failed: %v", err)
+	}
+	gw.WaitForTasks()
+
+	// Long answer should trigger overflowToDoc, which falls back to file upload
+	// since there's no Feishu doc client. The messenger records file uploads.
+	uploads := rec.CallsByMethod(MethodUploadFile)
+	if len(uploads) == 0 {
+		// File upload happens inside truncateWithDoc. Verify the reply contains
+		// the doc/file reference marker.
+		allOutbound := slices.Concat(rec.CallsByMethod(MethodReplyMessage), rec.CallsByMethod(MethodSendMessage))
+		hasFileOrDoc := false
+		for _, c := range allOutbound {
+			if c.MsgType == "file" || strings.Contains(c.Content, "详细内容见") {
+				hasFileOrDoc = true
+				break
+			}
+		}
+		if !hasFileOrDoc {
+			t.Fatalf("expected file upload or doc link for long answer, got %+v", allOutbound)
+		}
+	}
+}
