@@ -204,7 +204,6 @@ func TestDualThread_ConcurrentConversationInject(t *testing.T) {
 		logger:     logging.OrNop(nil),
 		messenger:  rec,
 		now:        time.Now,
-		imDelayFn:  func(_ context.Context, _ time.Duration) bool { return true },
 	}
 	gw.dedup = newEventDedup(nil)
 

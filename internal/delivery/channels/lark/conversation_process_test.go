@@ -174,7 +174,6 @@ func newConvGateway(t *testing.T, stub *convStubLLMClient, enabled bool) *Gatewa
 		logger:    logging.OrNop(nil),
 		messenger: rec,
 		now:       time.Now,
-		imDelayFn: func(_ context.Context, _ time.Duration) bool { return true },
 	}
 	return gw
 }
@@ -930,110 +929,10 @@ func TestSnapshotWorker_CopiesRecentProgress(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Tests for splitIMFragments
+// Tests for sendFragmentedReply (no longer splits — single message)
 // ---------------------------------------------------------------------------
 
-func TestSplitIMFragments_Empty(t *testing.T) {
-	if got := splitIMFragments(""); got != nil {
-		t.Fatalf("expected nil, got %v", got)
-	}
-}
-
-func TestSplitIMFragments_Short(t *testing.T) {
-	got := splitIMFragments("好")
-	if len(got) != 1 || got[0] != "好" {
-		t.Fatalf("expected [好], got %v", got)
-	}
-}
-
-func TestSplitIMFragments_TwoClauses(t *testing.T) {
-	// Must be >20 runes total to trigger splitting.
-	got := splitIMFragments("还在跑还在跑还在跑还在跑呢，明天出结果给你")
-	if len(got) != 2 {
-		t.Fatalf("expected 2 fragments, got %d: %v", len(got), got)
-	}
-	if got[0] != "还在跑还在跑还在跑还在跑呢" {
-		t.Errorf("first fragment: got %q", got[0])
-	}
-	if got[1] != "明天出结果给你" {
-		t.Errorf("second fragment: got %q", got[1])
-	}
-}
-
-func TestSplitIMFragments_ThreeClauses(t *testing.T) {
-	// Must be >20 runes total to trigger splitting.
-	got := splitIMFragments("好的好的好的好的，知道了知道了，没问题没问题")
-	if len(got) != 3 {
-		t.Fatalf("expected 3 fragments, got %d: %v", len(got), got)
-	}
-}
-
-func TestSplitIMFragments_TailMerge(t *testing.T) {
-	// 4+ clauses, >20 runes total → merge tail into 3rd fragment.
-	got := splitIMFragments("第一个片段呀，第二个片段呀，第三个片段呀，第四个片段呀")
-	if len(got) != 3 {
-		t.Fatalf("expected 3 fragments (tail merged), got %d: %v", len(got), got)
-	}
-	if got[0] != "第一个片段呀" || got[1] != "第二个片段呀" {
-		t.Errorf("first two fragments: %v", got[:2])
-	}
-	// Third fragment should contain the merged tail.
-	if !strContains(got[2], "第三个片段呀") {
-		t.Errorf("merged tail should contain remaining segments, got %q", got[2])
-	}
-}
-
-func TestSplitIMFragments_PerFragmentCap(t *testing.T) {
-	// Build a string >20 runes with a comma boundary, where first clause is >20 runes.
-	long := "这是一个非常非常非常非常非常非常长的句子，短"
-	got := splitIMFragments(long)
-	for _, frag := range got {
-		runes := []rune(frag)
-		if len(runes) > 20 {
-			t.Errorf("fragment %q exceeds 20 runes (%d)", frag, len(runes))
-		}
-	}
-}
-
-func TestSplitIMFragments_PunctOnlyFiltered(t *testing.T) {
-	// "好的呢，！，没问题的呢好吧" — the "！" shard is punct-only and should be filtered.
-	got := splitIMFragments("好的好的好的好的呢，！，没问题的好吧好吧好吧好吧好吧")
-	for _, frag := range got {
-		if isPunctOnly(frag) {
-			t.Errorf("punct-only fragment should be filtered: %q", frag)
-		}
-	}
-}
-
-func TestSplitIMFragments_English(t *testing.T) {
-	// >20 chars to trigger splitting.
-	got := splitIMFragments("on it right now yeah, checking the status now")
-	if len(got) != 2 {
-		t.Fatalf("expected 2 fragments, got %d: %v", len(got), got)
-	}
-	if got[0] != "on it right now yeah" {
-		t.Errorf("first fragment: got %q", got[0])
-	}
-}
-
-func TestSplitIMFragments_NoBoundaryLongText(t *testing.T) {
-	// Long text without any clause boundaries — should be capped.
-	long := "这是没有任何分隔符的超长文本内容需要被截断处理"
-	got := splitIMFragments(long)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 fragment, got %d", len(got))
-	}
-	runes := []rune(got[0])
-	if len(runes) > 20 {
-		t.Errorf("fragment exceeds 20 runes: %d", len(runes))
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Tests for sendFragmentedReply
-// ---------------------------------------------------------------------------
-
-func TestSendFragmentedReply_SingleFragment(t *testing.T) {
+func TestSendFragmentedReply_SingleMessage(t *testing.T) {
 	stub := &convStubLLMClient{resp: "ok"}
 	g := newConvGateway(t, stub, true)
 	rec := getRecorder(g)
@@ -1045,31 +944,15 @@ func TestSendFragmentedReply_SingleFragment(t *testing.T) {
 	}
 }
 
-func TestSendFragmentedReply_MultiFragment(t *testing.T) {
+func TestSendFragmentedReply_LongReplyStaysSingle(t *testing.T) {
 	stub := &convStubLLMClient{resp: "ok"}
 	g := newConvGateway(t, stub, true)
 	rec := getRecorder(g)
 
 	g.sendFragmentedReply(context.Background(), "chat1", "msg1", "还在跑还在跑还在跑还在跑呢，明天出结果给你", 0)
 
-	if rec.count() < 2 {
-		t.Fatalf("expected >=2 messages for multi-clause reply, got %d", rec.count())
-	}
-}
-
-func TestSendFragmentedReply_ContextCancellation(t *testing.T) {
-	stub := &convStubLLMClient{resp: "ok"}
-	g := newConvGateway(t, stub, true)
-	rec := getRecorder(g)
-
-	// Override imDelayFn to simulate context cancellation on the first delay.
-	g.imDelayFn = func(_ context.Context, _ time.Duration) bool { return false }
-
-	g.sendFragmentedReply(context.Background(), "chat1", "msg1", "还在跑还在跑还在跑还在跑呢，明天出结果给你", 0)
-
-	// Only the first fragment should be sent (delay returns false → stop).
 	if rec.count() != 1 {
-		t.Fatalf("expected 1 message (cancelled after first), got %d", rec.count())
+		t.Fatalf("expected 1 message (no splitting), got %d", rec.count())
 	}
 }
 

@@ -3,12 +3,9 @@ package lark
 import (
 	"context"
 	"fmt"
-	"math/rand/v2"
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"alex/internal/app/agent/llmclient"
 	ports "alex/internal/domain/agent/ports"
@@ -28,8 +25,6 @@ const (
 
 	conversationChatHistoryMaxRounds = 5
 	conversationPromptCacheTTL       = 60 * time.Second
-
-	imMaxRunes = 20
 )
 
 // memoryCacheEntry holds a cached memory context string with an expiry.
@@ -219,88 +214,6 @@ func naturalizeReply(s string, level int) string {
 	return s
 }
 
-// splitIMFragments splits a reply into IM-sized fragments at clause boundaries.
-// Max 3 fragments. Each fragment capped at imMaxRunes. Tail merged into last.
-// Empty/punctuation-only shards are filtered.
-func splitIMFragments(s string) []string {
-	if s == "" {
-		return nil
-	}
-	if utf8.RuneCountInString(s) <= imMaxRunes {
-		return []string{s}
-	}
-
-	// Split on clause boundaries.
-	var segments []string
-	start := 0
-	for i, r := range s {
-		if i > 0 && isClauseBoundary(r) {
-			seg := strings.TrimSpace(s[start:i])
-			if seg != "" && !isPunctOnly(seg) {
-				segments = append(segments, seg)
-			}
-			start = i + utf8.RuneLen(r)
-		}
-	}
-	// Remaining tail.
-	tail := strings.TrimSpace(s[start:])
-	if tail != "" && !isPunctOnly(tail) {
-		segments = append(segments, tail)
-	}
-
-	if len(segments) == 0 {
-		return []string{capFragment(s)} // no valid segments — return capped original
-	}
-	if len(segments) == 1 {
-		return []string{capFragment(segments[0])}
-	}
-
-	// Cap at 3: merge remaining into last fragment.
-	const maxFragments = 3
-	if len(segments) > maxFragments {
-		merged := make([]string, maxFragments)
-		copy(merged, segments[:maxFragments-1])
-		merged[maxFragments-1] = strings.Join(segments[maxFragments-1:], "，")
-		segments = merged
-	}
-
-	// Per-fragment length cap.
-	for i, seg := range segments {
-		segments[i] = capFragment(seg)
-	}
-	return segments
-}
-
-func isClauseBoundary(r rune) bool {
-	return r == '，' || r == '、' || r == '！' || r == '？' || r == '；' || r == '\n' || r == ','
-}
-
-func isPunctOnly(s string) bool {
-	for _, r := range s {
-		if !unicode.IsPunct(r) && !unicode.IsSpace(r) && !unicode.IsSymbol(r) {
-			return false
-		}
-	}
-	return true
-}
-
-func capFragment(s string) string {
-	if utf8.RuneCountInString(s) <= imMaxRunes {
-		return s
-	}
-	runes := []rune(s)
-	return string(runes[:imMaxRunes])
-}
-
-// defaultIMDelay is the production delay function used between IM fragments.
-func defaultIMDelay(ctx context.Context, d time.Duration) bool {
-	select {
-	case <-ctx.Done():
-		return false
-	case <-time.After(d):
-		return true
-	}
-}
 
 // sendFragmentedReply naturalizes the reply, splits into IM fragments, and
 // dispatches each with a delay between them to simulate natural typing rhythm.
@@ -311,24 +224,7 @@ func (g *Gateway) sendFragmentedReply(ctx context.Context, chatID, replyToID, re
 	if text == "" {
 		return
 	}
-	fragments := splitIMFragments(text)
-	if len(fragments) == 0 {
-		return
-	}
-	for i, frag := range fragments {
-		if i > 0 {
-			delay := randomIMDelay()
-			if !g.imDelayFn(ctx, delay) {
-				return // context cancelled
-			}
-		}
-		g.dispatchFormattedReply(ctx, chatID, replyToID, frag)
-	}
-}
-
-// randomIMDelay returns a random duration between 400ms and 800ms.
-func randomIMDelay() time.Duration {
-	return time.Duration(400+rand.IntN(401)) * time.Millisecond
+	g.dispatchFormattedReply(ctx, chatID, replyToID, text)
 }
 
 // taskRefPattern matches cross-task references like #1, #2, #12.
@@ -526,9 +422,8 @@ func (g *Gateway) handleViaConversationProcess(ctx context.Context, msg *incomin
 	}
 
 	logger := logging.FromContext(ctx, g.logger)
-	fragments := splitIMFragments(naturalizeReply(reply, level))
-	logger.Info("conversation: decision msg=%s hasDispatchWorker=%t reply_len=%d fragments=%d tool_calls=%d",
-		msg.messageID, hasDispatchWorker, len(reply), len(fragments), len(toolCalls))
+	logger.Info("conversation: decision msg=%s hasDispatchWorker=%t reply_len=%d tool_calls=%d",
+		msg.messageID, hasDispatchWorker, len(reply), len(toolCalls))
 
 	// Fallback: LLM returned empty reply with no tool calls — treat as dispatch.
 	if reply == "" && len(toolCalls) == 0 {

@@ -106,7 +106,6 @@ type Gateway struct {
 	llamaResolver       func(context.Context) (subscription.LlamaServerTarget, bool)
 	llmFactory          portsllm.LLMClientFactory // optional; for lightweight LLM calls (auto-reply)
 	llmProfile          runtimeconfig.LLMProfile  // shared runtime LLM profile for auto-reply
-	imDelayFn           func(ctx context.Context, d time.Duration) bool // delays between IM fragments; returns false on ctx cancel
 	taskStore           TaskStore
 	costTracker         CostTrackerReader // optional; for /usage dashboard
 	chatSessionStore    ChatSessionBindingStore
@@ -244,7 +243,6 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		},
 		aiCoordinator: aiCoordinator,
 		attentionGate: NewAttentionGate(cfg.AttentionGate),
-		imDelayFn:     defaultIMDelay,
 	}, nil
 }
 
