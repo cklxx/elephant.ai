@@ -1,13 +1,6 @@
 ---
 name: feishu-calendar
-description: |
-  飞书日历管理工具。支持日历事件的创建、查询、更新、删除，参会人管理和忙闲查询。
-
-  **当以下情况时使用此 Skill**：
-  (1) 需要创建、查询、修改、删除日历事件
-  (2) 需要查看忙闲状态或安排会议
-  (3) 需要管理参会人
-  (4) 用户提到"日历"、"日程"、"会议"、"calendar"
+description: When 飞书日历 events or meetings need managing → CRUD calendar events, manage attendees, query free/busy status.
 triggers:
   intent_patterns:
     - "日历|日程|calendar|会议|meeting"

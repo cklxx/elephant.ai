@@ -1,12 +1,6 @@
 ---
 name: feishu-task
-description: |
-  飞书任务管理工具。支持任务的创建、查询、更新、删除，子任务管理和任务清单。
-
-  **当以下情况时使用此 Skill**：
-  (1) 需要创建、查询、更新、完成任务
-  (2) 需要管理子任务或任务清单
-  (3) 用户提到"任务"、"待办"、"task"、"todo"
+description: When 飞书任务 (tasks/todos) need managing → CRUD tasks, subtasks, and task lists.
 triggers:
   intent_patterns:
     - "任务|待办|task|todo"

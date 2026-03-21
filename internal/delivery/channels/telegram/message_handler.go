@@ -78,17 +78,17 @@ func (g *Gateway) handleMessage(ctx context.Context, msg *telego.Message) {
 		}
 		slot.phase = slotIdle
 		slot.mu.Unlock()
-		g.sendReply(ctx, incoming.chatID, incoming.messageID, "会话已重置。")
+		g.sendReply(ctx, incoming.chatID, incoming.messageID, "新会话已开启")
 		return
 
 	case lower == "/stop":
 		if slot.phase == slotRunning && slot.taskCancel != nil {
 			slot.taskCancel()
 			slot.mu.Unlock()
-			g.sendReply(ctx, incoming.chatID, incoming.messageID, "正在停止当前任务...")
+			g.sendReply(ctx, incoming.chatID, incoming.messageID, "已停止")
 		} else {
 			slot.mu.Unlock()
-			g.sendReply(ctx, incoming.chatID, incoming.messageID, "当前没有运行中的任务。")
+			g.sendReply(ctx, incoming.chatID, incoming.messageID, "没有在跑的任务")
 		}
 		return
 
@@ -101,9 +101,9 @@ func (g *Gateway) handleMessage(ctx context.Context, msg *telego.Message) {
 		case slotRunning:
 			status = "执行中"
 		case slotAwaitingInput:
-			status = "等待输入"
+			status = "等你回复"
 		}
-		g.sendReply(ctx, incoming.chatID, incoming.messageID, fmt.Sprintf("状态: %s\n会话: %s", status, sid))
+		g.sendReply(ctx, incoming.chatID, incoming.messageID, fmt.Sprintf("%s · %s", status, sid))
 		return
 	}
 

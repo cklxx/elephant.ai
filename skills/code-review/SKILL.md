@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: 编码完成后的多维度代码审查，覆盖 SOLID 架构、安全性、代码质量、边界条件与清理计划，输出结构化审查报告。
+description: When coding is done and changes need review → multi-dimensional code review (SOLID, security, quality, edge cases), outputs structured report.
 triggers:
   intent_patterns:
     - "review|审查|code review|CR|代码审查|review code"

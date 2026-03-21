@@ -20,16 +20,12 @@ func NewAskUser() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "ask_user",
-				Description: `UI tool: interact with the user — ask clarification questions OR request a decision/action and pause execution.
+				Description: `When requirements are ambiguous/contradictory, or you need explicit user approval before proceeding → use ask_user to pause and interact.
 
-Actions:
-- action="clarify": emit a task sub-header and ask targeted clarification questions when requirements are truly missing/contradictory.
-  Do not use when the user already gave an explicit actionable operation with clear parameters.
-- action="request": explicitly request a user decision/action and pause execution.
-  Use for approval/consent/manual gate events (login, 2FA, CAPTCHA, external confirmation, release approval, go/no-go).
+- action="clarify": ask targeted clarification when requirements are truly missing/contradictory. Do not use when the user already gave clear, actionable instructions.
+- action="request": request a user decision/action for approval gates, manual steps (login, 2FA, CAPTCHA, release go/no-go).
 
-When needs_user_input=true, provide question_to_user and the orchestrator will pause for user input.
-When waiting for user input, provide options to let channels render a selection UI.`,
+Set needs_user_input=true with question_to_user to pause for user response. Provide options to let channels render a selection UI.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

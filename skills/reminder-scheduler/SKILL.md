@@ -1,6 +1,6 @@
 ---
 name: reminder-scheduler
-description: 统一提醒调度：单次提醒与周期提醒计划的创建、查询、取消和到期扫描。
+description: When the user wants to set reminders → create, query, cancel one-time or recurring reminders with expiry scanning.
 triggers:
   intent_patterns:
     - "提醒|remind|timer|定时|倒计时|schedule|cron|周期任务|闹钟|alarm"

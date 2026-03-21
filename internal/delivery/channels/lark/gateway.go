@@ -114,6 +114,7 @@ type Gateway struct {
 	noticeState         *noticeStateStore
 	activeSlots             sync.Map  // chatID → *sessionSlot
 	activeChatSlots         sync.Map  // chatID → *chatSlotMap (conversation-process path only)
+	chatContexts            sync.Map  // chatID → *chatConversationContext (sliding tool context)
 	conversationPromptCache sync.Map  // senderID → *memoryCacheEntry
 	forkSlots               forkSlotMap        // childSessionID → *forkSlot
 	aiCoordinator       *AIChatCoordinator // coordinates multi-bot chat sessions

@@ -1,6 +1,6 @@
 ---
 name: task-delegation
-description: 跨 Agent 任务委派 — 将子任务分发给 Codex/Claude/Gemini CLI 执行。
+description: When a subtask should run on a different agent (Codex/Claude/Gemini) → delegate and track cross-agent execution.
 triggers:
   intent_patterns:
     - "delegate|委派|分发|子任务|subtask|dispatch|后台执行"

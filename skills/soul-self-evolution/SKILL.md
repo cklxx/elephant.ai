@@ -1,6 +1,6 @@
 ---
 name: soul-self-evolution
-description: SOUL 自演进技能 — 在不可变段保护下更新可演进人格/协作策略并支持回滚。
+description: When personality/collaboration strategy needs updating → evolve SOUL config under immutable-section protection with rollback support.
 triggers:
   intent_patterns:
     - "soul|人格更新|self evolve|自我优化|更新协作风格"

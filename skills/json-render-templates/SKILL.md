@@ -1,6 +1,6 @@
 ---
 name: json-render-templates
-description: Json-render protocol templates for flowchart, form, dashboard, info cards, gallery, table, kanban, and diagram.
+description: When structured data needs visual presentation → use json-render templates (flowchart, form, dashboard, cards, gallery, table, kanban, diagram).
 triggers:
   intent_patterns:
     - "json.render|visual ui|diagram|layout|flowchart|form|dashboard|card grid|gallery|kanban|table"

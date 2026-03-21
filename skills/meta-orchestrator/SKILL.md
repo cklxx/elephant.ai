@@ -1,6 +1,6 @@
 ---
 name: meta-orchestrator
-description: 元技能编排器 — 统一管理技能激活、联动、冲突仲裁、策略与审计摘要。
+description: When multiple skills need coordinated activation → manage skill activation, conflict arbitration, strategy, and audit.
 triggers:
   intent_patterns:
     - "meta.?skill|元技能|skill orchestration|技能联动|governance"

@@ -1,7 +1,6 @@
 ---
 name: feishu-channel-rules
-description: |
-  飞书消息输出规则。在飞书会话中始终生效。
+description: When responding in a 飞书 channel → enforce Lark message formatting and writing-style rules (always active).
 alwaysActive: true
 ---
 

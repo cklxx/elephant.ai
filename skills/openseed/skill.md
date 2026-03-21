@@ -1,6 +1,6 @@
 ---
 name: openseed
-description: AI-powered paper research CLI — search ArXiv, extract PDFs, summarize/review/Q&A with Claude, generate experiment code.
+description: When the user wants to research academic papers → search ArXiv, extract PDFs, summarize/review/Q&A, generate experiment code.
 triggers:
   intent_patterns:
     - "openseed|论文|paper|arxiv|学术|research.*paper|文献|调研.*论文|survey"

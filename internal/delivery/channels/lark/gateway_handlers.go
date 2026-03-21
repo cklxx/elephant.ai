@@ -83,6 +83,31 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	slot.lastTouched = g.currentTime()
 	trimmedContent := strings.TrimSpace(msg.content)
 
+	// When conversation process is enabled, only /new, /reset, /model are
+	// handled as direct commands. Everything else (task queries, usage,
+	// notice, stop, natural language) goes through the conversation LLM.
+	if g.conversationProcessEnabled() {
+		if trimmedContent == "/new" {
+			g.handleNewSessionCommand(slot, msg) // releases slot.mu
+			return nil
+		}
+		if trimmedContent == "/reset" {
+			g.handleResetCommand(slot, msg) // releases slot.mu
+			return nil
+		}
+		if strings.HasPrefix(trimmedContent, "/model") {
+			slot.mu.Unlock()
+			g.handleModelCommand(msg)
+			return nil
+		}
+		slot.mu.Unlock()
+		msgLogger.Info("message routed: conversation_process=true msg=%s", msg.messageID)
+		g.handleViaConversationProcess(ctx, msg)
+		return nil
+	}
+
+	// Legacy path: direct command routing when conversation process is disabled.
+
 	// Natural-language status query should be handled immediately, even when a
 	// foreground task is currently running.
 	if g.isNaturalTaskStatusQuery(trimmedContent) {
@@ -117,21 +142,11 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		return nil
 	}
 
-	// /model command must be handled before conversation process so it works
+	// /model command must be handled before dispatch so it works
 	// in chat+worker mode without being routed through the chat LLM.
 	if strings.HasPrefix(trimmedContent, "/model") {
 		slot.mu.Unlock()
 		g.handleModelCommand(msg)
-		return nil
-	}
-
-	// Conversation process: when enabled, a lightweight LLM handles ALL
-	// non-command messages. It replies instantly and optionally dispatches
-	// a background worker via its dispatch_worker tool.
-	if g.conversationProcessEnabled() {
-		slot.mu.Unlock()
-		msgLogger.Info("message routed: conversation_process=true msg=%s", msg.messageID)
-		g.handleViaConversationProcess(ctx, msg)
 		return nil
 	}
 

@@ -65,11 +65,15 @@ func (g *Gateway) narrateWithLLM(ctx context.Context, systemPrompt, userPrompt s
 	return result, nil
 }
 
+// narrateCycleSystemPrompt is kept for backward compatibility but the
+// conversation LLM now handles narration via the unified personality.
+// Remove after 2-week rollout.
 const narrateCycleSystemPrompt = `你是团队调度播报员。把内核调度周期结果用自然中文汇报，2-4 句话。
 先说结论（全部成功/部分失败），再逐个概括每个 agent 做了什么。不使用 Markdown 和 emoji。`
 
 // NarrateCycleNotification converts a raw structured cycle notification into
 // natural Chinese via LLM. Returns ("", err) on failure so caller can fall back.
+// Kept for backward compat; new code should use the conversation LLM path.
 func (g *Gateway) NarrateCycleNotification(ctx context.Context, rawText string) (string, error) {
 	return g.narrateWithLLM(ctx, narrateCycleSystemPrompt, rawText, narrateOpts{
 		timeout:   8 * time.Second,

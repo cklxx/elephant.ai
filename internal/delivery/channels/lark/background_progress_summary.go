@@ -38,12 +38,68 @@ func (l *backgroundProgressListener) sendTeamCompletionSummary() {
 }
 
 func (l *backgroundProgressListener) doSendTeamCompletionSummary(tasks []completedTaskRecord) {
+	// When conversation process is enabled, use the unified conversation LLM
+	// to narrate task completion instead of the standalone summary prompt.
+	if l.g.conversationProcessEnabled() {
+		l.notifyTaskCompletionViaConversationLLM(tasks)
+		return
+	}
+
 	summary := l.buildTeamSummary(tasks)
 	if summary == "" {
 		return
 	}
 	if _, err := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(summary)); err != nil {
 		l.logger.Warn("Team completion summary send failed: %v", err)
+	}
+}
+
+// notifyTaskCompletionViaConversationLLM uses the conversation LLM to narrate
+// completed tasks with the unified personality.
+func (l *backgroundProgressListener) notifyTaskCompletionViaConversationLLM(tasks []completedTaskRecord) {
+	if l.g == nil || l.g.llmFactory == nil {
+		l.doSendTeamCompletionSummaryFallback(tasks)
+		return
+	}
+
+	// Build synthetic task data.
+	var taskData strings.Builder
+	taskData.WriteString(fmt.Sprintf("Narrate these %d completed tasks to the user:\n\n", len(tasks)))
+	for i, t := range tasks {
+		taskData.WriteString(fmt.Sprintf("%d. %s (status: %s, duration: %s)", i+1, t.description, t.status, formatElapsed(t.duration)))
+		if t.errText != "" {
+			taskData.WriteString(fmt.Sprintf("\n   Error: %s", truncateForLark(t.errText, 200)))
+		} else if t.answer != "" {
+			taskData.WriteString(fmt.Sprintf("\n   Result: %s", truncateForLark(t.answer, 200)))
+		}
+		taskData.WriteString("\n")
+	}
+
+	systemPrompt := l.g.resolveConversationSystemPrompt()
+
+	summary, err := l.g.narrateWithLLM(l.ctx, systemPrompt, taskData.String(), narrateOpts{
+		timeout:   10 * time.Second,
+		maxTokens: 400,
+	})
+	if err != nil || summary == "" {
+		l.logger.Warn("Conversation LLM completion narration failed, using fallback: %v", err)
+		l.doSendTeamCompletionSummaryFallback(tasks)
+		return
+	}
+
+	summary = truncateForLark(summary, teamCompletionSummaryMaxReplyChars)
+	if _, err := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(summary)); err != nil {
+		l.logger.Warn("Team completion summary send failed: %v", err)
+	}
+}
+
+func (l *backgroundProgressListener) doSendTeamCompletionSummaryFallback(tasks []completedTaskRecord) {
+	summary := l.buildTeamSummaryFallback(tasks)
+	if summary == "" {
+		return
+	}
+	if _, err := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(summary)); err != nil {
+		l.logger.Warn("Team completion summary fallback send failed: %v", err)
 	}
 }
 

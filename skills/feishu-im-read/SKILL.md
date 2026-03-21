@@ -1,13 +1,6 @@
 ---
 name: feishu-im-read
-description: |
-  飞书消息读取工具。支持读取群聊/私聊历史消息、话题回复和文件下载。
-
-  **当以下情况时使用此 Skill**：
-  (1) 需要读取聊天历史消息
-  (2) 需要搜索消息
-  (3) 需要下载消息中的图片/文件
-  (4) 用户提到"消息记录"、"聊天历史"、"message history"
+description: When 飞书 chat history needs reading → fetch group/DM messages, thread replies, and download attached files/images.
 triggers:
   intent_patterns:
     - "消息记录|聊天历史|message history|聊天记录"

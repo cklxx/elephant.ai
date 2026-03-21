@@ -40,6 +40,7 @@ func (g *Gateway) handleNoticeCommand(msg *incomingMessage) {
 		reply = noticeCommandUsage()
 	}
 
+	reply = g.naturalizeCommandReply(execCtx, reply)
 	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
 }
 

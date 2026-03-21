@@ -22,13 +22,13 @@ func NewPlan(memoryEngine memory.Engine) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "plan",
-				Description: `Optional UI tool: emit a visible goal header and (optionally) attach a hidden internal plan for the orchestrator. Use for decomposition, phases, milestones, checkpoints, rollout order, or execution roadmap. Not required before action tools.
+				Description: `When you need to decompose a task into phases, set milestones, or create an execution roadmap → use plan to emit a visible goal header and optionally attach a hidden internal plan. Not required before simple single-step actions.
 
 Rules:
-- When complexity="simple", overall_goal_ui must be a single line.
 - overall_goal_ui should state the deliverable and a measurable acceptance signal (paths/tests/metrics).
-- When complexity="complex", use ask_user() for sub-tasks if desired.
-- Do not use for deterministic computation/recalculation; use shell_exec.`,
+- When complexity="simple", overall_goal_ui must be a single line.
+- When complexity="complex", use ask_user for sub-tasks if desired.
+Do not use for deterministic computation/recalculation (use shell_exec).`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

@@ -1,6 +1,6 @@
 ---
 name: feishu-cli
-description: 统一飞书 CLI（auth/tool/api/help），支持渐进式帮助，供 agent 本地直接调用。
+description: When the agent needs to call 飞书/Lark APIs locally → unified CLI (auth/tool/api/help) with progressive disclosure.
 triggers:
   intent_patterns:
     - "feishu cli|飞书cli|飞书工具|lark api|飞书授权|oauth"

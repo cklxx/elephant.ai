@@ -1,6 +1,6 @@
 ---
 name: ppt-deck
-description: PPT 产出 playbook（目标/受众 -> 故事线 -> 版式设计 -> 可访问性 -> 交付），含 10/20/30 与 Accessibility 最佳实践。
+description: When the user needs a presentation → PPT playbook (goal/audience → storyline → layout → accessibility → delivery).
 triggers:
   intent_patterns:
     - "ppt|slides|deck|presentation|演示稿|路演|汇报"

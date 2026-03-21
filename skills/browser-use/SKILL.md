@@ -1,6 +1,6 @@
 ---
 name: browser-use
-description: 浏览器自动化 — 通过 Playwright MCP Extension Relay 控制用户已登录的 Chrome，复用 cookies/session。
+description: When you need to interact with web pages using the user's logged-in browser → control Chrome via Playwright MCP, reusing cookies/session.
 triggers:
   intent_patterns:
     - "浏览器|browser|网页|webpage|打开网站|open.*url|截图|screenshot|x\\.com|twitter"

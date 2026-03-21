@@ -1,6 +1,6 @@
 ---
 name: self-test
-description: 自主运行 Lark 场景测试套件，分析失败，按修复分级自动迭代修复。
+description: When Lark integration tests need running → execute test suite, analyze failures, auto-iterate fixes by severity.
 triggers:
   intent_patterns:
     - "self.?test|自测|场景测试|scenario.?test|run.?test|测试套件"

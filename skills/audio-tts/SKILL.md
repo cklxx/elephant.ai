@@ -1,6 +1,6 @@
 ---
 name: audio-tts
-description: 本地 TTS 语音生成（macOS say + afconvert），输出 m4a 文件。
+description: When the user wants text-to-speech audio → generate voice files locally (macOS say + afconvert, outputs m4a).
 triggers:
   intent_patterns:
     - "语音|读出来|朗读|TTS|配音|发个语音"
