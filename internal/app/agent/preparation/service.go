@@ -56,6 +56,7 @@ type ExecutionPreparationDeps struct {
 	OKRContextProvider  OKRContextProvider  // Optional: provides OKR context for system prompt
 	CredentialRefresher CredentialRefresher // Optional: re-resolves CLI credentials at task time
 	ChannelHints        map[string]string   // Optional: channel-name → formatting hint text
+	TurnRecorder        agent.TurnRecorder  // Optional: tape-based audit trail
 }
 
 // ExecutionPreparationService prepares everything needed before executing a task.
@@ -77,6 +78,7 @@ type ExecutionPreparationService struct {
 	okrContextProvider  OKRContextProvider
 	credentialRefresher CredentialRefresher
 	channelHints        map[string]string
+	turnRecorder        agent.TurnRecorder
 }
 
 // NewExecutionPreparationService creates a service instance.
@@ -129,6 +131,7 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 		okrContextProvider:  deps.OKRContextProvider,
 		credentialRefresher: deps.CredentialRefresher,
 		channelHints:        deps.ChannelHints,
+		turnRecorder:        deps.TurnRecorder,
 	}
 }
 

@@ -84,6 +84,21 @@ func applyQuery(entries []coretape.TapeEntry, q coretape.TapeQuery) ([]coretape.
 		}
 	}
 
+	// afterLabel: reverse-scan for the last anchor/compression entry whose
+	// payload "label" matches, then return entries after it.
+	if label := q.GetAfterLabel(); label != "" {
+		for i := len(entries) - 1; i >= start; i-- {
+			e := entries[i]
+			if e.Kind != coretape.KindAnchor && e.Kind != coretape.KindCompression {
+				continue
+			}
+			if l, _ := e.Payload["label"].(string); l == label {
+				start = i + 1
+				break
+			}
+		}
+	}
+
 	var result []coretape.TapeEntry
 	kinds := q.GetKinds()
 	sessionID := q.GetSessionID()

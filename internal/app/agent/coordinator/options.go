@@ -88,3 +88,12 @@ func WithAtomicWriter(writer agent.AtomicFileWriter) CoordinatorOption {
 		}
 	}
 }
+
+// WithTurnRecorder provides a tape-based audit trail for per-message recording.
+func WithTurnRecorder(recorder agent.TurnRecorder) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		if recorder != nil {
+			c.turnRecorder = recorder
+		}
+	}
+}

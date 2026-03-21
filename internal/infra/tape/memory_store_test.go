@@ -219,6 +219,101 @@ func TestMemoryStore_ConcurrentAppend(t *testing.T) {
 	}
 }
 
+func TestMemoryStore_QueryAfterLabel(t *testing.T) {
+	ctx := context.Background()
+	s := NewMemoryStore()
+
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "old", coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewCompression("compression", map[string]any{"reason": "threshold"}, coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "new1", coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "new2", coretape.EntryMeta{}))
+
+	entries, err := s.Query(ctx, "t", coretape.Query().AfterLabel("compression"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("got %d entries, want 2", len(entries))
+	}
+	if c, _ := entries[0].Payload["content"].(string); c != "new1" {
+		t.Fatalf("first entry content = %q, want 'new1'", c)
+	}
+}
+
+func TestMemoryStore_QueryAfterLabel_LastMatch(t *testing.T) {
+	ctx := context.Background()
+	s := NewMemoryStore()
+
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "very_old", coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewCompression("compression", nil, coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "mid", coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewCompression("compression", nil, coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "recent", coretape.EntryMeta{}))
+
+	entries, err := s.Query(ctx, "t", coretape.Query().AfterLabel("compression"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1 (only after last compression)", len(entries))
+	}
+	if c, _ := entries[0].Payload["content"].(string); c != "recent" {
+		t.Fatalf("content = %q, want 'recent'", c)
+	}
+}
+
+func TestMemoryStore_QueryAfterLabel_NoMatch(t *testing.T) {
+	ctx := context.Background()
+	s := NewMemoryStore()
+
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "msg1", coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "msg2", coretape.EntryMeta{}))
+
+	entries, err := s.Query(ctx, "t", coretape.Query().AfterLabel("compression"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// No matching label → returns all entries (no boundary found).
+	if len(entries) != 2 {
+		t.Fatalf("got %d entries, want 2 (no label match = all entries)", len(entries))
+	}
+}
+
+func TestMemoryStore_QueryAfterLabel_WithAnchorKind(t *testing.T) {
+	ctx := context.Background()
+	s := NewMemoryStore()
+
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "before", coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewAnchor("compression", coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "after", coretape.EntryMeta{}))
+
+	entries, err := s.Query(ctx, "t", coretape.Query().AfterLabel("compression"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+}
+
+func TestMemoryStore_QueryAfterLabel_CombinedWithKinds(t *testing.T) {
+	ctx := context.Background()
+	s := NewMemoryStore()
+
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "old", coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewCompression("compression", nil, coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewMessage("user", "new_msg", coretape.EntryMeta{}))
+	_ = s.Append(ctx, "t", coretape.NewAnchor("other", coretape.EntryMeta{}))
+
+	entries, err := s.Query(ctx, "t", coretape.Query().AfterLabel("compression").Kinds(coretape.KindMessage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1 (only messages after compression)", len(entries))
+	}
+}
+
 func TestMemoryStore_QueryEmptyTape(t *testing.T) {
 	ctx := context.Background()
 	s := NewMemoryStore()

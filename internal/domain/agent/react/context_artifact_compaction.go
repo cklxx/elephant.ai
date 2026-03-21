@@ -79,30 +79,55 @@ func (e *ReactEngine) tryArtifactCompaction(
 	}
 
 	sequence := state.ContextCompactionSeq + 1
-	path, hash, removedTokens, err := e.writeContextCompactionArtifact(ctx, state, services, plan.summarySource, reason, sequence)
-	if err != nil {
-		e.logger.Warn("Context artifact compaction write failed: %v", err)
-		return messages, false
+	tokensRemoved := services.Context.EstimateTokens(plan.summarySource)
+
+	// Record to tape when available; fall back to .md artifact file.
+	artifactRef := ""
+	artifactHash := ""
+	if services.TurnRecorder != nil {
+		meta := map[string]any{
+			"session_id":     strings.TrimSpace(state.SessionID),
+			"run_id":         strings.TrimSpace(state.RunID),
+			"iteration":      state.Iterations,
+			"sequence":       sequence,
+			"reason":         string(reason),
+			"tokens_removed": tokensRemoved,
+			"tokens_before":  services.Context.EstimateTokens(state.Messages),
+		}
+		if err := services.TurnRecorder.RecordCompactionArtifact(ctx, plan.summarySource, meta); err != nil {
+			e.logger.Warn("Tape compaction artifact write failed: %v", err)
+		}
+		if err := services.TurnRecorder.RecordCompression(ctx, "compression", meta); err != nil {
+			e.logger.Warn("Tape compression anchor write failed: %v", err)
+		}
+		artifactRef = "tape"
+	} else {
+		var err error
+		artifactRef, artifactHash, tokensRemoved, err = e.writeContextCompactionArtifact(ctx, state, services, plan.summarySource, reason, sequence)
+		if err != nil {
+			e.logger.Warn("Context artifact compaction write failed: %v", err)
+			return messages, false
+		}
 	}
 
 	placeholder := ports.Message{
 		Role: "assistant",
 		Content: fmt.Sprintf(
 			`[CTX_PLACEHOLDER path=%q sha256=%q msgs=%d tokens=%d reason=%q seq=%d]`,
-			path,
-			hash,
+			artifactRef,
+			artifactHash,
 			len(plan.summarySource),
-			removedTokens,
+			tokensRemoved,
 			string(reason),
 			sequence,
 		),
 		Source: ports.MessageSourceCheckpoint,
 		Metadata: map[string]any{
 			"context_placeholder": true,
-			"path":                path,
-			"sha256":              hash,
+			"path":                artifactRef,
+			"sha256":              artifactHash,
 			"messages":            len(plan.summarySource),
-			"tokens_removed":      removedTokens,
+			"tokens_removed":      tokensRemoved,
 			"reason":              string(reason),
 			"sequence":            sequence,
 			"created_at":          e.clock.Now().Format(time.RFC3339),
@@ -126,18 +151,18 @@ func (e *ReactEngine) tryArtifactCompaction(
 	}
 
 	state.ContextCompactionSeq = sequence
-	state.LastCompactionArtifact = path
+	state.LastCompactionArtifact = artifactRef
 	state.NextCompactionAllowed = state.Iterations + compactionCooldownTurns
 
 	e.logger.Info(
-		"Context artifact compaction applied: session=%s iter=%d reason=%s seq=%d path=%s removed_msgs=%d removed_tokens=%d",
+		"Context artifact compaction applied: session=%s iter=%d reason=%s seq=%d ref=%s removed_msgs=%d removed_tokens=%d",
 		sessionID,
 		state.Iterations,
 		string(reason),
 		sequence,
-		path,
+		artifactRef,
 		len(plan.summarySource),
-		removedTokens,
+		tokensRemoved,
 	)
 	return compacted, true
 }

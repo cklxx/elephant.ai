@@ -190,30 +190,38 @@ func messageToEntry(msg ports.Message, sessionID string) coretape.TapeEntry {
 		payload["source"] = string(msg.Source)
 	}
 	if len(msg.ToolCalls) > 0 {
-		data, _ := json.Marshal(msg.ToolCalls)
-		var raw any
-		_ = json.Unmarshal(data, &raw)
-		payload["tool_calls"] = raw
+		payload["tool_calls"] = jsonRoundTrip(msg.ToolCalls)
 	}
 	if len(msg.ToolResults) > 0 {
-		data, _ := json.Marshal(msg.ToolResults)
-		var raw any
-		_ = json.Unmarshal(data, &raw)
-		payload["tool_results"] = raw
+		payload["tool_results"] = jsonRoundTrip(msg.ToolResults)
 	}
 	if msg.ToolCallID != "" {
 		payload["tool_call_id"] = msg.ToolCallID
 	}
 	if len(msg.Attachments) > 0 {
-		data, _ := json.Marshal(msg.Attachments)
-		var raw any
-		_ = json.Unmarshal(data, &raw)
-		payload["attachments"] = raw
+		payload["attachments"] = jsonRoundTrip(msg.Attachments)
 	}
-
-	return coretape.NewMessage(msg.Role, msg.Content, coretape.EntryMeta{
+	if len(msg.Thinking.Parts) > 0 {
+		payload["thinking"] = jsonRoundTrip(msg.Thinking)
+	}
+	if len(msg.Metadata) > 0 {
+		payload["metadata"] = jsonRoundTrip(msg.Metadata)
+	}
+	return coretape.NewMessageFromPayload(payload, coretape.EntryMeta{
 		SessionID: sessionID,
 	})
+}
+
+// jsonRoundTrip marshals v to JSON and back to map[string]any so the payload
+// contains only primitive types that survive JSONL serialization.
+func jsonRoundTrip(v any) any {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	var out any
+	_ = json.Unmarshal(data, &out)
+	return out
 }
 
 func entryToMessage(e coretape.TapeEntry) (ports.Message, error) {
@@ -231,25 +239,24 @@ func entryToMessage(e coretape.TapeEntry) (ports.Message, error) {
 		msg.ToolCallID = tcID
 	}
 
-	// Reconstruct tool calls if present.
-	if raw, ok := e.Payload["tool_calls"]; ok {
-		data, err := json.Marshal(raw)
-		if err == nil {
-			_ = json.Unmarshal(data, &msg.ToolCalls)
-		}
-	}
-	if raw, ok := e.Payload["tool_results"]; ok {
-		data, err := json.Marshal(raw)
-		if err == nil {
-			_ = json.Unmarshal(data, &msg.ToolResults)
-		}
-	}
-	if raw, ok := e.Payload["attachments"]; ok {
-		data, err := json.Marshal(raw)
-		if err == nil {
-			_ = json.Unmarshal(data, &msg.Attachments)
-		}
-	}
+	jsonUnmarshalField(e.Payload, "tool_calls", &msg.ToolCalls)
+	jsonUnmarshalField(e.Payload, "tool_results", &msg.ToolResults)
+	jsonUnmarshalField(e.Payload, "attachments", &msg.Attachments)
+	jsonUnmarshalField(e.Payload, "thinking", &msg.Thinking)
+	jsonUnmarshalField(e.Payload, "metadata", &msg.Metadata)
 
 	return msg, nil
+}
+
+// jsonUnmarshalField extracts a payload key via JSON round-trip into dest.
+func jsonUnmarshalField(payload map[string]any, key string, dest any) {
+	raw, ok := payload[key]
+	if !ok {
+		return
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return
+	}
+	_ = json.Unmarshal(data, dest)
 }

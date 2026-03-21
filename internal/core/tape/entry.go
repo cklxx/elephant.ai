@@ -17,8 +17,10 @@ const (
 	KindToolResult EntryKind = "tool_result"
 	KindError      EntryKind = "error"
 	KindEvent      EntryKind = "event"
-	KindThinking   EntryKind = "thinking"
-	KindCheckpoint EntryKind = "checkpoint"
+	KindThinking           EntryKind = "thinking"
+	KindCheckpoint         EntryKind = "checkpoint"
+	KindCompression        EntryKind = "compression"
+	KindCompactionArtifact EntryKind = "compaction_artifact"
 )
 
 // EntryMeta contains tracking metadata for a tape entry.
@@ -128,4 +130,30 @@ func NewCheckpoint(label string, state map[string]any, meta EntryMeta) TapeEntry
 		"label": label,
 		"state": state,
 	}, meta)
+}
+
+// NewMessageFromPayload creates a message entry with an arbitrary payload map.
+// Use this when the caller needs to store fields beyond role and content.
+func NewMessageFromPayload(payload map[string]any, meta EntryMeta) TapeEntry {
+	return newEntry(KindMessage, payload, meta)
+}
+
+// NewCompression creates a compression boundary anchor. Downstream queries can
+// use AfterLabel to find entries recorded after this point.
+func NewCompression(label string, compressionMeta map[string]any, meta EntryMeta) TapeEntry {
+	payload := map[string]any{"label": label}
+	for k, v := range compressionMeta {
+		payload[k] = v
+	}
+	return newEntry(KindCompression, payload, meta)
+}
+
+// NewCompactionArtifact stores evicted messages as a single tape entry so that
+// the full conversation history remains recoverable from the tape alone.
+func NewCompactionArtifact(entries []map[string]any, artifactMeta map[string]any, meta EntryMeta) TapeEntry {
+	payload := map[string]any{"entries": entries}
+	for k, v := range artifactMeta {
+		payload[k] = v
+	}
+	return newEntry(KindCompactionArtifact, payload, meta)
 }

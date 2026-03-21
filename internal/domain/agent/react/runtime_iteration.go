@@ -248,6 +248,9 @@ func (it *reactIteration) observeTools() {
 		it.runtime.engine.updateAttachmentCatalogMessage(state)
 	}
 	offloadMessageAttachmentData(state)
+	for _, tmsg := range toolMessages {
+		it.recordToTape(tmsg)
+	}
 	it.runtime.engine.logger.Debug("OBSERVE phase: Added %d tool message(s) to state", len(toolMessages))
 
 	// Apply context checkpoint if requested in this iteration.
@@ -303,8 +306,20 @@ func (it *reactIteration) recordThought(thought *Message) {
 	trimmed := strings.TrimSpace(thought.Content)
 	if trimmed != "" || len(thought.ToolCalls) > 0 {
 		state.Messages = append(state.Messages, *thought)
+		it.recordToTape(*thought)
 	}
 	it.runtime.engine.logger.Debug("LLM response: content_length=%d, tool_calls=%d", len(thought.Content), len(thought.ToolCalls))
+}
+
+// recordToTape writes a message to the tape audit trail (fire-and-forget).
+func (it *reactIteration) recordToTape(msg Message) {
+	rec := it.runtime.services.TurnRecorder
+	if rec == nil {
+		return
+	}
+	if err := rec.RecordMessage(it.runtime.ctx, msg, it.runtime.state.Iterations); err != nil {
+		it.runtime.engine.logger.Warn("Tape record failed: %v", err)
+	}
 }
 
 func (r *reactRuntime) filterValidToolCalls(toolCalls []ToolCall) []ToolCall {

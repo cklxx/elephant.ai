@@ -87,6 +87,55 @@ func TestNewCheckpoint(t *testing.T) {
 	}
 }
 
+func TestNewMessageFromPayload(t *testing.T) {
+	payload := map[string]any{
+		"role":    "assistant",
+		"content": "hi",
+		"source":  "assistant_reply",
+		"thinking": map[string]any{
+			"parts": []map[string]any{{"kind": "thinking", "text": "hmm"}},
+		},
+	}
+	e := NewMessageFromPayload(payload, EntryMeta{})
+	assertEntry(t, e, KindMessage)
+	assertEqual(t, "role", e.Payload["role"], "assistant")
+	if e.Payload["thinking"] == nil {
+		t.Fatal("expected thinking in payload")
+	}
+}
+
+func TestNewCompression(t *testing.T) {
+	meta := map[string]any{"tokens_before": 5000, "tokens_after": 2000}
+	e := NewCompression("deferred_summary", meta, EntryMeta{SessionID: "s1"})
+	assertEntry(t, e, KindCompression)
+	assertEqual(t, "label", e.Payload["label"], "deferred_summary")
+	if e.Payload["tokens_before"] != 5000 {
+		t.Fatalf("tokens_before = %v, want 5000", e.Payload["tokens_before"])
+	}
+}
+
+func TestNewCompactionArtifact(t *testing.T) {
+	entries := []map[string]any{
+		{"role": "user", "content": "old message"},
+	}
+	meta := map[string]any{"reason": "threshold"}
+	e := NewCompactionArtifact(entries, meta, EntryMeta{})
+	assertEntry(t, e, KindCompactionArtifact)
+	if e.Payload["entries"] == nil {
+		t.Fatal("expected entries in payload")
+	}
+	assertEqual(t, "reason", e.Payload["reason"], "threshold")
+}
+
+func TestTapeQuery_AfterLabel_Immutability(t *testing.T) {
+	base := Query()
+	q := base.AfterLabel("compression")
+	if base.GetAfterLabel() != "" {
+		t.Fatal("AfterLabel mutated the original query")
+	}
+	assertEqual(t, "AfterLabel", q.GetAfterLabel(), "compression")
+}
+
 func TestFactoryIDsAreUnique(t *testing.T) {
 	a := NewMessage("user", "a", EntryMeta{})
 	b := NewMessage("user", "b", EntryMeta{})

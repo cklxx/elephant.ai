@@ -59,6 +59,7 @@ type coordinatorIntegrations struct {
 	timerManager        shared.TimerManagerService // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
 	schedulerService    any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
 	toolSLACollector    *toolspolicy.SLACollector
+	turnRecorder        agent.TurnRecorder
 }
 
 // coordinatorSessionSave groups the debounced session-save mechanism.
@@ -153,6 +154,7 @@ func NewAgentCoordinator(
 		OKRContextProvider:  coordinator.okrContextProvider,
 		CredentialRefresher: coordinator.credentialRefresher,
 		ChannelHints:        coordinator.channelHints,
+		TurnRecorder:        coordinator.turnRecorder,
 	})
 
 	if coordinator.contextMgr != nil {
@@ -276,6 +278,7 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 		OKRContextProvider:  c.okrContextProvider,
 		CredentialRefresher: c.credentialRefresher,
 		ChannelHints:        c.channelHints,
+		TurnRecorder:        c.turnRecorder,
 	})
 	return prepService.Prepare(ctx, task, sessionID)
 }

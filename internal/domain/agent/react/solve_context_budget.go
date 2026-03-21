@@ -43,6 +43,7 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 		)
 		state.Messages = applied
 		clearPendingSummary(state)
+		e.recordCompressionAnchor(ctx, services, "deferred_summary_applied", estimated, afterApply)
 		if afterApply <= limit {
 			return applied
 		}
@@ -101,6 +102,7 @@ func (e *ReactEngine) enforceContextBudgetWithLimit(
 		e.logger.Info("Pending summary applied early (budget exceeded): %d → %d tokens", estimated, afterApply)
 		state.Messages = applied
 		clearPendingSummary(state)
+		e.recordCompressionAnchor(ctx, services, "deferred_summary_applied_early", estimated, afterApply)
 		if afterApply <= limit {
 			return applied
 		}
@@ -223,4 +225,18 @@ func clearPendingSummary(state *TaskState) {
 	state.PendingSummary = ""
 	state.PendingSummaryAtIter = 0
 	state.PendingSummaryMsgCount = 0
+}
+
+// recordCompressionAnchor writes a compression boundary to the tape (fire-and-forget).
+func (e *ReactEngine) recordCompressionAnchor(ctx context.Context, services Services, label string, tokensBefore, tokensAfter int) {
+	if services.TurnRecorder == nil {
+		return
+	}
+	meta := map[string]any{
+		"tokens_before": tokensBefore,
+		"tokens_after":  tokensAfter,
+	}
+	if err := services.TurnRecorder.RecordCompression(ctx, label, meta); err != nil {
+		e.logger.Warn("Tape compression anchor failed: %v", err)
+	}
 }

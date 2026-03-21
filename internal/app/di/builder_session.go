@@ -8,6 +8,7 @@ import (
 
 	agentcost "alex/internal/app/agent/cost"
 	"alex/internal/app/decision"
+	coretape "alex/internal/core/tape"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/infra/memory"
 	sessionstate "alex/internal/infra/session/state_store"
@@ -32,6 +33,25 @@ func (b *containerBuilder) buildSessionResources() sessionResources {
 		stateStore:   sessionstate.NewFileStore(filepath.Join(b.sessionDir, "snapshots")),
 		historyStore: sessionstate.NewFileStore(filepath.Join(b.sessionDir, "turns")),
 	}
+}
+
+func (b *containerBuilder) buildTapeMessageReader() *tape.MessageReader {
+	tapeStore, err := tape.NewFileStore(filepath.Join(b.sessionDir, "tapes"))
+	if err != nil {
+		b.logger.Error("Failed to create tape store for MessageReader: %v", err)
+		return nil
+	}
+	return tape.NewMessageReader(tapeStore)
+}
+
+func (b *containerBuilder) buildTurnRecorder() *tape.TurnRecorder {
+	tapeStore, err := tape.NewFileStore(filepath.Join(b.sessionDir, "tapes"))
+	if err != nil {
+		b.logger.Error("Failed to create tape store for TurnRecorder: %v", err)
+		return nil
+	}
+	mgr := coretape.NewTapeManager(tapeStore, coretape.TapeContext{})
+	return tape.NewTurnRecorder(mgr)
 }
 
 func (b *containerBuilder) buildMemoryEngine(ctx context.Context) memory.Engine {

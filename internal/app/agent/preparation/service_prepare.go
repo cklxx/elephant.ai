@@ -475,5 +475,6 @@ func (s *ExecutionPreparationService) assembleServices(pc *prepareContext) domai
 		ToolLimiter:  NewToolExecutionLimiter(s.config.ToolMaxConcurrent),
 		Parser:       s.parser,
 		Context:      s.contextMgr,
+		TurnRecorder: s.turnRecorder,
 	}
 }

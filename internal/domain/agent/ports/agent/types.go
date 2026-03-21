@@ -16,6 +16,14 @@ type FunctionCallParser interface {
 	Parse(content string) ([]core.ToolCall, error)
 }
 
+// TurnRecorder writes per-message audit entries to the tape. It is optional;
+// when nil the ReAct engine skips tape recording.
+type TurnRecorder interface {
+	RecordMessage(ctx context.Context, msg core.Message, iteration int) error
+	RecordCompression(ctx context.Context, label string, meta map[string]any) error
+	RecordCompactionArtifact(ctx context.Context, evicted []core.Message, meta map[string]any) error
+}
+
 // ServiceBundle contains all dependencies required by the domain engine.
 type ServiceBundle struct {
 	LLM          llm.StreamingLLMClient
@@ -23,6 +31,7 @@ type ServiceBundle struct {
 	ToolLimiter  tools.ToolExecutionLimiter
 	Parser       FunctionCallParser
 	Context      ContextManager
+	TurnRecorder TurnRecorder // Optional: tape-based audit trail
 }
 
 // IterationHook allows application-layer logic to run on each ReAct iteration.

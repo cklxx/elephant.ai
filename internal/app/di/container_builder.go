@@ -89,6 +89,9 @@ func (b *containerBuilder) Build() (*Container, error) {
 			contextOptions = append(contextOptions, ctxmgr.WithQueryTracker(memory.NewQueryTracker(memRoot)))
 		}
 	}
+	if tapeReader := b.buildTapeMessageReader(); tapeReader != nil {
+		contextOptions = append(contextOptions, ctxmgr.WithTapeMessageReader(tapeReader))
+	}
 	contextMgr := ctxmgr.NewManager(contextOptions...)
 	historyMgr := ctxmgr.NewHistoryManager(resources.historyStore, b.logger, agent.SystemClock{})
 	parserImpl := parser.New()
@@ -131,6 +134,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithToolSLACollector(toolSLACollector),
 		agentcoordinator.WithChannelHints(channels.DefaultHints()),
 		agentcoordinator.WithAtomicWriter(adapters.NewOSAtomicWriter()),
+		agentcoordinator.WithTurnRecorder(b.buildTurnRecorder()),
 	)
 
 	b.logger.Info("Container built successfully (heavy initialization deferred to Start())")

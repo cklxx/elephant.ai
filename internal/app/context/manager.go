@@ -29,6 +29,7 @@ type manager struct {
 	memoryGate   MemoryGate
 	queryTracker *memory.QueryTracker
 	predictionCfg runtimeconfig.PredictionConfig
+	tapeReader   agent.TapeMessageReader
 	preloadOnce  sync.Once
 	preloadErr   error
 }
@@ -134,6 +135,15 @@ func WithQueryTracker(tracker *memory.QueryTracker) Option {
 func WithPredictionConfig(cfg runtimeconfig.PredictionConfig) Option {
 	return func(m *manager) {
 		m.predictionCfg = cfg
+	}
+}
+
+// WithTapeMessageReader injects a tape-backed message reader for context assembly.
+func WithTapeMessageReader(reader agent.TapeMessageReader) Option {
+	return func(m *manager) {
+		if reader != nil {
+			m.tapeReader = reader
+		}
 	}
 }
 

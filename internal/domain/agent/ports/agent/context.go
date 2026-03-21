@@ -8,6 +8,13 @@ import (
 	"alex/internal/domain/agent/ports/storage"
 )
 
+// TapeMessageReader reconstructs messages from the tape audit trail.
+// Implementations live in infra/tape; the domain layer uses this port.
+type TapeMessageReader interface {
+	ReadMessagesAfterLabel(ctx context.Context, sessionID, label string) ([]core.Message, error)
+	ReadAllMessages(ctx context.Context, sessionID string) ([]core.Message, error)
+}
+
 type ContextManager interface {
 	EstimateTokens(messages []core.Message) int
 	Compress(messages []core.Message, targetTokens int) ([]core.Message, error)

@@ -6,6 +6,7 @@ import "time"
 // Each setter method returns a copy with the field set.
 type TapeQuery struct {
 	afterAnchor string
+	afterLabel  string
 	kinds       []EntryKind
 	fromDate    time.Time
 	toDate      time.Time
@@ -70,8 +71,19 @@ func (q TapeQuery) AfterSeq(seq int64) TapeQuery {
 	return q
 }
 
+// AfterLabel filters entries after the last anchor or compression entry whose
+// payload "label" field matches the given value. This enables semantic context
+// slicing (e.g., "all messages after the last compression").
+func (q TapeQuery) AfterLabel(label string) TapeQuery {
+	q.afterLabel = label
+	return q
+}
+
 // GetAfterAnchor returns the after-anchor filter value.
 func (q TapeQuery) GetAfterAnchor() string { return q.afterAnchor }
+
+// GetAfterLabel returns the after-label filter value.
+func (q TapeQuery) GetAfterLabel() string { return q.afterLabel }
 
 // GetKinds returns the kinds filter.
 func (q TapeQuery) GetKinds() []EntryKind { return q.kinds }
