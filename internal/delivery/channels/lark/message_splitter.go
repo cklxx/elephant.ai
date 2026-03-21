@@ -15,17 +15,34 @@ const (
 	// messageSplitDelay is the pause between consecutive messages to
 	// simulate a natural typing rhythm.
 	messageSplitDelay = 500 * time.Millisecond
+	// messageSplitMinLength is the minimum total character count required
+	// before a message is eligible for splitting. Short replies (e.g. a few
+	// bullet points) are sent as a single message regardless of structure.
+	messageSplitMinLength = 300
 )
 
 // splitMessage splits text into multiple chunks by markdown structure using
 // a goldmark AST parser. Each chunk is a complete structural unit — headings
 // stay with their body content, code fences, lists, tables, and blockquotes
 // are never broken apart.
-// Returns a single chunk when the text has no structural breaks.
+// Returns a single chunk when the text has no structural breaks or is short.
 func splitMessage(text string) []string {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return []string{""}
+	}
+
+	// Messages without any markdown structure (no headings, lists, code
+	// blocks, or blockquotes) and under the minimum length are never worth
+	// splitting — they are plain-paragraph prose that should stay as one
+	// bubble to avoid chat spam.
+	hasStructure := strings.Contains(text, "\n#") || strings.HasPrefix(text, "#") ||
+		strings.Contains(text, "\n- ") || strings.Contains(text, "\n* ") ||
+		strings.Contains(text, "\n1. ") ||
+		strings.Contains(text, "```") ||
+		strings.Contains(text, "\n> ")
+	if !hasStructure && len(text) < messageSplitMinLength {
+		return []string{text}
 	}
 
 	segments := splitByAST(text)

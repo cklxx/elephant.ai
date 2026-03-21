@@ -38,24 +38,22 @@ func TestSplitMessageNoParagraphBreak(t *testing.T) {
 }
 
 func TestSplitMessageTwoParagraphs(t *testing.T) {
+	// Short plain-paragraph text (no markdown structure) should NOT be split
+	// into multiple bubbles — merging avoids chat spam for brief replies.
 	text := "第一段内容\n\n第二段内容"
 	result := splitMessage(text)
-	if len(result) != 2 {
-		t.Fatalf("expected 2 chunks, got %d: %v", len(result), result)
-	}
-	if result[0] != "第一段内容" {
-		t.Errorf("chunk 0: %q", result[0])
-	}
-	if result[1] != "第二段内容" {
-		t.Errorf("chunk 1: %q", result[1])
+	if len(result) != 1 {
+		t.Fatalf("expected 1 chunk for short plain text, got %d: %v", len(result), result)
 	}
 }
 
 func TestSplitMessageThreeParagraphs(t *testing.T) {
+	// Short plain paragraphs without any markdown structure should stay as
+	// one bubble — splitting plain text into 3 separate messages is chat spam.
 	text := "段落一\n\n段落二\n\n段落三"
 	result := splitMessage(text)
-	if len(result) != 3 {
-		t.Fatalf("expected 3 chunks, got %d", len(result))
+	if len(result) != 1 {
+		t.Fatalf("expected 1 chunk for short plain text, got %d", len(result))
 	}
 }
 
