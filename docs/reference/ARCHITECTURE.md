@@ -291,14 +291,3 @@ See: `docs/reference/DOMAIN_LAYERS_AND_IDS.md`, `internal/shared/utils/id/*`.
 
 ---
 
-## Legacy Path Mapping
-
-| Old | Current |
-|-----|---------|
-| `internal/agent/app` | `internal/app/agent` |
-| `internal/agent/domain` | `internal/domain/agent` |
-| `internal/server/*` | `internal/delivery/server/*` |
-| `internal/toolregistry` | `internal/app/toolregistry` |
-| `internal/tools/*` | `internal/infra/tools/*` |
-| `internal/llm` | `internal/infra/llm` |
-| `internal/memory` | `internal/infra/memory` |

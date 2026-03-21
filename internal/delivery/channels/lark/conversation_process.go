@@ -478,17 +478,6 @@ func (g *Gateway) conversationLLMWithList(ctx context.Context, senderID, userMsg
 	return strings.TrimSpace(resp.Content), resp.ToolCalls, nil
 }
 
-// conversationLLM is the legacy single-worker variant kept for backward compat
-// with tests that call it directly. It delegates to conversationLLMWithList.
-func (g *Gateway) conversationLLM(ctx context.Context, senderID, userMsg string, snap workerSnapshot, chatHistory string) (string, []ports.ToolCall) {
-	list := workerSnapshotList{Snapshots: []workerSnapshot{snap}, Lang: snap.Lang}
-	if snap.Phase == slotIdle {
-		list.Snapshots = nil
-	}
-	reply, calls, _ := g.conversationLLMWithList(ctx, senderID, userMsg, list, chatHistory)
-	return reply, calls
-}
-
 // buildConversationSystemPrompt composes the conversation router's system
 // prompt by prepending memory context (SOUL.md, USER.md, long-term) and
 // appending date/timezone when available. Uses a 60-second TTL cache per senderID.
@@ -671,67 +660,6 @@ func (g *Gateway) launchWorkerGoroutineForSlotMap(msg *incomingMessage, slot *se
 			g.discardPendingInputs(inputCh, msg.chatID)
 		}
 	}(taskCtx, taskCancel, taskToken)
-}
-
-// spawnWorker is the legacy single-slot spawn for backward compat with
-// the handleMessage non-conversation-process path and tests.
-// Returns true if injected into existing, false if spawned new.
-func (g *Gateway) spawnWorker(ctx context.Context, msg *incomingMessage, slot *sessionSlot, _ workerSnapshot, taskContent string) bool {
-	slot.mu.Lock()
-	if slot.phase == slotRunning {
-		ch := slot.inputCh
-		sessionID := slot.sessionID
-		slot.mu.Unlock()
-		if ch != nil {
-			select {
-			case ch <- agent.UserInput{Content: taskContent, SenderID: msg.senderID, MessageID: msg.messageID}:
-				g.logger.Info("conversation: injected into running worker session %s", sessionID)
-			default:
-				g.logger.Warn("conversation: worker inputCh full for session %s", sessionID)
-				g.dispatchFormattedReply(ctx, msg.chatID, replyTarget(msg.messageID, true), "消息已收到，等待当前任务处理完毕后执行")
-			}
-		}
-		return true
-	}
-
-	sessionID, isResume := g.resolveSessionForNewTask(ctx, msg.chatID, slot)
-	inputCh := make(chan agent.UserInput, 16)
-	taskCtx, taskCancel := context.WithCancel(context.Background())
-	slot.phase = slotRunning
-	slot.inputCh = inputCh
-	slot.taskCancel = taskCancel
-	slot.taskToken++
-	taskToken := slot.taskToken
-	slot.sessionID = sessionID
-	slot.lastSessionID = sessionID
-	slot.taskDesc = strings.TrimSpace(taskContent)
-	slot.recentProgress = slot.recentProgress[:0]
-	slot.lastTouched = g.currentTime()
-	slot.taskStartTime = g.currentTime()
-	slot.mu.Unlock()
-
-	workerMsg := *msg
-	workerMsg.content = taskContent
-
-	g.launchWorkerGoroutine(&workerMsg, slot, sessionID, inputCh, taskCancel, taskCtx, taskToken, isResume)
-	return false
-}
-
-// stopWorkerFromConversation cancels all running workers for the given chat.
-// Used by the legacy stop path (non-slotMap).
-func (g *Gateway) stopWorkerFromConversation(chatID string, slot *sessionSlot) {
-	slot.mu.Lock()
-	cancel := slot.taskCancel
-	running := slot.phase == slotRunning && cancel != nil
-	if running {
-		slot.intentionalCancelToken = slot.taskToken
-	}
-	slot.mu.Unlock()
-
-	if running {
-		cancel()
-		g.logger.Info("conversation: stopped worker for chat %s", chatID)
-	}
 }
 
 // fetchConversationChatHistory retrieves recent chat rounds for the

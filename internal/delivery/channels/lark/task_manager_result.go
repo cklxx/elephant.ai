@@ -9,6 +9,7 @@ import (
 	"alex/internal/delivery/channels"
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/errsanitize"
 	larkclient "alex/internal/infra/lark"
 	builtinshared "alex/internal/infra/tools/builtin/shared"
 )
@@ -79,7 +80,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 				reply = attachmentSummary
 				attachmentSummary = ""
 			case execErr != nil:
-				sanitized := channels.SanitizeErrorForUser(execErr.Error())
+				sanitized := errsanitize.ForUser(execErr.Error())
 				reply = g.rephraseForUser(execCtx, "状态：失败\n原因："+sanitized, rephraseForeground)
 			case isAwait:
 				reply = g.rephraseForUser(execCtx, "状态：等待输入\n需要用户补充信息后继续。", rephraseForeground)
@@ -235,7 +236,7 @@ func (g *Gateway) buildReply(ctx context.Context, result *agent.TaskResult, exec
 	reply := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
 	if result == nil {
 		if execErr != nil {
-			sanitized := channels.SanitizeErrorForUser(execErr.Error())
+			sanitized := errsanitize.ForUser(execErr.Error())
 			reply = "不好意思，这次没弄好：" + sanitized + "\n你可以再跟我说一次，或者换个方式描述一下？"
 		}
 		return channels.ShapeReply7C(reply)

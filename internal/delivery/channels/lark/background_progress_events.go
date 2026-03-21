@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/delivery/channels"
 	domain "alex/internal/domain/agent"
+	"alex/internal/shared/errsanitize"
 )
 
 func (l *backgroundProgressListener) onBackgroundDispatched(env *domain.WorkflowEventEnvelope) {
@@ -220,7 +220,7 @@ func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, er
 	// Sanitize error text before any user-facing use so raw Go error chains
 	// are never shown verbatim in Lark messages.
 	if errText != "" {
-		errText = channels.SanitizeErrorForUser(errText)
+		errText = errsanitize.ForUser(errText)
 	}
 
 	t.mu.Lock()

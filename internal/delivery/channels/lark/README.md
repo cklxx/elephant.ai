@@ -70,9 +70,9 @@ User ──▶ Chat Process ──▶ instant reply (~1-3s)
 
 | Action | Mechanism |
 |--------|-----------|
-| Start task | `dispatch_worker` tool → `spawnWorker` → `launchWorkerGoroutine` |
-| Inject message | `dispatch_worker` on running worker → `inputCh` send |
-| Stop task | `stop_worker` tool → `stopWorkerFromConversation` (`intentionalCancelToken` + `cancel()`) |
+| Start task | `dispatch_worker` tool → `spawnWorkerInSlotMap` → `launchWorkerGoroutineForSlotMap` |
+| Inject message | `dispatch_worker` on running worker → `spawnOrInjectWorker` → `inputCh` send |
+| Stop task | `stop_worker` tool → `chatSlotMap.stopAll` / `stopByTaskID` (`intentionalCancelToken` + `cancel()`) |
 | Read status | `snapshotWorker` → `workerSnapshot.StatusSummary()` (includes recent tool progress) |
 
 ---

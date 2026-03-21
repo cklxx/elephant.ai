@@ -7,6 +7,7 @@ import (
 
 	appcontext "alex/internal/app/agent/context"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/errsanitize"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -92,7 +93,7 @@ func ApplyTimeout(ctx context.Context, cfg BaseConfig) (context.Context, context
 func BuildReplyCore(cfg BaseConfig, result *agent.TaskResult, execErr error) string {
 	reply := ""
 	if execErr != nil {
-		reply = "执行失败：" + SanitizeErrorForUser(execErr.Error())
+		reply = "执行失败：" + errsanitize.ForUser(execErr.Error())
 	} else if result != nil {
 		reply = result.Answer
 	}

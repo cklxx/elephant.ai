@@ -61,7 +61,7 @@ No wrapper classes. No builders. No config objects. Transform pipeline.
 | Trigger | Load |
 |---|---|
 | Non-trivial staged execution | `docs/guides/engineering-workflow.md` Planning; create `docs/plans/*` |
-| Proactive behavior (`internal/agent/`, triggers, context) | Proactive constraints in engineering-workflow |
+| Proactive behavior (`internal/app/agent/`, `internal/domain/agent/`, triggers, context) | Proactive constraints in engineering-workflow |
 | Architecture boundaries (`internal/**`) | Architecture rules + `configs/arch/*` |
 | Memory/history retrieval | `docs/guides/memory-management.md`; summaries first |
 | Safety incident / regression | `docs/postmortems/templates/incident-postmortem-template.md` |
@@ -99,7 +99,7 @@ Finish: `git checkout main && git merge --ff-only <branch>` → update marker to
 
 - Product: proactive AI assistant (Lark, WeChat, CLI, Web).
 - Layers: Delivery → Application → Domain (ReAct/events/approvals) → Infra adapters.
-- Key dirs: `internal/agent/`, `internal/llm/`, `internal/memory/`, `internal/context/`, `internal/rag/`, `internal/delivery/channels/`, `web/`
+- Key dirs: `internal/app/`, `internal/domain/`, `internal/infra/`, `internal/delivery/`, `internal/shared/`, `internal/core/`, `web/`
 
 ---
 

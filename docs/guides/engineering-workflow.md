@@ -79,7 +79,7 @@ For `internal/**` work:
 - Cross-layer dependencies go through ports/interfaces.
 - Prefer typed events over unstructured logs.
 
-For proactive behavior changes (`internal/agent/`, triggers, context injection):
+For proactive behavior changes (`internal/app/agent/`, `internal/domain/agent/`, triggers, context injection):
 - Use the minimum effective action: `clarify` -> `plan` -> reminder/schedule/task execution.
 - Keep every suggestion user-overridable.
 - No manipulative framing.
